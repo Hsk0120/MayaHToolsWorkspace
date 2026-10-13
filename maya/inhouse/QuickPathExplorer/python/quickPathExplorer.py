@@ -531,10 +531,24 @@ class Explorer(QtWidgets.QWidget):
         self.displayButton.setToolTip('Display settings: font size / UI scale')
         self.displayButton.clicked.connect(lambda: self.appearance.show())
         bar.addWidget(self.displayButton)
+        self.newSceneButton = QtWidgets.QToolButton(self)
+        self.newSceneButton.setObjectName('newScene')
+        self.newSceneButton.setText('New Scene')
+        self.newSceneButton.setToolTip('Create a new Maya scene; unsaved changes require confirmation')
+        self.newSceneButton.clicked.connect(lambda: self.actionRequested.emit('new'))
+        self.newSceneButton.setVisible(self._maya)
+        bar.addWidget(self.newSceneButton)
+        self.saveAsButton = QtWidgets.QToolButton(self)
+        self.saveAsButton.setObjectName('saveSceneAs')
+        self.saveAsButton.setText('Save Scene As…')
+        self.saveAsButton.setToolTip('Choose a name and file type to save the current Maya scene')
+        self.saveAsButton.clicked.connect(lambda: self.prepareSave(self.currentDirectory))
+        self.saveAsButton.setVisible(self._maya)
+        bar.addWidget(self.saveAsButton)
         self.rootButton = QtWidgets.QToolButton(self)
         self.rootButton.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         self.rootButton.clicked.connect(lambda: self.setBrowseRoot('' if self.browseRoot else self.currentDirectory))
-        self.rootButton.setToolTip('Focus on this folder / show full drive hierarchy')
+        self.rootButton.setToolTip('Set the current folder as the start folder / reset to the full drive hierarchy')
         self.rootButton.hide()
         bar.addWidget(self.rootButton)
         self.outer = QtWidgets.QSplitter(QtCore.Qt.Horizontal, self)
@@ -702,7 +716,7 @@ class Explorer(QtWidgets.QWidget):
         self.savePanel = QtWidgets.QWidget(self.operationTabs)
         self.operationTabs.addTab(self.readPanel, 'Selected file')
         if self._maya:
-            self.operationTabs.addTab(self.savePanel, 'Save scene')
+            self.operationTabs.addTab(self.savePanel, 'Save Scene')
         else:
             self.savePanel.hide()
         self.readLayout = QtWidgets.QVBoxLayout(self.readPanel)
@@ -723,7 +737,7 @@ class Explorer(QtWidgets.QWidget):
         self.saveLayoutUi.addLayout(save_buttons)
         self.actionButtons = {}
         for label, key in [('Open', 'open'), ('Import', 'import'), ('Reference', 'reference'),
-                           ('Save current scene', 'save'), ('Save scene here…', 'saveAs'), ('Export selection here…', 'export')]:
+                           ('Save Scene', 'save'), ('Save Scene As…', 'saveAs'), ('Export Selection…', 'export')]:
             button = QtWidgets.QPushButton(label, self.actionsPanel)
             button.clicked.connect(lambda checked=False, action=key:
                                    self.requestFiles(action, self.selectedPaths()) if action in ('open', 'import', 'reference')
@@ -802,6 +816,7 @@ class Explorer(QtWidgets.QWidget):
         self.saveType.setObjectName('saveType')
         self.saveType.addItem('Maya ASCII (.ma)', 'mayaAscii')
         self.saveType.addItem('Maya Binary (.mb)', 'mayaBinary')
+        self.saveType.setCurrentIndex(self.saveType.findData('mayaBinary'))
         save_line.addWidget(self.saveType)
         for index in range(save_line.count()):
             save_line.itemAt(index).widget().setVisible(self._maya)
@@ -1063,14 +1078,14 @@ class Explorer(QtWidgets.QWidget):
             menu.addAction('Rename…', lambda: self.renamePath(target)).setEnabled(bool(target) and Path(target).parent != Path(target))
         menu.addAction('New Text File…', lambda: self.newEntry(target, folder=False))
         menu.addAction('New Folder…', lambda: self.newEntry(target, folder=True))
-        menu.addAction('Explore from this folder', lambda: self.setBrowseRoot(target))
+        menu.addAction('Set as start folder', lambda: self.setBrowseRoot(target))
         if self._maya:
-            menu.addAction('Save current scene here…', lambda: self.prepareSave(target))
+            menu.addAction('Save Scene As…', lambda: self.prepareSave(target))
         menu.addAction('Copy Path', lambda: QtWidgets.QApplication.clipboard().setText(target))
-        menu.addAction('Show in Explorer', lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(target)))
+        menu.addAction('Open in File Explorer', lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(target)))
         menu.addSeparator()
-        for title, callback in [('Go to folder…', self._focusAddress), ('Back', self._back),
-                                ('Forward', self._forward), ('Parent Folder', self._up),
+        for title, callback in [('Address bar…', self._focusAddress), ('Back', self._back),
+                                ('Forward', self._forward), ('Up', self._up),
                                 ('Add Favorite', lambda: self.addFavoritePath(target))]:
             menu.addAction(title, callback)
         if self._maya:
@@ -1156,8 +1171,8 @@ class Explorer(QtWidgets.QWidget):
             action.setToolTip(path)
         menu.addAction('Add current folder to favorites', self.addFavorite)
         menu.addSeparator()
-        menu.addAction('Explore from current folder', lambda: self.setBrowseRoot(self.currentDirectory))
-        menu.addAction('Show full drive hierarchy', lambda: self.setBrowseRoot(''))
+        menu.addAction('Set current folder as start folder', lambda: self.setBrowseRoot(self.currentDirectory))
+        menu.addAction('Reset start folder', lambda: self.setBrowseRoot(''))
         return menu
 
     def prepareSave(self, directory):
@@ -1251,8 +1266,8 @@ class Explorer(QtWidgets.QWidget):
                 self.status.setText('Settings could not be saved. ' + path)
                 self.status.show()
             self._loadPlaces()
-            self.rootButton.setText(('Root: ' + self.fontMetrics().elidedText(Path(self.browseRoot).name, QtCore.Qt.ElideMiddle, 130) + ' ×')
-                                    if self.browseRoot else 'Focus folder')
+            self.rootButton.setText(('Start folder: ' + self.fontMetrics().elidedText(Path(self.browseRoot).name, QtCore.Qt.ElideMiddle, 130) + ' ×')
+                                    if self.browseRoot else 'Set start folder')
             self.rootButton.show()
             self._updateFileSummary()
         finally:
@@ -1371,9 +1386,11 @@ class Explorer(QtWidgets.QWidget):
         self.places.clear()
         settings = readSettings()
         groups = [('Favorites', settings.get('favorites', [])),
-                  ('Recent', settings.get('recents', []))]
+                  ('Recent items', settings.get('recents', []))]
         for title, paths in groups:
             group = QtWidgets.QTreeWidgetItem(self.places, [title])
+            if title == 'Recent items':
+                group.setToolTip(0, 'Files and folders recently used in QuickPathExplorer; separate from Maya Recent Files.')
             group.setFlags(group.flags() & ~QtCore.Qt.ItemIsSelectable)
             for path in dict.fromkeys(paths):
                 item = QtWidgets.QTreeWidgetItem(group, [Path(path).name or path])
@@ -1601,7 +1618,7 @@ class Explorer(QtWidgets.QWidget):
         rows = [('Type', fileType(path)),
                 ('Size', QtCore.QLocale.system().formattedDataSize(info.size())),
                 ('Location', self.fontMetrics().elidedText(info.absolutePath(), QtCore.Qt.ElideMiddle, 180)),
-                ('Modified', info.lastModified().toString('yyyy-MM-dd HH:mm')),
+                ('Date modified', info.lastModified().toString('yyyy-MM-dd HH:mm')),
                 ('Availability', availability(path)[0])]
         self.metadata.setText('<table cellspacing="0" cellpadding="6">' + ''.join(
             '<tr><td valign="top">{}</td><td>{}</td></tr>'.format(html.escape(label), html.escape(value))
@@ -1726,6 +1743,9 @@ class Explorer(QtWidgets.QWidget):
         self.fileName.setToolTip(target)
         if hasattr(self, 'saveDestination'):
             self.saveDestination.setText('Destination: ' + target)
+            # パスの折返し行数が増えても、固定されたタブ高さで入力欄を潰さない。
+            if self.operationTabs.currentWidget() is self.savePanel:
+                self._operationTabChanged(self.operationTabs.currentIndex())
 
     def copyPath(self):
         """ファイルまたは現在フォルダーのパスをコピーする。"""
@@ -1761,7 +1781,7 @@ class Explorer(QtWidgets.QWidget):
                 if not Path(name).suffix:
                     name += '.txt'
                 elif Path(name).suffix.lower() != '.txt':
-                    raise ValueError('Use .txt for a text file. Use Save scene here to create a Maya scene.')
+                    raise ValueError('Use .txt for a text file. Use Save Scene As to create a Maya scene.')
             path = createEntry(directory, name, folder)
             if hasattr(self, 'organizer'):
                 self.organizer.engine.recordCreation(path)
@@ -1973,7 +1993,7 @@ class Explorer(QtWidgets.QWidget):
         menu.addAction('New Text File…', lambda: self.newEntry(directory, folder=False))
         menu.addAction('New Folder…', lambda: self.newEntry(directory, folder=True))
         if self._maya:
-            menu.addAction('Save current scene here…', lambda: self.prepareSave(directory))
+            menu.addAction('Save Scene As…', lambda: self.prepareSave(directory))
         menu.addAction('Copy Path', lambda: QtWidgets.QApplication.clipboard().setText('\n'.join(paths) if paths else directory))
         menu.addAction('Show Folder in Explorer', lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(directory)))
         menu.addSeparator()

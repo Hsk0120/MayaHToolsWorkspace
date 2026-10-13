@@ -105,7 +105,7 @@ def main(output_dir, finished=None):
         if recording:
             timer.start()
         step('01  このプロジェクトを探索の起点にする')
-        triggerMenu(widget.createFolderMenu(str(root)), 'Explore from this folder')
+        triggerMenu(widget.createFolderMenu(str(root)), 'Set as start folder')
         inspectFolder(widget, root)
         assert Path(widget.folderModel.filePath(widget.columns.rootIndex())) == root
         assert widget.rootButton.isVisible()
@@ -210,20 +210,20 @@ def main(output_dir, finished=None):
             assert widget.readTarget.text() == 'readme.txt'
             assert widget.operationTabs.currentWidget() is widget.readPanel
             screenshot('06-selected-file.png')
-            triggerMenu(widget.createFolderMenu(str(root / 'Exports')), 'Save current scene here…')
+            triggerMenu(widget.createFolderMenu(str(root / 'Exports')), 'Save Scene As…')
             assert widget.operationTabs.currentWidget() is widget.savePanel
-            assert not (root / 'Exports/hero_review.ma').exists()
+            assert not (root / 'Exports/hero_review.mb').exists()
             assert 'Exports' in widget.saveDestination.text()
             screenshot('07-save-destination.png')
             widget.actionButtons['saveAs'].click()
-            assert (root / 'Exports/hero_review.ma').stat().st_size > 0
-            assert Path(cmds.file(query=True, sceneName=True)) == root / 'Exports/hero_review.ma'
-            assert 'hero_review.ma' in widget.sceneTarget.text()
+            assert (root / 'Exports/hero_review.mb').stat().st_size > 0
+            assert Path(cmds.file(query=True, sceneName=True)) == root / 'Exports/hero_review.mb'
+            assert 'hero_review.mb' in widget.sceneTarget.text()
             checks.append('save preparation is non-destructive and save action uses shown destination')
 
         step('10  起点を解除して全体の階層へ戻る')
         widget.rootButton.click()
-        assert not widget.browseRoot and widget.rootButton.text() == 'Focus folder'
+        assert not widget.browseRoot and widget.rootButton.text() == 'Set start folder'
         assert len(columns(widget)) > 3
         inspectFolder(widget, Path(widget.currentDirectory))
         widget.setBrowseRoot(str(root))

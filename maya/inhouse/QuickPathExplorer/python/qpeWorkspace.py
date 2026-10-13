@@ -33,16 +33,16 @@ class WorkspaceFeatures(QtCore.QObject):
         row = QtWidgets.QHBoxLayout(self.bar)
         row.setContentsMargins(0, 0, 0, 0)
         self.mode = QtWidgets.QComboBox()
-        self.mode.addItems(['Details', 'Thumbnails', 'Metadata'])
+        self.mode.addItems(['Details', 'Thumbnails', 'Extended details'])
         self.flat = QtWidgets.QCheckBox('Include subfolders')
         self.group = QtWidgets.QComboBox()
-        self.group.addItems(['No groups', 'Type', 'Modified day', 'Location', 'Tag'])
+        self.group.addItems(['No groups', 'Extension', 'Date modified (by day)', 'Location', 'Tag'])
         self.labelFilter = QtWidgets.QComboBox()
         self.labelFilter.setMinimumContentsLength(8)
         self.labelFilter.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
         self.labelFilter.addItem('All tags', '')
         settings = QtWidgets.QToolButton()
-        settings.setText('Columns…')
+        settings.setText('File list columns…')
         settings.clicked.connect(self.columns)
         for widget in (self.mode, self.flat, self.group, self.labelFilter, settings):
             row.addWidget(widget)
@@ -60,7 +60,7 @@ class WorkspaceFeatures(QtCore.QObject):
         self.grid.setIconSize(QtCore.QSize(128, 88))
         self.grid.setGridSize(QtCore.QSize(165, 130))
         self.tree = FileTree()
-        self.tree.setHeaderLabels(['Name', 'Size', 'Type', 'Modified', 'Tags', 'Rating', 'Location', 'Dimensions', 'Availability'])
+        self.tree.setHeaderLabels(['Name', 'Size', 'Extension', 'Date modified', 'Tags', 'Rating', 'Location', 'Dimensions', 'Availability'])
         self.tree.setAlternatingRowColors(True)
         self.tree.setSortingEnabled(True)
         self.tree.setColumnWidth(0, 260)
@@ -325,7 +325,7 @@ class WorkspaceFeatures(QtCore.QObject):
             if metadata.get('tags'):
                 item.setForeground(4, QtGui.QBrush(QtGui.QColor('#669ecc')))
             group = self.group.currentText()
-            key = {'Type': values[2] or 'No extension', 'Modified day': modified[:10], 'Location': values[6],
+            key = {'Extension': values[2] or 'No extension', 'Date modified (by day)': modified[:10], 'Location': values[6],
                    'Tag': values[4] or 'No tags'}.get(group, '')
             if key:
                 if key not in groups:
@@ -462,23 +462,23 @@ class WorkspaceFeatures(QtCore.QObject):
         """安定したIDをショートカット保存にも使う。"""
         return {
             'palette': ('Find command…', self.palette),
-            'saveWorkspace': ('Save workspace…', self.productivity.saveSet),
-            'loadWorkspace': ('Load workspace…', self.productivity.loadSet),
-            'deleteWorkspace': ('Delete workspace…', self.productivity.deleteSet),
-            'previousWorkspace': ('Restore previous workspace', lambda: self.e.folderTabs.restoreSession(readSettings().get('previousWorkspace', {}))),
+            'saveWorkspace': ('Save tab set…', self.productivity.saveSet),
+            'loadWorkspace': ('Open tab set…', self.productivity.loadSet),
+            'deleteWorkspace': ('Delete tab set…', self.productivity.deleteSet),
+            'previousWorkspace': ('Restore previous tab set', lambda: self.e.folderTabs.restoreSession(readSettings().get('previousWorkspace', {}))),
             'archive': ('Browse ZIP…', self.productivity.archive),
             'diagnose': ('Diagnose file usage / availability…', self.productivity.diagnose),
             'locksmith': ('Configure File Locksmith CLI…', self.productivity.configureDiagnosis),
             'jobs': ('File jobs / retry…', self.jobs),
-            'recoverTransfers': ('Recover saved transfers…', self.recoverTransfers),
-            'history': ('File history / Redo…', self.history),
+            'recoverTransfers': ('Resume unfinished transfers…', self.recoverTransfers),
+            'history': ('File operation history…', self.history),
             'redo': ('Redo file operation', self.redo),
             'summary': ('Calculate selected / folder size…', self.summary),
             'openFile': ('Open selected file', self.e.openSelectedFile),
             'settings': ('QPE settings / export…', self.settings),
             'labels': ('Manage label names…', self.manageLabels),
             'thumbnails': ('View: thumbnails', lambda: self.mode.setCurrentIndex(1)),
-            'metadata': ('View: metadata / tags', lambda: self.mode.setCurrentIndex(2)),
+            'metadata': ('View: extended details / tags', lambda: self.mode.setCurrentIndex(2)),
             'flat': ('View: toggle subfolders', lambda: self.flat.setChecked(not self.flat.isChecked()))}
 
     def palette(self):
@@ -606,7 +606,8 @@ class WorkspaceFeatures(QtCore.QObject):
                 item.setToolTip(column, item.text(column))
             table.addTopLevelItem(item)
             combo = QtWidgets.QComboBox()
-            combo.addItems(['replace', 'skip', 'rename'])
+            for label, action in [('Replace', 'replace'), ('Skip', 'skip'), ('Keep both (new name)', 'rename')]:
+                combo.addItem(label, action)
             table.setItemWidget(item, 3, combo)
             rows.append((str(src), combo))
         for path in paths:
@@ -632,7 +633,7 @@ class WorkspaceFeatures(QtCore.QObject):
         layout.addWidget(buttons)
         if dialog.exec_() != QtWidgets.QDialog.Accepted:
             return None
-        return {name: combo.currentText() for name, combo in rows}
+        return {name: combo.currentData() for name, combo in rows}
 
     def redo(self):
         """ファイル用RedoをMayaのUndoとは分離する。"""
@@ -752,7 +753,7 @@ class WorkspaceFeatures(QtCore.QObject):
         from qpeRecovery import pendingJobs, writeJob
         pending = pendingJobs(self.tools.engine.directory.parent / 'jobs')
         dialog = QtWidgets.QDialog(self.e)
-        dialog.setWindowTitle('Recover saved transfers')
+        dialog.setWindowTitle('Resume unfinished transfers')
         dialog.resize(960, 480)
         layout = QtWidgets.QVBoxLayout(dialog)
         layout.addWidget(QtWidgets.QLabel('Resume validates prepared sources and destinations. Interrupted files restart from the beginning.\nUnprepared queued jobs read the current source contents. Ambiguous commits require manual review.'))
@@ -760,7 +761,7 @@ class WorkspaceFeatures(QtCore.QObject):
         table.setHeaderLabels(['Operation', 'State', 'Sources', 'Destination'])
         layout.addWidget(table)
         for path, value in pending:
-            item = QtWidgets.QTreeWidgetItem([value['action'], value['state'], '\n'.join(value['paths']), value['destination']])
+            item = QtWidgets.QTreeWidgetItem([self.tools.operationLabel(value['action']), value['state'], '\n'.join(value['paths']), value['destination']])
             item.setData(0, QtCore.Qt.UserRole, path)
             table.addTopLevelItem(item)
         def resume():
@@ -799,7 +800,7 @@ class WorkspaceFeatures(QtCore.QObject):
     def history(self):
         """戻せる順序とバックアップ保持条件を明示する。"""
         dialog = QtWidgets.QDialog(self.e)
-        dialog.setWindowTitle('File history — Undo applies to the latest operation')
+        dialog.setWindowTitle('File operation history — Undo applies to the latest operation')
         dialog.resize(850, 460)
         layout = QtWidgets.QVBoxLayout(dialog)
         listing = QtWidgets.QTreeWidget()
@@ -813,7 +814,7 @@ class WorkspaceFeatures(QtCore.QObject):
             return
         for record in reversed(history):
             stamp = datetime.datetime.fromtimestamp(record.get('time', 0)).isoformat(' ', 'seconds') if record.get('time') else 'Earlier history'
-            listing.addTopLevelItem(QtWidgets.QTreeWidgetItem([stamp, record['action'], str(len(record['entries'])),
+            listing.addTopLevelItem(QtWidgets.QTreeWidgetItem([stamp, self.tools.operationLabel(record['action']), str(len(record['entries'])),
                 '\n'.join(e['target'] or e['source'] for e in record['entries'])]))
         layout.addWidget(QtWidgets.QLabel('Undo / Redo verifies contents and refuses externally changed files.\nHistory backups use disk space. Cleanup is explicit, never automatic.'))
         row = QtWidgets.QHBoxLayout()

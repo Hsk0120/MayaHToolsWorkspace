@@ -90,7 +90,7 @@ def main(output_dir, finished=None):
         widget._placeClicked(favorite, 0)
         waitFor(lambda: Path(widget.selectedPath()) == paths[2])
         groups = [widget.places.topLevelItem(i) for i in range(widget.places.topLevelItemCount())]
-        assert [g.text(0) for g in groups] == ['Favorites', 'Recent']
+        assert [g.text(0) for g in groups] == ['Favorites', 'Recent items']
         recent_paths = [Path(groups[1].child(i).data(0, QtCore.Qt.UserRole)) for i in range(groups[1].childCount())]
         assert folder in recent_paths and paths[0] not in recent_paths
         # このテストはOpen要求だけを捕捉しており、ホストでの読込成功前にRecentへ加えてはいけない。

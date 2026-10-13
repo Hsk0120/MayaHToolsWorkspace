@@ -305,7 +305,7 @@ class Organizer(QtCore.QObject):
         from qpeRecovery import pendingJobs
         remaining = pendingJobs(self.engine.directory.parent / 'jobs')
         if remaining:
-            QtCore.QTimer.singleShot(0, lambda: self.report('{} saved transfer(s). Tools → Recover saved transfers.'.format(len(remaining))))
+            QtCore.QTimer.singleShot(0, lambda: self.report('{} saved transfer(s). Tools → Resume unfinished transfers.'.format(len(remaining))))
 
     def attachView(self, view):
         """動的なフォルダーカラムを共通のコピー先として登録する。"""
@@ -413,6 +413,18 @@ class Organizer(QtCore.QObject):
         if self.queue and not self.task and not self.queuePaused:
             self.run(*self.queue.pop(0))
 
+    @staticmethod
+    def operationLabel(action):
+        """保存済みの操作識別子を変更せず、画面向けの名前を返す。
+
+        Args:
+            action (str): 履歴・転送の内部操作名。
+
+        Returns:
+            str: Windows向けの表示名。
+        """
+        return {'trash': 'Delete', 'duplicate': 'Create Copy'}.get(action, action.title())
+
     def transfer(self, action, paths, destination=None, conflict=None):
         """固定済み対象を操作し、同名の扱いを開始前に選ぶ。"""
         paths = list(dict.fromkeys(paths))
@@ -420,7 +432,7 @@ class Organizer(QtCore.QObject):
             return
         destination = destination or self.explorer.currentDirectory
         if action == 'trash':
-            if QtWidgets.QMessageBox.question(self.explorer, 'Recycle Bin',
+            if QtWidgets.QMessageBox.question(self.explorer, 'Delete',
                     'Move {} item(s) to Recycle Bin?\n{}'.format(len(paths), '\n'.join(paths)),
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel, QtWidgets.QMessageBox.Cancel) != QtWidgets.QMessageBox.Yes:
                 return
@@ -442,7 +454,7 @@ class Organizer(QtCore.QObject):
             path = createJob(self.engine.directory.parent / 'jobs', action, paths, destination, conflict or 'rename', choices)
             self.resumeTransfer(path)
         else:
-            self.run(action.title(), lambda c, p: self.engine.run(action, paths, destination, conflict or 'rename', c, p, choices),
+            self.run(self.operationLabel(action), lambda c, p: self.engine.run(action, paths, destination, conflict or 'rename', c, p, choices),
                      retry=lambda result: self.transfer(action, result.get('retry', []), destination, conflict))
 
     def resumeTransfer(self, path):
@@ -453,7 +465,7 @@ class Organizer(QtCore.QObject):
             return
         import json
         value = json.loads(Path(path).read_text(encoding='utf8'))
-        title = value['action'].title()
+        title = self.operationLabel(value['action'])
         paused = threading.Event()
         record = dict(title=title, state='Queued', bytes=0, started=0, result=None,
                       retry=lambda result: self.resumeTransfer(path), paused=paused, jobPath=path)
@@ -493,14 +505,14 @@ class Organizer(QtCore.QObject):
         if paths:
             menu.addAction('Copy', lambda: self.clipboard(paths))
             menu.addAction('Cut', lambda: self.clipboard(paths, True))
-            menu.addAction('Duplicate', lambda: self.transfer('duplicate', paths, conflict='rename'))
-            menu.addAction('Move to Recycle Bin…', lambda: self.transfer('trash', paths))
+            menu.addAction('Create Copy', lambda: self.transfer('duplicate', paths, conflict='rename'))
+            menu.addAction('Delete', lambda: self.transfer('trash', paths))
             menu.addAction('Batch Rename…', lambda: self.batchRename(paths))
             menu.addAction('Tags / rating / collection…', lambda: self.tag(paths))
             menu.addAction('Create ZIP…', lambda: self.zip(paths))
             if len(paths) == 1:
                 path = paths[0]
-                menu.addAction('Windows Properties', lambda: self.shell(path, 'properties'))
+                menu.addAction('Properties', lambda: self.shell(path, 'properties'))
                 if os.path.isfile(path):
                     menu.addAction('Open with…', lambda: self.shell(path, 'openas'))
                     menu.addAction('SHA-256', lambda: self.run('SHA-256', lambda c, p: hashFile(path, c), self.showText))
@@ -508,7 +520,7 @@ class Organizer(QtCore.QObject):
                         menu.addAction('Extract ZIP…', lambda: self.unzip(path))
                     if Path(path).suffix.lower() in ('.ma', '.mb'):
                         menu.addAction('Scene information / dependencies', lambda: self.run('Scene information', lambda c, p: sceneInfo(path), self.showText))
-        menu.addAction('Paste here', lambda: self.paste(directory)).setEnabled(self.clipboardHasFiles())
+        menu.addAction('Paste', lambda: self.paste(directory)).setEnabled(self.clipboardHasFiles())
         menu.addAction('Undo file operation', self.undo).setEnabled(bool(self.engine.history) and not self.task)
         self.workspace.addFileActions(menu, paths)
 
@@ -526,7 +538,7 @@ class Organizer(QtCore.QObject):
         hidden.setChecked(self.hidden)
         hidden.toggled.connect(self.setHidden)
         menu.addAction('Second file pane', self.toggleSecond)
-        menu.addAction('Compare / synchronize folders…', self.compare)
+        menu.addAction('Compare folders and copy changes…', self.compare)
         menu.addAction('Find duplicate files…', self.duplicates)
         menu.addAction('Undo file operation', self.undo).setEnabled(bool(self.engine.history) and not self.task)
         menu.addAction('Open Undo storage', lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(self.engine.directory))))
@@ -539,7 +551,7 @@ class Organizer(QtCore.QObject):
             for name, state in readSettings().get('readPresets', {}).items():
                 presets.addAction(name, lambda checked=False, value=state: self.explorer.readOptions.restore(value))
             menu.addAction('Existing Maya namespaces…', self.namespaces)
-            menu.addAction('Save current scene preview sidecar…', self.sidecar)
+            menu.addAction('Save scene information and thumbnail…', self.sidecar)
         menu.addSeparator()
         menu.addAction('Configure Everything CLI…', lambda: self.configureExecutable('everythingExecutable'))
         self.workspace.addTools(menu)
@@ -549,24 +561,24 @@ class Organizer(QtCore.QObject):
         """画面を越える長いメニューを、操作名を保ったまま用途別に整理する。"""
         groups = {
             'Search / organize': ['Saved searches', 'Browse tags / collections…', 'Manage label names…',
-                'Compare / synchronize folders…', 'Find duplicate files…', 'Calculate selected / folder size…'],
-            'View': ['Show hidden files', 'Second file pane', 'View: thumbnails', 'View: metadata / tags',
+                'Compare folders and copy changes…', 'Find duplicate files…', 'Calculate selected / folder size…'],
+            'View': ['Show hidden files', 'Second file pane', 'View: thumbnails', 'View: extended details / tags',
                 'View: toggle subfolders', 'Open selected file', 'Browse ZIP…'],
-            'Transfers / history': ['File jobs / retry…', 'Recover saved transfers…', 'Undo file operation',
-                'Redo file operation', 'File history / Redo…', 'Open Undo storage', 'Clean up expired history…', 'Discard Undo history…'],
-            'Tabs / workspaces': ['Reopen closed tab', 'Save workspace…', 'Load workspace…',
-                'Delete workspace…', 'Restore previous workspace'],
+            'Transfers / history': ['File jobs / retry…', 'Resume unfinished transfers…', 'Undo file operation',
+                'Redo file operation', 'File operation history…', 'Open Undo storage', 'Clean up expired history…', 'Discard Undo history…'],
+            'Tabs / tab sets': ['Reopen closed tab', 'Save tab set…', 'Open tab set…',
+                'Delete tab set…', 'Restore previous tab set'],
             'Maya': ['Save read settings preset…', 'Load read settings preset', 'Existing Maya namespaces…',
-                'Save current scene preview sidecar…'],
+                'Save scene information and thumbnail…'],
             'Settings / diagnostics': ['QPE settings / export…',
                 'Configure Everything CLI…', 'Configure File Locksmith CLI…', 'Diagnose file usage / availability…']}
         actions = {action.text(): action for action in self.toolsMenu.actions() if not action.isSeparator()}
         paths = self.explorer.selectedPaths()
         availability = {
             'Reopen closed tab': bool(self.explorer.folderTabs.closed),
-            'Load workspace…': bool(readSettings().get('tabSets')),
-            'Delete workspace…': bool(readSettings().get('tabSets')),
-            'Restore previous workspace': bool(readSettings().get('previousWorkspace')),
+            'Open tab set…': bool(readSettings().get('tabSets')),
+            'Delete tab set…': bool(readSettings().get('tabSets')),
+            'Restore previous tab set': bool(readSettings().get('previousWorkspace')),
             'Open selected file': len(paths) == 1,
             'Browse ZIP…': len(paths) == 1 and Path(paths[0]).suffix.lower() == '.zip',
             'Redo file operation': self.engine.redoJournal.exists() and not self.task}
@@ -817,7 +829,7 @@ class Organizer(QtCore.QObject):
     def compare(self):
         """一方向同期の差分を先に表示し、余分な宛先ファイルは削除しない。"""
         source = self.explorer.currentDirectory
-        target = QtWidgets.QFileDialog.getExistingDirectory(self.explorer, 'Compare / synchronize to folder')
+        target = QtWidgets.QFileDialog.getExistingDirectory(self.explorer, 'Choose destination for folder comparison')
         if not target or Path(source).resolve() == Path(target).resolve():
             return
 
@@ -827,7 +839,7 @@ class Organizer(QtCore.QObject):
                           + '\nTarget-only (kept):\n' + '\n'.join(result['targetOnly']) + '\nRead errors: ' + str(result['errors']))
             if result['errors'] or not result['changes']:
                 return
-            if QtWidgets.QMessageBox.question(self.explorer, 'One-way synchronization',
+            if QtWidgets.QMessageBox.question(self.explorer, 'Copy changes to destination',
                 'Copy {} new/changed files from\n{}\nto\n{}?\nTarget-only files are kept. Replaced files have Undo backups.'.format(len(result['changes']), source, target),
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel, QtWidgets.QMessageBox.Cancel) != QtWidgets.QMessageBox.Yes:
                 return
@@ -839,8 +851,8 @@ class Organizer(QtCore.QObject):
             def retry(outcome):
                 """失敗分だけを同じ同期基盤へ再投入する。"""
                 from qpeAdvancedIO import synchronize
-                self.run('Retry synchronization', lambda c, p: synchronize(self.engine, outcome['retry'], c, p), retry=retry)
-            QtCore.QTimer.singleShot(0, lambda: self.run('Synchronize (one-way)', sync, retry=retry))
+                self.run('Retry copying changes', lambda c, p: synchronize(self.engine, outcome['retry'], c, p), retry=retry)
+            QtCore.QTimer.singleShot(0, lambda: self.run('Copy changes (one-way)', sync, retry=retry))
         self.run('Compare folders', lambda c, p: compareFolders(source, target, c), show)
 
     def shell(self, path, verb):

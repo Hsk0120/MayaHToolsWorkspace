@@ -122,7 +122,7 @@ def main(output_dir, finished):
         waitFor(lambda: w.tree.topLevelItemCount() == 1)
         pause(2500)
         w.labelFilter.setCurrentIndex(0)
-        w.group.setCurrentText('Type')
+        w.group.setCurrentText('Extension')
         pause(3000)
         w.group.setCurrentIndex(0)
         step('06  Include subfolders：下層のファイルも同じ一覧で確認')

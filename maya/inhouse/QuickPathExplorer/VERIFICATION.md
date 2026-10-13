@@ -82,3 +82,15 @@ P0のAT14・AT19・AT20は自動部分と実入力部分を分け、AT21はホ�
 `tools/qpe_ui_scale.py <出力先>` は32×32のPNG 1,000枚について、一覧とサムネイル切替の経過時間、イベント配送の最大間隔を記録します。GUI検証を並行起動せず、変更前後を新しい出力先で各3回実行し中央値を比較してください。録画・プロファイラーの負荷を含む結果とは分けます。ネットワーク共有・巨大画像・コールドディスクの性能保証ではありません。
 
 2026-10-13のWindows/PySide6計測では、一覧表示の中央値は4.109→2.969秒、サムネイル切替は2.188→0.703秒でした。イベント間隔の記録は計測終了境界をまたぐ停止を含まないため、最大停止時間の改善を示す値としては扱いません。生データはローカルの `.maya-output/verification/qpe-performance/comparison.json` に保存しています。
+
+## 保存・Maya標準履歴の検証
+
+`tools/qpe_ui_scene.py` はDelete／Properties、Maya限定の上部Save Scene Asボタン、既定の.mbを確認します。隔離Mayaでは実際に.mbと.maを別名保存・再読込し、元ファイル保護、標準RecentFilesList／RecentFilesTypeListの一致、重複除去、キャンセル・失敗時の履歴保持を確認します。`QPE_RECORD_SCENE=1` で実画面のフレームと `frames.txt` を保存し、Maya外で動画へ変換できます。ユーザーの通常Maya設定は使用しません。
+
+## 2026-10-13 用語統一
+
+Tab set、File operation history、Extension、Extended details等の用語を統一。表示名Keep bothと内部action renameを分離し、競合ファイルを実際にコピーして元と別名コピーの両方を保持することを確認しました。保存キー・コマンドIDは維持しています。Windowsはadvanced/productivity/inspector/ux/tabs/scene、Maya2027はadvanced/ux/inspector/tabs、Maya2022はadvanced/inspectorが合格。配布exeを再ビルドし起動検証も合格しました。初回UXの旧メニュー名と、Maya2027 advancedの検証ウィンドウのアクティブ状態をテスト側で修正して再検証しています。結果は `.maya-output/verification/qpe-terms/verified-results.json`。今回は新規動画・実IME・混在DPIの検証は行っていません。
+
+## 2026-10-13 New Scene
+
+上部のNew SceneはMayaだけに表示。専用Maya2022/2027で実ボタンから新規作成し、未保存時のSave/Discard/Cancel、保存先取消相当、保存失敗、既存ファイル保護、変更なし時の確認省略を検証しました。Saveは実際に保存後のファイルを開き直し値を確認。保存先取消と失敗はテストで再現したもので、OS保存ダイアログの手動操作ではありません。Windows単体の非表示も合格。証跡は `.maya-output/verification/qpe-new-scene/verified-results.json`、画像は各Mayaの `scene/05.png`。新規録画は行っていません。

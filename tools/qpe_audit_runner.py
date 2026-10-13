@@ -7,7 +7,7 @@ import sys
 
 
 SUITES = ['open', 'audit', 'navigation', 'context', 'p0', 'finder', 'ux',
-          'inspector', 'theme', 'tabs', 'sidebars', 'organizer', 'advanced', 'productivity', 'performance']
+          'inspector', 'theme', 'tabs', 'sidebars', 'organizer', 'advanced', 'productivity', 'performance', 'scene']
 
 
 def main():

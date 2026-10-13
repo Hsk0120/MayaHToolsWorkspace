@@ -69,7 +69,7 @@ def main(output_dir, finished=None):
         if os.name == 'nt':
             assert not windowsIcon(sample.replace('\\', '/')).isNull()
             assert fileType(sample.replace('\\', '/')) == fileType(os.path.normpath(sample))
-        assert all(label in e.metadata.text() for label in ('Type', 'Size', 'Location', 'Modified'))
+        assert all(label in e.metadata.text() for label in ('Type', 'Size', 'Location', 'Date modified'))
         assert e.details.geometry().top() < e.metadata.geometry().top() < e.operationTabs.geometry().top()
         checks.append('native icon and preview-details-actions layout')
         bar = e.folderTabs.bar

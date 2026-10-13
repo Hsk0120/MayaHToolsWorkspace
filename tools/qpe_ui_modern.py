@@ -150,6 +150,9 @@ def main(output_dir, finished=None):
     e.grab().save(str(out / 'overview.png'))
     e.close()
     pause(200)
+    # qpeHost管理外の検証ウィンドウは、MayaのQt終了前に明示破棄する。
+    e.deleteLater()
+    QtCore.QCoreApplication.sendPostedEvents(e, QtCore.QEvent.DeferredDelete)
     (out / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf8')
     print(json.dumps(result), flush=True)
     if finished:

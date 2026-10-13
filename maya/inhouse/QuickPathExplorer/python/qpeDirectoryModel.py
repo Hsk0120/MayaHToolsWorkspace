@@ -80,7 +80,7 @@ class DirectoryModel(QtGui.QStandardItemModel):
             icons (FileIcons | None): 同一ウィンドウの表示領域で共有するGUI専用キャッシュ。
         """
         super().__init__(parent)
-        self.setHorizontalHeaderLabels(['Name', 'Size', 'Type', 'Date Modified'])
+        self.setHorizontalHeaderLabels(['Name', 'Size', 'Extension', 'Date modified'])
         self._filter = QtCore.QDir.AllDirs
         self._names = []
         self._items = {}

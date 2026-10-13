@@ -35,7 +35,7 @@ class Productivity(QtCore.QObject):
         ancestors = menu.addMenu('Parent folders')
         for parent in Path(self.e.currentDirectory).parents:
             ancestors.addAction(str(parent), lambda checked=False, path=str(parent): self.e.navigate(path))
-        recent = menu.addMenu('Recent paths')
+        recent = menu.addMenu('Recent folders')
         for path in reversed(readSettings().get('pathHistory', [])[-20:]):
             recent.addAction(path, lambda checked=False, p=path: self.e.navigate(p))
         menu.exec_(self.e.address.mapToGlobal(point))
@@ -112,14 +112,14 @@ class Productivity(QtCore.QObject):
     def saveSet(self, name=None):
         """名前付きでタブ一式を保存する。既存セットは確認して置換する。"""
         if not isinstance(name, str):
-            name, ok = QtWidgets.QInputDialog.getText(self.e, 'Save workspace', 'Workspace name')
+            name, ok = QtWidgets.QInputDialog.getText(self.e, 'Save tab set', 'Tab set name')
             if not ok:
                 return
         name = name.strip()
         if not name:
             return
         sets = readSettings().get('tabSets', {})
-        if name in sets and QtWidgets.QMessageBox.question(self.e, 'Replace workspace', name,
+        if name in sets and QtWidgets.QMessageBox.question(self.e, 'Replace tab set', name,
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel) != QtWidgets.QMessageBox.Yes:
             return
         sets[name.strip()] = self.e.folderTabs.session()
@@ -129,10 +129,10 @@ class Productivity(QtCore.QObject):
         """現在のセットを退避してから保存済みタブを復元する。"""
         sets = readSettings().get('tabSets', {})
         if not sets:
-            self.w.tools.report('Save a workspace first.')
+            self.w.tools.report('Save a tab set first.')
             return
         if not isinstance(name, str):
-            name, ok = QtWidgets.QInputDialog.getItem(self.e, 'Load workspace', 'Workspace', sorted(sets), 0, False)
+            name, ok = QtWidgets.QInputDialog.getItem(self.e, 'Open tab set', 'Tab set', sorted(sets), 0, False)
             if not ok:
                 return
         if name in sets:
@@ -142,7 +142,7 @@ class Productivity(QtCore.QObject):
     def deleteSet(self):
         """選んだ作業セットだけ削除する。"""
         sets = readSettings().get('tabSets', {})
-        name, ok = QtWidgets.QInputDialog.getItem(self.e, 'Delete workspace', 'Workspace', sorted(sets), 0, False)
+        name, ok = QtWidgets.QInputDialog.getItem(self.e, 'Delete tab set', 'Tab set', sorted(sets), 0, False)
         if ok and name in sets:
             del sets[name]
             writeSettings({'tabSets': sets})

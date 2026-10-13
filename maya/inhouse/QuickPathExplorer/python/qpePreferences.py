@@ -95,7 +95,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         self.days.setValue(preferences.get('undoDays', 30))
         self.budget.setValue(preferences.get('undoMiB', 1024))
         form.addRow('Undo retention (days, manual cleanup)', self.days)
-        form.addRow('Undo budget (MiB, manual cleanup)', self.budget)
+        form.addRow('Undo backup size limit (MiB, manual cleanup)', self.budget)
         self.everything = QtWidgets.QLineEdit(values.get('everythingExecutable', ''))
         open_rule = 'Open uses Windows file associations.'
         if workspace.e._maya:
@@ -112,7 +112,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         form.addRow('Display', appearance)
         layout.addWidget(QtWidgets.QLabel('Custom keys apply only within QPE. Editing fields are protected.\nUse Ctrl/Alt with a key; Maya assignments outside QPE are unchanged.'))
         self.keys = QtWidgets.QTreeWidget()
-        self.keys.setHeaderLabels(['Command', 'Key binding'])
+        self.keys.setHeaderLabels(['Command', 'Keyboard shortcut'])
         self.editors = {}
         defaults = {'palette': 'Ctrl+Shift+P', 'jobs': 'Ctrl+Shift+J', 'history': 'Ctrl+Shift+H'}
         defaults.update(values.get('commandKeys', {}))
@@ -140,7 +140,7 @@ class PreferencesDialog(QtWidgets.QDialog):
         try:
             validateKeys(keys)
         except ValueError as error:
-            QtWidgets.QMessageBox.warning(self, 'Key binding conflict', str(error))
+            QtWidgets.QMessageBox.warning(self, 'Keyboard shortcut conflict', str(error))
             return False
         if not writeSettings(dict(commandKeys=keys, preferences=dict(undoDays=self.days.value(), undoMiB=self.budget.value()),
                                   everythingExecutable=self.everything.text())):

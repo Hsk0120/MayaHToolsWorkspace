@@ -19,12 +19,12 @@ def saveCurrent(parent):
     if not scene or not os.path.isfile(scene):
         raise ValueError('Save the scene first.')
     if cmds.file(query=True, modified=True):
-        raise ValueError('Save scene changes before creating its preview sidecar.')
+        raise ValueError('Save scene changes before saving its information and thumbnail.')
     path = Path(scene)
     metadata = path.with_suffix(path.suffix + '.qpe.json')
     thumbnail = path.with_suffix(path.suffix + '.qpe.png')
     if metadata.exists() or thumbnail.exists():
-        if QtWidgets.QMessageBox.question(parent, 'Update sidecar',
+        if QtWidgets.QMessageBox.question(parent, 'Update scene information and thumbnail',
                 'Replace QPE metadata / thumbnail for\n' + scene,
                 QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel,
                 QtWidgets.QMessageBox.Cancel) != QtWidgets.QMessageBox.Yes:

@@ -365,12 +365,12 @@ def main(output_dir, finished):
             cmds.select(cube); cmds.viewFit()
             r.step('M01', '現在のシーンを名前を付けて保存')
             e.operationTabs.setCurrentWidget(e.savePanel); e.fileName.setText('asset')
-            e.actionButtons['saveAs'].click(); scene=root/'Scenes/asset.ma'
+            e.actionButtons['saveAs'].click(); scene=root/'Scenes/asset.mb'
             assert scene.exists(); r.hold()
             r.step('M02', '現在のシーンを上書き保存・選択物を書出し')
             cmds.setAttr(cube+'.translateX', 2); e.actionButtons['save'].click()
             e.fileName.setText('selection'); e.actionButtons['export'].click()
-            exported=root/'Scenes/selection.ma'; assert exported.exists(); r.hold()
+            exported=root/'Scenes/selection.mb'; assert exported.exists(); r.hold()
             r.step('M03', '未保存変更があるOpenをキャンセル・シーンを保護')
             e.operationTabs.setCurrentWidget(e.readPanel)
             selectFile(e, scene); cmds.setAttr(cube+'.translateX', 4)

@@ -1,5 +1,6 @@
 """MayaのWindowメニューとシーン操作をブラウザーへ接続する。"""
 import os
+import json
 from pathlib import Path
 from maya import cmds, mel, OpenMayaUI
 from qpeQt import QtCore, QtGui, QtWidgets, QAction, shiboken
@@ -140,7 +141,7 @@ def _allowOpen(widget):
     """
     if not cmds.file(query=True, modified=True):
         return True
-    answer = QtWidgets.QMessageBox.question(widget, 'Unsaved scene', 'Save changes before opening another scene?',
+    answer = QtWidgets.QMessageBox.question(widget, 'Unsaved scene', 'Save changes before switching scenes?',
         QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel,
         QtWidgets.QMessageBox.Cancel)
     if answer == QtWidgets.QMessageBox.Save:
@@ -168,6 +169,24 @@ def readFile(path, action, options):
     cmds.file(path, **dict(options, **{'i' if action == 'import' else 'reference': True}))
 
 
+def recordRecentScene():
+    """成功後の実シーンをMaya標準のRecent Filesへ登録する。
+
+    標準手続きに重複除去・件数制限・設定保存を委ねる。履歴の失敗だけで
+    完了済みのシーン読込や保存を失敗扱いにしない。
+    """
+    try:
+        scene = cmds.file(query=True, sceneName=True)
+        if not scene:
+            return
+        file_type = cmds.file(query=True, type=True)[0]
+        mel.eval('addRecentFile({}, {});'.format(
+            json.dumps(scene.replace('\\', '/'), ensure_ascii=False),
+            json.dumps(file_type, ensure_ascii=False)))
+    except RuntimeError as error:
+        cmds.warning('QuickPathExplorer: Could not update Recent Files: ' + str(error))
+
+
 def perform(widget, action):
     """明示された操作だけをMayaに適用する。
 
@@ -178,7 +197,11 @@ def perform(widget, action):
     try:
         paths = widget.operationPaths()
         path = paths[0] if paths else ''
-        if action == 'project':
+        if action == 'new':
+            if not _allowOpen(widget):
+                return
+            cmds.file(new=True, force=True)
+        elif action == 'project':
             widget.navigate(cmds.workspace(query=True, rootDirectory=True))
         elif action == 'sceneFolder':
             scene = cmds.file(query=True, sceneName=True)
@@ -211,6 +234,7 @@ def perform(widget, action):
                     return
                 cmds.file(path, open=True, force=True)
                 widget.recordSuccessfulFiles([path])
+                recordRecentScene()
             elif action == 'import':
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
                 for path, options in zip(paths, arguments):
@@ -226,6 +250,7 @@ def perform(widget, action):
                 perform(widget, 'saveAs')
                 return
             cmds.file(save=True)
+            recordRecentScene()
         elif action in ('saveAs', 'export'):
             target = widget.targetPath()
             if not target or not os.path.isdir(str(Path(target).parent)):
@@ -245,8 +270,10 @@ def perform(widget, action):
                 except RuntimeError:
                     cmds.file(rename=previous or 'untitled')
                     raise
+                recordRecentScene()
         refresh(widget)
-        widget.status.setText('Completed: ' + action)
+        widget.status.setText('Completed: ' + {'new': 'New Scene', 'save': 'Save Scene', 'saveAs': 'Save Scene As',
+                                               'export': 'Export Selection', 'reference': 'Create Reference'}.get(action, action.title()))
     except (RuntimeError, OSError, ValueError) as error:
         widget.status.setText(str(error))
         QtWidgets.QMessageBox.warning(widget, 'QuickPathExplorer', str(error))

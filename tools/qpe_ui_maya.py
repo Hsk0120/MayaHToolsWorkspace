@@ -213,7 +213,7 @@ def main(output_dir, finished=None):
             cube = cmds.polyCube(name='qpeTestCube')[0]
             widget.fileName.setText('saved_scene')
             qpeHost.perform(widget, 'saveAs')
-            scene = folder / 'saved_scene.ma'
+            scene = folder / 'saved_scene.mb'
             assert scene.is_file()
             cmds.setAttr(cube + '.translateX', 2)
             qpeHost.perform(widget, 'save')
@@ -221,7 +221,7 @@ def main(output_dir, finished=None):
             cmds.select(cube)
             widget.fileName.setText('exported')
             qpeHost.perform(widget, 'export')
-            assert (folder / 'exported.ma').is_file()
+            assert (folder / 'exported.mb').is_file()
             assert Path(cmds.file(query=True, sceneName=True)) == scene
             checks.append('Save As, Save and Export Selection actual Maya files')
             selectFile(widget, scene)
@@ -240,10 +240,10 @@ def main(output_dir, finished=None):
             cmds.file(modified=False)
             qpeHost.perform(widget, 'open')
             assert cmds.getAttr(cube + '.translateX') == 2
-            selectFile(widget, folder / 'exported.ma')
+            selectFile(widget, folder / 'exported.mb')
             qpeHost.perform(widget, 'import')
             assert len(cmds.ls(type='mesh')) >= 2
-            selectFile(widget, folder / 'exported.ma')
+            selectFile(widget, folder / 'exported.mb')
             qpeHost.perform(widget, 'reference')
             assert cmds.file(query=True, reference=True)
             checks.append('Open, Import and Reference')

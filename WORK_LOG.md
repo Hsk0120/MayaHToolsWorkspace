@@ -103,10 +103,21 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Codex: QPEの用語統一、Save Scene As/New Scene、既定mb、Maya Recent Files連携と関連テスト・文書をコミット対象として整理。Windows/Maya2022/2027の既存成功結果と差分を確認。ユーザー指示によりmainへプッシュする。調査資料・動画等の生成物は対象外。
+
+- 2026-10-13 Codex: Maya QPE上部にNew Sceneボタンを追加（Windows単体非表示）。既存の未保存確認を再利用しSave/Discard/Cancelを処理。専用Maya2022/2027で実新規作成・実保存・Cancel/保存取消/保存失敗のシーン維持・Discardの既存ファイル保護・未変更時の確認省略を検証、Windows非表示も合格。証跡.maya-output/verification/qpe-new-scene/verified-results.json。新規録画なし。未コミット・未プッシュ。
+
 - 2026-10-13 Claude Code: Maya Code Editor 0.7.1。画面の一番下(コマンドラインの下)へドックすると高さを変えられない(Maya標準の部品でも同じ)ため、自分でドックするときはタイムスライダーの上に入れ、一番下に残ったドックは開いたときに移すようにした(src/plugin/dock.cpp)。回帰テスト tests/dock_resize_smoke.py を追加。mlib改名で壊れていた search_smoke の期待値と、gui_smoke の出力待ちのタイミングも修正。
+- 2026-10-13 Codex: QPE用語監査15項目を反映。Tab set/操作履歴/一方向コピー/拡張子/探索起点/付随情報/名前空間/詳細一覧等を統一。Recent itemsとRecent foldersは対象を区別。競合表示Keep bothを内部renameと分離し、実コピーで両方保持を検証。保存キー・コマンドID維持。Windows6、Maya2027 4、Maya2022 2スイートと再ビルドexe起動合格。初回UXの旧ラベル、Maya2027 advancedのテストウィンドウ非アクティブを修正して再検証。証跡.maya-output/verification/qpe-terms/verified-results.json。新規録画なし、前回動画は今回文言未反映。未コミット・未プッシュ。
+
+- 2026-10-13 Codex: QPEの画面・メニュー・ダイアログ用語を静的監査。Windows/Maya一次資料と比較し、Workspace/File historyの概念衝突、競合rename、一方向同期等15候補をdocs/research/qpe-terminology-audit-20261013.txtへ保存（Git対象外）。製品コード変更・GUI検証・新規録画なし。既存の未コミット実装を保持。
+
+- 2026-10-13 Codex: QPE表示をWindows/Maya用語へ変更(Delete/Properties/Save Scene As等、内部履歴ID維持)。Maya限定の上部Save Scene Asボタン、既定mb、明示ma選択、標準addRecentFileによるOpen/Save成功後のRecent登録を実装。長い保存先で入力欄が潰れる高さ計算も修正。専用Maya2022/2027で実保存・元ファイル保護・履歴重複/形式・失敗/取消を確認。Windows8、Maya各5スイート合格、exe再ビルド・起動合格。初回UXの旧ma期待値と管理外modern検証画面の終了破棄を修正して再検証。動画/画像は既存非公開Driveへ保存: https://drive.google.com/file/d/1tryXOjlz3W-HDbsAqusBDBVaGJsuZnhW/view?usp=drivesdk 。証跡.maya-output/verification/qpe-scene/verified-results.json。実IME/混在DPI/iPadは未確認。未コミット・未プッシュ。
+
 - 2026-10-13 Claude Code: 体の回避をUE RBFで学習する版(`tail_shared_avoid.buildRbfDelta`、`motion="*_rbf"`)を追加し4方式を比較。前腕のコーンの右側の向きと、コーンの外での aimConstraint の跳びを修正(demo_tail_twist_cancel・demo_tail_layers)。
-- 2026-10-13 Claude Code: 体の回避をConeReaderで簡易化した版(`tail_shared_avoid.buildConeDelta`、`motion="*_compare"`)を区間のclampと比較。跳びと食い込みが残り、ノードは約25%減に留まるため区間の方式を基準に残す。
 - 2026-10-13 Codex: ユーザー依頼に基づきQPE高速化・共有LRU・表示更新集約・性能回帰テスト・録画補助修正をコミット／プッシュ対象として整理。既存Windows16、Maya2022/2027各7、exeの成功記録を確認。無関係なリグ変更と他担当の作業記録は保持して対象外とする。
+
+- 2026-10-13 Claude Code: 体の回避をConeReaderで簡易化した版(`tail_shared_avoid.buildConeDelta`、`motion="*_compare"`)を区間のclampと比較。跳びと食い込みが残り、ノードは約25%減に留まるため区間の方式を基準に残す。
 - 2026-10-13 Codex: QPEを計測して高速化。アイコンをウィンドウ内共有・上限2048件のLRUへ整理し、カラム装飾と件数の連続通知を集約。ローカルPNG1000枚を各3回計測し、一覧中央値4.109→2.969秒、サムネイル切替2.188→0.703秒。性能回帰を標準スイートへ追加。Windows16、Maya2022/2027各7スイート合格、exe再ビルド・起動合格。初回Maya2027のショートカット検証はフォーカス確定を待つ形へ修正し再検証合格。録画ヘルパーに入力継承防止と60秒タイムアウトを追加したがMaya2027子FFmpegの停止原因は未特定。保存フレームをMaya外で変換・確認、UIは録画なし再検証。動画は既存非公開Driveへ保存。2027動画 https://drive.google.com/file/d/1NTIC0ZfVQCMRPIODdeRUWrmfQc0CXSO9/view?usp=drivesdk 。証跡.maya-output/verification/qpe-performance/verified-results.json。実IME/物理ホイール/混在DPI/ネットワーク共有は未検証。無関係なリグツール変更は保持。未コミット・未プッシュ。
 
 - 2026-10-13 Codex: 承認済みQPEモダンUIの実装・アイコン・説明書・回帰テストをコミット対象として確認。既存の24 UIスイートとexe起動の検証記録、差分チェックを確認し、origin/mainへの反映作業。動画・調査資料・配布生成物はGit対象外。

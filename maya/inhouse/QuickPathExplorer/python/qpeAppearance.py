@@ -231,7 +231,7 @@ class Appearance:
         layout = QtWidgets.QFormLayout(dialog)
         if not self.widget._maya:
             theme_combo = QtWidgets.QComboBox(dialog)
-            for label, mode in [('Finder Light', 'finder'), ('Windows theme', 'system'), ('Windows Light', 'light'), ('Windows Dark', 'dark')]:
+            for label, mode in [('Classic Light', 'finder'), ('Windows theme', 'system'), ('Windows Light', 'light'), ('Windows Dark', 'dark')]:
                 theme_combo.addItem(label, mode)
             theme_combo.setCurrentIndex(theme_combo.findData(self.theme.mode))
             theme_combo.currentIndexChanged.connect(lambda index: self.theme.setMode(theme_combo.itemData(index)))
@@ -253,7 +253,7 @@ class Appearance:
         self.widthCombo = QtWidgets.QComboBox(dialog)
         self.widthCombo.setObjectName('columnWidthMode')
         self.widthCombo.addItem('Fit window', 'fit')
-        self.widthCombo.addItem('Fit names (Finder)', 'names')
+        self.widthCombo.addItem('Fit folder names', 'names')
         self.widthCombo.setCurrentIndex(1 if self.widget.columns.widthMode == 'names' else 0)
         self.widthCombo.currentIndexChanged.connect(lambda index: self.widget.columns.setWidthMode(self.widthCombo.itemData(index)))
         layout.addRow('Column width', self.widthCombo)

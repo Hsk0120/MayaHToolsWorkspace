@@ -17,13 +17,13 @@ class ReadOptions(QtWidgets.QTabWidget):
             form.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
             form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
             mode = QtWidgets.QComboBox(page)
-            mode.addItems(['File name', 'Custom namespace', 'Root (:)'])
+            mode.addItems(['Use file name', 'Specify namespace', 'Root namespace (:)'])
             name = QtWidgets.QLineEdit(page)
             name.setPlaceholderText('characterA or shot:characterA')
             name.setEnabled(False)
             mode.currentIndexChanged.connect(lambda index, field=name: field.setEnabled(index == 1))
             form.addRow('Namespace', mode)
-            form.addRow('Name', name)
+            form.addRow('Namespace name', name)
             values = {'mode': mode, 'name': name}
             for key, label, default in [
                 ('mergeNamespacesOnClash', 'Reuse existing namespace', False),
@@ -39,6 +39,8 @@ class ReadOptions(QtWidgets.QTabWidget):
                   ('lockReference', 'Lock reference', False)]):
                 box = QtWidgets.QCheckBox(label, page)
                 box.setChecked(default)
+                if key == 'mergeNamespacesOnClash':
+                    box.setToolTip('Reuse a matching namespace. This does not merge existing nodes.')
                 form.addRow(box)
                 values[key] = box
             depth = QtWidgets.QComboBox(page)

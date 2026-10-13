@@ -5,6 +5,7 @@ from pathlib import Path
 import sys
 import threading
 import traceback
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'maya/inhouse/QuickPathExplorer/python'))
@@ -63,7 +64,28 @@ def main(output_dir, finished=None):
         w.labelFilter.setCurrentIndex(0)
         waitFor(lambda: w.tree.topLevelItemCount() == 16)
         checks.append('visible tags and ratings, clickable tag filtering')
-        w.group.setCurrentText('Type')
+        # 表示文言を変えても、競合の内部actionと実際のコピー結果を維持する。
+        merge_source, merge_dest = out / 'merge-source', out / 'merge-destination'
+        merge_source.mkdir(exist_ok=True)
+        merge_dest.mkdir(exist_ok=True)
+        source_file, target_file = merge_source / 'same.txt', merge_dest / 'same.txt'
+        source_file.write_text('new', encoding='utf8')
+        target_file.write_text('original', encoding='utf8')
+        def chooseKeepBoth(dialog):
+            """実際の競合ダイアログで別名コピーを選ぶ。"""
+            combo = dialog.findChild(QtWidgets.QComboBox)
+            combo.setCurrentIndex(combo.findData('rename'))
+            assert combo.currentText() == 'Keep both (new name)'
+            return QtWidgets.QDialog.Accepted
+        with patch.object(QtWidgets.QDialog, 'exec_', chooseKeepBoth):
+            choices = w.mergeChoices([str(source_file)], str(merge_dest))
+        assert choices == {str(source_file): 'rename'}
+        outcome = e.organizer.engine.run('copy', [str(source_file)], str(merge_dest), 'merge', choices=choices)
+        assert not outcome['errors']
+        assert target_file.read_text(encoding='utf8') == 'original'
+        assert sorted(p.read_text(encoding='utf8') for p in merge_dest.iterdir()) == ['new', 'original']
+        checks.append('Keep both label retains rename action and preserves both conflicting files')
+        w.group.setCurrentText('Extension')
         waitFor(lambda: w.tree.topLevelItemCount() == 2)
         assert not w.tree.topLevelItem(0).data(0, QtCore.Qt.UserRole)
         checks.append('group headers cannot become file operation targets')
@@ -134,6 +156,7 @@ def main(output_dir, finished=None):
             child.close()
         e.activateWindow()
         e.raise_()
+        QtWidgets.QApplication.setActiveWindow(e)
         pause(100)
         calls = []
         original = w.commands
