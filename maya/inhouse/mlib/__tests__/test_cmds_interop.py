@@ -305,6 +305,26 @@ class NamingSpecTest(_InteropCase):
 class PassToMayaCmdsTest(_InteropCase):
     """mlib のオブジェクトを maya.cmds へそのまま渡せることを検証する。"""
 
+    def test_as_string(self):
+        """名前変換・複合/配列入力・名前変更後の追従を検証する。"""
+        node, mesh = self.cube()
+        vertex = Vertex(mesh, 0)
+        translate = node.getPlug("translate")
+        array = node.getPlug("worldMatrix")
+        for value in (node, mesh, vertex, translate, array):
+            self.assertEqual(value.asString(), str(value))
+        cmds.setAttr(translate.asString(), 1, 2, 3, type="double3")
+        self.assertEqual(cmds.getAttr(translate.asString()), [(1.0, 2.0, 3.0)])
+        self.assertEqual(cmds.getAttr(array.asString(), size=True), 1)
+        self.assertEqual(translate[0].get(), 1.0)
+        self.assertEqual(array[0].asString(), str(array[0]))
+        cmds.select(vertex.asString())
+        old_name = node.asString()
+        cmds.rename(node.asString(), ":" + self.ns("renamed"))
+        self.assertNotEqual(node.asString(), old_name)
+        for value in (node, mesh, vertex, translate, array):
+            self.assertEqual(value.asString(), str(value))
+
     def test_nodes_plugs_and_components(self):
         parent = self.create("transform", "parent")
         child = self.create("transform", "child")

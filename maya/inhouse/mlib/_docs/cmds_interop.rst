@@ -3,11 +3,27 @@ maya.cmds との受け渡し
 
 mlib のオブジェクトと ``maya.cmds`` を組み合わせて使うときの正式な仕様です。
 mlib のNodeや単一値Plugは ``maya.cmds`` へそのまま渡せます。配列・複合Plugは
-``str(plug)`` または ``plug.fullName()`` を渡してください。また mlib のコマンドは、
+``plug.asString()``、``str(plug)`` または ``plug.fullName()`` を渡してください。また mlib のコマンドは、
 文字列の名前に加えて mlib と Maya API 2.0(``om2``)のオブジェクトを受け付けます。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import mlib`` を実行してください。
+
+明示的な文字列変換
+------------------------------------------------------------
+
+Node・Plug・単数Componentは共通して ``asString()`` を持ちます。
+戻り値は各対象の ``str()`` と同じで、呼び出すたびに現在の名前を取得します。
+無効な参照の扱いも ``str()`` と同じです。配列・複合Plugの要素アクセスは維持します。
+
+.. code-block:: python
+
+   from maya import cmds
+   node = mlib.getNode("pCube1")
+   translate = node.getPlug("translate")
+   cmds.setAttr(translate.asString(), 1, 2, 3, type="double3")
+   cmds.getAttr(node.getPlug("worldMatrix").asString(), size=True)
+   node.getPlug("worldMatrix")[0].get()
 
 maya.cmds へそのまま渡せるもの
 ------------------------------------------------------------

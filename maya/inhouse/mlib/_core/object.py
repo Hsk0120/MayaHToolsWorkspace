@@ -26,6 +26,21 @@ class Object(metaclass=_ObjectType):
     コレクション・数学値・保存データ・UI参照はこの基底に含めない。
     """
 
+    def asString(self):
+        """現在の対象名を文字列へ変換する。
+
+        Node・Plug・Componentそれぞれの ``str()`` と同じ名前を返す。
+        名前変更や親子付け替えに追従し、名前をキャッシュしない。
+        無効な参照の扱いも各型の ``str()`` に従う。
+
+        Returns:
+            str: Mayaコマンドへ渡す対象名。
+
+        Raises:
+            RuntimeError: 各型の文字列変換が無効な参照を拒否する場合。
+        """
+        return str(self)
+
     @staticmethod
     def _resolve_input(value):
         """入力を一意なNode・Plug・Componentへ解決する。
