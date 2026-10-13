@@ -28,6 +28,15 @@ msgstr "Here are the main changes in each version (newest first). For detailed v
 msgid "版"
 msgstr "Version"
 
+msgid "Maya を再起動したとき、ドックしてあった画面が再表示されないことがある不具合を直した。"
+msgstr "Fixed a bug where the docked window sometimes did not reappear after restarting Maya."
+
+msgid "起動時に、保存済みのドックの uiScript がプラグインのロードより前に動くと、表示されたままの空のドックが残る。 この状態でロードすると「復元済み」とみなし、開いていない状態(``open: false``)を保存していたため、 空のドックが残り、次の起動でも開かなかった。中身が無ければ、ロード時に画面を入れるようにした。"
+msgstr "At startup, when the uiScript of the saved dock runs before the plug-in is loaded, an empty dock is left visible. Loading in this state was treated as already restored and saved the closed state (``open: false``), so the empty dock remained and the window did not open on the next startup either. The window is now put into an empty dock when the plug-in loads."
+
+msgid "uiScript が予約する「空のドックを隠す」処理は、実行する時点でプラグインがロード済みなら何もしない。 ロード時の復元は Maya の遅延実行の最後(``evalDeferred -lowestPriority``)で行い、古い版の uiScript が 保存済みのワークスペースに残っていても、その処理の後に復元する。"
+msgstr "The deferred step of the uiScript that hides an empty dock does nothing if the plug-in is loaded by the time it runs. Restoring on load runs at the end of Maya's deferred queue (``evalDeferred -lowestPriority``), so it happens after that step even when the saved workspace still holds the uiScript of an older version."
+
 msgid "画面の下へドックしたとき、境界をドラッグしても高さを変えられなかった不具合を直した。"
 msgstr "Fixed a bug where the height of the dock could not be changed by dragging its border when docked at the bottom of the screen."
 

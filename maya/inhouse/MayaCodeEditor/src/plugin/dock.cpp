@@ -54,12 +54,15 @@ struct ShowingScope {
  * @details Maya起動時のワークスペース復元は、プラグインのロードより前にuiScriptを実行することがある。
  * そのときはMaya Code Editorコマンドが無いので、ロード済みのときだけ中身を作る。未ロードなら空のドックを非表示に戻す
  * (プラグインがロードされると、restorePrevious()がドックを表示し直し、Mayaがこのスクリプトを再び実行する)。
+ * 非表示に戻すのは遅らせて行うので、その時点でプラグインがロード済みなら何もしない(先にrestorePrevious()が
+ * 画面を入れた後に隠すと、そのMayaの間は再表示されない)。
  * 以前はここで``loadPlugin Maya Code Editor``していたが、オートロードを切っていてもMayaが勝手にロードする原因になるため
  * やめた。同じ理由で``-requiredPlugin``も付けない。
  */
 constexpr const char* kUiScript =
     "if (`pluginInfo -q -loaded mayaCodeEditor`) mayaCodeEditor -restore; "
-    "else evalDeferred \"if (`workspaceControl -exists mayaCodeEditorWorkspaceControl`) "
+    "else evalDeferred \"if (!`pluginInfo -q -loaded mayaCodeEditor` && "
+    "`workspaceControl -exists mayaCodeEditorWorkspaceControl`) "
     "workspaceControl -e -visible false mayaCodeEditorWorkspaceControl\";";
 
 /** @brief ドックを閉じたときのcloseCommand(MEL)。
@@ -420,10 +423,19 @@ void restorePrevious() {
         hideIfClosed();
         return;
     }
-    if (visible) {
+    if (visible && isAttached(host::editor(false))) {
         // Mayaのワークスペース復元(uiScriptの mayaCodeEditor -restore)が、表示と状態の記録まで済ませている。
         // ここで開き直すと、閉じたときと同じcloseCommandが動いて「閉じた」記録が残り得る
         // (再起動のたびに開かなくなる不具合の原因だった)。記録だけ行う。
+        saveState();
+        return;
+    }
+    if (visible) {
+        // 表示されているが中身が空。uiScriptがプラグインのロードより前に動き、中身を作れなかった。
+        // 以前はここも「復元済み」とみなして記録だけ行い、開いていない状態(open: false)を保存していた
+        // (空のドックが残り、次の起動でも開かない不具合)。表示済みなのでMayaがuiScriptで作り直すことはなく、
+        // そのまま画面を入れる。
+        show(std::nullopt);
         saveState();
         return;
     }

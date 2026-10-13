@@ -135,8 +135,10 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
        浮動ドックを閉じても ``Cannot find procedure "mayaCodeEditor"`` を出さないため)。
        Maya の終了は ``quitApplication`` の scriptJob(``mayaCodeEditor -quitting``)で受け取る。Maya のワークスペースは保存し直さない。
    * - 前回画面の復元
-     - ``plugin/dock.cpp`` の ``restorePrevious``\ (ロード後の次のイベントループ)。保存済みの空の workspaceControl が
-       残っている場合は、表示するだけにして Maya 自身の uiScript に中身を作らせる。
+     - ``plugin/dock.cpp`` の ``restorePrevious``\ 。ロード時に ``evalDeferred -lowestPriority`` から
+       ``mayaCodeEditor -restorePrevious`` で呼ぶ(起動時にプラグインより先に動いた uiScript が予約した
+       「空のドックを隠す」処理より後にするため)。保存済みの空の workspaceControl が非表示で残っている場合は、
+       表示するだけにして Maya 自身の uiScript に中身を作らせる。表示されたまま空の場合は、そのまま画面を入れる。
    * - 画面の大きさ(4K など)
      - ``editor/ui_scale.cpp`` の ``setUiScale`` / ``scaled`` / ``setIconProvider``\ 。\ ``plugin/editor_host.cpp`` が画面の作成前に
        ``MQtUtil::dpiScale(1.0f)`` を ``setUiScale`` へ渡し、文字の px・余白・幅・アイコンの大きさはすべて
@@ -193,6 +195,8 @@ Python 言語そのものの解析が必要な処理だけを、Maya 同梱の P
      - タブ復元先(tabs.json)のパスを返す。画面を作らないため mayapy でも使える。
    * - ``-closed``\ (``-cl``)・\ ``-quitting``\ (``-qt``)
      - 内部用。ドックの ``closeCommand`` と終了通知の scriptJob から呼ばれる。
+   * - ``-restorePrevious``\ (``-rp``)
+     - 内部用。プラグインのロード時に、遅延実行の最後から前回の画面を復元する。
 
 テスト用の入口は、製品のコマンドとは別の ``mayaCodeEditorTest``\ (``plugin/test_command.cpp``)にあります。
 環境変数 ``MCE_TEST_COMMANDS=1`` のときだけ登録するので、普段の Maya には出ません(テストのランナーが設定します)。
@@ -413,14 +417,16 @@ Visual Studio のプロジェクトだけを作る
      - 専用の空シーン・専用設定の Maya GUI で、``userSetup.py`` による自動ロード、表示・ドッキング・実行・出力・補完・
        検索・ショートカットなどを確認(``--suite`` で ``gui_smoke.py`` / ``completion_output_smoke.py`` /
        ``formatting_spelling_smoke.py`` / ``output_format_smoke.py`` / ``output_fallback_smoke.py`` /
-       ``vscode_features_smoke.py`` / ``perf_smoke.py`` / ``dock_resize_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
+       ``vscode_features_smoke.py`` / ``perf_smoke.py`` / ``dock_resize_smoke.py`` / ``restore_order_smoke.py`` を選ぶ。既定は ``gui_smoke.py``\ 。
        ``perf_smoke.py`` は、画面を開く時間(タブ 1 枚と 30 枚)・カーソル移動だけでの保存の回数・大きな本文の検索・
        Ctrl+P の一覧・文字サイズの変更・新しいタブの時間を測って結果に残す。
        ``vscode_features_smoke.py`` は 0.4.0 で足した機能(差分の印・問題の波線と F8・折りたたみ・見出しの固定表示・
        記号へ移動・アウトライン・定義へ移動・保存前との差分・ファイル名で開く・引数のヒント・補完の説明)を操作して画面を撮る。
        ``output_fallback_smoke.py`` は、Maya の非表示 reporter が見つからない場合の代わりの出力の取り込みを確かめる。
        ``dock_resize_smoke.py`` は、画面の下へドックしたときに境界のドラッグで高さを変えられることと、
-       画面の一番下に残ったドックをタイムスライダーの上へ移すことを確かめる)
+       画面の一番下に残ったドックをタイムスライダーの上へ移すことを確かめる。
+       ``restore_order_smoke.py`` は、起動時に uiScript がプラグインのロードより前に動いても、ドックが再表示され
+       開いた状態が保存されることを確かめる)
    * - ``run_session.py``
      - 2 回起動し、未保存タブの自動保存と、次の起動での本文・パス・選択位置・未保存状態の復元を確認(``session_smoke.py``)
    * - ``test_session_path.py``

@@ -9,6 +9,7 @@
  * | ``-sessionPath``(``-sp``) | tabs.jsonのパスを返す。画面を作らないのでmayapyでも使える |
  * | ``-closed``(``-cl``) | 内部用。ドックのcloseCommandから呼ばれる |
  * | ``-quitting``(``-qt``) | 内部用。Maya終了時のscriptJobから呼ばれる |
+ * | ``-restorePrevious``(``-rp``) | 内部用。ロード時に、遅延実行の最後から前回の画面を復元する |
  *
  * テスト用の入口(補完・宣言・ホバーのJSON、画面のアドレス)は、別のコマンド``mayaCodeEditorTest``にある
  * (plugin/test_command.h。テスト用の環境変数があるときだけ登録する)。

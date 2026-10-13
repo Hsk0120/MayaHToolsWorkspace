@@ -103,6 +103,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-13 Claude Code: Maya Code Editor 0.7.2。起動時にuiScriptがプラグインのロードより前に動くと、表示されたままの空のドックを「復元済み」とみなしてopen:falseを保存し、再表示されなかった。中身が無ければロード時に入れる・uiScriptの遅延の非表示はロード済みなら何もしない・ロード時の復元をevalDeferred -lowestPriority(内部フラグ -restorePrevious)へ移した。回帰テスト tests/restore_order_smoke.py を追加。
 - 2026-10-13 Codex: QPEの用語統一、Save Scene As/New Scene、既定mb、Maya Recent Files連携と関連テスト・文書をコミット対象として整理。Windows/Maya2022/2027の既存成功結果と差分を確認。ユーザー指示によりmainへプッシュする。調査資料・動画等の生成物は対象外。
 
 - 2026-10-13 Codex: Maya QPE上部にNew Sceneボタンを追加（Windows単体非表示）。既存の未保存確認を再利用しSave/Discard/Cancelを処理。専用Maya2022/2027で実新規作成・実保存・Cancel/保存取消/保存失敗のシーン維持・Discardの既存ファイル保護・未変更時の確認省略を検証、Windows非表示も合格。証跡.maya-output/verification/qpe-new-scene/verified-results.json。新規録画なし。未コミット・未プッシュ。

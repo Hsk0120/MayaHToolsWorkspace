@@ -43,7 +43,10 @@ bool show(std::optional<bool> floating = std::nullopt);
  */
 bool restore();
 
-/** @brief プラグインのロード後に、前回開いていた場合だけ画面を表示する。 */
+/** @brief プラグインのロード後に、前回開いていた場合だけ画面を表示する。
+ * @details ロード時に、Mayaの遅延実行の最後(``evalDeferred -lowestPriority``)から``mayaCodeEditor -restorePrevious``で呼ぶ。
+ * 起動時のワークスペース復元で先に動いたuiScriptが予約した「ドックを隠す」処理より後にするため。
+ */
 void restorePrevious();
 
 /** @brief 利用者がドックを閉じたときに呼ぶ(closeCommand)。次回の自動表示を止める。 */

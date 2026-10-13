@@ -25,6 +25,7 @@ MSyntax EditorCommand::newSyntax() {
     syntax.addFlag("-sp", "-sessionPath");
     syntax.addFlag("-cl", "-closed");
     syntax.addFlag("-qt", "-quitting");
+    syntax.addFlag("-rp", "-restorePrevious");
     return syntax;
 }
 
@@ -46,6 +47,12 @@ MStatus EditorCommand::doIt(const MArgList& args) {
     }
     if (flags.isFlagSet("-qt")) {
         dock::onQuitting();
+        return MS::kSuccess;
+    }
+    if (flags.isFlagSet("-rp")) {
+        if (MGlobal::mayaState() == MGlobal::kInteractive) {
+            dock::restorePrevious();
+        }
         return MS::kSuccess;
     }
     if (flags.isFlagSet("-ss")) {

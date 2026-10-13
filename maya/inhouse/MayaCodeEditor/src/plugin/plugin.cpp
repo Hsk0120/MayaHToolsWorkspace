@@ -14,6 +14,7 @@
 #include "plugin/editor_host.h"
 #include "plugin/embedded_python.h"
 #include "plugin/editor_command.h"
+#include "plugin/mel.h"
 #include "plugin/output_capture.h"
 #include "plugin/python_bridge.h"
 #include "plugin/test_command.h"
@@ -22,7 +23,6 @@
 #include <maya/MFnPlugin.h>
 #include <maya/MGlobal.h>
 #include <maya/MSceneMessage.h>
-#include <QTimer>
 
 namespace {
 
@@ -80,8 +80,13 @@ MStatus initializePlugin(MObject object) {
         exitCallback = MSceneMessage::addCallback(MSceneMessage::kMayaExiting, onMayaExiting);
         mce::dock::initialize();
         mce::installWindowMenu();
-        // ロードの処理中に画面を作り始めないよう、前回の画面の復元は次のイベントループへ送る。
-        QTimer::singleShot(0, mce::dock::lifetime(), [] { mce::dock::restorePrevious(); });
+        // ロードの処理中に画面を作り始めないよう、前回の画面の復元は後へ送る。起動時は、ワークスペースの復元で
+        // プラグインより先に動いたuiScriptが「空のドックを隠す」をevalDeferredで予約していることがある。
+        // 次のイベントループ(QTimer)ではその前に動いて、復元した画面が後から隠されることがあった。
+        // Mayaの遅延実行の最後(-lowestPriority)へ回し、予約済みの処理の後に復元する。
+        // 実行までにアンロードされた場合に備え、ロード済みのときだけ呼ぶ。
+        mce::mel("evalDeferred -lowestPriority "
+                 "\"if (`pluginInfo -q -loaded mayaCodeEditor`) mayaCodeEditor -restorePrevious\"");
     }
     return status;
 }
