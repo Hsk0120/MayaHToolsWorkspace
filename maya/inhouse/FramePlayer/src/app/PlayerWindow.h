@@ -207,7 +207,9 @@ private:
      *       タイムスライダーは再生範囲だけを目盛りで表示し、レンジスライダーは全体範囲の中の再生範囲を表す。
      */
     struct Layout {
-        RECT video{};          ///< 映像の表示領域(VideoViewの子ウィンドウを置く)。
+        RECT video{};          ///< 映像の領域(マウスの判定に使う。操作部の上まで)。
+        RECT view{};           ///< VideoViewの子ウィンドウの位置。窓表示ではvideoと同じ。フルスクリーンでは操作部の下まで広げる
+                               ///< (操作部を映像に重ねて出し入れしても、映像の大きさが変わらないように)。
         RECT bar{};            ///< 下部(2段)全体。
         RECT timeRow{};        ///< タイムスライダーの段。
         RECT ruler{};          ///< 目盛り(再生範囲のフレームを割り当てる横幅。押すとそのフレームへ移動)。
@@ -275,8 +277,52 @@ private:
      */
     Layout computeLayout() const;
 
-    /** @brief 操作部と余白を描く。映像の領域は子ウィンドウ(VideoView)が描く。 */
+    /** @brief 親ウィンドウの見えている所(子ウィンドウの無い所)を地の色で塗る。操作部は操作部の子ウィンドウが描く。 */
     void paint();
+
+    /** @brief 操作部の子ウィンドウを描く(座標は親のクライアント座標のまま、裏の画像に描いてから写す)。 */
+    void paintControlsWindow();
+
+    /**
+     * @brief 操作部の子ウィンドウのウィンドウプロシージャ。
+     * @param hwnd 操作部の子ウィンドウ。
+     * @param message メッセージ。
+     * @param wParam メッセージごとの値。
+     * @param lParam メッセージごとの値。
+     * @return 処理の結果。
+     * @note マウスは素通しにして(HTTRANSPARENT)、親ウィンドウで受け取る(当たり判定は親のクライアント座標のまま使う)。
+     */
+    static LRESULT CALLBACK controlsProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+    /** @brief 子ウィンドウ(映像と操作部)を、今の配置の位置へ置く。 */
+    void layoutChildren();
+
+    /**
+     * @brief 操作部の一部を描き直す。
+     * @param area 範囲(親のクライアント座標)。
+     */
+    void invalidateControls(const RECT& area);
+
+    /** @brief 親ウィンドウと操作部を全部描き直す。 */
+    void invalidateAll();
+
+    /**
+     * @brief 操作があったことを知らせる(フルスクリーンで隠した操作部を出し、隠すまでの時間を数え直す)。
+     * @note YouTubeと同じく、マウスを動かしたとき・ボタンを押したとき・キーを押したときに呼ぶ。
+     */
+    void noteActivity();
+
+    /** @brief 操作部を出す(フェードの途中なら止めて、すぐに出す)。 */
+    void showControls();
+
+    /** @brief フルスクリーン中のタイマー: 操作が無ければ操作部を薄くしながら隠し、マウスのカーソルも隠す。 */
+    void onControlsTimer();
+
+    /**
+     * @brief 今、操作部を隠してよいかを返す。
+     * @return マウスが操作部の上にある・ドラッグ中・数字の入力中・メニューを開いているときはfalse。
+     */
+    bool canHideControls() const;
 
     /**
      * @brief 操作部(タイムスライダーとレンジスライダーの2段)を描く。
@@ -740,6 +786,14 @@ private:
     bool appActive_ = true;              ///< このアプリが前面にあるか。
     bool minimized_ = false;             ///< 最小化されているか。
     bool fullscreen_ = false;            ///< フルスクリーン表示中か。
+    HWND controls_ = nullptr;            ///< 操作部の子ウィンドウ(映像の子ウィンドウより手前に置く)。
+    bool layeredControls_ = false;       ///< 操作部の子ウィンドウを半透明にできるか(フェードに使う)。
+    bool controlsShown_ = true;          ///< 操作部を出しているか(フルスクリーンで自動で隠す)。
+    bool controlsFading_ = false;        ///< 操作部を薄くしながら隠している途中か。
+    ULONGLONG fadeStartMs_ = 0;          ///< 薄くし始めた時刻(GetTickCount64)。
+    ULONGLONG lastActivityMs_ = 0;       ///< 最後に操作があった時刻(GetTickCount64)。
+    POINT lastMousePoint_{-1, -1};       ///< 最後に受け取ったマウスの位置(動いていない知らせを無視するため)。
+    bool menuOpen_ = false;              ///< メニューを開いているか(開いている間は操作部を隠さない)。
     WINDOWPLACEMENT windowedPlacement_{sizeof(WINDOWPLACEMENT)};  ///< フルスクリーンにする前の位置・大きさ(戻すときに使う)。
     bool dormant_ = false;               ///< 休止中か。
     ULONGLONG inactiveSinceMs_ = 0;      ///< 前面でなくなった時刻(GetTickCount64)。

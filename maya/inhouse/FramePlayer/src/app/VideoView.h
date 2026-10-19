@@ -159,6 +159,15 @@ public:
         redraw();
     }
 
+    /**
+     * @brief 実時間(動画の1コマ目からの経過時刻と、動画の長さ)を映像の右上に出すかを設定する。
+     * @param show 出すならtrue。
+     */
+    void setShowTime(bool show) {
+        showTime_ = show;
+        redraw();
+    }
+
     /** @brief 描き直す(色の解釈の手動の指定を変えたときなど、コマが同じでも見え方が変わるとき)。 */
     void redraw() {
         ++redrawGeneration_;
@@ -272,7 +281,8 @@ private:
      * @param info 左上に出す色の情報。空なら出さない。
      */
     void drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, const D2D1_RECT_F& labelArea,
-                      const std::wstring& label, const std::wstring& detail, const std::wstring& info);
+                      const std::wstring& label, const std::wstring& detail, const std::wstring& info,
+                      const std::wstring& time);
 
     /**
      * @brief 画面の状態(HDRの有無・SDRの白の明るさ)を、必要なら調べ直す。描画スレッドで呼ぶ。
@@ -311,6 +321,15 @@ private:
      */
     std::wstring outOfRangeDetail(const PaneState& pane, int shift) const;
 
+    /**
+     * @brief 実時間の文字を作る(「00:01.667 / 00:04.000」の形)。
+     * @param pane 表示枠の内容。
+     * @return 文字。動画が無ければ空。
+     * @note 時刻は目次の各コマの表示時刻から求める(可変フレームレートの動画でも本来の時刻になる)。
+     *       0秒は動画の1コマ目。長さは最後のコマの時刻に1コマ分(1÷フレームレート)を足したもの。
+     */
+    std::wstring timeText(const PaneState& pane) const;
+
     /** @brief 親ウィンドウへ「表示するコマが変わった」と知らせる(未処理の知らせがあれば送らない)。 */
     void notifyParent();
 
@@ -345,6 +364,7 @@ private:
 
     std::shared_ptr<GpuDevice> gpu_;  ///< 共有のGPUデバイス。無ければnullptr。
     std::atomic<bool> showColorInfo_{false};  ///< 色の情報を映像の上に出すか。
+    std::atomic<bool> showTime_{false};       ///< 実時間を映像の右上に出すか。
     std::atomic<int> redrawGeneration_{0};    ///< 描き直しの要求の番号(redraw()のたびに増やす)。
     std::atomic<bool> displayDirty_{true};    ///< 画面の状態を調べ直すか。
     std::atomic<bool> displayHdr_{false};     ///< 表示中の画面のHDRが有効か(UIスレッドから読む写し)。
@@ -371,6 +391,7 @@ private:
     Microsoft::WRL::ComPtr<IDWriteTextFormat> labelFormat_;  ///< 比較中に各表示枠の下に出す文字(左寄せ・小さめ)。
     Microsoft::WRL::ComPtr<IDWriteTextFormat> detailFormat_;  ///< 「範囲外」の下に添える説明(中央寄せ・小さめ)。
     Microsoft::WRL::ComPtr<IDWriteTextFormat> infoFormat_;    ///< 色の情報(左上寄せ・小さめ)。
+    Microsoft::WRL::ComPtr<IDWriteTextFormat> timeFormat_;    ///< 実時間(右上・数字が揃う書体)。
     UINT swapWidth_ = 0;
     UINT swapHeight_ = 0;
 };

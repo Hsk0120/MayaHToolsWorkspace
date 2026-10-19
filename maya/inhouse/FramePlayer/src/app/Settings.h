@@ -30,6 +30,7 @@ struct Settings {
     unsigned short syncPort = kDefaultSyncPort;           ///< 連携の待ち受け口の番号。SyncPort。
     bool autoPlay = true;                                 ///< 動画を開いたら自動で再生するか。AutoPlay。
     bool showColorInfo = false;                           ///< 色の解釈の情報を映像の上に出すか。ShowColorInfo。
+    bool showTime = true;                                 ///< 実時間を映像の右上に出すか(既定は出す)。ShowTime。
     double sequenceFrameRate = 60.0;                      ///< 連番画像のフレームレート。SequenceFps(1000倍の整数)。
     std::vector<std::wstring> recentFiles;                ///< 最近使ったファイル(新しい順)。RecentFiles。
 
@@ -50,6 +51,9 @@ struct Settings {
 
     /** @brief 色の情報の表示の設定を保存する。 */
     void saveShowColorInfo() const;
+
+    /** @brief 実時間を表示するかを保存する。 */
+    void saveShowTime() const;
 
     /** @brief 最近使ったファイルを保存する。 */
     void saveRecentFiles() const;

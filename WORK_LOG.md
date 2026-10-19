@@ -109,6 +109,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-19): FramePlayerのフルスクリーンで、操作が無いと3秒で操作部とカーソルを隠す(YouTubeと同じ。再生中も停止中も、マウス・キーで出す、操作部の上・ドラッグ中・入力中・メニュー中は隠さない)。操作部を子ウィンドウ(マウス素通し)にして映像に重ね、半透明で薄くしながら隠す(マニフェストでWindows 8以降を宣言)。動きを子ウィンドウの表示の有無で確認し、動画を .maya-output/frameplayer-autohide-demo(Git対象外)に作成。ドキュメント・README・配布用exeとセットアップを更新。未コミット。
+
+- Claude Code (2026-10-19): FramePlayerに実時間の表示を追加(右クリックの「Show Time」で映像の右上に「経過時刻 / 長さ」。既定はオン。目次の各コマの表示時刻から計算、比較中は左右それぞれ、設定ShowTimeで保存)。最初の窓を表示の拡大率に合わせた大きさで開く(作業領域に収まらなければ9割に縮めて中央)。完成イメージ動画は .maya-output/frameplayer-time-demo(Git対象外)。ドキュメント(英訳5文は手で追加)・README・配布用exeとセットアップを更新。未コミット。
+
 - 2026-10-14 Codex: asString追加の差分・検証結果を確認し、コミットしてorigin/mainへプッシュする。
 
 - 2026-10-14 Codex: Object.asString()を追加しNode・Plug・単数Componentで共通化。strと同じ現在名を返し、既存の添字アクセスを維持。受け渡しドキュメント更新。Maya 2027 standaloneの関連4テスト成功、公開漏れ検査0件。

@@ -37,6 +37,11 @@ constexpr std::size_t kLowMemoryCacheBytes = std::size_t{256} << 20;  ///< 主�
 constexpr int kThumbnailWidth = 320;                                ///< キーフレームの縮小画像の幅。
 constexpr std::size_t kThumbnailBytes = std::size_t{160} << 20;    ///< 縮小画像の合計の上限(1本あたり160MB)。
 constexpr UINT_PTR kResourceTimerId = 1;          ///< キャッシュの上限の見直しと休止の判定に使うタイマー。
+constexpr UINT_PTR kControlsTimerId = 2;          ///< フルスクリーンで操作部を自動で隠すタイマー。
+constexpr UINT kControlsTimerMs = 30;             ///< 操作部のタイマーの間隔(フェードの1段)。
+constexpr ULONGLONG kControlsHideMs = 3000;       ///< 操作が無くなってから操作部を隠すまで(YouTubeと同じ約3秒)。
+constexpr ULONGLONG kControlsFadeMs = 250;        ///< 操作部を薄くしながら隠す時間。
+constexpr wchar_t kControlsClassName[] = L"FramePlayerControls";  ///< 操作部の子ウィンドウの種類の名前。
 constexpr UINT kResourceTimerMs = 2000;           ///< そのタイマーの間隔(ミリ秒)。
 constexpr ULONGLONG kDormantAfterMinimizedMs = 30 * 1000;    ///< 最小化してから休止に入るまで(30秒)。
 constexpr ULONGLONG kDormantAfterInactiveMs = 5 * 60 * 1000;  ///< 背面になってから休止に入るまで(5分)。
@@ -52,6 +57,7 @@ enum MenuCommand : UINT {
     kMenuTogglePlayback,  ///< 右クリックのメニュー: 再生/停止。
     kMenuFullscreen,      ///< 右クリックのメニュー: フルスクリーンの切り替え。
     kMenuColorInfo,       ///< 右クリックのメニュー: 色の情報の表示の切り替え。
+    kMenuShowTime,        ///< 右クリックのメニュー: 実時間の表示の切り替え。
     kMenuCopyPath,        ///< 右クリックのメニュー: 1本目のパスをクリップボードへ写す。
     kMenuCopyComparePath, ///< 右クリックのメニュー: 2本目(比較)のパスをクリップボードへ写す。
     /// 右クリックのメニュー: 色の解釈の手動の指定。番号 = kMenuColorFirst + 動画(0/1)×100 + 項目×10 + (値+1)。
@@ -60,6 +66,46 @@ enum MenuCommand : UINT {
     kMenuColorLast = 1199,
     kMenuRecentFirst = 100,  ///< 最近使ったファイルの1つ目(以降、順に番号を振る)。
 };
+
+constexpr int kInitialWidth = 1280;  ///< 最初の窓の幅(拡大率100%のときのピクセル数)。
+constexpr int kInitialHeight = 800;  ///< 最初の窓の高さ(拡大率100%のときのピクセル数)。
+
+/**
+ * @brief 最初の窓の大きさを、窓があるモニターの表示の拡大率に合わせる(100%のときの1280×800と同じ見かけの大きさ)。
+ * @param hwnd 作ったばかりの(まだ表示していない)ウィンドウ。
+ * @note 拡大率が高いモニターで1280×800ピクセルのままだと、操作部の部品が入りきらず重なるため。
+ *       モニターの作業領域(タスクバーを除いた範囲)に収まらないときは、縦横比を保って作業領域の9割まで縮め、真ん中に置く。
+ */
+void fitInitialWindowSize(HWND hwnd) {
+    const UINT dpi = GetDpiForWindow(hwnd);
+    int width = MulDiv(kInitialWidth, static_cast<int>(dpi), 96);
+    int height = MulDiv(kInitialHeight, static_cast<int>(dpi), 96);
+    MONITORINFO monitor{sizeof(MONITORINFO)};
+    if (!GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor)) {
+        SetWindowPos(hwnd, nullptr, 0, 0, width, height, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+        return;
+    }
+    const RECT& work = monitor.rcWork;
+    const int workWidth = work.right - work.left;
+    const int workHeight = work.bottom - work.top;
+    RECT current{};
+    GetWindowRect(hwnd, &current);
+    int left = current.left;
+    int top = current.top;
+    if (width > workWidth * 9 / 10 || height > workHeight * 9 / 10) {
+        // 収まらないので縮める(縦横比は保つ)。
+        const double scale = std::min(workWidth * 0.9 / width, workHeight * 0.9 / height);
+        width = static_cast<int>(width * scale);
+        height = static_cast<int>(height * scale);
+        left = work.left + (workWidth - width) / 2;
+        top = work.top + (workHeight - height) / 2;
+    } else {
+        // 収まる大きさでも、はみ出す位置なら作業領域の中へ寄せる。
+        left = std::clamp(left, static_cast<int>(work.left), static_cast<int>(work.right) - width);
+        top = std::clamp(top, static_cast<int>(work.top), static_cast<int>(work.bottom) - height);
+    }
+    SetWindowPos(hwnd, nullptr, left, top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+}
 
 /**
  * @brief 動画・連番画像のパスを返す(連番画像なら、そのコマの画像のパス)。
@@ -131,14 +177,25 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
     if (!RegisterClassExW(&wc)) {
         return false;
     }
+    // 操作部の子ウィンドウ。描くだけで、マウスは親ウィンドウで受け取る。
+    WNDCLASSEXW controlsClass{};
+    controlsClass.cbSize = sizeof(controlsClass);
+    controlsClass.lpfnWndProc = &PlayerWindow::controlsProc;
+    controlsClass.hInstance = instance;
+    controlsClass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    controlsClass.lpszClassName = kControlsClassName;
+    if (!RegisterClassExW(&controlsClass)) {
+        return false;
+    }
 
     // lpParamにthisを渡し、windowProcでウィンドウと結び付ける。
     // WS_CLIPCHILDRENで、親の描画が映像の子ウィンドウを上書きしないようにする。
     hwnd_ = CreateWindowExW(0, kClassName, kAppName, WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, CW_USEDEFAULT,
-                            CW_USEDEFAULT, 1280, 800, nullptr, nullptr, instance, this);
+                            CW_USEDEFAULT, kInitialWidth, kInitialHeight, nullptr, nullptr, instance, this);
     if (!hwnd_) {
         return false;
     }
+    fitInitialWindowSize(hwnd_);
     // 表示する前にタイトルバーの色を決めておく(白いタイトルバーが一瞬見えないように)。
     ui::applyDarkTitleBar(hwnd_);
     SetTimer(hwnd_, kResourceTimerId, kResourceTimerMs, nullptr);
@@ -149,9 +206,26 @@ bool PlayerWindow::create(HINSTANCE instance, int showCommand) {
         DestroyWindow(hwnd_);
         return false;
     }
-    view_.setBounds(computeLayout().video);
+    // 操作部の子ウィンドウ。映像の子ウィンドウより後に作り、手前に置く(フルスクリーンでは映像に重ねて出し入れする)。
+    // 半透明の子ウィンドウ(WS_EX_LAYERED)はWindows 8以降の機能で、使えなければ半透明にせず出し入れだけする。
+    controls_ = CreateWindowExW(WS_EX_LAYERED, kControlsClassName, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0,
+                                1, 1, hwnd_, nullptr, instance, this);
+    layeredControls_ = controls_ && SetLayeredWindowAttributes(controls_, 0, 255, LWA_ALPHA);
+    if (!layeredControls_) {
+        if (controls_) {
+            DestroyWindow(controls_);
+        }
+        controls_ = CreateWindowExW(0, kControlsClassName, nullptr, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS, 0, 0, 1, 1,
+                                    hwnd_, nullptr, instance, this);
+    }
+    if (!controls_) {
+        DestroyWindow(hwnd_);
+        return false;
+    }
+    layoutChildren();
     view_.setFrameNumberStart(settings_.startFrame);
     view_.setShowColorInfo(settings_.showColorInfo);
+    view_.setShowTime(settings_.showTime);
     createTooltips();
     DragAcceptFiles(hwnd_, TRUE);
     ShowWindow(hwnd_, showCommand);
@@ -212,7 +286,7 @@ void PlayerWindow::openClip(const std::wstring& path) {
         view_.setCompareClip(compareClip_);
     }
     updateTitle();
-    InvalidateRect(hwnd_, nullptr, FALSE);
+    invalidateAll();
     autoPlay();
 }
 
@@ -284,9 +358,9 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         view_.displayChanged();
         return DefWindowProcW(hwnd_, message, wParam, lParam);
     case WM_SIZE:
-        view_.setBounds(computeLayout().video);
+        layoutChildren();
         updateTooltipRects();
-        InvalidateRect(hwnd_, nullptr, FALSE);
+        invalidateAll();
         if ((wParam == SIZE_MINIMIZED) != minimized_) {
             minimized_ = wParam == SIZE_MINIMIZED;
             minimizedSinceMs_ = GetTickCount64();
@@ -304,10 +378,13 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
     case WM_TIMER:
         if (wParam == kResourceTimerId) {
             onResourceTimer();
+        } else if (wParam == kControlsTimerId) {
+            onControlsTimer();
         }
         return 0;
     case WM_KEYDOWN:
         // Spaceの押しっぱなしで再生/停止が繰り返し切り替わらないよう、キーリピートは無視する。
+        noteActivity();  // YouTubeと同じく、キーを押したら操作部を出す(コマ送りでも今のフレームが見えるように)。
         if (wParam == VK_SPACE && (lParam & (1 << 30))) {
             return 0;
         }
@@ -318,6 +395,7 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         //   Alt+, / Alt+. : 1コマ戻る/進む
         //   Alt+V         : 再生/停止(押しっぱなしで切り替わり続けないよう、キーリピートは無視する)
         //   Alt+Shift+V   : 再生範囲の最初へ
+        noteActivity();
         if (clip_ && (wParam == VK_OEM_COMMA || wParam == VK_OEM_PERIOD)) {
             stepFrame(wParam == VK_OEM_COMMA ? -1 : 1);
             return 0;
@@ -337,12 +415,21 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
             return 0;
         }
         return DefWindowProcW(hwnd_, message, wParam, lParam);
-    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDOWN: {
+        const RECT barRect = computeLayout().bar;
+        if (fullscreen_ && !controlsShown_ &&
+            PtInRect(&barRect, POINT{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)})) {
+            noteActivity();  // 隠している操作部の所を押したら、まず操作部を出すだけにする(見えない部品を押させない)。
+            return 0;
+        }
+        noteActivity();
         if (!paneDragging()) {  // 中ボタンでドラッグ中の左クリックは無視する。
             onLeftButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         }
         return 0;
+    }
     case WM_LBUTTONDBLCLK:
+        noteActivity();
         // Kを押しながら素早く押し直したときの2回目も、普通に押したのと同じにドラッグを始める。
         if (!paneDragging() && !beginKeyScrub(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam))) {
             onDoubleClick(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -350,6 +437,7 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         return 0;
     case WM_MBUTTONDOWN:
     case WM_MBUTTONDBLCLK:  // 素早く2回押したときの2回目も、普通に押したのと同じに扱う。
+        noteActivity();
         onMiddleButtonDown(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         return 0;
     case WM_MBUTTONUP:
@@ -364,6 +452,10 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         }
         return 0;
     case WM_SETCURSOR:
+        if (LOWORD(lParam) == HTCLIENT && fullscreen_ && !controlsShown_) {
+            SetCursor(nullptr);  // 操作部と一緒にマウスのカーソルも隠す。
+            return TRUE;
+        }
         if (LOWORD(lParam) == HTCLIENT && updateCursor()) {
             return TRUE;
         }
@@ -391,9 +483,16 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
     case kEditCancelMessage:
         cancelEdit();
         return 0;
-    case WM_MOUSEMOVE:
-        onMouseMove(GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    case WM_MOUSEMOVE: {
+        // 窓の出し入れなどで、マウスが動いていなくても知らせが来ることがあるので、位置が変わったときだけ操作とみなす。
+        const POINT point{GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam)};
+        if (point.x != lastMousePoint_.x || point.y != lastMousePoint_.y) {
+            lastMousePoint_ = point;
+            noteActivity();
+        }
+        onMouseMove(point.x, point.y);
         return 0;
+    }
     case WM_MOUSELEAVE:
         trackingLeave_ = false;
         setHover(Part::None);
@@ -448,6 +547,7 @@ LRESULT PlayerWindow::handleMessage(UINT message, WPARAM wParam, LPARAM lParam) 
         view_.setClip(nullptr);
         syncPowerRequest();
         KillTimer(hwnd_, kResourceTimerId);
+        KillTimer(hwnd_, kControlsTimerId);
         compareClip_.reset();
         clip_.reset();
         audio_.reset();
@@ -546,8 +646,11 @@ void PlayerWindow::showFileMenu() {
     const RECT b = computeLayout().fileButton;
     POINT corner{b.left, b.top};
     ClientToScreen(hwnd_, &corner);
+    menuOpen_ = true;  // 開いている間は操作部を隠さない。
     const UINT command = static_cast<UINT>(TrackPopupMenu(
         menu, TPM_RETURNCMD | TPM_LEFTALIGN | TPM_BOTTOMALIGN | TPM_NONOTIFY, corner.x, corner.y, 0, hwnd_, nullptr));
+    menuOpen_ = false;
+    noteActivity();
     DestroyMenu(menu);  // 中の「最近使ったファイル」も一緒に破棄される。
 
     switch (command) {
@@ -683,6 +786,7 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
         AppendMenuW(menu, MF_STRING | (clip_ ? 0 : MF_GRAYED), kMenuCopyPath, L"Copy Path");
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(menu, MF_STRING | (settings_.showTime ? MF_CHECKED : 0), kMenuShowTime, L"Show Time");
     AppendMenuW(menu, MF_STRING | (settings_.showColorInfo ? MF_CHECKED : 0), kMenuColorInfo, L"Show Color Info");
     // 色の解釈の手動の指定(動画の指定が誤っているときに直す)。比較中は動画ごとに分ける。
     if (clip_ && compareClip_) {
@@ -693,8 +797,11 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
     } else if (clip_) {
         AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(createColorMenu(*clip_, 0)), L"Color Interpretation");
     }
+    menuOpen_ = true;  // 開いている間は操作部を隠さない。
     const UINT command = static_cast<UINT>(TrackPopupMenu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
                                                           screenPoint.x, screenPoint.y, 0, hwnd_, nullptr));
+    menuOpen_ = false;
+    noteActivity();
     DestroyMenu(menu);  // 中の項目のメニューも一緒に破棄される。
     if (command >= kMenuColorFirst && command <= kMenuColorLast) {
         applyColorCommand(command);
@@ -719,6 +826,11 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
             copyTextToClipboard(hwnd_, clipPathAt(*compareClip_, current_ + view_.compareOffset()));
         }
         break;
+    case kMenuShowTime:
+        settings_.showTime = !settings_.showTime;
+        settings_.saveShowTime();
+        view_.setShowTime(settings_.showTime);
+        break;
     case kMenuColorInfo:
         settings_.showColorInfo = !settings_.showColorInfo;
         settings_.saveShowColorInfo();
@@ -726,6 +838,137 @@ void PlayerWindow::showContextMenu(POINT screenPoint) {
         break;
     default:
         break;
+    }
+}
+
+LRESULT CALLBACK PlayerWindow::controlsProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
+    if (message == WM_NCCREATE) {
+        const auto* create = reinterpret_cast<const CREATESTRUCTW*>(lParam);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(create->lpCreateParams));
+    }
+    auto* self = reinterpret_cast<PlayerWindow*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (message) {
+    case WM_NCHITTEST:
+        return HTTRANSPARENT;  // マウス操作は親ウィンドウで受け取る(部品の当たり判定は親の座標のまま)。
+    case WM_ERASEBKGND:
+        return 1;  // paintControlsWindow()で塗るので消去は不要。
+    case WM_PAINT:
+        if (self) {
+            self->paintControlsWindow();
+            return 0;
+        }
+        break;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, message, wParam, lParam);
+}
+
+void PlayerWindow::layoutChildren() {
+    const Layout layout = computeLayout();
+    view_.setBounds(layout.view);
+    if (controls_) {
+        // 映像の子ウィンドウより手前に置く(フルスクリーンでは映像の下端に重なる)。
+        SetWindowPos(controls_, HWND_TOP, layout.bar.left, layout.bar.top, layout.bar.right - layout.bar.left,
+                     layout.bar.bottom - layout.bar.top, SWP_NOACTIVATE);
+    }
+}
+
+void PlayerWindow::invalidateControls(const RECT& area) {
+    if (!controls_) {
+        return;
+    }
+    const RECT bar = computeLayout().bar;
+    RECT local = area;
+    OffsetRect(&local, -bar.left, -bar.top);
+    InvalidateRect(controls_, &local, FALSE);
+}
+
+void PlayerWindow::invalidateAll() {
+    InvalidateRect(hwnd_, nullptr, FALSE);
+    if (controls_) {
+        InvalidateRect(controls_, nullptr, FALSE);
+    }
+}
+
+void PlayerWindow::noteActivity() {
+    lastActivityMs_ = GetTickCount64();
+    if (fullscreen_ && (!controlsShown_ || controlsFading_)) {
+        showControls();
+    }
+}
+
+void PlayerWindow::showControls() {
+    controlsFading_ = false;
+    if (!controls_) {
+        return;
+    }
+    if (layeredControls_) {
+        SetLayeredWindowAttributes(controls_, 0, 255, LWA_ALPHA);
+    }
+    if (!controlsShown_) {
+        controlsShown_ = true;
+        ShowWindow(controls_, SW_SHOWNA);
+        InvalidateRect(controls_, nullptr, FALSE);
+        // 隠していたマウスのカーソルを戻す(カーソルが窓の上にあるときだけ、ここで形を決め直す)。
+        POINT cursor{};
+        GetCursorPos(&cursor);
+        if (WindowFromPoint(cursor) && GetAncestor(WindowFromPoint(cursor), GA_ROOT) == hwnd_) {
+            SendMessageW(hwnd_, WM_SETCURSOR, reinterpret_cast<WPARAM>(hwnd_), MAKELPARAM(HTCLIENT, WM_MOUSEMOVE));
+        }
+    }
+}
+
+bool PlayerWindow::canHideControls() const {
+    if (menuOpen_ || drag_ != Drag::None || editControl_) {
+        return false;
+    }
+    // マウスが操作部の上にある間は隠さない(押そうとしているときに消えないように)。
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    const HWND under = WindowFromPoint(cursor);
+    if (!under || GetAncestor(under, GA_ROOT) != hwnd_) {
+        return true;
+    }
+    ScreenToClient(hwnd_, &cursor);
+    const RECT bar = computeLayout().bar;
+    return !PtInRect(&bar, cursor);
+}
+
+void PlayerWindow::onControlsTimer() {
+    if (!fullscreen_ || !controls_) {
+        return;
+    }
+    const ULONGLONG now = GetTickCount64();
+    if (controlsShown_ && !controlsFading_) {
+        if (now - lastActivityMs_ >= kControlsHideMs && canHideControls()) {
+            controlsFading_ = true;
+            fadeStartMs_ = now;
+        }
+        return;
+    }
+    if (!controlsFading_) {
+        return;
+    }
+    if (!canHideControls()) {
+        showControls();  // 薄くしている途中でマウスが操作部に乗ったなど。
+        return;
+    }
+    const ULONGLONG elapsed = now - fadeStartMs_;
+    if (layeredControls_ && elapsed < kControlsFadeMs) {
+        const BYTE alpha = static_cast<BYTE>(255 - 255 * elapsed / kControlsFadeMs);
+        SetLayeredWindowAttributes(controls_, 0, alpha, LWA_ALPHA);
+        return;
+    }
+    // 隠し終わった。マウスのカーソルも隠す(カーソルが窓の上にあるときだけ)。
+    controlsFading_ = false;
+    controlsShown_ = false;
+    ShowWindow(controls_, SW_HIDE);
+    POINT cursor{};
+    GetCursorPos(&cursor);
+    const HWND under = WindowFromPoint(cursor);
+    if (under && GetAncestor(under, GA_ROOT) == hwnd_) {
+        SetCursor(nullptr);
     }
 }
 
@@ -743,9 +986,14 @@ void PlayerWindow::toggleFullscreen() {
         const RECT& r = monitor.rcMonitor;
         SetWindowPos(hwnd_, HWND_TOP, r.left, r.top, r.right - r.left, r.bottom - r.top,
                      SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        // 操作が無ければ操作部を隠す(YouTubeと同じく、再生中も止めている間も)。
+        lastActivityMs_ = GetTickCount64();
+        SetTimer(hwnd_, kControlsTimerId, kControlsTimerMs, nullptr);
     } else {
         // 枠を戻してから、覚えておいた位置・大きさ(最大化していたなら最大化)に戻す。
         fullscreen_ = false;
+        KillTimer(hwnd_, kControlsTimerId);
+        showControls();
         SetWindowLongPtrW(hwnd_, GWL_STYLE, style | WS_OVERLAPPEDWINDOW);
         SetWindowPlacement(hwnd_, &windowedPlacement_);
         SetWindowPos(hwnd_, nullptr, 0, 0, 0, 0,
@@ -882,7 +1130,7 @@ void PlayerWindow::openCompare(const std::wstring& path) {
     view_.setCompareClip(compareClip_);
     view_.showFrame(view_.currentFrame(), Clip::Direction::Forward);
     updateTitle();
-    InvalidateRect(hwnd_, nullptr, FALSE);
+    invalidateAll();
     autoPlay();
 }
 
@@ -893,7 +1141,7 @@ void PlayerWindow::closeCompare() {
     appliedFrames_[1] = 0;
     applyCacheLimits();
     updateTitle();
-    InvalidateRect(hwnd_, nullptr, FALSE);
+    invalidateAll();
 }
 
 void PlayerWindow::shiftCompare(int delta) {
@@ -969,7 +1217,7 @@ void PlayerWindow::setClipStart(int frame) {
         goToFrame(static_cast<int>(static_cast<long long>(current_) - delta));
     }
     updateTitle();
-    InvalidateRect(hwnd_, nullptr, FALSE);
+    invalidateAll();
 }
 
 void PlayerWindow::goToSceneFrame(int frame) {

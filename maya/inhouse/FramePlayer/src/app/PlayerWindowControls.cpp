@@ -43,6 +43,10 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
 
     Layout layout;
     layout.video = {left, static_cast<int>(client.top), right, timeTop};
+    layout.view = layout.video;
+    if (fullscreen_) {
+        layout.view.bottom = bottom;  // フルスクリーンでは操作部を映像に重ねる(映像は画面いっぱい)。
+    }
     layout.bar = {left, timeTop, right, bottom};
     layout.timeRow = {left, timeTop, right, rangeTop};
     layout.rangeRow = {left, rangeTop, right, bottom};
@@ -107,30 +111,40 @@ PlayerWindow::Layout PlayerWindow::computeLayout() const {
 }
 
 void PlayerWindow::invalidateBar() {
-    const RECT bar = computeLayout().bar;
-    InvalidateRect(hwnd_, &bar, FALSE);
+    invalidateControls(computeLayout().bar);
 }
 
 void PlayerWindow::invalidateTimeRow() {
-    const RECT row = computeLayout().timeRow;
-    InvalidateRect(hwnd_, &row, FALSE);
+    invalidateControls(computeLayout().timeRow);
 }
 
 void PlayerWindow::paint() {
-    const LONGLONG paintStart = nowTicks();
+    // 映像と操作部は子ウィンドウが描くので、親ウィンドウは見えている所(子ウィンドウの無い所)を塗るだけ。
     PAINTSTRUCT ps;
     HDC screen = BeginPaint(hwnd_, &ps);
-    const RECT area = ps.rcPaint;
+    ui::fill(screen, ps.rcPaint, ui::kBackground);
+    EndPaint(hwnd_, &ps);
+}
+
+void PlayerWindow::paintControlsWindow() {
+    const LONGLONG paintStart = nowTicks();
+    PAINTSTRUCT ps;
+    HDC screen = BeginPaint(controls_, &ps);
+    // 部品の位置は親のクライアント座標で決めてあるので、描く範囲と写し先の原点を操作部の位置だけずらす。
+    const Layout layout = computeLayout();
+    RECT area = ps.rcPaint;
+    OffsetRect(&area, layout.bar.left, layout.bar.top);
+    SetViewportOrgEx(screen, -layout.bar.left, -layout.bar.top, nullptr);
     // 描き直す範囲を裏の画像に描いてから、一度に写す(ちらつき防止)。裏の画像は描き直しのたびに作らず使い回す。
     HDC dc = backBuffer_.begin(screen, area);
     ui::fill(dc, area, ui::kBackground);
     const int dpi = static_cast<int>(GetDpiForWindow(hwnd_));
     HGDIOBJ oldFont = SelectObject(dc, fonts_.get(14, dpi));
     SetBkMode(dc, TRANSPARENT);
-    paintControls(dc, computeLayout(), dpi, area);
+    paintControls(dc, layout, dpi, area);
     SelectObject(dc, oldFont);
     backBuffer_.present(screen);
-    EndPaint(hwnd_, &ps);
+    EndPaint(controls_, &ps);
     traceLog("paint %lld us %ldx%ld", (nowTicks() - paintStart) * 1000000 / ticksPerSecond(), area.right - area.left,
             area.bottom - area.top);
 }
@@ -1237,6 +1251,8 @@ void PlayerWindow::beginEdit(EditField field) {
         editField_ = EditField::None;
         return;
     }
+    // 入力の欄は操作部の子ウィンドウより手前に置く(操作部は兄弟の窓を避けて描く)。
+    SetWindowPos(editControl_, HWND_TOP, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     SendMessageW(editControl_, WM_SETFONT, reinterpret_cast<WPARAM>(font), FALSE);
     // EnterとEscを受け取るため、入力用の子ウィンドウのメッセージを横取りする(Windows標準のサブクラス化)。
     SetWindowSubclass(editControl_, &PlayerWindow::editProc, 1, reinterpret_cast<DWORD_PTR>(this));
@@ -1304,7 +1320,7 @@ void PlayerWindow::commitEdit() {
     default:
         break;
     }
-    InvalidateRect(hwnd_, nullptr, FALSE);
+    invalidateAll();
 }
 
 void PlayerWindow::cancelEdit() {

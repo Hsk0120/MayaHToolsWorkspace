@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: FramePlayer VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-12 12:32+0900\n"
+"POT-Creation-Date: 2026-10-19 20:25+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -60,6 +60,15 @@ msgstr "The text in the screen is in English."
 
 msgid "右クリックのメニューの「Copy Path」(ファイルのパスをクリップボードへ写す)。"
 msgstr "\"Copy Path\" in the right-click menu (copies the file path to the clipboard)."
+
+msgid "右クリックのメニューの「Show Time」(映像の右上に実時間を表示する)。"
+msgstr "\"Show Time\" in the right-click menu (shows the real time at the top right of the video)."
+
+msgid "最初の窓の大きさを、表示の拡大率に合わせる(拡大率が高いモニターで操作部が重ならないように)。"
+msgstr "The initial window size follows the display scaling (so the controls do not overlap on high-DPI monitors)."
+
+msgid "フルスクリーンでは、操作が無いと3秒で操作部とマウスのカーソルを隠す(YouTube と同じ動き)。"
+msgstr "In full screen, the controls and the mouse cursor hide after 3 seconds without input (the same as YouTube)."
 
 msgid "色の扱い"
 msgstr "Color Handling"
@@ -1081,6 +1090,12 @@ msgstr ""
 msgid "色の情報を表示するか(画面から変えられます)"
 msgstr "Whether to display color information (can be changed from the screen)"
 
+msgid "``ShowTime``"
+msgstr ""
+
+msgid "実時間を表示するか(画面から変えられます)"
+msgstr "Whether to show the real time (can be changed in the UI)"
+
 msgid "``Volume`` ・ ``Muted``"
 msgstr "``Volume`` , ``Muted``"
 
@@ -1441,8 +1456,8 @@ msgstr "For image sequences, the frame number of the first file becomes the auto
 msgid "右クリックのメニュー"
 msgstr "Right-click menu"
 
-msgid "映像の上で右クリックすると、再生/停止・フルスクリーン・パスのコピー・色の情報の表示・色の解釈の指定のメニューが出ます。"
-msgstr "Right-click the video to open a menu with play/stop, full screen, copy path, color info, and color interpretation."
+msgid "映像の上で右クリックすると、再生/停止・フルスクリーン・パスのコピー・実時間の表示・色の情報の表示・色の解釈の指定のメニューが出ます。"
+msgstr "Right-click the video to open a menu with play/stop, full screen, copy path, show time, color info, and color interpretation."
 
 msgid "映像の上の右クリックのメニュー"
 msgstr "Right-click menu on the video"
@@ -1450,11 +1465,14 @@ msgstr "Right-click menu on the video"
 msgid "映像の上の右クリックのメニュー。"
 msgstr "Right-click menu on the video."
 
-msgid "**Full Screen**\\ (Ctrl+F・映像のダブルクリック): モニター全体に広げます。Esc で戻ります。"
-msgstr "**Full Screen**\\ (Ctrl+F, double-click video): Expands to fill the entire monitor. Press Esc to return."
+msgid "**Full Screen**\\ (Ctrl+F・映像のダブルクリック): モニター全体に広げます。Esc で戻ります。 フルスクリーンでは、一般的な動画プレイヤー(YouTube など)と同じく、操作が無いと3秒で操作部とマウスのカーソルが隠れます (再生中も、止めている間も)。マウスを動かすか、キーを押すと(←→ でコマを動かしたときも)操作部が出ます。 操作部は映像の下端に重ねて出すので、出し入れしても映像の大きさは変わりません。マウスが操作部の上にあるとき・ドラッグ中・ 数字の入力中・メニューを開いているときは隠れません。"
+msgstr "**Full Screen**\\ (Ctrl+F, or double-click the video): Fills the whole monitor. Press Esc to return. In full screen, as in common video players such as YouTube, the controls and the mouse cursor hide after 3 seconds without input (both while playing and while stopped). Move the mouse or press a key (including ← → to step frames) to show the controls. The controls appear over the bottom of the video, so the video does not change size when they show or hide. They do not hide while the mouse is over them, while dragging, while typing a number, or while a menu is open."
 
 msgid "**Copy Path**: 開いているファイルのパスをクリップボードへ写します。連番画像では、表示中のコマの画像のパスを写します (欠けたコマでは、開いたときのファイルのパス)。比較中は「Copy Path: 1st」「Copy Path: 2nd」で、どちらのパスかを選びます。"
 msgstr "**Copy Path**: Copies the path of the open file to the clipboard. For an image sequence, it copies the path of the image of the frame being shown (on a missing frame, the path of the file that was opened). While comparing, choose \"Copy Path: 1st\" or \"Copy Path: 2nd\"."
+
+msgid "**Show Time**: 映像の右上に、実時間(動画の1コマ目からの経過時刻 / 動画の長さ。例: ``00:01.542 / 00:04.000``)を表示します。 時刻は各コマの本来の表示時刻から求めるので、可変フレームレートの動画でも正しい時刻になります (連番画像はコマ番号 ÷ フレームレート)。比較中は左右それぞれに出し、動画の外のフレームでは ``--:--.---`` と出します。 既定はオンで、設定は保存されます。"
+msgstr "**Show Time**: Shows the real time at the top right of the video (the time elapsed since the first frame / the length of the video, for example ``00:01.542 / 00:04.000``). The time comes from the presentation time of each frame, so it is correct even for variable frame rate videos (for an image sequence, frame number ÷ frame rate). While comparing, it is shown for each side; outside the video it shows ``--:--.---``. It is on by default, and the setting is saved."
 
 msgid "**Show Color Info**: 映像の左上に、使っている色の解釈を表示します(:doc:`color`)。"
 msgstr "**Show Color Info**: Displays the color interpretation being used in the upper-left corner of the video (:doc:`color`)."

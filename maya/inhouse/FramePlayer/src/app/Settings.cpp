@@ -64,6 +64,9 @@ void Settings::load() {
     if (readDword(L"ShowColorInfo", value)) {
         showColorInfo = value != 0;
     }
+    if (readDword(L"ShowTime", value)) {
+        showTime = value != 0;
+    }
     if (readDword(L"AutoPlay", value)) {
         autoPlay = value != 0;
     }
@@ -101,6 +104,10 @@ void Settings::saveSequenceFrameRate() const {
 
 void Settings::saveShowColorInfo() const {
     writeDword(L"ShowColorInfo", showColorInfo ? 1 : 0);
+}
+
+void Settings::saveShowTime() const {
+    writeDword(L"ShowTime", showTime ? 1 : 0);
 }
 
 void Settings::saveAutoPlay() const {

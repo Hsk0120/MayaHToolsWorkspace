@@ -498,6 +498,15 @@ bool VideoView::createDevice() {
         writeFactory_->CreateTextFormat(L"Segoe UI", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
                                         DWRITE_FONT_STRETCH_NORMAL, size * 0.7f, L"ja-jp",
                                         infoFormat_.ReleaseAndGetAddressOf());
+        // 実時間は、数字の幅がそろう書体(Consolas)で出す(再生中に文字が左右に揺れないように)。
+        writeFactory_->CreateTextFormat(L"Consolas", nullptr, DWRITE_FONT_WEIGHT_NORMAL, DWRITE_FONT_STYLE_NORMAL,
+                                        DWRITE_FONT_STRETCH_NORMAL, size * 0.85f, L"en-us",
+                                        timeFormat_.ReleaseAndGetAddressOf());
+        if (timeFormat_) {
+            timeFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
+            timeFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
+            timeFormat_->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+        }
         if (infoFormat_) {
             infoFormat_->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
             infoFormat_->SetParagraphAlignment(DWRITE_PARAGRAPH_ALIGNMENT_NEAR);
@@ -736,7 +745,7 @@ bool VideoView::draw(const PaneState* panes, int paneCount, int compareOffset) {
                 info = colorInfoText(colors[i], FrameRenderer::chooseOutput(colors[i], display_, scRgb_));
             }
             drawPaneText(pane, imageAreas[i], labelAreas[i], label, outOfRangeDetail(pane, i == 0 ? 0 : -compareOffset),
-                         info);
+                         info, showTime_ ? timeText(pane) : std::wstring());
         }
     }
     if (context_->EndDraw() == static_cast<HRESULT>(D2DERR_RECREATE_TARGET)) {
@@ -776,6 +785,42 @@ std::wstring VideoView::outOfRangeDetail(const PaneState& pane, int shift) const
     return text;
 }
 
+namespace {
+
+/**
+ * @brief 100ns単位の時刻を「分:秒.ミリ秒」(1時間以上なら「時:分:秒.ミリ秒」)の文字にする。
+ * @param time 時刻(100ns単位。0以上)。
+ * @return 文字。
+ */
+std::wstring formatTime(long long time) {
+    const long long ms = (std::max(0LL, time) + 5000) / 10000;  // 100nsを四捨五入してミリ秒にする。
+    const long long hours = ms / 3600000;
+    const int minutes = static_cast<int>(ms / 60000 % 60);
+    const int seconds = static_cast<int>(ms / 1000 % 60);
+    const int millis = static_cast<int>(ms % 1000);
+    wchar_t text[32];
+    if (hours > 0) {
+        std::swprintf(text, 32, L"%lld:%02d:%02d.%03d", hours, minutes, seconds, millis);
+    } else {
+        std::swprintf(text, 32, L"%02d:%02d.%03d", minutes, seconds, millis);
+    }
+    return text;
+}
+
+}  // namespace
+
+std::wstring VideoView::timeText(const PaneState& pane) const {
+    if (!pane.clip || pane.clip->frameCount() <= 0) {
+        return std::wstring();
+    }
+    const Clip& clip = *pane.clip;
+    const long long start = clip.frameTime(0);
+    const long long frameLength = clip.frameRate() > 0 ? std::llround(10000000.0 / clip.frameRate()) : 0;
+    const long long length = clip.frameTime(clip.frameCount() - 1) - start + frameLength;
+    const std::wstring now = pane.outOfRange ? std::wstring(L"--:--.---") : formatTime(clip.frameTime(pane.index) - start);
+    return now + L" / " + formatTime(length);
+}
+
 void VideoView::drawPaneImage(const PaneState& pane, const ColorInfo& color, PaneCache& cache,
                               const D2D1_RECT_F& area) {
     const std::shared_ptr<const Frame>& frame = pane.outOfRange ? nullptr : pane.frame;
@@ -792,7 +837,8 @@ void VideoView::drawPaneImage(const PaneState& pane, const ColorInfo& color, Pan
 }
 
 void VideoView::drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, const D2D1_RECT_F& labelArea,
-                             const std::wstring& label, const std::wstring& detail, const std::wstring& info) {
+                             const std::wstring& label, const std::wstring& detail, const std::wstring& info,
+                             const std::wstring& time) {
     const float scaleDpi = GetDpiForWindow(hwnd_) / 96.0f;
     ComPtr<ID2D1SolidColorBrush> textBrush;
     context_->CreateSolidColorBrush(uiColor(kText), &textBrush);
@@ -843,6 +889,24 @@ void VideoView::drawPaneText(const PaneState& pane, const D2D1_RECT_F& area, con
                                                 area.top + margin + metrics.height + padding);
             context_->FillRectangle(box, boxBrush.Get());
             context_->DrawTextLayout(D2D1::Point2F(area.left + margin, area.top + margin), layout.Get(), textBrush.Get());
+        }
+    }
+
+    // 実時間は右上に、色の情報と同じ半透明の箱の上に出す。
+    if (!time.empty() && timeFormat_ && writeFactory_) {
+        ComPtr<IDWriteTextLayout> layout;
+        const float margin = 8 * scaleDpi;
+        if (SUCCEEDED(writeFactory_->CreateTextLayout(time.c_str(), static_cast<UINT32>(time.size()), timeFormat_.Get(),
+                                                      std::max(1.0f, area.right - area.left - margin * 2),
+                                                      std::max(1.0f, area.bottom - area.top - margin * 2), &layout))) {
+            DWRITE_TEXT_METRICS metrics{};
+            layout->GetMetrics(&metrics);
+            const float padding = 5 * scaleDpi;
+            const float left = area.right - margin - metrics.width;
+            const D2D1_RECT_F box = D2D1::RectF(left - padding, area.top + margin - padding, area.right - margin + padding,
+                                                area.top + margin + metrics.height + padding);
+            context_->FillRectangle(box, boxBrush.Get());
+            context_->DrawTextLayout(D2D1::Point2F(left, area.top + margin), layout.Get(), textBrush.Get());
         }
     }
 }
