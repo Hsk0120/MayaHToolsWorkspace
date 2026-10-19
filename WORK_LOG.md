@@ -109,6 +109,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-19): 動画をローカルだけで文字起こし・画面の文字の読み取り・要約する `tools/video_summary.py` を追加(ffmpegで音声とコマを取り出し、faster-whisper large-v3で文字起こし、Ollamaのgemma3:27bで画面の文字と日本語の要約)。ffmpeg(winget)・gemma3:27b・専用venv(.maya-output/video-summary/venv、Git対象外)を導入。手元の動画(英語音声と日本語字幕の動画・日本語音声の約26分の動画(全体を7分44秒で処理)・無音の画面録画)で確認。Ollamaの一時的な500(token repeat limit)に備えて1コマずつ言い直し、文字起こしはtranscript.jsonで再利用。2026-10-20: 日本語以外の音声は文字起こしをOllamaで日本語へ訳しtranscript_ja.txt/.srtを出力(30行ずつ訳し、行数が合わなければ1行ずつ。--no-translateで省略、訳もtranscript_ja.jsonで再利用)。手元の英語の動画5分で34行の訳と再利用を確認。端末の文字コード(cp932)で表せない文字のログで止まる問題、要約の繰り返し打ち切り(token repeat limit)で止まる問題を修正(設定を変えて1回言い直す)。画面の文字もscreen_text.jsonで再利用。手元の約74分の動画で全体を確認。
+
 - Claude Code (2026-10-19): FramePlayerのドキュメントの画像10枚を拡大率100%の画面で撮り直し(右クリックメニューの「Show Time」、既定でオンの時刻表示を反映)。トップの画像の説明に時刻の表示を追記(英訳1文は手で追加)。未コミット。
 
 - Claude Code (2026-10-19): FramePlayerのフルスクリーンで、操作が無いと3秒で操作部とカーソルを隠す(YouTubeと同じ。再生中も停止中も、マウス・キーで出す、操作部の上・ドラッグ中・入力中・メニュー中は隠さない)。操作部を子ウィンドウ(マウス素通し)にして映像に重ね、半透明で薄くしながら隠す(マニフェストでWindows 8以降を宣言)。動きを子ウィンドウの表示の有無で確認し、動画を .maya-output/frameplayer-autohide-demo(Git対象外)に作成。ドキュメント・README・配布用exeとセットアップを更新。未コミット。
