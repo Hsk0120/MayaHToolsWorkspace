@@ -9,6 +9,7 @@ FramePlayer は、コマ送りと2本並べての比較に特化した Windows �
    :width: 100%
 
    FramePlayer の画面。映像の下に、Maya と同じ並びのタイムスライダー(上段)とレンジスライダー(下段)があります。
+   映像の右上は実時間(経過時刻 / 動画の長さ)です(:doc:`usage` の「Show Time」)。
 
 .. list-table::
    :widths: 30 70
