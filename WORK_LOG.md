@@ -109,6 +109,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-20 Codex: ユーザー指示でQPEのドライブ一覧・シーン読込後のフォルダー追従と関連テスト/文書をコミット・プッシュ対象として確認。Windows/Maya2022/2027の既存成功結果と差分検査を確認。既存launch_python.bat変更と生成物は対象外。
+
+- 2026-10-20 Codex: 専用Mayaで操作録画・数値判定を実施し、MP4の実フレームを確認。Drive保存後にサイズ・閲覧URL・非公開権限を確認。生成物はGit対象外。iPad再生は未確認。
+
+- 2026-10-20 Codex: QPE左サイドバーにDrivesを追加。MSceneMessage kAfterOpenで標準/スクリプト/QPEからのシーン読込後に保存先へ移動、保存・新規・取消では場所維持。通知はウィジェット破棄時解除。初回scriptJobの遅延とMaya2022のQProxyStyleアイコン取得エラーを修正。Windows inspector、Maya2022/2027 scene/inspector合格、exe再ビルド・起動合格。証跡.maya-output/verification/qpe-drives/verified-results.json。新規録画・実ドライブ抜差し・切断ネットワーク・iPad未検証。既存launch_python.bat差分保持、未コミット・未プッシュ。
+
 - Claude Code (2026-10-19): 動画をローカルだけで文字起こし・画面の文字の読み取り・要約する `tools/video_summary.py` を追加(ffmpegで音声とコマを取り出し、faster-whisper large-v3で文字起こし、Ollamaのgemma3:27bで画面の文字と日本語の要約)。ffmpeg(winget)・gemma3:27b・専用venv(.maya-output/video-summary/venv、Git対象外)を導入。手元の動画(英語音声と日本語字幕の動画・日本語音声の約26分の動画(全体を7分44秒で処理)・無音の画面録画)で確認。Ollamaの一時的な500(token repeat limit)に備えて1コマずつ言い直し、文字起こしはtranscript.jsonで再利用。2026-10-20: 日本語以外の音声は文字起こしをOllamaで日本語へ訳しtranscript_ja.txt/.srtを出力(30行ずつ訳し、行数が合わなければ1行ずつ。--no-translateで省略、訳もtranscript_ja.jsonで再利用)。手元の英語の動画5分で34行の訳と再利用を確認。端末の文字コード(cp932)で表せない文字のログで止まる問題、要約の繰り返し打ち切り(token repeat limit)で止まる問題を修正(設定を変えて1回言い直す)。画面の文字もscreen_text.jsonで再利用。手元の約74分の動画で全体を確認。
 
 - Claude Code (2026-10-19): FramePlayerのドキュメントの画像10枚を拡大率100%の画面で撮り直し(右クリックメニューの「Show Time」、既定でオンの時刻表示を反映)。トップの画像の説明に時刻の表示を追記(英訳1文は手で追加)。未コミット。

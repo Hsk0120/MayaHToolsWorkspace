@@ -126,6 +126,30 @@ def main(output_dir, finished=None):
             checks.append('New Scene: Cancel, cancelled/failed Save preserve scene; Discard preserves disk; Save persists edits; clean scene needs no prompt')
             QtTest.QTest.mouseClick(e.newSceneButton, QtCore.Qt.LeftButton)
             stage('05', 'New Scene / 保存・破棄・キャンセルを確認 / 新規シーンには既存ファイルを上書きしない')
+            import qpeHost
+            dock = qpeHost.show(str(out))
+            try:
+                cmds.file(str(original), open=True, force=True)
+                waitFor(lambda: Path(dock.currentDirectory) == folder)
+                dock.navigate(str(out))
+                qpeHost.refresh(dock)
+                cmds.file(save=True)
+                pause(100)
+                assert Path(dock.currentDirectory) == out
+                cmds.setAttr('qpeSceneMarker.tx', 11)
+                with patch.object(QtWidgets.QMessageBox, 'question', return_value=QtWidgets.QMessageBox.Cancel):
+                    dock.requestFiles('open', [str(ascii_path)])
+                assert Path(dock.currentDirectory) == out
+                cmds.file(modified=False)
+                dock.requestFiles('open', [str(ascii_path)])
+                waitFor(lambda: Path(dock.currentDirectory) == folder)
+                dock.navigate(str(out))
+                cmds.file(new=True, force=True)
+                pause(100)
+                assert Path(dock.currentDirectory) == out
+                checks.append('actual host SceneOpened follows external and QPE opens; refresh, Save, Cancel and New leave browsing location unchanged')
+            finally:
+                cmds.deleteUI(qpeHost.CONTROL)
         result = dict(status='passed', checks=checks)
     except Exception:
         result = dict(status='error', checks=checks, error=traceback.format_exc())

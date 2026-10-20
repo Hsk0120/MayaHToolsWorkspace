@@ -94,3 +94,7 @@ Tab set、File operation history、Extension、Extended details等の用語を�
 ## 2026-10-13 New Scene
 
 上部のNew SceneはMayaだけに表示。専用Maya2022/2027で実ボタンから新規作成し、未保存時のSave/Discard/Cancel、保存先取消相当、保存失敗、既存ファイル保護、変更なし時の確認省略を検証しました。Saveは実際に保存後のファイルを開き直し値を確認。保存先取消と失敗はテストで再現したもので、OS保存ダイアログの手動操作ではありません。Windows単体の非表示も合格。証跡は `.maya-output/verification/qpe-new-scene/verified-results.json`、画像は各Mayaの `scene/05.png`。新規録画は行っていません。
+
+## 2026-10-20 ドライブとシーンフォルダー追従
+
+Windows単体のinspector、Maya2022/2027のscene/inspectorでドライブ一覧とアイコン、実ホストのシーン読込後の移動、Save/New/Cancelで場所を維持することを検証。初回scriptJob遅延をkAfterOpenへ変更し、Qt5のドライブアイコン取得時のスタイル寿命問題をQFileIconProviderで解消して再検証しました。配布exeの再ビルド・起動も合格。証跡 `.maya-output/verification/qpe-drives/verified-results.json`。物理ドライブ抜差し・切断ネットワーク・iPad・新規録画は未実施。

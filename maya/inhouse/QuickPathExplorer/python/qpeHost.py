@@ -3,6 +3,7 @@ import os
 import json
 from pathlib import Path
 from maya import cmds, mel, OpenMayaUI
+from maya.api import OpenMaya
 from qpeQt import QtCore, QtGui, QtWidgets, QAction, shiboken
 from quickPathExplorer import Explorer, ICON
 from qpeSettings import readSettings
@@ -75,6 +76,11 @@ def show(path=None, _restoring=False):
     for event in ('SceneOpened', 'NewSceneOpened', 'SceneSaved', 'workspaceChanged'):
         if event in events:
             cmds.scriptJob(event=[event, lambda: refresh(widget)], parent=CONTROL)
+    # scriptJobのアイドル待ちに依存せず、スクリプトからのOpenにも追従する。
+    # Qt側の破棄時に解除し、閉じた画面への通知とコールバックの蓄積を防ぐ。
+    callback = OpenMaya.MSceneMessage.addCallback(
+        OpenMaya.MSceneMessage.kAfterOpen, lambda *unused: refresh(widget, follow_scene=True))
+    widget.destroyed.connect(lambda *unused: OpenMaya.MMessage.removeCallback(callback))
     refresh(widget)
     widget.show()
     location = path or readSettings().get('lastPath') or cmds.workspace(query=True, rootDirectory=True)
@@ -92,11 +98,12 @@ def restore():
     return show(_restoring=True)
 
 
-def refresh(widget):
+def refresh(widget, follow_scene=False):
     """現在のシーンとプロジェクト情報を更新する。
 
     Args:
         widget (Explorer): 表示先。
+        follow_scene (bool): シーン読込成功時だけ、その保存先へ移動する。
     """
     if not shiboken.isValid(widget):
         return
@@ -109,6 +116,10 @@ def refresh(widget):
             folders.append(path)
     widget.setProject(root, folders)
     scene = cmds.file(query=True, sceneName=True)
+    if follow_scene and scene:
+        directory = str(Path(scene).parent)
+        if os.path.isdir(directory):
+            widget.navigate(directory)
     widget.sceneTarget.setText('Current scene: ' + (scene or '(unsaved)'))
     if scene and not widget.fileName.text():
         widget.fileName.setText(Path(scene).name)

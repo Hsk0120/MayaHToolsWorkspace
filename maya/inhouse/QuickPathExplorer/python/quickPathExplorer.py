@@ -564,6 +564,7 @@ class Explorer(QtWidgets.QWidget):
         self.places.itemDoubleClicked.connect(self._placeActivated)
         self._placeIcons = FileIcons()
         self._placeFolderIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Folder)
+        self._placeDriveIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Drive)
         self._placeRefreshTimer = QtCore.QTimer(self)
         self._placeRefreshTimer.setSingleShot(True)
         self._placeRefreshTimer.timeout.connect(self._loadPlaces)
@@ -1386,7 +1387,8 @@ class Explorer(QtWidgets.QWidget):
         self.places.clear()
         settings = readSettings()
         groups = [('Favorites', settings.get('favorites', [])),
-                  ('Recent items', settings.get('recents', []))]
+                  ('Recent items', settings.get('recents', [])),
+                  ('Drives', [drive.absoluteFilePath() for drive in QtCore.QDir.drives()])]
         for title, paths in groups:
             group = QtWidgets.QTreeWidgetItem(self.places, [title])
             if title == 'Recent items':
@@ -1396,7 +1398,8 @@ class Explorer(QtWidgets.QWidget):
                 item = QtWidgets.QTreeWidgetItem(group, [Path(path).name or path])
                 item.setData(0, QtCore.Qt.UserRole, path)
                 item.setToolTip(0, path)
-                item.setIcon(0, self._placeFolderIcon if os.path.isdir(path)
+                item.setIcon(0, self._placeDriveIcon
+                             if title == 'Drives' else self._placeFolderIcon if os.path.isdir(path)
                              else self._placeIcons.icon(path))
             group.setExpanded(expanded.get(title, True))
             if title == 'Favorites':

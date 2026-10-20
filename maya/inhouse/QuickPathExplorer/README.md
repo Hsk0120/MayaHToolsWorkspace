@@ -11,7 +11,7 @@ Windows単体とMaya内で同じ画面を使用します。
 
 - 配色: Windows単体の新規設定はWindows Lightです。Windows標準Explorerの撮影を基準に、一覧と詳細欄は白、プレビューは薄いグレー、選択行はグレーで表示します。Windows Darkは暗い一覧・詳細欄と少し明るいプレビューで構成します。Aa→Colorで選択でき、既存の色設定は維持します。Windows themeではWindowsのアプリモード（ライト／ダーク）とアクセント色へ追従します。「Aa」→ColorでClassic Light / Windows theme / Windows Light / Windows Darkを選べ、OSの設定を変えずに白背景へ固定できます。Maya内はダーク配色を維持し、ホスト全体のパレットは変更しません。
 
-- 左サイドバー: 初期状態は非表示。左上のアイコンで切り替え、FavoritesとRecent itemsだけを表示。両方でフォルダー・ファイルをアイコン付きで扱います。ファイルは単クリックで選択・プレビュー、ダブルクリックで開きます。ファイルの右クリックからAdd to Favoritesで登録できます。Recent itemsは移動先フォルダーと成功したOpen/Import/Referenceのファイルを最大10件保持します。
+- 左サイドバー: 初期状態は非表示。左上のアイコンで切り替え、Favorites・Recent items・Drivesを表示。両方でフォルダー・ファイルをアイコン付きで扱います。ファイルは単クリックで選択・プレビュー、ダブルクリックで開きます。ファイルの右クリックからAdd to Favoritesで登録できます。Recent itemsは移動先フォルダーと成功したOpen/Import/Referenceのファイルを最大10件保持します。
 - 上段: フォルダー専用のカラムビュー。フォルダー名の左側にアイコンを表示します。読込完了した空の末尾カラムは非表示にし、起点の一覧・読込中・エラーの表示は保持します。
 - 上段の各行は「フォルダーアイコン・名前・右端の階層矢印」の順です。空と確認できたフォルダーは矢印を省略します。
 - 直近4列はフォルダー名から計算した幅を優先して保持し、遠い祖先から80pxまで縮小。DPI・UI倍率を適用し、収まらない場合は横スクロールになります。極端に長い名前や手動で狭めた列はホバーでフルパスを確認できます。
@@ -171,3 +171,5 @@ C++ DLLはMaya 2027と同じQt ABI専用で、Mayaプラグイン登録は行い
 タブ一式は **Tab set**、QPEの操作履歴は **File operation history** と表記します。MayaのWorkspaceやWindowsのFile Historyとは別の機能です。ファイル一覧の **Extension** は拡張子、**Extended details** はタグ等を含む詳細一覧です。**Compare folders and copy changes** は宛先へ一方向に変更をコピーし、宛先だけのファイルは残します。競合時の **Keep both (new name)** は別名で両方保持します。左側の **Recent items** はQPEのファイル・フォルダー履歴、アドレス欄の **Recent folders** は移動先フォルダーの履歴です。
 
 Maya用の上部バーには **New Scene** と **Save Scene As…** を表示します。New Sceneは未保存の変更があればSave／Discard／Cancelを確認します。保存をキャンセルした場合や保存に失敗した場合は、現在のシーンを維持します。Windows単体ではNew Sceneを表示しません。
+
+左サイドバーの **Drives** はOSから取得したドライブ一覧です。ドライブをクリックするとそのルートへ移動します。Maya標準のOpen/Recent FilesやQPEでシーンを開いた場合は、現在のタブをシーンのフォルダーへ移動します（場所をロックしたタブは既存の規則どおり新しいタブで移動）。保存・新規シーン・読込キャンセルでは閲覧中の場所を変更しません。
