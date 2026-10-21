@@ -62,6 +62,11 @@ OLLAMA = 'http://127.0.0.1:11434/api/'
 DEFAULT_VISION_MODEL = 'gemma3:27b'
 DEFAULT_WHISPER_MODEL = 'large-v3'
 
+#: Ollama でGPUに載せる層の数(None なら Ollama に任せる)。``--num-gpu`` で変える。
+#: 手元の環境では gemma3:27b を全層(63)GPUに載せると、画像に対して <unused57> のような
+#: 意味のない記号を出し続けて打ち切られる(token repeat limit)ことがあり、62 にすると直った。
+NUM_GPU = None
+
 #: 1回の要約に渡す文字数の上限。超えたら区切って要約してからまとめる。
 CHUNK_CHARS = 12000
 
@@ -468,10 +473,20 @@ def chat(model, prompt, text=None, image=None, num_predict=2048):
         message['images'] = [base64.b64encode(image.read_bytes()).decode('ascii')]
     # 同じ入力で同じ結果になるよう temperature を低くし、長い反復生成で GPU を占有しないよう長さを制限する。
     options = {'temperature': 0.2, 'seed': 42, 'num_ctx': 16384, 'num_predict': num_predict}
+    if NUM_GPU is not None:
+        options['num_gpu'] = NUM_GPU
     try:
         reply = ollama('chat', {'model': model, 'messages': [message], 'stream': False, 'keep_alive': '10m',
                                 'options': options})
     except RuntimeError as error:
+        if 'CUDA error' in str(error):
+            # GPU側のエラー(illegal memory access など)で推論が落ちたときは、Ollama が次の要求で
+            # 推論部分を立ち上げ直すので、少し待って1回だけ言い直させる。
+            log('  Retrying after a CUDA error.')
+            time.sleep(10)
+            reply = ollama('chat', {'model': model, 'messages': [message], 'stream': False, 'keep_alive': '10m',
+                                    'options': options})
+            return reply['message']['content'].strip()
         if 'repeat' not in str(error):
             raise
         # 同じ語句を繰り返して打ち切られた(token repeat limit)ときは、揺らぎを少し増やし、
@@ -624,6 +639,9 @@ def parse_args(argv=None):
     parser.add_argument('--whisper-model', default=DEFAULT_WHISPER_MODEL, help='faster-whisper model (default: large-v3).')
     parser.add_argument('--device', default='cuda', choices=['cuda', 'cpu'], help='Device for Whisper (default: cuda).')
     parser.add_argument('--model', default=DEFAULT_VISION_MODEL, help='Ollama vision model (default: gemma3:27b).')
+    parser.add_argument('--num-gpu', type=int,
+                        help='Number of model layers Ollama puts on the GPU (default: let Ollama decide). '
+                             'Try 62 if gemma3:27b returns garbage such as <unused57> for images.')
     parser.add_argument('--threshold', type=float, default=0.1, help='Scene change threshold 0-1 (default: 0.1).')
     parser.add_argument('--interval', type=float, default=10.0, help='Max seconds between frames (default: 10).')
     parser.add_argument('--max-frames', type=int, default=40, help='Max frames to read (default: 40).')
@@ -648,6 +666,8 @@ def main(argv=None):
         int: 終了コード(成功は0)。
     """
     args = parse_args(argv)
+    global NUM_GPU
+    NUM_GPU = args.num_gpu
     video = args.video.resolve()
     if not video.is_file():
         log('Video not found: {}'.format(video))
