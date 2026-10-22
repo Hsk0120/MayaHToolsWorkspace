@@ -10,11 +10,9 @@ globals().pop("_prepare_reload", None)
 
 from .addAttr import addAttr
 from .addConstraint import addConstraint
-from .attr import attr
 from .bakeResults import bakeResults
 from .bindSkin import bindSkin
 from .captureSelection import captureSelection
-from .channelBox import channelBox
 from .createBlendShape import createBlendShape
 from .createCurve import createCurve
 from .createGroup import createGroup
@@ -27,7 +25,6 @@ from .createShader import createShader
 from .createShadingGroup import createShadingGroup
 from .createShelf import createShelf
 from .delete import delete
-from .drivenKey import drivenKey
 from .duplicate import duplicate
 from .executeDeferred import executeDeferred
 from .getAttr import getAttr
@@ -46,28 +43,16 @@ from .getWorkspaceLayout import getWorkspaceLayout
 from .ls import ls
 from .makeIdentity import makeIdentity
 from .mirrorJoint import mirrorJoint
-from .node import node
-from .outliner import outliner
-from .plug import plug
 from .reorder import reorder
 from .requirePlugins import requirePlugins
-from .scene import scene
 from .select import select
-from .shelf import shelf
-from .timeSlider import timeSlider
-from .viewport import viewport
-from .window import window
-from .workspaceControl import workspaceControl
-from .workspaceLayout import workspaceLayout
 
 __all__ = [
     "addAttr",
     "addConstraint",
-    "attr",
     "bakeResults",
     "bindSkin",
     "captureSelection",
-    "channelBox",
     "createBlendShape",
     "createCurve",
     "createGroup",
@@ -80,7 +65,6 @@ __all__ = [
     "createShadingGroup",
     "createShelf",
     "delete",
-    "drivenKey",
     "duplicate",
     "executeDeferred",
     "getAttr",
@@ -99,17 +83,7 @@ __all__ = [
     "ls",
     "makeIdentity",
     "mirrorJoint",
-    "node",
-    "outliner",
-    "plug",
     "reorder",
     "requirePlugins",
-    "scene",
     "select",
-    "shelf",
-    "timeSlider",
-    "viewport",
-    "window",
-    "workspaceControl",
-    "workspaceLayout",
 ]

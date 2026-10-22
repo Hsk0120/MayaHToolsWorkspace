@@ -87,17 +87,17 @@ class ConvenienceTests(unittest.TestCase):
         b = mlib.createNode('transform', name='b', parent=root)
         c = mlib.createNode('transform', name='c', parent=a)
         shape = mlib.createNode('mesh', parent=b)
-        self.assertEqual([str(n) for n in root.iterBreadthFirst()], ['root','a','b','c'])
-        self.assertEqual([str(n) for n in root.iterDepthFirst()], ['root','a','c','b'])
-        self.assertEqual(len(list(root.iterBreadthFirst(shapes=True))), 5)
+        self.assertEqual([str(n) for n in root.getChildren(allDescendents=True, includeSelf=True, order='breadthFirst')], ['root', 'a', 'b', 'c'])
+        self.assertEqual([str(n) for n in root.getChildren(allDescendents=True, includeSelf=True, order='depthFirst')], ['root', 'a', 'c', 'b'])
+        self.assertEqual(len(list(root.getChildren(shapes=True, allDescendents=True, includeSelf=True, order='breadthFirst'))), 5)
         shape.getPlug("intermediateObject").set(True)
-        self.assertEqual(len(list(root.iterBreadthFirst(shapes=True))), 4)
+        self.assertEqual(len(list(root.getChildren(shapes=True, allDescendents=True, includeSelf=True, order='breadthFirst'))), 4)
         cmds.parent(str(c), str(b), add=True)
         self.assertEqual(len(c.getInstances()), 2)
         self.assertEqual(len(c.getInstances(noSelf=True)), 1)
         self.assertEqual(len(c.getParents()), 2)
         self.assertEqual(len(c.getParents(indirect=True)), 2)
-        self.assertEqual(len(list(root.iterBreadthFirst())), 5)
+        self.assertEqual(len(list(root.getChildren(allDescendents=True, includeSelf=True, order='breadthFirst'))), 5)
         self.assertNotEqual(c.getInstances()[0].getFullPath(), c.getInstances()[1].getFullPath())
 
     def test_animation_layers(self):
@@ -120,10 +120,10 @@ class ConvenienceTests(unittest.TestCase):
         shape = cmds.listRelatives(surface, s=True, f=True)[0]
         cmds.curveOnSurface(shape, d=1, uv=[(0.1,0.1),(0.9,0.9)])
         node = mlib.getNode(surface)
-        self.assertEqual(len(list(node.iterBreadthFirst())), 1)
-        for traversal in (node.iterBreadthFirst, node.iterDepthFirst):
-            self.assertEqual(len(list(traversal(underWorld=True))), 2)
-            paths = [n.getFullPath() for n in traversal(shapes=True, underWorld=True)]
+        self.assertEqual(len(list(node.getChildren(allDescendents=True, includeSelf=True, order='breadthFirst'))), 1)
+        for order in ("breadthFirst", "depthFirst"):
+            self.assertEqual(len(list(node.getChildren(allDescendents=True, includeSelf=True, order=order, underWorld=True))), 2)
+            paths = [n.getFullPath() for n in node.getChildren(shapes=True, allDescendents=True, includeSelf=True, order=order, underWorld=True)]
             self.assertEqual(len(paths), 4)
             self.assertIn('->', paths[-1])
 
@@ -137,7 +137,7 @@ class ConvenienceTests(unittest.TestCase):
         cmds.mute(str(node.tx))
         self.assertEqual(node.tx.getAnimLayers(), [layer, base])
         cmds.mute(str(node.tx), disable=True, force=True)
-        source = node.tx.getSourceWithConversion()
+        source = node.tx.getSource(skipConversionNodes=False)
         blend = mlib.createNode('pairBlend')
         cmds.disconnectAttr(str(source), str(node.tx))
         cmds.connectAttr(str(source), str(blend.inTranslateX1))

@@ -4,6 +4,7 @@ from .aimAxisConversion import AimAxisConversion
 from .bendCorrection import BendCorrection
 from .coneReader import ConeReader
 from .controlShape import ControlShape
+from .controlHierarchy import ControlHierarchy
 from .lengthCompensation import LengthCompensation
 from .matrixFollow import MatrixFollow
 from .poseRbf import PoseRbf
@@ -21,6 +22,7 @@ __all__ = [
     "BendCorrection",
     "ConeReader",
     "ControlShape",
+    "ControlHierarchy",
     "LengthCompensation",
     "MatrixFollow",
     "PoseRbf",

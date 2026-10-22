@@ -13,9 +13,9 @@ Sceneオブジェクトと参照ファイルの取得・操作を説明します
 
     import mlib
 
-    current = mlib.scene()
+    current = mlib.getScene()
     print(current)  # 現在のパス。未保存の場合は untitled
-    other = mlib.scene("C:/project/scenes/character.ma")
+    other = mlib.getScene("C:/project/scenes/character.ma")
     print(other)    # パスを表示するだけで、ファイルは開かない
     # other.open() # 明示的に開く場合
 
@@ -27,7 +27,7 @@ Scene は取得時のパスを保持します。現在のシーンの切替・�
 クラスの定義先は ``mlib.common.Scene``、名前空間クラスは ``mlib.common.Namespace`` です。
 
 直接importする場合は ``mlib.common`` を使います。
-``mlib.scene()`` など、コマンドから取得する入口は従来どおりです。
+``mlib.getScene()`` など、コマンドから取得する入口は従来どおりです。
 
 .. code-block:: python
 
@@ -81,16 +81,16 @@ parentが相対文字列の場合は現在の名前空間から解決し、既�
    from mlib.common.references import listReferences
 
    for reference in listReferences():
-       print(reference.filename(), reference.associatedNamespace(), reference.loaded())
+       print(reference.getFilename(), reference.getAssociatedNamespace(), reference.loaded())
 
    top_level = listReferences(top_level_only=True)  # ネストした参照を除外
 
    reference = listReferences()[0]
    reference.unload()
    reference.load()
-   print(reference.nodes())  # 参照内のノードをラッパーで取得(アンロード中はRuntimeError)
+   print(reference.getNodes())  # 参照内のノードをラッパーで取得(アンロード中はRuntimeError)
 
 参照ノード自体は ``mlib.nodes.Reference`` として自動解決されます
-(``mlib.node("参照ノード名")`` でも取得可能)。``filename``/``namespace``/
+(``mlib.getNode("参照ノード名")`` でも取得可能)。``filename``/``namespace``/
 ``loaded``/``nodes``/``parentReference`` は ``MFnReference`` 経由の
 読み取り専用照会、``load``/``unload``/``remove`` は Undo 対応の編集操作です。

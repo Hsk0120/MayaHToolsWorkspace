@@ -74,17 +74,14 @@ def main(output_dir=None, finished=None):
             check(not editor.status.text().startswith("操作できません"), "Add sample " + kind)
         check(len(rig.twist_joints()) == 3 and len(rig.bend_joints()) == 3, "Sample joints created")
         graph = list(DrivenLayer(rig).graphs().values())[0]
-        bone = graph.getPlug("drivenNode").getSourceWithConversion().getNode()
+        bone = graph.getPlug('drivenNode').getSource(skipConversionNodes=False).getNode()
         cmds.setAttr(rig.controls()["fk1"] + ".rz", 45)
         yield
         check(abs(bone.getPlug("ty").get() - 0.5) < 0.001, "SDK responds to FK rotation")
         item = row("driven")
         item.setCheckState(0, QtCore.Qt.Unchecked)
         yield
-        check(
-            not rig.layer_enabled("driven") and bone.getPlug("ty").getSourceWithConversion() is None,
-            "Layer checkbox disconnects SDK",
-        )
+        check(not rig.layer_enabled('driven') and bone.getPlug('ty').getSource(skipConversionNodes=False) is None, 'Layer checkbox disconnects SDK')
         cmds.undo()
         yield
         check(

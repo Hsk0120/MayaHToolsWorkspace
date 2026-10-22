@@ -4,7 +4,7 @@
 接続を保護してノードを削除する
 --------------------------------
 
-``Node.delete(*, safe=False)`` は既定で従来どおりMaya標準削除を行います。
+``Node.delete(*, safe=False, fast=False)`` は既定で従来どおりMaya標準削除を行います。
 ``safe=True`` では自身またはDAG子孫にDG接続が一つでもあれば、削除せずNoneを返します。
 入力・出力の両方とmessage、Set所属、マテリアル接続を含みます。
 DAGの親子関係自体は接続に数えません。無効ノードや削除時のエラーは従来どおり送出し、
@@ -12,7 +12,7 @@ DAGの親子関係自体は接続に数えません。無効ノードや削除�
 
 .. code-block:: python
 
-   node = mlib.node("multiplyDivide1")
+   node = mlib.getNode("multiplyDivide1")
    node.delete(safe=True)   # 接続がある場合は残す
    node.delete()           # 既定safe=False。従来の削除
 
@@ -20,7 +20,7 @@ DAGの親子関係自体は接続に数えません。無効ノードや削除�
 コレクションは接続を持つ対象を残し、削除可能な対象だけを処理します。
 JointでスキニングやinverseScale等の接続を検出した場合は、ウェイト移送や子の再親付けも
 行いません。safe=FalseのJoint専用削除は従来の仕様を維持します。戻り値は全てNoneです。
-削除はUndoに対応します。safe=Falseが従来の削除に相当するためforceは追加していません。
+通常削除はUndoに対応し、fast=TrueはOM2で直接削除します。safe=Falseが従来の削除に相当するためforceは追加していません。
 
 このフラグはノードのメソッド用です。``mlib.delete()``、PlugやUIのdeleteには追加していません。
 ``deleteUnusedIntermediateShapes()`` は標準のマテリアル所属を許容する専用判定のため、
@@ -29,23 +29,23 @@ JointでスキニングやinverseScale等の接続を検出した場合は、ウ
 形状のスキニング関係
 --------------------
 
-Shape/Transform共通の ``skinClusters()`` は、対象Shapeを変形するSkinClusterの
+Shape/Transform共通の ``getSkinClusters()`` は、対象Shapeを変形するSkinClusterの
 重複なしリストを返します。Transformでは直下の非中間Shapeを対象にします。
-``bindPoses()`` はそれらが参照するDagPoseを重複・未接続を除いて返します。
+``getBindPoses()`` はそれらが参照するDagPoseを重複・未接続を除いて返します。
 どちらも引数はなく、対象なしは空リストです。Mesh・NURBS等で共通に使用できます。
-Jointの既存 ``skinClusters()`` はinfluence接続照会を維持します。
+Jointの既存 ``getSkinClusters()`` はinfluence接続照会を維持します。
 具体例・探索範囲は :doc:`dag_pose` を参照してください。
 
 ``collectSkinClusters()`` は単数DAGノード・DagNodesで、重複を除いた
 ``SkinClusters`` コレクションを返します。そのまま ``removeUnusedInfluences()``
-などの一括操作へ渡せます。従来の単数 ``skinClusters()`` のリスト、
+などの一括操作へ渡せます。従来の単数 ``getSkinClusters()`` のリスト、
 DagNodesの形状ごとのリスト、Jointsの専用集約の返却は変更しません。
 
 コンポーネントの参照と現在の有効性
 ----------------------------------
 
-Meshの ``vertex/vertices/edge/edges/face/faces/uv/uvs`` とカーブの ``cv/cvs`` は、
-get付きの正式getterへ委譲する入口です。引数・idx別名・返却は同じです。
+Meshの ``getVertex/getVertices/getEdge/getEdges/getFace/getFaces/getUV/getUVs`` と
+カーブの ``getCV/getCVs`` を使用します。番号・idx別名・返却型は維持します。
 ``components[0]`` の0はコレクション内の位置で、実頂点番号は ``component.index`` です。
 
 ``valid()`` は保持するshapeの生存・種類と、現在の番号範囲を照会します。
@@ -57,43 +57,43 @@ get付きの正式getterへ委譲する入口です。引数・idx別名・返�
 所有ノード・名前・階層
 ------------------------
 
-``hasAttr``、``parent``、``children``、``fromReferencedFile``、``mnode``、``mpath``、
-``Plug.longName``、``Plug.delete``、``Vector.lengthSq`` を正式名とします。
+``hasAttr``、``getParent``、``getChildren``、``fromReferencedFile``、``mnode``、``mpath``、
+``Plug.getLongName``、``Plug.delete``、``Vector.lengthSq`` を正式名とします。
 旧 ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared``
-の互換別名はありません。所有ノードは ``plug.node()`` で取得します。
+の互換別名はありません。所有ノードは ``plug.getNode()`` で取得します。
 
 .. code-block:: python
 
    node = mlib.createNode("transform", name="control")
-   plug = node.plug("tx")
-   print(plug.node())       # control
-   print(plug.name())       # control.tx
-   print(plug.longName())   # translateX
-   print(plug.attrName())   # .tx
-   print(node.fullPath())   # |control
+   plug = node.getPlug("tx")
+   print(plug.getNode())       # control
+   print(plug.getName())       # control.tx
+   print(plug.getLongName())   # translateX
+   print(plug.getAttrName())   # .tx
+   print(node.getFullPath())   # |control
    node.hide()
    node.show()
 
-``children()`` はShapeと中間ノードを除きます。``shapes=True``、``intermediates=True``
-で含められます。従来の全子取得 ``childNodes()`` も使用できます。
-``parent(step=1)`` は親階層を遡り、ルートを越えるとNoneです。
-``shape(idx=0)`` は対象がなければNoneです。
-``visible()`` は親を含むDAGの表示判定、``visibility()`` は自身のvisibility値です。
+``getChildren()`` はShapeと中間ノードを除きます。``shapes=True``、``intermediates=True``
+で含められます。全子取得は ``getChildren(shapes=True, intermediates=True)`` です。
+``getParent(step=1)`` は親階層を遡り、ルートを越えるとNoneです。
+``getShape(idx=0)`` は対象がなければNoneです。
+``getVisible()`` は親を含むDAGの表示判定、``getVisibility()`` は自身のvisibility値です。
 
 接続照会
 ----------
 
-``source()`` と ``destinations()`` はunitConversion系を飛ばします。
-直結先が必要な場合は ``sourceWithConversion()`` と ``destinationsWithConversions()`` を使います。
+``getSource()`` と ``getDestinations()`` はunitConversion系を飛ばします。
+直結先が必要な場合は ``getSource(skipConversionNodes=False)`` と ``getDestinations(skipConversionNodes=False)`` を使います。
 既存の内製ツールは直結探索へ移行し、処理対象を維持しています。
-NodeとPlugの ``connections/inputs/outputs`` は ``asNode/asPair/index/type/t/et/scn`` 等を扱います。
+NodeとPlugの ``getConnections`` は ``asNode/asPair/index/type/t/et/scn`` 等を扱います。
 
-Plugの ``connections`` は ``src/source`` で入力、``dst/destination`` で出力を選べます。
+Plugの ``getConnections`` は ``src/source`` で入力、``dst/destination`` で出力を選べます。
 既存の ``s/d`` は長名とANDで評価します。
 ``connected``・``connectedTo``・``disconnectAll`` も、boolのキーワード専用引数
 ``src=True, dst=True`` と別名 ``source/destination`` を受け付けます。
 判定はbool、``disconnectAll`` は自身を返し、両Falseでは検索・切断を行いません。
-方向が決まっている ``inputs/outputs`` 等は従来のままです。
+入力のみは ``getConnections(src=True, dst=False)``、出力のみは逆方向を指定します。
 解除時の戻り値と既定の違いは :doc:`api_arguments` の「接続と切断」を参照してください。
 
 Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・入力接続等から
@@ -102,11 +102,11 @@ Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・
 
 .. code-block:: python
 
-   upstream = plug.source()
-   immediate = plug.sourceWithConversion()
-   nodes = node.inputs(asNode=True, scn=True)
-   pairs = node.connections(asPair=True)
-   outputs = plug.connections(src=False, dst=True)
+   upstream = plug.getSource()
+   immediate = plug.getSource(skipConversionNodes=False)
+   nodes = node.getConnections(True, False, asNode=True, scn=True)
+   pairs = node.getConnections(asPair=True)
+   outputs = plug.getConnections(src=False, dst=True)
    has_input = plug.connected(src=True, dst=False)
    sends_to_other = plug.connectedTo(other, src=False, dst=True)
 
@@ -115,51 +115,53 @@ Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・
 
 ``setLocked/setKeyable/setChannelBox`` は ``leaf=True`` で複合アトリビュートの末端へ適用できます。
 ``unlock(below=True)`` は上位と下位のロックを解除し、変更したPlugのリストを返します。
-``mute/unmute`` と ``show/hide`` も利用できます。通常のsetterは自身を返します。
-``enumName()`` は現在値、``enumFieldName(val)`` は指定値の名前を返します。
+``mute/unmute`` と ``show/hide`` も利用できます。通常のsetterは自身を返します。対応する更新は ``fast=True`` でOM2へ直接反映します。
+``getEnumName()`` は現在値、``getEnumFieldName(val)`` は指定値の名前を返します。
 
 Transformの ``getT/setT`` 等の短縮アクセサーは廃止しました。
-姿勢の取得には ``translate()`` 等を使います。
-``jointOrientQuaternion(ws=False)`` は ``quaternion(ws=False, r=False)`` に相当します。
-``rotation/euler`` は既存のmlib独自の行列由来Euler取得を維持します。
+姿勢の取得には ``getTranslate()`` 等を使います。
+``getJointOrientQuaternion(ws=False)`` は ``getQuaternion(ws=False, r=False)`` に相当します。
+``getRotation/getEuler`` は既存のmlib独自の行列由来Euler取得を維持します。
 
 配列と対応範囲
 ----------------
 
-``nextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` は
+``getNextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True)`` は
 入力接続・ロックを避けた空き番号を返します。startが負の場合は最後の接続の次から探します。
 startより小さい既存要素がある場合も、接続済み番号を避けます。配列親がロックされている場合は探索を続けず例外を返します。
 
 ``addElement(idx=None)`` は指定要素と必要な上位要素を実体化し、新規要素を下位からリストで返します。
 既存要素は空リストです。要素自身に呼ぶ場合はidxを省略できます。
-Maya標準の評価を利用するため、追加自体のUndoは未対応です。
+APIの評価を利用するため、追加自体のUndoは未対応です。
 messageやMaya内部型の実体化はNotImplementedErrorで拒否します。
 独自Undoプラグインは追加しません。message配列は取得した参照へ接続してください。
 
-``element(index, create=False)`` は従来の論理インデックス指定を維持しています。
+``getElement(index, create=False)`` は従来の論理インデックス指定を維持しています。
 要素の格納順を表す物理インデックスではありません。
-Transformation値型とtransformation/setTransformationは :doc:`transformation` を参照してください。
+Transformation値型とgetTransformation/setTransformationは :doc:`transformation` を参照してください。
 
 便利メソッドと角括弧アクセス
 ----------------------------
 
 ``plug.setAlias("alias")`` は別名を設定し、``setAlias()`` は解除します。
-``plug.setKey(t=1, v=10)`` はmaya.cmds.setKeyframeを呼び、値と時間はUI単位です。
+``plug.setKey(t=1, v=10)`` は通常maya.cmds.setKeyframeを呼び、値と時間はUI単位です。
+fast=Trueは単一時刻・値・接線型の指定だけを受け付け、OM2でカーブを更新します。
 どちらも自身を返し、Undoできます。
-``plug.animLayers(selected=False, exact=False)`` は入力チェーンのレイヤー名を
+``plug.getAnimLayers(selected=False, exact=False)`` は入力チェーンのレイヤー名を
 上位から返し、末尾にベースレイヤーを含めます。selected=Trueで選択レイヤーに限定し、
 exact=Trueも指定するとベースも選択状態で絞ります。proxy・mute・pairBlendを経由して調べます。
 
-``node.instances(noSelf=False)`` は各DAGパスのNodeリスト、
-``parents(indirect=False)`` は直接の親リストを返します。
-``iterBreadthFirst()`` と ``iterDepthFirst()`` は自身から幅優先・深さ優先で反復します。
+``node.getInstances(noSelf=False)`` は各DAGパスのNodeリスト、
+``getParents(indirect=False)`` は直接の親リストを返します。
+``getChildren(allDescendents=True, includeSelf=True, order="breadthFirst")`` は自身から幅優先、
+``order="depthFirst"`` は深さ優先で子孫を取得します。
 ``shapes/intermediates/underWorld`` で探索範囲を指定します。
 
 配列要素の取得は ``array[3]`` を使います。
 未作成の配列要素も参照でき、取得だけでは実体化しません。
 値設定・接続で要素を作成します。``for element in array`` は既存要素だけを論理番号順に返します。
 ``array.get()`` は論理番号をキーにした辞書のままです。
-既存の ``element(index, create=False)`` の明示的な存在検査・実体化機能は維持します。
+既存の ``getElement(index, create=False)`` の明示的な存在検査・実体化機能は維持します。
 
 .. code-block:: python
 
@@ -169,7 +171,7 @@ exact=Trueも指定するとベースも選択状態で絞ります。proxy・mu
 
 全API互換は対象外です。
 複合アトリビュートの子も ``compound[0]``、``compound["translateX"]`` で取得します。
-旧 ``child()`` は使用しません。``node.plug("target")[0]["weight"]`` のように連続指定できます。
-複合PlugとArrayPlugをmaya.cmdsへ渡す場合は ``str(plug)`` または ``plug.fullName()`` を使います。
+旧 ``child()`` は使用しません。``node.getPlug("target")[0]["weight"]`` のように連続指定できます。
+複合PlugとArrayPlugをmaya.cmdsへ渡す場合は ``str(plug)`` または ``plug.getFullName()`` を使います。
 mlibのコマンドにはそのまま渡せます。
 ``addAttr()`` の既定Plug返却・既存数学型のOpenMaya継承・内部単位も維持しています。

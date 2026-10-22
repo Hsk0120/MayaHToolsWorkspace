@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from .node import Node
@@ -101,83 +100,3 @@ class Constraint(Transform):
             if name in requested:
                 plug.set(weight)
         return self
-
-    @_getter_alias(getTargets)
-    def targets(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargets(*args, **kwargs)
-
-    @_getter_alias(getWeightAliases)
-    def weightAliases(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeightAliases(*args, **kwargs)
-
-    @_getter_alias(getWeightPlugs)
-    def weightPlugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeightPlugs(*args, **kwargs)
-
-    @_getter_alias(getWeights)
-    def weights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeights(*args, **kwargs)
-
-    @_getter_alias(getWeight)
-    def weight(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeight(*args, **kwargs)

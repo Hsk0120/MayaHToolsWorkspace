@@ -22,13 +22,13 @@ class ResponsibilityTest(unittest.TestCase):
         a, b, c = [mlib.createNode('transform') for _ in range(3)]
         a.getPlug('tx').connectTo(b.getPlug('rx'))
         b.getPlug('rx').connectTo(c.getPlug('rx'))
-        source = b.getPlug('rx').getSourceWithConversion()
+        source = b.getPlug('rx').getSource(skipConversionNodes=False)
         self.assertIs(b.getPlug('rx').disconnectInput().getNode(), b)
-        self.assertIsNone(b.getPlug('rx').getSourceWithConversion())
+        self.assertIsNone(b.getPlug('rx').getSource(skipConversionNodes=False))
         self.assertTrue(b.getPlug('rx').isConnectedTo(c.getPlug('rx')))
         self.assertTrue(source.getNode().isValid())
         cmds.undo()
-        self.assertEqual(b.getPlug('rx').getSourceWithConversion(), source)
+        self.assertEqual(b.getPlug('rx').getSource(skipConversionNodes=False), source)
         cmds.redo()
         before = cmds.undoInfo(query=True, undoName=True)
         b.getPlug('rx').disconnectInput()
@@ -40,10 +40,10 @@ class ResponsibilityTest(unittest.TestCase):
         a.getPlug('translate').connectTo(b.getPlug('translate'))
         b.getPlug('tx').connectTo(c.getPlug('tx'))
         b.getPlug('translate').disconnectInput()
-        self.assertIsNone(b.getPlug('translate').getSourceWithConversion())
+        self.assertIsNone(b.getPlug('translate').getSource(skipConversionNodes=False))
         self.assertTrue(b.getPlug('tx').isConnectedTo(c.getPlug('tx')))
         cmds.undo()
-        self.assertEqual(b.getPlug('translate').getSourceWithConversion(), a.getPlug('translate'))
+        self.assertEqual(b.getPlug('translate').getSource(skipConversionNodes=False), a.getPlug('translate'))
 
     def test_array_failed_edit_does_not_create_elements(self):
         """不正値・入力元・ロックの失敗前に配列の穴を実体化しない。"""

@@ -3,7 +3,6 @@
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ._windowReference import _WindowReference
 
 
@@ -133,54 +132,6 @@ class WorkspaceControl(_WindowReference):
         cmds.workspaceControl(self.getName(), edit=True, stateString=snapshot["state"])
         cmds.workspaceControl(self.getName(), edit=True, collapse=snapshot["collapsed"])
         cmds.workspaceControl(self.getName(), edit=True, visible=snapshot["visible"])
-
-    @_getter_alias(getFloating)
-    def floating(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getFloating(*args, **kwargs)
-
-    @_getter_alias(getSize)
-    def size(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSize(*args, **kwargs)
-
-    @_getter_alias(getCollapsed)
-    def collapsed(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getCollapsed(*args, **kwargs)
 
     @staticmethod
     def _require_unlocked():

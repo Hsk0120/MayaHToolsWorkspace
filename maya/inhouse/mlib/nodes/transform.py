@@ -8,9 +8,8 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.fastWrite import set_attr, set_plug
+from .._core.fastWrite import set_attr, set_plug, writable
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk, undoTransaction
@@ -213,8 +212,9 @@ class Transform(DagNode):
         result = getattr(cmds, command_name)(*names, self.getFullName(), **command_kwargs)
         return Node(result[0])
 
+    @fast_edit
     @undoChunk("mlibTransformDeleteConstraints")
-    def deleteConstraints(self):
+    def deleteConstraints(self, *, fast=False):
         """自身を拘束するconstraintと、経由するpairBlendを削除する。
 
         入力接続をpairBlend・unitConversionに限って上流へ辿る。
@@ -223,6 +223,9 @@ class Transform(DagNode):
         削除ノードの出力が対象外ノードにも使われる場合は編集前に拒否する。
         現在姿勢の維持・ベイク・アニメーション入力の再接続は行わない。
         全体を一回のUndoで戻せる。
+
+        Args:
+            fast (bool): TrueはOpenMaya直接削除でUndoなし。
 
         Returns:
             list[str]: 削除前のノード名。該当がなければ空リスト。
@@ -233,49 +236,71 @@ class Transform(DagNode):
         """
         if not self.isValid():
             raise RuntimeError("Cannot edit an invalid transform")
-        owner = self.getFullName()
-        deleting, bridges = set(), set()
+        owner = self.mnode()
+        deleting, bridges, objects = set(), set(), {}
 
-        def upstream(node, path):
-            if node in path:
+        def key(obj):
+            """同一探索内のMObjectへ軽量な識別子を付ける。"""
+            token = om2.MObjectHandle(obj).hashCode()
+            objects[token] = obj
+            return token
+
+        def inputs(obj):
+            """message以外の入力接続元を重複なく取得する。"""
+            result = {}
+            for plug in om2.MFnDependencyNode(obj).getConnections():
+                if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
+                    continue
+                for source in plug.connectedTo(True, False):
+                    if not source.attribute().hasFn(om2.MFn.kMessageAttribute):
+                        result[key(source.node())] = source.node()
+            return result.values()
+
+        def upstream(obj, path):
+            """constraintへ到達する限定した中継経路を記録する。"""
+            token = key(obj)
+            if token in path:
                 return False
-            kind = cmds.nodeType(node)
-            if "constraint" in (cmds.nodeType(node, inherited=True) or []):
-                deleting.add(node)
+            fn = om2.MFnDependencyNode(obj)
+            if obj.hasFn(om2.MFn.kConstraint):
+                deleting.add(token)
                 return True
-            if kind not in ("pairBlend", "unitConversion"):
+            if fn.typeName not in ("pairBlend", "unitConversion"):
                 return False
             found = False
-            for source in inputs(node):
-                found = upstream(source, path | {node}) or found
+            for source in inputs(obj):
+                found = upstream(source, path | {token}) or found
             if found:
-                if kind == "pairBlend":
-                    deleting.add(node)
-                else:
-                    bridges.add(node)
+                (deleting if fn.typeName == "pairBlend" else bridges).add(token)
             return found
 
-        def inputs(node):
-            sources = cmds.listConnections(node, source=True, destination=False, plugs=True) or []
-            return {cmds.ls(plug.split(".", 1)[0], long=True)[0] for plug in sources
-                    if cmds.getAttr(plug, type=True) != "message"}
-
+        owner_key = key(owner)
         for source in inputs(owner):
-            upstream(source, {owner})
-        allowed = deleting | bridges | {owner}
-        for node in deleting | bridges:
-            for destination in cmds.listConnections(node, source=False, destination=True, plugs=True) or []:
-                if cmds.getAttr(destination, type=True) == "message":
+            upstream(source, {owner_key})
+        allowed = deleting | bridges | {owner_key}
+        for token in deleting | bridges:
+            fn = om2.MFnDependencyNode(objects[token])
+            for plug in fn.getConnections():
+                if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
                     continue
-                target = cmds.ls(destination.split(".", 1)[0], long=True)[0]
-                if target not in allowed:
-                    raise RuntimeError("Constraint path has shared outputs: " + node)
-        for node in deleting:
-            if cmds.referenceQuery(node, isNodeReferenced=True) or cmds.lockNode(node, query=True, lock=True)[0]:
-                raise RuntimeError("Cannot delete referenced or locked node: " + node)
-        names = sorted(deleting)
+                for destination in plug.connectedTo(False, True):
+                    if (not destination.attribute().hasFn(om2.MFn.kMessageAttribute)
+                            and key(destination.node()) not in allowed):
+                        raise RuntimeError("Constraint path has shared outputs: " + fn.name())
+        for token in deleting:
+            fn = om2.MFnDependencyNode(objects[token])
+            if fn.isFromReferencedFile or fn.isLocked:
+                raise RuntimeError("Cannot delete referenced or locked node: " + fn.name())
+        names = sorted(Node(objects[token]).getFullName() for token in deleting)
         if names:
-            cmds.delete(names)
+            if is_fast():
+                self._detach_inputs(objects[token] for token in deleting)
+                modifier = om2.MDagModifier()
+                for token in deleting:
+                    modifier.deleteNode(objects[token], False)
+                modifier.doIt()
+            else:
+                cmds.delete(names)
         return names
 
     def transformFn(self):
@@ -322,13 +347,15 @@ class Transform(DagNode):
         return self
 
     @flag_aliases(ws="worldSpace")
+    @fast_edit
     @undoChunk("mlibTransformResetPivot")
-    def resetPivot(self, worldSpace=True, *, kind="both"):
+    def resetPivot(self, worldSpace=True, *, kind="both", fast=False):
         """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
             Transform: 自身。一回のUndoで元へ戻せる。
@@ -395,16 +422,16 @@ class Transform(DagNode):
         ws = world_space(worldSpace)
         if kind not in ("rotate", "scale"):
             raise ValueError("kind must be 'rotate' or 'scale'")
-        # 設定と同じxform空間を使う。MFnTransformのkTransformとxformの
-        # objectSpaceでは、スケールを持つノードのピボットの解釈が一致しない。
-        flag = "rotatePivot" if kind == "rotate" else "scalePivot"
-        values = cmds.xform(self.getFullName(), query=True, worldSpace=ws,
-                            objectSpace=not ws, **{flag: True})
-        return Translate(*(om2.MDistance(v, om2.MDistance.uiUnit()).asCentimeters() for v in values))
+        # xformのobjectSpaceはMFnTransformのkPreTransformに対応する。
+        fn = self.transformFn()
+        space = MSpace.kWorld if ws else MSpace.kPreTransform
+        point = fn.rotatePivot(space) if kind == "rotate" else fn.scalePivot(space)
+        return Translate(point.x, point.y, point.z)
 
     @flag_aliases(ws="worldSpace")
+    @fast_edit
     @undoChunk("mlibTransformSetPivot")
-    def setPivot(self, value, worldSpace=False, *, kind="rotate", preserve=True):
+    def setPivot(self, value, worldSpace=False, *, kind="rotate", preserve=True, fast=False):
         """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
 
         Args:
@@ -413,6 +440,7 @@ class Transform(DagNode):
             kind (str): rotate/scale/both。bothは両方を同じ位置へ設定する。
             preserve (bool): Trueはピボット補償値を調整して変換行列を保つ。
                 Falseは補償せず、姿勢が変わる場合がある。
+            fast (bool): TrueはOpenMayaで直接更新し、Undoへ記録しない。
 
         Returns:
             Transform: 自身。
@@ -434,19 +462,42 @@ class Transform(DagNode):
         values = tuple(value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Expected three finite pivot coordinates")
+        if is_fast():
+            kinds = ("scale", "rotate") if kind == "both" else (kind,)
+            # APIはロックを迂回できるため、変更する補償値も含めて事前に確認する。
+            for selected in kinds:
+                names = [selected + "Pivot"]
+                if preserve:
+                    names.append(selected + "PivotTranslate")
+                for name in names:
+                    plug = self.getPlug(name).mplug()
+                    writable(plug)
+                    for index in range(plug.numChildren()):
+                        writable(plug.child(index))
+            fn = self.transformFn()
+            point = om2.MPoint(*values)
+            space = MSpace.kWorld if ws else MSpace.kPreTransform
+            for selected in kinds:
+                setter = fn.setRotatePivot if selected == "rotate" else fn.setScalePivot
+                setter(point, space, preserve)
+            return self
         coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in values]
         flag = {"rotate": "rotatePivot", "scale": "scalePivot", "both": "pivots"}[kind]
         cmds.xform(self.getFullName(), worldSpace=ws, objectSpace=not ws,
                    preserve=preserve, **{flag: coordinates})
         return self
 
+    @fast_edit
     @undoChunk("mlibTransformCenterPivot")
-    def centerPivot(self):
+    def centerPivot(self, *, fast=False):
         """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
 
         xformのcenterPivotsと同じ対象範囲を使用する。preserve=Trueで
         オブジェクトの変換結果を維持し、回転・スケールピボットを変更する。
         コンポーネントの選択状態は使用しない。
+
+        Args:
+            fast (bool): TrueはAPIで中心を取得して直接更新し、Undoなし。
 
         Returns:
             Transform: 自身。一回のUndoで戻せる。
@@ -454,6 +505,10 @@ class Transform(DagNode):
         Raises:
             RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
         """
+        if is_fast():
+            center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
+            return self.setPivot((center.x, center.y, center.z), worldSpace=True,
+                                 kind="both", preserve=True, fast=True)
         cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
         return self
 
@@ -507,52 +562,25 @@ class Transform(DagNode):
             parent = node.getParent()
         return node
 
-    def getChildNodes(self):
-        """直接の子ノードを登録された型の Node のリストとして取得する。
-
-        Returns:
-            list[Node]: 直接の子ノード。
-        """
-        if not self.isValid():
-            return []
-        dagPath = self.mpath()
-        dagFn = self.dagFn()
-        children = []
-        for index in range(dagFn.childCount()):
-            child_path = om2.MDagPath(dagPath)
-            child_path.push(dagFn.child(index))
-            children.append(Node(child_path))
-        return children
-
-    def getChildren(self, shapes=False, intermediates=False):
-        """指定条件に合う直接の子ノードを取得する。
+    def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
+                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
+        """指定条件に合う直接の子、または子孫を取得する。
 
         Args:
             shapes (bool): TrueはShapeも含める。既定FalseはTransformのみ。
             intermediates (bool): Trueは中間オブジェクトも含める。
+            allDescendents (bool): Trueは子孫全体。既定は直接の子だけ。
+            order (str): depthFirstまたはbreadthFirst。
+            leaves (bool): 子Transformを持たないTransformだけを再帰取得する。
+            includeSelf (bool): 自身も対象へ含める。葉の自身も取得する場合はTrue。
+            underWorld (bool): Shape下のアンダーワールドも探索する。
 
         Returns:
             list[DagNode]: DAGの子順に並んだノード。該当なしは空リスト。
         """
-        return [child for child in self.getChildNodes()
-                if (shapes or isinstance(child, Transform))
-                and (intermediates or not child.dagFn().isIntermediateObject)]
-
-    def getLeaves(self):
-        """Transform 階層下の葉ノード（子 Transform を持たないもの）をすべて取得する。
-
-        Shape の有無は判定に関与しない。
-
-        Returns:
-            list[Transform]: 葉ノードのリスト。子 Transform が無い場合は自身のみを含む。
-        """
-        children = self.getChildren()
-        if not children:
-            return [self]
-        result = []
-        for child in children:
-            result.extend(child.getLeaves())
-        return result
+        return super().getChildren(shapes, intermediates, allDescendents=allDescendents,
+                                   order=order, leaves=leaves, includeSelf=includeSelf,
+                                   underWorld=underWorld)
 
     def getSiblings(self):
         """親を同じくする兄弟 Transform を取得する（自身は含まない）。
@@ -616,13 +644,17 @@ class Transform(DagNode):
                 result.append(shape)
         return result
 
-    def deleteUnusedIntermediateShapes(self):
+    @fast_edit
+    def deleteUnusedIntermediateShapes(self, *, fast=False):
         """直下の未使用中間Shapeだけを削除し、自身を返す。
 
         getUnusedIntermediateShapes()と同じ判定で、使用中・参照・ロック・
         インスタンス等は残す。Transformや上流の履歴ノードは削除しない。
         Maya標準削除を1回のUndoにまとめ、途中の失敗時は巻き戻す。
-        Undoが有効な状態で使用する。fastフラグはない。
+        通常モードはUndoが有効な状態で使用する。
+
+        Args:
+            fast (bool): TrueはOpenMayaでShapeだけを直接削除し、Undoなし。
 
         Returns:
             Transform: 自身。
@@ -632,14 +664,21 @@ class Transform(DagNode):
         """
         shapes = self.getUnusedIntermediateShapes()
         if shapes:
-            with undoTransaction("mlibDeleteUnusedIntermediateShapes"):
-                # 標準deleteは入力側の生成履歴も削除する場合があるため、
-                # Shapeへの入力だけをUndo可能に外し、上流ノードを保持する。
+            if is_fast():
+                self._detach_inputs(shape.mnode() for shape in shapes)
+                modifier = om2.MDagModifier()
                 for shape in shapes:
-                    for plug in om2.MFnDependencyNode(shape.mnode()).getConnections():
-                        for source in plug.connectedTo(True, False):
-                            cmds.disconnectAttr(source.name(), plug.name())
-                cmds.delete([shape.getFullName() for shape in shapes])
+                    modifier.deleteNode(shape.mnode(), False)
+                modifier.doIt()
+            else:
+                with undoTransaction("mlibDeleteUnusedIntermediateShapes"):
+                    # 標準deleteは入力側の生成履歴も削除する場合があるため、
+                    # Shapeへの入力だけをUndo可能に外し、上流ノードを保持する。
+                    for shape in shapes:
+                        for plug in om2.MFnDependencyNode(shape.mnode()).getConnections():
+                            for source in plug.connectedTo(True, False):
+                                cmds.disconnectAttr(source.name(), plug.name())
+                    cmds.delete([shape.getFullName() for shape in shapes])
         return self
 
     def getShapes(self, intermediates=False):
@@ -651,24 +690,10 @@ class Transform(DagNode):
         Returns:
             list[Shape]: 条件に一致するShapeのリスト。
         """
-        from .shape import Shape
-
         if not self.isValid():
             return []
-        shapes = []
-        dagPath = self.mpath()
-        dagFn = self.dagFn()
-        for index in range(dagFn.childCount()):
-            child = dagFn.child(index)
-            if not child.hasFn(om2.MFn.kShape):
-                continue
-            child_fn = om2.MFnDagNode(child)
-            if not intermediates and child_fn.isIntermediateObject:
-                continue
-            child_path = om2.MDagPath(dagPath)
-            child_path.push(child)
-            shapes.append(Shape(child_path))
-        return shapes
+        return [child for child in self._direct_children(True, intermediates)
+                if child.mnode().hasFn(om2.MFn.kShape)]
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -735,8 +760,9 @@ class Transform(DagNode):
         """
         return self
 
+    @fast_edit
     @undoChunk("mlibTransformSetParent")
-    def setParent(self, parent=None, relative=False, add=False):
+    def setParent(self, parent=None, relative=False, add=False, *, fast=False):
         """Transformの親を変更する。
 
         Args:
@@ -744,12 +770,15 @@ class Transform(DagNode):
                 ``Node(parent)`` で解決できる型(Plug・Component は所有ノード)を受け付ける。
             relative (bool): True は親変更前のローカル変換を保持する。False は Maya の既定動作。
             add (bool): True は既存の親を維持して追加の親を設定する。parent が None の場合は渡されない。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。Joint・インスタンス・親の追加は未対応。
 
         Returns:
             Transform: 自身。
         """
         if not self.isValid():
             raise RuntimeError("Cannot parent an invalid transform")
+        if is_fast():
+            return self._set_parent_fast(parent, relative, add)
         if parent is None:
             if self.getParentPath() is None and not self.mpath().isInstanced():
                 return self
@@ -937,8 +966,9 @@ class Transform(DagNode):
         return result
 
     @flag_aliases(ws="worldSpace")
+    @fast_edit
     @undoChunk("mlibTransformSetTransformation")
-    def setTransformation(self, value, worldSpace=False, safe=False, get=False):
+    def setTransformation(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """補助成分を含む変換を適用する。入力の値は変更しない。
 
         Args:
@@ -946,6 +976,7 @@ class Transform(DagNode):
             worldSpace (bool): ワールド空間として適用する。短縮名ws。
             safe (bool): 書けない成分を残して、書ける成分で行列を合わせる。
             get (bool): シーンを更新せず、対象ノード用に補正した値を返す。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。
         Returns:
             Transform | Transformation: 通常は自身。get=Trueは設定予定値。
         Note:
@@ -1414,30 +1445,6 @@ class Transform(DagNode):
         cmds.makeIdentity(self.getFullName(), **kwargs)
         return self
 
-    @undoChunk("mlibTransformReleaseSRT")
-    def unlockAndDisconnectTransformChannels(self):
-        """translate/rotate/scale/shear とその子チャンネルを一括でアンロック・切断する。
-
-        各チャンネルとその X/Y/Z 子の両方についてロック解除と接続解除を行う。
-        既にアンロック・未接続のチャンネルは変化しない。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot release SRT channels of an invalid transform")
-        for channel in ("translate", "rotate", "scale", "shear"):
-            plug = self.getPlug(channel)
-            plug.setFlags(locked=False)
-            plug.disconnectAll()
-            for child in plug.getChildren():
-                child.setFlags(locked=False)
-                child.disconnectAll()
-        return self
-
     def getClosestAxisToVector(self, ref_vector, include_negative=True):
         """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
 
@@ -1475,43 +1482,6 @@ class Transform(DagNode):
                 best_axis = name
         return best_axis
 
-    @undoChunk("mlibTransformCreateOffsetGroups")
-    def createOffsetGroups(self, *names):
-        """自身を現在のワールド行列に一致させたオフセット(ゼロ)グループで包む。
-
-        names の並びは外側から内側の順(例: ``"zero", "offset"`` なら zero が
-        元の親の直下、offset が自身の直上の親になる)。各グループは作成時点の
-        自身のワールド行列にそのまま一致するため、自身をそこへ付け替えても
-        ワールド位置は変化しない。
-
-        Args:
-            names (str): 作成するグループ名。外側から内側の順。省略時は
-                ``"<自身の名前>_offset"`` という1個のグループを作成する。
-
-        Returns:
-            list[Transform]: 作成したグループ。names と同じ並び(外側から内側)。
-
-        Raises:
-            RuntimeError: ノードが無効、または Maya がグループ作成・親変更を拒否した場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("Cannot create offset groups for an invalid transform")
-        if not names:
-            names = (f"{self.getName()}_offset",)
-        matrix = self.getMatrix(ws=True)
-        parent = self.getParent()
-        groups = []
-        for name in names:
-            kwargs = {}
-            if parent is not None:
-                kwargs["parent"] = parent.getFullName()
-            group = Transform(cmds.group(empty=True, name=name, **kwargs))
-            group.setMatrix(matrix, ws=True)
-            groups.append(group)
-            parent = group
-        self.setParent(groups[-1])
-        return groups
-
     # 公開APIの短縮メソッド。旧mlib名の互換入口ではない。
     @flag_aliases(worldSpace="ws")
     def getJointOrientQuaternion(self, ws=False):
@@ -1524,373 +1494,84 @@ class Transform(DagNode):
         """
         return self.getQuaternion(ws=ws, r=False)
 
-    @_getter_alias(getPivot)
-    def pivot(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
+    @staticmethod
+    def _detach_inputs(objects):
+        """限定削除の上流ノードが孤立履歴として連鎖削除されることを防ぐ。
 
         Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
+            objects (Iterable[om2.MObject]): 削除予定のノード。
 
         Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
+            直接API更新なのでUndoへ記録しない。削除modifierとは別に先に確定する。
         """
-        return self.getPivot(*args, **kwargs)
+        modifier = om2.MDGModifier()
+        connected = False
+        for obj in objects:
+            for plug in om2.MFnDependencyNode(obj).getConnections():
+                for source in plug.connectedTo(True, False):
+                    modifier.disconnect(source, plug)
+                    connected = True
+        if connected:
+            modifier.doIt()
 
-    @_getter_alias(getBoundingBox)
-    def boundingBox(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
+    def _set_parent_fast(self, parent, relative, add, *, validate_only=False):
+        """対応するTransformだけを検証してAPIで再親付けする。
 
         Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
+            parent (Node | None): 新しい親。Noneはワールド。
+            relative (bool): ローカル変換を保持するか。
+            add (bool): 既存の親に追加するか。Trueは未対応。
+            validate_only (bool): Trueは全件事前検証用。DAGを変更しない。
 
         Returns:
-            object: 正式getterと同じ戻り値。
+            Transform: 自身。
 
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        Raises:
+            NotImplementedError: Joint・インスタンス・親追加の場合。
+            RuntimeError: 参照・ロック・循環・特異行列により変更できない場合。
         """
-        return self.getBoundingBox(*args, **kwargs)
-
-    @_getter_alias(getRoot)
-    def root(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRoot(*args, **kwargs)
-
-    @_getter_alias(getChildNodes)
-    def childNodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildNodes(*args, **kwargs)
-
-    @_getter_alias(getChildren)
-    def children(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildren(*args, **kwargs)
-
-    @_getter_alias(getLeaves)
-    def leaves(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getLeaves(*args, **kwargs)
-
-    @_getter_alias(getSiblings)
-    def siblings(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSiblings(*args, **kwargs)
-
-    @_getter_alias(getUnusedIntermediateShapes)
-    def unusedIntermediateShapes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUnusedIntermediateShapes(*args, **kwargs)
-
-    @_getter_alias(getShapes)
-    def shapes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShapes(*args, **kwargs)
-
-    @_getter_alias(getShape)
-    def shape(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShape(*args, **kwargs)
-
-    @_getter_alias(getTransform)
-    def transform(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTransform(*args, **kwargs)
-
-    @_getter_alias(getShadingEngines)
-    def shadingEngines(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngines(*args, **kwargs)
-
-    @_getter_alias(getOffsetParentMatrix)
-    def offsetParentMatrix(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOffsetParentMatrix(*args, **kwargs)
-
-    @_getter_alias(getTransformation)
-    def transformation(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTransformation(*args, **kwargs)
-
-    @_getter_alias(getMatrix)
-    def matrix(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMatrix(*args, **kwargs)
-
-    @_getter_alias(getTranslate)
-    def translate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTranslate(*args, **kwargs)
-
-    @_getter_alias(getRotate)
-    def rotate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRotate(*args, **kwargs)
-
-    @_getter_alias(getScale)
-    def scale(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getScale(*args, **kwargs)
-
-    @_getter_alias(getShearing)
-    def shearing(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShearing(*args, **kwargs)
-
-    @_getter_alias(getQuaternion)
-    def quaternion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getQuaternion(*args, **kwargs)
-
-    @_getter_alias(getEuler)
-    def euler(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getEuler(*args, **kwargs)
-
-    @_getter_alias(getClosestAxisToVector)
-    def closestAxisToVector(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getClosestAxisToVector(*args, **kwargs)
-
-    @_getter_alias(getJointOrientQuaternion)
-    def jointOrientQuaternion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getJointOrientQuaternion(*args, **kwargs)
+        target = None if parent is None else Node._resolve_input(parent)
+        if target is not None and not isinstance(target, Transform):
+            raise TypeError("Parent must be a transform")
+        path = self.mpath()
+        if (self.mnode().hasFn(om2.MFn.kJoint) or path.isInstanced()
+                or (target is not None and target.mpath().isInstanced()) or add):
+            raise NotImplementedError("fast parenting does not support joints, instances or add=True")
+        if self.dagFn().isLocked or self.dagFn().isFromReferencedFile:
+            raise RuntimeError("Cannot reparent a locked or referenced transform")
+        if target is not None:
+            ancestor = om2.MDagPath(target.mpath())
+            while ancestor.length():
+                if ancestor.node() == self.mnode():
+                    raise RuntimeError("Cannot create a DAG parenting cycle")
+                ancestor.pop()
+            if target.dagFn().isLocked or target.dagFn().isFromReferencedFile:
+                raise RuntimeError("Cannot parent under a locked or referenced transform")
+        current = self.getParent()
+        if (current is None and target is None) or (
+                current is not None and target is not None and current.mnode() == target.mnode()):
+            return self
+        world = None if relative else self.getMatrix(ws=True)
+        if world is not None:
+            parent_matrix = Matrix() if target is None else target.getMatrix(ws=True)
+            opm = self.getOffsetParentMatrix()
+            if abs(parent_matrix.det4x4()) <= 1e-12 or abs(opm.det4x4()) <= 1e-12:
+                raise RuntimeError("Cannot preserve world transform with a singular parent or offset matrix")
+            for name in ("translate", "rotate", "scale", "shear"):
+                plug = self.getPlug(name).mplug()
+                writable(plug)
+                for index in range(plug.numChildren()):
+                    writable(plug.child(index))
+        if validate_only:
+            return self
+        modifier = om2.MDagModifier()
+        modifier.reparentNode(self.mnode(), om2.MObject.kNullObj if target is None else target.mnode())
+        modifier.doIt()
+        # 自分の操作で変えたパスだけ再束縛し、無関係なインスタンスへ切り替えない。
+        self._dag_path = om2.MDagPath.getAPathTo(self.mnode())
+        if world is not None:
+            self.setMatrix(world, ws=True, fast=True)
+        return self
 
     def _fit_transformation(self, value, ws):
         """入力を複製し、親行列とjoint固有成分へ適合させる。
@@ -2262,50 +1943,25 @@ class Transforms(DagNodes):
         "deleteConstraints": "list",
         "transformFn": "list",
         "getPivot": "list",
-        "pivot": "list",
         "getBoundingBox": "list",
-        "boundingBox": "list",
         "getRoot": "list",
-        "root": "list",
-        "getChildNodes": "list",
-        "childNodes": "list",
         "getChildren": "list",
-        "children": "list",
-        "getLeaves": "list",
-        "leaves": "list",
         "getSiblings": "list",
-        "siblings": "list",
         "getShapes": "list",
-        "shapes": "list",
         "getShape": "list",
-        "shape": "list",
         "getShadingEngines": "list",
-        "shadingEngines": "list",
         "getOffsetParentMatrix": "list",
-        "offsetParentMatrix": "list",
         "getMatrix": "list",
-        "matrix": "list",
         "getJointOrientQuaternion": "list",
-        "jointOrientQuaternion": "list",
         "getTransformation": "list",
-        "transformation": "list",
         "getTranslate": "list",
-        "translate": "list",
         "getRotate": "list",
-        "rotate": "list",
         "getScale": "list",
-        "scale": "list",
         "getShearing": "list",
-        "shearing": "list",
         "getQuaternion": "list",
-        "quaternion": "list",
         "getEuler": "list",
-        "euler": "list",
         "getClosestAxisToVector": "list",
-        "closestAxisToVector": "list",
-        "createOffsetGroups": "list",
         "getUnusedIntermediateShapes": "list",
-        "unusedIntermediateShapes": "list",
         "freeze": "self",
         "resetPivot": "self",
         "reset": "self",
@@ -2314,7 +1970,6 @@ class Transforms(DagNodes):
         "centerPivot": "self",
         "mirrorGeometry": "self",
         "getTransform": "self",
-        "transform": "self",
         "setParent": "self",
         "matchTransform": "self",
         "mirrorTransform": "self",
@@ -2327,7 +1982,6 @@ class Transforms(DagNodes):
         "setShearing": "self",
         "setQuaternion": "self",
         "makeIdentity": "self",
-        "unlockAndDisconnectTransformChannels": "self",
         "deleteUnusedIntermediateShapes": "self",
     }
     _bulk_methods = {
@@ -2336,50 +1990,25 @@ class Transforms(DagNodes):
         "deleteConstraints": Transform.deleteConstraints,
         "transformFn": Transform.transformFn,
         "getPivot": Transform.getPivot,
-        "pivot": Transform.pivot,
         "getBoundingBox": Transform.getBoundingBox,
-        "boundingBox": Transform.boundingBox,
         "getRoot": Transform.getRoot,
-        "root": Transform.root,
-        "getChildNodes": Transform.getChildNodes,
-        "childNodes": Transform.childNodes,
         "getChildren": Transform.getChildren,
-        "children": Transform.children,
-        "getLeaves": Transform.getLeaves,
-        "leaves": Transform.leaves,
         "getSiblings": Transform.getSiblings,
-        "siblings": Transform.siblings,
         "getShapes": Transform.getShapes,
-        "shapes": Transform.shapes,
         "getShape": Transform.getShape,
-        "shape": Transform.shape,
         "getShadingEngines": Transform.getShadingEngines,
-        "shadingEngines": Transform.shadingEngines,
         "getOffsetParentMatrix": Transform.getOffsetParentMatrix,
-        "offsetParentMatrix": Transform.offsetParentMatrix,
         "getMatrix": Transform.getMatrix,
-        "matrix": Transform.matrix,
         "getJointOrientQuaternion": Transform.getJointOrientQuaternion,
-        "jointOrientQuaternion": Transform.jointOrientQuaternion,
         "getTransformation": Transform.getTransformation,
-        "transformation": Transform.transformation,
         "getTranslate": Transform.getTranslate,
-        "translate": Transform.translate,
         "getRotate": Transform.getRotate,
-        "rotate": Transform.rotate,
         "getScale": Transform.getScale,
-        "scale": Transform.scale,
         "getShearing": Transform.getShearing,
-        "shearing": Transform.shearing,
         "getQuaternion": Transform.getQuaternion,
-        "quaternion": Transform.quaternion,
         "getEuler": Transform.getEuler,
-        "euler": Transform.euler,
         "getClosestAxisToVector": Transform.getClosestAxisToVector,
-        "closestAxisToVector": Transform.closestAxisToVector,
-        "createOffsetGroups": Transform.createOffsetGroups,
         "getUnusedIntermediateShapes": Transform.getUnusedIntermediateShapes,
-        "unusedIntermediateShapes": Transform.unusedIntermediateShapes,
         "freeze": Transform.freeze,
         "resetPivot": Transform.resetPivot,
         "reset": Transform.reset,
@@ -2388,7 +2017,6 @@ class Transforms(DagNodes):
         "centerPivot": Transform.centerPivot,
         "mirrorGeometry": Transform.mirrorGeometry,
         "getTransform": Transform.getTransform,
-        "transform": Transform.transform,
         "setParent": Transform.setParent,
         "matchTransform": Transform.matchTransform,
         "mirrorTransform": Transform.mirrorTransform,
@@ -2401,7 +2029,6 @@ class Transforms(DagNodes):
         "setShearing": Transform.setShearing,
         "setQuaternion": Transform.setQuaternion,
         "makeIdentity": Transform.makeIdentity,
-        "unlockAndDisconnectTransformChannels": Transform.unlockAndDisconnectTransformChannels,
         "deleteUnusedIntermediateShapes": Transform.deleteUnusedIntermediateShapes,
     }
     _bulk_per_item_only = frozenset()
@@ -2504,20 +2131,6 @@ class Transforms(DagNodes):
 
     getRoot.__signature__ = inspect.signature(Transform.getRoot)
 
-    def getChildNodes(self, *args, **kwargs):
-        """各要素のgetChildNodesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getChildNodes", args, kwargs)
-
-    getChildNodes.__signature__ = inspect.signature(Transform.getChildNodes)
-
     def getChildren(self, *args, **kwargs):
         """各要素のgetChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2531,20 +2144,6 @@ class Transforms(DagNodes):
         return self._dispatch_shared("getChildren", args, kwargs)
 
     getChildren.__signature__ = inspect.signature(Transform.getChildren)
-
-    def getLeaves(self, *args, **kwargs):
-        """各要素のgetLeavesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getLeaves", args, kwargs)
-
-    getLeaves.__signature__ = inspect.signature(Transform.getLeaves)
 
     def getSiblings(self, *args, **kwargs):
         """各要素のgetSiblingsを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2868,20 +2467,6 @@ class Transforms(DagNodes):
 
     getClosestAxisToVector.__signature__ = inspect.signature(Transform.getClosestAxisToVector)
 
-    def createOffsetGroups(self, *args, **kwargs):
-        """各要素のcreateOffsetGroupsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("createOffsetGroups", args, kwargs)
-
-    createOffsetGroups.__signature__ = inspect.signature(Transform.createOffsetGroups)
-
     def getUnusedIntermediateShapes(self, *args, **kwargs):
         """各要素のgetUnusedIntermediateShapesを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -3050,20 +2635,6 @@ class Transforms(DagNodes):
 
     makeIdentity.__signature__ = inspect.signature(Transform.makeIdentity)
 
-    def unlockAndDisconnectTransformChannels(self, *args, **kwargs):
-        """各要素のunlockAndDisconnectTransformChannelsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Transforms | list: コレクション自身。
-        """
-        return self._dispatch_shared("unlockAndDisconnectTransformChannels", args, kwargs)
-
-    unlockAndDisconnectTransformChannels.__signature__ = inspect.signature(Transform.unlockAndDisconnectTransformChannels)
-
     def deleteUnusedIntermediateShapes(self, *args, **kwargs):
         """各要素のdeleteUnusedIntermediateShapesを同じ引数で呼び、コレクション自身を返す。
 
@@ -3077,371 +2648,3 @@ class Transforms(DagNodes):
         return self._dispatch_shared("deleteUnusedIntermediateShapes", args, kwargs)
 
     deleteUnusedIntermediateShapes.__signature__ = inspect.signature(Transform.deleteUnusedIntermediateShapes)
-
-    @_getter_alias(getPivot)
-    def pivot(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPivot(*args, **kwargs)
-
-    @_getter_alias(getBoundingBox)
-    def boundingBox(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getBoundingBox(*args, **kwargs)
-
-    @_getter_alias(getRoot)
-    def root(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRoot(*args, **kwargs)
-
-    @_getter_alias(getChildNodes)
-    def childNodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildNodes(*args, **kwargs)
-
-    @_getter_alias(getChildren)
-    def children(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildren(*args, **kwargs)
-
-    @_getter_alias(getLeaves)
-    def leaves(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getLeaves(*args, **kwargs)
-
-    @_getter_alias(getSiblings)
-    def siblings(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSiblings(*args, **kwargs)
-
-    @_getter_alias(getShapes)
-    def shapes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShapes(*args, **kwargs)
-
-    @_getter_alias(getShape)
-    def shape(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShape(*args, **kwargs)
-
-    @_getter_alias(getShadingEngines)
-    def shadingEngines(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngines(*args, **kwargs)
-
-    @_getter_alias(getOffsetParentMatrix)
-    def offsetParentMatrix(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOffsetParentMatrix(*args, **kwargs)
-
-    @_getter_alias(getMatrix)
-    def matrix(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMatrix(*args, **kwargs)
-
-    @_getter_alias(getJointOrientQuaternion)
-    def jointOrientQuaternion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getJointOrientQuaternion(*args, **kwargs)
-
-    @_getter_alias(getTransformation)
-    def transformation(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTransformation(*args, **kwargs)
-
-    @_getter_alias(getTranslate)
-    def translate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTranslate(*args, **kwargs)
-
-    @_getter_alias(getRotate)
-    def rotate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRotate(*args, **kwargs)
-
-    @_getter_alias(getScale)
-    def scale(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getScale(*args, **kwargs)
-
-    @_getter_alias(getShearing)
-    def shearing(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShearing(*args, **kwargs)
-
-    @_getter_alias(getQuaternion)
-    def quaternion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getQuaternion(*args, **kwargs)
-
-    @_getter_alias(getEuler)
-    def euler(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getEuler(*args, **kwargs)
-
-    @_getter_alias(getClosestAxisToVector)
-    def closestAxisToVector(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getClosestAxisToVector(*args, **kwargs)
-
-    @_getter_alias(getUnusedIntermediateShapes)
-    def unusedIntermediateShapes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUnusedIntermediateShapes(*args, **kwargs)
-
-    @_getter_alias(getTransform)
-    def transform(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTransform(*args, **kwargs)

@@ -14,7 +14,6 @@ import maya.mel as mel
 
 from .._core.attributeType import typed_data
 from .._core.fastWrite import writable
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit, is_fast
 from ..components.vertex import Vertex, Vertices
 from ..decorator import undoChunk, undoTransaction
@@ -116,6 +115,28 @@ class BlendShape(Node):
         )
         return self.getPlug("weight")[weight_index]
 
+    @undoChunk("mlibBlendShapeRemoveTarget")
+    def removeTarget(self, target):
+        """全ベースからターゲットと全in-betweenを削除する。
+
+        Maya標準のShape Editor処理で関連メタデータも削除する。
+        ターゲットメッシュは削除しない。weight接続は切断され、接続元が
+        combinationShapeの場合はMaya標準処理によりそのノードも削除される。
+
+        Args:
+            target (int | str | Plug): ターゲット番号またはエイリアス。
+
+        Returns:
+            BlendShape: 自身。
+        """
+        index = self._target_index(target)
+        if self.getPlug("weight")[index].isLocked():
+            raise ValueError("Locked target cannot be removed")
+        if not mel.eval('blendShapeDeleteTargetGroup({}, {})'.format(
+                json.dumps(self.getName()), index)):
+            raise RuntimeError("Maya did not remove the target")
+        return self
+
     def addTargetDeltas(self, deltas, base=None, weight_index=None, alias=None):
         """疎なデルタだけから、新しい通常ターゲットを登録する。
 
@@ -191,28 +212,6 @@ class BlendShape(Node):
 
                     logger.warning("Temporary delta target cleanup failed for %s: %s", parent, cleanup_error)
         return weight
-
-    @undoChunk("mlibBlendShapeRemoveTarget")
-    def removeTarget(self, target):
-        """全ベースからターゲットと全in-betweenを削除する。
-
-        Maya標準のShape Editor処理で関連メタデータも削除する。
-        ターゲットメッシュは削除しない。weight接続は切断され、接続元が
-        combinationShapeの場合はMaya標準処理によりそのノードも削除される。
-
-        Args:
-            target (int | str | Plug): ターゲット番号またはエイリアス。
-
-        Returns:
-            BlendShape: 自身。
-        """
-        index = self._target_index(target)
-        if self.getPlug("weight")[index].isLocked():
-            raise ValueError("Locked target cannot be removed")
-        if not mel.eval('blendShapeDeleteTargetGroup({}, {})'.format(
-                json.dumps(self.getName()), index)):
-            raise RuntimeError("Maya did not remove the target")
-        return self
 
     def getTargetIndices(self, base=None):
         """実在するターゲットの論理インデックスを昇順で取得する。
@@ -771,166 +770,6 @@ class BlendShape(Node):
                     self.getPlug("inputTarget[{}].baseWeights[{}]".format(bi, vertex)).set(weight)
         return self
 
-    @_getter_alias(getTargetAliases)
-    def targetAliases(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetAliases(*args, **kwargs)
-
-    @_getter_alias(getWeightPlugs)
-    def weightPlugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeightPlugs(*args, **kwargs)
-
-    @_getter_alias(getWeights)
-    def weights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeights(*args, **kwargs)
-
-    @_getter_alias(getGeometry)
-    def geometry(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getGeometry(*args, **kwargs)
-
-    @_getter_alias(getTargetIndices)
-    def targetIndices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetIndices(*args, **kwargs)
-
-    @_getter_alias(getTargetPlug)
-    def targetPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetPlug(*args, **kwargs)
-
-    @_getter_alias(getInBetweenWeights)
-    def inBetweenWeights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInBetweenWeights(*args, **kwargs)
-
-    @_getter_alias(getTargetWeights)
-    def targetWeights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetWeights(*args, **kwargs)
-
-    @_getter_alias(getTargetDeltas)
-    def targetDeltas(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetDeltas(*args, **kwargs)
-
-    @_getter_alias(getTargetVertices)
-    def targetVertices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTargetVertices(*args, **kwargs)
-
     def _remove_live_deltas(self, bi, index, indices, data, source):
         """接続を保持し、ターゲット形状から現在の絶対変位を引く。"""
         if not source.node().hasFn(om2.MFn.kMesh):
@@ -1297,11 +1136,11 @@ class BlendShape(Node):
     def _require_unlocked(plug):
         """入力接続の切断前に所有ノードと親を含むロックを検査する。"""
         if om2.MFnDependencyNode(plug.node()).isLocked:
-            raise RuntimeError("Node is locked: " + plug.name())
+            raise RuntimeError('Node is locked: ' + plug.name())
         current = plug
         while True:
             if current.isLocked:
-                raise RuntimeError("Attribute is locked: " + plug.name())
+                raise RuntimeError('Attribute is locked: ' + plug.name())
             if current.isChild:
                 current = current.parent()
             elif current.isElement:

@@ -28,7 +28,7 @@ class ComponentCollectionsTest(unittest.TestCase):
                 self.assertAlmostEqual(x, y, places=5)
 
     def test_vertex_cv_positions_order_and_undo(self):
-        for items in (self.mesh.getVertices([2, 0]), self.curve.cvs([2, 0])):
+        for items in (self.mesh.getVertices([2, 0]), self.curve.getCVs([2, 0])):
             before = items.getPosition()
             result = [(9, 8, 7), (-1, -2, -3)]
             self.assertIs(items.setPositions(iter(result)), items)
@@ -72,7 +72,7 @@ class ComponentCollectionsTest(unittest.TestCase):
             empty.setPositions([], ws=1)
 
     def test_uv_bulk_axes_and_undo(self):
-        items = self.mesh.uvs([2, 0])
+        items = self.mesh.getUVs([2, 0])
         before = items.getPosition()
         result = [(0.2, 0.4), (0.6, 0.8)]
         items.setPositions(result)
@@ -92,7 +92,7 @@ class ComponentCollectionsTest(unittest.TestCase):
         self.assert_points(items.getPosition(), [(0, 0), (0, 0)])
 
     def test_edges_and_faces_keep_vertex_collection_operations(self):
-        for items in (self.mesh.edges([0, 1]), self.mesh.faces([0, 1])):
+        for items in (self.mesh.getEdges([0, 1]), self.mesh.getFaces([0, 1])):
             vertices = items.getVertices()
             self.assertEqual(len(vertices.indices), len(set(vertices.indices)))
             before = vertices.getPosition()

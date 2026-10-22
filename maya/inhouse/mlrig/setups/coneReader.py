@@ -1,11 +1,9 @@
 """向きがコーンの中心にどれだけ一致しているかを0〜1で出力する。"""
 
-from maya import cmds
-
 import math
 
+import maya.cmds as cmds
 import mlib
-
 from mlib.decorator import undoTransaction
 
 # 矢印・コーンのローカル軸。+X をドライバーの向き・コーンの軸とする。
@@ -35,16 +33,6 @@ class ConeReader:
         """
         self.container = mlib.nodes.Container(container)
 
-    @property
-    def driver(self):
-        """ドライバーの矢印transform名。"""
-        return (cmds.listConnections(self.container.getFullName()+".driver", source=True) or [None])[0]
-
-    @property
-    def cone(self):
-        """コーンのtransform名。"""
-        return (cmds.listConnections(self.container.getFullName()+".cone", source=True) or [None])[0]
-
     @staticmethod
     def weight(angle, coneAngle, falloff="linear"):
         """なす角とコーンの半角から一致度を計算する。
@@ -63,59 +51,6 @@ class ConeReader:
             raise ValueError("falloff must be linear or smooth")
         value = min(1.0, max(0.0, 1-angle/min(coneAngle, 180.0)))
         return value*value*(3-2*value) if falloff == "smooth" else value
-
-    def _node(self, kind, suffix):
-        """内部ノードを所有containerへ登録する。
-
-        Args:
-            kind (str): 標準ノード型。
-            suffix (str): 名前の用途部分。
-
-        Returns:
-            Node: 新規ノード。
-        """
-        node = mlib.nodes.Node.create(
-            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
-        )
-        self.container.addMembers(node)
-        return node
-
-    @staticmethod
-    def _curve(parent, name, points, color):
-        """一次カーブのシェイプを parent へ追加する。"""
-        temporary = cmds.curve(degree=1, point=points, name=name+"__tmp")
-        shape = cmds.listRelatives(temporary, shapes=True, fullPath=True)[0]
-        shape = cmds.parent(shape, parent, shape=True, relative=True)[0]
-        cmds.delete(temporary)
-        shape = cmds.rename(shape, name)
-        cmds.setAttr(shape+".lineWidth", 2)
-        cmds.setAttr(parent+".overrideEnabled", True)
-        cmds.setAttr(parent+".overrideColor", color)
-
-    @classmethod
-    def _arrow(cls, parent):
-        """+X 向き・長さ1の矢印シェイプを作る。"""
-        base = parent.split("|")[-1]
-        cls._curve(parent, base+"Shaft", [(0, 0, 0), (1, 0, 0)], _DRIVER_COLOR)
-        cls._curve(parent, base+"HeadY", [(0.82, 0.09, 0), (1, 0, 0), (0.82, -0.09, 0)], _DRIVER_COLOR)
-        cls._curve(parent, base+"HeadZ", [(0.82, 0, 0.09), (1, 0, 0), (0.82, 0, -0.09)], _DRIVER_COLOR)
-
-    @classmethod
-    def _coneShape(cls, parent):
-        """頂点が原点、軸が +X、底面が x=1・半径1 の単位コーンのシェイプを作る。"""
-        circle = [(1, math.cos(math.tau*i/24), math.sin(math.tau*i/24)) for i in range(25)]
-        base = parent.split("|")[-1]
-        cls._curve(parent, base+"Rim", circle, _CONE_COLOR)
-        for i, (y, z) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1))):
-            cls._curve(parent, base+"Side{}".format(i), [(0, 0, 0), (1, y, z)], _CONE_COLOR)
-        cls._curve(parent, base+"Axis", [(0, 0, 0), (1, 0, 0)], _CONE_COLOR)
-
-    @staticmethod
-    def _attach(group, joint):
-        """GRP をジョイントへ重ねてから、位置と回転をコンストレイントする。"""
-        cmds.xform(group, worldSpace=True, matrix=cmds.xform(joint, query=True, worldSpace=True, matrix=True))
-        cmds.setAttr(group+".scale", 1, 1, 1)
-        cmds.parentConstraint(joint, group, maintainOffset=True)
 
     @classmethod
     @undoTransaction("mlrig.ConeReader.create")
@@ -158,27 +93,27 @@ class ConeReader:
                 raise ValueError("Node not found: " + str(joint))
 
         # 矢印。GRP をドライバーのジョイントへ重ね、中の transform で軸を選ぶ。
-        driver_group = cmds.createNode("transform", name=name+"_driver_GRP", skipSelect=True)
-        driver = cmds.createNode("transform", name=name+"_driver", parent=driver_group, skipSelect=True)
-        driver_display = cmds.createNode("transform", name=name+"_driverDisplay", parent=driver, skipSelect=True)
+        driver_group = mlib.createNode("transform", name=name+"_driver_GRP", skipSelect=True)
+        driver = mlib.createNode("transform", name=name+"_driver", parent=driver_group, skipSelect=True)
+        driver_display = mlib.createNode("transform", name=name+"_driverDisplay", parent=driver, skipSelect=True)
         cls._arrow(driver_display)
         for attr in ("translate", "rotate"):
-            cmds.setAttr(driver_display+"."+attr, lock=True)
-        cmds.setAttr(driver+".rotate", *_AXES[driverAxis])
+            driver_display.getPlug(attr).setLocked(True)
+        driver.getPlug("rotate").set(_AXES[driverAxis], uiUnits=True)
         if driverJoint is not None:
             cls._attach(driver_group, driverJoint)
 
         # コーン。作成時は矢印と同じ位置・向きにして、weight=1 から始める。
-        cone_group = cmds.createNode("transform", name=name+"_cone_GRP", skipSelect=True)
-        cone = cmds.createNode("transform", name=name+"_cone", parent=cone_group, skipSelect=True)
-        cone_display = cmds.createNode("transform", name=name+"_coneDisplay", parent=cone, skipSelect=True)
+        cone_group = mlib.createNode("transform", name=name+"_cone_GRP", skipSelect=True)
+        cone = mlib.createNode("transform", name=name+"_cone", parent=cone_group, skipSelect=True)
+        cone_display = mlib.createNode("transform", name=name+"_coneDisplay", parent=cone, skipSelect=True)
         cls._coneShape(cone_display)
         for attr in ("translate", "rotate"):
-            cmds.setAttr(cone_display+"."+attr, lock=True)
+            cone_display.getPlug(attr).setLocked(True)
         if coneJoint is not None:
             cls._attach(cone_group, coneJoint)
-        cmds.xform(cone, worldSpace=True, matrix=cmds.xform(driver, query=True, worldSpace=True, matrix=True))
-        cmds.setAttr(cone+".scale", 1, 1, 1)
+        cls._setMatrix(cone, driver.getMatrix(worldSpace=True))
+        cone.getPlug("scale").set((1, 1, 1))
 
         graph = cls(mlib.nodes.Container.create(name=name))
         owner = graph.container
@@ -192,7 +127,7 @@ class ConeReader:
             owner.setAttrFlags([attr], keyable=False, channelBox=True)
         for attr, node in (("driver", driver), ("cone", cone)):
             owner.addAttr(longName=attr, attributeType="message")
-            cmds.connectAttr(node+".message", owner.getFullName()+"."+attr)
+            node.getPlug("message").connectTo(owner.getPlug(attr))
 
         # 矢印とコーンの +X をワールドへ移し、なす角を求める。
         directions = []
@@ -201,7 +136,7 @@ class ConeReader:
             direction.getPlug("operation").set(3)
             direction.getPlug("input1").set((1, 0, 0))
             direction.getPlug("normalizeOutput").set(True)
-            cmds.connectAttr(node+".worldMatrix[0]", direction.getFullName()+".matrix")
+            node.getPlug("worldMatrix")[0].connectTo(direction.getPlug("matrix"))
             directions.append(direction)
         between = graph._node("angleBetween", "between")
         directions[0].getPlug("output").connectTo(between.getPlug("vector1"))
@@ -264,6 +199,88 @@ class ConeReader:
             unit.getPlug("output"+source).connectTo(scaled.getPlug("input1"+target))
             owner.getPlug("size").connectTo(scaled.getPlug("input2"+target))
         for axis in "XYZ":
-            cmds.connectAttr(scaled.getFullName()+".output"+axis, cone_display+".scale"+axis)
-            cmds.connectAttr(owner.getFullName()+".size", driver_display+".scale"+axis)
+            scaled.getPlug("output"+axis).connectTo(cone_display.getPlug("scale"+axis))
+            owner.getPlug("size").connectTo(driver_display.getPlug("scale"+axis))
         return graph
+
+    @property
+    def driver(self):
+        """ドライバーの矢印transform名。"""
+        return (cmds.listConnections(self.container.getFullName()+".driver", source=True) or [None])[0]
+
+    @property
+    def cone(self):
+        """コーンのtransform名。"""
+        return (cmds.listConnections(self.container.getFullName()+".cone", source=True) or [None])[0]
+
+    def _node(self, kind, suffix):
+        """内部ノードを所有containerへ登録する。
+
+        Args:
+            kind (str): 標準ノード型。
+            suffix (str): 名前の用途部分。
+
+        Returns:
+            Node: 新規ノード。
+        """
+        node = mlib.nodes.Node.create(
+            kind, name=self.container.getName() + "_" + suffix, skipSelect=True
+        )
+        self.container.addMembers(node)
+        return node
+
+    @staticmethod
+    def _curve(parent, name, points, color):
+        """一次カーブのシェイプを parent へ追加する。"""
+        temporary = mlib.createCurve(degree=1, point=points, name=name+"__tmp")
+        # Shapeの親変更はMaya標準コマンドを使い、変更後のパスで参照を作り直す。
+        shape = mlib.getNode(cmds.parent(
+            temporary.getShape().getFullName(), parent.getFullName(),
+            shape=True, relative=True,
+        )[0])
+        temporary.delete()
+        shape.rename(name)
+        shape.getPlug("lineWidth").set(2)
+        parent.getPlug("overrideEnabled").set(True)
+        parent.getPlug("overrideColor").set(color)
+
+    @classmethod
+    def _arrow(cls, parent):
+        """+X 向き・長さ1の矢印シェイプを作る。"""
+        base = parent.getName().split("|")[-1]
+        cls._curve(parent, base+"Shaft", [(0, 0, 0), (1, 0, 0)], _DRIVER_COLOR)
+        cls._curve(parent, base+"HeadY", [(0.82, 0.09, 0), (1, 0, 0), (0.82, -0.09, 0)], _DRIVER_COLOR)
+        cls._curve(parent, base+"HeadZ", [(0.82, 0, 0.09), (1, 0, 0), (0.82, 0, -0.09)], _DRIVER_COLOR)
+
+    @classmethod
+    def _coneShape(cls, parent):
+        """頂点が原点、軸が +X、底面が x=1・半径1 の単位コーンのシェイプを作る。"""
+        circle = [(1, math.cos(math.tau*i/24), math.sin(math.tau*i/24)) for i in range(25)]
+        base = parent.getName().split("|")[-1]
+        cls._curve(parent, base+"Rim", circle, _CONE_COLOR)
+        for i, (y, z) in enumerate(((1, 0), (0, 1), (-1, 0), (0, -1))):
+            cls._curve(parent, base+"Side{}".format(i), [(0, 0, 0), (1, y, z)], _CONE_COLOR)
+        cls._curve(parent, base+"Axis", [(0, 0, 0), (1, 0, 0)], _CONE_COLOR)
+
+    @staticmethod
+    def _setMatrix(target, matrix):
+        """新規TransformへMaya標準の分解値でワールド行列を適用する。
+
+        Args:
+            target (Transform): ピボット・補助回転が既定の新規Transform。
+            matrix (Matrix): 適用するワールド行列。内部距離単位cm。
+        """
+        # setMatrixの現在値に近いEuler解への補正を使わず、従来のxformと同じ
+        # 分解規約で初期チャンネル値を保つ。数学処理と書込みはmlibへ委譲する。
+        local = matrix * target.getMatrix(worldSpace=True, p=True, inv=True)
+        parts = local.decompose()
+        for attr, value in (("translate", parts["translate"]), ("rotate", parts["euler"]),
+                            ("scale", parts["scale"]), ("shear", parts["shear"])):
+            target.getPlug(attr).set(value)
+
+    @staticmethod
+    def _attach(group, joint):
+        """GRP をジョイントへ重ねてから、位置と回転をコンストレイントする。"""
+        ConeReader._setMatrix(group, mlib.getNode(joint).getMatrix(worldSpace=True))
+        group.getPlug("scale").set((1, 1, 1))
+        mlib.addConstraint(joint, group, maintainOffset=True)

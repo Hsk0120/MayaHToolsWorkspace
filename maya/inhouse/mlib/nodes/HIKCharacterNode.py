@@ -6,7 +6,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from ..common.plugin import Plugin
 from ..decorator import undoChunk
 from .node import Node
@@ -57,7 +57,7 @@ class HIKCharacterNode(Node):
         Returns:
             bool: キャラクタライズがロック済みか照会する。
         """
-        return bool(cmds.getAttr(self.getFullName() + '.InputCharacterizationLock'))
+        return bool(self.getPlug("InputCharacterizationLock").get())
 
     @_is_alias(isDefinitionLocked)
     def definitionLocked(self, *args, **kwargs):
@@ -146,19 +146,3 @@ class HIKCharacterNode(Node):
         actual = self.getSource()
         if actual is None or actual.getFullName() != source.getFullName():
             raise RuntimeError('HumanIK did not connect the requested source')
-
-    @_getter_alias(getSource)
-    def source(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSource(*args, **kwargs)

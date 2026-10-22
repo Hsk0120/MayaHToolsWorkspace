@@ -13,8 +13,11 @@ from .plug import Plug
 class MatrixPlug(Plug):
     """matrixアトリビュート用のPlug。対象アトリビュートの値だけを扱う。"""
 
-    def get(self):
+    def get(self, *, uiUnits=False):
         """対象アトリビュートの行列値を取得する。
+
+        Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
 
         Returns:
             Matrix: 対象アトリビュートの行列の複製。
@@ -22,16 +25,18 @@ class MatrixPlug(Plug):
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
+        self._validate_ui_units(uiUnits)
         self._require_valid()
         return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     @fast_edit
     @undoChunk("mlibMatrixPlugSet")
     @safe_edit
-    def set(self, value, safe=False, *, fast=False):
+    def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
         Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Matrix | Transformation | Iterable[float]): 設定する4x4行列または変換情報。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
@@ -45,6 +50,7 @@ class MatrixPlug(Plug):
 
         ノード自体の変換にはTransform.setMatrixを使う。
         """
+        self._validate_ui_units(uiUnits)
         self._require_valid()
         if self.getLongName() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")

@@ -68,9 +68,9 @@ class GetAttrTest(unittest.TestCase):
                 self.assertAlmostEqual(mlib.getAttr(angle).get(), math.pi / 2)
                 self.assertEqual(mlib.getAttr(distance).get(), 25)
                 self.assertEqual(mlib.getAttr(time).get(), 2)
-                self.assertAlmostEqual(mlib.getAttr(angle).getu(), 90 if angular == "deg" else math.pi / 2)
-                self.assertAlmostEqual(mlib.getAttr(distance).getu(), 25 if linear == "cm" else 0.25)
-                self.assertAlmostEqual(mlib.getAttr(time).getu(), 48 if frame == "film" else 60)
+                self.assertAlmostEqual(mlib.getAttr(angle).get(uiUnits=True), 90 if angular == 'deg' else math.pi / 2)
+                self.assertAlmostEqual(mlib.getAttr(distance).get(uiUnits=True), 25 if linear == 'cm' else 0.25)
+                self.assertAlmostEqual(mlib.getAttr(time).get(uiUnits=True), 48 if frame == 'film' else 60)
                 self.assertAlmostEqual(mlib.getAttr(angle, time=3), cmds.getAttr(str(angle), time=3))
 
     def test_missing_sparse_references_do_not_evaluate_or_materialize_elements(self):

@@ -7,7 +7,6 @@ from pathlib import Path
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias
 from .shelfButton import ShelfButton
 
 
@@ -148,38 +147,6 @@ class Shelf:
         if not cmds.saveShelf(self.getName(), str(target.with_suffix("")).replace("\\", "/")):
             raise RuntimeError("Failed to save shelf: " + str(target))
         return target
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getButtons)
-    def buttons(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getButtons(*args, **kwargs)
 
     @staticmethod
     def _top():

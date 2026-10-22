@@ -2,8 +2,8 @@
 
 import maya.api.OpenMaya as om2
 
-from .._core.getterAlias import _getter_alias
-from ..common._fast import fast_edit
+from .._core.fastWrite import set_plug
+from ..common._fast import fast_edit, is_fast
 from ..common._safe import safe_edit
 from ..decorator import undoChunk
 from .plug import Plug
@@ -76,8 +76,11 @@ class CompoundPlug(Plug):
         """
         return iter(self.getChildren())
 
-    def get(self):
+    def get(self, *, uiUnits=False):
         """子プラグの値を集めた tuple を返す。
+
+        Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
 
         Returns:
             tuple: 子の数と同じ長さの値。
@@ -86,12 +89,13 @@ class CompoundPlug(Plug):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return tuple(self._child_at(index).get() for index in range(self._mplug.numChildren()))
+        self._validate_ui_units(uiUnits)
+        return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
     @fast_edit
     @undoChunk("mlibCompoundPlugSet")
     @safe_edit
-    def set(self, value, safe=False, *, fast=False):
+    def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
         子の変更を一回のUndoにまとめる。要素数は先に検査する。
@@ -99,6 +103,7 @@ class CompoundPlug(Plug):
         その他の複合型は子ごとの設定を使う。途中の失敗時に完了済みの値は自動で戻さない。
 
         Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
@@ -114,15 +119,21 @@ class CompoundPlug(Plug):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         self._require_valid()
+        self._validate_ui_units(uiUnits)
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
             raise ValueError("Compound plug value length does not match its child count")
-        if self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
+        if is_fast():
+            if uiUnits:
+                from .._core.unitValue import convert
+                values = convert(self._mplug, values, to_ui=False)
+            set_plug(self._mplug, values)
+        elif self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
             self._require_writable()
-            Plug.set(self, values)
+            Plug.set(self, values, uiUnits=uiUnits)
         else:
             for index, child_value in enumerate(values):
-                self._child_at(index).set(child_value)
+                self._child_at(index).set(child_value, uiUnits=uiUnits)
         return self
 
     def getChildren(self):
@@ -136,22 +147,6 @@ class CompoundPlug(Plug):
         """
         self._require_valid()
         return [self._child_at(index) for index in range(self._mplug.numChildren())]
-
-    @_getter_alias(getChildren)
-    def children(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildren(*args, **kwargs)
 
     def _child_at(self, index):
         """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。

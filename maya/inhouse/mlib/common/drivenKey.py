@@ -6,7 +6,6 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.attributeType import attributeType
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
@@ -256,51 +255,3 @@ class DrivenKey:
         # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
         cmds.dgdirty([curve.getFullName() for curve in self.getCurves()])
         return self
-
-    @_getter_alias(getDriverPlug)
-    def driverPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getDriverPlug(*args, **kwargs)
-
-    @_getter_alias(getDrivenPlug)
-    def drivenPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getDrivenPlug(*args, **kwargs)
-
-    @_getter_alias(getCurves)
-    def curves(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getCurves(*args, **kwargs)

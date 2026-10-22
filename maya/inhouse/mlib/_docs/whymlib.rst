@@ -16,10 +16,10 @@ mlibはPyMELに依存せず、独自のAPIを提供します。
 
    import mlib
 
-   control = mlib.node("control")
+   control = mlib.getNode("control")
    control.setTranslate((1, 2, 3))
-   control.plug("visibility").set(True)
-   matrix = control.matrix(ws=True)
+   control.getPlug("visibility").set(True)
+   matrix = control.getMatrix(ws=True)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
 mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。
@@ -54,7 +54,7 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - シーン、表示、作業環境、イベント、汎用処理を浅い共通入口から扱う
    * - ``cmds``
      - node・createNode・lsなどの関数
-     - 対象の取得・作成の入口。通常は ``mlib.node()`` のように呼ぶ
+     - 対象の取得・作成の入口。通常は ``mlib.getNode()`` のように呼ぶ
 
 ここでいうコンポーネントは、Mayaの形状を構成する要素です。
 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。
@@ -195,14 +195,14 @@ mlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 単数クラスは1対象、複数形クラスは複数対象を扱います。
 
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
-例えば ``node.name()`` は現在の名前を問い合わせ、``plug.node()`` は保持する所有ノード参照です。
+例えば ``node.getName()`` は現在の名前を問い合わせ、``plug.getNode()`` は保持する所有ノード参照です。
 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。
 反映には ``setMatrix()`` や ``setRotate()`` を明示的に呼びます。
 
 ノード単位で操作する
 ----------------------------------------------------------------------
 
-``mlib.node()`` は実際のノード型に対応したクラスを返します。
+``mlib.getNode()`` は実際のノード型に対応したクラスを返します。
 JointならJointの操作、SkinClusterならウェイト関連の操作を、その対象から呼べます。
 
 .. code-block:: python
@@ -215,7 +215,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    source.setTranslate((1, 2, 3))
    source.setScale((2, 2, 2))
    source.setOutlinerColor((0.3, 0.7, 1.0))
-   target.setMatrix(source.matrix(ws=True), ws=True)
+   target.setMatrix(source.getMatrix(ws=True), ws=True)
 
 .. list-table:: 便利な操作の例
    :header-rows: 1
@@ -233,7 +233,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
      - ``freezeRotate()`` / ``jointOrientToRotate()``
      - rotateとjointOrientの間で姿勢を移す
    * - SkinCluster
-     - ``weights()`` / ``setWeights()``
+     - ``getWeights()`` / ``setWeights()``
      - スキンウェイトを取得・反映する
    * - Mesh・NurbsCurve
      - ``mirror()``
@@ -245,7 +245,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
    transforms = mlib.nodes.Transforms([source, target])
    transforms.setTranslate((0, 5, 0))
-   matrices = transforms.matrix(ws=True)
+   matrices = transforms.getMatrix(ws=True)
 
 一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。
 詳しくは :doc:`guide_nodes` と :doc:`modules` を参照してください。
@@ -254,26 +254,26 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 ----------------------------------------------------------------------
 
 アトリビュートは ``Plug`` オブジェクトとして扱います。ノード名とアトリビュート名を毎回連結する代わりに、
-取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``plug()`` に統一しています。
+取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``getPlug()`` に統一しています。
 
 .. code-block:: python
 
    # 上の作成例で用意したsourceとtargetを使用
-   translate_x = source.plug("tx")
+   translate_x = source.getPlug("tx")
    translate_x.set(10)
    value = translate_x.get()
 
-   source.plug("tx").connectTo(target.plug("tx"))
-   target.plug("tx").disconnect(source.plug("tx"))
+   source.getPlug("tx").connectTo(target.getPlug("tx"))
+   target.getPlug("tx").disconnect(source.getPlug("tx"))
 
-   target.plug("visibility").set(False)
-   target.plug("visibility").setFlags(locked=True)
+   target.getPlug("visibility").set(False)
+   target.getPlug("visibility").setFlags(locked=True)
 
 ``tx`` と ``translateX`` は同じアトリビュートを指します。
 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
 アトリビュートの構造に合ったラッパーが選ばれます。
 
-ノードの ``setRotate()`` は姿勢を扱い、``plug("rotate").set()`` はrotateアトリビュートの値を扱います。
+ノードの ``setRotate()`` は姿勢を扱い、``getPlug("rotate").set()`` はrotateアトリビュートの値を扱います。
 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。
 詳しい受付対象は :doc:`cmds_interop` を参照してください。
 
@@ -299,8 +299,8 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    reference.setTranslate((10, 0, 0))
    driven.setTranslate((12, 3, 0))
 
-   reference_world = reference.matrix(ws=True)
-   driven_world = driven.matrix(ws=True)
+   reference_world = reference.getMatrix(ws=True)
+   driven_world = driven.getMatrix(ws=True)
    relative = driven_world * reference_world.inverse()
 
    restored_world = relative * reference_world
@@ -324,8 +324,8 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    result = mlib.createNode("transform", name="mlibDemo_result")
    end.setRotate((0, 90, 0), unit="deg")
 
-   q_start = start.quaternion(ws=True)
-   q_end = end.quaternion(ws=True)
+   q_start = start.getQuaternion(ws=True)
+   q_end = end.getQuaternion(ws=True)
    q_middle = q_start.slerp(q_end, 0.5)
    result.setRotate(q_middle, ws=True)
 
@@ -339,7 +339,7 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 ツール開発での使い分け
 ----------------------------------------------------------------------
 
-* 対象の取得・作成は ``mlib.node()`` や ``mlib.createNode()``。
+* 対象の取得・作成は ``mlib.getNode()`` や ``mlib.createNode()``。
 * ノード全体の操作はNode派生、アトリビュートの操作はPlug、形状の一部はComponent。
 * 計算はMatrix・Quaternionなどの値で行い、結果の反映は明示的なsetter。
 * 通常の編集は各メソッドのUndo対応を利用。複数操作を一つのツールとしてまとめる場合に外側でUndoをまとめる。

@@ -89,9 +89,9 @@ class TransformResetScaleTest(unittest.TestCase):
         unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            before = shape.cvs().getPosition()
+            before = shape.getCVs().getPosition()
             shape.scaleGeometry((2, 3, 1), pivot=(1, 0, 0))
-            after = shape.cvs().getPosition()
+            after = shape.getCVs().getPosition()
             for src, dst in zip(before, after):
                 self.assertAlmostEqual(dst[0], 1 + (src[0] - 1) * 2)
                 self.assertAlmostEqual(dst[1], src[1] * 3)

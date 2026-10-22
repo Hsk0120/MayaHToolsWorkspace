@@ -517,7 +517,7 @@ class NurbsCurveSnapshot(Snapshot):
         record = {"node": NodeRef.capture(node)}
         name = node.getFullName()
         record["topology"] = _signature(node)
-        record["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
+        record["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.getCVs()]
         record["attributes"] = [_attribute(node, attr) for attr in ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB", "lineWidth")]
         return record
 
@@ -545,7 +545,7 @@ class NurbsCurveSnapshot(Snapshot):
         for i in range(len(record["positions"])):
             if not cmds.getAttr(name + ".controlPoints[{}]".format(i), settable=True):
                 raise ValueError("CV is locked or connected")
-        before["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.cvs()]
+        before["positions"] = [cmds.xform(cv.getFullName(), query=True, translation=True, objectSpace=True) for cv in node.getCVs()]
 
     @staticmethod
     def _apply_geometry(node, record, options):

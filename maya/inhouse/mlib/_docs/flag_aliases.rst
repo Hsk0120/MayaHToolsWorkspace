@@ -11,7 +11,7 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 ``currentTime``、``setKeyframe``、``bakeResults`` は、実行中のMayaの
 フラグ定義に従って短名を長名へ変換します。mlib直下と ``mlib.cmds`` で同じ動作です。
 各コマンドが扱える対象・モード・戻り値の制限は変わりません。
-たとえば ``currentTime()`` は時間を省略すると照会のみです。
+たとえば ``getCurrentTime()`` は時間を省略すると照会のみです。
 
 .. list-table:: よく使う対応
    :header-rows: 1
@@ -77,12 +77,12 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 .. code-block:: python
 
    node = mlib.createNode("transform")
-   node.plug("translateX").set(10)
-   print(node.plug("tx").get())  # 10
+   node.getPlug("translateX").set(10)
+   print(node.getPlug("tx").get())  # 10
    print(node.translateX.get())  # 10
    print(node.tx.get())          # 10
 
 ``node.tx`` は数値ではなく ``Plug`` です。値の編集は ``node.tx.set(10)`` とします。
 ``node.tx = 10`` はMayaアトリビュートを編集しないため使用しません。
-Python側の既存メソッドやプロパティと名前が重なるアトリビュートは ``node.plug("アトリビュート名")``
+Python側の既存メソッドやプロパティと名前が重なるアトリビュートは ``node.getPlug("アトリビュート名")``
 で明示して取得してください。

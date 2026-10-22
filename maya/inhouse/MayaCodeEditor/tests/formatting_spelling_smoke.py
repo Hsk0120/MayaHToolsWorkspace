@@ -62,7 +62,7 @@ def main(output_dir, finished):
         result['checks'].append('crlf_fragments_intentional_blank_lines_font_title_nowrap')
         toggle = next(a for a in actions if a.objectName() == 'option_spellCheck')
         assert toggle.isChecked(), 'Spell check should default to ON'
-        code.setPlainText('# This commment contains misspelled wrds.\ncorrectVariable = "hello world"\nmlib.node("maya")\nmispelledValue = 1\n')
+        code.setPlainText('# This commment contains misspelled wrds.\ncorrectVariable = "hello world"\nmlib.getNode("maya")\nmispelledValue = 1\n')
         code.setFocus(); wait()
         assert code.property('spellCheckAvailable'), 'English Windows dictionary unavailable'
         words = [s.cursor.selectedText() for s in code.extraSelections()

@@ -4,11 +4,14 @@ Synopsis
 
 .. code-block:: python
 
-    mlib.createNode(type, **kwargs)
+    mlib.createNode(type, fast=False, **kwargs)
 
 指定した Maya ノードを作成し、型に応じた mlib ラッパーを返します。
 
 作成操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
+
+``fast=True`` は対応する範囲をAPI 2.0で直接変更し、Undo履歴を追加しません。
+未対応条件は変更前に拒否します。詳細は関数のdocstringを参照してください。
 
 Return value
 ------------
@@ -66,15 +69,18 @@ Examples
 """
 
 from .._core.flags import flag_aliases
+from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 
 
 @flag_aliases("createNode")
+@fast_edit
 @undoChunk("mlib.cmds.createNode.createNode")
-def createNode(type, **kwargs):
+def createNode(type, *, fast=False, **kwargs):
     """Mayaノードを作成し、実際の型に対応するラッパーを返す。
 
     Args:
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         type (str): Mayaノード型名。
         **kwargs (object): maya.cmds.createNodeへ渡すフラグ。parent(p)はノードが必要な
             引数として所有ノードの完全パスへ変換する(Plug・MPlug・"node.attribute" は

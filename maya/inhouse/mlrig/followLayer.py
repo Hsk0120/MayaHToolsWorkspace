@@ -46,7 +46,7 @@ class FollowLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple(group.getPlug("joint").getSourceWithConversion().getNode().getFullName() for group in selected)
+        return tuple((group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getFullName() for group in selected))
 
     @undoTransaction("mlrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
@@ -150,9 +150,9 @@ class FollowLayer:
         """Enabled/LODに応じて出力を切断し、基準姿勢へ戻す。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("follow")
         for group in self.groups().values():
-            graph = group.getPlug("graph").getSourceWithConversion().getNode()
-            target = group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix")
-            source = target.getSourceWithConversion()
+            graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
+            target = group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix')
+            source = target.getSource(skipConversionNodes=False)
             output = graph.getPlug("matrix")
             if source is not None and source.mplug() != output.mplug():
                 raise ValueError("Follow output was replaced")

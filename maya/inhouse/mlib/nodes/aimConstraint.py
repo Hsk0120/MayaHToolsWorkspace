@@ -2,7 +2,6 @@
 
 import math
 
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoTransaction
 from ..maths import EulerRotate
 from .constraint import Constraint
@@ -18,11 +17,11 @@ class AimConstraint(Constraint):
             list[tuple[Plug, Plug]]: 接続元と接続先。複合接続は親のペアのみ。
         """
         root = self.getPlug("constraintRotate")
-        destinations = root.getDestinationsWithConversions()
+        destinations = root.getDestinations(skipConversionNodes=False)
         result = [(root, destination) for destination in destinations]
         for axis in "XYZ":
             source = self.getPlug("constraintRotate" + axis)
-            for destination in source.getDestinationsWithConversions():
+            for destination in source.getDestinations(skipConversionNodes=False):
                 if destination.isChild() and destination.getParent() in destinations:
                     continue
                 result.append((source, destination))
@@ -90,70 +89,6 @@ class AimConstraint(Constraint):
         values = [self.getPlug("constraintRotate" + axis).get() for axis in "XYZ"]
         return EulerRotate(*values, order=int(self.getPlug("constraintRotateOrder").get()))
 
-    @_getter_alias(getRotateConnections)
-    def rotateConnections(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRotateConnections(*args, **kwargs)
-
-    @_getter_alias(getRestRotate)
-    def restRotate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRestRotate(*args, **kwargs)
-
-    @_getter_alias(getOffset)
-    def offset(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOffset(*args, **kwargs)
-
-    @_getter_alias(getOutputRotate)
-    def outputRotate(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputRotate(*args, **kwargs)
-
     @undoTransaction("mlib.AimConstraint.setAngles")
     def _setAngles(self, attribute, value):
         """入力・ロックを事前検証し、角度3値を一括更新する。
@@ -174,7 +109,7 @@ class AimConstraint(Constraint):
         parent = self.getPlug(attribute)
         children = [self.getPlug(attribute + axis) for axis in "XYZ"]
         if (self.isLocked() or self.isFromReferencedFile()
-                or any(plug.isLocked() or plug.getSourceWithConversion() is not None for plug in [parent] + children)):
+                or any((plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None for plug in [parent] + children))):
             raise ValueError("参照・ロック・入力接続のある設定は変更できません: " + parent.getFullName())
         for plug, component in zip(children, values):
             plug.set(component)

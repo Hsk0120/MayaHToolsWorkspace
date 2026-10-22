@@ -38,9 +38,7 @@ class UnifiedConstraintTest(unittest.TestCase):
             wuo=self.up,
         )
         self.assertEqual(result.getType(), "aimConstraint")
-        self.assertEqual(
-            result.getPlug("worldUpMatrix").getSourceWithConversion().getNode().getUuid(), self.up.getUuid()
-        )
+        self.assertEqual(result.getPlug('worldUpMatrix').getSource(skipConversionNodes=False).getNode().getUuid(), self.up.getUuid())
         self.assertEqual(
             result.getTargets()[0].getUuid(), self.source.getUuid()
         )

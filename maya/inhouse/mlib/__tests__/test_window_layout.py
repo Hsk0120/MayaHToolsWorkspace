@@ -228,7 +228,7 @@ class WindowGuiTest(unittest.TestCase):
         name = "mlibWindowTest" + uuid.uuid4().hex[:8]
         layout_name = "mlibLayoutTest" + uuid.uuid4().hex[:8]
         original = WorkspaceLayout.getCurrent()
-        locked = WorkspaceLayout.getLocked()
+        locked = WorkspaceLayout.isLocked()
         tool = cmds.workspaceControl(name, uiScript="", retain=False, floating=True)
         try:
             control = WorkspaceControl(tool)
@@ -240,7 +240,7 @@ class WindowGuiTest(unittest.TestCase):
             control.dock("left")
             self.assertFalse(control.getFloating())
             WorkspaceLayout.lock()
-            self.assertTrue(WorkspaceLayout.getLocked())
+            self.assertTrue(WorkspaceLayout.isLocked())
             WorkspaceLayout.unlock()
             saved = original.saveAs(layout_name)
             self.assertTrue(saved.isCurrent())

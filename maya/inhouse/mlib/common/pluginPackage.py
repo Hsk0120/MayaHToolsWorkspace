@@ -3,7 +3,7 @@
 import maya.cmds as cmds
 
 from .. import logger
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from .module import Module
 from .plugin import Plugin
 from .version import Version
@@ -297,54 +297,6 @@ class PluginPackage:
             self._report(show, warn, self.getMessage(running))
             return OUTDATED
         return LOAD_FAILED if failed else LOADED
-
-    @_getter_alias(getInstalledVersion)
-    def installedVersion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInstalledVersion(*args, **kwargs)
-
-    @_getter_alias(getLoadedVersion)
-    def loadedVersion(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getLoadedVersion(*args, **kwargs)
-
-    @_getter_alias(getMessage)
-    def message(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMessage(*args, **kwargs)
 
     @staticmethod
     def _maya_year():

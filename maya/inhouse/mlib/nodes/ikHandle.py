@@ -2,7 +2,6 @@
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
 from .transform import Transform
 
 
@@ -21,10 +20,10 @@ class IkHandle(Transform):
         """
         from .joint import Joint
 
-        effector_plug = self.getPlug("endEffector").getSourceWithConversion()
+        effector_plug = self.getPlug('endEffector').getSource(skipConversionNodes=False)
         if effector_plug is None:
             return None
-        source = effector_plug.getNode().getPlug("translateX").getSourceWithConversion()
+        source = effector_plug.getNode().getPlug('translateX').getSource(skipConversionNodes=False)
         if source is None:
             return None
         return Joint(source.getNode().getFullName())
@@ -55,35 +54,3 @@ class IkHandle(Transform):
             if tip is not None:
                 joints.append(tip)
         return joints
-
-    @_getter_alias(getEndJoint)
-    def endJoint(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getEndJoint(*args, **kwargs)
-
-    @_getter_alias(getJoints)
-    def joints(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getJoints(*args, **kwargs)

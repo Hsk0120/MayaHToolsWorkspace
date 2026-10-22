@@ -46,11 +46,7 @@ class BendLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple(
-            group.getPlug(role).getSourceWithConversion().getNode().getFullName()
-            for group in selected
-            for role in ("half", "inner", "outer")
-        )
+        return tuple((group.getPlug(role).getSource(skipConversionNodes=False).getNode().getFullName() for group in selected for role in ('half', 'inner', 'outer')))
 
     @undoTransaction("mlrig.BendLayer.add")
     def add(self, identifier, joint, bend_axis="z", push_axis="y"):
@@ -169,18 +165,18 @@ class BendLayer:
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("bend")
         for group in self.groups().values():
-            owner = group.getPlug("graph").getSourceWithConversion().getNode()
+            owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
             owner.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
             for role in ("half", "inner", "outer"):
-                bone = group.getPlug(role).getSourceWithConversion().getNode()
+                bone = group.getPlug(role).getSource(skipConversionNodes=False).getNode()
                 attr = (
                     "offsetParentMatrix"
                     if role == "half"
                     else "translate" + group.getPlug("pushAxis").get().upper()
                 )
                 destination = bone.getPlug(attr)
-                source = destination.getSourceWithConversion()
+                source = destination.getSource(skipConversionNodes=False)
                 if active and source is None:
                     owner.getPlug("matrix" if role == "half" else role).connectTo(destination)
                 elif not active:

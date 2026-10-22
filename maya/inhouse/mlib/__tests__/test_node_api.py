@@ -13,6 +13,7 @@ mlib.reload()
 from mlib.common import Namespace
 from mlib.nodes import Node
 from mlib.maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
+from mlrig.setups import ControlHierarchy
 
 
 class NodeApiTest(unittest.TestCase):
@@ -89,16 +90,16 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsNone(child.getParent())
 
         source.getPlug("translateX").connectTo(target.getPlug("translateX"))
-        self.assertEqual([plug.getFullName() for plug in target.getInputs()], [source.getPlug("translateX").getFullName()])
-        self.assertEqual([plug.getFullName() for plug in source.getOutputs()], [target.getPlug("translateX").getFullName()])
+        self.assertEqual([plug.getFullName() for plug in target.getConnections(True, False)], [source.getPlug('translateX').getFullName()])
+        self.assertEqual([plug.getFullName() for plug in source.getConnections(False, True)], [target.getPlug('translateX').getFullName()])
         self.assertEqual(len(source.getConnections()), 1)
 
         def names(plugs):
             return [plug.getFullName() for plug in plugs]
 
-        self.assertEqual(names(target.getInputs(type="transform")), names(target.getInputs()))
-        self.assertEqual(target.getInputs(type="mesh"), [])
-        self.assertEqual(names(source.getOutputs(type="transform")), names(source.getOutputs()))
+        self.assertEqual(names(target.getConnections(True, False, type='transform')), names(target.getConnections(True, False)))
+        self.assertEqual(target.getConnections(True, False, type='mesh'), [])
+        self.assertEqual(names(source.getConnections(False, True, type='transform')), names(source.getConnections(False, True)))
         self.assertEqual(source.getConnections(type="mesh"), [])
 
     def test_transform_matrix_round_trip_uses_om2_maths_values(self):
@@ -312,9 +313,9 @@ class NodeApiTest(unittest.TestCase):
             ["mlibNodeApiLeavesA", "mlibNodeApiLeavesB"],
         )
 
-        leaf_names = sorted(node.getName() for node in root.getLeaves())
+        leaf_names = sorted((node.getName() for node in root.getChildren(leaves=True, includeSelf=True)))
         self.assertEqual(leaf_names, ["mlibNodeApiLeavesA1", "mlibNodeApiLeavesB"])
-        self.assertEqual(leaf_a1.getLeaves(), [leaf_a1])
+        self.assertEqual(leaf_a1.getChildren(leaves=True, includeSelf=True), [leaf_a1])
 
         self.assertEqual([s.getName() for s in branch_a.getSiblings()], ["mlibNodeApiLeavesB"])
         self.assertEqual(branch_b.getSiblings()[0].getName(), "mlibNodeApiLeavesA")
@@ -569,12 +570,12 @@ class NodeApiTest(unittest.TestCase):
         transform.getPlug("translate").setFlags(locked=True)
         transform.getPlug("rotateY").setFlags(locked=True)
 
-        result = transform.unlockAndDisconnectTransformChannels()
+        result = ControlHierarchy.unlockAndDisconnectTransformChannels(transform)
         self.assertIs(result, transform)
         self.assertFalse(transform.getPlug("translate").isLocked())
         self.assertFalse(transform.getPlug("translateX").isLocked())
         self.assertFalse(transform.getPlug("rotateY").isLocked())
-        self.assertIsNone(transform.getPlug("translateX").getSourceWithConversion())
+        self.assertIsNone(transform.getPlug('translateX').getSource(skipConversionNodes=False))
 
     def test_transform_closest_axis_to_vector(self):
         transform = self.create_transform("mlibNodeApiClosestAxis")
@@ -594,7 +595,7 @@ class NodeApiTest(unittest.TestCase):
         transform.setTranslate((1.0, 2.0, 3.0), at=4)
         world_translate = transform.getTranslate(ws=True, at=4)
 
-        zero, offset = transform.createOffsetGroups("mlibNodeApiZero", "mlibNodeApiOffset")
+        zero, offset = ControlHierarchy.createOffsetGroups(transform, 'mlibNodeApiZero', 'mlibNodeApiOffset')
         self.created.extend([zero.getName(), offset.getName()])
 
         self.assertEqual(zero.getParent().getName(), parent.getName())
@@ -912,14 +913,14 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(targetPlug.isDestination())
         self.assertFalse(targetPlug.isSource())
 
-        destinations = source_plug.getDestinationsWithConversions()
+        destinations = source_plug.getDestinations(skipConversionNodes=False)
         self.assertEqual([plug.getFullName() for plug in destinations], [targetPlug.getFullName()])
 
         result = source_plug.disconnectAll()
         self.assertIs(result, source_plug)
         self.assertFalse(source_plug.isConnected())
         self.assertFalse(targetPlug.isConnected())
-        self.assertEqual(source_plug.getDestinationsWithConversions(), [])
+        self.assertEqual(source_plug.getDestinations(skipConversionNodes=False), [])
 
     def test_array_plug_elements_returns_all_existing(self):
         target = self.create_transform("mlibNodeApiArrayElements")
@@ -951,7 +952,7 @@ class NodeApiTest(unittest.TestCase):
         cmds.addAttr(node.getFullName(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
         node.addAttr("attrB", attributeType="double", defaultValue=0.0)
 
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrCompound", "attrB"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrCompound', 'attrB'])
 
     def test_move_attribute_reorders_and_preserves_state_and_connections(self):
         node = self.create_transform("mlibNodeApiMoveAttrNode")
@@ -963,18 +964,18 @@ class NodeApiTest(unittest.TestCase):
         node.getPlug("attrB").setFlags(locked=True)
         source.getPlug("translateX").set(7.0)
         source.getPlug("translateX").connectTo(node.getPlug("attrC"))
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrB", "attrC"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB', 'attrC'])
 
         result = node.moveAttrOrder("attrC", -2)
 
         self.assertIs(result, node)
-        self.assertEqual(node.getExtraAttrNames(), ["attrC", "attrA", "attrB"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrC', 'attrA', 'attrB'])
         self.assertEqual(node.getPlug("attrA").get(), 1.0)
         self.assertEqual(node.getPlug("attrB").get(), 5.0)
         self.assertTrue(node.getPlug("attrB").isLocked())
         # attrC は接続で駆動されているため、再作成後も接続元の値がそのまま反映される。
         self.assertEqual(node.getPlug("attrC").get(), 7.0)
-        reconnected_source = node.getPlug("attrC").getSourceWithConversion()
+        reconnected_source = node.getPlug('attrC').getSource(skipConversionNodes=False)
         self.assertIsNotNone(reconnected_source)
         self.assertEqual(reconnected_source.getFullName(), source.getPlug("translateX").getFullName())
 
@@ -988,7 +989,7 @@ class NodeApiTest(unittest.TestCase):
 
         node.moveAttrOrder("attrMode", 1)
 
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrLabel", "attrMode"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrLabel', 'attrMode'])
         self.assertEqual(node.getPlug("attrMode").get(), 2)
         self.assertEqual(node.getPlug("attrMode").getEnumName(), "Auto")
         self.assertEqual(node.getPlug("attrLabel").get(), "hello world")
@@ -1000,13 +1001,13 @@ class NodeApiTest(unittest.TestCase):
 
         result = node.moveAttrOrder("attrA", 0)
         self.assertIs(result, node)
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrB"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB'])
 
         node.moveAttrOrder("attrA", 100)
-        self.assertEqual(node.getExtraAttrNames(), ["attrB", "attrA"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrB', 'attrA'])
 
         node.moveAttrOrder("attrA", -100)
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrB"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB'])
 
     def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
         node = self.create_transform("mlibNodeApiMoveAttrErrors")
@@ -1023,7 +1024,7 @@ class NodeApiTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             node.moveAttrOrder("attrB", -1)
         # 型エラー時は何も削除・変更されていない(ダンプ段階での検証が先に走るため)。
-        self.assertEqual(node.getExtraAttrNames(), ["attrA", "attrCompound", "attrB"])
+        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrCompound', 'attrB'])
 
     def test_unresolvable_node_name_raises_runtime_error(self):
         with self.assertRaises(RuntimeError) as context:

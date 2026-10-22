@@ -57,34 +57,26 @@ class GetterDocumentationTest(unittest.TestCase):
         """Mayaを読み込まず製品の明示宣言を収集する。"""
         cls.docs = GetterDocumentation(_PACKAGE_ROOT)
 
-    def test_catalog_covers_explicit_aliases_and_excludes_native_methods(self):
-        """全独自getterの実宣言を検出し、標準getterを除外する。"""
-        aliases = collect_getter_aliases(_PACKAGE_ROOT)
-        self.assertGreaterEqual(len(aliases), 566)
-        self.assertGreaterEqual(len(self.docs.command_modules), 13)
-        self.assertEqual({pair.getter for pair in aliases.values()
-                          if pair.getter.rsplit(".", 1)[-1].startswith("get")}, _defined_getters())
-        self.assertIn("mlib.nodes.node.Node.plug", aliases)
-        self.assertIn("mlib.cmds.plug.plug", aliases)
-        self.assertNotIn("mlib.maths.matrix.Matrix.element", aliases)
-        self.assertNotIn("get", self.docs.short_names)
-        self.assertNotIn("getu", self.docs.short_names)
 
-    def test_component_acronyms_keep_existing_lowercase_aliases(self):
-        """UV/CVの正式getterを、既存のuv/cv入口のまま文書化する。"""
+
+    def test_canonical_getters_are_displayed_without_short_aliases(self):
+        """getの署名と説明は正式名のままSphinxへ掲載する。"""
         aliases = collect_getter_aliases(_PACKAGE_ROOT)
-        expected = {
-            "mlib.nodes.mesh.Mesh.uv": "mlib.nodes.mesh.Mesh.getUV",
-            "mlib.nodes.mesh.Mesh.uvs": "mlib.nodes.mesh.Mesh.getUVs",
-            "mlib.nodes.nurbsCurve.NurbsCurve.cv": "mlib.nodes.nurbsCurve.NurbsCurve.getCV",
-            "mlib.nodes.nurbsCurve.NurbsCurve.cvs": "mlib.nodes.nurbsCurve.NurbsCurve.getCVs",
-        }
-        for alias, getter in expected.items():
-            with self.subTest(alias=alias):
-                self.assertEqual(aliases[alias].getter, getter)
-                self.assertEqual(self.docs.getters[getter], alias)
-        self.assertNotIn("mlib.nodes.mesh.Mesh.uV", aliases)
-        self.assertNotIn("mlib.nodes.nurbsCurve.NurbsCurve.cV", aliases)
+        self.assertTrue(aliases)
+        self.assertTrue(all(pair.getter.rsplit(".", 1)[-1].startswith("is") for pair in aliases.values()))
+        self.assertEqual(self.docs.command_modules, {})
+        for identifier in ("mlib.nodes.node.Node.getPlug", "mlib.nodes.mesh.Mesh.getUVs", "mlib.cmds.getNode.getNode"):
+            obj = _object(identifier, args="self, value=None", docstring="get付きの正式取得。")
+            self.assertIsNone(self.docs.skip_member(None, "method", identifier, obj, False, None))
+            obj.app = SimpleNamespace(env=SimpleNamespace(autoapi_all_objects={identifier: obj}))
+            self.docs.prepare_object(obj)
+            self.assertEqual(obj.args, "self, value=None")
+            self.assertEqual(obj.docstring, "get付きの正式取得。")
+
+    def test_canonical_references_and_native_names_are_preserved(self):
+        """getを省略名へ書き換えずMaya標準名も維持する。"""
+        source = "node.getPlug('translate').get() / mesh.getCVs() / om2.MVector().length()"
+        self.assertEqual(self.docs.rewrite_docstring(source, owner="mlib.nodes.node.Node"), source)
 
     def test_predicate_catalog_uses_explicit_definitions_and_imported_functions(self):
         """isの名前だけで推測せず、通常defの明示委譲とimport先を照合する。"""
@@ -229,109 +221,11 @@ class GetterDocumentationTest(unittest.TestCase):
                                                    owner="mlib.nodes.node.Node"),
                          "self.isEquivalent(other) isEquivalent(other)")
 
-    def test_docstrings_use_short_references_and_preserve_flags_native_calls_and_keys(self):
-        """getPlug引数、Maya標準、OpenMaya、JSONキーを取得メソッド名と区別する。"""
-        before = (
-            "mlib.getPlug('node.tx') / mlib.cmds.getAttr('node.tx') / node.getPlug('tx')\n"
-            ":meth:`Node.getPlug` :meth:`getPlug` / getFullName()\n"
-            "cmds.getAttr('node.tx') / maya.cmds.getAttr('node.tx')\n"
-            "om2.MFnDependencyNode.getName() / MFnSkinCluster.getWeights()\n"
-            "MItMeshVertex.getNormal() / pm.getAttr('node.tx')\n"
-            "matrix.getElement(0, 0) / plug.get() / plug.getu()\n"
-            "getPlug=False / :param getPlug: / getPlug (bool)\n"
-            "{'getName': 1, \"getPlug\": 2}\n"
-            "getFullNameで取得する。getPlug引数。\n"
-            ":func:`mlib.cmds.getAttr.getAttr`\n"
-        )
-        result = self.docs.rewrite_docstring(before, {"getPlug"})
-        self.assertIn("mlib.plug('node.tx') / mlib.cmds.attr('node.tx') / node.plug('tx')", result)
-        self.assertIn(":meth:`Node.plug` :meth:`getPlug` / fullName()", result)
-        self.assertIn("fullNameで取得する。getPlug引数。", result)
-        self.assertIn(":func:`mlib.cmds.attr.attr`", result)
-        for preserved in (
-            "cmds.getAttr('node.tx')", "maya.cmds.getAttr('node.tx')",
-            "om2.MFnDependencyNode.getName()", "MFnSkinCluster.getWeights()",
-            "MItMeshVertex.getNormal()", "pm.getAttr('node.tx')",
-            "matrix.getElement(0, 0)", "plug.get()", "plug.getu()", "getPlug=False",
-            ":param getPlug:", "getPlug (bool)", "'getName'", '"getPlug"',
-        ):
-            self.assertIn(preserved, result)
 
-    def test_short_method_receives_canonical_signature_docstring_and_return_type(self):
-        """短名の汎用委譲文と可変引数を正式getterの情報へ置き換える。"""
-        identifier = "mlib.nodes.node.Node"
-        getter = _object(identifier + ".getPlug", args="self, name", docstring="node.getPlug(name)\n:param name: アトリビュート名。")
-        getter.return_annotation = "Plug"
-        alias = _object(identifier + ".plug", args="self, *args, **kwargs", docstring="正式getterへ委譲する。")
-        owner = _object(identifier, children=[getter, alias])
-        owner.app = SimpleNamespace(env=SimpleNamespace(autoapi_all_objects={getter.id: getter}))
-        self.docs.skip_member(None, "class", owner.id, owner, False, None)
-        self.assertTrue(self.docs.skip_member(None, "method", getter.id, getter, False, None))
-        self.assertIsNone(self.docs.skip_member(None, "method", alias.id, alias, False, None))
-        self.docs.prepare_object(owner)
-        self.assertEqual(alias.args, "self, name")
-        self.assertEqual(alias.return_annotation, "Plug")
-        self.assertEqual(alias.docstring, "node.plug(name)\n:param name: アトリビュート名。")
-        self.assertEqual(alias.mlib_getter_id, getter.id)
 
-    def test_plug_context_distinguishes_its_get_element_from_native_math(self):
-        """Plug内のbare/self参照を省略し、同じ説明内の数学受け手を保つ。"""
-        text = (
-            "getElement() self.getElement() cls.getElement() array_plug.getElement()\n"
-            "matrix.getElement() Matrix.getElement() om2.MMatrix.getElement()"
-        )
-        result = self.docs.rewrite_docstring(text, owner="mlib.plugs.arrayPlug.ArrayPlug")
-        self.assertIn("element() self.element() cls.element() array_plug.element()", result)
-        self.assertIn("matrix.getElement() Matrix.getElement() om2.MMatrix.getElement()", result)
-        self.assertEqual(self.docs.rewrite_docstring("getElement() self.getElement()", owner="mlib.maths.matrix.Matrix"), "getElement() self.getElement()")
 
-    def test_chained_mlib_calls_use_short_names_and_openmaya_chains_are_preserved(self):
-        """取得戻り値/型生成の後続メソッドを揃え、標準APIの同名を保つ。"""
-        text = "mesh.getTransform().getPlug('translateX').getFullName() / Joints(joints).getSkinClusters() / om2.MFnSkinCluster(node).getWeights()"
-        result = self.docs.rewrite_docstring(text)
-        self.assertIn("mesh.transform().plug('translateX').fullName()", result)
-        self.assertIn("Joints(joints).skinClusters()", result)
-        self.assertIn("om2.MFnSkinCluster(node).getWeights()", result)
 
-    def test_short_command_copies_function_and_module_help(self):
-        """省略コマンドにはモジュールの使用例と関数の詳細が揃う。"""
-        getter = _object("mlib.cmds.getViewport.getViewport", args="panel=None", docstring="Viewportを取得する。\n:param panel: modelPanel。")
-        source = _object("mlib.cmds.getViewport", children=[getter], docstring="with mlib.getViewport().suspend():")
-        alias = _object("mlib.cmds.viewport.viewport", args="*args, **kwargs", docstring="正式getterへ委譲する。")
-        owner = _object("mlib.cmds.viewport", children=[alias], docstring="getViewportへ委譲するget省略入口。")
-        reexport = _object(source.id, docstring=":param panel: 関数の引数説明。")
-        owner.app = SimpleNamespace(env=SimpleNamespace(
-            autoapi_all_objects={getter.id: getter, source.id: reexport},
-            autoapi_objects={source.id: source},
-        ))
-        self.docs.prepare_object(owner)
-        self.assertEqual(alias.args, "panel=None")
-        self.assertEqual(alias.docstring, getter.docstring)
-        self.assertEqual(owner.docstring, "with mlib.viewport().suspend():")
-        self.assertFalse(self.docs.preferred_command(source))
-        self.assertTrue(self.docs.preferred_command(owner))
-        self.assertEqual(self.docs.short_command(source), "viewport")
 
-    def test_existing_get_references_resolve_to_short_help(self):
-        """正式名のxrefと省略コマンドの完全名が同じ説明へ解決する。"""
-        entry_type = namedtuple("ObjectEntry", "docname node_id objtype aliased")
-        entry = entry_type("autoapi/mlib/nodes/node/Node", "mlib.nodes.node.Node.plug", "method", False)
-        function_entry = entry_type("autoapi/mlib/cmds/plug/index", "mlib.plug", "function", False)
-        cmds_entry = function_entry._replace(node_id="mlib.cmds.plug")
-        alias = _object("mlib.nodes.node.Node.plug")
-        alias.mlib_getter_id = "mlib.nodes.node.Node.getPlug"
-        domain = SimpleNamespace(objects={alias.id: entry, "mlib.plug": function_entry,
-                                          "mlib.cmds.plug": cmds_entry})
-        env = SimpleNamespace(autoapi_all_objects={alias.id: alias}, get_domain=lambda name: domain)
-        self.docs.register_reference_aliases(None, env)
-        self.assertEqual(domain.objects[alias.mlib_getter_id].node_id, alias.id)
-        self.assertTrue(domain.objects[alias.mlib_getter_id].aliased)
-        for name in ("mlib.getPlug", "mlib.cmds.getPlug.getPlug", "mlib.cmds.plug.plug"):
-            self.assertEqual(domain.objects[name].node_id, "mlib.plug")
-        for name in ("mlib.cmds.plug", "mlib.cmds.getPlug"):
-            self.assertEqual(domain.objects[name].node_id, "mlib.cmds.plug")
-            self.assertEqual(domain.objects[name].docname, function_entry.docname)
-        self.assertTrue(domain.objects["mlib.cmds.getPlug"].aliased)
 
     def test_command_signature_comparison_keeps_defaults_and_keyword_boundaries(self):
         """二つの公開名の引数表示を照合し、名前・アンカー・本文と区別する。"""

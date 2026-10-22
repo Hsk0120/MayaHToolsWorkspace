@@ -1,204 +1,82 @@
 取得・判定APIの呼び出し形式
 ============================
 
-説明・使用例・APIリファレンスでは、独自の取得メソッドを ``x()`` の形式で記載します。
-getに大文字が続く本体 ``getX()`` も同じ引数・戻り値で利用できます。
-nodes・plugs・components・commonと公開取得コマンドの全getterが対象です。
-正式な処理本体はget付きの入口にあり、省略入口は呼出時の正式getterへ委譲します。
-派生クラスのgetterオーバーライドや差し替えも反映します。
+独自の取得メソッドは ``getX()`` に統一します。説明・使用例・Sphinxも同じ表記です。
+getを省いた重複入口と取得コマンドの短名ファイルは廃止しました。
+数学演算、OpenMaya標準メソッド、判定、保持する値のプロパティはこの統合の対象外です。
 
 .. code-block:: python
 
    import mlib
 
-   node = mlib.node("pCube1")            # ノードの型に対応するラッパー
-   plug = node.plug("translateX")       # ノードからアトリビュートを取得
-   plug = mlib.attr("pCube1.translateX") # アトリビュート名から型付きPlugを取得
-   value = plug.get()                   # 距離の内部単位cm
-   position = node.translate(ws=True) # ワールド空間の位置
-
-引数の名前・順序・既定値・位置/キーワード区分・長短フラグ・戻り値・例外・単位は
-正式getterと同じです。省略入口は評価・Undo・キャッシュを追加しません。
-UVとCVの取得も既存の小文字表記を使います。Meshの ``getUV/getUVs`` の省略名は
-``uv/uvs``、NurbsCurveの ``getCV/getCVs`` の省略名は ``cv/cvs`` です。
-省略入口から正式getterを呼ぶため、getterのoverrideも反映します。
-``Plug.get()`` / ``getu()`` は値取得のままです。数学型のOpenMaya標準名やJSONの標準API、
-get付き照会を持たない保持プロパティは変更しません。
-ノードからのPlug取得は ``plug()`` を使います。
-省略名のAPIページには本体の引数と説明を掲載し、get付きの参照リンクも省略名へ解決します。
-
-変換チャンネルの名前
---------------------
-
-移動・回転・スケールの取得名は、Mayaのチャンネル名に揃えます。
-正式な取得・設定メソッドは ``getTranslate/setTranslate``、``getRotate/setRotate``、
-``getScale/setScale``、取得の省略入口は ``translate()/rotate()/scale()`` です。
-引数、単位、Undo、``safe/get/fast`` の意味は従来と同じです。
-
-.. code-block:: python
-
-   node = mlib.node("pCube1")
-   position = node.translate(ws=True, at=4)
-   rotation = node.rotate()
-   scale = node.scale()
+   node = mlib.getNode("pCube1")
+   plug = node.getPlug("translateX")
+   value = plug.get()                         # cm/rad/秒
+   ui_value = plug.get(uiUnits=True)           # 現在のUI単位の数値
+   position = node.getTranslate(ws=True, at=4)
    node.setTranslate((1, 2, 3), at=4)
    node.setRotate((0.0, 0.0, 0.0))
-   node.setScale((1, 1, 1))
 
-   # チャンネルのPlugは明示して取得します。
-   translate_plug = node.plug("translate")
-   rotate_plug = node.plug("rotate")
-   scale_plug = node.plug("scale")
+``mlib.getNode`` と ``mlib.cmds.getNode`` は同じ公開関数です。
+``getAttr/getPlug/getScene/getChannelBox/getShelf/getTimeSlider/getViewport/getWindow/``
+``getWorkspaceControl/getWorkspaceLayout/getOutliner/getDrivenKey`` もget付きの名前で使用します。
+``getAttr`` は照会フラグなしならPlug、フラグ指定時はMayaコマンドの照会値を返します。
 
-数学型は ``Translate``・``EulerRotate``・``Scale`` です。
-旧名の ``Translation``・``EulerRotation`` や旧メソッドは公開しません。
-OpenMaya標準の ``MEulerRotation``、``Quaternion.asEulerRotation()``、
-Maya標準アトリビュート名に対応する ``useEulerRotation()`` は維持します。
-Quaternionからの変換は ``asEulerRotate()`` でも呼び出せます。
-JSONの ``math:Translation``・``math:EulerRotation`` の保存タグは従来のままです。
-改名前のPython pickleは旧クラスのimport先に依存するため、新しいAPIでは読み込めません。
+アトリビュートと値の区別
+------------------------
 
-同名のアトリビュート
-----------------------
-
-省略メソッドは同名のMayaアトリビュートや継承プロパティより優先します。
-``joint.radius`` はメソッドです。値は ``joint.radius()``、Plugは
-``joint.plug("radius")`` で取得します。``transform.matrix()`` は行列の値を取得します。
-下の ``compound`` は取得済みのCompoundPlugです。
+``node.getMatrix()`` は数学値、``node.getPlug("matrix")`` はPlugを返します。
+取得の省略メソッドを取り除いたため、``node.matrix`` などのMayaアトリビュート名を
+直接解決できます。Mayaへ問い合わせるメソッドは括弧を付けて呼びます。
 
 .. code-block:: python
 
-   joint = mlib.node("joint1")
-   radius = joint.radius()
-   joint.plug("radius").set(2.0)
+   matrix = node.getMatrix()
+   matrix_plug = node.getPlug("matrix")
+   radius = joint.getRadius()
+   joint.getPlug("radius").set(2.0)
+   vertex = mesh.getVertex(idx=0)
+   cvs = curve.getCVs()
 
-   # CompoundPlugにnodeという子があっても、node()は所有ノードの取得です。
-   owner = compound.node()
-   child = compound["node"]
+``Component.index``、``Components.indices``、数学型の ``Matrix.translate`` 等は保持値の
+プロパティです。``MMatrix.getElement``、``MVector.length`` 等の標準名も維持します。
+変換の値型は ``Translate/EulerRotate/Scale``、取得・設定は
+``getTranslate/setTranslate``・``getRotate/setRotate``・``getScale/setScale`` です。
+JSONの保存キー・タグはこの統合では変更しません。
 
-複数形と静的getter
--------------------
+複数形と静的取得
+------------------
 
-``joints.skinClusters()`` はスキンクラスターを集約した結果を、
-``transforms.transform()`` はコレクション自身を返します。
-``callEach("translate", ...)`` 等の文字列指定も正式getterと同じ事前検査・実行を行います。
-要素ごとの戻り値を返すcallEachと、専用集約を行うgetterの区別は維持します。
+``joints.getSkinClusters()`` 等の専用集約、各対象の結果を保持順に返す取得、
+コレクション自身を返す取得の区別は維持します。
+``callEach("getTranslate", ...)`` の文字列指定にも正式名を使います。
+``Preferences.getLinearUnit()`` 等の静的メソッドもget付きで呼びます。
 
-静的getterの省略入口はclassmethodです。``Preferences.linearUnit()`` と
-``Preferences().linearUnit()`` は、どちらも距離のUI単位を照会します。
-正式なstaticmethod/classmethodの定義は変更しません。
+接続・単位・階層
+------------------
 
-公開取得コマンド
------------------
+``plug.getSource()`` は既定で変換ノードを飛ばし、
+``getSource(skipConversionNodes=False)`` は直結元を返します。
+出力側は ``getDestinations`` です。両方向は ``getConnections`` に集約しました。
+値のUI単位は ``get(uiUnits=True)`` / ``set(value, uiUnits=True)`` で指定します。
+UI単位を選択した複合値は数値tupleとし、内部単位の数学型へUI数値を入れません。
 
-下記13関数は ``mlib.cmds`` と ``mlib`` の両方から利用できます。
-ルートの同名関数は同じ関数オブジェクトの再公開です。
-例えば ``mlib.cmds.node is mlib.node`` はTrueになります。
-省略関数は呼び出すたびにget付きの処理本体へ委譲し、引数・戻り値・例外を保持します。
-``attr(target)`` は照会フラグなしならPlug、照会フラグを指定した場合は
-従来のMaya照会値・状態を返します。
-
-.. list-table::
-   :header-rows: 1
-
-   * - mlib.cmdsの省略関数
-     - 処理本体の名前
-   * - ``mlib.cmds.attr()``
-     - getAttr
-   * - ``mlib.cmds.channelBox()``
-     - getChannelBox
-   * - ``mlib.cmds.drivenKey()``
-     - getDrivenKey
-   * - ``mlib.cmds.node()``
-     - getNode
-   * - ``mlib.cmds.outliner()``
-     - getOutliner
-   * - ``mlib.cmds.plug()``
-     - getPlug
-   * - ``mlib.cmds.scene()``
-     - getScene
-   * - ``mlib.cmds.shelf()``
-     - getShelf
-   * - ``mlib.cmds.timeSlider()``
-     - getTimeSlider
-   * - ``mlib.cmds.viewport()``
-     - getViewport
-   * - ``mlib.cmds.window()``
-     - getWindow
-   * - ``mlib.cmds.workspaceControl()``
-     - getWorkspaceControl
-   * - ``mlib.cmds.workspaceLayout()``
-     - getWorkspaceLayout
-
-.. code-block:: python
-
-   import mlib
-
-   node = mlib.cmds.node("pCube1")
-   plug = mlib.cmds.plug("pCube1.translateX")
-   attr = mlib.cmds.attr(plug)       # フラグなしは型付きPlug
-   value = attr.get()              # 距離の内部単位cm
-   scene = mlib.cmds.scene()       # 現在のシーンパスを保持するScene
-
-   assert mlib.cmds.node is mlib.node
-   assert attr is plug
-
-``mlib.scene()`` は取得関数です。旧 ``import mlib.scene`` パッケージを復活させるものではありません。
-正式getterを追加した場合は、省略入口と公開宣言も同時に追加してください。
+``getShapes()`` はShape取得、``getChildren()`` は子・子孫取得です。
+子孫・探索順・末端は ``allDescendents/order/leaves/includeSelf`` で選択します。
+詳細は :doc:`api_methods` と :doc:`api_arguments` を参照してください。
 
 判定メソッド
-------------
+--------------
 
-``isX()`` の判定には、isを省いた ``x()`` の入口も用意します。
-説明・使用例・APIリファレンスでは省略名を使い、処理本体はis付きに残します。
-引数・既定値・フラグ・例外・戻り値は本体と同じで、呼出し時のoverrideにも追従します。
-複数形は従来どおり、保持順の判定結果リストを返します。
+判定は ``isX()`` / ``hasX()`` です。既存の ``valid()/getLocked()/connected()`` 等の
+is省略入口は維持しています。取得の統合を理由に新しい判定別名は追加しません。
+引数・例外・戻り値は判定本体と同じです。
 
 .. code-block:: python
 
-   node = mlib.node("pCube1")
-   other = mlib.node("pCube2")
-   print(node.valid(), node.locked())
-   plug = node.plug("translateX")
-   print(plug.keyable())
-   print(plug.connected(src=True, dst=False))
-   print(plug.connectedTo(other.plug("translateX"), src=False, dst=True))
-   print(mlib.nodes.Nodes([node]).valid())
+   node.isValid()
+   node.isLocked()
+   plug.isConnected(src=True, dst=False)
+   plug.isConnectedTo(other.getPlug("translateX"), src=False, dst=True)
 
-   from mlib.common import undo
-   print(undo.enabled())
-
-省略名はメソッドです。``node.locked`` ではなく ``node.locked()`` として判定します。
-``Vector``・``Matrix``・``EulerRotate``・``Transformation`` に定義した
-``isEquivalent()`` にも ``equivalent()`` を用意します。
-OpenMayaからそのまま継承する ``isParallel()`` や
-``Quaternion.isEquivalent()`` などは、標準の名前を使います。
-
-既存名と重なる判定
-~~~~~~~~~~~~~~~~~~
-
-省略名が既存の取得・編集APIと重なる判定は、is付きの名前を使います。
-``source()`` で接続元Plugを取得するなど、既存APIの意味と戻り値を維持するためです。
-
-.. list-table::
-   :header-rows: 1
-
-   * - 判定名
-     - 既存の省略名・操作
-   * - ``Node.isType()`` / ``Nodes.isType()``
-     - ``type()`` はノード型名を取得
-   * - ``Node.isRoot()`` / ``Nodes.isRoot()``
-     - 派生クラスの ``root()`` はルートの参照を取得
-   * - ``Plug.isSource()``
-     - ``source()`` は接続元Plugを取得
-   * - ``Plug.isElement()``
-     - ``ArrayPlug.element(index)`` は配列要素Plugを取得
-   * - ``Plugin.isLoaded()``
-     - ``Plugin.loaded()`` はロード済みプラグイン一覧を取得
-   * - ``Scene.isNew()``
-     - ``new()`` は新規シーンを作成
-   * - ``WorkspaceLayout.isCurrent()``
-     - ``WorkspaceLayout.current()`` は現在のレイアウトを取得
-
-``Reference.loaded()`` と ``Scene.current()`` は、それぞれのクラスでは
-同名の取得・編集APIと重ならないため、判定の省略入口として利用できます。
+OpenMaya継承メソッドと、既存の ``isSource/isElement/isRoot/isType`` 等の標準入口は維持します。

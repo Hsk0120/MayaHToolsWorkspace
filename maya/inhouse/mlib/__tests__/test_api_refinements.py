@@ -129,8 +129,8 @@ class ApiRefinementsTest(unittest.TestCase):
             self.assertAlmostEqual(a, b)
         node.setPivot((5, 6, 7), preserve=False)
         self.assertFalse(node.getMatrix().isEquivalent(before))
-        self.assertTrue(callable(node.pivot))
-        self.assertEqual(node.pivot(), node.getPivot())
+        self.assertTrue(callable(node.getPivot))
+        self.assertEqual(node.getPivot(), node.getPivot())
 
     def test_removal_flag_validation_across_entries(self):
         """単体・複数・Jointとも文字列のFalseを更新前に拒否する。"""

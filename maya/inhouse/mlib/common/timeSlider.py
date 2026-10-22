@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from ..decorator import undoChunk
 
 
@@ -168,86 +168,6 @@ class TimeSlider:
             yield self
         finally:
             self.setCurrentTime(previous)
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getCurrentTime)
-    def currentTime(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getCurrentTime(*args, **kwargs)
-
-    @_getter_alias(getPlaybackRange)
-    def playbackRange(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlaybackRange(*args, **kwargs)
-
-    @_getter_alias(getAnimationRange)
-    def animationRange(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAnimationRange(*args, **kwargs)
-
-    @_getter_alias(getSelectedRange)
-    def selectedRange(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSelectedRange(*args, **kwargs)
 
     @staticmethod
     def _query_value(flag):

@@ -2,8 +2,8 @@ APIの命名と移行
 ==============================
 
 今回の整理は既存APIを置き換える変更です。廃止したPython名の互換別名は残していません。
-独自getterの説明・使用例・API一覧は、getを省いた名前に統一しています。
-get付きの本体と省略名は同じ引数・戻り値で利用できます（:doc:`getter_aliases`）。
+独自getterの説明・使用例・API一覧はget付きの正式名に統一しています。
+get省略入口は廃止しました（:doc:`getter_aliases`）。
 利用側のスクリプトも更新してください。モジュール移動を含むため、更新後はMayaを
 再起動するか ``mlib.reload()`` を実行し、保持していたラッパーは取り直してください。
 
@@ -20,7 +20,7 @@ get付きの本体と省略名は同じ引数・戻り値で利用できます�
 
    * - 旧配置
      - 正式な新配置
-   * - ``mlib.scene`` / ``mlib.environment`` / ``mlib.ui`` / ``mlib.events``
+   * - ``mlib.getScene`` / ``mlib.environment`` / ``mlib.ui`` / ``mlib.events``
      - ``mlib.common``
    * - ``mlib.utils`` のlogger以外のモジュール
      - ``mlib.common`` の対応するモジュール
@@ -64,13 +64,13 @@ Objectと拡張管理の取得入口は ``_core`` へ変更し、ルートへの
    * - 旧名・旧指定
      - 新名・新指定
    * - full_name() / is_valid() / add_attribute()
-     - fullName() / valid() / addAttr()
+     - getFullName() / valid() / addAttr()
    * - vertex_count() / cv_count() / get_cv_positions()
-     - numVertices() / numCVs() / cvPositions()
+     - getNumVertices() / getNumCVs() / getCvPositions()
    * - get_translate() / set_translate() / set_rotate()
      - translate() / setTranslate() / setRotate()
    * - get_position() / set_positions()
-     - position() / setPositions()
+     - getPosition() / setPositions()
    * - space=MSpace.kWorld / space=MSpace.kObject
      - ws=True / ws=False
    * - long_name / attribute_type / data_type
@@ -80,7 +80,7 @@ Objectと拡張管理の取得入口は ``_core`` へ変更し、ルートへの
 
 その他のnodes/plugs/components/maths/commonの公開メソッドもlowerCamelCaseへ統一しています。
 ``translate`` 等の姿勢操作はmlibの複合操作です。MFnTransformの同一名・同一動作の
-薄いラッパーではありません。アトリビュート値には ``plug("translate").get()`` を使います。
+薄いラッパーではありません。アトリビュート値には ``getPlug("translate").get()`` を使います。
 
 .. code-block:: python
 
@@ -88,16 +88,16 @@ Objectと拡張管理の取得入口は ``_core`` へ変更し、ルートへの
    import mlib
 
    node = mlib.createNode("transform")
-   node.plug("rotateX").set(math.pi / 2)  # rad。通常はUndo可能
-   node.plug("translateX").set(100, fast=True)  # cm。Undoなし
+   node.getPlug("rotateX").set(math.pi / 2)  # rad。通常はUndo可能
+   node.getPlug("translateX").set(100, fast=True)  # cm。Undoなし
    node.setTranslate((100, 0, 0), ws=True)
-   value = node.plug("rotateX").get()
-   node.plug("rotateX").set(value)  # UI単位によらず同じ角度
-   print(mlib.attr(node.plug("rotateX")).getu())  # PlugからUI単位の値を取得
+   value = node.getPlug("rotateX").get()
+   node.getPlug("rotateX").set(value)  # UI単位によらず同じ角度
+   print(mlib.getAttr(node.getPlug("rotateX")).get(uiUnits=True))  # PlugからUI単位の値を取得
 
-``mlib.attr(target)`` は型付きPlugを返し、値は ``get()`` の内部単位または
-``getu()`` のUI単位で取得します。既存Plugを渡すと同じオブジェクトを返します。
-``mlib.attr(target, type=True)`` 等、照会フラグを明示した場合は従来のMaya照会です。
+``mlib.getAttr(target)`` は型付きPlugを返し、値は ``get()`` の内部単位または
+``get(uiUnits=True)`` のUI単位で取得します。既存Plugを渡すと同じオブジェクトを返します。
+``mlib.getAttr(target, type=True)`` 等、照会フラグを明示した場合は従来のMaya照会です。
 値照会のUI単位とMatrix・Vectorへの変換、長短フラグは維持します。
 
 配列型は空でも1要素でもlistを維持します。未初期化データのみNoneです。
@@ -141,19 +141,19 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
    * - 旧API
      - 新API
    * - AnimCurve.getInputs()
-     - keyInputs()。inputs(type=...)は継承元の接続検索。
+     - getKeyInputs()。接続検索はgetConnections(source=True, destination=False, type=...)。
    * - BlendWeighted.getInputs()
-     - inputPlugs()。inputs(type=...)は継承元の接続検索。
+     - getInputPlugs()。接続検索はgetConnections(source=True, destination=False, type=...)。
    * - Joint.getParent() / getChildren()
-     - parentJointName() / childJointNames()。戻り値は従来どおり名前。
+     - getParentJointName() / getChildJointNames()。戻り値は従来どおり名前。
    * - Transform.compose(matrix)
      - setMatrix(matrix)。Matrix.compose()は引き続き行列の生成。
    * - Transform.release_srt()
-     - unlockAndDisconnectTransformChannels()。shearも含む。
-   * - Componentのposition() / Componentsのpositions()
-     - 単数形・複数形ともに position()。
+     - mlrig.setups.ControlHierarchy.unlockAndDisconnectTransformChannels(target)。shearも含む。
+   * - ComponentのgetPosition() / Componentsのpositions()
+     - 単数形・複数形ともに getPosition()。
    * - component.x = value（y/z/u/vも同様）
-     - component.setPositionX(value)。取得はpositionX()。
+     - component.setPositionX(value)。取得はgetPositionX()。
    * - maths.Translate
      - maths.Translate。現在はom2.MVectorを継承した位置・移動の値。
    * - maths.Rotate
@@ -168,7 +168,7 @@ snake_caseを使用できます。保存キー・保存フィールドは変更�
    * - json.CurveSnapshot
      - json.NurbsCurveSnapshot。
 
-複数形の ``position()`` は単体と同名で呼べる入口として残し、
+複数形の ``getPosition()`` は単体と同名で呼べる入口として残し、
 保持順の座標列を返します。``setPosition(value)`` は同じ座標を全要素へ設定、
 ``setPositions(values)`` は要素ごとの座標を設定します。
 
@@ -258,13 +258,13 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
    import mlib
 
    node = mlib.createNode("transform")
-   print(node.name(), node.fullName(), node.locked())
-   plug = node.plug("translateX")
-   print(plug.name(), plug.longName(), plug.locked())
-   print(plug.node())  # 所有Nodeを返すメソッド。
+   print(node.getName(), node.getFullName(), node.isLocked())
+   plug = node.getPlug("translateX")
+   print(plug.getName(), plug.getLongName(), plug.isLocked())
+   print(plug.getNode())  # 所有Nodeを返すメソッド。
 
 ``Component.shape`` / ``index``、``Components.shape`` / ``indices`` はプロパティを維持します。
-``Plug.node()`` は所有ノードを取得するメソッドです。
+``Plug.getNode()`` は所有ノードを取得するメソッドです。
 ``Vector.x`` などの数学値と、``NodeRef.uuid`` などJSONの保存済みデータも維持します。
 
 モジュールの移動
@@ -286,7 +286,7 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
    * - mlib.maths.translate
      - mlib.maths.translate
 
-``mlib.channelBox()`` / ``mlib.timeSlider()`` / ``mlib.drivenKey()`` のコマンド名は変わりません。
+``mlib.getChannelBox()`` / ``mlib.getTimeSlider()`` / ``mlib.getDrivenKey()`` のコマンド名は変わりません。
 旧JSON型タグ ``math:Translate``・``math:Rotate`` は受け付けず、ValueErrorになります。
 現在の型タグは ``math:Translation``・``math:EulerRotation`` です。
 EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読み込み後は
@@ -295,14 +295,14 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 メソッド整理後の入口
 ----------------------------------------------------------------------
 
-* ノードの行列取得は ``matrix(ws=False)``。旧 ``decompose()`` の引数省略は
+* ノードの行列取得は ``getMatrix(ws=False)``。旧 ``decompose()`` の引数省略は
   ワールド空間だったため、移行時は ``matrix(ws=True)`` とします。
 * DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
-  ``name()`` / ``fullName()`` は別の用途として維持します。
-* ノードからのアトリビュート取得には ``plug()`` を使います。
-  アトリビュート名からは ``mlib.attr()`` または ``mlib.plug()`` でPlugを取得できます。
+  ``name()`` / ``getFullName()`` は別の用途として維持します。
+* ノードからのアトリビュート取得には ``getPlug()`` を使います。
+  アトリビュート名からは ``mlib.getAttr()`` または ``mlib.getPlug()`` でPlugを取得できます。
 * ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象アトリビュートだけを読み書きします。
-  所有ノードの変換には ``Transform.matrix()`` / ``setMatrix()`` を使います。
+  所有ノードの変換には ``Transform.getMatrix()`` / ``setMatrix()`` を使います。
   ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
 * 表示は ``Transform.setVisibility(state, fast=False)``、ミュートは
   ``Plug.setMuted(state)`` で切り替えます。
@@ -312,9 +312,9 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
   除外を持つクラスは ``removeMembers`` です。
 * 頂点等の個数は ``numVertices`` / ``numEdges`` / ``numPolygons`` /
   ``numUVs`` / ``numCVs`` / ``numSpans`` に統一しました。
-* IKハンドルのジョイント取得は ``joints()`` / ``endJoint()``。
-  Shapeの親取得は ``parent()``、Namespaceの切替は ``setCurrent()`` です。
-* 複数コンポーネントの座標取得も ``position()``。
+* IKハンドルのジョイント取得は ``getJoints()`` / ``getEndJoint()``。
+  Shapeの親取得は ``getParent()``、Namespaceの切替は ``setCurrent()`` です。
+* 複数コンポーネントの座標取得も ``getPosition()``。
   同一座標への設定 ``setPosition()`` と要素別設定 ``setPositions()`` は区別します。
 * ウェイト移送は ``SkinCluster.transferWeights([(source, target), ...])``。
   インフルエンスの解除は ``SkinClusters.removeInfluences()`` です。
@@ -335,11 +335,11 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 * ``setLocked`` / ``set_keyable`` / ``set_channel_box`` は、それぞれ
   ``setFlags(locked=...)`` / ``setFlags(keyable=...)`` / ``setFlags(channelBox=...)``
   へ統一しました。同時指定もでき、全フラグを検証してから更新します。
-* ``Joint.orientation()`` は廃止し ``jointOrient()`` を使います。
+* ``Joint.orientation()`` は廃止し ``getJointOrient()`` を使います。
 * ``Joint.removeInfluence(..., transfer_to_parent=False)`` で祖先への移送を無効化できます。
   Jointを残してMaya標準の再配分で登録を外します。既定Trueの動作は変わりません。
 * Plugin/Moduleの ``version_tuple()`` は廃止しました。
-  ``version = plugin.version()`` の結果がNoneでなければ ``version.parts`` を使います。
+  ``version = plugin.getVersion()`` の結果がNoneでなければ ``version.parts`` を使います。
 * ``Constraint.setWeight`` は指定ターゲットを全件検証してから更新します。
   Mayaで更新中に起きたエラーの自動ロールバックは行いません。
 
@@ -349,13 +349,13 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 部分更新と保持値の整理
 ----------------------------------------------------------------------
 
-* ``AnimCurve.values()`` は ``keyValues()`` で取得します。
-  接線と無限設定は ``tangent()`` / ``infinity()`` で取得します。
+* ``AnimCurve.values()`` は ``getKeyValues()`` で取得します。
+  接線と無限設定は ``getTangent()`` / ``getInfinity()`` で取得します。
 * ``setInfinity(*, pre=None, post=None)`` は指定した側だけ変更します。
   両方をリセットする場合は ``pre="constant", post="constant"`` を明示します。
   位置引数は使わず、両側の値を検証してから更新します。
-* ピボット取得には ``Transform.pivot()`` を使います。
-  ``pivot(ws=False, kind="rotate")`` と
+* ピボット取得には ``Transform.getPivot()`` を使います。
+  ``getPivot(ws=False, kind="rotate")`` と
   ``setPivot(value, ws=False, kind="rotate", preserve=True)`` は
   回転ピボットが既定です。取得・設定とも ``kind="scale"`` が使え、
   設定時は ``kind="both"`` も使えます。
@@ -367,8 +367,8 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
   ``Plugin.name`` / ``Module.name``、``Selection.items``、
   ``Viewport.name`` / ``Viewport.panel``、``Outliner.name`` です。
   ``Selection.items`` は従来どおりコピーなので、返却リストを変更しても元は変わりません。
-  Mayaに照会する ``Plugin.path()`` / ``Module.path()``、
-  ``ChannelBox.name()`` / ``TimeSlider.name()`` はメソッドのままです。
+  Mayaに照会する ``Plugin.getPath()`` / ``Module.getPath()``、
+  ``ChannelBox.getName()`` / ``TimeSlider.getName()`` はメソッドのままです。
 * ``SkinCluster.transferWeights`` は全組の形とinfluence所属を検証してから、
   指定順で移送します。同じinfluence同士の組は何もしません。
   正規化はMayaの標準処理とskinCluster設定に従い、
@@ -381,11 +381,11 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 表示色APIの変更
 ----------------------------------------------------------------------
 
-``Node.outliner_color()`` は ``outlinerColor()``、
-``Node.override_color()`` は ``overrideColor()`` に変更しました。
+``Node.outliner_color()`` は ``getOutlinerColor()``、
+``Node.override_color()`` は ``getOverrideColor()`` に変更しました。
 戻り値は ``mlib.common.Color`` です。RGBは ``.rgb``、色番号は ``.index``、
 有効形式は ``.mode`` で取得します。詳細は :doc:`node_colors` を参照してください。
-旧 ``BlendColors.color()`` のPlug取得は ``colorPlug()`` を使います。
+旧 ``BlendColors.getColor()`` のPlug取得は ``getColorPlug()`` を使います。
 現在の ``color(index)`` は色の数値を返します。
 
 ノードコレクションの継承と色の戻り値
@@ -396,7 +396,7 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 ``Joints`` の構築時に非jointを黙って除外せず ``TypeError`` にします。
 重複判定は同一ノード・同一DAGパスに統一し、異なるインスタンスパスを保持します。
 
-複数形の ``overrideColor()`` / ``outlinerColor()`` は
+複数形の ``getOverrideColor()`` / ``getOutlinerColor()`` は
 ``list[Color]`` を返します。
 複数形の色setterの戻り値は各結果のリストからコレクション自身へ変わりました。
 通常の一括更新もコレクション自身を返します。照会・生成結果が必要な操作は結果リストです。
@@ -410,24 +410,24 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 値の取得と設定は ``x()`` / ``setX()``、接続用Plugの取得は ``xPlug()`` と記載します。
 get付きの取得本体も利用できます。snake_caseの旧名は残していません。
 
-* TimeSlider: ``currentTime()``、``playbackRange()``、
-  ``animationRange()``、``selectedRange()``。
-* Preferences: ``linearUnit()``、``angleUnit()``、``timeUnit()``。
+* TimeSlider: ``getCurrentTime()``、``getPlaybackRange()``、
+  ``getAnimationRange()``、``getSelectedRange()``。
+* Preferences: ``getLinearUnit()``、``getAngleUnit()``、``getTimeUnit()``。
 * Viewport / Outliner: ``settings()``。
-* Workspace: ``rule()``、ルール名一覧は ``ruleNames()``。
-* SkinCluster: ``maxInfluences()``。
-* Joint: ``jointOrient()``、``inverseScale()``。
-* Camera: ``focalLength()``。Mesh: ``points()``、``vertexNormals()``。
-  NurbsCurve: ``cvPositions()``。
-* Constraint / BlendShape / BlendWeighted: ``weights()``。
+* Workspace: ``getRule()``、ルール名一覧は ``getRuleNames()``。
+* SkinCluster: ``getMaxInfluences()``。
+* Joint: ``getJointOrient()``、``getInverseScale()``。
+* Camera: ``getFocalLength()``。Mesh: ``getPoints()``、``getVertexNormals()``。
+  NurbsCurve: ``getCvPositions()``。
+* Constraint / BlendShape / BlendWeighted: ``getWeights()``。
   既存のリスト・辞書などの戻り値形式は維持します。
-* BlendColors: ``blenderPlug()`` はPlug、``blender()`` は係数の値。
+* BlendColors: ``getBlenderPlug()`` はPlug、``getBlender()`` は係数の値。
 * AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
-  出力Plugは ``outputPlug()``。
+  出力Plugは ``getOutputPlug()``。
 * Shape / Transform: Maya APIの関数セット取得は ``dagFn()``。
-* Plug: アトリビュート名の文字列は ``longName()``。
+* Plug: アトリビュート名の文字列は ``getLongName()``。
 * Namespace / UiElement: 保持する名前は ``name`` プロパティ。
-  Mayaへ照会する ``Node.name()`` やUIを解決する ``TimeSlider.name()`` はメソッドです。
+  Mayaへ照会する ``Node.getName()`` やUIを解決する ``TimeSlider.getName()`` はメソッドです。
 
 
 参照対象と入力契約の整理
@@ -442,17 +442,17 @@ get付きの取得本体も利用できます。snake_caseの旧名は残して�
    * - 旧API
      - 新API
    * - ``BlendShape.getTargets()``
-     - ``targetAliases()`` （文字列の一覧）
+     - ``getTargetAliases()`` （文字列の一覧）
    * - ``ArrayPlug.next_available()``
-     - ``nextAvailableIndex()`` （未存在の論理番号）
+     - ``getNextAvailableIndex()`` （未存在の論理番号）
    * - ``AnimCurve.driver()`` / ``DrivenKey.driver()``
-     - ``driverPlug()``
+     - ``getDriverPlug()``
    * - ``DrivenKey.driven()``
-     - ``drivenPlug()``
+     - ``getDrivenPlug()``
    * - ``Reference.edit_nodes()`` / ``edit_attrs()``
-     - ``editNodeNames()`` / ``editAttrNames()``
+     - ``getEditNodeNames()`` / ``getEditAttrNames()``
    * - ``Reference.getNamespace()`` （参照内容の照会）
-     - ``associatedNamespace()``
+     - ``getAssociatedNamespace()``
    * - ``Reference.isRoot()`` （参照階層の判定）
      - ``topLevel()``
    * - ``PluginPackage.ensureLoaded()``
@@ -470,25 +470,26 @@ get付きの取得本体も利用できます。snake_caseの旧名は残して�
    * - ``Container.createNode(kind=...)``
      - ``createNode(type=...)``
 
-``Reference.namespace()`` と ``setNamespace()`` は、継承元Nodeと同じく
+``Reference.getNamespace()`` と ``setNamespace()`` は、継承元Nodeと同じく
 referenceノード自身の名前空間を扱います。参照内容の名前空間を取得する場合は
-``associatedNamespace()`` を使います。Referenceは非DAGノードなので、
+``getAssociatedNamespace()`` を使います。Referenceは非DAGノードなので、
 継承した ``isRoot()`` はRuntimeErrorとなります。
 
-``SkinCluster.influences()`` は文字列ではなく ``list[Node]`` を返します。
-名前が必要な場合は ``[node.name() for node in skin.influences()]`` を使います。
-``unusedInfluences()`` と同じ要素型になり、Joint以外のinfluenceも保持します。
+``SkinCluster.getInfluences()`` は文字列ではなく ``list[Node]`` を返します。
+名前が必要な場合は ``[node.getName() for node in skin.getInfluences()]`` を使います。
+``getUnusedInfluences()`` と同じ要素型になり、Joint以外のinfluenceも保持します。
 ``dumpWeights()`` / ``loadWeights()`` のJSON内の名前は引き続き文字列です。
 
 入力・ウェイトの個別取得
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-``MultMatrix.input(index)`` / ``BlendWeighted.input(index)`` は
-既存入力の評価値を返します。``inputPlug(index)`` は同じ入力のPlugです。
+``MultMatrix.getInput(index)`` は既存入力の評価値を返します。
+BlendWeightedでは ``getInputPlug(index).get()`` で評価値を取得します。
+``getInputPlug(index)`` は同じ入力のPlugです。
 未存在要素の照会はIndexErrorで、要素を作成しません。
-``BlendWeighted.weight(index)`` は既存inputに対応する倍率を返し、
+``BlendWeighted.getWeight(index)`` は既存inputに対応する倍率を返し、
 weight未設定時は要素を作らず1を返します。
-``Constraint.weight(target)`` は指定ターゲットの値を返します。
+``Constraint.getWeight(target)`` は指定ターゲットの値を返します。
 
 ``Plug.connectTo(target, force=True, unlock=False)`` は既存入力を置換しますが、
 接続先のロックは解除しません。Maya標準 ``connectAttr(force=True)`` から
@@ -499,8 +500,8 @@ force時に一時アンロックし、接続後に元のロックを戻します
 は循環候補を ``list[Cycle]`` で返します。Noneはシーン全体で、空の対象リストは拒否します。
 ``cycle.plugs`` は検出順の ``tuple[Plug, ...]`` です。名前変更には追従しますが、
 接続変更後は再検索が必要です。手動で ``Cycle(plugs)`` を作る場合は循環の成立を検証しません。
-``connections()`` は現在の実接続を ``(sourcePlug, destinationPlug)`` で返し、
-経路外への接続も含みます。``parents()`` は現在のDAG親子関係を
+``getConnections()`` は現在の実接続を ``(sourcePlug, destinationPlug)`` で返し、
+経路外への接続も含みます。``getParents()`` は現在のDAG親子関係を
 ``(parent, childNode)`` で返します。削除済み対象などの照会失敗は例外になります。
 時間制限で未完了の場合や検出対象外の依存があり、結果0件は無循環の保証ではありません。
 検索時間の計測・結果の文字列保存・レポート整形・画面表示はHToolsが担当します。
@@ -513,7 +514,7 @@ force時に一時アンロックし、接続後に元のロックを戻します
 
 ``publishName(name)`` は未Bindの公開名を作り、``bindAttr(name, plug)`` が
 所属ノードの内部アトリビュートと対応付けます。``publishAndBind(name, plug)`` は一括操作です。
-``publishedAttrs()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。
+``getPublishedAttrs()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。
 ``unbindAttr(name)`` は公開名を残し、``unpublishName(name)`` は未Bind名を削除します。
 これらはUndo可能です。ロックを自動解除せず、外部ノードを自動で所属させません。
 ノードの親子アンカー公開はこのAPIの対象外です。
@@ -530,22 +531,22 @@ Undoでは元の階層へ戻ります。
 どちらか一方を指定します。生成関数側が生成物の記録と管理を担当し、
 ScalarGraphは計算と接続を担当します。既存の生成物を読み取るだけではノードを作成しません。
 
-``AimConstraint.rotateConnections()`` は回転出力の直接接続を
+``AimConstraint.getRotateConnections()`` は回転出力の直接接続を
 ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、
 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。
 ``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、
 World Up Type、enableRestPosition、useOldOffsetCalculationを返します。
-接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``weightPlugs()`` で取得します。
-``restRotate()`` / ``offset()`` はラジアンのXYZタプル、
+接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``getWeightPlugs()`` で取得します。
+``getRestRotate()`` / ``getOffset()`` はラジアンのXYZタプル、
 対応する ``setRestRotate(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。
 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。
 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。
-``outputRotate()`` は ``constraintRotateOrder`` を持つ ``EulerRotate`` を返します。
+``getOutputRotate()`` は ``constraintRotateOrder`` を持つ ``EulerRotate`` を返します。
 継承した ``rotate()`` が扱う自身のTransform回転とは異なります。
 
-``DecomposeMatrix.input()`` / ``inputPlug()`` は単一行列入力を扱い、
-``rotateOrder()`` はMayaの回転順序番号0〜5を返します。
-``Transform.visibility()`` は自身のアトリビュート値を返します。
+``DecomposeMatrix.getInput()`` / ``getInputPlug()`` は単一行列入力を扱い、
+``getRotateOrder()`` はMayaの回転順序番号0〜5を返します。
+``Transform.getVisibility()`` は自身のアトリビュート値を返します。
 親・表示レイヤーを含む最終的な可視性判定ではありません。
 
 成分別編集とメンバー入力
@@ -596,7 +597,7 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
 .. code-block:: python
 
     skin.addInfluences(["joint1", "joint2"])
-    skin.addInfluences([mlib.node("joint1"), mlib.node("joint2")])
+    skin.addInfluences([mlib.getNode("joint1"), mlib.getNode("joint2")])
     # 名前とNodeを同じ対象列に混ぜない
 
 ``ls()`` の戻り値規則は維持します。joint/skinCluster指定は専用コレクション、
@@ -615,13 +616,13 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
    * - 入口
      - 受付対象
      - 結果
-   * - ``mlib.node(value)`` / ``Node(value)``
+   * - ``mlib.getNode(value)`` / ``Node(value)``
      - 名前、Node、Plug、単体Component、MObject、MDagPath、MPlug
      - ノード型に対応するNode派生。Plug/Componentは所有ノード
-   * - ``mlib.plug(value)``
+   * - ``mlib.getPlug(value)``
      - アトリビュート名、Plug、MPlug
      - アトリビュート型に対応するPlug。既存Plugはそのまま
-   * - ``node.plug(name)``
+   * - ``node.getPlug(name)``
      - そのノードのアトリビュート名・アトリビュートパス
      - アトリビュート型に対応するPlug
    * - ``Nodes(values)`` と派生コレクション
@@ -633,12 +634,12 @@ Plug・Component・API参照の既存受付は維持し、その受付範囲を�
 
 同じ対象列では名前文字列とNodeを混ぜません。独立した引数や数値まで同じ型に
 揃える規則ではありません。コレクションの型制約や空列の扱いは各APIに従います。
-``Object._input_names`` 等は内部APIで、利用側の通常の入口は ``mlib.node`` / ``mlib.plug`` です。
+``Object._input_names`` 等は内部APIで、利用側の通常の入口は ``mlib.getNode`` / ``mlib.getPlug`` です。
 
 ``Joint(name)`` 等のNode具象クラスは、異なる種類のノードを拒否します。
 Plug派生の直接コンストラクターは、拡張実装で指定クラスを割り当てる低水準の入口として
 維持しています。Nodeの具象型検証とは同一ではありません。
-通常は ``mlib.plug`` または ``node.plug`` に型選択を任せてください。
+通常は ``mlib.getPlug`` または ``node.plug`` に型選択を任せてください。
 既存Plugを ``plug`` に渡しただけでは有効性を再検証しません。
 削除後の参照は ``valid()`` で確認し、値操作時の検証とは区別します。
 
@@ -761,7 +762,7 @@ fastを指定できるメソッド
 同モジュールの ``sampleExtremePoints(points, direction_count=64)`` は
 方向サンプルの極値点を抽出します。厳密な凸包ではありません。
 
-``Mesh.vertexAdjacency(ws=False)`` は頂点ID順に
+``Mesh.getVertexAdjacency(ws=False)`` は頂点ID順に
 ``list[list[tuple[int, float]]]`` を返します。各ペアは隣接頂点IDとcm単位の
 エッジ長です。ワールド指定は保持するDAGインスタンスを使用し、シーンを変更しません。
 エッジID順を保ち、孤立頂点は空リスト、重複エッジは別々に返します。

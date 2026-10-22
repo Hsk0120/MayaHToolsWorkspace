@@ -19,11 +19,16 @@ def convert(plug, value, to_ui=True):
     attribute = plug.attribute()
     if not attribute.hasFn(om2.MFn.kUnitAttribute):
         return value
+    unit_type = om2.MFnUnitAttribute(attribute).unitType()
+    if unit_type == om2.MFnUnitAttribute.kInvalid:
+        # Maya 2023のmesh.pnts子はUnitAttributeとして解決されても単位型が
+        # kInvalidになる。座標の数値を維持し、存在しない単位を変換しない。
+        return value
     cls, internal = {
         om2.MFnUnitAttribute.kAngle: (om2.MAngle, om2.MAngle.kRadians),
         om2.MFnUnitAttribute.kDistance: (om2.MDistance, om2.MDistance.kCentimeters),
         om2.MFnUnitAttribute.kTime: (om2.MTime, om2.MTime.kSeconds),
-    }[om2.MFnUnitAttribute(attribute).unitType()]
+    }[unit_type]
     if isinstance(value, cls):
         return value.asUnits(cls.uiUnit() if to_ui else internal)
     source, target = (internal, cls.uiUnit()) if to_ui else (cls.uiUnit(), internal)

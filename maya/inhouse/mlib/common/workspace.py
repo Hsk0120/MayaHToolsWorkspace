@@ -4,8 +4,6 @@ from pathlib import Path
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
-
 
 class Workspace:
     """Maya の現在のワークスペース(プロジェクト)を参照・変更する。
@@ -111,71 +109,3 @@ class Workspace:
         relative = Workspace.getRule(rule_name)
         base = Workspace.getRoot() / relative if relative else Workspace.getRoot()
         return base / filename if filename else base
-
-    @classmethod
-    @_getter_alias(getRoot, static=True)
-    def root(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getRoot(*args, **kwargs)
-
-    @classmethod
-    @_getter_alias(getRule, static=True)
-    def rule(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getRule(*args, **kwargs)
-
-    @classmethod
-    @_getter_alias(getRuleNames, static=True)
-    def ruleNames(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getRuleNames(*args, **kwargs)
-
-    @classmethod
-    @_getter_alias(getPathFor, static=True)
-    def pathFor(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getPathFor(*args, **kwargs)

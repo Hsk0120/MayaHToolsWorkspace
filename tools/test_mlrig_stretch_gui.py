@@ -64,7 +64,7 @@ def main(output_dir=None, finished=None):
         check(spline.root.hasAttr("stretchGroup"), "UI adds spline layer")
         editor.tree.setCurrentItem(row("stretch"))
         editor.select_node()
-        settings = spline.root.getPlug("stretchGroup").getSourceWithConversion().getNode()
+        settings = spline.root.getPlug('stretchGroup').getSource(skipConversionNodes=False).getNode()
         check(
             cmds.ls(selection=True, long=True) == [settings.getFullName()],
             "Spline settings selection",
@@ -81,7 +81,7 @@ def main(output_dir=None, finished=None):
         )
         row("stretch").setCheckState(0, QtCore.Qt.Unchecked)
         yield
-        check(spline.getMembers("ik")[1].getPlug("tx").getSourceWithConversion() is None, "Spline layer stops calculation")
+        check(spline.getMembers('ik')[1].getPlug('tx').getSource(skipConversionNodes=False) is None, 'Spline layer stops calculation')
         cmds.undo()
         yield
         check(spline.layer_enabled("stretch"), "Spline layer Undo")
@@ -105,7 +105,7 @@ def main(output_dir=None, finished=None):
             abs(cmds.xform(limb.getJoints()[2], q=True, ws=True, t=True)[0] - 15) < 0.001,
             "Arm reaches stretched endpoint",
         )
-        settings = limb.root.getPlug("stretchGroup").getSourceWithConversion().getNode()
+        settings = limb.root.getPlug('stretchGroup').getSource(skipConversionNodes=False).getNode()
         cmds.setAttr(settings.getFullName() + ".enabled", False)
         for _ in range(20):
             yield
@@ -133,7 +133,7 @@ def main(output_dir=None, finished=None):
         cmds.file(str(output / "stretch.ma"), open=True, force=True, executeScriptNodes=False)
         yield
         limb = LimbRig("stretchArm")
-        settings = limb.root.getPlug("stretchGroup").getSourceWithConversion().getNode()
+        settings = limb.root.getPlug('stretchGroup').getSource(skipConversionNodes=False).getNode()
         cmds.setAttr(settings.getFullName() + ".enabled", False)
         for _ in range(20):
             yield

@@ -13,7 +13,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         """独立したmeshと二つのinfluenceをバインドする。"""
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True)
-        self.base = mlib.node(cmds.polyCube(ch=False)[0])
+        self.base = mlib.getNode(cmds.polyCube(ch=False)[0])
         self.first = mlib.nodes.Joint("first", create=True)
         self.second = mlib.nodes.Joint("second", create=True)
         self.skin = mlib.nodes.SkinCluster.bind(self.base, [self.first, self.second])
@@ -40,10 +40,10 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         """Verticesと単体Vertexを受理し、他meshの頂点を全件検証で拒否する。"""
         shape = self.base.getShape()
         self.skin.redistributeWeights(shape.getVertices([0, 1]))
-        self.skin.redistributeWeights(shape.vertex(2))
-        other = mlib.node(cmds.polyCube(ch=False)[0]).getShape()
+        self.skin.redistributeWeights(shape.getVertex(2))
+        other = mlib.getNode(cmds.polyCube(ch=False)[0]).getShape()
         before = list(self.skin.getWeights([self.first, self.second]))
-        for vertices in (other.getVertices([]), [shape.vertex(0), other.vertex(0)]):
+        for vertices in (other.getVertices([]), [shape.getVertex(0), other.getVertex(0)]):
             with self.assertRaises(ValueError):
                 self.skin.redistributeWeights(vertices)
         self.assertEqual(list(self.skin.getWeights([self.first, self.second])), before)
@@ -79,7 +79,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
 
     def test_collect_preserves_first_seen_order_and_does_not_recurse_groups(self):
         """別skinの保持順と直下shape検索の既存境界を保つ。"""
-        mesh = mlib.node(cmds.polyCube(ch=False)[0])
+        mesh = mlib.getNode(cmds.polyCube(ch=False)[0])
         other = mlib.nodes.SkinCluster.bind(mesh, [self.first, self.second])
         group = mlib.nodes.Transform("group", create=True)
         mesh.setParent(group)

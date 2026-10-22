@@ -24,16 +24,16 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
    parent.setTranslate((10, 0, 0))
    child.setTranslate((2, 3, 0))
 
-   local = child.matrix()
-   world = child.matrix(ws=True)
+   local = child.getMatrix()
+   world = child.getMatrix(ws=True)
    print(tuple(local.translate))    # (2.0, 3.0, 0.0)
    print(tuple(world.translate))    # (12.0, 3.0, 0.0)
 
-:meth:`~mlib.nodes.transform.Transform.matrix` は、既定でローカル行列、
+:meth:`~mlib.nodes.transform.Transform.getMatrix` は、既定でローカル行列、
 ``ws=True`` でワールド行列を返します。戻り値は数値リストではなく ``Matrix`` です。
 ``Matrix`` は OpenMaya API 2.0 の ``om2.MMatrix`` を継承しているため、
 ``om2.MTransformationMatrix(local)`` のように om2 の関数へそのまま渡せます。
-既存ノードの場合も、``child = mlib.node("ノード名")`` で取得して同じ操作ができます。
+既存ノードの場合も、``child = mlib.getNode("ノード名")`` で取得して同じ操作ができます。
 
 プラグから取得する
 ------------------
@@ -48,16 +48,16 @@ API の引数や戻り値の詳細は、各メソッドのリンク先を参照�
 
 .. code-block:: python
 
-   source = mlib.node("source_transform")
-   target = mlib.node("target_transform")
-   target.plug("offsetParentMatrix").set(source.matrix())
+   source = mlib.getNode("source_transform")
+   target = mlib.getNode("target_transform")
+   target.getPlug("offsetParentMatrix").set(source.getMatrix())
 
 Transformの専用メソッドでも同じ操作ができます。Transforms・Jointsからの一括操作にも対応します。
 
 .. code-block:: python
 
-   target.setOffsetParentMatrix(source.matrix())
-   offset = target.offsetParentMatrix()
+   target.setOffsetParentMatrix(source.getMatrix())
+   offset = target.getOffsetParentMatrix()
    transforms.setOffsetParentMatrix(Matrix())  # 各対象を単位行列へ
 
 取得はMatrix、単体の設定は自身、一括操作は各戻り値のリストを返します。
@@ -76,11 +76,11 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   parent = target.parent()
-   parent_world = parent.matrix(ws=True) if parent is not None else Matrix()
-   desired_world = source.matrix(ws=True)
-   offset = target.matrix().inverse() * desired_world * parent_world.inverse()
-   target.plug("offsetParentMatrix").set(offset)
+   parent = target.getParent()
+   parent_world = parent.getMatrix(ws=True) if parent is not None else Matrix()
+   desired_world = source.getMatrix(ws=True)
+   offset = target.getMatrix().inverse() * desired_world * parent_world.inverse()
+   target.getPlug("offsetParentMatrix").set(offset)
 
 ``inheritsTransform=False`` の場合はparent_worldを単位行列として扱います。
 ロックや入力接続がある場合は自動解除せずエラーになります。
@@ -91,8 +91,8 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
 .. code-block:: python
 
-   local_from_plug = child.plug("matrix").get()
-   world_from_plug = child.plug("worldMatrix")[0].get()
+   local_from_plug = child.getPlug("matrix").get()
+   world_from_plug = child.getPlug("worldMatrix")[0].get()
    print(local.equivalent(local_from_plug))    # True
    print(world.equivalent(world_from_plug))    # True
 
@@ -132,7 +132,7 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 ``matrix[3, 0]`` のように (行, 列) でも要素を読み書きできます。
 
 ``Matrix.decompose()`` は成分辞書を返します。
-ノードの行列は ``node.matrix(ws=True)`` で取得してから分解します。
+ノードの行列は ``node.getMatrix(ws=True)`` で取得してから分解します。
 分解は ``om2.MTransformationMatrix`` と同じ規約です。回転の分解結果(``euler`` は XYZ 順序)は
 元のオイラー角の数値と必ずしも一致せず、中間軸が 90 度を超える等価な角度になることがあります。
 行列式が負(奇数個の負スケール)の行列は、Z スケールを負にし、回転側で 180 度を補って
@@ -181,7 +181,7 @@ mlib は Maya と同じ行ベクトル規約です。
 
 .. code-block:: python
 
-   parent_world = parent.matrix(ws=True)
+   parent_world = parent.getMatrix(ws=True)
    calculated_world = local * parent_world
    calculated_local = world * parent_world.inverse()
    print(calculated_world.equivalent(world))    # True
@@ -247,8 +247,8 @@ om2 と同じ列ベクトルとしての積(転置行列での変換)で、``tra
    edited = Matrix(world)
    edited.translate = (20, 4, 0)
    target.setMatrix(edited, ws=True)
-   print(tuple(target.translate(ws=True, at=4)))   # (20.0, 4.0, 0.0)
-   print(tuple(target.translate(at=4)))          # (10.0, 4.0, 0.0)
+   print(tuple(target.getTranslate(ws=True, at=4)))   # (20.0, 4.0, 0.0)
+   print(tuple(target.getTranslate(at=4)))          # (10.0, 4.0, 0.0)
    print(tuple(world.translate))                 # (12.0, 3.0, 0.0) コピー元は不変
 
 ``setMatrix()`` は既定ではローカル空間、``ws=True`` ではワールド空間への適用です。
@@ -261,9 +261,9 @@ translate・rotate・scale・shear に書き込みます。ただし同じ行列
 
 * スケールの符号の組み合わせは、行列式の符号が許す限り現在の scale チャンネルに揃えます
   (2軸の符号の反転を、残りの軸まわりの 180 度回転で補います)。scale が (-1, 1, 1) の
-  ミラーのノードは、``setTranslate`` や ``setMatrix(node.matrix())`` の後も
+  ミラーのノードは、``setTranslate`` や ``setMatrix(node.getMatrix())`` の後も
   (-1, 1, 1) のままで、rotate も変わりません。
-* ``setScale(value)`` (``plug("scale").set(value)`` も同じ)では、要求した value の符号を
+* ``setScale(value)`` (``getPlug("scale").set(value)`` も同じ)では、要求した value の符号を
   最優先します。ローカル空間では value がそのまま scale に入り、rotate は変わりません
   (``cmds.setAttr`` で scale だけを書いた場合と同じ)。
 * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に最も近いもの

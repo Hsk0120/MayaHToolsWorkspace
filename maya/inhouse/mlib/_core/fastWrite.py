@@ -64,18 +64,20 @@ def check_range(plug, value, _fn=None):
             raise RuntimeError("Value outside attribute limits: " + plug.name())
 
 
-def set_plug(plug, value):
-    """MPlugへ単位を維持して直接設定する。Undo には記録しない。
-
-    複合値は子ごとに順次更新するため、途中の値や型で失敗すると先行する更新が残る。
+def _prepared_writes(plug, value):
+    """全成分の型・制限を更新前に検査し、直接書込みの列を組み立てる。
 
     Args:
-        plug (MPlug): 更新対象。
-        value (object): 設定値。角度 rad、距離 cm、時間 sec。
+        plug (om.MPlug): 書込み先。
+        value (object): 内部単位の入力値。
+
+    Returns:
+        list[tuple]: setter・プラグ・変換済み値の列。
+
+    Raises:
+        NotImplementedError: API 2.0で値を構築できない型の場合。
     """
     attribute = plug.attribute()
-    # 型判定・function set は1回の更新内で共有する。範囲・ロック等の
-    # 可変情報は毎回照会し、動的アトリビュートの削除をまたぐキャッシュは持たない。
     unit = attribute.hasFn(om.MFn.kUnitAttribute)
     numeric = not unit and attribute.hasFn(om.MFn.kNumericAttribute)
     fn = (om.MFnUnitAttribute(attribute) if unit else
@@ -85,53 +87,48 @@ def set_plug(plug, value):
         values = tuple(value)
         if len(values) != plug.numChildren():
             raise ValueError("Compound value length mismatch")
-        for i in range(plug.numChildren()):
-            writable(plug.child(i))
+        writes = []
         for i, item in enumerate(values):
-            set_plug(plug.child(i), item)
-    elif unit:
+            writes.extend(_prepared_writes(plug.child(i), item))
+        return writes
+    owner = None
+    if unit:
         check_range(plug, value, fn)
         kind = fn.unitType()
         if kind == om.MFnUnitAttribute.kAngle:
-            plug.setMAngle(om.MAngle(value, om.MAngle.kRadians))
+            setter, result = om.MPlug.setMAngle, om.MAngle(value, om.MAngle.kRadians)
         elif kind == om.MFnUnitAttribute.kDistance:
-            plug.setMDistance(om.MDistance(value, om.MDistance.kCentimeters))
+            setter, result = om.MPlug.setMDistance, om.MDistance(value, om.MDistance.kCentimeters)
         else:
-            plug.setMTime(om.MTime(value, om.MTime.kSeconds))
+            setter, result = om.MPlug.setMTime, om.MTime(value, om.MTime.kSeconds)
     elif attribute.hasFn(om.MFn.kEnumAttribute):
-        plug.setInt(int(value))
+        setter, result = om.MPlug.setInt, int(value)
     elif numeric:
         check_range(plug, value, fn)
-        kind = fn.numericType()
-        writer = NUMERIC_WRITERS.get(kind)
+        writer = NUMERIC_WRITERS.get(fn.numericType())
         if writer is None:
             raise NotImplementedError("fast numeric type is not supported: " + plug.name())
-        setter, convert = writer
-        setter(plug, convert(value))
-    elif attribute.hasFn(om.MFn.kMatrixAttribute):
-        # mlib の Matrix は om.MMatrix の派生なので、変換せずにそのまま渡せる。
-        matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
-        plug.setMObject(om.MFnMatrixData().create(matrix))
-    elif attribute.hasFn(om.MFn.kTypedAttribute):
-        kind = om.MFnTypedAttribute(attribute).attrType()
-        factories = {
-            om.MFnData.kDoubleArray: om.MFnDoubleArrayData,
-            om.MFnData.kIntArray: om.MFnIntArrayData,
-            om.MFnData.kStringArray: om.MFnStringArrayData,
-            om.MFnData.kVectorArray: om.MFnVectorArrayData,
-            om.MFnData.kPointArray: om.MFnPointArrayData,
-        }
-        if kind == om.MFnData.kString:
-            plug.setString(str(value))
-        elif kind == om.MFnData.kMatrix:
-            matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
-            plug.setMObject(om.MFnMatrixData().create(matrix))
-        elif kind in factories:
-            plug.setMObject(factories[kind]().create(value))
-        else:
-            raise NotImplementedError("fast typed data is not supported: " + plug.name())
+        setter, converter = writer
+        result = converter(value)
     else:
-        raise NotImplementedError("fast attribute type is not supported: " + plug.name())
+        setter, result, owner = prepare_data(attribute, value, name=plug.name())
+    return [(setter, plug, result, owner)]
+
+
+def set_plug(plug, value):
+    """全成分を事前検証してMPlugへ設定する。Undoには記録しない。
+
+    Args:
+        plug (om.MPlug): 更新対象。
+        value (object): 角度rad、距離cm、時間秒の値。
+
+    Raises:
+        NotImplementedError: API 2.0で未対応の型の場合。更新前に拒否する。
+    """
+    writes = _prepared_writes(plug, value)
+    for setter, target, item, owner in writes:
+        # データを受け渡すまで作成用function setを保持する。
+        setter(target, item)
 
 
 def set_attr(name, *values, **kwargs):
@@ -156,3 +153,48 @@ def set_attr(name, *values, **kwargs):
         raise NotImplementedError("Unsupported fast setAttr flags")
     value = values[0] if len(values) == 1 else values
     set_plug(plug, convert(plug, value, to_ui=False))
+
+
+def prepare_data(attribute, value, *, name=None):
+    """MPlugを必要とせず、行列・typed dataの型と値を検査する。
+
+    Args:
+        attribute (MObject): 登録前でもよいアトリビュート定義。
+        value (object): 設定予定の値。
+        name (str | None): エラー表示用の名前。
+
+    Returns:
+        tuple: setter、変換済み値、書込み終了まで保持するfunction set。
+    """
+    label = name or om.MFnAttribute(attribute).name
+    owner = None
+    if attribute.hasFn(om.MFn.kMatrixAttribute):
+        matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
+        owner = om.MFnMatrixData()
+        setter, result = om.MPlug.setMObject, owner.create(matrix)
+    elif attribute.hasFn(om.MFn.kTypedAttribute):
+        kind = om.MFnTypedAttribute(attribute).attrType()
+        factories = {
+            om.MFnData.kDoubleArray: om.MFnDoubleArrayData,
+            om.MFnData.kIntArray: om.MFnIntArrayData,
+            om.MFnData.kStringArray: om.MFnStringArrayData,
+            om.MFnData.kVectorArray: om.MFnVectorArrayData,
+            om.MFnData.kPointArray: om.MFnPointArrayData,
+            om.MFnData.kMatrixArray: om.MFnMatrixArrayData,
+        }
+        if kind == om.MFnData.kString:
+            setter, result = om.MPlug.setString, str(value)
+        elif kind == om.MFnData.kMatrix:
+            matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
+            owner = om.MFnMatrixData()
+            setter, result = om.MPlug.setMObject, owner.create(matrix)
+        elif kind in factories:
+            if kind == om.MFnData.kMatrixArray:
+                value = [item if isinstance(item, om.MMatrix) else om.MMatrix(item) for item in value]
+            owner = factories[kind]()
+            setter, result = om.MPlug.setMObject, owner.create(value)
+        else:
+            raise NotImplementedError("fast typed data is not supported: " + label)
+    else:
+        raise NotImplementedError("fast attribute type is not supported: " + label)
+    return setter, result, owner

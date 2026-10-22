@@ -74,7 +74,7 @@ class DrivenLayer:
         kind = driven.getDataType()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
-            or driven.getSourceWithConversion()
+            or driven.getSource(skipConversionNodes=False)
             or driven.isLocked()
         ):
             raise ValueError("Driven must be an unlocked, unconnected numeric scalar")
@@ -127,7 +127,7 @@ class DrivenLayer:
                 y = mlib.common.units.distanceFromUi(y)
             relation.setKey(x, y)
         curve = relation.getCurves()[0]
-        output = driven.getSourceWithConversion()
+        output = driven.getSource(skipConversionNodes=False)
         driven.disconnect(output)
         owner.addAttr(longName="drivenOutput", attributeType=kind)
         output.connectTo(owner.getPlug("drivenOutput"))
@@ -167,11 +167,11 @@ class DrivenLayer:
         """無効時は駆動先を基準値へ戻して計算需要を切断する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("driven")
         for owner in self.graphs().values():
-            reference = owner.getPlug("drivenNode").getSourceWithConversion()
+            reference = owner.getPlug('drivenNode').getSource(skipConversionNodes=False)
             if reference is None:
                 continue
             destination = reference.getNode().getPlug(owner.getPlug("drivenAttribute").get())
-            source = destination.getSourceWithConversion()
+            source = destination.getSource(skipConversionNodes=False)
             output = owner.getPlug("drivenOutput")
             if source is not None and source.mplug() != output.mplug():
                 raise RuntimeError("Driven connection was replaced externally")

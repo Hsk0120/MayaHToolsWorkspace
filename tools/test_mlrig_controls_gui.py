@@ -107,7 +107,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(finger.root.getFullName() + ".enabled", True)
         for _ in range(20):
             yield
-            if finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is not None:
+            if finger.getMembers('targets')[0].getPlug('rx').getSource(skipConversionNodes=False) is not None:
                 break
         check(
             abs(finger.getMembers("targets")[0].getPlug("rz").get() - 35) < 1e-4,
@@ -119,20 +119,14 @@ def main(output_dir=None, finished=None):
         tweaks = TweakLayer(finger)
         check(len(tweaks.groups()) == 1, "Tweak added through UI")
         group = next(iter(tweaks.groups().values()))
-        control = group.getPlug("control").getSourceWithConversion().getNode()
+        control = group.getPlug('control').getSource(skipConversionNodes=False).getNode()
         control.getPlug("ty").set(0.5)
         row("tweak:" + group.getPlug("tweakId").get()).setCheckState(0, QtCore.Qt.Unchecked)
         yield
-        check(
-            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None,
-            "Tweak checkbox stops input",
-        )
+        check(group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Tweak checkbox stops input')
         cmds.undo()
         yield
-        check(
-            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is not None,
-            "Tweak Undo restores input",
-        )
+        check(group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None, 'Tweak Undo restores input')
         Menu.run("aim")
         yield
         aim = editor.getCurrent()[0]
@@ -200,22 +194,16 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(finger.root.getFullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is None:
+            if finger.getMembers('targets')[0].getPlug('rx').getSource(skipConversionNodes=False) is None:
                 break
-        check(
-            finger.getMembers("targets")[0].getPlug("rx").getSourceWithConversion() is None,
-            "Reload restores finger watcher",
-        )
+        check(finger.getMembers('targets')[0].getPlug('rx').getSource(skipConversionNodes=False) is None, 'Reload restores finger watcher')
         group = next(iter(TweakLayer(finger).groups().values()))
         cmds.setAttr(group.getFullName() + ".enabled", False)
         for _ in range(20):
             yield
-            if group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None:
+            if group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is None:
                 break
-        check(
-            group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion() is None,
-            "Reload restores Tweak watcher",
-        )
+        check(group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Reload restores Tweak watcher')
         editor.grab().save(str(output / "layers.png"))
         editor.close()
         cmds.file(new=True, force=True)

@@ -12,7 +12,7 @@ import maya.cmds as cmds
 
 
 class TransformNamingTest(unittest.TestCase):
-    """Translate・Rotate・Scaleの正式名と省略入口を実Mayaで確認する。"""
+    """Translate・Rotate・Scaleの正式getterとアトリビュートを実Mayaで確認する。"""
 
     def setUp(self):
         """独立した空シーンと既定単位・Undoキューを用意する。"""
@@ -43,7 +43,7 @@ class TransformNamingTest(unittest.TestCase):
                 importlib.import_module("mlib.maths." + module_name)
 
     def test_node_api_renames_remove_former_method_names(self):
-        """ノードごとの正式メソッドと省略入口を改名し、旧名を残さない。"""
+        """正式getter/setterを公開し、旧名とget省略メソッドを残さない。"""
         groups = (
             ((mlib.nodes.Transform, mlib.nodes.Transforms),
              ("getTranslation", "setTranslation", "translation", "getRotation", "setRotation",
@@ -67,12 +67,14 @@ class TransformNamingTest(unittest.TestCase):
                                           ("Rotation", "Rotate"), ("rotation", "rotate"),
                                           ("Scaling", "Scale"), ("scaling", "scale")):
                         new = new.replace(before, after)
+                    if not new.startswith(("get", "set", "freeze")):
+                        new = "get" + new[0].upper() + new[1:]
                     with self.subTest(cls=cls.__name__, old=old, new=new):
                         self.assertTrue(callable(getattr(cls, new)))
                         self.assertFalse(hasattr(cls, old))
 
-    def test_short_getters_return_values_and_explicit_plugs_keep_typed_values(self):
-        """短名のメソッド化後も明示Plug取得と内部単位・回転順序を保持する。"""
+    def test_getters_and_attribute_plugs_keep_typed_values(self):
+        """get省略名をアトリビュートへ返し、正式getterの単位・回転順序を保つ。"""
         node = mlib.createNode("transform")
         node.getPlug("rotateOrder").set(5)
         cmds.currentUnit(linear="m", angle="rad")
@@ -84,40 +86,42 @@ class TransformNamingTest(unittest.TestCase):
                 ("rotate", "getRotate", mlib.maths.EulerRotate),
                 ("scale", "getScale", mlib.maths.Scale)):
             with self.subTest(attr=attr):
-                self.assertTrue(callable(getattr(node, attr)))
+                self.assertFalse(callable(getattr(node, attr)))
                 plug = node.getPlug(attr)
                 self.assertIsInstance(plug, mlib.plugs.Double3Plug)
                 self.assertIsInstance(plug.get(), value_type)
                 options = {"at": 1} if attr == "translate" else {}
                 self.assertIsInstance(getattr(node, getter)(**options), value_type)
-                self.assertEqual(tuple(getattr(node, attr)(**options)), tuple(getattr(node, getter)(**options)))
-        self.assertEqual(tuple(node.translate(at=1)), (25, 50, 75))
-        self.assertEqual(node.rotate().orderName, "zyx")
-        for actual, expected in zip(node.rotate(), (10, 20, 30)):
+                self.assertEqual(getattr(node, attr), plug)
+                self.assertEqual(tuple(getattr(node, attr).get()), tuple(plug.get()))
+        self.assertEqual(tuple(node.getTranslate(at=1)), (25, 50, 75))
+        self.assertEqual(node.getRotate().orderName, 'zyx')
+        for actual, expected in zip(node.getRotate(), (10, 20, 30)):
             self.assertAlmostEqual(actual, math.radians(expected), places=9)
-        self.assertEqual(tuple(node.scale()), (2, 3, 4))
+        self.assertEqual(tuple(node.getScale()), (2, 3, 4))
 
     def test_bulk_metadata_and_calculation_only_setter_keep_existing_contract(self):
         """bulkの保持順・正式getterのメタデータ・get=Trueの非更新を維持する。"""
         nodes = [mlib.createNode("transform") for _ in range(2)]
         collection = mlib.nodes.Transforms(nodes)
         self.assertIs(collection.setTranslate((1, 2, 3), at=1), collection)
-        self.assertEqual([tuple(value) for value in collection.translate(at=1)], [(1, 2, 3)] * 2)
+        self.assertEqual([tuple(value) for value in collection.getTranslate(at=1)], [(1, 2, 3)] * 2)
         for getter_name, short in (("getTranslate", "translate"), ("getRotate", "rotate"),
                                    ("getScale", "scale")):
             for cls in (mlib.nodes.Transform, mlib.nodes.Transforms):
-                getter, alias = getattr(cls, getter_name), getattr(cls, short)
-                self.assertEqual(inspect.signature(alias), inspect.signature(getter))
-                self.assertEqual(alias.__mlib_getter_name__, getter_name)
-                self.assertEqual(alias.__mlib_flag_aliases__, getattr(getter, "__mlib_flag_aliases__", {}))
+                getter = getattr(cls, getter_name)
+                self.assertTrue(callable(getter))
+                self.assertFalse(hasattr(cls, short))
+                self.assertEqual(inspect.signature(getter),
+                                 inspect.signature(getattr(mlib.nodes.Transform, getter_name)))
             self.assertIs(collection._bulk_methods[getter_name], getattr(mlib.nodes.Transform, getter_name))
-            self.assertIs(collection._bulk_methods[short], getattr(mlib.nodes.Transform, short))
+            self.assertNotIn(short, collection._bulk_methods)
         calculated = collection.setTranslate((4, 5, 6), False, 1, False, True)
         self.assertEqual(calculated, [[4, 5, 6]] * 2)
-        self.assertEqual([tuple(value) for value in collection.translate(at=1)], [(1, 2, 3)] * 2)
+        self.assertEqual([tuple(value) for value in collection.getTranslate(at=1)], [(1, 2, 3)] * 2)
         with self.assertRaises(TypeError):
-            collection.translate(ws=True, worldSpace=True)
-        self.assertEqual(mlib.nodes.Transforms().translate(unknown=True), [])
+            collection.getTranslate(ws=True, worldSpace=True)
+        self.assertEqual(mlib.nodes.Transforms().getTranslate(unknown=True), [])
 
     def test_renamed_setter_retains_undo_and_fast_behavior(self):
         """新名の更新も通常はUndo/Redoでき、fastはUndoキューへ追加しない。"""
@@ -125,14 +129,14 @@ class TransformNamingTest(unittest.TestCase):
         node.setTranslate((1, 2, 3), at=1)
         cmds.flushUndo()
         self.assertIs(node.setTranslate((4, 5, 6), at=1), node)
-        self.assertEqual(tuple(node.translate(at=1)), (4, 5, 6))
+        self.assertEqual(tuple(node.getTranslate(at=1)), (4, 5, 6))
         cmds.undo()
-        self.assertEqual(tuple(node.translate(at=1)), (1, 2, 3))
+        self.assertEqual(tuple(node.getTranslate(at=1)), (1, 2, 3))
         cmds.redo()
-        self.assertEqual(tuple(node.translate(at=1)), (4, 5, 6))
+        self.assertEqual(tuple(node.getTranslate(at=1)), (4, 5, 6))
         cmds.flushUndo()
         self.assertIs(node.setTranslate((7, 8, 9), at=1, fast=True), node)
-        self.assertEqual(tuple(node.translate(at=1)), (7, 8, 9))
+        self.assertEqual(tuple(node.getTranslate(at=1)), (7, 8, 9))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_calculation_nodes_and_standard_attribute_accessors_keep_arguments(self):
@@ -140,23 +144,23 @@ class TransformNamingTest(unittest.TestCase):
         compose = mlib.createNode("composeMatrix")
         self.assertIs(compose.setTranslate((1, 2, 3)), compose)
         self.assertIs(compose.setRotate((0.1, 0.2, 0.3)), compose)
-        self.assertEqual(tuple(compose.translate()), (1, 2, 3))
-        for actual, expected in zip(compose.rotate(), (0.1, 0.2, 0.3)):
+        self.assertEqual(tuple(compose.getTranslate()), (1, 2, 3))
+        for actual, expected in zip(compose.getRotate(), (0.1, 0.2, 0.3)):
             self.assertAlmostEqual(actual, expected)
         self.assertEqual(compose.getUseEulerRotationPlug(), compose.getPlug("useEulerRotation"))
         self.assertIs(compose.setUseEulerRotation(False), compose)
-        self.assertFalse(compose.useEulerRotation())
+        self.assertFalse(compose.getUseEulerRotation())
         source = mlib.createNode("network").addAttr("value", attributeType="bool", defaultValue=True)
         self.assertIs(compose.connectUseEulerRotation(source), compose)
         self.assertTrue(compose.getUseEulerRotation())
-        self.assertTrue(compose.useEulerRotationPlug().isConnectedTo(source, src=True, dst=False))
+        self.assertTrue(compose.getUseEulerRotationPlug().isConnectedTo(source, src=True, dst=False))
         pair = mlib.createNode("pairBlend")
         self.assertIs(pair.setTranslate(1, (4, 5, 6)), pair)
         self.assertIs(pair.setTranslate(2, (7, 8, 9)), pair)
-        self.assertEqual(tuple(pair.translate(idx=1)), (4, 5, 6))
+        self.assertEqual(tuple(pair.getTranslate(idx=1)), (4, 5, 6))
         self.assertEqual(tuple(pair.getTranslate(2)), (7, 8, 9))
         self.assertIs(pair.setRotateInterpolation("quaternion"), pair)
-        self.assertEqual(pair.rotateInterpolation(), "quaternion")
+        self.assertEqual(pair.getRotateInterpolation(), "quaternion")
 
     def test_native_conversion_and_legacy_json_tags_return_new_classes(self):
         """標準変換名と追加変換名を併存し、旧JSONタグを新しい数学型へ復元する。"""

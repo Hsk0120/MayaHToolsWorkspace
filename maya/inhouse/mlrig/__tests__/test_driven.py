@@ -28,17 +28,17 @@ class DrivenTest(unittest.TestCase):
         """SwingZ→SDK→移動を評価し、LOD/Enabled/Undoを確認する。"""
         target = SampleBuilder.layer(self.rig, "driven", component="swingZ")
         graph = mlib.getNode(target)
-        bone = graph.getPlug("drivenNode").getSourceWithConversion().getNode()
+        bone = graph.getPlug('drivenNode').getSource(skipConversionNodes=False).getNode()
         for angle in (-90, -45, 0, 45, 90):
             cmds.setAttr(self.rig.controls()["fk1"] + ".rz", angle)
             self.assertAlmostEqual(bone.getPlug("ty").get(), angle / 90, places=4)
         self.rig.set_layer_enabled("driven", False)
-        self.assertIsNone(bone.getPlug("ty").getSourceWithConversion())
+        self.assertIsNone(bone.getPlug('ty').getSource(skipConversionNodes=False))
         self.assertEqual(bone.getPlug("ty").get(), 0)
         cmds.undo()
         self.assertAlmostEqual(bone.getPlug("ty").get(), 1, places=4)
         self.rig.set_lod(0)
-        self.assertIsNone(bone.getPlug("ty").getSourceWithConversion())
+        self.assertIsNone(bone.getPlug('ty').getSource(skipConversionNodes=False))
         self.rig.set_lod(1)
         self.assertAlmostEqual(bone.getPlug("ty").get(), 1, places=4)
 

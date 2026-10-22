@@ -68,32 +68,14 @@ def main(output_dir=None, finished=None):
             ),
             encoding="utf-8",
         )
-        check(
-            rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Channel Box disabled disconnects"
-        )
+        check(rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False) is None, 'Channel Box disabled disconnects')
         cmds.undo()
         yield
-        (output / "undo-state.json").write_text(
-            json.dumps(
-                {
-                    "enabled": rig.layer_enabled(),
-                    "source": str(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion()),
-                    "undo": cmds.undoInfo(query=True, undoName=True),
-                    "redo": cmds.undoInfo(query=True, redoName=True),
-                }
-            ),
-            encoding="utf-8",
-        )
-        check(
-            rig.layer_enabled() and rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is not None,
-            "Channel Undo restores output",
-        )
+        (output / 'undo-state.json').write_text(json.dumps({'enabled': rig.layer_enabled(), 'source': str(rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False)), 'undo': cmds.undoInfo(query=True, undoName=True), 'redo': cmds.undoInfo(query=True, redoName=True)}), encoding='utf-8')
+        check(rig.layer_enabled() and rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False) is not None, 'Channel Undo restores output')
         cmds.redo()
         yield
-        check(
-            not rig.layer_enabled() and rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None,
-            "Channel Redo restores disabled state",
-        )
+        check(not rig.layer_enabled() and rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False) is None, 'Channel Redo restores disabled state')
         rig.set_layer_enabled("radial", True)
         yield
         for row in editor.rows():
@@ -105,7 +87,7 @@ def main(output_dir=None, finished=None):
         rig.set_layer_enabled("radial", True)
         cmds.setAttr(rig.root.getFullName() + ".lod", 0)
         yield
-        check(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Channel LOD stops output")
+        check(rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False) is None, 'Channel LOD stops output')
         rig.set_lod(1)
         rig.root.rename("renamedSkirt")
         yield
@@ -116,7 +98,7 @@ def main(output_dir=None, finished=None):
         rig = SkirtRig("renamedSkirt")
         cmds.setAttr(rig.root.getFullName() + ".enabled", False)
         yield
-        check(rig.chains()[0][0].getPlug("rotateX").getSourceWithConversion() is None, "Reload restores attribute jobs")
+        check(rig.chains()[0][0].getPlug('rotateX').getSource(skipConversionNodes=False) is None, 'Reload restores attribute jobs')
         rig.set_layer_enabled("radial", True)
         editor.module_type.setCurrentIndex(3)
         editor.module_name.setText("skirtEight")

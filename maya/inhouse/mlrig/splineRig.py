@@ -199,7 +199,7 @@ class SplineRig:
         Returns:
             SplineIK: 保存済みグラフ。
         """
-        return SplineIK(self.root.getPlug("graph").getSourceWithConversion().getNode())
+        return SplineIK(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode())
 
     def mode(self):
         """選択モードを取得する。
@@ -398,11 +398,11 @@ class SplineRig:
         for source, joint in zip(sources, self.getMembers("deform")):
             for attr in ("translate", "rotate"):
                 target = joint.getPlug(attr)
-                if target.getSourceWithConversion() is not None:
-                    target.disconnect(target.getSourceWithConversion())
+                if target.getSource(skipConversionNodes=False) is not None:
+                    target.disconnect(target.getSource(skipConversionNodes=False))
                 source.getPlug(attr).connectTo(target)
-        self.root.getPlug("fkGroup").getSourceWithConversion().getNode().getPlug("visibility").set(not active)
-        self.root.getPlug("controlGroup").getSourceWithConversion().getNode().getPlug("visibility").set(active)
+        self.root.getPlug('fkGroup').getSource(skipConversionNodes=False).getNode().getPlug('visibility').set(not active)
+        self.root.getPlug('controlGroup').getSource(skipConversionNodes=False).getNode().getPlug('visibility').set(active)
         from .splineStretchLayer import SplineStretchLayer
 
         SplineStretchLayer(self).update()
@@ -454,7 +454,7 @@ class SplineRig:
         try:
             rig = cls(roots[0])
             expected = rig.getMembers("ik" if rig.active() else "fk")[0].getPlug("rotate")
-            actual = rig.getMembers("deform")[0].getPlug("rotate").getSourceWithConversion()
+            actual = rig.getMembers('deform')[0].getPlug('rotate').getSource(skipConversionNodes=False)
             from .splineStretchLayer import SplineStretchLayer
 
             if (
@@ -475,6 +475,6 @@ class SplineRig:
 
         settings = SplineStretchLayer(self).settings()
         if settings is not None:
-            mlib.delete(settings.getPlug("graph").getSourceWithConversion().getNode())
+            mlib.delete(settings.getPlug('graph').getSource(skipConversionNodes=False).getNode())
         mlib.delete(self.graph().container)
         mlib.delete(self.root)

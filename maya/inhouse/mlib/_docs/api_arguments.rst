@@ -16,7 +16,7 @@
    joint = Joint("jointName", create=True)
    transform = Transform("transformName", create=True)
    multiply = MultiplyDivide("multiplyName", create=True)
-   same_joint = Joint(joint.fullName(), create=False)
+   same_joint = Joint(joint.getFullName(), create=False)
    generic = Node.create("network", name="settingsNode")
 
 ``create`` はboolのみを受け付け、位置引数では指定できません。
@@ -30,7 +30,7 @@
 抽象Maya型に対応する ``AnimCurve``、geometryが必要な ``SkinCluster`` は
 ``create=True`` を受け付けません。SkinClusterは ``mlib.bindSkin(geometry, influences)`` /
 ``SkinCluster.bind(mesh, influences)`` でバインドします。
-``mlib.node()`` / ``mlib.cmds.node()`` 等の取得関数とget付きの本体には、
+``mlib.getNode()`` / ``mlib.cmds.getNode()`` 等の取得関数とget付きの本体には、
 ``create`` を追加していません。詳しくは :doc:`guide_nodes` を参照してください。
 
 lsのコンポーネント取得
@@ -64,9 +64,9 @@ weight以外・実ターゲットのない要素は受け付けません。
 
    * - 呼び出し
      - 戻り値
-   * - ``targetIndices(base=None)``
+   * - ``getTargetIndices(base=None)``
      - 昇順の番号リスト
-   * - ``targetPlug(target)``
+   * - ``getTargetPlug(target)``
      - weightのPlug
    * - ``removeTarget(target)``
      - 自身
@@ -90,15 +90,15 @@ weight以外・実ターゲットのない要素は受け付けません。
      - 自身。既存項目のデルタ全体を置換
    * - ``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)``
      - 新規通常ターゲットのweight Plug
-   * - ``inBetweenWeights(target, base=None)``
+   * - ``getInBetweenWeights(target, base=None)``
      - ウェイトのリスト
-   * - ``targetWeights(target, base=None)``
+   * - ``getTargetWeights(target, base=None)``
      - 全頂点ウェイトのリスト
    * - ``setTargetWeights(target, weights, base=None, *, fast=False)``
      - 自身
-   * - ``targetDeltas(target, base=None, full_weight=1.0)``
+   * - ``getTargetDeltas(target, base=None, full_weight=1.0)``
      - 頂点番号とVectorの辞書
-   * - ``targetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)``
+   * - ``getTargetVertices(target, base=None, full_weight=1.0, *, tolerance=0.0)``
      - 非ゼロデルタのベース頂点群(Vertices)
    * - ``setTargetDeltas(target, deltas, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
      - 自身
@@ -134,7 +134,7 @@ TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じ�
 
    * - 呼び出し
      - 戻り値と方向指定
-   * - ``connections(src=True, dst=True)``
+   * - ``getConnections(src=True, dst=True)``
      - 通常は相手Plugのリスト。``src/dst`` は既存の ``source/destination`` の別名
    * - ``connected(*, src=True, dst=True)``
      - 指定方向に接続があればTrue
@@ -159,7 +159,7 @@ boolのキーワード専用引数です。bool以外は ``TypeError`` になり
    dst.disconnect()           # 入力だけを切断し、入力元Plugを返す
    dst.disconnectInput()      # 未接続でもエラーにせず、自身を返す
    dst.disconnectAll()        # 入力と全出力を明示的に切断し、自身を返す
-   plug.connections(src=False, dst=True)  # 出力先Plugのリスト
+   plug.getConnections(src=False, dst=True)  # 出力先Plugのリスト
    plug.connected(src=True, dst=False)     # 入力の有無
    plug.connectedTo(other, src=False, dst=True)  # 自身からotherへの接続の有無
    plug.disconnectAll(src=False, dst=True)   # 出力のみ切断し、自身を返す
@@ -207,11 +207,11 @@ mlib拡張の ``unlock=False`` を併用するとロック解除を禁止でき�
 
 .. code-block:: python
 
-   position = node.translate(ws=True)
-   origin = node.translate(ws=True, at=4)
+   position = node.getTranslate(ws=True)
+   origin = node.getTranslate(ws=True, at=4)
    channels = node.setTranslate((10, 2, 3), ws=True, get=True)
    node.setTranslate((10, 2, 3), ws=True, safe=True)
-   parent_inverse = node.matrix(ws=True, p=True, inv=True)
+   parent_inverse = node.getMatrix(ws=True, p=True, inv=True)
 
 ``quaternion`` / ``setQuaternion`` は ``ra`` (rotateAxis)、``r`` (rotate)、
 ``jo`` (jointOrient)で合成対象を選びます。既定は ``ra=False, r=True, jo=True`` です。
@@ -221,7 +221,8 @@ mlib拡張の ``unlock=False`` を併用するとロック解除を禁止でき�
 ローカル指定でscale/shearチャンネルそのものを扱い、jointのinverseScaleを含めません。
 ワールド指定はOpenMayaの分解規約を使います。負スケールの符号は行列から一意に
 決まらないため、ワールドの指定値と取得値の符号が一致しない場合があります。
-以前の ``scale/setScale/shear/setShear`` は廃止しました。
+getを省いた ``scale/shear`` の取得入口は廃止しました。
+設定には ``setScale/setShear`` を使用します。
 
 ``get=True`` は書き込まず設定すべき値を返します。
 位置・回転・スケール・シアーは数値リスト、``setMatrix`` は
@@ -232,15 +233,15 @@ mlib拡張の ``unlock=False`` を併用するとロック解除を禁止でき�
 単位とsafe
 ----------
 
-Plugの ``get/set`` は内部単位(cm/rad/秒)、``getu/setu`` は現在のUI単位です。
+Plugの ``get/set`` は内部単位(cm/rad/秒)、``get/set(uiUnits=True)`` は現在のUI単位です。
 ``safe=True`` は書込み失敗を抑制し、複合値では書ける子だけを書き込みます。
 Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身を返します。
 ``fast=True`` はmlib固有のUndoなし直接更新であり、safeとは別の指定です。
 
 .. code-block:: python
 
-   node.plug("ry").setu(90)  # UIがdegの場合90度
-   failed = node.plug("translate").set((1, 2, 3), safe=True)
+   node.getPlug("ry").set(90, uiUnits=True)  # UIがdegの場合90度
+   failed = node.getPlug("translate").set((1, 2, 3), safe=True)
    node.setRotate((0, 90, 0), ws=True, unit="deg")
 
 ``setRotate`` の第2位置引数は空間になりました。``unit`` は名前付きで指定します。
@@ -248,21 +249,21 @@ Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身�
 通常のsetterが自身を返すmlibの規則と、om2派生の数学型は維持します。
 引数・戻り値の対応範囲は、このページに記載した仕様に従います。
 
-attrのPlug取得とMaya照会
+getAttrのPlug取得とMaya照会
 ----------------------------
 
-署名は ``attr(target, **kwargs)`` です。照会フラグなしでは ``plug`` へ委譲し、
+署名は ``getAttr(target, **kwargs)`` です。照会フラグなしでは ``getPlug`` へ委譲し、
 アトリビュート型に対応するPlugを返します。既存Plugはそのまま返します。
 ``target=`` で対象だけを指定した場合もPlug取得です。
 空の名前・空のMPlugは ``ValueError``、解決できないアトリビュートは ``RuntimeError`` です。
-値は ``mlib.attr("pCube1.tx").get()`` で内部単位(cm/rad/秒)、
-``getu()`` で現在のUI単位として読みます。
+値は ``mlib.getAttr("pCube1.tx").get()`` で内部単位(cm/rad/秒)、
+``get(uiUnits=True)`` で現在のUI単位として読みます。
 
 ``**kwargs`` に照会フラグを一つでも指定した場合は、従来のMaya照会値・状態を返します。
 ``type=True``・``lock=True`` 等だけでなく、``time``・``silent``・Falseの明示指定も
 照会経路です。Mayaの長名・短名フラグと重複指定の拒否、値のUI単位、
 行列のMatrix・3成分のVectorへの変換を維持します。
-ノードからは ``node.plug(name)`` を使います。
+ノードからは ``node.getPlug(name)`` を使います。
 
 アトリビュートの追加
 --------------------

@@ -126,7 +126,7 @@ class SpaceLayer:
             label (str): 登録済み空間名。
         """
         node = mlib.getNode(self.rig._member(self._role(control)))
-        if node.getPlug("space").getSourceWithConversion() is not None:
+        if node.getPlug('space').getSource(skipConversionNodes=False) is not None:
             raise ValueError("Space is a configuration attribute; remove keys or connections")
         switch = self.switcher(control)
         switch.switch(label)

@@ -3,7 +3,7 @@ maya.cmds との受け渡し
 
 mlib のオブジェクトと ``maya.cmds`` を組み合わせて使うときの正式な仕様です。
 mlib のNodeや単一値Plugは ``maya.cmds`` へそのまま渡せます。配列・複合Plugは
-``plug.asString()``、``str(plug)`` または ``plug.fullName()`` を渡してください。また mlib のコマンドは、
+``plug.asString()``、``str(plug)`` または ``plug.getFullName()`` を渡してください。また mlib のコマンドは、
 文字列の名前に加えて mlib と Maya API 2.0(``om2``)のオブジェクトを受け付けます。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
@@ -40,13 +40,13 @@ maya.cmds へそのまま渡せるもの
      - ``str()`` の結果
      - 例
    * - ``Node``
-     - 最短一意名(``Node.name()``)。同じ短い名前のノードがあればパスを含む
+     - 最短一意名(``Node.getName()``)。同じ短い名前のノードがあればパスを含む
      - ``grp1|dup``、``ns:ctrl``
    * - ``Plug`` （配列・複合を除く）
-     - ``<ノードの最短一意名>.<アトリビュートパス>`` (``Plug.fullName()``)
+     - ``<ノードの最短一意名>.<アトリビュートパス>`` (``Plug.getFullName()``)
      - ``grp1|dup.translateX``、``cubeShape.pnts[2].pntx``
    * - ``Component`` (``Vertex`` など単体)
-     - シェイプの完全パス、種類、番号(``Component.fullName()``)
+     - シェイプの完全パス、種類、番号(``Component.getFullName()``)
      - ``|cube|cubeShape.vtx[3]``
    * - ``Vertices`` などの複数形、``Selection``、``Joints`` などのコレクション
      - 各要素の名前に展開される
@@ -64,14 +64,14 @@ maya.cmds へそのまま渡せるもの
    dup1 = mlib.createNode("transform", name="dup", parent=grp1)
    dup2 = mlib.createNode("transform", name="dup", parent=grp2)
 
-   plug = dup1.plug("tx")
+   plug = dup1.getPlug("tx")
    print(plug)                     # grp1|dup.translateX
    cmds.setAttr(plug, 3.0)
    print(cmds.getAttr(plug))       # 3.0（grp2|dup は変更されない）
-   cmds.connectAttr(dup1.plug("ty"), dup2.plug("ty"))
+   cmds.connectAttr(dup1.getPlug("ty"), dup2.getPlug("ty"))
 
-   cube = mlib.node(cmds.polyCube(name="cube")[0])
-   vertex = Vertex(cube.shape(), 3)
+   cube = mlib.getNode(cmds.polyCube(name="cube")[0])
+   vertex = Vertex(cube.getShape(), 3)
    cmds.select([dup1, vertex])     # Node と Component をまとめて選択
    cmds.xform(vertex, translation=(0, 1, 0), worldSpace=True)
 
@@ -80,14 +80,14 @@ maya.cmds へそのまま渡せるもの
 - 名前は ``str()`` を呼ぶたびに現在のシーンから求めます。名前変更や親子付け替えの後も、
   同じオブジェクトをそのまま渡せます。
 - 同じ短い名前のノード(``grp1|dup`` と ``grp2|dup``)があっても、区別できるパスを
-  含むため曖昧になりません。``Node.fullName()`` は常に完全な DAG パスを返します。
+  含むため曖昧になりません。``Node.getFullName()`` は常に完全な DAG パスを返します。
 - Plug のアトリビュートパスはロング名です。必要な配列インデックス(``worldMatrix[0]``、
   ``pnts[2].pntx``)を含み、エイリアスがあればエイリアス名を使います。
   インスタンスごとのアトリビュート(``worldMatrix`` など)は、インデックスがインスタンス番号を表します。
 - 削除済みのノードとその Plug、``deleteAttr`` で削除された動的アトリビュートの Plug は空文字列に
-  なります(``Plug.valid()`` が ``False``。``plug.name()`` も空文字列)。これらの Plug の
+  なります(``Plug.valid()`` が ``False``。``plug.getName()`` も空文字列)。これらの Plug の
   ``get()``/``set()`` は削除前の古い値を返したり Maya を異常終了させたりせず
-  ``RuntimeError`` になります。アトリビュートの情報(``attribute()``・``locked()``・``default()``
+  ``RuntimeError`` になります。アトリビュートの情報(``attribute()``・``getLocked()``・``getDefault()``
   など)と接続(``source()``・``connectTo()`` など)の問い合わせも ``RuntimeError`` です
   (Undo の対象から外れた削除済みノードの MPlug は、名前の問い合わせでも Maya を
   異常終了させるためです)。構造の判定(``array()``・``compound()``・
@@ -96,20 +96,20 @@ maya.cmds へそのまま渡せるもの
   取り消した場合は再び有効になります)。削除済みのシェイプの Component は ``str()`` で
   例外になります。
 - インスタンス化されたノードの Node は、指定されたインスタンスのパスを保持します
-  (``mlib.node(<2つ目のインスタンスのパス>)``)。そのインスタンスだけが削除された場合は、
+  (``mlib.getNode(<2つ目のインスタンスのパス>)``)。そのインスタンスだけが削除された場合は、
   パスを使う操作はRuntimeErrorになります。別インスタンスへは切り替えません。
 - インスタンスごとのアトリビュート(``worldMatrix`` など)は、インスタンス化された祖先による
   間接インスタンスも含め、インスタンス番号の要素を評価前から存在する要素として扱います
-  (``elements()``・``get()``・``array_plug[1]``)。``Transform.matrix(ws=True)`` は
+  (``getElements()``・``get()``・``array_plug[1]``)。``Transform.getMatrix(ws=True)`` は
   ラッパーが保持するインスタンスの要素(``worldMatrix[<インスタンス番号>]``)を使います。
 - ``om2.MDagPath`` の ``str()`` も最短一意パスなので渡せます。
-- Plug を作る・取得する操作(``node.plug()``、``node.plugs()``、``Plug._resolve_input()``、
+- Plug を作る・取得する操作(``node.getPlug()``、``node.getPlugs()``、``Plug._resolve_input()``、
   ``Selection([...])`` など)は、原則としてシーンを変更しません。アトリビュート型はアトリビュート定義から求め、
   maya.cmds へ問い合わせないためです(評価も起こしません)。例外は次の項目の
   「値によって型が変わるアトリビュート」で、値を読むためノードが計算する出力の評価(compute)が起こり、
   評価によってシーンの状態が変わる場合があります。たとえばインスタンス化されたシェイプの
   2つ目のインスタンスを拘束元にした geometryConstraint では、``constraintGeometry`` の
-  Plug を作る(``node.plugs()`` の結果に含まれる場合を含む)と、評価によってシェイプの
+  Plug を作る(``node.getPlugs()`` の結果に含まれる場合を含む)と、評価によってシェイプの
   ``worldMesh[0]`` が作られます(``cmds.getAttr(type=True)`` でも同じです)。
   存在しない配列要素(``input1D[10]``)の Plug を作っても要素は
   作られません(mesh の ``controlPoints[i]`` の Plug を作っても ``pnts[i]`` は作られず、
@@ -118,7 +118,7 @@ maya.cmds へそのまま渡せるもの
   ``patchUVIds`` の要素も、Plug として扱えます。要素を作るには
   ``array_plug[10].set(value)`` のように値を設定するか、その参照へ接続します。
   ただし ``patchUVIds`` のような Maya 内部のデータ型の配列では、存在しない要素の
-  ``get()`` と ``element(i, create=True)``/``addElement()`` は ``RuntimeError`` です
+  ``get()`` と ``getElement(i, create=True)``/``addElement()`` は ``RuntimeError`` です
   (maya.cmds でも MPlug でも、値を読むと Maya が異常終了する場合があるためです)。
 - 値によって型が変わるアトリビュート(``choice`` の ``input``/``output`` のような任意のデータを
   受け付けるアトリビュートと、``unitConversion`` の ``input``/``output`` のような generic アトリビュート)は、
@@ -136,24 +136,24 @@ maya.cmds へそのまま渡せるもの
     ``choice.input[0]`` の接続元が ``unitConversion.output`` なら ``unitConversion`` を評価します)。
   - 入力接続が無ければ、Plug の作成時に値を読みます。ノードが計算する出力
     (``choice.output`` など)では ``cmds.getAttr(type=True)`` と同じく評価(compute)が
-    起こります(``node.plugs()`` や ``plug.destinationsWithConversions()`` の結果に含まれる場合も同じです)。
+    起こります(``node.getPlugs()`` や ``plug.getDestinations(skipConversionNodes=False)`` の結果に含まれる場合も同じです)。
 
   ``double3`` などの数値の組を保持する場合は基底の ``Plug`` で、``get()`` は tuple です
   (generic アトリビュートは子を持たないため ``Double3Plug`` では扱えません)。型は Plug の作成時に
   決まるため、``choice`` の ``selector`` を切り替えて行列以外を出力させた後の
   ``MatrixPlug.get()`` は ``RuntimeError`` です(Plug を作り直してください)。
-- ``node.plug()`` はアトリビュート名(ロング名・ショート名・エイリアス)に加えて、``str(plug)`` の
+- ``node.getPlug()`` はアトリビュート名(ロング名・ショート名・エイリアス)に加えて、``str(plug)`` の
   アトリビュート部分と同じアトリビュートパス(``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
   ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
   受け付けます。配列要素の番号を含まない配列複合アトリビュートの子(``input3Dx``、blendShape の
   ``inputTargetGroup`` のような子の配列を含む)は、maya.cmds で解決できないため
   ``RuntimeError`` です(``input3D[0].input3Dx``、``inputTarget[0].inputTargetGroup`` の
-  ように指定します)。``node.plugs()`` の結果にもこれらは含まれません。
+  ように指定します)。``node.getPlugs()`` の結果にもこれらは含まれません。
   ``node.input3Dx`` のような Python のアトリビュートアクセスでは、``hasattr``/``getattr(node, name, default)``
   が使えるよう ``AttributeError`` になります。
   配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)です。範囲外の番号
-  (``input1D[4294967296]`` など)は ``node.plug()`` では ``AttributeError``、
-  ``array_plug.element()``/``array_plug[i]`` では ``IndexError`` で、別の要素へ読み替えません
+  (``input1D[4294967296]`` など)は ``node.getPlug()`` では ``AttributeError``、
+  ``array_plug.getElement()``/``array_plug[i]`` では ``IndexError`` で、別の要素へ読み替えません
   (``MPlug.elementByLogicalIndex()`` は ``input1D[0]`` へ変換します)。なお名前の文字列
   (``Plug._resolve_input("pma.input1D[4294967296]")``、``cmds.getAttr`` など)は、maya.cmds と同じく
   2147483647 番の要素として解決されます。
@@ -161,7 +161,7 @@ maya.cmds へそのまま渡せるもの
   要素ができます(``addElement()`` は接続するまで同じ番号を返します)。
 - ``createNode("mesh")`` で作っただけの ``inMesh`` が未接続の空の mesh の ``uvpt[i]`` や、
   空の subdiv の ``controlPoints[i]``・``weights[i]`` の存在しない要素では、``get()`` と
-  ``element(i, create=True)``/``addElement()`` が ``cmds.getAttr`` と同じく Maya を異常終了
+  ``getElement(i, create=True)``/``addElement()`` が ``cmds.getAttr`` と同じく Maya を異常終了
   させる場合があります(形状を持つノードでは起こりません)。形状を接続してから扱ってください。
 - 削除済みノードの Plug から、要素・子・親などの新しい Plug は取得できません
   (``RuntimeError``)。削除済みノードの名前で問い合わせると、同じ名前で作り直された
@@ -179,27 +179,27 @@ maya.cmds へそのまま渡せるもの
      - 代わりに渡すもの
    * - ``ArrayPlug``・``CompoundPlug`` 自体（Double3Plug等を含む）
      - ``array_plug[0]`` で要素を取得できるため、maya.cmds がシーケンスとして展開しようとして失敗する
-     - ``str(plug)`` または ``plug.fullName()``。取得した要素・子も配列または複合なら文字列化する
+     - ``str(plug)`` または ``plug.getFullName()``。取得した要素・子も配列または複合なら文字列化する
    * - ``om2.MObject``
      - ``str()`` がオブジェクトの表現(``<OpenMaya.MObject ...>``)になる
-     - ``mlib.node(mobject)`` の戻り値、または mlib のコマンド
+     - ``mlib.getNode(mobject)`` の戻り値、または mlib のコマンド
    * - ``om2.MPlug``
-     - ``str()`` が ``MPlug.name()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
+     - ``str()`` が ``MPlug.getName()`` で、短いノード名しか含まない。同じ短い名前のノードがあると曖昧になる
      - mlib の Plug(``Plug._resolve_input`` 相当の変換は mlib のコマンドと ``Plug.connectTo()`` が行う)
 
 生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。mlib のコマンドと
-ノードが必要な引数(``mlib.node``、``mlib.addConstraint`` の拘束元・拘束先など)は
+ノードが必要な引数(``mlib.getNode``、``mlib.addConstraint`` の拘束元・拘束先など)は
 ``deleteAttr`` で削除されたアトリビュートの MPlug を ``ValueError`` にします(``Plug.connectTo()`` などのアトリビュートが必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
-状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.node()`` の時点で Maya が
+状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.getNode()`` の時点で Maya が
 異常終了し、API では検出できません。保持する場合は mlib の Plug(ノードの削除を検出できる)を
 使ってください。また MPlug はインスタンスの情報を持たないため、インスタンス化されたノードの
 MPlug は最初のインスタンスとして扱います(Plug と文字列は名前が指すインスタンスを保持します)。
 
 ワールド空間アトリビュート(``worldMatrix`` など)の ``ArrayPlug`` の ``str()`` (``g|c.worldMatrix``)は、
-maya.cmds・``Plug._resolve_input()``・``mlib.node()`` では配列ではなく、名前が指すインスタンスの要素
+maya.cmds・``Plug._resolve_input()``・``mlib.getNode()`` では配列ではなく、名前が指すインスタンスの要素
 (``worldMatrix[<インスタンス番号>]``)として解決されます。``cmds.getAttr(str(world), size=True)`` は
 インスタンスの数によらず ``1`` を返し、``Plug._resolve_input(str(world))`` は要素の ``MatrixPlug`` です。
-配列の要素を扱う場合は ``world.elements()``・``world[1]`` を使ってください。
+配列の要素を扱う場合は ``world.getElements()``・``world[1]`` を使ってください。
 
 .. code-block:: python
 
@@ -219,7 +219,7 @@ maya.cmds・``Plug._resolve_input()``・``mlib.node()`` では配列ではなく
 maya.cmds のフラグへ渡す場合は、次の点に注意してください。
 
 - ``double3`` などの複合アトリビュートの ``cmds.setAttr`` は成分を ``*`` で展開します:
-  ``cmds.setAttr(node.plug("t"), *Translate(1, 2, 3))``。
+  ``cmds.setAttr(node.getPlug("t"), *Translate(1, 2, 3))``。
 - ``EulerRotate`` の成分はラジアンです。回転アトリビュートの ``cmds.setAttr`` や
   ``cmds.xform(rotation=...)`` へ渡す場合は現在の角度UI単位へ変換します。
   ``from mlib.common import units`` を使い、
@@ -234,7 +234,7 @@ Plug の値は ``plug.get()``/``plug.set()`` でも扱えます。単位の扱�
 mlibの値から作成コマンドへ渡す
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``Translate`` やコンポーネントの ``position()`` の距離は内部単位cmです。
+``Translate`` やコンポーネントの ``getPosition()`` の距離は内部単位cmです。
 ``mlib.createCurve(point=...)`` 等の作成フラグはMayaコマンドのUI単位を使います。
 値の型を渡すだけで単位の自動変換は起こらないため、境界で明示的に変換します。
 
@@ -247,12 +247,12 @@ mlibの値から作成コマンドへ渡す
    end_ui = tuple(units.distanceToUi(value) for value in end_cm)
    curve_transform = mlib.createCurve(name="unitBoundaryCurve", degree=1,
                                       point=[(0, 0, 0), end_ui])
-   print(curve_transform.shape().cv(1).position())  # (100.0, 0.0, 0.0) cm
+   print(curve_transform.getShape().getCV(1).position())  # (100.0, 0.0, 0.0) cm
 
 この例はシーンの単位設定を変更せず、現在のUI単位がcmでもmでも同じ形状を作ります。
 例えばm設定では ``end_ui`` のXは1.0です。cm値100をそのままpointへ渡すと
 100mとして作成されます。時間フラグも同様にMayaの現在の時間単位で指定します。
-Plugの ``get()`` はcm/rad/秒、``getu()`` と照会フラグ付き ``mlib.attr`` は
+Plugの ``get()`` はcm/rad/秒、``get(uiUnits=True)`` と照会フラグ付き ``mlib.getAttr`` は
 UI単位です。値を渡す側と受け取る側の単位を合わせてください（:doc:`guide_plugs`）。
 
 mlib のコマンドが受け付ける入力
@@ -272,14 +272,14 @@ mlib のコマンドが受け付ける入力
    * - ``str``
      - そのまま(Maya へ問い合わせない)
    * - ``Node``
-     - ``fullName()`` (完全 DAG パス。DG ノードはノード名)
+     - ``getFullName()`` (完全 DAG パス。DG ノードはノード名)
    * - ``Plug`` (``ArrayPlug`` を含む)
-     - ``fullName()``。ArrayPlug は要素へ展開せず配列アトリビュートの名前になる
+     - ``getFullName()``。ArrayPlug は要素へ展開せず配列アトリビュートの名前になる
    * - ``Component`` (単体)
-     - ``fullName()``
+     - ``getFullName()``
    * - ``Vertices`` などの複数形
      - 保持順で連続する番号を ``|cube|cubeShape.vtx[0:99]`` のような範囲指定にまとめる
-       (``compactNames()``)。要素が多くても maya.cmds へ渡す名前が増えない
+       (``getCompactNames()``)。要素が多くても maya.cmds へ渡す名前が増えない
    * - ``Selection``、``Joints`` などのコレクション
      - 各要素の名前に展開する
    * - ``om2.MObject``
@@ -287,7 +287,7 @@ mlib のコマンドが受け付ける入力
    * - ``om2.MDagPath``
      - ``fullPathName()`` (インスタンスのパスを保持)
    * - ``om2.MPlug``
-     - ``Plug.fullName()`` と同じ形式
+     - ``Plug.getFullName()`` と同じ形式
    * - list、tuple、set、ジェネレーター
      - 入れ子も含めて要素ごとに変換する
 
@@ -297,12 +297,12 @@ mlib のコマンドが受け付ける入力
    from mlib.components import Vertices
    from mlib.common.selection import Selection
 
-   mlib.select([dup1.plug("tx"), dup2.mnode(), Vertices(cube.shape(), [0, 1])])
-   print(cmds.objExists(dup1.plug("tx").name()))   # True
-   cmds.setKeyframe([dup1.plug("tx"), dup2.plug("ty")], time=1)
+   mlib.select([dup1.getPlug("tx"), dup2.mnode(), Vertices(cube.getShape(), [0, 1])])
+   print(cmds.objExists(dup1.getPlug("tx").name()))   # True
+   cmds.setKeyframe([dup1.getPlug("tx"), dup2.getPlug("ty")], time=1)
    mlib.select(Selection([dup1, vertex]))
 
-対象としてノードが必要な引数(``mlib.node``、``mlib.addConstraint`` と
+対象としてノードが必要な引数(``mlib.getNode``、``mlib.addConstraint`` と
 ``Transform.addConstraint`` の拘束元・拘束先、``Node(...)``、
 ``mlib.createNode``/``mlib.createGroup`` の ``parent``、``Transform.setParent``、
 ``Node.parentOf`` など)は、Plug・MPlug・``"node.attribute"`` を所有ノード、
@@ -328,13 +328,13 @@ Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱�
   ください(MPlug はインスタンスの情報を持たないため、最初のインスタンスになります)。
 
 アトリビュートが必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.connectedTo``、
-``mlib.attr``、``mlib.plug``、``mlib.drivenKey``、``DrivenKey.find``)は、
+``mlib.getAttr``、``mlib.getPlug``、``mlib.getDrivenKey``、``DrivenKey.find``)は、
 Plug・MPlug とアトリビュート名の文字列を受け付けます。
 文字列は ``str(plug)`` が返す形式(``grp1|dup.translateX``、``bs.weight[0]``、
 エイリアス名の ``bs.smile``、``cubeShape.pnts[2].pntx`` など)も maya.cmds と同じ規則で解決します。
 mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i]`` のように
 コンポーネント名としても解釈される名前は、``cmds.connectAttr`` と同じくアトリビュートとして解決します
-(``Selection`` は ``cmds.select`` と同じく頂点・CV として扱います。``mlib.node`` は
+(``Selection`` は ``cmds.select`` と同じく頂点・CV として扱います。``mlib.getNode`` は
 どちらの解釈でも所有シェイプを返します)。
 ``|box1.castsShadows`` のように transform の名前でシェイプのアトリビュートを指す場合も、
 名前が指すインスタンスのシェイプ(``|box1|boxShape``)を所有ノードにします。
@@ -344,20 +344,20 @@ mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i
 展開します(``cmds.getAttr("pCube1.castsShadows")`` がシェイプごとの値のリストを返すなど)が、
 Plug は1つのアトリビュートを表すためです。シェイプの名前で指定してください。
 
-``mlib.attr(target)`` は ``mlib.plug(target)`` と同じ型付きPlug取得です。
+``mlib.getAttr(target)`` は ``mlib.getPlug(target)`` と同じ型付きPlug取得です。
 既存Plugはそのまま返し、値は ``get()`` の内部単位(cm/rad/秒)または
-``getu()`` のUI単位で読みます。照会フラグを一つでも指定した
-``mlib.attr(target, **kwargs)`` は従来のMaya照会値・状態を返します。
+``get(uiUnits=True)`` のUI単位で読みます。照会フラグを一つでも指定した
+``mlib.getAttr(target, **kwargs)`` は従来のMaya照会値・状態を返します。
 ``type=True`` 等の状態照会、``time``・``silent``・Falseの明示指定、
 値のUI単位とMatrix・Vectorへの変換は維持します。
 ``maya.cmds.getAttr`` 自体の戻り値は変更していません。
 
 .. code-block:: python
 
-   print(mlib.node(dup1.plug("tx")))    # grp1|dup
-   print(mlib.node(vertex))              # cubeShape（所有シェイプ）
-   mlib.addConstraint(dup1.plug("tx"), dup2.mnode(), type="orient")  # 拘束元は dup1
-   dup1.plug("sx").connectTo(dup2.plug("sx").mplug())
+   print(mlib.getNode(dup1.getPlug("tx")))    # grp1|dup
+   print(mlib.getNode(vertex))              # cubeShape（所有シェイプ）
+   mlib.addConstraint(dup1.getPlug("tx"), dup2.mnode(), type="orient")  # 拘束元は dup1
+   dup1.getPlug("sx").connectTo(dup2.getPlug("sx").mplug())
 
 その他の規則です。
 
@@ -370,12 +370,12 @@ Plug は1つのアトリビュートを表すためです。シェイプの名�
   - 文字列を解決できない(存在しない、または ``"dup.tx"`` のように同じ短い名前のノードが
     あって複数の対象に一致する): ``RuntimeError``
 
-  ``Node(...)``/``mlib.node`` は従来どおり、解決できない対象(空・削除済みを含む)を
+  ``Node(...)``/``mlib.getNode`` は従来どおり、解決できない対象(空・削除済みを含む)を
   すべて ``RuntimeError`` にします(依存ノード以外を指す MObject は ``TypeError``)。
   ``mlib.addConstraint``/``Transform.addConstraint`` の拘束元・拘束先に削除済みの Node などを
   渡した場合も従来どおり ``RuntimeError`` です。
   ただし所有ノードは有効なまま ``deleteAttr`` でアトリビュートが削除された Plug・MPlug は、所有ノードへ
-  解決せず、ノードが必要な引数(``Node(...)``/``mlib.node``、``mlib.addConstraint`` の拘束元・
+  解決せず、ノードが必要な引数(``Node(...)``/``mlib.getNode``、``mlib.addConstraint`` の拘束元・
   拘束先、``mlib.nodes.Node._resolve_input`` など)でも、名前へ変換する引数と同じく ``ValueError``
   です(``mlib.plugs.plug.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
   ``Node(...)`` の失敗を ``except RuntimeError`` で捕捉するコードもそのまま使えます)。
@@ -405,7 +405,7 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
        要素に含まれる場合も、何も削除しません)。``maya.cmds.delete`` はアトリビュート名を渡しても
        エラーを表示するだけで何もしないためです。動的アトリビュートの削除は ``plug.delete()``、
        配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は ``plug.disconnect()``、
-       所有ノードの削除は ``mlib.delete(plug.node())`` を使います。Component は面の削除などに使えます。
+       所有ノードの削除は ``mlib.delete(plug.getNode())`` を使います。Component は面の削除などに使えます。
    * - ``mlib.ls``
      - 結果はノードとしてラップするため、Plug は所有ノード、Component は所有シェイプに
        なります(``mlib.ls(plug)`` は ``[<所有ノード>]``。``cmds.ls`` はプラグ名を返します)。
@@ -427,7 +427,7 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
 Node の生成
 ------------------------------------------------------------
 
-``Node(value)`` と ``mlib.node(value)`` は、名前・MObject・MDagPath に加えて次を受け付け、
+``Node(value)`` と ``mlib.getNode(value)`` は、名前・MObject・MDagPath に加えて次を受け付け、
 実際のノード型に対応するラッパー(``Joint``、``Mesh`` など)を返します。
 
 - 既存の ``Node``: 同じノードとインスタンスを指す新しいラッパー。
@@ -446,7 +446,7 @@ om2 オブジェクトを渡した場合は ``RuntimeError`` になります。�
 以前の mlib からの変更点
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-以前の ``Node(value)``/``mlib.node(value)`` は、複数のノードに一致する名前やパターン
+以前の ``Node(value)``/``mlib.getNode(value)`` は、複数のノードに一致する名前やパターン
 (``"bulk*"`` など)を渡すと最初に一致したノードを黙って返していました。現在は
 ``RuntimeError`` です(一致が1つだけのパターンは、そのノードを返します)。
 パターンに一致するノードを扱う場合は ``mlib.ls`` を使ってください。
@@ -454,6 +454,6 @@ om2 オブジェクトを渡した場合は ``RuntimeError`` になります。�
 .. code-block:: python
 
    # 以前: 最初の一致を返していた。現在は RuntimeError。
-   # node = mlib.node("bulk*")
+   # node = mlib.getNode("bulk*")
    nodes = mlib.ls("bulk*")       # 一致するすべてのノード
    first = nodes[0] if nodes else None

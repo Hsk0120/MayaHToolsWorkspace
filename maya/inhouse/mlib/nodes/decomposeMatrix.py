@@ -1,7 +1,6 @@
 """行列を変換成分に分解するdecomposeMatrixを扱う。"""
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from ..maths import Matrix
@@ -107,51 +106,3 @@ class DecomposeMatrix(Node):
         return {key: self.getPlug(name) for key, name in (
             ("translate", "outputTranslate"), ("rotate", "outputRotate"),
             ("scale", "outputScale"), ("shear", "outputShear"))}
-
-    @_getter_alias(getInputPlug)
-    def inputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputPlug(*args, **kwargs)
-
-    @_getter_alias(getInput)
-    def input(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInput(*args, **kwargs)
-
-    @_getter_alias(getRotateOrder)
-    def rotateOrder(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getRotateOrder(*args, **kwargs)

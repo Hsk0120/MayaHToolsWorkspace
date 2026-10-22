@@ -273,7 +273,7 @@ class AimAxisConversionTest(unittest.TestCase):
                 for axis, value in zip("XYZ", expected):
                     self.assertAlmostEqual(self.cmds.getAttr(self.driven + ".rotate" + axis), value, places=5)
                 for axis in "XY":
-                    plug = graph.container.getPlug("output" + axis).getSourceWithConversion()
+                    plug = graph.container.getPlug('output' + axis).getSource(skipConversionNodes=False)
                     self.assertTrue(self.cmds.isConnected(plug.getFullName(), self.driven + ".rotate" + axis))
                 graph.restore()
                 self.assertEqual(set(self.cmds.ls()), baseline)

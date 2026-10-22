@@ -44,8 +44,8 @@ class SwingTwist(TwistDistribution):
         base = TwistDistribution.create(parents[0], joint, name=name, axis=axis)
         graph = cls(base.container)
         owner = graph.container
-        decomposition = owner.getPlug("relativeDecompose").getSourceWithConversion().getNode()
-        source = decomposition.getPlug("inputMatrix").getSourceWithConversion()
+        decomposition = owner.getPlug('relativeDecompose').getSource(skipConversionNodes=False).getNode()
+        source = decomposition.getPlug('inputMatrix').getSource(skipConversionNodes=False)
         if rest:
             delta = graph._node("multMatrix", "restDelta")
             delta.getPlug("matrixIn")[1].set(Matrix(source.get()).inverse())

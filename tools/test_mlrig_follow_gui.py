@@ -61,7 +61,7 @@ def main(output_dir=None, finished=None):
         check(len(rig.follow_joints()) == 3 and follow_row().childCount() == 3, "Three follow rows")
         cmds.setAttr(rig.controls()["fk1"] + ".rx", 60)
         settings = rig.follow_settings("followHalf1")
-        graph = settings.getPlug("graph").getSourceWithConversion().getNode()
+        graph = settings.getPlug('graph').getSource(skipConversionNodes=False).getNode()
         original = graph.getPlug("matrix").get()
         settings.getPlug("ratio").set(0)
         yield
@@ -71,7 +71,7 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(channel + ".enabled", False)
         yield
         for _ in range(20):
-            if mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None:
+            if mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is None:
                 break
             yield
         (output / "channel-state.json").write_text(
@@ -89,17 +89,10 @@ def main(output_dir=None, finished=None):
             ),
             encoding="utf-8",
         )
-        check(
-            mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
-            "Limb Channel disabled",
-        )
+        check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Limb Channel disabled')
         cmds.undo()
         yield
-        check(
-            rig.layer_enabled("follow")
-            and mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is not None,
-            "Limb Channel Undo",
-        )
+        check(rig.layer_enabled('follow') and mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is not None, 'Limb Channel Undo')
         cmds.redo()
         yield
         check(not rig.layer_enabled("follow"), "Limb Channel Redo")
@@ -125,10 +118,7 @@ def main(output_dir=None, finished=None):
         yield
         cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_follow", False)
         yield
-        check(
-            mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
-            "Skirt Channel disabled",
-        )
+        check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Skirt Channel disabled')
         cmds.undo()
         yield
         check(rig.layer_enabled("follow"), "Skirt Channel Undo")
@@ -138,10 +128,7 @@ def main(output_dir=None, finished=None):
         rig.set_layer_enabled("follow", True)
         rig.root.getPlug("lod").set(0)
         yield
-        check(
-            mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
-            "Skirt LOD disconnects follow",
-        )
+        check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Skirt LOD disconnects follow')
         rig.set_lod(1)
         cmds.file(rename=str(output / "follow.ma"))
         cmds.file(save=True, type="mayaAscii")
@@ -151,10 +138,7 @@ def main(output_dir=None, finished=None):
         check(len(rig.follow_joints()) == 1, "Save reload keeps follow references")
         cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_follow", False)
         yield
-        check(
-            mlib.getPlug(rig.follow_joints()[0] + ".offsetParentMatrix").getSourceWithConversion() is None,
-            "Save reload restores jobs",
-        )
+        check(mlib.getPlug(rig.follow_joints()[0] + '.offsetParentMatrix').getSource(skipConversionNodes=False) is None, 'Save reload restores jobs')
         rig.set_layer_enabled("follow", True)
         for item in editor.rows():
             if item.data(0, QtCore.Qt.UserRole)["root"] == rig.root.getUuid():

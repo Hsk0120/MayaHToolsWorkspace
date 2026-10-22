@@ -8,7 +8,7 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from .._core.space import world_space
 from ..decorator import undoChunk, undoTransaction
 from ..maths import Matrix
@@ -71,11 +71,10 @@ class DagPose(Node):
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.isType("skinCluster"):
             raise ValueError("Expected a skinCluster")
-        names = cmds.listConnections(skin.getFullName() + ".bindPose", source=True,
-                                     destination=False) or []
-        if not names:
+        source = skin.getPlug("bindPose").getSource(skipConversionNodes=False)
+        if source is None:
             return None
-        pose = Node(names[0])
+        pose = source.getNode()
         if not pose.isType("dagPose"):
             raise RuntimeError("skinCluster.bindPose is not connected to a dagPose")
         return pose
@@ -108,9 +107,10 @@ class DagPose(Node):
         Returns:
             list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。
         """
-        name = self._pose_name()
-        return [i for i in self.getPlug("members").mplug().getExistingArrayAttributeIndices()
-                if cmds.listConnections(f"{name}.members[{i}]", source=True, destination=False)]
+        self._pose_name()
+        members = self.getPlug("members").mplug()
+        return [i for i in members.getExistingArrayAttributeIndices()
+                if members.elementByLogicalIndex(i).isDestination]
 
     def getMembers(self):
         """保存対象をmembers配列の論理番号順に返す。
@@ -118,9 +118,10 @@ class DagPose(Node):
         Returns:
             list[Node]: 保存対象をmembers配列の論理番号順に返す。
         """
-        name = self._pose_name()
-        return [Node(cmds.listConnections(f"{name}.members[{i}]", source=True,
-                                          destination=False)[0]) for i in self.getMemberIndices()]
+        self._pose_name()
+        members = self.getPlug("members").mplug()
+        return [Node(members.elementByLogicalIndex(i).source().node())
+                for i in self.getMemberIndices()]
 
     def getMemberIndex(self, member):
         """指定メンバーの論理番号を返す。
@@ -192,10 +193,15 @@ class DagPose(Node):
         Returns:
             list[SkinCluster]: このポーズをbindPoseとして参照するskinCluster。
         """
-        plugs = cmds.listConnections(self._pose_name() + ".message", source=False,
-                                     destination=True, type="skinCluster", plugs=True) or []
-        names = [plug.rsplit(".", 1)[0] for plug in plugs if plug.endswith(".bindPose")]
-        return [Node(name) for name in dict.fromkeys(names)]
+        self._pose_name()
+        nodes = []
+        for plug in self.getPlug("message").mplug().destinations():
+            if (plug.node().hasFn(om2.MFn.kSkinClusterFilter)
+                    and om2.MFnAttribute(plug.attribute()).name == "bindPose"):
+                node = Node(plug.node())
+                if node not in nodes:
+                    nodes.append(node)
+        return nodes
 
     def merge(self, sources, *, currentPose=False, deleteSources=True):
         """他の保存ポーズを自身へ統合し、skinClusterの参照先も揃える。
@@ -314,102 +320,6 @@ class DagPose(Node):
             self.getMemberIndex(target)
         cmds.dagPose(names, remove=True, name=self._pose_name())
         return self
-
-    @_getter_alias(getMemberIndices)
-    def memberIndices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMemberIndices(*args, **kwargs)
-
-    @_getter_alias(getMembers)
-    def members(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMembers(*args, **kwargs)
-
-    @_getter_alias(getMemberIndex)
-    def memberIndex(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMemberIndex(*args, **kwargs)
-
-    @_getter_alias(getMatrix)
-    def matrix(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMatrix(*args, **kwargs)
-
-    @_getter_alias(getNotAtPose)
-    def notAtPose(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNotAtPose(*args, **kwargs)
-
-    @_getter_alias(getSkinClusters)
-    def skinClusters(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSkinClusters(*args, **kwargs)
 
     def _merge_collect_poses(self, sources):
         """対象自身と統合元を入力順に解決し、同じポーズを一度だけ扱う。

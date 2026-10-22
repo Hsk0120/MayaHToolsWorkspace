@@ -23,7 +23,7 @@ def getAttr(target, **kwargs):
         ValueError: 空のアトリビュート名または空のMPlugを指定した場合。
         RuntimeError: Mayaが操作を拒否した場合。
 
-    値は返したPlugのget()で内部単位、getu()で現在のUI単位として取得する。
+    値は返したPlugのget()で内部単位、get(uiUnits=True)で現在のUI単位として取得する。
     フラグを指定したMaya照会は現在のUI単位を維持する。
     """
     from .getPlug import getPlug as _get_plug

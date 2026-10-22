@@ -1,7 +1,6 @@
 """配列入力の加算・減算・平均を計算する。"""
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from ._calculation import _Calculation
@@ -60,18 +59,6 @@ class PlusMinusAverage(ShadingDependNode):
         if index not in self.getInputIndices(dimension):
             raise IndexError(f"No input at logical index {index}")
         return plug
-
-    @flag_aliases(idx="index")
-    def getInput(self, index, dimension=1):
-        """入力の評価値を取得する。
-
-        Args:
-            index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
-            dimension (int): 1/2/3。
-        Returns:
-            float | tuple: 入力値。
-        """
-        return self.getInputPlug(index, dimension).get()
 
     @flag_aliases(idx="index")
     @undoChunk("mlibCalculationEdit")
@@ -142,112 +129,6 @@ class PlusMinusAverage(ShadingDependNode):
             Plug: 出力参照。
         """
         return self.getPlug("output%dD" % _Calculation.index(dimension, (1, 2, 3)))
-
-    def getResult(self, dimension=1):
-        """演算結果を取得する。
-
-        Args:
-            dimension (int): 1/2/3。
-        Returns:
-            float | tuple: 評価済み出力。
-        """
-        return self.getOutputPlug(dimension).get()
-
-    @_getter_alias(getOperation)
-    def operation(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOperation(*args, **kwargs)
-
-    @_getter_alias(getInputIndices)
-    def inputIndices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputIndices(*args, **kwargs)
-
-    @_getter_alias(getInputPlug)
-    def inputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputPlug(*args, **kwargs)
-
-    @_getter_alias(getInput)
-    def input(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInput(*args, **kwargs)
-
-    @_getter_alias(getOutputPlug)
-    def outputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputPlug(*args, **kwargs)
-
-    @_getter_alias(getResult)
-    def result(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getResult(*args, **kwargs)
 
     def _input_array(self, dimension):
         """入力配列を取得する。

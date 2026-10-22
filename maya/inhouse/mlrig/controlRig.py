@@ -78,7 +78,7 @@ class ControlRig:
         Returns:
             Node: グループ。
         """
-        return self.root.getPlug(role + "Group").getSourceWithConversion().getNode()
+        return self.root.getPlug(role + 'Group').getSource(skipConversionNodes=False).getNode()
 
     def register(self, attr, node):
         """配列の末尾へ参照を保存する。
@@ -106,7 +106,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        mlib.nodes.Container(self.root.getPlug("graph").getSourceWithConversion().getNode()).addMembers(node)
+        mlib.nodes.Container(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode()).addMembers(node)
 
     def getJoints(self):
         """変形骨とTweak骨を取得する。
@@ -177,7 +177,7 @@ class ControlRig:
                     else source.getPlug("constraintRotate" + axis)
                 )
                 destination = target.getPlug("rotate" + axis)
-                previous = destination.getSourceWithConversion()
+                previous = destination.getSource(skipConversionNodes=False)
                 if active and previous is None:
                     output.connectTo(destination)
                 elif not active and previous is not None:
@@ -226,7 +226,7 @@ class ControlRig:
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())
-            if any(bool(n.getPlug("rotateX").getSourceWithConversion()) != active for n in rig.getMembers("targets")):
+            if any((bool(n.getPlug('rotateX').getSource(skipConversionNodes=False)) != active for n in rig.getMembers('targets'))):
                 rig.update()
 
     @undoTransaction("mlrig.ControlRig.delete")
@@ -234,5 +234,5 @@ class ControlRig:
         """スキン未使用のモジュールを所有DGとともに削除する。"""
         if any(mlib.getNode(j).getConnections(type="skinCluster") for j in self.getJoints()):
             raise ValueError("Unbind before deleting")
-        mlib.delete(self.root.getPlug("graph").getSourceWithConversion().getNode())
+        mlib.delete(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode())
         mlib.delete(self.root)

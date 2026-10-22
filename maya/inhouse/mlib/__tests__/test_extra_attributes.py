@@ -37,7 +37,7 @@ class ExtraAttributesTest(unittest.TestCase):
         message = self.node.addAttr("link", attributeType="message")
         self.assertIsInstance(message, mlib.plugs.MessagePlug)
         self.node.getPlug("message").connectTo(message)
-        self.assertEqual(message.getSourceWithConversion(), self.node.getPlug("message"))
+        self.assertEqual(message.getSource(skipConversionNodes=False), self.node.getPlug('message'))
         self.assertEqual(len(self.node.getExtraAttrs()), len(cases) + 3)
         self.assertNotIn(self.node.getPlug("translate"), self.node.getExtraAttrs())
 
@@ -62,18 +62,18 @@ class ExtraAttributesTest(unittest.TestCase):
         self.node.addAttr("last", dt="string")
         expected = cmds.listAttr(self.node.getFullName(), userDefined=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.getExtraAttrNames(), ["first", "vector", "last"])
+            self.assertEqual(self.node.getExtraAttrs(asNames=True), ['first', 'vector', 'last'])
             self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], expected)
         cmds.renameAttr(self.node.getFullName() + ".first", "renamed")
         cmds.deleteAttr(self.node.getFullName() + ".vector")
-        self.assertEqual(self.node.getExtraAttrNames(), ["renamed", "last"])
+        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['renamed', 'last'])
         cmds.undo()
         # Mayaは削除Undoで定義を末尾へ再追加する。元の順序を仮定せず標準照会と比較する。
         restored = cmds.listAttr(self.node.getFullName(), userDefined=True)
-        self.assertEqual(self.node.getExtraAttrNames(), [p for p in restored if p in {"renamed", "vector", "last"}])
+        self.assertEqual(self.node.getExtraAttrs(asNames=True), [p for p in restored if p in {'renamed', 'vector', 'last'}])
         self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], restored)
         cmds.redo()
-        self.assertEqual(self.node.getExtraAttrNames(), ["renamed", "last"])
+        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['renamed', 'last'])
 
     def test_sparse_compound_array_roots_do_not_expand(self):
         """複合配列の子を解決せず、空配列・疎な配列を維持する。"""
@@ -84,7 +84,7 @@ class ExtraAttributesTest(unittest.TestCase):
         cmds.setAttr(name + ".items[7].amount", 2)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.getExtraAttrNames(), ["items", "empty"])
+            self.assertEqual(self.node.getExtraAttrs(asNames=True), ['items', 'empty'])
             roots = self.node.getExtraAttrs()
             self.assertTrue(all(isinstance(p, mlib.plugs.ArrayPlug) for p in roots))
             # 番号なしの複合配列の子は、通常のNode.plugと同じく公開Plugにできない。
@@ -104,7 +104,7 @@ class ExtraAttributesTest(unittest.TestCase):
         cmds.addAttr(name, longName="enabled", attributeType="bool", parent="outer")
         expected = [self.node.getPlug(p) for p in cmds.listAttr(name, userDefined=True)]
         self.assertEqual(self.node.getExtraAttrs(True), expected)
-        self.assertEqual(self.node.getExtraAttrNames(), ["outer"])
+        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['outer'])
 
     def test_invalid_node_and_include_children(self):
         """無効入力をAPIに渡す前に拒否する。"""
@@ -112,7 +112,7 @@ class ExtraAttributesTest(unittest.TestCase):
             self.node.getExtraAttrs(include_children=1)
         deleted = mlib.createNode("network")
         cmds.delete(deleted.getFullName())
-        for method in (deleted.getExtraAttrNames, deleted.getExtraAttrs):
+        for method in (lambda: deleted.getExtraAttrs(asNames=True), deleted.getExtraAttrs):
             with self.assertRaises(RuntimeError):
                 method()
 

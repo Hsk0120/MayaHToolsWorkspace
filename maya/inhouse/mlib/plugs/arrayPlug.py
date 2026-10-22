@@ -5,7 +5,6 @@ import maya.cmds as cmds
 
 from .._core.attributeType import is_internal_data_type
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit, is_fast
 from ..common._safe import safe_edit
 from ..decorator import undoChunk
@@ -49,8 +48,11 @@ class ArrayPlug(Plug):
         """
         return iter(self.getElements())
 
-    def get(self):
+    def get(self, *, uiUnits=False):
         """既存インデックスをキーにした要素値の dict を返す。
+
+        Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
 
         Returns:
             dict[int, object]: 論理インデックスをキーとする要素値。ワールド空間アトリビュートは
@@ -59,14 +61,16 @@ class ArrayPlug(Plug):
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        return {plug.mplug().logicalIndex(): plug.get() for plug in self.getElements()}
+        self._validate_ui_units(uiUnits)
+        return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
 
     @fast_edit
     @safe_edit
-    def set(self, value, safe=False, *, fast=False):
+    def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
             value (object): 設定要求値。内容に関係なく拒否する。
@@ -91,7 +95,7 @@ class ArrayPlug(Plug):
         Args:
             index (int): 論理インデックス。 別名 ``idx`` も使用可能。
             create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
-                作成してから返す(``cmds.getAttr`` の問い合わせで作成するため Undo 対象外)。
+                作成してから返す(APIデータ取得により作成するためUndo対象外)。
                 fast更新の内部では参照だけを取得し、値の書込み時に要素を作成する。
                 ただし ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できない。
                 この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
@@ -125,7 +129,8 @@ class ArrayPlug(Plug):
                 # fast更新はこの参照へ値を書く時に要素を実体化する。
                 # 型照会のためのコマンド評価・名前の再解決を挟まない。
                 if not is_fast():
-                    cmds.getAttr(f"{self.getFullName()}[{index}]", type=True)
+                    if not mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
+                        self._materialize_element(mplug)
             elif index not in self._existing_indices():
                 raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
         return Plug(self._node, mplug)
@@ -170,11 +175,13 @@ class ArrayPlug(Plug):
         return index
 
     @flag_aliases(idx="index")
+    @fast_edit
     @undoChunk("mlibArrayPlugRemoveElement")
-    def removeElement(self, index):
+    def removeElement(self, index, *, fast=False):
         """指定した論理インデックスの要素を削除する。
 
         Args:
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。
             index (int): 削除する論理インデックス。 別名 ``idx`` も使用可能。
 
         Returns:
@@ -185,9 +192,15 @@ class ArrayPlug(Plug):
             RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または Maya が削除を拒否した場合。
         """
         self._require_valid()
+        index = self._validate_index(index)
         if index not in self._mplug.getExistingArrayAttributeIndices():
             raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
-        cmds.removeMultiInstance(f"{self.getFullName()}[{index}]", b=True)
+        if is_fast():
+            modifier = om2.MDGModifier()
+            modifier.removeMultiInstance(self._mplug.elementByLogicalIndex(index), True)
+            modifier.doIt()
+        else:
+            cmds.removeMultiInstance(f"{self.getFullName()}[{index}]", b=True)
         return self
 
     def getSourceNodes(self):
@@ -198,16 +211,18 @@ class ArrayPlug(Plug):
         """
         result = {}
         for element in self.getElements():
-            source = element.getSourceWithConversion()
+            source = element.getSource(skipConversionNodes=False)
             if source is not None:
                 result[element.mplug().logicalIndex()] = source.getNode()
         return result
 
+    @fast_edit
     @undoChunk("mlib.ArrayPlug.appendMessage")
-    def appendMessage(self, node):
+    def appendMessage(self, node, *, fast=False):
         """message配列の最大インデックスの次へノード参照を追加する。
 
         Args:
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。
             node (str | Node): 保存する参照。
 
         Returns:
@@ -223,70 +238,6 @@ class ArrayPlug(Plug):
             raise IndexError("Message array index limit reached")
         Node(node).getPlug("message").connectTo(self._element_reference(index))
         return index
-
-    @_getter_alias(getElement)
-    def element(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getElement(*args, **kwargs)
-
-    @_getter_alias(getElements)
-    def elements(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getElements(*args, **kwargs)
-
-    @_getter_alias(getNextAvailableIndex)
-    def nextAvailableIndex(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNextAvailableIndex(*args, **kwargs)
-
-    @_getter_alias(getSourceNodes)
-    def sourceNodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSourceNodes(*args, **kwargs)
 
     def _existing_indices(self):
         """存在する要素の論理インデックスを昇順で返す。

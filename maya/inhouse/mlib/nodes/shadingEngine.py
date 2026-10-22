@@ -1,8 +1,9 @@
 """マテリアル接続と形状への割り当てを扱う。"""
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
+from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 from .objectSet import ObjectSet
 
@@ -18,7 +19,7 @@ class ShadingEngine(ObjectSet):
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
         """
-        return self.getPlug(self._shader_attribute(kind)).getSourceWithConversion()
+        return self.getPlug(self._shader_attribute(kind)).getSource(scn=False)
 
     def getShader(self, kind="surface"):
         """接続元のシェーダーノードを取得する。
@@ -31,14 +32,16 @@ class ShadingEngine(ObjectSet):
         plug = self.getShaderPlug(kind)
         return None if plug is None else plug.getNode()
 
+    @fast_edit
     @undoChunk("mlibShadingEngineSetShader")
-    def setShader(self, shader, kind="surface", output=None):
+    def setShader(self, shader, kind="surface", output=None, *, fast=False):
         """指定シェーダーの出力へ接続を置き換える。
 
         Args:
             shader (Node | Plug | str): ノードまたは出力Plug。
             kind (str): surface/volume/displacement。
             output (str | None): ノード指定時の出力名。既定はoutColor、変位はdisplacement。
+            fast (bool): TrueはOpenMaya直接接続でUndoなし。
         Returns:
             ShadingEngine: 自身。
         Raises:
@@ -56,21 +59,28 @@ class ShadingEngine(ObjectSet):
         source.connectTo(target, force=True)
         return self
 
+    @fast_edit
     @undoChunk("mlibShadingEngineAssign")
-    def assign(self, targets):
+    def assign(self, targets, *, fast=False):
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
 
         Args:
             targets (Node | Face | Faces | str | Iterable): 対象。選択に依存しない。
+            fast (bool): Trueは単一インスタンスのポリゴン全体をOpenMayaで排他的に割り当てる。
+                フェース単位・NURBS・子Transformを持つ階層は更新前に拒否する。
         Returns:
             ShadingEngine: 自身。空列では変更しない。
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
+            NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
         from .._core.object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
-            cmds.sets(names, edit=True, forceElement=self.getFullName())
+            if is_fast():
+                self._assign_meshes(names)
+            else:
+                cmds.sets(names, edit=True, forceElement=self.getFullName())
         return self
 
     def getMembers(self):
@@ -80,66 +90,92 @@ class ShadingEngine(ObjectSet):
             list[Node | Face]: オブジェクトまたは単体フェース。インスタンスパスを保持する。
         """
         from .node import Node
-        names = cmds.sets(self.getFullName(), query=True) or []
+        selection = om2.MFnSet(self.mnode()).getMembers(False)
         result = []
-        for name in cmds.ls(names, long=True, flatten=True) or []:
-            if ".f[" in name:
-                path, index = name.rsplit(".f[", 1)
-                mesh = Node(path)
-                if not mesh.isType("mesh"):
-                    mesh = mesh.getShape()
-                result.append(mesh.face(int(index[:-1])))
+        for index in range(selection.length()):
+            path, component = selection.getComponent(index)
+            node = Node(path)
+            if component.hasFn(om2.MFn.kMeshPolygonComponent):
+                fn = om2.MFnSingleIndexedComponent(component)
+                indices = range(om2.MFnMesh(path).numPolygons) if fn.isComplete else fn.getElements()
+                result.extend(node.getFace(value) for value in indices)
             else:
-                result.append(Node(name))
+                result.append(node)
         return result
 
-    @_getter_alias(getShaderPlug)
-    def shaderPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
+    def _assign_meshes(self, names):
+        """共有パーティション内の既存割り当てを除去してポリゴン全体へ適用する。
 
         Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
+            names (Iterable[str]): 解決済みのポリゴンまたは末端Transform。
 
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
+        Raises:
+            NotImplementedError: フェース・非ポリゴン・インスタンス・階層指定の場合。
+            RuntimeError: 割り当て対象または既存セットを安全に更新できない場合。
         """
-        return self.getShaderPlug(*args, **kwargs)
+        from .node import Node
+        from .transform import Transform
 
-    @_getter_alias(getShader)
-    def shader(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
+        target_fn = self._editable_set()
+        meshes, seen = [], set()
+        for name in names:
+            if "." in name or "," in name:
+                raise NotImplementedError("fast assignment supports whole polygon meshes only")
+            node = Node(name)
+            if isinstance(node, Transform):
+                if node.getChildren():
+                    raise NotImplementedError("fast assignment does not support transform hierarchies")
+                shapes = node.getShapes()
+            else:
+                shapes = [node]
+            if not shapes or any(not shape.mnode().hasFn(om2.MFn.kMesh) for shape in shapes):
+                raise NotImplementedError("fast assignment supports polygon meshes only")
+            for shape in shapes:
+                if shape.mpath().isInstanced():
+                    raise NotImplementedError("fast assignment does not support instanced meshes")
+                fn = shape.dagFn()
+                if fn.isLocked or fn.isFromReferencedFile:
+                    raise RuntimeError("Cannot edit a locked or referenced mesh membership")
+                token = om2.MObjectHandle(shape.mnode()).hashCode()
+                if token not in seen:
+                    seen.add(token)
+                    meshes.append(shape)
 
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
+        def partitions(fn):
+            """セットが所属するパーティションの識別子を取得する。"""
+            return {om2.MObjectHandle(plug.node()).hashCode()
+                    for plug in fn.findPlug("partition", False).connectedTo(False, True)}
 
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShader(*args, **kwargs)
-
-    @_getter_alias(getMembers)
-    def members(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMembers(*args, **kwargs)
+        target_partitions = partitions(target_fn)
+        removals = {}
+        for mesh in meshes:
+            shaders, _ = om2.MFnMesh(mesh.mpath()).getConnectedShaders(mesh.mpath().instanceNumber())
+            for shader in shaders:
+                fn = om2.MFnSet(shader)
+                if shader != self.mnode() and not (partitions(fn) & target_partitions):
+                    continue
+                if fn.isLocked or fn.isFromReferencedFile:
+                    raise RuntimeError("Cannot remove a locked or referenced shading membership")
+                membership = fn.findPlug("dagSetMembers", False)
+                if membership.isLocked or any(
+                        membership.elementByLogicalIndex(i).isLocked
+                        for i in membership.getExistingArrayAttributeIndices()):
+                    raise RuntimeError("Shading membership is locked")
+                token = om2.MObjectHandle(shader).hashCode()
+                if token not in removals:
+                    removals[token] = (fn, om2.MSelectionList())
+                existing = fn.getMembers(False)
+                for index in range(existing.length()):
+                    path, component = existing.getComponent(index)
+                    if path == mesh.mpath():
+                        removals[token][1].add((path, component))
+        for fn, selection in removals.values():
+            if selection.length():
+                fn.removeMembers(selection)
+        assignment = om2.MSelectionList()
+        for mesh in meshes:
+            assignment.add(mesh.mpath())
+        target_fn.addMembers(assignment)
 
     @staticmethod
     def _shader_attribute(kind):

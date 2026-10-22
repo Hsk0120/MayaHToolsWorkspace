@@ -25,7 +25,7 @@ Mayaの ``.mod`` や起動バッチに固定パスがある場合は、利用環
    import mlib_bifrost
 
    node = mlib.createNode("transform")
-   node.plug("translateX").set(10)
+   node.getPlug("translateX").set(10)
    print(mlib.extensions.status())
    mlib.reload()
 

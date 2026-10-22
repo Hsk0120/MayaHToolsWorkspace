@@ -79,8 +79,8 @@ class PackageLayoutTest(unittest.TestCase):
         mlib.reload()
         for name in obsolete:
             if name == "scene":
-                self.assertTrue(callable(mlib.scene))
-                self.assertIs(mlib.scene, mlib.cmds.scene)
+                self.assertTrue(callable(mlib.getScene))
+                self.assertIs(mlib.getScene, mlib.cmds.getScene)
             else:
                 self.assertFalse(hasattr(mlib, name))
         for fullname in obsolete_modules:

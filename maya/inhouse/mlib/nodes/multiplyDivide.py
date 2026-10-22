@@ -1,7 +1,6 @@
 """XYZ成分ごとの乗算・除算・累乗。"""
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from ..maths import Vector
@@ -22,17 +21,6 @@ class MultiplyDivide(ShadingDependNode):
             Plug: 接続・値操作用の参照。
         """
         return self.getPlug(f"input{_Calculation.index(index, (1, 2))}")
-
-    @flag_aliases(idx="index")
-    def getInput(self, index):
-        """入力の評価値を取得する。
-
-        Args:
-            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
-        Returns:
-            Iterable[float]: 現在の値。
-        """
-        return self.getInputPlug(index).get()
 
     @flag_aliases(idx="index")
     @fast_edit
@@ -96,96 +84,9 @@ class MultiplyDivide(ShadingDependNode):
         self.getPlug("operation").set(value)
         return self
 
-    def getOutputPlug(self):
-        """計算結果の接続用Plugを取得する。
-        Returns:
-            Plug: 出力参照。
-        """
-        return self.getPlug("output")
-
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.getOutputPlug().get())
-
-    @_getter_alias(getInputPlug)
-    def inputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputPlug(*args, **kwargs)
-
-    @_getter_alias(getInput)
-    def input(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInput(*args, **kwargs)
-
-    @_getter_alias(getOperation)
-    def operation(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOperation(*args, **kwargs)
-
-    @_getter_alias(getOutputPlug)
-    def outputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputPlug(*args, **kwargs)
-
-    @_getter_alias(getResult)
-    def result(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getResult(*args, **kwargs)
+        return Vector(self.getPlug('output').get())

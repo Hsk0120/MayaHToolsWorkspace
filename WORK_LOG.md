@@ -109,6 +109,16 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-22): ユーザー指示でmlibリファクタリング・使用側・テスト・文書をコミット/プッシュ対象として確認。Maya2022〜2027の成功記録と差分・公開入口を再確認し、最終レビューでnative MPlug.nameの誤置換とextensions.__all__の削除済み名を修正、文書のgetDiagnostics表記も統一。関連11テスト成功。研究メモ・生成物・submodule参照更新は含めず、既存QuickPathExplorer/launch_python.bat変更を保持。
+
+- Codex (2026-10-22): mlibの取得をgetへ統一し省略入口576件・単純演算アクセサー68件を削除、使用側・テスト・Sphinxを移行。接続/単位フラグ、getChildrenへの列挙統合、ControlHierarchyのmlrig移譲、OM2照会とUndo/fast更新を実装。fast未対応条件は変更前に拒否し文書化。Maya2022〜2027の全体回帰成功、最終2027は147ファイル/1,311テストで失敗0。接線/単位等の追加24件は2022/2023/2027で成功、mlrig/拡張186件は失敗0（1skip）。文書15コード例、Sphinx警告エラー扱いビルド、公開入口/文書/レイアウト検査に成功。GUI・対応バイナリ不在の検証はskip。既存QuickPathExplorer変更を保持し、未コミット・未プッシュ。
+
+- Codex (2026-10-22): ユーザー指定を反映したmlib縮小とOpenMaya化の計画をdocs/research/mlibRefactorPlan20261022.mdへローカル保存。get省略576件/is省略62件を分離、単位と接続のフラグ案、Transform系を除く演算アクセサー削減、DAG列挙共通化、mlrigへの移譲と更新/削除のfast不足を精査。Undo保全・Joint削除・pivot空間差・API非対応の例外を明記。公開入口検査は不一致0。本体変更・Maya実行・性能計測・コミット/pushなし。既存WORK_LOGとQuickPathExplorer変更を保持。
+
+- Claude Code (2026-10-22): `tools/video_summary.py` に `--num-gpu`(OllamaでGPUに載せる層の数)と、CUDAエラー時の1回の言い直しを追加。手元の環境ではOllama 0.35.1のgemma3:27bを全層GPUに載せると画像の読み取りが意味のない記号になり、62層にすると直った。
+
+- Codex (2026-10-21): mlibの静的棚卸しと縮小案を作成。実装256ファイル51,142行、公開メソッド定義1,924（省略入口623）、演算ノード22ファイル430入口を確認。二重入口・専用アクセサー・DAG内部列挙・複合セットアップを候補化し、単位/回転順序/接続方向等の意味が異なるAPIは維持対象に分類。ローカル調査メモはdocs/research/mlibRefactorAudit20261021.md。公開宣言検査は不一致0。Maya未実行、本体変更・コミット・pushなし。既存QuickPathExplorer変更を保持。
+
 - 2026-10-20 Codex: ユーザー指示でQPEのドライブ一覧・シーン読込後のフォルダー追従と関連テスト/文書をコミット・プッシュ対象として確認。Windows/Maya2022/2027の既存成功結果と差分検査を確認。既存launch_python.bat変更と生成物は対象外。
 
 - 2026-10-20 Codex: 専用Mayaで操作録画・数値判定を実施し、MP4の実フレームを確認。Drive保存後にサイズ・閲覧URL・非公開権限を確認。生成物はGit対象外。iPad再生は未確認。

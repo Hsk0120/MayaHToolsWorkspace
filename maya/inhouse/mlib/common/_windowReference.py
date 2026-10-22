@@ -4,7 +4,6 @@ from contextlib import contextmanager
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
 from ._uiLifetime import _UiLifetime
 from .uiSnapshot import UiSnapshot
 
@@ -85,38 +84,6 @@ class _WindowReference:
             yield self
         finally:
             self.restore(snapshot)
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getVisible)
-    def visible(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getVisible(*args, **kwargs)
 
     @staticmethod
     def _require_gui():

@@ -4,7 +4,6 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
@@ -112,70 +111,6 @@ class ChannelBox:
     def clearSelection(self):
         """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
         cmds.channelBox(self.getName(), edit=True, select="")
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getDisplayedNodes)
-    def displayedNodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getDisplayedNodes(*args, **kwargs)
-
-    @_getter_alias(getSelectedAttrs)
-    def selectedAttrs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSelectedAttrs(*args, **kwargs)
-
-    @_getter_alias(getSelectedPlugs)
-    def selectedPlugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSelectedPlugs(*args, **kwargs)
 
     def _section_names(self, section):
         """sectionを検証する。未対応の名前はValueError。

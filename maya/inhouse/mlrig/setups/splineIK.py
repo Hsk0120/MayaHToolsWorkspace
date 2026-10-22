@@ -28,7 +28,7 @@ class SplineIK:
         Returns:
             Node: 参照先。
         """
-        return self.container.getPlug(name).getSourceWithConversion().getNode()
+        return self.container.getPlug(name).getSource(skipConversionNodes=False).getNode()
 
     @classmethod
     @undoTransaction("mlrig.SplineIK.create")
@@ -75,7 +75,7 @@ class SplineIK:
                 ]
             ] != [joints[i - 1].getUuid()]:
                 raise ValueError("Expected a continuous joint chain")
-            if any(joint.getPlug("rotate" + a).getSourceWithConversion() is not None for a in "XYZ"):
+            if any((joint.getPlug('rotate' + a).getSource(skipConversionNodes=False) is not None for a in 'XYZ')):
                 raise ValueError("Joint rotation already has an input")
         graph = cls(mlib.nodes.Container.create(name=name))
         points = [
@@ -147,7 +147,7 @@ class SplineIK:
         handle = self.member("handle")
         target = handle.getPlug("inCurve")
         if enabled:
-            if target.getSourceWithConversion() is None:
+            if target.getSource(skipConversionNodes=False) is None:
                 shape = mlib.nodes.Node(
                     [
                         mlib.getNode(value)
@@ -164,6 +164,6 @@ class SplineIK:
             handle.getPlug("ikBlend").set(1)
         else:
             handle.getPlug("ikBlend").set(0)
-            if target.getSourceWithConversion() is not None:
-                target.disconnect(target.getSourceWithConversion())
+            if target.getSource(skipConversionNodes=False) is not None:
+                target.disconnect(target.getSource(skipConversionNodes=False))
             handle.getPlug("nodeState").set(2)

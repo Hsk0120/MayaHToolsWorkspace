@@ -31,7 +31,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
                                   ("value", True), ("payload", True)])
         self.assertTrue(target.isLocked())
         self.assertTrue(parent.isLocked())
-        self.assertIsNone(target.getSourceWithConversion())
+        self.assertIsNone(target.getSource(skipConversionNodes=False))
 
     def test_disconnect_failure_restores_parent_and_child_in_reverse_order(self):
         """入力切断の失敗時も同じ順序でロックを復元し、接続を保つ。"""

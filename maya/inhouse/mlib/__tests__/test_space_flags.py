@@ -62,9 +62,9 @@ class SpaceFlagsTest(unittest.TestCase):
         curve = mlib.createCurve(degree=1, point=[(0, 0, 0), (2, 0, 0)])
         info = Node.create("curveInfo")
         info.connectCurve(curve, ws=False)
-        self.assertTrue(info.getInputPlug().getSourceWithConversion().getFullName().endswith(".local"))
+        self.assertTrue(info.getPlug("inputCurve").getSource(skipConversionNodes=False).getFullName().endswith('.local'))
         info.connectCurve(curve, worldSpace=True, force=True)
-        self.assertIn(".worldSpace[", info.getInputPlug().getSourceWithConversion().getFullName())
+        self.assertIn('.worldSpace[', info.getPlug("inputCurve").getSource(skipConversionNodes=False).getFullName())
         self.assertEqual(curve.getShape().getLength(ws=True), curve.getShape().getLength(worldSpace=True))
 
 

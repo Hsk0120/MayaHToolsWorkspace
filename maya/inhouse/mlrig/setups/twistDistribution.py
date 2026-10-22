@@ -138,7 +138,7 @@ class TwistDistribution:
         for attr in attrs:
             blend.getPlug("target")[0][attr].set(0)
         position = self._node("multiplyDivide", name + "_position")
-        decompose = self.container.getPlug("relativeDecompose").getSourceWithConversion().getNode()
+        decompose = self.container.getPlug('relativeDecompose').getSource(skipConversionNodes=False).getNode()
         decompose.getPlug("outputTranslate").connectTo(position.getPlug("input1"))
         position.getPlug("input2").set((fraction, fraction, fraction))
         translate = self._node("composeMatrix", name + "_translate")

@@ -13,13 +13,13 @@
 
    import mlib
 
-   joint = mlib.node("neck_IK_jnt")
-   saved = joint.transformation()
+   joint = mlib.getNode("neck_IK_jnt")
+   saved = joint.getTransformation()
 
    # 必要な編集の後、補助回転・回転順序も含めて復元する。
    joint.setTransformation(saved)    # 戻り値はjoint自身。
 
-``transformation()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
+``getTransformation()`` はチャンネル値を直接取得します。Euler回転の375度などの周期や
 スケールの符号も、行列への分解を挟まずに保持します。
 ``rotateAxis`` と ``jointOrient`` はQuaternionで保持するため、それらのEuler表現の
 周期は保持しません。適用時は現在のチャンネル値に近いEuler解を使います。
@@ -99,7 +99,7 @@ Transformノードから取得する場合、SSCはFalseになります。
 
 .. code-block:: python
 
-   world = source.transformation(ws=True)
+   world = source.getTransformation(ws=True)
    planned = target.setTransformation(world, ws=True, get=True)  # シーンを更新せず設定予定値を返す
    target.setTransformation(world, ws=True)
 

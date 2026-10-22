@@ -42,7 +42,7 @@ class SpaceSwitch:
         buffer = mlib.nodes.Node(buffer)
         if buffer.getType() != "transform" or buffer.hasAttr("spaceChoice"):
             raise ValueError("Expected an unused transform")
-        if buffer.getPlug("offsetParentMatrix").getSourceWithConversion() is not None:
+        if buffer.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None:
             raise ValueError("offsetParentMatrix is already connected")
         identity = Matrix()
         if any(abs(a - b) > 1e-8 for a, b in zip(buffer.getPlug("matrix").get(), identity)):
@@ -60,7 +60,7 @@ class SpaceSwitch:
         Returns:
             Node: choiceノード。
         """
-        return self.buffer.getPlug("spaceChoice").getSourceWithConversion().getNode()
+        return self.buffer.getPlug('spaceChoice').getSource(skipConversionNodes=False).getNode()
 
     def labels(self):
         """登録された空間名を順序付きで取得する。
@@ -85,9 +85,7 @@ class SpaceSwitch:
             tuple[Node]: buffer、choice、空間ごとのmultMatrix。
         """
         choice = self._choice()
-        return (self.buffer, choice) + tuple(
-            choice.getPlug("input")[i].getSourceWithConversion().getNode() for i in range(len(self.labels()))
-        )
+        return (self.buffer, choice) + tuple((choice.getPlug('input')[i].getSource(skipConversionNodes=False).getNode() for i in range(len(self.labels()))))
 
     def _validate_target(self, target):
         """自己・子孫・計算依存先への追従による循環を拒否する。
@@ -211,8 +209,8 @@ class SpaceSwitch:
         choice = self._choice()
         if choice.getPlug("selector").get() == index:
             return
-        matrix = choice.getPlug("input")[index].getSourceWithConversion().getNode()
-        source = matrix.getPlug("matrixIn")[1].getSourceWithConversion()
+        matrix = choice.getPlug('input')[index].getSource(skipConversionNodes=False).getNode()
+        source = matrix.getPlug('matrixIn')[1].getSource(skipConversionNodes=False)
         if source is not None:
             self._validate_target(source.getNode())
         reference = Matrix(matrix.getPlug("matrixIn")[1].get())

@@ -7,36 +7,32 @@
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
 最初に ``import mlib`` を実行してください。
 
-getを省略した取得関数
+get付きの取得関数
 ----------------------------
 
-``mlib.cmds`` からもget省略の取得関数を使えます。対象は次の13関数です。
-
-``attr``、``channelBox``、``drivenKey``、``node``、``outliner``、``plug``、``scene``、
-``shelf``、``timeSlider``、``viewport``、``window``、``workspaceControl``、``workspaceLayout``。
-
-ルートの同名関数は同じ関数オブジェクトの再公開です。
-例えば ``mlib.cmds.node is mlib.node`` はTrueになります。
-各省略関数はget付きの処理本体へ委譲し、引数・既定値・フラグ・戻り値を保持します。
-対応する正式名の一覧は :doc:`getter_aliases` を参照してください。
+``mlib.cmds`` とルートの ``mlib`` から同じ正式get関数を使えます。
+対象は ``getAttr/getChannelBox/getDrivenKey/getNode/getOutliner/getPlug/getScene/``
+``getShelf/getTimeSlider/getViewport/getWindow/getWorkspaceControl/getWorkspaceLayout`` です。
+例えば ``mlib.cmds.getNode is mlib.getNode`` はTrueになります。
+省略入口は廃止しました（:doc:`getter_aliases`）。
 
 .. code-block:: python
 
    import mlib
 
    created = mlib.cmds.createNode("transform", name="commandLookupExample")
-   node = mlib.cmds.node(created)
-   plug = mlib.cmds.plug(node.fullName() + ".translateX")
-   attr = mlib.cmds.attr(plug)
+   node = mlib.cmds.getNode(created)
+   plug = mlib.cmds.getPlug(node.getFullName() + ".translateX")
+   attr = mlib.cmds.getAttr(plug)
    value = attr.get()             # フラグなしはPlugから内部単位cmで取得
-   scene = mlib.cmds.scene()      # 取得時のシーンパスを保持
+   scene = mlib.cmds.getScene()      # 取得時のシーンパスを保持
    print(scene.path)
 
-   assert mlib.cmds.node is mlib.node
+   assert mlib.cmds.getNode is mlib.getNode
    assert attr is plug
 
-``attr()`` に照会フラグを明示した場合は、従来のMaya照会値・状態を返します。
-``scene()`` はSceneオブジェクトの取得だけを行い、シーンの読み込みや保存は行いません。
+``getAttr()`` に照会フラグを明示した場合は、従来のMaya照会値・状態を返します。
+``getScene()`` はSceneオブジェクトの取得だけを行い、シーンの読み込みや保存は行いません。
 
 シーン編集コマンド
 ------------------
@@ -70,7 +66,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 （選択も無く ``empty`` も指定しない場合は Maya がエラーを送出します）。
 ``delete`` は複数ノードもまとめて受け付けます。Plug(アトリビュート)を渡すと ``TypeError`` です
 (``maya.cmds.delete`` はアトリビュートを削除せず何もしないため)。動的アトリビュートの削除は
-``plug.delete()``、所有ノードの削除は ``mlib.delete(plug.node())`` を使ってください。
+``plug.delete()``、所有ノードの削除は ``mlib.delete(plug.getNode())`` を使ってください。
 
 作成結果から次の操作を選ぶ
 --------------------------
@@ -83,16 +79,16 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
      - 頂点・CVへ進む入口
    * - ``createPolygon(...)``
      - Mesh
-     - ``mesh.vertices()``
+     - ``mesh.getVertices()``
    * - ``createCurve(...)``
      - Transform
-     - ``curve_transform.shape().cvs()``
+     - ``curve_transform.getShape().getCVs()``
    * - ``createNurbs(type="circle", ...)``
      - NurbsCurve
-     - ``circle.cvs()``
+     - ``circle.getCVs()``
    * - ``createNurbs(type="square", ...)``
      - list[NurbsCurve]
-     - 各シェイプの ``cvs()``
+     - 各シェイプの ``getCVs()``
    * - ``createNurbs(type="cube", ...)``
      - list[NurbsSurface]
      - 各シェイプの ``scaleGeometry(...)`` 等
@@ -117,7 +113,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 ``type=["joint"]`` のようなMayaの複数型指定はリストを返します。
 コンポーネントの型指定は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。
 選択済みの該当要素を絞る処理で、メッシュ選択から全頂点への変換は行いません。
-全頂点を取得するときは対象Meshの ``vertices()`` を使います。
+全頂点を取得するときは対象Meshの ``getVertices()`` を使います。
 
 ``captureSelection()`` は取得時点の参照を保持し、現在の選択へ自動追従しません。
 ``filter("vertex").components()`` で複数シェイプを分けて一括編集する例は
@@ -139,9 +135,9 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
    mlib.select(clear=True)
 
    cmds.currentTime(1)
-   cmds.setKeyframe(a.plug("translateX"), value=0.0)
+   cmds.setKeyframe(a.getPlug("translateX"), value=0.0)
    cmds.currentTime(24)
-   cmds.setKeyframe(a.plug("translateX"), value=10.0)
+   cmds.setKeyframe(a.getPlug("translateX"), value=10.0)
 
    mlib.bakeResults(a, time=(1, 24), attribute=["translateX"], simulation=True)
 
@@ -153,25 +149,24 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 ``simulation`` の既定値はFalseです。シーン全体の評価が必要ならTrueを指定します。
 GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
 
-``mlib.attr("node.attr")`` は型付きPlugを返します。照会フラグを明示すると
-従来のMaya照会値・状態を返します。``node.plug("attrName")`` からもPlugを取得できます。
-取得した ``Plug`` の ``get()``/``getu()``/``set()``/``connectTo()``、
+``mlib.getAttr("node.attr")`` は型付きPlugを返します。照会フラグを明示すると
+従来のMaya照会値・状態を返します。``node.getPlug("attrName")`` からもPlugを取得できます。
+取得した ``Plug`` の ``get()``/``get(uiUnits=True)``/``set()``/``connectTo()``、
 および ``node.addAttr()`` で値・接続・追加アトリビュートを操作します。
 ``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
 （:doc:`cmds_interop`）。
 
-ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.plug` で取得した
+ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` オブジェクトを通して操作します。
-ノードからは ``plug()``、アトリビュート名からは ``mlib.attr()`` または
-``mlib.plug()`` を使えます。
+ノードからは ``getPlug()``、アトリビュート名からは ``mlib.getAttr()`` または
+``mlib.getPlug()`` を使えます。
 
 コマンドの命名と役割
 --------------------
 
 正式コマンドのファイル名と関数名は動詞+対象です。``ls`` は一覧取得の慣用名として維持します。
-作成コマンドの旧名は残しません。取得コマンドにはget省略入口もあります。
-省略入口も、省略名と同名のファイル・関数で公開しています。
-正式名と省略名は同じ引数・戻り値です（:doc:`getter_aliases`）。
+作成・取得コマンドの旧名は残しません。公開関数とファイルは同名です
+（:doc:`getter_aliases`）。
 
 .. list-table::
    :header-rows: 1
@@ -190,7 +185,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
      - ``createGroup``
 
 ``create`` / ``add`` は生成・追加専用です。拘束の照会は
-``constraint.targets()`` / ``constraint.weightPlugs()``、編集は
+``constraint.getTargets()`` / ``constraint.getWeightPlugs()``、編集は
 ``constraint.setWeight()`` を使います。セットは
-``object_set.members()`` / ``add()`` / ``remove()`` を使います。
+``object_set.getMembers()`` / ``add()`` / ``remove()`` を使います。
 ``drivenKey`` は関係取得のみで、キーの生成は ``setKey()`` です。

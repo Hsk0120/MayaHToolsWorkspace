@@ -426,7 +426,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             is_mesh = isinstance(shape, mlib.nodes.Mesh)
             component_type = mlib.components.Vertex if is_mesh else mlib.components.CV
             collection_type = mlib.components.Vertices if is_mesh else mlib.components.CVs
-            collection = shape.getVertices([2, 0, 2]) if is_mesh else shape.cvs([2, 0, 2])
+            collection = shape.getVertices([2, 0, 2]) if is_mesh else shape.getCVs([2, 0, 2])
             self.assertIsInstance(collection, collection_type)
             self.assertEqual(collection.indices, (2, 0))
             self.assertEqual(len(collection), 2)
@@ -436,7 +436,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertIsInstance(collection[:1], collection_type)
             self.assertEqual(collection[:1].indices, (2,))
             self.assertEqual(collection[0].getPosition(), collection.getPosition()[0])
-            single = shape.vertex(2) if is_mesh else shape.cv(2)
+            single = shape.getVertex(2) if is_mesh else shape.getCV(2)
             before = single.getPosition()
             self.assertIs(collection.mirror('z'), collection)
             self.assert_positions([single.getPosition()], [(before[0], before[1], -before[2])])
@@ -453,7 +453,7 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_xyz_and_mesh_components(self):
         mesh, curve = self.mirror_shapes()
-        for item in (mesh.vertex(0), curve.cv(0)):
+        for item in (mesh.getVertex(0), curve.getCV(0)):
             before = item.getPosition()
             for axis in 'xyz':
                 getattr(item, "setPosition" + axis.upper())(2.75)
@@ -466,14 +466,14 @@ class ShapesConstraintsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 item.setPosition((1, float('nan'), 3))
             self.assert_positions([item.getPosition()], [before])
-        self.assertEqual(len(mesh.edges()), mesh.getNumEdges())
-        self.assertEqual(len(mesh.faces()), mesh.getNumPolygons())
-        self.assertEqual(len(mesh.edge(0).getVertices()), 2)
-        self.assertEqual(len(mesh.face(0).getVertices()), 4)
-        self.assertEqual(len(mesh.edges().getVertices()), mesh.getNumVertices())
-        self.assertEqual(len(mesh.faces().getVertices()), mesh.getNumVertices())
-        self.assertEqual(len(mesh.uvs()), mesh.getNumUVs())
-        uv = mesh.uv(0)
+        self.assertEqual(len(mesh.getEdges()), mesh.getNumEdges())
+        self.assertEqual(len(mesh.getFaces()), mesh.getNumPolygons())
+        self.assertEqual(len(mesh.getEdge(0).getVertices()), 2)
+        self.assertEqual(len(mesh.getFace(0).getVertices()), 4)
+        self.assertEqual(len(mesh.getEdges().getVertices()), mesh.getNumVertices())
+        self.assertEqual(len(mesh.getFaces().getVertices()), mesh.getNumVertices())
+        self.assertEqual(len(mesh.getUVs()), mesh.getNumUVs())
+        uv = mesh.getUV(0)
         before = uv.getPosition()
         uv.setU(0.125)
         self.assertAlmostEqual(uv.getU(), 0.125)
@@ -483,7 +483,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         uv.setV(0.375)
         self.assertAlmostEqual(uv.getV(), 0.375)
         cmds.undo()
-        self.assertEqual(mesh.uvs([0]).getPosition(), [before])
+        self.assertEqual(mesh.getUVs([0]).getPosition(), [before])
         for collection in (mlib.components.Edges, mlib.components.Faces, mlib.components.UVs):
             with self.assertRaises(TypeError):
                 collection(curve)

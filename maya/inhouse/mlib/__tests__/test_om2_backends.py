@@ -45,7 +45,7 @@ class Om2BackendsTest(unittest.TestCase):
             cmds.setAttr(instance + '.translate', 4, 5, 6)
             cmds.setAttr(instance + '.scale', -2, 3, 4)
             shape = mlib.getNode(cmds.listRelatives(instance, shapes=True, fullPath=True)[0])
-            items = shape.getVertices([2, 0]) if shape.getType() == 'mesh' else shape.cvs([2, 0])
+            items = shape.getVertices([2, 0]) if shape.getType() == 'mesh' else shape.getCVs([2, 0])
             for unit in ('cm', 'm'):
                 cmds.currentUnit(linear=unit)
                 for ws in (False, True):
@@ -66,7 +66,7 @@ class Om2BackendsTest(unittest.TestCase):
         """周期CVの重複領域はAPIの番号解釈に従う。"""
         transform = cmds.circle(ch=False)[0]
         shape = mlib.getNode(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
-        items = shape.cvs()
+        items = shape.getCVs()
         expected = [(p.x, p.y, p.z) for p in shape.curveFn().cvPositions()]
         self.assert_points(items.getPosition(), expected)
 
@@ -170,7 +170,7 @@ class Om2BackendsTest(unittest.TestCase):
             cmds.setAttr(instance + '.scale', -2, 3, .5)
             node = mlib.getNode(instance)
             shape = node.getShape()
-            points = shape.getVertices() if shape.getType() == 'mesh' else shape.cvs()
+            points = shape.getVertices() if shape.getType() == 'mesh' else shape.getCVs()
             for unit in ('cm', 'm'):
                 cmds.currentUnit(linear=unit)
                 for space in (MSpace.kObject, MSpace.kWorld):
@@ -225,19 +225,19 @@ class Om2BackendsTest(unittest.TestCase):
         """API末尾と先頭の同一CVを通常モードで一回だけ拡縮する。"""
         shape = mlib.getNode(cmds.circle(ch=False)[0]).getShape()
         end = shape.getNumCVs() - shape.curveFn().degree
-        before = shape.cvs().getPosition()
+        before = shape.getCVs().getPosition()
         shape.scaleGeometry(2, indices=[0, end, 0])
         expected = [tuple(v * 2 for v in point) if i in (0, end) else point for i, point in enumerate(before)]
-        self.assert_points(shape.cvs().getPosition(), expected)
+        self.assert_points(shape.getCVs().getPosition(), expected)
         cmds.undo()
-        self.assert_points(shape.cvs().getPosition(), before)
+        self.assert_points(shape.getCVs().getPosition(), before)
 
     def test_rational_cv_world_position_roundtrip(self):
         """重み付きCVはAPIワールドXYZの取得と通常・fast設定で往復する。"""
         node = mlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
         node.setTranslate((10, 20, 30), at=4)
         node.setScale((-2, 3, .5))
-        cvs = node.getShape().cvs()
+        cvs = node.getShape().getCVs()
         cmds.currentUnit(linear='m')
         try:
             before = cvs.getPosition(True)

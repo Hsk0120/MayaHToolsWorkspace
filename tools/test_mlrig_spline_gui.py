@@ -78,16 +78,10 @@ def main(output_dir=None, finished=None):
         yield
         after = cmds.xform(rig.getJoints()[3], query=True, worldSpace=True, translation=True)
         check(max(abs(a - b) for a, b in zip(before, after)) < 0.001, "IK to FK match")
-        check(
-            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None, "FK disconnects solver"
-        )
+        check(rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None, 'FK disconnects solver')
         cmds.undo()
         yield
-        check(
-            rig.mode() == "ik"
-            and rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is not None,
-            "Mode Undo",
-        )
+        check(rig.mode() == 'ik' and rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is not None, 'Mode Undo')
         cmds.redo()
         yield
         check(rig.mode() == "fk", "Mode Redo")
@@ -95,23 +89,16 @@ def main(output_dir=None, finished=None):
         yield
         row("spline").setCheckState(0, QtCore.Qt.Unchecked)
         yield
-        check(
-            not rig.layer_enabled()
-            and rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
-            "Layer checkbox",
-        )
+        check(not rig.layer_enabled() and rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None, 'Layer checkbox')
         cmds.undo()
         yield
         check(rig.layer_enabled(), "Layer Undo")
         cmds.setAttr(rig.root.getFullName() + ".lod", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None:
+            if rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None:
                 break
-        check(
-            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
-            "Channel LOD disables solver",
-        )
+        check(rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None, 'Channel LOD disables solver')
         cmds.undo()
         yield
         check(rig.lod() == 1, "LOD Undo")
@@ -123,12 +110,9 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.getFullName() + ".mode", 0)
         for _ in range(20):
             yield
-            if rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None:
+            if rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None:
                 break
-        check(
-            rig.graph().member("handle").getPlug("inCurve").getSourceWithConversion() is None,
-            "Reload restores watchers",
-        )
+        check(rig.graph().member('handle').getPlug('inCurve').getSource(skipConversionNodes=False) is None, 'Reload restores watchers')
         rig.set_mode("ik")
         editor.module_type.setCurrentIndex(5)
         editor.module_name.setText("tailDemo")

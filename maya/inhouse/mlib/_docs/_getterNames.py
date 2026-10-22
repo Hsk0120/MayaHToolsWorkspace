@@ -1,4 +1,4 @@
-"""Mayaをimportせず、明示されたget/is省略入口を文書の主表記へ合わせる。"""
+"""Mayaをimportせず、正式get名と既存の判定省略入口を文書へ反映する。"""
 
 import ast
 import re

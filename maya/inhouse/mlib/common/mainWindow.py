@@ -1,7 +1,5 @@
 """Mayaのメインウィンドウ名を取得する。"""
 
-from .._core.getterAlias import _getter_alias
-
 
 class MainWindow:
     """Maya標準UIの名前を照会する。ウィジェットへの変換は利用側で行う。"""
@@ -18,20 +16,3 @@ class MainWindow:
         if cmds.about(batch=True):
             return None
         return mel.eval("$mlibMainWindow = $gMainWindow")
-
-    @classmethod
-    @_getter_alias(getName, static=True)
-    def name(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getName(*args, **kwargs)

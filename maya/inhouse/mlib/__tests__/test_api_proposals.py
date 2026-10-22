@@ -30,9 +30,9 @@ class ApiProposalTest(unittest.TestCase):
             node.setInput(4, value)
             attr = 'input' if kind == 'blendWeighted' else 'matrixIn'
             before = cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True)
-            self.assertIsNotNone(node.getInput(4))
+            self.assertIsNotNone(node.getInputPlug(4).get())
             with self.assertRaises(IndexError):
-                node.getInput(2)
+                node.getInputPlug(2).get()
             self.assertEqual(before, cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True))
             if kind == 'blendWeighted':
                 weight_before = cmds.getAttr(node.getFullName()+'.weight', multiIndices=True)
@@ -72,7 +72,7 @@ class ApiProposalTest(unittest.TestCase):
         transform = cmds.polyCube(constructionHistory=False)[0]
         cmds.setAttr(transform+'.translateX', 10)
         mesh = Node(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
-        vertex = mesh.vertex(0)
+        vertex = mesh.getVertex(0)
         before = vertex.getPosition(ws=True)
         self.assertIs(vertex.setPositionX(12, ws=True), vertex)
         self.assertAlmostEqual(vertex.getPositionX(ws=True), 12)
@@ -82,9 +82,9 @@ class ApiProposalTest(unittest.TestCase):
         vertices = mesh.getVertices()[:2]
         self.assertIs(vertices.setPositionX([13,14], ws=True, fast=True), vertices)
         self.assertEqual(vertices.getPositionX(ws=True), [13,14])
-        uv = mesh.uv(0)
+        uv = mesh.getUV(0)
         self.assertIs(uv.setU(.25), uv)
-        uvs = mesh.uvs()[:2]
+        uvs = mesh.getUVs()[:2]
         self.assertIs(uvs.setV([.2,.3], fast=True), uvs)
         for actual, expected in zip(uvs.getV(), [.2,.3]):
             self.assertAlmostEqual(actual,expected,places=6)

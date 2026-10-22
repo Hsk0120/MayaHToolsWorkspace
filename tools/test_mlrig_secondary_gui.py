@@ -85,7 +85,7 @@ def main(output_dir=None, finished=None):
         editor.layer_type.setCurrentIndex(editor.layer_type.findData("pose"))
         QtTest.QTest.mouseClick(editor.addButton, QtCore.Qt.LeftButton)
         yield
-        graph = group.getPlug("poseGraph").getSourceWithConversion().getNode()
+        graph = group.getPlug('poseGraph').getSource(skipConversionNodes=False).getNode()
         check(abs(graph.getPlug("outputs[2]").get() - 20) < 0.001, "Pose registered value")
         source.getPlug("rz").set(60)
         yield
@@ -93,13 +93,10 @@ def main(output_dir=None, finished=None):
         cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_pose", False)
         yield
         for _ in range(20):
-            if SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None:
+            if SecondaryLayer._members(group, 'poses')[0].getPlug('inputRotateX').getSource(skipConversionNodes=False) is None:
                 break
             yield
-        check(
-            SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None,
-            "Pose Channel disable",
-        )
+        check(SecondaryLayer._members(group, 'poses')[0].getPlug('inputRotateX').getSource(skipConversionNodes=False) is None, 'Pose Channel disable')
         cmds.undo()
         yield
         check(rig.layer_enabled("pose"), "Pose Channel Undo")
@@ -109,14 +106,8 @@ def main(output_dir=None, finished=None):
         rig.set_layer_enabled("pose", True)
         rig.set_lod(0)
         yield
-        check(
-            SecondaryLayer._members(group, "blends")[0].getPlug("inRotateX2").getSourceWithConversion() is None,
-            "LOD drops spring input",
-        )
-        check(
-            SecondaryLayer._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is None,
-            "LOD drops pose input",
-        )
+        check(SecondaryLayer._members(group, 'blends')[0].getPlug('inRotateX2').getSource(skipConversionNodes=False) is None, 'LOD drops spring input')
+        check(SecondaryLayer._members(group, 'poses')[0].getPlug('inputRotateX').getSource(skipConversionNodes=False) is None, 'LOD drops pose input')
         rig.set_lod(1)
         cmds.file(rename=str(output / "secondary.ma"))
         cmds.file(save=True, type="mayaAscii")
@@ -124,16 +115,10 @@ def main(output_dir=None, finished=None):
         yield
         rig = SkirtRig("secondaryDemo")
         group = SecondaryLayer(rig).groups()[0]
-        check(
-            group.getPlug("baked").get() and group.getPlug("poseGraph").getSourceWithConversion() is not None,
-            "Reload cache and pose data",
-        )
+        check(group.getPlug('baked').get() and group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None, 'Reload cache and pose data')
         cmds.setAttr(rig.root.getFullName() + ".mlrigEnabled_spring", False)
         yield
-        check(
-            SecondaryLayer._members(group, "blends")[0].getPlug("inRotateX2").getSourceWithConversion() is None,
-            "Reload watchers",
-        )
+        check(SecondaryLayer._members(group, 'blends')[0].getPlug('inRotateX2').getSource(skipConversionNodes=False) is None, 'Reload watchers')
         rig.set_layer_enabled("spring", True)
         editor.tree.scrollToItem(row("spring"))
         editor.grab().save(str(output / "secondary-editor.png"))

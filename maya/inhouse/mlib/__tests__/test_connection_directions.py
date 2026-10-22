@@ -19,7 +19,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
     def test_queries_share_direction_aliases_and_keep_legacy_and_rules(self):
         """src/sourceは入力、dst/destinationは出力とし、旧s/dとのANDを維持する。"""
         source, center, destinations = self._chain("query")
-        for method_name in ("getConnections", "connections"):
+        for method_name in ("getConnections",):
             query = getattr(center, method_name)
             for src, dst in ((True, True), (True, False), (False, True), (False, False)):
                 expected = ([source] if src else []) + (destinations if dst else [])
@@ -36,7 +36,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
     def test_query_alias_conflicts_reject_without_changing_connections(self):
         """新旧別名の重複は同じ値でも拒否し、既存接続を変更しない。"""
         source, center, destinations = self._chain("queryConflicts")
-        for method_name in ("getConnections", "connections"):
+        for method_name in ("getConnections",):
             query = getattr(center, method_name)
             for kwargs in ({"src": True, "source": True},
                            {"dst": False, "destination": False},
@@ -56,16 +56,16 @@ class ConnectionDirectionsTest(unittest.TestCase):
             """接続照会で明示する戻り値のPlug型。"""
 
         self.assertEqual(center.getConnections(src=True, dst=False, index=0), source)
-        self.assertEqual(center.connections(source=True, destination=False, idx=0), source)
-        self.assertIsNone(center.connections(src=False, dst=False, idx=0))
+        self.assertEqual(center.getConnections(source=True, destination=False, idx=0), source)
+        self.assertIsNone(center.getConnections(src=False, dst=False, idx=0))
         self.assertIsNone(center.getConnections(src=True, dst=False, index=99))
         self.assertEqual(center.getConnections(src=True, dst=False, asPair=True), [(center, source)])
-        self.assertCountEqual(center.connections(src=False, dst=True, asNode=True),
+        self.assertCountEqual(center.getConnections(src=False, dst=True, asNode=True),
                               [plug.getNode() for plug in destinations])
         self.assertEqual(center.getConnections(src=True, dst=False, type="network", exactType=True),
                          [source])
-        self.assertEqual(center.connections(src=True, dst=True, t="transform", et=True), [])
-        pair = center.connections(src=True, dst=False, asPair=True, pcls=CustomPlug, index=0)
+        self.assertEqual(center.getConnections(src=True, dst=True, t="transform", et=True), [])
+        pair = center.getConnections(src=True, dst=False, asPair=True, pcls=CustomPlug, index=0)
         self.assertIsInstance(pair[0], CustomPlug)
         self.assertIsInstance(pair[1], CustomPlug)
         self.assertEqual(pair, (center, source))
@@ -87,8 +87,8 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertEqual(center.getConnections(True, False, False, None, False, False,
                                               True, True, False, None, False, False,
                                               False, False, True, True, 0, None), source)
-        self.assertCountEqual(center.connections(False, True), destinations)
-        self.assertEqual(inspect.signature(center.connections), inspect.signature(center.getConnections))
+        self.assertCountEqual(center.getConnections(False, True), destinations)
+        self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.plugs.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.plugs.Plug.getConnections).parameters.values())[1:]))
 
     def test_query_child_and_array_expansion_does_not_change_direct_operations(self):
         """照会は子・配列を展開し、接続判定と全切断は元のMPlugの範囲を保つ。"""
@@ -111,7 +111,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
             with self.subTest(target=str(target)):
                 self.assertEqual(target.getConnections(src=True, dst=False, asPair=True),
                                  [(local, source)])
-                self.assertEqual(target.connections(src=False, dst=True), [output])
+                self.assertEqual(target.getConnections(src=False, dst=True), [output])
                 self.assertEqual(target.getConnections(src=True, dst=True,
                                                       checkChildren=False, checkElements=False), [])
                 self.assertEqual(target.isConnected(), target.mplug().isConnected)
@@ -207,9 +207,9 @@ class ConnectionDirectionsTest(unittest.TestCase):
         center.connect(conversion_output)
         output.connect(center)
         self.assertEqual(center.getConnections(src=True, dst=False), [conversion_output])
-        self.assertEqual(center.connections(source=True, destination=False, scn=True), [source])
+        self.assertEqual(center.getConnections(source=True, destination=False, scn=True), [source])
         self.assertEqual(source.getConnections(src=False, dst=True), [conversion_input])
-        self.assertEqual(source.connections(src=False, dst=True, skipConversionNodes=True), [center])
+        self.assertEqual(source.getConnections(src=False, dst=True, skipConversionNodes=True), [center])
         self.assertTrue(center.isConnectedTo(conversion_output, source=True, destination=False))
         self.assertFalse(center.isConnectedTo(source, src=True, dst=False))
         self.assertIs(center.disconnectAll(src=True, dst=False), center)
@@ -226,7 +226,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
         deleted_node.getNode().delete()
         cmds.deleteAttr(str(deleted_attr))
         for target in (deleted_node, deleted_attr):
-            for method_name in ("getConnections", "connections", "isConnected", "disconnectAll"):
+            for method_name in ("getConnections", "isConnected", "disconnectAll"):
                 with self.subTest(target=target is deleted_node, method=method_name):
                     with self.assertRaises(RuntimeError):
                         getattr(target, method_name)(src=False, dst=False)
@@ -250,7 +250,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertFalse(center.isConnectedTo(source, source=False, destination=False))
         self.assertIs(center.disconnectAll(src=False, dst=False), center)
         self.assertIs(empty.disconnectAll(), empty)
-        self.assertEqual(empty.connections(src=True, dst=True), [])
+        self.assertEqual(empty.getConnections(src=True, dst=True), [])
         self.assertFalse(empty.isConnected())
         self.assertFalse(empty.isConnectedTo(source))
         self._assert_chain(source, center, destinations)

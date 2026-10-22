@@ -11,9 +11,9 @@ Outliner色
 
    import mlib
 
-   ctrl = mlib.node("ctrl")
+   ctrl = mlib.getNode("ctrl")
    ctrl.setOutlinerColor((1, 0.5, 0))
-   print(ctrl.outlinerColor())
+   print(ctrl.getOutlinerColor())
    ctrl.setOutlinerColor(None)  # カスタム色を無効化
 
 RGBは0～1の3要素です。``useOutlinerColor`` と ``outlinerColor`` を編集します。
@@ -24,10 +24,10 @@ Shapeの表示色
 
 .. code-block:: python
 
-   shape = mlib.node("ctrlShape")
+   shape = mlib.getNode("ctrlShape")
    shape.setOverrideColor(13)             # Mayaのインデックス色
    shape.setOverrideColor((0, 0.5, 1))    # RGB色
-   print(shape.overrideColor())
+   print(shape.getOverrideColor())
    shape.setOverrideColor(None)          # Drawing Overridesを無効化
 
 色番号は0～31、RGBは0～1の3要素です。設定時は ``overrideEnabled`` を有効化し、
@@ -39,7 +39,7 @@ Shapeの表示色
 
 .. code-block:: python
 
-   for shape in ctrl.shapes():
+   for shape in ctrl.getShapes():
        shape.setOverrideColor(17)
 
 取得値はノード自身の設定です。親・表示レイヤー・選択ハイライトなどを含めた
@@ -82,7 +82,7 @@ GUIでは生成時のMayaパレットを保持します。``paletteSource`` は 
 ``refreshPalette()`` で明示的に再取得できます。通常のプロパティ操作と
 ``copy()`` はMayaに問い合わせません。
 
-``outlinerColor()`` と ``overrideColor()`` はどちらも ``Color`` を返します。
+``getOutlinerColor()`` と ``getOverrideColor()`` はどちらも ``Color`` を返します。
 OutlinerはRGB形式、Drawing Overridesは設定中の形式です。無効な場合は
 ``mode="disabled"``、``index`` と ``rgb`` は ``None`` になります。
 ``Color.disabled()`` または ``None`` をsetterへ渡すと無効化できます。
@@ -116,14 +116,14 @@ Outlinerへ色番号を渡した場合は対応RGBで設定されます。
 --------------------------------------
 
 ``DagNodes`` と派生コレクション（``Transforms``・``Joints`` 等）の
-``overrideColor()`` / ``outlinerColor()`` は ``list[Color]`` を返します。
+``getOverrideColor()`` / ``getOutlinerColor()`` は ``list[Color]`` を返します。
 保持順に一色ずつ格納し、無効な色も省略しません。
 
 .. code-block:: python
 
    joints = mlib.ls(type="joint")
    joints.setOverrideColor(17)        # 全対象を同じ色にする
-   colors = joints.overrideColor()
+   colors = joints.getOverrideColor()
    if colors:
        colors[0].rgb = (1, 0.45, 0)
    joints.setOverrideColors(colors)   # 対応する対象へ一色ずつ反映

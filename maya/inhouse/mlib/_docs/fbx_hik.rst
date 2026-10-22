@@ -39,7 +39,7 @@ HumanIKノード
 定義の妥当性確認とロックはHumanIK UIで行ってください。
 ロック済みの既存キャラクター間では ``target.setSource(source)`` が標準MELへ
 リターゲット接続を依頼します。未ロックや自己接続は拒否します。
-``target.getSource()`` または省略入口の ``target.source()`` で現在の入力を取得できます。
+``target.getSource()`` で現在の入力を取得できます。
 返却はHIKCharacterNode、未接続はNoneです。setSourceは設定後もこの正式getterで
 要求した入力へ接続されたことを確認し、異なる入力ならRuntimeErrorになります。
 

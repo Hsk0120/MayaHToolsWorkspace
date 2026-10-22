@@ -23,7 +23,7 @@ import re
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 
 # 接頭辞とキーをつなぐ文字。キー側には含められない(接頭辞の直下だけを列挙するため)。
 _SEPARATOR = "."
@@ -65,7 +65,7 @@ class OptionVar:
         変換せず「保存されていない」ものとして扱う。NaN・無限大の表記や、
         ``1e400`` のように ``float`` の範囲を超える数値を含む文字列、入れ子が
         深すぎて解釈できない文字列もこれに当たる。
-        取得時はデフォルト値へフォールバックし、:meth:`storedKeys` には含めない。
+        取得時はデフォルト値へフォールバックし、:meth:`getStoredKeys` には含めない。
         :meth:`set` で上書きでき、:meth:`reset`/:meth:`resetAll` で削除できる。
 
         一方、JSON として解釈できる文字列は、このクラス以外の手段で書き込まれた
@@ -401,38 +401,6 @@ class OptionVar:
             cmds.optionVar(remove=name)
             removed.append(key)
         return removed
-
-    @_getter_alias(getFullName)
-    def fullName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getFullName(*args, **kwargs)
-
-    @_getter_alias(getStoredKeys)
-    def storedKeys(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getStoredKeys(*args, **kwargs)
 
     def _resolve(self, key):
         """保存済みの値、無ければデフォルト値を返す。どちらも無ければ _MISSING。

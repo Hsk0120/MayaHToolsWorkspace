@@ -3,7 +3,6 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
 from ..components.component import Component, Components
 from ..components.cv import CV, CVs
 from ..components.edge import Edge, Edges
@@ -219,70 +218,6 @@ class Selection:
         elif mode == "replace":
             cmds.select(clear=True)
         return self
-
-    @_getter_alias(getNodes)
-    def nodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNodes(*args, **kwargs)
-
-    @_getter_alias(getPlugs)
-    def plugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlugs(*args, **kwargs)
-
-    @_getter_alias(getComponents)
-    def components(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getComponents(*args, **kwargs)
-
-    @_getter_alias(getOwners)
-    def owners(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOwners(*args, **kwargs)
 
     @staticmethod
     def _resolve(selection, name=None):

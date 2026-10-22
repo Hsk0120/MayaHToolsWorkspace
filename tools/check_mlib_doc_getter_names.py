@@ -1,4 +1,4 @@
-"""生成済みSphinxの短名署名・説明・正式名参照をMaya不要で検査する。"""
+"""生成済みSphinxの正式get名と既存判定入口をMaya不要で検査する。"""
 
 import argparse
 from html.parser import HTMLParser
@@ -162,6 +162,21 @@ def check(build_dir):
         short_html = (build_dir / f"autoapi/mlib/cmds/{short_name}/index.html").read_text(encoding="utf-8")
         if '<dt class="field-odd">param ' in short_html or '<dt class="field-even">param ' in short_html:
             errors.append("コマンドに未整形の引数フィールドがあります: " + short_name)
+    for source in sorted((_PACKAGE_ROOT / "cmds").glob("get*.py")):
+        name = source.stem
+        root_id, cmds_id = "mlib." + name, "mlib.cmds." + name
+        root_entry, cmds_entry = references.get(root_id), references.get(cmds_id)
+        if root_entry is None or cmds_entry is None:
+            errors.append("正式getコマンドの公開参照がありません: " + name)
+            continue
+        if root_entry.docname != cmds_entry.docname:
+            errors.append("正式getコマンドの説明ページが分かれています: " + name)
+        path = build_dir / (root_entry.docname + ".html")
+        html = path.read_text(encoding="utf-8")
+        root_signature = _signature_parameters(html, root_id)
+        cmds_signature = _signature_parameters(html, cmds_id)
+        if root_signature is None or cmds_signature is None or root_signature != cmds_signature:
+            errors.append("正式getコマンドの構文・引数表示が異なります: " + name)
     if "mlib" in sys.modules or "maya" in sys.modules:
         errors.append("検査中にmlibまたはMayaがimportされました。")
     return errors

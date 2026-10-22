@@ -11,9 +11,9 @@ import maya.cmds as cmds
 from .._core.bulkExecution import calculation_results
 from .._core.flags import flag_aliases
 from .._core.flags import normalize_flags
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from .._core.object import Object
-from ..common._fast import fast_edit
+from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 from ..logger import raise_with_notify
 
@@ -195,11 +195,11 @@ def _dump_movable_attr(plug):
         "niceName": plug.getNiceName(),
         "hidden": plug.isHidden(),
         "keyable": plug.isKeyable(),
-        "channelBox": bool(cmds.getAttr(plug.getFullName(), channelBox=True)),
+        "channelBox": plug.mplug().isChannelBox,
         "locked": plug.isLocked(),
         "value": plug.get(),
-        "source": plug.getSourceWithConversion(),
-        "destinations": plug.getDestinationsWithConversions(),
+        "source": plug.getSource(skipConversionNodes=False),
+        "destinations": plug.getDestinations(skipConversionNodes=False),
     }
     if attr.hasFn(om2.MFn.kNumericAttribute):
         numeric_type = om2.MFnNumericAttribute(attr).numericType()
@@ -285,7 +285,7 @@ class Node(Object):
     Mayaに従う。型を特定できない基底クラス、抽象ノード型、出力geometryが必要な
     SkinClusterは作成前に拒否する。汎用の作成はNode.create(type, name=...)を使用する。
 
-    ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`name`)を返すため、
+    ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`getName`)を返すため、
     Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
     呼び出すたびに再計算するため、名前変更・親子付け替えに追従する。
     削除済みのノードは空文字列になる。"""
@@ -438,7 +438,7 @@ class Node(Object):
 
         Raises:
             AttributeError: 非公開名または存在しない Maya アトリビュートを指定した場合。
-                :meth:`plug` が RuntimeError にする名前(``input3Dx`` のような、配列要素の
+                :meth:`getPlug` が RuntimeError にする名前(``input3Dx`` のような、配列要素の
                 番号を含まない配列複合アトリビュートの子)も、``hasattr``/``getattr(node, name, default)``
                 が使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
             RuntimeError: ノードが無効な場合。
@@ -453,11 +453,13 @@ class Node(Object):
             raise AttributeError(f"アトリビュートが見つかりません: {self.getName()}.{name}") from error
 
     @classmethod
+    @fast_edit
     @undoChunk("mlib.nodes.node.create")
-    def create(cls, type, **kwargs):
+    def create(cls, type, *, fast=False, **kwargs):
         """ノードを作成し、対応する mlib wrapper として返す。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             type (str): Maya の nodeType 名。
             **kwargs: ``maya.cmds.createNode`` に渡すキーワード引数。``parent``/``p`` は
                 Node・Plug・Component・MObject・MDagPath・MPlug も受け付ける。
@@ -486,9 +488,15 @@ class Node(Object):
             list[ShadingEngine]: 直接接続先。テクスチャから履歴を辿る操作ではない。
         """
         from .shadingEngine import ShadingEngine
-        names = cmds.listConnections(self.getFullName(), source=False, destination=True,
-                                     type="shadingEngine") or []
-        return list(dict.fromkeys(ShadingEngine(name) for name in names))
+        result, seen = [], set()
+        for plug in self._dependency_fn().getConnections():
+            for destination in plug.connectedTo(False, True):
+                obj = destination.node()
+                key = om2.MObjectHandle(obj).hashCode()
+                if obj.hasFn(om2.MFn.kShadingEngine) and key not in seen:
+                    seen.add(key)
+                    result.append(ShadingEngine(obj))
+        return result
 
     def getAssignedObjects(self):
         """接続先ShadingEngineのメンバーを重複なしで取得する。
@@ -626,7 +634,8 @@ class Node(Object):
             list[str]: ``cmds.getClassification`` が返す分類文字列のリスト。
                 該当が無い nodeType では空リスト。
         """
-        return cmds.getClassification(self.getType())
+        # cmdsは分類なしでも[""]を返す。その既存の返却形を維持する。
+        return [om2.MNodeClass(self.getType()).classification]
 
     def isType(self, node_type):
         """自身の nodeType が指定型そのもの、またはその派生型か判定する。
@@ -647,7 +656,8 @@ class Node(Object):
             raise ValueError("node_type must be a non-empty string")
         if not self.isValid():
             return False
-        return node_type in (cmds.nodeType(self.getFullName(), inherited=True) or [])
+        from .._core.typeHierarchy import inherited_node_types
+        return node_type in inherited_node_types(self.getType())
 
     def isLocked(self):
         """ノード自体がロックされているか判定する。
@@ -872,11 +882,13 @@ class Node(Object):
             return Namespace(":")
         return Namespace(nodeName.rsplit(":", 1)[0])
 
+    @fast_edit
     @undoChunk("mlibNodeSetNamespace")
-    def setNamespace(self, namespace):
+    def setNamespace(self, namespace, *, fast=False):
         """ノードを指定したネームスペースへ移動する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             namespace (str | Namespace): 移動先のnamespace名。末尾の ``":"`` は任意。
 
         Returns:
@@ -896,7 +908,10 @@ class Node(Object):
         else:
             raise ValueError("namespace must be a non-empty string")
         if not target_namespace.exists() and target_namespace.name != ":":
-            target_namespace = Namespace.create(target_namespace)
+            if is_fast():
+                om2.MNamespace.addNamespace(target_namespace.name)
+            else:
+                target_namespace = Namespace.create(target_namespace)
         namespace_name = target_namespace.name
         nodeName = self.getNodeName(True)
         new_name = (
@@ -904,16 +919,18 @@ class Node(Object):
             if namespace_name != ":"
             else nodeName
         )
-        return cmds.rename(self.getName(), new_name)
+        return self.rename(new_name)
 
+    @fast_edit
     @undoChunk("mlibNodeDelete")
-    def delete(self, *, safe=False):
+    def delete(self, *, safe=False, fast=False):
         """自身をMaya標準の規則で削除する。
 
         DAGの子も削除し、一回のUndoで戻せる。
         派生クラスはこのメソッドを上書きして専用の削除処理を実装できる。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は削除しない。
                 入力・出力・message・Set/マテリアル接続を全て含む。
                 Falseは従来の削除。ロック解除や例外抑制は行わない。
@@ -931,13 +948,19 @@ class Node(Object):
             raise RuntimeError("Cannot delete an invalid node")
         if safe and self._has_delete_connections():
             return
-        cmds.delete(self.getFullName())
+        if is_fast():
+            from .._core.nodeEdit import delete_node
+            delete_node(self.mnode())
+        else:
+            cmds.delete(self.getFullName())
 
+    @fast_edit
     @undoChunk("mlibNodeRename")
-    def rename(self, name, ignoreShape=False):
+    def rename(self, name, ignoreShape=False, *, fast=False):
         """ノード名を変更し、変更後の名前を返す。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             name (str): 新しいノード名。
             ignoreShape (bool): ``True`` の場合はShapeの名前変更を抑制する。
 
@@ -947,29 +970,10 @@ class Node(Object):
         Raises:
             RuntimeError: ノード名を変更できない場合。
         """
+        if is_fast():
+            from .._core.nodeEdit import rename_node
+            return rename_node(self.mnode(), name, ignoreShape)
         return cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
-
-    def getInputs(self, **kwargs):
-        """入力側の接続を指定条件で照会する。
-
-        Args:
-            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
-
-        Returns:
-            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
-        """
-        return self.getConnections(True, False, **kwargs)
-
-    def getOutputs(self, **kwargs):
-        """出力側の接続を指定条件で照会する。
-
-        Args:
-            **kwargs: connectionsの絞込み・返却形式指定。方向のs/dは指定しない。
-
-        Returns:
-            list | Plug | Node | tuple | None: 通常はリスト。index指定時は一件、範囲外はNone。
-        """
-        return self.getConnections(False, True, **kwargs)
 
     @flag_aliases(idx="index")
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
@@ -1033,11 +1037,13 @@ class Node(Object):
         return result
 
     @flag_aliases(attrs="attributes")
+    @fast_edit
     @undoChunk("mlibNodeResetAttrs")
-    def resetAttrs(self, attributes=None):
+    def resetAttrs(self, attributes=None, *, fast=False):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
                 数値・単位・enumアトリビュートを対象とし、ロック・入力接続・非対応型は除外する。
                 明示指定したアトリビュートのエラーは除外せず送出する。 別名 ``attrs`` も使用可能。
@@ -1051,9 +1057,26 @@ class Node(Object):
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
         if attributes is None:
-            plugs = [plug for plug in self.getPlugs(keyable=True, scalar=True)
-                     if plug.getDefault() is not None and not plug.isDestination()
-                     and cmds.getAttr(plug.getFullName(), settable=True)]
+            if is_fast():
+                from ..plugs.plug import Plug
+                fn = self._dependency_fn()
+                plugs = []
+                for index in range(fn.attributeCount()):
+                    mp = om2.MPlug(self.mnode(), fn.attribute(index))
+                    if not mp.isKeyable or mp.isArray or mp.isCompound:
+                        continue
+                    plug = Plug(self, mp)
+                    if plug.getDefault() is None or plug.isDestination():
+                        continue
+                    try:
+                        plug._require_writable()
+                    except RuntimeError:
+                        continue
+                    plugs.append(plug)
+            else:
+                plugs = [plug for plug in self.getPlugs(keyable=True, scalar=True)
+                         if plug.getDefault() is not None and not plug.isDestination()
+                         and cmds.getAttr(plug.getFullName(), settable=True)]
         else:
             if isinstance(attributes, str):
                 attributes = [attributes]
@@ -1139,13 +1162,15 @@ class Node(Object):
         # 配列・複合パスの解決はplug()へ集約し、Mayaコマンドと名前再解決を避ける。
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
+    @fast_edit
     @undoChunk("mlibNodeAddAttr")
     def addAttr(self, longName="", type=None, subType=None, channelBox=False,
                 childNames=None, childShortNames=None, childSuffixes=None,
-                proxy=None, getPlug=True, **kwargs):
+                proxy=None, getPlug=True, *, fast=False, **kwargs):
         """型・既定値・フラグを指定してアトリビュートを追加する。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             longName (str): ロング名。lnまたはsnだけの指定も可能。
             type (str | None): 型名。at:/dt:接頭辞も可。省略時double。
             subType (str | None): 自動生成する子の共通型。
@@ -1180,31 +1205,36 @@ class Node(Object):
             flags["usedAsProxy"] = True
         numeric, count, deferred = self._prepare_extra_attr_definition(
             flags, type, childNames, childShortNames, childSuffixes)
-        self._create_extra_attr_definition(
+        prepared = self._create_extra_attr_definition(
             name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType)
         if not getPlug and (deferred is None or count) and not show and proxy is None:
             return None
         plug = self.getPlug(name)
         if deferred is not None and not count:
-            plug.set(deferred)
+            if is_fast() and prepared is not None:
+                setter, value, owner = prepared
+                setter(plug.mplug(), value)
+            else:
+                plug.set(deferred)
         if show:
             plug.setFlags(channelBox=True)
         if proxy is not None:
             proxy.connectTo(plug)
         return plug if getPlug else None
 
-    def getExtraAttrs(self, include_children=False):
+    def getExtraAttrs(self, include_children=False, *, asNames=False):
         """ユーザー追加のエクストラアトリビュートを型付きPlugで取得する。
 
         Args:
             include_children (bool): Trueは複合アトリビュートの子も含める。
+            asNames (bool): TrueはPlugの代わりにロング名を返す。既定False。
 
         Returns:
-            list[Plug]: Mayaの列挙順のプラグ。配列はArrayPlugとして返す。
+            list[Plug] | list[str]: Mayaの列挙順のプラグまたは名前。配列はArrayPlugとして返す。
                 非表示・非keyableも含む。個別取得はplug("名前")を使用する。
 
         Raises:
-            TypeError: include_childrenがboolでない場合。
+            TypeError: include_childrenまたはasNamesがboolでない場合。
             RuntimeError: ノードが無効な場合。またはinclude_children=Trueで、
                 番号を指定しない複合配列の子が含まれる場合。
         """
@@ -1212,25 +1242,14 @@ class Node(Object):
             raise TypeError("include_children must be a bool")
         if not self.isValid():
             raise RuntimeError("Cannot list attributes on an invalid node")
+        if type(asNames) is not bool:
+            raise TypeError("asNames must be bool")
+        if asNames:
+            return [om2.MFnAttribute(attribute).name for attribute in self._user_attributes(include_children)]
         # 名前へ変換して再検索せず、定義から型付きPlugを作る。配列の要素は展開しない。
         from ..plugs.plug import Plug
         return [Plug(self, om2.MPlug(self._mobject, attribute))
                 for attribute in self._user_attributes(include_children)]
-
-    def getExtraAttrNames(self):
-        """トップレベルのユーザー定義アトリビュート名を現在の並び順で取得する。
-
-        複合アトリビュートの子は含まない。
-
-        Returns:
-            list[str]: ロング名のリスト。並び順はMayaへの追加順。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("無効なノードのアトリビュートは列挙できません")
-        return [om2.MFnAttribute(attribute).name for attribute in self._user_attributes()]
 
     @undoChunk("mlibNodeMoveAttribute")
     def moveAttrOrder(self, name, offset):
@@ -1257,7 +1276,7 @@ class Node(Object):
                 含まれる場合。
             RuntimeError: ノードが無効な場合。
         """
-        names = self.getExtraAttrNames()
+        names = self.getExtraAttrs(asNames=True)
         if name not in names:
             raise ValueError(f"{name} is not a top-level user-defined attribute of {self.getFullName()}")
         old_index = names.index(name)
@@ -1390,374 +1409,6 @@ class Node(Object):
             dagPath = self._current_dag_path()
         return dagPath.fullPathName()
 
-    @_getter_alias(getShadingEngines)
-    def shadingEngines(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngines(*args, **kwargs)
-
-    @_getter_alias(getAssignedObjects)
-    def assignedObjects(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAssignedObjects(*args, **kwargs)
-
-    @_getter_alias(getMaterials)
-    def materials(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaterials(*args, **kwargs)
-
-    @_getter_alias(getType)
-    def type(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getType(*args, **kwargs)
-
-    @_getter_alias(getTypeId)
-    def typeId(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTypeId(*args, **kwargs)
-
-    @_getter_alias(getPluginName)
-    def pluginName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPluginName(*args, **kwargs)
-
-    @_getter_alias(getClassification)
-    def classification(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getClassification(*args, **kwargs)
-
-    @_getter_alias(getAttrCount)
-    def attrCount(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAttrCount(*args, **kwargs)
-
-    @_getter_alias(getPath)
-    def path(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPath(*args, **kwargs)
-
-    @_getter_alias(getNodeName)
-    def nodeName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNodeName(*args, **kwargs)
-
-    @_getter_alias(getNamespace)
-    def namespace(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNamespace(*args, **kwargs)
-
-    @_getter_alias(getInputs)
-    def inputs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputs(*args, **kwargs)
-
-    @_getter_alias(getOutputs)
-    def outputs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputs(*args, **kwargs)
-
-    @_getter_alias(getConnections)
-    def connections(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getConnections(*args, **kwargs)
-
-    @_getter_alias(getHistory)
-    def history(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getHistory(*args, **kwargs)
-
-    @_getter_alias(getPlugs)
-    def plugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlugs(*args, **kwargs)
-
-    @_getter_alias(getAliases)
-    def aliases(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAliases(*args, **kwargs)
-
-    @_getter_alias(getExtraAttrs)
-    def extraAttrs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getExtraAttrs(*args, **kwargs)
-
-    @_getter_alias(getExtraAttrNames)
-    def extraAttrNames(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getExtraAttrNames(*args, **kwargs)
-
-    @_getter_alias(getPlug)
-    def plug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlug(*args, **kwargs)
-
-    @_getter_alias(getUuid)
-    def uuid(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUuid(*args, **kwargs)
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getFullName)
-    def fullName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getFullName(*args, **kwargs)
-
     @staticmethod
     def _create_node_name(node_type, flags, *, require_creatable=False):
         """既存の作成規則でMayaノードを作り、Mayaが返した実名を取得する。
@@ -1788,6 +1439,10 @@ class Node(Object):
         for key in ("parent", "p"):
             if flags.get(key) is not None:
                 flags[key] = Node._input_name(flags[key])
+        if is_fast():
+            from .._core.nodeEdit import create_node
+            obj = create_node(node_type, normalize_flags("createNode", flags))
+            return Node._unique_node_name(obj)
         return cmds.createNode(node_type, **flags)
 
     def _has_delete_connections(self):
@@ -2097,6 +1752,10 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 子の型。
         """
+        if is_fast():
+            from .._core.attributeEdit import create_extra_attribute
+            return create_extra_attribute(self, name, flags, numeric, count, deferred,
+                                          child_names, child_short_names, child_suffixes, sub_type)
         if count:
             suffixes = child_suffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
             names = list(child_names or [name + suffix for suffix in suffixes])
@@ -2144,7 +1803,13 @@ class Node(Object):
             and not (kwargs.get("longName") or kwargs.get("shortName"))
         ):
             raise ValueError("Specify longName or shortName")
-        cmds.addAttr(name, **kwargs)
+        if is_fast():
+            if "." in name:
+                raise NotImplementedError("fast addAttr requires a node target")
+            from .._core.attributeEdit import add_attribute
+            add_attribute(Node._resolve_input(target), kwargs)
+        else:
+            cmds.addAttr(name, **kwargs)
         if "." in name:
             return _InputPlug._resolve_input(name)
         attribute = kwargs.get("longName") or kwargs.get("shortName")
@@ -2204,11 +1869,8 @@ class Nodes:
 
     _bulk_returns = {
         "getShadingEngines": "list",
-        "shadingEngines": "list",
         "getAssignedObjects": "list",
-        "assignedObjects": "list",
         "getMaterials": "list",
-        "materials": "list",
         "sameNode": "list",
         "sameInstance": "list",
         "isValid": "list",
@@ -2217,13 +1879,9 @@ class Nodes:
         "alive": "list",
         "mnode": "list",
         "getType": "list",
-        "type": "list",
         "getTypeId": "list",
-        "typeId": "list",
         "getPluginName": "list",
-        "pluginName": "list",
         "getClassification": "list",
-        "classification": "list",
         "isType": "list",
         "isLocked": "list",
         "locked": "list",
@@ -2236,42 +1894,23 @@ class Nodes:
         "isChildOf": "list",
         "childOf": "list",
         "getAttrCount": "list",
-        "attrCount": "list",
         "getPath": "list",
-        "path": "list",
         "isRoot": "list",
         "getNodeName": "list",
-        "nodeName": "list",
         "getNamespace": "list",
-        "namespace": "list",
         "rename": "list",
-        "getInputs": "list",
-        "inputs": "list",
-        "getOutputs": "list",
-        "outputs": "list",
         "getConnections": "list",
-        "connections": "list",
         "getHistory": "list",
-        "history": "list",
         "resetAttrs": "list",
         "getPlugs": "list",
-        "plugs": "list",
         "getAliases": "list",
-        "aliases": "list",
         "addAttr": "list",
         "getExtraAttrs": "list",
-        "extraAttrs": "list",
-        "getExtraAttrNames": "list",
-        "extraAttrNames": "list",
         "getPlug": "list",
-        "plug": "list",
         "hasAttr": "list",
         "getUuid": "list",
-        "uuid": "list",
         "getName": "list",
-        "name": "list",
         "getFullName": "list",
-        "fullName": "list",
         "delete": "self",
         "setNamespace": "self",
         "setAttrFlags": "self",
@@ -2279,11 +1918,8 @@ class Nodes:
     }
     _bulk_methods = {
         "getShadingEngines": Node.getShadingEngines,
-        "shadingEngines": Node.shadingEngines,
         "getAssignedObjects": Node.getAssignedObjects,
-        "assignedObjects": Node.assignedObjects,
         "getMaterials": Node.getMaterials,
-        "materials": Node.materials,
         "sameNode": Node.sameNode,
         "sameInstance": Node.sameInstance,
         "isValid": Node.isValid,
@@ -2292,13 +1928,9 @@ class Nodes:
         "alive": Node.alive,
         "mnode": Node.mnode,
         "getType": Node.getType,
-        "type": Node.type,
         "getTypeId": Node.getTypeId,
-        "typeId": Node.typeId,
         "getPluginName": Node.getPluginName,
-        "pluginName": Node.pluginName,
         "getClassification": Node.getClassification,
-        "classification": Node.classification,
         "isType": Node.isType,
         "isLocked": Node.isLocked,
         "locked": Node.locked,
@@ -2311,42 +1943,23 @@ class Nodes:
         "isChildOf": Node.isChildOf,
         "childOf": Node.childOf,
         "getAttrCount": Node.getAttrCount,
-        "attrCount": Node.attrCount,
         "getPath": Node.getPath,
-        "path": Node.path,
         "isRoot": Node.isRoot,
         "getNodeName": Node.getNodeName,
-        "nodeName": Node.nodeName,
         "getNamespace": Node.getNamespace,
-        "namespace": Node.namespace,
         "rename": Node.rename,
-        "getInputs": Node.getInputs,
-        "inputs": Node.inputs,
-        "getOutputs": Node.getOutputs,
-        "outputs": Node.outputs,
         "getConnections": Node.getConnections,
-        "connections": Node.connections,
         "getHistory": Node.getHistory,
-        "history": Node.history,
         "resetAttrs": Node.resetAttrs,
         "getPlugs": Node.getPlugs,
-        "plugs": Node.plugs,
         "getAliases": Node.getAliases,
-        "aliases": Node.aliases,
         "addAttr": Node.addAttr,
         "getExtraAttrs": Node.getExtraAttrs,
-        "extraAttrs": Node.extraAttrs,
-        "getExtraAttrNames": Node.getExtraAttrNames,
-        "extraAttrNames": Node.extraAttrNames,
         "getPlug": Node.getPlug,
-        "plug": Node.plug,
         "hasAttr": Node.hasAttr,
         "getUuid": Node.getUuid,
-        "uuid": Node.uuid,
         "getName": Node.getName,
-        "name": Node.name,
         "getFullName": Node.getFullName,
-        "fullName": Node.fullName,
         "delete": Node.delete,
         "setNamespace": Node.setNamespace,
         "setAttrFlags": Node.setAttrFlags,
@@ -2867,34 +2480,6 @@ class Nodes:
 
     rename.__signature__ = inspect.signature(Node.rename)
 
-    def getInputs(self, *args, **kwargs):
-        """各要素のgetInputsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getInputs", args, kwargs)
-
-    getInputs.__signature__ = inspect.signature(Node.getInputs)
-
-    def getOutputs(self, *args, **kwargs):
-        """各要素のgetOutputsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getOutputs", args, kwargs)
-
-    getOutputs.__signature__ = inspect.signature(Node.getOutputs)
-
     def getConnections(self, *args, **kwargs):
         """各要素のgetConnectionsを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2992,20 +2577,6 @@ class Nodes:
         return self._dispatch_shared("getExtraAttrs", args, kwargs)
 
     getExtraAttrs.__signature__ = inspect.signature(Node.getExtraAttrs)
-
-    def getExtraAttrNames(self, *args, **kwargs):
-        """各要素のgetExtraAttrNamesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getExtraAttrNames", args, kwargs)
-
-    getExtraAttrNames.__signature__ = inspect.signature(Node.getExtraAttrNames)
 
     def getPlug(self, *args, **kwargs):
         """各要素のgetPlugを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -3145,11 +2716,13 @@ class Nodes:
         """
         return [node.getName() for node in self]
 
+    @fast_edit
     @undoChunk("mlibNodesDelete")
-    def delete(self, *, safe=False):
+    def delete(self, *, safe=False, fast=False):
         """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             safe (bool): Trueなら各対象にsafe=Trueを渡し、DG接続を持つ対象を残す。
 
         Returns:
@@ -3164,6 +2737,9 @@ class Nodes:
         for index, node in enumerate(self):
             if not node.isValid():
                 raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
+        if is_fast():
+            from .._core.nodeEdit import validate_deletion
+            validate_deletion(self, safe=safe)
         for index, node in enumerate(self):
             if node.isValid():
                 try:
@@ -3173,390 +2749,6 @@ class Nodes:
                         node.delete()
                 except Exception as exc:
                     raise RuntimeError(f"{type(self).__name__}.delete failed at item {index}: {exc}") from exc
-
-    @_getter_alias(getShadingEngines)
-    def shadingEngines(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngines(*args, **kwargs)
-
-    @_getter_alias(getAssignedObjects)
-    def assignedObjects(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAssignedObjects(*args, **kwargs)
-
-    @_getter_alias(getMaterials)
-    def materials(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaterials(*args, **kwargs)
-
-    @_getter_alias(getType)
-    def type(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getType(*args, **kwargs)
-
-    @_getter_alias(getTypeId)
-    def typeId(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTypeId(*args, **kwargs)
-
-    @_getter_alias(getPluginName)
-    def pluginName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPluginName(*args, **kwargs)
-
-    @_getter_alias(getClassification)
-    def classification(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getClassification(*args, **kwargs)
-
-    @_getter_alias(getAttrCount)
-    def attrCount(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAttrCount(*args, **kwargs)
-
-    @_getter_alias(getPath)
-    def path(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPath(*args, **kwargs)
-
-    @_getter_alias(getNodeName)
-    def nodeName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNodeName(*args, **kwargs)
-
-    @_getter_alias(getNamespace)
-    def namespace(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNamespace(*args, **kwargs)
-
-    @_getter_alias(getInputs)
-    def inputs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputs(*args, **kwargs)
-
-    @_getter_alias(getOutputs)
-    def outputs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputs(*args, **kwargs)
-
-    @_getter_alias(getConnections)
-    def connections(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getConnections(*args, **kwargs)
-
-    @_getter_alias(getHistory)
-    def history(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getHistory(*args, **kwargs)
-
-    @_getter_alias(getPlugs)
-    def plugs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlugs(*args, **kwargs)
-
-    @_getter_alias(getAliases)
-    def aliases(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getAliases(*args, **kwargs)
-
-    @_getter_alias(getExtraAttrs)
-    def extraAttrs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getExtraAttrs(*args, **kwargs)
-
-    @_getter_alias(getExtraAttrNames)
-    def extraAttrNames(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getExtraAttrNames(*args, **kwargs)
-
-    @_getter_alias(getPlug)
-    def plug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPlug(*args, **kwargs)
-
-    @_getter_alias(getUuid)
-    def uuid(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUuid(*args, **kwargs)
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
-
-    @_getter_alias(getFullName)
-    def fullName(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getFullName(*args, **kwargs)
-
-    @_getter_alias(getNames)
-    def names(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNames(*args, **kwargs)
 
     @staticmethod
     def _resolve_inputs(values):

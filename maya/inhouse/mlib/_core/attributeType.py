@@ -284,12 +284,12 @@ def _read_time(mplug):
     return mplug.asMTime().asUnits(om2.MTime.kSeconds)
 
 
-#: 型名 -> (読取、fast setter、入力変換)。charの読取は従来通りcmdsへ委譲する。
+#: 型名 -> (読取、fast setter、入力変換)。数値はOpenMayaで直接読む。
 #: floatは読取時にdouble精度で取得し、書込時にはfloatへ設定する。
 _NUMERIC_ACCESS = {
     "bool": (om2.MPlug.asBool, om2.MPlug.setBool, bool),
     "byte": (om2.MPlug.asInt, om2.MPlug.setInt, int),
-    "char": (False, om2.MPlug.setInt, int),
+    "char": (om2.MPlug.asChar, om2.MPlug.setInt, int),
     "short": (om2.MPlug.asInt, om2.MPlug.setInt, int),
     "long": (om2.MPlug.asInt, om2.MPlug.setInt, int),
     "float": (om2.MPlug.asDouble, om2.MPlug.setFloat, float),
@@ -361,6 +361,7 @@ _ARRAY_READERS = {
     _D.kStringArray: partial(_read_array, factory=om2.MFnStringArrayData),
     _D.kVectorArray: partial(_read_array, factory=om2.MFnVectorArrayData, tuples=True),
     _D.kPointArray: partial(_read_array, factory=om2.MFnPointArrayData, tuples=True),
+    _D.kMatrixArray: partial(_read_array, factory=om2.MFnMatrixArrayData, tuples=True),
 }
 
 

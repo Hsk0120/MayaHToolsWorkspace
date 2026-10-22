@@ -68,14 +68,14 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertIs(joints.setTranslate((1, 2, 3), ws=True), joints)
         self.assertEqual(captured, [("setTranslate", [((1, 2, 3),)] * 2,
                                      [{"ws": True}] * 2)])
-        self.assertIs(joints.translate(ws=True), joints)
+        self.assertIs(joints.getTranslate(ws=True), joints)
         self.assertEqual(captured[-1], ("getTranslate", [()] * 2, [{"ws": True}] * 2))
         self.assertEqual(inspect.signature(mlib.nodes.Transforms.setTranslate),
                          inspect.signature(mlib.nodes.Transform.setTranslate))
         empty = mlib.nodes.Transforms()
         self.assertIs(empty.setTranslate(), empty)
         self.assertEqual(empty.getTranslate(unknown=True), [])
-        self.assertEqual(empty.translate(unknown=True), [])
+        self.assertEqual(empty.getTranslate(unknown=True), [])
 
     def test_skin_methods_and_file_operations_are_explicit(self):
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]
@@ -102,7 +102,7 @@ class BulkCollectionsTest(unittest.TestCase):
                                    (self.joints, mlib.nodes.Joint),
                                    (mlib.nodes.SkinClusters(), mlib.nodes.SkinCluster)):
             for name in dir(single):
-                if not name.startswith("_") and inspect.isfunction(inspect.getattr_static(single, name)):
+                if not name.startswith("_") and name != "asString" and inspect.isfunction(inspect.getattr_static(single, name)):
                     with self.subTest(collection=type(collection).__name__, method=name):
                         self.assertIn(name, collection._bulk_methods)
 
@@ -128,16 +128,6 @@ class BulkCollectionsTest(unittest.TestCase):
                     else:
                         self.assertTrue(callable(getattr(collection_class, name, None)))
                         self.assertTrue(callable(getattr(collection, name, None)))
-                    if name.startswith("get") and len(name) > 3 and name[3].isupper():
-                        alias = name[3].lower() + name[4:]
-                        self.assertIn(alias, registered)
-                        self.assertEqual(collection._bulk_returns[alias], collection._bulk_returns[name])
-                        self.assertEqual(collection._bulk_methods[alias].__mlib_getter_name__, name)
-                        if name in restricted:
-                            self.assertIn(alias, restricted)
-                        else:
-                            self.assertEqual(inspect.signature(getattr(collection_class, alias)),
-                                             inspect.signature(getattr(collection_class, name)))
 
     def test_file_methods_stay_hidden_when_base_defines_an_entry(self):
         """基底への入口追加でも禁止を継承し、callEachのみ許可する。"""
@@ -188,15 +178,15 @@ class BulkCollectionsTest(unittest.TestCase):
         aggregated = self.joints.getSkinClusters()
         self.assertIsInstance(aggregated, mlib.nodes.SkinClusters)
         self.assertCountEqual(aggregated, skins)
-        self.assertIsInstance(self.joints.skinClusters(), mlib.nodes.SkinClusters)
-        self.assertCountEqual(self.joints.skinClusters(), skins)
-        self.assertEqual(transforms.skinClusters(), transforms.getSkinClusters())
-        self.assertEqual(self.joints.callEach("skinClusters", [()] * len(self.joints)),
+        self.assertIsInstance(self.joints.getSkinClusters(), mlib.nodes.SkinClusters)
+        self.assertCountEqual(self.joints.getSkinClusters(), skins)
+        self.assertEqual(transforms.getSkinClusters(), transforms.getSkinClusters())
+        self.assertEqual(self.joints.callEach("getSkinClusters", [()] * len(self.joints)),
                          [joint.getSkinClusters() for joint in self.joints])
-        self.assertEqual(self.joints.names(), self.joints.getNames())
+        self.assertEqual(self.joints.getNames(), self.joints.getNames())
         with self.assertRaises(ValueError):
             self.joints.callEach("names", [()] * len(self.joints))
-        self.assertIs(transforms.transform(), transforms)
+        self.assertIs(transforms.getTransform(), transforms)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
         self.assertEqual(mlib.nodes.DagNodes().getBindPoses(), [])
 

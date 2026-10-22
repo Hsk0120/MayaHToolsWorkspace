@@ -221,10 +221,10 @@ class TwistLayer:
                 ]
             ]:
                 raise ValueError("Animated twist joints cannot be rebuilt")
-        start = group.getPlug("start").getSourceWithConversion().getNode()
-        end = group.getPlug("end").getSourceWithConversion().getNode()
+        start = group.getPlug('start').getSource(skipConversionNodes=False).getNode()
+        end = group.getPlug('end').getSource(skipConversionNodes=False).getNode()
         axis = group.getPlug("twistAxis").get()
-        graph = group.getPlug("graph").getSourceWithConversion().getNode()
+        graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
         mlib.getNode(self.rig._member("twistSet")).removeMembers(
             [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
@@ -241,15 +241,15 @@ class TwistLayer:
         """LOD/Enabledに応じて出力を接続し、無効時は基準位置で始点へ追従させる。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("twist")
         for group in self.segments().values():
-            graph = group.getPlug("graph").getSourceWithConversion().getNode()
+            graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
             graph.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
         for name in self.getJoints():
             joint = mlib.getNode(name)
             destination = joint.getPlug("offsetParentMatrix")
-            source = destination.getSourceWithConversion()
+            source = destination.getSource(skipConversionNodes=False)
             if active:
-                output = joint.getPlug("twistOutput").getSourceWithConversion().getNode().getPlug("matrixSum")
+                output = joint.getPlug('twistOutput').getSource(skipConversionNodes=False).getNode().getPlug('matrixSum')
                 if source is None:
                     output.connectTo(destination)
             elif source is not None:

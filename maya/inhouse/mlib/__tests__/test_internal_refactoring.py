@@ -154,7 +154,7 @@ class InternalRefactoringTest(unittest.TestCase):
                 node.setInput(1, float("nan"))
             with self.assertRaises(TypeError):
                 node.connectInput(1, object())
-        self.assertEqual(node.getInput(1), 5)
+        self.assertEqual(node.getInputPlug(1).get(), 5)
 
     def test_calculation_shared_edit_modes(self):
         """共通化後も戻り値・Undo・fast・接続元の入力形式を維持する。"""
@@ -163,18 +163,18 @@ class InternalRefactoringTest(unittest.TestCase):
         node.setInput(1, 2)
         self.assertIs(node.setInput(1, 7), node)
         cmds.undo()
-        self.assertEqual(node.getInput(1), 2)
+        self.assertEqual(node.getInputPlug(1).get(), 2)
         cmds.redo()
-        self.assertEqual(node.getInput(1), 7)
+        self.assertEqual(node.getInputPlug(1).get(), 7)
         cmds.flushUndo()
         self.assertIs(node.setInput(1, 9, fast=True), node)
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        self.assertEqual(node.getInput(1), 9)
-        for value in (source.getOutputPlug(), source.getOutputPlug().getFullName(), source.getOutputPlug().mplug()):
+        self.assertEqual(node.getInputPlug(1).get(), 9)
+        for value in (source.getPlug('output'), source.getPlug('output').getFullName(), source.getPlug('output').mplug()):
             self.assertIs(node.connectInput(1, value), node)
-            self.assertTrue(source.getOutputPlug().isConnectedTo(node.getInputPlug(1)))
+            self.assertTrue(source.getPlug('output').isConnectedTo(node.getInputPlug(1)))
             cmds.undo()
-            self.assertFalse(source.getOutputPlug().isConnectedTo(node.getInputPlug(1)))
+            self.assertFalse(source.getPlug('output').isConnectedTo(node.getInputPlug(1)))
 
     def test_deferred_entrypoints_share_validation(self):
         """どちらの入口も同じ引数で一度だけMayaへ予約する。"""

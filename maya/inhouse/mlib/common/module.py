@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from .version import Version
 
 # Versionへ集約した旧関数参照をreload時に残さない。
@@ -156,51 +156,3 @@ class Module:
         if not self.isRegistered():
             return None
         return cmds.moduleInfo(path=True, moduleName=self._name) or None
-
-    @_getter_alias(getVersionText)
-    def versionText(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getVersionText(*args, **kwargs)
-
-    @_getter_alias(getVersion)
-    def version(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getVersion(*args, **kwargs)
-
-    @_getter_alias(getPath)
-    def path(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPath(*args, **kwargs)

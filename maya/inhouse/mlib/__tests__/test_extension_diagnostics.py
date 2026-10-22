@@ -9,6 +9,16 @@ import mlib
 
 
 class ExtensionDiagnosticsTest(unittest.TestCase):
+    def test_public_exports_use_existing_canonical_names(self):
+        """公開一覧から削除済みの省略名を除き、star importも成立させる。"""
+        from mlib._core import extensions
+        namespace = {}
+        exec("from mlib._core.extensions import *", namespace)
+        self.assertEqual(set(extensions.__all__), {"status", "getDiagnostics"})
+        for name in extensions.__all__:
+            self.assertIs(namespace[name], getattr(extensions, name))
+        self.assertFalse(hasattr(extensions, "diagnostics"))
+
     def test_current_availability_is_separate_from_initialization(self):
         """現在利用可能でも初期化結果を更新せず、返却を独立した値にする。"""
         from mlib._core import extensions
@@ -20,7 +30,7 @@ class ExtensionDiagnosticsTest(unittest.TestCase):
         with patch.dict(sys.modules, {name: module}), patch.object(extensions, "_states", states), \
                 patch.object(extensions.importlib, "import_module", side_effect=AssertionError("New import")), \
                 patch.object(extensions, "_apply_entries", side_effect=AssertionError("Registration")):
-            diagnostic = extensions.diagnostics()[name]
+            diagnostic = extensions.getDiagnostics()[name]
             self.assertTrue(diagnostic["available"])
             self.assertEqual(diagnostic["initialization"]["state"], "unavailable")
             diagnostic["initialization"]["state"] = "modified"
@@ -73,7 +83,7 @@ class ExtensionDiagnosticsTest(unittest.TestCase):
         nested = []
 
         def query():
-            nested.append(extensions.diagnostics()[module.__name__])
+            nested.append(extensions.getDiagnostics()[module.__name__])
             return True
 
         module.is_available = query
@@ -91,7 +101,7 @@ class ExtensionDiagnosticsTest(unittest.TestCase):
         nodes = cmds.ls(long=True) or []
         registry = mlib.nodes.Node._registry._snapshot()
         with patch.object(cmds, "loadPlugin", side_effect=AssertionError("Unexpected plugin load")):
-            result = extensions.diagnostics()
+            result = extensions.getDiagnostics()
         self.assertEqual(extensions.status(), previous)
         self.assertEqual(cmds.pluginInfo(query=True, listPlugins=True) or [], plugins)
         self.assertEqual(cmds.ls(long=True) or [], nodes)

@@ -1,9 +1,9 @@
 """Maya containerによる計算ノードの所有管理。"""
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoTransaction
 from ..plugs.plug import Plug
 from .node import Node, Nodes
@@ -31,9 +31,7 @@ class Container(Node):
         Returns:
             list[Node]: メンバー。入出力の接続先は自動で含めない。
         """
-        return [
-            Node(n) for n in (cmds.container(self.getFullName(), query=True, nodeList=True) or [])
-        ]
+        return [Node(obj) for obj in om2.MFnContainerNode(self.mnode()).getMembers()]
 
     @undoTransaction("mlib.Container.add")
     def addMembers(self, *members):
@@ -123,11 +121,11 @@ class Container(Node):
         Returns:
             dict[str, Plug | None]: 未Bind名はNone。公開ノードのアンカーは対象外。
         """
-        names = cmds.container(self.getFullName(), query=True, publishName=True) or []
-        result = dict.fromkeys(names)
-        pairs = cmds.container(self.getFullName(), query=True, bindAttr=True) or []
-        for attribute, name in zip(pairs[::2], pairs[1::2]):
-            result[name] = Plug._resolve_input(attribute)
+        fn = om2.MFnContainerNode(self.mnode())
+        result = dict.fromkeys(fn.getPublishedNames(False))
+        plugs, names = fn.getPublishedPlugs()
+        for plug, name in zip(plugs, names):
+            result[name] = Plug._resolve_input(plug)
         return result
 
     @undoTransaction("mlib.Container.bindAttribute")
@@ -192,35 +190,3 @@ class Container(Node):
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
         cmds.container(self.getFullName(), edit=True, unpublishName=name)
-
-    @_getter_alias(getMembers)
-    def members(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMembers(*args, **kwargs)
-
-    @_getter_alias(getPublishedAttrs)
-    def publishedAttrs(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPublishedAttrs(*args, **kwargs)

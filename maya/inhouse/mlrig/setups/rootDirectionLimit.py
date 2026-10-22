@@ -25,7 +25,7 @@ class RootDirectionLimit(ScalarGraph):
                 Noneの場合は保存したmessage接続から取得する。
         """
         super().__init__(container)
-        self.output = output if output is not None else self.container.getPlug("output").getSourceWithConversion().getNode()
+        self.output = output if output is not None else self.container.getPlug('output').getSource(skipConversionNodes=False).getNode()
 
     @staticmethod
     def _axis(axis):

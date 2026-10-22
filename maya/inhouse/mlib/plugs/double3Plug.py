@@ -4,6 +4,7 @@ import math
 
 import maya.api.OpenMaya as om2
 
+from .._core.unitValue import convert
 from ..common._fast import fast_edit
 from ..common._safe import safe_edit
 from ..decorator import undoChunk
@@ -21,17 +22,24 @@ class Double3Plug(CompoundPlug):
         "shear": Shear, "sh": Shear,
     }
 
-    def get(self):
+    def get(self, *, uiUnits=False):
         """アトリビュートの3成分を取得する。jointOrientなどを合成しない。
 
+        Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
+
         Returns:
-            Vector | Translate | EulerRotate | Scale | Shear: アトリビュートの値。
-                rotateはラジアン・ノードのrotateOrder、距離はcm。
+            Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]: アトリビュートの値。
+                既定ではrotateはラジアン・ノードのrotateOrder、距離はcm。
+                uiUnits=Trueは現在のUI単位に変換した数値tuple。
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
+        self._validate_ui_units(uiUnits)
         self._require_valid()
+        if uiUnits:
+            return tuple(self._child_at(i).get(uiUnits=True) for i in range(3))
         value_type = self._value_types.get(self.getLongName(), Vector)
         if value_type is EulerRotate:
             order = int(self.getNode().getPlug("ro").get())
@@ -43,12 +51,14 @@ class Double3Plug(CompoundPlug):
     @fast_edit
     @undoChunk("mlibDouble3PlugSet")
     @safe_edit
-    def set(self, value, safe=False, *, unit="rad", fast=False):
+    def set(self, value, safe=False, *, unit="rad", uiUnits=False, fast=False):
         """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
 
         Args:
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
             safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
+                uiUnits=Trueでは内部単位を持つ数学型を受け付けず、数値列を指定する。
                 rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
                 数値3成分は現在のrotateOrderのチャンネル値として解釈する。
             unit (str): rotateの数値3成分の角度単位rad/deg。それ以外のアトリビュートでは未使用。
@@ -65,9 +75,30 @@ class Double3Plug(CompoundPlug):
         通常モードは1回のUndoで戻せる。Mayaの実行時エラーを自動ロールバックはしない。
         """
         self._require_valid()
+        self._validate_ui_units(uiUnits)
+        if uiUnits:
+            if unit != "rad":
+                raise ValueError("uiUnits=True cannot be combined with a non-default unit")
+            value = self._ui_components(value)
         values = self._set_components(value, unit)
         self._require_writable()
         return super().set(values)
+
+    def _ui_components(self, value):
+        """UI入力を数値列として変換し、内部単位を持つ数学値を拒否する。
+
+        Args:
+            value (Iterable[float]): UI単位の数値3成分。
+
+        Returns:
+            tuple: 内部単位の数値3成分。
+
+        Raises:
+            TypeError: OpenMayaの数学値をUI数値として指定した場合。
+        """
+        if isinstance(value, (om2.MEulerRotation, om2.MQuaternion, om2.MVector)):
+            raise TypeError("uiUnits=True requires plain numeric components, not a math value")
+        return convert(self._mplug, value, to_ui=False)
 
     def _set_components(self, value, unit="rad"):
         """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。

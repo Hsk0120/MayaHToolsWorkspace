@@ -7,11 +7,13 @@ Aポーズを基準(回転0)にする。各関節は子の方向をローカル 
 関節の子にするので一緒に動く。リファレンス表示(ビューポートで選択できない)にして関節を選びやすくする。
 """
 
-from maya import cmds
-
 import math
 
+import maya.cmds as cmds
+import mlib
 from mlib.decorator import undoTransaction
+from mlib.maths import Matrix, Vector
+from mlib.nodes import Joint
 
 # 体幹。(名前, 親, ワールド位置 cm)。
 TORSO = [
@@ -63,6 +65,7 @@ LENGTH_CHILD = {"spine_03": "neck_01"}
 A_POSE_ANGLE = 45.0
 # 2番目の軸。体幹と脚は前(Z)、腕・指・足先は上(Y)。
 SECONDARY = (("pelvis", "zup"), ("clavicle_l", "yup"), ("thigh_l", "zup"), ("foot_l", "yup"))
+ARM_JOINTS = ("lowerarm_l", "hand_l")
 
 
 def _armDown(position, pose):
@@ -74,9 +77,6 @@ def _armDown(position, pose):
     x, y = position[0]-pivot[0], position[1]-pivot[1]
     return (pivot[0]+x*math.cos(angle)-y*math.sin(angle), pivot[1]+x*math.sin(angle)+y*math.cos(angle),
             position[2])
-
-
-ARM_JOINTS = ("lowerarm_l", "hand_l")
 
 
 def _leftSpecs(fingers, pose="T"):
@@ -126,7 +126,7 @@ def _addProxy(joint, name, child, material_group):
         joint (str): 関節。
         name (str): 接頭辞なしの関節名。
         child (str | None): 骨の長さを決める子の関節。
-        material_group (str): 割り当てる shadingEngine。
+        material_group (str | ShadingEngine): 割り当てるshadingEngine。
 
     Returns:
         str | None: 作ったメッシュ。
@@ -135,36 +135,77 @@ def _addProxy(joint, name, child, material_group):
     if spec is None:
         return None
     shape, size = spec
-    length = cmds.getAttr(child+".translateX") if child else 0.0
+    length = mlib.getNode(child).getPlug("translateX").get(uiUnits=True) if child else 0.0
     mesh_name = joint.split("|")[-1]+"_proxy"
     offset = length/2.0
     if shape == "cylinder" and child:
-        mesh = cmds.polyCylinder(name=mesh_name, radius=size, height=abs(length), axis=(1, 0, 0),
-                                 subdivisionsAxis=12, constructionHistory=False)[0]
+        mesh = mlib.createPolygon("cylinder", name=mesh_name, radius=size, height=abs(length), axis=(1, 0, 0),
+                                 subdivisionsAxis=12, constructionHistory=False).getTransform()
     elif shape == "foot" and child:
-        mesh = cmds.polyCube(name=mesh_name, width=abs(length), height=size[1], depth=size[0],
-                             constructionHistory=False)[0]
+        mesh = mlib.createPolygon("cube", name=mesh_name, width=abs(length), height=size[1], depth=size[0],
+                             constructionHistory=False).getTransform()
     elif shape == "pelvis":
-        mesh = cmds.polyCube(name=mesh_name, width=size[0], height=size[1], depth=size[2],
-                             constructionHistory=False)[0]
+        mesh = mlib.createPolygon("cube", name=mesh_name, width=size[0], height=size[1], depth=size[2],
+                             constructionHistory=False).getTransform()
         offset = 0.0
     elif shape == "sphere":
-        mesh = cmds.polySphere(name=mesh_name, radius=size, subdivisionsX=16, subdivisionsY=12,
-                               constructionHistory=False)[0]
+        mesh = mlib.createPolygon("sphere", name=mesh_name, radius=size, subdivisionsX=16, subdivisionsY=12,
+                               constructionHistory=False).getTransform()
         offset = size*0.75
     elif shape == "box":
         width, height, depth = size
-        mesh = cmds.polyCube(name=mesh_name, width=width, height=height, depth=depth, constructionHistory=False)[0]
+        mesh = mlib.createPolygon("cube", name=mesh_name, width=width, height=height, depth=depth, constructionHistory=False).getTransform()
         offset = length/2.0 if child else width/2.0
     else:
         return None
-    mesh = cmds.parent(mesh, joint, relative=True)[0]
-    cmds.setAttr(mesh+".translateX", offset)
-    cmds.sets(mesh, edit=True, forceElement=material_group)
-    proxy_shape = cmds.listRelatives(mesh, shapes=True, fullPath=True)[0]
-    cmds.setAttr(proxy_shape+".overrideEnabled", True)
-    cmds.setAttr(proxy_shape+".overrideDisplayType", 2)
-    return mesh
+    mesh_name = cmds.parent(mesh.getFullName(), joint, relative=True)[0]
+    mesh = mlib.getNode(mesh_name)
+    mesh.getPlug("translateX").set(offset, uiUnits=True)
+    mlib.getNode(material_group).assign(mesh)
+    proxy_shape = mesh.getShape()
+    proxy_shape.getPlug("overrideEnabled").set(True)
+    proxy_shape.getPlug("overrideDisplayType").set(2)
+    return mesh_name
+
+
+def _orientChain(root, secondary):
+    """例示骨格のX軸を子へ、Y軸を指定のワールド上方向へそろえる。
+
+    ジョイントを親から順に編集し、全関節のワールド位置を保持する。
+    この例の新規・等倍・回転0の骨格を対象とし、一般的なjoint編集APIは追加しない。
+    向きと移動の書込みはmlibの通常setterを使い、呼出し側のUndoへまとめる。
+
+    Args:
+        root (str): 向きを合わせる階層のルートJoint。
+        secondary (str): yupはワールドY、zupはワールドZをローカルYの基準にする。
+
+    Raises:
+        ValueError: 子の方向と上方向が平行で、基準を決められない場合。
+    """
+    nodes = mlib.getNode(root).getChildren(allDescendents=True, order="breadthFirst", includeSelf=True)
+    positions = {node.getUuid(): Vector(node.getMatrix(worldSpace=True).translate) for node in nodes}
+    up = Vector(0, 1, 0) if secondary == "yup" else Vector(0, 0, 1)
+    for node in nodes:
+        position = positions[node.getUuid()]
+        children = node.getChildren()
+        frame = None
+        if children:
+            x_axis = (positions[children[0].getUuid()] - position).normal()
+            y_axis = up - x_axis * (up * x_axis)
+            if y_axis.length() < 1e-10:
+                raise ValueError("Cannot orient a bone parallel to its reference up axis")
+            y_axis = y_axis.normal()
+            z_axis = (x_axis ^ y_axis).normal()
+            frame = Matrix((x_axis.x, x_axis.y, x_axis.z, 0,
+                            y_axis.x, y_axis.y, y_axis.z, 0,
+                            z_axis.x, z_axis.y, z_axis.z, 0,
+                            position.x, position.y, position.z, 1))
+        parent = node.getParent()
+        parent_inverse = parent.getMatrix(worldSpace=True).inverse() if parent else Matrix()
+        node.getPlug("translate").set(parent_inverse.transformPoint(position))
+        if frame is not None:
+            node.getPlug("rotateAxis").set((0, 0, 0))
+            node.getPlug("jointOrient").set((frame * parent_inverse).quaternion.asEulerRotation())
 
 
 @undoTransaction("mlrig.examples.humanoid.build")
@@ -194,15 +235,17 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
     joints, parent_of = {}, {}
     # mirrorJoint の名前置き換えは名前の中の "_l" をすべて置き換えるので、作る間は "_l" を末尾にしか
     # 持たない一時的な名前を使い、最後に接頭辞+関節名へ付け直す。
-    temporary = "humanoidTmp{}".format(len(cmds.ls(type="joint")))
-    while cmds.ls(temporary+"*"):
+    temporary = "humanoidTmp{}".format(len(mlib.ls(type="joint")))
+    while mlib.ls(temporary+"*"):
         temporary += "x"
 
     def create(specs):
         """ワールド位置から関節を作って親へ入れる。"""
         for name, parent, position in specs:
-            cmds.select(clear=True)
-            joint = cmds.joint(name=temporary+name, position=position)
+            mlib.select(clear=True)
+            node = mlib.createNode("joint", name=temporary+name)
+            node.getPlug("translate").set(position, uiUnits=True)
+            joint = node.getName()
             if parent:
                 joint = cmds.parent(joint, joints[parent])[0]
             joints[name], parent_of[name] = joint, parent
@@ -211,44 +254,51 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
         """末端の関節は向きを親にそろえる(子がなく X 軸の向きが決まらないため)。"""
         for name in joints:
             if not any(parent_of.get(child) == name for child in joints):
-                cmds.setAttr(joints[name]+".jointOrient", 0, 0, 0)
+                mlib.getNode(joints[name]).getPlug("jointOrient").set((0, 0, 0))
 
     # 体幹と手足。手は指を付ける前に向きを決め、前腕と同じ向き(X が腕の先)にする。
     create(TORSO+_leftSpecs(False, pose))
     for name, secondary in SECONDARY:
-        cmds.joint(joints[name], edit=True, orientJoint="xyz", secondaryAxisOrient=secondary, children=True,
-                   zeroScaleOrient=True)
+        _orientChain(joints[name], secondary)
     zeroEnds()
     if fingers:
         specs = [spec for spec in _leftSpecs(True, pose) if spec[0] not in joints]
         create(specs)
         for finger, *_ in FINGERS:
-            cmds.joint(joints["{}_01_l".format(finger)], edit=True, orientJoint="xyz", secondaryAxisOrient="yup",
-                       children=True, zeroScaleOrient=True)
+            _orientChain(joints["{}_01_l".format(finger)], "yup")
         zeroEnds()
 
     # 右半身は左の鏡像。mirrorBehavior で左右の回転が対称に動く。
     for name in ("clavicle_l", "thigh_l"):
-        cmds.mirrorJoint(joints[name], mirrorYZ=True, mirrorBehavior=True, searchReplace=("_l", "_r"))
+        mirrored = mlib.mirrorJoint(joints[name], mirrorYZ=True, mirrorBehavior=True,
+                                    searchReplace=("_l", "_r"))
+        for joint in (mirrored,) if isinstance(mirrored, Joint) else mirrored:
+            orient = joint.getPlug("jointOrient")
+            values = tuple(orient.get())
+            # 行列の丸めで右大腿の-180度が+180度側へ出るのを避ける。
+            # 2πだけずらす等価なEuler値なので、姿勢や子の位置は変えない。
+            adjusted = tuple(value - 2 * math.pi if abs(value - math.pi) < 1e-7 else value
+                             for value in values)
+            if adjusted != values:
+                orient.set(adjusted)
     for name in list(joints):
         if name.endswith("_l"):
             right = name[:-2]+"_r"
-            joints[right] = cmds.ls(temporary+right)[0]
+            joints[right] = mlib.getNode(temporary+right).getName()
             parent = parent_of[name]
             parent_of[right] = parent[:-2]+"_r" if parent.endswith("_l") else parent
     # 正式な名前へ付け直す。親から順に付け直しても子の名前は変わらない。
     for name in names:
-        cmds.rename(temporary+name, prefix+name)
+        mlib.getNode(temporary+name).rename(prefix+name)
     for name in names:
-        joints[name] = cmds.ls(prefix+name)[0]
+        joints[name] = mlib.getNode(prefix+name).getName()
 
     meshes, proxy_set = [], None
     if proxy:
-        material = cmds.shadingNode("lambert", asShader=True, name=prefix+"humanProxy_mat")
-        cmds.setAttr(material+".color", 0.55, 0.6, 0.68, type="double3")
-        cmds.setAttr(material+".transparency", 0.45, 0.45, 0.45, type="double3")
-        material_group = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=prefix+"humanProxy_SG")
-        cmds.connectAttr(material+".outColor", material_group+".surfaceShader")
+        material = mlib.createShader("lambert", name=prefix+"humanProxy_mat")
+        material.getPlug("color").set((0.55, 0.6, 0.68))
+        material.getPlug("transparency").set((0.45, 0.45, 0.45))
+        material_group = mlib.createShadingGroup(material, name=prefix+"humanProxy_SG")
         for name in names:
             children = [child for child in names if parent_of.get(child) == name]
             # 骨の長さは子が1つのときだけ子までとする(骨盤・手は子が複数なので箱を置く)。
@@ -259,6 +309,6 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
             mesh = _addProxy(joints[name], name, child, material_group)
             if mesh:
                 meshes.append(mesh)
-        proxy_set = cmds.sets(meshes, name=prefix+"humanProxy_set")
-    cmds.select(joints["root"])
+        proxy_set = mlib.createSet(meshes, name=prefix+"humanProxy_set").getName()
+    mlib.select(joints["root"])
     return {"root": joints["root"], "joints": joints, "meshes": meshes, "proxySet": proxy_set}

@@ -208,7 +208,7 @@ class SecondaryLayer:
                 row = [
                     math.degrees(mlib.common.units.angleFromUi(v))
                     for source in sources
-                    for v in mlib.getAttr(source.getPlug("rotate")).getu()
+                    for v in mlib.getAttr(source.getPlug('rotate')).get(uiUnits=True)
                 ]
                 if rows:
                     row = [
@@ -263,7 +263,7 @@ class SecondaryLayer:
             PoseRbf: 出力値を編集できる計算オブジェクト。
         """
         group = self.add(driver_index)
-        if group.getPlug("poseGraph").getSourceWithConversion() is not None:
+        if group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None:
             raise ValueError("Pose graph already exists; edit its set_values instead")
         count = len(self._members(group, "sources")) * 3
         if not values or any(len(row) != count for row in values):
@@ -278,7 +278,7 @@ class SecondaryLayer:
         graph.container.getPlug("message").connectTo(group.getPlug("poseGraph"))
         root = self.rig.root
         root.getPlug("mlrigOwned").appendMessage(graph.container)
-        owner = group.getPlug("graph").getSourceWithConversion().getNode()
+        owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
             graph.container.getPlug("outputs")[index].connectTo(weight.getPlug("input1"))
@@ -332,21 +332,21 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug("poseGraph").getSourceWithConversion() is not None
+                and group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None
             )
             curves = self._members(group, "curves")
             for index, blend in enumerate(self._members(group, "blends")):
                 weight = blend.getPlug("weight")
-                if weight.getSourceWithConversion() is not None:
-                    weight.disconnect(weight.getSourceWithConversion())
+                if weight.getSource(skipConversionNodes=False) is not None:
+                    weight.disconnect(weight.getSource(skipConversionNodes=False))
                 if spring:
                     group.getPlug("intensity").connectTo(weight)
                 else:
                     weight.set(0)
                 for axis_index, axis in enumerate("XYZ"):
                     target = blend.getPlug("inRotate" + axis + "2")
-                    if target.getSourceWithConversion() is not None:
-                        target.disconnect(target.getSourceWithConversion())
+                    if target.getSource(skipConversionNodes=False) is not None:
+                        target.disconnect(target.getSource(skipConversionNodes=False))
                     curve = curves[index * 3 + axis_index]
                     curve.getPlug("nodeState").set(0 if spring else 2)
                     if spring:
@@ -355,8 +355,8 @@ class SecondaryLayer:
             for index, compose in enumerate(self._members(group, "poses")):
                 for axis_index, axis in enumerate("XYZ"):
                     target = compose.getPlug("inputRotate" + axis)
-                    if target.getSourceWithConversion() is not None:
-                        target.disconnect(target.getSourceWithConversion())
+                    if target.getSource(skipConversionNodes=False) is not None:
+                        target.disconnect(target.getSource(skipConversionNodes=False))
                     if pose:
                         weights[index * 3 + axis_index].getPlug("output").connectTo(target)
                     else:
@@ -379,13 +379,13 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug("poseGraph").getSourceWithConversion() is not None
+                and group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None
             )
-            if (self._members(group, "blends")[0].getPlug("weight").getSourceWithConversion() is not None) != bool(
+            if (self._members(group, 'blends')[0].getPlug('weight').getSource(skipConversionNodes=False) is not None) != bool(
                 spring
             ):
                 return True
-            if (self._members(group, "poses")[0].getPlug("inputRotateX").getSourceWithConversion() is not None) != bool(
+            if (self._members(group, 'poses')[0].getPlug('inputRotateX').getSource(skipConversionNodes=False) is not None) != bool(
                 pose
             ):
                 return True

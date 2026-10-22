@@ -41,7 +41,7 @@ class TweakLayer:
         Returns:
             tuple[str]: 完全名。
         """
-        return tuple(g.getPlug("joint").getSourceWithConversion().getNode().getFullName() for g in self.groups().values())
+        return tuple((g.getPlug('joint').getSource(skipConversionNodes=False).getNode().getFullName() for g in self.groups().values()))
 
     @undoTransaction("mlrig.TweakLayer.add")
     def add(self, identifier, joint):
@@ -90,9 +90,9 @@ class TweakLayer:
         """Enabled/LODに応じて局所行列の入力を切り替える。"""
         for group in self.groups().values():
             active = bool(group.getPlug("enabled").get()) and self.rig.lod() == 1
-            control = group.getPlug("control").getSourceWithConversion().getNode()
-            destination = group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix")
-            previous = destination.getSourceWithConversion()
+            control = group.getPlug('control').getSource(skipConversionNodes=False).getNode()
+            destination = group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix')
+            previous = destination.getSource(skipConversionNodes=False)
             if active and previous is None:
                 control.getPlug("matrix").connectTo(destination)
             elif not active and previous is not None:
@@ -147,7 +147,7 @@ class TweakLayer:
         for group in layer.groups().values():
             active = bool(group.getPlug("enabled").get()) and layer.rig.lod() == 1
             if (
-                bool(group.getPlug("joint").getSourceWithConversion().getNode().getPlug("offsetParentMatrix").getSourceWithConversion())
+                bool(group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix').getSource(skipConversionNodes=False))
                 != active
             ):
                 layer.update()

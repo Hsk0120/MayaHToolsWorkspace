@@ -12,7 +12,7 @@
 | 対象 | 規則 | 例 |
 | --- | --- | --- |
 | クラス | PascalCase | `SkinCluster`、`EulerRotate` |
-| 公開関数・メソッド | lowerCamelCase | `matrix()`、`settings()`、`undoChunk()` |
+| 公開関数・メソッド | lowerCamelCase | `getMatrix()`、`getSettings()`、`undoChunk()` |
 | プロパティ | lowerCamelCase | `orderName`、`minimumVersion`、`paletteSource` |
 | Mayaコマンド・アトリビュート・nodeType | Maya標準の原名 | `createNode`、`offsetParentMatrix`、`skinCluster` |
 | 一般Pythonファイル | lowerCamelCase | `channelBox.py`、`eulerRotate.py` |
@@ -27,25 +27,22 @@
   現在の型登録から一意に逆引きし、型未確定の基底・抽象型・名前だけでは初期化できないSkinClusterは作成前に拒否する。
   未知引数も作成前に検証し、Maya標準の名前補正・連番・選択・シェイプ親作成と既存Undo/プラグイン規則を使う。
   getNode等の取得関数・複数形・Object入口は作成を兼ねない。既存Node.createとbindSkinの仕様は維持する。
-- 2026-10-08のユーザー指定により、独自の `getX` に `x()` の省略入口を一律追加する。
-  本体と内部利用の基準はget付きに残し、通常defから呼出時のget付きメソッドへ委譲する。
-  引数・別名・戻り値・単位・例外・Undoは正式getterと同じ。実行時にメソッドを生成しない。
-  省略名は同名のMayaアトリビュートや継承propertyより優先する。Plug取得は
-  `getPlug("radius")` 等、複合Plugの同名子は `["node"]` 等で明示する。
-  静的getterの省略入口はclassmethodとしてクラス/インスタンス両方から利用できる。
-  公開コマンドも同名ファイルの省略入口を併用し、動詞+対象の正式名は維持する。
-- 2026-10-09のユーザー指定により、利用者向けの説明・使用例・Sphinx API一覧は取得のget省略名を標準にする。
-  取得コマンドは `mlib.cmds.x()` とルートの `mlib.x()` を同じ関数の入口として記載し、Sphinxの構文・参照も双方を提供する。
-  `plug()`・`translate()`等へ表記を揃え、Sphinxでは引数と説明をget付き本体から表示する。
-  実装本体のget/set命名、Maya標準名、`getPlug=False`等の引数名は変更しない。
-  正式名との対応を説明するページと、廃止した旧名の移行表ではget付き表記を必要に応じて残す。
+- 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
+  get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
+  判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
+  単純な演算ノードアクセサーはPlugで表現し、検証・enum変換・複合処理を持つメソッドは残す。
+  Transform/Jointおよび行列・TRS関連の専用アクセサーは維持する。
+  接続は `getSource/getDestinations(skipConversionNodes=...)` と方向指定の `getConnections`、
+  単位は `get/set(uiUnits=...)`、子孫探索は `getChildren(allDescendents/order/leaves/includeSelf)` に集約する。
+  `getShapes` は独立して維持する。オフセットグループ生成とリグ向けチャンネル初期化は
+  `mlrig.setups.ControlHierarchy` が担当する。
 - 2026-10-09のユーザー指定により、mlibで本体を定義する `isX` にも `x()` の省略入口を追加し、説明・使用例・Sphinxは省略名を使う。
   判定本体のis名と引数・戻り値・フラグを維持し、通常defから現在の判定メソッドへ委譲する。
   同名の取得・編集APIと重なる箇所は既存APIを維持し、is付き判定を使う。
   数学型に定義した `isEquivalent` にも省略入口を追加する。OpenMayaからそのまま継承するAPIの標準名は維持する。
 - 2026-10-09のユーザー指定により、mlibの変換APIはMayaの `translate/rotate/scale` 表記へ統一する。
   クラスは `Translate/EulerRotate/Scale`、取得・設定は `getTranslate/setTranslate`・`getRotate/setRotate`・`getScale/setScale`、
-  取得の省略入口は `translate()/rotate()/scale()`。対応する独自複合名・内部メソッド・ファイル・内製利用側も揃える。
+  対応する独自複合名・内部メソッド・ファイル・内製利用側も揃える。
   移動・回転・スケールのPlugは `getPlug("translate")` 等で明示取得する。旧独自名・旧importの互換入口は残さない。
   OpenMaya標準名、Maya標準のフラグ・アトリビュート名に忠実な `useEulerRotation` 系、既存引数・単位・Undo・戻り値の意味は維持する。
   `Quaternion.asEulerRotate()` は標準の `asEulerRotation()` へ委譲する。JSONの保存タグは `math:Translation/math:EulerRotation` のまま、新クラスへ復元する。
@@ -77,7 +74,7 @@
   SkinCluster.redistributeWeightsは先頭geometryのmeshに属するVertex/Verticesも受理する。
   既存の整数・エイリアス・返却・単位・Undo・fast・途中更新は維持する。
 - Selection.filterはcomponent正式名を追加し、既存記号・保持順・未知の型名の空結果を維持する。
-  Mesh・NurbsCurveの単数/複数取得は正式getメソッドと省略defの規則へ揃え、既存の呼出し方を維持する。
+  Mesh・NurbsCurveの単数/複数取得は正式getメソッドへ集約し、番号・型・戻り値を維持する。
 - デルタ単体IOは専用メソッドでJSONキー変換を扱う。既存の全ターゲット保存・汎用JSON規則・保存タグは変えない。
   型別Snapshot.captureは既存captureへ委譲し、保存・参照解決・plan・applyを別操作にする。
 - Namespace.createのparent指定は、Maya標準に従って作成先を完全名へ解決し、既存確認と返却も同じ名前にする。
@@ -130,7 +127,7 @@ mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 ## コマンド層とオブジェクト・数学層
 
 `getAttr(target)` はユーザーの指定により `getPlug` へ委譲し、アトリビュート型に対応する
-Plugを返す。値は `.get()` で内部単位、`.getu()` でUI単位として取得する。
+Plugを返す。値は `.get()` で内部単位、`.get(uiUnits=True)` でUI単位として取得する。
 既存の `getAttr(target, **kwargs)` の照会フラグは維持する。フラグを一つでも明示した
 呼出しは従来どおりMayaの値・状態を返し、time指定・Falseのフラグもこの照会に含める。
 型判定・入力解決の本体は `getPlug` 側に集約し、公開入口の名前や位置引数は維持する。
@@ -153,7 +150,7 @@ bool方向指定は未接続でも空リストを返す。入力元Plugの明示
 
 ユーザーの指示により、方向を選択するPlugの接続照会・判定・解除には
 `src/source`（自身への入力）と `dst/destination`（自身からの出力）を揃える。
-`getConnections` とget省略入口の `connections` は、既存の `source/destination` へ
+`getConnections` は、既存の `source/destination` へ
 `src/dst` の別名を追加する。位置引数・既定値・返却形式を維持し、
 既存の入力 `s and source`、出力 `d and destination` の評価を変更しない。
 同名と別名の重複指定は同値でもTypeErrorとする。
@@ -169,7 +166,7 @@ bool方向指定は未接続でも空リストを返す。入力元Plugの明示
 複数切断を1回のUndo/Redoにまとめる。forceは追加しない。
 
 `disconnect` は上記の既存のsrc兼用・入力だけの既定・戻り値を維持する。
-固定方向の `getSource/getInputs/getOutputs/getDestinations` と変換ノードを含む派生、
+接続元・接続先は `getSource/getDestinations(skipConversionNodes=...)`、方向付き照会は `getConnections` へ集約する。
 `isSource/isDestination/disconnectInput/getSourceNodes` には方向boolを追加しない。
 `connect(src)` と `connectTo(dst)` は接続相手を受け取り、方向boolには置き換えない。
 
@@ -298,7 +295,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 このファイル名規則はmlibとすべての `mlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。内部関数・ローカル変数はsnake_caseを使用できる。nodes/plugs/componentsの公開メソッドはlowerCamelCaseとする。
 
 - 値の取得・設定を対にするAPIは `getPosition()` / `setPosition()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
-- 子クラスで基底メソッドと同名の別機能を公開しない。`Node.getInputs(type=...)` は接続検索を維持し、`AnimCurve.getKeyInputs()` と `BlendWeighted.getInputPlugs()` は専用名を使う。
+- 子クラスで基底メソッドと同名の別機能を公開しない。`Node.getConnections(source=True, destination=False, type=...)` は接続検索とし、`AnimCurve.getKeyInputs()` と `BlendWeighted.getInputPlugs()` は専用名を使う。
 - 複数形クラスは単体の同名メソッドを一括実行できるようにする。集約・重複除外・要素別設定などで意味が異なる場合は、戻り値と適用範囲を明示する。
 - 同じ処理の別名を無制限に増やさない。正式な入口を決め、互換性が必要なら目的と移行先を記載する。
 

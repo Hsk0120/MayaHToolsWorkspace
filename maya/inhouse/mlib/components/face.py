@@ -1,6 +1,5 @@
 """Mesh の Face とコレクション。"""
 
-from .._core.getterAlias import _getter_alias
 from .component import Component, Components
 from .vertex import Vertices
 
@@ -38,54 +37,6 @@ class Face(Component):
         """
         self._validate()
         return Vertices(self.shape, self.shape.meshFn().getPolygonVertices(self.index))
-
-    @_getter_alias(getShadingEngine)
-    def shadingEngine(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngine(*args, **kwargs)
-
-    @_getter_alias(getMaterial)
-    def material(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaterial(*args, **kwargs)
-
-    @_getter_alias(getVertices)
-    def vertices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getVertices(*args, **kwargs)
 
 
 _FACE_GET_VERTICES = Face.getVertices
@@ -142,51 +93,3 @@ class Faces(Components):
                 Component._validate_index(index, count)
                 indices.extend(mesh_fn.getPolygonVertices(index))
         return Vertices(self.shape, indices)
-
-    @_getter_alias(getShadingEngines)
-    def shadingEngines(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getShadingEngines(*args, **kwargs)
-
-    @_getter_alias(getMaterials)
-    def materials(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaterials(*args, **kwargs)
-
-    @_getter_alias(getVertices)
-    def vertices(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getVertices(*args, **kwargs)

@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    mlib.delete(nodes)
+    mlib.delete(nodes, fast=False)
 
 指定したノード・コンポーネントを削除します。Component は一意な名前に変換して渡し、
 その扱いは ``maya.cmds.delete`` に従います(面を削除するなど)。受け付ける型は
@@ -13,7 +13,7 @@ Synopsis
 Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya.cmds.delete`` へ
 アトリビュート名を渡してもエラーを表示するだけで何も削除しないためです。動的アトリビュートの削除は
 ``plug.delete()``、配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は
-``plug.disconnect()``、アトリビュートの所有ノードの削除は ``mlib.delete(plug.node())`` を使ってください。
+``plug.disconnect()``、アトリビュートの所有ノードの削除は ``mlib.delete(plug.getNode())`` を使ってください。
 文字列は解決せずにそのまま渡すため、``"node.attribute"`` 形式の文字列は ``maya.cmds.delete`` と
 同じ扱いです。
 
@@ -22,6 +22,9 @@ Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya
 ``Joint.delete()`` ではウェイト移送・子階層保持などの専用動作を使用します。
 入力順に処理し、先行する削除で無効になった対象はスキップします。
 コンポーネントは所有ノードを削除せず、Maya標準コマンドで処理します。
+
+``fast=True`` は対応する範囲をAPI 2.0で直接変更し、Undo履歴を追加しません。
+未対応条件は変更前に拒否します。詳細は関数のdocstringを参照してください。
 
 Return value
 ------------
@@ -37,7 +40,7 @@ Related commands
 Flags
 -----
 
-位置引数のみです。括弧内は Maya に渡せる短縮名です（該当なし）。
+対象は位置引数、fastはキーワード専用です（Mayaの短縮名はありません）。
 
 .. list-table::
    :header-rows: 1
@@ -63,18 +66,26 @@ Examples
     mlib.delete(node)
 """
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 
 
+@fast_edit
 @undoChunk("mlib.cmds.delete.delete")
-def delete(nodes):
+def delete(nodes, *, fast=False):
     """指定したノード・コンポーネントを削除する。
 
     Args:
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         nodes (Node | Component | Components | Selection | str | om2.MObject | om2.MDagPath | Iterable):
             削除する対象、またはその列(入れ子のコレクションも展開する)。
+
+    Note:
+        fastは各Nodeの直接削除を使う。コンポーネントのトポロジー削除には
+        対応せず、入力に含まれる場合は何も削除せずNotImplementedErrorにする。
 
     Returns:
         None: 値を返さない。
@@ -98,10 +109,19 @@ def delete(nodes):
     nodes = []
     for name in node_names:
         # Maya標準のワイルドカード指定を実ノードへ展開してから検証する。
-        resolved = cmds.ls(name, long=True) if any(char in name for char in "*?[") else [name]
+        if any(char in name for char in "*?["):
+            resolved = (list(om2.MGlobal.getSelectionListByName(name).getSelectionStrings())
+                        if is_fast() else cmds.ls(name, long=True))
+        else:
+            resolved = [name]
         nodes.extend(Node(value) for value in (resolved or [name]))
     if components:
+        if is_fast():
+            raise NotImplementedError("fast component/topology deletion is not supported")
         cmds.delete(*components)
+    if is_fast():
+        from .._core.nodeEdit import validate_deletion
+        validate_deletion(nodes)
     for node in nodes:
         # 親・所有コンテナの削除や重複指定で既に消えた対象は再削除しない。
         if node.isValid():

@@ -8,13 +8,13 @@ Undo不要の値更新
 
    import mlib
 
-   node = mlib.node("pCube1")
-   node.plug("translateX").set(10, fast=True)
+   node = mlib.getNode("pCube1")
+   node.getPlug("translateX").set(10, fast=True)
    node.setTranslate((1, 2, 3), fast=True)
 
-   shape = mlib.node("pCubeShape1")
-   shape.vertices().setPosition((0, 1, 0), fast=True)
-   shape.vertices().mirror(axis="x", fast=True)
+   shape = mlib.getNode("pCubeShape1")
+   shape.getVertices().setPosition((0, 1, 0), fast=True)
+   shape.getVertices().mirror(axis="x", fast=True)
 
    joints = mlib.ls(type="joint")
    joints.freezeRotate(fast=True)
@@ -22,17 +22,18 @@ Undo不要の値更新
 対応範囲
 --------
 
-* Plugの ``set`` / ``reset`` とロック・keyable・channelBoxの設定。
+* Plugの ``set`` / ``reset`` とロック・keyable・channelBox、接続・切断・配列要素削除・動的アトリビュート削除。
   配列は要素Plugを取得して設定します。
-* Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー。
+* Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー、ピボット、対応範囲の親変更・限定削除。
 * Joint / Jointsの ``freezeRotate`` と ``jointOrientToRotate``。
-* NodeのOutliner色・override色・アトリビュート表示フラグ。
+* Nodeの生成・削除・改名・名前空間・追加アトリビュートと、Outliner色・override色・表示フラグ。
+* ObjectSet・DisplayLayerの所属変更とShadingEngineの対応範囲の割当。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
 * Shape / Transformの ``scaleGeometry``。履歴なしメッシュ・非周期カーブに対応。
 * Meshの ``reorderVertices``。UV対応で頂点番号を変更します。
   対応条件とUndoモードのtweak制限は :doc:`guide_geometry` を参照してください。
 * SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
-  ``setMaxInfluences``。
+  ``setMaxInfluences``・ウェイト移送・influenceの登録解除。
 * BlendShapeの ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` /
   ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets`` / ``loadTargetDeltas``。照会は通常時もOpenMayaを使います。
   追加・削除・ミラーはMaya標準cmds/MEL処理を維持するためfast非対応です。
@@ -48,10 +49,13 @@ Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
 距離はcm、空間はws=True/Falseで指定し、履歴付き形状も読み取れます。
 周期カーブもAPIのCV番号を使います。通常更新とcmdsへ渡す名前では末尾の重複CVを
 対応する独立CVへ写します。fastの周期カーブ更新は未対応です。
-汎用のノード作成・削除・接続変更、アニメーションキー編集、UI操作などには
-このフラグを追加していません。BlendShapeの置換・デルタ設定に伴う入力接続変更は
-対応範囲に含み、MDGModifierで更新します。JSON読込のfastはファイルI/Oの変更ではなく、
-シーンへの復元をOpenMayaへ切り替えます。個々のAPIリファレンスで確認してください。
+対応範囲のノード作成・削除・接続変更と、AnimCurveのキー・接線・移動・正倍率の拡縮も
+fastを提供します。UI操作やMaya標準の複合コマンドに一律fastを追加するものではありません。
+入力条件と制限は :doc:`consolidated_api` を参照してください。
+キー・接線のfast編集では入力 ``stepnext`` 等を更新前に拒否します。
+固定接線は ``setKey`` の作成フラグには指定せず、``setTangent`` で編集します。
+接線名と入力 ``step`` の補正を含む詳細は :doc:`animation_nodes` を参照してください。
+JSON読込のfastはシーンへの復元をOpenMayaへ切り替える指定で、ファイルI/Oは変更しません。
 
 動作と制限
 ----------

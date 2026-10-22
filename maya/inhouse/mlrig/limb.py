@@ -70,7 +70,7 @@ class LimbRig:
         Returns:
             str: メンバーの完全名。
         """
-        source = self.root.getPlug(role).getSourceWithConversion() if self.root.hasAttr(role) else None
+        source = self.root.getPlug(role).getSource(skipConversionNodes=False) if self.root.hasAttr(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
         return source.getNode().getFullName()
@@ -383,7 +383,7 @@ class LimbRig:
         if old_owner == root:
             raise RuntimeError("Invalid Soft IK ownership: rig root cannot be replaced")
         length = mlib.getPlug(root + ".mlrigLength").get()
-        source = mlib.getPlug(old + ".distance").getSourceWithConversion()
+        source = mlib.getPlug(old + '.distance').getSource(skipConversionNodes=False)
         graph, owner = create_soft_ik(self.getNodeName("soft"), length, backend)
         if owner != graph:
             from mlib.nodes import Node

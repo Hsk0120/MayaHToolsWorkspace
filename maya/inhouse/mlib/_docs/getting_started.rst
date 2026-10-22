@@ -27,10 +27,10 @@ mlibの読み込みからノード・アトリビュート操作までの基本�
    import mlib
 
    node = mlib.createNode("transform", name="mlibExample")
-   node.plug("visibility").set(False)
+   node.getPlug("visibility").set(False)
 
-   print(node.name())
-   print(node.plug("visibility").get())
+   print(node.getName())
+   print(node.getPlug("visibility").get())
    print(mlib.ls(type="transform"))
 
 この例では、アトリビュート変更とノード作成は別々のUndoになります。
@@ -38,14 +38,14 @@ mlibの読み込みからノード・アトリビュート操作までの基本�
 :ref:`tool-undo-chunk` の方法でまとめます。
 
 ``createNode`` は ``maya.cmds.createNode`` にキーワード引数を渡し、
-対応するラッパーを返します。既存ノードは ``mlib.node("ノード名")`` で取得できます。
+対応するラッパーを返します。既存ノードは ``mlib.getNode("ノード名")`` で取得できます。
 ``ls`` は ``maya.cmds.ls`` の引数を受け取り、通常はラッパーのリストを返します。
 ``type="joint"`` と ``type="skinCluster"`` は、それぞれ ``Joints`` と
 ``SkinClusters`` コレクションを返します。
 
-ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.plug` で取得した
+ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` オブジェクトを通して操作します。
-説明と使用例では、取得メソッドを ``plug()`` のようにgetを省いた名前で記載します。
+説明と使用例では、取得メソッドを ``getPlug()`` のようにgetを省いた名前で記載します。
 get付きの本体も同じ引数・戻り値で利用できます（:doc:`getter_aliases`）。
 
 対象の種類を判別して取得する
@@ -70,8 +70,8 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
 数学型、複数形コレクション、UI、保存データは継承しません。
 要素範囲は ``Object`` ではなく ``mlib.common.Selection("pCube1.vtx[0:3]")`` で取得します。
 アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。
-アトリビュートとして明示する場合は ``node.plug()`` または ``mlib.plug()`` を使います。
-対象の種類が決まっている既存コードでは ``mlib.node()``・``mlib.plug()`` をそのまま使えます。
+アトリビュートとして明示する場合は ``node.getPlug()`` または ``mlib.getPlug()`` を使います。
+対象の種類が決まっている既存コードでは ``mlib.getNode()``・``mlib.getPlug()`` をそのまま使えます。
 
 目的から使い方を探す
 --------------------
@@ -88,10 +88,10 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
      - ``captureSelection().filter("vertex").components()``
      - :doc:`guide_geometry`
    * - アトリビュートの値を取得
-     - ``node.plug("translateX").get()``、UI単位は ``getu()``
+     - ``node.getPlug("translateX").get()``、UI単位は ``get(uiUnits=True)``
      - :doc:`cmds_interop`
    * - 作成した形状を編集
-     - 戻り値の型を確認し、Transformは ``shape()`` を取得
+     - 戻り値の型を確認し、Transformは ``getShape()`` を取得
      - :doc:`guide_commands`
    * - ターゲットの頂点を除外・デルタを保存
      - ``resetTargetVertices``、``dumpTargetDeltas``、``loadTargetDeltas``
@@ -109,14 +109,14 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
      - 操作の対応条件を確認して ``fast=True``
      - :doc:`fast_edit`
    * - プラグインと拡張の状態を確認
-     - ``tryLoad() == LOADED``、``extensions.diagnostics()``
+     - ``tryLoad() == LOADED``、``extensions.getDiagnostics()``
      - :doc:`guide_environment`、:doc:`extensions`
 
 .. code-block:: python
 
    # baseの頂点を選択している状態。返却されたweight Plugを続けて使用する。
-   bs = mlib.node("faceBlendShape")
-   weight = bs.addTarget(mlib.node("smileMesh"))
+   bs = mlib.getNode("faceBlendShape")
+   weight = bs.addTarget(mlib.getNode("smileMesh"))
    weight.set(0.5)
    bs.resetTargetVertices(weight, mlib.ls(sl=True, type="vertex"))
 
@@ -127,7 +127,7 @@ cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cm
 クラスを直接importして使う
 ---------------------------
 
-``mlib.createNode``/``mlib.ls``/``mlib.node`` などのコマンドは ``mlib`` 直下で
+``mlib.createNode``/``mlib.ls``/``mlib.getNode`` などのコマンドは ``mlib`` 直下で
 使える一方、``Node``/``Joint``/``Matrix`` のようなクラス自体は ``mlib`` 直下には
 公開されません。所属するサブパッケージから import します。
 
@@ -145,7 +145,7 @@ cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cm
 既存ノードを取得します。``Joint("transform1")`` のような非互換の型はTypeErrorです。
 ``Transform("joint1")`` は、Transformの派生型であるJointを返します。
 種類を指定せず実際のMaya nodeTypeから自動選択する場合は、
-``mlib.node("ノード名")`` / ``Node("ノード名")`` を使ってください。
+``mlib.getNode("ノード名")`` / ``Node("ノード名")`` を使ってください。
 
 新規作成は、具象クラスに ``create=True`` をキーワードで指定します。
 
@@ -160,7 +160,7 @@ cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cm
 指定名が既にある場合はMayaの規則で連番化され、通常のUndoで作成を戻せます。
 ``create`` はbool限定で、Trueの場合は空でない文字列の名前が必要です。
 作成可能なクラスと制約は :doc:`guide_nodes` の「クラスからノードを作成する」を参照してください。
-既存取得の ``mlib.node()`` やget付きの取得関数に ``create`` を渡す形式は追加していません。
+既存取得の ``mlib.getNode()`` やget付きの取得関数に ``create`` を渡す形式は追加していません。
 
 再読み込み
 ----------

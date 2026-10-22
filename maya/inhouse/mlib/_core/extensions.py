@@ -11,9 +11,8 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from .. import logger
-from .getterAlias import _getter_alias
 
-__all__ = ["status", "getDiagnostics", "diagnostics"]
+__all__ = ["status", "getDiagnostics"]
 
 # importlib.reloadで廃止した登録デコレーターを残さない。
 for _name in ("node_wrapper", "plug_wrapper", "discover_node_package", "discover_plug_package"):
@@ -32,7 +31,7 @@ _attempted = globals().get("_attempted", set())
 def status():
     """最後の初期化で得た拡張名ごとの状態と理由をコピーして返す。
 
-    現在の依存可用性は再照会しない。診断だけを更新する場合はdiagnosticsを使う。
+    現在の依存可用性は再照会しない。診断だけを更新する場合はgetDiagnosticsを使う。
 
     Returns:
         dict: 拡張名ごとの状態と理由をコピーして返す。
@@ -93,20 +92,6 @@ def getDiagnostics():
         if not reentered:
             _diagnosing = False
     return result
-
-
-@_getter_alias(getDiagnostics)
-def diagnostics(*args, **kwargs):
-    """getDiagnosticsへ引数を転送し、初期化結果と現在の可用性を取得する。
-
-    Args:
-        *args: getDiagnosticsへ渡す位置引数。
-        **kwargs: getDiagnosticsへ渡すキーワード引数。
-
-    Returns:
-        dict[str, dict]: getDiagnosticsと同じ診断情報。
-    """
-    return getDiagnostics(*args, **kwargs)
 
 
 def _prepare_reload():

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias, _is_alias
+from .._core.getterAlias import _is_alias
 from ._editor import _Editor
 
 
@@ -125,22 +125,6 @@ class Viewport(_Editor):
         """
         self._require_exists()
         cmds.modelEditor(self._name, edit=True, camera=camera)
-
-    @_getter_alias(getCamera)
-    def camera(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getCamera(*args, **kwargs)
 
     @staticmethod
     def _main_pane():

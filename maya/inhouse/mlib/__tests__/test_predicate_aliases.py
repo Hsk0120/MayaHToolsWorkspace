@@ -99,7 +99,7 @@ class PredicateAliasesTest(unittest.TestCase):
                 return args, kwargs
 
         derived = object.__new__(DerivedTransform)
-        self.assertEqual(derived.locked(4, marker="raw"), ((4,), {"marker": "raw"}))
+        self.assertEqual(derived.isLocked(4, marker="raw"), ((4,), {"marker": "raw"}))
 
     def test_connection_aliases_keep_direction_booleans_and_source_getter(self):
         """方向・別名競合と、既存sourceのPlug返却を実接続で確認する。"""
@@ -111,7 +111,7 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertTrue(src.connectedTo(dst, source=False, destination=True))
         self.assertFalse(dst.connectedTo(src, src=False, dst=True))
         self.assertFalse(dst.connected(src=False, dst=False))
-        self.assertEqual(dst.source(), src)
+        self.assertEqual(dst.getSource(), src)
         self.assertTrue(src.isSource())
         self.assertTrue(dst.destination())
         with self.assertRaises(TypeError):
@@ -126,7 +126,7 @@ class PredicateAliasesTest(unittest.TestCase):
         nodes = mlib.nodes.Transforms([self.first, self.second])
         cmds.lockNode(str(self.second), lock=True)
         self.assertEqual(nodes.valid(), [True, True])
-        self.assertEqual(nodes.locked(), [False, True])
+        self.assertEqual(nodes.isLocked(), [False, True])
         self.assertEqual(nodes.callEach("locked", [(), ()]), [False, True])
         self.assertEqual(mlib.nodes.Nodes().valid(), [])
         self.assertEqual(mlib.nodes.Nodes().callEach("valid", []), [])
@@ -146,13 +146,13 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertTrue(self.first.getPlug("translate").compound())
         self.assertTrue(child.child())
         self.assertTrue(array[0].isElement())
-        self.assertEqual(array.element(0), array.getElement(0))
+        self.assertEqual(array.getElement(0), array.getElement(0))
         self.first.delete()
         self.assertFalse(self.first.valid())
         self.assertEqual(self.first.alive(), self.first.isAlive())
         self.assertFalse(scalar.valid())
         with self.assertRaises(RuntimeError):
-            scalar.locked()
+            scalar.isLocked()
 
     def test_static_and_module_aliases_keep_binding_and_current_state(self):
         """静的入口はクラス/個体/派生から呼べ、Undo照会は状態を変えない。"""
@@ -190,20 +190,22 @@ class PredicateAliasesTest(unittest.TestCase):
 
     def test_colliding_names_keep_existing_getters_and_scene_creation(self):
         """同名の取得・編集APIと、派生クラス側のroot/elementを維持する。"""
-        self.assertEqual(self.first.type(), "transform")
+        self.assertEqual(self.first.getType(), "transform")
         self.assertTrue(self.first.isType("dagNode"))
-        self.assertEqual(self.first.root(), self.first.getRoot())
+        self.assertEqual(self.first.getRoot(), self.first.getRoot())
         self.assertTrue(self.first.isRoot())
         transforms = mlib.nodes.Transforms([self.first])
-        self.assertEqual(transforms.root(), transforms.getRoot())
+        self.assertEqual(transforms.getRoot(), transforms.getRoot())
         self.assertEqual(transforms.isRoot(), [True])
         scene = mlib.common.Scene()
         self.assertTrue(scene.isNew())
         self.assertIs(scene.new(force=True, prompt=False), scene)
         self.assertIsInstance(mlib.common.Plugin.loaded(), list)
         layout = mlib.common.WorkspaceLayout
-        self.assertEqual(layout.current.__func__.__mlib_getter_name__, "getCurrent")
-        self.assertEqual(mlib.nodes.Reference.root.__mlib_getter_name__, "getRoot")
+        self.assertTrue(callable(layout.getCurrent))
+        self.assertFalse(hasattr(layout, "current"))
+        self.assertTrue(callable(mlib.nodes.Reference.getRoot))
+        self.assertFalse(hasattr(mlib.nodes.Reference, "root"))
 
 
 if __name__ == "__main__":

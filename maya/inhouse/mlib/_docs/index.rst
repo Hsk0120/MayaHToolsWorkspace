@@ -22,6 +22,7 @@ Contents
    api_consistency
    api_arguments
    getter_aliases
+   consolidated_api
    api_methods
    transformation
    modules

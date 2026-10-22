@@ -25,7 +25,7 @@ class LimbStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.getPlug("stretchGroup").getSourceWithConversion() if root.hasAttr("stretchGroup") else None
+        source = root.getPlug('stretchGroup').getSource(skipConversionNodes=False) if root.hasAttr("stretchGroup") else None
         return source.getNode() if source is not None else None
 
     @staticmethod
@@ -53,9 +53,7 @@ class LimbStretchLayer:
             return self.settings()
         rig, root = self.rig, self.rig.root
         lengths = [
-            mlib.common.units.distanceFromUi(
-                mlib.getAttr(rig._member("ik" + str(i)) + ".translateX").getu()
-            )
+            mlib.common.units.distanceFromUi(mlib.getAttr(rig._member('ik' + str(i)) + '.translateX').get(uiUnits=True))
             for i in (1, 2)
         ]
         owner = LengthCompensation.create(sum(lengths), root.getName() + "_stretchGraph").container
@@ -112,7 +110,7 @@ class LimbStretchLayer:
         units.getPlug("conversionFactor").set(1)
         units.getPlug("output").connectTo(group.getPlug("inputLength"))
         soft_input = mlib.getPlug(rig._member("softGraph") + ".distance")
-        soft_input.getSourceWithConversion().connectTo(group.getPlug("softDistance"))
+        soft_input.getSource(skipConversionNodes=False).connectTo(group.getPlug('softDistance'))
         normalize = self._node(owner, "multiplyDivide", "normalizedSoftDistance")
         normalize.getPlug("operation").set(2)
         group.getPlug("softDistance").connectTo(normalize.getPlug("input1X"))
@@ -218,37 +216,37 @@ class LimbStretchLayer:
         if group is None:
             return
         rig, active = self.rig, self.active()
-        owner = group.getPlug("graph").getSourceWithConversion().getNode()
+        owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
         target = owner.getPlug("inputLength")
-        if target.getSourceWithConversion() is not None:
-            target.disconnect(target.getSourceWithConversion())
+        if target.getSource(skipConversionNodes=False) is not None:
+            target.disconnect(target.getSource(skipConversionNodes=False))
         if active:
             group.getPlug("inputLength").connectTo(target)
         else:
             target.set(owner.getPlug("restLength").get())
         for i, length in enumerate(mlib.json.JsonText.loads(group.getPlug("restLengths").get())):
             target = mlib.getPlug(rig._member("ik" + str(i + 1)) + ".translateX")
-            if target.getSourceWithConversion() is not None:
-                target.disconnect(target.getSourceWithConversion())
+            if target.getSource(skipConversionNodes=False) is not None:
+                target.disconnect(target.getSource(skipConversionNodes=False))
             if active:
-                group.getPlug("outputs")[i].getSourceWithConversion().getNode().getPlug("output").connectTo(target)
+                group.getPlug('outputs')[i].getSource(skipConversionNodes=False).getNode().getPlug('output').connectTo(target)
             else:
                 target.set(length)
         soft = mlib.getPlug(rig._member("softGraph") + ".distance")
-        if soft.getSourceWithConversion() is not None:
-            soft.disconnect(soft.getSourceWithConversion())
+        if soft.getSource(skipConversionNodes=False) is not None:
+            soft.disconnect(soft.getSource(skipConversionNodes=False))
         source = (
-            group.getPlug("softNormalize").getSourceWithConversion().getNode().getPlug("outputX")
+            group.getPlug('softNormalize').getSource(skipConversionNodes=False).getNode().getPlug('outputX')
             if active
             else group.getPlug("softDistance")
         )
         source.connectTo(soft)
         for i in range(3):
             target = mlib.getPlug(rig._member("joint" + str(i)) + ".offsetParentMatrix")
-            if target.getSourceWithConversion() is not None:
-                target.disconnect(target.getSourceWithConversion())
+            if target.getSource(skipConversionNodes=False) is not None:
+                target.disconnect(target.getSource(skipConversionNodes=False))
             source = (
-                group.getPlug("matrices")[i].getSourceWithConversion().getNode().getPlug("matrixSum")
+                group.getPlug('matrices')[i].getSource(skipConversionNodes=False).getNode().getPlug('matrixSum')
                 if active
                 else mlib.getPlug(rig._local_matrix(("ik" if rig.mode() == "ik" else "fk") + str(i)))
             )

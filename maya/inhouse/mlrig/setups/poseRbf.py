@@ -225,7 +225,7 @@ class PoseRbf:
         # 入力の角度変換ノードは残し、安定したcontainer入出力を保つ。
         keep = set()
         for i in range(len(scales)):
-            source = self.container.getPlug("inputs")[i].getSourceWithConversion()
+            source = self.container.getPlug('inputs')[i].getSource(skipConversionNodes=False)
             if source is not None:
                 keep.add(source.getNode().getUuid())
         owned = self.container.getMembers()

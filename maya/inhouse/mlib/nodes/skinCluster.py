@@ -13,7 +13,6 @@ from maya.api.OpenMaya import MSpace
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import writable, check_range
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from .._core.space import world_space
 from ..common._fast import fast_edit, is_fast
 from ..decorator import preservedSelection
@@ -205,19 +204,22 @@ class SkinCluster(Node):
 
         Returns:
             list[Node]: influence順のノードラッパー。微小値も使用中として扱い、
-                閾値による切り捨てはしない。全geometryをMayaのweightedInfluenceで判定する。
+                閾値による切り捨てはしない。全geometryをMFnSkinClusterで判定する。
 
         Raises:
             RuntimeError: skinClusterが無効、または照会に失敗した場合。
         """
-        weighted = cmds.skinCluster(self.getFullName(), query=True, weightedInfluence=True) or []
-        used = {Node(name).getUuid() for name in weighted}
-        return [Node(path.node()) for path in self.fn.influenceObjects()
-                if Node(path.node()).getUuid() not in used]
+        result = []
+        for path in self.fn.influenceObjects():
+            selection, _ = self.fn.getPointsAffectedByInfluence(path)
+            if not selection.length():
+                result.append(Node(path))
+        return result
 
     @flag_aliases(f="force")
+    @fast_edit
     @undoChunk("mlibSkinClusterRemoveUnusedInfluences")
-    def removeUnusedInfluences(self, *, force=False):
+    def removeUnusedInfluences(self, *, force=False, fast=False):
         """未使用influenceの登録を外す。jointノード自体は削除しない。
 
         Args:
@@ -241,6 +243,10 @@ class SkinCluster(Node):
         unused = self.getUnusedInfluences()
         if unused and len(unused) == len(self.getInfluences()):
             raise ValueError("Cannot remove every influence from a skinCluster")
+        if is_fast():
+            from .._core.skinEdit import validate_removal
+            for node in unused:
+                validate_removal(self, node)
         for node in unused:
             self.removeInfluence(node.getFullName(), transfer_to_parent=False)
         return unused
@@ -397,8 +403,9 @@ class SkinCluster(Node):
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
         self.setWeights(influences, payload["weights"])
 
+    @fast_edit
     @undoChunk("mlib.nodes.skinCluster.redistributeWeights")
-    def redistributeWeights(self, vertices, method="cubic"):
+    def redistributeWeights(self, vertices, method="cubic", *, fast=False):
         """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
 
         対象頂点それぞれについて、influence 別のウェイトを合計1に揃えた
@@ -408,6 +415,7 @@ class SkinCluster(Node):
         変わらず、ウェイト0の influence は0のまま。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             vertices (Vertex | Vertices | Iterable[int | Vertex]): 対象頂点または番号列。
                 Vertexは先頭geometryのmeshに属すること。重複は1回として扱う。
             method (str): 曲線名。``mlib.maths.easing.CURVES`` のいずれか
@@ -471,15 +479,18 @@ class SkinCluster(Node):
             for logical_index, value in zip(logical_indices, final):
                 set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
 
+    @fast_edit
     @undoChunk("mlib.nodes.skinCluster.transferWeights")
-    def transferWeights(self, source_target_pairs):
+    def transferWeights(self, source_target_pairs, *, fast=False):
         """複数のsource/target組についてウェイトを移す。
 
         処理が途中で失敗しても選択状態は preservedSelection により復元される。完了済みの
-        ウェイト変更はロールバックしない。正規化はMayaのskinPercentと
+        ウェイト変更はロールバックしない。sourceの値でtargetを置き換え、
+        targetの以前の値へ加算はしない。正規化はMayaのskinPercentと
         skinClusterのnormalizeWeights設定に従う。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             source_target_pairs (Iterable[tuple[Node | str, Node | str]]): influenceの組。
                 Maya APIのノード参照も受け付ける。全組を検証後、指定順に移送する。
                 同じinfluence同士の組は何もしない。
@@ -507,13 +518,18 @@ class SkinCluster(Node):
                 raise ValueError("Both nodes must be influences of this skinCluster")
             if source.getUuid() != target.getUuid():
                 pairs.append((source.getFullName(), target.getFullName()))
-        with preservedSelection():
-            for source_joint, target_joint in pairs:
-                self._xfer_pair(source_joint, target_joint)
+        if is_fast():
+            from .._core.skinEdit import transfer_weights
+            transfer_weights(self, pairs)
+        else:
+            with preservedSelection():
+                for source_joint, target_joint in pairs:
+                    self._xfer_pair(source_joint, target_joint)
 
     @flag_aliases(f="force")
+    @fast_edit
     @undoChunk("mlib.nodes.skinCluster.removeInfluence")
-    def removeInfluence(self, joint, transfer_to_parent=True, *, force=False):
+    def removeInfluence(self, joint, transfer_to_parent=True, *, force=False, fast=False):
         """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
 
         同じskinClusterの最も近い祖先influenceを移送先にする。
@@ -521,6 +537,7 @@ class SkinCluster(Node):
         最後の一つのinfluenceは削除しない。全体は一回のUndoで戻せる。
 
         Args:
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             joint (Joint | str): 削除対象の influence。
             transfer_to_parent (bool): 祖先への移送を行うか。Falseは標準削除のみ。
             force (bool): Trueは不正ウェイトを除去してから移送・登録解除する。
@@ -535,6 +552,9 @@ class SkinCluster(Node):
             RuntimeError: スキニングレイヤーを検出、または Maya が削除を拒否した場合。
         """
         source, target = self._influence_removal_target(joint, transfer_to_parent, force=force)
+        if is_fast():
+            from .._core.skinEdit import validate_removal
+            validate_removal(self, source)
         if force:
             self.removeInvalidWeights()
         if target is not None:
@@ -544,7 +564,11 @@ class SkinCluster(Node):
             for i in range(0, len(weights), 2):
                 summed.extend((0.0, weights[i] + weights[i + 1]))
             self.setWeights([source.getFullName(), target], summed)
-        cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
+        if is_fast():
+            from .._core.skinEdit import remove_influence
+            remove_influence(self, source)
+        else:
+            cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
 
     @fast_edit
     @undoChunk("mlibSkinClusterNormalizeWeights")
@@ -618,86 +642,6 @@ class SkinCluster(Node):
         if computed:
             self.setWeights(*computed)
         return self
-
-    @_getter_alias(getInfluences)
-    def influences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInfluences(*args, **kwargs)
-
-    @_getter_alias(getBindPose)
-    def bindPose(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getBindPose(*args, **kwargs)
-
-    @_getter_alias(getUnusedInfluences)
-    def unusedInfluences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUnusedInfluences(*args, **kwargs)
-
-    @_getter_alias(getWeights)
-    def weights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeights(*args, **kwargs)
-
-    @_getter_alias(getMaxInfluences)
-    def maxInfluences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaxInfluences(*args, **kwargs)
 
     def _uuid(self, node):
         """ノード名から Maya UUID を取得する。
@@ -955,7 +899,7 @@ class SkinCluster(Node):
                 raise RuntimeError("Influence is locked: " + node.getName())
         path = self.getFullName() + ".weightList"
         weight_list = self.getPlug("weightList").mplug()
-        if weight_list.isLocked or cmds.listConnections(path, source=True, destination=False):
+        if weight_list.isLocked or weight_list.isDestination:
             raise RuntimeError("Weights are locked or connected")
         self._validate_weight_locks(weight_list)
         return names, weight_list
@@ -995,8 +939,8 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: 要素または親のアトリビュートがロックされている場合。
         """
-        if plug.isLocked:
-            raise RuntimeError("Weight element is locked: " + plug.name())
+        if plug.isLocked or plug.isDestination:
+            raise RuntimeError("Weight element is locked or connected: " + plug.name())
         if plug.isArray:
             for index in plug.getExistingArrayAttributeIndices():
                 SkinCluster._validate_weight_locks(plug.elementByLogicalIndex(index))
@@ -1045,9 +989,13 @@ class SkinCluster(Node):
             bool: 接続ノードの名前または型名にレイヤー判定用トークンが含まれる場合は True。実際のレイヤーデータの有無は調べない。
         """
         # ノード名・型だけが必要。genericアトリビュートを含む接続のPlug生成は避ける。
-        for name in cmds.listConnections(self.getFullName(), source=True, destination=True) or []:
-            nodeName = name.lower()
-            node_type = Node(name).getType().lower()
+        fn = om2.MFnDependencyNode(self.mnode())
+        connected = {om2.MObjectHandle(other.node()).hashCode(): other.node()
+                     for plug in fn.getConnections() for other in plug.connectedTo(True, True)}
+        for obj in connected.values():
+            other_fn = om2.MFnDependencyNode(obj)
+            nodeName = other_fn.name().lower()
+            node_type = other_fn.typeName.lower()
             if any(token in nodeName or token in node_type for token in self._LAYER_TOKENS):
                 return True
         return False
@@ -1074,18 +1022,13 @@ class SkinClusters(Nodes):
         **Nodes._bulk_returns,
         "deforms": "list",
         "getInfluences": "list",
-        "influences": "list",
         "getBindPose": "list",
-        "bindPose": "list",
         "getUnusedInfluences": "list",
-        "unusedInfluences": "list",
         "removeUnusedInfluences": "list",
         "hasInfluence": "list",
         "getWeights": "list",
-        "weights": "list",
         "dumpWeights": "list",
         "getMaxInfluences": "list",
-        "maxInfluences": "list",
         "redistributeWeights": "self",
         "copyWeightsTo": "self",
         "addInfluences": "self",
@@ -1103,18 +1046,13 @@ class SkinClusters(Nodes):
         **Nodes._bulk_methods,
         "deforms": SkinCluster.deforms,
         "getInfluences": SkinCluster.getInfluences,
-        "influences": SkinCluster.influences,
         "getBindPose": SkinCluster.getBindPose,
-        "bindPose": SkinCluster.bindPose,
         "getUnusedInfluences": SkinCluster.getUnusedInfluences,
-        "unusedInfluences": SkinCluster.unusedInfluences,
         "removeUnusedInfluences": SkinCluster.removeUnusedInfluences,
         "hasInfluence": SkinCluster.hasInfluence,
         "getWeights": SkinCluster.getWeights,
-        "weights": SkinCluster.weights,
         "dumpWeights": SkinCluster.dumpWeights,
         "getMaxInfluences": SkinCluster.getMaxInfluences,
-        "maxInfluences": SkinCluster.maxInfluences,
         "redistributeWeights": SkinCluster.redistributeWeights,
         "copyWeightsTo": SkinCluster.copyWeightsTo,
         "addInfluences": SkinCluster.addInfluences,
@@ -1440,83 +1378,3 @@ class SkinClusters(Nodes):
         return self._dispatch_shared("normalizeWeights", args, kwargs)
 
     normalizeWeights.__signature__ = inspect.signature(SkinCluster.normalizeWeights)
-
-    @_getter_alias(getInfluences)
-    def influences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInfluences(*args, **kwargs)
-
-    @_getter_alias(getBindPose)
-    def bindPose(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getBindPose(*args, **kwargs)
-
-    @_getter_alias(getUnusedInfluences)
-    def unusedInfluences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getUnusedInfluences(*args, **kwargs)
-
-    @_getter_alias(getWeights)
-    def weights(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getWeights(*args, **kwargs)
-
-    @_getter_alias(getMaxInfluences)
-    def maxInfluences(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getMaxInfluences(*args, **kwargs)

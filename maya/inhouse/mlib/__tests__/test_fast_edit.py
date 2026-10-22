@@ -66,7 +66,7 @@ class FastEditTest(unittest.TestCase):
     def test_geometry(self):
         mesh = mlib.getNode(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
         curve = mlib.getNode(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
-        for points in (mesh.getVertices(), curve.cvs()):
+        for points in (mesh.getVertices(), curve.getCVs()):
             before = points.getPosition()
             rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
             points.setPositions(rows)
@@ -77,7 +77,7 @@ class FastEditTest(unittest.TestCase):
             for actual, wanted in zip(points.getPosition(), expected):
                 for a, b in zip(actual, wanted):
                     self.assertAlmostEqual(a, b, places=6)
-        uvs = mesh.uvs()
+        uvs = mesh.getUVs()
         with self.api_only():
             uvs.setPosition((.2, .3), fast=True)
         for uv in uvs:
@@ -88,7 +88,7 @@ class FastEditTest(unittest.TestCase):
             history.getVertices().setPosition((1, 2, 3), fast=True)
         periodic = mlib.getNode(cmds.listRelatives(cmds.circle(ch=False)[0], shapes=True)[0])
         with self.assertRaises(NotImplementedError):
-            periodic.cvs().mirror(fast=True)
+            periodic.getCVs().mirror(fast=True)
 
     def test_skin(self):
         mesh = cmds.polyPlane(ch=False, sx=2, sy=2)[0]

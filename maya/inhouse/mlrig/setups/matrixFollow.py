@@ -98,17 +98,15 @@ class MatrixFollow:
             expected = (1, 1, 1) if attr == "scale" else (0, 0, 0)
             if any(abs(a - b) > 1e-9 for a, b in zip(plug.get(), expected)):
                 raise ValueError("Target channels/pivots must be at their defaults")
-            if plug.getSourceWithConversion() is not None or any(
-                child.getSourceWithConversion() is not None for child in plug.getChildren()
-            ):
+            if plug.getSource(skipConversionNodes=False) is not None or any((child.getSource(skipConversionNodes=False) is not None for child in plug.getChildren())):
                 raise ValueError("Target channels must have no incoming connections")
-        if target.getPlug("offsetParentMatrix").getSourceWithConversion() is not None:
+        if target.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
         if target.isLocked() or target.getPlug("offsetParentMatrix").isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
         if (
             not target.getPlug("inheritsTransform").get()
-            or target.getPlug("inheritsTransform").getSourceWithConversion() is not None
+            or target.getPlug('inheritsTransform').getSource(skipConversionNodes=False) is not None
         ):
             raise ValueError("Target must inherit its parent transform")
         parent = target.getParent()

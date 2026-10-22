@@ -4,7 +4,7 @@ Synopsis
 
 .. code-block:: python
 
-    mlib.createGroup(nodes=None, **kwargs)
+    mlib.createGroup(nodes=None, fast=False, **kwargs)
 
 指定したノードをまとめる新規 Transform を作成し、そのラッパーを返します。
 ``nodes`` を省略すると maya.cmds.group と同じく現在の選択をグループ化します。
@@ -14,6 +14,9 @@ Synopsis
 ``ValueError`` になります(``empty=True`` を指定した場合を除く)。
 
 作成操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
+
+``fast=True`` は対応する範囲をAPI 2.0で直接変更し、Undo履歴を追加しません。
+未対応条件は変更前に拒否します。詳細は関数のdocstringを参照してください。
 
 Return value
 ------------
@@ -83,20 +86,27 @@ Examples
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
+from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 
 
 @flag_aliases("group")
+@fast_edit
 @undoChunk("mlib.cmds.createGroup.group")
-def createGroup(nodes=None, **kwargs):
+def createGroup(nodes=None, *, fast=False, **kwargs):
     """指定したノードを新規 Transform でグループ化し、そのラッパーを返す。
 
     Args:
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable | None):
             グループ化するノード、またはその列。None は maya.cmds.group と同じく
             現在の選択を使う。空のグループを作る場合は kwargs に empty=True を指定する。
         **kwargs (object): maya.cmds.group に渡すキーワード引数。parent はノードが
             必要な引数として所有ノードの完全パスへ変換する(Plug・MPlug は所有ノード)。
+
+    Note:
+        fastはTransform群と空グループに対応する。Joint・インスタンス・
+        親子の重複指定・未対応フラグは作成前にNotImplementedErrorで拒否する。
 
     Returns:
         Node: 作成したグループの Transform ラッパー。
@@ -113,6 +123,10 @@ def createGroup(nodes=None, **kwargs):
 
     if kwargs.get("parent") is not None:
         kwargs["parent"] = _InputNode._input_name(kwargs["parent"])
+    if is_fast():
+        from .._core.nodeEdit import create_group
+        names = None if nodes is None else _InputObject._input_names(nodes)
+        return create_group(names, kwargs)
     if nodes is None:
         result = cmds.group(**kwargs)
         return Node(result)

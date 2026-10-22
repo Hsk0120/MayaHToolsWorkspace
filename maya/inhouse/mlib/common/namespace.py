@@ -6,7 +6,6 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoChunk
 
 
@@ -120,23 +119,6 @@ class Namespace:
         if not created_name.startswith(":") and cmds.namespace(query=True, relativeNames=True):
             created_name = cls.getCurrent().name.rstrip(":") + ":" + created_name
         return cls(created_name)
-
-    @classmethod
-    @_getter_alias(getCurrent)
-    def current(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getCurrent(*args, **kwargs)
 
     @property
     def name(self):
@@ -309,54 +291,6 @@ class Namespace:
         cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
         cmds.namespace(removeNamespace=self._name)
         return destination_namespace
-
-    @_getter_alias(getParent)
-    def parent(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getParent(*args, **kwargs)
-
-    @_getter_alias(getChildren)
-    def children(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getChildren(*args, **kwargs)
-
-    @_getter_alias(getNodes)
-    def nodes(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNodes(*args, **kwargs)
 
     @staticmethod
     def _normalize(name):

@@ -58,7 +58,8 @@ Python では ``{{ command_package }}.<コマンド名>()`` として呼び出�
 {% if entry_point %}
 .. py:currentmodule:: {{ package_name }}
 
-.. py:function:: {{ command_name }}({{ entry_point.args }}){{ ("\n                 cmds." ~ command_name ~ "(" ~ entry_point.args ~ ")") if entry_point.mlib_getter_id is defined else "" }}
+.. py:function:: {{ command_name }}({{ entry_point.args }})
+                 cmds.{{ command_name }}({{ entry_point.args }})
    :no-index-entry:
 {% if entry_point.mlib_getter_id is defined %}
 

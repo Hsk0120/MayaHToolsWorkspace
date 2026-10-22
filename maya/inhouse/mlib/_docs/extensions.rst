@@ -88,7 +88,7 @@ import文とラッパーの基底クラスを検査し、他の拡張への依�
    from mlib._core import extensions
 
    print(extensions.status())
-   print(extensions.diagnostics())
+   print(extensions.getDiagnostics())
    mlib.reload()
 
 状態は ``loaded``（登録済み）、``unavailable``（依存未導入）、
@@ -96,11 +96,11 @@ import文とラッパーの基底クラスを検査し、他の拡張への依�
 失敗理由は ``reason`` に入り、エラーはログにも出力します。
 外部依存がなくてもmlib標準機能は利用できます。
 ``status()`` は最後の初期化結果のコピーです。後から依存プラグインを明示ロードしても
-自動では更新されません。現在の可用性は ``diagnostics()`` で分けて照会します。
+自動では更新されません。現在の可用性は ``getDiagnostics()`` で分けて照会します。
 
 .. code-block:: python
 
-   result = extensions.diagnostics()  # getDiagnostics()の省略入口。
+   result = extensions.getDiagnostics()
    bifrost = result.get("mlib_bifrost")
    if bifrost is not None:
        print(bifrost["initialization"])  # statusと同じ初期化結果、未初期化ならNone。
@@ -165,7 +165,7 @@ PoseDriverConnect本体のPythonパス・対応Mayaプラグインは別途必�
        print(solver.radius())
        solver.setRadius(45.0)
 
-``UEPoseBlenderNode`` は ``driven_transform()`` と ``envelope()`` を提供します。
-専用クラスは ``mlib.node()`` / ``mlib.ls()`` から自動で選ばれます。
+``UEPoseBlenderNode`` は ``driven_transform()`` と ``getEnvelope()`` を提供します。
+専用クラスは ``mlib.getNode()`` / ``mlib.ls()`` から自動で選ばれます。
 ``setRadius()`` はUndo可能です。``native_api()`` から外部APIを直接操作する場合は
 そのAPI自身のUndoと副作用の仕様に従います。

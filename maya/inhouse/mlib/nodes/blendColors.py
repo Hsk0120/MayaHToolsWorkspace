@@ -5,7 +5,6 @@ import math
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from .node import Node
@@ -78,22 +77,6 @@ class BlendColors(Node):
         source.connectTo(self.getColorPlug(index), force=force)
         return self
 
-    def getBlenderPlug(self):
-        """補間係数。0ならcolor2、1ならcolor1。
-
-        Returns:
-            Plug: 補間係数。0ならcolor2、1ならcolor1。
-        """
-        return self.getPlug("blender")
-
-    def getBlender(self):
-        """補間係数の評価値を取得する。
-
-        Returns:
-            float: color2からcolor1への補間係数。
-        """
-        return self.getBlenderPlug().get()
-
     @fast_edit
     @undoChunk("mlibBlendColorsSetBlender")
     def setBlender(self, value, *, fast=False):
@@ -114,30 +97,8 @@ class BlendColors(Node):
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError("Blender must be a finite value between 0 and 1")
-        self.getBlenderPlug().set(value)
+        self.getPlug('blender').set(value)
         return self
-
-    @flag_aliases(src="source", f="force")
-    @undoChunk("mlibBlendColorsConnectBlender")
-    def connectBlender(self, source, force=False):
-        """補間係数に接続する。接続元の値は制限しない。
-
-        Args:
-            source (Plug): 接続元の数値Plug。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置換するか。 別名 ``f`` も使用可能。
-        Returns:
-            BlendColors: 自身。
-        """
-        source.connectTo(self.getBlenderPlug(), force=force)
-        return self
-
-    def getOutputPlug(self):
-        """RGB出力。別アトリビュートへの接続に使用する。
-
-        Returns:
-            CompoundPlug: RGB出力。別アトリビュートへの接続に使用する。
-        """
-        return self.getPlug("output")
 
     def getResult(self):
         """評価済みRGB値。
@@ -145,103 +106,7 @@ class BlendColors(Node):
         Returns:
             tuple[float, float, float]: 評価済みRGB値。
         """
-        return tuple(self.getOutputPlug().get())
-
-    @_getter_alias(getColorPlug)
-    def colorPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getColorPlug(*args, **kwargs)
-
-    @_getter_alias(getColor)
-    def color(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getColor(*args, **kwargs)
-
-    @_getter_alias(getBlenderPlug)
-    def blenderPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getBlenderPlug(*args, **kwargs)
-
-    @_getter_alias(getBlender)
-    def blender(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getBlender(*args, **kwargs)
-
-    @_getter_alias(getOutputPlug)
-    def outputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getOutputPlug(*args, **kwargs)
-
-    @_getter_alias(getResult)
-    def result(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getResult(*args, **kwargs)
+        return tuple(self.getPlug('output').get())
 
     @staticmethod
     def _index(index):

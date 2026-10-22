@@ -1,6 +1,5 @@
 """Mayaのfileノードを扱う。"""
 
-from .._core.getterAlias import _getter_alias
 from ..decorator import undoChunk
 from .texture2d import Texture2d
 
@@ -49,35 +48,3 @@ class File(Texture2d):
         """
         self.getPlug("colorSpace").set(name)
         return self
-
-    @_getter_alias(getFilePath)
-    def filePath(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getFilePath(*args, **kwargs)
-
-    @_getter_alias(getColorSpace)
-    def colorSpace(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getColorSpace(*args, **kwargs)

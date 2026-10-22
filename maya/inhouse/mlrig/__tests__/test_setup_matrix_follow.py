@@ -71,7 +71,7 @@ class MatrixFollowTest(unittest.TestCase):
         name = graph.getName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
-        self.assertIsNone(self.target.getPlug("offsetParentMatrix").getSourceWithConversion())
+        self.assertIsNone(self.target.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False))
         cmds.redo()
         self.assertTrue(cmds.objExists(name))
         self.source.setTranslate((2, 1, 3), at=4)

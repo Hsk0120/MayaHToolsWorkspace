@@ -1,7 +1,6 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _getter_alias
 from ..common._fast import fast_edit
 from ..decorator import undoChunk
 from ..maths import Vector
@@ -11,30 +10,6 @@ from .abstractBaseCreate import AbstractBaseCreate
 
 class PointOnSurfaceInfo(AbstractBaseCreate):
     """接続したsurfaceの形状情報をMayaで評価する。"""
-
-    def getInputPlug(self):
-        """形状データの入力を取得する。
-        Returns:
-            Plug: 入力参照。
-        """
-        return self.getPlug("inputSurface")
-
-    @flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectInput(self, source, force=False):
-        """形状データPlugを入力へ接続する。
-
-        Args:
-            source (Plug | str | MPlug): local/worldSpace等の接続元。 別名 ``src`` も使用可能。
-            force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
-        Returns:
-            PointOnSurfaceInfo: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
-        """
-        _Calculation.connect(source, self.getInputPlug, force=force)
-        return self
 
     @flag_aliases(ws="worldSpace", f="force")
     @undoChunk("mlibCalculationEdit")
@@ -52,7 +27,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         source = _Calculation.geometryOutput(surface, "nurbsSurface", worldSpace)
-        source.connectTo(self.getInputPlug(), force=force)
+        source.connectTo(self.getPlug('inputSurface'), force=force)
         return self
 
     def getParameters(self):
@@ -87,13 +62,6 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         self.getPlug("parameterV").set(v)
         return self
 
-    def getPercentage(self):
-        """百分率モードを取得する。
-        Returns:
-            bool: 0～1のパラメーターを使うか。
-        """
-        return self.getPlug("turnOnPercentage").get()
-
     def getPosition(self):
         """接続された空間での位置を取得する。
         Returns:
@@ -125,99 +93,3 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
             raise ValueError("direction must be u or v")
         _Calculation.boolean(normalized)
         return Vector(self.getPlug(("normalizedTangent" if normalized else "tangent") + direction.upper()).get())
-
-    @_getter_alias(getInputPlug)
-    def inputPlug(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getInputPlug(*args, **kwargs)
-
-    @_getter_alias(getParameters)
-    def parameters(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getParameters(*args, **kwargs)
-
-    @_getter_alias(getPercentage)
-    def percentage(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPercentage(*args, **kwargs)
-
-    @_getter_alias(getPosition)
-    def position(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getPosition(*args, **kwargs)
-
-    @_getter_alias(getNormal)
-    def normal(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getNormal(*args, **kwargs)
-
-    @_getter_alias(getTangent)
-    def tangent(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getTangent(*args, **kwargs)

@@ -109,7 +109,7 @@ class ComponentRefactoringTest(unittest.TestCase):
     def test_uv_query_shares_function_set_and_current_set(self):
         """非連続番号でも関数セットと現在セットを呼出し内で一回だけ得る。"""
         from mlib.components import UV
-        items = self.mesh.uvs([3, 0, 2])
+        items = self.mesh.getUVs([3, 0, 2])
         expected = [UV(self.mesh, index).getPosition() for index in items.indices]
         native = self.mesh.meshFn()
 
@@ -141,7 +141,7 @@ class ComponentRefactoringTest(unittest.TestCase):
 
     def test_uv_current_set_switch_and_empty_deleted_reference(self):
         """保持中のUVは現在セットへ追従し、空集合は削除後も照会・更新しない。"""
-        items = self.mesh.uvs([2, 0])
+        items = self.mesh.getUVs([2, 0])
         before = items.getPosition()
         cmds.polyUVSet(self.transform, copy=True, uvSet="map1", newUVSet="alternate")
         cmds.polyUVSet(self.transform, currentUVSet=True, uvSet="alternate")
@@ -154,7 +154,7 @@ class ComponentRefactoringTest(unittest.TestCase):
         cmds.polyUVSet(self.transform, currentUVSet=True, uvSet="emptySet")
         with self.assertRaises(IndexError):
             items.getPosition()
-        empty = self.mesh.uvs([])
+        empty = self.mesh.getUVs([])
         cmds.delete(self.transform)
         self.assertEqual(empty.getPosition(), [])
         self.assertIs(empty.setPositions([]), empty)
@@ -192,8 +192,8 @@ class ComponentRefactoringTest(unittest.TestCase):
         from mlib.components.component import Component
         instance = cmds.instance(self.transform, name=self.ns + ":instance")[0]
         shape = mlib.getNode(cmds.listRelatives(instance, shapes=True, fullPath=True)[0])
-        for items, method in ((shape.edges([3, 0, 2]), "getEdgeVertices"),
-                              (shape.faces([3, 0, 2]), "getPolygonVertices")):
+        for items, method in ((shape.getEdges([3, 0, 2]), "getEdgeVertices"),
+                              (shape.getFaces([3, 0, 2]), "getPolygonVertices")):
             native = shape.meshFn()
             expected = tuple(dict.fromkeys(index for number in items.indices
                                            for index in getattr(native, method)(number)))
@@ -242,7 +242,7 @@ class ComponentRefactoringTest(unittest.TestCase):
             events.append(index)
             original(vertex, shape, index)
 
-        for items in (self.mesh.edges([2, 0]), self.mesh.faces([2, 0])):
+        for items in (self.mesh.getEdges([2, 0]), self.mesh.getFaces([2, 0])):
             expected = items.getVertices().indices
             with patch.object(Vertex, "__init__", new=construct):
                 self.assertEqual(items.getVertices().indices, expected)
@@ -265,7 +265,7 @@ class ComponentRefactoringTest(unittest.TestCase):
             with self.assertRaises(IndexError):
                 Vertices(self.mesh, [2])
             count.assert_called_once_with()
-        uvs = self.mesh.uvs([2])
+        uvs = self.mesh.getUVs([2])
         with patch.object(self.mesh, "getNumUVs", return_value=1) as count:
             with self.assertRaises(IndexError):
                 uvs.getPosition()
@@ -273,10 +273,10 @@ class ComponentRefactoringTest(unittest.TestCase):
 
     def test_topology_changes_and_deleted_empty_collection_are_revalidated(self):
         """再取得は現在のトポロジーを検査し、空の頂点集約も削除参照を拒否する。"""
-        edges = self.mesh.edges([11, 0])
-        faces = self.mesh.faces([5, 0])
-        empty_edges = self.mesh.edges([])
-        empty_faces = self.mesh.faces([])
+        edges = self.mesh.getEdges([11, 0])
+        faces = self.mesh.getFaces([5, 0])
+        empty_edges = self.mesh.getEdges([])
+        empty_faces = self.mesh.getFaces([])
         cmds.delete(self.transform + ".f[1:5]")
         self.assertLess(self.mesh.getNumEdges(), 12)
         self.assertLess(self.mesh.getNumPolygons(), 6)

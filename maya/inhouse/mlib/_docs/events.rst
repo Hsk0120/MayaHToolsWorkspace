@@ -10,15 +10,15 @@ importだけでは監視を開始しません。バッチでは登録を拒否�
 
     import mlib
 
-    control = mlib.node("settings_ctrl")
+    control = mlib.getNode("settings_ctrl")
     jobs = mlib.common.ScriptJobs()
 
     def changed():
-        print(control.plug("enabled").get())
+        print(control.getPlug("enabled").get())
 
     job = jobs.add(
         "enabled",
-        attribute=control.plug("enabled"),
+        attribute=control.getPlug("enabled"),
         callback=changed,
         kill_with_scene=True,
         compress_undo=True,
@@ -68,7 +68,7 @@ GCによる解除や新規監視の自動登録は行いません。
 アトリビュートの取得と変更通知の抑制
 ------------------------------------------------------------
 
-``mlib.plug("settings_ctrl.enabled")`` は既存アトリビュートを型に対応するPlugへ解決します。
+``mlib.getPlug("settings_ctrl.enabled")`` は既存アトリビュートを型に対応するPlugへ解決します。
 Plug自身やOpenMaya API 2.0のMPlugも受け付けます。
 
 ``Plug.setIfChanged(value, unlock=False)`` はbool/int/float/strのスカラー値を

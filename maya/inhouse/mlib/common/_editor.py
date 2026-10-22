@@ -4,8 +4,6 @@ from contextlib import contextmanager
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
-
 
 def _query_settings(command, name, flags):
     """検証済みのエディター設定を指定順に読む。UIの生成・検査は行わない。
@@ -97,22 +95,6 @@ class _Editor:
         finally:
             if previous and self.exists():
                 self.setSettings(**previous)
-
-    @_getter_alias(getSettings)
-    def settings(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getSettings(*args, **kwargs)
 
     def _require_exists(self):
         """参照先が削除されていた場合は RuntimeError を送出する。"""

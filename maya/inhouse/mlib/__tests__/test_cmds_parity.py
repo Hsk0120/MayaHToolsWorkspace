@@ -118,7 +118,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
         expected = set(cmds.listConnections(target.getName(), source=True, destination=False, plugs=True) or [])
-        actual = {plug.getFullName() for plug in target.getInputs()}
+        actual = {plug.getFullName() for plug in target.getConnections(True, False)}
         self.assertEqual(actual, expected)
 
     def test_outputs_matches_cmds_listConnections_destination_side(self):
@@ -127,7 +127,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
         source.getPlug("translateX").connectTo(target.getPlug("translateX"))
 
         expected = set(cmds.listConnections(source.getName(), source=False, destination=True, plugs=True) or [])
-        actual = {plug.getFullName() for plug in source.getOutputs()}
+        actual = {plug.getFullName() for plug in source.getConnections(False, True)}
         self.assertEqual(actual, expected)
 
     def test_connections_type_filter_matches_cmds_listConnections_type_filter(self):
@@ -140,13 +140,13 @@ class NodeConnectionsParityTest(unittest.TestCase):
         expected_transform = set(
             cmds.listConnections(source.getName(), source=False, destination=True, plugs=True, type="transform") or []
         )
-        actual_transform = {plug.getFullName() for plug in source.getOutputs(type="transform")}
+        actual_transform = {plug.getFullName() for plug in source.getConnections(False, True, type='transform')}
         self.assertEqual(actual_transform, expected_transform)
 
         expected_mesh = set(
             cmds.listConnections(source.getName(), source=False, destination=True, plugs=True, type="mesh") or []
         )
-        actual_mesh = {plug.getFullName() for plug in source.getOutputs(type="mesh")}
+        actual_mesh = {plug.getFullName() for plug in source.getConnections(False, True, type='mesh')}
         self.assertEqual(actual_mesh, expected_mesh)
         self.assertEqual(actual_mesh, set())
 
@@ -164,14 +164,14 @@ class NodeConnectionsParityTest(unittest.TestCase):
             source.getPlug("translateY").connectTo(duplicate.getPlug("translateZ"))
 
         expected = set(cmds.listConnections(source.getName(), source=False, destination=True, plugs=True) or [])
-        actual = {plug.getFullName() for plug in source.getOutputs()}
+        actual = {plug.getFullName() for plug in source.getConnections(False, True)}
         self.assertEqual(len(actual), 4)
         self.assertEqual(actual, expected)
         for duplicate in duplicates:
             expected_inputs = set(
                 cmds.listConnections(duplicate.getName(), source=True, destination=False, plugs=True) or []
             )
-            self.assertEqual({plug.getFullName() for plug in duplicate.getInputs()}, expected_inputs)
+            self.assertEqual({plug.getFullName() for plug in duplicate.getConnections(True, False)}, expected_inputs)
 
 
 class NamespaceParityTest(unittest.TestCase):
@@ -719,7 +719,7 @@ class NameResolutionParityTest(unittest.TestCase):
             with self.subTest(plug=text):
                 cmds.connectAttr(str(source_plug), text)
                 resolved = _InputPlug._resolve_input(text)
-                self.assertEqual(resolved.getSourceWithConversion().mplug(), source_plug.mplug())
+                self.assertEqual(resolved.getSource(skipConversionNodes=False).mplug(), source_plug.mplug())
                 self.assertIn(resolved.mplug(), list(source_plug.mplug().connectedTo(False, True)))
                 self.assertEqual(cmds.getAttr(str(resolved), type=True), cmds.getAttr(text, type=True))
 

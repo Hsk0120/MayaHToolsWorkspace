@@ -3,7 +3,6 @@
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.getterAlias import _getter_alias
 from ._windowReference import _WindowReference
 
 
@@ -85,40 +84,6 @@ class WorkspaceLayout:
         """全体のドッキングロックを解除する。"""
         WorkspaceLayout.setLocked(False)
 
-    @classmethod
-    @_getter_alias(getCurrent)
-    def current(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getCurrent(*args, **kwargs)
-
-    @classmethod
-    @_getter_alias(getLocked, static=True)
-    def locked(cls, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return cls.getLocked(*args, **kwargs)
-
     def exists(self):
         """登録済みの配置か取得する。
 
@@ -187,22 +152,6 @@ class WorkspaceLayout:
         result = type(self)(name)
         result.activate()
         return result
-
-    @_getter_alias(getName)
-    def name(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getName(*args, **kwargs)
 
     def _require_current(self):
         """別の配置を誤ってリセット・保存しないよう検証する。"""

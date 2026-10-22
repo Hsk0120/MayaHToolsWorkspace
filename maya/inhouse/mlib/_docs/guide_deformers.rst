@@ -11,9 +11,9 @@ cluster・blendShape・skinClusterと、スキン変形を保持した編集を�
 
 .. code-block:: python
 
-   skin = mlib.node("skinCluster1")
+   skin = mlib.getNode("skinCluster1")
    skin.addInfluences("extra_joint")
-   skin.addInfluences(["extra_joint2", mlib.node("extra_joint3")])
+   skin.addInfluences(["extra_joint2", mlib.getNode("extra_joint3")])
 
 Jointをウェイト0で登録します。既存ウェイトの正規化・再配分は行いません。
 既存influenceと重複指定は無視し、空リストは何もしません。
@@ -25,8 +25,8 @@ influenceを取り除き、親へウェイトを加算する
 
 .. code-block:: python
 
-   skin = mlib.node("skinCluster1")
-   joint = mlib.node("extra_joint")
+   skin = mlib.getNode("skinCluster1")
+   joint = mlib.getNode("extra_joint")
    skin.removeInfluence(joint)
    # 不正ウェイトの修復が必要なら、上の呼出しに代えて指定する
    # skin.removeInfluence(joint, f=True)
@@ -59,7 +59,7 @@ NURBSなど未対応のgeometryで祖先移送が必要な場合、``force=True`
 
 .. code-block:: python
 
-   skin = mlib.node("skinCluster1")
+   skin = mlib.getNode("skinCluster1")
    skin.removeInvalidWeights()  # SkinCluster自身。通常のUndoに対応
    # Undo不要の直接更新を選ぶ場合
    # skin.removeInvalidWeights(fast=True)
@@ -88,7 +88,7 @@ NURBSなど未対応のgeometryで祖先移送が必要な場合、``force=True`
 
 .. code-block:: python
 
-   unused = skin.unusedInfluences()       # 照会だけ。list[Node]
+   unused = skin.getUnusedInfluences()       # 照会だけ。list[Node]
    removed = skin.removeUnusedInfluences()   # 登録解除したlist[Node]
    # 不正ウェイトを修復してから判定する場合は上の呼出しに代えて指定
    # removed = skin.removeUnusedInfluences(f=True)
@@ -114,7 +114,7 @@ force/fの重複やbool以外は変更前に ``TypeError``、途中失敗は自�
    skin.normalizeWeights(decimals=3)  # 小数3桁へ丸め、端数を配分して合計1にする
    skin.setMaxInfluences(4)          # 設定のみ。既存ウェイトは変更しない
    skin.setMaxInfluences(4, prune=True)  # 大きい4個を残し、残りを0にして正規化
-   print(skin.maxInfluences())
+   print(skin.getMaxInfluences())
 
 正規化とpruneは先頭meshの全頂点が対象です。小数桁数は0〜15を指定できます。
 例えば同じ重みが3つなら、小数2桁では0.34、0.33、0.33とし、同率時は登録順を
@@ -133,9 +133,9 @@ Vertex・Vertices・Vertexと整数の混在列を受け取ります。
 
 .. code-block:: python
 
-   skin = mlib.node("skinCluster1")
+   skin = mlib.getNode("skinCluster1")
    skin.redistributeWeights(mlib.ls(sl=True, type="vertex"), method="cubic")
-   skin.redistributeWeights(mlib.node(skin.mesh).vertices([0, 1]), method="linear")
+   skin.redistributeWeights(mlib.getNode(skin.mesh).getVertices([0, 1]), method="linear")
 
 ``method`` はeasingの曲線名です。配分を合計1として読み、曲線を適用してから再正規化します。
 別meshのVertexは全対象を検証してから拒否します。選択を変更せず、空入力は何もしません。
@@ -150,18 +150,18 @@ cluster と locator
    import maya.cmds as cmds
    from mlib.nodes import Node
 
-   mesh = mlib.node("pCube1")
-   cluster_name, handle_name = cmds.cluster(mesh.fullName() + ".vtx[0:2]")
+   mesh = mlib.getNode("pCube1")
+   cluster_name, handle_name = cmds.cluster(mesh.getFullName() + ".vtx[0:2]")
    cluster = Node(cluster_name)
 
-   print(cluster.weightedNode())   # cluster1Handle（ハンドル transform）
-   print(cluster.geometry())        # [Mesh(...)]（変形対象の shape）
+   print(cluster.getWeightedNode())   # cluster1Handle（ハンドル transform）
+   print(cluster.getGeometry())        # [Mesh(...)]（変形対象の shape）
 
    loc_transform = cmds.spaceLocator(name="myLocator")[0]
    loc_shape_name = cmds.listRelatives(loc_transform, shapes=True)[0]
    locator = Node(loc_shape_name)
 
-   print(locator.position())         # Translate(0.0, 0.0, 0.0)
+   print(locator.getPosition())         # Translate(0.0, 0.0, 0.0)
    locator.setPosition((1.0, 2.0, 3.0))
 
 ``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weightedNode``
@@ -183,7 +183,7 @@ blendShape の作成
 
    # 初期ターゲットは単体またはリスト。Nodeオブジェクトも指定できる。
    bs = mlib.createBlendShape("otherFace", targets=["smileMesh", "blinkMesh"])
-   bs.targetPlug(0).set(1.0)
+   bs.getTargetPlug(0).set(1.0)
 
 ``targets=None`` または空列はターゲットなしです。``name/n``・``origin/o``・
 ``frontOfChain/foc`` 等はMaya標準フラグとして渡せます。照会・編集は各メソッドを使います。
@@ -195,27 +195,27 @@ blendShape のターゲット操作
 
    from mlib.nodes import Node
 
-   base = mlib.node("pCube1")
-   target = mlib.node("pCube2")   # base と同じトポロジーの別メッシュ
+   base = mlib.getNode("pCube1")
+   target = mlib.getNode("pCube2")   # base と同じトポロジーの別メッシュ
 
-   bs = Node(cmds.blendShape(target.fullName(), base.fullName(), name="myBlendShape")[0])
-   print(bs.targetAliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
-   print(bs.weights())            # [0.0]
-   bs.weightPlugs()[0].set(1.0)
+   bs = Node(cmds.blendShape(target.getFullName(), base.getFullName(), name="myBlendShape")[0])
+   print(bs.getTargetAliases())            # ['pCube2']（既定ではターゲット名がエイリアスになる）
+   print(bs.getWeights())            # [0.0]
+   bs.getWeightPlugs()[0].set(1.0)
 
-   new_target = mlib.node("pCube3")
+   new_target = mlib.getNode("pCube3")
    weightPlug = bs.addTarget(new_target)   # 空いている weight インデックスへ追加
    weightPlug.set(0.5)
-   print(bs.targetAliases())            # ['pCube2', 'pCube3']
+   print(bs.getTargetAliases())            # ['pCube2', 'pCube3']
 
-``targetAliases()`` / ``weightPlugs()`` / ``weights()`` は ``aliases()`` の順序に従います。
+``getTargetAliases()`` / ``getWeightPlugs()`` / ``getWeights()`` は ``getAliases()`` の順序に従います。
 weight配列の論理インデックスで並べ替えません。weight以外のアトリビュートに
 エイリアスを付けた場合、その名前・Plug・値も含みます。
 ``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
-``weight_index`` を省略すると ``plug("weight").nextAvailableIndex()`` で空きインデックス
+``weight_index`` を省略すると ``getPlug("weight").nextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
-ターゲット名を含む表記になります（``longName()`` では実際のアトリビュート名を取得できます）。
+ターゲット名を含む表記になります（``getLongName()`` では実際のアトリビュート名を取得できます）。
 
 ターゲット番号・エイリアスを受け取る編集・照会には、同じBlendShapeのweight要素Plugも
 渡せます。addTarget・duplicateTarget等の返却を次の操作へ使えます。
@@ -252,8 +252,8 @@ blendShape の編集・保存
 -----------------------
 
 既存の ``targetAliases/weightPlugs/weights`` の仕様は変えていません。
-実際のターゲットだけを列挙する場合は ``targetIndices()``、番号またはweightの
-エイリアスから操作する場合は ``targetPlug()`` を使います。空のweight要素や
+実際のターゲットだけを列挙する場合は ``getTargetIndices()``、番号またはweightの
+エイリアスから操作する場合は ``getTargetPlug()`` を使います。空のweight要素や
 weight以外の別名は新しい一覧には含みません。番号は疎でも保持されます。
 
 .. code-block:: python
@@ -261,9 +261,9 @@ weight以外の別名は新しい一覧には含みません。番号は疎で�
    import maya.cmds as cmds
    import mlib
 
-   bs = mlib.node("faceBlendShape")
-   indices = bs.targetIndices()
-   bs.targetPlug("smile").set(0.5)
+   bs = mlib.getNode("faceBlendShape")
+   indices = bs.getTargetIndices()
+   bs.getTargetPlug("smile").set(0.5)
    bs.replaceTarget("smile", "smileNew")  # 番号・別名・現在値・weight接続を維持
 
    # 現在の形状をベイクし、in-betweenと頂点ウェイトを複製。新しいweight値は0。
@@ -288,7 +288,7 @@ in-between
 .. code-block:: python
 
    bs.addInBetween("smile", "smileHalf", weight=0.5)
-   weights = bs.inBetweenWeights("smile")    # [0.5]
+   weights = bs.getInBetweenWeights("smile")    # [0.5]
    bs.replaceTarget("smile", "smileHalfNew", full_weight=0.5)
    bs.removeInBetween("smile", weight=0.5)
 
@@ -304,11 +304,11 @@ in-between
 
 .. code-block:: python
 
-   weights = bs.targetWeights("smile")      # 頂点番号順の全値。既定値1。
+   weights = bs.getTargetWeights("smile")      # 頂点番号順の全値。既定値1。
    bs.setTargetWeights("smile", {0: 0.25, 1: 0.75})  # 部分更新
    bs.setTargetWeights("smile", weights)       # 全頂点更新
 
-   deltas = bs.targetDeltas("smile")        # dict[int, mlib.Vector]
+   deltas = bs.getTargetDeltas("smile")        # dict[int, mlib.Vector]
    bs.setTargetDeltas("smile", deltas, disconnect=True)
    bs.setTargetDeltas("smile", {0: (0.0, 2.0, 0.0)})
 
@@ -330,9 +330,9 @@ in-between
 .. code-block:: python
 
    bs.dumpTargetDeltas("smile", "C:/tmp/smile_delta.mlib.json")
-   restored = mlib.node("restoredBlendShape")  # 同じ頂点順のベースと既存smileターゲット
+   restored = mlib.getNode("restoredBlendShape")  # 同じ頂点順のベースと既存smileターゲット
    restored.loadTargetDeltas("smile", "C:/tmp/smile_delta.mlib.json", disconnect=True)
-   restored.targetPlug("smile").set(1.0)
+   restored.getTargetPlug("smile").set(1.0)
 
 単体IOはmlib.json形式で、文字列の頂点番号キーとVector値を保存します。
 dumpは絶対パスのPath、loadはBlendShape自身を返します。
@@ -349,8 +349,8 @@ loadのfast=TrueはUndoなしです。接続中の入力を切断する場合は
    import json
    import mlib
 
-   bs = mlib.node("faceBlendShape")
-   deltas = bs.targetDeltas("smile")
+   bs = mlib.getNode("faceBlendShape")
+   deltas = bs.getTargetDeltas("smile")
    with open("smile_delta.json", "w", encoding="utf-8") as stream:
        json.dump({str(i): list(delta) for i, delta in deltas.items()}, stream, indent=2)
 
@@ -358,9 +358,9 @@ loadのfast=TrueはUndoなしです。接続中の入力を切断する場合は
        deltas = {int(i): xyz for i, xyz in json.load(stream).items()}
 
    # 復元先の既存ターゲットを置換。接続中のターゲット入力は明示的に切断。
-   restored = mlib.node("restoredBlendShape")
+   restored = mlib.getNode("restoredBlendShape")
    restored.setTargetDeltas("smile", deltas, disconnect=True)
-   restored.targetPlug("smile").set(1.0)
+   restored.getTargetPlug("smile").set(1.0)
 
 まだ復元先のターゲットがない場合は、変形前のベースと同じ形状を一時ターゲットとして
 登録してからデルタを書き込みます。
@@ -394,11 +394,11 @@ user-defined originは未対応です。fastフラグは提供しません。
 
    base = "newFace"  # 保存元と頂点順・トポロジー・変形前の座標が同じメッシュ
    neutral = cmds.duplicate(base, returnRootsOnly=True)[0]
-   restored = mlib.node(cmds.blendShape(neutral, base, name="restoredBlendShape")[0])
+   restored = mlib.getNode(cmds.blendShape(neutral, base, name="restoredBlendShape")[0])
    cmds.delete(neutral)
-   restored.targetPlug(0).setAlias("smile")
+   restored.getTargetPlug(0).setAlias("smile")
    restored.setTargetDeltas(0, deltas)
-   restored.targetPlug(0).set(1.0)
+   restored.getTargetPlug(0).set(1.0)
 
 デルタ単体のJSONにはトポロジー情報や頂点マスクは入りません。
 同じ形状を再現するには、対応する頂点順と変形前の座標、envelope・頂点ウェイトなどの
@@ -408,13 +408,13 @@ in-betweenを扱う場合は取得・設定の両方に同じ ``full_weight`` �
 
 .. code-block:: python
 
-   vertices = bs.targetVertices("smile")  # ベースメッシュ上のVertices
+   vertices = bs.getTargetVertices("smile")  # ベースメッシュ上のVertices
    indices = vertices.indices              # 昇順のtuple[int, ...]
-   cmds.select(vertices.fullNames(), replace=True)
+   cmds.select(vertices.getFullNames(), replace=True)
 
    # 変位長が0.0001cmを超える頂点だけ。full_weightでin-betweenも選べる。
-   vertices = bs.targetVertices("smile", tolerance=0.0001)
-   half_vertices = bs.targetVertices("smile", full_weight=0.5)
+   vertices = bs.getTargetVertices("smile", tolerance=0.0001)
+   half_vertices = bs.getTargetVertices("smile", full_weight=0.5)
 
 対象頂点は ``targetDeltas`` の絶対デルタで判定し、明示的に格納されたゼロ変位は
 除外します。現在のweightが0でも、頂点マスクが0でも、デルタがあれば対象です。
@@ -467,7 +467,7 @@ in-betweenを扱う場合は取得・設定の両方に同じ ``full_weight`` �
 
    bs.dumpTargets("C:/tmp/faceTargets.json")
    # 同じトポロジーのベースに空のblendShapeを作成して復元。
-   restored = mlib.node(cmds.blendShape("newFace", name="restoredFace")[0])
+   restored = mlib.getNode(cmds.blendShape("newFace", name="restoredFace")[0])
    restored.loadTargets("C:/tmp/faceTargets.json")
 
 保存対象は全ベースのトポロジー、各ターゲットの絶対・相対デルタ、in-betweenの名前・
@@ -528,7 +528,7 @@ skinCluster ウェイトのバックアップ・復元
    # ... 別シーンで読み込み直す、または同じシーンで何か変更した後に復元する場合 ...
    skin.loadWeights("C:/tmp/mlibExampleWeights.json")
 
-``dumpWeights``/``loadWeights`` は ``influences()`` と同じ並びの全 influence の
+``dumpWeights``/``loadWeights`` は ``getInfluences()`` と同じ並びの全 influence の
 頂点ウェイトを単純な JSON 形式でファイルへ書き出し・読み込みます。
 ``loadWeights`` は、書き出し時の頂点数が現在の mesh と一致し、記録された
 influence がすべて現在の skinCluster に存在することを要求します。
@@ -547,7 +547,7 @@ influence がすべて現在の skinCluster に存在することを要求しま
    joint = Joint("mlibExampleJoint")
    with preservedSkinShape([joint]):
        # 現在のjoint姿勢をスキニング基準へ反映する。
-       joint.plug("jointOrientZ").set(45.0)
+       joint.getPlug("jointOrientZ").set(45.0)
 
 ``preservedSkinShape`` は Maya標準の ``skinCluster -moveJointsMode`` /
 ``-recacheBindMatrices`` を使い、ブロック内での joint 姿勢変更を

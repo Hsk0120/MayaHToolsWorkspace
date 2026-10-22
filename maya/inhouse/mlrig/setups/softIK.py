@@ -2,11 +2,11 @@
 
 import math
 
+import maya.cmds as cmds
 import mlib
-
 from mlib import getPlug as to_plug
-from mlib.decorator import nativeUnits, undoTransaction
 from mlib.common.scalarGraph import ScalarGraph
+from mlib.decorator import nativeUnits, undoTransaction
 
 
 class SoftIK:
@@ -63,82 +63,6 @@ class SoftIK:
             raise
 
     @staticmethod
-    def _condition(builder, role, left, right, yes, no):
-        """既存の比較規則を使い、型変換を内部単位・container所有へ揃える。
-
-        Args:
-            builder (ScalarGraph): 同じ所有先の標準比較ビルダー。
-            role (str): 演算の識別子。
-            left (float | str | Plug): 比較の左辺。
-            right (float | str | Plug): 比較の右辺。
-            yes (float | str | Plug): 左辺が右辺より大きい場合の値。
-            no (float | str | Plug): それ以外の値。
-
-        Returns:
-            Plug: 既存と同じcondition出力。
-        """
-        with nativeUnits():
-            output = builder.condition(role, left, right, yes, no)
-        node = output.getNode()
-        for attr in ("firstTerm", "secondTerm", "colorIfTrueR", "colorIfFalseR"):
-            source = node.getPlug(attr).getSourceWithConversion()
-            if source is not None and source.getNode().getType() == "unitConversion":
-                builder.container.addMembers(source.getNode())
-        return output
-
-    @staticmethod
-    def _feed(owner, value, destination):
-        """数値を内部単位で渡し、自動生成された変換ノードも所有下へ入れる。
-
-        Args:
-            owner (str): 所有するcontainer。
-            value (float | str | Plug): 定数または入力プラグ。
-            destination (str | Plug): 接続・設定先。
-
-        Note:
-            Maya 2025の標準算術はdoubleLinear、2027はdoubleという型の差がある。
-            nativeUnitsで接続時のUI単位変換を1に統一し、計算値の単位を変えない。
-        """
-        destination = to_plug(destination)
-        with nativeUnits():
-            if isinstance(value, (str, mlib.plugs.Plug)):
-                source = to_plug(value)
-                source.connectTo(destination)
-                immediate = destination.getSourceWithConversion()
-                if immediate is not None and immediate.getNode() != source.getNode():
-                    conversion = immediate.getNode()
-                    if conversion.getType() == "unitConversion":
-                        mlib.nodes.Container(owner).addMembers(conversion)
-            else:
-                destination.set(value)
-
-    @classmethod
-    def _arithmetic(cls, owner, kind, role, left, right):
-        """Soft IKだけに必要な標準double演算をcontainerへ追加する。
-
-        Args:
-            owner (str): 所有するcontainer。
-            kind (str): divide/subtract/sum/multiply/power。
-            role (str): 演算の識別子。
-            left (float | str | Plug): 左辺。
-            right (float | str | Plug): 右辺。
-
-        Returns:
-            Plug: double精度の出力。公開するdistance/softness/ratioの型は変えない。
-        """
-        container = mlib.nodes.Container(owner)
-        node = container.createNode(kind, name=container.getName() + "_" + role)
-        if kind in ("sum", "multiply"):
-            destinations = (node.getPlug("input")[0], node.getPlug("input")[1])
-        elif kind == "power":
-            destinations = (node.getPlug("input"), node.getPlug("exponent"))
-        else:
-            destinations = (node.getPlug("input1"), node.getPlug("input2"))
-        cls._feed(owner, left, destinations[0])
-        cls._feed(owner, right, destinations[1])
-        return node.getPlug("output")
-
-    @staticmethod
     def distance(distance, length, softness):
         """到達距離を連続に減衰する参照実装。
 
@@ -161,3 +85,93 @@ class SoftIK:
         if softness == 0 or distance <= threshold:
             return min(distance, length)
         return threshold + softness * (1 - math.exp(-(distance - threshold) / softness))
+
+    @staticmethod
+    def _condition(builder, role, left, right, yes, no):
+        """既存の比較規則を使い、型変換を内部単位・container所有へ揃える。
+
+        Args:
+            builder (ScalarGraph): 同じ所有先の標準比較ビルダー。
+            role (str): 演算の識別子。
+            left (float | str | Plug): 比較の左辺。
+            right (float | str | Plug): 比較の右辺。
+            yes (float | str | Plug): 左辺が右辺より大きい場合の値。
+            no (float | str | Plug): それ以外の値。
+
+        Returns:
+            Plug: 既存と同じcondition出力。
+        """
+        with nativeUnits():
+            output = builder.condition(role, left, right, yes, no)
+        node = output.getNode()
+        for attr in ("firstTerm", "secondTerm", "colorIfTrueR", "colorIfFalseR"):
+            source = node.getPlug(attr).getSource(skipConversionNodes=False)
+            if source is not None and source.getNode().getType() == "unitConversion":
+                builder.container.addMembers(source.getNode())
+        return output
+
+    @staticmethod
+    def _feed(owner, value, destination):
+        """数値を内部単位で渡し、自動生成された変換ノードも所有下へ入れる。
+
+        Args:
+            owner (str): 所有するcontainer。
+            value (float | str | Plug): 定数または入力プラグ。
+            destination (str | Plug): 接続・設定先。
+
+        Note:
+            Maya 2025の標準算術はdoubleLinear、2027はdoubleという型の差がある。
+            nativeUnitsで接続時のUI単位変換を1に統一し、計算値の単位を変えない。
+        """
+        destination = to_plug(destination)
+        with nativeUnits():
+            if isinstance(value, (str, mlib.plugs.Plug)):
+                source = to_plug(value)
+                source.connectTo(destination)
+                immediate = destination.getSource(skipConversionNodes=False)
+                if immediate is not None and immediate.getNode() != source.getNode():
+                    conversion = immediate.getNode()
+                    if conversion.getType() == "unitConversion":
+                        mlib.nodes.Container(owner).addMembers(conversion)
+            else:
+                destination.set(value)
+
+    @classmethod
+    def _arithmetic(cls, owner, kind, role, left, right):
+        """Soft IKだけに必要な標準double演算をcontainerへ追加する。
+
+        Args:
+            owner (str): 所有するcontainer。
+            kind (str): divide/subtract/sum/multiply/power。
+            role (str): 演算の識別子。
+            left (float | str | Plug): 左辺。
+            right (float | str | Plug): 右辺。
+
+        Returns:
+            Plug: double精度の出力。公開するdistance/softness/ratioの型は変えない。
+        """
+        container = mlib.nodes.Container(owner)
+        legacy = cmds.about(apiVersion=True) < 20240000
+        if legacy:
+            # 新しい算術型がない旧版でunknownノードを作らない。
+            # 旧型のPlug名と演算モードをこの境界だけで選択する。
+            array = kind in ("sum", "subtract")
+            node_type = "plusMinusAverage" if array else "multiplyDivide"
+            node = container.createNode(node_type, name=container.getName() + "_" + role)
+            node.getPlug("operation").set({"sum": 1, "subtract": 2, "multiply": 1,
+                                           "divide": 2, "power": 3}[kind])
+            destinations = ((node.getPlug("input1D")[0], node.getPlug("input1D")[1]) if array else
+                            (node.getPlug("input1X"), node.getPlug("input2X")))
+            output = "output1D" if array else "outputX"
+        else:
+            node = container.createNode(kind, name=container.getName() + "_" + role)
+            if kind in ("sum", "multiply"):
+                destinations = (node.getPlug("input")[0], node.getPlug("input")[1])
+            elif kind == "power":
+                destinations = (node.getPlug("input"), node.getPlug("exponent"))
+            else:
+                destinations = (node.getPlug("input1"), node.getPlug("input2"))
+            output = "output"
+        cls._feed(owner, left, destinations[0])
+        cls._feed(owner, right, destinations[1])
+        return node.getPlug(output)

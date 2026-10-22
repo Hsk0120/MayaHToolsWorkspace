@@ -16,8 +16,8 @@ class TargetWorkflowTest(unittest.TestCase):
         """独立したベースとliveターゲットを用意する。"""
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True)
-        self.base = mlib.node(cmds.polyCube(ch=False)[0])
-        self.target = mlib.node(cmds.duplicate(self.base.getFullName())[0])
+        self.base = mlib.getNode(cmds.polyCube(ch=False)[0])
+        self.target = mlib.getNode(cmds.duplicate(self.base.getFullName())[0])
         cmds.move(0, 2, 0, self.target.getFullName() + ".vtx[0]", relative=True)
         self.bs = mlib.createBlendShape(self.base)
         self.weight = self.bs.addTarget(self.target)
@@ -39,12 +39,12 @@ class TargetWorkflowTest(unittest.TestCase):
         """返却参照はalias変更後もgetter・setter・編集へ渡せる。"""
         self.weight.setAlias("renamedSmile")
         self.assertEqual(self.bs.getTargetPlug(self.weight), self.weight)
-        self.assertEqual(self.bs.targetDeltas(self.weight), self.bs.targetDeltas("renamedSmile"))
+        self.assertEqual(self.bs.getTargetDeltas(self.weight), self.bs.getTargetDeltas("renamedSmile"))
         self.assertEqual(self.bs.getTargetVertices(self.weight).indices, (0,))
         self.assertEqual(self.bs.getInBetweenWeights(self.weight), [])
         self.bs.setTargetWeights(self.weight, {0: 0.25})
         self.assertAlmostEqual(self.bs.getTargetWeights(self.weight)[0], 0.25)
-        self.bs.resetTargetVertices(self.weight, self.base.getShape().vertex(0))
+        self.bs.resetTargetVertices(self.weight, self.base.getShape().getVertex(0))
         self.assertEqual(self.bs.getTargetVertices(self.weight).indices, ())
         cmds.undo()
         self.assertEqual(self.bs.getTargetVertices(self.weight).indices, (0,))
@@ -62,18 +62,17 @@ class TargetWorkflowTest(unittest.TestCase):
             with self.subTest(plug=str(plug)):
                 with self.assertRaises(ValueError):
                     self.bs.setTargetDeltas(plug, {0: (0, 1, 0)}, disconnect=True)
-        self.assertIsNotNone(self.bs.getPlug(
-            "inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget").getSourceWithConversion())
+        self.assertIsNotNone(self.bs.getPlug('inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget').getSource(skipConversionNodes=False))
         extra.delete()
         with self.assertRaises(RuntimeError):
             self.bs.getTargetPlug(extra)
 
     def test_weight_plug_inbetween_replace_duplicate_and_remove(self):
         """全target解決APIが同じ参照を使い、作成の返却も再利用できる。"""
-        half = mlib.node(cmds.duplicate(self.target.getFullName())[0])
+        half = mlib.getNode(cmds.duplicate(self.target.getFullName())[0])
         self.bs.addInBetween(self.weight, half, 0.5)
         self.assertEqual(self.bs.getInBetweenWeights(self.weight), [0.5])
-        replacement = mlib.node(cmds.duplicate(half.getFullName())[0])
+        replacement = mlib.getNode(cmds.duplicate(half.getFullName())[0])
         self.bs.replaceTarget(self.weight, replacement, full_weight=0.5)
         self.bs.removeInBetween(self.weight, 0.5)
         self.assertEqual(self.bs.getInBetweenWeights(self.weight), [])
@@ -120,12 +119,11 @@ class TargetWorkflowTest(unittest.TestCase):
                 with self.assertRaises((ValueError, TypeError)):
                     self.bs.loadTargetDeltas(self.weight, self.path, disconnect=True)
             self.assertEqual(self.bs.getTargetDeltas(self.weight), before)
-            self.assertIsNotNone(self.bs.getPlug(
-                "inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget").getSourceWithConversion())
+            self.assertIsNotNone(self.bs.getPlug('inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget').getSource(skipConversionNodes=False))
 
     def test_single_delta_load_fast_and_inbetween(self):
         """中間項目だけをfastで更新し、Undoキューと他項目を維持する。"""
-        half = mlib.node(cmds.duplicate(self.target.getFullName())[0])
+        half = mlib.getNode(cmds.duplicate(self.target.getFullName())[0])
         self.bs.addInBetween(self.weight, half, 0.5)
         self.bs.dumpTargetDeltas(self.weight, self.path, full_weight=0.5)
         cmds.delete(self.target.getFullName(), half.getFullName())

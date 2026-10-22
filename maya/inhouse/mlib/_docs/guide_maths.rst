@@ -260,7 +260,7 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
    q.conjugate()              # XYZ の符号を反転
    q.inverse()                # 逆四元数（単位四元数なら conjugate と同じ）
    q.dot(q)                   # 1.0（正規化済みなら常に1）
-   q.length()                 # 1.0
+   q.getLength()                 # 1.0
    q.rotateVector(Vector(1, 0, 0))    # このQuaternionでベクトルを回転
    q.angleTo(Quaternion())            # 単位四元数との角度差（ラジアン）
 

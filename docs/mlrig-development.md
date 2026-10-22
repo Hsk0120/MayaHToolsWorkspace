@@ -45,12 +45,12 @@ def set_layer_enabled(self, layer, enabled):
   所属だけの解除は`removeMembers`、メンバーを残す箱の解除は`removeContainer`を使う。
   公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`publishedAttributes`を使う。
   箱自身の入出力アトリビュートを介する接続の移送は利用側が担当する。
-- 保存用message配列は`ArrayPlug.sourceNodes()`と`appendMessage()`を使う。
+- 保存用message配列は`ArrayPlug.getSourceNodes()`と`appendMessage()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
 - 操作シェイプは`mlrig.setups.ControlShape`、単位境界は`mlib.common.units`を使う。
   Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
   空間指定は`mlib.maths.MSpace`の定数を使う。
-  型名が必要な場合は`Plug.dataType()`を使用する（`Plug.type()`はPythonクラス）。
+  型名が必要な場合は`Plug.getDataType()`を使用する（`Plug.getType()`はPythonクラス）。
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはmlrigの責務とする。
 - 単位なし標準DG演算は`mlib.common.scalarGraph.ScalarGraph`、Soft IKは`mlrig.setups.SoftIK`。
@@ -71,7 +71,7 @@ def set_layer_enabled(self, layer, enabled):
   Qt親ウィンドウの取得・変換は利用側UIパッケージの責務とする。mlibはQtをimportせず、標準UIの名前・Mayaの通知APIを扱う。
 
 - `maya.mel` もmlrigから直接使用しない。メインウィンドウ名は
-  `MainWindow.name()`、標準エディター起動は `NodeEditor.show()` / `GraphEditor.show()`
+  `MainWindow.getName()`、標準エディター起動は `NodeEditor.show()` / `GraphEditor.show()`
   を使用する。必要なMEL操作はmlibに責務を持つメソッドとして追加する。
 
 - 標準 `json` をmlrigで直接importしない。既存リグアトリビュートの通常JSONは
@@ -96,7 +96,7 @@ Maya標準の概念・操作はmlibへ、リグの構成・追従・補正・コ
 
 ## 所有する参照への委譲
 
-- Nodeを保持している場合は `node.plug("translateX").get()` を使い、名前を組み立ててgetPlugで再解決しない。Plugの距離はcmのため、取得後のUI単位からの再変換は不要。
+- Nodeを保持している場合は `node.getPlug("translateX").get()` を使い、名前を組み立ててgetPlugで再解決しない。Plugの距離はcmのため、取得後のUI単位からの再変換は不要。
 - 入力だけを解除する場合は `destination.disconnectInput()` を使う。出力接続を維持し、未接続なら何もしない。親の複合接続は親Plugに対して解除する。
 - 許可する接続元、リグの所有範囲、レイヤーの有効判定はmlrigで決める。検証や切断のためだけにMPlugへ降りず、既存の公開Plug APIを使用する。
 

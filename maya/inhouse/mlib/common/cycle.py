@@ -4,7 +4,6 @@ import math
 
 import maya.cmds as cmds
 
-from .._core.getterAlias import _getter_alias
 from ..nodes.dagNode import DagNode
 from ..nodes.node import Node
 from ..plugs.plug import Plug
@@ -100,9 +99,9 @@ class Cycle:
         """
         pairs = {}
         for plug in self.plugs:
-            source = plug.getSourceWithConversion()
+            source = plug.getSource(skipConversionNodes=False)
             edges = [(source, plug)] if source is not None else []
-            edges.extend((plug, destination) for destination in plug.getDestinationsWithConversions())
+            edges.extend(((plug, destination) for destination in plug.getDestinations(skipConversionNodes=False)))
             for source, destination in edges:
                 pairs[(source.getFullName(), destination.getFullName())] = (source, destination)
         return [pairs[key] for key in sorted(pairs)]
@@ -120,39 +119,6 @@ class Cycle:
         for plug in self.plugs:
             node = plug.getNode()
             if isinstance(node, DagNode):
-                for name in cmds.listRelatives(node.getFullName(), allParents=True, fullPath=True) or []:
-                    parent = Node(name)
+                for parent in node.getParents():
                     pairs[(parent.getFullName(), node.getFullName())] = (parent, node)
         return [pairs[key] for key in sorted(pairs)]
-
-    @_getter_alias(getConnections)
-    def connections(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getConnections(*args, **kwargs)
-
-    @_getter_alias(getParents)
-    def parents(self, *args, **kwargs):
-        """get付きの取得メソッドへ委譲する省略入口。
-
-        Args:
-            *args: 正式getterへ渡す位置引数。
-            **kwargs: 正式getterへ渡すキーワード引数。
-
-        Returns:
-            object: 正式getterと同じ戻り値。
-
-        Note:
-            引数・例外・単位・Undoの仕様は正式getterと同じ。
-        """
-        return self.getParents(*args, **kwargs)

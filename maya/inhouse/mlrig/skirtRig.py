@@ -408,11 +408,11 @@ class SkirtRig:
         """無効時は出力を切断し、変形骨を作成時の姿勢へ戻す。"""
         active = self.layer_enabled() and self.lod() == 1
         for constraint in self._members("constraints"):
-            joint = constraint.getPlug("mlrigDriven").getSourceWithConversion().getNode()
+            joint = constraint.getPlug('mlrigDriven').getSource(skipConversionNodes=False).getNode()
             for axis in "XYZ":
                 source = constraint.getPlug("constraintRotate" + axis)
                 target = joint.getPlug("rotate" + axis)
-                connected = target.getSourceWithConversion()
+                connected = target.getSource(skipConversionNodes=False)
                 if connected is not None and connected.mplug() != source.mplug():
                     raise ValueError("Skirt output was replaced: " + target.getName())
                 if active and connected is None:
@@ -481,10 +481,8 @@ class SkirtRig:
             # 新しい編集として記録するとRedo履歴を失うため、問い合わせだけで終える。
             active = rig.layer_enabled() and rig.lod() == 1
             for constraint in rig._members("constraints"):
-                joint = constraint.getPlug("mlrigDriven").getSourceWithConversion().getNode()
-                if constraint.getPlug("nodeState").get() != (0 if active else 2) or any(
-                    (joint.getPlug("rotate" + axis).getSourceWithConversion() is not None) != active for axis in "XYZ"
-                ):
+                joint = constraint.getPlug('mlrigDriven').getSource(skipConversionNodes=False).getNode()
+                if constraint.getPlug("nodeState").get() != (0 if active else 2) or any(((joint.getPlug('rotate' + axis).getSource(skipConversionNodes=False) is not None) != active for axis in 'XYZ')):
                     rig.update()
                     break
             else:
@@ -492,8 +490,8 @@ class SkirtRig:
 
                 active = rig.layer_enabled("follow") and rig.lod() == 1
                 for group in FollowLayer(rig).groups().values():
-                    bone = group.getPlug("joint").getSourceWithConversion().getNode()
-                    if (bone.getPlug("offsetParentMatrix").getSourceWithConversion() is not None) != active:
+                    bone = group.getPlug('joint').getSource(skipConversionNodes=False).getNode()
+                    if (bone.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None) != active:
                         rig.update()
                         break
                 from .secondaryLayer import SecondaryLayer

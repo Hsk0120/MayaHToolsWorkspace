@@ -63,11 +63,11 @@ class JointTest(unittest.TestCase):
         child = self.create_joint("connectChild", parent)
         joints = Joints([parent, child])
         joints.disconnectInverseScale()
-        self.assertIsNone(child.getPlug("inverseScale").getSourceWithConversion())
+        self.assertIsNone(child.getPlug('inverseScale').getSource(skipConversionNodes=False))
         joints.connectInverseScale()
-        self.assertEqual(child.getPlug("inverseScale").getSourceWithConversion(), parent.getPlug("scale"))
+        self.assertEqual(child.getPlug('inverseScale').getSource(skipConversionNodes=False), parent.getPlug('scale'))
         cmds.undo()
-        self.assertIsNone(child.getPlug("inverseScale").getSourceWithConversion())
+        self.assertIsNone(child.getPlug('inverseScale').getSource(skipConversionNodes=False))
         child.connectInverseScale(parent.getFullName())
         child.connectInverseScale()  # 同じ接続はそのまま
         child.disconnectInverseScale()
@@ -75,9 +75,9 @@ class JointTest(unittest.TestCase):
         parent.getPlug("sy").connectTo(child.getPlug("inverseScaleY"))
         child.getPlug("inverseScaleZ").connectTo(parent.getPlug("radius"))
         child.disconnectInverseScale()
-        self.assertIsNone(child.getPlug("inverseScaleX").getSourceWithConversion())
-        self.assertIsNone(child.getPlug("inverseScaleY").getSourceWithConversion())
-        self.assertEqual(parent.getPlug("radius").getSourceWithConversion(), child.getPlug("inverseScaleZ"))
+        self.assertIsNone(child.getPlug('inverseScaleX').getSource(skipConversionNodes=False))
+        self.assertIsNone(child.getPlug('inverseScaleY').getSource(skipConversionNodes=False))
+        self.assertEqual(parent.getPlug('radius').getSource(skipConversionNodes=False), child.getPlug('inverseScaleZ'))
         with self.assertRaises(ValueError):
             child.connectInverseScale(child)
 

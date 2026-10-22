@@ -10,8 +10,8 @@ Transform直下の不要な中間Shapeは次のように取得・削除できま
 
 .. code-block:: python
 
-   transform = mlib.node("pCube1")
-   candidates = transform.unusedIntermediateShapes()  # list[Shape]
+   transform = mlib.getNode("pCube1")
+   candidates = transform.getUnusedIntermediateShapes()  # list[Shape]
    transform.deleteUnusedIntermediateShapes()            # 自身を返す
 
 対象は ``intermediateObject=True`` で、標準のshadingEngineメンバー接続以外に
@@ -34,8 +34,8 @@ UVまたは頂点位置を基準に頂点番号を合わせる
 
 .. code-block:: python
 
-   reference = mlib.node("referenceMesh").shape()
-   target = mlib.node("targetMesh").shape()
+   reference = mlib.getNode("referenceMesh").getShape()
+   target = mlib.getNode("targetMesh").getShape()
    target.reorderVertices(reference, uv_set="map1")
 
    # 頂点位置で対応付ける。UV形状・割り当ては対象のものを維持する。
@@ -87,27 +87,27 @@ Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）は
 ------------------------------
 
 作成コマンドの戻り値はコマンドごとに決まっています。
-``createCurve`` はTransformなので ``shape()`` を経由し、
+``createCurve`` はTransformなので ``getShape()`` を経由し、
 ``createPolygon`` と単一形状の ``createNurbs`` は返されたシェイプを使います。
 
 .. code-block:: python
 
    mesh = mlib.createPolygon(type="cube", name="componentBody", constructionHistory=False)
-   mesh.vertices([0, 1]).setPositionZ(2.0)
+   mesh.getVertices([0, 1]).setPositionZ(2.0)
 
    curve_transform = mlib.createCurve(name="componentCurve", degree=1,
                                       point=[(0, 0, 0), (1, 1, 0), (2, 0, 0)])
-   curve = curve_transform.shape()
-   curve.cvs([0, 1]).setPositionZ(1.0)
+   curve = curve_transform.getShape()
+   curve.getCVs([0, 1]).setPositionZ(1.0)
 
    circle = mlib.createNurbs(type="circle", name="componentCircle")
-   circle.cvs().mirror(axis="x")
+   circle.getCVs().mirror(axis="x")
 
-``vertices()`` と ``cvs()`` の入力は、そのシェイプの実番号です。
+``getVertices()`` と ``getCVs()`` の入力は、そのシェイプの実番号です。
 省略・``None`` は取得時の全要素、``[]`` は空集合、重複は最初の出現だけを保持します。
 直接 ``Vertices(shape, indices)`` 等を構築する場合もシェイプラッパーが必要です。
-Transformや名前文字列は ``mlib.node(name).shape()`` でシェイプへ解決してください。
-複数シェイプを持つTransformでは ``shapes()`` で対象を選びます。
+Transformや名前文字列は ``mlib.getNode(name).getShape()`` でシェイプへ解決してください。
+複数シェイプを持つTransformでは ``getShapes()`` で対象を選びます。
 
 .. list-table:: シェイプからの単数・複数取得
    :header-rows: 1
@@ -116,14 +116,14 @@ Transformや名前文字列は ``mlib.node(name).shape()`` でシェイプへ解
      - 単数
      - 複数
    * - Mesh
-     - ``vertex(index)`` / ``edge(index)`` / ``face(index)`` / ``uv(index)``
-     - ``vertices(indices=None)`` / ``edges(indices=None)`` / ``faces(indices=None)`` / ``uvs(indices=None)``
+     - ``getVertex(index)`` / ``getEdge(index)`` / ``getFace(index)`` / ``getUV(index)``
+     - ``getVertices(indices=None)`` / ``getEdges(indices=None)`` / ``getFaces(indices=None)`` / ``getUVs(indices=None)``
    * - NurbsCurve
-     - ``cv(index)``
-     - ``cvs(indices=None)``
+     - ``getCV(index)``
+     - ``getCVs(indices=None)``
 
-単数取得は ``idx`` も使えます。省略名は対応する正式getterへ委譲し、
-引数・返却型は共通です（:doc:`getter_aliases`）。
+単数取得は ``idx`` も使えます。正式get名へ統合し、番号・引数・返却型を維持します
+（:doc:`getter_aliases`）。
 CV/CVsはNURBSカーブ用です。NURBSサーフェスの2次元CVには
 この単一番号の入口を使えません。
 
@@ -139,7 +139,7 @@ platonicSolidを使用できます。``polyCube`` 等のMayaコマンド名で�
 
    mesh = mlib.createPolygon(type="cube", name="body", width=2, constructionHistory=False)
    sphere = mlib.createPolygon(typ="sphere", r=3, sx=24, sy=16)
-   mesh.transform().plug("translateX").set(5)
+   mesh.getTransform().getPlug("translateX").set(5)
    history = cmds.listHistory(sphere)
 
 ``name`` は親Transformの名前です。履歴を有効にしても戻り値はMeshです。
@@ -159,10 +159,10 @@ plane、torusを選択します。寸法や分割数、履歴は各Mayaコマン
    sphere = mlib.createNurbs(type="sphere", radius=3)  # NurbsSurface
    faces = mlib.createNurbs(type="cube")  # list[NurbsSurface]（6枚）
    edges = mlib.createNurbs(type="square")  # list[NurbsCurve]（4本）
-   circle.transform().plug("translateX").set(5)
+   circle.getTransform().getPlug("translateX").set(5)
 
 戻り値はシェイプです。Cube・Squareは複数シェイプのリストで、
-それぞれの ``transform()`` は構成パーツの親Transformです。
+それぞれの ``getTransform()`` は構成パーツの親Transformです。
 ``name`` は最上位Transformの名前を指定します。
 履歴の有無で戻り値は変わらず、生成全体を1回のUndoで戻せます。
 query/edit、object=False、polygonによる非NURBS出力は受け付けません。
@@ -171,25 +171,25 @@ NurbsSurfaceはShape共通のアトリビュート・親Transform操作を提供
 形状情報
 --------
 
-Transform の ``shape()`` は実際のシェイプ型に応じて ``Mesh`` や
+Transform の ``getShape()`` は実際のシェイプ型に応じて ``Mesh`` や
 ``NurbsCurve`` を返します。以下は既存ノード名を指定する例です。
 
 .. code-block:: python
 
-   mesh = mlib.node("pCube1").shape()
-   print(mesh.numVertices(), mesh.numEdges(), mesh.numPolygons())
-   points = mesh.points(ws=True)
-   normals = mesh.vertexNormals(ws=True, angle_weighted=True)
+   mesh = mlib.getNode("pCube1").getShape()
+   print(mesh.getNumVertices(), mesh.getNumEdges(), mesh.getNumPolygons())
+   points = mesh.getPoints(ws=True)
+   normals = mesh.getVertexNormals(ws=True, angle_weighted=True)
 
-   curve = mlib.node("curve1").shape()
-   print(curve.degree(), curve.numCVs(), curve.numSpans())
-   print(curve.length())         # オブジェクト空間のカーブ長
-   print(curve.length(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
-   print(curve.length(ws=True, unit="m"))  # メートルで取得
+   curve = mlib.getNode("curve1").getShape()
+   print(curve.getDegree(), curve.getNumCVs(), curve.getNumSpans())
+   print(curve.getLength())         # オブジェクト空間のカーブ長
+   print(curve.getLength(ws=True))  # 親のスケール等を含むワールド空間のカーブ長
+   print(curve.getLength(ws=True, unit="m"))  # メートルで取得
 
-   cvs = curve.cvPositions(ws=True)
+   cvs = curve.getCvPositions(ws=True)
 
-   print(curve.collocatedCVGroups())  # 重なった CV のグループ（無ければ []）
+   print(curve.getCollocatedCVGroups())  # 重なった CV のグループ（無ければ []）
 
 ``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
 戻り値は既定でcmです。``unit=None`` の場合だけ現在の距離UI単位を使います。
@@ -203,12 +203,12 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
    from mlib.common import Preferences
    from mlib.common import units
 
-   print(Preferences.linearUnit())  # 現在のシーン単位（例: "cm"）
+   print(Preferences.getLinearUnit())  # 現在のシーン単位（例: "cm"）
    print(units.convertDistance(100, from_unit="cm", to_unit="m"))  # 1.0
 
-位置配列は Maya API 2.0 の ``MPointArray``、``vertexNormals()`` は ``list[Vector]`` です。
+位置配列は Maya API 2.0 の ``MPointArray``、``getVertexNormals()`` は ``list[Vector]`` です。
 距離は Maya API の内部単位を使い、``ws=False`` はオブジェクト空間です。
-``vertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
+``getVertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
 頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、
 Falseは角度による重み付けをしません。面ごとの法線配列や最初の面法線ではありません。
 ``collocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
@@ -275,35 +275,35 @@ Transform・Jointで使用でき、Transforms・Jointsからも一括実行で�
 コンポーネントと座標
 --------------------
 
-Vertex / CV はシーンを参照する単体ラッパーです。``positionX()`` / ``positionY()`` /
-``positionZ()`` は既定でオブジェクト空間の座標を、cm単位で返します。
+Vertex / CV はシーンを参照する単体ラッパーです。``getPositionX()`` / ``getPositionY()`` /
+``getPositionZ()`` は既定でオブジェクト空間の座標を、cm単位で返します。
 ``ws=True`` でワールド空間を指定できます。
 ``setPositionX(value)`` などのメソッドでシーンを更新し、Undoできます。座標のスナップショットが
-必要な場合は ``position()`` が返すタプルを保持してください。
+必要な場合は ``getPosition()`` が返すタプルを保持してください。
 
 .. code-block:: python
 
     mesh = mlib.nodes.Mesh("pCubeShape1")
-    vertex = mesh.vertex(0)
-    print(vertex.positionX(), vertex.positionY(), vertex.positionZ())
+    vertex = mesh.getVertex(0)
+    print(vertex.getPositionX(), vertex.getPositionY(), vertex.getPositionZ())
     vertex.setPositionX(2.0)
     vertex.setPosition((1, 2, 3), ws=True)
-    print(vertex.position(ws=True))
+    print(vertex.getPosition(ws=True))
 
     curve = mlib.nodes.NurbsCurve("curveShape1")
-    cv = curve.cv(0)
-    cv.setPositionZ(-cv.positionZ())
-    curve.cvs().mirror(axis="z", ws=False)
-    mesh.vertices([0, 1, 2]).mirror(axis="x", ws=True)
+    cv = curve.getCV(0)
+    cv.setPositionZ(-cv.getPositionZ())
+    curve.getCVs().mirror(axis="z", ws=False)
+    mesh.getVertices([0, 1, 2]).mirror(axis="x", ws=True)
 
-    edge = mesh.edge(0)       # Edge
-    face = mesh.face(0)       # Face
-    mesh.edges([0, 1]).vertices().mirror(axis="x")
-    vertices = mesh.faces([0, 1]).vertices()
-    uv = mesh.uv(0)           # UV
+    edge = mesh.getEdge(0)       # Edge
+    face = mesh.getFace(0)       # Face
+    mesh.getEdges([0, 1]).getVertices().mirror(axis="x")
+    vertices = mesh.getFaces([0, 1]).getVertices()
+    uv = mesh.getUV(0)           # UV
     uv.setU(0.25)
     uv.setV(0.75)
-    print(mesh.uvs().position())
+    print(mesh.getUVs().position())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
 複数形は反復、添字、スライスに対応します。番号はOpenMayaと同じで作成時に固定し、座標は現在の値を
@@ -345,10 +345,10 @@ Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` 
 
 .. code-block:: python
 
-   held_vertex = mesh.vertex(0)
-   held_vertices = mesh.vertices([0, 1])
+   held_vertex = mesh.getVertex(0)
+   held_vertices = mesh.getVertices([0, 1])
    if held_vertex.valid() and held_vertices.valid():
-       print(held_vertex.position(), held_vertices.position())
+       print(held_vertex.getPosition(), held_vertices.getPosition())
 
 番号が範囲内でも、トポロジー変更前と同じ要素を指す保証はありません。
 変更後は必要な参照を取得し直してください。``valid()`` を追加しても、
@@ -357,7 +357,7 @@ Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
 
-例えば ``mesh.vertices([0, 1]).setPositionZ(2.0, fast=True)`` は
+例えば ``mesh.getVertices([0, 1]).setPositionZ(2.0, fast=True)`` は
 入力履歴のないメッシュで使えます。履歴付きメッシュ、周期カーブ、
 NURBSサーフェス等の未対応対象をfastへ渡すと ``NotImplementedError`` です。
 履歴を残す編集やUndoが必要な場合は、既定の通常モードを使います。
