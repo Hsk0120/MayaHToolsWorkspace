@@ -109,6 +109,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-22): ユーザー指示で未コミット全変更をGit反映対象として確認。残っていたQuickPathExplorer/launch_python.batのMaya2027固定起動への変更を含め、作業ログとともにコミット対象へ追加。mayapy・Qtプラットフォームディレクトリ・起動対象スクリプトの存在と差分チェックを確認。GUI起動は未実行。
+
 - Codex (2026-10-22): ユーザー指示でmlibリファクタリング・使用側・テスト・文書をコミット/プッシュ対象として確認。Maya2022〜2027の成功記録と差分・公開入口を再確認し、最終レビューでnative MPlug.nameの誤置換とextensions.__all__の削除済み名を修正、文書のgetDiagnostics表記も統一。関連11テスト成功。研究メモ・生成物・submodule参照更新は含めず、既存QuickPathExplorer/launch_python.bat変更を保持。
 
 - Codex (2026-10-22): mlibの取得をgetへ統一し省略入口576件・単純演算アクセサー68件を削除、使用側・テスト・Sphinxを移行。接続/単位フラグ、getChildrenへの列挙統合、ControlHierarchyのmlrig移譲、OM2照会とUndo/fast更新を実装。fast未対応条件は変更前に拒否し文書化。Maya2022〜2027の全体回帰成功、最終2027は147ファイル/1,311テストで失敗0。接線/単位等の追加24件は2022/2023/2027で成功、mlrig/拡張186件は失敗0（1skip）。文書15コード例、Sphinx警告エラー扱いビルド、公開入口/文書/レイアウト検査に成功。GUI・対応バイナリ不在の検証はskip。既存QuickPathExplorer変更を保持し、未コミット・未プッシュ。
