@@ -6,9 +6,11 @@ from .bendCorrection import BendCorrection
 from .coneReader import ConeReader
 from .controlShape import ControlShape
 from .controlHierarchy import ControlHierarchy
+from .hingeIK import HingeIK
 from .jointHierarchy import JointHierarchy
 from .lengthCompensation import LengthCompensation
 from .matrixFollow import MatrixFollow
+from .planarIK import PlanarIK
 from .poseRbf import PoseRbf
 from .radialWeights import RadialWeights
 from .rotationFollow import RotationFollow
@@ -28,9 +30,11 @@ __all__ = [
     "ConeReader",
     "ControlShape",
     "ControlHierarchy",
+    "HingeIK",
     "JointHierarchy",
     "LengthCompensation",
     "MatrixFollow",
+    "PlanarIK",
     "PoseRbf",
     "RadialWeights",
     "RotationFollow",

@@ -37,3 +37,5 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    spline_ik
    length_compensation
    joint_hierarchy
+   hinge_ik
+   planar_ik
