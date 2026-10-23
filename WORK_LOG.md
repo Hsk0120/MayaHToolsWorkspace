@@ -111,6 +111,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-23 Claude Code: HTools > rigging > createTwistJoints を追加。根本と末端のジョイントの間を個数+1等分した位置に、根本の子で回転・jointOrient・rotateAxis が0のジョイントを作る(rotateOrderは根本に合わせる、1回のUndo)。mlib非依存(cmds・OpenMaya 2.0のみ)。mayapy 2022/2027で40項目、GUI(runpyで開いてCreate)を2022/2027で確認。
 - 2026-10-23: Codex がユーザー依頼によりmlib整理一式と依存するmlrig/HTools/文書/テストをコミット・push対象に選定。共有3ファイルはJointHierarchyとAim設定テストの登録だけをindexへ反映し、別作業Swing/Twist系と外部submodule差分を保持。検証済みmlib244実装のSHA一致、indexだけから取り出した構成のMaya2027 setups93件、ステージ差分検査が成功。Aim設定テストを既存ランナーへ登録。調査メモ/生成物はGit対象外。詳細.maya-output/mlib-maintenance-push20261023/。
 
 - 2026-10-23: Codex が保守性整理を実装。固定Plug/接続転送9入口を廃止し設定18項目をAimAxisConversionへ移譲。ArrayPlug.getIndicesへ列挙、Plug範囲照会/頂点集約/JSON値・CV・SDK接続/HToolsスキン保護を既存基盤へ集約。検証付き算術/範囲/alias便利APIと確定引数・単位・返却・Undo/fast・overrideを維持。日英Sphinxと利用側/テストを追従。mlib実装244本43,019→42,909物理行、公開入口は9廃止/1追加。Maya2022〜2027各153ファイル1,343件失敗0（旧版11/new版8skip）、移譲Aim設定各3件、HTools旧/new8条件、Maya不要49件、日英各489HTML/公開入口/レイアウト/Python3.7構文/差分検査と独立レビュー成功。結果.maya-output/mlib-maintenance20261023/result.json。GUI実操作・性能測定は未実施。既存未コミット/他作業変更を保持、未コミット・未プッシュ。
