@@ -30,7 +30,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Node.inputs/outputs/connections`` と ``cmds.listConnections(plugs=True)``
   (短い名前が重複するノードを含む。``Plug.getFullName()`` の一意な名前と一致すること)
 - ``Namespace`` と ``cmds.namespace``/``cmds.namespaceInfo``
-- Plug のアトリビュート型判定(アトリビュート定義から om2 で求める ``mlib._core.attributeType.attributeType``)と
+- Plug のアトリビュート型判定(アトリビュート定義から om2 で求める ``mlib.core.attributeType.attributeType``)と
   ``cmds.getAttr(<プラグ名>, type=True)``。transform・mesh・nurbsCurve・blendShape・
   plusMinusAverage・multiplyDivide・time・joint の代表的なアトリビュート、addAttr の全アトリビュート型・データ型の
   動的アトリビュート、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
@@ -63,7 +63,7 @@ mlib.reload()
 from mlib.nodes import Node
 from mlib.common import Namespace
 from mlib.plugs import Plug
-from mlib._core.attributeType import attributeType
+from mlib.core.attributeType import attributeType
 
 
 class NodeAliasesParityTest(unittest.TestCase):
@@ -353,7 +353,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     Plug(node, mplug) は登録済みラッパー(DoubleLinearPlug/Double3Plug 等)を選ぶために
     ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。mlib はその型名をアトリビュート定義から
-    om2 で求める(``mlib._core.attributeType.attributeType``)ため、既存のプラグについて
+    om2 で求める(``mlib.core.attributeType.attributeType``)ため、既存のプラグについて
     cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しない配列要素を
     問い合わせると要素を作る(Maya が異常終了するアトリビュートもある)ため、cmds へ問い合わせるのは
     存在する要素(ワールド空間アトリビュートはインスタンス番号の要素)だけにする。

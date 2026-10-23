@@ -6,9 +6,7 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from .node import Node, Nodes
 
 
@@ -243,7 +241,7 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    @flag_aliases(index="idx")
+    @_flag_aliases(index="idx")
     def getShape(self, idx=0, intermediates=False):
         """Shape自身を返す。Transformでは指定Shapeを取得する。
 
@@ -296,7 +294,7 @@ class DagNode(Node):
         """
         return bool(self.getPlug("visibility").get())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeSetVisible")
     def setVisibility(self, state, *, fast=False):
         """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
@@ -330,7 +328,7 @@ class DagNode(Node):
         """
         return not bool(self.getPlug("hiddenInOutliner").get())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeSetOutlinerVisibility")
     def setOutlinerVisibility(self, state, *, fast=False):
         """ノードのアウトライナー表示を切り替える。

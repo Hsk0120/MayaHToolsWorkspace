@@ -1,8 +1,6 @@
 """行列の使用成分を選択する。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node
@@ -27,7 +25,7 @@ class PickMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
@@ -45,7 +43,7 @@ class PickMatrix(Node):
         _Calculation.set_value(value, Matrix, self.getInputPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
@@ -79,7 +77,7 @@ class PickMatrix(Node):
         """
         return self.getUseTranslatePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setUseTranslate(self, value, *, fast=False):
         """translate成分を使用するかへ定数値を設定する。
@@ -97,7 +95,7 @@ class PickMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.getUseTranslatePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectUseTranslate(self, source, force=False):
         """translate成分を使用するかへ接続する。
@@ -131,7 +129,7 @@ class PickMatrix(Node):
         """
         return self.getUseRotatePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setUseRotate(self, value, *, fast=False):
         """rotate成分を使用するかへ定数値を設定する。
@@ -149,7 +147,7 @@ class PickMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.getUseRotatePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectUseRotate(self, source, force=False):
         """rotate成分を使用するかへ接続する。
@@ -183,7 +181,7 @@ class PickMatrix(Node):
         """
         return self.getUseScalePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setUseScale(self, value, *, fast=False):
         """scale成分を使用するかへ定数値を設定する。
@@ -201,7 +199,7 @@ class PickMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.getUseScalePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectUseScale(self, source, force=False):
         """scale成分を使用するかへ接続する。
@@ -235,7 +233,7 @@ class PickMatrix(Node):
         """
         return self.getUseShearPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setUseShear(self, value, *, fast=False):
         """shear成分を使用するかへ定数値を設定する。
@@ -253,7 +251,7 @@ class PickMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.getUseShearPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectUseShear(self, source, force=False):
         """shear成分を使用するかへ接続する。

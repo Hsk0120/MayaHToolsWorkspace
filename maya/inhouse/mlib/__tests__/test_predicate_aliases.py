@@ -61,7 +61,7 @@ class PredicateAliasesTest(unittest.TestCase):
                 if owner_name is not None:
                     with self.assertRaises(AttributeError):
                         inspect.getattr_static(owner, short)
-        self.assertFalse((Path(mlib.__file__).parent / "_core/getterAlias.py").exists())
+        self.assertFalse((Path(mlib.__file__).parent / "core/getterAlias.py").exists())
 
     def test_canonical_override_and_instance_replacement_remain_available(self):
         """通常のPython差替えと派生メソッドを追加する方法を維持する。"""

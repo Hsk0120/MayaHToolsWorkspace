@@ -9,23 +9,30 @@ Maya/OpenMaya標準名、Python特殊メソッド、標準APIに合わせる名�
 公開配置
 --------
 
-``nodes``・``plugs``・``components``・``maths``・``cmds``・``common`` を公開します。
+``nodes``・``plugs``・``components``・``maths``・``cmds``・``common``・``core`` を公開します。
 横断的な通知は ``mlib.logger``、コンテキストとデコレーターは ``mlib.decorator``、
-内部基盤は ``_core``、文書は ``_docs`` です。
+クラスに属さない小さな汎用関数は ``mlib.util``、共通基底・型判定/登録・編集基盤は
+``mlib.core`` に置きます。文書と検証素材は ``_docs`` と ``__tests__`` です。
 
 .. code-block:: python
 
    import mlib
-   from mlib import logger
+   from mlib import logger, util
    from mlib.nodes import Node, Joint
    from mlib.maths import Matrix
    from mlib.common import Selection, ScriptJobs
-   from mlib._core import extensions
-   from mlib._core.object import Object
+   from mlib.core import extensions
+   from mlib.core.object import Object
 
 ``Object`` はNode・Plug・Componentの共通基底です。ルートへは再公開しません。
-拡張管理は ``from mlib._core import extensions`` を使います。
+拡張管理は ``from mlib.core import extensions`` を使います。
 旧import・旧名の互換別名はありません。
+
+``util`` の公開関数は ``legalizeName``・``measure``・``mirrorArguments`` です。
+フォルダ名で公開/非公開を区分せず、正式なAPIは明示import・``__all__``・文書で示します。
+集約した内部補助は先頭 ``_`` で示し、既存の内部連携・登録プロトコル名は維持します。
+``core`` の既存の型登録・拡張プロトコルは名前と意味を維持し、全helperを正式APIへ広げません。
+旧 ``mlib._core`` や移動前のcommon小モジュールをimportする互換入口はありません。
 
 参照・値・状態
 --------------

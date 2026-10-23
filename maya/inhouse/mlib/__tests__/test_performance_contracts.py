@@ -8,8 +8,7 @@ import maya.cmds as cmds
 import mlib
 
 mlib.reload()
-from mlib.common._fast import fast_edit, is_fast
-from mlib.decorator import undoChunk, undoTransaction
+from mlib.decorator import _fast_edit, _is_fast, undoChunk, undoTransaction
 
 
 class PerformanceContractsTest(unittest.TestCase):
@@ -23,32 +22,32 @@ class PerformanceContractsTest(unittest.TestCase):
 
     def test_fast_validation_and_nested_state(self):
         """省略・明示False・異常引数・例外のどれでも状態を漏らさない。"""
-        @fast_edit
+        @_fast_edit
         def inner(value, *, fast=False):
             if value == "fail":
                 raise ValueError("test")
-            return is_fast()
+            return _is_fast()
 
-        @fast_edit
+        @_fast_edit
         def outer(*, fast=False):
             return inner(1, fast=False)
 
         self.assertFalse(inner(1))
         self.assertTrue(outer(fast=True))
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
         for kwargs in ({"fast": 1}, {"fast": True, "unknown": 1}):
             with self.assertRaises(TypeError):
                 inner(1, **kwargs)
-            self.assertFalse(is_fast())
+            self.assertFalse(_is_fast())
         with self.assertRaises(TypeError):
             inner(fast=True)
         with self.assertRaises(ValueError):
             inner("fail", fast=True)
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
 
-        @fast_edit
+        @_fast_edit
         def positional(value, fast=False):
-            return is_fast()
+            return _is_fast()
 
         self.assertTrue(positional(1, True))
         with self.assertRaises(TypeError):

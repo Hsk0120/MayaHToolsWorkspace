@@ -161,7 +161,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
 
     def test_fast_unsupported_compound_is_rejected_before_any_write(self):
         """未対応の子データを含むfast更新は先行する数値も変更しない。"""
-        from mlib._core.fastWrite import set_plug
+        from mlib.core.fastWrite import set_plug
         cmds.addAttr(str(self.node), ln="mixed", at="compound", nc=2)
         cmds.addAttr(str(self.node), ln="number", at="double", p="mixed")
         cmds.addAttr(str(self.node), ln="unsupportedChild", dt="floatArray", p="mixed")

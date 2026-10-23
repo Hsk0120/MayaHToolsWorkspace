@@ -3,8 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..decorator import _fast_edit, _is_fast, undoChunk
 from .objectSet import ObjectSet
 
 
@@ -34,7 +33,7 @@ class ShadingEngine(ObjectSet):
         plug = self.getShaderPlug(kind)
         return None if plug is None else plug.getNode()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None, *, fast=False):
         """指定シェーダーの出力へ接続を置き換える。
@@ -63,7 +62,7 @@ class ShadingEngine(ObjectSet):
         source.connectTo(target, force=True)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibShadingEngineAssign")
     def assign(self, targets, *, fast=False):
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
@@ -80,10 +79,10 @@ class ShadingEngine(ObjectSet):
             RuntimeError: Mayaが割り当てを拒否した場合。
             NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         names = _InputObject._input_names(targets)
         if names:
-            if is_fast():
+            if _is_fast():
                 self._assign_meshes(names)
             else:
                 cmds.sets(names, edit=True, forceElement=self.getFullName())

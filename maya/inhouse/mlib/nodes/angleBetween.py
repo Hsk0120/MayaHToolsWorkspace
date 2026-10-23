@@ -1,8 +1,6 @@
 """2本のベクトルのなす角と回転。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .node import Node
@@ -11,7 +9,7 @@ from .node import Node
 class AngleBetween(Node):
     """2本のベクトルのなす角と回転。"""
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInputPlug(self, index):
         """入力のPlugを取得する。
 
@@ -23,7 +21,7 @@ class AngleBetween(Node):
         """
         return self.getPlug(f"vector{_Calculation.index(index, (1, 2))}")
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInput(self, index):
         """入力の評価値を取得する。
 
@@ -35,8 +33,8 @@ class AngleBetween(Node):
         """
         return self.getInputPlug(index).get()
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
@@ -55,7 +53,7 @@ class AngleBetween(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getInputPlug, index)
         return self
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectInput(self, index, source, force=False):
         """入力へ接続する。

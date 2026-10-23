@@ -36,9 +36,9 @@ class InternalRefactoringTest(unittest.TestCase):
         node = mlib.createNode("transform")
         plug = node.getPlug("tx")
         with patch.object(Nodes, "_resolve_inputs", side_effect=AssertionError("input cycle")):
-            self.assertEqual(mlib._core.object.Object._input_names(x for x in [[plug]]), [plug.getFullName()])
+            self.assertEqual(mlib.core.object.Object._input_names(x for x in [[plug]]), [plug.getFullName()])
             with self.assertRaises(TypeError):
-                mlib._core.object.Object._input_names([node, node.getFullName()])
+                mlib.core.object.Object._input_names([node, node.getFullName()])
 
 
     def test_influence_single_multiple_and_scene_changes(self):
@@ -80,10 +80,10 @@ class InternalRefactoringTest(unittest.TestCase):
 
     def test_reload_rebuilds_registry_and_caches(self):
         """新しい基底・型登録・型情報で再取得でき、独自登録を残さない。"""
-        from mlib._core import typeHierarchy
+        from mlib.core import registry as registry_module
         old_registry = mlib.nodes.Node._registry
         old_registry.register("temporaryRefactorType", mlib.nodes.Node)
-        typeHierarchy._INHERITED_TYPES_CACHE["temporaryRefactorType"] = ("temporaryRefactorType",)
+        registry_module._INHERITED_TYPES_CACHE["temporaryRefactorType"] = ("temporaryRefactorType",)
         name = cmds.createNode("transform")
         for _ in range(2):
             mlib.reload()
@@ -92,8 +92,8 @@ class InternalRefactoringTest(unittest.TestCase):
             self.assertIs(type(node.getPlug("tx")), mlib.plugs.DoubleLinearPlug)
             self.assertIsNot(mlib.nodes.Node._registry, old_registry)
             self.assertIsNone(mlib.nodes.Node._registry.lookup("temporaryRefactorType"))
-            from mlib._core import typeHierarchy
-            self.assertNotIn("temporaryRefactorType", typeHierarchy._INHERITED_TYPES_CACHE)
+            from mlib.core import registry as registry_module
+            self.assertNotIn("temporaryRefactorType", registry_module._INHERITED_TYPES_CACHE)
             node.getPlug("tx").set(9, fast=True)
             self.assertEqual(node.getPlug("tx").get(), 9)
             self.assertIs(mlib.getNode, mlib.cmds.getNode)

@@ -34,13 +34,15 @@
 
 - mlib/mlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。mlib.cmdsの7入口は既存の入力解決・短縮フラグ・Undo・戻り型を維持する。他のコマンドラッパーや生のcmds転送クラスは追加しない。
 
-- mlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py`、内部基盤は `_core`、文書は `_docs` に置く。`mlib_*` もこの責務の分類に合わせる。
+- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
 
-- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
+- 2026-10-23のユーザー指示により、`_core`は`core`へ改名し、実行フォルダ名で公開/非公開を区分しない。正式なAPIは通常の明示import・`__all__`・文書で示し、集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。`core`内の全関数を正式APIへ拡大せず、既存の`NodeRegistry`・`reload_package`と登録用プロトコルの名前・意味を維持する。旧`mlib._core`や移動前のcommon小モジュールの互換ファイル・別名は残さない。`_docs`・`__tests__`は実行APIと別の文書・検証素材なので配置名を維持する。
+
+- `Object` (`core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib.core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib.core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
 - mlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口を維持する。既存対象の編集はオブジェクトのメソッド、他のMaya標準コマンドは利用側のcmdsへ寄せる。旧名の互換入口は残さず使用側を更新する。
 
-- mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `mlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
+- mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない小さな中立の汎用関数・値処理補助は `mlib.util`、Mayaの状態・環境等の責務固有の処理は `mlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
 
 - mlibおよび `mlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `mlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
@@ -115,7 +117,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 
 - ノード・アトリビュートラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
 - 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
-- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応は別の責務で、登録済み型からのラッパー選択は `_core/registry.py` の既存規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
+- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応は別の責務で、登録済み型からのラッパー選択は `core/registry.py` の既存規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` として明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数メソッドの追加だけで複数形APIを増やさず、既存の引数・戻り値・専用集約処理を維持する。
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
 - 静的解析向けに公開名だけの別名一覧を増やさず、通常の明示importを公開と補完の共通入口にする。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_mlib_exports.py` で不一致を検査する。

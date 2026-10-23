@@ -1,6 +1,6 @@
 """アトリビュートの型名を Maya API 2.0 のアトリビュート定義から求める(シーンを変更しない)。
 
-Plug の派生クラスの選択(:class:`~mlib._core.registry.NodeRegistry` のアトリビュート型キー)と、
+Plug の派生クラスの選択(:class:`~mlib.core.registry.NodeRegistry` のアトリビュート型キー)と、
 ``Plug.set()`` の配列型の判定に使う型名を、``cmds.getAttr(<プラグ名>, type=True)`` と
 同じ文字列で返す。``cmds.getAttr(type=True)`` は存在しない配列要素を問い合わせると
 要素を作り(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、
@@ -244,6 +244,38 @@ def is_internal_data_type(mplug):
         return False
     name = _add_attr_type_name(attribute)
     return name is not None and name not in _PUBLIC_DATA_TYPES
+
+
+def _convert_units(plug, value, to_ui=True):
+    """数値・複合値を変換する。単位のない型はそのまま返す。
+
+    Args:
+        plug (om2.MPlug): 型を判定するプラグ。
+        value (object): 変換する値。
+        to_ui (bool): Trueはcm/rad/秒からUI単位、Falseは逆方向。
+
+    Returns:
+        object: 変換した値。行列や型付き配列の成分は単位変換しない。
+    """
+    if plug.isCompound:
+        return tuple(_convert_units(plug.child(i), item, to_ui) for i, item in enumerate(value))
+    attribute = plug.attribute()
+    if not attribute.hasFn(om2.MFn.kUnitAttribute):
+        return value
+    unit_type = om2.MFnUnitAttribute(attribute).unitType()
+    if unit_type == om2.MFnUnitAttribute.kInvalid:
+        # Maya 2023のmesh.pnts子はUnitAttributeとして解決されても単位型が
+        # kInvalidになる。座標の数値を維持し、存在しない単位を変換しない。
+        return value
+    cls, internal = {
+        om2.MFnUnitAttribute.kAngle: (om2.MAngle, om2.MAngle.kRadians),
+        om2.MFnUnitAttribute.kDistance: (om2.MDistance, om2.MDistance.kCentimeters),
+        om2.MFnUnitAttribute.kTime: (om2.MTime, om2.MTime.kSeconds),
+    }[unit_type]
+    if isinstance(value, cls):
+        return value.asUnits(cls.uiUnit() if to_ui else internal)
+    source, target = (internal, cls.uiUnit()) if to_ui else (cls.uiUnit(), internal)
+    return cls(value, source).asUnits(target)
 
 
 def _read_angle(mplug):

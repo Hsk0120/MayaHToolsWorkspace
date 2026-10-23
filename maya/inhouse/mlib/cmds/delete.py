@@ -70,11 +70,10 @@ Examples
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..decorator import _fast_edit, _is_fast, undoChunk
 
 
-@fast_edit
+@_fast_edit
 @undoChunk("mlib.cmds.delete.delete")
 def delete(nodes, *, fast=False):
     """指定したノード・コンポーネントを削除する。
@@ -98,7 +97,7 @@ def delete(nodes, *, fast=False):
             何も削除しない)。
         RuntimeError: Maya が削除を拒否した場合。
     """
-    from .._core.object import Object as _InputObject
+    from ..core.object import Object as _InputObject
     from ..nodes.node import Node
 
     names = _InputObject._input_names(nodes, allow_plugs=False)
@@ -112,16 +111,16 @@ def delete(nodes, *, fast=False):
         # Maya標準のワイルドカード指定を実ノードへ展開してから検証する。
         if any(char in name for char in "*?["):
             resolved = (list(om2.MGlobal.getSelectionListByName(name).getSelectionStrings())
-                        if is_fast() else cmds.ls(name, long=True))
+                        if _is_fast() else cmds.ls(name, long=True))
         else:
             resolved = [name]
         nodes.extend(Node(value) for value in (resolved or [name]))
     if components:
-        if is_fast():
+        if _is_fast():
             raise NotImplementedError("fast component/topology deletion is not supported")
         cmds.delete(*components)
-    if is_fast():
-        from .._core.nodeEdit import validate_deletion
+    if _is_fast():
+        from ..core.nodeEdit import validate_deletion
         validate_deletion(nodes)
     for node in nodes:
         # 親・所有コンテナの削除や重複指定で既に消えた対象は再削除しない。

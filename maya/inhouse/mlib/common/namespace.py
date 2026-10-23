@@ -5,8 +5,7 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 
 
 class Namespace:
@@ -268,7 +267,7 @@ class Namespace:
         self._name = target.name
         return self
 
-    @flag_aliases(dst="destination")
+    @_flag_aliases(dst="destination")
     @undoChunk("mlibNamespaceRemove")
     def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。

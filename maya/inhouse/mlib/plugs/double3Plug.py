@@ -4,10 +4,8 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from .._core.unitValue import convert
-from ..common._fast import fast_edit
-from ..common._safe import safe_edit
-from ..decorator import undoChunk
+from ..core.attributeType import _convert_units
+from ..decorator import _fast_edit, _safe_edit, undoChunk
 from ..maths import EulerRotate, Scale, Shear, Translate, Vector
 from .compoundPlug import CompoundPlug
 
@@ -48,9 +46,9 @@ class Double3Plug(CompoundPlug):
             return EulerRotate(*values, order=order)
         return value_type(*(self._child_at(index).get() for index in range(3)))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDouble3PlugSet")
-    @safe_edit
+    @_safe_edit
     def set(self, value, safe=False, *, unit="rad", uiUnits=False, fast=False):
         """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
 
@@ -99,7 +97,7 @@ class Double3Plug(CompoundPlug):
         """
         if isinstance(value, (om2.MEulerRotation, om2.MQuaternion, om2.MVector)):
             raise TypeError("uiUnits=True requires plain numeric components, not a math value")
-        return convert(self._mplug, value, to_ui=False)
+        return _convert_units(self._mplug, value, to_ui=False)
 
     def _set_components(self, value, unit="rad"):
         """入力の角度単位と回転順序を子へ設定する内部単位へ揃える。

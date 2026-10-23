@@ -4,7 +4,7 @@ mlrigはmlibを基本ライブラリとして使用する。Pythonコードの�
 
 ## 実装の境界
 
-- ノード生成・参照は `mlib.createNode()` / `mlib.getNode()`、アトリビュートと接続は `Node` / `Plug` の公開APIを優先する。mlibの `_core` など内部実装へ直接依存しない。
+- ノード生成・参照は `mlib.createNode()` / `mlib.getNode()`、アトリビュートと接続は `Node` / `Plug` の公開APIを優先する。共通基底の正式入口は `mlib.core.object.Object`、拡張管理は `mlib.core.extensions`。実行フォルダ名だけで公開/非公開を判断せず、通常は各クラスの公開APIへ委譲する。クラスに属さない小さな汎用関数は `mlib.util`、横断的なデコレーターは `mlib.decorator` を使う。
 - scriptJobの登録・生存確認・解除、汎用的なアトリビュート操作など、リグ以外でも使える処理はmlibへ実装する。リグの状態判断、FK/IKの姿勢合わせ、レイヤー依存関係はmlrigに置く。
 - Mayaへの問い合わせやシーン更新はメソッドにする。プロパティは保持している参照や識別子などに使用する。Undo可能な更新を既定にする。
 - mlrig本体・UI・startup・examplesでは既存mlib APIを優先する。`mlib.cmds`の7入口以外の標準操作は `maya.cmds` を直接使用し、必要な戻り値だけをmlib参照へ変換する。汎用の生成ラッパーは再追加しない。テストは独立した検証のため直接cmdsを使用してよい。

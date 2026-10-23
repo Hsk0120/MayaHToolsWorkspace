@@ -3,8 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from ..decorator import undoTransaction
+from ..decorator import _flag_aliases, undoTransaction
 from ..plugs.plug import Plug
 from .node import Node, Nodes
 
@@ -50,7 +49,7 @@ class Container(Node):
             )
         return self
 
-    @flag_aliases(f="force")
+    @_flag_aliases(f="force")
     @undoTransaction("mlib.Container.removeMembers")
     def removeMembers(self, *members, force=False):
         """所属だけを解除する。ネスト時は通常、親containerの所属へ移る。

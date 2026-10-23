@@ -5,9 +5,8 @@ import json
 import maya.cmds as cmds
 import maya.mel as mel
 
-from .._core.flags import flag_aliases
 from ..common.plugin import Plugin
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 from .node import Node
 
 
@@ -113,7 +112,7 @@ class HIKCharacterNode(Node):
         value = mel.eval(f"hikGetRetargetCharacterInput({_quote(self.getFullName())});")
         return HIKCharacterNode(value) if value else None
 
-    @flag_aliases(src="source")
+    @_flag_aliases(src="source")
     @undoChunk("mlib.HIKCharacterNode.setSource")
     def setSource(self, source):
         """検証・ロック済みの別キャラクターをリターゲット入力にする。

@@ -32,14 +32,16 @@ from importlib import reload
 # 登録表を空にした直接root reloadでも、標準型の明示対応表から再構築する。
 mlib.nodes.Node._registry.clear()
 mlib.plugs.Plug._registry.clear()
-mlib.core = mlib._core
-sys.modules["mlib.core"] = mlib._core
+mlib._core = mlib.core
+sys.modules["mlib._core"] = mlib.core
 reload(mlib)
 assert isinstance(mlib.getNode("persp"), mlib.nodes.Transform)
 assert isinstance(mlib.getPlug("persp.tx"), mlib.plugs.DoubleLinearPlug)
 mlib.reload()
-assert not hasattr(mlib, "core")
-assert "mlib.core" not in sys.modules
+assert not hasattr(mlib, "_core")
+assert "mlib._core" not in sys.modules
+assert mlib.core is sys.modules["mlib.core"]
+assert mlib.util is sys.modules["mlib.util"]
 assert callable(mlib.cmds.ls)
 assert mlib.ls is mlib.cmds.ls
 commands = Path(sys.argv[1]) / "mlib" / "cmds"
@@ -73,7 +75,7 @@ assert mlib.createNode is mlib.cmds.createNode
 assert not hasattr(mlib, "NODE_REGISTRY")
 assert mlib.nodes.Node._registry is not None
 assert mlib.plugs.Plug._registry is not None
-for name in ("ls", "createNode", "addConstraint"):
+for name in ("getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"):
     assert callable(getattr(mlib.cmds, name))
 
 path = commands / "exampleCommand.py"

@@ -52,13 +52,13 @@ getを省いた取得メソッドの別名は提供しません（:doc:`getter_a
 ----------------------------
 
 ノード・アトリビュート・コンポーネント（頂点・エッジ・フェース・CV・UV）を
-同じ入口で取得したい場合は ``mlib._core.object`` から ``Object`` をimportします。
+同じ入口で取得したい場合は ``mlib.core.object`` から ``Object`` をimportします。
 既存対象の参照を返し、新しいノードは作成しません。
 以下は ``pCube1`` が存在するシーンでの例です。
 
 .. code-block:: python
 
-   from mlib._core.object import Object
+   from mlib.core.object import Object
 
    node = Object("pCube1")          # Transform
    plug = Object("pCube1.tx")       # DoubleLinearPlug

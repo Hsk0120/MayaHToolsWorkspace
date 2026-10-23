@@ -1,8 +1,6 @@
 """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ._calculation import _Calculation
 from .node import Node
 
@@ -26,7 +24,7 @@ class PairBlend(Node):
         """
         return self.getWeightPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setWeight(self, value, *, fast=False):
         """ブレンドウェイトへ定数値を設定する。
@@ -44,7 +42,7 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.getWeightPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectWeight(self, source, force=False):
         """ブレンドウェイトへ接続する。
@@ -70,7 +68,7 @@ class PairBlend(Node):
         """
         return _Calculation.enum_name(self.getPlug("rotInterpolation"), ("euler", "quaternion"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setRotateInterpolation(self, mode, *, fast=False):
         """モードを設定する。
@@ -97,7 +95,7 @@ class PairBlend(Node):
         """
         return _Calculation.enum_name(self.getPlug("rotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。
@@ -116,7 +114,7 @@ class PairBlend(Node):
         self.getPlug("rotateOrder").set(value)
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getTranslatePlug(self, index):
         """translate入力（cm）のPlugを取得する。
 
@@ -128,7 +126,7 @@ class PairBlend(Node):
         """
         return self.getPlug(f"inTranslate{_Calculation.index(index, (1, 2))}")
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getTranslate(self, index):
         """translate入力（cm）の評価値を取得する。
 
@@ -140,8 +138,8 @@ class PairBlend(Node):
         """
         return self.getTranslatePlug(index).get()
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setTranslate(self, index, value, *, fast=False):
         """translate入力（cm）へ定数値を設定する。
@@ -160,7 +158,7 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug, index)
         return self
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectTranslate(self, index, source, force=False):
         """translate入力（cm）へ接続する。
@@ -179,7 +177,7 @@ class PairBlend(Node):
         _Calculation.connect(source, self.getTranslatePlug, index, force=force)
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getRotatePlug(self, index):
         """rotate入力（rad）のPlugを取得する。
 
@@ -191,7 +189,7 @@ class PairBlend(Node):
         """
         return self.getPlug(f"inRotate{_Calculation.index(index, (1, 2))}")
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getRotate(self, index):
         """rotate入力（rad）の評価値を取得する。
 
@@ -203,8 +201,8 @@ class PairBlend(Node):
         """
         return self.getRotatePlug(index).get()
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setRotate(self, index, value, *, fast=False):
         """rotate入力（rad）へ定数値を設定する。
@@ -223,7 +221,7 @@ class PairBlend(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug, index)
         return self
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectRotate(self, index, source, force=False):
         """rotate入力（rad）へ接続する。

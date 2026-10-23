@@ -3,11 +3,8 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.attributeType import is_internal_data_type
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit, is_fast
-from ..common._safe import safe_edit
-from ..decorator import undoChunk
+from ..core.attributeType import is_internal_data_type
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, _safe_edit, undoChunk
 from .plug import Plug, _instance_count
 
 
@@ -64,8 +61,8 @@ class ArrayPlug(Plug):
         self._validate_ui_units(uiUnits)
         return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
 
-    @fast_edit
-    @safe_edit
+    @_fast_edit
+    @_safe_edit
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """array プラグへの直接の値設定を禁止する。
 
@@ -85,7 +82,7 @@ class ArrayPlug(Plug):
         """
         raise TypeError("Set an array element instead of the array plug")
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getElement(self, index):
         """既存の論理インデックスの要素Plugを、評価や実体化なしで取得する。
 
@@ -148,8 +145,8 @@ class ArrayPlug(Plug):
             index += 1
         return index
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibArrayPlugRemoveElement")
     def removeElement(self, index, *, fast=False):
         """指定した論理インデックスの要素を削除する。
@@ -169,7 +166,7 @@ class ArrayPlug(Plug):
         index = self._validate_index(index)
         if index not in self._mplug.getExistingArrayAttributeIndices():
             raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
-        if is_fast():
+        if _is_fast():
             modifier = om2.MDGModifier()
             modifier.removeMultiInstance(self._mplug.elementByLogicalIndex(index), True)
             modifier.doIt()
@@ -190,7 +187,7 @@ class ArrayPlug(Plug):
                 result[element.mplug().logicalIndex()] = source.getNode()
         return result
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlib.ArrayPlug.appendMessage")
     def appendMessage(self, node, *, fast=False):
         """message配列の最大インデックスの次へノード参照を追加する。

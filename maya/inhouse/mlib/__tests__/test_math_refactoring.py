@@ -8,7 +8,7 @@ import sys
 import unittest
 
 from mlib import maths
-from mlib._core import mathValue
+from mlib import util
 
 # protocol 2の固定データを現在のパッケージ名へ移行したpickle。
 # 別プロセスで保存した関数パスと型の値を固定し、現在のpickle往復だけで代用しない。
@@ -50,11 +50,11 @@ class MathRefactoringTest(unittest.TestCase):
     def test_shared_helpers_reloaded_before_math_types(self):
         """依存順のreloadで新helperを全数学型へ渡し、判定cacheを再作成する。"""
         import mlib
-        state_cache = mathValue._STATEFUL_TYPES
+        state_cache = util._STATEFUL_TYPES
         copy.copy(maths.Vector(1, 2, 3))
         self.assertTrue(state_cache)
         mlib.reload()
-        current = importlib.import_module("mlib._core.mathValue")
+        current = importlib.import_module("mlib.util")
         self.assertIsNot(current._STATEFUL_TYPES, state_cache)
         for name in ("vector", "quaternion", "eulerRotate", "matrix"):
             module = importlib.import_module("mlib.maths." + name)

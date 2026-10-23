@@ -10,14 +10,11 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.fastWrite import set_attr
-from .._core.fastWrite import writable, check_range
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit, is_fast
-from ..decorator import preservedSelection
-from ..decorator import undoChunk
+from ..core.fastWrite import set_attr
+from ..core.fastWrite import writable, check_range
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, preservedSelection, undoChunk
 from ..maths import easing
+from ..util import _world_space
 from .joint import Joint
 from .node import Node, Nodes, _PerItemOnly
 
@@ -128,7 +125,7 @@ class SkinCluster(Node):
 
         既存ウェイトの再配分や正規化は行わず、既存のロック設定も変更しない。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
 
         existing = {Node(path.node()).getUuid() for path in self.fn.influenceObjects()}
         names = []
@@ -156,7 +153,7 @@ class SkinCluster(Node):
 
         return DagPose.fromSkinCluster(self)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     @undoChunk("mlibSkinClusterRestoreBindPose")
     def restoreBindPose(self, worldSpace=True):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
@@ -173,7 +170,7 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         pose = self.getBindPose()
         if pose is None:
             raise RuntimeError(f"No bind pose connected to {self.getFullName()}")
@@ -218,8 +215,8 @@ class SkinCluster(Node):
                 result.append(Node(path))
         return result
 
-    @flag_aliases(f="force")
-    @fast_edit
+    @_flag_aliases(f="force")
+    @_fast_edit
     @undoChunk("mlibSkinClusterRemoveUnusedInfluences")
     def removeUnusedInfluences(self, *, force=False, fast=False):
         """未使用influenceの登録を外す。jointノード自体は削除しない。
@@ -251,15 +248,15 @@ class SkinCluster(Node):
         unused = self.getUnusedInfluences()
         if unused and len(unused) == len(self.getInfluences()):
             raise ValueError("Cannot remove every influence from a skinCluster")
-        if is_fast():
-            from .._core.skinEdit import validate_removal
+        if _is_fast():
+            from ..core.skinEdit import validate_removal
             for node in unused:
                 validate_removal(self, node)
         for node in unused:
             self.removeInfluence(node.getFullName(), transfer_to_parent=False)
         return unused
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibSkinClusterRemoveInvalidWeights")
     def removeInvalidWeights(self, *, fast=False):
         """負値・非有限値・未登録influence番号のウェイト要素を除去する。
@@ -281,7 +278,7 @@ class SkinCluster(Node):
         全要素を変更前に検証する。実行途中のMayaエラーは自動では戻さない。
         """
         elements, _ = self._weight_cleanup_plan()
-        if is_fast():
+        if _is_fast():
             modifier = om2.MDGModifier()
             for plug in elements:
                 modifier.removeMultiInstance(plug, False)
@@ -322,7 +319,7 @@ class SkinCluster(Node):
         vertices, _ = self._all_verts()
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibSkinClusterSetWeights")
     def setWeights(self, joints, weights, *, fast=False):
         """指定したjointの全頂点ウェイトを設定する。
@@ -348,7 +345,7 @@ class SkinCluster(Node):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         values, width, num_vertices, logical_indices = self._prepare_weight_values(joints, weights)
-        if is_fast():
+        if _is_fast():
             self._set_weight_values_fast(values, width, num_vertices, logical_indices)
         else:
             self._set_weight_values_cmds(values, width, num_vertices, logical_indices)
@@ -375,7 +372,7 @@ class SkinCluster(Node):
         with open(path, "w", encoding="utf-8") as file:
             json.dump(payload, file)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibSkinClusterLoadWeights")
     def loadWeights(self, path, *, fast=False):
         """dumpWeights() が書き出した JSON ファイルからウェイトを読み込み設定する。
@@ -413,7 +410,7 @@ class SkinCluster(Node):
             raise ValueError(f"Influences missing from this skinCluster: {missing}")
         self.setWeights(influences, payload["weights"])
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlib.nodes.skinCluster.redistributeWeights")
     def redistributeWeights(self, vertices, method="cubic", *, fast=False):
         """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
@@ -489,7 +486,7 @@ class SkinCluster(Node):
             for logical_index, value in zip(logical_indices, final):
                 set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlib.nodes.skinCluster.transferWeights")
     def transferWeights(self, source_target_pairs, *, fast=False):
         """複数のsource/target組についてウェイトを移す。
@@ -528,16 +525,16 @@ class SkinCluster(Node):
                 raise ValueError("Both nodes must be influences of this skinCluster")
             if source.getUuid() != target.getUuid():
                 pairs.append((source.getFullName(), target.getFullName()))
-        if is_fast():
-            from .._core.skinEdit import transfer_weights
+        if _is_fast():
+            from ..core.skinEdit import transfer_weights
             transfer_weights(self, pairs)
         else:
             with preservedSelection():
                 for source_joint, target_joint in pairs:
                     self._xfer_pair(source_joint, target_joint)
 
-    @flag_aliases(f="force")
-    @fast_edit
+    @_flag_aliases(f="force")
+    @_fast_edit
     @undoChunk("mlib.nodes.skinCluster.removeInfluence")
     def removeInfluence(self, joint, transfer_to_parent=True, *, force=False, fast=False):
         """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
@@ -562,8 +559,8 @@ class SkinCluster(Node):
             RuntimeError: スキニングレイヤーを検出、または Maya が削除を拒否した場合。
         """
         source, target = self._influence_removal_target(joint, transfer_to_parent, force=force)
-        if is_fast():
-            from .._core.skinEdit import validate_removal
+        if _is_fast():
+            from ..core.skinEdit import validate_removal
             validate_removal(self, source)
         if force:
             self.removeInvalidWeights()
@@ -574,13 +571,13 @@ class SkinCluster(Node):
             for i in range(0, len(weights), 2):
                 summed.extend((0.0, weights[i] + weights[i + 1]))
             self.setWeights([source.getFullName(), target], summed)
-        if is_fast():
-            from .._core.skinEdit import remove_influence
+        if _is_fast():
+            from ..core.skinEdit import remove_influence
             remove_influence(self, source)
         else:
             cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibSkinClusterNormalizeWeights")
     def normalizeWeights(self, decimals=None, *, fast=False):
         """先頭meshの各頂点ウェイトを合計1へ正規化する。
@@ -616,7 +613,7 @@ class SkinCluster(Node):
         """
         return self.getPlug("maxInfluences").get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibSkinClusterSetMaxInfluences")
     def setMaxInfluences(self, count, maintain=True, prune=False, *, fast=False):
         """最大influence設定を変更し、任意で既存ウェイトも制限する。
@@ -734,7 +731,7 @@ class SkinCluster(Node):
         Returns:
             om2.MIntArray: 指定順の物理インデックス配列。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
 
     def _prepare_weight_values(self, joints, weights):
@@ -747,7 +744,7 @@ class SkinCluster(Node):
         Returns:
             tuple: 有限な値・列数・頂点数・論理番号列。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         joints = _InputObject._input_names(joints)
         influences = self.fn.influenceObjects()
         physical_indices = self._influence_indices(joints, influences)
@@ -1252,7 +1249,7 @@ class SkinClusters(Nodes):
 
     addInfluences.__signature__ = inspect.signature(SkinCluster.addInfluences)
 
-    @flag_aliases(f="force")
+    @_flag_aliases(f="force")
     @undoChunk("mlibSkinClustersRemoveInfluences")
     def removeInfluences(self, joints, transfer_to_parent=True, *, force=False):
         """保持するskinClusterのinfluence登録だけを解除する。

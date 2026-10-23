@@ -7,10 +7,9 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..decorator import undoChunk, undoTransaction
+from ..decorator import _flag_aliases, undoChunk, undoTransaction
 from ..maths import Matrix
+from ..util import _world_space
 from .node import Node, Nodes
 
 
@@ -128,7 +127,7 @@ class DagPose(Node):
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getMatrix(self, member, worldSpace=False):
         """現在のノード行列ではなく、保存時の行列を取得する。
 
@@ -142,7 +141,7 @@ class DagPose(Node):
         Raises:
             ValueError: メンバーでない場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         index = self.getMemberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
         return Matrix(self.getPlug(attribute)[index].get())
@@ -227,7 +226,7 @@ class DagPose(Node):
                 cmds.delete([pose.getFullName() for pose in sources])
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     @undoChunk("mlibDagPoseRestore")
     def restore(self, worldSpace=False):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
@@ -241,7 +240,7 @@ class DagPose(Node):
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         cmds.dagPose(self._pose_name(), restore=True, g=ws)
         return self
 
@@ -572,7 +571,7 @@ class DagPose(Node):
         Args:
             members: 所属または保存対象として扱うノード・コンポーネント。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         names = []
         for name in _InputObject._input_names(members):
             node = Node(name)

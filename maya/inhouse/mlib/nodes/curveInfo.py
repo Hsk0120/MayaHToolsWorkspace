@@ -1,7 +1,6 @@
 """接続したcurveの形状情報をMayaで評価する。"""
 
-from .._core.flags import flag_aliases
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
 
@@ -9,7 +8,7 @@ from .abstractBaseCreate import AbstractBaseCreate
 class CurveInfo(AbstractBaseCreate):
     """接続したcurveの形状情報をMayaで評価する。"""
 
-    @flag_aliases(ws="worldSpace", f="force")
+    @_flag_aliases(ws="worldSpace", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectCurve(self, curve, worldSpace=True, force=False):
         """形状またはTransformを解決して接続する。

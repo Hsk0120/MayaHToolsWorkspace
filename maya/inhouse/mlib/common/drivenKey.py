@@ -5,7 +5,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.attributeType import attributeType
+from ..core.attributeType import attributeType
 from ..decorator import undoChunk
 from ..plugs.plug import Plug
 
@@ -34,7 +34,7 @@ def _plug(value):
     ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。
     アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない
     文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため
-    (:func:`mlib._core.attributeType.attributeType`)、検証でシーンは変更しない。
+    (:func:`mlib.core.attributeType.attributeType`)、検証でシーンは変更しない。
 
     Args:
         value (Plug | om2.MPlug | str): 数値スカラーのPlugまたはアトリビュート名。
@@ -251,7 +251,7 @@ class DrivenKey:
         複数ドライバーはMaya標準のblendWeightedで合成する。
         pairBlendの自動挿入は行わない。最終出力は他カーブやウェイトにも依存する。
         """
-        from .._core.unitValue import convert
+        from ..core.attributeType import _convert_units
         x, y = float(driver_value), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
@@ -262,8 +262,8 @@ class DrivenKey:
         count = cmds.setDrivenKeyframe(
             driven.getFullName(),
             currentDriver=driver.getFullName(),
-            driverValue=convert(driver.mplug(), x),
-            value=convert(driven.mplug(), y),
+            driverValue=_convert_units(driver.mplug(), x),
+            value=_convert_units(driven.mplug(), y),
             inTangentType=inTangentType,
             outTangentType=outTangentType,
             insertBlend=False,

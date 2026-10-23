@@ -2,8 +2,8 @@
 
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from .._core.typeHierarchy import clear_cache
+from ..core.registry import _clear_type_hierarchy_cache
+from ..decorator import _flag_aliases
 from .version import Version
 
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
@@ -195,10 +195,10 @@ class Plugin:
         # 戻り値だけでは既にロード済みのquiet呼出しと区別できないため状態を照会する。
         if not self.isLoaded():
             raise RuntimeError("Plugin initialization did not complete: " + self._name)
-        clear_cache()
+        _clear_type_hierarchy_cache()
         return self
 
-    @flag_aliases(f="force")
+    @_flag_aliases(f="force")
     def unload(self, force=False):
         """プラグインをアンロードする。
 
@@ -214,7 +214,7 @@ class Plugin:
             RuntimeError: Maya がアンロードを拒否した場合。
         """
         cmds.unloadPlugin(self._name, force=force)
-        clear_cache()
+        _clear_type_hierarchy_cache()
         return self
 
     def ensureLoaded(self):

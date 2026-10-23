@@ -1,8 +1,6 @@
 """内積・外積・行列による点/ベクトル変換。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix, Vector
 from ._calculation import _Calculation
 from .shadingDependNode import ShadingDependNode
@@ -11,7 +9,7 @@ from .shadingDependNode import ShadingDependNode
 class VectorProduct(ShadingDependNode):
     """内積・外積・行列による点/ベクトル変換。"""
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInputPlug(self, index):
         """入力のPlugを取得する。
 
@@ -23,7 +21,7 @@ class VectorProduct(ShadingDependNode):
         """
         return self.getPlug(f"input{_Calculation.index(index, (1, 2))}")
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInput(self, index):
         """入力の評価値を取得する。
 
@@ -35,8 +33,8 @@ class VectorProduct(ShadingDependNode):
         """
         return self.getInputPlug(index).get()
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setInput(self, index, value, *, fast=False):
         """入力へ定数値を設定する。
@@ -55,7 +53,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, _Calculation.vector, self.getInputPlug, index)
         return self
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectInput(self, index, source, force=False):
         """入力へ接続する。
@@ -82,7 +80,7 @@ class VectorProduct(ShadingDependNode):
         """
         return _Calculation.enum_name(self.getPlug("operation"), ("none", "dot", "cross", "vector_matrix", "point_matrix"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setOperation(self, mode, *, fast=False):
         """モードを設定する。
@@ -117,7 +115,7 @@ class VectorProduct(ShadingDependNode):
         """
         return self.getMatrixPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setMatrix(self, value, *, fast=False):
         """変換行列へ定数値を設定する。
@@ -135,7 +133,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, Matrix, self.getMatrixPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectMatrix(self, source, force=False):
         """変換行列へ接続する。
@@ -161,7 +159,7 @@ class VectorProduct(ShadingDependNode):
         """
         return self.getPlug("normalizeOutput").get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setNormalizeOutput(self, value, *, fast=False):
         """出力正規化へ定数値を設定する。
@@ -179,7 +177,7 @@ class VectorProduct(ShadingDependNode):
         _Calculation.set_value(value, _Calculation.boolean, self.getPlug, "normalizeOutput")
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectNormalizeOutput(self, source, force=False):
         """出力正規化へ接続する。

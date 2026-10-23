@@ -3,11 +3,11 @@
 # reloadは辞書を保持するため、前回の公開値を明示importの前に解除する。
 for _name in globals().get("__all__", ()):
     if _name not in {"cmds", "nodes", "plugs", "components", "common", "logger",
-                     "decorator", "maths", "reload"}:
+                     "core", "decorator", "util", "maths", "reload"}:
         globals().pop(_name, None)
 for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
-              "initialize_plug_api", "reload_package", "importlib", "core", "scenes",
+              "initialize_plug_api", "reload_package", "importlib", "_core", "scenes",
               "session", "units", "workspace", "selection", "context", "editors",
               "files", "namespaces", "plugins", "animation", "scene", "environment",
               "ui", "events", "utils", "decorators", "object", "Object", "extensions",
@@ -15,9 +15,9 @@ for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
     globals().pop(_name, None)
 
 from . import logger
-from . import common, decorator, cmds, nodes, plugs, components, maths
-from ._core.registry import NodeRegistry as _NodeRegistry
-from ._core.reload import reload_package as _reload_package
+from . import util, core, common, decorator, cmds, nodes, plugs, components, maths
+from .core.registry import NodeRegistry as _NodeRegistry
+from .core.reload import reload_package as _reload_package
 
 # 標準型の対応表を構築してから任意拡張を検出する。
 _node_registry = _NodeRegistry(nodes.Node, resolve_inherited_types=True)
@@ -41,6 +41,7 @@ __all__ = [
     "cmds",
     "common",
     "components",
+    "core",
     "createNode",
     "decorator",
     "delete",
@@ -54,6 +55,7 @@ __all__ = [
     "plugs",
     "reload",
     "select",
+    "util",
 ]
 
 
@@ -67,6 +69,6 @@ def reload():
     return _reload_package(__name__)
 
 
-from ._core import extensions as _extensions
+from .core import extensions as _extensions
 
 _extensions._initialize()

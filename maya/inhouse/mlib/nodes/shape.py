@@ -8,11 +8,9 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core import geometryEdit
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..core import geometryEdit
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk
+from ..util import _world_space
 from .dagNode import DagNode
 from .transform import Transform
 
@@ -20,8 +18,8 @@ from .transform import Transform
 class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibShapeScaleGeometry")
     def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """メッシュ頂点・NURBSカーブ/サーフェスのCVを指定中心で拡縮する。
@@ -48,7 +46,7 @@ class Shape(DagNode):
         通常モードはMaya標準コマンドを使いUndoできる。周期CVはMayaの連動規則に従う。
         負の倍率でも面の頂点順は変えない。共有形状は全インスタンスに影響する。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         try:
             factors = (float(scale),) * 3 if isinstance(scale, numbers.Real) else tuple(float(v) for v in scale)
             center = tuple(float(v) for v in pivot)
@@ -70,7 +68,7 @@ class Shape(DagNode):
             token = "cv"
         else:
             raise NotImplementedError("scaleGeometry supports meshes and NURBS shapes")
-        if is_fast() and len(counts) == 2:
+        if _is_fast() and len(counts) == 2:
             raise NotImplementedError("fast scaling of NURBS surfaces is not supported")
         selected = []
         if indices is None:

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mlib VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-23 19:13+0900\n"
+"POT-Creation-Date: 2026-10-23 22:52+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -595,11 +595,14 @@ msgstr "mlib is a foundation library for nodes, attributes, components, and math
 msgid "公開配置"
 msgstr "Public package layout"
 
-msgid "``nodes``・``plugs``・``components``・``maths``・``cmds``・``common`` を公開します。 横断的な通知は ``mlib.logger``、コンテキストとデコレーターは ``mlib.decorator``、 内部基盤は ``_core``、文書は ``_docs`` です。"
-msgstr "The public packages are ``nodes``, ``plugs``, ``components``, ``maths``, ``cmds``, and ``common``. Shared notifications reside in ``mlib.logger``, contexts and decorators in ``mlib.decorator``, internal infrastructure in ``_core``, and documentation in ``_docs``."
+msgid "``nodes``・``plugs``・``components``・``maths``・``cmds``・``common``・``core`` を公開します。 横断的な通知は ``mlib.logger``、コンテキストとデコレーターは ``mlib.decorator``、 クラスに属さない小さな汎用関数は ``mlib.util``、共通基底・型判定/登録・編集基盤は ``mlib.core`` に置きます。文書と検証素材は ``_docs`` と ``__tests__`` です。"
+msgstr "Public packages are ``nodes``, ``plugs``, ``components``, ``maths``, ``cmds``, ``common``, and ``core``. Cross-cutting notifications belong in ``mlib.logger``, contexts and decorators in ``mlib.decorator``, small general-purpose functions that do not belong to a class in ``mlib.util``, and shared bases, type detection and registration, and editing infrastructure in ``mlib.core``. Documentation and test materials are in ``_docs`` and ``__tests__``."
 
-msgid "``Object`` はNode・Plug・Componentの共通基底です。ルートへは再公開しません。 拡張管理は ``from mlib._core import extensions`` を使います。 旧import・旧名の互換別名はありません。"
-msgstr "``Object`` is the shared base for Node, Plug, and Component and is not re-exported at the root. Use ``from mlib._core import extensions`` for extension management. Former imports and names have no compatibility aliases."
+msgid "``Object`` はNode・Plug・Componentの共通基底です。ルートへは再公開しません。 拡張管理は ``from mlib.core import extensions`` を使います。 旧import・旧名の互換別名はありません。"
+msgstr "``Object`` is the shared base of Node, Plug, and Component. It is not re-exported at the package root. Use ``from mlib.core import extensions`` for extension management. There are no compatibility aliases for old imports or names."
+
+msgid "``util`` の公開関数は ``legalizeName``・``measure``・``mirrorArguments`` です。 フォルダ名で公開/非公開を区分せず、正式なAPIは明示import・``__all__``・文書で示します。 集約した内部補助は先頭 ``_`` で示し、既存の内部連携・登録プロトコル名は維持します。 ``core`` の既存の型登録・拡張プロトコルは名前と意味を維持し、全helperを正式APIへ広げません。 旧 ``mlib._core`` や移動前のcommon小モジュールをimportする互換入口はありません。"
+msgstr "The public functions in ``util`` are ``legalizeName``, ``measure``, and ``mirrorArguments``. Public and private APIs are not distinguished by folder names; canonical APIs are identified by explicit imports, ``__all__``, and documentation. The consolidated internal helpers use identifiers beginning with ``_``, while existing internal interfaces and registration protocols keep their names. Existing type-registration and extension protocols in ``core`` retain their names and meanings; not every helper becomes a supported API. There are no compatibility import entry points for the old ``mlib._core`` or the former small common modules."
 
 msgid "参照・値・状態"
 msgstr "References, values, and state"
@@ -643,1452 +646,6 @@ msgstr "Normal scene updates use cmds and support Undo; supported ``fast=True`` 
 msgid "Nodes系の複数形、reload、拡張の自動探索は維持します。 ノード型と公開名は各 ``__init__.py`` へ明示し、複数形メソッドも通常のdefで定義します。 詳細は :doc:`bulk_collections` と :doc:`extensions` を参照してください。"
 msgstr "Nodes-style plural collections, reload, and automatic extension discovery are preserved. Explicitly declare node types and public names in each ``__init__.py``, and define plural methods with ordinary def statements. See :doc:`bulk_collections` and :doc:`extensions` for details."
 
-msgid "mlib._core.attributeEdit"
-msgstr ""
-
-msgid "動的アトリビュートをシーン変更前に組み立て、OpenMayaで追加する。"
-msgstr "Build dynamic attributes before changing the scene, then add them with OpenMaya."
-
-msgid "Attributes"
-msgstr "Attributes"
-
-msgid ":py:obj:`_DATA_TYPES <mlib._core.attributeEdit._DATA_TYPES>`\\"
-msgstr ""
-
-msgid ":py:obj:`_DEFINITION_FLAGS <mlib._core.attributeEdit._DEFINITION_FLAGS>`\\"
-msgstr ""
-
-msgid ":py:obj:`_NUMERIC_TYPES <mlib._core.attributeEdit._NUMERIC_TYPES>`\\"
-msgstr ""
-
-msgid ":py:obj:`_PROPERTIES <mlib._core.attributeEdit._PROPERTIES>`\\"
-msgstr ""
-
-msgid "Functions"
-msgstr "Functions"
-
-msgid ":py:obj:`_attach <mlib._core.attributeEdit._attach>`\\ \\(node\\, attribute\\)"
-msgstr ""
-
-msgid "構築済み定義をノードへ一回で追加する。"
-msgstr "Add prebuilt definitions to a node in one operation."
-
-msgid ":py:obj:`_build <mlib._core.attributeEdit._build>`\\ \\(flags\\[\\, children\\]\\)"
-msgstr ""
-
-msgid "未登録のアトリビュート定義を作る。失敗してもシーンは変えない。"
-msgstr "Create an unregistered attribute definition. Failure does not change the scene."
-
-msgid ":py:obj:`add_attribute <mlib._core.attributeEdit.add_attribute>`\\ \\(node\\, flags\\)"
-msgstr ""
-
-msgid "単一の動的アトリビュートを追加する。"
-msgstr "Add a single dynamic attribute."
-
-msgid ":py:obj:`create_extra_attribute <mlib._core.attributeEdit.create_extra_attribute>`\\ \\(node\\, name\\, flags\\, numeric\\, ...\\)"
-msgstr ""
-
-msgid "Node.addAttrの親子定義を登録前に全て作る。"
-msgstr "Build all parent and child definitions for Node.addAttr before registration."
-
-msgid ":py:obj:`extra_children <mlib._core.attributeEdit.extra_children>`\\ \\(name\\, flags\\, numeric\\, count\\, deferred\\, ...\\)"
-msgstr ""
-
-msgid "自動生成する子の名前・成分数を、親追加より前に検証する。"
-msgstr "Validate generated child names and component counts before adding the parent."
-
-msgid ":py:obj:`validate_extra_attribute <mlib._core.attributeEdit.validate_extra_attribute>`\\ \\(node\\, name\\, flags\\, count\\, ...\\)"
-msgstr ""
-
-msgid "名前の衝突と検証可能なtyped既定値を、シーン変更前に拒否する。"
-msgstr "Reject name conflicts and invalid typed defaults that can be checked before changing the scene."
-
-msgid "Module Contents"
-msgstr "Module Contents"
-
-msgid "パラメータ"
-msgstr "Parameter"
-
-msgid "追加先。"
-msgstr "Destination node."
-
-msgid "シーン未登録のアトリビュート定義。"
-msgstr "Attribute definition not yet registered in the scene."
-
-msgid "正規化済みのaddAttrフラグ。"
-msgstr "Normalized addAttr flags."
-
-msgid "先に構築した子定義。"
-msgstr "Previously built child definitions."
-
-msgid "新しいアトリビュート定義。"
-msgstr "New attribute definition."
-
-msgid "戻り値の型"
-msgstr "Return type"
-
-msgid "親名。"
-msgstr "Parent name."
-
-msgid "親フラグ。"
-msgstr "Parent flags."
-
-msgid "数値複合型の一致結果。"
-msgstr "Numeric compound-type match."
-
-msgid "子数。"
-msgstr "The child count."
-
-msgid "子の既定値。"
-msgstr "Child default value."
-
-msgid "子の長名。"
-msgstr "Child long name."
-
-msgid "子の短名。"
-msgstr "Child short name."
-
-msgid "子名の接尾辞。"
-msgstr "Suffixes for child names."
-
-msgid "子の型。"
-msgstr "The child type."
-
-msgid "型付き既定値の検証済み書込み計画。データownerを含む。"
-msgstr "Validated write plan for the typed default, including its data owner."
-
-msgid "親の長名。"
-msgstr "Parent long name."
-
-msgid "親の正規化済みフラグ。変更しない。"
-msgstr "Normalized parent flags. Not modified."
-
-msgid "子へ配る既定値。"
-msgstr "Default value to distribute to children."
-
-msgid "自動生成名の接尾辞。"
-msgstr "Suffix for generated names."
-
-msgid "子の共通型。"
-msgstr "Shared child type."
-
-msgid "長名・型・公開addAttrへ渡すフラグ。"
-msgstr "Long name, type, and flags passed to the public addAttr API."
-
-msgid "親の正規化済みフラグ。"
-msgstr "Normalized parent flags."
-
-msgid "作成後に設定する既定値。"
-msgstr "Default value to set after creation."
-
-msgid "検証済みの子の作成入力。"
-msgstr "Validated inputs for child creation."
-
-msgid "通常経路の既定値も登録前に検証するか。 fast経路では未登録の親子定義の構築時に検証するためFalse。"
-msgstr "Whether to validate defaults before registration in the normal path as well. False in the fast path, which validates while building unregistered parent and child definitions."
-
-msgid "mlib._core.attributeType"
-msgstr "mlib._core.attributeType"
-
-msgid "アトリビュートの型名を Maya API 2.0 のアトリビュート定義から求める(シーンを変更しない)。"
-msgstr "Get the attribute type name from the Maya API 2.0 attribute definition (does not modify the scene)."
-
-msgid "Plug の派生クラスの選択(:class:`~mlib._core.registry.NodeRegistry` のアトリビュート型キー)と、 ``Plug.set()`` の配列型の判定に使う型名を、``cmds.getAttr(<プラグ名>, type=True)`` と 同じ文字列で返す。``cmds.getAttr(type=True)`` は存在しない配列要素を問い合わせると 要素を作り(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、 nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終了し、mesh の内部アトリビュート (``edge[i]``・``face[i]`` など)では例外になる。この関数はプラグの値を読まず、 アトリビュート定義(``MFnAttribute`` の各派生クラス)だけから型名を決めるため、存在しない要素でも シーンを変更せず、評価も起こさない。"
-msgstr "Return the type name used for selecting a derived class of Plug (the attribute type key of :class:`~mlib._core.registry.NodeRegistry`) and for judging the array type of ``Plug.set()`` as the same string as ``cmds.getAttr(<プラグ名>, type=True)``. ``cmds.getAttr(type=True)`` creates an element if a non-existent array element is queried (in the ``weight[i]`` of blendShape, ``parentDirectory[i]`` is also created), Maya crashes if a non-existent element is queried in the ``patchUVIds`` of nurbsSurface, and an exception occurs for non-existent internal attributes of mesh (``edge[i]`` and ``face[i]``). This function determines the type name from the attribute definition (each derived class of ``MFnAttribute``) without reading the value of the plug, so it does not modify the scene or trigger evaluation even for non-existent elements."
-
-msgid "アトリビュートの種類と結果:"
-msgstr "Attribute types and results:"
-
-msgid "アトリビュート"
-msgstr "attribute"
-
-msgid "結果"
-msgstr "Results"
-
-msgid "数値(``MFnNumericAttribute``)"
-msgstr "numeric(``MFnNumericAttribute``)"
-
-msgid "``bool``/``byte``/``char``/``short``/``long``/``float``/``double``/``addr`` と、 複合数値の ``double3``/``float3``/``long2`` など(``numericType()`` による)"
-msgstr "``bool``/``byte``/``char``/``short``/``long``/``float``/``double``/``addr`` and composite values such as ``double3``/``float3``/``long2`` (by ``numericType()``)"
-
-msgid "単位(``MFnUnitAttribute``)"
-msgstr "Unit(``MFnUnitAttribute``)"
-
-msgid "``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``"
-msgstr "``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``"
-
-msgid "enum・message"
-msgstr "enum, message"
-
-msgid "``enum``・``message``"
-msgstr "``enum``, ``message``"
-
-msgid "行列(``MFnMatrixAttribute``)"
-msgstr "matrix(``MFnMatrixAttribute``)"
-
-msgid "``matrix`` (float の行列も ``cmds.getAttr`` と同じく ``matrix``)"
-msgstr "``matrix`` (same as ``cmds.getAttr`` for float matrices, ``matrix``)"
-
-msgid "型付き(``MFnTypedAttribute``)"
-msgstr "Typed (``MFnTypedAttribute``)"
-
-msgid "``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve`` など。 API 2.0 に列挙値の無いデータ型(``Int64Array``・``floatVectorArray``・ データ型指定の ``double3`` など)は ``MFnAttribute.getAddAttrCmd()`` のデータ型名"
-msgstr "``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve``, etc. Data types without enumeration values in API 2.0 (such as ``Int64Array``, ``floatVectorArray``, and data type specification ``double3``) are named ``MFnAttribute.getAddAttrCmd()``."
-
-msgid "複合(``MFnCompoundAttribute``)・lightData"
-msgstr "Composite(``MFnCompoundAttribute``), lightData"
-
-msgid "``TdataCompound``"
-msgstr "``TdataCompound``"
-
-msgid "不透明(opaque)"
-msgstr "opaque"
-
-msgid "``getAddAttrCmd()`` のアトリビュート型名(``TattributeCtypeOf<...>``)"
-msgstr "``getAddAttrCmd()`` attribute type name (``TattributeCtypeOf<...>``)"
-
-msgid "保持する値によって ``cmds.getAttr(type=True)`` の結果が変わるアトリビュート(generic アトリビュート、 任意のデータを受け付ける typed アトリビュート、``geometry`` 型など)は、値を読まない限り 型名が決まらないため ``None`` を返す。"
-msgstr "Depending on the value to be retained, the result of ``cmds.getAttr(type=True)`` for attributes (generic attributes, typed attributes that accept any data, ``geometry`` type, etc.) is undetermined until the value is read, so it returns ``None``."
-
-msgid "例外として、mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも、Maya が内部で float の頂点座標として扱い ``cmds.getAttr(type=True)`` が ``float3`` を返すため、 ``float3`` を返す(nurbsCurve・nurbsSurface・lattice は ``double3``)。"
-msgstr "As an exception, the ``controlPoints`` of mesh is such that even if the attribute definition is ``double3``, Maya internally treats the vertex coordinates as float and ``cmds.getAttr(type=True)`` returns ``float3``, thus returning ``float3`` (nurbsCurve, nurbsSurface, lattice are ``double3``)."
-
-msgid ":py:obj:`attributeType <mlib._core.attributeType.attributeType>`\\ \\(mplug\\)"
-msgstr ":py:obj:`attributeType <mlib._core.attributeType.attributeType>`\\ \\(mplug\\)"
-
-msgid "プラグのアトリビュート型名を、``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列で返す。"
-msgstr "Returns the attribute type name of a plug as a string identical to ``cmds.getAttr(<プラグ名>, type=True)``."
-
-msgid ":py:obj:`is_internal_data_type <mlib._core.attributeType.is_internal_data_type>`\\ \\(mplug\\)"
-msgstr ":py:obj:`is_internal_data_type <mlib._core.attributeType.is_internal_data_type>`\\ \\(mplug\\)"
-
-msgid "Maya 内部のデータ型(``cmds.addAttr`` で作成できない型)の型付きアトリビュートか判定する。"
-msgstr "Check if the attribute is a typed attribute of a data type that cannot be created with ``cmds.addAttr``."
-
-msgid ":py:obj:`value_reader <mlib._core.attributeType.value_reader>`\\ \\(attribute\\)"
-msgstr ":py:obj:`value_reader <mlib._core.attributeType.value_reader>`\\ \\(attribute\\)"
-
-msgid "``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。"
-msgstr "``Plug.get()`` selects functions that read values directly from MPlug, rather than from attribute definitions."
-
-msgid "アトリビュート定義だけから求めるため、存在しない配列要素や、``cmds.getAttr`` が例外になる mesh の内部アトリビュートにも使え、シーンを変更しない。配列プラグは要素の型名を返す (``cmds.getAttr(type=True)`` を配列全体に使った結果とは異なる)。規則はモジュールの 説明を参照。"
-msgstr "Since it is calculated from the attribute definition alone, it can be used even for non-existent array elements and internal mesh attributes where ``cmds.getAttr`` would otherwise raise an exception, and it does not modify the scene. For array plugs, it returns the type name of the elements (the result differs from using ``cmds.getAttr(type=True)`` on the entire array). Refer to the module's description for the rules."
-
-msgid "対象のプラグ。"
-msgstr "Target plug."
-
-msgid "``double3``/``doubleLinear``/``matrix`` などの型名。値によって型が     変わるアトリビュート(generic アトリビュートなど)は None。"
-msgstr "Type names such as ``double3``/``doubleLinear``/``matrix``. For generic attributes (such as generic attributes), where the type changes depending on the value, use None."
-
-msgid "``double3``/``doubleLinear``/``matrix`` などの型名。値によって型が"
-msgstr "Type names such as ``double3``/``doubleLinear``/``matrix``. The type is determined by the value."
-
-msgid "変わるアトリビュート(generic アトリビュートなど)は None。"
-msgstr "For generic attributes (such as generic attributes), the value is None."
-
-msgid "例外"
-msgstr "Exceptions"
-
-msgid "アトリビュートが削除されて存在しない場合(Undo の対象から外れた削除済みの 動的アトリビュートなど)。"
-msgstr "An attribute that has been deleted and no longer exists (such as a dynamically added attribute that was deleted and is no longer part of the undo history)."
-
-msgid "nurbsSurface の ``patchUVIds`` (``nurbsPatchUVIds``)のような内部のデータ型は、 存在しない配列要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。 mlibはこれらの存在しない要素の値を読まず、``Plug.get()`` でRuntimeErrorにする。 要素の参照取得だけでは値を評価しない。任意のデータを受け付ける 型付きアトリビュート(値によって型が変わるアトリビュート)は対象外。"
-msgstr "Reading the value or type of a nonexistent array element with maya.cmds or MPlug can crash Maya for internal data types such as nurbsSurface's ``patchUVIds`` (``nurbsPatchUVIds``). mlib does not read values from these nonexistent elements; ``Plug.get()`` raises RuntimeError instead. Retrieving an element reference alone does not evaluate its value. Typed attributes accepting arbitrary data, whose type depends on the value, are excluded."
-
-msgid "内部のデータ型の型付きアトリビュートの場合は True。"
-msgstr "True for typed attribute of internal data type."
-
-msgid "アトリビュートの型はアトリビュートごとに変わらないため、Plug ごとに一度だけ求めて保持する。"
-msgstr "Since the attribute type remains constant for each attribute, we retrieve and store it only once per plug."
-
-msgid "アトリビュートの MObject。"
-msgstr "MObject attribute."
-
-msgid "MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、     角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/     stringArray/vectorArray/pointArrayが対象。それ以外は     ``_CMDS_READER`` (``cmds.getAttr`` で読む)。"
-msgstr "Function that takes MPlug and returns a value. Target attributes are numeric attributes of bool/int/float types, unit attributes of angle/distance/time, enum, string, doubleArray/Int32Array/stringArray/vectorArray/pointArray. Others return ``_CMDS_READER`` (read with ``cmds.getAttr``)."
-
-msgid "MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、"
-msgstr "Function that takes an MPlug and returns a value. Numeric attributes of type bool/int/float,"
-
-msgid "角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/ stringArray/vectorArray/pointArrayが対象。それ以外は ``_CMDS_READER`` (``cmds.getAttr`` で読む)。"
-msgstr "Angle, distance, and time unit attributes, enum, string, doubleArray/Int32Array/stringArray/vectorArray/pointArray are targets. Others are read as ``_CMDS_READER`` (read as ``cmds.getAttr``)."
-
-msgid "mlib._core.bulkExecution"
-msgstr "mlib._core.bulkExecution"
-
-msgid "複数形の結果収集方針を決める内部処理。"
-msgstr "Internal rules for collecting results from collection methods."
-
-msgid ":py:obj:`_CALCULATING_SETTERS <mlib._core.bulkExecution._CALCULATING_SETTERS>`\\"
-msgstr ":py:obj:`_CALCULATING_SETTERS <mlib._core.bulkExecution._CALCULATING_SETTERS>`\\"
-
-msgid ":py:obj:`calculation_results <mlib._core.bulkExecution.calculation_results>`\\ \\(method\\, functions\\, args\\, kwargs\\)"
-msgstr ":py:obj:`calculation_results <mlib._core.bulkExecution.calculation_results>`\\ \\(method\\, functions\\, args\\, kwargs\\)"
-
-msgid "get指定で計算値を返すsetterについて結果列が必要か判定する。"
-msgstr "Determine whether a setter with get enabled requires a list of calculated results."
-
-msgid "一括実行するメソッド名。"
-msgstr "The name of the method to execute all at once."
-
-msgid "実際の呼出し先。"
-msgstr "The actual call targets."
-
-msgid "要素別の位置引数。"
-msgstr "Positional arguments by element."
-
-msgid "要素別の正規化済みキーワード引数。"
-msgstr "Normalized keyword arguments for each item."
-
-msgid "少なくとも一つの対象がget指定で計算値を返す場合True。"
-msgstr "True if at least one item returns calculated values with get enabled."
-
-msgid "class mlib._core.commandResult.CommandResult"
-msgstr "class mlib._core.commandResult.CommandResult"
-
-msgid "クラス継承図"
-msgstr "Class inheritance diagram"
-
-msgid "このクラスの祖先と直接の派生クラスを表示します。矢印の先が基底クラスです。 mlibのクラス名をクリックすると、そのクラスのリファレンスへ移動します。"
-msgstr "Displays the ancestors and direct derived classes of this class. The arrow points to the base class. Clicking on a class name in mlib navigates to that class's reference."
-
-msgid "名前を返すコマンドの結果と入力フラグを型付けする。"
-msgstr "Type the result of a command that returns a name and its input flags."
-
-msgid ":py:obj:`node_flags <mlib._core.commandResult.CommandResult.node_flags>`\\ \\(kwargs\\, keys\\)"
-msgstr ":py:obj:`node_flags <mlib._core.commandResult.CommandResult.node_flags>`\\ \\(kwargs\\, keys\\)"
-
-msgid "ノードを受けるフラグだけを一意な名前へ変換する。"
-msgstr "Convert only the node receiving flags to unique names."
-
-msgid ":py:obj:`reference <mlib._core.commandResult.CommandResult.reference>`\\ \\(name\\)"
-msgstr ":py:obj:`reference <mlib._core.commandResult.CommandResult.reference>`\\ \\(name\\)"
-
-msgid "ノード名またはアトリビュート名をNode/Plugへ解決する。"
-msgstr "Resolve node names or attribute names to Node/Plug."
-
-msgid ":py:obj:`references <mlib._core.commandResult.CommandResult.references>`\\ \\(names\\)"
-msgstr ":py:obj:`references <mlib._core.commandResult.CommandResult.references>`\\ \\(names\\)"
-
-msgid "名前列を型付き参照へ変換する。"
-msgstr "Convert name column to typed reference."
-
-msgid "フラグ辞書。元の辞書は変更しない。"
-msgstr "Flag dictionary. The original dictionary is not modified."
-
-msgid "ノード指定フラグの長名。"
-msgstr "Long name of the node specification flag."
-
-msgid "変換済みコピー。"
-msgstr "Converted copy."
-
-msgid "一意なノード・アトリビュート名。コンポーネントは対象外。"
-msgstr "Unique node attribute names. Components are excluded."
-
-msgid "改名に追従する参照。"
-msgstr "References that follow renames."
-
-msgid "Mayaの結果。"
-msgstr "Maya results."
-
-msgid "未検出時は空リスト。"
-msgstr "When not detected, empty list."
-
-msgid "mlib._core.commandResult"
-msgstr "mlib._core.commandResult"
-
-msgid "Mayaコマンドの名前戻り値を公開mlib参照へ変換する。"
-msgstr "Convert Maya command names and return values to mlib reference."
-
-msgid "Classes"
-msgstr "Classes"
-
-msgid ":py:obj:`CommandResult <mlib._core.commandResult.CommandResult>`\\"
-msgstr ":py:obj:`CommandResult <mlib._core.commandResult.CommandResult>`\\"
-
-msgid "mlib._core.extensions"
-msgstr "mlib._core.extensions"
-
-msgid "Python探索パス直下のmlib_*拡張を検出する。独自Mayaプラグインはロードしない。"
-msgstr "Detects mlib_* extensions under the Python path. Does not load custom Maya plug-ins."
-
-msgid ":py:obj:`getDiagnostics <mlib._core.extensions.getDiagnostics>`\\ \\(\\)"
-msgstr ""
-
-msgid "初期化結果と現在の依存可用性を分けて照会する。"
-msgstr "Query initialization results and current dependency availability separately."
-
-msgid ":py:obj:`status <mlib._core.extensions.status>`\\ \\(\\)"
-msgstr ":py:obj:`status <mlib._core.extensions.status>`\\ \\(\\)"
-
-msgid "最後の初期化で得た拡張名ごとの状態と理由をコピーして返す。"
-msgstr "Return a copy of each extension's state and reason from the last initialization."
-
-msgid "既に読み込まれた宣言のis_availableだけを呼ぶ。拡張の新規import、 型登録、reload、Mayaプラグインのロードは行わない。可用性の照会自体は Python依存を遅延importする場合があるが、シーン・UIを変更してはならない。"
-msgstr "Only call is_available on declarations that are already imported. Do not import extensions, register types, reload modules, or load Maya plug-ins. Availability queries may lazily import Python dependencies, but must not change the scene or UI."
-
-msgid "拡張名ごとのinitialization、available、reason。     initializationはstatusと同じ状態のコピーで、未初期化ならNone。     availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、     reasonに理由を保持する。初期化結果と登録表は変更しない。"
-msgstr "initialization, available, and reason for each extension name. initialization is a copy of the same state as status, or None if initialization has not occurred. available is a bool indicating current availability. It is None if the extension is not loaded, is initializing, or the query fails; reason retains the explanation. Initialization results and registration tables remain unchanged."
-
-msgid "拡張名ごとのinitialization、available、reason。"
-msgstr "initialization, available, and reason for each extension."
-
-msgid "initializationはstatusと同じ状態のコピーで、未初期化ならNone。 availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、 reasonに理由を保持する。初期化結果と登録表は変更しない。"
-msgstr "initialization copies the status entry, or is None if initialization has not occurred. available is a bool for current availability; it is None for declarations not imported, initialization in progress, or query failures, with an explanation in reason. Initialization results and registries are unchanged."
-
-msgid "現在の依存可用性は再照会しない。診断だけを更新する場合はgetDiagnosticsを使う。"
-msgstr "Does not re-query current dependency availability. Use getDiagnostics to update diagnostics only."
-
-msgid "拡張名ごとの状態と理由をコピーして返す。"
-msgstr "Copy and return the status and reason for each file extension."
-
-msgid "mlib._core.fastWrite"
-msgstr "mlib._core.fastWrite"
-
-msgid "対応する値更新のcmds/OpenMayaバックエンド。独自プラグインは使わない。"
-msgstr "Corresponding value update for cmds/OpenMaya backend. Do not use custom plug-ins."
-
-msgid ":py:obj:`_prepared_writes <mlib._core.fastWrite._prepared_writes>`\\ \\(plug\\, value\\)"
-msgstr ""
-
-msgid "全成分の型・制限を更新前に検査し、直接書込みの列を組み立てる。"
-msgstr "Validate all component types and restrictions before updating, then build a sequence of direct writes."
-
-msgid ":py:obj:`check_range <mlib._core.fastWrite.check_range>`\\ \\(plug\\, value\\[\\, \\_fn\\]\\)"
-msgstr ":py:obj:`check_range <mlib._core.fastWrite.check_range>`\\ \\(plug\\, value\\[\\, \\_fn\\]\\)"
-
-msgid "cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。"
-msgstr "Similar to ``cmds.setAttr``, this checks the hard range set on an attribute."
-
-msgid ":py:obj:`prepare_data <mlib._core.fastWrite.prepare_data>`\\ \\(attribute\\, value\\, \\*\\[\\, name\\]\\)"
-msgstr ""
-
-msgid "MPlugを必要とせず、行列・typed dataの型と値を検査する。"
-msgstr "Validate matrix and typed-data types and values without requiring an MPlug."
-
-msgid ":py:obj:`set_attr <mlib._core.fastWrite.set_attr>`\\ \\(name\\, \\*values\\, \\*\\*kwargs\\)"
-msgstr ":py:obj:`set_attr <mlib._core.fastWrite.set_attr>`\\ \\(name\\, \\*values\\, \\*\\*kwargs\\)"
-
-msgid "既存のsetAttrと同じ値入力を、明示fast時だけMPlugへ渡す。"
-msgstr "For existing setAttr inputs with the same value, pass them explicitly to MPlug only in fast mode."
-
-msgid ":py:obj:`set_plug <mlib._core.fastWrite.set_plug>`\\ \\(plug\\, value\\)"
-msgstr ":py:obj:`set_plug <mlib._core.fastWrite.set_plug>`\\ \\(plug\\, value\\)"
-
-msgid "全成分を事前検証してMPlugへ設定する。Undoには記録しない。"
-msgstr "Validate all components in advance and set the MPlug without recording Undo."
-
-msgid ":py:obj:`writable <mlib._core.fastWrite.writable>`\\ \\(plug\\[\\, \\_fn\\]\\)"
-msgstr ":py:obj:`writable <mlib._core.fastWrite.writable>`\\ \\(plug\\[\\, \\_fn\\]\\)"
-
-msgid "ロック・入力接続・書込み不能アトリビュートをAPIで検査する。"
-msgstr "Check locked input connections and write-protected attributes using the API."
-
-msgid "書込み先。"
-msgstr "Write destination."
-
-msgid "内部単位の入力値。"
-msgstr "Input value in internal units."
-
-msgid "setter・プラグ・変換済み値の列。"
-msgstr "Sequence of setter, plug, and converted-value entries."
-
-msgid "API 2.0で値を構築できない型の場合。"
-msgstr "When API 2.0 cannot construct a value of this type."
-
-msgid "検査するプラグ。"
-msgstr "Plug to check."
-
-msgid "設定予定の値。単位型ではcm/rad/秒。"
-msgstr "Configured value. For unit types, cm/rad/sec."
-
-msgid "同じ更新内で 生成したfunction set。範囲と単位定義は呼出しごとに照会する。"
-msgstr "Function sets created within the same update. Range and unit definitions are queried for each invocation."
-
-msgid "値が設定されたハード範囲外の場合。"
-msgstr "When the value is set outside the hard range."
-
-msgid "登録前でもよいアトリビュート定義。"
-msgstr "Attribute definition, which may be unregistered."
-
-msgid "設定予定の値。"
-msgstr "Values planned for application."
-
-msgid "エラー表示用の名前。"
-msgstr "Name used in error messages."
-
-msgid "setter、変換済み値、書込み終了まで保持するfunction set。"
-msgstr "Setter, converted value, and function set retained until writing completes."
-
-msgid "アトリビュート名。"
-msgstr "Attribute name."
-
-msgid "cmds.setAttr と同じ形・現在の Maya 単位の値。"
-msgstr "Same format as cmds.setAttr and values in the current Maya unit."
-
-msgid "setAttr のフラグ。fast 時の対応フラグは限定される。"
-msgstr "``setAttr`` flag. The flags for fast mode have limited support."
-
-msgid "更新対象。"
-msgstr "Update target."
-
-msgid "角度rad、距離cm、時間秒の値。"
-msgstr "Values in radians, centimeters, and seconds."
-
-msgid "API 2.0で未対応の型の場合。更新前に拒否する。"
-msgstr "When API 2.0 does not support the type. Rejected before updating."
-
-msgid "同じ更新内で生成したアトリビュートの function set。省略時は新しく生成する。値や検査結果はキャッシュしない。"
-msgstr "Function set of attributes generated within the same update. If omitted, new ones are generated. Values and inspection results are not cached."
-
-msgid "ロック・入力接続・書込み禁止がある場合。"
-msgstr "When the input connection is locked, or writing is prohibited."
-
-msgid "mlib._core.flags"
-msgstr "mlib._core.flags"
-
-msgid "コマンド固有の短縮フラグを、実行前に長名へ統一する。"
-msgstr "Command-specific short flags are unified to their full names before execution."
-
-msgid ":py:obj:`_maya_aliases <mlib._core.flags._maya_aliases>`\\ \\(command\\)"
-msgstr ":py:obj:`_maya_aliases <mlib._core.flags._maya_aliases>`\\ \\(command\\)"
-
-msgid "実行中のMayaが公開するフラグ一覧を取得する。初回呼び出し時のみ照会。"
-msgstr "Retrieve the list of flags published by the running Maya. Consult only on the first call."
-
-msgid ":py:obj:`flag_aliases <mlib._core.flags.flag_aliases>`\\ \\(\\[command\\]\\)"
-msgstr ":py:obj:`flag_aliases <mlib._core.flags.flag_aliases>`\\ \\(\\[command\\]\\)"
-
-msgid "Mayaコマンド名または明示した短名=長名の対応を関数へ付与する。"
-msgstr "Attach the Maya command name or the explicitly given short-name to long-name mapping to the function."
-
-msgid ":py:obj:`normalize_flags <mlib._core.flags.normalize_flags>`\\ \\(function\\, kwargs\\)"
-msgstr ":py:obj:`normalize_flags <mlib._core.flags.normalize_flags>`\\ \\(function\\, kwargs\\)"
-
-msgid "関数の登録済み別名またはMayaコマンド名からフラグを正規化する。"
-msgstr "Normalize flags from a registered function alias or Maya command name."
-
-msgid "フラグを照会するMayaコマンド名。"
-msgstr "Maya command name to query flags."
-
-msgid "シグネチャとdocstringを保持する。別名の競合と位置引数との重複は 関数本体（Undoチャンク等を含む）の実行前に検出する。"
-msgstr "Preserve signatures and docstrings. Detect alias conflicts and duplicate positional arguments before executing the function body (including Undo chunks etc.)."
-
-msgid "Maya コマンド名。"
-msgstr "Maya command name."
-
-msgid "短名をキー、長名を値とする対応。"
-msgstr "Dictionary mapping short names to long names."
-
-msgid "フラグを正規化するデコレータ。"
-msgstr "A decorator that normalizes flags."
-
-msgid "長名と短名の重複は拒否し、入力辞書は変更しない。"
-msgstr "Duplicate long and short names are rejected, and the input dictionary is not modified."
-
-msgid "登録済み関数または Maya コマンド名。"
-msgstr "Registered function or Maya command name."
-
-msgid "正規化するキーワード引数。"
-msgstr "Normalized keyword arguments."
-
-msgid "短名を長名に置き換えた新しい辞書。"
-msgstr "A new dictionary with short names replaced by long names."
-
-msgid "mlib._core.geometryEdit"
-msgstr "mlib._core.geometryEdit"
-
-msgid "形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"
-msgstr "Querying shape coordinates and normal/fast updates. Normal mode writes via cmds, fast mode writes directly to shapes without history."
-
-msgid ":py:obj:`_set_positions_direct <mlib._core.geometryEdit._set_positions_direct>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
-msgstr ":py:obj:`_set_positions_direct <mlib._core.geometryEdit._set_positions_direct>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
-
-msgid "検証済みのcm座標を一括設定する。CVのwは変更しない。"
-msgstr "Set cm coordinates verified by batch. Do not change CV w."
-
-msgid ":py:obj:`command_indices <mlib._core.geometryEdit.command_indices>`\\ \\(shape\\, indices\\)"
-msgstr ":py:obj:`command_indices <mlib._core.geometryEdit.command_indices>`\\ \\(shape\\, indices\\)"
-
-msgid "検証済みのAPI番号をcmds用番号へ写す。順序と重複は維持する。"
-msgstr "Map verified API numbers to cmds numbers, maintaining order and duplicates."
-
-msgid ":py:obj:`geometry <mlib._core.geometryEdit.geometry>`\\ \\(shape\\, indices\\[\\, edit\\]\\)"
-msgstr ":py:obj:`geometry <mlib._core.geometryEdit.geometry>`\\ \\(shape\\, indices\\[\\, edit\\]\\)"
-
-msgid "形状の DAG パスと関数セットを取得し、必要なら直接編集の条件を検査する。"
-msgstr "Get the DAG path and function set of the shape, and inspect the direct edit conditions if necessary."
-
-msgid ":py:obj:`object_positions <mlib._core.geometryEdit.object_positions>`\\ \\(shape\\, indices\\, values\\)"
-msgstr ":py:obj:`object_positions <mlib._core.geometryEdit.object_positions>`\\ \\(shape\\, indices\\, values\\)"
-
-msgid "APIのワールド座標を、CVの重みを保持したローカルXYZへ変換する。"
-msgstr "Convert world space coordinates from the API to local XYZ coordinates while preserving CV weights."
-
-msgid ":py:obj:`positions <mlib._core.geometryEdit.positions>`\\ \\(shape\\, indices\\[\\, ws\\]\\)"
-msgstr ":py:obj:`positions <mlib._core.geometryEdit.positions>`\\ \\(shape\\, indices\\[\\, ws\\]\\)"
-
-msgid "指定した点を保持順・cm単位で取得する。"
-msgstr "Get the specified point in preserve order and cm units."
-
-msgid ":py:obj:`setPositions <mlib._core.geometryEdit.setPositions>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
-msgstr ":py:obj:`setPositions <mlib._core.geometryEdit.setPositions>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
-
-msgid "検証済みのcm座標を書き込む。Undo範囲は呼出元が管理する。"
-msgstr "Write verified cm coordinates. Undo scope is managed by the caller."
-
-msgid ":py:obj:`set_uvs <mlib._core.geometryEdit.set_uvs>`\\ \\(shape\\, indices\\, values\\)"
-msgstr ":py:obj:`set_uvs <mlib._core.geometryEdit.set_uvs>`\\ \\(shape\\, indices\\, values\\)"
-
-msgid "現在の UV セットを OpenMaya で直接更新する。Undo には記録しない。"
-msgstr "Update the current UV set directly in OpenMaya. Do not record to undo."
-
-msgid "履歴なしMeshまたは非周期NurbsCurve。"
-msgstr "Mesh without history or non-periodic NurbsCurve."
-
-msgid "検証済みの番号。"
-msgstr "Verified number."
-
-msgid "設定するXYZ。"
-msgstr "Set XYZ."
-
-msgid "TrueならAPIワールド座標、Falseならローカル座標。"
-msgstr "True for API world coordinates, False for local coordinates."
-
-msgid "MeshまたはNurbsCurve。"
-msgstr "Mesh or NurbsCurve."
-
-msgid "APIの番号。"
-msgstr "API number."
-
-msgid "周期カーブでは末尾の重複CVを先頭の独立CVへ写した番号。"
-msgstr "For periodic curves, the number of duplicated CVs at the end that are mapped to the initial independent CVs."
-
-msgid "呼び出し側で型を解決した形状。"
-msgstr "Shape whose type was resolved by the caller."
-
-msgid "編集する制御点番号。"
-msgstr "Edit the control point number."
-
-msgid "周期カーブ・履歴・ロックなど直接編集できない条件を検査するか。"
-msgstr "Does it check for conditions that prevent direct editing, such as periodic curves, history, or locked elements?"
-
-msgid "DAG パス、MFnMesh または MFnNurbsCurve、メッシュかを示す bool。"
-msgstr "DAG path, MFnMesh or MFnNurbsCurve, and a bool indicating whether it is a mesh."
-
-msgid "edit=True で周期カーブや入力履歴がある場合。"
-msgstr "When edit=True and there are periodic curves or input history."
-
-msgid "edit=True で対象がロックされている場合。"
-msgstr "When the target is locked with edit=True."
-
-msgid "APIのワールドXYZ。距離はcm。"
-msgstr "World XYZ of the API. Distance is in cm."
-
-msgid "cmdsのobjectSpaceへ渡すcmの座標。"
-msgstr "Coordinate in object space to pass to cm via cmds."
-
-msgid "ワールド行列が特異な場合。"
-msgstr "World matrix is singular."
-
-msgid "有効なMeshまたはNurbsCurve。"
-msgstr "Valid Mesh or NurbsCurve."
-
-msgid "検証済みの点番号。"
-msgstr "Verified vertex index."
-
-msgid "Trueならワールド空間へ変換する。"
-msgstr "If true, convert to world space."
-
-msgid "指定順の座標。単点では全点を取得しない。"
-msgstr "Coordinates in specified order. A single point does not retrieve all points."
-
-msgid "検証済みのAPI番号。重複は後の値を優先。"
-msgstr "Verified API number. Duplicates are resolved by giving priority to later values."
-
-msgid "番号と同数の有限なXYZ。"
-msgstr "Number of XYZ finite values equal to the number of joints."
-
-msgid "Trueならワールド座標。"
-msgstr "True then world coordinates."
-
-msgid "fastで未対応の形状の場合。"
-msgstr "For shapes that are not supported in fast mode."
-
-msgid "Mayaが書込みを拒否した場合。完了済みの変更は戻さない。"
-msgstr "When Maya refuses to write, completed changes cannot be undone."
-
-msgid "対象メッシュ。"
-msgstr "Target mesh."
-
-msgid "呼び出し側で検証した UV 番号。"
-msgstr "UV index validated by the caller."
-
-msgid "indices と対応する (u, v) の列。"
-msgstr "List of (u, v) pairs corresponding to indices."
-
-msgid "mlib._core"
-msgstr "mlib._core"
-
-msgid "mlibの型登録・初期化・再読み込み機能を公開する。"
-msgstr "Expose mlib type registration, initialization, and reloading utilities."
-
-msgid "Submodules"
-msgstr "Submodules"
-
-msgid "mlib._core.jointEdit"
-msgstr ""
-
-msgid "Jointの再親付けを、回転チャンネルとSSCを保って直接実行する。"
-msgstr "Reparent a Joint directly while preserving its rotation channels and SSC."
-
-msgid ":py:obj:`reparent <mlib._core.jointEdit.reparent>`\\ \\(plan\\)"
-msgstr ""
-
-msgid "検証済みJointを移動し、inverseScale接続と姿勢を復元する。"
-msgstr "Move a validated Joint and restore its inverseScale connection and pose."
-
-msgid ":py:obj:`reparent_plan <mlib._core.jointEdit.reparent_plan>`\\ \\(joint\\, parent\\)"
-msgstr ""
-
-msgid "cmds.parentで中間Transformを必要としないJointの更新計画を作る。"
-msgstr "Build an update plan for a Joint that does not require an intermediate Transform with cmds.parent."
-
-msgid "reparent_planが返した計画。"
-msgstr "Plan returned by reparent_plan."
-
-msgid "移動するJoint。"
-msgstr "Joint to move."
-
-msgid "移動先。"
-msgstr "Destination parent."
-
-msgid "対象、親、移動・jointOrient、新しいinverseScale入力。"
-msgstr "Target, parent, translation, jointOrient, and new inverseScale input."
-
-msgid "mlib._core.mathValue"
-msgstr "mlib._core.mathValue"
-
-msgid "数学値の添字・比較・派生インスタンス状態を扱う内部共通処理。"
-msgstr "Shared internal helpers for indexing, comparison, and state of derived math values."
-
-msgid ":py:obj:`_OM2_TYPES <mlib._core.mathValue._OM2_TYPES>`\\"
-msgstr ":py:obj:`_OM2_TYPES <mlib._core.mathValue._OM2_TYPES>`\\"
-
-msgid ":py:obj:`_STATEFUL_TYPES <mlib._core.mathValue._STATEFUL_TYPES>`\\"
-msgstr ":py:obj:`_STATEFUL_TYPES <mlib._core.mathValue._STATEFUL_TYPES>`\\"
-
-msgid ":py:obj:`_TYPE_CACHE_LIMIT <mlib._core.mathValue._TYPE_CACHE_LIMIT>`\\"
-msgstr ":py:obj:`_TYPE_CACHE_LIMIT <mlib._core.mathValue._TYPE_CACHE_LIMIT>`\\"
-
-msgid ":py:obj:`_checked_index <mlib._core.mathValue._checked_index>`\\ \\(index\\, size\\, name\\)"
-msgstr ":py:obj:`_checked_index <mlib._core.mathValue._checked_index>`\\ \\(index\\, size\\, name\\)"
-
-msgid "添字を検査し、0〜size-1 へ正規化する。"
-msgstr "Check the index and normalize it to the range 0 to size-1."
-
-msgid ":py:obj:`_copy_state <mlib._core.mathValue._copy_state>`\\ \\(source\\, target\\[\\, memo\\]\\)"
-msgstr ":py:obj:`_copy_state <mlib._core.mathValue._copy_state>`\\ \\(source\\, target\\[\\, memo\\]\\)"
-
-msgid "利用者の派生クラスが持つ追加のアトリビュート(``__dict__`` と ``__slots__``)を複製先へ写す。"
-msgstr "Copy additional attributes (``__dict__`` and ``__slots__``) that the user's derived class possesses to the destination."
-
-msgid ":py:obj:`_foreign_comparison <mlib._core.mathValue._foreign_comparison>`\\ \\(other\\, result\\)"
-msgstr ":py:obj:`_foreign_comparison <mlib._core.mathValue._foreign_comparison>`\\ \\(other\\, result\\)"
-
-msgid "om2 の同じ系統に属さない値との ``==`` / ``!=`` の結果を返す。"
-msgstr "Returns the result of ``==`` / ``!=`` for values that do not belong to the same system as om2."
-
-msgid ":py:obj:`_instance_state <mlib._core.mathValue._instance_state>`\\ \\(value\\)"
-msgstr ":py:obj:`_instance_state <mlib._core.mathValue._instance_state>`\\ \\(value\\)"
-
-msgid "利用者の派生クラスのインスタンスが持つ追加のアトリビュートを取り出す。"
-msgstr "Extract additional attributes possessed by instances of user-defined derived classes."
-
-msgid ":py:obj:`_is_om2_type <mlib._core.mathValue._is_om2_type>`\\ \\(cls\\)"
-msgstr ":py:obj:`_is_om2_type <mlib._core.mathValue._is_om2_type>`\\ \\(cls\\)"
-
-msgid "cls が OpenMaya の型(API 1.0 / 2.0。派生クラスを含む)か判定する。"
-msgstr "Check if cls is an OpenMaya type (API 1.0 / 2.0, including derived classes)."
-
-msgid ":py:obj:`_restore_state <mlib._core.mathValue._restore_state>`\\ \\(target\\, state\\, slots\\)"
-msgstr ":py:obj:`_restore_state <mlib._core.mathValue._restore_state>`\\ \\(target\\, state\\, slots\\)"
-
-msgid "_instance_state で取り出したアトリビュートを target へ設定する。"
-msgstr "Set the attributes extracted from _instance_state to the target."
-
-msgid "om2 の添字は負の範囲外の値を検査しない(Python が長さを1回だけ足して渡すため、 MVector の ``v[-4]`` が最後の成分を返し、MMatrix の -17 以下は範囲外のメモリを 読み書きする)ため、om2 へ渡す前に必ずここで検査する。"
-msgstr "om2 subscript does not check for out-of-range negative values (because Python passes the length only once, so MVector's ``v[-4]`` returns the last component, and -17 or below reads/writes out-of-range memory). Therefore, always perform checking here before passing to om2."
-
-msgid "添字。負の値は末尾から数える。"
-msgstr "Index. Negative values count from the end."
-
-msgid "要素数。"
-msgstr "Number of elements."
-
-msgid "例外メッセージに使う型名。"
-msgstr "The type name used in exception messages."
-
-msgid "0〜size-1 の添字。"
-msgstr "Indices from 0 to size-1."
-
-msgid "範囲外の場合。"
-msgstr "Out of range."
-
-msgid "整数として扱えない場合。"
-msgstr "When it cannot be treated as an integer."
-
-msgid "複製元。"
-msgstr "Source of duplication."
-
-msgid "複製先。source と同じクラスのインスタンス。"
-msgstr "Destination for duplication. Instance of the same class as source."
-
-msgid "``copy.deepcopy`` の memo。None なら浅い複製。"
-msgstr "Memo for ``copy.deepcopy``. If None, perform a shallow copy."
-
-msgid "target。"
-msgstr "target。"
-
-msgid "om2 の型(MPoint や MObject など。OpenMaya API 1.0 の型を含む)は、相手の型を 知らない比較で TypeError を送出するため、反射側へ回さずに result で確定する。 それ以外の型には NotImplemented を返し、相手の ``__eq__`` (反射側の比較)に 判断を委ねる。どちらも判断しなければ Python の既定の比較(同一性)になるため、 ``None`` や文字列との比較は例外にならない(``None`` は同じ結果を直接返す)。"
-msgstr "OM2 types (such as MPoint and MObject, including OpenMaya API 1.0 types) raise TypeError in comparisons where the other type is unknown, so they are handled directly in result without being passed to the reflection side. For all other types, NotImplemented is returned, deferring the decision to ``__eq__`` (the reflection side of the comparison). Since neither side makes a decision, Python's default comparison (identity) is used, so comparisons with ``None`` or strings do not raise exceptions (as ``None`` directly returns the same result)."
-
-msgid "比較対象。"
-msgstr "Compare with saved."
-
-msgid "om2 の型だった場合の結果(``==`` なら False、``!=`` なら True)。"
-msgstr "The result for om2 types (False if ``==``, True if ``!=``)."
-
-msgid "om2 の型か None なら result、それ以外は NotImplemented。"
-msgstr "If the type is an om2 type or None, then result; otherwise NotImplemented."
-
-msgid "mlib 自身の型のように ``__dict__`` も ``__slots__`` のアトリビュートも持たない型は、 型ごとの判定をキャッシュしてすぐに返す。"
-msgstr "Types that have no attributes of their own like ``__dict__`` or ``__slots__`` return immediately by caching type-specific checks."
-
-msgid "mlib の値。"
-msgstr "Value of mlib."
-
-msgid "(``__dict__`` の浅いコピー、または None, ``__slots__`` の値の辞書、または None)。"
-msgstr "(``__dict__`` shallow copy or None, ``__slots__`` dictionary of values or None)."
-
-msgid "判定する型。"
-msgstr "The type to be evaluated."
-
-msgid "MRO に OpenMaya のモジュールで定義された型を含めば True。"
-msgstr "True if the MRO includes types defined in the OpenMaya module."
-
-msgid "設定先。"
-msgstr "Target settings."
-
-msgid "``__dict__`` へ追加するアトリビュート。"
-msgstr "Attribute to add to ``__dict__``."
-
-msgid "``__slots__`` へ設定するアトリビュート。"
-msgstr "Attribute to set on ``__slots__``."
-
-msgid "mlib._core.nodeEdit"
-msgstr ""
-
-msgid "Undoへ登録しないノード作成・改名・削除のOpenMaya実装。"
-msgstr "OpenMaya implementations of node creation, renaming, and deletion without recording Undo."
-
-msgid ":py:obj:`create_group <mlib._core.nodeEdit.create_group>`\\ \\(names\\, flags\\)"
-msgstr ""
-
-msgid "空グループまたはTransform群のグループを直接作成する。"
-msgstr "Directly create an empty group or a group of Transforms."
-
-msgid ":py:obj:`create_node <mlib._core.nodeEdit.create_node>`\\ \\(node\\_type\\, flags\\)"
-msgstr ""
-
-msgid "Mayaの代表的なcreateNodeフラグをOpenMayaで実行する。"
-msgstr "Implement common Maya createNode flags with OpenMaya."
-
-msgid ":py:obj:`delete_node <mlib._core.nodeEdit.delete_node>`\\ \\(node\\)"
-msgstr ""
-
-msgid "DAGメンバーを持つDGコンテナも扱えるmodifierでノードを削除する。"
-msgstr "Delete a node using a modifier that also supports DG containers with DAG members."
-
-msgid ":py:obj:`rename_node <mlib._core.nodeEdit.rename_node>`\\ \\(node\\, name\\[\\, ignore\\_shape\\]\\)"
-msgstr ""
-
-msgid "ノードと、旧名の接頭辞が一致する直属Shapeを改名する。"
-msgstr "Rename a node and its direct shapes whose names share the old prefix."
-
-msgid ":py:obj:`require_editable <mlib._core.nodeEdit.require_editable>`\\ \\(node\\[\\, descendants\\]\\)"
-msgstr ""
-
-msgid "構造変更前に参照・ロックされたノードを拒否する。"
-msgstr "Reject referenced or locked nodes before structural changes."
-
-msgid ":py:obj:`validate_deletion <mlib._core.nodeEdit.validate_deletion>`\\ \\(nodes\\[\\, safe\\]\\)"
-msgstr ""
-
-msgid "混在した削除対象を更新前に検査し、後続の失敗による部分削除を避ける。"
-msgstr "Validate mixed deletion targets before updates to prevent partial deletion caused by later failures."
-
-msgid "対象名。Noneなら現在の選択。"
-msgstr "Target names. None uses the current selection."
-
-msgid "groupの正規化済みフラグ。"
-msgstr "Normalized group flags."
-
-msgid "作成したTransform。"
-msgstr "Created Transform."
-
-msgid "作成するnodeType。"
-msgstr "nodeType to create."
-
-msgid "正規化済みname/parent/skipSelect/shared。"
-msgstr "Normalized name/parent/skipSelect/shared flags."
-
-msgid "作成したノード。Shapeの暗黙の親ではなくShapeを返す。"
-msgstr "Created node. Returns the Shape rather than its implicit parent."
-
-msgid "削除するノード。削除後のMPlugを保持しないこと。"
-msgstr "Node to delete. Do not retain MPlugs after deletion."
-
-msgid "改名対象。"
-msgstr "Node to rename."
-
-msgid "Mayaが補正する新しい名前。"
-msgstr "New name, subject to Maya's adjustments."
-
-msgid "直属Shapeの連動改名を行わないか。"
-msgstr "Whether to skip renaming direct shapes together with the node."
-
-msgid "Mayaが確定したノード名。"
-msgstr "Final node name assigned by Maya."
-
-msgid "対象ノード。"
-msgstr "Target node."
-
-msgid "DAG子孫も検査するか。"
-msgstr "Whether to also check DAG descendants."
-
-msgid "呼出し順の削除対象。"
-msgstr "Deletion targets in call order."
-
-msgid "接続を持つ対象を残すか。"
-msgstr "Whether to retain targets with connections."
-
-msgid "class mlib._core.object.Object"
-msgstr "class mlib._core.object.Object"
-
-msgid "Node・Plug・単数Componentの共通基底。既存対象を参照し、新規作成しない。"
-msgstr "Common base for Node, Plug, and singular Component. References existing objects; does not create new ones."
-
-msgid "Object(value)は対象に対応した具象ラッパーを返す。 等価比較・ハッシュ・寿命の判定は各参照型が担当する。 コレクション・数学値・保存データ・UI参照はこの基底に含めない。"
-msgstr "``Object(value)`` returns a concrete wrapper corresponding to the target. Equivalence comparison, hashing, and lifetime determination are handled by each reference type. Collections, mathematical values, storage data, and UI references are not included in this base."
-
-msgid ":py:obj:`_classes <mlib._core.object.Object._classes>`\\ \\(\\)"
-msgstr ":py:obj:`_classes <mlib._core.object.Object._classes>`\\ \\(\\)"
-
-msgid "循環 import を避けるため、判定に使う mlib クラスを呼び出し時に取得する。"
-msgstr "To avoid circular imports, obtain the mlib class used for checks at call time."
-
-msgid ":py:obj:`_flatten_inputs <mlib._core.object.Object._flatten_inputs>`\\ \\(values\\)"
-msgstr ":py:obj:`_flatten_inputs <mlib._core.object.Object._flatten_inputs>`\\ \\(values\\)"
-
-msgid "対象列を一度だけ展開する。型別の混在規則は呼出し側が検証する。"
-msgstr "Expand the target column only once. The mixed type rules are validated by the caller."
-
-msgid ":py:obj:`_input_name <mlib._core.object.Object._input_name>`\\ \\(value\\)"
-msgstr ":py:obj:`_input_name <mlib._core.object.Object._input_name>`\\ \\(value\\)"
-
-msgid "単一の対象を maya.cmds へ渡せる一意な名前へ変換する。"
-msgstr "Convert to a unique name that can be passed to maya.cmds for a single target."
-
-msgid ":py:obj:`_input_names <mlib._core.object.Object._input_names>`\\ \\(values\\[\\, allow\\_plugs\\]\\)"
-msgstr ":py:obj:`_input_names <mlib._core.object.Object._input_names>`\\ \\(values\\[\\, allow\\_plugs\\]\\)"
-
-msgid "単一の対象・コレクション・反復可能オブジェクトを名前のリストへ正規化する。"
-msgstr "Normalize a single target, collection, or iterable object to a list of names."
-
-msgid ":py:obj:`_name <mlib._core.object.Object._name>`\\ \\(value\\, node\\_class\\, plug\\_class\\, component\\_class\\)"
-msgstr ":py:obj:`_name <mlib._core.object.Object._name>`\\ \\(value\\, node\\_class\\, plug\\_class\\, component\\_class\\)"
-
-msgid "単一の対象を名前へ変換する(Object._input_name の本体)。"
-msgstr "Converts a single target to a name (the body of Object._input_name)."
-
-msgid ":py:obj:`_resolve_input <mlib._core.object.Object._resolve_input>`\\ \\(value\\)"
-msgstr ":py:obj:`_resolve_input <mlib._core.object.Object._resolve_input>`\\ \\(value\\)"
-
-msgid "入力を一意なNode・Plug・Componentへ解決する。"
-msgstr "Resolve input to unique Node/Plug/Component."
-
-msgid ":py:obj:`_unsupported <mlib._core.object.Object._unsupported>`\\ \\(value\\)"
-msgstr ":py:obj:`_unsupported <mlib._core.object.Object._unsupported>`\\ \\(value\\)"
-
-msgid "対応しない入力型の TypeError を作る。"
-msgstr "Create a TypeError for unsupported input types."
-
-msgid ":py:obj:`asString <mlib._core.object.Object.asString>`\\ \\(\\)"
-msgstr ""
-
-msgid "現在の対象名を文字列へ変換する。"
-msgstr "Convert the current target name to a string."
-
-msgid "Node、Plug、Component、Components。"
-msgstr "Node、Plug、Component、Components。"
-
-msgid "単数参照または入れ子の反復可能な対象列。"
-msgstr "Single reference or nested iterable target sequence."
-
-msgid "順序を保持した対象。Componentsは範囲圧縮のため展開しない。"
-msgstr "Ordered set of targets. Components are not expanded for range compression."
-
-msgid "未対応型の場合。"
-msgstr "In the case of unsupported types."
-
-msgid "文字列は解決せず(Maya へ問い合わせず)そのまま返す。解決済みの Node が 必要な場合は Node._resolve_input を使う。変換規則はモジュールの説明を参照。"
-msgstr "Strings are returned as-is without resolution (without querying Maya). If a resolved Node is needed, use Node._resolve_input. Refer to the module's description for the conversion rules."
-
-msgid "変換対象。"
-msgstr "Target for conversion."
-
-msgid "maya.cmds で解決できる名前。"
-msgstr "Names that can be resolved with maya.cmds."
-
-msgid "対応しない型、依存ノード以外を指す MObject、または Components などの複数の対象を渡した場合(Object._input_names を使う)。"
-msgstr "When passing MObject that does not point to unsupported types or dependency nodes, or multiple targets such as components (using Object._input_names)."
-
-msgid "空文字列、または無効な(削除済み・範囲外の)対象の場合。"
-msgstr "Empty string, or invalid (deleted or out-of-range) target."
-
-msgid "単一の対象(Object._input_name が受け付ける型)は1要素のリストになる。``Components``・ ``Selection``・``Joints`` などのコレクションと、list/tuple/set/ジェネレーター などの反復可能オブジェクトは、入れ子も含めて保持順に展開する。 ``ArrayPlug`` は要素へ展開せず、配列アトリビュートそのものの名前として扱う。 ``Components`` は全番号をまとめて1回だけ検証し、保持順で連続する番号を ``|cube|cubeShape.vtx[0:9]`` のような範囲指定の名前にまとめる(要素数が多くても maya.cmds へ渡す名前が増えない)。"
-msgstr "A single target (the type accepted by Object._input_name) will be a list with a single element. Collections such as ``Components``, ``Selection``, ``Joints`` and iterable objects such as list/tuple/set/generators will be expanded in order, including nested structures. ``ArrayPlug`` will not be expanded into elements, but treated as the name of the array attribute itself. ``Components`` will validate all numbers at once only once, and group consecutive numbers in order into range-style names like ``|cube|cubeShape.vtx[0:9]``, so even if there are many elements, the number of names passed to maya.cmds does not increase."
-
-msgid "変換対象。単一の対象、または対象を要素に持つ反復可能オブジェクト。"
-msgstr "Target for conversion. A single target or an iterable object containing targets."
-
-msgid "False の場合、Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` を TypeError にする(アトリビュートを渡しても maya.cmds が何もしないコマンド用。文字列は 解決しないため対象外)。"
-msgstr "If false, make Plug(``ArrayPlug`` including) and ``om2.MPlug`` a TypeError (for attributes passed to commands that do nothing in maya.cmds. Strings are excluded as they are not resolved)."
-
-msgid "正規化した名前のリスト。空の反復可能オブジェクトは空リスト。"
-msgstr "List of normalized names. An empty iterable object is an empty list."
-
-msgid "いずれかの要素が対応しない型の場合。allow_plugs が False で、 Plug・MPlug が含まれる場合。同じ対象列に文字列とNodeが混在する場合。"
-msgstr "When any element has a mismatched type. When allow_plugs is False and Plug or MPlug is included. When strings and nodes are mixed in the same target column."
-
-msgid "いずれかの要素が空文字列、または無効な対象の場合。"
-msgstr "When any element is an empty string or invalid target."
-
-msgid "Node クラス。"
-msgstr "Node class."
-
-msgid "Plug クラス。"
-msgstr "Plug class."
-
-msgid "Component クラス。"
-msgstr "Component class."
-
-msgid "maya.cmds へ渡せる名前。"
-msgstr "Names that can be passed to maya.cmds."
-
-msgid "対応しない型の場合。"
-msgstr "In case of unsupported types."
-
-msgid "空文字列、または無効な対象の場合。"
-msgstr "Empty string, or invalid target."
-
-msgid "単一対象。コンポーネントのAPI入力は(MDagPath, MObject)。"
-msgstr "Single target. Component API input is (MDagPath, MObject)."
-
-msgid "既存ラッパーはそのまま、その他は対応する具体型。"
-msgstr "Existing wrappers remain as-is, others are mapped to corresponding concrete types."
-
-msgid "未対応の型・コンポーネント種類の場合。"
-msgstr "When the type or component type is not supported."
-
-msgid "空入力または複数要素を指定した場合。"
-msgstr "Empty input or multiple elements specified."
-
-msgid "名前が存在しない、または一意に解決できない場合。"
-msgstr "The name does not exist, or cannot be resolved uniquely."
-
-msgid "入力値。"
-msgstr "Input value."
-
-msgid "送出する例外。"
-msgstr "Exceptions to be raised."
-
-msgid "Node・Plug・Componentそれぞれの ``str()`` と同じ名前を返す。 名前変更や親子付け替えに追従し、名前をキャッシュしない。 無効な参照の扱いも各型の ``str()`` に従う。"
-msgstr "Returns the same name as ``str()`` for Node, Plug, and Component. Follows renaming and reparenting without caching names. Invalid references are handled by each type's ``str()``."
-
-msgid "Mayaコマンドへ渡す対象名。"
-msgstr "Target name passed to Maya commands."
-
-msgid "各型の文字列変換が無効な参照を拒否する場合。"
-msgstr "When the type's string conversion rejects an invalid reference."
-
-msgid "class mlib._core.object._ObjectType"
-msgstr "class mlib._core.object._ObjectType"
-
-msgid "ベースクラス: :py:obj:`type`"
-msgstr "Base class: :py:obj:`type`"
-
-msgid "Objectへの入力だけを振り分け、派生クラスの構築は通常通り行う。"
-msgstr "Route inputs only to the object, and construct derived classes as usual."
-
-msgid ":py:obj:`__call__ <mlib._core.object._ObjectType.__call__>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
-msgstr ":py:obj:`__call__ <mlib._core.object._ObjectType.__call__>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
-
-msgid "解決済み参照への二重初期化を避けて適切な型を返す。"
-msgstr "Avoid double initialization of resolved references and return appropriate types."
-
-msgid "呼出し先またはUIシグナルから渡される位置引数。"
-msgstr "Positional arguments passed from a function call or UI signal."
-
-msgid "呼出し先へ渡すキーワード引数。"
-msgstr "Keyword arguments to pass to the caller."
-
-msgid "mlib._core.object"
-msgstr "mlib._core.object"
-
-msgid "Mayaシーン内の単一対象を表す共通基底と取得入口。"
-msgstr "Common base and entry point for a single target in a Maya scene."
-
-msgid ":py:obj:`Object <mlib._core.object.Object>`\\"
-msgstr ":py:obj:`Object <mlib._core.object.Object>`\\"
-
-msgid ":py:obj:`_ObjectType <mlib._core.object._ObjectType>`\\"
-msgstr ":py:obj:`_ObjectType <mlib._core.object._ObjectType>`\\"
-
-msgid "class mlib._core.registry.NodeRegistry"
-msgstr "class mlib._core.registry.NodeRegistry"
-
-msgid "ノード型・アトリビュート型などの文字列キーとラッパークラスを対応付ける登録表。"
-msgstr "Registry mapping string keys such as node types and attribute types to their wrapper classes."
-
-msgid ":py:obj:`__init__ <mlib._core.registry.NodeRegistry.__init__>`\\ \\(fallback\\_class\\[\\, resolve\\_inherited\\_types\\]\\)"
-msgstr ":py:obj:`__init__ <mlib._core.registry.NodeRegistry.__init__>`\\ \\(fallback\\_class\\[\\, resolve\\_inherited\\_types\\]\\)"
-
-msgid "フォールバッククラスと空のノード型対応表を初期化する。"
-msgstr "Initialize the fallback class and empty node type mapping table."
-
-msgid ":py:obj:`_node_type_for_class <mlib._core.registry.NodeRegistry._node_type_for_class>`\\ \\(wrapper\\_class\\)"
-msgstr ":py:obj:`_node_type_for_class <mlib._core.registry.NodeRegistry._node_type_for_class>`\\ \\(wrapper\\_class\\)"
-
-msgid "現在の登録表で具体クラスに一意に対応するnodeTypeを取得する。"
-msgstr "Get the nodeType uniquely mapped to the concrete class in the current registry."
-
-msgid ":py:obj:`_restore <mlib._core.registry.NodeRegistry._restore>`\\ \\(snapshot\\)"
-msgstr ":py:obj:`_restore <mlib._core.registry.NodeRegistry._restore>`\\ \\(snapshot\\)"
-
-msgid "登録中の障害で、検証済みの保存状態を再登録せずに復元する。"
-msgstr "Restore a validated snapshot after registration fails, without registering entries again."
-
-msgid ":py:obj:`_snapshot <mlib._core.registry.NodeRegistry._snapshot>`\\ \\(\\)"
-msgstr ":py:obj:`_snapshot <mlib._core.registry.NodeRegistry._snapshot>`\\ \\(\\)"
-
-msgid "拡張の登録開始前に、現在の型対応を独立したコピーで保持する。"
-msgstr "Copy the current type mappings before an extension begins registration."
-
-msgid ":py:obj:`_validate_entry <mlib._core.registry.NodeRegistry._validate_entry>`\\ \\(node\\_type\\, wrapper\\_class\\)"
-msgstr ":py:obj:`_validate_entry <mlib._core.registry.NodeRegistry._validate_entry>`\\ \\(node\\_type\\, wrapper\\_class\\)"
-
-msgid "汎用登録の型名とクラスを検証する。既存キーの上書きは拒否しない。"
-msgstr "Validate a type name and class for general registration, allowing existing keys to be replaced."
-
-msgid ":py:obj:`clear <mlib._core.registry.NodeRegistry.clear>`\\ \\(\\)"
-msgstr ":py:obj:`clear <mlib._core.registry.NodeRegistry.clear>`\\ \\(\\)"
-
-msgid "登録済みの Maya nodeType 対応をすべて解除する。"
-msgstr "Unload all registered Maya nodeType support."
-
-msgid ":py:obj:`get <mlib._core.registry.NodeRegistry.get>`\\ \\(node\\_type\\)"
-msgstr ":py:obj:`get <mlib._core.registry.NodeRegistry.get>`\\ \\(node\\_type\\)"
-
-msgid "ノード型に対応するラッパークラスを返す。"
-msgstr "Returns a wrapper class corresponding to the node type."
-
-msgid ":py:obj:`lookup <mlib._core.registry.NodeRegistry.lookup>`\\ \\(key\\)"
-msgstr ":py:obj:`lookup <mlib._core.registry.NodeRegistry.lookup>`\\ \\(key\\)"
-
-msgid "登録済みクラスを返す。未登録なら ``None``。"
-msgstr "Returns registered classes. Returns ``None`` if not registered."
-
-msgid ":py:obj:`register <mlib._core.registry.NodeRegistry.register>`\\ \\(node\\_type\\, wrapper\\_class\\)"
-msgstr ":py:obj:`register <mlib._core.registry.NodeRegistry.register>`\\ \\(node\\_type\\, wrapper\\_class\\)"
-
-msgid "Maya ノード型へラッパークラスを登録する。"
-msgstr "Register wrapper classes to Maya node types."
-
-msgid ":py:obj:`replace <mlib._core.registry.NodeRegistry.replace>`\\ \\(wrappers\\)"
-msgstr ""
-
-msgid "明示した型対応で登録表を置き換える。"
-msgstr "Replace the registry with explicitly declared type mappings."
-
-msgid ":py:obj:`wrapper_class <mlib._core.registry.NodeRegistry.wrapper_class>`\\ \\(node\\_type\\)"
-msgstr ":py:obj:`wrapper_class <mlib._core.registry.NodeRegistry.wrapper_class>`\\ \\(node\\_type\\)"
-
-msgid "ノード型に対応するクラス、またはフォールバッククラスを返す。"
-msgstr "Returns a class corresponding to the node type or a fallback class."
-
-msgid "未登録キーに対して使用するクラス。"
-msgstr "Class to use for unregistered keys."
-
-msgid "``True`` の場合、完全一致が 無いキーに対して Maya のノードタイプ継承チェーンを辿り、 最も近い登録済み祖先型のクラスを返す(Plug のアトリビュート型など、 Mayaのノードタイプ継承と無関係なキー体系では使わない)。"
-msgstr "In the case of ``True``, for keys that do not have an exact match, it traverses Maya's node type inheritance chain and returns the most recently registered ancestor class (this is not used for key systems unrelated to Maya's node type inheritance, such as plug attribute types)."
-
-msgid "値を返さない。"
-msgstr "Does not return a value."
-
-msgid "新規作成に使用するノードラッパークラス。"
-msgstr "The node wrapper class to use for creation."
-
-msgid "クラスそのものへ登録されたMaya nodeType。"
-msgstr "The Maya nodeType registered for the exact class."
-
-msgid "対応する登録がない、または複数のnodeTypeに登録されている場合。"
-msgstr "If there is no matching registration or the class is registered for multiple nodeTypes."
-
-msgid "_snapshotで取得した内部状態。"
-msgstr "Internal state captured by _snapshot."
-
-msgid "この登録表だけが復元に使う内部状態。"
-msgstr "Internal state used only to restore this registry."
-
-msgid "登録する型名。"
-msgstr "The type name to register."
-
-msgid "対応するクラス。"
-msgstr "The corresponding class."
-
-msgid "型名が空文字列または文字列以外の場合。"
-msgstr "If the type name is empty or is not a string."
-
-msgid "wrapper_classがクラスではない場合。"
-msgstr "If wrapper_class is not a class."
-
-msgid "Maya の nodeType 名。"
-msgstr "Maya nodeType name."
-
-msgid "登録済みまたはフォールバックのラッパークラス。"
-msgstr "Registered or fallback wrapper class."
-
-msgid "フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う （例: Plug のアトリビュート型 dispatch）。"
-msgstr "Used when you only want to know if \"there is a complete registration match\" (e.g., Plug attribute type dispatch)."
-
-msgid "登録キー（nodeType またはアトリビュート型など）。"
-msgstr "Registration key (nodeType or attribute type, etc.)."
-
-msgid "登録済みクラス。"
-msgstr "Registered classes."
-
-msgid "同じキーが既にある場合は上書きする。"
-msgstr "If the same key already exists, it will be overwritten."
-
-msgid "ノードをラップする mlib クラス。"
-msgstr "mlib class that wraps nodes."
-
-msgid "node_type が空文字列または文字列以外の場合。"
-msgstr "When node_type is an empty string or not a string."
-
-msgid "wrapper_class がクラスでない場合。"
-msgstr "The ``wrapper_class`` is not a class."
-
-msgid "全入力を検証してから置き換えるため、不正な入力で現在の登録を失わない。"
-msgstr "Validate every entry before replacement so invalid input does not discard existing registrations."
-
-msgid "型名からラッパークラスへの対応表。"
-msgstr "Mapping table from type names to wrapper classes."
-
-msgid "キーが空文字列または文字列以外の場合。"
-msgstr "The key is an empty string or not a string."
-
-msgid "値がクラスでない場合。"
-msgstr "When the value is not a class."
-
-msgid "完全一致する登録が無く ``resolve_inherited_types`` が有効な場合、 Maya のノードタイプ継承チェーンを直接の親から基底型へ向かって辿り、 最初に見つかった登録済み祖先型のクラスを返す。例えばプラグインが ``locator`` を継承した独自ノードタイプを追加した場合でも、 ``locator`` 用に登録済みのクラスが選ばれる。"
-msgstr "If no exact registration match is found and ``resolve_inherited_types`` is valid, it traverses Maya's node type inheritance chain from the direct parent to the base type, and returns the first registered ancestor class found. For example, even if a plug-in adds a custom node type inheriting from ``locator``, the registered class for ``locator`` will be selected."
-
-msgid "登録済み、継承チェーン経由、またはフォールバックのラッパークラス。"
-msgstr "Registered, inherited via inheritance chain, or fallback wrapper class."
-
-msgid "プロパティ・アトリビュート"
-msgstr "Property Attribute"
-
-msgid ":py:obj:`_classes <mlib._core.registry.NodeRegistry._classes>`\\"
-msgstr ":py:obj:`_classes <mlib._core.registry.NodeRegistry._classes>`\\"
-
-msgid ":py:obj:`_fallback_class <mlib._core.registry.NodeRegistry._fallback_class>`\\"
-msgstr ":py:obj:`_fallback_class <mlib._core.registry.NodeRegistry._fallback_class>`\\"
-
-msgid ":py:obj:`_resolve_inherited_types <mlib._core.registry.NodeRegistry._resolve_inherited_types>`\\"
-msgstr ":py:obj:`_resolve_inherited_types <mlib._core.registry.NodeRegistry._resolve_inherited_types>`\\"
-
-msgid "mlib._core.registry"
-msgstr "mlib._core.registry"
-
-msgid "Mayaの型名と明示したラッパークラスの対応を管理する。"
-msgstr "Manage explicit mappings from Maya type names to wrapper classes."
-
-msgid ":py:obj:`NodeRegistry <mlib._core.registry.NodeRegistry>`\\"
-msgstr ":py:obj:`NodeRegistry <mlib._core.registry.NodeRegistry>`\\"
-
-msgid "mlib._core.reload"
-msgstr "mlib._core.reload"
-
-msgid "パッケージ内の参照関係に従ってモジュールを再読み込みする。"
-msgstr "Reload modules according to the reference relationships within the package."
-
-msgid ":py:obj:`reload_package <mlib._core.reload.reload_package>`\\ \\(package\\_name\\)"
-msgstr ":py:obj:`reload_package <mlib._core.reload.reload_package>`\\ \\(package\\_name\\)"
-
-msgid "package_name 配下の Python module を検出し、依存順に再読み込みする。"
-msgstr "Detects Python modules under the ``package_name`` and reloads them in dependency order."
-
-msgid "現在存在する module を package から走査するため、新しい wrapper の追加や 既存 module の削除も反映できる。依存関係は各 module の globals にある class / function / module 参照から推定する。"
-msgstr "To scan for currently existing modules from the package, new wrappers can be added and existing modules can be removed to reflect changes. Dependencies are estimated from class/function/module references in each module's globals."
-
-msgid "再読み込みする package の完全修飾名。"
-msgstr "Fully qualified name of the package to reload."
-
-msgid "再読み込みした module の tuple。"
-msgstr "Tuple of reloaded modules."
-
-msgid "mlib._core.skinEdit"
-msgstr ""
-
-msgid "skinClusterのウェイト移送とinfluence解除をOpenMayaで実行する。"
-msgstr "Transfer skinCluster weights and remove influences with OpenMaya."
-
-msgid ":py:obj:`_removal_structure <mlib._core.skinEdit._removal_structure>`\\ \\(skin\\, source\\, logical\\)"
-msgstr ""
-
-msgid "influenceとbindPoseの除去対象を、値を変更せず解決する。"
-msgstr "Resolve influence and bindPose removal targets without changing values."
-
-msgid ":py:obj:`_validate_removal_locks <mlib._core.skinEdit._validate_removal_locks>`\\ \\(remove\\)"
-msgstr ""
-
-msgid "親を含むロックを、全ての配列削除より前に確認する。"
-msgstr "Check locks, including parent locks, before any array deletions."
-
-msgid ":py:obj:`remove_influence <mlib._core.skinEdit.remove_influence>`\\ \\(skin\\, source\\)"
-msgstr ""
-
-msgid "残存ウェイトとbindPoseの構造を検査後にinfluenceを登録解除する。"
-msgstr "Validate remaining weights and the bindPose structure before unregistering an influence."
-
-msgid ":py:obj:`transfer_weights <mlib._core.skinEdit.transfer_weights>`\\ \\(skin\\, pairs\\)"
-msgstr ""
-
-msgid "skinPercentの移送とinteractive正規化を再現する。"
-msgstr "Reproduce skinPercent weight transfer and interactive normalization."
-
-msgid ":py:obj:`validate_removal <mlib._core.skinEdit.validate_removal>`\\ \\(skin\\, source\\)"
-msgstr ""
-
-msgid "ウェイト移送・修復前に構造の変更可否を確認する。"
-msgstr "Check whether structural changes are allowed before transferring or repairing weights."
-
-msgid "対象。"
-msgstr "Target."
-
-msgid "除去するinfluence。"
-msgstr "Influence to remove."
-
-msgid "influenceの論理番号。"
-msgstr "Logical index of the influence."
-
-msgid "除去する構造プラグ。"
-msgstr "Structural plugs to remove."
-
-msgid "除去予定の配列要素。"
-msgstr "Array elements scheduled for removal."
-
-msgid "対象skinCluster。単一meshに限定する。"
-msgstr "Target skinCluster, restricted to a single mesh."
-
-msgid "登録解除するinfluence。"
-msgstr "Influence to unregister."
-
-msgid "更新先。"
-msgstr "Update destination."
-
-msgid "検証済みのinfluence名ペア。"
-msgstr "Validated pairs of influence names."
-
-msgid "mlib._core.space"
-msgstr "mlib._core.space"
-
-msgid "オブジェクトAPIのワールド空間指定を検証する。"
-msgstr "Verify world-space specification for object API."
-
-msgid ":py:obj:`world_space <mlib._core.space.world_space>`\\ \\(value\\)"
-msgstr ":py:obj:`world_space <mlib._core.space.world_space>`\\ \\(value\\)"
-
-msgid "boolの空間指定を検証する。"
-msgstr "Validate boolean namespace specification."
-
-msgid "Trueはワールド空間、Falseはローカル空間。"
-msgstr "True is world space, False is local space."
-
-msgid "検証済みの指定。"
-msgstr "Verified assignments."
-
-msgid "bool以外を指定した場合。"
-msgstr "When a value other than bool is specified."
-
-msgid "mlib._core.typeHierarchy"
-msgstr "mlib._core.typeHierarchy"
-
-msgid "Maya ノードタイプの継承チェーンを取得・キャッシュする。"
-msgstr "Get and cache the inheritance chain of Maya node types."
-
-msgid ":py:obj:`clear_cache <mlib._core.typeHierarchy.clear_cache>`\\ \\(\\)"
-msgstr ":py:obj:`clear_cache <mlib._core.typeHierarchy.clear_cache>`\\ \\(\\)"
-
-msgid "キャッシュを消去する。"
-msgstr "Clear the cache."
-
-msgid ":py:obj:`inherited_node_types <mlib._core.typeHierarchy.inherited_node_types>`\\ \\(node\\_type\\)"
-msgstr ":py:obj:`inherited_node_types <mlib._core.typeHierarchy.inherited_node_types>`\\ \\(node\\_type\\)"
-
-msgid "指定ノードタイプの継承チェーンを取得する。"
-msgstr "Get the inheritance chain of the specified node type."
-
-msgid "``cmds.nodeType(node_type, isTypeName=True, inherited=True)`` は ノードの実体を必要とせず型名だけで継承関係を照会できる一方、都度 Maya に問い合わせるとやや低速なため、認識済みの型名だけ結果をキャッシュする。 未知型は後からプラグインが導入される可能性があるため、負結果を保存しない。 Maya API 2.0 に同等の照会手段が無いため cmds を使用する。"
-msgstr "``cmds.nodeType(node_type, isTypeName=True, inherited=True)`` queries inheritance by type name without a node instance. Since repeated queries take time, only recognized types are cached. Failed queries are not cached because a plug-in may introduce the type later. cmds is used because API 2.0 has no equivalent query."
-
-msgid "node_type 自身を先頭に、直接の親から基底型へ     向かう順の継承チェーン。Maya が認識しない型名の場合は     node_type 自身のみを含む1要素の tuple。"
-msgstr "``node_type`` itself at the head, followed by the inheritance chain in order from direct parent to base type. A one-element tuple containing only the ``node_type`` itself if the type name is not recognized by Maya."
-
-msgid "node_type 自身を先頭に、直接の親から基底型へ"
-msgstr "``node_type`` itself at the beginning, followed by direct parents up to the base type"
-
-msgid "向かう順の継承チェーン。Maya が認識しない型名の場合は node_type 自身のみを含む1要素の tuple。"
-msgstr "Tuple containing the inheritance chain in order of traversal. If the type name is not recognized by Maya, it will be a single-element tuple containing only the ``node_type`` itself."
-
-msgid "mlib._core.unitValue"
-msgstr "mlib._core.unitValue"
-
-msgid "MPlugの単位定義に基づく内部単位とコマンド単位の境界変換。"
-msgstr "Conversion between internal units and command units based on MPlug unit definitions."
-
-msgid ":py:obj:`convert <mlib._core.unitValue.convert>`\\ \\(plug\\, value\\[\\, to\\_ui\\]\\)"
-msgstr ":py:obj:`convert <mlib._core.unitValue.convert>`\\ \\(plug\\, value\\[\\, to\\_ui\\]\\)"
-
-msgid "数値・複合値を変換する。単位のない型はそのまま返す。"
-msgstr "Convert numeric and compound values. Return unitless types as-is."
-
-msgid "型を判定するプラグ。"
-msgstr "Plug that determines the type."
-
-msgid "変換する値。"
-msgstr "Value to convert."
-
-msgid "Trueはcm/rad/秒からUI単位、Falseは逆方向。"
-msgstr "True converts from cm/rad/sec to UI units, False converts in the opposite direction."
-
-msgid "変換した値。行列や型付き配列の成分は単位変換しない。"
-msgstr "Converted values. Components of matrices and typed arrays are not unit converted."
-
 msgid "createNode"
 msgstr "createNode"
 
@@ -2097,6 +654,9 @@ msgstr "Go to"
 
 msgid "Mayaノードを作成し、実際の型に対応するラッパーを返す。"
 msgstr "Create a Maya node and return the wrapper for its actual type."
+
+msgid "パラメータ"
+msgstr "Parameter"
 
 msgid "Mayaノード型名。"
 msgstr "Maya node type name."
@@ -2109,6 +669,12 @@ msgstr "Flags passed to maya.cmds.createNode. parent(p) requires a node and is c
 
 msgid "作成したノードのラッパー。"
 msgstr "Wrapper for the created node."
+
+msgid "戻り値の型"
+msgstr "Return type"
+
+msgid "例外"
+msgstr "Exceptions"
 
 msgid "parent が対応しない型の場合。"
 msgstr "When the parent is of an incompatible type."
@@ -2223,6 +789,9 @@ msgstr "Objects to delete, or a sequence of objects. Nested collections are also
 
 msgid "fastは各Nodeの直接削除を使う。コンポーネントのトポロジー削除には 対応せず、入力に含まれる場合は何も削除せずNotImplementedErrorにする。"
 msgstr "Fast mode uses direct deletion on each Node. Component topology deletion is unsupported; if the input includes components, NotImplementedError is raised without deleting anything."
+
+msgid "値を返さない。"
+msgstr "Does not return a value."
 
 msgid "nodes が空、または要素が空文字列・削除済みの対象の場合。"
 msgstr "If nodes is empty or an element is an empty string or a deleted object."
@@ -2524,56 +1093,14 @@ msgstr "Deselects (cannot be used with nodes)."
 msgid "その他の select フラグをそのまま渡します。"
 msgstr "Passes through other select flags as-is."
 
-msgid "mlib.common._fast"
-msgstr ""
-
-msgid "明示したfast引数の有効範囲。Undoのグローバル設定は変更しない。"
-msgstr "Explicit fast argument scope. Does not change the global Undo settings."
-
-msgid ":py:obj:`_active <mlib.common._fast._active>`\\"
-msgstr ""
-
-msgid ":py:obj:`fast_edit <mlib.common._fast.fast_edit>`\\ \\(function\\)"
-msgstr ""
-
-msgid "fast引数を検証し、内側の対応メソッドへ実行モードを伝える。"
-msgstr "Validate the fast argument and pass the execution mode to the corresponding inner method."
-
-msgid ":py:obj:`is_fast <mlib.common._fast.is_fast>`\\ \\(\\)"
-msgstr ""
-
-msgid "現在の呼出しがOpenMaya直接編集を要求しているか。"
-msgstr "Is the current call requesting direct OpenMaya editing?"
-
-msgid "外側がfastなら、省略・fast=Falseでも内側は直接更新を継承する。 各呼出しの引数は継承中もboolを検証し、開始した範囲だけを終了時に復元する。"
-msgstr "When an outer scope is fast, inner operations inherit direct updates even if fast is omitted or False. Each call still validates its fast argument as a bool, and restores only the scope it started on exit."
-
-msgid "fast 引数を持つ編集関数。"
-msgstr "Edit function with fast argument."
-
-msgid "fast の検証と実行モードの伝播を行う関数。"
-msgstr "Function that performs fast validation and propagates execution mode."
-
-msgid "mlib.common._safe"
-msgstr ""
-
-msgid "Plugのsafe指定を共通処理し、書込みに失敗した成分数を返す。"
-msgstr "Plug's safe specification is handled by a common process, and it returns the number of failed component writes."
-
-msgid ":py:obj:`safe_edit <mlib.common._safe.safe_edit>`\\ \\(function\\)"
-msgstr ""
-
-msgid "safe=Trueで書込み失敗を数え、複合値は書ける子を更新する。"
-msgstr "Count write failures with safe=True, and update the child that can write compound values."
-
-msgid "valueとsafe引数を持つPlugのsetter。"
-msgstr "Setter of Plug with value and safe arguments."
-
-msgid "通常時は元の戻り値、safe時は失敗数を返す関数。"
-msgstr "A function that returns the original return value in normal cases, but returns the number of failures in safe mode."
-
 msgid "class mlib.common.curveFit.CurveFit"
 msgstr "class mlib.common.curveFit.CurveFit"
+
+msgid "クラス継承図"
+msgstr "Class inheritance diagram"
+
+msgid "このクラスの祖先と直接の派生クラスを表示します。矢印の先が基底クラスです。 mlibのクラス名をクリックすると、そのクラスのリファレンスへ移動します。"
+msgstr "Displays the ancestors and direct derived classes of this class. The arrow points to the base class. Clicking on a class name in mlib navigates to that class's reference."
 
 msgid "等間隔clamped knotを持つ3次カーブの正則化最小二乗フィット。"
 msgstr "Regularized least squares fit of a cubic curve with equidistant clamped knots."
@@ -2616,6 +1143,9 @@ msgstr "mlib.common.curveFit"
 
 msgid "外部数値ライブラリなしで3次B-splineの制御点を近似する。"
 msgstr "Approximate control points of a cubic B-spline without external numerical libraries."
+
+msgid "Classes"
+msgstr "Classes"
 
 msgid ":py:obj:`CurveFit <mlib.common.curveFit.CurveFit>`\\"
 msgstr ":py:obj:`CurveFit <mlib.common.curveFit.CurveFit>`\\"
@@ -2686,6 +1216,9 @@ msgstr "The attribute to be retained has been deleted or the query failed."
 msgid "親・子。インスタンスの全親を含む。"
 msgstr "Parent/child. All parents including instance parents."
 
+msgid "プロパティ・アトリビュート"
+msgstr "Property Attribute"
+
 msgid ":py:obj:`_plugs <mlib.common.cycle.Cycle._plugs>`\\"
 msgstr ":py:obj:`_plugs <mlib.common.cycle.Cycle._plugs>`\\"
 
@@ -2707,11 +1240,17 @@ msgstr "mlib.common.cycle"
 msgid "Mayaが検出した循環経路と現在の接続関係を扱う。"
 msgstr "Handles circular dependencies detected by Maya and current connection relationships."
 
+msgid "Attributes"
+msgstr "Attributes"
+
 msgid ":py:obj:`_SEPARATOR <mlib.common.cycle._SEPARATOR>`\\"
 msgstr ":py:obj:`_SEPARATOR <mlib.common.cycle._SEPARATOR>`\\"
 
 msgid ":py:obj:`Cycle <mlib.common.cycle.Cycle>`\\"
 msgstr ":py:obj:`Cycle <mlib.common.cycle.Cycle>`\\"
+
+msgid "Module Contents"
+msgstr "Module Contents"
 
 msgid "class mlib.common.dampedSpring.DampedSpring"
 msgstr "class mlib.common.dampedSpring.DampedSpring"
@@ -2926,6 +1465,9 @@ msgstr ":py:obj:`_NUMERIC_SCALAR_TYPES <mlib.common.drivenKey._NUMERIC_SCALAR_TY
 msgid ":py:obj:`DrivenKey <mlib.common.drivenKey.DrivenKey>`\\"
 msgstr ":py:obj:`DrivenKey <mlib.common.drivenKey.DrivenKey>`\\"
 
+msgid "Functions"
+msgstr "Functions"
+
 msgid ":py:obj:`_contains_plug <mlib.common.drivenKey._contains_plug>`\\ \\(plugs\\, mplug\\)"
 msgstr ":py:obj:`_contains_plug <mlib.common.drivenKey._contains_plug>`\\ \\(plugs\\, mplug\\)"
 
@@ -2971,8 +1513,8 @@ msgstr "Whether to raise an exception for unsupported connection structures."
 msgid "駆動先の入力へつながる単位なし入力のカーブ。重複を含めない。"
 msgstr "Curves with unitless input connected to the driven attribute's input, without duplicates."
 
-msgid "文字列は Plug の入力解決を使うため、``str(plug)`` が返す形式(``grp1|dup.tx``、 ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。 アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない 文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため (:func:`mlib._core.attributeType.attributeType`)、検証でシーンは変更しない。"
-msgstr "Since strings use Plug's input resolution, the format returned by ``str(plug)`` (such as ``grp1|dup.tx``, ``bs.weight[0]``, alias names, ``cubeShape.pnts[1].pntx``, etc.) can be passed directly. If an attribute is not found or the name is not unique, RuntimeError is raised. Strings that do not point to attributes or incompatible types raise TypeError. Attribute types are determined from attribute definitions (:func:`mlib._core.attributeType.attributeType`), so the scene is not modified during validation."
+msgid "文字列は Plug の入力解決を使うため、``str(plug)`` が返す形式(``grp1|dup.tx``、 ``bs.weight[0]``、エイリアス名、``cubeShape.pnts[1].pntx`` など)をそのまま渡せる。 アトリビュートが見つからない、または名前が一意でない場合は RuntimeError、アトリビュートを指さない 文字列や対応しない型は TypeError。アトリビュート型はアトリビュート定義から判定するため (:func:`mlib.core.attributeType.attributeType`)、検証でシーンは変更しない。"
+msgstr "Strings use Plug input resolution, so formats returned by ``str(plug)`` can be passed directly, including ``grp1|dup.tx``, ``bs.weight[0]``, alias names, and ``cubeShape.pnts[1].pntx``. A missing attribute or ambiguous name raises RuntimeError. A string that does not identify an attribute, or an unsupported type, raises TypeError. The attribute type is determined from its definition (:func:`mlib.core.attributeType.attributeType`), so validation does not change the scene."
 
 msgid "数値スカラーのPlugまたはアトリビュート名。"
 msgstr "Numeric scalar Plug or attribute name."
@@ -2986,33 +1528,6 @@ msgstr "Attribute whose sources are queried."
 msgid "単位変換ノードを透過した接続元。未接続なら空。"
 msgstr "Sources through unit-conversion nodes, or an empty list when unconnected."
 
-msgid "mlib.common.evaluation"
-msgstr "mlib.common.evaluation"
-
-msgid "呼び出し側が指定した評価処理を計測する。Mayaの評価設定は変更しない。"
-msgstr "Measure the evaluation process specified by the caller. Do not modify Maya's evaluation settings."
-
-msgid ":py:obj:`measure <mlib.common.evaluation.measure>`\\ \\(operation\\[\\, samples\\, warmup\\]\\)"
-msgstr ":py:obj:`measure <mlib.common.evaluation.measure>`\\ \\(operation\\[\\, samples\\, warmup\\]\\)"
-
-msgid "操作の所要時間を秒単位で返す。"
-msgstr "Returns the elapsed time of the operation in seconds."
-
-msgid "入力更新と評価を含む操作。各回で呼ぶ。"
-msgstr "Operations including input update and evaluation. Called each time."
-
-msgid "記録する回数。"
-msgstr "Number of times to record."
-
-msgid "記録前の実行回数。"
-msgstr "Number of executions before recording."
-
-msgid "samples、median_seconds、min_seconds、max_seconds。"
-msgstr "samples、median_seconds、min_seconds、max_seconds。"
-
-msgid "同じ値を読むだけではキャッシュの速度になる。必要なdirty化は 呼び出し側で行う。処理の副作用や時間位置も呼び出し側が管理する。"
-msgstr "Simply reading the same value does not benefit from caching. The necessary dirtying must be handled by the caller. Side effects of processing and temporal positioning are also managed by the caller."
-
 msgid "mlib.common"
 msgstr "mlib.common"
 
@@ -3021,6 +1536,9 @@ msgstr "Provide entry points for Maya state, environment, events, and common ope
 
 msgid "各公開名は利用時に解決する。Node/Plugの初期化中に選択関連のクラスを 先行importせず、再読み込み後も現在の実装モジュールから取得する。"
 msgstr "Resolve public names when used. Do not import selection-related classes prematurely during Node/Plug initialization; after reload, retrieve them from the current implementation modules."
+
+msgid "Submodules"
+msgstr "Submodules"
 
 msgid ":py:obj:`__all__ <mlib.common.__all__>`\\"
 msgstr ""
@@ -3054,30 +1572,6 @@ msgstr "Class, function, constant, or module."
 
 msgid "定義されていない公開名の場合。"
 msgstr "When the public name is undefined."
-
-msgid "mlib.common.mirror"
-msgstr "mlib.common.mirror"
-
-msgid "ミラー操作に共通する軸と中心の入力検証。"
-msgstr "Input validation for common axes and center in mirror operations."
-
-msgid ":py:obj:`mirrorArguments <mlib.common.mirror.mirrorArguments>`\\ \\(axis\\, pivot\\)"
-msgstr ":py:obj:`mirrorArguments <mlib.common.mirror.mirrorArguments>`\\ \\(axis\\, pivot\\)"
-
-msgid "反転軸と有限な中心座標を検証する。"
-msgstr "Verify inverted axes and finite center coordinates."
-
-msgid "重複のないxyz文字列、または0/1/2。"
-msgstr "Unique xyz string or 0/1/2."
-
-msgid "3成分の中心座標。"
-msgstr "3-component center coordinates."
-
-msgid "軸番号のtupleと中心座標のtuple。"
-msgstr "Tuple of axis numbers and tuple of center coordinates."
-
-msgid "軸や中心が不正な場合。"
-msgstr "When the axis or center is invalid."
 
 msgid "class mlib.common.module.Module"
 msgstr "class mlib.common.module.Module"
@@ -3147,6 +1641,9 @@ msgstr ""
 
 msgid "モジュールの版が ``minimum`` 以上か判定する。"
 msgstr "Check if the module version is ``minimum`` or higher."
+
+msgid "比較対象。"
+msgstr "Compare with saved."
 
 msgid "Module 同士は名前の一致。異なる型では NotImplemented。"
 msgstr "Modules must have identical names. For different types, return NotImplemented."
@@ -3463,81 +1960,6 @@ msgstr "Provides reference, creation, movement, and deletion of Maya namespaces.
 msgid ":py:obj:`Namespace <mlib.common.namespace.Namespace>`\\"
 msgstr ":py:obj:`Namespace <mlib.common.namespace.Namespace>`\\"
 
-msgid "mlib.common.naming"
-msgstr "mlib.common.naming"
-
-msgid "任意の文字列から Maya のノード名に使える文字列を組み立てる。Maya非依存。"
-msgstr "Create usable Maya node names from arbitrary strings. Maya-independent."
-
-msgid "Maya のノード名と名前空間名は、いずれも ASCII 英字・数字・アンダースコア だけで構成し、数字で始めてはならない。名前空間はコロン ``:`` で区切って 連結する。本モジュールはこの規則を区間(コロン区切りの1要素)単位で満たす 文字列を返す関数を提供する。"
-msgstr "Maya node names and namespace names are composed only of ASCII letters, digits, and underscores, and must not begin with a digit. Namespaces are concatenated using colons ``:``. This module provides functions that return strings satisfying this rule for each colon-delimited segment."
-
-msgid ":py:obj:`_FILLER <mlib.common.naming._FILLER>`\\"
-msgstr ":py:obj:`_FILLER <mlib.common.naming._FILLER>`\\"
-
-msgid ":py:obj:`_NOT_AT_HEAD <mlib.common.naming._NOT_AT_HEAD>`\\"
-msgstr ":py:obj:`_NOT_AT_HEAD <mlib.common.naming._NOT_AT_HEAD>`\\"
-
-msgid ":py:obj:`_PERMITTED <mlib.common.naming._PERMITTED>`\\"
-msgstr ":py:obj:`_PERMITTED <mlib.common.naming._PERMITTED>`\\"
-
-msgid ":py:obj:`_SEPARATOR <mlib.common.naming._SEPARATOR>`\\"
-msgstr ":py:obj:`_SEPARATOR <mlib.common.naming._SEPARATOR>`\\"
-
-msgid ":py:obj:`_clean_segment <mlib.common.naming._clean_segment>`\\ \\(segment\\)"
-msgstr ":py:obj:`_clean_segment <mlib.common.naming._clean_segment>`\\ \\(segment\\)"
-
-msgid "コロンで区切られた1区間を、単独で有効な識別子へ整える。"
-msgstr "Convert a single segment separated by colons into a valid standalone identifier."
-
-msgid ":py:obj:`legalizeName <mlib.common.naming.legalizeName>`\\ \\(name\\)"
-msgstr ":py:obj:`legalizeName <mlib.common.naming.legalizeName>`\\ \\(name\\)"
-
-msgid "文字列を Maya のノード名として受け付けられる形へ変換する。"
-msgstr "Converts a string to a form acceptable as a Maya node name."
-
-msgid "前後の空白を落とし、使えない文字が連続する箇所は1文字の ``_`` に まとめる。入力にもともと含まれる ``_`` はそのまま残す。整えた結果が 数字で始まる場合は先頭に ``_`` を足す。"
-msgstr "Trim leading and trailing whitespace, and replace consecutive invalid characters with a single ``_``. Leave any ``_`` already present in the input unchanged. If the resulting output starts with a digit, prepend ``_`` to it."
-
-msgid "コロンを含まない1区間。"
-msgstr "A single segment without a colon."
-
-msgid "整えた区間。空白だけ、または空の区間なら空文字。"
-msgstr "Formatted interval. Empty string for whitespace only, or empty intervals."
-
-msgid "コロン ``:`` を名前空間の区切りとして残し、区切られた各区間(名前空間名と 末尾のノード名)に同じ規則を当てる。"
-msgstr "Leave the colon ``:`` as a namespace separator and apply the same rule to each segment separated by it (the namespace name and the trailing node name)."
-
-msgid "各区間の前後の空白は取り除く。"
-msgstr "Remove leading and trailing whitespace from each line."
-
-msgid "ASCII 英字・数字・``_`` 以外の文字(途中の空白、記号、``|``、``.``、 非ASCII文字など)は、連続している範囲ごとに1つの ``_`` へ置き換える。"
-msgstr "ASCII letters, digits, and ``_`` other than characters (such as spaces, symbols, ``|``, ``.``, non-ASCII characters, etc.) are replaced with a single ``_`` for each contiguous range."
-
-msgid "数字で始まる区間には先頭に ``_`` を足す(``\"ns:1abc\"`` は ``\"ns:_1abc\"``)。"
-msgstr "For intervals starting with digits, prepend ``_`` (for example, ``\"ns:1abc\"`` is ``\"ns:_1abc\"``)."
-
-msgid "空になった区間は捨てる(``\"a::b\"`` は ``\"a:b\"``、``\"ns:\"`` は ``\"ns\"``)。"
-msgstr "Empty intervals are discarded (where ``\"a::b\"`` is ``\"a:b\"``, and ``\"ns:\"`` is ``\"ns\"``)."
-
-msgid "先頭のコロンはルート名前空間からの指定とみなし、1つだけ残す。"
-msgstr "The leading colon is interpreted as a root namespace specification, leaving only one colon."
-
-msgid "有効な区間が1つも残らない場合は ``\"_\"`` を返す。"
-msgstr "If no valid intervals remain, return ``\"_\"``."
-
-msgid "変換したい文字列。"
-msgstr "Converted string."
-
-msgid "Maya のノード名として有効な文字列。"
-msgstr "Valid string for Maya node names."
-
-msgid "name が str でない場合。"
-msgstr "When the name is not of type str."
-
-msgid "サンプル"
-msgstr "Sample"
-
 msgid "class mlib.common.plugin.Plugin"
 msgstr "class mlib.common.plugin.Plugin"
 
@@ -3738,6 +2160,9 @@ msgstr "Handles the product's import status from modules (versions' sources) and
 
 msgid "``Bifrost`` は Autodesk のインストーラーが Maya のバージョン別にモジュールとして 登録し、複数のプラグインで構成される。この型は「必要な版が入っているか」の確認、 「全プラグインのロード」、「入っていない場合の警告」を 1 つにまとめる。"
 msgstr "``Bifrost`` is registered by Autodesk's installer as a module for each version of Maya, consisting of multiple plug-ins. This type consolidates the verification of whether the required version is installed, loading of all plug-ins, and warnings for missing components into a single unit."
+
+msgid "サンプル"
+msgstr "Sample"
 
 msgid ":py:obj:`__init__ <mlib.common.pluginPackage.PluginPackage.__init__>`\\ \\(name\\[\\, plugins\\, module\\, version\\_plugin\\, ...\\]\\)"
 msgstr ":py:obj:`__init__ <mlib.common.pluginPackage.PluginPackage.__init__>`\\ \\(name\\[\\, plugins\\, module\\, version\\_plugin\\, ...\\]\\)"
@@ -5035,8 +3460,8 @@ msgstr ":py:obj:`Version <mlib.common.version.Version>`\\"
 msgid "class mlib.components.component.Component"
 msgstr "class mlib.components.component.Component"
 
-msgid "ベースクラス: :py:obj:`mlib._core.object.Object`"
-msgstr "Base class: :py:obj:`mlib._core.object.Object`"
+msgid "ベースクラス: :py:obj:`mlib.core.object.Object`"
+msgstr "Base class: :py:obj:`mlib.core.object.Object`"
 
 msgid "シェイプと番号を保持する単体コンポーネントへの参照。"
 msgstr "Reference to a single component that holds shape and number."
@@ -6160,11 +4585,1091 @@ msgstr ":py:obj:`Vertex <mlib.components.vertex.Vertex>`\\"
 msgid ":py:obj:`Vertices <mlib.components.vertex.Vertices>`\\"
 msgstr ":py:obj:`Vertices <mlib.components.vertex.Vertices>`\\"
 
+msgid "mlib.core.attributeEdit"
+msgstr ""
+
+msgid "動的アトリビュートをシーン変更前に組み立て、OpenMayaで追加する。"
+msgstr "Build dynamic attributes before changing the scene, then add them with OpenMaya."
+
+msgid ":py:obj:`_DATA_TYPES <mlib.core.attributeEdit._DATA_TYPES>`\\"
+msgstr ""
+
+msgid ":py:obj:`_DEFINITION_FLAGS <mlib.core.attributeEdit._DEFINITION_FLAGS>`\\"
+msgstr ""
+
+msgid ":py:obj:`_NUMERIC_TYPES <mlib.core.attributeEdit._NUMERIC_TYPES>`\\"
+msgstr ""
+
+msgid ":py:obj:`_PROPERTIES <mlib.core.attributeEdit._PROPERTIES>`\\"
+msgstr ""
+
+msgid ":py:obj:`_attach <mlib.core.attributeEdit._attach>`\\ \\(node\\, attribute\\)"
+msgstr ""
+
+msgid "構築済み定義をノードへ一回で追加する。"
+msgstr "Add prebuilt definitions to a node in one operation."
+
+msgid ":py:obj:`_build <mlib.core.attributeEdit._build>`\\ \\(flags\\[\\, children\\]\\)"
+msgstr ""
+
+msgid "未登録のアトリビュート定義を作る。失敗してもシーンは変えない。"
+msgstr "Create an unregistered attribute definition. Failure does not change the scene."
+
+msgid ":py:obj:`add_attribute <mlib.core.attributeEdit.add_attribute>`\\ \\(node\\, flags\\)"
+msgstr ""
+
+msgid "単一の動的アトリビュートを追加する。"
+msgstr "Add a single dynamic attribute."
+
+msgid ":py:obj:`create_extra_attribute <mlib.core.attributeEdit.create_extra_attribute>`\\ \\(node\\, name\\, flags\\, numeric\\, ...\\)"
+msgstr ""
+
+msgid "Node.addAttrの親子定義を登録前に全て作る。"
+msgstr "Build all parent and child definitions for Node.addAttr before registration."
+
+msgid ":py:obj:`extra_children <mlib.core.attributeEdit.extra_children>`\\ \\(name\\, flags\\, numeric\\, count\\, deferred\\, ...\\)"
+msgstr ""
+
+msgid "自動生成する子の名前・成分数を、親追加より前に検証する。"
+msgstr "Validate generated child names and component counts before adding the parent."
+
+msgid ":py:obj:`validate_extra_attribute <mlib.core.attributeEdit.validate_extra_attribute>`\\ \\(node\\, name\\, flags\\, count\\, ...\\)"
+msgstr ""
+
+msgid "名前の衝突と検証可能なtyped既定値を、シーン変更前に拒否する。"
+msgstr "Reject name conflicts and invalid typed defaults that can be checked before changing the scene."
+
+msgid "追加先。"
+msgstr "Destination node."
+
+msgid "シーン未登録のアトリビュート定義。"
+msgstr "Attribute definition not yet registered in the scene."
+
+msgid "正規化済みのaddAttrフラグ。"
+msgstr "Normalized addAttr flags."
+
+msgid "先に構築した子定義。"
+msgstr "Previously built child definitions."
+
+msgid "新しいアトリビュート定義。"
+msgstr "New attribute definition."
+
+msgid "親名。"
+msgstr "Parent name."
+
+msgid "親フラグ。"
+msgstr "Parent flags."
+
+msgid "数値複合型の一致結果。"
+msgstr "Numeric compound-type match."
+
+msgid "子数。"
+msgstr "The child count."
+
+msgid "子の既定値。"
+msgstr "Child default value."
+
+msgid "子の長名。"
+msgstr "Child long name."
+
+msgid "子の短名。"
+msgstr "Child short name."
+
+msgid "子名の接尾辞。"
+msgstr "Suffixes for child names."
+
+msgid "子の型。"
+msgstr "The child type."
+
+msgid "型付き既定値の検証済み書込み計画。データownerを含む。"
+msgstr "Validated write plan for the typed default, including its data owner."
+
+msgid "親の長名。"
+msgstr "Parent long name."
+
+msgid "親の正規化済みフラグ。変更しない。"
+msgstr "Normalized parent flags. Not modified."
+
+msgid "子へ配る既定値。"
+msgstr "Default value to distribute to children."
+
+msgid "自動生成名の接尾辞。"
+msgstr "Suffix for generated names."
+
+msgid "子の共通型。"
+msgstr "Shared child type."
+
+msgid "長名・型・公開addAttrへ渡すフラグ。"
+msgstr "Long name, type, and flags passed to the public addAttr API."
+
+msgid "親の正規化済みフラグ。"
+msgstr "Normalized parent flags."
+
+msgid "作成後に設定する既定値。"
+msgstr "Default value to set after creation."
+
+msgid "検証済みの子の作成入力。"
+msgstr "Validated inputs for child creation."
+
+msgid "通常経路の既定値も登録前に検証するか。 fast経路では未登録の親子定義の構築時に検証するためFalse。"
+msgstr "Whether to validate defaults before registration in the normal path as well. False in the fast path, which validates while building unregistered parent and child definitions."
+
+msgid "mlib.core.attributeType"
+msgstr ""
+
+msgid "アトリビュートの型名を Maya API 2.0 のアトリビュート定義から求める(シーンを変更しない)。"
+msgstr "Get the attribute type name from the Maya API 2.0 attribute definition (does not modify the scene)."
+
+msgid "Plug の派生クラスの選択(:class:`~mlib.core.registry.NodeRegistry` のアトリビュート型キー)と、 ``Plug.set()`` の配列型の判定に使う型名を、``cmds.getAttr(<プラグ名>, type=True)`` と 同じ文字列で返す。``cmds.getAttr(type=True)`` は存在しない配列要素を問い合わせると 要素を作り(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、 nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終了し、mesh の内部アトリビュート (``edge[i]``・``face[i]`` など)では例外になる。この関数はプラグの値を読まず、 アトリビュート定義(``MFnAttribute`` の各派生クラス)だけから型名を決めるため、存在しない要素でも シーンを変更せず、評価も起こさない。"
+msgstr "Return the type name used to select a Plug subclass (the attribute-type key in :class:`~mlib.core.registry.NodeRegistry`) and identify array types in ``Plug.set()``, using the same strings as ``cmds.getAttr(<プラグ名>, type=True)``. Querying a nonexistent array element with ``cmds.getAttr(type=True)`` creates the element; blendShape ``weight[i]`` also creates related elements such as ``parentDirectory[i]``. Querying nonexistent elements of nurbsSurface ``patchUVIds`` can crash Maya, while internal mesh attributes such as ``edge[i]`` and ``face[i]`` raise exceptions. This function determines the type name solely from the attribute definition (the subclasses of ``MFnAttribute``), without reading the plug value. It therefore neither changes the scene nor triggers evaluation, even for nonexistent elements."
+
+msgid "アトリビュートの種類と結果:"
+msgstr "Attribute types and results:"
+
+msgid "アトリビュート"
+msgstr "attribute"
+
+msgid "結果"
+msgstr "Results"
+
+msgid "数値(``MFnNumericAttribute``)"
+msgstr "numeric(``MFnNumericAttribute``)"
+
+msgid "``bool``/``byte``/``char``/``short``/``long``/``float``/``double``/``addr`` と、 複合数値の ``double3``/``float3``/``long2`` など(``numericType()`` による)"
+msgstr "``bool``/``byte``/``char``/``short``/``long``/``float``/``double``/``addr`` and composite values such as ``double3``/``float3``/``long2`` (by ``numericType()``)"
+
+msgid "単位(``MFnUnitAttribute``)"
+msgstr "Unit(``MFnUnitAttribute``)"
+
+msgid "``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``"
+msgstr "``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``"
+
+msgid "enum・message"
+msgstr "enum, message"
+
+msgid "``enum``・``message``"
+msgstr "``enum``, ``message``"
+
+msgid "行列(``MFnMatrixAttribute``)"
+msgstr "matrix(``MFnMatrixAttribute``)"
+
+msgid "``matrix`` (float の行列も ``cmds.getAttr`` と同じく ``matrix``)"
+msgstr "``matrix`` (same as ``cmds.getAttr`` for float matrices, ``matrix``)"
+
+msgid "型付き(``MFnTypedAttribute``)"
+msgstr "Typed (``MFnTypedAttribute``)"
+
+msgid "``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve`` など。 API 2.0 に列挙値の無いデータ型(``Int64Array``・``floatVectorArray``・ データ型指定の ``double3`` など)は ``MFnAttribute.getAddAttrCmd()`` のデータ型名"
+msgstr "``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve``, etc. Data types without enumeration values in API 2.0 (such as ``Int64Array``, ``floatVectorArray``, and data type specification ``double3``) are named ``MFnAttribute.getAddAttrCmd()``."
+
+msgid "複合(``MFnCompoundAttribute``)・lightData"
+msgstr "Composite(``MFnCompoundAttribute``), lightData"
+
+msgid "``TdataCompound``"
+msgstr "``TdataCompound``"
+
+msgid "不透明(opaque)"
+msgstr "opaque"
+
+msgid "``getAddAttrCmd()`` のアトリビュート型名(``TattributeCtypeOf<...>``)"
+msgstr "``getAddAttrCmd()`` attribute type name (``TattributeCtypeOf<...>``)"
+
+msgid "保持する値によって ``cmds.getAttr(type=True)`` の結果が変わるアトリビュート(generic アトリビュート、 任意のデータを受け付ける typed アトリビュート、``geometry`` 型など)は、値を読まない限り 型名が決まらないため ``None`` を返す。"
+msgstr "Depending on the value to be retained, the result of ``cmds.getAttr(type=True)`` for attributes (generic attributes, typed attributes that accept any data, ``geometry`` type, etc.) is undetermined until the value is read, so it returns ``None``."
+
+msgid "例外として、mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも、Maya が内部で float の頂点座標として扱い ``cmds.getAttr(type=True)`` が ``float3`` を返すため、 ``float3`` を返す(nurbsCurve・nurbsSurface・lattice は ``double3``)。"
+msgstr "As an exception, the ``controlPoints`` of mesh is such that even if the attribute definition is ``double3``, Maya internally treats the vertex coordinates as float and ``cmds.getAttr(type=True)`` returns ``float3``, thus returning ``float3`` (nurbsCurve, nurbsSurface, lattice are ``double3``)."
+
+msgid ":py:obj:`attributeType <mlib.core.attributeType.attributeType>`\\ \\(mplug\\)"
+msgstr ""
+
+msgid "プラグのアトリビュート型名を、``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列で返す。"
+msgstr "Returns the attribute type name of a plug as a string identical to ``cmds.getAttr(<プラグ名>, type=True)``."
+
+msgid ":py:obj:`is_internal_data_type <mlib.core.attributeType.is_internal_data_type>`\\ \\(mplug\\)"
+msgstr ""
+
+msgid "Maya 内部のデータ型(``cmds.addAttr`` で作成できない型)の型付きアトリビュートか判定する。"
+msgstr "Check if the attribute is a typed attribute of a data type that cannot be created with ``cmds.addAttr``."
+
+msgid ":py:obj:`value_reader <mlib.core.attributeType.value_reader>`\\ \\(attribute\\)"
+msgstr ""
+
+msgid "``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。"
+msgstr "``Plug.get()`` selects functions that read values directly from MPlug, rather than from attribute definitions."
+
+msgid "アトリビュート定義だけから求めるため、存在しない配列要素や、``cmds.getAttr`` が例外になる mesh の内部アトリビュートにも使え、シーンを変更しない。配列プラグは要素の型名を返す (``cmds.getAttr(type=True)`` を配列全体に使った結果とは異なる)。規則はモジュールの 説明を参照。"
+msgstr "Since it is calculated from the attribute definition alone, it can be used even for non-existent array elements and internal mesh attributes where ``cmds.getAttr`` would otherwise raise an exception, and it does not modify the scene. For array plugs, it returns the type name of the elements (the result differs from using ``cmds.getAttr(type=True)`` on the entire array). Refer to the module's description for the rules."
+
+msgid "対象のプラグ。"
+msgstr "Target plug."
+
+msgid "``double3``/``doubleLinear``/``matrix`` などの型名。値によって型が     変わるアトリビュート(generic アトリビュートなど)は None。"
+msgstr "Type names such as ``double3``/``doubleLinear``/``matrix``. For generic attributes (such as generic attributes), where the type changes depending on the value, use None."
+
+msgid "``double3``/``doubleLinear``/``matrix`` などの型名。値によって型が"
+msgstr "Type names such as ``double3``/``doubleLinear``/``matrix``. The type is determined by the value."
+
+msgid "変わるアトリビュート(generic アトリビュートなど)は None。"
+msgstr "For generic attributes (such as generic attributes), the value is None."
+
+msgid "アトリビュートが削除されて存在しない場合(Undo の対象から外れた削除済みの 動的アトリビュートなど)。"
+msgstr "An attribute that has been deleted and no longer exists (such as a dynamically added attribute that was deleted and is no longer part of the undo history)."
+
+msgid "nurbsSurface の ``patchUVIds`` (``nurbsPatchUVIds``)のような内部のデータ型は、 存在しない配列要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。 mlibはこれらの存在しない要素の値を読まず、``Plug.get()`` でRuntimeErrorにする。 要素の参照取得だけでは値を評価しない。任意のデータを受け付ける 型付きアトリビュート(値によって型が変わるアトリビュート)は対象外。"
+msgstr "Reading the value or type of a nonexistent array element with maya.cmds or MPlug can crash Maya for internal data types such as nurbsSurface's ``patchUVIds`` (``nurbsPatchUVIds``). mlib does not read values from these nonexistent elements; ``Plug.get()`` raises RuntimeError instead. Retrieving an element reference alone does not evaluate its value. Typed attributes accepting arbitrary data, whose type depends on the value, are excluded."
+
+msgid "内部のデータ型の型付きアトリビュートの場合は True。"
+msgstr "True for typed attribute of internal data type."
+
+msgid "アトリビュートの型はアトリビュートごとに変わらないため、Plug ごとに一度だけ求めて保持する。"
+msgstr "Since the attribute type remains constant for each attribute, we retrieve and store it only once per plug."
+
+msgid "アトリビュートの MObject。"
+msgstr "MObject attribute."
+
+msgid "MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、     角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/     stringArray/vectorArray/pointArrayが対象。それ以外は     ``_CMDS_READER`` (``cmds.getAttr`` で読む)。"
+msgstr "Function that takes MPlug and returns a value. Target attributes are numeric attributes of bool/int/float types, unit attributes of angle/distance/time, enum, string, doubleArray/Int32Array/stringArray/vectorArray/pointArray. Others return ``_CMDS_READER`` (read with ``cmds.getAttr``)."
+
+msgid "MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、"
+msgstr "Function that takes an MPlug and returns a value. Numeric attributes of type bool/int/float,"
+
+msgid "角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/ stringArray/vectorArray/pointArrayが対象。それ以外は ``_CMDS_READER`` (``cmds.getAttr`` で読む)。"
+msgstr "Angle, distance, and time unit attributes, enum, string, doubleArray/Int32Array/stringArray/vectorArray/pointArray are targets. Others are read as ``_CMDS_READER`` (read as ``cmds.getAttr``)."
+
+msgid "mlib.core.extensions"
+msgstr ""
+
+msgid "Python探索パス直下のmlib_*拡張を検出する。独自Mayaプラグインはロードしない。"
+msgstr "Detects mlib_* extensions under the Python path. Does not load custom Maya plug-ins."
+
+msgid ":py:obj:`getDiagnostics <mlib.core.extensions.getDiagnostics>`\\ \\(\\)"
+msgstr ""
+
+msgid "初期化結果と現在の依存可用性を分けて照会する。"
+msgstr "Query initialization results and current dependency availability separately."
+
+msgid ":py:obj:`status <mlib.core.extensions.status>`\\ \\(\\)"
+msgstr ""
+
+msgid "最後の初期化で得た拡張名ごとの状態と理由をコピーして返す。"
+msgstr "Return a copy of each extension's state and reason from the last initialization."
+
+msgid "既に読み込まれた宣言のis_availableだけを呼ぶ。拡張の新規import、 型登録、reload、Mayaプラグインのロードは行わない。可用性の照会自体は Python依存を遅延importする場合があるが、シーン・UIを変更してはならない。"
+msgstr "Only call is_available on declarations that are already imported. Do not import extensions, register types, reload modules, or load Maya plug-ins. Availability queries may lazily import Python dependencies, but must not change the scene or UI."
+
+msgid "拡張名ごとのinitialization、available、reason。     initializationはstatusと同じ状態のコピーで、未初期化ならNone。     availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、     reasonに理由を保持する。初期化結果と登録表は変更しない。"
+msgstr "initialization, available, and reason for each extension name. initialization is a copy of the same state as status, or None if initialization has not occurred. available is a bool indicating current availability. It is None if the extension is not loaded, is initializing, or the query fails; reason retains the explanation. Initialization results and registration tables remain unchanged."
+
+msgid "拡張名ごとのinitialization、available、reason。"
+msgstr "initialization, available, and reason for each extension."
+
+msgid "initializationはstatusと同じ状態のコピーで、未初期化ならNone。 availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、 reasonに理由を保持する。初期化結果と登録表は変更しない。"
+msgstr "initialization copies the status entry, or is None if initialization has not occurred. available is a bool for current availability; it is None for declarations not imported, initialization in progress, or query failures, with an explanation in reason. Initialization results and registries are unchanged."
+
+msgid "現在の依存可用性は再照会しない。診断だけを更新する場合はgetDiagnosticsを使う。"
+msgstr "Does not re-query current dependency availability. Use getDiagnostics to update diagnostics only."
+
+msgid "拡張名ごとの状態と理由をコピーして返す。"
+msgstr "Copy and return the status and reason for each file extension."
+
+msgid "mlib.core.fastWrite"
+msgstr ""
+
+msgid "対応する値更新のcmds/OpenMayaバックエンド。独自プラグインは使わない。"
+msgstr "Corresponding value update for cmds/OpenMaya backend. Do not use custom plug-ins."
+
+msgid ":py:obj:`_prepared_writes <mlib.core.fastWrite._prepared_writes>`\\ \\(plug\\, value\\)"
+msgstr ""
+
+msgid "全成分の型・制限を更新前に検査し、直接書込みの列を組み立てる。"
+msgstr "Validate all component types and restrictions before updating, then build a sequence of direct writes."
+
+msgid ":py:obj:`check_range <mlib.core.fastWrite.check_range>`\\ \\(plug\\, value\\[\\, \\_fn\\]\\)"
+msgstr ""
+
+msgid "cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。"
+msgstr "Similar to ``cmds.setAttr``, this checks the hard range set on an attribute."
+
+msgid ":py:obj:`prepare_data <mlib.core.fastWrite.prepare_data>`\\ \\(attribute\\, value\\, \\*\\[\\, name\\]\\)"
+msgstr ""
+
+msgid "MPlugを必要とせず、行列・typed dataの型と値を検査する。"
+msgstr "Validate matrix and typed-data types and values without requiring an MPlug."
+
+msgid ":py:obj:`set_attr <mlib.core.fastWrite.set_attr>`\\ \\(name\\, \\*values\\, \\*\\*kwargs\\)"
+msgstr ""
+
+msgid "既存のsetAttrと同じ値入力を、明示fast時だけMPlugへ渡す。"
+msgstr "For existing setAttr inputs with the same value, pass them explicitly to MPlug only in fast mode."
+
+msgid ":py:obj:`set_plug <mlib.core.fastWrite.set_plug>`\\ \\(plug\\, value\\)"
+msgstr ""
+
+msgid "全成分を事前検証してMPlugへ設定する。Undoには記録しない。"
+msgstr "Validate all components in advance and set the MPlug without recording Undo."
+
+msgid ":py:obj:`writable <mlib.core.fastWrite.writable>`\\ \\(plug\\[\\, \\_fn\\]\\)"
+msgstr ""
+
+msgid "ロック・入力接続・書込み不能アトリビュートをAPIで検査する。"
+msgstr "Check locked input connections and write-protected attributes using the API."
+
+msgid "書込み先。"
+msgstr "Write destination."
+
+msgid "内部単位の入力値。"
+msgstr "Input value in internal units."
+
+msgid "setter・プラグ・変換済み値の列。"
+msgstr "Sequence of setter, plug, and converted-value entries."
+
+msgid "API 2.0で値を構築できない型の場合。"
+msgstr "When API 2.0 cannot construct a value of this type."
+
+msgid "検査するプラグ。"
+msgstr "Plug to check."
+
+msgid "設定予定の値。単位型ではcm/rad/秒。"
+msgstr "Configured value. For unit types, cm/rad/sec."
+
+msgid "同じ更新内で 生成したfunction set。範囲と単位定義は呼出しごとに照会する。"
+msgstr "Function sets created within the same update. Range and unit definitions are queried for each invocation."
+
+msgid "値が設定されたハード範囲外の場合。"
+msgstr "When the value is set outside the hard range."
+
+msgid "登録前でもよいアトリビュート定義。"
+msgstr "Attribute definition, which may be unregistered."
+
+msgid "設定予定の値。"
+msgstr "Values planned for application."
+
+msgid "エラー表示用の名前。"
+msgstr "Name used in error messages."
+
+msgid "setter、変換済み値、書込み終了まで保持するfunction set。"
+msgstr "Setter, converted value, and function set retained until writing completes."
+
+msgid "アトリビュート名。"
+msgstr "Attribute name."
+
+msgid "cmds.setAttr と同じ形・現在の Maya 単位の値。"
+msgstr "Same format as cmds.setAttr and values in the current Maya unit."
+
+msgid "setAttr のフラグ。fast 時の対応フラグは限定される。"
+msgstr "``setAttr`` flag. The flags for fast mode have limited support."
+
+msgid "更新対象。"
+msgstr "Update target."
+
+msgid "角度rad、距離cm、時間秒の値。"
+msgstr "Values in radians, centimeters, and seconds."
+
+msgid "API 2.0で未対応の型の場合。更新前に拒否する。"
+msgstr "When API 2.0 does not support the type. Rejected before updating."
+
+msgid "同じ更新内で生成したアトリビュートの function set。省略時は新しく生成する。値や検査結果はキャッシュしない。"
+msgstr "Function set of attributes generated within the same update. If omitted, new ones are generated. Values and inspection results are not cached."
+
+msgid "ロック・入力接続・書込み禁止がある場合。"
+msgstr "When the input connection is locked, or writing is prohibited."
+
+msgid "mlib.core.geometryEdit"
+msgstr ""
+
+msgid "形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"
+msgstr "Querying shape coordinates and normal/fast updates. Normal mode writes via cmds, fast mode writes directly to shapes without history."
+
+msgid ":py:obj:`_set_positions_direct <mlib.core.geometryEdit._set_positions_direct>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
+msgstr ""
+
+msgid "検証済みのcm座標を一括設定する。CVのwは変更しない。"
+msgstr "Set cm coordinates verified by batch. Do not change CV w."
+
+msgid ":py:obj:`command_indices <mlib.core.geometryEdit.command_indices>`\\ \\(shape\\, indices\\)"
+msgstr ""
+
+msgid "検証済みのAPI番号をcmds用番号へ写す。順序と重複は維持する。"
+msgstr "Map verified API numbers to cmds numbers, maintaining order and duplicates."
+
+msgid ":py:obj:`geometry <mlib.core.geometryEdit.geometry>`\\ \\(shape\\, indices\\[\\, edit\\]\\)"
+msgstr ""
+
+msgid "形状の DAG パスと関数セットを取得し、必要なら直接編集の条件を検査する。"
+msgstr "Get the DAG path and function set of the shape, and inspect the direct edit conditions if necessary."
+
+msgid ":py:obj:`object_positions <mlib.core.geometryEdit.object_positions>`\\ \\(shape\\, indices\\, values\\)"
+msgstr ""
+
+msgid "APIのワールド座標を、CVの重みを保持したローカルXYZへ変換する。"
+msgstr "Convert world space coordinates from the API to local XYZ coordinates while preserving CV weights."
+
+msgid ":py:obj:`positions <mlib.core.geometryEdit.positions>`\\ \\(shape\\, indices\\[\\, ws\\]\\)"
+msgstr ""
+
+msgid "指定した点を保持順・cm単位で取得する。"
+msgstr "Get the specified point in preserve order and cm units."
+
+msgid ":py:obj:`setPositions <mlib.core.geometryEdit.setPositions>`\\ \\(shape\\, indices\\, values\\[\\, ws\\]\\)"
+msgstr ""
+
+msgid "検証済みのcm座標を書き込む。Undo範囲は呼出元が管理する。"
+msgstr "Write verified cm coordinates. Undo scope is managed by the caller."
+
+msgid ":py:obj:`set_uvs <mlib.core.geometryEdit.set_uvs>`\\ \\(shape\\, indices\\, values\\)"
+msgstr ""
+
+msgid "現在の UV セットを OpenMaya で直接更新する。Undo には記録しない。"
+msgstr "Update the current UV set directly in OpenMaya. Do not record to undo."
+
+msgid "履歴なしMeshまたは非周期NurbsCurve。"
+msgstr "Mesh without history or non-periodic NurbsCurve."
+
+msgid "検証済みの番号。"
+msgstr "Verified number."
+
+msgid "設定するXYZ。"
+msgstr "Set XYZ."
+
+msgid "TrueならAPIワールド座標、Falseならローカル座標。"
+msgstr "True for API world coordinates, False for local coordinates."
+
+msgid "MeshまたはNurbsCurve。"
+msgstr "Mesh or NurbsCurve."
+
+msgid "APIの番号。"
+msgstr "API number."
+
+msgid "周期カーブでは末尾の重複CVを先頭の独立CVへ写した番号。"
+msgstr "For periodic curves, the number of duplicated CVs at the end that are mapped to the initial independent CVs."
+
+msgid "呼び出し側で型を解決した形状。"
+msgstr "Shape whose type was resolved by the caller."
+
+msgid "編集する制御点番号。"
+msgstr "Edit the control point number."
+
+msgid "周期カーブ・履歴・ロックなど直接編集できない条件を検査するか。"
+msgstr "Does it check for conditions that prevent direct editing, such as periodic curves, history, or locked elements?"
+
+msgid "DAG パス、MFnMesh または MFnNurbsCurve、メッシュかを示す bool。"
+msgstr "DAG path, MFnMesh or MFnNurbsCurve, and a bool indicating whether it is a mesh."
+
+msgid "edit=True で周期カーブや入力履歴がある場合。"
+msgstr "When edit=True and there are periodic curves or input history."
+
+msgid "edit=True で対象がロックされている場合。"
+msgstr "When the target is locked with edit=True."
+
+msgid "APIのワールドXYZ。距離はcm。"
+msgstr "World XYZ of the API. Distance is in cm."
+
+msgid "cmdsのobjectSpaceへ渡すcmの座標。"
+msgstr "Coordinate in object space to pass to cm via cmds."
+
+msgid "ワールド行列が特異な場合。"
+msgstr "World matrix is singular."
+
+msgid "有効なMeshまたはNurbsCurve。"
+msgstr "Valid Mesh or NurbsCurve."
+
+msgid "検証済みの点番号。"
+msgstr "Verified vertex index."
+
+msgid "Trueならワールド空間へ変換する。"
+msgstr "If true, convert to world space."
+
+msgid "指定順の座標。単点では全点を取得しない。"
+msgstr "Coordinates in specified order. A single point does not retrieve all points."
+
+msgid "検証済みのAPI番号。重複は後の値を優先。"
+msgstr "Verified API number. Duplicates are resolved by giving priority to later values."
+
+msgid "番号と同数の有限なXYZ。"
+msgstr "Number of XYZ finite values equal to the number of joints."
+
+msgid "Trueならワールド座標。"
+msgstr "True then world coordinates."
+
+msgid "fastで未対応の形状の場合。"
+msgstr "For shapes that are not supported in fast mode."
+
+msgid "Mayaが書込みを拒否した場合。完了済みの変更は戻さない。"
+msgstr "When Maya refuses to write, completed changes cannot be undone."
+
+msgid "対象メッシュ。"
+msgstr "Target mesh."
+
+msgid "呼び出し側で検証した UV 番号。"
+msgstr "UV index validated by the caller."
+
+msgid "indices と対応する (u, v) の列。"
+msgstr "List of (u, v) pairs corresponding to indices."
+
+msgid "mlib.core"
+msgstr ""
+
+msgid "mlibの型登録・初期化・再読み込み機能を公開する。"
+msgstr "Expose mlib type registration, initialization, and reloading utilities."
+
+msgid "mlib.core.jointEdit"
+msgstr ""
+
+msgid "Jointの再親付けを、回転チャンネルとSSCを保って直接実行する。"
+msgstr "Reparent a Joint directly while preserving its rotation channels and SSC."
+
+msgid ":py:obj:`reparent <mlib.core.jointEdit.reparent>`\\ \\(plan\\)"
+msgstr ""
+
+msgid "検証済みJointを移動し、inverseScale接続と姿勢を復元する。"
+msgstr "Move a validated Joint and restore its inverseScale connection and pose."
+
+msgid ":py:obj:`reparent_plan <mlib.core.jointEdit.reparent_plan>`\\ \\(joint\\, parent\\)"
+msgstr ""
+
+msgid "cmds.parentで中間Transformを必要としないJointの更新計画を作る。"
+msgstr "Build an update plan for a Joint that does not require an intermediate Transform with cmds.parent."
+
+msgid "reparent_planが返した計画。"
+msgstr "Plan returned by reparent_plan."
+
+msgid "移動するJoint。"
+msgstr "Joint to move."
+
+msgid "移動先。"
+msgstr "Destination parent."
+
+msgid "対象、親、移動・jointOrient、新しいinverseScale入力。"
+msgstr "Target, parent, translation, jointOrient, and new inverseScale input."
+
+msgid "mlib.core.nodeEdit"
+msgstr ""
+
+msgid "Undoへ登録しないノード作成・改名・削除のOpenMaya実装。"
+msgstr "OpenMaya implementations of node creation, renaming, and deletion without recording Undo."
+
+msgid ":py:obj:`create_group <mlib.core.nodeEdit.create_group>`\\ \\(names\\, flags\\)"
+msgstr ""
+
+msgid "空グループまたはTransform群のグループを直接作成する。"
+msgstr "Directly create an empty group or a group of Transforms."
+
+msgid ":py:obj:`create_node <mlib.core.nodeEdit.create_node>`\\ \\(node\\_type\\, flags\\)"
+msgstr ""
+
+msgid "Mayaの代表的なcreateNodeフラグをOpenMayaで実行する。"
+msgstr "Implement common Maya createNode flags with OpenMaya."
+
+msgid ":py:obj:`delete_node <mlib.core.nodeEdit.delete_node>`\\ \\(node\\)"
+msgstr ""
+
+msgid "DAGメンバーを持つDGコンテナも扱えるmodifierでノードを削除する。"
+msgstr "Delete a node using a modifier that also supports DG containers with DAG members."
+
+msgid ":py:obj:`rename_node <mlib.core.nodeEdit.rename_node>`\\ \\(node\\, name\\[\\, ignore\\_shape\\]\\)"
+msgstr ""
+
+msgid "ノードと、旧名の接頭辞が一致する直属Shapeを改名する。"
+msgstr "Rename a node and its direct shapes whose names share the old prefix."
+
+msgid ":py:obj:`require_editable <mlib.core.nodeEdit.require_editable>`\\ \\(node\\[\\, descendants\\]\\)"
+msgstr ""
+
+msgid "構造変更前に参照・ロックされたノードを拒否する。"
+msgstr "Reject referenced or locked nodes before structural changes."
+
+msgid ":py:obj:`validate_deletion <mlib.core.nodeEdit.validate_deletion>`\\ \\(nodes\\[\\, safe\\]\\)"
+msgstr ""
+
+msgid "混在した削除対象を更新前に検査し、後続の失敗による部分削除を避ける。"
+msgstr "Validate mixed deletion targets before updates to prevent partial deletion caused by later failures."
+
+msgid "対象名。Noneなら現在の選択。"
+msgstr "Target names. None uses the current selection."
+
+msgid "groupの正規化済みフラグ。"
+msgstr "Normalized group flags."
+
+msgid "作成したTransform。"
+msgstr "Created Transform."
+
+msgid "作成するnodeType。"
+msgstr "nodeType to create."
+
+msgid "正規化済みname/parent/skipSelect/shared。"
+msgstr "Normalized name/parent/skipSelect/shared flags."
+
+msgid "作成したノード。Shapeの暗黙の親ではなくShapeを返す。"
+msgstr "Created node. Returns the Shape rather than its implicit parent."
+
+msgid "削除するノード。削除後のMPlugを保持しないこと。"
+msgstr "Node to delete. Do not retain MPlugs after deletion."
+
+msgid "改名対象。"
+msgstr "Node to rename."
+
+msgid "Mayaが補正する新しい名前。"
+msgstr "New name, subject to Maya's adjustments."
+
+msgid "直属Shapeの連動改名を行わないか。"
+msgstr "Whether to skip renaming direct shapes together with the node."
+
+msgid "Mayaが確定したノード名。"
+msgstr "Final node name assigned by Maya."
+
+msgid "対象ノード。"
+msgstr "Target node."
+
+msgid "DAG子孫も検査するか。"
+msgstr "Whether to also check DAG descendants."
+
+msgid "呼出し順の削除対象。"
+msgstr "Deletion targets in call order."
+
+msgid "接続を持つ対象を残すか。"
+msgstr "Whether to retain targets with connections."
+
+msgid "class mlib.core.object.Object"
+msgstr ""
+
+msgid "Node・Plug・単数Componentの共通基底。既存対象を参照し、新規作成しない。"
+msgstr "Common base for Node, Plug, and singular Component. References existing objects; does not create new ones."
+
+msgid "Object(value)は対象に対応した具象ラッパーを返す。 等価比較・ハッシュ・寿命の判定は各参照型が担当する。 コレクション・数学値・保存データ・UI参照はこの基底に含めない。"
+msgstr "``Object(value)`` returns a concrete wrapper corresponding to the target. Equivalence comparison, hashing, and lifetime determination are handled by each reference type. Collections, mathematical values, storage data, and UI references are not included in this base."
+
+msgid ":py:obj:`_classes <mlib.core.object.Object._classes>`\\ \\(\\)"
+msgstr ""
+
+msgid "循環 import を避けるため、判定に使う mlib クラスを呼び出し時に取得する。"
+msgstr "To avoid circular imports, obtain the mlib class used for checks at call time."
+
+msgid ":py:obj:`_flatten_inputs <mlib.core.object.Object._flatten_inputs>`\\ \\(values\\)"
+msgstr ""
+
+msgid "対象列を一度だけ展開する。型別の混在規則は呼出し側が検証する。"
+msgstr "Expand the target column only once. The mixed type rules are validated by the caller."
+
+msgid ":py:obj:`_input_name <mlib.core.object.Object._input_name>`\\ \\(value\\)"
+msgstr ""
+
+msgid "単一の対象を maya.cmds へ渡せる一意な名前へ変換する。"
+msgstr "Convert to a unique name that can be passed to maya.cmds for a single target."
+
+msgid ":py:obj:`_input_names <mlib.core.object.Object._input_names>`\\ \\(values\\[\\, allow\\_plugs\\]\\)"
+msgstr ""
+
+msgid "単一の対象・コレクション・反復可能オブジェクトを名前のリストへ正規化する。"
+msgstr "Normalize a single target, collection, or iterable object to a list of names."
+
+msgid ":py:obj:`_name <mlib.core.object.Object._name>`\\ \\(value\\, node\\_class\\, plug\\_class\\, component\\_class\\)"
+msgstr ""
+
+msgid "単一の対象を名前へ変換する(Object._input_name の本体)。"
+msgstr "Converts a single target to a name (the body of Object._input_name)."
+
+msgid ":py:obj:`_resolve_input <mlib.core.object.Object._resolve_input>`\\ \\(value\\)"
+msgstr ""
+
+msgid "入力を一意なNode・Plug・Componentへ解決する。"
+msgstr "Resolve input to unique Node/Plug/Component."
+
+msgid ":py:obj:`_unsupported <mlib.core.object.Object._unsupported>`\\ \\(value\\)"
+msgstr ""
+
+msgid "対応しない入力型の TypeError を作る。"
+msgstr "Create a TypeError for unsupported input types."
+
+msgid ":py:obj:`asString <mlib.core.object.Object.asString>`\\ \\(\\)"
+msgstr ""
+
+msgid "現在の対象名を文字列へ変換する。"
+msgstr "Convert the current target name to a string."
+
+msgid "Node、Plug、Component、Components。"
+msgstr "Node、Plug、Component、Components。"
+
+msgid "単数参照または入れ子の反復可能な対象列。"
+msgstr "Single reference or nested iterable target sequence."
+
+msgid "順序を保持した対象。Componentsは範囲圧縮のため展開しない。"
+msgstr "Ordered set of targets. Components are not expanded for range compression."
+
+msgid "未対応型の場合。"
+msgstr "In the case of unsupported types."
+
+msgid "文字列は解決せず(Maya へ問い合わせず)そのまま返す。解決済みの Node が 必要な場合は Node._resolve_input を使う。変換規則はモジュールの説明を参照。"
+msgstr "Strings are returned as-is without resolution (without querying Maya). If a resolved Node is needed, use Node._resolve_input. Refer to the module's description for the conversion rules."
+
+msgid "変換対象。"
+msgstr "Target for conversion."
+
+msgid "maya.cmds で解決できる名前。"
+msgstr "Names that can be resolved with maya.cmds."
+
+msgid "対応しない型、依存ノード以外を指す MObject、または Components などの複数の対象を渡した場合(Object._input_names を使う)。"
+msgstr "When passing MObject that does not point to unsupported types or dependency nodes, or multiple targets such as components (using Object._input_names)."
+
+msgid "空文字列、または無効な(削除済み・範囲外の)対象の場合。"
+msgstr "Empty string, or invalid (deleted or out-of-range) target."
+
+msgid "単一の対象(Object._input_name が受け付ける型)は1要素のリストになる。``Components``・ ``Selection``・``Joints`` などのコレクションと、list/tuple/set/ジェネレーター などの反復可能オブジェクトは、入れ子も含めて保持順に展開する。 ``ArrayPlug`` は要素へ展開せず、配列アトリビュートそのものの名前として扱う。 ``Components`` は全番号をまとめて1回だけ検証し、保持順で連続する番号を ``|cube|cubeShape.vtx[0:9]`` のような範囲指定の名前にまとめる(要素数が多くても maya.cmds へ渡す名前が増えない)。"
+msgstr "A single target (the type accepted by Object._input_name) will be a list with a single element. Collections such as ``Components``, ``Selection``, ``Joints`` and iterable objects such as list/tuple/set/generators will be expanded in order, including nested structures. ``ArrayPlug`` will not be expanded into elements, but treated as the name of the array attribute itself. ``Components`` will validate all numbers at once only once, and group consecutive numbers in order into range-style names like ``|cube|cubeShape.vtx[0:9]``, so even if there are many elements, the number of names passed to maya.cmds does not increase."
+
+msgid "変換対象。単一の対象、または対象を要素に持つ反復可能オブジェクト。"
+msgstr "Target for conversion. A single target or an iterable object containing targets."
+
+msgid "False の場合、Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` を TypeError にする(アトリビュートを渡しても maya.cmds が何もしないコマンド用。文字列は 解決しないため対象外)。"
+msgstr "If false, make Plug(``ArrayPlug`` including) and ``om2.MPlug`` a TypeError (for attributes passed to commands that do nothing in maya.cmds. Strings are excluded as they are not resolved)."
+
+msgid "正規化した名前のリスト。空の反復可能オブジェクトは空リスト。"
+msgstr "List of normalized names. An empty iterable object is an empty list."
+
+msgid "いずれかの要素が対応しない型の場合。allow_plugs が False で、 Plug・MPlug が含まれる場合。同じ対象列に文字列とNodeが混在する場合。"
+msgstr "When any element has a mismatched type. When allow_plugs is False and Plug or MPlug is included. When strings and nodes are mixed in the same target column."
+
+msgid "いずれかの要素が空文字列、または無効な対象の場合。"
+msgstr "When any element is an empty string or invalid target."
+
+msgid "Node クラス。"
+msgstr "Node class."
+
+msgid "Plug クラス。"
+msgstr "Plug class."
+
+msgid "Component クラス。"
+msgstr "Component class."
+
+msgid "maya.cmds へ渡せる名前。"
+msgstr "Names that can be passed to maya.cmds."
+
+msgid "対応しない型の場合。"
+msgstr "In case of unsupported types."
+
+msgid "空文字列、または無効な対象の場合。"
+msgstr "Empty string, or invalid target."
+
+msgid "単一対象。コンポーネントのAPI入力は(MDagPath, MObject)。"
+msgstr "Single target. Component API input is (MDagPath, MObject)."
+
+msgid "既存ラッパーはそのまま、その他は対応する具体型。"
+msgstr "Existing wrappers remain as-is, others are mapped to corresponding concrete types."
+
+msgid "未対応の型・コンポーネント種類の場合。"
+msgstr "When the type or component type is not supported."
+
+msgid "空入力または複数要素を指定した場合。"
+msgstr "Empty input or multiple elements specified."
+
+msgid "名前が存在しない、または一意に解決できない場合。"
+msgstr "The name does not exist, or cannot be resolved uniquely."
+
+msgid "入力値。"
+msgstr "Input value."
+
+msgid "送出する例外。"
+msgstr "Exceptions to be raised."
+
+msgid "Node・Plug・Componentそれぞれの ``str()`` と同じ名前を返す。 名前変更や親子付け替えに追従し、名前をキャッシュしない。 無効な参照の扱いも各型の ``str()`` に従う。"
+msgstr "Returns the same name as ``str()`` for Node, Plug, and Component. Follows renaming and reparenting without caching names. Invalid references are handled by each type's ``str()``."
+
+msgid "Mayaコマンドへ渡す対象名。"
+msgstr "Target name passed to Maya commands."
+
+msgid "各型の文字列変換が無効な参照を拒否する場合。"
+msgstr "When the type's string conversion rejects an invalid reference."
+
+msgid "class mlib.core.object._ObjectType"
+msgstr ""
+
+msgid "ベースクラス: :py:obj:`type`"
+msgstr "Base class: :py:obj:`type`"
+
+msgid "Objectへの入力だけを振り分け、派生クラスの構築は通常通り行う。"
+msgstr "Route inputs only to the object, and construct derived classes as usual."
+
+msgid ":py:obj:`__call__ <mlib.core.object._ObjectType.__call__>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
+msgstr ""
+
+msgid "解決済み参照への二重初期化を避けて適切な型を返す。"
+msgstr "Avoid double initialization of resolved references and return appropriate types."
+
+msgid "呼出し先またはUIシグナルから渡される位置引数。"
+msgstr "Positional arguments passed from a function call or UI signal."
+
+msgid "呼出し先へ渡すキーワード引数。"
+msgstr "Keyword arguments to pass to the caller."
+
+msgid "mlib.core.object"
+msgstr ""
+
+msgid "Mayaシーン内の単一対象を表す共通基底と取得入口。"
+msgstr "Common base and entry point for a single target in a Maya scene."
+
+msgid ":py:obj:`Object <mlib.core.object.Object>`\\"
+msgstr ""
+
+msgid ":py:obj:`_ObjectType <mlib.core.object._ObjectType>`\\"
+msgstr ""
+
+msgid "class mlib.core.registry.NodeRegistry"
+msgstr ""
+
+msgid "ノード型・アトリビュート型などの文字列キーとラッパークラスを対応付ける登録表。"
+msgstr "Registry mapping string keys such as node types and attribute types to their wrapper classes."
+
+msgid ":py:obj:`__init__ <mlib.core.registry.NodeRegistry.__init__>`\\ \\(fallback\\_class\\[\\, resolve\\_inherited\\_types\\]\\)"
+msgstr ""
+
+msgid "フォールバッククラスと空のノード型対応表を初期化する。"
+msgstr "Initialize the fallback class and empty node type mapping table."
+
+msgid ":py:obj:`_node_type_for_class <mlib.core.registry.NodeRegistry._node_type_for_class>`\\ \\(wrapper\\_class\\)"
+msgstr ""
+
+msgid "現在の登録表で具体クラスに一意に対応するnodeTypeを取得する。"
+msgstr "Get the nodeType uniquely mapped to the concrete class in the current registry."
+
+msgid ":py:obj:`_restore <mlib.core.registry.NodeRegistry._restore>`\\ \\(snapshot\\)"
+msgstr ""
+
+msgid "登録中の障害で、検証済みの保存状態を再登録せずに復元する。"
+msgstr "Restore a validated snapshot after registration fails, without registering entries again."
+
+msgid ":py:obj:`_snapshot <mlib.core.registry.NodeRegistry._snapshot>`\\ \\(\\)"
+msgstr ""
+
+msgid "拡張の登録開始前に、現在の型対応を独立したコピーで保持する。"
+msgstr "Copy the current type mappings before an extension begins registration."
+
+msgid ":py:obj:`_validate_entry <mlib.core.registry.NodeRegistry._validate_entry>`\\ \\(node\\_type\\, wrapper\\_class\\)"
+msgstr ""
+
+msgid "汎用登録の型名とクラスを検証する。既存キーの上書きは拒否しない。"
+msgstr "Validate a type name and class for general registration, allowing existing keys to be replaced."
+
+msgid ":py:obj:`clear <mlib.core.registry.NodeRegistry.clear>`\\ \\(\\)"
+msgstr ""
+
+msgid "登録済みの Maya nodeType 対応をすべて解除する。"
+msgstr "Unload all registered Maya nodeType support."
+
+msgid ":py:obj:`get <mlib.core.registry.NodeRegistry.get>`\\ \\(node\\_type\\)"
+msgstr ""
+
+msgid "ノード型に対応するラッパークラスを返す。"
+msgstr "Returns a wrapper class corresponding to the node type."
+
+msgid ":py:obj:`lookup <mlib.core.registry.NodeRegistry.lookup>`\\ \\(key\\)"
+msgstr ""
+
+msgid "登録済みクラスを返す。未登録なら ``None``。"
+msgstr "Returns registered classes. Returns ``None`` if not registered."
+
+msgid ":py:obj:`register <mlib.core.registry.NodeRegistry.register>`\\ \\(node\\_type\\, wrapper\\_class\\)"
+msgstr ""
+
+msgid "Maya ノード型へラッパークラスを登録する。"
+msgstr "Register wrapper classes to Maya node types."
+
+msgid ":py:obj:`replace <mlib.core.registry.NodeRegistry.replace>`\\ \\(wrappers\\)"
+msgstr ""
+
+msgid "明示した型対応で登録表を置き換える。"
+msgstr "Replace the registry with explicitly declared type mappings."
+
+msgid ":py:obj:`wrapper_class <mlib.core.registry.NodeRegistry.wrapper_class>`\\ \\(node\\_type\\)"
+msgstr ""
+
+msgid "ノード型に対応するクラス、またはフォールバッククラスを返す。"
+msgstr "Returns a class corresponding to the node type or a fallback class."
+
+msgid "未登録キーに対して使用するクラス。"
+msgstr "Class to use for unregistered keys."
+
+msgid "``True`` の場合、完全一致が 無いキーに対して Maya のノードタイプ継承チェーンを辿り、 最も近い登録済み祖先型のクラスを返す(Plug のアトリビュート型など、 Mayaのノードタイプ継承と無関係なキー体系では使わない)。"
+msgstr "In the case of ``True``, for keys that do not have an exact match, it traverses Maya's node type inheritance chain and returns the most recently registered ancestor class (this is not used for key systems unrelated to Maya's node type inheritance, such as plug attribute types)."
+
+msgid "新規作成に使用するノードラッパークラス。"
+msgstr "The node wrapper class to use for creation."
+
+msgid "クラスそのものへ登録されたMaya nodeType。"
+msgstr "The Maya nodeType registered for the exact class."
+
+msgid "対応する登録がない、または複数のnodeTypeに登録されている場合。"
+msgstr "If there is no matching registration or the class is registered for multiple nodeTypes."
+
+msgid "_snapshotで取得した内部状態。"
+msgstr "Internal state captured by _snapshot."
+
+msgid "この登録表だけが復元に使う内部状態。"
+msgstr "Internal state used only to restore this registry."
+
+msgid "登録する型名。"
+msgstr "The type name to register."
+
+msgid "対応するクラス。"
+msgstr "The corresponding class."
+
+msgid "型名が空文字列または文字列以外の場合。"
+msgstr "If the type name is empty or is not a string."
+
+msgid "wrapper_classがクラスではない場合。"
+msgstr "If wrapper_class is not a class."
+
+msgid "Maya の nodeType 名。"
+msgstr "Maya nodeType name."
+
+msgid "登録済みまたはフォールバックのラッパークラス。"
+msgstr "Registered or fallback wrapper class."
+
+msgid "フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う （例: Plug のアトリビュート型 dispatch）。"
+msgstr "Used when you only want to know if \"there is a complete registration match\" (e.g., Plug attribute type dispatch)."
+
+msgid "登録キー（nodeType またはアトリビュート型など）。"
+msgstr "Registration key (nodeType or attribute type, etc.)."
+
+msgid "登録済みクラス。"
+msgstr "Registered classes."
+
+msgid "同じキーが既にある場合は上書きする。"
+msgstr "If the same key already exists, it will be overwritten."
+
+msgid "ノードをラップする mlib クラス。"
+msgstr "mlib class that wraps nodes."
+
+msgid "node_type が空文字列または文字列以外の場合。"
+msgstr "When node_type is an empty string or not a string."
+
+msgid "wrapper_class がクラスでない場合。"
+msgstr "The ``wrapper_class`` is not a class."
+
+msgid "全入力を検証してから置き換えるため、不正な入力で現在の登録を失わない。"
+msgstr "Validate every entry before replacement so invalid input does not discard existing registrations."
+
+msgid "型名からラッパークラスへの対応表。"
+msgstr "Mapping table from type names to wrapper classes."
+
+msgid "キーが空文字列または文字列以外の場合。"
+msgstr "The key is an empty string or not a string."
+
+msgid "値がクラスでない場合。"
+msgstr "When the value is not a class."
+
+msgid "完全一致する登録が無く ``resolve_inherited_types`` が有効な場合、 Maya のノードタイプ継承チェーンを直接の親から基底型へ向かって辿り、 最初に見つかった登録済み祖先型のクラスを返す。例えばプラグインが ``locator`` を継承した独自ノードタイプを追加した場合でも、 ``locator`` 用に登録済みのクラスが選ばれる。"
+msgstr "If no exact registration match is found and ``resolve_inherited_types`` is valid, it traverses Maya's node type inheritance chain from the direct parent to the base type, and returns the first registered ancestor class found. For example, even if a plug-in adds a custom node type inheriting from ``locator``, the registered class for ``locator`` will be selected."
+
+msgid "登録済み、継承チェーン経由、またはフォールバックのラッパークラス。"
+msgstr "Registered, inherited via inheritance chain, or fallback wrapper class."
+
+msgid ":py:obj:`_classes <mlib.core.registry.NodeRegistry._classes>`\\"
+msgstr ""
+
+msgid ":py:obj:`_fallback_class <mlib.core.registry.NodeRegistry._fallback_class>`\\"
+msgstr ""
+
+msgid ":py:obj:`_resolve_inherited_types <mlib.core.registry.NodeRegistry._resolve_inherited_types>`\\"
+msgstr ""
+
+msgid "mlib.core.registry"
+msgstr ""
+
+msgid "Mayaの型名と明示したラッパークラスの対応を管理する。"
+msgstr "Manage explicit mappings from Maya type names to wrapper classes."
+
+msgid ":py:obj:`NodeRegistry <mlib.core.registry.NodeRegistry>`\\"
+msgstr ""
+
+msgid "mlib.core.reload"
+msgstr ""
+
+msgid "パッケージ内の参照関係に従ってモジュールを再読み込みする。"
+msgstr "Reload modules according to the reference relationships within the package."
+
+msgid ":py:obj:`reload_package <mlib.core.reload.reload_package>`\\ \\(package\\_name\\)"
+msgstr ""
+
+msgid "package_name 配下の Python module を検出し、依存順に再読み込みする。"
+msgstr "Detects Python modules under the ``package_name`` and reloads them in dependency order."
+
+msgid "現在存在する module を package から走査するため、新しい wrapper の追加や 既存 module の削除も反映できる。依存関係は各 module の globals にある class / function / module 参照から推定する。"
+msgstr "To scan for currently existing modules from the package, new wrappers can be added and existing modules can be removed to reflect changes. Dependencies are estimated from class/function/module references in each module's globals."
+
+msgid "再読み込みする package の完全修飾名。"
+msgstr "Fully qualified name of the package to reload."
+
+msgid "再読み込みした module の tuple。"
+msgstr "Tuple of reloaded modules."
+
+msgid "mlib.core.skinEdit"
+msgstr ""
+
+msgid "skinClusterのウェイト移送とinfluence解除をOpenMayaで実行する。"
+msgstr "Transfer skinCluster weights and remove influences with OpenMaya."
+
+msgid ":py:obj:`_removal_structure <mlib.core.skinEdit._removal_structure>`\\ \\(skin\\, source\\, logical\\)"
+msgstr ""
+
+msgid "influenceとbindPoseの除去対象を、値を変更せず解決する。"
+msgstr "Resolve influence and bindPose removal targets without changing values."
+
+msgid ":py:obj:`_validate_removal_locks <mlib.core.skinEdit._validate_removal_locks>`\\ \\(remove\\)"
+msgstr ""
+
+msgid "親を含むロックを、全ての配列削除より前に確認する。"
+msgstr "Check locks, including parent locks, before any array deletions."
+
+msgid ":py:obj:`remove_influence <mlib.core.skinEdit.remove_influence>`\\ \\(skin\\, source\\)"
+msgstr ""
+
+msgid "残存ウェイトとbindPoseの構造を検査後にinfluenceを登録解除する。"
+msgstr "Validate remaining weights and the bindPose structure before unregistering an influence."
+
+msgid ":py:obj:`transfer_weights <mlib.core.skinEdit.transfer_weights>`\\ \\(skin\\, pairs\\)"
+msgstr ""
+
+msgid "skinPercentの移送とinteractive正規化を再現する。"
+msgstr "Reproduce skinPercent weight transfer and interactive normalization."
+
+msgid ":py:obj:`validate_removal <mlib.core.skinEdit.validate_removal>`\\ \\(skin\\, source\\)"
+msgstr ""
+
+msgid "ウェイト移送・修復前に構造の変更可否を確認する。"
+msgstr "Check whether structural changes are allowed before transferring or repairing weights."
+
+msgid "対象。"
+msgstr "Target."
+
+msgid "除去するinfluence。"
+msgstr "Influence to remove."
+
+msgid "influenceの論理番号。"
+msgstr "Logical index of the influence."
+
+msgid "除去する構造プラグ。"
+msgstr "Structural plugs to remove."
+
+msgid "除去予定の配列要素。"
+msgstr "Array elements scheduled for removal."
+
+msgid "対象skinCluster。単一meshに限定する。"
+msgstr "Target skinCluster, restricted to a single mesh."
+
+msgid "登録解除するinfluence。"
+msgstr "Influence to unregister."
+
+msgid "更新先。"
+msgstr "Update destination."
+
+msgid "検証済みのinfluence名ペア。"
+msgstr "Validated pairs of influence names."
+
 msgid "mlib.decorator"
 msgstr "mlib.decorator"
 
-msgid "Maya操作の一時状態とUndoを扱うコンテキストマネージャを提供する。"
-msgstr "Provide context managers for temporary Maya state and Undo."
+msgid "Maya操作の一時状態・Undoと、内部の呼出し規約を扱う。"
+msgstr "Handle temporary Maya operation state, Undo, and internal calling conventions."
 
 msgid ":py:obj:`nativeUnits <mlib.decorator.nativeUnits>`\\ \\(\\)"
 msgstr ":py:obj:`nativeUnits <mlib.decorator.nativeUnits>`\\ \\(\\)"
@@ -7546,6 +7051,9 @@ msgstr "A new instance of the translation component."
 msgid "Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの ``__init__`` も呼ばない)。:func:`_assign` で写すため、符号付きゼロ・inf・NaN を 含めて値は value と一致し、om2 のコピーコンストラクタ(多重定義の解決が遅い)より速い。"
 msgstr "Does not go through Python's ``__new__`` / ``__init__`` (does not call the user's derived class ``__init__``). Copies values including signed zero, inf, and NaN for :func:`_assign`, faster than om2's copy constructor (whose overload resolution is slow)."
 
+msgid "複製元。"
+msgstr "Source of duplication."
+
 msgid "行列を分解した独立した値。元のピボット情報は復元しない。"
 msgstr "Decomposed independent values from the matrix. The original pivot information will not be restored."
 
@@ -7887,6 +7395,9 @@ msgstr "Extract the 3-component value as a tuple (x, y, z)."
 
 msgid "単位行列を -0.0 倍した「すべて -0.0」の行列へ source を加算する。-0.0 は加算の 単位元なので、符号付きゼロ・inf・NaN を含めて source と同じ値になる(0.0 を 使うと -0.0 が 0.0 になる)。"
 msgstr "Add the source to a matrix that is the unit matrix multiplied by -0.0, resulting in a \"all -0.0\" matrix. Since -0.0 is the identity element for addition, the result will have the same values as the source, including signed zeros, infinities, and NaNs (using 0.0 would convert -0.0 to 0.0)."
+
+msgid "target。"
+msgstr "target。"
 
 msgid "平行移動。"
 msgstr "Translation."
@@ -15259,6 +14770,12 @@ msgstr ":py:obj:`__repr__ <mlib.nodes.node.Nodes.__repr__>`\\ \\(\\)"
 msgid "具象コレクション名と保持参照を表示する。"
 msgstr "Display concrete collection names and held references."
 
+msgid ":py:obj:`_calculation_results <mlib.nodes.node.Nodes._calculation_results>`\\ \\(method\\, functions\\, args\\, kwargs\\)"
+msgstr ""
+
+msgid "get指定で計算値を返すsetterについて結果列が必要か判定する。"
+msgstr "Determine whether a setter with get enabled requires a list of calculated results."
+
 msgid ":py:obj:`_call_shared <mlib.nodes.node.Nodes._call_shared>`\\ \\(method\\, args\\, kwargs\\)"
 msgstr ":py:obj:`_call_shared <mlib.nodes.node.Nodes._call_shared>`\\ \\(method\\, args\\, kwargs\\)"
 
@@ -15583,6 +15100,21 @@ msgstr "When the common input resolution detects an invalid reference."
 msgid "保持している要素のイテレータ。"
 msgstr "Iterator for the held elements."
 
+msgid "一括実行するメソッド名。"
+msgstr "The name of the method to execute all at once."
+
+msgid "実際の呼出し先。"
+msgstr "The actual call targets."
+
+msgid "要素別の位置引数。"
+msgstr "Positional arguments by element."
+
+msgid "要素別の正規化済みキーワード引数。"
+msgstr "Normalized keyword arguments for each item."
+
+msgid "少なくとも一つの対象がget指定で計算値を返す場合True。"
+msgstr "True if at least one item returns calculated values with get enabled."
+
 msgid "共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に 検証し、クラス差替え・reload後の古いメソッドを保持しない。"
 msgstr "Limit sharing to only this call site. Validate overrides and individual callables separately, and do not retain old methods after class replacement or reload."
 
@@ -15695,6 +15227,9 @@ msgid ":py:obj:`_bulk_returns <mlib.nodes.node.Nodes._bulk_returns>`\\"
 msgstr ""
 
 msgid ":py:obj:`_bulk_undo <mlib.nodes.node.Nodes._bulk_undo>`\\"
+msgstr ""
+
+msgid ":py:obj:`_calculating_setters <mlib.nodes.node.Nodes._calculating_setters>`\\"
 msgstr ""
 
 msgid ":py:obj:`_items <mlib.nodes.node.Nodes._items>`\\"
@@ -18548,6 +18083,9 @@ msgstr "In transform, since the matrix rotation and the rotate channel represent
 msgid "基準の回転(順序はノードの rotateOrder)。"
 msgstr "Standard rotation (rotation order is the node's rotateOrder)."
 
+msgid "Trueはワールド空間、Falseはローカル空間。"
+msgstr "True is world space, False is local space."
+
 msgid "XY/XZ/YZのシアー成分。"
 msgstr "Shear components in XY, XZ, and YZ planes."
 
@@ -20816,8 +20354,8 @@ msgstr "Node wrapper that owns a plug."
 msgid "ラップする Maya API 2.0 のプラグ。"
 msgstr "Wrapped Maya API 2.0 plug."
 
-msgid "登録アトリビュート型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は アトリビュート定義から求め(:func:`mlib._core.attributeType.attributeType`)、maya.cmds へ 問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。 generic/kAnyは現在値を読まず、基底Plugとして参照する。 行列などの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で 型選択のためのDG評価を行わない。値の型が変わっても同じPlugを保持できる。"
-msgstr "Registered attribute types use the same names as ``cmds.getAttr(type=True)``. The names are determined from attribute definitions (:func:`mlib._core.attributeType.attributeType`) without querying maya.cmds, so creating a Plug reference to a nonexistent array element does not create the element. Generic/kAny attributes use the base Plug without reading their current value. Value types such as matrices are interpreted when get() is called, so creating references or enumerating connections does not trigger DG evaluation for wrapper selection. The same Plug can be retained if the value type changes."
+msgid "登録アトリビュート型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は アトリビュート定義から求め(:func:`mlib.core.attributeType.attributeType`)、maya.cmds へ 問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。 generic/kAnyは現在値を読まず、基底Plugとして参照する。 行列などの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で 型選択のためのDG評価を行わない。値の型が変わっても同じPlugを保持できる。"
+msgstr "Registered attribute types use the same type names as ``cmds.getAttr(type=True)``. Names are obtained from attribute definitions (:func:`mlib.core.attributeType.attributeType`) without querying maya.cmds, so creating a Plug reference to a nonexistent array element does not create the element. generic/kAny references use the base Plug without reading the current value. Value types such as matrices are interpreted when get() is called, so creating references and enumerating connections do not trigger DG evaluation for type selection. The same Plug can be retained even if the value type changes."
 
 msgid "適切な派生クラスのインスタンス。派生クラスから直接呼んだ場合はそのクラスを割り当てる。"
 msgstr "An instance of an appropriate derived class. Assign the class when called directly from the derived class."
@@ -20909,8 +20447,8 @@ msgstr "Attribute values. Only when a tuple is contained in a list with a single
 msgid "そのタプルを返す（cmds.getAttr フォールバック時のみ該当）。 文字列、数値、配列、None など実際のアトリビュート型に依存する。"
 msgstr "Returns a tuple (only applies when using cmds.getAttr as fallback). The actual attribute type depends on the string, numeric, array, None, and other values."
 
-msgid "所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合 (:meth:`isValid` が ``False``。削除前の古い値は返さない)。 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない 配列要素の場合(値を読むと Maya が異常終了する場合があるため。 :func:`mlib._core.attributeType.is_internal_data_type`)。"
-msgstr "The owning node is invalid (deleted), or the attribute is deleted (:meth:`isValid` is ``False``. It does not return the old value before deletion). When the array element does not exist for Maya internal data types (such as ``patchUVIds`` of nurbsSurface, etc.) (reading the value may cause Maya to crash, :func:`mlib._core.attributeType.is_internal_data_type`)."
+msgid "所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合 (:meth:`isValid` が ``False``。削除前の古い値は返さない)。 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない 配列要素の場合(値を読むと Maya が異常終了する場合があるため。 :func:`mlib.core.attributeType.is_internal_data_type`)。"
+msgstr "If the owning node is invalid (deleted) or the attribute has been deleted (:meth:`isValid` is ``False``; stale values from before deletion are not returned). Also applies to nonexistent array elements of Maya internal data types, such as nurbsSurface ``patchUVIds``, because reading their values can crash Maya; see :func:`mlib.core.attributeType.is_internal_data_type`."
 
 msgid "ノード名を含まないアトリビュートパス(``input1D[4294967296]`` など)。"
 msgstr "Attribute paths without node names (such as ``input1D[4294967296]``)."
@@ -21533,8 +21071,8 @@ msgstr "For attributes that cannot handle array-wide, string, message, or other 
 msgid "ロック・入力接続などで変更できない場合。"
 msgstr "When changes are not possible due to locked input connections or similar restrictions."
 
-msgid "doubleArray/floatArray/Int32Array/Int64Array のようなスカラー配列型と、 stringArray/vectorArray/floatVectorArray/pointArray/matrixArray/ componentList のような長さ指定が必要な配列型は、``cmds.setAttr`` が 要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の 明示)が数値コンパウンド(double3 等)や matrix と異なるため、 アトリビュート定義から ``cmds.getAttr(..., type=True)`` と同じアトリビュート型名を求めてから (:func:`mlib._core.attributeType.attributeType`)対応する形で呼び出す。 それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。"
-msgstr "Scalar array types such as doubleArray/floatArray/Int32Array/Int64Array, and length-specified array types such as stringArray/vectorArray/floatVectorArray/pointArray/matrixArray/componentList require arguments in the form requested by ``cmds.setAttr`` (not simple ``*value`` expansion, but explicit type names and element counts). Since this differs from the forms required for numeric compounds (double3, etc.) and matrix types, the attribute definition is used to determine the attribute type name matching ``cmds.getAttr(..., type=True)`` (:func:`mlib._core.attributeType.attributeType`), and then the function is called accordingly. Other types (numeric compounds, matrix, etc.) are expanded as before using ``*value``."
+msgid "doubleArray/floatArray/Int32Array/Int64Array のようなスカラー配列型と、 stringArray/vectorArray/floatVectorArray/pointArray/matrixArray/ componentList のような長さ指定が必要な配列型は、``cmds.setAttr`` が 要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の 明示)が数値コンパウンド(double3 等)や matrix と異なるため、 アトリビュート定義から ``cmds.getAttr(..., type=True)`` と同じアトリビュート型名を求めてから (:func:`mlib.core.attributeType.attributeType`)対応する形で呼び出す。 それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。"
+msgstr "Scalar array types such as doubleArray/floatArray/Int32Array/Int64Array and array types requiring a length, such as stringArray/vectorArray/floatVectorArray/pointArray/matrixArray/componentList, need a different ``cmds.setAttr`` argument structure from numeric compounds such as double3 and matrix: explicit type names or element counts rather than simple ``*value`` expansion. The attribute definition is therefore used to obtain the same type name as ``cmds.getAttr(..., type=True)`` (:func:`mlib.core.attributeType.attributeType`), and the command is called with the corresponding arguments. Other types, including numeric compounds and matrix, continue to use ``*value`` expansion."
 
 msgid "設定する値。距離cm、角度rad、時間秒。"
 msgstr "Value to set. Distance in cm, angle in rad, time in seconds."
@@ -21775,6 +21313,90 @@ msgstr "mlib.plugs.timePlug"
 
 msgid ":py:obj:`TimePlug <mlib.plugs.timePlug.TimePlug>`\\"
 msgstr ":py:obj:`TimePlug <mlib.plugs.timePlug.TimePlug>`\\"
+
+msgid "mlib.util"
+msgstr ""
+
+msgid "クラスに属さない汎用関数と、数学値・空間指定の内部補助を提供する。"
+msgstr "Provide general-purpose functions that do not belong to a class, plus internal helpers for mathematical values and space arguments."
+
+msgid "公開関数は名前の整形・操作の計測・ミラー入力の検証を扱う。 型の添字・比較・派生状態の複製と空間指定の検証は、先頭_の内部関数へ分ける。"
+msgstr "Public functions handle name formatting, operation measurement, and mirror-input validation. Indexing, comparison, copying derived state, and space-argument validation are handled by internal functions whose names begin with _."
+
+msgid ":py:obj:`legalizeName <mlib.util.legalizeName>`\\ \\(name\\)"
+msgstr ""
+
+msgid "文字列を Maya のノード名として受け付けられる形へ変換する。"
+msgstr "Converts a string to a form acceptable as a Maya node name."
+
+msgid ":py:obj:`measure <mlib.util.measure>`\\ \\(operation\\[\\, samples\\, warmup\\]\\)"
+msgstr ""
+
+msgid "操作の所要時間を秒単位で返す。"
+msgstr "Returns the elapsed time of the operation in seconds."
+
+msgid ":py:obj:`mirrorArguments <mlib.util.mirrorArguments>`\\ \\(axis\\, pivot\\)"
+msgstr ""
+
+msgid "反転軸と有限な中心座標を検証する。"
+msgstr "Verify inverted axes and finite center coordinates."
+
+msgid "コロン ``:`` を名前空間の区切りとして残し、区切られた各区間(名前空間名と 末尾のノード名)に同じ規則を当てる。"
+msgstr "Leave the colon ``:`` as a namespace separator and apply the same rule to each segment separated by it (the namespace name and the trailing node name)."
+
+msgid "各区間の前後の空白は取り除く。"
+msgstr "Remove leading and trailing whitespace from each line."
+
+msgid "ASCII 英字・数字・``_`` 以外の文字(途中の空白、記号、``|``、``.``、 非ASCII文字など)は、連続している範囲ごとに1つの ``_`` へ置き換える。"
+msgstr "ASCII letters, digits, and ``_`` other than characters (such as spaces, symbols, ``|``, ``.``, non-ASCII characters, etc.) are replaced with a single ``_`` for each contiguous range."
+
+msgid "数字で始まる区間には先頭に ``_`` を足す(``\"ns:1abc\"`` は ``\"ns:_1abc\"``)。"
+msgstr "For intervals starting with digits, prepend ``_`` (for example, ``\"ns:1abc\"`` is ``\"ns:_1abc\"``)."
+
+msgid "空になった区間は捨てる(``\"a::b\"`` は ``\"a:b\"``、``\"ns:\"`` は ``\"ns\"``)。"
+msgstr "Empty intervals are discarded (where ``\"a::b\"`` is ``\"a:b\"``, and ``\"ns:\"`` is ``\"ns\"``)."
+
+msgid "先頭のコロンはルート名前空間からの指定とみなし、1つだけ残す。"
+msgstr "The leading colon is interpreted as a root namespace specification, leaving only one colon."
+
+msgid "有効な区間が1つも残らない場合は ``\"_\"`` を返す。"
+msgstr "If no valid intervals remain, return ``\"_\"``."
+
+msgid "変換したい文字列。"
+msgstr "Converted string."
+
+msgid "Maya のノード名として有効な文字列。"
+msgstr "Valid string for Maya node names."
+
+msgid "name が str でない場合。"
+msgstr "When the name is not of type str."
+
+msgid "入力更新と評価を含む操作。各回で呼ぶ。"
+msgstr "Operations including input update and evaluation. Called each time."
+
+msgid "記録する回数。"
+msgstr "Number of times to record."
+
+msgid "記録前の実行回数。"
+msgstr "Number of executions before recording."
+
+msgid "samples、median_seconds、min_seconds、max_seconds。"
+msgstr "samples、median_seconds、min_seconds、max_seconds。"
+
+msgid "同じ値を読むだけではキャッシュの速度になる。必要なdirty化は 呼び出し側で行う。処理の副作用や時間位置も呼び出し側が管理する。"
+msgstr "Simply reading the same value does not benefit from caching. The necessary dirtying must be handled by the caller. Side effects of processing and temporal positioning are also managed by the caller."
+
+msgid "重複のないxyz文字列、または0/1/2。"
+msgstr "Unique xyz string or 0/1/2."
+
+msgid "3成分の中心座標。"
+msgstr "3-component center coordinates."
+
+msgid "軸番号のtupleと中心座標のtuple。"
+msgstr "Tuple of axis numbers and tuple of center coordinates."
+
+msgid "軸や中心が不正な場合。"
+msgstr "When the axis or center is invalid."
 
 msgid "色の補間（BlendColors）"
 msgstr "Color Blend"
@@ -22568,8 +22190,8 @@ msgstr "Vertex/CV/Edge/Face/UV and their plural forms. Scene-based coordinate co
 msgid "``common``"
 msgstr ""
 
-msgid "選択・名前空間・参照、導入状態、イベント・遅延実行、 単位変換・汎用計算・進捗表示などの共通機能"
-msgstr "Shared functionality for selection, namespaces, references, installation status, events, deferred execution, unit conversion, general calculations, and progress display"
+msgid "選択・名前空間・参照、導入状態、イベント・遅延実行、 単位変換・独立した汎用計算の型・進捗表示などの共通機能"
+msgstr "Shared features include selection, namespaces, references, installation state, events, deferred execution, unit conversion, types for independent general-purpose calculations, and progress display."
 
 msgid "``maths``"
 msgstr "``maths``"
@@ -22586,8 +22208,14 @@ msgstr "Seven entry points: getNode, getPlug, createNode, ls, delete, duplicate,
 msgid "``decorator.py``"
 msgstr ""
 
-msgid "Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの joint姿勢編集、画面表示の一時停止"
-msgstr "Undo chunk, saving and restoring selection state, joint pose editing with preserved skinCluster deformation, and temporary display pause"
+msgid "Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの joint姿勢編集、画面表示の一時停止。fast/safeとフラグ正規化の内部補助も所有"
+msgstr "Undo chunks, saving and restoring selection, editing joint poses while preserving skinCluster deformation, and temporarily suspending viewport updates. Also owns internal helpers for fast/safe behavior and flag normalization."
+
+msgid "``util.py``"
+msgstr ""
+
+msgid "名前の整形・計測・ミラー入力検証の公開関数と、数学値・空間指定の内部補助"
+msgstr "Public functions for name formatting, measurement, and mirror-input validation, plus internal helpers for mathematical values and space arguments."
 
 msgid "``logger.py``"
 msgstr ""
@@ -22595,29 +22223,29 @@ msgstr ""
 msgid "ログ・通知・出力の共通入口"
 msgstr "Shared entry point for logs, notifications, and output"
 
-msgid "``_core``"
-msgstr "``_core``"
+msgid "``core``"
+msgstr ""
 
-msgid "Object共通基底、型登録・選択、拡張管理、初期化、再読み込みの内部基盤"
-msgstr "Internal foundation for the shared Object base, type registration and selection, extension management, initialization, and reloading"
+msgid "Object共通基底、アトリビュート型判定、型登録・選択、拡張管理、編集基盤、再読み込み"
+msgstr "The Object base class, attribute type detection, type registration and selection, extension management, editing infrastructure, and reloading"
 
-msgid "新規ファイルは用途に対応する既存分類へ追加します。 基本型に属さない共通処理は ``common`` 直下へ追加します。 UI・環境設定・ファイル操作は利用側でMaya標準APIを、JSONは標準 ``json`` を使います。 デコレーター・コンテキストマネージャーは直下の ``decorator.py``、 ログ・通知は直下の ``logger.py`` に置き、どの領域からも同じ入口を使います。 リグ固有の構築は ``mlrig.setups``、Maya標準の関係型は ``common`` に置きます。 入力の種類判別は ``_core/object.py``、各型への解決は ``Node``・``Plug``・``Component`` が担当し、 ``Object`` の継承関係は維持し、取得入口は ``from mlib._core.object import Object`` です。 ``_core``、``__tests__``、``_docs`` はそれぞれ内部基盤、検証、文書用です。 旧配置の互換ファイルは置かず、使用側のimportを正式な配置へ更新します。"
-msgstr "Add new files to the existing category matching their purpose. Shared processing outside the core types belongs directly under ``common``. UI, environment settings, and file operations use Maya's standard APIs in the consumer; JSON uses standard ``json``. Decorators and context managers belong in root ``decorator.py``, and logs/notifications in root ``logger.py``, using the same entry points across domains. Rig-specific construction belongs in ``mlrig.setups``; standard Maya relationship types belong in ``common``. ``_core/object.py`` determines input kinds, while ``Node``, ``Plug``, and ``Component`` resolve their own types. Preserve the ``Object`` inheritance structure and import it through ``from mlib._core.object import Object``. ``_core``, ``__tests__``, and ``_docs`` are for internal infrastructure, verification, and documentation. Do not retain compatibility files at old locations; update consumer imports to the official layout."
+msgid "新規ファイルは用途に対応する既存分類へ追加します。 Mayaの状態や独立した汎用計算の型は ``common`` 直下へ置きます。 クラスに属さない小さな汎用関数は直下の ``util.py`` へ集めます。 UI・環境設定・ファイル操作は利用側でMaya標準APIを、JSONは標準 ``json`` を使います。 デコレーター・コンテキストマネージャーは直下の ``decorator.py``、 ログ・通知は直下の ``logger.py`` に置き、どの領域からも同じ入口を使います。 リグ固有の構築は ``mlrig.setups``、Maya標準の関係型は ``common`` に置きます。 入力の種類判別は ``core/object.py``、各型への解決は ``Node``・``Plug``・``Component`` が担当し、 ``Object`` の継承関係は維持し、取得入口は ``from mlib.core.object import Object`` です。 ``core`` は通常の実行パッケージです。正式なAPIは明示import・``__all__``・文書で示し、 集約した内部補助は先頭 ``_`` で示し、既存の内部連携・登録プロトコル名は維持します。 ``__tests__`` と ``_docs`` は実行APIと別の検証・文書素材なので配置名を維持します。 旧配置の互換ファイルは置かず、使用側のimportを正式な配置へ更新します。"
+msgstr "Add new files to the existing category for their purpose. Place Maya state operations and independent general-purpose calculation types directly under ``common``. Collect small functions that do not belong to a class in the top-level ``util.py``. Use Maya's standard APIs in callers for UI, environment settings, and file operations, and the standard ``json`` library for JSON. Put decorators and context managers in the top-level ``decorator.py``, and logging and notifications in the top-level ``logger.py``, using the same entry points from every area. Place rig-specific construction in ``mlrig.setups`` and standard Maya relationship types in ``common``. ``core/object.py`` identifies the input kind, while ``Node``, ``Plug``, and ``Component`` resolve inputs to their respective types. Preserve the inheritance relationship with ``Object`` and obtain it through ``from mlib.core.object import Object``. ``core`` is an ordinary runtime package. Explicit imports, ``__all__``, and documentation identify supported APIs. The consolidated internal helpers use identifiers beginning with ``_``, while existing internal interfaces and registration protocols keep their names. Keep the names ``__tests__`` and ``_docs`` for test and documentation materials, which are separate from runtime APIs. Do not provide compatibility files at old locations; update callers to import from the official locations."
 
 msgid "mlib 全体クラス図"
 msgstr "mlib Overall Class Diagram"
 
-msgid "mlib全 156 クラスの継承関係を分類ごとの図で表示します。矢印の三角側が基底クラスです。 他の分類の基底クラスは、継承を追えるよう各図にも掲載します。 クラス名をクリックするとAPIリファレンスへ移動できます。"
-msgstr "Displays inheritance diagrams for all 156 mlib classes by category. Triangular arrowheads point to base classes. Base classes from other categories are also shown to make inheritance traceable. Click a class name to open its API reference."
-
-msgid "_core"
-msgstr "_core"
+msgid "mlib全 155 クラスの継承関係を分類ごとの図で表示します。矢印の三角側が基底クラスです。 他の分類の基底クラスは、継承を追えるよう各図にも掲載します。 クラス名をクリックするとAPIリファレンスへ移動できます。"
+msgstr "Inheritance diagrams show all 155 mlib classes by category. The triangle on an arrow points to the base class. Base classes from other categories also appear in each diagram so that inheritance can be followed. Click a class name to open its API reference."
 
 msgid "common"
 msgstr ""
 
 msgid "components"
 msgstr "components"
+
+msgid "core"
+msgstr ""
 
 msgid "logger"
 msgstr ""
@@ -22691,8 +22319,8 @@ msgstr "On the other hand, **MEL-only commands** that do not have corresponding 
 msgid "Mayaコマンド独自の判定をそのまま提供する処理も例外です。 ``Node.getHistory()`` は ``listHistory`` の構築履歴順、 ``SkinCluster.getUnusedInfluences()`` は ``weightedInfluence`` の使用判定、 ``Node.resetAttrs()`` は ``cmds.getAttr(settable=True)`` の書き込み可否を使用します。 APIのグラフ走査や個別フラグから似た判定を再構築して意味を変えないためです。"
 msgstr "Operations preserving Maya command-specific decisions are also exceptions. ``Node.getHistory()`` uses ``listHistory`` construction-history order; ``SkinCluster.getUnusedInfluences()`` uses ``weightedInfluence`` usage checks; ``Node.resetAttrs()`` uses ``cmds.getAttr(settable=True)`` writability. Reconstructing similar decisions through API graph traversal or individual flags could change their meaning."
 
-msgid "``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶためのアトリビュート型名は、 ``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、 アトリビュート定義から om2 で求めます(``_core/attributeType.py`` の ``attributeType()``。 ``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は ``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。 存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・``face[i]`` など)で例外になる、 といった副作用と失敗を避けるためです。``attributeType()`` は値を読まず、評価を起こしません。"
-msgstr "For ``Plug(node, mplug)`` to select a registered wrapper such as ``DoubleLinearPlug``, om2 derives the attribute type name from its definition. It uses the same string as ``cmds.getAttr(<プラグ名>, type=True)``, the ``PlugRegistry`` key, through ``attributeType()`` in ``_core/attributeType.py``: ``MFnNumericAttribute.numericType()``, apiType for ``MFnUnitAttribute``, enum, message, and matrix attributes, ``MFnTypedAttribute.attrType()``, and type declarations from ``MFnAttribute.getAddAttrCmd()`` for types without API 2.0 enum values. It does not call ``cmds.getAttr(type=True)``. This avoids creating nonexistent elements (including blendShape ``weight[i]`` creating ``parentDirectory[i]``), crashing Maya on nonexistent nurbsSurface ``patchUVIds`` elements, or exceptions on internal mesh attributes such as ``edge[i]``/``face[i]``. ``attributeType()`` neither reads values nor triggers evaluation."
+msgid "``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶためのアトリビュート型名は、 ``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、 アトリビュート定義から om2 で求めます(``core/attributeType.py`` の ``attributeType()``。 ``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は ``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。 存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・``face[i]`` など)で例外になる、 といった副作用と失敗を避けるためです。``attributeType()`` は値を読まず、評価を起こしません。"
+msgstr "The attribute type name used by ``Plug(node, mplug)`` to select a registered wrapper such as ``DoubleLinearPlug`` is the same string returned by ``cmds.getAttr(<プラグ名>, type=True)`` (the ``PlugRegistry`` key). It is obtained from the attribute definition through om2 (``attributeType()`` in ``core/attributeType.py``: ``MFnNumericAttribute.numericType()``, the apiType of ``MFnUnitAttribute``, enum, message, and matrix attributes, ``MFnTypedAttribute.attrType()``, and the type flag in ``MFnAttribute.getAddAttrCmd()`` for data types without an API 2.0 enum value). ``cmds.getAttr(type=True)`` is not used. This avoids side effects and failures: querying a missing array element creates it (for example, blendShape ``weight[i]`` also creates ``parentDirectory[i]``), querying a missing nurbsSurface ``patchUVIds`` element can crash Maya, and querying internal mesh attributes such as ``edge[i]`` and ``face[i]`` raises an exception. ``attributeType()`` does not read values or trigger evaluation."
 
 msgid "mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも ``cmds.getAttr(type=True)`` が ``float3`` を返すため、このアトリビュートだけ ``float3`` として扱います(nurbsCurve などは ``double3``)。"
 msgstr "The ``controlPoints`` of a mesh are treated as ``float3`` even though the attribute definition is ``double3``, because ``cmds.getAttr(type=True)`` returns ``float3`` (other objects like nurbsCurve are ``double3``)."
@@ -22796,8 +22424,8 @@ msgstr "Function names and file names for commands corresponding to Maya use the
 msgid "クラス公開と型対応の追加"
 msgstr "Adding class exports and type mappings"
 
-msgid "``nodes``・``plugs``・``components``・``maths``・``json`` のクラスは、 所属する ``__init__.py`` の通常のimportと ``__all__`` に明示します。 ``common`` はNode/Plugの初期化中に先行importしないよう、遅延公開の ``_exports`` と静的解析用の ``if TYPE_CHECKING:`` に追加します。 内部の ``_core`` や非公開クラスをルートへ展開しません。 ``maths.MSpace`` のような外部クラスの再公開も明示importで維持します。 既存の内部例外 ``DeletedAttributeError`` はパッケージ公開に追加せず、 検査ツールの理由付き非公開例外として扱います。"
-msgstr "Declare classes in ``nodes``, ``plugs``, ``components``, ``maths``, and ``json`` with ordinary imports and ``__all__`` in the owning package's ``__init__.py``. To avoid importing ``common`` classes while Node/Plug is initializing, add them to the lazy ``_exports`` map and the static imports in ``if TYPE_CHECKING:``. Internal ``_core`` names and private classes are not expanded at the root. Existing re-exports of external classes such as ``maths.MSpace`` also use explicit imports. The existing internal ``DeletedAttributeError`` is not added to package exports; it remains a documented private exception in the checker."
+msgid "``nodes``・``plugs``・``components``・``maths`` のクラスは、 所属する ``__init__.py`` の通常のimportと ``__all__`` に明示します。 ``common`` はNode/Plugの初期化中に先行importしないよう、遅延公開の ``_exports`` と静的解析用の ``if TYPE_CHECKING:`` に追加します。 ``core`` はモジュールとしてルートへ公開し、``Object`` 等のクラスや内部補助をルートへ展開しません。 ``maths.MSpace`` のような外部クラスの再公開も明示importで維持します。 既存の内部例外 ``DeletedAttributeError`` はパッケージ公開に追加せず、 検査ツールの理由付き非公開例外として扱います。"
+msgstr "Explicitly list classes in ``nodes``, ``plugs``, ``components``, and ``maths`` through ordinary imports and ``__all__`` in their package's ``__init__.py``. For ``common``, add entries to the lazy ``_exports`` mapping and the ``if TYPE_CHECKING:`` block used for static analysis, so that classes are not imported early during Node/Plug initialization. Export ``core`` from the root as a module, without placing classes such as ``Object`` or internal helpers at the root. Continue to re-export external classes such as ``maths.MSpace`` through explicit imports. Do not add the existing internal exception ``DeletedAttributeError`` to package exports; the checker treats it as a documented private exception."
 
 msgid "Node/Plugの型対応は公開名と分けて、それぞれの ``__init__.py`` にある ``_WRAPPER_CLASSES`` 辞書へ型名とクラスを追加します。 登録済みの型からラッパーを選択する規則は維持するため、 ``Node(...)``・``mlib.getNode(...)``・``mlib.ls(...)`` では対象に応じたクラスが選ばれます。 クラスの公開や型対応はモジュール走査・デコレーターで追加しません。"
 msgstr "Manage Node/Plug type mappings separately from public names by adding type-name/class pairs to the ``_WRAPPER_CLASSES`` dictionary in the corresponding ``__init__.py``. Registered-type selection is preserved, so ``Node(...)``, ``mlib.getNode(...)``, and ``mlib.ls(...)`` select a suitable wrapper. Module scanning and decorators do not add public classes or type mappings."
@@ -22832,8 +22460,8 @@ msgstr "maths file name"
 msgid "``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。 それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、公開メソッドはlowerCamelCaseです。 例えば ``EulerRotate`` は ``maths/eulerRotate.py``、``ScriptJob`` は ``common/scriptJob.py`` に置きます。移動の値型は ``Translate``、 回転の値型は回転順序を持つ ``EulerRotate`` に統一しています。"
 msgstr "``cmds`` follows Maya's camelCase names; ``nodes`` files match Maya nodeType names. Other implementation modules also use lowerCamelCase, classes use PascalCase, and public methods use lowerCamelCase. For example, ``EulerRotate`` belongs in ``maths/eulerRotate.py`` and ``ScriptJob`` in ``common/scriptJob.py``. Translation values use ``Translate``, and rotation values use ``EulerRotate``, which retains rotation order."
 
-msgid "この規則は ``common`` / ``_core`` や ``mlib_*`` 拡張にも適用します。 例: ``common/scriptJob.py``、``_core/attributeType.py``。 ``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、 内部用の先頭 ``_`` とパッケージ名は維持します。"
-msgstr "This rule also applies to ``common``, ``_core``, and ``mlib_*`` extensions, for example ``common/scriptJob.py`` and ``_core/attributeType.py``. Preserve special names such as ``__init__.py``, test-discovery names ``test_*.py`` and test scripts, leading internal ``_``, and package names."
+msgid "この規則は ``common`` / ``core`` や ``mlib_*`` 拡張にも適用します。 例: ``common/scriptJob.py``、``core/attributeType.py``。 ``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、 内部用の先頭 ``_`` とパッケージ名は維持します。"
+msgstr "This rule also applies to ``common`` / ``core`` and ``mlib_*`` extensions. Examples: ``common/scriptJob.py`` and ``core/attributeType.py``. Keep special names such as ``__init__.py``, test-discovery names such as ``test_*.py`` and test scripts, internal leading ``_`` prefixes, and package names."
 
 msgid "Mayaの現在値を照会するAPIはメソッド、保持するデータはプロパティまたはフィールドにします。 詳しい移行先は :doc:`api_naming` を参照してください。"
 msgstr "The API to query the current value in Maya uses methods, and the data it holds are properties or fields. See :doc:`api_naming` for detailed migration information."
@@ -22847,14 +22475,20 @@ msgstr "Use classes from their owning subpackages, such as ``mlib.nodes.Node``, 
 msgid "内部実装"
 msgstr "Internal implementation"
 
-msgid "``mlib._core`` はObject共通基底・型登録・選択・拡張管理・初期化・再読み込みを担当する内部パッケージです。 通常のツールではコマンド、各クラス、``mlib.reload()`` を利用します。 種類判別や共通基底の判定が必要な場合は ``from mlib._core.object import Object`` を使います。 登録・管理の取得入口は ``from mlib._core import extensions`` です。ルートには再公開せず、 旧モジュールパスをimportする互換入口は用意しません。 拡張の配置・依存確認・自動登録は :doc:`extensions` を参照してください。 型対応は本体と外部拡張の ``nodes`` / ``plugs`` にある ``_WRAPPER_CLASSES`` で宣言します。 複数形APIは通常の ``def`` で定義し、``Nodes`` の共通処理へ委譲します。 旧パス ``mlib.core`` は廃止しました。"
-msgstr "``mlib._core`` handles the shared Object base, type registration and selection, extension management, initialization, and reloading. Ordinary tools use commands, classes, and ``mlib.reload()``. For kind checks or shared-base checks, use ``from mlib._core.object import Object``. Access extension registration and management through ``from mlib._core import extensions``. These names are not re-exported at the root, and old module paths have no compatibility entry points. See :doc:`extensions` for extension placement, dependency checks, and automatic registration. Type mappings are declared in ``_WRAPPER_CLASSES`` in the core and extension ``nodes`` / ``plugs`` packages. Collection APIs are ordinary ``def`` methods delegating to shared ``Nodes`` operations. The old ``mlib.core`` path has been removed."
+msgid "``mlib.core`` はObject共通基底・型判定/登録・選択・拡張管理・編集基盤・再読み込みを担当します。 通常のツールではコマンド、各クラス、``mlib.reload()`` を利用します。 種類判別や共通基底の判定が必要な場合は ``from mlib.core.object import Object`` を使います。 登録・管理の取得入口は ``from mlib.core import extensions`` です。ルートには再公開せず、 旧モジュールパスをimportする互換入口は用意しません。 拡張の配置・依存確認・自動登録は :doc:`extensions` を参照してください。 型対応は本体と外部拡張の ``nodes`` / ``plugs`` にある ``_WRAPPER_CLASSES`` で宣言します。 複数形APIは通常の ``def`` で定義し、``Nodes`` の共通処理へ委譲します。 ``core.__all__`` の ``NodeRegistry`` と ``reload_package``、および既存の登録用プロトコルは 名前と意味を維持します。フォルダ名から全内部関数の正式公開を導きません。 旧パス ``mlib._core`` の互換ファイル・別名はありません。"
+msgstr "``mlib.core`` provides the Object base class, type detection, registration and selection, extension management, editing infrastructure, and reloading. Ordinary tools use commands, individual classes, and ``mlib.reload()``. Use ``from mlib.core.object import Object`` when identifying reference kinds or checking the common base class. Obtain extension management through ``from mlib.core import extensions``; it is not re-exported at the root, and no compatibility entry point imports the old module paths. See :doc:`extensions` for extension locations, dependency checks, and automatic registration. Declare type mappings in ``_WRAPPER_CLASSES`` in the ``nodes`` / ``plugs`` packages of the library and external extensions. Define plural APIs with ordinary ``def`` statements and delegate to shared processing in ``Nodes``. Preserve the names and meanings of ``NodeRegistry`` and ``reload_package`` in ``core.__all__``, and of the existing registration protocols. The folder name does not make all internal functions supported public APIs. No compatibility files or aliases are provided for the old ``mlib._core`` path."
+
+msgid "``mlib.util`` は ``legalizeName``・``measure``・``mirrorArguments`` を公開します。 数学値の添字・比較・派生状態のコピーと空間指定の検証は、同じファイル内の 先頭 ``_`` の内部関数です。utilのimportは標準ライブラリだけを使い、 Node/Plugやcore/decoratorへの依存を追加しません。 通常の ``import mlib.util`` はmlibの初期化を通るため、Maya環境を必要とします。"
+msgstr "``mlib.util`` exports ``legalizeName``, ``measure``, and ``mirrorArguments``. Helpers for math-value indexing, comparison, copying derived-instance state, and validating space flags are internal functions beginning with ``_`` in the same file. util imports only the standard library and does not add dependencies on Node/Plug or core/decorator. A normal ``import mlib.util`` initializes mlib and therefore requires a Maya environment."
 
 msgid "内部処理の責務と再初期化"
 msgstr "Internal Processing Responsibilities and Re-initialization"
 
-msgid "``_core.attributeType`` はアトリビュート定義からの型判定と数値型の読み書き対応を管理します。 ``Plug`` は参照の寿命・公開操作を、``_core.fastWrite`` は更新時のロック・接続・範囲検査を担当します。 読み取りと書き込みの単位規則はそれぞれの既存仕様に従い、同じ型でも無条件に共通化しません。 シーンの値、ロック状態、範囲は永続キャッシュに保存しません。"
-msgstr "``_core.attributeType`` manages type determination from attribute definitions and read/write operations for numeric types. ``Plug`` handles reference lifetime and public operations, while ``_core.fastWrite`` manages lock, connection, and range validation during updates. Read and write unit rules follow each existing specification, and even when types are the same, they are not unconditionally unified. Scene values, lock states, and ranges are not saved to the persistent cache."
+msgid "``core.attributeType`` はアトリビュート定義からの型判定と数値型の読み書き対応を管理します。 定義に基づく内部単位とUI単位の境界変換は、同モジュールの ``_convert_units`` が担当します。 ``Plug`` は参照の寿命・公開操作を、``core.fastWrite`` は更新時のロック・接続・範囲検査を担当します。 読み取りと書き込みの単位規則はそれぞれの既存仕様に従い、同じ型でも無条件に共通化しません。 シーンの値、ロック状態、範囲は永続キャッシュに保存しません。"
+msgstr "``core.attributeType`` manages type detection from attribute definitions and the numeric-type read/write mappings. Its ``_convert_units`` function handles definition-based conversion between internal and UI units. ``Plug`` handles reference lifetime and public operations, while ``core.fastWrite`` validates locks, connections, and ranges when writing. Reading and writing retain their existing unit rules; processing is not unconditionally shared merely because the type is the same. Scene values, lock states, and ranges are not stored in persistent caches."
+
+msgid "Mayaノード型の継承照会とキャッシュは ``core.registry`` が所有します。 未知型の負結果を保存せず、プラグイン管理による消去とreloadによる再生成を維持します。 短長フラグの正規化、fastの継承と復元、safeの内部処理は ``decorator.py`` に集約します。 Plugの接続用lock contextやNamespace等のインスタンス固有contextは各クラスに残します。"
+msgstr "``core.registry`` owns Maya node-type inheritance queries and their cache. Negative results for unknown types are not cached; clearing through plug-in management and regeneration on reload are preserved. ``decorator.py`` groups short/long flag normalization, fast-state inheritance and restoration, and internal safe processing. Instance-specific contexts, such as Plug connection lock contexts and Namespace contexts, remain on their respective classes."
 
 msgid "複数形クラスの検証は実際の呼出先メソッドを使います。 共有引数の入口は ``def method(self, *args, **kwargs)`` として定義し、 ``Nodes._dispatch_shared`` へ渡します。要素別引数は ``callEach`` で渡します。 対象メソッドと戻り方針は一つの一覧で宣言し、既存の呼出先・戻り方針の辞書を構成します。 各入口の ``__signature__`` は対応する単数メソッドから設定し、 ``inspect.signature`` で取得する既存の引数仕様を維持します。 公開メソッドの作成や選択を実行時に行う仕組みではありません。 同一引数では検証結果を実関数ごとに共有し、要素別引数では各入力を検証します。 この共有は一回の呼出し内に限定し、派生クラスのoverrideやreloadに追従します。 全件の引数検証後に保持順で実行し、途中失敗時の先行変更は自動で戻しません。"
 msgstr "Plural-class validation uses the actual target method. Shared-argument entry points are declared as ``def method(self, *args, **kwargs)`` and delegate to ``Nodes._dispatch_shared``. Per-element arguments go through ``callEach``. One list declares target methods and return policies and builds the existing dispatch and policy dictionaries. Each entry's ``__signature__`` comes from the corresponding singular method, preserving the argument contract reported by ``inspect.signature``. Public methods are not created or selected dynamically at runtime. Shared arguments reuse validation per actual function; per-element calls validate each input. Reuse is limited to one call and follows subclass overrides and reload. After all arguments are validated, execution follows stored order; completed changes are not automatically reverted if a later item fails."
@@ -22862,11 +22496,14 @@ msgstr "Plural-class validation uses the actual target method. Shared-argument e
 msgid "reloadはimportの探索キャッシュを無効化して現在のモジュールを検出します。 型登録表の再構築はルートの初期化、各キャッシュの再生成は所有モジュール、 標準型の登録後の任意拡張の登録は ``extensions`` が担当します。 定義モジュールはreload処理が一度だけ再読み込みし、ルートはNode/Plugの明示対応表を登録します。 reload後はNode/Plug等のインスタンスを取得し直してください。"
 msgstr "reload invalidates import-discovery caches and detects current modules. Root initialization rebuilds type registries, owning modules recreate their caches, and ``extensions`` registers optional extensions after standard types. The reload mechanism reloads each definition module once; the root registers explicit Node/Plug mappings. Retrieve Node/Plug and other instances again after reload."
 
+msgid "数学値のpickle復元関数は ``mlib.maths.vector._rebuild`` に置き、固定の保存先を維持します。 ``Object``・``NodeRegistry`` や移動した関数自体の ``__module__`` は新しい定義先になります。 旧 ``mlib._core`` 等のパスを保存したpickleを読み込む互換入口は提供しません。 シーン参照インスタンスの永続化を保証するものではありません。"
+msgstr "Keep the math-value pickle reconstruction function at ``mlib.maths.vector._rebuild`` to preserve the fixed reconstruction path. The ``__module__`` values of ``Object``, ``NodeRegistry``, and moved functions themselves change to their new definition locations. No compatibility entry point reads pickles that store old paths such as ``mlib._core``. This does not guarantee persistence of scene-reference instances."
+
 msgid "内部処理の参照方向"
 msgstr "Internal processing reference direction"
 
-msgid "入力列の展開は ``Object._flatten_inputs()``、名前とNodeの混在検査は ``Nodes._validate_inputs()`` が担当します。検査から展開へ戻る参照は作りません。 ``createNode`` は ``Node.create()`` へ委譲し、クラスから公開コマンドを呼び戻しません。 アトリビュート追加は ``Node.addAttr()``、遅延実行は ``Deferred.call()`` を使います。 コレクションの転送入口は各クラスへ通常のdefとして明示し、実行方針と独自overrideの判定は ``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集は ``_core.bulkExecution`` が判定し、基底Nodes経由でも同じ返却を維持します。 公開APIとUndoの単位は変わりません。"
-msgstr "``Object._flatten_inputs()`` expands input sequences; ``Nodes._validate_inputs()`` checks for mixed names and Nodes. Validation does not reference expansion recursively. ``createNode`` delegates to ``Node.create()``; classes do not call back into public commands. Use ``Node.addAttr()`` for attribute creation and ``Deferred.call()`` for deferred execution. Collection forwarding entry points are ordinary explicit def methods on each class. ``Nodes._dispatch_shared()`` centralizes execution policy and custom override detection. ``_core.bulkExecution`` determines result aggregation for calculation setters with get, preserving return behavior even through base Nodes. Public API and Undo grouping remain unchanged."
+msgid "入力列の展開は ``Object._flatten_inputs()``、名前とNodeの混在検査は ``Nodes._validate_inputs()`` が担当します。検査から展開へ戻る参照は作りません。 ``createNode`` は ``Node.create()`` へ委譲し、クラスから公開コマンドを呼び戻しません。 アトリビュート追加は ``Node.addAttr()``、遅延実行は ``Deferred.call()`` を使います。 コレクションの転送入口は各クラスへ通常のdefとして明示し、実行方針と独自overrideの判定は ``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集も Nodesが所有し、基底Nodes経由でも同じ返却を維持します。 公開APIとUndoの単位は変わりません。"
+msgstr "``Object._flatten_inputs()`` expands input collections, and ``Nodes._validate_inputs()`` checks for mixed names and Node objects. Validation does not call back into expansion. ``createNode`` delegates to ``Node.create()``; classes do not call back into public commands. Use ``Node.addAttr()`` to add attributes and ``Deferred.call()`` for deferred execution. Define collection forwarding entry points explicitly with ordinary def statements, and centralize execution policy and custom-override detection in ``Nodes._dispatch_shared()``. Nodes also owns result collection when get is specified for calculation setters, preserving the same return behavior through the base Nodes class. Public APIs and Undo boundaries remain unchanged."
 
 msgid "複雑な編集操作は、各クラス内で入力整理・計算・検査・書込みを担当する privateメソッドへ分けています。通常モードのcmds書込み順とfastの事前検査・直接更新、 既存のUndo範囲を維持します。Undoを一回にまとめることと、失敗時に更新を戻すことは 別の契約です。内部処理の分割だけで、途中失敗までに行われた更新を自動で戻す仕様へ変更しません。"
 msgstr "Complex edits are divided into private methods within each class for input preparation, calculation, validation, and writing. The normal cmds write order, fast preflight and direct updates, and existing Undo scopes are preserved. Grouping an operation into one Undo step is a separate contract from reverting updates on failure. Splitting internal code does not automatically revert updates made before a failure."
@@ -22949,8 +22586,8 @@ msgstr "Package Rules"
 msgid "名前は ``mlib_<拡張名>`` とし、拡張名は英小文字で始まる小文字・数字・ アンダースコアにします。通常の ``__init__.py`` を持つパッケージを対象とし、 Python探索パス直下だけを調べます。"
 msgstr "The name is ``mlib_<拡張名>``, and the extension uses lowercase letters starting with lowercase letters, numbers, and underscores. It targets regular packages with ``__init__.py`` and only searches under the Python search path."
 
-msgid "``nodes`` と ``plugs`` は任意です。各 ``__init__.py`` に通常のimportと ``__all__`` で 公開クラスを明示し、``_WRAPPER_CLASSES`` 辞書に型名とクラスの対応を宣言します。 ``from mlib._core import extensions`` で取得でき、ルートへの再公開は行いません。 それぞれ ``mlib.nodes.Node``、``mlib.plugs.Plug`` を継承してください。 クラスは拡張側の ``nodes`` / ``plugs`` から公開され、mlib直下へは展開しません。 ラッパーモジュールの自動走査やクラスの実行時注入は行いません。"
-msgstr "``nodes`` and ``plugs`` are optional. Declare public classes with ordinary imports and ``__all__`` in each ``__init__.py``, and declare type-name/class mappings in ``_WRAPPER_CLASSES``. Access extension management through ``from mlib._core import extensions``; it is not re-exported at the root. Node and Plug wrappers must inherit ``mlib.nodes.Node`` and ``mlib.plugs.Plug``, respectively. Classes are exposed through the extension's ``nodes`` / ``plugs`` packages, without being expanded at the mlib root. Wrapper modules are not scanned automatically, and classes are not injected at runtime."
+msgid "``nodes`` と ``plugs`` は任意です。各 ``__init__.py`` に通常のimportと ``__all__`` で 公開クラスを明示し、``_WRAPPER_CLASSES`` 辞書に型名とクラスの対応を宣言します。 ``from mlib.core import extensions`` で取得でき、ルートへの再公開は行いません。 それぞれ ``mlib.nodes.Node``、``mlib.plugs.Plug`` を継承してください。 クラスは拡張側の ``nodes`` / ``plugs`` から公開され、mlib直下へは展開しません。 ラッパーモジュールの自動走査やクラスの実行時注入は行いません。"
+msgstr "``nodes`` and ``plugs`` are optional. Explicitly export classes through ordinary imports and ``__all__`` in each ``__init__.py``, and declare type-name-to-class mappings in the ``_WRAPPER_CLASSES`` dictionary. Obtain extension management through ``from mlib.core import extensions``; it is not re-exported at the root. Inherit from ``mlib.nodes.Node`` and ``mlib.plugs.Plug``, respectively. Classes are exported from the extension's ``nodes`` / ``plugs`` packages and are not placed directly at the mlib root. Wrapper modules are not automatically scanned, and classes are not injected at runtime."
 
 msgid "例えば ``nodes/customNode.py`` に定義した ``CustomNode`` は、 ``nodes/__init__.py`` で次のように宣言します。型名は実際のMaya nodeTypeに合わせます。"
 msgstr "For example, declare a ``CustomNode`` defined in ``nodes/customNode.py`` as follows in ``nodes/__init__.py``. Use the actual Maya nodeType as the dictionary key."
@@ -23222,8 +22859,8 @@ msgstr "Node attributes are operated through :class:`~mlib.plugs.plug.Plug` obje
 msgid "対象の種類を判別して取得する"
 msgstr "Determine and retrieve the type of target object"
 
-msgid "ノード・アトリビュート・コンポーネント（頂点・エッジ・フェース・CV・UV）を 同じ入口で取得したい場合は ``mlib._core.object`` から ``Object`` をimportします。 既存対象の参照を返し、新しいノードは作成しません。 以下は ``pCube1`` が存在するシーンでの例です。"
-msgstr "To retrieve nodes, attributes, and components (vertices, edges, faces, CVs, UVs) through a common entry point, import ``Object`` from ``mlib._core.object``. It references existing objects without creating nodes. The following example assumes ``pCube1`` exists in the scene."
+msgid "ノード・アトリビュート・コンポーネント（頂点・エッジ・フェース・CV・UV）を 同じ入口で取得したい場合は ``mlib.core.object`` から ``Object`` をimportします。 既存対象の参照を返し、新しいノードは作成しません。 以下は ``pCube1`` が存在するシーンでの例です。"
+msgstr "To obtain nodes, attributes, and components (vertices, edges, faces, CVs, and UVs) through the same entry point, import ``Object`` from ``mlib.core.object``. It returns references to existing objects and does not create nodes. The following example assumes that ``pCube1`` exists in the scene."
 
 msgid "``Object`` は単数の ``Node``・``Plug``・``Component`` の共通基底です。 数学型と複数形コレクションは継承しません。 要素範囲は ``Object`` ではなく ``mlib.common.Selection(\"pCube1.vtx[0:3]\")`` で取得します。 アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。 アトリビュートとして明示する場合は ``node.getPlug()`` または ``mlib.getPlug()`` を使います。 対象の種類が決まっている既存コードでは ``mlib.getNode()``・``mlib.getPlug()`` をそのまま使えます。"
 msgstr "``Object`` is the shared base of singular ``Node``, ``Plug``, and ``Component`` types. Math types and plural collections do not derive from it. Retrieve element ranges with ``mlib.common.Selection(\"pCube1.vtx[0:3]\")`` rather than ``Object``. Names shared by attributes and components follow Maya's selection resolution. Use ``node.getPlug()`` or ``mlib.getPlug()`` to request an attribute explicitly. Existing code that knows the target kind can continue using ``mlib.getNode()``/``mlib.getPlug()`` directly."

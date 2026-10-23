@@ -215,11 +215,14 @@ Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/ml
 Maya を起動せず、ソースから HTML を生成できます。
 手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md)を参照してください。
 
-mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common` です。
+mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`core` です。
 選択・参照関係・単位・プラグイン・イベントと既存の共通計算は `common` にまとめ、
 ログは `mlib.logger`、Undo等のデコレーターは `mlib.decorator` から利用します。
-Objectと拡張登録・管理の入口は `_core` に置き、`from mlib._core.object import Object`、
-`from mlib._core import extensions` から取得します。ルートへは再公開しません。
+クラスに属さない汎用関数は `mlib.util` に集め、`legalizeName`・`measure`・`mirrorArguments` を公開します。
+Objectと拡張登録・管理の入口は `core` に置き、`from mlib.core.object import Object`、
+`from mlib.core import extensions` から取得します。ルートへは再公開しません。
+`core`も通常の実行パッケージです。正式なAPIは明示import・`__all__`・文書で示し、
+集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持します。旧`mlib._core`等の互換入口はありません。
 クラス・コマンドの公開名は各パッケージの `__init__.py`、Node/Plugの型対応は同ファイルの
 `_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
 `python tools/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。

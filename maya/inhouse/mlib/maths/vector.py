@@ -4,7 +4,7 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison, _instance_state
+from ..util import _checked_index, _copy_state, _foreign_comparison, _instance_state
 
 _MVector = om2.MVector
 _MPoint = om2.MPoint
@@ -716,7 +716,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 同型の新しい値。
         """
-        from ..common.mirror import mirrorArguments
+        from ..util import mirrorArguments
         axes, center = mirrorArguments(axis, pivot)
         values = list(self)
         for index in axes:

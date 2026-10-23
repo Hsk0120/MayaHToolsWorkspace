@@ -3,8 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..decorator import _fast_edit, _is_fast, undoChunk
 from .node import Node
 
 
@@ -24,7 +23,7 @@ class ObjectSet(Node):
         names = om2.MFnSet(self.mnode()).getMembers(False).getSelectionStrings()
         return [name if "." in name else Node(name) for name in names]
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibObjectSetAdd")
     def addMembers(self, *members, fast=False):
         """メンバーを追加する。
@@ -37,15 +36,15 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         if members:
-            if is_fast():
+            if _is_fast():
                 self._editable_set().addMembers(self._member_selection(members))
             else:
                 cmds.sets(_InputObject._input_names(members), add=self.getName())
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibObjectSetRemove")
     def removeMembers(self, *members, fast=False):
         """メンバーを除外する。
@@ -57,9 +56,9 @@ class ObjectSet(Node):
         Returns:
             ObjectSet: 自身。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         if members:
-            if is_fast():
+            if _is_fast():
                 self._editable_set().removeMembers(self._member_selection(members))
             else:
                 cmds.sets(_InputObject._input_names(members), remove=self.getName())
@@ -74,7 +73,7 @@ class ObjectSet(Node):
         Returns:
             bool: メンバーの場合は True。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         query = om2.MSelectionList()
         query.add(_InputObject._input_name(member))
         members = om2.MFnSet(self.mnode()).getMembers(False)
@@ -100,7 +99,7 @@ class ObjectSet(Node):
         Returns:
             om2.MSelectionList: 解決した対象。
         """
-        from .._core.object import Object
+        from ..core.object import Object
         selection = om2.MSelectionList()
         for name in Object._input_names(members):
             selection.add(name)

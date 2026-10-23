@@ -38,7 +38,7 @@ assert "mlib" not in sys.modules
 import maya.standalone
 maya.standalone.initialize(name="python")
 import mlib
-state = mlib._core.extensions.status()["mlib_bifrost"]["state"]
+state = mlib.core.extensions.status()["mlib_bifrost"]["state"]
 assert state in ("loaded", "unavailable"), state
 assert mlib_bifrost.nodes.Graph is not None
 old = mlib_bifrost
@@ -87,7 +87,7 @@ maya.standalone.uninitialize()
         self.wrappers(path, 'nodes', 'from mlib.nodes import Node\nclass Sample(Node): pass\n', type_name='fixtureNode', class_name='Sample')
         self.wrappers(path, 'plugs', 'from mlib.plugs import Plug\nclass SamplePlug(Plug): pass\n', type_name='fixtureData', class_name='SamplePlug')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()['mlib_fixture_valid']['state'], 'loaded')
+        self.assertEqual(mlib.core.extensions.status()['mlib_fixture_valid']['state'], 'loaded')
         old = mlib.nodes.Node._registry.lookup('fixtureNode')
         self.assertTrue(issubclass(old, mlib.nodes.Node))
         self.assertIsNotNone(mlib.plugs.Plug._registry.lookup('fixtureData'))
@@ -105,7 +105,7 @@ maya.standalone.uninitialize()
         self.package('mlib_fixture_unavailable', 'MLIB_EXTENSION_API = 1\ndef is_available(): return False\n')
         self.package('mlib_fixture_unmarked', '')
         mlib.reload()
-        states = mlib._core.extensions.status()
+        states = mlib.core.extensions.status()
         self.assertEqual(states['mlib_fixture_unavailable']['state'], 'unavailable')
         self.assertEqual(states['mlib_fixture_unmarked']['state'], 'skipped')
 
@@ -116,10 +116,10 @@ maya.standalone.uninitialize()
         child = self.package('mlib_fixture_achild', 'MLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
         self.wrappers(child, 'nodes', 'from mlib_fixture_zbase.nodes.sample import Base\nclass Child(Base): pass\n', type_name='fixtureChild', class_name='Child')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()['mlib_fixture_achild']['state'], 'error')
+        self.assertEqual(mlib.core.extensions.status()['mlib_fixture_achild']['state'], 'error')
         self.assertNotIn('mlib_fixture_achild.nodes', sys.modules)
         self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureChild'))
-        self.assertEqual(mlib._core.extensions.status()['mlib_fixture_zbase']['state'], 'loaded')
+        self.assertEqual(mlib.core.extensions.status()['mlib_fixture_zbase']['state'], 'loaded')
 
     def test_failed_import_recovers_on_first_reload(self):
         """親のimport失敗で孤立した子も更新し、探索パスから外した場合も解除する。"""
@@ -127,7 +127,7 @@ maya.standalone.uninitialize()
         path = self.package(name, 'from . import config\nraise RuntimeError("broken initialization")\n')
         (path / 'config.py').write_text('VALUE = 1\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'error')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'error')
         self.assertNotIn(name, sys.modules)
         self.assertIn(name + '.config', sys.modules)
         (path / 'config.py').write_text('VALUE = 22222\n', encoding='utf-8')
@@ -135,7 +135,7 @@ maya.standalone.uninitialize()
             'from . import config\nMLIB_EXTENSION_API = 1\n'
             'def is_available(): return config.VALUE == 22222\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'loaded')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'loaded')
         self.assertEqual(sys.modules[name + '.config'].VALUE, 22222)
         # 再び失敗させ、親がない状態で探索パスからも削除する。
         (path / '__init__.py').write_text('from . import config\nraise RuntimeError("again")\n', encoding='utf-8')
@@ -154,12 +154,12 @@ maya.standalone.uninitialize()
         # バージョンに依存せず、解析されると必ず失敗する構文で検証する。
         (path / 'implementation.py').write_text('def invalid(\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'unavailable')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'unavailable')
         self.assertNotIn(name + '.implementation', sys.modules)
         (path / '__init__.py').write_text(
             'MLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'error')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'error')
 
     def test_reload_removes_all_extensions_before_reimport(self):
         """名前順で後の拡張も最初の再import前に解除し、SDKは保持する。"""
@@ -174,7 +174,7 @@ maya.standalone.uninitialize()
                 'import sys\nassert "mlib_fixture_zlast" not in sys.modules\n'
                 'MLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding='utf-8')
             mlib.reload()
-            self.assertEqual(mlib._core.extensions.status()['mlib_fixture_afirst']['state'], 'loaded')
+            self.assertEqual(mlib.core.extensions.status()['mlib_fixture_afirst']['state'], 'loaded')
             self.assertIs(sys.modules[sdk.__name__], sdk)
         finally:
             sys.modules.pop(sdk.__name__, None)
@@ -185,7 +185,7 @@ maya.standalone.uninitialize()
         self.package('mlib_fixture_reentry', 'MLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
         mlib.reload()
         module = sys.modules['mlib_fixture_reentry']
-        with mock.patch.object(mlib._core.extensions, '_loading', True):
+        with mock.patch.object(mlib.core.extensions, '_loading', True):
             with self.assertRaises(RuntimeError):
                 mlib.reload()
         self.assertIs(sys.modules['mlib_fixture_reentry'], module)
@@ -196,7 +196,7 @@ maya.standalone.uninitialize()
         self.wrappers(path, 'plugs', 'from mlib.plugs import Plug\nclass Sample(Plug): pass\n', type_name='double3', class_name='Sample')
         self.package('mlib_fixture_broken', 'MLIB_EXTENSION_API = 1\ndef is_available(): raise RuntimeError("SDK broken")\n')
         mlib.reload()
-        states = mlib._core.extensions.status()
+        states = mlib.core.extensions.status()
         self.assertEqual(states['mlib_fixture_conflict']['state'], 'error')
         self.assertIsNone(mlib.nodes.Node._registry.lookup('fixturePartial'))
         self.assertEqual(states['mlib_fixture_broken']['reason'], 'SDK broken')
@@ -218,12 +218,12 @@ maya.standalone.uninitialize()
                 raise RuntimeError('registration interrupted')
 
         with mock.patch.object(registry, 'register', side_effect=reject):
-            mlib._core.extensions._initialize()
+            mlib.core.extensions._initialize()
         self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureAtomicNode'))
         self.assertIsNone(registry.lookup('fixtureAtomicPlug'))
         # 明示importでの公開は型登録と独立し、登録失敗で名前を書き換えない。
         self.assertTrue(hasattr(sys.modules['mlib_fixture_atomic.nodes'], 'AtomicNode'))
-        self.assertEqual(mlib._core.extensions.status()['mlib_fixture_atomic']['state'], 'error')
+        self.assertEqual(mlib.core.extensions.status()['mlib_fixture_atomic']['state'], 'error')
         self.assertIsNotNone(mlib.nodes.Node._registry.lookup('transform'))
 
     def test_unlisted_wrapper_is_not_imported_or_registered(self):
@@ -235,7 +235,7 @@ maya.standalone.uninitialize()
         (folder / '__init__.py').write_text('__all__ = []\n_WRAPPER_CLASSES = {}\n', encoding='utf-8')
         (folder / 'sample.py').write_text('from mlib.nodes import Node\nclass Sample(Node): pass\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'loaded')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'loaded')
         self.assertNotIn(name + '.nodes.sample', sys.modules)
         self.assertFalse(hasattr(sys.modules[name + '.nodes'], 'Sample'))
 
@@ -249,7 +249,7 @@ maya.standalone.uninitialize()
         folder.mkdir()
         (folder / '__init__.py').write_text('_WRAPPER_CLASSES = {"invalid": object()}\n', encoding='utf-8')
         mlib.reload()
-        self.assertEqual(mlib._core.extensions.status()[name]['state'], 'error')
+        self.assertEqual(mlib.core.extensions.status()[name]['state'], 'error')
         self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureInvalidMapNode'))
 
 

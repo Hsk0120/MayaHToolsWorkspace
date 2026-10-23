@@ -1,6 +1,6 @@
 """Maya の locator シェイプを扱う。"""
 
-from ..common._fast import fast_edit
+from ..decorator import _fast_edit
 from ..maths import Translate
 from .shape import Shape
 
@@ -16,7 +16,7 @@ class Locator(Shape):
         """
         return Translate(*self.getPlug("localPosition").get())
 
-    @fast_edit
+    @_fast_edit
     def setPosition(self, value, *, fast=False):
         """localPosition を設定する。
 

@@ -2,9 +2,11 @@
 
 ## 基本方針
 
-- mlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py` に置く。内部基盤は `_core`、文書は `_docs` とし、`mlib_*` もこの責務の分類に合わせる。
+- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
 
-- `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
+- 2026-10-23のユーザー指示により、`_core`は`core`へ改名し、実行フォルダ名で公開/非公開を区分しない。正式なAPIは通常の明示import・`__all__`・文書で示し、集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。`core`内の全関数を正式APIへ拡大せず、既存の`NodeRegistry`・`reload_package`と登録用プロトコルの名前・意味を維持する。旧`mlib._core`や移動前のcommon小モジュールの互換ファイル・別名は残さない。`_docs`・`__tests__`は実行APIと別の文書・検証素材なので配置名を維持する。
+
+- `Object` (`core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib.core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib.core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
 - mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
@@ -45,8 +47,8 @@
 ## 実装ルール
 
 - Maya依存コードでは既存の `maya.api.OpenMaya`、ラッパー、共通ヘルパーを優先して再利用する。
-- `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
-- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `_core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
+- `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
+- Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` で明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数APIの自動全公開は行わず、既存の引数・戻り値・専用集約処理を維持する。
 - `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
 - シーンを変更する処理は既存のUndo対応に従い、必要なら `mlib.decorator` を使う。

@@ -5,8 +5,8 @@ import unittest
 
 import mlib
 mlib.reload()
-from mlib._core.registry import NodeRegistry
-from mlib._core.typeHierarchy import inherited_node_types
+from mlib.core.registry import NodeRegistry
+from mlib.core.registry import _inherited_node_types
 
 
 class _FallbackClass:
@@ -99,21 +99,21 @@ class NodeRegistryInheritedTypesTest(unittest.TestCase):
 
 
 class NodeTypeHierarchyTest(unittest.TestCase):
-    """mlib._core.typeHierarchy.inherited_node_types の照会・キャッシュを検証する。"""
+    """mlib.core.registry._inherited_node_types の照会・キャッシュを検証する。"""
 
     def test_chain_is_self_first_then_ancestors_toward_base(self):
-        chain = inherited_node_types("joint")
+        chain = _inherited_node_types("joint")
         self.assertEqual(chain[0], "joint")
         self.assertEqual(chain[-1], "containerBase")
         self.assertIn("transform", chain)
         self.assertLess(chain.index("transform"), chain.index("containerBase"))
 
     def test_unrecognized_type_returns_itself_only(self):
-        self.assertEqual(inherited_node_types("mlibBogusTypeXYZ"), ("mlibBogusTypeXYZ",))
+        self.assertEqual(_inherited_node_types("mlibBogusTypeXYZ"), ("mlibBogusTypeXYZ",))
 
     def test_repeated_calls_return_cached_equal_result(self):
-        first = inherited_node_types("locator")
-        second = inherited_node_types("locator")
+        first = _inherited_node_types("locator")
+        second = _inherited_node_types("locator")
         self.assertEqual(first, second)
 
 

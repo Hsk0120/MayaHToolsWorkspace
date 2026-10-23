@@ -2,18 +2,16 @@
 
 import math
 
-from .._core import geometryEdit as geometry_edit
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..core import geometryEdit as geometry_edit
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from ..util import _world_space
 from .component import Component, Components
 
 
 class PointComponent(Component):
     """XYZ 座標を持つ頂点または CV。座標はシーンの現在値を参照する。"""
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPosition(self, worldSpace=False):
         """現在の座標を取得する。
 
@@ -26,12 +24,12 @@ class PointComponent(Component):
         Raises:
             ValueError: worldSpaceがboolでない場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         self._validate()
         return geometry_edit.positions(self.shape, [self.index], ws)[0]
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibComponentPosition")
     def setPosition(self, value, worldSpace=False, *, fast=False):
         """座標を設定する。
@@ -51,13 +49,13 @@ class PointComponent(Component):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         value = self._finite_coordinates(value, 3)
         self._validate()
         geometry_edit.setPositions(self.shape, [self.index], [value], ws)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionX(self, worldSpace=False):
         """X成分の現在値を取得する。
 
@@ -67,11 +65,11 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(0, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionX(self, value, worldSpace=False, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
@@ -89,10 +87,10 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(0, value, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionY(self, worldSpace=False):
         """Y成分の現在値を取得する。
 
@@ -102,11 +100,11 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(1, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionY(self, value, worldSpace=False, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
@@ -124,10 +122,10 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(1, value, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionZ(self, worldSpace=False):
         """Z成分の現在値を取得する。
 
@@ -137,11 +135,11 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(2, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionZ(self, value, worldSpace=False, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
@@ -159,15 +157,15 @@ class PointComponent(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(2, value, ws=ws)
 
 
 class PointComponents(Components):
     """XYZ 座標を持つコンポーネント群。"""
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibComponentsSetPositions")
     def setPositions(self, values, worldSpace=False, *, fast=False):
         """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
@@ -188,7 +186,7 @@ class PointComponents(Components):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         rows = self._coordinate_rows(values, 3)
         if not self._indices:
             return self
@@ -196,7 +194,7 @@ class PointComponents(Components):
         geometry_edit.setPositions(self._shape, self._indices, rows, ws)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionX(self, worldSpace=False):
         """X成分の現在値を取得する。
 
@@ -206,11 +204,11 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(0, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionX(self, value, worldSpace=False, *, fast=False):
         """X成分だけを設定し、他の成分を維持する。
 
@@ -228,10 +226,10 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(0, value, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionY(self, worldSpace=False):
         """Y成分の現在値を取得する。
 
@@ -241,11 +239,11 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(1, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionY(self, value, worldSpace=False, *, fast=False):
         """Y成分だけを設定し、他の成分を維持する。
 
@@ -263,10 +261,10 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(1, value, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPositionZ(self, worldSpace=False):
         """Z成分の現在値を取得する。
 
@@ -276,11 +274,11 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._get_coordinate(2, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPositionZ(self, value, worldSpace=False, *, fast=False):
         """Z成分だけを設定し、他の成分を維持する。
 
@@ -298,10 +296,10 @@ class PointComponents(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         return self._set_coordinate(2, value, ws=ws)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPosition(self, worldSpace=False):
         """保持順に現在の座標を取得する。
 
@@ -314,14 +312,14 @@ class PointComponents(Components):
         Raises:
             ValueError: worldSpaceがboolでない場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not self._indices:
             return []
         self._validate()
         return geometry_edit.positions(self._shape, self._indices, ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setPosition(self, value, worldSpace=False, *, fast=False):
         """全要素を同じ座標へ設定する。要素別にはsetPositionsを使う。
 
@@ -337,12 +335,12 @@ class PointComponents(Components):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         point = Component._finite_coordinates(value, 3)
         return self.setPositions([point] * len(self), ws=ws)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibComponentsMirror")
     def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """保持している頂点または CV をまとめてミラーする。
@@ -369,7 +367,7 @@ class PointComponents(Components):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not isinstance(axis, str) or not axis or any(a not in "xyz" for a in axis.lower()):
             raise ValueError("axis must contain x, y, or z")
         axis = axis.lower()

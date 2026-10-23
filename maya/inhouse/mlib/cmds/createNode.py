@@ -68,13 +68,11 @@ Examples
     print(node.getFullName())
 """
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 
 
-@flag_aliases("createNode")
-@fast_edit
+@_flag_aliases("createNode")
+@_fast_edit
 @undoChunk("mlib.cmds.createNode.createNode")
 def createNode(type, *, fast=False, **kwargs):
     """Mayaノードを作成し、実際の型に対応するラッパーを返す。

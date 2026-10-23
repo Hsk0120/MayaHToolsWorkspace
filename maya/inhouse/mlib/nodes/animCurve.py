@@ -6,11 +6,9 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from .._core.unitValue import convert
-from ..common._fast import fast_edit, is_fast
 from ..common.units import angleToUi
-from ..decorator import undoChunk
+from ..core.attributeType import _convert_units
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk
 from .node import Node
 
 
@@ -90,7 +88,7 @@ class AnimCurve(Node):
             return result.value / om2.MTime.ticksPerSecond()
         return self._api_number(result)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibAnimCurveSetKey")
     def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, fast=False):
         """キーを追加、同じ入力位置なら更新する。
@@ -113,7 +111,7 @@ class AnimCurve(Node):
         補正が異なるため、キーを追加・変更する前に未対応として拒否する。
         """
         input, value = self._finite(input), self._finite(value)
-        if is_fast():
+        if _is_fast():
             fn = self._curve_fn()
             tangent_in = self._tangent_type(inTangentType, incoming=True, key=True)
             tangent_out = self._tangent_type(outTangentType, key=True)
@@ -140,8 +138,8 @@ class AnimCurve(Node):
                         outTangentType=outTangentType, **{flag: position})
         return self
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibAnimCurveRemoveKey")
     def removeKey(self, index, *, fast=False):
         """指定番号のキーを削除する。キークリップボードは変更しない。
@@ -154,14 +152,14 @@ class AnimCurve(Node):
             AnimCurve: 自身。
         """
         span = self._index(index)
-        if is_fast():
+        if _is_fast():
             self._require_curve_writable()
             self._curve_fn().remove(span[0])
         else:
             cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getTangent(self, index):
         """指定キーの接線情報を取得する。
 
@@ -182,8 +180,8 @@ class AnimCurve(Node):
                 "lock": fn.tangentsLocked(index), "weightLock": fn.weightsLocked(index),
                 "weightedTangents": fn.isWeighted}
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibAnimCurveSetTangent")
     def setTangent(self, index, *, fast=False, **kwargs):
         """キーの接線を変更する。Mayaの接線ロック規則に従う。
@@ -209,7 +207,7 @@ class AnimCurve(Node):
         if not kwargs or set(kwargs) - allowed:
             raise ValueError("Specify supported tangent flags")
         self._index(index)
-        if is_fast():
+        if _is_fast():
             values = dict(kwargs)
             for flag in ("inTangentType", "outTangentType"):
                 if flag in values:
@@ -254,7 +252,7 @@ class AnimCurve(Node):
         return {key: names[self.getPlug(key + "Infinity").get()]
                 for key in ("pre", "post")}
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibAnimCurveInfinity")
     def setInfinity(self, *, pre=None, post=None, fast=False):
         """指定した側だけ外挿方法を変更する。省略した側は維持する。
@@ -278,7 +276,7 @@ class AnimCurve(Node):
         if any(not isinstance(value, str) or value not in allowed for value in values.values()):
             raise ValueError("Unsupported infinity type")
         targets = [(self.getPlug(key + "Infinity"), allowed[value]) for key, value in values.items()]
-        if is_fast():
+        if _is_fast():
             # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
             for plug, value in targets:
                 plug._require_writable()
@@ -286,7 +284,7 @@ class AnimCurve(Node):
             plug.set(value)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibAnimCurveShift")
     def shiftKeys(self, input_offset=0, value_offset=0, *, fast=False):
         """全キーを移動する。
@@ -300,7 +298,7 @@ class AnimCurve(Node):
             AnimCurve: 自身。空カーブは変更しない。
         """
         input_offset, value_offset = self._finite(input_offset), self._finite(value_offset)
-        if is_fast():
+        if _is_fast():
             self._transform_keys(1, 1, input_offset, value_offset)
             return self
         x = self._unit_value(input_offset)
@@ -311,7 +309,7 @@ class AnimCurve(Node):
                           valueChange=y, **{flag: x})
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibAnimCurveScale")
     def scaleKeys(self, input_scale=1, value_scale=1, input_pivot=0, value_pivot=0, *, fast=False):
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
@@ -329,7 +327,7 @@ class AnimCurve(Node):
         x, y, px, py = map(self._finite, (input_scale, value_scale, input_pivot, value_pivot))
         if not x:
             raise ValueError("Input scale cannot be zero")
-        if is_fast():
+        if _is_fast():
             if x < 0:
                 raise NotImplementedError("fast scaleKeys requires a positive input scale")
             self._transform_keys(x, y, px * (1 - x), py * (1 - y))
@@ -341,7 +339,7 @@ class AnimCurve(Node):
                           **{prefix + "Scale": x, prefix + "Pivot": px})
         return self
 
-    @fast_edit
+    @_fast_edit
     def mirror(self, input=False, value=True, input_pivot=0, value_pivot=0, *, fast=False):
         """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
 
@@ -469,7 +467,7 @@ class AnimCurve(Node):
             output: Trueは出力側、Falseは入力側を扱う。
             to_ui: Trueは内部単位からUI単位、Falseは逆方向へ変換する。
         """
-        return convert(self.getPlug("output" if output else "input").mplug(), value, to_ui)
+        return _convert_units(self.getPlug("output" if output else "input").mplug(), value, to_ui)
 
     @staticmethod
     def _finite(value):

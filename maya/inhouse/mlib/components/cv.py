@@ -1,6 +1,6 @@
 """NURBS カーブの CV と CV コレクション。"""
 
-from .._core.geometryEdit import command_indices
+from ..core.geometryEdit import command_indices
 from .pointComponent import PointComponent, PointComponents
 
 

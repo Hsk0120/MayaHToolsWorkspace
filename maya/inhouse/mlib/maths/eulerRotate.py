@@ -5,7 +5,7 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _foreign_comparison
 from .quaternion import Quaternion
 from .vector import _reduce_value
 

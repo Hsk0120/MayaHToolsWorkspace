@@ -1,8 +1,6 @@
 """行列を配列の順番で乗算するmultMatrixを扱う。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from .node import Node
 
@@ -10,7 +8,7 @@ from .node import Node
 class MultMatrix(Node):
     """matrixInの論理インデックス順に行列を乗算する。"""
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInputPlug(self, index):
         """既存入力のPlugを取得する。未存在要素は作成しない。
 
@@ -29,7 +27,7 @@ class MultMatrix(Node):
             raise IndexError(f"No input at logical index {index}")
         return plug
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getInput(self, index):
         """既存入力の評価値を取得する。接続済みなら接続元を評価する。
 
@@ -44,8 +42,8 @@ class MultMatrix(Node):
         """
         return self.getInputPlug(index).get()
 
-    @flag_aliases(idx="index")
-    @fast_edit
+    @_flag_aliases(idx="index")
+    @_fast_edit
     @undoChunk("mlibMultMatrixSetInput")
     def setInput(self, index, value, *, fast=False):
         """指定スロットに定数行列を設定する。入力接続は切断しない。
@@ -70,7 +68,7 @@ class MultMatrix(Node):
         self.getPlug("matrixIn")[index].set(value)
         return self
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibMultMatrixConnectInput")
     def connectInput(self, index, source, force=False):
         """行列Plugを指定スロットへ接続する。

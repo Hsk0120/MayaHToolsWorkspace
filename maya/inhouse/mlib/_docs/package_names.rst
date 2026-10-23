@@ -26,7 +26,7 @@ Mayaの ``.mod`` や起動バッチに固定パスがある場合は、利用環
 
    node = mlib.createNode("transform")
    node.getPlug("translateX").set(10)
-   from mlib._core import extensions
+   from mlib.core import extensions
    print(extensions.getDiagnostics())
    mlib.reload()
 

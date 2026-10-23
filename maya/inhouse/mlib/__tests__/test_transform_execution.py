@@ -6,7 +6,7 @@ from unittest.mock import patch
 import maya.cmds as cmds
 
 import mlib
-from mlib.common._fast import fast_edit, is_fast
+from mlib.decorator import _fast_edit, _is_fast
 from mlib.maths import EulerRotate, Matrix, Quaternion, Transformation
 
 
@@ -86,16 +86,16 @@ class TransformExecutionTest(unittest.TestCase):
         node = mlib.createNode("transform")
         cmds.flushUndo()
 
-        @fast_edit
+        @_fast_edit
         def update(*, fast=False):
             """外側だけに指定した直接更新を内側へ継承する。"""
             node.setMatrix(Matrix(translate=(7, 8, 9)), fast=False)
-            return is_fast()
+            return _is_fast()
 
         with patch.object(cmds, "setAttr", side_effect=AssertionError("cmds setAttr")), \
                 patch.object(cmds, "undoInfo", side_effect=AssertionError("cmds undoInfo")):
             self.assertTrue(update(fast=True))
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
         self.assertEqual(tuple(node.getPlug("translate").get()), (7, 8, 9))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
@@ -115,40 +115,40 @@ class FastInheritanceTest(unittest.TestCase):
 
     def test_nested_modes_and_positional_fast_keep_arguments(self):
         """有効モードを継承しても、各関数へ渡した引数自体は書き換えない。"""
-        @fast_edit
+        @_fast_edit
         def inner(fast=False):
             """位置引数のfastも既存の意味で受け取る。"""
-            return is_fast(), fast
+            return _is_fast(), fast
 
-        @fast_edit
+        @_fast_edit
         def outer(*, fast=False):
             """省略・明示False・明示Trueの内側呼出しを比較する。"""
             return inner(), inner(False), inner(True)
 
         self.assertEqual(outer(), ((False, False), (False, False), (True, True)))
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
         self.assertEqual(outer(fast=True), ((True, False), (True, False), (True, True)))
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
 
     def test_invalid_inner_argument_and_exception_restore_mode(self):
         """継承中もbool以外を拒否し、例外後は開始前のモードへ戻す。"""
-        @fast_edit
+        @_fast_edit
         def inner(*, fast=False):
             """呼出しモードを検査してから失敗する。"""
-            self.assertTrue(is_fast())
+            self.assertTrue(_is_fast())
             raise RuntimeError("expected failure")
 
-        @fast_edit
+        @_fast_edit
         def outer(*, fast=False):
             """内側の検証失敗を捕捉しても外側のfastは有効なまま。"""
             with self.assertRaises(TypeError):
                 inner(fast=1)
-            self.assertTrue(is_fast())
+            self.assertTrue(_is_fast())
             inner()
 
         with self.assertRaisesRegex(RuntimeError, "expected failure"):
             outer(fast=True)
-        self.assertFalse(is_fast())
+        self.assertFalse(_is_fast())
 
 
 class MathComponentOwnershipTest(unittest.TestCase):

@@ -1,8 +1,6 @@
 """行列を変換成分に分解するdecomposeMatrixを扱う。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from ..maths.eulerRotate import orderIndex
 from .node import Node
@@ -27,7 +25,7 @@ class DecomposeMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDecomposeMatrixSetInput")
     def setInput(self, value, *, fast=False):
         """定数行列を入力する。入力接続は切断しない。
@@ -56,7 +54,7 @@ class DecomposeMatrix(Node):
         """
         return self.getPlug("inputRotateOrder").get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDecomposeMatrixRotateOrder")
     def setRotateOrder(self, order, *, fast=False):
         """出力Euler回転の回転順序を指定する。
@@ -79,7 +77,7 @@ class DecomposeMatrix(Node):
         self.getPlug("inputRotateOrder").set(orderIndex(order))
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibDecomposeMatrixConnectInput")
     def connectInput(self, source, force=False):
         """行列Plugを入力へ接続する。

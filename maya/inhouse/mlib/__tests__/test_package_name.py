@@ -43,7 +43,7 @@ try:
         assert name not in sys.modules  # 拡張の先行importではコアを読まない。
         core = importlib.import_module(name)
         assert core.logger.get_logger().name == name
-        states = core._core.extensions.status()
+        states = core.core.extensions.status()
         assert states[name + "_bifrost"]["state"] in ("loaded", "unavailable"), states
         assert states[name + "_posedriverconnect"]["state"] == "loaded", states
         assert states[name + "_fixture_bad"]["state"] == "error", states
@@ -64,7 +64,7 @@ try:
         mesh = core.getNode(cmds.polyCube(constructionHistory=False)[0]).getShape()
         mesh.getVertex(0).setPosition((2, 3, 4))
         assert tuple(mesh.getVertex(0).getPosition()) == (2, 3, 4)
-        assert isinstance(core._core.object.Object(node.getFullName()), core.nodes.Node)
+        assert isinstance(core.core.object.Object(node.getFullName()), core.nodes.Node)
         assert not hasattr(core, "Object")
         assert not hasattr(core, "extensions")
         assert not hasattr(core, "json")
@@ -74,7 +74,7 @@ try:
         assert core.nodes.Node is not old_node_type
         assert sys.modules[name + "_posedriverconnect"] is not old_extension
         assert issubclass(core.nodes.Node._registry.lookup("UERBFSolverNode"), core.nodes.Node)
-        assert core._core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
+        assert core.core.extensions.status()[name + "_fixture_bad"]["state"] == "error"
         assert isinstance(core.getNode(node.getFullName()), core.nodes.Node)
     assert not any(key == "mlib" or key.startswith(("mlib.", "mlib_")) for key in sys.modules)
     print("RENAMED_PACKAGE_OK")

@@ -1,8 +1,6 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
@@ -11,7 +9,7 @@ from .abstractBaseCreate import AbstractBaseCreate
 class PointOnSurfaceInfo(AbstractBaseCreate):
     """接続したsurfaceの形状情報をMayaで評価する。"""
 
-    @flag_aliases(ws="worldSpace", f="force")
+    @_flag_aliases(ws="worldSpace", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectSurface(self, surface, worldSpace=True, force=False):
         """形状またはTransformを解決して接続する。
@@ -39,7 +37,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         """
         return self.getPlug("parameterU").get(), self.getPlug("parameterV").get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setParameters(self, u, v, percentage=False, *, fast=False):
         """UVと百分率モードを設定する。

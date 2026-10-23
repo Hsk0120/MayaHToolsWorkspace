@@ -7,24 +7,22 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.fastWrite import writable
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit, is_fast
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
-from ..decorator import undoTransaction
+from ..core.fastWrite import writable
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoTransaction
 from ..maths.vector import Vector
+from ..util import _world_space
 from .shape import Shape
 
 
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False,
                         match="uv", worldSpace=False):
         """UVまたは頂点位置の対応から自身の頂点番号を基準メッシュに合わせる。
@@ -86,7 +84,7 @@ class Mesh(Shape):
         data = self._reordered_mesh_data(target, counts, connects, remapped, mapping)
         materials = self.getFaceShadingEngines()
         current_uv = target.currentUVSetName()
-        if is_fast():
+        if _is_fast():
             points = self.getPlug("pnts").mplug()
             for i in points.getExistingArrayAttributeIndices():
                 point = points.elementByLogicalIndex(i)
@@ -122,8 +120,8 @@ class Mesh(Shape):
                     cmds.sets(faces, edit=True, forceElement=material)
         return self
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """頂点位置をミラーし、自身を更新する。
 
@@ -155,11 +153,11 @@ class Mesh(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getVertex(self, index):
         """頂点番号から単体ラッパーを取得する。
 
@@ -238,7 +236,7 @@ class Mesh(Shape):
         """
         return self.meshFn().numEdges
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPoints(self, worldSpace=False):
         """全頂点の位置を取得する。
 
@@ -248,11 +246,11 @@ class Mesh(Shape):
         Returns:
             om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.meshFn().getPoints(space)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getVertexNormals(self, worldSpace=False, angle_weighted=False):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
@@ -264,11 +262,11 @@ class Mesh(Shape):
             list[Vector]: 頂点番号順の平均法線。angle_weighted=False では
                 角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return [Vector(value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getVertexAdjacency(self, worldSpace=False):
         """頂点IDごとの隣接頂点とエッジ長を照会する。
 
@@ -291,7 +289,7 @@ class Mesh(Shape):
             adjacency[second].append((first, length))
         return adjacency
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getEdge(self, index):
         """番号から Edge を取得する。
 
@@ -314,7 +312,7 @@ class Mesh(Shape):
         """
         return Edges(self, indices)
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getFace(self, index):
         """番号から Face を取得する。
 
@@ -337,7 +335,7 @@ class Mesh(Shape):
         """
         return Faces(self, indices)
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getUV(self, index):
         """番号から UV を取得する。
 
@@ -490,7 +488,7 @@ class Mesh(Shape):
                     writable(item)
                     for j in range(item.numChildren()):
                         writable(item.child(j))
-                        if not is_fast() and item.child(j).asFloat() != 0:
+                        if not _is_fast() and item.child(j).asFloat() != 0:
                             raise NotImplementedError("Normal reorder does not support vertex tweaks; use fast=True on a copy")
 
     @staticmethod

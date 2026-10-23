@@ -1,8 +1,6 @@
 """指定した軸をターゲットへ向ける行列を生成する。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node
@@ -27,7 +25,7 @@ class AimMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
@@ -45,7 +43,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.getInputPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
@@ -79,7 +77,7 @@ class AimMatrix(Node):
         """
         return self.getEnvelopePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setEnvelope(self, value, *, fast=False):
         """全体ウェイトへ定数値を設定する。
@@ -97,7 +95,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectEnvelope(self, source, force=False):
         """全体ウェイトへ接続する。
@@ -131,7 +129,7 @@ class AimMatrix(Node):
         """
         return self.getPrimaryMatrixPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setPrimaryMatrix(self, value, *, fast=False):
         """primaryターゲット行列へ定数値を設定する。
@@ -149,7 +147,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.getPrimaryMatrixPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectPrimaryMatrix(self, source, force=False):
         """primaryターゲット行列へ接続する。
@@ -183,7 +181,7 @@ class AimMatrix(Node):
         """
         return self.getPrimaryAxisPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setPrimaryAxis(self, value, *, fast=False):
         """primary入力軸へ定数値を設定する。
@@ -201,7 +199,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getPrimaryAxisPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectPrimaryAxis(self, source, force=False):
         """primary入力軸へ接続する。
@@ -235,7 +233,7 @@ class AimMatrix(Node):
         """
         return self.getPrimaryVectorPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setPrimaryVector(self, value, *, fast=False):
         """primaryターゲットベクトルへ定数値を設定する。
@@ -253,7 +251,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getPrimaryVectorPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectPrimaryVector(self, source, force=False):
         """primaryターゲットベクトルへ接続する。
@@ -279,7 +277,7 @@ class AimMatrix(Node):
         """
         return _Calculation.enum_name(self.getPlug("primaryMode"), ("lock", "aim", "align"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setPrimaryMode(self, mode, *, fast=False):
         """モードを設定する。
@@ -314,7 +312,7 @@ class AimMatrix(Node):
         """
         return self.getSecondaryMatrixPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setSecondaryMatrix(self, value, *, fast=False):
         """secondaryターゲット行列へ定数値を設定する。
@@ -332,7 +330,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, Matrix, self.getSecondaryMatrixPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectSecondaryMatrix(self, source, force=False):
         """secondaryターゲット行列へ接続する。
@@ -366,7 +364,7 @@ class AimMatrix(Node):
         """
         return self.getSecondaryAxisPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setSecondaryAxis(self, value, *, fast=False):
         """secondary入力軸へ定数値を設定する。
@@ -384,7 +382,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getSecondaryAxisPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectSecondaryAxis(self, source, force=False):
         """secondary入力軸へ接続する。
@@ -418,7 +416,7 @@ class AimMatrix(Node):
         """
         return self.getSecondaryVectorPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setSecondaryVector(self, value, *, fast=False):
         """secondaryターゲットベクトルへ定数値を設定する。
@@ -436,7 +434,7 @@ class AimMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getSecondaryVectorPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectSecondaryVector(self, source, force=False):
         """secondaryターゲットベクトルへ接続する。
@@ -462,7 +460,7 @@ class AimMatrix(Node):
         """
         return _Calculation.enum_name(self.getPlug("secondaryMode"), ("none", "aim", "align"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setSecondaryMode(self, mode, *, fast=False):
         """モードを設定する。

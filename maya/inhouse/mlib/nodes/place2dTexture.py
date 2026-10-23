@@ -1,14 +1,13 @@
 """Mayaのplace2dTextureノードを扱う。"""
 
-from .._core.flags import flag_aliases
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 from .shadingDependNode import ShadingDependNode
 
 
 class Place2dTexture(ShadingDependNode):
     """Mayaの継承型に対応するPlace2dTexture。値と接続はPlugで操作する。"""
 
-    @flag_aliases(f="force")
+    @_flag_aliases(f="force")
     @undoChunk("mlibPlace2dConnect")
     def connectTexture(self, texture, force=False):
         """標準の2D配置アトリビュートをテクスチャへ接続する。

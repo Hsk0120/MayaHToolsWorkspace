@@ -74,10 +74,10 @@ Examples
 
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
+from ..decorator import _flag_aliases
 
 
-@flag_aliases("ls")
+@_flag_aliases("ls")
 def ls(*args, **kwargs):
     """Mayaの参照を検索し、対応するラッパーとして返す。
 
@@ -103,7 +103,7 @@ def ls(*args, **kwargs):
 
     型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。"""
     from ..nodes.node import Nodes as _InputNodes
-    from .._core.object import Object as _InputObject
+    from ..core.object import Object as _InputObject
     from ..nodes import Joints, SkinClusters
     from ..components import Vertex, Edge, Face, UV, CV
     from ..common.selection import Selection
@@ -132,20 +132,21 @@ def ls(*args, **kwargs):
         return SkinClusters(names)
     # Mayaの検索・並び順を維持し、解決だけを既存のOpenMaya経路へ任せる。
     # 全件を単一Selectionにすると重複が除かれるため、結果ごとに解決する。
-    from .._core.commandResult import CommandResult
+    from ..nodes.node import Node
+    from ..plugs.plug import Plug
     from ..components import Component
 
     result = []
     for name in names:
         if "." not in name:
             if component is None:
-                result.append(CommandResult.reference(name))
+                result.append(Node(name))
             continue
         resolved = Selection(name).items
         if resolved and isinstance(resolved[0], Component):
             result.extend(resolved)
         elif component is None:
-            result.append(CommandResult.reference(name))
+            result.append(Plug._resolve_input(name))
     if component is not None:
         return [item for item in result if isinstance(item, component_types[component])]
     return result

@@ -175,7 +175,7 @@ class AttributeEditsTest(unittest.TestCase):
 
     def test_move_rejects_undo_disabled_and_fast_before_changes(self):
         """復旧できない実行モードでは、定義を削除する前に拒否する。"""
-        from mlib.common._fast import fast_edit
+        from mlib.decorator import _fast_edit
 
         self.node.addAttr("first")
         self.node.addAttr("second")
@@ -189,7 +189,7 @@ class AttributeEditsTest(unittest.TestCase):
         finally:
             cmds.undoInfo(stateWithoutFlush=True)
 
-        @fast_edit
+        @_fast_edit
         def move(*, fast=False):
             """呼出し元のfast文脈を並べ替えへ伝える。"""
             self.node.moveAttrOrder("first", 1)

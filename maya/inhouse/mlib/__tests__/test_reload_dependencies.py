@@ -17,7 +17,7 @@ class ReloadDependenciesTest(unittest.TestCase):
 
     def test_direct_dependencies_and_cycles(self):
         """依存先を先にし、循環しても重複や無限再帰を起こさない。"""
-        reloader = importlib.import_module("mlib._core.reload")
+        reloader = importlib.import_module("mlib.core.reload")
         a, b, c = (types.ModuleType("reloadProbe." + name) for name in "abc")
         a.dependency = b
         b.dependency = c
@@ -31,7 +31,7 @@ class ReloadDependenciesTest(unittest.TestCase):
 
     def test_discovery_removes_deleted_modules_and_parent_bindings(self):
         """削除ファイルはsys.modulesと親パッケージの両方から解除する。"""
-        reloader = importlib.import_module("mlib._core.reload")
+        reloader = importlib.import_module("mlib.core.reload")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "reloadProbe"
             root.mkdir()
@@ -63,9 +63,9 @@ class ReloadDependenciesTest(unittest.TestCase):
             with patch.object(importlib, "reload", wraps=importlib.reload) as reload_module:
                 mlib.reload() if full else importlib.reload(mlib)
             bootstraps = [call[0][0].__name__ for call in reload_module.call_args_list
-                          if call[0][0].__name__ == "mlib._core.bootstrap"]
+                          if call[0][0].__name__ == "mlib.core.bootstrap"]
             self.assertEqual(bootstraps, [])
-            self.assertNotIn("mlib._core.bootstrap", sys.modules)
+            self.assertNotIn("mlib.core.bootstrap", sys.modules)
             node = mlib.getNode(name)
             self.assertIsInstance(node, mlib.nodes.Transform)
             self.assertIsInstance(node.getPlug("translateX"), mlib.plugs.DoubleLinearPlug)

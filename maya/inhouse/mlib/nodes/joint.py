@@ -6,10 +6,8 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.fastWrite import set_attr
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..core.fastWrite import set_attr
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
 from .transform import Transform, Transforms, _closest_euler
 
@@ -28,7 +26,7 @@ class Joint(Transform):
         """
         return bool(self.getPlug("segmentScaleCompensate").get())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointSetSegmentScaleCompensate")
     def setSegmentScaleCompensate(self, state, *, fast=False):
         """親のスケール補正を切り替える。
@@ -61,7 +59,7 @@ class Joint(Transform):
         values = self._compound_values("jointOrient", angle=True)
         return EulerRotate(*(math.radians(value) for value in values))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointsJointOrientToRotate")
     def jointOrientToRotate(self, *, fast=False):
         """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
@@ -88,7 +86,7 @@ class Joint(Transform):
         self._apply_rotate_transfer(self._joint_rotate_transfer_values())
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointsFreezeRotation")
     def freezeRotate(self, *, fast=False):
         """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
@@ -116,8 +114,8 @@ class Joint(Transform):
         self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True)
         return self
 
-    @flag_aliases(src="source", f="force")
-    @fast_edit
+    @_flag_aliases(src="source", f="force")
+    @_fast_edit
     @undoChunk("mlibJointConnectInverseScale")
     def connectInverseScale(self, source=None, force=False, *, fast=False):
         """Transformのscaleを自身のinverseScaleへ接続する。
@@ -158,7 +156,7 @@ class Joint(Transform):
             origin.connectTo(target, force=force)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointDisconnectInverseScale")
     def disconnectInverseScale(self, *, fast=False):
         """inverseScaleと各軸の入力接続だけを切断する。
@@ -195,7 +193,7 @@ class Joint(Transform):
         """
         return float(self.getPlug("radius").get())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointSetRadius")
     def setRadius(self, value, *, fast=False):
         """ジョイント個別の表示半径を変更する。骨の長さ・scaleは変更しない。
@@ -299,8 +297,8 @@ class Joint(Transform):
             result.append(SkinCluster(node.mnode()))
         return result
 
-    @flag_aliases(f="force")
-    @fast_edit
+    @_flag_aliases(f="force")
+    @_fast_edit
     @undoChunk("mlibJointRemoveInfluence")
     def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True, force=False, fast=False):
         """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
@@ -353,7 +351,7 @@ class Joint(Transform):
             ancestor = Joint(ancestor).getParentJointName()
         return None
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlib.nodes.joint.reparentChildren")
     def reparentChildren(self, parent_joint, *, fast=False):
         """子 joint を指定した親 joint へ付け替える。
@@ -365,8 +363,8 @@ class Joint(Transform):
         Returns:
             None: 値を返さない。
         """
-        if is_fast():
-            from .._core.jointEdit import reparent, reparent_plan
+        if _is_fast():
+            from ..core.jointEdit import reparent, reparent_plan
             from .node import Node
             parent = Node(parent_joint)
             plans = [reparent_plan(Joint(name), parent) for name in self.getChildJointNames()]
@@ -926,7 +924,7 @@ class Joints(Transforms):
         """
         return Joints(sorted(self._items, key=lambda joint: joint.getDepth(), reverse=True))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointsJointOrientToRotate")
     def jointOrientToRotate(self, *, fast=False):
         """全jointの姿勢を保ち、jointOrientをrotateへ合成して0にする。
@@ -949,7 +947,7 @@ class Joints(Transforms):
         """
         return self._transfer_rotate()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibJointsFreezeRotation")
     def freezeRotate(self, *, fast=False):
         """全jointのrotateをjointOrientへ移し、姿勢を保ってrotateを0にする。

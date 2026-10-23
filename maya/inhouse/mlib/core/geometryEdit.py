@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import is_fast
+from ..decorator import _is_fast
 from .fastWrite import writable
 
 
@@ -95,7 +95,7 @@ def setPositions(shape, indices, values, ws=False):
     """
     if not indices:
         return
-    if is_fast():
+    if _is_fast():
         _set_positions_direct(shape, indices, values, ws)
         return
     _, _, mesh = geometry(shape, indices)

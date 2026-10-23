@@ -5,18 +5,17 @@ import math
 import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit
 from ..components.cv import CV, CVs
+from ..decorator import _flag_aliases, _fast_edit
+from ..util import _world_space
 from .shape import Shape
 
 
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """CV の位置をミラーし、自身を更新する。
 
@@ -48,11 +47,11 @@ class NurbsCurve(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         self.getCVs(indices).mirror(axis=axis, ws=ws, pivot=pivot)
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getCV(self, index):
         """CV 番号から単体ラッパーを取得する。
 
@@ -118,7 +117,7 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().form
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getLength(self, tolerance=1e-6, *, worldSpace=False, unit="cm"):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
@@ -137,7 +136,7 @@ class NurbsCurve(Shape):
             TypeError: 単位の型が不正な場合。
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         from ..common import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
         factor = units.convertDistance(1.0, from_unit="cm", to_unit=unit)
@@ -159,7 +158,7 @@ class NurbsCurve(Shape):
         curve.updateCurve()
         return curve.length(tolerance) * factor
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getCvPositions(self, worldSpace=False):
         """CV の位置を取得する。
 
@@ -169,11 +168,11 @@ class NurbsCurve(Shape):
         Returns:
             om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.curveFn().cvPositions(space)
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
@@ -192,7 +191,7 @@ class NurbsCurve(Shape):
         Raises:
             ValueError: tolerance が正の値でない場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")
         positions = self.getCvPositions(ws=ws)

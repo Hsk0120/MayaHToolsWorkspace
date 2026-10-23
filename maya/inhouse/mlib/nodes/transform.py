@@ -8,14 +8,12 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from .._core.fastWrite import set_attr, set_plug, writable
-from .._core.flags import flag_aliases
-from .._core.space import world_space
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk, undoTransaction
+from ..core.fastWrite import set_attr, set_plug, writable
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
+from ..util import _world_space
 from .dagNode import DagNode, DagNodes
 from .node import Node
 
@@ -112,7 +110,7 @@ class Transform(DagNode):
     評価済み値を取得するメソッドは、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
     """
 
-    @flag_aliases(typ="type", mo="maintainOffset")
+    @_flag_aliases(typ="type", mo="maintainOffset")
     @undoChunk("mlibTransformAddConstraint")
     def addConstraint(self, sources, type="parent", maintainOffset=False, **kwargs):
         """自身を拘束するコンストレイントを作成する。
@@ -194,13 +192,13 @@ class Transform(DagNode):
             names.append(source.getFullName())
         if not names:
             raise ValueError("At least one constraint source is required")
-        from .._core.flags import normalize_flags
-        from .._core.commandResult import CommandResult
+        from ..decorator import _normalize_flags
 
-        command_kwargs = normalize_flags(command_name, kwargs)
+        command_kwargs = _normalize_flags(command_name, kwargs)
         if command_kwargs.get("query") or command_kwargs.get("edit"):
             raise ValueError("addConstraint supports creation only; use Maya constraint commands for query/edit")
-        command_kwargs = CommandResult.node_flags(command_kwargs, ("worldUpObject",))
+        if "worldUpObject" in command_kwargs:
+            command_kwargs["worldUpObject"] = _InputNode._input_name(command_kwargs["worldUpObject"])
         if command_name in {
             "parentConstraint",
             "pointConstraint",
@@ -212,7 +210,7 @@ class Transform(DagNode):
         result = getattr(cmds, command_name)(*names, self.getFullName(), **command_kwargs)
         return Node(result[0])
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibTransformDeleteConstraints")
     def deleteConstraints(self, *, fast=False):
         """自身を拘束するconstraintと、経由するpairBlendを削除する。
@@ -293,7 +291,7 @@ class Transform(DagNode):
                 raise RuntimeError("Cannot delete referenced or locked node: " + fn.name())
         names = sorted(Node(objects[token]).getFullName() for token in deleting)
         if names:
-            if is_fast():
+            if _is_fast():
                 self._detach_inputs(objects[token] for token in deleting)
                 modifier = om2.MDagModifier()
                 for token in deleting:
@@ -311,8 +309,8 @@ class Transform(DagNode):
         """
         return om2.MFnTransform(self.mpath())
 
-    @flag_aliases(attrs="attributes")
-    @fast_edit
+    @_flag_aliases(attrs="attributes")
+    @_fast_edit
     @undoChunk("mlibTransformReset")
     def reset(self, attributes=None, *, fast=False):
         """指定アトリビュートを定義上の既定値へ戻す。
@@ -346,8 +344,8 @@ class Transform(DagNode):
             plug.reset()
         return self
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformResetPivot")
     def resetPivot(self, worldSpace=True, *, kind="both", fast=False):
         """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
@@ -367,13 +365,13 @@ class Transform(DagNode):
 
         ピボット補償値を調整して行列を維持する。translateのリセットではない。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
         return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformScaleGeometry")
     def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
@@ -397,7 +395,7 @@ class Transform(DagNode):
         中間Shapeは対象外。インスタンスは共有形状全体に影響する。
         途中で失敗した場合は停止し、完了済みの変更は自動で戻さない。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         indices = None if indices is None else tuple(indices)
         scale = scale if isinstance(scale, numbers.Real) else tuple(scale)
         pivot = tuple(pivot)
@@ -405,7 +403,7 @@ class Transform(DagNode):
             shape.scaleGeometry(scale, ws=ws, pivot=pivot, indices=indices)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getPivot(self, worldSpace=False, *, kind="rotate"):
         """指定した種類のピボットを取得する。
 
@@ -419,7 +417,7 @@ class Transform(DagNode):
         Raises:
             ValueError: kindがrotate/scaleでない場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if kind not in ("rotate", "scale"):
             raise ValueError("kind must be 'rotate' or 'scale'")
         # xformのobjectSpaceはMFnTransformのkPreTransformに対応する。
@@ -428,8 +426,8 @@ class Transform(DagNode):
         point = fn.rotatePivot(space) if kind == "rotate" else fn.scalePivot(space)
         return Translate(point.x, point.y, point.z)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetPivot")
     def setPivot(self, value, worldSpace=False, *, kind="rotate", preserve=True, fast=False):
         """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
@@ -452,7 +450,7 @@ class Transform(DagNode):
 
         Jointは独立したピボットの変更をサポートしないため、更新前に拒否する。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if kind not in ("rotate", "scale", "both"):
             raise ValueError("kind must be 'rotate', 'scale' or 'both'")
         if not isinstance(preserve, bool):
@@ -462,7 +460,7 @@ class Transform(DagNode):
         values = tuple(value)
         if len(values) != 3 or not all(math.isfinite(v) for v in values):
             raise ValueError("Expected three finite pivot coordinates")
-        if is_fast():
+        if _is_fast():
             kinds = ("scale", "rotate") if kind == "both" else (kind,)
             # APIはロックを迂回できるため、変更する補償値も含めて事前に確認する。
             for selected in kinds:
@@ -487,7 +485,7 @@ class Transform(DagNode):
                    preserve=preserve, **{flag: coordinates})
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibTransformCenterPivot")
     def centerPivot(self, *, fast=False):
         """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
@@ -505,14 +503,14 @@ class Transform(DagNode):
         Raises:
             RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
         """
-        if is_fast():
+        if _is_fast():
             center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
             return self.setPivot((center.x, center.y, center.z), worldSpace=True,
                                  kind="both", preserve=True, fast=True)
         cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getBoundingBox(self, worldSpace=False):
         """直下の Shape 階層を含むバウンディングボックスを取得する。
 
@@ -532,7 +530,7 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("Cannot compute the bounding box of an invalid transform")
         box = self.dagFn().boundingBox
@@ -644,7 +642,7 @@ class Transform(DagNode):
                 result.append(shape)
         return result
 
-    @fast_edit
+    @_fast_edit
     def deleteUnusedIntermediateShapes(self, *, fast=False):
         """直下の未使用中間Shapeだけを削除し、自身を返す。
 
@@ -664,7 +662,7 @@ class Transform(DagNode):
         """
         shapes = self.getUnusedIntermediateShapes()
         if shapes:
-            if is_fast():
+            if _is_fast():
                 self._detach_inputs(shape.mnode() for shape in shapes)
                 modifier = om2.MDagModifier()
                 for shape in shapes:
@@ -695,8 +693,8 @@ class Transform(DagNode):
         return [child for child in self._direct_children(True, intermediates)
                 if child.mnode().hasFn(om2.MFn.kShape)]
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformMirrorGeometry")
     def mirrorGeometry(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下のすべてのShapeのジオメトリをミラーする。
@@ -730,12 +728,12 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         for shape in self.getShapes():
             shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
         return self
 
-    @flag_aliases(index="idx")
+    @_flag_aliases(index="idx")
     def getShape(self, idx=0, intermediates=False):
         """指定位置のShapeを取得する。
 
@@ -760,7 +758,7 @@ class Transform(DagNode):
         """
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibTransformSetParent")
     def setParent(self, parent=None, relative=False, add=False, *, fast=False):
         """Transformの親を変更する。
@@ -777,7 +775,7 @@ class Transform(DagNode):
         """
         if not self.isValid():
             raise RuntimeError("Cannot parent an invalid transform")
-        if is_fast():
+        if _is_fast():
             return self._set_parent_fast(parent, relative, add)
         if parent is None:
             if self.getParentPath() is None and not self.mpath().isInstanced():
@@ -829,8 +827,8 @@ class Transform(DagNode):
                                 rotation=rotation, scale=scale, pivots=pivots)
         return self
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformMirrorTransform")
     def mirrorTransform(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
         """位置と向きを指定空間でビヘイビアミラーする。
@@ -857,8 +855,8 @@ class Transform(DagNode):
         setMatrix() と同じ制約があり、非ゼロのピボット・
         TransformのrotateAxisは更新前に拒否する。
         """
-        ws = world_space(worldSpace)
-        from ..common.mirror import mirrorArguments
+        ws = _world_space(worldSpace)
+        from ..util import mirrorArguments
         if not isinstance(ws, bool):
             raise TypeError("ws must be a bool")
         _, center = mirrorArguments(axis, pivot)
@@ -906,7 +904,7 @@ class Transform(DagNode):
         """
         return self.getPlug("offsetParentMatrix").get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibTransformSetOffsetParentMatrix")
     def setOffsetParentMatrix(self, value, *, fast=False):
         """offsetParentMatrixへ行列値を設定する。
@@ -929,7 +927,7 @@ class Transform(DagNode):
         self.getPlug("offsetParentMatrix").set(value)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getTransformation(self, worldSpace=False):
         """チャンネルと補助成分を独立した値として取得する。
 
@@ -940,7 +938,7 @@ class Transform(DagNode):
             Transformation: Euler回転順序・ピボット・補助回転・SSCを含む値。
                 offsetParentMatrixと親行列はワールド指定時の合成に含める。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         values = {name: self.getPlug(name).get() for name in (
             "translate", "rotate", "scale", "shear", "rotateOrder", "rotateAxis",
             "rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate")}
@@ -966,8 +964,8 @@ class Transform(DagNode):
                 result.inverseScale = (1, 1, 1)
         return result
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetTransformation")
     def setTransformation(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """補助成分を含む変換を適用する。入力の値は変更しない。
@@ -990,7 +988,7 @@ class Transform(DagNode):
         """
         if not isinstance(value, Transformation):
             raise TypeError("value must be a Transformation")
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         fitted, matrix, is_joint = self._fit_transformation(value, ws)
         if get:
             return fitted
@@ -1001,7 +999,7 @@ class Transform(DagNode):
                                     for name in ("translate", "rotate", "scale", "shear")}, safe=safe)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getMatrix(self, worldSpace=False, p=False, inv=False):
         """変換行列を取得する。
 
@@ -1024,7 +1022,7 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効(削除済み)の場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("無効なノードの行列は取得できません")
         path = self.mpath()
@@ -1038,8 +1036,8 @@ class Transform(DagNode):
             matrix = om2.MFnMatrixData(plug.asMObject()).matrix()
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetMatrix")
     def setMatrix(self, matrix, worldSpace=False, safe=False, get=False, *, fast=False):
         """行列をローカルまたはワールド空間で設定する。
@@ -1070,7 +1068,7 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
         if not self.isValid():
@@ -1085,7 +1083,7 @@ class Transform(DagNode):
             self._apply_local_matrix(local_matrix)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getTranslate(self, worldSpace=False, at=2):
         """基準位置を取得する。既定は回転ピボット位置。
 
@@ -1096,7 +1094,7 @@ class Transform(DagNode):
         Returns:
             Translate: cm単位の位置。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if at >= 3:
             matrix = self.getMatrix(ws=ws)
             if at >= 4:
@@ -1118,8 +1116,8 @@ class Transform(DagNode):
                 point *= self.mpath().exclusiveMatrix()
         return Translate(point.x, point.y, point.z)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetTranslate")
     def setTranslate(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
@@ -1135,7 +1133,7 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueはtranslateの計算値。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         point = om2.MPoint(tuple(value))
         if ws:
             point *= self.mpath().exclusiveMatrixInverse()
@@ -1149,7 +1147,7 @@ class Transform(DagNode):
         self._set_channel_value("translate", result, safe=safe)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getRotate(self, worldSpace=False):
         """Euler 回転値を、ノードの rotateOrder で取得する。
 
@@ -1169,12 +1167,12 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetRotate")
     def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
         """Euler回転を設定する。
@@ -1210,7 +1208,7 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         if unit not in ("rad", "deg"):
             raise ValueError("unit must be 'rad' or 'deg'")
         if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
@@ -1228,7 +1226,7 @@ class Transform(DagNode):
         result = self.setMatrix(matrix, ws=ws, safe=safe, get=get)
         return list(result["rotate"]) if get else self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getScale(self, worldSpace=False):
         """指定空間のスケール値を取得する。
 
@@ -1238,12 +1236,12 @@ class Transform(DagNode):
         Returns:
             Scale: ローカルではSSCを除く値、ワールドではAPI規約の分解値。
         """
-        if world_space(worldSpace):
+        if _world_space(worldSpace):
             return Scale(*om2.MTransformationMatrix(self.getMatrix(ws=True)).scale(MSpace.kTransform))
         return self.getPlug("scale").get()
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setScale(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """scaleチャンネルだけを設定する。
 
@@ -1257,13 +1255,13 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
-        values = self._scale_channel_value(value, world_space(worldSpace))
+        values = self._scale_channel_value(value, _world_space(worldSpace))
         if get:
             return values
         self._set_channel_value("scale", values, safe=safe)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getShearing(self, worldSpace=False):
         """指定空間のシアー値を取得する。
 
@@ -1273,12 +1271,12 @@ class Transform(DagNode):
         Returns:
             Shear: 指定空間のシアー。
         """
-        if world_space(worldSpace):
+        if _world_space(worldSpace):
             return Shear(*om2.MTransformationMatrix(self.getMatrix(ws=True)).shear(MSpace.kTransform))
         return self.getPlug("shear").get()
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     def setShearing(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """shearチャンネルだけを設定する。
 
@@ -1292,13 +1290,13 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
-        values = self._scale_channel_value(value, world_space(worldSpace), shear=True)
+        values = self._scale_channel_value(value, _world_space(worldSpace), shear=True)
         if get:
             return values
         self._set_channel_value("shear", values, safe=safe)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getQuaternion(self, worldSpace=False, ra=False, r=True, jo=True):
         """回転成分を選んで取得する。既定ではrotateAxisを含めない。
 
@@ -1314,7 +1312,7 @@ class Transform(DagNode):
         Raises:
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         joint = self.mnode().hasFn(om2.MFn.kJoint)
         if ws:
             if (ra and not (r and jo)) or (not ra and r and not jo):
@@ -1334,8 +1332,8 @@ class Transform(DagNode):
                     q *= self._component_quaternion(name)
         return Quaternion._wrap(q)
 
-    @flag_aliases(ws="worldSpace")
-    @fast_edit
+    @_flag_aliases(ws="worldSpace")
+    @_fast_edit
     @undoChunk("mlibTransformSetQuaternion")
     def setQuaternion(self, value, worldSpace=False, ra=False, r=True, jo=True,
                       safe=False, get=False, *, fast=False):
@@ -1356,13 +1354,13 @@ class Transform(DagNode):
                 rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
                 入力のQuaternionや、XYZWの4成分を返す操作ではない。
         """
-        name, rotation = self._quaternion_channel_values(value, world_space(worldSpace), ra, r, jo)
+        name, rotation = self._quaternion_channel_values(value, _world_space(worldSpace), ra, r, jo)
         if get:
             return list(rotation)
         self._set_channel_value(name, rotation, safe=safe)
         return self
 
-    @flag_aliases(ws="worldSpace")
+    @_flag_aliases(ws="worldSpace")
     def getEuler(self, worldSpace=False):
         """回転を XYZ 順序の EulerRotate として取得する。
 
@@ -1378,11 +1376,11 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
-        ws = world_space(worldSpace)
+        ws = _world_space(worldSpace)
         _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotate._wrap(quaternion.asEulerRotation())
 
-    @flag_aliases("makeIdentity")
+    @_flag_aliases("makeIdentity")
     @undoChunk("mlibTransformFreeze")
     def freeze(self, **kwargs):
         """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
@@ -1464,7 +1462,7 @@ class Transform(DagNode):
         return best_axis
 
     # 公開APIの短縮メソッド。旧mlib名の互換入口ではない。
-    @flag_aliases(worldSpace="ws")
+    @_flag_aliases(worldSpace="ws")
     def getJointOrientQuaternion(self, ws=False):
         """jointOrientまでのクォータニオンを取得する。
 

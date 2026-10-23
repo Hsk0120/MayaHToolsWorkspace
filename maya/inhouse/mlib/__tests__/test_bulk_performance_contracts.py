@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import mlib
 
 mlib.reload()
-from mlib._core.flags import flag_aliases
+from mlib.decorator import _flag_aliases
 
 
 class BulkPerformanceContractsTest(unittest.TestCase):
@@ -87,7 +87,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         """形が同じでも値をキャッシュせず、競合を本体実行前に拒否する。"""
         calls = []
 
-        @flag_aliases(v="value")
+        @_flag_aliases(v="value")
         def operation(value, *, enabled=True):
             """渡された値をそのまま記録する。"""
             calls.append(value)
@@ -108,7 +108,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         class Item:
             """呼出しを記録する単数型。"""
 
-            @flag_aliases(v="value")
+            @_flag_aliases(v="value")
             def getValue(self, *, value=0):
                 """指定した照会値を返す。"""
                 calls.append(value)
@@ -118,7 +118,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         class Derived(Item):
             """署名と短縮フラグが異なるgetterを持つ派生型。"""
 
-            @flag_aliases(r="required")
+            @_flag_aliases(r="required")
             def getValue(self, *, required):
                 """必須の照会値を返す。"""
                 calls.append(required)

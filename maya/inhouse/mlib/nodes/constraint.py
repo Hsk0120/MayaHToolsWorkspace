@@ -2,8 +2,7 @@
 
 import maya.cmds as cmds
 
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _fast_edit, undoChunk
 from .node import Node
 from .transform import Transform
 
@@ -66,7 +65,7 @@ class Constraint(Transform):
                 return plug.get()
         raise ValueError(f"Target not found on this constraint: {requested}")
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibConstraintSetWeight")
     def setWeight(self, weight, *targets, fast=False):
         """ターゲットのウェイトをまとめて設定する。

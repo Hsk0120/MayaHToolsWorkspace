@@ -17,17 +17,29 @@ class PublicCamelCaseTest(unittest.TestCase):
         failures = []
         for path in root.rglob('*.py'):
             relative = path.relative_to(root)
-            if any(part in ('__tests__', '_docs', '_core') for part in relative.parts):
+            if any(part in ('__tests__', '_docs') for part in relative.parts):
                 continue
             if path.stem.startswith('_'):
                 continue
             tree = ast.parse(path.read_text(encoding='utf-8-sig'))
+            # フォルダ名で内部扱いにせず、関数の公開は明示一覧から判定する。
+            exported = set()
+            for statement in tree.body:
+                if isinstance(statement, ast.Assign) and any(
+                        isinstance(target, ast.Name) and target.id == '__all__'
+                        for target in statement.targets):
+                    try:
+                        exported = set(ast.literal_eval(statement.value))
+                    except (ValueError, TypeError):
+                        pass
             for node in tree.body:
                 if isinstance(node, ast.ClassDef):
                     if node.name.startswith('_'):
                         continue
                     definitions = node.body
                 else:
+                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name not in exported:
+                        continue
                     definitions = [node]
                 for definition in definitions:
                     if not isinstance(definition, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -36,6 +48,13 @@ class PublicCamelCaseTest(unittest.TestCase):
                     if name.startswith('_'):
                         continue
                     if path.name == 'logger.py' and name in ('get_logger', 'raise_with_notify'):
+                        continue
+                    # 既存の型登録/値読出し/reloadプロトコルは配置変更で改名しない。
+                    if (relative.as_posix(), getattr(node, 'name', None), name) in {
+                            ('core/registry.py', 'NodeRegistry', 'wrapper_class'),
+                            ('core/attributeType.py', 'is_internal_data_type', 'is_internal_data_type'),
+                            ('core/attributeType.py', 'value_reader', 'value_reader'),
+                            ('core/reload.py', 'reload_package', 'reload_package')}:
                         continue
                     if '_' in name:
                         failures.append('{}:{} {}'.format(relative, definition.lineno, name))

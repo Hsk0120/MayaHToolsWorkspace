@@ -64,11 +64,10 @@ Examples
 
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 
 
-@flag_aliases("duplicate")
+@_flag_aliases("duplicate")
 @undoChunk("mlib.cmds.duplicate.duplicate")
 def duplicate(node, **kwargs):
     """指定したノードを複製し、対応する mlib wrapper として返す。
@@ -86,7 +85,7 @@ def duplicate(node, **kwargs):
         ValueError: node が空文字列、または削除済みの対象の場合。
         RuntimeError: Maya が複製を拒否した場合。
     """
-    from .._core.object import Object as _InputObject
+    from ..core.object import Object as _InputObject
     from ..nodes import Node
 
     name = _InputObject._input_name(node)

@@ -3,8 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..decorator import _fast_edit, _is_fast, undoChunk
 from .node import Node
 
 
@@ -34,7 +33,7 @@ class DisplayLayer(Node):
                 for plug in output.connectedTo(False, True)
                 if plug.node().hasFn(om2.MFn.kDagNode)]
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDisplayLayerAddMembers")
     def addMembers(self, *members, fast=False):
         """子階層を含めてメンバーを排他的にこのレイヤーへ移動する。
@@ -47,15 +46,15 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         if members:
-            if is_fast():
+            if _is_fast():
                 self._move_members(members)
             else:
                 cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDisplayLayerRemoveMembers")
     def removeMembers(self, *members, fast=False):
         """子階層を含めてdefaultLayerへ移す。
@@ -67,15 +66,15 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         if members:
-            if is_fast():
+            if _is_fast():
                 DisplayLayer("defaultLayer")._move_members(members)
             else:
                 cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDisplayLayerSetCurrent")
     def setCurrent(self, *, fast=False):
         """このレイヤーを新規作成ノードの追加先にする。
@@ -86,7 +85,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        if is_fast():
+        if _is_fast():
             Node("layerManager").getPlug("currentDisplayLayer").set(self.getPlug("identification").get())
         else:
             cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
@@ -102,7 +101,7 @@ class DisplayLayer(Node):
             NotImplementedError: コンポーネント・UFE・標準外接続の場合。
             RuntimeError: ノード・レイヤーの参照やロックにより編集できない場合。
         """
-        from .._core.object import Object
+        from ..core.object import Object
         from .dagNode import DagNode
         layer_fn = om2.MFnDependencyNode(self.mnode())
         if layer_fn.isLocked or layer_fn.isFromReferencedFile:

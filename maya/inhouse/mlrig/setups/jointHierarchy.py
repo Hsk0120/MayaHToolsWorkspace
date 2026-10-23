@@ -2,15 +2,14 @@
 
 import maya.cmds as cmds
 import mlib
-from mlib.common._fast import fast_edit, is_fast
-from mlib.decorator import undoChunk
+from mlib.decorator import _fast_edit, _is_fast, undoChunk
 
 
 class JointHierarchy:
     """Maya標準の削除とは別に、ジョイント階層を整理する。"""
 
     @staticmethod
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlrigJointHierarchyDelete")
     def delete(joints, *, safe=False, fast=False):
         """子を親へ移し、祖先influenceへウェイトを移送してジョイントを削除する。
@@ -51,27 +50,27 @@ class JointHierarchy:
             stage = "transfer weights"
             try:
                 for skin, target in transfers:
-                    skin.transferWeights([(joint, target)], fast=is_fast())
+                    skin.transferWeights([(joint, target)], fast=_is_fast())
                     stage = "remove influence"
-                    if not is_fast():
+                    if not _is_fast():
                         skin.removeInfluence(joint, transfer_to_parent=False)
                     # fast削除はMaya標準の削除通知でinfluence構造も解除する。
                     stage = "transfer weights"
                 stage = "reparent children"
                 parent = joint.getParent()
                 for child in joint.getChildren():
-                    if is_fast() and child.isType("joint"):
-                        from mlib._core.jointEdit import reparent, reparent_plan
+                    if _is_fast() and child.isType("joint"):
+                        from mlib.core.jointEdit import reparent, reparent_plan
 
                         reparent(reparent_plan(child, parent))
-                    elif is_fast():
+                    elif _is_fast():
                         child.setParent(parent, fast=True)
                     elif parent is None:
                         cmds.parent(child.getFullName(), world=True)
                     else:
                         cmds.parent(child.getFullName(), parent.getFullName())
                 stage = "delete joint"
-                joint.delete(fast=is_fast())
+                joint.delete(fast=_is_fast())
             except Exception as exc:
                 raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc
 
@@ -100,10 +99,10 @@ class JointHierarchy:
                     skin._raise_if_layers()
                     transfers.append((skin, target))
             plans.append((joint, transfers))
-        if is_fast():
+        if _is_fast():
             # 更新前検証はmlibの実更新と同じ制限を使い、リグ側に制約を複製しない。
-            from mlib._core.jointEdit import reparent_plan
-            from mlib._core.nodeEdit import require_editable
+            from mlib.core.jointEdit import reparent_plan
+            from mlib.core.nodeEdit import require_editable
 
             deleted_ids = {joint.getUuid() for joint in targets}
             for joint, transfers in plans:

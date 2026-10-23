@@ -8,7 +8,7 @@ from unittest import mock
 
 import mlib
 import maya.cmds as cmds
-from mlib._core.registry import NodeRegistry
+from mlib.core.registry import NodeRegistry
 
 
 class NodeConstructorCreateTest(unittest.TestCase):

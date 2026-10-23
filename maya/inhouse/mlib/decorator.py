@@ -1,20 +1,22 @@
-"""Maya操作の一時状態とUndoを扱うコンテキストマネージャを提供する。"""
+"""Maya操作の一時状態・Undoと、内部の呼出し規約を扱う。"""
 
 import contextlib
+import inspect
+import re
 from contextvars import ContextVar
+from functools import lru_cache, wraps
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .common._fast import is_fast
-
 __all__ = ["nativeUnits", "preservedSelection", "preservedSkinShape", "undoChunk", "undoTransaction", "viewportOff"]
 
 _chunk_active = ContextVar("mlib_undo_chunk_active", default=False)
+_fast_active = ContextVar("mlib_fast_edit", default=False)
 
 # reloadはモジュール辞書を維持するため、廃止済みの公開名を取り除く。
 for _obsolete_name in ("undoable", "undo_chunk", "undo_transaction", "native_units",
-                       "preserved_selection", "preserved_skin_shape", "viewport_off"):
+                       "preserved_selection", "preserved_skin_shape", "viewport_off", "is_fast"):
     globals().pop(_obsolete_name, None)
 
 
@@ -38,7 +40,7 @@ def undoChunk(name=None):
     Yields:
         None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
     """
-    if is_fast() or _chunk_active.get():
+    if _is_fast() or _chunk_active.get():
         yield
         return
     opened = False
@@ -267,3 +269,209 @@ def viewportOff():
     finally:
         if cmds.paneLayout(pane, exists=True):
             cmds.paneLayout(pane, edit=True, manage=previous)
+
+
+def _is_fast():
+    """現在の呼出しがOpenMaya直接編集を要求しているか。
+
+    Returns:
+        bool: 現在の呼出しがOpenMaya直接編集を要求しているか。
+    """
+    return _fast_active.get()
+
+
+def _fast_edit(function):
+    """fast引数を検証し、内側の対応メソッドへ実行モードを伝える。
+
+    外側がfastなら、省略・fast=Falseでも内側は直接更新を継承する。
+    各呼出しの引数は継承中もboolを検証し、開始した範囲だけを終了時に復元する。
+
+    Args:
+        function (callable): fast 引数を持つ編集関数。
+
+    Returns:
+        callable: fast の検証と実行モードの伝播を行う関数。
+    """
+    signature = inspect.signature(function)
+    parameter = signature.parameters.get("fast")
+    keyword_only = parameter is not None and parameter.kind == inspect.Parameter.KEYWORD_ONLY
+
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        """fastの型を検証し、有効範囲を復元しながら元の関数を実行する。
+
+        Args:
+            *args (object): 元の関数へ渡す位置引数。
+            **kwargs (object): fastを含む元の関数のキーワード引数。
+
+        Returns:
+            object: 元の関数の戻り値。
+
+        Raises:
+            TypeError: fastがboolでない場合、または元の関数の引数が不正な場合。
+        """
+        # keyword-only は呼出しごとの Signature.bind を避ける。
+        # その他の引数の正当性は元関数の Python 呼出しが検証する。
+        if keyword_only:
+            requested = kwargs.get("fast", False)
+        else:
+            requested = signature.bind(*args, **kwargs).arguments.get("fast", False)
+        if type(requested) is not bool:
+            raise TypeError("fast must be a bool")
+        # Falseは通常モードへの強制切替ではなく、外側の指定を維持する。
+        if _is_fast() or not requested:
+            return function(*args, **kwargs)
+        token = _fast_active.set(True)
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _fast_active.reset(token)
+    return wrapped
+
+
+def _safe_edit(function):
+    """safe=Trueで書込み失敗を数え、複合値は書ける子を更新する。
+
+    Args:
+        function (callable): valueとsafe引数を持つPlugのsetter。
+
+    Returns:
+        callable: 通常時は元の戻り値、safe時は失敗数を返す関数。
+    """
+    signature = inspect.signature(function)
+
+    @wraps(function)
+    def wrapped(self, *args, **kwargs):
+        """通常の戻り値を維持し、safe指定時だけ成分ごとの書込み失敗を数える。
+
+        Args:
+            *args (object): 元のsetterへ渡す位置引数。
+            **kwargs (object): safeを含む元のsetterのキーワード引数。
+
+        Returns:
+            object | int: 通常時は元の戻り値、safe指定時は失敗した成分数。
+
+        Raises:
+            NotImplementedError: 対象のfast更新が未対応の場合。
+        """
+        if len(args) <= 1 and not kwargs.get("safe", False):
+            return function(self, *args, **kwargs)
+        bound = signature.bind(self, *args, **kwargs)
+        if not bound.arguments.get("safe", False):
+            return function(self, *args, **kwargs)
+        bound.arguments["safe"] = False
+        # multi全体へのsetはsafeでも許可しない。
+        if self.isArray():
+            return function(*bound.args, **bound.kwargs)
+        try:
+            function(*bound.args, **bound.kwargs)
+            return 0
+        except NotImplementedError:
+            # 非対応fastを部分更新へ読み替えず、更新前の拒否を維持する。
+            raise
+        except (RuntimeError, TypeError, ValueError):
+            if not self.isValid() or not self.mplug().isCompound:
+                return 1
+            try:
+                values = bound.arguments["value"]
+                ui_units = bound.arguments.get("uiUnits", False)
+                if hasattr(self, "_set_components"):
+                    if ui_units:
+                        from .core.attributeType import _convert_units
+                        unit = bound.arguments.get("unit", "rad")
+                        if unit != "rad":
+                            raise ValueError("uiUnits=True cannot be combined with a non-default unit")
+                        values = (self._ui_components(values) if hasattr(self, "_ui_components")
+                                  else _convert_units(self.mplug(), values, to_ui=False))
+                        ui_units = False
+                    values = self._set_components(values, bound.arguments.get("unit", "rad"))
+                values = tuple(values)
+                if len(values) != self.mplug().numChildren():
+                    return 1
+                return sum(getattr(self[i], function.__name__)(v, safe=True, uiUnits=ui_units)
+                           for i, v in enumerate(values))
+            except (RuntimeError, TypeError, ValueError):
+                return 1
+    return wrapped
+
+
+@lru_cache(maxsize=None)
+def _maya_aliases(command):
+    """実行中のMayaが公開するフラグ一覧を取得する。初回呼び出し時のみ照会。
+
+    Args:
+        command: フラグを照会するMayaコマンド名。
+    """
+    help_text = cmds.help(command)
+    aliases = dict(re.findall(r"^\s+-(\w+)\s+-(\w+)\b", help_text, re.MULTILINE))
+    if not aliases:
+        raise RuntimeError("Cannot read Maya flag definitions: " + command)
+    # query/editはhelpのフラグ一覧に含まれないコマンドもある。
+    # 対応モードかどうかの検査は元のMayaコマンドに任せる。
+    aliases.update(q="query", e="edit")
+    return aliases
+
+
+def _normalize_flags(function, kwargs):
+    """関数の登録済み別名またはMayaコマンド名からフラグを正規化する。
+
+    長名と短名の重複は拒否し、入力辞書は変更しない。
+
+    Args:
+        function (callable | str): 登録済み関数または Maya コマンド名。
+        kwargs (dict): 正規化するキーワード引数。
+
+    Returns:
+        dict: 短名を長名に置き換えた新しい辞書。
+    """
+    if not kwargs:
+        return {}
+    aliases = getattr(function, "__mlib_flag_aliases__", {})
+    command = function if isinstance(function, str) else getattr(function, "__mlib_maya_command__", None)
+    if command:
+        aliases = dict(_maya_aliases(command), **aliases)
+    result = dict(kwargs)
+    for short, long in aliases.items():
+        if short not in result or short == long:
+            continue
+        if long in result:
+            raise TypeError("Specify only one of {!r} and {!r}".format(long, short))
+        result[long] = result.pop(short)
+    return result
+
+
+def _flag_aliases(command=None, **aliases):
+    """Mayaコマンド名または明示した短名=長名の対応を関数へ付与する。
+
+    シグネチャとdocstringを保持する。別名の競合と位置引数との重複は
+    関数本体（Undoチャンク等を含む）の実行前に検出する。
+
+    Args:
+        command (str | None): Maya コマンド名。
+        **aliases: 短名をキー、長名を値とする対応。
+
+    Returns:
+        callable: フラグを正規化するデコレータ。
+    """
+    def decorate(function):
+        signature = inspect.signature(function)
+
+        @lru_cache(maxsize=128)
+        def validate_shape(positional_count, names):
+            """値に依存しない引数の形だけを検証し、成功した形を上限付きで保持する。
+
+            値・ノード・Plugを保持しない。装飾ごとのキャッシュなのでreloadで
+            新しい関数が作られたときに古いsignatureを再利用しない。
+            """
+            signature.bind(*([None] * positional_count), **dict.fromkeys(names))
+
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            normalized = _normalize_flags(wrapped, kwargs)
+            validate_shape(len(args), tuple(normalized))
+            return function(*args, **normalized)
+
+        wrapped.__mlib_flag_aliases__ = dict(aliases)
+        wrapped.__mlib_maya_command__ = command
+        return wrapped
+    return decorate

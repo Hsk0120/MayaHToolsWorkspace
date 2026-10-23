@@ -79,11 +79,10 @@ Examples
 
 import maya.cmds as cmds
 
-from .._core.flags import flag_aliases
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, undoChunk
 
 
-@flag_aliases("select")
+@_flag_aliases("select")
 @undoChunk("mlib.cmds.select.select")
 def select(nodes=None, **kwargs):
     """指定したノード・アトリビュート・コンポーネントを選択する。
@@ -103,7 +102,7 @@ def select(nodes=None, **kwargs):
         ValueError: nodes の要素に空文字列、または削除済みの対象が含まれる場合。
         RuntimeError: Maya が選択を拒否した場合。
     """
-    from .._core.object import Object as _InputObject
+    from ..core.object import Object as _InputObject
 
     if nodes is None:
         cmds.select(**kwargs)

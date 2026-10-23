@@ -8,12 +8,8 @@ from typing import Any
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.bulkExecution import calculation_results
-from .._core.flags import flag_aliases
-from .._core.flags import normalize_flags
-from .._core.object import Object
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk, undoTransaction
+from ..core.object import Object
+from ..decorator import _flag_aliases, _normalize_flags, _fast_edit, _is_fast, undoChunk, undoTransaction
 from ..logger import raise_with_notify
 
 _MOVABLE_NUMERIC_TYPES = {
@@ -478,7 +474,7 @@ class Node(Object):
             raise AttributeError(f"アトリビュートが見つかりません: {self.getName()}.{name}") from error
 
     @classmethod
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlib.nodes.node.create")
     def create(cls, type, *, fast=False, **kwargs):
         """ノードを作成し、対応する mlib wrapper として返す。
@@ -655,8 +651,8 @@ class Node(Object):
             raise ValueError("node_type must be a non-empty string")
         if not self.isValid():
             return False
-        from .._core.typeHierarchy import inherited_node_types
-        return node_type in inherited_node_types(self.getType())
+        from ..core.registry import _inherited_node_types
+        return node_type in _inherited_node_types(self.getType())
 
     def isLocked(self):
         """ノード自体がロックされているか判定する。
@@ -816,7 +812,7 @@ class Node(Object):
             return Namespace(":")
         return Namespace(node_name.rsplit(":", 1)[0])
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeSetNamespace")
     def setNamespace(self, namespace, *, fast=False):
         """ノードを指定したネームスペースへ移動する。
@@ -842,7 +838,7 @@ class Node(Object):
         else:
             raise ValueError("namespace must be a non-empty string")
         if not target_namespace.exists() and target_namespace.name != ":":
-            if is_fast():
+            if _is_fast():
                 om2.MNamespace.addNamespace(target_namespace.name)
             else:
                 target_namespace = Namespace.create(target_namespace)
@@ -855,7 +851,7 @@ class Node(Object):
         )
         return self.rename(new_name)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeDelete")
     def delete(self, *, safe=False, fast=False):
         """自身をMaya標準の規則で削除する。
@@ -882,13 +878,13 @@ class Node(Object):
             raise RuntimeError("Cannot delete an invalid node")
         if safe and self._has_delete_connections():
             return
-        if is_fast():
-            from .._core.nodeEdit import delete_node
+        if _is_fast():
+            from ..core.nodeEdit import delete_node
             delete_node(self.mnode())
         else:
             cmds.delete(self.getFullName())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeRename")
     def rename(self, name, ignoreShape=False, *, fast=False):
         """ノード名を変更し、変更後の名前を返す。
@@ -904,12 +900,12 @@ class Node(Object):
         Raises:
             RuntimeError: ノード名を変更できない場合。
         """
-        if is_fast():
-            from .._core.nodeEdit import rename_node
+        if _is_fast():
+            from ..core.nodeEdit import rename_node
             return rename_node(self.mnode(), name, ignoreShape)
         return cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
                     source=True, destination=True, connections=False,
                     type=None, exactType=False, skipConversionNodes=False,
@@ -971,8 +967,8 @@ class Node(Object):
                 result.append(node)
         return result
 
-    @flag_aliases(attrs="attributes")
-    @fast_edit
+    @_flag_aliases(attrs="attributes")
+    @_fast_edit
     @undoChunk("mlibNodeResetAttrs")
     def resetAttrs(self, attributes=None, *, fast=False):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
@@ -992,7 +988,7 @@ class Node(Object):
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
         if attributes is None:
-            if is_fast():
+            if _is_fast():
                 from ..plugs.plug import Plug
                 fn = self._dependency_fn()
                 plugs = []
@@ -1020,8 +1016,8 @@ class Node(Object):
             plug.reset()
         return plugs
 
-    @flag_aliases(attrs="attributes")
-    @fast_edit
+    @_flag_aliases(attrs="attributes")
+    @_fast_edit
     @undoChunk("mlibNodeSetAttrFlags")
     def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
         """指定したアトリビュートのロック・キー設定可否・Channel Box表示をまとめて変更する。
@@ -1097,7 +1093,7 @@ class Node(Object):
         # 配列・複合パスの解決はplug()へ集約し、Mayaコマンドと名前再解決を避ける。
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodeAddAttr")
     def addAttr(self, longName="", type=None, subType=None, channelBox=False,
                 childNames=None, childShortNames=None, childSuffixes=None,
@@ -1126,9 +1122,9 @@ class Node(Object):
             子の追加では公開addAttrを再度呼び、利用側のoverrideを維持する。
             Mayaの実行時エラーや利用側overrideの失敗では、完了済みの追加は残る。
         """
-        from .._core.flags import normalize_flags
+        from ..decorator import _normalize_flags
         from ..plugs.plug import Plug
-        flags = {key: value for key, value in normalize_flags("addAttr", kwargs).items()
+        flags = {key: value for key, value in _normalize_flags("addAttr", kwargs).items()
                  if value is not None}
         if flags.get("query") or flags.get("edit"):
             raise ValueError("addAttr supports creation only")
@@ -1153,7 +1149,7 @@ class Node(Object):
             return None
         plug = self.getPlug(name)
         if deferred is not None and not count:
-            if is_fast() and prepared is not None:
+            if _is_fast() and prepared is not None:
                 setter, value, owner = prepared
                 setter(plug.mplug(), value)
             else:
@@ -1229,7 +1225,7 @@ class Node(Object):
         new_index = max(0, min(len(names) - 1, old_index + offset))
         if new_index == old_index:
             return self
-        if is_fast():
+        if _is_fast():
             raise NotImplementedError("moveAttrOrder requires Undo and cannot run in fast mode")
         if not cmds.undoInfo(query=True, state=True):
             raise RuntimeError("moveAttrOrder requires Undo to restore attributes after a failure")
@@ -1416,9 +1412,9 @@ class Node(Object):
         for key in ("parent", "p"):
             if flags.get(key) is not None:
                 flags[key] = Node._input_name(flags[key])
-        if is_fast():
-            from .._core.nodeEdit import create_node
-            obj = create_node(node_type, normalize_flags("createNode", flags))
+        if _is_fast():
+            from ..core.nodeEdit import create_node
+            obj = create_node(node_type, _normalize_flags("createNode", flags))
             return Node._unique_node_name(obj)
         return cmds.createNode(node_type, **flags)
 
@@ -1563,7 +1559,7 @@ class Node(Object):
             RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
                 または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         from ..plugs.plug import Plug as _InputPlug
         node_class, plug_class, component_class, components_class = _InputObject._classes()
         if isinstance(value, node_class):
@@ -1599,7 +1595,7 @@ class Node(Object):
                 含む)対象の場合。
             RuntimeError: 文字列を解決できない(存在しない、または複数のノードに一致する)場合。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         # 型と有効性の検査は Object._input_name と同じ規則(TypeError / ValueError)にそろえる。
         _InputObject._input_name(value)
         return Node._resolve_input(value).getFullName()
@@ -1731,13 +1727,13 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 子の型。
         """
-        from .._core.attributeEdit import extra_children, validate_extra_attribute
+        from ..core.attributeEdit import extra_children, validate_extra_attribute
         children = extra_children(name, flags, numeric, count, deferred, child_names,
                                   child_short_names, child_suffixes, sub_type)
         validate_extra_attribute(self, name, flags, count, deferred, children,
-                                 validate_defaults=not is_fast())
-        if is_fast():
-            from .._core.attributeEdit import create_extra_attribute
+                                 validate_defaults=not _is_fast())
+        if _is_fast():
+            from ..core.attributeEdit import create_extra_attribute
             return create_extra_attribute(self, name, flags, numeric, count, deferred,
                                           child_names, child_short_names, child_suffixes, sub_type)
         if count:
@@ -1765,7 +1761,7 @@ class Node(Object):
             ValueError: 照会・編集、または名前の指定が不正な場合。
             RuntimeError: Mayaが追加を拒否した場合。
         """
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         from ..plugs.plug import Plug as _InputPlug
 
         if kwargs.get("query") or kwargs.get("edit"):
@@ -1777,10 +1773,10 @@ class Node(Object):
             and not (kwargs.get("longName") or kwargs.get("shortName"))
         ):
             raise ValueError("Specify longName or shortName")
-        if is_fast():
+        if _is_fast():
             if "." in name:
                 raise NotImplementedError("fast addAttr requires a node target")
-            from .._core.attributeEdit import add_attribute
+            from ..core.attributeEdit import add_attribute
             add_attribute(Node._resolve_input(target), kwargs)
         else:
             cmds.addAttr(name, **kwargs)
@@ -1840,6 +1836,12 @@ class Nodes:
     """
 
     item_class = Node
+
+    # 基底Nodes.callEachや利用側の同名メソッドにも適用する結果収集方針。
+    _calculating_setters = frozenset((
+        "setTranslate", "setRotate", "setQuaternion", "setScale", "setShearing",
+        "setMatrix", "setTransformation",
+    ))
 
     # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
     _bulk_entries = {
@@ -2553,7 +2555,7 @@ class Nodes:
         """
         return [node.getName() for node in self]
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibNodesDelete")
     def delete(self, *, safe=False, fast=False):
         """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
@@ -2575,8 +2577,8 @@ class Nodes:
         for index, node in enumerate(self):
             if not node.isValid():
                 raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
-        if is_fast():
-            from .._core.nodeEdit import validate_deletion
+        if _is_fast():
+            from ..core.nodeEdit import validate_deletion
             validate_deletion(self, safe=safe)
         for index, node in enumerate(self):
             if node.isValid():
@@ -2618,6 +2620,24 @@ class Nodes:
         if any(isinstance(value, str) for value in values) and any(isinstance(value, Node) for value in values):
             raise TypeError("Names and Node objects cannot be mixed in the same target collection")
 
+    @staticmethod
+    def _calculation_results(method, functions, args, kwargs):
+        """get指定で計算値を返すsetterについて結果列が必要か判定する。
+
+        Args:
+            method (str): 一括実行するメソッド名。
+            functions (Sequence[callable]): 実際の呼出し先。
+            args (Sequence[tuple]): 要素別の位置引数。
+            kwargs (Sequence[dict]): 要素別の正規化済みキーワード引数。
+
+        Returns:
+            bool: 少なくとも一つの対象がget指定で計算値を返す場合True。
+        """
+        if method not in Nodes._calculating_setters:
+            return False
+        return any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
+                   for fn, row, flags in zip(functions, args, kwargs))
+
     def _execute_calls(self, method, functions, args, kwargs):
         """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。
 
@@ -2629,7 +2649,7 @@ class Nodes:
         """
         all_fast = bool(kwargs) and all(flags.get("fast") is True for flags in kwargs)
         context = undoChunk("mlibBulk_" + method) if self._bulk_undo and not all_fast else contextlib.nullcontext()
-        calculating = calculation_results(method, functions, args, kwargs)
+        calculating = self._calculation_results(method, functions, args, kwargs)
         result = [] if calculating or self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
@@ -2673,7 +2693,7 @@ class Nodes:
             if key is not None and key in shared:
                 flags = shared[key]
             else:
-                flags = normalize_flags(function, kwargs)
+                flags = _normalize_flags(function, kwargs)
                 self._signature(function, signatures).bind(*args, **flags)
                 if key is not None:
                     shared[key] = flags
@@ -2702,7 +2722,7 @@ class Nodes:
         if len(args) != len(self) or len(kwargs) != len(self):
             raise ValueError("Argument count must match collection length")
         functions = [self._call_target(item, method) for item in self._items]
-        kwargs = [normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
+        kwargs = [_normalize_flags(function, flags) for function, flags in zip(functions, kwargs)]
         # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
         signatures = {}
         for function, row, flags in zip(functions, args, kwargs):

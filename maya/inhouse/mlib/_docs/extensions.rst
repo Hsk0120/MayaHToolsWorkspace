@@ -25,7 +25,7 @@ Python探索パス直下だけを調べます。
 
 ``nodes`` と ``plugs`` は任意です。各 ``__init__.py`` に通常のimportと ``__all__`` で
 公開クラスを明示し、``_WRAPPER_CLASSES`` 辞書に型名とクラスの対応を宣言します。
-``from mlib._core import extensions`` で取得でき、ルートへの再公開は行いません。
+``from mlib.core import extensions`` で取得でき、ルートへの再公開は行いません。
 それぞれ ``mlib.nodes.Node``、``mlib.plugs.Plug`` を継承してください。
 クラスは拡張側の ``nodes`` / ``plugs`` から公開され、mlib直下へは展開しません。
 ラッパーモジュールの自動走査やクラスの実行時注入は行いません。
@@ -85,7 +85,7 @@ import文とラッパーの基底クラスを検査し、他の拡張への依�
 .. code-block:: python
 
    import mlib
-   from mlib._core import extensions
+   from mlib.core import extensions
 
    print(extensions.status())
    print(extensions.getDiagnostics())

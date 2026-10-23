@@ -68,7 +68,7 @@ def main(output_dir=None, finished=None):
               "Extension module resolves to workspace package")
         before = set(cmds.pluginInfo(query=True, listPlugins=True) or [])
         import mlib
-        state = mlib._core.extensions.status().get('mlib_posedriverconnect')
+        state = mlib.core.extensions.status().get('mlib_posedriverconnect')
         result["extension_state"] = state
         check(state is not None, "Extension found without explicit extension import")
         check(before == set(cmds.pluginInfo(query=True, listPlugins=True) or []),

@@ -2,9 +2,8 @@
 
 import maya.cmds as cmds
 
-from .._core import geometryEdit as geometry_edit
-from ..common._fast import fast_edit, is_fast
-from ..decorator import undoChunk
+from ..core import geometryEdit as geometry_edit
+from ..decorator import _fast_edit, _is_fast, undoChunk
 from .component import Component, Components
 
 
@@ -25,7 +24,7 @@ class UV(Component):
         mesh_fn = self.shape.meshFn()
         return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibUVPosition")
     def setPosition(self, value, *, fast=False):
         """UV 座標を設定する。
@@ -45,7 +44,7 @@ class UV(Component):
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         u, v = self._finite_coordinates(value, 2)
-        if is_fast():
+        if _is_fast():
             self._validate()
             geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
             return self
@@ -61,7 +60,7 @@ class UV(Component):
         """
         return self._get_coordinate(0)
 
-    @fast_edit
+    @_fast_edit
     def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
@@ -88,7 +87,7 @@ class UV(Component):
         """
         return self._get_coordinate(1)
 
-    @fast_edit
+    @_fast_edit
     def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
@@ -116,7 +115,7 @@ class UVs(Components):
 
     component_class = UV
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibUVsSetPositions")
     def setPositions(self, values, *, fast=False):
         """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
@@ -137,7 +136,7 @@ class UVs(Components):
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
         rows = self._coordinate_rows(values, 2)
-        if is_fast() and self._uses_standard_iteration(UV):
+        if _is_fast() and self._uses_standard_iteration(UV):
             if self._indices:
                 Component._validate_shape(self._shape, UV.shape_type)
                 count = self._shape.getNumUVs()
@@ -146,7 +145,7 @@ class UVs(Components):
             geometry_edit.set_uvs(self._shape, self._indices, rows)
             return self
         components = list(self)
-        if is_fast():
+        if _is_fast():
             geometry_edit.set_uvs(self._shape, [c.index for c in components], rows)
             return self
         for item, point in zip(components, rows):
@@ -161,7 +160,7 @@ class UVs(Components):
         """
         return self._get_coordinate(0)
 
-    @fast_edit
+    @_fast_edit
     def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
@@ -188,7 +187,7 @@ class UVs(Components):
         """
         return self._get_coordinate(1)
 
-    @fast_edit
+    @_fast_edit
     def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
@@ -227,7 +226,7 @@ class UVs(Components):
             result.append(tuple(mesh_fn.getUV(index, uvSet=uv_set)))
         return result
 
-    @fast_edit
+    @_fast_edit
     def setPosition(self, value, *, fast=False):
         """全UVを同じ座標へ設定する。
 

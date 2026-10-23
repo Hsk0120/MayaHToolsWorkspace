@@ -2,10 +2,8 @@
 
 import maya.api.OpenMaya as om2
 
-from .._core.fastWrite import set_plug
-from ..common._fast import fast_edit, is_fast
-from ..common._safe import safe_edit
-from ..decorator import undoChunk
+from ..core.fastWrite import set_plug
+from ..decorator import _fast_edit, _is_fast, _safe_edit, undoChunk
 from .plug import Plug
 
 
@@ -92,9 +90,9 @@ class CompoundPlug(Plug):
         self._validate_ui_units(uiUnits)
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCompoundPlugSet")
-    @safe_edit
+    @_safe_edit
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """子数と同数のシーケンスを各子プラグへ設定する。
 
@@ -124,10 +122,10 @@ class CompoundPlug(Plug):
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
             raise ValueError("Compound plug value length does not match its child count")
-        if is_fast():
+        if _is_fast():
             if uiUnits:
-                from .._core.unitValue import convert
-                values = convert(self._mplug, values, to_ui=False)
+                from ..core.attributeType import _convert_units
+                values = _convert_units(self._mplug, values, to_ui=False)
             set_plug(self._mplug, values)
         elif self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
             self._require_writable()

@@ -3,9 +3,8 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..common._fast import is_fast
-from .attributeType import NUMERIC_WRITERS
-from .unitValue import convert
+from ..decorator import _is_fast
+from .attributeType import NUMERIC_WRITERS, _convert_units
 
 
 def writable(plug, _fn=None):
@@ -59,7 +58,7 @@ def check_range(plug, value, _fn=None):
             continue
         limit = getter()
         if isinstance(limit, (om2.MAngle, om2.MDistance, om2.MTime)):
-            limit = convert(plug, limit, to_ui=False)
+            limit = _convert_units(plug, limit, to_ui=False)
         if (lower and value < limit) or (not lower and value > limit):
             raise RuntimeError("Value outside attribute limits: " + plug.name())
 
@@ -139,7 +138,7 @@ def set_attr(name, *values, **kwargs):
         *values: cmds.setAttr と同じ形・現在の Maya 単位の値。
         **kwargs: setAttr のフラグ。fast 時の対応フラグは限定される。
     """
-    if not is_fast():
+    if not _is_fast():
         return cmds.setAttr(name, *values, **kwargs)
     selection = om2.MSelectionList()
     selection.add(name)
@@ -152,7 +151,7 @@ def set_attr(name, *values, **kwargs):
     if set(kwargs) - {"type"}:
         raise NotImplementedError("Unsupported fast setAttr flags")
     value = values[0] if len(values) == 1 else values
-    set_plug(plug, convert(plug, value, to_ui=False))
+    set_plug(plug, _convert_units(plug, value, to_ui=False))
 
 
 def prepare_data(attribute, value, *, name=None):

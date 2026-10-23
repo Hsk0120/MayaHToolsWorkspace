@@ -3,7 +3,7 @@
 import math
 import operator
 
-from .._core.object import Object
+from ..core.object import Object
 
 
 class Component(Object):

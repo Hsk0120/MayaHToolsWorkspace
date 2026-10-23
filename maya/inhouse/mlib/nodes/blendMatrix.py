@@ -1,8 +1,6 @@
 """論理番号順に行列をブレンドする。加重平均ではない。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node
@@ -27,7 +25,7 @@ class BlendMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
@@ -45,7 +43,7 @@ class BlendMatrix(Node):
         _Calculation.set_value(value, Matrix, self.getInputPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectInput(self, source, force=False):
         """入力へ接続する。
@@ -79,7 +77,7 @@ class BlendMatrix(Node):
         """
         return self.getEnvelopePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setEnvelope(self, value, *, fast=False):
         """全体ウェイトへ定数値を設定する。
@@ -97,7 +95,7 @@ class BlendMatrix(Node):
         _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectEnvelope(self, source, force=False):
         """全体ウェイトへ接続する。
@@ -123,7 +121,7 @@ class BlendMatrix(Node):
         """
         return list(self.getPlug("target").mplug().getExistingArrayAttributeIndices())
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getTargetPlug(self, index):
         """既存ターゲットを参照する。
 
@@ -138,7 +136,7 @@ class BlendMatrix(Node):
             raise IndexError(f"No target at logical index {index}")
         return plug
 
-    @flag_aliases(idx="index", src="source", f="force")
+    @_flag_aliases(idx="index", src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectTarget(self, index, source, weight=1.0, force=False):
         """行列Plugをターゲットへ接続する。
@@ -163,7 +161,7 @@ class BlendMatrix(Node):
         target["weight"].set(weight)
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     @undoChunk("mlibCalculationEdit")
     def removeTarget(self, index):
         """ターゲットとその接続を削除する。
@@ -180,7 +178,7 @@ class BlendMatrix(Node):
         self.getPlug("target").removeElement(_Calculation.index(index))
         return self
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     def getTarget(self, index):
         """ターゲットの評価値を取得する。
 
@@ -193,7 +191,7 @@ class BlendMatrix(Node):
         target = self.getTargetPlug(index)
         return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
-    @flag_aliases(idx="index")
+    @_flag_aliases(idx="index")
     @undoChunk("mlibCalculationEdit")
     def setTarget(self, index, matrix, weight=1.0):
         """ターゲットの行列とウェイトを設定する。

@@ -1,8 +1,6 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from .node import Node
 from .transform import Transform
 
@@ -10,7 +8,7 @@ from .transform import Transform
 class DistanceBetween(Node):
     """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibDistanceBetweenSetPoints")
     def setPoints(self, point1, point2, *, fast=False):
         """各入力行列の空間における二点を設定する。行列は変更しない。
@@ -39,7 +37,7 @@ class DistanceBetween(Node):
             self.getPlug(name).set(point)
         return self
 
-    @flag_aliases(f="force")
+    @_flag_aliases(f="force")
     @undoChunk("mlibDistanceBetweenConnectTransforms")
     def connectTransforms(self, first, second, force=False):
         """二つのTransform原点のワールド距離を測る接続を設定する。

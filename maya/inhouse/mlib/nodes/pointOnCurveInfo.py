@@ -1,8 +1,6 @@
 """接続したcurveの形状情報をMayaで評価する。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Vector
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
@@ -11,7 +9,7 @@ from .abstractBaseCreate import AbstractBaseCreate
 class PointOnCurveInfo(AbstractBaseCreate):
     """接続したcurveの形状情報をMayaで評価する。"""
 
-    @flag_aliases(ws="worldSpace", f="force")
+    @_flag_aliases(ws="worldSpace", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectCurve(self, curve, worldSpace=True, force=False):
         """形状またはTransformを解決して接続する。
@@ -31,7 +29,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
         source.connectTo(self.getPlug("inputCurve"), force=force)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setParameter(self, value, percentage=False, *, fast=False):
         """パラメーターと百分率モードを設定する。

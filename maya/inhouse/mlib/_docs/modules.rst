@@ -44,6 +44,7 @@ Common Features
    autoapi/mlib/common/index
    autoapi/mlib/decorator/index
    autoapi/mlib/logger/index
+   autoapi/mlib/util/index
 
 Development
 -----------
@@ -51,7 +52,7 @@ Development
 .. toctree::
    :maxdepth: 1
 
-   autoapi/mlib/_core/index
+   autoapi/mlib/core/index
 
 .. toctree::
    :maxdepth: 1

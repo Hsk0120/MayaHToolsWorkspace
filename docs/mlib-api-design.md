@@ -153,7 +153,7 @@ mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 - 公開メソッドの全体をアルファベット順には並べ替えない。対の隣接と上記グループ分けだけを行う。
 - 関数・メソッド内の遅延import(循環回避、Maya非依存の維持)、`try/except ImportError`、
   `if TYPE_CHECKING:` の中身は移動しない。
-- import文の間に実行文があり、その初期化順そのものが仕様の `__init__.py`(ルートと `_core`・`cmds`・`nodes`・`plugs` の初期化)は
+- import文の間に実行文があり、その初期化順そのものが仕様の `__init__.py`(ルートと `core`・`cmds`・`nodes`・`plugs` の初期化)は
   import群の並び替え対象外。空行だけを整える(`--check` は「スキップ」として表示する)。
 - それ以外の `__init__.py` も通常の規則で並べる。import群の途中にあった `globals().pop(...)`・
   `__all__ +=` のような、importの結果に依存しない文はimport群の後へまとめる
@@ -314,7 +314,7 @@ mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 - クラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは同じファイルへまとめる（`joint.py` に `Joint` / `Joints`）。既存の分離済みクラスの移動は必須としない。`__init__.py` は公開用importを基本とする。
 - クラスに関係する処理は、そのクラスのインスタンス／クラス／静的メソッドへ配置する。補助関数だけを置くファイルをnodes/plugs/componentsなど型をまとめるパッケージ内に増やさない。commonでは用途単位の関数モジュールも扱う。
-- 特定クラスに依存しない汎用関数は `mlib.common` 配下に用途単位でまとめる。版番号のように保持値と関連操作があるものは `mlib.common.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
+- 特定クラスに依存しない小さな中立の汎用関数・値処理補助は `mlib.util` へ集約し、Mayaの状態・環境等の責務固有の処理は `mlib.common` 配下へ用途単位でまとめる。版番号のように保持値と関連操作があるものは `mlib.common.version.Version` のような値クラスにまとめる。既存のMaya互換コマンド入口 (`cmds`) は、その公開方式を維持する。
 
 | 対象 | 推奨ルール | 例 |
 | --- | --- | --- |
@@ -409,13 +409,15 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ## 入力解決とパッケージ境界
 
-- `_core/object.py` の `Object` は単数の `Node`・`Plug`・`Component` の共通基底。取得は `from mlib._core.object import Object` とし、ルートへ再公開しない。`Object(value)` は具体的な参照型を返し、既存ラッパーはそのまま返す。比較・ハッシュ・寿命は各参照型が担当する。
+- `core/object.py` の `Object` は単数の `Node`・`Plug`・`Component` の共通基底。取得は `from mlib.core.object import Object` とし、ルートへ再公開しない。`Object(value)` は具体的な参照型を返し、既存ラッパーはそのまま返す。比較・ハッシュ・寿命は各参照型が担当する。
 - `Node._resolve_input()` はノードを必要とする内部処理、`Plug._resolve_input()` はアトリビュート入力、`Component._resolve_input()` は単一要素入力を解決する。各公開APIで判定処理を複製しない。
 - `Object._input_name()` / `_input_names()` はcmds向けの名前変換。文字列をそのまま渡す既存の規則を維持し、対象解決を必要とする `Object()` と区別する。
 - `Nodes._resolve_inputs()` は複数入力を検証する。名前だけ／Nodeだけを受け付け、同じ対象列の文字列とNodeの混在は拒否する。空集合など各APIの規則は維持する。
-- 公開フォルダは `nodes`・`plugs`・`components`・`maths`・`cmds`・`common` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行、既存の共通計算は `common` 直下へ統合する。領域別のサブフォルダは作らず、具体的な機能名のファイルから提供する。
+- 実行フォルダは `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行、既存の共通計算の型は `common` 直下へ統合する。領域別のサブフォルダは作らず、具体的な機能名のファイルから提供する。
 - ログ・通知・出力は `mlib.logger`、デコレーター・コンテキストマネージャーは `mlib.decorator` を正式入口とする。文書と生成設定は `_docs` に置く。汎用UI・設定・保存フレームワークは本体へ追加しない。
-- 拡張管理の正式入口は `_core/extensions.py` とし、拡張作者は `from mlib._core import extensions` を使う。ルートへ再公開せず、旧モジュールパスの互換入口も残さない。
+- クラスに属さない小さな汎用関数は直下の `mlib.util` に置く。公開は `legalizeName`・`measure`・`mirrorArguments` の3件。数学値の添字・比較・派生状態の補助と空間指定の検証は先頭`_`の内部関数とし、utilからNode/Plug/core/decoratorをimportしない。
+- `core`は通常の実行パッケージであり、フォルダ名だけで公開/非公開を決めない。正式なAPIは明示import・`__all__`・文書で示す。集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。既存の `core.NodeRegistry`・`core.reload_package` と登録プロトコルの名前・意味を維持し、全helperの公開や一括改名はしない。旧 `mlib._core` の互換入口は残さない。`_docs`・`__tests__` は実行APIと別の素材なので配置名を維持する。
+- 拡張管理の正式入口は `core/extensions.py` とし、拡張作者は `from mlib.core import extensions` を使う。ルートへ再公開せず、旧モジュールパスの互換入口も残さない。
 - 数学値・複数形コレクション・UI・保存データは `Object` の派生にしない。既存の便利メソッド・Undo・fastの意味は維持する。
 - 旧 `general` / `_core/coerce.py` の互換ファイルは残さず、内製利用側も正式な配置へ更新する。
 
@@ -423,7 +425,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 - 入力の汎用展開は `Object._flatten_inputs()`、展開済み列の名前/Node混在検査は `Nodes._validate_inputs()`。検査からObjectの展開へ戻らない。`Nodes._resolve_inputs()` は両者を順に呼ぶノード側入口。
 - 公開コマンドはクラス側の共通処理に委譲する。`createNode` は `Node.create()` へ委譲する。クラス側から公開コマンドへ戻らない。Undoと短縮フラグは各公開入口の契約を維持する。
-- 複数形の転送入口は各クラスへ通常の`def`として明示し、実行は`Nodes._dispatch_shared()`に任せる。独自`callEach()`のoverride判定と共通引数の実行方針はNodesが所有する。計算用setterの`get`指定による結果収集は`_core.bulkExecution`が判定し、基底Nodes経由でも同じ返却を維持する。
+- 複数形の転送入口は各クラスへ通常の`def`として明示し、実行は`Nodes._dispatch_shared()`に任せる。独自`callEach()`のoverride判定、共通引数の実行方針、計算用setterの`get`指定による結果収集はNodesが所有し、基底Nodes経由でも同じ返却を維持する。
+- フラグ正規化とfast/safeの内部補助は `decorator.py`、定義に基づく単位境界は `core.attributeType._convert_units`、型継承照会とその単一キャッシュは `core.registry` に集約する。通常Undo・fast継承・安全検証と単位の既存規則を維持する。
 
 ### 任意拡張の参照方向と再読み込み
 

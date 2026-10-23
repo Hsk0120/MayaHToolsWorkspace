@@ -2,10 +2,8 @@
 
 import maya.api.OpenMaya as om2
 
-from .._core.fastWrite import set_attr, set_plug
-from ..common._fast import fast_edit, is_fast
-from ..common._safe import safe_edit
-from ..decorator import undoChunk
+from ..core.fastWrite import set_attr, set_plug
+from ..decorator import _fast_edit, _is_fast, _safe_edit, undoChunk
 from ..maths import Matrix
 from .plug import Plug
 
@@ -29,9 +27,9 @@ class MatrixPlug(Plug):
         self._require_valid()
         return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibMatrixPlugSet")
-    @safe_edit
+    @_safe_edit
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
@@ -56,7 +54,7 @@ class MatrixPlug(Plug):
         if self.getLongName() in ("worldMatrix", "wm"):
             raise TypeError("worldMatrix is a computed output and cannot be set")
         matrix = Matrix(value)
-        if is_fast():
+        if _is_fast():
             set_plug(self._mplug, matrix)
         else:
             set_attr(self.getFullName(), *tuple(matrix), type="matrix")

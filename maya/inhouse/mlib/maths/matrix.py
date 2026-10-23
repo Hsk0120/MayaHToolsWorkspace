@@ -4,7 +4,7 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
@@ -1074,7 +1074,7 @@ class Matrix(om2.MMatrix):
         Raises:
             ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
-        from ..common.mirror import mirrorArguments
+        from ..util import mirrorArguments
         axes, center = mirrorArguments(axis, pivot)
         result = type(self)._wrap(self)
         for axis in axes:

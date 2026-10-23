@@ -6,15 +6,12 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.attributeType import attributeType, is_internal_data_type, value_reader
-from .._core.fastWrite import set_attr
-from .._core.fastWrite import set_plug
-from .._core.flags import flag_aliases
-from .._core.object import Object
-from .._core.unitValue import convert
-from ..common._fast import fast_edit, is_fast
-from ..common._safe import safe_edit
-from ..decorator import undoChunk
+from ..core.attributeType import attributeType, is_internal_data_type, value_reader
+from ..core.attributeType import _convert_units
+from ..core.fastWrite import set_attr
+from ..core.fastWrite import set_plug
+from ..core.object import Object
+from ..decorator import _flag_aliases, _fast_edit, _is_fast, _safe_edit, undoChunk
 
 #: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
 _PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
@@ -154,7 +151,7 @@ class Plug(Object):
         """配列・登録アトリビュート型・複合アトリビュートの順にラッパー型を選ぶ。
 
         登録アトリビュート型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は
-        アトリビュート定義から求め(:func:`mlib._core.attributeType.attributeType`)、maya.cmds へ
+        アトリビュート定義から求め(:func:`mlib.core.attributeType.attributeType`)、maya.cmds へ
         問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
         generic/kAnyは現在値を読まず、基底Plugとして参照する。
         行列などの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で
@@ -503,7 +500,7 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isKeyable
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetKeyable")
     def setKeyable(self, val=True, leaf=False, *, fast=False):
         """キー設定可否を設定する。
@@ -518,7 +515,7 @@ class Plug(Object):
         """
         return self._set_flags(leaf, keyable=val)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetFlags")
     def setFlags(self, *, locked=None, keyable=None, channelBox=None, fast=False):
         """アトリビュートの状態をまとめて変更する。省略した状態は変更しない。
@@ -539,7 +536,7 @@ class Plug(Object):
         flags = self._validated_flags(locked, keyable, channelBox)
         self._require_valid()
         if flags:
-            if is_fast():
+            if _is_fast():
                 for flag, value in flags.items():
                     setattr(self._mplug, {"lock": "isLocked", "keyable": "isKeyable",
                                          "channelBox": "isChannelBox"}[flag], value)
@@ -556,7 +553,7 @@ class Plug(Object):
         self._require_valid()
         return self.mplug().isChannelBox
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetChannelBox")
     def setChannelBox(self, val=True, leaf=False, *, fast=False):
         """Channel Box表示を設定する。
@@ -571,7 +568,7 @@ class Plug(Object):
         """
         return self._set_flags(leaf, channelBox=val)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugUnlock")
     def unlock(self, below=False, undoable=True, *, fast=False):
         """上位と必要な下位階層をアンロックする。
@@ -598,7 +595,7 @@ class Plug(Object):
         def unlock_one(plug):
             """継承ロックが解除された後の自身のロックだけを変更する。"""
             if plug.isLocked():
-                plug.setFlags(locked=False, fast=is_fast() or not undoable)
+                plug.setFlags(locked=False, fast=_is_fast() or not undoable)
                 result.append(plug)
         for plug in reversed(queue):
             unlock_one(plug)
@@ -611,7 +608,7 @@ class Plug(Object):
             visit(self)
         return result
 
-    @fast_edit
+    @_fast_edit
     def mute(self, *, fast=False):
         """ミュートを有効にして自身を返す。
 
@@ -624,7 +621,7 @@ class Plug(Object):
         """
         return self.setMuted(True)
 
-    @fast_edit
+    @_fast_edit
     def unmute(self, *, fast=False):
         """ミュートを解除して自身を返す。
 
@@ -676,7 +673,7 @@ class Plug(Object):
             index += 1
         raise IndexError("No available array index")
 
-    @flag_aliases(source="src", destination="dst")
+    @_flag_aliases(source="src", destination="dst")
     def isConnected(self, *, src=True, dst=True):
         """指定方向の直接の接続を持つか判定する。
 
@@ -943,7 +940,7 @@ class Plug(Object):
             return om2.MFnEnumAttribute(attr).default
         return None
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetAlias")
     def setAlias(self, name=None, *, fast=False):
         """別名を設定または解除する。
@@ -956,7 +953,7 @@ class Plug(Object):
             Plug: 自身。
         """
         self._require_valid()
-        if is_fast():
+        if _is_fast():
             fn = self.getNode()._dependency_fn()
             alias = name or fn.plugsAlias(self._mplug)
             if alias:
@@ -967,7 +964,7 @@ class Plug(Object):
             cmds.aliasAttr(self.getFullName(), remove=True)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetKey")
     def setKey(self, *, fast=False, **kwargs):
         """対象アトリビュートへキーを設定する。
@@ -985,7 +982,7 @@ class Plug(Object):
             Plug: 自身。
         """
         self._require_valid()
-        if is_fast():
+        if _is_fast():
             self._set_key_direct(kwargs)
         else:
             cmds.setKeyframe(self.getFullName(), **kwargs)
@@ -1061,7 +1058,7 @@ class Plug(Object):
             raise TypeError("enumName は enum アトリビュートにのみ使用できます")
         return om2.MFnEnumAttribute(attr).fieldName(int(self.get()))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetEnumNames")
     def setEnumNames(self, names, *, fast=False):
         """enumアトリビュートの表示名を指定順に更新する。
@@ -1079,7 +1076,7 @@ class Plug(Object):
             ValueError: 空の列、空の名前、区切り文字を含む名前の場合。
             RuntimeError: アトリビュートが無効、またはMayaが変更を拒否した場合。
         """
-        if is_fast():
+        if _is_fast():
             raise NotImplementedError("setEnumNames does not support fast=True")
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
@@ -1133,7 +1130,7 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isLocked
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetLocked")
     def setLocked(self, val=True, leaf=False, *, fast=False):
         """ロックを設定する。
@@ -1166,7 +1163,7 @@ class Plug(Object):
         node = om2.MFnDependencyNode(source.node())
         return node.typeName == "mute" and node.findPlug("mute", False).asBool()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetMuted")
     def setMuted(self, state, *, fast=False):
         """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
@@ -1183,7 +1180,7 @@ class Plug(Object):
             RuntimeError: Maya がミュートを拒否した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        if is_fast():
+        if _is_fast():
             raise NotImplementedError("setMuted does not support fast=True")
         self._require_valid()
         if not isinstance(state, bool):
@@ -1194,8 +1191,8 @@ class Plug(Object):
             cmds.mute(self.getFullName(), disable=True, force=True)
         return self
 
-    @flag_aliases(f="force")
-    @fast_edit
+    @_flag_aliases(f="force")
+    @_fast_edit
     @undoChunk("mlibPlugDeleteAttr")
     def delete(self, force=False, *, fast=False):
         """このアトリビュートをノードから削除する。
@@ -1219,7 +1216,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        if is_fast():
+        if _is_fast():
             attribute = self._mplug.attribute()
             fn = om2.MFnAttribute(attribute)
             if not fn.dynamic or not fn.parent.isNull():
@@ -1254,11 +1251,11 @@ class Plug(Object):
         """
         self._validate_ui_units(uiUnits)
         value = self._get_internal()
-        return convert(self._mplug, value) if uiUnits else value
+        return _convert_units(self._mplug, value) if uiUnits else value
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSet")
-    @safe_edit
+    @_safe_edit
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """プラグ値を変更する。
 
@@ -1268,7 +1265,7 @@ class Plug(Object):
         要求する引数の形(単純な ``*value`` 展開ではなく、型名や要素数の
         明示)が数値コンパウンド(double3 等)や matrix と異なるため、
         アトリビュート定義から ``cmds.getAttr(..., type=True)`` と同じアトリビュート型名を求めてから
-        (:func:`mlib._core.attributeType.attributeType`)対応する形で呼び出す。
+        (:func:`mlib.core.attributeType.attributeType`)対応する形で呼び出す。
         それ以外の型(数値コンパウンド、matrix 等)は従来通り ``*value`` で展開する。
 
         Args:
@@ -1290,21 +1287,21 @@ class Plug(Object):
         self._validate_ui_units(uiUnits)
         self._require_valid()
         if uiUnits:
-            value = convert(self._mplug, value, to_ui=False)
+            value = _convert_units(self._mplug, value, to_ui=False)
         if attributeType(self._mplug) is None:
             from ..maths import Matrix, Transformation
             if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix, Transformation))
                     or isinstance(value, (tuple, list)) and len(value) == 16):
                 value = Matrix(value)
-                if is_fast():
+                if _is_fast():
                     set_plug(self._mplug, value)
                 else:
                     set_attr(self.getFullName(), *tuple(value), type="matrix")
                 return self
-        if is_fast():
+        if _is_fast():
             set_plug(self._mplug, value)
             return self
-        value = convert(self._mplug, value)
+        value = _convert_units(self._mplug, value)
         if isinstance(value, str):
             set_attr(self.getFullName(), value, type="string")
             return self
@@ -1320,7 +1317,7 @@ class Plug(Object):
         set_attr(self.getFullName(), value)
         return self
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugSetIfChanged")
     def setIfChanged(self, value, *, unlock=False, fast=False):
         """スカラー値が変わる場合だけ更新し、不要なアトリビュート通知を避ける。
@@ -1351,7 +1348,7 @@ class Plug(Object):
                 self.setFlags(locked=True)
         return True
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugReset")
     def reset(self, *, fast=False):
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
@@ -1403,7 +1400,7 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnEnumAttribute(self.mplug().attribute()).fieldName(val)
 
-    @flag_aliases(scn="skipConversionNodes")
+    @_flag_aliases(scn="skipConversionNodes")
     def getSource(self, *, skipConversionNodes=True, **kwargs):
         """単一の入力元を取得する。子・配列要素の独立接続は展開しない。
 
@@ -1424,7 +1421,7 @@ class Plug(Object):
                       checkElements=False, index=0)
         return self.getConnections(True, False, **kwargs)
 
-    @flag_aliases(scn="skipConversionNodes")
+    @_flag_aliases(scn="skipConversionNodes")
     def getDestinations(self, *, skipConversionNodes=True, **kwargs):
         """直接の出力先を取得する。子・配列要素の独立接続は展開しない。
 
@@ -1444,7 +1441,7 @@ class Plug(Object):
                       checkElements=False)
         return self.getConnections(False, True, **kwargs)
 
-    @flag_aliases(idx="index", src="source", dst="destination")
+    @_flag_aliases(idx="index", src="source", dst="destination")
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False,
                     source=True, destination=True, connections=False,
                     type=None, exactType=False, skipConversionNodes=False,
@@ -1526,7 +1523,7 @@ class Plug(Object):
             return None
         return self._node_from_mplug(sources[0])
 
-    @flag_aliases(source="src", destination="dst")
+    @_flag_aliases(source="src", destination="dst")
     def isConnectedTo(self, other, *, src=True, dst=True):
         """指定したプラグと接続されているか判定する。
 
@@ -1559,8 +1556,8 @@ class Plug(Object):
             for connected in self._mplug.connectedTo(src, dst)
         )
 
-    @flag_aliases(source="src")
-    @fast_edit
+    @_flag_aliases(source="src")
+    @_fast_edit
     @undoChunk("mlibPlugConnect")
     def connect(self, src, force=False, f=False, lock=False, l=False,
                 nextAvailable=False, na=False, *, unlock=True, fast=False):
@@ -1607,7 +1604,7 @@ class Plug(Object):
                 raise RuntimeError("Already connected: " + src.getFullName() + " -> " + target.getFullName())
             target_name = target.getFullName()
             keep_self = target is self and not self.mplug().isNetworked
-            if is_fast():
+            if _is_fast():
                 if current is not None and not force:
                     raise RuntimeError("Destination already has an input: " + target_name)
                 modifier = om2.MDGModifier()
@@ -1625,7 +1622,7 @@ class Plug(Object):
                     cmds.setAttr(target_name, lock=True)
         return self if keep_self else Plug._resolve_input(target_name)
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibPlugDisconnectInput")
     def disconnectInput(self, *, fast=False):
         """直接の入力だけを解除する。未接続なら何もせず自身を返す。
@@ -1638,8 +1635,8 @@ class Plug(Object):
             self.disconnect(source)
         return self
 
-    @flag_aliases(source="src")
-    @fast_edit
+    @_flag_aliases(source="src")
+    @_fast_edit
     @undoChunk("mlibPlugDisconnect")
     def disconnect(self, src=None, force=False, f=False, nextAvailable=False, na=False,
                    *, fast=False):
@@ -1686,7 +1683,7 @@ class Plug(Object):
             raise RuntimeError("Input connection not found: " + self.getFullName())
         source_name = src.getFullName()
         with self._temporarily_unlocked_connection_path(force or f):
-            if is_fast():
+            if _is_fast():
                 modifier = om2.MDGModifier()
                 modifier.disconnect(src.mplug(), self.mplug())
                 modifier.doIt()
@@ -1694,8 +1691,8 @@ class Plug(Object):
                 cmds.disconnectAttr(src.getFullName(), self.getFullName())
         return Plug._resolve_input(source_name)
 
-    @flag_aliases(source="src", destination="dst")
-    @fast_edit
+    @_flag_aliases(source="src", destination="dst")
+    @_fast_edit
     @undoChunk("mlibPlugDisconnectAll")
     def disconnectAll(self, *, src=True, dst=True, fast=False):
         """指定方向の直接接続を全て切断し、自身を返す。
@@ -1724,8 +1721,8 @@ class Plug(Object):
                 destination.disconnect(self)
         return self
 
-    @flag_aliases(destination="dst")
-    @fast_edit
+    @_flag_aliases(destination="dst")
+    @_fast_edit
     def connectTo(self, dst, *, fast=False, **kwargs):
         """自身からdstへ接続し、接続先Plugを返す。
 
@@ -1758,7 +1755,7 @@ class Plug(Object):
                 (:meth:`isValid` が ``False``。削除前の古い値は返さない)。
                 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
                 配列要素の場合(値を読むと Maya が異常終了する場合があるため。
-                :func:`mlib._core.attributeType.is_internal_data_type`)。
+                :func:`mlib.core.attributeType.is_internal_data_type`)。
         """
         self._require_valid()
         reader = self._reader
@@ -1829,7 +1826,7 @@ class Plug(Object):
             if not math.isfinite(value):
                 raise ValueError("Expected a finite time")
             seconds = om2.MTime(value, om2.MTime.uiUnit()).asUnits(om2.MTime.kSeconds)
-        value = (convert(self._mplug, options["value"], to_ui=False)
+        value = (_convert_units(self._mplug, options["value"], to_ui=False)
                  if "value" in options else self.get())
         value = float(value)
         if not math.isfinite(value):
@@ -2287,7 +2284,7 @@ class Plug(Object):
                 ノードの MPlug は検出できず、Maya が異常終了する)。
         """
         from ..nodes.node import Node as _InputNode
-        from .._core.object import Object as _InputObject
+        from ..core.object import Object as _InputObject
         node_class, plug_class, _, _ = _InputObject._classes()
         if isinstance(value, plug_class):
             return value
@@ -2403,7 +2400,7 @@ class Plug(Object):
         Raises:
             RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
         """
-        from .._core.fastWrite import writable
+        from ..core.fastWrite import writable
         self._require_valid()
 
         def check(plug):

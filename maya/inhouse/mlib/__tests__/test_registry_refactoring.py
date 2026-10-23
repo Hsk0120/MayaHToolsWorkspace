@@ -9,8 +9,8 @@ from unittest import mock
 
 import maya.cmds as cmds
 import mlib
-from mlib._core import typeHierarchy
-from mlib._core.registry import NodeRegistry
+from mlib.core import registry as registry_module
+from mlib.core.registry import NodeRegistry
 from mlib.common.plugin import Plugin
 
 
@@ -19,17 +19,17 @@ class TypeHierarchyStateTest(unittest.TestCase):
 
     def setUp(self):
         """他テストのキャッシュを判定に含めない。"""
-        typeHierarchy.clear_cache()
+        registry_module._clear_type_hierarchy_cache()
 
     def tearDown(self):
         """模擬した型の結果を後続テストへ残さない。"""
-        typeHierarchy.clear_cache()
+        registry_module._clear_type_hierarchy_cache()
 
     def test_unknown_type_is_queried_again_after_becoming_available(self):
         """照会の失敗・空結果の後に、導入済みの継承型を選べる。"""
         for missing in (RuntimeError("Unknown node type"), None, []):
             with self.subTest(missing=repr(missing)):
-                typeHierarchy.clear_cache()
+                registry_module._clear_type_hierarchy_cache()
                 registry = NodeRegistry(object, resolve_inherited_types=True)
                 registry.register("locator", str)
                 with mock.patch.object(cmds, "nodeType", side_effect=[missing, ["dependNode", "locator", "optionalLocator"]]) as query:
@@ -42,7 +42,7 @@ class TypeHierarchyStateTest(unittest.TestCase):
         """正常なload/unloadの後に同じ型名を照会し直す。"""
         for operation in ("load", "unload"):
             with self.subTest(operation=operation):
-                typeHierarchy.clear_cache()
+                registry_module._clear_type_hierarchy_cache()
                 registry = NodeRegistry(object, resolve_inherited_types=True)
                 registry.register("transform", str)
                 registry.register("locator", int)
@@ -62,25 +62,25 @@ class TypeHierarchyStateTest(unittest.TestCase):
         """標準コマンドが拒否したload/unloadでは既存結果を失わない。"""
         for operation in ("load", "unload"):
             with self.subTest(operation=operation):
-                typeHierarchy.clear_cache()
+                registry_module._clear_type_hierarchy_cache()
                 command = "loadPlugin" if operation == "load" else "unloadPlugin"
                 with mock.patch.object(cmds, "nodeType", return_value=["dependNode", "fixtureNode"]) as query:
-                    before = typeHierarchy.inherited_node_types("fixtureNode")
+                    before = registry_module._inherited_node_types("fixtureNode")
                     with mock.patch.object(cmds, command, side_effect=RuntimeError("Rejected")):
                         with self.assertRaisesRegex(RuntimeError, "Rejected"):
                             getattr(Plugin("fixturePlugin"), operation)()
-                    self.assertIs(typeHierarchy.inherited_node_types("fixtureNode"), before)
+                    self.assertIs(registry_module._inherited_node_types("fixtureNode"), before)
                 self.assertEqual(query.call_count, 1)
 
     def test_silent_load_failure_preserves_cache_and_existing_error(self):
         """例外なしの初期化失敗も、成功扱いやキャッシュ解除をしない。"""
         with mock.patch.object(cmds, "nodeType", return_value=["dependNode", "fixtureNode"]) as query:
-            before = typeHierarchy.inherited_node_types("fixtureNode")
+            before = registry_module._inherited_node_types("fixtureNode")
             with mock.patch.object(cmds, "loadPlugin", return_value=None), \
                     mock.patch.object(Plugin, "isLoaded", return_value=False):
                 with self.assertRaisesRegex(RuntimeError, "Plugin initialization did not complete"):
                     Plugin("fixturePlugin").load()
-            self.assertIs(typeHierarchy.inherited_node_types("fixtureNode"), before)
+            self.assertIs(registry_module._inherited_node_types("fixtureNode"), before)
         self.assertEqual(query.call_count, 1)
 
     def test_native_plugin_round_trip_refreshes_successful_queries(self):
@@ -89,12 +89,12 @@ class TypeHierarchyStateTest(unittest.TestCase):
         was_loaded = plugin.isLoaded()
         try:
             with mock.patch.object(cmds, "nodeType", wraps=cmds.nodeType) as query:
-                before = typeHierarchy.inherited_node_types("locator")
-                self.assertEqual(typeHierarchy.inherited_node_types("locator"), before)
+                before = registry_module._inherited_node_types("locator")
+                self.assertEqual(registry_module._inherited_node_types("locator"), before)
                 plugin.load(quiet=True)
-                self.assertEqual(typeHierarchy.inherited_node_types("locator"), before)
+                self.assertEqual(registry_module._inherited_node_types("locator"), before)
                 plugin.unload()
-                self.assertEqual(typeHierarchy.inherited_node_types("locator"), before)
+                self.assertEqual(registry_module._inherited_node_types("locator"), before)
             self.assertEqual(query.call_count, 3)
         finally:
             if was_loaded and not plugin.isLoaded():
@@ -126,16 +126,16 @@ class ExtensionStageRecoveryTest(unittest.TestCase):
             try:
                 importlib.invalidate_caches()
                 mlib.reload()
-                self.assertEqual(mlib._core.extensions.status()[name]["reason"], "SDK not ready")
+                self.assertEqual(mlib.core.extensions.status()[name]["reason"], "SDK not ready")
                 declaration.write_text('MLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding="utf-8")
                 mlib.reload()
-                self.assertEqual(mlib._core.extensions.status()[name]["state"], "error")
+                self.assertEqual(mlib.core.extensions.status()[name]["state"], "error")
                 self.assertIsNone(mlib.nodes.Node._registry.lookup("fixtureStageRecovery"))
                 (folder / "plugs" / "__init__.py").write_text(
                     'from mlib.plugs import Plug\nclass StagePlug(Plug): pass\n'
                     '_WRAPPER_CLASSES = {"fixtureStageData": StagePlug}\n', encoding="utf-8")
                 mlib.reload()
-                self.assertEqual(mlib._core.extensions.status()[name]["state"], "loaded")
+                self.assertEqual(mlib.core.extensions.status()[name]["state"], "loaded")
                 self.assertIsNotNone(mlib.nodes.Node._registry.lookup("fixtureStageRecovery"))
                 self.assertIsNotNone(mlib.plugs.Plug._registry.lookup("fixtureStageData"))
             finally:

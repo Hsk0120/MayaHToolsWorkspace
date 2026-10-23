@@ -21,7 +21,7 @@ import maya.mel as mel
 import mlib
 
 mlib.reload()
-from mlib._core.attributeType import attributeType, is_internal_data_type
+from mlib.core.attributeType import attributeType, is_internal_data_type
 from mlib.components import Faces, Vertex, Vertices
 from mlib.maths import EulerRotate, Translate
 from mlib.nodes import Joint, Joints, Mesh, Node
@@ -1183,7 +1183,7 @@ class PlugValidityTest(_InteropCase):
     def test_raw_mplug_of_deleted_dynamic_attribute(self):
         # 生の MPlug も、削除済みのアトリビュートなら名前へ変換せず ValueError にする(以前は "t." や
         # "t.foo" を返し、mlib.select がノードを黙って選択していた)。
-        from mlib._core.object import Object as _InputObject
+        from mlib.core.object import Object as _InputObject
         from mlib.plugs.plug import Plug as _InputPlug
 
         state = cmds.undoInfo(query=True, state=True)
@@ -1578,7 +1578,7 @@ class LargeComponentCollectionTest(_InteropCase):
     """多数の要素を持つコレクションを範囲指定の名前で受け渡すことを検証する。"""
 
     def test_large_collections_use_range_names(self):
-        from mlib._core.object import Object as _InputObject
+        from mlib.core.object import Object as _InputObject
         plane = Node(
             cmds.polyPlane(
                 name="plane", subdivisionsX=100, subdivisionsY=100, constructionHistory=False

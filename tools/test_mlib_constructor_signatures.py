@@ -37,7 +37,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
         self.docs = ConstructorDocumentation("mlib")
         self.node = _class(
             "mlib.nodes.node.Node", args="node, *, create=False",
-            bases=["mlib._core.object.Object"],
+            bases=["mlib.core.object.Object"],
         )
 
     def test_own_signature_is_preserved_without_an_environment(self):

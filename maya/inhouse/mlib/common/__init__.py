@@ -31,7 +31,6 @@ _exports = {
     "ScriptJobs": ("scriptJobs", "ScriptJobs"),
     "Selection": ("selection", "Selection"),
     "Version": ("version", "Version"),
-    "legalizeName": ("naming", "legalizeName"),
     "progressBar": ("progress", "progressBar"),
     "units": ("units", None),
 }
@@ -39,7 +38,7 @@ _exports = {
 __all__ = sorted(_exports)
 
 # reload前に保持された公開値や廃止名を残さず、常に定義元から解決する。
-for _name in __all__ + ["legalize_name", "progress_bar"]:
+for _name in __all__ + ["legalizeName", "legalize_name", "progress_bar"]:
     globals().pop(_name, None)
 
 if TYPE_CHECKING:
@@ -58,7 +57,6 @@ if TYPE_CHECKING:
     from .scriptJobs import ScriptJobs
     from .selection import Selection
     from .version import Version
-    from .naming import legalizeName
     from .progress import progressBar
 
 

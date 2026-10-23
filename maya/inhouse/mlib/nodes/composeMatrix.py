@@ -1,8 +1,6 @@
 """移動・回転・スケール・シアーから行列を構築する。"""
 
-from .._core.flags import flag_aliases
-from ..common._fast import fast_edit
-from ..decorator import undoChunk
+from ..decorator import _flag_aliases, _fast_edit, undoChunk
 from ..maths import Matrix
 from ._calculation import _Calculation
 from .node import Node
@@ -27,7 +25,7 @@ class ComposeMatrix(Node):
         """
         return self.getTranslatePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setTranslate(self, value, *, fast=False):
         """translate入力（移動はcm）へ定数値を設定する。
@@ -45,7 +43,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectTranslate(self, source, force=False):
         """translate入力（移動はcm）へ接続する。
@@ -79,7 +77,7 @@ class ComposeMatrix(Node):
         """
         return self.getRotatePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setRotate(self, value, *, fast=False):
         """rotate入力（回転はrad）へ定数値を設定する。
@@ -97,7 +95,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectRotate(self, source, force=False):
         """rotate入力（回転はrad）へ接続する。
@@ -131,7 +129,7 @@ class ComposeMatrix(Node):
         """
         return self.getScalePlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setScale(self, value, *, fast=False):
         """scale入力（無次元）へ定数値を設定する。
@@ -149,7 +147,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getScalePlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectScale(self, source, force=False):
         """scale入力（無次元）へ接続する。
@@ -183,7 +181,7 @@ class ComposeMatrix(Node):
         """
         return self.getShearPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setShear(self, value, *, fast=False):
         """shear入力（無次元）へ定数値を設定する。
@@ -201,7 +199,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.vector, self.getShearPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectShear(self, source, force=False):
         """shear入力（無次元）へ接続する。
@@ -235,7 +233,7 @@ class ComposeMatrix(Node):
         """
         return self.getQuaternionPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setQuaternion(self, value, *, fast=False):
         """XYZW順のQuaternion入力へ定数値を設定する。
@@ -254,7 +252,7 @@ class ComposeMatrix(Node):
         self.getQuaternionPlug().set(value)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectQuaternion(self, source, force=False):
         """XYZW順のQuaternion入力へ接続する。
@@ -288,7 +286,7 @@ class ComposeMatrix(Node):
         """
         return self.getUseEulerRotationPlug().get()
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setUseEulerRotation(self, value, *, fast=False):
         """Euler入力を使用するかへ定数値を設定する。
@@ -306,7 +304,7 @@ class ComposeMatrix(Node):
         _Calculation.set_value(value, _Calculation.boolean, self.getUseEulerRotationPlug)
         return self
 
-    @flag_aliases(src="source", f="force")
+    @_flag_aliases(src="source", f="force")
     @undoChunk("mlibCalculationEdit")
     def connectUseEulerRotation(self, source, force=False):
         """Euler入力を使用するかへ接続する。
@@ -332,7 +330,7 @@ class ComposeMatrix(Node):
         """
         return _Calculation.enum_name(self.getPlug("inputRotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
-    @fast_edit
+    @_fast_edit
     @undoChunk("mlibCalculationEdit")
     def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。

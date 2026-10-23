@@ -36,6 +36,8 @@ class PackageLayoutTest(unittest.TestCase):
             "common": ("Namespace", "Selection", "DrivenKey", "Plugin", "ScriptJob", "ScriptJobs", "Deferred"),
             "decorator": ("undoChunk", "undoTransaction", "preservedSelection", "preservedSkinShape", "viewportOff", "nativeUnits"),
             "logger": ("get_logger", "debug", "info", "warning", "error", "print", "raise_with_notify"),
+            "util": ("legalizeName", "measure", "mirrorArguments"),
+            "core": ("NodeRegistry", "reload_package"),
         }.items():
             module = importlib.import_module("mlib." + package)
             self.assertIs(getattr(mlib, package), module)
@@ -43,19 +45,19 @@ class PackageLayoutTest(unittest.TestCase):
                 self.assertTrue(hasattr(module, name), (package, name))
         for name in ("getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"):
             self.assertIs(getattr(mlib, name), getattr(mlib.cmds, name))
-        self.assertIs(mlib._core.object.Object, importlib.import_module("mlib._core.object").Object)
-        self.assertIs(mlib._core.extensions, importlib.import_module("mlib._core.extensions"))
+        self.assertIs(mlib.core.object.Object, importlib.import_module("mlib.core.object").Object)
+        self.assertIs(mlib.core.extensions, importlib.import_module("mlib.core.extensions"))
         for name in ("Object", "extensions", "json"):
             self.assertFalse(hasattr(mlib, name))
             self.assertNotIn(name, mlib.__all__)
         for cls in (mlib.nodes.Node, mlib.plugs.Plug, mlib.components.Component):
-            self.assertTrue(issubclass(cls, mlib._core.object.Object))
+            self.assertTrue(issubclass(cls, mlib.core.object.Object))
         for cls in (mlib.common.Selection, mlib.maths.Vector):
-            self.assertFalse(issubclass(cls, mlib._core.object.Object))
+            self.assertFalse(issubclass(cls, mlib.core.object.Object))
 
     def test_reload_removes_obsolete_package_names(self):
         # 旧版を読み込んでいたセッションの残存モジュール参照を再現する。
-        obsolete = ("scenes", "session", "context", "files", "editors", "general",
+        obsolete = ("_core", "scenes", "session", "context", "files", "editors", "general",
                     "namespaces", "plugins", "animation", "scene", "environment",
                     "ui", "events", "utils", "decorators", "object", "extensions", "json")
         obsolete_modules = ["mlib." + name for name in obsolete]
@@ -76,12 +78,15 @@ class PackageLayoutTest(unittest.TestCase):
             self.assertNotIn(fullname, sys.modules)
         self.assertFalse(hasattr(mlib, "Object"))
         self.assertNotIn("Object", mlib.__all__)
-        self.assertIs(mlib._core.extensions, importlib.import_module("mlib._core.extensions"))
+        self.assertIs(mlib.core.extensions, importlib.import_module("mlib.core.extensions"))
 
     def test_obsolete_import_paths_are_removed(self):
-        """内部配置へ移したObject/extensionsも、旧ファイルのimportは復活させない。"""
+        """Object/extensionsと汎用関数の旧配置を互換入口として復活させない。"""
         for name in ("scene", "environment", "ui", "events", "utils", "decorators",
-                     "object", "extensions"):
+                     "object", "extensions", "_core", "common._fast", "common._safe",
+                     "common.naming", "common.evaluation", "common.mirror", "core.flags",
+                     "core.mathValue", "core.space", "core.unitValue", "core.typeHierarchy",
+                     "core.bulkExecution", "core.commandResult"):
             with self.subTest(module=name), self.assertRaises(ModuleNotFoundError):
                 importlib.import_module("mlib." + name)
 
@@ -108,9 +113,11 @@ class PackageLayoutTest(unittest.TestCase):
                     if path.is_dir() and (path / "__init__.py").exists()
                     and not path.name.startswith("_")}
         self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths",
-                                   "common", "components"})
-        for name in ("decorator.py", "logger.py", "_core/object.py", "_core/extensions.py"):
+                                   "common", "components", "core"})
+        for name in ("decorator.py", "logger.py", "util.py", "core/object.py", "core/extensions.py"):
             self.assertTrue((root / name).is_file(), name)
+        self.assertEqual(set(mlib.util.__all__), {"legalizeName", "measure", "mirrorArguments"})
+        self.assertFalse(hasattr(mlib.common, "legalizeName"))
         self.assertTrue((root / "_docs").is_dir())
         self.assertFalse((root / "docs").exists())
 

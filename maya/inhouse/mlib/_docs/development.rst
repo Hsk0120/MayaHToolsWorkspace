@@ -76,7 +76,7 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
      - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
    * - ``common``
      - 選択・名前空間・参照、導入状態、イベント・遅延実行、
-       単位変換・汎用計算・進捗表示などの共通機能
+       単位変換・独立した汎用計算の型・進捗表示などの共通機能
    * - ``maths``
      - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translate・Scale・Shear は
        ``MVector``、Quaternion は ``MQuaternion``、EulerRotate は ``MEulerRotation``、
@@ -86,21 +86,26 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
      - getNode・getPlug・createNode・ls・delete・duplicate・select の7入口
    * - ``decorator.py``
      - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
-       joint姿勢編集、画面表示の一時停止
+       joint姿勢編集、画面表示の一時停止。fast/safeとフラグ正規化の内部補助も所有
+   * - ``util.py``
+     - 名前の整形・計測・ミラー入力検証の公開関数と、数学値・空間指定の内部補助
    * - ``logger.py``
      - ログ・通知・出力の共通入口
-   * - ``_core``
-     - Object共通基底、型登録・選択、拡張管理、初期化、再読み込みの内部基盤
+   * - ``core``
+     - Object共通基底、アトリビュート型判定、型登録・選択、拡張管理、編集基盤、再読み込み
 
 新規ファイルは用途に対応する既存分類へ追加します。
-基本型に属さない共通処理は ``common`` 直下へ追加します。
+Mayaの状態や独立した汎用計算の型は ``common`` 直下へ置きます。
+クラスに属さない小さな汎用関数は直下の ``util.py`` へ集めます。
 UI・環境設定・ファイル操作は利用側でMaya標準APIを、JSONは標準 ``json`` を使います。
 デコレーター・コンテキストマネージャーは直下の ``decorator.py``、
 ログ・通知は直下の ``logger.py`` に置き、どの領域からも同じ入口を使います。
 リグ固有の構築は ``mlrig.setups``、Maya標準の関係型は ``common`` に置きます。
-入力の種類判別は ``_core/object.py``、各型への解決は ``Node``・``Plug``・``Component`` が担当し、
-``Object`` の継承関係は維持し、取得入口は ``from mlib._core.object import Object`` です。
-``_core``、``__tests__``、``_docs`` はそれぞれ内部基盤、検証、文書用です。
+入力の種類判別は ``core/object.py``、各型への解決は ``Node``・``Plug``・``Component`` が担当し、
+``Object`` の継承関係は維持し、取得入口は ``from mlib.core.object import Object`` です。
+``core`` は通常の実行パッケージです。正式なAPIは明示import・``__all__``・文書で示し、
+集約した内部補助は先頭 ``_`` で示し、既存の内部連携・登録プロトコル名は維持します。
+``__tests__`` と ``_docs`` は実行APIと別の検証・文書素材なので配置名を維持します。
 旧配置の互換ファイルは置かず、使用側のimportを正式な配置へ更新します。
 
 .. code-block:: python
@@ -213,7 +218,7 @@ APIのグラフ走査や個別フラグから似た判定を再構築して意�
 
 ``Plug(node, mplug)`` が登録済みラッパー(``DoubleLinearPlug`` など)を選ぶためのアトリビュート型名は、
 ``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列(``PlugRegistry`` のキー)を、
-アトリビュート定義から om2 で求めます(``_core/attributeType.py`` の ``attributeType()``。
+アトリビュート定義から om2 で求めます(``core/attributeType.py`` の ``attributeType()``。
 ``MFnNumericAttribute.numericType()``、``MFnUnitAttribute``・enum・message・matrix の
 apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデータ型は
 ``MFnAttribute.getAddAttrCmd()`` の型指定)。``cmds.getAttr(type=True)`` は使いません。
@@ -411,11 +416,11 @@ Maya に対応するコマンドの関数名・ファイル名は Maya と同じ
 クラス公開と型対応の追加
 ------------------------
 
-``nodes``・``plugs``・``components``・``maths``・``json`` のクラスは、
+``nodes``・``plugs``・``components``・``maths`` のクラスは、
 所属する ``__init__.py`` の通常のimportと ``__all__`` に明示します。
 ``common`` はNode/Plugの初期化中に先行importしないよう、遅延公開の
 ``_exports`` と静的解析用の ``if TYPE_CHECKING:`` に追加します。
-内部の ``_core`` や非公開クラスをルートへ展開しません。
+``core`` はモジュールとしてルートへ公開し、``Object`` 等のクラスや内部補助をルートへ展開しません。
 ``maths.MSpace`` のような外部クラスの再公開も明示importで維持します。
 既存の内部例外 ``DeletedAttributeError`` はパッケージ公開に追加せず、
 検査ツールの理由付き非公開例外として扱います。
@@ -473,8 +478,8 @@ maths のファイル名
 ``common/scriptJob.py`` に置きます。移動の値型は ``Translate``、
 回転の値型は回転順序を持つ ``EulerRotate`` に統一しています。
 
-この規則は ``common`` / ``_core`` や ``mlib_*`` 拡張にも適用します。
-例: ``common/scriptJob.py``、``_core/attributeType.py``。
+この規則は ``common`` / ``core`` や ``mlib_*`` 拡張にも適用します。
+例: ``common/scriptJob.py``、``core/attributeType.py``。
 ``__init__.py`` 等の特殊名と、テスト探索用 ``test_*.py`` / テスト用スクリプト、
 内部用の先頭 ``_`` とパッケージ名は維持します。
 
@@ -500,23 +505,37 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 内部実装
 --------
 
-``mlib._core`` はObject共通基底・型登録・選択・拡張管理・初期化・再読み込みを担当する内部パッケージです。
+``mlib.core`` はObject共通基底・型判定/登録・選択・拡張管理・編集基盤・再読み込みを担当します。
 通常のツールではコマンド、各クラス、``mlib.reload()`` を利用します。
-種類判別や共通基底の判定が必要な場合は ``from mlib._core.object import Object`` を使います。
-登録・管理の取得入口は ``from mlib._core import extensions`` です。ルートには再公開せず、
+種類判別や共通基底の判定が必要な場合は ``from mlib.core.object import Object`` を使います。
+登録・管理の取得入口は ``from mlib.core import extensions`` です。ルートには再公開せず、
 旧モジュールパスをimportする互換入口は用意しません。
 拡張の配置・依存確認・自動登録は :doc:`extensions` を参照してください。
 型対応は本体と外部拡張の ``nodes`` / ``plugs`` にある ``_WRAPPER_CLASSES`` で宣言します。
 複数形APIは通常の ``def`` で定義し、``Nodes`` の共通処理へ委譲します。
-旧パス ``mlib.core`` は廃止しました。
+``core.__all__`` の ``NodeRegistry`` と ``reload_package``、および既存の登録用プロトコルは
+名前と意味を維持します。フォルダ名から全内部関数の正式公開を導きません。
+旧パス ``mlib._core`` の互換ファイル・別名はありません。
+
+``mlib.util`` は ``legalizeName``・``measure``・``mirrorArguments`` を公開します。
+数学値の添字・比較・派生状態のコピーと空間指定の検証は、同じファイル内の
+先頭 ``_`` の内部関数です。utilのimportは標準ライブラリだけを使い、
+Node/Plugやcore/decoratorへの依存を追加しません。
+通常の ``import mlib.util`` はmlibの初期化を通るため、Maya環境を必要とします。
 
 内部処理の責務と再初期化
 ------------------------
 
-``_core.attributeType`` はアトリビュート定義からの型判定と数値型の読み書き対応を管理します。
-``Plug`` は参照の寿命・公開操作を、``_core.fastWrite`` は更新時のロック・接続・範囲検査を担当します。
+``core.attributeType`` はアトリビュート定義からの型判定と数値型の読み書き対応を管理します。
+定義に基づく内部単位とUI単位の境界変換は、同モジュールの ``_convert_units`` が担当します。
+``Plug`` は参照の寿命・公開操作を、``core.fastWrite`` は更新時のロック・接続・範囲検査を担当します。
 読み取りと書き込みの単位規則はそれぞれの既存仕様に従い、同じ型でも無条件に共通化しません。
 シーンの値、ロック状態、範囲は永続キャッシュに保存しません。
+
+Mayaノード型の継承照会とキャッシュは ``core.registry`` が所有します。
+未知型の負結果を保存せず、プラグイン管理による消去とreloadによる再生成を維持します。
+短長フラグの正規化、fastの継承と復元、safeの内部処理は ``decorator.py`` に集約します。
+Plugの接続用lock contextやNamespace等のインスタンス固有contextは各クラスに残します。
 
 複数形クラスの検証は実際の呼出先メソッドを使います。
 共有引数の入口は ``def method(self, *args, **kwargs)`` として定義し、
@@ -535,6 +554,11 @@ reloadはimportの探索キャッシュを無効化して現在のモジュー�
 定義モジュールはreload処理が一度だけ再読み込みし、ルートはNode/Plugの明示対応表を登録します。
 reload後はNode/Plug等のインスタンスを取得し直してください。
 
+数学値のpickle復元関数は ``mlib.maths.vector._rebuild`` に置き、固定の保存先を維持します。
+``Object``・``NodeRegistry`` や移動した関数自体の ``__module__`` は新しい定義先になります。
+旧 ``mlib._core`` 等のパスを保存したpickleを読み込む互換入口は提供しません。
+シーン参照インスタンスの永続化を保証するものではありません。
+
 内部処理の参照方向
 ------------------
 
@@ -543,8 +567,8 @@ reload後はNode/Plug等のインスタンスを取得し直してください�
 ``createNode`` は ``Node.create()`` へ委譲し、クラスから公開コマンドを呼び戻しません。
 アトリビュート追加は ``Node.addAttr()``、遅延実行は ``Deferred.call()`` を使います。
 コレクションの転送入口は各クラスへ通常のdefとして明示し、実行方針と独自overrideの判定は
-``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集は
-``_core.bulkExecution`` が判定し、基底Nodes経由でも同じ返却を維持します。
+``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集も
+Nodesが所有し、基底Nodes経由でも同じ返却を維持します。
 公開APIとUndoの単位は変わりません。
 
 複雑な編集操作は、各クラス内で入力整理・計算・検査・書込みを担当する
