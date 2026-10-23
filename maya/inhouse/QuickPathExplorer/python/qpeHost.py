@@ -68,9 +68,19 @@ def show(path=None, _restoring=False):
             _building = False
     widget = Explorer(maya=True, dpi_scale=dpi_scale)
     _window = widget
+    # 内容の最小サイズをMaya全体のドック制約にしない。
+    # 小さいドックではスクロールで全操作へ到達でき、通常サイズではバーを隠す。
+    container = QtWidgets.QScrollArea()
+    container.setObjectName('qpeDockViewport')
+    container.setFrameShape(QtWidgets.QFrame.NoFrame)
+    container.setWidgetResizable(True)
+    container.setMinimumSize(240, 160)
+    container.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
+    container.setWidget(widget)
+    widget._dockViewport = container
     # workspaceControlがQtウィジェットを所有する。シーン操作はGUIスレッドで実行する。
     pointer = OpenMayaUI.MQtUtil.findControl(CONTROL)
-    OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(shiboken.getCppPointer(widget)[0]), int(pointer))
+    OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(shiboken.getCppPointer(container)[0]), int(pointer))
     widget.actionRequested.connect(lambda action: perform(widget, action))
     events = cmds.scriptJob(listEvents=True)
     for event in ('SceneOpened', 'NewSceneOpened', 'SceneSaved', 'workspaceChanged'):

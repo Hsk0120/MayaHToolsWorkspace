@@ -1,5 +1,6 @@
 """Maya標準ドックの保存・復元と終了時の開閉状態を管理する。"""
 from maya import cmds
+from maya import OpenMayaUI
 from qpeQt import QtCore, QtWidgets, shiboken
 from qpeSettings import readSettings, writeSettings
 
@@ -9,6 +10,61 @@ _quitting = False
 _open = False
 _started = False
 _quitJob = None
+
+
+def _control_widget(name):
+    """Maya所有のコントロールを所有権を移さず取得する。"""
+    pointer = OpenMayaUI.MQtUtil.findControl(name)
+    if pointer:
+        for widget in QtWidgets.QApplication.allWidgets():
+            if shiboken.isValid(widget) and int(shiboken.getCppPointer(widget)[0]) == int(pointer):
+                return widget
+    return None
+
+
+def _dock_splitter(control):
+    """再ドックで無効になった親ラッパーを使わず、直接の分割領域を返す。"""
+    found = None
+    for splitter in QtWidgets.QApplication.allWidgets():
+        if not isinstance(splitter, QtWidgets.QSplitter) or not shiboken.isValid(splitter):
+            continue
+        for i in range(splitter.count()):
+            item = splitter.widget(i)
+            if item is control or item.isAncestorOf(control):
+                if found is None or found[0].isAncestorOf(splitter):
+                    found = (splitter, item)
+    return found
+
+
+def _repair_fixed_row_dock():
+    """固定行の下だけに挟まれたドックを、リサイズできる位置へ移す。"""
+    if not cmds.workspaceControl(CONTROL, exists=True) or cmds.workspaceControl(CONTROL, query=True, floating=True):
+        return
+    control = _control_widget(CONTROL)
+    found = _dock_splitter(control) if control is not None else None
+    slider, main = _control_widget('TimeSlider'), _control_widget('MainPane')
+    if found is None or slider is None:
+        return
+    splitter, item = found
+    if splitter.orientation() != QtCore.Qt.Vertical:
+        return
+    index = splitter.indexOf(item)
+    slider_index = -1
+    for i in range(splitter.count()):
+        row = splitter.widget(i)
+        if row.isAncestorOf(slider) and not (main and row.isAncestorOf(main)):
+            slider_index = i
+    if slider_index < 0 or index <= slider_index:
+        return
+    fixed = [_control_widget(name) for name in ('TimeSlider', 'RangeSlider', 'CommandLine', 'HelpLine')]
+    for i in range(slider_index + 1, splitter.count()):
+        other = splitter.widget(i)
+        if i != index and other.isVisible() and not any(w and other.isAncestorOf(w) for w in fixed):
+            return
+    if slider.isVisible():
+        cmds.workspaceControl(CONTROL, edit=True, dockToControl=('TimeSlider', 'top'))
+    elif main and main.isVisible():
+        cmds.workspaceControl(CONTROL, edit=True, dockToControl=('MainPane', 'bottom'))
 
 
 def stateKey():
@@ -38,7 +94,10 @@ class DockWatcher(QtCore.QObject):
 
     def bind(self):
         """ドック移動後に変化した親のウィンドウへ監視を付け直す。"""
-        targets = [self.widget, self.widget.parentWidget(), self.widget.window()]
+        # Mayaはドック移動時にタブ/スタック側だけを付け替える場合がある。
+        # 内容とトップウィンドウだけでなく、その間の親の変更も監視する。
+        targets = [target for target in QtWidgets.QApplication.allWidgets()
+                   if shiboken.isValid(target) and (target is self.widget or target.isAncestorOf(self.widget))]
         for target in self.targets:
             if shiboken.isValid(target):
                 target.removeEventFilter(self)
@@ -57,6 +116,7 @@ class DockWatcher(QtCore.QObject):
     def flush(self):
         """監視の更新と保存を行う。"""
         if not _quitting:
+            _repair_fixed_row_dock()
             self.bind()
             saveState()
 

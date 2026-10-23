@@ -108,6 +108,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-10-23): QPEの内容最小サイズがMayaドックへ伝播する問題をスクロールコンテナで修正。固定行より下で縮小不能になる配置を補正し、Qt5の再ドック時の無効親ラッパーも回避。Maya 2022/2027で右・下ドックの反復縮小/拡大と境界のマウスイベント、2027でシーン操作と4段階の再起動復元を検証。結果は.maya-output/verification/qpe-dock-size/。実マウス・複数DPI環境は未検証。ユーザー依頼によりQPE関連差分をコミット・プッシュ対象に選定。
 
 - Codex (2026-10-22): ユーザー指示で未コミット全変更をGit反映対象として確認。残っていたQuickPathExplorer/launch_python.batのMaya2027固定起動への変更を含め、作業ログとともにコミット対象へ追加。mayapy・Qtプラットフォームディレクトリ・起動対象スクリプトの存在と差分チェックを確認。GUI起動は未実行。
 
