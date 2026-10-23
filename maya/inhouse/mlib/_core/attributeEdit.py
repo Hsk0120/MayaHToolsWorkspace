@@ -140,6 +140,101 @@ def add_attribute(node, flags):
     _attach(node, _build(flags))
 
 
+def extra_children(name, flags, numeric, count, deferred, child_names,
+                   child_short_names, child_suffixes, sub_type):
+    """自動生成する子の名前・成分数を、親追加より前に検証する。
+
+    Args:
+        name (str): 親の長名。
+        flags (dict): 親の正規化済みフラグ。変更しない。
+        numeric (Match | None): 数値複合型の一致結果。
+        count (int): 子数。
+        deferred (object): 子へ配る既定値。
+        child_names (Sequence[str] | None): 子の長名。
+        child_short_names (Sequence[str] | None): 子の短名。
+        child_suffixes (Sequence[str] | None): 自動生成名の接尾辞。
+        sub_type (str | None): 子の共通型。
+
+    Returns:
+        list[tuple[str, str, dict]]: 長名・型・公開addAttrへ渡すフラグ。
+    """
+    if not count:
+        return []
+    suffixes = child_suffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
+    names = list(child_names or [name + suffix for suffix in suffixes])
+    shorts = list(child_short_names or [])
+    if len(names) != count or (shorts and len(shorts) != count):
+        raise ValueError("Child name count does not match its type")
+    limits = {key: flags[key] for key in ("minValue", "maxValue", "softMinValue", "softMaxValue")
+              if key in flags}
+    for value in list(limits.values()) + [deferred]:
+        if isinstance(value, (tuple, list)) and len(value) != count:
+            raise ValueError("Child value count does not match its type")
+    children = []
+    for index, child_name in enumerate(names):
+        child_flags = dict(parent=name, keyable=bool(flags.get("keyable", False)))
+        if shorts:
+            child_flags["shortName"] = shorts[index]
+        for key, value in limits.items():
+            child_flags[key] = value[index] if isinstance(value, (tuple, list)) else value
+        if deferred is not None:
+            child_flags["defaultValue"] = deferred[index] if isinstance(deferred, (tuple, list)) else deferred
+        children.append((child_name, sub_type or (numeric.group(1) if numeric else "double"), child_flags))
+    return children
+
+
+def validate_extra_attribute(node, name, flags, count, deferred, children, *, validate_defaults=True):
+    """名前の衝突と検証可能なtyped既定値を、シーン変更前に拒否する。
+
+    Args:
+        node (Node): 追加先。
+        name (str): 親の長名。
+        flags (dict): 親の正規化済みフラグ。
+        count (int): 子数。
+        deferred (object): 作成後に設定する既定値。
+        children (list[tuple[str, str, dict]]): 検証済みの子の作成入力。
+        validate_defaults (bool): 通常経路の既定値も登録前に検証するか。
+            fast経路では未登録の親子定義の構築時に検証するためFalse。
+    """
+    names = [(name, flags.get("shortName") or name)]
+    names.extend((child, options.get("shortName") or child) for child, _, options in children)
+    used = set()
+    fn = om2.MFnDependencyNode(node.mnode())
+    for long_name, short_name in names:
+        for candidate in {long_name, short_name}:
+            if not isinstance(candidate, str) or not candidate:
+                raise ValueError("Attribute names must be non-empty strings")
+            if candidate in used or fn.hasAttribute(candidate):
+                raise RuntimeError("Attribute already exists: " + candidate)
+        used.update((long_name, short_name))
+    if not validate_defaults:
+        return
+    for child_name, child_type, options in children:
+        kind = child_type[3:] if child_type.startswith("at:") else child_type
+        if kind in _NUMERIC_TYPES or kind in ("doubleAngle", "doubleLinear", "time"):
+            child_flags = dict(options, longName=child_name)
+            child_flags.pop("parent")
+            node._prepare_extra_attr_definition(child_flags, child_type, None, None, None)
+            _build(child_flags)
+    if deferred is None or count:
+        return
+    if flags.get("multi"):
+        raise TypeError("Set an array element instead of the array plug")
+    if not flags.get("writable", True):
+        raise RuntimeError("Attribute is not writable: " + name)
+    # 通常経路で扱える型までfast専用の対応範囲へ狭めない。
+    # factoryを持つ型だけ登録前に値を検査し、それ以外は既存のMaya処理へ渡す。
+    data_type = flags.get("dataType")
+    if data_type in {"string", "matrix", "doubleArray", "Int32Array", "stringArray",
+                     "vectorArray", "pointArray", "matrixArray"}:
+        from .fastWrite import prepare_data
+        if data_type == "matrix":
+            from ..maths import Matrix
+            deferred = Matrix(deferred)
+        attribute = _build({"longName": name, "dataType": data_type})
+        prepare_data(attribute, deferred, name=name)
+
+
 def create_extra_attribute(node, name, flags, numeric, count, deferred,
                            child_names, child_short_names, child_suffixes, sub_type):
     """Node.addAttrの親子定義を登録前に全て作る。
@@ -162,21 +257,14 @@ def create_extra_attribute(node, name, flags, numeric, count, deferred,
     flags = dict(flags)
     children = []
     if count:
-        suffixes = child_suffixes or ("RGBA" if flags.get("usedAsColor") else "XYZW")[:count]
-        names = list(child_names or [name + suffix for suffix in suffixes])
-        shorts = list(child_short_names or names)
-        if len(names) != count or len(shorts) != count:
-            raise ValueError("Child name count does not match its type")
-        limits = {key: flags.pop(key) for key in ("minValue", "maxValue", "softMinValue", "softMaxValue")
-                  if key in flags}
-        for i, child_name in enumerate(names):
-            child = {"longName": child_name, "shortName": shorts[i],
-                     "attributeType": sub_type or (numeric.group(1) if numeric else "double"),
-                     "keyable": bool(flags.get("keyable", False))}
-            for key, value in limits.items():
-                child[key] = value[i] if isinstance(value, (tuple, list)) else value
-            if deferred is not None:
-                child["defaultValue"] = deferred[i] if isinstance(deferred, (tuple, list)) else deferred
+        definitions = extra_children(name, flags, numeric, count, deferred, child_names,
+                                     child_short_names, child_suffixes, sub_type)
+        for key in ("minValue", "maxValue", "softMinValue", "softMaxValue"):
+            flags.pop(key, None)
+        for child_name, child_type, child_flags in definitions:
+            child = dict(child_flags, longName=child_name, attributeType=child_type)
+            child.pop("parent")
+            child.setdefault("shortName", child_name)
             children.append(_build(child))
     attribute = _build(flags, children)
     prepared = None

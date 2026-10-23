@@ -20,14 +20,15 @@ class PointOnCurveInfo(AbstractBaseCreate):
             curve (Node | str | MObject | MDagPath): 対象形状。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PointOnCurveInfo: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometryOutput(curve, "nurbsCurve", worldSpace)
-        source.connectTo(self.getPlug('inputCurve'), force=force)
+        source = _Calculation.geometry_output(curve, "nurbsCurve", worldSpace)
+        source.connectTo(self.getPlug("inputCurve"), force=force)
         return self
 
     @fast_edit
@@ -39,6 +40,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
             value (float): パラメーター。percentage=Trueなら0～1。
             percentage (bool): 0～1の範囲を使用するか。
             fast (bool): TrueはUndoなし。
+
         Returns:
             PointOnCurveInfo: 自身。
 
@@ -55,6 +57,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
 
     def getPosition(self):
         """接続された空間での位置を取得する。
+
         Returns:
             Vector: XYZ位置。
         """
@@ -65,6 +68,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
 
         Args:
             normalized (bool): 単位ベクトルにするか。
+
         Returns:
             Vector: 法線。
         """
@@ -76,6 +80,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
 
         Args:
             normalized (bool): 単位ベクトルにするか。
+
         Returns:
             Vector: 接線。
         """

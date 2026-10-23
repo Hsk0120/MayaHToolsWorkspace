@@ -149,7 +149,7 @@ class NodeCollectionsTest(unittest.TestCase):
         self.assertEqual(mlib.ls([]), [])  # 検索の戻り値契約は維持
 
     def test_instanced_joint_delete(self):
-        """同じjointの異なるパスを渡しても専用削除が完了する。"""
+        """同じjointの異なるパスを渡してもノード単位の削除が完了する。"""
         a = cmds.createNode('transform', name=self.ns + ':instanceA')
         b = cmds.createNode('transform', name=self.ns + ':instanceB')
         joint = cmds.createNode('joint', name=self.ns + ':instanceJoint', parent=a)

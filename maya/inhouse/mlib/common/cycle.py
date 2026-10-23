@@ -65,7 +65,7 @@ class Cycle:
             if not names:
                 raise ValueError("調査するノードを選択してください。")
         options = dict(list=True, dag=include_dag, secondary=True,
-                       timeLimit="{}sec".format(seconds), listSeparator=_SEPARATOR,
+                       timeLimit=f"{seconds}sec", listSeparator=_SEPARATOR,
                        firstCycleOnly=first_only)
         if targets is None:
             options["all"] = True

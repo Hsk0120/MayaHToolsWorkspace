@@ -84,6 +84,9 @@ class Plugin:
         Args:
             node_type (str): 作成するMayaノード型。HumanIK以外は何もしない。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             RuntimeError: Mayaがプラグインのロードを拒否した場合。
         """
@@ -122,8 +125,8 @@ class Plugin:
         """isRegisteredへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -181,7 +184,7 @@ class Plugin:
         """
         required = Version.parse(minimum)
         if required is None:
-            raise ValueError("Invalid minimum version: {!r}".format(minimum))
+            raise ValueError(f"Invalid minimum version: {minimum!r}")
         version = self.getVersion()
         return version is not None and version >= required
 
@@ -190,8 +193,8 @@ class Plugin:
         """isVersionAtLeastへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。

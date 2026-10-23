@@ -77,6 +77,7 @@ class Joint(Transform):
 
         Returns:
             Joint: 自身。
+
         Raises:
             RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
 
@@ -104,6 +105,7 @@ class Joint(Transform):
 
         Returns:
             Joint: 自身。
+
         Raises:
             RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
 
@@ -122,11 +124,11 @@ class Joint(Transform):
         """Transformのscaleを自身のinverseScaleへ接続する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             source (Transform | str | None): 接続元。省略時は直上の親Transform。
                 親がない場合は変更しない。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置換する。Plug.connectと同様、接続先がロック中なら
                 一時解除して接続後にロックを戻す。既定False。 別名 ``f`` も使用可能。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
             Joint: 自身。同じ接続が既にある場合は変更しない。
@@ -165,11 +167,19 @@ class Joint(Transform):
         出力接続・segmentScaleCompensateは変更しない。値のリセットや姿勢補償は
         行わず、切断後の値はMayaの切断動作に従う。接続がなければ何もしない。
 
+        Args:
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。既定FalseはMayaコマンドを使用する。
+
         Returns:
-            Joint: 自身。Jointsからも一括実行でき、通常Undoに対応する。
+            Joint: 接続の有無にかかわらず自身。Jointsからも一括実行できる。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             RuntimeError: 対象が無効、ロックなどでMayaが切断を拒否した場合。
+
+        Note:
+            通常モードは一回のUndoで戻せる。fast=Trueと外側から継承したfastはUndo対象外。
+            完了済みの切断は、後続処理の失敗時に自動では戻さない。
         """
         for name in ("inverseScale", "inverseScaleX", "inverseScaleY", "inverseScaleZ"):
             target = self.getPlug(name)
@@ -283,36 +293,6 @@ class Joint(Transform):
         """
         return self.isJoint(*args, **kwargs)
 
-    @fast_edit
-    def delete(self, *, safe=False, fast=False):
-        """祖先influenceへウェイトを移送し、このjointを削除する。
-
-        Joints.delete()と同じ処理を使う。同じskinClusterの最も近い祖先
-        influenceがある場合だけMaya標準のウェイト移送を行い、なければ標準削除に任せる。
-        移送先の既存値へ加算する操作ではなく、source値への置換と正規化を行う。
-        同じjointの複数インスタンスパスはノード単位で一度だけ処理する。
-        未スキニングjointも削除する。子Transformは直接の親へ、親がなければ
-        ワールドへ移す。全体は一回のUndoにまとまり、途中失敗は例外で通知する。
-        完了済みの変更は自動ロールバックしない。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
-            safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は何もしない。
-                スキニング・message・inverseScale等も保護対象。既定False。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: safeがboolでない場合。
-            RuntimeError: 無効なjoint、ウェイト移送・再親付け・削除の失敗。
-        """
-        if type(safe) is not bool:
-            raise TypeError("safe must be bool")
-        if not self.isJoint():
-            raise RuntimeError("Cannot delete an invalid joint")
-        Joints([self]).delete(safe=safe)
-
     def getSkinClusters(self):
         """この joint に接続する skinCluster を取得する。
 
@@ -340,13 +320,15 @@ class Joint(Transform):
         """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
             transfer_to_parent (bool): Trueは祖先へ移送、FalseはMaya標準の再配分。
             force (bool): Trueは不正ウェイトを除去してから登録解除する。短縮名f。
                 正規化・ロック解除・レイヤーの回避は行わない。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+
         Returns:
             Joint: 自身。未スキニングで対象省略の場合は何もしない。
+
         Raises:
             TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
             ValueError: 未登録の対象、または最後の一つのinfluenceの場合。
@@ -391,8 +373,8 @@ class Joint(Transform):
         """子 joint を指定した親 joint へ付け替える。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             parent_joint (str): 直接の子 joint を付け替える親ノード名。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
             None: 値を返さない。
@@ -494,8 +476,10 @@ class Joint(Transform):
 
         Args:
             to_orient (bool): TrueでjointOrient用XYZ、FalseでrotateOrderのrotate用。
+
         Returns:
             tuple[float, float, float] | None: 合成値。移送元が0ならNone。
+
         Raises:
             RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
         """
@@ -676,55 +660,38 @@ class Joints(Transforms):
 
     item_class = Joint
 
-    _bulk_returns = {
-        **Transforms._bulk_returns,
-        "getSegmentScaleCompensate": "list",
-        "getJointOrient": "list",
-        "getRadius": "list",
-        "getInverseScale": "list",
-        "getParentJointName": "list",
-        "getChildJointNames": "list",
-        "getDepth": "list",
-        "isJoint": "list",
-        "joint": "list",
-        "getSkinClusters": "list",
-        "getTransferTarget": "list",
-        "reparentChildren": "list",
-        "getChainFromHere": "list",
-        "getIkHandles": "list",
-        "setSegmentScaleCompensate": "self",
-        "jointOrientToRotate": "self",
-        "freezeRotate": "self",
-        "connectInverseScale": "self",
-        "disconnectInverseScale": "self",
-        "setRadius": "self",
-        "delete": "self",
-        "removeInfluence": "self",
+    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
+    _bulk_entries = {
+        "getSegmentScaleCompensate": (Joint.getSegmentScaleCompensate, "list"),
+        "getJointOrient": (Joint.getJointOrient, "list"),
+        "getRadius": (Joint.getRadius, "list"),
+        "getInverseScale": (Joint.getInverseScale, "list"),
+        "getParentJointName": (Joint.getParentJointName, "list"),
+        "getChildJointNames": (Joint.getChildJointNames, "list"),
+        "getDepth": (Joint.getDepth, "list"),
+        "isJoint": (Joint.isJoint, "list"),
+        "joint": (Joint.joint, "list"),
+        "getSkinClusters": (Joint.getSkinClusters, "list"),
+        "getTransferTarget": (Joint.getTransferTarget, "list"),
+        "reparentChildren": (Joint.reparentChildren, "list"),
+        "getChainFromHere": (Joint.getChainFromHere, "list"),
+        "getIkHandles": (Joint.getIkHandles, "list"),
+        "setSegmentScaleCompensate": (Joint.setSegmentScaleCompensate, "self"),
+        "jointOrientToRotate": (Joint.jointOrientToRotate, "self"),
+        "freezeRotate": (Joint.freezeRotate, "self"),
+        "connectInverseScale": (Joint.connectInverseScale, "self"),
+        "disconnectInverseScale": (Joint.disconnectInverseScale, "self"),
+        "setRadius": (Joint.setRadius, "self"),
+        "delete": (Joint.delete, "self"),
+        "removeInfluence": (Joint.removeInfluence, "self"),
     }
     _bulk_methods = {
         **Transforms._bulk_methods,
-        "getSegmentScaleCompensate": Joint.getSegmentScaleCompensate,
-        "getJointOrient": Joint.getJointOrient,
-        "getRadius": Joint.getRadius,
-        "getInverseScale": Joint.getInverseScale,
-        "getParentJointName": Joint.getParentJointName,
-        "getChildJointNames": Joint.getChildJointNames,
-        "getDepth": Joint.getDepth,
-        "isJoint": Joint.isJoint,
-        "joint": Joint.joint,
-        "getSkinClusters": Joint.getSkinClusters,
-        "getTransferTarget": Joint.getTransferTarget,
-        "reparentChildren": Joint.reparentChildren,
-        "getChainFromHere": Joint.getChainFromHere,
-        "getIkHandles": Joint.getIkHandles,
-        "setSegmentScaleCompensate": Joint.setSegmentScaleCompensate,
-        "jointOrientToRotate": Joint.jointOrientToRotate,
-        "freezeRotate": Joint.freezeRotate,
-        "connectInverseScale": Joint.connectInverseScale,
-        "disconnectInverseScale": Joint.disconnectInverseScale,
-        "setRadius": Joint.setRadius,
-        "delete": Joint.delete,
-        "removeInfluence": Joint.removeInfluence,
+        **{name: entry[0] for name, entry in _bulk_entries.items()},
+    }
+    _bulk_returns = {
+        **Transforms._bulk_returns,
+        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset()
 
@@ -1001,6 +968,7 @@ class Joints(Transforms):
 
         Returns:
             Joints: 自身。
+
         Raises:
             RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
 
@@ -1024,6 +992,7 @@ class Joints(Transforms):
 
         Returns:
             Joints: 自身。
+
         Raises:
             RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
 
@@ -1040,52 +1009,15 @@ class Joints(Transforms):
         """
         from .skinCluster import SkinClusters
 
-        skinClusters = []
+        skin_clusters = []
         seen = set()
         for joint in self._items:
             for skin in joint.getSkinClusters():
                 if skin.getUuid() in seen:
                     continue
                 seen.add(skin.getUuid())
-                skinClusters.append(skin)
-        return SkinClusters(skinClusters)
-
-    @fast_edit
-    def delete(self, *, safe=False, fast=False):
-        """ウェイト移送後にコレクション内の joint を削除する。
-
-        同じjointの複数インスタンスパスはノード単位で一度だけ処理する。
-        未スキニングjointも削除する。子Transform（jointを含む）は親へ移し、
-        親がない場合はワールドへ移す。同じskinClusterの祖先influenceがあればMaya標準の移送を行い、
-        移送先の既存値への加算は行わない。
-        移送先がない場合のウェイト処理はMaya標準のcmds.deleteに任せる。
-        途中の失敗は例外で停止し、完了済み変更は自動ロールバックしない。全体はUndoに対応。
-
-        Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
-            safe (bool): Trueなら自身またはDAG子孫にDG接続があるjointを事前に除外する。
-                除外したjointのウェイト移送や子の再親付けも行わない。既定False。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: safeがboolでない場合。
-            RuntimeError: ウェイト移送・子の再親付け・削除ができない場合。
-        """
-        from .._core.jointDeletion import _JointDeletion
-
-        if type(safe) is not bool:
-            raise TypeError("safe must be bool")
-        targets = self
-        if safe:
-            for joint in self:
-                if not joint.isJoint():
-                    raise RuntimeError("Cannot delete an invalid joint")
-            targets = Joints([joint for joint in self if not joint._has_delete_connections()])
-            if not targets:
-                return
-        _JointDeletion(targets).execute()
+                skin_clusters.append(skin)
+        return SkinClusters(skin_clusters)
 
     def _transfer_rotate(self, to_orient=False):
         """全対象の準備成功後に回転移送を適用する。

@@ -129,20 +129,23 @@ class SkinClustersBatchTest(unittest.TestCase):
         ordered = [joint.getName() for joint in joints.sortedByDepth()]
         self.assertEqual(ordered, [self.leaf, self.mid, self.root])
 
-    def test_delete_joints_transfers_weight_reparents_children_and_deletes_joint(self):
+    def test_delete_joints_uses_native_hierarchy_and_weight_rules(self):
+        """Joints削除は子階層も削除し、ウェイトを標準の削除規則で処理する。"""
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
-        skinClusters = mid_joints.getSkinClusters()
-        self.assertEqual([skin.getName() for skin in skinClusters], [self.skin.getName()])
+        skin_clusters = mid_joints.getSkinClusters()
+        self.assertEqual([skin.getName() for skin in skin_clusters], [self.skin.getName()])
 
+        cmds.delete(self.mid)
+        expected = list(self.skin.getWeights([self.root]))
+        cmds.undo()
         mid_joints.delete()
 
         self.assertFalse(cmds.objExists(self.mid))
-        self.assertTrue(cmds.objExists(self.leaf))
-        self.assertEqual(cmds.listRelatives(self.leaf, parent=True), [self.root])
+        self.assertFalse(cmds.objExists(self.leaf))
         self.assertFalse(self.skin.hasInfluence(self.mid))
-        self.assertEqual(list(self.skin.getWeights([self.root])), [1.0] * 8)
+        self.assertEqual(list(self.skin.getWeights([self.root])), expected)
 
     def test_remove_influences_keeps_joint_node_but_drops_influence(self):
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])

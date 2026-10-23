@@ -16,8 +16,10 @@ class Place2dTexture(ShadingDependNode):
         Args:
             texture (Texture2d | str): 接続先の2Dテクスチャ。
             force (bool): 既存入力を置換するか。Plug.connectの規約に従う。 別名 ``f`` も使用可能。
+
         Returns:
             Place2dTexture: 自身。
+
         Raises:
             TypeError: 対象がTexture2dでない場合。
             RuntimeError: 接続できない場合。完了済み接続は自動で戻さない。

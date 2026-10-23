@@ -70,10 +70,10 @@ class ArrayPlug(Plug):
         """array プラグへの直接の値設定を禁止する。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
             value (object): 設定要求値。内容に関係なく拒否する。
+            safe (bool): Plug共通の引数。Trueでも配列全体への値設定は許可しない。
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
+            fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
 
         Returns:
             NoReturn: 必ず TypeError を送出する。
@@ -86,54 +86,28 @@ class ArrayPlug(Plug):
         raise TypeError("Set an array element instead of the array plug")
 
     @flag_aliases(idx="index")
-    def getElement(self, index, create=False):
-        """論理インデックスの要素プラグを取得する。
+    def getElement(self, index):
+        """既存の論理インデックスの要素Plugを、評価や実体化なしで取得する。
 
-        ``worldMatrix`` などのワールド空間アトリビュートは、所有 DAG ノードのインスタンス番号の
-        要素を評価前でも取得できる(作成直後のノードの ``worldMatrix[0]`` など)。
+        worldMatrix等は、評価前でもDAGインスタンス番号の要素を参照できる。
+        未存在の参照にはarray[index]を使い、set/connectで要素を作成する。
 
         Args:
-            index (int): 論理インデックス。 別名 ``idx`` も使用可能。
-            create (bool): True の場合、データを持つ要素が無ければ Maya 上に要素を
-                作成してから返す(APIデータ取得により作成するためUndo対象外)。
-                fast更新の内部では参照だけを取得し、値の書込み時に要素を作成する。
-                ただし ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できない。
-                この場合も要素プラグは返すため接続先・接続元に使え、要素は接続した時点で
-                存在するようになる(それまで ``getElements()`` や ``getNextAvailableIndex()`` には現れない)。
+            index (int): 論理インデックス。別名idx。
 
         Returns:
-            Plug: 要素プラグ。
+            Plug: 既存要素の参照。
 
         Raises:
             TypeError: indexがboolまたは整数以外の場合。
-            IndexError: create が ``False`` で要素が存在しない場合。index が 0〜2147483647
-                (``MPlug.logicalIndex()`` の範囲)の外の場合(``elementByLogicalIndex()`` は
-                範囲外の番号を別の番号へ変換し、maya.cmds は 2147483647 に切り詰めるため、
-                別の要素を返したり作成したりしない)。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
-                create が ``True`` で、Maya 内部のデータ型(nurbsSurface の ``patchUVIds``
-                など。:func:`mlib._core.attributeType.is_internal_data_type`)の配列の場合
-                (要素を問い合わせると Maya が異常終了する場合があるため作成しない)。
+            IndexError: 要素が存在しない、または0〜2147483647の範囲外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
         index = self._validate_index(index)
-        mplug = self._mplug.elementByLogicalIndex(index)
-        if index not in self._mplug.getExistingArrayAttributeIndices():
-            if create:
-                if is_internal_data_type(mplug):
-                    raise RuntimeError(
-                        f"Maya 内部のデータ型の配列には要素を作成できません: {self.getFullName()}"
-                    )
-                # maya.cmds は存在しない要素を問い合わせると要素を作成する。Plug の生成
-                # (アトリビュート型の判定)は maya.cmds へ問い合わせず要素を作らないため、ここで作成する。
-                # fast更新はこの参照へ値を書く時に要素を実体化する。
-                # 型照会のためのコマンド評価・名前の再解決を挟まない。
-                if not is_fast():
-                    if not mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
-                        self._materialize_element(mplug)
-            elif index not in self._existing_indices():
-                raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
-        return Plug(self._node, mplug)
+        if index not in self.getIndices():
+            raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
+        return self[index]
 
     def getElements(self):
         """存在する要素プラグをすべて取得する。
@@ -146,7 +120,7 @@ class ArrayPlug(Plug):
         """
         # 要素ごとに存在を確かめ直さず、既存の番号から直接 Plug を作る。
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
-                for index in self._existing_indices()]
+                for index in self.getIndices()]
 
     def getNextAvailableIndex(self, start=0):
         """接続・データを持つ要素が存在しない論理インデックスを探す。
@@ -181,8 +155,8 @@ class ArrayPlug(Plug):
         """指定した論理インデックスの要素を削除する。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
             index (int): 削除する論理インデックス。 別名 ``idx`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。
 
         Returns:
             ArrayPlug: 自身。
@@ -222,8 +196,8 @@ class ArrayPlug(Plug):
         """message配列の最大インデックスの次へノード参照を追加する。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
             node (str | Node): 保存する参照。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。
 
         Returns:
             int: 追加した論理インデックス。途中の穴は再利用しない。
@@ -233,13 +207,13 @@ class ArrayPlug(Plug):
         self._require_valid()
         if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
             raise TypeError("Expected a message array")
-        index = max(self._existing_indices(), default=-1) + 1
+        index = max(self.getIndices(), default=-1) + 1
         if index > MAX_LOGICAL_INDEX:
             raise IndexError("Message array index limit reached")
         Node(node).getPlug("message").connectTo(self._element_reference(index))
         return index
 
-    def _existing_indices(self):
+    def getIndices(self):
         """存在する要素の論理インデックスを昇順で返す。
 
         データを持つ要素(``getExistingArrayAttributeIndices()``)に加え、

@@ -1,19 +1,18 @@
-"""未スキニング・スキニングjointの削除と失敗時の伝播。"""
+"""明示したジョイント整理のウェイト移送・階層保持・Undoを検証する。"""
 
+from contextlib import ExitStack
 import sys
 import unittest
 import uuid
 from unittest.mock import patch
 
 import mlib
+from mlrig.setups import JointHierarchy
 import maya.cmds as cmds
-
-mlib.reload()
-
 
 class JointDeleteTest(unittest.TestCase):
     def delete_joint(self, name):
-        mlib.nodes.Joints([name]).delete()
+        JointHierarchy.delete([name])
 
     def test_safe_keeps_skin_and_joint_hierarchy(self):
         root = self.getNode("safeRoot")
@@ -23,10 +22,10 @@ class JointDeleteTest(unittest.TestCase):
         pose = mlib.getNode(skin).getBindPose()
         cmds.rename(pose.getFullName(), self.ns + ":pose")
         weights = cmds.skinPercent(skin, mesh + '.vtx[0]', query=True, value=True)
-        mlib.getNode(child).delete(safe=True)
+        JointHierarchy.delete(child, safe=True)
         self.assertTrue(cmds.objExists(child))
         isolated = self.getNode("isolated")
-        self.assertIsNone(mlib.nodes.Joints([root, child, isolated]).delete(safe=True))
+        self.assertIsNone(JointHierarchy.delete([root, child, isolated], safe=True))
         self.assertTrue(cmds.objExists(root) and cmds.objExists(child))
         self.assertFalse(cmds.objExists(isolated))
         self.assertEqual(cmds.listRelatives(child, parent=True)[0], root)
@@ -41,11 +40,11 @@ class JointDeleteTest(unittest.TestCase):
         child = mlib.getNode(self.getNode("safeChild", parent=root.getFullName()))
         cmds.connectAttr(root.getFullName() + '.scale', child.getFullName() + '.inverseScale')
         for node in (root, child):
-            node.delete(safe=True)
+            JointHierarchy.delete(node, safe=True)
             self.assertTrue(node.isValid())
         for target in (root, mlib.nodes.Joints([root])):
             with self.assertRaises(TypeError):
-                target.delete(safe=1)
+                JointHierarchy.delete(target, safe=1)
 
     def setUp(self):
         self.ns = "mlibDelete_" + uuid.uuid4().hex
@@ -82,7 +81,7 @@ class JointDeleteTest(unittest.TestCase):
         root = self.getNode("root", parent=group)
         mid = self.getNode("mid", parent=root)
         leaf = self.getNode("leaf", parent=mid)
-        mlib.nodes.Joints([root, mid]).delete()
+        JointHierarchy.delete([root, mid])
         self.assertEqual(cmds.listRelatives(leaf, parent=True), [group])
         self.assertFalse(cmds.objExists(root))
         self.assertFalse(cmds.objExists(mid))
@@ -151,14 +150,126 @@ class SingleJointDeleteTest(JointDeleteTest):
     """単体入口にも同じ移送・標準削除比較・Undo・例外テストを適用する。"""
 
     def delete_joint(self, name):
-        mlib.getNode(name).delete()
+        JointHierarchy.delete(mlib.getNode(name))
 
     def test_invalid_joint_raises(self):
         name = self.getNode("removed")
         joint = mlib.getNode(name)
         cmds.delete(name)
-        with self.assertRaisesRegex(RuntimeError, "invalid joint"):
-            joint.delete()
+        with self.assertRaises((ValueError, RuntimeError)):
+            JointHierarchy.delete(joint)
+
+
+class JointHierarchyFastTest(unittest.TestCase):
+    """fast整理も通常経路と同じ結果・事前検証を保つ。"""
+
+    def setUp(self):
+        """他の検証に影響しない新規シーンを用意する。"""
+        cmds.file(new=True, force=True)
+        cmds.undoInfo(state=True)
+
+
+    def api_only(self):
+        """fast実行中にMayaコマンドによるシーン更新を禁止する。"""
+        stack = ExitStack()
+        for name in ("setAttr", "delete", "deleteAttr", "addAttr", "createNode", "group", "parent",
+                     "rename", "connectAttr", "disconnectAttr", "skinCluster", "skinPercent", "undoInfo"):
+            stack.enter_context(patch.object(cmds, name, side_effect=AssertionError(name)))
+        return stack
+
+
+    def assertMatrixEqual(self, actual, expected):
+        """Mayaの分解に伴う丸め差だけを許容する。"""
+        for a, b in zip(actual, expected):
+            self.assertAlmostEqual(a, b, delta=1e-6)
+
+
+    def test_fast_joint_delete_preserves_children(self):
+        """Joint削除時の子の姿勢・SSC・inverseScaleを通常経路と比較する。"""
+        parent = mlib.createNode("joint", name="root")
+        middle = mlib.createNode("joint", parent=parent, name="middle")
+        child = mlib.createNode("joint", parent=middle, name="leaf")
+        ctrl = mlib.createNode("transform", parent=middle, name="control")
+        parent.setTranslate((3, 2, 1))
+        middle.setTranslate((4, 0, 0))
+        middle.getPlug("jointOrient").set((.2, .3, .1))
+        child.setTranslate((2, 0, 0))
+        middle.connectInverseScale()
+        child.connectInverseScale()
+        matrices = [list(n.getMatrix(worldSpace=True)) for n in (child, ctrl)]
+        JointHierarchy.delete(middle)
+        expected_orient = tuple(mlib.getNode("leaf").getPlug("jointOrient").get())
+        cmds.undo()
+        middle = mlib.getNode("middle")
+        with self.api_only():
+            JointHierarchy.delete(middle, fast=True)
+        self.assertFalse(middle.isValid())
+        child, ctrl = mlib.getNode("leaf"), mlib.getNode("control")
+        self.assertEqual(child.getParent(), parent)
+        self.assertEqual(ctrl.getParent(), parent)
+        self.assertEqual(child.getPlug("inverseScale").getSource(skipConversionNodes=False), parent.getPlug("scale"))
+        for node, matrix in zip((child, ctrl), matrices):
+            self.assertMatrixEqual(node.getMatrix(worldSpace=True), matrix)
+        for actual, expected in zip(child.getPlug("jointOrient").get(), expected_orient):
+            self.assertAlmostEqual(actual, expected, delta=1e-6)
+
+
+    def skin_fixture(self):
+        """単一meshと3influenceの最小スキンを作る。"""
+        mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
+        root = mlib.createNode("joint", name="root")
+        middle = mlib.createNode("joint", parent=root, name="middle")
+        other = mlib.createNode("joint", name="other")
+        skin = mlib.getNode(cmds.skinCluster([root.getFullName(), middle.getFullName(), other.getFullName()],
+                                           mesh, toSelectedBones=True)[0])
+        skin.setWeights([root.getFullName(), middle.getFullName(), other.getFullName()], [.2, .3, .5])
+        return skin, root, middle, other
+
+
+    def test_fast_joint_delete_transfers_weights(self):
+        """祖先influenceへの移送後、Mayaの削除通知で接続を解除する。"""
+        skin, root, middle, other = self.skin_fixture()
+        JointHierarchy.delete(middle)
+        expected = list(skin.getWeights([root.getFullName(), other.getFullName()]))
+        cmds.undo()
+        middle = mlib.getNode("middle")
+        with self.api_only():
+            JointHierarchy.delete(middle, fast=True)
+        self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
+        self.assertFalse(middle.isValid())
+
+
+    def test_fast_joint_root_delete_and_ssc(self):
+        """スケール補正のある未スキニング階層でも子のワールド姿勢を保つ。"""
+        root = mlib.createNode("joint", name="root")
+        middle = mlib.createNode("joint", parent=root, name="middle")
+        child = mlib.createNode("joint", parent=middle, name="child")
+        root.getPlug("scale").set((2, 3, 4))
+        middle.getPlug("scale").set((1.5, 1.5, 1.5))
+        middle.connectInverseScale()
+        child.connectInverseScale()
+        child.getPlug("translate").set((4, 2, 1))
+        matrix = list(child.getMatrix(worldSpace=True))
+        with self.api_only():
+            JointHierarchy.delete(middle, fast=True)
+        self.assertTrue(root.isValid())
+        self.assertMatrixEqual(child.getMatrix(worldSpace=True), matrix)
+        self.assertEqual(child.getParent(), root)
+
+
+    def test_fast_joint_child_failure_precedes_weight_transfer(self):
+        """子Transformの入力接続を、Jointウェイト移送より前に拒否する。"""
+        skin, root, middle, other = self.skin_fixture()
+        child = mlib.createNode("transform", parent=middle)
+        root.getPlug("translateX").connectTo(child.getPlug("translateX"))
+        names = [n.getFullName() for n in (root, middle, other)]
+        weights = list(skin.getWeights(names))
+        with self.api_only(), self.assertRaises(RuntimeError):
+            JointHierarchy.delete(middle, fast=True)
+        self.assertTrue(middle.isValid())
+        self.assertEqual(child.getParent(), middle)
+        self.assertEqual(list(skin.getWeights(names)), weights)
+
 
 
 if __name__ == "__main__":

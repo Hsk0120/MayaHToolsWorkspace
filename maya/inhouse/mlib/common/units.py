@@ -20,8 +20,10 @@ def _distance_unit(unit):
 
     Args:
         unit (str | None): Mayaの長名・短名。Noneは現在のUI単位。
+
     Returns:
         int: MDistanceの単位定数。
+
     Raises:
         TypeError: 文字列またはNoneでない場合。
         ValueError: 未対応の単位名の場合。
@@ -53,8 +55,10 @@ def convertDistance(value, from_unit=None, to_unit=None):
         from_unit (str | None): 入力単位。Noneは現在のシーン単位。
         to_unit (str | None): 出力単位。Noneは現在のシーン単位。
             mm/cm/m/km/in/ft/yd/mi、またはMayaの長名を指定する。
+
     Returns:
         float: 出力単位での距離。
+
     Raises:
         TypeError: 単位の型が不正な場合。
         ValueError: 単位名が未対応の場合。
@@ -110,5 +114,5 @@ def secondsPerFrame():
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('angle_from_ui', 'angle_to_ui', 'convert_distance', 'distance_from_ui', 'distance_to_ui', 'seconds_per_frame'):
+for _obsolete_name in ("angle_from_ui", "angle_to_ui", "convert_distance", "distance_from_ui", "distance_to_ui", "seconds_per_frame"):
     globals().pop(_obsolete_name, None)

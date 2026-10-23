@@ -19,6 +19,7 @@ class BlendColors(Node):
 
         Args:
             index (int): Mayaアトリビュート名に対応する1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             CompoundPlug: RGB入力。get()で値を取得できる。
         """
@@ -43,11 +44,13 @@ class BlendColors(Node):
         """入力色を設定する。既存接続は切断しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): RGB順の有限な3要素。0～1には制限しない。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             BlendColors: 自身。
+
         Raises:
             ValueError: 番号、要素数、数値が不正な場合。
             RuntimeError: ロックや接続によりMayaが設定を拒否した場合。
@@ -71,6 +74,7 @@ class BlendColors(Node):
             index (int): 1または2。 別名 ``idx`` も使用可能。
             source (Plug): 接続元の3要素Plug。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置換するか。 別名 ``f`` も使用可能。
+
         Returns:
             BlendColors: 自身。
         """
@@ -83,10 +87,12 @@ class BlendColors(Node):
         """補間係数を設定する。既存接続は切断しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (float): 0～1の有限値。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             BlendColors: 自身。
+
         Raises:
             ValueError: 非有限値または範囲外の場合。
             RuntimeError: ロックや接続により設定できない場合。
@@ -97,7 +103,7 @@ class BlendColors(Node):
         value = float(value)
         if not math.isfinite(value) or not 0 <= value <= 1:
             raise ValueError("Blender must be a finite value between 0 and 1")
-        self.getPlug('blender').set(value)
+        self.getPlug("blender").set(value)
         return self
 
     def getResult(self):
@@ -106,7 +112,7 @@ class BlendColors(Node):
         Returns:
             tuple[float, float, float]: 評価済みRGB値。
         """
-        return tuple(self.getPlug('output').get())
+        return tuple(self.getPlug("output").get())
 
     @staticmethod
     def _index(index):

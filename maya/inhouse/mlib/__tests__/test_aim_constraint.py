@@ -43,7 +43,7 @@ class AimConstraintTest(unittest.TestCase):
         self.assertEqual({destination.getNode().getType() for _, destination in pairs}, {"transform", "composeMatrix"})
 
     def test_settings_and_units(self):
-        """設定値はUI単位に依存せず、接続付き設定も列挙される。"""
+        """設定値はUI単位に依存せず、接続済みの設定変更は拒否する。"""
         values = (0.1, -0.2, 0.3)
         for unit in ("deg", "rad"):
             cmds.currentUnit(angle=unit)
@@ -52,9 +52,8 @@ class AimConstraintTest(unittest.TestCase):
             for result in (self.aim.getRestRotate(), self.aim.getOffset()):
                 for actual, expected in zip(result, values):
                     self.assertAlmostEqual(actual, expected)
-        self.assertEqual(len(self.aim.settingPlugs()), 18)
+        self.assertFalse(hasattr(type(self.aim), "getSettingPlugs"))
         cmds.connectAttr(self.target + ".rotateX", self.aim.getFullName() + ".offsetX")
-        self.assertIn(self.aim.getPlug("offsetX"), self.aim.settingPlugs())
         with self.assertRaises(ValueError):
             self.aim.setOffset((1, 2, 3))
         self.assertAlmostEqual(self.aim.getOffset()[1], values[1])

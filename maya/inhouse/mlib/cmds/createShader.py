@@ -14,6 +14,7 @@ def createShader(type, name=None):
     Args:
         type (str): lambert、standardSurface等のMayaノード型。
         name (str | None): ノード名。省略時はMayaの自動命名。
+
     Returns:
         Node: 型に対応したラッパー。
     """

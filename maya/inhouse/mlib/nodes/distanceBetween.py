@@ -16,9 +16,9 @@ class DistanceBetween(Node):
         """各入力行列の空間における二点を設定する。行列は変更しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             point1 (Iterable[float]): 第一の点。内部距離単位cm。
             point2 (Iterable[float]): 第二の点。同じ単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             DistanceBetween: 自身。
@@ -68,18 +68,10 @@ class DistanceBetween(Node):
                 self.getPlug(f"inMatrix{number}"), force=force)
         return self
 
-    def getOutputPlug(self):
-        """distance出力。別アトリビュートへの接続に使用する。
-
-        Returns:
-            Plug: distance出力。別アトリビュートへの接続に使用する。
-        """
-        return self.getPlug("distance")
-
     def getDistance(self):
         """評価済み距離。内部距離単位cm。
 
         Returns:
             float: 評価済み距離。内部距離単位cm。
         """
-        return self.getOutputPlug().get()
+        return self.getPlug("distance").get()

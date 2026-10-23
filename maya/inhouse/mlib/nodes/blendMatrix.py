@@ -13,6 +13,7 @@ class BlendMatrix(Node):
 
     def getInputPlug(self):
         """入力のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -20,6 +21,7 @@ class BlendMatrix(Node):
 
     def getInput(self):
         """入力の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -33,6 +35,7 @@ class BlendMatrix(Node):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -50,6 +53,7 @@ class BlendMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -61,6 +65,7 @@ class BlendMatrix(Node):
 
     def getEnvelopePlug(self):
         """全体ウェイトのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -68,6 +73,7 @@ class BlendMatrix(Node):
 
     def getEnvelope(self):
         """全体ウェイトの評価値を取得する。
+
         Returns:
             float: 現在の値。
         """
@@ -81,6 +87,7 @@ class BlendMatrix(Node):
         Args:
             value (float): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -98,6 +105,7 @@ class BlendMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -109,6 +117,7 @@ class BlendMatrix(Node):
 
     def getTargetIndices(self):
         """既存ターゲットの論理番号を取得する。
+
         Returns:
             list[int]: 疎な論理番号。
         """
@@ -120,6 +129,7 @@ class BlendMatrix(Node):
 
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+
         Returns:
             CompoundPlug: ターゲット。
         """
@@ -138,6 +148,7 @@ class BlendMatrix(Node):
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             weight (float): 有限なウェイト。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -159,6 +170,7 @@ class BlendMatrix(Node):
 
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -174,6 +186,7 @@ class BlendMatrix(Node):
 
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+
         Returns:
             dict: matrix/weight。
         """
@@ -189,6 +202,7 @@ class BlendMatrix(Node):
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             matrix (Matrix | Iterable[float]): 行列。
             weight (float): 有限なウェイト。
+
         Returns:
             BlendMatrix: 自身。
 
@@ -204,6 +218,7 @@ class BlendMatrix(Node):
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
+
         Returns:
             Plug: 出力参照。
         """
@@ -211,6 +226,7 @@ class BlendMatrix(Node):
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Matrix: 計算結果。
         """

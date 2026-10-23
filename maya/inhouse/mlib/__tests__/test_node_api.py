@@ -524,19 +524,19 @@ class NodeApiTest(unittest.TestCase):
         value = transform.getPlug("mlibStringArray").get()
         self.assertEqual(value, cmds.getAttr(transform.getName() + ".mlibStringArray"))
 
-    def test_array_plug_next_available_add_and_remove_element(self):
+    def test_array_plug_next_available_set_and_remove_element(self):
         source = self.create_transform("mlibNodeApiArrayNextAvailSource")
         target = self.create_transform("mlibNodeApiArrayNextAvailTarget")
-        array_plug = target.getPlug("worldMatrix")
+        array_plug = target.addAttr("samples", attributeType="double", multi=True)
 
         self.assertEqual(array_plug.getNextAvailableIndex(), 0)
 
-        array_plug.getElement(0, create=True)
+        array_plug[0].set(0)
         self.assertEqual(array_plug.getNextAvailableIndex(), 1)
         self.assertEqual(array_plug.getNextAvailableIndex(start=5), 5)
 
-        element = array_plug.addElement(1)[0]
-        self.assertEqual(element.getLongName(), "worldMatrix")
+        element = array_plug[1].set(2)
+        self.assertEqual(element.getLongName(), "samples")
         self.assertTrue(element.getFullName().endswith("[1]"))
 
         array_plug.removeElement(1)
@@ -892,7 +892,7 @@ class NodeApiTest(unittest.TestCase):
         import maya.api.OpenMaya as om2
         self.assertIsInstance(translatePlug.mplug(), om2.MPlug)
 
-        element = world_matrix_plug.getElement(0, create=True)
+        element = world_matrix_plug.getElement(0)
         self.assertTrue(element.isElement())
 
     def test_plug_connection_introspection_and_disconnect(self):
@@ -925,7 +925,7 @@ class NodeApiTest(unittest.TestCase):
     def test_array_plug_elements_returns_all_existing(self):
         target = self.create_transform("mlibNodeApiArrayElements")
         array_plug = target.getPlug("worldMatrix")
-        array_plug.getElement(0, create=True)
+        array_plug.getElement(0)
 
         elements = array_plug.getElements()
         self.assertEqual(len(elements), 1)
@@ -1055,12 +1055,12 @@ class NodeApiTest(unittest.TestCase):
                 with self.assertRaises(IndexError):
                     array_plug.getElement(index)
                 with self.assertRaises(IndexError):
-                    array_plug.getElement(index, create=True)
-                with self.assertRaises(IndexError):
                     array_plug[index]
         # 要素は作られない(maya.cmds は 4294967296 を 2147483647 に切り詰めて作成する)。
         self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [])
-        created = array_plug.getElement(maximum, create=True)
+        created = array_plug[maximum]
+        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [])
+        created.set(0)
         self.assertEqual(created.mplug().logicalIndex(), maximum)
         self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [maximum])
 

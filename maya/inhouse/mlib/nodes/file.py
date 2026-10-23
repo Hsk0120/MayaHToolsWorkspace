@@ -21,6 +21,7 @@ class File(Texture2d):
 
         Args:
             path (str): パスまたはUDIM等のトークンを含むパターン。
+
         Returns:
             File: 自身。
         """
@@ -43,6 +44,7 @@ class File(Texture2d):
 
         Args:
             name (str): 現在のMaya色管理設定で利用可能な色空間名。
+
         Returns:
             File: 自身。パス変更時の自動ルール設定は変更しない。
         """

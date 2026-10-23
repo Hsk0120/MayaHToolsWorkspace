@@ -4,13 +4,12 @@
 skinCluster 状態の退避/復元、および UI から Orient Joint を適用する
 ウィンドウ作成のためのヘルパー関数を提供します。
 """
-
-import contextlib
-
-import maya.cmds as cmds
+import math
 
 import maya.api.OpenMaya as om2
-import math
+import maya.cmds as cmds
+
+from mlib.decorator import preservedSkinShape
 
 _WIN = "OrientJointLikeWin"
 _AXES = ("x", "y", "z")
@@ -203,69 +202,6 @@ def _compute_target_joints(joints, include_children):
         unique.append(name)
     return unique
 
-@contextlib.contextmanager
-def _preserved_skin_shape(joints):
-    """指定ジョイントに影響する skinCluster の変形を保ったまま姿勢を編集します。
-
-    対象に接続する skinCluster を moveJointsMode へ切り替え、終了時に
-    recacheBindMatrices を実行してから、取得できた以前のモードへ戻します。
-    現在の姿勢をスキニング基準へ反映するため、保存済みバインド行列を変更します。
-    モード照会・切り替え・再キャッシュ・復元で発生した RuntimeError は警告に留め、
-    ブロック内の例外はそのまま伝播します。全体を一回の Undo にまとめます。
-
-    Args:
-        joints (Iterable[str]): 姿勢を編集する対象のジョイント名。joint 以外は除外します。
-
-    Yields:
-        list[str]: 保護対象になった skinCluster 名。
-
-    Raises:
-        ValueError: 存在しないノード名を指定した場合。
-    """
-    skin_names = []
-    seen = set()
-    for joint in joints:
-        if not cmds.objExists(joint):
-            raise ValueError("Object not found: {}".format(joint))
-        if not cmds.objectType(joint, isAType="joint"):
-            continue
-        for skin in cmds.listConnections(joint, type="skinCluster") or []:
-            # 同じ skinCluster へ複数アトリビュートで接続するため UUID で重複を除く。
-            uuid = (cmds.ls(skin, uuid=True) or [skin])[0]
-            if uuid in seen:
-                continue
-            seen.add(uuid)
-            skin_names.append(skin)
-    previous_modes = {}
-
-    cmds.undoInfo(openChunk=True, chunkName="preservedSkinShape")
-    try:
-        for name in skin_names:
-            try:
-                previous_modes[name] = bool(cmds.skinCluster(name, query=True, moveJointsMode=True))
-            except RuntimeError as exc:
-                om2.MGlobal.displayWarning("Failed to query moveJointsMode: {} ({})".format(name, exc))
-                continue
-            try:
-                cmds.skinCluster(name, edit=True, moveJointsMode=True)
-            except RuntimeError as exc:
-                om2.MGlobal.displayWarning("Failed to enable moveJointsMode: {} ({})".format(name, exc))
-                continue
-        try:
-            yield skin_names
-        finally:
-            for name in skin_names:
-                try:
-                    cmds.skinCluster(name, edit=True, recacheBindMatrices=True)
-                except RuntimeError as exc:
-                    om2.MGlobal.displayWarning("Failed to recache bind matrices: {} ({})".format(name, exc))
-            for name, state in previous_modes.items():
-                try:
-                    cmds.skinCluster(name, edit=True, moveJointsMode=state)
-                except RuntimeError as exc:
-                    om2.MGlobal.displayWarning("Failed to restore moveJointsMode: {} ({})".format(name, exc))
-    finally:
-        cmds.undoInfo(closeChunk=True)
 
 def _compute_world_matrix(node_name):
     """ノードのワールド行列を取得します。
@@ -1447,12 +1383,12 @@ def _apply_orient_from_ui(*_):
         cmds.warning(str(e))
         return
 
-    # 変形破綻を避けるため、影響する skinCluster を _preserved_skin_shape
+    # 変形破綻を避けるため、影響する skinCluster を preservedSkinShape
     # (skinCluster -moveJointsMode / -recacheBindMatrices) で保護する。
     target_joints = _compute_target_joints(joints, include_children=True)
     next_children_debug = _compute_is_next_children_debug_enabled(primary_space, up_space)
 
-    with _preserved_skin_shape(target_joints):
+    with preservedSkinShape(target_joints):
         for j in joints:
             if next_children_debug:
                 _compute_debug_log_next_children_inputs(

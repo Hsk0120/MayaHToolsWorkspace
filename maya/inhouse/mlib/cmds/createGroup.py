@@ -97,10 +97,10 @@ def createGroup(nodes=None, *, fast=False, **kwargs):
     """指定したノードを新規 Transform でグループ化し、そのラッパーを返す。
 
     Args:
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         nodes (Node | Plug | Component | Components | Selection | str | om2.MObject | om2.MDagPath | om2.MPlug | Iterable | None):
             グループ化するノード、またはその列。None は maya.cmds.group と同じく
             現在の選択を使う。空のグループを作る場合は kwargs に empty=True を指定する。
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         **kwargs (object): maya.cmds.group に渡すキーワード引数。parent はノードが
             必要な引数として所有ノードの完全パスへ変換する(Plug・MPlug は所有ノード)。
 
@@ -117,12 +117,11 @@ def createGroup(nodes=None, *, fast=False, **kwargs):
             ため)、または nodes・parent に空文字列や削除済みの対象が含まれる場合。
         RuntimeError: parent の名前を解決できない場合、または Maya がグループ作成を拒否した場合。
     """
-    from ..nodes.node import Node as _InputNode
     from .._core.object import Object as _InputObject
     from ..nodes import Node
 
     if kwargs.get("parent") is not None:
-        kwargs["parent"] = _InputNode._input_name(kwargs["parent"])
+        kwargs["parent"] = Node._input_name(kwargs["parent"])
     if is_fast():
         from .._core.nodeEdit import create_group
         names = None if nodes is None else _InputObject._input_names(nodes)

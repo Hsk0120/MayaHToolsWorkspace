@@ -11,20 +11,21 @@ for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "session", "units", "workspace", "selection", "context", "editors",
               "files", "namespaces", "plugins", "animation", "scene", "environment",
               "ui", "events", "utils", "decorators", "object", "Object", "extensions",
-              "general", "TYPE_CHECKING", "_command_exports"):
+              "general", "TYPE_CHECKING", "_command_exports", "_importlib", "_bootstrap"):
     globals().pop(_name, None)
-
-import importlib as _importlib
 
 from . import logger
 from . import common, decorator, cmds, nodes, plugs, components, maths, json
-from ._core import bootstrap as _bootstrap
+from ._core.registry import NodeRegistry as _NodeRegistry
 from ._core.reload import reload_package as _reload_package
 
 # 標準型の対応表を構築してから任意拡張を検出する。
-_importlib.reload(_bootstrap)
-_bootstrap.initialize_node_api(__name__)
-_bootstrap.initialize_plug_api(__name__)
+_node_registry = _NodeRegistry(nodes.Node, resolve_inherited_types=True)
+_plug_registry = _NodeRegistry(plugs.Plug)
+_node_registry.replace(nodes._WRAPPER_CLASSES)
+_plug_registry.replace(plugs._WRAPPER_CLASSES)
+nodes.Node._registry, plugs.Plug._registry = _node_registry, _plug_registry
+del _node_registry, _plug_registry
 
 from .cmds import (
     addAttr,
@@ -46,7 +47,6 @@ from .cmds import (
     delete,
     duplicate,
     executeDeferred,
-    getAttr,
     getChannelBox,
     getDrivenKey,
     getNode,
@@ -91,7 +91,6 @@ __all__ = [
     "delete",
     "duplicate",
     "executeDeferred",
-    "getAttr",
     "getChannelBox",
     "getDrivenKey",
     "getNode",

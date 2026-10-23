@@ -65,7 +65,11 @@ class _WindowReference:
         return bool(getattr(cmds, self._command)(self.getName(), query=True, visible=True))
 
     def hide(self):
-        """UIを削除せず非表示にする。保存は行わない。"""
+        """UIを削除せず非表示にする。保存は行わない。
+
+        Returns:
+            None: 値を返さない。
+        """
         getattr(cmds, self._command)(self.getName(), edit=True, visible=False)
 
     @contextmanager
@@ -87,7 +91,11 @@ class _WindowReference:
 
     @staticmethod
     def _require_gui():
-        """GUIがない場合は明示的に失敗する。"""
+        """GUIがない場合は明示的に失敗する。
+
+        Returns:
+            None: 値を返さない。
+        """
         if cmds.about(batch=True):
             raise RuntimeError("Window operations require Maya GUI")
 
@@ -127,7 +135,10 @@ class _WindowReference:
         """参照寿命付きの変更不可スナップショットを作る。
 
         Args:
-            data: 処理対象の状態・保存データ。
+            data (dict): 退避するUI状態の設定名と値。
+
+        Returns:
+            UiSnapshot: 同じUIの寿命と状態データを保持する退避値。
         """
         return UiSnapshot(self._command, self.getName(), data, (self,))
 
@@ -137,6 +148,9 @@ class _WindowReference:
         Args:
             snapshot (UiSnapshot): captureの返り値。
             fields (dict): キーと型。
+
+        Returns:
+            None: 値を返さない。
         """
         self.getName()
         if not isinstance(snapshot, UiSnapshot) or snapshot.scope != self._command or snapshot.name != self.getName():

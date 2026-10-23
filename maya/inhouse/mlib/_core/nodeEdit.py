@@ -48,24 +48,16 @@ def validate_deletion(nodes, safe=False):
         nodes (Iterable[Node]): 呼出し順の削除対象。
         safe (bool): 接続を持つ対象を残すか。
     """
-    from ..nodes.joint import Joint, Joints
-    from .jointDeletion import _JointDeletion
-
-    generic_paths, joints = [], []
+    paths = []
     for node in nodes:
         if safe and node._has_delete_connections():
             continue
         path = node.getFullName()
-        if any(path.startswith(parent + "|") for parent in generic_paths):
-            # 先行する通常Nodeの削除で消える対象は、専用削除を実行しない。
+        if any(path.startswith(parent + "|") for parent in paths):
+            # 先行する親の削除で消える対象は、重ねて検証しない。
             continue
         require_editable(node.mnode(), descendants=True)
-        if isinstance(node, Joint):
-            joints.append(node)
-        else:
-            generic_paths.append(path)
-    if joints:
-        _JointDeletion(Joints(joints))._prepare()
+        paths.append(path)
 
 
 def rename_node(node, name, ignore_shape=False):

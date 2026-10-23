@@ -26,6 +26,8 @@ class AnimationNodesTest(unittest.TestCase):
                 curve = self.create("animCurve" + suffix)
                 self.assertIsInstance(curve, getattr(mlib.nodes, "AnimCurve" + suffix))
                 self.assertIsInstance(curve, mlib.nodes.AnimCurve)
+                for obsolete in ("getDriverPlug", "getOutputPlug", "getDrivenPlugs"):
+                    self.assertFalse(hasattr(type(curve), obsolete), obsolete)
                 curve.setKey(0, 0).setKey(10, 20)
                 self.assertEqual(curve.getKeyInputs(), [0, 10])
                 self.assertAlmostEqual(curve.getKeyValues()[1], 20)
@@ -108,15 +110,38 @@ class AnimationNodesTest(unittest.TestCase):
         cmds.redo()
         self.assertAlmostEqual(blend.getPlug("output").get(), 8)
         curve = self.create("animCurveUU").setKey(0, 7)
-        blend.connectInput(0, curve.getOutputPlug())
+        blend.connectInput(0, curve.getPlug("output"))
         self.assertAlmostEqual(blend.getPlug("output").get(), 12)
-        self.assertEqual(curve.getDrivenPlugs()[0].getNode().getFullName(), blend.getFullName())
+        destinations = curve.getPlug("output").getDestinations(skipConversionNodes=False)
+        self.assertEqual(destinations[0].getNode().getFullName(), blend.getFullName())
         cmds.undo()
         self.assertAlmostEqual(blend.getPlug("output").get(), 8)
         cmds.redo()
         self.assertAlmostEqual(blend.getPlug("output").get(), 12)
         with self.assertRaises(ValueError):
             blend.setWeight(-1, 1)
+
+    def test_standard_plug_queries_keep_direct_conversion_connections(self):
+        """入出力の直接接続照会は変換ノードを飛ばさず、Undo履歴を変えない。"""
+        curve = self.create("animCurveUU").setKey(0, 0).setKey(1, 1)
+        driver = self.create("network").addAttr("driver", defaultValue=0.5)
+        driven = self.create("network").addAttr("driven")
+        incoming = self.create("unitConversion")
+        outgoing = self.create("unitConversion")
+        driver.connectTo(incoming.getPlug("input"))
+        incoming.getPlug("output").connectTo(curve.getPlug("input"))
+        curve.getPlug("output").connectTo(outgoing.getPlug("input"))
+        outgoing.getPlug("output").connectTo(driven)
+        before = cmds.undoInfo(query=True, undoName=True)
+
+        source = curve.getPlug("input").getSource(skipConversionNodes=False)
+        destinations = curve.getPlug("output").getDestinations(skipConversionNodes=False)
+
+        self.assertEqual(source, incoming.getPlug("output"))
+        self.assertEqual(destinations, [outgoing.getPlug("input")])
+        self.assertNotEqual(source, driver)
+        self.assertNotIn(driven, destinations)
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
 
     def test_mirror_and_shift_ignore_other_selected_keys(self):
         for kind in ("animCurveTL", "animCurveUU"):

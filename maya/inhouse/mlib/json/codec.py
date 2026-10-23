@@ -84,12 +84,12 @@ def _decode_math(name, args):
         raise ValueError("Unknown math type")
     allowed = {"values", "order"} if name == "EulerRotation" else {"values"}
     if type(args) is not dict or "values" not in args or not set(args) <= allowed:
-        raise ValueError("Invalid {} record".format(name))
+        raise ValueError(f"Invalid {name} record")
     values = args["values"]
     if type(values) not in (list, tuple) or len(values) != size:
         raise ValueError("{} expects {} values".format(name, size))
     if any(type(item) not in (int, float) for item in values):
-        raise ValueError("{} values must be numbers".format(name))
+        raise ValueError(f"{name} values must be numbers")
     if "order" in args and type(args["order"]) not in (str, int):
         raise ValueError("EulerRotation order must be a name or an om2 order number")
     cls = _MATH_CLASSES[name]
@@ -150,7 +150,7 @@ def encode(value):
         return {"type": type(value).__name__, "value": {f.name: encode(getattr(value, f.name)) for f in fields(value)}}
     if isinstance(value, Snapshot):
         return {"type": "snapshot", "value": encode(value.asData())}
-    raise TypeError("Unsupported JSON value: {}".format(type(value).__name__))
+    raise TypeError(f"Unsupported JSON value: {type(value).__name__}")
 
 
 def decode(value):
@@ -188,4 +188,4 @@ def decode(value):
         if name not in _MATH_SIZES:
             raise ValueError("Unknown math type")
         return _decode_math(name, decode(data))
-    raise ValueError("Unknown JSON type: {}".format(kind))
+    raise ValueError(f"Unknown JSON type: {kind}")

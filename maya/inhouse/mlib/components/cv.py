@@ -28,12 +28,30 @@ class CVs(PointComponents):
     component_class = CV
 
     def getFullNames(self):
-        """保持順のcmds用CV名を返す。周期末尾は対応する独立CVの名前となる。"""
+        """保持順のcmds用CV名を返す。周期末尾は対応する独立CVの名前となる。
+
+        Returns:
+            list[str]: 保持順のMayaコンポーネント名。indicesはAPI番号を保持する。
+
+        Raises:
+            RuntimeError: 所有シェイプが無効な場合。
+            TypeError: 所有シェイプの種類がNurbsCurveでない場合。
+            IndexError: 保持番号が現在のCV範囲外になった場合。
+        """
         self._validate()
         name = self.shape.getFullName()
         return ["{}.cv[{}]".format(name, index)
                 for index in command_indices(self.shape, self.indices)]
 
     def getCompactNames(self):
-        """cmds用CV名を返す。周期CVの対応を保つため範囲へ圧縮しない。"""
+        """cmds用CV名を返す。周期CVの対応を保つため範囲へ圧縮しない。
+
+        Returns:
+            list[str]: getFullNamesと同じ、保持順のMayaコンポーネント名。
+
+        Raises:
+            RuntimeError: 所有シェイプが無効な場合。
+            TypeError: 所有シェイプの種類がNurbsCurveでない場合。
+            IndexError: 保持番号が現在のCV範囲外になった場合。
+        """
         return self.getFullNames()

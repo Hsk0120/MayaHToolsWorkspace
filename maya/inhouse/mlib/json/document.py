@@ -29,6 +29,10 @@ class JsonDocument:
         return cls(decode(value["data"]), metadata)
 
     def asData(self):
-        """形式バージョン1のJSON基本値を返す。"""
+        """形式バージョン1のJSON基本値を返す。
+
+        Returns:
+            dict: 形式識別子・版と、型付きJSONへ変換したmetadata・data。
+        """
         from .codec import encode
         return {"format": "mlib.json", "version": 1, "metadata": encode(self.metadata), "data": encode(self.data)}

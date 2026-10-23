@@ -18,9 +18,18 @@ MayaではScript Editorに表示し、warningとerrorはビューポートにも
 ``error`` 自体は例外を送出しません。通知して処理を中断する場合は
 ``logger.raise_with_notify(ValueError, "入力が不正です")`` を使用します。
 
+入力の型・範囲・更新条件の検証は、通常の ``raise TypeError/ValueError/RuntimeError`` 等で
+呼出し側へ渡します。捕捉して戻り値や検証結果へ変換する失敗には画面通知を追加しません。
+``raise_with_notify`` は通知を伴う中断が必要な入口で使い、既存のNode名解決失敗の通知も維持します。
+復旧中の二次失敗は必要時に ``warning`` へ記録し、元の例外を優先します。
+ログの埋込みは ``logger.warning("対象: %s", target)`` のように書式引数を分けて渡します。
+
 ``print`` はPython標準のprintと同じ出力です。複数の値、sep・end・file・flushに
 対応し、改行や出力先を変更できます。ログレベルやビューポート通知は付きません。
 標準出力の差替えも尊重し、Mayaでは通常Script Editorに表示されます。
+
+進捗表示が指定streamへ描画する文字列や、JSON等の保存出力は診断ログとは別の機能です。
+ログ集約のために出力先・改行・描画・戻り値の契約を変更しません。
 
 ``mlib.cmds.warning`` と ``mlib.warning`` は廃止しました。
 使用側は ``logger.warning`` に更新してください。互換用ファイルはありません。

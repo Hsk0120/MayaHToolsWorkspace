@@ -11,7 +11,8 @@ class MainWindow:
         Returns:
             str | None: MayaのUI名。バッチ実行時はNone。
         """
-        from maya import cmds, mel
+        import maya.cmds as cmds
+        import maya.mel as mel
 
         if cmds.about(batch=True):
             return None

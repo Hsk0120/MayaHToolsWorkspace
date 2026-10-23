@@ -44,6 +44,9 @@ class ScriptJobs:
     def stop(self):
         """全監視の解除を試み、失敗した監視は再試行のため保持する。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             RuntimeError: 一つ以上の解除に失敗した場合。外部の監視は変更しない。
         """

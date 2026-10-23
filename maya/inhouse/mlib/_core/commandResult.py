@@ -10,6 +10,7 @@ class CommandResult:
 
         Args:
             name (str): 一意なノード・アトリビュート名。コンポーネントは対象外。
+
         Returns:
             Node | Plug: 改名に追従する参照。
         """
@@ -24,6 +25,7 @@ class CommandResult:
 
         Args:
             names (Sequence[str] | None): Mayaの結果。
+
         Returns:
             list[Node | Plug]: 未検出時は空リスト。
         """
@@ -36,6 +38,7 @@ class CommandResult:
         Args:
             kwargs (dict): フラグ辞書。元の辞書は変更しない。
             keys (Sequence[str]): ノード指定フラグの長名。
+
         Returns:
             dict: 変換済みコピー。
         """

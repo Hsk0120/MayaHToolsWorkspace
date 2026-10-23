@@ -208,7 +208,7 @@ class SecondaryLayer:
                 row = [
                     math.degrees(mlib.common.units.angleFromUi(v))
                     for source in sources
-                    for v in mlib.getAttr(source.getPlug('rotate')).get(uiUnits=True)
+                    for v in mlib.getPlug(source.getPlug('rotate')).get(uiUnits=True)
                 ]
                 if rows:
                     row = [

@@ -22,7 +22,11 @@ class WorkspaceControl(_WindowReference):
         return [cls(name) for name in cmds.lsUI(type="workspaceControl") or []]
 
     def show(self):
-        """非表示・最小化・折り畳みを解除し、タブをアクティブにする。"""
+        """非表示・最小化・折り畳みを解除し、タブをアクティブにする。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.workspaceControl(self.getName(), edit=True, restore=True)
 
     def getFloating(self):
@@ -34,7 +38,11 @@ class WorkspaceControl(_WindowReference):
         return bool(cmds.workspaceControl(self.getName(), query=True, floating=True))
 
     def undock(self):
-        """浮動ウィンドウへ切り離す。全体ロック中は拒否する。"""
+        """浮動ウィンドウへ切り離す。全体ロック中は拒否する。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._require_unlocked()
         cmds.workspaceControl(self.getName(), edit=True, floating=True)
 
@@ -44,6 +52,9 @@ class WorkspaceControl(_WindowReference):
         Args:
             side (str): left/right/top/bottom。
             target (WorkspaceControl | str | None): 相対配置先。省略時はMaya本体。
+
+        Returns:
+            None: 値を返さない。
         """
         if side not in ("left", "right", "top", "bottom"):
             raise ValueError("side must be left, right, top or bottom")
@@ -63,6 +74,9 @@ class WorkspaceControl(_WindowReference):
         Args:
             target (WorkspaceControl | str): まとめる先のドック。
             index (int): タブ位置。-1は末尾。 別名 ``idx`` も使用可能。
+
+        Returns:
+            None: 値を返さない。
         """
         if type(index) is not int:
             raise TypeError("index must be int")
@@ -87,6 +101,9 @@ class WorkspaceControl(_WindowReference):
         Args:
             width (int): 正の幅。
             height (int): 正の高さ。
+
+        Returns:
+            None: 値を返さない。
         """
         width, height = self._pair(width, height, positive=True)
         if not self.getFloating():
@@ -106,17 +123,23 @@ class WorkspaceControl(_WindowReference):
 
         Args:
             collapsed (bool): 折り畳むか。
+
+        Returns:
+            None: 値を返さない。
         """
         collapsed = self._boolean(collapsed)
         cmds.workspaceControl(self.getName(), edit=True, collapse=collapsed)
 
     def capture(self):
-        """UiSnapshot: stateString・表示・折り畳み状態をメモリに退避する。
+        """stateString・表示・折り畳み状態をメモリへ退避する。
 
         stateStringはMayaとUI実装が管理する状態。周辺の分割・タブ配置をメモリに
         退避するAPIは提供しない。配置全体はWorkspaceLayout.getCurrent().saveAs(name)
         でMaya標準の保存先へ永続保存できるが、保存後にその配置へ切り替わる。
         切り替え時の自動保存・uiScript実行にも従う。任意のエディタ内部データは含まない。
+
+        Returns:
+            UiSnapshot: 同じUIへ復元するためのstateString・表示・折り畳み状態。
         """
         return self._capture({
                 "state": cmds.workspaceControl(self.getName(), query=True, stateString=True),
@@ -127,6 +150,9 @@ class WorkspaceControl(_WindowReference):
 
         Args:
             snapshot (UiSnapshot): captureの返り値。
+
+        Returns:
+            None: 値を返さない。
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "collapsed": bool})
         cmds.workspaceControl(self.getName(), edit=True, stateString=snapshot["state"])
@@ -135,7 +161,11 @@ class WorkspaceControl(_WindowReference):
 
     @staticmethod
     def _require_unlocked():
-        """ユーザーが有効にしたドッキングロックを迂回しない。"""
+        """ユーザーが有効にしたドッキングロックを迂回しない。
+
+        Returns:
+            None: 値を返さない。
+        """
         from .workspaceLayout import WorkspaceLayout
         if WorkspaceLayout.getLocked():
             raise RuntimeError("Unlock the workspace layout before changing docking")

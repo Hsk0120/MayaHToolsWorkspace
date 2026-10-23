@@ -2,8 +2,7 @@
 ============================================================
 
 アトリビュートの取得には ``node.getPlug()`` を使います。接続・メタ情報・配列要素の操作を説明します。
-ノードを含むアトリビュート名からは ``mlib.getAttr("node.attr")`` または
-``mlib.getPlug("node.attr")`` で型付きPlugを取得できます。
+ノードを含むアトリビュート名からは ``mlib.getPlug("node.attr")`` でPlug参照を取得できます。
 ``node.getPlug()`` はアトリビュート名(ロング名・ショート名・エイリアス)のほか、``input1D[3]``・
 ``worldMatrix[0]``・``pnts[2].pntx`` のような配列要素と子アトリビュートを含むアトリビュートパス
 (``str(plug)`` の ``.`` 以降と同じ表記)も受け付けます。
@@ -101,12 +100,12 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
    mode_plug = node.getPlug("mode")
    print(mode_plug.getEnumName())    # "Low"（既定値 1 に対応する名前）
 
-``min``/``max``/``default`` は数値アトリビュートでは ``float`` をそのまま返しますが、
+``getMin()``/``getMax()``/``getDefault()`` は数値アトリビュートでは ``float`` をそのまま返しますが、
 ``rotateX`` のような角度・距離・時間アトリビュートでは Maya API 2.0 の単位付きオブジェクト
 （``MAngle``/``MDistance``/``MTime``）をそのまま返します。誤った単位換算を
 避けるため、mlib 内部では変換を行いません。必要な単位は呼び出し側で
 ``.value`` や ``.asUnits(...)`` を使って変換してください。
-``enumName`` は enum アトリビュート以外に使うと ``TypeError`` になります。
+``getEnumName()`` は enum アトリビュート以外に使うと ``TypeError`` になります。
 ``valid()`` は所有ノードとアトリビュートの参照が有効かを判定します。
 値の読み書きが成功することまでは保証しません。
 ``readable``/``writable``/``storable`` はアトリビュート定義の各フラグを返し、
@@ -200,7 +199,7 @@ animCurve とミュート
 
    print(array_plug.getNextAvailableIndex())   # 0（既存要素が無ければ）
 
-   element = array_plug.addElement(0)[0]   # 指定要素を実体化し、新規要素リストを返す
+   element = array_plug[0]             # 未作成要素の参照。まだ実体化しない
    print(element.getFullName())             # arrayPlugExample.values[0]
 
    element.set(1.0)                    # 要素に値を設定
@@ -208,10 +207,8 @@ animCurve とミュート
 
 ``getNextAvailable(start=0, asPlug=True)`` は入力接続とロックを避けた要素参照を返します。
 ``getNextAvailableIndex()`` はmlib独自の「まだ存在しない番号」を探す操作で、判定条件が異なります。
-``addElement(idx)`` は指定要素と必要な上位要素を実体化し、新規要素を下位から返します。
-既存なら空リストです。追加自体のUndoとmessage要素の実体化には対応しません。
-message配列では ``getNextAvailable(asPlug=True)`` で取得した参照へ接続してください。
-``getElement(create=True)`` も評価による実体化なのでUndo対象外です。
+未作成番号の参照は ``array_plug[index]`` で取得し、値設定または接続で要素を作成します。
+message配列は値を持たないため、取得した参照へ接続します。
 
 Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.input1D[10]")`` や
 ``Selection([...])`` など)は、存在しない要素の Plug でも要素を作りません。
@@ -222,7 +219,10 @@ Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.inpu
 
 ``array_plug[0]`` は未作成番号でも要素参照だけを返します。
 ``getElement(0)`` は既存要素がなければ ``IndexError`` です。
-``getElement(0, create=True)`` は必要に応じて評価によって実体化します。
+参照の取得に作成フラグはありません。値設定・接続が要素を作成する操作です。
+``getIndices()`` は既存要素の論理番号を昇順のlistで返します。
+値の評価や要素の作成は行わず、ワールド空間アトリビュートはインスタンス番号も含みます。
+要素のPlug一覧は ``getElements()``、評価値の辞書は ``get()`` で取得します。
 
 .. code-block:: python
 
@@ -231,6 +231,7 @@ Plug を作る・取得する操作そのもの(``Plug._resolve_input("pma1.inpu
    element = values[3]               # 参照の取得だけ。番号3は未作成
    print(values.getElements())          # []
    element.set(2.0)                  # 値を書くと実体化。通常モードはUndo対応
+   print(values.getIndices())           # [3]
    print(values.getElement(3).get())     # 2.0（既存要素なので取得できる）
 
 この ``[]`` があるため、
@@ -243,12 +244,11 @@ ArrayPlug オブジェクト自体を ``maya.cmds`` へ渡すとシーケンス�
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する値更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
 
-attrから値を取得する
-------------------------
+参照から値と状態を取得する
+----------------------------
 
-``mlib.getAttr(target, **kwargs)`` は、照会フラグなしならアトリビュート型に対応する
-Plugを返します。内部では ``plug`` へ委譲し、既存Plugはそのまま返します。
-値を読むときは返されたPlugの ``get()`` または ``get(uiUnits=True)`` を呼びます。
+アトリビュート参照は ``mlib.getPlug(target)`` または ``node.getPlug(name)`` で取得します。
+参照取得や接続列挙は値を評価しません。値はPlugの ``get()`` で読みます。
 
 .. list-table:: 参照と値を使い分ける
    :header-rows: 1
@@ -257,43 +257,43 @@ Plugを返します。内部では ``plug`` へ委譲し、既存Plugはその�
      - 入口
      - 戻り値
    * - 値・接続を繰り返し操作する
-     - ``node.getPlug("tx")`` / ``mlib.getPlug("node.tx")`` / ``mlib.getAttr("node.tx")``
-     - 型付きPlug
+     - ``node.getPlug("tx")`` / ``mlib.getPlug("node.tx")``
+     - Plug参照
    * - 内部単位の値を読む
      - ``plug.get()``
      - 値（距離cm・角度rad・時間秒）
    * - UI単位の値を読む
      - ``plug.get(uiUnits=True)``
      - 現在のMaya単位による値
-   * - Mayaの状態を照会する
-     - ``mlib.getAttr(plug, lock=True)``
-     - ロック状態のbool
-
-``mlib.getAttr(plug, lock=False)`` も、フラグを明示した照会です。
-通常の値をUI単位で返し、Plug取得にはなりません。
+   * - 状態を照会する
+     - ``plug.isLocked()`` / ``plug.isSettable()``
+     - bool
+   * - 特定時刻の値を照会する
+     - ``cmds.getAttr(plug.getFullName(), time=10)``
+     - Maya標準の値とUI単位
 
 .. code-block:: python
 
-   plug = mlib.getAttr("pCube1.tx")  # DoubleLinearPlug
-   value = mlib.getAttr("pCube1.tx").get()     # 内部単位cm
-   ui_value = mlib.getAttr("pCube1.tx").get(uiUnits=True)  # 現在の距離UI単位
-   kind = mlib.getAttr("pCube1.tx", type=True)  # 従来のMaya状態照会
+   plug = mlib.getPlug("pCube1.tx")  # DoubleLinearPlug
+   value = plug.get()              # 内部単位cm
+   ui_value = plug.get(uiUnits=True)  # 現在の距離UI単位
+   kind = plug.getDataType()        # Mayaの型名 "doubleLinear"
 
 ``Plug.get()`` / ``set()`` は角度rad・距離cm・時間秒で統一しています。
 UI単位を変更しても ``set(get())`` は同じ値を維持します。
-``get(uiUnits=True)`` / ``set(value, uiUnits=True)`` は現在のUI単位を使います。attr自体が値を自動変換するのではなく、
-値の単位は呼び出すPlugメソッドで選びます。
+``get(uiUnits=True)`` / ``set(value, uiUnits=True)`` は現在のUI単位を使います。
+単位は呼び出すPlugメソッドで選びます。
 
-照会フラグを一つでも指定すると、従来のMaya照会値・状態を返します。
-``type=True`` 等の状態フラグだけでなく、``time``・``silent``・Falseの明示指定も
-この経路です。Mayaの長短フラグ、値のUI単位、行列のMatrix・3成分のVectorへの変換を維持します。
-
+generic/kAnyアトリビュートは基底のPlug参照のままです。``get()`` の時点で
+現在の値が行列ならMatrix、数値の組ならtupleを返します。choiceのselectorを
+切り替えても参照を作り直す必要はありません。値の取得では上流の評価が起こる場合があります。
+``mlib.getAttr`` のラッパーはありません。Maya固有の照会には ``maya.cmds.getAttr`` を使います。
 
 アトリビュートの値とノードの姿勢
 ------------------------------------
 
 ``Plug.get()`` / ``set()`` は対象アトリビュートの値だけを扱い、空間指定 ``ws`` / ``worldSpace`` は受け付けません。
-ワールド空間の値にはTransformの ``translate(ws=True)`` / ``setRotate(..., ws=True)``
+ワールド空間の値にはTransformの ``getTranslate(ws=True)`` / ``setRotate(..., ws=True)``
 などを使います。
 
 .. code-block:: python
@@ -322,14 +322,12 @@ UI単位を変更しても ``set(get())`` は同じ値を維持します。
 ``TypeError`` になります。子・配列要素の独立接続と変換ノードは保持し、複数切断も1回のUndo/Redoで戻します。
 forceフラグはありません。
 
-``disconnect(src=True, dst=False)`` は入力、
-``disconnect(src=False, dst=True)`` は出力、両方Trueなら入出力を切断します。
-方向指定では切断した相手Plugのリストを返し、未接続なら空リストです。
-入力元Plugを渡す従来の ``disconnect(sourcePlug)`` と、
-入力元Plugを返す ``disconnect()`` の仕様も維持します。
-``disconnectAll`` と異なり、既定の ``disconnect()`` は入力のみで、未接続ならエラーです。
+``disconnect(sourcePlug)`` は指定入力だけを解除し、``disconnect()`` は現在の入力を
+解除します。どちらも入力元Plugを返し、指定接続がない場合はエラーです。
+``src``（別名 ``source``）は参照またはNoneだけを受け付けます。
+方向のboolや ``dst/destination`` は使わず、``disconnectAll`` で方向を指定します。
 
 配列の編集は番号・値・参照を検証してから書込みまたは接続します。
-内部処理は要素を事前に実体化しません。公開 ``getElement(index, create=True)`` の
-明示作成は維持します。論理番号はboolを除く整数で、範囲は0〜2147483647です。
+内部処理は要素を事前に実体化しません。``getElement(index)`` は既存要素の取得だけです。
+論理番号はboolを除く整数で、範囲は0〜2147483647です。
 型不正はTypeError、範囲外はIndexErrorになります。

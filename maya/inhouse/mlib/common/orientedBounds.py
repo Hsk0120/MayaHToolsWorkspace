@@ -2,7 +2,7 @@
 
 import math
 
-import maya.api.OpenMaya as om
+import maya.api.OpenMaya as om2
 
 from ..maths import Vector
 
@@ -17,9 +17,9 @@ def _safe_normalize(vector, fallback):
     Returns:
         maya.api.OpenMaya.MVector: 正規化ベクトル。
     """
-    vec = om.MVector(vector)
+    vec = om2.MVector(vector)
     if vec.length() < 1e-10:
-        return om.MVector(fallback)
+        return om2.MVector(fallback)
     vec.normalize()
     return vec
 
@@ -34,12 +34,12 @@ def _build_sample_directions(count=64):
         list[maya.api.OpenMaya.MVector]: サンプル方向一覧。
     """
     directions = [
-        om.MVector(1.0, 0.0, 0.0),
-        om.MVector(-1.0, 0.0, 0.0),
-        om.MVector(0.0, 1.0, 0.0),
-        om.MVector(0.0, -1.0, 0.0),
-        om.MVector(0.0, 0.0, 1.0),
-        om.MVector(0.0, 0.0, -1.0),
+        om2.MVector(1.0, 0.0, 0.0),
+        om2.MVector(-1.0, 0.0, 0.0),
+        om2.MVector(0.0, 1.0, 0.0),
+        om2.MVector(0.0, -1.0, 0.0),
+        om2.MVector(0.0, 0.0, 1.0),
+        om2.MVector(0.0, 0.0, -1.0),
     ]
 
     # Fibonacci sphere に近い分布で方向サンプルを生成する。
@@ -52,7 +52,7 @@ def _build_sample_directions(count=64):
         theta = golden_angle * i
         x = math.cos(theta) * radius
         z = math.sin(theta) * radius
-        directions.append(om.MVector(x, y, z))
+        directions.append(om2.MVector(x, y, z))
 
     return directions
 
@@ -70,7 +70,7 @@ def sampleExtremePoints(points, direction_count=64):
     if len(points) <= 8:
         return list(points)
 
-    vectors = [om.MVector(point.x, point.y, point.z) for point in points]
+    vectors = [om2.MVector(point.x, point.y, point.z) for point in points]
     directions = _build_sample_directions(direction_count)
     hull_indices = set()
 
@@ -105,11 +105,14 @@ def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
     """主軸固定で YZ 面回転を走査し断面面積最小の副軸を選びます。
 
     Args:
-        points: 計算対象の座標列。
-        axis_x: 対象座標系の各基底ベクトル。
-        axis_y: 対象座標系の各基底ベクトル。
-        axis_z: 対象座標系の各基底ベクトル。
-        steps: 角度探索を分割する試行数。
+        points (Sequence[om2.MPoint]): 計算対象の座標列。
+        axis_x (om2.MVector): 対象座標系のX軸の基底ベクトル。
+        axis_y (om2.MVector): 対象座標系のY軸の基底ベクトル。
+        axis_z (om2.MVector): 対象座標系のZ軸の基底ベクトル。
+        steps (int): 90度の探索範囲を分割する試行数。
+
+    Returns:
+        tuple[om2.MVector, om2.MVector]: 断面積が最小となったY軸とZ軸。入力の基底は変更しない。
     """
     best_axis_y = axis_y
     best_axis_z = axis_z
@@ -133,7 +136,7 @@ def _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180):
         max_z = float("-inf")
 
         for point in points:
-            vec = om.MVector(point.x, point.y, point.z)
+            vec = om2.MVector(point.x, point.y, point.z)
             py = vec * candidate_y
             pz = vec * candidate_z
             min_y = min(min_y, py)
@@ -157,10 +160,13 @@ def _project_extents(points, axis_x, axis_y, axis_z):
     """指定基底へ投影した各軸の最小最大値を返します。
 
     Args:
-        points: 計算対象の座標列。
-        axis_x: 対象座標系の各基底ベクトル。
-        axis_y: 対象座標系の各基底ベクトル。
-        axis_z: 対象座標系の各基底ベクトル。
+        points (Sequence[om2.MPoint]): 計算対象の座標列。
+        axis_x (om2.MVector): 対象座標系のX軸の基底ベクトル。
+        axis_y (om2.MVector): 対象座標系のY軸の基底ベクトル。
+        axis_z (om2.MVector): 対象座標系のZ軸の基底ベクトル。
+
+    Returns:
+        tuple[float, ...]: X最小・最大、Y最小・最大、Z最小・最大の6値。
     """
     min_x = float("inf")
     min_y = float("inf")
@@ -170,7 +176,7 @@ def _project_extents(points, axis_x, axis_y, axis_z):
     max_z = float("-inf")
 
     for point in points:
-        vec = om.MVector(point.x, point.y, point.z)
+        vec = om2.MVector(point.x, point.y, point.z)
         px = vec * axis_x
         py = vec * axis_y
         pz = vec * axis_z
@@ -189,10 +195,13 @@ def _obb_volume(points, axis_x, axis_y, axis_z):
     """基底に対する OBB 体積を計算します。
 
     Args:
-        points: 計算対象の座標列。
-        axis_x: 対象座標系の各基底ベクトル。
-        axis_y: 対象座標系の各基底ベクトル。
-        axis_z: 対象座標系の各基底ベクトル。
+        points (Sequence[om2.MPoint]): 計算対象の座標列。
+        axis_x (om2.MVector): 対象座標系のX軸の基底ベクトル。
+        axis_y (om2.MVector): 対象座標系のY軸の基底ベクトル。
+        axis_z (om2.MVector): 対象座標系のZ軸の基底ベクトル。
+
+    Returns:
+        float: 投影範囲から求めたボックスの体積。
     """
     min_x, max_x, min_y, max_y, min_z, max_z = _project_extents(points, axis_x, axis_y, axis_z)
     extent_x = max(max_x - min_x, 1e-6)
@@ -205,13 +214,16 @@ def _rotate_basis(axis_x, axis_y, axis_z, rot_axis, angle_radians):
     """基底を任意軸回転し、再直交化した基底を返します。
 
     Args:
-        axis_x: 対象座標系の各基底ベクトル。
-        axis_y: 対象座標系の各基底ベクトル。
-        axis_z: 対象座標系の各基底ベクトル。
-        rot_axis: 基底を回転させる軸ベクトル。
-        angle_radians: 回転・配置の角度。radians指定はラジアン。
+        axis_x (om2.MVector): 対象座標系のX軸の基底ベクトル。
+        axis_y (om2.MVector): 対象座標系のY軸の基底ベクトル。
+        axis_z (om2.MVector): 対象座標系のZ軸の基底ベクトル。
+        rot_axis (om2.MVector): 基底を回転させる軸ベクトル。
+        angle_radians (float): ラジアンで指定する回転角度。
+
+    Returns:
+        tuple[om2.MVector, om2.MVector, om2.MVector]: 回転して再直交化したX・Y・Z基底。
     """
-    quat = om.MQuaternion(angle_radians, rot_axis)
+    quat = om2.MQuaternion(angle_radians, rot_axis)
     new_x = _safe_normalize(axis_x.rotateBy(quat), axis_x)
     new_y = _safe_normalize(axis_y.rotateBy(quat), axis_y)
     new_z = _safe_normalize(axis_z.rotateBy(quat), axis_z)
@@ -224,13 +236,16 @@ def _refine_axes_by_volume_local_search(points, axis_x, axis_y, axis_z, initial_
     """局所探索で OBB 体積が小さくなる軸向きを探索します。
 
     Args:
-        points: 計算対象の座標列。
-        axis_x: 対象座標系の各基底ベクトル。
-        axis_y: 対象座標系の各基底ベクトル。
-        axis_z: 対象座標系の各基底ベクトル。
-        initial_deg: 局所探索の初期角度刻みまたは最小刻み。単位は度。
-        min_deg: 局所探索の初期角度刻みまたは最小刻み。単位は度。
-        decay: 反復ごとに探索刻みを縮小する係数。
+        points (Sequence[om2.MPoint]): 計算対象の座標列。
+        axis_x (om2.MVector): 対象座標系のX軸の基底ベクトル。
+        axis_y (om2.MVector): 対象座標系のY軸の基底ベクトル。
+        axis_z (om2.MVector): 対象座標系のZ軸の基底ベクトル。
+        initial_deg (float): 局所探索の初期角度刻み。単位は度。
+        min_deg (float): 局所探索を終了する最小角度刻み。単位は度。
+        decay (float): 改善がない反復で探索刻みへ掛ける縮小係数。
+
+    Returns:
+        tuple[om2.MVector, om2.MVector, om2.MVector]: 局所探索で体積を小さくしたX・Y・Z基底。
     """
     current_x = axis_x
     current_y = axis_y
@@ -268,12 +283,15 @@ def _covariance_matrix(points):
     """ポイント群の共分散行列を計算します。
 
     Args:
-        points: 計算対象の座標列。
+        points (Sequence[om2.MPoint]): 計算対象の座標列。
+
+    Returns:
+        list[list[float]]: 座標の平均を引いて求めた3行3列の対称共分散行列。
     """
     count = float(len(points))
-    centroid = om.MVector()
+    centroid = om2.MVector()
     for point in points:
-        centroid += om.MVector(point.x, point.y, point.z)
+        centroid += om2.MVector(point.x, point.y, point.z)
     centroid /= count
 
     covariance = [[0.0, 0.0, 0.0],
@@ -310,9 +328,12 @@ def _jacobi_eigen_decomposition_3x3(matrix, max_iter=32, epsilon=1e-10):
     """3x3 対称行列の固有値/固有ベクトルを Jacobi 法で求めます。
 
     Args:
-        matrix: 変換または数値計算に使う行列。
-        max_iter: 反復計算の最大回数。
-        epsilon: ゼロ判定・収束判定の許容誤差。
+        matrix (list[list[float]]): 分解する3行3列の対称行列。
+        max_iter (int): 反復計算の最大回数。
+        epsilon (float): 非対角成分のゼロ判定・収束判定の許容誤差。
+
+    Returns:
+        tuple[list[float], list[om2.MVector]]: 固有値の列と同じ順序に対応する固有ベクトルの列。
     """
     a = [row[:] for row in matrix]
     v = [[1.0, 0.0, 0.0],
@@ -369,9 +390,9 @@ def _jacobi_eigen_decomposition_3x3(matrix, max_iter=32, epsilon=1e-10):
 
     eigenvalues = [a[0][0], a[1][1], a[2][2]]
     eigenvectors = [
-        om.MVector(v[0][0], v[1][0], v[2][0]),
-        om.MVector(v[0][1], v[1][1], v[2][1]),
-        om.MVector(v[0][2], v[1][2], v[2][2]),
+        om2.MVector(v[0][0], v[1][0], v[2][0]),
+        om2.MVector(v[0][1], v[1][1], v[2][1]),
+        om2.MVector(v[0][2], v[1][2], v[2][2]),
     ]
     return eigenvalues, eigenvectors
 
@@ -389,7 +410,7 @@ def computeOrientedBounds(points):
     Raises:
         ValueError: 3点未満、または有限でない座標。
     """
-    points = [om.MPoint(point) for point in points]
+    points = [om2.MPoint(point) for point in points]
     if len(points) < 3 or any(not math.isfinite(value) for point in points for value in (point.x, point.y, point.z)):
         raise ValueError("有限座標の点を3点以上指定してください。")
     covariance = _covariance_matrix(points)
@@ -397,12 +418,12 @@ def computeOrientedBounds(points):
 
     # 最大固有値方向を長軸候補として採用する。
     order = sorted(range(3), key=lambda i: eigenvalues[i], reverse=True)
-    axis_x = _safe_normalize(eigenvectors[order[0]], om.MVector.kXaxisVector)
-    axis_y = _safe_normalize(eigenvectors[order[1]], om.MVector.kYaxisVector)
+    axis_x = _safe_normalize(eigenvectors[order[0]], om2.MVector.kXaxisVector)
+    axis_y = _safe_normalize(eigenvectors[order[1]], om2.MVector.kYaxisVector)
 
     axis_z = axis_x ^ axis_y
-    axis_z = _safe_normalize(axis_z, om.MVector.kZaxisVector)
-    axis_y = _safe_normalize(axis_z ^ axis_x, om.MVector.kYaxisVector)
+    axis_z = _safe_normalize(axis_z, om2.MVector.kZaxisVector)
+    axis_y = _safe_normalize(axis_z ^ axis_x, om2.MVector.kYaxisVector)
 
     # minor axes が近接する形状（正方断面など）での回転不安定を抑える
     axis_y, axis_z = _refine_minor_axes_by_min_area(points, axis_x, axis_y, axis_z, steps=180)

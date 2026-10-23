@@ -90,12 +90,12 @@ class ReferenceTest(unittest.TestCase):
         self.assertEqual(reference.getEditNodeNames(), [])
         self.assertEqual(reference.getEditAttrNames(), [])
 
-        nodeName = f"{self.namespace_name}:mlibReferenceExportHelper"
-        cmds.setAttr(nodeName + ".translateX", 3.0)
+        node_name = f"{self.namespace_name}:mlibReferenceExportHelper"
+        cmds.setAttr(node_name + ".translateX", 3.0)
 
         editStrings = reference.getEditStrings()
         self.assertTrue(any("translate" in edit for edit in editStrings))
-        self.assertIn("|" + nodeName, reference.getEditNodeNames())
+        self.assertIn("|" + node_name, reference.getEditNodeNames())
         self.assertIn("translate", reference.getEditAttrNames())
 
     def test_unload_load_round_trip(self):

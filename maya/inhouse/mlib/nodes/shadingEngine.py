@@ -16,6 +16,7 @@ class ShadingEngine(ObjectSet):
 
         Args:
             kind (str): surface/volume/displacement。
+
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
         """
@@ -26,6 +27,7 @@ class ShadingEngine(ObjectSet):
 
         Args:
             kind (str): surface/volume/displacement。
+
         Returns:
             Node | None: 型付きノード。未接続ならNone。
         """
@@ -42,8 +44,10 @@ class ShadingEngine(ObjectSet):
             kind (str): surface/volume/displacement。
             output (str | None): ノード指定時の出力名。既定はoutColor、変位はdisplacement。
             fast (bool): TrueはOpenMaya直接接続でUndoなし。
+
         Returns:
             ShadingEngine: 自身。
+
         Raises:
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
@@ -68,8 +72,10 @@ class ShadingEngine(ObjectSet):
             targets (Node | Face | Faces | str | Iterable): 対象。選択に依存しない。
             fast (bool): Trueは単一インスタンスのポリゴン全体をOpenMayaで排他的に割り当てる。
                 フェース単位・NURBS・子Transformを持つ階層は更新前に拒否する。
+
         Returns:
             ShadingEngine: 自身。空列では変更しない。
+
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
             NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
@@ -183,8 +189,10 @@ class ShadingEngine(ObjectSet):
 
         Args:
             kind (str): surface/volume/displacement。
+
         Returns:
             str: 対応する接続先名。
+
         Raises:
             ValueError: 未対応の種別の場合。
         """

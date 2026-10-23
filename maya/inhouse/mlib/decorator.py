@@ -1,7 +1,6 @@
 """Maya操作の一時状態とUndoを扱うコンテキストマネージャを提供する。"""
 
 import contextlib
-from contextlib import contextmanager
 from contextvars import ContextVar
 
 import maya.api.OpenMaya as om2
@@ -132,7 +131,7 @@ def undoTransaction(name=None):
         cmds.undoInfo(closeChunk=True)
 
 
-@contextmanager
+@contextlib.contextmanager
 def nativeUnits():
     """ブロック内だけ内部単位(距離=cm、角度=radian)を強制する。
 
@@ -238,7 +237,7 @@ def preservedSkinShape(joints):
                     logger.warning("スキン保護のモード復元に失敗しました: %s (%s)", name, exc)
 
 
-@contextmanager
+@contextlib.contextmanager
 def viewportOff():
     """メインペインを非表示にし、終了時に以前の表示状態へ戻す。
 

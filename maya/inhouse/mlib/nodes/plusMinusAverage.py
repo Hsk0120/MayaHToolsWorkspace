@@ -12,10 +12,11 @@ class PlusMinusAverage(ShadingDependNode):
 
     def getOperation(self):
         """現在のモード名を取得する。
+
         Returns:
             str: none, sum, subtract, average。
         """
-        return _Calculation.enumName(self.getPlug("operation"), ('none', 'sum', 'subtract', 'average'))
+        return _Calculation.enum_name(self.getPlug("operation"), ("none", "sum", "subtract", "average"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -25,13 +26,14 @@ class PlusMinusAverage(ShadingDependNode):
         Args:
             mode (str | int): none, sum, subtract, average、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             PlusMinusAverage: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('none', 'sum', 'subtract', 'average'))
+        value = _Calculation.enum_value(mode, ("none", "sum", "subtract", "average"))
         self.getPlug("operation").set(value)
         return self
 
@@ -40,10 +42,11 @@ class PlusMinusAverage(ShadingDependNode):
 
         Args:
             dimension (int): 1/2/3。
+
         Returns:
             list[int]: 疎な論理番号。
         """
-        return list(self._input_array(dimension).mplug().getExistingArrayAttributeIndices())
+        return self._input_array(dimension).getIndices()
 
     @flag_aliases(idx="index")
     def getInputPlug(self, index, dimension=1):
@@ -52,6 +55,7 @@ class PlusMinusAverage(ShadingDependNode):
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             dimension (int): 1/2/3。
+
         Returns:
             Plug: 未作成要素はIndexError。
         """
@@ -69,6 +73,7 @@ class PlusMinusAverage(ShadingDependNode):
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             value (float | Iterable[float]): 入力値。
             dimension (int): 1/2/3。
+
         Returns:
             PlusMinusAverage: 自身。
 
@@ -91,6 +96,7 @@ class PlusMinusAverage(ShadingDependNode):
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             dimension (int): 1/2/3。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PlusMinusAverage: 自身。
 
@@ -111,6 +117,7 @@ class PlusMinusAverage(ShadingDependNode):
         Args:
             index (int): 既存番号。 別名 ``idx`` も使用可能。
             dimension (int): 1/2/3。
+
         Returns:
             PlusMinusAverage: 自身。
 
@@ -125,6 +132,7 @@ class PlusMinusAverage(ShadingDependNode):
 
         Args:
             dimension (int): 1/2/3。
+
         Returns:
             Plug: 出力参照。
         """
@@ -135,6 +143,7 @@ class PlusMinusAverage(ShadingDependNode):
 
         Args:
             dimension (int): 1/2/3。
+
         Returns:
             ArrayPlug: 入力配列。
         """

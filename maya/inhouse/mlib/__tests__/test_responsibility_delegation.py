@@ -60,10 +60,10 @@ class ResponsibilityTest(unittest.TestCase):
         self.assertEqual(list(inputs.mplug().getExistingArrayAttributeIndices()), [])
         for index in (True, 1.5):
             with self.assertRaises(TypeError):
-                inputs.getElement(index, create=True)
+                inputs.getElement(index)
         for index in (-1, 2147483648):
             with self.assertRaises(IndexError):
-                inputs.getElement(index, create=True)
+                inputs.getElement(index)
         self.assertEqual(list(inputs.mplug().getExistingArrayAttributeIndices()), [])
 
     def test_numeric_compound_locked_child_preflight(self):

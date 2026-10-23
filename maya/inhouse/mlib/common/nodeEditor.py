@@ -11,10 +11,14 @@ class NodeEditor:
         ウィンドウの所有権と既存パネルの再利用はMaya側で管理する。
         UI操作なのでシーンのUndo対象にはならない。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             RuntimeError: バッチ実行中、またはMayaが起動を拒否した場合。
         """
-        from maya import cmds, mel
+        import maya.cmds as cmds
+        import maya.mel as mel
 
         if cmds.about(batch=True):
             raise RuntimeError("NodeEditor requires Maya GUI")

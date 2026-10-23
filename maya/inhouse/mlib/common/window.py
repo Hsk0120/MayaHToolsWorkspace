@@ -21,7 +21,11 @@ class Window(_WindowReference):
         return [cls(name) for name in cmds.lsUI(windows=True) or []]
 
     def show(self):
-        """ウィンドウを表示する。"""
+        """ウィンドウを表示する。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.showWindow(self.getName())
 
     def getSize(self):
@@ -38,6 +42,9 @@ class Window(_WindowReference):
         Args:
             width (int): 幅。正数。
             height (int): 高さ。正数。
+
+        Returns:
+            None: 値を返さない。
         """
         size = self._pair(width, height, positive=True)
         cmds.window(self.getName(), edit=True, widthHeight=size)
@@ -57,6 +64,9 @@ class Window(_WindowReference):
         Args:
             x (int): 左端。
             y (int): 上端。
+
+        Returns:
+            None: 値を返さない。
         """
         x, y = self._pair(x, y)
         cmds.window(self.getName(), edit=True, topLeftCorner=(y, x))
@@ -74,14 +84,20 @@ class Window(_WindowReference):
 
         Args:
             enabled (bool): サイズ変更を許可するか。
+
+        Returns:
+            None: 値を返さない。
         """
         enabled = self._boolean(enabled)
         cmds.window(self.getName(), edit=True, sizeable=enabled)
 
     def capture(self):
-        """UiSnapshot: ネイティブwindow状態と表示・サイズ変更許可をメモリへ退避する。
+        """ネイティブwindow状態と表示・サイズ変更許可をメモリへ退避する。
 
         同一セッション・同一UIへのrestore用。内容や実行コードは保存しない。
+
+        Returns:
+            UiSnapshot: 同じUIへ復元するためのネイティブ状態と表示・サイズ変更許可。
         """
         return self._capture({
                 "state": cmds.window(self.getName(), query=True, state=True),
@@ -92,6 +108,9 @@ class Window(_WindowReference):
 
         Args:
             snapshot (UiSnapshot): captureの返り値。
+
+        Returns:
+            None: 値を返さない。
         """
         self._validate_snapshot(snapshot, {"state": str, "visible": bool, "resizable": bool})
         cmds.window(self.getName(), edit=True, state=snapshot["state"])

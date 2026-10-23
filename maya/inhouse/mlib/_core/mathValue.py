@@ -37,7 +37,7 @@ def _checked_index(index, size, name):
     if position < 0:
         position += size
     if not 0 <= position < size:
-        raise IndexError("{} index out of range".format(name))
+        raise IndexError(f"{name} index out of range")
     return position
 
 

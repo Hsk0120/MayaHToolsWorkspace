@@ -19,7 +19,7 @@ class BlendWeighted(Node):
         Returns:
             list[int]: 存在するinputの論理番号。疎な配列を保持する。
         """
-        return list(self.getPlug("input").mplug().getExistingArrayAttributeIndices())
+        return self.getPlug("input").getIndices()
 
     def getInputPlugs(self):
         """既存入力の番号とPlug。
@@ -43,8 +43,10 @@ class BlendWeighted(Node):
 
         Args:
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 入力アトリビュートの参照。
+
         Raises:
             ValueError: indexが非負整数でない場合。
             IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
@@ -61,9 +63,10 @@ class BlendWeighted(Node):
         """定数入力を設定する。既存接続は切断しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             value (float): 有限の入力値。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             BlendWeighted: 自身。
 
@@ -78,14 +81,16 @@ class BlendWeighted(Node):
 
         Args:
             index (int): inputの論理インデックス。 別名 ``idx`` も使用可能。
+
         Returns:
             float: 評価済み倍率。未設定のweight要素は作成しない。
+
         Raises:
             IndexError: inputが存在しない場合。
         """
         self.getInputPlug(index)
         weights = self.getPlug("weight")
-        if index not in weights.mplug().getExistingArrayAttributeIndices():
+        if index not in weights.getIndices():
             return 1.0
         return weights[index].get()
 
@@ -96,9 +101,10 @@ class BlendWeighted(Node):
         """ウェイトを設定する。負値も使用可能。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             value (float): 有限の倍率。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             BlendWeighted: 自身。
 
@@ -116,6 +122,7 @@ class BlendWeighted(Node):
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             source (Plug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置換するか。 別名 ``f`` も使用可能。
+
         Returns:
             BlendWeighted: 自身。
         """

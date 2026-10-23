@@ -128,8 +128,10 @@ class DagPose(Node):
 
         Args:
             member (Node | str): 保存対象のノード。
+
         Returns:
             int: members・worldMatrix・xformMatrixに共通の論理番号。
+
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
@@ -147,8 +149,10 @@ class DagPose(Node):
         Args:
             member (Node | str): 保存対象のノード。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             Matrix: 保存行列のコピー。
+
         Raises:
             ValueError: メンバーでない場合。
         """
@@ -257,8 +261,10 @@ class DagPose(Node):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             DagPose: 自身。
+
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
@@ -274,8 +280,10 @@ class DagPose(Node):
 
         Args:
             members (Node | str | Iterable[Node | str] | None): 更新対象。Noneなら全メンバー。
+
         Returns:
             DagPose: 自身。
+
         Raises:
             ValueError: 明示した対象が空、またはメンバーでない場合。
             RuntimeError: Mayaが更新を拒否した場合。
@@ -296,6 +304,7 @@ class DagPose(Node):
 
         Args:
             members (Node | str | Iterable[Node | str]): 追加する対象。空は不可。
+
         Returns:
             DagPose: 自身。
         """
@@ -310,8 +319,10 @@ class DagPose(Node):
 
         Args:
             members (Node | str | Iterable[Node | str]): 除外する既存メンバー。空は不可。
+
         Returns:
             DagPose: 自身。
+
         Raises:
             ValueError: ポーズのメンバーでない対象が含まれる場合。
         """

@@ -38,9 +38,8 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   動的アトリビュート、多数のノード型の既存プラグで突き合わせる。cmds へ問い合わせるのは存在する要素だけで、
   存在しない要素は同じアトリビュートの既存要素と同じ型名になり要素が作られないことを確かめる。
   値によって型が変わる generic アトリビュート(``choice`` の ``input``/``output``、``unitConversion``)は、
-  行列を保持する場合だけ cmds と同じ ``matrix`` (``MatrixPlug``)になることを確かめる
-  (入力接続のある要素は接続元の型、接続の無い要素は値、接続元も値によって型が変わる場合は
-  接続元を辿った結果)
+  参照は基底 ``Plug`` のまま保持し、行列を保持する場合だけ ``get()`` の戻り値が
+  ``mlib.maths.Matrix`` になることと、現在値がcmdsと一致することを確かめる。
 - コンポーネント名としても解釈されるアトリビュート名(``pnts[i]``・``controlPoints[i]``)を
   om2 でアトリビュートパスを辿って解決した ``to_plug`` と、``cmds.connectAttr`` が接続するプラグ
 - ワールド空間アトリビュートのインスタンス番号の要素(``instanceCount(True)``)と
@@ -589,9 +588,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     def test_generic_attributes_holding_matrices_match_cmds(self):
         # 値によって型が変わる generic アトリビュートは、アトリビュート定義からは型名が決まらない(None)。Plug の生成は
-        # 存在する要素の値が行列なら cmds.getAttr(type=True) と同じ "matrix" として MatrixPlug を選ぶ。
-        from mlib.plugs.plug import _held_matrix_type
-
+        # 値を評価せず基底Plugを保ち、get()が現在値を解釈する。
         source = Node(cmds.createNode("transform", name="genericSource"))
         cmds.addAttr(source.getName(), longName="dbl", attributeType="double")
         cmds.addAttr(source.getName(), longName="colour", attributeType="float3")
@@ -612,17 +609,19 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                     self.assertIsNone(attributeType(plug.mplug()))
                     expected = cmds.getAttr(name, type=True)
                     checked.add(expected)
+                    self.assertIs(type(plug), Plug)
                     if expected == "matrix":
-                        self.assertEqual(_held_matrix_type(plug.mplug()), "matrix")
-                        self.assertEqual(type(plug).__name__, "MatrixPlug")
+                        self.assertIsInstance(plug.get(), mlib.maths.Matrix)
                         for value, reference in zip(plug.get(), cmds.getAttr(name)):
                             self.assertAlmostEqual(value, reference)
                     else:
                         # double3・float3 などの数値の組や数値を保持する場合は基底の Plug。
-                        self.assertIsNone(_held_matrix_type(plug.mplug()))
-                        self.assertIs(type(plug), Plug)
+                        reference = cmds.getAttr(name)
+                        if isinstance(reference, list) and len(reference) == 1 and isinstance(reference[0], tuple):
+                            reference = reference[0]
+                        self.assertEqual(plug.get(), reference)
         self.assertTrue({"matrix", "double3", "float3"} <= checked, checked)
-        # 入力接続の無い要素は値を読み、接続元も値によって型が変わるアトリビュートなら接続元を辿る。
+        # 入力接続の有無や接続元がgenericかどうかにかかわらず参照型は変えない。
         stored = Node(cmds.createNode("choice", name="genericStored"))
         cmds.setAttr(stored.getName() + ".input[2]", 3.0)
         standalone = Node(cmds.createNode("unitConversion", name="genericStandalone"))
@@ -637,10 +636,34 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
             name = plug.getFullName()
             with self.subTest(plug=name):
                 expected = cmds.getAttr(name, type=True)
-                self.assertEqual(_held_matrix_type(plug.mplug()), "matrix" if expected == "matrix" else None)
-                self.assertEqual(type(plug).__name__, "MatrixPlug" if expected == "matrix" else "Plug")
-        self.assertEqual(type(chained.getPlug("input[0]")).__name__, "MatrixPlug")
+                self.assertIs(type(plug), Plug)
+                value = plug.get()
+                reference = cmds.getAttr(name)
+                if expected == "matrix":
+                    self.assertIsInstance(value, mlib.maths.Matrix)
+                    for actual, raw in zip(value, reference):
+                        self.assertAlmostEqual(actual, raw)
+                else:
+                    if isinstance(reference, list) and len(reference) == 1 and isinstance(reference[0], tuple):
+                        reference = reference[0]
+                    self.assertEqual(value, reference)
+        self.assertIs(type(chained.getPlug("input[0]")), Plug)
         self.assertEqual(standalone.getPlug("input").get(), 3.0)
+        # 同じoutput参照を保持したままselectorで値の型を切り替える。
+        choice = choices[0]
+        cmds.connectAttr(source.getName() + ".dbl", choice.getName() + ".input[1]")
+        output = choice.getPlug("output")
+        for selector in (0, 1, 0, 1, 0):
+            cmds.setAttr(choice.getName() + ".selector", selector)
+            value = output.get()
+            reference = cmds.getAttr(output.getFullName())
+            self.assertIs(type(output), Plug)
+            if selector == 0:
+                self.assertIsInstance(value, mlib.maths.Matrix)
+                for actual, raw in zip(value, reference):
+                    self.assertAlmostEqual(actual, raw)
+            else:
+                self.assertEqual(value, reference)
 
     def test_missing_elements_resolve_like_existing_elements_without_changes(self):
         # 存在しない配列要素もアトリビュート定義から同じ型名になり、要素は作られない。cmds へは存在する

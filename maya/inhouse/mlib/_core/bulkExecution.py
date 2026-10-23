@@ -18,6 +18,7 @@ def calculation_results(method, functions, args, kwargs):
         functions (Sequence[callable]): 実際の呼出し先。
         args (Sequence[tuple]): 要素別の位置引数。
         kwargs (Sequence[dict]): 要素別の正規化済みキーワード引数。
+
     Returns:
         bool: 少なくとも一つの対象がget指定で計算値を返す場合True。
     """

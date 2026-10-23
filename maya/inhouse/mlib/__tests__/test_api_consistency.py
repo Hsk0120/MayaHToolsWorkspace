@@ -122,7 +122,8 @@ class ArgumentAliasTest(unittest.TestCase):
         self.assertEqual(node.getPlug('tx').get(), 4)
         node.resetAttrs(attributes=['tx'])
         array = calc.getPlug('matrixIn')
-        self.assertEqual(array.getElement(idx=0, create=True), array.getElement(index=0))
+        array[0].set(mlib.maths.Matrix())
+        self.assertEqual(array.getElement(idx=0), array.getElement(index=0))
         with self.assertRaises(TypeError):
             array.getElement(0, idx=1)
         with self.assertRaises(TypeError):

@@ -19,8 +19,8 @@ def enabled(*args, **kwargs):
     """isEnabledへ委譲するis省略の判定入口。
 
     Args:
-        *args: 判定本体へ渡す位置引数。
-        **kwargs: 判定本体へ渡すキーワード引数。
+        *args (object): 判定本体へ渡す位置引数。
+        **kwargs (object): 判定本体へ渡すキーワード引数。
 
     Returns:
         object: 判定本体と同じ結果。
@@ -29,5 +29,5 @@ def enabled(*args, **kwargs):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('is_enabled',):
+for _obsolete_name in ("is_enabled",):
     globals().pop(_obsolete_name, None)

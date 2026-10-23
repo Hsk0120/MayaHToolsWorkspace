@@ -38,12 +38,5 @@ class Edges(Components):
         if not (self._uses_standard_iteration(Edge) and self._uses_standard_vertices()
                 and Edge.getVertices is _EDGE_GET_VERTICES):
             return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
-        Component._validate_shape(self.shape, Edge.shape_type)
-        indices = []
-        if self._indices:
-            mesh_fn = self.shape.meshFn()
-            count = mesh_fn.numEdges
-            for index in self._indices:
-                Component._validate_index(index, count)
-                indices.extend(mesh_fn.getEdgeVertices(index))
+        indices = self._mesh_vertex_indices("numEdges", "getEdgeVertices")
         return Vertices(self.shape, indices)

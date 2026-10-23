@@ -98,5 +98,5 @@ def legalizeName(name):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('legalize_name',):
+for _obsolete_name in ("legalize_name",):
     globals().pop(_obsolete_name, None)

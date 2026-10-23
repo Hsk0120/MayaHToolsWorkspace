@@ -1,6 +1,6 @@
 """形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"""
 
-import maya.api.OpenMaya as om
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..common._fast import is_fast
@@ -23,12 +23,12 @@ def geometry(shape, indices, edit=False):
         RuntimeError: edit=True で対象がロックされている場合。
     """
     path = shape.mpath()
-    mesh = path.node().hasFn(om.MFn.kMesh)
-    fn = om.MFnMesh(path) if mesh else om.MFnNurbsCurve(path)
+    mesh = path.node().hasFn(om2.MFn.kMesh)
+    fn = om2.MFnMesh(path) if mesh else om2.MFnNurbsCurve(path)
     if edit:
-        if not mesh and fn.form == om.MFnNurbsCurve.kPeriodic:
+        if not mesh and fn.form == om2.MFnNurbsCurve.kPeriodic:
             raise NotImplementedError("fast edits of periodic curves are not supported")
-        dependency = om.MFnDependencyNode(path.node())
+        dependency = om2.MFnDependencyNode(path.node())
         source = dependency.findPlug("inMesh" if mesh else "create", False)
         if source.isDestination:
             raise NotImplementedError("fast geometry edits require a shape without input history")
@@ -55,7 +55,7 @@ def positions(shape, indices, ws=False):
         list[tuple[float, float, float]]: 指定順の座標。単点では全点を取得しない。
     """
     path, fn, mesh = geometry(shape, indices)
-    space = om.MSpace.kWorld if ws else om.MSpace.kObject
+    space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
     if len(indices) == 1:
         points = [fn.getPoint(indices[0], space) if mesh else fn.cvPosition(indices[0], space)]
     else:
@@ -75,7 +75,7 @@ def command_indices(shape, indices):
         list[int]: 周期カーブでは末尾の重複CVを先頭の独立CVへ写した番号。
     """
     _, fn, mesh = geometry(shape, indices)
-    if not mesh and fn.form == om.MFnNurbsCurve.kPeriodic:
+    if not mesh and fn.form == om2.MFnNurbsCurve.kPeriodic:
         return [index % (fn.numCVs - fn.degree) for index in indices]
     return list(indices)
 
@@ -104,9 +104,9 @@ def setPositions(shape, indices, values, ws=False):
         ws = False
     numbers = command_indices(shape, indices)
     name, token = shape.getFullName(), "vtx" if mesh else "cv"
-    unit = om.MDistance.uiUnit()
+    unit = om2.MDistance.uiUnit()
     for index, value in zip(numbers, values):
-        coordinates = [om.MDistance(v).asUnits(unit) for v in value]
+        coordinates = [om2.MDistance(v).asUnits(unit) for v in value]
         cmds.xform("{}.{}[{}]".format(name, token, index), absolute=True,
                    translation=coordinates, worldSpace=ws, objectSpace=not ws)
 
@@ -127,10 +127,10 @@ def _set_positions_direct(shape, indices, values, ws=False):
     transform = path.inclusiveMatrix()
     if ws and abs(transform.det4x4()) < 1e-12:
         raise ValueError("Cannot edit in world space with a singular transform")
-    inverse = transform.inverse() if ws else om.MMatrix()
+    inverse = transform.inverse() if ws else om2.MMatrix()
     for index, value in zip(indices, values):
         # cvPositions(kWorld)はCVのwも行列積に使う。同じwで逆変換して往復を保つ。
-        point = om.MPoint(value[0], value[1], value[2], points[index].w) * inverse
+        point = om2.MPoint(value[0], value[1], value[2], points[index].w) * inverse
         point.w = points[index].w
         points[index] = point
     if mesh:
@@ -167,7 +167,7 @@ def object_positions(shape, indices, values):
     else:
         cvs = fn.cvPositions()
         weights = [cvs[i].w for i in indices]
-    points = [om.MPoint(row[0], row[1], row[2], weight) * inverse
+    points = [om2.MPoint(row[0], row[1], row[2], weight) * inverse
               for row, weight in zip(values, weights)]
     return [(point.x, point.y, point.z) for point in points]
 

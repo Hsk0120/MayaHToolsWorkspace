@@ -85,7 +85,7 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
      - 基本の書き方
      - 詳細
    * - 選択した頂点をまとめて編集
-     - ``captureSelection().filter("vertex").components()``
+     - ``captureSelection().filter("vertex").getComponents()``
      - :doc:`guide_geometry`
    * - アトリビュートの値を取得
      - ``node.getPlug("translateX").get()``、UI単位は ``get(uiUnits=True)``

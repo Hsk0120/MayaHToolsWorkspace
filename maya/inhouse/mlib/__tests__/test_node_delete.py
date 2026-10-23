@@ -101,7 +101,7 @@ class NodeDeleteTest(unittest.TestCase):
         finally:
             cmds.lockNode(node.getFullName(), lock=False)
 
-    def test_joint_command_uses_specialized_delete(self):
+    def test_joint_command_uses_standard_delete(self):
         joint = mlib.createNode('joint', skipSelect=True)
         child = mlib.createNode('joint', parent=joint, skipSelect=True)
         original = mlib.nodes.Joint.delete
@@ -109,7 +109,7 @@ class NodeDeleteTest(unittest.TestCase):
             mlib.delete(joint.getFullName())
             self.assertEqual(method.call_count, 1)
         self.assertFalse(joint.isValid())
-        self.assertTrue(child.isValid())
+        self.assertFalse(child.isValid())
         cmds.undo()
         self.assertTrue(joint.isValid())
         self.assertEqual(child.getParent().getUuid(), joint.getUuid())

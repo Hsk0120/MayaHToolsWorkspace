@@ -13,6 +13,7 @@ class AimMatrix(Node):
 
     def getInputPlug(self):
         """入力のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -20,6 +21,7 @@ class AimMatrix(Node):
 
     def getInput(self):
         """入力の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -33,6 +35,7 @@ class AimMatrix(Node):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -50,6 +53,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -61,6 +65,7 @@ class AimMatrix(Node):
 
     def getEnvelopePlug(self):
         """全体ウェイトのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -68,6 +73,7 @@ class AimMatrix(Node):
 
     def getEnvelope(self):
         """全体ウェイトの評価値を取得する。
+
         Returns:
             float: 現在の値。
         """
@@ -81,6 +87,7 @@ class AimMatrix(Node):
         Args:
             value (float): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -98,6 +105,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -109,13 +117,15 @@ class AimMatrix(Node):
 
     def getPrimaryMatrixPlug(self):
         """primaryターゲット行列のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('primaryTargetMatrix')
+        return self.getPlug("primaryTargetMatrix")
 
     def getPrimaryMatrix(self):
         """primaryターゲット行列の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -129,6 +139,7 @@ class AimMatrix(Node):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -146,6 +157,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -157,13 +169,15 @@ class AimMatrix(Node):
 
     def getPrimaryAxisPlug(self):
         """primary入力軸のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('primaryInputAxis')
+        return self.getPlug("primaryInputAxis")
 
     def getPrimaryAxis(self):
         """primary入力軸の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -177,6 +191,7 @@ class AimMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -194,6 +209,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -205,13 +221,15 @@ class AimMatrix(Node):
 
     def getPrimaryVectorPlug(self):
         """primaryターゲットベクトルのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('primaryTargetVector')
+        return self.getPlug("primaryTargetVector")
 
     def getPrimaryVector(self):
         """primaryターゲットベクトルの評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -225,6 +243,7 @@ class AimMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -242,6 +261,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -253,10 +273,11 @@ class AimMatrix(Node):
 
     def getPrimaryMode(self):
         """現在のモード名を取得する。
+
         Returns:
             str: lock, aim, align。
         """
-        return _Calculation.enumName(self.getPlug("primaryMode"), ('lock', 'aim', 'align'))
+        return _Calculation.enum_name(self.getPlug("primaryMode"), ("lock", "aim", "align"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -266,25 +287,28 @@ class AimMatrix(Node):
         Args:
             mode (str | int): lock, aim, align、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             AimMatrix: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('lock', 'aim', 'align'))
+        value = _Calculation.enum_value(mode, ("lock", "aim", "align"))
         self.getPlug("primaryMode").set(value)
         return self
 
     def getSecondaryMatrixPlug(self):
         """secondaryターゲット行列のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('secondaryTargetMatrix')
+        return self.getPlug("secondaryTargetMatrix")
 
     def getSecondaryMatrix(self):
         """secondaryターゲット行列の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -298,6 +322,7 @@ class AimMatrix(Node):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -315,6 +340,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -326,13 +352,15 @@ class AimMatrix(Node):
 
     def getSecondaryAxisPlug(self):
         """secondary入力軸のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('secondaryInputAxis')
+        return self.getPlug("secondaryInputAxis")
 
     def getSecondaryAxis(self):
         """secondary入力軸の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -346,6 +374,7 @@ class AimMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -363,6 +392,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -374,13 +404,15 @@ class AimMatrix(Node):
 
     def getSecondaryVectorPlug(self):
         """secondaryターゲットベクトルのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('secondaryTargetVector')
+        return self.getPlug("secondaryTargetVector")
 
     def getSecondaryVector(self):
         """secondaryターゲットベクトルの評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -394,6 +426,7 @@ class AimMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AimMatrix: 自身。
 
@@ -411,6 +444,7 @@ class AimMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AimMatrix: 自身。
 
@@ -422,10 +456,11 @@ class AimMatrix(Node):
 
     def getSecondaryMode(self):
         """現在のモード名を取得する。
+
         Returns:
             str: none, aim, align。
         """
-        return _Calculation.enumName(self.getPlug("secondaryMode"), ('none', 'aim', 'align'))
+        return _Calculation.enum_name(self.getPlug("secondaryMode"), ("none", "aim", "align"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -435,18 +470,20 @@ class AimMatrix(Node):
         Args:
             mode (str | int): none, aim, align、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             AimMatrix: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('none', 'aim', 'align'))
+        value = _Calculation.enum_value(mode, ("none", "aim", "align"))
         self.getPlug("secondaryMode").set(value)
         return self
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
+
         Returns:
             Plug: 出力参照。
         """
@@ -454,6 +491,7 @@ class AimMatrix(Node):
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Matrix: 計算結果。
         """

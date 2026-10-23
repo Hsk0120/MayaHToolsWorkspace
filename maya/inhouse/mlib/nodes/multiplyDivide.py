@@ -17,6 +17,7 @@ class MultiplyDivide(ShadingDependNode):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -32,6 +33,7 @@ class MultiplyDivide(ShadingDependNode):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             MultiplyDivide: 自身。
 
@@ -50,6 +52,7 @@ class MultiplyDivide(ShadingDependNode):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             MultiplyDivide: 自身。
 
@@ -61,10 +64,11 @@ class MultiplyDivide(ShadingDependNode):
 
     def getOperation(self):
         """現在のモード名を取得する。
+
         Returns:
             str: none, multiply, divide, power。
         """
-        return _Calculation.enumName(self.getPlug("operation"), ('none', 'multiply', 'divide', 'power'))
+        return _Calculation.enum_name(self.getPlug("operation"), ("none", "multiply", "divide", "power"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -74,19 +78,21 @@ class MultiplyDivide(ShadingDependNode):
         Args:
             mode (str | int): none, multiply, divide, power、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             MultiplyDivide: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('none', 'multiply', 'divide', 'power'))
+        value = _Calculation.enum_value(mode, ("none", "multiply", "divide", "power"))
         self.getPlug("operation").set(value)
         return self
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.getPlug('output').get())
+        return Vector(self.getPlug("output").get())

@@ -2,6 +2,7 @@
 
 import math
 import unittest
+from unittest.mock import patch
 from maya import cmds
 import mlib
 from mlrig.setups import PoseRbf
@@ -61,3 +62,16 @@ class PoseEditTest(unittest.TestCase):
                 self.assertAlmostEqual(position, i, places=4)
         with self.assertRaises(ValueError):
             CurveFit.fit([[0, 0, 0], [0, 0, 0]], 4)
+
+    def test_generic_driver_is_rejected_before_value_evaluation(self):
+        """未対応のgenericは定義型で拒否し、現在値を評価して型を推測しない。"""
+        driver = mlib.createNode("network").addAttr("value", defaultValue=0)
+        choice = mlib.createNode("choice")
+        choice.getPlug("input")[0].connect(driver)
+        output = choice.getPlug("output")
+        self.assertIsNone(output.getDataType())
+        before = cmds.ls(uuid=True)
+        with patch.object(cmds, "getAttr", side_effect=AssertionError("driver value evaluated")):
+            with self.assertRaisesRegex(ValueError, "scalar numeric/angle"):
+                PoseRbf.create([output], [[0], [2]], [[0], [4]], [2])
+        self.assertCountEqual(cmds.ls(uuid=True), before)

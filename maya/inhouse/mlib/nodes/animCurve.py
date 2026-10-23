@@ -90,6 +90,7 @@ class AnimCurve(Node):
 
         Args:
             input (float): 時間または単位なしの入力。
+
         Returns:
             float: 評価値。空カーブはRuntimeError。
         """
@@ -114,8 +115,10 @@ class AnimCurve(Node):
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
             fast (bool): TrueはAPI 2.0で直接更新し、Undo履歴を追加しない。
+
         Returns:
             AnimCurve: 自身。fixed接線の詳細設定にはsetTangentを使う。
+
         Raises:
             ValueError: fastでfixed・global・未知の接線型を指定した場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
@@ -160,6 +163,7 @@ class AnimCurve(Node):
         Args:
             index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
             fast (bool): TrueはAPI 2.0によるUndoなし削除。
+
         Returns:
             AnimCurve: 自身。
         """
@@ -177,6 +181,7 @@ class AnimCurve(Node):
 
         Args:
             index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
+
         Returns:
             dict: Mayaの接線フラグ名をキーとした型・角度・ウェイト・ロック情報。
         """
@@ -202,8 +207,10 @@ class AnimCurve(Node):
             fast (bool): TrueはAPI 2.0で直接接線を更新する。
             **kwargs: getTangent()で返すキーと同名のMayaフラグ。
                 weightedTangentsはカーブ全体に適用される。
+
         Returns:
             AnimCurve: 自身。未知のフラグはValueError。
+
         Raises:
             ValueError: fastでglobal・未知の接線型を指定した場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
@@ -271,8 +278,10 @@ class AnimCurve(Node):
                 Noneは変更しない。
             post (str | None): preと同じ選択肢。Noneは変更しない。
             fast (bool): Trueはom2で直接更新し、Undoなし。既定Falseはcmdsで更新。
+
         Returns:
             AnimCurve: 自身。
+
         Raises:
             ValueError: 指定した外挿方法が不正な場合。両側を変更前に検証する。
             TypeError: fastがboolでない場合。
@@ -298,8 +307,9 @@ class AnimCurve(Node):
 
         Args:
             input_offset (float): 横軸の移動量。時間型は秒。
-            fast (bool): TrueはAPI直接更新でUndoなし。
             value_offset (float): 縦軸の移動量。内部単位(cm/rad/秒)。
+            fast (bool): TrueはAPI直接更新でUndoなし。
+
         Returns:
             AnimCurve: 自身。空カーブは変更しない。
         """
@@ -322,10 +332,11 @@ class AnimCurve(Node):
 
         Args:
             input_scale (float): 横軸倍率。0はキーが重なるためValueError。
-            fast (bool): TrueはAPI直接更新。負の入力倍率は更新前に未対応として拒否。
             value_scale (float): 縦軸倍率。
             input_pivot (float): 横軸の基準値。
             value_pivot (float): 縦軸の基準値。
+            fast (bool): TrueはAPI直接更新。負の入力倍率は更新前に未対応として拒否。
+
         Returns:
             AnimCurve: 自身。
         """
@@ -350,38 +361,15 @@ class AnimCurve(Node):
 
         Args:
             input (bool): 横軸を反転するか。
-            fast (bool): TrueはAPI直接更新。input=Trueとの併用は未対応。
             value (bool): 縦軸を反転するか。
             input_pivot (float): 横軸の反転中心。
             value_pivot (float): 縦軸の反転中心。
+            fast (bool): TrueはAPI直接更新。input=Trueとの併用は未対応。
+
         Returns:
             AnimCurve: 自身。
         """
         return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot)
-
-    def getDriverPlug(self):
-        """inputの直接接続元。時間型では通常timeノード。
-
-        Returns:
-            Plug | None: inputの直接接続元。時間型では通常timeノード。
-        """
-        return self.getPlug("input").getSource(skipConversionNodes=False)
-
-    def getOutputPlug(self):
-        """出力プラグ。
-
-        Returns:
-            Plug: 出力プラグ。
-        """
-        return self.getPlug("output")
-
-    def getDrivenPlugs(self):
-        """直接の出力接続先。変換・合成ノード越しの探索はしない。
-
-        Returns:
-            list[Plug]: 直接の出力接続先。変換・合成ノード越しの探索はしない。
-        """
-        return self.getOutputPlug().getDestinations(skipConversionNodes=False)
 
     def _set_api_value(self, fn, index, value):
         """キー値を直接更新し、時間出力の秒をMTimeで保持する。
@@ -467,7 +455,7 @@ class AnimCurve(Node):
             key (bool): setKeyでキーを作成・更新するか。
         """
         if not isinstance(name, str) or name.lower() not in _TANGENT_TYPES:
-            raise ValueError("Unsupported tangent type: {!r}".format(name))
+            raise ValueError(f"Unsupported tangent type: {name!r}")
         name = name.lower()
         if key and name == "fixed":
             raise ValueError("setKey cannot use fixed tangents; use setTangent")

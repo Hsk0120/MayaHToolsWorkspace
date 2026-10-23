@@ -33,8 +33,9 @@ setKeyの既定接線はlinear。既存キーを指定した場合は値を更�
 mirrorはキーの入力・出力値の反転であり、ワールド座標のミラーではありません。
 接線の反転はMayaのscaleKeyの規則に従います。
 
-``getDriverPlug()`` はinputの直接接続元、``getOutputPlug()`` は出力Plug、
-``getDrivenPlugs()`` は直接の接続先を返します。
+入力の直接接続元は ``curve.getPlug("input").getSource(skipConversionNodes=False)``、
+出力Plugは ``curve.getPlug("output")``、直接の接続先は
+``curve.getPlug("output").getDestinations(skipConversionNodes=False)`` で取得します。
 変換・合成ノードやアニメーションレイヤー越しの探索はまだ行いません。
 
 BlendWeighted
@@ -50,7 +51,7 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
    blend.setWeight(5, 0.5)
    print(blend.getPlug("output").get())  # 8.0
    print(blend.getInputIndices())  # [0, 5]
-   blend.connectInput(0, curve.getOutputPlug())
+   blend.connectInput(0, curve.getPlug("output"))
 
 ``BlendWeighted.getInputPlugs()`` は番号からPlug、``getWeights()`` は入力番号から倍率のdictです。
 出力の評価と接続には ``blend.getPlug("output")`` を使います。
@@ -81,7 +82,7 @@ fastの ``setKey`` は ``fixed``・``global``・未知の接線型を、
 ``setTangent`` は ``global``・未知の接線型を更新前に ``ValueError`` で拒否します。
 固定接線の編集には ``setTangent(..., inTangentType="fixed", fast=True)`` 等を使います。
 BlendWeightedの値設定は ``setInput()``・``setWeight()`` がfastに対応し、
-Undo不要の接続は ``curve.getOutputPlug().connectTo(blend.getInputPlug(0), fast=True)`` で行えます。
+Undo不要の接続は ``curve.getPlug("output").connectTo(blend.getInputPlug(0), fast=True)`` で行えます。
 
 .. code-block:: python
 

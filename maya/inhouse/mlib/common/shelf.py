@@ -81,7 +81,11 @@ class Shelf:
         return self._name
 
     def select(self):
-        """自身のタブを選択し、標準シェルフの内容をロードする。"""
+        """自身のタブを選択し、標準シェルフの内容をロードする。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.shelfTabLayout(self._top(), edit=True, selectTab=self.getName())
         self._load()
 
@@ -119,7 +123,11 @@ class Shelf:
                            command=command, sourceType=language, image1=str(icon), annotation=annotation))
 
     def clear(self):
-        """内容をロード後、ボタンや区切り線をすべて削除する。タブは残す。Undo対象外。"""
+        """内容をロード後、ボタンや区切り線をすべて削除する。タブは残す。Undo対象外。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._load()
         parent = self.getName()
         for child in cmds.shelfLayout(parent, query=True, childArray=True) or []:
@@ -157,16 +165,20 @@ class Shelf:
         """
         if cmds.about(batch=True):
             raise RuntimeError("Shelf requires Maya GUI")
-        top = mel.eval('global string $gShelfTopLevel; $gShelfTopLevel;')
+        top = mel.eval("global string $gShelfTopLevel; $gShelfTopLevel;")
         if not top or not cmds.shelfTabLayout(top, exists=True):
             raise RuntimeError("Maya shelf tabs are unavailable")
         return top
 
     def _load(self):
-        """標準タブの遅延ロードを完了させ、未ロード内容の上書きを防ぐ。"""
+        """標準タブの遅延ロードを完了させ、未ロード内容の上書きを防ぐ。
+
+        Returns:
+            None: 値を返さない。
+        """
         name = self.getName().split("|")[-1]
         old_parent = cmds.setParent(query=True)
         try:
-            mel.eval('loadNamedShelf(' + json.dumps(name) + ');')
+            mel.eval("loadNamedShelf(" + json.dumps(name) + ");")
         finally:
             cmds.setParent(old_parent)

@@ -76,6 +76,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
 | Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Codex | 2026-10-09 | mlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 
@@ -108,7 +110,32 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- 2026-10-23: Codex がユーザー依頼によりmlib整理一式と依存するmlrig/HTools/文書/テストをコミット・push対象に選定。共有3ファイルはJointHierarchyとAim設定テストの登録だけをindexへ反映し、別作業Swing/Twist系と外部submodule差分を保持。検証済みmlib244実装のSHA一致、indexだけから取り出した構成のMaya2027 setups93件、ステージ差分検査が成功。Aim設定テストを既存ランナーへ登録。調査メモ/生成物はGit対象外。詳細.maya-output/mlib-maintenance-push20261023/。
+
+- 2026-10-23: Codex が保守性整理を実装。固定Plug/接続転送9入口を廃止し設定18項目をAimAxisConversionへ移譲。ArrayPlug.getIndicesへ列挙、Plug範囲照会/頂点集約/JSON値・CV・SDK接続/HToolsスキン保護を既存基盤へ集約。検証付き算術/範囲/alias便利APIと確定引数・単位・返却・Undo/fast・overrideを維持。日英Sphinxと利用側/テストを追従。mlib実装244本43,019→42,909物理行、公開入口は9廃止/1追加。Maya2022〜2027各153ファイル1,343件失敗0（旧版11/new版8skip）、移譲Aim設定各3件、HTools旧/new8条件、Maya不要49件、日英各489HTML/公開入口/レイアウト/Python3.7構文/差分検査と独立レビュー成功。結果.maya-output/mlib-maintenance20261023/result.json。GUI実操作・性能測定は未実施。既存未コミット/他作業変更を保持、未コミット・未プッシュ。
 - Codex (2026-10-23): QPEの内容最小サイズがMayaドックへ伝播する問題をスクロールコンテナで修正。固定行より下で縮小不能になる配置を補正し、Qt5の再ドック時の無効親ラッパーも回避。Maya 2022/2027で右・下ドックの反復縮小/拡大と境界のマウスイベント、2027でシーン操作と4段階の再起動復元を検証。結果は.maya-output/verification/qpe-dock-size/。実マウス・複数DPI環境は未検証。ユーザー依頼によりQPE関連差分をコミット・プッシュ対象に選定。
+- Claude Code (2026-10-23 08:50〜, 夜間タスク2回目): mlrig.setups.AsymmetricSwingLimit(直交2軸の+側・-側で別の限界角を持つ象限ごとの楕円コーンのソフトなSwing制限、標準ノードのみ)を追加。SwingLimitを_build/_limitGraphに整理しexcessAngle出力を追加(既存テスト通過)。setups/asymmetricSwingLimit.py・setups/swingLimit.py・setups/__init__.py(追記)・__tests__/test_setup_asymmetric_swing_limit.py(6件)・docs/asymmetric_swing_limit.rst・docs/index.rst・docs/swing_limit.rst・tools/test_rig_packages.py(追記)・tools/demo_asymmetric_swing_limit.py。隔離mayapyでsetups 108件・standard 76件OK、Sphinx -W成功、検証動画744フレーム全OK(Drive同期フォルダーへ保存、リンク共有は未設定)。Codexのmlib/mlrig未コミット変更と前夜分を保持。**未コミット**。
+
+- 2026-10-23: Codex がmlibの削除・共通化候補を調査。先行9メソッド76行、条件付き算術入力12メソッド等と内部委譲候補を整理。詳細はGit対象外のdocs/research/mlibApiShrinkCandidates20261023.txt。製品コード/APIは未変更、静的調査のみでMaya未実行。
+
+- Codex (2026-10-23): コーディング規則調査の全候補を修正。getSettingPlugs/getOutputPlugsと内部helperを正式名へ更新し旧aliasなし、内製利用側・テスト・Sphinx・翻訳カタログ識別子も追従。内部名・OpenMaya別名・重複/未使用import・contextmanager・logging遅延書式・引用符・単純な埋込み・docstring引数順/区切/Returns/fast説明を統一。空間検証の重複5箇所と軸12入口の転送を整理。旧規則文書の矛盾、通常例外と通知/stream出力の境界をAGENTS/API設計/Sphinxへ明文化。layoutは既知の判定aliasとTYPE_CHECKING注釈の依存を保持し、classスキップ27→0、5classを整列。244実装の並び替えsnapshot差0、公開引数維持、Maya2022実Pythonで244構文成功。Maya2022～2027各151ファイル/1,325件の回帰と各41件の修正箇所再検証により失敗解消（旧版11/new版8skip）。旧Pythonのf-string引用符問題、旧回復案内の期待、logging fakeを修正済み。mlrig/拡張246件、Maya不要54件、mlib/mlrig日英Sphinx -W、各489HTMLの公開取得名/配布検査成功。結果.maya-output/style-unify-20261023/result.json。確定引数/単位/返却/例外/Undo/fastと既存未コミット変更を保持。GUI・性能測定は未実施、未コミット・未プッシュ。
+
+- Codex (2026-10-23): 現在のmlib全実装244ファイル42,060行をAST・ソース・既存規則で確認。確定ルール、意図した例外、旧規則文書の矛盾、get未付与の取得名候補、内部名/import/文字列/docstringの揺れ、通常例外と通知・stream進捗出力の境界を整理。統一候補と全ファイル一覧をdocs/research/mlib-coding-rules-20261023.txtへローカル保存（Git対象外）。公開入口検査は不一致0、レイアウト検査244files/違反0/情報32（import群5・class順序27の検査スキップを区別）。製品コード・公開仕様・正式規則の変更、Maya実行、コミット/pushなし。既存未コミット変更を保持。
+
+- Codex (2026-10-23): 複雑性調査の整理を実装。getAttr廃止・getPlug/値/状態照会へ分離、配列getterのcreate/addElementとdisconnectのbool方向/dstを廃止、generic参照は非評価の基底Plugへ統一。Joint削除は標準化し、ウェイト移送/子保持はmlrig.setups.JointHierarchyへ移譲。moveAttrOrderの定義/短名/soft limits/alias/接続/途中失敗復元、addAttr事前検証、fast接続ロック復元を修正。Transformの計算と書込み、bulk管理表、root型登録初期化（bootstrap廃止）、拡張可用性検査を整理。確定Transform引数・数学値所有権・fast継承、複数形/reload/自動探索は維持。Maya2022～2027各151ファイル/1,324件で失敗0（旧版11件、新版8件skip）、Maya2027のmlrig/拡張/連携245件と追加17件、独立コマンド探索に成功。日英Sphinx警告エラー扱いビルド、公開入口/書式/構文/文書検査も成功。元のmoveAttrOrder再現2ケースの解消を再確認。mlib実装247→244ファイル、42,485→42,060物理行（docstring等含む）。結果.maya-output/mlib-complexity20261023/result.json。GUI・性能測定は未実施。既存SwingLimit/TwistLimit変更を保持し、未コミット・未プッシュ。
+
+- Claude Code (2026-10-23, 夜間タスク): mlrig.setups.TwistLimit(Twistの非対称ソフト可動域制限、標準ノードのみ、excessTwist出力)を追加。setups/twistLimit.py・setups/__init__.py・__tests__/test_setup_twist_limit.py(6件)・docs/twist_limit.rst・docs/index.rst・docs/swing_limit.rst(案内1文)・tools/test_rig_packages.py・tools/demo_twist_limit.py。隔離mayapyでsetups 82件・standard 76件OK、Sphinx -W成功、検証動画528フレーム全OK(Driveへ保存、リンク共有は未設定)。前夜のSwingLimitの未コミット変更を保持。**未コミット**。
+
+- Codex (2026-10-22): mlibに残る暗黙動作・多重モード・失敗時挙動を追加調査。隔離Maya2027 standaloneでmoveAttrOrderの短名/soft limit消失と対象内接続の再作成失敗を2ケース再現し、手動Undoでの復元を確認。getAttr/配列要素/値依存Plug/Joint削除/接続/Transform/数学値/fastとUndo/addAttrを整理し、複数形・reload・拡張自動探索を維持する内部管理の整理候補も確認。公開仕様変更案と互換な内部整理を区別してdocs/research/mlibComplexityAudit20261022.txtへ保存（Git対象外）。製品コード・公開仕様・Sphinx変更、全件回帰、他Maya版検証、コミット/pushなし。並行するmlrigの変更を保持。
+
+- Codex (2026-10-22): ユーザー指定により複数形class一式・reload・拡張自動探索を維持する前提へ縮小案を改訂。廃止/list化/手動登録必須化の案を撤回し、残る周辺機能の候補を55ファイル6,243行（docstring含む、代替実装控除前）へ再集計。bulkExecution/reload/extensions等が削減対象に混在しないことを照合。docs/research/mlibSmallCoreDesign20261022.txtを更新（Git対象外）。製品コード・公開仕様変更、Maya実行、コミット/pushなし。並行作業の変更を保持。
+
+- Codex (2026-10-22): AIなし保守を目的にmlibの大幅縮小案を静的調査。ノード複数形5class3,024行/179defと転送・署名・管理表の同期負担、未使用UI/設定/Snapshot、cmds入口、reload/拡張自動探索、省略判定入口の廃止候補を整理。重複除外した候補量10,080行（docstring5,237行含む、代替実装控除前）と内製利用・失う機能を確認。Node/Plug/Components/数学・Undo/fast・実使用JSON/イベント等を維持し、ノード/メソッド追加だけで拡張する推奨設計をdocs/research/mlibSmallCoreDesign20261022.txtへ保存（Git対象外）。公開入口検査は不一致0。製品コード・公開仕様変更、Maya実行、性能計測、コミット/pushなし。並行するmlrigの変更を保持。
+
+- Claude Code (2026-10-22): 夜間タスクで `mlrig.setups.SwingLimit`(楕円コーンのソフトなスイング可動域制限、標準ノードのみ)を追加。setups/swingLimit.py・setups/__init__.py・__tests__/test_setup_swing_limit.py・docs/swing_limit.rst・docs/index.rst・tools/test_rig_packages.py(setupsへ登録)・tools/demo_swing_limit.py。setups/standardスイートOK、Sphinx警告なし、隔離GUIで600フレームの検証動画(ok=True)をDrive同期フォルダーへ保存(リンク共有は未設定)。未コミット。
+
+- Codex (2026-10-22): mlibの前回統合後を静的再調査。247実装ファイル42,485行・公開メソッド定義1,322件を確認し、入力再解決、一括照会、形状/AnimCurve参照再構築、Transformationコピー、fast検証と複数形の引数再検証、Plug/DAG/監視の責務移譲を次段階案として整理。優先順位・維持契約・既存テスト・計測条件をdocs/research/mlibRefactorNext20261022.txtへローカル保存（Git対象外）。公開入口検査は不一致0。製品コード・公開仕様・Sphinxの変更、新規Maya実行・性能計測、コミット/pushなし。
 
 - Codex (2026-10-22): ユーザー指示で未コミット全変更をGit反映対象として確認。残っていたQuickPathExplorer/launch_python.batのMaya2027固定起動への変更を含め、作業ログとともにコミット対象へ追加。mayapy・Qtプラットフォームディレクトリ・起動対象スクリプトの存在と差分チェックを確認。GUI起動は未実行。
 

@@ -33,8 +33,8 @@ class DecomposeMatrix(Node):
         """定数行列を入力する。入力接続は切断しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Matrix | Iterable[float]): Maya規約の行列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             DecomposeMatrix: 自身。
@@ -62,10 +62,10 @@ class DecomposeMatrix(Node):
         """出力Euler回転の回転順序を指定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             order (str | int): xyz、yzx、zxy、xzy、yxz、zyxのいずれかの名前(大文字小文字を
                 問わない)、または番号0〜5(``EulerRotate.order`` やrotateOrderアトリビュートと同じ
                 並び。``om2.MEulerRotation.kXYZ``〜``kZYX``)。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             DecomposeMatrix: 自身。
@@ -96,13 +96,3 @@ class DecomposeMatrix(Node):
         """
         source.connectTo(self.getPlug("inputMatrix"), force=force)
         return self
-
-    def outputPlugs(self):
-        """dict[str, Plug]: translate・rotate・scale・shearをキーとする出力Plug。
-
-        rotateの子Plug.get()はrad、translateはcmで返す。
-        出力を接続する場合はMayaが接続先のアトリビュート単位を扱う。
-        """
-        return {key: self.getPlug(name) for key, name in (
-            ("translate", "outputTranslate"), ("rotate", "outputRotate"),
-            ("scale", "outputScale"), ("shear", "outputShear"))}

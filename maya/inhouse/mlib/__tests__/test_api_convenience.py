@@ -70,8 +70,8 @@ class ConvenienceTests(unittest.TestCase):
             compound['missing']
         compound['ty'].set(4)
         self.assertEqual(cmds.getAttr(str(compound)), [(0,4,0)])
-        self.assertIs(mlib.getAttr(compound), compound)
-        self.assertEqual(tuple(mlib.getAttr(compound).get()), (0,4,0))
+        self.assertIs(mlib.getPlug(compound), compound)
+        self.assertEqual(tuple(mlib.getPlug(compound).get()), (0,4,0))
         cmds.undo()
         self.assertEqual(compound[1].get(), 0)
         blend = mlib.createNode('blendMatrix')

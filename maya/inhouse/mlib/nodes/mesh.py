@@ -103,7 +103,7 @@ class Mesh(Shape):
                 parent = cmds.listRelatives(temporary, parent=True, fullPath=True)[0]
                 uv_names = om2.MFnMesh(data).getUVSetNames()
                 for i, uv_set_name in enumerate(uv_names):
-                    cmds.setAttr(temp_node.getFullName() + ".uvSet[{}].uvSetName".format(i), uv_set_name, type="string")
+                    cmds.setAttr(temp_node.getFullName() + f".uvSet[{i}].uvSetName", uv_set_name, type="string")
                 temp_node.getPlug("cachedInMesh").mplug().setMObject(data)
                 # 元のキャッシュをsetAttrのUndoへ保存する。接続のUndoだけではデータは復元されない。
                 cmds.setAttr(self.getFullName() + ".outMesh", "v", 0, "vn", 0, "e", 0, type="mesh")
@@ -128,7 +128,6 @@ class Mesh(Shape):
         """頂点位置をミラーし、自身を更新する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
@@ -136,6 +135,7 @@ class Mesh(Shape):
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): 頂点番号。None は全頂点、空列は変更なし。
                 重複は1回だけ処理し、負の番号は許容しない。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Mesh: 編集した自身。

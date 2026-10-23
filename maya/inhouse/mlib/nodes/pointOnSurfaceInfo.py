@@ -20,18 +20,20 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
             surface (Node | str | MObject | MDagPath): 対象形状。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PointOnSurfaceInfo: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometryOutput(surface, "nurbsSurface", worldSpace)
-        source.connectTo(self.getPlug('inputSurface'), force=force)
+        source = _Calculation.geometry_output(surface, "nurbsSurface", worldSpace)
+        source.connectTo(self.getPlug("inputSurface"), force=force)
         return self
 
     def getParameters(self):
         """現在のUVパラメーターを取得する。
+
         Returns:
             tuple[float, float]: U/V。
         """
@@ -47,6 +49,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
             v (float): Vパラメーター。
             percentage (bool): 0～1の範囲を使用するか。
             fast (bool): TrueはUndoなし。
+
         Returns:
             PointOnSurfaceInfo: 自身。
 
@@ -64,6 +67,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
 
     def getPosition(self):
         """接続された空間での位置を取得する。
+
         Returns:
             Vector: XYZ位置。
         """
@@ -74,6 +78,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
 
         Args:
             normalized (bool): 単位ベクトルにするか。
+
         Returns:
             Vector: 法線。
         """
@@ -86,6 +91,7 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Args:
             direction (str): u/v。
             normalized (bool): 単位ベクトルにするか。
+
         Returns:
             Vector: 接線。
         """

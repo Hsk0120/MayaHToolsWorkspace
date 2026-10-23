@@ -16,7 +16,7 @@ class JsonText:
 
         Args:
             data (object): 標準jsonが扱える値。
-            **kwargs: indent、ensure_ascii、allow_nan等の標準jsonオプション。
+            **kwargs (object): indent、ensure_ascii、allow_nan等の標準jsonオプション。
 
         Returns:
             str: 形式情報を追加しないJSON文字列。
@@ -33,7 +33,7 @@ class JsonText:
 
         Args:
             text (str | bytes | bytearray): 通常のJSONデータ。
-            **kwargs: object_pairs_hook等の標準jsonオプション。
+            **kwargs (object): object_pairs_hook等の標準jsonオプション。
 
         Returns:
             object: 辞書・リスト等の復元値。mlib型タグの解釈は行わない。

@@ -106,7 +106,7 @@ class PoseRbf:
         if len(drivers) != len(scales) or cmds.objExists(name):
             raise ValueError("Driver count mismatch or name exists")
         for plug in drivers:
-            kind = mlib.getAttr(plug.getFullName(), type=True)
+            kind = plug.getDataType()
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
                 or plug.isArray()
@@ -120,7 +120,7 @@ class PoseRbf:
         owner.getPlug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
             destination = owner.getPlug("inputs")[index]
-            if mlib.getAttr(source.getFullName(), type=True) == "doubleAngle":
+            if source.getDataType() == "doubleAngle":
                 convert = graph._node("unitConversion", "degrees{}".format(index))
                 source.connectTo(convert.getPlug("input"))
                 convert.getPlug("conversionFactor").set(180 / math.pi)

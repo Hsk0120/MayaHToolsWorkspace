@@ -11,7 +11,7 @@ get付きの取得関数
 ----------------------------
 
 ``mlib.cmds`` とルートの ``mlib`` から同じ正式get関数を使えます。
-対象は ``getAttr/getChannelBox/getDrivenKey/getNode/getOutliner/getPlug/getScene/``
+対象は ``getChannelBox/getDrivenKey/getNode/getOutliner/getPlug/getScene/``
 ``getShelf/getTimeSlider/getViewport/getWindow/getWorkspaceControl/getWorkspaceLayout`` です。
 例えば ``mlib.cmds.getNode is mlib.getNode`` はTrueになります。
 省略入口は廃止しました（:doc:`getter_aliases`）。
@@ -23,15 +23,14 @@ get付きの取得関数
    created = mlib.cmds.createNode("transform", name="commandLookupExample")
    node = mlib.cmds.getNode(created)
    plug = mlib.cmds.getPlug(node.getFullName() + ".translateX")
-   attr = mlib.cmds.getAttr(plug)
-   value = attr.get()             # フラグなしはPlugから内部単位cmで取得
+   value = plug.get()             # Plugから内部単位cmで取得
    scene = mlib.cmds.getScene()      # 取得時のシーンパスを保持
    print(scene.path)
 
    assert mlib.cmds.getNode is mlib.getNode
-   assert attr is plug
 
-``getAttr()`` に照会フラグを明示した場合は、従来のMaya照会値・状態を返します。
+アトリビュート参照は ``getPlug()``、値は ``Plug.get()``、状態は専用メソッドで取得します。
+特定時刻の値などMaya固有の照会は ``maya.cmds.getAttr`` を使います。
 ``getScene()`` はSceneオブジェクトの取得だけを行い、シーンの読み込みや保存は行いません。
 
 シーン編集コマンド
@@ -103,7 +102,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 
    selected_vertices = mlib.ls(sl=True, type="vertex")  # list[Vertex]
    captured = mlib.captureSelection()
-   vertex_groups = captured.filter("vertex").components()  # list[Vertices]
+   vertex_groups = captured.filter("vertex").getComponents()  # list[Vertices]
    for vertices in vertex_groups:
        print(vertices.shape, vertices.indices)
 
@@ -116,7 +115,7 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 全頂点を取得するときは対象Meshの ``getVertices()`` を使います。
 
 ``captureSelection()`` は取得時点の参照を保持し、現在の選択へ自動追従しません。
-``filter("vertex").components()`` で複数シェイプを分けて一括編集する例は
+``filter("vertex").getComponents()`` で複数シェイプを分けて一括編集する例は
 :doc:`guide_geometry`、選び直しは :doc:`selection_and_channelbox` を参照してください。
 
 選択とアニメーション
@@ -149,8 +148,8 @@ Vertices などのコレクション、Selection、Maya API 2.0 の MObject・MD
 ``simulation`` の既定値はFalseです。シーン全体の評価が必要ならTrueを指定します。
 GUIではベイク中のメインペインを非表示にし、終了時に元の状態へ戻します。
 
-``mlib.getAttr("node.attr")`` は型付きPlugを返します。照会フラグを明示すると
-従来のMaya照会値・状態を返します。``node.getPlug("attrName")`` からもPlugを取得できます。
+``mlib.getPlug("node.attr")`` はPlug参照を返します。
+``node.getPlug("attrName")`` からも同じアトリビュートを取得できます。
 取得した ``Plug`` の ``get()``/``get(uiUnits=True)``/``set()``/``connectTo()``、
 および ``node.addAttr()`` で値・接続・追加アトリビュートを操作します。
 ``Plug`` は ``maya.cmds.getAttr(plug)`` のように maya.cmds へそのまま渡すこともできます
@@ -158,8 +157,7 @@ GUIではベイク中のメインペインを非表示にし、終了時に元�
 
 ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` オブジェクトを通して操作します。
-ノードからは ``getPlug()``、アトリビュート名からは ``mlib.getAttr()`` または
-``mlib.getPlug()`` を使えます。
+ノードからは ``getPlug()``、アトリビュート名からは ``mlib.getPlug()`` を使います。
 
 コマンドの命名と役割
 --------------------

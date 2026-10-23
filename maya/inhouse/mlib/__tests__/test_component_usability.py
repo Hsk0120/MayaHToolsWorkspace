@@ -179,7 +179,7 @@ class ComponentUsabilityTest(unittest.TestCase):
         """拒否時の回復案内は、そのまま実行可能な所有ノード取得を示す。"""
         node = mlib.createNode("network", name=self.namespace + ":deleteOwner")
         plug = node.addAttr("amount", attributeType="double")
-        with self.assertRaisesRegex(TypeError, r"plug\.node\(\)"):
+        with self.assertRaisesRegex(TypeError, r"plug\.getNode\(\)"):
             mlib.delete(plug)
         self.assertTrue(node.valid())
         mlib.delete(plug.getNode())

@@ -153,6 +153,9 @@ class OptionVar:
             key (str): 設定のキー。
             value (object): 保存する値。JSON で表せるものに限る。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             TypeError: :meth:`set` と同じ条件。
             ValueError: :meth:`set` と同じ条件。
@@ -167,6 +170,9 @@ class OptionVar:
 
         Args:
             key (str): 設定のキー。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             KeyError: 読み出せる値が保存されていない場合。
@@ -263,6 +269,9 @@ class OptionVar:
             key (str): 設定のキー。
             value (object): 保存する値。JSON で表せるものに限る。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             TypeError: key が文字列でない場合。value に JSON で表せない型や
                 文字列以外の ``dict`` キーを含む場合。
@@ -295,8 +304,8 @@ class OptionVar:
         """isStoredへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -357,6 +366,9 @@ class OptionVar:
         Args:
             values (Mapping[str, object]): 保存するキーと値。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             TypeError: :meth:`set` と同じ条件。
             ValueError: :meth:`set` と同じ条件。
@@ -406,7 +418,10 @@ class OptionVar:
         """保存済みの値、無ければデフォルト値を返す。どちらも無ければ _MISSING。
 
         Args:
-            key: 値を照会する保存キー。
+            key (str): 接頭辞直下で値を照会する保存キー。
+
+        Returns:
+            object: 保存値またはデフォルト値。どちらもなければ内部の_MISSING。
         """
         value = self._read_stored(key)
         if value is _MISSING and key in self._default_texts:
@@ -417,7 +432,10 @@ class OptionVar:
         """キーの optionVar を読んで JSON を解釈する。無い・読めない場合は _MISSING。
 
         Args:
-            key: 値を照会する保存キー。
+            key (str): 接頭辞直下で値を照会する保存キー。
+
+        Returns:
+            object: 保存済みのJSON値。未保存・不正なJSONなら内部の_MISSING。
         """
         name = self.getFullName(key)
         if not cmds.optionVar(exists=name):
@@ -428,6 +446,9 @@ class OptionVar:
         """接頭辞の直下にある optionVar を ``(キー, optionVar 名)`` の昇順リストで返す。
 
         キーの規則に合う名前だけを返す(区切り文字を含む下の階層もここで除かれる)。
+
+        Returns:
+            list[tuple[str, str]]: 接頭辞の直下にあるキーとoptionVar名の組。キーの昇順。
         """
         head = self._prefix + _SEPARATOR
         found = []
@@ -441,7 +462,11 @@ class OptionVar:
         return found
 
     def _stored_values(self):
-        """接頭辞の直下で読み出せる値を ``{キー: 値}`` にまとめる。"""
+        """接頭辞の直下で読み出せる値を ``{キー: 値}`` にまとめる。
+
+        Returns:
+            dict[str, object]: 接頭辞の直下から正常に読み出したキーと値。
+        """
         values = {}
         for key, name in self._scoped_names():
             value = _from_json(cmds.optionVar(query=name))
@@ -459,13 +484,16 @@ def _validate_prefix(prefix):
     Args:
         prefix (object): 検査する値。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         TypeError: 文字列でない場合。
         ValueError: 空の場合。``.`` が先頭・末尾にあるか連続している場合。
             ASCII の英数字・``_``・``.`` 以外の文字を含む場合。
     """
     if not isinstance(prefix, str):
-        raise TypeError("prefix must be str, not {}".format(type(prefix).__name__))
+        raise TypeError(f"prefix must be str, not {type(prefix).__name__}")
     if not prefix:
         raise ValueError("prefix must not be empty")
     for part in prefix.split(_SEPARATOR):
@@ -483,16 +511,19 @@ def _validate_key(key):
     Args:
         key (object): 検査する値。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         TypeError: 文字列でない場合。
         ValueError: 空、または ASCII の英数字と ``_`` 以外の文字(``.`` を含む)を含む場合。
     """
     if not isinstance(key, str):
-        raise TypeError("key must be str, not {}".format(type(key).__name__))
+        raise TypeError(f"key must be str, not {type(key).__name__}")
     if not key:
         raise ValueError("key must not be empty")
     if not _NAME_PART.fullmatch(key):
-        raise ValueError("key {!r} may only contain ASCII letters, digits and '_'".format(key))
+        raise ValueError(f"key {key!r} may only contain ASCII letters, digits and '_'")
 
 
 def _to_json(value):
@@ -525,7 +556,7 @@ def _to_json(value):
         if isinstance(item, dict):
             for child_key, child in item.items():
                 if not isinstance(child_key, str):
-                    raise TypeError("dict keys must be str, got {!r}".format(child_key))
+                    raise TypeError(f"dict keys must be str, got {child_key!r}")
                 pending.append(child)
         elif isinstance(item, (list, tuple)):
             pending.extend(item)
@@ -536,9 +567,12 @@ def _reject_non_finite(token):
     """JSON 拡張の ``NaN``/``Infinity``/``-Infinity`` を読み込み時に拒否する。
 
     Args:
-        token: JSONの数値リテラル。
+        token (str): JSONの数値リテラル。
+
+    Returns:
+        NoReturn: 正常には戻らない。
     """
-    raise ValueError("non-finite number {} is not accepted".format(token))
+    raise ValueError(f"non-finite number {token} is not accepted")
 
 
 def _parse_finite_float(token):
@@ -548,11 +582,14 @@ def _parse_finite_float(token):
     防げない。書き込み側(``allow_nan=False``)と同じく有限値だけを受け付ける。
 
     Args:
-        token: JSONの数値リテラル。
+        token (str): JSONの数値リテラル。
+
+    Returns:
+        float: 有限な浮動小数点数。
     """
     number = float(token)
     if not math.isfinite(number):
-        raise ValueError("number {} is out of the float range".format(token))
+        raise ValueError(f"number {token} is out of the float range")
     return number
 
 

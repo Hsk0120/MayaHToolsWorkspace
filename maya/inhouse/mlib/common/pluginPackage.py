@@ -79,7 +79,7 @@ class PluginPackage:
         else:
             self._minimum_version = Version.parse(minimum_version)
             if self._minimum_version is None:
-                raise ValueError("minimum_version must be a version such as '3.0.0': {!r}".format(minimum_version))
+                raise ValueError(f"minimum_version must be a version such as '3.0.0': {minimum_version!r}")
         self._minimum_maya = None if minimum_maya is None else int(minimum_maya)
         self._install_hint = install_hint
 
@@ -98,6 +98,9 @@ class PluginPackage:
         Args:
             message (str): 表示する文章。
             title (str): ダイアログのタイトル。
+
+        Returns:
+            None: 値を返さない。
         """
         if cmds.about(batch=True):
             return
@@ -161,8 +164,8 @@ class PluginPackage:
         """isMayaSupportedへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -217,8 +220,8 @@ class PluginPackage:
         """isInstalledへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -259,8 +262,8 @@ class PluginPackage:
                 plugin.load(quiet=True)
             except Exception as error:
                 failed.append(plugin.name)
-                logger.warning("[mlib] {} のプラグイン {} をロードできません: {}".format(
-                    self._name, plugin.name, error))
+                logger.warning("[mlib] %s のプラグイン %s をロードできません: %s",
+                               self._name, plugin.name, error)
         return failed
 
     def tryLoad(self, dialog=True, warn=True):
@@ -280,7 +283,7 @@ class PluginPackage:
         """
         if not self.isMayaSupported():
             return SKIPPED
-        title = "{} のインストールが必要です".format(self._name)
+        title = f"{self._name} のインストールが必要です"
         show = (lambda text: self.showDialog(text, title)) if dialog is True else (dialog or None)
         installed = self.isInstalled()
         if not installed and self._minimum_version is not None:
@@ -314,8 +317,11 @@ class PluginPackage:
             show (callable | None): メッセージ全体を渡す表示コールバック。
             warn (bool): 最初の行を warning にも渡すか。
             message (str): 通知内容。コールバックの例外は伝播する。
+
+        Returns:
+            None: 値を返さない。
         """
         if warn:
-            logger.warning("[mlib] " + message.split("\n")[0])
+            logger.warning("[mlib] %s", message.split("\n")[0])
         if show is not None:
             show(message)

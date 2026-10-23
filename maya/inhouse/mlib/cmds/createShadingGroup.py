@@ -14,6 +14,7 @@ def createShadingGroup(shader=None, name=None):
     Args:
         shader (Node | Plug | str | None): 接続元。省略時は未接続。
         name (str | None): 作成名。
+
     Returns:
         ShadingEngine: 作成したセット。
     """

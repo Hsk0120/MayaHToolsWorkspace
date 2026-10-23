@@ -209,11 +209,11 @@ def attributeType(mplug):
             return "float3"
         return name
     if api_type == om2.MFn.kTypedAttribute:
-        dataType = om2.MFnTypedAttribute(attribute).attrType()
-        name = _DATA_TYPE_NAMES.get(dataType)
+        data_type = om2.MFnTypedAttribute(attribute).attrType()
+        name = _DATA_TYPE_NAMES.get(data_type)
         if name is not None:
             return name
-        if dataType == _D.kAny:
+        if data_type == _D.kAny:
             return None
         return _add_attr_type_name(attribute)
     if api_type in _VALUE_DEPENDENT_API_TYPES:
@@ -226,8 +226,8 @@ def is_internal_data_type(mplug):
 
     nurbsSurface の ``patchUVIds`` (``nurbsPatchUVIds``)のような内部のデータ型は、
     存在しない配列要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。
-    mlib はこれらの存在しない要素の値を読まず、要素も作らない(``Plug.get()``・
-    ``ArrayPlug.getElement(create=True)`` が RuntimeError にする)。任意のデータを受け付ける
+    mlibはこれらの存在しない要素の値を読まず、``Plug.get()`` でRuntimeErrorにする。
+    要素の参照取得だけでは値を評価しない。任意のデータを受け付ける
     型付きアトリビュート(値によって型が変わるアトリビュート)は対象外。
 
     Args:
@@ -239,8 +239,8 @@ def is_internal_data_type(mplug):
     attribute = mplug.attribute()
     if attribute.apiType() != om2.MFn.kTypedAttribute:
         return False
-    dataType = om2.MFnTypedAttribute(attribute).attrType()
-    if dataType in _DATA_TYPE_NAMES or dataType == _D.kAny:
+    data_type = om2.MFnTypedAttribute(attribute).attrType()
+    if data_type in _DATA_TYPE_NAMES or data_type == _D.kAny:
         return False
     name = _add_attr_type_name(attribute)
     return name is not None and name not in _PUBLIC_DATA_TYPES

@@ -18,17 +18,19 @@ class RemapValue(Node):
         Args:
             value (float): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             RemapValue: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.scalar, self.getPlug, 'inputValue')
+        _Calculation.set_value(value, _Calculation.scalar, self.getPlug, "inputValue")
         return self
 
     def getRange(self):
         """入出力範囲を取得する。
+
         Returns:
             dict[str, float]: 入出力の上下限。
         """
@@ -45,6 +47,7 @@ class RemapValue(Node):
             output_min (float): 有限な境界値。
             output_max (float): 有限な境界値。
             fast (bool): TrueはUndoなし。
+
         Returns:
             RemapValue: 自身。
 
@@ -61,6 +64,7 @@ class RemapValue(Node):
 
         Args:
             kind (str): value/color。
+
         Returns:
             dict[int, dict]: 論理番号ごとのposition/value/interpolation。
         """
@@ -82,6 +86,7 @@ class RemapValue(Node):
             value (float | Iterable[float]): 値またはRGB。
             interpolation (str | int): none/linear/smooth/splineまたは0～3。
             kind (str): value/color。
+
         Returns:
             RemapValue: 自身。
 
@@ -94,7 +99,7 @@ class RemapValue(Node):
         if not 0 <= position <= 1:
             raise ValueError("position must be in 0..1")
         value = _Calculation.scalar(value) if kind == "value" else _Calculation.vector(value)
-        mode = _Calculation.enumValue(interpolation, ("none", "linear", "smooth", "spline"))
+        mode = _Calculation.enum_value(interpolation, ("none", "linear", "smooth", "spline"))
         point = array[index]
         point[0].set(position)
         point[1].set(value)
@@ -109,6 +114,7 @@ class RemapValue(Node):
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
             kind (str): value/color。
+
         Returns:
             RemapValue: 自身。
 
@@ -123,6 +129,7 @@ class RemapValue(Node):
 
         Args:
             kind (str): value/color。
+
         Returns:
             ArrayPlug: ランプの参照。
         """

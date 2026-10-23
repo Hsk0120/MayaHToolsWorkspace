@@ -329,8 +329,37 @@ class Member:
         self.name = getattr(node, "name", None)
         self.category = ATTRIBUTE
         self.subkey = 0
-        self.attach_to = None  # 付随先の定義名(setter・別名・署名代入)または Member(属性 docstring)
+        self.attach_to = None  # 付随先の定義名、または Member(判定省略入口・属性 docstring)
         self.decorators = [decorator_name(d) for d in getattr(node, "decorator_list", [])]
+
+
+def predicate_alias_target(decorator, def_names):
+    """既知の_is_aliasが参照するクラス内メソッド名だけを返す。
+
+    他のデコレータや計算式は依存を推測せず、既存の安全検査に任せる。
+    """
+    if (not isinstance(decorator, ast.Call) or not isinstance(decorator.func, ast.Name)
+            or decorator.func.id != "_is_alias" or "_is_alias" in def_names
+            or len(decorator.args) != 1 or not isinstance(decorator.args[0], ast.Name)
+            or decorator.args[0].id not in def_names):
+        return None
+    if (len(decorator.keywords) > 1 or any(
+            keyword.arg != "static" or not isinstance(keyword.value, ast.Constant)
+            or type(keyword.value.value) is not bool for keyword in decorator.keywords)):
+        raise Unsupported("_is_alias のstatic指定が既知のbool定数ではない")
+    return decorator.args[0].id
+
+
+def is_type_declaration_block(stmt):
+    """TYPE_CHECKING直下の、値を代入しない単純名の注釈宣言だけを許可する。"""
+    if not is_type_checking(stmt) or stmt.orelse:
+        return False
+    test = stmt.test
+    if (isinstance(test, ast.Attribute)
+            and not (isinstance(test.value, ast.Name) and test.value.id == "typing")):
+        return False
+    return all(isinstance(item, ast.AnnAssign) and isinstance(item.target, ast.Name)
+               and item.value is None for item in stmt.body)
 
 
 def classify_members(cls):
@@ -341,6 +370,7 @@ def classify_members(cls):
     def_names = {stmt.name for stmt in body if isinstance(stmt, FUNCTIONS)}
     members = []
     seen = set()
+    definitions = {}
     for stmt in body:
         member = Member(stmt)
         if isinstance(stmt, FUNCTIONS):
@@ -369,14 +399,26 @@ def classify_members(cls):
                     member.category = CLASS_PUBLIC
                 else:
                     member.category = PUBLIC
-                referenced = set()
-                for deco in stmt.decorator_list:
+            referenced = set()
+            alias_target = None
+            for deco in stmt.decorator_list:
+                target = None if accessor else predicate_alias_target(deco, def_names)
+                if target is None:
                     referenced |= names_in(deco)
-                for default in stmt.args.defaults + [d for d in stmt.args.kw_defaults if d is not None]:
-                    referenced |= names_in(default)
-                if (referenced - {name}) & def_names:
-                    raise Unsupported("{} のデコレータ・既定値がクラス内の定義を参照する".format(name))
+                    continue
+                if alias_target is not None:
+                    raise Unsupported("{} に_is_aliasが複数ある".format(name))
+                if target not in seen:
+                    raise Unsupported("判定 {} が省略入口 {} より先に定義されていない".format(target, name))
+                alias_target = target
+            for default in stmt.args.defaults + [d for d in stmt.args.kw_defaults if d is not None]:
+                referenced |= names_in(default)
+            if (referenced - {name}) & def_names:
+                raise Unsupported("{} のデコレータ・既定値がクラス内の定義を参照する".format(name))
+            if alias_target is not None:
+                member.attach_to = definitions[alias_target]
             seen.add(name)
+            definitions.setdefault(name, member)
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
             targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
             value = stmt.value
@@ -399,6 +441,8 @@ def classify_members(cls):
                 member.name = targets[0].id
         elif is_docstring(stmt) and members and isinstance(members[-1].node, (ast.Assign, ast.AnnAssign)):
             member.attach_to = members[-1]
+        elif is_type_declaration_block(stmt):
+            pass
         elif isinstance(stmt, ast.Pass) or (isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Constant)):
             pass
         else:
@@ -493,12 +537,39 @@ def attached_indices(members):
     for index in primary_indices(members):
         if members[index].name is not None:
             by_name.setdefault(members[index].name, index)
+    # 判定省略入口に付随する署名・別名も、元の入口に結び付ける。
+    for index, member in enumerate(members):
+        if member.name is not None:
+            by_name.setdefault(member.name, index)
     for index, member in enumerate(members):
         if member.attach_to is None:
             continue
         target = members.index(member.attach_to) if isinstance(member.attach_to, Member) else by_name[member.attach_to]
         attached[target].append(index)
     return attached
+
+
+def attachment_groups(members):
+    """先行定義と付随メンバーを、依存先が必ず先になる一塊へまとめる。"""
+    attached = attached_indices(members)
+    groups = {}
+    visited = set()
+
+    def collect(index, result):
+        if index in visited:
+            raise Unsupported("付随メンバーの依存が循環している")
+        visited.add(index)
+        result.append(index)
+        for follower in attached[index]:
+            collect(follower, result)
+
+    for index in primary_indices(members):
+        group = []
+        collect(index, group)
+        groups[index] = group
+    if len(visited) != len(members):
+        raise Unsupported("付随メンバーの依存先を解決できない")
+    return groups
 
 
 def member_blocks(src, cls, members):
@@ -534,7 +605,7 @@ def reorder_class(src, cls):
     if not members:
         return None
     blocks = member_blocks(src, cls, members)
-    attached = attached_indices(members)
+    groups = attachment_groups(members)
     docstring = cls.body[0] if cls.body and is_docstring(cls.body[0]) else None
     start = node_start(cls)
     header_end = docstring.end_lineno if docstring is not None else src.header_end(cls)
@@ -553,9 +624,8 @@ def reorder_class(src, cls):
                 out.extend([""] * (src.blank_count(gap) if adjacent else 0))
             else:
                 out.append("")
-        out.extend(blocks[index])
-        for extra in attached[index]:
-            if not is_docstring(members[extra].node):
+        for offset, extra in enumerate(groups[index]):
+            if offset and not is_docstring(members[extra].node):
                 out.append("")
             out.extend(blocks[extra])
         previous = member
@@ -817,6 +887,7 @@ def check_classes(src, violations):
             continue
         try:
             members = classify_members(cls)
+            attachments = attachment_groups(members)
         except Unsupported as error:
             violations.append(Violation(src.path, cls.lineno, "L023",
                                         "クラス {} の並び検査をスキップ({})".format(cls.name, error)))
@@ -844,13 +915,11 @@ def check_classes(src, violations):
             if positions[0] != primary.index(anchor) or positions != list(range(positions[0], positions[0] + len(positions))):
                 violations.append(Violation(src.path, members[anchor].start, "L021", "クラス {}: {} を {} の直後に置く".format(
                     cls.name, ", ".join(members[i].name for i in followers), members[anchor].name)))
-        for index, member in enumerate(members):
-            if not isinstance(member.attach_to, str):
-                continue
-            anchor = next(i for i in primary if members[i].name == member.attach_to)
-            if any(m.attach_to != member.attach_to for m in members[anchor + 1:index]):
-                violations.append(Violation(src.path, member.start, "L022", "クラス {}: {} を {} の直後に置く".format(
-                    cls.name, member.name, member.attach_to)))
+        for anchor, group in attachments.items():
+            for offset, index in enumerate(group[1:], 1):
+                if index != anchor + offset:
+                    violations.append(Violation(src.path, members[index].start, "L022", "クラス {}: {} を {} の直後に置く".format(
+                        cls.name, members[index].name, members[anchor].name)))
 
 
 def check_source(src):

@@ -14,8 +14,10 @@ def getChannelBox(control=None):
 
     Args:
         control (str | None): 既存UI名。省略時は標準Channel Box。
+
     Returns:
         ChannelBox: 対象UIのラッパー。
+
     Raises:
         RuntimeError: GUIがない、または対象UIが存在しない場合。"""
     from ..common.channelBox import ChannelBox

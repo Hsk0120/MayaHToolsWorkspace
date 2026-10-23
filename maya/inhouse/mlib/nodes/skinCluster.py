@@ -118,8 +118,10 @@ class SkinCluster(Node):
 
         Args:
             joints (Joint | str | Iterable[Joint | str]): 追加するジョイント。空は何もしない。
+
         Returns:
             SkinCluster: 自身。
+
         Raises:
             ValueError: Joint以外を指定した場合。全対象を編集前に検査する。
             RuntimeError: 対象が無効、またはMayaが追加を拒否した場合。
@@ -225,13 +227,19 @@ class SkinCluster(Node):
         Args:
             force (bool): Trueなら不正ウェイトを除去してから使用状況を調べる。
                 短縮名f。正規化やロック解除は行わない。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。既定FalseはMayaコマンドを使用する。
+
         Returns:
-            list[Node]: 登録を外したノード。変更は一回のUndoで戻せる。
+            list[Node]: 登録を外したノード。未使用influenceがなければ空リスト。
 
         Raises:
-            TypeError: forceがboolでない場合、またはfとforceを同時指定した場合。
+            TypeError: force/fastがboolでない場合、またはfとforceを同時指定した場合。
             ValueError: 全influenceが未使用で、削除すると登録が空になる場合。
             RuntimeError: Mayaが削除を拒否した場合。完了済み処理は自動では戻さない。
+
+        Note:
+            通常モードの変更は一回のUndoで戻せる。fast=Trueと継承したfastはUndo対象外。
+            戻り値はinfluenceから外したノードへの参照で、ノード自体は削除しない。
         """
         if type(force) is not bool:
             raise TypeError("force must be a bool")
@@ -262,8 +270,10 @@ class SkinCluster(Node):
 
         Args:
             fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはcmdsでUndo対応。
+
         Returns:
             SkinCluster: 自身。不正要素がなければ何もしない。
+
         Raises:
             TypeError: fastがboolでない場合。
             RuntimeError: レイヤー・influenceやウェイトのロック・接続、または編集失敗。
@@ -321,10 +331,10 @@ class SkinCluster(Node):
         influence のロック設定や未指定のウェイトは変更しない。一回の Undo で戻せる。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             joints (Iterable[str]): 設定する登録済み influence 名。
             weights (Iterable[float]): 頂点順、各頂点内は指定 influence 順の平坦な配列。
                 頂点数×influence数、または全頂点に共通適用するinfluence数の値。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             None: 値を返さない。
@@ -356,10 +366,10 @@ class SkinCluster(Node):
             None: 値を返さない。
         """
         influences = [node.getName() for node in self.getInfluences()]
-        _, numVertices = self._all_verts()
+        _, num_vertices = self._all_verts()
         payload = {
             "influences": influences,
-            "numVertices": numVertices,
+            "numVertices": num_vertices,
             "weights": list(self.getWeights(influences)),
         }
         with open(path, "w", encoding="utf-8") as file:
@@ -375,8 +385,8 @@ class SkinCluster(Node):
         ウェイトを変更せず例外を送出する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             path (str): 読み込むファイルパス。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             None: 値を返さない。
@@ -390,11 +400,11 @@ class SkinCluster(Node):
         """
         with open(path, "r", encoding="utf-8") as file:
             payload = json.load(file)
-        _, numVertices = self._all_verts()
-        if payload["numVertices"] != numVertices:
+        _, num_vertices = self._all_verts()
+        if payload["numVertices"] != num_vertices:
             raise ValueError(
                 f"Stored vertex count ({payload['numVertices']}) does not match "
-                f"the current mesh vertex count ({numVertices})"
+                f"the current mesh vertex count ({num_vertices})"
             )
         influences = payload["influences"]
         current_influences = {node.getName() for node in self.getInfluences()}
@@ -415,12 +425,12 @@ class SkinCluster(Node):
         変わらず、ウェイト0の influence は0のまま。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             vertices (Vertex | Vertices | Iterable[int | Vertex]): 対象頂点または番号列。
                 Vertexは先頭geometryのmeshに属すること。重複は1回として扱う。
             method (str): 曲線名。``mlib.maths.easing.CURVES`` のいずれか
                 (例: ``"cubic"``、``"sine"``、``"exponential"``)。
                 ``"linear"`` は配分を変えない。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
             None: 値を返さない。一回の Undo で戻せる。
@@ -435,7 +445,7 @@ class SkinCluster(Node):
         curve = method
         if curve not in easing.CURVES:
             raise ValueError(f"Unsupported easing method: {method}")
-        numVertices = om2.MFnMesh(self.mesh_path).numVertices
+        num_vertices = om2.MFnMesh(self.mesh_path).numVertices
         from ..components.vertex import Vertex, Vertices
 
         if isinstance(vertices, Vertices):
@@ -454,7 +464,7 @@ class SkinCluster(Node):
             vertex_indices.add(int(vertex))
         vertex_indices = sorted(vertex_indices)
         for vertex in vertex_indices:
-            if not (0 <= vertex < numVertices):
+            if not (0 <= vertex < num_vertices):
                 raise IndexError(f"Vertex index out of range: {vertex}")
         if not vertex_indices:
             return
@@ -490,10 +500,10 @@ class SkinCluster(Node):
         skinClusterのnormalizeWeights設定に従う。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             source_target_pairs (Iterable[tuple[Node | str, Node | str]]): influenceの組。
                 Maya APIのノード参照も受け付ける。全組を検証後、指定順に移送する。
                 同じinfluence同士の組は何もしない。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
             None: 値を返さない。
@@ -537,11 +547,11 @@ class SkinCluster(Node):
         最後の一つのinfluenceは削除しない。全体は一回のUndoで戻せる。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             joint (Joint | str): 削除対象の influence。
             transfer_to_parent (bool): 祖先への移送を行うか。Falseは標準削除のみ。
             force (bool): Trueは不正ウェイトを除去してから移送・登録解除する。
                 短縮名f。正規化・ロック解除・レイヤーの回避は行わない。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
             None: 値を返さない。
@@ -576,12 +586,14 @@ class SkinCluster(Node):
         """先頭meshの各頂点ウェイトを合計1へ正規化する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             decimals (int | None): 0〜15の小数桁数。Noneは桁丸めなし。
                 桁指定時は端数を配分し、十進数として合計1を維持する。
                 同率の場合はinfluenceの登録順を優先する。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             SkinCluster: 自身。
+
         Raises:
             ValueError: 不正な桁数、負値・非有限値・合計ゼロの頂点の場合。
             RuntimeError: ロック・接続・レイヤー、またはMayaの編集失敗。
@@ -610,13 +622,15 @@ class SkinCluster(Node):
         """最大influence設定を変更し、任意で既存ウェイトも制限する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             count (int): 1以上の最大数。
             maintain (bool): maintainMaxInfluencesを有効にするか。
             prune (bool): Trueで先頭meshの各頂点の大きいcount個だけを残し正規化。
                 Falseは設定だけ変更し、既存ウェイトを変更しない。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             SkinCluster: 自身。
+
         Raises:
             ValueError: 不正なcount、またはprune時に正規化できないウェイト。
             TypeError: maintain/pruneがboolでない場合。
@@ -703,11 +717,11 @@ class SkinCluster(Node):
         Returns:
             tuple[om2.MObject, int]: 全頂点を含む component と頂点数。
         """
-        numVertices = om2.MFnMesh(self.mesh_path).numVertices
+        num_vertices = om2.MFnMesh(self.mesh_path).numVertices
         component_fn = om2.MFnSingleIndexedComponent()
         vertices = component_fn.create(om2.MFn.kMeshVertComponent)
-        component_fn.addElements(range(numVertices))
-        return vertices, numVertices
+        component_fn.addElements(range(num_vertices))
+        return vertices, num_vertices
 
     def _jnt_indices(self, joints):
         """joint 群を skinCluster influence インデックス配列へ変換する。
@@ -729,6 +743,7 @@ class SkinCluster(Node):
         Args:
             joints (Iterable): 設定対象のinfluence参照。
             weights (Iterable): 頂点順の値、または全頂点共通の値。
+
         Returns:
             tuple: 有限な値・列数・頂点数・論理番号列。
         """
@@ -910,6 +925,7 @@ class SkinCluster(Node):
         Returns:
             tuple[list[om2.MPlug], set[int]]: 除去対象と、修復後も正値を持つ
                 登録済みinfluenceの論理番号。存在しない要素は作成しない。
+
         Raises:
             RuntimeError: ウェイトが編集不可、または除去対象に出力接続がある場合。
         """
@@ -968,7 +984,7 @@ class SkinCluster(Node):
                     row = [v if i in keep else Decimal(0) for i, v in enumerate(row)]
                 total = sum(row)
                 if not total:
-                    raise ValueError("Cannot normalize zero-total weights at vertex {}".format(start // width))
+                    raise ValueError(f"Cannot normalize zero-total weights at vertex {start // width}")
                 row = [v / total for v in row]
                 if decimals is not None:
                     scale = 10 ** decimals
@@ -994,9 +1010,9 @@ class SkinCluster(Node):
                      for plug in fn.getConnections() for other in plug.connectedTo(True, True)}
         for obj in connected.values():
             other_fn = om2.MFnDependencyNode(obj)
-            nodeName = other_fn.name().lower()
+            node_name = other_fn.name().lower()
             node_type = other_fn.typeName.lower()
-            if any(token in nodeName or token in node_type for token in self._LAYER_TOKENS):
+            if any(token in node_name or token in node_type for token in self._LAYER_TOKENS):
                 return True
         return False
 
@@ -1018,53 +1034,37 @@ class SkinClusters(Nodes):
 
     item_class = SkinCluster
 
-    _bulk_returns = {
-        **Nodes._bulk_returns,
-        "deforms": "list",
-        "getInfluences": "list",
-        "getBindPose": "list",
-        "getUnusedInfluences": "list",
-        "removeUnusedInfluences": "list",
-        "hasInfluence": "list",
-        "getWeights": "list",
-        "dumpWeights": "list",
-        "getMaxInfluences": "list",
-        "redistributeWeights": "self",
-        "copyWeightsTo": "self",
-        "addInfluences": "self",
-        "restoreBindPose": "self",
-        "resetBindPose": "self",
-        "setWeights": "self",
-        "loadWeights": "self",
-        "transferWeights": "self",
-        "removeInfluence": "self",
-        "removeInvalidWeights": "self",
-        "normalizeWeights": "self",
-        "setMaxInfluences": "self",
+    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
+    _bulk_entries = {
+        "deforms": (SkinCluster.deforms, "list"),
+        "getInfluences": (SkinCluster.getInfluences, "list"),
+        "getBindPose": (SkinCluster.getBindPose, "list"),
+        "getUnusedInfluences": (SkinCluster.getUnusedInfluences, "list"),
+        "removeUnusedInfluences": (SkinCluster.removeUnusedInfluences, "list"),
+        "hasInfluence": (SkinCluster.hasInfluence, "list"),
+        "getWeights": (SkinCluster.getWeights, "list"),
+        "dumpWeights": (SkinCluster.dumpWeights, "list"),
+        "getMaxInfluences": (SkinCluster.getMaxInfluences, "list"),
+        "redistributeWeights": (SkinCluster.redistributeWeights, "self"),
+        "copyWeightsTo": (SkinCluster.copyWeightsTo, "self"),
+        "addInfluences": (SkinCluster.addInfluences, "self"),
+        "restoreBindPose": (SkinCluster.restoreBindPose, "self"),
+        "resetBindPose": (SkinCluster.resetBindPose, "self"),
+        "setWeights": (SkinCluster.setWeights, "self"),
+        "loadWeights": (SkinCluster.loadWeights, "self"),
+        "transferWeights": (SkinCluster.transferWeights, "self"),
+        "removeInfluence": (SkinCluster.removeInfluence, "self"),
+        "removeInvalidWeights": (SkinCluster.removeInvalidWeights, "self"),
+        "normalizeWeights": (SkinCluster.normalizeWeights, "self"),
+        "setMaxInfluences": (SkinCluster.setMaxInfluences, "self"),
     }
     _bulk_methods = {
         **Nodes._bulk_methods,
-        "deforms": SkinCluster.deforms,
-        "getInfluences": SkinCluster.getInfluences,
-        "getBindPose": SkinCluster.getBindPose,
-        "getUnusedInfluences": SkinCluster.getUnusedInfluences,
-        "removeUnusedInfluences": SkinCluster.removeUnusedInfluences,
-        "hasInfluence": SkinCluster.hasInfluence,
-        "getWeights": SkinCluster.getWeights,
-        "dumpWeights": SkinCluster.dumpWeights,
-        "getMaxInfluences": SkinCluster.getMaxInfluences,
-        "redistributeWeights": SkinCluster.redistributeWeights,
-        "copyWeightsTo": SkinCluster.copyWeightsTo,
-        "addInfluences": SkinCluster.addInfluences,
-        "restoreBindPose": SkinCluster.restoreBindPose,
-        "resetBindPose": SkinCluster.resetBindPose,
-        "setWeights": SkinCluster.setWeights,
-        "loadWeights": SkinCluster.loadWeights,
-        "transferWeights": SkinCluster.transferWeights,
-        "removeInfluence": SkinCluster.removeInfluence,
-        "removeInvalidWeights": SkinCluster.removeInvalidWeights,
-        "normalizeWeights": SkinCluster.normalizeWeights,
-        "setMaxInfluences": SkinCluster.setMaxInfluences,
+        **{name: entry[0] for name, entry in _bulk_entries.items()},
+    }
+    _bulk_returns = {
+        **Nodes._bulk_returns,
+        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset(("dumpWeights", "loadWeights"))
     dumpWeights = _PerItemOnly("dumpWeights")
@@ -1267,8 +1267,10 @@ class SkinClusters(Nodes):
             joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
             transfer_to_parent (bool): Trueは祖先へ移送。FalseはMaya標準の解除のみ。
             force (bool): Trueは不正ウェイトを除去してから登録解除する。短縮名f。
+
         Returns:
             SkinClusters: 自身。
+
         Raises:
             TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
             ValueError: 最後のinfluenceまで解除しようとした場合。
@@ -1358,6 +1360,7 @@ class SkinClusters(Nodes):
         Args:
             *args: 単数メソッドに渡す位置引数。
             **kwargs: 単数メソッドに渡すキーワード引数。fastを指定できる。
+
         Returns:
             SkinClusters: 自身。
         """

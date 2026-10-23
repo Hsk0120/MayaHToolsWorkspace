@@ -2,8 +2,6 @@
 
 import math
 
-from maya.api.OpenMaya import MSpace
-
 from .._core import geometryEdit as geometry_edit
 from .._core.flags import flag_aliases
 from .._core.space import world_space
@@ -29,8 +27,6 @@ class PointComponent(Component):
             ValueError: worldSpaceがboolでない場合。
         """
         ws = world_space(worldSpace)
-        if not isinstance(ws, bool):
-            raise ValueError("ws must be a bool")
         self._validate()
         return geometry_edit.positions(self.shape, [self.index], ws)[0]
 
@@ -41,9 +37,9 @@ class PointComponent(Component):
         """座標を設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): cm単位での有限な XYZ 座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             PointComponent: 編集した自身。
@@ -56,8 +52,6 @@ class PointComponent(Component):
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         ws = world_space(worldSpace)
-        if not isinstance(ws, bool):
-            raise ValueError("ws must be a bool")
         value = self._finite_coordinates(value, 3)
         self._validate()
         geometry_edit.setPositions(self.shape, [self.index], [value], ws)
@@ -69,11 +63,12 @@ class PointComponent(Component):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             float: 座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(0, ws=worldSpace)
+        return self._get_coordinate(0, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -84,8 +79,10 @@ class PointComponent(Component):
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponent: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -93,7 +90,7 @@ class PointComponent(Component):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(0, value, ws=worldSpace)
+        return self._set_coordinate(0, value, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     def getPositionY(self, worldSpace=False):
@@ -101,11 +98,12 @@ class PointComponent(Component):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             float: 座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(1, ws=worldSpace)
+        return self._get_coordinate(1, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -116,8 +114,10 @@ class PointComponent(Component):
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponent: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -125,7 +125,7 @@ class PointComponent(Component):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(1, value, ws=worldSpace)
+        return self._set_coordinate(1, value, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     def getPositionZ(self, worldSpace=False):
@@ -133,11 +133,12 @@ class PointComponent(Component):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             float: 座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(2, ws=worldSpace)
+        return self._get_coordinate(2, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -148,8 +149,10 @@ class PointComponent(Component):
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponent: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -157,7 +160,7 @@ class PointComponent(Component):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(2, value, ws=worldSpace)
+        return self._set_coordinate(2, value, ws=ws)
 
 
 class PointComponents(Components):
@@ -170,11 +173,13 @@ class PointComponents(Components):
         """保持順の座標列を設定する。全件の座標・対象を検証してから書き込む。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             values (Iterable[Iterable[float]]): 要素数と同じ数のXYZ座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponents: 自身。空集合と空座標列は何もしない。
+
         Raises:
             ValueError: 件数・座標・worldSpaceが不正な場合。
             RuntimeError: Mayaが編集を拒否した場合。完了済み変更は自動で戻さない。
@@ -184,8 +189,6 @@ class PointComponents(Components):
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
         ws = world_space(worldSpace)
-        if not isinstance(ws, bool):
-            raise ValueError("ws must be a bool")
         rows = self._coordinate_rows(values, 3)
         if not self._indices:
             return self
@@ -199,11 +202,12 @@ class PointComponents(Components):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             list[float]: 保持順の座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(0, ws=worldSpace)
+        return self._get_coordinate(0, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -214,8 +218,10 @@ class PointComponents(Components):
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponents: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -223,7 +229,7 @@ class PointComponents(Components):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(0, value, ws=worldSpace)
+        return self._set_coordinate(0, value, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     def getPositionY(self, worldSpace=False):
@@ -231,11 +237,12 @@ class PointComponents(Components):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             list[float]: 保持順の座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(1, ws=worldSpace)
+        return self._get_coordinate(1, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -246,8 +253,10 @@ class PointComponents(Components):
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponents: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -255,7 +264,7 @@ class PointComponents(Components):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(1, value, ws=worldSpace)
+        return self._set_coordinate(1, value, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     def getPositionZ(self, worldSpace=False):
@@ -263,11 +272,12 @@ class PointComponents(Components):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+
         Returns:
             list[float]: 保持順の座標値。
         """
         ws = world_space(worldSpace)
-        return self._get_coordinate(2, ws=worldSpace)
+        return self._get_coordinate(2, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     @fast_edit
@@ -278,8 +288,10 @@ class PointComponents(Components):
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponents: 更新した自身。
+
         Raises:
             ValueError: 座標・空間指定または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -287,7 +299,7 @@ class PointComponents(Components):
             NotImplementedError: fast更新で未対応の形状の場合。
         """
         ws = world_space(worldSpace)
-        return self._set_coordinate(2, value, ws=worldSpace)
+        return self._set_coordinate(2, value, ws=ws)
 
     @flag_aliases(ws="worldSpace")
     def getPosition(self, worldSpace=False):
@@ -303,8 +315,6 @@ class PointComponents(Components):
             ValueError: worldSpaceがboolでない場合。
         """
         ws = world_space(worldSpace)
-        if not isinstance(ws, bool):
-            raise ValueError("ws must be a bool")
         if not self._indices:
             return []
         self._validate()
@@ -316,9 +326,10 @@ class PointComponents(Components):
         """全要素を同じ座標へ設定する。要素別にはsetPositionsを使う。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): 有限のXYZ座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             PointComponents: 自身。全要素が同じ位置に集まる。
 
@@ -337,10 +348,10 @@ class PointComponents(Components):
         """保持している頂点または CV をまとめてミラーする。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): x、y、z または重複のない組み合わせ。大文字も可。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 選択空間の反転中心。cm単位。既定は原点。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             PointComponents: 編集したコレクション自身。
@@ -364,8 +375,6 @@ class PointComponents(Components):
         axis = axis.lower()
         if len(set(axis)) != len(axis):
             raise ValueError("axis must not contain duplicates")
-        if not isinstance(ws, bool):
-            raise ValueError("ws must be a bool")
         try:
             pivot = tuple(float(value) for value in pivot)
         except (TypeError, ValueError) as error:

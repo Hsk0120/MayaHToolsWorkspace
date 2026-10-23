@@ -49,7 +49,7 @@ class MatrixFollow:
                 or []
             )
             for destination, upstream in zip(pairs[::2], pairs[1::2]):
-                if mlib.getAttr(destination, type=True) != "message":
+                if mlib.getPlug(destination).getDataType() != "message":
                     pending.append(mlib.getPlug(upstream).getNode())
 
     @staticmethod

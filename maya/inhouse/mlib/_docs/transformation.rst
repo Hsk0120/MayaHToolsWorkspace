@@ -94,6 +94,33 @@ Transformノードから取得する場合、SSCはFalseになります。
 各成分は可変で、直接編集できます。値全体はハッシュ不可です。
 ``equivalent`` は全成分を比較し、姿勢だけの比較には ``a.m.equivalent(b.m)`` を使います。
 
+成分の参照とコピー
+--------------------
+
+構築・成分代入では入力をコピーします。保持する ``t/r/s/sh/ra/jo`` 等の取得は
+可変成分への参照で、``value.t.x = 3`` はそのTransformationを更新します。
+``copy()`` / ``Transformation(value)`` は各成分も独立したコピーです。
+一方、合成結果の ``m`` と回転から求める ``q`` は独立した値です。
+``Matrix.translate`` / ``Matrix.rotate`` 等の取得値もコピーなので、編集後はプロパティへ
+明示的に代入して反映します。
+
+``value.m = matrix`` と ``value *= matrix`` は内部の成分を置き換えます。
+先に取り出した成分参照は以前の値として残り、置換後のTransformationへ追従しません。
+行列全体を更新した後は成分を取得し直してください。
+
+.. code-block:: python
+
+   from mlib.maths import Matrix, Transformation
+
+   value = Transformation(t=(1, 2, 3))
+   old_translate = value.t
+   value.m = Matrix()
+   old_translate.x = 10       # 置換前の成分だけを変更する
+   assert value.t.x == 0
+
+ノードの ``getTransformation()`` も取得時点の独立した値です。
+成分を編集してもシーンは変化せず、反映には ``node.setTransformation(value)`` を呼びます。
+
 ワールド空間と対象ノードへの適合
 ----------------------------------
 
@@ -115,6 +142,9 @@ DAGインスタンスのパスに従います。offsetParentMatrixそのもの�
 したがって、異なる種類のノードや異なる親へ適用した場合は、各チャンネル値が変わることがあります。
 ``get=True`` の結果はその適合後のローカルTransformationです。
 
+計算と書込みは内部で分けていますが、``get/safe/at/ra/r/jo/ws`` の意味と戻り値は維持しています。
+``get=True`` はシーンを書き換えず、``setMatrix`` は辞書、``setQuaternion`` はrad単位のlist、
+``setTransformation`` はTransformationの設定予定値を返します。
 ``safe=True`` は書けない成分を残し、実際に適用できた補助成分を使ってTRSを計算します。
 TRS自体にもロックや入力接続がある場合、目的の行列との一致は保証されません。
 通常の適用は一回のUndoで戻せます。処理途中の例外による完了済みの変更は自動で戻しません。
@@ -132,5 +162,5 @@ TRS自体にもロックや入力接続がある場合、目的の行列との�
 - ``setMatrix(get=True)`` の辞書返却は変わりません。
   ``Matrix(value)``、``Matrix.fromTransformation(value)``、``MatrixPlug.set(value)`` は
   Transformationを受け取り、合成行列を使います。ピボット等の成分情報は行列には保存されません。
-- ``Transforms`` / ``Joints`` でもtransformation/setTransformationを利用できます。get=Trueの一括適用は
+- ``Transforms`` / ``Joints`` でもgetTransformation/setTransformationを利用できます。get=Trueの一括適用は
   対象ごとの設定予定Transformationのリストを返します。

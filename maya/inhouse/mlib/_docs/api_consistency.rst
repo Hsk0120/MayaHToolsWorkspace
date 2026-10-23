@@ -23,7 +23,7 @@ mlib独自の取得は ``getPosition()``、設定は ``setPosition()`` のよう
    * - ``moveAttributeOrder()`` / ``attributeCount()``
      - ``moveAttrOrder()`` / ``getAttrCount()``
    * - ``getT()/setT()``、``getQ()/setQ()``、Transformの ``getX()/setX()``
-     - ``translate()/setTranslate()``、``quaternion()/setQuaternion()``、``getTransformation()/setTransformation()``
+     - ``getTranslate()/setTranslate()``、``getQuaternion()/setQuaternion()``、``getTransformation()/setTransformation()``
    * - PointComponentの ``getX()/setX()``
      - ``getPositionX()/setPositionX()``。Y/Zも同じ形式。
    * - ``Mesh.getNormals()``
@@ -47,8 +47,9 @@ Plugの ``get()/set()``、成分名そのものを指すUVの ``getU()/setU()`` 
 
    node.resetAttrs(attrs=["tx", "ry"])
    node.resetAttrs(attributes=["tx", "ry"])
-   array.getElement(idx=3, create=True)
-   array.getElement(index=3, create=True)
+   array[3].set(1.0)                  # 値設定で要素を作成
+   array.getElement(idx=3)             # 既存要素だけを取得
+   array.getElement(index=3)
    target.getPlug("input")[0].connect(src=source_plug, f=True)
 
 接続方向を表す ``source/destination`` は参照先を渡す引数とは別です。

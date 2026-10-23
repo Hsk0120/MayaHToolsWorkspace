@@ -48,8 +48,10 @@ class _Calculation:
         Args:
             value (int): 検証する番号。
             allowed (Iterable[int] | None): 指定時は許可値に限定する。
+
         Returns:
             int: 有効な番号。
+
         Raises:
             ValueError: bool・範囲外・非整数の場合。
         """
@@ -68,8 +70,10 @@ class _Calculation:
 
         Args:
             value (float): 入力値。
+
         Returns:
             float: 有限値。
+
         Raises:
             ValueError: 非有限値の場合。
         """
@@ -85,8 +89,10 @@ class _Calculation:
         Args:
             value (Iterable[float]): 成分列。
             size (int): 必要な要素数。
+
         Returns:
             tuple[float]: 有限な成分列。
+
         Raises:
             ValueError: 長さまたは数値が不正な場合。
         """
@@ -101,8 +107,10 @@ class _Calculation:
 
         Args:
             value (bool): 入力値。
+
         Returns:
             bool: 入力値。
+
         Raises:
             TypeError: bool以外の場合。
         """
@@ -111,14 +119,16 @@ class _Calculation:
         return value
 
     @staticmethod
-    def enumValue(value, names):
+    def enum_value(value, names):
         """モード名または番号をMayaの番号へ変換する。
 
         Args:
             value (str | int): モード。
             names (tuple[str]): 番号順の名前。
+
         Returns:
             int: 列挙値。
+
         Raises:
             ValueError: 未対応のモードの場合。
         """
@@ -127,27 +137,30 @@ class _Calculation:
         return _Calculation.index(value, range(len(names)))
 
     @staticmethod
-    def enumName(plug, names):
+    def enum_name(plug, names):
         """Mayaの列挙値を公開名へ変換する。
 
         Args:
             plug (Plug): enum参照。
             names (tuple[str]): 番号順の名前。
+
         Returns:
             str: 現在のモード。
         """
         return names[_Calculation.index(plug.get(), range(len(names)))]
 
     @staticmethod
-    def geometryOutput(value, node_type, world_space):
+    def geometry_output(value, node_type, world_space):
         """カーブ/サーフェスの入力元Plugを解決する。
 
         Args:
             value (Node | str | MObject | MDagPath): シェイプまたは単一シェイプのTransform。
             node_type (str): 対応するMayaシェイプ型。
             world_space (bool): worldSpaceを使用するか。
+
         Returns:
             Plug: localまたはインスタンスに対応するworldSpace。
+
         Raises:
             TypeError: シェイプ型が異なる場合。
             ValueError: Transformの対象シェイプが一意でない場合。

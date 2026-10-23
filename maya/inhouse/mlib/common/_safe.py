@@ -9,6 +9,7 @@ def safe_edit(function):
 
     Args:
         function (callable): valueとsafe引数を持つPlugのsetter。
+
     Returns:
         callable: 通常時は元の戻り値、safe時は失敗数を返す関数。
     """
@@ -16,6 +17,18 @@ def safe_edit(function):
 
     @wraps(function)
     def wrapped(self, *args, **kwargs):
+        """通常の戻り値を維持し、safe指定時だけ成分ごとの書込み失敗を数える。
+
+        Args:
+            *args (object): 元のsetterへ渡す位置引数。
+            **kwargs (object): safeを含む元のsetterのキーワード引数。
+
+        Returns:
+            object | int: 通常時は元の戻り値、safe指定時は失敗した成分数。
+
+        Raises:
+            NotImplementedError: 対象のfast更新が未対応の場合。
+        """
         if len(args) <= 1 and not kwargs.get("safe", False):
             return function(self, *args, **kwargs)
         bound = signature.bind(self, *args, **kwargs)

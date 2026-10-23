@@ -321,13 +321,13 @@ UV は現在の UV セットを参照し、セットを切り替えると切替�
 .. code-block:: python
 
    captured = mlib.captureSelection()
-   for vertices in captured.filter("vertex").components():
+   for vertices in captured.filter("vertex").getComponents():
        if vertices.valid():
            vertices.setPositionZ(2.0)
    captured.select(missing="skip")  # 残っている対象を選び直す
 
 ``mlib.ls(sl=True, type="vertex")`` は単体Vertexのリストです。
-``captureSelection().filter("vertex").components()`` は、同一シェイプ・種類ごとの
+``captureSelection().filter("vertex").getComponents()`` は、同一シェイプ・種類ごとの
 Verticesコレクションのリストを返します。複数メッシュの選択も各シェイプへ分けられ、
 各グループ内は取得時の順序を維持します。通常編集はグループごとに1回のUndoです。
 正式な種類名は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。

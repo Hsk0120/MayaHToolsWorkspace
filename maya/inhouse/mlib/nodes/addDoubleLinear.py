@@ -16,6 +16,7 @@ class AddDoubleLinear(Node):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -31,6 +32,7 @@ class AddDoubleLinear(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (float): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             AddDoubleLinear: 自身。
 
@@ -49,6 +51,7 @@ class AddDoubleLinear(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             AddDoubleLinear: 自身。
 

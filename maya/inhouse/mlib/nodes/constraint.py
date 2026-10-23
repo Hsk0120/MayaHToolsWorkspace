@@ -52,8 +52,10 @@ class Constraint(Transform):
 
         Args:
             target (Node | str): この拘束に登録されたターゲット。
+
         Returns:
             float: 正規化していないウェイト値。
+
         Raises:
             ValueError: ターゲットが登録されていない場合。
         """
@@ -70,9 +72,9 @@ class Constraint(Transform):
         """ターゲットのウェイトをまとめて設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             weight (float): 設定するウェイト値。
             targets (Node | str): 値を設定するターゲット。省略時は全ターゲットに設定する。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Constraint: 自身。
@@ -85,13 +87,13 @@ class Constraint(Transform):
         """
         from .node import Node as _InputNode
         from .node import Nodes as _InputNodes
-        weightPlugs = self.getWeightPlugs()
+        weight_plugs = self.getWeightPlugs()
         if not targets:
-            for plug in weightPlugs:
+            for plug in weight_plugs:
                 plug.set(weight)
             return self
         requested = {_InputNode._resolve_input(target).getFullName() for target in _InputNodes._resolve_inputs(targets)}
-        available = {node.getFullName(): plug for node, plug in zip(self.getTargets(), weightPlugs)}
+        available = {node.getFullName(): plug for node, plug in zip(self.getTargets(), weight_plugs)}
         missing = requested - available.keys()
         if missing:
             raise ValueError(f"Targets not found on this constraint: {sorted(missing)}")

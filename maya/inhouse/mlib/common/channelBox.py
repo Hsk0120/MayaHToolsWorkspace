@@ -28,7 +28,7 @@ class ChannelBox:
         """
         if cmds.about(batch=True):
             raise RuntimeError("Channel Box requires Maya GUI")
-        self._name = control or mel.eval('global string $gChannelBoxName; $gChannelBoxName;')
+        self._name = control or mel.eval("global string $gChannelBoxName; $gChannelBoxName;")
         self.getName()
 
     def exists(self):
@@ -109,14 +109,21 @@ class ChannelBox:
 
     @undoChunk("mlibChannelBoxClearSelection")
     def clearSelection(self):
-        """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。"""
+        """アトリビュートのUI選択を解除する。シーンのノード選択は変更しない。戻り値はNone。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.channelBox(self.getName(), edit=True, select="")
 
     def _section_names(self, section):
         """sectionを検証する。未対応の名前はValueError。
 
         Args:
-            section: UIの表示設定または操作対象の項目。
+            section (str): main・shape・history・output・allのいずれか。
+
+        Returns:
+            tuple[str, ...]: 検証済みのセクション名。all指定時は定義順の全セクション。
         """
         if section == "all":
             return tuple(self._sections)

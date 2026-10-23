@@ -91,9 +91,11 @@ def ls(*args, **kwargs):
             省略時は全種類。範囲はflatten指定によらず単体へ展開する。
             複数シェイプもリストで返す。オブジェクトや他種類からの変換は行わない。
             その他はmaya.cmds.lsへ渡す検索フラグ。
+
     Returns:
         list[Node | Plug | Component] | Joints | SkinClusters: コンポーネント型指定時は単体要素のリスト。
             ノード型のtypeまたはtypがjoint/skinClusterの場合は従来の専用コレクション。
+
     Raises:
         TypeError: 位置引数に対応しない型が含まれる場合。
         ValueError: 位置引数に削除済みの対象が含まれる場合。

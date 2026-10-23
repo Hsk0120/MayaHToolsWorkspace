@@ -131,9 +131,10 @@ class Preferences:
         """上方向を変更する。既定ではカメラを回転しない。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             axis (str): y/z。
             rotate_view (bool): 表示カメラも回転させるか。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -164,10 +165,11 @@ class Preferences:
         """Undoの記録を切り替える。Undoチャンクには含めない。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 記録するか。
             flush (bool): TrueはMaya標準のstateで切り替え、履歴を消去する。
                 Falseは履歴を保持する。無効中に破壊的操作を行った場合、以前の履歴は安全に戻せない。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -198,8 +200,9 @@ class Preferences:
         """設定を変更する。Undo履歴の上限設定で、無限を無効にすると既存の上限が適用される。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -229,8 +232,9 @@ class Preferences:
         """設定を変更する。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -260,8 +264,9 @@ class Preferences:
         """設定を変更する。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             enabled (bool): 有効にするか。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -290,8 +295,9 @@ class Preferences:
         """履歴上限を設定し、無限を無効にする。古い履歴が削除され得る。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             count (int): 正の整数。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -323,8 +329,9 @@ class Preferences:
         """自動保存間隔を変更する。保存は実行しない。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             seconds (float): 正の有限な秒数。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -357,8 +364,9 @@ class Preferences:
         """自動保存先を指定フォルダー方式へ変更する。作成・保存は行わない。
 
         Args:
-            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
             path (str | Path): 保存先。ユーザーホームを展開し絶対化する。
+            save (bool): Trueで一般ユーザー設定全体を保存する。既定はFalse。シーン保存は行わない。
+
         Returns:
             None: 値を返さない。
 
@@ -410,6 +418,7 @@ class Preferences:
 
         Args:
             value (bool): 検証する値。
+
         Returns:
             bool: 検証済み。型が異なる場合はTypeError。
         """
@@ -422,7 +431,10 @@ class Preferences:
         """保存要求を変更前に検証する。batchでの部分更新を防ぐ。
 
         Args:
-            save: 設定をディスクへ保存するか。
+            save (bool): 設定をディスクへ保存するか。
+
+        Returns:
+            None: 値を返さない。
         """
         Preferences._boolean(save)
         if save and cmds.about(batch=True):

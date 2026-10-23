@@ -84,12 +84,5 @@ class Faces(Components):
         if not (self._uses_standard_iteration(Face) and self._uses_standard_vertices()
                 and Face.getVertices is _FACE_GET_VERTICES):
             return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
-        Component._validate_shape(self.shape, Face.shape_type)
-        indices = []
-        if self._indices:
-            mesh_fn = self.shape.meshFn()
-            count = mesh_fn.numPolygons
-            for index in self._indices:
-                Component._validate_index(index, count)
-                indices.extend(mesh_fn.getPolygonVertices(index))
+        indices = self._mesh_vertex_indices("numPolygons", "getPolygonVertices")
         return Vertices(self.shape, indices)

@@ -1,4 +1,4 @@
-"""明示したget/is省略入口へ正式メソッドの署名とフラグ情報を付与する。"""
+"""明示した判定省略入口へ判定本体の署名とフラグ情報を付与する。"""
 
 import inspect
 
@@ -55,6 +55,6 @@ def _is_alias(predicate, *, static=False):
 
     Note:
         呼出しは入口のdefが現在の判定メソッドへ委譲する。
-        get省略入口と同じ補助を使い、評価・Undo・キャッシュは追加しない。
+        署名の付与だけを共通処理し、評価・Undo・キャッシュは追加しない。
     """
     return _getter_alias(predicate, static=static)

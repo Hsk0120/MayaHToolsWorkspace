@@ -39,7 +39,7 @@ class Reference(Node):
         Returns:
             Namespace: 参照の名前空間。
         """
-        # namespaces.namespace が ..nodes を逆方向 import しないため単純な import で足りるが、
+        # common.namespaceの初期化順に依存しないよう、
         # mlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
         from ..common import Namespace
 

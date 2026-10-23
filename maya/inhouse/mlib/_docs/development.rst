@@ -9,8 +9,9 @@
 通常の利用では、mlibの編集コマンドやメソッドをそのまま呼び出します。
 作成・削除・複製・グループ化・選択・キー設定・ベイク・コンストレイント作成は
 各コマンド内で ``undoChunk`` を使い、複数の内部操作を一回のUndoにまとめます。
-アトリビュート・トランスフォーム・コンポーネントの編集や、ウェイト移送とjoint削除の
-複合処理も、対応するメソッド内でチャンクを管理します。
+アトリビュート・トランスフォーム・コンポーネントの編集も、対応するメソッド内で
+チャンクを管理します。ウェイト移送・子保持・joint削除を組み合わせる処理は
+``mlrig.setups.JointHierarchy.delete`` が管理します。
 複合アトリビュートの ``CompoundPlug.set()`` は全子アトリビュートを一回で戻します。
 ``preservedSelection()`` は選択の復元もUndo対応のコマンドで行い、
 ブロック内の編集と選択変更をまとめてUndo／Redoします。
@@ -84,7 +85,7 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
        Matrix は ``MMatrix`` の派生で、om2 の関数へそのまま渡せ、演算の意味も om2 に従う
        (ハッシュ不可)。``easing`` だけは標準の ``math`` のみを使う
    * - ``cmds``
-     - ``maya.cmds`` 相当の手続き的 API（createNode、ls、constraint）
+     - ``maya.cmds`` 相当の手続き的 API（createNode、ls、addConstraint）
    * - ``decorator.py``
      - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
        joint姿勢編集、画面表示の一時停止
@@ -159,6 +160,15 @@ jsDelivr から読み込みます(図の表示にはネットワーク接続が�
 新しいモジュールは mlib 配下に追加すると次回ビルドで検出されます。
 利用手順はこのディレクトリの ``.rst`` に記述します。
 
+公開名はlowerCamelCase、クラスはPascalCase、内部関数・内部メソッド・ローカル変数は
+snake_caseを基本とします。Maya/OM2標準名、既存公開引数、保存フィールドは維持します。
+インデントはスペース4、通常の文字列はダブル引用符、単純な埋込みはf-stringを基本とし、
+外部形式・正規表現・動的書式・loggingの遅延書式は必要な表記を使います。
+docstringの見出し間は空行を入れ、引数を署名順で説明します。
+``fast/safe/get`` による戻り値・副作用・制限は条件ごとに書き、説明に合わせて実装の契約を変えません。
+確定規則の全文とレイアウトの例外はリポジトリの ``docs/mlib-api-design.md`` にまとめています。
+通知と通常例外の使い分けは :doc:`logging` を参照してください。
+
 ビルド環境の作成とコマンドは ``maya/inhouse/mlib/_docs/README.md`` を参照してください。
 生成 HTML は ``maya/inhouse/mlib/_docs/_build/html`` に出力し、Git には含めません。
 
@@ -212,41 +222,20 @@ apiType、``MFnTypedAttribute.attrType()``、API 2.0 に列挙値の無いデー
 存在しない配列要素を問い合わせると要素を作る(blendShape の ``weight[i]`` では
 ``parentDirectory[i]`` なども作られる)、nurbsSurface の ``patchUVIds`` の存在しない要素で
 Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・``face[i]`` など)で例外になる、
-といった副作用と失敗を避けるためです。``attributeType()`` は値を読まないため評価も
-起こしません(例外は次の「値によって型が変わるアトリビュート」)。
+といった副作用と失敗を避けるためです。``attributeType()`` は値を読まず、評価を起こしません。
 
 - mesh の ``controlPoints`` はアトリビュート定義が ``double3`` でも ``cmds.getAttr(type=True)`` が
   ``float3`` を返すため、このアトリビュートだけ ``float3`` として扱います(nurbsCurve などは ``double3``)。
-- 値によって型が変わるアトリビュート(generic アトリビュート、任意のデータを受け付ける typed アトリビュート、
-  ``geometry`` 型)は、アトリビュート定義だけでは型名が決まらないため ``attributeType()`` は
-  ``None`` を返します。``Plug(node, mplug)`` は、generic アトリビュートと任意のデータを受け付ける
-  typed アトリビュート(``MFnData.kAny``。``choice`` の ``input``/``output`` など)が行列を保持して
-  いれば、``cmds.getAttr(type=True)`` と同じく ``matrix`` として ``MatrixPlug`` を選びます
-  (``choice`` ノードで行列を切り替える構成など。``plugs/plug.py`` の ``_held_matrix_type()``)。
-  保持する値の型は次の順に求め、評価はできるだけ避けます。
-
-  1. 読み取りできないアトリビュート(``MFnAttribute.readable`` が偽。transform 系ノード共通の
-     generic アトリビュート ``geometry`` など)と、存在しない要素は値を読みません。field 系ノードでは
-     ``geometry`` の評価で ``falloffCurve[0]`` などの要素が作られるため、読むと
-     ``Node(field).plugs()`` がシーンを変更してしまいます。
-  2. 入力接続があれば、接続元のアトリビュートの型を使います(``choice.input[0]`` の接続元が
-     ``worldMatrix[0]`` なら ``matrix``)。接続元の型がアトリビュート定義で決まる場合は値を読まず、
-     上流の評価を起こしません。接続元も値によって型が変わるアトリビュートなら、接続元に同じ規則を
-     適用して辿ります。辿った先で入力接続の無い接続元は値を読むため、上流の評価が起こります
-     (``choice2.input[0]`` ← ``choice1.output`` では ``choice1`` を、``choice.input[0]`` ←
-     ``unitConversion.output`` では ``unitConversion`` を評価します)。
-  3. 入力接続が無ければ値を読みます。ノードが計算する出力(``choice.output`` など)は
-     ``cmds.getAttr(type=True)`` と同じく評価(compute)が起こります。評価によって
-     ワールド空間の出力の要素が作られる場合もあります(インスタンス化されたシェイプの
-     2つ目のインスタンスを拘束元にした geometryConstraint の ``constraintGeometry`` では、
-     シェイプの ``worldMesh[0]`` が作られます。``cmds.getAttr(type=True)`` でも同じです)。
-
-  ``double3`` などの数値の組を保持する場合は子を持たず ``Double3Plug`` で扱えないため、
-  基底の ``Plug`` のままにします(``get()`` は tuple)。``geometry`` 型の typed アトリビュート
-  (デフォーマの ``inputGeometry`` など)は対象外で、値を読みません。
+- genericアトリビュート、``MFnData.kAny``、``geometry`` 等の定義では
+  ``attributeType()`` がNoneを返します。generic/kAnyの参照は基底Plugに固定し、
+  値の読取りや接続元の追跡によるラッパー選択は行いません。
+  ``Plug.get()`` を呼んだ時点で現在のデータを判定し、行列ならMatrixを返します。
+  数値の組はtupleなど、既存の値の形を保ちます。
+  参照生成・``getPlugs``・``getConnections`` 等の列挙では値を評価しません。
+  値取得時の上流評価と、安全に読み取れない内部データの拒否は値取得側の責務です。
 - Maya 内部のデータ型(``cmds.addAttr`` で作成できない ``nurbsPatchUVIds``・``polyFaces``
   など。``is_internal_data_type()``)の存在しない配列要素は、値を読むと Maya が異常終了する
-  場合があるため、``Plug.get()`` と ``ArrayPlug.getElement(create=True)`` が ``RuntimeError`` に
+  場合があるため、``Plug.get()`` が ``RuntimeError`` に
   します(maya.cmds・MPlug のどちらでも値を読みません)。
 - 既存のプラグについて ``cmds.getAttr(type=True)`` と一致することを
   ``test_cmds_parity.py`` で検証しています(2022・2027 で全ノード型の既存プラグを
@@ -254,12 +243,11 @@ Maya が異常終了する、mesh の内部アトリビュート(``edge[i]``・`
   存在しない配列要素へ ``cmds.getAttr(type=True)`` を使いません(要素が作られ、
   Maya が異常終了するアトリビュートもあるため)。
 
-そのため Plug の生成は、値によって型が変わるアトリビュートで値を読む場合(上記の評価と、評価による
-ワールド空間の出力の要素の作成)を除き、シーンを変更しません。要素の作成が必要な処理は
-``array[index].set(value)`` または接続で明示します。値設定なしで実体化だけが必要な場合は
-``array.getElement(index, create=True)`` を使います。所有ノードが削除済み、
+Plugの生成は値を評価せず、要素を作成しません。作成が必要な処理は
+``array[index].set(value)`` または参照への接続で明示します。
+``getElement(index)`` は既存要素を取得するだけで、作成引数はありません。所有ノードが削除済み、
 または動的アトリビュートが ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
-既存の Plug も無効(``Plug.valid()`` が ``False``。``str()``・``name()`` は空文字列、
+既存の Plug も無効(``Plug.valid()`` が ``False``。``str()``・``getName()`` は空文字列、
 値の取得・設定と、アトリビュートの情報・接続の問い合わせは ``RuntimeError``)として扱います。
 削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの MPlug は
 古い値を返し、Undo の対象から外れた削除済みノードの MPlug は名前の問い合わせでも
@@ -275,10 +263,10 @@ MPlug・Plug を所有ノードへ解決する処理(``nodes/node.py`` の ``_re
 所有ノードへ解決すると削除済みの対象を黙って受け付けてしまうためで、``RuntimeError`` の
 派生にするのは、解決できない対象をすべて ``RuntimeError`` にする ``Node(...)`` の規則を
 保つためです。
-``Plug(node, mplug)`` は ``MPlug.getNode()`` と ``node`` の MObject を比べ、所有ノードではない
+``Plug(node, mplug)`` は ``MPlug.node()`` と ``node`` の MObject を比べ、所有ノードではない
 ``node`` を渡す誤用を静的アトリビュート・動的アトリビュートとも ``RuntimeError`` にします(静的アトリビュートは同じ型の
 別ノードにも存在し、``attributeClass()`` では検出できないため)。
-ただし Undo の対象から外れて削除されたノードの MPlug は ``MPlug.getNode()`` の時点で
+ただし Undo の対象から外れて削除されたノードの MPlug は ``MPlug.node()`` の時点で
 Maya が異常終了し、API では検出できません。mlib の内部でも MPlug を削除操作をまたいで
 保持せず、Plug(ノードの ``MObjectHandle`` を持つ)を保持してください。
 
@@ -293,7 +281,7 @@ network を各 2000 個作成した実測。比較の基準は ``maya.cmds`` へ
 - ``Node(...)``・``node.getPlug()``・``mlib.ls()`` は以前の実装の約 0.3〜0.6 倍の時間です
   (``Node(...)`` は約 0.3〜0.4 倍、``node.getPlug()`` は transform の ``tx`` で約 0.3〜0.5 倍、
   DG ノードの動的アトリビュートで約 0.4〜0.6 倍)。``Plug(node, mplug)`` の所有ノードの確認
-  (``MPlug.getNode()`` との比較)を含みます。例外として、``Node(MPlug)``・``mlib.getNode(MPlug)``・
+  (``MPlug.node()`` との比較)を含みます。例外として、``Node(MPlug)``・``mlib.getNode(MPlug)``・
   ``Node._resolve_input(MPlug)`` のように生の ``MPlug`` から所有ノードを解決する経路は、削除済みアトリビュートの
   確認が加わるため以前の約 1.4 倍です(1 回あたり約 +1.4µs)。mlib 内部の頻繁な処理は
   ``Node(mplug.getNode())`` (MObject)を使うため影響しません。
@@ -536,6 +524,7 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 複数形クラスの検証は実際の呼出先メソッドを使います。
 共有引数の入口は ``def method(self, *args, **kwargs)`` として定義し、
 ``Nodes._dispatch_shared`` へ渡します。要素別引数は ``callEach`` で渡します。
+対象メソッドと戻り方針は一つの一覧で宣言し、既存の呼出先・戻り方針の辞書を構成します。
 各入口の ``__signature__`` は対応する単数メソッドから設定し、
 ``inspect.signature`` で取得する既存の引数仕様を維持します。
 公開メソッドの作成や選択を実行時に行う仕組みではありません。
@@ -544,8 +533,9 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 全件の引数検証後に保持順で実行し、途中失敗時の先行変更は自動で戻しません。
 
 reloadはimportの探索キャッシュを無効化して現在のモジュールを検出します。
-型登録表の再構築は ``_core.bootstrap``、各キャッシュの再生成は所有モジュール、
+型登録表の再構築はルートの初期化、各キャッシュの再生成は所有モジュール、
 標準型の登録後の任意拡張の登録は ``extensions`` が担当します。
+定義モジュールはreload処理が一度だけ再読み込みし、ルートはNode/Plugの明示対応表を登録します。
 reload後はNode/Plug等のインスタンスを取得し直してください。
 
 JSONは用途別Snapshotが取得・形状検証・適用の固有処理を担当し、

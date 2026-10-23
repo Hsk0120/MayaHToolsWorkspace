@@ -105,6 +105,9 @@ class ScalarGraph:
         Args:
             value (float | str | Plug): 定数または入力プラグ名。
             destination (Plug | str): 接続先アトリビュート。
+
+        Returns:
+            None: 値を返さない。
         """
         destination = Plug._resolve_input(destination)
         if isinstance(value, (str, Plug)):

@@ -12,6 +12,7 @@ class PairBlend(Node):
 
     def getWeightPlug(self):
         """ブレンドウェイトのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -19,6 +20,7 @@ class PairBlend(Node):
 
     def getWeight(self):
         """ブレンドウェイトの評価値を取得する。
+
         Returns:
             float: 現在の値。
         """
@@ -32,6 +34,7 @@ class PairBlend(Node):
         Args:
             value (float): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             PairBlend: 自身。
 
@@ -49,6 +52,7 @@ class PairBlend(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PairBlend: 自身。
 
@@ -60,10 +64,11 @@ class PairBlend(Node):
 
     def getRotateInterpolation(self):
         """現在のモード名を取得する。
+
         Returns:
             str: euler, quaternion。
         """
-        return _Calculation.enumName(self.getPlug("rotInterpolation"), ('euler', 'quaternion'))
+        return _Calculation.enum_name(self.getPlug("rotInterpolation"), ("euler", "quaternion"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -73,22 +78,24 @@ class PairBlend(Node):
         Args:
             mode (str | int): euler, quaternion、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             PairBlend: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('euler', 'quaternion'))
+        value = _Calculation.enum_value(mode, ("euler", "quaternion"))
         self.getPlug("rotInterpolation").set(value)
         return self
 
     def getRotateOrder(self):
         """現在のモード名を取得する。
+
         Returns:
             str: xyz, yzx, zxy, xzy, yxz, zyx。
         """
-        return _Calculation.enumName(self.getPlug("rotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        return _Calculation.enum_name(self.getPlug("rotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -98,13 +105,14 @@ class PairBlend(Node):
         Args:
             mode (str | int): xyz, yzx, zxy, xzy, yxz, zyx、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             PairBlend: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        value = _Calculation.enum_value(mode, ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
         self.getPlug("rotateOrder").set(value)
         return self
 
@@ -114,6 +122,7 @@ class PairBlend(Node):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -125,6 +134,7 @@ class PairBlend(Node):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -140,6 +150,7 @@ class PairBlend(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             PairBlend: 自身。
 
@@ -158,6 +169,7 @@ class PairBlend(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PairBlend: 自身。
 
@@ -173,6 +185,7 @@ class PairBlend(Node):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -184,6 +197,7 @@ class PairBlend(Node):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -199,6 +213,7 @@ class PairBlend(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             PairBlend: 自身。
 
@@ -217,6 +232,7 @@ class PairBlend(Node):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             PairBlend: 自身。
 
@@ -231,6 +247,7 @@ class PairBlend(Node):
 
         Args:
             kind (str): translate/rotate。
+
         Returns:
             Plug: 出力参照。
         """
@@ -243,6 +260,7 @@ class PairBlend(Node):
 
         Args:
             kind (str): translate/rotate。
+
         Returns:
             tuple[float, float, float]: 移動はcm、回転はrad。
         """

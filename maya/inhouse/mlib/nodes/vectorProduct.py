@@ -17,6 +17,7 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -28,6 +29,7 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -43,6 +45,7 @@ class VectorProduct(ShadingDependNode):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             VectorProduct: 自身。
 
@@ -61,6 +64,7 @@ class VectorProduct(ShadingDependNode):
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             VectorProduct: 自身。
 
@@ -72,10 +76,11 @@ class VectorProduct(ShadingDependNode):
 
     def getOperation(self):
         """現在のモード名を取得する。
+
         Returns:
             str: none, dot, cross, vector_matrix, point_matrix。
         """
-        return _Calculation.enumName(self.getPlug("operation"), ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
+        return _Calculation.enum_name(self.getPlug("operation"), ("none", "dot", "cross", "vector_matrix", "point_matrix"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -85,18 +90,20 @@ class VectorProduct(ShadingDependNode):
         Args:
             mode (str | int): none, dot, cross, vector_matrix, point_matrix、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             VectorProduct: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('none', 'dot', 'cross', 'vector_matrix', 'point_matrix'))
+        value = _Calculation.enum_value(mode, ("none", "dot", "cross", "vector_matrix", "point_matrix"))
         self.getPlug("operation").set(value)
         return self
 
     def getMatrixPlug(self):
         """変換行列のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -104,6 +111,7 @@ class VectorProduct(ShadingDependNode):
 
     def getMatrix(self):
         """変換行列の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -117,6 +125,7 @@ class VectorProduct(ShadingDependNode):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             VectorProduct: 自身。
 
@@ -134,6 +143,7 @@ class VectorProduct(ShadingDependNode):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             VectorProduct: 自身。
 
@@ -143,19 +153,13 @@ class VectorProduct(ShadingDependNode):
         _Calculation.connect(source, self.getMatrixPlug, force=force)
         return self
 
-    def getNormalizeOutputPlug(self):
-        """出力正規化のPlugを取得する。
-        Returns:
-            Plug: 接続・値操作用の参照。
-        """
-        return self.getPlug("normalizeOutput")
-
     def getNormalizeOutput(self):
         """出力正規化の評価値を取得する。
+
         Returns:
             bool: 現在の値。
         """
-        return self.getNormalizeOutputPlug().get()
+        return self.getPlug("normalizeOutput").get()
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -165,13 +169,14 @@ class VectorProduct(ShadingDependNode):
         Args:
             value (bool): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             VectorProduct: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getNormalizeOutputPlug)
+        _Calculation.set_value(value, _Calculation.boolean, self.getPlug, "normalizeOutput")
         return self
 
     @flag_aliases(src="source", f="force")
@@ -182,25 +187,20 @@ class VectorProduct(ShadingDependNode):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             VectorProduct: 自身。
 
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getNormalizeOutputPlug, force=force)
+        _Calculation.connect(source, self.getPlug, "normalizeOutput", force=force)
         return self
-
-    def getOutputPlug(self):
-        """計算結果の接続用Plugを取得する。
-        Returns:
-            Plug: 出力参照。
-        """
-        return self.getPlug("output")
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Vector: 計算結果。
         """
-        return Vector(self.getOutputPlug().get())
+        return Vector(self.getPlug("output").get())

@@ -146,9 +146,9 @@ TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じ�
 ``connected``・``connectedTo``・``disconnectAll`` の方向指定は
 boolのキーワード専用引数です。bool以外は ``TypeError`` になります。
 両Falseでは判定はFalse、通常の接続取得は空リスト、``disconnectAll`` は何もせず自身を返します。
-``connections`` の従来の位置引数・``s/d`` は維持し、入力は ``s and source``、
+``getConnections`` の従来の位置引数・``s/d`` は維持し、入力は ``s and source``、
 出力は ``d and destination`` で評価します。``s=False, src=True`` でも入力は含めません。
-子・配列要素の列挙は ``connections`` の ``checkChildren/checkElements`` で指定します。
+子・配列要素の列挙は ``getConnections`` の ``checkChildren/checkElements`` で指定します。
 ``connected`` はMPlugの従来の接続状態判定を維持し、子・配列要素を列挙する検索は行いません。
 ``connectedTo`` と ``disconnectAll`` は対象Plugの直結だけを扱います。
 
@@ -163,33 +163,26 @@ boolのキーワード専用引数です。bool以外は ``TypeError`` になり
    plug.connected(src=True, dst=False)     # 入力の有無
    plug.connectedTo(other, src=False, dst=True)  # 自身からotherへの接続の有無
    plug.disconnectAll(src=False, dst=True)   # 出力のみ切断し、自身を返す
-   plug.disconnect(src=True, dst=False)  # 入力のみ。相手Plugのリストを返す
-   plug.disconnect(src=False, dst=True)  # 出力のみ。全接続先Plugのリストを返す
-   plug.disconnect(src=True, dst=True)   # 入力と出力。入力元、接続先の順に返す
    element = array.connect(src, na=True)
    array.disconnect(src, na=True)
 
-``disconnect`` の ``src`` は入力元Plugの指定と、入力方向のbool指定に対応します。
-``source`` は ``src`` の別名、``destination`` はキーワード専用の ``dst`` の別名です。
-別名と元の名前を同時に指定すると、編集前に ``TypeError`` になります。
-既定の ``disconnect()`` は入力元Plugを返し、入力がなければ ``RuntimeError`` です。
-``src`` がbool、または ``dst=True`` の場合は切断した相手Plugのリストを返します。
-この方向指定では未接続でも空リストを返し、両方Falseなら何もしません。
-``dst=True`` だけを指定した場合は既定の入力方向も有効なので、両方向を切断します。
-入力元Plugと ``dst=True`` を併用した場合は、指定入力を先に切断し、全出力も切断します。
-入力元Plugを指定した場合、指定接続がなければ従来どおり ``RuntimeError`` です。
-``nextAvailable/na`` による配列検索は入力元Plugを指定した場合だけ適用します。
-配列検索と ``dst=True`` の併用時は、従来の入力接続先リストに出力接続先を追加します。
-子・配列要素の独立接続を展開せず、unitConversionノードも保持します。
-出力の切断でも ``force/f`` により接続先のロックを一時解除し、切断後に復元します。
-複数の接続の切断も通常のUndo/Redoで一度に戻せます。
+``disconnect(src=None, force=False, f=False, nextAvailable=False, na=False, *, fast=False)``
+は入力接続だけを解除します。``src``（別名 ``source``）は入力元のPlug・MPlug・
+アトリビュート名、またはNoneです。boolによる方向指定と ``dst/destination`` は受け付けません。
+別名と元の名前の重複指定は編集前に ``TypeError`` になります。
+既定の ``disconnect()`` は現在の入力を解除し、その入力元Plugを返します。
+入力がない場合と、指定した相手との接続がない場合は ``RuntimeError`` です。
+入力元を明示した ``nextAvailable/na`` は配列内の直接接続を検索し、
+解除した接続先要素のリストを返します。
+``force/f`` は接続先のロックを一時解除し、切断後に復元します。
 
-``disconnectAll`` も未接続では何もせず、子・配列要素の独立接続と
-unitConversionノードを保持します。通常のUndo/Redoに対応し、force指定はありません。
-``disconnect`` は既存仕様を維持するため、既定が入力のみで戻り値も上記のとおり異なります。
-方向が名前で決まる ``source/inputs/outputs/destinations`` と変換ノードを含む派生、
-``isSource/destination/disconnectInput/sourceNodes`` には方向引数を追加しません。
-``connect(src)`` と ``connectTo(dst)`` の引数は接続相手の指定です。方向のboolには置き換えません。
+方向を選ぶ解除は ``disconnectAll(*, src=True, dst=True)``、未接続でも
+何もしない入力解除は ``disconnectInput()`` を使います。どちらも自身を返します。
+子・配列要素の独立接続を展開せず、unitConversionノードも保持します。
+通常の複数切断は1回のUndo/Redoにまとめ、``fast=True`` はUndoなしのOM2更新です。
+``disconnectAll`` はforce指定を受け付けません。
+``getSource/getDestinations`` と ``isSource/isDestination/disconnectInput/getSourceNodes`` に
+方向引数はありません。``connect(src)`` と ``connectTo(dst)`` も接続相手の指定を維持します。
 
 ``force=True`` は一時的にロックを解除して接続します。
 mlib拡張の ``unlock=False`` を併用するとロック解除を禁止できます。
@@ -249,21 +242,18 @@ Plugのsafe指定は失敗数を返します。Transformのsafe指定は自身�
 通常のsetterが自身を返すmlibの規則と、om2派生の数学型は維持します。
 引数・戻り値の対応範囲は、このページに記載した仕様に従います。
 
-getAttrのPlug取得とMaya照会
-----------------------------
+アトリビュート参照・値・状態の取得
+------------------------------------
 
-署名は ``getAttr(target, **kwargs)`` です。照会フラグなしでは ``getPlug`` へ委譲し、
-アトリビュート型に対応するPlugを返します。既存Plugはそのまま返します。
-``target=`` で対象だけを指定した場合もPlug取得です。
-空の名前・空のMPlugは ``ValueError``、解決できないアトリビュートは ``RuntimeError`` です。
-値は ``mlib.getAttr("pCube1.tx").get()`` で内部単位(cm/rad/秒)、
-``get(uiUnits=True)`` で現在のUI単位として読みます。
-
-``**kwargs`` に照会フラグを一つでも指定した場合は、従来のMaya照会値・状態を返します。
-``type=True``・``lock=True`` 等だけでなく、``time``・``silent``・Falseの明示指定も
-照会経路です。Mayaの長名・短名フラグと重複指定の拒否、値のUI単位、
-行列のMatrix・3成分のVectorへの変換を維持します。
-ノードからは ``node.getPlug(name)`` を使います。
+参照は ``mlib.getPlug(target)`` または ``node.getPlug(name)`` で取得します。
+既存Plugはそのまま返し、参照取得のために値を評価しません。
+``mlib.getAttr`` / ``mlib.cmds.getAttr`` のラッパーは公開しません。
+値は ``plug.get()`` で内部単位(cm/rad/秒)、``plug.get(uiUnits=True)`` でUI単位として読みます。
+Mayaの型名・ロック・設定可否は ``getDataType()``・``isLocked()``・``isSettable()`` 等の専用メソッドを使います。
+``getDataType()`` は定義型を返し、generic/kAnyはNoneです。現在値の型名が必要な場合は
+``maya.cmds.getAttr(plug.getFullName(), type=True)`` で明示的に評価します。
+``time`` 指定などMaya固有の照会は ``maya.cmds.getAttr(plug.getFullName(), time=...)`` を
+直接呼び出します。この戻り値の形と単位はMaya標準のままです。
 
 アトリビュートの追加
 --------------------
@@ -288,11 +278,12 @@ Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug�
 ノード削除のsafe
 ----------------
 
-``Node.delete(*, safe=False)`` と ``Joint.delete``、``Nodes.delete``、``Joints.delete`` の
-safeはboolのキーワード専用引数です。既定Falseは従来動作を維持します。
+``Node.delete(*, safe=False, fast=False)`` と ``Joint.delete``、``Nodes.delete``、``Joints.delete`` の
+safeはboolのキーワード専用引数です。既定FalseはMaya標準削除です。
 Trueは自身とDAG子孫のDG接続を確認し、接続があればその対象を削除しません。
 戻り値は削除・スキップともNone。safeの短縮名とforceフラグはありません。
-判定対象と専用削除との違いは :doc:`api_methods` を参照してください。
+JointもNodeの標準削除を継承し、ウェイト移送や子の保持は行いません。
+判定対象は :doc:`api_methods` を参照してください。
 
 skinClusterの修復とinfluence解除
 ----------------------------------

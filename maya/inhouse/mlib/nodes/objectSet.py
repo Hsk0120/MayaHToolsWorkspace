@@ -91,6 +91,19 @@ class ObjectSet(Node):
                 return False
         return True
 
+    @_is_alias(isMember)
+    def member(self, *args, **kwargs):
+        """isMemberへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isMember(*args, **kwargs)
+
     @staticmethod
     def _member_selection(members):
         """入力を圧縮コンポーネントとDAGパスを保つ選択リストへ解決する。
@@ -120,16 +133,3 @@ class ObjectSet(Node):
         if fn.isLocked or fn.isFromReferencedFile:
             raise RuntimeError("Cannot edit a locked or referenced set")
         return fn
-
-    @_is_alias(isMember)
-    def member(self, *args, **kwargs):
-        """isMemberへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isMember(*args, **kwargs)

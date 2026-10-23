@@ -150,7 +150,7 @@ def _rebuild(cls, values):
         for position, item in enumerate(values):
             _MMatrix.__setitem__(result, position, item)
     else:
-        raise TypeError("Cannot rebuild {}".format(cls.__name__))
+        raise TypeError(f"Cannot rebuild {cls.__name__}")
     return result
 
 
@@ -701,7 +701,7 @@ class Vector(om2.MVector):
         """
         values = tuple(values)
         if len(values) != 3:
-            raise ValueError("{} expects 3 values".format(cls.__name__))
+            raise ValueError(f"{cls.__name__} expects 3 values")
         return cls(values[0], values[1], values[2])
 
     def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
@@ -773,12 +773,12 @@ class Vector(om2.MVector):
         return _MVector.__mul__(self, self)
 
     def normal(self, *args):
-        """OpenMayaと同じ演算でVectorの新しい値を返す。
+        """OpenMayaの規則で正規化したVectorの複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Vector: 演算結果を保持する新しいmlib値。
@@ -786,12 +786,13 @@ class Vector(om2.MVector):
         return Vector(_MVector.normal(self, *args))
 
     def rotateBy(self, *args):
-        """OpenMayaと同じ演算でVectorの新しい値を返す。
+        """指定した回転を適用したVectorの複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: Quaternion/EulerRotate等の回転rot、またはOpenMayaの軸定数と
+                radの角度angleを指定する。
 
         Returns:
             Vector: 演算結果を保持する新しいmlib値。
@@ -799,12 +800,12 @@ class Vector(om2.MVector):
         return Vector(_MVector.rotateBy(self, *args))
 
     def rotateTo(self, *args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """自身の方向から指定した方向へ向けるQuaternionを返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 目標方向となるMVector系のtargetを指定する。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -814,12 +815,12 @@ class Vector(om2.MVector):
         return Quaternion._wrap(_MVector.rotateTo(self, *args))
 
     def transformAsNormal(self, *args):
-        """OpenMayaと同じ演算でVectorの新しい値を返す。
+        """行列の逆転置で法線変換し、正規化したVectorの複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 変換に使うMMatrix系のmatrixを指定する。
 
         Returns:
             Vector: 演算結果を保持する新しいmlib値。

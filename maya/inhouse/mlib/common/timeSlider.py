@@ -33,7 +33,7 @@ class TimeSlider:
         if cmds.about(batch=True):
             raise RuntimeError("Time slider selection requires Maya GUI")
         control = self._control or mel.eval(
-            'global string $gPlayBackSlider; $mlibSlider = $gPlayBackSlider;')
+            "global string $gPlayBackSlider; $mlibSlider = $gPlayBackSlider;")
         if not control or not cmds.timeControl(control, exists=True):
             raise RuntimeError(f"Time control is unavailable: {control}")
         return control
@@ -133,8 +133,8 @@ class TimeSlider:
         """isPlayingへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -153,7 +153,11 @@ class TimeSlider:
         cmds.play(forward=bool(forward))
 
     def stop(self):
-        """再生を停止する。戻り値はない。"""
+        """再生を停止する。戻り値はない。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.play(state=False)
 
     @contextmanager
@@ -188,7 +192,10 @@ class TimeSlider:
         """有限の数値時刻へ変換する。不正値は ValueError/TypeError。
 
         Args:
-            value: 変換・設定する入力値。
+            value (float): Mayaの現在の時間単位で指定する時刻。
+
+        Returns:
+            float: Mayaの現在の時間単位で表された有限の時刻。
         """
         value = float(value)
         if not math.isfinite(value):
@@ -204,10 +211,13 @@ class TimeSlider:
         (Mayaネイティブの既知の制限で、mlibは独自プラグインでは補わない方針)。
 
         Args:
-            start: 処理区間の開始位置または終了位置。
-            end: 処理区間の開始位置または終了位置。
-            start_flag: 区間端の指定に使うMayaコマンドフラグ名。
-            end_flag: 区間端の指定に使うMayaコマンドフラグ名。
+            start (float): Mayaの現在の時間単位での開始位置。
+            end (float): Mayaの現在の時間単位での終了位置。
+            start_flag (str): 開始位置を指定するplaybackOptionsのフラグ名。
+            end_flag (str): 終了位置を指定するplaybackOptionsのフラグ名。
+
+        Returns:
+            None: 値を返さない。
         """
         start, end = self._time(start), self._time(end)
         if start > end:

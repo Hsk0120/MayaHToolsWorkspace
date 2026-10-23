@@ -53,7 +53,11 @@ class ScriptJob:
         return not self._stopped and bool(cmds.scriptJob(exists=self._id))
 
     def stop(self):
-        """自身の監視だけを解除する。解除済みの場合は何もしない。"""
+        """自身の監視だけを解除する。解除済みの場合は何もしない。
+
+        Returns:
+            None: 値を返さない。
+        """
         if self.exists():
             cmds.scriptJob(kill=self._id)
         self._stopped = True

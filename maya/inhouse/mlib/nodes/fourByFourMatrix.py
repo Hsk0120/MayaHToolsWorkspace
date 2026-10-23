@@ -11,6 +11,7 @@ class FourByFourMatrix(Node):
 
     def getMatrix(self):
         """16要素の入力行列を取得する。
+
         Returns:
             Matrix: 入力値。
         """
@@ -24,6 +25,7 @@ class FourByFourMatrix(Node):
         Args:
             value (Matrix | Iterable[float]): 行列。
             fast (bool): TrueはUndoなし。
+
         Returns:
             FourByFourMatrix: 自身。
 
@@ -38,6 +40,7 @@ class FourByFourMatrix(Node):
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
+
         Returns:
             Plug: 出力参照。
         """
@@ -45,6 +48,7 @@ class FourByFourMatrix(Node):
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Matrix: 計算結果。
         """

@@ -26,15 +26,15 @@ class NodeRef:
         name = (node.getFullName() if hasattr(node, "getFullName") else node)
         if isinstance(node, Node):
             if not node.isValid():
-                raise ValueError("Expected one node: {}".format(name))
+                raise ValueError(f"Expected one node: {name}")
             return cls(node.getUuid(), name, node.getType())
         selection = om2.MSelectionList()
         try:
             selection.add(name)
         except (RuntimeError, TypeError) as exc:
-            raise ValueError("Expected one node: {}".format(name)) from exc
+            raise ValueError(f"Expected one node: {name}") from exc
         if selection.length() != 1 or "." in name:
-            raise ValueError("Expected one node: {}".format(name))
+            raise ValueError(f"Expected one node: {name}")
         try:
             value = selection.getDagPath(0)
         except (RuntimeError, TypeError):
@@ -60,7 +60,7 @@ class NodeRef:
         Raises:
             ValueError: 対象が不明・曖昧、またはノード型が異なる場合。
         """
-        from maya import cmds
+        import maya.cmds as cmds
         from ..nodes.node import Node
         mapping, namespace_map = mapping or {}, namespace_map or {}
         explicit = self.path in mapping
@@ -87,10 +87,10 @@ class NodeRef:
         if not candidates:
             candidates = cmds.ls(name, long=True) or []
         if len(candidates) != 1:
-            raise ValueError("Node missing or ambiguous: {}".format(name))
+            raise ValueError(f"Node missing or ambiguous: {name}")
         node = Node(candidates[0])
         if node.getType() != self.node_type:
-            raise ValueError("Node type mismatch: {}".format(name))
+            raise ValueError(f"Node type mismatch: {name}")
         return node
 
 
@@ -120,7 +120,7 @@ class PlugRef:
         """現在のシーンのPlugへ解決する。
 
         Args:
-            **kwargs: NodeRef.resolve() に渡す mapping、namespace_map。
+            **kwargs (object): NodeRef.resolve() に渡す mapping、namespace_map。
                 mapping には完全なアトリビュート名同士の対応も指定できる。
 
         Returns:
@@ -164,7 +164,7 @@ class ComponentRef:
         """番号とUVセットを検証して単体コンポーネントを返す。
 
         Args:
-            **kwargs: NodeRef.resolve() に渡す mapping、namespace_map。
+            **kwargs (object): NodeRef.resolve() に渡す mapping、namespace_map。
 
         Returns:
             Component: 現在の形状の単体コンポーネント。UV セットは切り替えない。

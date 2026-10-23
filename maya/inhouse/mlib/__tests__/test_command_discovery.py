@@ -29,12 +29,14 @@ import maya.standalone
 maya.standalone.initialize(name="python")
 import mlib
 from importlib import reload
-from mlib._core import bootstrap
-# Simulate a bootstrap module retained from the old release.
-exec("def initialize_node_api(package_name, target_globals):\n    raise AssertionError('stale bootstrap')\ndef initialize_plug_api(package_name, target_globals):\n    raise AssertionError('stale bootstrap')", bootstrap.__dict__)
+# 登録表を空にした直接root reloadでも、標準型の明示対応表から再構築する。
+mlib.nodes.Node._registry.clear()
+mlib.plugs.Plug._registry.clear()
 mlib.core = mlib._core
 sys.modules["mlib.core"] = mlib._core
 reload(mlib)
+assert isinstance(mlib.getNode("persp"), mlib.nodes.Transform)
+assert isinstance(mlib.getPlug("persp.tx"), mlib.plugs.DoubleLinearPlug)
 mlib.reload()
 assert not hasattr(mlib, "core")
 assert "mlib.core" not in sys.modules

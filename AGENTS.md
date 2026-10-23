@@ -2,6 +2,10 @@
 
 ## 基本方針
 
+- 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。ArrayPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。検証付き算術入力・固定範囲辞書・BlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約・JSONの低水準処理は既存基盤へ委譲する。JSON保存形式とSnapshot適用の通常Undo境界（外側fastを適用中だけ解除して必ず復元）は維持する。
+
+- 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`ArrayPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、fast継承、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効/fast文脈では破壊的処理前に拒否する。
+
 - 2026-10-11のユーザー指示により、ライブラリの正式名は `mlib`、拡張は `mlib_*` とする。旧パッケージ名のimport互換・別名は設けない。この改名では保存形式識別子を `mlib.json`、拡張宣言を `MLIB_EXTENSION_API` へ移行し、旧形式の互換読み込みも提供しない。その他の公開APIの引数・戻り値・意味は維持する。
 
 - 2026-10-06にユーザーが指定した命名規則: mlib独自の取得/設定メソッドはget/set、メソッド内のアトリビュート名はAttr/Attrs、追加アトリビュートはExtra、型変換はasに統一する。getT/setT等の短縮アクセサーは使用しない。数学型はコピー操作と自身更新を併存し、独自APIの自身更新にはItを付ける。OpenMaya標準名と演算条件は維持し、対応する数学値の戻り型はmlib型へ統一する。引数の長短別名と適用例外の詳細は `docs/mlib-api-design.md` を参照し、今回確定した仕様も下記の変更禁止対象とする。
@@ -10,7 +14,7 @@
 
 - mlibの確定済み公開APIの引数仕様は、ユーザーから対象仕様への明示的な変更指示がない限り変更禁止とする。引数名・順序・位置引数/キーワード専用の区分・短縮名/長名・既定値・単位・フラグの意味・戻り値を維持する。リファクタリング、他ライブラリへの追従、命名統一、最適化を理由に変更しない。対象には `ws/worldSpace`、`at`、`ra/r/jo`、`safe/get/fast`、接続方向と `f/l/na`、`Node.addAttr` の型指定・`getPlug` を含む。具体的な仕様は `maya/inhouse/mlib/_docs/api_arguments.rst`・`maya/inhouse/mlib/_docs/api_methods.rst`・`docs/mlib-api-design.md` を参照する。特に `Node.addAttr()` は既定で追加したPlugを返し、明示的な `getPlug=False` の場合のみNoneを返す。通常のsetterが自身を返す仕様も維持し、既定戻り値をNoneへ変更しない。ドキュメントやテストを先に書き換えて仕様変更を正当化することも禁止する。既存の呼び出し仕様を保つ内部修正・不具合修正は可能とする。
 
-- mlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。引数・内部関数・ローカル変数はsnake_caseを使用できるが、Mayaのコマンドフラグは標準表記を優先する。JSON等の保存キーはAPI改名で変更しない。詳細と例外は`docs/mlib-api-design.md`の「確定したコーディングルール」を参照する。
+- mlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。2026-10-23のユーザー指示により、内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。既存の公開引数・拡張用プロトコル・Mayaフラグ・保存キーは変更しない。インデントはスペース4、文字列は原則ダブル引用符、単純な文字列埋込みはf-stringとし、エスケープを減らす引用符・raw正規表現・外部書式・数値書式・引数の評価順や参照回数を保つformat・loggingの遅延書式は例外とする。詳細は`docs/mlib-api-design.md`の「確定したコーディングルール」を参照する。
 
 - mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
@@ -20,7 +24,7 @@
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
 
-- mlib・mlib_*・mlrigの通知/出力は `mlib.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。`error` は通知のみ、例外送出は `raise_with_notify` を使用する。`mlib.cmds.warning` やルートの `mlib.warning` は追加しない。
+- mlib・mlib_*・mlrigの診断ログと通知は `mlib.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。2026-10-23のユーザー指示により、通常の入力検証・下位処理の失敗は型付きの`raise`とし、利用者へ通知して中断する入口だけ`raise_with_notify`を使う。捕捉して戻り値・検証結果へ変換する失敗に通知を追加しない。`error`は通知のみ。復旧の二次失敗は必要時にwarningとし、元例外を優先する。ログの書式引数は標準loggingの遅延形式を使う。進捗表示の指定streamへの描画や保存データの出力は診断ログと区別し、既存の出力契約を維持する。`mlib.cmds.warning`やルートの`mlib.warning`は追加しない。
 
 - mlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/mlib-api-design.md` を参照する。
 

@@ -21,8 +21,8 @@ class Locator(Shape):
         """localPosition を設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Translate | Iterable[float]): 新しい localPosition。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Locator: 自身。

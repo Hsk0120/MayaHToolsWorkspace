@@ -452,12 +452,13 @@ class Quaternion(om2.MQuaternion):
 
     @staticmethod
     def squad(*args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """四元数空間の三次曲線上で補間したQuaternionを返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 両端p/q、中間制御点a/b、補間値tをp, a, b, q, tの順で指定する。
+                任意のspinは一周する回数。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -466,12 +467,12 @@ class Quaternion(om2.MQuaternion):
 
     @staticmethod
     def squadPt(*args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """squadで滑らかにつながる曲線の中間制御回転を計算する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 隣接する3個の四元数q0, q1, q2を指定する。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -746,12 +747,12 @@ class Quaternion(om2.MQuaternion):
         return Matrix._wrap(_MQuaternion.asMatrix(_unit_copy(self)))
 
     def normal(self, *args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """OpenMayaの規則で正規化したQuaternionの複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -759,12 +760,12 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.normal(self, *args))
 
     def exp(self, *args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """四元数の指数を、新しいQuaternionとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -772,12 +773,12 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.exp(self, *args))
 
     def log(self, *args):
-        """OpenMayaと同じ演算でQuaternionの新しい値を返す。
+        """四元数の自然対数を、新しいQuaternionとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -785,12 +786,12 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.log(self, *args))
 
     def asMatrix(self, *args):
-        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+        """保持する回転を、等価な回転行列へ変換する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Matrix: 演算結果を保持する新しいmlib値。
@@ -800,12 +801,12 @@ class Quaternion(om2.MQuaternion):
         return Matrix._wrap(_MQuaternion.asMatrix(self, *args))
 
     def asEulerRotation(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """保持する回転を、等価なEulerRotateへ変換する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。

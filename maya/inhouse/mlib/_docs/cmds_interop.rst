@@ -103,45 +103,17 @@ maya.cmds へそのまま渡せるもの
   (``getElements()``・``get()``・``array_plug[1]``)。``Transform.getMatrix(ws=True)`` は
   ラッパーが保持するインスタンスの要素(``worldMatrix[<インスタンス番号>]``)を使います。
 - ``om2.MDagPath`` の ``str()`` も最短一意パスなので渡せます。
-- Plug を作る・取得する操作(``node.getPlug()``、``node.getPlugs()``、``Plug._resolve_input()``、
-  ``Selection([...])`` など)は、原則としてシーンを変更しません。アトリビュート型はアトリビュート定義から求め、
-  maya.cmds へ問い合わせないためです(評価も起こしません)。例外は次の項目の
-  「値によって型が変わるアトリビュート」で、値を読むためノードが計算する出力の評価(compute)が起こり、
-  評価によってシーンの状態が変わる場合があります。たとえばインスタンス化されたシェイプの
-  2つ目のインスタンスを拘束元にした geometryConstraint では、``constraintGeometry`` の
-  Plug を作る(``node.getPlugs()`` の結果に含まれる場合を含む)と、評価によってシェイプの
-  ``worldMesh[0]`` が作られます(``cmds.getAttr(type=True)`` でも同じです)。
-  存在しない配列要素(``input1D[10]``)の Plug を作っても要素は
-  作られません(mesh の ``controlPoints[i]`` の Plug を作っても ``pnts[i]`` は作られず、
-  blendShape の ``weight[5]`` の Plug を作っても ``parentDirectory[5]`` などは作られません)。
-  maya.cmds では例外や異常終了になる mesh の内部アトリビュート(``edge[1]`` など)や nurbsSurface の
-  ``patchUVIds`` の要素も、Plug として扱えます。要素を作るには
-  ``array_plug[10].set(value)`` のように値を設定するか、その参照へ接続します。
-  ただし ``patchUVIds`` のような Maya 内部のデータ型の配列では、存在しない要素の
-  ``get()`` と ``getElement(i, create=True)``/``addElement()`` は ``RuntimeError`` です
-  (maya.cmds でも MPlug でも、値を読むと Maya が異常終了する場合があるためです)。
-- 値によって型が変わるアトリビュート(``choice`` の ``input``/``output`` のような任意のデータを
-  受け付けるアトリビュートと、``unitConversion`` の ``input``/``output`` のような generic アトリビュート)は、
-  保持する値が行列なら ``cmds.getAttr(type=True)`` と同じく ``matrix`` として
-  ``MatrixPlug`` になります(``get()`` は ``Matrix``)。保持する値の型は次の順に求めます。
-
-  - 読み取りできないアトリビュート(transform 系ノード共通の ``geometry`` など)と、存在しない
-    要素は値を読みません(基底の ``Plug`` になります)。
-  - 入力接続があれば、接続元のアトリビュートの型を使います(``choice.input[0]`` の接続元が
-    ``worldMatrix[0]`` なら ``MatrixPlug``)。接続元の型がアトリビュート定義で決まる場合は値を読まず、
-    上流の評価も起こりません。接続元も値によって型が変わるアトリビュート(``choice`` の ``output``、
-    ``unitConversion`` の ``output`` など)の場合は、接続元に同じ規則を適用して辿ります。
-    辿った先の接続元に入力接続が無ければその値を読むため、上流の評価が起こります
-    (``choice2.input[0]`` の接続元が ``choice1.output`` なら ``choice1`` を、
-    ``choice.input[0]`` の接続元が ``unitConversion.output`` なら ``unitConversion`` を評価します)。
-  - 入力接続が無ければ、Plug の作成時に値を読みます。ノードが計算する出力
-    (``choice.output`` など)では ``cmds.getAttr(type=True)`` と同じく評価(compute)が
-    起こります(``node.getPlugs()`` や ``plug.getDestinations(skipConversionNodes=False)`` の結果に含まれる場合も同じです)。
-
-  ``double3`` などの数値の組を保持する場合は基底の ``Plug`` で、``get()`` は tuple です
-  (generic アトリビュートは子を持たないため ``Double3Plug`` では扱えません)。型は Plug の作成時に
-  決まるため、``choice`` の ``selector`` を切り替えて行列以外を出力させた後の
-  ``MatrixPlug.get()`` は ``RuntimeError`` です(Plug を作り直してください)。
+- Plugを作る・取得する操作(``node.getPlug()``、``node.getPlugs()``、
+  ``Plug._resolve_input()``、``Selection([...])`` など)と接続列挙では値を評価しません。
+  ラッパー型はアトリビュート定義で選び、generic/kAnyは基底Plugのままです。
+  未作成要素やMaya内部アトリビュートも参照取得だけでは実体化しません。
+  要素は ``array[index].set(value)`` または参照への接続で作成します。
+  ``getElement(index)`` は既存要素のみを返し、未作成ならIndexErrorです。
+- generic/kAnyアトリビュート(``choice.input/output`` など)は ``get()`` の時点で
+  現在の値を読み、行列ならMatrix、数値の組ならtupleを返します。
+  choiceのselectorを切り替えても同じPlugを使い続けられます。
+  値を読む時には上流の評価が起こり、出力の配列要素が作られる場合があります。
+  Maya内部型の未作成要素など、安全に値を読めない場合は ``get()`` がRuntimeErrorです。
 - ``node.getPlug()`` はアトリビュート名(ロング名・ショート名・エイリアス)に加えて、``str(plug)`` の
   アトリビュート部分と同じアトリビュートパス(``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
   ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
@@ -157,11 +129,10 @@ maya.cmds へそのまま渡せるもの
   (``MPlug.elementByLogicalIndex()`` は ``input1D[0]`` へ変換します)。なお名前の文字列
   (``Plug._resolve_input("pma.input1D[4294967296]")``、``cmds.getAttr`` など)は、maya.cmds と同じく
   2147483647 番の要素として解決されます。
-  ``message`` 型のように値を持たないアトリビュートの配列では要素を作成できず、接続した時点で
-  要素ができます(``addElement()`` は接続するまで同じ番号を返します)。
+  ``message`` 型のように値を持たないアトリビュートの配列では、参照へ接続した時点で要素ができます。
 - ``createNode("mesh")`` で作っただけの ``inMesh`` が未接続の空の mesh の ``uvpt[i]`` や、
-  空の subdiv の ``controlPoints[i]``・``weights[i]`` の存在しない要素では、``get()`` と
-  ``getElement(i, create=True)``/``addElement()`` が ``cmds.getAttr`` と同じく Maya を異常終了
+  空の subdiv の ``controlPoints[i]``・``weights[i]`` の存在しない要素では、
+  ``get()`` による値の読取りが ``cmds.getAttr`` と同じく Maya を異常終了
   させる場合があります(形状を持つノードでは起こりません)。形状を接続してから扱ってください。
 - 削除済みノードの Plug から、要素・子・親などの新しい Plug は取得できません
   (``RuntimeError``)。削除済みノードの名前で問い合わせると、同じ名前で作り直された
@@ -247,12 +218,12 @@ mlibの値から作成コマンドへ渡す
    end_ui = tuple(units.distanceToUi(value) for value in end_cm)
    curve_transform = mlib.createCurve(name="unitBoundaryCurve", degree=1,
                                       point=[(0, 0, 0), end_ui])
-   print(curve_transform.getShape().getCV(1).position())  # (100.0, 0.0, 0.0) cm
+   print(curve_transform.getShape().getCV(1).getPosition())  # (100.0, 0.0, 0.0) cm
 
 この例はシーンの単位設定を変更せず、現在のUI単位がcmでもmでも同じ形状を作ります。
 例えばm設定では ``end_ui`` のXは1.0です。cm値100をそのままpointへ渡すと
 100mとして作成されます。時間フラグも同様にMayaの現在の時間単位で指定します。
-Plugの ``get()`` はcm/rad/秒、``get(uiUnits=True)`` と照会フラグ付き ``mlib.getAttr`` は
+Plugの ``get()`` はcm/rad/秒、``get(uiUnits=True)`` と ``cmds.getAttr`` は
 UI単位です。値を渡す側と受け取る側の単位を合わせてください（:doc:`guide_plugs`）。
 
 mlib のコマンドが受け付ける入力
@@ -328,7 +299,7 @@ Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱�
   ください(MPlug はインスタンスの情報を持たないため、最初のインスタンスになります)。
 
 アトリビュートが必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.connectedTo``、
-``mlib.getAttr``、``mlib.getPlug``、``mlib.getDrivenKey``、``DrivenKey.find``)は、
+``mlib.getPlug``、``mlib.getDrivenKey``、``DrivenKey.find``)は、
 Plug・MPlug とアトリビュート名の文字列を受け付けます。
 文字列は ``str(plug)`` が返す形式(``grp1|dup.translateX``、``bs.weight[0]``、
 エイリアス名の ``bs.smile``、``cubeShape.pnts[2].pntx`` など)も maya.cmds と同じ規則で解決します。
@@ -344,13 +315,10 @@ mesh の ``pnts[i]``、nurbsCurve・nurbsSurface・lattice の ``controlPoints[i
 展開します(``cmds.getAttr("pCube1.castsShadows")`` がシェイプごとの値のリストを返すなど)が、
 Plug は1つのアトリビュートを表すためです。シェイプの名前で指定してください。
 
-``mlib.getAttr(target)`` は ``mlib.getPlug(target)`` と同じ型付きPlug取得です。
-既存Plugはそのまま返し、値は ``get()`` の内部単位(cm/rad/秒)または
-``get(uiUnits=True)`` のUI単位で読みます。照会フラグを一つでも指定した
-``mlib.getAttr(target, **kwargs)`` は従来のMaya照会値・状態を返します。
-``type=True`` 等の状態照会、``time``・``silent``・Falseの明示指定、
-値のUI単位とMatrix・Vectorへの変換は維持します。
-``maya.cmds.getAttr`` 自体の戻り値は変更していません。
+アトリビュート参照は ``mlib.getPlug(target)``、値は ``plug.get()`` または
+``plug.get(uiUnits=True)``、状態は ``isLocked()`` 等の専用メソッドで取得します。
+``mlib.getAttr`` のラッパーはありません。``time`` 等のMaya固有の照会には
+``maya.cmds.getAttr`` を直接使い、その戻り値の形と単位を扱います。
 
 .. code-block:: python
 

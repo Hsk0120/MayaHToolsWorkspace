@@ -33,5 +33,5 @@ def mirrorArguments(axis, pivot):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('mirror_arguments',):
+for _obsolete_name in ("mirror_arguments",):
     globals().pop(_obsolete_name, None)

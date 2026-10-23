@@ -27,12 +27,19 @@ class UiSnapshot:
         """保持する状態値を取得する。Mayaへの照会は行わない。
 
         Args:
-            name: 参照・作成・照会する対象の名前。
+            name (str): 退避データ内の設定名。
+
+        Returns:
+            object: 指定した設定名の保持値。Mayaの現在値には問い合わせない。
         """
         return self.data[name]
 
     def validate(self):
-        """退避時のUIが全て生存するか確認する。同名の再生成UIは拒否する。"""
+        """退避時のUIが全て生存するか確認する。同名の再生成UIは拒否する。
+
+        Returns:
+            None: 値を返さない。
+        """
         if self.version != 1:
             raise ValueError("Unsupported UI snapshot version")
         for target in self._targets:

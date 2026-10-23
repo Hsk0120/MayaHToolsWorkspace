@@ -1108,9 +1108,6 @@ msgstr "``mlib.nodes.DagContainer.create(name=\"dagContainer\")`` creates a DAG 
 msgid "``ScalarGraph(container)`` は従来どおりcontainer内に演算を作ります。 ``ScalarGraph(create_node=factory)`` は ``factory(node_type, name=...) -> Node`` を使います。 どちらか一方を指定します。生成関数側が生成物の記録と管理を担当し、 ScalarGraphは計算と接続を担当します。既存の生成物を読み取るだけではノードを作成しません。"
 msgstr "``ScalarGraph(container)`` creates operations inside a container as before. ``ScalarGraph(create_node=factory)`` uses ``factory(node_type, name=...) -> Node``. You specify one or the other. The generation function is responsible for recording and managing the generated objects, while ScalarGraph is responsible for the computation and connection. It does not create nodes by simply reading existing generated objects."
 
-msgid "``AimConstraint.getRotationConnections()`` は回転出力の直接接続を ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。 ``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、 World Up Type、enableRestPosition、useOldOffsetCalculationを返します。 接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``getWeightPlugs()`` で取得します。 ``getRestRotation()`` / ``getOffset()`` はラジアンのXYZタプル、 対応する ``setRestRotation(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。 ``getOutputRotation()`` は ``constraintRotateOrder`` を持つ ``EulerRotation`` を返します。 継承した ``getRotation()`` が扱う自身のTransform回転とは異なります。"
-msgstr "``AimConstraint.getRotationConnections()`` returns a list of direct rotation output connections to ``(sourcePlug, destinationPlug)``. It only returns the parent for compound connections and includes those to operation nodes. It does not perform downstream exploration or filter constraint targets. ``settingPlugs()`` returns the XYZ of Rest Rotate, Offset, Aim/Up/World Up Vector, World Up Type, enableRestPosition, and useOldOffsetCalculation. It includes connected settings but excludes matrix input and weight. Weights can be obtained via ``getWeightPlugs()``. ``getRestRotation()`` / ``getOffset()`` are radian XYZ tuples, and corresponding ``setRestRotation(value)`` / ``setOffset(value)`` accept finite radian triplets. Setters reject without dereferencing, unlocking, or breaking input connections, and are undoable. Settings for Rest Rotate do not directly set rotation on the target, and settings for Offset do not recalculate Maintain Offset. ``getOutputRotation()`` returns a ``EulerRotation`` with ``constraintRotateOrder``. Unlike inherited ``getRotation()`` that handles its own Transform rotation, this does."
-
 msgid "``DecomposeMatrix.getInput()`` / ``getInputPlug()`` は単一行列入力を扱い、 ``getRotateOrder()`` はMayaの回転順序番号0〜5を返します。 ``Transform.getVisibility()`` は自身のアトリビュート値を返します。 親・表示レイヤーを含む最終的な可視性判定ではありません。"
 msgstr "``DecomposeMatrix.getInput()`` and ``getInputPlug()`` handle single-line input, and ``getRotateOrder()`` returns Maya's rotation order number 0-5. ``Transform.getVisibility()`` returns its own attribute value. This is not the final visibility determination including parent and display layers."
 
@@ -13551,20 +13548,20 @@ msgstr ":py:obj:`connect <mlib.nodes._calculation._Calculation.connect>`\\ \\(so
 msgid "接続元を解決してから対象Plugを取得し、接続する。"
 msgstr "Resolve the source connection, then get the target plug and connect them."
 
-msgid ":py:obj:`enumName <mlib.nodes._calculation._Calculation.enumName>`\\ \\(plug\\, names\\)"
-msgstr ":py:obj:`enumName <mlib.nodes._calculation._Calculation.enumName>`\\ \\(plug\\, names\\)"
+msgid ":py:obj:`enum_name <mlib.nodes._calculation._Calculation.enum_name>`\\ \\(plug\\, names\\)"
+msgstr ":py:obj:`enum_name <mlib.nodes._calculation._Calculation.enum_name>`\\ \\(plug\\, names\\)"
 
 msgid "Mayaの列挙値を公開名へ変換する。"
 msgstr "Convert Maya enumeration values to display names."
 
-msgid ":py:obj:`enumValue <mlib.nodes._calculation._Calculation.enumValue>`\\ \\(value\\, names\\)"
-msgstr ":py:obj:`enumValue <mlib.nodes._calculation._Calculation.enumValue>`\\ \\(value\\, names\\)"
+msgid ":py:obj:`enum_value <mlib.nodes._calculation._Calculation.enum_value>`\\ \\(value\\, names\\)"
+msgstr ":py:obj:`enum_value <mlib.nodes._calculation._Calculation.enum_value>`\\ \\(value\\, names\\)"
 
 msgid "モード名または番号をMayaの番号へ変換する。"
 msgstr "Convert mode names or numbers to Maya's internal numbers."
 
-msgid ":py:obj:`geometryOutput <mlib.nodes._calculation._Calculation.geometryOutput>`\\ \\(value\\, node\\_type\\, world\\_space\\)"
-msgstr ":py:obj:`geometryOutput <mlib.nodes._calculation._Calculation.geometryOutput>`\\ \\(value\\, node\\_type\\, world\\_space\\)"
+msgid ":py:obj:`geometry_output <mlib.nodes._calculation._Calculation.geometry_output>`\\ \\(value\\, node\\_type\\, world\\_space\\)"
+msgstr ":py:obj:`geometry_output <mlib.nodes._calculation._Calculation.geometry_output>`\\ \\(value\\, node\\_type\\, world\\_space\\)"
 
 msgid "カーブ/サーフェスの入力元Plugを解決する。"
 msgstr "Resolve input source plugs of curves/surfaces."
@@ -13818,8 +13815,8 @@ msgstr "Base class: :py:obj:`mlib.nodes.constraint.Constraint`"
 msgid "指定ターゲットへ向ける aimConstraint ラッパー。"
 msgstr "aimConstraint wrapper that aims at the specified target."
 
-msgid ":py:obj:`_setAngles <mlib.nodes.aimConstraint.AimConstraint._setAngles>`\\ \\(attribute\\, value\\)"
-msgstr ":py:obj:`_setAngles <mlib.nodes.aimConstraint.AimConstraint._setAngles>`\\ \\(attribute\\, value\\)"
+msgid ":py:obj:`_set_angles <mlib.nodes.aimConstraint.AimConstraint._set_angles>`\\ \\(attribute\\, value\\)"
+msgstr ":py:obj:`_set_angles <mlib.nodes.aimConstraint.AimConstraint._set_angles>`\\ \\(attribute\\, value\\)"
 
 msgid "入力・ロックを事前検証し、角度3値を一括更新する。"
 msgstr "Pre-validate input and lock, then batch update the three-angle values."
@@ -13859,9 +13856,6 @@ msgstr ":py:obj:`setRestRotation <mlib.nodes.aimConstraint.AimConstraint.setRest
 
 msgid "Rest Rotateだけを設定する。追従状態や対象の回転は直接変更しない。"
 msgstr "Set only the Rest Rotate. Do not change the follow state or the target rotation directly."
-
-msgid ":py:obj:`settingPlugs <mlib.nodes.aimConstraint.AimConstraint.settingPlugs>`\\ \\(\\)"
-msgstr ":py:obj:`settingPlugs <mlib.nodes.aimConstraint.AimConstraint.settingPlugs>`\\ \\(\\)"
 
 msgid "値として保存する標準設定候補を取得する。接続の有無で除外しない。"
 msgstr "Get the standard preset candidates to be saved as values. Do not exclude based on connection status."
@@ -14208,9 +14202,6 @@ msgstr ":py:obj:`getInput <mlib.nodes.angleBetween.AngleBetween.getInput>`\\ \\(
 msgid ":py:obj:`getInputPlug <mlib.nodes.angleBetween.AngleBetween.getInputPlug>`\\ \\(index\\)"
 msgstr ":py:obj:`getInputPlug <mlib.nodes.angleBetween.AngleBetween.getInputPlug>`\\ \\(index\\)"
 
-msgid ":py:obj:`getOutputPlug <mlib.nodes.angleBetween.AngleBetween.getOutputPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getOutputPlug <mlib.nodes.angleBetween.AngleBetween.getOutputPlug>`\\ \\(\\)"
-
 msgid ":py:obj:`getResult <mlib.nodes.angleBetween.AngleBetween.getResult>`\\ \\(\\)"
 msgstr ":py:obj:`getResult <mlib.nodes.angleBetween.AngleBetween.getResult>`\\ \\(\\)"
 
@@ -14265,14 +14256,8 @@ msgstr ":py:obj:`evaluate <mlib.nodes.animCurve.AnimCurve.evaluate>`\\ \\(input\
 msgid "指定入力でカーブ単体を評価する。シーン時刻は変更しない。"
 msgstr "Evaluate curve(s) individually with specified input. Do not change the scene time."
 
-msgid ":py:obj:`getDrivenPlugs <mlib.nodes.animCurve.AnimCurve.getDrivenPlugs>`\\ \\(\\)"
-msgstr ":py:obj:`getDrivenPlugs <mlib.nodes.animCurve.AnimCurve.getDrivenPlugs>`\\ \\(\\)"
-
 msgid "直接の出力接続先。変換・合成ノード越しの探索はしない。"
 msgstr "Direct output connection target. Does not traverse through conversion or compound nodes."
-
-msgid ":py:obj:`getDriverPlug <mlib.nodes.animCurve.AnimCurve.getDriverPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getDriverPlug <mlib.nodes.animCurve.AnimCurve.getDriverPlug>`\\ \\(\\)"
 
 msgid "inputの直接接続元。時間型では通常timeノード。"
 msgstr "The direct input connection source. For time types, it is typically a time node."
@@ -14300,9 +14285,6 @@ msgstr ":py:obj:`getKeyValues <mlib.nodes.animCurve.AnimCurve.getKeyValues>`\\ \
 
 msgid "キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。"
 msgstr "Output values in key order. Angles, distances, and time are in internal units (cm/rad/sec)."
-
-msgid ":py:obj:`getOutputPlug <mlib.nodes.animCurve.AnimCurve.getOutputPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getOutputPlug <mlib.nodes.animCurve.AnimCurve.getOutputPlug>`\\ \\(\\)"
 
 msgid "出力プラグ。"
 msgstr "Output plug."
@@ -17175,9 +17157,6 @@ msgstr ":py:obj:`getRotateOrder <mlib.nodes.decomposeMatrix.DecomposeMatrix.getR
 msgid "入力回転順序。MayaのrotateOrderと同じ番号0〜5。"
 msgstr "Input rotation order. Same numbering as Maya's rotateOrder, 0 to 5."
 
-msgid ":py:obj:`outputPlugs <mlib.nodes.decomposeMatrix.DecomposeMatrix.outputPlugs>`\\ \\(\\)"
-msgstr ":py:obj:`outputPlugs <mlib.nodes.decomposeMatrix.DecomposeMatrix.outputPlugs>`\\ \\(\\)"
-
 msgid "dict[str, Plug]: translate・rotate・scale・shearをキーとする出力Plug。"
 msgstr "dict[str, Plug]: Output plugs keyed by translate, rotate, scale, and shear."
 
@@ -17297,9 +17276,6 @@ msgstr ":py:obj:`getDistance <mlib.nodes.distanceBetween.DistanceBetween.getDist
 
 msgid "評価済み距離。内部距離単位cm。"
 msgstr "Evaluated distance. Internal distance unit is cm."
-
-msgid ":py:obj:`getOutputPlug <mlib.nodes.distanceBetween.DistanceBetween.getOutputPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getOutputPlug <mlib.nodes.distanceBetween.DistanceBetween.getOutputPlug>`\\ \\(\\)"
 
 msgid "distance出力。別アトリビュートへの接続に使用する。"
 msgstr "Distance output. Used for connecting to other attributes."
@@ -24094,17 +24070,11 @@ msgstr ":py:obj:`getNormalizeOutput <mlib.nodes.vectorProduct.VectorProduct.getN
 msgid "出力正規化の評価値を取得する。"
 msgstr "Get the evaluation value of output normalization."
 
-msgid ":py:obj:`getNormalizeOutputPlug <mlib.nodes.vectorProduct.VectorProduct.getNormalizeOutputPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getNormalizeOutputPlug <mlib.nodes.vectorProduct.VectorProduct.getNormalizeOutputPlug>`\\ \\(\\)"
-
 msgid "出力正規化のPlugを取得する。"
 msgstr "Get the Plug for output normalization."
 
 msgid ":py:obj:`getOperation <mlib.nodes.vectorProduct.VectorProduct.getOperation>`\\ \\(\\)"
 msgstr ":py:obj:`getOperation <mlib.nodes.vectorProduct.VectorProduct.getOperation>`\\ \\(\\)"
-
-msgid ":py:obj:`getOutputPlug <mlib.nodes.vectorProduct.VectorProduct.getOutputPlug>`\\ \\(\\)"
-msgstr ":py:obj:`getOutputPlug <mlib.nodes.vectorProduct.VectorProduct.getOutputPlug>`\\ \\(\\)"
 
 msgid ":py:obj:`getResult <mlib.nodes.vectorProduct.VectorProduct.getResult>`\\ \\(\\)"
 msgstr ":py:obj:`getResult <mlib.nodes.vectorProduct.VectorProduct.getResult>`\\ \\(\\)"
@@ -31970,7 +31940,6 @@ msgstr ":py:obj:`numEdges <mlib.nodes.mesh.Mesh.numEdges>`\\ \\(\\*args\\, \\*\\
 msgid ":py:obj:`normal <mlib.nodes.pointOnCurveInfo.PointOnCurveInfo.normal>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
 msgstr ":py:obj:`normal <mlib.nodes.pointOnCurveInfo.PointOnCurveInfo.normal>`\\ \\(\\*args\\, \\*\\*kwargs\\)"
 
-
 msgid "方向を選ぶ接続APIでは ``src/source`` が自身への入力、 ``dst/destination`` が自身からの出力です。下表のAPIではどちらも既定で有効です。 同じ方向の名前と別名を同時に渡すと、同値でも ``TypeError`` になります。"
 msgstr "In connection APIs that select directions, ``src/source`` means input to this plug and ``dst/destination`` means output from this plug. Both directions are enabled by default in the APIs listed below. Supplying a name and its alias for the same direction raises ``TypeError``, even if the values match."
 
@@ -32375,9 +32344,6 @@ msgstr "``mlib.common.Cycle.find(targets=None, include_dag=True, seconds=10.0, f
 
 msgid "``publishName(name)`` は未Bindの公開名を作り、``bindAttr(name, plug)`` が 所属ノードの内部アトリビュートと対応付けます。``publishAndBind(name, plug)`` は一括操作です。 ``publishedAttrs()`` は公開名をキー、内部Plug（未BindならNone）を値とする辞書を返します。 ``unbindAttr(name)`` は公開名を残し、``unpublishName(name)`` は未Bind名を削除します。 これらはUndo可能です。ロックを自動解除せず、外部ノードを自動で所属させません。 ノードの親子アンカー公開はこのAPIの対象外です。"
 msgstr "``publishName(name)`` creates a new unbound public name, and ``bindAttr(name, plug)`` binds it to the internal attribute of the owning node. ``publishAndBind(name, plug)`` is a batch operation. ``publishedAttrs()`` returns a dictionary with the public name as the key and the internal plug (or None if unbound) as the value. ``unbindAttr(name)`` keeps the public name, and ``unpublishName(name)`` removes the unbound name. These operations are undoable. It does not automatically unlock or automatically assign external nodes to the owning node. Parent-child anchor exposure of nodes is outside the scope of this API."
-
-msgid "``AimConstraint.rotationConnections()`` は回転出力の直接接続を ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。 ``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、 World Up Type、enableRestPosition、useOldOffsetCalculationを返します。 接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``weightPlugs()`` で取得します。 ``restRotation()`` / ``offset()`` はラジアンのXYZタプル、 対応する ``setRestRotation(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。 ``outputRotation()`` は ``constraintRotateOrder`` を持つ ``EulerRotation`` を返します。 継承した ``rotation()`` が扱う自身のTransform回転とは異なります。"
-msgstr "``AimConstraint.rotationConnections()`` returns a list of direct rotation output connections to ``(sourcePlug, destinationPlug)``. It only returns the parent for compound connections and includes those to operation nodes. It does not perform downstream exploration or filter constraint targets. ``settingPlugs()`` returns the XYZ of Rest Rotate, Offset, Aim/Up/World Up Vector, World Up Type, enableRestPosition, and useOldOffsetCalculation. It includes connected settings but excludes matrix input and weight. Weights can be obtained via ``weightPlugs()``. ``restRotation()`` / ``offset()`` are radian XYZ tuples, and corresponding ``setRestRotation(value)`` / ``setOffset(value)`` accept finite radian triplets. Setters reject without dereferencing, unlocking, or breaking input connections, and are undoable. Settings for Rest Rotate do not directly set rotation on the target, and settings for Offset do not recalculate Maintain Offset. ``outputRotation()`` returns a ``EulerRotation`` with ``constraintRotateOrder``. Unlike inherited ``rotation()`` that handles its own Transform rotation, this does."
 
 msgid "``DecomposeMatrix.input()`` / ``inputPlug()`` は単一行列入力を扱い、 ``rotateOrder()`` はMayaの回転順序番号0〜5を返します。 ``Transform.visibility()`` は自身のアトリビュート値を返します。 親・表示レイヤーを含む最終的な可視性判定ではありません。"
 msgstr "``DecomposeMatrix.input()`` and ``inputPlug()`` handle single-line input, and ``rotateOrder()`` returns Maya's rotation order number 0-5. ``Transform.visibility()`` returns its own attribute value. This is not the final visibility determination including parent and display layers."
@@ -34470,6 +34436,7 @@ msgstr "``DagNodes`` and its derived collections (such as ``Transforms``, ``Join
 msgid "``Container.createNode(kind, name=None)`` は作成と所有登録を一つのUndoへまとめます。 ``add(*nodes)`` は既存ノードを追加し、``members()`` は直接所属するノードを取得します。 削除には既存の ``mlib.delete(owner)`` を使用します。Mayaの削除規則に従うため、 接続が失われた上流network等の自動削除を抑止する機能ではありません。"
 msgstr "``Container.createNode(kind, name=None)`` combines creation and ownership registration into a single undo. ``add(*nodes)`` adds existing nodes, and ``members()`` directly retrieves the owned nodes. Deletion uses existing ``mlib.delete(owner)``. It does not include functionality to suppress automatic deletion of upstream networks whose connections are lost, as per Maya's deletion rules."
 
+#, python-brace-format
 msgid "``node.plug(\"members\").sourceNodes()`` は配列の接続元を ``{論理インデックス: Node}`` として返します。未接続の要素は含めません。 message配列の ``appendMessage(node)`` は既存の最大インデックスの次へ追加し、 その番号を返します。途中の穴を再利用せず、追加操作はUndo対象です。 Mayaが削除した末尾の要素の過去の番号までは記憶しません。"
 msgstr "``node.plug(\"members\").sourceNodes()`` returns the array of connection sources as ``{論理インデックス: Node}``, excluding unconnected elements. The ``appendMessage(node)`` of the message array appends a new element with the next available index number, which is then returned. Indices are not reused, and this operation is undoable. The past index numbers of elements deleted from the end are not remembered."
 
@@ -35532,9 +35499,6 @@ msgstr "The command names for ``mlib.channelBox()`` / ``mlib.timeSlider()`` / ``
 msgid "``Double3Plug.set`` はTransformへ委譲せず、対象チャンネルだけを書き込みます。 旧コードで姿勢の変更を意図していた場合はTransformの ``setRotate`` 等へ移行します。"
 msgstr "``Double3Plug.set`` does not delegate to Transform, but writes only to the target channel. If the old code intended to modify the pose, migrate to ``setRotate`` for Transform or similar."
 
-msgid "``AimConstraint.rotateConnections()`` は回転出力の直接接続を ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。 ``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、 World Up Type、enableRestPosition、useOldOffsetCalculationを返します。 接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``weightPlugs()`` で取得します。 ``restRotate()`` / ``offset()`` はラジアンのXYZタプル、 対応する ``setRestRotate(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。 ``outputRotate()`` は ``constraintRotateOrder`` を持つ ``EulerRotate`` を返します。 継承した ``rotate()`` が扱う自身のTransform回転とは異なります。"
-msgstr "``AimConstraint.rotateConnections()`` returns a list of direct rotation output connections to ``(sourcePlug, destinationPlug)``. It only returns the parent for compound connections and includes those to operation nodes. It does not perform downstream exploration or filter constraint targets. ``settingPlugs()`` returns the XYZ of Rest Rotate, Offset, Aim/Up/World Up Vector, World Up Type, enableRestPosition, and useOldOffsetCalculation. It includes connected settings but excludes matrix input and weight. Weights can be obtained via ``weightPlugs()``. ``restRotate()`` / ``offset()`` are radian XYZ tuples, and corresponding ``setRestRotate(value)`` / ``setOffset(value)`` accept finite radian triplets. Setters reject without dereferencing, unlocking, or breaking input connections, and are undoable. Settings for Rest Rotate do not directly set rotation on the target, and settings for Offset do not recalculate Maintain Offset. ``outputRotate()`` returns a ``EulerRotate`` with ``constraintRotateOrder``. Unlike inherited ``rotate()`` that handles its own Transform rotation, this does."
-
 msgid "``jointOrientToRotate``, ``freezeRotate``"
 msgstr "``jointOrientToRotate``, ``freezeRotate``"
 
@@ -35547,6 +35511,7 @@ msgstr "Matrix rotation specification and read/write operations are unified unde
 msgid "Matrix.decompose()のオイラー回転キーは ``euler``。重複する ``rotate`` キーは廃止。"
 msgstr "The Euler rotation keys for Matrix.decompose() are ``euler``. Duplicate ``rotate`` keys are deprecated."
 
+#, python-brace-format
 msgid "記録の中身を decode した値。``{\"values\": [...]}``、EulerRotate は ``\"order\"`` (名前または om2 の番号)も持てる。"
 msgstr "The decoded value of the record contents. ``{\"values\": [...]}``, EulerRotate can also have a ``\"order\"`` (name or om2 number)."
 
@@ -37721,3 +37686,87 @@ msgstr "``preservedSkinShape`` warns with the target skinCluster and operation s
 
 msgid "コンポーネントの指定は ``vertex/edge/face/uv/controlVertex`` を使用できます。 Mayaの記号 ``vtx/e/f/map/cv`` も同じ意味で使えます。 座標の一括編集はshapeごとのコレクションへまとめて行います。"
 msgstr "Component types can be specified as ``vertex/edge/face/uv/controlVertex``. The Maya symbols ``vtx/e/f/map/cv`` have the same meaning. For bulk coordinate edits, group the components into a collection for each shape."
+
+msgid "入力の直接接続元は ``curve.getPlug(\"input\").getSource(skipConversionNodes=False)``、 出力Plugは ``curve.getPlug(\"output\")``、直接の接続先は ``curve.getPlug(\"output\").getDestinations(skipConversionNodes=False)`` で取得します。 変換・合成ノードやアニメーションレイヤー越しの探索はまだ行いません。"
+msgstr "Use ``curve.getPlug(\"input\").getSource(skipConversionNodes=False)`` for the directly connected input source, ``curve.getPlug(\"output\")`` for the output Plug, and ``curve.getPlug(\"output\").getDestinations(skipConversionNodes=False)`` for its direct destinations. These queries do not traverse conversion or blending nodes or animation layers."
+
+msgid "``setInfinity(pre=\"cycle\")`` はpre側だけ変更し、post側を維持します。 両側を戻す場合は ``setInfinity(pre=\"constant\", post=\"constant\")`` を使います。 ``getInfinity()`` はOpenMaya経由で取得します。 ``setInfinity(pre=\"cycle\", fast=True)`` はUndo不要の直接更新です。 fast時は指定した両側のロック・入力接続を更新前に検証します。 ``setKey()``・``removeKey()``・``setTangent()``・``shiftKeys()`` と、 正の入力倍率による ``scaleKeys()`` も ``fast=True`` でAPI直接更新できます。 ``mirror(value=True, fast=True)`` は出力値の反転に対応します。 ``input=True`` による入力軸の反転と、負の入力倍率のfast拡縮は更新前に未対応として拒否します。 通常モードのキー・接線編集はMaya標準コマンドでUndoに対応します。 接線型名はMayaコマンドと同じ表記で、APIの ``kTangentSmooth`` は ``spline`` として扱います。 fastの入力 ``step`` はMayaと同じ ``auto`` へ補正します。 入力 ``stepnext`` はMayaの版で補正が異なるため、fastでは更新前に ``NotImplementedError`` で拒否します。 fastの ``setKey`` は ``fixed``・``global``・未知の接線型を、 ``setTangent`` は ``global``・未知の接線型を更新前に ``ValueError`` で拒否します。 固定接線の編集には ``setTangent(..., inTangentType=\"fixed\", fast=True)`` 等を使います。 BlendWeightedの値設定は ``setInput()``・``setWeight()`` がfastに対応し、 Undo不要の接続は ``curve.getPlug(\"output\").connectTo(blend.getInputPlug(0), fast=True)`` で行えます。"
+msgstr "``setInfinity(pre=\"cycle\")`` changes only pre-infinity and preserves post-infinity. Use ``setInfinity(pre=\"constant\", post=\"constant\")`` to reset both. ``getInfinity()`` queries OpenMaya. ``setInfinity(pre=\"cycle\", fast=True)`` updates directly without Undo. Fast updates validate locks and input connections on both requested sides before writing. ``setKey()``, ``removeKey()``, ``setTangent()``, ``shiftKeys()``, and ``scaleKeys()`` with a positive input scale support ``fast=True``. ``mirror(value=True, fast=True)`` can invert output values. Input-axis mirroring with ``input=True`` and negative fast input scaling are rejected before modification. Normal key and tangent edits use native Maya commands and support Undo. Tangent names follow Maya commands; API ``kTangentSmooth`` is represented as ``spline``. Fast input ``step`` is normalized to ``auto``, as in Maya. Input ``stepnext`` raises ``NotImplementedError`` before modification in fast mode. Fast ``setKey`` rejects ``fixed``, ``global``, and unknown tangent types, and ``setTangent`` rejects ``global`` and unknown types with ``ValueError`` before modification. Use ``setTangent(..., inTangentType=\"fixed\", fast=True)`` to edit fixed tangents. BlendWeighted supports fast value edits through ``setInput()`` and ``setWeight()``. To connect without Undo, use ``curve.getPlug(\"output\").connectTo(blend.getInputPlug(0), fast=True)``."
+
+msgid "``getElement(index)`` は既存要素だけを論理インデックスで取得し、未作成ならIndexErrorです。 ``getIndices()`` は既存要素の論理番号を昇順のlistで返し、値を評価しません。 ``getElements()`` と同じく、ワールド空間アトリビュートはDAGインスタンス番号も含みます。 要素の格納順を表す物理インデックスではありません。 Transformation値型とgetTransformation/setTransformationは :doc:`transformation` を参照してください。"
+msgstr "``getElement(index)`` retrieves an existing element by logical index and raises IndexError for an uncreated element. ``getIndices()`` returns existing logical indices as a sorted list without evaluating values. Like ``getElements()``, it includes DAG instance indices for world-space attributes. These are logical indices, not physical storage indices. See :doc:`transformation` for the Transformation value type and getTransformation/setTransformation."
+
+msgid "AnimCurve / BlendColors / BlendWeighted: 出力Plugは ``getPlug(\"output\")``。 MultMatrixは ``getOutputPlug()``、DistanceBetweenは ``getPlug(\"distance\")``。"
+msgstr "AnimCurve / BlendColors / BlendWeighted: use ``getPlug(\"output\")`` for the output Plug. Use ``getOutputPlug()`` for MultMatrix and ``getPlug(\"distance\")`` for DistanceBetween."
+
+msgid "``AimConstraint.getRotateConnections()`` は回転出力の直接接続を ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。 設定のPlugはMayaのアトリビュート名で ``getPlug()`` を使って取得します。 ``mlrig.setups.AimAxisConversion`` の保存対象はセットアップ側で選定します。 ウェイトは ``getWeightPlugs()`` で取得します。 ``getRestRotate()`` / ``getOffset()`` はラジアンのXYZタプル、 対応する ``setRestRotate(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。 ``getOutputRotate()`` は ``constraintRotateOrder`` を持つ ``EulerRotate`` を返します。 継承した ``getRotate()`` が扱う自身のTransform回転とは異なります。"
+msgstr "``AimConstraint.getRotateConnections()`` returns direct rotation output connections as a list of ``(sourcePlug, destinationPlug)`` pairs. Compound connections return only the parent pair and include destinations on calculation nodes. It does not traverse downstream or select constrained objects. Use ``getPlug()`` with Maya attribute names to retrieve settings. ``mlrig.setups.AimAxisConversion`` selects its own settings to save. Use ``getWeightPlugs()`` for weights. ``getRestRotate()`` / ``getOffset()`` return XYZ radian tuples; ``setRestRotate(value)`` / ``setOffset(value)`` accept three finite radian values. Setters reject referenced, locked, or input-connected attributes without unlocking or disconnecting them and support Undo. Rest Rotate does not directly rotate the constrained object, and Offset does not recalculate Maintain Offset. ``getOutputRotate()`` returns an ``EulerRotate`` using ``constraintRotateOrder``. This differs from inherited ``getRotate()``, which handles the Transform rotation of the constraint itself."
+
+msgid "単位変換ノードを透過し、配列要素も含めた入力元Plugを返す。"
+msgstr "Return upstream Plugs through unit-conversion nodes, including array elements."
+
+msgid "単位変換ノードを透過した接続元。未接続なら空。"
+msgstr "Sources through unit-conversion nodes, or an empty list when unconnected."
+
+msgid "現在のメッシュから保持順に隣接頂点番号を集める。"
+msgstr "Collect adjacent vertex indices from the current mesh in stored order."
+
+msgid "MFnMeshのコンポーネント数プロパティ名。"
+msgstr "Name of the MFnMesh component-count property."
+
+msgid "要素の頂点番号を返すMFnMeshメソッド名。"
+msgstr "Name of the MFnMesh method returning an element's vertex indices."
+
+msgid "接続順を保った頂点番号。重複除去は呼出元のVerticesへ委ねる。"
+msgstr "Vertex indices in connectivity order. The caller's Vertices collection removes duplicates."
+
+msgid "Plugで読み、cmds.getAttrと同じ保存用の値形式へ変換する。"
+msgstr "Read through Plug and adapt the value to the cmds.getAttr-compatible storage representation."
+
+msgid "CV順の内部座標を、従来の保存形式とUI距離単位へ変換する。"
+msgstr "Convert internal CV positions to the existing storage representation and UI distance units."
+
+msgid "保存形式をPlugの入力へ戻し、現在のUI単位で設定する。"
+msgstr "Adapt the stored representation to Plug input and set it in current UI units."
+
+msgid "接続を取得する対象ノード。"
+msgstr "Node whose connections are queried."
+
+msgid "APIのCV番号順に並んだXYZの3値。ウェイトは含めない。"
+msgstr "XYZ triplets in API CV index order, without weights."
+
+msgid "name、type、valueを持つ保存データ。単位値は現在のUI単位。"
+msgstr "Stored data with name, type, and value. Unit values use the current UI units."
+
+msgid "寿命を検証し、範囲照会に対応する型のFunction Setを返す。"
+msgstr "Validate lifetime and return the Function Set for supported attribute-range queries."
+
+msgid "数値・単位型の照会先。     対応しないアトリビュート型はNone。"
+msgstr "Range-query interface for numeric and unit attributes. Unsupported attribute types return None."
+
+msgid "数値・単位型の照会先。"
+msgstr "Range-query interface for numeric and unit attributes."
+
+msgid "単純な演算アトリビュートはPlugで扱います。検証やenum変換、範囲の一括操作は専用メソッドを残します。 Transform・Jointと行列・TRS関連の専用アクセサーも維持します。 固定アトリビュートの参照だけを返す専用メソッドは増やさず、Mayaの名前で ``getPlug()`` を使います。 DecomposeMatrixの各出力も ``getPlug(\"outputTranslate\")`` 等で取得します。 セットアップが保存する設定の一覧は、そのセットアップ側で選定します。"
+msgstr "Use Plugs for simple calculation attributes. Dedicated methods remain for validation, enum conversion, and grouped range edits. Transform, Joint, matrix, and TRS accessors also remain. Use ``getPlug()`` with Maya names instead of adding dedicated methods that only return a fixed attribute reference. Retrieve DecomposeMatrix outputs through ``getPlug(\"outputTranslate\")`` and the other output attributes. Each setup selects the settings it saves."
+
+msgid "既存の配列番号と参照の取得はArrayPlugへ集約します。 ``getIndices()`` は論理番号のlist、``getElements()`` はPlugのlist、 ``get()`` は値を評価した辞書です。参照取得のために ``get()`` を使う必要はありません。"
+msgstr "ArrayPlug owns existing array-index and reference queries. ``getIndices()`` returns a list of logical indices, ``getElements()`` a list of Plugs, and ``get()`` a dictionary of evaluated values. Reference queries do not require calling ``get()``."
+
+msgid "``array_plug[0]`` は未作成番号でも要素参照だけを返します。 ``getElement(0)`` は既存要素がなければ ``IndexError`` です。 参照の取得に作成フラグはありません。値設定・接続が要素を作成する操作です。 ``getIndices()`` は既存要素の論理番号を昇順のlistで返します。 値の評価や要素の作成は行わず、ワールド空間アトリビュートはインスタンス番号も含みます。 要素のPlug一覧は ``getElements()``、評価値の辞書は ``get()`` で取得します。"
+msgstr "``array_plug[0]`` returns a reference even for an uncreated index. ``getElement(0)`` raises ``IndexError`` if the element does not exist. Reference queries have no creation flag; setting values or making connections creates elements. ``getIndices()`` returns existing logical indices as a sorted list without evaluating values or creating elements. World-space attributes also include instance indices. Use ``getElements()`` for Plug references and ``get()`` for an evaluated-value dictionary."
+
+msgid "適用にはUndoが有効である必要があります。シーンの編集は一回のUndoにまとめます。 ``Snapshot.apply()`` は外側のfast文脈にかかわらず通常のUndo経路で適用します。 処理終了後は、例外が起きた場合も元のfast文脈へ戻ります。 途中でMaya側の例外が起きた場合は例外を通知します。シーンの途中変更を自動で 巻き戻すトランザクションではありません。必要に応じて一回Undoしてください。 エディター設定は保存・読み込み・比較のみ対応します。 標準コマンドだけでは時刻や表示設定を含む全体のUndoを保証できないため、 ``EditorSnapshot.apply()`` は変更前に ``NotImplementedError`` を送出します。 ``plan()`` は比較結果と未対応の理由を返し、``validate().valid`` はFalseになります。 Undoを補うための独自Mayaプラグインは同梱・ロードしません。 従来形式のエディターJSONも読み込めますが、適用は同様に未対応です。"
+msgstr "Applying requires Undo to be enabled and groups scene edits into one Undo step. ``Snapshot.apply()`` always uses the normal Undo path, including inside an outer fast context. It restores the original fast context on exit, including after an exception. A Maya exception during application propagates. This is not a transaction that automatically rolls back partial edits; use one Undo when needed. Editor settings support capture, loading, and comparison only. Native commands cannot guarantee complete Undo for time and display settings, so ``EditorSnapshot.apply()`` raises ``NotImplementedError`` before modification. ``plan()`` returns differences and the unsupported reason, and ``validate().valid`` is False. No custom Maya plug-in is bundled or loaded to supplement Undo. Existing editor JSON can still be read, but applying it remains unsupported."
+
+msgid ":py:obj:`_mesh_vertex_indices <mlib.components.component.Components._mesh_vertex_indices>`\\ \\(count\\_name\\, vertices\\_method\\)"
+msgstr ":py:obj:`_mesh_vertex_indices <mlib.components.component.Components._mesh_vertex_indices>`\\ \\(count\\_name\\, vertices\\_method\\)"
+
+msgid ":py:obj:`_curve_positions <mlib.json.snapshots._curve_positions>`\\ \\(node\\)"
+msgstr ":py:obj:`_curve_positions <mlib.json.snapshots._curve_positions>`\\ \\(node\\)"
+
+msgid ":py:obj:`getIndices <mlib.plugs.arrayPlug.ArrayPlug.getIndices>`\\ \\(\\)"
+msgstr ":py:obj:`getIndices <mlib.plugs.arrayPlug.ArrayPlug.getIndices>`\\ \\(\\)"
+
+msgid ":py:obj:`_range_attribute_fn <mlib.plugs.plug.Plug._range_attribute_fn>`\\ \\(\\)"
+msgstr ":py:obj:`_range_attribute_fn <mlib.plugs.plug.Plug._range_attribute_fn>`\\ \\(\\)"

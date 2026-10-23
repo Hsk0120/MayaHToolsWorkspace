@@ -809,6 +809,8 @@ class Matrix(om2.MMatrix):
 
         取得値は複製。設定時は3成分を受け取り、行列を分解せずに添字12〜14へ直接
         書き込むため、ゼロスケールなど分解できない行列にも使える。
+        ``matrix.translate.x = value`` は複製だけを変更する。行列の更新には
+        ``matrix.translate = value`` を使う。Transformationの保持成分とは異なる。
 
         Returns:
             Translate: 行列の平行移動成分。
@@ -913,6 +915,7 @@ class Matrix(om2.MMatrix):
         設定時は XYZ 順のラジアン3成分、回転順序を
         反映する EulerRotate、または Quaternion を受け取り、スケール・シアー・
         平行移動を保って再合成する。取得・設定とも、分解できない場合は ValueError。
+        取得したEulerRotateの編集は元の行列へ反映しない。更新時はrotateへ代入する。
 
         Returns:
             EulerRotate: 分解した回転値(ラジアン)。
@@ -1113,12 +1116,12 @@ class Matrix(om2.MMatrix):
         return self
 
     def adjoint(self, *args):
-        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+        """Maya標準の随伴行列を、新しいMatrixとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Matrix: 演算結果を保持する新しいmlib値。
@@ -1126,12 +1129,12 @@ class Matrix(om2.MMatrix):
         return Matrix._wrap(_MMatrix.adjoint(self, *args))
 
     def homogenize(self, *args):
-        """OpenMayaと同じ演算でMatrixの新しい値を返す。
+        """同次座標を正規化した、新しいMatrixを返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Matrix: 演算結果を保持する新しいmlib値。

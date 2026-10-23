@@ -68,20 +68,31 @@ class WorkspaceLayout:
 
         Args:
             locked (bool): 移動・閉じる操作をロックするか。サイズ変更・折り畳みは可能。
+
+        Returns:
+            None: 値を返さない。
         """
         _WindowReference._require_gui()
         _WindowReference._boolean(locked)
         # 標準手続きはoptionVarと鍵アイコンの表示を同期する。
-        mel.eval('source "workspaceHelperProcs.mel"; updateWorkspaceDocking {};'.format(int(locked)))
+        mel.eval(f"source \"workspaceHelperProcs.mel\"; updateWorkspaceDocking {int(locked)};")
 
     @staticmethod
     def lock():
-        """全体のドッキング操作をロックする。個別ウィンドウの固定ではない。"""
+        """全体のドッキング操作をロックする。個別ウィンドウの固定ではない。
+
+        Returns:
+            None: 値を返さない。
+        """
         WorkspaceLayout.setLocked(True)
 
     @staticmethod
     def unlock():
-        """全体のドッキングロックを解除する。"""
+        """全体のドッキングロックを解除する。
+
+        Returns:
+            None: 値を返さない。
+        """
         WorkspaceLayout.setLocked(False)
 
     def exists(self):
@@ -116,11 +127,18 @@ class WorkspaceLayout:
 
         切り替え時に現在の配置が自動保存される場合がある。UIのuiScriptや
         必要プラグインに依存し、任意のQtウィンドウは再生成できない。
+
+        Returns:
+            None: 値を返さない。
         """
         cmds.workspaceLayoutManager(setCurrent=self.getName())
 
     def reset(self):
-        """現在の配置を保存済み状態へ戻す。未保存の配置変更は失われる。"""
+        """現在の配置を保存済み状態へ戻す。未保存の配置変更は失われる。
+
+        Returns:
+            None: 値を返さない。
+        """
         self._require_current()
         cmds.workspaceLayoutManager(reset=True)
 
@@ -128,6 +146,9 @@ class WorkspaceLayout:
         """現在の配置をMaya標準の保存先へ永続保存する。
 
         prefs/workspacesの管理はMayaへ委譲する。シーン保存ではなく、Undoで戻せない。
+
+        Returns:
+            None: 値を返さない。
         """
         self._require_current()
         cmds.workspaceLayoutManager(save=True)
@@ -144,7 +165,7 @@ class WorkspaceLayout:
         """
         self._require_current()
         _WindowReference._boolean(overwrite)
-        if not isinstance(name, str) or not name.strip() or any(c in name for c in '/\\\r\n\x00'):
+        if not isinstance(name, str) or not name.strip() or any(c in name for c in "/\\\r\n\x00"):
             raise ValueError("Expected a workspace name, not a file path")
         if not overwrite and name in (cmds.workspaceLayoutManager(listLayouts=True) or []):
             raise ValueError("Workspace layout already exists: " + name)
@@ -154,6 +175,10 @@ class WorkspaceLayout:
         return result
 
     def _require_current(self):
-        """別の配置を誤ってリセット・保存しないよう検証する。"""
+        """別の配置を誤ってリセット・保存しないよう検証する。
+
+        Returns:
+            None: 値を返さない。
+        """
         if not self.isCurrent():
             raise RuntimeError("Activate this workspace layout first")

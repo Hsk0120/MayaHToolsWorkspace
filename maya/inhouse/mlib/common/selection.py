@@ -80,8 +80,13 @@ class Selection:
         self._items = tuple(unique.values())
 
     def __len__(self):
-        """int: 保持数。コンポーネントは単体で数え、削除済み参照も含む。
-        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        """保持している単体参照の数を返す。
+
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。
+
+        Returns:
+            int: コンポーネントは単体で数え、削除済み参照も含む保持数。
+        """
         return len(self._items)
 
     def __iter__(self):
@@ -96,7 +101,10 @@ class Selection:
         """単体参照、またはsliceに対応する参照のtupleを返す。
 
         Args:
-            index: 対象要素の番号または探索開始番号。
+            index (int | slice): 保持順の番号または範囲。負の番号もPythonのtupleと同じ意味。
+
+        Returns:
+            Node | Plug | Component | tuple: 番号に対応する単体参照、またはsliceに対応するtuple。
         """
         return self._items[index]
 
@@ -227,8 +235,11 @@ class Selection:
         ノードのアトリビュートの所有インスタンスを求めるために使う(selection_owner 参照)。
 
         Args:
-            selection: 変換元のom2.MSelectionList。
-            name: 参照・作成・照会する対象の名前。
+            selection (om2.MSelectionList): 変換元の選択リスト。
+            name (str | None): 単一要素を追加した際の入力名。所有するDAGインスタンスの解決に使う。
+
+        Returns:
+            list[Node | Plug | Component]: 選択要素の順序を維持した単数参照の列。
         """
         from ..nodes.node import Node as _InputNode
         result = []
@@ -258,7 +269,10 @@ class Selection:
         """削除されたノード・アトリビュート・範囲外要素を検出する。
 
         Args:
-            item: UIの表示設定または操作対象の項目。
+            item (Node | Plug | Component): 有効性を確認する保持参照。
+
+        Returns:
+            bool: 参照先が存在し、種類に応じた有効条件を満たすか。
         """
         try:
             if isinstance(item, Node):
@@ -274,7 +288,10 @@ class Selection:
         """変更前に有効な名前を解決する。missing不正はValueError、欠落はRuntimeError。
 
         Args:
-            missing: 欠落した参照に対する処理方針。
+            missing (str): skipなら欠落を除外し、errorなら変更前に例外を送出する。
+
+        Returns:
+            list[str]: 有効な対象のフル名。missingがskipなら欠落した参照を除く。
         """
         if missing not in ("skip", "error"):
             raise ValueError("missing must be 'skip' or 'error'")

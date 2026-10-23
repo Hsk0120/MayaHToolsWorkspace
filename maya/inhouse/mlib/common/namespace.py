@@ -177,7 +177,7 @@ class Namespace:
         """
         if not self.exists():
             return []
-        # nodes.node が ..namespaces を逆方向 import するため、
+        # nodes.nodeもcommon.namespaceを参照するため、
         # 循環回避のためここで遅延 import する（mlib で意図的な相互依存の一つ）。
         from ..nodes import Node
 

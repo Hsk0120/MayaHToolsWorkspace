@@ -125,8 +125,10 @@ class Component(Object):
         Args:
             path (MDagPath): 所有シェイプのインスタンスパス。
             component (MObject): 単一インデックスのコンポーネント。
+
         Returns:
             list[Component]: Mayaの要素順の参照。
+
         Raises:
             TypeError: 非対応のコンポーネント種類の場合。
         """
@@ -158,8 +160,10 @@ class Component(Object):
 
         Args:
             value (str | Component | tuple): 参照または(MDagPath, MObject)。
+
         Returns:
             Component: 対応する具体型。既存参照はそのまま返す。
+
         Raises:
             TypeError: 入力型が非対応の場合。
             ValueError: 対象が単一要素でない場合。
@@ -335,77 +339,6 @@ class Components:
         else:
             self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
 
-    def _has_standard_component(self, component_class=None):
-        """単数の構築・検査・番号取得が標準の具体型か判定する。
-
-        Args:
-            component_class (type | None): 明示した単数型。Noneなら自身の単数型。
-
-        Returns:
-            bool: 利用側の派生型や置換された単数処理でなければTrue。
-        """
-        from .cv import CV
-        from .edge import Edge
-        from .face import Face
-        from .uv import UV
-        from .vertex import Vertex
-        component_class = self.component_class if component_class is None else component_class
-        return (component_class in (Vertex, Edge, Face, UV, CV)
-                and component_class.__init__ is _COMPONENT_INIT
-                and component_class._validate is _COMPONENT_VALIDATE
-                and component_class.index is _COMPONENT_INDEX
-                and component_class.shape is _COMPONENT_SHAPE
-                and component_class._validate_shape is _COMPONENT_VALIDATE_SHAPE
-                and component_class._validate_index is _COMPONENT_VALIDATE_INDEX)
-
-    def _has_standard_shape(self, component_class=None):
-        """標準のシェイプ型か判定し、利用側の形状派生の照会処理を維持する。
-
-        Args:
-            component_class (type | None): 要素数を照会する単数型。Noneなら自身の型。
-
-        Returns:
-            bool: MeshまたはNurbsCurveそのものならTrue。
-        """
-        from ..nodes.mesh import Mesh
-        from ..nodes.nurbsCurve import NurbsCurve
-        shape_class = type(self._shape)
-        if shape_class not in (Mesh, NurbsCurve):
-            return False
-        component_class = self.component_class if component_class is None else component_class
-        name = component_class.count_attribute
-        reader = getattr(self._shape, name, None)
-        function = getattr(reader, "__func__", None)
-        return (function is not None and function is getattr(shape_class, name, None)
-                and function.__module__ == shape_class.__module__
-                and function.__qualname__ == f"{shape_class.__name__}.{name}"
-                and not hasattr(function, "__wrapped__"))
-
-    def _uses_standard_iteration(self, component_class):
-        """単数または反復が拡張されていない場合だけ一括照会を許可する。
-
-        Args:
-            component_class (type): 操作の標準単数型。
-
-        Returns:
-            bool: 単数・反復・シェイプが標準の実装ならTrue。
-        """
-        return (self.component_class is component_class
-                and type(self).__iter__ is _COMPONENTS_ITER
-                and self._has_standard_component() and self._has_standard_shape())
-
-    def _uses_standard_vertices(self):
-        """頂点の中間参照で呼ばれる構築・反復も標準処理か判定する。
-
-        Returns:
-            bool: Vertices/Vertexへの利用側の差替えを省略しなければTrue。
-        """
-        from .vertex import Vertex, Vertices
-        return (Vertices.component_class is Vertex and self._has_standard_component(Vertex)
-                and self._has_standard_shape(Vertex)
-                and Vertices.__init__ is _COMPONENTS_INIT
-                and Vertices.__iter__ is _COMPONENTS_ITER)
-
     def __len__(self):
         """保持要素数を取得する。
 
@@ -531,6 +464,97 @@ class Components:
         """
         return self.isValid(*args, **kwargs)
 
+    def _has_standard_component(self, component_class=None):
+        """単数の構築・検査・番号取得が標準の具体型か判定する。
+
+        Args:
+            component_class (type | None): 明示した単数型。Noneなら自身の単数型。
+
+        Returns:
+            bool: 利用側の派生型や置換された単数処理でなければTrue。
+        """
+        from .cv import CV
+        from .edge import Edge
+        from .face import Face
+        from .uv import UV
+        from .vertex import Vertex
+        component_class = self.component_class if component_class is None else component_class
+        return (component_class in (Vertex, Edge, Face, UV, CV)
+                and component_class.__init__ is _COMPONENT_INIT
+                and component_class._validate is _COMPONENT_VALIDATE
+                and component_class.index is _COMPONENT_INDEX
+                and component_class.shape is _COMPONENT_SHAPE
+                and component_class._validate_shape is _COMPONENT_VALIDATE_SHAPE
+                and component_class._validate_index is _COMPONENT_VALIDATE_INDEX)
+
+    def _has_standard_shape(self, component_class=None):
+        """標準のシェイプ型か判定し、利用側の形状派生の照会処理を維持する。
+
+        Args:
+            component_class (type | None): 要素数を照会する単数型。Noneなら自身の型。
+
+        Returns:
+            bool: MeshまたはNurbsCurveそのものならTrue。
+        """
+        from ..nodes.mesh import Mesh
+        from ..nodes.nurbsCurve import NurbsCurve
+        shape_class = type(self._shape)
+        if shape_class not in (Mesh, NurbsCurve):
+            return False
+        component_class = self.component_class if component_class is None else component_class
+        name = component_class.count_attribute
+        reader = getattr(self._shape, name, None)
+        function = getattr(reader, "__func__", None)
+        return (function is not None and function is getattr(shape_class, name, None)
+                and function.__module__ == shape_class.__module__
+                and function.__qualname__ == f"{shape_class.__name__}.{name}"
+                and not hasattr(function, "__wrapped__"))
+
+    def _uses_standard_iteration(self, component_class):
+        """単数または反復が拡張されていない場合だけ一括照会を許可する。
+
+        Args:
+            component_class (type): 操作の標準単数型。
+
+        Returns:
+            bool: 単数・反復・シェイプが標準の実装ならTrue。
+        """
+        return (self.component_class is component_class
+                and type(self).__iter__ is _COMPONENTS_ITER
+                and self._has_standard_component() and self._has_standard_shape())
+
+    def _uses_standard_vertices(self):
+        """頂点の中間参照で呼ばれる構築・反復も標準処理か判定する。
+
+        Returns:
+            bool: Vertices/Vertexへの利用側の差替えを省略しなければTrue。
+        """
+        from .vertex import Vertex, Vertices
+        return (Vertices.component_class is Vertex and self._has_standard_component(Vertex)
+                and self._has_standard_shape(Vertex)
+                and Vertices.__init__ is _COMPONENTS_INIT
+                and Vertices.__iter__ is _COMPONENTS_ITER)
+
+    def _mesh_vertex_indices(self, count_name, vertices_method):
+        """現在のメッシュから保持順に隣接頂点番号を集める。
+
+        Args:
+            count_name (str): MFnMeshのコンポーネント数プロパティ名。
+            vertices_method (str): 要素の頂点番号を返すMFnMeshメソッド名。
+
+        Returns:
+            list[int]: 接続順を保った頂点番号。重複除去は呼出元のVerticesへ委ねる。
+        """
+        Component._validate_shape(self.shape, self.component_class.shape_type)
+        indices = []
+        if self._indices:
+            mesh_fn = self.shape.meshFn()
+            count = getattr(mesh_fn, count_name)
+            for index in self._indices:
+                Component._validate_index(index, count)
+                indices.extend(getattr(mesh_fn, vertices_method)(index))
+        return indices
+
     def _name_prefix(self):
         """全番号をまとめて再検証し、``<シェイプの完全パス>.<種類>`` を返す。
 
@@ -585,8 +609,10 @@ class Components:
         Args:
             values (Iterable[Iterable[float]]): 保持順の座標列。
             size (int): 1座標の成分数。
+
         Returns:
             list[tuple[float, ...]]: 検証済みの座標列。
+
         Raises:
             ValueError: 座標が不正、または values の件数が保持している要素数と一致しない場合。
         """
@@ -621,8 +647,10 @@ class Components:
             positions (Iterable[Iterable[float]]): 現在座標。
             axis (int): 成分番号。
             value (float | Iterable[float]): 軸の値。
+
         Returns:
             list[list[float]]: 更新後の座標列。シーンは変更しない。
+
         Raises:
             ValueError: value を反復した要素数が保持している要素数と一致しない場合。
         """

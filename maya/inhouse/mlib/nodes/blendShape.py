@@ -132,7 +132,7 @@ class BlendShape(Node):
         index = self._target_index(target)
         if self.getPlug("weight")[index].isLocked():
             raise ValueError("Locked target cannot be removed")
-        if not mel.eval('blendShapeDeleteTargetGroup({}, {})'.format(
+        if not mel.eval("blendShapeDeleteTargetGroup({}, {})".format(
                 json.dumps(self.getName()), index)):
             raise RuntimeError("Maya did not remove the target")
         return self
@@ -172,7 +172,7 @@ class BlendShape(Node):
         values = self._delta_values(deltas, om2.MFnMesh(shape.mnode()).numVertices)
         if self.getPlug("origin").get() not in (0, 1) or self.getPlug("deformationOrder").get():
             raise NotImplementedError("addTargetDeltas supports ordinary local/world-origin targets")
-        geometry = typed_data(self.getPlug("input[{}].inputGeometry".format(bi)).mplug())
+        geometry = typed_data(self.getPlug(f"input[{bi}].inputGeometry").mplug())
         if geometry.isNull() or not geometry.hasFn(om2.MFn.kMesh):
             raise RuntimeError("Cannot read the blendShape's undeformed input mesh")
         input_fn = om2.MFnMesh(geometry)
@@ -224,7 +224,7 @@ class BlendShape(Node):
         """
         bases = self._base_indices() if base is None else [self._base_index(base)]
         return sorted({index for bi in bases
-                       for index in self._indices("inputTarget[{}].inputTargetGroup".format(bi))
+                       for index in self._indices(f"inputTarget[{bi}].inputTargetGroup")
                        if self._indices(
                            self._group_path(bi, index) + ".inputTargetItem")})
 
@@ -312,7 +312,7 @@ class BlendShape(Node):
                 self._group_path(bi, index) + ".inputTargetItem") for bi in self._base_indices()
                 if index in self.getTargetIndices(self._base_shape(bi))):
             raise ValueError("No removable in-between at this weight")
-        mel.eval('blendShapeDeleteInBetweenTarget({}, {}, {})'.format(
+        mel.eval("blendShapeDeleteInBetweenTarget({}, {}, {})".format(
             json.dumps(self.getName()), index, item))
         return self
 
@@ -893,13 +893,13 @@ class BlendShape(Node):
         else:
             raise TypeError("Target must be an integer index, alias string, or weight Plug")
         if index not in self.getTargetIndices():
-            raise ValueError("Unknown target index: {}".format(index))
+            raise ValueError(f"Unknown target index: {index}")
         return index
 
     def _group(self, target, base):
         """ベースとターゲットの組み合わせを検証する。"""
         bi, index = self._base_index(base), self._target_index(target)
-        if index not in self._indices("inputTarget[{}].inputTargetGroup".format(bi)):
+        if index not in self._indices(f"inputTarget[{bi}].inputTargetGroup"):
             raise ValueError("Target does not exist on this base")
         return bi, index
 
@@ -911,7 +911,7 @@ class BlendShape(Node):
     @classmethod
     def _item_path(cls, bi, index, item):
         """ターゲット項目の相対パスを取得する。"""
-        return cls._group_path(bi, index) + ".inputTargetItem[{}]".format(item)
+        return cls._group_path(bi, index) + f".inputTargetItem[{item}]"
 
     @staticmethod
     def _weight_item(weight):
@@ -1019,7 +1019,7 @@ class BlendShape(Node):
         cmds.setAttr(self._attr(path + "." + prefix + "PointsTarget"), len(values),
                      *[point for _, point in values], type="pointArray")
         cmds.setAttr(self._attr(path + "." + prefix + "ComponentsTarget"), len(values),
-                     *["vtx[{}]".format(vertex) for vertex, _ in values], type="componentList")
+                     *[f"vtx[{vertex}]" for vertex, _ in values], type="componentList")
 
     def _new_index(self, index):
         """既存weightとターゲットを上書きしない番号を選ぶ。"""
@@ -1057,7 +1057,7 @@ class BlendShape(Node):
                   "bases": {}, "inbetweens": {}}
         for bi in self._base_indices():
             group = self._group_path(bi, index)
-            if index not in self._indices("inputTarget[{}].inputTargetGroup".format(bi)):
+            if index not in self._indices(f"inputTarget[{bi}].inputTargetGroup"):
                 continue
             if any(self.getPlug(group + "." + attr).get() != 0
                    for attr in ("postDeformersMode", "normalizationId")):
@@ -1067,14 +1067,14 @@ class BlendShape(Node):
                 "items": {str(item): self._read_item(bi, index, item) for item in
                           self._indices(group + ".inputTargetItem")}}
         if index in self._indices("inbetweenInfoGroup"):
-            root = "inbetweenInfoGroup[{}].inbetweenInfo".format(index)
+            root = f"inbetweenInfoGroup[{index}].inbetweenInfo"
             for item in self._indices(root):
-                path = root + "[{}]".format(item)
+                path = root + f"[{item}]"
                 metadata = {attr: self.getPlug(path + "." + attr).get() for attr in
                             ("inbetweenTargetType", "inbetweenTargetName", "interpolation", "inbetweenVisibility")}
                 metadata["inbetweenTargetName"] = metadata["inbetweenTargetName"] or "IB"
                 metadata["curve"] = {str(i): list(self.getPlug(
-                    path + ".interpolationCurve[{}]".format(i)).get())
+                    path + f".interpolationCurve[{i}]").get())
                     for i in self._indices(path + ".interpolationCurve")}
                 result["inbetweens"][str(item)] = metadata
         return result
@@ -1082,7 +1082,7 @@ class BlendShape(Node):
     def _read_base_weights(self, bi):
         """ベースの頂点マスクを既定値を補って取得する。"""
         count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
-        path = "inputTarget[{}].baseWeights".format(bi)
+        path = f"inputTarget[{bi}].baseWeights"
         existing = set(self._indices(path))
         array = self.getPlug(path).mplug()
         return [array.elementByLogicalIndex(i).asFloat() if i in existing else 1.0
@@ -1116,7 +1116,7 @@ class BlendShape(Node):
             for attr, metadata_value in metadata.items():
                 if attr == "curve":
                     for ci, pair in metadata_value.items():
-                        self.getPlug(path + ".interpolationCurve[{}]".format(ci)).set(pair)
+                        self.getPlug(path + f".interpolationCurve[{ci}]").set(pair)
                 else:
                     self.getPlug(path + "." + attr).set(metadata_value)
         plug = self.getPlug("weight")[index]
@@ -1124,7 +1124,7 @@ class BlendShape(Node):
         if is_fast():
             # MFnDependencyNodeによる別名更新もUndoキューを使わない。
             fn = om2.MFnDependencyNode(self.mnode())
-            name = "weight[{}]".format(index)
+            name = f"weight[{index}]"
             if alias and not fn.setAlias(alias, name, plug.mplug(), True):
                 raise RuntimeError("Could not set target alias")
         else:
@@ -1136,11 +1136,11 @@ class BlendShape(Node):
     def _require_unlocked(plug):
         """入力接続の切断前に所有ノードと親を含むロックを検査する。"""
         if om2.MFnDependencyNode(plug.node()).isLocked:
-            raise RuntimeError('Node is locked: ' + plug.name())
+            raise RuntimeError("Node is locked: " + plug.name())
         current = plug
         while True:
             if current.isLocked:
-                raise RuntimeError('Attribute is locked: ' + plug.name())
+                raise RuntimeError("Attribute is locked: " + plug.name())
             if current.isChild:
                 current = current.parent()
             elif current.isElement:

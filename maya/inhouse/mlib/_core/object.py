@@ -48,8 +48,10 @@ class Object(metaclass=_ObjectType):
         Args:
             value (str | Object | MObject | MDagPath | MPlug | tuple):
                 単一対象。コンポーネントのAPI入力は(MDagPath, MObject)。
+
         Returns:
             Object: 既存ラッパーはそのまま、その他は対応する具体型。
+
         Raises:
             TypeError: 未対応の型・コンポーネント種類の場合。
             ValueError: 空入力または複数要素を指定した場合。
@@ -192,8 +194,10 @@ class Object(metaclass=_ObjectType):
 
         Args:
             values (object): 単数参照または入れ子の反復可能な対象列。
+
         Returns:
             list: 順序を保持した対象。Componentsは範囲圧縮のため展開しない。
+
         Raises:
             TypeError: 未対応型の場合。
         """
@@ -250,7 +254,7 @@ class Object(metaclass=_ObjectType):
             if not allow_plugs and isinstance(value, (plug_class, om2.MPlug)):
                 raise TypeError(
                     f"アトリビュート(Plug・MPlug)は指定できません: {type(value).__name__}"
-                    "(所有ノードを対象にする場合は plug.node() を指定してください)"
+                    "(所有ノードを対象にする場合は plug.getNode() を指定してください)"
                 )
             if isinstance(value, singles):
                 names.append(Object._name(value, node_class, plug_class, component_class))

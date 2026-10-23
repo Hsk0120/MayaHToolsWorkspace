@@ -7,7 +7,6 @@ import maya.cmds as cmds
 
 from .._core.attributeType import attributeType
 from ..decorator import undoChunk
-from ..nodes.node import Node
 from ..plugs.plug import Plug
 
 #: ドライバー・駆動先に使える数値スカラーのアトリビュート型名。
@@ -38,7 +37,10 @@ def _plug(value):
     (:func:`mlib._core.attributeType.attributeType`)、検証でシーンは変更しない。
 
     Args:
-        value: 変換・設定する入力値。
+        value (Plug | om2.MPlug | str): 数値スカラーのPlugまたはアトリビュート名。
+
+    Returns:
+        Plug: 有効な数値スカラーのアトリビュート参照。
     """
     from ..plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
@@ -71,47 +73,56 @@ def _contains_plug(plugs, mplug):
 
 
 def _sources(plug):
-    """単位変換ノードを透過して入力元のPlug名を返す。
+    """単位変換ノードを透過し、配列要素も含めた入力元Plugを返す。
 
     Args:
-        plug: 照会または更新するアトリビュート参照。
+        plug (Plug | str): 接続元を調べるアトリビュート。
+
+    Returns:
+        list[Plug]: 単位変換ノードを透過した接続元。未接続なら空。
     """
-    return (
-        cmds.listConnections(
-            plug, source=True, destination=False, plugs=True, skipConversionNodes=True
-        )
-        or []
-    )
+    return Plug._resolve_input(plug).getConnections(
+        source=True, destination=False, skipConversionNodes=True)
 
 
 def _curves(driven, strict=False):
     """駆動先からblendWeightedの入力を遡り、単位なし入力カーブを集める。
 
     Args:
-        driven: ドリブンキーの出力先。
-        strict: 未対応の構造を例外として扱うか。
+        driven (Plug): ドリブンキーで駆動するアトリビュート。
+        strict (bool): 未対応の接続構造を例外として扱うか。
+
+    Returns:
+        list[AnimCurve]: 駆動先の入力へつながる単位なし入力のカーブ。重複を含めない。
     """
-    found, visited = [], set()
+    found, visited = [], []
 
     def visit(destination):
-        """接続を再帰走査する。未知の構成はstrict時に例外とする。"""
+        """接続を再帰走査する。未知の構成はstrict時に例外とする。
+
+        Args:
+            destination (Plug): 接続元を調べるアトリビュート。
+
+        Returns:
+            None: 値を返さない。
+        """
         for source in _sources(destination):
-            if source in visited:
+            if _contains_plug(visited, source.mplug()):
                 continue
-            visited.add(source)
-            name, attribute = source.split(".", 1)
-            kind = cmds.nodeType(name)
+            visited.append(source.mplug())
+            node = source.getNode()
+            attribute, kind = source.getLongName(), node.getType()
             if (
                 kind in {"animCurveUA", "animCurveUL", "animCurveUT", "animCurveUU"}
                 and attribute == "output"
             ):
-                found.append(Node(name))
+                found.append(node)
             elif kind == "blendWeighted" and attribute == "output":
-                visit(name + ".input")
+                visit(node.getPlug("input"))
             elif strict:
-                raise RuntimeError(f"Unsupported driven-key connection: {source}")
+                raise RuntimeError(f"Unsupported driven-key connection: {source.getFullName()}")
 
-    visit(driven.getFullName())
+    visit(driven)
     return found
 
 
@@ -128,6 +139,7 @@ class DrivenKey:
         Args:
             driver (Plug | om2.MPlug | str): ドライバーアトリビュート。文字列は ``"node.attribute"`` 形式。
             driven (Plug | om2.MPlug | str): 駆動されるアトリビュート。
+
         Raises:
             ValueError: 非スカラー、非数値、または同一アトリビュートの場合。
             TypeError: Plug・MPlug・アトリビュート名のいずれでもない場合。
@@ -151,10 +163,12 @@ class DrivenKey:
 
         Args:
             driven (Plug | om2.MPlug | str): 検索する駆動先アトリビュート。文字列は ``"node.attribute"`` 形式。
+
         Returns:
             list[DrivenKey]: 対応するドライバーごとの関係。対象外の構成は含めない
                 (数値スカラーでないドライバー。``choice.output`` のような値によって型が
                 変わる generic アトリビュートなど)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
+
         Raises:
             ValueError: driven が非スカラー・非数値の場合。
             TypeError: driven が Plug・MPlug・アトリビュート名のいずれでもない場合。
@@ -163,7 +177,7 @@ class DrivenKey:
         target = _plug(driven)
         items, seen = [], []
         for curve in _curves(target):
-            for source in _sources(curve.getFullName() + ".input"):
+            for source in _sources(curve.getPlug("input")):
                 try:
                     driver = _plug(source)
                 except ValueError:
@@ -190,19 +204,21 @@ class DrivenKey:
         return _plug(self._driven)
 
     def getCurves(self):
-        """list[AnimCurve]: この組に対応するカーブ。未作成・対象外の構成なら空。
+        """このドライバーと駆動先の組に対応するカーブを照会する。
 
         接続を毎回照会し、他ドライバーのカーブやblendWeightedのweight入力は含めない。
         ドライバーは名前ではなくプラグ自体で照合するため、インスタンス化されたシェイプの
         アトリビュートをどのインスタンスのパスから指定しても同じ関係として扱う。
+
+        Returns:
+            list[AnimCurve]: この組に対応するカーブ。未作成・対象外の構成なら空。
         """
-        from ..plugs.plug import Plug as _InputPlug
         driver = self.getDriverPlug().mplug()
         return [
             curve
             for curve in _curves(self.getDrivenPlug())
             if _contains_plug(
-                (_InputPlug._resolve_input(source).mplug() for source in _sources(curve.getFullName() + ".input")),
+                (source.mplug() for source in _sources(curve.getPlug("input"))),
                 driver,
             )
         ]
@@ -224,8 +240,10 @@ class DrivenKey:
             value (float): 内部単位(cm/rad/秒)での出力値。
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
+
         Returns:
             DrivenKey: 自身。
+
         Raises:
             ValueError: 非有限値の場合。
             RuntimeError: 対象外の接続構成、複数の対応カーブ、またはMayaが設定を拒否した場合。

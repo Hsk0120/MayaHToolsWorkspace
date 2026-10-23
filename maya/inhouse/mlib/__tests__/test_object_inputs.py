@@ -27,9 +27,9 @@ class CoerceTest(unittest.TestCase):
                 cmds.delete(name)
 
     def create_transform(self, name):
-        nodeName = cmds.createNode("transform", name=name)
-        self.created.append(nodeName)
-        return Node(nodeName)
+        node_name = cmds.createNode("transform", name=name)
+        self.created.append(node_name)
+        return Node(node_name)
 
     def test_to_name_passes_through_string_without_resolving(self):
         # 存在しない名前でも解決を試みず、そのまま返す。

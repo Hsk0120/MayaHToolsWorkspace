@@ -58,6 +58,7 @@ class Color:
         Args:
             index (int | None): 0～31の色番号。RGBも未指定なら0を使用。
             rgb (Iterable[float] | None): 0～1の有限なRGB三要素。
+
         Raises:
             ValueError: 両形式を指定、または値が不正な場合。
             RuntimeError: Mayaのパレットを取得できない場合。
@@ -81,7 +82,10 @@ class Color:
         """形式と指定値を比較する。画面上の見た目や近似一致は比較しない。
 
         Args:
-            other: 比較・演算の相手。
+            other (object): 比較する値。
+
+        Returns:
+            bool | NotImplementedType: Color同士は形式と指定値の一致判定。他の型はNotImplemented。
         """
         if not isinstance(other, Color):
             return NotImplemented
@@ -115,6 +119,7 @@ class Color:
 
         Args:
             value (Color | int | Iterable[float] | None): Noneは無効状態。
+
         Returns:
             Color: 正規化した値。入力Colorはコピーする。
         """
@@ -147,6 +152,9 @@ class Color:
 
         Args:
             value (int): 保持パレットの色番号。
+
+        Returns:
+            None: 値を返さない。
         """
         index = self._validate_index(value)
         self._index, self._rgb, self._mode = index, self._palette[index], "index"
@@ -162,6 +170,9 @@ class Color:
 
         Args:
             value (Iterable[float]): 0〜1 の RGB 3 成分。
+
+        Returns:
+            None: 値を返さない。
         """
         rgb = self._validate_rgb(value)
         self._index, self._rgb, self._mode = self._nearest(rgb, self._palette), rgb, "rgb"
@@ -171,6 +182,7 @@ class Color:
 
         Returns:
             Color: 自身。番号指定はRGB、RGB指定は近似番号を更新する。
+
         Raises:
             RuntimeError: パレット取得失敗。保持値は変更しない。
         """
@@ -200,7 +212,10 @@ class Color:
         """0～31の整数を検証する。boolや範囲外はValueError。
 
         Args:
-            value: 変換・設定する入力値。
+            value (object): 検証する色番号またはRGBの入力値。
+
+        Returns:
+            int: 0〜31の検証済み色番号。
         """
         if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 31:
             raise ValueError("Color index must be an integer from 0 to 31")
@@ -211,7 +226,10 @@ class Color:
         """有限なRGB三要素へ変換する。不正値はValueError。
 
         Args:
-            value: 変換・設定する入力値。
+            value (object): 検証する色番号またはRGBの入力値。
+
+        Returns:
+            tuple[float, float, float]: 0〜1の有限値へ検証・変換したRGB。
         """
         try:
             if isinstance(value, (str, bytes)):
@@ -225,7 +243,11 @@ class Color:
 
     @classmethod
     def _read_palette(cls):
-        """現在のMayaパレットを読み取る。設定・保存はしない。"""
+        """現在のMayaパレットを読み取る。設定・保存はしない。
+
+        Returns:
+            tuple[tuple, str]: 32色のパレットと取得元名。GUIではmaya、batchではdefault。
+        """
         if cmds.about(batch=True):
             return cls._DEFAULT_PALETTE, "default"
         try:
@@ -241,8 +263,11 @@ class Color:
         """RGBから通常色1～31の最近傍番号を求める。
 
         Args:
-            rgb: 適用する色の成分または対象ごとの色の列。
-            palette: UIの表示設定または操作対象の項目。
+            rgb (tuple[float, float, float]): 比較するRGBの3成分。
+            palette (tuple): 色番号順に並んだRGBのパレット。
+
+        Returns:
+            int: 通常色1〜31からRGBとの二乗距離が最小の番号。
         """
         return min(range(1, 32), key=lambda i: sum((a - b) ** 2 for a, b in zip(rgb, palette[i])))
 

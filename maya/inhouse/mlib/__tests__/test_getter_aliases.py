@@ -33,7 +33,7 @@ class CanonicalGettersTest(unittest.TestCase):
 
     def test_canonical_commands_have_one_public_entry(self):
         """取得コマンドはget付きファイルと公開関数を同じ名前にする。"""
-        for name in ("getNode", "getPlug", "getAttr", "getScene", "getChannelBox", "getShelf",
+        for name in ("getNode", "getPlug", "getScene", "getChannelBox", "getShelf",
                      "getTimeSlider", "getViewport", "getWindow", "getWorkspaceControl", "getWorkspaceLayout", "getOutliner", "getDrivenKey"):
             module = importlib.import_module("mlib.cmds." + name)
             self.assertIs(getattr(mlib, name), getattr(module, name))
@@ -49,7 +49,7 @@ class CanonicalGettersTest(unittest.TestCase):
         self.assertEqual(tuple(self.node.getTranslate(ws=True)), (4, 5, 6))
         angle = self.node.getPlug("rotateX")
         angle.set(math.pi / 2)
-        self.assertIs(mlib.getAttr(angle), angle)
+        self.assertIs(mlib.getPlug(angle), angle)
         self.assertAlmostEqual(angle.get(), math.pi / 2)
         self.assertAlmostEqual(angle.get(uiUnits=True), 90)
         self.assertIsInstance(self.node.getPlug("matrix").get(), mlib.maths.Matrix)

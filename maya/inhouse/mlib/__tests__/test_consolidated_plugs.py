@@ -192,18 +192,24 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         self.assertIsNone(untouched.getSource())
         self.assertEqual(len(cmds.ls(type="animCurve")), before)
 
-    def test_api_element_materialization_is_not_an_undo_command(self):
-        """要素確保はAPIで行い、保持番号を維持する。"""
+    def test_array_reference_getters_do_not_materialize_elements(self):
+        """参照・既存要素取得は値を書かず、廃止した作成指定を拒否する。"""
         cmds.addAttr(str(self.node), ln="samples", at="double", multi=True)
         array = self.node.getPlug("samples")
         cmds.flushUndo()
         with patch.object(cmds, "getAttr", side_effect=AssertionError("cmds get")):
-            element = array.getElement(4, create=True)
-            self.assertEqual(element.get(), 0)
-            added = array.addElement(8)
-        self.assertEqual([p.mplug().logicalIndex() for p in added], [8])
-        self.assertEqual(set(array.get()), {4, 8})
+            element = array[4]
+            with self.assertRaises(IndexError):
+                array.getElement(4)
+            with self.assertRaises(TypeError):
+                array.getElement(4, create=True)
+        self.assertFalse(hasattr(array, "addElement"))
+        self.assertEqual(array.getElements(), [])
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
+        element.set(2)
+        self.assertEqual(array.getElement(4).get(), 2)
+        cmds.undo()
+        self.assertEqual(array.getElements(), [])
 
     def test_connection_undo_record_does_not_read_proxy_or_uninitialized_matrix(self):
         """定数のUndo保護がproxyや未初期化matrixの接続を妨げない。"""

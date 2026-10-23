@@ -2,7 +2,8 @@ Undo不要の値更新
 ================
 
 対応する更新メソッドに ``fast=True`` を指定すると、OpenMayaで直接更新します。
-省略時は従来のcmdsによるUndo対応処理です。シーン全体のUndo設定や既存履歴は変更しません。
+通常の呼出しはcmdsによるUndo対応処理です。シーン全体のUndo設定や既存履歴は変更しません。
+外側の対応操作がfastの場合は内側へ引き継ぎ、内側の ``fast=False`` でも通常モードへ戻しません。
 
 .. code-block:: python
 
@@ -25,7 +26,8 @@ Undo不要の値更新
 * Plugの ``set`` / ``reset`` とロック・keyable・channelBox、接続・切断・配列要素削除・動的アトリビュート削除。
   配列は要素Plugを取得して設定します。
 * Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー、ピボット、対応範囲の親変更・限定削除。
-* Joint / Jointsの ``freezeRotate`` と ``jointOrientToRotate``。
+* Joint / Jointsの ``freezeRotate`` と ``jointOrientToRotate``。削除はNode/Nodesの標準削除を継承します。
+  ウェイト移送・子保持を伴う整理は ``mlrig.setups.JointHierarchy.delete`` へ分けています。
 * Nodeの生成・削除・改名・名前空間・追加アトリビュートと、Outliner色・override色・表示フラグ。
 * ObjectSet・DisplayLayerの所属変更とShadingEngineの対応範囲の割当。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
@@ -41,7 +43,7 @@ Undo不要の値更新
 * Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、
   DistanceBetween、Constraintの値設定メソッド。
 
-対応メソッドから生成される複数形クラスの一括呼出しでも同じ引数を使用できます。
+対応する複数形クラスの明示的な一括メソッドでも同じ引数を使用できます。
 ``AnimCurve.setInfinity`` の外挿設定も ``fast=True`` に対応します。
 読み取りメソッドやプロパティ代入にはフラグはありません。
 Mesh・NURBSカーブの座標取得は通常時もOpenMayaを使います。
@@ -63,6 +65,8 @@ JSON読込のfastはシーンへの復元をOpenMayaへ切り替える指定で�
 ``fast=True`` の変更は、外側を ``undoChunk`` や ``undoTransaction`` で
 囲んでも取り消せません。既存のUndo履歴が同じ値を操作すると、その値が上書きされる場合があります。
 途中で例外が起きた場合も、完了済みの直接更新は自動では戻しません。
+``moveAttrOrder`` は安全な復元のためUndoが必要です。実際に並びを変更する場合、
+fast文脈はNotImplementedError、Undo無効時はRuntimeErrorとして、アトリビュート削除前に拒否します。
 
 形状の直接編集は入力履歴のないメッシュ・非周期NURBSカーブに限定します。
 スキニング等の入力履歴がある形状と周期カーブは ``NotImplementedError`` になります。
@@ -76,6 +80,8 @@ Plugは数値・単位・enum・文字列・行列・対応するデータ配列
 更新するたびに確認します。削除されたアトリビュートの検証も省略しません。
 fastの配列値設定では、MPlugの参照を取得して値を書き込む時に要素を実体化します。
 型照会のための ``cmds.getAttr`` や、行列Plugの名前の再解決は挟みません。
+``array[index]`` は参照取得だけ、``getElement(index)`` は既存要素だけの取得です。
+generic/kAnyも参照取得・接続列挙では値を評価せず、実際の ``get()`` で現在値を判定します。
 doubleArray・Int32Array・stringArray・vectorArray・pointArrayの読取りもAPIを使い、
 配列は常にlistです。空配列は[]、未初期化データはNone、点・ベクトルはtupleのlistです。
 1要素でも外側のlistを省きません。

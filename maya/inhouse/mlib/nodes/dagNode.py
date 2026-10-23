@@ -114,6 +114,7 @@ class DagNode(Node):
 
         Args:
             noSelf (bool): 現在のパスを除外する。
+
         Returns:
             list[DagNode]: 間接インスタンスを含むパスごとのノード参照。
         """
@@ -127,6 +128,7 @@ class DagNode(Node):
 
         Args:
             indirect (bool): 間接インスタンスを含む全ての親パスを返す。
+
         Returns:
             list[DagNode]: 直接の親。ルートでは空リスト。
         """
@@ -175,6 +177,7 @@ class DagNode(Node):
 
         Args:
             step (int): 遡る階層数。0以下またはルートを越える場合はNone。
+
         Returns:
             Node | None: 親ノード。親がない場合は ``None``。
         """
@@ -241,32 +244,6 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    def _direct_children(self, shapes, intermediates):
-        """直接の子をAPIで列挙し、インスタンスの親パスを維持する。
-
-        Args:
-            shapes (bool): Shapeも列挙するか。
-            intermediates (bool): 中間オブジェクトも含めるか。
-
-        Returns:
-            list[DagNode]: 条件に合う直接の子。非Transformでは空リスト。
-        """
-        path = self.mpath()
-        if not path.node().hasFn(om2.MFn.kTransform):
-            return []
-        fn = om2.MFnDagNode(path)
-        result = []
-        for index in range(fn.childCount()):
-            obj = fn.child(index)
-            if not shapes and not obj.hasFn(om2.MFn.kTransform):
-                continue
-            if not intermediates and om2.MFnDagNode(obj).isIntermediateObject:
-                continue
-            child = om2.MDagPath(path)
-            child.push(obj)
-            result.append(Node(child))
-        return result
-
     @flag_aliases(index="idx")
     def getShape(self, idx=0, intermediates=False):
         """Shape自身を返す。Transformでは指定Shapeを取得する。
@@ -274,6 +251,7 @@ class DagNode(Node):
         Args:
             idx (int): Shape自身では無視する。 別名 ``index`` も使用可能。
             intermediates (bool): Shape自身では無視する。
+
         Returns:
             DagNode | None: Shapeなら自身、それ以外はNone。
         """
@@ -410,8 +388,10 @@ class DagNode(Node):
         Args:
             color (Color | int | Iterable[float] | None): 表示色。None/disabledは無効化。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
+
         Returns:
             DagNode: 自身。入力Colorの変更は自動反映しない。
+
         Raises:
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
@@ -444,8 +424,10 @@ class DagNode(Node):
                 または表示色オブジェクト。None/disabledはoverrideEnabled全体を
                 無効化するため、表示タイプ等にも影響する。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
+
         Returns:
             DagNode: 自身。RGBモードは近似番号ではなく元のRGBを適用する。
+
         Raises:
             ValueError: 色の値が不正な場合。
             RuntimeError: アトリビュートがない、ロック・接続済みなど変更できない場合。
@@ -454,6 +436,32 @@ class DagNode(Node):
         value = Color.coerce(color)
         self._set_display_color(self._display_color_updates(value))
         return self
+
+    def _direct_children(self, shapes, intermediates):
+        """直接の子をAPIで列挙し、インスタンスの親パスを維持する。
+
+        Args:
+            shapes (bool): Shapeも列挙するか。
+            intermediates (bool): 中間オブジェクトも含めるか。
+
+        Returns:
+            list[DagNode]: 条件に合う直接の子。非Transformでは空リスト。
+        """
+        path = self.mpath()
+        if not path.node().hasFn(om2.MFn.kTransform):
+            return []
+        fn = om2.MFnDagNode(path)
+        result = []
+        for index in range(fn.childCount()):
+            obj = fn.child(index)
+            if not shapes and not obj.hasFn(om2.MFn.kTransform):
+                continue
+            if not intermediates and om2.MFnDagNode(obj).isIntermediateObject:
+                continue
+            child = om2.MDagPath(path)
+            child.push(obj)
+            result.append(Node(child))
+        return result
 
     def _traversal_children(self, shapes, intermediates, under_world):
         """指定条件で探索を続ける子パスを取得する。
@@ -543,61 +551,41 @@ class DagNodes(Nodes):
 
     item_class = DagNode
 
-    _bulk_returns = {
-        **Nodes._bulk_returns,
-        "mpath": "list",
-        "dagFn": "list",
-        "getParentPath": "list",
-        "getParent": "list",
-        "getParents": "list",
-        "getInstances": "list",
-        "getChildren": "list",
-        "getShape": "list",
-        "getFullPath": "list",
-        "getPartialPath": "list",
-        "isVisible": "list",
-        "visible": "list",
-        "getVisibility": "list",
-        "getOutlinerVisibility": "list",
-        "getOutlinerColor": "list",
-        "getOverrideColor": "list",
-        "getSkinClusters": "list",
-        "collectSkinClusters": "list",
-        "getBindPoses": "list",
-        "show": "self",
-        "hide": "self",
-        "setVisibility": "self",
-        "setOutlinerVisibility": "self",
-        "setOutlinerColor": "self",
-        "setOverrideColor": "self",
+    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
+    _bulk_entries = {
+        "mpath": (DagNode.mpath, "list"),
+        "dagFn": (DagNode.dagFn, "list"),
+        "getParentPath": (DagNode.getParentPath, "list"),
+        "getParent": (DagNode.getParent, "list"),
+        "getParents": (DagNode.getParents, "list"),
+        "getInstances": (DagNode.getInstances, "list"),
+        "getChildren": (DagNode.getChildren, "list"),
+        "getShape": (DagNode.getShape, "list"),
+        "getFullPath": (DagNode.getFullPath, "list"),
+        "getPartialPath": (DagNode.getPartialPath, "list"),
+        "isVisible": (DagNode.isVisible, "list"),
+        "visible": (DagNode.visible, "list"),
+        "getVisibility": (DagNode.getVisibility, "list"),
+        "getOutlinerVisibility": (DagNode.getOutlinerVisibility, "list"),
+        "getOutlinerColor": (DagNode.getOutlinerColor, "list"),
+        "getOverrideColor": (DagNode.getOverrideColor, "list"),
+        "getSkinClusters": (DagNode.getSkinClusters, "list"),
+        "collectSkinClusters": (DagNode.collectSkinClusters, "list"),
+        "getBindPoses": (DagNode.getBindPoses, "list"),
+        "show": (DagNode.show, "self"),
+        "hide": (DagNode.hide, "self"),
+        "setVisibility": (DagNode.setVisibility, "self"),
+        "setOutlinerVisibility": (DagNode.setOutlinerVisibility, "self"),
+        "setOutlinerColor": (DagNode.setOutlinerColor, "self"),
+        "setOverrideColor": (DagNode.setOverrideColor, "self"),
     }
     _bulk_methods = {
         **Nodes._bulk_methods,
-        "mpath": DagNode.mpath,
-        "dagFn": DagNode.dagFn,
-        "getParentPath": DagNode.getParentPath,
-        "getParent": DagNode.getParent,
-        "getParents": DagNode.getParents,
-        "getInstances": DagNode.getInstances,
-        "getChildren": DagNode.getChildren,
-        "getShape": DagNode.getShape,
-        "getFullPath": DagNode.getFullPath,
-        "getPartialPath": DagNode.getPartialPath,
-        "isVisible": DagNode.isVisible,
-        "visible": DagNode.visible,
-        "getVisibility": DagNode.getVisibility,
-        "getOutlinerVisibility": DagNode.getOutlinerVisibility,
-        "getOutlinerColor": DagNode.getOutlinerColor,
-        "getOverrideColor": DagNode.getOverrideColor,
-        "getSkinClusters": DagNode.getSkinClusters,
-        "collectSkinClusters": DagNode.collectSkinClusters,
-        "getBindPoses": DagNode.getBindPoses,
-        "show": DagNode.show,
-        "hide": DagNode.hide,
-        "setVisibility": DagNode.setVisibility,
-        "setOutlinerVisibility": DagNode.setOutlinerVisibility,
-        "setOutlinerColor": DagNode.setOutlinerColor,
-        "setOverrideColor": DagNode.setOverrideColor,
+        **{name: entry[0] for name, entry in _bulk_entries.items()},
+    }
+    _bulk_returns = {
+        **Nodes._bulk_returns,
+        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset()
 
@@ -912,8 +900,10 @@ class DagNodes(Nodes):
         Args:
             color (Color | int | Iterable[float] | None): 単一色。Noneは無効化。
             fast (bool): TrueはUndoなしのAPI直接更新。既定False。
+
         Returns:
             DagNodes: 自身。
+
         Raises:
             ValueError: 色の値が不正。
             RuntimeError: 対象が無効、アトリビュートがない、編集不可または更新失敗。
@@ -938,6 +928,7 @@ class DagNodes(Nodes):
         Args:
             color (Color | int | Iterable[float] | None): 単一色。番号はRGBへ変換。
             fast (bool): TrueはUndoなし。既定False。
+
         Returns:
             DagNodes: 自身。全対象の事前検証・例外規則はset_override_colorと同じ。
         """
@@ -953,8 +944,10 @@ class DagNodes(Nodes):
         Args:
             colors (Iterable): 対象数と同数のColor・番号・RGB・Noneの列。
             fast (bool): TrueはUndoなし。既定False。
+
         Returns:
             DagNodes: 自身。
+
         Raises:
             ValueError: 件数不一致、不正な色、共有アトリビュートに異なる値を要求した場合。
             RuntimeError: 事前検証または反映失敗。実行時失敗の自動ロールバックはしない。
@@ -970,6 +963,7 @@ class DagNodes(Nodes):
         Args:
             colors (Iterable): 対象数と同数の色指定の列。
             fast (bool): TrueはUndoなし。既定False。
+
         Returns:
             DagNodes: 自身。事前検証・例外規則はset_override_colorsと同じ。
         """

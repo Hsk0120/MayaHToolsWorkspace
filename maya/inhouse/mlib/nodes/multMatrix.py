@@ -16,8 +16,10 @@ class MultMatrix(Node):
 
         Args:
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
+
         Returns:
             Plug: 入力アトリビュートの参照。
+
         Raises:
             ValueError: indexが非負整数でない場合。
             IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
@@ -33,8 +35,10 @@ class MultMatrix(Node):
 
         Args:
             index (int): 入力の論理インデックス。 別名 ``idx`` も使用可能。
+
         Returns:
             Matrix: 現在の入力値。
+
         Raises:
             IndexError: 入力要素が存在しない場合。
         """
@@ -47,9 +51,9 @@ class MultMatrix(Node):
         """指定スロットに定数行列を設定する。入力接続は切断しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
             value (Matrix | Iterable[float]): Maya規約の行列。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             MultMatrix: 自身。

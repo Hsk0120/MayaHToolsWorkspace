@@ -105,7 +105,11 @@ class _ProgressLine(object):
         return text
 
     def advance(self):
-        """処理済み件数を1つ進めて描画し直す。"""
+        """処理済み件数を1つ進めて描画し直す。
+
+        Returns:
+            None: 値を返さない。
+        """
         self.done += 1
         self.draw()
 
@@ -117,6 +121,9 @@ class _ProgressLine(object):
                 ``Exception`` を送出せずに捨てる。別の例外が伝わっている
                 途中で行を閉じるときに使い、元の例外が後から起きた出力先の
                 失敗で置き換わらないようにする。
+
+        Returns:
+            None: 値を返さない。
         """
         try:
             self.stream.write("\n")
@@ -126,7 +133,11 @@ class _ProgressLine(object):
                 raise
 
     def _flush(self):
-        """出力先が ``flush`` を持つ場合だけ呼び出す。"""
+        """出力先が ``flush`` を持つ場合だけ呼び出す。
+
+        Returns:
+            None: 値を返さない。
+        """
         flush = getattr(self.stream, "flush", None)
         if flush is not None:
             flush()
@@ -251,5 +262,5 @@ def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('progress_bar',):
+for _obsolete_name in ("progress_bar",):
     globals().pop(_obsolete_name, None)

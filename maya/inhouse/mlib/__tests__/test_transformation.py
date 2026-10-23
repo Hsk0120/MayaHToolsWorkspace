@@ -189,7 +189,7 @@ class TransformationTest(unittest.TestCase):
     def test_openmaya_value_and_pivots(self):
         """MTransformationMatrixから取得可能なピボットと回転軸を保持する。"""
         node = self.getNode()
-        tm = node.transformFn().getTransformation()
+        tm = node.transformFn().transformation()
         value = Transformation(tm)
         self.assertMatrix(value.m, tm.asMatrix())
         self.assertEqual(tuple(value.rp), tuple(tm.rotatePivot(om2.MSpace.kTransform))[:3])

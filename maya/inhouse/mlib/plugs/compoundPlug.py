@@ -103,13 +103,14 @@ class CompoundPlug(Plug):
         その他の複合型は子ごとの設定を使う。途中の失敗時に完了済みの値は自動で戻さない。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
-            CompoundPlug | int: 自身。safe=Trueでは失敗した成分数。
+            CompoundPlug | int: safe=Falseでは自身。safe=Trueでは書けなかった成分数、全て成功なら0。
+                子数と値の件数が不一致など、成分へ分けられない失敗は1を返す。
 
         Raises:
             ValueError: 要素数が子数と一致しない場合。

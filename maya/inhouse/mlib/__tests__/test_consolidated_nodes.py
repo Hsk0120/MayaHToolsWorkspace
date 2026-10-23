@@ -157,35 +157,6 @@ class ConsolidatedNodesTest(unittest.TestCase):
         self.assertEqual(foreign.getNodeName(), "foreign:oldShape")
         self.assertEqual(normal.getNodeName(), "newShape")
 
-    def test_fast_joint_delete_preserves_children(self):
-        """Joint削除時の子の姿勢・SSC・inverseScaleを通常経路と比較する。"""
-        parent = mlib.createNode("joint", name="root")
-        middle = mlib.createNode("joint", parent=parent, name="middle")
-        child = mlib.createNode("joint", parent=middle, name="leaf")
-        ctrl = mlib.createNode("transform", parent=middle, name="control")
-        parent.setTranslate((3, 2, 1))
-        middle.setTranslate((4, 0, 0))
-        middle.getPlug("jointOrient").set((.2, .3, .1))
-        child.setTranslate((2, 0, 0))
-        middle.connectInverseScale()
-        child.connectInverseScale()
-        matrices = [list(n.getMatrix(worldSpace=True)) for n in (child, ctrl)]
-        middle.delete()
-        expected_orient = tuple(mlib.getNode("leaf").getPlug("jointOrient").get())
-        cmds.undo()
-        middle = mlib.getNode("middle")
-        with self.api_only():
-            middle.delete(fast=True)
-        self.assertFalse(middle.isValid())
-        child, ctrl = mlib.getNode("leaf"), mlib.getNode("control")
-        self.assertEqual(child.getParent(), parent)
-        self.assertEqual(ctrl.getParent(), parent)
-        self.assertEqual(child.getPlug("inverseScale").getSource(skipConversionNodes=False), parent.getPlug("scale"))
-        for node, matrix in zip((child, ctrl), matrices):
-            self.assertMatrixEqual(node.getMatrix(worldSpace=True), matrix)
-        for actual, expected in zip(child.getPlug("jointOrient").get(), expected_orient):
-            self.assertAlmostEqual(actual, expected, delta=1e-6)
-
     def skin_fixture(self):
         """単一meshと3influenceの最小スキンを作る。"""
         mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
@@ -196,35 +167,6 @@ class ConsolidatedNodesTest(unittest.TestCase):
                                            mesh, toSelectedBones=True)[0])
         skin.setWeights([root.getFullName(), middle.getFullName(), other.getFullName()], [.2, .3, .5])
         return skin, root, middle, other
-
-    def test_fast_joint_delete_transfers_weights(self):
-        """祖先influenceへの移送後、Mayaの削除通知で接続を解除する。"""
-        skin, root, middle, other = self.skin_fixture()
-        middle.delete()
-        expected = list(skin.getWeights([root.getFullName(), other.getFullName()]))
-        cmds.undo()
-        middle = mlib.getNode("middle")
-        with self.api_only():
-            middle.delete(fast=True)
-        self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
-        self.assertFalse(middle.isValid())
-
-    def test_fast_joint_root_delete_and_ssc(self):
-        """スケール補正のある未スキニング階層でも子のワールド姿勢を保つ。"""
-        root = mlib.createNode("joint", name="root")
-        middle = mlib.createNode("joint", parent=root, name="middle")
-        child = mlib.createNode("joint", parent=middle, name="child")
-        root.getPlug("scale").set((2, 3, 4))
-        middle.getPlug("scale").set((1.5, 1.5, 1.5))
-        middle.connectInverseScale()
-        child.connectInverseScale()
-        child.getPlug("translate").set((4, 2, 1))
-        matrix = list(child.getMatrix(worldSpace=True))
-        with self.api_only():
-            middle.delete(fast=True)
-        self.assertTrue(root.isValid())
-        self.assertMatrixEqual(child.getMatrix(worldSpace=True), matrix)
-        self.assertEqual(child.getParent(), root)
 
     def test_fast_native_skin_callback_and_last_influence(self):
         """移送先のない削除ではネイティブ削除と同じスキン構造を維持する。"""
@@ -259,30 +201,17 @@ class ConsolidatedNodesTest(unittest.TestCase):
             self.assertEqual([n.getUuid() for n in skin.getInfluences()], [root.getUuid(), other.getUuid()])
             self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
 
-    def test_fast_mixed_delete_preflights_skin_before_first_node(self):
-        """後続Jointのロック失敗で先行Nodeを部分削除しない。"""
+    def test_fast_mixed_delete_preflights_before_first_node(self):
+        """後続Jointのノードロックで先行Nodeを部分削除しない。"""
         skin, root, middle, other = self.skin_fixture()
         untouched = mlib.createNode("network", name="untouched")
         names = [n.getFullName() for n in (root, middle, other)]
         weights = list(skin.getWeights(names))
-        skin.getPlug("weightList")[0].getChildren()[0][0].setFlags(locked=True)
+        cmds.lockNode(middle.getFullName(), lock=True)
         with self.api_only(), self.assertRaises(RuntimeError):
             mlib.delete([untouched, middle], fast=True)
         self.assertTrue(untouched.isValid())
         self.assertTrue(middle.isValid())
-        self.assertEqual(list(skin.getWeights(names)), weights)
-
-    def test_fast_joint_child_failure_precedes_weight_transfer(self):
-        """子Transformの入力接続を、Jointウェイト移送より前に拒否する。"""
-        skin, root, middle, other = self.skin_fixture()
-        child = mlib.createNode("transform", parent=middle)
-        root.getPlug("translateX").connectTo(child.getPlug("translateX"))
-        names = [n.getFullName() for n in (root, middle, other)]
-        weights = list(skin.getWeights(names))
-        with self.api_only(), self.assertRaises(RuntimeError):
-            middle.delete(fast=True)
-        self.assertTrue(middle.isValid())
-        self.assertEqual(child.getParent(), middle)
         self.assertEqual(list(skin.getWeights(names)), weights)
 
     def test_fast_influence_structure_failure_precedes_transfer(self):

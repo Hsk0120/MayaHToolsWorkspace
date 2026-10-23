@@ -18,13 +18,27 @@ DAGの親子関係自体は接続に数えません。無効ノードや削除�
 
 ``Joint.delete`` と ``Nodes.delete`` / ``Joints.delete`` も同じフラグを受け付けます。
 コレクションは接続を持つ対象を残し、削除可能な対象だけを処理します。
-JointでスキニングやinverseScale等の接続を検出した場合は、ウェイト移送や子の再親付けも
-行いません。safe=FalseのJoint専用削除は従来の仕様を維持します。戻り値は全てNoneです。
-通常削除はUndoに対応し、fast=TrueはOM2で直接削除します。safe=Falseが従来の削除に相当するためforceは追加していません。
+Joint/JointsもNode/Nodesの標準削除を継承します。ウェイト移送・子の保持は行わず、
+DAGの子階層もMaya標準の規則で削除します。戻り値は全てNoneです。
+ウェイト移送と子の再親付けを伴う削除は ``mlrig.setups.JointHierarchy.delete`` を使います。
+通常削除はUndoに対応し、fast=TrueはOM2で直接削除します。safe=Falseが標準削除で、force指定はありません。
 
 このフラグはノードのメソッド用です。``mlib.delete()``、PlugやUIのdeleteには追加していません。
 ``deleteUnusedIntermediateShapes()`` は標準のマテリアル所属を許容する専用判定のため、
 このsafeモードとは判定条件が異なります。
+
+追加アトリビュートの並び順
+------------------------------
+
+``moveAttrOrder(name, offset)`` は対象範囲の定義と値・フラグ・別名・接続を保存し、
+アトリビュートを作り直してChannel Boxの順序を変更します。
+全定義を復元してから接続を復元するため、同じ範囲内のアトリビュート同士の接続も扱います。
+数値・enum・文字列のトップレベル非複合・非配列に対応し、範囲内に未対応型があれば変更前に拒否します。
+短名・既定値・min/max・softMin/softMax・表示やロック等の設定も保持します。
+
+通常は一回のUndoで戻せます。変更途中の失敗では、この処理の変更だけをUndoして復元します。
+実際の並び替えが必要な場合、Undo無効時はRuntimeError、fast文脈ではNotImplementedErrorとして、
+削除前に拒否します。既に端にある等の変更不要な呼出しは自身を返します。
 
 形状のスキニング関係
 --------------------
@@ -130,13 +144,12 @@ Transformの ``getT/setT`` 等の短縮アクセサーは廃止しました。
 入力接続・ロックを避けた空き番号を返します。startが負の場合は最後の接続の次から探します。
 startより小さい既存要素がある場合も、接続済み番号を避けます。配列親がロックされている場合は探索を続けず例外を返します。
 
-``addElement(idx=None)`` は指定要素と必要な上位要素を実体化し、新規要素を下位からリストで返します。
-既存要素は空リストです。要素自身に呼ぶ場合はidxを省略できます。
-APIの評価を利用するため、追加自体のUndoは未対応です。
-messageやMaya内部型の実体化はNotImplementedErrorで拒否します。
-独自Undoプラグインは追加しません。message配列は取得した参照へ接続してください。
+未作成要素は ``array[index]`` で参照し、そのPlugへの値設定・接続で作成します。
+message配列も参照への接続で作成します。要素の実体化だけを行うメソッドはありません。
 
-``getElement(index, create=False)`` は従来の論理インデックス指定を維持しています。
+``getElement(index)`` は既存要素だけを論理インデックスで取得し、未作成ならIndexErrorです。
+``getIndices()`` は既存要素の論理番号を昇順のlistで返し、値を評価しません。
+``getElements()`` と同じく、ワールド空間アトリビュートはDAGインスタンス番号も含みます。
 要素の格納順を表す物理インデックスではありません。
 Transformation値型とgetTransformation/setTransformationは :doc:`transformation` を参照してください。
 
@@ -146,7 +159,7 @@ Transformation値型とgetTransformation/setTransformationは :doc:`transformati
 ``plug.setAlias("alias")`` は別名を設定し、``setAlias()`` は解除します。
 ``plug.setKey(t=1, v=10)`` は通常maya.cmds.setKeyframeを呼び、値と時間はUI単位です。
 fast=Trueは単一時刻・値・接線型の指定だけを受け付け、OM2でカーブを更新します。
-どちらも自身を返し、Undoできます。
+どちらも自身を返します。通常モードはUndo対応、fast=TrueはUndoなしです。
 ``plug.getAnimLayers(selected=False, exact=False)`` は入力チェーンのレイヤー名を
 上位から返し、末尾にベースレイヤーを含めます。selected=Trueで選択レイヤーに限定し、
 exact=Trueも指定するとベースも選択状態で絞ります。proxy・mute・pairBlendを経由して調べます。
@@ -161,7 +174,7 @@ exact=Trueも指定するとベースも選択状態で絞ります。proxy・mu
 未作成の配列要素も参照でき、取得だけでは実体化しません。
 値設定・接続で要素を作成します。``for element in array`` は既存要素だけを論理番号順に返します。
 ``array.get()`` は論理番号をキーにした辞書のままです。
-既存の ``getElement(index, create=False)`` の明示的な存在検査・実体化機能は維持します。
+``getElement(index)`` は既存要素だけを返します。参照取得に作成フラグはありません。
 
 .. code-block:: python
 

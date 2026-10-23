@@ -706,7 +706,6 @@ class Transform(DagNode):
         CV）として解釈される。Transform自身の行列やShapeの構造は変更しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
@@ -714,6 +713,7 @@ class Transform(DagNode):
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): 各Shapeへそのまま渡す要素番号。
                 None は全要素、空列は変更なし。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Transform: 編集した自身。
@@ -935,6 +935,7 @@ class Transform(DagNode):
 
         Args:
             worldSpace (bool): ワールド空間へ変換する。短縮名ws。
+
         Returns:
             Transformation: Euler回転順序・ピボット・補助回転・SSCを含む値。
                 offsetParentMatrixと親行列はワールド指定時の合成に含める。
@@ -977,8 +978,12 @@ class Transform(DagNode):
             safe (bool): 書けない成分を残して、書ける成分で行列を合わせる。
             get (bool): シーンを更新せず、対象ノード用に補正した値を返す。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
+
         Returns:
-            Transform | Transformation: 通常は自身。get=Trueは設定予定値。
+            Transform | Transformation: get=Falseでは適用後の自身。
+                get=Trueでは対象ノード用に補正したローカル空間の設定予定値を返し、シーンは変更しない。
+                予定値は入力値と独立し、距離cm・角度radを使う。
+
         Note:
             inverseScaleの接続は保持する。jointとtransformを相互コピーする場合は
             対象で使えない補助成分を除き、行列を維持するようにTRSを補正する。
@@ -992,8 +997,8 @@ class Transform(DagNode):
         self._apply_transformation_modifiers(fitted, is_joint, safe)
         if safe:
             fitted = self._refit_safe_transformation(fitted, matrix)
-        for name in ("translate", "rotate", "scale", "shear"):
-            self._set_channel_value(name, getattr(fitted, name), safe=safe)
+        self._apply_channel_values({name: getattr(fitted, name)
+                                    for name in ("translate", "rotate", "scale", "shear")}, safe=safe)
         return self
 
     @flag_aliases(ws="worldSpace")
@@ -1007,7 +1012,7 @@ class Transform(DagNode):
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
                 ローカル空間（``matrix``）の値を取得する。ワールド空間では、
-                :meth:`dagPath` が示す DAG インスタンスの要素
+                :meth:`mpath` が示す DAG インスタンスの要素
                 (``worldMatrix[<インスタンス番号>]``)を使う。
 
             p (bool): 親行列を取得する。
@@ -1046,15 +1051,17 @@ class Transform(DagNode):
         異なることがあるが、結果の行列は同じ。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             matrix (Matrix | sequence): 適用する変換行列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずtranslate/rotate/scale/shearの辞書を返す。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
-            Transform | dict: 通常は自身、get=Trueは内部単位の設定値。
+            Transform | dict[str, Translate | EulerRotate | Scale | Shear]: get=Falseでは自身。
+                get=Trueではtranslate・rotate・scale・shearをキーとするローカル設定予定値を返す。
+                距離cm・角度radの数学型を保持し、safe/fastの指定によらずシーンは変更しない。
 
         Raises:
             RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
@@ -1064,17 +1071,19 @@ class Transform(DagNode):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         ws = world_space(worldSpace)
-        if safe or get:
+        if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
-            if ws:
-                matrix *= Matrix._wrap(self.mpath().exclusiveMatrixInverse())
-            values = self._matrix_channel_values(matrix)
+        if not self.isValid():
+            raise RuntimeError("Cannot set an invalid transform")
+        local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
+        if safe or get:
+            values = self._matrix_channel_values(local_matrix)
             if get:
                 return values
-            for name, value in values.items():
-                self._set_channel_value(name, value, safe=True)
-            return self
-        return self._set_matrix(matrix, ws)
+            self._apply_channel_values(values, safe=True)
+        else:
+            self._apply_local_matrix(local_matrix)
+        return self
 
     @flag_aliases(ws="worldSpace")
     def getTranslate(self, worldSpace=False, at=2):
@@ -1083,6 +1092,7 @@ class Transform(DagNode):
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。
             at (int): 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点。
+
         Returns:
             Translate: cm単位の位置。
         """
@@ -1121,6 +1131,7 @@ class Transform(DagNode):
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずtranslateの計算値だけを返す。
             fast (bool): Undoなしの直接更新。
+
         Returns:
             Transform | list[float]: 自身。get=Trueはtranslateの計算値。
         """
@@ -1176,17 +1187,17 @@ class Transform(DagNode):
         置き換わることはある)。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float] | EulerRotate | Quaternion): 回転値。3成分はノードの
                 rotateOrder の値として解釈する。EulerRotate(om2.MEulerRotation)は
                 その回転順序を反映する。unit が rad の場合は Quaternion も受け入れる。
                 ノードへは rotateOrder に並べ替えて書き込む。
-            unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
-                値にだけ使える。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずrotateチャンネル値を返す。
+            unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
+                値にだけ使える。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             Transform | list[float]: 通常は自身、get=Trueはrad単位の計算値。
@@ -1223,6 +1234,7 @@ class Transform(DagNode):
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはscaleチャンネル。
+
         Returns:
             Scale: ローカルではSSCを除く値、ワールドではAPI規約の分解値。
         """
@@ -1241,6 +1253,7 @@ class Transform(DagNode):
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずチャンネル値を返す。
             fast (bool): Undoなしの直接更新。
+
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
@@ -1256,6 +1269,7 @@ class Transform(DagNode):
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはshearチャンネル。
+
         Returns:
             Shear: 指定空間のシアー。
         """
@@ -1274,6 +1288,7 @@ class Transform(DagNode):
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずチャンネル値を返す。
             fast (bool): Undoなしの直接更新。
+
         Returns:
             Transform | list[float]: 自身。get=Trueは計算値。
         """
@@ -1292,8 +1307,10 @@ class Transform(DagNode):
             ra (bool): rotateAxisを含める。
             r (bool): rotateを含める。
             jo (bool): jointOrientを含める。
+
         Returns:
             Quaternion: 指定成分の合成回転。
+
         Raises:
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
@@ -1333,49 +1350,13 @@ class Transform(DagNode):
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
             fast (bool): Undoなしの直接更新。
+
         Returns:
-            Transform | list[float]: 自身。get=Trueはrad単位の計算値。
+            Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
+                rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
+                入力のQuaternionや、XYZWの4成分を返す操作ではない。
         """
-        ws = world_space(worldSpace)
-        q = om2.MQuaternion(value) if isinstance(value, om2.MQuaternion) else om2.MQuaternion(*value)
-        joint = self.mnode().hasFn(om2.MFn.kJoint)
-        undo_ra = undo_r = None
-        if ws:
-            if not jo or (not r and (ra or not joint)):
-                raise ValueError("Unsupported rotation component combination")
-            jo = joint
-            matrix = None
-            if self.mpath().length() > 1:
-                if not r:
-                    undo_r = self._component_quaternion("rotate")
-                    q = undo_r * q
-                if not ra:
-                    undo_ra = self._component_quaternion("rotateAxis")
-                    q = undo_ra * q
-                matrix = q.asMatrix() * self.mpath().exclusiveMatrixInverse()
-            inv_scale = self._inverse_scale_values()
-            if jo and inv_scale != (1.0, 1.0, 1.0):
-                matrix = (q.asMatrix() if matrix is None else matrix) * Matrix(scale=inv_scale)
-            if matrix is not None:
-                q = om2.MQuaternion().setValue(om2.MMatrix(matrix).homogenize())
-        else:
-            jo = jo and joint
-            if ra and not r and jo:
-                raise ValueError("Unsupported rotation component combination")
-        if undo_ra is not None:
-            q = undo_ra.inverse() * q
-        if undo_r is not None:
-            q = undo_r.inverse() * q
-        if r:
-            if ra:
-                q = self._component_quaternion("rotateAxis").inverse() * q
-            if jo:
-                q *= self._component_quaternion("jointOrient").inverse()
-            name = "rotate"
-            rotation = q.asEulerRotation().reorder(self._rotate_order())
-        else:
-            name = "jointOrient" if jo else "rotateAxis"
-            rotation = q.asEulerRotation()
+        name, rotation = self._quaternion_channel_values(value, world_space(worldSpace), ra, r, jo)
         if get:
             return list(rotation)
         self._set_channel_value(name, rotation, safe=safe)
@@ -1489,6 +1470,7 @@ class Transform(DagNode):
 
         Args:
             ws (bool): ワールド空間を使う。 別名 ``worldSpace`` も使用可能。
+
         Returns:
             Quaternion: rotateを除いた姿勢。
         """
@@ -1579,6 +1561,7 @@ class Transform(DagNode):
         Args:
             value (Transformation): 元の値。自身を変更しない。
             ws (bool): 検証済みのワールド空間指定。
+
         Returns:
             tuple: 適合した値・維持する行列・joint判定。
         """
@@ -1634,6 +1617,7 @@ class Transform(DagNode):
         Args:
             fitted (Transformation): 設定予定の値。
             matrix (Matrix): 維持するローカル行列。
+
         Returns:
             Transformation: 実際に設定できた補助成分で再計算した値。
         """
@@ -1829,6 +1813,56 @@ class Transform(DagNode):
         """
         return _closest_euler(self._component_quaternion("rotateAxis").inverse() * quaternion, reference)
 
+    def _quaternion_channel_values(self, value, ws, ra, r, jo):
+        """回転の指定から書込み先とEuler値だけを求め、シーンは変更しない。
+
+        Args:
+            value (om2.MQuaternion | Iterable[float]): 入力回転。
+            ws (bool): 検証済みのワールド空間指定。
+            ra (bool): 入力へrotateAxisを含めるか。
+            r (bool): rotateを更新するか。
+            jo (bool): jointOrientを含めるか。
+
+        Returns:
+            tuple[str, om2.MEulerRotation]: 書込み先名とrad単位の計算値。
+        """
+        q = om2.MQuaternion(value) if isinstance(value, om2.MQuaternion) else om2.MQuaternion(*value)
+        joint = self.mnode().hasFn(om2.MFn.kJoint)
+        undo_ra = undo_r = None
+        if ws:
+            if not jo or (not r and (ra or not joint)):
+                raise ValueError("Unsupported rotation component combination")
+            jo = joint
+            matrix = None
+            if self.mpath().length() > 1:
+                if not r:
+                    undo_r = self._component_quaternion("rotate")
+                    q = undo_r * q
+                if not ra:
+                    undo_ra = self._component_quaternion("rotateAxis")
+                    q = undo_ra * q
+                matrix = q.asMatrix() * self.mpath().exclusiveMatrixInverse()
+            inv_scale = self._inverse_scale_values()
+            if jo and inv_scale != (1.0, 1.0, 1.0):
+                matrix = (q.asMatrix() if matrix is None else matrix) * Matrix(scale=inv_scale)
+            if matrix is not None:
+                q = om2.MQuaternion().setValue(om2.MMatrix(matrix).homogenize())
+        else:
+            jo = jo and joint
+            if ra and not r and jo:
+                raise ValueError("Unsupported rotation component combination")
+        if undo_ra is not None:
+            q = undo_ra.inverse() * q
+        if undo_r is not None:
+            q = undo_r.inverse() * q
+        if r:
+            if ra:
+                q = self._component_quaternion("rotateAxis").inverse() * q
+            if jo:
+                q *= self._component_quaternion("jointOrient").inverse()
+            return "rotate", q.asEulerRotation().reorder(self._rotate_order())
+        return "jointOrient" if jo else "rotateAxis", q.asEulerRotation()
+
     def _apply_local_matrix(self, matrix, scale_reference=None):
         """ローカル行列の各成分をMayaアトリビュートへ適用する。
 
@@ -1857,9 +1891,17 @@ class Transform(DagNode):
             ValueError: 行列を分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
-        values = self._matrix_channel_values(matrix, scale_reference)
+        self._apply_channel_values(self._matrix_channel_values(matrix, scale_reference))
+
+    def _apply_channel_values(self, values, safe=False):
+        """計算済みの内部単位値を、辞書の保持順に設定する。
+
+        Args:
+            values (dict[str, Iterable[float]]): チャンネル名と設定値。
+            safe (bool): 書けない成分を残す。通常時は失敗を伝播する。
+        """
         for name, value in values.items():
-            self._set_channel_value(name, value)
+            self._set_channel_value(name, value, safe=safe)
 
     def _set_channel_value(self, name, value, safe=False):
         """変換チャンネルを内部単位で設定する。通常更新はMayaのアニメーション編集に従う。
@@ -1903,31 +1945,6 @@ class Transform(DagNode):
         return {"translate": Translate(*translate), "rotate": EulerRotate._wrap(rotation),
                 "scale": Scale(*scale), "shear": Shear(*shear)}
 
-    def _set_matrix(self, matrix, ws=False, scale_reference=None):
-        """:meth:`setMatrix` の本体。Undo チャンクと fast の扱いは呼び出し元に任せる。
-
-        Args:
-            matrix (Matrix | sequence): 適用する変換行列。
-            ws (bool): ``True`` でワールド空間、``False`` でローカル空間に設定する。
-            scale_reference (Iterable[float] | None): 分解したスケールの符号を最優先で
-                合わせる値(:meth:`setScale` で要求した値)。None なら現在の scale
-                チャンネル値に合わせる。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
-            ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
-        """
-        if not isinstance(matrix, Matrix):
-            matrix = Matrix(matrix)
-        if not self.isValid():
-            raise RuntimeError("Cannot set an invalid transform")
-        local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
-        self._apply_local_matrix(local_matrix, scale_reference)
-        return self
-
 
 class Transforms(DagNodes):
     """Joint等の派生型を含むTransform参照のコレクション。
@@ -1937,99 +1954,60 @@ class Transforms(DagNodes):
 
     item_class = Transform
 
-    _bulk_returns = {
-        **DagNodes._bulk_returns,
-        "addConstraint": "list",
-        "deleteConstraints": "list",
-        "transformFn": "list",
-        "getPivot": "list",
-        "getBoundingBox": "list",
-        "getRoot": "list",
-        "getChildren": "list",
-        "getSiblings": "list",
-        "getShapes": "list",
-        "getShape": "list",
-        "getShadingEngines": "list",
-        "getOffsetParentMatrix": "list",
-        "getMatrix": "list",
-        "getJointOrientQuaternion": "list",
-        "getTransformation": "list",
-        "getTranslate": "list",
-        "getRotate": "list",
-        "getScale": "list",
-        "getShearing": "list",
-        "getQuaternion": "list",
-        "getEuler": "list",
-        "getClosestAxisToVector": "list",
-        "getUnusedIntermediateShapes": "list",
-        "freeze": "self",
-        "resetPivot": "self",
-        "reset": "self",
-        "scaleGeometry": "self",
-        "setPivot": "self",
-        "centerPivot": "self",
-        "mirrorGeometry": "self",
-        "getTransform": "self",
-        "setParent": "self",
-        "matchTransform": "self",
-        "mirrorTransform": "self",
-        "setOffsetParentMatrix": "self",
-        "setMatrix": "self",
-        "setTransformation": "self",
-        "setTranslate": "self",
-        "setRotate": "self",
-        "setScale": "self",
-        "setShearing": "self",
-        "setQuaternion": "self",
-        "makeIdentity": "self",
-        "deleteUnusedIntermediateShapes": "self",
+    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
+    _bulk_entries = {
+        "addConstraint": (Transform.addConstraint, "list"),
+        "deleteConstraints": (Transform.deleteConstraints, "list"),
+        "transformFn": (Transform.transformFn, "list"),
+        "getPivot": (Transform.getPivot, "list"),
+        "getBoundingBox": (Transform.getBoundingBox, "list"),
+        "getRoot": (Transform.getRoot, "list"),
+        "getChildren": (Transform.getChildren, "list"),
+        "getSiblings": (Transform.getSiblings, "list"),
+        "getShapes": (Transform.getShapes, "list"),
+        "getShape": (Transform.getShape, "list"),
+        "getShadingEngines": (Transform.getShadingEngines, "list"),
+        "getOffsetParentMatrix": (Transform.getOffsetParentMatrix, "list"),
+        "getMatrix": (Transform.getMatrix, "list"),
+        "getJointOrientQuaternion": (Transform.getJointOrientQuaternion, "list"),
+        "getTransformation": (Transform.getTransformation, "list"),
+        "getTranslate": (Transform.getTranslate, "list"),
+        "getRotate": (Transform.getRotate, "list"),
+        "getScale": (Transform.getScale, "list"),
+        "getShearing": (Transform.getShearing, "list"),
+        "getQuaternion": (Transform.getQuaternion, "list"),
+        "getEuler": (Transform.getEuler, "list"),
+        "getClosestAxisToVector": (Transform.getClosestAxisToVector, "list"),
+        "getUnusedIntermediateShapes": (Transform.getUnusedIntermediateShapes, "list"),
+        "freeze": (Transform.freeze, "self"),
+        "resetPivot": (Transform.resetPivot, "self"),
+        "reset": (Transform.reset, "self"),
+        "scaleGeometry": (Transform.scaleGeometry, "self"),
+        "setPivot": (Transform.setPivot, "self"),
+        "centerPivot": (Transform.centerPivot, "self"),
+        "mirrorGeometry": (Transform.mirrorGeometry, "self"),
+        "getTransform": (Transform.getTransform, "self"),
+        "setParent": (Transform.setParent, "self"),
+        "matchTransform": (Transform.matchTransform, "self"),
+        "mirrorTransform": (Transform.mirrorTransform, "self"),
+        "setOffsetParentMatrix": (Transform.setOffsetParentMatrix, "self"),
+        "setMatrix": (Transform.setMatrix, "self"),
+        "setTransformation": (Transform.setTransformation, "self"),
+        "setTranslate": (Transform.setTranslate, "self"),
+        "setRotate": (Transform.setRotate, "self"),
+        "setScale": (Transform.setScale, "self"),
+        "setShearing": (Transform.setShearing, "self"),
+        "setQuaternion": (Transform.setQuaternion, "self"),
+        "makeIdentity": (Transform.makeIdentity, "self"),
+        "deleteUnusedIntermediateShapes": (Transform.deleteUnusedIntermediateShapes, "self"),
     }
     _bulk_methods = {
         **DagNodes._bulk_methods,
-        "addConstraint": Transform.addConstraint,
-        "deleteConstraints": Transform.deleteConstraints,
-        "transformFn": Transform.transformFn,
-        "getPivot": Transform.getPivot,
-        "getBoundingBox": Transform.getBoundingBox,
-        "getRoot": Transform.getRoot,
-        "getChildren": Transform.getChildren,
-        "getSiblings": Transform.getSiblings,
-        "getShapes": Transform.getShapes,
-        "getShape": Transform.getShape,
-        "getShadingEngines": Transform.getShadingEngines,
-        "getOffsetParentMatrix": Transform.getOffsetParentMatrix,
-        "getMatrix": Transform.getMatrix,
-        "getJointOrientQuaternion": Transform.getJointOrientQuaternion,
-        "getTransformation": Transform.getTransformation,
-        "getTranslate": Transform.getTranslate,
-        "getRotate": Transform.getRotate,
-        "getScale": Transform.getScale,
-        "getShearing": Transform.getShearing,
-        "getQuaternion": Transform.getQuaternion,
-        "getEuler": Transform.getEuler,
-        "getClosestAxisToVector": Transform.getClosestAxisToVector,
-        "getUnusedIntermediateShapes": Transform.getUnusedIntermediateShapes,
-        "freeze": Transform.freeze,
-        "resetPivot": Transform.resetPivot,
-        "reset": Transform.reset,
-        "scaleGeometry": Transform.scaleGeometry,
-        "setPivot": Transform.setPivot,
-        "centerPivot": Transform.centerPivot,
-        "mirrorGeometry": Transform.mirrorGeometry,
-        "getTransform": Transform.getTransform,
-        "setParent": Transform.setParent,
-        "matchTransform": Transform.matchTransform,
-        "mirrorTransform": Transform.mirrorTransform,
-        "setOffsetParentMatrix": Transform.setOffsetParentMatrix,
-        "setMatrix": Transform.setMatrix,
-        "setTransformation": Transform.setTransformation,
-        "setTranslate": Transform.setTranslate,
-        "setRotate": Transform.setRotate,
-        "setScale": Transform.setScale,
-        "setShearing": Transform.setShearing,
-        "setQuaternion": Transform.setQuaternion,
-        "makeIdentity": Transform.makeIdentity,
-        "deleteUnusedIntermediateShapes": Transform.deleteUnusedIntermediateShapes,
+        **{name: entry[0] for name, entry in _bulk_entries.items()},
+    }
+    _bulk_returns = {
+        **DagNodes._bulk_returns,
+        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset()
 

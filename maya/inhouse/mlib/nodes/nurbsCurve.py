@@ -21,7 +21,6 @@ class NurbsCurve(Shape):
         """CV の位置をミラーし、自身を更新する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
                 x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
@@ -29,6 +28,7 @@ class NurbsCurve(Shape):
                 単位は 内部距離単位cm。Transform のピボットとは独立する。
             indices (Iterable[int] | None): CV 番号。None は全 CV、空列は変更なし。
                 重複は1回だけ処理し、負の番号は許容しない。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             NurbsCurve: 編集した自身。

@@ -5,6 +5,7 @@ from .bendCorrection import BendCorrection
 from .coneReader import ConeReader
 from .controlShape import ControlShape
 from .controlHierarchy import ControlHierarchy
+from .jointHierarchy import JointHierarchy
 from .lengthCompensation import LengthCompensation
 from .matrixFollow import MatrixFollow
 from .poseRbf import PoseRbf
@@ -23,6 +24,7 @@ __all__ = [
     "ConeReader",
     "ControlShape",
     "ControlHierarchy",
+    "JointHierarchy",
     "LengthCompensation",
     "MatrixFollow",
     "PoseRbf",

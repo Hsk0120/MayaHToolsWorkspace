@@ -97,7 +97,11 @@ class _Editor:
                 self.setSettings(**previous)
 
     def _require_exists(self):
-        """参照先が削除されていた場合は RuntimeError を送出する。"""
+        """参照先が削除されていた場合は RuntimeError を送出する。
+
+        Returns:
+            None: 値を返さない。
+        """
         if not self.exists():
             raise RuntimeError(f"Editor no longer exists: {self._name}")
 
@@ -105,7 +109,10 @@ class _Editor:
         """未対応のフラグがある場合は変更前に ValueError を送出する。
 
         Args:
-            flags: 処理先へ渡すキーワード引数の辞書。
+            flags (dict): 処理先へ渡すフラグ名と設定値の辞書。
+
+        Returns:
+            None: 値を返さない。
         """
         unknown = set(flags) - set(self._flags)
         if unknown:

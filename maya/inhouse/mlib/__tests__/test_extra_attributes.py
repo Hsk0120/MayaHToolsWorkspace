@@ -48,7 +48,7 @@ class ExtraAttributesTest(unittest.TestCase):
         self.assertEqual(len(self.node.getExtraAttrs(include_children=True)), 4)
         array = self.node.addAttr("weights", attributeType="double", multi=True)
         self.assertIsInstance(array, mlib.plugs.ArrayPlug)
-        self.assertIsInstance(array.getElement(0, create=True), mlib.plugs.DoublePlug)
+        self.assertIsInstance(array[0], mlib.plugs.DoublePlug)
         self.node.addAttr("undoValue", attributeType="long")
         cmds.undo()
         self.assertFalse(self.node.hasAttr("undoValue"))

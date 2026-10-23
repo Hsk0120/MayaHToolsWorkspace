@@ -46,8 +46,8 @@ callEachのargumentsは、各要素への位置引数タプルを並べた列で
 コレクション固有の操作
 ------------------------------------------------------------
 
-* Joints.delete: ウェイト移送と子の退避を行う既存の削除処理。
-* Joints.skinClusters: 重複を除いたSkinClustersを返す。
+* Joints.delete: Nodesから継承する標準削除。ウェイト移送と子の退避は ``mlrig.setups.JointHierarchy.delete`` を使います。
+* Joints.getSkinClusters(): 重複を除いたSkinClustersを返す。
 * Joints.getNames()、sortedByDepth(): 名前の一覧・階層順のコレクションを返す。
 * Joints.jointOrientToRotate、freezeRotate: 全対象を事前検証し、Joints自身を返す。
 * SkinClusters.removeInfluences: 保持するskinClusterのinfluence解除。戻り値は自身です。joint削除はJoints.deleteを使います。
@@ -90,6 +90,7 @@ Selectionは異種対象の取得時点の集合で、単一の単体型に対�
 ``_WRAPPER_CLASSES`` 辞書で明示します。既存ノードからのラッパー型選択は自動で行います。
 一括APIは複数形クラスの通常の ``def`` として定義し、``Nodes`` の共通処理へ委譲します。
 共通処理は引数検証・保持順実行・Undoを担当し、公開メソッドの生成は行いません。
+対象メソッドと戻り方針は一つの一覧へ記載し、呼出先と戻り方針の内部辞書をそこから構成します。
 ``inspect.signature`` で取得する引数仕様は対応する単数メソッドに合わせて維持します。
 照会は保持順の結果リスト、通常の更新はコレクション自身を返します。
 通常のクラス継承により、DagNodesの照会はTransforms・Jointsでも使えます。

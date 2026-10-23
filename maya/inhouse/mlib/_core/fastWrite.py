@@ -1,6 +1,6 @@
 """対応する値更新のcmds/OpenMayaバックエンド。独自プラグインは使わない。"""
 
-import maya.api.OpenMaya as om
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..common._fast import is_fast
@@ -12,8 +12,8 @@ def writable(plug, _fn=None):
     """ロック・入力接続・書込み不能アトリビュートをAPIで検査する。
 
     Args:
-        plug (om.MPlug): 検査するプラグ。
-        _fn (om.MFnAttribute | None): 同じ更新内で生成したアトリビュートの
+        plug (om2.MPlug): 検査するプラグ。
+        _fn (om2.MFnAttribute | None): 同じ更新内で生成したアトリビュートの
             function set。省略時は新しく生成する。値や検査結果はキャッシュしない。
 
     Raises:
@@ -29,7 +29,7 @@ def writable(plug, _fn=None):
             current = current.array()
         else:
             break
-    if not (_fn if _fn is not None else om.MFnAttribute(plug.attribute())).writable:
+    if not (_fn if _fn is not None else om2.MFnAttribute(plug.attribute())).writable:
         raise RuntimeError("Attribute is not writable: " + plug.name())
 
 
@@ -37,9 +37,9 @@ def check_range(plug, value, _fn=None):
     """cmds.setAttrと同様、アトリビュートに設定されたハード範囲を検査する。
 
     Args:
-        plug (om.MPlug): 検査するプラグ。
+        plug (om2.MPlug): 検査するプラグ。
         value (float): 設定予定の値。単位型ではcm/rad/秒。
-        _fn (om.MFnNumericAttribute | om.MFnUnitAttribute | None): 同じ更新内で
+        _fn (om2.MFnNumericAttribute | om2.MFnUnitAttribute | None): 同じ更新内で
             生成したfunction set。範囲と単位定義は呼出しごとに照会する。
 
     Raises:
@@ -48,17 +48,17 @@ def check_range(plug, value, _fn=None):
     fn = _fn
     if fn is None:
         attribute = plug.attribute()
-        if attribute.hasFn(om.MFn.kUnitAttribute):
-            fn = om.MFnUnitAttribute(attribute)
-        elif attribute.hasFn(om.MFn.kNumericAttribute):
-            fn = om.MFnNumericAttribute(attribute)
+        if attribute.hasFn(om2.MFn.kUnitAttribute):
+            fn = om2.MFnUnitAttribute(attribute)
+        elif attribute.hasFn(om2.MFn.kNumericAttribute):
+            fn = om2.MFnNumericAttribute(attribute)
         else:
             return
     for exists, getter, lower in ((fn.hasMin, fn.getMin, True), (fn.hasMax, fn.getMax, False)):
         if not exists():
             continue
         limit = getter()
-        if isinstance(limit, (om.MAngle, om.MDistance, om.MTime)):
+        if isinstance(limit, (om2.MAngle, om2.MDistance, om2.MTime)):
             limit = convert(plug, limit, to_ui=False)
         if (lower and value < limit) or (not lower and value > limit):
             raise RuntimeError("Value outside attribute limits: " + plug.name())
@@ -68,7 +68,7 @@ def _prepared_writes(plug, value):
     """全成分の型・制限を更新前に検査し、直接書込みの列を組み立てる。
 
     Args:
-        plug (om.MPlug): 書込み先。
+        plug (om2.MPlug): 書込み先。
         value (object): 内部単位の入力値。
 
     Returns:
@@ -78,10 +78,10 @@ def _prepared_writes(plug, value):
         NotImplementedError: API 2.0で値を構築できない型の場合。
     """
     attribute = plug.attribute()
-    unit = attribute.hasFn(om.MFn.kUnitAttribute)
-    numeric = not unit and attribute.hasFn(om.MFn.kNumericAttribute)
-    fn = (om.MFnUnitAttribute(attribute) if unit else
-          om.MFnNumericAttribute(attribute) if numeric else om.MFnAttribute(attribute))
+    unit = attribute.hasFn(om2.MFn.kUnitAttribute)
+    numeric = not unit and attribute.hasFn(om2.MFn.kNumericAttribute)
+    fn = (om2.MFnUnitAttribute(attribute) if unit else
+          om2.MFnNumericAttribute(attribute) if numeric else om2.MFnAttribute(attribute))
     writable(plug, fn)
     if plug.isCompound:
         values = tuple(value)
@@ -95,14 +95,14 @@ def _prepared_writes(plug, value):
     if unit:
         check_range(plug, value, fn)
         kind = fn.unitType()
-        if kind == om.MFnUnitAttribute.kAngle:
-            setter, result = om.MPlug.setMAngle, om.MAngle(value, om.MAngle.kRadians)
-        elif kind == om.MFnUnitAttribute.kDistance:
-            setter, result = om.MPlug.setMDistance, om.MDistance(value, om.MDistance.kCentimeters)
+        if kind == om2.MFnUnitAttribute.kAngle:
+            setter, result = om2.MPlug.setMAngle, om2.MAngle(value, om2.MAngle.kRadians)
+        elif kind == om2.MFnUnitAttribute.kDistance:
+            setter, result = om2.MPlug.setMDistance, om2.MDistance(value, om2.MDistance.kCentimeters)
         else:
-            setter, result = om.MPlug.setMTime, om.MTime(value, om.MTime.kSeconds)
-    elif attribute.hasFn(om.MFn.kEnumAttribute):
-        setter, result = om.MPlug.setInt, int(value)
+            setter, result = om2.MPlug.setMTime, om2.MTime(value, om2.MTime.kSeconds)
+    elif attribute.hasFn(om2.MFn.kEnumAttribute):
+        setter, result = om2.MPlug.setInt, int(value)
     elif numeric:
         check_range(plug, value, fn)
         writer = NUMERIC_WRITERS.get(fn.numericType())
@@ -119,7 +119,7 @@ def set_plug(plug, value):
     """全成分を事前検証してMPlugへ設定する。Undoには記録しない。
 
     Args:
-        plug (om.MPlug): 更新対象。
+        plug (om2.MPlug): 更新対象。
         value (object): 角度rad、距離cm、時間秒の値。
 
     Raises:
@@ -141,7 +141,7 @@ def set_attr(name, *values, **kwargs):
     """
     if not is_fast():
         return cmds.setAttr(name, *values, **kwargs)
-    selection = om.MSelectionList()
+    selection = om2.MSelectionList()
     selection.add(name)
     plug = selection.getPlug(0)
     flags = {"lock": "isLocked", "keyable": "isKeyable", "channelBox": "isChannelBox"}
@@ -166,33 +166,33 @@ def prepare_data(attribute, value, *, name=None):
     Returns:
         tuple: setter、変換済み値、書込み終了まで保持するfunction set。
     """
-    label = name or om.MFnAttribute(attribute).name
+    label = name or om2.MFnAttribute(attribute).name
     owner = None
-    if attribute.hasFn(om.MFn.kMatrixAttribute):
-        matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
-        owner = om.MFnMatrixData()
-        setter, result = om.MPlug.setMObject, owner.create(matrix)
-    elif attribute.hasFn(om.MFn.kTypedAttribute):
-        kind = om.MFnTypedAttribute(attribute).attrType()
+    if attribute.hasFn(om2.MFn.kMatrixAttribute):
+        matrix = value if isinstance(value, om2.MMatrix) else om2.MMatrix(value)
+        owner = om2.MFnMatrixData()
+        setter, result = om2.MPlug.setMObject, owner.create(matrix)
+    elif attribute.hasFn(om2.MFn.kTypedAttribute):
+        kind = om2.MFnTypedAttribute(attribute).attrType()
         factories = {
-            om.MFnData.kDoubleArray: om.MFnDoubleArrayData,
-            om.MFnData.kIntArray: om.MFnIntArrayData,
-            om.MFnData.kStringArray: om.MFnStringArrayData,
-            om.MFnData.kVectorArray: om.MFnVectorArrayData,
-            om.MFnData.kPointArray: om.MFnPointArrayData,
-            om.MFnData.kMatrixArray: om.MFnMatrixArrayData,
+            om2.MFnData.kDoubleArray: om2.MFnDoubleArrayData,
+            om2.MFnData.kIntArray: om2.MFnIntArrayData,
+            om2.MFnData.kStringArray: om2.MFnStringArrayData,
+            om2.MFnData.kVectorArray: om2.MFnVectorArrayData,
+            om2.MFnData.kPointArray: om2.MFnPointArrayData,
+            om2.MFnData.kMatrixArray: om2.MFnMatrixArrayData,
         }
-        if kind == om.MFnData.kString:
-            setter, result = om.MPlug.setString, str(value)
-        elif kind == om.MFnData.kMatrix:
-            matrix = value if isinstance(value, om.MMatrix) else om.MMatrix(value)
-            owner = om.MFnMatrixData()
-            setter, result = om.MPlug.setMObject, owner.create(matrix)
+        if kind == om2.MFnData.kString:
+            setter, result = om2.MPlug.setString, str(value)
+        elif kind == om2.MFnData.kMatrix:
+            matrix = value if isinstance(value, om2.MMatrix) else om2.MMatrix(value)
+            owner = om2.MFnMatrixData()
+            setter, result = om2.MPlug.setMObject, owner.create(matrix)
         elif kind in factories:
-            if kind == om.MFnData.kMatrixArray:
-                value = [item if isinstance(item, om.MMatrix) else om.MMatrix(item) for item in value]
+            if kind == om2.MFnData.kMatrixArray:
+                value = [item if isinstance(item, om2.MMatrix) else om2.MMatrix(item) for item in value]
             owner = factories[kind]()
-            setter, result = om.MPlug.setMObject, owner.create(value)
+            setter, result = om2.MPlug.setMObject, owner.create(value)
         else:
             raise NotImplementedError("fast typed data is not supported: " + label)
     else:

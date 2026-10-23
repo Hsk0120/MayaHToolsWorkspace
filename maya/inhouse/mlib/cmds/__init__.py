@@ -27,7 +27,6 @@ from .createShelf import createShelf
 from .delete import delete
 from .duplicate import duplicate
 from .executeDeferred import executeDeferred
-from .getAttr import getAttr
 from .getChannelBox import getChannelBox
 from .getDrivenKey import getDrivenKey
 from .getNode import getNode
@@ -67,7 +66,6 @@ __all__ = [
     "delete",
     "duplicate",
     "executeDeferred",
-    "getAttr",
     "getChannelBox",
     "getDrivenKey",
     "getNode",

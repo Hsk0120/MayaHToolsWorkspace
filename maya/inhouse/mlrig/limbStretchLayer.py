@@ -53,7 +53,7 @@ class LimbStretchLayer:
             return self.settings()
         rig, root = self.rig, self.rig.root
         lengths = [
-            mlib.common.units.distanceFromUi(mlib.getAttr(rig._member('ik' + str(i)) + '.translateX').get(uiUnits=True))
+            mlib.common.units.distanceFromUi(mlib.getPlug(rig._member('ik' + str(i)) + '.translateX').get(uiUnits=True))
             for i in (1, 2)
         ]
         owner = LengthCompensation.create(sum(lengths), root.getName() + "_stretchGraph").container

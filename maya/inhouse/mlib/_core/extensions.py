@@ -77,12 +77,7 @@ def getDiagnostics():
                 record["reason"] = "MLIB_EXTENSION_API != 1"
             else:
                 try:
-                    query = vars(module).get("is_available")
-                    if not callable(query):
-                        raise TypeError("is_available must be callable")
-                    available = query()
-                    if not isinstance(available, bool):
-                        raise TypeError("is_available() must return bool")
+                    available = _is_available(module)
                     record["available"] = available
                     if not available:
                         record["reason"] = "Optional dependency unavailable"
@@ -111,6 +106,27 @@ def _prepare_reload():
         if name.split(".", 1)[0] in roots:
             del sys.modules[name]
     _attempted.clear()
+
+
+def _is_available(package):
+    """宣言の可用性を照会し、初期化と診断で同じ型検証を使う。
+
+    Args:
+        package (ModuleType): 宣言の読み込みを完了した拡張パッケージ。
+
+    Returns:
+        bool: 拡張が現在利用可能か。
+
+    Raises:
+        TypeError: is_availableがcallableでない、またはboolを返さない場合。
+    """
+    query = vars(package).get("is_available")
+    if not callable(query):
+        raise TypeError("is_available must be callable")
+    available = query()
+    if not isinstance(available, bool):
+        raise TypeError("is_available() must return bool")
+    return available
 
 
 def _validate_dependencies(name, locations):
@@ -187,9 +203,7 @@ def _load_candidate(name, locations):
     if getattr(package, "MLIB_EXTENSION_API", None) != 1:
         _attempted.discard(name)
         return {"state": "skipped", "reason": "MLIB_EXTENSION_API != 1"}
-    available = package.is_available()
-    if not isinstance(available, bool):
-        raise TypeError("is_available() must return bool")
+    available = _is_available(package)
     if not available:
         return {"state": "unavailable", "reason": "Optional dependency unavailable"}
     return None

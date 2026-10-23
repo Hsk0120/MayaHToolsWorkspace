@@ -10,8 +10,11 @@ class Deferred:
 
         Args:
             callback (Callable): 実行するPython関数。コード文字列は受け付けない。
-            *args: 関数へ渡す位置引数。
-            **kwargs: 関数へ渡すキーワード引数。
+            *args (object): 関数へ渡す位置引数。
+            **kwargs (object): 関数へ渡すキーワード引数。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             TypeError: callbackが呼び出し可能でない場合。

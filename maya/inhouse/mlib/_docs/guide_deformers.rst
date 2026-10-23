@@ -214,7 +214,7 @@ weight配列の論理インデックスで並べ替えません。weight以外�
 ``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
 ``weight_index`` を省略すると ``getPlug("weight").nextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
-設定されるため、戻り値のプラグの ``fullName`` は ``weight[N]`` ではなく
+設定されるため、戻り値のプラグの ``getFullName()`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``getLongName()`` では実際のアトリビュート名を取得できます）。
 
 ターゲット番号・エイリアスを受け取る編集・照会には、同じBlendShapeのweight要素Plugも

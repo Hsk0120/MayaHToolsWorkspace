@@ -17,10 +17,10 @@ class MatrixPlug(Plug):
         """対象アトリビュートの行列値を取得する。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
+            uiUnits (bool): Plug共通の単位指定。行列成分の単位変換は行わない。
 
         Returns:
-            Matrix: 対象アトリビュートの行列の複製。
+            Matrix: 対象アトリビュートの行列の複製。uiUnitsにかかわらず内部単位を維持する。
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
@@ -36,13 +36,14 @@ class MatrixPlug(Plug):
         """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Matrix | Transformation | Iterable[float]): 設定する4x4行列または変換情報。
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
+            uiUnits (bool): Plug共通の単位指定。入力行列の成分単位は変換しない。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
-            MatrixPlug | int: 自身。safe=Trueでは失敗した成分数。
+            MatrixPlug | int: safe=Falseでは自身。safe=Trueでは成功なら0、設定失敗なら1。
+                通常/fastとも同じ規則で、非対応fastのNotImplementedErrorは抑制しない。
 
         Raises:
             TypeError: worldMatrixなどの書込み不可アトリビュートを指定した場合。

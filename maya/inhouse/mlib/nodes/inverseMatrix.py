@@ -12,6 +12,7 @@ class InverseMatrix(THDependNode):
 
     def getInputPlug(self):
         """入力のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -19,6 +20,7 @@ class InverseMatrix(THDependNode):
 
     def getInput(self):
         """入力の評価値を取得する。
+
         Returns:
             Matrix: 現在の値。
         """
@@ -32,6 +34,7 @@ class InverseMatrix(THDependNode):
         Args:
             value (Matrix): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             InverseMatrix: 自身。
 
@@ -50,6 +53,7 @@ class InverseMatrix(THDependNode):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             InverseMatrix: 自身。
 
@@ -62,6 +66,7 @@ class InverseMatrix(THDependNode):
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
+
         Returns:
             Plug: 出力参照。
         """
@@ -69,6 +74,7 @@ class InverseMatrix(THDependNode):
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Matrix: 計算結果。
         """

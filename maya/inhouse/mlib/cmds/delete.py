@@ -19,7 +19,8 @@ Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya
 
 削除操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
 各ノードを具象クラスへ解決し、その ``delete()`` を呼び出します。
-``Joint.delete()`` ではウェイト移送・子階層保持などの専用動作を使用します。
+JointもMaya標準の削除を行います。ウェイト移送・子階層保持は
+``mlrig.setups.JointHierarchy.delete()`` で明示的に行います。
 入力順に処理し、先行する削除で無効になった対象はスキップします。
 コンポーネントは所有ノードを削除せず、Maya標準コマンドで処理します。
 
@@ -79,9 +80,9 @@ def delete(nodes, *, fast=False):
     """指定したノード・コンポーネントを削除する。
 
     Args:
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         nodes (Node | Component | Components | Selection | str | om2.MObject | om2.MDagPath | Iterable):
             削除する対象、またはその列(入れ子のコレクションも展開する)。
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
     Note:
         fastは各Nodeの直接削除を使う。コンポーネントのトポロジー削除には

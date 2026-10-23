@@ -20,10 +20,10 @@ class IkHandle(Transform):
         """
         from .joint import Joint
 
-        effector_plug = self.getPlug('endEffector').getSource(skipConversionNodes=False)
+        effector_plug = self.getPlug("endEffector").getSource(skipConversionNodes=False)
         if effector_plug is None:
             return None
-        source = effector_plug.getNode().getPlug('translateX').getSource(skipConversionNodes=False)
+        source = effector_plug.getNode().getPlug("translateX").getSource(skipConversionNodes=False)
         if source is None:
             return None
         return Joint(source.getNode().getFullName())

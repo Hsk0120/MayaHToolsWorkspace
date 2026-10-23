@@ -36,7 +36,11 @@ class Scene:
         return f"Scene(path={self.path!r})"
 
     def __str__(self):
-        """保持パスを表示する。未保存の場合は untitled。"""
+        """保持しているシーンパスを文字列にする。
+
+        Returns:
+            str: 保持パス。未保存の場合はuntitled。
+        """
         return str(self._path) if self._path is not None else "untitled"
 
     @property
@@ -59,7 +63,11 @@ class Scene:
         return scene_path.name if scene_path is not None else None
 
     def isCurrent(self):
-        """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。"""
+        """保持パスが現在のシーンと一致するか返す。未保存同士は一致とする。
+
+        Returns:
+            bool: 保持するパスと現在のシーンのパスが一致するか。未保存同士はTrue。
+        """
         return self.path == self._current_path()
 
     @_is_alias(isCurrent)
@@ -67,8 +75,8 @@ class Scene:
         """isCurrentへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -100,8 +108,8 @@ class Scene:
         """isModifiedへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -244,12 +252,20 @@ class Scene:
 
     @staticmethod
     def _current_path():
-        """現在のシーンの絶対パスを返す。未保存なら None。"""
+        """現在のシーンの絶対パスを返す。未保存なら None。
+
+        Returns:
+            pathlib.Path | None: 現在のシーンの絶対パス。未保存ならNone。
+        """
         value = cmds.file(query=True, sceneName=True)
         return Path(value).resolve() if value else None
 
     def _require_current(self):
-        """現在のシーンと一致しない場合は RuntimeError を送出する。"""
+        """現在のシーンと一致しない場合は RuntimeError を送出する。
+
+        Returns:
+            None: 値を返さない。
+        """
         if not self.isCurrent():
             raise RuntimeError("Scene is not the current Maya scene; open it first")
 
@@ -283,7 +299,7 @@ class Scene:
         Raises:
             ValueError: .ma/.mb 以外の拡張子の場合。
         """
-        fileType = cls._FILE_TYPES.get(path.suffix.lower())
-        if fileType is None:
+        file_type = cls._FILE_TYPES.get(path.suffix.lower())
+        if file_type is None:
             raise ValueError("path must have a .ma or .mb extension")
-        return fileType
+        return file_type

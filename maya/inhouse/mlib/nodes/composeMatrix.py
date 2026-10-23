@@ -13,13 +13,15 @@ class ComposeMatrix(Node):
 
     def getTranslatePlug(self):
         """translate入力（移動はcm）のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('inputTranslate')
+        return self.getPlug("inputTranslate")
 
     def getTranslate(self):
         """translate入力（移動はcm）の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -33,6 +35,7 @@ class ComposeMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -50,6 +53,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -61,13 +65,15 @@ class ComposeMatrix(Node):
 
     def getRotatePlug(self):
         """rotate入力（回転はrad）のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('inputRotate')
+        return self.getPlug("inputRotate")
 
     def getRotate(self):
         """rotate入力（回転はrad）の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -81,6 +87,7 @@ class ComposeMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -98,6 +105,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -109,13 +117,15 @@ class ComposeMatrix(Node):
 
     def getScalePlug(self):
         """scale入力（無次元）のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('inputScale')
+        return self.getPlug("inputScale")
 
     def getScale(self):
         """scale入力（無次元）の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -129,6 +139,7 @@ class ComposeMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -146,6 +157,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -157,13 +169,15 @@ class ComposeMatrix(Node):
 
     def getShearPlug(self):
         """shear入力（無次元）のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        return self.getPlug('inputShear')
+        return self.getPlug("inputShear")
 
     def getShear(self):
         """shear入力（無次元）の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -177,6 +191,7 @@ class ComposeMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -194,6 +209,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -205,6 +221,7 @@ class ComposeMatrix(Node):
 
     def getQuaternionPlug(self):
         """XYZW順のQuaternion入力のPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -212,6 +229,7 @@ class ComposeMatrix(Node):
 
     def getQuaternion(self):
         """XYZW順のQuaternion入力の評価値を取得する。
+
         Returns:
             Iterable[float]: 現在の値。
         """
@@ -225,6 +243,7 @@ class ComposeMatrix(Node):
         Args:
             value (Iterable[float]): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -243,6 +262,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -254,6 +274,7 @@ class ComposeMatrix(Node):
 
     def getUseEulerRotationPlug(self):
         """Euler入力を使用するかのPlugを取得する。
+
         Returns:
             Plug: 接続・値操作用の参照。
         """
@@ -261,6 +282,7 @@ class ComposeMatrix(Node):
 
     def getUseEulerRotation(self):
         """Euler入力を使用するかの評価値を取得する。
+
         Returns:
             bool: 現在の値。
         """
@@ -274,6 +296,7 @@ class ComposeMatrix(Node):
         Args:
             value (bool): 設定値。数値は有限値。
             fast (bool): TrueはUndoなしのOpenMaya更新。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -291,6 +314,7 @@ class ComposeMatrix(Node):
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+
         Returns:
             ComposeMatrix: 自身。
 
@@ -302,10 +326,11 @@ class ComposeMatrix(Node):
 
     def getRotateOrder(self):
         """現在のモード名を取得する。
+
         Returns:
             str: xyz, yzx, zxy, xzy, yxz, zyx。
         """
-        return _Calculation.enumName(self.getPlug("inputRotateOrder"), ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        return _Calculation.enum_name(self.getPlug("inputRotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
     @fast_edit
     @undoChunk("mlibCalculationEdit")
@@ -315,18 +340,20 @@ class ComposeMatrix(Node):
         Args:
             mode (str | int): xyz, yzx, zxy, xzy, yxz, zyx、またはMayaの番号。
             fast (bool): TrueはUndoなし。
+
         Returns:
             ComposeMatrix: 自身。
 
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enumValue(mode, ('xyz', 'yzx', 'zxy', 'xzy', 'yxz', 'zyx'))
+        value = _Calculation.enum_value(mode, ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
         self.getPlug("inputRotateOrder").set(value)
         return self
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。
+
         Returns:
             Plug: 出力参照。
         """
@@ -334,6 +361,7 @@ class ComposeMatrix(Node):
 
     def getResult(self):
         """現在の入力をMayaで評価した結果を取得する。
+
         Returns:
             Matrix: 計算結果。
         """

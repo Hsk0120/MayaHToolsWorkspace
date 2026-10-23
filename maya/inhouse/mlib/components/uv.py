@@ -22,8 +22,8 @@ class UV(Component):
             tuple[float, float]: 単位を持たない U、V 座標。
         """
         self._validate()
-        meshFn = self.shape.meshFn()
-        return tuple(meshFn.getUV(self._index, uvSet=meshFn.currentUVSetName()))
+        mesh_fn = self.shape.meshFn()
+        return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
     @fast_edit
     @undoChunk("mlibUVPosition")
@@ -31,8 +31,8 @@ class UV(Component):
         """UV 座標を設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): 有限な U、V の2成分。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
             UV: 編集した自身。
@@ -68,8 +68,10 @@ class UV(Component):
         Args:
             value (float): 有限な座標。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UV: 更新した自身。
+
         Raises:
             ValueError: 座標または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -93,8 +95,10 @@ class UV(Component):
         Args:
             value (float): 有限な座標。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UV: 更新した自身。
+
         Raises:
             ValueError: 座標または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -118,10 +122,12 @@ class UVs(Components):
         """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             values (Iterable[Iterable[float]]): 要素数と同じ数のU、V座標。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UVs: 自身。空集合と空列は何もしない。
+
         Raises:
             ValueError: 件数・座標が不正な場合。
             RuntimeError: Mayaが拒否した場合。完了済み変更は自動で戻さない。
@@ -162,8 +168,10 @@ class UVs(Components):
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UVs: 更新した自身。
+
         Raises:
             ValueError: 座標または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -187,8 +195,10 @@ class UVs(Components):
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UVs: 更新した自身。
+
         Raises:
             ValueError: 座標または要素数が不正な場合。
             TypeError: fastがboolでない場合。
@@ -222,8 +232,9 @@ class UVs(Components):
         """全UVを同じ座標へ設定する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             value (Iterable[float]): 有限のU、V座標。
+            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+
         Returns:
             UVs: 自身。要素別の指定にはsetPositionsを使う。
 

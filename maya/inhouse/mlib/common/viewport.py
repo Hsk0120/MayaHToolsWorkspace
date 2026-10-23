@@ -59,8 +59,8 @@ class Viewport(_Editor):
         """isEnabledへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -135,7 +135,7 @@ class Viewport(_Editor):
         """
         if cmds.about(batch=True):
             raise RuntimeError("Viewport suspension requires Maya GUI")
-        pane = mel.eval('global string $gMainPane; $mlibMainPane = $gMainPane;')
+        pane = mel.eval("global string $gMainPane; $mlibMainPane = $gMainPane;")
         if not pane or not cmds.paneLayout(pane, exists=True):
             raise RuntimeError("Maya main pane is unavailable")
         return pane

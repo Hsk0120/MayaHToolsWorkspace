@@ -38,7 +38,7 @@ Mayaの記号 ``vtx/e/f/map/cv`` も同じ意味で使えます。
 
 .. code-block:: python
 
-   for vertices in saved.filter("vertex").components():
+   for vertices in saved.filter("vertex").getComponents():
        vertices.setPositionX(10)
 
 選択変更は各メソッド内でUndoチャンクにまとめます。

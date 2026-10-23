@@ -56,6 +56,9 @@ class ShelfButton:
 
         Args:
             label (str): 表示ラベル。
+
+        Returns:
+            None: 値を返さない。
         """
         cmds.shelfButton(self.getName(), edit=True, label=label)
 
@@ -72,6 +75,9 @@ class ShelfButton:
 
         Args:
             text (str): 説明。
+
+        Returns:
+            None: 値を返さない。
         """
         cmds.shelfButton(self.getName(), edit=True, annotation=text)
 
@@ -88,6 +94,9 @@ class ShelfButton:
 
         Args:
             image (str): Mayaの画像名またはパス。
+
+        Returns:
+            None: 値を返さない。
         """
         cmds.shelfButton(self.getName(), edit=True, image1=str(image))
 
@@ -105,6 +114,9 @@ class ShelfButton:
         Args:
             command (str): コード文字列。
             language (str): pythonまたはmel。
+
+        Returns:
+            None: 値を返さない。
         """
         self._validate_command(command, language)
         cmds.shelfButton(self.getName(), edit=True, command=command, sourceType=language)
@@ -118,7 +130,11 @@ class ShelfButton:
         return cmds.shelfButton(self.getName(), query=True, sourceType=True)
 
     def delete(self):
-        """ボタンをUIから削除する。保存済みファイルは変更しない。"""
+        """ボタンをUIから削除する。保存済みファイルは変更しない。
+
+        Returns:
+            None: 値を返さない。
+        """
         cmds.deleteUI(self.getName(), control=True)
 
     @staticmethod
@@ -128,6 +144,9 @@ class ShelfButton:
         Args:
             command (str): コード文字列。callableは保存できないため拒否する。
             language (str): pythonまたはmel。
+
+        Returns:
+            None: 値を返さない。
         """
         if not isinstance(command, str):
             raise TypeError("command must be a string")

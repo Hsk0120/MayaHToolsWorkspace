@@ -304,8 +304,9 @@ unitConversion自体は削除対象に含めません。
 呼び出します。先行処理で削除済みとなった対象や重複はスキップします。
 全体を1回のUndoで戻せます。
 
-``Joint.delete()`` はウェイト移送・子階層保持を伴う専用操作です。
-``mlib.delete(joint_name)`` でもこの専用操作が呼ばれます。
+``Joint.delete()`` / ``Joints.delete()`` はNode/NodesのMaya標準削除を継承します。
+ウェイト移送や子階層の保持は行いません。これらを伴うリグ整理には
+``mlrig.setups.JointHierarchy.delete(joints, safe=False, fast=False)`` を使います。
 独自ノードクラスも ``delete()`` の上書きで削除挙動を変更できます。
 
 複数のノードを扱う
@@ -329,7 +330,7 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
    targets = Transforms(mlib.ls(type="transform"))
    targets.setTranslate((1, 2, 3))     # 全対象に同じ値
    values = targets.getTranslate()   # 保持順の値リスト
-   targets.callEach("setTranslate", [((i, 0, 0),) for i in getRange(len(targets))])
+   targets.callEach("setTranslate", [((i, 0, 0),) for i in range(len(targets))])
 
    joints = Joints(mlib.ls(type="joint"))
    print(isinstance(joints, Transforms))  # True
@@ -353,7 +354,8 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
 通常モードの編集は一回のUndoにまとめます。実行途中で失敗した場合は停止し、
 完了済みの変更は自動では戻しません。引数の確認は全対象の書込み可能性の保証とは異なります。
 色設定は全対象のアトリビュートを事前検証します。詳細は :doc:`node_colors` を参照してください。
-``Joints.delete()``・フリーズ・``SkinClusters.removeInfluences()`` 等の専用処理は維持しています。
+``Joints.delete()`` は ``Nodes.delete()`` を継承します。
+フリーズ・``SkinClusters.removeInfluences()`` 等の専用処理は維持しています。
 
 ``mlib.ls()`` の戻り値は従来どおりです。joint/skinClusterの型指定は専用コレクション、
 それ以外はリストです。必要に応じて ``Nodes(...)`` / ``Transforms(...)`` で包んでください。
@@ -540,7 +542,7 @@ RuntimeErrorになります。子の操作には ``node.getPlug("items")[7]["amo
    * - message
      - MessagePlug（値ではなく接続を扱う）
 
-EnumPlugはget/setで整数、enumName/enumValueでラベルと値を扱えます。
+EnumPlugはget/setで整数、getEnumName/getEnumValueでラベルと値を扱えます。
 専用型のないMayaデータ型は従来どおりPlugの対応範囲で使用できます。
 型の自動選択は標準アトリビュートにも適用されます。例えばfloatの配列要素もFloatPlugになります。
 
@@ -567,16 +569,16 @@ LambertとStandardSurfaceの中間型PaintableShadingDependNodeは、起動中�
    mesh = body.getShape()
    group.assign(mesh.getFaces([0, 1, 2]))  # フェース単位にも割り当て可能
    materials = mesh.getMaterials()
-   face_material = mesh.getFace(0).material()
+   face_material = mesh.getFace(0).getMaterial()
    targets = group.getMembers()  # NodeまたはFaceのリスト
 
 createShader/createShadingGroupのnameはnでも指定できます。
 シェーダーの作成とシェーディンググループの作成は分けて扱います。
 assignは既存の割り当てを置き換え、選択状態には依存しません。
-MeshのshadingEngines/faceShadingEnginesはDAGインスタンスごとの割り当てを取得します。
-faceShadingEnginesはフェース順のリストで、未割り当てはNoneです。
-TransformのshadingEnginesは直下の非中間シェイプを対象とします。
-シェーダー側のshadingEnginesとassignedObjectsから割り当て先をたどることもできます。
+MeshのgetShadingEngines/getFaceShadingEnginesはDAGインスタンスごとの割り当てを取得します。
+getFaceShadingEnginesはフェース順のリストで、未割り当てはNoneです。
+TransformのgetShadingEnginesは直下の非中間シェイプを対象とします。
+シェーダー側のgetShadingEnginesとgetAssignedObjectsから割り当て先をたどることもできます。
 
 .. code-block:: python
 

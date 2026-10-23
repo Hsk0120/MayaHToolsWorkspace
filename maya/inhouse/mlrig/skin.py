@@ -75,7 +75,7 @@ def set_mesh_lod(high_mesh, high_skin, proxy_mesh, proxy_skin, proxy=False):
         if mlib.getNode(skin).getType() != "skinCluster":
             raise TypeError("Expected a skinCluster")
         for attr in (mesh + ".visibility", skin + ".envelope", skin + ".nodeState"):
-            if not mlib.getAttr(attr, settable=True):
+            if not mlib.getPlug(attr).isSettable():
                 raise ValueError("LOD attribute is not editable: " + attr)
     for mesh, skin, active in pairs:
         mlib.getPlug(mesh + ".visibility").set(active)

@@ -69,7 +69,7 @@ Examples
 """
 
 from .._core.flags import flag_aliases
-from ..common._fast import fast_edit, is_fast
+from ..common._fast import fast_edit
 from ..decorator import undoChunk
 
 
@@ -80,13 +80,15 @@ def createNode(type, *, fast=False, **kwargs):
     """Mayaノードを作成し、実際の型に対応するラッパーを返す。
 
     Args:
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         type (str): Mayaノード型名。
+        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
         **kwargs (object): maya.cmds.createNodeへ渡すフラグ。parent(p)はノードが必要な
             引数として所有ノードの完全パスへ変換する(Plug・MPlug・"node.attribute" は
             所有ノード、Component は所有シェイプ)。
+
     Returns:
         Node: 作成したノードのラッパー。
+
     Raises:
         TypeError: parent が対応しない型の場合。
         ValueError: parent が空文字列、または削除済みの対象の場合。

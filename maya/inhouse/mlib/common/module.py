@@ -57,7 +57,7 @@ class Module:
         Returns:
             str: 型名とモジュール名を含む文字列表現。
         """
-        return "Module({!r})".format(self._name)
+        return f"Module({self._name!r})"
 
     def __str__(self):
         """モジュール名を返す。
@@ -89,8 +89,8 @@ class Module:
         """isRegisteredへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。
@@ -130,7 +130,7 @@ class Module:
         """
         required = Version.parse(minimum)
         if required is None:
-            raise ValueError("Invalid minimum version: {!r}".format(minimum))
+            raise ValueError(f"Invalid minimum version: {minimum!r}")
         version = self.getVersion()
         return version is not None and version >= required
 
@@ -139,8 +139,8 @@ class Module:
         """isVersionAtLeastへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。

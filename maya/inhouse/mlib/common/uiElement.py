@@ -34,12 +34,16 @@ class UiElement:
         Returns:
             bool: Maya上にUIが存在するか照会する。
         """
-        from maya import cmds
+        import maya.cmds as cmds
 
         return bool(getattr(cmds, self._kind)(self._name, exists=True))
 
     def delete(self):
-        """自身のUIを削除する。シーンUndoは作らない。"""
-        from maya import cmds
+        """自身のUIを削除する。シーンUndoは作らない。
+
+        Returns:
+            None: 値を返さない。
+        """
+        import maya.cmds as cmds
 
         cmds.deleteUI(self._name, **{self._kind: True})

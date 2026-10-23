@@ -18,5 +18,5 @@ __all__ = ["JsonText", "JsonDocument", "NodeRef", "PlugRef", "ComponentRef", "du
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('load_document',):
+for _obsolete_name in ("load_document",):
     globals().pop(_obsolete_name, None)

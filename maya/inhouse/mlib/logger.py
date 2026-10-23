@@ -59,7 +59,7 @@ class MayaHandler(logging.Handler):
         except Exception as exc:
             # 通知の書式設定で、呼出元の例外やfinallyの残りの復元を妨げない。
             details = logging.Formatter().format(record)
-            details += "\nログ書式の適用に失敗しました: {}".format(exc)
+            details += f"\nログ書式の適用に失敗しました: {exc}"
         try:
             import maya.cmds as cmds
             # mayapy初期化前はMGlobalの表示APIを呼ばない。

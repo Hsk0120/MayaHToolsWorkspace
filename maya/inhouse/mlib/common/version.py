@@ -39,7 +39,7 @@ class Version:
         elif isinstance(value, str):
             match = re.fullmatch(r"([0-9]+(?:\.[0-9]+)*)(.*)", value.strip())
             if match is None:
-                raise ValueError("Version must start with a numeric release: {!r}".format(value))
+                raise ValueError(f"Version must start with a numeric release: {value!r}")
             parts = tuple(int(part) for part in match.group(1).split("."))
             suffix = match.group(2)
         elif isinstance(value, (int, tuple, list)):
@@ -188,7 +188,7 @@ class Version:
         """
         required = type(self).parse(minimum)
         if required is None:
-            raise ValueError("Invalid minimum version: {!r}".format(minimum))
+            raise ValueError(f"Invalid minimum version: {minimum!r}")
         return self >= required
 
     @_is_alias(isAtLeast)
@@ -196,8 +196,8 @@ class Version:
         """isAtLeastへ委譲するis省略の判定入口。
 
         Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
+            *args (object): 判定本体へ渡す位置引数。
+            **kwargs (object): 判定本体へ渡すキーワード引数。
 
         Returns:
             object: 判定本体と同じ結果。

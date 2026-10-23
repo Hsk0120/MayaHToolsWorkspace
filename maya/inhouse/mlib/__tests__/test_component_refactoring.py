@@ -106,6 +106,34 @@ class ComponentRefactoringTest(unittest.TestCase):
         list(items)
         self.assertEqual(events, [("create", 2), ("validate", 2), ("create", 0), ("validate", 0)])
 
+    def test_axis_access_validates_space_before_overridden_position_methods(self):
+        """座標getter/setterの差替え時も、軸入口が先に空間指定を検証する。"""
+        single = self.mesh.getVertex(0)
+        collection = self.mesh.getVertices([0])
+        for item, positions, setter_name in (
+            (single, (1.0, 2.0, 3.0), "setPosition"),
+            (collection, [(1.0, 2.0, 3.0)], "setPositions"),
+        ):
+            for axis in "XYZ":
+                getter = getattr(item, "getPosition" + axis)
+                setter = getattr(item, "setPosition" + axis)
+                with self.subTest(collection=item is collection, axis=axis):
+                    with patch.object(item, "getPosition", return_value=positions) as read:
+                        with self.assertRaises(ValueError):
+                            getter(worldSpace=1)
+                        read.assert_not_called()
+                        getter(ws=True)
+                        read.assert_called_once_with(ws=True)
+                    with patch.object(item, "getPosition", return_value=positions) as read:
+                        with patch.object(item, setter_name, return_value=item) as write:
+                            with self.assertRaises(ValueError):
+                                setter(9.0, worldSpace="world", fast=True)
+                            read.assert_not_called()
+                            write.assert_not_called()
+                            self.assertIs(setter(9.0, ws=True, fast=True), item)
+                            read.assert_called_once_with(ws=True)
+                            self.assertTrue(write.call_args[1]["ws"])
+
     def test_uv_query_shares_function_set_and_current_set(self):
         """非連続番号でも関数セットと現在セットを呼出し内で一回だけ得る。"""
         from mlib.components import UV
@@ -215,6 +243,15 @@ class ComponentRefactoringTest(unittest.TestCase):
             self.assertEqual(vertices.indices, expected)
             self.assertIs(vertices.shape, shape)
             self.assertEqual(vertices.shape.getFullName(), shape.getFullName())
+
+    def test_empty_topology_collections_keep_shape_without_function_set_queries(self):
+        """空の頂点集約でもShapeを保持し、不要なFunction Setは生成しない。"""
+        for items in (self.mesh.getEdges([]), self.mesh.getFaces([])):
+            with patch.object(self.mesh, "meshFn", wraps=self.mesh.meshFn) as function_set:
+                vertices = items.getVertices()
+                self.assertEqual(vertices.indices, ())
+                self.assertIs(vertices.shape, self.mesh)
+                function_set.assert_not_called()
 
     def test_topology_single_getter_and_iteration_overrides_are_used(self):
         """頂点集約でも独自単数getter/反復を省略しない。"""

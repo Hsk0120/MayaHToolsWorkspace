@@ -107,7 +107,7 @@ class Shape(DagNode):
                 if len(counts) == 1:
                     selected.append(row[0])
                 else:
-                    components.append(self.getFullName() + "." + token + "".join("[{}]".format(v) for v in row))
+                    components.append(self.getFullName() + "." + token + "".join(f"[{v}]" for v in row))
         if not selected and (len(counts) == 1 or not components):
             return self
         if ws:

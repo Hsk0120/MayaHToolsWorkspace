@@ -40,16 +40,16 @@ def orderIndex(order):
     if isinstance(order, str):
         index = _ORDER_INDEX.get(order.lower())
         if index is None:
-            raise ValueError("Unsupported rotation order: {!r}".format(order))
+            raise ValueError(f"Unsupported rotation order: {order!r}")
         return index
     if isinstance(order, bool):
-        raise ValueError("Unsupported rotation order: {!r}".format(order))
+        raise ValueError(f"Unsupported rotation order: {order!r}")
     try:
         index = operator.index(order)
     except TypeError:
-        raise ValueError("Unsupported rotation order: {!r}".format(order)) from None
+        raise ValueError(f"Unsupported rotation order: {order!r}") from None
     if not 0 <= index < 6:
-        raise ValueError("Unsupported rotation order: {!r}".format(order))
+        raise ValueError(f"Unsupported rotation order: {order!r}")
     return index
 
 
@@ -295,7 +295,7 @@ class EulerRotate(om2.MEulerRotation):
             str: ``EulerRotate(degrees=(90, 0, -45), order='xyz')`` の形式の文字列。
             内部値はラジアンのまま。
         """
-        values = ", ".join("{:.15g}".format(value) for value in self.asDegrees())
+        values = ", ".join(f"{value:.15g}" for value in self.asDegrees())
         return "{}(degrees=({}), order={!r})".format(type(self).__name__, values, self.orderName)
 
     __str__ = __repr__
@@ -518,7 +518,7 @@ class EulerRotate(om2.MEulerRotation):
         """
         values = tuple(values)
         if len(values) != 3:
-            raise ValueError("{} expects 3 values".format(cls.__name__))
+            raise ValueError(f"{cls.__name__} expects 3 values")
         return cls(values[0], values[1], values[2], order)
 
     @classmethod
@@ -541,12 +541,12 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def computeAlternateSolution(*args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """同じ向きを表す、単純な一周加算とは異なるオイラー回転を計算する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 回転rotを1個指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -555,12 +555,12 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def computeBound(*args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """各角度を±πの範囲へ収めた、等価なオイラー回転を計算する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 回転rotを1個指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -569,12 +569,12 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def computeClosestCut(*args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """各軸へ一周の整数倍を加え、基準に近い等価な回転を計算する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 元の回転srcと基準targetを指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -583,12 +583,12 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def computeClosestSolution(*args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """基準に最も近い、等価なオイラー回転を計算する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 元の回転srcと基準targetを指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -597,12 +597,12 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def decompose(*args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """行列と回転順序からオイラー回転を分解する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: MMatrix系のmatrixとOpenMayaの回転順序定数orderを指定する。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -721,12 +721,12 @@ class EulerRotate(om2.MEulerRotation):
         return self.isEquivalent(*args, **kwargs)
 
     def alternateSolution(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """同じ向き・回転順序を持つ、別解のオイラー回転を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -734,12 +734,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.alternateSolution(self, *args))
 
     def bound(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """各角度を±πの範囲へ収めた、等価な回転の複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -747,12 +747,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.bound(self, *args))
 
     def closestCut(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """各軸へ一周の整数倍を加え、基準に近い等価な回転を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 基準となる回転targetを指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -760,12 +760,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.closestCut(self, *args))
 
     def closestSolution(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """基準に最も近い、等価なオイラー回転を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: 基準となる回転targetを指定する。角度はrad。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -773,12 +773,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.closestSolution(self, *args))
 
     def inverse(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """逆回転を表す新しいオイラー回転を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -786,12 +786,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.inverse(self, *args))
 
     def reorder(self, *args):
-        """OpenMayaと同じ演算でEulerRotateの新しい値を返す。
+        """指定した回転順序で同じ向きを表す、新しい回転を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの回転順序定数orderを指定する。
 
         Returns:
             EulerRotate: 演算結果を保持する新しいmlib値。
@@ -799,12 +799,12 @@ class EulerRotate(om2.MEulerRotation):
         return EulerRotate._wrap(_MEuler.reorder(self, *args))
 
     def asVector(self, *args):
-        """OpenMayaと同じ演算でVectorの新しい値を返す。
+        """回転順序を除いたXYZ角度成分を、radのVectorとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: OpenMayaの同名メソッドへ渡す位置引数。
+            *args: OpenMayaの同名メソッドへ渡す位置引数。通常は指定しない。
 
         Returns:
             Vector: 演算結果を保持する新しいmlib値。
@@ -834,5 +834,5 @@ class EulerRotate(om2.MEulerRotation):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('order_index',):
+for _obsolete_name in ("order_index",):
     globals().pop(_obsolete_name, None)

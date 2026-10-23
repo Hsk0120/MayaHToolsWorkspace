@@ -1,5 +1,6 @@
 """mlib.common の版比較・Module・PluginPackage と mlib.requirePlugins を検証するMaya内テスト。"""
 
+import logging
 import sys
 import unittest
 from unittest import mock
@@ -96,8 +97,19 @@ class FakeCmds(object):
     def about(self, version=False, batch=False):
         return self.year if version else self.batch
 
-    def warning(self, text):
-        self.warnings.append(text)
+    def warning(self, message, *args, **kwargs):
+        """標準logging形式の警告を、展開後の文字列として記録する。
+
+        Args:
+            message (object): 警告本文または書式文字列。
+            *args (object): 書式文字列へ渡す引数。
+            **kwargs (object): loggingの追加設定。この代役では本文だけを記録する。
+
+        Returns:
+            None: 値を返さない。
+        """
+        record = logging.LogRecord("mlib", logging.WARNING, "", 0, message, args, None)
+        self.warnings.append(record.getMessage())
 
     def confirmDialog(self, **kwargs):
         self.dialogs.append(kwargs)

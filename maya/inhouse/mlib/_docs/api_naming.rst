@@ -93,12 +93,12 @@ Objectと拡張管理の取得入口は ``_core`` へ変更し、ルートへの
    node.setTranslate((100, 0, 0), ws=True)
    value = node.getPlug("rotateX").get()
    node.getPlug("rotateX").set(value)  # UI単位によらず同じ角度
-   print(mlib.getAttr(node.getPlug("rotateX")).get(uiUnits=True))  # PlugからUI単位の値を取得
+   print(node.getPlug("rotateX").get(uiUnits=True))  # PlugからUI単位の値を取得
 
-``mlib.getAttr(target)`` は型付きPlugを返し、値は ``get()`` の内部単位または
-``get(uiUnits=True)`` のUI単位で取得します。既存Plugを渡すと同じオブジェクトを返します。
-``mlib.getAttr(target, type=True)`` 等、照会フラグを明示した場合は従来のMaya照会です。
-値照会のUI単位とMatrix・Vectorへの変換、長短フラグは維持します。
+アトリビュート参照は ``mlib.getPlug(target)``、値は ``Plug.get()`` で取得します。
+値は既定で内部単位、``get(uiUnits=True)`` でUI単位です。
+Mayaの型名・ロック等は ``getDataType()`` / ``isLocked()`` 等の専用メソッドを使い、
+``time`` 等Maya固有の照会は ``maya.cmds.getAttr`` を直接呼び出します。
 
 配列型は空でも1要素でもlistを維持します。未初期化データのみNoneです。
 CV番号はAPIと同じで、周期末尾の重複CVをcmdsに渡す場合は先頭の対応番号へ変換します。
@@ -226,8 +226,9 @@ SkinClustersの責務
 
 ``SkinClusters`` は保持するスキンクラスターの集合操作だけを担当します。
 ``gather`` / ``apply`` / ``finalize`` と、作業用の公開キャッシュは廃止しました。
-jointのウェイト移送・子の再親付け・ノード削除は ``Joint.delete()`` /
-``Joints.delete()`` から内部処理を呼びます。
+jointのウェイト移送・子の再親付け・ノード削除をまとめる処理は
+``mlrig.setups.JointHierarchy.delete()`` が担当します。
+``Joint.delete()`` / ``Joints.delete()`` はNode/NodesのMaya標準削除を継承します。
 
 ``SkinClusters.removeInfluences(joints)`` / ``removeInfluences(joints)`` は
 保持するスキンクラスターからinfluence登録だけを解除し、jointノードを残します。
@@ -239,19 +240,20 @@ remove_jointsは以前の同名APIと異なり、ノード削除を行いませ�
 プロパティからメソッドへの移行
 ----------------------------------------------------------------------
 
-次の照会はメソッドです。取得系はgetを省いた呼び出し形式で記載します。
+次の照会はメソッドです。独自の取得はget付きの正式名で呼び出します。
+判定の省略入口は既存の契約を維持します。
 詳細は :doc:`api_consistency` と :doc:`getter_aliases` を参照してください。
 
-* Node: ``fullName``、``uuid``、``typeId``、``pluginName``、``locked``、``fromReferencedFile``。
-* Plug: ``name``、``fullName``、``attrName``、``parent``、各 ``is...``、
-  ``hasMin`` / ``hasMax`` / ``hasSoftMin`` / ``hasSoftMax``、
-  ``min`` / ``max`` / ``softMin`` / ``softMax`` / ``default``。
-* Shape: ``intermediateObject``。
-* Camera: ``focalLength``。
-* Joint: ``jointOrient``、``inverseScale``。Joints: ``names``。
-* Mesh: ``numVertices``、``numPolygons``、``numEdges``、``numUVs``。
-* NurbsCurve: ``numCVs``、``numSpans``、``degree``、``form``。
-* Component / Components: ``fullName`` / ``fullNames``。
+* Node: ``getFullName()``、``getUuid()``、``getTypeId()``、``getPluginName()``、``locked()``、``fromReferencedFile()``。
+* Plug: ``getName()``、``getFullName()``、``getAttrName()``、``getParent()``、各判定、
+  ``hasMin()`` / ``hasMax()`` / ``hasSoftMin()`` / ``hasSoftMax()``、
+  ``getMin()`` / ``getMax()`` / ``getSoftMin()`` / ``getSoftMax()`` / ``getDefault()``。
+* Shape: ``intermediateObject()``。
+* Camera: ``getFocalLength()``。
+* Joint: ``getJointOrient()``、``getInverseScale()``。Joints: ``getNames()``。
+* Mesh: ``getNumVertices()``、``getNumPolygons()``、``getNumEdges()``、``getNumUVs()``。
+* NurbsCurve: ``getNumCVs()``、``getNumSpans()``、``getDegree()``、``getForm()``。
+* Component / Components: ``getFullName()`` / ``getFullNames()``。
 
 .. code-block:: python
 
@@ -300,7 +302,7 @@ EulerRotateの回転順序はJSONでは従来どおり名前で保存し、読�
 * DAGパスは ``path(full=False)`` / ``path(full=True)``。DGにも対応する
   ``name()`` / ``getFullName()`` は別の用途として維持します。
 * ノードからのアトリビュート取得には ``getPlug()`` を使います。
-  アトリビュート名からは ``mlib.getAttr()`` または ``mlib.getPlug()`` でPlugを取得できます。
+  アトリビュート名からは ``mlib.getPlug()`` でPlugを取得できます。
 * ``MatrixPlug.get()`` / ``set(value, fast=False)`` は対象アトリビュートだけを読み書きします。
   所有ノードの変換には ``Transform.getMatrix()`` / ``setMatrix()`` を使います。
   ``MatrixPlug`` の ``ws`` 引数と ``set_value`` は廃止しました。
@@ -422,8 +424,8 @@ get付きの取得本体も利用できます。snake_caseの旧名は残して�
 * Constraint / BlendShape / BlendWeighted: ``getWeights()``。
   既存のリスト・辞書などの戻り値形式は維持します。
 * BlendColors: ``getBlenderPlug()`` はPlug、``getBlender()`` は係数の値。
-* AnimCurve / BlendColors / BlendWeighted / MultMatrix / DistanceBetween:
-  出力Plugは ``getOutputPlug()``。
+* AnimCurve / BlendColors / BlendWeighted: 出力Plugは ``getPlug("output")``。
+  MultMatrixは ``getOutputPlug()``、DistanceBetweenは ``getPlug("distance")``。
 * Shape / Transform: Maya APIの関数セット取得は ``dagFn()``。
 * Plug: アトリビュート名の文字列は ``getLongName()``。
 * Namespace / UiElement: 保持する名前は ``name`` プロパティ。
@@ -445,7 +447,9 @@ get付きの取得本体も利用できます。snake_caseの旧名は残して�
      - ``getTargetAliases()`` （文字列の一覧）
    * - ``ArrayPlug.next_available()``
      - ``getNextAvailableIndex()`` （未存在の論理番号）
-   * - ``AnimCurve.driver()`` / ``DrivenKey.driver()``
+   * - ``AnimCurve.driver()``
+     - ``getPlug("input").getSource(skipConversionNodes=False)``
+   * - ``DrivenKey.driver()``
      - ``getDriverPlug()``
    * - ``DrivenKey.driven()``
      - ``getDrivenPlug()``
@@ -534,15 +538,15 @@ ScalarGraphは計算と接続を担当します。既存の生成物を読み取
 ``AimConstraint.getRotateConnections()`` は回転出力の直接接続を
 ``(sourcePlug, destinationPlug)`` のリストで返します。複合接続は親だけを返し、
 演算ノード宛ても含めます。下流探索や拘束対象の選別は行いません。
-``settingPlugs()`` はRest Rotate、Offset、Aim/Up/World Up VectorのXYZ、
-World Up Type、enableRestPosition、useOldOffsetCalculationを返します。
-接続中の設定も含み、行列入力とウェイトは含みません。ウェイトは ``getWeightPlugs()`` で取得します。
+設定のPlugはMayaのアトリビュート名で ``getPlug()`` を使って取得します。
+``mlrig.setups.AimAxisConversion`` の保存対象はセットアップ側で選定します。
+ウェイトは ``getWeightPlugs()`` で取得します。
 ``getRestRotate()`` / ``getOffset()`` はラジアンのXYZタプル、
 対応する ``setRestRotate(value)`` / ``setOffset(value)`` は有限のラジアン3値を受け取ります。
 setterは参照・ロック・入力接続を解除せず拒否し、Undo可能です。
 Rest Rotateの設定は対象へ直接回転を設定せず、Offsetの設定はMaintain Offsetを再計算しません。
 ``getOutputRotate()`` は ``constraintRotateOrder`` を持つ ``EulerRotate`` を返します。
-継承した ``rotate()`` が扱う自身のTransform回転とは異なります。
+継承した ``getRotate()`` が扱う自身のTransform回転とは異なります。
 
 ``DecomposeMatrix.getInput()`` / ``getInputPlug()`` は単一行列入力を扱い、
 ``getRotateOrder()`` はMayaの回転順序番号0〜5を返します。
@@ -687,66 +691,16 @@ JSON保存に失敗し、一時ファイルの削除も失敗した場合は、�
 fastを指定できるメソッド
 ----------------------------------------------------------------------
 
-以下はクラスに明示定義された入口です。派生クラスは継承した入口も利用できます。
-
-.. list-table::
-   :header-rows: 1
-
-   * - クラス
-     - メソッド
-   * - ``ArrayPlug``
-     - ``set``
-   * - ``BlendColors``
-     - ``setColor``, ``setBlender``
-   * - ``BlendWeighted``
-     - ``setInput``, ``setWeight``
-   * - ``CompoundPlug``
-     - ``set``
-   * - ``Constraint``
-     - ``setWeight``
-   * - ``DecomposeMatrix``
-     - ``setInput``, ``setRotateOrder``
-   * - ``DistanceBetween``
-     - ``setPoints``
-   * - ``Double3Plug``
-     - ``set``
-   * - ``Joint``
-     - ``jointOrientToRotate``, ``freezeRotate``
-   * - ``Joints``
-     - ``jointOrientToRotate``, ``freezeRotate``
-   * - ``Locator``
-     - ``setPosition``
-   * - ``MatrixPlug``
-     - ``set``
-   * - ``Mesh``
-     - ``mirror``
-   * - ``MultMatrix``
-     - ``setInput``
-   * - ``Node``
-     - ``setOutlinerColor``, ``setOverrideColor``, ``setAttributeFlags``
-   * - ``Nodes``
-     - ``setOverrideColor``, ``setOutlinerColor``, ``setOverrideColors``, ``setOutlinerColors``
-   * - ``NurbsCurve``
-     - ``mirror``
-   * - ``Plug``
-     - ``setFlags``, ``set``, ``reset``
-   * - ``PointComponent``
-     - ``setPosition``, ``setPositionX``, ``setPositionY``, ``setPositionZ``
-   * - ``PointComponents``
-     - ``setPosition``, ``setPositions``, ``setPositionX``, ``setPositionY``, ``setPositionZ``, ``mirror``
-   * - ``SkinCluster``
-     - ``setWeights``, ``loadWeights``, ``normalizeWeights``, ``setMaxInfluences``
-   * - ``Transform``
-     - ``mirror``, ``setMatrix``, ``setTranslate``, ``setRotate``, ``setScale``, ``setShearing``, ``setVisibility``
-   * - ``UV``
-     - ``setPosition``, ``setU``, ``setV``
-   * - ``UVs``
-     - ``setPosition``, ``setPositions``, ``setU``, ``setV``
+対応する編集メソッドは署名に ``fast=False`` を持ちます。各クラスのAPI説明で
+引数・対応条件・継承する入口を確認してください。詳細は :doc:`fast_edit` を参照します。
+例えば ``Node.addAttr``、``Plug.set``、``Transform.setMatrix``、
+``PointComponent.setPosition`` は通常cmdsでUndoへ記録し、fastではOM2へ直接書き込みます。
+複数形の転送も対象メソッドのfastを引き継ぎます。未対応の条件は変更前に拒否します。
 
 旧互換入口の廃止
 ----------------
 
-* Matrixの回転指定・読み書きは ``rotate`` に統一。``rotate`` 引数・プロパティは廃止。
+* Matrixの回転指定・読み書きは ``rotate`` に統一。旧 ``rotation`` 引数・プロパティは廃止。
 * Matrix.decompose()のオイラー回転キーは ``euler``。重複する ``rotate`` キーは廃止。
 * ``Matrix._wrap_copy`` は廃止。内部実装は ``_wrap`` を使います。
 * ``Matrix.to_mmatrix()`` は廃止。OpenMayaへはそのまま渡せます。基底型の複製が必要なら ``om2.MMatrix(matrix)`` を使います。

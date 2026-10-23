@@ -14,7 +14,7 @@ def _state(kind, name, flags=None):
     Returns:
         dict: editor、target、values。時間は現在の Maya 時間単位。
     """
-    from maya import cmds
+    import maya.cmds as cmds
     from ..common._editor import _query_settings
     from ..common.viewport import Viewport
     from ..common.outliner import Outliner
@@ -71,7 +71,7 @@ class EditorSnapshot(Snapshot):
             ApplyPlan: 変更候補とエラー。全 UI 状態の Undo を保証できないため、
                 現在は適用未対応のエラーを必ず含む。シーンや UI は変更しない。
         """
-        from maya import cmds
+        import maya.cmds as cmds
         from .codec import encode
         plan = ApplyPlan(self, dict(mapping or {}), dict(namespace_map or {}))
         if self.kind != "editor" or type(self.version) is not int or self.version != 1:
@@ -112,6 +112,10 @@ class EditorSnapshot(Snapshot):
         Args:
             mapping (dict | None): Snapshot共通インターフェースの引数。この型では適用自体が未対応。
             namespace_map (dict | None): Snapshot共通インターフェースの引数。この型では適用自体が未対応。
+
+        Returns:
+            NoReturn: 正常には戻らない。
+
         Raises:
             NotImplementedError: 全エディター状態のUndoを標準コマンドだけでは保証できないため。
         """
@@ -148,5 +152,5 @@ def captureEditors(targets):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('capture_editors',):
+for _obsolete_name in ("capture_editors",):
     globals().pop(_obsolete_name, None)

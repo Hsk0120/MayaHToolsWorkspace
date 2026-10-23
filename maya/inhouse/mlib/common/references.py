@@ -20,8 +20,7 @@ def listReferences(top_level_only=False):
     Returns:
         list[Reference]: 参照ラッパーの一覧。参照が無ければ空リスト。
     """
-    # nodes.reference が ..namespaces を逆方向 import しないが、
-    # mlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
+    # commonの初期化時にnodesを読み込まないよう、使用時にReferenceを読み込む。
     from ..nodes.reference import Reference
 
     names = [name for name in (cmds.ls(type="reference") or []) if name != _SHARED_REFERENCE_NODE]
@@ -71,5 +70,5 @@ def createReference(path, namespace=None):
 
 
 # reload時にも廃止した公開名を残さない。
-for _obsolete_name in ('create_reference', 'list_references'):
+for _obsolete_name in ("create_reference", "list_references"):
     globals().pop(_obsolete_name, None)

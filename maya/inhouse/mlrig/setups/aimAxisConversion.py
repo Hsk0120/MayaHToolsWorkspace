@@ -249,8 +249,12 @@ class AimAxisConversion:
         Returns:
             dict: アトリビュートパスと値。入力で駆動された設定は記録しない。
         """
+        # 保存・復元する設定の選定は、このセットアップが管理する。
+        attrs = [prefix + axis for prefix in (
+            "restRotate", "offset", "aimVector", "upVector", "worldUpVector") for axis in "XYZ"]
+        attrs.extend(("worldUpType", "enableRestPosition", "useOldOffsetCalculation"))
         settings = {}
-        for plug in source.settingPlugs() + source.getWeightPlugs():
+        for plug in [source.getPlug(attr) for attr in attrs] + source.getWeightPlugs():
             parent = plug.getParent() if plug.isChild() else None
             if plug.getSource(skipConversionNodes=False) is None and (parent is None or parent.getSource(skipConversionNodes=False) is None):
                 settings[plug.getFullName().split(".", 1)[1]] = plug.get()

@@ -19,7 +19,14 @@ class _UiLifetime:
         reference = weakref.ref(self)
 
         def deleted(*args):
-            """削除を記録する。callbackから寿命オブジェクトを強参照しない。"""
+            """削除を記録する。callbackから寿命オブジェクトを強参照しない。
+
+            Args:
+                *args (object): Mayaの削除通知が渡す引数。この処理では使用しない。
+
+            Returns:
+                None: 値を返さない。
+            """
             lifetime = reference()
             if lifetime is not None:
                 lifetime.alive = False
@@ -53,10 +60,13 @@ class _UiLifetime:
         """参照解放時に監視を解除する。Maya側で解除済みなら何もしない。
 
         Args:
-            callback_id: 解除するMayaコールバックの登録ID。
+            callback_id (int): 解除するMayaコールバックの登録ID。
+
+        Returns:
+            None: 値を返さない。
         """
-        from maya.api import OpenMaya
+        import maya.api.OpenMaya as om2
         try:
-            OpenMaya.MMessage.removeCallback(callback_id)
+            om2.MMessage.removeCallback(callback_id)
         except RuntimeError:
             pass

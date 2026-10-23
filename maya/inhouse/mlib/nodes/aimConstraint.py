@@ -27,21 +27,6 @@ class AimConstraint(Constraint):
                 result.append((source, destination))
         return result
 
-    def settingPlugs(self):
-        """値として保存する標準設定候補を取得する。接続の有無で除外しない。
-
-        Rest Rotate、Offset、Aim/Up/World Up Vector、World Up Type、
-        enableRestPosition、useOldOffsetCalculationを対象とする。
-        worldUpMatrix等の行列入力やウェイトは含めない。ウェイトはweightPlugsを使う。
-
-        Returns:
-            list[Plug]: ベクトル・角度はXYZの子アトリビュートで返す。
-        """
-        attrs = [prefix + axis for prefix in (
-            "restRotate", "offset", "aimVector", "upVector", "worldUpVector") for axis in "XYZ"]
-        attrs.extend(("worldUpType", "enableRestPosition", "useOldOffsetCalculation"))
-        return [self.getPlug(attr) for attr in attrs]
-
     def getRestRotate(self):
         """Rest RotateのXYZ設定値をラジアン3値で返す。
 
@@ -59,7 +44,7 @@ class AimConstraint(Constraint):
         Returns:
             AimConstraint: 自身。
         """
-        return self._setAngles("restRotate", value)
+        return self._set_angles("restRotate", value)
 
     def getOffset(self):
         """OffsetのXYZ設定値をラジアン3値で返す。
@@ -78,7 +63,7 @@ class AimConstraint(Constraint):
         Returns:
             AimConstraint: 自身。
         """
-        return self._setAngles("offset", value)
+        return self._set_angles("offset", value)
 
     def getOutputRotate(self):
         """constraintRotateをその回転順序で取得する。
@@ -90,7 +75,7 @@ class AimConstraint(Constraint):
         return EulerRotate(*values, order=int(self.getPlug("constraintRotateOrder").get()))
 
     @undoTransaction("mlib.AimConstraint.setAngles")
-    def _setAngles(self, attribute, value):
+    def _set_angles(self, attribute, value):
         """入力・ロックを事前検証し、角度3値を一括更新する。
 
         Args:

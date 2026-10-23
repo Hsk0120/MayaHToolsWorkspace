@@ -33,3 +33,4 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    secondary_motion
    spline_ik
    length_compensation
+   joint_hierarchy

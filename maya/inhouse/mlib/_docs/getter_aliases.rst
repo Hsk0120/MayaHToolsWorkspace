@@ -18,9 +18,10 @@ getを省いた重複入口と取得コマンドの短名ファイルは廃止�
    node.setRotate((0.0, 0.0, 0.0))
 
 ``mlib.getNode`` と ``mlib.cmds.getNode`` は同じ公開関数です。
-``getAttr/getPlug/getScene/getChannelBox/getShelf/getTimeSlider/getViewport/getWindow/``
+``getPlug/getScene/getChannelBox/getShelf/getTimeSlider/getViewport/getWindow/``
 ``getWorkspaceControl/getWorkspaceLayout/getOutliner/getDrivenKey`` もget付きの名前で使用します。
-``getAttr`` は照会フラグなしならPlug、フラグ指定時はMayaコマンドの照会値を返します。
+参照は ``getPlug``、値は ``Plug.get``、状態は ``isLocked`` 等の専用メソッドで取得します。
+特定時刻の照会などは ``maya.cmds.getAttr`` を直接使います。
 
 アトリビュートと値の区別
 ------------------------

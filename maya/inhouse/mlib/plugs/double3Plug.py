@@ -55,17 +55,18 @@ class Double3Plug(CompoundPlug):
         """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
                 uiUnits=Trueでは内部単位を持つ数学型を受け付けず、数値列を指定する。
                 rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
                 数値3成分は現在のrotateOrderのチャンネル値として解釈する。
+            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
             unit (str): rotateの数値3成分の角度単位rad/deg。それ以外のアトリビュートでは未使用。
+            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
-            Double3Plug | int: 自身。safe=Trueでは失敗した成分数。
+            Double3Plug | int: safe=Falseでは自身。safe=Trueでは書けなかった成分数、全て成功なら0。
+                値を有効な3成分へ変換できない場合は1を返す。
 
         Raises:
             ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。

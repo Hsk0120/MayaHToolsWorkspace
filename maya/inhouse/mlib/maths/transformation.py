@@ -17,7 +17,9 @@ from .translate import Translate
 class Transformation:
     """TRS・回転順序・ピボット・補助回転・SSCを保持する可変の値。
 
-    各数学値は所有するコピーであり、取得した成分を直接編集できる。
+    入力の数学値はコピーして所有し、translateやrotate等の取得はその保持値を返す。
+    保持値を直接編集すると自身も変わるが、matrixとquaternionは計算した独立値を返す。
+    matrix代入・``*=`` は成分を置き換えるため、以前取得した成分参照は再取得が必要。
     matrixは毎回合成するため、成分編集後も古いキャッシュを返さない。
     元のEuler回転・スケール符号は行列へ変換しない限り保持する。
     """
@@ -116,6 +118,9 @@ class Transformation:
 
         Args:
             name: 参照・作成・照会する対象の名前。
+
+        Returns:
+            object: 保持成分は参照。matrix/quaternionは独立した値。
         """
         name = self._aliases.get(name, name)
         if name == "matrix":
@@ -167,28 +172,6 @@ class Transformation:
             raise ValueError("Transformation components must be finite")
         self._values[name] = converted
 
-    @staticmethod
-    def _quaternion(value):
-        """EulerまたはQuaternionを有限な単位Quaternionへコピーする。
-
-        Args:
-            value: EulerRotateまたはQuaternionとして解釈できる回転値。
-        """
-        q = Quaternion(value.asQuaternion() if isinstance(value, om2.MEulerRotation) else value)
-        length = sum(v * v for v in q)
-        if not math.isfinite(length) or length <= 1e-30:
-            raise ValueError("A finite nonzero quaternion is required")
-        q.normalizeIt()
-        return q
-
-    def copy(self):
-        """成分を共有しない独立したコピー。
-
-        Returns:
-            Transformation: 成分を共有しない独立したコピー。
-        """
-        return type(self)(self)
-
     def __copy__(self):
         """copy.copyによる独立コピーを返す。"""
         return self.copy()
@@ -202,6 +185,103 @@ class Transformation:
         result = self.copy()
         memo[id(self)] = result
         return result
+
+    def __mul__(self, other):
+        """行列を後乗算し、translateと回転ピボットの位置を追従させたコピーを返す。
+
+        Args:
+            other: 比較・演算の相手。
+        """
+        matrix = other.matrix if isinstance(other, Transformation) else Matrix(other)
+        result = self.copy()
+        if matrix == Matrix():
+            return result
+        target = self.matrix * matrix
+        translation = matrix.transformPoint(self.translate)
+        pivot = matrix.transformPoint(self.translate + (self.rotatePivot + self.rotatePivotTranslate) * self._compensation())
+        result.matrix = target
+        current = result.translate + (result.rotatePivot + result.rotatePivotTranslate) * result._compensation()
+        orient = Matrix(rotate=result.rotateAxis * result.quaternion * result.jointOrient) * result._compensation()
+        result.scalePivotTranslate -= (pivot - current) * orient.inverse()
+        result.matrix = target
+        result.rotatePivotTranslate -= (translation - result.translate) * result._compensation().inverse()
+        result.matrix = target
+        return result
+
+    def __imul__(self, other):
+        """後乗算した結果で自身の成分を置き換える。
+
+        容器の同一性は保つが、以前取得した成分参照は旧値を指す。
+
+        Args:
+            other: 比較・演算の相手。
+        """
+        result = self * other
+        self._values.update(result._values)
+        return self
+
+    def __eq__(self, other):
+        """保持した全成分の完全一致を比較する。
+
+        Args:
+            other: 比較・演算の相手。
+        """
+        if not isinstance(other, Transformation):
+            return NotImplemented
+        return self.isEquivalent(other, tolerance=0.0)
+
+    def __repr__(self):
+        """成分の内容を確認できる文字列表現を返す。"""
+        return "Transformation(" + ", ".join(name + "=" + repr(value) for name, value in self._values.items()) + ")"
+
+    def copy(self):
+        """成分を共有しない独立したコピー。
+
+        Returns:
+            Transformation: 成分を共有しない独立したコピー。
+        """
+        return type(self)(self)
+
+    def isEquivalent(self, other, tolerance=1e-10):
+        """補助情報を含む全成分を比較する。
+
+        Args:
+            other (Transformation): 比較対象。
+            tolerance (float): 成分差の許容値。
+
+        Returns:
+            bool: 同値ならTrue。行列だけの比較はmatrix.isEquivalentを使う。
+        """
+        if not isinstance(other, Transformation) or self.rotateOrder != other.rotateOrder or self.ssc != other.ssc:
+            return False
+        return all(all(abs(a - b) <= tolerance for a, b in zip(self._values[n], other._values[n])) for n in self._types)
+
+    @_is_alias(isEquivalent)
+    def equivalent(self, *args, **kwargs):
+        """isEquivalentへ委譲するis省略の判定入口。
+
+        Args:
+            *args: 判定本体へ渡す位置引数。
+            **kwargs: 判定本体へ渡すキーワード引数。
+
+        Returns:
+            object: 判定本体と同じ結果。
+        """
+        return self.isEquivalent(*args, **kwargs)
+
+    @staticmethod
+    def _quaternion(value):
+        """EulerまたはQuaternionを有限な単位Quaternionへコピーする。
+
+        Args:
+            value: EulerRotateまたはQuaternionとして解釈できる回転値。
+        """
+        q = Quaternion(value.asQuaternion() if isinstance(value, om2.MEulerRotation) else value)
+        length = sum(v * v for v in q)
+        if not math.isfinite(length) or length <= 1e-30:
+            raise ValueError("A finite nonzero quaternion is required")
+        q.normalizeIt()
+        return q
 
     def _compensation(self):
         """有効な逆スケール補正行列を返す。"""
@@ -223,7 +303,9 @@ class Transformation:
                 * self._compensation() * Matrix(translate=self.translate))
 
     def _set_matrix(self, value):
-        """補助成分を保持し、行列からTRSとシアーを求める。失敗時は変更しない。
+        """補助成分を保持し、行列からTRSとシアーを求めて成分を置き換える。
+
+        失敗時は変更しない。成功後も以前の成分参照は旧値を指し、自動追従しない。
 
         Args:
             value: 変換・設定する入力値。
@@ -253,75 +335,3 @@ class Transformation:
         trial.translate = (0, 0, 0)
         trial.translate = matrix.translate - trial.matrix.translate
         self._values.update(trial._values)
-
-    def __mul__(self, other):
-        """行列を後乗算し、translateと回転ピボットの位置を追従させたコピーを返す。
-
-        Args:
-            other: 比較・演算の相手。
-        """
-        matrix = other.matrix if isinstance(other, Transformation) else Matrix(other)
-        result = self.copy()
-        if matrix == Matrix():
-            return result
-        target = self.matrix * matrix
-        translation = matrix.transformPoint(self.translate)
-        pivot = matrix.transformPoint(self.translate + (self.rotatePivot + self.rotatePivotTranslate) * self._compensation())
-        result.matrix = target
-        current = result.translate + (result.rotatePivot + result.rotatePivotTranslate) * result._compensation()
-        orient = Matrix(rotate=result.rotateAxis * result.quaternion * result.jointOrient) * result._compensation()
-        result.scalePivotTranslate -= (pivot - current) * orient.inverse()
-        result.matrix = target
-        result.rotatePivotTranslate -= (translation - result.translate) * result._compensation().inverse()
-        result.matrix = target
-        return result
-
-    def __imul__(self, other):
-        """後乗算した結果で自身を更新する。
-
-        Args:
-            other: 比較・演算の相手。
-        """
-        result = self * other
-        self._values.update(result._values)
-        return self
-
-    def isEquivalent(self, other, tolerance=1e-10):
-        """補助情報を含む全成分を比較する。
-
-        Args:
-            other (Transformation): 比較対象。
-            tolerance (float): 成分差の許容値。
-        Returns:
-            bool: 同値ならTrue。行列だけの比較はmatrix.isEquivalentを使う。
-        """
-        if not isinstance(other, Transformation) or self.rotateOrder != other.rotateOrder or self.ssc != other.ssc:
-            return False
-        return all(all(abs(a - b) <= tolerance for a, b in zip(self._values[n], other._values[n])) for n in self._types)
-
-    @_is_alias(isEquivalent)
-    def equivalent(self, *args, **kwargs):
-        """isEquivalentへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isEquivalent(*args, **kwargs)
-
-    def __eq__(self, other):
-        """保持した全成分の完全一致を比較する。
-
-        Args:
-            other: 比較・演算の相手。
-        """
-        if not isinstance(other, Transformation):
-            return NotImplemented
-        return self.isEquivalent(other, tolerance=0.0)
-
-    def __repr__(self):
-        """成分の内容を確認できる文字列表現を返す。"""
-        return "Transformation(" + ", ".join(name + "=" + repr(value) for name, value in self._values.items()) + ")"

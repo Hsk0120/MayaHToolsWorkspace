@@ -206,7 +206,7 @@ class NamingSpecTest(_InteropCase):
         self.assertEqual(str(node.getPlug("tx")), self.ns("nsNode.translateX"))
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
-        element = network.getPlug("values").getElement(3, create=True)
+        element = network.getPlug("values")[3]
         self.assertEqual(str(element), self.ns("net.values[3]"))
         cmds.setAttr(element, 1.5)
         self.assertEqual(element.get(), 1.5)
@@ -214,7 +214,7 @@ class NamingSpecTest(_InteropCase):
 
     def test_nested_multi_compound_child(self):
         _, mesh = self.cube()
-        element = mesh.getPlug("pnts").getElement(2, create=True)
+        element = mesh.getPlug("pnts")[2]
         self.assertIsInstance(element, CompoundPlug)
         child = element["pntx"]
         self.assertEqual(str(child), mesh.getName() + ".pnts[2].pntx")
@@ -842,7 +842,7 @@ class ComponentNamedAttributeTest(_InteropCase):
     def test_str_plug_round_trips(self):
         from mlib.plugs.plug import Plug as _InputPlug
         transform, mesh = self.cube("pc")
-        point = mesh.getPlug("pnts").getElement(3, create=True)
+        point = mesh.getPlug("pnts")[3]
         # MSelectionList は "pcShape.pnts[3]" を頂点として登録するが、アトリビュートとして解決できる。
         self.assertEqual(_InputPlug._resolve_input(str(point)).getFullName(), point.getFullName())
         self.assertEqual(_InputPlug._resolve_input(str(point) + ".pntx").getFullName(), point.getFullName() + ".pntx")
@@ -910,7 +910,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
         _InputPlug._resolve_input(network.getName() + ".values[4]")
-        network.getPlug("values").getElement(2, create=True)
+        network.getPlug("values")[2].set(0)
         self.assertEqual(self.existing(network.getPlug("values")), [2])
         Plug(network, network.getPlug("values").mplug().elementByLogicalIndex(7))
         self.assertEqual(self.existing(network.getPlug("values")), [2])
@@ -919,8 +919,9 @@ class PlugCreationSideEffectTest(_InteropCase):
         cmds.connectAttr(source.getPlug("tx"), averages[0].getName() + ".input1D[3]")
         self.assertTrue(_InputPlug._resolve_input(averages[0].getName() + ".input1D[3]").isDestination())
         self.assertEqual(self.existing(averages[0].getPlug("input1D")), [3])
-        # 要素の作成は element(create=True) で明示する。
-        created = averages[1].getPlug("input1D").getElement(5, create=True)
+        # 要素は参照への書込みで作成する。
+        created = averages[1].getPlug("input1D")[5]
+        created.set(0)
         self.assertEqual(self.existing(averages[1].getPlug("input1D")), [5])
         self.assertEqual(created.getFullName(), averages[1].getName() + ".input1D[5]")
 
@@ -973,11 +974,9 @@ class PlugCreationSideEffectTest(_InteropCase):
             self.assertEqual(plug.mplug().logicalIndex() in (998, 999), True)
         self.assertEqual(len(self.existing(patch)), count)
         # 内部のデータ型の存在しない要素は、値を読むと Maya が異常終了する場合があるため、
-        # 値の取得と要素の作成を RuntimeError にする(maya.cmds・MPlug のどちらでも読まない)。
+        # 未作成の内部データの値取得を拒否する(maya.cmds・MPlugのどちらでも読まない)。
         self.assertTrue(is_internal_data_type(patch.mplug()))
         for call in (
-            lambda: patch.getElement(7, create=True),
-            lambda: patch.addElement(7),
             lambda: surface.getPlug("patchUVIds[3]").get(),
         ):
             with self.assertRaises(RuntimeError):
@@ -987,7 +986,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         for plug in (mesh.getPlug("pnts"), mesh.getPlug("outMesh"), surface.getPlug("local")):
             self.assertFalse(is_internal_data_type(plug.mplug()))
 
-    def test_generic_attributes_holding_matrices_use_matrix_plug(self):
+    def test_generic_attributes_read_matrices_without_changing_reference_type(self):
         from mlib.plugs.plug import Plug as _InputPlug
         source = self.create("transform", "src")
         source.getPlug("t").set((2.0, 0.0, 0.0))
@@ -1000,11 +999,11 @@ class PlugCreationSideEffectTest(_InteropCase):
             choice = self.create("choice", "choice_" + label)
             cmds.connectAttr(str(plug), choice.getName() + ".input[0]")
             choices[label] = choice
-        # cmds.getAttr(type=True) と同じく、行列を保持する generic アトリビュートは MatrixPlug になる。
+        # genericの参照は基底Plugを維持し、値の取得時にMatrixへ変換する。
         for path in ("output", "input[0]"):
             with self.subTest(path=path):
                 plug = choices["matrix"].getPlug(path)
-                self.assertEqual(type(plug).__name__, "MatrixPlug")
+                self.assertIs(type(plug), Plug)
                 self.assertEqual(type(plug.get()).__name__, "Matrix")
                 self.assertAlmostEqual(list(plug.get())[12], 2.0)
         # 数値の組を保持する generic アトリビュートは子を持たないため基底の Plug のまま(get() は tuple)。
@@ -1047,10 +1046,13 @@ class PlugCreationSideEffectTest(_InteropCase):
         destinations = middle.getPlug('rx').getDestinations(skipConversionNodes=False)
         element = choice.getPlug("input[0]")
         self.assertEqual(count(), before)
-        self.assertEqual(type(element).__name__, "MatrixPlug")
+        self.assertIs(type(element), Plug)
         self.assertEqual([type(plug).__name__ for plug in destinations], ["Plug"])
-        # 入力接続の無い出力は cmds.getAttr(type=True) と同じく値を読む(評価が起こる)。
-        self.assertEqual(type(choice.getPlug("output")).__name__, "MatrixPlug")
+        # 出力参照も値を読まない。実際のgetで初めてDGを評価する。
+        output = choice.getPlug("output")
+        self.assertIs(type(output), Plug)
+        self.assertEqual(count(), before)
+        self.assertIsInstance(output.get(), mlib.maths.Matrix)
         # 読み取りできない generic アトリビュート(transform 系ノード共通の geometry)は値を読まない。
         # field は geometry の評価で falloffCurve[0] などの要素を作るため、読むとシーンが変わる。
         field = Node(cmds.createNode("dragField", name="drag", skipSelect=True))
@@ -1061,9 +1063,8 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertGreater(len(field.getPlugs()), 100)
         self.assertEqual({name: self.existing(field.getPlug(name)) for name in arrays}, before)
 
-    def test_chained_value_dependent_sources_are_evaluated(self):
-        # 接続元も値によって型が変わるアトリビュート(unitConversion.output、choice.output)なら接続元を辿り、
-        # 入力接続の無い接続元の値を読むため、上流の評価が起こる(cmds.getAttr(type=True) と同じ)。
+    def test_chained_value_dependent_sources_evaluate_only_when_read(self):
+        # genericの参照作成では接続元を評価せず、getで現在の値を読む。
         counter = "mlibInteropChain_" + uuid.uuid4().hex[:8]
         source = self.create("transform", "src")
         middle = self.create("transform", "mid")
@@ -1100,16 +1101,15 @@ class PlugCreationSideEffectTest(_InteropCase):
                 cmds.setAttr(source.getPlug("tx"), float(count() + 1))
                 before = count()
                 element = chains[label].getPlug("input[0]")
+                self.assertEqual(count(), before)
+                self.assertIs(type(element), Plug)
+                value = element.get()
                 self.assertGreater(count(), before)
-                if expected is not None:
-                    self.assertIs(type(element), expected)
-                else:
-                    self.assertEqual(type(element).__name__, "MatrixPlug")
+                if expected is None:
+                    self.assertIsInstance(value, mlib.maths.Matrix)
 
-    def test_evaluation_side_effects_match_maya_cmds(self):
-        # 計算される generic アトリビュートの Plug を作ると値を読むため、評価でワールド空間の出力の要素が
-        # 作られる場合がある(インスタンス化されたシェイプを拘束元にした geometryConstraint)。
-        # cmds.getAttr(type=True) と同じ結果になることを確かめる。
+    def test_reference_creation_does_not_have_value_evaluation_side_effects(self):
+        # generic参照の構築は値を読まない。cmds型照会による評価副作用とは区別する。
         from mlib.plugs.plug import Plug as _InputPlug
         def existing_after(read):
             transform, mesh = self.cube("gcube")
@@ -1124,8 +1124,8 @@ class PlugCreationSideEffectTest(_InteropCase):
 
         mlib_result = existing_after(_InputPlug._resolve_input)
         cmds_result = existing_after(lambda name: cmds.getAttr(name, type=True))
-        self.assertEqual(mlib_result, cmds_result)
-        self.assertEqual(mlib_result, ([1], [0, 1]))
+        self.assertEqual(mlib_result, ([1], [1]))
+        self.assertEqual(cmds_result, ([1], [0, 1]))
 
     def test_plugs_of_deleted_nodes_do_not_touch_nodes_with_the_same_name(self):
         network = self.create("network", "net")
@@ -1143,7 +1143,6 @@ class PlugCreationSideEffectTest(_InteropCase):
             "getitem": lambda: array_plug[2],
             "elements": array_plug.getElements,
             "get": array_plug.get,
-            "create": lambda: array_plug.getElement(3, create=True),
             "remove": lambda: array_plug.removeElement(2),
             "getNextAvailableIndex": array_plug.getNextAvailableIndex,
             "Plug": lambda: Plug(network, array_plug.mplug().elementByLogicalIndex(4)),
@@ -1598,7 +1597,7 @@ class CommandEdgeCaseTest(_InteropCase):
         self.assertEqual(len(mlib.common.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
         network = self.create("network", "net")
         network.addAttr("vals", attributeType="double", multi=True)
-        network.getPlug("vals").getElement(2, create=True)
+        network.getPlug("vals")[2].set(0)
         dup1, dup2 = self.duplicates()
         for driven in (self.ns("net.vals[2]"), str(dup2.getPlug("ty")), self.ns("bs.weight[0]")):
             with self.subTest(driven=driven):
