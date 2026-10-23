@@ -186,7 +186,7 @@ def attach(rig):
         raise ValueError("Module display names already exist")
     nodes = []
     group = mlib.createNode("transform", name=group_name, parent=root, skipSelect=True).getFullName()
-    mlib.reorder(group, front=True)
+    cmds.reorder(group, front=True)
     module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)

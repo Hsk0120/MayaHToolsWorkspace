@@ -1,28 +1,28 @@
-"""is省略入口の委譲・型・方向フラグと既存の同名APIを検証する。"""
+"""正式is判定の動作を維持し、終了した省略入口を再公開しない。"""
 
 import ast
 import importlib
 import inspect
+from pathlib import Path
 import re
 import unittest
-from pathlib import Path
 from unittest.mock import Mock, patch
 
+from maya import cmds
+import maya.api.OpenMaya as om2
 import mlib
-import maya.cmds as cmds
 
 
 _PRESERVED_NAMES = {
     ("Node", "isType"), ("Nodes", "isType"),
     ("Node", "isRoot"), ("Nodes", "isRoot"),
     ("Plug", "isSource"), ("Plug", "isElement"),
-    ("Plugin", "isLoaded"), ("Scene", "isNew"),
-    ("WorkspaceLayout", "isCurrent"),
+    ("Plugin", "isLoaded"),
 }
 
 
 def _predicate_definitions():
-    """実装の判定定義を列挙し、外部の棚卸しファイルへ依存しない。"""
+    """製品の正式判定を、Mayaを追加評価せずソースから列挙する。"""
     root = Path(mlib.__file__).resolve().parent
     for path in sorted(root.rglob("*.py")):
         if any(part in {"__tests__", "_docs"} for part in path.parts):
@@ -36,176 +36,148 @@ def _predicate_definitions():
 
 
 class PredicateAliasesTest(unittest.TestCase):
-    """省略名が元の判定契約を保ち、取得・編集APIへ干渉しないことを確認する。"""
+    """型・方向・保持順・削除検出は正式判定へ集約して確認する。"""
 
     def setUp(self):
-        """空シーンと接続検査用のノードを用意する。"""
+        """空シーンと接続検査用ノードを用意する。"""
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True)
-        self.first = mlib.createNode("transform", name="predicateAliasFirst")
-        self.second = mlib.createNode("transform", name="predicateAliasSecond")
+        self.first = mlib.createNode("transform", name="canonicalPredicateFirst")
+        self.second = mlib.createNode("transform", name="canonicalPredicateSecond")
 
-    def test_declared_and_inherited_aliases_keep_canonical_signatures_and_flags(self):
-        """全判定を棚卸しし、追加漏れ・衝突上書き・署名欠落を検出する。"""
+    def test_canonical_predicates_exist_without_short_aliases(self):
+        """正式判定を型ごとに残し、同名の別APIを除く省略入口は公開しない。"""
         definitions = list(_predicate_definitions())
-        self.assertGreaterEqual(len(definitions), 68)
-        added = 0
+        self.assertGreaterEqual(len(definitions), 64)
         for module_name, owner_name, name in definitions:
-            if (owner_name, name) in _PRESERVED_NAMES:
-                continue
             module = importlib.import_module(module_name)
             owner = module if owner_name is None else getattr(module, owner_name)
-            short = name[2].lower() + name[3:]
             with self.subTest(owner=owner_name, method=name):
-                predicate, alias = getattr(owner, name), getattr(owner, short)
-                self.assertEqual(alias.__name__, short)
-                self.assertEqual(alias.__mlib_getter_name__, name)
-                self.assertEqual(inspect.signature(alias), inspect.signature(predicate))
-                self.assertEqual(alias.__annotations__, predicate.__annotations__)
-                self.assertEqual(alias.__mlib_flag_aliases__, getattr(predicate, "__mlib_flag_aliases__", {}))
-                self.assertEqual(alias.__mlib_maya_command__, getattr(predicate, "__mlib_maya_command__", None))
-            added += 1
-        self.assertGreaterEqual(added, 59)
-        for package_name in ("nodes", "plugs", "maths", "common"):
-            package = getattr(mlib, package_name)
-            for public_name in package.__all__:
-                cls = getattr(package, public_name)
-                if not inspect.isclass(cls):
+                self.assertTrue(callable(getattr(owner, name)))
+                if (owner_name, name) in _PRESERVED_NAMES:
                     continue
-                for base in cls.__mro__:
-                    if not base.__module__.startswith("mlib."):
-                        continue
-                    for name in base.__dict__:
-                        if not re.fullmatch(r"is[A-Z]\w*", name) or (base.__name__, name) in _PRESERVED_NAMES:
-                            continue
-                        short = name[2].lower() + name[3:]
-                        with self.subTest(public_class=public_name, method=name):
-                            self.assertEqual(getattr(cls, short).__mlib_getter_name__, name)
-                            self.assertEqual(inspect.signature(getattr(cls, short)), inspect.signature(getattr(cls, name)))
+                short = name[2].lower() + name[3:]
+                self.assertNotIn(short, vars(owner))
+                if owner_name is not None:
+                    with self.assertRaises(AttributeError):
+                        inspect.getattr_static(owner, short)
+        self.assertFalse((Path(mlib.__file__).parent / "_core/getterAlias.py").exists())
 
-    def test_instance_replacement_and_subclass_override_are_resolved_at_call_time(self):
-        """元の判定を固定せず、raw引数と派生実装を呼出し時に引き継ぐ。"""
+    def test_canonical_override_and_instance_replacement_remain_available(self):
+        """通常のPython差替えと派生メソッドを追加する方法を維持する。"""
         marker = object()
         plug = self.first.getPlug("translateX")
         with patch.object(plug, "isConnected", return_value=marker) as predicate:
-            self.assertIs(plug.connected(src=False, destination=True), marker)
+            self.assertIs(plug.isConnected(src=False, destination=True), marker)
             predicate.assert_called_once_with(src=False, destination=True)
 
         class DerivedTransform(mlib.nodes.Transform):
-            """派生型の判定が継承した省略入口から呼ばれることを調べる。"""
+            """正式判定を通常のdefで追加する検証用派生型。"""
 
             def isLocked(self, *args, **kwargs):
-                """検査用の引数を変更せず返す。"""
+                """受け取った独自引数をそのまま返す。"""
                 return args, kwargs
 
         derived = object.__new__(DerivedTransform)
         self.assertEqual(derived.isLocked(4, marker="raw"), ((4,), {"marker": "raw"}))
 
-    def test_connection_aliases_keep_direction_booleans_and_source_getter(self):
-        """方向・別名競合と、既存sourceのPlug返却を実接続で確認する。"""
+    def test_connections_keep_direction_booleans_and_source_getter(self):
+        """正式判定は接続方向・別名競合・bool検証を維持する。"""
         src, dst = self.first.getPlug("translateX"), self.second.getPlug("translateX")
         dst.connect(src)
-        self.assertTrue(src.connected(src=False, dst=True))
-        self.assertFalse(src.connected(src=True, dst=False))
-        self.assertTrue(dst.connected(source=True, destination=False))
-        self.assertTrue(src.connectedTo(dst, source=False, destination=True))
-        self.assertFalse(dst.connectedTo(src, src=False, dst=True))
-        self.assertFalse(dst.connected(src=False, dst=False))
+        self.assertTrue(src.isConnected(src=False, dst=True))
+        self.assertFalse(src.isConnected(src=True, dst=False))
+        self.assertTrue(dst.isConnected(source=True, destination=False))
+        self.assertTrue(src.isConnectedTo(dst, source=False, destination=True))
+        self.assertFalse(dst.isConnectedTo(src, src=False, dst=True))
+        self.assertFalse(dst.isConnected(src=False, dst=False))
         self.assertEqual(dst.getSource(), src)
         self.assertTrue(src.isSource())
-        self.assertTrue(dst.destination())
+        self.assertTrue(dst.isDestination())
         with self.assertRaises(TypeError):
-            dst.connected(src=True, source=True)
+            dst.isConnected(src=True, source=True)
         with self.assertRaises(TypeError):
-            src.connectedTo(dst, dst=True, destination=True)
+            src.isConnectedTo(dst, dst=True, destination=True)
         with self.assertRaises(TypeError):
-            dst.connected(src=1)
+            dst.isConnected(src=1)
 
-    def test_collection_aliases_keep_order_empty_results_and_prevalidation(self):
-        """複数形とcallEachが本体の署名を事前検査し、戻り値順を保つ。"""
+    def test_collections_keep_order_empty_results_and_prevalidation(self):
+        """正式名の一括判定とcallEachが署名を事前検査し保持順で返す。"""
         nodes = mlib.nodes.Transforms([self.first, self.second])
         cmds.lockNode(str(self.second), lock=True)
-        self.assertEqual(nodes.valid(), [True, True])
-        self.assertEqual(nodes.isLocked(), [False, True])
-        self.assertEqual(nodes.callEach("locked", [(), ()]), [False, True])
-        self.assertEqual(mlib.nodes.Nodes().valid(), [])
-        self.assertEqual(mlib.nodes.Nodes().callEach("valid", []), [])
-        first = Mock(return_value=False)
-        with patch.object(self.first, "isLocked", first):
-            with self.assertRaises(TypeError):
-                nodes.callEach("locked", [(), (1,)])
-        first.assert_not_called()
-        cmds.lockNode(str(self.second), lock=False)
+        try:
+            self.assertEqual(nodes.isValid(), [True, True])
+            self.assertEqual(nodes.isLocked(), [False, True])
+            self.assertEqual(nodes.callEach("isLocked", [(), ()]), [False, True])
+            self.assertEqual(mlib.nodes.Nodes().isValid(), [])
+            self.assertEqual(mlib.nodes.Nodes().callEach("isValid", []), [])
+            first = Mock(return_value=False)
+            with patch.object(self.first, "isLocked", first):
+                with self.assertRaises(TypeError):
+                    nodes.callEach("isLocked", [(), (1,)])
+            first.assert_not_called()
+        finally:
+            cmds.lockNode(str(self.second), lock=False)
 
-    def test_removed_references_and_plug_structure_keep_original_results(self):
-        """削除済み参照と未実体化配列要素の判定に評価を追加しない。"""
+    def test_removed_references_and_plug_structure_keep_results(self):
+        """参照の有効性と未実体化要素の構造判定に評価を追加しない。"""
         scalar = self.first.getPlug("translateX")
         array = self.first.getPlug("worldMatrix")
-        child = self.first.getPlug("translateX")
-        self.assertTrue(array.array())
-        self.assertTrue(self.first.getPlug("translate").compound())
-        self.assertTrue(child.child())
+        self.assertTrue(array.isArray())
+        self.assertTrue(self.first.getPlug("translate").isCompound())
+        self.assertTrue(scalar.isChild())
         self.assertTrue(array[0].isElement())
         self.assertEqual(array.getElement(0), array.getElement(0))
         self.first.delete()
-        self.assertFalse(self.first.valid())
-        self.assertEqual(self.first.alive(), self.first.isAlive())
-        self.assertFalse(scalar.valid())
+        self.assertFalse(self.first.isValid())
+        self.assertFalse(scalar.isValid())
         with self.assertRaises(RuntimeError):
             scalar.isLocked()
 
-    def test_static_and_module_aliases_keep_binding_and_current_state(self):
-        """静的入口はクラス/個体/派生から呼べ、Undo照会は状態を変えない。"""
-        cls = mlib.common.Viewport
-        instance = object.__new__(cls)
-        self.assertEqual(inspect.signature(cls.enabled), inspect.signature(cls.isEnabled))
-        self.assertEqual(inspect.signature(instance.enabled), inspect.signature(instance.isEnabled))
-        predicate = Mock(return_value=True)
-        with patch.object(cls, "isEnabled", staticmethod(predicate)):
-            self.assertTrue(cls.enabled())
-            self.assertTrue(instance.enabled())
-        self.assertEqual(predicate.call_count, 2)
+    def test_module_predicate_keeps_current_undo_state(self):
+        """正式Undo判定は現在の記録設定を変更しない。"""
         undo = importlib.import_module("mlib.common.undo")
-        self.assertEqual(undo.enabled(), undo.isEnabled())
+        self.assertTrue(undo.isEnabled())
         cmds.undoInfo(state=False)
         try:
-            self.assertFalse(undo.enabled())
+            self.assertFalse(undo.isEnabled())
             self.assertFalse(cmds.undoInfo(query=True, state=True))
         finally:
             cmds.undoInfo(state=True)
 
-    def test_math_aliases_keep_tolerance_results_and_native_names(self):
-        """mlibで定義した等価判定は許容誤差と既存is名を維持する。"""
+    def test_math_predicates_keep_tolerance_and_native_names(self):
+        """数学値の正式等価判定は戻り値と許容誤差を維持する。"""
         pairs = (
-            (mlib.maths.Vector(1, 2, 3), mlib.maths.Vector(1 + 1e-8, 2, 3)),
-            (mlib.maths.Matrix(), mlib.maths.Matrix()),
-            (mlib.maths.EulerRotate(), mlib.maths.EulerRotate()),
-            (mlib.maths.Transformation(), mlib.maths.Transformation()),
+            (mlib.maths.Vector(1, 2, 3), mlib.maths.Vector(1 + 1e-8, 2, 3), om2.MVector),
+            (mlib.maths.Matrix(), mlib.maths.Matrix(), om2.MMatrix),
+            (mlib.maths.EulerRotate(), mlib.maths.EulerRotate(), om2.MEulerRotation),
+            (mlib.maths.Transformation(), mlib.maths.Transformation(), None),
         )
-        for value, other in pairs:
+        for value, other, native_type in pairs:
             with self.subTest(value=type(value).__name__):
-                self.assertEqual(value.equivalent(other), value.isEquivalent(other))
-                self.assertEqual(value.equivalent(other, tolerance=1e-6), value.isEquivalent(other, tolerance=1e-6))
+                tolerance = inspect.signature(value.isEquivalent).parameters["tolerance"].default
+                if native_type is not None:
+                    expected = native_type(value).isEquivalent(native_type(other), tolerance)
+                    self.assertEqual(value.isEquivalent(other), expected)
+                else:
+                    self.assertTrue(value.isEquivalent(other))
+                self.assertTrue(value.isEquivalent(value))
+                self.assertTrue(value.isEquivalent(other, tolerance=1e-6))
                 self.assertEqual(value.isEquivalent.__name__, "isEquivalent")
 
-    def test_colliding_names_keep_existing_getters_and_scene_creation(self):
-        """同名の取得・編集APIと、派生クラス側のroot/elementを維持する。"""
+    def test_colliding_names_and_dynamic_attributes_keep_existing_meanings(self):
+        """取得API・Plugin.loadedと動的アトリビュート参照を変更しない。"""
         self.assertEqual(self.first.getType(), "transform")
         self.assertTrue(self.first.isType("dagNode"))
-        self.assertEqual(self.first.getRoot(), self.first.getRoot())
         self.assertTrue(self.first.isRoot())
         transforms = mlib.nodes.Transforms([self.first])
-        self.assertEqual(transforms.getRoot(), transforms.getRoot())
         self.assertEqual(transforms.isRoot(), [True])
-        scene = mlib.common.Scene()
-        self.assertTrue(scene.isNew())
-        self.assertIs(scene.new(force=True, prompt=False), scene)
+        self.assertEqual(transforms.getRoot(), [self.first])
         self.assertIsInstance(mlib.common.Plugin.loaded(), list)
-        layout = mlib.common.WorkspaceLayout
-        self.assertTrue(callable(layout.getCurrent))
-        self.assertFalse(hasattr(layout, "current"))
         self.assertTrue(callable(mlib.nodes.Reference.getRoot))
-        self.assertFalse(hasattr(mlib.nodes.Reference, "root"))
+        attribute = self.first.addAttr("valid", attributeType="bool")
+        self.assertEqual(self.first.valid, attribute)
+        self.assertTrue(self.first.isValid())
 
 
 if __name__ == "__main__":

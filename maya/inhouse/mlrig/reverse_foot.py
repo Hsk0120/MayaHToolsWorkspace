@@ -1,5 +1,8 @@
 """3関節部位のIKへ後付けする、ローカル行列ベースのリバースフット。"""
 
+from maya import cmds
+
+import json
 import math
 import mlib
 
@@ -68,13 +71,13 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     mlib.getPlug(matrix + ".matrixSum").connectTo(decompose + ".inputMatrix")
     rig._bind("footMatrix", matrix)
     rig._bind("footDecompose", decompose)
-    layer = mlib.createSet(created, name=rig.getNodeName("footSet")).getFullName()
+    layer = mlib.getNode(cmds.sets(created, name=rig.getNodeName("footSet"))).getFullName()
     created.append(layer)
     rig._bind("footSet", layer)
     rig._layer_members("moduleSet", [layer])
     mlib.getNode(root).addAttr(longName="mlrigFootSettings", dataType="string")
     mlib.getPlug(root + ".mlrigFootSettings").set(
-        mlib.json.JsonText.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
+        json.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
     )
     for node in created:
         mlib.getNode(root).getPlug("mlrigOwned").appendMessage(node)

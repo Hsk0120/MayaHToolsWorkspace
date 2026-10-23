@@ -1,4 +1,4 @@
-"""単純アクセサーを削減した演算ノードの公開Plug操作を検証する。"""
+"""演算型の登録を維持し、Maya標準Plugだけで値と接続を操作する。"""
 
 import unittest
 
@@ -6,72 +6,105 @@ from maya import cmds
 import mlib
 
 
+_CALCULATION_TYPES = (
+    ("addDL", "AddDL"), ("addDoubleLinear", "AddDoubleLinear"),
+    ("multDL", "MultDL"), ("multDoubleLinear", "MultDoubleLinear"),
+    ("blendColors", "BlendColors"), ("blendWeighted", "BlendWeighted"),
+    ("clamp", "Clamp"), ("condition", "Condition"),
+    ("multiplyDivide", "MultiplyDivide"), ("plusMinusAverage", "PlusMinusAverage"),
+    ("remapValue", "RemapValue"), ("reverse", "Reverse"),
+    ("setRange", "SetRange"), ("unitConversion", "UnitConversion"),
+)
+_REMOVED_METHODS = {
+    "getInputPlug", "setInput", "connectInput", "getResult", "getColorPlug", "getColor",
+    "setColor", "connectColor", "setBlender", "getInputIndices", "getInputPlugs",
+    "getWeights", "getWeight", "setWeight", "getRange", "setRange", "getOperation",
+    "setOperation", "setTrueValue", "setFalseValue", "removeInput", "getOutputPlug",
+    "getRampPoints", "setRampPoint", "removeRampPoint", "setFactor",
+}
+
+
 class ConsolidatedCalculationTests(unittest.TestCase):
-    """検証を持つ専用メソッドと標準Plugの組み合わせを確認する。"""
+    """空シーンで型選択・PlugのUndo/fast・疎配列を確認する。"""
 
     def setUp(self):
-        """テスト専用シーンを用意する。"""
+        """専用シーンと通常Undo、距離cmを準備する。"""
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True)
+        cmds.currentUnit(linear="cm")
 
-    def tearDown(self):
-        """作成したノードを破棄する。"""
-        cmds.file(new=True, force=True)
+    def test_calculation_types_keep_explicit_registration_and_node_base(self):
+        """14型の明示登録と継承を保ち、終了した専用defを再公開しない。"""
+        for node_type, class_name in _CALCULATION_TYPES:
+            with self.subTest(node_type=node_type):
+                cls = getattr(mlib.nodes, class_name)
+                node = mlib.createNode(node_type)
+                # MayaはaddDoubleLinear等を新しい派生nodeTypeへ正規化する版がある。
+                actual_type = cmds.nodeType(node.getFullName())
+                registered = mlib.nodes.Node._registry.lookup(actual_type)
+                if registered is None:
+                    # 旧Mayaで未対応型がunknown等になった場合も、既存のNode選択を保つ。
+                    self.assertNotIn(actual_type, mlib.nodes._WRAPPER_CLASSES)
+                    self.assertIs(type(node), mlib.nodes.Node)
+                expected = registered if registered is not None else mlib.nodes.Node
+                self.assertIs(type(node), expected)
+                self.assertIs(type(mlib.getNode(node.getFullName())), expected)
+                self.assertIs(mlib.nodes._WRAPPER_CLASSES[node_type], cls)
+                self.assertTrue(issubclass(cls, mlib.nodes.Node))
+                self.assertFalse(_REMOVED_METHODS.intersection(cls.__dict__))
+                self.assertIs(node.getPlug("message").getNode(), node)
 
-    def test_add_and_multiply_use_standard_output_plugs(self):
-        """専用入力の検証を残し、結果と接続は標準Plugで扱う。"""
-        add = mlib.createNode("addDoubleLinear")
-        self.assertIs(add.setInput(1, 2), add)
-        add.setInput(2, 3)
-        self.assertAlmostEqual(add.getPlug("output").get(), 5)
-        multiply = mlib.createNode("multiplyDivide")
-        multiply.setOperation("multiply").setInput(1, (2, 3, 4)).setInput(2, (3, 4, 5))
-        self.assertEqual(tuple(multiply.getPlug("output").get()), (6, 12, 20))
-        with self.assertRaises(ValueError):
-            add.setInput(1, float("nan"))
-        self.assertNotIn("getOutputPlug", type(add).__dict__)
-        self.assertNotIn("getInput", type(add).__dict__)
-        self.assertNotIn("getResult", type(add).__dict__)
-
-    def test_fixed_inputs_keep_validation_and_undo(self):
-        """固定入力取得の削減後も検証・複合範囲・Undoを保つ。"""
-        clamp = mlib.createNode("clamp")
-        clamp.setRange((0, 0, 0), (1, 2, 3))
-        clamp.setInput((2, -1, 4))
-        self.assertEqual(tuple(clamp.getResult()), (1, 0, 3))
-        self.assertEqual(tuple(clamp.getPlug("input").get()), (2, -1, 4))
+    def test_standard_plugs_keep_undo_and_fast_edits(self):
+        """通常の単一Plug更新はUndoでき、fastはUndo設定と履歴を変えない。"""
+        node = mlib.createNode("addDoubleLinear")
+        node.getPlug("input1").set(2)
+        node.getPlug("input2").set(3)
+        self.assertAlmostEqual(node.getPlug("output").get(), 5)
         cmds.undo()
-        self.assertEqual(tuple(clamp.getPlug("input").get()), (0, 0, 0))
-        with self.assertRaises(ValueError):
-            clamp.setInput((1, 2))
-        conversion = mlib.createNode("unitConversion")
-        conversion.setInput(3).setFactor(2)
-        self.assertAlmostEqual(conversion.getPlug("output").get(), 6)
+        self.assertAlmostEqual(node.getPlug("output").get(), 2)
+        cmds.redo()
+        self.assertAlmostEqual(node.getPlug("output").get(), 5)
+        cmds.flushUndo()
+        self.assertIs(node.getPlug("input2").set(7, fast=True).getNode(), node)
+        self.assertAlmostEqual(node.getPlug("output").get(), 9)
+        self.assertTrue(cmds.undoInfo(query=True, state=True))
+        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
-    def test_enum_and_color_semantics_stay_available(self):
-        """独自モード名と色の戻り型・範囲検査を維持する。"""
+    def test_standard_array_plugs_keep_logical_indices_and_connections(self):
+        """疎配列はArrayPlugで照会し、接続を一回のUndoで解除できる。"""
+        node = mlib.createNode("plusMinusAverage")
+        inputs = node.getPlug("input1D")
+        inputs[3].set(2)
+        inputs[8].set(5)
+        self.assertEqual(inputs.getIndices(), [3, 8])
+        with self.assertRaises(IndexError):
+            inputs.getElement(4)
+        self.assertEqual(inputs.getIndices(), [3, 8])
+        self.assertAlmostEqual(node.getPlug("output1D").get(), 7)
+        node.getPlug("operation").set(2)
+        self.assertAlmostEqual(node.getPlug("output1D").get(), -3)
+        source = mlib.createNode("network").addAttr("amount", defaultValue=11)
+        source.connectTo(inputs.getElement(3))
+        self.assertEqual(inputs.getElement(3).getSource(skipConversionNodes=False), source)
+        self.assertAlmostEqual(node.getPlug("output1D").get(), 6)
+        cmds.undo()
+        self.assertIsNone(inputs.getElement(3).getSource(skipConversionNodes=False))
+        self.assertAlmostEqual(node.getPlug("output1D").get(), -3)
+
+    def test_enum_and_numeric_compounds_use_native_attribute_values(self):
+        """enumはMayaの番号、演算用RGBは数値複合Plugとして扱う。"""
         condition = mlib.createNode("condition")
-        condition.setOperation("less").setInput(1, 1).setInput(2, 2)
-        condition.setTrueValue((0.2, 0.4, 0.6)).setFalseValue((1, 0, 0))
-        self.assertEqual(condition.getOperation(), "less")
-        for actual, expected in zip(condition.getResult(), (0.2, 0.4, 0.6)):
+        for name, value in (("firstTerm", 1), ("secondTerm", 2), ("operation", 4),
+                            ("colorIfTrue", (.2, .4, .6)), ("colorIfFalse", (1, 0, 0))):
+            condition.getPlug(name).set(value)
+        self.assertEqual(condition.getPlug("operation").get(), 4)
+        for actual, expected in zip(condition.getPlug("outColor").get(), (.2, .4, .6)):
             self.assertAlmostEqual(actual, expected, places=6)
         blend = mlib.createNode("blendColors")
-        blend.setColor(1, (1, 0, 0)).setColor(2, (0, 0, 1)).setBlender(0.25)
-        self.assertEqual(blend.getResult(), (0.25, 0, 0.75))
-        with self.assertRaises(ValueError):
-            blend.setBlender(2)
-
-    def test_sparse_inputs_keep_nonexistent_element_checks(self):
-        """疎配列の番号規約と未存在要素拒否を維持する。"""
-        node = mlib.createNode("plusMinusAverage")
-        node.setInput(3, 2).setInput(8, 5)
-        self.assertEqual(node.getInputIndices(), [3, 8])
-        self.assertAlmostEqual(node.getPlug("output1D").get(), 7)
-        self.assertAlmostEqual(node.getInputPlug(3).get(), 2)
-        with self.assertRaises(IndexError):
-            node.getInputPlug(4)
-        self.assertEqual(node.getInputIndices(), [3, 8])
+        blend.getPlug("color1").set((1, 0, 0))
+        blend.getPlug("color2").set((0, 0, 1))
+        blend.getPlug("blender").set(.25)
+        self.assertEqual(tuple(blend.getPlug("output").get()), (.25, 0, .75))
 
 
 if __name__ == "__main__":

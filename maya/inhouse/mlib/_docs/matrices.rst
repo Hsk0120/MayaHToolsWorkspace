@@ -63,7 +63,7 @@ Transformの専用メソッドでも同じ操作ができます。Transforms・J
 取得はMatrix、単体の設定は自身、一括操作は各戻り値のリストを返します。
 通常の設定はUndo可能で、``fast=True`` はUndoなしです。
 
-``matrix()`` はmlib.maths.Matrixを返し、offsetParentMatrixのMatrixPlug.setへ
+``getMatrix()`` はmlib.maths.Matrixを返し、offsetParentMatrixのMatrixPlug.setへ
 変換なしで渡せます。``get()`` の戻り値もMatrixです。
 これは行列値のコピーであり、接続や自動追従ではありません。
 targetの移動・回転・スケールのチャンネル値は変更しません。
@@ -93,10 +93,10 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
 
    local_from_plug = child.getPlug("matrix").get()
    world_from_plug = child.getPlug("worldMatrix")[0].get()
-   print(local.equivalent(local_from_plug))    # True
-   print(world.equivalent(world_from_plug))    # True
+   print(local.isEquivalent(local_from_plug))    # True
+   print(world.isEquivalent(world_from_plug))    # True
 
-``matrix(ws=True)`` は、ラッパーの ``mpath()`` が示す DAG インスタンスの
+``getMatrix(ws=True)`` は、ラッパーの ``mpath()`` が示す DAG インスタンスの
 ``worldMatrix`` の要素(``worldMatrix[<インスタンス番号>]``)を参照します。
 プラグから別のインスタンスの行列を取得する場合は、その経路のインスタンス番号
 (``mpath().instanceNumber()``)を要素に指定してください。
@@ -145,7 +145,7 @@ Mayaの行ベクトル規約では、``world = local * offsetParentMatrix * pare
    from mlib.maths import EulerRotate
 
    zyx = EulerRotate.fromDegrees(30, 45, 60, "zyx")
-   print(Matrix(rotate=zyx).equivalent(zyx.asMatrix()))    # True
+   print(Matrix(rotate=zyx).isEquivalent(zyx.asMatrix()))    # True
 
 行列の積と逆行列
 ----------------
@@ -162,14 +162,14 @@ mlib は Maya と同じ行ベクトル規約です。
    turned_then_moved = (turn * move).transformPoint((0, 0, 0))
    print(tuple(round(v, 6) for v in moved_then_turned))   # (0.0, 2.0, 0.0)
    print(tuple(round(v, 6) for v in turned_then_moved))   # (2.0, 0.0, 0.0)
-   print((matrix * matrix.inverse()).equivalent(Matrix()))  # True
+   print((matrix * matrix.inverse()).isEquivalent(Matrix()))  # True
 
 逆行列は変換を戻すために使います。``inverse()`` は元の行列を変更せず、
 新しい行列を返します。ゼロスケールなど逆行列を持たない(``om2.MMatrix.isSingular()``
 が真の)場合は ``ValueError`` になります。非常に小さいが 0 ではないスケールの行列は
 逆行列を計算できます。
 表示上の ``-0.0`` は ``0.0`` と同じ値です。
-計算後の比較には、完全一致の ``==`` より、誤差を許容する ``equivalent()`` を使います。
+計算後の比較には、完全一致の ``==`` より、誤差を許容する ``isEquivalent()`` を使います。
 ``*`` / ``@`` の相手に ``om2.MMatrix`` を使った場合も、結果は ``Matrix`` です。
 
 ローカルとワールドを変換する
@@ -184,8 +184,8 @@ mlib は Maya と同じ行ベクトル規約です。
    parent_world = parent.getMatrix(ws=True)
    calculated_world = local * parent_world
    calculated_local = world * parent_world.inverse()
-   print(calculated_world.equivalent(world))    # True
-   print(calculated_local.equivalent(local))    # True
+   print(calculated_world.isEquivalent(world))    # True
+   print(calculated_local.isEquivalent(local))    # True
 
 同じ考え方で、任意の基準ノードから見た相対行列を求められます。
 例えば ``child_world * reference_world.inverse()`` は、reference の座標系で表した child の行列です。
@@ -224,7 +224,7 @@ om2 と同じ列ベクトルとしての積(転置行列での変換)で、``tra
    import maya.api.OpenMaya as om2
    from mlib.maths import Vector
 
-   print((Vector(1, 0, 0) * matrix).equivalent(direction))           # True
+   print((Vector(1, 0, 0) * matrix).isEquivalent(direction))           # True
    print((om2.MPoint(1, 0, 0) * matrix).isEquivalent(om2.MPoint(point)))  # True
 
 計算結果をノードへ適用する
@@ -301,7 +301,7 @@ om2 の関数が返した ``om2.MMatrix`` は ``Matrix.fromMMatrix()`` で ``Mat
 
    transformation = om2.MTransformationMatrix(matrix)   # そのまま渡せる
    copied = Matrix.fromMMatrix(transformation.asMatrix())
-   print(copied.equivalent(matrix))    # True
+   print(copied.isEquivalent(matrix))    # True
    api_matrix = om2.MMatrix(matrix)       # 素の om2.MMatrix として複製
 
 ``asTransformation()`` はmlibの ``Transformation`` を返します。

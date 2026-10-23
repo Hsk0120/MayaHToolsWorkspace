@@ -4,7 +4,7 @@
 cluster・blendShape・skinClusterと、スキン変形を保持した編集を説明します。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
-最初に ``import mlib`` を実行してください。
+最初に ``import mlib`` と ``import maya.cmds as cmds`` を実行してください。
 
 ウェイトを変えずにinfluenceを追加する
 ------------------------------------------
@@ -164,29 +164,31 @@ cluster と locator
    print(locator.getPosition())         # Translate(0.0, 0.0, 0.0)
    locator.setPosition((1.0, 2.0, 3.0))
 
-``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``weightedNode``
-はクラスタのハンドル transform（デフォーマ本体とは別ノード）、``geometry`` は
+``cluster`` ノードは自動的に ``Cluster`` ラッパーへ解決されます。``getWeightedNode()``
+はクラスタのハンドル transform（デフォーマ本体とは別ノード）、``getGeometry()`` は
 変形対象の shape を返します。``locator`` シェイプは ``Locator`` ラッパーへ解決され、
-``position``/``setPosition`` は ``localPosition`` アトリビュートを ``Translate`` として
+``getPosition()`` / ``setPosition()`` は ``localPosition`` アトリビュートを ``Translate`` として
 扱います。
 
 blendShape の作成
 ------------------------
 
-``createBlendShape(base, targets=None, **kwargs)`` はベースへ接続したBlendShapeを返します。
-ベースは明示し、選択には依存しません。通常のUndoに対応します。
+Maya標準の ``cmds.blendShape`` で作成し、返されたノード名を ``mlib.getNode`` で
+包みます。ターゲットを指定する場合は、その後にベースを渡します。
+ベースを明示すれば選択には依存せず、作成はMaya標準のUndoに対応します。
 
 .. code-block:: python
 
-   bs = mlib.createBlendShape("faceMesh", name="faceBlendShape")
+   bs = mlib.getNode(cmds.blendShape("faceMesh", name="faceBlendShape")[0])
    bs.addTarget("smileMesh")
 
-   # 初期ターゲットは単体またはリスト。Nodeオブジェクトも指定できる。
-   bs = mlib.createBlendShape("otherFace", targets=["smileMesh", "blinkMesh"])
+   # 複数の初期ターゲットはベースより前に並べる。
+   bs = mlib.getNode(cmds.blendShape("smileMesh", "blinkMesh", "otherFace")[0])
    bs.getTargetPlug(0).set(1.0)
 
-``targets=None`` または空列はターゲットなしです。``name/n``・``origin/o``・
-``frontOfChain/foc`` 等はMaya標準フラグとして渡せます。照会・編集は各メソッドを使います。
+ベースだけを渡すとターゲットなしで作成します。``name/n``・``origin/o``・
+``frontOfChain/foc`` 等はMaya標準フラグとして渡せます。取得したBlendShapeの照会・編集は
+各メソッドを使います。mlibの参照をMaya標準コマンドへ渡す場合は ``getFullName()`` で名前を取得します。
 
 blendShape のターゲット操作
 ------------------------------
@@ -212,7 +214,7 @@ blendShape のターゲット操作
 weight配列の論理インデックスで並べ替えません。weight以外のアトリビュートに
 エイリアスを付けた場合、その名前・Plug・値も含みます。
 ``addTarget`` は ``base`` を省略すると既存の base geometry の先頭を使い、
-``weight_index`` を省略すると ``getPlug("weight").nextAvailableIndex()`` で空きインデックス
+``weight_index`` を省略すると ``getPlug("weight").getNextAvailableIndex()`` で空きインデックス
 を自動的に選びます。追加したターゲットには既定でその名前がエイリアスとして
 設定されるため、戻り値のプラグの ``getFullName()`` は ``weight[N]`` ではなく
 ターゲット名を含む表記になります（``getLongName()`` では実際のアトリビュート名を取得できます）。
@@ -251,7 +253,8 @@ weight配列の論理インデックスで並べ替えません。weight以外�
 blendShape の編集・保存
 -----------------------
 
-既存の ``targetAliases/weightPlugs/weights`` の仕様は変えていません。
+``getTargetAliases()`` はエイリアス名、``getWeightPlugs()`` と ``getWeights()`` は
+対応するPlugと値を返します。
 実際のターゲットだけを列挙する場合は ``getTargetIndices()``、番号またはweightの
 エイリアスから操作する場合は ``getTargetPlug()`` を使います。空のweight要素や
 weight以外の別名は新しい一覧には含みません。番号は疎でも保持されます。
@@ -294,7 +297,7 @@ in-between
 
 ``addInBetween(relative=True)`` はMayaの相対in-betweenとして追加します。
 指定ウェイトは0と1以外、-5以上の0.001刻みです。既存ウェイトへの追加は拒否します。
-``inBetweenWeights`` は1.0以外の項目を返します。
+``getInBetweenWeights()`` は1.0以外の項目を返します。
 ``base`` を受け取るメソッドは省略時に最小のベース論理番号を使います。
 ``removeInBetween`` はShape Editorと同様、全ベースの同じウェイト項目を削除します。
 ``removeTarget/duplicateTarget`` も全ベースが対象です。
@@ -308,39 +311,22 @@ in-between
    bs.setTargetWeights("smile", {0: 0.25, 1: 0.75})  # 部分更新
    bs.setTargetWeights("smile", weights)       # 全頂点更新
 
-   deltas = bs.getTargetDeltas("smile")        # dict[int, mlib.Vector]
+   deltas = bs.getTargetDeltas("smile")        # dict[int, mlib.maths.Vector]
    bs.setTargetDeltas("smile", deltas, disconnect=True)
    bs.setTargetDeltas("smile", {0: (0.0, 2.0, 0.0)})
 
 デルタは通常ターゲットではオブジェクト空間cmです。
-``targetDeltas`` はMayaの ``inputPointsTarget`` を読み、接続中の形状も現在値を取得します。
+``getTargetDeltas()`` はMayaの ``inputPointsTarget`` を読み、接続中の形状も現在値を取得します。
 ``setTargetDeltas`` は同項目の絶対デルタ全体を置換し、省略頂点はゼロにします。
 相対補助デルタはクリアし、他のin-betweenのデルタは更新しません。
 接続中の形状を変更する場合は ``disconnect=True`` が必要です。
 ``full_weight`` で中間項目も指定できます。
 不正な頂点番号・非有限数・頂点数不一致は書き込み前に拒否します。
 
-デルタ単体の保存と対象頂点
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+デルタ値と対象頂点
+~~~~~~~~~~~~~~~~~~
 
-``dumpTargetDeltas(target, path, base=None, full_weight=1.0)`` と
-``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)`` で
-辞書キーの変換をメソッド内にまとめて保存・復元できます。
-
-.. code-block:: python
-
-   bs.dumpTargetDeltas("smile", "C:/tmp/smile_delta.mlib.json")
-   restored = mlib.getNode("restoredBlendShape")  # 同じ頂点順のベースと既存smileターゲット
-   restored.loadTargetDeltas("smile", "C:/tmp/smile_delta.mlib.json", disconnect=True)
-   restored.getTargetPlug("smile").set(1.0)
-
-単体IOはmlib.json形式で、文字列の頂点番号キーとVector値を保存します。
-dumpは絶対パスのPath、loadはBlendShape自身を返します。
-全データを検証してからsetTargetDeltasへ委譲し、通常は一回のUndoにまとまります。
-loadのfast=TrueはUndoなしです。接続中の入力を切断する場合はdisconnect=Trueを明示します。
-既存のdumpTargets/loadTargetsの形式と、標準jsonでの次の保存方法は変更しません。
-
-``targetDeltas`` の辞書だけをJSONへ書けば、名前やウェイトを含まない
+``getTargetDeltas()`` の辞書だけを標準jsonで保存すれば、名前やウェイトを含まない
 「頂点番号とxyz変位」だけのファイルになります。JSONの辞書キーは文字列に
 なるので、読み込み時に整数へ戻します。
 
@@ -370,13 +356,8 @@ loadのfast=TrueはUndoなしです。接続中の入力を切断する場合は
 
 .. code-block:: python
 
-   restored = mlib.createBlendShape("newFace")
+   restored = mlib.getNode(cmds.blendShape("newFace")[0])
    weight = restored.addTargetDeltas({0: (0.0, 2.0, 0.0)}, alias="smile")
-   weight.set(1.0)
-
-   # mlib.json単体ファイルから未作成のターゲットへ復元する場合。
-   weight = restored.addTargetDeltas({}, alias="blink")
-   restored.loadTargetDeltas(weight, "C:/tmp/blink_delta.mlib.json")
    weight.set(1.0)
 
 別名・未使用番号・全デルタを登録前に検証し、現在の表示形状ではなくBlendShapeへ入る
@@ -400,7 +381,10 @@ user-defined originは未対応です。fastフラグは提供しません。
    restored.setTargetDeltas(0, deltas)
    restored.getTargetPlug(0).set(1.0)
 
-デルタ単体のJSONにはトポロジー情報や頂点マスクは入りません。
+上の例はPython標準の ``json`` で辞書を読み書きします。mlibはデルタ単体の
+汎用保存APIや型付きJSONの読込みを提供しません。一式の保存・復元には後述の
+``dumpTargets()`` / ``loadTargets()`` を使います。
+このデルタ単体のJSONにはトポロジー情報や頂点マスクは入りません。
 同じ形状を再現するには、対応する頂点順と変形前の座標、envelope・頂点ウェイトなどの
 条件も揃える必要があります。通常のオブジェクト空間ターゲットでは変位の単位はcmです。
 ``setTargetDeltas`` は既存項目のデルタ全体を置換します。Undo不要なら ``fast=True`` を指定できます。
@@ -416,7 +400,7 @@ in-betweenを扱う場合は取得・設定の両方に同じ ``full_weight`` �
    vertices = bs.getTargetVertices("smile", tolerance=0.0001)
    half_vertices = bs.getTargetVertices("smile", full_weight=0.5)
 
-対象頂点は ``targetDeltas`` の絶対デルタで判定し、明示的に格納されたゼロ変位は
+対象頂点は ``getTargetDeltas()`` の絶対デルタで判定し、明示的に格納されたゼロ変位は
 除外します。現在のweightが0でも、頂点マスクが0でも、デルタがあれば対象です。
 ``tolerance`` は非負の有限数で、その値と等しい変位も除外します。
 複数ベースでは ``base`` を指定でき、対象がない場合は空のVerticesを返します。
@@ -541,13 +525,14 @@ influence がすべて現在の skinCluster に存在することを要求しま
 
 .. code-block:: python
 
+   import math
    from mlib.decorator import preservedSkinShape
    from mlib.nodes.joint import Joint
 
    joint = Joint("mlibExampleJoint")
    with preservedSkinShape([joint]):
-       # 現在のjoint姿勢をスキニング基準へ反映する。
-       joint.getPlug("jointOrientZ").set(45.0)
+       # 45度を内部単位のラジアンへ変換し、現在のjoint姿勢をスキニング基準へ反映する。
+       joint.getPlug("jointOrientZ").set(math.radians(45.0))
 
 ``preservedSkinShape`` は Maya標準の ``skinCluster -moveJointsMode`` /
 ``-recacheBindMatrices`` を使い、ブロック内での joint 姿勢変更を

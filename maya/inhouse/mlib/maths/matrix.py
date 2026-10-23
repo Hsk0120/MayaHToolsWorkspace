@@ -4,7 +4,6 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from .._core.getterAlias import _is_alias
 from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
@@ -981,19 +980,6 @@ class Matrix(om2.MMatrix):
         if not isinstance(other, _MMatrix):
             other = Matrix(other)
         return _MMatrix.isEquivalent(self, other, tolerance)
-
-    @_is_alias(isEquivalent)
-    def equivalent(self, *args, **kwargs):
-        """isEquivalentへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isEquivalent(*args, **kwargs)
 
     def inverse(self):
         """逆行列を新しいインスタンスとして返す。

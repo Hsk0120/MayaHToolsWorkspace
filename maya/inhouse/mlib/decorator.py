@@ -242,7 +242,7 @@ def viewportOff():
     """メインペインを非表示にし、終了時に以前の表示状態へ戻す。
 
     ``@viewportOff()`` と ``with viewportOff():`` の両方で使用できる。
-    GUIではViewport.suspendと同じpaneLayoutのmanage方式を使用する。
+    GUIではメインペインのpaneLayoutのmanageを一時的に解除する。
     バッチ実行では表示操作を行わない。OGS・refresh・評価設定は変更しない。
     入れ子でも元の状態を維持し、処理中の例外は再実行せず伝播する。
 
@@ -255,7 +255,15 @@ def viewportOff():
     if cmds.about(batch=True):
         yield
         return
-    from .common.viewport import Viewport
+    import maya.mel as mel
 
-    with Viewport.suspend():
+    pane = mel.eval("global string $gMainPane; $mlibMainPane = $gMainPane;")
+    if not pane or not cmds.paneLayout(pane, exists=True):
+        raise RuntimeError("Maya main pane is unavailable")
+    previous = cmds.paneLayout(pane, query=True, manage=True)
+    try:
+        cmds.paneLayout(pane, edit=True, manage=False)
         yield
+    finally:
+        if cmds.paneLayout(pane, exists=True):
+            cmds.paneLayout(pane, edit=True, manage=previous)

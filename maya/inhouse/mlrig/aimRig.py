@@ -61,9 +61,8 @@ class AimRig(ControlRig):
             up.getPlug("translate").set((position[0], position[1] + size * 2, 0))
             for node in (target, up):
                 ControlShape.circle(node, size * 0.12, (0, 0, 1), 18)
-            constraint = mlib.addConstraint(
+            constraint = layer.addConstraint(
                 target,
-                layer,
                 type="aim",
                 aimVector=(0, 0, 1),
                 upVector=(0, 1, 0),

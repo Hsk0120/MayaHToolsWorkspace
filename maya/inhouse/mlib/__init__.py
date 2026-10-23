@@ -3,7 +3,7 @@
 # reloadは辞書を保持するため、前回の公開値を明示importの前に解除する。
 for _name in globals().get("__all__", ()):
     if _name not in {"cmds", "nodes", "plugs", "components", "common", "logger",
-                     "decorator", "maths", "json", "reload"}:
+                     "decorator", "maths", "reload"}:
         globals().pop(_name, None)
 for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
@@ -11,11 +11,11 @@ for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
               "session", "units", "workspace", "selection", "context", "editors",
               "files", "namespaces", "plugins", "animation", "scene", "environment",
               "ui", "events", "utils", "decorators", "object", "Object", "extensions",
-              "general", "TYPE_CHECKING", "_command_exports", "_importlib", "_bootstrap"):
+              "general", "json", "TYPE_CHECKING", "_command_exports", "_importlib", "_bootstrap"):
     globals().pop(_name, None)
 
 from . import logger
-from . import common, decorator, cmds, nodes, plugs, components, maths, json
+from . import common, decorator, cmds, nodes, plugs, components, maths
 from ._core.registry import NodeRegistry as _NodeRegistry
 from ._core.reload import reload_package as _reload_package
 
@@ -28,92 +28,31 @@ nodes.Node._registry, plugs.Plug._registry = _node_registry, _plug_registry
 del _node_registry, _plug_registry
 
 from .cmds import (
-    addAttr,
-    addConstraint,
-    bakeResults,
-    bindSkin,
-    captureSelection,
-    createBlendShape,
-    createCurve,
-    createGroup,
-    createIkHandle,
     createNode,
-    createNurbs,
-    createPolygon,
-    createSet,
-    createShader,
-    createShadingGroup,
-    createShelf,
     delete,
     duplicate,
-    executeDeferred,
-    getChannelBox,
-    getDrivenKey,
     getNode,
-    getOutliner,
     getPlug,
-    getScene,
-    getShelf,
-    getTimeSlider,
-    getViewport,
-    getWindow,
-    getWorkspaceControl,
-    getWorkspaceLayout,
     ls,
-    makeIdentity,
-    mirrorJoint,
-    reorder,
-    requirePlugins,
     select,
 )
 
 __all__ = [
-    "addAttr",
-    "addConstraint",
-    "bakeResults",
-    "bindSkin",
-    "captureSelection",
     "cmds",
     "common",
     "components",
-    "createBlendShape",
-    "createCurve",
-    "createGroup",
-    "createIkHandle",
     "createNode",
-    "createNurbs",
-    "createPolygon",
-    "createSet",
-    "createShader",
-    "createShadingGroup",
-    "createShelf",
     "decorator",
     "delete",
     "duplicate",
-    "executeDeferred",
-    "getChannelBox",
-    "getDrivenKey",
     "getNode",
-    "getOutliner",
     "getPlug",
-    "getScene",
-    "getShelf",
-    "getTimeSlider",
-    "getViewport",
-    "getWindow",
-    "getWorkspaceControl",
-    "getWorkspaceLayout",
-    "json",
     "logger",
     "ls",
-    "makeIdentity",
     "maths",
-    "mirrorJoint",
     "nodes",
     "plugs",
     "reload",
-    "reorder",
-    "requirePlugins",
     "select",
 ]
 

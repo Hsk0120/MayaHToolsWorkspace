@@ -85,7 +85,7 @@ class ConsolidatedNodesTest(unittest.TestCase):
                 self.assertAlmostEqual(angle.get(), .4)
                 self.assertAlmostEqual(length.get(), 2.5)
                 self.assertAlmostEqual(time.get(), .5)
-                plain = mlib.addAttr(node, longName="plain", attributeType="double", defaultValue=3, fast=True)
+                plain = mlib.getNode(node).addAttr(longName="plain", attributeType="double", defaultValue=3, fast=True)
                 self.assertEqual(plain.get(), 3)
                 with self.assertRaises(NotImplementedError):
                     node.addAttr("proxy", proxy=plain, fast=True)
@@ -129,8 +129,8 @@ class ConsolidatedNodesTest(unittest.TestCase):
             mlib.delete([parent, mesh.getVertices([0])], fast=True)
         self.assertTrue(parent.isValid())
 
-    def test_rename_namespace_and_group(self):
-        """Shapeの連動改名とfastのグループ作成を確認する。"""
+    def test_rename_namespace_keeps_shape_and_world_matrix(self):
+        """fastの名前・namespace変更は子Shapeを追従させ、行列を維持する。"""
         transform = mlib.createNode("transform", name="old")
         shape = mlib.createNode("mesh", name="oldShape", parent=transform)
         transform.setTranslate((2, 3, 4))
@@ -140,10 +140,6 @@ class ConsolidatedNodesTest(unittest.TestCase):
             self.assertEqual(shape.getNodeName(), "newShape")
             transform.setNamespace(":direct:children", fast=True)
             self.assertEqual(transform.getNodeName(), "direct:children:new")
-            empty = mlib.createGroup(name="empty", empty=True, world=True, fast=True)
-            self.assertEqual(empty.getType(), "transform")
-            grouped = mlib.createGroup([transform], name="grouped", world=True, fast=True)
-        self.assertEqual(transform.getParent(), grouped)
         self.assertMatrixEqual(transform.getMatrix(worldSpace=True), matrix)
 
     def test_fast_rename_keeps_foreign_namespace_shape(self):

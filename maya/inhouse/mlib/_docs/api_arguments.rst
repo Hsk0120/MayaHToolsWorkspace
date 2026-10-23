@@ -28,9 +28,8 @@
 
 ``Node``・``DagNode``・``Shape``・``Constraint`` 等の作成型が確定しない基底クラス、
 抽象Maya型に対応する ``AnimCurve``、geometryが必要な ``SkinCluster`` は
-``create=True`` を受け付けません。SkinClusterは ``mlib.bindSkin(geometry, influences)`` /
-``SkinCluster.bind(mesh, influences)`` でバインドします。
-``mlib.getNode()`` / ``mlib.cmds.getNode()`` 等の取得関数とget付きの本体には、
+``create=True`` を受け付けません。SkinClusterは ``SkinCluster.bind(mesh, influences)`` でバインドします。
+``mlib.getNode()`` / ``mlib.cmds.getNode()`` 等の既存対象を取得する関数には、
 ``create`` を追加していません。詳しくは :doc:`guide_nodes` を参照してください。
 
 lsのコンポーネント取得
@@ -48,12 +47,11 @@ lsのコンポーネント取得
 BlendShapeの追加編集API
 -----------------------
 
-``mlib.createBlendShape(base, targets=None, **kwargs)`` は新規BlendShapeを返します。
-単一のベースを先頭に明示し、targetsは単体または列、None/空列なら空ターゲットで作成します。
-作成フラグの長短名と通常Undoに対応し、照会・編集・fastは受け付けません。
+新規BlendShapeはMaya標準の ``cmds.blendShape`` の結果を ``mlib.getNode`` で包みます。
 
-従来の ``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と
-``targetAliases/weightPlugs/weights/geometry`` は引数・戻り値とも維持します。
+``addTarget(target, base=None, weight_index=None, full_weight=1.0)`` と
+``getTargetAliases()`` / ``getWeightPlugs()`` / ``getWeights()`` / ``getGeometry()`` の
+引数・戻り値を維持します。
 以下の ``target`` は既存ターゲットの整数番号、weightのエイリアス、または同じ
 BlendShapeに属する登録済みweight要素のPlugです。別ノードのPlug・配列親・
 weight以外・実ターゲットのない要素は受け付けません。
@@ -84,10 +82,6 @@ weight以外・実ターゲットのない要素は受け付けません。
      - 自身
    * - ``targetEdit(target=None, state=True, full_weight=1.0)``
      - 自身。Trueで開始、Falseで終了
-   * - ``dumpTargetDeltas(target, path, base=None, full_weight=1.0)``
-     - 保存したPath。シーン変更なし
-   * - ``loadTargetDeltas(target, path, base=None, full_weight=1.0, disconnect=False, *, fast=False)``
-     - 自身。既存項目のデルタ全体を置換
    * - ``addTargetDeltas(deltas, base=None, weight_index=None, alias=None)``
      - 新規通常ターゲットのweight Plug
    * - ``getInBetweenWeights(target, base=None)``
@@ -136,21 +130,21 @@ TrueはUndoなしのOpenMaya更新です。入力と戻り値・単位は同じ�
      - 戻り値と方向指定
    * - ``getConnections(src=True, dst=True)``
      - 通常は相手Plugのリスト。``src/dst`` は既存の ``source/destination`` の別名
-   * - ``connected(*, src=True, dst=True)``
+   * - ``isConnected(*, src=True, dst=True)``
      - 指定方向に接続があればTrue
-   * - ``connectedTo(other, *, src=True, dst=True)``
+   * - ``isConnectedTo(other, *, src=True, dst=True)``
      - 指定方向でotherと直結していればTrue
    * - ``disconnectAll(*, src=True, dst=True)``
      - 指定方向を全て切断し、自身を返す
 
-``connected``・``connectedTo``・``disconnectAll`` の方向指定は
+``isConnected``・``isConnectedTo``・``disconnectAll`` の方向指定は
 boolのキーワード専用引数です。bool以外は ``TypeError`` になります。
 両Falseでは判定はFalse、通常の接続取得は空リスト、``disconnectAll`` は何もせず自身を返します。
 ``getConnections`` の従来の位置引数・``s/d`` は維持し、入力は ``s and source``、
 出力は ``d and destination`` で評価します。``s=False, src=True`` でも入力は含めません。
 子・配列要素の列挙は ``getConnections`` の ``checkChildren/checkElements`` で指定します。
-``connected`` はMPlugの従来の接続状態判定を維持し、子・配列要素を列挙する検索は行いません。
-``connectedTo`` と ``disconnectAll`` は対象Plugの直結だけを扱います。
+``isConnected`` はMPlugの従来の接続状態判定を維持し、子・配列要素を列挙する検索は行いません。
+``isConnectedTo`` と ``disconnectAll`` は対象Plugの直結だけを扱います。
 
 .. code-block:: python
 
@@ -160,8 +154,8 @@ boolのキーワード専用引数です。bool以外は ``TypeError`` になり
    dst.disconnectInput()      # 未接続でもエラーにせず、自身を返す
    dst.disconnectAll()        # 入力と全出力を明示的に切断し、自身を返す
    plug.getConnections(src=False, dst=True)  # 出力先Plugのリスト
-   plug.connected(src=True, dst=False)     # 入力の有無
-   plug.connectedTo(other, src=False, dst=True)  # 自身からotherへの接続の有無
+   plug.isConnected(src=True, dst=False)     # 入力の有無
+   plug.isConnectedTo(other, src=False, dst=True)  # 自身からotherへの接続の有無
    plug.disconnectAll(src=False, dst=True)   # 出力のみ切断し、自身を返す
    element = array.connect(src, na=True)
    array.disconnect(src, na=True)
@@ -272,8 +266,7 @@ mlibでは既定で追加したPlugを返します。``getPlug=False`` を明示
 
 ``rename`` の旧 ``ignore_shape`` 引数も ``ignoreShape`` へ移行しました。
 
-ここでの ``addAttr`` はNodeのメソッドです。``mlib.addAttr(node, ...)`` は
-Mayaコマンド用の入口で、従来どおり常にPlugを返し、getPlug引数は受け取りません。
+ここでの ``addAttr`` はNodeのメソッドです。追加したPlugを既定で返します。
 
 ノード削除のsafe
 ----------------

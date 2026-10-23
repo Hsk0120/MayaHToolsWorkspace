@@ -1,5 +1,6 @@
 """少数の放射状ドライバーで、多数のスカート骨を制御する。"""
 
+import json
 from maya import cmds
 
 from functools import partial
@@ -82,7 +83,7 @@ class SkirtRig:
         root = mlib.createNode("transform", name=name, skipSelect=True)
         root.addAttr(longName="mlrigSkirtDefinition", dataType="string")
         root.getPlug("mlrigSkirtDefinition").set(
-            mlib.json.JsonText.dumps(
+            json.dumps(
                 dict(
                     version=1,
                     driver_count=driver_count,
@@ -181,9 +182,8 @@ class SkirtRig:
                     (radius * math.cos(angle), -spacing * depth, radius * math.sin(angle))
                 )
                 rest.getPlug("rotateY").set(-angle)
-                constraint = mlib.addConstraint(
+                constraint = joint.addConstraint(
                     [rest, drivers[indices[0]][depth], drivers[indices[1]][depth]],
-                    joint.getFullName(),
                     maintainOffset=True,
                     skipTranslate=["x", "y", "z"],
                     name=joint.getName() + "_parentConstraint",
@@ -222,7 +222,7 @@ class SkirtRig:
         Returns:
             list[list[Node]]: 円周順・根元から先端順の骨。
         """
-        size = mlib.json.JsonText.loads(self.root.getPlug("mlrigSkirtDefinition").get())[
+        size = json.loads(self.root.getPlug("mlrigSkirtDefinition").get())[
             "joints_per_chain"
         ]
         members = self._members(attr)

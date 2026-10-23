@@ -84,7 +84,7 @@ class ComponentUsabilityTest(unittest.TestCase):
 
     def test_selection_formal_names_preserve_symbols_order_and_owners(self):
         """正式種類名は記号と同じ集合を返し、保持順と複数シェイプを維持する。"""
-        other = mlib.createPolygon(type="cube", name=self.namespace + ":other")
+        other = mlib.getNode(cmds.polyCube(name=self.namespace + ":other")[0]).getShape()
         joint = mlib.createNode("joint", name=self.namespace + ":joint")
         selected = Selection([
             self.mesh.getVertex(2), self.mesh.getEdge(0), self.curve.getCV(1),
@@ -112,20 +112,20 @@ class ComponentUsabilityTest(unittest.TestCase):
         items = [shape.getVertex(8), shape.getVertices([8, 0]), shape.getEdge(11),
                  shape.getEdges([11]), shape.getFace(3), shape.getFaces([3])]
         empty = shape.getVertices([])
-        self.assertTrue(all(item.valid() for item in items))
+        self.assertTrue(all(item.isValid() for item in items))
         cmds.setAttr(history + ".subdivisionsWidth", 1)
         cmds.setAttr(history + ".subdivisionsHeight", 1)
         for item in items:
             self.assertFalse(item.isValid())
-            self.assertFalse(item.valid())
-        self.assertTrue(empty.valid())
+            self.assertFalse(item.isValid())
+        self.assertTrue(empty.isValid())
         with self.assertRaises(IndexError):
             items[0].getPosition()
         with self.assertRaises(IndexError):
             items[1].getFullNames()
         cmds.undo()
         cmds.undo()
-        self.assertTrue(all(item.valid() for item in items))
+        self.assertTrue(all(item.isValid() for item in items))
 
     def test_deleted_shape_empty_contract_and_undo(self):
         """削除中の空集合もFalseで、Undo後は保持参照を再び照会できる。"""
@@ -135,15 +135,15 @@ class ComponentUsabilityTest(unittest.TestCase):
         cmds.delete(self.mesh.getTransform())
         undo_name = cmds.undoInfo(query=True, undoName=True)
         for value in (single, items, empty):
-            self.assertFalse(value.valid())
+            self.assertFalse(value.isValid())
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
         self.assertEqual(empty.getPosition(), [])
         with self.assertRaises(RuntimeError):
             single.getFullName()
         cmds.undo()
-        self.assertTrue(all(value.valid() for value in (single, items, empty)))
+        self.assertTrue(all(value.isValid() for value in (single, items, empty)))
         cmds.redo()
-        self.assertFalse(single.valid())
+        self.assertFalse(single.isValid())
 
     def test_validity_uses_current_uv_set_and_cv_count(self):
         """UVは現在セットの番号範囲、CVは現在カーブの番号範囲を使う。"""
@@ -151,29 +151,29 @@ class ComponentUsabilityTest(unittest.TestCase):
         original = cmds.polyUVSet(self.mesh, query=True, currentUVSet=True)[0]
         cmds.polyUVSet(self.mesh, create=True, uvSet="empty")
         cmds.polyUVSet(self.mesh, currentUVSet=True, uvSet="empty")
-        self.assertFalse(uv.valid())
-        self.assertFalse(uvs.valid())
-        self.assertTrue(empty.valid())
+        self.assertFalse(uv.isValid())
+        self.assertFalse(uvs.isValid())
+        self.assertTrue(empty.isValid())
         cmds.polyUVSet(self.mesh, currentUVSet=True, uvSet=original)
-        self.assertTrue(uv.valid())
-        self.assertTrue(uvs.valid())
+        self.assertTrue(uv.isValid())
+        self.assertTrue(uvs.isValid())
         cv, cvs = self.curve.getCV(2), self.curve.getCVs([2])
-        self.assertTrue(cv.valid())
-        self.assertTrue(cvs.valid())
+        self.assertTrue(cv.isValid())
+        self.assertTrue(cvs.isValid())
         with mock.patch.object(self.curve, "getNumCVs", return_value=2):
-            self.assertFalse(cv.valid())
-            self.assertFalse(cvs.valid())
+            self.assertFalse(cv.isValid())
+            self.assertFalse(cvs.isValid())
 
-    def test_valid_alias_delegates_and_shape_type_is_checked(self):
-        """省略判定は派生・差替え先へ委譲し、形状の種類を検証する。"""
+    def test_canonical_validity_checks_shape_type(self):
+        """正式判定の差替えと、所有シェイプの種類に基づく無効化を確認する。"""
         values = (self.mesh.getVertex(0), self.mesh.getVertices([0]), self.mesh.getVertices([]))
         for value in values:
-            self.assertEqual(inspect.signature(value.valid), inspect.signature(value.isValid))
+            self.assertFalse(hasattr(type(value), "valid"))
             with mock.patch.object(value, "isValid", return_value=False) as reader:
-                self.assertFalse(value.valid())
+                self.assertFalse(value.isValid())
                 reader.assert_called_once_with()
         with mock.patch.object(self.mesh, "getType", return_value="nurbsCurve"):
-            self.assertTrue(all(not value.valid() for value in values))
+            self.assertTrue(all(not value.isValid() for value in values))
 
     def test_delete_plug_recovery_names_callable_owner(self):
         """拒否時の回復案内は、そのまま実行可能な所有ノード取得を示す。"""
@@ -181,9 +181,9 @@ class ComponentUsabilityTest(unittest.TestCase):
         plug = node.addAttr("amount", attributeType="double")
         with self.assertRaisesRegex(TypeError, r"plug\.getNode\(\)"):
             mlib.delete(plug)
-        self.assertTrue(node.valid())
+        self.assertTrue(node.isValid())
         mlib.delete(plug.getNode())
-        self.assertFalse(node.valid())
+        self.assertFalse(node.isValid())
 
 
 if __name__ == "__main__":

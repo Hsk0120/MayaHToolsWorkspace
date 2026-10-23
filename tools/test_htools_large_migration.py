@@ -166,17 +166,17 @@ def verifySharedApis():
     import maya.cmds as cmds
     from mlib.maths import MSpace
     from mlib.nodes import Mesh
-    from mlib.common.orientedBounds import computeOrientedBounds
     from mlrig.setups import ControlShape
+    collision = loadTool("simpleCollisionFromSelection", None)
     reset()
     for points in ([], [(0, 0, 0)] * 2, [(float("nan"), 0, 0)] * 3):
         try:
-            computeOrientedBounds(points)
+            collision.compute_oriented_bounds(points)
         except ValueError:
             pass
         else:
             raise AssertionError("Invalid bounds input accepted")
-    bounds = computeOrientedBounds([(1, 2, 3)] * 3)
+    bounds = collision.compute_oriented_bounds([(1, 2, 3)] * 3)
     assert equivalent(list(bounds["center"]), [1.0, 2.0, 3.0])
     assert bounds["size"] == (1e-6, 1e-6, 1e-6)
     mesh = cmds.polyPlane(width=2, height=2, subdivisionsX=1, subdivisionsY=1)[0]

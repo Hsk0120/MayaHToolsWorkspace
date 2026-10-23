@@ -5,7 +5,6 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from .._core.getterAlias import _is_alias
 from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison
 from .quaternion import Quaternion
 from .vector import _reduce_value
@@ -706,19 +705,6 @@ class EulerRotate(om2.MEulerRotation):
         if not isinstance(other, _MEuler):
             other = EulerRotate(other)
         return _MEuler.isEquivalent(self, other, tolerance)
-
-    @_is_alias(isEquivalent)
-    def equivalent(self, *args, **kwargs):
-        """isEquivalentへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isEquivalent(*args, **kwargs)
 
     def alternateSolution(self, *args):
         """同じ向き・回転順序を持つ、別解のオイラー回転を返す。

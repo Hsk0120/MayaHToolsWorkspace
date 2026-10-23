@@ -4,8 +4,6 @@ import re
 from dataclasses import dataclass
 from functools import total_ordering
 
-from .._core.getterAlias import _is_alias
-
 
 @total_ordering
 @dataclass(frozen=True, eq=False, repr=False, init=False)
@@ -190,19 +188,6 @@ class Version:
         if required is None:
             raise ValueError(f"Invalid minimum version: {minimum!r}")
         return self >= required
-
-    @_is_alias(isAtLeast)
-    def atLeast(self, *args, **kwargs):
-        """isAtLeastへ委譲するis省略の判定入口。
-
-        Args:
-            *args (object): 判定本体へ渡す位置引数。
-            **kwargs (object): 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isAtLeast(*args, **kwargs)
 
     @staticmethod
     def _component(value):

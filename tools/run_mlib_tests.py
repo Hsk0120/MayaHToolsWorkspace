@@ -35,7 +35,6 @@ def worker(version, result_path):
         sys.path.insert(0, str(ROOT / "maya/inhouse"))
         tests = ROOT / "maya/inhouse/mlib/__tests__"
         namespace = runpy.run_path(str(tests / "run_all_tests.py"))
-        namespace["EXCLUDED_FILES"].add("test_scene_ui.py")
         # 各バージョンの詳細ログを同じ結果ディレクトリに格納する。
         namespace["run_all"].__globals__["LOG_DIR"] = result_path.parent
         suite = namespace["run_all"]()

@@ -111,6 +111,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-23): ユーザーのpush依頼に基づき、mlib縮小A・Bと追加上2案、依存するmlrig・検査ツール・日英文書の269ファイルをコミット対象に選定。直前のMaya2022〜2027・mlrig253件・Maya不要53件・日英Sphinxの検証結果と差分を照合し、研究メモ/生成物と並行するhingeIK/planarIKの追加・共有ファイル編集を除外。共有WORK_LOGはCodexの今回分完了履歴だけをstageへ反映。詳細.maya-output/mlib-shrink-push20261023/。
+
+- Codex (2026-10-23): ユーザー指定の追加縮小上2案を実装。演算14型はクラス/継承/公開/型登録を維持して71専用メソッドを終了し、Maya標準名のPlug操作へ統一。is省略57入口（undo.enabled含む）と専用helper/Sphinx投影を廃止し正式is名を使用。保持1,562定義の引数/decorator/実行本体と全156クラスの基底、nodes/plugs公開・型表が開始前と一致し、複数形/reload/自動探索/数学所有権/単位/通常Undo・fastと専門編集・保存・小便利/Cを維持。181実装33,188物理行、今回分2,013行（docstring等を含む）/code617行減。Maya2022〜2027各137ファイル/1,178件を実行し、旧3版の型未登録フォールバックに対するテスト期待値を修正後、該当4件を全6版で再実行して失敗を解消（全体の環境依存skipは旧版6/新版3）。mlrig2027統合253件、Maya不要53件成功。日英Sphinxを-Wでビルドし各383HTML/正式get・is参照/7コマンド署名の検査成功。英訳未訳/fuzzy/記法エラー0、mlrig PO保持。Python3.7構文/公開/レイアウト/独立レビュー/差分検査成功。GUI・性能測定は未実施、ブラウザー表示はPlaywright未導入で未検証。結果.maya-output/mlib-top2-20261023/result.json。既存A+Bと他作業差分を保持、未コミット・未プッシュ。
+
+- Codex (2026-10-23): A・B後のmlib182実装35,201物理行を再調査し、拡張性を維持した追加縮小案をdocs/research/mlibExtensionShrinkPlan20261023.txtへローカル保存。演算14型の専用API終了（型クラス保持）1,178行＋判定alias56入口/専用helper732行を第一候補とし、専門編集/保存/再配分と小便利群まで含む重複控除後の対象を3,747物理/doc2,140/code1,423（10.64%）と試算。移行追加前であり、A+B/C・移設のみの535行・docだけ短縮は非計上。Node/Plug登録、Nodes、reload、自動探索、数学所有権/単位/Undo・fastを維持。拡張登録基盤661行・薄い型群は削減非推奨、API保持の内部整理は22行程度。182実装SHA不変、独立union/依存レビュー・公開入口不一致0・差分検査成功。成果は.maya-output/mlib-extension-shrink-20261023/。製品/正式文書/テスト変更、Maya実行、コミット/pushなし。既存A+B未コミット変更と他作業を保持。
+
+- Codex (2026-10-23): ユーザー指定のmlib縮小案A・Bを実装。汎用UI/設定/型付きJSON・Snapshot/専用色/Scene・Workspace・FBX/mlib版OBBを廃止しcmds37→7入口へ集約。mlrigは標準json/cmds/mel・既存オブジェクトAPIへ移行し、viewportOffの状態復帰とHTools既存OBBを維持。旧互換入口・型付き保存形式readerなし。mlib実装244→182ファイル、42,909→35,201物理行（docstring等を含む7,708行/17.96%減、code3,097行減）。CのMesh/DagPose機能、保持APIの引数・単位・返却・数学所有権・複数形/reload/拡張探索/Undo・fastは維持。Maya2022〜2027各138ファイル/1,191件成功（旧版6/新版3skip）、mlrig2027統合253件、専用GUI2022/2027各20項目、Maya不要54件成功。mlrig2022全件は既存2025+制限50件・DLL不足4件のエラーと未変更Soft IK旧版精度の119subtest失敗を確認し対象外として保持。mlib/mlrig日英Sphinxを-Wでビルドし、mlib日英各384HTML・正式取得名・公開入口・書式・差分検査成功。英訳は廃止項目を除き未訳0、mlrig POと別作業変更を保持。結果.maya-output/mlib-ab20261023/result.json。性能測定・リグ動画検証は未実施。未コミット・未プッシュ。
+
+- 2026-10-23: Codex がmlibの提供機能縮小を検討。UI/設定/JSON＋BS単体delta/色/Scene・Workspace・FBX/mlib版OBBの提供終了案Aは6,516物理/code2,635行、cmds37→7の案Bは累計7,544/code2,948、Mesh頂点番号再構築/DagPose統合の案Cは累計8,107/code3,394を重複なし対象として集計（移行追加控除前）。JsonText12files26callsのstdlib移行、GUI起動/viewportOffの代替、旧型付きJSON保存契約終了、HTools既存OBB保持を条件へ明記。複数形/reload/拡張探索/数学/Undo・fastと小便利を維持。詳細はGit対象外docs/research/mlibFeatureScopePlan20261023.txt。244実装SHA一致、依存閉包・集計の独立レビュー成功。製品/正式文書変更なし、静的検討のみでMaya未実行、既存他作業差分を保持。
+
+- 2026-10-23: Codex がad1ab27後のmlib大幅縮小候補を追加調査。244実装42,909物理行をdoc20,982/code17,992等へ分離し、重複本体・主要型・内製利用側を確認。OBB二重実装は内製全体約370〜390物理行、Joint不要内部定義は42〜63行の純減候補。UI/設定/Snapshotの計3,416物理/code1,312行は機能範囲変更の場合だけの規模として、doc短縮・外部移動と区別。確定API/数学/Undo/fast/複数形/reload/自動探索を維持する条件を整理。詳細はGit対象外docs/research/mlibLargeShrinkAudit20261023.txt。244実装SHA一致と独立レビュー確認、製品コード・正式文書変更なし、静的調査のみでMaya未実行。既存の他作業変更を保持。
+
 - 2026-10-23 Claude Code: HTools > rigging > createTwistJoints を追加。根本と末端のジョイントの間を個数+1等分した位置に、根本の子で回転・jointOrient・rotateAxis が0のジョイントを作る(rotateOrderは根本に合わせる、1回のUndo)。mlib非依存(cmds・OpenMaya 2.0のみ)。mayapy 2022/2027で40項目、GUI(runpyで開いてCreate)を2022/2027で確認。
 - 2026-10-23: Codex がユーザー依頼によりmlib整理一式と依存するmlrig/HTools/文書/テストをコミット・push対象に選定。共有3ファイルはJointHierarchyとAim設定テストの登録だけをindexへ反映し、別作業Swing/Twist系と外部submodule差分を保持。検証済みmlib244実装のSHA一致、indexだけから取り出した構成のMaya2027 setups93件、ステージ差分検査が成功。Aim設定テストを既存ランナーへ登録。調査メモ/生成物はGit対象外。詳細.maya-output/mlib-maintenance-push20261023/。
 

@@ -64,37 +64,6 @@ class InfluencesColorsTest(unittest.TestCase):
         skin.addInfluences(joints[0])
         self.assertEqual(len(skin.getInfluences()), 2)
 
-    def test_colors_and_undo(self):
-        transform = self.getNode("transform")
-        shape_name = cmds.createNode("nurbsCurve", name=self.ns + ":curveShape", parent=transform.getFullName())
-        shape = mlib.getNode(shape_name)
-        self.assertIsNone(transform.getOutlinerColor().rgb)
-        transform.setOutlinerColor((1, 0.5, 0))
-        self.assertEqual(transform.getOutlinerColor().rgb, (1, 0.5, 0))
-        cmds.undo()
-        self.assertIsNone(transform.getOutlinerColor().rgb)
-        cmds.redo()
-        self.assertEqual(transform.getOutlinerColor().rgb, (1, 0.5, 0))
-        transform.setOutlinerColor(None)
-        self.assertIsNone(transform.getOutlinerColor().rgb)
-        shape.setOverrideColor(13)
-        self.assertEqual(shape.getOverrideColor().index, 13)
-        shape.setOverrideColor((0, 0.5, 1))
-        self.assertEqual(shape.getOverrideColor().rgb, (0, 0.5, 1))
-        cmds.undo()
-        self.assertEqual(shape.getOverrideColor().index, 13)
-        cmds.redo()
-        self.assertEqual(shape.getOverrideColor().rgb, (0, 0.5, 1))
-        shape.setOverrideColor(None)
-        self.assertEqual(shape.getOverrideColor().mode, "disabled")
-        cmds.undo()
-        self.assertEqual(shape.getOverrideColor().rgb, (0, 0.5, 1))
-        for value in (-1, 32, True, (1, 0), (1, float("nan"), 0)):
-            with self.assertRaises(ValueError):
-                shape.setOverrideColor(value)
-        self.assertEqual(shape.getOverrideColor().rgb, (0, 0.5, 1))
-        with self.assertRaises(AttributeError):
-            self.getNode("network").setOverrideColor(13)
 
 
 if __name__ == "__main__":

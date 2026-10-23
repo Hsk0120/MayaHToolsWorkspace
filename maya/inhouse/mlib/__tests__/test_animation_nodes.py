@@ -98,28 +98,6 @@ class AnimationNodesTest(unittest.TestCase):
         self.assertEqual(curve.getInfinity()["pre"], "oscillate")
         self.assertIs(curve.setInfinity(fast=True), curve)
 
-    def test_blend_sparse_inputs_and_connections(self):
-        blend = self.create("blendWeighted")
-        self.assertIsInstance(blend, mlib.nodes.BlendWeighted)
-        blend.setInput(0, 3).setInput(5, 10).setWeight(5, 0.5)
-        self.assertEqual(blend.getInputIndices(), [0, 5])
-        self.assertAlmostEqual(blend.getPlug("output").get(), 8)
-        self.assertEqual(blend.getWeights(), {0: 1, 5: 0.5})
-        cmds.undo()
-        self.assertAlmostEqual(blend.getPlug("output").get(), 13)
-        cmds.redo()
-        self.assertAlmostEqual(blend.getPlug("output").get(), 8)
-        curve = self.create("animCurveUU").setKey(0, 7)
-        blend.connectInput(0, curve.getPlug("output"))
-        self.assertAlmostEqual(blend.getPlug("output").get(), 12)
-        destinations = curve.getPlug("output").getDestinations(skipConversionNodes=False)
-        self.assertEqual(destinations[0].getNode().getFullName(), blend.getFullName())
-        cmds.undo()
-        self.assertAlmostEqual(blend.getPlug("output").get(), 8)
-        cmds.redo()
-        self.assertAlmostEqual(blend.getPlug("output").get(), 12)
-        with self.assertRaises(ValueError):
-            blend.setWeight(-1, 1)
 
     def test_standard_plug_queries_keep_direct_conversion_connections(self):
         """入出力の直接接続照会は変換ノードを飛ばさず、Undo履歴を変えない。"""

@@ -20,7 +20,7 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_creation_units_undo_and_rename(self):
-        relation = mlib.getDrivenKey(self.a + ".ry", mlib.getNode(self.b).getPlug("rz"))
+        relation = mlib.common.DrivenKey(self.a + ".ry", mlib.getNode(self.b).getPlug("rz"))
         before = cmds.ls(type="animCurve") or []
         self.assertFalse(relation.exists())
         self.assertEqual(cmds.ls(type="animCurve") or [], before)
@@ -43,8 +43,8 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertEqual(len(relation.getCurves()), 1)
 
     def test_multiple_drivers_and_find(self):
-        one = mlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
-        two = mlib.getDrivenKey(self.c + ".tx", self.b + ".ty")
+        one = mlib.common.DrivenKey(self.a + ".tx", self.b + ".ty")
+        two = mlib.common.DrivenKey(self.c + ".tx", self.b + ".ty")
         one.setKey(0, 0).setKey(10, 10)
         two.setKey(0, 0).setKey(10, 20)
         self.assertEqual(len(one.getCurves()), 1)
@@ -78,7 +78,7 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertEqual(len(found), 2)
         self.assertEqual({p.getFullName() for p in [relation.getDriverPlug() for relation in found]},
                          {mlib.getNode(self.a).getPlug("tx").getFullName(), mlib.getNode(self.c).getPlug("tx").getFullName()})
-        relation = mlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
+        relation = mlib.common.DrivenKey(self.a + ".tx", self.b + ".ty")
         self.assertEqual(len(relation.getCurves()), 1)
         relation.setKey(10, 10)
         self.assertEqual(relation.getCurves()[0].getKeyCount(), 2)
@@ -86,17 +86,17 @@ class DrivenKeyTest(unittest.TestCase):
     def test_time_animation_is_not_replaced(self):
         cmds.setKeyframe(self.b + ".tx", time=1, value=2)
         before = cmds.listConnections(self.b + ".tx", source=True, destination=False, plugs=True)
-        relation = mlib.getDrivenKey(self.a + ".tx", self.b + ".tx")
+        relation = mlib.common.DrivenKey(self.a + ".tx", self.b + ".tx")
         with self.assertRaises(RuntimeError):
             relation.setKey(0, 0)
         self.assertEqual(cmds.listConnections(self.b + ".tx", source=True, destination=False, plugs=True), before)
 
     def test_validation_and_unsupported_connections(self):
         with self.assertRaises(ValueError):
-            mlib.getDrivenKey(self.a + ".translate", self.b + ".ty")
+            mlib.common.DrivenKey(self.a + ".translate", self.b + ".ty")
         with self.assertRaises(ValueError):
-            mlib.getDrivenKey(self.a + ".tx", self.a + ".translateX")
-        relation = mlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
+            mlib.common.DrivenKey(self.a + ".tx", self.a + ".translateX")
+        relation = mlib.common.DrivenKey(self.a + ".tx", self.b + ".ty")
         with self.assertRaises(ValueError):
             relation.setKey(float("nan"), 0)
         cmds.connectAttr(self.c + ".ty", self.b + ".ty")
@@ -124,13 +124,13 @@ class DrivenKeyTest(unittest.TestCase):
         self.assertNotEqual(first_shape, second_shape)
         cmds.addAttr(first_shape, longName="drv", attributeType="double", keyable=True)
         driver = mlib.getNode(second_shape).getPlug("drv")
-        relation = mlib.getDrivenKey(driver, self.c + ".tx")
+        relation = mlib.common.DrivenKey(driver, self.c + ".tx")
         relation.setKey(0, 0)
         relation.setKey(1, 10)
         self.assertEqual(len(relation.getCurves()), 1)
         self.assertTrue(relation.exists())
         # 1つ目のインスタンスのパスで指定しても同じ関係として見つかる。
-        same = mlib.getDrivenKey(mlib.getNode(first_shape).getPlug("drv"), self.c + ".tx")
+        same = mlib.common.DrivenKey(mlib.getNode(first_shape).getPlug("drv"), self.c + ".tx")
         self.assertEqual([curve.getFullName() for curve in same.getCurves()],
                          [curve.getFullName() for curve in relation.getCurves()])
         found = mlib.common.DrivenKey.find(self.c + ".tx")
@@ -138,12 +138,12 @@ class DrivenKeyTest(unittest.TestCase):
         cmds.setAttr(first_shape + ".drv", 1)
         self.assertAlmostEqual(cmds.getAttr(self.c + ".tx"), 10.0)
         with self.assertRaises(ValueError):
-            mlib.getDrivenKey(mlib.getNode(first_shape).getPlug("drv"), mlib.getNode(second_shape).getPlug("drv"))
+            mlib.common.DrivenKey(mlib.getNode(first_shape).getPlug("drv"), mlib.getNode(second_shape).getPlug("drv"))
 
     def test_find_skips_non_numeric_drivers(self):
         # 値によって型が変わる generic アトリビュート(choice.output)のドライバーは対象外として除外し、
         # 例外にしない。同じ駆動先の数値ドライバーは見つかる。
-        relation = mlib.getDrivenKey(self.a + ".tx", self.b + ".ty")
+        relation = mlib.common.DrivenKey(self.a + ".tx", self.b + ".ty")
         relation.setKey(0, 0).setKey(10, 10)
         choice = cmds.createNode("choice", name=self.ns + ":choice")
         cmds.connectAttr(self.c + ".tx", choice + ".input[0]")

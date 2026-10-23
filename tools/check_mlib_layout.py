@@ -329,25 +329,8 @@ class Member:
         self.name = getattr(node, "name", None)
         self.category = ATTRIBUTE
         self.subkey = 0
-        self.attach_to = None  # 付随先の定義名、または Member(判定省略入口・属性 docstring)
+        self.attach_to = None  # 付随先の定義名、または Member(属性 docstring)
         self.decorators = [decorator_name(d) for d in getattr(node, "decorator_list", [])]
-
-
-def predicate_alias_target(decorator, def_names):
-    """既知の_is_aliasが参照するクラス内メソッド名だけを返す。
-
-    他のデコレータや計算式は依存を推測せず、既存の安全検査に任せる。
-    """
-    if (not isinstance(decorator, ast.Call) or not isinstance(decorator.func, ast.Name)
-            or decorator.func.id != "_is_alias" or "_is_alias" in def_names
-            or len(decorator.args) != 1 or not isinstance(decorator.args[0], ast.Name)
-            or decorator.args[0].id not in def_names):
-        return None
-    if (len(decorator.keywords) > 1 or any(
-            keyword.arg != "static" or not isinstance(keyword.value, ast.Constant)
-            or type(keyword.value.value) is not bool for keyword in decorator.keywords)):
-        raise Unsupported("_is_alias のstatic指定が既知のbool定数ではない")
-    return decorator.args[0].id
 
 
 def is_type_declaration_block(stmt):
@@ -370,7 +353,6 @@ def classify_members(cls):
     def_names = {stmt.name for stmt in body if isinstance(stmt, FUNCTIONS)}
     members = []
     seen = set()
-    definitions = {}
     for stmt in body:
         member = Member(stmt)
         if isinstance(stmt, FUNCTIONS):
@@ -400,25 +382,13 @@ def classify_members(cls):
                 else:
                     member.category = PUBLIC
             referenced = set()
-            alias_target = None
             for deco in stmt.decorator_list:
-                target = None if accessor else predicate_alias_target(deco, def_names)
-                if target is None:
-                    referenced |= names_in(deco)
-                    continue
-                if alias_target is not None:
-                    raise Unsupported("{} に_is_aliasが複数ある".format(name))
-                if target not in seen:
-                    raise Unsupported("判定 {} が省略入口 {} より先に定義されていない".format(target, name))
-                alias_target = target
+                referenced |= names_in(deco)
             for default in stmt.args.defaults + [d for d in stmt.args.kw_defaults if d is not None]:
                 referenced |= names_in(default)
             if (referenced - {name}) & def_names:
                 raise Unsupported("{} のデコレータ・既定値がクラス内の定義を参照する".format(name))
-            if alias_target is not None:
-                member.attach_to = definitions[alias_target]
             seen.add(name)
-            definitions.setdefault(name, member)
         elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
             targets = stmt.targets if isinstance(stmt, ast.Assign) else [stmt.target]
             value = stmt.value

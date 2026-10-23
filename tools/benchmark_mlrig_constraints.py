@@ -138,7 +138,7 @@ def benchmark_skirt(cmds, args):
     import mlib
     from mlrig.skirtRig import SkirtRig
 
-    original = mlib.addConstraint
+    original = mlib.nodes.Transform.addConstraint
     results = []
     for mode in args.modes:
         reference = None
@@ -147,16 +147,16 @@ def benchmark_skirt(cmds, args):
             cmds.currentUnit(linear="cm", angle="deg", time="film")
             cmds.undoInfo(state=False)
 
-            def create(sources, target, **kwargs):
+            def create(target, sources, **kwargs):
                 """構築時だけ回転専用拘束の型を比較対象へ切り替える。"""
                 kwargs["type"] = backend
                 if backend == "orient":
                     kwargs.pop("skipTranslate", None)
                 else:
                     kwargs["skipTranslate"] = ["x", "y", "z"]
-                return original(sources, target, **kwargs)
+                return original(target, sources, **kwargs)
 
-            with patch.object(mlib, "addConstraint", side_effect=create):
+            with patch.object(mlib.nodes.Transform, "addConstraint", new=create):
                 rig = SkirtRig.create(driver_count=8, chain_count=max(8, args.count // 3))
             for column, chain in enumerate(rig.driver_chains()):
                 for depth, driver in enumerate(chain):

@@ -36,12 +36,12 @@ class ApiNamingTest(unittest.TestCase):
         curve.setKey(0, 2)
         curve.setKey(3, 5)
         blend = mlib.createNode('blendWeighted')
-        blend.connectInput(0, source)
+        source.connectTo(blend.getPlug("input")[0])
         for node in (curve, blend):
             self.assertEqual([p.getFullName() for p in node.getConnections(True, False, type='transform')], [source.getFullName()])
             self.assertEqual(node.getConnections(True, False, type='mesh'), [])
         self.assertEqual(curve.getKeyInputs(), [0, 3])
-        self.assertEqual(blend.getInputPlugs()[0].getNode(), blend)
+        self.assertEqual(blend.getPlug("input").getElement(0).getNode(), blend)
 
     def test_live_queries_and_stored_properties(self):
         node = mlib.createNode('joint')
@@ -64,23 +64,15 @@ class ApiNamingTest(unittest.TestCase):
         self.assertEqual(child.getParentJointName(), joint.getName())
         self.assertEqual(joint.getChildJointNames(), [child.getName()])
 
-    def test_math_types_and_old_json_records(self):
-        from mlib.json.codec import encode, decode
+    def test_math_type_names(self):
+        """数学型の正式名と値を保ち、旧名を再公開しない。"""
         from mlib.maths import Translate, EulerRotate
         self.assertIs(mlib.maths.Translate, Translate)
         self.assertIs(mlib.maths.EulerRotate, EulerRotate)
-        self.assertFalse(hasattr(mlib.maths, 'Translation'))
-        self.assertFalse(hasattr(mlib.maths, 'EulerRotation'))
-        self.assertFalse(hasattr(mlib.maths, 'Rotate'))
-        for unknown in ('Translate', 'Rotate', 'EulerRotate'):
-            with self.assertRaises(ValueError):
-                decode({'type': 'math:' + unknown, 'value': encode({'values': [1, 2, 3]})})
-        for saved, cls in (('Translation', Translate), ('EulerRotation', EulerRotate)):
-            record = encode(cls(1, 2, 3))
-            self.assertEqual(record['type'], 'math:' + saved)
-            value = decode(record)
-            self.assertIsInstance(value, cls)
-            self.assertEqual(tuple(value), (1, 2, 3))
+        for old in ("Translation", "EulerRotation", "Rotate"):
+            self.assertFalse(hasattr(mlib.maths, old))
+        self.assertEqual(tuple(Translate(1, 2, 3)), (1, 2, 3))
+        self.assertEqual(tuple(EulerRotate(1, 2, 3)), (1, 2, 3))
 
     def test_matrix_has_no_compatibility_entries(self):
         from mlib.maths import Matrix
@@ -92,16 +84,12 @@ class ApiNamingTest(unittest.TestCase):
         self.assertEqual(set(matrix.decompose()), {'translate', 'euler', 'quaternion', 'scale', 'shear'})
 
     def test_module_paths(self):
-        for module, cls in (('common.channelBox', 'ChannelBox'),
-                            ('common.timeSlider', 'TimeSlider'),
-                            ('common.drivenKey', 'DrivenKey'),
-                            ('maths.eulerRotate', 'EulerRotate'),
-                            ('maths.translate', 'Translate')):
-            self.assertTrue(inspect.isclass(getattr(importlib.import_module('mlib.' + module), cls)))
-        self.assertTrue(callable(mlib.getChannelBox))
-        self.assertTrue(callable(mlib.getTimeSlider))
-        self.assertTrue(callable(mlib.getDrivenKey))
-        self.assertTrue(inspect.isclass(mlib.json.NurbsCurveSnapshot))
+        for module, cls in (("common.drivenKey", "DrivenKey"),
+                            ("maths.eulerRotate", "EulerRotate"),
+                            ("maths.translate", "Translate")):
+            self.assertTrue(inspect.isclass(getattr(importlib.import_module("mlib." + module), cls)))
+        self.assertTrue(callable(mlib.getNode))
+        self.assertTrue(callable(mlib.getPlug))
 
     def test_reload_removes_old_module_and_class_exports(self):
         old_module = types.ModuleType('mlib.maths.eulerRotation')
@@ -110,17 +98,12 @@ class ApiNamingTest(unittest.TestCase):
         mlib.maths.Rotate = object
         mlib.maths.Translation = object
         mlib.maths.EulerRotation = object
-        mlib.json.CurveSnapshot = object
-        snapshots = importlib.import_module('mlib.json.snapshots')
-        snapshots.CurveSnapshot = object
         mlib.reload()
         self.assertNotIn(old_module.__name__, sys.modules)
         self.assertFalse(hasattr(mlib.maths, 'eulerRotation'))
         self.assertFalse(hasattr(mlib.maths, 'Rotate'))
         self.assertFalse(hasattr(mlib.maths, 'Translation'))
         self.assertFalse(hasattr(mlib.maths, 'EulerRotation'))
-        self.assertFalse(hasattr(mlib.json, 'CurveSnapshot'))
-        self.assertFalse(hasattr(snapshots, 'CurveSnapshot'))
         self.assertEqual(tuple(mlib.maths.Translate(1, 2, 3)), (1, 2, 3))
         self.assertEqual(tuple(mlib.maths.EulerRotate(1, 2, 3)), (1, 2, 3))
 

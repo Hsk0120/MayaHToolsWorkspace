@@ -7,7 +7,6 @@ import mlib
 from mlrig.setups import ControlShape, SoftIK
 from mlib.common.scalarGraph import ScalarGraph
 from mlib.nodes import Container
-from mlib.common import Preferences
 from mlib.common import units
 from mlib.decorator import nativeUnits
 
@@ -106,8 +105,9 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertAlmostEqual(units.angleToUi(math.pi), math.pi)
         self.assertAlmostEqual(units.angleFromUi(math.pi), math.pi)
         self.assertAlmostEqual(units.secondsPerFrame(), 1 / 30)
-        self.assertEqual(Preferences.getLinearUnit(), "m")
-        self.assertEqual(Preferences.getAngleUnit(), "rad")
+        self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
+        self.assertEqual(cmds.currentUnit(query=True, angle=True), "rad")
+        self.assertEqual(cmds.currentUnit(query=True, time=True), "ntsc")
 
     def test_skin_bind_and_copy(self):
         """スキンのバインド・近似転送・履歴照会を共通APIで行う。"""
@@ -155,11 +155,28 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertFalse(node.getPlug("tx").isSettable())
 
     def test_maya_command_boundary_in_mlrig(self):
-        """指定した標準コマンドのみmaya.cmds直接使用を許可する。"""
+        """標準照会と利用箇所を限定した生成・UI処理だけcmds直接使用を許可する。"""
         import ast
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[2] / "mlrig"
+        # 廃止したコマンドラッパーの代替は、実際の使用ファイルに限定する。
+        direct_commands = {
+            "channel_controls.py": {"reorder"},
+            "bendLayer.py": {"sets"},
+            "drivenLayer.py": {"sets"},
+            "limb.py": {"sets", "ikHandle"},
+            "reverse_foot.py": {"sets"},
+            "spaceLayer.py": {"sets"},
+            "twistLayer.py": {"sets"},
+            "examples/humanoid.py": {
+                "polyCube", "polySphere", "polyCylinder", "mirrorJoint", "shadingNode", "sets",
+            },
+            "examples/limb_demo.py": {"polyCube", "makeIdentity"},
+            "setups/coneReader.py": {"curve"},
+            "setups/controlShape.py": {"circle", "curve"},
+            "setups/splineIK.py": {"curve", "ikHandle"},
+        }
         violations = []
         for path in root.rglob("*.py"):
             if "__tests__" in path.parts:
@@ -168,18 +185,18 @@ class RigFoundationsTest(unittest.TestCase):
             for item in ast.walk(tree):
                 if isinstance(item, ast.Import):
                     if any(
-                        a.name in ("maya.mel", "maya.utils", "json") or "OpenMaya" in a.name
+                        a.name == "maya.utils" or "OpenMaya" in a.name
                         for a in item.names
                     ):
                         violations.append(str(path))
                 elif isinstance(item, ast.ImportFrom):
                     if (
-                        item.module in ("maya.mel", "maya.utils", "json")
+                        item.module == "maya.utils"
                         or "OpenMaya" in (item.module or "")
                         or (
                             item.module in ("maya", "maya.api")
                             and any(
-                                a.name in ("mel", "utils") or "OpenMaya" in a.name
+                                a.name == "utils" or "OpenMaya" in a.name
                                 for a in item.names
                             )
                         )
@@ -206,45 +223,37 @@ class RigFoundationsTest(unittest.TestCase):
                         "currentTime",
                         "cutKey",
                         "listRelatives",
-                    }
+                    } | direct_commands.get(path.relative_to(root).as_posix(), set())
                 ):
                     violations.append(str(path) + ":" + item.func.attr)
         self.assertEqual(violations, [])
 
-    def test_editor_batch_guards(self):
-        """GUIを持たない場合は親を返さず、エディター起動を明示的に拒否する。"""
-        from mlib.common import MainWindow
-        from mlib.common import NodeEditor
-        from mlib.common import GraphEditor
+    def test_menu_batch_guard(self):
+        """GUIを持たない場合、mlrigのメニューを作成しない。"""
+        from mlrig.menu import Menu
 
         if not cmds.about(batch=True):
             self.skipTest("Batch-only contract")
-        self.assertIsNone(MainWindow.getName())
-        for editor in (NodeEditor, GraphEditor):
-            with self.assertRaises(RuntimeError):
-                editor.show()
+        self.assertIsNone(Menu.install())
 
     def test_plain_json_compatibility(self):
-        """既存属性の通常JSONを外枠なしで保存・復元し、型付き形式と分離する。"""
+        """ControlRigが通常JSONを保存し、既存の通常JSONから機能種別を読む。"""
         import json
+        from mlrig.controlRig import ControlRig
 
-        data = {"name": "腕", "restLengths": [4.0, 3.5], "enabled": True, "optional": None}
-        text = mlib.json.JsonText.dumps(data)
-        self.assertEqual(text, json.dumps(data))
-        self.assertEqual(mlib.json.JsonText.loads(json.dumps(data)), data)
-        self.assertEqual(json.loads(text), data)
-        self.assertEqual(mlib.json.JsonText.loads(b"[1, 2]"), [1, 2])
-        self.assertIn("腕", mlib.json.JsonText.dumps(data, ensure_ascii=False))
+        rig = ControlRig._create("jsonControl", "aim")
+        definition = rig.root.getPlug("mlrigControlDefinition")
+        self.assertEqual(json.loads(definition.get()), {"kind": "aim"})
+        self.assertEqual(ControlRig(rig.root).kind(), "aim")
+        definition.set(json.dumps({"kind": "finger", "label": "腕"}, ensure_ascii=False))
+        self.assertEqual(ControlRig(rig.root).kind(), "finger")
+        definition.set("{")
         with self.assertRaises(ValueError):
-            mlib.json.JsonText.loads("{")
-        with self.assertRaises(ValueError):
-            mlib.json.JsonText.dumps(float("nan"), allow_nan=False)
-        self.assertEqual(mlib.json.loads(mlib.json.dumps(data)), data)
-        self.assertEqual(json.loads(mlib.json.dumps(data))["format"], "mlib.json")
+            ControlRig(rig.root).kind()
 
     def test_typed_commands_and_rename(self):
         """生成・検索・接続・属性の戻り値を型付き参照で保持し、改名へ追従する。"""
-        polygon = mlib.createPolygon(type="cube", name="typedMesh")
+        polygon = mlib.getNode(cmds.polyCube(name="typedMesh")[0]).getShape()
         self.assertIsInstance(polygon, mlib.nodes.Mesh)
         mesh = polygon.getTransform()
         history = next(
@@ -259,16 +268,16 @@ class RigFoundationsTest(unittest.TestCase):
             for value in (cmds.listRelatives(mesh, shapes=True, fullPath=True) or [])
         ][0]
         self.assertEqual(shape.getType(), "mesh")
-        marker = mlib.addAttr(mesh, longName="marker", attributeType="double", defaultValue=2)
+        marker = mesh.addAttr(longName="marker", attributeType="double", defaultValue=2)
         self.assertIsInstance(marker, mlib.plugs.Plug)
         self.assertEqual(mlib.getPlug(marker).get(uiUnits=True), 2)
         self.assertIsInstance(mlib.getPlug(mesh.getPlug("translate")).get(), mlib.maths.Vector)
         self.assertIsInstance(mlib.getPlug(mesh.getPlug("worldMatrix[0]")).get(), mlib.maths.Matrix)
-        owner = mlib.createSet(mesh, name="typedSet")
+        owner = mlib.getNode(cmds.sets(mesh.getFullName(), name="typedSet"))
         self.assertIsInstance(owner, mlib.nodes.ObjectSet)
         self.assertEqual(owner.getMembers()[0].getUuid(), mesh.getUuid())
         target = mlib.createNode("transform", name="typedTarget")
-        constraint = mlib.addConstraint(mesh, target, maintainOffset=True)
+        constraint = target.addConstraint(mesh, maintainOffset=True)
         self.assertIsInstance(constraint, mlib.nodes.ParentConstraint)
         weight = constraint.getWeightPlugs()[0]
         self.assertIsInstance(weight, mlib.plugs.Plug)
@@ -290,11 +299,11 @@ class RigFoundationsTest(unittest.TestCase):
             mesh.getUuid(),
         )
         with self.assertRaises(TypeError):
-            mlib.executeDeferred("print('not accepted')")
+            mlib.common.Deferred.call("print('not accepted')")
 
     def test_standard_curve_commands(self):
         """円・カーブを型付き参照で生成し、短縮フラグ・照会・Undoを検証する。"""
-        shape = mlib.createNurbs(type="circle", n="typedCircle", r=2.5, ch=True)
+        shape = mlib.getNode(cmds.circle(n="typedCircle", r=2.5, ch=True)[0]).getShape()
         self.assertIsInstance(shape, mlib.nodes.NurbsCurve)
         transform = shape.getTransform()
         history = next(
@@ -304,7 +313,7 @@ class RigFoundationsTest(unittest.TestCase):
         )
         self.assertIsInstance(transform, mlib.nodes.Transform)
         self.assertAlmostEqual(history.getPlug("radius").get(), 2.5)
-        curve = mlib.createCurve(d=1, p=[(0, 0, 0), (2, 0, 0)], n="typedCurve")
+        curve = mlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (2, 0, 0)], n="typedCurve"))
         self.assertIsInstance(curve, mlib.nodes.Transform)
         name = curve.getFullName()
         cmds.undo()
@@ -315,11 +324,8 @@ class RigFoundationsTest(unittest.TestCase):
     def test_package_layout(self):
         """各実装が用途別パッケージに一つだけ存在し、選択入口も新クラスを返す。"""
         from pathlib import Path
-        from mlib.common import Preferences
-        from mlib.common import Workspace
         from mlib.common import Selection
 
-        for cls, module in ((Preferences, "preferences"), (Workspace, "workspace"), (Selection, "selection")):
-            self.assertEqual(cls.__module__, "mlib.common." + module)
-            self.assertFalse((Path(mlib.__file__).parent / (module + ".py")).exists())
-        self.assertIsInstance(mlib.captureSelection(), Selection)
+        self.assertEqual(Selection.__module__, "mlib.common.selection")
+        self.assertFalse((Path(mlib.__file__).parent / "selection.py").exists())
+        self.assertIsInstance(Selection.capture(), Selection)

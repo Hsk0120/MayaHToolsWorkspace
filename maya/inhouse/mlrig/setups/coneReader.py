@@ -232,7 +232,7 @@ class ConeReader:
     @staticmethod
     def _curve(parent, name, points, color):
         """一次カーブのシェイプを parent へ追加する。"""
-        temporary = mlib.createCurve(degree=1, point=points, name=name+"__tmp")
+        temporary = mlib.getNode(cmds.curve(degree=1, point=points, name=name+"__tmp"))
         # Shapeの親変更はMaya標準コマンドを使い、変更後のパスで参照を作り直す。
         shape = mlib.getNode(cmds.parent(
             temporary.getShape().getFullName(), parent.getFullName(),
@@ -283,4 +283,4 @@ class ConeReader:
         """GRP をジョイントへ重ねてから、位置と回転をコンストレイントする。"""
         ConeReader._setMatrix(group, mlib.getNode(joint).getMatrix(worldSpace=True))
         group.getPlug("scale").set((1, 1, 1))
-        mlib.addConstraint(joint, group, maintainOffset=True)
+        group.addConstraint(joint, maintainOffset=True)

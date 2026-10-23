@@ -25,7 +25,7 @@ class PublicExportsTest(unittest.TestCase):
 
     def test_public_classes_are_current_definition_objects(self):
         """明示importの公開クラスが定義元やreload前の別クラスにずれない。"""
-        for package_name in ("nodes", "plugs", "components", "maths", "common", "json"):
+        for package_name in ("nodes", "plugs", "components", "maths", "common"):
             package = getattr(mlib, package_name)
             for name in package.__all__:
                 value = getattr(package, name)

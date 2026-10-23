@@ -167,7 +167,7 @@ class MethodContractTest(unittest.TestCase):
         a = mlib.createNode('transform', name=self.ns + ':a')
         b = mlib.createNode('transform', name=self.ns + ':b')
         outsider = mlib.createNode('transform', name=self.ns + ':outsider')
-        constraint = mlib.addConstraint([a, b], self.node, type='point')
+        constraint = mlib.getNode(self.node).addConstraint([a, b], type='point')
         before = constraint.getWeights()
         for fast in (False, True):
             with self.assertRaises(ValueError):

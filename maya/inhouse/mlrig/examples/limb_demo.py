@@ -51,27 +51,25 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
 
     for role, control in rig.controls().items():
         ControlShape.circle(control, radius=0.45, color=17 if role.startswith("fk") else 6)
-    high = mlib.createPolygon(
-        type="cube",
+    high = mlib.getNode(cmds.polyCube(
         name=high_name,
         width=10,
         height=1,
         depth=1,
         subdivisionsX=16,
         constructionHistory=False,
-    ).getTransform()
-    proxy = mlib.createPolygon(
-        type="cube",
+    )[0])
+    proxy = mlib.getNode(cmds.polyCube(
         name=proxy_name,
         width=10,
         height=1,
         depth=1,
         subdivisionsX=4,
         constructionHistory=False,
-    ).getTransform()
+    )[0])
     for mesh in (high, proxy):
         mesh.getPlug("translateX").set(5)
-        mlib.makeIdentity(mesh, apply=True, translate=True)
+        cmds.makeIdentity(mesh.getFullName(), apply=True, translate=True)
     high = [mlib.getNode(value) for value in (cmds.parent(high, rig._member("moduleGeometry")) or [])][
         0
     ]

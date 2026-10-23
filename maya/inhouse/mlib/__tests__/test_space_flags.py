@@ -59,7 +59,7 @@ class SpaceFlagsTest(unittest.TestCase):
 
     def test_curve_connection_flags(self):
         """形状情報ノードの長短名と既定ワールドを検証する。"""
-        curve = mlib.createCurve(degree=1, point=[(0, 0, 0), (2, 0, 0)])
+        curve = mlib.getNode(cmds.curve(degree=1, point=[(0, 0, 0), (2, 0, 0)]))
         info = Node.create("curveInfo")
         info.connectCurve(curve, ws=False)
         self.assertTrue(info.getPlug("inputCurve").getSource(skipConversionNodes=False).getFullName().endswith('.local'))

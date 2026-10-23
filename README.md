@@ -215,8 +215,8 @@ Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/ml
 Maya を起動せず、ソースから HTML を生成できます。
 手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md)を参照してください。
 
-mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`json` です。
-シーン状態・標準UI・環境設定・イベント・汎用処理は `common` にまとめ、
+mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common` です。
+選択・参照関係・単位・プラグイン・イベントと既存の共通計算は `common` にまとめ、
 ログは `mlib.logger`、Undo等のデコレーターは `mlib.decorator` から利用します。
 Objectと拡張登録・管理の入口は `_core` に置き、`from mlib._core.object import Object`、
 `from mlib._core import extensions` から取得します。ルートへは再公開しません。
@@ -224,4 +224,8 @@ Objectと拡張登録・管理の入口は `_core` に置き、`from mlib._core.
 `_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
 `python tools/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
 複数形APIも通常のメソッドとして定義し、共通処理へ委譲します。
+公開コマンドは `getNode/getPlug/createNode/ls/delete/duplicate/select` の7入口です。
+取得はget付き、判定はis付きの正式名を使用します。演算14型は型クラスを残し、専用APIではなく`getPlug`で操作します。
+その他のMayaコマンド・標準UI・ファイル/設定操作は利用側で扱い、通常JSON文字列は標準 `json` を使います。
+汎用UI・型付きJSON/Snapshot・専用色値型は提供しません。
 旧importの対応は[APIの命名と移行](maya/inhouse/mlib/_docs/api_naming.rst)を参照してください。

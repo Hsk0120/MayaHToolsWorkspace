@@ -8,7 +8,7 @@ import mlib
 
 
 class StandardPluginsTest(unittest.TestCase):
-    """FBX往復とHumanIKの型登録・骨割当を検証する。"""
+    """HumanIKの型登録と骨割当を検証する。"""
 
     def setUp(self):
         """テスト間でシーンを分離する。"""
@@ -30,27 +30,6 @@ class StandardPluginsTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             character.setSource(other)
 
-    def test_fbx_animation_roundtrip(self):
-        """選択と設定を復元し、骨アニメーションを再読込できる。"""
-        from mlib.common.fbx import exportFbx, importFbx
-        joint = cmds.createNode('joint',name='roundtripJoint')
-        cmds.setKeyframe(joint,attribute='rotateZ',time=1,value=0)
-        cmds.setKeyframe(joint,attribute='rotateZ',time=10,value=45)
-        cmds.select(joint)
-        mlib.common.Plugin('fbxmaya').ensureLoaded()
-        old = mel.eval('FBXProperty Export|IncludeGrp|Animation -q;')
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory)/'animation.fbx'
-            exportFbx(path,selection=[joint])
-            self.assertEqual(cmds.ls(selection=True), [joint])
-            self.assertEqual(mel.eval('FBXProperty Export|IncludeGrp|Animation -q;'),old)
-            with self.assertRaises(FileExistsError):
-                exportFbx(path,selection=[joint])
-            cmds.file(new=True,force=True)
-            nodes = importFbx(path,namespace='incoming')
-            self.assertIn('|incoming:roundtripJoint',nodes)
-            self.assertNotIn('time1',nodes)
-            self.assertEqual(cmds.keyframe('incoming:roundtripJoint.rotateZ',query=True,valueChange=True),[0,45])
 
 
 if __name__ == '__main__':

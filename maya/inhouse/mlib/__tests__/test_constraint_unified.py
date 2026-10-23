@@ -28,15 +28,7 @@ class UnifiedConstraintTest(unittest.TestCase):
         cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
 
     def test_aim_flags_queries_edit_and_undo(self):
-        result = mlib.addConstraint(
-            self.source,
-            self.target,
-            typ="aim",
-            aim=(0, 0, 1),
-            u=(0, 1, 0),
-            wut="object",
-            wuo=self.up,
-        )
+        result = mlib.getNode(self.target).addConstraint(self.source, typ="aim", aim=(0, 0, 1), u=(0, 1, 0), wut="object", wuo=self.up)
         self.assertEqual(result.getType(), "aimConstraint")
         self.assertEqual(result.getPlug('worldUpMatrix').getSource(skipConversionNodes=False).getNode().getUuid(), self.up.getUuid())
         self.assertEqual(
@@ -64,13 +56,11 @@ class UnifiedConstraintTest(unittest.TestCase):
     def test_conflicting_flags_and_modes_do_not_create_nodes(self):
         before = set(cmds.ls())
         with self.assertRaises(TypeError):
-            mlib.addConstraint(
-                self.source, self.target, type="aim", wuo=self.up, worldUpObject=self.up
-            )
+            mlib.getNode(self.target).addConstraint(self.source, type="aim", wuo=self.up, worldUpObject=self.up)
         with self.assertRaises(ValueError):
             self.target.addConstraint(self.source, type="aim", q=True)
         with self.assertRaises(ValueError):
-            mlib.addConstraint(self.source, self.target, type="aim", query=True, edit=True)
+            mlib.getNode(self.target).addConstraint(self.source, type="aim", query=True, edit=True)
         self.assertEqual(set(cmds.ls()), before)
 
     def test_individual_command_exports_and_files_are_removed(self):

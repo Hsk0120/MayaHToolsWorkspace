@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 
-from .._core.getterAlias import _is_alias
 from .eulerRotate import EulerRotate
 from .matrix import Matrix
 from .quaternion import Quaternion
@@ -255,19 +254,6 @@ class Transformation:
         if not isinstance(other, Transformation) or self.rotateOrder != other.rotateOrder or self.ssc != other.ssc:
             return False
         return all(all(abs(a - b) <= tolerance for a, b in zip(self._values[n], other._values[n])) for n in self._types)
-
-    @_is_alias(isEquivalent)
-    def equivalent(self, *args, **kwargs):
-        """isEquivalentへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isEquivalent(*args, **kwargs)
 
     @staticmethod
     def _quaternion(value):

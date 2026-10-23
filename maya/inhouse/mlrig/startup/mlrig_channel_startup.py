@@ -9,7 +9,7 @@ def initialize():
 
     if cmds.about(batch=True) or int(cmds.about(apiVersion=True)) < 20250000:
         return
-    mlib.executeDeferred(_install)
+    mlib.common.Deferred.call(_install)
 
 
 def _install():

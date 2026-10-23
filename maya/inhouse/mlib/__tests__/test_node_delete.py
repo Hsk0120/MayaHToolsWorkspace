@@ -66,7 +66,7 @@ class NodeDeleteTest(unittest.TestCase):
         cmds.connectAttr(source.getFullName() + '.outputX', child.getFullName() + '.tx')
         root.delete(safe=True)
         self.assertTrue(root.isValid() and child.isValid())
-        mesh = mlib.createPolygon(ch=False)
+        mesh = mlib.getNode(cmds.polyCube(ch=False)[0]).getShape()
         mesh.getTransform().delete(safe=True)
         self.assertTrue(mesh.isValid())
         mesh.delete(safe=True)
@@ -115,7 +115,7 @@ class NodeDeleteTest(unittest.TestCase):
         self.assertEqual(child.getParent().getUuid(), joint.getUuid())
 
     def test_components_mixed_with_node_and_wildcard(self):
-        mesh = mlib.createPolygon(ch=False)
+        mesh = mlib.getNode(cmds.polyCube(ch=False)[0]).getShape()
         # 公開済みの入力規則ではNodeと名前の混在は不可。名前へ揃えて実行する。
         with self.assertRaises(TypeError):
             mlib.delete([mesh.getTransform(), mesh.getFullName() + '.f[0]'])

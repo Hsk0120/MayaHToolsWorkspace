@@ -2,10 +2,9 @@
 
 from functools import partial
 
+from maya import cmds, mel
+
 import mlib
-from mlib.common import MainWindow
-from mlib.common import NodeEditor
-from mlib.common import GraphEditor
 
 try:
     from PySide6 import QtCore, QtGui, QtWidgets
@@ -275,7 +274,7 @@ class LayerEditor(QtWidgets.QDialog):
         """
         if cls._instance is None or not isValid(cls._instance):
             # Qtの親取得はUI実装側で行い、基礎ライブラリmlibへ依存を持ち込まない。
-            name = MainWindow.getName()
+            name = None if cmds.about(batch=True) else mel.eval("$mlrigMainWindow = $gMainWindow")
             parent = next((window for window in QtWidgets.QApplication.topLevelWidgets()
                            if window.objectName() == name), None)
             cls._instance = cls(parent)
@@ -889,7 +888,9 @@ class LayerEditor(QtWidgets.QDialog):
     def open_graph(self):
         """設定ノードを選択し、標準ノードエディターを開く。"""
         self.select_node()
-        NodeEditor.show()
+        if cmds.about(batch=True):
+            raise RuntimeError("NodeEditor requires Maya GUI")
+        mel.eval("NodeEditorWindow;")
 
     def open_curve(self):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
@@ -900,7 +901,9 @@ class LayerEditor(QtWidgets.QDialog):
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         mlib.select(node.getPlug('curve').getSource(skipConversionNodes=False).getNode(), replace=True)
-        GraphEditor.show()
+        if cmds.about(batch=True):
+            raise RuntimeError("GraphEditor requires Maya GUI")
+        mel.eval("GraphEditor;")
 
     def closeEvent(self, event):
         """自身の監視を解除して閉じる。

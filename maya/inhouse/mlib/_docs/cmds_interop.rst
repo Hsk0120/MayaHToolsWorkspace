@@ -85,13 +85,13 @@ maya.cmds へそのまま渡せるもの
   ``pnts[2].pntx``)を含み、エイリアスがあればエイリアス名を使います。
   インスタンスごとのアトリビュート(``worldMatrix`` など)は、インデックスがインスタンス番号を表します。
 - 削除済みのノードとその Plug、``deleteAttr`` で削除された動的アトリビュートの Plug は空文字列に
-  なります(``Plug.valid()`` が ``False``。``plug.getName()`` も空文字列)。これらの Plug の
+  なります(``Plug.isValid()`` が ``False``。``plug.getName()`` も空文字列)。これらの Plug の
   ``get()``/``set()`` は削除前の古い値を返したり Maya を異常終了させたりせず
-  ``RuntimeError`` になります。アトリビュートの情報(``attribute()``・``getLocked()``・``getDefault()``
-  など)と接続(``source()``・``connectTo()`` など)の問い合わせも ``RuntimeError`` です
+  ``RuntimeError`` になります。アトリビュートの情報(``getDataType()``・``isLocked()``・``getDefault()``
+  など)と接続(``getSource()``・``connectTo()`` など)の問い合わせも ``RuntimeError`` です
   (Undo の対象から外れた削除済みノードの MPlug は、名前の問い合わせでも Maya を
-  異常終了させるためです)。構造の判定(``array()``・``compound()``・
-  ``isElement()``・``child()``)だけは例外になりません。
+  異常終了させるためです)。構造の判定(``isArray()``・``isCompound()``・
+  ``isElement()``・``isChild()``)だけは例外になりません。
   同じ名前でアトリビュートを追加し直しても、古い Plug は別のアトリビュートとして無効のままです(Undo で削除を
   取り消した場合は再び有効になります)。削除済みのシェイプの Component は ``str()`` で
   例外になります。
@@ -159,7 +159,7 @@ maya.cmds へそのまま渡せるもの
      - mlib の Plug(``Plug._resolve_input`` 相当の変換は mlib のコマンドと ``Plug.connectTo()`` が行う)
 
 生の ``om2.MPlug`` は、削除操作をまたいで保持しないでください。mlib のコマンドと
-ノードが必要な引数(``mlib.getNode``、``mlib.addConstraint`` の拘束元・拘束先など)は
+ノードが必要な引数(``mlib.getNode``、``Transform.addConstraint`` の拘束元・拘束先など)は
 ``deleteAttr`` で削除されたアトリビュートの MPlug を ``ValueError`` にします(``Plug.connectTo()`` などのアトリビュートが必要な引数は ``RuntimeError``)が、Undo の対象から外れて削除されたノード(``flushUndo`` の後、Undo が無効な
 状態での削除、``file(new=True)`` など)の MPlug は、``MPlug.getNode()`` の時点で Maya が
 異常終了し、API では検出できません。保持する場合は mlib の Plug(ノードの削除を検出できる)を
@@ -206,7 +206,7 @@ mlibの値から作成コマンドへ渡す
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``Translate`` やコンポーネントの ``getPosition()`` の距離は内部単位cmです。
-``mlib.createCurve(point=...)`` 等の作成フラグはMayaコマンドのUI単位を使います。
+``maya.cmds.curve(point=...)`` 等の作成フラグはMayaコマンドのUI単位を使います。
 値の型を渡すだけで単位の自動変換は起こらないため、境界で明示的に変換します。
 
 .. code-block:: python
@@ -216,8 +216,8 @@ mlibの値から作成コマンドへ渡す
 
    end_cm = Translate(100, 0, 0)
    end_ui = tuple(units.distanceToUi(value) for value in end_cm)
-   curve_transform = mlib.createCurve(name="unitBoundaryCurve", degree=1,
-                                      point=[(0, 0, 0), end_ui])
+   curve_transform = mlib.getNode(cmds.curve(name="unitBoundaryCurve", degree=1,
+                                             point=[(0, 0, 0), end_ui]))
    print(curve_transform.getShape().getCV(1).getPosition())  # (100.0, 0.0, 0.0) cm
 
 この例はシーンの単位設定を変更せず、現在のUI単位がcmでもmでも同じ形状を作ります。
@@ -229,8 +229,7 @@ UI単位です。値を渡す側と受け取る側の単位を合わせてくだ
 mlib のコマンドが受け付ける入力
 ------------------------------------------------------------
 
-``mlib.select``・``mlib.delete``・``mlib.duplicate``・``mlib.createGroup``・
-``mlib.ls``・``mlib.bakeResults`` は、対象を次の規則で名前に
+``mlib.select``・``mlib.delete``・``mlib.duplicate``・``mlib.ls`` は、対象を次の規則で名前に
 変換してから maya.cmds を呼びます(``parent`` などノードが必要な引数は後述。
 ``mlib.delete`` は Plug・MPlug を ``TypeError`` にします。「コマンドごとの注意」を参照)。
 
@@ -269,22 +268,22 @@ mlib のコマンドが受け付ける入力
    from mlib.common.selection import Selection
 
    mlib.select([dup1.getPlug("tx"), dup2.mnode(), Vertices(cube.getShape(), [0, 1])])
-   print(cmds.objExists(dup1.getPlug("tx").name()))   # True
+   print(cmds.objExists(dup1.getPlug("tx").getName()))   # True
    cmds.setKeyframe([dup1.getPlug("tx"), dup2.getPlug("ty")], time=1)
    mlib.select(Selection([dup1, vertex]))
 
-対象としてノードが必要な引数(``mlib.getNode``、``mlib.addConstraint`` と
-``Transform.addConstraint`` の拘束元・拘束先、``Node(...)``、
-``mlib.createNode``/``mlib.createGroup`` の ``parent``、``Transform.setParent``、
-``Node.parentOf`` など)は、Plug・MPlug・``"node.attribute"`` を所有ノード、
+対象としてノードが必要な引数(``mlib.getNode``、
+``Transform.addConstraint`` の拘束元、``Node(...)``、
+``mlib.createNode`` の ``parent``、``Transform.setParent``、
+``Node.isParentOf`` など)は、Plug・MPlug・``"node.attribute"`` を所有ノード、
 Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱います。
 文字列も同じ規則で解決するため、maya.cmds のようにプラグ名・コンポーネント名が
 拘束元として扱われない(または黙って無視される)ことはありません。
 ``parent`` にシェイプ(Component の所有シェイプを含む)を指定した場合の配置は
-``maya.cmds.createNode`` と同じです。``mlib.addConstraint`` の ``target`` が Transform
-(joint・IkHandle を含む)に解決されない場合は ``TypeError`` です。
+``maya.cmds.createNode`` と同じです。コンストレイントは拘束先のTransform
+(joint・IkHandle を含む)の ``addConstraint()`` で作成します。
 
-``mlib.addConstraint``/``Transform.addConstraint`` の拘束元は、型によって扱いが異なります。
+``Transform.addConstraint`` の拘束元は、型によって扱いが異なります。
 
 - parent・point・orient・scale・aim・poleVector は拘束元の transform の値を使うため、
   拘束元が Transform(joint・IkHandle を含む)に解決される必要があります。シェイプ
@@ -298,8 +297,8 @@ Component・Components・``"pCube1.vtx[0]"`` を所有シェイプとして扱�
   インスタンスにはなりません。特定のインスタンスは、そのパスの Node・文字列で指定して
   ください(MPlug はインスタンスの情報を持たないため、最初のインスタンスになります)。
 
-アトリビュートが必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.connectedTo``、
-``mlib.getPlug``、``mlib.getDrivenKey``、``DrivenKey.find``)は、
+アトリビュートが必要な引数(``Plug.connect``、``Plug.disconnect``、``Plug.isConnectedTo``、
+``mlib.getPlug``、``DrivenKey.find``)は、
 Plug・MPlug とアトリビュート名の文字列を受け付けます。
 文字列は ``str(plug)`` が返す形式(``grp1|dup.translateX``、``bs.weight[0]``、
 エイリアス名の ``bs.smile``、``cubeShape.pnts[2].pntx`` など)も maya.cmds と同じ規則で解決します。
@@ -324,12 +323,12 @@ Plug は1つのアトリビュートを表すためです。シェイプの名�
 
    print(mlib.getNode(dup1.getPlug("tx")))    # grp1|dup
    print(mlib.getNode(vertex))              # cubeShape（所有シェイプ）
-   mlib.addConstraint(dup1.getPlug("tx"), dup2.mnode(), type="orient")  # 拘束元は dup1
+   dup2.addConstraint(dup1.getPlug("tx"), type="orient")  # 拘束元は dup1
    dup1.getPlug("sx").connectTo(dup2.getPlug("sx").mplug())
 
 その他の規則です。
 
-- 対象を名前へ変換する引数(上の表のコマンドの対象と、``mlib.createNode``/``mlib.createGroup``/
+- 対象を名前へ変換する引数(上の表のコマンドの対象と、``mlib.createNode``/
   ``BlendShape.addTarget`` などの ``parent``・ターゲットのようにノードの名前を渡す引数)の
   例外の種類は次のとおりです。
 
@@ -340,20 +339,20 @@ Plug は1つのアトリビュートを表すためです。シェイプの名�
 
   ``Node(...)``/``mlib.getNode`` は従来どおり、解決できない対象(空・削除済みを含む)を
   すべて ``RuntimeError`` にします(依存ノード以外を指す MObject は ``TypeError``)。
-  ``mlib.addConstraint``/``Transform.addConstraint`` の拘束元・拘束先に削除済みの Node などを
+  ``Transform.addConstraint`` の拘束元・拘束先に削除済みの Node などを
   渡した場合も従来どおり ``RuntimeError`` です。
   ただし所有ノードは有効なまま ``deleteAttr`` でアトリビュートが削除された Plug・MPlug は、所有ノードへ
-  解決せず、ノードが必要な引数(``Node(...)``/``mlib.getNode``、``mlib.addConstraint`` の拘束元・
+  解決せず、ノードが必要な引数(``Node(...)``/``mlib.getNode``、``Transform.addConstraint`` の拘束元・
   拘束先、``mlib.nodes.Node._resolve_input`` など)でも、名前へ変換する引数と同じく ``ValueError``
   です(``mlib.plugs.plug.DeletedAttributeError``。``RuntimeError`` の派生でもあるため、
   ``Node(...)`` の失敗を ``except RuntimeError`` で捕捉するコードもそのまま使えます)。
-  ``Node.parentOf``/``childOf``/``ancestorOf`` の判定は、削除済みの対象
+  ``Node.isParentOf``/``isChildOf``/``isAncestorOf`` の判定は、削除済みの対象
   (削除済みの Node、所有ノードが削除済みの Plug・Component、アトリビュートが削除済みの Plug・MPlug、
   削除済みのノードを指す om2 オブジェクト)には ``False`` を返します。
 - 空の列は、``mlib.select([])`` が ``maya.cmds.select([])`` と同じく選択を解除し、
   ``mlib.ls([])`` と ``mlib.ls(None)`` は空の結果を返します(``cmds.listRelatives`` などが
-  返す ``None`` をそのまま渡せます)。``mlib.delete([])`` と ``mlib.createGroup([])`` は
-  ``ValueError`` (``group`` は ``empty=True`` を除く)です。いずれも maya.cmds のように現在の選択を対象にしないためです。
+  返す ``None`` をそのまま渡せます)。``mlib.delete([])`` は
+  ``ValueError`` です。いずれも maya.cmds のように現在の選択を対象にしないためです。
 - ``Selection(...)`` も同じ型に加えて ``om2.MSelectionList`` を受け付けます。
 
 コマンドごとの注意
@@ -383,14 +382,8 @@ Plug・Component を受け付けるコマンドは一意な名前へ変換して
        オブジェクト全体を複製します。Maya 2022 では新しいシーンに立方体だけを作った状態などで
        ``RuntimeError`` (No object(s) to duplicate)になり、ほかのノードの作成後や頂点の選択中には
        オブジェクト全体を複製します)。オブジェクトを複製する場合はノードを渡してください。
-   * - ``mlib.createGroup``
-     - ``maya.cmds.group`` はアトリビュート・コンポーネントをグループ化しないため ``RuntimeError``
-       (Not enough objects or values)になり、グループは作られません。``parent``/``p`` 引数の
-       Plug は所有ノードを親にします。Component・シェイプは所有シェイプへ解決されますが、
-       ``maya.cmds.group`` が Transform 以外の親を受け付けないため ``RuntimeError``
-       (Transform node required for -parent flag)です。
-   * - ``mlib.select``・``mlib.bakeResults``
-     - maya.cmds と同じくアトリビュート・コンポーネントとして扱います(アトリビュートの選択・キー設定など)。
+   * - ``mlib.select``
+     - maya.cmds と同じくアトリビュート・コンポーネントとして扱います(アトリビュートの選択など)。
 
 Node の生成
 ------------------------------------------------------------

@@ -171,19 +171,6 @@ class ShapesConstraintsTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             result.setWeight(1.0, unrelated)
 
-    def test_top_level_constraint_command(self):
-        self.assertTrue(callable(mlib_cmds.addConstraint))
-        self.assertIs(mlib.addConstraint, mlib_cmds.addConstraint)
-        source = self.getTransform()
-        target = self.getTransform()
-        result = mlib_cmds.addConstraint(source, target, type='point')
-        self.assertIsInstance(result, mlib.nodes.PointConstraint)
-        self.assertEqual([node.getUuid() for node in result.getTargets()], [source.getUuid()])
-
-        source_name = self.getTransform()
-        target_name = self.getTransform()
-        result = mlib_cmds.addConstraint(source_name.getFullName(), target_name.getFullName(), type='point')
-        self.assertEqual([node.getUuid() for node in result.getTargets()], [source_name.getUuid()])
 
     def test_specialized_constraints(self):
         mesh = mlib.nodes.Node(cmds.polyPlane(constructionHistory=False)[0])

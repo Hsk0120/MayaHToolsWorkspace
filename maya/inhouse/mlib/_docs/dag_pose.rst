@@ -42,7 +42,7 @@ Jointの既存 ``getSkinClusters()`` はinfluence接続照会のままで、Join
    print(pose.getBindPose())
    print(pose.getMembers())          # 保存されているTransform・Joint
    print(pose.getSkinClusters())    # bindPoseとして参照するSkinCluster
-   print(pose.atPose())
+   print(pose.isAtPose())
    print(pose.getNotAtPose())      # 保存姿勢と異なるメンバー
 
 skinClusterから接続先を取得する場合は、次のように指定します。
@@ -96,10 +96,10 @@ skinClusterから接続先を取得する場合は、次のように指定しま
    pose.reset()                   # 全メンバーの保存姿勢を更新
    pose.removeMembers("extra_joint")     # ポーズから除外。Joint自体は削除しない
 
-``matrix()`` が返すのは保存時の :class:`~mlib.maths.matrix.Matrix` の複製です
+``getMatrix()`` が返すのは保存時の :class:`~mlib.maths.matrix.Matrix` の複製です
 (om2.MMatrix の派生で、変更してもポーズには反映されません)。
 配列の論理番号は欠番を含むため、``getMembers()`` のリスト位置とは区別してください。
-``remove()`` で指定したノードが残るメンバーの親として必要な場合は、Mayaが保持することがあります。
+``removeMembers()`` で指定したノードが残るメンバーの親として必要な場合は、Mayaが保持することがあります。
 
 ``restore()`` はノードを保存姿勢へ戻し、``reset()`` は保存内容を更新します。
 **reset()はskinClusterのbindPreMatrixを変更しません。**

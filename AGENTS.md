@@ -2,21 +2,25 @@
 
 ## 基本方針
 
-- 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。ArrayPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。検証付き算術入力・固定範囲辞書・BlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約・JSONの低水準処理は既存基盤へ委譲する。JSON保存形式とSnapshot適用の通常Undo境界（外側fastを適用中だけ解除して必ず復元）は維持する。
+- 2026-10-23のユーザー指定により、追加縮小案の上2つを適用する。AddDL/AddDoubleLinear/MultDL/MultDoubleLinear/BlendColors/BlendWeighted/Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/UnitConversionは既存基底・公開クラス・型登録を維持し、専用の取得/設定/接続/検証/enum/複合操作APIを提供しない。操作はMaya標準アトリビュート名の`getPlug`とPlugの公開APIを使う。判定のis省略入口は廃止し、`isValid`等の正式is名へ統一する（module関数`undo.enabled`も廃止し`undo.isEnabled`を使う）。旧互換入口と省略名へのSphinx投影は残さない。Maya/OM2標準名、他クラスの同名API、対象外の演算ノードと行列/TRS、専門編集/保存/小便利機能は維持する。ノード/メソッド追加・型登録・複数形/reload/拡張自動探索と保持APIの引数・単位・所有権・返却・通常Undo/fastは維持する。
+
+- 2026-10-23のユーザー指定により、機能縮小案A・Bを適用する。mlibはNode/Plug/Component/数学型と隣接基盤へ絞り、汎用UI、OptionVar/Preferences、型付きJSON・Snapshot、Colorと専用色操作、Scene/Workspace/FBX、mlib版OBBを提供しない。`mlib.json`と旧保存形式の読込保証は終了し、旧import・互換別名・readerを残さない。mlrigの通常JSON文字列は標準`json`、GUI名と標準Editor起動は利用側のcmds/mel、表示色はPlugで扱う。`viewportOff`の表示停止/復帰はdecoratorで維持する。`mlib.cmds`とルート再公開は`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口に限定し、他のMayaコマンドは利用側で直接使用して必要な戻り値をmlib参照へ変換する。CのMesh.reorderVertices/DagPose.mergeは維持する。数学所有権・単位・保持APIの引数/返却・複数形/reload/拡張自動探索・通常Undo/fastは維持する。
+
+- 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。ArrayPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。追加縮小の14型を除く演算ノードの検証/複合処理とBlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約は既存基盤へ委譲する。
 
 - 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`ArrayPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、fast継承、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効/fast文脈では破壊的処理前に拒否する。
 
-- 2026-10-11のユーザー指示により、ライブラリの正式名は `mlib`、拡張は `mlib_*` とする。旧パッケージ名のimport互換・別名は設けない。この改名では保存形式識別子を `mlib.json`、拡張宣言を `MLIB_EXTENSION_API` へ移行し、旧形式の互換読み込みも提供しない。その他の公開APIの引数・戻り値・意味は維持する。
+- 2026-10-11のユーザー指示により、ライブラリの正式名は `mlib`、拡張は `mlib_*` とする。旧パッケージ名のimport互換・別名は設けない。拡張宣言は `MLIB_EXTENSION_API` とし、旧宣言の互換入口は提供しない。その他の公開APIの引数・戻り値・意味は維持する。
 
 - 2026-10-06にユーザーが指定した命名規則: mlib独自の取得/設定メソッドはget/set、メソッド内のアトリビュート名はAttr/Attrs、追加アトリビュートはExtra、型変換はasに統一する。getT/setT等の短縮アクセサーは使用しない。数学型はコピー操作と自身更新を併存し、独自APIの自身更新にはItを付ける。OpenMaya標準名と演算条件は維持し、対応する数学値の戻り型はmlib型へ統一する。引数の長短別名と適用例外の詳細は `docs/mlib-api-design.md` を参照し、今回確定した仕様も下記の変更禁止対象とする。
 
-- 2026-10-22のユーザー指示により、独自の取得はget付きの正式名へ集約し、get省略入口・短名取得コマンドを再追加しない。数学演算・保持プロパティ・OpenMaya/外部SDKの標準名・既存の判定入口は維持する。接続は `getSource/getDestinations(skipConversionNodes=...)` と方向指定の `getConnections`、単位は `get/set(uiUnits=...)`、子孫探索は `getChildren` のフラグに集約する。`getShapes` は独立して維持する。演算ノードの単純なPlug転送は削減し、Transform/Joint・行列/TRS・検証や複合処理は残す。リグ用途のオフセット生成・チャンネル初期化は `mlrig.setups.ControlHierarchy` に置く。通常変更はUndo可能なcmds、対応するfastはUndo設定を変更しないOM2実装とし、未対応条件は更新前に拒否する。具体的な範囲と制限は `maya/inhouse/mlib/_docs/consolidated_api.rst` を参照する。
+- 2026-10-22のユーザー指示により、独自の取得はget付きの正式名へ集約し、get省略入口・短名取得コマンドを再追加しない。数学演算・保持プロパティ・OpenMaya/外部SDKの標準名と正式is判定は維持する。接続は `getSource/getDestinations(skipConversionNodes=...)` と方向指定の `getConnections`、単位は `get/set(uiUnits=...)`、子孫探索は `getChildren` のフラグに集約する。`getShapes` は独立して維持する。演算ノードの単純なPlug転送は削減し、Transform/Joint・行列/TRSと追加縮小14型以外の検証や複合処理は残す。リグ用途のオフセット生成・チャンネル初期化は `mlrig.setups.ControlHierarchy` に置く。通常変更はUndo可能なcmds、対応するfastはUndo設定を変更しないOM2実装とし、未対応条件は更新前に拒否する。具体的な範囲と制限は `maya/inhouse/mlib/_docs/consolidated_api.rst` を参照する。
 
 - mlibの確定済み公開APIの引数仕様は、ユーザーから対象仕様への明示的な変更指示がない限り変更禁止とする。引数名・順序・位置引数/キーワード専用の区分・短縮名/長名・既定値・単位・フラグの意味・戻り値を維持する。リファクタリング、他ライブラリへの追従、命名統一、最適化を理由に変更しない。対象には `ws/worldSpace`、`at`、`ra/r/jo`、`safe/get/fast`、接続方向と `f/l/na`、`Node.addAttr` の型指定・`getPlug` を含む。具体的な仕様は `maya/inhouse/mlib/_docs/api_arguments.rst`・`maya/inhouse/mlib/_docs/api_methods.rst`・`docs/mlib-api-design.md` を参照する。特に `Node.addAttr()` は既定で追加したPlugを返し、明示的な `getPlug=False` の場合のみNoneを返す。通常のsetterが自身を返す仕様も維持し、既定戻り値をNoneへ変更しない。ドキュメントやテストを先に書き換えて仕様変更を正当化することも禁止する。既存の呼び出し仕様を保つ内部修正・不具合修正は可能とする。
 
 - mlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。2026-10-23のユーザー指示により、内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。既存の公開引数・拡張用プロトコル・Mayaフラグ・保存キーは変更しない。インデントはスペース4、文字列は原則ダブル引用符、単純な文字列埋込みはf-stringとし、エスケープを減らす引用符・raw正規表現・外部書式・数値書式・引数の評価順や参照回数を保つformat・loggingの遅延書式は例外とする。詳細は`docs/mlib-api-design.md`の「確定したコーディングルール」を参照する。
 
-- mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
+- mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。汎用UIラッパーは提供せず、Maya標準UIの操作とQtウィジェット取得・変換は利用側へ置く。横断的な通知は既存のmlib.loggerで扱う。
 
 - mlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
 
@@ -28,17 +32,17 @@
 
 - mlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/mlib-api-design.md` を参照する。
 
-- mlib/mlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。mlib.cmdsの追加は既存の入力解決・短縮フラグ・Undo規則に合わせ、ノード/アトリビュート/UI参照はmlibオブジェクトで返す。数値・真偽値等の照会値は値として返す。生のcmds転送クラスは追加しない。
+- mlib/mlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。mlib.cmdsの7入口は既存の入力解決・短縮フラグ・Undo・戻り型を維持する。他のコマンドラッパーや生のcmds転送クラスは追加しない。
 
-- mlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`json` とする。シーン状態・関係、Maya標準UI・表示色、作業環境・導入状態、イベント・遅延実行、汎用処理は `common` 直下へ置き、領域別のサブフォルダは増やさない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py`、保存基盤は `json` に置く。内部基盤は `_core`、文書は `_docs` に置く。`mlib_*` もこの責務の分類に合わせる。
+- mlibの公開フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py`、内部基盤は `_core`、文書は `_docs` に置く。`mlib_*` もこの責務の分類に合わせる。
 
 - `Object` (`_core/object.py`) は単数の `Node`・`Plug`・`Component` の共通基底と種類判別の入口。取得は `from mlib._core.object import Object` とし、ルートへの再公開は行わない。各型の入力解決は各基底クラス、複数入力の検証は `Nodes` に集約する。数学値・コレクション・UI・保存データを無理に継承させない。旧 `general`・`_core/coerce.py` の互換入口は置かない。拡張管理の正式入口は `from mlib._core import extensions` とし、ルート属性や旧モジュールパスは残さない。
 
-- mlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、create/add/set/get等の動詞+対象で命名する。create/add/setは照会を兼ねず、照会・既存対象の編集はオブジェクトのメソッドへ寄せる。lsは慣用名として維持し、delete/duplicate/select等の動詞も維持する。旧名の互換入口は残さず使用側を更新する。
+- mlib.cmdsの公開関数とファイルは同名のlowerCamelCaseとし、`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口を維持する。既存対象の編集はオブジェクトのメソッド、他のMaya標準コマンドは利用側のcmdsへ寄せる。旧名の互換入口は残さず使用側を更新する。
 
 - mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない汎用関数は `mlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
 
-- mlibおよび `mlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`channelBox.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `mlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
+- mlibおよび `mlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `mlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
 - mlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型とリグ非依存の計算・汎用処理は `common`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `mlrig.setups` に置く。`mlib/animation` は作らない。Bifrostの演算部品は `mlib_bifrost.common`、リグの組み方はmlrigに置く。
 
@@ -110,7 +114,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 ### mlib
 
 - ノード・アトリビュートラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
-- 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`json`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
+- 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応は別の責務で、登録済み型からのラッパー選択は `_core/registry.py` の既存規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` として明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数メソッドの追加だけで複数形APIを増やさず、既存の引数・戻り値・専用集約処理を維持する。
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。

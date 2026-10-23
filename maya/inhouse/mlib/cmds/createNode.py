@@ -22,7 +22,7 @@ Return value
 Related commands
 ----------------
 
-:doc:`ls <../ls/index>` / :doc:`constraint <../addConstraint/index>`
+:doc:`ls <../ls/index>` / :meth:`~mlib.nodes.transform.Transform.addConstraint`
 
 Flags
 -----

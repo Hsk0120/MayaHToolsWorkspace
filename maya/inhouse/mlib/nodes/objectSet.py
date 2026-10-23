@@ -3,7 +3,6 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .._core.getterAlias import _is_alias
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 from .node import Node
@@ -90,19 +89,6 @@ class ObjectSet(Node):
             if not members.hasItem(item):
                 return False
         return True
-
-    @_is_alias(isMember)
-    def member(self, *args, **kwargs):
-        """isMemberへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isMember(*args, **kwargs)
 
     @staticmethod
     def _member_selection(members):

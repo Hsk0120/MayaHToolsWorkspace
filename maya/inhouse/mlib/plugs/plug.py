@@ -10,7 +10,6 @@ from .._core.attributeType import attributeType, is_internal_data_type, value_re
 from .._core.fastWrite import set_attr
 from .._core.fastWrite import set_plug
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _is_alias
 from .._core.object import Object
 from .._core.unitValue import convert
 from ..common._fast import fast_edit, is_fast
@@ -118,7 +117,7 @@ class DeletedAttributeError(ValueError, RuntimeError):
 
     所有ノードは有効なままアトリビュートだけが削除された Plug・MPlug は、所有ノードへ解決すると
     削除済みの対象を黙って受け付けてしまうため、``Node._resolve_input``・``Node(...)``/``mlib.getNode``・
-    ``mlib.addConstraint`` の拘束元・拘束先などでも例外にする。mlib のコマンド(``Object._input_name``)と
+    ``Transform.addConstraint()`` の拘束元・拘束先などでも例外にする。mlib のコマンド(``Object._input_name``)と
     同じく ``ValueError`` として扱う。``Node(...)`` は解決できない対象をすべて
     ``RuntimeError`` にする規則のため、``RuntimeError`` としても捕捉できるようにしている
     (標準ライブラリの ``io.UnsupportedOperation`` が ``OSError`` と ``ValueError`` の両方を
@@ -290,19 +289,6 @@ class Plug(Object):
         handle = self._node._handle
         return handle is not None and handle.isValid() and self._attribute_exists()
 
-    @_is_alias(isValid)
-    def valid(self, *args, **kwargs):
-        """isValidへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isValid(*args, **kwargs)
-
     def mplug(self):
         """内部で保持する Maya API 2.0 MPlug を返す。
 
@@ -463,19 +449,6 @@ class Plug(Object):
         """
         return self._mplug.isArray
 
-    @_is_alias(isArray)
-    def array(self, *args, **kwargs):
-        """isArrayへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isArray(*args, **kwargs)
-
     def isCompound(self):
         """compound アトリビュートか判定する。
 
@@ -483,19 +456,6 @@ class Plug(Object):
             bool: 子プラグを持つ場合は ``True``。
         """
         return self._mplug.isCompound
-
-    @_is_alias(isCompound)
-    def compound(self, *args, **kwargs):
-        """isCompoundへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isCompound(*args, **kwargs)
 
     def isElement(self):
         """multi アトリビュートの要素プラグか判定する。
@@ -512,19 +472,6 @@ class Plug(Object):
             bool: 子プラグの場合は ``True``。
         """
         return self._mplug.isChild
-
-    @_is_alias(isChild)
-    def child(self, *args, **kwargs):
-        """isChildへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isChild(*args, **kwargs)
 
     def getParent(self):
         """compound アトリビュートの子プラグであれば、その親プラグを取得する。
@@ -555,19 +502,6 @@ class Plug(Object):
         """
         self._require_valid()
         return self._mplug.isKeyable
-
-    @_is_alias(isKeyable)
-    def keyable(self, *args, **kwargs):
-        """isKeyableへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isKeyable(*args, **kwargs)
 
     @fast_edit
     @undoChunk("mlibPlugSetKeyable")
@@ -621,19 +555,6 @@ class Plug(Object):
         """
         self._require_valid()
         return self.mplug().isChannelBox
-
-    @_is_alias(isChannelBox)
-    def channelBox(self, *args, **kwargs):
-        """isChannelBoxへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isChannelBox(*args, **kwargs)
 
     @fast_edit
     @undoChunk("mlibPlugSetChannelBox")
@@ -776,19 +697,6 @@ class Plug(Object):
             return self._mplug.isConnected
         return (src and self._mplug.isDestination) or (dst and self._mplug.isSource)
 
-    @_is_alias(isConnected)
-    def connected(self, *args, **kwargs):
-        """isConnectedへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isConnected(*args, **kwargs)
-
     def isSource(self):
         """出力接続元か判定する。
 
@@ -813,19 +721,6 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isDestination
 
-    @_is_alias(isDestination)
-    def destination(self, *args, **kwargs):
-        """isDestinationへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isDestination(*args, **kwargs)
-
     def isHidden(self):
         """UI から隠されたアトリビュートか判定する。
 
@@ -838,19 +733,6 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
-    @_is_alias(isHidden)
-    def hidden(self, *args, **kwargs):
-        """isHiddenへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isHidden(*args, **kwargs)
-
     def isDynamic(self):
         """動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート等）か判定する。
 
@@ -862,19 +744,6 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).dynamic
-
-    @_is_alias(isDynamic)
-    def dynamic(self, *args, **kwargs):
-        """isDynamicへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isDynamic(*args, **kwargs)
 
     def isReadable(self):
         """アトリビュート定義の readable フラグを取得する。
@@ -890,19 +759,6 @@ class Plug(Object):
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).readable
 
-    @_is_alias(isReadable)
-    def readable(self, *args, **kwargs):
-        """isReadableへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isReadable(*args, **kwargs)
-
     def isWritable(self):
         """アトリビュート定義の writable フラグを取得する。
 
@@ -916,19 +772,6 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).writable
-
-    @_is_alias(isWritable)
-    def writable(self, *args, **kwargs):
-        """isWritableへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isWritable(*args, **kwargs)
 
     def isSettable(self):
         """Maya標準のsettable照会で、現在値を設定可能か取得する。
@@ -945,19 +788,6 @@ class Plug(Object):
         self._require_valid()
         return bool(cmds.getAttr(self.getFullName(), settable=True))
 
-    @_is_alias(isSettable)
-    def settable(self, *args, **kwargs):
-        """isSettableへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            bool: isSettableと同じ結果。
-        """
-        return self.isSettable(*args, **kwargs)
-
     def isStorable(self):
         """シーンファイルへ値が保存されるアトリビュートか判定する。
 
@@ -969,19 +799,6 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).storable
-
-    @_is_alias(isStorable)
-    def storable(self, *args, **kwargs):
-        """isStorableへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isStorable(*args, **kwargs)
 
     def hasMin(self):
         """最小値制限を持つアトリビュートか判定する。
@@ -1316,19 +1133,6 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isLocked
 
-    @_is_alias(isLocked)
-    def locked(self, *args, **kwargs):
-        """isLockedへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isLocked(*args, **kwargs)
-
     @fast_edit
     @undoChunk("mlibPlugSetLocked")
     def setLocked(self, val=True, leaf=False, *, fast=False):
@@ -1361,19 +1165,6 @@ class Plug(Object):
             return False
         node = om2.MFnDependencyNode(source.node())
         return node.typeName == "mute" and node.findPlug("mute", False).asBool()
-
-    @_is_alias(isMuted)
-    def muted(self, *args, **kwargs):
-        """isMutedへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isMuted(*args, **kwargs)
 
     @fast_edit
     @undoChunk("mlibPlugSetMuted")
@@ -1767,19 +1558,6 @@ class Plug(Object):
             connected == other.mplug()
             for connected in self._mplug.connectedTo(src, dst)
         )
-
-    @_is_alias(isConnectedTo)
-    def connectedTo(self, *args, **kwargs):
-        """isConnectedToへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isConnectedTo(*args, **kwargs)
 
     @flag_aliases(source="src")
     @fast_edit

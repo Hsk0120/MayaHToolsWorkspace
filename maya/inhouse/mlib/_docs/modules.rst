@@ -44,7 +44,6 @@ Common Features
    autoapi/mlib/common/index
    autoapi/mlib/decorator/index
    autoapi/mlib/logger/index
-   autoapi/mlib/json/index
 
 Development
 -----------

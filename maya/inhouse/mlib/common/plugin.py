@@ -3,7 +3,6 @@
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _is_alias
 from .._core.typeHierarchy import clear_cache
 from .version import Version
 
@@ -120,19 +119,6 @@ class Plugin:
         """
         return bool(cmds.pluginInfo(self._name, query=True, registered=True))
 
-    @_is_alias(isRegistered)
-    def registered(self, *args, **kwargs):
-        """isRegisteredへ委譲するis省略の判定入口。
-
-        Args:
-            *args (object): 判定本体へ渡す位置引数。
-            **kwargs (object): 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isRegistered(*args, **kwargs)
-
     def isLoaded(self):
         """プラグインが現在ロードされているか判定する。
 
@@ -187,19 +173,6 @@ class Plugin:
             raise ValueError(f"Invalid minimum version: {minimum!r}")
         version = self.getVersion()
         return version is not None and version >= required
-
-    @_is_alias(isVersionAtLeast)
-    def versionAtLeast(self, *args, **kwargs):
-        """isVersionAtLeastへ委譲するis省略の判定入口。
-
-        Args:
-            *args (object): 判定本体へ渡す位置引数。
-            **kwargs (object): 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isVersionAtLeast(*args, **kwargs)
 
     def load(self, **kwargs):
         """プラグインをロードする。

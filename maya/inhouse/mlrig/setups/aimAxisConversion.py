@@ -1,10 +1,10 @@
 """既存Aimの出力を1〜2軸へ変換し、元の接続を復元する。"""
 
+import json
 import math
 
 import mlib
 from mlib.decorator import undoTransaction
-from mlib.json import JsonText
 from mlib.nodes import Container, Node, Transform
 from mlib.plugs import Plug
 from mlib.common.scalarGraph import ScalarGraph
@@ -102,7 +102,7 @@ class AimAxisConversion:
         previous = cls.find(source)
         original_state = None
         if previous is not None:
-            original_state = JsonText.loads(previous.container.getPlug("settings").get())
+            original_state = json.loads(previous.container.getPlug("settings").get())
             previous.restore()
         target, original, compound = cls._inspect(source, axes)
         order = int(source.getPlug("constraintRotateOrder").get())
@@ -121,7 +121,7 @@ class AimAxisConversion:
             owner.addAttr(longName=attr, attributeType="message")
             node.getPlug("message").connectTo(owner.getPlug(attr))
         owner.addAttr(longName="settings", dataType="string")
-        owner.getPlug("settings").set(JsonText.dumps(dict(
+        owner.getPlug("settings").set(json.dumps(dict(
             version=1, axes=axes, mode=mode, direction=direction, order=order,
             reference=reference, halfRange=half_range, preservePose=bool(preserve_pose),
             restValues=rest_values, useContainer=bool(use_container),
@@ -196,7 +196,7 @@ class AimAxisConversion:
         if any(link is None for link in links):
             raise ValueError("元のAimまたは対象が削除されているため復元できません。")
         source, target = [link.getNode() for link in links]
-        data = JsonText.loads(owner.getPlug("settings").get())
+        data = json.loads(owner.getPlug("settings").get())
         settings = data.get("constraintSettings", {})
         if not settings and "restValues" in data:
             # 旧変換が記録した初期値だけを復元し、未記録の設定は推測しない。

@@ -1,6 +1,7 @@
 """使い捨てMayaでAim軸変換の数値・接続・Undo・保存読込を検証する。"""
 
 import math
+import json
 from pathlib import Path
 import sys
 import unittest
@@ -300,15 +301,14 @@ class AimAxisConversionTest(unittest.TestCase):
 
     def test_restore_legacy_correction_removes_all_nodes(self):
         """旧版の補正付き復元の保存情報からも元Aimだけへ戻せる。"""
-        from mlib.json import JsonText
         baseline = set(self.cmds.ls())
         graph = self.cls.create(self.source, axes="xy")
-        state = JsonText.loads(graph.container.getPlug("settings").get())
+        state = json.loads(graph.container.getPlug("settings").get())
         state["mode"] = "rest"
         state["axes"] = "xyz"
         graph.container.getPlug("outputZ").connectTo(self.driven + ".rotateZ")
         state.pop("constraintSettings")
-        graph.container.getPlug("settings").set(JsonText.dumps(state))
+        graph.container.getPlug("settings").set(json.dumps(state))
         graph.restore()
         self.assertEqual(set(self.cmds.ls()), baseline)
 

@@ -11,7 +11,6 @@ import maya.cmds as cmds
 from .._core.bulkExecution import calculation_results
 from .._core.flags import flag_aliases
 from .._core.flags import normalize_flags
-from .._core.getterAlias import _is_alias
 from .._core.object import Object
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk, undoTransaction
@@ -304,7 +303,7 @@ class Node(Object):
 
     インスタンス化されたノードは、指定されたインスタンスの DAG パスを保持する。
     そのインスタンスだけが削除された場合は、パスを使う操作がRuntimeErrorになる。
-    別インスタンスへ暗黙に切り替えない。ノード自体の有効性はis_validで照会する。
+    別インスタンスへ暗黙に切り替えない。ノード自体の有効性はisValidで照会する。
 
     ``Joint("newJoint", create=True)`` 等、具体的なノードクラスでは指定名で新規作成できる。
     createはキーワード専用のboolで、既定Falseは既存対象の取得のまま。
@@ -583,19 +582,6 @@ class Node(Object):
         handle = self._handle
         return handle is not None and handle.isValid()
 
-    @_is_alias(isValid)
-    def valid(self, *args, **kwargs):
-        """isValidへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isValid(*args, **kwargs)
-
     def isAlive(self):
         """ノードの Maya オブジェクトがメモリ上に生存しているか判定する。
 
@@ -604,19 +590,6 @@ class Node(Object):
         """
         handle = self._handle
         return handle is not None and handle.isAlive()
-
-    @_is_alias(isAlive)
-    def alive(self, *args, **kwargs):
-        """isAliveへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isAlive(*args, **kwargs)
 
     def mnode(self):
         """保持している Maya API 2.0 MObject を返す。
@@ -695,19 +668,6 @@ class Node(Object):
         """
         return om2.MFnDependencyNode(self._mobject).isLocked
 
-    @_is_alias(isLocked)
-    def locked(self, *args, **kwargs):
-        """isLockedへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isLocked(*args, **kwargs)
-
     def isFromReferencedFile(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
@@ -715,19 +675,6 @@ class Node(Object):
             bool: 参照由来の場合は True。
         """
         return om2.MFnDependencyNode(self._mobject).isFromReferencedFile
-
-    @_is_alias(isFromReferencedFile)
-    def fromReferencedFile(self, *args, **kwargs):
-        """isFromReferencedFileへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isFromReferencedFile(*args, **kwargs)
 
     def isAncestorOf(self, other):
         """other が自身の DAG 階層上の子孫か判定する。
@@ -751,19 +698,6 @@ class Node(Object):
             return False
         other_full = other_node.getFullName()
         return other_full != self_full and other_full.startswith(self_full + "|")
-
-    @_is_alias(isAncestorOf)
-    def ancestorOf(self, *args, **kwargs):
-        """isAncestorOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isAncestorOf(*args, **kwargs)
 
     def isParentOf(self, other):
         """other が自身の直接の子か判定する（孫以下は対象外）。
@@ -789,19 +723,6 @@ class Node(Object):
         parent_prefix, separator, _ = other_full.rpartition("|")
         return bool(separator) and parent_prefix == self_full
 
-    @_is_alias(isParentOf)
-    def parentOf(self, *args, **kwargs):
-        """isParentOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isParentOf(*args, **kwargs)
-
     def isChildOf(self, other):
         """other が自身の直接の親か判定する（祖父母以上は対象外）。
 
@@ -822,19 +743,6 @@ class Node(Object):
         if other_node is None:
             return False
         return other_node.isParentOf(self)
-
-    @_is_alias(isChildOf)
-    def childOf(self, *args, **kwargs):
-        """isChildOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isChildOf(*args, **kwargs)
 
     def getAttrCount(self):
         """ノードが持つアトリビュートの総数を取得する。
@@ -1941,9 +1849,7 @@ class Nodes:
         "sameNode": (Node.sameNode, "list"),
         "sameInstance": (Node.sameInstance, "list"),
         "isValid": (Node.isValid, "list"),
-        "valid": (Node.valid, "list"),
         "isAlive": (Node.isAlive, "list"),
-        "alive": (Node.alive, "list"),
         "mnode": (Node.mnode, "list"),
         "getType": (Node.getType, "list"),
         "getTypeId": (Node.getTypeId, "list"),
@@ -1951,15 +1857,10 @@ class Nodes:
         "getClassification": (Node.getClassification, "list"),
         "isType": (Node.isType, "list"),
         "isLocked": (Node.isLocked, "list"),
-        "locked": (Node.locked, "list"),
         "isFromReferencedFile": (Node.isFromReferencedFile, "list"),
-        "fromReferencedFile": (Node.fromReferencedFile, "list"),
         "isAncestorOf": (Node.isAncestorOf, "list"),
-        "ancestorOf": (Node.ancestorOf, "list"),
         "isParentOf": (Node.isParentOf, "list"),
-        "parentOf": (Node.parentOf, "list"),
         "isChildOf": (Node.isChildOf, "list"),
-        "childOf": (Node.childOf, "list"),
         "getAttrCount": (Node.getAttrCount, "list"),
         "getPath": (Node.getPath, "list"),
         "isRoot": (Node.isRoot, "list"),
@@ -2148,19 +2049,6 @@ class Nodes:
 
     isValid.__signature__ = inspect.signature(Node.isValid)
 
-    @_is_alias(isValid)
-    def valid(self, *args, **kwargs):
-        """isValidへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isValid(*args, **kwargs)
-
     def isAlive(self, *args, **kwargs):
         """各要素のisAliveを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2174,19 +2062,6 @@ class Nodes:
         return self._dispatch_shared("isAlive", args, kwargs)
 
     isAlive.__signature__ = inspect.signature(Node.isAlive)
-
-    @_is_alias(isAlive)
-    def alive(self, *args, **kwargs):
-        """isAliveへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isAlive(*args, **kwargs)
 
     def mnode(self, *args, **kwargs):
         """各要素のmnodeを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2286,19 +2161,6 @@ class Nodes:
 
     isLocked.__signature__ = inspect.signature(Node.isLocked)
 
-    @_is_alias(isLocked)
-    def locked(self, *args, **kwargs):
-        """isLockedへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isLocked(*args, **kwargs)
-
     def isFromReferencedFile(self, *args, **kwargs):
         """各要素のisFromReferencedFileを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2312,19 +2174,6 @@ class Nodes:
         return self._dispatch_shared("isFromReferencedFile", args, kwargs)
 
     isFromReferencedFile.__signature__ = inspect.signature(Node.isFromReferencedFile)
-
-    @_is_alias(isFromReferencedFile)
-    def fromReferencedFile(self, *args, **kwargs):
-        """isFromReferencedFileへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isFromReferencedFile(*args, **kwargs)
 
     def isAncestorOf(self, *args, **kwargs):
         """各要素のisAncestorOfを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2340,19 +2189,6 @@ class Nodes:
 
     isAncestorOf.__signature__ = inspect.signature(Node.isAncestorOf)
 
-    @_is_alias(isAncestorOf)
-    def ancestorOf(self, *args, **kwargs):
-        """isAncestorOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isAncestorOf(*args, **kwargs)
-
     def isParentOf(self, *args, **kwargs):
         """各要素のisParentOfを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2367,19 +2203,6 @@ class Nodes:
 
     isParentOf.__signature__ = inspect.signature(Node.isParentOf)
 
-    @_is_alias(isParentOf)
-    def parentOf(self, *args, **kwargs):
-        """isParentOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isParentOf(*args, **kwargs)
-
     def isChildOf(self, *args, **kwargs):
         """各要素のisChildOfを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2393,19 +2216,6 @@ class Nodes:
         return self._dispatch_shared("isChildOf", args, kwargs)
 
     isChildOf.__signature__ = inspect.signature(Node.isChildOf)
-
-    @_is_alias(isChildOf)
-    def childOf(self, *args, **kwargs):
-        """isChildOfへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isChildOf(*args, **kwargs)
 
     def getAttrCount(self, *args, **kwargs):
         """各要素のgetAttrCountを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2901,7 +2711,7 @@ class Nodes:
 
     @staticmethod
     def _call_target(item, method):
-        """取得・判定の省略名は呼出時の本体へ解決し、実際の署名とフラグを検査する。
+        """保持中の単数参照から、現在の公開メソッドを解決する。
 
         Args:
             item (Node): 呼出し先の単数参照。
@@ -2910,9 +2720,7 @@ class Nodes:
         Returns:
             callable: 派生override・個体差替えを反映した実際の呼出し先。
         """
-        function = getattr(item, method)
-        getter_name = getattr(function, "__mlib_getter_name__", None)
-        return getattr(item, getter_name) if getter_name is not None else function
+        return getattr(item, method)
 
     @staticmethod
     def _signature(function, signatures):

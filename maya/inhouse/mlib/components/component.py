@@ -3,7 +3,6 @@
 import math
 import operator
 
-from .._core.getterAlias import _is_alias
 from .._core.object import Object
 
 
@@ -104,19 +103,6 @@ class Component(Object):
         except (RuntimeError, TypeError, ValueError, IndexError):
             return False
         return True
-
-    @_is_alias(isValid)
-    def valid(self, *args, **kwargs):
-        """isValidへ委譲する省略入口。
-
-        Args:
-            *args: 正式判定メソッドへ渡す位置引数。
-            **kwargs: 正式判定メソッドへ渡すキーワード引数。
-
-        Returns:
-            bool: 正式判定メソッドと同じ結果。
-        """
-        return self.isValid(*args, **kwargs)
 
     @staticmethod
     def _from_api(path, component):
@@ -450,19 +436,6 @@ class Components:
         except (RuntimeError, TypeError, ValueError, IndexError):
             return False
         return all(index >= 0 for index in self._indices)
-
-    @_is_alias(isValid)
-    def valid(self, *args, **kwargs):
-        """isValidへ委譲する省略入口。
-
-        Args:
-            *args: 正式判定メソッドへ渡す位置引数。
-            **kwargs: 正式判定メソッドへ渡すキーワード引数。
-
-        Returns:
-            bool: 正式判定メソッドと同じ結果。
-        """
-        return self.isValid(*args, **kwargs)
 
     def _has_standard_component(self, component_class=None):
         """単数の構築・検査・番号取得が標準の具体型か判定する。

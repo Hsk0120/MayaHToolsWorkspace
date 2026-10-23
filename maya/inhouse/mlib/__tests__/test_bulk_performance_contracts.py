@@ -8,7 +8,6 @@ import mlib
 
 mlib.reload()
 from mlib._core.flags import flag_aliases
-from mlib._core.getterAlias import _getter_alias
 
 
 class BulkPerformanceContractsTest(unittest.TestCase):
@@ -102,8 +101,8 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 invoke()
         self.assertEqual(calls, [1, 2])
 
-    def test_getter_alias_preflight_uses_current_getter_signature_and_flags(self):
-        """省略名も現在のgetterで全件を検証し、変更前に引数不正を拒否する。"""
+    def test_getter_preflight_uses_current_signature_and_flags(self):
+        """正式getterの差替えと短縮フラグを全件検証し、不正入力では実行しない。"""
         calls = []
 
         class Item:
@@ -115,10 +114,6 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 calls.append(value)
                 return value
 
-            @_getter_alias(getValue)
-            def value(self, *args, **kwargs):
-                """呼出時のgetterへ委譲する。"""
-                return self.getValue(*args, **kwargs)
 
         class Derived(Item):
             """署名と短縮フラグが異なるgetterを持つ派生型。"""
@@ -130,10 +125,10 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 return required
 
         class Items(mlib.nodes.Nodes):
-            """要素別の省略名呼出しを確認するコレクション。"""
+            """要素別の正式getter呼出しを確認するコレクション。"""
 
-            _bulk_returns = {**mlib.nodes.Nodes._bulk_returns, "getValue": "list", "value": "list"}
-            _bulk_methods = {**mlib.nodes.Nodes._bulk_methods, "getValue": Item.getValue, "value": Item.value}
+            _bulk_returns = {**mlib.nodes.Nodes._bulk_returns, "getValue": "list"}
+            _bulk_methods = {**mlib.nodes.Nodes._bulk_methods, "getValue": Item.getValue}
             _bulk_undo = False
 
             def __init__(self, items):
@@ -144,28 +139,24 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 """正式getterの共有引数を渡す。"""
                 return self._dispatch_shared("getValue", args, kwargs)
 
-            @_getter_alias(getValue)
-            def value(self, *args, **kwargs):
-                """正式getterのコレクション入口へ委譲する。"""
-                return self.getValue(*args, **kwargs)
 
         mixed = Items([Item(), Derived()])
         with self.assertRaises(TypeError):
-            mixed.callEach("value", [(), ()], [{"v": 1}, {}])
+            mixed.callEach("getValue", [(), ()], [{"v": 1}, {}])
         self.assertEqual(calls, [])
-        self.assertEqual(mixed.callEach("value", [(), ()], [{"v": 1}, {"r": 2}]), [1, 2])
+        self.assertEqual(mixed.callEach("getValue", [(), ()], [{"v": 1}, {"r": 2}]), [1, 2])
         self.assertEqual(calls, [1, 2])
         normal = Items([Item(), Item()])
-        self.assertEqual(normal.value(v=3), [3, 3])
+        self.assertEqual(normal.getValue(v=3), [3, 3])
         with patch.object(Item, "getValue", Derived.getValue):
             with self.assertRaises(TypeError):
-                normal.callEach("value", [(), ()], [{"v": 4}, {"v": 5}])
+                normal.callEach("getValue", [(), ()], [{"v": 4}, {"v": 5}])
         self.assertEqual(calls, [1, 2, 3, 3])
         normal._items[1].getValue = lambda *, required: calls.append(required) or required
         with self.assertRaises(TypeError):
-            normal.callEach("value", [(), ()], [{"v": 4}, {}])
+            normal.callEach("getValue", [(), ()], [{"v": 4}, {}])
         self.assertEqual(calls, [1, 2, 3, 3])
-        self.assertEqual(normal.callEach("value", [(), ()], [{"v": 4}, {"required": 5}]), [4, 5])
+        self.assertEqual(normal.callEach("getValue", [(), ()], [{"v": 4}, {"required": 5}]), [4, 5])
 
     def test_plug_lookup_follows_alias_rename_delete_undo(self):
         """function set再利用後もノードや動的アトリビュートの変化に追従する。"""

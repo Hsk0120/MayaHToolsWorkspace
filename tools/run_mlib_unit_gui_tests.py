@@ -1,7 +1,7 @@
 """ランナーが起動した使い捨てMaya GUIの中で、mlibの単体テスト一式を実行する。
 
 ``run_mlib_gui_versions.py --suite unit`` から ``main(output_dir, finished)`` として呼ばれる。
-mayapyでは実行できない(skipされる)GUI専用のケースと ``test_scene_ui.py`` も対象にする。
+mayapyでは実行できない(skipされる)GUI専用のケースも対象にする。
 テストはシーンの新規作成やウィンドウ配置の変更を行うため、普段使うGUIへ送信しない。
 """
 import os

@@ -7,7 +7,7 @@ mlrigはmlibを基本ライブラリとして使用する。Pythonコードの�
 - ノード生成・参照は `mlib.createNode()` / `mlib.getNode()`、アトリビュートと接続は `Node` / `Plug` の公開APIを優先する。mlibの `_core` など内部実装へ直接依存しない。
 - scriptJobの登録・生存確認・解除、汎用的なアトリビュート操作など、リグ以外でも使える処理はmlibへ実装する。リグの状態判断、FK/IKの姿勢合わせ、レイヤー依存関係はmlrigに置く。
 - Mayaへの問い合わせやシーン更新はメソッドにする。プロパティは保持している参照や識別子などに使用する。Undo可能な更新を既定にする。
-- mlrig本体・UI・startup・examplesでは既存mlib APIを優先する。末尾に列挙する標準操作は `maya.cmds` を直接使用し、同名ラッパーを追加しない。それ以外の汎用操作が不足する場合はmlibの責務を持つクラスへ追加する。生成コマンドは `mlib.cmds` の入力・フラグ規則に合わせ、ノード・アトリビュートはmlib参照として返す。テストは独立した検証のため直接cmdsを使用してよい。
+- mlrig本体・UI・startup・examplesでは既存mlib APIを優先する。`mlib.cmds`の7入口以外の標準操作は `maya.cmds` を直接使用し、必要な戻り値だけをmlib参照へ変換する。汎用の生成ラッパーは再追加しない。テストは独立した検証のため直接cmdsを使用してよい。
 - 既定のリグとデモはMaya標準ノードだけで構築する。Bifrost/C++は明示選択する任意バックエンドとし、mlrig起動時に自動ロードしない。
 - Bifrost固有操作はmlib_bifrost、独自C++リグノードはmlrigの責務とする。mlibへ独自プラグインを追加しない。
 
@@ -40,10 +40,10 @@ def set_layer_enabled(self, layer, enabled):
 
 ## 共通処理の配置
 
-- 所有DGは`mlib.nodes.Container`の`create`・`createNode`・`addMembers`・`members`を使う。
+- 所有DGは`mlib.nodes.Container`の`create`・`createNode`・`addMembers`・`getMembers`を使う。
   レイヤー固有のノード名、所有グラフの選択と有効状態判断はmlrigで決める。
   所属だけの解除は`removeMembers`、メンバーを残す箱の解除は`removeContainer`を使う。
-  公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`publishedAttributes`を使う。
+  公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`getPublishedAttrs`を使う。
   箱自身の入出力アトリビュートを介する接続の移送は利用側が担当する。
 - 保存用message配列は`ArrayPlug.getSourceNodes()`と`appendMessage()`を使う。
   前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
@@ -59,39 +59,33 @@ def set_layer_enabled(self, layer, enabled):
   Bifrostの演算構築は`mlib_bifrost.common.MathBuilder`、Soft IKは`mlrig.setups.bifrostSoftIK.SoftIK`へ置く。
 - 共通APIへ依存方向を逆転させない。mlib/mlib_bifrostからmlrigをimportしない。
   移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。
-- コマンド入口は `mlib.cmds`（および同一関数の `mlib` 再公開）へ置く。
-  短縮フラグ正規化、入力参照の解決、Undo規則を既存コマンドに合わせる。
-  ノードはNode、アトリビュートはPlug、UIはUiElementを返す。数値やboolの照会は値として返す。
-  汎用の生cmds転送クラスは追加しない。リグの保存済み名前形式が必要な境界だけ
-  `.name()` / `.fullName()` で明示変換する。
+- 基礎コマンドは`getNode/getPlug/createNode/ls/delete/duplicate/select`を使う。
+  その他はMaya標準cmdsを直接呼び、Node/Plugが必要な境界だけ明示変換する。
+  標準コマンドの引数へは必要に応じて`getFullName()`を渡し、shape/transform/履歴/effectorを区別する。
 
 - mlrigからOpenMaya/OpenMayaUIを直接importしない。数学型は `mlib.maths` の
   Matrix/Vector/EulerRotate等、位置変換は `Matrix.transformPoint`、回転分解は
   `Matrix.quaternion`・`Matrix.euler` を使う。位置と方向の変換を混同しない。
   Qt親ウィンドウの取得・変換は利用側UIパッケージの責務とする。mlibはQtをimportせず、標準UIの名前・Mayaの通知APIを扱う。
 
-- `maya.mel` もmlrigから直接使用しない。メインウィンドウ名は
-  `MainWindow.getName()`、標準エディター起動は `NodeEditor.show()` / `GraphEditor.show()`
-  を使用する。必要なMEL操作はmlibに責務を持つメソッドとして追加する。
-
-- 標準 `json` をmlrigで直接importしない。既存リグアトリビュートの通常JSONは
-  `mlib.json.JsonText.dumps/loads` を使用し、外枠・型タグを追加しない。
-  mlib型・Snapshot保存用の既存 `mlib.json.dumps/loads` と用途を区別する。
-
-- `maya.utils` の直接importも行わない。Pythonの遅延呼出しは
-  `mlib.executeDeferred(callback, *args, **kwargs)` を使う。文字列コードは受け付けない。
-- 作業環境は `mlib.common.Workspace` / `Preferences`、シーンの選択は `mlib.common.Selection` で扱う。
-  基本型以外の共通機能はcommon直下へ置き、原則1クラス1ファイル（単数・対応する複数クラスは同居）とする。旧import用ファイルは残さず、使用側を新しい配置へ更新する。
+- 標準UI名とEditor起動には利用側で`maya.mel`/`maya.cmds`を使う。
+  メインウィンドウ名は`$gMainWindow`、標準Editorは`NodeEditorWindow`/`GraphEditor`へ委譲する。
+  バッチ判定を行い、mlibへ汎用UIラッパーを再追加しない。
+- アトリビュート内の通常JSON文字列はPython標準の`json.dumps/loads`を使う。
+  同じ引数・文字列形式を維持し、独自の外枠や型タグを追加しない。
+- Pythonの遅延呼出しは`mlib.common.Deferred.call(callback, *args, **kwargs)`を使う。
+  シーンの選択は`mlib.common.Selection`、作業環境・ユーザー設定は利用側のMaya標準APIで扱う。
+  汎用設定ストア・型付き保存フレームワークは再追加しない。
 
 ## リグセットアップの境界
 
-Maya標準の概念・操作はmlibへ、リグの構成・追従・補正・コントロール設定は `mlrig.setups` へ置く。標準ノードだけで構成していてもリグの組み方を決める処理はmlrigの責務。Spline IKソルバーの作成は `mlib.createIkHandle`、CVコントロール接続・両端Twist・停止経路を組み合わせる構築は `mlrig.setups.SplineIK` とする。
+Maya標準の概念・操作はmlibへ、リグの構成・追従・補正・コントロール設定は `mlrig.setups` へ置く。標準ノードだけで構成していてもリグの組み方を決める処理はmlrigの責務。Spline IKソルバーの作成は `maya.cmds.ikHandle` と戻り値のNode変換、CVコントロール接続・両端Twist・停止経路を組み合わせる構築は `mlrig.setups.SplineIK` とする。
 
 `DrivenKey` は `mlib.common`、純粋なカーブ近似・減衰ばねは `mlib.common`。mlibとmlib_bifrostにはmlrigへの依存を作らず、セットアップのテスト・文書もmlrigに置く。
 
 通知は `mlib.logger.warning/error/info`、通常のPython出力は `logger.print` に集約する。`mlib.warning` / `mlib.cmds.warning` は使用しない。
 
-指定された標準操作（about/currentTime/cutKey/deleteUI/keyframe/listConnections/listHistory/listRelatives/menu/menuItem/objExists/parent/playbackOptions/setKeyframe）は `maya.cmds` を直接使用する。削除した同名mlibコマンドを再追加しない。名前の戻り値をmlibで扱う場合は使用側でNode/Plugへ変換し、connections=TrueはMayaの平坦なペア列として扱う。
+基礎7入口以外の標準操作は `maya.cmds` を直接使用する。削除した同名mlibコマンドを再追加しない。名前の戻り値をmlibで扱う場合は使用側でNode/Plugへ変換し、connections=TrueはMayaの平坦なペア列として扱う。
 
 
 ## 所有する参照への委譲

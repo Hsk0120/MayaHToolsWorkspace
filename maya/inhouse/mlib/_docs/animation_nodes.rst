@@ -46,21 +46,27 @@ AnimCurveの子クラスではなく、独立したNodeラッパーです。
 
 .. code-block:: python
 
-   blend = mlib.createNode("blendWeighted")
-   blend.setInput(0, 3).setInput(5, 10)
-   blend.setWeight(5, 0.5)
-   print(blend.getPlug("output").get())  # 8.0
-   print(blend.getInputIndices())  # [0, 5]
-   blend.connectInput(0, curve.getPlug("output"))
+   from mlib.decorator import undoChunk
 
-``BlendWeighted.getInputPlugs()`` は番号からPlug、``getWeights()`` は入力番号から倍率のdictです。
+   blend = mlib.createNode("blendWeighted")
+   inputs = blend.getPlug("input")
+   with undoChunk("weightedInputs"):
+       inputs[0].set(3)
+       inputs[5].set(10)
+       blend.getPlug("weight")[5].set(0.5)
+   print(blend.getPlug("output").get())  # 8.0
+   print(inputs.getIndices())  # [0, 5]
+   curve.getPlug("output").connectTo(inputs[0])
+
+専用の入力・ウェイト操作メソッドは提供せず、Mayaの ``input``・``weight`` アトリビュートを使います。
+既存要素は各ArrayPlugの ``getElements()``、論理番号は ``getIndices()`` で取得します。
+入力とウェイトは別々の配列なので、それぞれの既存要素を照会してください。
 出力の評価と接続には ``blend.getPlug("output")`` を使います。
-接続の上書きには ``connectInput(..., force=True)`` を明示します。
-``connectInput()`` は既存の定数入力をUndoで戻す処理も行います。
-編集メソッドは内部でUndoチャンクにまとめるため、通常は外側に ``undoChunk`` は不要です。
+接続の上書きには ``connectTo(..., force=True)`` を明示します。
+複数のPlug編集を1回のUndoにまとめる場合は、例のように外側で ``undoChunk`` を使います。
 
 SDKの作成と対応経路の探索は :doc:`driven_keys`、
-既存のアニメーション・SDK接続の保存復元は :doc:`json` を参照してください。
+キーと接線はAnimCurve、駆動関係は :doc:`driven_keys` の公開APIで扱います。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。
 対応する更新メソッドの ``fast=True`` はUndo対象外です。対応範囲と制限は :doc:`fast_edit` を参照してください。
@@ -81,8 +87,8 @@ fastの入力 ``step`` はMayaと同じ ``auto`` へ補正します。
 fastの ``setKey`` は ``fixed``・``global``・未知の接線型を、
 ``setTangent`` は ``global``・未知の接線型を更新前に ``ValueError`` で拒否します。
 固定接線の編集には ``setTangent(..., inTangentType="fixed", fast=True)`` 等を使います。
-BlendWeightedの値設定は ``setInput()``・``setWeight()`` がfastに対応し、
-Undo不要の接続は ``curve.getPlug("output").connectTo(blend.getInputPlug(0), fast=True)`` で行えます。
+BlendWeightedも ``blend.getPlug("input")[0].set(3, fast=True)`` 等のPlug操作を使います。
+Undo不要の接続は ``curve.getPlug("output").connectTo(blend.getPlug("input")[0], fast=True)`` で行えます。
 
 .. code-block:: python
 

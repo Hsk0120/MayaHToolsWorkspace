@@ -88,7 +88,7 @@ OpenMaya標準の ``asEulerRotation()`` も同じ変換を行う入口として�
    a.lengthSq()        # 1.0（sqrt を省ける length() の2乗版）
    a.distanceTo(b)          # 1.4142...（2点間のユークリッド距離）
    a.angleTo(b)             # 1.5707...（ラジアン。0〜piの範囲）
-   a.equivalent(Vector(1 + 1e-12, 0, 0))  # True（距離が許容誤差以内か）
+   a.isEquivalent(Vector(1 + 1e-12, 0, 0))  # True（距離が許容誤差以内か）
    a.lerp(b, 0.5)             # Vector(0.5, 0.5, 0.0)（線形補間。t<0/t>1は外挿）
 
 ``Vector()`` はゼロベクトル、``Vector(x, y)`` は z=0、``Vector([x, y, z])`` や
@@ -155,7 +155,7 @@ OpenMayaのMVectorと同じ方向変換で、平行移動を含みません。
 ただし **系統の違う om2 の型が左辺** の比較(``om2.MPoint() == Vector()``、
 ``om2.MVector() == Quaternion()`` など)は om2 側が ``TypeError`` を送出し、mlib では
 防げません(om2 の型は ``None`` や文字列との比較でも ``TypeError`` を送出します)。
-浮動小数点誤差を許容する場合は ``equivalent`` を使ってください。
+浮動小数点誤差を許容する場合は ``isEquivalent`` を使ってください。
 
 ``in`` / ``list.index`` / ``list.count`` / ``list.remove`` / リスト同士の ``==`` も内部で
 ``==`` を使うため、素の om2 の値(``om2.MPoint`` など。mlib の値ではないもの)と系統の違う
@@ -181,7 +181,7 @@ Python のバージョンで異なります。
 例えば ``om2.MPoint() in [Vector()]`` は Maya 2022 では ``TypeError``、Maya 2023 以降では
 ``False`` で、``Vector() in [om2.MPoint()]`` はその逆です。``[om2.MPoint()].count(Vector())`` は
 どのバージョンでも ``TypeError`` です。om2 の値を含むリストを検索するときは、mlib の型へ
-変換してから比べる(``Vector(point)`` など)か、``is`` や ``equivalent`` で明示的に比べてください。
+変換してから比べる(``Vector(point)`` など)か、``is`` や ``isEquivalent`` で明示的に比べてください。
 
 ``copy.copy`` / ``copy.deepcopy`` / ``pickle`` は型と値を保ったまま複製できます。
 利用者が定義した派生クラスでは、``__dict__`` や ``__slots__`` に追加したアトリビュートも複製され、
@@ -285,7 +285,7 @@ om2 名のメソッドの戻り値は冒頭の説明を参照してください�
 (``MEulerRotation.decompose`` / ``MTransformationMatrix``)の解を返します。等価な解のうち
 中間軸が 90 度を超える側になることがあります(``cmds.xform(matrix=...)`` で書き込まれる
 チャンネル値と同じ解)。値そのものではなく回転を比べる場合は、``asQuaternion().isEquivalent()`` や
-``asMatrix().equivalent()`` を使ってください。
+``asMatrix().isEquivalent()`` を使ってください。
 
 オイラー回転
 ------------
@@ -324,7 +324,7 @@ om2 に無い ``2 * euler`` と ``euler / 2`` (成分ごとの除算。順序は
    Matrix.identity()          # Matrix() と同じ単位行列
    m = Matrix(translate=(1, 2, 3), scale=(2, 3, 4))
    m.det4x4()            # 24.0（スケールの体積比。平行移動は影響しない）
-   m.equivalent(m)         # True（許容誤差付き等価判定。__eq__ は完全一致のみ）
+   m.isEquivalent(m)         # True（許容誤差付き等価判定。__eq__ は完全一致のみ）
    m @ Matrix(scale=(2, 2, 2))  # m * Matrix(...) と同じ行列積(@ は行列同士だけ)
 
    v = Vector(1, 0, 0)

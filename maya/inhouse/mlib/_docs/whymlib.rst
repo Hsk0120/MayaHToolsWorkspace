@@ -50,10 +50,10 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - Matrix・Quaternion・Vector・EulerRotate
      - シーンから取得した値の計算。計算だけではシーンを変更しない
    * - ``common``
-     - Scene・Selection・Color・Viewport・Preferences・ScriptJob
-     - シーン、表示、作業環境、イベント、汎用処理を浅い共通入口から扱う
+     - Selection・Namespace・Plugin・ScriptJobs
+     - 選択・参照関係・プラグイン・イベントと既存の共通計算を扱う
    * - ``cmds``
-     - node・createNode・lsなどの関数
+     - getNode・getPlug・createNode・lsなどの基礎7関数
      - 対象の取得・作成の入口。通常は ``mlib.getNode()`` のように呼ぶ
 
 ここでいうコンポーネントは、Mayaの形状を構成する要素です。
@@ -214,7 +214,8 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
    source.setTranslate((1, 2, 3))
    source.setScale((2, 2, 2))
-   source.setOutlinerColor((0.3, 0.7, 1.0))
+   source.getPlug("useOutlinerColor").set(True)
+   source.getPlug("outlinerColor").set((0.3, 0.7, 1.0))
    target.setMatrix(source.getMatrix(ws=True), ws=True)
 
 .. list-table:: 便利な操作の例
@@ -224,7 +225,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
      - メソッド
      - 用途
    * - Transform
-     - ``matrix()`` / ``setMatrix()``
+     - ``getMatrix()`` / ``setMatrix()``
      - 変換行列を取得・反映する
    * - Transform
      - ``addConstraint()`` / ``deleteConstraints()``

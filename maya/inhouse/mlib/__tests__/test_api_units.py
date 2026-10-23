@@ -50,7 +50,7 @@ class ApiUnitsTest(unittest.TestCase):
         cmds.currentUnit(linear="m", angle="deg")
         node = mlib.createNode("network")
         angle = node.addAttr("angle", attributeType="doubleAngle", defaultValue=.5, minValue=0, maxValue=1)
-        command = mlib.addAttr(node, longName="commandAngle", attributeType="doubleAngle", defaultValue=90)
+        command = mlib.getNode(node).addAttr(longName="commandAngle", attributeType="doubleAngle", defaultValue=90)
         self.assertAlmostEqual(angle.get(), .5)
         self.assertAlmostEqual(command.get(), 90)
         for fast in (False, True):

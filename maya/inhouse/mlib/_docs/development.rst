@@ -7,16 +7,14 @@
 ----------------
 
 通常の利用では、mlibの編集コマンドやメソッドをそのまま呼び出します。
-作成・削除・複製・グループ化・選択・キー設定・ベイク・コンストレイント作成は
-各コマンド内で ``undoChunk`` を使い、複数の内部操作を一回のUndoにまとめます。
+作成・削除・複製・選択は各コマンド内で ``undoChunk`` を使い、
+複数の内部操作を一回のUndoにまとめます。
 アトリビュート・トランスフォーム・コンポーネントの編集も、対応するメソッド内で
 チャンクを管理します。ウェイト移送・子保持・joint削除を組み合わせる処理は
 ``mlrig.setups.JointHierarchy.delete`` が管理します。
 複合アトリビュートの ``CompoundPlug.set()`` は全子アトリビュートを一回で戻します。
 ``preservedSelection()`` は選択の復元もUndo対応のコマンドで行い、
 ブロック内の編集と選択変更をまとめてUndo／Redoします。
-タイムスライダーの範囲変更はMayaのバージョンによりUndo対応が異なります。
-各メソッドの制限を参照してください。
 
 複数の公開操作をまとめたツールを開発するときに限り、外側でもまとめます。
 
@@ -77,27 +75,26 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
    * - ``components``
      - Vertex/CV/Edge/Face/UV とその複数形。シーンを参照する座標コンポーネント
    * - ``common``
-     - シーン状態・関係、Maya標準UIと表示色、環境・導入状態、イベント、
-       汎用計算・FBX・参照操作・進捗表示など、基本型以外の共通機能
+     - 選択・名前空間・参照、導入状態、イベント・遅延実行、
+       単位変換・汎用計算・進捗表示などの共通機能
    * - ``maths``
      - OpenMaya API 2.0 の型を継承した可変の値型。Vector・Translate・Scale・Shear は
        ``MVector``、Quaternion は ``MQuaternion``、EulerRotate は ``MEulerRotation``、
        Matrix は ``MMatrix`` の派生で、om2 の関数へそのまま渡せ、演算の意味も om2 に従う
        (ハッシュ不可)。``easing`` だけは標準の ``math`` のみを使う
    * - ``cmds``
-     - ``maya.cmds`` 相当の手続き的 API（createNode、ls、addConstraint）
+     - getNode・getPlug・createNode・ls・delete・duplicate・select の7入口
    * - ``decorator.py``
      - Undo チャンク、選択状態の保存・復元、skinCluster変形を保ったままの
        joint姿勢編集、画面表示の一時停止
-   * - ``json``
-     - JSONの読み書き、型付き状態の保存・復元
    * - ``logger.py``
      - ログ・通知・出力の共通入口
    * - ``_core``
      - Object共通基底、型登録・選択、拡張管理、初期化、再読み込みの内部基盤
 
 新規ファイルは用途に対応する既存分類へ追加します。
-基本5領域に該当しないMaya操作・参照と汎用処理は ``common`` 直下へ追加します。
+基本型に属さない共通処理は ``common`` 直下へ追加します。
+UI・環境設定・ファイル操作は利用側でMaya標準APIを、JSONは標準 ``json`` を使います。
 デコレーター・コンテキストマネージャーは直下の ``decorator.py``、
 ログ・通知は直下の ``logger.py`` に置き、どの領域からも同じ入口を使います。
 リグ固有の構築は ``mlrig.setups``、Maya標準の関係型は ``common`` に置きます。
@@ -108,10 +105,10 @@ Undoが無効な場合や ``fast=True``・ファイル操作等のUndo対象外�
 
 .. code-block:: python
 
-   from mlib import logger, json
-   from mlib.common import Workspace, Preferences, Plugin, ScriptJob
+   import json
+   from mlib import logger
+   from mlib.common import Plugin, ScriptJob, Selection
    from mlib.decorator import undoChunk
-   from mlib.common.fbx import importFbx
    from mlib.common.references import listReferences
 
 .. include:: _generated/full_class_diagram.rst
@@ -139,7 +136,8 @@ Sphinx AutoAPI が Python ソースと docstring を静的解析します。
 どちらにも当てはまらない種類のメンバーがあれば「その他のメンバー」に掲載します。
 引数・戻り値・戻り値の型は docstring から生成します。
 独自の取得APIはget付きの正式名で一覧・署名・説明・参照を表示します。
-既存の判定省略入口だけは判定本体の説明を共有します。Maya標準名と引数名は変更しません。
+判定は正式な ``isX`` / ``hasX`` の実定義を表示し、is省略入口への説明集約は行いません。
+Maya標準名と引数名は変更しません。
 表記用テンプレートは ``_templates/autoapi/python/class.rst`` で管理し、
 配色やナビゲーションは Sphinxdoc テーマと ``_static/custom.css`` を使用します。
 ``_templates/autoapi/python/module.rst`` は ``mlib.cmds`` のコマンドページだけを
@@ -247,7 +245,7 @@ Plugの生成は値を評価せず、要素を作成しません。作成が必�
 ``array[index].set(value)`` または参照への接続で明示します。
 ``getElement(index)`` は既存要素を取得するだけで、作成引数はありません。所有ノードが削除済み、
 または動的アトリビュートが ``deleteAttr`` で削除済みの場合は、Plug の生成を ``RuntimeError`` にし、
-既存の Plug も無効(``Plug.valid()`` が ``False``。``str()``・``getName()`` は空文字列、
+既存の Plug も無効(``Plug.isValid()`` が ``False``。``str()``・``getName()`` は空文字列、
 値の取得・設定と、アトリビュートの情報・接続の問い合わせは ``RuntimeError``)として扱います。
 削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの MPlug は
 古い値を返し、Undo の対象から外れた削除済みノードの MPlug は名前の問い合わせでも
@@ -335,8 +333,8 @@ maya.cmds へ渡す名前と入力の正規化
   ``ValueError``、解決できない(存在しない・一意でない)文字列が ``RuntimeError`` です。
   ただし ``Node._resolve_input`` は削除済みの Node と、所有ノードが削除済みの Plug・Component を
   そのまま(無効な所有ノードとして)返し、有効性の扱いは呼び出し側の API に任せます
-  (``Node(...)``/``mlib.getNode`` と ``mlib.addConstraint``/``Transform.addConstraint`` は
-  従来どおり ``RuntimeError``、``Node.parentOf`` などの判定は ``False``)。所有ノードが
+  (``Node(...)``/``mlib.getNode`` と ``Transform.addConstraint`` は
+  従来どおり ``RuntimeError``、``Node.isParentOf`` などの判定は ``False``)。所有ノードが
   有効でアトリビュートだけが削除された Plug・MPlug は、返す Node で削除を表せないため ``Node._resolve_input`` でも
   ``DeletedAttributeError`` (``ValueError``。``RuntimeError`` の派生でもある)です。
 - ``MSelectionList`` のアトリビュートの要素は ``getDagPath()`` を使えず、インスタンスの情報も
@@ -371,8 +369,7 @@ mlib は ``MFnPlugin`` によるコマンド登録・ノード登録など、May
   別種の保守コストが増える。
 - 対象の制限はMayaネイティブの既知の挙動であり、cmds/om2の使い分け方針
   (前節参照)の範囲内で吸収できないものは、無理に回避せず制限として
-  docstring に明記するに留める(``TimeSlider.setPlaybackRange`` の
-  Maya 2022・2023 に関する記載を参照)。
+  docstring に明記するに留める。
 
 「Undo対応にしたいが cmds/om2 だけでは足りない」という要求が出た場合も、
 専用プラグインの新規作成ではなく、既存の ``undoChunk``/``undoTransaction``
@@ -472,8 +469,8 @@ maths のファイル名
 
 ``cmds`` はMayaに合わせたcamelCase、``nodes`` はMaya nodeTypeと同名にします。
 それ以外の実装モジュールもlowerCamelCase、クラスはPascalCase、公開メソッドはlowerCamelCaseです。
-例えば ``EulerRotate`` は ``maths/eulerRotate.py``、``ChannelBox`` は
-``common/channelBox.py`` に置きます。移動の値型は ``Translate``、
+例えば ``EulerRotate`` は ``maths/eulerRotate.py``、``ScriptJob`` は
+``common/scriptJob.py`` に置きます。移動の値型は ``Translate``、
 回転の値型は回転順序を持つ ``EulerRotate`` に統一しています。
 
 この規則は ``common`` / ``_core`` や ``mlib_*`` 拡張にも適用します。
@@ -490,7 +487,7 @@ Mayaの現在値を照会するAPIはメソッド、保持するデータはプ�
 
 クラスは所属するサブパッケージから利用します。
 ``mlib.nodes.Node``、``mlib.plugs.Plug``、``mlib.components.Vertex``、
-``mlib.common.Scene``、``mlib.maths.Matrix`` のように
+``mlib.common.Selection``、``mlib.maths.Matrix`` のように
 所属するパッケージから利用します。``mlib.reload()`` は再読み込みの入口です。
 ``mlib.Node`` は利用できません。
 コマンドの実装は ``cmds`` に配置し、``cmds/__init__.py`` と ``mlib/__init__.py`` で明示公開します。
@@ -538,17 +535,13 @@ reloadはimportの探索キャッシュを無効化して現在のモジュー�
 定義モジュールはreload処理が一度だけ再読み込みし、ルートはNode/Plugの明示対応表を登録します。
 reload後はNode/Plug等のインスタンスを取得し直してください。
 
-JSONは用途別Snapshotが取得・形状検証・適用の固有処理を担当し、
-基底Snapshotが対象解決・全件検証・Undoを管理します。
-保存形式のversionやレコード構造を内部リファクタリングだけで変更しません。
-
 内部処理の参照方向
 ------------------
 
 入力列の展開は ``Object._flatten_inputs()``、名前とNodeの混在検査は
 ``Nodes._validate_inputs()`` が担当します。検査から展開へ戻る参照は作りません。
-``addAttr`` と ``executeDeferred`` はクラス側の共通処理へ委譲し、
-クラスから公開コマンドを呼び戻しません。
+``createNode`` は ``Node.create()`` へ委譲し、クラスから公開コマンドを呼び戻しません。
+アトリビュート追加は ``Node.addAttr()``、遅延実行は ``Deferred.call()`` を使います。
 コレクションの転送入口は各クラスへ通常のdefとして明示し、実行方針と独自overrideの判定は
 ``Nodes._dispatch_shared()`` に集めています。計算用setterのget指定による結果収集は
 ``_core.bulkExecution`` が判定し、基底Nodes経由でも同じ返却を維持します。

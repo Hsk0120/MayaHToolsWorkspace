@@ -3,6 +3,7 @@ from mlib.maths import MSpace
 
 from maya import cmds
 
+import json
 import math
 import mlib
 
@@ -68,7 +69,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
                 raise ValueError("Control channel is driven by a non-animation node")
     try:
         samples = []
-        definition = mlib.json.JsonText.loads(mlib.getPlug(root + ".mlrigDefinition").get())
+        definition = json.loads(mlib.getPlug(root + ".mlrigDefinition").get())
         from .definition import RigDefinition
 
         lengths = [

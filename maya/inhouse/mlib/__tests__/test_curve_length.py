@@ -50,15 +50,14 @@ class CurveLengthTest(unittest.TestCase):
     def test_units_conversion(self):
         """UnitsのUI照会と明示変換を検証する。"""
         from mlib.common import units
-        from mlib.common import Preferences
-        self.assertEqual(Preferences.getLinearUnit(), "cm")
+        self.assertEqual(cmds.currentUnit(query=True, linear=True), "cm")
         for unit, centimeters in (("mm", .1), ("cm", 1), ("m", 100),
                                   ("km", 100000), ("in", 2.54), ("ft", 30.48),
                                   ("yd", 91.44), ("mi", 160934.4)):
             self.assertAlmostEqual(units.convertDistance(1, unit, "cm"), centimeters)
             self.assertAlmostEqual(units.convertDistance(centimeters, "cm", unit), 1)
         cmds.currentUnit(linear="m")
-        self.assertEqual(Preferences.getLinearUnit(), "m")
+        self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
         self.assertAlmostEqual(units.convertDistance(100, "cm"), 1)
         self.assertAlmostEqual(units.convertDistance(1, to_unit="cm"), 100)
 

@@ -3,6 +3,7 @@
 from maya import cmds
 
 from functools import partial
+import json
 import re
 
 import mlib
@@ -41,7 +42,7 @@ class ControlRig:
             raise ValueError("Use a unique module name")
         root = mlib.createNode("transform", name=name, skipSelect=True)
         root.addAttr(longName="mlrigControlDefinition", dataType="string").set(
-            mlib.json.JsonText.dumps(dict(kind=kind))
+            json.dumps(dict(kind=kind))
         )
         root.addAttr(longName="lod", attributeType="enum", enumName="Low:Full", defaultValue=1)
         root.addAttr(longName="enabled", attributeType="bool", defaultValue=True)
@@ -67,7 +68,7 @@ class ControlRig:
         Returns:
             str: finger/aim。
         """
-        return mlib.json.JsonText.loads(self.root.getPlug("mlrigControlDefinition").get())["kind"]
+        return json.loads(self.root.getPlug("mlrigControlDefinition").get())["kind"]
 
     def group(self, role):
         """用途別グループを取得する。

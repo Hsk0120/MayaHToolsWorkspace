@@ -61,7 +61,8 @@ Joint/Jointsの削除はNode/NodesのMaya標準削除を継承します。
    zero, offset = ControlHierarchy.createOffsetGroups(node, "zero", "offset")
    ControlHierarchy.unlockAndDisconnectTransformChannels(node, fast=True)
 
-単純な演算アトリビュートはPlugで扱います。検証やenum変換、範囲の一括操作は専用メソッドを残します。
+専用APIを終了した演算14型は、型登録を維持し、MayaのアトリビュートをPlugで扱います。
+対象型と入力・出力の例は :doc:`calculation_nodes` を参照してください。
 Transform・Jointと行列・TRS関連の専用アクセサーも維持します。
 固定アトリビュートの参照だけを返す専用メソッドは増やさず、Mayaの名前で ``getPlug()`` を使います。
 DecomposeMatrixの各出力も ``getPlug("outputTranslate")`` 等で取得します。
@@ -88,7 +89,7 @@ fastでも型・ロック・参照・接続等の検査を行います。
 
 .. code-block:: python
 
-   group = mlib.createGroup(name="temporary", empty=True, fast=True)
+   group = mlib.createNode("transform", name="temporary", fast=True)
    group.setTranslate((1, 2, 3), at=1, fast=True)
    group.getPlug("visibility").set(False, fast=True)
    group.delete(fast=True)
@@ -110,8 +111,11 @@ freeze/makeIdentity、matchTransform、Containerの公開設定編集、DagPose�
 Maya標準の複合コマンドにはfastを提供していません。これらは通常のUndo経路を使用します。
 
 同じ結果を返す公開OM2 APIがない照会はMayaコマンドを使用します。
-UI・設定・導入状態、参照編集情報、dagPoseのatPose判定、settable・表示名・アニメーションレイヤーの
+プラグインの導入状態、参照編集情報、dagPoseのatPose判定、settable・表示名・アニメーションレイヤーの
 標準照会などが該当します。Maya 2022/2023のdefaultLayer照会もこの対象です。
 ``Plug.setKey`` で接線を省略した場合のグローバル接線設定もMayaコマンドで照会します。
-コマンド層の明示的な照会フラグはmaya.cmdsの仕様と値を維持します。
+公開コマンドは ``getNode/getPlug/createNode/ls/delete/duplicate/select`` の7入口です。
+``ls`` の検索フラグはMaya標準に合わせ、検索結果をmlib参照へ変換します。
+それ以外のMaya固有の照会・生成コマンドは ``maya.cmds`` を直接使い、
+必要なノードだけ ``mlib.getNode`` で包みます。
 通常の読取りにUndo履歴は追加しません。

@@ -3,7 +3,8 @@
 
 独自の取得メソッドは ``getX()`` に統一します。説明・使用例・Sphinxも同じ表記です。
 getを省いた重複入口と取得コマンドの短名ファイルは廃止しました。
-数学演算、OpenMaya標準メソッド、判定、保持する値のプロパティはこの統合の対象外です。
+数学演算、OpenMaya標準メソッド、保持する値のプロパティはこの統合の対象外です。
+判定メソッドの呼び出し形式は下記を参照してください。
 
 .. code-block:: python
 
@@ -18,8 +19,8 @@ getを省いた重複入口と取得コマンドの短名ファイルは廃止�
    node.setRotate((0.0, 0.0, 0.0))
 
 ``mlib.getNode`` と ``mlib.cmds.getNode`` は同じ公開関数です。
-``getPlug/getScene/getChannelBox/getShelf/getTimeSlider/getViewport/getWindow/``
-``getWorkspaceControl/getWorkspaceLayout/getOutliner/getDrivenKey`` もget付きの名前で使用します。
+``getPlug`` も同じくルートと ``mlib.cmds`` で公開します。
+公開コマンドは ``getNode/getPlug/createNode/ls/delete/duplicate/select`` の7入口です。
 参照は ``getPlug``、値は ``Plug.get``、状態は ``isLocked`` 等の専用メソッドで取得します。
 特定時刻の照会などは ``maya.cmds.getAttr`` を直接使います。
 
@@ -43,7 +44,6 @@ getを省いた重複入口と取得コマンドの短名ファイルは廃止�
 プロパティです。``MMatrix.getElement``、``MVector.length`` 等の標準名も維持します。
 変換の値型は ``Translate/EulerRotate/Scale``、取得・設定は
 ``getTranslate/setTranslate``・``getRotate/setRotate``・``getScale/setScale`` です。
-JSONの保存キー・タグはこの統合では変更しません。
 
 複数形と静的取得
 ------------------
@@ -51,7 +51,8 @@ JSONの保存キー・タグはこの統合では変更しません。
 ``joints.getSkinClusters()`` 等の専用集約、各対象の結果を保持順に返す取得、
 コレクション自身を返す取得の区別は維持します。
 ``callEach("getTranslate", ...)`` の文字列指定にも正式名を使います。
-``Preferences.getLinearUnit()`` 等の静的メソッドもget付きで呼びます。
+``Namespace.getCurrent()`` 等のクラスメソッドもget付きで呼びます。
+現在のUI単位を調べる場合は ``maya.cmds.currentUnit(query=True, linear=True)`` 等を直接使います。
 
 接続・単位・階層
 ------------------
@@ -69,9 +70,9 @@ UI単位を選択した複合値は数値tupleとし、内部単位の数学型�
 判定メソッド
 --------------
 
-判定は ``isX()`` / ``hasX()`` です。既存の ``valid()/getLocked()/connected()`` 等の
-is省略入口は維持しています。取得の統合を理由に新しい判定別名は追加しません。
-引数・例外・戻り値は判定本体と同じです。
+判定は ``isX()`` / ``hasX()`` です。独自のis省略入口は廃止し、正式名へ統一しました。
+旧名の互換別名は提供しません。正式メソッドの引数・例外・戻り値は維持します。
+Undoの有効状態も ``mlib.common.undo.isEnabled()`` で照会します。
 
 .. code-block:: python
 

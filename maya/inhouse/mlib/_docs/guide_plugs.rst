@@ -56,7 +56,7 @@
 ``grp1|dup.translateX`` のようにパスを含むため、``cmds.getAttr(plug)`` のように
 Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに求め直すため、
 名前変更・親子付け替えにも追従します。所有ノードが削除済み、または動的アトリビュートが
-``deleteAttr`` で削除済みなら空文字列です(``plug.valid()`` が ``False``。
+``deleteAttr`` で削除済みなら空文字列です(``plug.isValid()`` が ``False``。
 このとき ``get()``/``set()`` と、アトリビュートの情報・接続の問い合わせは ``RuntimeError`` になります)。
 ``plug.getName()`` はノード名を含む短いPlug名を返します。短名のみは ``getShortName()``、
 長名のみは ``getLongName()``、要素番号や階層を含む先頭ドット付きパスは ``getAttrName()`` です。
@@ -91,8 +91,8 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
                 enumName="Off:Low:High", defaultValue=1)
 
    plug = node.getPlug("strength")
-   print(plug.dynamic())   # True（addAttr で追加したカスタムアトリビュート）
-   print(plug.hidden())    # True
+   print(plug.isDynamic())   # True（addAttr で追加したカスタムアトリビュート）
+   print(plug.isHidden())    # True
    print(plug.hasMin(), plug.getMin())   # True 0.0
    print(plug.hasMax(), plug.getMax())   # True 10.0
    print(plug.getDefault())             # 5.0
@@ -106,23 +106,23 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 避けるため、mlib 内部では変換を行いません。必要な単位は呼び出し側で
 ``.value`` や ``.asUnits(...)`` を使って変換してください。
 ``getEnumName()`` は enum アトリビュート以外に使うと ``TypeError`` になります。
-``valid()`` は所有ノードとアトリビュートの参照が有効かを判定します。
+``isValid()`` は所有ノードとアトリビュートの参照が有効かを判定します。
 値の読み書きが成功することまでは保証しません。
-``readable``/``writable``/``storable`` はアトリビュート定義の各フラグを返し、
+``isReadable``/``isWritable``/``isStorable`` はアトリビュート定義の各フラグを返し、
 ロックや入力接続を含む現在の編集可否を判定するものではありません。
-現在の値の編集可否は ``settable()`` で照会します。
+現在の値の編集可否は ``isSettable()`` で照会します。
 
 .. code-block:: python
 
    control = mlib.createNode("transform", name="settableExample")
    translate_x = control.getPlug("translateX")
-   print(translate_x.writable())  # アトリビュート定義の書込み可否
-   if translate_x.settable():     # 現在のロック・入力接続を含むMayaの判定
+   print(translate_x.isWritable())  # アトリビュート定義の書込み可否
+   if translate_x.isSettable():     # 現在のロック・入力接続を含むMayaの判定
        translate_x.set(10.0)      # 内部距離単位cm
 
-``settable()`` は値の型・範囲や、その後の状態変化による成功までは保証しません。
+``isSettable()`` は値の型・範囲や、その後の状態変化による成功までは保証しません。
 設定自体のエラーは ``set()`` の契約に従います。
-``hasSoftMin``/``softMin``/``hasSoftMax``/``softMax`` で UI スライダーの
+``hasSoftMin``/``getSoftMin``/``hasSoftMax``/``getSoftMax`` で UI スライダーの
 ソフトレンジ（値の入力自体は制限しない）を取得できます。
 ``getEnumValue(name)`` は ``getEnumFieldName(val)`` の逆引きで、フィールド名から enum 値を
 取得します（一致しなければ ``ValueError``）。``getNiceName()`` は Attribute Editor
@@ -141,27 +141,28 @@ Plug を maya.cmds へそのまま渡せます。名前は呼び出すたびに�
 
    other = mlib.createNode("transform", name="channelBoxOther")
    plug.connectTo(other.getPlug("translateX"))
-   print(plug.connectedTo(other.getPlug("translateX")))   # True
-   print(other.getPlug("translateX").connectedTo(plug))   # True（向き不問）
-   print(plug.connected(src=True, dst=False))            # False（入力なし）
-   print(plug.connected(src=False, dst=True))            # True（出力あり）
-   print(plug.connectedTo(other.getPlug("translateX"), src=False, dst=True))  # True
-   print(plug.connectedTo(other.getPlug("translateX"), src=True, dst=False))  # False
+   print(plug.isConnectedTo(other.getPlug("translateX")))   # True
+   print(other.getPlug("translateX").isConnectedTo(plug))   # True（向き不問）
+   print(plug.isConnected(src=True, dst=False))            # False（入力なし）
+   print(plug.isConnected(src=False, dst=True))            # True（出力あり）
+   print(plug.isConnectedTo(other.getPlug("translateX"), src=False, dst=True))  # True
+   print(plug.isConnectedTo(other.getPlug("translateX"), src=True, dst=False))  # False
    print(plug.getConnections(src=False, dst=True))         # 出力先Plugのリスト
 
 ``setFlags(locked=..., keyable=..., channelBox=...)`` はアトリビュートの状態をまとめて設定します。
 省略したフラグは変更せず、bool以外の状態は更新前に拒否します。
 
-``connected`` と ``connectedTo`` は既定で入力・出力を両方調べます。
+``isConnected`` と ``isConnectedTo`` は既定で入力・出力を両方調べます。
 ``src=True, dst=False`` は自身への入力、``src=False, dst=True`` は自身からの出力だけを調べます。
 ``source/destination`` も同じ意味の別名です。両FalseならFalseを返し、bool以外や別名との重複は
-``TypeError`` になります。``connectedTo`` は変換ノードの先や子・配列要素の独立接続を展開しません。
-``connected`` はMPlugの従来の接続状態判定を維持し、子・配列要素の列挙は行いません。
+``TypeError`` になります。``isConnectedTo`` は変換ノードの先や子・配列要素の独立接続を展開しません。
+``isConnected`` はMPlugの従来の接続状態判定を維持し、子・配列要素の列挙は行いません。
 
-``connections`` でも同じ ``src/source``・``dst/destination`` を使えます。
+``getConnections`` でも同じ ``src/source``・``dst/destination`` を使えます。
 既存の ``s/d`` とANDで評価し、両Falseなら通常は空リストです。
 子や配列要素まで調べるかは従来どおり ``checkChildren/checkElements`` で指定します。
-入力・出力専用の ``inputs/outputs`` や ``source/destinations`` は従来どおり使えます。
+入力・出力の列挙は同じメソッドの方向フラグで選びます。
+直接または変換ノードを飛ばした接続元・接続先は ``getSource/getDestinations`` で取得します。
 
 animCurve とミュート
 ---------------------
@@ -177,9 +178,9 @@ animCurve とミュート
    cmds.setKeyframe(plug.getFullName(), time=24, value=10.0)
    print(plug.getAnimCurve())   # animExample_translateX（接続された animCurve ノード）
 
-   print(plug.muted())   # False
+   print(plug.isMuted())   # False
    plug.setMuted(True)
-   print(plug.muted())   # True
+   print(plug.isMuted())   # True
    plug.setMuted(False)
 
 ``animCurve`` は直接接続された animCurve ノードのみを解決します。

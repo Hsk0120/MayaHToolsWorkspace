@@ -33,38 +33,31 @@ class PackageLayoutTest(unittest.TestCase):
         importlib.reload(mlib)
         mlib.reload()
         for package, names in {
-            "common": ("Scene", "Namespace", "Selection", "DrivenKey",
-                       "Plugin", "Preferences", "Workspace", "ScriptJob",
-                       "ScriptJobs", "Deferred", "TimeSlider", "Viewport", "Outliner"),
-            "decorator": ("undoChunk", "undoTransaction", "preservedSelection",
-                          "preservedSkinShape", "viewportOff", "nativeUnits"),
-            "logger": ("get_logger", "debug", "info", "warning", "error", "print",
-                       "raise_with_notify"),
+            "common": ("Namespace", "Selection", "DrivenKey", "Plugin", "ScriptJob", "ScriptJobs", "Deferred"),
+            "decorator": ("undoChunk", "undoTransaction", "preservedSelection", "preservedSkinShape", "viewportOff", "nativeUnits"),
+            "logger": ("get_logger", "debug", "info", "warning", "error", "print", "raise_with_notify"),
         }.items():
             module = importlib.import_module("mlib." + package)
             self.assertIs(getattr(mlib, package), module)
             for name in names:
                 self.assertTrue(hasattr(module, name), (package, name))
-        self.assertIsInstance(mlib.getScene(), mlib.common.Scene)
-        self.assertIsInstance(mlib.getTimeSlider(), mlib.common.TimeSlider)
-        for name in ("getScene", "getTimeSlider", "getViewport", "getOutliner"):
+        for name in ("getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"):
             self.assertIs(getattr(mlib, name), getattr(mlib.cmds, name))
         self.assertIs(mlib._core.object.Object, importlib.import_module("mlib._core.object").Object)
         self.assertIs(mlib._core.extensions, importlib.import_module("mlib._core.extensions"))
-        for name in ("Object", "extensions"):
+        for name in ("Object", "extensions", "json"):
             self.assertFalse(hasattr(mlib, name))
             self.assertNotIn(name, mlib.__all__)
         for cls in (mlib.nodes.Node, mlib.plugs.Plug, mlib.components.Component):
             self.assertTrue(issubclass(cls, mlib._core.object.Object))
-        for cls in (mlib.common.Selection, mlib.common.Viewport, mlib.maths.Vector,
-                    mlib.json.Snapshot):
+        for cls in (mlib.common.Selection, mlib.maths.Vector):
             self.assertFalse(issubclass(cls, mlib._core.object.Object))
 
     def test_reload_removes_obsolete_package_names(self):
         # 旧版を読み込んでいたセッションの残存モジュール参照を再現する。
         obsolete = ("scenes", "session", "context", "files", "editors", "general",
                     "namespaces", "plugins", "animation", "scene", "environment",
-                    "ui", "events", "utils", "decorators", "object", "extensions")
+                    "ui", "events", "utils", "decorators", "object", "extensions", "json")
         obsolete_modules = ["mlib." + name for name in obsolete]
         obsolete_modules += ["mlib.scene.selection", "mlib.environment.plugin",
                              "mlib.ui.viewport", "mlib.events.scriptJob",
@@ -78,11 +71,7 @@ class PackageLayoutTest(unittest.TestCase):
         mlib.Object = object
         mlib.reload()
         for name in obsolete:
-            if name == "scene":
-                self.assertTrue(callable(mlib.getScene))
-                self.assertIs(mlib.getScene, mlib.cmds.getScene)
-            else:
-                self.assertFalse(hasattr(mlib, name))
+            self.assertFalse(hasattr(mlib, name))
         for fullname in obsolete_modules:
             self.assertNotIn(fullname, sys.modules)
         self.assertFalse(hasattr(mlib, "Object"))
@@ -118,7 +107,7 @@ class PackageLayoutTest(unittest.TestCase):
         packages = {path.name for path in root.iterdir()
                     if path.is_dir() and (path / "__init__.py").exists()
                     and not path.name.startswith("_")}
-        self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths", "json",
+        self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths",
                                    "common", "components"})
         for name in ("decorator.py", "logger.py", "_core/object.py", "_core/extensions.py"):
             self.assertTrue((root / name).is_file(), name)

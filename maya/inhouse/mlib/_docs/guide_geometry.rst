@@ -86,22 +86,30 @@ Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）は
 作成した形状から頂点・CVへ進む
 ------------------------------
 
-作成コマンドの戻り値はコマンドごとに決まっています。
-``createCurve`` はTransformなので ``getShape()`` を経由し、
-``createPolygon`` と単一形状の ``createNurbs`` は返されたシェイプを使います。
+Maya標準の形状作成コマンドを呼び、返された名前を ``mlib.getNode()`` で参照へ変換します。
+``cmds.curve`` はTransform名、``cmds.polyCube`` と ``cmds.circle`` は
+Transform名を先頭に含むリストを返します。頂点・CVの操作には ``getShape()`` で進みます。
 
 .. code-block:: python
 
-   mesh = mlib.createPolygon(type="cube", name="componentBody", constructionHistory=False)
-   mesh.getVertices([0, 1]).setPositionZ(2.0)
+   from mlib.decorator import undoChunk
 
-   curve_transform = mlib.createCurve(name="componentCurve", degree=1,
-                                      point=[(0, 0, 0), (1, 1, 0), (2, 0, 0)])
-   curve = curve_transform.getShape()
-   curve.getCVs([0, 1]).setPositionZ(1.0)
+   with undoChunk("componentShapes"):
+       mesh = mlib.getNode(cmds.polyCube(
+           name="componentBody", constructionHistory=False)[0]).getShape()
+       mesh.getVertices([0, 1]).setPositionZ(2.0)
 
-   circle = mlib.createNurbs(type="circle", name="componentCircle")
-   circle.getCVs().mirror(axis="x")
+       curve_transform = mlib.getNode(cmds.curve(
+           name="componentCurve", degree=1,
+           point=[(0, 0, 0), (1, 1, 0), (2, 0, 0)]))
+       curve = curve_transform.getShape()
+       curve.getCVs([0, 1]).setPositionZ(1.0)
+
+       circle = mlib.getNode(cmds.circle(name="componentCircle")[0]).getShape()
+       circle.getCVs().mirror(axis="x")
+
+標準コマンドへ渡す寸法や座標はMayaのUI単位、mlibの位置メソッドへ渡す値はcmです。
+この例は作成と座標編集を外側の ``undoChunk`` で1回のUndoへまとめています。
 
 ``getVertices()`` と ``getCVs()`` の入力は、そのシェイプの実番号です。
 省略・``None`` は取得時の全要素、``[]`` は空集合、重複は最初の出現だけを保持します。
@@ -130,43 +138,56 @@ CV/CVsはNURBSカーブ用です。NURBSサーフェスの2次元CVには
 プリミティブの生成
 ------------------
 
-``createPolygon`` は種類を ``type`` （短名 ``typ``）で指定し、単一の ``Mesh`` を返します。
-cube（既定）、sphere、cylinder、cone、plane、torus、pipe、pyramid、prism、helix、
-platonicSolidを使用できます。``polyCube`` 等のMayaコマンド名でも指定できます。
-寸法・分割数・履歴などのフラグは、選んだMayaコマンドの長名・短名に従います。
+ポリゴンは ``cmds.polyCube``・``cmds.polySphere``・``cmds.polyCylinder`` 等で作成します。
+寸法・分割数・履歴などは、選んだMayaコマンドの長名・短名フラグで指定します。
 
 .. code-block:: python
 
-   mesh = mlib.createPolygon(type="cube", name="body", width=2, constructionHistory=False)
-   sphere = mlib.createPolygon(typ="sphere", r=3, sx=24, sy=16)
-   mesh.getTransform().getPlug("translateX").set(5)
-   history = cmds.listHistory(sphere)
+   from mlib.decorator import undoChunk
 
-``name`` は親Transformの名前です。履歴を有効にしても戻り値はMeshです。
-作成は1回のUndoで戻せます。query/editやobject=Falseは受け付けません。
-押し出し・結合など既存メッシュの編集コマンドはこの入口の対象外です。
+   with undoChunk("polygonPrimitives"):
+       body = mlib.getNode(cmds.polyCube(
+           name="body", width=2, constructionHistory=False)[0])  # Transform
+       mesh = body.getShape()  # Mesh
+       sphere = mlib.getNode(cmds.polySphere(r=3, sx=24, sy=16)[0]).getShape()
+       body.getPlug("translateX").set(5)  # cm
+   history = cmds.listHistory(sphere.getFullName())
+
+``name`` は親Transformの名前です。戻り値の先頭はシェイプ名ではありません。
+履歴ノード名は履歴設定に応じて作成コマンドの結果に含まれます。
+標準コマンドはそれぞれUndo対象です。複数コマンドや後続の編集を一括で戻す場合は、
+例のように外側を ``undoChunk`` で囲みます。参照取得自体はUndoを追加しません。
 
 NURBSプリミティブの生成
 ------------------------
 
-``createNurbs`` はMayaのCreate > NURBS Primitivesの8種類に対応します。
-``type`` （短名 ``typ``）でcircle（既定）、square、sphere、cube、cylinder、cone、
-plane、torusを選択します。寸法や分割数、履歴は各Mayaコマンドのフラグを使います。
+NURBSは ``cmds.circle``・``cmds.nurbsSquare``・``cmds.sphere``・``cmds.nurbsCube``・
+``cmds.cylinder``・``cmds.cone``・``cmds.nurbsPlane``・``cmds.torus`` で作成します。
+曲面コマンドでは ``polygon=0`` を明示し、NURBS出力を選びます。
+寸法や分割数、履歴には各Mayaコマンドのフラグを使います。
 
 .. code-block:: python
 
-   circle = mlib.createNurbs(type="circle", radius=2)  # NurbsCurve
-   sphere = mlib.createNurbs(type="sphere", radius=3)  # NurbsSurface
-   faces = mlib.createNurbs(type="cube")  # list[NurbsSurface]（6枚）
-   edges = mlib.createNurbs(type="square")  # list[NurbsCurve]（4本）
-   circle.getTransform().getPlug("translateX").set(5)
+   from mlib.decorator import undoChunk
 
-戻り値はシェイプです。Cube・Squareは複数シェイプのリストで、
-それぞれの ``getTransform()`` は構成パーツの親Transformです。
-``name`` は最上位Transformの名前を指定します。
-履歴の有無で戻り値は変わらず、生成全体を1回のUndoで戻せます。
-query/edit、object=False、polygonによる非NURBS出力は受け付けません。
-NurbsSurfaceはShape共通のアトリビュート・親Transform操作を提供します。
+   with undoChunk("nurbsPrimitives"):
+       circle = mlib.getNode(cmds.circle(radius=2)[0]).getShape()  # NurbsCurve
+       sphere = mlib.getNode(cmds.sphere(radius=3, polygon=0)[0]).getShape()
+       cube_root = mlib.getNode(cmds.nurbsCube(polygon=0)[0])
+       faces = [mlib.getNode(name) for name in (
+           cmds.listRelatives(cube_root.getFullName(), allDescendents=True,
+                              type="nurbsSurface", fullPath=True) or [])]
+       square_root = mlib.getNode(cmds.nurbsSquare()[0])
+       edges = [mlib.getNode(name) for name in (
+           cmds.listRelatives(square_root.getFullName(), allDescendents=True,
+                              type="nurbsCurve", fullPath=True) or [])]
+       circle.getTransform().getPlug("translateX").set(5)
+
+Sphereのシェイプは ``NurbsSurface``、この例のfacesは6枚、edgesは4本のシェイプです。
+Cube・Squareの結果の先頭は構成パーツをまとめたTransformなので、子孫からシェイプを取得します。
+``name`` は最上位Transformの名前です。各シェイプの ``getTransform()`` は
+構成パーツの親Transformを返します。NurbsSurfaceでもShape共通の
+アトリビュート・親Transform操作を使用できます。
 
 形状情報
 --------
@@ -191,7 +212,7 @@ Transform の ``getShape()`` は実際のシェイプ型に応じて ``Mesh`` �
 
    print(curve.getCollocatedCVGroups())  # 重なった CV のグループ（無ければ []）
 
-``length()`` は計算ノードを追加せず、現在のカーブ長を取得します。
+``getLength()`` は計算ノードを追加せず、現在のカーブ長を取得します。
 戻り値は既定でcmです。``unit=None`` の場合だけ現在の距離UI単位を使います。
 unitにはmm/cm/m/km/in/ft/yd/mi、
 またはMayaの長名を指定できます。シーン設定は変更しません。
@@ -200,10 +221,9 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
 
 .. code-block:: python
 
-   from mlib.common import Preferences
    from mlib.common import units
 
-   print(Preferences.getLinearUnit())  # 現在のシーン単位（例: "cm"）
+   print(cmds.currentUnit(query=True, linear=True))  # 現在のUI距離単位（例: "cm"）
    print(units.convertDistance(100, from_unit="cm", to_unit="m"))  # 1.0
 
 位置配列は Maya API 2.0 の ``MPointArray``、``getVertexNormals()`` は ``list[Vector]`` です。
@@ -211,7 +231,7 @@ toleranceは出力単位によらず内部単位（cm）での計算許容誤差
 ``getVertexNormals()`` は ``MFnMesh.getVertexNormals()`` を使い、接する面頂点法線を
 頂点ごとに平均して、頂点番号順に返します。``angle_weighted=True`` は角度で重み付けし、
 Falseは角度による重み付けをしません。面ごとの法線配列や最初の面法線ではありません。
-``collocatedCVGroups`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
+``getCollocatedCVGroups()`` はほぼ同じ位置にある CV（クリーンアップ前のカーブの
 重複 CV など）を検出し、2個以上重なっているグループのみを CV 番号のリストとして
 返します（単独の CV は含みません）。``tolerance`` で同一位置とみなす距離の
 許容誤差を調整できます。
@@ -303,7 +323,7 @@ Vertex / CV はシーンを参照する単体ラッパーです。``getPositionX
     uv = mesh.getUV(0)           # UV
     uv.setU(0.25)
     uv.setV(0.75)
-    print(mesh.getUVs().position())
+    print(mesh.getUVs().getPosition())
 
 単体型は Vertex、CV、Edge、Face、UV、複数形は Vertices、CVs、Edges、Faces、UVs です。
 複数形は反復、添字、スライスに対応します。番号はOpenMayaと同じで作成時に固定し、座標は現在の値を
@@ -320,14 +340,16 @@ UV は現在の UV セットを参照し、セットを切り替えると切替�
 
 .. code-block:: python
 
-   captured = mlib.captureSelection()
+   from mlib.common import Selection
+
+   captured = Selection.capture()
    for vertices in captured.filter("vertex").getComponents():
-       if vertices.valid():
+       if vertices.isValid():
            vertices.setPositionZ(2.0)
    captured.select(missing="skip")  # 残っている対象を選び直す
 
 ``mlib.ls(sl=True, type="vertex")`` は単体Vertexのリストです。
-``captureSelection().filter("vertex").getComponents()`` は、同一シェイプ・種類ごとの
+``Selection.capture().filter("vertex").getComponents()`` は、同一シェイプ・種類ごとの
 Verticesコレクションのリストを返します。複数メッシュの選択も各シェイプへ分けられ、
 各グループ内は取得時の順序を維持します。通常編集はグループごとに1回のUndoです。
 正式な種類名は ``vertex`` / ``edge`` / ``face`` / ``uv`` / ``controlVertex`` です。
@@ -338,7 +360,7 @@ Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` 
 参照の現在有効性を確認する
 --------------------------
 
-単数と複数の ``valid()`` は、シェイプの生存・種類と現在の番号範囲を確認します。
+単数と複数の ``isValid()`` は、シェイプの生存・種類と現在の番号範囲を確認します。
 削除やトポロジー縮小で参照できなくなればFalseです。空コレクションも、
 対応するシェイプが生存していればTrueです。UVは現在のUVセットで判定します。
 判定はシーンやUndoキューを変更しません。
@@ -347,11 +369,11 @@ Selectionの ``filter`` には従来の記号 ``vtx`` / ``e`` / ``f`` / ``map`` 
 
    held_vertex = mesh.getVertex(0)
    held_vertices = mesh.getVertices([0, 1])
-   if held_vertex.valid() and held_vertices.valid():
+   if held_vertex.isValid() and held_vertices.isValid():
        print(held_vertex.getPosition(), held_vertices.getPosition())
 
 番号が範囲内でも、トポロジー変更前と同じ要素を指す保証はありません。
-変更後は必要な参照を取得し直してください。``valid()`` を追加しても、
+変更後は必要な参照を取得し直してください。``isValid()`` を追加しても、
 無効な参照での名前・座標照会が例外になる既存の動作は変わりません。
 
 このページのUndoの説明は通常モード（``fast=False``）を前提とします。

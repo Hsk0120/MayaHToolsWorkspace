@@ -148,7 +148,7 @@ class DrivenLayer:
         root = self.rig.root
         owned = [owner]
         if not root.hasAttr("drivenSet"):
-            selection = mlib.createSet(empty=True, name=self.rig.getNodeName("drivenSet")).getFullName()
+            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("drivenSet"))).getFullName()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             owned.append(mlib.getNode(selection))

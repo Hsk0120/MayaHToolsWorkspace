@@ -5,7 +5,6 @@ import sys
 import unittest
 from unittest.mock import patch
 import mlib
-from mlib.common import MainWindow
 
 
 class NoQtDependencyTest(unittest.TestCase):
@@ -31,14 +30,6 @@ class NoQtDependencyTest(unittest.TestCase):
                     violations.append(str(path) + ":" + str(node.lineno))
         self.assertEqual(violations, [])
 
-    def test_main_window_name_only(self):
-        """メインウィンドウは名前を返し、Qtオブジェクトを取得しない。"""
-        import maya.cmds as cmds
-        with patch.object(cmds, "about", return_value=True):
-            self.assertIsNone(MainWindow.getName())
-        with patch.object(cmds, "about", return_value=False), patch("maya.mel.eval", return_value="MayaWindow"):
-            self.assertEqual(MainWindow.getName(), "MayaWindow")
-        self.assertFalse(hasattr(MainWindow, "widget"))
 
 
 if __name__ == "__main__":

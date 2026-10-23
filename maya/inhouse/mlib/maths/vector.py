@@ -4,7 +4,6 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from .._core.getterAlias import _is_alias
 from .._core.mathValue import _checked_index, _copy_state, _foreign_comparison, _instance_state
 
 _MVector = om2.MVector
@@ -906,19 +905,6 @@ class Vector(om2.MVector):
             bool: ほぼ等しければ True。
         """
         return _MVector.isEquivalent(self, _as_mvector(other), tolerance)
-
-    @_is_alias(isEquivalent)
-    def equivalent(self, *args, **kwargs):
-        """isEquivalentへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isEquivalent(*args, **kwargs)
 
     def lerp(self, other, t):
         """別のベクトルとの線形補間 ``self + (other - self) * t`` を返す。

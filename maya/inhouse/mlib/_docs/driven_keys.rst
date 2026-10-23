@@ -8,8 +8,11 @@
 
    import math
    import mlib
+   from mlib.common import DrivenKey
 
-   relation = mlib.getDrivenKey(driver="ctrl.rotateY", driven="joint.rotateZ")
+   ctrl = mlib.createNode("transform", name="ctrl")
+   joint = mlib.createNode("joint", name="joint")
+   relation = DrivenKey(driver=ctrl.getPlug("rotateY"), driven=joint.getPlug("rotateZ"))
    relation.setKey(driver_value=0, value=0)
    relation.setKey(driver_value=math.pi / 2, value=math.pi / 4)
 
@@ -18,10 +21,11 @@
    print(relation.exists())
    print(relation.getCurves())
 
-``mlib.getDrivenKey()`` は既存のアトリビュートを保持し、取得だけではシーンを変更しません。
+``DrivenKey(driver, driven)`` は既存のアトリビュートを保持し、取得だけではシーンを変更しません。
 ``setKey()`` でMayaのsetDrivenKeyframeを実行し、キーを作成・更新します。
 引数はアトリビュートに応じたcm/rad/秒で、ドライバーの現在値は変更しません。
-接線は既定でlinearです。通常、外側にundo_chunkを指定する必要はありません。
+接線は既定でlinearです。各 ``setKey()`` は1回のUndoで戻せます。
+複数回の編集をまとめて戻す場合は、呼出し側で ``undoChunk`` を使います。
 
 カーブを詳しく編集する
 --------------------------
@@ -43,7 +47,7 @@
 
    from mlib.common import DrivenKey
 
-   relations = DrivenKey.find("joint.rotateZ")
+   relations = DrivenKey.find(joint.getPlug("rotateZ"))
    print([relation.getDriverPlug() for relation in relations])      # ドライバーPlugのリスト
    print([relation.getCurves() for relation in relations])      # 関係ごとのカーブリスト
    for relation in relations:
@@ -51,7 +55,7 @@
 
 ``[relation1, relation2]`` のように通常のリストで保持します。
 各setKeyはそれぞれUndoできます。
-途中の失敗は例外として通知し、それ以前の変更は自動で取り消しません。
+途中の失敗は例外を送出し、それ以前の変更は自動で取り消しません。
 
 対応する接続構成
 --------------------

@@ -162,10 +162,8 @@ class TransformNamingTest(unittest.TestCase):
         self.assertIs(pair.setRotateInterpolation("quaternion"), pair)
         self.assertEqual(pair.getRotateInterpolation(), "quaternion")
 
-    def test_native_conversion_and_legacy_json_tags_return_new_classes(self):
-        """標準変換名と追加変換名を併存し、旧JSONタグを新しい数学型へ復元する。"""
-        from mlib.json.codec import decode, encode
-
+    def test_native_conversion_returns_math_types(self):
+        """標準変換名と追加変換名は数学値を返し、元値を変えない。"""
         quaternion = mlib.maths.EulerRotate(0.1, 0.2, 0.3, "zyx").asQuaternion()
         before = tuple(quaternion)
         for method in (quaternion.asEulerRotation, quaternion.asEulerRotate):
@@ -173,19 +171,6 @@ class TransformNamingTest(unittest.TestCase):
             self.assertIsInstance(result, mlib.maths.EulerRotate)
             self.assertTrue(result.asQuaternion().isEquivalent(quaternion, 1e-12))
         self.assertEqual(tuple(quaternion), before)
-        for tag, cls, fields in (
-                ("Translation", mlib.maths.Translate, {"values": [1, 2, 3]}),
-                ("EulerRotation", mlib.maths.EulerRotate, {"values": [0.1, 0.2, 0.3], "order": "zyx"})):
-            record = {"type": "math:" + tag, "value": encode(fields)}
-            restored = decode(record)
-            self.assertIs(type(restored), cls)
-            self.assertEqual(encode(restored), record)
-            roundtrip = mlib.json.loads(mlib.json.dumps(restored))
-            self.assertIs(type(roundtrip), cls)
-            self.assertEqual(tuple(roundtrip), tuple(restored))
-        for tag in ("Translate", "Rotate", "EulerRotate"):
-            with self.assertRaises(ValueError):
-                decode({"type": "math:" + tag, "value": encode({"values": [1, 2, 3]})})
 
 
 if __name__ == "__main__":

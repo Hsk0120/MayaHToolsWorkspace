@@ -60,11 +60,12 @@ def main(output_dir=None, finished=None):
         import mlib
 
         called = []
-        mlib.executeDeferred(lambda value: called.append(value), "deferred")
+        mlib.common.Deferred.call(lambda value: called.append(value), "deferred")
         yield
         check(called == ["deferred"], "Deferred callback via mlib")
+        from maya import mel
         item = cmds.menu(
-            "typedCommandTestMenu", label="Typed test", parent=mlib.common.MainWindow.getName()
+            "typedCommandTestMenu", label="Typed test", parent=mel.eval("$tmp = $gMainWindow")
         )
         check(isinstance(item, str) and cmds.menu(item, exists=True), "Native menu reference")
         child = cmds.menuItem(label="Test", parent=item)
@@ -213,15 +214,11 @@ def main(output_dir=None, finished=None):
         check(not ControlRig._jobs and not TweakLayer._jobs, "Scene cleanup releases new watchers")
 
         # 標準エディターのidle処理を、シーン読込の監視検証から分離する。
-        from mlib.common import MainWindow
-        from mlib.common import NodeEditor
-        from mlib.common import GraphEditor
-
-        check(cmds.window(MainWindow.getName(), exists=True), "Main window name")
-        NodeEditor.show()
+        check(cmds.window(mel.eval("$tmp = $gMainWindow"), exists=True), "Main window name")
+        mel.eval("NodeEditorWindow;")
         yield
         check(bool(cmds.getPanel(scriptType="nodeEditorPanel")), "Open standard Node Editor")
-        GraphEditor.show()
+        mel.eval("GraphEditor;")
         yield
         check(bool(cmds.getPanel(scriptType="graphEditor")), "Open standard Graph Editor")
 

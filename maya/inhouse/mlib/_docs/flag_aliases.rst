@@ -7,11 +7,13 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 コマンドのフラグ
 ------------------------------
 
-``ls``、``createNode``、``duplicate``、``group``、``select``、
-``currentTime``、``setKeyframe``、``bakeResults`` は、実行中のMayaの
+``ls``、``createNode``、``duplicate``、``select`` は、実行中のMayaの
 フラグ定義に従って短名を長名へ変換します。mlib直下と ``mlib.cmds`` で同じ動作です。
 各コマンドが扱える対象・モード・戻り値の制限は変わりません。
-たとえば ``getCurrentTime()`` は時間を省略すると照会のみです。
+公開コマンドは、この4つと ``getNode``・``getPlug``・``delete`` の計7入口です。
+``getNode/getPlug`` は参照を取得し、Mayaのコマンドフラグは受け取りません。
+``delete`` は対象と独自の ``fast`` 指定だけを受け取ります。
+時刻・キー等の操作は ``maya.cmds`` を直接使います。
 
 .. list-table:: よく使う対応
    :header-rows: 1
@@ -28,9 +30,9 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
    * - select
      - replace / clear
      - r / cl
-   * - bakeResults
-     - time / attribute / simulation
-     - t / at / sm
+   * - duplicate
+     - name
+     - n
 
 .. code-block:: python
 
@@ -40,10 +42,11 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
    selected = mlib.ls(selection=True, type="joint")
    selected_short = mlib.ls(sl=True, typ="joint")  # どちらもJoints
    node = mlib.createNode("transform", n="example")
-   cmds.setKeyframe(node, t=1, at="tx", v=0)
+   cmds.setKeyframe(node.getFullName(), t=1, at="tx", v=0)
 
 ``ls`` の ``type`` の短名は **typ** です。``t`` へ一律に省略はしません。
-同じフラグの長名と短名を同時に渡すと、値が同じでも処理前に ``TypeError`` になります。
+mlibのコマンドで同じフラグの長名と短名を同時に渡すと、
+値が同じでも処理前に ``TypeError`` になります。直接呼ぶ ``maya.cmds`` の引数規則はMayaに従います。
 
 .. code-block:: python
 
@@ -53,7 +56,7 @@ Mayaの短名も使えますが、短名はコマンドごとに異なります�
 独自メソッドの引数
 ------------------------------
 
-``mlib.addConstraint`` と ``Transform.addConstraint`` （Jointにも継承）は
+``Transform.addConstraint`` （Jointにも継承）は
 ``type`` / ``typ`` と ``maintainOffset`` / ``mo`` を受け付けます。
 これはmlibが明示した別名です。``Joints.addConstraint`` や
 ``callEach`` にも同じ指定を渡せます。位置引数と短名による二重指定もエラーです。

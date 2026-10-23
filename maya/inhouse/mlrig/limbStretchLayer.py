@@ -1,5 +1,6 @@
 """腕脚の骨長と断面を、独立した伸縮レイヤーで制御する。"""
 
+import json
 import math
 import mlib
 
@@ -81,7 +82,7 @@ class LimbStretchLayer:
                 longName="mlrigEnabled_stretch", attributeType="bool", defaultValue=True
             )
         group.addAttr(longName="restLengths", dataType="string").set(
-            mlib.json.JsonText.dumps(lengths)
+            json.dumps(lengths)
         )
         for attr in ("inputLength", "softDistance"):
             group.addAttr(longName=attr, attributeType="double")
@@ -180,7 +181,7 @@ class LimbStretchLayer:
             ValueError: 設定の上限を超えて到達できない姿勢。
         """
         group = self.settings()
-        rest = sum(mlib.json.JsonText.loads(group.getPlug("restLengths").get()))
+        rest = sum(json.loads(group.getPlug("restLengths").get()))
         settings = {
             a: group.getPlug(a).get() for a in ("stretch", "squash", "minSquash", "maxStretch")
         }
@@ -224,7 +225,7 @@ class LimbStretchLayer:
             group.getPlug("inputLength").connectTo(target)
         else:
             target.set(owner.getPlug("restLength").get())
-        for i, length in enumerate(mlib.json.JsonText.loads(group.getPlug("restLengths").get())):
+        for i, length in enumerate(json.loads(group.getPlug("restLengths").get())):
             target = mlib.getPlug(rig._member("ik" + str(i + 1)) + ".translateX")
             if target.getSource(skipConversionNodes=False) is not None:
                 target.disconnect(target.getSource(skipConversionNodes=False))

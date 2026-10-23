@@ -122,8 +122,6 @@ class FastEditTest(unittest.TestCase):
         collection = mlib.ls(joints, type='joint')
         with self.api_only():
             collection.setTranslate((1, 2, 3), fast=True, at=4)
-            node.setOutlinerColor((.1, .2, .3), fast=True)
-            node.setOverrideColor(6, fast=True)
             node.setAttrFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
         self.assertTrue(cmds.getAttr(node.getFullName() + '.tx', lock=True))
         for joint in joints:

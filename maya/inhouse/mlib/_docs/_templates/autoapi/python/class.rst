@@ -18,7 +18,6 @@
     ("メソッド", ["method"], true),
     ("プロパティ・アトリビュート", ["property", "attribute"], true),
 ] %}
-{{ prepare_getter_docs(obj) }}
 {% if obj.display %}
 {% set visible = obj.children|selectattr("display")|list %}
 {% set grouped_kinds = member_groups|map(attribute=1)|sum(start=[]) %}
@@ -71,12 +70,6 @@
 
 {% endif %}
 {% for entry in group %}
-{% if entry.mlib_getter_id is defined %}
-   .. raw:: html
-
-      <span id="{{ entry.mlib_getter_id }}"></span>
-
-{% endif %}
    {{ entry.render()|indent(3) }}
 
 {% endfor %}

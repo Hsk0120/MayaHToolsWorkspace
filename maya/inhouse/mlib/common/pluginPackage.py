@@ -3,7 +3,6 @@
 import maya.cmds as cmds
 
 from .. import logger
-from .._core.getterAlias import _is_alias
 from .module import Module
 from .plugin import Plugin
 from .version import Version
@@ -159,19 +158,6 @@ class PluginPackage:
         """
         return self._minimum_maya is None or self._maya_year() >= self._minimum_maya
 
-    @_is_alias(isMayaSupported)
-    def mayaSupported(self, *args, **kwargs):
-        """isMayaSupportedへ委譲するis省略の判定入口。
-
-        Args:
-            *args (object): 判定本体へ渡す位置引数。
-            **kwargs (object): 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isMayaSupported(*args, **kwargs)
-
     def getInstalledVersion(self):
         """Maya に登録されている製品の版を取得する。
 
@@ -214,19 +200,6 @@ class PluginPackage:
         if self._module is not None and self._module.isRegistered():
             return True
         return any(plugin.isRegistered() for plugin in self._plugins)
-
-    @_is_alias(isInstalled)
-    def installed(self, *args, **kwargs):
-        """isInstalledへ委譲するis省略の判定入口。
-
-        Args:
-            *args (object): 判定本体へ渡す位置引数。
-            **kwargs (object): 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isInstalled(*args, **kwargs)
 
     def getMessage(self, found=None):
         """導入が必要なときの警告文を作る。

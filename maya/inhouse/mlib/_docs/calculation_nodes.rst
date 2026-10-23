@@ -15,7 +15,7 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
    * - クラス
      - 操作
    * - MultiplyDivide
-     - 成分ごとの乗算・除算・累乗。setOperationで切り替え。
+     - 成分ごとの乗算・除算・累乗。operationアトリビュートで選択。
    * - PlusMinusAverage
      - 1D/2D/3D配列の加算・減算・平均。疎な入力番号を維持。
    * - Condition
@@ -56,7 +56,11 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
 
 既存のMultMatrix、DecomposeMatrix、DistanceBetween、BlendWeighted、BlendColorsも利用できます。
 アトリビュートの参照・値取得・接続は共通の ``getPlug()`` を基本にします。
-入力番号の検証・モード名の変換・複数の値の同時設定など、ノード固有の処理には専用メソッドを使います。
+AddDL、AddDoubleLinear、BlendColors、BlendWeighted、Clamp、Condition、MultDL、
+MultDoubleLinear、MultiplyDivide、PlusMinusAverage、RemapValue、Reverse、SetRange、
+UnitConversionの14型は型登録とNodeの共通操作だけを持ちます。
+専用の入力・範囲・ランプ・結果メソッドは提供しません。
+行列・TRSや、上記14型以外に残る専用操作は各クラスのAPIを参照してください。
 
 入力・接続・結果
 ------------------------------------------------------------
@@ -64,31 +68,33 @@ Python内で計算する :doc:`guide_maths` の値型とは用途が異なりま
 標準アトリビュートは ``getPlug("アトリビュート名")`` で取得し、
 ``get()``・``set()``・``connectTo()`` で値と接続を扱います。
 出力アトリビュートの名前はノード型ごとに異なります。
-``getResult()`` や ``getOutputPlug()`` を全計算ノード共通の入口とはしません。
-Vector等への変換や入力番号の検証があるノードでは、対応する専用メソッドも利用できます。
+14型の出力もMaya標準名で取得します。operationの列挙番号、入力アトリビュート名、
+配列の論理番号は利用側が明示します。以前の専用メソッドによる番号・有限値の検証、
+列挙名の変換、結果のVector化は提供しません。値・返却型・例外は各Plugの仕様に従います。
 
 値設定で既存接続を暗黙に切断しません。接続を置換する場合は ``force=True`` を指定します。
-MultiplyDivideなどに残る ``setInput`` は入力番号と有限値を検証します。
-一般のPlug設定へ置き換える場合は、こうしたノード固有の検証は行いません。
+複数のアトリビュート編集を1回のUndoへまとめる場合は、利用側で ``undoChunk`` を使います。
 
 .. code-block:: python
 
    import mlib
+   from mlib.decorator import undoChunk
 
    multiply = mlib.createNode("multiplyDivide")
-   multiply.setOperation("multiply")
-   multiply.setInput(1, (2, 3, 4))
-   multiply.setInput(2, (10, 10, 10))
+   with undoChunk("multiplyInputs"):
+       multiply.getPlug("operation").set(1)  # MayaのMultiply
+       multiply.getPlug("input1").set((2, 3, 4))
+       multiply.getPlug("input2").set((10, 10, 10))
    print(tuple(multiply.getPlug("output").get()))  # (20.0, 30.0, 40.0)
 
    reverse = mlib.createNode("reverse")
    multiply.getPlug("output").connectTo(reverse.getPlug("input"))
 
-setOperationは名前またはMayaの列挙番号を受け付けます。モード名は各APIページに記載しています。
-MultiplyDivideのmultiplyとVectorProductのdot/crossは異なる演算です。
-AngleBetween.getResult()と回転入力・出力の数値はradです。
-AddDoubleLinear/MultDoubleLinear、PairBlendの移動はcmで扱います。
-入力値の計算自体はMayaが行い、ゼロ除算などをmlib独自の計算結果に置き換えません。
+operationの番号はMayaのノード型ごとに定義されています。
+MultiplyDivideの乗算とVectorProductの内積・外積は異なる演算です。
+AngleBetweenの角度・回転入力と出力はrad、AddDoubleLinear/MultDoubleLinearや
+PairBlendの移動はcmで扱います。UI単位が必要な場合はPlugの ``uiUnits=True`` を使います。
+計算自体はMayaが行い、ゼロ除算などをmlib独自の計算結果に置き換えません。
 
 配列とランプ
 ------------------------------------------------------------
@@ -96,26 +102,42 @@ AddDoubleLinear/MultDoubleLinear、PairBlendの移動はcmで扱います。
 .. code-block:: python
 
    total = mlib.createNode("plusMinusAverage")
-   total.setOperation("sum")
-   total.setInput(2, 10)
-   total.setInput(8, 20)
-   print(total.getInputIndices())  # [2, 8]
+   inputs = total.getPlug("input1D")
+   with undoChunk("sumInputs"):
+       total.getPlug("operation").set(1)  # MayaのSum
+       inputs[2].set(10)
+       inputs[8].set(20)
+   print(inputs.getIndices())  # [2, 8]
    print(total.getPlug("output1D").get())  # 30.0
-   total.setInput(0, (1, 2, 3), dimension=3)
+   total.getPlug("input3D")[0].set((1, 2, 3))
    print(tuple(total.getPlug("output3D").get()))  # (1.0, 2.0, 3.0)
 
    ramp = mlib.createNode("remapValue")
-   ramp.setRange(0, 10, 0, 1)
-   ramp.setRampPoint(0, 0.0, 0.0)
-   ramp.setRampPoint(1, 1.0, 1.0)
-   ramp.setRampPoint(4, 0.5, 0.8, interpolation="smooth")
-   ramp.setInput(5)
+   with undoChunk("remapSettings"):
+       for name, value in (("inputMin", 0), ("inputMax", 10),
+                           ("outputMin", 0), ("outputMax", 1)):
+           ramp.getPlug(name).set(value)
+       points = ramp.getPlug("value")
+       for index, position, value, interpolation in (
+           (0, 0.0, 0.0, 1), (1, 1.0, 1.0, 1), (4, 0.5, 0.8, 2)
+       ):
+           point = points[index]
+           point[0].set(position)
+           point[1].set(value)
+           point[2].set(interpolation)
+       ramp.getPlug("inputValue").set(5)
    print(ramp.getPlug("outValue").get())
 
-``PlusMinusAverage.getInputPlug(index, dimension=1)`` は既存要素のみを参照し、未作成要素はIndexErrorです。
-setInput/connectInputで要素を明示的に作成し、removeInputで接続を含めて削除します。
-RemapValueは ``getRampPoints()`` で番号ごとのposition/value/interpolationを取得できます。
-色ランプの場合はkind="color"とRGBの3要素を渡します。表示色用Colorオブジェクトは使用しません。
+配列の ``[index]`` は未作成要素も参照でき、値設定や接続で要素を作成します。
+既存番号は ``getIndices()``、既存参照は ``getElements()``、削除は ``removeElement(index)`` です。
+1D/2D/3Dは ``input1D/input2D/input3D`` と ``output1D/output2D/output3D`` を明示します。
+
+RemapValueのvalue配列の子はMayaの定義順でposition、value、interpolationです。
+補間はMayaの列挙番号0=None、1=Linear、2=Smooth、3=Splineで設定します。
+色ランプも ``getPlug("color")`` の各要素の子へ設定し、
+``ramp.getPlug("color")[0][1].set((1, 0, 0))`` のようにRGB値を指定します。
+ランプ点を専用の辞書へ変換する処理や、複数編集を自動で束ねる処理はありません。
+通常の各Plug編集はUndo対応で、例の複数変更は外側の ``undoChunk`` でまとめています。
 
 行列の構築とブレンド
 ------------------------------------------------------------
@@ -155,17 +177,24 @@ mlibは自動ロードしないため、未ロードなら明示的に読み込�
 
 .. code-block:: python
 
-   curve = mlib.createCurve(degree=1, point=[(0, 0, 0), (10, 0, 0)])
-   info = mlib.createNode("curveInfo")
-   info.connectCurve(curve, ws=True)
-   print(info.getPlug("arcLength").get())  # 内部距離単位cm
+   from maya import cmds
+   from mlib.decorator import undoChunk
 
-   point = mlib.createNode("pointOnCurveInfo")
-   point.connectCurve(curve)
-   point.setParameter(0.5, percentage=True)
+   with undoChunk("curveEvaluation"):
+       curve = mlib.getNode(cmds.curve(
+           degree=1, point=[(0, 0, 0), (10, 0, 0)]))  # Transform
+       info = mlib.createNode("curveInfo")
+       info.connectCurve(curve, ws=True)
+       point = mlib.createNode("pointOnCurveInfo")
+       point.connectCurve(curve)
+       point.setParameter(0.5, percentage=True)
+   print(info.getPlug("arcLength").get())  # 内部距離単位cm
    print(point.getPosition())
    print(point.getTangent())
 
+``cmds.curve`` の点はMayaのUI距離単位です。返されたTransform名を
+``mlib.getNode`` で参照へ変換しています。例の外側の ``undoChunk`` は
+カーブ・計算ノードの作成と接続を1回のUndoへまとめます。
 connectCurve/connectSurfaceは既定でworldSpaceを接続し、インスタンス番号を保持します。
 ws=Falseはlocalを接続します。Transformに対応シェイプが複数ある場合は、
 対象シェイプを明示してください。評価結果は接続されたデータの空間に従います。
@@ -174,14 +203,15 @@ PointOnSurfaceInfoはsetParameters(u, v, percentage=True)でUV位置を指定で
 Undoとバージョン差
 ------------------------------------------------------------
 
-通常の更新はメソッドごとにUndoをまとめます。``fast`` 引数を持つメソッドは
+通常のPlug更新はそれぞれUndoに対応します。複数編集をまとめる境界は利用側で指定します。``fast`` 引数を持つメソッドは
 ``fast=True`` でUndoなしのOpenMaya更新を選べます。
-``Plug.set()``・``Plug.connectTo()`` も対応します。配列・ランプの専用編集など、
-``fast`` 引数のないメソッドは通常のUndo対応処理を使用します。
+``Plug.set()``・``Plug.connectTo()``・``ArrayPlug.removeElement()`` も対応します。
+上記14型の配列・ランプも同じPlug操作を使います。
 途中のエラーで更新済みの箇所を自動ロールバックするものではありません。
 対応範囲と制限は :doc:`fast_edit` を参照してください。
 
 Maya 2026/2027では旧nodeTypeのaddDoubleLinear/multDoubleLinearを指定すると、
 MayaがaddDL/multDLを作成します。mlibも実型に対応するAddDL/MultDLを返します。
-両組のクラスは同じ便利メソッドを持ち、Mayaの実型にない継承・互換別名は追加していません。
+両組の型登録を維持し、Mayaの実型にない継承・互換別名は追加していません。
+入力と出力は実際のMayaアトリビュート名で取得します。
 AddDL/MultDLを直接作成できるかは、使用中のMayaの対応型に依存します。

@@ -1,4 +1,4 @@
-"""BlendShapeのweight参照とデルタ単体IOを隔離シーンで検証する。"""
+"""BlendShapeのweight参照と既存項目編集を隔離シーンで検証する。"""
 
 import tempfile
 import unittest
@@ -19,7 +19,7 @@ class TargetWorkflowTest(unittest.TestCase):
         self.base = mlib.getNode(cmds.polyCube(ch=False)[0])
         self.target = mlib.getNode(cmds.duplicate(self.base.getFullName())[0])
         cmds.move(0, 2, 0, self.target.getFullName() + ".vtx[0]", relative=True)
-        self.bs = mlib.createBlendShape(self.base)
+        self.bs = mlib.getNode(cmds.blendShape(self.base.getFullName())[0])
         self.weight = self.bs.addTarget(self.target)
         self.weight.setAlias("smile")
         self.directory = tempfile.TemporaryDirectory()
@@ -53,7 +53,7 @@ class TargetWorkflowTest(unittest.TestCase):
 
     def test_target_plug_must_be_own_existing_weight_element(self):
         """別ノード・別アトリビュート・配列親・空要素を更新前に拒否する。"""
-        other = mlib.createBlendShape(cmds.polyCube(ch=False)[0], targets=[self.target])
+        other = mlib.getNode(cmds.blendShape(self.target.getFullName(), cmds.polyCube(ch=False)[0])[0])
         extra = self.bs.addAttr("extra", multi=True)
         self.bs.getPlug("weight")[8].set(0)
         candidates = (other.getTargetPlug(0), self.target.getPlug("tx"),
@@ -90,52 +90,8 @@ class TargetWorkflowTest(unittest.TestCase):
                                              full_weight=object()), self.bs)
             self.assertEqual(sculpt.call_args[1]["target"], -1)
 
-    def test_single_delta_io_preserves_vectors_guard_and_undo(self):
-        """Vector型の往復と、live入力の明示切断・Undoを確認する。"""
-        saved = self.bs.dumpTargetDeltas(self.weight, self.path)
-        self.assertEqual(saved, self.path.resolve())
-        payload = mlib.json.load(saved)
-        self.assertIsInstance(payload["0"], mlib.maths.Vector)
-        with self.assertRaises(ValueError):
-            self.bs.loadTargetDeltas(self.weight, saved)
-        original = self.bs.getTargetDeltas(self.weight)
-        self.bs.resetTargetVertices(self.weight, 0)
-        self.assertIs(self.bs.loadTargetDeltas(self.weight, saved, disconnect=True), self.bs)
-        self.assertEqual(self.bs.getTargetDeltas(self.weight), original)
-        cmds.undo()
-        self.assertEqual(self.bs.getTargetVertices(self.weight).indices, ())
-        cmds.redo()
-        self.assertEqual(self.bs.getTargetDeltas(self.weight), original)
 
-    def test_invalid_file_does_not_disconnect_or_partially_write(self):
-        """最後の不正キー・頂点・変位も全件検証で接続変更前に拒否する。"""
-        before = self.bs.getTargetDeltas(self.weight)
-        for payload in ({"0": (0, 1, 0), "01": (0, 1, 0)},
-                        {"0": (0, 1, 0), "8": (0, 1, 0)},
-                        {"0": (0, 1, 0), "1": (True, 0, 0)},
-                        [1, 2, 3]):
-            mlib.json.dump(payload, self.path)
-            with self.subTest(payload=payload):
-                with self.assertRaises((ValueError, TypeError)):
-                    self.bs.loadTargetDeltas(self.weight, self.path, disconnect=True)
-            self.assertEqual(self.bs.getTargetDeltas(self.weight), before)
-            self.assertIsNotNone(self.bs.getPlug('inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget').getSource(skipConversionNodes=False))
 
-    def test_single_delta_load_fast_and_inbetween(self):
-        """中間項目だけをfastで更新し、Undoキューと他項目を維持する。"""
-        half = mlib.getNode(cmds.duplicate(self.target.getFullName())[0])
-        self.bs.addInBetween(self.weight, half, 0.5)
-        self.bs.dumpTargetDeltas(self.weight, self.path, full_weight=0.5)
-        cmds.delete(self.target.getFullName(), half.getFullName())
-        self.bs.setTargetDeltas(self.weight, {}, full_weight=0.5)
-        main = self.bs.getTargetDeltas(self.weight)
-        cmds.flushUndo()
-        self.bs.loadTargetDeltas(self.weight, self.path, full_weight=0.5, fast=True)
-        self.assertEqual(self.bs.getTargetVertices(self.weight, full_weight=0.5).indices, (0,))
-        self.assertEqual(self.bs.getTargetDeltas(self.weight), main)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "")
-        with self.assertRaises(TypeError):
-            self.bs.loadTargetDeltas(self.weight, self.path, fast=1)
 
     def test_add_delta_target_uses_input_mesh_and_has_single_undo(self):
         """変形中のbaseでも入力基準を使い、一時shapeを残さずUndo/Redoできる。"""
@@ -174,17 +130,6 @@ class TargetWorkflowTest(unittest.TestCase):
                 self.assertAlmostEqual(point[0], 2.5)
                 weight.set(0)
 
-    def test_empty_delta_target_can_load_file_without_temporary_mesh(self):
-        """空の新ターゲットへ単体ファイルを読み込み、変位とUndo/Redoを確認する。"""
-        self.bs.dumpTargetDeltas(self.weight, self.path)
-        empty = self.bs.addTargetDeltas({}, alias="restored")
-        self.assertEqual(self.bs.getTargetDeltas(empty), {})
-        self.bs.loadTargetDeltas(empty, self.path)
-        self.assertEqual(self.bs.getTargetDeltas(empty), self.bs.getTargetDeltas(self.weight))
-        cmds.undo()
-        self.assertEqual(self.bs.getTargetDeltas(empty), {})
-        cmds.redo()
-        self.assertEqual(self.bs.getTargetDeltas(empty), self.bs.getTargetDeltas(self.weight))
 
     def test_cleanup_failure_keeps_primary_error_and_rollback_removes_temporary(self):
         """登録と一時shape削除が両方失敗しても元原因を保ち、Undoで一時ノードを戻す。"""

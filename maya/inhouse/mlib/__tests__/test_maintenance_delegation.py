@@ -39,8 +39,6 @@ class MaintenanceDelegationTest(unittest.TestCase):
                 with patch.object(cmds, "getAttr", side_effect=AssertionError("value evaluated")), \
                         patch.object(ArrayPlug, "getElements", side_effect=AssertionError("wrappers created")):
                     self.assertEqual(array.getIndices(), [2, 9])
-                    actual = node.getInputIndices() if isinstance(node, BlendWeighted) else node.getInputIndices(dimension)
-                    self.assertEqual(actual, [2, 9])
                 indices = array.getIndices()
                 indices.append(99)
                 self.assertEqual(array.getIndices(), [2, 9])
@@ -67,52 +65,19 @@ class MaintenanceDelegationTest(unittest.TestCase):
         self.assertEqual(list(array.mplug().getExistingArrayAttributeIndices()), stored)
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
-    def test_node_index_validation_and_missing_errors_are_preserved(self):
-        """配列基底とノード固有の番号検証は既存の例外型を維持する。"""
-        blend = mlib.createNode("blendWeighted")
-        average = mlib.createNode("plusMinusAverage")
-        array = blend.getPlug("input")
-        for value in (True, 1.5, -1, 2147483648):
-            with self.subTest(index=value):
-                array_error = TypeError if isinstance(value, (bool, float)) else IndexError
-                blend_error = IndexError if value == 2147483648 else ValueError
-                with self.assertRaises(array_error):
-                    array.getElement(value)
-                with self.assertRaises(blend_error):
-                    blend.getInputPlug(value)
-                with self.assertRaises(ValueError):
-                    average.getInputPlug(value)
-        for node in (blend, average):
-            with self.assertRaisesRegex(IndexError, "No input at logical index 7"):
-                node.getInputPlug(7)
-        self.assertEqual(array.getIndices(), [])
-        self.assertEqual(average.getInputIndices(), [])
+    def test_array_index_validation_and_missing_errors_are_preserved(self):
+        """配列基底の番号検証と未存在要素拒否を維持する。"""
+        for kind, name in (("blendWeighted", "input"), ("plusMinusAverage", "input1D")):
+            array = mlib.createNode(kind).getPlug(name)
+            for value in (True, 1.5, -1, 2147483648):
+                with self.subTest(node=kind, index=value):
+                    error = TypeError if isinstance(value, (bool, float)) else IndexError
+                    with self.assertRaises(error):
+                        array.getElement(value)
+            with self.assertRaises(IndexError):
+                array.getElement(7)
+            self.assertEqual(array.getIndices(), [])
 
-    def test_node_existing_checks_keep_input_indices_overrides(self):
-        """ノードの既存確認は利用側が置換した番号getterを引き続き経由する。"""
-        for node in (mlib.createNode("blendWeighted"), mlib.createNode("plusMinusAverage")):
-            node.setInput(2, 3.0)
-            node.setInput(9, 5.0)
-            with patch.object(type(node), "getInputIndices", return_value=[2]) as getter:
-                self.assertEqual(node.getInputPlug(2).get(), 3.0)
-                with self.assertRaisesRegex(IndexError, "No input at logical index 9"):
-                    node.getInputPlug(9)
-                self.assertEqual(getter.call_count, 2)
-            with patch.object(type(node), "getInputIndices", return_value=[7]) as getter:
-                self.assertEqual(node.getInputPlug(7).mplug().logicalIndex(), 7)
-                getter.assert_called_once()
-            self.assertEqual(node.getInputIndices(), [2, 9])
-
-    def test_unset_blend_weight_does_not_create_a_weight_element(self):
-        """未設定ウェイトの既定値1とUndo不要の照会を維持する。"""
-        blend = mlib.createNode("blendWeighted")
-        blend.setInput(4, 2)
-        weights = blend.getPlug("weight")
-        cmds.flushUndo()
-        self.assertEqual(blend.getWeight(4), 1.0)
-        self.assertEqual(blend.getWeights(), {4: 1.0})
-        self.assertEqual(weights.getIndices(), [])
-        self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
     def test_range_queries_preserve_native_values_and_unit_types(self):
         """数値・単位型はネイティブAPIの値、型、対応しない照会の例外を維持する。"""

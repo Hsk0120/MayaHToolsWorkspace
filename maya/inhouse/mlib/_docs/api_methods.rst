@@ -62,7 +62,7 @@ Meshの ``getVertex/getVertices/getEdge/getEdges/getFace/getFaces/getUV/getUVs``
 カーブの ``getCV/getCVs`` を使用します。番号・idx別名・返却型は維持します。
 ``components[0]`` の0はコレクション内の位置で、実頂点番号は ``component.index`` です。
 
-``valid()`` は保持するshapeの生存・種類と、現在の番号範囲を照会します。
+``isValid()`` は保持するshapeの生存・種類と、現在の番号範囲を照会します。
 削除やトポロジー縮小で参照が無効になった場合はFalseです。空のコレクションも
 適合するshapeが生存していればTrueです。番号が有効でも、トポロジー変更前の
 同じ頂点・UVであることまで保証しません。
@@ -71,7 +71,7 @@ Meshの ``getVertex/getVertices/getEdge/getEdges/getFace/getFaces/getUV/getUVs``
 所有ノード・名前・階層
 ------------------------
 
-``hasAttr``、``getParent``、``getChildren``、``fromReferencedFile``、``mnode``、``mpath``、
+``hasAttr``、``getParent``、``getChildren``、``isFromReferencedFile``、``mnode``、``mpath``、
 ``Plug.getLongName``、``Plug.delete``、``Vector.lengthSq`` を正式名とします。
 旧 ``hasAttribute/parentNode/childTransforms/isReferenced/mobject/dagPath/attributeName/deleteAttribute/lengthSquared``
 の互換別名はありません。所有ノードは ``plug.getNode()`` で取得します。
@@ -92,7 +92,7 @@ Meshの ``getVertex/getVertices/getEdge/getEdges/getFace/getFaces/getUV/getUVs``
 で含められます。全子取得は ``getChildren(shapes=True, intermediates=True)`` です。
 ``getParent(step=1)`` は親階層を遡り、ルートを越えるとNoneです。
 ``getShape(idx=0)`` は対象がなければNoneです。
-``getVisible()`` は親を含むDAGの表示判定、``getVisibility()`` は自身のvisibility値です。
+``isVisible()`` は親を含むDAGの表示判定、``getVisibility()`` は自身のvisibility値です。
 
 接続照会
 ----------
@@ -104,14 +104,14 @@ NodeとPlugの ``getConnections`` は ``asNode/asPair/index/type/t/et/scn`` 等�
 
 Plugの ``getConnections`` は ``src/source`` で入力、``dst/destination`` で出力を選べます。
 既存の ``s/d`` は長名とANDで評価します。
-``connected``・``connectedTo``・``disconnectAll`` も、boolのキーワード専用引数
+``isConnected``・``isConnectedTo``・``disconnectAll`` も、boolのキーワード専用引数
 ``src=True, dst=True`` と別名 ``source/destination`` を受け付けます。
 判定はbool、``disconnectAll`` は自身を返し、両Falseでは検索・切断を行いません。
 入力のみは ``getConnections(src=True, dst=False)``、出力のみは逆方向を指定します。
 解除時の戻り値と既定の違いは :doc:`api_arguments` の「接続と切断」を参照してください。
 
-Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・入力接続等から
-値を設定できる状態かを返します。``writable()`` はアトリビュート定義の書込可否であり、
+Plugの ``isSettable()`` はMaya標準のsettable照会で、現在のロック・入力接続等から
+値を設定できる状態かを返します。``isWritable()`` はアトリビュート定義の書込可否であり、
 現在の編集可否とは異なります。値の型・範囲などによる設定成功まで保証する判定ではありません。
 
 .. code-block:: python
@@ -121,8 +121,8 @@ Plugの ``settable()`` はMaya標準のsettable照会で、現在のロック・
    nodes = node.getConnections(True, False, asNode=True, scn=True)
    pairs = node.getConnections(asPair=True)
    outputs = plug.getConnections(src=False, dst=True)
-   has_input = plug.connected(src=True, dst=False)
-   sends_to_other = plug.connectedTo(other, src=False, dst=True)
+   has_input = plug.isConnected(src=True, dst=False)
+   sends_to_other = plug.isConnectedTo(other, src=False, dst=True)
 
 フラグ・enum・変換
 ------------------
@@ -184,7 +184,7 @@ exact=Trueも指定するとベースも選択状態で絞ります。proxy・mu
 
 全API互換は対象外です。
 複合アトリビュートの子も ``compound[0]``、``compound["translateX"]`` で取得します。
-旧 ``child()`` は使用しません。``node.getPlug("target")[0]["weight"]`` のように連続指定できます。
+``node.getPlug("target")[0]["weight"]`` のように、要素と子アトリビュートを連続指定できます。
 複合PlugとArrayPlugをmaya.cmdsへ渡す場合は ``str(plug)`` または ``plug.getFullName()`` を使います。
 mlibのコマンドにはそのまま渡せます。
 ``addAttr()`` の既定Plug返却・既存数学型のOpenMaya継承・内部単位も維持しています。

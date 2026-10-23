@@ -1,6 +1,6 @@
 """明示呼び出し時にBifrost 3.0.0以降のプラグインをロードする任意ヘルパー。
 
-確認とロードの本体は ``mlib.common.PluginPackage``(``mlib.requirePlugins``)で、
+確認とロードの本体は ``mlib.common.PluginPackage``で、
 このモジュールは Bifrost 用の設定と起動のタイミングだけを持つ。mlrig パッケージ
 (``mlrig/__init__.py``)は import しない。``maya/modules/mlrig_startup.mod`` が
 ``mlrig/startup`` を ``PYTHONPATH`` へ追加し、標準の ``userSetup.py`` はこのヘルパーを呼ばない。
@@ -94,6 +94,6 @@ def initialize():
         return
     _scheduled = True
     try:
-        mlib.executeDeferred(_run_deferred)
+        mlib.common.Deferred.call(_run_deferred)
     except Exception:
         _scheduled = False

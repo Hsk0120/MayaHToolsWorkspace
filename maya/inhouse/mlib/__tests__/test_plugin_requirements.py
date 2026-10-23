@@ -1,4 +1,4 @@
-"""mlib.common の版比較・Module・PluginPackage と mlib.requirePlugins を検証するMaya内テスト。"""
+"""mlib.common の版比較・Module・PluginPackage を検証するMaya内テスト。"""
 
 import logging
 import sys
@@ -286,45 +286,6 @@ class PluginPackageRealTest(unittest.TestCase):
         self.assertEqual(package.getInstalledVersion(), Plugin("matrixNodes").getVersion())
 
 
-class RequirePluginsCommandTest(unittest.TestCase):
-    def test_exposed_at_top_level(self):
-        self.assertIs(mlib.requirePlugins, mlib.cmds.requirePlugins)
-
-    def test_missing_product_reports_through_dialog_callback(self):
-        shown = []
-        result = mlib.requirePlugins(("mlibDoesNotExistPlugin123",), minimum_version="1.0",
-                                     module="mlibDoesNotExistModule123", name="Unknown",
-                                     dialog=shown.append)
-        self.assertEqual(result, "missing")
-        self.assertEqual(len(shown), 1)
-        self.assertIn("Unknown 1.0", shown[0])
-
-    def test_single_string_plugin_and_default_name(self):
-        shown = []
-        result = mlib.requirePlugins("mlibDoesNotExistPlugin123", minimum_version=(1, 0), dialog=shown.append)
-        self.assertEqual(result, "missing")
-        self.assertIn("mlibDoesNotExistPlugin123", shown[0])
-
-    def test_old_maya_is_skipped(self):
-        year = int(str(cmds.about(version=True)).split(".")[0])
-        self.assertEqual(mlib.requirePlugins("mlibDoesNotExistPlugin123", minimum_maya=year + 1,
-                                             dialog=False), "skipped")
-
-    def test_input_validation(self):
-        with self.assertRaises(ValueError):
-            mlib.requirePlugins(())
-        with self.assertRaises(ValueError):
-            mlib.requirePlugins("a", minimum_version="bad")
-
-    def test_loads_a_standard_plugin(self):
-        name = "matrixNodes"
-        was_loaded = cmds.pluginInfo(name, query=True, loaded=True)
-        try:
-            self.assertEqual(mlib.requirePlugins(name, dialog=False), "loaded")
-            self.assertTrue(cmds.pluginInfo(name, query=True, loaded=True))
-        finally:
-            if not was_loaded and cmds.pluginInfo(name, query=True, loaded=True):
-                cmds.unloadPlugin(name)
 
 
 class BifrostTest(unittest.TestCase):

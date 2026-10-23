@@ -67,7 +67,8 @@ class InitializeTest(unittest.TestCase):
         # GUI 内で実行しても検証できるよう、バッチ状態をモックで固定する。
         batch = mock.Mock()
         batch.about.return_value = True
-        with mock.patch.object(self.mod, "cmds", batch),                 mock.patch.object(self.mod.mlib, "executeDeferred") as deferred:
+        with mock.patch.object(self.mod, "cmds", batch), \
+                mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
         self.assertFalse(self.mod._scheduled)
@@ -77,7 +78,7 @@ class InitializeTest(unittest.TestCase):
         gui.about.return_value = False
         with mock.patch.object(self.mod, "cmds", gui), \
                 mock.patch.dict(os.environ, {"MLRIG_SKIP_BIFROST": "1"}), \
-                mock.patch.object(self.mod.mlib, "executeDeferred") as deferred:
+                mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
 
@@ -85,10 +86,11 @@ class InitializeTest(unittest.TestCase):
         gui = mock.Mock()
         gui.about.return_value = False
         with mock.patch.object(self.mod, "cmds", gui), \
-                mock.patch.object(self.mod.mlib, "executeDeferred") as deferred:
+                mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
             self.mod.initialize()
-        self.assertEqual(deferred.call_count, 1)
+        deferred.assert_called_once_with(self.mod._run_deferred)
+        self.assertTrue(self.mod._scheduled)
 
 
 class InstalledBifrostTest(unittest.TestCase):

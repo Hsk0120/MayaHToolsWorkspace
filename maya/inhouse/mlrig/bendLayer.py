@@ -100,7 +100,7 @@ class BendLayer:
         root = self.rig.root
         owned = []
         if not root.hasAttr("bendSet"):
-            selection = mlib.createSet(empty=True, name=self.rig.getNodeName("bendSet")).getFullName()
+            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("bendSet"))).getFullName()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.addAttr(longName="bendGroups", attributeType="message", multi=True)

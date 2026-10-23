@@ -2,6 +2,8 @@
 
 from maya import cmds
 
+import json
+
 import mlib
 
 from mlrig.setups import LengthCompensation
@@ -73,7 +75,7 @@ class SplineStretchLayer:
         group.addAttr(longName="graph", attributeType="message")
         owner.getPlug("message").connectTo(group.getPlug("graph"))
         group.addAttr(longName="restLengths", dataType="string").set(
-            mlib.json.JsonText.dumps(lengths)
+            json.dumps(lengths)
         )
         group.addAttr(longName="outputs", attributeType="message", multi=True)
         group.addAttr(longName="measurement", attributeType="message")
@@ -175,7 +177,7 @@ class SplineStretchLayer:
         elif not active and target.getSource(skipConversionNodes=False) is not None:
             target.disconnect(target.getSource(skipConversionNodes=False))
         measure.getPlug("nodeState").set(0 if active else 2)
-        lengths = mlib.json.JsonText.loads(group.getPlug("restLengths").get())
+        lengths = json.loads(group.getPlug("restLengths").get())
         for i, (joint, length) in enumerate(zip(self.rig.getMembers("ik")[1:], lengths)):
             target = joint.getPlug("translateX")
             if target.getSource(skipConversionNodes=False) is not None:

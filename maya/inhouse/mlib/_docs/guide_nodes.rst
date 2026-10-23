@@ -4,7 +4,7 @@
 ノードの状態・階層・ピボット・表示と変換を扱います。
 
 例は Maya の Script Editor で実行します。既存ノード名は使用するシーンに合わせてください。
-最初に ``import mlib`` を実行してください。
+最初に ``import mlib`` と ``from maya import cmds`` を実行してください。
 
 ノードの継承
 ------------
@@ -55,7 +55,7 @@ ShapeがTransformの子に置かれることと、クラスの継承関係は別
 Shapeの具象クラスで作る場合は空シェイプになり、必要な親TransformもMayaが生成します。
 形状データを持たない空シェイプでは、``meshFn()`` や ``getNumVertices()`` 等の
 形状データを必要とする照会は利用できません。ポリゴンの形状も作る場合は
-``mlib.createPolygon()`` を使ってください。
+``mlib.getNode(cmds.polyCube()[0]).getShape()`` のように標準作成コマンドの結果から取得してください。
 選択状態の扱いは ``maya.cmds.createNode`` と同じです。通常のUndoで作成を戻せます。
 作成に必要なプラグインの扱いも既存の ``createNode`` と同じ規則に従います。
 
@@ -67,7 +67,7 @@ Shapeの具象クラスで作る場合は空シェイプになり、必要な親
 ``Node``・``DagNode``・``Shape``・``Constraint`` のように作成型が確定しない基底クラスや、
 Mayaの抽象型に対応する ``AnimCurve`` は ``create=True`` で作成できません。
 ``SkinCluster`` はgeometryとのバインドが必要なので、
-``mlib.bindSkin(geometry, influences)`` または ``SkinCluster.bind(mesh, influences)`` を使います。
+``SkinCluster.bind(mesh, influences, max_influences=4)`` を使います。
 取得関数の ``mlib.getNode()`` / ``mlib.cmds.getNode()`` とget付きの取得関数には、
 ``create`` 引数を追加していません。
 
@@ -119,20 +119,20 @@ Jointは独立したピボットの変更をサポートしないため、``setP
    child.setParent(parent)
 
    print(child.isLocked())                        # False
-   print(child.fromReferencedFile())                     # False（参照シーンなら True）
+   print(child.isFromReferencedFile())                     # False（参照シーンなら True）
    print(child.isType("transform"))               # True
    print(child.isType("dagNode"))                 # True（継承チェーンも判定）
-   print(grandparent.ancestorOf(child))         # True
+   print(grandparent.isAncestorOf(child))         # True
    print(child.getRoot() is grandparent or child.getRoot().getFullName() == grandparent.getFullName())
 
    plug = child.getPlug("translateX")
-   print(plug.keyable())                          # True
+   print(plug.isKeyable())                          # True
    print(plug.getParent().getFullName())                    # child.translate
 
 ``isType`` は ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
-mesh シェイプは ``isType("shape")`` でも True になります。``root()`` は DAG 階層の
+mesh シェイプは ``isType("shape")`` でも True になります。``getRoot()`` は DAG 階層の
 最上位祖先を返し、自身がワールド直下ならそのまま自身を返します。
-``Shape`` には同様に ``intermediateObject`` があります。
+``Shape`` には同様に ``isIntermediateObject`` があります。
 
 ノードの名前と取得
 ------------------
@@ -199,10 +199,10 @@ Maya 組み込みのノード型では空文字列になります。
    parent.setParent(grandparent)
    child.setParent(parent)
 
-   print(grandparent.parentOf(parent))   # True（直接の親子のみ）
-   print(grandparent.parentOf(child))    # False（孫は対象外）
-   print(grandparent.ancestorOf(child))  # True（子孫はすべて対象）
-   print(parent.childOf(grandparent))    # True
+   print(grandparent.isParentOf(parent))   # True（直接の親子のみ）
+   print(grandparent.isParentOf(child))    # False（孫は対象外）
+   print(grandparent.isAncestorOf(child))  # True（子孫はすべて対象）
+   print(parent.isChildOf(grandparent))    # True
    print(child.getAttrCount())            # int（全アトリビュート数）
 
    import maya.cmds as cmds
@@ -215,14 +215,14 @@ Maya 組み込みのノード型では空文字列になります。
    # locked_plug.delete()             # ロック中は RuntimeError
    locked_plug.delete(force=True)     # 一時的に解除してから削除
 
-``parentOf``/``childOf`` は直接の親子関係のみを判定します。
-祖先・子孫すべてを対象にする場合は ``ancestorOf`` を使ってください。
+``isParentOf``/``isChildOf`` は直接の親子関係のみを判定します。
+祖先・子孫すべてを対象にする場合は ``isAncestorOf`` を使ってください。
 ``delete`` は addAttr で追加した動的アトリビュートにのみ使用でき、
 ``translateX`` のような静的アトリビュートを削除しようとすると Maya が拒否します。
 ロックされているアトリビュートは既定では削除できず ``RuntimeError`` になりますが、
 ``force=True`` を指定すると一時的にロックを解除してから削除します。
 接続があるアトリビュートは force に関わらず Maya が自動的に切断してから削除します。
-削除したアトリビュートの Plug は無効になり(``plug.valid()`` が ``False``、``str(plug)`` は空文字列)、
+削除したアトリビュートの Plug は無効になり(``plug.isValid()`` が ``False``、``str(plug)`` は空文字列)、
 ``get()``/``set()`` は ``RuntimeError`` です。同じ名前で追加し直したアトリビュートは ``node.getPlug()`` で
 取得し直してください。
 
@@ -246,7 +246,7 @@ Maya 組み込みのノード型では空文字列になります。
    transform.getPlug("translate").setFlags(locked=True)
    from mlrig.setups import ControlHierarchy
    ControlHierarchy.unlockAndDisconnectTransformChannels(transform)
-   print(transform.getPlug("translate").locked())      # False
+   print(transform.getPlug("translate").isLocked())      # False
    print(transform.getPlug("translateX").getSource(skipConversionNodes=False))       # None（接続も解除される）
 
    from mlib.maths import Vector
@@ -343,7 +343,7 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
 ``Transforms`` はJointなど派生ラッパーも保持します。
 ``Joints`` に通常のTransformを渡す等、型が合わない場合は ``TypeError`` です。
 対象を黙って除外しません。構築後に削除された参照も保持するため、
-``valid()`` で要素ごとの有効性を確認できます。
+``isValid()`` で要素ごとの有効性を確認できます。
 
 同じノード・同じDAGパスの重複を除き、最初の入力順を維持します。
 同じノードでも異なるインスタンスパスは保持するため、パス別のワールド行列を取得できます。
@@ -353,7 +353,6 @@ inverseScaleの接続やバインド情報は変更しないため、切り替�
 通常の一括メソッドは単体の戻り値のリストを返し、引数の事前確認後に順に実行します。
 通常モードの編集は一回のUndoにまとめます。実行途中で失敗した場合は停止し、
 完了済みの変更は自動では戻しません。引数の確認は全対象の書込み可能性の保証とは異なります。
-色設定は全対象のアトリビュートを事前検証します。詳細は :doc:`node_colors` を参照してください。
 ``Joints.delete()`` は ``Nodes.delete()`` を継承します。
 フリーズ・``SkinClusters.removeInfluences()`` 等の専用処理は維持しています。
 
@@ -427,23 +426,36 @@ Maya標準のフリーズ
 .. code-block:: python
 
    import mlib
+   from maya import cmds
+   from mlib.decorator import undoChunk
+   from mlib.nodes import SkinCluster, SkinClusters, Joints
 
-   skin = mlib.bindSkin(mesh, joints, toSelectedBones=True,
-                                 maximumInfluences=4, normalizeWeights=1)
-   skins = mlib.bindSkin([mesh_a, mesh_b], joints, tsb=True, mi=4)
-   mirrored = mlib.mirrorJoint(root_joint, mirrorYZ=True, mirrorBehavior=True,
-                              searchReplace=("left_", "right_"))
+   skin = SkinCluster.bind(mesh, joints, max_influences=4)
+   with undoChunk("bindGeometries"):
+       skins = SkinClusters([
+           SkinCluster.bind(geometry, joints, max_influences=4)
+           for geometry in (mesh_a, mesh_b)
+       ])
+   mirrored_names = cmds.mirrorJoint(
+       mlib.getNode(root_joint).getFullName(), mirrorYZ=True, mirrorBehavior=True,
+       searchReplace=("left_", "right_")) or []
+   mirrored_nodes = [mlib.getNode(name) for name in mirrored_names]
+   mirrored = Joints(node for node in mirrored_nodes if node.getType() == "joint")
 
-``bindSkin`` は形状ごとに標準skinClusterコマンドを実行します。
-1形状ならSkinCluster、複数なら入力順のSkinClustersを返します。
-作成オプションは実行中MayaのskinClusterの長名・短名を使用でき、省略値もMayaに従います。
-バインド対象とインフルエンスは明示指定し、各入力列で名前とNodeは混在させません。
-bindMethod=3のジオデシックボクセルバインドは、標準コマンドと同様に別途geomBindが必要です。
+``SkinCluster.bind(mesh, influences, max_influences=4)`` は1形状をバインドし、
+SkinClusterを返します。toSelectedBones=True、normalizeWeights=1を使用します。
+複数形状では形状ごとに呼び、結果を ``SkinClusters`` へまとめます。
+各bindはUndo対応で、例の外側の ``undoChunk`` は複数バインドを1回のUndoへまとめます。
+途中の失敗で完了済みの変更を自動では戻しません。
+バインド対象とインフルエンスは明示指定し、インフルエンス列で名前とNodeを混在させません。
 
-``mirrorJoint`` は指定Joint以下をミラー複製し、新規Jointだけを返します。
-1個ならJoint、階層など複数ならJointsです。フラグと既定値はMayaに従います。
-両コマンドともUndo対応です。複数形状のバインドが途中で失敗した場合は例外になり、
-完了済みの変更は自動では戻しません。
+bindMethod等の追加フラグが必要な場合は ``cmds.skinCluster`` を直接呼び、
+結果の先頭の名前を ``mlib.getNode()`` へ渡します。
+bindMethod=3のジオデシックボクセルバインドは、別途geomBindが必要です。
+
+``cmds.mirrorJoint`` は指定Joint以下をミラー複製し、作成した名前のリストを返します。
+例では各名前をNodeへ変換し、Jointだけを ``Joints`` へまとめています。
+フラグと既定値はMayaに従い、複製はUndo対象です。
 
 関連するSkinClusterをまとめて操作する
 -----------------------------------------
@@ -485,9 +497,13 @@ collectSkinClustersを使用します。照会はシーンを変更しません�
    node.setVisibility(True)
    visible = node.getVisibility()
 
-表示・Outliner色・Drawing OverridesはDagNode・DagNodesで扱います。
+表示とOutlinerの表示設定はDagNode・DagNodesで扱います。
 Transform・Joint・Shape・Constraintでも使用でき、汎用Node・Nodesでは公開しません。取得値は自身の設定であり、
 親の非表示や表示レイヤーを含む最終表示状態ではありません。
+Outliner色やDrawing Overridesは ``getPlug("outlinerColor")``・
+``getPlug("overrideColorRGB")`` 等の標準アトリビュートで設定します。
+表示には ``useOutlinerColor``・``overrideEnabled``・``overrideRGBColors`` 等の
+有効化や色モードも明示します。複数の変更をまとめる場合は ``undoChunk`` を使います。
 
 hiddenInOutlinerを操作します。ビューポートのvisibilityは変更しません。
 取得値はノードの表示設定であり、フィルターや親の折り畳み、Outlinerの非表示ノード表示設定を
@@ -560,20 +576,27 @@ LambertとStandardSurfaceの中間型PaintableShadingDependNodeは、起動中�
 .. code-block:: python
 
    import mlib
+   from maya import cmds
+   from mlib.decorator import undoChunk
 
-   material = mlib.createShader("lambert", name="bodyMaterial")
-   material.getPlug("color").set((0.2, 0.4, 0.8))
-   group = mlib.createShadingGroup(material, name="bodySG")
    body = mlib.getNode("body")  # 既存のTransform
-   group.assign(body)
-   mesh = body.getShape()
-   group.assign(mesh.getFaces([0, 1, 2]))  # フェース単位にも割り当て可能
+   with undoChunk("assignBodyMaterial"):
+       material = mlib.getNode(cmds.shadingNode("lambert", asShader=True, name="bodyMaterial"))
+       material.getPlug("color").set((0.2, 0.4, 0.8))
+       group = mlib.getNode(cmds.sets(
+           renderable=True, noSurfaceShader=True, empty=True, name="bodySG"))
+       group.setShader(material)
+       group.assign(body)
+       mesh = body.getShape()
+       group.assign(mesh.getFaces([0, 1, 2]))  # フェース単位にも割り当て可能
    materials = mesh.getMaterials()
    face_material = mesh.getFace(0).getMaterial()
    targets = group.getMembers()  # NodeまたはFaceのリスト
 
-createShader/createShadingGroupのnameはnでも指定できます。
-シェーダーの作成とシェーディンググループの作成は分けて扱います。
+``cmds.shadingNode`` はノード名、``cmds.sets`` はセット名を返し、
+``mlib.getNode`` はそれぞれLambert・ShadingEngine等の実型で参照します。
+シェーダー作成、グループ作成、接続、割り当ては別の変更です。
+例は外側の ``undoChunk`` で一連の変更を1回のUndoへまとめています。
 assignは既存の割り当てを置き換え、選択状態には依存しません。
 MeshのgetShadingEngines/getFaceShadingEnginesはDAGインスタンスごとの割り当てを取得します。
 getFaceShadingEnginesはフェース順のリストで、未割り当てはNoneです。
@@ -595,9 +618,9 @@ connectTextureはUV・フィルター・繰り返しなどの標準接続をま�
 FileのsetColorSpaceは現在の色管理設定で有効な色空間を指定します。
 ファイルパスはそのまま保持し、UDIMの展開やファイルコピーは行いません。
 
-ShadingEngineのshader/setShaderはkindにsurface、volume、displacementを指定できます。
+ShadingEngineのgetShader/setShaderはkindにsurface、volume、displacementを指定できます。
 任意の出力はPlugで渡すかoutputで出力名を指定します。
-マテリアル固有の値はplugで扱い、表示色用のColorクラスへは変換しません。
+マテリアル固有の値やRGBはPlugで扱います。
 作成・割り当て・接続・値変更は通常のUndoに対応します。
 
 一括APIの戻り値
@@ -606,7 +629,7 @@ ShadingEngineのshader/setShaderはkindにsurface、volume、displacementを指�
 通常の更新（setTranslate・freeze・setVisibilityなど）はコレクション自身を返します。
 照会は保持順の結果リスト、addAttr等の生成結果が必要な操作も結果リストです。
 callEachも同じ戻り値規則に従います。空のコレクションでもこの規則は変わりません。
-色の照会はlist[Color]、Joints.skinClustersはSkinClustersという専用の集約結果を返します。
+Joints.getSkinClustersはSkinClustersという専用の集約結果を返します。
 明示実装のdeleteはNoneを返し、削除済み参照の連鎖操作には使用しません。
 
 開発者は複数形クラスへ通常のdefとして公開メソッドを定義し、共通処理へ委譲します。

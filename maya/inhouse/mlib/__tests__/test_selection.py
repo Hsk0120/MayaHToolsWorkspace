@@ -22,7 +22,7 @@ class SelectionTest(unittest.TestCase):
 
     def test_capture_mixed_and_snapshot(self):
         cmds.select([self.joint, self.mesh + ".vtx[1:3]"], replace=True)
-        selection = mlib.captureSelection()
+        selection = mlib.common.Selection.capture()
         cmds.select(clear=True)
         self.assertEqual(len(selection), 4)
         self.assertEqual(len(selection.getNodes(type="joint")), 1)

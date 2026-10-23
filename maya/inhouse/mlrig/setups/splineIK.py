@@ -82,7 +82,7 @@ class SplineIK:
             tuple(mlib.common.units.distanceToUi(v) for v in c.getTranslate(ws=True, at=4))
             for c in controls
         ]
-        curve = mlib.nodes.Node(mlib.createCurve(degree=3, point=points, name=name + "_curve"))
+        curve = mlib.getNode(cmds.curve(degree=3, point=points, name=name + "_curve"))
         [
             mlib.getNode(value)
             for value in (cmds.parent(curve.getFullName(), parent.getFullName(), relative=True) or [])
@@ -107,7 +107,7 @@ class SplineIK:
             matrix.getPlug("matrixSum").connectTo(position.getPlug("inputMatrix"))
             position.getPlug("outputTranslate").connectTo(shape.getPlug("controlPoints")[index])
             graph.container.addMembers(matrix, position)
-        handle_name, effector_name = mlib.createIkHandle(
+        handle_name, effector_name = cmds.ikHandle(
             startJoint=joints[0].getFullName(),
             endEffector=joints[-1].getFullName(),
             solver="ikSplineSolver",

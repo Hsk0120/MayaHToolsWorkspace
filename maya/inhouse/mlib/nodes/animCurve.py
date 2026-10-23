@@ -7,7 +7,6 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _is_alias
 from .._core.unitValue import convert
 from ..common._fast import fast_edit, is_fast
 from ..common.units import angleToUi
@@ -43,19 +42,6 @@ class AnimCurve(Node):
             bool: 横軸が時間ならTrue、単位なしならFalse。
         """
         return self.getType()[9] == "T"
-
-    @_is_alias(isTimeInput)
-    def timeInput(self, *args, **kwargs):
-        """isTimeInputへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isTimeInput(*args, **kwargs)
 
     def getKeyCount(self):
         """キー数。

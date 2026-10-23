@@ -43,69 +43,6 @@ class CalculationNodesTest(unittest.TestCase):
                     if name and name != "dependNode":
                         self.assertIn(name, native)
 
-    def test_multiply_and_connections(self):
-        """モード・値設定・名前による接続・Undo/Redoを検証する。"""
-        node = mlib.createNode("multiplyDivide")
-        node.setInput(1, (2, 4, 8)).setInput(2, (2, 2, 2))
-        node.setOperation("divide")
-        self.assertVector(node.getResult(), (1, 2, 4))
-        self.assertEqual(node.getOperation(), "divide")
-        node.setOperation("power")
-        self.assertVector(node.getResult(), (4, 16, 64))
-        cmds.undo()
-        self.assertEqual(node.getOperation(), "divide")
-        cmds.redo()
-        source = mlib.createNode("transform")
-        source.getPlug("translate").set((3, 3, 3))
-        node.connectInput(1, source.getPlug("translate").getFullName())
-        self.assertVector(node.getResult(), (9, 9, 9))
-        with self.assertRaises((ValueError, RuntimeError)):
-            node.setInput(1, (1, 1, 1))
-        with self.assertRaises(ValueError):
-            node.setOperation("unknown")
-        with self.assertRaises(ValueError):
-            node.setInput(True, (1, 1, 1))
-
-    def test_sparse_sum(self):
-        """入力参照で配列を作成せず、2D/3Dと疎な番号を保つ。"""
-        node = mlib.createNode("plusMinusAverage")
-        before = node.getInputIndices()
-        with self.assertRaises(IndexError):
-            node.getInputPlug(19)
-        self.assertEqual(node.getInputIndices(), before)
-        node.setInput(2, 8).setInput(8, 2)
-        self.assertEqual(node.getOutputPlug(1).get(), 10)
-        node.setOperation("subtract")
-        self.assertEqual(node.getOutputPlug(1).get(), 6)
-        node.removeInput(8)
-        cmds.undo()
-        self.assertEqual(node.getInputPlug(8, 1).get(), 2)
-        node.setOperation("sum")
-        node.setInput(4, (1, 2), dimension=2)
-        self.assertVector(node.getOutputPlug(2).get(), (1, 2))
-        node.setInput(3, (1, 2, 3), dimension=3)
-        self.assertVector(node.getOutputPlug(3).get(), (1, 2, 3))
-        with self.assertRaises(ValueError):
-            node.setInput(2**32, 1)
-
-    def test_condition_ranges(self):
-        """条件分岐、clamp、線形変換、1-xを検証する。"""
-        condition = mlib.createNode("condition")
-        condition.setInput(1, 3).setInput(2, 2).setOperation("greater")
-        condition.setTrueValue((1, 2, 3)).setFalseValue((4, 5, 6))
-        self.assertVector(condition.getResult(), (1, 2, 3))
-        condition.setOperation("less")
-        self.assertVector(condition.getResult(), (4, 5, 6))
-        clamp = mlib.createNode("clamp")
-        clamp.setRange((0, 0, 0), (1, 1, 1)).setInput((-2, .5, 3))
-        self.assertVector(clamp.getResult(), (0, .5, 1))
-        remap = mlib.createNode("setRange")
-        remap.setRange((0, 0, 0), (10, 10, 10), (0, 0, 0), (1, 1, 1))
-        remap.setInput((0, 5, 10))
-        self.assertVector(remap.getResult(), (0, .5, 1))
-        reverse = mlib.createNode("reverse")
-        remap.getPlug('outValue').connectTo(reverse.getPlug('input'), force=False)
-        self.assertVector(reverse.getResult(), (1, .5, 0))
 
     def test_vector_and_angle(self):
         """内積・外積と角度出力を検証する。"""
@@ -159,22 +96,6 @@ class CalculationNodesTest(unittest.TestCase):
         aim.setPrimaryAxis((1, 0, 0)).setPrimaryMode("aim").setSecondaryMode("none")
         self.assertAlmostEqual(aim.getResult()[1], 1)
 
-    def test_ramp(self):
-        """値・色ランプの編集、評価、削除Undoを検証する。"""
-        node = mlib.createNode("remapValue")
-        node.setRampPoint(0, 0, 0).setRampPoint(1, 1, 1)
-        node.setRange(0, 10, 0, 100).setInput(5)
-        self.assertAlmostEqual(node.getPlug('outValue').get(), 50)
-        node.setRampPoint(7, .5, .25, "smooth")
-        self.assertEqual(node.getRampPoints()[7]["value"], .25)
-        node.removeRampPoint(7)
-        cmds.undo()
-        self.assertIn(7, node.getRampPoints())
-        node.setRampPoint(4, .2, (1, 0, 0), kind="color")
-        self.assertVector(node.getRampPoints("color")[4]["value"], (1, 0, 0))
-        with self.assertRaises(ValueError):
-            node.setRampPoint(9, 2, 0)
-        self.assertNotIn(9, node.getRampPoints())
 
     def test_pair_blend(self):
         """移動とQuaternion補間の回転結果を検証する。"""
@@ -185,20 +106,6 @@ class CalculationNodesTest(unittest.TestCase):
         self.assertVector(node.getResult(), (5, 0, 0))
         self.assertVector(node.getResult("rotate"), (0, 0, math.pi / 4))
 
-    def test_scalar_and_fast(self):
-        """距離型ノード、単位変換、fast値更新を検証する。"""
-        for kind, expected in (("addDoubleLinear", 5), ("multDoubleLinear", 6)):
-            node = mlib.createNode(kind)
-            node.setInput(1, 2).setInput(2, 3)
-            self.assertAlmostEqual(node.getPlug("output").get(), expected)
-        node = mlib.createNode("unitConversion")
-        node.setInput(3).setFactor(2)
-        self.assertAlmostEqual(node.getPlug("output").get(), 6)
-        node.setFactor(4, fast=True)
-        self.assertAlmostEqual(node.getPlug("output").get(), 12)
-        self.assertAlmostEqual(node.getPlug("conversionFactor").get(), 4)
-        with self.assertRaises(TypeError):
-            node.setFactor(1, fast=1)
 
     def test_curve_queries(self):
         """ローカル/ワールド空間のカーブ長・位置と接線を検証する。"""

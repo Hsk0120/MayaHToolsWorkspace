@@ -4,6 +4,7 @@ from mlib.maths import MSpace
 from maya import cmds
 
 from functools import partial
+import json
 import math
 import re
 
@@ -59,7 +60,7 @@ class SplineRig:
             raise ValueError("Use axis x/y/z and a positive finite length")
         root = mlib.createNode("transform", name=name, skipSelect=True)
         root.addAttr(longName="mlrigSplineDefinition", dataType="string").set(
-            mlib.json.JsonText.dumps(
+            json.dumps(
                 dict(
                     version=1,
                     joint_count=joint_count,
@@ -317,7 +318,7 @@ class SplineRig:
         points = [[m[12], m[13], m[14]] for m in matrices]
         controls = self.controls()
         cvs = CurveFit.fit(points, len(controls))
-        axis = mlib.json.JsonText.loads(self.root.getPlug("mlrigSplineDefinition").get())["axis"]
+        axis = json.loads(self.root.getPlug("mlrigSplineDefinition").get())["axis"]
         rest = EulerRotate(
             0, -math.pi / 2 if axis == "z" else 0, math.pi / 2 if axis == "y" else 0
         ).asMatrix()

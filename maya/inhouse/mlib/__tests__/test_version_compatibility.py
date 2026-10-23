@@ -37,36 +37,6 @@ class VersionCompatibilityTest(unittest.TestCase):
                 cmds.delete(joint)
             cmds.delete(parent)
 
-    def test_range_reload_undo_and_redo(self):
-        slider = mlib.getTimeSlider()
-        playback, animation = slider.getPlaybackRange(), slider.getAnimationRange()
-        try:
-            if str(cmds.about(version=True)).startswith(("2022", "2023")):
-                before = cmds.undoInfo(query=True, undoName=True)
-                slider.setPlaybackRange(-12, 103)
-                mlib.reload()
-                self.assertEqual(slider.getPlaybackRange(), (-12, 103))
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
-                slider.setAnimationRange(-24, 206)
-                self.assertEqual(slider.getAnimationRange(), (-24, 206))
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
-                return  # Maya 2022・2023では履歴を作らない。直前の別操作をUndoしない。
-            slider.setPlaybackRange(-12, 103)
-            mlib.reload()
-            cmds.undo()
-            self.assertEqual(slider.getPlaybackRange(), playback)
-            self.assertEqual(slider.getAnimationRange(), animation)
-            cmds.redo()
-            self.assertEqual(slider.getPlaybackRange(), (-12, 103))
-            before_animation_edit = slider.getAnimationRange()
-            slider.setAnimationRange(-24, 206)
-            cmds.undo()
-            self.assertEqual(slider.getAnimationRange(), before_animation_edit)
-            cmds.redo()
-            self.assertEqual(slider.getAnimationRange(), (-24, 206))
-        finally:
-            slider.setAnimationRange(*animation)
-            slider.setPlaybackRange(*playback)
 
 
 if __name__ == "__main__":

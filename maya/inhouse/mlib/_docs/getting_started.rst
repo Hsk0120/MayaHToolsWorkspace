@@ -45,8 +45,8 @@ mlibの読み込みからノード・アトリビュート操作までの基本�
 
 ノードのアトリビュートは、:meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` オブジェクトを通して操作します。
-説明と使用例では、取得メソッドを ``getPlug()`` のようにgetを省いた名前で記載します。
-get付きの本体も同じ引数・戻り値で利用できます（:doc:`getter_aliases`）。
+説明と使用例では、取得メソッドを ``getPlug()`` のようにget付きの正式名で記載します。
+getを省いた取得メソッドの別名は提供しません（:doc:`getter_aliases`）。
 
 対象の種類を判別して取得する
 ----------------------------
@@ -67,7 +67,7 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
    print(Object(node) is node)      # True
 
 ``Object`` は単数の ``Node``・``Plug``・``Component`` の共通基底です。
-数学型、複数形コレクション、UI、保存データは継承しません。
+数学型と複数形コレクションは継承しません。
 要素範囲は ``Object`` ではなく ``mlib.common.Selection("pCube1.vtx[0:3]")`` で取得します。
 アトリビュートとコンポーネントの名前が重なる場合はMayaの選択解決に従います。
 アトリビュートとして明示する場合は ``node.getPlug()`` または ``mlib.getPlug()`` を使います。
@@ -85,7 +85,7 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
      - 基本の書き方
      - 詳細
    * - 選択した頂点をまとめて編集
-     - ``captureSelection().filter("vertex").getComponents()``
+     - ``mlib.common.Selection.capture().filter("vertex").getComponents()``
      - :doc:`guide_geometry`
    * - アトリビュートの値を取得
      - ``node.getPlug("translateX").get()``、UI単位は ``get(uiUnits=True)``
@@ -94,17 +94,14 @@ get付きの本体も同じ引数・戻り値で利用できます（:doc:`gette
      - 戻り値の型を確認し、Transformは ``getShape()`` を取得
      - :doc:`guide_commands`
    * - ターゲットの頂点を除外・デルタを保存
-     - ``resetTargetVertices``、``dumpTargetDeltas``、``loadTargetDeltas``
+     - ``resetTargetVertices``、``getTargetDeltas``、``setTargetDeltas``
      - :doc:`guide_deformers`
    * - 選択頂点のスキンウェイトを再配分
      - ``skin.redistributeWeights(mlib.ls(sl=True, type="vertex"))``
      - :doc:`guide_deformers`
-   * - 保存データを読み込んで適用
-     - 参照は ``resolve()``、Snapshotは ``plan()`` → ``apply()``
-     - :doc:`json`
-   * - 一時的な設定・選択を復元
-     - ``temporarySettings``、``preserveTime``、``asCurrent``、``select``
-     - :doc:`guide_editors`、:doc:`selection_and_channelbox`
+   * - 選択を保持・復元
+     - ``Selection.capture()`` で保持し、保持した参照の ``select()`` で復元
+     - :doc:`selection_and_channelbox`
    * - 更新を高速化
      - 操作の対応条件を確認して ``fast=True``
      - :doc:`fast_edit`
@@ -160,7 +157,7 @@ cm・radian・秒を基本にするため、両者をつなぐときは :doc:`cm
 指定名が既にある場合はMayaの規則で連番化され、通常のUndoで作成を戻せます。
 ``create`` はbool限定で、Trueの場合は空でない文字列の名前が必要です。
 作成可能なクラスと制約は :doc:`guide_nodes` の「クラスからノードを作成する」を参照してください。
-既存取得の ``mlib.getNode()`` やget付きの取得関数に ``create`` を渡す形式は追加していません。
+既存取得の ``mlib.getNode()`` や ``mlib.getPlug()`` に ``create`` を渡す形式は追加していません。
 
 再読み込み
 ----------

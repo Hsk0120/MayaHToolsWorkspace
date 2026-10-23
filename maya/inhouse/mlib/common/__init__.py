@@ -1,51 +1,36 @@
-"""Mayaの状態・環境・UI・イベントと共通機能の入口を提供する。
+"""Mayaの状態・環境・イベントと共通処理の入口を提供する。
 
-各公開名は利用時に解決する。Node/Plugの初期化中にUIや選択関連のクラスを
+各公開名は利用時に解決する。Node/Plugの初期化中に選択関連のクラスを
 先行importせず、再読み込み後も現在の実装モジュールから取得する。
 """
 
 from importlib import import_module
 from typing import TYPE_CHECKING
 
+# reload前に保持された公開値を、新しい公開一覧の構築前に解除する。
+for _name in globals().get("__all__", ()):
+    globals().pop(_name, None)
+
 _exports = {
-    "ChannelBox": ("channelBox", "ChannelBox"),
-    "Color": ("color", "Color"),
     "CurveFit": ("curveFit", "CurveFit"),
     "Cycle": ("cycle", "Cycle"),
     "DampedSpring": ("dampedSpring", "DampedSpring"),
     "Deferred": ("deferred", "Deferred"),
     "DrivenKey": ("drivenKey", "DrivenKey"),
-    "GraphEditor": ("graphEditor", "GraphEditor"),
     "LOAD_FAILED": ("pluginPackage", "LOAD_FAILED"),
     "LOADED": ("pluginPackage", "LOADED"),
     "MISSING": ("pluginPackage", "MISSING"),
-    "MainWindow": ("mainWindow", "MainWindow"),
     "Module": ("module", "Module"),
     "Namespace": ("namespace", "Namespace"),
-    "NodeEditor": ("nodeEditor", "NodeEditor"),
     "OUTDATED": ("pluginPackage", "OUTDATED"),
-    "OptionVar": ("optionvar", "OptionVar"),
-    "Outliner": ("outliner", "Outliner"),
     "Plugin": ("plugin", "Plugin"),
     "PluginPackage": ("pluginPackage", "PluginPackage"),
-    "Preferences": ("preferences", "Preferences"),
     "SKIPPED": ("pluginPackage", "SKIPPED"),
     "ScalarGraph": ("scalarGraph", "ScalarGraph"),
-    "Scene": ("scene", "Scene"),
     "ScriptJob": ("scriptJob", "ScriptJob"),
     "ScriptJobs": ("scriptJobs", "ScriptJobs"),
     "Selection": ("selection", "Selection"),
-    "Shelf": ("shelf", "Shelf"),
-    "ShelfButton": ("shelfButton", "ShelfButton"),
-    "TimeSlider": ("timeSlider", "TimeSlider"),
-    "UiElement": ("uiElement", "UiElement"),
-    "UiSnapshot": ("uiSnapshot", "UiSnapshot"),
     "Version": ("version", "Version"),
-    "Viewport": ("viewport", "Viewport"),
-    "Window": ("window", "Window"),
-    "Workspace": ("workspace", "Workspace"),
-    "WorkspaceControl": ("workspaceControl", "WorkspaceControl"),
-    "WorkspaceLayout": ("workspaceLayout", "WorkspaceLayout"),
     "legalizeName": ("naming", "legalizeName"),
     "progressBar": ("progress", "progressBar"),
     "units": ("units", None),
@@ -59,39 +44,20 @@ for _name in __all__ + ["legalize_name", "progress_bar"]:
 
 if TYPE_CHECKING:
     from . import units
-    from .channelBox import ChannelBox
-    from .color import Color
     from .curveFit import CurveFit
     from .cycle import Cycle
     from .dampedSpring import DampedSpring
     from .deferred import Deferred
     from .drivenKey import DrivenKey
-    from .graphEditor import GraphEditor
-    from .mainWindow import MainWindow
     from .module import Module
     from .namespace import Namespace
-    from .nodeEditor import NodeEditor
-    from .optionvar import OptionVar
-    from .outliner import Outliner
     from .plugin import Plugin
     from .pluginPackage import LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, PluginPackage
-    from .preferences import Preferences
     from .scalarGraph import ScalarGraph
-    from .scene import Scene
     from .scriptJob import ScriptJob
     from .scriptJobs import ScriptJobs
     from .selection import Selection
-    from .shelf import Shelf
-    from .shelfButton import ShelfButton
-    from .timeSlider import TimeSlider
-    from .uiElement import UiElement
-    from .uiSnapshot import UiSnapshot
     from .version import Version
-    from .viewport import Viewport
-    from .window import Window
-    from .workspace import Workspace
-    from .workspaceControl import WorkspaceControl
-    from .workspaceLayout import WorkspaceLayout
     from .naming import legalizeName
     from .progress import progressBar
 

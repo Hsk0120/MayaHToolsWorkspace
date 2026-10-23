@@ -1,5 +1,7 @@
 """IKとポールの参照空間を管理する、LODから独立した操作レイヤー。"""
 
+from maya import cmds
+
 import mlib
 
 from mlrig.setups import SpaceSwitch
@@ -62,7 +64,7 @@ class SpaceLayer:
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
         if self.rig.root.hasAttr("targetSpace"):
             return
-        layer_set = mlib.createSet(empty=True, name=self.rig.getNodeName("spaceSet")).getFullName()
+        layer_set = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("spaceSet"))).getFullName()
         self.rig._bind("spaceSet", layer_set)
         self.rig._layer_members("moduleSet", [layer_set])
         self._own([mlib.getNode(layer_set)])

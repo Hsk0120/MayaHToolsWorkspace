@@ -186,22 +186,13 @@ class ApiRefinementsTest(unittest.TestCase):
         self.assertEqual(list(skin.getWeights(joints)), values)
 
     def test_stored_properties_do_not_query_maya(self):
-        """保持値の参照はMaya照会をせず、Selectionの返却リストはコピー。"""
-        scene = mlib.common.Scene(Path("stored.ma"))
+        """保持値をMayaへ再照会せず、Selectionの保持リストを直接公開しない。"""
         plugin = mlib.common.Plugin("example")
         module = mlib.common.Module("example")
         selection = mlib.common.Selection([self.create("transform")])
-        view = object.__new__(mlib.common.Viewport)
-        view._name, view._panel = "editor", "panel"
-        with patch.object(cmds, "file", side_effect=AssertionError("Unexpected query")), patch.object(
-            cmds, "pluginInfo", side_effect=AssertionError("Unexpected query")
-        ), patch.object(cmds, "modelEditor", side_effect=AssertionError("Unexpected query")):
-            self.assertEqual(scene.path.name, "stored.ma")
-            self.assertEqual(scene.name, "stored.ma")
+        with patch.object(cmds, "pluginInfo", side_effect=AssertionError("Unexpected query")):
             self.assertEqual(plugin.name, "example")
             self.assertEqual(module.name, "example")
-            self.assertEqual(view.name, "editor")
-            self.assertEqual(view.panel, "panel")
             selection.items.clear()
             self.assertEqual(len(selection.items), 1)
 

@@ -139,22 +139,22 @@ def _addProxy(joint, name, child, material_group):
     mesh_name = joint.split("|")[-1]+"_proxy"
     offset = length/2.0
     if shape == "cylinder" and child:
-        mesh = mlib.createPolygon("cylinder", name=mesh_name, radius=size, height=abs(length), axis=(1, 0, 0),
-                                 subdivisionsAxis=12, constructionHistory=False).getTransform()
+        mesh = mlib.getNode(cmds.polyCylinder(name=mesh_name, radius=size, height=abs(length), axis=(1, 0, 0),
+                                 subdivisionsAxis=12, constructionHistory=False)[0])
     elif shape == "foot" and child:
-        mesh = mlib.createPolygon("cube", name=mesh_name, width=abs(length), height=size[1], depth=size[0],
-                             constructionHistory=False).getTransform()
+        mesh = mlib.getNode(cmds.polyCube(name=mesh_name, width=abs(length), height=size[1], depth=size[0],
+                             constructionHistory=False)[0])
     elif shape == "pelvis":
-        mesh = mlib.createPolygon("cube", name=mesh_name, width=size[0], height=size[1], depth=size[2],
-                             constructionHistory=False).getTransform()
+        mesh = mlib.getNode(cmds.polyCube(name=mesh_name, width=size[0], height=size[1], depth=size[2],
+                             constructionHistory=False)[0])
         offset = 0.0
     elif shape == "sphere":
-        mesh = mlib.createPolygon("sphere", name=mesh_name, radius=size, subdivisionsX=16, subdivisionsY=12,
-                               constructionHistory=False).getTransform()
+        mesh = mlib.getNode(cmds.polySphere(name=mesh_name, radius=size, subdivisionsX=16, subdivisionsY=12,
+                               constructionHistory=False)[0])
         offset = size*0.75
     elif shape == "box":
         width, height, depth = size
-        mesh = mlib.createPolygon("cube", name=mesh_name, width=width, height=height, depth=depth, constructionHistory=False).getTransform()
+        mesh = mlib.getNode(cmds.polyCube(name=mesh_name, width=width, height=height, depth=depth, constructionHistory=False)[0])
         offset = length/2.0 if child else width/2.0
     else:
         return None
@@ -270,9 +270,12 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
 
     # 右半身は左の鏡像。mirrorBehavior で左右の回転が対称に動く。
     for name in ("clavicle_l", "thigh_l"):
-        mirrored = mlib.mirrorJoint(joints[name], mirrorYZ=True, mirrorBehavior=True,
-                                    searchReplace=("_l", "_r"))
-        for joint in (mirrored,) if isinstance(mirrored, Joint) else mirrored:
+        mirrored = cmds.mirrorJoint(joints[name], mirrorYZ=True, mirrorBehavior=True,
+                                    searchReplace=("_l", "_r")) or []
+        for mirrored_name in mirrored:
+            joint = mlib.getNode(mirrored_name)
+            if not isinstance(joint, Joint):
+                continue
             orient = joint.getPlug("jointOrient")
             values = tuple(orient.get())
             # 行列の丸めで右大腿の-180度が+180度側へ出るのを避ける。
@@ -295,10 +298,13 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
 
     meshes, proxy_set = [], None
     if proxy:
-        material = mlib.createShader("lambert", name=prefix+"humanProxy_mat")
+        material = mlib.getNode(cmds.shadingNode("lambert", asShader=True, name=prefix+"humanProxy_mat"))
         material.getPlug("color").set((0.55, 0.6, 0.68))
         material.getPlug("transparency").set((0.45, 0.45, 0.45))
-        material_group = mlib.createShadingGroup(material, name=prefix+"humanProxy_SG")
+        material_group = mlib.getNode(cmds.sets(
+            renderable=True, noSurfaceShader=True, empty=True, name=prefix+"humanProxy_SG"
+        ))
+        material_group.setShader(material)
         for name in names:
             children = [child for child in names if parent_of.get(child) == name]
             # 骨の長さは子が1つのときだけ子までとする(骨盤・手は子が複数なので箱を置く)。
@@ -309,6 +315,6 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
             mesh = _addProxy(joints[name], name, child, material_group)
             if mesh:
                 meshes.append(mesh)
-        proxy_set = mlib.createSet(meshes, name=prefix+"humanProxy_set").getName()
+        proxy_set = mlib.getNode(cmds.sets(meshes, name=prefix+"humanProxy_set")).getName()
     mlib.select(joints["root"])
     return {"root": joints["root"], "joints": joints, "meshes": meshes, "proxySet": proxy_set}

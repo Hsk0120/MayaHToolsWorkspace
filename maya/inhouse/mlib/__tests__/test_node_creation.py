@@ -157,28 +157,10 @@ class SceneEditingCommandsTest(unittest.TestCase):
         self.assertNotEqual(copy.getFullName(), original.getFullName())
         self.assertTrue(cmds.objExists("mlibDuplicateCopy"))
 
-    def test_group_wraps_given_nodes_and_supports_empty_group(self):
-        a = self.create_transform("mlibGroupA")
-        b = self.create_transform("mlibGroupB")
-        grp = mlib_cmds.createGroup([a, b], name="mlibGroupParent", world=True)
-        self.created.append(grp.getName())
-
-        self.assertIsInstance(grp, Node)
-        self.assertEqual(
-            cmds.listRelatives(grp.getName(), children=True), ["mlibGroupA", "mlibGroupB"]
-        )
-
-        empty = mlib_cmds.createGroup(name="mlibGroupEmpty", world=True, empty=True)
-        self.created.append(empty.getName())
-        self.assertEqual(cmds.listRelatives(empty.getName(), children=True), None)
-
-        cmds.select(clear=True)
-        with self.assertRaises(RuntimeError):
-            mlib_cmds.createGroup(name="mlibGroupShouldFail", world=True)
 
 
 class SelectionAndAnimationCommandsTest(unittest.TestCase):
-    """mlibの選択・ベイクとmaya.cmdsの時刻・キー操作を検証する。"""
+    """mlibの選択とmaya.cmdsの時刻・キー・ベイク操作を検証する。"""
 
     def setUp(self):
         self.previous_namespace = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
@@ -235,7 +217,7 @@ class SelectionAndAnimationCommandsTest(unittest.TestCase):
         cmds.currentTime(10)
         cmds.setKeyframe(node.getPlug("translateX"), value=9.0)
 
-        mlib_cmds.bakeResults(node, time=(1, 10), attribute=["translateX"], simulation=True)
+        cmds.bakeResults(node.getFullName(), time=(1, 10), attribute=["translateX"], simulation=True)
 
         times = cmds.keyframe(node.getFullName(), attribute="translateX", query=True, timeChange=True)
         self.assertEqual(len(times), 10)

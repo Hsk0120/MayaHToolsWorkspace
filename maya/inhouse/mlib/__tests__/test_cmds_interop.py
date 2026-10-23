@@ -467,7 +467,7 @@ class MlibCommandInputTest(_InteropCase):
         weight = blend.addTarget(third + ".translateX")
         self.assertEqual(weight.getFullName(), blend.getName() + ".third")
 
-    def test_ls_group_duplicate_and_createNode(self):
+    def test_ls_duplicate_and_createNode(self):
         a = self.create("transform", "a")
         b = self.create("transform", "b")
         result = mlib.ls(a.mnode(), [b.mpath()])
@@ -480,9 +480,6 @@ class MlibCommandInputTest(_InteropCase):
         self.assertEqual(child.getParent().getFullName(), a.getFullName())
         child2 = mlib.createNode("transform", name="child2", p=b.mpath())
         self.assertEqual(child2.getParent().getFullName(), b.getFullName())
-        group = mlib.createGroup([child.mnode(), child2], name="grp", parent=a)
-        self.assertEqual(group.getParent().getFullName(), a.getFullName())
-        self.assertEqual(child2.getParent().getFullName(), group.getFullName())
         copy = mlib.duplicate(b.mpath(), name="bCopy")
         self.assertTrue(copy.isValid())
         self.assertNotEqual(copy.getFullName(), b.getFullName())
@@ -497,7 +494,7 @@ class MlibCommandInputTest(_InteropCase):
 
         driver = self.create("transform", "driver")
         driven = self.create("transform", "driven")
-        relation = mlib.getDrivenKey(driver.getPlug("tx").mplug(), driven.getPlug("ty"))
+        relation = mlib.common.DrivenKey(driver.getPlug("tx").mplug(), driven.getPlug("ty"))
         relation.setKey(0.0, 0.0)
         relation.setKey(1.0, 2.0)
         self.assertTrue(relation.exists())
@@ -507,7 +504,7 @@ class MlibCommandInputTest(_InteropCase):
     def test_constraint_resolves_owner_nodes(self):
         source = self.create("transform", "source")
         target = self.create("transform", "target")
-        constraint = mlib.addConstraint(source.getPlug("tx"), target.mnode(), type="point")
+        constraint = mlib.getNode(target.mnode()).addConstraint(source.getPlug("tx"), type="point")
         self.assertEqual(
             [
                 Node(name).getFullName()
@@ -578,39 +575,7 @@ class NodeArgumentRulesTest(_InteropCase):
         with self.assertRaises(TypeError):
             mlib.createNode("transform", name="many", parent=Vertices(mesh, [0, 1]))
 
-    def test_group_parent_and_empty_input(self):
-        group = mlib.createNode("transform", name="g")
-        item = mlib.createNode("transform", name="item")
-        result = mlib.createGroup([item], name="G", parent=group.getPlug("tx"))
-        self.assertEqual(result.getParent().getFullName(), group.getFullName())
-        # 空の列で maya.cmds.group が現在の選択をグループ化しないこと。
-        selected = mlib.createNode("transform", name="selected")
-        cmds.select(selected.getFullName())
-        before = set(cmds.ls(type="transform", long=True))
-        for empty in ([], (value for value in [])):
-            with self.subTest(empty=type(empty).__name__):
-                with self.assertRaises(ValueError):
-                    mlib.createGroup(empty, name="shouldNotExist")
-        self.assertEqual(set(cmds.ls(type="transform", long=True)), before)
-        self.assertEqual(selected.getParent(), None)
-        created = mlib.createGroup([], name="emptyGroup", empty=True)
-        self.assertIsNone(cmds.listRelatives(created.getFullName(), children=True))
 
-    def test_constraint_target_must_be_transform(self):
-        source = self.create("transform", "source")
-        _, mesh = self.cube()
-        for target in (mesh, Vertex(mesh, 0), mesh.getPlug("visibility")):
-            with self.subTest(target=type(target).__name__):
-                with self.assertRaises(TypeError):
-                    mlib.addConstraint(source, target, type="point")
-        target = self.create("transform", "target")
-        # 拘束元の Components は所有シェイプ1つとして扱う(シェイプを使う geometry 拘束の例)。
-        constraint = mlib.addConstraint(Vertices(mesh, [0, 1, 2]), target.getPlug("tx"), type="geometry")
-        targets = cmds.geometryConstraint(constraint.getFullName(), query=True, targetList=True)
-        # Maya は拘束元のシェイプを、その親 Transform の名前で報告する。
-        self.assertEqual(
-            [Node(name).getFullName() for name in targets], [mesh.getTransform().getFullName()]
-        )
 
     def test_constraint_sources_must_be_transforms_for_transform_types(self):
         transform, mesh = self.cube()
@@ -633,11 +598,11 @@ class NodeArgumentRulesTest(_InteropCase):
                     target = self.create("transform", "t_%s_%s" % (kind, label.replace(" ", "")))
                     before = set(cmds.ls(type="constraint") or [])
                     with self.assertRaises(TypeError):
-                        mlib.addConstraint(source, target, type=kind)
+                        mlib.getNode(target).addConstraint(source, type=kind)
                     self.assertEqual(set(cmds.ls(type="constraint") or []), before)
         # Transform の Plug は所有 Transform を拘束元にする(拘束先が追従する)。
         followed = self.create("transform", "followed")
-        constraint = mlib.addConstraint(transform.getPlug("tx"), followed, type="point")
+        constraint = mlib.getNode(followed).addConstraint(transform.getPlug("tx"), type="point")
         self.assertEqual(
             [node.getFullName() for node in constraint.getTargets()], [transform.getFullName()]
         )
@@ -650,7 +615,7 @@ class NodeArgumentRulesTest(_InteropCase):
             ):
                 with self.subTest(kind=kind, source=label):
                     target = self.create("transform", "s_%s_%s" % (kind, label.replace(" ", "")))
-                    result = mlib.addConstraint(source, target, type=kind)
+                    result = mlib.getNode(target).addConstraint(source, type=kind)
                     self.assertEqual(
                         [node.getFullName() for node in result.getTargets()], [transform.getFullName()]
                     )
@@ -661,7 +626,7 @@ class NodeArgumentRulesTest(_InteropCase):
         target = self.create("transform", "target")
         # "node.attribute" の文字列も所有ノードを拘束元にする(maya.cmds へプラグ名のまま
         # 渡すと拘束元として扱われない)。
-        constraint = mlib.addConstraint(dup2.getName() + ".tx", target, type="point")
+        constraint = mlib.getNode(target).addConstraint(dup2.getName() + ".tx", type="point")
         self.assertEqual([node.getFullName() for node in constraint.getTargets()], [dup2.getFullName()])
         self.assertAlmostEqual(cmds.getAttr(target.getPlug("tx")), 5.0)
         _, mesh = self.cube()
@@ -678,7 +643,7 @@ class NodeArgumentRulesTest(_InteropCase):
         ):
             with self.subTest(source=source):
                 with self.assertRaises(error):
-                    mlib.addConstraint(source, target, type="point")
+                    mlib.getNode(target).addConstraint(source, type="point")
 
     def duplicate_cubes(self):
         """短い名前が重複する |cg1|cb と |cg2|cb(シェイプはどちらも cbShape)を作成する。"""
@@ -943,7 +908,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         weight = _InputPlug._resolve_input(blend.getName() + ".weight[5]")
         self.assertEqual(type(weight).__name__, "FloatPlug")
         blend.getPlug("weight[7]")
-        mlib.getDrivenKey(self.create("transform", "driver").getPlug("tx"), blend.getName() + ".weight[0]")
+        mlib.common.DrivenKey(self.create("transform", "driver").getPlug("tx"), blend.getName() + ".weight[0]")
         Selection([blend.getName() + ".weight[6]"])
         self.assertEqual({name: self.existing(blend.getPlug(name)) for name in arrays}, before)
 
@@ -1290,8 +1255,8 @@ class PlugValidityTest(_InteropCase):
             "Node": Node,
             "mlib.getNode": mlib.getNode,
             "to_node": _InputNode._resolve_input,
-            "constraint source": lambda value: mlib.addConstraint(value, target, type="point"),
-            "constraint target": lambda value: mlib.addConstraint(target, value, type="point"),
+            "constraint source": lambda value: mlib.getNode(target).addConstraint(value, type="point"),
+            "constraint target": lambda value: mlib.getNode(value).addConstraint(target, type="point"),
             "addConstraint": lambda value: target.addConstraint(value, "point"),
             "matchTransform": target.matchTransform,
         }
@@ -1588,7 +1553,7 @@ class CommandEdgeCaseTest(_InteropCase):
         weight = blend.getPlug("weight")[0]
         self.assertEqual(str(weight), self.ns("bs.tgt"))
         driver = self.create("transform", "driver")
-        relation = mlib.getDrivenKey(driver.getPlug("tx"), str(weight))
+        relation = mlib.common.DrivenKey(driver.getPlug("tx"), str(weight))
         relation.setKey(0.0, 0.0)
         relation.setKey(1.0, 1.0)
         self.assertEqual(relation.getDrivenPlug().getFullName(), weight.getFullName())
@@ -1601,12 +1566,12 @@ class CommandEdgeCaseTest(_InteropCase):
         dup1, dup2 = self.duplicates()
         for driven in (self.ns("net.vals[2]"), str(dup2.getPlug("ty")), self.ns("bs.weight[0]")):
             with self.subTest(driven=driven):
-                relation = mlib.getDrivenKey(dup1.getPlug("tx"), driven)
+                relation = mlib.common.DrivenKey(dup1.getPlug("tx"), driven)
                 self.assertEqual(relation.getDrivenPlug().getFullName(), _InputPlug._resolve_input(driven).getFullName())
         with self.assertRaises(RuntimeError):
-            mlib.getDrivenKey(dup1.getNodeName() + ".tx", dup2.getPlug("tz"))  # 2つの dup に一致する
+            mlib.common.DrivenKey(dup1.getNodeName() + ".tx", dup2.getPlug("tz"))  # 2つの dup に一致する
         with self.assertRaises(TypeError):
-            mlib.getDrivenKey(driver.getName(), dup2.getPlug("tz"))
+            mlib.common.DrivenKey(driver.getName(), dup2.getPlug("tz"))
 
 
 class LargeComponentCollectionTest(_InteropCase):

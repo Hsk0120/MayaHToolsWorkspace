@@ -18,8 +18,8 @@ Maya標準ノードを使用し、独自プラグインを作成・ロードし�
    result = builder.multiply("scale", total, 0.5)
    print(result.get())
 
-``Container.createNode(kind, name=None)`` は作成と所有登録を一つのUndoへまとめます。
-``add(*nodes)`` は既存ノードを追加し、``getMembers()`` は直接所属するノードを取得します。
+``Container.createNode(type, name=None)`` は作成と所有登録を一つのUndoへまとめます。
+``addMembers(*members)`` は既存ノードを追加し、``getMembers()`` は直接所属するノードを取得します。
 削除には既存の ``mlib.delete(owner)`` を使用します。Mayaの削除規則に従うため、
 接続が失われた上流network等の自動削除を抑止する機能ではありません。
 
@@ -34,7 +34,7 @@ Soft IKなどのリグセットアップは ``mlrig.setups`` がこれらの基�
 保存参照とアトリビュート型
 ------------------------------
 
-``node.getPlug("members").sourceNodes()`` は配列の接続元を
+``node.getPlug("members").getSourceNodes()`` は配列の接続元を
 ``{論理インデックス: Node}`` として返します。未接続の要素は含めません。
 message配列の ``appendMessage(node)`` は既存の最大インデックスの次へ追加し、
 その番号を返します。途中の穴を再利用せず、追加操作はUndo対象です。
@@ -47,8 +47,10 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
 操作形状と単位
 --------------
 
-円・カーブの標準作成は ``mlib.createNurbs(type="circle")`` / ``mlib.createCurve`` を使います。
-前者はNurbsCurve、後者はTransformを返します。
+円・カーブの標準作成は ``cmds.circle`` / ``cmds.curve`` を使います。
+``mlib.getNode(cmds.circle()[0]).getShape()`` はNurbsCurve、
+``mlib.getNode(cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0)]))`` はTransformです。
+標準作成コマンドへ渡す距離はUI単位です。
 リグ操作形状の命名・色・親への配置は ``mlrig.setups.ControlShape`` の責務です。
 
 ``from mlib.common import units`` で読み込む
@@ -69,27 +71,36 @@ Mayaが削除した末尾の要素の過去の番号までは記憶しません�
 型付きコマンド入口
 ------------------
 
-コマンドは ``mlib.cmds`` と ``mlib`` に同じ関数として公開します。
-既存の短縮フラグ正規化と入力解決を使い、ノード・アトリビュート名の生文字列を返しません。
+``getNode``・``getPlug``・``createNode``・``ls``・``delete``・``duplicate``・``select`` の
+7入口を ``mlib.cmds`` と ``mlib`` に同じ関数として公開します。
+取得・生成結果のNode/Plugは実型に対応する参照です。
+形状等の専用生成は標準cmdsを使い、必要な参照型へ明示的に変換します。
 
 .. code-block:: python
 
    import mlib
+   from maya import cmds
+   from mlib.decorator import undoChunk
 
-   mesh = mlib.createPolygon(type="cube", name="sample")
-   attribute = mlib.addAttr(mesh, longName="amount", attributeType="double")
+   with undoChunk("sampleGeometry"):
+       transform = mlib.getNode(cmds.polyCube(name="sample")[0])
+       mesh = transform.getShape()  # Mesh
+       attribute = transform.addAttr("amount", attributeType="double")
    attributes = mlib.ls("*.amount", recursive=True)  # list[Plug]
-   transform = mesh.getTransform()                  # Transform
 
-``createSet`` はObjectSet、``createIkHandle`` はNode列、
-``createPolygon`` は単一のMesh、``addConstraint`` は単一のConstraintを返します。照会には ``getWeightPlugs()`` / ``getTargets()`` を使います。
-検索・親子付け・時刻/キー・メニュー操作は ``maya.cmds`` を直接使用します。
+``cmds.sets`` はセット名、``cmds.ikHandle`` はハンドル・effector等の名前を返します。
+結果を ``mlib.getNode`` で個別に参照へ変換し、形状にはTransformから ``getShape()`` で進みます。
+アトリビュートの追加は ``node.addAttr``、拘束の作成は
+``target.addConstraint(sources, type="parent", maintainOffset=False)`` を使用します。
+Constraintの照会には ``getWeightPlugs()`` / ``getTargets()`` を使います。
+標準コマンドと複数のオブジェクト操作を1回のUndoにまとめる場合は、外側を
+例の ``undoChunk`` で囲みます。参照取得はUndoを追加しません。
+Maya固有の履歴・接続照会、親子付け・時刻/キー・メニュー操作は ``maya.cmds`` を直接使用します。
 ``cmds.listConnections(connections=True)`` は文字列の平坦なペア列を返します。
 必要なNode/Plug変換は使用側で行います。
-``attr(target)`` は型付きPlugを返します。値は ``get()`` で内部単位、
-``get(uiUnits=True)`` でUI単位として取得します。照会フラグを明示した場合は従来のMaya照会で、
-UI単位と3成分のVector・行列のMatrixへの変換を維持します。
-数値・bool・ラベル等の状態照会も値を返します。
-コンポーネント検索はこの入口の対象外です。既存のSelectionやObjectSet.membersを使います。
+``getPlug(target)`` は型付きPlugを返します。値は ``get()`` で内部単位、
+``get(uiUnits=True)`` でUI単位として取得します。状態には ``isLocked()`` 等の
+専用照会を使います。Maya固有のtime等の照会は ``cmds.getAttr`` を使用します。
+コンポーネントは ``Selection.capture()`` や ``ObjectSet.getMembers()`` から取得できます。
 
 メニューは ``cmds.menu`` / ``cmds.menuItem``、削除は ``cmds.deleteUI`` を使います。

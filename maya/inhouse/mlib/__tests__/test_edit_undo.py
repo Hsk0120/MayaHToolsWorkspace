@@ -72,32 +72,6 @@ class EditUndoTest(unittest.TestCase):
         finally:
             cmds.delete(mesh)
 
-    def test_ranges_group_with_tool(self):
-        slider = mlib.getTimeSlider()
-        playback, animation = slider.getPlaybackRange(), slider.getAnimationRange()
-        try:
-            if str(cmds.about(version=True)).startswith(("2022", "2023")):
-                # 空のUndoチャンクではネイティブの非Undo操作を補えない。
-                before = cmds.undoInfo(query=True, undoName=True)
-                with undoChunk("rangeTool"):
-                    slider.setAnimationRange(-20, 200)
-                    slider.setPlaybackRange(-10, 100)
-                self.assertEqual(slider.getPlaybackRange(), (-10, 100))
-                self.assertEqual(slider.getAnimationRange(), (-20, 200))
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
-                return
-            with undoChunk("rangeTool"):
-                slider.setAnimationRange(-20, 200)
-                slider.setPlaybackRange(-10, 100)
-            cmds.undo()
-            self.assertEqual(slider.getPlaybackRange(), playback)
-            self.assertEqual(slider.getAnimationRange(), animation)
-            cmds.redo()
-            self.assertEqual(slider.getPlaybackRange(), (-10, 100))
-            self.assertEqual(slider.getAnimationRange(), (-20, 200))
-        finally:
-            slider.setAnimationRange(*animation)
-            slider.setPlaybackRange(*playback)
 
 
 if __name__ == "__main__":

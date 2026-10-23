@@ -1,10 +1,9 @@
 """Maya上部のmlrig実行メニュー。"""
 
-from maya import cmds
+from maya import cmds, mel
 
 from functools import partial
 import mlib
-from mlib.common import MainWindow
 
 
 class Menu:
@@ -23,7 +22,7 @@ class Menu:
             return None
         if cmds.menu(cls.NAME, exists=True):
             return cls.NAME
-        parent = MainWindow.getName()
+        parent = mel.eval("$mlrigMainWindow = $gMainWindow")
         cmds.menu(cls.NAME, label="mlrig", parent=parent, tearOff=True)
         cmds.menuItem(
             label="レイヤーエディタを開く", parent=cls.NAME, command=partial(cls.run, "editor")

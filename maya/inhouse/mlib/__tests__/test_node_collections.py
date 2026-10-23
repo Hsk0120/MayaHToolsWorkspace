@@ -53,83 +53,19 @@ class NodeCollectionsTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             Joints(self.joints)
 
-    def test_colors_roundtrip_and_undo(self):
-        """色の取得・個別反映・一回のUndoを検証する。"""
-        from mlib.common import Color
-        joints = self.joints
-        self.assertIsInstance(joints.getOverrideColor(), list)
-        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
-        self.assertIs(joints.setOverrideColors([13, 6]), joints)
-        self.assertEqual([color.index for color in joints.getOverrideColor()], [13, 6])
-        cmds.undo()
-        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
-        cmds.redo()
-        colors = joints.getOverrideColor()
-        colors[0].index = 17
-        self.assertEqual([color.index for color in joints.getOverrideColor()], [13, 6])
-        joints.setOverrideColors(colors)
-        self.assertEqual([color.index for color in joints.getOverrideColor()], [17, 6])
-        joints.setOutlinerColors([Color(), None])
-        self.assertEqual([color.mode for color in joints.getOutlinerColor()], ['rgb', 'disabled'])
-        joints.setOutlinerColor(13)
-        self.assertEqual([color.rgb for color in joints.getOutlinerColor()], [(1, 0, 0)] * 2)
-        joints.setOverrideColor(None)
-        self.assertEqual([color.mode for color in joints.getOverrideColor()], ['disabled'] * 2)
 
-    def test_prevalidation_fast_and_empty(self):
-        """後続ロック・入力接続・不正色を検証してから変更する。"""
-        from mlib.nodes import Joints
-        for fast in (False, True):
-            self.joints.setOverrideColor(6, fast=fast)
-            cmds.setAttr(self.names[1] + '.overrideRGBColors', lock=True)
-            try:
-                with self.assertRaisesRegex(RuntimeError, 'item 1'):
-                    self.joints.setOverrideColors([13, (1, .5, 0)], fast=fast)
-                self.assertEqual([color.index for color in self.joints.getOverrideColor()], [6, 6])
-            finally:
-                cmds.setAttr(self.names[1] + '.overrideRGBColors', lock=False)
-            with self.assertRaises(ValueError):
-                self.joints.setOverrideColors([13], fast=fast)
-            with self.assertRaises(ValueError):
-                self.joints.setOverrideColors([13, 32], fast=fast)
-            self.assertEqual([color.index for color in self.joints.getOverrideColor()], [6, 6])
-            self.joints.setOverrideColors([17, 13], fast=fast)
-            self.assertEqual([color.index for color in self.joints.getOverrideColor()], [17, 13])
-        cmds.connectAttr(self.names[0] + '.overrideColor', self.names[1] + '.overrideColor')
-        try:
-            with self.assertRaises(RuntimeError):
-                self.joints.setOverrideColor(6)
-            self.assertEqual(cmds.getAttr(self.names[0] + '.overrideColor'), 17)
-        finally:
-            cmds.disconnectAttr(self.names[0] + '.overrideColor', self.names[1] + '.overrideColor')
-        cmds.lockNode(self.names[1], lock=True)
-        try:
-            with self.assertRaises(RuntimeError):
-                self.joints.setOverrideColor(6)
-        finally:
-            cmds.lockNode(self.names[1], lock=False)
-        self.assertEqual(len(Joints().getOverrideColor()), 0)
-        self.assertIsInstance(Joints().setOverrideColors([]), Joints)
-        with self.assertRaises(ValueError):
-            Joints().setOverrideColor(32)
-        with self.assertRaises(TypeError):
-            Joints().setOverrideColor(6, fast=1)
 
-    def test_instance_paths_and_shared_color_conflicts(self):
-        """パス別行列を保持し、共有アトリビュートへ矛盾した更新を拒否する。"""
+    def test_instance_paths_keep_distinct_world_matrices(self):
+        """同じノードでもDAGインスタンス別の行列を保持する。"""
         from mlib.nodes import Transforms
-        group = cmds.createNode('transform', name=self.ns + ':group')
-        leaf = cmds.createNode('transform', name=self.ns + ':leaf', parent=group)
-        other = cmds.instance(group, name=self.ns + ':other')[0]
-        cmds.setAttr(other + '.tx', 10)
+        group = cmds.createNode("transform", name=self.ns + ":group")
+        leaf = cmds.createNode("transform", name=self.ns + ":leaf", parent=group)
+        other = cmds.instance(group, name=self.ns + ":other")[0]
+        cmds.setAttr(other + ".tx", 10)
         paths = cmds.ls(leaf, long=True, allPaths=True)
         nodes = Transforms(paths + paths)
         self.assertEqual(len(nodes), 2)
         self.assertNotEqual(list(nodes.getMatrix(ws=True)[0]), list(nodes.getMatrix(ws=True)[1]))
-        nodes.setOverrideColors([6, 6])
-        with self.assertRaises(ValueError):
-            nodes.setOverrideColors([13, 17])
-        self.assertEqual([color.index for color in nodes.getOverrideColor()], [6, 6])
 
     def test_parent_deletion_and_extension_reference(self):
         """親子削除と、派生ラッパーを作り直さず保持することを確認する。"""

@@ -60,17 +60,6 @@ class BacklogContractsTest(unittest.TestCase):
         group.stop()
         self.assertFalse(group._jobs)
 
-    def test_json_keeps_original_error(self):
-        """保存失敗に削除失敗が重なっても保存例外を維持する。"""
-        storage = importlib.import_module('mlib.json.storage')
-        logger = importlib.import_module('mlib.logger')
-        primary = OSError('replace failed')
-        with tempfile.TemporaryDirectory() as folder:
-            with mock.patch.object(storage.os, 'replace', side_effect=primary), mock.patch.object(Path, 'unlink', side_effect=OSError('cleanup')), mock.patch.object(logger, 'warning') as warning:
-                with self.assertRaises(OSError) as caught:
-                    storage.dump({}, Path(folder) / 'value.json')
-                self.assertIs(caught.exception, primary)
-                warning.assert_called_once()
 
     def test_public_name_collision(self):
         """別モジュールの同名公開クラスは両方の定義元を示して拒否する。"""

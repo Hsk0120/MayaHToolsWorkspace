@@ -2,6 +2,7 @@
 
 from maya import cmds
 
+import json
 import math
 
 import mlib
@@ -239,7 +240,7 @@ class SecondaryLayer:
                     cmds.cutKey(curve.getFullName(), time=(time, time), clear=True)
             group.getPlug("baked").set(True)
             group.getPlug("bakeInfo").set(
-                mlib.json.JsonText.dumps(
+                json.dumps(
                     dict(start=start, end=end, secondsPerFrame=interval, **settings)
                 )
             )

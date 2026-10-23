@@ -7,6 +7,7 @@
 mlib独自の取得は ``getPosition()``、設定は ``setPosition()`` のように表記します。
 説明・使用例・API一覧も正式get名に揃え、省略入口は公開しません。
 判定の ``is/has``、数学演算、保持値のプロパティ、OpenMaya標準名は維持します。
+独自のis省略入口は廃止し、判定の使用例とAPI一覧も正式な ``isX`` 名へ揃えています。
 メソッド内のアトリビュート表記は ``Attr/Attrs``、ユーザー追加分は ``Extra`` です。
 廃止した旧名の互換別名はありません。更新後はMayaを再起動するか ``mlib.reload()`` を実行し、
 保持していたラッパーと数学値を取得し直してください。
@@ -105,5 +106,3 @@ OpenMaya標準の例外として ``Vector.normalize()`` は自身を更新しま
      - 旧 ``toSwingTwist()``。swingとtwistをmlibのQuaternionで返す。
 
 EulerRotateの ``toMatrix()/toQuaternion()`` は ``asMatrix()/asQuaternion()`` です。
-JSON用の ``toData()``、OptionVarの ``toDict()`` は ``asData()``、``asDict()`` へ移行します。
-保存するキーやデータ形式は変更していません。

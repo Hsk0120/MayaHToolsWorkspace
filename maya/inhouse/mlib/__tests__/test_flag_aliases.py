@@ -57,7 +57,7 @@ class FlagAliasesTest(unittest.TestCase):
     def test_constraint_and_bulk_aliases(self):
         source = mlib.createNode("transform")
         joint = mlib.createNode("joint")
-        result = mlib.addConstraint(source, joint, typ="point", mo=True)
+        result = mlib.getNode(joint).addConstraint(source, typ="point", mo=True)
         self.assertEqual(cmds.nodeType(result.getFullName()), "pointConstraint")
         mlib.delete(result)
         joints = mlib.nodes.Joints([joint])
@@ -70,7 +70,7 @@ class FlagAliasesTest(unittest.TestCase):
             joints.addConstraint(source, type="point", typ="point")
 
     def test_native_command_specific_flags(self):
-        parent = mlib.createGroup(em=True, n="parent")
+        parent = mlib.getNode(cmds.group(em=True, n="parent"))
         node = mlib.createNode("transform", n="child", p=parent.getFullName())
         copy = mlib.duplicate(node, n="copy")
         self.assertTrue(cmds.objExists(copy.getFullName()))

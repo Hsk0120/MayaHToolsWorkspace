@@ -92,20 +92,20 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         control = mlib.nodes.Transform("control", create=True)
         plug = control.getPlug("translateX")
         self.assertTrue(plug.isWritable())
-        self.assertTrue(plug.settable())
+        self.assertTrue(plug.isSettable())
         plug.setFlags(locked=True)
         self.assertTrue(plug.isWritable())
         self.assertFalse(plug.isSettable())
         plug.setFlags(locked=False)
         self.first.getPlug("translateX").connectTo(plug)
-        self.assertFalse(plug.settable())
+        self.assertFalse(plug.isSettable())
         plug.disconnectInput()
         plug.setKey()
         candidates = (plug, control.getPlug("translate"), control.getPlug("worldMatrix")[0])
         for candidate in candidates:
             with self.subTest(plug=str(candidate)):
                 self.assertEqual(candidate.isSettable(), bool(cmds.getAttr(str(candidate), settable=True)))
-                self.assertEqual(candidate.settable(), candidate.isSettable())
+                self.assertEqual(candidate.isSettable(), candidate.isSettable())
         extra = self.base.addAttr("deleted")
         extra.delete()
         with self.assertRaises(RuntimeError):

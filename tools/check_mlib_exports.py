@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import sys
 
-CLASS_PACKAGES = ("nodes", "plugs", "components", "maths", "common", "json")
+CLASS_PACKAGES = ("nodes", "plugs", "components", "maths", "common")
 # 削除済みPlugへのアクセスを示す内部例外。既存の公開APIへ追加しない。
 PRIVATE_CLASSES = {("plugs.plug", "DeletedAttributeError")}
 

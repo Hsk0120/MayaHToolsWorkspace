@@ -33,8 +33,7 @@ class CanonicalGettersTest(unittest.TestCase):
 
     def test_canonical_commands_have_one_public_entry(self):
         """取得コマンドはget付きファイルと公開関数を同じ名前にする。"""
-        for name in ("getNode", "getPlug", "getScene", "getChannelBox", "getShelf",
-                     "getTimeSlider", "getViewport", "getWindow", "getWorkspaceControl", "getWorkspaceLayout", "getOutliner", "getDrivenKey"):
+        for name in ("getNode", "getPlug"):
             module = importlib.import_module("mlib.cmds." + name)
             self.assertIs(getattr(mlib, name), getattr(module, name))
             self.assertIs(getattr(mlib.cmds, name), getattr(module, name))

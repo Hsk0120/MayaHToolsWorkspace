@@ -199,7 +199,7 @@ class Transform(DagNode):
 
         command_kwargs = normalize_flags(command_name, kwargs)
         if command_kwargs.get("query") or command_kwargs.get("edit"):
-            raise ValueError("addConstraint supports creation only; use mlib.addConstraint for query/edit")
+            raise ValueError("addConstraint supports creation only; use Maya constraint commands for query/edit")
         command_kwargs = CommandResult.node_flags(command_kwargs, ("worldUpObject",))
         if command_name in {
             "parentConstraint",

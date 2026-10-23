@@ -14,7 +14,6 @@
    api_naming
    extensions
    guide_nodes
-   node_colors
    blend_colors
    calculation_nodes
    guide_plugs
@@ -41,11 +40,7 @@
    :caption: シーンと操作環境
 
    guide_files
-   json
    guide_environment
-   shelves
-   window_layouts
-   settings_storage
    guide_editors
    selection_and_channelbox
    events

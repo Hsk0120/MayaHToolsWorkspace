@@ -38,9 +38,7 @@ class ClassDesignTest(unittest.TestCase):
     def test_display_api_is_dag_only(self):
         """DG基底に表示専用APIを公開せずDAG単数・複数で共有する。"""
         from mlib.nodes import Node, Nodes, DagNode, DagNodes, Transforms, Joints
-        methods = ("getVisibility", "setVisibility", "getOutlinerColor",
-                   "setOutlinerColor", "getOverrideColor", "setOverrideColor",
-                   "getOutlinerVisibility", "setOutlinerVisibility")
+        methods = ("getVisibility", "setVisibility", "getOutlinerVisibility", "setOutlinerVisibility")
         for method in methods:
             self.assertFalse(hasattr(Node, method))
             self.assertFalse(hasattr(Nodes, method))
@@ -103,18 +101,6 @@ class ClassDesignTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             values.callEach("not_exported", [()])
 
-    def test_save_scope_prevalidation(self):
-        """単位saveとbatchの保存要求は現在値を変更する前に拒否する。"""
-        from mlib.common import Preferences
-        with patch.object(cmds, "currentUnit") as unit:
-            for method in (Preferences.setLinearUnit, Preferences.setAngleUnit, Preferences.setTimeUnit):
-                with self.assertRaises(TypeError):
-                    method("anything", save=True)
-            unit.assert_not_called()
-        with patch.object(cmds, "about", return_value=True), patch.object(cmds, "selectPref") as selection:
-            with self.assertRaises(RuntimeError):
-                Preferences.setTrackSelectionOrder(True, save=True)
-            selection.assert_not_called()
 
 
 if __name__ == "__main__":

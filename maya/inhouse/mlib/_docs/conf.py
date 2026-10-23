@@ -12,7 +12,6 @@ from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, package_class_diagrams
-from _getterNames import GetterDocumentation
 from _constructorSignatures import ConstructorDocumentation
 
 _PACKAGE_NAME = Path(__file__).resolve().parent.parent.name
@@ -92,7 +91,6 @@ templates_path = ["_templates"]  # 言語の切り替え(_templates/layout.html)
 # の両方がこの辞書を参照する。
 _MLIB_ROOT = Path(__file__).resolve().parent.parent
 _CLASS_HIERARCHY = collect_class_hierarchy(_MLIB_ROOT)
-_GETTER_DOCS = GetterDocumentation(_MLIB_ROOT)
 _CONSTRUCTOR_DOCS = ConstructorDocumentation(_PACKAGE_NAME, _MLIB_ROOT)
 
 
@@ -149,10 +147,7 @@ def _prepare_jinja_env(jinja_env):
       テンプレートから元の既定表示へ処理を委ねるにはこの接頭辞で指定する。
     """
     jinja_env.globals["package_name"] = _PACKAGE_NAME
-    jinja_env.globals["prepare_getter_docs"] = _GETTER_DOCS.prepare_object
     jinja_env.globals["node_constructor_args"] = _CONSTRUCTOR_DOCS.signature
-    jinja_env.globals["preferred_command"] = _GETTER_DOCS.preferred_command
-    jinja_env.globals["short_command"] = _GETTER_DOCS.short_command
     jinja_env.globals["ancestor_class_diagram"] = (
         lambda class_name: ancestor_class_diagram(class_name, _CLASS_HIERARCHY)
     )
@@ -205,7 +200,7 @@ def _adapt_package_name(app, docname, source):
     """
     if _PACKAGE_NAME == "mlib":
         return
-    pattern = r'(https?://[^\s<>`]+|[\"\x27]mlib\.json[\"\x27])|(?<![A-Za-z0-9_])mlib(?=$|[._/]|[^A-Za-z0-9_-])'
+    pattern = r'(https?://[^\s<>`]+|[\"\x27]mlib\.blendShape[\"\x27])|(?<![A-Za-z0-9_])mlib(?=$|[._/]|[^A-Za-z0-9_-])'
     before = source[0].splitlines()
     after = [re.sub(pattern, lambda match: match[1] or _PACKAGE_NAME, line)
              for line in before]
@@ -227,6 +222,4 @@ def setup(app):
     app.connect("config-inited", _english_title)
     app.connect("source-read", _adapt_package_name)
     app.connect("autoapi-skip-member", _include_constructors)
-    app.connect("autoapi-skip-member", _GETTER_DOCS.skip_member)
-    app.connect("env-updated", _GETTER_DOCS.register_reference_aliases)
     app.connect("builder-inited", _write_generated_docs)

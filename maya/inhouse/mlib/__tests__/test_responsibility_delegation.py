@@ -69,17 +69,17 @@ class ResponsibilityTest(unittest.TestCase):
     def test_numeric_compound_locked_child_preflight(self):
         """数値複合型の子ロックを変更前に検出し、RGBの型を維持する。"""
         node = mlib.createNode('blendColors')
-        node.setColor(1, (.2, .3, .4))
-        before = node.getColor(1)
+        node.getPlug("color1").set((.2, .3, .4))
+        before = node.getPlug("color1").get()
         cmds.setAttr(node.getFullName() + '.color1G', lock=True)
         for fast in (False, True):
             with self.assertRaises(RuntimeError):
-                node.setColor(1, (.8, .7, .6), fast=fast)
-            self.assertEqual(node.getColor(1), before)
+                node.getPlug("color1").set((.8, .7, .6), fast=fast)
+            self.assertEqual(node.getPlug("color1").get(), before)
         cmds.setAttr(node.getFullName() + '.color1G', lock=False)
-        node.setColor(1, (.8, .7, .6))
+        node.getPlug("color1").set((.8, .7, .6))
         cmds.undo()
-        self.assertEqual(node.getColor(1), before)
+        self.assertEqual(node.getPlug("color1").get(), before)
         self.assertEqual(cmds.getAttr(node.getFullName() + '.color1', type=True), 'float3')
 
     def test_multi_shape_generator_inputs(self):
@@ -112,14 +112,6 @@ class ResponsibilityTest(unittest.TestCase):
         finally:
             cmds.currentUnit(linear='cm')
 
-    def test_snapshot_signature_does_not_change_node_path(self):
-        """保存用トポロジー照会が保持DAGパスをシェイプへ書き換えない。"""
-        from mlib.json.snapshots import _signature
-        node = mlib.getNode(cmds.polyCube()[0])
-        before = node.getFullName()
-        self.assertEqual(_signature(node)['vertices'], 8)
-        self.assertEqual(node.getFullName(), before)
-        self.assertEqual(node.mpath().node(), node.mnode())
 
 
 if __name__ == '__main__':

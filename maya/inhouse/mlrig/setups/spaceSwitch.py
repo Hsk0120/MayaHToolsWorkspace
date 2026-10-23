@@ -2,7 +2,7 @@
 
 from maya import cmds
 
-from mlib.json import JsonText as json
+import json
 import re
 
 import mlib

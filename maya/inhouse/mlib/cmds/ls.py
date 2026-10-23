@@ -19,7 +19,7 @@ Return value
 Related commands
 ----------------
 
-:doc:`createNode <../createNode/index>` / :doc:`constraint <../addConstraint/index>`
+:doc:`createNode <../createNode/index>` / :meth:`~mlib.nodes.transform.Transform.addConstraint`
 
 Flags
 -----

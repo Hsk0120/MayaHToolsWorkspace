@@ -36,7 +36,7 @@ class SkinCluster(Node):
         Args:
             skin_cluster (str | om2.MObject | om2.MDagPath): skinCluster の名前または API オブジェクト。
             create (bool): キーワード専用。既定False。Trueはノード作成前に拒否する。
-                新規バインドはbind()またはmlib.cmds.bindSkin()を使用する。
+                新規バインドはSkinCluster.bind()を使用する。
 
         Returns:
             None: 値を返さない。

@@ -119,7 +119,7 @@ class TwistLayer:
             if cmds.objExists(name):
                 raise ValueError("Twist node already exists: " + name)
         if not root.hasAttr("twistSet"):
-            selection = mlib.createSet(empty=True, name=self.rig.getNodeName("twistSet")).getFullName()
+            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("twistSet"))).getFullName()
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             self._own([mlib.getNode(selection)])

@@ -61,16 +61,13 @@ try:
         assert node.getPlug("tx").get() == 0
         node.getPlug("translate").set((1, 2, 3), fast=True)
         assert tuple(node.getTranslate()) == (1, 2, 3)
-        mesh = core.createPolygon(constructionHistory=False)
+        mesh = core.getNode(cmds.polyCube(constructionHistory=False)[0]).getShape()
         mesh.getVertex(0).setPosition((2, 3, 4))
         assert tuple(mesh.getVertex(0).getPosition()) == (2, 3, 4)
         assert isinstance(core._core.object.Object(node.getFullName()), core.nodes.Node)
         assert not hasattr(core, "Object")
         assert not hasattr(core, "extensions")
-        saved = core.json.capture(node, kind="pose")
-        document = core.json.JsonDocument(saved).asData()
-        assert document["format"] == "mlib.json"
-        assert core.json.JsonDocument.fromData(document).data.plan().errors == []
+        assert not hasattr(core, "json")
         old_node_type = core.nodes.Node
         old_extension = sys.modules[name + "_posedriverconnect"]
         core.reload()
@@ -101,7 +98,7 @@ class PackageNameTest(unittest.TestCase):
         exec(compile(isolated, "conf.py", "exec"), namespace)
         original = ('mlib\n====\nimport mlib\nfrom mlib_bifrost import nodes\n'
                     'autoapi/mlib/nodes/node/Node\n:class:\u0060mlib.nodes.Node\u0060\n'
-                    'format="mlib.json"\nMLIB_EXTENSION_API = 1\n'
+                    'format="mlib.blendShape"\nMLIB_EXTENSION_API = 1\n'
                     'https://example.org/mlib/api\nwhymlib\n')
         source = [original]
         namespace["_adapt_package_name"](None, "index", source)
@@ -109,7 +106,7 @@ class PackageNameTest(unittest.TestCase):
         self.assertIn("from studio_library_bifrost import nodes", source[0])
         self.assertIn("autoapi/studio_library/nodes/node/Node", source[0])
         self.assertIn(":class:\u0060studio_library.nodes.Node\u0060", source[0])
-        self.assertIn('format="mlib.json"', source[0])
+        self.assertIn('format="mlib.blendShape"', source[0])
         self.assertIn("MLIB_EXTENSION_API = 1", source[0])
         self.assertIn("https://example.org/mlib/api", source[0])
         self.assertIn("whymlib", source[0])

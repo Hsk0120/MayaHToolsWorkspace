@@ -1,15 +1,15 @@
-"""生成済みSphinxの正式get名と既存判定入口をMaya不要で検査する。"""
+"""Sphinxの正式get/is定義と基礎7コマンドの掲載をMaya不要で検査する。"""
 
 import argparse
+import ast
 from html.parser import HTMLParser
 from pathlib import Path
 import pickle
+import re
 import sys
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "maya/inhouse/mlib"
-sys.path.insert(0, str(_PACKAGE_ROOT / "_docs"))
-
-from _getterNames import GetterDocumentation
+_COMMAND_NAMES = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"}
 
 
 class _SignatureParser(HTMLParser):
@@ -54,7 +54,6 @@ class _SignatureParser(HTMLParser):
         if self.active:
             self.parts.append(data)
 
-
 def _signature_parameters(html, identifier):
     """関数名を除く署名を返し、未掲載のアンカーはNoneで示す。
 
@@ -72,125 +71,102 @@ def _signature_parameters(html, identifier):
     return " ".join(parameters.split()) if opening else None
 
 
-def check(build_dir):
-    """Sphinx環境とHTMLの両方で取得・判定APIの表示を照合する。
+def _canonical_definitions(package_root):
+    """実装の公開get/is定義と、正式判定に重複する省略名を列挙する。"""
+    package_root = Path(package_root)
+    definitions, forbidden = set(), set()
+    for path in sorted(package_root.rglob("*.py")):
+        relative = path.relative_to(package_root)
+        if any(part in {"__tests__", "_docs", "_core", "cmds"} for part in relative.parts):
+            continue
+        if path.stem.startswith("_"):
+            continue
+        module = ".".join(("mlib", *relative.with_suffix("").parts))
+        for statement in ast.parse(path.read_text(encoding="utf-8-sig")).body:
+            if isinstance(statement, ast.ClassDef):
+                if statement.name.startswith("_"):
+                    continue
+                owner, members = module + "." + statement.name, statement.body
+            else:
+                owner, members = module, [statement]
+            methods = {member.name: member for member in members
+                       if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))}
+            for name in methods:
+                if not re.fullmatch(r"(?:get|is)[A-Z]\w*", name):
+                    continue
+                definitions.add(owner + "." + name)
+                if not name.startswith("is"):
+                    continue
+                short = name[2].lower() + name[3:]
+                other = methods.get(short)
+                # Plugin.loaded等、同名の独立APIは終了した判定別名と区別する。
+                if other is not None:
+                    body = other.body[1:] if ast.get_docstring(other) else other.body
+                    if not (len(body) == 1 and isinstance(body[0], ast.Return)
+                            and isinstance(body[0].value, ast.Call)
+                            and ((isinstance(body[0].value.func, ast.Attribute)
+                                  and body[0].value.func.attr == name)
+                                 or (isinstance(body[0].value.func, ast.Name)
+                                     and body[0].value.func.id == name))):
+                        continue
+                forbidden.add(owner + "." + short)
+    return definitions, forbidden
 
-    Args:
-        build_dir (Path): HTMLビルドの出力先。
 
-    Returns:
-        list[str]: 不一致の説明。空なら全て一致。
-    """
+def check(build_dir, package_root=_PACKAGE_ROOT):
+    """実ASTの正式名をAutoAPI・参照登録・HTMLと照合する。"""
     build_dir = Path(build_dir)
     with (build_dir / ".doctrees/environment.pickle").open("rb") as stream:
         environment = pickle.load(stream)
-    docs = GetterDocumentation(_PACKAGE_ROOT)
     objects = environment.autoapi_all_objects
-    # BuildEnvironmentのpickleではdomainインスタンスは除かれるが、登録データは残る。
     references = environment.domaindata["py"]["objects"]
-    errors = []
-    html_cache = {}
-    for pair in docs.aliases.values():
-        alias, getter = objects.get(pair.alias), objects.get(pair.getter)
-        if alias is None or getter is None:
-            errors.append("AutoAPIの対応が見つかりません: " + pair.alias)
-            continue
-        if alias.args != getter.args:
-            errors.append("短名の署名が正式メソッドと異なります: " + pair.alias)
-        expected = docs.rewrite_docstring(getter.docstring, pair.parameters, owner=pair.getter)
-        if alias.docstring != expected:
-            errors.append("短名の説明が正式メソッドと異なります: " + pair.alias)
-        if alias.return_annotation != getter.return_annotation:
-            errors.append("短名の戻り型が正式メソッドと異なります: " + pair.alias)
-        if alias.overloads != getter.overloads or alias.type_params != getter.type_params:
-            errors.append("短名のオーバーロードまたは型引数が正式メソッドと異なります: " + pair.alias)
-        if getter.display:
-            errors.append("正式取得・判定名がAPI一覧の表示対象です: " + pair.getter)
-        is_command = pair.alias.startswith("mlib.cmds.")
-        public_alias = "mlib." + pair.alias.rsplit(".", 1)[-1] if is_command else pair.alias
-        public_getter = "mlib." + pair.getter.rsplit(".", 1)[-1] if is_command else pair.getter
-        entry = references.get(public_alias)
-        original_entry = references.get(public_getter)
-        if entry is None:
-            errors.append("短名の参照が未登録です: " + public_alias)
-            continue
-        if original_entry is None or original_entry.node_id != entry.node_id:
-            errors.append("正式名の参照が短名へ解決しません: " + public_getter)
+    definitions, forbidden = _canonical_definitions(package_root)
+    errors, html_cache = [], {}
+
+    def html_for(entry):
+        """同じ生成ページは一度だけ読み込む。"""
         path = build_dir / (entry.docname + ".html")
         if path not in html_cache:
             html_cache[path] = path.read_text(encoding="utf-8")
-        html = html_cache[path]
-        if f'id="{entry.node_id}"' not in html:
-            errors.append("短名のHTMLアンカーがありません: " + public_alias)
-        if is_command:
-            short_name = pair.alias.rsplit(".", 1)[-1]
-            getter_name = pair.getter.rsplit(".", 1)[-1]
-            public_cmds_alias = "mlib.cmds." + short_name
-            public_cmds_getter = "mlib.cmds." + getter_name
-            cmds_entry = references.get(public_cmds_alias)
-            cmds_getter_entry = references.get(public_cmds_getter)
-            if cmds_entry is None:
-                errors.append("cmdsの短名参照が未登録です: " + public_cmds_alias)
-            elif cmds_entry.docname != entry.docname:
-                errors.append("cmdsとルートの説明ページが異なります: " + public_cmds_alias)
-            if (cmds_entry is None or cmds_getter_entry is None
-                    or cmds_entry.node_id != cmds_getter_entry.node_id):
-                errors.append("cmdsの正式名が短名へ解決しません: " + public_cmds_getter)
-            root_signature = _signature_parameters(html, public_alias)
-            cmds_signature = _signature_parameters(html, public_cmds_alias)
-            if root_signature is None or cmds_signature is None or root_signature != cmds_signature:
-                errors.append("cmdsとルートの構文・引数表示が異なります: " + public_cmds_alias)
-            if f'id="{public_cmds_getter}"' not in html:
-                errors.append("cmdsの既存get名のHTMLアンカーがありません: " + public_cmds_getter)
-        if not is_command and f'id="{pair.getter}"' not in html:
-            errors.append("既存取得・判定名のHTMLアンカーがありません: " + pair.getter)
-    commands = build_dir / "autoapi/mlib/cmds/index.html"
-    command_html = commands.read_text(encoding="utf-8")
-    for old_module, short_module in docs.command_modules.items():
-        old_name, short_name = old_module.rsplit(".", 1)[-1], short_module.rsplit(".", 1)[-1]
-        modules = environment.autoapi_objects
-        expected_synopsis = docs.rewrite_docstring(modules[old_module].docstring, owner=short_module)
-        if modules[short_module].docstring != expected_synopsis:
-            errors.append("コマンド概要が正式モジュールと異なります: " + short_module)
-        if f'href="{old_name}/index.html"' in command_html:
-            errors.append("コマンド一覧にget入口が重複しています: " + old_name)
-        if f'href="{short_name}/index.html"' not in command_html:
-            errors.append("コマンド一覧に短名がありません: " + short_name)
-        legacy = build_dir / f"autoapi/mlib/cmds/{old_name}/index.html"
-        if not legacy.is_file() or f'id="mlib.{old_name}"' not in legacy.read_text(encoding="utf-8"):
-            errors.append("既存getコマンドページのアンカーがありません: " + old_name)
-        short_html = (build_dir / f"autoapi/mlib/cmds/{short_name}/index.html").read_text(encoding="utf-8")
-        if '<dt class="field-odd">param ' in short_html or '<dt class="field-even">param ' in short_html:
-            errors.append("コマンドに未整形の引数フィールドがあります: " + short_name)
-    for source in sorted((_PACKAGE_ROOT / "cmds").glob("get*.py")):
-        name = source.stem
+        return html_cache[path]
+
+    for identifier in sorted(definitions):
+        obj, entry = objects.get(identifier), references.get(identifier)
+        if obj is None or not obj.display:
+            errors.append("正式get/is定義がAutoAPIへ掲載されていません: " + identifier)
+        if entry is None:
+            errors.append("正式get/is名の公開参照がありません: " + identifier)
+        elif f'id="{entry.node_id}"' not in html_for(entry):
+            errors.append("正式get/is名のHTMLアンカーがありません: " + identifier)
+    for identifier in sorted(forbidden):
+        if identifier in objects or identifier in references:
+            errors.append("終了した判定省略入口が掲載されています: " + identifier)
+    for name in sorted(_COMMAND_NAMES):
         root_id, cmds_id = "mlib." + name, "mlib.cmds." + name
         root_entry, cmds_entry = references.get(root_id), references.get(cmds_id)
         if root_entry is None or cmds_entry is None:
-            errors.append("正式getコマンドの公開参照がありません: " + name)
+            errors.append("基礎コマンドの公開参照がありません: " + name)
             continue
         if root_entry.docname != cmds_entry.docname:
-            errors.append("正式getコマンドの説明ページが分かれています: " + name)
-        path = build_dir / (root_entry.docname + ".html")
-        html = path.read_text(encoding="utf-8")
-        root_signature = _signature_parameters(html, root_id)
-        cmds_signature = _signature_parameters(html, cmds_id)
+            errors.append("cmdsとルートの説明ページが分かれています: " + name)
+        root_signature = _signature_parameters(html_for(root_entry), root_id)
+        cmds_signature = _signature_parameters(html_for(cmds_entry), cmds_id)
         if root_signature is None or cmds_signature is None or root_signature != cmds_signature:
-            errors.append("正式getコマンドの構文・引数表示が異なります: " + name)
+            errors.append("cmdsとルートの構文・引数表示が異なります: " + name)
     if "mlib" in sys.modules or "maya" in sys.modules:
         errors.append("検査中にmlibまたはMayaがimportされました。")
     return errors
 
 
 def main():
-    """指定されたビルド成果物を検査し、終了コードで結果を伝える。"""
+    """指定されたHTMLを検査し、不一致を終了コードへ反映する。"""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("build_dir", type=Path)
     arguments = parser.parse_args()
     errors = check(arguments.build_dir)
     for error in errors:
         print(error)
-    print(f"取得・判定APIの文書検査: {len(errors)} 件の不一致")
+    print(f"正式get/is APIの文書検査: {len(errors)} 件の不一致")
     return 1 if errors else 0
 
 

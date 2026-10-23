@@ -8,7 +8,6 @@ import maya.cmds as cmds
 
 from .._core.fastWrite import set_attr
 from .._core.flags import flag_aliases
-from .._core.getterAlias import _is_alias
 from ..common._fast import fast_edit, is_fast
 from ..decorator import undoChunk
 from ..maths import EulerRotate, Matrix, Scale
@@ -279,19 +278,6 @@ class Joint(Transform):
             bool: 有効な joint の場合は ``True``。
         """
         return self.isValid() and self.mnode().hasFn(om2.MFn.kJoint)
-
-    @_is_alias(isJoint)
-    def joint(self, *args, **kwargs):
-        """isJointへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isJoint(*args, **kwargs)
 
     def getSkinClusters(self):
         """この joint に接続する skinCluster を取得する。
@@ -670,7 +656,6 @@ class Joints(Transforms):
         "getChildJointNames": (Joint.getChildJointNames, "list"),
         "getDepth": (Joint.getDepth, "list"),
         "isJoint": (Joint.isJoint, "list"),
-        "joint": (Joint.joint, "list"),
         "getSkinClusters": (Joint.getSkinClusters, "list"),
         "getTransferTarget": (Joint.getTransferTarget, "list"),
         "reparentChildren": (Joint.reparentChildren, "list"),
@@ -834,19 +819,6 @@ class Joints(Transforms):
         return self._dispatch_shared("isJoint", args, kwargs)
 
     isJoint.__signature__ = inspect.signature(Joint.isJoint)
-
-    @_is_alias(isJoint)
-    def joint(self, *args, **kwargs):
-        """isJointへ委譲するis省略の判定入口。
-
-        Args:
-            *args: 判定本体へ渡す位置引数。
-            **kwargs: 判定本体へ渡すキーワード引数。
-
-        Returns:
-            object: 判定本体と同じ結果。
-        """
-        return self.isJoint(*args, **kwargs)
 
     def getTransferTarget(self, *args, **kwargs):
         """各要素のgetTransferTargetを同じ引数で呼び、保持順の戻り値リストを返す。

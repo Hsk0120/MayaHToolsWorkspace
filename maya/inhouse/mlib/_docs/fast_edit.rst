@@ -28,7 +28,7 @@ Undo不要の値更新
 * Transformの行列・translate・rotate・scale・shear・show・hide・形状ミラー、ピボット、対応範囲の親変更・限定削除。
 * Joint / Jointsの ``freezeRotate`` と ``jointOrientToRotate``。削除はNode/Nodesの標準削除を継承します。
   ウェイト移送・子保持を伴う整理は ``mlrig.setups.JointHierarchy.delete`` へ分けています。
-* Nodeの生成・削除・改名・名前空間・追加アトリビュートと、Outliner色・override色・表示フラグ。
+* Nodeの生成・削除・改名・名前空間・追加アトリビュート・表示フラグ。
 * ObjectSet・DisplayLayerの所属変更とShadingEngineの対応範囲の割当。
 * 頂点・CVの単体／複数の座標設定とミラー、UVの単体／複数の座標設定。
 * Shape / Transformの ``scaleGeometry``。履歴なしメッシュ・非周期カーブに対応。
@@ -37,11 +37,13 @@ Undo不要の値更新
 * SkinClusterの ``setWeights`` / ``loadWeights`` / ``normalizeWeights`` /
   ``setMaxInfluences``・ウェイト移送・influenceの登録解除。
 * BlendShapeの ``setTargetWeights`` / ``setTargetDeltas`` / ``resetTargetVertices`` / ``replaceTarget`` /
-  ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets`` / ``loadTargetDeltas``。照会は通常時もOpenMayaを使います。
+  ``reduceTargetDeltas`` / ``duplicateTarget`` / ``loadTargets``。照会は通常時もOpenMayaを使います。
   追加・削除・ミラーはMaya標準cmds/MEL処理を維持するためfast非対応です。
   詳細と保存形式の制限は :doc:`guide_deformers` を参照してください。
-* Locator、BlendColors、BlendWeighted、MultMatrix、DecomposeMatrix、
-  DistanceBetween、Constraintの値設定メソッド。
+* Locator、MultMatrix、DecomposeMatrix、DistanceBetween、Constraintの値設定メソッド。
+
+専用APIを終了した演算14型も、共通のPlug設定・接続で ``fast=True`` を使えます。
+対象型とMayaアトリビュート名の例は :doc:`calculation_nodes` を参照してください。
 
 対応する複数形クラスの明示的な一括メソッドでも同じ引数を使用できます。
 ``AnimCurve.setInfinity`` の外挿設定も ``fast=True`` に対応します。
@@ -57,7 +59,6 @@ fastを提供します。UI操作やMaya標準の複合コマンドに一律fast
 キー・接線のfast編集では入力 ``stepnext`` 等を更新前に拒否します。
 固定接線は ``setKey`` の作成フラグには指定せず、``setTangent`` で編集します。
 接線名と入力 ``step`` の補正を含む詳細は :doc:`animation_nodes` を参照してください。
-JSON読込のfastはシーンへの復元をOpenMayaへ切り替える指定で、ファイルI/Oは変更しません。
 
 動作と制限
 ----------

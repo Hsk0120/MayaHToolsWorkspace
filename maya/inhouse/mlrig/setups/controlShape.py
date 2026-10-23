@@ -41,9 +41,9 @@ class ControlShape:
             or sum(v * v for v in normal) <= 0
         ):
             raise ValueError("Expected nonzero finite normal")
-        temporary = mlib.createNurbs(
-            type="circle", normal=normal, radius=radius, constructionHistory=False
-        ).getTransform()
+        temporary = mlib.getNode(cmds.circle(
+            normal=normal, radius=radius, constructionHistory=False
+        )[0])
         shapes = []
         try:
             for shape in [
@@ -85,7 +85,9 @@ class ControlShape:
         old_shapes = [mlib.nodes.Node(shape) for shape in
                       (cmds.listRelatives(target.getFullName(), shapes=True, fullPath=True) or [])]
         old_shapes = [shape for shape in old_shapes if shape.getType() == "nurbsCurve"]
-        temporary = mlib.createCurve(degree=degree, point=points, knot=knots, name=name + "__tmp")
+        temporary = mlib.getNode(cmds.curve(
+            degree=degree, point=points, knot=knots, name=name + "__tmp"
+        ))
         new_shapes = [mlib.nodes.Node(shape) for shape in
                       (cmds.listRelatives(temporary.getFullName(), shapes=True, fullPath=True) or [])]
         for shape in old_shapes:

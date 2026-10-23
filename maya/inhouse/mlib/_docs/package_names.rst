@@ -26,7 +26,8 @@ Mayaの ``.mod`` や起動バッチに固定パスがある場合は、利用環
 
    node = mlib.createNode("transform")
    node.getPlug("translateX").set(10)
-   print(mlib.extensions.status())
+   from mlib._core import extensions
+   print(extensions.getDiagnostics())
    mlib.reload()
 
 利用側に書かれた ``import mlib`` や完全修飾名の文字列は自動変更しません。
@@ -55,9 +56,10 @@ reload後は保持していたクラスやインスタンスを取得し直し�
 同じ接頭辞の拡張だけが検出・再読み込み対象になります。
 拡張同士の依存禁止、重複型の拒否、依存未導入時の扱いは名前変更後も同じです。
 
-``MLIB_EXTENSION_API``、型対応の ``_WRAPPER_CLASSES`` などの宣言識別子、
-JSONの ``format="mlib.json"`` は固定の識別子です。パッケージ名と一緒に変更しません。
-これにより同じ保存形式と宣言を別名環境でも使えます。
+``MLIB_EXTENSION_API``、型対応の ``_WRAPPER_CLASSES`` などの宣言識別子は固定です。
+パッケージ名と一緒に変更しません。
+BlendShapeの全ターゲット保存で使う ``format="mlib.blendShape"`` も固定です。
+パッケージ名を変えても、この保存形式識別子は変更しません。
 
 Sphinx
 ------
@@ -66,7 +68,7 @@ Sphinx
 変更後のパッケージ内の ``_docs`` を通常どおりビルドすると、タイトル・本文のimport例・
 API参照・コマンドページ・クラス継承図のリンクが追従します。
 本文の変換はビルド時だけ行い、ソースファイルを一括置換する必要はありません。
-JSON形式識別子や宣言定数は変更しません。ビルドにMayaのimportは不要です。
+宣言定数は変更しません。ビルドにMayaのimportは不要です。
 
 名前を変更した環境では、以前のHTML出力と混在しない新しい出力先へビルドしてください。
 外部URL、利用側の設定ファイル、保存済みpickleのPythonモジュールパスは変換対象外です。

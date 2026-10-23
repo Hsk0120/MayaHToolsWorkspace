@@ -103,9 +103,9 @@ class ExportCheckerTest(unittest.TestCase):
 
     def test_root_public_module_is_protected_from_same_name_command(self):
         """rootの公開サブパッケージを同名のコマンドで置き換えない。"""
-        self.write("cmds/json.py", "def json():\n    return 'command'\n")
-        self.write("cmds/__init__.py", "from .json import json\n__all__ = ['json']\n")
-        self.write("__init__.py", "from . import json\n__all__ = ['json']\n")
+        self.write("cmds/maths.py", "def maths():\n    return 'command'\n")
+        self.write("cmds/__init__.py", "from .maths import maths\n__all__ = ['maths']\n")
+        self.write("__init__.py", "from . import maths\n__all__ = ['maths']\n")
         self.assertEqual(check(self.root), [])
         self.write("cmds/__init__.py", "__all__ = []\n")
         self.assertIn("E015", self.codes())

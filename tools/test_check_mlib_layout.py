@@ -8,15 +8,6 @@ from pathlib import Path
 import check_mlib_layout as layout
 
 
-def _is_alias(predicate, *, static=False):
-    """実装を呼ばず、参照された先行定義だけを記録する。"""
-    def decorate(alias):
-        alias.predicate = getattr(predicate, "__func__", predicate)
-        alias.static = static
-        return alias
-    return decorate
-
-
 class ClassDependencyLayoutTest(unittest.TestCase):
     """既知依存だけを分類し、元の文・実行順制約を保つ。"""
 
@@ -36,66 +27,31 @@ class ClassDependencyLayoutTest(unittest.TestCase):
                           if v.code not in layout.INFORMATIONAL], [])
         return fixed, after
 
-    def test_alias_stays_after_its_predicate_when_categories_move(self):
-        """省略入口は本体直後へ付き、constructor/特殊/内部の順序も整う。"""
-        source = '''
+
+    def test_method_signature_and_class_attribute_alias_stay_attached(self):
+        """メソッドに付く署名代入と単純なクラス内別名は元の順序を保つ。"""
+        fixed, after = self.formatted('''
             class Example:
                 def _internal(self):
-                    return "internal"
+                    return None
 
-                def isReady(self):
+                def ready(self):
                     return True
 
-                def unrelated(self):
-                    return "public"
-
-                @_is_alias(isReady)
-                def ready(self):
-                    return self.isReady()
+                ready.__signature__ = "signature"
+                available = ready
 
                 def __init__(self):
                     self.value = 1
-
-                def __repr__(self):
-                    return "Example"
-        '''
-        before = self.source(source)
-        self.assertIn("L022", [v.code for v in layout.check_source(before)])
-        fixed, after = self.formatted(source)
-        names = [node.name for node in after.tree.body[0].body if isinstance(node, ast.FunctionDef)]
-        self.assertEqual(names, ["__init__", "__repr__", "isReady", "ready", "unrelated", "_internal"])
-        namespace = {"_is_alias": _is_alias}
-        exec(fixed, namespace)
-        self.assertTrue(namespace["Example"]().ready())
-        self.assertIs(namespace["Example"].ready.predicate, namespace["Example"].isReady)
-
-    def test_static_predicate_class_alias_and_attached_signature_keep_dependencies(self):
-        """static本体→class入口→署名/別名の依存連鎖を保持する。"""
-        fixed, after = self.formatted('''
-            class Example:
-                @staticmethod
-                def isEnabled():
-                    return True
-
-                def unrelated(self):
-                    return None
-
-                @classmethod
-                @_is_alias(isEnabled, static=True)
-                def enabled(cls):
-                    return cls.isEnabled()
-
-                enabled.__signature__ = "signature"
-                available = enabled
         ''')
-        namespace = {"_is_alias": _is_alias}
+        namespace = {}
         exec(fixed, namespace)
-        self.assertTrue(namespace["Example"].enabled())
-        self.assertTrue(namespace["Example"].available())
+        self.assertTrue(namespace["Example"]().available())
         nodes = after.tree.body[0].body
-        self.assertEqual([getattr(node, "name", None) for node in nodes[:2]], ["isEnabled", "enabled"])
-        self.assertIsInstance(nodes[2], ast.Assign)
-        self.assertIsInstance(nodes[3], ast.Assign)
+        index = next(i for i, node in enumerate(nodes)
+                     if isinstance(node, ast.FunctionDef) and node.name == "ready")
+        self.assertIsInstance(nodes[index + 1], ast.Assign)
+        self.assertIsInstance(nodes[index + 2], ast.Assign)
 
     def test_property_setter_and_special_alias_keep_their_getters(self):
         """property setterと特殊メソッド別名を移動しても元定義へ結び付ける。"""
@@ -167,12 +123,12 @@ class ClassDependencyLayoutTest(unittest.TestCase):
         self.assertLess(fixed.index("if typing.TYPE_CHECKING:"), fixed.index("def method"))
 
     def test_unknown_decorator_or_default_class_reference_is_refused(self):
-        """既知aliasに似た依存でも、未知装飾や既定値への参照を許可しない。"""
+        """クラス内定義に依存する未知装飾や既定値の参照を許可しない。"""
         for decorator, default in (
             ("@unknown(isReady)", ""),
-            ("@namespace._is_alias(isReady)", ""),
-            ("@_is_alias(isReady)", ", callback=isReady"),
-            ("@_is_alias(isReady, static=isReady())", ""),
+            ("@namespace.decorate(isReady)", ""),
+            ("@decorate(isReady)", ", callback=isReady"),
+            ("@decorate(isReady, static=isReady())", ""),
         ):
             with self.subTest(decorator=decorator, default=default):
                 source = self.source('''
@@ -190,11 +146,11 @@ class ClassDependencyLayoutTest(unittest.TestCase):
                 fixed = layout.Source(source.path, layout.fix_text(source.path, "\n".join(source.lines) + "\n"))
                 self.assertEqual(ast.dump(source.tree), ast.dump(fixed.tree))
 
-    def test_alias_before_target_and_class_local_alias_decorator_are_refused(self):
-        """先行していない判定や同名のクラス内デコレータは安全扱いにしない。"""
+    def test_unknown_decorator_before_target_or_defined_in_class_is_refused(self):
+        """参照先が後続する装飾やクラス内定義の装飾を安全扱いにしない。"""
         for text in ('''
             class Example:
-                @_is_alias(isReady)
+                @decorate(isReady)
                 def ready(self):
                     return True
 
@@ -202,13 +158,13 @@ class ClassDependencyLayoutTest(unittest.TestCase):
                     return True
         ''', '''
             class Example:
-                def _is_alias(self):
+                def decorate(self):
                     return None
 
                 def isReady(self):
                     return True
 
-                @_is_alias(isReady)
+                @decorate(isReady)
                 def ready(self):
                     return True
         '''):

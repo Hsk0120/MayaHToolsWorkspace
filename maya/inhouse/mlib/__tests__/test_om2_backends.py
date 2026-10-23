@@ -113,37 +113,13 @@ class Om2BackendsTest(unittest.TestCase):
                 with self.forbidden('getAttr'):
                     self.assertEqual(plug.get(), expected, (kind, values))
 
-    def test_json_capture_preserves_units_and_value_shapes(self):
-        """JSONの取得はAPIを使い、保存値のUI単位・複合値の形を保つ。"""
-        from mlib.json.references import NodeRef
-        from mlib.json.snapshots import _attribute
-        node = mlib.createNode('transform')
-        node.setTranslate((3, 4, 5), at=4)
-        node.setRotate((10, 20, 30), unit='deg')
-        node.addAttr('text', dataType='string')
-        for angular, linear in [('deg', 'cm'), ('rad', 'm')]:
-            cmds.currentUnit(angle=angular, linear=linear)
-            for name in ('tx', 'rx', 'translate', 'rotate', 'offsetParentMatrix', 'text'):
-                expected = cmds.getAttr(node.getFullName() + '.' + name)
-                with self.forbidden('getAttr', 'attributeQuery', 'ls', 'nodeType'):
-                    record = _attribute(node, name)
-                    reference = NodeRef.capture(node.getFullName())
-                self.assertEqual(record['value'], expected, name)
-                self.assertEqual(reference.uuid, node.getUuid())
-        cmds.currentUnit(angle='deg', linear='cm')
 
-    def test_display_and_skin_fast_preflight(self):
-        """表示色とスキン設定の照会・fast事前検証でgetAttrを使わない。"""
-        node = mlib.createNode('transform')
-        node.setOverrideColor((.1, .2, .3))
-        node.setOutlinerColor((.4, .5, .6))
-        expected = (node.getOverrideColor().rgb, node.getOutlinerColor().rgb)
-        with self.forbidden('getAttr'):
-            self.assertEqual((node.getOverrideColor().rgb, node.getOutlinerColor().rgb), expected)
-        joints = [cmds.createNode('joint') for _ in range(2)]
+    def test_skin_fast_preflight(self):
+        """スキン設定の照会・fast事前検証はcmdsの値照会や更新を使わない。"""
+        joints = [cmds.createNode("joint") for _ in range(2)]
         mesh = cmds.polyCube(ch=False)[0]
         skin = mlib.getNode(cmds.skinCluster(joints, mesh, tsb=True)[0])
-        with self.forbidden('getAttr', 'setAttr', 'undoInfo', 'listAttr'):
+        with self.forbidden("getAttr", "setAttr", "undoInfo", "listAttr"):
             skin.setMaxInfluences(2, fast=True)
             skin.normalizeWeights(fast=True)
             self.assertEqual(skin.getMaxInfluences(), 2)

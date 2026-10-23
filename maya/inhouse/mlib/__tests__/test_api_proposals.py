@@ -25,7 +25,7 @@ class ApiProposalTest(unittest.TestCase):
 
     def test_sparse_getters_do_not_create_elements(self):
         """未設定入力の照会で疎配列を変更しない。"""
-        for kind, value in [('blendWeighted', 3.0), ('multMatrix', mlib.maths.Matrix())]:
+        for kind, value in [('multMatrix', mlib.maths.Matrix())]:
             node = Node(cmds.createNode(kind))
             node.setInput(4, value)
             attr = 'input' if kind == 'blendWeighted' else 'matrixIn'
@@ -34,12 +34,6 @@ class ApiProposalTest(unittest.TestCase):
             with self.assertRaises(IndexError):
                 node.getInputPlug(2).get()
             self.assertEqual(before, cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True))
-            if kind == 'blendWeighted':
-                weight_before = cmds.getAttr(node.getFullName()+'.weight', multiIndices=True)
-                self.assertEqual(node.getWeight(4), 1.0)
-                self.assertEqual(weight_before, cmds.getAttr(node.getFullName()+'.weight', multiIndices=True))
-                node.setWeight(4, .25)
-                self.assertEqual(node.getWeight(4), .25)
         decompose = Node(cmds.createNode('decomposeMatrix'))
         decompose.setRotateOrder('zyx')
         self.assertEqual(decompose.getRotateOrder(), 5)

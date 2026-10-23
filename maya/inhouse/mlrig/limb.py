@@ -3,6 +3,7 @@ from mlib.maths import MSpace
 
 from maya import cmds
 
+import json
 import math
 import mlib
 
@@ -142,7 +143,7 @@ class LimbRig:
             str: 命名規則を適用したノード名。
         """
         definition = RigDefinition.from_data(
-            mlib.json.JsonText.loads(self.root.getPlug("mlrigDefinition").get())
+            json.loads(self.root.getPlug("mlrigDefinition").get())
         )
         return limb_names(definition)[role]
 
@@ -693,7 +694,7 @@ def build_limb(definition=None, backend="standard"):
         created.append(root)
         for attr in ("mlrigDefinition", "mlrigMode", "mlrigBackend"):
             mlib.getNode(root).addAttr(longName=attr, dataType="string")
-        mlib.getPlug(root + ".mlrigDefinition").set(mlib.json.JsonText.dumps(definition.to_data()))
+        mlib.getPlug(root + ".mlrigDefinition").set(json.dumps(definition.to_data()))
         mlib.getPlug(root + ".mlrigBackend").set(backend)
         rig = LimbRig(root)
         mlib.getNode(root).addAttr(longName="mlrigLod", attributeType="long", defaultValue=1)
@@ -721,7 +722,7 @@ def build_limb(definition=None, backend="standard"):
             _lock_group(node)
             rig._bind(role, node)
         for role in ("moduleSet", "fkSet", "ikSet", "softSet", "helperSet"):
-            node = mlib.createSet(empty=True, name=names[role]).getFullName()
+            node = mlib.getNode(cmds.sets(empty=True, name=names[role])).getFullName()
             created.append(node)
             rig._bind(role, node)
             if role != "moduleSet":
@@ -778,25 +779,25 @@ def build_limb(definition=None, backend="standard"):
         )
         # preferredAngleで伸び切った初期チェーンの曲げ平面を定義する。
         mlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(math.radians(-10))
-        handle, effector = mlib.createIkHandle(
+        handle, effector = cmds.ikHandle(
             startJoint=rig._member("ik0"),
             endEffector=rig._member("ik2"),
             solver="ikRPsolver",
             name=names["handle"],
         )
+        handle = mlib.getNode(handle)
         effector = mlib.getNode(effector).rename(names["effector"])
         created.extend((handle, effector))
         handle = mlib.getNode(handle).setParent(rig._member("ikSetup")).getFullName()
         rig._bind("handle", handle)
         constraints = [
-            mlib.addConstraint(
-                pole, handle, type="poleVector", name=names["handle"] + "_poleVectorConstraint"
+            mlib.getNode(handle).addConstraint(
+                pole, type="poleVector", name=names["handle"] + "_poleVectorConstraint"
             )
         ]
         constraints.append(
-            mlib.addConstraint(
+            mlib.getNode(rig._member("ik2")).addConstraint(
                 target_rotation,
-                rig._member("ik2"),
                 type="orient",
                 maintainOffset=False,
                 name=names["ik2"] + "_orientConstraint",

@@ -40,40 +40,7 @@ class BindMirrorFreezeTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (3, 2, 1))
 
-    def test_bind_single_multiple_and_undo(self):
-        joint = Joint(cmds.createNode("joint"))
-        meshes = [Node(cmds.polyCube()[0]) for _ in range(3)]
-        single = mlib.bindSkin(meshes[0], [joint], tsb=True, mi=1, nw=1)
-        self.assertIsInstance(single, SkinCluster)
-        multiple = mlib.cmds.bindSkin(meshes[1:], [joint], toSelectedBones=True, maximumInfluences=1)
-        self.assertIsInstance(multiple, SkinClusters)
-        self.assertEqual(len(multiple), 2)
-        names = [skin.getFullName() for skin in multiple]
-        self.assertTrue(all(skin.deforms(mesh) for skin, mesh in zip(multiple, meshes[1:])))
-        cmds.undo()
-        self.assertFalse(any(cmds.objExists(name) for name in names))
-        cmds.redo()
-        self.assertTrue(all(cmds.objExists(name) for name in names))
-        with self.assertRaises(TypeError):
-            mlib.bindSkin(meshes[0], [joint], mi=1, maximumInfluences=2)
-        with self.assertRaises(ValueError):
-            mlib.bindSkin([], [joint])
-        with self.assertRaises(ValueError):
-            mlib.bindSkin(meshes[0], [joint], q=True)
 
-    def test_mirror_result_types_and_flags(self):
-        root = Joint(cmds.createNode("joint", name="left_root"))
-        cmds.setAttr(root.getFullName() + ".translate", 2, 1, 0)
-        mirrored = mlib.mirrorJoint(root, myz=True, mb=True, sr=("left", "right"))
-        self.assertIsInstance(mirrored, Joint)
-        self.assertAlmostEqual(mirrored.getTranslate(ws=True, at=4).x, -2)
-        cmds.createNode("joint", name="left_tip", parent=root.getFullName())
-        result = mlib.mirrorJoint(root, mirrorYZ=True, searchReplace=("left", "other"))
-        self.assertIsInstance(result, Joints)
-        self.assertEqual(len(result), 2)
-        names = [node.getFullName() for node in result]
-        cmds.undo()
-        self.assertFalse(any(cmds.objExists(name) for name in names))
 
 
 if __name__ == "__main__":

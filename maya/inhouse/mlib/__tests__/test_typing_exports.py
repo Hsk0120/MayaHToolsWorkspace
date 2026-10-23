@@ -59,7 +59,7 @@ class TypingExportsTest(unittest.TestCase):
 
     def test_other_class_packages(self):
         """各クラスパッケージが二重宣言なしに公開名を補完できる。"""
-        for name in ("plugs", "components", "maths", "json"):
+        for name in ("plugs", "components", "maths"):
             package = getattr(mlib, name)
             path = name + "/__init__.py"
             self.assertTrue(set(package.__all__).issubset(direct_names(path)), name)

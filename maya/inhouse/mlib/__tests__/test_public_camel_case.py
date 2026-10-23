@@ -12,20 +12,19 @@ class PublicCamelCaseTest(unittest.TestCase):
     """内部実装と公開APIを分けて命名規約を検査する。"""
 
     def test_public_definitions_use_camel_case(self):
-        """UI内部基底から継承する公開メソッドも対象にする。"""
+        """公開クラスと関数を対象に命名規約を検査する。"""
         root = Path(mlib.__file__).parent
         failures = []
-        inherited_bases = {'_Editor', '_WindowReference'}
         for path in root.rglob('*.py'):
             relative = path.relative_to(root)
             if any(part in ('__tests__', '_docs', '_core') for part in relative.parts):
                 continue
-            if path.stem.startswith('_') and path.stem not in ('_editor', '_windowReference'):
+            if path.stem.startswith('_'):
                 continue
             tree = ast.parse(path.read_text(encoding='utf-8-sig'))
             for node in tree.body:
                 if isinstance(node, ast.ClassDef):
-                    if node.name.startswith('_') and node.name not in inherited_bases:
+                    if node.name.startswith('_'):
                         continue
                     definitions = node.body
                 else:
@@ -49,8 +48,6 @@ class PublicCamelCaseTest(unittest.TestCase):
             ('mlib.decorator', 'undo_transaction', 'undoTransaction'),
             ('mlib.common', 'progress_bar', 'progressBar'),
             ('mlib.common.units', 'distance_to_ui', 'distanceToUi'),
-            ('mlib.json', 'load_document', 'loadDocument'),
-            ('mlib.json.storage', 'load_document', 'loadDocument'),
             ('mlib.common.module', 'is_at_least', 'Module'),
             ('mlib.common.plugin', 'is_at_least', 'Plugin'),
             ('mlib.common.pluginPackage', 'is_at_least', 'PluginPackage'),
@@ -65,17 +62,13 @@ class PublicCamelCaseTest(unittest.TestCase):
                 self.assertNotIn(old, vars(module))
                 self.assertTrue(callable(getattr(module, new)))
 
-    def test_properties_and_storage_keep_distinct_contracts(self):
-        """保持propertyを改名しても構築引数と保存データは変えない。"""
+    def test_properties_keep_constructor_contracts(self):
+        """保持propertyの表記にかかわらず構築引数を維持する。"""
         from mlib.common import PluginPackage
-        from mlib.json.document import JsonDocument
         package = PluginPackage('Example', plugins=('example',), minimum_version='3.0', minimum_maya=2025)
         self.assertEqual(package.minimumVersion.parts, (3, 0))
         self.assertEqual(package.minimumMaya, 2025)
         self.assertNotIn('minimum_version', vars(type(package)))
-        document = JsonDocument({'minimum_version': 'saved', 'palette_source': 'saved'})
-        restored = JsonDocument.fromData(document.asData())
-        self.assertEqual(restored.data, document.data)
 
 
 if __name__ == '__main__':

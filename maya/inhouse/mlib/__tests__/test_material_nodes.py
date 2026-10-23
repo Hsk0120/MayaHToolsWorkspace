@@ -35,10 +35,12 @@ class MaterialNodesTest(unittest.TestCase):
 
     def test_assignment_faces_and_undo(self):
         mesh = Node(cmds.polyCube()[0]).getShape()
-        material = mlib.createShader("lambert")
-        second = mlib.createShader("standardSurface")
-        group = mlib.createShadingGroup(material)
-        other = mlib.createShadingGroup(second)
+        material = mlib.getNode(cmds.shadingNode("lambert", asShader=True))
+        second = mlib.getNode(cmds.shadingNode("standardSurface", asShader=True))
+        group = mlib.getNode(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        group.setShader(material)
+        other = mlib.getNode(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        other.setShader(second)
         self.assertIsInstance(group, ShadingEngine)
         group.assign(mesh)
         self.assertEqual(mesh.getMaterials(), [material])
@@ -55,8 +57,10 @@ class MaterialNodesTest(unittest.TestCase):
     def test_instance_assignments(self):
         transform = Node(cmds.polyCube()[0])
         instance = Node(cmds.instance(transform.getFullName())[0])
-        a = mlib.createShadingGroup(mlib.createShader("lambert"))
-        b = mlib.createShadingGroup(mlib.createShader("blinn"))
+        a = mlib.getNode(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        a.setShader(mlib.getNode(cmds.shadingNode("lambert", asShader=True)))
+        b = mlib.getNode(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        b.setShader(mlib.getNode(cmds.shadingNode("blinn", asShader=True)))
         a.assign(transform)
         b.assign(instance)
         self.assertEqual(transform.getShape().getShadingEngines(), [a])
@@ -73,12 +77,12 @@ class MaterialNodesTest(unittest.TestCase):
         place.connectTexture(texture)
 
     def test_shader_ports_and_aliases(self):
-        material = mlib.createShader("surfaceShader", n="surface")
-        group = mlib.createShadingGroup(n="surfaceSG")
+        material = mlib.getNode(cmds.shadingNode("surfaceShader", n="surface", asShader=True))
+        group = mlib.getNode(cmds.sets(renderable=True, noSurfaceShader=True, empty=True, n="surfaceSG"))
         self.assertIsNone(group.getShader())
         group.setShader(material.getPlug("outColor"))
         self.assertEqual(group.getShaderPlug(), material.getPlug("outColor"))
-        replacement = mlib.createShader("lambert")
+        replacement = mlib.getNode(cmds.shadingNode("lambert", asShader=True))
         group.setShader(replacement)
         self.assertEqual(group.getShader(), replacement)
         cmds.undo()
@@ -87,8 +91,6 @@ class MaterialNodesTest(unittest.TestCase):
         self.assertEqual(group.getShader("volume"), material)
         with self.assertRaises(ValueError):
             group.getShader("invalid")
-        with self.assertRaises(TypeError):
-            mlib.createShader("lambert", name="one", n="two")
 
 
 if __name__ == "__main__":

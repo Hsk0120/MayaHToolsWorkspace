@@ -2,7 +2,7 @@
 
 起動済みのMayaは不要。各スイートは使い捨てのGUIを1回ずつ起動し、終了後にそのGUIだけを終了する。
 
-- ``unit``: mlib/__tests__ の単体テスト一式(``run_all_tests.py``)。GUI専用ケースと test_scene_ui.py を含む。
+- ``unit``: mlib/__tests__ の単体テスト一式(``run_all_tests.py``)。GUI専用ケースを含む。
 - ``visual``: 実パネルへの適用と画像保存を行う ``run_mlib_gui_tests.py``。
 - ``all``: 上記の両方(既定)。
 """
@@ -21,9 +21,8 @@ from run_mlib_tests import ROOT, VERSIONS, isolated_environment, maya_executable
 #: スイート名と (Maya内で実行するファイル, 追加の環境変数)。
 SUITES = {
     "unit": ("tools/run_mlib_unit_gui_tests.py", {
-        # 使い捨てGUIだけで実行するテスト(シーンの新規作成・ウィンドウ配置の変更)を有効にする。
+        # 使い捨てGUIだけで実行するテスト(シーンの新規作成を含む)を有効にする。
         "MLIB_DISPOSABLE_GUI": "1",
-        "MLIB_WINDOW_LAYOUT_TEST": "1",
     }),
     "visual": ("tools/run_mlib_gui_tests.py", {}),
 }
