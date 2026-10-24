@@ -40,3 +40,10 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    joint_hierarchy
    hinge_ik
    planar_ik
+   eyelid_follow
+   jaw_hinge
+   piston
+   wave_chain
+   wheel_roll
+   pole_vector_placement
+   rotation_minimizing_frames
