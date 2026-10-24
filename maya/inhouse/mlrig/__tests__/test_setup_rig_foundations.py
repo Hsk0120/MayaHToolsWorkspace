@@ -176,6 +176,9 @@ class RigFoundationsTest(unittest.TestCase):
             "setups/coneReader.py": {"curve"},
             "setups/controlShape.py": {"circle", "curve"},
             "setups/splineIK.py": {"curve", "ikHandle"},
+            # Rotate Plane IK・自由度・優先角度・ポールベクター・回転の受け渡しは mlib に入口が無い Maya 標準の操作。
+            "setups/hingeIK.py": {"ikHandle", "joint", "spaceLocator", "poleVectorConstraint"},
+            "setups/planarIK.py": {"joint", "orientConstraint"},
         }
         violations = []
         for path in root.rglob("*.py"):

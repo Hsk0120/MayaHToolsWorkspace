@@ -1,12 +1,12 @@
 """向きの整ったIK用の平面チェーンで解き、元のjointへ回転だけを渡すIK。"""
 
-import maya.api.OpenMaya as om
-import maya.cmds as cmds
+from maya import cmds
+
 import mlib
 from mlib.decorator import undoTransaction
 
-from mlrig.setups.hingeIK import (createRotatePlaneHandle, orientationMatrix, planeNormal, setJointWorldOrientation,
-                                  storePreferredAngles, worldPosition)
+from mlrig.setups.hingeIK import (createRotatePlaneHandle, groupUnderWorld, orientationMatrix, planeNormal,
+                                  setJointWorldOrientation, storePreferredAngles, worldPosition)
 
 
 class PlanarIK:
@@ -23,7 +23,7 @@ class PlanarIK:
         pole (str): ポールベクターのlocator。
         drivers (tuple[str, str, str]): IK用のjoint(付け根, 膝, 足首)。
         joints (tuple[str, str, str]): 元のjoint(付け根, 膝, 足首)。
-        normal (om.MVector): IK用チェーンの平面の法線(膝の曲がる軸。ワールド)。
+        normal (Vector): IK用チェーンの平面の法線(膝の曲がる軸。ワールド)。
     """
 
     def __init__(self, container, handle, pole, drivers, joints, normal):
@@ -35,7 +35,7 @@ class PlanarIK:
             pole (str): ポールベクターのlocator。
             drivers (tuple[str, str, str]): IK用のjoint。
             joints (tuple[str, str, str]): 元のjoint。
-            normal (om.MVector): 平面の法線。
+            normal (Vector): 平面の法線。
         """
         self.container = container
         self.handle = handle
@@ -70,7 +70,7 @@ class PlanarIK:
             IK用のjointは元の付け根の親の子として作るので、骨盤などの親の動きに付いていく。
         """
         for joint in (root, mid, end):
-            if not cmds.objExists(joint) or cmds.nodeType(joint) != "joint":
+            if not cmds.objExists(joint) or mlib.getNode(joint).getType() != "joint":
                 raise ValueError("Joint not found: {}".format(joint))
         if not _isAncestor(root, mid) or not _isAncestor(mid, end):
             raise ValueError("Expected root -> ... -> mid -> ... -> end in one hierarchy.")
@@ -81,14 +81,13 @@ class PlanarIK:
         positions = [worldPosition(node) for node in (root, mid, end)]
         parent = cmds.listRelatives(root, parent=True, fullPath=True)
         drivers = []
-        for index, (label, position) in enumerate(zip(("root", "mid", "end"), positions)):
-            cmds.select(clear=True)
-            joint = cmds.joint(name="{}_{}Driver".format(name, label), position=(position.x, position.y, position.z))
-            if drivers:
-                joint = cmds.parent(joint, drivers[-1])[0]
-            elif parent:
-                joint = cmds.parent(joint, parent[0])[0]
-            drivers.append(cmds.ls(joint, long=True)[0])
+        for label, position in zip(("root", "mid", "end"), positions):
+            # ワールド直下に作って位置を入れ、ワールドの位置を保って親子付けする(cmds.joint と同じ結果)。
+            joint = mlib.createNode("joint", name="{}_{}Driver".format(name, label), skipSelect=True)
+            joint.getPlug("translate").set(tuple(mlib.common.units.distanceFromUi(value) for value in position))
+            target = drivers[-1] if drivers else (parent[0] if parent else None)
+            path = cmds.parent(joint.getFullName(), target)[0] if target else joint.getFullName()
+            drivers.append(mlib.getNode(path).getFullName())
         # 骨の向きをローカルX、平面の法線をローカルZにする(足首は膝と同じ向き)。
         for index, joint in enumerate(drivers):
             aim = positions[min(index + 1, 2)] - positions[min(index, 1)]
@@ -96,18 +95,15 @@ class PlanarIK:
         cmds.joint(drivers[1], edit=True, degreeOfFreedom="z")
         storePreferredAngles(drivers)
         handle, effector, pole = createRotatePlaneHandle(drivers[0], drivers[2], name, poleDistance)
-        group = cmds.group(handle, pole, name=name + "_GRP")
-        handle, pole = ["{}|{}".format(group, node.split("|")[-1]) for node in (handle, pole)]
+        group, (handle, pole) = groupUnderWorld(name + "_GRP", handle, pole)
         constraints = [cmds.orientConstraint(driver, joint, maintainOffset=True,
                                              name="{}_{}OrientConstraint".format(name, label))[0]
                        for driver, joint, label in zip(drivers[:2], (root, mid), ("root", "mid"))]
-        cmds.setAttr(drivers[0] + ".visibility", showDrivers)
+        mlib.getNode(drivers[0]).getPlug("visibility").set(showDrivers)
         mlib.nodes.Container(owner).addMembers(group, handle, pole, *(drivers + constraints))
         return cls(owner, handle, pole, tuple(drivers), (root, mid, end), normal)
 
 
 def _isAncestor(ancestor, node):
     """``ancestor`` が ``node`` の祖先か(同じノードは含まない)。"""
-    path = cmds.ls(node, long=True)[0]
-    root = cmds.ls(ancestor, long=True)[0]
-    return path.startswith(root + "|")
+    return mlib.getNode(node).getFullName().startswith(mlib.getNode(ancestor).getFullName() + "|")
