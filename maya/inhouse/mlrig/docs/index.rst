@@ -31,6 +31,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    swing_limit
    asymmetric_swing_limit
    twist_limit
+   auto_clavicle
    root_direction_limit
    aim_axis_conversion
    radial_weights

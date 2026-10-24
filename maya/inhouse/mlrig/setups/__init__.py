@@ -2,6 +2,7 @@
 
 from .aimAxisConversion import AimAxisConversion
 from .asymmetricSwingLimit import AsymmetricSwingLimit
+from .autoClavicle import AutoClavicle
 from .bendCorrection import BendCorrection
 from .coneReader import ConeReader
 from .eyelidFollow import EyelidFollow
@@ -33,6 +34,7 @@ from .wheelRoll import WheelRoll
 __all__ = [
     "AimAxisConversion",
     "AsymmetricSwingLimit",
+    "AutoClavicle",
     "BendCorrection",
     "ConeReader",
     "EyelidFollow",

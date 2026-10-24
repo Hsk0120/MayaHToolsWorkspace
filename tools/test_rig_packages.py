@@ -42,7 +42,7 @@ def main():
             files.append('mlrig/__tests__/test_setup_matrix_follow.py')
             files.append('mlrig/__tests__/test_example_humanoid.py')
             files.append('mlrig/__tests__/test_example_spline_spine.py')
-            files += ['mlrig/__tests__/test_setup_'+name+'.py' for name in ('space_switch', 'twist_distribution', 'bend_correction', 'swing_twist', 'cone_reader', 'radial_weights', 'rotation_follow', 'swing_limit', 'asymmetric_swing_limit', 'twist_limit', 'root_direction_limit', 'secondary', 'spline_ik', 'length_compensation', 'pose_edit', 'rig_foundations', 'hinge_ik', 'planar_ik', 'eyelid_follow', 'jaw_hinge', 'piston', 'wave_chain', 'wheel_roll', 'pole_vector_placement', 'rotation_minimizing_frames')]
+            files += ['mlrig/__tests__/test_setup_'+name+'.py' for name in ('space_switch', 'twist_distribution', 'bend_correction', 'swing_twist', 'cone_reader', 'radial_weights', 'rotation_follow', 'swing_limit', 'asymmetric_swing_limit', 'twist_limit', 'auto_clavicle', 'root_direction_limit', 'secondary', 'spline_ik', 'length_compensation', 'pose_edit', 'rig_foundations', 'hinge_ik', 'planar_ik', 'eyelid_follow', 'jaw_hinge', 'piston', 'wave_chain', 'wheel_roll', 'pole_vector_placement', 'rotation_minimizing_frames')]
         if args.suite in ('all','bifrost','native','standard'):
             files.append('mlrig/__tests__/test_definition.py')
         if args.suite in ('all','bifrost'):
