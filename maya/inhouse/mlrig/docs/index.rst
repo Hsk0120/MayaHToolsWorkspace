@@ -26,6 +26,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    swing_twist
    cone_reader
    humanoid_example
+   spline_spine_example
    rotation_follow
    swing_limit
    asymmetric_swing_limit
