@@ -7,7 +7,7 @@ class _Calculation:
     """Mayaノード継承を変更せず共有する内部操作。"""
 
     @staticmethod
-    def set_value(value, validator, target, *indices):
+    def set_value(value, validator, target, *indices, fast=False):
         """値を検証してから対象Plugを解決し、設定する。
 
         Args:
@@ -15,13 +15,14 @@ class _Calculation:
             validator (callable): 値の検証・型変換。例外はそのまま伝播する。
             target (callable): ノード固有のPlug取得メソッド。
             *indices: Plug取得に渡す番号。
+            fast (bool): Trueは対象PlugをOpenMayaで更新する。
 
         Note:
             値の検証を先に行い、不正値による対象解決を避ける。
-            Undoとfastの範囲は呼出元の公開メソッドで管理する。
+            Undoチャンクは呼出元で管理し、fastは対象Plugへ明示的に渡す。
         """
         value = validator(value)
-        target(*indices).set(value)
+        target(*indices).set(value, fast=fast)
 
     @staticmethod
     def connect(source, target, *indices, force=False):

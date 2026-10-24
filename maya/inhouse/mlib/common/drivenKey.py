@@ -127,10 +127,14 @@ def _curves(driven, strict=False):
 
 
 class DrivenKey:
-    """1つのドライバーと駆動先の関係。生成だけではシーンを変更しない。
+    """数値スカラーのドライバーPlugと駆動先Plugを保持し、ドリブンキーの関係を扱う。
 
-    直接接続・単位変換・blendWeighted経由を対象とする。
-    pairBlend、アニメーションレイヤー、任意の計算ノード経由は対象外。
+    生成時は二つの参照を検証するだけで、カーブや接続を作らない。
+    接続は問い合わせの都度調べ、単位変換ノードとblendWeightedのinput経由を辿る。
+    pairBlend、アニメーションレイヤー、任意の計算ノードを辿る汎用探索ではない。
+
+    setKeyの数値は各アトリビュートの内部単位で受け取り、Mayaコマンド境界で
+    UI単位へ変換する。AnimCurveのU型カーブに渡す無次元入力と混同しない。
     """
 
     def __init__(self, driver, driven):
@@ -188,18 +192,24 @@ class DrivenKey:
         return items
 
     def getDriverPlug(self):
-        """ドライバー。削除済みの場合は例外。
+        """保持したドライバーアトリビュートを再検証してPlug参照を取得する。
 
         Returns:
-            Plug: ドライバー。削除済みの場合は例外。
+            Plug: 同じアトリビュートへの参照。現在値の取得やコピーは行わない。
+
+        Raises:
+            RuntimeError: 削除などでアトリビュートを参照できない場合。
         """
         return _plug(self._driver)
 
     def getDrivenPlug(self):
-        """駆動先。削除済みの場合は例外。
+        """保持した駆動先アトリビュートを再検証してPlug参照を取得する。
 
         Returns:
-            Plug: 駆動先。削除済みの場合は例外。
+            Plug: 同じアトリビュートへの参照。現在値の取得やコピーは行わない。
+
+        Raises:
+            RuntimeError: 削除などでアトリビュートを参照できない場合。
         """
         return _plug(self._driven)
 
@@ -233,11 +243,18 @@ class DrivenKey:
 
     @undoChunk("mlibDrivenKeySetKey")
     def setKey(self, driver_value, value, inTangentType="linear", outTangentType="linear"):
-        """指定値でキーを追加・更新する。ドライバーの現在値は変更しない。
+        """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
+
+        両値をfloat()で有限性検査し、それぞれのPlug定義に従って内部単位から
+        UI単位へ変換してsetDrivenKeyframeを呼ぶ。ドライバーの現在値やシーン時刻は
+        変更しない。作成後は対応カーブをdgdirtyで汚し、駆動先の再評価を促す。
+
+        fast引数やOpenMaya更新は提供しない。Undo有効時は一回のチャンクにまとめる。
+        呼出元のfast指定には影響されず、Undo設定は変更しない。
 
         Args:
-            driver_value (float): 内部単位(cm/rad/秒)での入力値。
-            value (float): 内部単位(cm/rad/秒)での出力値。
+            driver_value (float): ドライバーの内部単位の値。角度rad、距離cm、時間秒、その他は無次元。
+            value (float): 駆動先の内部単位の値。単位はdriver_valueと独立に解釈する。
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
 
@@ -245,11 +262,14 @@ class DrivenKey:
             DrivenKey: 自身。
 
         Raises:
-            ValueError: 非有限値の場合。
-            RuntimeError: 対象外の接続構成、複数の対応カーブ、またはMayaが設定を拒否した場合。
+            ValueError: 数値が非有限、またはfloat()で変換できない場合。
+            TypeError: 数値の型がfloat()へ変換できない場合。
+            RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
+                またはMayaがキー作成を拒否した場合。
 
-        複数ドライバーはMaya標準のblendWeightedで合成する。
-        pairBlendの自動挿入は行わない。最終出力は他カーブやウェイトにも依存する。
+        複数ドライバーの合成にはMaya標準のblendWeightedを使い、pairBlendの
+        自動挿入は行わない。最終出力は他カーブや合成ウェイトにも依存する。
+        後続の失敗に対する自動ロールバックは行わない。
         """
         from ..core.attributeType import _convert_units
         x, y = float(driver_value), float(value)

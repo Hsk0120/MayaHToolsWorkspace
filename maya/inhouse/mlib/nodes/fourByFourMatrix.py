@@ -1,6 +1,8 @@
 """個別の16要素から行列を構築する。"""
 
-from ..decorator import _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
 from ..maths import Matrix
 from .node import Node
 
@@ -16,8 +18,6 @@ class FourByFourMatrix(Node):
         """
         return Matrix([self.getPlug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setMatrix(self, value, *, fast=False):
         """16要素をまとめて設定する。
 
@@ -31,11 +31,14 @@ class FourByFourMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = Matrix(value)
-        for r in range(4):
-            for c in range(4):
-                self.getPlug("in%d%d" % (r, c)).set(value[r * 4 + c])
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            value = Matrix(value)
+            for r in range(4):
+                for c in range(4):
+                    self.getPlug("in%d%d" % (r, c)).set(value[r * 4 + c], fast=fast)
+            return self
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。

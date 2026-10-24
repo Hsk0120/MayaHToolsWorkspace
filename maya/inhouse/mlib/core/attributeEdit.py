@@ -103,13 +103,18 @@ def _build(flags, children=None):
         base.setNiceNameOverride(str(flags["niceName"]))
     if "disconnectBehaviour" in flags:
         base.disconnectBehavior = int(flags["disconnectBehaviour"])
-    for flag, method in (("minValue", "setMin"), ("maxValue", "setMax"),
-                         ("softMinValue", "setSoftMin"), ("softMaxValue", "setSoftMax")):
-        enabled = {"minValue": "hasMinValue", "maxValue": "hasMaxValue",
-                   "softMinValue": "hasSoftMinValue", "softMaxValue": "hasSoftMaxValue"}[flag]
-        if flag in flags and flags.get(enabled, True):
-            value = flags[flag]
-            getattr(fn, method)(value)
+    if "minValue" in flags and flags.get("hasMinValue", True):
+        value = flags["minValue"]
+        fn.setMin(value)
+    if "maxValue" in flags and flags.get("hasMaxValue", True):
+        value = flags["maxValue"]
+        fn.setMax(value)
+    if "softMinValue" in flags and flags.get("hasSoftMinValue", True):
+        value = flags["softMinValue"]
+        fn.setSoftMin(value)
+    if "softMaxValue" in flags and flags.get("hasSoftMaxValue", True):
+        value = flags["softMaxValue"]
+        fn.setSoftMax(value)
     return obj
 
 
@@ -128,16 +133,6 @@ def _attach(node, attribute):
     modifier = om2.MDGModifier()
     modifier.addAttribute(node.mnode(), attribute)
     modifier.doIt()
-
-
-def add_attribute(node, flags):
-    """単一の動的アトリビュートを追加する。
-
-    Args:
-        node (Node): 追加先。
-        flags (dict): 正規化済みのaddAttrフラグ。
-    """
-    _attach(node, _build(flags))
 
 
 def extra_children(name, flags, numeric, count, deferred, child_names,

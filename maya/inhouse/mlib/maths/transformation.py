@@ -82,7 +82,10 @@ class Transformation:
         self._values["segmentScaleCompensate"] = True
         if isinstance(value, Transformation):
             for name, val in value._values.items():
-                self._values[name] = self._types[name](val) if name in self._types else val
+                if name in self._types:
+                    self._values[name] = self._types[name](val)
+                else:
+                    self._values[name] = val
         elif isinstance(value, om2.MTransformationMatrix):
             space = om2.MSpace.kTransform
             components = dict(translate=value.translation(space), rotate=value.rotation(),
@@ -164,7 +167,10 @@ class Transformation:
         if name in ("rotateAxis", "jointOrient"):
             converted = self._quaternion(value)
         elif name == "rotate":
-            converted = EulerRotate(value) if isinstance(value, om2.MEulerRotation) else EulerRotate(value, order=self.rotateOrder)
+            if isinstance(value, om2.MEulerRotation):
+                converted = EulerRotate(value)
+            else:
+                converted = EulerRotate(value, order=self.rotateOrder)
         else:
             converted = self._types[name](value)
         if not all(math.isfinite(v) for v in converted):

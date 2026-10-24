@@ -1,6 +1,7 @@
 """アニメーションカーブの共通操作。通常編集はUndo、fastはAPI直接更新。"""
 
 import math
+from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -8,7 +9,8 @@ import maya.cmds as cmds
 
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units
-from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk
+from ..decorator import undoChunk
+from ..util import _ArgumentError, _UNSET
 from .node import Node
 
 
@@ -31,7 +33,17 @@ _TANGENT_NAMES = {value: name for name, value in _TANGENT_TYPES.items()}
 
 
 class AnimCurve(Node):
-    """8種類のカーブの基底クラス。数値は内部単位(cm/rad/秒)を使う。"""
+    """animCurveノードの参照を保持し、8種類のカーブのキー・接線・外挿を編集する。
+
+    Nodeのノード参照を使い、MFnAnimCurveは必要な呼出しで生成する。
+    入力T型は秒、U型はカーブの無次元入力を使う。出力はA型がrad、L型がcm、
+    T型が秒、U型が無次元であり、現在のUI単位へ合わせた数値ではない。
+    DrivenKeyのドライバーアトリビュートの単位変換はDrivenKey側の責務とする。
+
+    通常編集はコマンド境界でUI単位へ変換し、Undo有効時にcmds更新をまとめる。
+    対応するfast=TrueはUndo設定を変更せずAPIで直接更新する。
+    各編集は失敗時の自動ロールバックを一律には保証しない。
+    """
 
     def isTimeInput(self):
         """横軸が時間ならTrue、単位なしならFalse。
@@ -50,19 +62,25 @@ class AnimCurve(Node):
         return self._curve_fn().numKeys
 
     def getKeyInputs(self):
-        """キー順の入力。時間型は秒、それ以外は単位なし。
+        """カーブのキー入力をキー番号順で取得する。
+
+        入力T型はMTimeを秒へ変換し、U型は無次元の入力値を返す。
+        現在のフレーム番号やドライバーPlugのUI表示値へは変換しない。
 
         Returns:
-            list[float]: キー順の入力。時間型は秒、それ以外は単位なし。
+            list[float]: 新しい入力値リスト。変更してもカーブへ書き戻さない。
         """
         fn = self._curve_fn()
         return [self._api_number(fn.input(i)) for i in range(fn.numKeys)]
 
     def getKeyValues(self):
-        """キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
+        """カーブのキー出力値をキー番号順で取得する。
+
+        角度はrad、距離はcm、時間は秒、その他は無次元で返す。
+        時間出力はMFnAnimCurve.value()の版差を避け、time型のキー値Plugから読む。
 
         Returns:
-            list[float]: キー順の出力値。角度・距離・時間は内部単位(cm/rad/秒)。
+            list[float]: 新しい出力値リスト。変更してもカーブへ書き戻さない。
         """
         fn = self._curve_fn()
         if self.getType().endswith("T"):
@@ -70,13 +88,22 @@ class AnimCurve(Node):
         return [fn.value(i) for i in range(fn.numKeys)]
 
     def evaluate(self, input):
-        """指定入力でカーブ単体を評価する。シーン時刻は変更しない。
+        """明示した入力値でカーブ単体を評価し、シーンの現在時刻は変更しない。
+
+        接続先の合成結果ではなく、このカーブの補間・外挿による値を返す。
+        空カーブは入力値の変換より先に拒否する。時間出力ではMaya 2022/2023の
+        API返却の版差を補正し、他の版と同じ秒へ揃える。
 
         Args:
-            input (float): 時間または単位なしの入力。
+            input (float): T型入力は秒、U型入力は無次元。float()で変換し有限性を検査する。
 
         Returns:
-            float: 評価値。空カーブはRuntimeError。
+            float: 出力型に従うrad/cm/秒、または無次元の評価値。
+
+        Raises:
+            RuntimeError: キーが一つもない場合、またはMayaの評価に失敗した場合。
+            ValueError: 入力が非有限、またはfloat()変換で受理できない場合。
+            TypeError: 入力の型がfloat()へ変換できない場合。
         """
         fn = self._curve_fn()
         if not fn.numKeys:
@@ -88,87 +115,115 @@ class AnimCurve(Node):
             return result.value / om2.MTime.ticksPerSecond()
         return self._api_number(result)
 
-    @_fast_edit
-    @undoChunk("mlibAnimCurveSetKey")
     def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, fast=False):
-        """キーを追加、同じ入力位置なら更新する。
+        """カーブへキーを追加し、同じ入力位置にキーがあれば出力値と接線型を更新する。
+
+        inputとvalueはfloat()へ変換し、非有限値を更新前に拒否する。
+        通常は単位を変換してsetKeyframeを呼ぶ。fastの既存キー更新は値・入力接線型・
+        出力接線型の順に適用する。新規キーは両接線型を指定して追加し、時間出力の値は
+        追加後に設定する。後続のAPI失敗で先行変更を自動復元するものではない。
 
         Args:
-            input (float): 時間または単位なしの入力。
-            value (float): 内部単位(cm/rad/秒)の出力。
-            inTangentType (str): Mayaの入力接線型。
+            input (float): T型入力は秒、U型入力は無次元。
+            value (float): 出力型に従うrad/cm/秒、または無次元の値。
+            inTangentType (str): Mayaの入力接線型。fastのstepはautoへ補正する。
             outTangentType (str): Mayaの出力接線型。
-            fast (bool): TrueはAPI 2.0で直接更新し、Undo履歴を追加しない。
+            fast (bool): TrueはUndoへ記録しないAPI更新。
+                Falseは通常更新を行い、Undo設定は変更しない。通常更新は
+                Undo有効時に一つのチャンクへまとめる。
 
         Returns:
-            AnimCurve: 自身。fixed接線の詳細設定にはsetTangentを使う。
+            AnimCurve: 自身。fixed接線の角度・ウェイト指定にはsetTangentを使う。
 
         Raises:
-            ValueError: fastでfixed・global・未知の接線型を指定した場合。
+            ValueError: 非有限値、またはfastでfixed/global/未知の接線型を指定した場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
-
-        fastの入力stepはMayaと同じautoへ補正する。入力stepnextはMayaの版で
-        補正が異なるため、キーを追加・変更する前に未対応として拒否する。
+                キーの追加・値変更より前に拒否する。
         """
-        input, value = self._finite(input), self._finite(value)
-        if _is_fast():
-            fn = self._curve_fn()
-            tangent_in = self._tangent_type(inTangentType, incoming=True, key=True)
-            tangent_out = self._tangent_type(outTangentType, key=True)
-            at = self._api_input(input)
-            self._require_curve_writable()
-            index = fn.find(at)
-            if index is not None:
-                self._set_api_value(fn, index, value)
-                fn.setInTangentType(index, tangent_in)
-                fn.setOutTangentType(index, tangent_out)
-            else:
-                if self.getType().endswith("T"):
-                    # 旧Python APIの時間出力addKeyはMTimeの値を生tick扱いする。
-                    # 0でキーを確保してtime型Plugへ秒を設定し、版差を避ける。
-                    index = fn.addKey(at, om2.MTime(0, om2.MTime.kSeconds), tangent_in, tangent_out)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveSetKey"):
+            input, value = self._finite(input), self._finite(value)
+            if fast:
+                fn = self._curve_fn()
+                tangent_in = self._tangent_type(inTangentType, incoming=True, key=True)
+                tangent_out = self._tangent_type(outTangentType, key=True)
+                at = self._api_input(input)
+                self._require_curve_writable()
+                index = fn.find(at)
+                if index is not None:
                     self._set_api_value(fn, index, value)
+                    fn.setInTangentType(index, tangent_in)
+                    fn.setOutTangentType(index, tangent_out)
                 else:
-                    fn.addKey(at, value, tangent_in, tangent_out)
+                    if self.getType().endswith("T"):
+                        # 旧Python APIの時間出力addKeyはMTimeの値を生tick扱いする。
+                        # 0でキーを確保してtime型Plugへ秒を設定し、版差を避ける。
+                        index = fn.addKey(at, om2.MTime(0, om2.MTime.kSeconds), tangent_in, tangent_out)
+                        self._set_api_value(fn, index, value)
+                    else:
+                        fn.addKey(at, value, tangent_in, tangent_out)
+                return self
+            position = self._unit_value(input)
+            value = self._unit_value(value, output=True)
+            flag = "time" if self.isTimeInput() else "float"
+            cmds.setKeyframe(self.getFullName(), value=value, inTangentType=inTangentType,
+                            outTangentType=outTangentType, **{flag: position})
             return self
-        position = self._unit_value(input)
-        value = self._unit_value(value, output=True)
-        flag = "time" if self.isTimeInput() else "float"
-        cmds.setKeyframe(self.getFullName(), value=value, inTangentType=inTangentType,
-                        outTangentType=outTangentType, **{flag: position})
-        return self
 
-    @_flag_aliases(idx="index")
-    @_fast_edit
-    @undoChunk("mlibAnimCurveRemoveKey")
-    def removeKey(self, index, *, fast=False):
+    def removeKey(self, index=_UNSET, *, fast=False, idx=_UNSET):
         """指定番号のキーを削除する。キークリップボードは変更しない。
 
         Args:
             index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
             fast (bool): TrueはAPI 2.0によるUndoなし削除。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             AnimCurve: 自身。
         """
-        span = self._index(index)
-        if _is_fast():
-            self._require_curve_writable()
-            self._curve_fn().remove(span[0])
-        else:
-            cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
-        return self
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveRemoveKey"):
+            span = self._index(index)
+            if fast:
+                self._require_curve_writable()
+                self._curve_fn().remove(span[0])
+            else:
+                cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
+            return self
 
-    @_flag_aliases(idx="index")
-    def getTangent(self, index):
-        """指定キーの接線情報を取得する。
+    def getTangent(self, index=_UNSET, *, idx=_UNSET):
+        """指定キーの入力/出力接線型、角度、ウェイトとロック状態を取得する。
+
+        角度はMAngleからradへ変換する。接線ウェイトはgetTangentAngleWeight()の
+        返却値をそのまま使い、一律の距離単位などへ追加変換しない。
+        lock/weightLockはキー単位、weightedTangentsはカーブ全体の状態である。
 
         Args:
-            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
+            index (int): 0始まりの既存キー番号。別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
-            dict: Mayaの接線フラグ名をキーとした型・角度・ウェイト・ロック情報。
+            dict: inTangentType/outTangentType、inAngle/outAngle、inWeight/outWeight、
+                lock、weightLock、weightedTangentsの新しい辞書。型名はMayaコマンド表記で、
+                未登録のAPI接線型は空文字列。辞書を変更してもカーブは更新しない。
+
+        Raises:
+            IndexError: bool、非int、負値、またはキー数以上の番号の場合。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         self._index(index)
         fn = self._curve_fn()
         incoming = fn.getTangentAngleWeight(index, True)
@@ -180,67 +235,81 @@ class AnimCurve(Node):
                 "lock": fn.tangentsLocked(index), "weightLock": fn.weightsLocked(index),
                 "weightedTangents": fn.isWeighted}
 
-    @_flag_aliases(idx="index")
-    @_fast_edit
-    @undoChunk("mlibAnimCurveSetTangent")
-    def setTangent(self, index, *, fast=False, **kwargs):
-        """キーの接線を変更する。Mayaの接線ロック規則に従う。
+    def setTangent(self, index=_UNSET, *, fast=False, idx=_UNSET, **kwargs):
+        """指定キーの接線をMayaの接線ロック規則に従って変更する。
+
+        weightedTangentsを指定した場合はカーブ全体のウェイト付き接線モードだけを適用し、
+        同時指定したキー別フラグは適用しない。fastでも同時指定値の検証は省略しない。
+        通常はkeyTangentへ角度をUI単位に換算して渡す。fastはlock、weightLock、
+        入力側、出力側の順に更新し、後半の失敗による先行変更を自動復元しない。
 
         Args:
-            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
-            fast (bool): TrueはAPI 2.0で直接接線を更新する。
-            **kwargs: getTangent()で返すキーと同名のMayaフラグ。
-                weightedTangentsはカーブ全体に適用される。
+            index (int): 0始まりの既存キー番号。別名 ``idx`` も使用可能。
+            fast (bool): TrueはAPIで更新しUndoへ記録しない。
+                Falseは通常更新をUndo有効時にまとめ、Undo設定は変えない。
+            **kwargs: getTangent()の辞書と同じ9種類の長名フラグ。角度はrad、
+                接線ウェイトはAPIの値を使う。fastでは角度/ウェイトをfloat()で有限性検査し、
+                負のウェイトを拒否する。fastの型名は大文字小文字を区別せず、spline表記を使う。
+                入力stepはautoへ補正する。ロックは自動解除しない。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
-            AnimCurve: 自身。未知のフラグはValueError。
+            AnimCurve: 自身。
 
         Raises:
-            ValueError: fastでglobal・未知の接線型を指定した場合。
+            IndexError: キー番号が不正な場合。
+            ValueError: フラグが空/未知、またはfastで不正値やglobal/未知の接線型を指定した場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
-
-        fastの入力stepはMayaと同じautoへ補正する。入力stepnextはMayaの版で
-        補正が異なるため、ロック・ウェイトを含む更新の前に拒否する。
+                ロック・ウェイトを含む更新より前に拒否する。
         """
-        allowed = {"inTangentType", "outTangentType", "inAngle", "outAngle", "inWeight",
-                   "outWeight", "lock", "weightLock", "weightedTangents"}
-        if not kwargs or set(kwargs) - allowed:
-            raise ValueError("Specify supported tangent flags")
-        self._index(index)
-        if _is_fast():
-            values = dict(kwargs)
-            for flag in ("inTangentType", "outTangentType"):
-                if flag in values:
-                    values[flag] = self._tangent_type(values[flag], incoming=flag == "inTangentType")
-            for flag in ("inAngle", "outAngle", "inWeight", "outWeight"):
-                if flag in values:
-                    values[flag] = self._finite(values[flag])
-            if any(values.get(flag, 0) < 0 for flag in ("inWeight", "outWeight")):
-                raise ValueError("Tangent weights cannot be negative")
-            self._require_curve_writable()
-            fn = self._curve_fn()
-            if "weightedTangents" in values:
-                # keyTangentはこの全体モード指定がある場合、同時のキー別旗を適用しない。
-                fn.setIsWeighted(bool(values["weightedTangents"]))
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveSetTangent"):
+            allowed = {"inTangentType", "outTangentType", "inAngle", "outAngle", "inWeight",
+                       "outWeight", "lock", "weightLock", "weightedTangents"}
+            if not kwargs or set(kwargs) - allowed:
+                raise ValueError("Specify supported tangent flags")
+            self._index(index)
+            if fast:
+                values = dict(kwargs)
+                for flag in ("inTangentType", "outTangentType"):
+                    if flag in values:
+                        values[flag] = self._tangent_type(values[flag], incoming=flag == "inTangentType")
+                for flag in ("inAngle", "outAngle", "inWeight", "outWeight"):
+                    if flag in values:
+                        values[flag] = self._finite(values[flag])
+                if any(values.get(flag, 0) < 0 for flag in ("inWeight", "outWeight")):
+                    raise ValueError("Tangent weights cannot be negative")
+                self._require_curve_writable()
+                fn = self._curve_fn()
+                if "weightedTangents" in values:
+                    # keyTangentはこの全体モード指定がある場合、同時のキー別旗を適用しない。
+                    fn.setIsWeighted(bool(values["weightedTangents"]))
+                    return self
+                if "lock" in values:
+                    fn.setTangentsLocked(index, bool(values["lock"]))
+                if "weightLock" in values:
+                    fn.setWeightsLocked(index, bool(values["weightLock"]))
+                for side, incoming, setter in (("in", True, fn.setInTangentType), ("out", False, fn.setOutTangentType)):
+                    if side + "TangentType" in values:
+                        setter(index, values[side + "TangentType"])
+                    if side + "Angle" in values or side + "Weight" in values:
+                        angle, weight = fn.getTangentAngleWeight(index, incoming)
+                        angle = om2.MAngle(values[side + "Angle"], om2.MAngle.kRadians) if side + "Angle" in values else angle
+                        fn.setTangent(index, angle, values.get(side + "Weight", weight), incoming)
                 return self
-            if "lock" in values:
-                fn.setTangentsLocked(index, bool(values["lock"]))
-            if "weightLock" in values:
-                fn.setWeightsLocked(index, bool(values["weightLock"]))
-            for side, incoming, setter in (("in", True, fn.setInTangentType), ("out", False, fn.setOutTangentType)):
-                if side + "TangentType" in values:
-                    setter(index, values[side + "TangentType"])
-                if side + "Angle" in values or side + "Weight" in values:
-                    angle, weight = fn.getTangentAngleWeight(index, incoming)
-                    angle = om2.MAngle(values[side + "Angle"], om2.MAngle.kRadians) if side + "Angle" in values else angle
-                    fn.setTangent(index, angle, values.get(side + "Weight", weight), incoming)
+            kwargs = dict(kwargs)
+            for flag in ("inAngle", "outAngle"):
+                if flag in kwargs:
+                    kwargs[flag] = angleToUi(kwargs[flag])
+            cmds.keyTangent(self.getFullName(), edit=True, index=self._index(index), animation="objects", **kwargs)
             return self
-        kwargs = dict(kwargs)
-        for flag in ("inAngle", "outAngle"):
-            if flag in kwargs:
-                kwargs[flag] = angleToUi(kwargs[flag])
-        cmds.keyTangent(self.getFullName(), edit=True, index=self._index(index), animation="objects", **kwargs)
-        return self
 
     def getInfinity(self):
         """pre/postをキーとした外挿方法名。
@@ -252,8 +321,6 @@ class AnimCurve(Node):
         return {key: names[self.getPlug(key + "Infinity").get()]
                 for key in ("pre", "post")}
 
-    @_fast_edit
-    @undoChunk("mlibAnimCurveInfinity")
     def setInfinity(self, *, pre=None, post=None, fast=False):
         """指定した側だけ外挿方法を変更する。省略した側は維持する。
 
@@ -271,21 +338,22 @@ class AnimCurve(Node):
             TypeError: fastがboolでない場合。
             RuntimeError: ノードが無効、または更新先がロック・接続などで書込み不可の場合。
         """
-        allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
-        values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
-        if any(not isinstance(value, str) or value not in allowed for value in values.values()):
-            raise ValueError("Unsupported infinity type")
-        targets = [(self.getPlug(key + "Infinity"), allowed[value]) for key, value in values.items()]
-        if _is_fast():
-            # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveInfinity"):
+            allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
+            values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
+            if any(not isinstance(value, str) or value not in allowed for value in values.values()):
+                raise ValueError("Unsupported infinity type")
+            targets = [(self.getPlug(key + "Infinity"), allowed[value]) for key, value in values.items()]
+            if fast:
+                # 片側を書いた後にもう片側のロック・接続で失敗しないよう先に確認する。
+                for plug, value in targets:
+                    plug._require_writable()
             for plug, value in targets:
-                plug._require_writable()
-        for plug, value in targets:
-            plug.set(value)
-        return self
+                plug.set(value, fast=fast)
+            return self
 
-    @_fast_edit
-    @undoChunk("mlibAnimCurveShift")
     def shiftKeys(self, input_offset=0, value_offset=0, *, fast=False):
         """全キーを移動する。
 
@@ -297,20 +365,21 @@ class AnimCurve(Node):
         Returns:
             AnimCurve: 自身。空カーブは変更しない。
         """
-        input_offset, value_offset = self._finite(input_offset), self._finite(value_offset)
-        if _is_fast():
-            self._transform_keys(1, 1, input_offset, value_offset)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveShift"):
+            input_offset, value_offset = self._finite(input_offset), self._finite(value_offset)
+            if fast:
+                self._transform_keys(1, 1, input_offset, value_offset)
+                return self
+            x = self._unit_value(input_offset)
+            y = self._unit_value(value_offset, output=True)
+            if self.getKeyCount():
+                flag = "timeChange" if self.isTimeInput() else "floatChange"
+                cmds.keyframe(self.getFullName(), edit=True, relative=True, animation="objects",
+                              valueChange=y, **{flag: x})
             return self
-        x = self._unit_value(input_offset)
-        y = self._unit_value(value_offset, output=True)
-        if self.getKeyCount():
-            flag = "timeChange" if self.isTimeInput() else "floatChange"
-            cmds.keyframe(self.getFullName(), edit=True, relative=True, animation="objects",
-                          valueChange=y, **{flag: x})
-        return self
 
-    @_fast_edit
-    @undoChunk("mlibAnimCurveScale")
     def scaleKeys(self, input_scale=1, value_scale=1, input_pivot=0, value_pivot=0, *, fast=False):
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
 
@@ -324,22 +393,24 @@ class AnimCurve(Node):
         Returns:
             AnimCurve: 自身。
         """
-        x, y, px, py = map(self._finite, (input_scale, value_scale, input_pivot, value_pivot))
-        if not x:
-            raise ValueError("Input scale cannot be zero")
-        if _is_fast():
-            if x < 0:
-                raise NotImplementedError("fast scaleKeys requires a positive input scale")
-            self._transform_keys(x, y, px * (1 - x), py * (1 - y))
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAnimCurveScale"):
+            x, y, px, py = map(self._finite, (input_scale, value_scale, input_pivot, value_pivot))
+            if not x:
+                raise ValueError("Input scale cannot be zero")
+            if fast:
+                if x < 0:
+                    raise NotImplementedError("fast scaleKeys requires a positive input scale")
+                self._transform_keys(x, y, px * (1 - x), py * (1 - y))
+                return self
+            px, py = self._unit_value(px), self._unit_value(py, output=True)
+            if self.getKeyCount():
+                prefix = "time" if self.isTimeInput() else "float"
+                cmds.scaleKey(self.getFullName(), animation="objects", valueScale=y, valuePivot=py,
+                              **{prefix + "Scale": x, prefix + "Pivot": px})
             return self
-        px, py = self._unit_value(px), self._unit_value(py, output=True)
-        if self.getKeyCount():
-            prefix = "time" if self.isTimeInput() else "float"
-            cmds.scaleKey(self.getFullName(), animation="objects", valueScale=y, valuePivot=py,
-                          **{prefix + "Scale": x, prefix + "Pivot": px})
-        return self
 
-    @_fast_edit
     def mirror(self, input=False, value=True, input_pivot=0, value_pivot=0, *, fast=False):
         """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
 
@@ -353,7 +424,9 @@ class AnimCurve(Node):
         Returns:
             AnimCurve: 自身。
         """
-        return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot, fast=fast)
 
     def _set_api_value(self, fn, index, value):
         """キー値を直接更新し、時間出力の秒をMTimeで保持する。
@@ -460,21 +533,34 @@ class AnimCurve(Node):
         self.getPlug("ktv")._require_writable()
 
     def _unit_value(self, value, output=False, to_ui=True):
-        """入出力の単位型に従いコマンド境界で値を変換する。
+        """カーブの入出力アトリビュート定義に従い、コマンド境界で単位を変換する。
 
         Args:
-            value: 変換・設定する入力値。
-            output: Trueは出力側、Falseは入力側を扱う。
-            to_ui: Trueは内部単位からUI単位、Falseは逆方向へ変換する。
+            value (float): 変換する値。
+            output (bool): Trueはoutput、Falseはinputの定義を使う。
+            to_ui (bool): Trueは内部単位からUI単位、FalseはUI単位から内部単位へ変換する。
+
+        Returns:
+            float: 単位型に応じた値。無次元のアトリビュートでは値をそのまま使う。
         """
         return _convert_units(self.getPlug("output" if output else "input").mplug(), value, to_ui)
 
     @staticmethod
     def _finite(value):
-        """有限の数値へ変換する。不正値はValueError。
+        """キーや接線の入力をfloatへ変換し、非有限値を拒否する。
+
+        float()に従うため、変換可能な数値文字列やboolもここでは受理する。
+        キー番号などの厳密なint検証とは別の責務とする。
 
         Args:
-            value: 変換・設定する入力値。
+            value (object): float()へ渡す値。
+
+        Returns:
+            float: 有限な値。
+
+        Raises:
+            ValueError: 変換できない文字列など、またはNaN/正負の無限大の場合。
+            TypeError: float()が受理しない型の場合。
         """
         value = float(value)
         if not math.isfinite(value):
@@ -482,10 +568,16 @@ class AnimCurve(Node):
         return value
 
     def _index(self, index):
-        """存在するキー番号を検証する。不正値はIndexError。
+        """0始まりの既存キー番号を検証し、cmdsの単一キー範囲へ変換する。
 
         Args:
-            index: 対象要素の番号または探索開始番号。
+            index (int): boolを除くint。負値による末尾参照は受け付けない。
+
+        Returns:
+            tuple[int, int]: 同じ番号を両端に持つ範囲。
+
+        Raises:
+            IndexError: 非int、bool、負値、または現在のキー数以上の場合。
         """
         if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < self.getKeyCount():
             raise IndexError("Key index is out of range")

@@ -96,3 +96,7 @@ class PluginVersionValueTest(unittest.TestCase):
             self.assertEqual(package.getInstalledVersion(), Version("3.1"))
             self.assertIsInstance(package.getLoadedVersion(), Version)
             self.assertTrue(package.isInstalled())
+
+
+if __name__ == "__main__":
+    unittest.main()

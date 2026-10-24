@@ -1,6 +1,9 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
+from ..util import _ArgumentError, _UNSET
 from .node import Node
 from .transform import Transform
 
@@ -8,8 +11,6 @@ from .transform import Transform
 class DistanceBetween(Node):
     """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
 
-    @_fast_edit
-    @undoChunk("mlibDistanceBetweenSetPoints")
     def setPoints(self, point1, point2, *, fast=False):
         """各入力行列の空間における二点を設定する。行列は変更しない。
 
@@ -28,24 +29,26 @@ class DistanceBetween(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        import math
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDistanceBetweenSetPoints"):
+            import math
 
-        points = [tuple(float(v) for v in point) for point in (point1, point2)]
-        if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in points):
-            raise ValueError("Points must contain three finite coordinates")
-        for name, point in zip(("point1", "point2"), points):
-            self.getPlug(name).set(point)
-        return self
+            points = [tuple(float(v) for v in point) for point in (point1, point2)]
+            if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in points):
+                raise ValueError("Points must contain three finite coordinates")
+            for name, point in zip(("point1", "point2"), points):
+                self.getPlug(name).set(point, fast=fast)
+            return self
 
-    @_flag_aliases(f="force")
-    @undoChunk("mlibDistanceBetweenConnectTransforms")
-    def connectTransforms(self, first, second, force=False):
+    def connectTransforms(self, first, second, force=_UNSET, *, f=_UNSET):
         """二つのTransform原点のワールド距離を測る接続を設定する。
 
         Args:
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
             second (Transform | str): 第二のTransform。
             force (bool): 既存の行列入力接続を置き換えるか。 別名 ``f`` も使用可能。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             DistanceBetween: 自身。point1/2は原点にリセットする。
@@ -55,16 +58,23 @@ class DistanceBetween(Node):
             RuntimeError: ロックや既存接続により変更できない場合。
                 途中の変更は自動では戻さず、一回のUndoで戻せる。
         """
-        from .node import Node as _InputNode
-        nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
-        if not all(isinstance(node, Transform) for node in nodes):
-            raise TypeError("Both inputs must be transforms")
-        self.setPoints((0, 0, 0), (0, 0, 0))
-        for number, node in enumerate(nodes, 1):
-            index = node.mpath().instanceNumber()
-            node.getPlug("worldMatrix")[index].connectTo(
-                self.getPlug(f"inMatrix{number}"), force=force)
-        return self
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibDistanceBetweenConnectTransforms"):
+            from .node import Node as _InputNode
+            nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
+            if not all(isinstance(node, Transform) for node in nodes):
+                raise TypeError("Both inputs must be transforms")
+            self.setPoints((0, 0, 0), (0, 0, 0))
+            for number, node in enumerate(nodes, 1):
+                index = node.mpath().instanceNumber()
+                node.getPlug("worldMatrix")[index].connectTo(
+                    self.getPlug(f"inMatrix{number}"), force=force)
+            return self
 
     def getDistance(self):
         """評価済み距離。内部距離単位cm。

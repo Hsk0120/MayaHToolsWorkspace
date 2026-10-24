@@ -6,7 +6,8 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from ..common.plugin import Plugin
-from ..decorator import _flag_aliases, undoChunk
+from ..decorator import undoChunk
+from ..util import _ArgumentError, _UNSET
 from .node import Node
 
 
@@ -112,23 +113,29 @@ class HIKCharacterNode(Node):
         value = mel.eval(f"hikGetRetargetCharacterInput({_quote(self.getFullName())});")
         return HIKCharacterNode(value) if value else None
 
-    @_flag_aliases(src="source")
-    @undoChunk("mlib.HIKCharacterNode.setSource")
-    def setSource(self, source):
+    def setSource(self, source=_UNSET, *, src=_UNSET):
         """検証・ロック済みの別キャラクターをリターゲット入力にする。
 
         Args:
             source (HIKCharacterNode | str): 自分以外のソースキャラクタ。
                 両キャラクタの定義がロック済みであること。 別名 ``src`` も使用可能。
+            src (HIKCharacterNode | str): sourceの別名。同時指定は不可。
         """
-        _prepare()
-        source = Node(source)
-        if not isinstance(source, HIKCharacterNode) or source == self:
-            raise ValueError("Expected a different HIKCharacterNode")
-        if not self.isDefinitionLocked() or not source.isDefinitionLocked():
-            raise RuntimeError("Both character definitions must be validated and locked")
-        mel.eval("hikSetCharacterInput({}, {});".format(
-            _quote(self.getFullName()), _quote(source.getFullName())))
-        actual = self.getSource()
-        if actual is None or actual.getFullName() != source.getFullName():
-            raise RuntimeError("HumanIK did not connect the requested source")
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        with undoChunk("mlib.HIKCharacterNode.setSource"):
+            _prepare()
+            source = Node(source)
+            if not isinstance(source, HIKCharacterNode) or source == self:
+                raise ValueError("Expected a different HIKCharacterNode")
+            if not self.isDefinitionLocked() or not source.isDefinitionLocked():
+                raise RuntimeError("Both character definitions must be validated and locked")
+            mel.eval("hikSetCharacterInput({}, {});".format(
+                _quote(self.getFullName()), _quote(source.getFullName())))
+            actual = self.getSource()
+            if actual is None or actual.getFullName() != source.getFullName():
+                raise RuntimeError("HumanIK did not connect the requested source")

@@ -553,19 +553,20 @@ class Quaternion(om2.MQuaternion):
         return result
 
     def rotateVector(self, vector):
-        """ベクトルをこの回転で変換する。
+        """Quaternionの正規化したコピーで、XYZベクトルを回転する。
 
-        自身を正規化してから適用するため、正規化していない四元数でも結果の大きさは
-        変わらない(om2 の ``MVector.rotateBy`` は正規化しない四元数だと大きさも変える)。
+        正規化は独立したコピー上で行い、自身と入力ベクトルは変更しない。
+        非単位QuaternionをMVector.rotateBy()へ直接渡す場合と異なり、
+        Quaternionの長さを使ってベクトルを拡縮するものではない。位置の平行移動は含まない。
 
         Args:
-            vector (om2.MVector | Iterable[float]): 回転させる方向・位置。
+            vector (om2.MVector | Iterable[float]): 回転するXYZ。MPoint入力ではwを無視する。
 
         Returns:
-            Vector: 回転後のベクトル。派生クラスの型は保持しない。
+            Vector: 新しい回転結果。入力の派生型や追加Python状態は引き継がない。
 
         Raises:
-            ValueError: 自身がゼロ四元数の場合。
+            ValueError: 自身がゼロQuaternionの場合。
         """
         result = _zero(Vector)
         _MVector.__iadd__(result, _as_mvector(vector).rotateBy(_unit_copy(self)))
@@ -734,13 +735,16 @@ class Quaternion(om2.MQuaternion):
         return self
 
     def asUnitMatrix(self):
-        """正規化した回転を表す Matrix を返す。
+        """Quaternionの正規化したコピーから、独立した回転Matrixを作る。
+
+        自身を正規化する操作ではない。元のQuaternionやその成分参照は変更しない。
+        OpenMayaへそのまま委譲するasMatrix()とは別に、コピーの正規化とゼロ拒否を行う。
 
         Returns:
-            Matrix: 回転だけを持つ4行4列行列。
+            Matrix: 回転だけを持つ新しい4行4列行列。追加Python状態は引き継がない。
 
         Raises:
-            ValueError: ゼロ四元数の場合。
+            ValueError: 自身がゼロQuaternionの場合。
         """
         from .matrix import Matrix
 

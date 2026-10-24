@@ -6,7 +6,7 @@ Synopsis
 
     mlib.getNode(value)
 
-既存ノードを取得し、Maya のノード型に対応するラッパーを返します。
+既存ノードを参照する新しいラッパーを、Mayaのノード型に応じて返します。
 ノードの作成や選択状態の変更は行いません。
 ``import mlib`` の後に ``mlib.getNode(value)`` として呼び出します。
 
@@ -14,8 +14,9 @@ Return value
 ------------
 
 ``Node``
-    Joint、Transform、Mesh など、登録済みの型に対応するラッパー。
-    専用ラッパーがないノード型は Node を返します。
+    Joint、Transform、Meshなど、登録済みの型に対応する新しいラッパー。
+    nodeTypeの登録がなければ、近い祖先から順に登録済みの型を探します。
+    祖先型にも登録がなければNodeを返します。入力がNodeでもMayaノードは複製しません。
 
 Related commands
 ----------------
@@ -48,7 +49,10 @@ Examples
 
 
 def getNode(value):
-    """既存ノードを型に対応するラッパーとして取得する。
+    """既存のMayaノードを参照する新しいラッパーを返す。
+
+    入力がNodeでも同じMayaノードへの参照を作り、シーンのノードを複製しない。
+    ラッパー型はnodeTypeの登録、近い順の登録済み祖先型、Nodeの順に選ぶ。
 
     Args:
         value (str | Node | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):

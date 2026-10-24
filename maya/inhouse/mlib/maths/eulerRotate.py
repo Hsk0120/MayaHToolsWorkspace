@@ -636,18 +636,24 @@ class EulerRotate(om2.MEulerRotation):
         self.order = orderIndex(value)
 
     def asDegrees(self):
-        """回転成分を度数法の3要素 tuple として取得する。
+        """保持するXYZのEuler角を、radから度へ換算したtupleで取得する。
+
+        現在のMaya UI角度単位は参照しない。回転順序は変更せず、
+        等価な別解や一定の角度範囲へ正規化する処理も行わない。
 
         Returns:
-            tuple[float, float, float]: XYZ の回転角度(度)。
+            tuple[float, float, float]: XYZ角度の独立した値列（度）。自身は変化しない。
         """
         return (math.degrees(self.x), math.degrees(self.y), math.degrees(self.z))
 
     def asQuaternion(self):
-        """回転順序を反映した Quaternion へ変換する。
+        """保持するEuler角と回転順序から、独立したQuaternionを作る。
+
+        自身は変更しない。Quaternionは回転の向きを表し、元のEuler角の回転周期や
+        回転順序番号、利用者の追加Python状態を保存する容器ではない。
 
         Returns:
-            Quaternion: 単位四元数。
+            Quaternion: 新しい単位Quaternion。
         """
         return Quaternion._wrap(self)
 

@@ -2,13 +2,17 @@
 
 ## 基本方針
 
+- 2026-10-24のユーザー指示により、`_flag_aliases`とフラグ別名の動的正規化を廃止し、長名・短名の両方を通常の引数として明示する。各本文で省略・長短の競合を検証し、シーン更新先へ渡す。Maya helpの実行時解析、別名メタデータ、汎用resolverで置き換えない。省略判定には`util._UNSET`を使い、実行時の既定値・既存の位置引数順・単位・返却を維持する。予約語の短名`as`/`is`だけは`**kwargs`から個別に受理する。複数形の全件事前検査はPythonの呼出形式を対象とし、長短の組合せ・省略判定・値は各単数本文で保持順に検証する。組合せによるTypeErrorの型は複数形でも保つ。
+
+- 2026-10-24のユーザー指示により、`_fast_edit`・`_safe_edit`デコレーターとfastの暗黙伝播を廃止する。fast/safeは各メソッド本文で判定し、更新先へ`fast=fast`・`safe=safe`等を明示して渡す。呼出元の状態で省略値や`fast=False`を上書きしない。fast引数を持たないAPIは外側のモードに影響されない通常処理とする。通常UndoとfastのOM2直接更新、safeの既存の戻り値・部分更新・未対応条件の更新前拒否は維持する。Undo等のコンテキストマネージャーは維持し、別の暗黙モードや汎用転送機構で置き換えない。
+
 - 2026-10-23のユーザー指定により、追加縮小案の上2つを適用する。AddDL/AddDoubleLinear/MultDL/MultDoubleLinear/BlendColors/BlendWeighted/Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/UnitConversionは既存基底・公開クラス・型登録を維持し、専用の取得/設定/接続/検証/enum/複合操作APIを提供しない。操作はMaya標準アトリビュート名の`getPlug`とPlugの公開APIを使う。判定のis省略入口は廃止し、`isValid`等の正式is名へ統一する（module関数`undo.enabled`も廃止し`undo.isEnabled`を使う）。旧互換入口と省略名へのSphinx投影は残さない。Maya/OM2標準名、他クラスの同名API、対象外の演算ノードと行列/TRS、専門編集/保存/小便利機能は維持する。ノード/メソッド追加・型登録・複数形/reload/拡張自動探索と保持APIの引数・単位・所有権・返却・通常Undo/fastは維持する。
 
 - 2026-10-23のユーザー指定により、機能縮小案A・Bを適用する。mlibはNode/Plug/Component/数学型と隣接基盤へ絞り、汎用UI、OptionVar/Preferences、型付きJSON・Snapshot、Colorと専用色操作、Scene/Workspace/FBX、mlib版OBBを提供しない。`mlib.json`と旧保存形式の読込保証は終了し、旧import・互換別名・readerを残さない。mlrigの通常JSON文字列は標準`json`、GUI名と標準Editor起動は利用側のcmds/mel、表示色はPlugで扱う。`viewportOff`の表示停止/復帰はdecoratorで維持する。`mlib.cmds`とルート再公開は`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口に限定し、他のMayaコマンドは利用側で直接使用して必要な戻り値をmlib参照へ変換する。CのMesh.reorderVertices/DagPose.mergeは維持する。数学所有権・単位・保持APIの引数/返却・複数形/reload/拡張自動探索・通常Undo/fastは維持する。
 
 - 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。ArrayPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。追加縮小の14型を除く演算ノードの検証/複合処理とBlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約は既存基盤へ委譲する。
 
-- 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`ArrayPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、fast継承、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効/fast文脈では破壊的処理前に拒否する。
+- 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`ArrayPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効では破壊的処理前に拒否する。
 
 - 2026-10-11のユーザー指示により、ライブラリの正式名は `mlib`、拡張は `mlib_*` とする。旧パッケージ名のimport互換・別名は設けない。拡張宣言は `MLIB_EXTENSION_API` とし、旧宣言の互換入口は提供しない。その他の公開APIの引数・戻り値・意味は維持する。
 
@@ -34,7 +38,7 @@
 
 - mlib/mlib_*の実装移動では旧import用の互換ファイル・別名を残さず、使用側（内製ツール・テスト・ドキュメント）を正式な新配置へ更新する。mlib.cmdsの7入口は既存の入力解決・短縮フラグ・Undo・戻り型を維持する。他のコマンドラッパーや生のcmds転送クラスは追加しない。
 
-- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
+- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーは直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
 
 - 2026-10-23のユーザー指示により、`_core`は`core`へ改名し、実行フォルダ名で公開/非公開を区分しない。正式なAPIは通常の明示import・`__all__`・文書で示し、集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。`core`内の全関数を正式APIへ拡大せず、既存の`NodeRegistry`・`reload_package`と登録用プロトコルの名前・意味を維持する。旧`mlib._core`や移動前のcommon小モジュールの互換ファイル・別名は残さない。`_docs`・`__tests__`は実行APIと別の文書・検証素材なので配置名を維持する。
 

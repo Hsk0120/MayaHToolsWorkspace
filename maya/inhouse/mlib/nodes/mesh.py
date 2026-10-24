@@ -12,19 +12,18 @@ from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core.fastWrite import writable
-from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoTransaction
+from ..decorator import undoTransaction
 from ..maths.vector import Vector
 from ..util import _world_space
+from ..util import _ArgumentError, _UNSET
 from .shape import Shape
 
 
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False,
-                        match="uv", worldSpace=False):
+    def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False, match="uv",
+        worldSpace=_UNSET, ws=_UNSET):
         """UVまたは頂点位置の対応から自身の頂点番号を基準メッシュに合わせる。
 
         Args:
@@ -35,6 +34,7 @@ class Mesh(Shape):
             match (str): uv（既定）またはposition。照合方法だけを切り替える。
             worldSpace (bool): 位置照合をワールド空間で行う。既定Falseは各形状のローカル空間。
                 短縮名ws。UV照合では使用しない。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Mesh: 自身。頂点位置・面の順序と向き・UV・法線・面マテリアルを維持する。
@@ -50,6 +50,14 @@ class Mesh(Shape):
         エッジ番号は再構築により変わる場合がある。
         UVシームは各頂点の面頂点UV群で照合する。重なりで候補が複数ある場合は変更しない。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         from .node import Node
         if match not in ("uv", "position"):
             raise ValueError("match must be uv or position")
@@ -80,11 +88,11 @@ class Mesh(Shape):
             raise ValueError("Vertex correspondence does not preserve face topology and winding")
         if all(old == new for old, new in enumerate(mapping)):
             return self
-        self._check_reorder_supported(target)
+        self._check_reorder_supported(target, fast=fast)
         data = self._reordered_mesh_data(target, counts, connects, remapped, mapping)
         materials = self.getFaceShadingEngines()
         current_uv = target.currentUVSetName()
-        if _is_fast():
+        if fast:
             points = self.getPlug("pnts").mplug()
             for i in points.getExistingArrayAttributeIndices():
                 point = points.elementByLogicalIndex(i)
@@ -120,9 +128,7 @@ class Mesh(Shape):
                     cmds.sets(faces, edit=True, forceElement=material)
         return self
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """頂点位置をミラーし、自身を更新する。
 
         Args:
@@ -134,6 +140,7 @@ class Mesh(Shape):
             indices (Iterable[int] | None): 頂点番号。None は全頂点、空列は変更なし。
                 重複は1回だけ処理し、負の番号は許容しない。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Mesh: 編集した自身。
@@ -153,16 +160,24 @@ class Mesh(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状を編集するとNotImplementedError。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         ws = _world_space(worldSpace)
-        self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot)
+        self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot, fast=fast)
         return self
 
-    @_flag_aliases(idx="index")
-    def getVertex(self, index):
+    def getVertex(self, index=_UNSET, *, idx=_UNSET):
         """頂点番号から単体ラッパーを取得する。
 
         Args:
             index (int): ゼロ始まりの頂点番号。 別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Vertex: シーン上の頂点を参照するラッパー。
@@ -170,6 +185,12 @@ class Mesh(Shape):
         Raises:
             IndexError: 頂点番号が範囲外の場合。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         return Vertex(self, index)
 
     def getVertices(self, indices=None):
@@ -236,48 +257,66 @@ class Mesh(Shape):
         """
         return self.meshFn().numEdges
 
-    @_flag_aliases(ws="worldSpace")
-    def getPoints(self, worldSpace=False):
+    def getPoints(self, worldSpace=_UNSET, *, ws=_UNSET):
         """全頂点の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.meshFn().getPoints(space)
 
-    @_flag_aliases(ws="worldSpace")
-    def getVertexNormals(self, worldSpace=False, angle_weighted=False):
+    def getVertexNormals(self, worldSpace=_UNSET, angle_weighted=False, *, ws=_UNSET):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             angle_weighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             list[Vector]: 頂点番号順の平均法線。angle_weighted=False では
                 角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return [Vector(value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
 
-    @_flag_aliases(ws="worldSpace")
-    def getVertexAdjacency(self, worldSpace=False):
+    def getVertexAdjacency(self, worldSpace=_UNSET, *, ws=_UNSET):
         """頂点IDごとの隣接頂点とエッジ長を照会する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             list[list[tuple[int, float]]]: 頂点ID順の隣接リスト。
             各要素は隣接頂点IDとcm単位の距離で、エッジID順に格納する。
             孤立頂点は空リスト、重複エッジは別々に保持する。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         points = self.getPoints(ws=worldSpace)
         adjacency = [[] for _ in points]
         mesh_fn = self.meshFn()
@@ -289,16 +328,22 @@ class Mesh(Shape):
             adjacency[second].append((first, length))
         return adjacency
 
-    @_flag_aliases(idx="index")
-    def getEdge(self, index):
+    def getEdge(self, index=_UNSET, *, idx=_UNSET):
         """番号から Edge を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Edge: シーンを参照する単体ラッパー。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         return Edge(self, index)
 
     def getEdges(self, indices=None):
@@ -312,16 +357,22 @@ class Mesh(Shape):
         """
         return Edges(self, indices)
 
-    @_flag_aliases(idx="index")
-    def getFace(self, index):
+    def getFace(self, index=_UNSET, *, idx=_UNSET):
         """番号から Face を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Face: シーンを参照する単体ラッパー。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         return Face(self, index)
 
     def getFaces(self, indices=None):
@@ -335,16 +386,22 @@ class Mesh(Shape):
         """
         return Faces(self, indices)
 
-    @_flag_aliases(idx="index")
-    def getUV(self, index):
+    def getUV(self, index=_UNSET, *, idx=_UNSET):
         """番号から UV を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             UV: シーンを参照する単体ラッパー。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         return UV(self, index)
 
     def getUVs(self, indices=None):
@@ -447,7 +504,7 @@ class Mesh(Shape):
             offset += count
         return Counter(result)
 
-    def _check_reorder_supported(self, fn):
+    def _check_reorder_supported(self, fn, *, fast=False):
         """番号依存の外部接続や未対応のメッシュデータを変更前に拒否する。"""
         if self.mpath().isInstanced() or om2.MFnDependencyNode(self.mnode()).isFromReferencedFile:
             raise NotImplementedError("Instanced or referenced targets are not supported")
@@ -488,7 +545,7 @@ class Mesh(Shape):
                     writable(item)
                     for j in range(item.numChildren()):
                         writable(item.child(j))
-                        if not _is_fast() and item.child(j).asFloat() != 0:
+                        if not fast and item.child(j).asFloat() != 0:
                             raise NotImplementedError("Normal reorder does not support vertex tweaks; use fast=True on a copy")
 
     @staticmethod

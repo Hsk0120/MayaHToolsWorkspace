@@ -1,7 +1,10 @@
 """行列の使用成分を選択する。"""
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
 from ..maths import Matrix
+from ..util import _ArgumentError, _UNSET
 from ._calculation import _Calculation
 from .node import Node
 
@@ -25,8 +28,6 @@ class PickMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setInput(self, value, *, fast=False):
         """入力へ定数値を設定する。
 
@@ -40,17 +41,20 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, Matrix, self.getInputPlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectInput(self, source, force=False):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PickMatrix: 自身。
@@ -58,8 +62,21 @@ class PickMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getInputPlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getInputPlug, force=force)
+            return self
 
     def getUseTranslatePlug(self):
         """translate成分を使用するかのPlugを取得する。
@@ -77,8 +94,6 @@ class PickMatrix(Node):
         """
         return self.getUseTranslatePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setUseTranslate(self, value, *, fast=False):
         """translate成分を使用するかへ定数値を設定する。
 
@@ -92,17 +107,20 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getUseTranslatePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.boolean, self.getUseTranslatePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectUseTranslate(self, source, force=False):
+    def connectUseTranslate(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """translate成分を使用するかへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PickMatrix: 自身。
@@ -110,8 +128,21 @@ class PickMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getUseTranslatePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getUseTranslatePlug, force=force)
+            return self
 
     def getUseRotatePlug(self):
         """rotate成分を使用するかのPlugを取得する。
@@ -129,8 +160,6 @@ class PickMatrix(Node):
         """
         return self.getUseRotatePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setUseRotate(self, value, *, fast=False):
         """rotate成分を使用するかへ定数値を設定する。
 
@@ -144,17 +173,20 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getUseRotatePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.boolean, self.getUseRotatePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectUseRotate(self, source, force=False):
+    def connectUseRotate(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """rotate成分を使用するかへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PickMatrix: 自身。
@@ -162,8 +194,21 @@ class PickMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getUseRotatePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getUseRotatePlug, force=force)
+            return self
 
     def getUseScalePlug(self):
         """scale成分を使用するかのPlugを取得する。
@@ -181,8 +226,6 @@ class PickMatrix(Node):
         """
         return self.getUseScalePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setUseScale(self, value, *, fast=False):
         """scale成分を使用するかへ定数値を設定する。
 
@@ -196,17 +239,20 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getUseScalePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.boolean, self.getUseScalePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectUseScale(self, source, force=False):
+    def connectUseScale(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """scale成分を使用するかへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PickMatrix: 自身。
@@ -214,8 +260,21 @@ class PickMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getUseScalePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getUseScalePlug, force=force)
+            return self
 
     def getUseShearPlug(self):
         """shear成分を使用するかのPlugを取得する。
@@ -233,8 +292,6 @@ class PickMatrix(Node):
         """
         return self.getUseShearPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setUseShear(self, value, *, fast=False):
         """shear成分を使用するかへ定数値を設定する。
 
@@ -248,17 +305,20 @@ class PickMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getUseShearPlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.boolean, self.getUseShearPlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectUseShear(self, source, force=False):
+    def connectUseShear(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """shear成分を使用するかへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PickMatrix: 自身。
@@ -266,8 +326,21 @@ class PickMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getUseShearPlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getUseShearPlug, force=force)
+            return self
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。

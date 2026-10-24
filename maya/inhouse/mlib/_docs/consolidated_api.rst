@@ -83,8 +83,8 @@ DecomposeMatrixの各出力も ``getPlug("outputTranslate")`` 等で取得しま
 
 通常のシーン更新はMayaコマンドでUndo/Redoできます。
 対応する ``fast=True`` はAPI 2.0で直接変更し、Undo履歴を追加しません。
-Undoのグローバル設定は変更せず、外側のfast指定を対応する内側の操作へ引き継ぎます。
-内側の ``fast=False`` で継承したfastを解除しません。
+Undoのグローバル設定は変更しません。内部の更新呼出しにも ``fast=fast`` を明示し、
+各呼出しへ渡された値で処理を選びます。省略値や ``fast=False`` を外側の状態で上書きしません。
 fastでも型・ロック・参照・接続等の検査を行います。
 
 .. code-block:: python

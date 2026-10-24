@@ -34,7 +34,7 @@ def transfer_weights(skin, pairs):
                 total = sum(values[offset:offset + width])
                 if total > 0:
                     values[offset:offset + width] = [v / total for v in values[offset:offset + width]]
-    skin.setWeights(names, values)
+    skin.setWeights(names, values, fast=True)
 
 
 def remove_influence(skin, source):
@@ -75,7 +75,7 @@ def remove_influence(skin, source):
         if logical in row.getExistingArrayAttributeIndices():
             remove.append(row.elementByLogicalIndex(logical))
     _validate_removal_locks(remove)
-    skin.setWeights(names, values)
+    skin.setWeights(names, values, fast=True)
     # 切断・配列削除は一つのmodifierで実行する。ノード削除はこの中へ混在させない。
     modifier = om2.MDGModifier()
     for plug in remove:

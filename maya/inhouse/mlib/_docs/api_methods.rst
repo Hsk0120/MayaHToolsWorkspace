@@ -37,7 +37,7 @@ DAGの子階層もMaya標準の規則で削除します。戻り値は全てNone
 短名・既定値・min/max・softMin/softMax・表示やロック等の設定も保持します。
 
 通常は一回のUndoで戻せます。変更途中の失敗では、この処理の変更だけをUndoして復元します。
-実際の並び替えが必要な場合、Undo無効時はRuntimeError、fast文脈ではNotImplementedErrorとして、
+実際の並び替えが必要な場合、Undo無効時はRuntimeErrorとして、
 削除前に拒否します。既に端にある等の変更不要な呼出しは自身を返します。
 
 形状のスキニング関係

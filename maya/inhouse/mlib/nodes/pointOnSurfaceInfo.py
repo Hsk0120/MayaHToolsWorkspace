@@ -1,7 +1,10 @@
 """接続したsurfaceの形状情報をMayaで評価する。"""
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
 from ..maths import Vector
+from ..util import _ArgumentError, _UNSET
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
 
@@ -9,15 +12,15 @@ from .abstractBaseCreate import AbstractBaseCreate
 class PointOnSurfaceInfo(AbstractBaseCreate):
     """接続したsurfaceの形状情報をMayaで評価する。"""
 
-    @_flag_aliases(ws="worldSpace", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectSurface(self, surface, worldSpace=True, force=False):
+    def connectSurface(self, surface, worldSpace=_UNSET, force=_UNSET, *, ws=_UNSET, f=_UNSET):
         """形状またはTransformを解決して接続する。
 
         Args:
             surface (Node | str | MObject | MDagPath): 対象形状。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+            ws (bool): worldSpaceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             PointOnSurfaceInfo: 自身。
@@ -25,9 +28,22 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        source = _Calculation.geometry_output(surface, "nurbsSurface", worldSpace)
-        source.connectTo(self.getPlug("inputSurface"), force=force)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if worldSpace is _UNSET:
+            worldSpace = True
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            source = _Calculation.geometry_output(surface, "nurbsSurface", worldSpace)
+            source.connectTo(self.getPlug("inputSurface"), force=force)
+            return self
 
     def getParameters(self):
         """現在のUVパラメーターを取得する。
@@ -37,8 +53,6 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         """
         return self.getPlug("parameterU").get(), self.getPlug("parameterV").get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setParameters(self, u, v, percentage=False, *, fast=False):
         """UVと百分率モードを設定する。
 
@@ -54,14 +68,17 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        u, v = _Calculation.scalar(u), _Calculation.scalar(v)
-        percentage = _Calculation.boolean(percentage)
-        if percentage and not (0 <= u <= 1 and 0 <= v <= 1):
-            raise ValueError("percentage parameters must be in 0..1")
-        self.getPlug("turnOnPercentage").set(percentage)
-        self.getPlug("parameterU").set(u)
-        self.getPlug("parameterV").set(v)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            u, v = _Calculation.scalar(u), _Calculation.scalar(v)
+            percentage = _Calculation.boolean(percentage)
+            if percentage and not (0 <= u <= 1 and 0 <= v <= 1):
+                raise ValueError("percentage parameters must be in 0..1")
+            self.getPlug("turnOnPercentage").set(percentage, fast=fast)
+            self.getPlug("parameterU").set(u, fast=fast)
+            self.getPlug("parameterV").set(v, fast=fast)
+            return self
 
     def getPosition(self):
         """接続された空間での位置を取得する。

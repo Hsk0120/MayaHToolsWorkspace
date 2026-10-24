@@ -215,3 +215,7 @@ class TransformationTest(unittest.TestCase):
         b = Node("|" + second + "|" + name.split("|")[-1])
         self.assertAlmostEqual(a.getTransformation(ws=True).t.x, 2)
         self.assertAlmostEqual(b.getTransformation(ws=True).t.x, 7)
+
+
+if __name__ == "__main__":
+    unittest.main()

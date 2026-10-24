@@ -7,7 +7,7 @@ import maya.cmds as cmds
 import mlib
 
 mlib.reload()
-from mlib.decorator import _flag_aliases
+from mlib.util import _UNSET
 
 
 class BulkPerformanceContractsTest(unittest.TestCase):
@@ -83,13 +83,18 @@ class BulkPerformanceContractsTest(unittest.TestCase):
 
         self.assertEqual(CustomItems([Item()]).edit(1), "custom")
 
-    def test_flag_shape_cache_preserves_values_and_errors(self):
-        """形が同じでも値をキャッシュせず、競合を本体実行前に拒否する。"""
+    def test_explicit_flags_preserve_values_and_reject_conflicts(self):
+        """長短名を通常引数に定義し、記録前に競合と必須値を検証する。"""
         calls = []
 
-        @_flag_aliases(v="value")
-        def operation(value, *, enabled=True):
+        def operation(value=_UNSET, *, v=_UNSET, enabled=True):
             """渡された値をそのまま記録する。"""
+            if v is not _UNSET:
+                if value is not _UNSET:
+                    raise TypeError("value and v cannot be used together")
+                value = v
+            if value is _UNSET:
+                raise TypeError("value is required")
             calls.append(value)
             return value
 
@@ -102,15 +107,20 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         self.assertEqual(calls, [1, 2])
 
     def test_getter_preflight_uses_current_signature_and_flags(self):
-        """正式getterの差替えと短縮フラグを全件検証し、不正入力では実行しない。"""
+        """呼出形式は全件検証し、長短名の組合せと省略は各getter本文で検証する。"""
         calls = []
 
         class Item:
             """呼出しを記録する単数型。"""
 
-            @_flag_aliases(v="value")
-            def getValue(self, *, value=0):
+            def getValue(self, *, value=_UNSET, v=_UNSET):
                 """指定した照会値を返す。"""
+                if v is not _UNSET:
+                    if value is not _UNSET:
+                        raise TypeError("value and v cannot be used together")
+                    value = v
+                if value is _UNSET:
+                    value = 0
                 calls.append(value)
                 return value
 
@@ -118,9 +128,14 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         class Derived(Item):
             """署名と短縮フラグが異なるgetterを持つ派生型。"""
 
-            @_flag_aliases(r="required")
-            def getValue(self, *, required):
+            def getValue(self, *, required=_UNSET, r=_UNSET):
                 """必須の照会値を返す。"""
+                if r is not _UNSET:
+                    if required is not _UNSET:
+                        raise TypeError("required and r cannot be used together")
+                    required = r
+                if required is _UNSET:
+                    raise TypeError("required is required")
                 calls.append(required)
                 return required
 
@@ -141,21 +156,22 @@ class BulkPerformanceContractsTest(unittest.TestCase):
 
 
         mixed = Items([Item(), Derived()])
-        with self.assertRaises(TypeError):
+        with self.assertRaisesRegex(RuntimeError, "getValue failed at item 1") as caught:
             mixed.callEach("getValue", [(), ()], [{"v": 1}, {}])
-        self.assertEqual(calls, [])
+        self.assertIsInstance(caught.exception.__cause__, TypeError)
+        self.assertEqual(calls, [1])
         self.assertEqual(mixed.callEach("getValue", [(), ()], [{"v": 1}, {"r": 2}]), [1, 2])
-        self.assertEqual(calls, [1, 2])
+        self.assertEqual(calls, [1, 1, 2])
         normal = Items([Item(), Item()])
         self.assertEqual(normal.getValue(v=3), [3, 3])
         with patch.object(Item, "getValue", Derived.getValue):
             with self.assertRaises(TypeError):
                 normal.callEach("getValue", [(), ()], [{"v": 4}, {"v": 5}])
-        self.assertEqual(calls, [1, 2, 3, 3])
+        self.assertEqual(calls, [1, 1, 2, 3, 3])
         normal._items[1].getValue = lambda *, required: calls.append(required) or required
         with self.assertRaises(TypeError):
             normal.callEach("getValue", [(), ()], [{"v": 4}, {}])
-        self.assertEqual(calls, [1, 2, 3, 3])
+        self.assertEqual(calls, [1, 1, 2, 3, 3])
         self.assertEqual(normal.callEach("getValue", [(), ()], [{"v": 4}, {"required": 5}]), [4, 5])
 
     def test_plug_lookup_follows_alias_rename_delete_undo(self):

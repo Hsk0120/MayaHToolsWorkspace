@@ -5,7 +5,8 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _flag_aliases, undoChunk
+from ..decorator import undoChunk
+from ..util import _ArgumentError, _UNSET
 
 
 class Namespace:
@@ -267,13 +268,12 @@ class Namespace:
         self._name = target.name
         return self
 
-    @_flag_aliases(dst="destination")
-    @undoChunk("mlibNamespaceRemove")
-    def remove(self, destination=":"):
+    def remove(self, destination=_UNSET, *, dst=_UNSET):
         """内容を移動してNamespaceを削除する。
 
         Args:
             destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。 別名 ``dst`` も使用可能。
+            dst (str | Namespace): destinationの別名。同時指定は不可。
 
         Returns:
             Namespace: 内容を受け取った移動先。自身の保持名は削除前のまま。
@@ -282,14 +282,21 @@ class Namespace:
             ValueError: ルートの削除、または destination が不正な場合。
             RuntimeError: 移動先が存在しない、または Maya 操作が失敗した場合。
         """
-        if self._name == ":":
-            raise ValueError("root namespace cannot be removed")
-        destination_namespace = Namespace(destination)
-        if not destination_namespace.exists():
-            raise RuntimeError(f"Namespace does not exist: {destination_namespace.name}")
-        cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
-        cmds.namespace(removeNamespace=self._name)
-        return destination_namespace
+        if dst is not _UNSET:
+            if destination is not _UNSET:
+                raise _ArgumentError("Specify only one of 'destination' and 'dst'")
+            destination = dst
+        if destination is _UNSET:
+            destination = ":"
+        with undoChunk("mlibNamespaceRemove"):
+            if self._name == ":":
+                raise ValueError("root namespace cannot be removed")
+            destination_namespace = Namespace(destination)
+            if not destination_namespace.exists():
+                raise RuntimeError(f"Namespace does not exist: {destination_namespace.name}")
+            cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
+            cmds.namespace(removeNamespace=self._name)
+            return destination_namespace
 
     @staticmethod
     def _normalize(name):

@@ -1,7 +1,10 @@
 """移動・回転・スケール・シアーから行列を構築する。"""
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
 from ..maths import Matrix
+from ..util import _ArgumentError, _UNSET
 from ._calculation import _Calculation
 from .node import Node
 
@@ -25,8 +28,6 @@ class ComposeMatrix(Node):
         """
         return self.getTranslatePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setTranslate(self, value, *, fast=False):
         """translate入力（移動はcm）へ定数値を設定する。
 
@@ -40,17 +41,20 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectTranslate(self, source, force=False):
+    def connectTranslate(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """translate入力（移動はcm）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -58,8 +62,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getTranslatePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getTranslatePlug, force=force)
+            return self
 
     def getRotatePlug(self):
         """rotate入力（回転はrad）のPlugを取得する。
@@ -77,8 +94,6 @@ class ComposeMatrix(Node):
         """
         return self.getRotatePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setRotate(self, value, *, fast=False):
         """rotate入力（回転はrad）へ定数値を設定する。
 
@@ -92,17 +107,20 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectRotate(self, source, force=False):
+    def connectRotate(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """rotate入力（回転はrad）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -110,8 +128,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getRotatePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getRotatePlug, force=force)
+            return self
 
     def getScalePlug(self):
         """scale入力（無次元）のPlugを取得する。
@@ -129,8 +160,6 @@ class ComposeMatrix(Node):
         """
         return self.getScalePlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setScale(self, value, *, fast=False):
         """scale入力（無次元）へ定数値を設定する。
 
@@ -144,17 +173,20 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.getScalePlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.vector, self.getScalePlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectScale(self, source, force=False):
+    def connectScale(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """scale入力（無次元）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -162,8 +194,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getScalePlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getScalePlug, force=force)
+            return self
 
     def getShearPlug(self):
         """shear入力（無次元）のPlugを取得する。
@@ -181,8 +226,6 @@ class ComposeMatrix(Node):
         """
         return self.getShearPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setShear(self, value, *, fast=False):
         """shear入力（無次元）へ定数値を設定する。
 
@@ -196,17 +239,20 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.vector, self.getShearPlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.vector, self.getShearPlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectShear(self, source, force=False):
+    def connectShear(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """shear入力（無次元）へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -214,8 +260,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getShearPlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getShearPlug, force=force)
+            return self
 
     def getQuaternionPlug(self):
         """XYZW順のQuaternion入力のPlugを取得する。
@@ -233,8 +292,6 @@ class ComposeMatrix(Node):
         """
         return self.getQuaternionPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setQuaternion(self, value, *, fast=False):
         """XYZW順のQuaternion入力へ定数値を設定する。
 
@@ -248,18 +305,21 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.vector(value, 4)
-        self.getQuaternionPlug().set(value)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            value = _Calculation.vector(value, 4)
+            self.getQuaternionPlug().set(value, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectQuaternion(self, source, force=False):
+    def connectQuaternion(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """XYZW順のQuaternion入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -267,8 +327,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getQuaternionPlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getQuaternionPlug, force=force)
+            return self
 
     def getUseEulerRotationPlug(self):
         """Euler入力を使用するかのPlugを取得する。
@@ -286,8 +359,6 @@ class ComposeMatrix(Node):
         """
         return self.getUseEulerRotationPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setUseEulerRotation(self, value, *, fast=False):
         """Euler入力を使用するかへ定数値を設定する。
 
@@ -301,17 +372,20 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.set_value(value, _Calculation.boolean, self.getUseEulerRotationPlug)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.set_value(value, _Calculation.boolean, self.getUseEulerRotationPlug, fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibCalculationEdit")
-    def connectUseEulerRotation(self, source, force=False):
+    def connectUseEulerRotation(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """Euler入力を使用するかへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
@@ -319,8 +393,21 @@ class ComposeMatrix(Node):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        _Calculation.connect(source, self.getUseEulerRotationPlug, force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getUseEulerRotationPlug, force=force)
+            return self
 
     def getRotateOrder(self):
         """現在のモード名を取得する。
@@ -330,8 +417,6 @@ class ComposeMatrix(Node):
         """
         return _Calculation.enum_name(self.getPlug("inputRotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
-    @_fast_edit
-    @undoChunk("mlibCalculationEdit")
     def setRotateOrder(self, mode, *, fast=False):
         """モードを設定する。
 
@@ -345,9 +430,12 @@ class ComposeMatrix(Node):
         Note:
             接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        value = _Calculation.enum_value(mode, ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
-        self.getPlug("inputRotateOrder").set(value)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            value = _Calculation.enum_value(mode, ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
+            self.getPlug("inputRotateOrder").set(value, fast=fast)
+            return self
 
     def getOutputPlug(self):
         """計算結果の接続用Plugを取得する。

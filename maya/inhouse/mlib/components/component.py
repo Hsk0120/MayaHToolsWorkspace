@@ -7,10 +7,12 @@ from ..core.object import Object
 
 
 class Component(Object):
-    """シェイプと番号を保持する単体コンポーネントへの参照。
+    """シェイプ参照と実番号を保持し、一つのMayaコンポーネントを表す。
 
-    Mayaの形状要素（頂点・エッジ・フェース・CV・UV）に共通する基底クラス。
-    具体的な要素はVertexやEdgeなどの派生クラスで扱う。
+    頂点・エッジ・フェース・UV・カーブCVの共通基底。Vertex等の具体型を使う。
+    渡されたShapeラッパーを共有し、形状や座標のコピーは保持しない。
+    番号は作成時に検証するが、トポロジー変更後も同じ要素を指し続ける保証はない。
+    UVの番号範囲は現在のUVセットに従う。
     """
 
     shape_type = None
@@ -18,18 +20,18 @@ class Component(Object):
     count_attribute = None
 
     def __init__(self, shape, index):
-        """シェイプと実際のコンポーネント番号を保持する。
+        """シェイプとコンポーネントの実番号を検証して保持する。
+
+        名前やTransformからのShape解決は行わず、渡されたShapeラッパーをそのまま保持する。
 
         Args:
-            shape (Shape): 対応する Mesh または NurbsCurve ラッパー。
-            index (int): ゼロ始まりの番号。負の番号は不可。
-
-        Returns:
-            None: 値を返さない。
+            shape (Shape): 具体型に対応するMeshまたはNurbsCurveラッパー。
+            index (int): 0始まりのMaya番号。__index__対応値も受け付けるが、boolは拒否する。
+                負数を末尾からの位置としては扱わない。
 
         Raises:
-            TypeError: シェイプ型または番号の型が不正な場合。
-            IndexError: 番号が範囲外の場合。
+            TypeError: シェイプ型が不正、またはindexがboolか整数として扱えない場合。
+            IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
         self._shape = shape
@@ -63,19 +65,20 @@ class Component(Object):
 
     @property
     def shape(self):
-        """所有シェイプを取得する。
+        """保持している所有シェイプの参照を返す。
 
         Returns:
-            Shape: 保持しているラッパー。
+            Shape: 構築時と同じラッパー。コピーや有効性の再照会は行わない。
         """
         return self._shape
 
     @property
     def index(self):
-        """コンポーネントの実番号を取得する。
+        """保持しているMayaコンポーネントの実番号を返す。
 
         Returns:
-            int: ゼロ始まりの番号。
+            int: 0始まりの番号。現在のトポロジーでの範囲は再検証しない。
+                カーブCVはOpenMayaの番号で、周期末尾のcmds用表記とは異なる場合がある。
         """
         return self._index
 
@@ -106,17 +109,23 @@ class Component(Object):
 
     @staticmethod
     def _from_api(path, component):
-        """APIのコンポーネント範囲を単数ラッパーへ展開する。
+        """OpenMayaの単一インデックス型コンポーネントを、要素別の参照へ展開する。
+
+        明示番号はgetElements()の順序、complete指定は現在のShapeの全番号を使う。
+        各参照は同じShapeラッパーを共有し、座標値は取得しない。
 
         Args:
-            path (MDagPath): 所有シェイプのインスタンスパス。
-            component (MObject): 単一インデックスのコンポーネント。
+            path (MDagPath): 所有Shapeのインスタンスパス。
+            component (MObject): Meshの頂点/エッジ/フェース/UV、またはNurbsCurveのCV。
+                NurbsSurfaceやLattice等の多次元コンポーネントは対象外。
 
         Returns:
-            list[Component]: Mayaの要素順の参照。
+            list[Component]: 新しい単数ラッパーのリスト。complete指定は0から要素数-1の順。
 
         Raises:
-            TypeError: 非対応のコンポーネント種類の場合。
+            TypeError: 非対応のコンポーネント種類、または対応しないShape型の場合。
+            IndexError: 明示番号が現在のShapeの範囲外の場合。
+            RuntimeError: 所有Shapeを解決・参照できない場合。
         """
         import maya.api.OpenMaya as om2
         from ..nodes.node import Node
@@ -137,23 +146,32 @@ class Component(Object):
             raise TypeError("Only mesh vertices/edges/faces/UVs and curve CVs are supported")
         shape = Node(path)
         fn = om2.MFnSingleIndexedComponent(component)
-        indices = range(getattr(shape, cls.count_attribute)()) if fn.isComplete else fn.getElements()
+        if fn.isComplete:
+            indices = range(getattr(shape, cls.count_attribute)())
+        else:
+            indices = fn.getElements()
         return [cls(shape, index) for index in indices]
 
     @staticmethod
     def _resolve_input(value):
-        """名前・既存参照・APIの組から単一コンポーネントを取得する。
+        """コンポーネント名・既存参照・APIの組から、一つの要素参照を解決する。
+
+        既存Componentは再検証せず同じラッパーを返す。文字列はMSelectionListで解決し、
+        API入力は単一インデックス型かと要素数を確認してから展開する。
+        単数でないと判定した入力は、展開前に拒否する。展開後も一件であることを確認する。
 
         Args:
-            value (str | Component | tuple): 参照または(MDagPath, MObject)。
+            value (str | Component | tuple): コンポーネント名、既存参照、または
+                (MDagPath, MObject)。頂点/エッジ/フェース/UV/カーブCVを対象とする。
 
         Returns:
-            Component: 対応する具体型。既存参照はそのまま返す。
+            Component: 具体型の参照。既存入力以外は新しいラッパー。
 
         Raises:
-            TypeError: 入力型が非対応の場合。
-            ValueError: 対象が単一要素でない場合。
-            RuntimeError: 名前を解決できない場合。
+            TypeError: 入力型またはコンポーネント種類が非対応の場合。
+            ValueError: 空文字、または解決対象が単一要素でない場合。
+            IndexError: 明示番号が現在のShapeの範囲外の場合。
+            RuntimeError: 名前や所有Shapeを解決できない場合。
         """
         import maya.api.OpenMaya as om2
         if isinstance(value, Component):
@@ -173,7 +191,10 @@ class Component(Object):
         if not value[1].hasFn(om2.MFn.kSingleIndexedComponent):
             raise TypeError("Expected a single-indexed component")
         component_fn = om2.MFnSingleIndexedComponent(value[1])
-        count = component_fn.getCompleteData() if component_fn.isComplete else component_fn.elementCount
+        if component_fn.isComplete:
+            count = component_fn.getCompleteData()
+        else:
+            count = component_fn.elementCount
         if count != 1:
             raise ValueError("Expected one component; use Selection for ranges")
         items = Component._from_api(*value)
@@ -190,17 +211,18 @@ class Component(Object):
         """
         return self.getPosition(**space)[axis]
 
-    def _set_coordinate(self, axis, value, **space):
+    def _set_coordinate(self, axis, value, *, fast=False, **space):
         """指定軸だけを置換し、派生クラスの座標更新へ委譲する。
 
         Args:
             axis: 座標成分の番号。0=X、1=Y、2=Z。
             value: 指定軸へ設定する座標値。
+            fast (bool): 座標更新へ渡す直接編集の指定。
             **space: 座標空間の指定。ws=Trueでワールド空間。
         """
         position = list(self.getPosition(**space))
         position[axis] = value
-        return self.setPosition(position, **space)
+        return self.setPosition(position, fast=fast, **space)
 
     def _validate(self):
         """現在のシェイプ型と番号を再検査する。
@@ -284,26 +306,30 @@ _COMPONENT_VALIDATE_INDEX = Component._validate_index
 
 
 class Components:
-    """同一シェイプ内の番号を作成時に固定して保持するコレクション。
+    """同一シェイプ・同じ種類の実番号を、初出順の重複なしtupleで保持する。
 
-    同じ種類の要素を保持する基底クラス。トポロジー変更後の番号の同一性は保証しない。
+    Vertices等の具体型が、単数参照の列挙と一括操作を担当する。
+    Shapeラッパーを共有し、番号列は作成時に固定する。形状編集後の要素追加や削除には
+    自動追従せず、トポロジー変更後の要素の同一性も保証しない。
+    角括弧は保持列内の位置で、Mayaの実番号ではない。
     """
 
     component_class = Component
 
     def __init__(self, shape, indices=None):
-        """番号の順序を維持し、重複を除いて保持する。
+        """指定番号を検証し、初出順を維持して重複を除いて保持する。
+
+        番号をソートせず、不変tupleへ取り込む。一般の反復入力や独自の__index__は
+        単数ラッパーを一件ずつ構築し、拡張側の検証や途中例外を省略しない。
 
         Args:
-            shape (Shape): 対応するシェイプラッパー。
-            indices (Iterable[int] | None): 実番号。None は作成時の全要素、空列は空集合。
-
-        Returns:
-            None: 値を返さない。
+            shape (Shape): 具体型に対応するShapeラッパー。同じ参照を保持する。
+            indices (Iterable[int] | None): Mayaの実番号。Noneは構築時の全要素を昇順で保持する。
+                空列は空集合。各番号は__index__に対応し、boolと負数は拒否する。
 
         Raises:
-            TypeError: シェイプまたは番号の型が不正な場合。
-            IndexError: 番号が範囲外の場合。
+            TypeError: シェイプ型または番号の型が不正な場合。
+            IndexError: いずれかの番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
         self._shape = shape
@@ -326,33 +352,43 @@ class Components:
             self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
 
     def __len__(self):
-        """保持要素数を取得する。
+        """保持している重複なし番号の件数を返す。
 
         Returns:
-            int: コレクションの要素数。
+            int: 構築時に固定した件数。現在のShapeの要素数や生存は照会しない。
         """
         return len(self._indices)
 
     def __iter__(self):
-        """保持順に単体ラッパーを返す。
+        """保持番号の順に、新しい単数コンポーネント参照を作って反復する。
+
+        各参照の構築時に現在のShapeと番号を検証する。全件を先に検証する処理ではないため、
+        途中で失敗した場合も、それ以前の参照はすでにyieldされている。座標は取得しない。
 
         Yields:
-            Component: 現在のシェイプと番号を参照するラッパー。
+            Component: 同じShapeラッパーを共有する新しい単数参照。
         """
         for index in self._indices:
             yield self.component_class(self._shape, index)
 
     def __getitem__(self, index):
-        """コレクション内の位置で要素を取得する。
+        """保持列内のPython添字で、単数参照または部分コレクションを取得する。
+
+        例えば保持番号が(5, 2)なら[0]はMaya番号5の参照。負数とsliceに対応し、
+        boolもtupleと同じく0/1の位置として扱う。実番号入力時のbool拒否とは異なる。
 
         Args:
-            index (int | slice): 実番号ではなく保持列内の位置。負の添字にも対応する。
+            index (int | slice): Mayaの実番号ではなく保持列内の位置。
 
         Returns:
-            Component | Components: 単体、または同じ型の部分コレクション。
+            Component | Components: 単数は新しい参照、sliceは同じ型の新しいコレクション。
+                どちらも同じShapeラッパーを共有し、取得対象の現在の番号範囲を再検証する。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
+            TypeError: tupleで受理しない添字型、または非対応のShape型の場合。
+            IndexError: 保持列の位置、または取得対象の現在のMaya番号が範囲外の場合。
+            ValueError: sliceのstepが0の場合。
+            RuntimeError: シェイプが無効な場合。
         """
         if isinstance(index, slice):
             return type(self)(self._shape, self._indices[index])
@@ -360,19 +396,20 @@ class Components:
 
     @property
     def shape(self):
-        """所有シェイプを取得する。
+        """保持している所有シェイプの参照を返す。
 
         Returns:
-            Shape: 保持しているシェイプ。
+            Shape: 構築時と同じラッパー。コピーや有効性の再照会は行わない。
         """
         return self._shape
 
     @property
     def indices(self):
-        """保持している実番号を取得する。
+        """保持しているMaya実番号の不変tupleを返す。
 
         Returns:
-            tuple[int, ...]: 順序を維持した重複なしの番号列。
+            tuple[int, ...]: 初出順で重複を除いた保持値そのもの。新しいコピーは作らず、
+                現在の番号範囲も再検証しない。カーブCVではOpenMayaの番号を保持する。
         """
         return self._indices
 
@@ -397,7 +434,8 @@ class Components:
 
         ``maya.cmds`` へ多数の要素を渡す用途向け(``mlib.select`` などが使う)。
         番号 ``[0, 1, 2, 5, 3]`` は ``vtx[0:2]``・``vtx[5]``・``vtx[3]`` になり、
-        展開した順序は保持順と一致する。全番号の再検証はまとめて1回だけ行う。
+        番号をソートせず、保持順で+1ずつ連続する区間だけをまとめる。
+        全番号の再検証はまとめて1回だけ行う。
 
         Returns:
             list[str]: ``|cube|cubeShape.vtx[0:2]`` のような名前。空のコレクションは空リスト。
@@ -603,15 +641,16 @@ class Components:
         """
         return [point[axis] for point in self.getPosition(**space)]
 
-    def _set_coordinate(self, axis, value, **space):
+    def _set_coordinate(self, axis, value, *, fast=False, **space):
         """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。
 
         Args:
             axis: 座標成分の番号。0=X、1=Y、2=Z。
             value: 指定軸へ設定する座標値。
+            fast (bool): 座標更新へ渡す直接編集の指定。
             **space: 座標空間の指定。ws=Trueでワールド空間。
         """
-        return self.setPositions(self._axis_rows(self.getPosition(**space), axis, value), **space)
+        return self.setPositions(self._axis_rows(self.getPosition(**space), axis, value), fast=fast, **space)
 
     def _axis_rows(self, positions, axis, value):
         """軸の一括設定用座標を作る。スカラーは全要素、列は保持順に対応する。

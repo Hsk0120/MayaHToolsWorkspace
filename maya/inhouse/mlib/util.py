@@ -14,6 +14,9 @@ from operator import index as _as_index
 
 __all__ = ["legalizeName", "measure", "mirrorArguments"]
 
+# 長短のどちらを省略したかを区別する。値として渡すための定数ではない。
+_UNSET = ...
+
 #: 名前空間の区切り文字。区切りとして残し、区間ごとに検査する。
 _SEPARATOR = ":"
 
@@ -30,6 +33,10 @@ _NOT_AT_HEAD = frozenset(string.digits)
 _TYPE_CACHE_LIMIT = 256
 _OM2_TYPES = {}
 _STATEFUL_TYPES = {}
+
+
+class _ArgumentError(TypeError):
+    """長短引数の競合・必須値の欠落を、複数形でもTypeErrorとして伝える。"""
 
 
 def legalizeName(name):
@@ -297,15 +304,20 @@ def _restore_state(target, state, slots):
 
 
 def _copy_state(source, target, memo=None):
-    """利用者の派生クラスが持つ追加のアトリビュート(``__dict__`` と ``__slots__``)を複製先へ写す。
+    """数学成分を作成済みの複製先へ、派生クラスの追加Python状態だけを写す。
+
+    数学成分の確保・コピーは呼出し側が担当する。この関数は__dict__/__slots__を
+    取り出して設定し、memo=Noneでは追加値の参照を浅く写す。memo指定時は
+    source→targetを先に登録してから深くコピーし、自己参照を複製先へ対応付ける。
+    通常の演算や型変換へ暗黙に追加状態を伝播する仕組みではない。
 
     Args:
-        source (object): 複製元。
-        target (object): 複製先。source と同じクラスのインスタンス。
-        memo (dict | None): ``copy.deepcopy`` の memo。None なら浅い複製。
+        source (object): コピー元の数学値。
+        target (object): 数学成分を独立確保した同型のコピー先。
+        memo (dict | None): copy.deepcopyの共有辞書。Noneは浅いコピー。
 
     Returns:
-        object: target。
+        object: 渡されたtarget自身。sourceの数学成分は変更しない。
     """
     if memo is not None:
         memo[id(source)] = target

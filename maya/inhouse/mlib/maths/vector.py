@@ -785,16 +785,18 @@ class Vector(om2.MVector):
         return Vector(_MVector.normal(self, *args))
 
     def rotateBy(self, *args):
-        """指定した回転を適用したVectorの複製を返す。
+        """OpenMayaの回転規則でXYZベクトルを回し、独立したVectorを返す。
 
-        自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
+        MVector.rotateBy()へ引数をそのまま渡し、自身や回転引数は変更しない。
+        Quaternionの事前正規化やゼロ拒否を独自に加えないため、
+        Quaternion.rotateVector()の正規化コピーによる回転とは入力条件が異なる。
 
         Args:
-            *args: Quaternion/EulerRotate等の回転rot、またはOpenMayaの軸定数と
-                radの角度angleを指定する。
+            *args: Quaternion/EulerRotateなどの回転、またはOpenMayaの軸定数とrad角度。
+                多重定義の受理型はMVector.rotateBy()に従う。
 
         Returns:
-            Vector: 演算結果を保持する新しいmlib値。
+            Vector: 基底Vectorの新しい値。派生型や追加Python状態は引き継がない。
         """
         return Vector(_MVector.rotateBy(self, *args))
 

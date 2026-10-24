@@ -6,6 +6,7 @@ import unittest
 
 import mlib
 import maya.cmds as cmds
+from mlib.util import _UNSET
 
 
 class ConnectionDirectionsTest(unittest.TestCase):
@@ -71,18 +72,22 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertEqual(pair, (center, source))
 
     def test_query_original_positional_signature_is_preserved(self):
-        """新しい方向別名を足しても従来の位置引数・既定値を変更しない。"""
+        """従来の位置引数を保ち、追加別名と省略判定を署名に明示する。"""
         names = ("self", "s", "d", "c", "t", "et", "scn", "source", "destination",
                  "connections", "type", "exactType", "skipConversionNodes", "asPair",
                  "asNode", "checkChildren", "checkElements", "index", "pcls")
-        defaults = (True, True, False, None, False, False, True, True, False, None,
-                    False, False, False, False, True, True, None, None)
+        defaults = (True, True, False, None, False, False, _UNSET, _UNSET, False, None,
+                    False, False, False, False, True, True, _UNSET, None)
         signature = inspect.signature(mlib.plugs.Plug.getConnections)
-        self.assertEqual(tuple(signature.parameters), names)
+        aliases = ("idx", "src", "dst")
+        self.assertEqual(tuple(signature.parameters), names + aliases)
         self.assertEqual(tuple(parameter.default for parameter in
-                               list(signature.parameters.values())[1:]), defaults)
-        for parameter in signature.parameters.values():
+                               list(signature.parameters.values())[1:len(names)]), defaults)
+        for parameter in list(signature.parameters.values())[:len(names)]:
             self.assertEqual(parameter.kind, inspect.Parameter.POSITIONAL_OR_KEYWORD)
+        for alias in aliases:
+            self.assertEqual(signature.parameters[alias].kind, inspect.Parameter.KEYWORD_ONLY)
+            self.assertIs(signature.parameters[alias].default, _UNSET)
         source, center, destinations = self._chain("positional")
         self.assertEqual(center.getConnections(True, False, False, None, False, False,
                                               True, True, False, None, False, False,

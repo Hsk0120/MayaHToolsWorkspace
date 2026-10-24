@@ -35,3 +35,7 @@ class NamingContractsTest(unittest.TestCase):
         self.assertTrue(callable(Joints.getInverseScale))
         self.assertTrue(callable(SkinClusters.getMaxInfluences))
         self.assertNotIn('joint_orient', Joints.__dict__)
+
+
+if __name__ == "__main__":
+    unittest.main()

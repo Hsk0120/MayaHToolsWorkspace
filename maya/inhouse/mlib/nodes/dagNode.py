@@ -1,17 +1,23 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
 import inspect
+from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from ..decorator import undoChunk
+from ..util import _ArgumentError, _UNSET
 from .node import Node, Nodes
 
 
 class DagNode(Node):
-    """DAGノードの共通基底。具象ラッパーの型登録は変更しない。"""
+    """TransformやShapeのノード参照とDAGパスを保持し、階層を照会する。
+
+    getParent/getChildrenは保持するインスタンスのパスを基準にする。
+    全インスタンスのパスはgetInstancesで取得する。
+    """
 
     def getSkinClusters(self):
         """自身のジオメトリを変形するSkinClusterを取得する。
@@ -96,10 +102,13 @@ class DagNode(Node):
         return result
 
     def mpath(self):
-        """保持するインスタンスのDAGパスを取得する。
+        """保持するインスタンスのDAGパスをコピーせず取得する。
+
+        返すMDagPathは内部で保持する可変オブジェクトと同一。
+        push/pop等で編集する場合は ``om2.MDagPath(node.mpath())`` でコピーする。
 
         Returns:
-            om2.MDagPath: この参照が保持するDAGパス。
+            om2.MDagPath: この参照から借用するDAGパス。
 
         Raises:
             RuntimeError: 保持していたパスが無効な場合。他のインスタンスへ切り替えない。
@@ -107,13 +116,18 @@ class DagNode(Node):
         return self._current_dag_path()
 
     def getInstances(self, noSelf=False):
-        """同じDAGノードの各インスタンスを取得する。
+        """同じDAGノードへ到達する全インスタンスの参照を取得する。
 
         Args:
-            noSelf (bool): 現在のパスを除外する。
+            noSelf (bool): Trueなら保持するパスを除外する。既定False。
 
         Returns:
-            list[DagNode]: 間接インスタンスを含むパスごとのノード参照。
+            list[DagNode]: 間接インスタンスも含む、Maya APIの列挙順の参照。
+                保持するパスには自身、それ以外には新しいラッパーを返す。
+                Mayaノードの複製やインスタンスの追加は行わない。
+
+        Raises:
+            RuntimeError: 保持するDAGパスが無効な場合。
         """
         original = self.mpath().fullPathName()
         return [self if path.fullPathName() == original else Node(om2.MDagPath(path))
@@ -121,13 +135,21 @@ class DagNode(Node):
                 if not noSelf or path.fullPathName() != original]
 
     def getParents(self, indirect=False):
-        """直接の親をインスタンスごとに取得する。
+        """直接の親を、親ノード単位またはインスタンスのパス単位で取得する。
 
         Args:
-            indirect (bool): 間接インスタンスを含む全ての親パスを返す。
+            indirect (bool): FalseはMFnDagNodeの親ノード順で各親を一つずつ返す。
+                保持パスの親に一致するノードにはそのパスを使い、
+                他の親はMayaから得た一つのパスを使う。
+                TrueはgetInstancesの順で各パスの直接の親を返し、
+                親自身のインスタンス化による別パスも含める。祖先全体の取得ではない。
 
         Returns:
-            list[DagNode]: 直接の親。ルートでは空リスト。
+            list[DagNode]: 直接の親の参照。返却時の重複統合は行わない。
+                保持するパスがワールド直下なら空リスト。
+
+        Raises:
+            RuntimeError: 保持するDAGパスが無効な場合。
         """
         parent = self.getParent()
         if parent is None:
@@ -170,13 +192,16 @@ class DagNode(Node):
         return parent
 
     def getParent(self, step=1):
-        """親ノードを登録された型の Node として取得する。
+        """保持するDAGパスを指定階層だけ遡った親ノードを取得する。
 
         Args:
             step (int): 遡る階層数。0以下またはルートを越える場合はNone。
 
         Returns:
-            Node | None: 親ノード。親がない場合は ``None``。
+            Node | None: 親のパスを保持する新しいラッパー。親がない場合はNone。
+
+        Raises:
+            RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。
         """
         if step <= 0:
             return None
@@ -187,10 +212,13 @@ class DagNode(Node):
         return Node(path)
 
     def getFullPath(self):
-        """保持するDAGインスタンスの完全パス。
+        """保持するDAGインスタンスの完全パスを取得する。
 
         Returns:
             str: 保持するDAGインスタンスの完全パス。
+
+        Raises:
+            RuntimeError: 保持するDAGパスが無効な場合。空文字列には変換しない。
         """
         return self.mpath().fullPathName()
 
@@ -198,22 +226,29 @@ class DagNode(Node):
                     order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
         """直接の子、または指定順の子孫をDAGパスを保持して取得する。
 
+        名前から再解決せず、保持するパスに子を継ぎ足して探索する。
+        同じMayaノードへ別パスから到達した場合も、ノード単位で重複統合しない。
+
         Args:
             shapes (bool): Shapeも含める。既定はTransformのみ。
             intermediates (bool): 中間オブジェクトを含める。
+                Falseで除外した子の下は探索しない。
             allDescendents (bool): Trueは子孫全体、Falseは直接の子だけ。
             order (str): depthFirstまたはbreadthFirst。兄弟間はDAGの子順。
-            leaves (bool): 子Transformを持たないTransformだけを再帰取得する。
+            leaves (bool): 探索対象の子Transformを持たないTransformだけを再帰取得する。
                 Shapeの有無は葉の判定に関与しない。shapes=Trueとは併用しない。
-            includeSelf (bool): 自身も取得対象に含める。自身が葉の場合も適用する。
+            includeSelf (bool): 自身も取得対象に含める。shapesやleavesの条件は適用する。
+                自身を返す場合は同じラッパーを使う。
             underWorld (bool): Shape下のアンダーワールドも探索する。
 
         Returns:
-            list[DagNode]: 保持するインスタンスのパスに沿ったノード。対象なしは空リスト。
+            list[DagNode]: 保持するインスタンスのパスに沿ったノード参照。
+                対象なし、またはノード自体が無効なら空リスト。
 
         Raises:
-            TypeError: 検索フラグがboolでない場合。
+            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない場合。
             ValueError: 探索順が不正、またはleavesとshapesを併用した場合。
+            RuntimeError: ノードは有効だが保持するDAGパスが無効な場合。
         """
         flags = (allDescendents, leaves, includeSelf, underWorld)
         if any(type(value) is not bool for value in flags):
@@ -241,24 +276,33 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    @_flag_aliases(index="idx")
-    def getShape(self, idx=0, intermediates=False):
+    def getShape(self, idx=_UNSET, intermediates=False, *, index=_UNSET):
         """Shape自身を返す。Transformでは指定Shapeを取得する。
 
         Args:
             idx (int): Shape自身では無視する。 別名 ``index`` も使用可能。
             intermediates (bool): Shape自身では無視する。
+            index (int): idxの別名。同時指定は不可。
 
         Returns:
             DagNode | None: Shapeなら自身、それ以外はNone。
         """
+        if index is not _UNSET:
+            if idx is not _UNSET:
+                raise _ArgumentError("Specify only one of 'idx' and 'index'")
+            idx = index
+        if idx is _UNSET:
+            idx = 0
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
 
     def getPartialPath(self):
-        """保持するDAGインスタンスの最短一意パス。
+        """保持するDAGインスタンスの最短一意パスを取得する。
 
         Returns:
             str: 保持するDAGインスタンスの最短一意パス。
+
+        Raises:
+            RuntimeError: 保持するDAGパスが無効な場合。空文字列には変換しない。
         """
         return self.mpath().partialPathName()
 
@@ -294,8 +338,6 @@ class DagNode(Node):
         """
         return bool(self.getPlug("visibility").get())
 
-    @_fast_edit
-    @undoChunk("mlibNodeSetVisible")
     def setVisibility(self, state, *, fast=False):
         """visibility を指定した状態に設定する。親やレイヤーの可視性は変更しない。
 
@@ -309,10 +351,13 @@ class DagNode(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not isinstance(state, bool):
-            raise TypeError("state must be a bool")
-        self.getPlug("visibility").set(state)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibNodeSetVisible"):
+            if not isinstance(state, bool):
+                raise TypeError("state must be a bool")
+            self.getPlug("visibility").set(state, fast=fast)
+            return self
 
     def getOutlinerVisibility(self):
         """アウトライナーでの表示を許可する設定値を取得する。
@@ -328,8 +373,6 @@ class DagNode(Node):
         """
         return not bool(self.getPlug("hiddenInOutliner").get())
 
-    @_fast_edit
-    @undoChunk("mlibNodeSetOutlinerVisibility")
     def setOutlinerVisibility(self, state, *, fast=False):
         """ノードのアウトライナー表示を切り替える。
 
@@ -348,10 +391,13 @@ class DagNode(Node):
         ビューポートのvisibilityは変更しない。表示の最終結果は各Outlinerの
         フィルターや非表示ノード表示設定にも依存する。
         """
-        if not isinstance(state, bool):
-            raise TypeError("state must be a bool")
-        self.getPlug("hiddenInOutliner").set(not state)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibNodeSetOutlinerVisibility"):
+            if not isinstance(state, bool):
+                raise TypeError("state must be a bool")
+            self.getPlug("hiddenInOutliner").set(not state, fast=fast)
+            return self
 
     def _direct_children(self, shapes, intermediates):
         """直接の子をAPIで列挙し、インスタンスの親パスを維持する。

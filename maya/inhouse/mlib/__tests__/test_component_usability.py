@@ -44,7 +44,11 @@ class ComponentUsabilityTest(unittest.TestCase):
         for shape, formal, short, expected in singles:
             getter = getattr(shape, formal)
             self.assertFalse(hasattr(type(shape), short))
-            self.assertEqual(str(inspect.signature(getter)), "(index)")
+            parameters = inspect.signature(getter).parameters
+            self.assertEqual(tuple(parameters), ("index", "idx"))
+            self.assertIs(parameters["index"].default, Ellipsis)
+            self.assertIs(parameters["idx"].default, Ellipsis)
+            self.assertEqual(parameters["idx"].kind, inspect.Parameter.KEYWORD_ONLY)
             self.assertIsInstance(getter(idx=0), expected)
             self.assertEqual(getter(0), getter(idx=0))
             for method in (getter,):

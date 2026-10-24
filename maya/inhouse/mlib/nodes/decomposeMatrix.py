@@ -1,8 +1,11 @@
 """行列を変換成分に分解するdecomposeMatrixを扱う。"""
 
-from ..decorator import _flag_aliases, _fast_edit, undoChunk
+from contextlib import nullcontext
+
+from ..decorator import undoChunk
 from ..maths import Matrix
 from ..maths.eulerRotate import orderIndex
+from ..util import _ArgumentError, _UNSET
 from .node import Node
 
 
@@ -25,8 +28,6 @@ class DecomposeMatrix(Node):
         """
         return self.getInputPlug().get()
 
-    @_fast_edit
-    @undoChunk("mlibDecomposeMatrixSetInput")
     def setInput(self, value, *, fast=False):
         """定数行列を入力する。入力接続は切断しない。
 
@@ -43,8 +44,11 @@ class DecomposeMatrix(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.getPlug("inputMatrix").set(Matrix(value))
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDecomposeMatrixSetInput"):
+            self.getPlug("inputMatrix").set(Matrix(value), fast=fast)
+            return self
 
     def getRotateOrder(self):
         """入力回転順序。MayaのrotateOrderと同じ番号0〜5。
@@ -54,8 +58,6 @@ class DecomposeMatrix(Node):
         """
         return self.getPlug("inputRotateOrder").get()
 
-    @_fast_edit
-    @undoChunk("mlibDecomposeMatrixRotateOrder")
     def setRotateOrder(self, order, *, fast=False):
         """出力Euler回転の回転順序を指定する。
 
@@ -74,17 +76,20 @@ class DecomposeMatrix(Node):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.getPlug("inputRotateOrder").set(orderIndex(order))
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDecomposeMatrixRotateOrder"):
+            self.getPlug("inputRotateOrder").set(orderIndex(order), fast=fast)
+            return self
 
-    @_flag_aliases(src="source", f="force")
-    @undoChunk("mlibDecomposeMatrixConnectInput")
-    def connectInput(self, source, force=False):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
         """行列Plugを入力へ接続する。
 
         Args:
             source (Plug): 接続元の行列Plug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
+            src (Plug): sourceの別名。同時指定は不可。
+            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             DecomposeMatrix: 自身。
@@ -92,5 +97,18 @@ class DecomposeMatrix(Node):
         Raises:
             RuntimeError: 型不一致などでMayaが接続を拒否した場合。
         """
-        source.connectTo(self.getPlug("inputMatrix"), force=force)
-        return self
+        if src is not _UNSET:
+            if source is not _UNSET:
+                raise _ArgumentError("Specify only one of 'source' and 'src'")
+            source = src
+        if f is not _UNSET:
+            if force is not _UNSET:
+                raise _ArgumentError("Specify only one of 'force' and 'f'")
+            force = f
+        if source is _UNSET:
+            raise _ArgumentError("Missing required argument: 'source'")
+        if force is _UNSET:
+            force = False
+        with undoChunk("mlibDecomposeMatrixConnectInput"):
+            source.connectTo(self.getPlug("inputMatrix"), force=force)
+            return self

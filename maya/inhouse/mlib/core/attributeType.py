@@ -267,15 +267,19 @@ def _convert_units(plug, value, to_ui=True):
         # Maya 2023のmesh.pnts子はUnitAttributeとして解決されても単位型が
         # kInvalidになる。座標の数値を維持し、存在しない単位を変換しない。
         return value
-    cls, internal = {
+    unit_class, internal_unit = {
         om2.MFnUnitAttribute.kAngle: (om2.MAngle, om2.MAngle.kRadians),
         om2.MFnUnitAttribute.kDistance: (om2.MDistance, om2.MDistance.kCentimeters),
         om2.MFnUnitAttribute.kTime: (om2.MTime, om2.MTime.kSeconds),
     }[unit_type]
-    if isinstance(value, cls):
-        return value.asUnits(cls.uiUnit() if to_ui else internal)
-    source, target = (internal, cls.uiUnit()) if to_ui else (cls.uiUnit(), internal)
-    return cls(value, source).asUnits(target)
+    if isinstance(value, unit_class):
+        # 単位オブジェクトは元単位を保持するため、数値用の元単位を付け直さない。
+        return value.asUnits(unit_class.uiUnit() if to_ui else internal_unit)
+    if to_ui:
+        source_unit, target_unit = internal_unit, unit_class.uiUnit()
+    else:
+        source_unit, target_unit = unit_class.uiUnit(), internal_unit
+    return unit_class(value, source_unit).asUnits(target_unit)
 
 
 def _read_angle(mplug):
@@ -350,7 +354,8 @@ def typed_data(mplug):
         mplug (om2.MPlug): 所有ノードとアトリビュートの有効性を検証済みのプラグ。
 
     Returns:
-        om2.MObject: 値のコピー。未初期化値はnull。
+        om2.MObject: 読み出した型付きデータのAPI参照。未初期化値はnull。
+            list等の独立したPython値への変換は呼出元が担当する。
 
     Raises:
         RuntimeError: null以外の理由でデータを取得できない場合。
@@ -375,7 +380,7 @@ def _read_array(mplug, factory, tuples=False):
     Args:
         mplug (om2.MPlug): 読取対象。
         factory (type): データfunction set。
-        tuples (bool): 点・ベクトルをtupleへ変換する。
+        tuples (bool): 点・ベクトル・行列の各要素をtupleへ変換する。
 
     Returns:
         list | None: 値のコピー。空配列は[]、未初期化データはNone。
@@ -384,7 +389,9 @@ def _read_array(mplug, factory, tuples=False):
     if data.isNull():
         return None
     values = factory(data).array()
-    return [tuple(value) for value in values] if tuples else list(values)
+    if tuples:
+        return [tuple(value) for value in values]
+    return list(values)
 
 
 _ARRAY_READERS = {
@@ -400,7 +407,8 @@ _ARRAY_READERS = {
 def value_reader(attribute):
     """``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。
 
-    アトリビュートの型はアトリビュートごとに変わらないため、Plug ごとに一度だけ求めて保持する。
+    関数を選ぶだけで値は読み取らない。呼出元のPlugが読取関数を保持し、
+    getのたびに現在値を取得する。
 
     Args:
         attribute (om2.MObject): アトリビュートの MObject。
@@ -408,8 +416,8 @@ def value_reader(attribute):
     Returns:
         callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
             角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/
-            stringArray/vectorArray/pointArrayが対象。それ以外は
-            ``_CMDS_READER`` (``cmds.getAttr`` で読む)。
+            stringArray/vectorArray/pointArray/matrixArrayが対象。それ以外は
+            ``_CMDS_READER``。この場合は呼出元がgeneric行列の判定やcmdsへの読取委譲を行う。
     """
     if attribute.hasFn(om2.MFn.kNumericAttribute):
         return _NUMERIC_READERS.get(om2.MFnNumericAttribute(attribute).numericType(), _CMDS_READER)

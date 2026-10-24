@@ -127,7 +127,11 @@ class PlugSimplificationTest(unittest.TestCase):
                     array.getElement(index)
         self.assertEqual(array[2147483647].mplug().logicalIndex(), 2147483647)
         self.assertEqual(array.getElements(), [])
-        self.assertEqual(tuple(inspect.signature(type(array).getElement).parameters), ("self", "index"))
+        parameters = inspect.signature(type(array).getElement).parameters
+        self.assertEqual(tuple(parameters), ("self", "index", "idx"))
+        self.assertIs(parameters["index"].default, Ellipsis)
+        self.assertIs(parameters["idx"].default, Ellipsis)
+        self.assertEqual(parameters["idx"].kind, inspect.Parameter.KEYWORD_ONLY)
 
 
 if __name__ == "__main__":

@@ -77,6 +77,39 @@ class BulkCollectionsTest(unittest.TestCase):
         self.assertEqual(empty.getTranslate(unknown=True), [])
         self.assertEqual(empty.getTranslate(unknown=True), [])
 
+    def test_later_alias_conflict_keeps_prior_edit_in_one_undo_chunk(self):
+        """後続の長短名競合は本文で止まり、先行変更だけを通常Undoで戻せる。"""
+        cmds.setAttr(self.names[1] + ".translateY", 7)
+        with self.assertRaisesRegex(TypeError, "setTranslate failed at item 1") as caught:
+            self.joints.callEach(
+                "setTranslate", [((4, 0, 0),), ((8, 0, 0),)],
+                [{"ws": False, "at": 4}, {"worldSpace": False, "ws": False, "at": 4}],
+            )
+        self.assertIsInstance(caught.exception.__cause__, TypeError)
+        self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 4)
+        self.assertEqual(cmds.getAttr(self.names[1] + ".translateX"), 0)
+        cmds.undo()
+        self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 0)
+        self.assertEqual(cmds.getAttr(self.names[1] + ".translateY"), 7)
+
+    def test_later_alias_conflict_does_not_undo_prior_fast_edit(self):
+        """fastの先行変更は残り、後続の長短名競合でもUndo履歴を追加しない。"""
+        cmds.setAttr(self.names[1] + ".translateY", 7)
+        undo_name = cmds.undoInfo(query=True, undoName=True)
+        with self.assertRaisesRegex(TypeError, "setTranslate failed at item 1") as caught:
+            self.joints.callEach(
+                "setTranslate", [((4, 0, 0),), ((8, 0, 0),)],
+                [{"ws": False, "at": 4, "fast": True},
+                 {"worldSpace": False, "ws": False, "at": 4, "fast": True}],
+            )
+        self.assertIsInstance(caught.exception.__cause__, TypeError)
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
+        self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 4)
+        self.assertEqual(cmds.getAttr(self.names[1] + ".translateX"), 0)
+        cmds.undo()
+        self.assertEqual(cmds.getAttr(self.names[1] + ".translateY"), 0)
+        self.assertEqual(cmds.getAttr(self.names[0] + ".translateX"), 4)
+
     def test_skin_methods_and_file_operations_are_explicit(self):
         meshes = [cmds.polyCube(name=self.ns + ":mesh")[0] for _ in range(2)]
         skins = mlib.nodes.SkinClusters([cmds.skinCluster(self.names, mesh, toSelectedBones=True)[0] for mesh in meshes])

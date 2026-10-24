@@ -785,19 +785,25 @@ class Matrix(om2.MMatrix):
 
     @property
     def values(self):
-        """行優先順の16要素を取得する。
+        """行列の16成分を行優先順の独立したtupleとして取得する。
+
+        Mayaの行ベクトル規約で、平行移動は添字12・13・14にある。
+        要素は数値のスナップショットで、行列を後から変更してもこのtupleは変わらない。
 
         Returns:
-            tuple[float, ...]: 4x4 行列の平坦な要素列。
+            tuple[float, ...]: 16要素。4行の入れ子形式はrowsを使う。
         """
         return tuple(_SCALED(self, 1.0))
 
     @property
     def rows(self):
-        """4x4 行列を行ごとの値として取得する。
+        """行列の16成分を、行ごとに区切った4行4列のtupleとして取得する。
+
+        各行もtupleであり、元の行列への可変参照ではない。
+        配列形の変更だけを行い、転置や座標空間・UI単位の変換は行わない。
 
         Returns:
-            tuple[tuple[float, float, float, float], ...]: 4行の行列値。
+            tuple[tuple[float, float, float, float], ...]: 行優先の4行。
         """
         values = tuple(_SCALED(self, 1.0))
         return (values[0:4], values[4:8], values[8:12], values[12:16])
@@ -943,17 +949,20 @@ class Matrix(om2.MMatrix):
         return Transformation(self)
 
     def decompose(self):
-        """行列を意味付きの変換成分へ分解する。
+        """Mayaの行列分解規約で、変換行列から独立したTRS・シアー値を取得する。
 
-        om2.MTransformationMatrix を1回だけ作って分解する。
+        一つのMTransformationMatrixで回転・スケール・シアーを分解し、平行移動は
+        元Matrixの添字12〜14から取得する。戻り値は独立した数学値として作る。
+        元のピボットやEulerの回転周期・元の負スケール軸を復元する操作ではない。
+        分解規約はOpenMayaに従い、UI単位への換算は行わない。
 
         Returns:
-            dict[str, object]: translate(Translate)、euler
-            (EulerRotate、XYZ 順序)、quaternion(Quaternion)、scale(Scale)、
-            shear(Shear)を含む辞書。
+            dict[str, object]: translate(Translate)、euler(EulerRotate、XYZ順序・rad)、
+                quaternion(Quaternion)、scale(Scale)、shear(Shear)を持つ新しい辞書。
+                各値を自身更新しても元のMatrixは変化しない。
 
         Raises:
-            ValueError: いずれかのスケール軸がゼロなどで分解できない場合。
+            ValueError: ゼロのスケール軸など、実装の分解前検査で拒否した場合。
         """
         tm = self._checked_transformation()
         euler = tm.rotation()
@@ -982,16 +991,17 @@ class Matrix(om2.MMatrix):
         return _MMatrix.isEquivalent(self, other, tolerance)
 
     def inverse(self):
-        """逆行列を新しいインスタンスとして返す。
+        """OpenMayaの特異性判定を通過した行列から、独立した逆行列を作る。
 
-        om2 の ``inverse()`` は特異行列でも例外にならないため、``isSingular()`` で
-        検査してから計算する。
+        isSingular()で検査してからMMatrix.inverse()を呼ぶ。
+        独自の厳密な行列式ゼロ比較や、UI単位に応じた閾値変更は行わない。
+        自身は変更せず、ノードの親子関係やシーンの逆変換を編集するものではない。
 
         Returns:
-            Matrix: 自身と同じクラスの逆行列。
+            Matrix: 自身と同じクラスの新しい逆行列。追加Python状態はコピーしない。
 
         Raises:
-            ValueError: 特異行列(行列式が 0)の場合。
+            ValueError: OpenMayaのisSingular()がTrueと判定した場合。
         """
         if self.isSingular():
             raise ValueError("Matrix is singular and cannot be inverted")
@@ -1006,17 +1016,18 @@ class Matrix(om2.MMatrix):
         return type(self)._wrap(_MMatrix.transpose(self))
 
     def transformPoint(self, value):
-        """行ベクトル規約で位置を変換する。
+        """行ベクトル規約でXYZ位置を変換し、平行移動を含む独立したTranslateを返す。
 
-        同次座標の w を 1 として扱い、射影除算は行わない。``om2.MPoint(p) * m`` と
-        同じ位置になる。
+        入力のXYZをw=1として扱い、MPointの元のwは無視する。
+        計算はom2.MPoint(x, y, z, 1.0) * matrixのXYZ相当で、射影除算は行わない。
+        自身と入力値は変更せず、ノードの移動やMaya座標空間の照会も行わない。
+        位置と行列の平行移動には同じ距離単位を使い、UI単位への換算はしない。
 
         Args:
-            value (om2.MVector | om2.MPoint | Iterable[float]): XYZ の3成分。
-                MPoint の w は無視する。
+            value (om2.MVector | om2.MPoint | Iterable[float]): 変換元のXYZ。MPointのwは使用しない。
 
         Returns:
-            Translate: 平行移動を含む変換結果。
+            Translate: 新しい位置値。入力の派生型や追加Python状態は引き継がない。
         """
         result = _zero(Translate)
         if isinstance(value, _MVector):
@@ -1033,15 +1044,17 @@ class Matrix(om2.MMatrix):
         return result
 
     def transformVector(self, value):
-        """行ベクトル規約で方向を変換する(``Vector(value) * m`` と同じ)。
+        """行ベクトル規約でXYZ方向を変換し、平行移動を含まない独立したVectorを返す。
 
-        同次座標の w を 0 として扱う。
+        XYZをw=0として扱い、Vector(value) * matrixと同じ方向変換を行う。
+        MPointのwは無視する。正規化・法線の逆転置変換・UI単位変換は行わず、
+        スケールやシアーによる長さの変化も結果へ含む。自身と入力値は変更しない。
 
         Args:
-            value (om2.MVector | om2.MPoint | Iterable[float]): XYZ の3成分。
+            value (om2.MVector | om2.MPoint | Iterable[float]): 変換元のXYZ方向。
 
         Returns:
-            Vector: 平行移動を含まない変換結果。
+            Vector: 新しい方向値。入力の派生型や追加Python状態は引き継がない。
         """
         result = _zero(Vector)
         if isinstance(value, _MVector):

@@ -3,17 +3,19 @@
 import inspect
 import math
 import numbers
+from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from ..core.fastWrite import set_attr, set_plug, writable
-from ..decorator import _flag_aliases, _fast_edit, _is_fast, undoChunk, undoTransaction
+from ..core.fastWrite import writable
+from ..decorator import undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector, Transformation
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
 from ..util import _world_space
+from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode, DagNodes
 from .node import Node
 
@@ -105,14 +107,23 @@ def _closest_euler(quaternion, reference):
 
 
 class Transform(DagNode):
-    """Maya transform ノードを matrix-first API で扱うラッパー。
+    """Transformのノード参照とDAGパスを保持し、変換値を照会・設定する。
 
-    評価済み値を取得するメソッドは、``ws=False`` （既定）でローカル空間、``ws=True`` でワールド空間の値を返す。
+    行列・TRS・ピボットを扱い、Shapeの頂点やCVの編集とは区別する。
+    距離はcm、角度はradを基本とし、MayaのUI単位とは独立する。
+    ``worldSpace`` の短縮名は ``ws``。ローカル側の基準は各メソッドで異なる。
+    通常の変更はmaya.cmdsでUndoに記録し、対応するfastはOpenMayaで直接更新する。
+    safeを持つsetterは書けない成分を残すが、目標値との一致や全体の巻き戻しは保証しない。
     """
 
-    @_flag_aliases(typ="type", mo="maintainOffset")
-    @undoChunk("mlibTransformAddConstraint")
-    def addConstraint(self, sources, type="parent", maintainOffset=False, **kwargs):
+    def addConstraint(self, sources, type=_UNSET, maintainOffset=_UNSET, *, typ=_UNSET, mo=_UNSET,
+        createCache=_UNSET, cc=_UNSET, decompRotationToChild=_UNSET, dr=_UNSET, deleteCache=_UNSET, dc=_UNSET,
+        edit=_UNSET, e=_UNSET, layer=_UNSET, l=_UNSET, name=_UNSET, n=_UNSET, query=_UNSET, q=_UNSET,
+        remove=_UNSET, rm=_UNSET, skipRotate=_UNSET, sr=_UNSET, skipTranslate=_UNSET, st=_UNSET,
+        targetList=_UNSET, tl=_UNSET, weight=_UNSET, w=_UNSET, weightAliasList=_UNSET, wal=_UNSET, offset=_UNSET,
+        o=_UNSET, skip=_UNSET, sk=_UNSET, scaleCompensate=_UNSET, sc=_UNSET, aimVector=_UNSET, aim=_UNSET,
+        upVector=_UNSET, u=_UNSET, worldUpObject=_UNSET, wuo=_UNSET, worldUpType=_UNSET, wut=_UNSET,
+        worldUpVector=_UNSET, wu=_UNSET, **kwargs):
         """自身を拘束するコンストレイントを作成する。
 
         Args:
@@ -126,7 +137,51 @@ class Transform(DagNode):
                 geometry、normal、tangent、pointOnPoly。または Constraint 接尾辞付きの型名。
             maintainOffset (bool): True の場合は現在の相対位置・回転を維持する。
                 False の場合は Maya の既定動作で拘束する。
+            createCache (Sequence[float]): MayaのcreateCacheフラグ。開始・終了時刻の2値をUI時間単位で指定する。
+            cc (Sequence[float]): createCacheの別名。同時指定は不可。
+            decompRotationToChild (bool): MayaのdecompRotationToChildフラグ。省略時はMayaの既定に従う。
+            dr (bool): decompRotationToChildの別名。同時指定は不可。
+            deleteCache (bool): MayaのdeleteCacheフラグ。省略時はMayaの既定に従う。
+            dc (bool): deleteCacheの別名。同時指定は不可。
+            edit (bool): Trueは作成専用のこのメソッドでは拒否する。
+            e (bool): editの別名。同時指定は不可。
+            layer (str): Mayaのlayerフラグ。省略時はMayaの既定に従う。
+            l (str): layerの別名。同時指定は不可。
+            name (str): Mayaのnameフラグ。省略時はMayaの既定に従う。
+            n (str): nameの別名。同時指定は不可。
+            query (bool): Trueは作成専用のこのメソッドでは拒否する。
+            q (bool): queryの別名。同時指定は不可。
+            remove (bool): Mayaのremoveフラグ。省略時はMayaの既定に従う。
+            rm (bool): removeの別名。同時指定は不可。
+            skipRotate (str | Sequence[str]): MayaのskipRotateフラグ。省略時はMayaの既定に従う。
+            sr (str | Sequence[str]): skipRotateの別名。同時指定は不可。
+            skipTranslate (str | Sequence[str]): MayaのskipTranslateフラグ。省略時はMayaの既定に従う。
+            st (str | Sequence[str]): skipTranslateの別名。同時指定は不可。
+            targetList (bool): MayaのtargetListフラグ。省略時はMayaの既定に従う。
+            tl (bool): targetListの別名。同時指定は不可。
+            weight (float): Mayaのweightフラグ。省略時はMayaの既定に従う。
+            w (float): weightの別名。同時指定は不可。
+            weightAliasList (bool): MayaのweightAliasListフラグ。省略時はMayaの既定に従う。
+            wal (bool): weightAliasListの別名。同時指定は不可。
+            offset (Sequence[float]): Mayaのoffsetフラグ。(x, y, z)の3値を指定する。
+            o (Sequence[float]): offsetの別名。同時指定は不可。
+            skip (str | Sequence[str]): Mayaのskipフラグ。省略時はMayaの既定に従う。
+            sk (str | Sequence[str]): skipの別名。同時指定は不可。
+            scaleCompensate (bool): MayaのscaleCompensateフラグ。省略時はMayaの既定に従う。
+            sc (bool): scaleCompensateの別名。同時指定は不可。
+            aimVector (Sequence[float]): MayaのaimVectorフラグ。(x, y, z)の3値を指定する。
+            aim (Sequence[float]): aimVectorの別名。同時指定は不可。
+            upVector (Sequence[float]): MayaのupVectorフラグ。(x, y, z)の3値を指定する。
+            u (Sequence[float]): upVectorの別名。同時指定は不可。
+            worldUpObject (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): ワールドアップの参照ノード。PlugやComponentは所有ノードへ解決する。
+            wuo (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): worldUpObjectの別名。同時指定は不可。
+            worldUpType (str): MayaのworldUpTypeフラグ。省略時はMayaの既定に従う。
+            wut (str): worldUpTypeの別名。同時指定は不可。
+            worldUpVector (Sequence[float]): MayaのworldUpVectorフラグ。(x, y, z)の3値を指定する。
+            wu (Sequence[float]): worldUpVectorの別名。同時指定は不可。
             **kwargs: aimVector・worldUpObject等の作成フラグ。短名も使用可能。
+            typ (str): typeの別名。同時指定は不可。
+            mo (bool): maintainOffsetの別名。同時指定は不可。
 
         Returns:
             Constraint: 対応する具象ラッパー。同じ種類が既存なら Maya の規則で
@@ -148,70 +203,206 @@ class Transform(DagNode):
         typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
         maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
         """
-        from .node import Node as _InputNode
-        from .node import Nodes as _InputNodes
-        from .constraint import Constraint
+        if cc is not _UNSET:
+            if createCache is not _UNSET:
+                raise _ArgumentError("Specify only one of 'createCache' and 'cc'")
+            createCache = cc
+        if createCache is not _UNSET:
+            kwargs["createCache"] = createCache
+        if dr is not _UNSET:
+            if decompRotationToChild is not _UNSET:
+                raise _ArgumentError("Specify only one of 'decompRotationToChild' and 'dr'")
+            decompRotationToChild = dr
+        if decompRotationToChild is not _UNSET:
+            kwargs["decompRotationToChild"] = decompRotationToChild
+        if dc is not _UNSET:
+            if deleteCache is not _UNSET:
+                raise _ArgumentError("Specify only one of 'deleteCache' and 'dc'")
+            deleteCache = dc
+        if deleteCache is not _UNSET:
+            kwargs["deleteCache"] = deleteCache
+        if e is not _UNSET:
+            if edit is not _UNSET:
+                raise _ArgumentError("Specify only one of 'edit' and 'e'")
+            edit = e
+        if edit is not _UNSET:
+            kwargs["edit"] = edit
+        if l is not _UNSET:
+            if layer is not _UNSET:
+                raise _ArgumentError("Specify only one of 'layer' and 'l'")
+            layer = l
+        if layer is not _UNSET:
+            kwargs["layer"] = layer
+        if n is not _UNSET:
+            if name is not _UNSET:
+                raise _ArgumentError("Specify only one of 'name' and 'n'")
+            name = n
+        if name is not _UNSET:
+            kwargs["name"] = name
+        if q is not _UNSET:
+            if query is not _UNSET:
+                raise _ArgumentError("Specify only one of 'query' and 'q'")
+            query = q
+        if query is not _UNSET:
+            kwargs["query"] = query
+        if rm is not _UNSET:
+            if remove is not _UNSET:
+                raise _ArgumentError("Specify only one of 'remove' and 'rm'")
+            remove = rm
+        if remove is not _UNSET:
+            kwargs["remove"] = remove
+        if sr is not _UNSET:
+            if skipRotate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'skipRotate' and 'sr'")
+            skipRotate = sr
+        if skipRotate is not _UNSET:
+            kwargs["skipRotate"] = skipRotate
+        if st is not _UNSET:
+            if skipTranslate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'skipTranslate' and 'st'")
+            skipTranslate = st
+        if skipTranslate is not _UNSET:
+            kwargs["skipTranslate"] = skipTranslate
+        if tl is not _UNSET:
+            if targetList is not _UNSET:
+                raise _ArgumentError("Specify only one of 'targetList' and 'tl'")
+            targetList = tl
+        if targetList is not _UNSET:
+            kwargs["targetList"] = targetList
+        if w is not _UNSET:
+            if weight is not _UNSET:
+                raise _ArgumentError("Specify only one of 'weight' and 'w'")
+            weight = w
+        if weight is not _UNSET:
+            kwargs["weight"] = weight
+        if wal is not _UNSET:
+            if weightAliasList is not _UNSET:
+                raise _ArgumentError("Specify only one of 'weightAliasList' and 'wal'")
+            weightAliasList = wal
+        if weightAliasList is not _UNSET:
+            kwargs["weightAliasList"] = weightAliasList
+        if o is not _UNSET:
+            if offset is not _UNSET:
+                raise _ArgumentError("Specify only one of 'offset' and 'o'")
+            offset = o
+        if offset is not _UNSET:
+            kwargs["offset"] = offset
+        if sk is not _UNSET:
+            if skip is not _UNSET:
+                raise _ArgumentError("Specify only one of 'skip' and 'sk'")
+            skip = sk
+        if skip is not _UNSET:
+            kwargs["skip"] = skip
+        if sc is not _UNSET:
+            if scaleCompensate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'scaleCompensate' and 'sc'")
+            scaleCompensate = sc
+        if scaleCompensate is not _UNSET:
+            kwargs["scaleCompensate"] = scaleCompensate
+        if aim is not _UNSET:
+            if aimVector is not _UNSET:
+                raise _ArgumentError("Specify only one of 'aimVector' and 'aim'")
+            aimVector = aim
+        if aimVector is not _UNSET:
+            kwargs["aimVector"] = aimVector
+        if u is not _UNSET:
+            if upVector is not _UNSET:
+                raise _ArgumentError("Specify only one of 'upVector' and 'u'")
+            upVector = u
+        if upVector is not _UNSET:
+            kwargs["upVector"] = upVector
+        if wuo is not _UNSET:
+            if worldUpObject is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldUpObject' and 'wuo'")
+            worldUpObject = wuo
+        if worldUpObject is not _UNSET:
+            kwargs["worldUpObject"] = worldUpObject
+        if wut is not _UNSET:
+            if worldUpType is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldUpType' and 'wut'")
+            worldUpType = wut
+        if worldUpType is not _UNSET:
+            kwargs["worldUpType"] = worldUpType
+        if wu is not _UNSET:
+            if worldUpVector is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldUpVector' and 'wu'")
+            worldUpVector = wu
+        if worldUpVector is not _UNSET:
+            kwargs["worldUpVector"] = worldUpVector
+        if typ is not _UNSET:
+            if type is not _UNSET:
+                raise _ArgumentError("Specify only one of 'type' and 'typ'")
+            type = typ
+        if mo is not _UNSET:
+            if maintainOffset is not _UNSET:
+                raise _ArgumentError("Specify only one of 'maintainOffset' and 'mo'")
+            maintainOffset = mo
+        if type is _UNSET:
+            type = "parent"
+        if maintainOffset is _UNSET:
+            maintainOffset = False
+        with undoChunk("mlibTransformAddConstraint"):
+            from .node import Node as _InputNode
+            from .node import Nodes as _InputNodes
+            from .constraint import Constraint
 
-        if not isinstance(type, str):
-            raise TypeError("type must be a string")
-        command_name = type if type.endswith("Constraint") else type + "Constraint"
-        # 型登録を重複管理せず、明示登録されたクラスと型名の対応から判定する。
-        supported = {
-            key for key, wrapper in Node._registry._classes.items()
-            if issubclass(wrapper, Constraint)
-        }
-        if command_name not in supported:
-            raise ValueError(f"Unsupported constraint type: {type}")
-        if not self.isValid():
-            raise RuntimeError("Cannot constrain an invalid transform")
-        from ..components.component import Component, Components
-        from ..plugs.plug import Plug
+            if not isinstance(type, str):
+                raise TypeError("type must be a string")
+            command_name = type if type.endswith("Constraint") else type + "Constraint"
+            # 型登録を重複管理せず、明示登録されたクラスと型名の対応から判定する。
+            supported = {
+                key for key, wrapper in Node._registry._classes.items()
+                if issubclass(wrapper, Constraint)
+            }
+            if command_name not in supported:
+                raise ValueError(f"Unsupported constraint type: {type}")
+            if not self.isValid():
+                raise RuntimeError("Cannot constrain an invalid transform")
+            from ..components.component import Component, Components
+            from ..plugs.plug import Plug
 
-        # Components は要素へ展開せず、所有シェイプ1つの拘束元として扱う。
-        if isinstance(sources, (Node, str, Plug, Component, Components,
-                                om2.MObject, om2.MDagPath, om2.MPlug)):
-            sources = [sources]
-        # 拘束元の transform の値を使う型。シェイプを拘束元にすると maya.cmds はターゲットの
-        # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
-        requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
-        names = []
-        for source in _InputNodes._resolve_inputs(sources):
-            if source is None or (isinstance(source, str) and not source):
-                raise TypeError("Constraint sources must be non-empty names or Node objects")
-            # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
-            # Component・"pCube1.vtx[0]" は所有シェイプを拘束元にする(maya.cmds へ
-            # プラグ名・コンポーネント名をそのまま渡すと拘束元として扱われないため)。
-            source = _InputNode._resolve_input(source)
-            if not source.isValid():
-                raise RuntimeError("Constraint target is invalid")
-            if requires_transform and not source.mnode().hasFn(om2.MFn.kTransform):
-                raise TypeError(
-                    f"{command_name} の拘束元には Transform(joint・IkHandle を含む)を指定してください"
-                    f"(シェイプ・Component・DG ノードは不可): {source.__class__.__name__} {source.getName()!r}"
-                )
-            names.append(source.getFullName())
-        if not names:
-            raise ValueError("At least one constraint source is required")
-        from ..decorator import _normalize_flags
+            # Components は要素へ展開せず、所有シェイプ1つの拘束元として扱う。
+            if isinstance(sources, (Node, str, Plug, Component, Components,
+                                    om2.MObject, om2.MDagPath, om2.MPlug)):
+                sources = [sources]
+            # 拘束元の transform の値を使う型。シェイプを拘束元にすると maya.cmds はターゲットの
+            # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
+            requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
+            names = []
+            for source in _InputNodes._resolve_inputs(sources):
+                if source is None or (isinstance(source, str) and not source):
+                    raise TypeError("Constraint sources must be non-empty names or Node objects")
+                # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
+                # Component・"pCube1.vtx[0]" は所有シェイプを拘束元にする(maya.cmds へ
+                # プラグ名・コンポーネント名をそのまま渡すと拘束元として扱われないため)。
+                source = _InputNode._resolve_input(source)
+                if not source.isValid():
+                    raise RuntimeError("Constraint target is invalid")
+                if requires_transform and not source.mnode().hasFn(om2.MFn.kTransform):
+                    raise TypeError(
+                        f"{command_name} の拘束元には Transform(joint・IkHandle を含む)を指定してください"
+                        f"(シェイプ・Component・DG ノードは不可): {source.__class__.__name__} {source.getName()!r}"
+                    )
+                names.append(source.getFullName())
+            if not names:
+                raise ValueError("At least one constraint source is required")
 
-        command_kwargs = _normalize_flags(command_name, kwargs)
-        if command_kwargs.get("query") or command_kwargs.get("edit"):
-            raise ValueError("addConstraint supports creation only; use Maya constraint commands for query/edit")
-        if "worldUpObject" in command_kwargs:
-            command_kwargs["worldUpObject"] = _InputNode._input_name(command_kwargs["worldUpObject"])
-        if command_name in {
-            "parentConstraint",
-            "pointConstraint",
-            "orientConstraint",
-            "scaleConstraint",
-            "aimConstraint",
-        }:
-            command_kwargs["maintainOffset"] = maintainOffset
-        result = getattr(cmds, command_name)(*names, self.getFullName(), **command_kwargs)
-        return Node(result[0])
+            command_kwargs = dict(kwargs)
+            if command_kwargs.get("query") or command_kwargs.get("edit"):
+                raise ValueError("addConstraint supports creation only; use Maya constraint commands for query/edit")
+            if "worldUpObject" in command_kwargs:
+                command_kwargs["worldUpObject"] = _InputNode._input_name(command_kwargs["worldUpObject"])
+            if command_name in {
+                "parentConstraint",
+                "pointConstraint",
+                "orientConstraint",
+                "scaleConstraint",
+                "aimConstraint",
+            }:
+                command_kwargs["maintainOffset"] = maintainOffset
+            result = getattr(cmds, command_name)(*names, self.getFullName(), **command_kwargs)
+            return Node(result[0])
 
-    @_fast_edit
-    @undoChunk("mlibTransformDeleteConstraints")
     def deleteConstraints(self, *, fast=False):
         """自身を拘束するconstraintと、経由するpairBlendを削除する。
 
@@ -232,74 +423,77 @@ class Transform(DagNode):
             RuntimeError: 無効なTransform、共有出力、参照・ロックされた削除対象、
                 またはMayaによる削除失敗。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot edit an invalid transform")
-        owner = self.mnode()
-        deleting, bridges, objects = set(), set(), {}
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformDeleteConstraints"):
+            if not self.isValid():
+                raise RuntimeError("Cannot edit an invalid transform")
+            owner = self.mnode()
+            deleting, bridges, objects = set(), set(), {}
 
-        def key(obj):
-            """同一探索内のMObjectへ軽量な識別子を付ける。"""
-            token = om2.MObjectHandle(obj).hashCode()
-            objects[token] = obj
-            return token
+            def key(obj):
+                """同一探索内のMObjectへ軽量な識別子を付ける。"""
+                token = om2.MObjectHandle(obj).hashCode()
+                objects[token] = obj
+                return token
 
-        def inputs(obj):
-            """message以外の入力接続元を重複なく取得する。"""
-            result = {}
-            for plug in om2.MFnDependencyNode(obj).getConnections():
-                if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
-                    continue
-                for source in plug.connectedTo(True, False):
-                    if not source.attribute().hasFn(om2.MFn.kMessageAttribute):
-                        result[key(source.node())] = source.node()
-            return result.values()
+            def inputs(obj):
+                """message以外の入力接続元を重複なく取得する。"""
+                result = {}
+                for plug in om2.MFnDependencyNode(obj).getConnections():
+                    if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
+                        continue
+                    for source in plug.connectedTo(True, False):
+                        if not source.attribute().hasFn(om2.MFn.kMessageAttribute):
+                            result[key(source.node())] = source.node()
+                return result.values()
 
-        def upstream(obj, path):
-            """constraintへ到達する限定した中継経路を記録する。"""
-            token = key(obj)
-            if token in path:
-                return False
-            fn = om2.MFnDependencyNode(obj)
-            if obj.hasFn(om2.MFn.kConstraint):
-                deleting.add(token)
-                return True
-            if fn.typeName not in ("pairBlend", "unitConversion"):
-                return False
-            found = False
-            for source in inputs(obj):
-                found = upstream(source, path | {token}) or found
-            if found:
-                (deleting if fn.typeName == "pairBlend" else bridges).add(token)
-            return found
+            def upstream(obj, path):
+                """constraintへ到達する限定した中継経路を記録する。"""
+                token = key(obj)
+                if token in path:
+                    return False
+                fn = om2.MFnDependencyNode(obj)
+                if obj.hasFn(om2.MFn.kConstraint):
+                    deleting.add(token)
+                    return True
+                if fn.typeName not in ("pairBlend", "unitConversion"):
+                    return False
+                found = False
+                for source in inputs(obj):
+                    found = upstream(source, path | {token}) or found
+                if found:
+                    (deleting if fn.typeName == "pairBlend" else bridges).add(token)
+                return found
 
-        owner_key = key(owner)
-        for source in inputs(owner):
-            upstream(source, {owner_key})
-        allowed = deleting | bridges | {owner_key}
-        for token in deleting | bridges:
-            fn = om2.MFnDependencyNode(objects[token])
-            for plug in fn.getConnections():
-                if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
-                    continue
-                for destination in plug.connectedTo(False, True):
-                    if (not destination.attribute().hasFn(om2.MFn.kMessageAttribute)
-                            and key(destination.node()) not in allowed):
-                        raise RuntimeError("Constraint path has shared outputs: " + fn.name())
-        for token in deleting:
-            fn = om2.MFnDependencyNode(objects[token])
-            if fn.isFromReferencedFile or fn.isLocked:
-                raise RuntimeError("Cannot delete referenced or locked node: " + fn.name())
-        names = sorted(Node(objects[token]).getFullName() for token in deleting)
-        if names:
-            if _is_fast():
-                self._detach_inputs(objects[token] for token in deleting)
-                modifier = om2.MDagModifier()
-                for token in deleting:
-                    modifier.deleteNode(objects[token], False)
-                modifier.doIt()
-            else:
-                cmds.delete(names)
-        return names
+            owner_key = key(owner)
+            for source in inputs(owner):
+                upstream(source, {owner_key})
+            allowed = deleting | bridges | {owner_key}
+            for token in deleting | bridges:
+                fn = om2.MFnDependencyNode(objects[token])
+                for plug in fn.getConnections():
+                    if plug.attribute().hasFn(om2.MFn.kMessageAttribute):
+                        continue
+                    for destination in plug.connectedTo(False, True):
+                        if (not destination.attribute().hasFn(om2.MFn.kMessageAttribute)
+                                and key(destination.node()) not in allowed):
+                            raise RuntimeError("Constraint path has shared outputs: " + fn.name())
+            for token in deleting:
+                fn = om2.MFnDependencyNode(objects[token])
+                if fn.isFromReferencedFile or fn.isLocked:
+                    raise RuntimeError("Cannot delete referenced or locked node: " + fn.name())
+            names = sorted(Node(objects[token]).getFullName() for token in deleting)
+            if names:
+                if fast:
+                    self._detach_inputs(objects[token] for token in deleting)
+                    modifier = om2.MDagModifier()
+                    for token in deleting:
+                        modifier.deleteNode(objects[token], False)
+                    modifier.doIt()
+                else:
+                    cmds.delete(names)
+            return names
 
     def transformFn(self):
         """Transform 用の MFnTransform を取得する。
@@ -309,16 +503,14 @@ class Transform(DagNode):
         """
         return om2.MFnTransform(self.mpath())
 
-    @_flag_aliases(attrs="attributes")
-    @_fast_edit
-    @undoChunk("mlibTransformReset")
-    def reset(self, attributes=None, *, fast=False):
+    def reset(self, attributes=_UNSET, *, fast=False, attrs=_UNSET):
         """指定アトリビュートを定義上の既定値へ戻す。
 
         Args:
             attributes (str | Iterable[str] | None): tx/translateX/translateなど。
                 省略時はtranslate・rotate・scale・shear。独自数値アトリビュートも可。 別名 ``attrs`` も使用可能。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。
+            attrs (str | Iterable[str] | None): attributesの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。
@@ -332,28 +524,35 @@ class Transform(DagNode):
         offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
         行わない。途中の失敗は例外とし、完了済みの変更は通常Undoで戻せる。
         """
-        if attributes is None:
-            attributes = ("translate", "rotate", "scale", "shear")
-        elif isinstance(attributes, str):
-            attributes = (attributes,)
-        attributes = tuple(attributes)
-        if not all(isinstance(name, str) and name for name in attributes):
-            raise TypeError("attributes must contain non-empty attribute names")
-        plugs = [self.getPlug(name) for name in attributes]
-        for plug in plugs:
-            plug.reset()
-        return self
+        if attrs is not _UNSET:
+            if attributes is not _UNSET:
+                raise _ArgumentError("Specify only one of 'attributes' and 'attrs'")
+            attributes = attrs
+        if attributes is _UNSET:
+            attributes = None
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformReset"):
+            if attributes is None:
+                attributes = ("translate", "rotate", "scale", "shear")
+            elif isinstance(attributes, str):
+                attributes = (attributes,)
+            attributes = tuple(attributes)
+            if not all(isinstance(name, str) and name for name in attributes):
+                raise TypeError("attributes must contain non-empty attribute names")
+            plugs = [self.getPlug(name) for name in attributes]
+            for plug in plugs:
+                plug.reset(fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformResetPivot")
-    def resetPivot(self, worldSpace=True, *, kind="both", fast=False):
+    def resetPivot(self, worldSpace=_UNSET, *, kind="both", fast=False, ws=_UNSET):
         """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。一回のUndoで元へ戻せる。
@@ -365,15 +564,21 @@ class Transform(DagNode):
 
         ピボット補償値を調整して行列を維持する。translateのリセットではない。
         """
-        ws = _world_space(worldSpace)
-        if not isinstance(ws, bool):
-            raise TypeError("ws must be a bool")
-        return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True)
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = True
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformResetPivot"):
+            ws = _world_space(worldSpace)
+            if not isinstance(ws, bool):
+                raise TypeError("ws must be a bool")
+            return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True, fast=fast)
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformScaleGeometry")
-    def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
 
         Args:
@@ -383,6 +588,7 @@ class Transform(DagNode):
             indices (Iterable[int | tuple[int, int]] | None): 各Shapeの対象番号。
                 Noneは全要素。サーフェスは(U, V)の組。
             fast (bool): Trueは履歴なしメッシュ・非周期カーブをom2で直接更新し、Undoなし。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。通常モードは一回のUndoで戻せる。
@@ -395,28 +601,44 @@ class Transform(DagNode):
         中間Shapeは対象外。インスタンスは共有形状全体に影響する。
         途中で失敗した場合は停止し、完了済みの変更は自動で戻さない。
         """
-        ws = _world_space(worldSpace)
-        indices = None if indices is None else tuple(indices)
-        scale = scale if isinstance(scale, numbers.Real) else tuple(scale)
-        pivot = tuple(pivot)
-        for shape in self.getShapes():
-            shape.scaleGeometry(scale, ws=ws, pivot=pivot, indices=indices)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformScaleGeometry"):
+            ws = _world_space(worldSpace)
+            indices = None if indices is None else tuple(indices)
+            scale = scale if isinstance(scale, numbers.Real) else tuple(scale)
+            pivot = tuple(pivot)
+            for shape in self.getShapes():
+                shape.scaleGeometry(scale, ws=ws, pivot=pivot, indices=indices, fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getPivot(self, worldSpace=False, *, kind="rotate"):
-        """指定した種類のピボットを取得する。
+    def getPivot(self, worldSpace=_UNSET, *, kind="rotate", ws=_UNSET):
+        """回転またはスケールピボットの位置をcm単位で取得する。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            worldSpace (bool): Trueはワールド空間、FalseはxformのobjectSpaceに相当する
+                MSpace.kPreTransform。短縮名ws。
             kind (str): rotateは回転、scaleはスケールピボット。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Translate: ピボット位置。Maya API の内部距離単位。
+            Translate: ノードと独立した新しい位置の値。UI距離単位によらずcm。
 
         Raises:
             ValueError: kindがrotate/scaleでない場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         if kind not in ("rotate", "scale"):
             raise ValueError("kind must be 'rotate' or 'scale'")
@@ -426,19 +648,19 @@ class Transform(DagNode):
         point = fn.rotatePivot(space) if kind == "rotate" else fn.scalePivot(space)
         return Translate(point.x, point.y, point.z)
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetPivot")
-    def setPivot(self, value, worldSpace=False, *, kind="rotate", preserve=True, fast=False):
+    def setPivot(self, value, worldSpace=_UNSET, *, kind="rotate", preserve=True, fast=False, ws=_UNSET):
         """指定した種類のピボットを変更する。既定ではノードの姿勢を保つ。
 
         Args:
-            value (Iterable[float]): 新しいピボット位置。Maya API の内部距離単位。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            value (Iterable[float]): 新しいピボット位置のXYZ3成分。UI距離単位によらずcm。
+            worldSpace (bool): Trueはワールド空間、FalseはxformのobjectSpaceに相当する
+                MSpace.kPreTransform。短縮名ws。
             kind (str): rotate/scale/both。bothは両方を同じ位置へ設定する。
             preserve (bool): Trueはピボット補償値を調整して変換行列を保つ。
                 Falseは補償せず、姿勢が変わる場合がある。
             fast (bool): TrueはOpenMayaで直接更新し、Undoへ記録しない。
+                通常はmaya.cmds.xformで設定する。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。
@@ -450,43 +672,50 @@ class Transform(DagNode):
 
         Jointは独立したピボットの変更をサポートしないため、更新前に拒否する。
         """
-        ws = _world_space(worldSpace)
-        if kind not in ("rotate", "scale", "both"):
-            raise ValueError("kind must be 'rotate', 'scale' or 'both'")
-        if not isinstance(preserve, bool):
-            raise TypeError("preserve must be a bool")
-        if self.isType("joint"):
-            raise TypeError("Joint does not support independent rotate/scale pivots")
-        values = tuple(value)
-        if len(values) != 3 or not all(math.isfinite(v) for v in values):
-            raise ValueError("Expected three finite pivot coordinates")
-        if _is_fast():
-            kinds = ("scale", "rotate") if kind == "both" else (kind,)
-            # APIはロックを迂回できるため、変更する補償値も含めて事前に確認する。
-            for selected in kinds:
-                names = [selected + "Pivot"]
-                if preserve:
-                    names.append(selected + "PivotTranslate")
-                for name in names:
-                    plug = self.getPlug(name).mplug()
-                    writable(plug)
-                    for index in range(plug.numChildren()):
-                        writable(plug.child(index))
-            fn = self.transformFn()
-            point = om2.MPoint(*values)
-            space = MSpace.kWorld if ws else MSpace.kPreTransform
-            for selected in kinds:
-                setter = fn.setRotatePivot if selected == "rotate" else fn.setScalePivot
-                setter(point, space, preserve)
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetPivot"):
+            ws = _world_space(worldSpace)
+            if kind not in ("rotate", "scale", "both"):
+                raise ValueError("kind must be 'rotate', 'scale' or 'both'")
+            if not isinstance(preserve, bool):
+                raise TypeError("preserve must be a bool")
+            if self.isType("joint"):
+                raise TypeError("Joint does not support independent rotate/scale pivots")
+            values = tuple(value)
+            if len(values) != 3 or not all(math.isfinite(v) for v in values):
+                raise ValueError("Expected three finite pivot coordinates")
+            if fast:
+                kinds = ("scale", "rotate") if kind == "both" else (kind,)
+                # APIはロックを迂回できるため、変更する補償値も含めて事前に確認する。
+                for selected in kinds:
+                    names = [selected + "Pivot"]
+                    if preserve:
+                        names.append(selected + "PivotTranslate")
+                    for name in names:
+                        plug = self.getPlug(name).mplug()
+                        writable(plug)
+                        for index in range(plug.numChildren()):
+                            writable(plug.child(index))
+                fn = self.transformFn()
+                point = om2.MPoint(*values)
+                space = MSpace.kWorld if ws else MSpace.kPreTransform
+                for selected in kinds:
+                    setter = fn.setRotatePivot if selected == "rotate" else fn.setScalePivot
+                    setter(point, space, preserve)
+                return self
+            coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in values]
+            flag = {"rotate": "rotatePivot", "scale": "scalePivot", "both": "pivots"}[kind]
+            cmds.xform(self.getFullName(), worldSpace=ws, objectSpace=not ws,
+                       preserve=preserve, **{flag: coordinates})
             return self
-        coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in values]
-        flag = {"rotate": "rotatePivot", "scale": "scalePivot", "both": "pivots"}[kind]
-        cmds.xform(self.getFullName(), worldSpace=ws, objectSpace=not ws,
-                   preserve=preserve, **{flag: coordinates})
-        return self
 
-    @_fast_edit
-    @undoChunk("mlibTransformCenterPivot")
     def centerPivot(self, *, fast=False):
         """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
 
@@ -503,15 +732,17 @@ class Transform(DagNode):
         Raises:
             RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
         """
-        if _is_fast():
-            center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
-            return self.setPivot((center.x, center.y, center.z), worldSpace=True,
-                                 kind="both", preserve=True, fast=True)
-        cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformCenterPivot"):
+            if fast:
+                center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
+                return self.setPivot((center.x, center.y, center.z), worldSpace=True,
+                                     kind="both", preserve=True, fast=fast)
+            cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getBoundingBox(self, worldSpace=False):
+    def getBoundingBox(self, worldSpace=_UNSET, *, ws=_UNSET):
         """直下の Shape 階層を含むバウンディングボックスを取得する。
 
         MFnDagNode.boundingBox は自身の translate/rotate/scale は含むが、
@@ -522,6 +753,7 @@ class Transform(DagNode):
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
                 （親の変換は含まない）。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
@@ -530,6 +762,12 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("Cannot compute the bounding box of an invalid transform")
@@ -642,7 +880,6 @@ class Transform(DagNode):
                 result.append(shape)
         return result
 
-    @_fast_edit
     def deleteUnusedIntermediateShapes(self, *, fast=False):
         """直下の未使用中間Shapeだけを削除し、自身を返す。
 
@@ -660,9 +897,11 @@ class Transform(DagNode):
         Raises:
             RuntimeError: 無効なTransform、または削除失敗。
         """
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         shapes = self.getUnusedIntermediateShapes()
         if shapes:
-            if _is_fast():
+            if fast:
                 self._detach_inputs(shape.mnode() for shape in shapes)
                 modifier = om2.MDagModifier()
                 for shape in shapes:
@@ -693,10 +932,8 @@ class Transform(DagNode):
         return [child for child in self._direct_children(True, intermediates)
                 if child.mnode().hasFn(om2.MFn.kShape)]
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformMirrorGeometry")
-    def mirrorGeometry(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirrorGeometry(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False,
+        ws=_UNSET):
         """直下のすべてのShapeのジオメトリをミラーする。
 
         直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
@@ -712,6 +949,7 @@ class Transform(DagNode):
             indices (Iterable[int] | None): 各Shapeへそのまま渡す要素番号。
                 None は全要素、空列は変更なし。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform: 編集した自身。
@@ -728,22 +966,37 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = _world_space(worldSpace)
-        for shape in self.getShapes():
-            shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformMirrorGeometry"):
+            ws = _world_space(worldSpace)
+            for shape in self.getShapes():
+                shape.mirror(axis=axis, ws=ws, pivot=pivot, indices=indices, fast=fast)
+            return self
 
-    @_flag_aliases(index="idx")
-    def getShape(self, idx=0, intermediates=False):
+    def getShape(self, idx=_UNSET, intermediates=False, *, index=_UNSET):
         """指定位置のShapeを取得する。
 
         Args:
             idx (int): Shapeのインデックス。 別名 ``index`` も使用可能。
             intermediates (bool): ``True`` の場合は中間Shapeも含める。
+            index (int): idxの別名。同時指定は不可。
 
         Returns:
             Shape | None: 指定位置のShape。範囲外ではNone。
         """
+        if index is not _UNSET:
+            if idx is not _UNSET:
+                raise _ArgumentError("Specify only one of 'idx' and 'index'")
+            idx = index
+        if idx is _UNSET:
+            idx = 0
         shapes = self.getShapes(intermediates=intermediates)
         try:
             return shapes[idx]
@@ -758,8 +1011,6 @@ class Transform(DagNode):
         """
         return self
 
-    @_fast_edit
-    @undoChunk("mlibTransformSetParent")
     def setParent(self, parent=None, relative=False, add=False, *, fast=False):
         """Transformの親を変更する。
 
@@ -773,25 +1024,28 @@ class Transform(DagNode):
         Returns:
             Transform: 自身。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot parent an invalid transform")
-        if _is_fast():
-            return self._set_parent_fast(parent, relative, add)
-        if parent is None:
-            if self.getParentPath() is None and not self.mpath().isInstanced():
-                return self
-            cmds.parent(self.getName(), world=True, relative=relative)
-        else:
-            target = parent if isinstance(parent, Node) else Node(parent)
-            parent_name = target.getFullName()
-            # 古いMayaでは同じ親への再parentがエラーになる。
-            # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
-            current = self.getParentPath()
-            if (not add and not self.mpath().isInstanced() and current is not None
-                    and current.fullPathName() == parent_name):
-                return self
-            cmds.parent(self.getName(), parent_name, relative=relative, add=add)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetParent"):
+            if not self.isValid():
+                raise RuntimeError("Cannot parent an invalid transform")
+            if fast:
+                return self._set_parent_fast(parent, relative, add)
+            if parent is None:
+                if self.getParentPath() is None and not self.mpath().isInstanced():
+                    return self
+                cmds.parent(self.getName(), world=True, relative=relative)
+            else:
+                target = parent if isinstance(parent, Node) else Node(parent)
+                parent_name = target.getFullName()
+                # 古いMayaでは同じ親への再parentがエラーになる。
+                # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
+                current = self.getParentPath()
+                if (not add and not self.mpath().isInstanced() and current is not None
+                        and current.fullPathName() == parent_name):
+                    return self
+                cmds.parent(self.getName(), parent_name, relative=relative, add=add)
+            return self
 
     @undoChunk("mlibTransformMatch")
     def matchTransform(self, target, position=True, rotation=True, scale=True, pivots=False):
@@ -827,10 +1081,7 @@ class Transform(DagNode):
                                 rotation=rotation, scale=scale, pivots=pivots)
         return self
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformMirrorTransform")
-    def mirrorTransform(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), *, fast=False):
+    def mirrorTransform(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), *, fast=False, ws=_UNSET):
         """位置と向きを指定空間でビヘイビアミラーする。
 
         Matrix.mirrorと同じ回転規約で、負スケールによる形状反転ではない。
@@ -843,6 +1094,7 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。Transforms/Jointsからの一括呼出も可能。
@@ -855,35 +1107,44 @@ class Transform(DagNode):
         setMatrix() と同じ制約があり、非ゼロのピボット・
         TransformのrotateAxisは更新前に拒否する。
         """
-        ws = _world_space(worldSpace)
-        from ..util import mirrorArguments
-        if not isinstance(ws, bool):
-            raise TypeError("ws must be a bool")
-        _, center = mirrorArguments(axis, pivot)
-        name = self.getFullName()
-        parent_node = self.getParent()
-        parent = Matrix()
-        if parent_node is not None and self.getPlug("inheritsTransform").get():
-            # 親のチャンネル変更直後も評価済み値を取得する。
-            parent = parent_node.getPlug("worldMatrix")[parent_node.mpath().instanceNumber()].get()
-        offset = self.getPlug("offsetParentMatrix").get()
-        effective_parent = offset * parent
-        magnitude = max(1.0, *(sum(abs(effective_parent[row, col]) for col in range(3))
-                               for row in range(3)))
-        if abs(effective_parent.det4x4()) <= 1e-12 * magnitude ** 3:
-            raise ValueError("Cannot mirror with a singular parent or offsetParentMatrix")
-        attributes = ["rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate"]
-        if not self.mnode().hasFn(om2.MFn.kJoint):
-            attributes.append("rotateAxis")
-        if any(any(self.getPlug(attr).get()) for attr in attributes):
-            raise ValueError("mirrorTransform does not support nonzero pivots or transform rotateAxis")
-        world = self.getMatrix(ws=True)
-        source = world if ws else world * parent.inverse()
-        target = source.mirror(axis, center)
-        target_world = target if ws else target * parent
-        local = target_world * effective_parent.inverse()
-        self.setMatrix(local, fast=fast)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformMirrorTransform"):
+            ws = _world_space(worldSpace)
+            from ..util import mirrorArguments
+            if not isinstance(ws, bool):
+                raise TypeError("ws must be a bool")
+            _, center = mirrorArguments(axis, pivot)
+            name = self.getFullName()
+            parent_node = self.getParent()
+            parent = Matrix()
+            if parent_node is not None and self.getPlug("inheritsTransform").get():
+                # 親のチャンネル変更直後も評価済み値を取得する。
+                parent = parent_node.getPlug("worldMatrix")[parent_node.mpath().instanceNumber()].get()
+            offset = self.getPlug("offsetParentMatrix").get()
+            effective_parent = offset * parent
+            magnitude = max(1.0, *(sum(abs(effective_parent[row, col]) for col in range(3))
+                                   for row in range(3)))
+            if abs(effective_parent.det4x4()) <= 1e-12 * magnitude ** 3:
+                raise ValueError("Cannot mirror with a singular parent or offsetParentMatrix")
+            attributes = ["rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate"]
+            if not self.mnode().hasFn(om2.MFn.kJoint):
+                attributes.append("rotateAxis")
+            if any(any(self.getPlug(attr).get()) for attr in attributes):
+                raise ValueError("mirrorTransform does not support nonzero pivots or transform rotateAxis")
+            world = self.getMatrix(ws=True)
+            source = world if ws else world * parent.inverse()
+            target = source.mirror(axis, center)
+            target_world = target if ws else target * parent
+            local = target_world * effective_parent.inverse()
+            self.setMatrix(local, fast=fast)
+            return self
 
     def getShadingEngines(self):
         """直下の非中間Shapeで使用中のセット。インスタンス経路を保持。
@@ -904,8 +1165,6 @@ class Transform(DagNode):
         """
         return self.getPlug("offsetParentMatrix").get()
 
-    @_fast_edit
-    @undoChunk("mlibTransformSetOffsetParentMatrix")
     def setOffsetParentMatrix(self, value, *, fast=False):
         """offsetParentMatrixへ行列値を設定する。
 
@@ -924,20 +1183,35 @@ class Transform(DagNode):
         TRSチャンネル値は変更しない。指定行列は既存ローカル行列と親行列に合成される。
         ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
         """
-        self.getPlug("offsetParentMatrix").set(value)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetOffsetParentMatrix"):
+            self.getPlug("offsetParentMatrix").set(value, fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getTransformation(self, worldSpace=False):
-        """チャンネルと補助成分を独立した値として取得する。
+    def getTransformation(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """TRSチャンネルとピボット等の補助成分を、独立した変換値として取得する。
+
+        取得した値やその成分を編集してもシーンは変更しない。
+        変更を反映する場合はsetTransformationへ渡す。
 
         Args:
             worldSpace (bool): ワールド空間へ変換する。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transformation: Euler回転順序・ピボット・補助回転・SSCを含む値。
+            Transformation: 距離cm・角度radの独立した値。
+                Euler回転順序・ピボット・補助回転・SSCを含む。
                 offsetParentMatrixと親行列はワールド指定時の合成に含める。
+                Jointではピボットとその補償値を0にする。
+                ワールド指定ではinverseScaleを単位スケールへ整理する。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         values = {name: self.getPlug(name).get() for name in (
             "translate", "rotate", "scale", "shear", "rotateOrder", "rotateAxis",
@@ -964,64 +1238,83 @@ class Transform(DagNode):
                 result.inverseScale = (1, 1, 1)
         return result
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetTransformation")
-    def setTransformation(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+    def setTransformation(self, value, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
         """補助成分を含む変換を適用する。入力の値は変更しない。
 
         Args:
             value (Transformation): 適用する変換情報。
             worldSpace (bool): ワールド空間として適用する。短縮名ws。
-            safe (bool): 書けない成分を残して、書ける成分で行列を合わせる。
+            safe (bool): 書けない成分を保持し、実際の補助成分でTRSを再計算する。
+                TRSにも書けない成分があれば目標行列と一致しない場合がある。
             get (bool): シーンを更新せず、対象ノード用に補正した値を返す。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。通常はcmdsでUndoに記録する。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform | Transformation: get=Falseでは適用後の自身。
                 get=Trueでは対象ノード用に補正したローカル空間の設定予定値を返し、シーンは変更しない。
                 予定値は入力値と独立し、距離cm・角度radを使う。
+                get=Trueではsafeの再計算や書込み可否の検査を行わず、
+                ロックされた成分を反映した最終結果の予測ではない。
+
+        Raises:
+            TypeError: valueがTransformationでない場合。
+            ValueError: 分解不能、またはワールド指定時の親行列がほぼ特異な場合。
+            RuntimeError: 対象が無効、またはsafeで抑制しない設定失敗の場合。
 
         Note:
             inverseScaleの接続は保持する。jointとtransformを相互コピーする場合は
             対象で使えない補助成分を除き、行列を維持するようにTRSを補正する。
         """
-        if not isinstance(value, Transformation):
-            raise TypeError("value must be a Transformation")
-        ws = _world_space(worldSpace)
-        fitted, matrix, is_joint = self._fit_transformation(value, ws)
-        if get:
-            return fitted
-        self._apply_transformation_modifiers(fitted, is_joint, safe)
-        if safe:
-            fitted = self._refit_safe_transformation(fitted, matrix)
-        self._apply_channel_values({name: getattr(fitted, name)
-                                    for name in ("translate", "rotate", "scale", "shear")}, safe=safe)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetTransformation"):
+            if not isinstance(value, Transformation):
+                raise TypeError("value must be a Transformation")
+            ws = _world_space(worldSpace)
+            fitted, matrix, is_joint = self._fit_transformation(value, ws)
+            if get:
+                return fitted
+            self._apply_transformation_modifiers(fitted, is_joint, safe=safe, fast=fast)
+            if safe:
+                fitted = self._refit_safe_transformation(fitted, matrix)
+            self._apply_channel_values({name: getattr(fitted, name)
+                                        for name in ("translate", "rotate", "scale", "shear")}, safe=safe, fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getMatrix(self, worldSpace=False, p=False, inv=False):
+    def getMatrix(self, worldSpace=_UNSET, p=False, inv=False, *, ws=_UNSET):
         """変換行列を取得する。
 
-        ワールド空間は保持する DAG パスの inclusiveMatrix から取得する。
-        ローカル空間は評価済みの ``matrix`` アトリビュートを直接読み取る。
+        p=Falseでは、ワールド空間は保持するDAGパスのinclusiveMatrix、
+        ローカル空間は評価済みの ``matrix`` アトリビュートから取得する。
         どちらも行列値を保持し続けず、呼出し時点の Maya の評価結果を返す。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-                ローカル空間（``matrix``）の値を取得する。ワールド空間では、
-                :meth:`mpath` が示す DAG インスタンスの要素
-                (``worldMatrix[<インスタンス番号>]``)を使う。
-
-            p (bool): 親行列を取得する。
-            inv (bool): 逆行列を返す。
+            p (bool): Trueなら親側の行列を取得する。
+                worldSpace=Trueは保持パスのexclusiveMatrix。
+                Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseから求める。
+            inv (bool): Trueなら、選んだ行列の逆行列を返す。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Matrix: 指定空間の評価済み行列の複製(om2.MMatrix の派生)。
 
         Raises:
-            RuntimeError: ノードが無効(削除済み)の場合。
+            RuntimeError: ノードが無効、または保持するDAGパスが無効な場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         if not self.isValid():
             raise RuntimeError("無効なノードの行列は取得できません")
@@ -1036,30 +1329,29 @@ class Transform(DagNode):
             matrix = om2.MFnMatrixData(plug.asMObject()).matrix()
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetMatrix")
-    def setMatrix(self, matrix, worldSpace=False, safe=False, get=False, *, fast=False):
+    def setMatrix(self, matrix, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
         """行列をローカルまたはワールド空間で設定する。
 
         行列を分解して translate・rotate・scale・shear に書き込む。スケールの符号と
         Euler の解は、同じ行列になる候補のうち現在のチャンネル値に近いものを選ぶ
         (詳細は ``_apply_local_matrix``)。そのため ``cmds.xform(matrix=...)``
-        (常に om2 の規約で書く)とは、負スケールのノードや Euler の別解でチャンネル値が
-        異なることがあるが、結果の行列は同じ。
+        とは、負スケールのノードやEulerの別解でチャンネル値が異なることがある。
+        safeで書けない成分を残す場合、結果の行列も入力と一致しない場合がある。
 
         Args:
             matrix (Matrix | sequence): 適用する変換行列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
 
-            safe (bool): 書けない成分を無視する。
+            safe (bool): 書けない成分を保持し、設定できる成分だけを書き込む。
             get (bool): 書き込まずtranslate/rotate/scale/shearの辞書を返す。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform | dict[str, Translate | EulerRotate | Scale | Shear]: get=Falseでは自身。
                 get=Trueではtranslate・rotate・scale・shearをキーとするローカル設定予定値を返す。
                 距離cm・角度radの数学型を保持し、safe/fastの指定によらずシーンは変更しない。
+                書込み可否は検査しないため、safe適用後の最終結果の予測ではない。
 
         Raises:
             RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
@@ -1068,32 +1360,49 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = _world_space(worldSpace)
-        if not isinstance(matrix, Matrix):
-            matrix = Matrix(matrix)
-        if not self.isValid():
-            raise RuntimeError("Cannot set an invalid transform")
-        local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
-        if safe or get:
-            values = self._matrix_channel_values(local_matrix)
-            if get:
-                return values
-            self._apply_channel_values(values, safe=True)
-        else:
-            self._apply_local_matrix(local_matrix)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetMatrix"):
+            ws = _world_space(worldSpace)
+            if not isinstance(matrix, Matrix):
+                matrix = Matrix(matrix)
+            if not self.isValid():
+                raise RuntimeError("Cannot set an invalid transform")
+            local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
+            if safe or get:
+                values = self._matrix_channel_values(local_matrix)
+                if get:
+                    return values
+                self._apply_channel_values(values, safe=True, fast=fast)
+            else:
+                self._apply_local_matrix(local_matrix, fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getTranslate(self, worldSpace=False, at=2):
+    def getTranslate(self, worldSpace=_UNSET, at=2, *, ws=_UNSET):
         """基準位置を取得する。既定は回転ピボット位置。
 
         Args:
-            worldSpace (bool): ワールド指定。短縮名ws。
-            at (int): 0=親原点、1=translate、2=回転ピボット、3=スケールピボット、4以上=行列原点。
+            worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
+                短縮名ws。getPivotのobject空間とは異なる。
+            at (int): 0以下=親原点、1=translate、2=回転ピボット、
+                3=スケールピボット、4以上=行列原点。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Translate: cm単位の位置。
+            Translate: ノードと独立したcm単位の位置。既定at=2はtranslateチャンネル値ではない。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         if at >= 3:
             matrix = self.getMatrix(ws=ws)
@@ -1116,39 +1425,49 @@ class Transform(DagNode):
                 point *= self.mpath().exclusiveMatrix()
         return Translate(point.x, point.y, point.z)
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetTranslate")
-    def setTranslate(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
+    def setTranslate(self, value, worldSpace=_UNSET, at=2, safe=False, get=False, *, fast=False, ws=_UNSET):
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
+
+        at=0以下は位置の絶対設定ではなく、親空間へ変換した入力から現在のtranslateを
+        引いた値を設定する。例えば現在2・入力5ならtranslateは3になる。
 
         Args:
             value (Iterable[float]): cm単位の位置。
             worldSpace (bool): ワールド指定。短縮名ws。
             at (int): getTranslateと同じ基準。既定2。
             safe (bool): 書けない成分を無視する。
-            get (bool): 書き込まずtranslateの計算値だけを返す。
+            get (bool): 書き込まずローカルtranslateの設定予定値だけを返す。
             fast (bool): Undoなしの直接更新。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform | list[float]: 自身。get=Trueはtranslateの計算値。
+            Transform | list[float]: 自身。get=Trueはcm単位の独立したXYZ3成分のlist。
+                safe指定時も書込み可否を反映した最終結果の予測ではない。
         """
-        ws = _world_space(worldSpace)
-        point = om2.MPoint(tuple(value))
-        if ws:
-            point *= self.mpath().exclusiveMatrixInverse()
-        current = om2.MVector(tuple(self.getPlug("translate").get()))
-        if at < 1:
-            result = om2.MVector(point) - current
-        else:
-            result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslate(at=at))))
-        if get:
-            return list(result)
-        self._set_channel_value("translate", result, safe=safe)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetTranslate"):
+            ws = _world_space(worldSpace)
+            point = om2.MPoint(tuple(value))
+            if ws:
+                point *= self.mpath().exclusiveMatrixInverse()
+            current = om2.MVector(tuple(self.getPlug("translate").get()))
+            if at < 1:
+                result = om2.MVector(point) - current
+            else:
+                result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslate(at=at))))
+            if get:
+                return list(result)
+            self._set_channel_value("translate", result, safe=safe, fast=fast)
+            return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getRotate(self, worldSpace=False):
+    def getRotate(self, worldSpace=_UNSET, *, ws=_UNSET):
         """Euler 回転値を、ノードの rotateOrder で取得する。
 
         ``cmds.xform(query=True, rotation=True)`` と同じく、値はノードの rotateOrder で
@@ -1160,6 +1479,7 @@ class Transform(DagNode):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             EulerRotate: 評価済みの回転値（radian、ノードの回転順序）。
@@ -1167,14 +1487,17 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetRotate")
-    def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
+    def setRotate(self, value, worldSpace=_UNSET, safe=False, get=False, *, unit="rad", fast=False, ws=_UNSET):
         """Euler回転を設定する。
 
         3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
@@ -1196,6 +1519,7 @@ class Transform(DagNode):
             unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
                 値にだけ使える。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform | list[float]: 通常は自身、get=Trueはrad単位の計算値。
@@ -1208,110 +1532,163 @@ class Transform(DagNode):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        ws = _world_space(worldSpace)
-        if unit not in ("rad", "deg"):
-            raise ValueError("unit must be 'rad' or 'deg'")
-        if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
-            if unit == "deg":
-                raise ValueError("unit='deg' is only supported for three plain components")
-        else:
-            if not self.isValid():
-                raise RuntimeError("Cannot set an invalid transform")
-            x, y, z = value
-            if unit == "deg":
-                x, y, z = math.radians(x), math.radians(y), math.radians(z)
-            # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
-            value = EulerRotate(x, y, z, self._rotate_order())
-        matrix = self._replace_components(self.getMatrix(ws=ws), rotate=value)
-        result = self.setMatrix(matrix, ws=ws, safe=safe, get=get)
-        return list(result["rotate"]) if get else self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetRotate"):
+            ws = _world_space(worldSpace)
+            if unit not in ("rad", "deg"):
+                raise ValueError("unit must be 'rad' or 'deg'")
+            if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
+                if unit == "deg":
+                    raise ValueError("unit='deg' is only supported for three plain components")
+            else:
+                if not self.isValid():
+                    raise RuntimeError("Cannot set an invalid transform")
+                x, y, z = value
+                if unit == "deg":
+                    x, y, z = math.radians(x), math.radians(y), math.radians(z)
+                # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
+                value = EulerRotate(x, y, z, self._rotate_order())
+            matrix = self._replace_components(self.getMatrix(ws=ws), rotate=value)
+            result = self.setMatrix(matrix, ws=ws, safe=safe, get=get, fast=fast)
+            return list(result["rotate"]) if get else self
 
-    @_flag_aliases(ws="worldSpace")
-    def getScale(self, worldSpace=False):
+    def getScale(self, worldSpace=_UNSET, *, ws=_UNSET):
         """指定空間のスケール値を取得する。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはscaleチャンネル。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Scale: ローカルではSSCを除く値、ワールドではAPI規約の分解値。
+            Scale: 独立した無次元のXYZ3成分。ローカルではSSCを除くチャンネル値、
+                ワールドではAPI規約の分解値で、チャンネルの符号と一致するとは限らない。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         if _world_space(worldSpace):
             return Scale(*om2.MTransformationMatrix(self.getMatrix(ws=True)).scale(MSpace.kTransform))
         return self.getPlug("scale").get()
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    def setScale(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+    def setScale(self, value, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
         """scaleチャンネルだけを設定する。
 
+        ワールド指定では要求スケールをローカル設定値へ変換する。
+        変換後も書込み先はscaleだけで、rotateやshearは変更しない。
+
         Args:
-            value (Iterable[float]): スケール3成分。
+            value (Iterable[float]): 無次元のXYZスケール3成分。
             worldSpace (bool): ワールド指定。短縮名ws。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずチャンネル値を返す。
             fast (bool): Undoなしの直接更新。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform | list[float]: 自身。get=Trueは計算値。
+            Transform | list[float]: 自身。get=Trueは独立したローカルXYZ設定値のlist。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         values = self._scale_channel_value(value, _world_space(worldSpace))
         if get:
             return values
-        self._set_channel_value("scale", values, safe=safe)
+        self._set_channel_value("scale", values, safe=safe, fast=fast)
         return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getShearing(self, worldSpace=False):
+    def getShearing(self, worldSpace=_UNSET, *, ws=_UNSET):
         """指定空間のシアー値を取得する。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。Falseはshearチャンネル。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Shear: 指定空間のシアー。
+            Shear: 独立した無次元のXY・XZ・YZ3成分。
+                ローカルはチャンネル値、ワールドはAPI規約の行列分解値。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         if _world_space(worldSpace):
             return Shear(*om2.MTransformationMatrix(self.getMatrix(ws=True)).shear(MSpace.kTransform))
         return self.getPlug("shear").get()
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    def setShearing(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
+    def setShearing(self, value, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
         """shearチャンネルだけを設定する。
 
+        ワールド指定では要求シアーをローカル設定値へ変換する。
+        変換後も書込み先はshearだけで、rotateやscaleは変更しない。
+
         Args:
-            value (Iterable[float]): シアー3成分。
+            value (Iterable[float]): 無次元のXY・XZ・YZシアー3成分。
             worldSpace (bool): ワールド指定。短縮名ws。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずチャンネル値を返す。
             fast (bool): Undoなしの直接更新。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform | list[float]: 自身。get=Trueは計算値。
+            Transform | list[float]: 自身。get=Trueは独立したローカルXY・XZ・YZ設定値のlist。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         values = self._scale_channel_value(value, _world_space(worldSpace), shear=True)
         if get:
             return values
-        self._set_channel_value("shear", values, safe=safe)
+        self._set_channel_value("shear", values, safe=safe, fast=fast)
         return self
 
-    @_flag_aliases(ws="worldSpace")
-    def getQuaternion(self, worldSpace=False, ra=False, r=True, jo=True):
+    def getQuaternion(self, worldSpace=_UNSET, ra=False, r=True, jo=True, *, ws=_UNSET):
         """回転成分を選んで取得する。既定ではrotateAxisを含めない。
+
+        ローカル空間ではrotateAxis・rotate・JointのjointOrientの順に、選んだ回転を合成する。
+        ワールド空間では保持パスの行列から求め、除外する回転成分を取り除く。
+        ra/r/joの許容組合せはsetQuaternionと同一ではない。
 
         Args:
             worldSpace (bool): ワールド指定。短縮名ws。
             ra (bool): rotateAxisを含める。
             r (bool): rotateを含める。
             jo (bool): jointOrientを含める。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Quaternion: 指定成分の合成回転。
+            Quaternion: ノードと独立した、指定成分の合成回転。成分順はXYZW。
 
         Raises:
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         joint = self.mnode().hasFn(om2.MFn.kJoint)
         if ws:
@@ -1332,12 +1709,13 @@ class Transform(DagNode):
                     q *= self._component_quaternion(name)
         return Quaternion._wrap(q)
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    @undoChunk("mlibTransformSetQuaternion")
-    def setQuaternion(self, value, worldSpace=False, ra=False, r=True, jo=True,
-                      safe=False, get=False, *, fast=False):
+    def setQuaternion(self, value, worldSpace=_UNSET, ra=False, r=True, jo=True, safe=False, get=False, *,
+        fast=False, ws=_UNSET):
         """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
+
+        受理する組合せでは、r=Trueはrotate、r=FalseかつJointでjo=TrueはjointOrient、
+        それ以外のr=FalseはrotateAxisだけを書き込む。ra/r/joの許容組合せは
+        getQuaternionと同一ではない。
 
         Args:
             value (Quaternion | om2.MQuaternion | Iterable[float]): xyzwの回転。
@@ -1348,20 +1726,33 @@ class Transform(DagNode):
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
             fast (bool): Undoなしの直接更新。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
                 rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
                 入力のQuaternionや、XYZWの4成分を返す操作ではない。
-        """
-        name, rotation = self._quaternion_channel_values(value, _world_space(worldSpace), ra, r, jo)
-        if get:
-            return list(rotation)
-        self._set_channel_value(name, rotation, safe=safe)
-        return self
+                rotateの設定予定値はノードのrotateOrder、他の書込み先はXYZ順序。
 
-    @_flag_aliases(ws="worldSpace")
-    def getEuler(self, worldSpace=False):
+        Raises:
+            ValueError: 回転成分と空間指定が未対応の組合せの場合。
+        """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformSetQuaternion"):
+            name, rotation = self._quaternion_channel_values(value, _world_space(worldSpace), ra, r, jo)
+            if get:
+                return list(rotation)
+            self._set_channel_value(name, rotation, safe=safe, fast=fast)
+            return self
+
+    def getEuler(self, worldSpace=_UNSET, *, ws=_UNSET):
         """回転を XYZ 順序の EulerRotate として取得する。
 
         行列から分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
@@ -1369,6 +1760,7 @@ class Transform(DagNode):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             EulerRotate: 評価済みの回転値（radian、XYZ 順序）。
@@ -1376,16 +1768,40 @@ class Transform(DagNode):
         Raises:
             ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(ws=ws))
         return EulerRotate._wrap(quaternion.asEulerRotation())
 
-    @_flag_aliases("makeIdentity")
-    @undoChunk("mlibTransformFreeze")
-    def freeze(self, **kwargs):
+    def freeze(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
+        preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
+        t=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
         """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
 
         Args:
+            apply (bool): 省略時True。形状へ変換を適用するため、Trueだけを受け付ける。
+            a (bool): applyの別名。同時指定は不可。
+            jointOrient (bool): MayaのjointOrientフラグ。省略時はMayaの既定に従う。
+            jo (bool): jointOrientの別名。同時指定は不可。
+            normal (int): Mayaのnormalフラグ。省略時はMayaの既定に従う。
+            n (int): normalの別名。同時指定は不可。
+            preserveNormals (bool): MayaのpreserveNormalsフラグ。省略時はMayaの既定に従う。
+            pn (bool): preserveNormalsの別名。同時指定は不可。
+            rotate (bool): Mayaのrotateフラグ。省略時はMayaの既定に従う。
+            r (bool): rotateの別名。同時指定は不可。
+            scale (bool): Mayaのscaleフラグ。省略時はMayaの既定に従う。
+            s (bool): scaleの別名。同時指定は不可。
+            translate (bool): Mayaのtranslateフラグ。省略時はMayaの既定に従う。
+            t (bool): translateの別名。同時指定は不可。
+            query (bool): Mayaのqueryフラグ。省略時はMayaの既定に従う。
+            q (bool): queryの別名。同時指定は不可。
+            edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
+            e (bool): editの別名。同時指定は不可。
             **kwargs (object): translate(t)、rotate(r)、scale(s)、normal(n)、
                 preserveNormals(pn)、jointOrient(jo)等のMaya標準フラグ。
                 成分の省略時の扱いもMayaに従う。applyはTrueのみ許可する。
@@ -1401,17 +1817,91 @@ class Transform(DagNode):
         子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
         Maya標準に従う。resetやJoint.freezeRotateの姿勢移送とは異なる。
         """
-        if kwargs.pop("apply", True) is not True:
-            raise ValueError("freeze requires apply=True")
-        return self.makeIdentity(apply=True, **kwargs)
+        if a is not _UNSET:
+            if apply is not _UNSET:
+                raise _ArgumentError("Specify only one of 'apply' and 'a'")
+            apply = a
+        if apply is not _UNSET:
+            kwargs["apply"] = apply
+        if jo is not _UNSET:
+            if jointOrient is not _UNSET:
+                raise _ArgumentError("Specify only one of 'jointOrient' and 'jo'")
+            jointOrient = jo
+        if jointOrient is not _UNSET:
+            kwargs["jointOrient"] = jointOrient
+        if n is not _UNSET:
+            if normal is not _UNSET:
+                raise _ArgumentError("Specify only one of 'normal' and 'n'")
+            normal = n
+        if normal is not _UNSET:
+            kwargs["normal"] = normal
+        if pn is not _UNSET:
+            if preserveNormals is not _UNSET:
+                raise _ArgumentError("Specify only one of 'preserveNormals' and 'pn'")
+            preserveNormals = pn
+        if preserveNormals is not _UNSET:
+            kwargs["preserveNormals"] = preserveNormals
+        if r is not _UNSET:
+            if rotate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'rotate' and 'r'")
+            rotate = r
+        if rotate is not _UNSET:
+            kwargs["rotate"] = rotate
+        if s is not _UNSET:
+            if scale is not _UNSET:
+                raise _ArgumentError("Specify only one of 'scale' and 's'")
+            scale = s
+        if scale is not _UNSET:
+            kwargs["scale"] = scale
+        if t is not _UNSET:
+            if translate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'translate' and 't'")
+            translate = t
+        if translate is not _UNSET:
+            kwargs["translate"] = translate
+        if q is not _UNSET:
+            if query is not _UNSET:
+                raise _ArgumentError("Specify only one of 'query' and 'q'")
+            query = q
+        if query is not _UNSET:
+            kwargs["query"] = query
+        if e is not _UNSET:
+            if edit is not _UNSET:
+                raise _ArgumentError("Specify only one of 'edit' and 'e'")
+            edit = e
+        if edit is not _UNSET:
+            kwargs["edit"] = edit
+        with undoChunk("mlibTransformFreeze"):
+            if kwargs.pop("apply", True) is not True:
+                raise ValueError("freeze requires apply=True")
+            return self.makeIdentity(apply=True, **kwargs)
 
-    @undoChunk("mlibTransformMakeIdentity")
-    def makeIdentity(self, **kwargs):
+    def makeIdentity(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
+        preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
+        t=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
         """cmds.makeIdentity のシンプルなラッパー。
 
         Args:
             kwargs: cmds.makeIdentity にそのまま渡す追加のフラグ
                 (apply、translate、rotate、scale、normal など)。
+            apply (bool): Mayaのapplyフラグ。省略時はMayaの既定に従う。
+            a (bool): applyの別名。同時指定は不可。
+            jointOrient (bool): MayaのjointOrientフラグ。省略時はMayaの既定に従う。
+            jo (bool): jointOrientの別名。同時指定は不可。
+            normal (int): Mayaのnormalフラグ。省略時はMayaの既定に従う。
+            n (int): normalの別名。同時指定は不可。
+            preserveNormals (bool): MayaのpreserveNormalsフラグ。省略時はMayaの既定に従う。
+            pn (bool): preserveNormalsの別名。同時指定は不可。
+            rotate (bool): Mayaのrotateフラグ。省略時はMayaの既定に従う。
+            r (bool): rotateの別名。同時指定は不可。
+            scale (bool): Mayaのscaleフラグ。省略時はMayaの既定に従う。
+            s (bool): scaleの別名。同時指定は不可。
+            translate (bool): Mayaのtranslateフラグ。省略時はMayaの既定に従う。
+            t (bool): translateの別名。同時指定は不可。
+            query (bool): Mayaのqueryフラグ。省略時はMayaの既定に従う。
+            q (bool): queryの別名。同時指定は不可。
+            edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
+            e (bool): editの別名。同時指定は不可。
 
         Returns:
             Transform: 自身。
@@ -1419,10 +1909,65 @@ class Transform(DagNode):
         Raises:
             RuntimeError: ノードが無効、または Maya が拒否した場合。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot freeze transform of an invalid transform")
-        cmds.makeIdentity(self.getFullName(), **kwargs)
-        return self
+        if a is not _UNSET:
+            if apply is not _UNSET:
+                raise _ArgumentError("Specify only one of 'apply' and 'a'")
+            apply = a
+        if apply is not _UNSET:
+            kwargs["apply"] = apply
+        if jo is not _UNSET:
+            if jointOrient is not _UNSET:
+                raise _ArgumentError("Specify only one of 'jointOrient' and 'jo'")
+            jointOrient = jo
+        if jointOrient is not _UNSET:
+            kwargs["jointOrient"] = jointOrient
+        if n is not _UNSET:
+            if normal is not _UNSET:
+                raise _ArgumentError("Specify only one of 'normal' and 'n'")
+            normal = n
+        if normal is not _UNSET:
+            kwargs["normal"] = normal
+        if pn is not _UNSET:
+            if preserveNormals is not _UNSET:
+                raise _ArgumentError("Specify only one of 'preserveNormals' and 'pn'")
+            preserveNormals = pn
+        if preserveNormals is not _UNSET:
+            kwargs["preserveNormals"] = preserveNormals
+        if r is not _UNSET:
+            if rotate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'rotate' and 'r'")
+            rotate = r
+        if rotate is not _UNSET:
+            kwargs["rotate"] = rotate
+        if s is not _UNSET:
+            if scale is not _UNSET:
+                raise _ArgumentError("Specify only one of 'scale' and 's'")
+            scale = s
+        if scale is not _UNSET:
+            kwargs["scale"] = scale
+        if t is not _UNSET:
+            if translate is not _UNSET:
+                raise _ArgumentError("Specify only one of 'translate' and 't'")
+            translate = t
+        if translate is not _UNSET:
+            kwargs["translate"] = translate
+        if q is not _UNSET:
+            if query is not _UNSET:
+                raise _ArgumentError("Specify only one of 'query' and 'q'")
+            query = q
+        if query is not _UNSET:
+            kwargs["query"] = query
+        if e is not _UNSET:
+            if edit is not _UNSET:
+                raise _ArgumentError("Specify only one of 'edit' and 'e'")
+            edit = e
+        if edit is not _UNSET:
+            kwargs["edit"] = edit
+        with undoChunk("mlibTransformMakeIdentity"):
+            if not self.isValid():
+                raise RuntimeError("Cannot freeze transform of an invalid transform")
+            cmds.makeIdentity(self.getFullName(), **kwargs)
+            return self
 
     def getClosestAxisToVector(self, ref_vector, include_negative=True):
         """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
@@ -1462,16 +2007,27 @@ class Transform(DagNode):
         return best_axis
 
     # 公開APIの短縮メソッド。旧mlib名の互換入口ではない。
-    @_flag_aliases(worldSpace="ws")
-    def getJointOrientQuaternion(self, ws=False):
-        """jointOrientまでのクォータニオンを取得する。
+    def getJointOrientQuaternion(self, ws=_UNSET, *, worldSpace=_UNSET):
+        """getQuaternionでrotateを除いた回転を取得する。
+
+        ``getQuaternion(ws=ws, r=False)`` へ委譲する。
+        ローカルではJointのjointOrient、非Jointでは単位回転を返す。
+        ワールドでは保持パスから求め、非Jointでは親側の行列の回転を返す。
+        jointOrientアトリビュートだけをQuaternionへ変換する入口ではない。
 
         Args:
             ws (bool): ワールド空間を使う。 別名 ``worldSpace`` も使用可能。
+            worldSpace (bool): wsの別名。同時指定は不可。
 
         Returns:
-            Quaternion: rotateを除いた姿勢。
+            Quaternion: ノードと独立した回転値。
         """
+        if worldSpace is not _UNSET:
+            if ws is not _UNSET:
+                raise _ArgumentError("Specify only one of 'ws' and 'worldSpace'")
+            ws = worldSpace
+        if ws is _UNSET:
+            ws = False
         return self.getQuaternion(ws=ws, r=False)
 
     @staticmethod
@@ -1585,13 +2141,14 @@ class Transform(DagNode):
             fitted.matrix = matrix
         return fitted, matrix, is_joint
 
-    def _apply_transformation_modifiers(self, fitted, is_joint, safe):
+    def _apply_transformation_modifiers(self, fitted, is_joint, safe, *, fast=False):
         """TRSより先に補助成分を従来の順序で設定する。
 
         Args:
             fitted (Transformation): 対象へ適合した値。
             is_joint (bool): 対象がjointか。
             safe (bool): 書込みできない成分を維持するか。
+            fast (bool): Trueなら子のPlugもOpenMayaで更新する。
         """
         modifiers = ["rotateOrder", "rotateAxis"]
         if is_joint:
@@ -1605,9 +2162,9 @@ class Transform(DagNode):
                 reference = EulerRotate(self.getPlug(name).get())
                 current = current.asEulerRotation().closestSolution(reference)
             if name in ("rotateOrder", "segmentScaleCompensate"):
-                self.getPlug(name).set(current, safe=safe)
+                self.getPlug(name).set(current, safe=safe, fast=fast)
             else:
-                self._set_channel_value(name, current, safe=safe)
+                self._set_channel_value(name, current, safe=safe, fast=fast)
 
     def _refit_safe_transformation(self, fitted, matrix):
         """補助成分の実際の状態を読み、safe適用後のTRSを再計算する。
@@ -1861,7 +2418,7 @@ class Transform(DagNode):
             return "rotate", q.asEulerRotation().reorder(self._rotate_order())
         return "jointOrient" if jo else "rotateAxis", q.asEulerRotation()
 
-    def _apply_local_matrix(self, matrix, scale_reference=None):
+    def _apply_local_matrix(self, matrix, scale_reference=None, *, fast=False):
         """ローカル行列の各成分をMayaアトリビュートへ適用する。
 
         行列を1回だけ分解し、平行移動・回転・スケール・シアーを順に書き込む。
@@ -1873,14 +2430,15 @@ class Transform(DagNode):
         * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に
           最も近いものを選ぶ(``om2.MEulerRotation.closestSolution``)。
 
-        このため ``setMatrix(getMatrix())`` や ``setTranslate`` はチャンネル値を
-        (浮動小数点の誤差を除いて)変えない。回転は現在のMaya角度単位へ変換して書き込む。
+        同じ行列の再適用で、不要なスケール符号や等価なEuler解の変化を避ける。
+        計算値は距離cm・角度radで、書込みは共通のPlug処理へ委譲する。
         ピボット・rotateAxis・jointOrient・SSCの補正を含める。
 
         Args:
             matrix (Matrix): ローカル空間の変換行列。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール。
                 None なら現在の scale チャンネル値に合わせる。
+            fast (bool): Trueなら各チャンネルをOpenMayaで更新する。
 
         Returns:
             None: 値を返さない。
@@ -1889,19 +2447,20 @@ class Transform(DagNode):
             ValueError: 行列を分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
-        self._apply_channel_values(self._matrix_channel_values(matrix, scale_reference))
+        self._apply_channel_values(self._matrix_channel_values(matrix, scale_reference), safe=False, fast=fast)
 
-    def _apply_channel_values(self, values, safe=False):
+    def _apply_channel_values(self, values, safe=False, *, fast=False):
         """計算済みの内部単位値を、辞書の保持順に設定する。
 
         Args:
             values (dict[str, Iterable[float]]): チャンネル名と設定値。
             safe (bool): 書けない成分を残す。通常時は失敗を伝播する。
+            fast (bool): 子のPlugへ渡す更新モード。
         """
         for name, value in values.items():
-            self._set_channel_value(name, value, safe=safe)
+            self._set_channel_value(name, value, safe=safe, fast=fast)
 
-    def _set_channel_value(self, name, value, safe=False):
+    def _set_channel_value(self, name, value, safe=False, *, fast=False):
         """変換チャンネルを内部単位で設定する。通常更新はMayaのアニメーション編集に従う。
 
         数値がすでにノードの回転順序なので、Double3の回転変換や接続の事前拒否を
@@ -1911,8 +2470,9 @@ class Transform(DagNode):
             name: 参照・作成・照会する対象の名前。
             value: 変換・設定する入力値。
             safe: 書込みできない成分を飛ばして処理するか。
+            fast (bool): TrueならOpenMayaで直接更新する。
         """
-        return Plug.set(self.getPlug(name), tuple(value), safe=safe)
+        return Plug.set(self.getPlug(name), tuple(value), safe=safe, fast=fast)
 
     def _matrix_channel_values(self, matrix, scale_reference=None):
         """行列からtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。

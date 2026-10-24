@@ -1,9 +1,11 @@
 """マテリアル接続と形状への割り当てを扱う。"""
 
+from contextlib import nullcontext
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _fast_edit, _is_fast, undoChunk
+from ..decorator import undoChunk
 from .objectSet import ObjectSet
 
 
@@ -33,8 +35,6 @@ class ShadingEngine(ObjectSet):
         plug = self.getShaderPlug(kind)
         return None if plug is None else plug.getNode()
 
-    @_fast_edit
-    @undoChunk("mlibShadingEngineSetShader")
     def setShader(self, shader, kind="surface", output=None, *, fast=False):
         """指定シェーダーの出力へ接続を置き換える。
 
@@ -51,19 +51,20 @@ class ShadingEngine(ObjectSet):
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
         """
-        from .node import Node as _InputNode
-        from ..plugs.plug import Plug as _InputPlug
-        from ..plugs import Plug
-        target = self.getPlug(self._shader_attribute(kind))
-        if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
-            source = _InputPlug._resolve_input(shader)
-        else:
-            source = _InputNode._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
-        source.connectTo(target, force=True)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibShadingEngineSetShader"):
+            from .node import Node as _InputNode
+            from ..plugs.plug import Plug as _InputPlug
+            from ..plugs import Plug
+            target = self.getPlug(self._shader_attribute(kind))
+            if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
+                source = _InputPlug._resolve_input(shader)
+            else:
+                source = _InputNode._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
+            source.connectTo(target, force=True, fast=fast)
+            return self
 
-    @_fast_edit
-    @undoChunk("mlibShadingEngineAssign")
     def assign(self, targets, *, fast=False):
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
 
@@ -79,14 +80,17 @@ class ShadingEngine(ObjectSet):
             RuntimeError: Mayaが割り当てを拒否した場合。
             NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
-        from ..core.object import Object as _InputObject
-        names = _InputObject._input_names(targets)
-        if names:
-            if _is_fast():
-                self._assign_meshes(names)
-            else:
-                cmds.sets(names, edit=True, forceElement=self.getFullName())
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibShadingEngineAssign"):
+            from ..core.object import Object as _InputObject
+            names = _InputObject._input_names(targets)
+            if names:
+                if fast:
+                    self._assign_meshes(names)
+                else:
+                    cmds.sets(names, edit=True, forceElement=self.getFullName())
+            return self
 
     def getMembers(self):
         """割り当て先を型付き参照で取得する。

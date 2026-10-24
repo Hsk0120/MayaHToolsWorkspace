@@ -174,6 +174,61 @@ class ConsolidatedPlugsTest(unittest.TestCase):
             mixed.set((1, [2.0]), safe=True, fast=True)
         self.assertEqual(mixed[0].get(), 9)
 
+    def test_safe_fast_checks_all_types_before_locked_or_invalid_values(self):
+        """先行するロックや不正な値が、後続の未対応型を隠して部分更新しない。"""
+        cmds.addAttr(str(self.node), ln="mixed", at="compound", nc=3)
+        cmds.addAttr(str(self.node), ln="blocked", at="double", p="mixed")
+        cmds.addAttr(str(self.node), ln="writable", at="double", p="mixed")
+        cmds.addAttr(str(self.node), ln="unsupportedChild", dt="floatArray", p="mixed")
+        mixed = self.node.getPlug("mixed")
+        mixed[0].set(9)
+        mixed[1].set(8)
+        mixed[2].set([7])
+        before = mixed.get()
+        for locked in (True, False):
+            mixed[0].setLocked(locked)
+            for first_value in (1, "invalid"):
+                with self.subTest(locked=locked, first_value=first_value):
+                    cmds.flushUndo()
+                    with self.assertRaises(NotImplementedError):
+                        mixed.set((first_value, 2, [3]), safe=True, fast=True)
+                    self.assertEqual(mixed.get(), before)
+                    self.assertEqual(mixed[0].isLocked(), locked)
+                    self.assertTrue(cmds.undoInfo(q=True, state=True))
+                    self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
+
+    def test_safe_fast_rejects_unsupported_nested_child_before_any_write(self):
+        """入れ子のロックと未対応型も、外側の子を書き始める前に拒否する。"""
+        cmds.addAttr(str(self.node), ln="mixed", at="compound", nc=2)
+        cmds.addAttr(str(self.node), ln="number", at="double", p="mixed")
+        cmds.addAttr(str(self.node), ln="nested", at="compound", nc=2, p="mixed")
+        cmds.addAttr(str(self.node), ln="blocked", at="double", p="nested")
+        cmds.addAttr(str(self.node), ln="unsupportedChild", dt="floatArray", p="nested")
+        mixed = self.node.getPlug("mixed")
+        mixed[0].set(9)
+        mixed[1][0].set(8)
+        mixed[1][1].set([7])
+        mixed[1][0].setLocked(True)
+        before = mixed.get()
+        cmds.flushUndo()
+        with self.assertRaises(NotImplementedError):
+            mixed.set((1, (2, [3])), safe=True, fast=True)
+        self.assertEqual(mixed.get(), before)
+        self.assertTrue(mixed[1][0].isLocked())
+        self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
+
+    def test_safe_fast_supported_children_keep_partial_ui_updates(self):
+        """全子の型が対応済みなら、ロック以外の子だけUI換算して更新する。"""
+        cmds.currentUnit(linear="m")
+        translation = self.node.getPlug("translate")
+        translation[1].setLocked(True)
+        cmds.flushUndo()
+        self.assertEqual(translation.set((1, 2, 3), safe=True, uiUnits=True, fast=True), 1)
+        self.assertEqual(tuple(translation.get()), (100, 0, 300))
+        self.assertTrue(translation[1].isLocked())
+        self.assertTrue(cmds.undoInfo(q=True, state=True))
+        self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
+
     def test_fast_key_uses_ui_time_value_and_rejects_flags_before_creation(self):
         """キーの時刻・角度をUI単位から変換し、未対応旗は作成前に拒否する。"""
         plug = self.node.getPlug("rx")

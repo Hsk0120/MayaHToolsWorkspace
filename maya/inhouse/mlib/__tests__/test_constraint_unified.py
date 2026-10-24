@@ -73,3 +73,7 @@ class UnifiedConstraintTest(unittest.TestCase):
             self.assertFalse(hasattr(mlib, name))
             self.assertFalse(hasattr(mlib.cmds, name))
             self.assertFalse((Path(mlib.__file__).parent / "cmds" / (name + ".py")).exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -3,24 +3,29 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _is_fast
 from .fastWrite import writable
 
 
 def geometry(shape, indices, edit=False):
-    """形状の DAG パスと関数セットを取得し、必要なら直接編集の条件を検査する。
+    """Shapeの保持DAGパスと関数セットを取得し、必要なら直接編集の前提を検査する。
+
+    呼出し側がShape型と番号範囲を検証済みであることを前提とする。edit=Trueでは
+    周期カーブ、inMesh/createへの入力、Shapeノードのロックを検査する。
+    指定点のpnts/controlPointsとその子についても、上位を含むロック・入力接続と、各対象アトリビュートの書込み可否を調べる。
+    indicesが空のUV更新では、点Plugごとの検査は行わない。
 
     Args:
-        shape (Mesh | NurbsCurve): 呼び出し側で型を解決した形状。
-        indices (Iterable[int]): 編集する制御点番号。
-        edit (bool): 周期カーブ・履歴・ロックなど直接編集できない条件を検査するか。
+        shape (Mesh | NurbsCurve): 型を解決済みのShapeラッパー。
+        indices (Iterable[int]): 範囲検証済みのAPI点番号。UV番号ではない。
+        edit (bool): Trueで直接編集の制限を検査する。Falseは照会用。
 
     Returns:
-        tuple: DAG パス、MFnMesh または MFnNurbsCurve、メッシュかを示す bool。
+        tuple: 保持DAGパス、MFnMeshまたはMFnNurbsCurve、MeshならTrue。
+            関数セットの取得自体では座標を書き換えない。
 
     Raises:
-        NotImplementedError: edit=True で周期カーブや入力履歴がある場合。
-        RuntimeError: edit=True で対象がロックされている場合。
+        NotImplementedError: edit=Trueで周期カーブまたはinMesh/create入力がある場合。
+        RuntimeError: 直接編集時のロック・入力接続・書込み禁止、またはShapeを参照できない場合。
     """
     path = shape.mpath()
     mesh = path.node().hasFn(om2.MFn.kMesh)
@@ -57,9 +62,15 @@ def positions(shape, indices, ws=False):
     path, fn, mesh = geometry(shape, indices)
     space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
     if len(indices) == 1:
-        points = [fn.getPoint(indices[0], space) if mesh else fn.cvPosition(indices[0], space)]
+        if mesh:
+            points = [fn.getPoint(indices[0], space)]
+        else:
+            points = [fn.cvPosition(indices[0], space)]
     else:
-        all_points = fn.getPoints(space) if mesh else fn.cvPositions(space)
+        if mesh:
+            all_points = fn.getPoints(space)
+        else:
+            all_points = fn.cvPositions(space)
         points = (all_points[i] for i in indices)
     return [(point.x, point.y, point.z) for point in points]
 
@@ -80,7 +91,7 @@ def command_indices(shape, indices):
     return list(indices)
 
 
-def setPositions(shape, indices, values, ws=False):
+def setPositions(shape, indices, values, ws=False, *, fast=False):
     """検証済みのcm座標を書き込む。Undo範囲は呼出元が管理する。
 
     Args:
@@ -88,6 +99,7 @@ def setPositions(shape, indices, values, ws=False):
         indices (Sequence[int]): 検証済みのAPI番号。重複は後の値を優先。
         values (Sequence[Sequence[float]]): 番号と同数の有限なXYZ。
         ws (bool): Trueならワールド座標。
+        fast (bool): TrueはOpenMaya直接更新。通常はcmds.xformを使う。
 
     Raises:
         NotImplementedError: fastで未対応の形状の場合。
@@ -95,7 +107,7 @@ def setPositions(shape, indices, values, ws=False):
     """
     if not indices:
         return
-    if _is_fast():
+    if fast:
         _set_positions_direct(shape, indices, values, ws)
         return
     _, _, mesh = geometry(shape, indices)
@@ -173,12 +185,24 @@ def object_positions(shape, indices, values):
 
 
 def set_uvs(shape, indices, values):
-    """現在の UV セットを OpenMaya で直接更新する。Undo には記録しない。
+    """現在のUV配列を読み、指定番号のU/Vを置換してOpenMayaへ一括設定する。
+
+    空の番号列はMayaへ問い合わせず戻る。非空なら入力履歴とShapeノードのロックを検査するが、
+    個々のUV-set Plugの書込み可否は検査しない。UV割当てやセットは作成しない。
+    Undoへ記録せず、Undo設定も変更しない。呼出し側が座標・件数・番号範囲を検証する。
 
     Args:
-        shape (Mesh): 対象メッシュ。
-        indices (Iterable[int]): 呼び出し側で検証した UV 番号。
-        values (Iterable): indices と対応する (u, v) の列。
+        shape (Mesh): 対象Mesh。
+        indices (Sequence[int]): 検証済みのUV番号。
+        values (Sequence[Sequence[float]]): indicesに対応する無次元の(U, V)行。
+
+    Raises:
+        NotImplementedError: inMeshへの入力がある場合。
+        RuntimeError: Shapeがロックされている、またはMayaの読取り・設定・更新に失敗した場合。
+
+    Note:
+        指定外の番号は読み出した値を保持する。setUVs後にupdateSurfaceを呼び、
+        後段の失敗時に自動で元の配列へ戻す処理は持たない。
     """
     if not indices:
         return

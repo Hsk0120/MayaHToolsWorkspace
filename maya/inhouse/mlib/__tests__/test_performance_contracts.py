@@ -8,7 +8,7 @@ import maya.cmds as cmds
 import mlib
 
 mlib.reload()
-from mlib.decorator import _fast_edit, _is_fast, undoChunk, undoTransaction
+from mlib.decorator import undoChunk, undoTransaction
 
 
 class PerformanceContractsTest(unittest.TestCase):
@@ -20,38 +20,26 @@ class PerformanceContractsTest(unittest.TestCase):
         cmds.undoInfo(state=True)
         cmds.currentUnit(linear="cm", angle="deg")
 
-    def test_fast_validation_and_nested_state(self):
-        """省略・明示False・異常引数・例外のどれでも状態を漏らさない。"""
-        @_fast_edit
-        def inner(value, *, fast=False):
-            if value == "fail":
-                raise ValueError("test")
-            return _is_fast()
-
-        @_fast_edit
-        def outer(*, fast=False):
-            return inner(1, fast=False)
-
-        self.assertFalse(inner(1))
-        self.assertTrue(outer(fast=True))
-        self.assertFalse(_is_fast())
-        for kwargs in ({"fast": 1}, {"fast": True, "unknown": 1}):
-            with self.assertRaises(TypeError):
-                inner(1, **kwargs)
-            self.assertFalse(_is_fast())
-        with self.assertRaises(TypeError):
-            inner(fast=True)
-        with self.assertRaises(ValueError):
-            inner("fail", fast=True)
-        self.assertFalse(_is_fast())
-
-        @_fast_edit
-        def positional(value, fast=False):
-            return _is_fast()
-
-        self.assertTrue(positional(1, True))
-        with self.assertRaises(TypeError):
-            positional(1, 1)
+    def test_fast_validation_precedes_scene_updates(self):
+        """fast不正値はsafeでも更新前に拒否し、次の通常更新へ影響しない。"""
+        node = mlib.createNode("transform")
+        calls = (
+            lambda flag: node.setTranslate((1, 2, 3), fast=flag),
+            lambda flag: node.getPlug("tx").set(1, safe=True, fast=flag),
+            lambda flag: mlib.createNode("network", fast=flag),
+            lambda flag: node.delete(fast=flag),
+        )
+        for call in calls:
+            with patch.object(cmds, "undoInfo", side_effect=AssertionError("Undo must not start")):
+                for flag in (1, None, "true"):
+                    with self.assertRaises(TypeError):
+                        call(flag)
+        with self.assertRaises((RuntimeError, TypeError, ValueError)):
+            node.getPlug("translate").set(("invalid", 2, 3), fast=True)
+        cmds.flushUndo()
+        node.getPlug("tx").set(4)
+        cmds.undo()
+        self.assertEqual(node.getPlug("tx").get(), 0)
 
     def test_nested_chunks_one_pair_and_redo(self):
         """通常の入れ子は1チャンクでまとめ、外側の名前とRedoを維持する。"""

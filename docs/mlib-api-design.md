@@ -279,7 +279,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 
 - 内部の照会・数値計算はOpenMaya API 2.0を基本とする。通常のシーン更新はUndo対応の`maya.cmds`を使い、対応APIの`fast=True`ではAPI 2.0で直接更新する。
 - 読取りの高速化に`fast`指定を要求しない。単点・一括取得を使い分け、保持するMPlugやMDagPathを名前へ戻して再解決しない。型・単位・順序・削除検出の契約は維持する。
-- `fast`は検証を省略する指定ではない。未対応の直接更新は変更前に拒否し、Undoのグローバル設定変更や独自プラグインで補わない。内側の対応処理は外側の`fast=True`を引き継ぐ。
+- `fast`は検証を省略する指定ではない。未対応の直接更新は変更前に拒否し、Undoのグローバル設定変更や独自プラグインで補わない。内側の対応処理へも`fast=fast`を明示的に渡す。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。
 
 - 引数がない、処理が軽い、戻り値が単純な数値という理由だけではプロパティにしない。Mayaの現在値を取得するならメソッドにする。
@@ -426,7 +426,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 入力の汎用展開は `Object._flatten_inputs()`、展開済み列の名前/Node混在検査は `Nodes._validate_inputs()`。検査からObjectの展開へ戻らない。`Nodes._resolve_inputs()` は両者を順に呼ぶノード側入口。
 - 公開コマンドはクラス側の共通処理に委譲する。`createNode` は `Node.create()` へ委譲する。クラス側から公開コマンドへ戻らない。Undoと短縮フラグは各公開入口の契約を維持する。
 - 複数形の転送入口は各クラスへ通常の`def`として明示し、実行は`Nodes._dispatch_shared()`に任せる。独自`callEach()`のoverride判定、共通引数の実行方針、計算用setterの`get`指定による結果収集はNodesが所有し、基底Nodes経由でも同じ返却を維持する。
-- フラグ正規化とfast/safeの内部補助は `decorator.py`、定義に基づく単位境界は `core.attributeType._convert_units`、型継承照会とその単一キャッシュは `core.registry` に集約する。通常Undo・fast継承・安全検証と単位の既存規則を維持する。
+- Undo等のコンテキストは `decorator.py`、定義に基づく単位境界は `core.attributeType._convert_units`、型継承照会とその単一キャッシュは `core.registry` に集約する。fast/safeは各メソッド本文で判定し、更新先へ明示的に渡す。長短の引数も通常defへ列挙して本文で検証し、Maya helpの実行時解析・別名メタデータ・汎用resolverは使わない。省略判定専用の`util._UNSET`でFalse/Noneの明示指定と省略を区別する。長短競合・必須値欠落は各単数の更新前に拒否し、複数形でもTypeErrorを保つ。複数形の全件事前検査はPythonの呼出形式を対象とする。通常Undo・安全検証と単位の既存規則を維持する。
 
 ### 任意拡張の参照方向と再読み込み
 
@@ -459,6 +459,6 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 参照・計算・書込みの責務
 
-- Transformの設定予定値の計算とチャンネル書込みは内部で分ける。`safe/get/at/ra/r/jo/ws`の既存の意味、返却型、単位は変更しない。通常cmdsのUndoとfastのOM2直接更新を維持し、継承したfastは内側の`fast=False`では解除しない。
+- Transformの設定予定値の計算とチャンネル書込みは内部で分ける。`safe/get/at/ra/r/jo/ws`の既存の意味、返却型、単位は変更しない。通常cmdsのUndoとfastのOM2直接更新を維持し、内部のチャンネル更新へfast/safeを明示的に渡す。呼出元の状態で`fast=False`や省略値を上書きしない。
 - Transformationは入力をコピーして保持するが、成分プロパティは保持する可変値の参照を返す。合成行列・quaternionとMatrixの成分取得は独立した値である。Transformationのmatrix代入・行列による自身更新では成分が置き換わり、以前取得した成分参照は更新先へ追従しない。ノードから取得した値はシーンと独立し、反映には明示的なsetterを使う。
-- `moveAttrOrder`は対応する定義・値・フラグ・別名を復元し、全定義が揃ってから接続を復元する。変更途中の失敗はこの処理のUndoで復元するため、実際に並びを変更する場合はUndo無効・fast文脈を削除前に拒否する。
+- `moveAttrOrder`は対応する定義・値・フラグ・別名を復元し、全定義が揃ってから接続を復元する。変更途中の失敗はこの処理のUndoで復元するため、実際に並びを変更する場合はUndo無効を削除前に拒否する。fast引数は持たず、通常Undoを使う。

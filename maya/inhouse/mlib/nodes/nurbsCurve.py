@@ -6,17 +6,15 @@ import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
-from ..decorator import _flag_aliases, _fast_edit
 from ..util import _world_space
+from ..util import _ArgumentError, _UNSET
 from .shape import Shape
 
 
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
-    @_flag_aliases(ws="worldSpace")
-    @_fast_edit
-    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """CV の位置をミラーし、自身を更新する。
 
         Args:
@@ -28,6 +26,7 @@ class NurbsCurve(Shape):
             indices (Iterable[int] | None): CV 番号。None は全 CV、空列は変更なし。
                 重複は1回だけ処理し、負の番号は許容しない。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             NurbsCurve: 編集した自身。
@@ -47,16 +46,24 @@ class NurbsCurve(Shape):
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         ws = _world_space(worldSpace)
-        self.getCVs(indices).mirror(axis=axis, ws=ws, pivot=pivot)
+        self.getCVs(indices).mirror(axis=axis, ws=ws, pivot=pivot, fast=fast)
         return self
 
-    @_flag_aliases(idx="index")
-    def getCV(self, index):
+    def getCV(self, index=_UNSET, *, idx=_UNSET):
         """CV 番号から単体ラッパーを取得する。
 
         Args:
             index (int): ゼロ始まりの CV 番号。 別名 ``idx`` も使用可能。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             CV: シーン上の CV を参照するラッパー。
@@ -64,6 +71,12 @@ class NurbsCurve(Shape):
         Raises:
             IndexError: CV 番号が範囲外の場合。
         """
+        if idx is not _UNSET:
+            if index is not _UNSET:
+                raise _ArgumentError("Specify only one of 'index' and 'idx'")
+            index = idx
+        if index is _UNSET:
+            raise _ArgumentError("Missing required argument: 'index'")
         return CV(self, index)
 
     def getCVs(self, indices=None):
@@ -117,8 +130,7 @@ class NurbsCurve(Shape):
         """
         return self.curveFn().form
 
-    @_flag_aliases(ws="worldSpace")
-    def getLength(self, tolerance=1e-6, *, worldSpace=False, unit="cm"):
+    def getLength(self, tolerance=1e-6, *, worldSpace=_UNSET, unit="cm", ws=_UNSET):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
         Args:
@@ -126,6 +138,7 @@ class NurbsCurve(Shape):
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             unit (str | None): 出力単位。既定はcm。Noneは現在の距離UI単位。
                 mm/cm/m/km/in/ft/yd/mi、またはMayaの長名。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             float: 指定単位での弧長。単位省略時はcm。
@@ -136,6 +149,12 @@ class NurbsCurve(Shape):
             TypeError: 単位の型が不正な場合。
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         from ..common import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
@@ -158,22 +177,27 @@ class NurbsCurve(Shape):
         curve.updateCurve()
         return curve.length(tolerance) * factor
 
-    @_flag_aliases(ws="worldSpace")
-    def getCvPositions(self, worldSpace=False):
+    def getCvPositions(self, worldSpace=_UNSET, *, ws=_UNSET):
         """CV の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self.curveFn().cvPositions(space)
 
-    @_flag_aliases(ws="worldSpace")
-    def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):
+    def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=_UNSET, *, ws=_UNSET):
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
         周期カーブの重複 CV や、クリーンアップ前のカーブの検証などに使う。
@@ -182,6 +206,7 @@ class NurbsCurve(Shape):
             tolerance (float): 同一位置とみなす距離の許容誤差（Maya API の
                 内部距離単位）。正の値を指定する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             list[list[int]]: 2個以上の CV が重なっているグループのみを、
@@ -191,6 +216,12 @@ class NurbsCurve(Shape):
         Raises:
             ValueError: tolerance が正の値でない場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")

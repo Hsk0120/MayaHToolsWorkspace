@@ -149,3 +149,7 @@ class ApiMethodsTest(unittest.TestCase):
         self.assertEqual(node.getQuaternion(), node.getQuaternion())
         self.assertEqual(node.getJointOrientQuaternion(), node.getQuaternion(r=False))
         self.assertEqual(Vector(1, 2, 3).lengthSq(), 14)
+
+
+if __name__ == "__main__":
+    unittest.main()

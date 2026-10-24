@@ -173,10 +173,8 @@ class AttributeEditsTest(unittest.TestCase):
         self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
         self.assertTrue(first.isValid())
 
-    def test_move_rejects_undo_disabled_and_fast_before_changes(self):
-        """復旧できない実行モードでは、定義を削除する前に拒否する。"""
-        from mlib.decorator import _fast_edit
-
+    def test_move_rejects_undo_disabled_before_changes(self):
+        """復旧できないUndo無効時は、定義を削除する前に拒否する。"""
         self.node.addAttr("first")
         self.node.addAttr("second")
         before = self.node.getExtraAttrs(asNames=True)
@@ -188,14 +186,10 @@ class AttributeEditsTest(unittest.TestCase):
             self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
         finally:
             cmds.undoInfo(stateWithoutFlush=True)
-
-        @_fast_edit
-        def move(*, fast=False):
-            """呼出し元のfast文脈を並べ替えへ伝える。"""
-            self.node.moveAttrOrder("first", 1)
-
-        with self.assertRaises(NotImplementedError):
-            move(fast=True)
+        # fast引数のない操作は外側の呼出しモードに依存せず通常Undoを使う。
+        self.node.moveAttrOrder("first", 1)
+        self.assertEqual(self.node.getExtraAttrs(asNames=True), ["second", "first"])
+        cmds.undo()
         self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
 
     def test_add_preflights_child_names_and_component_counts(self):

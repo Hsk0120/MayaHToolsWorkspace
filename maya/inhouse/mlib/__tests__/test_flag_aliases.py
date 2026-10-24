@@ -1,8 +1,10 @@
 """長短フラグの戻り値・競合検査・アトリビュート別名を実Mayaで検証する。"""
 
 import sys
+import inspect
 import unittest
 import uuid
+from unittest.mock import patch
 
 import maya.cmds as cmds
 import mlib
@@ -79,6 +81,50 @@ class FlagAliasesTest(unittest.TestCase):
         self.assertEqual(cmds.keyframe(node.getFullName(), q=True, at="tx", vc=True), [4])
         mlib.select(cl=True)
         self.assertEqual(mlib.ls(sl=True), [])
+
+    def test_explicit_parameters_do_not_query_maya_help(self):
+        """長短名を引数へ公開し、実行中にhelpや別名メタデータを使わない。"""
+        node = mlib.createNode("transform")
+        parameters = inspect.signature(node.getTranslate).parameters
+        self.assertIn("worldSpace", parameters)
+        self.assertIn("ws", parameters)
+        self.assertEqual(parameters["ws"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertFalse(hasattr(type(node).getTranslate, "__mlib_flag_aliases__"))
+        with patch.object(cmds, "help", side_effect=AssertionError("runtime help lookup")):
+            child = mlib.createNode("transform", n="explicitChild", p=node)
+            child.setTranslate((1, 2, 3), ws=False, at=4, fast=True)
+            mlib.select(child, r=True)
+            self.assertEqual(mlib.ls(sl=True, typ="transform"), [child])
+            self.assertEqual(tuple(child.getTranslate(ws=False, at=4)), (1, 2, 3))
+
+    def test_alias_conflicts_and_missing_values_precede_undo(self):
+        """False/Noneの重複と必須値欠落も、Undoや書込みを開始する前に拒否する。"""
+        node = mlib.createNode("transform")
+        matrix = mlib.createNode("multMatrix")
+        attempts = (
+            lambda: node.setTranslate((1, 2, 3), worldSpace=False, ws=False),
+            lambda: node.reset(attributes=None, attrs=None),
+            lambda: node.addAttr(longName="value", ln="value"),
+            lambda: matrix.setInput(idx=2),
+            lambda: matrix.setInput(value=mlib.maths.Matrix()),
+        )
+        with patch.object(cmds, "undoInfo", side_effect=AssertionError("Undo must not start")):
+            for operation in attempts:
+                with self.assertRaises(TypeError):
+                    operation()
+
+    def test_reserved_keyword_and_required_alias(self):
+        """予約語の辞書指定と、indexの短名で必須番号を満たす経路を確認する。"""
+        roots = mlib.ls(assemblies=True, long=True)
+        short_roots = mlib.ls(long=True, **{"as": True})
+        self.assertEqual([node.getFullName() for node in roots],
+                         [node.getFullName() for node in short_roots])
+        with self.assertRaises(TypeError):
+            mlib.ls(assemblies=False, **{"as": False})
+        matrix = mlib.createNode("multMatrix")
+        value = mlib.maths.Matrix(translate=(1, 2, 3))
+        self.assertIs(matrix.setInput(idx=2, value=value, fast=True), matrix)
+        self.assertTrue(matrix.getInput(idx=2).isEquivalent(value))
 
 
 if __name__ == "__main__":

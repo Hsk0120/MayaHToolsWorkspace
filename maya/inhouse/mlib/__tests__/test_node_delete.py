@@ -125,3 +125,7 @@ class NodeDeleteTest(unittest.TestCase):
             mlib.createNode('transform', name=name, skipSelect=True)
         mlib.delete(self.namespace + ':match*')
         self.assertFalse(cmds.ls(self.namespace + ':match*'))
+
+
+if __name__ == "__main__":
+    unittest.main()

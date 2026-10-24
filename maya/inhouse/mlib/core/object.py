@@ -7,11 +7,16 @@ class _ObjectType(type):
     """Objectへの入力だけを振り分け、派生クラスの構築は通常通り行う。"""
 
     def __call__(cls, *args, **kwargs):
-        """解決済み参照への二重初期化を避けて適切な型を返す。
+        """Objectの呼出しだけを参照の型判別へ渡し、派生クラスは通常どおり構築する。
+
+        Objectが解決したNode・Plug・Componentへ、再び初期化を行わない。
 
         Args:
-            *args: 呼出し先またはUIシグナルから渡される位置引数。
-            **kwargs: 呼出し先へ渡すキーワード引数。
+            *args: Objectでは単一の参照入力。派生クラスではその構築に渡す位置引数。
+            **kwargs: 参照の入力解決、または派生クラスの構築に渡すキーワード引数。
+
+        Returns:
+            Object: 解決した参照、または構築した派生クラスのインスタンス。
         """
         if cls is Object:
             return cls._resolve_input(*args, **kwargs)
@@ -19,11 +24,15 @@ class _ObjectType(type):
 
 
 class Object(metaclass=_ObjectType):
-    """Node・Plug・単数Componentの共通基底。既存対象を参照し、新規作成しない。
+    """Mayaのノード・プラグ・単一コンポーネントへの参照を共通の入口で取得する。
 
-    Object(value)は対象に対応した具象ラッパーを返す。
-    等価比較・ハッシュ・寿命の判定は各参照型が担当する。
-    コレクション・数学値・保存データ・UI参照はこの基底に含めない。
+    ``Object(value)`` は入力をNode・Plug・単数Componentへ振り分ける。
+    プラグやコンポーネントを所有ノードへ変換する入口ではない。
+    ノード作成・複製・選択変更は行わず、複数対象や複数要素のコンポーネント範囲は受け付けない。
+
+    既存ラッパーを渡した場合は、削除済みでも有効性を再検査せず同じインスタンスを返す。
+    対象の有効性・等価比較・ハッシュは各参照型が担当する。
+    コレクションや数学値はこの基底に含めない。
     """
 
     def asString(self):
@@ -43,19 +52,26 @@ class Object(metaclass=_ObjectType):
 
     @staticmethod
     def _resolve_input(value):
-        """入力を一意なNode・Plug・Componentへ解決する。
+        """名前またはMaya API参照から、種類に対応する単数ラッパーを取得する。
+
+        既存のObject派生インスタンスは再検査せず返す。
+        それ以外は各型の入力解決へ渡し、名前は一つの対象へ解決できる場合だけ受け付ける。
 
         Args:
-            value (str | Object | MObject | MDagPath | MPlug | tuple):
-                単一対象。コンポーネントのAPI入力は(MDagPath, MObject)。
+            value (str | Object | om2.MObject | om2.MDagPath | om2.MPlug | tuple):
+                ノード名・プラグ名・単一コンポーネント名、既存ラッパー、またはAPI参照。
+                APIコンポーネントは ``(MDagPath, MObject)`` の組で指定する。
 
         Returns:
-            Object: 既存ラッパーはそのまま、その他は対応する具体型。
+            Object: 入力が既存ラッパーなら同じインスタンス。
+                それ以外は対象を参照する具体的なNode・Plug・Component。
 
         Raises:
-            TypeError: 未対応の型・コンポーネント種類の場合。
-            ValueError: 空入力または複数要素を指定した場合。
-            RuntimeError: 名前が存在しない、または一意に解決できない場合。
+            TypeError: 未対応の型、依存ノード以外を指すMObject、不正なAPIコンポーネントの組、
+                または非対応のコンポーネント種類の場合。
+            ValueError: 空文字列・空MPlug、またはコンポーネントの要素数が1でない場合。
+            IndexError: APIコンポーネントの番号が現在のシェイプの範囲外の場合。
+            RuntimeError: 名前が存在しない・一意でない場合、またはAPI参照の対象が無効な場合。
         """
         from ..nodes.node import Node
         from ..plugs.plug import Plug

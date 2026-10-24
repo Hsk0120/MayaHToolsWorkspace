@@ -37,3 +37,7 @@ class CommandNamesTest(unittest.TestCase):
             self.assertEqual(enum.getEnumValue("world"), 1)
         finally:
             node.delete()
+
+
+if __name__ == "__main__":
+    unittest.main()

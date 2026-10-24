@@ -1,9 +1,11 @@
 """Maya の displayLayer を扱う。"""
 
+from contextlib import nullcontext
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _fast_edit, _is_fast, undoChunk
+from ..decorator import undoChunk
 from .node import Node
 
 
@@ -33,8 +35,6 @@ class DisplayLayer(Node):
                 for plug in output.connectedTo(False, True)
                 if plug.node().hasFn(om2.MFn.kDagNode)]
 
-    @_fast_edit
-    @undoChunk("mlibDisplayLayerAddMembers")
     def addMembers(self, *members, fast=False):
         """子階層を含めてメンバーを排他的にこのレイヤーへ移動する。
 
@@ -46,16 +46,17 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from ..core.object import Object as _InputObject
-        if members:
-            if _is_fast():
-                self._move_members(members)
-            else:
-                cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDisplayLayerAddMembers"):
+            from ..core.object import Object as _InputObject
+            if members:
+                if fast:
+                    self._move_members(members)
+                else:
+                    cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
+            return self
 
-    @_fast_edit
-    @undoChunk("mlibDisplayLayerRemoveMembers")
     def removeMembers(self, *members, fast=False):
         """子階層を含めてdefaultLayerへ移す。
 
@@ -66,16 +67,17 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        from ..core.object import Object as _InputObject
-        if members:
-            if _is_fast():
-                DisplayLayer("defaultLayer")._move_members(members)
-            else:
-                cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDisplayLayerRemoveMembers"):
+            from ..core.object import Object as _InputObject
+            if members:
+                if fast:
+                    DisplayLayer("defaultLayer")._move_members(members)
+                else:
+                    cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
+            return self
 
-    @_fast_edit
-    @undoChunk("mlibDisplayLayerSetCurrent")
     def setCurrent(self, *, fast=False):
         """このレイヤーを新規作成ノードの追加先にする。
 
@@ -85,11 +87,14 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        if _is_fast():
-            Node("layerManager").getPlug("currentDisplayLayer").set(self.getPlug("identification").get())
-        else:
-            cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDisplayLayerSetCurrent"):
+            if fast:
+                Node("layerManager").getPlug("currentDisplayLayer").set(self.getPlug("identification").get(), fast=fast)
+            else:
+                cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
+            return self
 
     def _move_members(self, members):
         """標準DAGの排他レイヤー接続を事前確認して直接移動する。

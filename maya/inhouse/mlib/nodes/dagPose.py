@@ -7,17 +7,22 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from ..decorator import _flag_aliases, undoChunk, undoTransaction
+from ..decorator import undoChunk, undoTransaction
 from ..maths import Matrix
 from ..util import _world_space
+from ..util import _ArgumentError, _UNSET
 from .node import Node, Nodes
 
 
 class DagPose(Node):
-    """MayaのdagPose。姿勢の保存・復元と、保存済み行列の照会を提供する。
+    """dagPoseノードの参照を保持し、DAGメンバーの保存姿勢とバインドポーズを扱う。
 
-    バインドポーズも同じノード型で、isBindPose()で区別する。
-    reset()はこのノードの保存姿勢を更新し、skinCluster.bindPreMatrixは変更しない。
+    membersの接続と保存行列/親情報を管理する。
+    バインドポーズも同じノード型で、isBindPose()で区別する。reset()は保存姿勢を
+    更新し、restore()はシーンの姿勢を戻す。skinCluster.bindPreMatrixの再設定は担当しない。
+
+    保存・復元はMaya標準コマンドを使い、fast引数は提供しない。merge()は
+    保存情報の統合とskinCluster.bindPoseの再接続を行う別の責務を持つ。
     """
 
     @classmethod
@@ -87,10 +92,13 @@ class DagPose(Node):
         return bool(self.getPlug("bindPose").get())
 
     def getMemberIndices(self):
-        """現在もメンバーが接続されている論理番号。欠番は保持する。
+        """現在も接続された保存メンバーの論理番号を取得する。
+
+        members配列の既存番号のうち、入力接続がある要素だけを返す。
+        切断済みの空要素を除き、欠番を詰めずにworldMatrix/xformMatrixとの対応を保つ。
 
         Returns:
-            list[int]: 現在もメンバーが接続されている論理番号。欠番は保持する。
+            list[int]: membersの既存要素の列挙順による論理番号。物理位置ではない。
         """
         self._pose_name()
         members = self.getPlug("members").mplug()
@@ -127,20 +135,29 @@ class DagPose(Node):
                 return index
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
-    @_flag_aliases(ws="worldSpace")
-    def getMatrix(self, member, worldSpace=False):
-        """現在のノード行列ではなく、保存時の行列を取得する。
+    def getMatrix(self, member, worldSpace=_UNSET, *, ws=_UNSET):
+        """指定メンバーの保存行列を、独立したMatrixとして取得する。
+
+        membersと共通の論理番号でworldMatrixまたはxformMatrixを読む。
+        現在のTransform行列の照会や姿勢の復元は行わない。
 
         Args:
-            member (Node | str): 保存対象のノード。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            member (Node | str): このポーズの保存メンバー。
+            worldSpace (bool): Trueは保存worldMatrix、Falseは保存xformMatrix。短縮名 ``ws``。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Matrix: 保存行列のコピー。
+            Matrix: 保存行列の新しいコピー。自身更新してもポーズやシーンは変化しない。
 
         Raises:
-            ValueError: メンバーでない場合。
+            ValueError: このポーズのメンバーでない場合。
         """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
         ws = _world_space(worldSpace)
         index = self.getMemberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
@@ -180,12 +197,17 @@ class DagPose(Node):
         return nodes
 
     def merge(self, sources, *, currentPose=False, deleteSources=True):
-        """他の保存ポーズを自身へ統合し、skinClusterの参照先も揃える。
+        """他の保存ポーズを自身へ統合し、skinClusterのbindPose参照先を揃える。
 
-        保存済みの姿勢・親情報が競合する場合は変更前に拒否する。
-        currentPose=Trueは自身の既存メンバーを含む全対象を現在姿勢で保存する。
+        currentPose=Falseでは保存姿勢・親情報とxform内部情報の競合を変更前に拒否する。
+        currentPose=Trueは競合を許容し、
+        自身の既存メンバーを含めて現在姿勢を保存し、既存の疎な保存番号は保持する。
         ジョイントの現在姿勢・ウェイト・bindPreMatrixは変更しない。
-        Maya標準コマンドによる1回のUndoに対応し、失敗時は巻き戻す。
+
+        Undo有効を前提とするundoTransactionを使い、Maya標準コマンドをまとめる。
+        Undo無効時の復旧はできない。失敗時はUndoで復旧を試み、二次失敗は警告して
+        元の例外を優先するため、復旧完了を保証するものではない。
+        fast引数はなく、このトランザクションは省略しない。
 
         Args:
             sources (Node | str | Iterable[Node | str]): 統合元のdagPose。
@@ -193,14 +215,15 @@ class DagPose(Node):
             currentPose (bool): 保存済み姿勢ではなく現在の姿勢・階層を保存する。
                 復元に必要な親もMaya標準処理で含める。
             deleteSources (bool): 統合後に元ポーズを削除する。既定はTrue。
-                メンバー・親情報とskinCluster.bindPose以外の接続があれば拒否する。
+                メンバー・親情報・skinCluster.bindPoseと、標準のjoint.bindPoseから
+                worldMatrixへの保存行列入力以外の接続があれば拒否する。
 
         Returns:
             DagPose: 自身。
 
         Raises:
             ValueError: 型・フラグ・保存情報の競合、通常ポーズとbindPoseの混在。
-            RuntimeError: ロック・参照・インスタンス・不正な保存情報、編集失敗。
+            RuntimeError: ロック・参照・インスタンス・不正な保存情報、またはMayaの編集失敗。
         """
         if type(currentPose) is not bool or type(deleteSources) is not bool:
             raise ValueError("currentPose and deleteSources must be bool")
@@ -226,13 +249,12 @@ class DagPose(Node):
                 cmds.delete([pose.getFullName() for pose in sources])
         return self
 
-    @_flag_aliases(ws="worldSpace")
-    @undoChunk("mlibDagPoseRestore")
-    def restore(self, worldSpace=False):
+    def restore(self, worldSpace=_UNSET, *, ws=_UNSET):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             DagPose: 自身。
@@ -240,25 +262,35 @@ class DagPose(Node):
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
-        ws = _world_space(worldSpace)
-        cmds.dagPose(self._pose_name(), restore=True, g=ws)
-        return self
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        with undoChunk("mlibDagPoseRestore"):
+            ws = _world_space(worldSpace)
+            cmds.dagPose(self._pose_name(), restore=True, g=ws)
+            return self
 
     @undoChunk("mlibDagPoseReset")
     def reset(self, members=None):
-        """保存姿勢を現在の姿勢へ更新する。ノードを保存姿勢へ戻す操作ではない。
+        """指定メンバーの保存姿勢を、シーンの現在姿勢へ更新する。
 
-        skinClusterの変形基準行列(bindPreMatrix)は更新しない。
+        ノードを保存姿勢へ動かすrestore()とは異なり、保存側だけを更新する。
+        skinCluster.bindPreMatrixやウェイトは変更しない。対象を全件検証してから
+        MayaのdagPose resetを呼び、通常のUndoチャンクへまとめる。自動復旧は行わない。
 
         Args:
-            members (Node | str | Iterable[Node | str] | None): 更新対象。Noneなら全メンバー。
+            members (Node | str | Iterable[Node | str] | None): 更新対象。Noneは全接続メンバー。
+                Noneでメンバーがなければ何も変更しない。
 
         Returns:
             DagPose: 自身。
 
         Raises:
-            ValueError: 明示した対象が空、またはメンバーでない場合。
-            RuntimeError: Mayaが更新を拒否した場合。
+            ValueError: 明示入力が空、Transform以外、または登録外の対象を含む場合。
+            RuntimeError: ノードが無効、またはMayaが保存姿勢の更新を拒否した場合。
         """
         name = self._pose_name()
         targets = self.getMembers() if members is None else members

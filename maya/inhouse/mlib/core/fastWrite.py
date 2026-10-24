@@ -3,8 +3,47 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _is_fast
 from .attributeType import NUMERIC_WRITERS, _convert_units
+
+_TYPED_DATA_FACTORIES = {
+    om2.MFnData.kDoubleArray: om2.MFnDoubleArrayData,
+    om2.MFnData.kIntArray: om2.MFnIntArrayData,
+    om2.MFnData.kStringArray: om2.MFnStringArrayData,
+    om2.MFnData.kVectorArray: om2.MFnVectorArrayData,
+    om2.MFnData.kPointArray: om2.MFnPointArrayData,
+    om2.MFnData.kMatrixArray: om2.MFnMatrixArrayData,
+}
+
+
+def _require_supported_type(plug):
+    """fastで書ける型か全子の定義から確認する。値や書込み可否は検査しない。
+
+    safeの部分更新前に呼び、ロックや不正な値によって後続の未対応型が隠れるのを防ぐ。
+    対応するtyped配列の型表は、実データを構築するprepare_dataと共有する。
+
+    Args:
+        plug (om2.MPlug): 有効性を確認済みの更新対象。
+
+    Raises:
+        NotImplementedError: 子を含め、fastで扱えない型がある場合。
+    """
+    attribute = plug.attribute()
+    if plug.isCompound:
+        for index in range(plug.numChildren()):
+            _require_supported_type(plug.child(index))
+        return
+    if attribute.hasFn(om2.MFn.kUnitAttribute) or attribute.hasFn(om2.MFn.kEnumAttribute):
+        return
+    if attribute.hasFn(om2.MFn.kNumericAttribute):
+        if om2.MFnNumericAttribute(attribute).numericType() in NUMERIC_WRITERS:
+            return
+    elif attribute.hasFn(om2.MFn.kMatrixAttribute):
+        return
+    elif attribute.hasFn(om2.MFn.kTypedAttribute):
+        kind = om2.MFnTypedAttribute(attribute).attrType()
+        if kind in (om2.MFnData.kString, om2.MFnData.kMatrix) or kind in _TYPED_DATA_FACTORIES:
+            return
+    raise NotImplementedError("fast attribute type is not supported: " + plug.name())
 
 
 def writable(plug, _fn=None):
@@ -28,7 +67,10 @@ def writable(plug, _fn=None):
             current = current.array()
         else:
             break
-    if not (_fn if _fn is not None else om2.MFnAttribute(plug.attribute())).writable:
+    fn = _fn
+    if fn is None:
+        fn = om2.MFnAttribute(plug.attribute())
+    if not fn.writable:
         raise RuntimeError("Attribute is not writable: " + plug.name())
 
 
@@ -71,7 +113,7 @@ def _prepared_writes(plug, value):
         value (object): 内部単位の入力値。
 
     Returns:
-        list[tuple]: setter・プラグ・変換済み値の列。
+        list[tuple]: setter・プラグ・変換済み値・書込み終了まで保持するfunction setの列。
 
     Raises:
         NotImplementedError: API 2.0で値を構築できない型の場合。
@@ -79,8 +121,12 @@ def _prepared_writes(plug, value):
     attribute = plug.attribute()
     unit = attribute.hasFn(om2.MFn.kUnitAttribute)
     numeric = not unit and attribute.hasFn(om2.MFn.kNumericAttribute)
-    fn = (om2.MFnUnitAttribute(attribute) if unit else
-          om2.MFnNumericAttribute(attribute) if numeric else om2.MFnAttribute(attribute))
+    if unit:
+        fn = om2.MFnUnitAttribute(attribute)
+    elif numeric:
+        fn = om2.MFnNumericAttribute(attribute)
+    else:
+        fn = om2.MFnAttribute(attribute)
     writable(plug, fn)
     if plug.isCompound:
         values = tuple(value)
@@ -117,6 +163,10 @@ def _prepared_writes(plug, value):
 def set_plug(plug, value):
     """全成分を事前検証してMPlugへ設定する。Undoには記録しない。
 
+    型・書込み可否・ハード範囲を確認し、型付きデータを構築してから準備順に書き込む。
+    function setはデータの受渡しが終わるまで保持する。Undo設定は変更しない。
+    事前検証後のAPI書込みで失敗した場合、先に書いた成分の自動復元は行わない。
+
     Args:
         plug (om2.MPlug): 更新対象。
         value (object): 角度rad、距離cm、時間秒の値。
@@ -130,15 +180,18 @@ def set_plug(plug, value):
         setter(target, item)
 
 
-def set_attr(name, *values, **kwargs):
+def set_attr(name, *values, fast=False, **kwargs):
     """既存のsetAttrと同じ値入力を、明示fast時だけMPlugへ渡す。
 
     Args:
         name (str): アトリビュート名。
         *values: cmds.setAttr と同じ形・現在の Maya 単位の値。
+        fast (bool): TrueはOpenMaya直接更新。呼出元が明示的に指定する。
         **kwargs: setAttr のフラグ。fast 時の対応フラグは限定される。
     """
-    if not _is_fast():
+    if type(fast) is not bool:
+        raise TypeError("fast must be a bool")
+    if not fast:
         return cmds.setAttr(name, *values, **kwargs)
     selection = om2.MSelectionList()
     selection.add(name)
@@ -173,24 +226,16 @@ def prepare_data(attribute, value, *, name=None):
         setter, result = om2.MPlug.setMObject, owner.create(matrix)
     elif attribute.hasFn(om2.MFn.kTypedAttribute):
         kind = om2.MFnTypedAttribute(attribute).attrType()
-        factories = {
-            om2.MFnData.kDoubleArray: om2.MFnDoubleArrayData,
-            om2.MFnData.kIntArray: om2.MFnIntArrayData,
-            om2.MFnData.kStringArray: om2.MFnStringArrayData,
-            om2.MFnData.kVectorArray: om2.MFnVectorArrayData,
-            om2.MFnData.kPointArray: om2.MFnPointArrayData,
-            om2.MFnData.kMatrixArray: om2.MFnMatrixArrayData,
-        }
         if kind == om2.MFnData.kString:
             setter, result = om2.MPlug.setString, str(value)
         elif kind == om2.MFnData.kMatrix:
             matrix = value if isinstance(value, om2.MMatrix) else om2.MMatrix(value)
             owner = om2.MFnMatrixData()
             setter, result = om2.MPlug.setMObject, owner.create(matrix)
-        elif kind in factories:
+        elif kind in _TYPED_DATA_FACTORIES:
             if kind == om2.MFnData.kMatrixArray:
                 value = [item if isinstance(item, om2.MMatrix) else om2.MMatrix(item) for item in value]
-            owner = factories[kind]()
+            owner = _TYPED_DATA_FACTORIES[kind]()
             setter, result = om2.MPlug.setMObject, owner.create(value)
         else:
             raise NotImplementedError("fast typed data is not supported: " + label)

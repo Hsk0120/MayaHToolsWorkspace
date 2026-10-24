@@ -1,56 +1,74 @@
 """Mesh の現在の UV セットを参照する UV 型。"""
 
+from contextlib import nullcontext
+
 import maya.cmds as cmds
 
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _fast_edit, _is_fast, undoChunk
+from ..decorator import undoChunk
 from .component import Component, Components
 
 
 class UV(Component):
-    """現在の UV セットの単一 UV。UV セット切替後は切替先を参照する。"""
+    """Mesh参照とUV番号を保持し、現在のUVセットのU/V座標を照会・編集する。
+
+    UVセット名は固定して保持しない。切替後は同じ番号で切替先のセットを参照する。
+    U/Vは無次元で、0〜1に制限しない。
+    """
 
     shape_type = "mesh"
     component_type = "map"
     count_attribute = "getNumUVs"
 
     def getPosition(self):
-        """UV 座標を取得する。
+        """現在のUVセットから、保持番号のU/V座標を取得する。
 
         Returns:
-            tuple[float, float]: 単位を持たない U、V 座標。
+            tuple[float, float]: 新しい無次元の(U, V)値。UI距離単位やobject/world空間とは無関係。
+
+        Raises:
+            IndexError: 保持番号が現在のUVセットの範囲外の場合。
+            RuntimeError: Meshまたは現在のUVセットを参照できない場合。
         """
         self._validate()
         mesh_fn = self.shape.meshFn()
         return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
-    @_fast_edit
-    @undoChunk("mlibUVPosition")
     def setPosition(self, value, *, fast=False):
-        """UV 座標を設定する。
+        """現在のUVセットの保持番号へ、絶対U/V座標を設定する。
+
+        通常経路はcmds.polyEditUV(relative=False)を使い、Undoが有効なら記録する。
+        fastは入力履歴とShapeノードのロックを検査し、現在のUV配列をOpenMayaで更新する。
+        個々のUV-set Plugの書込み可否を全て事前検査する処理ではない。
 
         Args:
-            value (Iterable[float]): 有限な U、V の2成分。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float]): 有限なU/Vの2成分。無次元で0〜1の範囲に限定しない。
+            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
 
         Returns:
-            UV: 編集した自身。
+            UV: 自身。UVセットや割当ての作成は行わない。
 
         Raises:
             ValueError: 座標が不正な場合。
+            TypeError: fastがbool以外の場合。
+            IndexError: 番号が現在のUVセットの範囲外の場合。
+            RuntimeError: 対象を参照できない、またはMayaが更新を拒否した場合。
+            NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状を編集するとNotImplementedError。
+        Note:
+            APIの書込み・更新中の失敗で、完了済み変更を自動ロールバックする保証はない。
         """
-        u, v = self._finite_coordinates(value, 2)
-        if _is_fast():
-            self._validate()
-            geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibUVPosition"):
+            u, v = self._finite_coordinates(value, 2)
+            if fast:
+                self._validate()
+                geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
+                return self
+            cmds.polyEditUV(self.getFullName(), relative=False, uValue=u, vValue=v,
+                            uvSetName=self.shape.meshFn().currentUVSetName())
             return self
-        cmds.polyEditUV(self.getFullName(), relative=False, uValue=u, vValue=v,
-                        uvSetName=self.shape.meshFn().currentUVSetName())
-        return self
 
     def getU(self):
         """U成分の現在値を取得する。
@@ -60,7 +78,6 @@ class UV(Component):
         """
         return self._get_coordinate(0)
 
-    @_fast_edit
     def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
@@ -77,7 +94,9 @@ class UV(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(0, value)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        return self._set_coordinate(0, value, fast=fast)
 
     def getV(self):
         """V成分の現在値を取得する。
@@ -87,7 +106,6 @@ class UV(Component):
         """
         return self._get_coordinate(1)
 
-    @_fast_edit
     def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
@@ -104,53 +122,66 @@ class UV(Component):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(1, value)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        return self._set_coordinate(1, value, fast=fast)
 
 
 _UV_GET_POSITION = UV.getPosition
 
 
 class UVs(Components):
-    """同一 Mesh の現在の UV セットの UV 群。"""
+    """同一MeshのUV番号列を保持し、現在のUVセットの座標を保持順に扱う。
+
+    セット名や座標値は保持せず、セット切替後は切替先の同じ番号を使う。
+    setPositionは同じU/Vを全要素へ、setPositionsは保持番号ごとに異なる行を設定する。
+    """
 
     component_class = UV
 
-    @_fast_edit
-    @undoChunk("mlibUVsSetPositions")
     def setPositions(self, values, *, fast=False):
-        """保持順にUV座標を設定する。全件の座標・対象を先に検証する。
+        """保持番号ごとのU/V座標を、現在のUVセットへ絶対値で設定する。
+
+        全件の座標と対象番号を検証してから、通常はpolyEditUVを保持順に呼ぶ。
+        後半のMayaコマンドの失敗に対する自動ロールバックは行わない。fastは現在のUV配列を
+        作り直して一括設定し、入力履歴とShapeノードのロックを先に検査する。
 
         Args:
-            values (Iterable[Iterable[float]]): 要素数と同じ数のU、V座標。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            values (Iterable[Iterable[float]]): 保持番号と同じ件数の有限な(U, V)行。無次元。
+            fast (bool): TrueはUndoなしの直接更新。通常経路はUndoが有効なら同じチャンクへ記録する。
 
         Returns:
-            UVs: 自身。空集合と空列は何もしない。
+            UVs: 自身。標準実装の空集合と空列はShapeを再照会せず何もしない。
 
         Raises:
-            ValueError: 件数・座標が不正な場合。
-            RuntimeError: Mayaが拒否した場合。完了済み変更は自動で戻さない。
+            ValueError: 件数または座標が不正な場合。
+            TypeError: fastがbool以外の場合。
+            IndexError: 保持番号が現在のUVセットの範囲外の場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状を編集するとNotImplementedError。
+        Note:
+            fastはUndo設定を変更しない。全UV-set Plugのロック検査や、API更新中の原子性は保証しない。
         """
-        rows = self._coordinate_rows(values, 2)
-        if _is_fast() and self._uses_standard_iteration(UV):
-            if self._indices:
-                Component._validate_shape(self._shape, UV.shape_type)
-                count = self._shape.getNumUVs()
-                for index in self._indices:
-                    Component._validate_index(index, count)
-            geometry_edit.set_uvs(self._shape, self._indices, rows)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibUVsSetPositions"):
+            rows = self._coordinate_rows(values, 2)
+            if fast and self._uses_standard_iteration(UV):
+                if self._indices:
+                    Component._validate_shape(self._shape, UV.shape_type)
+                    count = self._shape.getNumUVs()
+                    for index in self._indices:
+                        Component._validate_index(index, count)
+                geometry_edit.set_uvs(self._shape, self._indices, rows)
+                return self
+            components = list(self)
+            if fast:
+                geometry_edit.set_uvs(self._shape, [c.index for c in components], rows)
+                return self
+            for item, point in zip(components, rows):
+                item.setPosition(point, fast=fast)
             return self
-        components = list(self)
-        if _is_fast():
-            geometry_edit.set_uvs(self._shape, [c.index for c in components], rows)
-            return self
-        for item, point in zip(components, rows):
-            item.setPosition(point)
-        return self
 
     def getU(self):
         """U成分の現在値を取得する。
@@ -160,7 +191,6 @@ class UVs(Components):
         """
         return self._get_coordinate(0)
 
-    @_fast_edit
     def setU(self, value, *, fast=False):
         """U成分だけを設定し、他の成分を維持する。
 
@@ -177,7 +207,9 @@ class UVs(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(0, value)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        return self._set_coordinate(0, value, fast=fast)
 
     def getV(self):
         """V成分の現在値を取得する。
@@ -187,7 +219,6 @@ class UVs(Components):
         """
         return self._get_coordinate(1)
 
-    @_fast_edit
     def setV(self, value, *, fast=False):
         """V成分だけを設定し、他の成分を維持する。
 
@@ -204,13 +235,23 @@ class UVs(Components):
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        return self._set_coordinate(1, value)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        return self._set_coordinate(1, value, fast=fast)
 
     def getPosition(self):
-        """保持順の UV 座標を取得する。
+        """現在のUVセットのU/V座標を、保持番号の順に取得する。
+
+        標準実装は同じMFnMeshと現在UVセット名を使って各番号を問い合わせる。
+        単数参照や反復が拡張されている場合は、各要素のgetPositionへ委譲する。
 
         Returns:
-            list[tuple[float, float]]: U、V 座標列。
+            list[tuple[float, float]]: 新しい無次元のU/V値リスト。座標への書換え可能な参照ではない。
+                標準実装の空集合は、Shapeを再照会せず空リストを返す。
+
+        Raises:
+            IndexError: 保持番号が現在のUVセットの範囲外の場合。
+            RuntimeError: Meshまたは現在のUVセットを参照できない場合。
         """
         if not (self._uses_standard_iteration(UV) and UV.getPosition is _UV_GET_POSITION):
             return [item.getPosition() for item in self]
@@ -226,20 +267,26 @@ class UVs(Components):
             result.append(tuple(mesh_fn.getUV(index, uvSet=uv_set)))
         return result
 
-    @_fast_edit
     def setPosition(self, value, *, fast=False):
-        """全UVを同じ座標へ設定する。
+        """保持する全UVを、現在のUVセットで同じ絶対U/V座標へ集める。
+
+        一つのU/Vを各保持番号へ対応させ、setPositionsへ委譲する。
 
         Args:
-            value (Iterable[float]): 有限のU、V座標。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float]): 全要素に共通の有限なU/V。無次元。
+            fast (bool): TrueはUndoなしの直接更新。setPositionsと同じ制限に従う。
 
         Returns:
-            UVs: 自身。要素別の指定にはsetPositionsを使う。
+            UVs: 自身。要素ごとに異なる座標を指定する場合はsetPositionsを使う。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状を編集するとNotImplementedError。
+        Raises:
+            ValueError: U/Vが不正な場合。空集合でも入力値を検証する。
+            TypeError: fastがbool以外の場合。
+            IndexError: 保持番号が現在のUVセットの範囲外の場合。
+            RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
         """
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         point = Component._finite_coordinates(value, 2)
-        return self.setPositions([point] * len(self))
+        return self.setPositions([point] * len(self), fast=fast)

@@ -6,7 +6,6 @@ from unittest.mock import patch
 import maya.cmds as cmds
 
 import mlib
-from mlib.decorator import _fast_edit, _is_fast
 from mlib.maths import EulerRotate, Matrix, Quaternion, Transformation
 
 
@@ -81,21 +80,13 @@ class TransformExecutionTest(unittest.TestCase):
         self.assertEqual(tuple(node.getPlug("translate").get()), (3, 0, 0))
         self.assertEqual(node.setTranslate((5, 0, 0), at=0, get=True), [2, 0, 0])
 
-    def test_nested_fast_false_keeps_direct_transform_updates(self):
-        """内側のfast=Falseは外側のfastを解除せず、Undo設定にも触れない。"""
+    def test_transform_forwards_fast_to_each_channel(self):
+        """行列からのチャンネル更新はfastを明示して渡し、Undo APIを呼ばない。"""
         node = mlib.createNode("transform")
         cmds.flushUndo()
-
-        @_fast_edit
-        def update(*, fast=False):
-            """外側だけに指定した直接更新を内側へ継承する。"""
-            node.setMatrix(Matrix(translate=(7, 8, 9)), fast=False)
-            return _is_fast()
-
         with patch.object(cmds, "setAttr", side_effect=AssertionError("cmds setAttr")), \
                 patch.object(cmds, "undoInfo", side_effect=AssertionError("cmds undoInfo")):
-            self.assertTrue(update(fast=True))
-        self.assertFalse(_is_fast())
+            node.setMatrix(Matrix(translate=(7, 8, 9)), fast=True)
         self.assertEqual(tuple(node.getPlug("translate").get()), (7, 8, 9))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
@@ -110,45 +101,49 @@ class TransformExecutionTest(unittest.TestCase):
         self.assertEqual(tuple(node.getPlug("translate").get()), (9, 2, 3))
 
 
-class FastInheritanceTest(unittest.TestCase):
-    """fastの継承・引数検証・例外時の復元を検証する。"""
+class ExplicitFastTest(unittest.TestCase):
+    """fastは各呼出しの引数だけで選び、外側の状態を参照しない。"""
 
-    def test_nested_modes_and_positional_fast_keep_arguments(self):
-        """有効モードを継承しても、各関数へ渡した引数自体は書き換えない。"""
-        @_fast_edit
-        def inner(fast=False):
-            """位置引数のfastも既存の意味で受け取る。"""
-            return _is_fast(), fast
+    def setUp(self):
+        """独立したシーンと有効なUndoキューを用意する。"""
+        cmds.file(new=True, force=True)
+        cmds.undoInfo(state=True)
 
-        @_fast_edit
-        def outer(*, fast=False):
-            """省略・明示False・明示Trueの内側呼出しを比較する。"""
-            return inner(), inner(False), inner(True)
+    def test_callback_without_fast_keeps_normal_undo(self):
+        """fast更新の途中から呼ぶ別の通常更新を、fastへ暗黙に切り替えない。"""
+        direct = mlib.createNode("transform")
+        normal = mlib.createNode("transform")
+        plug = direct.getPlug("translate")
+        cls = type(plug)
+        original = cls._set_components
+        called = []
 
-        self.assertEqual(outer(), ((False, False), (False, False), (True, True)))
-        self.assertFalse(_is_fast())
-        self.assertEqual(outer(fast=True), ((True, False), (True, False), (True, True)))
-        self.assertFalse(_is_fast())
+        def prepare(instance, value, unit="rad"):
+            """値の準備中に独立した通常更新を一度だけ行う。"""
+            if instance is plug and not called:
+                called.append(True)
+                normal.getPlug("tx").set(5)
+            return original(instance, value, unit)
 
-    def test_invalid_inner_argument_and_exception_restore_mode(self):
-        """継承中もbool以外を拒否し、例外後は開始前のモードへ戻す。"""
-        @_fast_edit
-        def inner(*, fast=False):
-            """呼出しモードを検査してから失敗する。"""
-            self.assertTrue(_is_fast())
-            raise RuntimeError("expected failure")
+        cmds.flushUndo()
+        with patch.object(cls, "_set_components", prepare):
+            plug.set((1, 2, 3), fast=True)
+        self.assertEqual(called, [True])
+        self.assertFalse(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        cmds.undo()
+        self.assertEqual(normal.getPlug("tx").get(), 0)
+        self.assertEqual(tuple(plug.get()), (1, 2, 3))
 
-        @_fast_edit
-        def outer(*, fast=False):
-            """内側の検証失敗を捕捉しても外側のfastは有効なまま。"""
-            with self.assertRaises(TypeError):
-                inner(fast=1)
-            self.assertTrue(_is_fast())
-            inner()
-
-        with self.assertRaisesRegex(RuntimeError, "expected failure"):
-            outer(fast=True)
-        self.assertFalse(_is_fast())
+    def test_false_call_after_fast_uses_normal_backend(self):
+        """fastの直後でもfast=Falseはcmdsを使い、通常のUndo/Redoを維持する。"""
+        node = mlib.createNode("transform")
+        cmds.flushUndo()
+        node.setTranslate((1, 2, 3), fast=True)
+        node.setTranslate((4, 5, 6), fast=False)
+        cmds.undo()
+        self.assertEqual(tuple(node.getPlug("translate").get()), (1, 2, 3))
+        cmds.redo()
+        self.assertEqual(tuple(node.getPlug("translate").get()), (4, 5, 6))
 
 
 class MathComponentOwnershipTest(unittest.TestCase):

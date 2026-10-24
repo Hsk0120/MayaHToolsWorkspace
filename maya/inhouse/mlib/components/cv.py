@@ -5,7 +5,11 @@ from .pointComponent import PointComponent, PointComponents
 
 
 class CV(PointComponent):
-    """NurbsCurve 上の単一 CV。番号はゼロ始まり。"""
+    """NurbsCurveのShape参照とOpenMayaのCV番号を保持する。
+
+    NurbsSurfaceの二次元CVは対象外。周期カーブもnumCVs範囲のAPI番号を保持し、
+    cmds用の名前では末尾の重複CVを先頭の対応番号へ写す。
+    """
 
     shape_type = "nurbsCurve"
     component_type = "cv"
@@ -23,7 +27,11 @@ class CV(PointComponent):
 
 
 class CVs(PointComponents):
-    """同一 NurbsCurve の CV 群。座標取得・部分列取得・ミラーに対応する。"""
+    """同一NurbsCurveのCV番号列を保持し、CVの列挙と座標の一括操作を担当する。
+
+    番号列はOpenMayaの番号と保持順を保つ。周期末尾と先頭は別のAPI番号として保持できるが、
+    cmds用の名前では同じ独立CV番号へ写る場合がある。名前の取得では範囲圧縮しない。
+    """
 
     component_class = CV
 

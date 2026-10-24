@@ -1,6 +1,5 @@
 """Maya の locator シェイプを扱う。"""
 
-from ..decorator import _fast_edit
 from ..maths import Translate
 from .shape import Shape
 
@@ -16,7 +15,6 @@ class Locator(Shape):
         """
         return Translate(*self.getPlug("localPosition").get())
 
-    @_fast_edit
     def setPosition(self, value, *, fast=False):
         """localPosition を設定する。
 
@@ -30,5 +28,7 @@ class Locator(Shape):
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        self.getPlug("localPosition").set(tuple(value))
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        self.getPlug("localPosition").set(tuple(value), fast=fast)
         return self
