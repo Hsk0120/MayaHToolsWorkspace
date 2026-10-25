@@ -719,6 +719,9 @@ FKへ姿勢コピー済みなら、そのFK姿勢は保持します。strength=0
 ワークスペースのMaya 2025以降の起動時に、メニューバーへ **mlrig** が追加されます。
 「レイヤーエディタを開く」「サンプル作成」「選択スカートのポーズ補正を編集」
 「選択骨へ局所Tweakを追加」を使用できます。再登録しても重複しません。
+「Setup Samples」からは、`mlrig.setups` の各セットアップ(HingeIK・PlanarIK・EyelidFollow・JawHinge・Piston・
+WaveChain・WheelRoll・SwingLimitなど)を小さな入力つきで現在のシーンへ作って試せます(`mlrig.setupSamples`、
+説明は `docs/setup_samples.rst`)。
 現在起動中のMayaへ手動で追加する場合:
 
 ```python

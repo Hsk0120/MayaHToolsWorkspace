@@ -45,6 +45,49 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    jaw_hinge
    piston
    wave_chain
+   wave_float
    wheel_roll
    pole_vector_placement
    rotation_minimizing_frames
+   bow_string
+   ribbon
+   meta_spread
+   foot_roll
+   muscle_bulge
+   ground_tilt
+   lip_zip
+   squash_box
+   plane_collision
+   space_blend
+   camera_angle_reader
+   fk_ik_chain
+   sliding_fk
+   no_flip_pole
+   gear_train
+   ackermann_steering
+   skirt_leg_offset
+   pump_up
+   body_proportion
+   ui_slider
+   combo_weight
+   virtual_chain
+   neck_head_split
+   center_of_mass
+   dolly_zoom
+   over_shoulder_camera
+   live_mirror
+   eye_highlight
+   uneven_ground
+   hip_swing
+   sticky_control
+   tread_belt
+   rocker_roll
+   box_roll
+   outline_bank
+   crank_slider
+   scissor_lift
+   chain_net
+   cable_sag
+   leaf_joints
+   limb_pin
+   setup_samples

@@ -38,6 +38,11 @@ class Menu:
             ("skirt", "スカート 4方向"),
         ):
             cmds.menuItem(label=label, parent=create, command=partial(cls.run, kind))
+        from .setupSamples import SetupSamples
+
+        setups = cmds.menuItem(label="Setup Samples", parent=cls.NAME, subMenu=True, tearOff=True)
+        for kind, label in SetupSamples.ITEMS:
+            cmds.menuItem(label=label, parent=setups, command=partial(cls.run, "setup:" + kind))
         cmds.menuItem(divider=True, parent=cls.NAME)
         cmds.menuItem(
             label="選択スカートのポーズ補正を編集",
@@ -76,7 +81,8 @@ class Menu:
         """メニューを実行し、構築したモジュールをレイヤーUIへ表示する。
 
         Args:
-            action (str): メニュー操作ID。
+            action (str): メニュー操作ID。``"setup:<種類>"`` はセットアップのサンプルを作り、
+                動かす対象を選択する(レイヤーエディタは開かない)。
             *unused: Maya UIコールバックの引数。
 
         Returns:
@@ -86,6 +92,12 @@ class Menu:
         from .sampleBuilder import SampleBuilder
 
         try:
+            if action.startswith("setup:"):
+                from .setupSamples import SetupSamples
+
+                sample = SetupSamples.build(action.split(":", 1)[1])
+                mlib.select(sample.target, replace=True)
+                return sample
             if action == "editor":
                 return show_layer_editor()
             if action == "pose":
