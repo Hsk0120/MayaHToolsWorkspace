@@ -63,6 +63,7 @@ class SetupSamples:
         ("rockerRoll", "RockerRoll - rocking chair runner"),
         ("outlineBank", "OutlineBank - box tilting on its base outline"),
         ("crankSlider", "CrankSlider - engine crank and piston"),
+        ("fourBarLinkage", "FourBarLinkage - crank, coupler and rocker"),
         ("scissorLift", "ScissorLift - three-stage scissor lift"),
         ("cableSag", "CableSag - hanging cable between two posts"),
         ("rotationMinimizingFrames", "RotationMinimizingFrames - points"),
@@ -439,6 +440,28 @@ class SetupSamples:
         setup = CrankSlider.create(pin, piston, name=name, axis="y")
         _output(name + "_rodOut", root, str(setup.container) + ".rodMatrix", ((length, 0.0, 0.0),))
         _output(name + "_pistonOut", root, str(setup.container) + ".pistonMatrix", ((0.0, 1.5, 0.0),))
+        return setup, crank
+
+    @classmethod
+    def _fourBarLinkage(cls, name, root):
+        """四節リンク(クランク2・支点の間6・カプラー5・ロッカー4)。クランクの ``rotateZ`` を回すと、
+        カプラー(緑)がピンに付いたまま関節へ向き、ロッカー(緑)が右の支点を中心に往復する。"""
+        from .setups import FourBarLinkage
+
+        crank_length, ground, coupler, rocker_length, start = 2.0, 6.0, 5.0, 4.0, 60.0
+        angle = math.radians(start)
+        bx, by = crank_length * math.cos(angle), crank_length * math.sin(angle)
+        joint = FourBarLinkage.jointPosition((bx, by, 0.0), (ground, 0.0, 0.0), coupler, rocker_length,
+                                             (0.0, 0.0, 1.0))[0]
+        base = _transform(name + "_base", root)
+        crank = _joint(name + "_crank", base, rotate=(0, 0, start))
+        pin = _tip(crank, name + "_crankPin", (crank_length, 0.0, 0.0))
+        rocker = _joint(name + "_rocker", base, translate=(ground, 0.0, 0.0))
+        end = _tip(rocker, name + "_rockerEnd", (joint[0] - ground, joint[1], 0.0))
+        setup = FourBarLinkage.create(pin, rocker, end, name=name)
+        _output(name + "_couplerOut", root, str(setup.container) + ".couplerMatrix", ((coupler, 0.0, 0.0),))
+        _output(name + "_rockerOut", root, str(setup.container) + ".rockerMatrix",
+                ((joint[0] - ground, joint[1], 0.0),))
         return setup, crank
 
     @classmethod

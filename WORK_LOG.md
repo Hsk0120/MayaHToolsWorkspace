@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-26 Claude Code(夜間タスク): mlrigに四節リンク機構 FourBarLinkage(`setups/fourBarLinkage.py`)を追加。クランクのピンとロッカーの支点から、カプラーとロッカーの関節を2円の交点(生成時の枝を固定)として標準ノードだけで求め、rockerMatrix・couplerMatrix・jointMatrix・excess(閉ループが作れない量)・transmissionAngle を出力。Python版 `jointPosition()`。Setup Samplesに1項目、文書 `docs/four_bar_linkage.rst`、検証デモ `tools/demo_four_bar_linkage.py`。試験 `test_setup_four_bar_linkage.py` 8件、隔離Maya 2027で setups 543件・standard 76件OK、Sphinx -W 警告0。検証動画は隔離GUIで360フレーム判定OK、Driveの同期フォルダー `Maya検証動画/mlrig-nightly` へ保存(リンク共有はコネクター非対応で未設定)。バックエンドは標準ノードのみ。コミット・プッシュ(このコミット)。
+
 - Codex (2026-10-25): ユーザー依頼で説明用語統一・ls中心の入門・Maya2027参照・単体配置の実行環境案内を一括commit/push対象として確認。実行AST170Python・API参照2041件・継承図159件の不変を再照合し、Sphinx332ページ/22855リンク・静的66件・Maya2022/2027の説明例・6画面条件の成功記録を確認。調査資料/生成HTML/画像/専用Maya設定は除外。今回Maya/ブラウザの再起動なし。
 
 - Codex (2026-10-25): CGWORLDのMaya Matrix/リギング記事と用語表記を調査し、mlibの38Pythonファイル/198docstringとコメント・ガイドの行列/変換行列→マトリクス、拘束→コンストレイント、四元数→クォータニオンを整備。逆/回転/転置/空間等の意味とdeterminantの「行列式」を保持し、拘束元はターゲットへ。入門のObject直呼出し例を名前/選択/型/アトリビュート/頂点範囲のmlib.lsへ変更し、リスト/空結果/範囲展開を説明。Objectは共通基底のAPI説明を維持して検索先をlsへ案内。Autodeskの4リンクと表記をMaya2027へ変更し実ページを確認。API設計文書と共有用語方針も同期。実行AST170Python・API参照2041件不変、継承図159件はリンク年以外不変。Sphinx332HTML警告0、掲載旧語0（行列式を除く）、22855ローカルリンク/素材に不備0、静的66件成功。RST本文14コードブロックと検索仕様3項目を隔離Maya2022/2027で各3テスト成功。Edgeの3ページ×1440/1024pxの6条件で横はみ出しなし、画像も確認。Maya2023〜2026・実GUIでの例実行は未実施。実行メッセージ3箇所は実行AST保持のため変更なし、未commit/push。調査/証跡 .maya-output/mlib-terminology-20261025/。
