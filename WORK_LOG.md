@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-26): スキンされたjointの解除・削除で親influenceへウェイトを加算する処理(mlibのremoveInfluence(s)・Joint.delete、HToolsのremoveSelectedJoints)を、複数階層・複数joint・複数skinCluster・Undo/fastなどで確認。期待値と変更前(aff37f0)の両方と一致し、壊れていないことを確認。試験 mlib/__tests__/integration/test_skin_weight_transfer_complex.py(19件)と tools/test_htools_remove_selected_joints.py(9件)を追加。
+
 - 2026-10-26 Codex: ユーザーのpush指示に基づき、基本操作の単体45件/結合10件、Transformの反転不能な親の更新前検査、テストREADMEと作業記録の7ファイルをcommit/push対象として確認。隔離Maya2022〜2027各1338件（既存skip除く失敗0）・静的100件の成功記録と追加55メソッドを照合。構文・git diff --check成功、origin/mainとの分岐なし。生成物/調査資料は対象外、追加のMaya/GUI/Sphinx起動なし。
 
 - 2026-10-26 Codex: 削除11件・Plug18件・Transform16件の単体と、DG評価/接続/親変更/削除/Undoの結合10件、計55件を4ファイルへ追加。失敗時の状態保持、safe部分更新、fastと通常Undoの境界、保持参照、疎配列・単位も確認。新規テストで判明したワールドsetMatrixの反転不能な親の検査欠落を、共有変換処理のOpenMaya isSingular検査で修正（公開署名不変、微小でも反転可能な親は許可）。HEADの旧処理では同じ回帰テストが失敗し、修正後の成功を隔離Maya2027で比較。READMEへ重点単体/結合の実行例を追加。隔離Maya2022〜2027の全6版で各139ファイル・1338件、失敗0（既存のGUI/環境条件skipのみ2〜4件、新規55件skip0）。静的100件・検出先分離・git diff --check成功。GUI実行なし、未commit/push。証拠: `.maya-output/mlib-basic-tests-20261026/result.json`。
