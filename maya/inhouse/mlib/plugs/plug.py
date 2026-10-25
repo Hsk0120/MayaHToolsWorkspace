@@ -126,26 +126,15 @@ class DeletedAttributeError(ValueError, RuntimeError):
 class Plug(Object):
     """所有NodeとMPlugを保持し、アトリビュートの値・接続・状態を扱う。
 
-    Plug(node, mplug) は配列・登録済みアトリビュート型・複合アトリビュートの順で
-    専用クラスを選択する。参照や定義上の型の取得と、getによる値の読取りは別の操作。
-    generic/kAnyは基底Plugのまま、get時に実際の値を解釈する。
-    通常の更新はmaya.cmdsでUndoに記録し、対応するfastはOpenMayaで直接更新する。
-    派生クラス独自の経路は各メソッドを参照する。
+    配列、登録型、複合型の順でラッパーを選ぶ。参照取得では値を評価せず、
+    generic/kAnyは基底Plugのままget時に値を解釈する。
+    通常編集はUndo有効時に記録し、対応するfastはUndoなしで直接更新する。
 
-    ``str(plug)`` と ``getFullName()`` は maya.cmds で一意に解決できる
-    ``<ノードの最短一意名>.<アトリビュートパス>`` を返すため、Plug はそのまま
-    ``cmds.getAttr(plug)``/``cmds.connectAttr(a, b)`` などへ渡せる。
-    Mayaコマンドとの境界では型にかかわらずgetFullName()で明示的に文字列化することを推奨する。
-    短い名前が重複するノード(``grp1|dup`` と ``grp2|dup``)でも一意で、
-    名前変更・親子付け替えにも追従する。ただし ``ArrayPlug`` と複合Plugは ``[]`` で要素を
-    取得できるため maya.cmds がシーケンスとして展開しようとして失敗する。
-    配列・複合アトリビュートを渡す場合は ``str(plug)`` か ``plug.getFullName()`` を渡す。
-
-    所有ノードが削除された、または動的アトリビュートが ``deleteAttr`` で削除された Plug は
-    無効になり(:meth:`isValid`)、``str()``・:meth:`getFullName`・:meth:`getName` は空文字列、
-    値の取得・設定、アトリビュートの情報・接続の問い合わせ、要素・子・親の取得は RuntimeError に
-    なる(削除済みの MPlug を Maya へ渡すと異常終了する場合があるため)。
-    Undo でノード・アトリビュートが戻れば再び有効になる。"""
+    MayaコマンドへはgetFullName()で文字列化する。名前は改名・親変更に追従する。
+    特にArrayPlug・複合Plugは、cmdsによるシーケンス展開を避けるため文字列化が必要。
+    所有ノードや動的アトリビュートの削除後はisValidがFalse、名前は空文字列になり、
+    値の読書き・接続照会・子参照はRuntimeErrorになる。削除をUndoすれば再び有効になる。
+    """
 
     _registry = None  #: ルートの初期化が構築して注入する型登録表。
     _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
@@ -349,24 +338,13 @@ class Plug(Object):
             useFullAttributePath=fullAttrPath, useLongNames=not short)
 
     def getFullName(self):
-        """maya.cmds で一意に解決できる、ノード名を含む完全修飾プラグ名を取得する。
+        """maya.cmdsで一意に解決できるプラグ名を取得する。
 
-        ``<ノードの最短一意名>.<アトリビュートパス>`` の形式。ノード名は ``Node.getName()``
-        (``str(node)``)と同じで、呼び出すたびに再計算するため名前変更や
-        親子付け替えに追従する。短い名前が重複するノードでも ``grp1|dup.translateX``
-        のように一意になる。アトリビュートパスはロング名で、必要な配列インデックス
-        (``worldMatrix[0]``、``pnts[2].pntx`` 等)を含み、エイリアスがあれば
-        エイリアス名を使う(``MPlug.name()`` のアトリビュート部分と同じ表記)。
-
-        短い名前が一意なノード(DG ノードと、インスタンス化されていないアンダーワールド以外の
-        DAG ノード)は、ノード名が短い名前と一致するため ``MPlug.name()`` をそのまま返す。
-        DAG ノードでは短い名前が一意かを毎回問い合わせる(``hasUniqueName()``)ため、
-        ``MPlug.name()`` だけを返していた従来より 1 回あたり約 1µs 遅い(同名ノードでも
-        一意な名前を返すために必要な処理。:doc:`/development` の性能の項を参照)。
+        ``<Node.getName()の名前>.<アトリビュートパス>`` の形式で、名前変更・親子付け替えに
+        追従する。アトリビュートはロング名と必要な配列番号を含み、エイリアスがあれば使う。
 
         Returns:
-            str: 完全修飾プラグ名。所有ノードが無効(削除済み)、またはアトリビュートが削除済みの
-                場合は空文字列(:meth:`isValid` が ``False``)。
+            str: 一意なプラグ名。所有ノードやアトリビュートが削除済みなら空文字列。
         """
         node = self._node
         handle = node._handle
@@ -390,7 +368,7 @@ class Plug(Object):
         # plug_path() と同じ引数。頻繁に呼ばれるため関数呼び出しを省いて直接問い合わせる。
         return node.getName() + "." + self._mplug.partialName(False, True, True, True, False, True)
 
-    #: ``str(plug)`` は :meth:`fullName` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
+    #: ``str(plug)`` は :meth:`getFullName` と同じ(maya.cmds は文字列以外の引数に ``str()`` を
     #: 適用するため、Plug をそのまま ``cmds.getAttr(plug)`` のように渡せる)。頻繁に呼ばれるため、
     #: 呼び出しを1段省けるよう同じ関数を割り当てる。
     __str__ = getFullName
@@ -625,28 +603,26 @@ class Plug(Object):
             return result
 
     def mute(self, *, fast=False):
-        """ミュートを有効にして自身を返す。
-
-        Returns:
-            Plug: ミュートを有効にして自身を返す。
-
+        """現在値でミュートし、自身を返す。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): Trueは未対応で、変更前にNotImplementedError。
+
+        Returns:
+            Plug: 自身。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         return self.setMuted(True, fast=fast)
 
     def unmute(self, *, fast=False):
-        """ミュートを解除して自身を返す。
-
-        Returns:
-            Plug: ミュートを解除して自身を返す。
-
+        """ミュートを解除し、自身を返す。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): Trueは未対応で、変更前にNotImplementedError。
+
+        Returns:
+            Plug: 自身。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -1203,15 +1179,15 @@ class Plug(Object):
 
         Args:
             state (bool): ミュートする場合はTrue。
-                Mayaのミュート設定全体をAPI 2.0で再現できないためfast=Trueは未対応。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): Trueは未対応で、変更前にNotImplementedError。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            RuntimeError: Maya がミュートを拒否した場合。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            TypeError: stateまたはfastがboolでない場合。
+            NotImplementedError: fast=Trueの場合。
+            RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -1277,64 +1253,54 @@ class Plug(Object):
                 cmds.deleteAttr(self.getFullName())
 
     def get(self, *, uiUnits=False):
-        """評価値を内部単位または現在のUI単位で取得する。
-
-        呼ぶたびに現在の値を読み、必要に応じてDG評価を行う。
-        保持するのは読取関数であり、前回の評価値はキャッシュしない。
+        """現在の評価値を取得する。値はキャッシュしない。
 
         Args:
-            uiUnits (bool): TrueはUI単位。Falseはcm/rad/秒。
+            uiUnits (bool): Trueは単位付き数値を現在のUI単位へ換算する。既定Falseはcm/rad/秒。
 
         Returns:
-            object: アトリビュート値。既定は距離cm・角度rad・時間秒。
-                uiUnits=Trueでは単位を持つ数値をUI単位に変換する。
-                CompoundPlug.getは子の値を定義順のtupleとして返す。
-                multi全体のArrayPlug.getは論理番号をキーにしたdictを返し、型付き配列とは区別する。
-                APIで読む型付き配列はlistで、vectorArrayの要素はXYZ、pointArrayはXYZW、
-                matrixArrayは16成分のtuple。未初期化データはNone、空配列は空list。
-                generic/kAnyはget時の値に従い、行列ならMatrix、数値の組ならtupleを返す。
-                単位を持たない値・行列・型付き配列の成分はuiUnitsによって変換しない。
+            object: 型に応じた値。CompoundPlug.getは子の定義順tuple、ArrayPlug.getは
+                論理番号をキーとするdict。API読取の型付き配列はlistで、各要素は
+                vectorArray=XYZ、pointArray=XYZW、matrixArray=16成分のtuple。
+                未初期化データはNone、空配列は空list。generic/kAnyは現在値に応じて
+                Matrix・数値・tuple等を返す。行列・型付き配列の成分と無単位値は換算しない。
 
         Raises:
             TypeError: uiUnitsがbool以外の場合。
-            RuntimeError: ノードまたはアトリビュートが無効の場合。
+            RuntimeError: 参照が無効、または値を読み取れない場合。
         """
         self._validate_ui_units(uiUnits)
         value = self._get_internal()
         return _convert_units(self._mplug, value) if uiUnits else value
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """アトリビュートへ値を書き込む。接続の切断やロック解除は行わない。
+        """値を設定する。ロック解除や接続解除、自動ロールバックは行わない。
 
-        通常は内部単位の入力をMayaのUI単位へ換算してcmds.setAttrへ渡し、
-        Undoが有効ならチャンクへ記録する。型付き配列はアトリビュート定義に従い、
-        型名や必要な要素数を付けて渡す。multi全体の設定とは区別する。
-        fastでは対応する型をOpenMayaで直接更新し、Undo設定は変更しない。
-
-        safeはsetter本体のRuntimeError/TypeError/ValueErrorを失敗数へ変換する。
-        複合値の失敗は子ごとに再試行し、書けた子の変更を保持する。
-        自動ロールバックや、全成分の更新成功を保証する指定ではない。
+        通常はcmds.setAttrで更新し、Undo有効時に記録する。
+        safeは本体のRuntimeError/TypeError/ValueErrorを失敗数へ変換し、
+        複合値の失敗は子ごとに再試行する。成功した子の更新は残る。
 
         Args:
-            value (object): 設定する値。距離cm、角度rad、時間秒。
-            safe (bool): Trueは対応する書込み失敗を数える。Falseは例外を送出する。
-            uiUnits (bool): Trueは現在のUI単位の数値入力。既定False。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。内側の編集へもfastを明示して渡す。
+            value (object): 内部単位の値（距離cm・角度rad・時間秒）。
+            safe (bool): Trueは対応する失敗を数える。既定Falseは例外を送出する。
+            uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは内部単位。
+            fast (bool): Trueは対応型をOpenMayaで直接更新する。Undoへ記録せず、Undo設定も変更しない。
 
         Returns:
-            Plug | int: safe=Falseでは自身。safe=Trueでは成功なら0、子へ分けられる失敗は
-                子の失敗数の合計、無効参照や入力を分けられない失敗は1。
-                子の再試行を完了できない失敗も1で、厳密な未更新成分の総数は保証しない。
+            Plug | int: 通常は自身。safe=Trueは成功なら0、子の再試行では失敗数の合計。
+                無効参照・分解不能な入力・再試行を完了できない失敗は1。
+                厳密な未更新成分の総数は保証しない。
 
         Raises:
-            TypeError: fastがbool以外の場合。safe=Trueでも抑制しない。
-            NotImplementedError: fast未対応の型の場合。safe=Trueでも部分更新前に拒否する。
-            RuntimeError: safe=Falseで参照が無効、ロック・入力接続などにより書けない場合。
+            TypeError: fastがbool以外、またはmulti全体への設定。safe=Trueでも拒否する。
+                safe=Falseで不正な入力の場合も送出する。
+            ValueError: safe=Falseで値の変換等に失敗した場合。
+            RuntimeError: safe=Falseで無効参照・ロック・入力接続等により書けない場合。
+            NotImplementedError: fast未対応型。safe=Trueでも部分更新前に拒否する。
 
         Note:
-            safeは不正な呼出し引数や、上記以外の例外を一律に抑制するものではない。
-            safe=Trueのfast複合値では、全子の型対応を値や書込み可否の検査より先に確認する。
-            更新済みの値は通常/fastとも、後続の失敗だけでは自動で戻さない。
+            safe=Trueのfast複合値は、値や書込み可否より先に全子の型対応を確認する。
+            呼出し形式の誤りや、上記以外の例外を一律には抑制しない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -1451,24 +1417,22 @@ class Plug(Object):
         return om2.MFnEnumAttribute(self.mplug().attribute()).fieldName(val)
 
     def getSource(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
-        """単一の入力元を取得する。子・配列要素の独立接続は展開しない。
-
-        既定はOpenMayaのsourceで変換ノードを省略する。直結したPlugが必要なら
-        skipConversionNodes=Falseを指定する。getConnectionsの既定値とは異なる。
-        値ではなく接続参照を返し、変換ノードの削除や接続変更は行わない。
+        """直接の入力元を取得する。子・配列要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): TrueはunitConversion系を飛ばす。別名scn。
-            **kwargs: getConnectionsの型・ペア・Node化等の指定。
-                子/要素の展開は常に無効、indexは常に0にして先頭を選ぶ。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。
+                Falseは直結したPlug。getConnectionsの既定とは異なる。
             scn (bool): skipConversionNodesの別名。同時指定は不可。
+            **kwargs: getConnectionsの型・ペア・Node化等の指定。子/要素展開は無効、indexは0に固定。
+                idxは固定したindexと競合するため指定不可。
 
         Returns:
-            Plug | Node | tuple | None: 既定は接続元Plug。未接続や型条件に合わない場合はNone。
-                asPair時は(自身側Plug, 接続元)、asNode時は相手側をNodeにする。
+            Plug | Node | tuple | None: 既定は入力元Plug。未接続や型条件不一致はNone。
+                asPairは(自身側Plug, 入力元)、asNodeは相手Node。値や接続は変更しない。
 
         Raises:
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: 長短名を同時指定した場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         if scn is not _UNSET:
             if skipConversionNodes is not _UNSET:
@@ -1487,24 +1451,21 @@ class Plug(Object):
         return self.getConnections(True, False, **kwargs)
 
     def getDestinations(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
-        """自身からの出力先を取得する。子・配列要素の独立接続は展開しない。
-
-        既定はOpenMayaのdestinationsで変換ノードを省略する。直結したPlugが必要なら
-        skipConversionNodes=Falseを指定する。値の取得や接続変更は行わない。
+        """直接の出力先を取得する。子・配列要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): TrueはunitConversion系を飛ばす。別名scn。
-            **kwargs: getConnectionsの型・ペア・Node化・index等の指定。
-                子/要素の展開は常に無効。indexは絞込み・重複統合後に適用する。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。Falseは直結したPlug。
             scn (bool): skipConversionNodesの別名。同時指定は不可。
+            **kwargs: getConnectionsの型・ペア・Node化・index等の指定。子/要素展開は無効。
 
         Returns:
-            list | Plug | Node | tuple | None: 既定は接続先Plugのリスト。接続なしは空リスト。
-                ペアは(自身側Plug, 接続先)、asNodeは相手側をNodeにする。
-                index指定時だけ一件を返し、範囲外はNone。
+            list | Plug | Node | tuple | None: 既定は出力先Plugのlist、未接続は空list。
+                asPairは(自身側Plug, 出力先)、asNodeは相手Node。
+                indexは絞込み・重複統合後の一件を選び、範囲外はNone。値や接続は変更しない。
 
         Raises:
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: 長短名を同時指定した場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         if scn is not _UNSET:
             if skipConversionNodes is not _UNSET:
@@ -1525,44 +1486,42 @@ class Plug(Object):
         destination=_UNSET, connections=False, type=None, exactType=False, skipConversionNodes=False,
         asPair=False, asNode=False, checkChildren=True, checkElements=True, index=_UNSET, pcls=None, *,
         idx=_UNSET, src=_UNSET, dst=_UNSET):
-        """入力元・出力先を、相手側のPlug/Nodeまたは接続ペアとして取得する。
+        """接続参照を取得する。既定は変換ノードを省略しない。
 
-        自身の入力、出力を集めてから、既存配列要素または複合の子へ再帰する。
-        型で絞り込み、初出順を保って重複を統合した後にindexを適用する。
-        getSource/getDestinationsと異なり、既定は変換ノードを省略しない。
+        自身の入力・出力、次に既存配列要素または子へ再帰する。
+        型で絞り、初出順で重複を統合した後にindexを適用する。
 
         Args:
             s (bool): 入力方向。sourceとANDする。
             d (bool): 出力方向。destinationとANDする。
-            c (bool): asPairの短縮指定。
-            t (str | None): typeの短縮指定。
-            et (bool): exactTypeの短縮指定。
-            scn (bool): skipConversionNodesの短縮指定。
-            source (bool): 入力を含める。別名 ``src`` も使用可能。sとANDする。
-            destination (bool): 出力を含める。別名 ``dst`` も使用可能。dとANDする。
+            c (bool): connections/asPairとORし、ペアを返す。
+            t (str | None): typeが未指定または偽のときの型条件。
+            et (bool): exactTypeとORする。
+            scn (bool): skipConversionNodesとORする。
+            source (bool): 入力を含める。sとANDする。
+            destination (bool): 出力を含める。dとANDする。
             connections (bool): c/asPairとORし、ペアを返す。
-            type (str | None): 相手のノード型。
-            exactType (bool): 派生型を含めない。
-            skipConversionNodes (bool): unitConversion系を飛ばす。
-            asPair (bool): 向きに関係なく(自身側Plug, 相手側)の順で返す。
-            asNode (bool): 相手側をNodeで返す。asPairと併用した場合も自身側はPlug。
-            checkChildren (bool): 子アトリビュートも調べる。
-            checkElements (bool): 配列要素も調べる。
-            index (int | None): 絞込み後の一件をPythonの添字で選ぶ。負数も使用でき、範囲外はNone。
-                別名 ``idx`` も使用可能。
-            pcls (type | None): 結果のPlugをこのクラスで作り直す。asNode時の相手側には適用しない。
+            type (str | None): 相手Nodeの型。tより優先する。
+            exactType (bool): Trueは型名の完全一致。Falseは派生型を含む。
+            skipConversionNodes (bool): unitConversion系を省略する。
+            asPair (bool): (自身側Plug, 相手側)の組で返す。入力方向でも同じ順序。
+            asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
+            checkChildren (bool): 複合の子も探索する。
+            checkElements (bool): 既存配列要素も探索する。
+            index (int | None): 絞込み後のPython添字。負数可、範囲外はNone。
+            pcls (type | None): Plugとして返す側をこのクラスで構築する。
             idx (int | None): indexの別名。同時指定は不可。
             src (bool): sourceの別名。同時指定は不可。
             dst (bool): destinationの別名。同時指定は不可。
 
         Returns:
-            list | Plug | Node | tuple | None: 既定は相手側Plugのリスト。
-                通常は相手Plug単位、asNodeは相手Node単位、asPairは自身側も含めて重複を統合する。
-                index指定時だけ一件またはNone。値やノードの複製ではなく接続参照を返す。
+            list | Plug | Node | tuple | None: 既定は相手Plugのlist。index指定時は一件またはNone。
+                重複は通常は相手Plug単位、asNodeは相手Node単位、asPairは自身側も含めて統合する。
+                値やノードの複製は行わない。
 
         Raises:
-            TypeError: source/srcまたはdestination/dstを重複指定した場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: index/idx・source/src・destination/dstを同時指定した場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -1678,37 +1637,32 @@ class Plug(Object):
 
     def connect(self, src=_UNSET, force=False, f=False, lock=False, l=False, nextAvailable=False, na=False, *,
         unlock=True, fast=False, source=_UNSET):
-        """srcから自身へ接続する。接続先のPlugから呼び出す。
+        """srcから自身へ接続し、接続先を返す。同一の既存接続も例外にする。
 
-        dst.connect(src)とsrc.connectTo(dst)は同じ向き。通常はcmds.connectAttrで
-        Undoが有効ならチャンクへ記録し、fastはMDGModifierで直接接続してUndo設定を変えない。
-        同じ直接入力がすでにある場合も例外になり、何もせず成功する操作ではない。
+        通常はcmds.connectAttrでUndo有効時に記録する。fastはMDGModifierを使う。
+        解除したロックは逆順に復元するが、復元失敗では例外になり残りを復元しない。
+        接続済みの変更は、後続の失敗だけでは自動で戻さない。
 
         Args:
-            src (Plug | om2.MPlug | str): 接続元。 別名 ``source`` も使用可能。
-            force (bool): 既存入力を置換する。unlock=Trueなら接続先と上位の
-                複合/配列Plugのロックを一時解除する。接続元は解除しない。
-            f (bool): forceの短縮名。長名とORする。
-            lock (bool): 接続後に接続先をロックする。Falseでも、元のロックを解除したままにはしない。
-            l (bool): lockの短縮名。
-            nextAvailable (bool): 自身が配列全体なら、0から入力接続/ロックのない要素を探す。
-                子の入力/ロックも調べる。定数値や出力接続のある要素も候補になる。
-            na (bool): nextAvailableの短縮名。
+            src (Plug | om2.MPlug | str): 接続元。
+            force (bool): 既存入力を置換する。unlock=Trueなら接続先と上位の複合/配列を一時解除する。
+                接続元のロックは変更しない。
+            f (bool): forceとORする。
+            lock (bool): 接続後にロックする。Falseでも元のロックは復元する。
+            l (bool): lockとORする。
+            nextAvailable (bool): 配列全体では0から入力/ロックのない要素を探す。
+                複合の子も判定する。定数値や出力接続がある要素も候補になる。
+            na (bool): nextAvailableとORする。
             unlock (bool): Falseならforceでもロックを解除しない。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしの直接接続。Undo設定は変更しない。
             source (Plug | om2.MPlug | str): srcの別名。同時指定は不可。
 
         Returns:
-            Plug: 実際に接続した接続先。nextAvailable時は選んだ要素。
-                API参照を取り直す場合があるため、常にselfと同じPythonインスタンスとは限らない。
+            Plug: 実際の接続先。nextAvailable時は選んだ要素。参照を取り直す場合があり、self同一性は保証しない。
 
         Raises:
-            RuntimeError: 既存の同一接続、forceなしの入力置換、ロック、Mayaの接続拒否、
-                または一時解除したロックの復元に失敗した場合。
-
-        Note:
-            一時解除したロックは逆順に復元を試みる。復元失敗は例外になり、残りの復元は行わない。
-            接続済みの変更は、後続のロック設定/復元の失敗だけでは自動ロールバックしない。
+            TypeError: 接続元が未指定・未対応型、長短名の競合、またはfastがbool以外の場合。
+            RuntimeError: 同一接続・forceなしの入力置換・ロック・接続やロック復元の失敗。
         """
         if source is not _UNSET:
             if src is not _UNSET:
@@ -1789,36 +1743,30 @@ class Plug(Object):
 
     def disconnect(self, src=_UNSET, force=False, f=False, nextAvailable=False, na=False, *, fast=False,
         source=_UNSET):
-        """指定した入力元との直接接続を解除する。
+        """指定入力元との直接接続を解除する。子接続へ再帰せず、変換ノードも飛ばさない。
 
-        入力元を省略すると現在の入力を解除する。方向の指定はdisconnectAll、
-        未接続でも何もしない入力解除はdisconnectInputを使う。
-        子・配列要素の独立接続へ再帰せず、変換ノードも飛ばさない。
-        通常はcmds.disconnectAttrでUndoが有効ならチャンクへ記録し、fastはMDGModifierを使う。
-        変換ノード自体は削除しない。
+        通常はcmds.disconnectAttrでUndo有効時に記録し、fastはMDGModifierを使う。
+        変換ノードは削除しない。ロック復元の失敗は例外で打ち切り、完了済みの切断は戻さない。
 
         Args:
-            src (Plug | om2.MPlug | str | None): 入力元。Noneは現在の入力。別名source。
-            force (bool): 接続先と上位のロックを一時解除する。
-                切断後は解除したロックを逆順に復元する。入力元のロックは変更しない。
-            f (bool): forceの短縮名。forceとORする。
-            nextAvailable (bool): 配列内でsrcへ直結した要素をすべて解除する。
-                入力元の明示指定時だけ有効。
-            na (bool): nextAvailableの短縮名。長名とORする。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            src (Plug | om2.MPlug | str | None): 入力元。省略またはNoneは現在の直接入力。
+            force (bool): 接続先と上位を一時解除し、逆順に再ロックする。入力元のロックは変えない。
+            f (bool): forceとORする。
+            nextAvailable (bool): 配列内でsrcへ直結した既存要素を全て解除する。src明示時だけ有効。
+            na (bool): nextAvailableとORする。
+            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
             source (Plug | om2.MPlug | str | None): srcの別名。同時指定は不可。
 
         Returns:
-            Plug | list[Plug]: 単一切断は参照を取り直した入力元Plugで、自身ではない。
-                配列検索は該当した接続先要素のリスト。
+            Plug | list[Plug]: 単一切断は取り直した入力元Plug（自身ではない）。配列検索は接続先要素のlist。
 
         Raises:
-            TypeError: srcがbool等の非対応型、または廃止した方向引数を指定した場合。
-            RuntimeError: 入力がない、指定接続がない、またはMayaが切断を拒否した場合。
+            TypeError: srcがbool等の未対応型、長短名の競合、またはfastがbool以外の場合。
+            RuntimeError: 入力・指定接続がない、または切断やロック復元に失敗した場合。
 
         Note:
-            配列検索は既存要素を順に切断し、後半の失敗時も先行する切断は自動で戻さない。
-            ロックの復元は失敗する場合があり、失敗後に残りを復元し続ける保証はない。
+            配列検索は既存順に切断し、後半の失敗でも先行する切断は戻さない。
+            未接続時に何もしない入力解除は :meth:`disconnectInput` を使う。
         """
         if source is not _UNSET:
             if src is not _UNSET:
@@ -1859,26 +1807,24 @@ class Plug(Object):
             return Plug._resolve_input(source_name)
 
     def disconnectAll(self, *, src=_UNSET, dst=_UNSET, fast=False, source=_UNSET, destination=_UNSET):
-        """指定方向の直接接続を全て切断し、自身を返す。
+        """入力、次に出力の直接接続を解除する。ロックは解除しない。
 
-        子・配列要素の独立した接続は展開せず、変換ノードも削除しない。
-        入力を先に、次に出力先を順に切断する。ロックは一時解除しない。
-        通常はUndoが有効なら切断を同じチャンクへ記録する。fastはUndo設定を変更せず記録しない。
-        後半の失敗でも先行する切断は自動で戻さない。
+        子・配列要素の独立接続は展開せず、変換ノードも削除しない。
+        通常はUndo有効時に同じチャンクへ記録する。途中失敗で完了済みの切断は戻さない。
 
         Args:
-            src (bool): 入力接続を切断する。別名 ``source`` も使用可能。
-            dst (bool): 全出力を切断する。別名 ``destination`` も使用可能。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            src (bool): 入力を解除する。既定True。
+            dst (bool): 全出力を解除する。既定True。
+            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
             source (bool): srcの別名。同時指定は不可。
             destination (bool): dstの別名。同時指定は不可。
 
         Returns:
-            Plug: 自身。未接続または両Falseなら何も変更しない。
+            Plug: 自身。未接続または両Falseなら変更しない。
 
         Raises:
-            TypeError: 方向指定がboolでない場合、または別名と重複指定した場合。
-            RuntimeError: 無効なPlug、またはロック等により切断できない場合。
+            TypeError: 方向・fastがbool以外、または長短名を同時指定した場合。
+            RuntimeError: 無効参照、またはロック等により切断できない場合。
         """
         if source is not _UNSET:
             if src is not _UNSET:
@@ -2342,7 +2288,7 @@ class Plug(Object):
 
         所有ノードが Undo の対象から外れて削除された(``flushUndo`` 後・Undo 無効・シーンの
         切り替え)MPlug は、``MPlug.node()`` の時点で Maya が異常終了し、API では検出できない。
-        MPlug を削除操作をまたいで保持せず、mlib の Plug を保持すること(:doc:`/cmds_interop`)。
+        削除操作をまたいで保持する参照には、mlibのPlugを使う。
 
         Args:
             mplug (om2.MPlug): 変換対象。

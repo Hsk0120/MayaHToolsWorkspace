@@ -37,26 +37,25 @@ class UV(Component):
     def setPosition(self, value, *, fast=False):
         """現在のUVセットの保持番号へ、絶対U/V座標を設定する。
 
-        通常経路はcmds.polyEditUV(relative=False)を使い、Undoが有効なら記録する。
-        fastは入力履歴とShapeノードのロックを検査し、現在のUV配列をOpenMayaで更新する。
-        個々のUV-set Plugの書込み可否を全て事前検査する処理ではない。
+        通常はpolyEditUV(relative=False)で更新する。fastはinMesh入力とShapeロックを検査して
+        UV配列を直接設定するが、個々のUV-set Plugの書込み可否は全件検査しない。
 
         Args:
-            value (Iterable[float]): 有限なU/Vの2成分。無次元で0〜1の範囲に限定しない。
-            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
+            value (Iterable[float]): 有限なU/Vの2成分。無次元で0〜1に限定しない。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に記録する。Undo設定は変更しない。
 
         Returns:
-            UV: 自身。UVセットや割当ての作成は行わない。
+            UV: 自身。UVセットや割当ては作成しない。
 
         Raises:
             ValueError: 座標が不正な場合。
             TypeError: fastがbool以外の場合。
             IndexError: 番号が現在のUVセットの範囲外の場合。
             RuntimeError: 対象を参照できない、またはMayaが更新を拒否した場合。
-            NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
+            NotImplementedError: fastでinMesh入力付きShapeを編集する場合。
 
         Note:
-            APIの書込み・更新中の失敗で、完了済み変更を自動ロールバックする保証はない。
+            API更新中の失敗で完了済みの変更は自動で戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -140,15 +139,14 @@ class UVs(Components):
     component_class = UV
 
     def setPositions(self, values, *, fast=False):
-        """保持番号ごとのU/V座標を、現在のUVセットへ絶対値で設定する。
+        """現在のUVセットへ、保持番号に対応する絶対(U,V)行を設定する。
 
-        全件の座標と対象番号を検証してから、通常はpolyEditUVを保持順に呼ぶ。
-        後半のMayaコマンドの失敗に対する自動ロールバックは行わない。fastは現在のUV配列を
-        作り直して一括設定し、入力履歴とShapeノードのロックを先に検査する。
+        件数・有限値・現在の番号範囲を検証する。通常は保持順にpolyEditUVを呼び、
+        fastはinMesh入力とShapeロックを検査してUV配列を一括設定する。
 
         Args:
-            values (Iterable[Iterable[float]]): 保持番号と同じ件数の有限な(U, V)行。無次元。
-            fast (bool): TrueはUndoなしの直接更新。通常経路はUndoが有効なら同じチャンクへ記録する。
+            values (Iterable[Iterable[float]]): 保持番号と同じ件数の有限な(U,V)行。無次元。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。Undo設定は変更しない。
 
         Returns:
             UVs: 自身。標準実装の空集合と空列はShapeを再照会せず何もしない。
@@ -158,10 +156,10 @@ class UVs(Components):
             TypeError: fastがbool以外の場合。
             IndexError: 保持番号が現在のUVセットの範囲外の場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
-            NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
+            NotImplementedError: fastでinMesh入力付きShapeを編集する場合。
 
         Note:
-            fastはUndo設定を変更しない。全UV-set Plugのロック検査や、API更新中の原子性は保証しない。
+            UVセット/割当ての作成、全UV-set Plugの書込み検査、自動ロールバックは行わない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

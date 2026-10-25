@@ -9,17 +9,18 @@ __all__ = ["reload_package"]
 
 
 def reload_package(package_name):
-    """package_name 配下の Python module を検出し、依存順に再読み込みする。
+    """読み込み済みパッケージの現存モジュールを再探索し、推定した依存順で再読み込みする。
 
-    現在存在する module を package から走査するため、新しい wrapper の追加や
-    既存 module の削除も反映できる。依存関係は各 module の globals にある
-    class / function / module 参照から推定する。
+    新規モジュールを取り込み、削除済みはsys.modulesと親の同一モジュール属性から除く。
+    依存順はglobalsのモジュール/クラス/関数参照から推定し、関数内の遅延importは検出しない。
+    利用側のfrom-importや保持済みインスタンスは差し替えない。再読込み後は必要な参照を取り直す。
+    既存モジュール辞書に残る削除済み定義まで一律に消す処理ではなく、途中失敗の自動復元も行わない。
 
     Args:
-        package_name (str): 再読み込みする package の完全修飾名。
+        package_name (str): 読み込み済みパッケージの完全修飾名。
 
     Returns:
-        tuple[module]: 再読み込みした module の tuple。
+        tuple[module]: 再読み込みしたモジュールを処理順に格納したtuple。
     """
     # 新規ファイルの発見をimport machineryへ通知する。各モジュール所有の
     # キャッシュはreload時に再生成し、ここに個別のキャッシュ一覧は持たない。

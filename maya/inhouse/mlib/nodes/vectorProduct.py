@@ -10,7 +10,10 @@ from .shadingDependNode import ShadingDependNode
 
 
 class VectorProduct(ShadingDependNode):
-    """内積・外積・行列による点/ベクトル変換。"""
+    """vectorProductノードを参照し、内積・外積・行列による点/ベクトル変換を扱う。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def getInputPlug(self, index=_UNSET, *, idx=_UNSET):
         """入力のPlugを取得する。
@@ -53,15 +56,12 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -90,9 +90,6 @@ class VectorProduct(ShadingDependNode):
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -125,7 +122,7 @@ class VectorProduct(ShadingDependNode):
         return _Calculation.enum_name(self.getPlug("operation"), ("none", "dot", "cross", "vector_matrix", "point_matrix"))
 
     def setOperation(self, mode, *, fast=False):
-        """モードを設定する。
+        """vectorProductの演算モードを設定する。
 
         Args:
             mode (str | int): none, dot, cross, vector_matrix, point_matrix、またはMayaの番号。
@@ -133,9 +130,6 @@ class VectorProduct(ShadingDependNode):
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -164,14 +158,11 @@ class VectorProduct(ShadingDependNode):
         """変換行列へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -190,9 +181,6 @@ class VectorProduct(ShadingDependNode):
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -222,14 +210,11 @@ class VectorProduct(ShadingDependNode):
         """出力正規化へ定数値を設定する。
 
         Args:
-            value (bool): 設定値。数値は有限値。
+            value (bool): 出力を正規化するか。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -248,9 +233,6 @@ class VectorProduct(ShadingDependNode):
 
         Returns:
             VectorProduct: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:

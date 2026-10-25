@@ -62,7 +62,10 @@ class Container(Node):
         return self
 
     def removeMembers(self, *members, force=_UNSET, f=_UNSET):
-        """所属だけを解除する。ネスト時は通常、親containerの所属へ移る。
+        """指定ノードの直接所属を解除する。
+
+        全件の所属を変更前に検査し、force=Trueでも未所属は拒否する。ノード自体は削除しない。
+        ネスト時は通常、親containerの所属へ移る。
 
         Args:
             *members (Node | str | Iterable[Node]): 解除するメンバー。
@@ -71,6 +74,9 @@ class Container(Node):
 
         Returns:
             Container: 自身。
+
+        Raises:
+            ValueError: 未所属ノードを含む場合。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -156,14 +162,17 @@ class Container(Node):
 
     @undoTransaction("mlib.Container.bindAttribute")
     def bindAttr(self, name, plug):
-        """未Bindの公開名を内部アトリビュートへ対応付ける。
+        """未Bindの公開名へ内部PlugをBindする。
 
         Args:
             name (str): 既存の未Bind公開名。
-            plug (Plug | str): 内部アトリビュート。
+            plug (Plug | str): このcontainerへ直接所属するノードのアトリビュート。
 
         Returns:
             Plug: 対応付けた内部アトリビュート。
+
+        Raises:
+            ValueError: nameが未Bindの公開名でない、またはPlugの所有ノードが直接メンバーでない場合。
         """
         published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
@@ -176,14 +185,17 @@ class Container(Node):
 
     @undoTransaction("mlib.Container.publishAndBind")
     def publishAndBind(self, name, plug):
-        """公開名の作成とBindを一括で行う。
+        """公開名を作成し、内部PlugへBindする。
 
         Args:
             name (str): 新しい公開名。
-            plug (Plug | str): 内部アトリビュート。
+            plug (Plug | str): このcontainerへ直接所属するノードのアトリビュート。
 
         Returns:
             Plug: 対応付けた内部アトリビュート。
+
+        Raises:
+            ValueError: nameが既存の公開名、またはPlugの所有ノードが直接メンバーでない場合。
         """
         if name in self.getPublishedAttrs():
             raise ValueError("既に公開されている名前です: " + name)

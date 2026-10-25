@@ -286,35 +286,28 @@ def _create_movable_attr(node, info):
 
 
 class Node(Object):
-    """Mayaノードの参照と、DAGノードではインスタンスのパスを保持する。
+    """Mayaノードと、DAGノードでは特定インスタンスのパスを参照する。
 
-    ラッパー型はnodeTypeの登録を優先し、未登録なら近い祖先から順に登録済みの型を探す。
-    該当する登録がなければNodeを使う。既存対象の取得ではMayaノードの作成・複製・選択変更は行わない。
-    ``Node(value)`` の value には名前、MObject、MDagPath に加え、既存の Node
-    (同じノードを指す新しいラッパー)、Plug・MPlug(所有ノード)、
-    Component・Components(所有シェイプ)も指定できる。名前が存在しない・
-    複数の対象に一致する場合や、空・削除済みの対象は RuntimeError になる
-    (``"bulk*"`` のように複数のノードに一致するパターンも最初の一致を返さない。
-    パターンは ``mlib.ls`` を使う)。所有ノードは有効でアトリビュートだけが ``deleteAttr`` で
-    削除された Plug・MPlug は ValueError(``mlib.plugs.plug.DeletedAttributeError``。
-    RuntimeError の派生でもあるため、従来どおり RuntimeError としても捕捉できる)。
+    nodeTypeの登録型、近い登録祖先型、Nodeの順にラッパー型を選ぶ。
+    Nodeを渡しても新しいラッパーを返し、Mayaノードは複製しない。
+    名前・MDagPath・既存ラッパーのDAGパスを保持し、MObject・MPlugでは最初のパスを使う。
+    保持インスタンスが消失した場合は別パスへ切り替えず、パスを使う操作でRuntimeErrorになる。
+    str(node)は改名・親変更に追従する最短一意名、削除済みなら空文字列を返す。
 
-    名前・MDagPath・既存ラッパーで指定したインスタンスのDAGパスを保持する。
-    パスを持たないMObject・MPlugでは、所有ノードの最初のDAGパスを使う。
-    そのインスタンスだけが削除された場合は、パスを使う操作がRuntimeErrorになる。
-    別インスタンスへ暗黙に切り替えない。ノード自体の有効性はisValidで照会する。
+    Args:
+        node (str | Node | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+            名前または参照。Plug・MPlugは所有ノード、Component・Componentsは所有シェイプへ解決する。
+        create (bool): キーワード専用。既定Falseは既存対象の取得。
+            Trueは登録済みで名前だけから作成できる具体クラスで使用する。
+            cmdsで新規作成し、Undo有効時は記録する。同名があればMayaの連番名を使う。
+            高速作成は :meth:`create` のfast=Trueを使う。
 
-    ``Joint("newJoint", create=True)`` 等、具体的なノードクラスでは指定名で新規作成できる。
-    createはキーワード専用のboolで、既定Falseは既存対象の取得のまま。
-    maya.cmds.createNodeで作成してUndoに記録する。高速作成はNode.createのfast=Trueを
-    明示して使用する。同名の対象があっても取得には
-    切り替えず、Mayaの連番名で新規作成する。型を特定できない基底クラス、抽象ノード型、出力geometryが必要な
-    SkinClusterは作成前に拒否する。汎用の作成はNode.create(type, name=...)を使用する。
-
-    ``str(node)`` は maya.cmds で一意に解決できる最短名(:meth:`getName`)を返すため、
-    Node はそのまま ``cmds.select(node)`` のように maya.cmds へ渡せる。名前は
-    呼び出すたびに再計算するため、名前変更・親子付け替えに追従する。
-    削除済みのノードは空文字列になる。"""
+    Raises:
+        TypeError: 入力型・createが不正、指定クラスと対象型が非互換、または作成できないクラスの場合。
+        ValueError: 作成名が空、または所有ノードが有効でアトリビュートだけが削除済みのPlugの場合。
+            後者はMPlugも含み、DeletedAttributeError（RuntimeErrorの派生でもある）。
+        RuntimeError: 取得対象が空・削除済み・存在しない・一意でない、またはMayaが作成を拒否した場合。
+    """
 
     _registry = None  #: mlib.__init__ が構築後に注入する NodeRegistry。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
@@ -481,40 +474,36 @@ class Node(Object):
     @classmethod
     def create(cls, type, *, fast=False, name=_UNSET, n=_UNSET, parent=_UNSET, p=_UNSET, shared=_UNSET, s=_UNSET,
         skipSelect=_UNSET, ss=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
-        """ノードを作成し、対応する mlib wrapper として返す。
+        """Mayaノードを作成・共有し、型に対応するラッパーを返す。
+
+        親は単数参照で指定する。Plug・MPlugは所有ノード、Componentは所有シェイプへ解決する。
+        通常はcmdsで作成し、Undo有効時に記録する。長短名の同時指定は拒否する。
 
         Args:
-            type (str): Maya の nodeType 名。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
-            name (str): Mayaのnameフラグ。省略時はMayaの既定に従う。
-            n (str): nameの別名。同時指定は不可。
-            parent (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): 親の所有ノード。省略時はワールド。
-            p (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): parentの別名。同時指定は不可。
-            shared (bool): Mayaのsharedフラグ。省略時はMayaの既定に従う。
-            s (bool): sharedの別名。同時指定は不可。
-            skipSelect (bool): MayaのskipSelectフラグ。省略時はMayaの既定に従う。
-            ss (bool): skipSelectの別名。同時指定は不可。
-            query (bool): Mayaのqueryフラグ。省略時はMayaの既定に従う。
-            q (bool): queryの別名。同時指定は不可。
-            edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
-            e (bool): editの別名。同時指定は不可。
-            **kwargs: 通常処理では追加のMayaフラグをそのまま渡す。
-                fast=Trueでは対応しないフラグを作成前に拒否する。
+            type (str): MayaのnodeType名。
+            fast (bool): TrueはOpenMaya直接作成でUndoなし。
+            name (str): 作成名。省略時はMayaの既定名。
+            n (str): nameの短名。
+            parent (Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug): 親の参照や名前。省略時はMayaの既定。
+            p (Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug): parentの短名。
+            shared (bool): 同名の共有ノードがあれば利用する。省略時はMayaの既定。
+            s (bool): sharedの短名。
+            skipSelect (bool): 作成ノードを選択しない。省略時はMayaの既定。
+            ss (bool): skipSelectの短名。
+            query (bool): Mayaのqueryフラグ。可否はMayaが判定する。
+            q (bool): queryの短名。
+            edit (bool): Mayaのeditフラグ。可否はMayaが判定する。
+            e (bool): editの短名。
+            **kwargs: 追加のMayaフラグ。fastでは未対応フラグを作成前に拒否する。
 
         Returns:
-            Node: 作成したノードに対応する wrapper。
+            Node: 作成・共有したノードを参照するラッパー。
 
         Raises:
-            ValueError: type が空文字列または文字列以外の場合、または parent が
-                削除済みの対象の場合。
-            TypeError: parent が対応しない型の場合。
-            RuntimeError: parent の名前を解決できない場合、または Maya が作成を拒否した場合。
-            NotImplementedError: fast=Trueで未対応のフラグを指定した場合。
-
-        ``parent`` はノードが必要な引数として ``mlib.nodes.Node._input_name`` で
-        所有ノードの完全パスへ変換する。Plug・MPlug・``"node.attribute"`` は所有ノード、
-        Component は所有シェイプを親にする(シェイプを親にした場合の配置は
-        ``maya.cmds.createNode`` と同じ)。
+            ValueError: typeが空・文字列以外、またはparentが空文字列・無効な参照の場合。
+            TypeError: 長短名の競合、fastがbool以外、またはparentが未対応型・複数対象の場合。
+            RuntimeError: 親名を解決できない、またはMayaが作成を拒否した場合。
+            NotImplementedError: fastで未対応のフラグを指定した場合。
         """
         if n is not _UNSET:
             if name is not _UNSET:
@@ -683,11 +672,10 @@ class Node(Object):
         return om2.MFnDependencyNode(self._mobject).pluginName
 
     def getClassification(self):
-        """ノード型の分類文字列を取得する。
+        """ノード型の分類文字列を1要素のリストで取得する。
 
         Returns:
-            list[str]: ``cmds.getClassification`` が返す分類文字列のリスト。
-                該当が無い nodeType では空リスト。
+            list[str]: ``MNodeClass.classification`` を保持する。分類がなければ ``[""]``。
         """
         # cmdsは分類なしでも[""]を返す。その既存の返却形を維持する。
         return [om2.MNodeClass(self.getType()).classification]
@@ -733,20 +721,18 @@ class Node(Object):
         return om2.MFnDependencyNode(self._mobject).isFromReferencedFile
 
     def isAncestorOf(self, other):
-        """other が自身の DAG 階層上の子孫か判定する。
+        """保持するDAGパスで、otherが自身の子孫か判定する。
 
         Args:
-            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
-                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
+            other (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象の参照や名前。Plugは所有ノード、Componentは所有シェイプへ解決する。
 
         Returns:
-            bool: other が自身より下の階層にある場合は True。自身自身や
-                非DAGノード、無効なノード、削除済みの対象(アトリビュートが削除済みの Plug・MPlug、
-                削除済みのノードを指す om2 オブジェクトを含む)では False。
+            bool: 自身を除く子孫ならTrue。非DAG・無効なノード・削除済みアトリビュートはFalse。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は mlib.nodes.Node._resolve_input を参照)。
-            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
+            TypeError: otherが未対応型の場合。
+            RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
         """
         other_node = _query_target(other)
         self_full = self.getFullName()
@@ -756,20 +742,18 @@ class Node(Object):
         return other_full != self_full and other_full.startswith(self_full + "|")
 
     def isParentOf(self, other):
-        """other が自身の直接の子か判定する（孫以下は対象外）。
+        """保持するDAGパスで、otherが自身の直接の子か判定する。
 
         Args:
-            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
-                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
+            other (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象の参照や名前。Plugは所有ノード、Componentは所有シェイプへ解決する。
 
         Returns:
-            bool: other が自身の直接の子の場合は True。無効なノードと削除済みの対象
-                (アトリビュートが削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
-                含む)では False。
+            bool: 直接の子ならTrue。非DAG・無効なノード・削除済みアトリビュートはFalse。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は mlib.nodes.Node._resolve_input を参照)。
-            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
+            TypeError: otherが未対応型の場合。
+            RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
         """
         other_node = _query_target(other)
         self_full = self.getFullName()
@@ -780,20 +764,18 @@ class Node(Object):
         return bool(separator) and parent_prefix == self_full
 
     def isChildOf(self, other):
-        """other が自身の直接の親か判定する（祖父母以上は対象外）。
+        """保持するDAGパスで、otherが自身の直接の親か判定する。
 
         Args:
-            other (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
-                判定対象のノード。Plug は所有ノード、Component は所有シェイプとして扱う。
+            other (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):
+                対象の参照や名前。Plugは所有ノード、Componentは所有シェイプへ解決する。
 
         Returns:
-            bool: other が自身の直接の親の場合は True。無効なノードと削除済みの対象
-                (アトリビュートが削除済みの Plug・MPlug、削除済みのノードを指す om2 オブジェクトを
-                含む)では False。
+            bool: 直接の親ならTrue。非DAG・無効なノード・削除済みアトリビュートはFalse。
 
         Raises:
-            TypeError: other が対応しない型の場合(対応する型は mlib.nodes.Node._resolve_input を参照)。
-            RuntimeError: other の名前を解決できない場合、または空の MObject・MPlug の場合。
+            TypeError: otherが未対応型の場合。
+            RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
         """
         other_node = _query_target(other)
         if other_node is None:
@@ -1096,28 +1078,27 @@ class Node(Object):
 
     def setAttrFlags(self, attributes=_UNSET, locked=None, keyable=None, channelBox=None, *, fast=False,
         attrs=_UNSET):
-        """指定したアトリビュートのロック・キー設定可否・Channel Box表示をまとめて変更する。
+        """指定アトリビュートのロック・キー設定可否・Channel Box表示を変更する。
+
+        状態の型を検査し、全アトリビュートを解決してから順に更新する。
+        途中の失敗で、先行の変更は自動では戻さない。
 
         Args:
-            attributes (str | Iterable[str]): アトリビュート名。選択状態やChannel Box選択は使用しない。
-                複合アトリビュートの子まで変更する場合は子アトリビュート名を明示する。 別名 ``attrs`` も使用可能。
+            attributes (str | Iterable[str]): アトリビュート名。子も変更するなら子名を明示する。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
-            channelBox (bool | None): Channel Box表示。Noneは変更しない。
-                keyable=TrueのアトリビュートはMayaの仕様により表示される。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
+            fast (bool): TrueはUndoなしのOM2更新。FalseはUndo有効時に一つのチャンクへ記録する。
+                Undo設定は変更しない。
             attrs (str | Iterable[str]): attributesの別名。同時指定は不可。
 
         Returns:
-            Node: 自身。全変更を一回のUndoにまとめる。
+            Node: 自身。
 
         Raises:
-            AttributeError: 指定アトリビュートが存在しない場合。全アトリビュートを変更前に解決する。
-            TypeError: 状態にboolまたはNone以外を指定した場合。
-            RuntimeError: Mayaが変更を拒否した場合。途中の変更は自動では戻さない。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            AttributeError: 指定アトリビュートが存在しない場合。
+            TypeError: 必須引数の不足・長短名の競合、fastや状態の型が不正な場合。
+            RuntimeError: Mayaが更新を拒否した場合。
         """
         if attrs is not _UNSET:
             if attributes is not _UNSET:
@@ -1139,19 +1120,16 @@ class Node(Object):
             return self
 
     def getPlugs(self, **kwargs):
-        """ノードのアトリビュートを Plug のリストとして列挙する。
+        """listAttrの条件に合うアトリビュートをPlug参照として列挙する。
 
         Args:
-            kwargs: ``cmds.listAttr`` にそのまま渡す追加フラグ
-                (``keyable=True``、``visible=True``、``write=True`` など)。
+            **kwargs: cmds.listAttrへ渡すフラグ。keyable=True等。
 
         Returns:
-            list[Plug]: 該当するアトリビュートの Plug。``cmds.listAttr`` が返す名前のうち
-                実際には評価できないもの（未確保の要素を持つ配列複合アトリビュートの子など）は
-                黙ってスキップする。該当なしの場合は空リスト。
+            list[Plug]: listAttr順の新しい参照リスト。解決できないパスは省き、該当なしなら空。
 
         Raises:
-            RuntimeError: ノードが無効な場合。
+            RuntimeError: ノードが無効、またはlistAttrが失敗した場合。
         """
         if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートは列挙できません")
@@ -1176,7 +1154,7 @@ class Node(Object):
         """
         if not self.isValid():
             raise RuntimeError("無効なノードのエイリアスは取得できません")
-        # 配列・複合パスの解決はplug()へ集約し、Mayaコマンドと名前再解決を避ける。
+        # 配列・複合パスはgetPlugで解決し、別のMayaコマンドで名前を再解決しない。
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
@@ -1195,104 +1173,114 @@ class Node(Object):
         writable=_UNSET, w=_UNSET, cb=_UNSET, **kwargs):
         """型・既定値・フラグを指定してアトリビュートを追加する。
 
+        作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
+        型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
+        単位型を直接追加する場合、既定値・制限は距離cm・角度rad・時刻秒で指定する。
+        通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
+
         Args:
             longName (str): ロング名。lnまたはsnだけの指定も可能。
-            type (str | None): 型名。at:/dt:接頭辞も可。省略時double。
+            type (str | None): 型名。at:/dt:接頭辞も可。明示時はattributeType/dataTypeより優先。
             subType (str | None): 自動生成する子の共通型。
             channelBox (bool): チャンネルボックス表示。cbでも指定可能。
             childNames (Sequence[str] | None): 子のロング名。
             childShortNames (Sequence[str] | None): 子のショート名。
             childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
             proxy (Plug | str | None): プロキシの元アトリビュート。
-            getPlug (bool): 既定はTrueで追加したPlugを返す。FalseならNone。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
-            attributeType (str): MayaのattributeTypeフラグ。省略時はMayaの既定に従う。
-            at (str): attributeTypeの別名。同時指定は不可。
-            binaryTag (str): MayaのbinaryTagフラグ。省略時はMayaの既定に従う。
-            bt (str): binaryTagの別名。同時指定は不可。
-            cachedInternally (bool): MayaのcachedInternallyフラグ。省略時はMayaの既定に従う。
-            ci (bool): cachedInternallyの別名。同時指定は不可。
-            category (str | Sequence[str]): Mayaのcategoryフラグ。省略時はMayaの既定に従う。
-            ct (str | Sequence[str]): categoryの別名。同時指定は不可。
-            dataType (str | Sequence[str]): MayaのdataTypeフラグ。省略時はMayaの既定に従う。
-            dt (str | Sequence[str]): dataTypeの別名。同時指定は不可。
+            getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
+            fast (bool): TrueはUndoなしの直接追加。既定Falseはcmds。
+            attributeType (str): MayaのattributeTypeフラグ。
+            at (str): attributeTypeの別名。
+            binaryTag (str): MayaのbinaryTagフラグ。
+            bt (str): binaryTagの別名。
+            cachedInternally (bool): MayaのcachedInternallyフラグ。
+            ci (bool): cachedInternallyの別名。
+            category (str | Sequence[str]): Mayaのcategoryフラグ。
+            ct (str | Sequence[str]): categoryの別名。
+            dataType (str | Sequence[str]): MayaのdataTypeフラグ。
+            dt (str | Sequence[str]): dataTypeの別名。
             defaultValue (object): 追加する型に対応した既定値。複合数値は成分列、型付きデータはPlug.setと同じ形で指定する。
-            dv (object): defaultValueの別名。同時指定は不可。
-            disconnectBehaviour (int): MayaのdisconnectBehaviourフラグ。省略時はMayaの既定に従う。
-            dcb (int): disconnectBehaviourの別名。同時指定は不可。
-            edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
-            e (bool): editの別名。同時指定は不可。
-            enforcingUniqueName (bool): MayaのenforcingUniqueNameフラグ。省略時はMayaの既定に従う。
-            eun (bool): enforcingUniqueNameの別名。同時指定は不可。
-            enumName (str): MayaのenumNameフラグ。省略時はMayaの既定に従う。
-            en (str): enumNameの別名。同時指定は不可。
-            exists (bool): Mayaのexistsフラグ。省略時はMayaの既定に従う。
-            ex (bool): existsの別名。同時指定は不可。
-            fromPlugin (bool): MayaのfromPluginフラグ。省略時はMayaの既定に従う。
-            fp (bool): fromPluginの別名。同時指定は不可。
-            hasMaxValue (bool): MayaのhasMaxValueフラグ。省略時はMayaの既定に従う。
-            hxv (bool): hasMaxValueの別名。同時指定は不可。
-            hasMinValue (bool): MayaのhasMinValueフラグ。省略時はMayaの既定に従う。
-            hnv (bool): hasMinValueの別名。同時指定は不可。
-            hasSoftMaxValue (bool): MayaのhasSoftMaxValueフラグ。省略時はMayaの既定に従う。
-            hsx (bool): hasSoftMaxValueの別名。同時指定は不可。
-            hasSoftMinValue (bool): MayaのhasSoftMinValueフラグ。省略時はMayaの既定に従う。
-            hsn (bool): hasSoftMinValueの別名。同時指定は不可。
-            hidden (bool): Mayaのhiddenフラグ。省略時はMayaの既定に従う。
-            h (bool): hiddenの別名。同時指定は不可。
-            indexMatters (bool): MayaのindexMattersフラグ。省略時はMayaの既定に従う。
-            im (bool): indexMattersの別名。同時指定は不可。
-            internalSet (bool): MayaのinternalSetフラグ。省略時はMayaの既定に従う。
-            keyable (bool): Mayaのkeyableフラグ。省略時はMayaの既定に従う。
-            k (bool): keyableの別名。同時指定は不可。
-            ln (str): longNameの別名。同時指定は不可。
-            maxValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのmaxValueフラグ。省略時はMayaの既定に従う。
-            max (float | om2.MAngle | om2.MDistance | om2.MTime): maxValueの別名。同時指定は不可。
-            minValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのminValueフラグ。省略時はMayaの既定に従う。
-            min (float | om2.MAngle | om2.MDistance | om2.MTime): minValueの別名。同時指定は不可。
-            multi (bool): Mayaのmultiフラグ。省略時はMayaの既定に従う。
-            m (bool): multiの別名。同時指定は不可。
-            niceName (str): MayaのniceNameフラグ。省略時はMayaの既定に従う。
-            nn (str): niceNameの別名。同時指定は不可。
-            numberOfChildren (int): MayaのnumberOfChildrenフラグ。省略時はMayaの既定に従う。
-            nc (int): numberOfChildrenの別名。同時指定は不可。
+            dv (object): defaultValueの別名。
+            disconnectBehaviour (int): MayaのdisconnectBehaviourフラグ。
+            dcb (int): disconnectBehaviourの別名。
+            edit (bool): Trueは作成専用のため拒否する。
+            e (bool): editの別名。
+            enforcingUniqueName (bool): MayaのenforcingUniqueNameフラグ。
+            eun (bool): enforcingUniqueNameの別名。
+            enumName (str): MayaのenumNameフラグ。
+            en (str): enumNameの別名。
+            exists (bool): Mayaのexistsフラグ。
+            ex (bool): existsの別名。
+            fromPlugin (bool): MayaのfromPluginフラグ。
+            fp (bool): fromPluginの別名。
+            hasMaxValue (bool): MayaのhasMaxValueフラグ。
+            hxv (bool): hasMaxValueの別名。
+            hasMinValue (bool): MayaのhasMinValueフラグ。
+            hnv (bool): hasMinValueの別名。
+            hasSoftMaxValue (bool): MayaのhasSoftMaxValueフラグ。
+            hsx (bool): hasSoftMaxValueの別名。
+            hasSoftMinValue (bool): MayaのhasSoftMinValueフラグ。
+            hsn (bool): hasSoftMinValueの別名。
+            hidden (bool): Mayaのhiddenフラグ。
+            h (bool): hiddenの別名。
+            indexMatters (bool): MayaのindexMattersフラグ。
+            im (bool): indexMattersの別名。
+            internalSet (bool): MayaのinternalSetフラグ。
+            keyable (bool): Mayaのkeyableフラグ。
+            k (bool): keyableの別名。
+            ln (str): longNameの別名。
+            maxValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのmaxValueフラグ。
+            max (float | om2.MAngle | om2.MDistance | om2.MTime): maxValueの別名。
+            minValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのminValueフラグ。
+            min (float | om2.MAngle | om2.MDistance | om2.MTime): minValueの別名。
+            multi (bool): Mayaのmultiフラグ。
+            m (bool): multiの別名。
+            niceName (str): MayaのniceNameフラグ。
+            nn (str): niceNameの別名。
+            numberOfChildren (int): MayaのnumberOfChildrenフラグ。
+            nc (int): numberOfChildrenの別名。
             parent (str): 親にする既存の複合アトリビュート名。ノードの親指定ではない。
-            p (str): parentの別名。同時指定は不可。
-            pxy (Plug | str | None): proxyの別名。同時指定は不可。
-            query (bool): Mayaのqueryフラグ。省略時はMayaの既定に従う。
-            q (bool): queryの別名。同時指定は不可。
-            readable (bool): Mayaのreadableフラグ。省略時はMayaの既定に従う。
-            r (bool): readableの別名。同時指定は不可。
-            shortName (str): MayaのshortNameフラグ。省略時はMayaの既定に従う。
-            sn (str): shortNameの別名。同時指定は不可。
-            softMaxValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのsoftMaxValueフラグ。省略時はMayaの既定に従う。
-            smx (float | om2.MAngle | om2.MDistance | om2.MTime): softMaxValueの別名。同時指定は不可。
-            softMinValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのsoftMinValueフラグ。省略時はMayaの既定に従う。
-            smn (float | om2.MAngle | om2.MDistance | om2.MTime): softMinValueの別名。同時指定は不可。
-            storable (bool): Mayaのstorableフラグ。省略時はMayaの既定に従う。
-            s (bool): storableの別名。同時指定は不可。
-            usedAsColor (bool): MayaのusedAsColorフラグ。省略時はMayaの既定に従う。
-            uac (bool): usedAsColorの別名。同時指定は不可。
-            usedAsFilename (bool): MayaのusedAsFilenameフラグ。省略時はMayaの既定に従う。
-            uaf (bool): usedAsFilenameの別名。同時指定は不可。
-            usedAsProxy (bool): MayaのusedAsProxyフラグ。省略時はMayaの既定に従う。
-            uap (bool): usedAsProxyの別名。同時指定は不可。
-            worldSpace (bool): MayaのworldSpaceフラグ。省略時はMayaの既定に従う。
-            ws (bool): worldSpaceの別名。同時指定は不可。
-            writable (bool): Mayaのwritableフラグ。省略時はMayaの既定に従う。
-            w (bool): writableの別名。同時指定は不可。
-            cb (bool): channelBoxの別名。同時指定は不可。
-            **kwargs: Mayaへ渡す追加フラグ。値・制限は内部単位。
+            p (str): parentの別名。
+            pxy (Plug | str | None): proxyの別名。
+            query (bool): Trueは作成専用のため拒否する。
+            q (bool): queryの別名。
+            readable (bool): Mayaのreadableフラグ。
+            r (bool): readableの別名。
+            shortName (str): MayaのshortNameフラグ。
+            sn (str): shortNameの別名。
+            softMaxValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのsoftMaxValueフラグ。
+            smx (float | om2.MAngle | om2.MDistance | om2.MTime): softMaxValueの別名。
+            softMinValue (float | om2.MAngle | om2.MDistance | om2.MTime): MayaのsoftMinValueフラグ。
+            smn (float | om2.MAngle | om2.MDistance | om2.MTime): softMinValueの別名。
+            storable (bool): Mayaのstorableフラグ。
+            s (bool): storableの別名。
+            usedAsColor (bool): MayaのusedAsColorフラグ。
+            uac (bool): usedAsColorの別名。
+            usedAsFilename (bool): MayaのusedAsFilenameフラグ。
+            uaf (bool): usedAsFilenameの別名。
+            usedAsProxy (bool): MayaのusedAsProxyフラグ。
+            uap (bool): usedAsProxyの別名。
+            worldSpace (bool): MayaのworldSpaceフラグ。
+            ws (bool): worldSpaceの別名。
+            writable (bool): Mayaのwritableフラグ。
+            w (bool): writableの別名。
+            cb (bool): channelBoxの別名。
+            **kwargs: Mayaへ渡す追加フラグ。
                 予約語の短名isは辞書展開で指定する。internalSetとの同時指定は不可。
 
         Returns:
             Plug | None: getPlug=Trueでは追加したPlug。getPlug=FalseではNone。
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
+        Raises:
+            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
+            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、またはquery/edit=True。
+            NotImplementedError: fastで型や定義フラグが未対応の場合。
+
         Note:
-            自動生成する子の名前・成分数と、検証可能な型付き既定値は追加前に検査する。
-            子の追加では公開addAttrを再度呼び、利用側のoverrideを維持する。
-            Mayaの実行時エラーや利用側overrideの失敗では、完了済みの追加は残る。
+            子名・成分数と検証可能な型付き既定値は追加前に検査する。
+            通常の子追加だけは公開addAttrへ委譲し、overrideを呼ぶ。fastは親子定義を一括構築する。
+            Mayaやoverride、作成後の既定値・表示・proxy接続が失敗しても、完了済みの追加は戻さない。
         """
         if at is not _UNSET:
             if attributeType is not _UNSET:
@@ -1583,7 +1571,7 @@ class Node(Object):
 
         Returns:
             list[Plug] | list[str]: Mayaの列挙順のプラグまたは名前。配列はArrayPlugとして返す。
-                非表示・非keyableも含む。個別取得はplug("名前")を使用する。
+                非表示・非keyableも含む。個別取得はgetPlug("名前")を使う。
 
         Raises:
             TypeError: include_childrenまたはasNamesがboolでない場合。
@@ -1613,7 +1601,7 @@ class Node(Object):
         のみ対応。対応しないアトリビュートが再作成対象に含まれる場合は何も変更せず
         例外を送出する)。
 
-        Undoが有効な場合だけ実行し、再作成中の失敗ではUndoによる復元を試みる。
+        並び替えが必要な場合はUndo有効を要求し、再作成中の失敗ではUndoによる復元を試みる。
         成功後は削除前に取得したPlug参照が無効になるため、必要なPlugを取得し直す。
 
         Args:
@@ -1679,34 +1667,21 @@ class Node(Object):
         return self
 
     def getPlug(self, name):
-        """アトリビュートを扱う Plug オブジェクトを取得する。
-
-        ノードのアトリビュート操作には、このメソッドを使用します。
-        返された Plug で値の取得・設定や、ほかのプラグとの接続を行えます。
-
-        アトリビュート名(ロング名・ショート名・エイリアス)に加え、配列要素と子アトリビュートを含むアトリビュートパス
-        (``input1D[3]``、``worldMatrix[0]``、``pnts[2].pntx``、
-        ``inputTarget[0].inputTargetGroup[7].inputTargetItem[6000].inputComponentsTarget``)を
-        指定できる。形式は ``str(plug)`` のアトリビュート部分(``Plug.getFullName()`` の ``.`` 以降)と同じ。
-        配列インデックスは 0〜2147483647(``MPlug.logicalIndex()`` の範囲)で指定する。
-        存在しない配列要素のPlugを取得しても要素は作られず、値の評価やシーン変更は行わない。
-        genericアトリビュートは基底Plugで参照し、値の型はget時に解釈する。
-        詳細は :doc:`/cmds_interop` を参照。
+        """このノードのアトリビュートを、値の評価や要素作成なしで参照する。
 
         Args:
-            name (str): アトリビュート名またはアトリビュートパス(このノード自身のアトリビュートに限る)。
+            name (str): ロング名・ショート名・エイリアス、またはノード名を除いたパス。
+                配列要素と子を ``input3D[2].input3Dx`` のように指定できる。
+                論理番号は0〜2147483647。
 
         Returns:
-            Plug: 解決したアトリビュートプラグ。
+            Plug: 自身を所有Nodeとする、型に対応した新しいラッパー。
+                未作成の配列要素も参照できる。genericは基底Plugで、値の型はget時に解釈する。
 
         Raises:
-            ValueError: 空文字列または文字列以外を指定した場合。
-            RuntimeError: ノードが無効な場合。アトリビュート名が配列複合アトリビュートの子を配列要素の番号なしで
-                指す場合(``input3Dx`` のような maya.cmds で解決できないプラグ。
-                ``input3D[0].input3Dx`` のように番号を含めて指定する)。
-            AttributeError: アトリビュート・アトリビュートパスを解決できない場合。配列インデックスが
-                2147483647 を超える場合(``input1D[4294967296]`` のような番号を別の要素へ
-                読み替えない)も含む。
+            ValueError: nameが空または文字列以外の場合。
+            RuntimeError: ノードが無効、または ``input3Dx`` 等の未確定な論理番号を含む参照の場合。
+            AttributeError: パスを解決できない、または論理番号が上限を超える場合。
         """
         from ..plugs.plug import Plug as _InputPlug
         from ..plugs.plug import MAX_LOGICAL_INDEX
@@ -1714,7 +1689,7 @@ class Node(Object):
             raise ValueError("name には空でないアトリビュートパスを指定してください")
         if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
-        # plugs.plug ⇔ nodes の相互依存を避けるための遅延 import。inputs()/outputs() と同じ理由。
+        # nodes/plugsの相互依存を避けるため遅延importする。
         from ..plugs.plug import Plug
 
         if "[" not in name:
@@ -2136,7 +2111,7 @@ class Node(Object):
                                       child_names, child_short_names, child_suffixes, sub_type, *, fast=False):
         """親と子の定義を従来の順序で追加する。
 
-        子の追加は公開addAttrへ委譲し、利用側のoverrideと途中失敗時の更新を保つ。
+        通常は子を公開addAttrへ順に委譲する。fastは未登録の親子定義を一括構築して追加する。
 
         Args:
             name (str): 親アトリビュート名。
@@ -2278,16 +2253,15 @@ class Nodes:
     _bulk_undo = True
 
     def __init__(self, names=()):
-        """ノード入力を解決して構築する。検索やシーン変更は行わない。
+        """入力からノード参照を解決し、要素型を検証して保持する。
 
         Args:
-            names (object | Iterable[object]): 名前・Node・API参照等、またはその列。
-                単一の名前も受け付ける。解決はNodesの共通入力規則に従う。
+            names (object | Iterable[object]): 名前・Node・API参照等、またはその列。単一名も受理する。
 
         Raises:
             TypeError: 解決結果がitem_classの派生でない場合。
-            RuntimeError: 名前を解決できない、または削除済みの対象の場合。
-            ValueError: 共通入力解決が不正な参照を検出した場合。
+            RuntimeError: 名前を解決できない、または無効なノードの場合。
+            ValueError: 入力解決で不正な参照を検出した場合。
         """
         if isinstance(names, (str, Node)):
             names = [names]
@@ -2328,12 +2302,16 @@ class Nodes:
         return len(self._items)
 
     def __getitem__(self, index):
-        """Node | Nodes: 単体参照または同じ具象型のスライスを返す。
+        """保持列の位置からNode参照、sliceから同型の部分コレクションを取得する。
 
-        構築後に削除された参照も保持し、要素数を暗黙に変更しない。
+        取得したNodeは元と同じ参照。シーンの実番号による検索や有効性の再検査は行わず、
+        構築後に削除された参照も保持する。
 
         Args:
-            index: 対象要素の番号または探索開始番号。
+            index (int | slice): Pythonリストの添字。負数とboolも同じ規則で扱う。
+
+        Returns:
+            Node | Nodes: 同じNode参照、または参照を共有する新しい容器。
         """
         if not isinstance(index, slice):
             return self._items[index]
@@ -2896,24 +2874,24 @@ class Nodes:
     moveAttrOrder.__signature__ = inspect.signature(Node.moveAttrOrder)
 
     def callEach(self, method, arguments, keyword_arguments=None):
-        """各要素へ異なる引数を渡す。メソッド名は単体の公開インスタンスメソッドのみ。
+        """各ノードの公開メソッドを、要素別の引数で保持順に呼ぶ。
+
+        呼出形式は全件、fastのbool型はfast引数を持つ呼出先について実行前に検査する。長短名の組合せ・省略値・その他の値は
+        単数メソッド内で順に検査し、後続が失敗しても先行変更は自動で戻さない。
+        通常・混在呼出しのUndo対象操作は一つのチャンクへまとめ、全件fastは記録しない。
 
         Args:
-            method (str): setTranslate等。create・特殊メソッドは不可。
-            arguments (Iterable[tuple]): 要素数と同じ数の位置引数タプル。
-            keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空。
+            method (str): setTranslate等の登録済み単数メソッド。create・特殊メソッドは不可。
+            arguments (Iterable[tuple]): 要素数と同数の位置引数tuple。
+            keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空辞書。
 
         Returns:
-            list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。
-                ネストしたリストもそのまま保持する。
+            list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。入れ子のリストも保持する。
 
         Raises:
-            ValueError: メソッド名・件数が不正な場合。
-            TypeError: 引数のシグネチャが不正な場合。実行前に全件確認する。
-            RuntimeError: 単体の処理が失敗した場合。対象番号を含み、後続は実行しない。
-
-        シーン編集は1回のUndoにまとめる。自動ロールバックはしない。
-        ファイルI/OはUndo対象外。
+            ValueError: メソッド名または件数が不正な場合。
+            TypeError: 呼出形式・fast型が不正、または単数メソッドで長短名の競合等を検出した場合。
+            RuntimeError: 単数メソッドのその他の失敗。対象番号を含み、後続は実行しない。
         """
         functions, args, kwargs = self._prepare_calls(method, arguments, keyword_arguments)
         return self._execute_calls(method, functions, args, kwargs)
@@ -3072,15 +3050,15 @@ class Nodes:
         return self._call_shared(method, args, kwargs)
 
     def _call_shared(self, method, args, kwargs):
-        """同じ入力の検証を実関数ごとに共有し、全件検証後に実行する。
+        """同じ引数の呼出形式を関数ごとに検証し、保持順に実行する。
 
-        共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に
-        検証し、クラス差替え・reload後の古いメソッドを保持しない。
+        共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に検証し、
+        クラス差替え・reload後の古いメソッドを保持しない。fast型を除く値の検証は各単数本文で行う。
 
         Args:
-            method: 一括実行するメソッド名。
-            args: 処理先へ渡す位置引数の列。
-            kwargs: 処理先へ渡すキーワード引数の辞書。
+            method: 登録済みの単数メソッド名。
+            args: 全要素に渡す位置引数。
+            kwargs: 全要素に渡すキーワード引数。
         """
         functions = [self._call_target(item, method) for item in self._items]
         shared = {}

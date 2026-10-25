@@ -372,23 +372,22 @@ class Components:
             yield self.component_class(self._shape, index)
 
     def __getitem__(self, index):
-        """保持列内のPython添字で、単数参照または部分コレクションを取得する。
+        """保持列のPython添字から単数参照、sliceから同型の部分コレクションを取得する。
 
-        例えば保持番号が(5, 2)なら[0]はMaya番号5の参照。負数とsliceに対応し、
-        boolもtupleと同じく0/1の位置として扱う。実番号入力時のbool拒否とは異なる。
+        添字はMayaの実番号ではない。負数とboolはtupleと同じ位置として扱う。
+        取得対象の現在番号を再検証し、元と同じShapeラッパーを共有する。
 
         Args:
-            index (int | slice): Mayaの実番号ではなく保持列内の位置。
+            index (int | slice): 保持列内の位置。
 
         Returns:
-            Component | Components: 単数は新しい参照、sliceは同じ型の新しいコレクション。
-                どちらも同じShapeラッパーを共有し、取得対象の現在の番号範囲を再検証する。
+            Component | Components: 新しい単数参照または同じ型の新しいコレクション。
 
         Raises:
-            TypeError: tupleで受理しない添字型、または非対応のShape型の場合。
-            IndexError: 保持列の位置、または取得対象の現在のMaya番号が範囲外の場合。
+            TypeError: tupleが受理しない添字、またはShape型が不正な場合。
+            IndexError: 保持列の位置または現在のMaya番号が範囲外の場合。
             ValueError: sliceのstepが0の場合。
-            RuntimeError: シェイプが無効な場合。
+            RuntimeError: Shapeが無効な場合。
         """
         if isinstance(index, slice):
             return type(self)(self._shape, self._indices[index])

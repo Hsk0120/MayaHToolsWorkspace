@@ -12,15 +12,11 @@ from .plug import Plug, _instance_count
 
 
 class ArrayPlug(Plug):
-    """multiアトリビュート全体の参照を保持し、疎な要素番号と要素Plugを扱う。
+    """multiアトリビュート全体を参照し、疎な論理番号と要素Plugを扱う。
 
-    doubleArray等の「一つのPlugに配列データを格納する型」とは異なり、各要素が
-    独立した論理番号を持つ。角括弧は論理番号、反復は既存要素の参照、get()は値の取得。
-    欠番の参照取得だけでは要素を作成せず、要素へのset/connectで実体化する。
-
-    maya.cmdsはArrayPlug自体をシーケンスとして展開しようとして失敗するため、
-    配列全体を渡すときは ``str(array_plug)`` または ``array_plug.getFullName()`` を使う。
-    配列要素も複合Plugなら文字列化する。mlibのコマンドにはそのまま渡せる。
+    doubleArray等の単一Plugの配列データとは異なる。``array[index]`` は論理番号の
+    参照、反復は既存要素、get()は値の取得。欠番は参照だけでは作られず、set/connectで実体化する。
+    maya.cmdsへは ``str(array)`` で渡す。要素が複合Plugの場合も文字列化し、mlib.selectにはそのまま渡せる。
     """
 
     def __getitem__(self, index):
@@ -76,42 +72,40 @@ class ArrayPlug(Plug):
         return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """array プラグへの直接の値設定を禁止する。
+        """配列全体への値設定を拒否する。各要素のset()を使う。
 
         Args:
-            value (object): 設定要求値。内容に関係なく拒否する。
-            safe (bool): Plug共通の引数。Trueでも配列全体への値設定は許可しない。
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            fast (bool): Plug共通インターフェースの引数。値にかかわらず配列全体への設定を拒否する。
+            value (object): 内容にかかわらず拒否する設定要求値。
+            safe (bool): Trueでも拒否を抑制しない。
+            uiUnits (bool): Plug共通の単位指定。全体設定は許可しない。
+            fast (bool): Plug共通の経路指定。全体設定は許可しない。
 
         Returns:
-            NoReturn: 必ず TypeError を送出する。
+            NoReturn: 必ずTypeErrorを送出する。
 
         Raises:
-            TypeError: 常に送出される。要素プラグへ設定すること。
-
-        fastにかかわらず要素Plugのset()を使用する。
+            TypeError: fastがbool以外の場合、および配列全体への設定要求。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         raise TypeError("Set an array element instead of the array plug")
 
     def getElement(self, index=_UNSET, *, idx=_UNSET):
-        """既存の論理インデックスの要素Plugを、評価や実体化なしで取得する。
+        """既存の論理番号の要素を、評価・実体化せず参照する。
 
-        worldMatrix等は、評価前でもDAGインスタンス番号の要素を参照できる。
-        未存在の参照にはarray[index]を使い、set/connectで要素を作成する。
+        worldSpace配列は評価前のDAGインスタンス番号も既存として扱う。
+        欠番の参照には ``array[index]``、作成にはその要素のset/connectを使う。
 
         Args:
-            index (int): 論理インデックス。別名idx。
+            index (int): 0〜2147483647の論理番号。短縮名idx。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
-            Plug: 既存要素の参照。
+            Plug: 同じ所有Nodeを持つ新しい要素参照。
 
         Raises:
-            TypeError: indexがboolまたは整数以外の場合。
-            IndexError: 要素が存在しない、または0〜2147483647の範囲外の場合。
+            TypeError: index未指定、長短名の同時指定、boolまたは整数以外の場合。
+            IndexError: 要素が存在しない、または番号が範囲外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         if idx is not _UNSET:
@@ -143,18 +137,16 @@ class ArrayPlug(Plug):
                 for index in self.getIndices()]
 
     def getNextAvailableIndex(self, start=0):
-        """OpenMayaの既存要素番号に含まれない最初の候補番号を探す。
+        """OpenMayaの既存番号にない最初の候補を返す。要素の作成・予約はしない。
 
-        ``getExistingArrayAttributeIndices()`` だけを調べ、getIndices()が補完する
-        worldSpaceのDAGインスタンス番号は含めない。ロックや子の入力接続も調べないため、
-        connect(nextAvailable=True)が選ぶ接続先とは異なる。要素の作成・予約はしない。
+        getIndices()のworldSpaceインスタンス番号補完や、ロック・子の入力接続は調べない。
+        そのため ``connect(nextAvailable=True)`` が選ぶ接続先とは異なる。
 
         Args:
-            start (int): 探索開始番号。負数だけを検証し、整数型や上限は検証しない。
+            start (int): 開始候補。負数のみ検査し、整数型や上限は検査しない。
 
         Returns:
-            int: start以上で既存番号に含まれない最初の候補。
-                角括弧等で受理される論理番号の範囲内とは限らない。
+            int: start以上で既存番号にない候補。``array[index]`` が受理する型・範囲とは限らない。
 
         Raises:
             ValueError: startが負の場合。
@@ -248,17 +240,14 @@ class ArrayPlug(Plug):
             return index
 
     def getIndices(self):
-        """既存要素の論理番号を、値を読み出さず昇順で取得する。
+        """既存要素の論理番号を、値を評価せず昇順で取得する。
 
-        例えば要素番号が[2, 10]なら[2, 10]を返し、物理的な列挙位置の[0, 1]は返さない。
-        ``getExistingArrayAttributeIndices()`` の番号に加え、worldMatrix等のworldSpace
-        アトリビュートでは、所有DAGノードの全インスタンス番号を補完する。
-        要素を評価するまでOpenMayaの既存番号に現れない場合があるため。
-        補完範囲は0〜インスタンス数-1で、祖先による間接インスタンスも含む。
-        番号の取得では、値の評価や欠番の実体化を行わない。
+        疎な番号が[2, 10]なら[2, 10]を返し、物理的な列挙位置の[0, 1]へ詰め直さない。
+        worldSpace配列はOpenMayaの既存番号に全DAGインスタンスの0〜数-1を補完する
+        （祖先による間接インスタンスを含む）。欠番を実体化せず、getElements()も同じ番号を使う。
 
         Returns:
-            list[int]: 新しい論理番号リスト。getElements()も同じ番号を使う。
+            list[int]: 新しい論理番号リスト。
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。

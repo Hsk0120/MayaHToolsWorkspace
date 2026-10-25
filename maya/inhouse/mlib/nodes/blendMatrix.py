@@ -10,7 +10,12 @@ from .node import Node
 
 
 class BlendMatrix(Node):
-    """論理番号順に行列をブレンドする。加重平均ではない。"""
+    """blendMatrixノードを参照し、論理番号順の行列ブレンドを扱う。加重平均ではない。
+
+    ターゲットは疎な論理番号で扱い、getTargetPlugは既存要素だけを参照する。
+    値設定は入力接続を切断しない。通常の設定・接続・削除はUndo有効時にチャンクへ記録する。
+    fast引数を持つ設定のTrueはUndoなしのOM2直接更新。Undo設定は変えず、途中失敗の変更は自動で戻さない。
+    """
 
     def getInputPlug(self):
         """入力のPlugを取得する。
@@ -32,14 +37,11 @@ class BlendMatrix(Node):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -51,16 +53,13 @@ class BlendMatrix(Node):
         """入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -98,14 +97,11 @@ class BlendMatrix(Node):
         """全体ウェイトへ定数値を設定する。
 
         Args:
-            value (float): 設定値。数値は有限値。
+            value (float): 有限な全体ウェイト。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -117,16 +113,13 @@ class BlendMatrix(Node):
         """全体ウェイトへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -175,22 +168,19 @@ class BlendMatrix(Node):
 
     def connectTarget(self, index=_UNSET, source=_UNSET, weight=1.0, force=_UNSET, *, idx=_UNSET, src=_UNSET,
         f=_UNSET):
-        """行列Plugをターゲットへ接続する。
+        """行列Plugをターゲットへ接続し、その後ウェイトを設定する。
 
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
             weight (float): 有限なウェイト。
-            force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+            force (bool): Trueで既存の入力接続を置き換える。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
-            BlendMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
+            BlendMatrix: 自身。ウェイト設定が失敗しても、先に完了した接続は残る。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -220,7 +210,7 @@ class BlendMatrix(Node):
             return self
 
     def removeTarget(self, index=_UNSET, *, idx=_UNSET):
-        """ターゲットとその接続を削除する。
+        """指定論理番号のターゲット要素を、接続ごと削除する。
 
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
@@ -228,9 +218,6 @@ class BlendMatrix(Node):
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -262,7 +249,9 @@ class BlendMatrix(Node):
         return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
     def setTarget(self, index=_UNSET, matrix=_UNSET, weight=1.0, *, idx=_UNSET):
-        """ターゲットの行列とウェイトを設定する。
+        """ターゲットの行列とウェイトを順に設定する。
+
+        番号・行列・有限ウェイトを検証してから書き込む。ウェイト設定が失敗しても、先に設定した行列は残る。
 
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
@@ -272,9 +261,6 @@ class BlendMatrix(Node):
 
         Returns:
             BlendMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:

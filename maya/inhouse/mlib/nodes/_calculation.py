@@ -35,7 +35,7 @@ class _Calculation:
             force (bool): 既存接続を置き換えるか。
 
         Note:
-            接続方向とロック処理はPlug.connectへ集約する。
+            接続方向とロック処理はPlug.connectToへ委譲する。
             接続元の解決失敗時には接続先を取得しない。
         """
         from ..plugs.plug import Plug as _InputPlug

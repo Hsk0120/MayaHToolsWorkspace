@@ -10,7 +10,10 @@ from .node import Node
 
 
 class AimMatrix(Node):
-    """指定した軸をターゲットへ向ける行列を生成する。"""
+    """aimMatrixノードを参照し、入力軸・ターゲットと出力行列を扱う。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def getInputPlug(self):
         """入力のPlugを取得する。
@@ -32,14 +35,11 @@ class AimMatrix(Node):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -58,9 +58,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -103,9 +100,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -124,9 +118,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -164,14 +155,11 @@ class AimMatrix(Node):
         """primaryターゲット行列へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -190,9 +178,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -230,14 +215,11 @@ class AimMatrix(Node):
         """primary入力軸へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -256,9 +238,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -296,14 +275,11 @@ class AimMatrix(Node):
         """primaryターゲットベクトルへ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -322,9 +298,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -351,7 +324,7 @@ class AimMatrix(Node):
         return _Calculation.enum_name(self.getPlug("primaryMode"), ("lock", "aim", "align"))
 
     def setPrimaryMode(self, mode, *, fast=False):
-        """モードを設定する。
+        """primary側の軸合わせモードを設定する。
 
         Args:
             mode (str | int): lock, aim, align、またはMayaの番号。
@@ -359,9 +332,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -390,14 +360,11 @@ class AimMatrix(Node):
         """secondaryターゲット行列へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -416,9 +383,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -456,14 +420,11 @@ class AimMatrix(Node):
         """secondary入力軸へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -482,9 +443,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -522,14 +480,11 @@ class AimMatrix(Node):
         """secondaryターゲットベクトルへ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -548,9 +503,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -577,7 +529,7 @@ class AimMatrix(Node):
         return _Calculation.enum_name(self.getPlug("secondaryMode"), ("none", "aim", "align"))
 
     def setSecondaryMode(self, mode, *, fast=False):
-        """モードを設定する。
+        """secondary側の軸合わせモードを設定する。
 
         Args:
             mode (str | int): none, aim, align、またはMayaの番号。
@@ -585,9 +537,6 @@ class AimMatrix(Node):
 
         Returns:
             AimMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

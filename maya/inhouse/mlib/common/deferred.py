@@ -6,21 +6,18 @@ class Deferred:
 
     @staticmethod
     def call(callback, *args, **kwargs):
-        """次の実行可能なタイミングへコールバックを予約する。
+        """Python呼出しをmaya.utils.executeDeferredへ渡す。
+
+        実行時期とcallbackの例外処理はMayaへ委ねる。同期実行・取消・Undo管理は追加しない。
+        バッチ時の挙動もexecuteDeferredに従い、予約APIの戻り値は返さない。
 
         Args:
-            callback (Callable): 実行するPython関数。コード文字列は受け付けない。
-            *args (object): 関数へ渡す位置引数。
-            **kwargs (object): 関数へ渡すキーワード引数。
-
-        Returns:
-            None: 値を返さない。
+            callback (Callable): 呼出し可能なPythonオブジェクト。コード文字列は受理しない。
+            *args (object): callbackへ渡す位置引数。
+            **kwargs (object): callbackへ渡すキーワード引数。
 
         Raises:
             TypeError: callbackが呼び出し可能でない場合。
-
-        シーンやUndoは予約時には変更しない。バッチでの実行タイミングは
-        maya.utils.executeDeferredに従う。遅延中の例外はMaya側に通知される。
         """
         from maya import utils
 

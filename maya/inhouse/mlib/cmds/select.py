@@ -1,79 +1,14 @@
-"""
-Synopsis
---------
+"""ノード・アトリビュート・コンポーネントの選択状態を変更する。戻り値はNone。
 
-.. code-block:: python
-
-    mlib.select(nodes=None, **kwargs)
-
-指定したノード・アトリビュート・コンポーネントを選択します。``nodes`` を省略すると
-``**kwargs`` だけで ``maya.cmds.select`` を呼びます（``clear=True`` など）。
-``nodes`` には Node・Plug・Component に加えて Vertices などのコレクション、
-Selection、Maya API 2.0 の MObject・MDagPath・MPlug、およびそれらのリストを
-指定できます。Vertices などのコレクションは連続する番号を範囲指定(``vtx[0:99]``)に
-まとめて渡すため、要素数が多くても高速です。対応する型は :doc:`/cmds_interop` を参照してください。
-
-選択状態を変更する操作です。Maya の Undo に対応します。
-
-Return value
-------------
-
-``None``
-    値を返しません。
-
-Related commands
-----------------
-
-:doc:`ls <../ls/index>`
-
-Flags
------
-
-Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
-処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
-
-位置引数も含めた入力一覧です。括弧内は Maya に渡せる短縮名です。
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 15 40
-
-   * - 引数 / フラグ
-     - 型
-     - 既定値
-     - 説明
-   * - ``nodes``
-     - ``Node | Plug | Component | Components | Selection | str | MObject | MDagPath | MPlug | Iterable | None``
-     - None
-     - 選択する対象、またはその列。None は kwargs だけで maya.cmds.select を呼ぶ。空の列は ``maya.cmds.select([])`` と同じ。
-   * - ``replace (r)``
-     - ``bool``
-     - True
-     - 既存の選択を置き換えます（Maya の既定動作）。
-   * - ``add (add)``
-     - ``bool``
-     - False
-     - 既存の選択に追加します。
-   * - ``clear (cl)``
-     - ``bool``
-     - False
-     - 選択を解除します（nodes と併用不可）。
-   * - ``**kwargs``
-     - ``object``
-     - 省略可
-     - その他の select フラグをそのまま渡します。
-
-Examples
---------
+mlibの参照やコレクションを名前へ変換し、``maya.cmds.select`` へ渡す。
+対象を省略するとフラグだけで呼び出し、空の列は空の列として渡す。
+MayaのUndoに対応する。
 
 .. code-block:: python
 
     import mlib
 
-    a = mlib.createNode("transform", name="a")
-    b = mlib.createNode("transform", name="b")
-    mlib.select([a, b])
-    print(mlib.ls(selection=True))
+    mlib.select(mlib.ls(type="joint"))
     mlib.select(clear=True)
 """
 

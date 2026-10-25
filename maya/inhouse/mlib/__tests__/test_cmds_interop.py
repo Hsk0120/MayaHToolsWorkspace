@@ -1,4 +1,4 @@
-"""maya.cmds との受け渡しの正式仕様(_docs/cmds_interop.rst)をMaya内で検証する。
+"""maya.cmds との受け渡しの正式仕様(各公開APIのdocstring)をMaya内で検証する。
 
 - mlib のオブジェクト(Node・Plug・Component・コレクション)は ``str()`` で
   maya.cmds が一意に解決できる名前を返し、maya.cmds へそのまま渡せる。

@@ -46,31 +46,30 @@ class PointComponent(Component):
         return geometry_edit.positions(self.shape, [self.index], ws)[0]
 
     def setPosition(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
-        """頂点またはカーブCVのXYZを、cmの絶対座標で設定する。
+        """頂点/CVへcm単位の絶対XYZ座標を設定する。移動量ではない。
 
-        通常経路は現在のUI距離単位へ換算してcmds.xformへ渡す。fastは入力履歴・周期カーブ・
-        Shape/対象点のロックや入力接続を検査してからOpenMayaで更新する。
-        CVのwは維持する。共有Shapeの編集は他のインスタンスにも影響する。
+        通常はUI距離単位へ換算してcmds.xformで更新する。fastは入力履歴・周期カーブと、
+        Shape/対象点のロック・入力接続を事前検査する。CVのwは保持する。
 
         Args:
-            value (Iterable[float]): cm単位の有限なXYZ。移動量ではない。
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
-            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
+            value (Iterable[float]): 有限なXYZ（cm）。
+            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に記録する。Undo設定は変更しない。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            PointComponent: 自身。通常経路はUndoが有効なら変更を記録する。
+            PointComponent: 自身。共有Shapeの編集は全インスタンスへ影響する。
 
         Raises:
-            ValueError: 座標・空間指定が不正、または逆変換が必要な経路でworld行列が特異な場合。
-            TypeError: fastがbool以外の場合。
+            ValueError: 座標・空間が不正、または必要なworld逆変換が特異な場合。
+            TypeError: fastがbool以外、または長短名を同時指定した場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: 対象が無効・書込み不可、またはMayaが更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
 
         Note:
-            通常Meshのworld更新はMayaコマンドへ委譲し、独自の特異行列判定は行わない。
-            APIの書込み・更新中の失敗で、完了済み変更を自動ロールバックする保証はない。
+            通常Meshのworld更新はcmdsへ委ね、独自の特異行列判定は行わない。
+            書込み中の失敗で完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -240,32 +239,27 @@ class PointComponents(Components):
     """
 
     def setPositions(self, values, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
-        """保持番号ごとのXYZ座標を、cmの絶対座標で設定する。
+        """保持番号に対応するcm絶対XYZ行を設定する。
 
-        座標の件数・有限値と現在の番号範囲を、書込み前に検証する。通常経路は
-        cmds.xformで保持順に更新し、全点の書込み可否まで事前に保証するものではない。
-        fastは対応条件を検査し、点配列を作ってOpenMayaへ一括設定する。
+        件数・有限値・現在の番号範囲を先に検証する。通常はUI単位へ換算してcmds.xformを保持順に呼ぶ。
+        fastは対応条件の検査後に点配列を一括設定する。全件の書込み成功や自動復元は保証しない。
 
         Args:
-            values (Iterable[Iterable[float]]): 保持番号と同じ件数のXYZ行。各値はcm単位。
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
-            fast (bool): TrueはUndoなしの直接更新。入力履歴付きShapeと周期カーブは未対応。
+            values (Iterable[Iterable[float]]): 保持番号と同じ件数のXYZ行（cm）。
+            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。Undo設定は変更しない。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 自身。空集合と空列はShapeを再照会せず何もしない。
-                通常経路はUndoが有効なら同じチャンクへ記録する。fastはUndo設定を変更しない。
+                CVのwは保持し、共有Shapeの編集は全インスタンスへ影響する。
 
         Raises:
-            ValueError: 件数・座標・空間指定が不正、または必要なworld逆変換が特異な場合。
-            TypeError: fastがbool以外の場合。
+            ValueError: 件数・座標・空間が不正、または必要なworld逆変換が特異な場合。
+            TypeError: fastがbool以外、または長短名を同時指定した場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: 対象が無効・書込み不可、またはMayaが更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
-
-        Note:
-            検証を通っても、通常経路の後半やAPI更新中の失敗に対する原子性は保証しない。
-            完了済み変更は自動で戻さない。共有Shapeの編集は全インスタンスへ影響する。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -492,31 +486,30 @@ class PointComponents(Components):
         return self.setPositions([point] * len(self), ws=ws, fast=fast)
 
     def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), *, fast=False, ws=_UNSET):
-        """保持する頂点/CVのXYZを、指定空間の中心に対して軸ごとに反転する。
+        """保持する頂点/CVの指定軸を、cm中心pivotに対して2*pivot-現在座標へ反転する。
 
-        現在座標を全件取得し、指定軸で2*pivot-座標を計算してからsetPositionsへ渡す。
-        Transformのピボットや行列は変更しない。共有Shapeの変更は全インスタンスへ影響する。
+        Transform・トポロジー・CVのwは変更しない。共有Shapeの全インスタンスへ影響する。
+        複製・結合・法線反転は行わず、周期CVの通常更新はMayaの連動規則に従う。
 
         Args:
-            axis (str): x、y、zの重複しない組合せ。大文字も使用可能。
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間での反転中心XYZ。cm単位。既定は原点。
-            fast (bool): TrueはUndoなしの直接更新。setPositionsと同じ編集制限に従う。
+            axis (str): 重複しないx/y/zの組合せ。大文字も可。
+            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            PointComponents: 自身。通常経路はUndoが有効なら同じチャンクへ記録する。
+            PointComponents: 自身。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはworld行列が数値的にほぼ特異な場合。
-            TypeError: fastがbool以外の場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
+            TypeError: fastがbool以外、または長短名を同時指定した場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが取得・更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
 
         Note:
-            複製・結合・法線反転は行わない。周期CVの通常更新はMayaの連動規則に従う。
-            途中の書込み失敗時に、完了済み変更は自動で戻さない。
+            更新制限はsetPositionsと同じ。途中失敗で完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:

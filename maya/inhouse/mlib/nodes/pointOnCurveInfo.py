@@ -10,14 +10,17 @@ from .abstractBaseCreate import AbstractBaseCreate
 
 
 class PointOnCurveInfo(AbstractBaseCreate):
-    """接続したcurveの形状情報をMayaで評価する。"""
+    """pointOnCurveInfoノードを参照し、接続したカーブの位置・法線・接線を評価する。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def connectCurve(self, curve, worldSpace=_UNSET, force=_UNSET, *, ws=_UNSET, f=_UNSET):
-        """形状またはTransformを解決して接続する。
+        """nurbsCurveのlocal/worldSpaceをinputCurveへ接続する。
 
         Args:
-            curve (Node | str | MObject | MDagPath): 対象形状。
-            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            curve (Node | str | MObject | MDagPath): nurbsCurveシェイプ、または対応シェイプが1個のTransform。
+            worldSpace (bool): 既定Trueは解決したDAGインスタンスのworldSpace、Falseはlocal。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
             ws (bool): worldSpaceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -25,8 +28,9 @@ class PointOnCurveInfo(AbstractBaseCreate):
         Returns:
             PointOnCurveInfo: 自身。
 
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
+        Raises:
+            TypeError: 対象のシェイプ型またはworldSpaceの型が不正な場合。
+            ValueError: Transformの対応シェイプが1個に定まらない場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -46,18 +50,17 @@ class PointOnCurveInfo(AbstractBaseCreate):
             return self
 
     def setParameter(self, value, percentage=False, *, fast=False):
-        """パラメーターと百分率モードを設定する。
+        """カーブのパラメーターと0～1モードを設定する。
+
+        入力をすべて検証してから、turnOnPercentage、parameterの順に書く。途中の書込み失敗で先行変更は戻さない。
 
         Args:
-            value (float): パラメーター。percentage=Trueなら0～1。
+            value (float): 有限なパラメーター。percentage=Trueなら0～1。
             percentage (bool): 0～1の範囲を使用するか。
             fast (bool): TrueはUndoなし。
 
         Returns:
             PointOnCurveInfo: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

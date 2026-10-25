@@ -73,46 +73,36 @@ class NodeRegistry:
         self._classes = {}
 
     def register(self, node_type, wrapper_class):
-        """Maya ノード型へラッパークラスを登録する。
+        """文字列キーへラッパークラスを登録する。同じキーは上書きする。
 
-        同じキーが既にある場合は上書きする。
+        NodeのnodeTypeやPlugのアトリビュート型で共通に使い、非空strとclassの対応形式を検証する。
 
         Args:
-            node_type (str): Maya の nodeType 名。
-            wrapper_class (type): ノードをラップする mlib クラス。
-
-        Returns:
-            None: 値を返さない。
+            node_type (str): 空でない登録キー。
+            wrapper_class (type): 対応するクラス。
 
         Raises:
-            ValueError: node_type が空文字列または文字列以外の場合。
-            TypeError: wrapper_class がクラスでない場合。
+            ValueError: キーが空または文字列以外の場合。
+            TypeError: wrapper_classがクラス以外の場合。
         """
         self._validate_entry(node_type, wrapper_class)
         self._classes[node_type] = wrapper_class
 
     def clear(self):
-        """登録済みの Maya nodeType 対応をすべて解除する。
-
-        Returns:
-            None: 値を返さない。
-        """
+        """この表の登録対応を空にする。フォールバック型と継承検索の設定は保持する。"""
         self._classes.clear()
 
     def replace(self, wrappers):
-        """明示した型対応で登録表を置き換える。
+        """全キーと値の対応形式を検証してから、この表を置き換える。
 
-        全入力を検証してから置き換えるため、不正な入力で現在の登録を失わない。
+        検査は非空strとclassの対応形式に限り、検証失敗時は現在の登録を保つ。
 
         Args:
-            wrappers (Mapping[str, type]): 型名からラッパークラスへの対応表。
-
-        Returns:
-            None: 値を返さない。
+            wrappers (Mapping[str, type]): 登録キーとクラスの対応。
 
         Raises:
-            ValueError: キーが空文字列または文字列以外の場合。
-            TypeError: 値がクラスでない場合。
+            ValueError: キーが空または文字列以外の場合。
+            TypeError: 値がクラス以外の場合。
         """
         validated = {}
         for node_type, wrapper_class in wrappers.items():
@@ -122,19 +112,16 @@ class NodeRegistry:
         self._classes.update(validated)
 
     def wrapper_class(self, node_type):
-        """ノード型に対応するクラス、またはフォールバッククラスを返す。
+        """キーの登録クラスを返す。未登録なら設定に応じて祖先型またはフォールバックを使う。
 
-        完全一致する登録が無く ``resolve_inherited_types`` が有効な場合、
-        Maya のノードタイプ継承チェーンを直接の親から基底型へ向かって辿り、
-        最初に見つかった登録済み祖先型のクラスを返す。例えばプラグインが
-        ``locator`` を継承した独自ノードタイプを追加した場合でも、
-        ``locator`` 用に登録済みのクラスが選ばれる。
+        resolve_inherited_types=Trueの場合だけ、MayaのnodeType継承を近い祖先から調べる。
+        Plugの型等、ノード継承を使わない表では完全一致とフォールバックだけを使う。
 
         Args:
-            node_type (str): Maya の nodeType 名。
+            node_type (str): 登録キー。継承検索を使う表ではMayaのnodeType名。
 
         Returns:
-            type: 登録済み、継承チェーン経由、またはフォールバックのラッパークラス。
+            type: 完全一致、最寄りの登録祖先型、またはフォールバックのクラス。
         """
         resolved = self._classes.get(node_type)
         if resolved is not None:
@@ -161,13 +148,13 @@ class NodeRegistry:
         return self._classes.get(key)
 
     def get(self, node_type):
-        """ノード型に対応するラッパークラスを返す。
+        """登録キーをwrapper_classと同じ規則で解決する。
 
         Args:
-            node_type (str): Maya の nodeType 名。
+            node_type (str): ノード型・アトリビュート型等の登録キー。
 
         Returns:
-            type: 登録済みまたはフォールバックのラッパークラス。
+            type: 完全一致、設定された祖先検索、またはフォールバックで選んだクラス。
         """
         return self.wrapper_class(node_type)
 

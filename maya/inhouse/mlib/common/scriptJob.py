@@ -4,7 +4,11 @@ import maya.cmds as cmds
 
 
 class ScriptJob:
-    """自身が登録したscriptJobの寿命を管理する参照。"""
+    """Maya GUIへ登録したscriptJobのIDと停止状態を保持する。
+
+    構築時に監視を登録する。オブジェクト回収時の自動解除は行わず、stop()で自身の監視を止める。
+    callbackはMayaへ渡し、その実行時期や例外処理はMaya側に従う。独自のUndoチャンクは追加しない。
+    """
 
     def __init__(
         self, *, event=None, attribute=None, callback, kill_with_scene=False, compress_undo=False
@@ -45,10 +49,10 @@ class ScriptJob:
         return self._id
 
     def exists(self):
-        """監視が現在も登録されているか照会する。
+        """自身の監視が現在もMayaへ登録されているか照会する。
 
         Returns:
-            bool: 外部からの解除やシーンクリア後はFalse。
+            bool: stop済みならFalse。それ以外はMayaのscriptJob(exists=ID)の結果。
         """
         return not self._stopped and bool(cmds.scriptJob(exists=self._id))
 

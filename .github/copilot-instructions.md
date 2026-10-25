@@ -50,7 +50,7 @@
 - `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` で明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数APIの自動全公開は行わず、既存の引数・戻り値・専用集約処理を維持する。
-- `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/_docs/guide_maths.rst` と `api_naming.rst` の意味の変更の一覧。
+- `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/maths/` の各公開APIのdocstringと `docs/mlib-api-design.md` を参照する。
 - シーンを変更する処理は既存のUndo対応に従い、必要なら `mlib.decorator` を使う。
 - HToolsの新規ツールはカテゴリ内の既存パターンと動的メニュー登録の条件に合わせる。
 - UIはPySide6優先、PySide2フォールバックを維持し、対象MayaのQtで利用できるAPIだけを使う。

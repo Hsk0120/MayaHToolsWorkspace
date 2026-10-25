@@ -10,14 +10,17 @@ from .abstractBaseCreate import AbstractBaseCreate
 
 
 class PointOnSurfaceInfo(AbstractBaseCreate):
-    """接続したsurfaceの形状情報をMayaで評価する。"""
+    """pointOnSurfaceInfoノードを参照し、接続したサーフェスの位置・法線・接線を評価する。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def connectSurface(self, surface, worldSpace=_UNSET, force=_UNSET, *, ws=_UNSET, f=_UNSET):
-        """形状またはTransformを解決して接続する。
+        """nurbsSurfaceのlocal/worldSpaceをinputSurfaceへ接続する。
 
         Args:
-            surface (Node | str | MObject | MDagPath): 対象形状。
-            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            surface (Node | str | MObject | MDagPath): nurbsSurfaceシェイプ、または対応シェイプが1個のTransform。
+            worldSpace (bool): 既定Trueは解決したDAGインスタンスのworldSpace、Falseはlocal。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
             ws (bool): worldSpaceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -25,8 +28,9 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         Returns:
             PointOnSurfaceInfo: 自身。
 
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
+        Raises:
+            TypeError: 対象のシェイプ型またはworldSpaceの型が不正な場合。
+            ValueError: Transformの対応シェイプが1個に定まらない場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -54,19 +58,18 @@ class PointOnSurfaceInfo(AbstractBaseCreate):
         return self.getPlug("parameterU").get(), self.getPlug("parameterV").get()
 
     def setParameters(self, u, v, percentage=False, *, fast=False):
-        """UVと百分率モードを設定する。
+        """サーフェスのU/Vパラメーターと0～1モードを設定する。
+
+        入力をすべて検証してから、turnOnPercentage、parameterU、parameterVの順に書く。先行変更は自動で戻さない。
 
         Args:
-            u (float): Uパラメーター。
-            v (float): Vパラメーター。
+            u (float): 有限なU値。percentage=Trueなら0～1。
+            v (float): 有限なV値。percentage=Trueなら0～1。
             percentage (bool): 0～1の範囲を使用するか。
             fast (bool): TrueはUndoなし。
 
         Returns:
             PointOnSurfaceInfo: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

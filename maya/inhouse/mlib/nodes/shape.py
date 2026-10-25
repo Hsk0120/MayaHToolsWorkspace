@@ -21,30 +21,30 @@ class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
     def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """メッシュ頂点・NURBSカーブ/サーフェスのCVを指定中心で拡縮する。
+        """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
+
+        Transform行列・面の頂点順は変えず、共有形状は全インスタンスに影響する。
+        周期CVの連動を考慮して拡縮する。途中失敗の先行変更は戻さない。
 
         Args:
-            scale (float | Iterable[float]): 一様倍率、またはXYZの倍率。負数・0も可。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
-                既定は原点。Transformのピボットは使わない。
-            indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。
-                サーフェスは(U, V)の組。Noneは全要素、空列は変更なし。
-            fast (bool): Trueは履歴なしメッシュ・非周期カーブをom2で直接更新し、Undoなし。
+            scale (float | Iterable[float]): 有限な一様倍率、またはXYZ倍率。負数・0も可。
+            worldSpace (bool): 既定FalseはShapeのobject空間。Trueはworld空間。
+            pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
+            indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
+                Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。
+            fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新（Undoなし）。
+                FalseはMaya標準コマンドをUndo有効時にまとめる。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Shape: 自身。Transformの行列・トポロジーは変更しない。
+            Shape: 自身。
 
         Raises:
-            ValueError: 倍率・中心・空間が不正、またはワールド変換がほぼ特異な場合。
+            ValueError: 倍率・中心・空間が不正、またはworld変換がほぼ特異な場合。
             IndexError: 対象番号が範囲外の場合。
-            TypeError: 番号が整数でない場合。
+            TypeError: fast・番号の型、または長短名の指定が不正な場合。
             NotImplementedError: 未対応Shape、またはfastでサーフェス・周期カーブ・入力履歴付き形状の場合。
             RuntimeError: Mayaが編集を拒否した場合。
-
-        通常モードはMaya標準コマンドを使いUndoできる。周期CVはMayaの連動規則に従う。
-        負の倍率でも面の頂点順は変えない。共有形状は全インスタンスに影響する。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:

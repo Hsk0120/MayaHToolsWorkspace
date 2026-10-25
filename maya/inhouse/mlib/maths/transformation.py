@@ -116,13 +116,17 @@ class Transformation:
             self.rotateOrder = normalized["rotateOrder"]
 
     def __getattr__(self, name):
-        """保持した成分または計算済みの行列・クォータニオンを返す。
+        """保持成分、または計算した独立値を返す。
 
         Args:
-            name: 参照・作成・照会する対象の名前。
+            name (str): 成分名または短縮名。
 
         Returns:
-            object: 保持成分は参照。matrix/quaternionは独立した値。
+            object: 数学成分は保持参照。matrixは全成分の合成、quaternionはrotateだけの独立値。
+
+        Raises:
+            AttributeError: 未対応の名前の場合。
+            ValueError: 行列合成で非有限値・無効なSSC補正を検出した場合。
         """
         name = self._aliases.get(name, name)
         if name == "matrix":
@@ -137,11 +141,19 @@ class Transformation:
             raise AttributeError(name) from None
 
     def __setattr__(self, name, value):
-        """検証・コピーして成分を設定する。シーンは更新しない。
+        """成分を置き換える。シーンは更新しない。
+
+        rotateOrderだけは保持rotateを姿勢維持で更新する。
+        quaternionは現在の順序と近いEuler解へ変換し、rotateを置き換える。
 
         Args:
-            name: 参照・作成・照会する対象の名前。
-            value: 変換・設定する入力値。
+            name (str): 成分名または短縮名。
+            value (object): 成分値。rotateOrderは整数0～5、SSCはbool。
+
+        Raises:
+            AttributeError: 未対応の名前の場合。
+            TypeError: SSCがbool以外、または値が未対応型の場合。
+            ValueError: 回転順序・数値・回転・行列が不正な場合。
         """
         name = self._aliases.get(name, name)
         if name == "matrix":
@@ -295,12 +307,12 @@ class Transformation:
                 * self._compensation() * Matrix(translate=self.translate))
 
     def _set_matrix(self, value):
-        """補助成分を保持し、行列からTRSとシアーを求めて成分を置き換える。
+        """補助成分を条件に行列からTRS・シアーを求める。
 
-        失敗時は変更しない。成功後も以前の成分参照は旧値を指し、自動追従しない。
+        成功時は補助成分もコピーへ置換し、旧成分参照は追従しない。失敗時は変更しない。
 
         Args:
-            value: 変換・設定する入力値。
+            value (object): Matrixで解釈する有限なアフィン行列。
         """
         matrix = Matrix(value)
         if not all(math.isfinite(v) for v in matrix):

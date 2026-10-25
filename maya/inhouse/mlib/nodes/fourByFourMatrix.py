@@ -8,7 +8,11 @@ from .node import Node
 
 
 class FourByFourMatrix(Node):
-    """個別の16要素から行列を構築する。"""
+    """fourByFourMatrixノードを参照し、16入力から行列を評価する。
+
+    値設定は入力接続を切断しない。通常設定はUndo有効時に一つのチャンクへ記録する。
+    fast=TrueはUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
+    """
 
     def getMatrix(self):
         """16要素の入力行列を取得する。
@@ -19,17 +23,14 @@ class FourByFourMatrix(Node):
         return Matrix([self.getPlug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
 
     def setMatrix(self, value, *, fast=False):
-        """16要素をまとめて設定する。
+        """行列の16要素を、行優先で各入力Plugへ順に設定する。
 
         Args:
             value (Matrix | Iterable[float]): 行列。
             fast (bool): TrueはUndoなし。
 
         Returns:
-            FourByFourMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
+            FourByFourMatrix: 自身。途中の失敗でも先に設定した要素は残る。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

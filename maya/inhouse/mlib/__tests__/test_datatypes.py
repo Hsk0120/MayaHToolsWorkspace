@@ -1167,7 +1167,7 @@ def _same_float(actual, expected):
     return actual == expected and math.copysign(1.0, actual) == math.copysign(1.0, expected)
 
 
-#: guide_maths.rst の「演算結果の型」に記載した例外(系統の違う om2 の値が左辺で、om2 が
+#: 数学型の演算仕様に含まれる例外(系統の違う om2 の値が左辺で、om2 が
 #: 処理して om2 の型を返す組み合わせ)。(左辺の om2 の型名, 演算子, 右辺の mlib の型名)。
 _DOCUMENTED_OM2_RESULTS = {
     ("MVector", "*", "Matrix"),

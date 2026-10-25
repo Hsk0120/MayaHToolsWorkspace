@@ -1,8 +1,4 @@
-"""mlibのクラス継承関係をast静的解析だけで集計し、Mermaid classDiagramを組み立てる。
-
-development.rst の「ビルド時に mlib・Maya を import せず」方針に従い、
-``ast`` モジュールでのソース解析のみを行い、対象モジュールを一切importしない。
-"""
+"""Mayaやmlibをimportせず、ソースの継承関係からMermaid図を作る。"""
 
 import ast
 import posixpath

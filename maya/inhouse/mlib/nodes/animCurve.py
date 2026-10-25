@@ -33,16 +33,12 @@ _TANGENT_NAMES = {value: name for name, value in _TANGENT_TYPES.items()}
 
 
 class AnimCurve(Node):
-    """animCurveノードの参照を保持し、8種類のカーブのキー・接線・外挿を編集する。
+    """animCurveノードを参照し、8種類のカーブのキー・接線・外挿を編集する。
 
-    Nodeのノード参照を使い、MFnAnimCurveは必要な呼出しで生成する。
-    入力T型は秒、U型はカーブの無次元入力を使う。出力はA型がrad、L型がcm、
-    T型が秒、U型が無次元であり、現在のUI単位へ合わせた数値ではない。
-    DrivenKeyのドライバーアトリビュートの単位変換はDrivenKey側の責務とする。
-
-    通常編集はコマンド境界でUI単位へ変換し、Undo有効時にcmds更新をまとめる。
-    対応するfast=TrueはUndo設定を変更せずAPIで直接更新する。
-    各編集は失敗時の自動ロールバックを一律には保証しない。
+    入力T型は秒、U型は無次元。出力はA型がrad、L型がcm、T型が秒、U型が無次元。
+    ドライバーPlugの単位変換はDrivenKeyが担当する。
+    通常編集はUI単位へ換算してcmdsへ渡し、Undo有効時に一つのチャンクへまとめる。
+    fastはUndo設定を変更せずOpenMayaで直接更新する。失敗時の自動復元は保証しない。
     """
 
     def isTimeInput(self):
@@ -88,22 +84,21 @@ class AnimCurve(Node):
         return [fn.value(i) for i in range(fn.numKeys)]
 
     def evaluate(self, input):
-        """明示した入力値でカーブ単体を評価し、シーンの現在時刻は変更しない。
+        """カーブ単体を指定入力で評価する。現在時刻は変更しない。
 
-        接続先の合成結果ではなく、このカーブの補間・外挿による値を返す。
-        空カーブは入力値の変換より先に拒否する。時間出力ではMaya 2022/2023の
-        API返却の版差を補正し、他の版と同じ秒へ揃える。
+        接続先の合成結果ではなく、カーブの補間・外挿値を返す。
+        時間出力はMaya 2022/2023のAPI版差を補正し、秒へ揃える。
 
         Args:
             input (float): T型入力は秒、U型入力は無次元。float()で変換し有限性を検査する。
 
         Returns:
-            float: 出力型に従うrad/cm/秒、または無次元の評価値。
+            float: 出力型に従うrad/cm/秒、または無次元の値。
 
         Raises:
-            RuntimeError: キーが一つもない場合、またはMayaの評価に失敗した場合。
-            ValueError: 入力が非有限、またはfloat()変換で受理できない場合。
-            TypeError: 入力の型がfloat()へ変換できない場合。
+            RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
+            ValueError: 非有限値、またはfloat()変換で受理できない値。
+            TypeError: float()へ変換できない型。
         """
         fn = self._curve_fn()
         if not fn.numKeys:
@@ -116,29 +111,27 @@ class AnimCurve(Node):
         return self._api_number(result)
 
     def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, fast=False):
-        """カーブへキーを追加し、同じ入力位置にキーがあれば出力値と接線型を更新する。
+        """キーを追加する。同じ入力位置にキーがあれば値と接線型を更新する。
 
-        inputとvalueはfloat()へ変換し、非有限値を更新前に拒否する。
-        通常は単位を変換してsetKeyframeを呼ぶ。fastの既存キー更新は値・入力接線型・
-        出力接線型の順に適用する。新規キーは両接線型を指定して追加し、時間出力の値は
-        追加後に設定する。後続のAPI失敗で先行変更を自動復元するものではない。
+        通常はUI単位へ換算してsetKeyframeを呼ぶ。fastの既存キーは値→入力接線型→出力接線型の
+        順に更新する。新規キーは両接線型を指定し、時間出力の値は追加後に設定する。
+        後続の失敗で先行の変更を自動復元しない。
 
         Args:
             input (float): T型入力は秒、U型入力は無次元。
-            value (float): 出力型に従うrad/cm/秒、または無次元の値。
+            value (float): 出力型に従うrad/cm/秒、または無次元。inputと共に有限値へ変換する。
             inTangentType (str): Mayaの入力接線型。fastのstepはautoへ補正する。
             outTangentType (str): Mayaの出力接線型。
-            fast (bool): TrueはUndoへ記録しないAPI更新。
-                Falseは通常更新を行い、Undo設定は変更しない。通常更新は
-                Undo有効時に一つのチャンクへまとめる。
+            fast (bool): TrueはUndoなしの直接更新。FalseはUndo有効時に一つのチャンクへまとめる。
+                Undo設定は変更しない。
 
         Returns:
             AnimCurve: 自身。fixed接線の角度・ウェイト指定にはsetTangentを使う。
 
         Raises:
-            ValueError: 非有限値、またはfastでfixed/global/未知の接線型を指定した場合。
-            NotImplementedError: fastで入力接線にstepnextを指定した場合。
-                キーの追加・値変更より前に拒否する。
+            TypeError: fastがbool以外、または数値へ変換できない型。
+            ValueError: 非有限値、不正な数値、またはfastでfixed/global/未知の接線型を指定した場合。
+            NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

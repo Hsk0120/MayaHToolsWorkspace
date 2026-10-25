@@ -42,13 +42,13 @@ class ScriptJobs:
         return bool(self._jobs) and all(job.exists() for job in self._jobs.values())
 
     def stop(self):
-        """全監視の解除を試み、失敗した監視は再試行のため保持する。
+        """所有する全監視の解除を試み、成功分だけを保持表から除く。
 
-        Returns:
-            None: 値を返さない。
+        通常の解除例外は警告して残りも処理し、失敗した監視は後からstop()で再試行できる。
+        他の所有者の監視は解除しない。
 
         Raises:
-            RuntimeError: 一つ以上の解除に失敗した場合。外部の監視は変更しない。
+            RuntimeError: 解除失敗が一つ以上ある場合。最初の原因例外を__cause__に保持する。
         """
         from .. import logger
 
@@ -66,17 +66,16 @@ class ScriptJobs:
 
     @contextmanager
     def temporary(self):
-        """ブロック終了時に、このグループが持つ監視だけを解除する。
+        """終了時に、このグループが持つ監視を解除する。
 
-        対象UI・シーンの寿命は所有しない。同じインスタンスの入れ子は拒否する。
-        解除失敗はstopが通知し、失敗した監視は後からstopで再試行できる。
-        本体が例外を送出した場合は、解除失敗でその例外を置き換えない。
+        開始前からの監視も対象で、UI・シーン自体の寿命は管理しない。
+        失敗した監視は保持し、stop()で再試行できる。本文が失敗した場合は解除時の通常例外で置き換えない。
 
         Yields:
-            ScriptJobs: 自身。ブロック開始前から保持している監視も解除対象。
+            ScriptJobs: 自身。
 
         Raises:
-            RuntimeError: 同じインスタンスの入れ子、または正常終了時の解除失敗。
+            RuntimeError: 同一インスタンスで入れ子にした、または正常終了時に解除が失敗した場合。
         """
         if self._temporary_active:
             raise RuntimeError("ScriptJobs.temporary cannot be nested on the same instance")

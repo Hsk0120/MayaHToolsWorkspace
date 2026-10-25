@@ -81,23 +81,22 @@ class Namespace:
     @classmethod
     @undoChunk("mlibNamespaceCreate")
     def create(cls, name, parent=":"):
-        """Namespaceを作成し、作成したNamespaceを返す。
+        """指定先の名前空間を作成する。既存なら作成せず参照を返す。
 
-        相対名はparent配下、先頭が : の絶対名はルートから解決する。
-        作成前の既存確認と返却には同じ完全名を使う。カレントNamespaceは変更しない。
+        カレントNamespaceは変更しない。/は:と同じ区切りとして扱う。
 
         Args:
-            name (str | Namespace): 作成する単一または多段の名前。絶対名とNamespace参照は
-                parentを無視する。/ は : と同じ区切りとして扱う。
-            parent (str | Namespace): 相対nameを作成する親。文字列の相対親は現在の
-                Namespaceから解決する。既定の : はルート。存在しなければ再帰的に作成する。
+            name (str | Namespace): 相対名はparent配下、絶対名とNamespace参照はparentを無視する。
+                多段名も指定できる。
+            parent (str | Namespace): 作成先の親。相対文字列はカレントから解決する。
+                既定はルート(:)。存在しない親も再帰的に作成する。
 
         Returns:
-            Namespace: 作成先の完全名を保持するラッパー。既存の場合も同じ参照を返す。
+            Namespace: 新規・既存の作成先の完全名を保持するラッパー。
 
         Raises:
-            ValueError: name または parent が不正な場合。
-            RuntimeError: Maya が作成を拒否した場合。
+            ValueError: nameまたはparentが不正な場合。
+            RuntimeError: Mayaが作成を拒否した場合。
         """
         namespace = cls(name)
         parent_namespace = cls(parent)
@@ -203,14 +202,14 @@ class Namespace:
     def asCurrent(self):
         """カレントNamespaceを自身へ一時的に切り替える。
 
-        ブロックを抜けると、例外が発生した場合も含めて元のカレントNamespaceへ戻す。
-        ブロック内で元のNamespaceが削除された場合は復元しない。
+        終了時は例外の有無によらず復元を試みる。元の名前空間が削除済みなら復元しない。
+        復元処理の失敗は送出され、ブロック内の例外を置き換え得る。
 
         Yields:
             Namespace: 自身。
 
         Raises:
-            RuntimeError: 自身が存在しない場合。
+            RuntimeError: 自身が存在しない、またはMayaが切替え・復元を拒否した場合。
         """
         previous = Namespace.getCurrent()
         self.setCurrent()

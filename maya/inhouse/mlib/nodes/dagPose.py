@@ -30,6 +30,9 @@ class DagPose(Node):
     def create(cls, members, name=None, bindPose=False, hierarchy=True):
         """現在の姿勢を新しいポーズに保存する。選択状態は参照しない。
 
+        対象/nameを検証して保存し、指定名は保存後の改名で適用する。
+        改名失敗でも保存は自動で戻さない。
+
         Args:
             members (Node | str | Iterable[Node | str]): 保存するTransformまたはJoint。
             name (str | None): 作成名。NoneならMayaの自動命名。

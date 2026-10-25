@@ -1,4 +1,15 @@
-"""アトリビュート名やAPI参照をPlugへ解決する。値はPlug.getで取得する。"""
+"""アトリビュート名やMPlugから、型に対応するPlug参照を取得する。
+
+値の取得は ``plug.get()`` で行う。未作成の配列要素も参照でき、
+参照取得だけでは要素を実体化しない。既存Plugを渡した場合は同じインスタンスを返す。
+
+.. code-block:: python
+
+    import mlib
+
+    translate_x = mlib.getPlug("pCube1.translateX")
+    value = translate_x.get()
+"""
 
 
 def getPlug(value):

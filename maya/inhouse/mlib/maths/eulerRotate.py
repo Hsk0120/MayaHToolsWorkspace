@@ -68,57 +68,40 @@ def _euler_keywords(x=0.0, y=0.0, z=0.0, order=None):
 
 
 class EulerRotate(om2.MEulerRotation):
-    """om2.MEulerRotation を継承した、ラジアンの3成分と回転順序を持つ可変な回転値。
+    """om2.MEulerRotationを継承した、radのXYZ成分と回転順序を持つ可変値。
 
-    ``om2.MEulerRotation`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
-    渡せる。:class:`~mlib.maths.vector.Vector` の派生ではない。
+    Vectorの派生ではなく、OpenMaya APIへそのまま渡せる。
+    生成形式は :meth:`__init__` に従い、MEulerRotation入力は順序を含めてコピーする。
+    コンストラクタのorder指定は成分を並べ替えない。姿勢を保った順序変更には ``reorder()`` を使う。
+    orderはMayaのrotateOrderと同じ0〜5。コンストラクタは順序名も受理し、
+    :attr:`orderName` でも名前を取得・設定できる。
 
-    受け付ける引数は次のとおり。
+    演算はOM2に従い、結果はEulerRotateを返す。
+    ``+`` / ``-`` は同順序なら成分ごと、異なる順序なら右辺を左辺の順序へ変換する。
+    ``*`` は数値なら成分のスケール、EulerRotate/Quaternionなら回転合成。
+    ``数値 * e`` と ``e / 数値`` はmlibの拡張。``+=`` / ``-=`` / ``*=`` / ``/=`` は自身更新。
+    数学値を返す継承メソッドも対応するmlib型を返し、コピー操作とIt付きの自身更新を区別する。
 
-    * ``EulerRotate()``: (0, 0, 0)、順序 xyz。
-    * ``EulerRotate(x, y, z[, order])``、または ``order=`` キーワード。
-    * ``EulerRotate(x=..., y=..., z=..., order=...)``: キーワード引数(省略した成分は 0)。
-    * ``EulerRotate(values[, order])``: values は3要素の列や MVector。
-      order を指定しても成分の並べ替えはしない(並べ替えは om2 の ``reorder()``)。
-    * ``EulerRotate(MEulerRotation)``: 順序を含めて複製する。
-
-    成分は数値だけで、文字列などは om2 と同じく ValueError になる。
-    ``order`` は om2 と同じ int(``kXYZ`` = 0、``kYZX`` = 1、``kZXY`` = 2、``kXZY`` = 3、
-    ``kYXZ`` = 4、``kZYX`` = 5。Maya の rotateOrder アトリビュートの番号と同じ並び)で、
-    名前は :attr:`orderName` で取得・設定する。コンストラクタの order には
-    名前(``"zyx"`` など。大文字小文字を問わない)と番号のどちらも使える。
-
-    演算子は om2 の意味論に従い、結果を mlib の :class:`EulerRotate` で返す。
-    ``+`` / ``-`` は順序が同じなら成分ごと、違えば右辺を左辺の順序へ変換して計算する。
-    ``*`` は数値なら成分のスケール、EulerRotate / Quaternion なら回転の合成。
-    om2 に無い ``数値 * e`` と ``e / 数値`` (成分ごとの除算)は mlib の拡張として使える。
-    ``+=`` / ``-=`` / ``*=`` / ``/=`` は自身を書き換える。
-
-    値は可変でハッシュは不可。添字(-3〜2。範囲外は IndexError。スライスは成分の
-    tuple)と反復は X、Y、Z の順。``==`` は om2 と同じく順序を含めた成分の完全一致で、
-    MEulerRotation 系以外との比較は :class:`~mlib.maths.vector.Vector` と同じく
-    例外にしない。表示は度に変換するが、内部値はラジアン。
-
-    数学値を返す継承メソッドも対応するmlib型を返す。コピー操作は新しい値を
-    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
+    ハッシュ不可。添字は-3〜2、範囲外はIndexError。スライスは成分tuple、反復はXYZ順。
+    ``==`` は順序を含む成分の完全一致。異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
+    表示は度、内部値はrad。
     """
 
     __slots__ = ()
     __hash__ = None
 
     def __new__(cls, *args, **kwargs):
-        """C++ の実体を確保した cls のインスタンス(0 回転、順序 xyz)を作る。
+        """基底初期化でC++実体を確保し、clsの0回転(xyz順)を作る。
 
-        理由は :meth:`mlib.maths.vector.Vector.__new__` と同じ。:meth:`__init__` で
-        引数を検証する前に確保しておくため、検証の例外を握りつぶす派生クラスでも
-        アクセス時に落ちない。
+        ``__init__`` を省略・失敗しても実体へアクセスできるよう、先に確保する。
+        詳細は :meth:`mlib.maths.vector.Vector.__new__` を参照。
 
         Args:
-            *args: コンストラクタの引数。ここでは使わない。
-            **kwargs: コンストラクタのキーワード引数。ここでは使わない。
+            *args: ここでは使わない生成引数。
+            **kwargs: ここでは使わないキーワード引数。
 
         Returns:
-            EulerRotate: cls の 0 回転。
+            EulerRotate: clsの0回転。
         """
         self = _NEW(cls)
         _INIT(self)

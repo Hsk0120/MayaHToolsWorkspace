@@ -1,50 +1,13 @@
-"""
-Synopsis
---------
+"""既存のMayaノードを参照する新しいラッパーを、登録されたノード型に応じて返す。
 
-.. code-block:: python
-
-    mlib.getNode(value)
-
-既存ノードを参照する新しいラッパーを、Mayaのノード型に応じて返します。
-ノードの作成や選択状態の変更は行いません。
-``import mlib`` の後に ``mlib.getNode(value)`` として呼び出します。
-
-Return value
-------------
-
-``Node``
-    Joint、Transform、Meshなど、登録済みの型に対応する新しいラッパー。
-    nodeTypeの登録がなければ、近い祖先から順に登録済みの型を探します。
-    祖先型にも登録がなければNodeを返します。入力がNodeでもMayaノードは複製しません。
-
-Related commands
-----------------
-
-:doc:`createNode <../createNode/index>` / :doc:`ls <../ls/index>`
-
-Flags
------
-
-.. list-table::
-   :header-rows: 1
-
-   * - 引数
-     - 型
-     - 説明
-   * - ``value``
-     - ``str | Node | Plug | Component | Components | MObject | MDagPath | MPlug``
-     - 既存ノードの名前、mlib のラッパー、または Maya API 2.0 の参照。Plug・MPlug と ``"node.attribute"`` は所有ノード、Component・Components と ``"pCube1.vtx[0]"`` は所有シェイプを返します。名前が存在しない、または複数の対象に一致する場合(``"bulk*"`` のように複数のノードに一致するパターンを含む。パターンは ``mlib.ls`` を使います)と、空・削除済みの対象は ``RuntimeError``。``deleteAttr`` でアトリビュートが削除された Plug・MPlug は ``ValueError`` (``RuntimeError`` としても捕捉できます)。必須。
-
-Examples
---------
+ノードの作成や複製は行わない。Plug入力は所有ノード、Component入力は
+所有シェイプへ解決する。複数のノードを探す場合は ``mlib.ls()`` を使う。
 
 .. code-block:: python
 
     import mlib
 
-    jnt = mlib.getNode("leg_RF_knee_IK_jnt")
-    print(jnt)
+    node = mlib.getNode("pCube1")  # シーンに存在するノード
 """
 
 

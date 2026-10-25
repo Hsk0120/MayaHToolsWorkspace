@@ -21,7 +21,7 @@ CASES = [
     ("autoapi/mlib/nodes/joint/Joint.html", "mlib.nodes.transform.Transform"),
     ("autoapi/mlib/nodes/animCurve/AnimCurve.html", "mlib.nodes.animCurveTA.AnimCurveTA"),
     ("autoapi/mlib/maths/matrix/Matrix.html", "mlib.maths.matrix.Matrix"),
-    ("development.html", "mlib.nodes.node.Node"),
+    ("autoapi/mlib/nodes/node/Node.html", "mlib.core.object.Object"),
 ]
 ASSETS = ["_static/mermaid-init.js", "_static/custom.css", "_static/mermaid.css"]
 # Mermaid本体はリポジトリに同梱せず、版を固定したjsDelivrのURLからSRI付きで読み込む。

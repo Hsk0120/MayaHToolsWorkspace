@@ -17,50 +17,39 @@ for _name in ("parse_version", "is_at_least", "format_version"):
 SKIPPED = "skipped"
 """str: 対象外の Maya バージョンのため何もしなかった。"""
 LOADED = "loaded"
-"""str: 必要な版が導入済みで、全プラグインをロードした。"""
+"""str: ロード失敗がなく、版の検査も通過した。"""
 MISSING = "missing"
-"""str: 導入されていない、または版が古い。プラグインはロードしていない。"""
+"""str: 最小版を満たさない、または未検出製品の全プラグインがロードに失敗した。"""
 OUTDATED = "outdated"
 """str: 導入済みだが、既にロードされているプラグインが古い版だった。"""
 LOAD_FAILED = "load-failed"
-"""str: 必要な版は導入済みだが、一部のプラグインをロードできなかった。"""
+"""str: 1個以上のプラグインのロードに失敗した。"""
 
 
 class PluginPackage:
-    """モジュール(版の出どころ)とプラグイン群からなる製品の導入状態を扱う。
+    """モジュール・プラグイン群と必要版を保持し、導入確認とロードを担当する。
 
-    ``Bifrost`` は Autodesk のインストーラーが Maya のバージョン別にモジュールとして
-    登録し、複数のプラグインで構成される。この型は「必要な版が入っているか」の確認、
-    「全プラグインのロード」、「入っていない場合の警告」を 1 つにまとめる。
-
-    Examples:
-        >>> bifrost = PluginPackage(
-        ...     "Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
-        ...     module="Bifrost", version_plugin="bifrostGraph",
-        ...     minimum_version="3.0.0", minimum_maya=2025)
-        >>> bifrost.tryLoad()   # 入っていなければ警告ダイアログを出す
-        'loaded'
+    生成時は照会・ロードせず、tryLoadでMayaの対象版、導入版、ロード結果を順に判定する。
+    ロード済みのプラグインを自動アンロードする責務は持たない。
     """
 
     def __init__(self, name, plugins=(), module=None, version_plugin=None,
                  minimum_version=None, minimum_maya=None, install_hint=None):
-        """製品の定義を保持する。生成時に Maya へ問い合わせない。
+        """製品名・ロード対象・必要版を保持する。Mayaへは問い合わせない。
 
         Args:
-            name (str): 警告文に出す製品名(例: ``"Bifrost"``)。
-            plugins (Iterable[str | Plugin]): ロードするプラグイン。この順にロードする。
-            module (str | Module | None): 版の取得元にするモジュール。省略すると
-                ``version_plugin`` の版を使う。
-            version_plugin (str | Plugin | None): 版を調べるプラグイン。省略すると ``plugins`` の先頭。
-            minimum_version (Version | str | int | tuple[int, ...] | None): 必要な最小の版(``"3.0.0"`` など)。
-                省略すると版は問わず、導入されていればよい。
-            minimum_maya (int | None): この製品を必要とする最小の Maya の年(``2025`` など)。
-                それ未満の Maya では何もしない。
-            install_hint (str | None): 警告文に加える導入方法の説明。省略すると既定の文章。
+            name (str): 通知に表示する製品名。
+            plugins (Iterable[str | Plugin]): ロード順のプラグイン。
+            module (str | Module | None): 版の取得元。未取得ならversion_pluginの版を使う。
+            version_plugin (str | Plugin | None): 版を調べるプラグイン。既定はpluginsの先頭。
+            minimum_version (Version | str | int | tuple[int, ...] | None): 最小版。Noneは版を問わない。
+            minimum_maya (int | None): 対象Mayaの最小年版。それ未満ではtryLoadを省略する。
+            install_hint (str | None): 導入不足の通知へ加える説明。
 
         Raises:
-            ValueError: name が空、plugins も module も無い、minimum_version が解釈できない場合。
-            TypeError: plugins の要素が文字列でも Plugin でもない場合。
+            ValueError: 名前や最小版が不正、またはpluginsもmoduleも指定されない場合。
+                非文字列・空のプラグイン名もValueErrorとなる。
+            TypeError: pluginsを反復できない、またはminimum_mayaを整数に変換できない型の場合。
         """
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a non-empty string")
@@ -240,19 +229,21 @@ class PluginPackage:
         return failed
 
     def tryLoad(self, dialog=True, warn=True):
-        """必要な版が導入されていれば全プラグインをロードし、無ければ警告する。
+        """対象Mayaと必要版を確認してロードし、結果の定数を返す。
 
-        ``minimum_maya`` 未満の Maya では何もしない。導入されていない、または版が古い場合は
-        プラグインをロードせず、警告(``warn``)とダイアログ(``dialog``)を出す。
+        minimum_maya未満なら何もしない。最小版指定時は未導入・版不足ならロードしない。
+        最小版なしでは未検出でもロードを試し、全プラグインが失敗すればMISSINGとする。
+        失敗時も成功済みプラグインを自動ではアンロードしない。
 
         Args:
-            dialog (bool | Callable[[str], None]): True で :meth:`showDialog` を使う。
-                False・None で表示しない。関数を渡すと警告文を受け取って呼ぶ(テストや独自 UI 用)。
-            warn (bool): True で ``logger.warning`` にも警告を出す。
+            dialog (bool | Callable[[str], None]): TrueはshowDialog、False/Noneは表示なし。
+                callableには不足時の通知文を渡す。
+            warn (bool): 導入・版不足をlogger.warningへ通知するか。
+                個別のロード失敗警告はこのフラグで抑制しない。
 
         Returns:
-            str: ``SKIPPED`` (対象外)/``LOADED`` (ロードした)/``MISSING`` (未導入・古い)/
-            ``OUTDATED`` (既に古い版がロード済み)/``LOAD_FAILED`` (一部をロードできない)。
+            str: SKIPPED（対象外）、LOADED（成功）、MISSING（未導入・版不足）、
+                OUTDATED（ロード済み版が古い）、LOAD_FAILED（ロード失敗あり）。
         """
         if not self.isMayaSupported():
             return SKIPPED

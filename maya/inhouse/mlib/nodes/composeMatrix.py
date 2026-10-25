@@ -10,7 +10,11 @@ from .node import Node
 
 
 class ComposeMatrix(Node):
-    """移動・回転・スケール・シアーから行列を構築する。"""
+    """composeMatrixノードを参照し、移動(cm)・回転(rad)・スケール・シアー入力から行列を評価する。
+
+    値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
+    fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
+    """
 
     def getTranslatePlug(self):
         """translate入力（移動はcm）のPlugを取得する。
@@ -32,14 +36,11 @@ class ComposeMatrix(Node):
         """translate入力（移動はcm）へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分(cm)。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -51,16 +52,13 @@ class ComposeMatrix(Node):
         """translate入力（移動はcm）へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -98,14 +96,11 @@ class ComposeMatrix(Node):
         """rotate入力（回転はrad）へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分(rad)。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -117,16 +112,13 @@ class ComposeMatrix(Node):
         """rotate入力（回転はrad）へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -164,14 +156,11 @@ class ComposeMatrix(Node):
         """scale入力（無次元）へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の有限な3成分。無次元。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -183,16 +172,13 @@ class ComposeMatrix(Node):
         """scale入力（無次元）へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -230,14 +216,11 @@ class ComposeMatrix(Node):
         """shear入力（無次元）へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XY・XZ・YZ順の有限な3成分。無次元。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -249,16 +232,13 @@ class ComposeMatrix(Node):
         """shear入力（無次元）へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -296,14 +276,11 @@ class ComposeMatrix(Node):
         """XYZW順のQuaternion入力へ定数値を設定する。
 
         Args:
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZW順の有限な4成分。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -316,16 +293,13 @@ class ComposeMatrix(Node):
         """XYZW順のQuaternion入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -360,17 +334,14 @@ class ComposeMatrix(Node):
         return self.getUseEulerRotationPlug().get()
 
     def setUseEulerRotation(self, value, *, fast=False):
-        """Euler入力を使用するかへ定数値を設定する。
+        """Euler入力とQuaternion入力を切り替える。
 
         Args:
-            value (bool): 設定値。数値は有限値。
+            value (bool): TrueはEuler入力、FalseはQuaternion入力を使う。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -382,16 +353,13 @@ class ComposeMatrix(Node):
         """Euler入力を使用するかへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -418,7 +386,7 @@ class ComposeMatrix(Node):
         return _Calculation.enum_name(self.getPlug("inputRotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
     def setRotateOrder(self, mode, *, fast=False):
-        """モードを設定する。
+        """Euler入力の回転順を設定する。
 
         Args:
             mode (str | int): xyz, yzx, zxy, xzy, yxz, zyx、またはMayaの番号。
@@ -426,9 +394,6 @@ class ComposeMatrix(Node):
 
         Returns:
             ComposeMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

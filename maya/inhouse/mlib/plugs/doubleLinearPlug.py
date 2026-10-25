@@ -4,4 +4,4 @@ from .plug import Plug
 
 
 class DoubleLinearPlug(Plug):
-    """doubleLinear（距離）アトリビュート用の Plug。"""
+    """距離のPlug。get/setは既定cm、uiUnits=Trueなら現在のUI距離単位。"""

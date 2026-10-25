@@ -24,31 +24,30 @@ class Mesh(Shape):
 
     def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False, match="uv",
         worldSpace=_UNSET, ws=_UNSET):
-        """UVまたは頂点位置の対応から自身の頂点番号を基準メッシュに合わせる。
+        """UVまたは頂点位置の一意な対応で、対象の頂点番号を基準メッシュへ合わせる。
+
+        頂点位置・面順/向き・UV・法線・面マテリアルは保持する。エッジ番号は変わり得る。
+        スキン等の番号依存データは移し替えず、既存Component参照は処理後に取り直す。
+        UVシームは各頂点の面頂点UV群で照合し、曖昧な対応は変更前に拒否する。
 
         Args:
-            reference (Mesh | Node | str): 基準のメッシュまたは単一メッシュTransform。
-            uv_set (str): UV照合のセット名。位置照合では使用しない。
-            tolerance (float): 非負の有限誤差。UV照合は各成分の差、位置照合は距離(cm)。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定はcmds経由でUndo可能。
-            match (str): uv（既定）またはposition。照合方法だけを切り替える。
-            worldSpace (bool): 位置照合をワールド空間で行う。既定Falseは各形状のローカル空間。
-                短縮名ws。UV照合では使用しない。
+            reference (Mesh | Node | str): 基準Meshまたは単一メッシュTransform。
+            uv_set (str): UV照合のセット名。位置照合では使わない。
+            tolerance (float): 非負有限値。UVは成分差、位置はcm距離の許容誤差。
+            fast (bool): TrueはUndoなしで再構築し、非ゼロtweakを現在位置へベイクする。
+                既定FalseはUndo有効が必須で、非ゼロtweakは未対応。
+            match (str): 既定uv、またはposition。
+            worldSpace (bool): 位置照合でTrueはworld、既定Falseは各Shapeのobject空間。UV照合では使わない。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Mesh: 自身。頂点位置・面の順序と向き・UV・法線・面マテリアルを維持する。
+            Mesh: 自身。番号対応が既に同一なら再構築せず返し、再構築用の制限検査にも進まない。
 
         Raises:
-            ValueError: 頂点対応が曖昧、不完全、またはトポロジーが一致しない場合。
-            NotImplementedError: 入出力履歴・インスタンス・色セット・クリース等の非対応形状。
-            RuntimeError: ロック、または通常モードでUndoが無効の場合。
-
-        スキン等の番号依存データは移し替えない。対象は履歴なしの独立メッシュに限定する。
-        既存のComponent参照は古い番号を保持するため、処理後に取り直すこと。
-        通常モードは非ゼロの頂点tweakに未対応。fastでは現在位置へベイクして番号を変更する。
-        エッジ番号は再構築により変わる場合がある。
-        UVシームは各頂点の面頂点UV群で照合する。重なりで候補が複数ある場合は変更しない。
+            TypeError: 入力型・fast/worldSpaceが不正、または長短名を同時指定した場合。
+            ValueError: 対応が曖昧/不完全、またはトポロジー/面の向きが一致しない場合。
+            NotImplementedError: 再構築時に入出力履歴・インスタンス・参照・色セット・クリース等がある場合。
+            RuntimeError: 再構築時にロック、または通常処理でUndoが無効の場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -129,36 +128,31 @@ class Mesh(Shape):
         return self
 
     def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """頂点位置をミラーし、自身を更新する。
+        """頂点座標を指定空間の中心で反転する。Transformとトポロジーは変更しない。
+
+        共有Shapeの全インスタンスへ影響する。複製・結合・片側からの対称化・法線反転は行わない。
+        奇数軸の反転で面の向きが変わる場合、必要な法線処理は別途行う。
 
         Args:
-            axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
-                x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
-                単位は 内部距離単位cm。Transform のピボットとは独立する。
-            indices (Iterable[int] | None): 頂点番号。None は全頂点、空列は変更なし。
-                重複は1回だけ処理し、負の番号は許容しない。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            axis (str): 重複しないx/y/zの組合せ。大文字も可。
+            worldSpace (bool): Trueは保持パスのworld、既定FalseはShapeのobject空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点で、Transformのピボットとは独立。
+            indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に1回で戻せる通常更新。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Mesh: 編集した自身。
+            Mesh: 自身。頂点番号・面の接続と頂点順は保持する。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはワールド変換が数値的にほぼ特異な場合。
-            TypeError: 頂点番号が整数でない場合。
-            IndexError: 頂点番号が範囲外の場合。
-            RuntimeError: Maya が形状の取得・編集を拒否した場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
+            TypeError: 番号型・fastが不正、または長短名を同時指定した場合。
+            IndexError: 頂点番号が負または範囲外の場合。
+            RuntimeError: Mayaが形状の取得・更新を拒否した場合。
+            NotImplementedError: fastで入力履歴付きShapeを編集する場合。
 
-        頂点だけを編集し、Transform、頂点番号、面の接続・頂点順は維持する。
-        複製・結合・片側からの対称化・法線反転は行わない。奇数軸で反転すると
-        面の向きが反転するため、必要な法線処理は別途行う。1回の Undo で戻せる。
-        インスタンス形状はデータを共有する全インスタンスへ影響する。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状を編集するとNotImplementedError。
+        Note:
+            途中失敗で完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:

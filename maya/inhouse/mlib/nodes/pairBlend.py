@@ -9,7 +9,10 @@ from .node import Node
 
 
 class PairBlend(Node):
-    """移動・回転をブレンドする。Euler/Quaternion補間を選択できる。"""
+    """pairBlendノードを参照し、二組の移動・回転入力とブレンド結果を扱う。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def getWeightPlug(self):
         """ブレンドウェイトのPlugを取得する。
@@ -36,9 +39,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -57,9 +57,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -86,7 +83,7 @@ class PairBlend(Node):
         return _Calculation.enum_name(self.getPlug("rotInterpolation"), ("euler", "quaternion"))
 
     def setRotateInterpolation(self, mode, *, fast=False):
-        """モードを設定する。
+        """回転のEuler/Quaternion補間方式を設定する。
 
         Args:
             mode (str | int): euler, quaternion、またはMayaの番号。
@@ -94,9 +91,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -114,7 +108,7 @@ class PairBlend(Node):
         return _Calculation.enum_name(self.getPlug("rotateOrder"), ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx"))
 
     def setRotateOrder(self, mode, *, fast=False):
-        """モードを設定する。
+        """pairBlendのEuler回転順を設定する。
 
         Args:
             mode (str | int): xyz, yzx, zxy, xzy, yxz, zyx、またはMayaの番号。
@@ -122,9 +116,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -170,19 +161,16 @@ class PairBlend(Node):
         return self.getTranslatePlug(index).get()
 
     def setTranslate(self, index=_UNSET, value=_UNSET, *, fast=False, idx=_UNSET):
-        """translate入力（cm）へ定数値を設定する。
+        """指定入力のXYZ移動をcmで設定する。
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の3成分。有限値のみ。
             fast (bool): TrueはUndoなしのOpenMaya更新。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -211,9 +199,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -274,19 +259,16 @@ class PairBlend(Node):
         return self.getRotatePlug(index).get()
 
     def setRotate(self, index=_UNSET, value=_UNSET, *, fast=False, idx=_UNSET):
-        """rotate入力（rad）へ定数値を設定する。
+        """指定入力のXYZ回転をradで設定する。
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
-            value (Iterable[float]): 設定値。数値は有限値。
+            value (Iterable[float]): XYZ順の3成分。有限値のみ。
             fast (bool): TrueはUndoなしのOpenMaya更新。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -315,9 +297,6 @@ class PairBlend(Node):
 
         Returns:
             PairBlend: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:

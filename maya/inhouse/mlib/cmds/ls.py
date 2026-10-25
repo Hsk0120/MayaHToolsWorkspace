@@ -1,75 +1,15 @@
-"""
-Synopsis
---------
+"""名前や条件でMayaの対象を検索し、Node・Plug・単体Componentの参照へ変換する。
 
-.. code-block:: python
-
-    mlib.ls(*args, **kwargs)
-
-名前や条件で Maya ノードを検索し、検索結果を mlib ラッパーへ変換します。
-
-コンポーネント範囲は単体の参照へ展開します。型名などシーン参照以外を返すフラグには対応しません。
-
-Return value
-------------
-
-``list[Node | Plug | Component] | Joints | SkinClusters``
-    コンポーネント型指定時は該当する単体コンポーネントのリスト。ノード型のtype="joint" は Joints、type="skinCluster" は SkinClusters。それ以外は参照のリスト。未検出時は空。
-
-Related commands
-----------------
-
-:doc:`createNode <../createNode/index>` / :meth:`~mlib.nodes.transform.Transform.addConstraint`
-
-Flags
------
-
-Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
-処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
-
-位置引数も含めた入力一覧です。括弧内は Maya に渡せる短縮名です。
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 15 40
-
-   * - 引数 / フラグ
-     - 型
-     - 既定値
-     - 説明
-   * - ``*args``
-     - ``str | Node | Plug | Component | Components | MObject | MDagPath | MPlug | Iterable``
-     - 省略可
-     - 名前やワイルドカードなど、maya.cmds.ls の位置引数。文字列以外は一意な名前に変換して渡します（:doc:`/cmds_interop`）。空の列と ``None`` は空の結果になります。
-   * - ``type (typ)``
-     - ``str``
-     - 省略可
-     - Mayaのノード型、またはvertex / edge / face / uv / controlVertex。コンポーネントは単一の正式名称で指定し、vtx/e/f/map/cv等の別名は追加しません。種類の変換は行いません。
-   * - ``selection (sl)``
-     - ``bool``
-     - False
-     - 選択中のノード・アトリビュート・コンポーネントを取得。
-   * - ``long (l)``
-     - ``bool``
-     - False
-     - Maya から完全な DAG パスを取得。
-   * - ``**kwargs``
-     - ``object``
-     - 省略可
-     - その他の ls フラグをそのまま渡します。
-
-Examples
---------
+``type="joint"`` はJoints、``type="skinCluster"`` はSkinClustersを返し、
+それ以外はリストを返す。コンポーネント範囲は単体の参照へ展開する。
+型名などシーン参照以外を返すMayaフラグには対応しない。
 
 .. code-block:: python
 
     import mlib
 
-    nodes = mlib.ls(type="transform")
     joints = mlib.ls(type="joint")
-    selected = mlib.ls(selection=True)
-    vertices = mlib.ls(sl=True, type="vertex")
-    faces = mlib.ls(sl=True, type="face")
+    vertices = mlib.ls(selection=True, type="vertex")
 """
 
 import maya.cmds as cmds

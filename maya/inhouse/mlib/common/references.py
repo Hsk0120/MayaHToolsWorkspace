@@ -32,20 +32,21 @@ def listReferences(top_level_only=False):
 
 @undoChunk("mlibCreateReference")
 def createReference(path, namespace=None):
-    """新しい Reference を作成する。
+    """ファイルを参照し、新しく作られたトップレベルReferenceを返す。
+
+    参照先のネストした子参照も作成され得るが、返すのは親参照を持たない1件だけ。
+    参照ノードの特定に失敗しても、作成内容を自動で戻さない。
 
     Args:
-        path (str | Path): 参照するファイルのパス。
-        namespace (str | None): 参照内容に付ける名前空間。省略時はMayaの既定
-            (ファイル名ベース)を使う。
+        path (str | Path): 参照ファイル。ユーザーホームを展開する。
+        namespace (str | None): 参照内容の名前空間。NoneはMayaの既定を使う。
 
     Returns:
-        Reference: 作成された参照ノードのラッパー。
+        Reference: 作成したトップレベル参照ノード。
 
     Raises:
-        ValueError: path が空文字列または str/Path 以外の場合。
-        RuntimeError: Maya が参照の作成に失敗した、または作成された参照ノードを
-            一意に特定できない場合。
+        ValueError: pathが空またはstr/Path以外の場合。
+        RuntimeError: Mayaが作成を拒否した、または新規トップレベル参照が1件に定まらない場合。
     """
     from ..nodes.reference import Reference
 

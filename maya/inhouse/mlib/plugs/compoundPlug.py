@@ -10,14 +10,11 @@ from .plug import Plug
 
 
 class CompoundPlug(Plug):
-    """複合アトリビュート全体の参照を保持し、直接の子Plugと値を扱う。
+    """複合アトリビュートを参照し、直接の子Plugと値を扱う。
 
-    子はアトリビュート定義順の番号、ロング名、ショート名で取得する。
-    ArrayPlugの疎な論理番号とは異なり、子番号は0から子数-1までの連続した番号。
-    子の参照取得と値取得を分け、基底のget()は子の値を定義順のtupleで返す。
-
-    maya.cmdsへ渡す場合は ``str(plug)`` または ``plug.getFullName()`` で文字列化する。
-    mlibのコマンドにはそのまま渡せる。
+    子は定義順の0始まりの連続番号かロング名・ショート名で取得する。
+    番号はArrayPlugの論理番号とは異なる。基底のget()は子の値を定義順tupleで返す。
+    maya.cmdsへは ``str(plug)`` で渡す。mlib.selectにはそのまま渡せる。
     """
 
     def __getattr__(self, name):
@@ -105,34 +102,28 @@ class CompoundPlug(Plug):
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """子数と同数のシーケンスを各子プラグへ設定する。
+        """子数と同じ長さの値を、アトリビュート定義順に設定する。
 
-        要素数は先に検査する。通常はUndoが有効なら子の変更を同じチャンクへ記録する。
-        float/long/shortの固定長数値型は全子の書込み可否を確認し型付きで一括設定する。
-        その他の複合型は子ごとの設定を使う。途中の失敗時に完了済みの値は自動で戻さない。
-        fastは全成分の型・書込み可否・制限を確認してから直接更新する。
-        safe=Trueでは対応する失敗後に子を定義順で再試行するため、書ける子は更新される。
-        fastの事前検証も、実際の書込み中の失敗に対する原子性を保証するものではない。
+        通常はUndo有効時に一括記録し、固定長数値型は型付き設定、それ以外は子ごとに更新する。
+        fastは全成分を事前検証して直接更新するが、書込み途中の失敗を自動で戻すものではない。
+        safe=Trueは対応する失敗後に子を再試行し、書ける子を更新する。先行変更は戻さない。
 
         Args:
-            value (Iterable[object]): 子プラグと同じ数の値。先頭から順に設定する。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[object]): 子数と同じ数の値。
+            safe (bool): Trueは対応する書込み失敗を抑制し、失敗数を返す。
+            uiUnits (bool): TrueはUI単位。既定Falseは内部単位（角度rad・距離cm・時間秒）。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定Falseはcmds。
 
         Returns:
-            CompoundPlug | int: safe=Falseでは自身。safe=Trueでは書けなかった成分数、全て成功なら0。
-                子数と値の件数が不一致など、成分へ分けられない失敗は1を返す。
-                子の再試行を完了できない失敗も1で、厳密な未更新成分の総数は保証しない。
-                fastで未対応の子の型があれば、safe=Trueでも部分更新前にNotImplementedErrorを送出する。
-                fastがbool以外のTypeErrorは抑制しない。
+            CompoundPlug | int: safe=Falseは自身。safe=Trueは子の失敗数、成功は0。
+                要素数不一致等で子へ分けられない場合や再試行を完了できない場合は1。
+                厳密な未更新成分数とは限らない。
 
         Raises:
-            ValueError: 要素数が子数と一致しない場合。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            TypeError: 配列全体への設定、fastがbool以外、またはsafe=Falseで入力型が不正な場合。
+            ValueError: safe=Falseで要素数が子数と一致しない場合。
+            RuntimeError: safe=Falseで参照が無効、または書込みに失敗した場合。
+            NotImplementedError: fastで未対応の型。safe=Trueでも部分更新前に拒否する。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

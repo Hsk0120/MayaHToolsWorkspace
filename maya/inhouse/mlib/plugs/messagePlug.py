@@ -1,7 +1,7 @@
-"""値を保持しない接続用。connect/source/destinationsで関係を扱う。"""
+"""messageアトリビュートの参照。値を持たず、接続の端点として使う。"""
 
 from .plug import Plug
 
 
 class MessagePlug(Plug):
-    """値を保持しない接続用。connect/source/destinationsで関係を扱う。"""
+    """messageアトリビュートの参照。値を持たず、接続の端点として使う。"""

@@ -1,35 +1,12 @@
-mlib for Maya
-=============
+mlib
+====
 
-mlib は Maya のノード・アトリビュートラッパー、シーン操作、数学型、共通ユーティリティを
-提供する内製 Python ライブラリです。
-
-ノードやアトリビュートを Python オブジェクトとして扱い、Maya のスクリプトから
-シーン操作やトランスフォームの計算を行えます。
-各クラス・メソッドの使い方は、モジュールリファレンスマニュアルを参照してください。
-
-Contents
---------
+Mayaのノード・アトリビュート・コンポーネントと数学値を扱うPythonライブラリです。
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   installation
-   package_names
-   whymlib
-   getting_started
-   usage
-   api_consistency
-   api_arguments
-   getter_aliases
-   consolidated_api
-   api_methods
-   transformation
-   modules
-
-Indices and tables
-------------------
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   なぜmlib <whymlib>
+   mlib入門 <getting_started>
+   mlibモジュール <autoapi/mlib/index>
+   モジュールリファレンス <modules>

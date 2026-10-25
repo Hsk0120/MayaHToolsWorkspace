@@ -13,7 +13,7 @@ from .compoundPlug import CompoundPlug
 
 
 class Double3Plug(CompoundPlug):
-    """アトリビュートの子成分だけを扱う。ノードの行列変換には委譲しない。"""
+    """3成分アトリビュートを参照し、チャンネル値を読み書きする。行列変換は行わない。"""
 
     _value_types = {
         "translate": Translate, "t": Translate,
@@ -23,23 +23,20 @@ class Double3Plug(CompoundPlug):
     }
 
     def get(self, *, uiUnits=False):
-        """アトリビュートの3成分を取得する。jointOrientなどを合成しない。
-
-        translateはTranslate、rotateはノードのrotateOrderを持つEulerRotate、
-        scaleはScale、shearはShear、それ以外はVectorを返す。
-        アトリビュートのチャンネル値を読み、Transform.getRotate等の行列分解とは区別する。
+        """3成分のチャンネル値を取得する。jointOrientなどは合成しない。
 
         Args:
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
+            uiUnits (bool): Trueは現在のUI単位の数値tuple。既定Falseは内部単位の数学値。
 
         Returns:
-            Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]: アトリビュートの値。
-                既定ではrotateはラジアン・ノードのrotateOrder、距離はcm。
-                数学値はノードと独立した新しい値。
-                uiUnits=Trueは子の単位定義に従う数値tupleで、数学型は返さない。
+            Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]:
+                translateはTranslate、rotateはノードのrotateOrderを持つEulerRotate、
+                scaleはScale、shearはShear、その他はVector。距離cm・角度radの独立した値。
+                uiUnits=Trueでは子の単位定義に従うtupleを返し、数学型は返さない。
 
         Raises:
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: uiUnitsがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         self._validate_ui_units(uiUnits)
         self._require_valid()
@@ -54,33 +51,31 @@ class Double3Plug(CompoundPlug):
         return value_type(*(self._child_at(index).get() for index in range(3)))
 
     def set(self, value, safe=False, *, unit="rad", uiUnits=False, fast=False):
-        """対象アトリビュートの3成分を書き込む。ほかの変換チャンネルは変更しない。
+        """このアトリビュートの3成分だけを書き込む。行列経由の姿勢変更は行わない。
 
-        入力を内部単位の3成分へ揃えて全子の書込み可否を確認し、CompoundPlug.setへ
-        渡す。safe=Trueでは失敗した一括処理を子ごとに再試行し、書ける子だけを更新する。
+        3成分の入力と書込み可否を確認してCompoundPlug.setへ渡す。
+        safeの再試行では成功した子の更新を残す。通常処理はUndo有効時に記録し、fastは記録しない。
 
         Args:
             value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
-                uiUnits=Trueでは内部単位を持つ数学型を受け付けず、数値列を指定する。
-                rotateではEuler/Quaternionも受け入れ、ノードのrotateOrderへ変換する。
-                数値3成分は現在のrotateOrderのチャンネル値として解釈する。
-            safe (bool): Trueは対応する失敗を数える。成功した子は自動では戻さない。
-            unit (str): rotateの数値3成分の角度単位rad/deg。それ以外のアトリビュートでは未使用。
-            uiUnits (bool): TrueはUI単位の数値。既定Falseは内部単位。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。内側の編集へもfastを明示して渡す。
+                rotateではOpenMaya基底型の回転も受理し、ノードのrotateOrderへ揃える。
+                数値列はノードのrotateOrderで解釈する。
+            safe (bool): Trueは対応する書込み失敗を数える。
+            unit (str): uiUnits=Falseではrotateの数値列にrad/degを使い、他のアトリビュートでは未使用。
+                型付き回転はradのみ。
+            uiUnits (bool): TrueはUI単位の数値列を指定する。数学型と既定rad以外のunitは受理しない。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。Undo設定は変更しない。
 
         Returns:
-            Double3Plug | int: safe=Falseでは自身。safe=Trueでは書けなかった成分数、全て成功なら0。
-                値を有効な3成分へ変換できない場合は1を返す。
-                fastがbool以外のTypeErrorは抑制しない。複合値の再試行規則はCompoundPlug.setに従う。
+            Double3Plug | int: safe=Falseは自身。safe=Trueは成功0、子の失敗数、または入力変換失敗の1。
+                CompoundPlug.setの再試行規則に従い、更新済みの値は自動では戻さない。
 
         Raises:
-            ValueError: 要素数・有限値・角度単位が不正、または型付き回転にdegを指定した場合。
-            RuntimeError: アトリビュートが無効、ロック・接続済み、またはMayaが更新を拒否した場合。
-
-        ワールド空間やjointOrientを含む姿勢の変更はTransform.setRotate等を使う。
-        通常はUndoが有効なら子の変更を同じチャンクへ記録する。
-        fastはUndo設定を変更しない。Mayaの実行時エラーを自動ロールバックはしない。
+            TypeError: fastがbool以外、または配列全体への設定。safe=Trueでも抑制しない。
+                safe=Falseでは入力型が不正な場合も送出する。
+            NotImplementedError: fastで未対応の型の場合。safe=Trueでも抑制しない。
+            ValueError: safe=Falseで成分数・有限値・角度単位が不正な場合。
+            RuntimeError: safe=Falseで無効参照、ロック・入力接続、またはMayaの編集失敗。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

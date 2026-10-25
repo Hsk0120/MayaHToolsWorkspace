@@ -11,9 +11,7 @@
 
 .. py:module:: {{ command_package }}
 
-コマンド名を選ぶと、構文・戻り値・フラグ・使用例を確認できます。
-Python では ``{{ command_package }}.<コマンド名>()`` として呼び出します。
-``{{ package_name }}.<コマンド名>()`` も同じ関数の公開入口です。
+``{{ command_package }}.<コマンド名>()`` と ``{{ package_name }}.<コマンド名>()`` は同じ関数です。
 
 .. toctree::
    :maxdepth: 1
@@ -35,10 +33,6 @@ Python では ``{{ command_package }}.<コマンド名>()`` として呼び出�
 .. py:module:: {{ obj.name }}
    :no-index:
 
-.. contents:: Go to
-   :local:
-   :depth: 1
-
 {% if entry_point %}
 .. py:currentmodule:: {{ package_name }}
 
@@ -49,9 +43,6 @@ Python では ``{{ command_package }}.<コマンド名>()`` として呼び出�
    {{ entry_point.docstring|indent(3) }}
 
 {% endif %}
-
-Synopsis
---------
 
 .. autoapi-nested-parse::
 

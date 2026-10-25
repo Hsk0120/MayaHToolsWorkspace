@@ -15,11 +15,10 @@ from .transform import Transform, Transforms, _closest_euler
 
 
 class Joint(Transform):
-    """Jointのノード参照とDAGパスを保持し、固有の回転・スケール補償を扱う。
+    """Jointの参照と、回転移送・スケール補償の操作を提供する。
 
-    行列・TRSの設定はTransformの処理を使い、rotateAxis・jointOrient・SSCを考慮する。
-    jointOrientとrotateの移送、inverseScaleの接続、階層とSkinClusterの照会を担当する。
-    SSCのフラグ変更、inverseScaleへの接続、姿勢を保つ回転移送は別の操作とする。
+    行列・TRSはTransformを継承し、rotateAxis・jointOrient・segmentScaleCompensateを考慮する。
+    SSCの切替、inverseScaleの接続、姿勢を保つ回転移送は独立した操作。
     """
 
     def getSegmentScaleCompensate(self):
@@ -71,25 +70,23 @@ class Joint(Transform):
         return EulerRotate(*(math.radians(value) for value in values))
 
     def jointOrientToRotate(self, *, fast=False):
-        """現在の姿勢を保ち、jointOrientをrotateに合成して0にする。
+        """jointOrientをrotateへ合成して0にし、現在の姿勢を保つ。
 
-        XYZの数値加算ではなく回転を合成する。rotateOrder、rotateAxis、移動、
-        スケールは保持する。現在フレームの操作であり、アニメーションのベイクは
-        行わない。rotate/jointOrientに入力接続やロックがある場合は変更前に拒否する。
-        jointOrientの3成分が既に0なら、書込み可否の検査と更新を省略する。
-        通常モードは一回のUndoで戻せる。fastではUndoへ記録しない。
+        XYZの数値加算ではない。rotateAxis・rotateOrder・移動・スケールを変えず、
+        現在フレームだけを処理する。jointOrientがXYZとも0なら書込み検査と更新を省略する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接更新。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -100,26 +97,24 @@ class Joint(Transform):
             return self
 
     def freezeRotate(self, *, fast=False):
-        """姿勢を保ち、rotateをjointOrientへ合成してrotateを0にする。
+        """rotateをjointOrientへ合成し、姿勢を保ってrotateを0にする。
 
-        スキニング済みjointにも使用できる。jointの行列を保持するため、
-        skinClusterのウェイト・bindPreMatrix・バインドポーズは変更しない。
-        rotateAxis、rotateOrder、移動、スケールも保持する。現在フレームの操作で、
-        アニメーションをベイクしない。rotate/jointOrientのロックや入力接続は拒否する。
-        rotateの3成分が既に0なら、書込み可否の検査と更新を省略する。
-        通常モードは一回のUndoで戻せる。fastではUndoへ記録しない。
+        rotateAxis・rotateOrder・移動・スケールは保持する。現在フレームだけを処理し、
+        アニメーションはベイクしない。ウェイト・bindPreMatrix・バインドポーズは変更しない。
+        rotateがXYZとも0なら書込み検査と更新を省略する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接更新。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            RuntimeError: 無効joint、書込み不可、またはMayaの編集失敗。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -130,27 +125,30 @@ class Joint(Transform):
             return self
 
     def connectInverseScale(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
-        """Transformのscaleを自身のinverseScaleへ接続する。
+        """接続元Transformのscaleを自身のinverseScaleへ接続する。
+
+        segmentScaleCompensateは変更せず、姿勢の補償は行わない。
+        接続によって現在の姿勢が変わる場合がある。
 
         Args:
-            source (Transform | str | None): 接続元。省略時は直上の親Transform。
-                親がない場合は変更しない。 別名 ``src`` も使用可能。
-            force (bool): 既存入力を置換する。Plug.connectと同様、接続先がロック中なら
-                一時解除して接続後にロックを戻す。既定False。 別名 ``f`` も使用可能。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
-            src (Transform | str | None): sourceの別名。同時指定は不可。
+            source (object | None): Transformへ解決できるノード入力。Noneなら直上の親。
+                親がなければ変更しない。
+            force (bool): 既定False。Trueは既存入力を置換し、接続先側のロックを一時解除する。
+                ロック復元の規則は :meth:`~mlib.plugs.plug.Plug.connect` と同じ。
+            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接接続。
+            src (object | None): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
-            Joint: 自身。同じ接続が既にある場合は変更しない。
+            Joint: 自身。同じ直接接続が既にあれば変更しない。
 
         Raises:
-            TypeError: sourceがTransformでない、またはforceがboolでない場合。
-            ValueError: 自身を接続元に指定した場合。
-            RuntimeError: 対象が無効、またはMayaが接続を拒否した場合。
+            TypeError: Transformへ解決できない、force/fastがbool以外、または長短名を同時指定した場合。
+            ValueError: 自身を接続元にした、または入力参照が不正な場合。
+            RuntimeError: 対象が無効、名前解決・接続・ロック復元に失敗した場合。
 
-        segmentScaleCompensateの値は変更しない。接続により姿勢が変わる場合がある。
-        Jointsでは省略時に各joint自身の親を使用し、全体を一回のUndoで戻せる。
+        Note:
+            Jointsでもsource=Noneなら各要素の親を使う。通常処理はUndo有効時に1回で戻せる。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -186,24 +184,23 @@ class Joint(Transform):
             return self
 
     def disconnectInverseScale(self, *, fast=False):
-        """inverseScaleと各軸の入力接続だけを切断する。
+        """inverseScale本体、X、Y、Zの順に直接の入力接続を切断する。
 
-        出力接続・segmentScaleCompensateは変更しない。値のリセットや姿勢補償は
-        行わず、切断後の値はMayaの切断動作に従う。接続がなければ何もしない。
+        出力接続・SSC・値のリセット・姿勢補償は扱わない。接続がない箇所は何もしない。
+        切断後の値はMayaの動作に従う。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。既定FalseはMayaコマンドを使用する。
+            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接切断。Undo設定は変えない。
 
         Returns:
-            Joint: 接続の有無にかかわらず自身。Jointsからも一括実行できる。
+            Joint: 自身。Jointsからも一括実行できる。
 
         Raises:
             TypeError: fastがbool以外の場合。
-            RuntimeError: 対象が無効、ロックなどでMayaが切断を拒否した場合。
+            RuntimeError: 無効な対象、ロック、またはMayaの切断失敗。
 
         Note:
-            通常モードは一回のUndoで戻せる。fast=Trueの直接更新はUndo対象外。
-            完了済みの切断は、後続処理の失敗時に自動では戻さない。
+            通常処理はUndo有効時に一つのチャンクへ記録する。先行した切断は自動で戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -332,26 +329,27 @@ class Joint(Transform):
         return result
 
     def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True, force=_UNSET, fast=False, f=_UNSET):
-        """ウェイトの再配分方法を選んでinfluence登録を外す。joint自体は残す。
+        """指定skinClusterから自身のinfluence登録を外す。jointノードは残す。
+
+        全対象の登録・移送条件を先に検査し、取得順にSkinCluster.removeInfluenceへ委譲する。
+        fast固有の構造検査は各skinClusterの処理時に行い、後続の失敗で先行処理は戻さない。
 
         Args:
             skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
-            transfer_to_parent (bool): Trueは祖先へ移送、FalseはMaya標準の再配分。
-            force (bool): Trueは不正ウェイトを除去してから登録解除する。短縮名f。
-                正規化・ロック解除・レイヤーの回避は行わない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            transfer_to_parent (bool): Trueは最も近い祖先influenceへ加算する。
+                False、または移送先がなければ標準の再配分に任せる。
+            force (bool): 不正ウェイトを修復してから解除する。修復時に正規化・ロック解除・レイヤー回避は行わない。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
-            Joint: 自身。未スキニングで対象省略の場合は何もしない。
+            Joint: 自身。対象省略で未スキニングなら変更しない。
 
         Raises:
-            TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
-            ValueError: 未登録の対象、または最後の一つのinfluenceの場合。
-            RuntimeError: 無効joint、レイヤー、移送・削除失敗。
-
-        祖先influenceがなければMaya標準の再配分に任せる。全対象の削除可否を
-        事前検証する。途中失敗は例外で停止し、完了済み操作は一回のUndoで戻せる。
+            TypeError: transfer_to_parent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            ValueError: 未登録、または最後のinfluenceを解除する場合。
+            RuntimeError: 無効joint、レイヤー・ロック、または編集失敗。
+            NotImplementedError: fastで単一geometry条件を満たさない場合。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -968,24 +966,23 @@ class Joints(Transforms):
         return Joints(sorted(self._items, key=lambda joint: joint.getDepth(), reverse=True))
 
     def jointOrientToRotate(self, *, fast=False):
-        """全jointの姿勢を保ち、jointOrientをrotateへ合成して0にする。
+        """全jointのjointOrientをrotateへ合成して0にし、現在の姿勢を保つ。
 
-        全対象の移送値を準備し、変更する対象の書込み可否を検証してから保持順に適用する。
-        jointOrientの3成分が0なら書込み検証と更新を省略する。空コレクションは変更なし。
-        通常モードは全体を一回のUndoで戻せる。fastではUndoへ記録しない。
-        途中の編集失敗は例外で停止し、完了済み変更は自動では戻さない。
+        全対象の移送値と書込み可否を準備してから保持順に適用する。
+        jointOrientがXYZとも0の対象は書込み検査と更新を省略し、空コレクションは変更しない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接更新。
 
         Returns:
             Joints: 自身。
 
         Raises:
-            RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 無効joint、ロック・入力接続・書込み不可、または編集失敗。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -995,24 +992,22 @@ class Joints(Transforms):
     def freezeRotate(self, *, fast=False):
         """全jointのrotateをjointOrientへ合成し、姿勢を保ってrotateを0にする。
 
-        スキニング済みでも実行でき、ウェイト・bindPreMatrix・バインドポーズを
-        変更しない。全対象の移送値を準備し、変更する対象の書込み可否を検証してから保持順に適用する。
-        rotateの3成分が0なら書込み検証と更新を省略する。空コレクションは変更なし。
-        通常モードは全体を一回のUndoで戻せる。fastではUndoへ記録しない。
-        移動・スケールのフリーズやアニメーションのベイクは行わない。
-        途中の編集失敗は例外で停止し、完了済み変更は自動では戻さない。
+        全対象の移送値と書込み可否を準備してから保持順に適用する。
+        rotateがXYZとも0の対象は書込み検査と更新を省略し、空コレクションは変更しない。
+        ウェイト・bindPreMatrix・バインドポーズは変えず、移動/スケールのフリーズやベイクは行わない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接更新。
 
         Returns:
             Joints: 自身。
 
         Raises:
-            RuntimeError: 無効joint、ロック・入力接続・書込み不可、編集失敗。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 無効joint、ロック・入力接続・書込み不可、または編集失敗。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

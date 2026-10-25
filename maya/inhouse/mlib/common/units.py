@@ -4,13 +4,13 @@ import maya.api.OpenMaya as om2
 
 
 def distanceToUi(centimeters):
-    """内部距離を現在の表示単位へ変換する。
+    """cm距離を現在のUI距離単位の数値へ変換する。
 
     Args:
-        centimeters (float): cm単位の値。
+        centimeters (float): cm単位の距離。
 
     Returns:
-        float: 現在の距離単位。
+        float: 現在のUI距離単位で表した値。
     """
     return om2.MDistance(centimeters).asUnits(om2.MDistance.uiUnit())
 
@@ -69,37 +69,37 @@ def convertDistance(value, from_unit=None, to_unit=None):
 
 
 def distanceFromUi(value):
-    """現在の表示距離を内部単位へ変換する。
+    """現在のUI距離単位の数値をcmへ変換する。
 
     Args:
-        value (float): 現在の距離単位。
+        value (float): 現在のUI距離単位で表した値。
 
     Returns:
-        float: cm単位の値。
+        float: cm単位の距離。
     """
     return om2.MDistance(value, om2.MDistance.uiUnit()).asCentimeters()
 
 
 def angleToUi(radians):
-    """内部角度を現在の表示単位へ変換する。
+    """rad角度を現在のUI角度単位の数値へ変換する。
 
     Args:
-        radians (float): rad単位の値。
+        radians (float): rad単位の角度。
 
     Returns:
-        float: 現在の角度単位。
+        float: 現在のUI角度単位で表した値。
     """
     return om2.MAngle(radians).asUnits(om2.MAngle.uiUnit())
 
 
 def angleFromUi(value):
-    """現在の表示角度を内部単位へ変換する。
+    """現在のUI角度単位の数値をradへ変換する。
 
     Args:
-        value (float): 現在の角度単位。
+        value (float): 現在のUI角度単位で表した値。
 
     Returns:
-        float: rad単位の値。
+        float: rad単位の角度。
     """
     return om2.MAngle(value, om2.MAngle.uiUnit()).asRadians()
 

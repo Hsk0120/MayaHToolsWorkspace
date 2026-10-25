@@ -11,7 +11,7 @@ from jinja2 import ChoiceLoader, FileSystemLoader, PrefixLoader
 # リポジトリルートからのCIビルドでも、docs内の補助モジュールを解決する。
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy, package_class_diagrams
+from _mermaidClasses import ancestor_class_diagram, collect_class_hierarchy
 from _constructorSignatures import ConstructorDocumentation
 
 _PACKAGE_NAME = Path(__file__).resolve().parent.parent.name
@@ -86,9 +86,7 @@ gettext_uuid = False
 templates_path = ["_templates"]  # 言語の切り替え(_templates/layout.html)。
 
 # mlib配下のクラス継承関係をast静的解析のみで集計する(mlib・Mayaをimportしない)。
-# 各クラスページの継承図(_templates/autoapi/python/class.rst)と、
-# 全体クラス図(development.rst に .. include:: される _generated/full_class_diagram.rst)
-# の両方がこの辞書を参照する。
+# 各クラスページの継承図(_templates/autoapi/python/class.rst)で使う。
 _MLIB_ROOT = Path(__file__).resolve().parent.parent
 _CLASS_HIERARCHY = collect_class_hierarchy(_MLIB_ROOT)
 _CONSTRUCTOR_DOCS = ConstructorDocumentation(_PACKAGE_NAME, _MLIB_ROOT)
@@ -162,31 +160,6 @@ def _prepare_jinja_env(jinja_env):
 autoapi_prepare_jinja_env = _prepare_jinja_env
 
 
-def _write_generated_docs(app):
-    """development.rst が .. include:: する全体クラス図の.rstフラグメントを書き出す。"""
-    generated_dir = Path(__file__).resolve().parent / "_generated"
-    generated_dir.mkdir(exist_ok=True)
-    content = (
-        f"{_PACKAGE_NAME} 全体クラス図\n"
-        + "-" * (len(_PACKAGE_NAME) + 20) + "\n"
-        "\n"
-        f"{_PACKAGE_NAME}全 {len(_CLASS_HIERARCHY)} クラスの継承関係"
-        "を分類ごとの図で表示します。矢印の三角側が基底クラスです。\n"
-        "他の分類の基底クラスは、継承を追えるよう各図にも掲載します。\n"
-        "クラス名をクリックするとAPIリファレンスへ移動できます。\n"
-        "\n"
-    )
-    for group, diagram in package_class_diagrams(_CLASS_HIERARCHY):
-        content += (
-            f"{group}\n{'~' * max(20, len(group))}\n\n"
-            ".. raw:: html\n\n"
-            "   <pre class=\"mermaid\">\n"
-            f"{diagram}\n"
-            "   </pre>\n\n"
-        )
-    (generated_dir / "full_class_diagram.rst").write_text(content, encoding="utf-8")
-
-
 def _adapt_package_name(app, docname, source):
     """本文・使用例・AutoAPI参照を、配置されたパッケージ名へ合わせる。
 
@@ -222,4 +195,3 @@ def setup(app):
     app.connect("config-inited", _english_title)
     app.connect("source-read", _adapt_package_name)
     app.connect("autoapi-skip-member", _include_constructors)
-    app.connect("builder-inited", _write_generated_docs)

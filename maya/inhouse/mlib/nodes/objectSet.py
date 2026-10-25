@@ -59,14 +59,21 @@ class ObjectSet(Node):
             return self
 
     def removeMembers(self, *members, fast=False):
-        """メンバーを除外する。
+        """objectSetから指定メンバーの所属だけを外す。ノード自体は削除しない。
+
+        空引数は変更しない。入力解決とfastの編集制限は :meth:`addMembers` と同じ。
 
         Args:
-            members (Node | str): 除外するノードまたはコンポーネント文字列。
-            fast (bool): TrueはMFnSet直接更新でUndoなし。
+            *members (Node | str): 除外するノードやコンポーネント表記などの入力。
+            fast (bool): TrueはUndo設定を変えないMFnSet更新（Undoなし）。
+                Falseはcmds.setsによる通常更新をUndo有効時にまとめる。
 
         Returns:
             ObjectSet: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            RuntimeError: fastでセットがロック/参照されている、またはMayaが除外を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

@@ -1,63 +1,9 @@
-"""
-Synopsis
---------
+"""ノードまたはコンポーネントを削除する。戻り値はNone。
 
-.. code-block:: python
-
-    mlib.delete(nodes, fast=False)
-
-指定したノード・コンポーネントを削除します。Component は一意な名前に変換して渡し、
-その扱いは ``maya.cmds.delete`` に従います(面を削除するなど)。受け付ける型は
-:doc:`/cmds_interop` を参照してください。
-
-Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` は ``TypeError`` です。``maya.cmds.delete`` へ
-アトリビュート名を渡してもエラーを表示するだけで何も削除しないためです。動的アトリビュートの削除は
-``plug.delete()``、配列要素の削除は ``array_plug.removeElement(i)``、接続の解除は
-``plug.disconnect()``、アトリビュートの所有ノードの削除は ``mlib.delete(plug.getNode())`` を使ってください。
-文字列は解決せずにそのまま渡すため、``"node.attribute"`` 形式の文字列は ``maya.cmds.delete`` と
-同じ扱いです。
-
-削除操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
-各ノードを具象クラスへ解決し、その ``delete()`` を呼び出します。
-JointもMaya標準の削除を行います。ウェイト移送・子階層保持は
-``mlrig.setups.JointHierarchy.delete()`` で明示的に行います。
-入力順に処理し、先行する削除で無効になった対象はスキップします。
-コンポーネントは所有ノードを削除せず、Maya標準コマンドで処理します。
-
-``fast=True`` は対応する範囲をAPI 2.0で直接変更し、Undo履歴を追加しません。
-未対応条件は変更前に拒否します。詳細は関数のdocstringを参照してください。
-
-Return value
-------------
-
-``None``
-    値を返しません。
-
-Related commands
-----------------
-
-:doc:`duplicate <../duplicate/index>` / ``maya.cmds.objExists``
-
-Flags
------
-
-対象は位置引数、fastはキーワード専用です（Mayaの短縮名はありません）。
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 15 40
-
-   * - 引数
-     - 型
-     - 既定値
-     - 説明
-   * - ``nodes``
-     - ``Node | Component | Components | Selection | str | MObject | MDagPath | Iterable``
-     - 必須
-     - 削除する対象、またはその列。Plug・MPlug(列の要素、Selection の要素を含む)は ``TypeError``。
-
-Examples
---------
+Plug・MPlugは受け付けない。アトリビュートの削除は ``plug.delete()``、
+配列要素の削除は ``array_plug.removeElement(index)`` を使う。
+通常はMayaのUndoに対応する。``fast=True`` はノードの直接削除に限り、
+コンポーネントを含む入力は何も削除せず拒否する。
 
 .. code-block:: python
 

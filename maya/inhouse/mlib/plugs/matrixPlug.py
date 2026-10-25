@@ -30,29 +30,30 @@ class MatrixPlug(Plug):
         return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """対象の行列アトリビュートへ直接書き込む。所有ノードのTRSへ委譲しない。
+        """行列アトリビュートへ直接設定する。TransformのTRSは操作しない。
 
-        Matrixへ変換した値を通常はcmds.setAttrへ、fastではOpenMayaへ渡す。
-        通常はUndoが有効ならチャンクへ記録し、fastはUndo設定を変更せず記録しない。
-        ロック解除や接続の切断は行わない。
+        worldMatrixは計算出力のため拒否する。ロック解除・入力切断は行わない。
+        通常処理はUndo有効時に記録し、fastはUndo設定を変えず直接更新する。
 
         Args:
-            value (Matrix | Transformation | Iterable[float]): 設定する4x4行列または変換情報。
-                行列の成分順と入力の解釈はMatrixのコンストラクターに従う。
-            safe (bool): Trueで書込み失敗を抑制し、失敗数を返す。
-            uiUnits (bool): Plug共通の単位指定。入力行列の成分単位は変換しない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。
+            value (Matrix | Transformation | om2.MMatrix | sequence): Matrix(value)で変換する行列値。
+            safe (bool): Trueは対応する書込み失敗を0/1で返す。既定Falseは例外を送出する。
+            uiUnits (bool): 共通フラグとして受理するが、行列成分は換算しない。
+            fast (bool): 既定Falseはcmds.setAttr。TrueはOpenMaya直接更新でUndoなし。
 
         Returns:
-            MatrixPlug | int: safe=Falseでは自身。safe=Trueでは成功なら0、対応する失敗なら1。
-                setter本体のRuntimeError/TypeError/ValueErrorが対象。行列成分へ分けた部分更新は行わない。
-                非対応fastのNotImplementedErrorと、fastがbool以外のTypeErrorは抑制しない。
+            MatrixPlug | int: 通常は自身。safe=Trueは成功0、参照検査・行列化・UI指定・
+                書込みのRuntimeError/TypeError/ValueErrorを1にする。成分別の部分更新はしない。
 
         Raises:
-            TypeError: safe=FalseでworldMatrixを指定した場合など、入力を受け付けられない場合。
-            RuntimeError: safe=Falseで所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
+            TypeError: fastがbool以外、または配列全体を指定した場合。safe=Trueでも拒否する。
+                safe=FalseではworldMatrixや不正なUI指定・入力型も拒否する。
+            ValueError: safe=Falseで行列値を変換できない場合。
+            RuntimeError: safe=Falseで参照が無効、またはMayaが書込みを拒否した場合。
+            NotImplementedError: fastで未対応の条件。safe=Trueでも抑制しない。
 
-        ノード自体の変換にはTransform.setMatrixを使う。更新後の自動ロールバックは行わない。
+        Note:
+            完了済みの変更は自動では戻さない。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")

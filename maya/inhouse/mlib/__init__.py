@@ -60,10 +60,17 @@ __all__ = [
 
 
 def reload():
-    """mlib配下を依存順に再読み込みする。
+    """本体を再読み込みし、拡張を再探索して型登録を作り直す。
+
+    宣言済み・読込み失敗の拡張モジュールを先に解除し、本体の再読込み中に拡張を再初期化する。
+    外部SDKやMayaプラグイン自体は解除対象にしない。保持済みのクラス・関数・ラッパーは取り直す。
+    拡張単位の読込み/登録失敗はcore.extensions.status()で確認する。途中状態の自動復元は保証しない。
 
     Returns:
-        tuple[module]: 再読み込みしたモジュール群。
+        tuple[module]: 本体側で再読み込みしたモジュール群。拡張モジュールの一覧ではない。
+
+    Raises:
+        RuntimeError: 拡張初期化中の再入で、再読み込みを開始できない場合。
     """
     _extensions._prepare_reload()
     return _reload_package(__name__)

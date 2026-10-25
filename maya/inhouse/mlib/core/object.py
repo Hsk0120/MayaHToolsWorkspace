@@ -24,15 +24,11 @@ class _ObjectType(type):
 
 
 class Object(metaclass=_ObjectType):
-    """Mayaのノード・プラグ・単一コンポーネントへの参照を共通の入口で取得する。
+    """Node・Plug・単数Componentの共通基底と参照取得入口。
 
-    ``Object(value)`` は入力をNode・Plug・単数Componentへ振り分ける。
-    プラグやコンポーネントを所有ノードへ変換する入口ではない。
-    ノード作成・複製・選択変更は行わず、複数対象や複数要素のコンポーネント範囲は受け付けない。
-
-    既存ラッパーを渡した場合は、削除済みでも有効性を再検査せず同じインスタンスを返す。
-    対象の有効性・等価比較・ハッシュは各参照型が担当する。
-    コレクションや数学値はこの基底に含めない。
+    Object(value)は対象の種類を保って解決し、所有ノードへの変換は行わない。
+    既存のObjectは削除済みでも同じインスタンスを返す。
+    複数対象は受け付けず、ノード作成・複製・選択変更は行わない。
     """
 
     def asString(self):
@@ -52,26 +48,20 @@ class Object(metaclass=_ObjectType):
 
     @staticmethod
     def _resolve_input(value):
-        """名前またはMaya API参照から、種類に対応する単数ラッパーを取得する。
-
-        既存のObject派生インスタンスは再検査せず返す。
-        それ以外は各型の入力解決へ渡し、名前は一つの対象へ解決できる場合だけ受け付ける。
+        """単一対象をNode・Plug・Componentへ解決する。
 
         Args:
             value (str | Object | om2.MObject | om2.MDagPath | om2.MPlug | tuple):
-                ノード名・プラグ名・単一コンポーネント名、既存ラッパー、またはAPI参照。
-                APIコンポーネントは ``(MDagPath, MObject)`` の組で指定する。
+                名前・既存ラッパー・API参照。APIコンポーネントは ``(MDagPath, MObject)`` の組。
 
         Returns:
-            Object: 入力が既存ラッパーなら同じインスタンス。
-                それ以外は対象を参照する具体的なNode・Plug・Component。
+            Object: 既存ラッパーなら無効でも同じインスタンス。それ以外は種類に応じた新しい参照。
 
         Raises:
-            TypeError: 未対応の型、依存ノード以外を指すMObject、不正なAPIコンポーネントの組、
-                または非対応のコンポーネント種類の場合。
-            ValueError: 空文字列・空MPlug、またはコンポーネントの要素数が1でない場合。
-            IndexError: APIコンポーネントの番号が現在のシェイプの範囲外の場合。
-            RuntimeError: 名前が存在しない・一意でない場合、またはAPI参照の対象が無効な場合。
+            TypeError: 入力型・MObjectの種類・APIコンポーネントの組や種類が未対応の場合。
+            ValueError: 空文字列・空MPlug、またはコンポーネントが単一要素でない場合。
+            IndexError: APIコンポーネントの番号がシェイプの範囲外の場合。
+            RuntimeError: 名前が存在しない・一意でない、またはAPI参照が無効の場合。
         """
         from ..nodes.node import Node
         from ..plugs.plug import Plug

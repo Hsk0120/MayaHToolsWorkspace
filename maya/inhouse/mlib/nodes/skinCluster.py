@@ -24,11 +24,11 @@ from .node import Node, Nodes, _PerItemOnly
 
 
 class SkinCluster(Node):
-    """skinClusterの参照・関数セットと、先頭出力geometryの名前・DAGパスを保持する。
+    """skinClusterを参照し、influenceと先頭出力Meshの頂点ウェイトを照会・編集する。
 
-    頂点ウェイト操作は、構築時に取得した先頭geometryがMeshであることを前提とする。
-    複数の出力geometryをまとめて編集するクラスではない。influenceの取得は
-    influenceObjects()の物理順、weightsアトリビュートへの書込みは対応する論理番号を使う。
+    構築時の先頭geometry名・DAGパスと、自身のMFnSkinClusterを保持する。
+    頂点操作はそのgeometryがMeshであることを前提とし、複数geometryの一括編集は行わない。
+    influenceObjects()の物理順と、weights[]への書込みに使う論理番号を区別する。
     """
 
     _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
@@ -111,12 +111,11 @@ class SkinCluster(Node):
                              influenceAssociation=["name", "closestJoint"], normalize=True)
 
     def getInfluences(self):
-        """登録influenceを、OpenMayaの物理順でノード参照として取得する。
+        """登録influenceをAPIの物理順で参照する。
 
         Returns:
             list[Node]: influenceObjects()のDAGパスから作る新しいラッパーのリスト。
-                Joint以外も登録されていれば対応するNode型を使う。シーンのノードは複製しない。
-                リスト位置はweights[]の論理番号とは限らない。
+                登録型に応じJoint以外も返す。リスト位置はweights[]の論理番号とは限らず、ノードは複製しない。
         """
         return [Node(path) for path in self.fn.influenceObjects()]
 
@@ -233,25 +232,24 @@ class SkinCluster(Node):
         return result
 
     def removeUnusedInfluences(self, *, force=_UNSET, fast=False, f=_UNSET):
-        """未使用influenceの登録を外す。jointノード自体は削除しない。
+        """未使用influenceの登録を外し、ノード自体は残す。
+
+        force時は不正ウェイトを修復してから未使用を検索する。fastでは、その後で
+        解除対象の構造を全件検査してから登録を外す。先行した修復・解除は自動で戻さない。
 
         Args:
-            force (bool): Trueなら不正ウェイトを除去してから使用状況を調べる。
-                短縮名f。正規化やロック解除は行わない。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。既定FalseはMayaコマンドを使用する。
+            force (bool): 修復後に未使用を調べる。正規化やロック解除は行わない。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
-            list[Node]: 登録を外したノード。未使用influenceがなければ空リスト。
+            list[Node]: influence順の、登録を外したノード参照。対象がなければ空リスト。
 
         Raises:
-            TypeError: force/fastがboolでない場合、またはfとforceを同時指定した場合。
-            ValueError: 全influenceが未使用で、削除すると登録が空になる場合。
-            RuntimeError: Mayaが削除を拒否した場合。完了済み処理は自動では戻さない。
-
-        Note:
-            通常モードの変更は一回のUndoで戻せる。fast=TrueはUndo対象外。
-            戻り値はinfluenceから外したノードへの参照で、ノード自体は削除しない。
+            TypeError: force/fastがbool以外、またはforce/fを同時指定した場合。
+            ValueError: 解除すると登録が空になる場合。
+            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            NotImplementedError: fastで単一geometry条件を満たさない場合。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -335,20 +333,17 @@ class SkinCluster(Node):
     def getWeights(self, joints):
         """指定influenceの全頂点ウェイトを、先頭Meshから取得する。
 
-        頂点番号の昇順で、各頂点内はjointsの指定順に並べる。APIには
-        influenceObjects()内の物理番号を渡し、疎なweights[]の論理番号は直接渡さない。
+        APIにはinfluenceObjects()内の物理番号を渡し、疎なweights[]の論理番号は渡さない。
 
         Args:
-            joints (str | Node | Iterable): 登録済みinfluenceの名前または参照。
-                複数指定では名前とNodeを混在させず、同じ形式に揃える。
+            joints (str | Node | Iterable): 登録済みinfluence。複数は名前と参照を混在させない。
 
         Returns:
-            om2.MDoubleArray: 長さが頂点数×指定influence数の新しい平坦な値配列。
-                配列を書き換えてもシーンには設定されない。
+            om2.MDoubleArray: 頂点番号順・各頂点内はjoints順の、頂点数×指定数の平坦な値配列。
+                無次元の独立した値で、配列の変更はシーンへ反映されない。
 
         Note:
-            setWeightsの空・未登録・重複を拒否する独自検証は共有しない。
-            登録済み対象を指定し、未登録などの入力失敗は下位の名前解決・配列変換・APIへ委譲する。
+            setWeightsの空・未登録・重複検証は行わず、入力失敗は名前解決・配列変換・APIへ委譲する。
         """
         vertices, _ = self._all_verts()
         return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
@@ -453,29 +448,25 @@ class SkinCluster(Node):
             self.setWeights(influences, payload["weights"], fast=fast)
 
     def redistributeWeights(self, vertices, method="cubic", *, fast=False):
-        """頂点ごとのウェイト配分を、イージング曲線で強弱をつけて配り直す。
+        """先頭Meshの頂点ウェイトを正規化し、イージングをかけて再正規化する。
 
-        対象頂点それぞれについて、influence 別のウェイトを合計1に揃えた
-        割合として読み、各割合を ``mlib.maths.easing.ease`` の曲線に通す。
-        その結果をもう一度合計1に揃えて書き戻す。割合の大小の差が強調される
-        ため、境界がくっきりした配分に寄る。どの influence が効いているかは
-        変わらず、ウェイト0の influence は0のまま。
+        頂点番号はint()で変換し、重複を除いて昇順に処理する。各頂点で読取り・計算・書込みを行い、
+        全頂点の書込み可否は先に検査しない。0のinfluenceは0のまま。linearでも合計1へ正規化する。
 
         Args:
-            vertices (Vertex | Vertices | Iterable[int | Vertex]): 対象頂点または番号列。
-                Vertexは先頭geometryのmeshに属すること。重複は1回として扱う。
-            method (str): 曲線名。``mlib.maths.easing.CURVES`` のいずれか
-                (例: ``"cubic"``、``"sine"``、``"exponential"``)。
-                ``"linear"`` は配分を変えない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            vertices (Vertex | Vertices | Iterable[int | Vertex]): 頂点または番号列。
+                Vertex/Verticesは先頭Mesh所属に限る。空列は変更しない。
+            method (str): mlib.maths.easing.CURVESの曲線名。既定cubic。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
 
         Returns:
-            None: 値を返さない。一回の Undo で戻せる。
+            None: 値を返さない。途中失敗で先行する頂点・列の変更は自動で戻さない。
 
         Raises:
-            TypeError: method が文字列でない場合。
-            ValueError: method が未対応、または対象頂点のウェイト合計が0の場合。
-            IndexError: 頂点インデックスが mesh の範囲外の場合。
+            TypeError: methodが文字列でない、fastがbool以外、または頂点入力を変換できない型の場合。
+            ValueError: 曲線名・所属・頂点番号の変換が不正、ウェイト合計が0以下、またはイージング計算が成立しない場合。
+            IndexError: 頂点番号が現在の範囲外の場合。
+            RuntimeError: Mayaが読取り・書込みを拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -530,26 +521,26 @@ class SkinCluster(Node):
                     set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value, fast=fast)
 
     def transferWeights(self, source_target_pairs, *, fast=False):
-        """複数のsource/target組についてウェイトを移す。
+        """指定順のsource/target組で、sourceの影響頂点からtargetへウェイトを移す。
 
-        処理が途中で失敗しても選択状態は preservedSelection により復元される。完了済みの
-        ウェイト変更はロールバックしない。sourceの値でtargetを置き換え、
-        targetの以前の値へ加算はしない。正規化はMayaのskinPercentと
-        skinClusterのnormalizeWeights設定に従う。
+        全組の参照と登録を検証してから処理し、同じinfluence同士は省く。
+        targetへ加算せずsource値で置換し、sourceを0にする。source=0の頂点は変更しない。
+        通常はskinPercentとnormalizeWeights設定に従い、preservedSelectionで選択復元を試みる。
+        fastは単一geometryと編集条件を検査し、interactive正規化を再現する。完了済み変更は戻さない。
 
         Args:
-            source_target_pairs (Iterable[tuple[Node | str, Node | str]]): influenceの組。
-                Maya APIのノード参照も受け付ける。全組を検証後、指定順に移送する。
-                同じinfluence同士の組は何もしない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            source_target_pairs (Iterable[tuple[Node | str, Node | str]]): 登録済みinfluenceの組。
+                Maya APIのノード参照も受理する。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしのOM2直接更新。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            ValueError: ペアの要素数が2でない、または未登録のinfluenceの場合。
-            TypeError: ペアが反復可能でない、または未対応の参照型の場合。
-            RuntimeError: 接続ノード名・型名からスキニングレイヤーを検出した場合、または Maya 操作に失敗した場合。
+            TypeError: ペアを反復できない、未対応の参照型、またはfastがbool以外の場合。
+            ValueError: ペアが2要素でない、または未登録influenceの場合。
+            RuntimeError: レイヤー・ロック等の編集制限、またはMayaの処理失敗。
+            NotImplementedError: fastでgeometryが1個でない場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -578,27 +569,27 @@ class SkinCluster(Node):
                         self._xfer_pair(source_joint, target_joint)
 
     def removeInfluence(self, joint, transfer_to_parent=True, *, force=_UNSET, fast=False, f=_UNSET):
-        """祖先influenceへ加算後、登録を外す。jointノードは削除しない。
+        """祖先influenceへ加算してから登録を外す。ノード自体は削除しない。
 
-        同じskinClusterの最も近い祖先influenceを移送先にする。
-        移送先がなければMaya標準のremoveInfluenceに再配分を任せる。
-        最後の一つのinfluenceは削除しない。全体は一回のUndoで戻せる。
+        移送先は同じskinClusterの最も近い祖先influence。生ウェイトを加算してsourceを0にし、登録を外す。
+        移送しない場合は通常cmds、fastはOM2で再配分する。最後の登録は外せない。
+        修復・移送・解除は順次行い、後続失敗で完了済み変更は戻さない。
 
         Args:
-            joint (Joint | str): 削除対象の influence。
-            transfer_to_parent (bool): 祖先への移送を行うか。Falseは標準削除のみ。
-            force (bool): Trueは不正ウェイトを除去してから移送・登録解除する。
-                短縮名f。正規化・ロック解除・レイヤーの回避は行わない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            joint (Joint | str): 解除対象のinfluence。
+            transfer_to_parent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
+            force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
-            ValueError: 未登録、または最後の一つのinfluenceの場合。
-            RuntimeError: スキニングレイヤーを検出、または Maya が削除を拒否した場合。
+            TypeError: transfer_to_parent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            ValueError: 未登録、または最後のinfluenceの場合。
+            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            NotImplementedError: fastでgeometryが1個でない場合。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -1330,27 +1321,25 @@ class SkinClusters(Nodes):
     addInfluences.__signature__ = inspect.signature(SkinCluster.addInfluences)
 
     def removeInfluences(self, joints, transfer_to_parent=True, *, force=_UNSET, f=_UNSET):
-        """保持するskinClusterのinfluence登録だけを解除する。
+        """保持するskinClusterだけから、指定jointのinfluence登録を外す。
 
-        jointノードや親子関係は変更しない。祖先influenceがあればウェイトを
-        加算し、なければMaya標準のremoveInfluenceに再配分を任せる。
-        未登録の組は無視する。全登録の解除は変更前に拒否する。
-        深いjointから順に処理し、全体を一回のUndoにまとめる。
-        実行途中のMayaエラーは伝播し、完了済み変更は自動では戻さない。
+        jointノードと親子関係は残す。未登録の組は省き、全登録の解除は変更前に拒否する。
+        全組を事前確認し、skinClusterの保持順、各skin内は深いjoint順に処理する。
+        通常処理のみで、Undo有効時に一つのチャンクへ記録する。先行変更は自動で戻さない。
 
         Args:
             joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
-            transfer_to_parent (bool): Trueは祖先へ移送。FalseはMaya標準の解除のみ。
-            force (bool): Trueは不正ウェイトを除去してから登録解除する。短縮名f。
+            transfer_to_parent (bool): Trueは最も近い祖先influenceへ加算し、なければ標準再配分。Falseも標準再配分。
+            force (bool): 不正ウェイトを修復してから登録解除する。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             SkinClusters: 自身。
 
         Raises:
-            TypeError: transfer_to_parent/forceがboolでない場合、またはfとforceの同時指定。
+            TypeError: transfer_to_parent/forceがbool以外、またはforce/fを同時指定した場合。
             ValueError: 最後のinfluenceまで解除しようとした場合。
-            RuntimeError: 無効なjoint、編集不可、またはMayaの処理失敗。
+            RuntimeError: 無効joint、レイヤー・ロック、またはMayaの編集失敗。
         """
         if f is not _UNSET:
             if force is not _UNSET:

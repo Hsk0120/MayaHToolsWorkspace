@@ -111,6 +111,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25 10:00 JST): mlib文書3時間枠を連続作業で完了。指定4項目へ整理し独立39章を削除。docstring 261件を実体へ同期、変更本文約19%短縮。日英各332HTML/警告0、全ローカル参照・英訳・170ファイルの実行AST/署名/既定値不変を確認。実読/修正1082定義、未確認624定義と未実測の実装懸念4件を台帳へ保持。Maya/commit/push/公開なし。詳細 .maya-output/mlib-docs-3h-20261025/result.json。 スケジュールmlib-6は削除成功と設定ファイル消失を確認。
+
 - Codex (2026-10-25): mlib完了分をcommit/push（このコミット）。本体・日英説明・引数/fast/safe明示化と必要なmlrig JointHierarchy使用側を対象とし、別作業のmlrig追加・QuickPathExplorer・submoduleを保持。前回検証時のPython318素材とJointHierarchyの一致、公開/layout/diffの成功を確認。前回全Maya2022〜2027各1227件/計7362件（既存条件27skip）・使用側383件・日英各371ページ/警告0の証拠を再利用。今回は製品の追加修正なし。横断複雑性をソースと既存テストで調べ、複数形の準備/実行、値更新、TRS、Component、定義追加等の保守候補と仕様判断が必要な保証を区分してGit対象外へ記録。調査によるMaya再起動・性能測定はなし。証拠: `.maya-output/mlib-complexity-audit-20261025/`。
 
 - Codex (2026-10-25 00:04 JST): mlibの長短フラグ引数を明示化。`_flag_aliases`製品151箇所とhelp実行時解析/別名メタデータを撤去し、通常のdefと本文で省略/競合を検証。長短名・位置引数順・実行時既定値/単位/返却・fast/safeを維持。予約語as/isだけ辞書指定、内部_UNSETは省略判定専用。callEachの形式は全件先行検査、長短競合/必須sentinelは各単数本文で保持順検査とし、後続失敗時の先行変更/通常1回Undo・fast履歴不変を説明/検証。初回の旧署名/例外型期待3ファイルと重点ランナーのreload順を修正。Maya2022〜2027各137ファイル/1227件、合計7362件・失敗0/既存条件27skip、利用側は並行追加を含む59ファイル/383件成功（前回54/347との差を区別）。host53件・公開/Python3.7/layout/diff成功。日英各371ページSphinx警告0、155署名と重要説明を照合、PO8993件/既存残存訳変更・未訳/fuzzy/記法0。Maya native説明の型/既定値/親指定/fast制限も実装照合して修正。既存差分・他作業・submodule保持、未commit/未push。GUI・速度未計測。証拠: `.maya-output/mlib-explicit-flags-20261024/result.json`。

@@ -298,7 +298,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 ## maya.cmds との受け渡し
 
 mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕様とする。詳細は
-[maya.cmds との受け渡し](../maya/inhouse/mlib/_docs/cmds_interop.rst) を参照する。
+各公開APIのdocstringを参照する。基本例は[はじめに](../maya/inhouse/mlib/_docs/getting_started.rst)に記載する。
 
 - シーンのノード・アトリビュート・コンポーネントを表すクラスの `__str__` は、`maya.cmds` が一意に解決できる名前を返す。`Node` は最短一意名、`Plug` は `<ノードの最短一意名>.<アトリビュートパス>`、`Component` はシェイプの完全パス付きの名前とし、呼び出すたびに現在のシーンから求める(名前変更・親子付け替えに追従する)。
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
@@ -342,7 +342,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - シーン編集は既存のUndo方針に従う。対応APIの `fast=True` はUndo不要の明示指定として区別する。
 - 改名・モジュール移動は `mlib.reload()` でも検証し、廃止した公開名が残らないこと。
 
-既存APIの変更前後の対応表は [APIの命名と移行](../maya/inhouse/mlib/_docs/api_naming.rst) を参照する。
+現行APIの名前・引数・返却は各公開APIのdocstringを参照する。
 
 ## cmdsの範囲
 
@@ -448,11 +448,11 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 公開メソッド名と生API取得
 
-所有Plugの`getNode()`は保持参照でもメソッドとする。独自の取得は`getParent/getLongName/getFullName`等の正式名へ集約し、取得短名の互換入口は残さない。判定の正式is名と`hasAttr`、操作の`delete`、生API取得の`mnode/mpath/mplug`はそれぞれの確定契約を維持する。固定Plugの参照だけを返す専用入口は増やさず、`getPlug()`を使う。用途ごとの固定一覧は利用側で選定する。複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/mlib/_docs/api_methods.rst`を参照する。
+所有Plugの`getNode()`は保持参照でもメソッドとする。独自の取得は`getParent/getLongName/getFullName`等の正式名へ集約し、取得短名の互換入口は残さない。判定の正式is名と`hasAttr`、操作の`delete`、生API取得の`mnode/mpath/mplug`はそれぞれの確定契約を維持する。固定Plugの参照だけを返す専用入口は増やさず、`getPlug()`を使う。用途ごとの固定一覧は利用側で選定する。複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/mlib/nodes/node.py`と`maya/inhouse/mlib/plugs/plug.py`の公開APIのdocstringを参照する。
 
 ### Transformationの追加仕様
 
-`mlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はmlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/mlib/_docs/transformation.rst`を参照する。
+`mlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はmlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成行列を受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/mlib/maths/transformation.py`と`maya/inhouse/mlib/nodes/transform.py`の公開APIのdocstringを参照する。
 
 配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存要素だけの取得には`getElement(index)`を使い、未作成ならIndexErrorとする。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはgetFullNameで文字列化する。mlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、mlib.cmdsの同名ラッパーは作らない。
 

@@ -9,25 +9,28 @@ from .transform import Transform
 
 
 class DistanceBetween(Node):
-    """inMatrix1/2で変換したpoint1/2間の距離を評価する。"""
+    """distanceBetweenノードを参照し、inMatrix1/2で変換したpoint1/2間の距離を評価する。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def setPoints(self, point1, point2, *, fast=False):
-        """各入力行列の空間における二点を設定する。行列は変更しない。
+        """各入力行列の空間で二点をcmで設定する。行列は変更しない。
+
+        両方の点を検証してからpoint1、point2の順に書く。途中の書込み失敗は先行変更を戻さない。
 
         Args:
-            point1 (Iterable[float]): 第一の点。内部距離単位cm。
-            point2 (Iterable[float]): 第二の点。同じ単位。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            point1 (Iterable[float]): 第一の点。XYZ順の有限な3成分、cm。
+            point2 (Iterable[float]): 第二の点。同じ単位・形式。
+            fast (bool): 既定Falseは通常更新。TrueはUndoなしのOpenMaya更新。
 
         Returns:
             DistanceBetween: 自身。
 
         Raises:
-            ValueError: 座標が3要素でない、または非有限値の場合。
-            RuntimeError: アトリビュートロックなどで設定できない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            TypeError: fastがbool以外、または座標を数値列へ変換できない型の場合。
+            ValueError: 座標が3成分でない、不正な数値文字列、または非有限値の場合。
+            RuntimeError: ロックや入力接続などで設定できない場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -42,7 +45,10 @@ class DistanceBetween(Node):
             return self
 
     def connectTransforms(self, first, second, force=_UNSET, *, f=_UNSET):
-        """二つのTransform原点のワールド距離を測る接続を設定する。
+        """二つのTransformのワールド行列を接続し、原点間距離を測る。
+
+        両方のTransformを解決して型を検査し、point1/2を原点へ戻した後に行列を順に接続する。
+        失敗時の先行変更は戻さない。Undoは有効時だけ記録する。
 
         Args:
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
@@ -56,7 +62,6 @@ class DistanceBetween(Node):
         Raises:
             TypeError: Transform以外を指定した場合。
             RuntimeError: ロックや既存接続により変更できない場合。
-                途中の変更は自動では戻さず、一回のUndoで戻せる。
         """
         if f is not _UNSET:
             if force is not _UNSET:

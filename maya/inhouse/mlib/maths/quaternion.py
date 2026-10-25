@@ -59,51 +59,38 @@ def _unit_copy(value):
 
 
 class Quaternion(om2.MQuaternion):
-    """om2.MQuaternion を継承した XYZW 成分の可変な四元数。
+    """om2.MQuaternionを継承した、可変・ハッシュ不可のXYZW四元数。
 
-    ``om2.MQuaternion`` の派生クラスなので、そのまま OpenMaya API 2.0 の関数へ
-    渡せる。コンストラクタは ``Quaternion()`` (単位四元数)、
-    ``Quaternion(x, y, z, w)``、``Quaternion([x, y, z, w])``、
-    ``Quaternion(MQuaternion)``、``Quaternion(angle, axis)`` (軸角。axis は
-    MVector 系)、``Quaternion(a, b[, factor])`` (MVector a を b へ回す回転)など
-    om2 と同じ形を受け付け、加えて ``Quaternion(x=0, y=0, z=0, w=1)`` の
-    キーワード引数(省略した成分は単位四元数の値)も使える。成分は数値だけで、
-    不正な引数は om2 と同じく ValueError。生成時や積の計算時に正規化は行わない。
+    OpenMaya APIへそのまま渡せる。生成形式は :meth:`__init__` に従い、入力から独立した値を作る。
+    軸角の角度はrad。生成時と積の計算時に正規化しない。
 
-    積 ``q1 * q2`` は om2 と同じ順序で、q1 を先に適用してから q2 を適用する回転
-    になる(``(q1 * q2).asMatrix()`` は ``q1.asMatrix() * q2.asMatrix()`` と同じ回転。Hamilton 積の
-    ``q2 ⊗ q1`` に等しい)。``+``、``-``、単項の ``-`` は om2 の成分ごとの演算。
-    ``数値 * q`` は om2 と同じく4成分のスカラー倍(``q * 数値`` と ``/`` は om2 と
-    同じく未対応)。演算結果は mlib の :class:`Quaternion` で返す(``om2.MQuaternion`` が
-    左辺でも同じ)。ただし ``om2.MEulerRotation * q`` は om2 側が先に処理するため
-    ``om2.MEulerRotation`` になる(``EulerRotate * q`` は EulerRotate)。``*=`` / ``+=`` /
-    ``-=`` は自身を書き換える(om2 の MQuaternion に無い ``+=`` / ``-=`` も mlib で
-    in-place にしている)。
+    ``q1 * q2`` はq1、q2の順に適用する回転で、行列積の順序と同じ(Hamilton積の ``q2 ⊗ q1``)。
+    加減算・単項の ``-`` は成分ごとの演算。``数値 * q`` は4成分のスカラー倍で、
+    ``q * 数値`` と除算は未対応。演算結果はQuaternionで、左辺が ``om2.MQuaternion`` でも同じ。
+    ただし ``om2.MEulerRotation * q`` はOM2型を返し、``EulerRotate * q`` はEulerRotateを返す。
+    ``*=`` / ``+=`` / ``-=`` は自身更新で、OM2にない ``+=`` / ``-=`` も同じオブジェクトを更新する。
+    数学値を返す継承メソッドも対応するmlib型を返し、コピー操作とIt付きの自身更新を区別する。
 
-    値は可変で成分へ代入でき、ハッシュは不可。``len()`` は 4、添字(-4〜3。範囲外は
-    IndexError。スライスは成分の tuple)と反復は X、Y、Z、W の順。``==`` は成分の
-    完全一致で(``q`` と ``-q`` は同じ回転でも等しくない)、MQuaternion 系以外との
-    比較は :class:`~mlib.maths.vector.Vector` と同じく例外にしない。
-
-    数学値を返す継承メソッドも対応するmlib型を返す。コピー操作は新しい値を
-    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
+    成分へ代入できる。lenは4、添字は-4〜3、範囲外はIndexError。スライスは成分tuple、反復はXYZW順。
+    ``==`` は成分の完全一致で、同じ回転でもqと-qは等しくない。
+    異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
     """
 
     __slots__ = ()
     __hash__ = None
 
     def __new__(cls, *args, **kwargs):
-        """C++ の実体を確保した cls のインスタンス(単位四元数)を作る。
+        """基底初期化でC++実体を確保し、clsの単位四元数を作る。
 
-        理由は :meth:`mlib.maths.vector.Vector.__new__` と同じ(``__new__`` だけで
-        作ったインスタンスがアクセス時に落ちないよう、ここで確保する)。
+        ``__init__`` を省略しても実体へアクセスできるよう、先に確保する。
+        詳細は :meth:`mlib.maths.vector.Vector.__new__` を参照。
 
         Args:
-            *args: コンストラクタの引数。ここでは使わない。
-            **kwargs: コンストラクタのキーワード引数。ここでは使わない。
+            *args: ここでは使わない生成引数。
+            **kwargs: ここでは使わないキーワード引数。
 
         Returns:
-            Quaternion: cls の単位四元数。
+            Quaternion: clsの単位四元数。
         """
         self = _NEW(cls)
         _INIT(self)
@@ -603,7 +590,7 @@ class Quaternion(om2.MQuaternion):
         om2 の静的メソッド ``MQuaternion.slerp(p, q, t, spin=0)`` を上書きする。
         インスタンスメソッドとして ``p.slerp(q, t)`` と呼べるほか、
         ``Quaternion.slerp(p, q, t)`` の静的呼び出しの形でも使える。入力を正規化
-        してから om2 の slerp で最短経路を補間する。
+        してからom2のslerpへ渡す。spin=0では最短経路を補間する。
 
         Args:
             other (om2.MQuaternion): 補間先の回転。
@@ -716,7 +703,7 @@ class Quaternion(om2.MQuaternion):
             axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
 
         Returns:
-            Quaternion: 同型の新しい回転。Eulerの回転順序は維持する。
+            Quaternion: 同型の新しい回転。
         """
         matrix = self.asUnitMatrix().mirror(axis)
         result = type(self)._wrap(matrix.quaternion)

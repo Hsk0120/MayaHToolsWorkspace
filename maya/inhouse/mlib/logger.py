@@ -167,14 +167,14 @@ def print(*objects, sep=" ", end="\n", file=None, flush=False):
 
 
 def warning(message, *args, **kwargs):
-    """警告レベルのログを出力する。
+    """警告をScript Editorとビューポートへ通知する。
 
-    Maya 上ではScript Editor とビューポートに出力する。例外は送出しない。
+    ログレベルを例外送出へ変換しない。引数・書式は標準loggingに従う。
 
     Args:
-        message (object): ログメッセージまたは書式文字列。
-        *args (object): logging に渡すメッセージ書式引数。
-        **kwargs (object): exc_info、extra、stack_info、stacklevel など logging に渡すオプション。
+        message (object): メッセージまたは書式文字列。
+        *args (object): loggingへ渡す書式引数。
+        **kwargs (object): exc_info、extra等のloggingオプション。
 
     Returns:
         None: 値を返さない。
@@ -183,14 +183,15 @@ def warning(message, *args, **kwargs):
 
 
 def error(message, *args, **kwargs):
-    """エラーレベルのログを出力する。
+    """エラーをScript Editorとビューポートへ通知する。
 
-    Maya 上ではScript Editor とビューポートに出力する。例外は送出しない。
+    ログレベルを例外送出へ変換しない。引数・書式は標準loggingに従う。
+    通知して中断する場合はraise_with_notifyを使う。
 
     Args:
-        message (object): ログメッセージまたは書式文字列。
-        *args (object): logging に渡すメッセージ書式引数。
-        **kwargs (object): exc_info、extra、stack_info、stacklevel など logging に渡すオプション。
+        message (object): メッセージまたは書式文字列。
+        *args (object): loggingへ渡す書式引数。
+        **kwargs (object): exc_info、extra等のloggingオプション。
 
     Returns:
         None: 値を返さない。

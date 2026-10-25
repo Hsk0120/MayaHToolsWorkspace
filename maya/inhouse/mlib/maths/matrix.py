@@ -274,56 +274,44 @@ def _components(translate, rotate, scale, shear):
 
 
 class Matrix(om2.MMatrix):
-    """om2.MMatrix を継承した、Maya の行ベクトル規約の可変な4行4列変換行列。
+    """om2.MMatrixを継承した、Mayaの行ベクトル規約の可変な4行4列行列。
 
-    行優先順で16要素を持ち、平行移動は添字12、13、14に置く。``om2.MMatrix`` の
-    派生クラスなので、``MTransformationMatrix(m)`` や ``MFnMatrixData().create(m)``
-    など OpenMaya API 2.0 の関数へそのまま渡せる。成分からの合成と分解は
-    アフィン変換を想定し、分解は ``om2.MTransformationMatrix`` と同じ規約になる
-    (行列式が負の場合は Z スケールを負にして 180 度の補償回転を入れる。
-    ``cmds.xform`` や decomposeMatrix ノードと同じ)。
+    OpenMaya APIへそのまま渡せる。入力はコピーし、16要素は行優先、平行移動は添字12〜14。
+    Mayaへ渡す平行移動はcmで、UI単位へ換算しない。
+    合成・分解はアフィン変換を想定する。分解はMTransformationMatrixの規約で、
+    負の行列式ではZスケールを負にして180度の補償回転を入れる(cmds.xform/decomposeMatrixと同じ)。
 
-    演算子は om2 の意味論に従う。
+    * ``a * b`` / ``a @ b`` はaを先に適用する行列積。結果は ``type(a)``。
+      ``om2.MMatrix * Matrix`` もMatrixを返す。
+    * 数値倍・加減算はOM2の成分ごとの演算。
+    * ``Vector * m`` は平行移動を含まない方向変換。
+      左辺が ``om2.MVector`` / ``om2.MPoint`` ならOM2側で処理しOM2型を返す。
+    * ``m * v`` はMVector系との列ベクトルの積(``v * mᵀ``)をVectorで返す。
+      ``m * om2.MPoint`` も列ベクトルの積のXYZをVectorで返し、結果のwは捨ててwで割らない。
+    * ``m @ v`` はTypeError。位置の変換は :meth:`transformPoint` または ``om2.MPoint(p) * m`` を使う。
 
-    * ``a * b`` / ``a @ b``: 行列積(``a`` を先に適用する)。結果は ``type(a)``。
-      ``om2.MMatrix * Matrix`` も Matrix を返す。
-    * ``m * 数値``、``a + b``、``a - b``: om2 の成分ごとの演算を包んで返す。
-    * ``v * m`` (v は Vector): 行ベクトル規約の方向変換(平行移動を含まない)。
-      ``om2.MVector * m`` / ``om2.MPoint * m`` は om2 側が先に処理するため om2 の型を返す。
-    * ``m * v`` (v は om2.MVector を含む MVector 系): om2 と同じ列ベクトルとしての積
-      (``v * mᵀ``)の :class:`~mlib.maths.vector.Vector`。
-    * ``m * p`` (p は om2.MPoint): om2 の列ベクトルとしての積(同次座標の4成分)の
-      x、y、z を持つ Vector。結果の w は捨てる(``Vector(om2.MPoint)`` と同じく w で割らない)。
-    * ``m @ v`` は TypeError。位置の変換には :meth:`transformPoint` (または
-      ``om2.MPoint(p) * m``)を使う。
+    ``*=`` / ``@=`` / ``+=`` / ``-=`` は自身を更新する。数学値を返す継承メソッドもmlib型を返し、
+    コピー操作は独立値、It付き操作は自身更新となる。成分プロパティの取得値も独立した複製で、編集しても行列は変わらない。
 
-    ``*=`` / ``@=`` / ``+=`` / ``-=`` は自身を書き換える。値は可変で、添字
-    ``m[i]`` (-16〜15)/ ``m[行, 列]`` (それぞれ -4〜3)へ代入できる。範囲外は
-    IndexError。ハッシュは不可。``==`` は完全一致で、MMatrix 系なら om2.MMatrix とも
-    等しくなり得る。MMatrix 系以外との比較は :class:`~mlib.maths.vector.Vector` と
-    同じく例外にしない。成分を取得するプロパティ(``translate`` など)は複製を返すため、
-    戻り値を書き換えても行列は変わらない。
-
-    数学値を返す継承メソッドも対応するmlib型を返す。コピー操作は新しい値を
-    返し、It付きの更新操作は自身を書き換える。OpenMaya標準の演算と引数を維持する。
+    ハッシュ不可。``m[i]`` は-16〜15、``m[行, 列]`` は各-4〜3で代入でき、範囲外はIndexError。
+    ``==`` はMMatrix系の完全一致。異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
     """
 
     __slots__ = ()
     __hash__ = None
 
     def __new__(cls, *args, **kwargs):
-        """C++ の実体を確保した cls のインスタンス(単位行列)を作る。
+        """基底初期化でC++実体を確保し、clsの単位行列を作る。
 
-        理由は :meth:`mlib.maths.vector.Vector.__new__` と同じ。:meth:`__init__` で
-        引数を検証する前に確保しておくため、検証の例外を握りつぶす派生クラスでも
-        アクセス時に落ちない。
+        ``__init__`` を省略・失敗しても実体へアクセスできるよう、先に確保する。
+        詳細は :meth:`mlib.maths.vector.Vector.__new__` を参照。
 
         Args:
-            *args: コンストラクタの引数。ここでは使わない。
-            **kwargs: コンストラクタのキーワード引数。ここでは使わない。
+            *args: ここでは使わない生成引数。
+            **kwargs: ここでは使わないキーワード引数。
 
         Returns:
-            Matrix: cls の単位行列。
+            Matrix: clsの単位行列。
         """
         self = _MMatrix.__new__(cls)
         _MMatrix.__init__(self)
@@ -1194,7 +1182,7 @@ class Matrix(om2.MMatrix):
     def _recompose(self, rotate=None, scale=None, shear=None):
         """分解値の一部を置き換えて、自身の値を組み立て直す。
 
-        入力をすべて検証してから書き込むため、例外時に自身は変わらない。
+        入力の形と分解を先に検査する。要素代入で失敗した場合、先行変更は自動では戻さない。
 
         Args:
             rotate (Iterable[float] | EulerRotate | Quaternion | None): 新しい回転。None は現在の値。

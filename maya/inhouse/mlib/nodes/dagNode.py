@@ -13,10 +13,9 @@ from .node import Node, Nodes
 
 
 class DagNode(Node):
-    """TransformやShapeのノード参照とDAGパスを保持し、階層を照会する。
+    """Transform・ShapeのDAGパスを保持し、階層を照会する。
 
-    getParent/getChildrenは保持するインスタンスのパスを基準にする。
-    全インスタンスのパスはgetInstancesで取得する。
+    getParent/getChildrenは保持パス基準。全インスタンスの参照はgetInstancesで取得する。
     """
 
     def getSkinClusters(self):
@@ -102,29 +101,27 @@ class DagNode(Node):
         return result
 
     def mpath(self):
-        """保持するインスタンスのDAGパスをコピーせず取得する。
+        """保持する可変MDagPathを借用する。コピーは返さない。
 
-        返すMDagPathは内部で保持する可変オブジェクトと同一。
-        push/pop等で編集する場合は ``om2.MDagPath(node.mpath())`` でコピーする。
+        push/pop等で編集する前に ``om2.MDagPath(node.mpath())`` でコピーする。
 
         Returns:
-            om2.MDagPath: この参照から借用するDAGパス。
+            om2.MDagPath: 内部で保持するインスタンスのパスと同一のオブジェクト。
 
         Raises:
-            RuntimeError: 保持していたパスが無効な場合。他のインスタンスへ切り替えない。
+            RuntimeError: 保持パスが無効な場合。別インスタンスへ切り替えない。
         """
         return self._current_dag_path()
 
     def getInstances(self, noSelf=False):
-        """同じDAGノードへ到達する全インスタンスの参照を取得する。
+        """同じDAGノードの全インスタンスを、複製せず参照する。
 
         Args:
             noSelf (bool): Trueなら保持するパスを除外する。既定False。
 
         Returns:
-            list[DagNode]: 間接インスタンスも含む、Maya APIの列挙順の参照。
-                保持するパスには自身、それ以外には新しいラッパーを返す。
-                Mayaノードの複製やインスタンスの追加は行わない。
+            list[DagNode]: 間接インスタンスも含むAPI列挙順の参照。
+                保持パスは自身、それ以外は新しいラッパー。インスタンスは追加しない。
 
         Raises:
             RuntimeError: 保持するDAGパスが無効な場合。
@@ -135,18 +132,15 @@ class DagNode(Node):
                 if not noSelf or path.fullPathName() != original]
 
     def getParents(self, indirect=False):
-        """直接の親を、親ノード単位またはインスタンスのパス単位で取得する。
+        """直接の親をノード単位またはパス単位で取得する。祖先全体ではない。
 
         Args:
-            indirect (bool): FalseはMFnDagNodeの親ノード順で各親を一つずつ返す。
-                保持パスの親に一致するノードにはそのパスを使い、
-                他の親はMayaから得た一つのパスを使う。
-                TrueはgetInstancesの順で各パスの直接の親を返し、
-                親自身のインスタンス化による別パスも含める。祖先全体の取得ではない。
+            indirect (bool): FalseはAPIの親ノード順。保持パスの親にはそのパスを使い、
+                他の親はAPIで得た一つのパスを使う。
+                TrueはgetInstances順に各パスの親を返し、親のインスタンス化による別パスも含む。
 
         Returns:
-            list[DagNode]: 直接の親の参照。返却時の重複統合は行わない。
-                保持するパスがワールド直下なら空リスト。
+            list[DagNode]: 重複統合しない親の参照。保持パスがワールド直下なら空リスト。
 
         Raises:
             RuntimeError: 保持するDAGパスが無効な場合。
@@ -192,13 +186,13 @@ class DagNode(Node):
         return parent
 
     def getParent(self, step=1):
-        """保持するDAGパスを指定階層だけ遡った親ノードを取得する。
+        """保持パスを指定階層だけ遡る。
 
         Args:
-            step (int): 遡る階層数。0以下またはルートを越える場合はNone。
+            step (int): 遡る階層数。0以下、またはワールドまで遡る場合はNone。
 
         Returns:
-            Node | None: 親のパスを保持する新しいラッパー。親がない場合はNone。
+            Node | None: 遡ったパスの新しいラッパー。親がない場合はNone。
 
         Raises:
             RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。
@@ -224,26 +218,22 @@ class DagNode(Node):
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
                     order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
-        """直接の子、または指定順の子孫をDAGパスを保持して取得する。
+        """保持パスに沿って子・子孫を列挙する。同じノードの別パスも残す。
 
-        名前から再解決せず、保持するパスに子を継ぎ足して探索する。
-        同じMayaノードへ別パスから到達した場合も、ノード単位で重複統合しない。
+        子パスを継ぎ足して探索し、名前から再解決しない。
 
         Args:
             shapes (bool): Shapeも含める。既定はTransformのみ。
-            intermediates (bool): 中間オブジェクトを含める。
-                Falseで除外した子の下は探索しない。
+            intermediates (bool): 中間オブジェクトを含める。除外した子の下は探索しない。
             allDescendents (bool): Trueは子孫全体、Falseは直接の子だけ。
             order (str): depthFirstまたはbreadthFirst。兄弟間はDAGの子順。
-            leaves (bool): 探索対象の子Transformを持たないTransformだけを再帰取得する。
-                Shapeの有無は葉の判定に関与しない。shapes=Trueとは併用しない。
-            includeSelf (bool): 自身も取得対象に含める。shapesやleavesの条件は適用する。
-                自身を返す場合は同じラッパーを使う。
+            leaves (bool): 探索対象の子TransformがないTransformを再帰取得する。Shapeの有無は問わない。
+                shapes=Trueとは併用不可。
+            includeSelf (bool): 自身もshapes/leaves条件で判定し、該当すれば同じラッパーを返す。
             underWorld (bool): Shape下のアンダーワールドも探索する。
 
         Returns:
-            list[DagNode]: 保持するインスタンスのパスに沿ったノード参照。
-                対象なし、またはノード自体が無効なら空リスト。
+            list[DagNode]: 探索順の参照。対象なし、またはノード自体が無効なら空リスト。
 
         Raises:
             TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない場合。
@@ -277,15 +267,18 @@ class DagNode(Node):
         return result
 
     def getShape(self, idx=_UNSET, intermediates=False, *, index=_UNSET):
-        """Shape自身を返す。Transformでは指定Shapeを取得する。
+        """Shapeなら自身を返す。TransformのShape取得は派生クラス側で行う。
 
         Args:
-            idx (int): Shape自身では無視する。 別名 ``index`` も使用可能。
-            intermediates (bool): Shape自身では無視する。
+            idx (int): この実装では無視する。
+            intermediates (bool): この実装では無視する。
             index (int): idxの別名。同時指定は不可。
 
         Returns:
             DagNode | None: Shapeなら自身、それ以外はNone。
+
+        Raises:
+            TypeError: idxとindexを同時指定した場合。
         """
         if index is not _UNSET:
             if idx is not _UNSET:

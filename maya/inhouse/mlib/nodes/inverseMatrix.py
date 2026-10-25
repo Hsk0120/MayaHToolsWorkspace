@@ -9,7 +9,11 @@ from .THdependNode import THDependNode
 
 
 class InverseMatrix(THDependNode):
-    """逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
+    """inverseMatrixノードを参照し、逆行列を評価する。Maya付属matrixNodesの明示的なロードが必要。
+
+    値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
+    fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
+    """
 
     def getInputPlug(self):
         """入力のPlugを取得する。
@@ -31,14 +35,11 @@ class InverseMatrix(THDependNode):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix): 設定値。数値は有限値。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             InverseMatrix: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -51,16 +52,13 @@ class InverseMatrix(THDependNode):
         """入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。
+            force (bool): Trueで既存の入力接続を置き換える。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             InverseMatrix: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if src is not _UNSET:
             if source is not _UNSET:

@@ -15,36 +15,31 @@ class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。"""
 
     def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """CV の位置をミラーし、自身を更新する。
+        """CV座標を反転する。Transform・次数・ノット・CV順序・wは保持する。
+
+        周期カーブの通常更新は、API末尾の重複CVを対応する独立CVへ写し、Mayaの連動規則に従う。
+        共有Shapeの全インスタンスへ影響し、複製やパラメータ方向の反転は行わない。
 
         Args:
-            axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
-                x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
-                単位は 内部距離単位cm。Transform のピボットとは独立する。
-            indices (Iterable[int] | None): CV 番号。None は全 CV、空列は変更なし。
-                重複は1回だけ処理し、負の番号は許容しない。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            axis (str): 重複しないx/y/zの組合せ。大文字も可。
+            worldSpace (bool): Trueは保持パスのworld、既定FalseはShapeのobject空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点で、Transformのピボットとは独立。
+            indices (Iterable[int] | None): OpenMayaのCV番号。Noneは全CV、空列は変更なし。重複は1回だけ処理する。
+            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に1回で戻せる通常更新。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            NurbsCurve: 編集した自身。
+            NurbsCurve: 自身。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはワールド変換が数値的にほぼ特異な場合。
-            TypeError: CV 番号が整数でない場合。
-            IndexError: CV 番号が範囲外の場合。
-            RuntimeError: Maya が形状の取得・編集を拒否した場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
+            TypeError: 番号型・fastが不正、または長短名を同時指定した場合。
+            IndexError: CV番号が負または範囲外の場合。
+            RuntimeError: Mayaが形状の取得・更新を拒否した場合。
+            NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
 
-        CV 座標だけを編集し、Transform、次数、ノット、CV 順序を維持する。
-        カーブの複製やパラメータ方向の反転は行わない。1回の Undo で戻せる。
-        周期カーブの重複 CV は Maya の連動規則に従う。
-        インスタンス形状はデータを共有する全インスタンスへ影響する。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
-        fastで入力履歴付き形状・周期カーブを編集するとNotImplementedError。
+        Note:
+            途中失敗で完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -80,13 +75,15 @@ class NurbsCurve(Shape):
         return CV(self, index)
 
     def getCVs(self, indices=None):
-        """指定した CV 群を取得する。
+        """OpenMayaのCV番号を入力の初出順に保持するコレクションを取得する。
 
         Args:
-            indices (Iterable[int] | None): CV 番号。None は現在の全 CV。
+            indices (Iterable[int] | None): APIのCV番号。Noneは現在の全CVを昇順で取得し、空列は空集合。
+                負数とboolは拒否する。
 
         Returns:
-            CVs: 番号順を維持し、重複を除いたコレクション。
+            CVs: 同じShapeを共有し、重複を除いた新しいコレクション。
+                周期末尾の重複CVもAPI番号で保持するが、cmds用の名前では対応する独立CVへ写す。
         """
         return CVs(self, indices)
 

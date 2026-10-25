@@ -40,17 +40,16 @@ def status():
 
 
 def getDiagnostics():
-    """初期化結果と現在の依存可用性を分けて照会する。
+    """初期化時の記録と、読込み済み宣言の現在の可用性を分けて取得する。
 
-    既に読み込まれた宣言のis_availableだけを呼ぶ。拡張の新規import、
-    型登録、reload、Mayaプラグインのロードは行わない。可用性の照会自体は
-    Python依存を遅延importする場合があるが、シーン・UIを変更してはならない。
+    status()は初期化記録だけを返す。この関数はis_available()を再照会するが、拡張の新規import・
+    型登録・reload・Mayaプラグインのロードは行わない。is_available側は依存を遅延importできるが、
+    シーン/UIを変更しないことが宣言の契約となる。
 
     Returns:
-        dict[str, dict]: 拡張名ごとのinitialization、available、reason。
-            initializationはstatusと同じ状態のコピーで、未初期化ならNone。
-            availableは現在の可用性を示すbool。未読込・初期化中・照会失敗はNoneで、
-            reasonに理由を保持する。初期化結果と登録表は変更しない。
+        dict[str, dict]: initializationは初期化記録のコピー（未記録ならNone）、availableはbool。
+            宣言未読込・初期化中・宣言不正・再入・照会失敗ではavailable=Noneで、reasonへ理由を入れる。
+            初期化記録と登録表は変更しない。
     """
     global _diagnosing
     modules = {name: module for name, module in list(sys.modules.items())

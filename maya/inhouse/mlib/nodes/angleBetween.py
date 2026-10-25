@@ -10,7 +10,10 @@ from .node import Node
 
 
 class AngleBetween(Node):
-    """2本のベクトルのなす角と回転。"""
+    """angleBetweenノードを参照し、二本の入力ベクトルのなす角・回転軸・Euler回転を扱う。
+
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    """
 
     def getInputPlug(self, index=_UNSET, *, idx=_UNSET):
         """入力のPlugを取得する。
@@ -59,9 +62,6 @@ class AngleBetween(Node):
 
         Returns:
             AngleBetween: 自身。
-
-        Note:
-            接続済み入力は値設定で切断しません。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -90,9 +90,6 @@ class AngleBetween(Node):
 
         Returns:
             AngleBetween: 自身。
-
-        Note:
-            force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -117,10 +114,10 @@ class AngleBetween(Node):
             return self
 
     def getResult(self):
-        """現在の入力をMayaで評価した結果を取得する。
+        """入力ベクトル間の角度をradで評価して返す。
 
         Returns:
-            float: 計算結果。
+            float: angleアトリビュートの値。内部角度単位rad。
         """
         return self.getPlug("angle").get()
 

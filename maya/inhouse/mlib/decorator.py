@@ -1,4 +1,4 @@
-"""Maya操作の一時状態・Undoと、内部の呼出し規約を扱う。"""
+"""Undoチャンクと、Mayaの単位・選択・スキン・表示状態の一時変更を提供する。"""
 
 import contextlib
 from contextvars import ContextVar
@@ -20,23 +20,15 @@ for _obsolete_name in ("undoable", "undo_chunk", "undo_transaction", "native_uni
 
 @contextlib.contextmanager
 def undoChunk(name=None):
-    """複数の Maya 操作を 1 回の Undo チャンクにまとめる。
+    """MayaのUndo対象操作を一つのチャンクへまとめる。
 
-    ``with undoChunk("処理名"):`` と ``@undoChunk("処理名")`` の両方で使用できる。
-    デコレータには括弧が必要。関数の戻り値・メタデータを保持し、反復呼び出しも可能。
-
-    チャンクを開いた場合は finally で閉じる。閉じる際の例外は抑制する。コンテキスト内部の例外は抑制せず、自動ロールバックもしない。
-
-    入れ子の通常チャンクは外側へまとめ、名前も外側を使う。
-    undoTransaction の独立したチャンクは省略しない。
-    Undo非対応の操作やfast=Trueの直接更新を取り消せるようにはしない。
+    with undoChunk(name)と@undoChunk(name)で使う。通常の入れ子は外側の
+    名前とチャンクを使い、undoTransactionの独立チャンクは省略しない。
+    終了時は例外の有無によらずチャンクを閉じる。閉じる失敗は警告し、
+    ブロック内の例外は再送出する。自動ロールバックやfastのUndo対応は行わない。
 
     Args:
-        name (str | None): Maya Undo キューに表示するチャンク名。省略時は
-            関数名を自動設定せず、Mayaの既定表示を使う。
-
-    Yields:
-        None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
+        name (str | None): Undoキューのチャンク名。省略時はMayaの既定表示。
     """
     if _chunk_active.get():
         yield
@@ -64,36 +56,18 @@ def undoChunk(name=None):
 
 @contextlib.contextmanager
 def undoTransaction(name=None):
-    """例外発生時に自動でロールバックする Undo トランザクション。
+    """例外時にUndoを一回実行し、ブロック内の変更の巻戻しを試みる。
 
-    ``with undoTransaction("処理名"):`` と ``@undoTransaction("処理名")`` の
-    両方で使用できる。デコレータには括弧が必要。
+    with undoTransaction(name)と@undoTransaction(name)で使う。Undo有効時が前提で、
+    正常終了時は独立した一つのチャンクを残す。fastの直接更新やファイル操作は戻せない。
 
-    ブロック内で例外が発生した場合、チャンクを閉じたうえで ``cmds.undo()`` を
-    1回実行してブロック内のUndo対象操作を巻き戻してから、元の例外をそのまま
-    再送出する。正常終了時はロールバックせず、undoChunk と同様に1回の
-    Undo にまとまったチャンクとして履歴に残る。
-
-    Undoが有効であることが前提。fast=True・ファイル操作等は巻き戻せない。
-    ガード作成・チャンク終了・undoの失敗は警告し、元の例外を優先するため、
-    ロールバック完了を保証するものではない。
-
-    チャンク内で実際の変更が一件も無いまま例外になった場合、``cmds.undo()``
-    は空のチャンクを素通りして本トランザクションと無関係な直前の操作を
-    巻き戻してしまう(Maya の undo キューの既定挙動)。これを避けるため、
-    ロールバック直前に軽量なダミーノードを作成・削除してチャンクへ必ず
-    1件の Undo エントリを積んでから閉じる。ガード作成またはチャンク終了が
-    失敗した場合、無関係な履歴の巻き戻しを避けるためundoは実行しない。
+    例外時はnetworkノードを作成・削除してUndoエントリを確保してから閉じる。
+    空チャンクによって直前の別操作を戻すのを防ぐため、ガード作成かチャンク終了に
+    失敗した場合はUndoしない。復旧の失敗は警告し、元の例外を再送出する。
+    巻戻しの完了は保証しない。
 
     Args:
-        name (str | None): Maya Undo キューに表示するチャンク名。省略時は
-            関数名を自動設定せず、Mayaの既定表示を使う。
-
-    Yields:
-        None: コンテキスト内で実行した Maya 操作を同じ Undo として扱う。
-
-    Raises:
-        Exception: ブロック内で送出された例外は、ロールバック後にそのまま再送出する。
+        name (str | None): Undoキューのチャンク名。省略時はMayaの既定表示。
     """
     kwargs = {"openChunk": True}
     if name:
@@ -133,17 +107,10 @@ def undoTransaction(name=None):
 
 @contextlib.contextmanager
 def nativeUnits():
-    """ブロック内だけ内部単位(距離=cm、角度=radian)を強制する。
+    """距離と角度のUI単位を、ブロック内だけcm・radへ切り替える。
 
-    行列やベクトルの演算など、シーンの表示単位に依存しない計算をしたい場合に
-    使う。ブロックを抜ける際(例外時を含む)に開始時点の UI 単位へ復元する。
-    ``om2.MDistance``/``om2.MAngle`` の ``setUIUnit`` を直接呼ぶため MEL の
-    往復が無く、時間単位には影響しない。表示単位の変更はシーンデータ自体を
-    変更しないため、この切り替え自体は Maya の Undo キューに乗らない
-    （計算中の単位変換用の一時状態であり、操作そのもののロールバックは行わない）。
-
-    Yields:
-        None: ブロック内では距離=センチメートル、角度=ラジアンとして扱ってよい。
+    OpenMayaのsetUIUnitで変更し、例外時も開始時の単位へ戻す。
+    時間単位とシーンの値は変更しない。この単位切替自体はUndoへ記録しない。
     """
     previous_linear = om2.MDistance.uiUnit()
     previous_angle = om2.MAngle.uiUnit()
@@ -158,16 +125,11 @@ def nativeUnits():
 
 @contextlib.contextmanager
 def preservedSelection():
-    """ブロックの前後で Maya の選択状態を保存・復元する。
+    """現在の選択を保存し、ブロック終了時に復元する。
 
-    ブロック内で選択状態を変更する操作を行っても、ブロックを抜ける際（例外時を含む）に
-    開始時点の選択状態へ復元する。undoChunk と同様、復元は cleanup であり、ブロック内で
-    行った操作そのもののロールバックは行わない。
-    選択の復元にはUndo対応のselectを使い、ブロック全体を一回のUndoにまとめる。
-    コンポーネント選択も保持する。ブロック内で削除された対象は復元対象から除く。
-
-    Yields:
-        None: ブロック内で自由に選択状態を変更してよい。
+    コンポーネント選択を含む選択リストを保存し、終了時に存在する選択名を
+    cmds.selectで復元する。例外時も復元し、ブロック全体を一つのUndoチャンクへ
+    まとめる。内部で行った変更のロールバックはしない。
     """
     original = om2.MGlobal.getActiveSelectionList()
     with undoChunk("mlibPreservedSelection"):
@@ -184,24 +146,19 @@ def preservedSelection():
 
 @contextlib.contextmanager
 def preservedSkinShape(joints):
-    """指定jointに影響するskinClusterの変形を保ったまま、jointの姿勢を編集する。
+    """jointに接続するskinClusterをmoveJointsModeへ切り替えて姿勢を編集する。
 
-    対象に接続するskinClusterをmoveJointsModeへ切り替え、終了時に
-    recacheBindMatricesを実行して、取得できた以前のモードへ戻す。
-    現在の姿勢をスキニング基準へ反映するため、保存済みバインド行列を変更する。
-    任意の階層変更・influence削除や全フレームの変形保持を保証するものではない。
-
-    モード照会・切り替え・再キャッシュ・復元で発生したRuntimeErrorは抑制し、
-    対象と失敗した処理をloggerへ警告する。ブロック内の例外は伝播する。
-    警告が出た場合は保護・復元が完了したとは限らないため、対象の状態を確認する。
-    通常のUndo対象操作を一回のチャンクにまとめるが、fast=Trueの直接更新は戻せない。
+    終了時はrecacheBindMatricesで現在姿勢をバインド行列へ反映し、取得できた
+    以前のモードへ戻す。任意の階層変更・influence削除や全フレームの変形保持は保証しない。
+    モード照会・切替・再キャッシュ・復元のRuntimeErrorは警告して継続し、
+    ブロック内の例外は伝播する。警告時は保護や復元が未完了の可能性がある。
+    通常の変更を一つのUndoチャンクへまとめるが、fastの直接更新は戻せない。
 
     Args:
-        joints (Iterable[Joint | str]): 姿勢を編集する対象のjoint群。
-            joint以外の解決済みノードは除外する。未存在の名前等は解決時に例外となる。
+        joints (Iterable[Joint | str]): 対象joint。非JointはTypeError、解決できない入力も例外。
 
     Yields:
-        SkinClusters: 保護対象になった skinCluster のコレクション。
+        SkinClusters: 保護対象のコレクション。
     """
     from . import logger
     from .nodes.joint import Joints

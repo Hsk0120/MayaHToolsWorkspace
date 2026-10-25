@@ -124,19 +124,18 @@ class Transform(DagNode):
         o=_UNSET, skip=_UNSET, sk=_UNSET, scaleCompensate=_UNSET, sc=_UNSET, aimVector=_UNSET, aim=_UNSET,
         upVector=_UNSET, u=_UNSET, worldUpObject=_UNSET, wuo=_UNSET, worldUpType=_UNSET, wut=_UNSET,
         worldUpVector=_UNSET, wu=_UNSET, **kwargs):
-        """自身を拘束するコンストレイントを作成する。
+        """指定した拘束元から自身を拘束するconstraintを作成する。
+
+        選択状態で対象を補完しない。通常のcmds更新をUndo有効時にまとめ、途中失敗の変更は戻さない。
 
         Args:
             sources (Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug | Iterable):
-                拘束元の単一ノードまたはノード列。Plug・MPlug・``"node.attribute"`` は
-                所有ノード、Component・Components・``"pCube1.vtx[0]"`` は所有シェイプとして扱う。
-                parent/point/orient/scale/aim/poleVector では、拘束元が Transform
-                (joint・IkHandle を含む)に解決される必要がある(シェイプ・Component・
-                DG ノードは TypeError)。
+                単一参照またはその列。Plug/MPlugは所有ノード、Component/Componentsは所有Shapeへ解決する。
+                アトリビュート・コンポーネント文字列も同様。parent/point/orient/scale/aim/poleVectorは
+                Transform（Joint・IkHandleを含む）に解決される入力だけを受け付ける。
             type (str): parent、point、orient、scale、aim、poleVector、
-                geometry、normal、tangent、pointOnPoly。または Constraint 接尾辞付きの型名。
-            maintainOffset (bool): True の場合は現在の相対位置・回転を維持する。
-                False の場合は Maya の既定動作で拘束する。
+                geometry、normal、tangent、pointOnPoly。Constraint接尾辞付きも可。既定parent。
+            maintainOffset (bool): 既定False。parent/point/orient/scale/aimだけへ渡すMayaのmaintainOffset。
             createCache (Sequence[float]): MayaのcreateCacheフラグ。開始・終了時刻の2値をUI時間単位で指定する。
             cc (Sequence[float]): createCacheの別名。同時指定は不可。
             decompRotationToChild (bool): MayaのdecompRotationToChildフラグ。省略時はMayaの既定に従う。
@@ -173,13 +172,13 @@ class Transform(DagNode):
             aim (Sequence[float]): aimVectorの別名。同時指定は不可。
             upVector (Sequence[float]): MayaのupVectorフラグ。(x, y, z)の3値を指定する。
             u (Sequence[float]): upVectorの別名。同時指定は不可。
-            worldUpObject (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): ワールドアップの参照ノード。PlugやComponentは所有ノードへ解決する。
-            wuo (Node | Plug | Component | Components | str | om2.MObject | om2.MDagPath | om2.MPlug): worldUpObjectの別名。同時指定は不可。
+            worldUpObject (Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug): ワールドアップの参照ノード。Plug/Componentは所有ノードへ解決する。Componentsは不可。
+            wuo (Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug): worldUpObjectの別名。同時指定は不可。
             worldUpType (str): MayaのworldUpTypeフラグ。省略時はMayaの既定に従う。
             wut (str): worldUpTypeの別名。同時指定は不可。
             worldUpVector (Sequence[float]): MayaのworldUpVectorフラグ。(x, y, z)の3値を指定する。
             wu (Sequence[float]): worldUpVectorの別名。同時指定は不可。
-            **kwargs: aimVector・worldUpObject等の作成フラグ。短名も使用可能。
+            **kwargs: 選んだMaya constraintコマンドへ渡す追加の作成フラグ。
             typ (str): typeの別名。同時指定は不可。
             mo (bool): maintainOffsetの別名。同時指定は不可。
 
@@ -188,20 +187,13 @@ class Transform(DagNode):
                 ターゲットが追加される場合がある。
 
         Raises:
-            ValueError: 未対応の型または空のソースの場合。
-            TypeError: 型名やターゲットの入力型が不正な場合。parent/point/orient/scale/aim/
-                poleVector の拘束元が Transform に解決されない場合(シェイプの Plug、
-                Component、``"pCube1.vtx[0]"`` など。maya.cmds はシェイプを拘束元にしても
-                ターゲットの無い拘束を黙って作るため)。
+            ValueError: 未対応の型・空のソース、query/edit=True、または無効なworldUpObjectの場合。
+            TypeError: 型名・参照型・長短フラグが不正、または上記6型の拘束元がTransformでない場合。
             RuntimeError: ノードが無効、拘束元の名前を解決できない(存在しない、または
                 複数のノードに一致する)場合、または Maya が作成を拒否した場合。
-            DeletedAttributeError: 拘束元に、アトリビュートが削除済みの Plug / MPlug を渡した場合
-                (ValueError と RuntimeError の両方の派生)。
+            DeletedAttributeError: 削除済みアトリビュートのPlug/MPlugの場合。ValueErrorとRuntimeErrorの派生。
 
-        PoleVector は RP IK ハンドル、Geometry/Normal/PointOnPoly は適切な形状、
-        Tangent は NURBS カーブが必要。選択状態による対象補完は行わない。
-        typeはtyp、maintainOffsetはmoでも指定可能。同時指定はTypeError。
-        maintainOffsetはparent/point/orient/scale/aim以外では使用しない。
+        PoleVectorはRP IKハンドル、Geometry/Normal/PointOnPolyは対応形状、TangentはNURBSカーブが必要。
         """
         if cc is not _UNSET:
             if createCache is not _UNSET:
@@ -404,24 +396,23 @@ class Transform(DagNode):
             return Node(result[0])
 
     def deleteConstraints(self, *, fast=False):
-        """自身を拘束するconstraintと、経由するpairBlendを削除する。
+        """自身を拘束するconstraintと、そこへ至るpairBlendを削除する。
 
-        入力接続をpairBlend・unitConversionに限って上流へ辿る。
-        constraintに到達した経路のpairBlendだけを削除し、拘束元の
-        TransformやanimCurve、無関係なpairBlendは残す。
-        削除ノードの出力が対象外ノードにも使われる場合は編集前に拒否する。
-        現在姿勢の維持・ベイク・アニメーション入力の再接続は行わない。
-        全体を一回のUndoで戻せる。
+        pairBlend・unitConversionだけを上流へ辿り、unitConversionは残す。
+        拘束元Transform・animCurveは削除せず、姿勢維持・ベイク・入力の再接続はしない。
+        対象外への共有出力と削除対象の参照・ロックを先に検査する。
 
         Args:
-            fast (bool): TrueはOpenMaya直接削除でUndoなし。
+            fast (bool): Falseはcmds.deleteをUndo有効時にまとめる。
+                Trueは入力を外してOM2で削除し、Undoへ記録しない。設定は変えず、
+                後続失敗で切断や削除を自動では戻さない。
 
         Returns:
-            list[str]: 削除前のノード名。該当がなければ空リスト。
+            list[str]: 削除前の完全名をソートしたリスト。対象がなければ空リスト。
 
         Raises:
-            RuntimeError: 無効なTransform、共有出力、参照・ロックされた削除対象、
-                またはMayaによる削除失敗。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 無効参照、共有出力、参照・ロックされた削除対象、またはMayaの処理失敗。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -546,23 +537,23 @@ class Transform(DagNode):
             return self
 
     def resetPivot(self, worldSpace=_UNSET, *, kind="both", fast=False, ws=_UNSET):
-        """現在の姿勢を保ち、ピボットだけを指定空間の原点へ移動する。
+        """姿勢を保ち、指定したピボットを指定空間の原点へ移す。
+
+        setPivotへ委譲し、ピボット補償値を調整する。translateはリセットしない。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            worldSpace (bool): 既定Trueはワールド空間。FalseはxformのobjectSpace。
             kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。
+            fast (bool): TrueはUndoなしのOM2更新。FalseはUndo有効時に記録する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform: 自身。一回のUndoで元へ戻せる。
+            Transform: 自身。
 
         Raises:
-            TypeError: 対象がJointの場合。
-            ValueError: worldSpaceがboolでない、またはkindが不正な場合。
+            TypeError: 対象がJoint、fastがbool以外、またはworldSpace/wsを同時指定した場合。
+            ValueError: worldSpaceがbool以外、またはkindが不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
-
-        ピボット補償値を調整して行列を維持する。translateのリセットではない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -579,27 +570,30 @@ class Transform(DagNode):
             return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True, fast=fast)
 
     def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """直下の全Shapeの頂点・CVを拡縮する。Transformの行列は変更しない。
+        """直下の非中間Shapeの頂点・CVを拡縮する。Transform行列は変更しない。
+
+        Shapeごとに検証・更新するため、後続Shapeの拒否でも先行変更は残る。
+        共有形状は全インスタンスに影響する。
 
         Args:
-            scale (float | Iterable[float]): 一様倍率、またはXYZの倍率。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の拡縮中心。内部距離単位cm。
-            indices (Iterable[int | tuple[int, int]] | None): 各Shapeの対象番号。
+            scale (float | Iterable[float]): 一様倍率、またはXYZ倍率。
+            worldSpace (bool): 既定Falseは各Shapeのobject空間。Trueはworld空間。
+            pivot (Iterable[float]): 指定空間の拡縮中心。cm。既定は原点。
+            indices (Iterable[int | tuple[int, int]] | None): 各Shapeに共通の頂点/CV番号。
                 Noneは全要素。サーフェスは(U, V)の組。
-            fast (bool): Trueは履歴なしメッシュ・非周期カーブをom2で直接更新し、Undoなし。
+            fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新（Undoなし）。
+                Falseは通常更新をUndo有効時にまとめる。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform: 自身。通常モードは一回のUndoで戻せる。
+            Transform: 自身。
 
         Raises:
-            ValueError: 引数が不正な場合。
-            NotImplementedError: 対応していないShapeの場合。
+            TypeError: fast・番号の型、または長短名の指定が不正な場合。
+            ValueError: 倍率・中心・空間が不正な場合。
+            IndexError: 対象番号が範囲外の場合。
+            NotImplementedError: 未対応Shape、またはfastの編集条件に対応しない場合。
             RuntimeError: Mayaが変更を拒否した場合。
-
-        中間Shapeは対象外。インスタンスは共有形状全体に影響する。
-        途中で失敗した場合は停止し、完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -717,20 +711,20 @@ class Transform(DagNode):
             return self
 
     def centerPivot(self, *, fast=False):
-        """Maya標準のバウンディングボックス中心へ両ピボットを移動する。
+        """バウンディングボックス中心へ回転・スケールピボットを移す。
 
-        xformのcenterPivotsと同じ対象範囲を使用する。preserve=Trueで
-        オブジェクトの変換結果を維持し、回転・スケールピボットを変更する。
-        コンポーネントの選択状態は使用しない。
+        通常はxform(centerPivots=True)、fastはAPIで得た中心をsetPivotへ渡す。
+        preserve=Trueでピボット補償値を調整し、コンポーネント選択は使わない。
 
         Args:
-            fast (bool): TrueはAPIで中心を取得して直接更新し、Undoなし。
+            fast (bool): TrueはUndoなしのOM2更新。FalseはUndo有効時に記録する。
 
         Returns:
-            Transform: 自身。一回のUndoで戻せる。
+            Transform: 自身。
 
         Raises:
-            RuntimeError: 無効なノードやロックなどでMayaが変更を拒否した場合。
+            TypeError: fastがbool以外、またはfastで対象がJointの場合。
+            RuntimeError: 無効参照・ロックなどでMayaが更新を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -934,37 +928,30 @@ class Transform(DagNode):
 
     def mirrorGeometry(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False,
         ws=_UNSET):
-        """直下のすべてのShapeのジオメトリをミラーする。
+        """直下の非中間Shapeへmirrorを順に適用する。
 
-        直下の各Shape（Mesh、NurbsCurveなど mirror を実装するもの）へ同じ引数で
-        処理を委譲する。indices は Shape ごとの要素番号（Mesh は頂点、NurbsCurve は
-        CV）として解釈される。Transform自身の行列やShapeの構造は変更しない。
+        Mesh・NurbsCurve等のmirrorへ委譲し、Transform行列・トポロジーは変更しない。
+        Shapeごとに検証・更新し、後続の失敗で先行変更は戻さない。
+        pivot/indicesの反復子は最初のShapeで消費される場合がある。
 
         Args:
-            axis (str): 反転する座標軸。x、y、z、xy、xz、yz、xyz。大文字も可。
-                x は pivot.x を通る YZ 平面で反転する。複数軸は同時に反転する。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間での反転中心。既定はその空間の原点。
-                単位は 内部距離単位cm。Transform のピボットとは独立する。
-            indices (Iterable[int] | None): 各Shapeへそのまま渡す要素番号。
-                None は全要素、空列は変更なし。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            axis (str): 反転する軸。x/y/z/xy/xz/yz/xyz。大文字も可。
+            worldSpace (bool): 既定FalseはShapeのobject空間。Trueはworld空間。
+            pivot (Iterable[float]): 指定空間の中心、cm。既定は原点でTransformのピボットは使わない。
+            indices (Iterable[int] | None): 各Shapeへ渡す頂点/CV番号。Noneは全要素。
+            fast (bool): TrueはUndoなしのOM2更新。Falseは通常処理をUndo有効時にまとめる。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform: 編集した自身。
+            Transform: 自身。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはワールド変換が数値的にほぼ特異な場合。
-            TypeError: 要素番号が整数でない場合、または直下のShapeが mirror を実装しない場合。
+            TypeError: fast・要素番号の型、または長短名の指定が不正な場合。
+            AttributeError: mirrorを持たないShapeの場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換がほぼ特異な場合。
             IndexError: 要素番号が範囲外の場合。
-            RuntimeError: Maya が形状の取得・編集を拒否した場合。
-
-        複数のShapeを持つ場合、途中のShapeで失敗すると以降のShapeは処理されない
-        （それまでに成功した分はロールバックしない）。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            NotImplementedError: fastの編集条件に対応しない場合。
+            RuntimeError: Mayaが形状の取得・編集を拒否した場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1289,25 +1276,23 @@ class Transform(DagNode):
             return self
 
     def getMatrix(self, worldSpace=_UNSET, p=False, inv=False, *, ws=_UNSET):
-        """変換行列を取得する。
+        """指定空間の評価済み変換行列を取得する。
 
-        p=Falseでは、ワールド空間は保持するDAGパスのinclusiveMatrix、
-        ローカル空間は評価済みの ``matrix`` アトリビュートから取得する。
-        どちらも行列値を保持し続けず、呼出し時点の Maya の評価結果を返す。
+        p=Falseのローカル値は ``matrix`` アトリビュート、ワールド値は保持パスの
+        inclusiveMatrixを使う。offsetParentMatrixはローカル値に含まれず、ワールド値に含まれる。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            p (bool): Trueなら親側の行列を取得する。
-                worldSpace=Trueは保持パスのexclusiveMatrix。
-                Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseから求める。
-            inv (bool): Trueなら、選んだ行列の逆行列を返す。
+            worldSpace (bool): Trueはワールド、既定Falseはローカル。短縮名ws。
+            p (bool): Trueは親側の行列。worldSpace=Trueは保持パスのexclusiveMatrix、
+                Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseで求める。
+            inv (bool): Trueは選んだ行列の逆行列。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Matrix: 指定空間の評価済み行列の複製(om2.MMatrix の派生)。
+            Matrix: 呼出し時点の行列の独立した複製。
 
         Raises:
-            RuntimeError: ノードが無効、または保持するDAGパスが無効な場合。
+            RuntimeError: ノードまたは保持するDAGパスが無効な場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1330,35 +1315,30 @@ class Transform(DagNode):
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
     def setMatrix(self, matrix, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
-        """行列をローカルまたはワールド空間で設定する。
+        """行列を分解し、translate・rotate・scale・shearへ設定する。
 
-        行列を分解して translate・rotate・scale・shear に書き込む。スケールの符号と
-        Euler の解は、同じ行列になる候補のうち現在のチャンネル値に近いものを選ぶ
-        (詳細は ``_apply_local_matrix``)。そのため ``cmds.xform(matrix=...)``
-        とは、負スケールのノードやEulerの別解でチャンネル値が異なることがある。
-        safeで書けない成分を残す場合、結果の行列も入力と一致しない場合がある。
+        ピボット・rotateAxis・jointOrient・offsetParentMatrixは変更しない。
+        スケールの符号とEulerの等価解は現在のチャンネル値を基準に選ぶ。
+        safeで書けない成分を残した結果、入力行列と一致しない場合がある。
 
         Args:
             matrix (Matrix | sequence): 適用する変換行列。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-
-            safe (bool): 書けない成分を保持し、設定できる成分だけを書き込む。
-            get (bool): 書き込まずtranslate/rotate/scale/shearの辞書を返す。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            worldSpace (bool): Trueはワールド行列を保持パスのexclusiveMatrixInverseで
+                ローカルへ変換する。既定Falseは ``matrix`` アトリビュートと同じ空間。短縮名ws。
+            safe (bool): 書けない成分を保持し、書ける成分だけを更新する。
+            get (bool): Trueは書き込まず、ローカルの設定予定値を返す。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定Falseはcmdsで更新する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform | dict[str, Translate | EulerRotate | Scale | Shear]: get=Falseでは自身。
-                get=Trueではtranslate・rotate・scale・shearをキーとするローカル設定予定値を返す。
-                距離cm・角度radの数学型を保持し、safe/fastの指定によらずシーンは変更しない。
-                書込み可否は検査しないため、safe適用後の最終結果の予測ではない。
+            Transform | dict[str, Translate | EulerRotate | Scale | Shear]: 通常は自身。
+                get=Trueはtranslate・rotate・scale・shearの辞書（距離cm・角度rad）。
+                safe/fastによらず計算だけ行い、書込み可否やsafe適用後の結果は検証しない。
 
         Raises:
-            RuntimeError: 無効なノード、または Maya がアトリビュート設定を拒否した場合。
-            ValueError: 入力行列が不正、分解不能、またはワールド指定時の親行列が逆行列を持たない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
+            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
+            ValueError: 行列が不正・分解不能、またはワールド指定時に親側の行列が反転不能の場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1468,24 +1448,21 @@ class Transform(DagNode):
             return self
 
     def getRotate(self, worldSpace=_UNSET, *, ws=_UNSET):
-        """Euler 回転値を、ノードの rotateOrder で取得する。
+        """選択空間の行列から、ノードのrotateOrderでEuler回転を取得する。
 
-        ``cmds.xform(query=True, rotation=True)`` と同じく、値はノードの rotateOrder で
-        表す(戻り値の order もノードの回転順序)。行列を分解した回転の等価な解のうち、
-        transform では現在の rotate チャンネル値に最も近いものを返すため、ローカル空間の
-        transform(rotateAxis が 0)ではチャンネル値と一致する(浮動小数点の誤差を除く)。
-        joint の値は jointOrient と rotateAxis を含む行列全体の回転で、解は 0 回転に
-        最も近いものを選ぶ。スケールの符号は現在のチャンネルを基準とする。
+        rotateAxisと、JointではjointOrientを含む回転を返す。
+        スケール符号は現在のチャンネルを基準とし、Eulerの等価解はTransformでは現在の
+        rotate、Jointではゼロ回転に最も近いものを選ぶ。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            worldSpace (bool): Trueはワールド、既定Falseはローカル行列の回転。短縮名ws。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            EulerRotate: 評価済みの回転値（radian、ノードの回転順序）。
+            EulerRotate: rad単位・ノードのrotateOrderで表した独立した回転値。
 
         Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
+            ValueError: ゼロスケール等で行列を分解できない場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1498,39 +1475,30 @@ class Transform(DagNode):
         return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
 
     def setRotate(self, value, worldSpace=_UNSET, safe=False, get=False, *, unit="rad", fast=False, ws=_UNSET):
-        """Euler回転を設定する。
+        """選択空間の回転を設定する。書込むrotateは現在値に最も近い等価解を使う。
 
-        3成分の値は ``cmds.xform(rotation=...)`` と同じくノードの rotateOrder の値として
-        解釈する(:meth:`getRotate` や ``getPlug("rotate").get()`` の値をそのまま渡せる)。
-        書き込む rotate は、同じ回転を表す解のうち現在のチャンネル値に最も近いもの。
-        ローカル空間の transform では通常は渡した値がそのまま入る(浮動小数点の誤差を
-        除く。現在値が 0 のノードへ 370 度を渡すと 10 度になるなど、等価な解に
-        置き換わることはある)。
+        3成分はノードのrotateOrderで解釈し、EulerRotateは値自身の回転順序を使う。
+        rotateAxisとJointのjointOrientを保ち、行列経由でチャンネル値を計算する。
 
         Args:
-            value (Iterable[float] | EulerRotate | Quaternion): 回転値。3成分はノードの
-                rotateOrder の値として解釈する。EulerRotate(om2.MEulerRotation)は
-                その回転順序を反映する。unit が rad の場合は Quaternion も受け入れる。
-                ノードへは rotateOrder に並べ替えて書き込む。
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-
-            safe (bool): 書けない成分を無視する。
-            get (bool): 書き込まずrotateチャンネル値を返す。
-            unit (str): rad はラジアン、deg は度の3成分。既定は rad。deg は3成分の
-                値にだけ使える。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            value (Iterable[float] | EulerRotate | Quaternion): 回転値。EulerRotate/Quaternionは
+                対応するOpenMaya基底型も受理する。書込みはノードのrotateOrderに揃える。
+            worldSpace (bool): Trueはワールド、既定Falseはローカル行列の回転。短縮名ws。
+            safe (bool): 書けない成分を保持する。目標回転との一致は保証しない。
+            get (bool): Trueは書き込まず、ローカルrotateの設定予定値を返す。
+            unit (str): 既定radはラジアン。degは通常の数値3成分だけに使用できる。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定Falseはcmdsで更新する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Transform | list[float]: 通常は自身、get=Trueはrad単位の計算値。
+            Transform | list[float]: 通常は自身。get=Trueはrad単位の独立したXYZ3成分のlist。
+                safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            ValueError: unit が rad/deg 以外、deg を EulerRotate / Quaternion と指定、
+            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
+            ValueError: unitがrad/deg以外、degをEulerRotate/Quaternionと指定、
                 値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
-
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1781,7 +1749,10 @@ class Transform(DagNode):
     def freeze(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
         preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
         t=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
-        """MayaのmakeIdentity(apply=True)で形状の位置を保ってフリーズする。
+        """makeIdentity(apply=True)でフリーズする。
+
+        子階層・Joint・スキニング・接続の扱いはMaya標準に従う。
+        通常のcmds更新をUndo有効時にまとめ、途中失敗の変更は戻さない。
 
         Args:
             apply (bool): 省略時True。形状へ変換を適用するため、Trueだけを受け付ける。
@@ -1802,20 +1773,17 @@ class Transform(DagNode):
             q (bool): queryの別名。同時指定は不可。
             edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
             e (bool): editの別名。同時指定は不可。
-            **kwargs (object): translate(t)、rotate(r)、scale(s)、normal(n)、
-                preserveNormals(pn)、jointOrient(jo)等のMaya標準フラグ。
-                成分の省略時の扱いもMayaに従う。applyはTrueのみ許可する。
+            **kwargs (object): makeIdentityへ渡す追加フラグ。成分の省略時の扱いもMayaに従う。
 
         Returns:
-            Transform: 自身。Transformsからも一括呼出でき、Undo可能。
+            Transform: 自身。
 
         Raises:
-            ValueError: apply=Falseを指定した場合。
+            ValueError: applyにTrue以外を指定した場合。
             TypeError: 長短フラグを重複指定した場合。
             RuntimeError: Mayaがフリーズを拒否した場合。
 
-        子階層への適用、Jointの移動保持、スキニング済み対象や接続への制約も
-        Maya標準に従う。resetやJoint.freezeRotateの姿勢移送とは異なる。
+        resetやJoint.freezeRotateの姿勢移送とは異なる。
         """
         if a is not _UNSET:
             if apply is not _UNSET:
@@ -1879,11 +1847,12 @@ class Transform(DagNode):
     def makeIdentity(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
         preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
         t=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
-        """cmds.makeIdentity のシンプルなラッパー。
+        """自身を対象にcmds.makeIdentityを実行する。
+
+        省略したフラグはMayaの既定に従う。通常更新をUndo有効時にまとめ、途中失敗の変更は戻さない。
 
         Args:
-            kwargs: cmds.makeIdentity にそのまま渡す追加のフラグ
-                (apply、translate、rotate、scale、normal など)。
+            **kwargs (object): MayaのmakeIdentityへ渡す追加フラグ。
             apply (bool): Mayaのapplyフラグ。省略時はMayaの既定に従う。
             a (bool): applyの別名。同時指定は不可。
             jointOrient (bool): MayaのjointOrientフラグ。省略時はMayaの既定に従う。
@@ -1907,6 +1876,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
+            TypeError: 長短フラグを同時指定した場合。
             RuntimeError: ノードが無効、または Maya が拒否した場合。
         """
         if a is not _UNSET:
@@ -2215,10 +2185,15 @@ class Transform(DagNode):
         return list(values)
 
     def _component_quaternion(self, name):
-        """回転アトリビュートを自身の回転順序でQuaternionへ変換する。
+        """回転アトリビュートをQuaternionへ変換する。
+
+        rotateはノードの回転順序、rotateAxis・jointOrient等はXYZで解釈する。
 
         Args:
-            name: 参照・作成・照会する対象の名前。
+            name (str): 回転アトリビュート名。
+
+        Returns:
+            om2.MQuaternion: 新しい回転値。
         """
         value = self.getPlug(name).get()
         order = self._rotate_order() if name == "rotate" else om2.MEulerRotation.kXYZ
@@ -2461,16 +2436,20 @@ class Transform(DagNode):
             self._set_channel_value(name, value, safe=safe, fast=fast)
 
     def _set_channel_value(self, name, value, safe=False, *, fast=False):
-        """変換チャンネルを内部単位で設定する。通常更新はMayaのアニメーション編集に従う。
+        """内部単位のチャンネル値を、基底Plug.setへ渡す。
 
-        数値がすでにノードの回転順序なので、Double3の回転変換や接続の事前拒否を
-        再実行しない。fastでは共通バックエンドが入力接続への直接書込みを拒否する。
+        Double3の回転変換を再実行せず、入力された順序の数値を使う。
+        通常更新はMayaに従い、fastは接続済み入力への直接書込みを拒否する。
+        参照取得・tuple化の失敗はsafeで抑制しない。
 
         Args:
-            name: 参照・作成・照会する対象の名前。
-            value: 変換・設定する入力値。
-            safe: 書込みできない成分を飛ばして処理するか。
-            fast (bool): TrueならOpenMayaで直接更新する。
+            name (str): 設定するチャンネル名。
+            value (Iterable[float]): 数値列。距離cm、角度rad。
+            safe (bool): Plug.setに対応する書込み失敗を数えるか。
+            fast (bool): TrueはUndoなしのOM2更新。通常はcmds。
+
+        Returns:
+            Plug | int: Plug.setの戻り値。通常はPlug、safe=Trueは失敗数。
         """
         return Plug.set(self.getPlug(name), tuple(value), safe=safe, fast=fast)
 

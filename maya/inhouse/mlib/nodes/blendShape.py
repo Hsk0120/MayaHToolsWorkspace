@@ -21,63 +21,57 @@ from .node import Node
 
 
 class BlendShape(Node):
-    """blendShapeノードの参照を保持し、ターゲット・頂点マスク・デルタを編集する。
+    """blendShapeノードを参照し、ターゲット・頂点マスク・デルタを照会・編集する。
 
-    Nodeから継承するノード参照を使い、ターゲットの登録、照会、複製と保存復元を担当する。
-    getTargetAliases/getWeightPlugs/getWeightsは全aliasの投影、getTargetIndicesは
-    inputTargetItemを持つ実ターゲットの番号列挙であり、同じ一覧とは限らない。
+    ターゲットは論理番号、weightのエイリアス、または自身のweight要素Plugで指定する。
+    base省略時は原則として最小のベース論理番号を使う。getTargetIndicesだけは全ベースの和集合を返す。
 
-    ターゲット指定は論理番号、weightのalias、または自身のweight要素Plugを使う。
-    base省略を受け付ける編集・項目照会は原則として最小のベース論理番号を選ぶ。
-    getTargetIndicesの省略時だけは全ベースの和集合を返す。
+    getTargetAliases/getWeightPlugs/getWeightsは全エイリアスの投影であり、
+    inputTargetItemのある実ターゲットを列挙するgetTargetIndicesとは一致しないことがある。
 
-    照会にはOpenMayaを使う。通常更新はcmds/MELでUndo有効時に記録し、対応するfastは
-    Undo設定を変更せずOpenMayaで直接更新する。個々の編集条件と失敗時の扱いは
-    各メソッドに従い、クラス全体で原子的な更新を保証するものではない。
+    通常更新はcmds/MELでUndo有効時に記録する。対応するfastはUndo設定を変えずOM2で直接更新する。
+    更新条件と失敗時の復旧範囲は各メソッドに従う。
     """
 
     def getTargetAliases(self):
-        """ノードに登録された全alias名をgetAliases()の順序で取得する。
+        """登録された全アトリビュートエイリアス名を取得する。
 
-        weight以外のアトリビュートに設定したaliasも含み、aliasのないターゲットは含まない。
-        ターゲットの存在やweight論理番号で絞り込み・並べ替えは行わない。
+        weight以外も含み、エイリアスのないターゲットは含まない。実ターゲットの有無や論理番号では絞り込まない。
 
         Returns:
-            list[str]: 新しいalias名のリスト。実ターゲット番号の列挙には
-                getTargetIndices()を使う。
+            list[str]: getAliases()順の新しいリスト。実ターゲット番号はgetTargetIndices()で取得する。
         """
         return [alias for alias, _ in self.getAliases()]
 
     def getWeightPlugs(self):
-        """全aliasの参照先PlugをgetTargetAliases()と同じ順序で取得する。
+        """全エイリアスの参照先Plugを、値を取得せず返す。
 
-        weight以外のaliasも含み、aliasのないweight要素は含まない。
-        値は取得せず、各Plugはシーンの同じアトリビュートを参照する。
+        weight以外も含み、エイリアスのないweight要素は含まない。
 
         Returns:
-            list[Plug]: 新しいリストに格納したPlug参照。値のコピーではない。
+            list[Plug]: getAliases()順の新しいリスト。各Plugはシーンのアトリビュートへの参照。
         """
         return [plug for _, plug in self.getAliases()]
 
     def getWeights(self):
-        """全aliasの参照先Plugから現在値をgetTargetAliases()と同じ順序で取得する。
+        """全エイリアスの現在値を取得する。
 
-        各Plug.get()を呼ぶため、必要に応じてDGが評価される。通常のweightは無次元floatだが、
-        weight以外のaliasでは値型・単位・配列形もそのPlug.get()の仕様に従う。
+        各Plug.get()により必要ならDGを評価する。通常のweightは無次元floatで、
+        それ以外の値型・単位・配列形は参照先Plug.get()に従う。
 
         Returns:
-            list[object]: 新しい値リスト。aliasのないweight要素は含まない。
+            list[object]: getAliases()順の新しい値リスト。エイリアスのないweight要素は含まない。
         """
         return [plug.get() for plug in self.getWeightPlugs()]
 
     def getGeometry(self):
-        """blendShapeの出力に接続されたベースgeometryのShape参照を取得する。
+        """出力に接続されたベースgeometryのShapeを参照する。
 
-        MFnGeometryFilter.getOutputGeometry()の順序を保つ。ベース論理番号の昇順とは
-        限らず、MObjectからの参照なので特定のインスタンスパスを選んだ返却ではない。
+        MObjectから参照を作るため、特定のインスタンスパスは指定しない。
 
         Returns:
-            list[Node]: 新しいShape参照のリスト。出力geometryがなければ空。
+            list[Node]: getOutputGeometry()順の新しいリスト。出力がなければ空。
+                ベース論理番号の昇順とは限らない。
         """
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
 
@@ -150,7 +144,7 @@ class BlendShape(Node):
         """疎なデルタだけから、新しい通常ターゲットを登録する。
 
         BlendShapeへ入る変形前のgeometryを一時メッシュへ複製し、通常1.0の項目を
-        登録してからデルタを設定する。一時メッシュとその接続は終了時に残さない。
+        登録してからデルタを設定する。一時メッシュと接続は終了時に削除を試みる。
         現在のweight・envelope・表示上の変形から中立位置を推測しない。
 
         Args:
@@ -168,7 +162,8 @@ class BlendShape(Node):
             RuntimeError: Undoが無効、入力geometryを取得できない、またはMayaの編集失敗。
             NotImplementedError: post-deformation・user-defined originの場合。
 
-        全入力を登録前に検証する。通常Undoで一回にまとめ、例外時は巻き戻す。
+        全入力を登録前に検証し、通常Undoで一回にまとめる。例外時はUndoによる巻戻しを試みる。
+        復旧の二次失敗は警告し、元例外を優先する。巻戻しの完了は保証しない。
         一時ノード登録が必要なためfastフラグは提供しない。頂点順・変形前座標・
         頂点マスク等を含む全体復元にはloadTargetsを使用する。
         """
@@ -731,7 +726,7 @@ class BlendShape(Node):
             fast (bool): TrueはOpenMaya直接更新。Undoと失敗時の巻き戻しは行わない。
 
         Returns:
-            BlendShape: 自身。通常は1回でUndoでき、失敗時はロールバックする。
+            BlendShape: 自身。通常は1回でUndoでき、失敗時はUndoによる復元を試みる。
                 fast=Trueでは変更済みのデータを自動では戻さない。
         """
         if not isinstance(fast, bool):

@@ -1,71 +1,13 @@
-"""
-Synopsis
---------
+"""Mayaノードを作成し、実際のノード型に対応するラッパーを返す。
 
-.. code-block:: python
-
-    mlib.createNode(type, fast=False, **kwargs)
-
-指定した Maya ノードを作成し、型に応じた mlib ラッパーを返します。
-
-作成操作です。Maya の Undo に対応します。照会・編集用コマンドではありません。
-
-``fast=True`` は対応する範囲をAPI 2.0で直接変更し、Undo履歴を追加しません。
-未対応条件は変更前に拒否します。詳細は関数のdocstringを参照してください。
-
-Return value
-------------
-
-``Node``
-    作成したノードに対応するラッパー。
-
-Related commands
-----------------
-
-:doc:`ls <../ls/index>` / :meth:`~mlib.nodes.transform.Transform.addConstraint`
-
-Flags
------
-
-Mayaの長名・短名を受け付けます。同じフラグの長名と短名を同時に渡すと、
-処理前に ``TypeError`` になります。戻り値は表記によって変わりません。
-
-位置引数も含めた入力一覧です。括弧内は Maya に渡せる短縮名です。
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 25 15 40
-
-   * - 引数 / フラグ
-     - 型
-     - 既定値
-     - 説明
-   * - ``type``
-     - ``str``
-     - 必須
-     - 作成する Maya ノード型名。
-   * - ``name (n)``
-     - ``str``
-     - Maya の既定値
-     - ノード名。maya.cmds.createNode へ渡します。
-   * - ``parent (p)``
-     - ``Node | Plug | Component | str | MObject | MDagPath | MPlug``
-     - Maya の既定値
-     - 親ノード。所有ノードの完全パスに変換して maya.cmds.createNode へ渡します。Plug と ``"node.attribute"`` は所有ノード、Component は所有シェイプを親にします。受け付ける型は :doc:`/cmds_interop` を参照。
-   * - ``**kwargs``
-     - ``object``
-     - 省略可
-     - その他の createNode フラグをそのまま渡します。
-
-Examples
---------
+通常はMayaのUndoに対応する。``fast=True`` は対応する作成条件をOpenMayaで
+直接処理し、Undo履歴を追加しない。未対応の条件はノードを作る前に拒否する。
 
 .. code-block:: python
 
     import mlib
 
     node = mlib.createNode("transform", name="example")
-    print(node.getFullName())
 """
 
 from contextlib import nullcontext
