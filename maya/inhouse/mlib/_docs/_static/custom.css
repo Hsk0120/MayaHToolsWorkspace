@@ -4,7 +4,7 @@
  * mlib ドキュメントの見た目(ダーク)。
  *
  * Sphinx 標準の sphinxdoc テーマを土台にし、その明るい既定色が残る箇所を
- * 塗り替える。段組み(サイドバーの幅など)はテーマのものを使う。
+ * 塗り替える。本文と目次は画面幅に応じて配置する。
  * 独自に決めている意匠は次の3点。
  *   - 広い画面では本文の列を最大幅で止め、中央に置く。
  *   - 見出しの階層は、左端の縦線の太さと色で示す(下線は使わない)。
@@ -56,7 +56,7 @@
 
 /* 本文と目次を一つの幅制限で管理し、画面幅による列間の空白を防ぐ。 */
 body {
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
     background: var(--hd-canvas);
     color: var(--hd-text);
@@ -66,7 +66,7 @@ body {
 /* テーマの背景画像(明るいグラデーション)も background で打ち消す。 */
 div.document {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 360px);
     gap: 28px;
     padding: 0 20px;
     background: var(--hd-surface);
@@ -102,6 +102,7 @@ div.sphinxsidebar {
     margin: 0;
     padding: 7px 0 20px;
     min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 /* 表・コード・図の幅超過を本文の中に留める。 */
@@ -134,6 +135,10 @@ div.footer a {
 /* ==== 上下のナビゲーション帯 ========================================== */
 
 div.related ul {
+    /* 折り返したパンくず・言語切替のfloatを帯の中へ収める。 */
+    display: flow-root;
+    height: auto;
+    min-height: 2em;
     background: var(--hd-raised);
     border-top-color: var(--hd-rule);
     border-bottom-color: var(--hd-rule);
@@ -153,6 +158,11 @@ div.related a[href]:hover {
 
 div.sphinxsidebar {
     color: var(--hd-text);
+}
+
+/* テーマの折り返し禁止を目次内だけ解除し、長い完全修飾名を収める。 */
+div.sphinxsidebar span.pre {
+    white-space: normal;
 }
 
 div.sphinxsidebar :is(h3, h4) {

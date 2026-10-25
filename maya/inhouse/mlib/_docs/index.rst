@@ -4,9 +4,8 @@ mlib
 Mayaのノード・アトリビュート・コンポーネントと数学値を扱うPythonライブラリです。
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
 
-   なぜmlib <whymlib>
+   なぜ mlib ? <whymlib>
    mlib入門 <getting_started>
-   mlibモジュール <autoapi/mlib/index>
-   モジュールリファレンス <modules>
+   モジュールリファレンスマニュアル <modules>

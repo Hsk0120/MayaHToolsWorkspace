@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mlib VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2026-10-25 09:55+0900\n"
+"POT-Creation-Date: 2026-10-25 10:40+0900\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language: en\n"
@@ -22869,62 +22869,170 @@ msgstr "When the axis or center is invalid."
 msgid "mlib入門"
 msgstr "Introduction to mlib"
 
-msgid "参照を取得して編集する"
-msgstr "Get references and edit them"
+msgid "既存のMayaノードを取得し、アトリビュートや形状の参照を次の操作へ渡す基本を説明します。 個別の引数・返却値・制限は、各APIのリファレンスを参照してください。"
+msgstr "Learn the basics of retrieving existing Maya nodes and passing attribute and geometry references to the next operation. See each API reference for its arguments, return values, and limitations."
 
-msgid "以下はMaya内で実行する例です。"
-msgstr "The following examples run inside Maya."
+msgid "実行環境"
+msgstr "Execution Environment"
 
-msgid "既存ノードは ``mlib.getNode(\"名前\")`` で取得します。完全DAGパスも指定できます。 ``node.tx`` もPlugを返します。値の変更には ``node.tx.set(10)`` を使います。 ノード・プラグ・単一コンポーネントを種類に応じて取得する入口は :class:`~mlib.core.object.Object` です。"
-msgstr "Use ``mlib.getNode(\"名前\")`` to retrieve an existing node. Full DAG paths are also accepted. ``node.tx`` also returns a Plug; use ``node.tx.set(10)`` to change its value. :class:`~mlib.core.object.Object` retrieves a node, plug, or singular component according to its kind."
+msgid "ワークスペースのバージョン別起動バッチからMayaを起動すると、 ``maya/inhouse`` がPythonの検索パスに追加されます。 以下はScript EditorのPythonタブで実行する例です。作成・編集の例は現在のシーンを変更します。"
+msgstr "Starting Maya with a version-specific workspace batch file adds ``maya/inhouse`` to the Python search path. Run the following examples in the Python tab of the Script Editor. Creation and editing examples modify the current scene."
 
-msgid "距離・角度・時刻"
-msgstr "Distance, angle, and time"
+msgid "コマンドは ``import mlib`` の後、``mlib.createNode()`` のように呼び出します。 クラスは ``mlib.nodes``・``mlib.maths`` など、所属するパッケージから取得します。"
+msgstr "After ``import mlib``, call commands such as ``mlib.createNode()``. Import classes from their packages, such as ``mlib.nodes`` or ``mlib.maths``."
 
-msgid "オブジェクトと数学型の値は、距離cm・角度rad・時刻秒を基本とします。 Plugの値を現在のUI単位で扱う場合は ``get(uiUnits=True)``・``set(..., uiUnits=True)`` を使います。 ``maya.cmds`` のフラグ値はMayaの単位規則に従います。"
-msgstr "Object and math values generally use centimeters, radians, and seconds. Use ``get(uiUnits=True)`` and ``set(..., uiUnits=True)`` to handle Plug values in the current UI units. ``maya.cmds`` flag values follow Maya unit rules."
+msgid "ノードとアトリビュート"
+msgstr "Nodes and attributes"
 
-msgid "Undoとfast・safe"
-msgstr "Undo, fast, and safe"
+msgid "``createNode`` は作成した型に対応するラッパーを返します。 既存ノードは ``mlib.getNode(\"ノード名\")`` で取得でき、完全DAGパスも指定できます。 ``ls`` は通常ラッパーのリストを返し、``type=\"joint\"``・``type=\"skinCluster\"`` の場合は それぞれ ``Joints``・``SkinClusters`` を返します。"
+msgstr "``createNode`` returns the wrapper corresponding to the created type. Retrieve existing nodes with ``mlib.getNode(\"ノード名\")``; full DAG paths are also accepted. ``ls`` normally returns a list of wrappers. With ``type=\"joint\"`` or ``type=\"skinCluster\"``, it returns ``Joints`` or ``SkinClusters``, respectively."
 
-msgid "通常の編集はUndo有効時に記録します。複数の呼出しを1回で戻す場合はまとめます。"
-msgstr "Normal edits are recorded when Undo is enabled. Group multiple calls to undo them in one step."
+msgid "アトリビュートは :meth:`~mlib.nodes.node.Node.getPlug` で取得した :class:`~mlib.plugs.plug.Plug` の ``get()``・``set()`` で読み書きします。 ``node.tx`` もPlugを返しますが、代入ではなく ``node.tx.set(10)`` で値を変更します。"
+msgstr "Read and write attributes with ``get()`` and ``set()`` on a :class:`~mlib.plugs.plug.Plug` retrieved by :meth:`~mlib.nodes.node.Node.getPlug`. ``node.tx`` also returns a Plug; change its value with ``node.tx.set(10)`` rather than assignment."
 
-msgid "対応するAPIの ``fast=True`` はUndoなしの直接更新です。Undo設定は変更しません。 未対応条件は各APIを参照してください。 ``Plug.set(safe=True)`` は対応する書込み失敗数を返し、成功した成分の更新は残します。 fastがbool以外、または未対応のfast条件では例外になります。"
-msgstr "``fast=True`` on supported APIs updates directly without Undo and does not change the Undo setting. See each API for unsupported conditions. ``Plug.set(safe=True)`` returns the number of supported write failures and leaves successful component edits in place. A non-bool fast argument or an unsupported fast condition raises an exception."
+msgid "値の単位は距離cm・角度rad・時刻秒を基本とします。Plugを現在のUI単位で扱う場合は ``get(uiUnits=True)``・``set(..., uiUnits=True)`` を使います。 ``maya.cmds`` へ渡すフラグ値はMayaの単位規則に従います。"
+msgstr "Values use centimeters for distance, radians for angles, and seconds for time by default. To use current UI units with a Plug, use ``get(uiUnits=True)`` or ``set(..., uiUnits=True)``. Flag values passed to ``maya.cmds`` follow Maya unit conventions."
 
-msgid "長名と短名"
-msgstr "Long and short names"
+msgid "通常の編集はUndo有効時に記録され、上の作成と値変更は別々のUndoになります。 複数の呼出し全体を一回で戻す場合は、外側でまとめます。"
+msgstr "Normal edits are recorded when Undo is enabled. The creation and value change above are separate Undo operations. To undo several calls together, group them in an outer context."
 
-msgid "``worldSpace`` と ``ws`` はどちらか一方を指定します。同時指定は値が同じでもTypeErrorです。 他の長短名の併用規則は各APIを参照してください。 署名の ``_UNSET``・``Ellipsis`` は省略判定用の内部値です。"
-msgstr "Specify either ``worldSpace`` or ``ws``. Passing both raises TypeError even when their values are equal. See each API for the rules on combining other long and short names. ``_UNSET`` and ``Ellipsis`` in signatures are internal omission markers."
+msgid "対応するAPIの ``fast=True`` はUndoなしの直接更新で、Undo設定は変更しません。 ``Plug.set(safe=True)`` は対応する書込み失敗数を返し、成功した成分の更新は残します。 未対応条件や他のsetterのsafeの意味は、各メソッドを参照してください。 ``worldSpace`` と ``ws`` は一方だけを指定します。他の長短名の併用規則は各APIを参照してください。 署名の ``_UNSET``・``Ellipsis`` は省略判定用の内部値です。"
+msgstr "For supported APIs, ``fast=True`` updates directly without Undo and leaves the Undo setting unchanged. ``Plug.set(safe=True)`` returns the number of supported write failures and keeps successfully updated components. See each method for unsupported conditions and the meaning of safe in other setters. Specify only one of ``worldSpace`` and ``ws``. See each API for other rules on using long and short names together. ``_UNSET`` and ``Ellipsis`` in signatures are internal values used to detect omitted arguments."
 
-msgid "複数のノード"
-msgstr "Multiple nodes"
+msgid "対象の種類を判別して取得する"
+msgstr "Determine and retrieve the type of target object"
 
-msgid "``mlib.ls(type=\"joint\")`` はJoints、``type=\"skinCluster\"`` はSkinClustersを返します。 その他の結果型は :func:`~mlib.cmds.ls` を参照してください。"
-msgstr "``mlib.ls(type=\"joint\")`` returns Joints, and ``type=\"skinCluster\"`` returns SkinClusters. See :func:`~mlib.cmds.ls` for other result types."
+msgid "ノード・アトリビュート・単一コンポーネントを同じ入口で取得する場合は :class:`~mlib.core.object.Object` を使います。次の例は ``pCube1`` が存在するシーンが前提です。"
+msgstr "Use :class:`~mlib.core.object.Object` to retrieve nodes, attributes, and single components through one entry point. The following example assumes that ``pCube1`` exists in the scene."
 
-msgid "複数形は保持順に実行します。後続の処理が失敗すると先行の変更は残ります。 通常処理は同じUndoチャンクにまとまります。要素別の引数は ``callEach`` で渡します。"
-msgstr "Plural operations run in retained order. If a later operation fails, earlier changes remain. Normal operations share one Undo chunk. Use ``callEach`` for per-element arguments."
+msgid "``Object`` は単数のNode・Plug・Componentの共通基底です。既存の参照を取得し、新規ノードは作りません。 要素範囲には ``mlib.common.Selection(\"pCube1.vtx[0:3]\")`` を使います。 アトリビュートとコンポーネントの名前が重なる場合、Objectはアトリビュートとしての解決を先に試みます。 アトリビュートを明示するには ``node.getPlug(\"名前\")`` または ``mlib.getPlug(\"node.attribute\")`` を使います。"
+msgstr "``Object`` is the common base of a single Node, Plug, or Component. It retrieves an existing reference and does not create a node. For element ranges, use ``mlib.common.Selection(\"pCube1.vtx[0:3]\")``. When an attribute and component name overlap, Object tries attribute resolution first. To specify an attribute explicitly, use ``node.getPlug(\"名前\")`` or ``mlib.getPlug(\"node.attribute\")``."
 
-msgid "クラスと再読み込み"
-msgstr "Classes and reloading"
+msgid "目的から使い方を探す"
+msgstr "Find an example by task"
 
-msgid "クラスは ``from mlib.nodes import Joint``、``from mlib.maths import Matrix`` のように取得します。 ``Joint(\"joint1\")`` は既存取得、``Joint(\"newJoint\", create=True)`` は新規作成です。 ``mlib.reload()`` の後は、import済みのクラスや保持した参照を必要に応じて取得し直します。"
-msgstr "Import classes with statements such as ``from mlib.nodes import Joint`` and ``from mlib.maths import Matrix``. ``Joint(\"joint1\")`` retrieves an existing node; ``Joint(\"newJoint\", create=True)`` creates a new one. After ``mlib.reload()``, retrieve imported classes and retained references again as needed."
+msgid "目的に近い入口から、引数と操作対象を確認してください。"
+msgstr "Start with the entry point closest to your task, then check its arguments and targets."
 
-msgid "API一覧は :doc:`modules`、公開入口は :doc:`autoapi/mlib/index` を参照してください。"
-msgstr "See :doc:`modules` for the API list and :doc:`autoapi/mlib/index` for public entry points."
+msgid "目的"
+msgstr "Purpose"
 
-msgid "なぜmlib"
-msgstr "Why mlib"
+msgid "基本の書き方"
+msgstr "Basic usage"
 
-msgid "mlibモジュール"
-msgstr "mlib module"
+msgid "API"
+msgstr "API"
 
-msgid "モジュールリファレンス"
-msgstr "Module reference"
+msgid "名前や条件で既存対象を探す"
+msgstr "Find existing objects by name or conditions"
+
+msgid "``mlib.getNode(\"名前\")``、``mlib.ls(selection=True)``"
+msgstr "``mlib.getNode(\"名前\")``, ``mlib.ls(selection=True)``"
+
+msgid ":doc:`autoapi/mlib/cmds/index`"
+msgstr ":doc:`autoapi/mlib/cmds/index`"
+
+msgid "値・単位・接続を扱う"
+msgstr "Work with values, units, and connections"
+
+msgid "``node.getPlug(\"translateX\").get()``、``plug.getSource()``"
+msgstr "``node.getPlug(\"translateX\").get()``, ``plug.getSource()``"
+
+msgid ":class:`~mlib.plugs.plug.Plug`"
+msgstr ":class:`~mlib.plugs.plug.Plug`"
+
+msgid "選択した頂点をShapeごとにまとめる"
+msgstr "Group selected vertices by Shape"
+
+msgid "``Selection.capture().filter(\"vertex\").getComponents()``"
+msgstr "``Selection.capture().filter(\"vertex\").getComponents()``"
+
+msgid ":class:`~mlib.common.selection.Selection`"
+msgstr ":class:`~mlib.common.selection.Selection`"
+
+msgid "Meshやカーブの要素を取得する"
+msgstr "Retrieve mesh or curve elements"
+
+msgid "Transformから ``getShape()``、Meshは ``getVertices()``、NurbsCurveは ``getCVs()``"
+msgstr "Use ``getShape()`` on a Transform, ``getVertices()`` on a Mesh, and ``getCVs()`` on a NurbsCurve"
+
+msgid ":doc:`autoapi/mlib/components/index`"
+msgstr ":doc:`autoapi/mlib/components/index`"
+
+msgid "ターゲットのデルタを編集する"
+msgstr "Edit target deltas"
+
+msgid "``getTargetDeltas()``、``setTargetDeltas()``、``resetTargetVertices()``"
+msgstr "``getTargetDeltas()``, ``setTargetDeltas()``, ``resetTargetVertices()``"
+
+msgid ":class:`~mlib.nodes.blendShape.BlendShape`"
+msgstr ":class:`~mlib.nodes.blendShape.BlendShape`"
+
+msgid "選択頂点のスキンウェイトを再配分する"
+msgstr "Redistribute skin weights on selected vertices"
+
+msgid "``skin.redistributeWeights(mlib.ls(selection=True, type=\"vertex\"))``"
+msgstr "``skin.redistributeWeights(mlib.ls(selection=True, type=\"vertex\"))``"
+
+msgid ":meth:`~mlib.nodes.skinCluster.SkinCluster.redistributeWeights`"
+msgstr ":meth:`~mlib.nodes.skinCluster.SkinCluster.redistributeWeights`"
+
+msgid "選択を保持して復元する"
+msgstr "Capture and restore selection"
+
+msgid "``Selection.capture()`` で保持し、その ``select()`` で選択に反映"
+msgstr "Capture with ``Selection.capture()`` and apply the captured selection with its ``select()`` method"
+
+msgid "プラグインや拡張の状態を調べる"
+msgstr "Inspect plugin and extension status"
+
+msgid "``package.tryLoad()``、``extensions.getDiagnostics()``"
+msgstr "``package.tryLoad()``, ``extensions.getDiagnostics()``"
+
+msgid ":class:`~mlib.common.pluginPackage.PluginPackage`、:mod:`mlib.core.extensions`"
+msgstr ":class:`~mlib.common.pluginPackage.PluginPackage`, :mod:`mlib.core.extensions`"
+
+msgid "表中の ``Selection``・``PluginPackage`` は ``from mlib.common import ...`` で取得します。 ``package`` はPluginPackageのインスタンスです。 ``extensions`` は ``from mlib.core import extensions`` で取得します。 形状・デフォーマの例では、対象Shapeや所属頂点を各APIの条件に合わせて指定してください。"
+msgstr "Import ``Selection`` and ``PluginPackage`` in the table with ``from mlib.common import ...``. ``package`` is a PluginPackage instance. Import ``extensions`` with ``from mlib.core import extensions``. For geometry and deformer examples, specify the target Shape and its vertices according to each API's requirements."
+
+msgid "クラスを直接importして使う"
+msgstr "Use classes directly by importing them."
+
+msgid "クラスは所属するサブパッケージからimportします。``Node``・``Joint``・``Matrix`` などを ``mlib`` 直下へ再公開する入口はありません。"
+msgstr "Import classes from their subpackages. Classes such as ``Node``, ``Joint``, and ``Matrix`` are not re-exported directly from ``mlib``."
+
+msgid "具象クラスによる既存取得は、そのクラスまたは派生型を受理します。 ``Joint(\"transform1\")`` はTypeError、``Transform(\"joint1\")`` はJointを返します。 種類を指定せず取得する場合は ``Node(\"名前\")`` または ``mlib.getNode(\"名前\")`` を使います。"
+msgstr "Retrieving an existing object through a concrete class accepts that class or a derived type. ``Joint(\"transform1\")`` raises TypeError, while ``Transform(\"joint1\")`` returns a Joint. To retrieve an object without specifying its type, use ``Node(\"名前\")`` or ``mlib.getNode(\"名前\")``."
+
+msgid "``create=True`` は新規作成です。指定名が既にある場合はMayaの規則で連番化されます。 作成には名前だけで初期化でき、Maya nodeTypeへ一意に登録された具象クラスが必要です。 詳細は :meth:`~mlib.nodes.node.Node.__new__` を参照してください。"
+msgstr "``create=True`` creates a new node. If the requested name already exists, Maya adds a numeric suffix according to its naming rules. Creation requires a concrete class that can be initialized from a name alone and is uniquely registered to a Maya nodeType. See :meth:`~mlib.nodes.node.Node.__new__` for details."
+
+msgid "複数形は保持順に実行し、後続の失敗で先行変更を自動では戻しません。 同じ値をまとめて設定する例です。要素別の引数は :meth:`~mlib.nodes.node.Nodes.callEach` で渡します。"
+msgstr "Plural collections execute in stored order and do not automatically restore earlier changes if a later operation fails. The example below applies the same value to all elements. Use :meth:`~mlib.nodes.node.Nodes.callEach` to pass separate arguments for each element."
+
+msgid "再読み込み"
+msgstr "Reload"
+
+msgid "本体を再読み込みし、拡張を再探索して型登録を作り直します。 import済みのクラスや保持したラッパーは自動では置き換わらないため、必要な参照を取得し直します。 詳細は :func:`~mlib.reload` を参照してください。"
+msgstr "Reload the package, rediscover extensions, and rebuild type registrations. Imported classes and retained wrappers are not replaced automatically; retrieve the references you need again. See :func:`~mlib.reload` for details."
+
+msgid "次に読むページ"
+msgstr "Next page to read"
+
+msgid ":doc:`whymlib` — 参照と値に分ける考え方"
+msgstr ":doc:`whymlib` — separating references from values"
+
+msgid ":doc:`modules` — 用途ごとのモジュールとAPI"
+msgstr ":doc:`modules` — modules and APIs by purpose"
+
+msgid ":doc:`autoapi/mlib/index` — 公開パッケージと7つのコマンド入口"
+msgstr ":doc:`autoapi/mlib/index` — public packages and the seven command entry points"
+
+msgid "なぜ mlib ?"
+msgstr "Why mlib?"
+
+msgid "モジュールリファレンスマニュアル"
+msgstr "Module Reference Manual"
 
 msgid "Mayaのノード・アトリビュート・コンポーネントと数学値を扱うPythonライブラリです。"
 msgstr "A Python library for Maya nodes, attributes, components, and math values."
@@ -22932,17 +23040,284 @@ msgstr "A Python library for Maya nodes, attributes, components, and math values
 msgid "各モジュールにクラス・関数・引数・戻り値を掲載しています。"
 msgstr "Each module lists its classes, functions, arguments, and return values."
 
-msgid "Mayaの対象を参照として保持し、名前の受渡しと値の計算を整理するためのライブラリです。"
-msgstr "A library for retaining Maya targets as references and organizing name passing and value calculations."
+msgid "Main"
+msgstr "Main"
 
-msgid "``Node`` はノード、``Plug`` はアトリビュート、``Component`` は頂点やCVなどを参照します。"
-msgstr "``Node`` references nodes, ``Plug`` attributes, and ``Component`` vertices, CVs, and other components."
+msgid "公開パッケージと、対象の取得・作成・検索・削除・複製・選択のコマンド入口です。"
+msgstr "Public packages and command entry points for retrieving, creating, finding, deleting, duplicating, and selecting objects."
 
-msgid "``Matrix``・``Vector``・``Quaternion`` などの数学型は値を保持し、計算だけではシーンを変更しません。"
-msgstr "Math types such as ``Matrix``, ``Vector``, and ``Quaternion`` hold values. Calculations alone do not modify the scene."
+msgid "Nodes and Attributes"
+msgstr "Nodes and Attributes"
 
-msgid "読取りはOpenMayaを基本とし、通常の編集はMayaのUndoに対応します。 対応する編集の ``fast=True`` はOpenMayaで直接更新し、Undoに記録しません。"
-msgstr "Reads primarily use OpenMaya, and normal edits support Maya Undo. ``fast=True`` on supported edits updates directly through OpenMaya without recording Undo."
+msgid "ノードの階層・変換・専門編集と、アトリビュートの値・接続・配列を扱います。"
+msgstr "Node hierarchies, transformations, specialized edits, and attribute values, connections, and arrays."
 
-msgid "Maya標準のコマンドは ``maya.cmds``、対象の参照と値の操作はmlibを使います。 使い方は :doc:`getting_started`、APIの詳細は :doc:`modules` を参照してください。"
-msgstr "Use ``maya.cmds`` for standard Maya commands and mlib for target references and value operations. See :doc:`getting_started` for usage and :doc:`modules` for API details."
+msgid "Components"
+msgstr "Components"
+
+msgid "頂点・エッジ・フェース・UV・CVと、それらのコレクションを参照します。"
+msgstr "References to vertices, edges, faces, UVs, CVs, and their collections."
+
+msgid "Data Types"
+msgstr "Data Types"
+
+msgid "Vector・Matrix・Quaternionなど、OpenMayaを基盤とした可変の数学値です。"
+msgstr "Mutable mathematical values based on OpenMaya, including Vector, Matrix, and Quaternion."
+
+msgid "Common Features"
+msgstr "Common Features"
+
+msgid "選択・単位・プラグイン・イベント等の共通機能、Undo等のコンテキスト、ログ、汎用関数です。"
+msgstr "Shared features such as selection, units, plugins, and events; contexts such as Undo; logging; and utility functions."
+
+msgid "Development"
+msgstr "Development"
+
+msgid "型登録・参照解決・再読み込み・拡張管理などの基盤です。 内部補助も掲載されるため、利用する入口は各モジュールの説明と公開名を確認してください。"
+msgstr "Infrastructure for type registration, reference resolution, reloading, and extension management. Internal helpers are also listed, so check each module's description and public names when choosing an entry point."
+
+msgid "Indices and tables"
+msgstr "Indices and tables"
+
+msgid ":ref:`genindex`"
+msgstr ":ref:`genindex`"
+
+msgid ":ref:`modindex`"
+msgstr ":ref:`modindex`"
+
+msgid ":ref:`search`"
+msgstr ":ref:`search`"
+
+msgid "**mlibは、PyMELのようにMayaのノードをPythonのオブジェクトとして扱うためのライブラリです。**"
+msgstr "**mlib is a library for handling Maya nodes as Python objects, similar to PyMEL.**"
+
+msgid "ノード名の文字列をコマンドへ渡して操作する代わりに、取得したノードオブジェクトから メソッドを呼び出します。TransformやJointなど、Mayaのノード型に対応するクラスが 操作をまとめるため、対象とその処理を一緒に扱えます。"
+msgstr "Instead of passing node names as strings to commands for manipulation, you call methods from the obtained node objects. Classes corresponding to Maya node types such as Transform and Joint encapsulate operations, allowing you to handle both the target and its processing together."
+
+msgid "この考え方をアトリビュートやコンポーネント（頂点・エッジ・フェース・CV・UV）にも広げ、 取得・設定・接続をそれぞれのオブジェクトから行えます。 行列やクォータニオンもオブジェクトとして取得し、そのまま計算へ使えます。 mlibはPyMELに依存せず、独自のAPIを提供します。"
+msgstr "This approach is extended to attributes and components (vertices, edges, faces, CVs, UVs), allowing get, set, and connection operations from each object. Matrices and quaternions can also be obtained as objects and used directly in calculations. mlib does not depend on PyMEL, but provides its own API."
+
+msgid "この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。 mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。"
+msgstr "In this example, ``control`` is an existing Transform name. The following creation examples can be executed within Maya. mlib is a foundational library for use with Maya's standard commands and OpenMaya."
+
+msgid "クラス設計の概要"
+msgstr "Overview of Class Design"
+
+msgid "役割を「シーン上の対象」と「計算に使う値」に分けています。 ノードやアトリビュートのラッパーはシーンを参照し、数学型は取得した値を保持します。 ``Node``・``Plug``・``Component`` の共通基底は :class:`~mlib.core.object.Object` です。 ``Object`` は入力に合う参照の取得にも使います。数学型や複数形コレクションは別の役割です。"
+msgstr "The design separates scene objects from values used in calculations. Node and attribute wrappers reference the scene, while mathematical types hold retrieved values. :class:`~mlib.core.object.Object` is the common base of ``Node``, ``Plug``, and ``Component``. ``Object`` also retrieves the reference matching an input. Mathematical types and plural collections have separate roles."
+
+msgid "分類"
+msgstr "Category"
+
+msgid "代表クラス"
+msgstr "Main Class"
+
+msgid "役割"
+msgstr "Role"
+
+msgid "``nodes``"
+msgstr "``nodes``"
+
+msgid "Node・Transform・Joint・SkinCluster"
+msgstr "Node, Transform, Joint, SkinCluster"
+
+msgid "ノード全体の操作。対象の型に合ったメソッドを提供"
+msgstr "Operations on entire nodes. Provides methods suitable for the target type."
+
+msgid "``plugs``"
+msgstr "``plugs``"
+
+msgid "Plug・Double3Plug・ArrayPlug"
+msgstr "Plug, Double3Plug, ArrayPlug"
+
+msgid "アトリビュートの取得・設定・接続。複合アトリビュートや配列もオブジェクトとして扱う"
+msgstr "Getting, setting, and connecting attributes. Compound attributes and arrays are also treated as objects."
+
+msgid "``components``"
+msgstr "``components``"
+
+msgid "Vertex・CV・Edge・Face・UV"
+msgstr "Vertex, CV, Edge, Face, UV"
+
+msgid "コンポーネント（頂点・エッジ・フェース・CV・UV）を参照し、座標や接続情報を扱う"
+msgstr "Reference components (vertices, edges, faces, CVs, UVs) to handle coordinates and connectivity information."
+
+msgid "``maths``"
+msgstr "``maths``"
+
+msgid "Matrix・Quaternion・Vector・EulerRotate"
+msgstr "Matrix, Quaternion, Vector, EulerRotate"
+
+msgid "シーンから取得した値の計算。計算だけではシーンを変更しない"
+msgstr "Calculating values from the scene. This performs calculations without modifying the scene."
+
+msgid "``common``"
+msgstr "``common``"
+
+msgid "Selection・Namespace・Plugin・ScriptJobs"
+msgstr "Selection, Namespace, Plugin, and ScriptJobs"
+
+msgid "選択・参照関係・プラグイン・イベントと既存の共通計算を扱う"
+msgstr "Handle selection, reference relationships, plug-ins, events, and existing shared calculations"
+
+msgid "``cmds``"
+msgstr "``cmds``"
+
+msgid "getNode・getPlug・createNode・lsなどの基礎7関数"
+msgstr "Seven core functions, including getNode, getPlug, createNode, and ls"
+
+msgid "対象の取得・作成の入口。通常は ``mlib.getNode()`` のように呼ぶ"
+msgstr "Entry point for getting and creating targets. Usually called as ``mlib.getNode()``."
+
+msgid "ここでいうコンポーネントは、Mayaの形状を構成する要素です。 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。 具体的な操作は :mod:`~mlib.components` の各クラスを参照してください。"
+msgstr "A component here is an element of Maya geometry, such as a mesh vertex, edge, or face, or a curve CV. See the classes in :mod:`~mlib.components` for specific operations."
+
+msgid "代表クラスだけを抜き出した図です。三角の矢印は基底クラスを指します。 クラス名をクリックするとAPIリファレンスへ移動できます。"
+msgstr "This is a diagram showing only the representative classes. The triangle arrows point to base classes. Clicking on class names will take you to the API reference."
+
+msgid "ノード：Joint・Mesh・NurbsCurve"
+msgstr "Node: Joint, Mesh, NurbsCurve"
+
+msgid "アトリビュート：Plug"
+msgstr "Attribute: Plug"
+
+msgid "コンポーネント：頂点・エッジ・フェース・CV・UV"
+msgstr "Components: vertex, edge, face, CV, UV"
+
+msgid "数学型：行列・回転・ベクトル"
+msgstr "Math Type: Matrix, Rotation, Vector"
+
+msgid "Python共通の基底クラス ``object`` から、``maya.api.OpenMaya`` （Python API 2.0）、 mlibの数学型へと継承が続きます。``object`` はPython組み込みのクラスです。 OpenMayaのクラス名はAutodesk公式リファレンス（Maya 2026）、 mlibのクラス名はこのドキュメントのAPIリファレンスへリンクしています。"
+msgstr "The inheritance hierarchy runs from Python's built-in ``object`` through ``maya.api.OpenMaya`` (Python API 2.0) to mlib's mathematical types. ``object`` is Python's built-in class. OpenMaya class names link to Autodesk's official Maya 2026 reference; mlib class names link to this documentation's API reference."
+
+msgid "数学型はそれぞれ対応するOpenMayaの型を直接継承しています。 例えば ``Matrix`` は ``MMatrix`` の派生クラスで、mlibの操作メソッドを追加しています。 TRSやピボットをまとめる :class:`~mlib.maths.transformation.Transformation` は、 これらの値を保持するクラスで、OpenMaya型の派生ではありません。"
+msgstr "Each mathematical type directly inherits its corresponding OpenMaya type. For example, ``Matrix`` derives from ``MMatrix`` and adds mlib operations. :class:`~mlib.maths.transformation.Transformation`, which groups TRS and pivots, holds these values and does not derive from an OpenMaya type."
+
+msgid "``Shape`` と ``Transform`` はどちらもDAGノードです。 シーン上でShapeがTransformの子になることと、クラスの継承は別の関係です。 単数クラスは1対象、複数形クラスは複数対象を扱います。"
+msgstr "Both ``Shape`` and ``Transform`` are DAG nodes. That a Shape is a child of a Transform in the scene, and class inheritance, are separate relationships. Singular class handles one target, while plural class handles multiple targets."
+
+msgid "**Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。** 例えば ``node.getName()`` は現在の名前を問い合わせ、``plug.getNode()`` は保持する所有ノード参照です。 ``matrix`` や ``quaternion`` の成分を変更しても、取得元ノードへ自動反映されません。 反映には ``setMatrix()`` や ``setRotate()`` を明示的に呼びます。"
+msgstr "**Queries to Maya are generally methods; stored values are properties.** For example, ``node.getName()`` queries the current name, while ``plug.getNode()`` is a retained owner-node reference. Editing components of ``matrix`` or ``quaternion`` does not automatically update the source node. Explicitly call ``setMatrix()`` or ``setRotate()`` to apply them."
+
+msgid "ノード単位で操作する"
+msgstr "Operate on a per-node basis"
+
+msgid "``mlib.getNode()`` は実際のノード型に対応したクラスのインスタンスを返します。 JointならJointの操作、SkinClusterならウェイト関連の操作を、その対象から呼べます。"
+msgstr "``mlib.getNode()`` returns an instance of the class corresponding to the actual node type. For a Joint, call joint operations on that target; for a SkinCluster, call weight operations on it."
+
+msgid "便利な操作の例"
+msgstr "Examples of useful operations"
+
+msgid "対象"
+msgstr "Target"
+
+msgid "用途"
+msgstr "Purpose"
+
+msgid "Transform"
+msgstr "Transform"
+
+msgid "``getMatrix()`` / ``setMatrix()``"
+msgstr "``getMatrix()`` / ``setMatrix()``"
+
+msgid "変換行列を取得・反映する"
+msgstr "Retrieve and apply transformation matrices"
+
+msgid "``addConstraint()`` / ``deleteConstraints()``"
+msgstr "``addConstraint()`` / ``deleteConstraints()``"
+
+msgid "拘束を作成・削除する"
+msgstr "Create and delete constraints"
+
+msgid "Joint"
+msgstr "Joint"
+
+msgid "``freezeRotate()`` / ``jointOrientToRotate()``"
+msgstr "``freezeRotate()`` / ``jointOrientToRotate()``"
+
+msgid "rotateとjointOrientの間で姿勢を移す"
+msgstr "Transfer pose between rotate and jointOrient"
+
+msgid "SkinCluster"
+msgstr "SkinCluster"
+
+msgid "``getWeights()`` / ``setWeights()``"
+msgstr "``getWeights()`` / ``setWeights()``"
+
+msgid "スキンウェイトを取得・反映する"
+msgstr "Get and apply skin weights"
+
+msgid "Mesh・NurbsCurve"
+msgstr "Mesh, NurbsCurve"
+
+msgid "``mirror()``"
+msgstr "``mirror()``"
+
+msgid "指定した軸・空間で頂点またはCVを反転する"
+msgstr "Invert vertices or CVs on the specified axis and space."
+
+msgid "同じ操作を複数の対象へ適用する場合は、複数形クラスを使えます。"
+msgstr "When applying the same operation to multiple targets, use plural classes."
+
+msgid "一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。 操作の一覧と返却型は :mod:`~mlib.nodes` と :doc:`modules` を参照してください。"
+msgstr "Return values and the scope of preflight validation for bulk operations follow each method's specification. See :mod:`~mlib.nodes` and :doc:`modules` for the operations and return types."
+
+msgid "アトリビュート単位で操作する"
+msgstr "Operate on a per-attribute basis"
+
+msgid "アトリビュートは ``Plug`` オブジェクトとして扱います。ノード名とアトリビュート名を毎回連結する代わりに、 取得したアトリビュートから読み書きや接続を行えます。説明と使用例は ``getPlug()`` に統一しています。"
+msgstr "Attributes are treated as ``Plug`` objects. Instead of concatenating node names and attribute names each time, you can read, write, and connect directly from the obtained attributes. Descriptions and usage examples are unified in ``getPlug()``."
+
+msgid "``tx`` と ``translateX`` は同じアトリビュートを指します。 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、 アトリビュートの構造に合ったラッパーが選ばれます。"
+msgstr "``tx`` and ``translateX`` refer to the same attribute. A wrapper matching the attribute structure is selected: ``Double3Plug`` for a three-component attribute such as ``translate``, and ``ArrayPlug`` for an array attribute."
+
+msgid "ノードの ``setRotate()`` は姿勢を扱い、``getPlug(\"rotate\").set()`` はrotateアトリビュートの値を扱います。 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。 Mayaコマンドへ渡すときは ``getFullName()`` で名前へ変換します。値・接続・単位の仕様は :class:`~mlib.plugs.plug.Plug` と :doc:`getting_started` を参照してください。"
+msgstr "A node's ``setRotate()`` handles orientation, while ``getPlug(\"rotate\").set()`` handles the rotate attribute values. With a Joint's jointOrient or similar settings, these are not necessarily the same operation. Convert references to names with ``getFullName()`` when passing them to Maya commands. See :class:`~mlib.plugs.plug.Plug` and :doc:`getting_started` for values, connections, and units."
+
+msgid "行列・クォータニオンを取得して計算する"
+msgstr "Get and calculate matrices and quaternions"
+
+msgid "取得した値がそのまま数学オブジェクトになるため、配列から型を組み立て直さずに 積・逆行列・回転補間などへ進めます。``mlib.maths`` の数学型は OpenMaya API 2.0の対応する型を継承しています。"
+msgstr "Since the retrieved values become mathematical objects as they are, we can proceed to operations such as multiplication, inverse matrix, and rotation interpolation without reconstructing the type from the array. The math types in ``mlib.maths`` inherit corresponding types in the OpenMaya API 2.0."
+
+msgid "行列の合成・逆行列"
+msgstr "Matrix concatenation and inverse matrix"
+
+msgid "次の例は、あるTransformのワールド行列を、基準Transformに対する相対行列へ変換します。 Mayaの行ベクトル規約では、相対行列に基準のワールド行列を右から掛けると元に戻せます。"
+msgstr "The following example converts the world matrix of a Transform into a relative matrix with respect to a reference Transform. In Maya's row vector convention, multiplying the relative matrix by the reference world matrix from the right returns it to the original form."
+
+msgid "``*`` で行列積、``inverse()`` で逆行列を扱えます。 逆行列を求める例では、ゼロスケールなどの特異な行列を避けてください。 空間や行列の適用条件は :class:`~mlib.maths.matrix.Matrix` と :class:`~mlib.nodes.transform.Transform` の各メソッドを参照してください。"
+msgstr "Use ``*`` for matrix multiplication and ``inverse()`` for the inverse matrix. Avoid singular matrices, such as those with zero scale, when running the inverse example. See the methods of :class:`~mlib.maths.matrix.Matrix` and :class:`~mlib.nodes.transform.Transform` for coordinate spaces and matrix application conditions."
+
+msgid "クォータニオンの補間"
+msgstr "Quaternion interpolation"
+
+msgid "回転は ``getQuaternion()`` で取得し、``slerp()`` で補間した結果をそのまま反映できます。"
+msgstr "Retrieve rotations with ``getQuaternion()``, interpolate with ``slerp()``, and apply the result directly."
+
+msgid "``0.5`` は2つの回転の中間です。Quaternionには角度単位を別途指定しません。 数値で回転を渡す場合は既定がラジアンで、上の例では ``unit=\"deg\"`` を明示しています。 この例は現在の姿勢を計算するもので、アニメーションキーは作成しません。 詳しい演算は :mod:`~mlib.maths` の各クラスを参照してください。"
+msgstr "``0.5`` is halfway between the two rotations. Quaternion does not require a separate angle unit. Numeric rotation input uses radians by default; the example above explicitly sets ``unit=\"deg\"``. This example calculates the current pose and does not create animation keys. See the classes in :mod:`~mlib.maths` for detailed operations."
+
+msgid "ツール開発での使い分け"
+msgstr "Choosing between them in tool development"
+
+msgid "対象の取得・作成は ``mlib.getNode()`` や ``mlib.createNode()``。"
+msgstr "Target acquisition and creation are done with ``mlib.getNode()`` and ``mlib.createNode()``."
+
+msgid "ノード全体の操作はNode派生、アトリビュートの操作はPlug、形状の一部はComponent。"
+msgstr "Node operations are handled by Node-derived classes, plug operations by Plug, and component operations by Component."
+
+msgid "計算はMatrix・Quaternionなどの値で行い、結果の反映は明示的なsetter。"
+msgstr "Calculations are performed using values such as Matrix and Quaternion, and results are reflected through explicit setters."
+
+msgid "通常の編集はUndo有効時に記録。複数操作を一つのツールとしてまとめる場合に外側でUndoをまとめる。"
+msgstr "Normal edits are recorded when Undo is enabled. Group Undo in an outer context when combining several operations into one tool."
+
+msgid "``fast=True`` があるメソッドは、Undo不要の処理で明示して使う。"
+msgstr "For methods with a ``fast=True`` option, pass it explicitly when Undo is unnecessary."
+
+msgid "Maya標準のコマンドをそのまま使う場面もあります。mlibですべてを置き換える必要はありません。 mlibが提供しないコマンド・UI・ファイル操作は ``maya.cmds`` や標準ライブラリを使い、 必要な結果を ``getNode()``・``getPlug()`` で参照へ変換します。"
+msgstr "Use Maya commands directly where appropriate; mlib does not need to replace everything. For commands, UI, and file operations not provided by mlib, use ``maya.cmds`` or the standard library and convert the results you need into references with ``getNode()`` or ``getPlug()``."
+
+msgid "その他のクラスは :doc:`modules` を参照してください。"
+msgstr "For other classes, see :doc:`modules`."
