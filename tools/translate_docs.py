@@ -8,7 +8,7 @@
 
 流れ:
 
-1. ``sphinx-build -b gettext`` で本文の文を取り出す(mlibは ``maya/inhouse/mlib/_docs``、他は ``maya/inhouse/<名前>/docs``)。
+1. ``sphinx-build -b gettext`` で ``maya/inhouse/<名前>/docs`` の本文を取り出す。mlib文書は日本語のみのため対象外。
 2. ``docs/locale/en/LC_MESSAGES/docs.po`` を、取り出した文に合わせて更新する(消えた文は削除、新しい文は未訳で追加)。
 3. 未訳の文を Ollama の ``qwen3-coder:30b`` で英訳する。reStructuredText の記法(````code````・``:ref:`` など)が
    崩れた訳は使わず、未訳のまま残す(英語版では日本語のまま出る)。10件ごとに保存するので、途中で止めても続きから再開できる。
@@ -356,11 +356,13 @@ def main():
     parser.add_argument('--limit', type=int, default=0, help='英訳する最大の件数(0なら全部)')
     parser.add_argument('--check', action='store_true', help='英訳せず、未訳の件数とビルドだけ確かめる')
     args = parser.parse_args()
+    if 'mlib' in args.names:
+        parser.error('mlib文書は日本語のみです。翻訳対象には指定できません。')
     failed_build = False
     used_model = False
     try:
         for name in args.names:
-            docs = ROOT / 'maya/inhouse' / name / ('_docs' if name == 'mlib' else 'docs')
+            docs = ROOT / 'maya/inhouse' / name / 'docs'
             po_path = docs / 'locale/en/LC_MESSAGES/docs.po'
             with tempfile.TemporaryDirectory() as temporary:
                 catalog = load_catalog(po_path, extract(docs, Path(temporary) / 'gettext'))

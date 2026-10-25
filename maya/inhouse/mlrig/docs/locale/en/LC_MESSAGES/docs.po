@@ -727,8 +727,8 @@ msgstr "Building the documentation"
 msgid "Maya不要のPython環境で、リポジトリ直下から実行します。"
 msgstr "Execute directly from the repository root in a Maya-free Python environment."
 
-msgid "出力の ``index.html`` を開きます。mlibのsphinxdocテーマとCSSを共有するため、 ワークスペース内のmlib/_docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。"
-msgstr "Opens the output ``index.html``. For sharing the sphinxdoc theme and CSS of mlib, mlib/_docs within the workspace is also required. External tool investigation memos and raw logs are not imported into the site."
+msgid "出力の ``index.html`` を開きます。CSSは ``docs/_static/css`` 内で管理し、 他パッケージの文書には依存しません。外部ツール調査メモや生ログはサイトへ取り込みません。"
+msgstr "Open the output ``index.html``. CSS is maintained in ``docs/_static/css`` and does not depend on another package's documentation. Research notes and raw logs are not included in the site."
 
 msgid "ツイストの分配"
 msgstr "Twist Distribution"

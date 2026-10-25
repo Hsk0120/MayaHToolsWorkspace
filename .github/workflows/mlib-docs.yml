@@ -47,15 +47,12 @@ jobs:
         run: python tools/test_mlib_constructor_signatures.py
       - name: Build Sphinx documentation
         run: |
-          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/mlib/_docs maya/inhouse/mlib/_docs/_build/html
-          # 英語版(locale/en の .po の英訳。英訳は手元で tools/translate_docs.py が作る)。
-          python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/mlib/_docs maya/inhouse/mlib/_docs/_build/html/en
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/mlib/_docs/source maya/inhouse/mlib/_docs/_build/html
       - name: Check pinned Mermaid in built HTML
         run: python tools/check_mlib_docs.py --check-directory maya/inhouse/mlib/_docs/_build/html
       - name: Check preferred getter and predicate names and reference links
         run: |
           python tools/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html
-          python tools/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html/en
       - name: Stamp build revision
         run: python tools/check_mlib_docs.py --stamp-directory maya/inhouse/mlib/_docs/_build/html --sha "$GITHUB_SHA"
       - name: Install browser tests

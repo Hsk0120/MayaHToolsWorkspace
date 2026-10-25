@@ -2,12 +2,13 @@
 setlocal
 
 set "MLIB_DOCS_PYTHON=%~dp0.venv\Scripts\python.exe"
+set "MLIB_DOCS_SOURCE=%~dp0source"
 set "MLIB_DOCS_OUTPUT=%~dp0_build\html"
 set "MLIB_DOCS_RESULT=1"
 
 if not exist "%MLIB_DOCS_PYTHON%" (
     echo Documentation Python environment was not found.
-    echo Follow the setup instructions in "%~dp0README.md" first.
+    echo Run "%~dp0setup.bat" first. See README.md for details.
     goto finish
 )
 
@@ -21,7 +22,7 @@ if exist "%MLIB_DOCS_OUTPUT%" (
     goto finish
 )
 
-"%MLIB_DOCS_PYTHON%" -m sphinx -E -a -b html -W --keep-going "%~dp0." "%MLIB_DOCS_OUTPUT%"
+"%MLIB_DOCS_PYTHON%" -m sphinx -E -a -b html -W --keep-going "%MLIB_DOCS_SOURCE%" "%MLIB_DOCS_OUTPUT%"
 set "MLIB_DOCS_RESULT=%ERRORLEVEL%"
 if not "%MLIB_DOCS_RESULT%"=="0" (
     echo.

@@ -10,8 +10,187 @@ try:
 except AttributeError:
     QACTION_CLASS = QtWidgets.QAction
 
+# 項目の文字の後ろに置く空白。"\t" 以降はショートカットの欄として右端に描かれるので、
+# 「?」の印を描く場所を確保できる(表示は空白なので見えない)。
+HELP_SPACER = "\t  "
 
-class SearchableMenu(QtWidgets.QMenu):
+
+class HelpIconMixin(object):
+    """ヘルプを登録した項目の右端に「?」を描き、そこを押すとヘルプを開くメニューの機能。
+
+    項目には :func:`setActionHelp` でヘルプを開く関数を登録する。印の上で
+    ボタンを離すとヘルプを開き、それ以外の場所では通常どおり項目を実行する。
+    """
+
+    HELP_ICON_SIZE = 14
+    HELP_ICON_MARGIN = 6
+    HELP_PROPERTY = "htoolsHelpCallback"
+
+    def _init_help_icons(self):
+        """印の上にマウスがあるかを追うための状態を用意します。"""
+        self._help_hover_action = None
+        self.setMouseTracking(True)
+
+    @classmethod
+    def setActionHelp(cls, action, callback):
+        """項目にヘルプを開く関数を登録し、印を描く場所を空けます。
+
+        Args:
+            action: ヘルプを付けるQtアクション。
+            callback: 引数なしで呼ぶとヘルプを開く関数。
+        """
+        if HELP_SPACER not in action.text():
+            action.setText(action.text().split("\t")[0] + HELP_SPACER)
+        action.setProperty(cls.HELP_PROPERTY, callback)
+
+    @classmethod
+    def actionHelp(cls, action):
+        """項目に登録したヘルプの関数を返します(無ければ None)。
+
+        Args:
+            action: 調べるQtアクション。
+        """
+        if action is None:
+            return None
+        return action.property(cls.HELP_PROPERTY)
+
+    def _help_icon_rect(self, action):
+        """項目の右端の「?」の印の矩形を返します。
+
+        Args:
+            action: 印を描くQtアクション。
+        """
+        item = self.actionGeometry(action)
+        size = self.HELP_ICON_SIZE
+        return QtCore.QRect(
+            item.right() - self.HELP_ICON_MARGIN - size,
+            item.center().y() - size // 2,
+            size,
+            size,
+        )
+
+    def _help_action_at(self, position):
+        """位置が「?」の印の上なら、その項目を返します。
+
+        Args:
+            position: メニュー内の座標。
+        """
+        action = self.actionAt(position)
+        if action is None or not action.isVisible() or self.actionHelp(action) is None:
+            return None
+        if self._help_icon_rect(action).adjusted(-3, -3, 3, 3).contains(position):
+            return action
+        return None
+
+    def paintEvent(self, event):
+        """通常の描画の後に、ヘルプのある項目へ「?」の印を描きます。
+
+        Args:
+            event: Qtの描画イベント。
+        """
+        super().paintEvent(event)
+        painter = QtGui.QPainter(self)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        font = painter.font()
+        font.setBold(True)
+        font.setPixelSize(self.HELP_ICON_SIZE - 4)
+        painter.setFont(font)
+        palette = self.palette()
+        for action in self.actions():
+            if not action.isVisible() or self.actionHelp(action) is None:
+                continue
+            rect = self._help_icon_rect(action)
+            if not event.rect().intersects(rect):
+                continue
+            hovered = action is self._help_hover_action
+            # 項目が選ばれている間は選択色の上に描くので、文字色を合わせる。
+            if action is self.activeAction():
+                color = palette.color(QtGui.QPalette.HighlightedText)
+            else:
+                color = palette.color(QtGui.QPalette.Text)
+            pen = QtGui.QPen(color)
+            pen.setWidthF(1.2)
+            painter.setPen(pen)
+            if hovered:
+                fill = QtGui.QColor(color)
+                fill.setAlpha(70)
+                painter.setBrush(fill)
+            else:
+                painter.setBrush(QtCore.Qt.NoBrush)
+            painter.drawEllipse(QtCore.QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5))
+            painter.drawText(rect, QtCore.Qt.AlignCenter, "?")
+        painter.end()
+
+    def mouseMoveEvent(self, event):
+        """印の上にマウスがあるかを更新し、案内を出します。
+
+        Args:
+            event: Qtのマウスイベント。
+        """
+        super().mouseMoveEvent(event)
+        position = event.pos()
+        action = self._help_action_at(position)
+        if action is not self._help_hover_action:
+            self._help_hover_action = action
+            self.update()
+            if action is not None:
+                # Qt6 は globalPosition()、Qt5 は globalPos()。
+                if hasattr(event, "globalPosition"):
+                    global_position = event.globalPosition().toPoint()
+                else:
+                    global_position = event.globalPos()
+                QtWidgets.QToolTip.showText(global_position, "Open help", self)
+            else:
+                QtWidgets.QToolTip.hideText()
+
+    def leaveEvent(self, event):
+        """メニューから出たら印の強調を消します。
+
+        Args:
+            event: Qtのイベント。
+        """
+        super().leaveEvent(event)
+        if self._help_hover_action is not None:
+            self._help_hover_action = None
+            self.update()
+
+    def mouseReleaseEvent(self, event):
+        """印の上で離したらヘルプを開き、項目は実行しません。
+
+        Args:
+            event: Qtのマウスイベント。
+        """
+        action = self._help_action_at(event.pos())
+        if action is None or event.button() != QtCore.Qt.LeftButton:
+            super().mouseReleaseEvent(event)
+            return
+        callback = self.actionHelp(action)
+        # 開いているメニューをすべて閉じてからヘルプを開く(ツールは実行しない)。
+        popup = QtWidgets.QApplication.activePopupWidget()
+        while popup is not None:
+            popup.close()
+            next_popup = QtWidgets.QApplication.activePopupWidget()
+            if next_popup is popup:
+                break
+            popup = next_popup
+        callback()
+
+
+class ToolMenu(HelpIconMixin, QtWidgets.QMenu):
+    """HToolsのカテゴリのサブメニュー。ツール名の右端の「?」からヘルプを開けます。"""
+
+    def __init__(self, title="", parent=None):
+        """ToolMenu を初期化します。
+
+        Args:
+            title (str): メニュータイトル。
+            parent (QtWidgets.QWidget | None): 親ウィジェット。
+        """
+        super().__init__(title, parent)
+        self._init_help_icons()
+
+
+class SearchableMenu(HelpIconMixin, QtWidgets.QMenu):
     """検索/フィルタ機能を備えたメニュークラス。"""
     
     def __init__(self, title="", parent=None, enable_search=True, flat_results=False):
@@ -33,7 +212,8 @@ class SearchableMenu(QtWidgets.QMenu):
         self._item_metadata = {}  # Maps action to metadata (category, etc)
         self._original_actions = []  # Store original actions before search
         self._search_result_actions = []  # Store search result actions
-        
+        self._init_help_icons()
+
         if enable_search:
             self._init_search_widget()
             # Connect to menu shown event to auto-focus search field
@@ -188,14 +368,19 @@ class SearchableMenu(QtWidgets.QMenu):
         if matching_items:
             for i, (action, category) in enumerate(matching_items):
                 # 結果は元アクションを直接動かせるよう trigger を中継する。
+                # "\t" 以降(ヘルプの印の場所を空ける空白)は名前に含めない。
+                name = action.text().split("\t")[0]
                 if category:
-                    display_text = f"{action.text()} ({category})"
+                    display_text = f"{name} ({category})"
                 else:
-                    display_text = action.text()
-                
+                    display_text = name
+
                 result_action = self.addAction(display_text)
                 # Connect to the original action's trigger
                 result_action.triggered.connect(action.triggered)
+                help_callback = self.actionHelp(action)
+                if help_callback is not None:
+                    self.setActionHelp(result_action, help_callback)
                 self._search_result_actions.append(result_action)
     
     def _filter_items(self, search_text):

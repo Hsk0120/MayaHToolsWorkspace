@@ -2,7 +2,7 @@
   mlib のモジュール/パッケージページ。
   独自の書式にするのは mlib.cmds(コマンド一覧)と mlib.cmds.<コマンド名>(各コマンド)だけ。
   それ以外は sphinx-autoapi に同梱された既定テンプレートへそのまま委ねる。
-  "autoapi-packaged/" 接頭辞は conf.py の _prepare_jinja_env で登録している。
+  "autoapi-packaged/" 接頭辞は _ext/mlibDocs.py の prepare_autoapi で登録している。
 -#}
 {% set command_package = package_name ~ ".cmds" %}
 {% if obj.id == command_package %}

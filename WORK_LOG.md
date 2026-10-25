@@ -117,7 +117,23 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25): ユーザー指示による一括push対象として、mlib文書の日本語化・source/_ext配置整理・セットアップバッチ、mlrigのCSS独立化、完了済みHToolsの「?」ヘルプ変更と共有参照を確認。既存24テスト・公開/文書/Mermaid検査・変更Python10ファイル構文・HTools Sphinx警告0を再確認し、全5パッケージのビルド/34768リンク、332ページ/159継承図/16画面条件、隔離Python3.13セットアップの成功記録を照合。HToolsは既存の隔離Maya2027成功/終了0記録を確認し、GUIは今回再実行なし。生成HTML・venv・調査資料・submoduleは含めない。ローカルとorigin/mainは作業前0/0。push読戻し証跡は .maya-output/docs-push-20261025/ に保存。
+
+- Codex (2026-10-25): mlib/_docsにsetup.batを追加。Python 3.11以上を検出して専用venvを作成/再利用し、requirementsのSphinx/AutoAPI導入・pip整合・CLIを確認。READMEへPython公式リンク、setup→rebuild→HTMLの初回手順、手動実行と障害対処を追加。現行継承図はMermaidのためGraphviz/Node.js/Maya不要と明記。隔離した日本語/空白パスでPython3.13の初回・再実行、332ページ/警告0・API参照0不一致・Mermaid参照検査に成功。Python未検出/既存venv破損/pip失敗は終了1で既存環境保持。Python本体の新規インストールと対話pauseは未実行。製品315Python不変、未commit/push。証跡 .maya-output/mlib-docs-setup-20261025/result.json。
+
+- Claude Code (2026-10-25): HToolsメニューのツール名の右端に「?」を追加(`searchable_menu.py` の `HelpIconMixin`/`ToolMenu`)。押すとそのツールの説明ページを開き、ツールは実行しない。検索結果にも付く。末尾の Help は「HTools Documentation」だけにした。隔離Maya 2027で「?」・通常の実行・検索結果を確認。
+
+- Codex (2026-10-25): 承認済みのmlib文書構成へ整理。本文/設定/素材を_docs/source、固有ビルド処理を_extへ分離し、概要図4部品をinclude、CSSをtheme/layout/code/mermaid、JSを専用フォルダに分類。CI・検査・README参照と配置名反映を追従。332ページ/2041参照/159継承図と16画面条件の表示を維持、18162ローカルリンク・既存24テスト・公開/構文検査・標準rebuild・別配置名の隔離ビルド成功。製品315Python不変。既存Plugの390px表示時の横スクロール(445px)は変更前後で同じ。証跡 .maya-output/mlib-docs-source-layout-20261025/result.json。
+
+- Codex (2026-10-25): 追加指示で文書CSSをパッケージごとに独立化。共有参照があったmlrigへ3CSSを自前配置し、conf/testing.rst/該当英訳を同期。mlib/HTools/MayaCodeEditor/FramePlayerは既に自前配置であることを全5設定・CSSファイルで確認し、他4パッケージのCSSを変更せず保持。mlrigはmlibを置かない隔離フォルダでも日英各80ページ/警告0、他3パッケージの対象5ビルドも警告0。全体8出力592ページの34768ローカルリンク/素材参照・mlrigの4画面条件・CSS規則不変を確認。Maya未起動、未commit/push。証跡 .maya-output/docs-css-independence-20261025/result.json。
+
 - Claude Code (2026-10-25): HToolsのSphinx説明ページ `maya/inhouse/HTools/_docs/` を追加(35ツール各1ページ・画面のスクリーンショット53枚、GitHub Pagesの `htools/` へ公開する手順をmlib-docs.ymlに1つ追加、README・CLAUDE.mdに案内)。`HTools/toolHelp.py` を追加し、HToolsメニュー末尾にHelp(全ツールのページ)、画面のある11ツールに Help メニュー/ボタンを追加。メニューは `_` で始まるフォルダーをカテゴリにしないよう変更。
+
+- Codex (2026-10-25): mlib/_docsの階層整理を提案。隠しファイル・venv・生成物を含む6689ファイル/1697フォルダを列挙し、自作18ファイルの本文と参照を確認。sourceへの本文/設定/素材集約、図4部品のinclude化、custom.cssの配色と配置への分割、旧生成物/未使用候補、CI/検査/配置名追従への影響を記録。提案のみで製品ファイルの移動・変更/ビルド/Maya起動なし。詳細 .maya-output/mlib-docs-layout-proposal-20261025/proposal.txt、全配置 inventory.json。
+
+- Codex (2026-10-25 17:48 JST): ユーザー指示でmlib文書を日本語のみに整理。英訳PO/MO・言語切替テンプレート・gettext設定・英語タイトル補正・英訳手順を削除し、共有翻訳CLIはmlibを更新前に拒否。共有workflowはユーザー承認の3行削除だけを適用しHTools追加/他3ツールの翻訳を保持。日本語332HTML/警告0、切替以外のDOMと2041参照・159図不変、18162ローカルリンク/ブラウザ4条件/既存24テスト成功。標準ローカルHTMLを同期し旧en出力を除去。製品315Python不変、Maya未起動・未commit/push。証跡 .maya-output/mlib-docs-ja-only-20261025/。
+
+- Codex (2026-10-25 17:38 JST): mlib/_docsを初心者向けに整理。conf.pyを197→67行の設定中心にし、既存の継承図/署名補完/表示補正を_extへ集約。READMEへ編集先・初回準備・直接Sphinxビルド・英訳・検査の手順、_extへ処理の案内を追加。Git対象外の旧調査4ファイルをdocs/researchへ保存移動。前後の日英各332HTMLと各2041参照が一致、各159図/全37652ローカルリンク・ブラウザ8条件/既存24テスト・公開検査成功。製品/テスト315Pythonのhash不変、Maya未起動・未commit/push。証跡 .maya-output/mlib-docs-beginner-20261025/。
 
 - Codex (2026-10-25): ユーザー指示で残り未コミット全4ファイル（QuickPathExplorerの共有タブ/ドックサイズ・列幅修正、GUI検証スクリプト、共有作業ログ）をコミット・push対象として確認。Python3ファイルの構文と差分検査成功、既存Maya2027専用GUIの5確認成功・終了0・crash dumpなしの記録を確認。今回はGUIを再実行せず、生成物/調査資料はGit対象外を維持。
 

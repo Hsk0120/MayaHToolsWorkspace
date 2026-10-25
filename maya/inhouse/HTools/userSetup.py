@@ -204,18 +204,13 @@ def _inhouse_add_htools_menu_items(main_menu):
     # Sort folders alphabetically
     folders.sort()
 
-    tools_by_folder = {}
+    tool_menu_class = importlib.import_module("HTools.searchable_menu").ToolMenu
     for folder in folders:
-        submenu_result = main_menu.addMenu(folder)
-        submenu = submenu_result
-        if isinstance(submenu_result, QACTION_CLASS):
-            submenu = submenu_result.menu()
-        elif isinstance(submenu_result, QtWidgets.QMenu):
-            submenu = submenu_result
-        if not hasattr(submenu, "addAction"):
-            continue
-        if hasattr(submenu, "setTearOffEnabled"):
-            submenu.setTearOffEnabled(True)
+        # ツール名の右端の「?」から説明ページを開けるサブメニュー。親を指定して作り、
+        # 所有をQt側に持たせる(addMenu(str) の戻り値だけを持つと、Python側の後片付けで消えることがある)。
+        submenu = tool_menu_class(folder, main_menu)
+        main_menu.addMenu(submenu)
+        submenu.setTearOffEnabled(True)
         
         # 各カテゴリ配下の Python ファイルをツール項目として追加する。
         py_files = []
@@ -233,9 +228,9 @@ def _inhouse_add_htools_menu_items(main_menu):
             module_name = f"HTools.{folder}.{tool}"
             action = submenu.addAction(tool)
             action.triggered.connect(_inhouse_execute_module(module_name))
-        tools_by_folder[folder] = py_files
+            submenu.setActionHelp(action, _inhouse_open_help(folder, tool))
 
-    _inhouse_add_htools_help_menu(main_menu, tools_by_folder)
+    _inhouse_add_htools_help_menu(main_menu)
 
 
 def _inhouse_open_help(category=None, tool=None):
@@ -250,27 +245,19 @@ def _inhouse_open_help(category=None, tool=None):
     return callback
 
 
-def _inhouse_add_htools_help_menu(main_menu, tools_by_folder):
-    """各ツールの説明ページを開く Help サブメニューを末尾へ追加します。
+def _inhouse_add_htools_help_menu(main_menu):
+    """HTools全体の説明ページを開く Help サブメニューを末尾へ追加します。
+
+    各ツールのページは、カテゴリのサブメニューのツール名の右端の「?」から開く。
 
     Args:
         main_menu: Main Qt menu object.
-        tools_by_folder: カテゴリ名からツール名の一覧への辞書。
     """
     main_menu.addSeparator()
-    # 親を指定して作り、所有をQt側に持たせる(addMenu(str) の戻り値だけを持つと、
-    # Python側の後片付けの時に一緒に消えることがある)。
+    # 親を指定して作り、所有をQt側に持たせる。
     help_menu = QtWidgets.QMenu("Help", main_menu)
-    help_menu.setTearOffEnabled(True)
     main_menu.addMenu(help_menu)
     help_menu.addAction("HTools Documentation").triggered.connect(_inhouse_open_help())
-    help_menu.addSeparator()
-    # 画面の無いツールもここから説明ページを開けるよう、カテゴリごとに全ツールを並べる。
-    for folder in sorted(tools_by_folder):
-        category_menu = QtWidgets.QMenu(folder, help_menu)
-        help_menu.addMenu(category_menu)
-        for tool in tools_by_folder[folder]:
-            category_menu.addAction(tool).triggered.connect(_inhouse_open_help(folder, tool))
 
 
 def _inhouse_install_htools_menu():

@@ -1,17 +1,15 @@
 @charset "UTF-8";
 
 /*
- * mlib ドキュメントの見た目(ダーク)。
+ * mlrig ドキュメントの配色・文字・見出し(ダーク)。
  *
  * Sphinx 標準の sphinxdoc テーマを土台にし、その明るい既定色が残る箇所を
- * 塗り替える。本文と目次は画面幅に応じて配置する。
- * 独自に決めている意匠は次の3点。
- *   - 広い画面では本文の列を最大幅で止め、中央に置く。
+ * 塗り替える。本文の幅・右目次の配置・スマホ対応はlayout.cssが担当する。
+ * 独自に決めている意匠は次の2点。
  *   - 見出しの階層は、左端の縦線の太さと色で示す(下線は使わない)。
  *   - 型名などの強調は斜体にせず、コードブロックと同じ「型の色」で示す。
  * 色はすべて先頭の変数にまとめ、各ルールからは変数だけを参照する。
- * コードブロック内の字句の色は code-dark-plus.css、Mermaid 図の配置は
- * mermaid.css が受け持つ。
+ * コードブロック内の字句の色はcode-dark-plus.cssが担当する。
  */
 
 :root {
@@ -52,76 +50,6 @@
 }
 
 
-/* ==== ページの外枠 ==================================================== */
-
-/* 本文と目次を一つの幅制限で管理し、画面幅による列間の空白を防ぐ。 */
-body {
-    max-width: 1600px;
-    margin: 0 auto;
-    background: var(--hd-canvas);
-    color: var(--hd-text);
-    border-color: var(--hd-rule);
-}
-
-/* テーマの背景画像(明るいグラデーション)も background で打ち消す。 */
-div.document {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 360px);
-    gap: 28px;
-    padding: 0 20px;
-    background: var(--hd-surface);
-    color: var(--hd-text);
-}
-
-div.bodywrapper {
-    margin: 0;
-    border-right: none;
-}
-
-div.documentwrapper {
-    float: none;
-    width: auto;
-    min-width: 0;
-}
-
-/* float解除用の空要素をGridの追加行として数えない。 */
-div.document > div.clearer {
-    display: none;
-}
-
-div.body {
-    min-width: 0;
-    max-width: none;
-    padding: 7px 0 20px;
-    overflow-wrap: anywhere;
-}
-
-div.sphinxsidebar {
-    float: none;
-    width: auto;
-    margin: 0;
-    padding: 7px 0 20px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-}
-
-/* 表・コード・図の幅超過を本文の中に留める。 */
-div.body :is(pre, table.docutils) {
-    max-width: 100%;
-    overflow-x: auto;
-}
-
-div.body table.docutils {
-    display: block;
-}
-
-@media print {
-    div.document {
-        display: block;
-        padding: 0;
-    }
-}
-
 div.footer {
     background: var(--hd-canvas);
     color: var(--hd-text-soft);
@@ -131,18 +59,6 @@ div.footer a {
     color: inherit;
 }
 
-
-/* ==== 上下のナビゲーション帯 ========================================== */
-
-div.related ul {
-    /* 折り返したパンくず・言語切替のfloatを帯の中へ収める。 */
-    display: flow-root;
-    height: auto;
-    min-height: 2em;
-    background: var(--hd-raised);
-    border-top-color: var(--hd-rule);
-    border-bottom-color: var(--hd-rule);
-}
 
 /* 訪問済みかどうかで色を変えず、帯の中は常にアクセント色で示す。 */
 div.related a[href] {
@@ -371,65 +287,4 @@ span.highlighted {
 ::selection {
     background: var(--hd-selection);
     color: #fff;
-}
-
-
-/* ==== 狭い画面 ========================================================
- * sphinxdoc は画面幅 740px 以上を前提に組まれている。それより狭い画面では
- * サイドバーを本文の下へ回し、収まらない要素はその要素の中だけで横に送る
- * (ページ全体は横スクロールさせない)。
- */
-
-@media screen and (max-width: 960px) {
-    div.document {
-        display: block;
-        padding: 0 16px;
-    }
-
-    body {
-        min-width: 0;
-        margin: 0;
-    }
-
-    div.documentwrapper,
-    div.sphinxsidebar {
-        float: none;
-    }
-
-    div.bodywrapper {
-        margin: 0;
-        border-right: none;
-    }
-
-    div.body {
-        min-width: 0;
-        overflow-wrap: anywhere;
-    }
-
-    /* 長い完全修飾名のクラス見出しが何行にも折れないよう、h1 を小さくする。 */
-    div.body h1 {
-        font-size: 1.3em;
-    }
-
-    div.sphinxsidebar {
-        clear: both;
-        width: auto;
-        margin: 0;
-        padding: 0 0 20px;
-    }
-
-    div.related ul {
-        height: auto;
-        min-height: 2em;
-        overflow-x: auto;
-    }
-
-    div.body :is(pre, table.docutils) {
-        max-width: 100%;
-        overflow-x: auto;
-    }
-
-    div.body table.docutils {
-        display: block;
-    }
 }

@@ -1,5 +1,4 @@
 """Mayaを読み込まずにmlrigの利用・検証ドキュメントを生成する。"""
-from pathlib import Path
 
 project = "mlrig"
 copyright = "2026 Hsk0120"
@@ -8,9 +7,9 @@ extensions = []
 exclude_patterns = ["_build", "README.md", "requirements.txt", "locale"]
 html_theme = "sphinxdoc"
 pygments_style = "one-dark"
-# mlibのCSSを直接共有し、本文・目次の幅、配色・見出し・コード表示を揃える。
-html_static_path = [str(Path(__file__).resolve().parents[2] / "mlib/_docs/_static")]
-html_css_files = ["custom.css", "code-dark-plus.css"]
+# CSSはこのdocs内で管理する。他パッケージの文書やビルド処理には依存しない。
+html_static_path = ["_static"]
+html_css_files = ["css/theme.css", "css/layout.css", "css/code-dark-plus.css"]
 html_title = "mlrig ドキュメント"
 
 # ---- 英語版(gettext) ----

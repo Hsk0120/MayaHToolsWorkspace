@@ -236,4 +236,4 @@ Objectと拡張登録・管理の入口は `core` に置き、`from mlib.core.ob
 取得はget付き、判定はis付きの正式名を使用します。演算14型は型クラスを残し、専用APIではなく`getPlug`で操作します。
 その他のMayaコマンド・標準UI・ファイル/設定操作は利用側で扱い、通常JSON文字列は標準 `json` を使います。
 汎用UI・型付きJSON/Snapshot・専用色値型は提供しません。
-現行APIの一覧は[APIリファレンス](maya/inhouse/mlib/_docs/modules.rst)を参照してください。
+現行APIの一覧は[APIリファレンス](maya/inhouse/mlib/_docs/source/modules.rst)を参照してください。

@@ -68,86 +68,17 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
 ノード：Joint・Mesh・NurbsCurve
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. raw:: html
-
-   <pre class="mermaid">
-      classDiagram
-          direction TB
-          class Node
-          class DagNode
-          class Transform
-          class Joint
-          class Shape
-          class Mesh
-          class NurbsCurve
-          Node <|-- DagNode
-          DagNode <|-- Transform
-          Transform <|-- Joint
-          DagNode <|-- Shape
-          Shape <|-- Mesh
-          Shape <|-- NurbsCurve
-          click DagNode href "autoapi/mlib/nodes/dagNode/DagNode.html#mlib.nodes.dagNode.DagNode" "mlib.nodes.dagNode.DagNode" _self
-          click Joint href "autoapi/mlib/nodes/joint/Joint.html#mlib.nodes.joint.Joint" "mlib.nodes.joint.Joint" _self
-          click Mesh href "autoapi/mlib/nodes/mesh/Mesh.html#mlib.nodes.mesh.Mesh" "mlib.nodes.mesh.Mesh" _self
-          click Node href "autoapi/mlib/nodes/node/Node.html#mlib.nodes.node.Node" "mlib.nodes.node.Node" _self
-          click NurbsCurve href "autoapi/mlib/nodes/nurbsCurve/NurbsCurve.html#mlib.nodes.nurbsCurve.NurbsCurve" "mlib.nodes.nurbsCurve.NurbsCurve" _self
-          click Shape href "autoapi/mlib/nodes/shape/Shape.html#mlib.nodes.shape.Shape" "mlib.nodes.shape.Shape" _self
-          click Transform href "autoapi/mlib/nodes/transform/Transform.html#mlib.nodes.transform.Transform" "mlib.nodes.transform.Transform" _self
-   </pre>
+.. include:: _includes/nodes.rst
 
 アトリビュート：Plug
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. raw:: html
-
-   <pre class="mermaid">
-      classDiagram
-          direction TB
-          class Plug
-          class CompoundPlug
-          class Double3Plug
-          class ArrayPlug
-          class MatrixPlug
-          Plug <|-- CompoundPlug
-          CompoundPlug <|-- Double3Plug
-          Plug <|-- ArrayPlug
-          Plug <|-- MatrixPlug
-          click ArrayPlug href "autoapi/mlib/plugs/arrayPlug/ArrayPlug.html#mlib.plugs.arrayPlug.ArrayPlug" "mlib.plugs.arrayPlug.ArrayPlug" _self
-          click CompoundPlug href "autoapi/mlib/plugs/compoundPlug/CompoundPlug.html#mlib.plugs.compoundPlug.CompoundPlug" "mlib.plugs.compoundPlug.CompoundPlug" _self
-          click Double3Plug href "autoapi/mlib/plugs/double3Plug/Double3Plug.html#mlib.plugs.double3Plug.Double3Plug" "mlib.plugs.double3Plug.Double3Plug" _self
-          click MatrixPlug href "autoapi/mlib/plugs/matrixPlug/MatrixPlug.html#mlib.plugs.matrixPlug.MatrixPlug" "mlib.plugs.matrixPlug.MatrixPlug" _self
-          click Plug href "autoapi/mlib/plugs/plug/Plug.html#mlib.plugs.plug.Plug" "mlib.plugs.plug.Plug" _self
-   </pre>
+.. include:: _includes/plugs.rst
 
 コンポーネント：頂点・エッジ・フェース・CV・UV
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. raw:: html
-
-   <pre class="mermaid">
-      classDiagram
-          direction TB
-          class Component
-          class PointComponent
-          class Vertex
-          class CV
-          class Edge
-          class Face
-          class UV
-          Component <|-- PointComponent
-          PointComponent <|-- Vertex
-          PointComponent <|-- CV
-          Component <|-- Edge
-          Component <|-- Face
-          Component <|-- UV
-          click CV href "autoapi/mlib/components/cv/CV.html#mlib.components.cv.CV" "mlib.components.cv.CV" _self
-          click Component href "autoapi/mlib/components/component/Component.html#mlib.components.component.Component" "mlib.components.component.Component" _self
-          click Edge href "autoapi/mlib/components/edge/Edge.html#mlib.components.edge.Edge" "mlib.components.edge.Edge" _self
-          click Face href "autoapi/mlib/components/face/Face.html#mlib.components.face.Face" "mlib.components.face.Face" _self
-          click PointComponent href "autoapi/mlib/components/pointComponent/PointComponent.html#mlib.components.pointComponent.PointComponent" "mlib.components.pointComponent.PointComponent" _self
-          click UV href "autoapi/mlib/components/uv/UV.html#mlib.components.uv.UV" "mlib.components.uv.UV" _self
-          click Vertex href "autoapi/mlib/components/vertex/Vertex.html#mlib.components.vertex.Vertex" "mlib.components.vertex.Vertex" _self
-   </pre>
+.. include:: _includes/components.rst
 
 数学型：行列・回転・ベクトル
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -157,37 +88,7 @@ mlibの数学型へと継承が続きます。``object`` はPython組み込み�
 OpenMayaのクラス名はAutodesk公式リファレンス（Maya 2026）、
 mlibのクラス名はこのドキュメントのAPIリファレンスへリンクしています。
 
-.. raw:: html
-
-   <pre class="mermaid">
-      classDiagram
-          direction TB
-          class Matrix
-          class Quaternion
-          class EulerRotate
-          class Vector
-          class MMatrix["OpenMaya.MMatrix"]
-          class MQuaternion["OpenMaya.MQuaternion"]
-          class MEulerRotation["OpenMaya.MEulerRotation"]
-          class MVector["OpenMaya.MVector"]
-          class object
-          object <|-- MMatrix
-          object <|-- MQuaternion
-          object <|-- MEulerRotation
-          object <|-- MVector
-          MMatrix <|-- Matrix
-          MQuaternion <|-- Quaternion
-          MEulerRotation <|-- EulerRotate
-          MVector <|-- Vector
-          click MMatrix href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_matrix.html" "Autodesk Python API 2.0: MMatrix" _self
-          click MQuaternion href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_quaternion.html" "Autodesk Python API 2.0: MQuaternion" _self
-          click MEulerRotation href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_euler_rotation.html" "Autodesk Python API 2.0: MEulerRotation" _self
-          click MVector href "https://help.autodesk.com/cloudhelp/2026/ENU/MAYA-API-REF/py_ref/class_open_maya_1_1_m_vector.html" "Autodesk Python API 2.0: MVector" _self
-          click EulerRotate href "autoapi/mlib/maths/eulerRotate/EulerRotate.html#mlib.maths.eulerRotate.EulerRotate" "mlib.maths.eulerRotate.EulerRotate" _self
-          click Matrix href "autoapi/mlib/maths/matrix/Matrix.html#mlib.maths.matrix.Matrix" "mlib.maths.matrix.Matrix" _self
-          click Quaternion href "autoapi/mlib/maths/quaternion/Quaternion.html#mlib.maths.quaternion.Quaternion" "mlib.maths.quaternion.Quaternion" _self
-          click Vector href "autoapi/mlib/maths/vector/Vector.html#mlib.maths.vector.Vector" "mlib.maths.vector.Vector" _self
-   </pre>
+.. include:: _includes/maths.rst
 
 数学型はそれぞれ対応するOpenMayaの型を直接継承しています。
 例えば ``Matrix`` は ``MMatrix`` の派生クラスで、mlibの操作メソッドを追加しています。

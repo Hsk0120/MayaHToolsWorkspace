@@ -182,7 +182,7 @@ tools/
 - メニュー項目クリック時は `runpy.run_module("HTools.<category>.<tool>", run_name="__main__")` として対象モジュールをその場で実行する。
 - `HTools/searchable_menu.py` の `SearchableMenu`(`QtWidgets.QMenu` 拡張)が検索フィールドとフラット/階層表示切り替えを提供する。
 - PySide6を優先し、無ければPySide2にフォールバックする実装(Maya 2025以降はPySide6、2022はPySide2)。
-- `_` で始まるフォルダー(`__pycache__`・説明ページの `_docs`)はカテゴリにしない。説明ページは `HTools/_docs/<カテゴリ>/<ツール名>.rst`(Sphinx、GitHub Pages の `htools/` に公開、画面のスクリーンショットは `_docs/_static/images/<カテゴリ>/`)。HToolsメニュー末尾の Help に全ツールのページが並び、画面のあるツールは画面の Help から `HTools.toolHelp.openHelp("<カテゴリ>", "<ツール名>")` で自分のページを開く。**ツールを追加・変更したら、そのページとカテゴリの目次も更新する**。
+- `_` で始まるフォルダー(`__pycache__`・説明ページの `_docs`)はカテゴリにしない。説明ページは `HTools/_docs/<カテゴリ>/<ツール名>.rst`(Sphinx、GitHub Pages の `htools/` に公開、画面のスクリーンショットは `_docs/_static/images/<カテゴリ>/`)。HToolsメニューのツール名の右端の「?」(`searchable_menu.py` の `ToolMenu`/`HelpIconMixin`)でそのツールのページが開き、末尾の Help > HTools Documentation で目次が開く。画面のあるツールは画面の Help から `HTools.toolHelp.openHelp("<カテゴリ>", "<ツール名>")` で自分のページを開く。**ツールを追加・変更したら、そのページとカテゴリの目次も更新する**。
 
 ### mlib ― Maya API 2.0 ベースの共通ライブラリ
 

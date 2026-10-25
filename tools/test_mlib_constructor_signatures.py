@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import unittest
 
 _DOCS_ROOT = Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/_docs"
-sys.path.insert(0, str(_DOCS_ROOT))
+sys.path.insert(0, str(_DOCS_ROOT / "_ext"))
 
 from _constructorSignatures import ConstructorDocumentation
 

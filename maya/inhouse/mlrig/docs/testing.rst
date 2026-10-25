@@ -65,5 +65,5 @@ Maya不要のPython環境で、リポジトリ直下から実行します。
    python -m pip install -r maya/inhouse/mlrig/docs/requirements.txt
    python -m sphinx -W --keep-going -b html maya/inhouse/mlrig/docs .maya-output/mlrig-docs
 
-出力の ``index.html`` を開きます。mlibのsphinxdocテーマとCSSを共有するため、
-ワークスペース内のmlib/_docsも必要です。外部ツール調査メモや生ログはサイトへ取り込みません。
+出力の ``index.html`` を開きます。CSSは ``docs/_static/css`` 内で管理し、
+他パッケージの文書には依存しません。外部ツール調査メモや生ログはサイトへ取り込みません。

@@ -298,7 +298,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 ## maya.cmds との受け渡し
 
 mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕様とする。詳細は
-各公開APIのdocstringを参照する。基本例は[はじめに](../maya/inhouse/mlib/_docs/getting_started.rst)に記載する。
+各公開APIのdocstringを参照する。基本例は[はじめに](../maya/inhouse/mlib/_docs/source/getting_started.rst)に記載する。
 
 - シーンのノード・アトリビュート・コンポーネントを表すクラスの `__str__` は、`maya.cmds` が一意に解決できる名前を返す。`Node` は最短一意名、`Plug` は `<ノードの最短一意名>.<アトリビュートパス>`、`Component` はシェイプの完全パス付きの名前とし、呼び出すたびに現在のシーンから求める(名前変更・親子付け替えに追従する)。
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
