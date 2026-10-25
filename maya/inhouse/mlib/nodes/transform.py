@@ -2020,13 +2020,19 @@ class Transform(DagNode):
 
         Raises:
             RuntimeError: ノードが無効な場合。
-            ValueError: マトリクスが不正な場合。
+            ValueError: マトリクスが不正、またはワールド指定時の親が反転不能な場合。
         """
         if not isinstance(matrix, Matrix):
             matrix = Matrix(matrix)
         if not self.isValid():
             raise RuntimeError("Cannot set an invalid transform")
-        return matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
+        if not ws:
+            return matrix
+        path = self.mpath()
+        # Mayaの逆変換取得だけでは特異な親を拒否しないため、書込み前に検査する。
+        if path.exclusiveMatrix().isSingular():
+            raise ValueError("Cannot apply a world matrix with a singular parent matrix")
+        return matrix * Matrix._wrap(path.exclusiveMatrixInverse())
 
     @staticmethod
     def _detach_inputs(objects):

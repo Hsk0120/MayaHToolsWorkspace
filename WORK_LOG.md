@@ -117,6 +117,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-10-26 Codex: ユーザーのpush指示に基づき、基本操作の単体45件/結合10件、Transformの反転不能な親の更新前検査、テストREADMEと作業記録の7ファイルをcommit/push対象として確認。隔離Maya2022〜2027各1338件（既存skip除く失敗0）・静的100件の成功記録と追加55メソッドを照合。構文・git diff --check成功、origin/mainとの分岐なし。生成物/調査資料は対象外、追加のMaya/GUI/Sphinx起動なし。
+
+- 2026-10-26 Codex: 削除11件・Plug18件・Transform16件の単体と、DG評価/接続/親変更/削除/Undoの結合10件、計55件を4ファイルへ追加。失敗時の状態保持、safe部分更新、fastと通常Undoの境界、保持参照、疎配列・単位も確認。新規テストで判明したワールドsetMatrixの反転不能な親の検査欠落を、共有変換処理のOpenMaya isSingular検査で修正（公開署名不変、微小でも反転可能な親は許可）。HEADの旧処理では同じ回帰テストが失敗し、修正後の成功を隔離Maya2027で比較。READMEへ重点単体/結合の実行例を追加。隔離Maya2022〜2027の全6版で各139ファイル・1338件、失敗0（既存のGUI/環境条件skipのみ2〜4件、新規55件skip0）。静的100件・検出先分離・git diff --check成功。GUI実行なし、未commit/push。証拠: `.maya-output/mlib-basic-tests-20261026/result.json`。
+
 - 2026-10-26 Codex: ユーザーのpush指示に基づき、Selectionの定数配置・Transformの内部メソッド順・BlendShapeのpathlib利用と作業記録の4ファイルをcommit/push対象として確認。直近の静的100件・隔離Maya2022/2027各156件の成功記録と現在差分を照合し、git diff --check成功。生成物と調査資料は対象外、origin/mainとの分岐なし。追加のMaya/GUI/Sphinx実行なし。
 
 - 2026-10-26 Codex: ユーザー指示で既存チェックを実行し、Selectionの_NAME_CHUNKを定義前へ移動、Transformの内部メソッドを既存--fixで公開メソッド後へ整理、BlendShape保存先の親フォルダー取得をPath(destination).parentへ変更。保存先の絶対化・一時ファイル置換・失敗時cleanup・既存APIは保持。並び替え段階で170ファイルのsnapshot差分0、Selection/Transform全関数の本文/署名不変も確認。最終runStatic100件全成功、公開不一致0、layout170ファイル違反0・pathlib候補0（初期化順保護の情報5件）。隔離Maya2022/2027で保存復元・Selection・Transform・直近契約/速度改善の既存9ファイルを各156件成功（合計312件、失敗/skip0）。git diff --check成功、GUI/Sphinx未実行、未commit/push。証拠: `.maya-output/mlib-check-fix-20261026/result.json`。
