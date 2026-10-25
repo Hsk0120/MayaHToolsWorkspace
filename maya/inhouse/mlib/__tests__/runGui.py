@@ -18,6 +18,7 @@ import time
 import traceback
 
 from runMaya import ROOT, TESTS_DIR, VERSIONS, isolated_environment, maya_executable, write_json
+from runMaya import _print_failure_details
 
 #: スイート名と (Maya内で実行するファイル, 追加の環境変数)。
 SUITES = {
@@ -185,6 +186,7 @@ def main():
             suite_results[name] = result
             write_json(output / version / name / "run-result.json", result)
             print("Maya {} GUI {}: {}".format(version, name, result["status"]), flush=True)
+            _print_failure_details(result, output / version / name)
             lines.append("{}\t{}\t{}\t{}".format(version, name, result["status"],
                                                   ", ".join(result.get("failed_files", []))))
             if result["status"] == "missing":

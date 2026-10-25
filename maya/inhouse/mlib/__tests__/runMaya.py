@@ -19,6 +19,34 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _print_failure_details(result, directory):
+    """子Mayaの失敗内容とログの絶対パスを、起動元ターミナルへ表示する。"""
+    if result["status"] not in ("failed", "error", "timeout"):
+        return
+    if result.get("suite_log"):
+        print("詳細ログ: " + str(Path(result["suite_log"]).resolve()), flush=True)
+    for filename in ("tests.log", "console.log", "launch.log", "maya.log"):
+        path = directory / filename
+        if path.is_file():
+            print("ログ: " + str(path.resolve()), flush=True)
+    for failure in result.get("failure_details", []):
+        print("\nFAIL " + failure["file"], flush=True)
+        print(failure["output"].rstrip(), flush=True)
+    # 表示確認スイートはunittestのテスト名とtracebackを組で保存する。
+    for name, output in result.get("failures", []):
+        print("\nFAIL " + name, flush=True)
+        print(output.rstrip(), flush=True)
+    for key in ("error", "shutdown_error"):
+        if result.get(key):
+            print(result[key].rstrip(), flush=True)
+    for error in result.get("cleanup_errors", []):
+        print(error.rstrip(), flush=True)
+    if result["status"] == "timeout":
+        print("タイムアウト: " + str(result.get("timeout_seconds", "")), flush=True)
+    if "exit_code" in result:
+        print("終了コード: " + str(result["exit_code"]), flush=True)
+
+
 def worker(version, result_path, suite_file=None, selected_tests=None, suite_name="all"):
     """指定Maya内で既存ランナーを使う。GUI・外部投稿テストは実行しない。"""
     result = {"requested_version": version, "status": "error"}
@@ -47,6 +75,7 @@ def worker(version, result_path, suite_file=None, selected_tests=None, suite_nam
         result.update(status="passed" if suite["ok"] else "failed",
                       total_files=suite["total"], failed_files=suite["failed"],
                       tests_run=suite["tests_run"], skipped=suite["skipped"],
+                      failure_details=suite.get("failure_details", []),
                       suite_log=str(suite["log_path"]), summary=suite["summary"],
                       excluded_files=sorted(namespace["EXCLUDED_FILES"] - {"run_all_tests.py"}))
     except BaseException:
@@ -173,6 +202,7 @@ def main():
         write_json(directory / version / "result.json", result)
         write_json(directory / "summary.json", results)
         print("Maya {}: {}".format(version, result["status"]), flush=True)
+        _print_failure_details(result, directory / version)
     lines = ["Maya\tStatus\tFailed files"]
     for result in results:
         lines.append("{}\t{}\t{}".format(result["requested_version"], result["status"], ", ".join(result.get("failed_files", []))))

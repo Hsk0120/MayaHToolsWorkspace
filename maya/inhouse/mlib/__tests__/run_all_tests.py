@@ -103,7 +103,9 @@ def run_all(notify=None, *, directories=None, names=None, suite="all"):
 
     Returns:
         dict: ``{"ok": bool, "total": int, "failed": list[str],
-            "log_path": Path, "summary": str}``。``ok`` は全ファイル成功なら True。
+            "log_path": Path, "summary": str, "tests_run": int, "skipped": list,
+            "failure_details": list[dict]}``。``ok`` は全ファイル成功なら True。
+            ``failure_details`` は失敗ファイルの名前と捕捉した出力。
     """
     started_at = datetime.now()
     files = discover_test_files(directories, names, suite)
@@ -140,6 +142,12 @@ def run_all(notify=None, *, directories=None, names=None, suite="all"):
     print(f"ログ: {log_path}")
     for name, ok, _ in results:
         print(f"  {'OK  ' if ok else 'FAIL'} {name}")
+    failure_details = []
+    for name, ok, output in results:
+        if not ok:
+            failure_details.append({"file": name, "output": output})
+            print(f"\nFAIL {name}")
+            print(output.rstrip())
 
     if notify is not None:
         notify(summary)
@@ -152,6 +160,7 @@ def run_all(notify=None, *, directories=None, names=None, suite="all"):
         "summary": summary,
         "tests_run": metrics["tests_run"],
         "skipped": metrics["skipped"],
+        "failure_details": failure_details,
     }
 
 

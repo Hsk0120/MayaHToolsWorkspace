@@ -117,6 +117,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25): ユーザー依頼で失敗ログのターミナル表示・回帰テスト・READMEの8ファイルをcommit/push対象として確認。静的66件を再実行して成功、隔離Maya2022/2027での意図的失敗/正常終了の記録を照合。ローカルサンプル/生成ログはGit対象外を維持し、製品コードは変更なし。今回Maya/GUIの再起動なし。
+
+- Codex (2026-10-25): テスト失敗時に詳細ログの絶対パス・失敗ファイル名・traceback/期待値差・終了コードを起動元ターミナルへ表示。run_all_testsが失敗ファイルの捕捉出力を結果へ保持し、mayapy/GUIランナーへ渡す。成功ファイルの詳細は従来どおりログのみ。READMEを同期し、静的66件（値不一致/例外/成功出力抑制/親ターミナル/GUI入口/起動異常/timeout）成功。隔離Maya2022/2027で意図的失敗は各1件・終了1・ログパスとAssertionError表示、正しい期待値は各1件成功・終了0を確認。証跡 __tests__/_output/failure-demo/terminal-failed・terminal-passed。実GUIは今回未起動、GUIの親表示は模擬結果で確認。製品コード変更なし、未commit/push。
+
+- Codex (2026-10-25): ユーザー依頼で意図的な失敗サンプルを__tests__/_output/failure-demoへ用意。translateX=5に期待値10を指定し、隔離Maya2027で1件失敗・AssertionError: 5.0 != 10.0・status failed・終了1を確認。同じ操作の期待値5は1件成功・終了0。再実行READMEとログをGit対象外へ保存し、通常テスト/製品/ユーザーGUIは変更なし。他Maya版は未実施、commit/pushなし。
+
 - Codex (2026-10-25): ユーザー依頼でテスト整理一式をcommit/push対象として最終確認。静的61件を再実行して成功、既存のMaya2022/2027・単独コピー1182件・GUI・Sphinx検証記録と参照更新を照合。テスト本体・workspace連携・利用側/CI/案内の更新をまとめ、生成物/専用Preferences/調査資料/submoduleを除外。Mayaは今回再起動せず、2023〜2026と利用側GUIデモは未再実行。
 
 - Codex (2026-10-25): ユーザー指示でmlibテストを別リポジトリへ持ち出せる構成へ整理。__tests__/unit・integrationの2区分とrun.bat/runMaya/runStatic/runGui、checks/support/manual、READMEへ集約し、結果は同梱_outputへ保存。mlrig/HTools/cymel/拡張/外部投稿の連携をworkspaceのtests/mlib_integrationへ切出し、本体との混在メソッドも分離。旧tools入口の互換ファイルは残さずCI/案内/78利用側のimport参照を追従し、利用側は参照/説明以外のAST不変を照合。静的61件、2027単体899/結合283、mlibだけのコピーで1182件、2022全体1180+追加対象3件、2027 GUI単体897/結合283/表示3件を確認。連携13ファイル49件成功（GUI専用と未導入バイナリはskip）。開始時の旧_docs/conf.py参照による1失敗は実装配置へ修正し、旧アサーション5680件の欠落0を確認。製品170Python不変、Sphinx332ページ/159図不変・参照検査成功。2023〜2026、利用側GUIデモの再実行、手動投稿は未実施。未commit/push。証跡 .maya-output/mlib-tests-portable-20261025/result.json。

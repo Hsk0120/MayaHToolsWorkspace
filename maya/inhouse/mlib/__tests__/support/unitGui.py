@@ -46,6 +46,7 @@ def main(output_dir, finished):
                       maya_version=cmds.about(version=True), python_version=sys.version,
                       total_files=suite["total"], failed_files=suite["failed"],
                       tests_run=suite["tests_run"], skipped=suite["skipped"],
+                      failure_details=suite.get("failure_details", []),
                       suite_log=str(suite["log_path"]), summary=suite["summary"],
                       excluded_files=sorted(namespace["EXCLUDED_FILES"] - {"run_all_tests.py"}))
     except BaseException:

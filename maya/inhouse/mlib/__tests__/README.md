@@ -87,6 +87,10 @@ GUI用スイートはランナーが設定する`MLIB_DISPOSABLE_GUI=1`を確認
 
 ## 結果を見る
 
+テストが失敗すると、起動元のターミナルにも詳細ログの絶対パス・失敗ファイル名・
+エラーの行番号と内容を表示します。成功したテストの詳しい出力はログにだけ保存します。
+Mayaの起動・終了の異常や時間切れでは、取得できた例外と起動ログのパスを表示します。
+
 - mayapy: `_output/maya/<日時>/summary.txt`と`summary.json`
 - GUI: `_output/gui/<日時>/summary.txt`と`summary.json`
 - 各版の`result.json`: 実際のMaya/API/Python版、実行件数、失敗、スキップ理由
