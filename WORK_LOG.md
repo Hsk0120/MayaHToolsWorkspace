@@ -117,30 +117,55 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25): ユーザー指示で残り未コミット全4ファイル（QuickPathExplorerの共有タブ/ドックサイズ・列幅修正、GUI検証スクリプト、共有作業ログ）をコミット・push対象として確認。Python3ファイルの構文と差分検査成功、既存Maya2027専用GUIの5確認成功・終了0・crash dumpなしの記録を確認。今回はGUIを再実行せず、生成物/調査資料はGit対象外を維持。
+
+- Codex (2026-10-25 11:22 JST): ユーザー指示でSphinx導入説明復元・全体幅/右目次調整の6ファイルと今回の記録をコミットし、c74751cをorigin/mainへpush。ls-remoteのSHA一致とahead/behind 0/0を確認。日英Sphinx警告0・32表示条件の検証済み差分と一致し、別作業のQPE/共有WORK_LOG差分を保持。
+
 - Codex (2026-10-25): mlib Sphinxの導入3ページを再構成し、なぜmlibの責務表・継承図・操作例を復元して現行API/英訳へ同期。全体最大幅1600px・右目次280〜360px・長名折返し・ナビ回り込み修正を適用し、継承図の配置/寸法を維持。日英各332HTML/警告0・全参照・7画面幅を含む32表示条件を検証。
 
+- Codex (2026-10-25): 承認済みのmlib Sphinx全体幅/右目次調整をcustom.cssへ実装。最大1600px、目次280〜360px、目次の長名折返し、ナビfloat包含を適用。継承図のソース/寸法/配置を維持し、日英各332HTML/警告0・全参照、7画面幅を含む32表示条件と目次14クリックを確認。標準ローカルHTMLを同期、他文書/英訳/実装は今回無変更。未commit/push。証跡 .maya-output/mlib-layout-width-20261025/result.json。
+
+- Codex (2026-10-25): mlib Sphinx全体幅・右目次を検討。図の配置/寸法は維持し、最大幅1200→1600px、目次240→280〜360px、目次内の長名折返しとナビfloatの包含を試作。Joint/whyを390〜1920pxの7幅14条件で確認し、目次はみ出し/ページ横スクロール0、図寸法不変。1366px以上の確認幅では数学図全体も表示可能。検討のみで製品CSS/文書は未変更。証跡 .maya-output/mlib-page-width-20261025/result.json。
+
+- Codex (2026-10-25): mlibクラス図のはみ出しを調査。数学図937pxに対し本文892px/スマホ356pxを確認。数学4型の小図をPC2列/狭幅1列にする案と空欄省略を隔離ブラウザ5幅（320〜1440px）で試作し、文字実寸/はみ出し0/8リンク保持を確認。API大図は一律縮小しない方針を提案。検討・試作のみ、製品文書/実装は変更なし。証跡 .maya-output/mlib-class-diagrams-20261025/result.json。
+
+- Codex (2026-10-25): mlibのSphinxを指定3ページ・19小見出しへ再構成。なぜmlibの説明/責務表/4継承図/操作例を復元し現行APIと照合、入門とモジュール分類も復元。英訳同期、日英各332HTML/警告0、参照とPC/スマホ幅の図・クリックを確認。数学図は実寸と横スクロールへ統一。170実装hash不変、13コード例は構文/実装照合まで（Maya未実行）。標準HTML同期済み、未commit/push。詳細 .maya-output/mlib-docs-restore-20261025/result.json。
+
+- Codex (2026-10-25 10:27 JST): ユーザー指示でmlib文書修正126ファイルをcommit/push。`ba32d28`をorigin/mainへ送信しリモートSHA一致・ahead/behind 0/0を確認。実行170AST不変、直前の公開/diff検査成功、日英各332HTML/警告0の完了証拠を確認。共有WORK_LOGは今回の文書完了行だけコミットし、別作業と生成物は保持。
 
 - Codex (2026-10-25 10:00 JST): mlib文書3時間枠を連続作業で完了。指定4項目へ整理し独立39章を削除。docstring 261件を実体へ同期、変更本文約19%短縮。日英各332HTML/警告0、全ローカル参照・英訳・170ファイルの実行AST/署名/既定値不変を確認。実読/修正1082定義、未確認624定義と未実測の実装懸念4件を台帳へ保持。Maya/commit/push/公開なし。詳細 .maya-output/mlib-docs-3h-20261025/result.json。 スケジュールmlib-6は削除成功と設定ファイル消失を確認。
 
+- Codex (2026-10-25 09:46 JST): mlib文書3h 第6段階batch7。Matrix再構成失敗時の部分更新、Quaternionのspin/鏡映、BlendShapeの復元試行とNodeの並び替え不要時の条件を実態へ同期。日英各332HTML/警告0、全参照・英訳・実行AST/署名不変を確認し、標準html/en出力も同期。最終監査・台帳集約を継続、未commit/push。
 
 - Claude Code (2026-10-25): mlrig 12時間拡張 第33回。`mlrig.setups.BoxRoll`(正方形の断面の箱を角度 roll で縁から縁へ転がす。floor で90度の段に分けて支点の縁を進める標準DG)を追加。試験7件(2027/2025)、setups回帰535件(2027/2025)、Setup Samples に1項目(計58、隔離2027 GUIで全項目確認)、Sphinx警告0、検証動画をローカルとDriveへ保存。未コミット。
 
+- Codex (2026-10-25 09:38 JST): mlib文書3h 第6段階batch6。内部回転変換のrotate以外XYZという規則と、チャンネル設定のsafe捕捉範囲/委譲先を訂正。日英Sphinx・英訳・参照・実行AST/署名不変を検証し、全体最終確認へ。未commit/push。
 
+- Codex (2026-10-25 09:33 JST): mlib文書3h 第6段階batch5。Transformationの保持参照と独立値/成分置換3件、Nodeの削除済みplug案内と子override説明2件を本文へ同期。Component55定義は重大差なしとして無変更維持。日英Sphinx/新16訳・Args表示・全ローカル参照・170実行AST/署名不変を確認。未commit/push、期限まで最終収束。
 - Claude Code (2026-10-25 09:30 JST): mlrig 12時間拡張・第32回完了。`setups/hipSwing.py`(振りのコントロールの回転で腰だけを支点の周りに振り、背骨の根元から上の向きを stabilize の割合で保つ。支点の枠で見た回転の差の行列の式、逆行列ノード不使用)と試験7件・rst・`tools/demo_hip_swing.py`を追加し、setups/__init__・docs/index・setup_samples(.py/.rst)・test_setup_samples・tools/test_rig_packages.py へ行を追加(Setup Samples 57項目)。Maya 2027/2025で新規7件・samples・setups回帰528件合格、Sphinx警告0、隔離GUIでメニュー全項目と録画を確認。未コミット。
 
+- Codex (2026-10-25 09:26 JST): mlib文書3h 第6段階batch4。addAttrの全87引数を保持し、型優先・子override・fast追加・返却を明確化。Transformの拘束入力/フリーズ/mirror、PluginPackageの版有無での分岐/例外/結果定数、logger通知を簡潔化。13doc（属性doc3含む）を同期し、日英Sphinx・英訳・ローカル参照・実行AST/署名/定数値不変を検証。未実測のfast time子懸念は別記録、期限まで継続・未commit/push。
 
+- Codex (2026-10-25 09:17 JST): mlib文書3h 第6段階batch3。ピボット・形状/Joint/Skin/Set/Container/DagPoseの説明を実装順へ同期。既存fast拒否前更新2経路は未解消課題として記録し製品実装を変更せず。日英Sphinx・新訳・参照・実行AST/署名不変を検証。期限まで継続、未commit/push。
 - Claude Code (2026-10-25 09:12 JST): mlrig 12時間拡張・第31回完了。`setups/unevenGround.py`(平らな床で付けた足と腰を、足ごとの地面の平面の高さ・傾きへ接地させる後処理。腰は低い方の足に合わせる)と試験8件・rst・`tools/demo_uneven_ground.py`・Setup Samplesの項目(計56)を追加。試験 2027/2025 8件OK、setups回帰 2027/2025 521件OK、Sphinx警告0、隔離GUIでメニュー56項目の作成・選択・1枚絵OK。未コミット。
 
 
+- Codex (2026-10-25 09:08 JST): mlib文書3h 第6段階batch2。演算13ファイル88 docstringを本文照合し、重複Undo説明をクラスへ集約。有限行列保証・ターゲット削除時の接続保持という誤記を修正。19492→17505字。新76訳＋関連既存誤訳1件、日英332HTML/警告0・176要約＋入門2assert・4checker・170実行AST/署名不変・diff検査成功。期限まで継続、未commit/push。
+- Codex (2026-10-25 08:57 JST): mlib文書3時間・第6段階batch1完了、全体作業は継続。Node/Nodes・commonの21説明と入門1文を修正。全件事前検査と保持順検査、参照/容器、名前空間復元、ScriptJob登録寿命、単位の数値を照合。実行170AST/署名/py37不変、日英332HTMLずつ・警告0、catalog7542（新87/削除88/共通7455訳不変）、本文44確認/4checker成功。Maya未起動、commit/pushなし。詳細.maya-output/mlib-docs-3h-20261025/run6/batch1/。
 
+- Codex (2026-10-25 08:45 JST): mlib文書3時間・第5段階完了。数学/core/decorator/utilの23説明を11178→7316文字へ整理。演算/所有権/Itを維持し、UI単位切替・非Joint拒否・Undo復旧・reload保持参照/拡張・登録検証範囲を照合。空行末尾空白を修正しdiff成功、実行170AST/署名/py37不変、公開0/layout186違反0、日英332HTMLずつ・警告0、catalog7543（新89/削除110/共通7454訳不変）。Maya未起動、commit/pushなし。詳細.maya-output/mlib-docs-3h-20261025/run5/。
 
+- Codex (2026-10-25 08:37 JST): mlib文書3時間・第4段階完了。Component/UV/Mesh/NurbsCurve/SkinCluster/BlendShape/AnimCurveの21説明を10296→9179文字へ整理。通常Undo/fast、周期CV/保持順、reorder無変更時、aliasとinfluence番号/配列順を照合。実行170AST/署名/py37不変、日英332HTMLずつ・警告0、catalog7564（新116/削除104/共通7448訳不変）、未訳/fuzzy/記法0。Maya未起動、commit/pushなし。詳細.maya-output/mlib-docs-3h-20261025/run4/。
 
+- Codex (2026-10-25 08:28 JST): mlib文書3時間・第3段階完了。Plug関連27説明を13016→10755文字へ整理。safe部分更新・単位・接続既定・配列番号・Message旧名を照合。実行170AST/署名/py37不変、公開0/layout186違反0、日英332HTMLずつ・警告0、catalog7552（新159/削除157/共通7393訳不変）、未訳/fuzzy/記法0。確認50定義修正/27定義確認/1629未確認。Maya未起動、commit/pushなし。ユーザー指示で待機なし連続作業へ変更。詳細.maya-output/mlib-docs-3h-20261025/run3/。
 
 - Claude Code (2026-10-25 08:50): mlrig 12時間拡張 第30回。OverShoulderCamera がカメラ自身の parentInverseMatrix を translate の計算に使う形を、親の移動・offsetParentMatrix・キーの時間・DG/serial/parallel の各評価で確認(再現せず、誤差1.4e-6cm=単精度の丸め。駆動するのは translate・rotate で offsetParentMatrix ではないため循環しない)→試験を1件追加しコメントで理由を明記。ほかの setups の parentInverseMatrix・parentMatrix の使用(leafJoints・limbPin・bowString・piston・outlineBank)も確認し問題なし。ネットの情報(Catch light・Blinn-Phong の half vector など)から、目のハイライトをカメラと光の中間の向きの眼球の表面へ置く `mlrig/setups/eyeHighlight.py`(EyeHighlight。follow・radius・weight、aimMatrix等の標準ノードのみ)と試験9件・docs/eye_highlight.rst・tools/demo_eye_highlight.py・Setup Samples の項目(計55)を追加。2027/2025で setups回帰513件OK、Sphinx警告0、隔離GUIで検証動画とメニュー全項目を確認。未commit。
 - Claude Code (2026-10-25 08:27): mlrig 12時間拡張 第29回。既存のモジュラーリグ(mGearのミラーポーズ、MIT、コード流用なし)の考え方で、片側のコントロールのワールド行列を対称面(キャラクターのルート等)で鏡に映し反対側のコントロールの offsetParentMatrix へ常に写す `mlrig/setups/liveMirror.py`(LiveMirror。flip=behavior/x/y/z、maintainOffset、weight、target自身のTRSは上乗せ用に空ける、multMatrix・blendMatrixのみ)と試験7件・docs/live_mirror.rst・tools/demo_live_mirror.py・Setup Samples の項目(計54)を追加。2027/2025で試験・samples合格、setups回帰503件OK、Sphinx警告0、隔離GUIで検証動画とメニュー全項目を確認。未commit。
+- Codex (2026-10-25 08:04 JST): mlib文書3時間整理の第2枠。Node/DagNode/Transform/Jointの20docstringsを実装へ照合し10127→8381文字へ整理。Node.createの親入力/共有返却/長短競合/Shapeの暗黙親、DAGパス借用/親・子の探索/同一性、OPMのlocal/world差・Euler解/get/safe/fast、Jointの回転移送とinverseScale接続を明確化。getClassificationの分類なしを空リストとする誤説明を現実装の[空文字列]へ訂正。日英各332ページ/警告0、20説明の40要約読戻し・4項目ナビ・旧39章/リンク不在・両言語4検査成功。catalog7550件、新111/削除98/共通7439訳保持、未訳/fuzzy/記法問題0。実行170ファイルのAST/署名/デコレーター不変とPython3.7構文、公開/layout186/diff検査成功。Maya・ブラウザ未実行、未コミット。証拠: `.maya-output/mlib-docs-3h-20261025/run2/`。
 
 - Claude Code (2026-10-25 08:06): mlrig 12時間拡張 第28回。会話する2人の頭の位置から肩越しのカメラの位置・向きを決める `mlrig/setups/overShoulderCamera.py`(OverShoulderCamera。2人を結ぶ線の片側に角度・距離・高さで置き、写す人物の頭をフィルムゲートの指定位置(三分割など)へ写すよう平行移動、作成時の姿勢から weight で補間、標準ノードのみ)と試験7件・rst・検証デモ・Setup Samples の項目(計53)を追加。2027/2025で試験・samples合格、setups回帰496件OK、Sphinx警告0、隔離GUIでメニュー全項目確認。未commit。
 - Claude Code (2026-10-25 07:52): mlrig 12時間拡張 第27回。ネットの事例(Wikipedia「Dolly zoom」等)からカメラのドリーズーム `mlrig/setups/dollyZoom.py`(視線方向の距離に比例した焦点距離・横の画角、標準ノードのみ)と試験 test_setup_dolly_zoom(7件)・docs/dolly_zoom.rst・tools/demo_dolly_zoom.py を追加。Setup Samples に「DollyZoom - camera keeps the subject size」を追加(52項目、隔離Maya 2027 GUIで全項目確認)。setups回帰 2027/2025とも489件OK、Sphinx警告0。未コミット。
+- Codex (2026-10-25 07:34 JST): mlib文書3時間整理の第1枠。公開の手書き章を指定4項目へ整理し、インストール・パッケージ名変更を含む39章を削除。残る本文633→134行、7コマンドの重複説明8506→1801文字。Object/Node/Plugの説明を実装照合し、返却型・Undo有効時・safe例外・長短名の併用規則等の過剰な断定と古い参照を修正。API参照325ページは維持。日英Sphinx各332ページ/警告0、4項目ナビ・旧章/リンク不在・継承図リンク・get/is名/7入口の署名検査を確認。共通7467訳を保持し、新70訳/削除1526件、未訳/fuzzy/記法問題0。実行170ファイルのAST不変/Python3.7構文、ホスト53テスト、公開/layout186/diff検査成功。Maya・ブラウザ未実行、未コミット。証拠: `.maya-output/mlib-docs-3h-20261025/run1/`。
 - Claude Code (2026-10-25 07:30): mlrig 12時間拡張 第26回。体節の質量の割合から全身の重心・床への投影・両足の中点からのずれ(balance)を求める `setups/centerOfMass.py`(CenterOfMass、wtAddMatrixの重みで加重平均、plusMinusAverage・multiplyDivide・clamp・decomposeMatrix・composeMatrix・distanceBetween、人体の体節の表 DEMPSTER、Python版 center())を追加。試験 `test_setup_center_of_mass.py` 7件(2027/2025合格)、setups回帰 482件(2027/2025)、Setup Samplesに「CenterOfMass - stick figure balance」を追加(51項目、test_setup_samples合格・隔離GUIで全項目確認)、docs/center_of_mass.rst(Sphinx警告0)、tools/demo_center_of_mass.py。未コミット。
 - Claude Code (2026-10-25 07:12): mlrig 12時間拡張 第25回。水面に浮かぶ物体を時間で進むトロコイド波の和の面に乗せる `setups/waveFloat.py`(WaveFloat、composeMatrix+vectorProductのsin/cos、変位の偏微分から面の法線、blendMatrixで傾きの割合、時間の積分なし・既定の振幅0で作成時に跳ねない)を追加。Setup Samplesに「WaveFloat - boat on waves」(計50項目)。試験7件・samples 6件を2027/2025で合格、setups回帰2027/2025とも475件OK、Sphinx警告0、隔離2027 GUIで検証動画(passed)とメニュー50項目の作成・選択・1枚絵を確認。未commit。
 - Claude Code (2026-10-25 06:52): mlrig 12時間拡張 第24回。頭のコントロールの回転を首の関節へ累積の割合で分配し、頭はコントロールの向きに合わせる `setups/neckHeadSplit.py`(NeckHeadSplit、multMatrix・pickMatrix・blendMatrix、各関節のワールド行列を出力)を追加。試験 `test_setup_neck_head_split.py` 7件、Setup Samples の項目(計49)、`docs/neck_head_split.rst`、`tools/demo_neck_head_split.py`。2027/2025で setups 468件OK、Sphinx警告0、隔離GUIでメニュー全項目を確認。未コミット。
@@ -225,6 +250,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Codex (2026-10-24 12:27 JST): ユーザーの追加9時間依頼に基づき、既存heartbeat mlib-6を更新してACTIVE/同じタスクへの継続を読戻し確認。本日12:30〜21:30 JSTの30分ごと18枠、最終開始21:00・各25分以内・最終回停止。Maya完全上級/Python中級（クラス/責務/decorator/context理解済み）へ前提を更新し、Maya基準の日本語Google形式docstringを重点化。対象/空間/単位/論理・物理番号/評価と実体化/所有権/失敗・Undo/fast/safeを実装と照合し、小さな責務整理も行う。18枠をObject/Node→DAG/TRS/Joint→Plug/接続/配列→Component/形状→Skin/BlendShape/Anim/関係型→数学/共通基盤→最後2枠の回帰/日英Sphinx/収束へ配分。英訳は小分け同期し、確認台帳で実際に確認した定義と未確認を区別。前回全12枠の進捗SHAと170実装の不変を確認し、未コミット/QuickPathExplorer/AutoClavicle等の他作業を保持。計画/進捗/対象台帳は.maya-output/mlib-refactor-9h-20261024/のplan.txt・progress.json・coverage.json、今回の製品変更/Maya検証/コミット/pushなし。
 
+- Codex (2026-10-24): QPEの共有タブ最小サイズ制約を表示中だけ緩和し、他タブでは復元。破棄済みsplitter参照と共有タブの自動分離を修正。階層列幅に矢印・縦バー分を確保。Maya2027専用GUIでタブ縮小/復元、長い名前、右/下ドック、浮動表示を検証済み。証跡: .maya-output/qpe-sizing/final/。
 
 - Codex (2026-10-24 04:48 JST): 6時間枠のリファクタリングを第12枠まで全12回完了。最終枠は既存matrixArray説明2行と英訳POを同期し、全170実装の実行AST/公開契約は開始前と不変。英訳は新4/旧17整理・共通8,301項目の訳/flag保持、日本語未訳/本文fuzzy/記法違反0。日英Sphinx-W各371HTML、掲載名/署名/静的HTML、更新説明の表示と旧3定義anchor不在を検証。最終ソースで隔離Maya2022〜2027全6版各137ファイル/1,178件成功（skip6/6/6/3/3/3）、ホスト53件・Python3.7構文/公開/layout/差分検査成功。並行追加を含む現在のmlrig275件中274成功・既存境界監査1失敗/33指摘は対象ソースSHAと指摘集合が開始前と一致し検査を維持。他作業AutoClavicle等7ファイルは保持。累積では未使用3定義を削除し、Node/Plug入力・参照寿命、更新前検証/Undo・fast・safe、Component/形状操作、数学値/単位変換を明示分岐/ループ/具体名へ整理。実装170ファイル・変更11実装、33,015→32,944物理行（純減71）、公開引数/単位/返却/所有権・複数形/reload/型登録/拡張自動探索は維持。文書同期4件と実装の未完了なし。結果.maya-output/mlib-hourly-refactor-20261023/result.jsonとsummary.txt、既存mlib-6をネイティブ機能でPAUSEDへ更新し停止を読戻し確認。GUI/性能/ブラウザー操作は未実施、コミット・push・外部公開なし。
 

@@ -24,16 +24,17 @@ def _control_widget(name):
 
 def _dock_splitter(control):
     """再ドックで無効になった親ラッパーを使わず、直接の分割領域を返す。"""
-    found = None
-    for splitter in QtWidgets.QApplication.allWidgets():
-        if not isinstance(splitter, QtWidgets.QSplitter) or not shiboken.isValid(splitter):
-            continue
-        for i in range(splitter.count()):
-            item = splitter.widget(i)
-            if item is control or item.isAncestorOf(control):
-                if found is None or found[0].isAncestorOf(splitter):
-                    found = (splitter, item)
-    return found
+    # 全ウィジェット走査にはMayaが付け替え中の旧splitterも含まれる。
+    # 現在のcontrolから直接たどり、無関係な破棄待ちの領域を参照しない。
+    item = control
+    while item is not None and shiboken.isValid(item):
+        parent = item.parentWidget()
+        if parent is None or not shiboken.isValid(parent):
+            break
+        if isinstance(parent, QtWidgets.QSplitter):
+            return parent, item
+        item = parent
+    return None
 
 
 def _repair_fixed_row_dock():
@@ -41,11 +42,19 @@ def _repair_fixed_row_dock():
     if not cmds.workspaceControl(CONTROL, exists=True) or cmds.workspaceControl(CONTROL, query=True, floating=True):
         return
     control = _control_widget(CONTROL)
+    parent = control.parentWidget() if control is not None else None
+    while parent is not None:
+        if isinstance(parent, QtWidgets.QTabWidget) and parent.count() > 1:
+            # 利用者が他エディターとまとめたタブを自動的に分離しない。
+            return
+        parent = parent.parentWidget()
     found = _dock_splitter(control) if control is not None else None
     slider, main = _control_widget('TimeSlider'), _control_widget('MainPane')
     if found is None or slider is None:
         return
     splitter, item = found
+    if not shiboken.isValid(splitter) or not shiboken.isValid(item):
+        return
     if splitter.orientation() != QtCore.Qt.Vertical:
         return
     index = splitter.indexOf(item)
@@ -86,6 +95,7 @@ class DockWatcher(QtCore.QObject):
         super().__init__(widget)
         self.widget = widget
         self.targets = []
+        self._tab_limits = None
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(350)
@@ -104,6 +114,32 @@ class DockWatcher(QtCore.QObject):
         self.targets = [target for target in targets if target is not None]
         for target in self.targets:
             target.installEventFilter(self)
+        self._update_tab_limits()
+
+    def _update_tab_limits(self):
+        """QPE表示中だけ、Mayaのタブが記憶したサイズを最小値に使わない。"""
+        tab = self.widget.parentWidget()
+        while tab is not None and not isinstance(tab, QtWidgets.QTabWidget):
+            tab = tab.parentWidget()
+        active = (tab is not None and tab.currentWidget() is not None
+                  and tab.currentWidget().isAncestorOf(self.widget))
+        previous = self._tab_limits
+        if previous and (not active or previous[0] is not tab):
+            old_tab, policy, minimum = previous
+            if shiboken.isValid(old_tab):
+                old_tab.setSizePolicy(policy)
+                old_tab.setMinimumSize(minimum)
+                old_tab.updateGeometry()
+            self._tab_limits = None
+        if active and self._tab_limits is None:
+            self._tab_limits = (tab, tab.sizePolicy(), tab.minimumSize())
+            # Mayaのタブは現在サイズをminimumSizeHintとして返すことがある。
+            # 共有エディターの制約は変更せず、QPEを表示する間だけ無視する。
+            area = self.widget._dockViewport
+            tab.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
+            tab.setMinimumSize(area.minimumWidth() + 4,
+                               area.minimumHeight() + tab.tabBar().sizeHint().height() + 4)
+            tab.updateGeometry()
 
     def eventFilter(self, watched, event):
         """イベントを妨げず、配置が落ち着いてから保存する。"""

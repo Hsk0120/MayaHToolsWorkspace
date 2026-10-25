@@ -254,7 +254,7 @@ class FolderColumns(QtWidgets.QColumnView):
             bar.setValue(bar.value() + x + min(offset, view.width() - 1))
 
     def contentWidth(self, root):
-        """名前が読める幅を算出し、長すぎる名前には上限を設ける。
+        """名前と矢印、縦スクロールバーが重ならない列幅を算出する。
 
         Args:
             root (QModelIndex): 列が表示する親。
@@ -264,15 +264,17 @@ class FolderColumns(QtWidgets.QColumnView):
         """
         scale = getattr(self, 'columnScale', 1.0)
         path = self.model().filePath(root)
-        if path in self._manualWidths:
-            return round(self._manualWidths[path] * scale)
         metrics = self.fontMetrics()
         width = 0
         for row in range(self.model().rowCount(root)):
             width = max(width, metrics.horizontalAdvance(str(self.model().index(row, 0, root).data() or '')))
-            if width >= round(1000 * scale):
-                break
-        return max(round(80 * scale), min(round(1040 * scale), width + round(48 * scale)))
+        # 子ビューの縦バーは非同期読込や高さ変更で出入りするため常に予約する。
+        # delegateが消費する矢印・アイコン・余白と同じ寸法を使う。
+        padding = (max(12, metrics.height()) + self.iconSize().width() + 12
+                   + self.style().pixelMetric(QtWidgets.QStyle.PM_ScrollBarExtent)
+                   + 2 * self.style().pixelMetric(QtWidgets.QStyle.PM_DefaultFrameWidth) + 4)
+        return max(round(80 * scale), width + padding,
+                   round(self._manualWidths.get(path, 0) * scale))
 
     def setWidthMode(self, mode):
         """列幅方針を変更し保存する。

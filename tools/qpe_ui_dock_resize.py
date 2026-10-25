@@ -20,6 +20,57 @@ def main(output_dir, finished):
     try:
         e=qpeHost.show(str(out)); pause(500)
         area=e._dockViewport
+        # 同じタブ内の別エディターから戻った後も、記憶したサイズに固定されない。
+        peer = 'qpeResizeTestPeer'
+        cmds.workspaceControl(peer, label='Resize test peer', floating=True, loadImmediately=True)
+        cmds.setParent(peer)
+        cmds.columnLayout()
+        cmds.text(label='Peer editor')
+        cmds.workspaceControl(peer, edit=True, dockToMainWindow=('bottom', False))
+        pause(700)
+        cmds.workspaceControl(qpeHost.CONTROL, edit=True, tabToControl=(peer, -1))
+        pause(700)
+        tab = area.parentWidget()
+        while tab is not None and not isinstance(tab, QtWidgets.QTabWidget):
+            tab = tab.parentWidget()
+        assert tab is not None
+        result['tabs'] = [(tab.tabText(i), tab.widget(i).objectName()) for i in range(tab.count())]
+        qpe_index = next(i for i in range(tab.count()) if tab.widget(i).isAncestorOf(e))
+        peer_index = next(i for i in range(tab.count()) if i != qpe_index)
+        tab.setCurrentIndex(peer_index); pause(500)
+        original_policy = tab.sizePolicy()
+        tab.setCurrentIndex(qpe_index); pause(500)
+        splitter, item = qpeDock._dock_splitter(area.parentWidget())
+        index = splitter.indexOf(item)
+        sizes = splitter.sizes()
+        other = next(i for i in range(len(sizes)) if i != index and sizes[i] > 100)
+        sizes[other] += sizes[index] - 240
+        sizes[index] = 240
+        splitter.setSizes(sizes); pause(500)
+        assert item.height() <= 260, item.height()
+        tab.setCurrentIndex(peer_index); pause(500)
+        assert tab.sizePolicy() == original_policy
+        tab.setCurrentIndex(qpe_index); pause(500)
+        result['checks'].append('tabbed dock shrinks and restores sibling size policy')
+        # 縦バーが出る末尾列でも名前と階層矢印が重ならない。
+        folder = out / 'folders'
+        folder.mkdir(exist_ok=True)
+        for number in range(25):
+            (folder / ('Week_%02d_長いフォルダー名' % number)).mkdir(exist_ok=True)
+        e.navigate(str(folder)); pause(1200)
+        e.columns.fitColumns(); pause(300)
+        views = [v for v in e.columns.findChildren(QtWidgets.QListView)
+                 if v.isVisible() and v.rootIndex() == e.columns.currentIndex()]
+        assert views
+        view = views[-1]
+        for row in range(view.model().rowCount(view.rootIndex())):
+            name = str(view.model().index(row, 0, view.rootIndex()).data())
+            required = view.fontMetrics().horizontalAdvance(name) + max(12, view.fontMetrics().height()) + view.iconSize().width() + 12
+            assert view.viewport().width() >= required, (view.viewport().width(), required)
+        result['checks'].append('last column reserves full names, arrows and vertical scrollbar')
+        area.grab().save(str(out / 'tabbed.png'))
+        cmds.deleteUI(peer)
+        pause(500)
         for side in ('right','bottom'):
             cmds.workspaceControl(qpeHost.CONTROL, edit=True, dockToMainWindow=(side,False))
             pause(900)
