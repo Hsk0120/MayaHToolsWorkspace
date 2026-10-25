@@ -994,8 +994,8 @@ msgstr "``tools/build_maya_plugin.py``\\ -\\ ``tools/maya_devkit.py``"
 msgid "Visual Studio / CMake / devkit の自動検出とローカル devkit の生成。リポジトリへコピーするか、共通のビルド用リポジトリとして分ける"
 msgstr "Automatic detection of Visual Studio / CMake / devkit and generation of local devkit. Copy to repository or separate into a common build repository."
 
-msgid "``tools/run_mlib_gui_versions.py``\\ (GUI テストの起動・監視)"
-msgstr "``tools/run_mlib_gui_versions.py``\\ (Launching and monitoring GUI tests)"
+msgid "``maya/inhouse/mlib/__tests__/runGui.py``\\ (GUI テストの起動・監視)"
+msgstr "``maya/inhouse/mlib/__tests__/runGui.py``\\ (Launching and monitoring GUI tests)"
 
 msgid "``tests/run_gui.py`` などが利用している。専用設定・タイムアウト監視・終了処理ごとコピーが必要"
 msgstr "The tools such as ``tests/run_gui.py`` require dedicated settings, timeout monitoring, and copying of shutdown procedures."

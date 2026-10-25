@@ -5,7 +5,7 @@
     python maya/inhouse/MayaCodeEditor/docs/tools/run_capture.py 2027
 
 既存の Maya・ユーザー設定には触れず、空シーン・専用設定の Maya を起動する。
-画像は ``docs/_static/images/`` へコピーする。親リポジトリの ``tools/run_mlib_gui_versions.py`` を利用する。
+画像は ``docs/_static/images/`` へコピーする。親リポジトリの ``maya/inhouse/mlib/__tests__/runGui.py`` を利用する。
 """
 import argparse
 import datetime
@@ -18,7 +18,8 @@ DOCS = Path(__file__).resolve().parents[1]
 PROJECT = DOCS.parent
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
-from run_mlib_gui_versions import run_version  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[5] / "maya/inhouse/mlib/__tests__"))
+from runGui import run_version
 
 SAMPLE_FILES = {
     "build_rig.py": (

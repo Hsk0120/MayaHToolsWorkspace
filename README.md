@@ -214,7 +214,7 @@ install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外は
 
 ## mlib ドキュメント
 
-Maya 2022～2027の個別・一括テストは [mlibのバージョン別テスト](docs/mlib-testing.md) を参照してください。
+Maya 2022～2027の個別・一括テストは [mlibのバージョン別テスト](maya/inhouse/mlib/__tests__/README.md) を参照してください。
 
 Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/mlib/_docs` に用意しています。
 Maya を起動せず、ソースから HTML を生成できます。
@@ -230,7 +230,7 @@ Objectと拡張登録・管理の入口は `core` に置き、`from mlib.core.ob
 集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持します。旧`mlib._core`等の互換入口はありません。
 クラス・コマンドの公開名は各パッケージの `__init__.py`、Node/Plugの型対応は同ファイルの
 `_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
-`python tools/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
+`python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
 複数形APIも通常のメソッドとして定義し、共通処理へ委譲します。
 公開コマンドは `getNode/getPlug/createNode/ls/delete/duplicate/select` の7入口です。
 取得はget付き、判定はis付きの正式名を使用します。演算14型は型クラスを残し、専用APIではなく`getPlug`で操作します。

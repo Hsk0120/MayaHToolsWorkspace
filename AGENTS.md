@@ -99,7 +99,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 リポジトリルートからPowerShellで既存テストを送信する例（Maya GUI起動済みが前提）:
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/send_to_maya.py maya/inhouse/mlib/__tests__/test_datatypes.py
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/send_to_maya.py maya/inhouse/mlib/__tests__/unit/test_datatypes.py
 ```
 
 - 対象はこのワークスペース内の保存済み `.py` ファイル全体。選択範囲送信やブレークポイントには対応しない。
@@ -120,11 +120,11 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 ### mlib
 
 - ノード・アトリビュートラッパーは主に `maya.api.OpenMaya`（API 2.0）を使用する。既存のラッパーと共通処理を確認して再利用する。
-- 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
+- 公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` で公開漏れを検査する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応は別の責務で、登録済み型からのラッパー選択は `core/registry.py` の既存規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` として明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数メソッドの追加だけで複数形APIを増やさず、既存の引数・戻り値・専用集約処理を維持する。
 - 静的解析(Pylance/pyright)は、リポジトリ直下の `pyrightconfig.json` に設定を集約している。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
-- 静的解析向けに公開名だけの別名一覧を増やさず、通常の明示importを公開と補完の共通入口にする。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_mlib_exports.py` で不一致を検査する。
+- 静的解析向けに公開名だけの別名一覧を増やさず、通常の明示importを公開と補完の共通入口にする。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` で不一致を検査する。
 - `mlib.reload()` は既存のリロード入口。変更を反映する際はシーンや保持中のインスタンスへの影響を確認する。
 - `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translate/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotate は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/maths/` の各公開APIのdocstringと `docs/mlib-api-design.md` を参照する。
 - Mayaの信頼済みプラグインの場所(`optionVar SafeModeAllowedlistPaths`)をスクリプトから変更しない。MayaのSafeModeが拒否する設定で、迂回せずユーザーがPreferences > Securityで登録する。
@@ -140,7 +140,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 ## 検証
 
 - 共通のpytest/CIコマンドを前提にせず、変更対象の既存テストと実行方法を確認する。
-- 数学型の変更は `maya/inhouse/mlib/__tests__/test_datatypes.py` で検証する。標準の実行経路は上記のMaya送信タスク。
+- 数学型の変更は `maya/inhouse/mlib/__tests__/unit/test_datatypes.py` で検証する。標準の実行経路は上記のMaya送信タスク。
 - `test_maya_standalone.py` や `test_slack_postMessage.py` は手動スクリプト。名前だけで安全な一括テストと判断せず、実行前に副作用を確認する。
 - Maya依存コードは通常のPythonでimportできると仮定しない。構文チェックとMaya内の動作確認を区別する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を必要な範囲で確認する。実行環境が使えない場合は、その制約と確認手順を報告する。

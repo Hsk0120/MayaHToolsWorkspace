@@ -45,7 +45,7 @@ html_css_files = ["css/theme.css", "css/layout.css", "css/code-dark-plus.css", "
 
 # 4. 継承図の描画
 # Mermaid本体はCDNから読み込む。版を変えるときはSRIも更新する。
-# URLとSRIはtools/check_mlib_docs.pyもここから読み、生成HTMLと照合する。
+# URLとSRIはmaya/inhouse/mlib/__tests__/checks/check_mlib_docs.pyもここから読み、生成HTMLと照合する。
 _MERMAID_VERSION = "11.17.2"
 _MERMAID_URL = f"https://cdn.jsdelivr.net/npm/mermaid@{_MERMAID_VERSION}/dist/mermaid.min.js"
 _MERMAID_SRI = "sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2"

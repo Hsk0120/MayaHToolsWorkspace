@@ -541,7 +541,7 @@ Maya Code Editor は mlib とは独立していますが、現在は親リポジ
      - 切り出し時の対応
    * - ``tools/build_maya_plugin.py``\ ・\ ``tools/maya_devkit.py``
      - Visual Studio / CMake / devkit の自動検出とローカル devkit の生成。リポジトリへコピーするか、共通のビルド用リポジトリとして分ける
-   * - ``tools/run_mlib_gui_versions.py``\ (GUI テストの起動・監視)
+   * - ``maya/inhouse/mlib/__tests__/runGui.py``\ (GUI テストの起動・監視)
      - ``tests/run_gui.py`` などが利用している。専用設定・タイムアウト監視・終了処理ごとコピーが必要
    * - ``maya/modules/MayaCodeEditor.mod``
      - ``../inhouse/MayaCodeEditor`` という相対パスを、リポジトリ構成に合わせて書き換える

@@ -12,7 +12,8 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from run_mlib_gui_versions import run_version
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "maya/inhouse/mlib/__tests__"))
+from runGui import run_version
 
 directory = ROOT / '.maya-output/mce-startup' / datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 modules = directory / 'modules'

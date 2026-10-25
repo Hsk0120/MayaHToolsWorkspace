@@ -1,0 +1,100 @@
+"""同梱の外部SDKと対応バイナリがある場合にサンプルを実機検証する。"""
+import os
+from pathlib import Path
+import sys
+import unittest
+import uuid
+
+import maya.cmds as cmds
+import mlib
+
+ROOT = Path(__file__).resolve().parents[3]
+EXTERNAL = ROOT / 'maya/external/PoseDriverConnect'
+
+
+def _isTrustedLocation(folder):
+    """GUIでプラグインを警告なしにロードできる場所か返す。
+
+    GUIでは信頼済みの場所(Preferences > Security > Plug-ins)に無いフォルダーのプラグインをロードすると、
+    警告ダイアログで処理が止まる。信頼済みの場所はスクリプトから登録できない(SafeModeが拒否する)ため、
+    未登録ならロードせずにテストをskipする。mayapy(バッチ)では警告が出ない。
+
+    Args:
+        folder (Path): プラグインのフォルダー。
+
+    Returns:
+        bool: バッチ実行中、または信頼済みの場所に登録済みなら True。
+    """
+    if cmds.about(batch=True):
+        return True
+    if not cmds.optionVar(exists="SafeModeAllowedlistPaths"):
+        return False
+    value = cmds.optionVar(query="SafeModeAllowedlistPaths")
+    paths = value if isinstance(value, (list, tuple)) else [value]
+
+    def normalize(path):
+        return os.path.normpath(str(path)).replace("\\", "/").rstrip("/").lower()
+
+    return normalize(folder) in {normalize(path) for path in paths}
+
+
+class PoseDriverConnectTest(unittest.TestCase):
+    def test_external_api_and_nodes(self):
+        source = EXTERNAL / 'python'
+        if not source.is_dir():
+            self.skipTest('PoseDriverConnect source is not installed')
+        sys.path.insert(0, str(source))
+        extension_source = ROOT / 'maya/inhouse/mlib_posedriverconnect/scripts'
+        sys.path.insert(0, str(extension_source))
+        created = []
+        try:
+            before_plugins = set(cmds.pluginInfo(query=True, listPlugins=True) or [])
+            mlib.reload()
+            self.assertEqual(set(cmds.pluginInfo(query=True, listPlugins=True) or []), before_plugins)
+            state = mlib.core.extensions.status()['mlib_posedriverconnect']
+            self.assertEqual(state['state'], 'loaded', state['reason'])
+            self.assertIsNotNone(mlib.nodes.Node._registry.lookup('UERBFSolverNode'))
+            binary = EXTERNAL / 'plug-ins/windows' / str(cmds.about(version=True)).split('.')[0] / 'MayaUERBFPlugin.mll'
+            if not binary.exists():
+                self.skipTest('Wrapper registration passed; matching Maya plugin binary not installed')
+            if not _isTrustedLocation(binary.parent):
+                self.skipTest('Wrapper registration passed; plugin location is not trusted in this GUI session')
+            # 本テストだけが外部標準製品のプラグインを明示的にロードする。
+            cmds.loadPlugin(str(binary), quiet=True)
+            solver = mlib.createNode('UERBFSolverNode', name='mlibTestRBF_' + uuid.uuid4().hex)
+            created.append(solver.getFullName())
+            blender = mlib.createNode('UEPoseBlenderNode', name='mlibTestPose_' + uuid.uuid4().hex)
+            created.append(blender.getFullName())
+            self.assertEqual(type(solver).__module__, 'mlib_posedriverconnect.nodes.UERBFSolverNode')
+            self.assertIs(type(mlib.ls(solver.getFullName())[0]), type(solver))
+            self.assertEqual(solver.drivers(), [])
+            self.assertIsInstance(solver.num_poses(), int)
+            before = solver.radius()
+            solver.setRadius(before + 10)
+            self.assertAlmostEqual(solver.radius(), before + 10)
+            cmds.undo()
+            self.assertAlmostEqual(solver.radius(), before)
+            cmds.redo()
+            self.assertAlmostEqual(solver.radius(), before + 10)
+            self.assertIsNone(blender.driven_transform())
+            self.assertIsInstance(blender.envelope(), float)
+            name = solver.getFullName()
+            mlib.reload()
+            solver = mlib.getNode(name)
+            self.assertTrue(isinstance(solver, mlib.nodes.Node))
+            self.assertAlmostEqual(solver.radius(), before + 10)
+        finally:
+            for name in created:
+                if cmds.objExists(name):
+                    cmds.delete(name)
+            sys.path.remove(str(source))
+            sys.path.remove(str(extension_source))
+            # テストで追加したSDKのimport状態を次のテストへ残さない。
+            for name in list(sys.modules):
+                if name == 'epic_pose_wrangler' or name.startswith('epic_pose_wrangler.'):
+                    del sys.modules[name]
+            mlib.reload()
+
+
+if __name__ == '__main__':
+    unittest.main(argv=[sys.argv[0]])

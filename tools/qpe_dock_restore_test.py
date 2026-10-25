@@ -74,7 +74,8 @@ def main(output_dir, finished):
 if __name__ == '__main__':
     import argparse
     import datetime
-    from run_mlib_gui_versions import run_version
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+    from runGui import run_version
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version', default='2027', choices=['2022', '2023', '2024', '2025', '2026', '2027'])
     args = parser.parse_args()

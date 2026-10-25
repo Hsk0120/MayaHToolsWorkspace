@@ -11,12 +11,12 @@ on:
       - 'maya/inhouse/HTools/_docs/**'
       - 'maya/inhouse/FramePlayer/src/app/FramePlayer.rc'
       - '.github/workflows/mlib-docs.yml'
-      - 'tools/check_mlib_docs.py'
-      - 'tools/check_mlib_exports.py'
-      - 'tools/check_mlib_doc_getter_names.py'
-      - 'tools/test_mlib_doc_getter_names.py'
-      - 'tools/test_mlib_constructor_signatures.py'
-      - 'tools/docs-browser-requirements.txt'
+      - 'maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py'
+      - 'maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py'
+      - 'maya/inhouse/mlib/__tests__/checks/check_mlib_doc_getter_names.py'
+      - 'maya/inhouse/mlib/__tests__/unit/test_static_getter_docs.py'
+      - 'maya/inhouse/mlib/__tests__/unit/test_static_constructor_docs.py'
+      - 'maya/inhouse/mlib/__tests__/checks/browser-requirements.txt'
   workflow_dispatch:
 
 permissions:
@@ -39,33 +39,29 @@ jobs:
           cache-dependency-path: maya/inhouse/mlib/_docs/requirements.txt
       - name: Install documentation dependencies
         run: python -m pip install -r maya/inhouse/mlib/_docs/requirements.txt
-      - name: Check explicit mlib exports
-        run: python tools/check_mlib_exports.py
-      - name: Check getter and predicate documentation rules
-        run: python tools/test_mlib_doc_getter_names.py
-      - name: Check inherited node constructor signatures
-        run: python tools/test_mlib_constructor_signatures.py
+      - name: Run Maya-free mlib tests and source checks
+        run: python maya/inhouse/mlib/__tests__/runStatic.py
       - name: Build Sphinx documentation
         run: |
           python -m sphinx -E -a -b html -W --keep-going maya/inhouse/mlib/_docs/source maya/inhouse/mlib/_docs/_build/html
       - name: Check pinned Mermaid in built HTML
-        run: python tools/check_mlib_docs.py --check-directory maya/inhouse/mlib/_docs/_build/html
+        run: python maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py --check-directory maya/inhouse/mlib/_docs/_build/html
       - name: Check preferred getter and predicate names and reference links
         run: |
-          python tools/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html
+          python maya/inhouse/mlib/__tests__/checks/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html
       - name: Stamp build revision
-        run: python tools/check_mlib_docs.py --stamp-directory maya/inhouse/mlib/_docs/_build/html --sha "$GITHUB_SHA"
+        run: python maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py --stamp-directory maya/inhouse/mlib/_docs/_build/html --sha "$GITHUB_SHA"
       - name: Install browser tests
         run: |
-          python -m pip install -r tools/docs-browser-requirements.txt
+          python -m pip install -r maya/inhouse/mlib/__tests__/checks/browser-requirements.txt
           python -m playwright install --with-deps chromium
       - name: Verify browser navigation before publication
-        run: python tools/check_mlib_docs.py --directory maya/inhouse/mlib/_docs/_build/html --sha "$GITHUB_SHA"
+        run: python maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py --directory maya/inhouse/mlib/_docs/_build/html --sha "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: docs-browser-before-deploy
-          path: .maya-output/docs-browser/
+          path: maya/inhouse/mlib/__tests__/_output/docs-browser/
           if-no-files-found: ignore
       - name: Build Maya Code Editor documentation into the published site
         run: |
@@ -119,15 +115,15 @@ jobs:
           python-version: '3.11'
       - name: Install browser tests
         run: |
-          python -m pip install -r tools/docs-browser-requirements.txt
+          python -m pip install -r maya/inhouse/mlib/__tests__/checks/browser-requirements.txt
           python -m playwright install --with-deps chromium
       - name: Verify published revision and browser navigation
         env:
           PAGES_URL: ${{ needs.deploy.outputs.page_url }}
-        run: python tools/check_mlib_docs.py --url "$PAGES_URL" --sha "$GITHUB_SHA"
+        run: python maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py --url "$PAGES_URL" --sha "$GITHUB_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: docs-browser-published
-          path: .maya-output/docs-browser/
+          path: maya/inhouse/mlib/__tests__/_output/docs-browser/
           if-no-files-found: ignore

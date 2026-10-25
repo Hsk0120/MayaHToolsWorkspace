@@ -47,7 +47,8 @@ def main(output_dir, finished):
 
 
 if __name__ == "__main__":
-    from run_mlib_gui_versions import run_version
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+    from runGui import run_version
     output = ROOT / ".maya-output/htools-migration-gui" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     result = run_version("2027", output, Path("C:/Program Files/Autodesk"), 180,
                          suite_path=Path(__file__).resolve(), environment={"MLIB_DISPOSABLE_GUI": "1"})

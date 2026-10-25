@@ -117,6 +117,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25): ユーザー依頼でテスト整理一式をcommit/push対象として最終確認。静的61件を再実行して成功、既存のMaya2022/2027・単独コピー1182件・GUI・Sphinx検証記録と参照更新を照合。テスト本体・workspace連携・利用側/CI/案内の更新をまとめ、生成物/専用Preferences/調査資料/submoduleを除外。Mayaは今回再起動せず、2023〜2026と利用側GUIデモは未再実行。
+
+- Codex (2026-10-25): ユーザー指示でmlibテストを別リポジトリへ持ち出せる構成へ整理。__tests__/unit・integrationの2区分とrun.bat/runMaya/runStatic/runGui、checks/support/manual、READMEへ集約し、結果は同梱_outputへ保存。mlrig/HTools/cymel/拡張/外部投稿の連携をworkspaceのtests/mlib_integrationへ切出し、本体との混在メソッドも分離。旧tools入口の互換ファイルは残さずCI/案内/78利用側のimport参照を追従し、利用側は参照/説明以外のAST不変を照合。静的61件、2027単体899/結合283、mlibだけのコピーで1182件、2022全体1180+追加対象3件、2027 GUI単体897/結合283/表示3件を確認。連携13ファイル49件成功（GUI専用と未導入バイナリはskip）。開始時の旧_docs/conf.py参照による1失敗は実装配置へ修正し、旧アサーション5680件の欠落0を確認。製品170Python不変、Sphinx332ページ/159図不変・参照検査成功。2023〜2026、利用側GUIデモの再実行、手動投稿は未実施。未commit/push。証跡 .maya-output/mlib-tests-portable-20261025/result.json。
+
 - Codex (2026-10-25): ユーザー指示による一括push対象として、mlib文書の日本語化・source/_ext配置整理・セットアップバッチ、mlrigのCSS独立化、完了済みHToolsの「?」ヘルプ変更と共有参照を確認。既存24テスト・公開/文書/Mermaid検査・変更Python10ファイル構文・HTools Sphinx警告0を再確認し、全5パッケージのビルド/34768リンク、332ページ/159継承図/16画面条件、隔離Python3.13セットアップの成功記録を照合。HToolsは既存の隔離Maya2027成功/終了0記録を確認し、GUIは今回再実行なし。生成HTML・venv・調査資料・submoduleは含めない。ローカルとorigin/mainは作業前0/0。push読戻し証跡は .maya-output/docs-push-20261025/ に保存。
 
 - Codex (2026-10-25): mlib/_docsにsetup.batを追加。Python 3.11以上を検出して専用venvを作成/再利用し、requirementsのSphinx/AutoAPI導入・pip整合・CLIを確認。READMEへPython公式リンク、setup→rebuild→HTMLの初回手順、手動実行と障害対処を追加。現行継承図はMermaidのためGraphviz/Node.js/Maya不要と明記。隔離した日本語/空白パスでPython3.13の初回・再実行、332ページ/警告0・API参照0不一致・Mermaid参照検査に成功。Python未検出/既存venv破損/pip失敗は終了1で既存環境保持。Python本体の新規インストールと対話pauseは未実行。製品315Python不変、未commit/push。証跡 .maya-output/mlib-docs-setup-20261025/result.json。

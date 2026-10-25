@@ -10,7 +10,7 @@
 2. 専用設定の Maya GUI で ``findbar_suite.py`` を実行し、Maya Code Editor の検索バーを同じ状態で撮って比較画像を作る。
 
 出力は ``.maya-output/mce-findbar/<日時>/``(VS Code の画像は ``<日時>-vscode/``。Git 対象外)。既存の Maya・VS Code の設定には触れない。
-親リポジトリの ``tools/run_mlib_gui_versions.py`` を利用する。
+親リポジトリの ``maya/inhouse/mlib/__tests__/runGui.py`` を利用する。
 """
 import argparse
 import datetime
@@ -23,7 +23,8 @@ PROJECT = TOOLS.parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / "tools"))
 sys.path.insert(0, str(TOOLS / "vscode_capture"))
-from run_mlib_gui_versions import run_version  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[5] / "maya/inhouse/mlib/__tests__"))
+from runGui import run_version
 
 
 def main():

@@ -47,7 +47,7 @@
 ## 実装ルール
 
 - Maya依存コードでは既存の `maya.api.OpenMaya`、ラッパー、共通ヘルパーを優先して再利用する。
-- `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python tools/check_mlib_exports.py` で公開漏れを検査する。
+- `mlib` の公開名は各パッケージの `__init__.py` で明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__`、`common` は遅延公開用の `_exports` と `if TYPE_CHECKING:` を更新する。追加・削除後はMaya不要の `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` で公開漏れを検査する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書へ明示する。公開名の宣言と型対応を分け、登録済み型からのラッパー選択は既存の `core/registry.py` の規則を維持する。デコレーターやモジュール走査で公開・型対応を追加しない。
 - 複数形クラスの公開メソッドは通常の `def` で明示し、共通の引数検証・保持順実行・Undo処理へ委譲する。単数APIの自動全公開は行わず、既存の引数・戻り値・専用集約処理を維持する。
 - `mlib/maths/` の値型は OpenMaya API 2.0 の型を継承する(Vector/Translation/Scale/Shear は `om2.MVector`、Quaternion は `MQuaternion`、EulerRotation は `MEulerRotation`、Matrix は `MMatrix`)。演算の意味は om2 に合わせ、値は可変・ハッシュ不可。Maya に依存しない純粋な値型へ戻さない(`easing` だけは標準 `math` のみ)。詳細は `mlib/maths/` の各公開APIのdocstringと `docs/mlib-api-design.md` を参照する。
@@ -69,11 +69,11 @@
 ## 検証
 
 - リポジトリに通常のpytest/CI工程があるとは仮定しない。対象ファイルの既存テストと実行方法を確認する。
-- 数学型の変更は `maya/inhouse/mlib/__tests__/test_datatypes.py` をMaya経由で実行する。
+- 数学型の変更は `maya/inhouse/mlib/__tests__/unit/test_datatypes.py` をMaya経由で実行する。
 - Maya依存コードは通常のPython環境でimportできると仮定せず、必要なら構文チェックとMaya内実行を分けて報告する。
 - UI・起動処理の変更では、対象Mayaでの起動、メニュー表示、操作結果を確認する。
 - 静的解析(Pylance/pyright)の設定はリポジトリ直下の `pyrightconfig.json`。`maya.cmds` 等の補完は `python tools/setup_maya_typings.py` で `typings/maya/`(Git対象外)へ型スタブを配置して有効にする。スタブ起因の指摘は警告扱いで、エラーは実際の誤り。詳細は `docs/vscode.md`。
-- 静的解析には通常の明示importを公開と補完の共通入口として使う。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `tools/check_mlib_exports.py` で不一致を検査する。
+- 静的解析には通常の明示importを公開と補完の共通入口として使う。`common` だけ遅延公開用の `_exports` と `if TYPE_CHECKING:` を両方更新する。`test_typing_exports.py` と `maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` で不一致を検査する。
 - 変更後は可能な限り対象を絞った検証を先に行い、実行できなかった検証項目と理由を明記する。
 
 ## Gitと外部依存

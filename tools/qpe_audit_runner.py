@@ -29,7 +29,8 @@ def main():
         with ((out/(name+'.log')) if args.maya else (target/'process.log')).open('w', encoding='utf8') as log:
             try:
                 if args.maya:
-                    from run_mlib_gui_versions import run_version
+                    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+                    from runGui import run_version
                     suite = name if name.startswith('qpe_') else 'qpe_ui_'+name
                     outcome = run_version(args.maya, target, Path('C:/Program Files/Autodesk'), 240,
                                           shutdown_timeout=45, suite_path=root/'tools'/(suite+'.py'))

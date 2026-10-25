@@ -129,10 +129,10 @@ CSSは各パッケージの文書フォルダで個別に管理します。mlib�
 以下のコマンドは、リポジトリルートで実行します。
 
 ```powershell
-& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe tools/check_mlib_exports.py
-& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe tools/test_mlib_constructor_signatures.py
-& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe tools/check_mlib_docs.py --check-directory maya/inhouse/mlib/_docs/_build/html
-& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe tools/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html
+& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py
+& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe maya/inhouse/mlib/__tests__/unit/test_static_constructor_docs.py
+& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe maya/inhouse/mlib/__tests__/checks/check_mlib_docs.py --check-directory maya/inhouse/mlib/_docs/_build/html
+& .\maya\inhouse\mlib\_docs\.venv\Scripts\python.exe maya/inhouse/mlib/__tests__/checks/check_mlib_doc_getter_names.py maya/inhouse/mlib/_docs/_build/html
 ```
 
 HTMLの確認では目次・APIリンク・継承図も見ます。Mermaid本体はCDNから読み込むため、図の表示にはネット接続が必要です。

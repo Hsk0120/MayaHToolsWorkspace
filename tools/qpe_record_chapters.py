@@ -1,8 +1,10 @@
 """隔離Mayaを章ごとに起動し、操作動画一式を順番に生成する。"""
+import sys
 import argparse
 import json
 from pathlib import Path
-from run_mlib_gui_versions import run_version
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+from runGui import run_version
 
 
 def main():

@@ -136,9 +136,9 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並びは挙動に影響しないため、
 名前・本文・デコレータの積み順・docstringを変えずに整える。
-`python tools/check_mlib_layout.py --check` が規則を検査し、`--fix` が並び替えと空行の正規化を行い、
+`python maya/inhouse/mlib/__tests__/checks/check_mlib_layout.py --check` が規則を検査し、`--fix` が並び替えと空行の正規化を行い、
 `--snapshot`/`--compare` で整理前後の関数本体・import束縛・モジュール文が同一であることを確認できる(Maya不要。
-実行方法は `docs/mlib-testing.md`)。
+実行方法は `maya/inhouse/mlib/__tests__/README.md`)。
 
 | 位置 | 規則 |
 | --- | --- |
@@ -170,7 +170,7 @@ mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書に宣言する。公開するクラス名とは分けて管理し、登録済みのMaya型に基づく最適なラッパー選択と既存のフォールバックは維持する。
 - 外部拡張の検出は `extensions` が担当する。拡張側も `nodes`・`plugs` の明示import・`__all__`・`_WRAPPER_CLASSES` を用い、実行時のクラス注入や登録デコレーターは使わない。
 - 複数形APIの入口は通常の `def` で明示する。共通の引数検証・保持順実行・Undo処理へ委譲し、実行時に単数メソッドから公開メソッドを生成しない。対象メソッドと戻り方針は一つの一覧で宣言し、既存の内部辞書を構成する。既存の引数仕様・戻り値・override・専用集約処理を維持する。
-- 追加・削除後はリポジトリルートで `python tools/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
+- 追加・削除後はリポジトリルートで `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
 
 ## コマンド層とオブジェクト・数学層
 

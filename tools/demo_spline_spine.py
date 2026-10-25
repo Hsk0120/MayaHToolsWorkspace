@@ -290,7 +290,8 @@ def launch(simple=False):
     """
     from datetime import datetime
     sys.path.insert(0, str(ROOT / "tools"))
-    from run_mlib_gui_versions import run_version
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+    from runGui import run_version
     directory = ROOT / ".maya-output/verification-gui" / datetime.now().strftime("spline-spine-%Y%m%d-%H%M%S")
     environment = {"PYTHONPATH": os.pathsep.join([str(ROOT / "maya/inhouse"), str(ROOT / "tools")]),
                    "MLRIG_SPINE_DEMO_SIMPLE": "1" if simple else "0"}

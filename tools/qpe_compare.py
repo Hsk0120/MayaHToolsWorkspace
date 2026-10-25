@@ -101,7 +101,8 @@ def main():
             (directory / 'results.json').write_text(json.dumps(results, indent=2), encoding='utf-8')
             print(language, round_index, result['passed'], 'startup_ms', startup, flush=True)
     if not args.skip_maya:
-        from run_mlib_gui_versions import run_version
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+        from runGui import run_version
         maya_result = run_version('2027', directory / 'maya', MAYA.parent, 240, shutdown_timeout=60,
             suite_path=ROOT / 'tools/qpe_maya_suite.py',
             environment={'QPE_CONFIG': str(config), 'QPE_ROUNDS': str(args.rounds)})

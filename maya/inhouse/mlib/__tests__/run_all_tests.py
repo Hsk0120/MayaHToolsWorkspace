@@ -1,27 +1,8 @@
-"""mlib/__tests__ 配下の全テストを一括実行し、結果をログへ出力する。
+"""unit/・integration/のtest_*.pyを実行し、件数・失敗・skipと詳細ログをまとめる。
 
-他のテストスクリプトと同じ手段(VS Code の Ctrl+S → Ctrl+Shift+B、または
-Maya の Script Editor)で、このファイル自体を送信して実行する。
-
-対象は同ディレクトリの ``test_*.py`` のうち、以下を除いたすべて:
-
-- ``test_command_discovery.py``: mayapy 単体プロセスでの実行専用。Maya GUI の
-  commandPort 経由で実行すると、内部の subprocess が新しい Maya.exe を
-  起動してしまうため対象外。
-- ``test_maya_standalone.py``: 存在しない ``HTools.decorator`` を参照しており
-  常に ImportError になる、疎通確認用の手動スクリプト。
-- ``test_slack_postMessage.py``: ``SLACK_API_BOT_TOKEN`` が必須で、実行すると
-  実際に Slack へメッセージを投稿する副作用があるため、一括実行には含めない。
-
-``test_scene_api.py`` は setUp/tearDown で現在のシーンを ``new(force=True)``
-するため、一括実行すると現在開いているシーンの未保存の変更は失われる
-(このテストを単体実行した場合も同様で、本スクリプト固有の挙動ではない)。
-保存したい変更がある場合は実行前に保存すること。
-
-ログは ``__tests__/.logs/`` 配下へ ``YYYYMMDD_HHMMSS.log`` として書き出す
-(``*.log`` は .gitignore 済み)。将来的な Slack 通知などへの接続点として、
-``run_all(notify=...)`` にサマリ文字列を受け取るコールバックを渡せる
-(``mlib.common.progress.progressBar`` の ``notify`` と同じ考え方)。
+通常はrun.bat/runMaya.pyから隔離したmayapyで実行する。
+テストはシーンを初期化することがあるため、作業中のMaya GUIへ送信しない。
+Maya不要の検査はrunStatic.py、外部パッケージとの連携はワークスペース側で実行する。
 """
 
 import contextlib
@@ -35,32 +16,37 @@ from datetime import datetime
 from pathlib import Path
 
 TESTS_DIR = Path(__file__).resolve().parent
-LOG_DIR = TESTS_DIR / ".logs"
+LOG_DIR = TESTS_DIR / "_output/logs"
 
-EXCLUDED_FILES = {
-    Path(__file__).name,
-    "test_command_discovery.py",
-    "test_maya_standalone.py",
-    "test_slack_postMessage.py",
-}
+EXCLUDED_FILES = set()
 
 
-def discover_test_files():
+def discover_test_files(directories=None, names=None, suite="all"):
     """一括実行対象の test_*.py パスを名前順で取得する。
 
     Returns:
         list[Path]: 除外ファイルを除いた対象パスのリスト。
     """
-    return sorted(
-        path for path in TESTS_DIR.glob("test_*.py")
-        if path.name not in EXCLUDED_FILES
-    )
+    if suite not in {"unit", "integration", "all"}:
+        raise ValueError("Unknown test suite: " + suite)
+    groups = ("unit", "integration") if suite == "all" else (suite,)
+    directories = directories if directories is not None else [TESTS_DIR / group for group in groups]
+    files = sorted({path for directory in directories for path in Path(directory).rglob("test_*.py")
+                    if path.name not in EXCLUDED_FILES and not path.name.startswith("test_static_")},
+                   key=lambda path: (path.name, str(path)))
+    if names:
+        selected = [path for path in files if any(path.match(name) for name in names)]
+        unmatched = [name for name in names if not any(path.match(name) for path in files)]
+        if unmatched:
+            raise ValueError("一致するテストがありません: " + ", ".join(unmatched))
+        return selected
+    return files
 
 
 def _run_one(path, metrics=None):
     """1つのテストファイルを他のファイルへ影響しない形で実行する。
 
-    ``tools/send_to_maya.py`` が個別実行時に使うのと同じ
+    各テストの実行入口を使うため
     ``runpy.run_path(path, run_name="__main__")`` を使い、各ファイル自身の
     ``if __name__ == "__main__":`` ブロック(unittest.main 呼び出し)を
     そのまま動かす。標準出力・標準エラーは呼び出し元に流さず捕捉する。
@@ -108,7 +94,7 @@ def _run_one(path, metrics=None):
     return ok, buffer.getvalue()
 
 
-def run_all(notify=None):
+def run_all(notify=None, *, directories=None, names=None, suite="all"):
     """対象テストファイルをすべて実行し、結果を集計してログへ書き出す。
 
     Args:
@@ -120,7 +106,7 @@ def run_all(notify=None):
             "log_path": Path, "summary": str}``。``ok`` は全ファイル成功なら True。
     """
     started_at = datetime.now()
-    files = discover_test_files()
+    files = discover_test_files(directories, names, suite)
     results = []
     metrics = {"tests_run": 0, "skipped": []}
     for path in files:

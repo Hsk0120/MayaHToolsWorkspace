@@ -224,7 +224,8 @@ def launch():
     """使い捨ての隔離Maya 2027 GUIを起動して録画する。作業中のMayaには触れない。"""
     from datetime import datetime
     sys.path.insert(0, str(ROOT / "tools"))
-    from run_mlib_gui_versions import run_version
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
+    from runGui import run_version
     directory = ROOT / ".maya-output/verification-gui" / datetime.now().strftime("ground-tilt-%Y%m%d-%H%M%S")
     environment = {"PYTHONPATH": os.pathsep.join([str(ROOT / "maya/inhouse"), str(ROOT / "tools")])}
     ffmpeg = os.environ.get("MAYA_VERIFICATION_FFMPEG") or shutil.which("ffmpeg")

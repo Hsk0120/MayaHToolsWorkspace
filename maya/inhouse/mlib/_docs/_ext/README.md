@@ -26,7 +26,7 @@ Mayaやmlibはimportしません。基底クラスを調べるときもPythonソ
 
 - 図の継承関係・リンク先: `_mermaidClasses.py`。
 - 図の配色・描画後の寸法: `source/_static/js/mermaid-init.js`と`source/_static/css/mermaid.css`。
-- Node派生クラスの生成時引数: `_constructorSignatures.py`。既存検証は`tools/test_mlib_constructor_signatures.py`。
+- Node派生クラスの生成時引数: `_constructorSignatures.py`。既存検証は`maya/inhouse/mlib/__tests__/unit/test_static_constructor_docs.py`。
 - クラスページ内の掲載順: `source/_templates/autoapi/python/class.rst`。
 - 対象パッケージ・AutoAPIオプション・Mermaidの版: `source/conf.py`。
 

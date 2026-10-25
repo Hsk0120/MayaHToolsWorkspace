@@ -9,8 +9,9 @@ import sys
 PROJECT = Path(__file__).resolve().parents[1]
 ROOT = PROJECT.parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from run_mlib_tests import isolated_environment
-from _maya_test_process import stop_owned_process
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "maya/inhouse/mlib/__tests__"))
+from runMaya import isolated_environment
+from support.mayaProcess import stop_owned_process
 
 
 def run(command, env, directory, name, timeout=120):
