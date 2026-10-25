@@ -1,4 +1,4 @@
-"""逆行列を計算する。Maya付属matrixNodesの明示的なロードが必要。"""
+"""逆マトリクスを計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 
 from contextlib import nullcontext
 
@@ -9,7 +9,7 @@ from .THdependNode import THDependNode
 
 
 class InverseMatrix(THDependNode):
-    """inverseMatrixノードを参照し、逆行列を評価する。Maya付属matrixNodesの明示的なロードが必要。
+    """inverseMatrixノードを参照し、逆マトリクスを評価する。Maya付属matrixNodesの明示的なロードが必要。
 
     値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
     fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
@@ -35,7 +35,7 @@ class InverseMatrix(THDependNode):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:

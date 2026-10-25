@@ -1,4 +1,4 @@
-"""om2.MQuaternion を継承した四元数と、回転の補間・分解。"""
+"""om2.MQuaternion を継承したクォータニオンと、回転の補間・分解。"""
 
 import math
 
@@ -43,10 +43,10 @@ def _unit_copy(value):
         value (om2.MQuaternion): 正規化元。mlib の Quaternion 以外の MQuaternion も受け付ける。
 
     Returns:
-        Quaternion: 長さ 1 の新しい四元数。
+        Quaternion: 長さ 1 の新しいクォータニオン。
 
     Raises:
-        ValueError: ゼロ四元数の場合。
+        ValueError: ゼロクォータニオンの場合。
     """
     x, y, z, w = value.x, value.y, value.z, value.w
     if x * x + y * y + z * z + w * w == 0.0:
@@ -59,12 +59,12 @@ def _unit_copy(value):
 
 
 class Quaternion(om2.MQuaternion):
-    """om2.MQuaternionを継承した、可変・ハッシュ不可のXYZW四元数。
+    """om2.MQuaternionを継承した、可変・ハッシュ不可のXYZWクォータニオン。
 
     OpenMaya APIへそのまま渡せる。生成形式は :meth:`__init__` に従い、入力から独立した値を作る。
     軸角の角度はrad。生成時と積の計算時に正規化しない。
 
-    ``q1 * q2`` はq1、q2の順に適用する回転で、行列積の順序と同じ(Hamilton積の ``q2 ⊗ q1``)。
+    ``q1 * q2`` はq1、q2の順に適用する回転で、マトリクスの積の順序と同じ(Hamilton積の ``q2 ⊗ q1``)。
     加減算・単項の ``-`` は成分ごとの演算。``数値 * q`` は4成分のスカラー倍で、
     ``q * 数値`` と除算は未対応。演算結果はQuaternionで、左辺が ``om2.MQuaternion`` でも同じ。
     ただし ``om2.MEulerRotation * q`` はOM2型を返し、``EulerRotate * q`` はEulerRotateを返す。
@@ -80,7 +80,7 @@ class Quaternion(om2.MQuaternion):
     __hash__ = None
 
     def __new__(cls, *args, **kwargs):
-        """基底初期化でC++実体を確保し、clsの単位四元数を作る。
+        """基底初期化でC++実体を確保し、clsの単位クォータニオンを作る。
 
         ``__init__`` を省略しても実体へアクセスできるよう、先に確保する。
         詳細は :meth:`mlib.maths.vector.Vector.__new__` を参照。
@@ -90,7 +90,7 @@ class Quaternion(om2.MQuaternion):
             **kwargs: ここでは使わないキーワード引数。
 
         Returns:
-            Quaternion: clsの単位四元数。
+            Quaternion: clsの単位クォータニオン。
         """
         self = _NEW(cls)
         _INIT(self)
@@ -274,7 +274,7 @@ class Quaternion(om2.MQuaternion):
         return _foreign_comparison(other, True)
 
     def __mul__(self, other):
-        """om2 の順序で四元数の積を返す(自身を先に適用する回転)。
+        """om2 の順序でクォータニオンの積を返す(自身を先に適用する回転)。
 
         Args:
             other (object): 右側の MQuaternion 系。
@@ -402,26 +402,26 @@ class Quaternion(om2.MQuaternion):
         return self
 
     def __neg__(self):
-        """全成分の符号を反転した四元数を返す(同じ回転を表す)。
+        """全成分の符号を反転したクォータニオンを返す(同じ回転を表す)。
 
         Returns:
-            Quaternion: 新しい四元数。
+            Quaternion: 新しいクォータニオン。
         """
         return Quaternion._wrap(_MQuaternion.__neg__(self))
 
     @classmethod
     def fromAxisAngle(cls, axis, angle):
-        """軸と角度から回転四元数を生成する。
+        """軸と角度から回転クォータニオンを生成する。
 
         Args:
             axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
             angle (float): 回転角度(ラジアン)。
 
         Returns:
-            Quaternion: axis を中心に angle だけ回転する単位四元数。
+            Quaternion: axis を中心に angle だけ回転する単位クォータニオン。
 
         Raises:
-            ValueError: axis がゼロベクトルの場合(om2 は単位四元数を返す)。
+            ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)。
         """
         axis = _as_mvector(axis)
         length = axis.length()
@@ -439,7 +439,7 @@ class Quaternion(om2.MQuaternion):
 
     @staticmethod
     def squad(*args):
-        """四元数空間の三次曲線上で補間したQuaternionを返す。
+        """クォータニオン空間の三次曲線上で補間したQuaternionを返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -459,7 +459,7 @@ class Quaternion(om2.MQuaternion):
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
         Args:
-            *args: 隣接する3個の四元数q0, q1, q2を指定する。
+            *args: 隣接する3個のクォータニオンq0, q1, q2を指定する。
 
         Returns:
             Quaternion: 演算結果を保持する新しいmlib値。
@@ -478,7 +478,7 @@ class Quaternion(om2.MQuaternion):
         return self.x * other.x + self.y * other.y + self.z * other.z + self.w * other.w
 
     def length(self):
-        """四元数の長さ(ノルム)を返す。
+        """クォータニオンの長さ(ノルム)を返す。
 
         Returns:
             float: 長さ。
@@ -499,39 +499,39 @@ class Quaternion(om2.MQuaternion):
         return self
 
     def unit(self):
-        """正規化した新しい四元数を返す。
+        """正規化した新しいクォータニオンを返す。
 
-        om2 の ``normal()`` はゼロ四元数に単位四元数を返すが、このメソッドは拒否する。
+        om2 の ``normal()`` はゼロクォータニオンに単位クォータニオンを返すが、このメソッドは拒否する。
 
         Returns:
-            Quaternion: 長さ 1 の四元数。
+            Quaternion: 長さ 1 のクォータニオン。
 
         Raises:
-            ValueError: ゼロ四元数の場合。
+            ValueError: ゼロクォータニオンの場合。
         """
         return _unit_copy(self)
 
     def conjugate(self):
-        """共役四元数を返す(om2 の同名メソッドを mlib の型で返すよう上書き)。
+        """共役クォータニオンを返す(om2 の同名メソッドを mlib の型で返すよう上書き)。
 
         Returns:
-            Quaternion: XYZ 成分の符号を反転した新しい四元数。
+            Quaternion: XYZ 成分の符号を反転した新しいクォータニオン。
         """
         result = Quaternion._wrap(self)
         result.conjugateIt()
         return result
 
     def inverse(self):
-        """逆四元数(共役を長さの2乗で割った値)を返す。
+        """逆クォータニオン(共役を長さの2乗で割った値)を返す。
 
-        om2 の同名メソッドを上書きし、mlib の型で返す。om2 はゼロ四元数に NaN を
-        返すが、このメソッドは拒否する。単位四元数なら conjugate() と同じ。
+        om2 の同名メソッドを上書きし、mlib の型で返す。om2 はゼロクォータニオンに NaN を
+        返すが、このメソッドは拒否する。単位クォータニオンなら conjugate() と同じ。
 
         Returns:
-            Quaternion: 逆四元数。
+            Quaternion: 逆クォータニオン。
 
         Raises:
-            ValueError: ゼロ四元数の場合。
+            ValueError: ゼロクォータニオンの場合。
         """
         if self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w == 0.0:
             raise ValueError("Cannot invert a zero quaternion")
@@ -560,7 +560,7 @@ class Quaternion(om2.MQuaternion):
         return result
 
     def angleTo(self, other):
-        """別の四元数が表す回転との角度差をラジアンで返す。
+        """別のクォータニオンが表す回転との角度差をラジアンで返す。
 
         両方を正規化し、二重被覆(q と -q が同じ回転)を考慮する。acos を使わず
         ``4 * atan2(|p - q|, |p + q|)`` で計算するため、角度差が 0 や pi に近くても
@@ -573,7 +573,7 @@ class Quaternion(om2.MQuaternion):
             float: 0 から pi の範囲のラジアン角度。
 
         Raises:
-            ValueError: 自身または other がゼロ四元数の場合。
+            ValueError: 自身または other がゼロクォータニオンの場合。
         """
         p = _unit_copy(self)
         q = _unit_copy(other)
@@ -585,7 +585,7 @@ class Quaternion(om2.MQuaternion):
                                 math.sqrt(sx * sx + sy * sy + sz * sz + sw * sw))
 
     def slerp(self, other, t, spin=0):
-        """別の四元数との球面線形補間を返す。
+        """別のクォータニオンとの球面線形補間を返す。
 
         om2 の静的メソッド ``MQuaternion.slerp(p, q, t, spin=0)`` を上書きする。
         インスタンスメソッドとして ``p.slerp(q, t)`` と呼べるほか、
@@ -601,7 +601,7 @@ class Quaternion(om2.MQuaternion):
             Quaternion: 補間結果。
 
         Raises:
-            ValueError: 自身または other がゼロ四元数の場合。
+            ValueError: 自身または other がゼロクォータニオンの場合。
         """
         return Quaternion._wrap(_MQuaternion.slerp(_unit_copy(self), _unit_copy(other), t, spin))
 
@@ -616,7 +616,7 @@ class Quaternion(om2.MQuaternion):
             tuple[Vector, float]: 正規化した回転軸と、ラジアンの回転角度(0 から pi)。
 
         Raises:
-            ValueError: 自身がゼロ四元数の場合。
+            ValueError: 自身がゼロクォータニオンの場合。
         """
         rotation = _unit_copy(self)
         if rotation.w < 0.0:
@@ -646,7 +646,7 @@ class Quaternion(om2.MQuaternion):
             tuple[Quaternion, Quaternion]: (swing, twist)。どちらも正規化済み。
 
         Raises:
-            ValueError: axis がゼロベクトルの場合、または自身がゼロ四元数の場合。
+            ValueError: axis がゼロベクトルの場合、または自身がゼロクォータニオンの場合。
         """
         axis = _as_mvector(axis)
         length = axis.length()
@@ -677,7 +677,7 @@ class Quaternion(om2.MQuaternion):
     def asDecomposedEulerRotate(self, order="xyz"):
         """EulerRotate へ変換する。
 
-        正規化した回転行列を ``om2.MEulerRotation.decompose`` で分解するため、
+        正規化した回転マトリクスを ``om2.MEulerRotation.decompose`` で分解するため、
         ``Matrix.euler`` と同じ規約の角度になる。中間軸が 90 度を超える等価な角度を
         返すことがある。
 
@@ -689,7 +689,7 @@ class Quaternion(om2.MQuaternion):
             EulerRotate: ラジアンの Euler 回転値。
 
         Raises:
-            ValueError: order が未対応の場合、またはゼロ四元数の場合。
+            ValueError: order が未対応の場合、またはゼロクォータニオンの場合。
         """
         from .eulerRotate import EulerRotate, orderIndex
 
@@ -728,7 +728,7 @@ class Quaternion(om2.MQuaternion):
         OpenMayaへそのまま委譲するasMatrix()とは別に、コピーの正規化とゼロ拒否を行う。
 
         Returns:
-            Matrix: 回転だけを持つ新しい4行4列行列。追加Python状態は引き継がない。
+            Matrix: 回転だけを持つ新しい4行4列のマトリクス。追加Python状態は引き継がない。
 
         Raises:
             ValueError: 自身がゼロQuaternionの場合。
@@ -751,7 +751,7 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.normal(self, *args))
 
     def exp(self, *args):
-        """四元数の指数を、新しいQuaternionとして返す。
+        """クォータニオンの指数を、新しいQuaternionとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -764,7 +764,7 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.exp(self, *args))
 
     def log(self, *args):
-        """四元数の自然対数を、新しいQuaternionとして返す。
+        """クォータニオンの自然対数を、新しいQuaternionとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -777,7 +777,7 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.log(self, *args))
 
     def asMatrix(self, *args):
-        """保持する回転を、等価な回転行列へ変換する。
+        """保持する回転を、等価な回転マトリクスへ変換する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 

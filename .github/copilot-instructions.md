@@ -11,6 +11,7 @@
 - mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。Maya標準UIはcmds/melとMayaの通知APIで扱い、Qtウィジェット取得・変換は利用側のUIパッケージに置く。
 
 - mlibの日本語表記では、Mayaのattributeを「アトリビュート」と呼ぶ。説明・docstring・コメント・メッセージで統一し、API識別子は変更しない。
+- 2026-10-25のユーザー指定により、mlibの説明はCGWORLDのMaya記事の用語を参考にし、行列/変換行列は「マトリクス」、constraintは「コンストレイント」、四元数は「クォータニオン」とする。逆/回転/ワールド等の意味は保持し、行列式はdeterminantを指す専門語として区別する。入門の対象検索は`mlib.ls`を中心に説明し、Objectの直接呼出しを推奨例にしない。OpenMayaへの文書リンクはMaya 2027公式リファレンスを使う。API識別子・実行時の文字列・公開契約はこの文言整理で変更しない。
 
 - mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。
 

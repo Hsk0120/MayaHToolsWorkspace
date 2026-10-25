@@ -20,7 +20,7 @@ class Transformation:
     保持値を直接編集すると自身も変わるが、matrixとquaternionは計算した独立値を返す。
     matrix代入・``*=`` は成分を置き換えるため、以前取得した成分参照は再取得が必要。
     matrixは毎回合成するため、成分編集後も古いキャッシュを返さない。
-    元のEuler回転・スケール符号は行列へ変換しない限り保持する。
+    元のEuler回転・スケール符号はマトリクスへ変換しない限り保持する。
     """
 
     __slots__ = ("_values",)
@@ -68,11 +68,11 @@ class Transformation:
         m: Matrix
 
     def __init__(self, value=None, **kwargs):
-        """変換情報・行列・成分から独立した値を作る。
+        """変換情報・マトリクス・成分から独立した値を作る。
 
         Args:
             value (Transformation | Matrix | om2.MTransformationMatrix | None): コピー元。
-                行列からは元のピボット等を復元できないため既定値を使う。
+                マトリクスからは元のピボット等を復元できないため既定値を使う。
             **kwargs: Mayaの成分名または短縮名。角度はradian、距離はcm。
                 matrixと同時指定した補助成分は分解の条件として使う。
         """
@@ -126,7 +126,7 @@ class Transformation:
 
         Raises:
             AttributeError: 未対応の名前の場合。
-            ValueError: 行列合成で非有限値・無効なSSC補正を検出した場合。
+            ValueError: マトリクス合成で非有限値・無効なSSC補正を検出した場合。
         """
         name = self._aliases.get(name, name)
         if name == "matrix":
@@ -153,7 +153,7 @@ class Transformation:
         Raises:
             AttributeError: 未対応の名前の場合。
             TypeError: SSCがbool以外、または値が未対応型の場合。
-            ValueError: 回転順序・数値・回転・行列が不正な場合。
+            ValueError: 回転順序・数値・回転・マトリクスが不正な場合。
         """
         name = self._aliases.get(name, name)
         if name == "matrix":
@@ -204,7 +204,7 @@ class Transformation:
         return result
 
     def __mul__(self, other):
-        """行列を後乗算し、translateと回転ピボットの位置を追従させたコピーを返す。
+        """マトリクスを後乗算し、translateと回転ピボットの位置を追従させたコピーを返す。
 
         Args:
             other: 比較・演算の相手。
@@ -267,7 +267,7 @@ class Transformation:
             tolerance (float): 成分差の許容値。
 
         Returns:
-            bool: 同値ならTrue。行列だけの比較はmatrix.isEquivalentを使う。
+            bool: 同値ならTrue。マトリクスだけの比較はmatrix.isEquivalentを使う。
         """
         if not isinstance(other, Transformation) or self.rotateOrder != other.rotateOrder or self.ssc != other.ssc:
             return False
@@ -288,7 +288,7 @@ class Transformation:
         return q
 
     def _compensation(self):
-        """有効な逆スケール補正行列を返す。"""
+        """有効な逆スケール補正マトリクスを返す。"""
         if not self.segmentScaleCompensate:
             return Matrix()
         if any(abs(v) <= 1e-15 for v in self.inverseScale):
@@ -296,7 +296,7 @@ class Transformation:
         return Matrix(scale=tuple(1.0 / v for v in self.inverseScale))
 
     def _compose(self):
-        """Mayaの順序でピボット・回転・SSCを含む行列を合成する。"""
+        """Mayaの順序でピボット・回転・SSCを含むマトリクスを合成する。"""
         if any(not math.isfinite(value) for name in self._types for value in self._values[name]):
             raise ValueError("Transformation components must be finite")
         sp, rp = self.scalePivot, self.rotatePivot
@@ -307,12 +307,12 @@ class Transformation:
                 * self._compensation() * Matrix(translate=self.translate))
 
     def _set_matrix(self, value):
-        """補助成分を条件に行列からTRS・シアーを求める。
+        """補助成分を条件にマトリクスからTRS・シアーを求める。
 
         成功時は補助成分もコピーへ置換し、旧成分参照は追従しない。失敗時は変更しない。
 
         Args:
-            value (object): Matrixで解釈する有限なアフィン行列。
+            value (object): Matrixで解釈する有限なアフィンマトリクス。
         """
         matrix = Matrix(value)
         if not all(math.isfinite(v) for v in matrix):

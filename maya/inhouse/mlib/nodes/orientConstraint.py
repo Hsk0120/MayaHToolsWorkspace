@@ -4,4 +4,4 @@ from .constraint import Constraint
 
 
 class OrientConstraint(Constraint):
-    """回転を拘束する orientConstraint ラッパー。"""
+    """回転をコンストレイントする orientConstraint ラッパー。"""

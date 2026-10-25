@@ -1,4 +1,4 @@
-"""変換行列を介して Transform ノードを操作する。"""
+"""マトリクスを介して Transform ノードを操作する。"""
 
 import inspect
 import math
@@ -19,7 +19,7 @@ from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode, DagNodes
 from .node import Node
 
-#: 拘束元の transform の値(位置・回転など)を使うコンストレイント。拘束元は Transform に限る。
+#: ターゲットの transform の値(位置・回転など)を使うコンストレイント。ターゲットは Transform に限る。
 _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
     "parentConstraint", "pointConstraint", "orientConstraint", "scaleConstraint",
     "aimConstraint", "poleVectorConstraint",
@@ -52,7 +52,7 @@ def _match_scale_signs(quaternion, scale, shear, references):
     """分解したスケールの符号の組み合わせを、基準のスケールの符号へ揃える。
 
     2軸のスケールの符号を同時に反転し、残りの軸まわりの 180 度回転で補償しても
-    行列は変わらない(D を2軸が -1 の対角行列として S·Sh·R = (S·D)·(D·Sh·D)·(D·R))。
+    マトリクスは変わらない(D を2軸が -1 の対角マトリクスとして S·Sh·R = (S·D)·(D·Sh·D)·(D·R))。
     行列式の符号は変えられないため、references を先頭から順に調べ、反転が必要な軸が
     0 個または 2 個(行列式の符号と合う)の最初の基準に揃える。どの基準とも合わない
     (奇数個の軸が違う)場合は入力(om2 の規約)のまま返す。
@@ -81,7 +81,7 @@ def _match_scale_signs(quaternion, scale, shear, references):
     signs = tuple(-1.0 if flip else 1.0 for flip in flips)
     axis = [0.0, 0.0, 0.0]
     axis[flips.index(False)] = 1.0
-    # om2 の四元数の積は左を先に適用する。D(残りの軸まわりの 180 度)の後に元の回転。
+    # om2 のクォータニオンの積は左を先に適用する。D(残りの軸まわりの 180 度)の後に元の回転。
     half_turn = om2.MQuaternion(axis[0], axis[1], axis[2], 0.0)
     return (
         om2.MQuaternion.__mul__(half_turn, quaternion),
@@ -109,7 +109,7 @@ def _closest_euler(quaternion, reference):
 class Transform(DagNode):
     """Transformのノード参照とDAGパスを保持し、変換値を照会・設定する。
 
-    行列・TRS・ピボットを扱い、Shapeの頂点やCVの編集とは区別する。
+    マトリクス・TRS・ピボットを扱い、Shapeの頂点やCVの編集とは区別する。
     距離はcm、角度はradを基本とし、MayaのUI単位とは独立する。
     ``worldSpace`` の短縮名は ``ws``。ローカル側の基準は各メソッドで異なる。
     通常の変更はmaya.cmdsでUndoに記録し、対応するfastはOpenMayaで直接更新する。
@@ -124,7 +124,7 @@ class Transform(DagNode):
         o=_UNSET, skip=_UNSET, sk=_UNSET, scaleCompensate=_UNSET, sc=_UNSET, aimVector=_UNSET, aim=_UNSET,
         upVector=_UNSET, u=_UNSET, worldUpObject=_UNSET, wuo=_UNSET, worldUpType=_UNSET, wut=_UNSET,
         worldUpVector=_UNSET, wu=_UNSET, **kwargs):
-        """指定した拘束元から自身を拘束するconstraintを作成する。
+        """指定したターゲットで自身を制御するコンストレイントを作成する。
 
         選択状態で対象を補完しない。通常のcmds更新をUndo有効時にまとめ、途中失敗の変更は戻さない。
 
@@ -188,8 +188,8 @@ class Transform(DagNode):
 
         Raises:
             ValueError: 未対応の型・空のソース、query/edit=True、または無効なworldUpObjectの場合。
-            TypeError: 型名・参照型・長短フラグが不正、または上記6型の拘束元がTransformでない場合。
-            RuntimeError: ノードが無効、拘束元の名前を解決できない(存在しない、または
+            TypeError: 型名・参照型・長短フラグが不正、または上記6型のターゲットがTransformでない場合。
+            RuntimeError: ノードが無効、ターゲットの名前を解決できない(存在しない、または
                 複数のノードに一致する)場合、または Maya が作成を拒否した場合。
             DeletedAttributeError: 削除済みアトリビュートのPlug/MPlugの場合。ValueErrorとRuntimeErrorの派生。
 
@@ -353,20 +353,20 @@ class Transform(DagNode):
             from ..components.component import Component, Components
             from ..plugs.plug import Plug
 
-            # Components は要素へ展開せず、所有シェイプ1つの拘束元として扱う。
+            # Components は要素へ展開せず、所有シェイプを1つのターゲットとして扱う。
             if isinstance(sources, (Node, str, Plug, Component, Components,
                                     om2.MObject, om2.MDagPath, om2.MPlug)):
                 sources = [sources]
-            # 拘束元の transform の値を使う型。シェイプを拘束元にすると maya.cmds はターゲットの
-            # 無い(追従しない)拘束を黙って作るため、Transform 以外は TypeError にする。
+            # ターゲットの transform の値を使う型。シェイプをターゲットにすると maya.cmds はターゲットの
+            # 無い(追従しない)コンストレイントを黙って作るため、Transform 以外は TypeError にする。
             requires_transform = command_name in _TRANSFORM_SOURCE_CONSTRAINTS
             names = []
             for source in _InputNodes._resolve_inputs(sources):
                 if source is None or (isinstance(source, str) and not source):
                     raise TypeError("Constraint sources must be non-empty names or Node objects")
                 # 文字列も含めて所有ノードへ解決する。Plug・MPlug・"node.attribute" は所有ノード、
-                # Component・"pCube1.vtx[0]" は所有シェイプを拘束元にする(maya.cmds へ
-                # プラグ名・コンポーネント名をそのまま渡すと拘束元として扱われないため)。
+                # Component・"pCube1.vtx[0]" は所有シェイプをターゲットにする(maya.cmds へ
+                # プラグ名・コンポーネント名をそのまま渡すとターゲットとして扱われないため)。
                 source = _InputNode._resolve_input(source)
                 if not source.isValid():
                     raise RuntimeError("Constraint target is invalid")
@@ -396,10 +396,10 @@ class Transform(DagNode):
             return Node(result[0])
 
     def deleteConstraints(self, *, fast=False):
-        """自身を拘束するconstraintと、そこへ至るpairBlendを削除する。
+        """自身に作用するコンストレイントと、その入力側のpairBlendを削除する。
 
         pairBlend・unitConversionだけを上流へ辿り、unitConversionは残す。
-        拘束元Transform・animCurveは削除せず、姿勢維持・ベイク・入力の再接続はしない。
+        ターゲットTransform・animCurveは削除せず、姿勢維持・ベイク・入力の再接続はしない。
         対象外への共有出力と削除対象の参照・ロックを先に検査する。
 
         Args:
@@ -570,7 +570,7 @@ class Transform(DagNode):
             return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True, fast=fast)
 
     def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """直下の非中間Shapeの頂点・CVを拡縮する。Transform行列は変更しない。
+        """直下の非中間Shapeの頂点・CVを拡縮する。Transformのマトリクスは変更しない。
 
         Shapeごとに検証・更新するため、後続Shapeの拒否でも先行変更は残る。
         共有形状は全インスタンスに影響する。
@@ -650,7 +650,7 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド空間、FalseはxformのobjectSpaceに相当する
                 MSpace.kPreTransform。短縮名ws。
             kind (str): rotate/scale/both。bothは両方を同じ位置へ設定する。
-            preserve (bool): Trueはピボット補償値を調整して変換行列を保つ。
+            preserve (bool): Trueはピボット補償値を調整してマトリクスを保つ。
                 Falseは補償せず、姿勢が変わる場合がある。
             fast (bool): TrueはOpenMayaで直接更新し、Undoへ記録しない。
                 通常はmaya.cmds.xformで設定する。
@@ -741,7 +741,7 @@ class Transform(DagNode):
 
         MFnDagNode.boundingBox は自身の translate/rotate/scale は含むが、
         親から継承した変換は含まない（``cmds.xform(-boundingBox)`` と同じ）。
-        ``ws=True`` はそこへ親のワールド行列をさらに適用し、真のワールド空間の
+        ``ws=True`` はそこへ親のワールドマトリクスをさらに適用し、真のワールド空間の
         バウンディングボックスを返す。
 
         Args:
@@ -930,7 +930,7 @@ class Transform(DagNode):
         ws=_UNSET):
         """直下の非中間Shapeへmirrorを順に適用する。
 
-        Mesh・NurbsCurve等のmirrorへ委譲し、Transform行列・トポロジーは変更しない。
+        Mesh・NurbsCurve等のmirrorへ委譲し、Transformのマトリクス・トポロジーは変更しない。
         Shapeごとに検証・更新し、後続の失敗で先行変更は戻さない。
         pivot/indicesの反復子は最初のShapeで消費される場合がある。
 
@@ -1056,7 +1056,7 @@ class Transform(DagNode):
                 (ValueError と RuntimeError の両方の派生)。
 
         maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
-        shearの一致や行列全体のコピーは保証しない。
+        shearの一致やマトリクス全体のコピーは保証しない。
         """
         from .node import Node as _InputNode
 
@@ -1088,7 +1088,7 @@ class Transform(DagNode):
 
         Raises:
             TypeError: fast が bool でない場合。
-            ValueError: 入力不正、特異な親行列、未対応のピボット/rotateAxisの場合。
+            ValueError: 入力不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
             RuntimeError: ロックや入力接続で更新できない場合。
 
         setMatrix() と同じ制約があり、非ゼロのピボット・
@@ -1145,7 +1145,7 @@ class Transform(DagNode):
         """offsetParentMatrixの現在値を取得する。
 
         Returns:
-            Matrix: アトリビュート値の複製。ワールド行列やローカル行列との合成はしない。
+            Matrix: アトリビュート値の複製。ワールドマトリクスやローカルマトリクスとの合成はしない。
 
         Raises:
             RuntimeError: ノードやアトリビュートが無効の場合。
@@ -1153,10 +1153,10 @@ class Transform(DagNode):
         return self.getPlug("offsetParentMatrix").get()
 
     def setOffsetParentMatrix(self, value, *, fast=False):
-        """offsetParentMatrixへ行列値を設定する。
+        """offsetParentMatrixへマトリクス値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): 別Transform.getMatrix()の戻り値などの4x4行列。
+            value (Matrix | Iterable[float]): 別Transform.getMatrix()の戻り値などの4x4マトリクス。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
@@ -1164,10 +1164,10 @@ class Transform(DagNode):
 
         Raises:
             TypeError: fastがboolでない場合。
-            ValueError: 行列値が不正な場合。
+            ValueError: マトリクス値が不正な場合。
             RuntimeError: 無効な対象・ロック・入力接続などで更新できない場合。
 
-        TRSチャンネル値は変更しない。指定行列は既存ローカル行列と親行列に合成される。
+        TRSチャンネル値は変更しない。指定マトリクスは既存ローカルマトリクスと親マトリクスに合成される。
         ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
         """
         if not isinstance(fast, bool):
@@ -1189,7 +1189,7 @@ class Transform(DagNode):
         Returns:
             Transformation: 距離cm・角度radの独立した値。
                 Euler回転順序・ピボット・補助回転・SSCを含む。
-                offsetParentMatrixと親行列はワールド指定時の合成に含める。
+                offsetParentMatrixと親マトリクスはワールド指定時の合成に含める。
                 Jointではピボットとその補償値を0にする。
                 ワールド指定ではinverseScaleを単位スケールへ整理する。
         """
@@ -1209,7 +1209,7 @@ class Transform(DagNode):
             values.update(jointOrient=EulerRotate(self.getPlug("jointOrient").get()),
                           inverseScale=self.getPlug("inverseScale").get(),
                           segmentScaleCompensate=bool(self.getPlug("segmentScaleCompensate").get()))
-            # Mayaのjoint行列はピボットを使わない。
+            # Mayaのjointマトリクスはピボットを使わない。
             for key in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate"):
                 values[key] = (0, 0, 0)
         else:
@@ -1232,7 +1232,7 @@ class Transform(DagNode):
             value (Transformation): 適用する変換情報。
             worldSpace (bool): ワールド空間として適用する。短縮名ws。
             safe (bool): 書けない成分を保持し、実際の補助成分でTRSを再計算する。
-                TRSにも書けない成分があれば目標行列と一致しない場合がある。
+                TRSにも書けない成分があれば目標マトリクスと一致しない場合がある。
             get (bool): シーンを更新せず、対象ノード用に補正した値を返す。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。通常はcmdsでUndoに記録する。
             ws (bool): worldSpaceの別名。同時指定は不可。
@@ -1246,12 +1246,12 @@ class Transform(DagNode):
 
         Raises:
             TypeError: valueがTransformationでない場合。
-            ValueError: 分解不能、またはワールド指定時の親行列がほぼ特異な場合。
+            ValueError: 分解不能、またはワールド指定時の親マトリクスがほぼ特異な場合。
             RuntimeError: 対象が無効、またはsafeで抑制しない設定失敗の場合。
 
         Note:
             inverseScaleの接続は保持する。jointとtransformを相互コピーする場合は
-            対象で使えない補助成分を除き、行列を維持するようにTRSを補正する。
+            対象で使えない補助成分を除き、マトリクスを維持するようにTRSを補正する。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1276,20 +1276,20 @@ class Transform(DagNode):
             return self
 
     def getMatrix(self, worldSpace=_UNSET, p=False, inv=False, *, ws=_UNSET):
-        """指定空間の評価済み変換行列を取得する。
+        """指定空間の評価済みマトリクスを取得する。
 
         p=Falseのローカル値は ``matrix`` アトリビュート、ワールド値は保持パスの
         inclusiveMatrixを使う。offsetParentMatrixはローカル値に含まれず、ワールド値に含まれる。
 
         Args:
             worldSpace (bool): Trueはワールド、既定Falseはローカル。短縮名ws。
-            p (bool): Trueは親側の行列。worldSpace=Trueは保持パスのexclusiveMatrix、
+            p (bool): Trueは親側のマトリクス。worldSpace=Trueは保持パスのexclusiveMatrix、
                 Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseで求める。
-            inv (bool): Trueは選んだ行列の逆行列。
+            inv (bool): Trueは選んだマトリクスの逆マトリクス。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Matrix: 呼出し時点の行列の独立した複製。
+            Matrix: 呼出し時点のマトリクスの独立した複製。
 
         Raises:
             RuntimeError: ノードまたは保持するDAGパスが無効な場合。
@@ -1315,15 +1315,15 @@ class Transform(DagNode):
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
     def setMatrix(self, matrix, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
-        """行列を分解し、translate・rotate・scale・shearへ設定する。
+        """マトリクスを分解し、translate・rotate・scale・shearへ設定する。
 
         ピボット・rotateAxis・jointOrient・offsetParentMatrixは変更しない。
         スケールの符号とEulerの等価解は現在のチャンネル値を基準に選ぶ。
-        safeで書けない成分を残した結果、入力行列と一致しない場合がある。
+        safeで書けない成分を残した結果、入力マトリクスと一致しない場合がある。
 
         Args:
-            matrix (Matrix | sequence): 適用する変換行列。
-            worldSpace (bool): Trueはワールド行列を保持パスのexclusiveMatrixInverseで
+            matrix (Matrix | sequence): 適用するマトリクス。
+            worldSpace (bool): Trueはワールドマトリクスを保持パスのexclusiveMatrixInverseで
                 ローカルへ変換する。既定Falseは ``matrix`` アトリビュートと同じ空間。短縮名ws。
             safe (bool): 書けない成分を保持し、書ける成分だけを更新する。
             get (bool): Trueは書き込まず、ローカルの設定予定値を返す。
@@ -1338,7 +1338,7 @@ class Transform(DagNode):
         Raises:
             TypeError: 長短名の同時指定、またはfastがbool以外の場合。
             RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
-            ValueError: 行列が不正・分解不能、またはワールド指定時に親側の行列が反転不能の場合。
+            ValueError: マトリクスが不正・分解不能、またはワールド指定時に親側のマトリクスが反転不能の場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1371,7 +1371,7 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
                 短縮名ws。getPivotのobject空間とは異なる。
             at (int): 0以下=親原点、1=translate、2=回転ピボット、
-                3=スケールピボット、4以上=行列原点。
+                3=スケールピボット、4以上=マトリクス原点。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
@@ -1448,21 +1448,21 @@ class Transform(DagNode):
             return self
 
     def getRotate(self, worldSpace=_UNSET, *, ws=_UNSET):
-        """選択空間の行列から、ノードのrotateOrderでEuler回転を取得する。
+        """選択空間のマトリクスから、ノードのrotateOrderでEuler回転を取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。
         スケール符号は現在のチャンネルを基準とし、Eulerの等価解はTransformでは現在の
         rotate、Jointではゼロ回転に最も近いものを選ぶ。
 
         Args:
-            worldSpace (bool): Trueはワールド、既定Falseはローカル行列の回転。短縮名ws。
+            worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。短縮名ws。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             EulerRotate: rad単位・ノードのrotateOrderで表した独立した回転値。
 
         Raises:
-            ValueError: ゼロスケール等で行列を分解できない場合。
+            ValueError: ゼロスケール等でマトリクスを分解できない場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1478,12 +1478,12 @@ class Transform(DagNode):
         """選択空間の回転を設定する。書込むrotateは現在値に最も近い等価解を使う。
 
         3成分はノードのrotateOrderで解釈し、EulerRotateは値自身の回転順序を使う。
-        rotateAxisとJointのjointOrientを保ち、行列経由でチャンネル値を計算する。
+        rotateAxisとJointのjointOrientを保ち、マトリクス経由でチャンネル値を計算する。
 
         Args:
             value (Iterable[float] | EulerRotate | Quaternion): 回転値。EulerRotate/Quaternionは
                 対応するOpenMaya基底型も受理する。書込みはノードのrotateOrderに揃える。
-            worldSpace (bool): Trueはワールド、既定Falseはローカル行列の回転。短縮名ws。
+            worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。短縮名ws。
             safe (bool): 書けない成分を保持する。目標回転との一致は保証しない。
             get (bool): Trueは書き込まず、ローカルrotateの設定予定値を返す。
             unit (str): 既定radはラジアン。degは通常の数値3成分だけに使用できる。
@@ -1497,7 +1497,7 @@ class Transform(DagNode):
         Raises:
             TypeError: 長短名の同時指定、またはfastがbool以外の場合。
             ValueError: unitがrad/deg以外、degをEulerRotate/Quaternionと指定、
-                値が3成分でない、行列が分解不能、または必要な親行列が反転不能の場合。
+                値が3成分でない、マトリクスが分解不能、または必要な親マトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
         """
         if ws is not _UNSET:
@@ -1588,7 +1588,7 @@ class Transform(DagNode):
 
         Returns:
             Shear: 独立した無次元のXY・XZ・YZ3成分。
-                ローカルはチャンネル値、ワールドはAPI規約の行列分解値。
+                ローカルはチャンネル値、ワールドはAPI規約のマトリクス分解値。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1635,7 +1635,7 @@ class Transform(DagNode):
         """回転成分を選んで取得する。既定ではrotateAxisを含めない。
 
         ローカル空間ではrotateAxis・rotate・JointのjointOrientの順に、選んだ回転を合成する。
-        ワールド空間では保持パスの行列から求め、除外する回転成分を取り除く。
+        ワールド空間では保持パスのマトリクスから求め、除外する回転成分を取り除く。
         ra/r/joの許容組合せはsetQuaternionと同一ではない。
 
         Args:
@@ -1723,7 +1723,7 @@ class Transform(DagNode):
     def getEuler(self, worldSpace=_UNSET, *, ws=_UNSET):
         """回転を XYZ 順序の EulerRotate として取得する。
 
-        行列から分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
+        マトリクスから分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
         合成対象の選択は行わない。ノードのrotateOrderで表す場合はgetRotateを使う。
 
         Args:
@@ -1734,7 +1734,7 @@ class Transform(DagNode):
             EulerRotate: 評価済みの回転値（radian、XYZ 順序）。
 
         Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
+            ValueError: マトリクスを分解できない場合(いずれかのスケール軸がゼロなど)。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1942,7 +1942,7 @@ class Transform(DagNode):
     def getClosestAxisToVector(self, ref_vector, include_negative=True):
         """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
 
-        各ローカル軸をワールド行列（回転・スケールのみ、平行移動は無視）で変換し、
+        各ローカル軸をワールドマトリクス（回転・スケールのみ、平行移動は無視）で変換し、
         正規化した上で ref_vector との内積が最大のものを選ぶ。
 
         Args:
@@ -1982,7 +1982,7 @@ class Transform(DagNode):
 
         ``getQuaternion(ws=ws, r=False)`` へ委譲する。
         ローカルではJointのjointOrient、非Jointでは単位回転を返す。
-        ワールドでは保持パスから求め、非Jointでは親側の行列の回転を返す。
+        ワールドでは保持パスから求め、非Jointでは親側のマトリクスの回転を返す。
         jointOrientアトリビュートだけをQuaternionへ変換する入口ではない。
 
         Args:
@@ -2034,7 +2034,7 @@ class Transform(DagNode):
 
         Raises:
             NotImplementedError: Joint・インスタンス・親追加の場合。
-            RuntimeError: 参照・ロック・循環・特異行列により変更できない場合。
+            RuntimeError: 参照・ロック・循環・特異マトリクスにより変更できない場合。
         """
         target = None if parent is None else Node._resolve_input(parent)
         if target is not None and not isinstance(target, Transform):
@@ -2080,14 +2080,14 @@ class Transform(DagNode):
         return self
 
     def _fit_transformation(self, value, ws):
-        """入力を複製し、親行列とjoint固有成分へ適合させる。
+        """入力を複製し、親マトリクスとjoint固有成分へ適合させる。
 
         Args:
             value (Transformation): 元の値。自身を変更しない。
             ws (bool): 検証済みのワールド空間指定。
 
         Returns:
-            tuple: 適合した値・維持する行列・joint判定。
+            tuple: 適合した値・維持するマトリクス・joint判定。
         """
         if ws:
             parent = Matrix(self.mpath().exclusiveMatrix())
@@ -2141,7 +2141,7 @@ class Transform(DagNode):
 
         Args:
             fitted (Transformation): 設定予定の値。
-            matrix (Matrix): 維持するローカル行列。
+            matrix (Matrix): 維持するローカルマトリクス。
 
         Returns:
             Transformation: 実際に設定できた補助成分で再計算した値。
@@ -2216,10 +2216,10 @@ class Transform(DagNode):
         return assemblies
 
     def _parent_world_matrix(self):
-        """親Transformのワールド行列を取得する。
+        """親Transformのワールドマトリクスを取得する。
 
         Returns:
-            Matrix: 親のワールド行列。親がない、または親に getMatrix がなければ単位行列。
+            Matrix: 親のワールドマトリクス。親がない、または親に getMatrix がなければ単位マトリクス。
         """
         parent = self.getParent()
         if parent is None or not hasattr(parent, "getMatrix"):
@@ -2252,7 +2252,7 @@ class Transform(DagNode):
         return tuple(fn.scale()), fn.rotation(om2.MSpace.kTransform)
 
     def _decompose_like_channels(self, matrix, scale_reference=None):
-        """行列を分解し、スケールの符号の組み合わせを基準のスケールへ揃える。
+        """マトリクスを分解し、スケールの符号の組み合わせを基準のスケールへ揃える。
 
         om2.MTransformationMatrix の規約(行列式が負なら Z が負)で分解してから、
         :func:`_match_scale_signs` で符号を揃える。基準は scale_reference (指定時)、
@@ -2261,7 +2261,7 @@ class Transform(DagNode):
         符号と回転が保たれ、``setScale`` では要求した符号がそのまま入る。
 
         Args:
-            matrix (Matrix): 分解する行列。
+            matrix (Matrix): 分解するマトリクス。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
                 (``setScale`` で要求した値)。None なら現在の scale チャンネル値だけ。
 
@@ -2271,7 +2271,7 @@ class Transform(DagNode):
             現在の rotate チャンネル値で、Euler の解を選ぶ基準に使う。
 
         Raises:
-            ValueError: 行列を分解できない場合(いずれかのスケール軸がゼロなど)。
+            ValueError: マトリクスを分解できない場合(いずれかのスケール軸がゼロなど)。
         """
         # Matrix.decompose() と同じ検査・分解だが、使わない Euler などの生成を省く。
         transformation = matrix._checked_transformation()
@@ -2289,23 +2289,23 @@ class Transform(DagNode):
         return matrix.translate, quaternion, scale, shear, reference_rotate
 
     def _replace_components(self, matrix, rotate=None, scale=None, shear=None):
-        """行列の回転・スケール・シアーの一部を置き換えた新しい行列を返す。
+        """マトリクスの回転・スケール・シアーの一部を置き換えた新しいマトリクスを返す。
 
         置き換えない成分は :meth:`_decompose_like_channels` の分解値(スケールの符号を
-        現在のチャンネルへ揃えた値)を使う。平行移動は行列の値をそのまま保つ。
+        現在のチャンネルへ揃えた値)を使う。平行移動はマトリクスの値をそのまま保つ。
 
         Args:
-            matrix (Matrix): 元の行列。
+            matrix (Matrix): 元のマトリクス。
             rotate (Iterable[float] | EulerRotate | Quaternion | None): 新しい回転。
                 3成分は XYZ 順序のラジアン。None は現在の値。
             scale (Iterable[float] | None): 新しいスケール。None は現在の値。
             shear (Iterable[float] | None): 新しいシアー。None は現在の値。
 
         Returns:
-            Matrix: 合成し直した新しい行列。
+            Matrix: 合成し直した新しいマトリクス。
 
         Raises:
-            ValueError: 元の行列を分解できない場合、または入力が不正な場合。
+            ValueError: 元のマトリクスを分解できない場合、または入力が不正な場合。
         """
         translate, quaternion, old_scale, old_shear, _ = self._decompose_like_channels(matrix)
         return Matrix(
@@ -2318,7 +2318,7 @@ class Transform(DagNode):
     def _rotate_reference(self, reference):
         """:meth:`getRotate` が Euler の解を選ぶ基準を返す。
 
-        transform では行列の回転と rotate チャンネルが同じ回転(rotateAxis が 0 の場合)
+        transform ではマトリクスの回転と rotate チャンネルが同じ回転(rotateAxis が 0 の場合)
         なので、現在の rotate チャンネル値をそのまま基準にする。
 
         Args:
@@ -2330,12 +2330,12 @@ class Transform(DagNode):
         return reference
 
     def _channel_rotate(self, quaternion, reference):
-        """ローカル行列の回転を、rotate チャンネルへ書き込む値へ変換する。
+        """ローカルマトリクスの回転を、rotate チャンネルへ書き込む値へ変換する。
 
         transformではrotateAxisを除いてrotateチャンネルの回転を求める。
 
         Args:
-            quaternion (om2.MQuaternion): ローカル行列の回転。
+            quaternion (om2.MQuaternion): ローカルマトリクスの回転。
             reference (om2.MEulerRotation): 現在の rotate チャンネル値。
 
         Returns:
@@ -2394,9 +2394,9 @@ class Transform(DagNode):
         return "jointOrient" if jo else "rotateAxis", q.asEulerRotation()
 
     def _apply_local_matrix(self, matrix, scale_reference=None, *, fast=False):
-        """ローカル行列の各成分をMayaアトリビュートへ適用する。
+        """ローカルマトリクスの各成分をMayaアトリビュートへ適用する。
 
-        行列を1回だけ分解し、平行移動・回転・スケール・シアーを順に書き込む。
+        マトリクスを1回だけ分解し、平行移動・回転・スケール・シアーを順に書き込む。
         分解は om2.MTransformationMatrix の規約に、次の2点の選択を加えたもの。
 
         * スケールの符号の組み合わせは、行列式の符号が許す限り scale_reference
@@ -2405,12 +2405,12 @@ class Transform(DagNode):
         * 回転はノードの rotateOrder で表し、等価な解のうち現在の rotate チャンネル値に
           最も近いものを選ぶ(``om2.MEulerRotation.closestSolution``)。
 
-        同じ行列の再適用で、不要なスケール符号や等価なEuler解の変化を避ける。
+        同じマトリクスの再適用で、不要なスケール符号や等価なEuler解の変化を避ける。
         計算値は距離cm・角度radで、書込みは共通のPlug処理へ委譲する。
         ピボット・rotateAxis・jointOrient・SSCの補正を含める。
 
         Args:
-            matrix (Matrix): ローカル空間の変換行列。
+            matrix (Matrix): ローカル空間のマトリクス。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール。
                 None なら現在の scale チャンネル値に合わせる。
             fast (bool): Trueなら各チャンネルをOpenMayaで更新する。
@@ -2419,7 +2419,7 @@ class Transform(DagNode):
             None: 値を返さない。
 
         Raises:
-            ValueError: 行列を分解できない場合。
+            ValueError: マトリクスを分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
         self._apply_channel_values(self._matrix_channel_values(matrix, scale_reference), safe=False, fast=fast)
@@ -2454,10 +2454,10 @@ class Transform(DagNode):
         return Plug.set(self.getPlug(name), tuple(value), safe=safe, fast=fast)
 
     def _matrix_channel_values(self, matrix, scale_reference=None):
-        """行列からtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。
+        """マトリクスからtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。
 
         Args:
-            matrix: 変換または数値計算に使う行列。
+            matrix: 変換または数値計算に使うマトリクス。
             scale_reference: スケール補正の基準となるノードまたは値。
         """
         source = Matrix(matrix)
@@ -2486,7 +2486,7 @@ class Transform(DagNode):
 class Transforms(DagNodes):
     """Joint等の派生型を含むTransform参照のコレクション。
 
-    型検証・色設定・参照のコピーはNodesに従う。座標・行列操作は各対象へ転送する。
+    型検証・色設定・参照のコピーはNodesに従う。座標・マトリクス操作は各対象へ転送する。
     """
 
     item_class = Transform

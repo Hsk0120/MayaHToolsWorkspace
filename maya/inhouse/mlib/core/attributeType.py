@@ -23,8 +23,8 @@ nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終
      - ``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``
    * - enum・message
      - ``enum``・``message``
-   * - 行列(``MFnMatrixAttribute``)
-     - ``matrix`` (float の行列も ``cmds.getAttr`` と同じく ``matrix``)
+   * - マトリクス(``MFnMatrixAttribute``)
+     - ``matrix`` (float のマトリクスも ``cmds.getAttr`` と同じく ``matrix``)
    * - 型付き(``MFnTypedAttribute``)
      - ``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve`` など。
        API 2.0 に列挙値の無いデータ型(``Int64Array``・``floatVectorArray``・
@@ -255,7 +255,7 @@ def _convert_units(plug, value, to_ui=True):
         to_ui (bool): Trueはcm/rad/秒からUI単位、Falseは逆方向。
 
     Returns:
-        object: 変換した値。行列や型付き配列の成分は単位変換しない。
+        object: 変換した値。マトリクスや型付き配列の成分は単位変換しない。
     """
     if plug.isCompound:
         return tuple(_convert_units(plug.child(i), item, to_ui) for i, item in enumerate(value))
@@ -380,7 +380,7 @@ def _read_array(mplug, factory, tuples=False):
     Args:
         mplug (om2.MPlug): 読取対象。
         factory (type): データfunction set。
-        tuples (bool): 点・ベクトル・行列の各要素をtupleへ変換する。
+        tuples (bool): 点・ベクトル・マトリクスの各要素をtupleへ変換する。
 
     Returns:
         list | None: 値のコピー。空配列は[]、未初期化データはNone。
@@ -417,7 +417,7 @@ def value_reader(attribute):
         callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
             角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/
             stringArray/vectorArray/pointArray/matrixArrayが対象。それ以外は
-            ``_CMDS_READER``。この場合は呼出元がgeneric行列の判定やcmdsへの読取委譲を行う。
+            ``_CMDS_READER``。この場合は呼出元がgenericマトリクスの判定やcmdsへの読取委譲を行う。
     """
     if attribute.hasFn(om2.MFn.kNumericAttribute):
         return _NUMERIC_READERS.get(om2.MFnNumericAttribute(attribute).numericType(), _CMDS_READER)

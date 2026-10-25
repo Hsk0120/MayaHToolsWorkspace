@@ -528,7 +528,7 @@ class Vector(om2.MVector):
         """左辺からの乗算を om2 の意味論で行う。
 
         ``m * v`` (m は MMatrix 系)は om2 と同じく列ベクトルとしての積
-        (``v * mᵀ``)になる。位置を行列で変換する場合は
+        (``v * mᵀ``)になる。位置をマトリクスで変換する場合は
         :meth:`mlib.maths.matrix.Matrix.transformPoint`、方向は ``v * m`` を使う。
 
         Args:
@@ -693,7 +693,7 @@ class Vector(om2.MVector):
         """指定中心から成分を反転した同型の複製を返す。
 
         Translate・Scale・Shearでも数値反転として使用できる。
-        Scale・Shearの行列としての鏡映にはMatrix.mirrorを使う。
+        Scale・Shearのマトリクスとしての鏡映にはMatrix.mirrorを使う。
 
         Args:
             axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
@@ -802,7 +802,7 @@ class Vector(om2.MVector):
         return Quaternion._wrap(_MVector.rotateTo(self, *args))
 
     def transformAsNormal(self, *args):
-        """行列の逆転置で法線変換し、正規化したVectorの複製を返す。
+        """マトリクスの逆転置で法線変換し、正規化したVectorの複製を返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 

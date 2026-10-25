@@ -1,4 +1,4 @@
-"""指定した軸をターゲットへ向ける行列を生成する。"""
+"""指定した軸をターゲットへ向けるマトリクスを生成する。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .node import Node
 
 
 class AimMatrix(Node):
-    """aimMatrixノードを参照し、入力軸・ターゲットと出力行列を扱う。
+    """aimMatrixノードを参照し、入力軸・ターゲットと出力マトリクスを扱う。
 
     値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
     """
@@ -35,7 +35,7 @@ class AimMatrix(Node):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
@@ -136,7 +136,7 @@ class AimMatrix(Node):
             return self
 
     def getPrimaryMatrixPlug(self):
-        """primaryターゲット行列のPlugを取得する。
+        """primaryターゲットマトリクスのPlugを取得する。
 
         Returns:
             Plug: 接続・値操作用の参照。
@@ -144,7 +144,7 @@ class AimMatrix(Node):
         return self.getPlug("primaryTargetMatrix")
 
     def getPrimaryMatrix(self):
-        """primaryターゲット行列の評価値を取得する。
+        """primaryターゲットマトリクスの評価値を取得する。
 
         Returns:
             Matrix: 現在の値。
@@ -152,10 +152,10 @@ class AimMatrix(Node):
         return self.getPrimaryMatrixPlug().get()
 
     def setPrimaryMatrix(self, value, *, fast=False):
-        """primaryターゲット行列へ定数値を設定する。
+        """primaryターゲットマトリクスへ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
@@ -168,7 +168,7 @@ class AimMatrix(Node):
             return self
 
     def connectPrimaryMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
-        """primaryターゲット行列へ接続する。
+        """primaryターゲットマトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
@@ -341,7 +341,7 @@ class AimMatrix(Node):
             return self
 
     def getSecondaryMatrixPlug(self):
-        """secondaryターゲット行列のPlugを取得する。
+        """secondaryターゲットマトリクスのPlugを取得する。
 
         Returns:
             Plug: 接続・値操作用の参照。
@@ -349,7 +349,7 @@ class AimMatrix(Node):
         return self.getPlug("secondaryTargetMatrix")
 
     def getSecondaryMatrix(self):
-        """secondaryターゲット行列の評価値を取得する。
+        """secondaryターゲットマトリクスの評価値を取得する。
 
         Returns:
             Matrix: 現在の値。
@@ -357,10 +357,10 @@ class AimMatrix(Node):
         return self.getSecondaryMatrixPlug().get()
 
     def setSecondaryMatrix(self, value, *, fast=False):
-        """secondaryターゲット行列へ定数値を設定する。
+        """secondaryターゲットマトリクスへ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
@@ -373,7 +373,7 @@ class AimMatrix(Node):
             return self
 
     def connectSecondaryMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
-        """secondaryターゲット行列へ接続する。
+        """secondaryターゲットマトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。

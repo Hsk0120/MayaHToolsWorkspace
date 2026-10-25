@@ -1,4 +1,4 @@
-"""行列を配列の順番で乗算するmultMatrixを扱う。"""
+"""マトリクスを配列の順番で乗算するmultMatrixを扱う。"""
 
 from contextlib import nullcontext
 
@@ -9,7 +9,7 @@ from .node import Node
 
 
 class MultMatrix(Node):
-    """matrixInの論理インデックス順に行列を乗算する。"""
+    """matrixInの論理インデックス順にマトリクスを乗算する。"""
 
     def getInputPlug(self, index=_UNSET, *, idx=_UNSET):
         """既存入力のPlugを取得する。未存在要素は作成しない。
@@ -58,11 +58,11 @@ class MultMatrix(Node):
         return self.getInputPlug(index).get()
 
     def setInput(self, index=_UNSET, value=_UNSET, *, fast=False, idx=_UNSET):
-        """指定スロットに定数行列を設定する。入力接続は切断しない。
+        """指定スロットに定数マトリクスを設定する。入力接続は切断しない。
 
         Args:
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
-            value (Matrix | Iterable[float]): Maya規約の行列。
+            value (Matrix | Iterable[float]): Maya規約のマトリクス。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
             idx (int): indexの別名。同時指定は不可。
 
@@ -70,7 +70,7 @@ class MultMatrix(Node):
             MultMatrix: 自身。
 
         Raises:
-            ValueError: インデックスや行列が不正な場合。
+            ValueError: インデックスやマトリクスが不正な場合。
             RuntimeError: ロックや入力接続により設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
@@ -93,11 +93,11 @@ class MultMatrix(Node):
             return self
 
     def connectInput(self, index=_UNSET, source=_UNSET, force=_UNSET, *, idx=_UNSET, src=_UNSET, f=_UNSET):
-        """行列Plugを指定スロットへ接続する。
+        """マトリクスPlugを指定スロットへ接続する。
 
         Args:
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
-            source (Plug): 接続元の行列Plug。 別名 ``src`` も使用可能。
+            source (Plug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
             idx (int): indexの別名。同時指定は不可。
             src (Plug): sourceの別名。同時指定は不可。
@@ -144,10 +144,10 @@ class MultMatrix(Node):
         return self.getPlug("matrixSum")
 
     def getResult(self):
-        """現在の入力を乗算した評価済み行列。
+        """現在の入力を乗算した評価済みマトリクス。
 
         Returns:
-            Matrix: 現在の入力を乗算した評価済み行列。
+            Matrix: 現在の入力を乗算した評価済みマトリクス。
         """
         return self.getOutputPlug().get()
 

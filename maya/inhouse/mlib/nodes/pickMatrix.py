@@ -1,4 +1,4 @@
-"""行列の使用成分を選択する。"""
+"""マトリクスの使用成分を選択する。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .node import Node
 
 
 class PickMatrix(Node):
-    """pickMatrixノードを参照し、入力行列の使用成分を選択する。
+    """pickMatrixノードを参照し、入力マトリクスの使用成分を選択する。
 
     値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
     fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
@@ -36,7 +36,7 @@ class PickMatrix(Node):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:

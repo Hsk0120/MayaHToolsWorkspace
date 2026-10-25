@@ -14,7 +14,7 @@ class Constraint(Transform):
 
     具象型はparentConstraintなどのMaya nodeTypeごとに定義する。ターゲットと
     weight aliasの対応は各標準コマンドの問い合わせ順を使い、独自に並べ替えない。
-    拘束先の探索やリグ構築を担当するクラスではない。
+    コンストレイント先の探索やリグ構築を担当するクラスではない。
 
     fast対応のウェイト書込みはPlugへ委譲するが、ターゲット/alias照会には
     cmdsを使う。fast呼出し全体がOpenMayaだけになるわけではない。
@@ -61,7 +61,7 @@ class Constraint(Transform):
         """指定ターゲットの現在のウェイトを取得する。
 
         Args:
-            target (Node | str): この拘束に登録されたターゲット。
+            target (Node | str): このコンストレイントに登録されたターゲット。
 
         Returns:
             float: 正規化していないウェイト値。

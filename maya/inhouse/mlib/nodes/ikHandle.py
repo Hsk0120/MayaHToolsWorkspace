@@ -6,7 +6,7 @@ from .transform import Transform
 
 
 class IkHandle(Transform):
-    """極ベクトル拘束の作成を含む Transform 操作に対応する IK ハンドル。"""
+    """ポールベクトルコンストレイントの作成を含むTransform操作に対応するIKハンドル。"""
 
     def getEndJoint(self):
         """IK チェーンの末端 joint を取得する。

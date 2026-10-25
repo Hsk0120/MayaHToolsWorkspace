@@ -1,4 +1,4 @@
-"""個別の16要素から行列を構築する。"""
+"""個別の16要素からマトリクスを構築する。"""
 
 from contextlib import nullcontext
 
@@ -8,14 +8,14 @@ from .node import Node
 
 
 class FourByFourMatrix(Node):
-    """fourByFourMatrixノードを参照し、16入力から行列を評価する。
+    """fourByFourMatrixノードを参照し、16入力からマトリクスを評価する。
 
     値設定は入力接続を切断しない。通常設定はUndo有効時に一つのチャンクへ記録する。
     fast=TrueはUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
     """
 
     def getMatrix(self):
-        """16要素の入力行列を取得する。
+        """16要素の入力マトリクスを取得する。
 
         Returns:
             Matrix: 入力値。
@@ -23,10 +23,10 @@ class FourByFourMatrix(Node):
         return Matrix([self.getPlug("in%d%d" % (r, c)).get() for r in range(4) for c in range(4)])
 
     def setMatrix(self, value, *, fast=False):
-        """行列の16要素を、行優先で各入力Plugへ順に設定する。
+        """マトリクスの16要素を、行優先で各入力Plugへ順に設定する。
 
         Args:
-            value (Matrix | Iterable[float]): 行列。
+            value (Matrix | Iterable[float]): マトリクス。
             fast (bool): TrueはUndoなし。
 
         Returns:

@@ -15,7 +15,7 @@ class DistanceBetween(Node):
     """
 
     def setPoints(self, point1, point2, *, fast=False):
-        """各入力行列の空間で二点をcmで設定する。行列は変更しない。
+        """各入力マトリクスの空間で二点をcmで設定する。マトリクスは変更しない。
 
         両方の点を検証してからpoint1、point2の順に書く。途中の書込み失敗は先行変更を戻さない。
 
@@ -45,15 +45,15 @@ class DistanceBetween(Node):
             return self
 
     def connectTransforms(self, first, second, force=_UNSET, *, f=_UNSET):
-        """二つのTransformのワールド行列を接続し、原点間距離を測る。
+        """二つのTransformのワールドマトリクスを接続し、原点間距離を測る。
 
-        両方のTransformを解決して型を検査し、point1/2を原点へ戻した後に行列を順に接続する。
+        両方のTransformを解決して型を検査し、point1/2を原点へ戻した後にマトリクスを順に接続する。
         失敗時の先行変更は戻さない。Undoは有効時だけ記録する。
 
         Args:
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
             second (Transform | str): 第二のTransform。
-            force (bool): 既存の行列入力接続を置き換えるか。 別名 ``f`` も使用可能。
+            force (bool): 既存のマトリクス入力接続を置き換えるか。 別名 ``f`` も使用可能。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:

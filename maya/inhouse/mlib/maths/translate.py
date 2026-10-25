@@ -8,7 +8,7 @@ class Translate(Vector):
 
     値・演算・比較はすべて :class:`~mlib.maths.vector.Vector` と同じ。
     om2 の MVector を継承するため、``MFnTransform.setTranslation`` などへ
-    そのまま渡せる。位置を行列で変換するときは
+    そのまま渡せる。位置をマトリクスで変換するときは
     :meth:`mlib.maths.matrix.Matrix.transformPoint` か ``om2.MPoint(t) * m`` を使う
     (``t * m`` は平行移動を含まない方向の変換になる)。
     """

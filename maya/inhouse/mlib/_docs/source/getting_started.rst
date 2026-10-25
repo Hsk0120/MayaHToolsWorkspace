@@ -7,9 +7,34 @@ mlib入門
 実行環境
 --------
 
-ワークスペースのバージョン別起動バッチからMayaを起動すると、
-``maya/inhouse`` がPythonの検索パスに追加されます。
-以下はScript EditorのPythonタブで実行する例です。作成・編集の例は現在のシーンを変更します。
+対象はMaya 2022〜2027のPython 3環境です。Maya付属のPythonを使用します。
+
+.. list-table:: MayaとPythonのバージョン（Windows）
+   :header-rows: 1
+
+   * - Maya
+     - Python
+   * - 2022
+     - 3.7
+   * - 2023
+     - 3.9
+   * - 2024
+     - 3.10
+   * - 2025・2026
+     - 3.11
+   * - 2027
+     - 3.13
+
+``mlib`` フォルダの親フォルダを、Pythonの検索パス（``PYTHONPATH`` または ``sys.path``）へ追加してください。
+例えば ``C:/tools/mlib`` に配置した場合は、Script EditorのPythonタブで次を実行します。
+
+.. code-block:: python
+
+   import sys
+   sys.path.insert(0, "C:/tools")
+   import mlib
+
+以降の例もScript EditorのPythonタブで実行します。作成・編集の例は現在のシーンを変更します。
 
 コマンドは ``import mlib`` の後、``mlib.createNode()`` のように呼び出します。
 クラスは ``mlib.nodes``・``mlib.maths`` など、所属するパッケージから取得します。
@@ -30,7 +55,7 @@ mlib入門
    print(mlib.ls(type="transform"))
 
 ``createNode`` は作成した型に対応するラッパーを返します。
-既存ノードは ``mlib.getNode("ノード名")`` で取得でき、完全DAGパスも指定できます。
+既存ノードは ``mlib.ls("ノード名やパターン")`` で検索でき、完全DAGパスも指定できます。
 ``ls`` は通常ラッパーのリストを返し、``type="joint"``・``type="skinCluster"`` の場合は
 それぞれ ``Joints``・``SkinClusters`` を返します。
 
@@ -61,25 +86,31 @@ mlib入門
 ``worldSpace`` と ``ws`` は一方だけを指定します。他の長短名の併用規則は各APIを参照してください。
 署名の ``_UNSET``・``Ellipsis`` は省略判定用の内部値です。
 
-対象の種類を判別して取得する
-----------------------------
+名前・選択・型から取得する
+--------------------------
 
-ノード・アトリビュート・単一コンポーネントを同じ入口で取得する場合は
-:class:`~mlib.core.object.Object` を使います。次の例は ``pCube1`` が存在するシーンが前提です。
+``maya.cmds.ls`` と同じように、``mlib.ls`` で名前・選択・型から対象を検索します。
+名前の文字列ではなく、対象に対応するNode・Plug・Componentを返します。
+次の例は ``pCube1`` が存在するシーンが前提です。
 
 .. code-block:: python
 
-   from mlib.core.object import Object
+   import mlib
 
-   node = Object("pCube1")           # Transform
-   plug = Object("pCube1.tx")        # DoubleLinearPlug
-   vertex = Object("pCube1.vtx[0]")  # Vertex
-   print(Object(node) is node)       # True
+   nodes = mlib.ls("pCube*")
+   selected = mlib.ls(selection=True)
+   joints = mlib.ls(type="joint")
+   plugs = mlib.ls("pCube1.tx")
+   vertices = mlib.ls("pCube1.vtx[0:3]", type="vertex")
 
-``Object`` は単数のNode・Plug・Componentの共通基底です。既存の参照を取得し、新規ノードは作りません。
-要素範囲には ``mlib.common.Selection("pCube1.vtx[0:3]")`` を使います。
-アトリビュートとコンポーネントの名前が重なる場合、Objectはアトリビュートとしての解決を先に試みます。
-アトリビュートを明示するには ``node.getPlug("名前")`` または ``mlib.getPlug("node.attribute")`` を使います。
+   for node in nodes:
+       print(node.getName())
+
+通常の戻り値はリストです。1件だけ取り出す場合も、結果があることを確認して ``nodes[0]`` のように取得します。
+一致する対象がなければ空になります。検索はノードの作成や選択変更を行いません。
+コンポーネントの範囲は単体の参照へ展開され、上の ``vertices`` には4つのVertexが入ります。
+``type="vertex"`` は頂点だけを抽出する指定で、ノードやフェースを頂点へ変換する指定ではありません。
+取得したノードのアトリビュートは ``node.getPlug("名前")`` でも参照できます。
 
 目的から使い方を探す
 --------------------
@@ -93,7 +124,7 @@ mlib入門
      - 基本の書き方
      - API
    * - 名前や条件で既存対象を探す
-     - ``mlib.getNode("名前")``、``mlib.ls(selection=True)``
+     - ``mlib.ls("名前やパターン")``、``mlib.ls(selection=True)``
      - :doc:`autoapi/mlib/cmds/index`
    * - 値・単位・接続を扱う
      - ``node.getPlug("translateX").get()``、``plug.getSource()``
@@ -135,11 +166,11 @@ mlib入門
 
    joint = Joint("joint1")  # 既存のJoint
    node = Node("pCube1")    # 実際のnodeTypeに対応するラッパー
-   matrix = Matrix()       # 単位行列
+   matrix = Matrix()       # 単位マトリクス
 
 具象クラスによる既存取得は、そのクラスまたは派生型を受理します。
 ``Joint("transform1")`` はTypeError、``Transform("joint1")`` はJointを返します。
-種類を指定せず取得する場合は ``Node("名前")`` または ``mlib.getNode("名前")`` を使います。
+名前や型からまとめて検索する場合は ``mlib.ls`` を使います。
 
 .. code-block:: python
 

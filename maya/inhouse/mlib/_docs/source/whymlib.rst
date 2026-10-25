@@ -9,14 +9,14 @@
 
 この考え方をアトリビュートやコンポーネント（頂点・エッジ・フェース・CV・UV）にも広げ、
 取得・設定・接続をそれぞれのオブジェクトから行えます。
-行列やクォータニオンもオブジェクトとして取得し、そのまま計算へ使えます。
+マトリクスやクォータニオンもオブジェクトとして取得し、そのまま計算へ使えます。
 mlibはPyMELに依存せず、独自のAPIを提供します。
 
 .. code-block:: python
 
    import mlib
 
-   control = mlib.getNode("control")
+   control = mlib.ls("control")[0]
    control.setTranslate((1, 2, 3))
    control.getPlug("visibility").set(True)
    matrix = control.getMatrix(ws=True)
@@ -30,7 +30,7 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
 役割を「シーン上の対象」と「計算に使う値」に分けています。
 ノードやアトリビュートのラッパーはシーンを参照し、数学型は取得した値を保持します。
 ``Node``・``Plug``・``Component`` の共通基底は :class:`~mlib.core.object.Object` です。
-``Object`` は入力に合う参照の取得にも使います。数学型や複数形コレクションは別の役割です。
+数学型や複数形コレクションは別の役割です。対象の検索には ``mlib.ls`` を使います。
 
 .. list-table::
    :header-rows: 1
@@ -56,7 +56,7 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - 選択・参照関係・プラグイン・イベントと既存の共通計算を扱う
    * - ``cmds``
      - getNode・getPlug・createNode・lsなどの基礎7関数
-     - 対象の取得・作成の入口。通常は ``mlib.getNode()`` のように呼ぶ
+     - 対象の取得・作成の入口。検索には ``mlib.ls()``、作成には ``mlib.createNode()`` を使う
 
 ここでいうコンポーネントは、Mayaの形状を構成する要素です。
 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。
@@ -80,12 +80,12 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
 
 .. include:: _includes/components.rst
 
-数学型：行列・回転・ベクトル
+数学型：マトリクス・回転・ベクトル
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Python共通の基底クラス ``object`` から、``maya.api.OpenMaya`` （Python API 2.0）、
 mlibの数学型へと継承が続きます。``object`` はPython組み込みのクラスです。
-OpenMayaのクラス名はAutodesk公式リファレンス（Maya 2026）、
+OpenMayaのクラス名はAutodesk公式リファレンス（Maya 2027）、
 mlibのクラス名はこのドキュメントのAPIリファレンスへリンクしています。
 
 .. include:: _includes/maths.rst
@@ -107,7 +107,7 @@ TRSやピボットをまとめる :class:`~mlib.maths.transformation.Transformat
 ノード単位で操作する
 ----------------------------------------------------------------------
 
-``mlib.getNode()`` は実際のノード型に対応したクラスのインスタンスを返します。
+``mlib.ls()`` の検索結果には、実際のノード型に対応したクラスのインスタンスが入ります。
 JointならJointの操作、SkinClusterならウェイト関連の操作を、その対象から呼べます。
 
 .. code-block:: python
@@ -131,10 +131,10 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
      - 用途
    * - Transform
      - ``getMatrix()`` / ``setMatrix()``
-     - 変換行列を取得・反映する
+     - マトリクスを取得・反映する
    * - Transform
      - ``addConstraint()`` / ``deleteConstraints()``
-     - 拘束を作成・削除する
+     - コンストレイントを作成・削除する
    * - Joint
      - ``freezeRotate()`` / ``jointOrientToRotate()``
      - rotateとjointOrientの間で姿勢を移す
@@ -184,18 +184,18 @@ JointのjointOrientなどがある場合、この2つは同じ操作とは限り
 Mayaコマンドへ渡すときは ``getFullName()`` で名前へ変換します。値・接続・単位の仕様は
 :class:`~mlib.plugs.plug.Plug` と :doc:`getting_started` を参照してください。
 
-行列・クォータニオンを取得して計算する
+マトリクス・クォータニオンを取得して計算する
 ----------------------------------------------------------------------
 
 取得した値がそのまま数学オブジェクトになるため、配列から型を組み立て直さずに
-積・逆行列・回転補間などへ進めます。``mlib.maths`` の数学型は
+積・逆マトリクス・回転補間などへ進めます。``mlib.maths`` の数学型は
 OpenMaya API 2.0の対応する型を継承しています。
 
-行列の合成・逆行列
+マトリクスの合成・逆マトリクス
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-次の例は、あるTransformのワールド行列を、基準Transformに対する相対行列へ変換します。
-Mayaの行ベクトル規約では、相対行列に基準のワールド行列を右から掛けると元に戻せます。
+次の例は、あるTransformのワールドマトリクスを、基準Transformに対する相対マトリクスへ変換します。
+Mayaの行ベクトル規約では、相対マトリクスに基準のワールドマトリクスを右から掛けると元に戻せます。
 
 .. code-block:: python
 
@@ -213,9 +213,9 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
    restored_world = relative * reference_world
    driven.setMatrix(restored_world, ws=True)
 
-``*`` で行列積、``inverse()`` で逆行列を扱えます。
-逆行列を求める例では、ゼロスケールなどの特異な行列を避けてください。
-空間や行列の適用条件は :class:`~mlib.maths.matrix.Matrix` と
+``*`` でマトリクスの積、``inverse()`` で逆マトリクスを扱えます。
+逆マトリクスを求める例では、ゼロスケールなどの特異なマトリクスを避けてください。
+空間やマトリクスの適用条件は :class:`~mlib.maths.matrix.Matrix` と
 :class:`~mlib.nodes.transform.Transform` の各メソッドを参照してください。
 
 クォータニオンの補間
@@ -247,7 +247,7 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 ツール開発での使い分け
 ----------------------------------------------------------------------
 
-* 対象の取得・作成は ``mlib.getNode()`` や ``mlib.createNode()``。
+* 対象の検索は ``mlib.ls()``、作成は ``mlib.createNode()``。
 * ノード全体の操作はNode派生、アトリビュートの操作はPlug、形状の一部はComponent。
 * 計算はMatrix・Quaternionなどの値で行い、結果の反映は明示的なsetter。
 * 通常の編集はUndo有効時に記録。複数操作を一つのツールとしてまとめる場合に外側でUndoをまとめる。
@@ -255,6 +255,6 @@ Mayaの行ベクトル規約では、相対行列に基準のワールド行列�
 
 Maya標準のコマンドをそのまま使う場面もあります。mlibですべてを置き換える必要はありません。
 mlibが提供しないコマンド・UI・ファイル操作は ``maya.cmds`` や標準ライブラリを使い、
-必要な結果を ``getNode()``・``getPlug()`` で参照へ変換します。
+必要な結果を ``mlib.ls()`` で参照へ変換します。
 
 その他のクラスは :doc:`modules` を参照してください。

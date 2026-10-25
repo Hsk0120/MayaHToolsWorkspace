@@ -1,4 +1,4 @@
-"""行列を変換成分に分解するdecomposeMatrixを扱う。"""
+"""マトリクスを変換成分に分解するdecomposeMatrixを扱う。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .node import Node
 
 
 class DecomposeMatrix(Node):
-    """Mayaの行列分解ノード。接続先の親空間やjointOrientの補正は行わない。"""
+    """Mayaのマトリクス分解ノード。接続先の親空間やjointOrientの補正は行わない。"""
 
     def getInputPlug(self):
         """inputMatrixの参照。
@@ -21,18 +21,18 @@ class DecomposeMatrix(Node):
         return self.getPlug("inputMatrix")
 
     def getInput(self):
-        """現在の入力行列。接続済みなら接続元を評価する。
+        """現在の入力マトリクス。接続済みなら接続元を評価する。
 
         Returns:
-            Matrix: 現在の入力行列。接続済みなら接続元を評価する。
+            Matrix: 現在の入力マトリクス。接続済みなら接続元を評価する。
         """
         return self.getInputPlug().get()
 
     def setInput(self, value, *, fast=False):
-        """定数行列を入力する。入力接続は切断しない。
+        """定数マトリクスを入力する。入力接続は切断しない。
 
         Args:
-            value (Matrix | Iterable[float]): Maya規約の行列。
+            value (Matrix | Iterable[float]): Maya規約のマトリクス。
             fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
 
         Returns:
@@ -83,10 +83,10 @@ class DecomposeMatrix(Node):
             return self
 
     def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
-        """行列Plugを入力へ接続する。
+        """マトリクスPlugを入力へ接続する。
 
         Args:
-            source (Plug): 接続元の行列Plug。 別名 ``src`` も使用可能。
+            source (Plug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
             src (Plug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。

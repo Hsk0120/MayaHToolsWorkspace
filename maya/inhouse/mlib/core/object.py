@@ -1,4 +1,4 @@
-"""Mayaシーン内の単一対象を表す共通基底と取得入口。"""
+"""Mayaシーン内の単一対象を表す共通基底。"""
 
 import maya.api.OpenMaya as om2
 
@@ -24,9 +24,10 @@ class _ObjectType(type):
 
 
 class Object(metaclass=_ObjectType):
-    """Node・Plug・単数Componentの共通基底と参照取得入口。
+    """Node・Plug・単数Componentの共通基底。
 
-    Object(value)は対象の種類を保って解決し、所有ノードへの変換は行わない。
+    対象の検索には :func:`~mlib.ls` を使う。
+    入力した単一対象の種類を保って解決し、所有ノードへの変換は行わない。
     既存のObjectは削除済みでも同じインスタンスを返す。
     複数対象は受け付けず、ノード作成・複製・選択変更は行わない。
     """

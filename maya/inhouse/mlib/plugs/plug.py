@@ -115,7 +115,7 @@ class DeletedAttributeError(ValueError, RuntimeError):
 
     所有ノードは有効なままアトリビュートだけが削除された Plug・MPlug は、所有ノードへ解決すると
     削除済みの対象を黙って受け付けてしまうため、``Node._resolve_input``・``Node(...)``/``mlib.getNode``・
-    ``Transform.addConstraint()`` の拘束元・拘束先などでも例外にする。mlib のコマンド(``Object._input_name``)と
+    ``Transform.addConstraint()`` のターゲット・コンストレイント先などでも例外にする。mlib のコマンド(``Object._input_name``)と
     同じく ``ValueError`` として扱う。``Node(...)`` は解決できない対象をすべて
     ``RuntimeError`` にする規則のため、``RuntimeError`` としても捕捉できるようにしている
     (標準ライブラリの ``io.UnsupportedOperation`` が ``OSError`` と ``ValueError`` の両方を
@@ -146,7 +146,7 @@ class Plug(Object):
         アトリビュート定義から求め(:func:`mlib.core.attributeType.attributeType`)、maya.cmds へ
         問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
         generic/kAnyは現在値を読まず、基底Plugとして参照する。
-        行列などの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で
+        マトリクスなどの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で
         型選択のためのDG評価を行わない。値の型が変わっても同じPlugを保持できる。
 
         Args:
@@ -1263,7 +1263,7 @@ class Plug(Object):
                 論理番号をキーとするdict。API読取の型付き配列はlistで、各要素は
                 vectorArray=XYZ、pointArray=XYZW、matrixArray=16成分のtuple。
                 未初期化データはNone、空配列は空list。generic/kAnyは現在値に応じて
-                Matrix・数値・tuple等を返す。行列・型付き配列の成分と無単位値は換算しない。
+                Matrix・数値・tuple等を返す。マトリクス・型付き配列の成分と無単位値は換算しない。
 
         Raises:
             TypeError: uiUnitsがbool以外の場合。
@@ -1951,7 +1951,7 @@ class Plug(Object):
         """評価済みの Maya アトリビュート値を取得する。
 
         最初の呼出しで読取関数を選んで保持し、値そのものは毎回読み直す。
-        generic/kAnyの行列判定も値取得時に行い、Pythonラッパークラスは変えない。
+        generic/kAnyのマトリクス判定も値取得時に行い、Pythonラッパークラスは変えない。
 
         bool/int/float 系の数値アトリビュート、角度・距離・時間の単位アトリビュート、enum、
         文字列および対応する型付き配列は Maya API 2.0経由で直接読み取り、MEL コマンドの
@@ -1984,7 +1984,7 @@ class Plug(Object):
                 f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.getFullName()}"
             )
         if attributeType(self._mplug) is None and om2.MFnAttribute(self._attribute).readable:
-            # generic/kAnyの参照型は固定し、実際の値を読む時だけ行列を判定する。
+            # generic/kAnyの参照型は固定し、実際の値を読む時だけマトリクスを判定する。
             # 数値などMObjectを持たない値は、従来のcmds読取へ委譲する。
             try:
                 data = self._mplug.asMObject()

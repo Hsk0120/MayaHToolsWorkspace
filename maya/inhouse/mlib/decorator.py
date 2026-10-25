@@ -148,7 +148,7 @@ def preservedSelection():
 def preservedSkinShape(joints):
     """jointに接続するskinClusterをmoveJointsModeへ切り替えて姿勢を編集する。
 
-    終了時はrecacheBindMatricesで現在姿勢をバインド行列へ反映し、取得できた
+    終了時はrecacheBindMatricesで現在姿勢をバインドマトリクスへ反映し、取得できた
     以前のモードへ戻す。任意の階層変更・influence削除や全フレームの変形保持は保証しない。
     モード照会・切替・再キャッシュ・復元のRuntimeErrorは警告して継続し、
     ブロック内の例外は伝播する。警告時は保護や復元が未完了の可能性がある。

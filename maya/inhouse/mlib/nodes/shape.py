@@ -23,7 +23,7 @@ class Shape(DagNode):
     def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
-        Transform行列・面の頂点順は変えず、共有形状は全インスタンスに影響する。
+        Transformのマトリクス・面の頂点順は変えず、共有形状は全インスタンスに影響する。
         周期CVの連動を考慮して拡縮する。途中失敗の先行変更は戻さない。
 
         Args:

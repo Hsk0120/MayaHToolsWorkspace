@@ -1,4 +1,4 @@
-"""om2.MMatrix を継承した、Maya の行ベクトル規約の4行4列変換行列。"""
+"""om2.MMatrix を継承した、Maya の行ベクトル規約の4行4列のマトリクス。"""
 
 from operator import index as _as_index
 
@@ -109,7 +109,7 @@ def _xyz(value):
 
 
 def _new(cls):
-    """Python の ``__new__`` / ``__init__`` を通さずに cls の単位行列を作る。
+    """Python の ``__new__`` / ``__init__`` を通さずに cls の単位マトリクスを作る。
 
     om2 の型は C++ の実体を基底の ``__init__`` で確保するため、``__new__`` の直後に
     必ず基底の ``__init__`` を呼ぶ。
@@ -118,7 +118,7 @@ def _new(cls):
         cls (type): 生成する Matrix 系のクラス。
 
     Returns:
-        Matrix: cls の単位行列。
+        Matrix: cls の単位マトリクス。
     """
     result = _MMatrix.__new__(cls)
     _MMatrix.__init__(result)
@@ -128,7 +128,7 @@ def _new(cls):
 def _assign(target, source):
     """source の16要素を target へそのまま写す(C++ の実体は確保し直さない)。
 
-    単位行列を -0.0 倍した「すべて -0.0」の行列へ source を加算する。-0.0 は加算の
+    単位マトリクスを -0.0 倍した「すべて -0.0」のマトリクスへ source を加算する。-0.0 は加算の
     単位元なので、符号付きゼロ・inf・NaN を含めて source と同じ値になる(0.0 を
     使うと -0.0 が 0.0 になる)。
 
@@ -146,7 +146,7 @@ def _assign(target, source):
 
 
 def _number(value):
-    """行列の要素を float へ変換する。
+    """マトリクスの要素を float へ変換する。
 
     om2 のコンストラクタと同じく数値だけを受け付け、文字列は拒否する
     (``float("1")`` のような文字列からの変換はしない)。
@@ -194,13 +194,13 @@ def _rotate_matrix(rotate):
 
     Args:
         rotate (Iterable[float] | om2.MEulerRotation | om2.MQuaternion): XYZ 順の
-            ラジアン3成分、回転順序を持つ Euler 回転、または四元数(正規化して使う)。
+            ラジアン3成分、回転順序を持つ Euler 回転、またはクォータニオン(正規化して使う)。
 
     Returns:
-        om2.MMatrix: 回転行列。
+        om2.MMatrix: 回転マトリクス。
 
     Raises:
-        ValueError: ゼロ四元数、または3成分として解釈できない場合。
+        ValueError: ゼロクォータニオン、または3成分として解釈できない場合。
     """
     if isinstance(rotate, _MQuaternion):
         if rotate.x * rotate.x + rotate.y * rotate.y + rotate.z * rotate.z + rotate.w * rotate.w == 0.0:
@@ -217,15 +217,15 @@ def _rotate_matrix(rotate):
 
 
 def _compose_into(target, translate, rotation, scale, shear):
-    """S * Sh * R に平行移動を置いた値を、単位行列の target へ書き込む。
+    """S * Sh * R に平行移動を置いた値を、単位マトリクスの target へ書き込む。
 
     ``MTransformationMatrix.setScale`` は絶対値が 1e-12 未満のスケールを 1e-12 に
     丸めるため使わず、要素を直接書き込む。
 
     Args:
-        target (om2.MMatrix): 単位行列で初期化済みの書き込み先。
+        target (om2.MMatrix): 単位マトリクスで初期化済みの書き込み先。
         translate (tuple[float, float, float] | None): 平行移動。None は 0。
-        rotation (om2.MMatrix | None): 回転行列。None は回転なし。
+        rotation (om2.MMatrix | None): 回転マトリクス。None は回転なし。
         scale (tuple[float, float, float] | None): スケール。None は 1。
         shear (tuple[float, float, float] | None): XY、XZ、YZ のシアー。None は 0。
 
@@ -263,7 +263,7 @@ def _components(translate, rotate, scale, shear):
         tuple: (translate, rotation_matrix, scale, shear)。未指定は None のまま。
 
     Raises:
-        ValueError: 3成分として解釈できない値、またはゼロ四元数の場合。
+        ValueError: 3成分として解釈できない値、またはゼロクォータニオンの場合。
     """
     return (
         None if translate is None else _xyz(translate),
@@ -274,14 +274,14 @@ def _components(translate, rotate, scale, shear):
 
 
 class Matrix(om2.MMatrix):
-    """om2.MMatrixを継承した、Mayaの行ベクトル規約の可変な4行4列行列。
+    """om2.MMatrixを継承した、Mayaの行ベクトル規約の可変な4行4列のマトリクス。
 
     OpenMaya APIへそのまま渡せる。入力はコピーし、16要素は行優先、平行移動は添字12〜14。
     Mayaへ渡す平行移動はcmで、UI単位へ換算しない。
     合成・分解はアフィン変換を想定する。分解はMTransformationMatrixの規約で、
     負の行列式ではZスケールを負にして180度の補償回転を入れる(cmds.xform/decomposeMatrixと同じ)。
 
-    * ``a * b`` / ``a @ b`` はaを先に適用する行列積。結果は ``type(a)``。
+    * ``a * b`` / ``a @ b`` はaを先に適用するマトリクスの積。結果は ``type(a)``。
       ``om2.MMatrix * Matrix`` もMatrixを返す。
     * 数値倍・加減算はOM2の成分ごとの演算。
     * ``Vector * m`` は平行移動を含まない方向変換。
@@ -291,7 +291,7 @@ class Matrix(om2.MMatrix):
     * ``m @ v`` はTypeError。位置の変換は :meth:`transformPoint` または ``om2.MPoint(p) * m`` を使う。
 
     ``*=`` / ``@=`` / ``+=`` / ``-=`` は自身を更新する。数学値を返す継承メソッドもmlib型を返し、
-    コピー操作は独立値、It付き操作は自身更新となる。成分プロパティの取得値も独立した複製で、編集しても行列は変わらない。
+    コピー操作は独立値、It付き操作は自身更新となる。成分プロパティの取得値も独立した複製で、編集してもマトリクスは変わらない。
 
     ハッシュ不可。``m[i]`` は-16〜15、``m[行, 列]`` は各-4〜3で代入でき、範囲外はIndexError。
     ``==`` はMMatrix系の完全一致。異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
@@ -301,7 +301,7 @@ class Matrix(om2.MMatrix):
     __hash__ = None
 
     def __new__(cls, *args, **kwargs):
-        """基底初期化でC++実体を確保し、clsの単位行列を作る。
+        """基底初期化でC++実体を確保し、clsの単位マトリクスを作る。
 
         ``__init__`` を省略・失敗しても実体へアクセスできるよう、先に確保する。
         詳細は :meth:`mlib.maths.vector.Vector.__new__` を参照。
@@ -311,24 +311,24 @@ class Matrix(om2.MMatrix):
             **kwargs: ここでは使わないキーワード引数。
 
         Returns:
-            Matrix: clsの単位行列。
+            Matrix: clsの単位マトリクス。
         """
         self = _MMatrix.__new__(cls)
         _MMatrix.__init__(self)
         return self
 
     def __init__(self, values=None, *, translate=None, rotate=None, scale=None, shear=None):
-        """入力行列、または TRS / shear 成分から値を設定する。
+        """入力マトリクス、または TRS / shear 成分から値を設定する。
 
         入力をすべて検証してから書き込むため、例外時に値は変わらない。
 
         Args:
             values (Transformation | om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
-                変換情報、16要素または4行4列の行列。指定時は他の変換引数をすべて無視する。
+                変換情報、16要素または4行4列のマトリクス。指定時は他の変換引数をすべて無視する。
             translate (Iterable[float] | None): XYZ の平行移動成分。None は 0。
             rotate (Iterable[float] | EulerRotate | Quaternion | None): XYZ 順の
                 ラジアン3成分、回転順序を反映する EulerRotate(om2.MEulerRotation)、
-                または四元数(正規化して使う)。None は回転なし。
+                またはクォータニオン(正規化して使う)。None は回転なし。
             scale (Iterable[float] | None): XYZ のスケール成分。None は 1。0 や
                 微小値もそのまま書き込む。
             shear (Iterable[float] | None): XY、XZ、YZ のシアー成分。None は 0。
@@ -337,8 +337,8 @@ class Matrix(om2.MMatrix):
             None: 値を返さない。
 
         Raises:
-            ValueError: 行列入力が16要素として解釈できない場合、成分が3要素でない場合、
-                または回転四元数がゼロの場合。
+            ValueError: マトリクス入力が16要素として解釈できない場合、成分が3要素でない場合、
+                または回転クォータニオンがゼロの場合。
         """
         if values is not None:
             from .transformation import Transformation
@@ -369,7 +369,7 @@ class Matrix(om2.MMatrix):
         _compose_into(self, *parts)
 
     def __getitem__(self, index):
-        """行列要素を取得する。
+        """マトリクスの要素を取得する。
 
         Args:
             index (int | slice | tuple[int, int]): 平坦な添字(負の添字も可)、スライス、
@@ -402,7 +402,7 @@ class Matrix(om2.MMatrix):
         return _GET(self, _checked_index(index, 16, "Matrix"))
 
     def __setitem__(self, index, value):
-        """行列要素を設定する。
+        """マトリクスの要素を設定する。
 
         Args:
             index (int | tuple[int, int]): 平坦な添字(-16〜15)、または (行, 列)。
@@ -528,7 +528,7 @@ class Matrix(om2.MMatrix):
         return _foreign_comparison(other, True)
 
     def __mul__(self, other):
-        """行列積、スカラー倍、またはベクトル・点との列ベクトルとしての積を返す。
+        """マトリクスの積、スカラー倍、またはベクトル・点との列ベクトルとしての積を返す。
 
         ベクトルと点は om2 と同じ列ベクトルとしての積(``v * mᵀ``)を計算し、
         om2 の型(``om2.MVector`` / ``om2.MPoint``)が右辺でも mlib の Vector で返す。
@@ -537,8 +537,8 @@ class Matrix(om2.MMatrix):
             other (object): 右側の MMatrix 系、数値、MVector 系、または om2.MPoint。
 
         Returns:
-            Matrix | Vector | types.NotImplementedType: 行列・数値なら ``type(self)`` の
-            新しい行列。MVector 系なら om2 の列ベクトルとしての積の Vector。om2.MPoint なら
+            Matrix | Vector | types.NotImplementedType: マトリクス・数値なら ``type(self)`` の
+            新しいマトリクス。MVector 系なら om2 の列ベクトルとしての積の Vector。om2.MPoint なら
             om2 の列ベクトルとしての積(同次座標の4成分)の x、y、z を持つ Vector(w は捨て、
             w で割らない)。対応しない型は NotImplemented。
         """
@@ -564,13 +564,13 @@ class Matrix(om2.MMatrix):
         return NotImplemented
 
     def __rmul__(self, other):
-        """左辺の MMatrix 系との行列積、またはスカラー倍を返す。
+        """左辺の MMatrix 系とのマトリクスの積、またはスカラー倍を返す。
 
         Args:
             other (object): 左側の MMatrix 系、または数値。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            Matrix | types.NotImplementedType: ``type(self)`` の新しいマトリクス。
             対応しない型は NotImplemented。
         """
         if isinstance(other, _MMatrix):
@@ -582,7 +582,7 @@ class Matrix(om2.MMatrix):
         return NotImplemented
 
     def __imul__(self, other):
-        """自身へ右から行列を掛ける、またはスカラー倍する。
+        """自身へ右からマトリクスを掛ける、またはスカラー倍する。
 
         Args:
             other (object): MMatrix 系または数値。
@@ -595,39 +595,39 @@ class Matrix(om2.MMatrix):
         return _MMatrix.__imul__(self, other)
 
     def __matmul__(self, other):
-        """``@`` 演算子による行列積(``*`` と同じ)。
+        """``@`` 演算子によるマトリクスの積(``*`` と同じ)。
 
         Args:
             other (object): 右側の MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented(TypeError)。
+            Matrix | types.NotImplementedType: マトリクスの積。マトリクス以外は NotImplemented(TypeError)。
         """
         if isinstance(other, _MMatrix):
             return self.__mul__(other)
         return NotImplemented
 
     def __rmatmul__(self, other):
-        """左辺の MMatrix 系との ``@`` による行列積。
+        """左辺の MMatrix 系との ``@`` によるマトリクスの積。
 
         Args:
             other (object): 左側の MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: 行列積。行列以外は NotImplemented。
+            Matrix | types.NotImplementedType: マトリクスの積。マトリクス以外は NotImplemented。
         """
         if isinstance(other, _MMatrix):
             return self.__rmul__(other)
         return NotImplemented
 
     def __imatmul__(self, other):
-        """``@=`` で自身へ右から行列を掛ける(``*=`` と同じ in-place の行列積)。
+        """``@=`` で自身へ右からマトリクスを掛ける(``*=`` と同じ in-place のマトリクスの積)。
 
         Args:
             other (object): MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: 自身。行列以外は NotImplemented(TypeError)。
+            Matrix | types.NotImplementedType: 自身。マトリクス以外は NotImplemented(TypeError)。
         """
         if not isinstance(other, _MMatrix):
             return NotImplemented
@@ -640,7 +640,7 @@ class Matrix(om2.MMatrix):
             other (object): MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            Matrix | types.NotImplementedType: ``type(self)`` の新しいマトリクス。
         """
         if not isinstance(other, _MMatrix):
             return NotImplemented
@@ -653,7 +653,7 @@ class Matrix(om2.MMatrix):
             other (object): MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            Matrix | types.NotImplementedType: ``type(self)`` の新しいマトリクス。
         """
         if not isinstance(other, _MMatrix):
             return NotImplemented
@@ -679,7 +679,7 @@ class Matrix(om2.MMatrix):
             other (object): MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            Matrix | types.NotImplementedType: ``type(self)`` の新しいマトリクス。
         """
         if not isinstance(other, _MMatrix):
             return NotImplemented
@@ -692,7 +692,7 @@ class Matrix(om2.MMatrix):
             other (object): MMatrix 系。
 
         Returns:
-            Matrix | types.NotImplementedType: ``type(self)`` の新しい行列。
+            Matrix | types.NotImplementedType: ``type(self)`` の新しいマトリクス。
         """
         if not isinstance(other, _MMatrix):
             return NotImplemented
@@ -713,12 +713,12 @@ class Matrix(om2.MMatrix):
 
     @classmethod
     def identity(cls):
-        """単位行列を生成する。
+        """単位マトリクスを生成する。
 
         引数なしの ``Matrix()`` と同じ結果だが、意図を明示できる。
 
         Returns:
-            Matrix: 呼び出したクラスの単位行列。
+            Matrix: 呼び出したクラスの単位マトリクス。
         """
         return _new(cls)
 
@@ -729,29 +729,29 @@ class Matrix(om2.MMatrix):
         Args:
             translate (Iterable[float]): XYZ の平行移動成分。
             rotate (Iterable[float] | EulerRotate | Quaternion): XYZ 順のラジアン
-                3成分、回転順序を反映する EulerRotate、または四元数。
+                3成分、回転順序を反映する EulerRotate、またはクォータニオン。
             scale (Iterable[float]): XYZ のスケール成分。
             shear (Iterable[float]): XY、XZ、YZ のシアー成分。
 
         Returns:
-            Matrix: 呼び出したクラスの新しい行列。
+            Matrix: 呼び出したクラスの新しいマトリクス。
 
         Raises:
-            ValueError: 成分が3要素でない場合、または回転四元数がゼロの場合。
+            ValueError: 成分が3要素でない場合、または回転クォータニオンがゼロの場合。
         """
         return cls(translate=translate, rotate=rotate, scale=scale, shear=shear)
 
     @classmethod
     def fromMMatrix(cls, matrix):
-        """Maya API 2.0 の行列から、複製した mlib の行列を作る。
+        """Maya API 2.0 のマトリクスから、複製した mlib のマトリクスを作る。
 
         Matrix はそれ自体が om2.MMatrix なので、om2 へ渡すための変換は不要。
 
         Args:
-            matrix (om2.MMatrix | om2.MFloatMatrix): 複製元の行列。
+            matrix (om2.MMatrix | om2.MFloatMatrix): 複製元のマトリクス。
 
         Returns:
-            Matrix: 呼び出したクラスの新しい行列。
+            Matrix: 呼び出したクラスの新しいマトリクス。
         """
         if isinstance(matrix, _MATRIX_SOURCES):
             return cls._wrap(matrix)
@@ -759,13 +759,13 @@ class Matrix(om2.MMatrix):
 
     @classmethod
     def fromTransformation(cls, transformation):
-        """mlibまたはMaya API 2.0の変換情報から行列を生成する。
+        """mlibまたはMaya API 2.0の変換情報からマトリクスを生成する。
 
         Args:
             transformation (Transformation | om2.MTransformationMatrix): 合成する変換情報。
 
         Returns:
-            Matrix: 呼び出したクラスの新しい行列。
+            Matrix: 呼び出したクラスの新しいマトリクス。
         """
         from .transformation import Transformation
         return cls._wrap(transformation.matrix if isinstance(transformation, Transformation)
@@ -773,10 +773,10 @@ class Matrix(om2.MMatrix):
 
     @property
     def values(self):
-        """行列の16成分を行優先順の独立したtupleとして取得する。
+        """マトリクスの16成分を行優先順の独立したtupleとして取得する。
 
         Mayaの行ベクトル規約で、平行移動は添字12・13・14にある。
-        要素は数値のスナップショットで、行列を後から変更してもこのtupleは変わらない。
+        要素は数値のスナップショットで、マトリクスを後から変更してもこのtupleは変わらない。
 
         Returns:
             tuple[float, ...]: 16要素。4行の入れ子形式はrowsを使う。
@@ -785,9 +785,9 @@ class Matrix(om2.MMatrix):
 
     @property
     def rows(self):
-        """行列の16成分を、行ごとに区切った4行4列のtupleとして取得する。
+        """マトリクスの16成分を、行ごとに区切った4行4列のtupleとして取得する。
 
-        各行もtupleであり、元の行列への可変参照ではない。
+        各行もtupleであり、元のマトリクスへの可変参照ではない。
         配列形の変更だけを行い、転置や座標空間・UI単位の変換は行わない。
 
         Returns:
@@ -800,13 +800,13 @@ class Matrix(om2.MMatrix):
     def translate(self):
         """Translate 成分(添字12〜14)を取得または設定する。
 
-        取得値は複製。設定時は3成分を受け取り、行列を分解せずに添字12〜14へ直接
-        書き込むため、ゼロスケールなど分解できない行列にも使える。
-        ``matrix.translate.x = value`` は複製だけを変更する。行列の更新には
+        取得値は複製。設定時は3成分を受け取り、マトリクスを分解せずに添字12〜14へ直接
+        書き込むため、ゼロスケールなど分解できないマトリクスにも使える。
+        ``matrix.translate.x = value`` は複製だけを変更する。マトリクスの更新には
         ``matrix.translate = value`` を使う。Transformationの保持成分とは異なる。
 
         Returns:
-            Translate: 行列の平行移動成分。
+            Translate: マトリクスの平行移動成分。
         """
         return self._translate()
 
@@ -908,7 +908,7 @@ class Matrix(om2.MMatrix):
         設定時は XYZ 順のラジアン3成分、回転順序を
         反映する EulerRotate、または Quaternion を受け取り、スケール・シアー・
         平行移動を保って再合成する。取得・設定とも、分解できない場合は ValueError。
-        取得したEulerRotateの編集は元の行列へ反映しない。更新時はrotateへ代入する。
+        取得したEulerRotateの編集は元のマトリクスへ反映しない。更新時はrotateへ代入する。
 
         Returns:
             EulerRotate: 分解した回転値(ラジアン)。
@@ -931,13 +931,13 @@ class Matrix(om2.MMatrix):
         """mlibのTransformationへ変換する。
 
         Returns:
-            Transformation: 行列を分解した独立した値。元のピボット情報は復元しない。
+            Transformation: マトリクスを分解した独立した値。元のピボット情報は復元しない。
         """
         from .transformation import Transformation
         return Transformation(self)
 
     def decompose(self):
-        """Mayaの行列分解規約で、変換行列から独立したTRS・シアー値を取得する。
+        """Mayaの規約でマトリクスを分解し、独立したTRS・シアー値を取得する。
 
         一つのMTransformationMatrixで回転・スケール・シアーを分解し、平行移動は
         元Matrixの添字12〜14から取得する。戻り値は独立した数学値として作る。
@@ -979,14 +979,14 @@ class Matrix(om2.MMatrix):
         return _MMatrix.isEquivalent(self, other, tolerance)
 
     def inverse(self):
-        """OpenMayaの特異性判定を通過した行列から、独立した逆行列を作る。
+        """OpenMayaの特異性判定を通過したマトリクスから、独立した逆マトリクスを作る。
 
         isSingular()で検査してからMMatrix.inverse()を呼ぶ。
         独自の厳密な行列式ゼロ比較や、UI単位に応じた閾値変更は行わない。
         自身は変更せず、ノードの親子関係やシーンの逆変換を編集するものではない。
 
         Returns:
-            Matrix: 自身と同じクラスの新しい逆行列。追加Python状態はコピーしない。
+            Matrix: 自身と同じクラスの新しい逆マトリクス。追加Python状態はコピーしない。
 
         Raises:
             ValueError: OpenMayaのisSingular()がTrueと判定した場合。
@@ -996,10 +996,10 @@ class Matrix(om2.MMatrix):
         return type(self)._wrap(_MMatrix.inverse(self))
 
     def transpose(self):
-        """転置した行列を返す。
+        """転置したマトリクスを返す。
 
         Returns:
-            Matrix: 自身と同じクラスの転置行列。
+            Matrix: 自身と同じクラスの転置マトリクス。
         """
         return type(self)._wrap(_MMatrix.transpose(self))
 
@@ -1009,7 +1009,7 @@ class Matrix(om2.MMatrix):
         入力のXYZをw=1として扱い、MPointの元のwは無視する。
         計算はom2.MPoint(x, y, z, 1.0) * matrixのXYZ相当で、射影除算は行わない。
         自身と入力値は変更せず、ノードの移動やMaya座標空間の照会も行わない。
-        位置と行列の平行移動には同じ距離単位を使い、UI単位への換算はしない。
+        位置とマトリクスの平行移動には同じ距離単位を使い、UI単位への換算はしない。
 
         Args:
             value (om2.MVector | om2.MPoint | Iterable[float]): 変換元のXYZ。MPointのwは使用しない。
@@ -1056,21 +1056,21 @@ class Matrix(om2.MMatrix):
         return result
 
     def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
-        """行列が表す座標空間の軸に対する「ビヘイビア」ミラー行列を返す。
+        """マトリクスが表す座標空間の軸に対する「ビヘイビア」ミラーマトリクスを返す。
 
         平行移動はpivotを中心にaxis成分を反転し、3x3部分の各行はaxis以外の
         2成分を反転する。Maya の ``mirrorJoint -mirrorBehavior`` と同じ規約で、
         軸そのものは反転せず 180 度回転した姿勢になるため、行列式の符号は保存される
         (幾何学的な鏡像とは異なり、対になったノードを同じローカル操作で対称に
         動かせる)。スケール・シアーは変わらない。要素の符号だけを反転するため、
-        分解できない行列にも使える。
+        分解できないマトリクスにも使える。
 
         Args:
             axis (str | int): x/y/z/xy/xz/yz/xyz、または従来の0/1/2。
             pivot (Iterable[float]): 平行移動と同じ単位・空間の中心座標。
 
         Returns:
-            Matrix: 呼び出したクラスのミラー後の行列。
+            Matrix: 呼び出したクラスのミラー後のマトリクス。
 
         Raises:
             ValueError: axisが不正、またはpivotが有限の3成分でない場合。
@@ -1103,7 +1103,7 @@ class Matrix(om2.MMatrix):
         return self
 
     def adjoint(self, *args):
-        """Maya標準の随伴行列を、新しいMatrixとして返す。
+        """Maya標準の随伴マトリクスを、新しいMatrixとして返す。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -1130,7 +1130,7 @@ class Matrix(om2.MMatrix):
 
     @classmethod
     def _wrap(cls, value):
-        """om2 の行列を複製した cls のインスタンスを返す。
+        """om2 のマトリクスを複製した cls のインスタンスを返す。
 
         Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
         ``__init__`` も呼ばない)。:func:`_assign` で写すため、符号付きゼロ・inf・NaN を
@@ -1154,11 +1154,11 @@ class Matrix(om2.MMatrix):
     def _checked_transformation(self):
         """分解できることを確かめてから MTransformationMatrix を作る。
 
-        om2 はゼロスケールの行列も黙って分解するため、3x3 の行列式が 0 なら
+        om2 はゼロスケールのマトリクスも黙って分解するため、3x3 の行列式が 0 なら
         ValueError にする。
 
         Returns:
-            om2.MTransformationMatrix: 自身から作った変換行列。
+            om2.MTransformationMatrix: 自身から作ったマトリクス。
 
         Raises:
             ValueError: いずれかのスケール軸がゼロなど、3x3 部分が特異な場合。
@@ -1193,7 +1193,7 @@ class Matrix(om2.MMatrix):
             None: 値を返さない。
 
         Raises:
-            ValueError: 現在の行列を分解できない場合、または入力が不正な場合。
+            ValueError: 現在のマトリクスを分解できない場合、または入力が不正な場合。
         """
         tm = self._checked_transformation()
         parts = _components(

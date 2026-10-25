@@ -68,7 +68,7 @@ class PointComponent(Component):
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
 
         Note:
-            通常Meshのworld更新はcmdsへ委ね、独自の特異行列判定は行わない。
+            通常Meshのworld更新はcmdsへ委ね、独自の特異マトリクス判定は行わない。
             書込み中の失敗で完了済みの変更は自動で戻さない。
         """
         if ws is not _UNSET:
@@ -537,7 +537,7 @@ class PointComponents(Components):
                 return self
             if ws:
                 matrix = self._shape.mpath().inclusiveMatrix()
-                # Maya はゼロスケールを微小値へ置換するため行列の大きさも考慮する。
+                # Maya はゼロスケールを微小値へ置換するためマトリクスの大きさも考慮する。
                 magnitude = max(1.0, *(sum(abs(matrix[row * 4 + col]) for col in range(3)) for row in range(3)))
                 if abs(matrix.det4x4()) <= 1e-12 * magnitude ** 3:
                     raise ValueError("Cannot mirror in world space with a near-singular transform")

@@ -13,7 +13,7 @@ from .compoundPlug import CompoundPlug
 
 
 class Double3Plug(CompoundPlug):
-    """3成分アトリビュートを参照し、チャンネル値を読み書きする。行列変換は行わない。"""
+    """3成分アトリビュートを参照し、チャンネル値を読み書きする。マトリクス変換は行わない。"""
 
     _value_types = {
         "translate": Translate, "t": Translate,
@@ -51,7 +51,7 @@ class Double3Plug(CompoundPlug):
         return value_type(*(self._child_at(index).get() for index in range(3)))
 
     def set(self, value, safe=False, *, unit="rad", uiUnits=False, fast=False):
-        """このアトリビュートの3成分だけを書き込む。行列経由の姿勢変更は行わない。
+        """このアトリビュートの3成分だけを書き込む。マトリクス経由の姿勢変更は行わない。
 
         3成分の入力と書込み可否を確認してCompoundPlug.setへ渡す。
         safeの再試行では成功した子の更新を残す。通常処理はUndo有効時に記録し、fastは記録しない。

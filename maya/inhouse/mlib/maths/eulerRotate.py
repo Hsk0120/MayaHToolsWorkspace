@@ -579,7 +579,7 @@ class EulerRotate(om2.MEulerRotation):
 
     @staticmethod
     def decompose(*args):
-        """行列と回転順序からオイラー回転を分解する。
+        """マトリクスと回転順序からオイラー回転を分解する。
 
         自身や入力値は変更しない。引数・ゼロ値の扱いはOpenMayaに従う。
 
@@ -668,10 +668,10 @@ class EulerRotate(om2.MEulerRotation):
         return self
 
     def asMatrix(self):
-        """回転順序を反映した回転行列を返す。
+        """回転順序を反映した回転マトリクスを返す。
 
         Returns:
-            Matrix: 回転だけを持つ4行4列行列。
+            Matrix: 回転だけを持つ4行4列のマトリクス。
         """
         from .matrix import Matrix
 

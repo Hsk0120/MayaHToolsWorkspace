@@ -4,4 +4,4 @@ from .constraint import Constraint
 
 
 class PoleVectorConstraint(Constraint):
-    """RP IK ハンドルの極ベクトルを拘束するラッパー。"""
+    """RP IKハンドルのポールベクトルをコンストレイントするラッパー。"""

@@ -208,7 +208,7 @@ def set_attr(name, *values, fast=False, **kwargs):
 
 
 def prepare_data(attribute, value, *, name=None):
-    """MPlugを必要とせず、行列・typed dataの型と値を検査する。
+    """MPlugを必要とせず、マトリクス・typed dataの型と値を検査する。
 
     Args:
         attribute (MObject): 登録前でもよいアトリビュート定義。

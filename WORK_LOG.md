@@ -117,6 +117,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-25): ユーザー依頼で説明用語統一・ls中心の入門・Maya2027参照・単体配置の実行環境案内を一括commit/push対象として確認。実行AST170Python・API参照2041件・継承図159件の不変を再照合し、Sphinx332ページ/22855リンク・静的66件・Maya2022/2027の説明例・6画面条件の成功記録を確認。調査資料/生成HTML/画像/専用Maya設定は除外。今回Maya/ブラウザの再起動なし。
+
+- Codex (2026-10-25): CGWORLDのMaya Matrix/リギング記事と用語表記を調査し、mlibの38Pythonファイル/198docstringとコメント・ガイドの行列/変換行列→マトリクス、拘束→コンストレイント、四元数→クォータニオンを整備。逆/回転/転置/空間等の意味とdeterminantの「行列式」を保持し、拘束元はターゲットへ。入門のObject直呼出し例を名前/選択/型/アトリビュート/頂点範囲のmlib.lsへ変更し、リスト/空結果/範囲展開を説明。Objectは共通基底のAPI説明を維持して検索先をlsへ案内。Autodeskの4リンクと表記をMaya2027へ変更し実ページを確認。API設計文書と共有用語方針も同期。実行AST170Python・API参照2041件不変、継承図159件はリンク年以外不変。Sphinx332HTML警告0、掲載旧語0（行列式を除く）、22855ローカルリンク/素材に不備0、静的66件成功。RST本文14コードブロックと検索仕様3項目を隔離Maya2022/2027で各3テスト成功。Edgeの3ページ×1440/1024pxの6条件で横はみ出しなし、画像も確認。Maya2023〜2026・実GUIでの例実行は未実施。実行メッセージ3箇所は実行AST保持のため変更なし、未commit/push。調査/証跡 .maya-output/mlib-terminology-20261025/。
+
+- Codex (2026-10-25): mlib入門の実行環境からworkspace起動バッチ依存の説明を除き、mlibフォルダの親をPYTHONPATH/sys.pathへ追加する案内と短い例へ変更。Maya2022〜2027/Python3の対象とWindows付属Pythonの系統（3.7/3.9/3.10/3.11/3.13）を追記し、各版mayapyのsys.versionで照合。Sphinx332HTML警告0・get/is参照0不一致・Mermaid参照・生成本文検査に成功。製品コード変更/GUI起動なし、未commit/push。
+
 - Codex (2026-10-25): ユーザー依頼で失敗ログのターミナル表示・回帰テスト・READMEの8ファイルをcommit/push対象として確認。静的66件を再実行して成功、隔離Maya2022/2027での意図的失敗/正常終了の記録を照合。ローカルサンプル/生成ログはGit対象外を維持し、製品コードは変更なし。今回Maya/GUIの再起動なし。
 
 - Codex (2026-10-25): テスト失敗時に詳細ログの絶対パス・失敗ファイル名・traceback/期待値差・終了コードを起動元ターミナルへ表示。run_all_testsが失敗ファイルの捕捉出力を結果へ保持し、mayapy/GUIランナーへ渡す。成功ファイルの詳細は従来どおりログのみ。READMEを同期し、静的66件（値不一致/例外/成功出力抑制/親ターミナル/GUI入口/起動異常/timeout）成功。隔離Maya2022/2027で意図的失敗は各1件・終了1・ログパスとAssertionError表示、正しい期待値は各1件成功・終了0を確認。証跡 __tests__/_output/failure-demo/terminal-failed・terminal-passed。実GUIは今回未起動、GUIの親表示は模擬結果で確認。製品コード変更なし、未commit/push。

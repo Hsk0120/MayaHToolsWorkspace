@@ -17,7 +17,7 @@ from .node import Node, Nodes
 class DagPose(Node):
     """dagPoseノードの参照を保持し、DAGメンバーの保存姿勢とバインドポーズを扱う。
 
-    membersの接続と保存行列/親情報を管理する。
+    membersの接続と保存マトリクス/親情報を管理する。
     バインドポーズも同じノード型で、isBindPose()で区別する。reset()は保存姿勢を
     更新し、restore()はシーンの姿勢を戻す。skinCluster.bindPreMatrixの再設定は担当しない。
 
@@ -139,10 +139,10 @@ class DagPose(Node):
         raise ValueError(f"Not a member of {self._pose_name()}: {member}")
 
     def getMatrix(self, member, worldSpace=_UNSET, *, ws=_UNSET):
-        """指定メンバーの保存行列を、独立したMatrixとして取得する。
+        """指定メンバーの保存マトリクスを、独立したMatrixとして取得する。
 
         membersと共通の論理番号でworldMatrixまたはxformMatrixを読む。
-        現在のTransform行列の照会や姿勢の復元は行わない。
+        現在のTransformのマトリクスの照会や姿勢の復元は行わない。
 
         Args:
             member (Node | str): このポーズの保存メンバー。
@@ -150,7 +150,7 @@ class DagPose(Node):
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            Matrix: 保存行列の新しいコピー。自身更新してもポーズやシーンは変化しない。
+            Matrix: 保存マトリクスの新しいコピー。自身更新してもポーズやシーンは変化しない。
 
         Raises:
             ValueError: このポーズのメンバーでない場合。
@@ -219,7 +219,7 @@ class DagPose(Node):
                 復元に必要な親もMaya標準処理で含める。
             deleteSources (bool): 統合後に元ポーズを削除する。既定はTrue。
                 メンバー・親情報・skinCluster.bindPoseと、標準のjoint.bindPoseから
-                worldMatrixへの保存行列入力以外の接続があれば拒否する。
+                worldMatrixへの保存マトリクス入力以外の接続があれば拒否する。
 
         Returns:
             DagPose: 自身。
@@ -435,7 +435,7 @@ class DagPose(Node):
         return indices
 
     def _merge_write_rows(self, name, rows, target_rows, indices, current_pose):
-        """メンバー・行列・親情報を既存の順序でMayaの保存先へ書き込む。
+        """メンバー・マトリクス・親情報を既存の順序でMayaの保存先へ書き込む。
 
         Args:
             name (str): 対象ポーズの名前。
@@ -489,7 +489,7 @@ class DagPose(Node):
     def _merge_matrix_payload(plug):
         """Mayaの保存表現からcmds.setAttr用の完全なmatrixデータを読む。
 
-        16要素の行列へ変換するとjointOrient・pivot等のxform情報が失われる。
+        16要素のマトリクスへ変換するとjointOrient・pivot等のxform情報が失われる。
         Maya生成のsetAttrを実行せず、数値・bool・xformマーカーだけを取り出す。
         """
         commands = plug.getSetAttrCmds(om2.MPlug.kAll, True)
@@ -553,7 +553,7 @@ class DagPose(Node):
                 plug = self.getPlug(attr)[index].mplug()
                 if plug.isDestination:
                     source = plug.source()
-                    # Maya標準のbindPoseはjoint.bindPoseから保存ワールド行列を受け取る。
+                    # Maya標準のbindPoseはjoint.bindPoseから保存ワールドマトリクスを受け取る。
                     expected = Node(member).getPlug("bindPose").mplug() if Node(member).isType("joint") else None
                     if attr != "worldMatrix" or source != expected or source.isDestination:
                         raise RuntimeError("Driven pose data: " + plug.name())

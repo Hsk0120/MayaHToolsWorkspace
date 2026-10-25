@@ -1,4 +1,4 @@
-"""移動・回転・スケール・シアーから行列を構築する。"""
+"""移動・回転・スケール・シアーからマトリクスを構築する。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .node import Node
 
 
 class ComposeMatrix(Node):
-    """composeMatrixノードを参照し、移動(cm)・回転(rad)・スケール・シアー入力から行列を評価する。
+    """composeMatrixノードを参照し、移動(cm)・回転(rad)・スケール・シアー入力からマトリクスを評価する。
 
     値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
     fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。

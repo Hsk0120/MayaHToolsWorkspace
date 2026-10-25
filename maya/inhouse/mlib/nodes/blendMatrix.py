@@ -1,4 +1,4 @@
-"""論理番号順に行列をブレンドする。加重平均ではない。"""
+"""論理番号順にマトリクスをブレンドする。加重平均ではない。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .node import Node
 
 
 class BlendMatrix(Node):
-    """blendMatrixノードを参照し、論理番号順の行列ブレンドを扱う。加重平均ではない。
+    """blendMatrixノードを参照し、論理番号順のマトリクスブレンドを扱う。加重平均ではない。
 
     ターゲットは疎な論理番号で扱い、getTargetPlugは既存要素だけを参照する。
     値設定は入力接続を切断しない。通常の設定・接続・削除はUndo有効時にチャンクへ記録する。
@@ -37,7 +37,7 @@ class BlendMatrix(Node):
         """入力へ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
@@ -168,7 +168,7 @@ class BlendMatrix(Node):
 
     def connectTarget(self, index=_UNSET, source=_UNSET, weight=1.0, force=_UNSET, *, idx=_UNSET, src=_UNSET,
         f=_UNSET):
-        """行列Plugをターゲットへ接続し、その後ウェイトを設定する。
+        """マトリクスPlugをターゲットへ接続し、その後ウェイトを設定する。
 
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
@@ -249,13 +249,13 @@ class BlendMatrix(Node):
         return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
     def setTarget(self, index=_UNSET, matrix=_UNSET, weight=1.0, *, idx=_UNSET):
-        """ターゲットの行列とウェイトを順に設定する。
+        """ターゲットのマトリクスとウェイトを順に設定する。
 
-        番号・行列・有限ウェイトを検証してから書き込む。ウェイト設定が失敗しても、先に設定した行列は残る。
+        番号・マトリクス・有限ウェイトを検証してから書き込む。ウェイト設定が失敗しても、先に設定したマトリクスは残る。
 
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
-            matrix (Matrix | Iterable[float]): 行列。
+            matrix (Matrix | Iterable[float]): マトリクス。
             weight (float): 有限なウェイト。
             idx (int): indexの別名。同時指定は不可。
 

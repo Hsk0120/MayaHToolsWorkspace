@@ -1,4 +1,4 @@
-"""内積・外積・行列による点/ベクトル変換。"""
+"""内積・外積・マトリクスによる点/ベクトル変換。"""
 
 from contextlib import nullcontext
 
@@ -10,7 +10,7 @@ from .shadingDependNode import ShadingDependNode
 
 
 class VectorProduct(ShadingDependNode):
-    """vectorProductノードを参照し、内積・外積・行列による点/ベクトル変換を扱う。
+    """vectorProductノードを参照し、内積・外積・マトリクスによる点/ベクトル変換を扱う。
 
     値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
     """
@@ -139,7 +139,7 @@ class VectorProduct(ShadingDependNode):
             return self
 
     def getMatrixPlug(self):
-        """変換行列のPlugを取得する。
+        """マトリクスのPlugを取得する。
 
         Returns:
             Plug: 接続・値操作用の参照。
@@ -147,7 +147,7 @@ class VectorProduct(ShadingDependNode):
         return self.getPlug("matrix")
 
     def getMatrix(self):
-        """変換行列の評価値を取得する。
+        """マトリクスの評価値を取得する。
 
         Returns:
             Matrix: 現在の値。
@@ -155,10 +155,10 @@ class VectorProduct(ShadingDependNode):
         return self.getMatrixPlug().get()
 
     def setMatrix(self, value, *, fast=False):
-        """変換行列へ定数値を設定する。
+        """マトリクスへ定数値を設定する。
 
         Args:
-            value (Matrix | Iterable[float]): Matrix(value)で解釈する行列。
+            value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
             fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
@@ -171,7 +171,7 @@ class VectorProduct(ShadingDependNode):
             return self
 
     def connectMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
-        """変換行列へ接続する。
+        """マトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。

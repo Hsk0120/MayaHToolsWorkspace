@@ -17,7 +17,7 @@ from .transform import Transform, Transforms, _closest_euler
 class Joint(Transform):
     """Jointの参照と、回転移送・スケール補償の操作を提供する。
 
-    行列・TRSはTransformを継承し、rotateAxis・jointOrient・segmentScaleCompensateを考慮する。
+    マトリクス・TRSはTransformを継承し、rotateAxis・jointOrient・segmentScaleCompensateを考慮する。
     SSCの切替、inverseScaleの接続、姿勢を保つ回転移送は独立した操作。
     """
 
@@ -563,17 +563,17 @@ class Joint(Transform):
         return rotation.asQuaternion()
 
     def _remove_segment_scale_compensation(self, matrix):
-        """ssc と inverseScale が適用された後の行列から補正前の値を戻す。
+        """ssc と inverseScale が適用された後のマトリクスから補正前の値を戻す。
 
-        Maya の joint の行列は S · RA · R · JO · IS · T(IS は inverseScale の逆数の
-        対角行列)なので、3x3 部分へ inverseScale の対角行列を右から掛けて IS を打ち消す。
+        Maya の joint のマトリクスは S · RA · R · JO · IS · T(IS は inverseScale の逆数の
+        対角マトリクス)なので、3x3 部分へ inverseScale の対角マトリクスを右から掛けて IS を打ち消す。
         平行移動は IS の後に適用されるため変えない。
 
         Args:
-            matrix (Matrix): スケール補正を取り除く対象行列。
+            matrix (Matrix): スケール補正を取り除く対象マトリクス。
 
         Returns:
-            Matrix: ssc が無効なら入力そのもの。有効なら IS を打ち消した新しい行列。
+            Matrix: ssc が無効なら入力そのもの。有効なら IS を打ち消した新しいマトリクス。
 
         Raises:
             ValueError: ssc が有効で inverseScale の成分の絶対値が 1e-12 未満の場合。
@@ -602,13 +602,13 @@ class Joint(Transform):
         return om2.MEulerRotation(0.0, 0.0, 0.0, reference.order)
 
     def _channel_rotate(self, quaternion, reference):
-        """ローカル行列の回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
+        """ローカルマトリクスの回転から jointOrient と rotateAxis を除き、rotate の値へ変換する。
 
         Maya の joint の回転は rotateAxis、rotate、jointOrient の順に適用されるため、
-        rotate = rotateAxis⁻¹ · 行列の回転 · jointOrient⁻¹(om2 の四元数の積の順序)。
+        rotate = rotateAxis⁻¹ · マトリクスの回転 · jointOrient⁻¹(om2 のクォータニオンの積の順序)。
 
         Args:
-            quaternion (om2.MQuaternion): ローカル行列の回転。
+            quaternion (om2.MQuaternion): ローカルマトリクスの回転。
             reference (om2.MEulerRotation): 現在の rotate チャンネル値。
 
         Returns:
@@ -619,14 +619,14 @@ class Joint(Transform):
         return _closest_euler(rotate_axis.conjugate() * quaternion * joint_orient.conjugate(), reference)
 
     def _apply_local_matrix(self, matrix, scale_reference=None, *, fast=False):
-        """jointOrient と rotateAxis を保持して local 行列を適用する。
+        """jointOrient と rotateAxis を保持して local マトリクスを適用する。
 
         Transformの共通処理へ委譲し、Jointの回転分離とSSC補償を反映した
         translate・rotate・scale・shearの設定値を使う。
         計算値は距離cm・角度radで、UI角度単位が度であることは前提にしない。
 
         Args:
-            matrix (Matrix): 適用するローカル行列。
+            matrix (Matrix): 適用するローカルマトリクス。
             scale_reference (Iterable[float] | None): 最優先で符号を合わせるスケール
                 (``setScale`` で要求した値)。None なら現在の scale チャンネル値に合わせる。
             fast (bool): Trueなら各チャンネルをOpenMayaで更新する。
@@ -635,7 +635,7 @@ class Joint(Transform):
             None: 値を返さない。
 
         Raises:
-            ValueError: inverseScale がゼロに近い、または行列を分解できない場合。
+            ValueError: inverseScale がゼロに近い、またはマトリクスを分解できない場合。
             RuntimeError: Maya がアトリビュートの書き込みを拒否した場合。
         """
         super()._apply_local_matrix(matrix, scale_reference, fast=fast)
