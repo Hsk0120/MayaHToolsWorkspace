@@ -14,6 +14,11 @@ from ..nodes.node import Node
 from ..plugs.plug import Plug
 
 
+# まとめて解決するときに1つの選択リストへ続けて追加する名前の数。MSelectionList.add は追加のたびに
+# 既存の要素との重複を照合するため、全件を1つのリストへ追加すると件数の2乗に比例して遅くなる。
+_NAME_CHUNK = 16
+
+
 class Selection:
     """取得時点の順序で単数参照を保持する。現在選択には自動追従しない。
 
@@ -313,11 +318,6 @@ class Selection:
             elif missing == "error":
                 raise RuntimeError("Selection contains a missing item")
         return names
-
-
-# まとめて解決するときに1つの選択リストへ続けて追加する名前の数。MSelectionList.add は追加のたびに
-# 既存の要素との重複を照合するため、全件を1つのリストへ追加すると件数の2乗に比例して遅くなる。
-_NAME_CHUNK = 16
 
 
 def _is_plain_node_name(name):

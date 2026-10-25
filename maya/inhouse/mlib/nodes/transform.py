@@ -1366,26 +1366,6 @@ class Transform(DagNode):
                 self._apply_local_matrix(local_matrix, fast=fast)
             return self
 
-    def _local_matrix(self, matrix, ws):
-        """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。
-
-        Args:
-            matrix (Matrix | sequence): 適用するマトリクス。
-            ws (bool): 検証済みのワールド空間指定。Trueは保持パスのexclusiveMatrixInverseを掛ける。
-
-        Returns:
-            Matrix: ローカル空間のマトリクス。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-            ValueError: マトリクスが不正な場合。
-        """
-        if not isinstance(matrix, Matrix):
-            matrix = Matrix(matrix)
-        if not self.isValid():
-            raise RuntimeError("Cannot set an invalid transform")
-        return matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
-
     def getTranslate(self, worldSpace=_UNSET, at=2, *, ws=_UNSET):
         """基準位置を取得する。既定は回転ピボット位置。
 
@@ -2027,6 +2007,26 @@ class Transform(DagNode):
         if ws is _UNSET:
             ws = False
         return self.getQuaternion(ws=ws, r=False)
+
+    def _local_matrix(self, matrix, ws):
+        """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。
+
+        Args:
+            matrix (Matrix | sequence): 適用するマトリクス。
+            ws (bool): 検証済みのワールド空間指定。Trueは保持パスのexclusiveMatrixInverseを掛ける。
+
+        Returns:
+            Matrix: ローカル空間のマトリクス。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+            ValueError: マトリクスが不正な場合。
+        """
+        if not isinstance(matrix, Matrix):
+            matrix = Matrix(matrix)
+        if not self.isValid():
+            raise RuntimeError("Cannot set an invalid transform")
+        return matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
 
     @staticmethod
     def _detach_inputs(objects):

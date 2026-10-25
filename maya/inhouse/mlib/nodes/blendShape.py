@@ -6,6 +6,7 @@ import os
 import re
 import tempfile
 from contextlib import nullcontext
+from pathlib import Path
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -709,7 +710,7 @@ class BlendShape(Node):
             raise ValueError("User-defined origin is not supported by dumpTargets")
         destination = os.path.abspath(os.fspath(path))
         fd, temporary = tempfile.mkstemp(prefix=".mlib-blend-", suffix=".json",
-                                         dir=os.path.dirname(destination))
+                                         dir=Path(destination).parent)
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as stream:
                 json.dump(payload, stream, ensure_ascii=False, indent=2, allow_nan=False)
