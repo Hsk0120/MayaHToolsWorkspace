@@ -1,7 +1,6 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
 import math
-import shlex
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -495,6 +494,8 @@ class DagPose(Node):
         commands = plug.getSetAttrCmds(om2.MPlug.kAll, True)
         if len(commands) != 1:
             raise RuntimeError("Unsupported matrix data: " + plug.name())
+        import shlex  # この読取りだけで使うため、import mlibの時間に含めない。
+
         tokens = shlex.split(commands[0].strip().rstrip(";"))
         start = tokens.index("-type")
         if tokens[start + 1] != "matrix":

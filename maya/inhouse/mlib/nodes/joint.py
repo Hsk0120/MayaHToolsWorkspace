@@ -622,7 +622,7 @@ class Joint(Transform):
         """jointOrient と rotateAxis を保持して local マトリクスを適用する。
 
         Transformの共通処理へ委譲し、Jointの回転分離とSSC補償を反映した
-        translate・rotate・scale・shearの設定値を使う。
+        translate・rotate・scale・shearの設定値のうち、現在値と完全に一致しないものだけを書き込む。
         計算値は距離cm・角度radで、UI角度単位が度であることは前提にしない。
 
         Args:

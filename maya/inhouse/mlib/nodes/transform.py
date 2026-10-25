@@ -9,6 +9,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
+from ..core.attributeType import value_reader
 from ..core.fastWrite import writable
 from ..decorator import undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector, Transformation
@@ -923,8 +924,8 @@ class Transform(DagNode):
         """
         if not self.isValid():
             return []
-        return [child for child in self._direct_children(True, intermediates)
-                if child.mnode().hasFn(om2.MFn.kShape)]
+        # Shape以外の子はラッパーを作る前に除く(子の順と中間Shapeの扱いは同じ)。
+        return self._direct_children(True, intermediates, shapes_only=True)
 
     def mirrorGeometry(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False,
         ws=_UNSET):
@@ -1252,6 +1253,9 @@ class Transform(DagNode):
         Note:
             inverseScaleの接続は保持する。jointとtransformを相互コピーする場合は
             対象で使えない補助成分を除き、マトリクスを維持するようにTRSを補正する。
+            補助成分とTRSのうち、書込み値が現在のチャンネル値(内部単位)と完全に一致する
+            ものは書き込まない。書き込まない成分はロック・接続されていても例外にせず、
+            通知・Undoの記録も書き込んだ成分だけになる(通常・fast・safe共通)。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1315,10 +1319,13 @@ class Transform(DagNode):
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
     def setMatrix(self, matrix, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
-        """マトリクスを分解し、translate・rotate・scale・shearへ設定する。
+        """マトリクスを分解し、translate・rotate・scale・shearのうち値が変わるものへ設定する。
 
         ピボット・rotateAxis・jointOrient・offsetParentMatrixは変更しない。
         スケールの符号とEulerの等価解は現在のチャンネル値を基準に選ぶ。
+        分解した書込み値が現在のチャンネル値(距離cm・角度radの内部値)と完全に一致する
+        チャンネルは書き込まない。書き込まないチャンネルはロック・接続されていても例外にせず、
+        attributeChangedの通知とUndoの記録も書き込んだチャンネルだけになる(通常・fast・safe共通)。
         safeで書けない成分を残した結果、入力マトリクスと一致しない場合がある。
 
         Args:
@@ -1349,12 +1356,7 @@ class Transform(DagNode):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibTransformSetMatrix"):
-            ws = _world_space(worldSpace)
-            if not isinstance(matrix, Matrix):
-                matrix = Matrix(matrix)
-            if not self.isValid():
-                raise RuntimeError("Cannot set an invalid transform")
-            local_matrix = matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
+            local_matrix = self._local_matrix(matrix, _world_space(worldSpace))
             if safe or get:
                 values = self._matrix_channel_values(local_matrix)
                 if get:
@@ -1363,6 +1365,26 @@ class Transform(DagNode):
             else:
                 self._apply_local_matrix(local_matrix, fast=fast)
             return self
+
+    def _local_matrix(self, matrix, ws):
+        """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。
+
+        Args:
+            matrix (Matrix | sequence): 適用するマトリクス。
+            ws (bool): 検証済みのワールド空間指定。Trueは保持パスのexclusiveMatrixInverseを掛ける。
+
+        Returns:
+            Matrix: ローカル空間のマトリクス。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+            ValueError: マトリクスが不正な場合。
+        """
+        if not isinstance(matrix, Matrix):
+            matrix = Matrix(matrix)
+        if not self.isValid():
+            raise RuntimeError("Cannot set an invalid transform")
+        return matrix if not ws else matrix * Matrix._wrap(self.mpath().exclusiveMatrixInverse())
 
     def getTranslate(self, worldSpace=_UNSET, at=2, *, ws=_UNSET):
         """基準位置を取得する。既定は回転ピボット位置。
@@ -1388,16 +1410,16 @@ class Transform(DagNode):
             matrix = self.getMatrix(ws=ws)
             if at >= 4:
                 return matrix.translate
-            point = om2.MPoint(tuple(self.getPlug("scalePivot").get())) * matrix
+            point = om2.MPoint(self._static_value("scalePivot")) * matrix
         elif at < 1:
             point = om2.MPoint()
             if ws:
                 point *= self.mpath().exclusiveMatrix()
         else:
-            value = om2.MVector(tuple(self.getPlug("translate").get()))
+            value = om2.MVector(self._static_value("translate"))
             if at >= 2:
-                offset = om2.MVector(tuple(self.getPlug("rotatePivot").get()))
-                offset += om2.MVector(tuple(self.getPlug("rotatePivotTranslate").get()))
+                offset = om2.MVector(self._static_value("rotatePivot"))
+                offset += om2.MVector(self._static_value("rotatePivotTranslate"))
                 inv_scale = self._inverse_scale_values()
                 value += om2.MVector(*(offset[i] / inv_scale[i] for i in range(3)))
             point = om2.MPoint(value)
@@ -1437,7 +1459,7 @@ class Transform(DagNode):
             point = om2.MPoint(tuple(value))
             if ws:
                 point *= self.mpath().exclusiveMatrixInverse()
-            current = om2.MVector(tuple(self.getPlug("translate").get()))
+            current = om2.MVector(self._static_value("translate"))
             if at < 1:
                 result = om2.MVector(point) - current
             else:
@@ -1479,6 +1501,9 @@ class Transform(DagNode):
 
         3成分はノードのrotateOrderで解釈し、EulerRotateは値自身の回転順序を使う。
         rotateAxisとJointのjointOrientを保ち、マトリクス経由でチャンネル値を計算する。
+        書き込むのはrotateチャンネルだけで、translate・scale・shearは書き込まない
+        (ロック・接続されていても例外にせず、通知・Undoの記録もrotateだけ。通常・fast・safe共通)。
+        ピボットが0でない場合は、cmds.setAttrでrotateを設定したときと同じくピボットの周りに回る。
 
         Args:
             value (Iterable[float] | EulerRotate | Quaternion): 回転値。EulerRotate/Quaternionは
@@ -1524,8 +1549,11 @@ class Transform(DagNode):
                 # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
                 value = EulerRotate(x, y, z, self._rotate_order())
             matrix = self._replace_components(self.getMatrix(ws=ws), rotate=value)
-            result = self.setMatrix(matrix, ws=ws, safe=safe, get=get, fast=fast)
-            return list(result["rotate"]) if get else self
+            rotation = self._matrix_channel_values(self._local_matrix(matrix, ws))["rotate"]
+            if get:
+                return list(rotation)
+            self._set_channel_value("rotate", rotation, safe=safe, fast=fast)
+            return self
 
     def getScale(self, worldSpace=_UNSET, *, ws=_UNSET):
         """指定空間のスケール値を取得する。
@@ -2112,7 +2140,7 @@ class Transform(DagNode):
         return fitted, matrix, is_joint
 
     def _apply_transformation_modifiers(self, fitted, is_joint, safe, *, fast=False):
-        """TRSより先に補助成分を従来の順序で設定する。
+        """TRSより先に補助成分を従来の順序で設定する。現在値と完全に一致する成分は書き込まない。
 
         Args:
             fitted (Transformation): 対象へ適合した値。
@@ -2132,9 +2160,12 @@ class Transform(DagNode):
                 reference = EulerRotate(self.getPlug(name).get())
                 current = current.asEulerRotation().closestSolution(reference)
             if name in ("rotateOrder", "segmentScaleCompensate"):
-                self.getPlug(name).set(current, safe=safe, fast=fast)
+                if not self._channel_equals(name, current):
+                    self.getPlug(name).set(current, safe=safe, fast=fast)
             else:
-                self._set_channel_value(name, current, safe=safe, fast=fast)
+                current = tuple(current)
+                if not self._channel_equals(name, current):
+                    self._set_channel_value(name, current, safe=safe, fast=fast)
 
     def _refit_safe_transformation(self, fitted, matrix):
         """補助成分の実際の状態を読み、safe適用後のTRSを再計算する。
@@ -2155,10 +2186,38 @@ class Transform(DagNode):
         actual.matrix = matrix
         return actual
 
+    def _static_value(self, name):
+        """ノード型に組み込みの数値アトリビュートの内部単位の値を、Plugラッパーを作らずに読む。
+
+        ``getPlug(name).get()`` と同じ読取関数(距離cm・角度rad)をMPlugへ直接適用する。
+        複合アトリビュートは子の値のtuple、単一の値はその値を返す。計算の途中で何度も読む
+        translate・ピボット等のために使い、値はキャッシュしない。ノードが無効な場合と
+        読取関数を持たない型は、従来どおり ``getPlug(name).get()`` の結果・例外に委ねる。
+
+        Args:
+            name (str): 静的アトリビュートのロング名。
+
+        Returns:
+            tuple[float, ...] | object: 複合なら子の値のtuple、それ以外は値。
+        """
+        if not self.isValid():
+            # 無効なノードでは、従来と同じgetPlugの例外を送出する。
+            return self.getPlug(name).get()
+        plug = self._dependency_fn().findPlug(name, False)
+        targets = [plug.child(index) for index in range(plug.numChildren())] if plug.isCompound else [plug]
+        values = []
+        for target in targets:
+            reader = value_reader(target.attribute())
+            if reader is False:
+                value = self.getPlug(name).get()
+                return tuple(value) if plug.isCompound else value
+            values.append(reader(target))
+        return tuple(values) if plug.isCompound else values[0]
+
     def _inverse_scale_values(self):
         """jointの有効なinverseScaleを返す。それ以外は単位スケール。"""
-        if self.mnode().hasFn(om2.MFn.kJoint) and self.getPlug("segmentScaleCompensate").get():
-            return tuple(self.getPlug("inverseScale").get())
+        if self.mnode().hasFn(om2.MFn.kJoint) and self._static_value("segmentScaleCompensate"):
+            return self._static_value("inverseScale")
         return (1.0, 1.0, 1.0)
 
     def _scale_channel_value(self, value, ws, shear=False):
@@ -2195,7 +2254,11 @@ class Transform(DagNode):
         Returns:
             om2.MQuaternion: 新しい回転値。
         """
-        value = self.getPlug(name).get()
+        if name == "jointOrient" and not self.mnode().hasFn(om2.MFn.kJoint):
+            value = self.getPlug(name).get()
+        else:
+            # 組み込みの角度アトリビュートは、getPlug(name).get()と同じ読取関数でPlugを作らずに読む。
+            value = self._static_value(name)
         order = self._rotate_order() if name == "rotate" else om2.MEulerRotation.kXYZ
         return om2.MEulerRotation(*tuple(value), order).asQuaternion()
 
@@ -2211,7 +2274,8 @@ class Transform(DagNode):
         while not iterator.isDone():
             path = iterator.getPath()
             if path.length() == 1:
-                assemblies.append(Node(path))
+                # MItDagが返した有効なパスなので、Node(path) の入力解決を省いて同じ型で包む。
+                assemblies.append(Node._wrap_dag_path(path))
             iterator.next()
         return assemblies
 
@@ -2396,7 +2460,8 @@ class Transform(DagNode):
     def _apply_local_matrix(self, matrix, scale_reference=None, *, fast=False):
         """ローカルマトリクスの各成分をMayaアトリビュートへ適用する。
 
-        マトリクスを1回だけ分解し、平行移動・回転・スケール・シアーを順に書き込む。
+        マトリクスを1回だけ分解し、平行移動・回転・スケール・シアーのうち現在値と
+        異なるものを順に書き込む(:meth:`_apply_channel_values`)。
         分解は om2.MTransformationMatrix の規約に、次の2点の選択を加えたもの。
 
         * スケールの符号の組み合わせは、行列式の符号が許す限り scale_reference
@@ -2425,7 +2490,10 @@ class Transform(DagNode):
         self._apply_channel_values(self._matrix_channel_values(matrix, scale_reference), safe=False, fast=fast)
 
     def _apply_channel_values(self, values, safe=False, *, fast=False):
-        """計算済みの内部単位値を、辞書の保持順に設定する。
+        """計算済みの内部単位値のうち、現在値と異なるものだけを辞書の保持順に設定する。
+
+        書込み値が現在のチャンネル値(内部単位)と完全に一致するチャンネルは書き込まない。
+        書き込まないチャンネルはロック・接続されていても例外にせず、通知・Undoの記録も残らない。
 
         Args:
             values (dict[str, Iterable[float]]): チャンネル名と設定値。
@@ -2433,7 +2501,29 @@ class Transform(DagNode):
             fast (bool): 子のPlugへ渡す更新モード。
         """
         for name, value in values.items():
+            value = tuple(value)
+            if self._channel_equals(name, value):
+                continue
             self._set_channel_value(name, value, safe=safe, fast=fast)
+
+    def _channel_equals(self, name, value):
+        """内部単位の書込み値が、チャンネルの現在値と完全に一致するかを返す。
+
+        Args:
+            name (str): 組み込みの数値アトリビュートのロング名。
+            value (tuple | object): 書込み予定の値。複合は成分のtuple。
+
+        Returns:
+            bool: 成分数と各成分が完全に一致すればTrue。読取れない場合はFalse(書込みへ委ねる)。
+        """
+        try:
+            current = self._static_value(name)
+        except Exception:  # noqa: BLE001 - 判定できなければ従来どおり書込みの結果に委ねる。
+            return False
+        if isinstance(value, tuple):
+            return isinstance(current, tuple) and len(current) == len(value) and all(
+                float(a) == float(b) for a, b in zip(current, value))
+        return current == value
 
     def _set_channel_value(self, name, value, safe=False, *, fast=False):
         """内部単位のチャンネル値を、基底Plug.setへ渡す。
@@ -2465,12 +2555,19 @@ class Transform(DagNode):
         corrected = source * Matrix(scale=inv_scale)
         corrected.translate = source.translate
         _, q, scale, shear, reference = self._decompose_like_channels(corrected, scale_reference)
-        rotation = self._channel_rotate(q, reference)
-        sp = tuple(self.getPlug("scalePivot").get())
-        rp = tuple(self.getPlug("rotatePivot").get())
-        spt = tuple(self.getPlug("scalePivotTranslate").get())
-        rpt = tuple(self.getPlug("rotatePivotTranslate").get())
-        orient = self._component_quaternion("rotateAxis") * rotation.asQuaternion()
+        if type(self)._channel_rotate is Transform._channel_rotate:
+            # Transformの_channel_rotateと同じ式で、rotateAxisの読取を1回にする(値は同じ読取関数)。
+            rotate_axis = self._component_quaternion("rotateAxis")
+            rotation = _closest_euler(rotate_axis.inverse() * q, reference)
+        else:
+            # Joint等の上書きは独自の読取関数を使うため、従来どおり別に読む。
+            rotation = self._channel_rotate(q, reference)
+            rotate_axis = self._component_quaternion("rotateAxis")
+        sp = self._static_value("scalePivot")
+        rp = self._static_value("rotatePivot")
+        spt = self._static_value("scalePivotTranslate")
+        rpt = self._static_value("rotatePivotTranslate")
+        orient = rotate_axis * rotation.asQuaternion()
         if self.mnode().hasFn(om2.MFn.kJoint):
             orient *= self._component_quaternion("jointOrient")
         base = (Matrix(translate=tuple(-v for v in sp)) * Matrix(scale=scale, shear=shear)

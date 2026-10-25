@@ -127,7 +127,8 @@ class DagNode(Node):
             RuntimeError: 保持するDAGパスが無効な場合。
         """
         original = self.mpath().fullPathName()
-        return [self if path.fullPathName() == original else Node(om2.MDagPath(path))
+        # APIが列挙した有効なパスの複製なので、Node(...) の入力解決を省いて同じ型で包む。
+        return [self if path.fullPathName() == original else Node._wrap_dag_path(om2.MDagPath(path))
                 for path in om2.MDagPath.getAllPathsTo(self.mnode())
                 if not noSelf or path.fullPathName() != original]
 
@@ -152,7 +153,7 @@ class DagNode(Node):
             return [instance.getParent() for instance in self.getInstances() if instance.getParent() is not None]
         fn = self.dagFn()
         return [parent if fn.parent(index) == parent.mnode()
-                else Node(om2.MDagPath.getAPathTo(fn.parent(index)))
+                else Node._wrap_dag_path(om2.MDagPath.getAPathTo(fn.parent(index)))
                 for index in range(fn.parentCount())
                 if not fn.parent(index).hasFn(om2.MFn.kWorld)]
 
@@ -203,7 +204,8 @@ class DagNode(Node):
         if step >= path.length():
             return None
         path.pop(step)
-        return Node(path)
+        # 有効な保持パスの複製を遡ったパスなので、Node(path) の入力解決を省いて同じ型で包む。
+        return Node._wrap_dag_path(path)
 
     def getFullPath(self):
         """保持するDAGインスタンスの完全パスを取得する。
@@ -392,12 +394,13 @@ class DagNode(Node):
             self.getPlug("hiddenInOutliner").set(not state, fast=fast)
             return self
 
-    def _direct_children(self, shapes, intermediates):
+    def _direct_children(self, shapes, intermediates, shapes_only=False):
         """直接の子をAPIで列挙し、インスタンスの親パスを維持する。
 
         Args:
             shapes (bool): Shapeも列挙するか。
             intermediates (bool): 中間オブジェクトも含めるか。
+            shapes_only (bool): TrueならShapeだけを列挙する(Transform等はラッパーを作らずに除く)。
 
         Returns:
             list[DagNode]: 条件に合う直接の子。非Transformでは空リスト。
@@ -405,17 +408,20 @@ class DagNode(Node):
         path = self.mpath()
         if not path.node().hasFn(om2.MFn.kTransform):
             return []
-        fn = om2.MFnDagNode(path)
+        # 子の数と子は保持パスから直接読む(MFnDagNode(path) と同じ子の順。関数セットの作成を省く)。
         result = []
-        for index in range(fn.childCount()):
-            obj = fn.child(index)
+        for index in range(path.childCount()):
+            obj = path.child(index)
             if not shapes and not obj.hasFn(om2.MFn.kTransform):
+                continue
+            if shapes_only and not obj.hasFn(om2.MFn.kShape):
                 continue
             if not intermediates and om2.MFnDagNode(obj).isIntermediateObject:
                 continue
             child = om2.MDagPath(path)
             child.push(obj)
-            result.append(Node(child))
+            # 直前に延長した有効なパスなので、Node(child)の入力解決を省いて同じ型で包む。
+            result.append(Node._wrap_dag_path(child))
         return result
 
     def _traversal_children(self, shapes, intermediates, under_world):
@@ -443,7 +449,7 @@ class DagNode(Node):
                             path = om2.MDagPath(root)
                             path.push(root.child(index))
                             if intermediates or not om2.MFnDagNode(path).isIntermediateObject:
-                                result.append(Node(path))
+                                result.append(Node._wrap_dag_path(path))
         result.extend(self._direct_children(shapes, intermediates))
         return result
 

@@ -341,10 +341,14 @@ class Matrix(om2.MMatrix):
                 または回転クォータニオンがゼロの場合。
         """
         if values is not None:
-            from .transformation import Transformation
-            if isinstance(values, Transformation):
-                values = values.matrix
             kind = values.__class__
+            # list・tuple・MMatrix・Matrixそのものの型はTransformationではないため、
+            # 循環importを避ける関数内のimportを省く(それ以外の型は従来どおり判定する)。
+            if kind is not list and kind is not tuple and kind is not _MMatrix and kind is not Matrix:
+                from .transformation import Transformation
+                if isinstance(values, Transformation):
+                    values = values.matrix
+                    kind = values.__class__
             if kind is not list and kind is not tuple:
                 if isinstance(values, _MMatrix):
                     _assign(self, values)

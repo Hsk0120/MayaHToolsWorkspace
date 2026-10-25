@@ -6,7 +6,7 @@ import maya.cmds as cmds
 from ..decorator import undoTransaction
 from ..plugs.plug import Plug
 from ..util import _ArgumentError, _UNSET
-from .node import Node, Nodes
+from .node import Node, Nodes, _resolve_node
 
 
 class Container(Node):
@@ -42,7 +42,8 @@ class Container(Node):
         Returns:
             list[Node]: 新しいNode参照のリスト。ノードを複製せず、列挙順を独自にソートしない。
         """
-        return [Node(obj) for obj in om2.MFnContainerNode(self.mnode()).getMembers()]
+        # Node(obj)と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
+        return [Node._wrap_resolved(*_resolve_node(obj)) for obj in om2.MFnContainerNode(self.mnode()).getMembers()]
 
     @undoTransaction("mlib.Container.add")
     def addMembers(self, *members):
@@ -86,7 +87,8 @@ class Container(Node):
             force = False
         with undoTransaction("mlib.Container.removeMembers"):
             nodes = [Node(node) for node in Nodes._resolve_inputs(members)]
-            current = self.getMembers()
+            # Nodeの等価なら__hash__も等しいため、集合での所属判定はリストの`in`と同じ結果になる。
+            current = set(self.getMembers())
             if any(node not in current for node in nodes):
                 raise ValueError("このcontainerに所属していないノードが含まれています。")
             if nodes:

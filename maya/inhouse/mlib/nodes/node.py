@@ -24,6 +24,48 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kDouble: "double",
 }  #: moveAttrOrder() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
 
+#: ラッパー型の選択で型名だけを読むために使い回す関数セット。setObject() で対象を差し替えるため、
+#: ノードごとに MFnDependencyNode を作るより速い。値や名前を保持せず、呼出しのたびに対象を設定し直す。
+_TYPE_NAME_FN = om2.MFnDependencyNode()
+
+
+def _subclass_overrides(base, name):
+    """baseの派生クラス(孫以降を含む)のいずれかがメソッドを上書きしているか調べる。
+
+    呼出しのたびに現在の派生クラスを調べるため、後から定義・登録されたクラスも反映する。
+
+    Args:
+        base (type): 基底クラス。
+        name (str): メソッド名。
+
+    Returns:
+        bool: 1つでも上書きしていればTrue。
+    """
+    original = getattr(base, name)
+    stack = list(base.__subclasses__())
+    while stack:
+        cls = stack.pop()
+        if getattr(cls, name, original) is not original:
+            return True
+        stack.extend(cls.__subclasses__())
+    return False
+
+
+def _node_type_name(mobject):
+    """検証済みの依存ノードの MObject から nodeType 名を取得する。
+
+    ``om2.MFnDependencyNode(mobject).typeName`` と同じ値を、使い回しの関数セットで読む。
+
+    Args:
+        mobject (om2.MObject): 有効な依存ノードの MObject。
+
+    Returns:
+        str: Maya の nodeType 名。
+    """
+    fn = _TYPE_NAME_FN
+    fn.setObject(mobject)
+    return fn.typeName
+
 
 def _resolve_node(node):
     """ノードを表す入力を MObject と MDagPath へ解決する。
@@ -49,8 +91,6 @@ def _resolve_node(node):
         RuntimeError: 名前を解決できない(存在しない、または複数の対象に一致する)場合、
             または空・無効な(削除済みの)ラッパーや om2 オブジェクトを指定した場合。
     """
-    # nodesとの循環importを避け、Plugは呼出し時に取得する。
-    from ..plugs.plug import DeletedAttributeError, Plug
     if isinstance(node, str):
         selection = om2.MSelectionList()
         try:
@@ -86,6 +126,8 @@ def _resolve_node(node):
         mobject = om2.MObject(node)
         dag_path = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
         return mobject, dag_path
+    # nodesとの循環importを避け、Plugは呼出し時に取得する(名前・API参照の解決では使わないため、その後で取得する)。
+    from ..plugs.plug import DeletedAttributeError, Plug
     if isinstance(node, om2.MPlug):
         if node.isNull:
             raise RuntimeError("空の MPlug からノードは解決できません")
@@ -361,7 +403,7 @@ class Node(Object):
             return super().__new__(cls)
         # 入力の解決(名前の検索など)は1回だけ行い、結果を __init__ へ引き継ぐ。
         resolved = _resolve_node(node)
-        resolved_class = registry.wrapper_class(om2.MFnDependencyNode(resolved[0]).typeName)
+        resolved_class = registry.wrapper_class(_node_type_name(resolved[0]))
         if cls is not Node and not issubclass(resolved_class, cls):
             raise TypeError("{} requires a compatible node, got {}".format(cls.__name__, resolved_class.__name__))
         instance = super().__new__(resolved_class)
@@ -545,7 +587,18 @@ class Node(Object):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlib.nodes.node.create"):
-            return cls(Node._create_node_name(type, kwargs, fast=fast))
+            # fastは作成したMObjectから直接構築する。名前の取り直しと同じくMFnDagNode.getPath()の
+            # 最初のインスタンスを使うため、選ばれるパス・ラッパー型は名前経由と変わらない。
+            created = Node._create_node_name(type, kwargs, fast=fast, as_object=fast)
+            if not fast or Node._registry is None:
+                return cls(created)
+            # 作成したばかりの有効なMObjectなので、cls(created)と同じ解決・型選択・型の検査を
+            # 生成の入口の再判定なしで行う。
+            node = Node._wrap_resolved(*_resolve_node(created))
+            if cls is not Node and not isinstance(node, cls):
+                # 引数typeが組込みのtypeを隠すため、クラスは__class__から取る。
+                raise TypeError("{} requires a compatible node, got {}".format(cls.__name__, node.__class__.__name__))
+            return node
 
     def getShadingEngines(self):
         """自身から直接接続されているShadingEngineを重複なしで返す。
@@ -649,8 +702,11 @@ class Node(Object):
 
         Returns:
             str: 対応する Maya nodeType。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).typeName
+        return self._alive_fn().typeName
 
     def getTypeId(self):
         """Maya の内部 typeId を整数で返す。
@@ -660,16 +716,22 @@ class Node(Object):
 
         Returns:
             int: MTypeId の数値表現。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).typeId.id()
+        return self._alive_fn().typeId.id()
 
     def getPluginName(self):
         """ノード型がプラグイン由来の場合、そのプラグイン名を取得する。
 
         Returns:
             str: プラグイン名。Maya組み込みのノード型では空文字列。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).pluginName
+        return self._alive_fn().pluginName
 
     def getClassification(self):
         """ノード型の分類文字列を1要素のリストで取得する。
@@ -709,16 +771,22 @@ class Node(Object):
 
         Returns:
             bool: ロックされている場合は True。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).isLocked
+        return self._alive_fn().isLocked
 
     def isFromReferencedFile(self):
         """ノードが参照ファイルから読み込まれたものか判定する。
 
         Returns:
             bool: 参照由来の場合は True。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).isFromReferencedFile
+        return self._alive_fn().isFromReferencedFile
 
     def isAncestorOf(self, other):
         """保持するDAGパスで、otherが自身の子孫か判定する。
@@ -787,8 +855,11 @@ class Node(Object):
 
         Returns:
             int: アトリビュート数。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        return om2.MFnDependencyNode(self._mobject).attributeCount()
+        return self._alive_fn().attributeCount()
 
     def getPath(self, full=False):
         """保持するDAGインスタンスのパス名を取得する。
@@ -836,8 +907,11 @@ class Node(Object):
         Returns:
             str: namespaceを含むノード名。``remove_namespace`` が ``True`` の場合は
                 namespaceを含まないノード名。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        node_name = om2.MFnDependencyNode(self._mobject).name()
+        node_name = self._alive_fn().name()
         if remove_namespace:
             node_name = node_name.rsplit(":", 1)[-1]
         return node_name
@@ -903,6 +977,14 @@ class Node(Object):
         DAGの子も削除し、一回のUndoで戻せる。
         派生クラスはこのメソッドを上書きして専用の削除処理を実装できる。
 
+        削除の前に自身とDAG子孫を検査し、ロック・参照のノード、または既定・共有ノード等の
+        Mayaが削除を拒否するノード(``cmds.ls(undeletable=True)`` が返すもの。time1・persp・
+        defaultLayer など)が含まれる場合は何も削除せずRuntimeErrorにする。通常経路の文言は
+        cmds.deleteの要素ごとの表示に合わせ(``Cannot delete locked node 'x'.``・
+        ``Cannot delete 'x' as it has locked or read-only children.``・
+        ``Non-deletable node 'x' cannot be deleted.``)、fastのロック・参照は従来の
+        ``Node is locked or referenced: x``。
+
         Args:
             safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は削除しない。
                 入力・出力・message・Set/マテリアル接続を全て含む。
@@ -914,7 +996,8 @@ class Node(Object):
 
         Raises:
             TypeError: safeがboolでない場合。
-            RuntimeError: 対象が無効、またはMayaが削除を拒否した場合。
+            RuntimeError: 対象が無効、ロック・参照・削除できないノードを含む、またはMayaが
+                削除を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -925,11 +1008,8 @@ class Node(Object):
                 raise RuntimeError("Cannot delete an invalid node")
             if safe and self._has_delete_connections():
                 return
-            if fast:
-                from ..core.nodeEdit import delete_node
-                delete_node(self.mnode())
-            else:
-                cmds.delete(self.getFullName())
+            from ..core.nodeEdit import delete_nodes
+            delete_nodes([self], fast=fast)
 
     def rename(self, name, ignoreShape=False, *, fast=False):
         """ノード名を変更し、変更後の名前を返す。
@@ -988,13 +1068,48 @@ class Node(Object):
             index = None
         from ..plugs.plug import Plug
         pairs = []
+        as_pair = asPair or c or connections
+        skip_conversion = scn or skipConversionNodes
+        directions = [incoming for incoming, enabled in ((True, s and source), (False, d and destination))
+                      if enabled]
+
+        def collect(mplug, local):
+            """Plug.getConnections(asPair=True, 子・要素の展開なし)と同じ順で直接の接続を集める。
+
+            その中の重複の統合は、下の_connection_resultsが同じ初出順で行うため省く。
+
+            Args:
+                mplug (om2.MPlug): 接続をたどる自身側のプラグ。
+                local (Plug | None): ペアの自身側。ペアで返さない場合はNone。
+            """
+            for incoming in directions:
+                if skip_conversion:
+                    if incoming:
+                        source_plug = mplug.source()
+                        targets = [] if source_plug.isNull else [source_plug]
+                    else:
+                        targets = mplug.destinations()
+                else:
+                    targets = mplug.connectedTo(incoming, not incoming)
+                pairs.extend((local, Plug(Plug._node_from_mplug(target), target)) for target in targets)
+
+        # ペアで返さない場合、自身側のPlugは結果にも重複の判定にも使わない。
+        # 接続の照会を上書きする派生クラスが無ければ、自身側のPlugを作らずMPlugから直接たどる。
+        local_unused = not as_pair and not _subclass_overrides(Plug, "getConnections")
         for mp in self._dependency_fn().getConnections():
+            if local_unused:
+                collect(mp, None)
+                continue
             local = Plug(self, mp)
-            pairs.extend(local.getConnections(s, d, source=source, destination=destination,
-                         scn=scn or skipConversionNodes, asPair=True,
-                         checkChildren=False, checkElements=False))
+            if local.__class__.getConnections is not Plug.getConnections:
+                # 派生クラスが接続の照会を上書きする場合は、その実装を通す(引数typeが組込みを隠すため__class__)。
+                pairs.extend(local.getConnections(s, d, source=source, destination=destination,
+                             scn=skip_conversion, asPair=True,
+                             checkChildren=False, checkElements=False))
+                continue
+            collect(local.mplug(), local)
         return Plug._connection_results(pairs, type or t, exactType or et,
-                                       asPair or c or connections, asNode, index, pcls)
+                                       as_pair, asNode, index, pcls)
 
     def getHistory(self, type=None, future=False):
         """構築履歴を検索し、対応するノードラッパーを返す。
@@ -1007,15 +1122,25 @@ class Node(Object):
             list[Node]: Mayaの履歴順。自身と重複を除く。該当なしなら空リスト。
 
         Raises:
-            RuntimeError: 無効なノード、またはMayaの履歴検索が失敗した場合。
+            RuntimeError: 無効な(削除済みの)ノード、またはMayaの履歴検索が失敗した場合。
         """
+        if not self.isValid():
+            # 名前が空になりlistHistoryがValueErrorを出す前に、他のメソッドと同じ種類で拒否する。
+            raise RuntimeError("Cannot get the history of an invalid node")
         names = cmds.listHistory(self.getFullName(), future=future) or []
+        # 名前を1つの選択リストでまとめて解決する(順は names のまま)。対応付けられない名前は
+        # 従来どおり名前ごとに解決する。循環importを避けて関数内で読み込む。
+        from ..common.selection import _resolve_names
+        found = _resolve_names(names)
         result, seen = [], {self.getUuid()}
-        for name in names:
-            node = Node(name)
-            if node.getUuid() in seen:
+        for name, item in zip(names, found):
+            # Node(name)と同じ解決・型選択。UUIDは同じ値を2回求めず1回だけ取得する。
+            node = (Node._wrap_resolved(*_resolve_node(name)) if item is None
+                    else Node._wrap_resolved(item[0], item[1]))
+            uuid = node.getUuid()
+            if uuid in seen:
                 continue
-            seen.add(node.getUuid())
+            seen.add(uuid)
             if type is None or node.isType(type):
                 result.append(node)
         return result
@@ -1683,14 +1808,13 @@ class Node(Object):
             RuntimeError: ノードが無効、または ``input3Dx`` 等の未確定な論理番号を含む参照の場合。
             AttributeError: パスを解決できない、または論理番号が上限を超える場合。
         """
-        from ..plugs.plug import Plug as _InputPlug
-        from ..plugs.plug import MAX_LOGICAL_INDEX
+        # nodes/plugsの相互依存を避けるため遅延importする。
+        from ..plugs.plug import MAX_LOGICAL_INDEX, Plug
+        _InputPlug = Plug
         if not isinstance(name, str) or not name:
             raise ValueError("name には空でないアトリビュートパスを指定してください")
         if not self.isValid():
             raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
-        # nodes/plugsの相互依存を避けるため遅延importする。
-        from ..plugs.plug import Plug
 
         if "[" not in name:
             # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
@@ -1779,7 +1903,7 @@ class Node(Object):
         return dag_path.fullPathName()
 
     @staticmethod
-    def _create_node_name(node_type, flags, *, require_creatable=False, fast=False):
+    def _create_node_name(node_type, flags, *, require_creatable=False, fast=False, as_object=False):
         """既存の作成規則でMayaノードを作り、Mayaが返した実名を取得する。
 
         Args:
@@ -1787,9 +1911,11 @@ class Node(Object):
             flags (dict): createNodeへ渡すフラグ。parent/pを所有ノード名へ変換する。
             require_creatable (bool): Trueなら抽象型・未導入型を作成前に拒否する。
             fast (bool): TrueならOpenMayaで作成し、Falseならcmdsで作成する。
+            as_object (bool): fast=Trueのとき、名前ではなく作成したMObjectを返す。
 
         Returns:
-            str: Mayaの名前補正・連番を反映したノード名。
+            str | om2.MObject: Mayaの名前補正・連番を反映したノード名。fastとas_objectが
+                Trueなら作成(sharedでは共有)したノードのMObject。
 
         Raises:
             ValueError: nodeType名が空文字列または文字列以外の場合。
@@ -1802,7 +1928,8 @@ class Node(Object):
         """
         if not isinstance(node_type, str) or not node_type:
             raise ValueError("type must be a non-empty string")
-        from ..common import Plugin
+        # 遅延公開の__getattr__を毎回通らないよう、実装モジュールから直接取得する。
+        from ..common.plugin import Plugin
         Plugin.ensureNodePlugin(node_type)
         if require_creatable and node_type not in (cmds.allNodeTypes() or []):
             raise TypeError("create=True requires a creatable Maya nodeType: " + node_type)
@@ -1812,7 +1939,7 @@ class Node(Object):
         if fast:
             from ..core.nodeEdit import create_node
             obj = create_node(node_type, flags)
-            return Node._unique_node_name(obj)
+            return obj if as_object else Node._unique_node_name(obj)
         return cmds.createNode(node_type, **flags)
 
     def _has_delete_connections(self):
@@ -1837,7 +1964,7 @@ class Node(Object):
         return False
 
     @staticmethod
-    def _selection_owner(selection, index, name=None):
+    def _selection_owner(selection, index, name=None, plug=False):
         """MSelectionList の要素を所有するノードの MObject と DAG パスを返す。
 
         ノード・コンポーネントの要素は選択されたインスタンスの DAG パスを返す。
@@ -1858,6 +1985,9 @@ class Node(Object):
             selection (om2.MSelectionList): 対象を含む選択リスト。
             index (int): 要素の位置。
             name (str | None): 要素を追加したときの文字列。分かっている場合に指定する。
+            plug (bool): 要素がアトリビュート(``getPlug`` で取得できる要素)と分かっている場合は True。
+                インスタンス化されていない DAG ノードはパスが1つだけなので、失敗すると分かっている
+                ``getDagPath()`` の例外処理を省いてそのパスを返す(結果は False の場合と同じ)。
 
         Returns:
             tuple[om2.MObject, om2.MDagPath | None]: 所有ノードの MObject と、DAG ノードで
@@ -1866,11 +1996,17 @@ class Node(Object):
         mobject = selection.getDependNode(index)
         if not mobject.hasFn(om2.MFn.kDagNode):
             return mobject, None
+        fn = None
+        if plug:
+            fn = om2.MFnDagNode(mobject)
+            if not fn.isInstanced():
+                return mobject, fn.getPath()
         try:
             return mobject, selection.getDagPath(index)
         except (RuntimeError, TypeError):
             pass
-        fn = om2.MFnDagNode(mobject)
+        if fn is None:
+            fn = om2.MFnDagNode(mobject)
         if fn.isInstanced():
             candidates = [name] if name else []
             candidates.extend(selection.getSelectionStrings(index))
@@ -1956,12 +2092,15 @@ class Node(Object):
             RuntimeError: 名前を解決できない(存在しない、または複数のノードに一致する)場合、
                 または空・削除済みのノードを指す om2 オブジェクトの場合(``Node(value)`` と同じ)。
         """
-        # 循環importを避け、入力型の判定に使う参照型をここで取得する。
+        if isinstance(value, Node):
+            return value
+        if isinstance(value, str):
+            # Node(value) と同じ解決・型選択を、生成の入口の再判定なしで行う。
+            return Node._wrap_resolved(*_resolve_node(value))
+        # 循環importを避け、入力型の判定に使う参照型をここで取得する(Node・名前の分岐では使わない)。
         from ..components.component import Component, Components
         from ..plugs.plug import Plug
 
-        if isinstance(value, Node):
-            return value
         if isinstance(value, Plug):
             error = Plug._deleted_attribute_error(value)
             if error is not None:
@@ -1969,7 +2108,7 @@ class Node(Object):
             return value.getNode()
         if isinstance(value, (Component, Components)):
             return value.shape
-        if isinstance(value, (str, om2.MObject, om2.MDagPath, om2.MPlug)):
+        if isinstance(value, (om2.MObject, om2.MDagPath, om2.MPlug)):
             return Node(value)
         raise Object._unsupported(value)
 
@@ -2019,6 +2158,24 @@ class Node(Object):
         self._identity_hash = self._handle.hashCode()
         self._fn_cache = None
 
+    def _alive_fn(self):
+        """破棄されていないことを確かめて、保持するノードの MFnDependencyNode を返す。
+
+        Undo の記録から消えて破棄されたノード(削除後の flushUndo 等)へ関数セットを作ると
+        Maya が異常終了するため、その前に RuntimeError にする。Undo で戻せる削除済みノード
+        (生存中)は従来どおり問い合わせる。
+
+        Returns:
+            om2.MFnDependencyNode: このノードの関数セット。
+
+        Raises:
+            RuntimeError: ノードが破棄されている場合。
+        """
+        handle = self._handle
+        if handle is None or not handle.isAlive():
+            raise RuntimeError("Cannot access an invalid node")
+        return om2.MFnDependencyNode(self._mobject)
+
     def _dependency_fn(self):
         """保持するノードの MFnDependencyNode を返す(作成は初回の1回だけ)。
 
@@ -2032,6 +2189,67 @@ class Node(Object):
         if fn is None:
             fn = self._fn_cache = om2.MFnDependencyNode(self._mobject)
         return fn
+
+    @staticmethod
+    def _wrap_dag_path(dag_path):
+        """呼出し元が作った有効なMDagPathを、名前や入力の再解決なしでラッパーにする。
+
+        ``Node(dag_path)`` と同じ型選択(nodeTypeの登録、近い順の登録済み祖先型、Node)と
+        初期化を行い、入力の種類判定・MDagPathの複製だけを省く。パスが無効なら ``Node(dag_path)`` と
+        同じ例外を送出する。子・親の列挙のように、API で直前に取得・延長・短縮したパスにだけ使う。
+
+        Args:
+            dag_path (om2.MDagPath): 有効なDAGパス。ラッパーがそのまま保持するため、
+                呼出し元は以後このオブジェクトを変更しない。
+
+        Returns:
+            DagNode: 実際のノード型に対応するラッパー。
+        """
+        # アンダーワールドの根を指すパスなど、延長・短縮の結果が無効な場合は Node(...) と同じ例外にする。
+        if not dag_path.isValid():
+            return Node(dag_path)
+        mobject = dag_path.node()
+        handle = om2.MObjectHandle(mobject)
+        if not handle.isValid():
+            return Node(dag_path)
+        # 有効性を確かめたハンドルは、ラッパーが保持するハンドルとしてそのまま使う。
+        return Node._wrap_resolved(mobject, dag_path, handle)
+
+    @staticmethod
+    def _wrap_resolved(mobject, dag_path, handle=None):
+        """API で直前に解決した有効な MObject と DAG パスを、入力の再解決なしでラッパーにする。
+
+        ``Node(dag_path)``・``Node(mobject)`` と同じ型選択(nodeTypeの登録、近い順の登録済み祖先型、Node)と
+        初期化(選んだクラスの ``__init__``)を行い、入力の種類判定・有効性検査・複製だけを省く。
+        ``_resolve_node`` の戻り値や、``MSelectionList``・``MItDag`` 等から取得したばかりの値にだけ使う。
+
+        Args:
+            mobject (om2.MObject): 有効な依存ノードの MObject。DAG ノードでは ``dag_path.node()`` と同じノード。
+            dag_path (om2.MDagPath | None): DAG ノードの有効なパス。DG ノードは None。
+                ラッパーがそのまま保持するため、呼出し元は以後これらのオブジェクトを変更しない。
+            handle (om2.MObjectHandle | None): 呼出し元が mobject から作ったハンドル。指定すると
+                ラッパーが保持するハンドルとして使い、作り直さない。
+
+        Returns:
+            Node: 実際のノード型に対応するラッパー。
+        """
+        registry = Node._registry
+        if registry is None:
+            return Node(dag_path if dag_path is not None else mobject)
+        resolved_class = registry.wrapper_class(_node_type_name(mobject))
+        instance = object.__new__(resolved_class)
+        if resolved_class.__init__ is Node.__init__:
+            # __init__ を上書きしないクラスでは、Node.__init__ の解決済み入力の分岐と同じ属性を直接設定する。
+            instance._mobject = mobject
+            instance._dag_path = dag_path
+            if handle is None:
+                handle = om2.MObjectHandle(mobject)
+            instance._handle = handle
+            instance._identity_hash = handle.hashCode()
+            return instance
+        instance._pending_resolution = (mobject, dag_path)
+        instance.__init__(dag_path if dag_path is not None else mobject)
+        return instance
 
     def _current_dag_path(self):
         """保持パスを返す。消失したインスタンスを別パスへ切り替えない。
@@ -2154,8 +2372,13 @@ class Node(Object):
             om2.MObject: アトリビュート定義。配列要素の取得・作成は行わない。
         """
         fn = self._dependency_fn()
+        # 静的・拡張アトリビュートはattributeClassで先に除き、MFnAttributeの作成を動的なものだけにする。
+        # kLocalDynamicAttrはMFnAttribute.dynamicがTrueのものと同じで、列挙の順序も変えない。
+        local_dynamic = om2.MFnDependencyNode.kLocalDynamicAttr
         for index in range(fn.attributeCount()):
             attribute = fn.attribute(index)
+            if fn.attributeClass(attribute) != local_dynamic:
+                continue
             definition = om2.MFnAttribute(attribute)
             if definition.dynamic and (include_children or definition.parent.isNull()):
                 yield attribute
@@ -2271,17 +2494,32 @@ class Nodes:
             except TypeError:
                 names = [names]
         names = Nodes._resolve_inputs(names)
-        items, seen = [], set()
+        # 重複の判定は (UUID, 完全パス) の一致で行う(構築時だけ使用。以後の改名・親変更はNode参照が追跡する)。
+        # 同じノードはハンドルのハッシュが等しいため、ハッシュごとに分けて、同じハッシュの要素が
+        # 既にある場合だけキーを求めて比べる。完全パスの取得は階層の深さに比例して重いため、
+        # 重複の無い要素では求めない。キーが一致する組は必ず同じハッシュなので結果は変わらない。
+        items, buckets = [], {}
         for value in names:
             node = Node._resolve_input(value)
             if not node.isValid():
                 raise RuntimeError("Cannot collect an invalid node")
             if not isinstance(node, self.item_class):
                 raise TypeError(f"{type(self).__name__} requires {self.item_class.__name__}, got {type(node).__name__}")
-            # 構築時だけキーを使用。以後の改名・親変更はNode参照が追跡する。
-            key = (node.getUuid(), node.getFullName())
-            if key not in seen:
-                seen.add(key)
+            # 保持インスタンスが削除されたDAG参照は、キーを求めた場合と同じRuntimeErrorにする。
+            node._current_dag_path()
+            bucket = buckets.get(node._identity_hash)
+            if bucket is None:
+                buckets[node._identity_hash] = [[node, None]]
+                items.append(node)
+                continue
+            key = Nodes._duplicate_key(node)
+            for entry in bucket:
+                if entry[1] is None:
+                    entry[1] = Nodes._duplicate_key(entry[0])
+                if entry[1] == key:
+                    break
+            else:
+                bucket.append([node, key])
                 items.append(node)
         self._items = items
 
@@ -2916,10 +3154,18 @@ class Nodes:
         return [node.getName() for node in self]
 
     def delete(self, *, safe=False, fast=False):
-        """各ノードの専用deleteを呼び、親削除で消えた後続対象はスキップする。
+        """全ノードを1回の削除にまとめて削除する。
+
+        通常は1回の ``cmds.delete``、fastは1つの MDagModifier の doIt 1回で削除する。
+        削除の順・連鎖して消えるノードはMayaがまとめて削除するときの規則に従い、
+        親子の両方・重複を含めてもよい(親と一緒に消えた子は重ねて削除しない)。
+        削除の前に全対象とDAG子孫を検査し、ロック・参照・削除できないノード(既定・共有ノード等)が
+        あれば何も削除せずRuntimeErrorにする(検査は :meth:`Node.delete` と同じ)。
+        専用のdeleteを上書きした派生クラスの要素を含む場合だけ、従来どおり各ノードのdeleteを
+        順に呼び、親削除で消えた後続対象はスキップする。
 
         Args:
-            safe (bool): Trueなら各対象にsafe=Trueを渡し、DG接続を持つ対象を残す。
+            safe (bool): TrueならDG接続を持つ対象(自身またはDAG子孫)を残す。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
@@ -2927,8 +3173,9 @@ class Nodes:
 
         Raises:
             TypeError: safeがboolでない場合。
-            RuntimeError: 実行前に削除済みの参照がある、または削除失敗。
-                途中までの変更は自動で戻さない。全体は一回のUndoで戻せる。
+            RuntimeError: 実行前に削除済みの参照がある(``invalid item <番号>``)、または
+                削除できない対象を含む(``failed at item <番号>: <理由>``。何も削除しない)。
+                全体は一回のUndoで戻せる。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -2938,9 +3185,26 @@ class Nodes:
             for index, node in enumerate(self):
                 if not node.isValid():
                     raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
-            if fast:
-                from ..core.nodeEdit import validate_deletion
-                validate_deletion(self, safe=safe)
+            from ..core.nodeEdit import check_deletion, delete_nodes
+            batch = all(type(node).delete is Node.delete for node in self)
+            if batch or fast:
+                indices = [index for index, node in enumerate(self)
+                           if not (safe and node._has_delete_connections())]
+                if batch and not indices:
+                    return
+                try:
+                    if batch:
+                        delete_nodes([self._items[index] for index in indices], fast=fast)
+                    else:
+                        # 専用deleteを持つ要素を含むfastは、従来どおり各deleteの前に全体を検査する。
+                        check_deletion([self._items[index] for index in indices], fast=True)
+                except RuntimeError as exc:
+                    if not hasattr(exc, "index"):
+                        raise
+                    raise RuntimeError(f"{type(self).__name__}.delete failed at item "
+                                       f"{indices[exc.index]}: {exc}") from exc
+                if batch:
+                    return
             for index, node in enumerate(self):
                 if node.isValid():
                     try:
@@ -2966,6 +3230,18 @@ class Nodes:
         return result
 
     @staticmethod
+    def _duplicate_key(node):
+        """構築時の重複判定に使うキーを返す。
+
+        Args:
+            node (Node): 有効なノード参照。
+
+        Returns:
+            tuple[str | None, str]: UUIDと、DAGの完全パスまたはDGのノード名。
+        """
+        return (node.getUuid(), node.getFullName())
+
+    @staticmethod
     def _validate_inputs(values):
         """展開済み対象列の名前とNodeの混在を拒否する。
 
@@ -2979,7 +3255,7 @@ class Nodes:
             raise TypeError("Names and Node objects cannot be mixed in the same target collection")
 
     @staticmethod
-    def _calculation_results(method, functions, args, kwargs):
+    def _calculation_results(method, functions, args, kwargs, bindings=None):
         """get指定で計算値を返すsetterについて結果列が必要か判定する。
 
         Args:
@@ -2987,14 +3263,19 @@ class Nodes:
             functions (Sequence[callable]): 実際の呼出し先。
             args (Sequence[tuple]): 要素別の位置引数。
             kwargs (Sequence[dict]): 要素別のキーワード引数。
+            bindings (Sequence[inspect.BoundArguments | None] | None): 同じ呼出し内で
+                束縛済みの引数。Noneの要素と省略時はここで束縛する。
 
         Returns:
             bool: 少なくとも一つの対象がget指定で計算値を返す場合True。
         """
         if method not in Nodes._calculating_setters:
             return False
-        return any(inspect.signature(fn).bind(*row, **flags).arguments.get("get", False)
-                   for fn, row, flags in zip(functions, args, kwargs))
+        if bindings is None:
+            bindings = [None] * len(functions)
+        return any((bound if bound is not None else inspect.signature(fn).bind(*row, **flags))
+                   .arguments.get("get", False)
+                   for fn, row, flags, bound in zip(functions, args, kwargs, bindings))
 
     def _execute_calls(self, method, functions, args, kwargs):
         """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。
@@ -3006,24 +3287,37 @@ class Nodes:
             kwargs: 処理先へ渡すキーワード引数の辞書。
         """
         fast_values = []
+        bindings = []
+        # signatureは同じ実メソッドで、束縛結果は同じ引数オブジェクトの組でこの呼出し内だけ共有する。
+        # 一括の共有呼出しでは全要素が同じ位置引数tuple・同じキーワード辞書を受け取るため、
+        # 要素ごとのinspect.signature/bindを省ける。呼出し後はどちらも保持しない。
+        signatures = {}
+        bound_cache = {}
         for function, row, flags in zip(functions, args, kwargs):
-            signature = inspect.signature(function)
+            signature = self._signature(function, signatures)
             parameter = signature.parameters.get("fast")
             if parameter is None:
                 fast_values.append(False)
+                bindings.append(None)
                 continue
-            bound = signature.bind(*row, **flags)
+            key = (function.__func__ if inspect.ismethod(function) else None, id(row), id(flags))
+            bound = bound_cache.get(key) if key[0] is not None else None
+            if bound is None:
+                bound = signature.bind(*row, **flags)
+                if key[0] is not None:
+                    bound_cache[key] = bound
             requested = bound.arguments.get("fast", parameter.default)
             if not isinstance(requested, bool):
                 raise TypeError("fast must be a bool")
             fast_values.append(requested)
+            bindings.append(bound)
         all_fast = bool(fast_values) and all(fast_values)
         # 全件fastの直接更新ではチャンクを作らず、通常・混在・空列は既存のUndo方針に従う。
         if self._bulk_undo and not all_fast:
             context = undoChunk("mlibBulk_" + method)
         else:
             context = contextlib.nullcontext()
-        calculating = self._calculation_results(method, functions, args, kwargs)
+        calculating = self._calculation_results(method, functions, args, kwargs, bindings)
         result = [] if calculating or self._bulk_returns[method] != "self" else None
         with context:
             for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):

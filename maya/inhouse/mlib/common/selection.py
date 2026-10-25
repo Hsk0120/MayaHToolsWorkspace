@@ -36,6 +36,9 @@ class Selection:
         Raises:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
             RuntimeError: 名前が解決できない場合。
+
+        ノード名だけの文字列(「.」・ワイルドカードを含まないもの)は1つの選択リストへまとめて
+        解決するが、対応付けは文字列の順に行うため、保持順と重複の除き方は名前ごとの解決と同じ。
         """
         from ..plugs.plug import Plug as _InputPlug
         singles = (
@@ -52,6 +55,12 @@ class Selection:
         )
         if isinstance(items, singles):
             items = [items]
+        else:
+            items = list(items)
+        # ノード名(「.」もワイルドカードも含まない文字列)は、名前ごとに選択リストを作らずまとめて解決する。
+        # 対応付けられなかった名前とそれ以外の文字列は、従来どおり名前ごとの選択リストで解決する。
+        bulk_names = [item for item in items if isinstance(item, str) and _is_plain_node_name(item)]
+        bulk = iter(_resolve_names(bulk_names))
         resolved = []
         for item in items:
             if isinstance(item, Components):
@@ -61,6 +70,10 @@ class Selection:
             elif isinstance(item, (Node, Plug, Component)):
                 resolved.append(item)
             elif isinstance(item, str):
+                found = next(bulk) if _is_plain_node_name(item) else None
+                if found is not None:
+                    resolved.append(Node._wrap_resolved(found[0], found[1]))
+                    continue
                 selection = om2.MSelectionList()
                 selection.add(item)
                 resolved.extend(self._resolve(selection, item))
@@ -249,7 +262,7 @@ class Selection:
             if plug is not None and not plug.isNull:
                 # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
                 hint = name if selection.length() == 1 else None
-                mobject, path = _InputNode._selection_owner(selection, index, hint)
+                mobject, path = _InputNode._selection_owner(selection, index, hint, plug=True)
                 result.append(Plug(Node(path if path is not None else mobject), plug))
                 continue
             try:
@@ -300,3 +313,75 @@ class Selection:
             elif missing == "error":
                 raise RuntimeError("Selection contains a missing item")
         return names
+
+
+# まとめて解決するときに1つの選択リストへ続けて追加する名前の数。MSelectionList.add は追加のたびに
+# 既存の要素との重複を照合するため、全件を1つのリストへ追加すると件数の2乗に比例して遅くなる。
+_NAME_CHUNK = 16
+
+
+def _is_plain_node_name(name):
+    """ワイルドカード・アトリビュート・コンポーネントを含まない、ノード名だけの文字列か判定する。
+
+    Args:
+        name (str): 判定する名前。
+
+    Returns:
+        bool: 「.」「*」「?」のいずれも含まない空でない文字列なら True。
+    """
+    return bool(name) and "." not in name and "*" not in name and "?" not in name
+
+
+def _resolve_names(names, plugs=False):
+    """名前の列を、名前ごとに選択リストを作らずに解決する(ls・Selection の内部補助)。
+
+    ``_NAME_CHUNK`` 件ずつ同じ選択リストを使い回して追加し、追加で要素が丁度1つ増えた名前だけを
+    その要素へ対応付ける。対応付けは選択リストの並びではなく names の順に行うため、戻り値の順は
+    names と同じになる。次の名前は対応付けず None とし、呼出し元が従来の名前ごとの経路で解決する
+    (結果と例外は名前ごとの解決と同じになる)。
+
+    - 解決できない名前(存在しない・一意でない)。
+    - 同じリストに既にある要素と重複・統合されて要素が増えない名前(重複は統合せず、名前ごとに返す)。
+    - 複数の要素に一致する名前、ワイルドカード(「*」「?」)を含む名前。
+    - plugs が True で、要素がアトリビュート(MPlug)にならない名前(コンポーネントなど)。
+
+    Args:
+        names (Sequence[str]): 解決する名前。ノード名とアトリビュート名は混ぜずに渡す。
+        plugs (bool): True はアトリビュート名(「.」を含む名前)、False はノード名として対応付ける。
+
+    Returns:
+        list[tuple | None]: names と同じ長さの列。対応付けた名前は
+            ``(MObject, MDagPath | None, MPlug | None)``(DG ノードの DAG パスと、ノード名の MPlug は None)。
+    """
+    from ..nodes.node import Node as _InputNode
+    result = [None] * len(names)
+    selection = om2.MSelectionList()
+    for start in range(0, len(names), _NAME_CHUNK):
+        selection.clear()
+        added = []
+        for position in range(start, min(start + _NAME_CHUNK, len(names))):
+            name = names[position]
+            if "*" in name or "?" in name:
+                continue
+            before = selection.length()
+            try:
+                selection.add(name)
+            except RuntimeError:
+                continue
+            if selection.length() == before + 1:
+                added.append((position, before))
+        for position, index in added:
+            name = names[position]
+            if plugs:
+                try:
+                    mplug = selection.getPlug(index)
+                except (RuntimeError, TypeError):
+                    continue
+                if mplug.isNull:
+                    continue
+                mobject, dag_path = _InputNode._selection_owner(selection, index, name, plug=True)
+                result[position] = (mobject, dag_path, mplug)
+            else:
+                mobject, dag_path = _InputNode._selection_owner(selection, index, name)
+                result[position] = (mobject, dag_path, None)
+    return result

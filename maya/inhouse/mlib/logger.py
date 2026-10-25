@@ -1,7 +1,6 @@
 """標準 logging と Maya のメッセージ表示を連携する。"""
 
 import builtins
-import html
 import logging
 
 __all__ = [
@@ -83,6 +82,7 @@ class MayaHandler(logging.Handler):
             return
 
         try:
+            import html  # 通知時だけ使うため、import mlibの時間に含めない。
             import maya.cmds as cmds
             color = _VIEWPORT_COLORS.get(record.levelno, "#ff4d4d")
             cmds.inViewMessage(

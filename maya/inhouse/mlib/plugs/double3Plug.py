@@ -6,7 +6,7 @@ from contextlib import nullcontext
 import maya.api.OpenMaya as om2
 
 from ..core.attributeType import _convert_units
-from ..core.fastWrite import _require_supported_type
+from ..core.fastWrite import _require_supported_type, set_plug
 from ..decorator import undoChunk
 from ..maths import EulerRotate, Scale, Shear, Translate, Vector
 from .compoundPlug import CompoundPlug
@@ -46,9 +46,10 @@ class Double3Plug(CompoundPlug):
         if value_type is EulerRotate:
             order = int(self.getNode().getPlug("ro").get())
             # UIの角度単位に依存せず、値型はラジアンで構築する。
-            values = [self._child_at(index).mplug().asMAngle().asRadians() for index in range(3)]
+            values = [self._mplug.child(index).asMAngle().asRadians() for index in range(3)]
             return EulerRotate(*values, order=order)
-        return value_type(*(self._child_at(index).get() for index in range(3)))
+        # 子Plugラッパーを作らず、子のget()と同じ読取関数で3成分を読む。
+        return value_type(*self._child_values()[:3])
 
     def set(self, value, safe=False, *, unit="rad", uiUnits=False, fast=False):
         """このアトリビュートの3成分だけを書き込む。マトリクス経由の姿勢変更は行わない。
@@ -94,7 +95,17 @@ class Double3Plug(CompoundPlug):
                     value = self._ui_components(value)
                 values = self._set_components(value, unit)
                 self._require_writable()
-                super().set(values, safe=False, fast=fast)
+                if fast and super().set.__func__ is CompoundPlug.set:
+                    # CompoundPlug.set(fast)と同じ子数の検査と直接更新。参照の検証と全子の
+                    # 書込み可否は上で済んでいるため、set_plugでは型・範囲だけを検査する。
+                    if len(values) != self._mplug.numChildren():
+                        raise ValueError("Compound plug value length does not match its child count")
+                    set_plug(self._mplug, values, _writable_checked=True)
+                elif fast:
+                    super().set(values, safe=False, fast=fast)
+                else:
+                    # 書込み可否は確認済みのため、親への1回のsetAttrを試す。
+                    self._set_child_values(values, writable_checked=True)
             except NotImplementedError:
                 raise
             except (RuntimeError, TypeError, ValueError):

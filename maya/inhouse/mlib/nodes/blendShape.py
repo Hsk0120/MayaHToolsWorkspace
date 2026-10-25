@@ -437,8 +437,13 @@ class BlendShape(Node):
             count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
             values = self._vertex_values(weights, count)
             path = self._group_path(bi, index) + ".targetWeights"
-            for vertex, value in values.items():
-                self.getPlug(path)[vertex].set(value, fast=fast)
+            # 配列Plugは頂点ごとに名前から解決し直さず、最初の書込みの直前に1回だけ解決する。
+            array = self.getPlug(path) if values else None
+            if fast:
+                for vertex, value in values.items():
+                    array[vertex].set(value, fast=True)
+                return self
+            self._set_weight_runs(array, values)
             return self
 
     def getTargetDeltas(self, target, base=None, full_weight=1.0):
@@ -802,6 +807,39 @@ class BlendShape(Node):
         """内部アトリビュートの完全名を作る。"""
         return self.getName() + "." + path
 
+    @staticmethod
+    def _set_weight_runs(array, values):
+        """無単位の数値配列の要素へ、指定順を保ってcmdsで書き込む。
+
+        指定順で番号が1ずつ増える区間は ``array[a:b]`` の範囲指定で1回のsetAttrにまとめる。
+        1要素の区間は従来どおり要素Plugのsetで書く。範囲指定はロック・入力接続などで拒否されると
+        範囲内のどの要素も更新しないため、その場合だけ同じ区間を要素Plugのsetで書き直し、
+        拒否された要素の手前まで更新してその要素の例外を送出する(要素ごとの書込みと同じ結果)。
+        Undoチャンクは呼出し側が管理する。
+
+        Args:
+            array (ArrayPlug): 書込み先の配列Plug。要素は無単位の数値アトリビュート。
+            values (dict[int, float]): 検証済みの論理番号と値。挿入順に書き込む。
+        """
+        runs = []
+        for index, value in values.items():
+            if runs and index == runs[-1][0] + len(runs[-1][1]):
+                runs[-1][1].append(value)
+            else:
+                runs.append((index, [value]))
+        name = None
+        for first, row in runs:
+            if len(row) == 1:
+                array[first].set(row[0])
+                continue
+            if name is None:
+                name = array.getFullName()
+            try:
+                cmds.setAttr(f"{name}[{first}:{first + len(row) - 1}]", *row)
+            except RuntimeError:
+                for position, value in enumerate(row):
+                    array[first + position].set(value)
+
     def _indices(self, path):
         """配列を確保せず既存の論理番号を取得する。"""
         return sorted(self.getPlug(path).mplug().getExistingArrayAttributeIndices())
@@ -852,7 +890,7 @@ class BlendShape(Node):
                 raise ValueError("Expected a transform with exactly one mesh shape")
             path = node.mpath()
             path.push(shapes[0])
-            node = Node(path)
+            node = Node._wrap_dag_path(path)
         if not node.mnode().hasFn(om2.MFn.kMesh):
             raise TypeError("This operation requires polygon mesh geometry")
         return node
@@ -1118,9 +1156,13 @@ class BlendShape(Node):
             if not fast and "6000" not in group["items"]:
                 cmds.removeMultiInstance(self._attr(self._item_path(int(bi), index, 6000)), b=True)
             path = self._group_path(int(bi), index) + ".targetWeights"
+            array = None
             for vertex, weight in enumerate(group["weights"]):
                 if weight != 1.0:
-                    self.getPlug(path)[vertex].set(weight, fast=fast)
+                    if array is None:
+                        # 頂点ごとに名前から解決し直さず、最初の書込みの直前に1回だけ解決する。
+                        array = self.getPlug(path)
+                    array[vertex].set(weight, fast=fast)
         for item, metadata in data["inbetweens"].items():
             path = "inbetweenInfoGroup[{}].inbetweenInfo[{}]".format(index, item)
             for attr, metadata_value in metadata.items():

@@ -105,12 +105,15 @@ def check_range(plug, value, _fn=None):
             raise RuntimeError("Value outside attribute limits: " + plug.name())
 
 
-def _prepared_writes(plug, value):
+def _prepared_writes(plug, value, writable_checked=False):
     """全成分の型・制限を更新前に検査し、直接書込みの列を組み立てる。
 
     Args:
         plug (om2.MPlug): 書込み先。
         value (object): 内部単位の入力値。
+        writable_checked (bool): Trueなら、呼出し元が同じ更新の直前に自身と全子へ
+            :func:`writable` を適用済みとして、ここでは書込み可否を調べ直さない。
+            型・値・範囲の検査は省かない。
 
     Returns:
         list[tuple]: setter・プラグ・変換済み値・書込み終了まで保持するfunction setの列。
@@ -127,14 +130,15 @@ def _prepared_writes(plug, value):
         fn = om2.MFnNumericAttribute(attribute)
     else:
         fn = om2.MFnAttribute(attribute)
-    writable(plug, fn)
+    if not writable_checked:
+        writable(plug, fn)
     if plug.isCompound:
         values = tuple(value)
         if len(values) != plug.numChildren():
             raise ValueError("Compound value length mismatch")
         writes = []
         for i, item in enumerate(values):
-            writes.extend(_prepared_writes(plug.child(i), item))
+            writes.extend(_prepared_writes(plug.child(i), item, writable_checked))
         return writes
     owner = None
     if unit:
@@ -160,7 +164,7 @@ def _prepared_writes(plug, value):
     return [(setter, plug, result, owner)]
 
 
-def set_plug(plug, value):
+def set_plug(plug, value, _writable_checked=False):
     """全成分を事前検証してMPlugへ設定する。Undoには記録しない。
 
     型・書込み可否・ハード範囲を確認し、型付きデータを構築してから準備順に書き込む。
@@ -170,11 +174,13 @@ def set_plug(plug, value):
     Args:
         plug (om2.MPlug): 更新対象。
         value (object): 角度rad、距離cm、時間秒の値。
+        _writable_checked (bool): 内部用。呼出し元が直前に自身と全子の書込み可否を
+            :func:`writable` で検査済みならTrue。その検査だけを重ねて行わない。
 
     Raises:
         NotImplementedError: API 2.0で未対応の型の場合。更新前に拒否する。
     """
-    writes = _prepared_writes(plug, value)
+    writes = _prepared_writes(plug, value, _writable_checked)
     for setter, target, item, owner in writes:
         # データを受け渡すまで作成用function setを保持する。
         setter(target, item)

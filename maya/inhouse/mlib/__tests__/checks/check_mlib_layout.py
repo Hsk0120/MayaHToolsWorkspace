@@ -1,13 +1,16 @@
-"""mlib・mlib_* のレイアウト規則(import順・定数位置・空行・クラス内メンバー順)を検査・整形する。
+"""mlib・mlib_* の書式・入力検証・列挙・ファイル操作を検査する。
 
 規則の本文は docs/mlib-api-design.md「ファイル・クラスのレイアウト規則」。ast と tokenize だけを
 使うため通常の Python で実行でき、mlib や Maya を import しない。
 
 --check     規則違反を一覧表示する(違反があれば終了コード1)。
 --fix       import群の並び替え・クラス内メンバーの並び替え・空行の正規化を書き込む。
+            演算子等の空白・行末コメント・名前付きlambdaは検査のみで、自動修正しない。
 --snapshot  各ファイルの関数本文・import束縛・モジュール文・コメントを JSON に保存する。
 --compare   保存した JSON と現在のソースを比較し、差分があれば一覧表示して終了コード1。
 --outline   クラスのメンバー構成(分類・行範囲)を表示する。
+--fix-asserts TYPE  指定行の入力assertをTypeErrorまたはValueErrorへ変換する。
+                   対象ファイル1つと --line 行番号を必ず指定する。
 """
 import argparse
 import ast
@@ -48,7 +51,7 @@ DUNDER_FOLLOWERS = {
     "__reduce_ex__": (("__reduce__",), 1),
 }
 PREFIX_PAIRS = (("disconnect", "connect"), ("unlock", "lock"), ("hide", "show"), ("remove", "add"))
-INFORMATIONAL = {"L000", "L023"}
+INFORMATIONAL = {"L000", "L023", "L041", "L042"}
 DEFINITIONS = (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
 FUNCTIONS = (ast.FunctionDef, ast.AsyncFunctionDef)
 IMPORTS = (ast.Import, ast.ImportFrom)
@@ -893,12 +896,346 @@ def check_classes(src, violations):
                         cls.name, members[index].name, members[anchor].name)))
 
 
+def spacing_tokens(src):
+    """文字列内部を検査せず、隣接するコードのトークンを列挙する。
+
+    Python 3.12以降のf-stringも1つの文字列へまとめる。埋込み式の書式は対象外。
+    """
+    ignored = {tokenize.ENCODING, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT,
+               tokenize.DEDENT, tokenize.COMMENT, tokenize.ENDMARKER}
+    result = []
+    fstring_depth = 0
+    start = None
+    for tok in src.tokens:
+        if tok.type == FSTRING_START:
+            if fstring_depth == 0:
+                start = tok
+            fstring_depth += 1
+        elif tok.type == FSTRING_END:
+            fstring_depth -= 1
+            if fstring_depth == 0:
+                result.append(tokenize.TokenInfo(tokenize.STRING, "<f-string>",
+                                                 start.start, tok.end, start.line))
+        elif fstring_depth == 0 and tok.type not in ignored:
+            result.append(tok)
+    return result
+
+
+def ast_position(src, node, end=False):
+    """ASTのUTF-8バイト位置を、tokenizeと同じ文字位置へ変換する。"""
+    line = node.end_lineno if end else node.lineno
+    offset = node.end_col_offset if end else node.col_offset
+    column = len(src.lines[line - 1].encode("utf-8")[:offset].decode("utf-8"))
+    return line, column
+
+
+def default_equals(src, tokens):
+    """引数の既定値とキーワード指定の = に、型注釈の有無を対応させる。"""
+    equals = [tok for tok in tokens if tok.type == tokenize.OP and tok.string == "="]
+    result = {}
+
+    def record(start, value, annotated):
+        end = ast_position(src, value)
+        for tok in equals:
+            if start <= tok.start < end:
+                result[tok.start] = annotated
+
+    for node in ast.walk(src.tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            args = node.args
+            positional = args.posonlyargs + args.args
+            pairs = list(zip(positional[len(positional) - len(args.defaults):], args.defaults))
+            pairs.extend(zip(args.kwonlyargs, args.kw_defaults))
+            for arg, value in pairs:
+                if value is not None:
+                    record(ast_position(src, arg, end=True), value, arg.annotation is not None)
+        elif isinstance(node, ast.keyword) and node.arg is not None:
+            record(ast_position(src, node), node.value, False)
+    return result
+
+
+def token_gap(src, left, right):
+    """同じ行で隣り合うトークン間の空白を返す。改行をまたぐ場合はNone。"""
+    if left is None or right is None or left.end[0] != right.start[0]:
+        return None
+    return src.lines[left.end[0] - 1][left.end[1]:right.start[1]]
+
+
+def check_spacing(src, violations):
+    """代入・比較、カンマ・括弧、引数指定、行末コメントの空白を検査する。"""
+    tokens = spacing_tokens(src)
+    defaults = default_equals(src, tokens)
+    operators = {"=", "+=", "-=", "*=", "/=", "//=", "%=", "**=", "@=",
+                 "&=", "|=", "^=", ">>=", "<<=", ":=", "==", "!=", "<", ">", "<=", ">="}
+    for index, tok in enumerate(tokens):
+        left = tokens[index - 1] if index else None
+        right = tokens[index + 1] if index + 1 < len(tokens) else None
+        before = token_gap(src, left, tok)
+        after = token_gap(src, tok, right)
+        if tok.type == tokenize.OP and tok.start in defaults:
+            expected = " " if defaults[tok.start] else ""
+            if any(gap is not None and gap != expected for gap in (before, after)):
+                message = "型注釈付き既定値の = の前後は空白1つ" if expected else "引数の既定値・キーワード指定の = の前後は空白なし"
+                violations.append(Violation(src.path, tok.start[0], "L032", message))
+        elif ((tok.type == tokenize.OP and tok.string in operators)
+              or (tok.type == tokenize.NAME and tok.string in {"is", "in"})
+              or (tok.type == tokenize.NAME and tok.string == "not"
+                  and ((left is not None and left.string == "is")
+                       or (right is not None and right.string == "in")))):
+            if any(gap is not None and gap != " " for gap in (before, after)):
+                violations.append(Violation(src.path, tok.start[0], "L030",
+                                            "代入・比較演算子 {} の前後は空白1つ".format(tok.string)))
+        if tok.type != tokenize.OP:
+            continue
+        if tok.string == "," and after is not None and right.string not in {")", "]", "}"} and after != " ":
+            violations.append(Violation(src.path, tok.start[0], "L031", "カンマの後は空白1つ"))
+        if ((tok.string in {"(", "[", "{"} and after)
+                or (tok.string in {")", "]", "}"} and before)):
+            violations.append(Violation(src.path, tok.start[0], "L031", "括弧の内側に不要な空白を置かない"))
+    fstring_depth = 0
+    for tok in src.tokens:
+        if tok.type == FSTRING_START:
+            fstring_depth += 1
+        elif tok.type == FSTRING_END:
+            fstring_depth -= 1
+        if fstring_depth:
+            continue
+        if tok.type != tokenize.COMMENT:
+            continue
+        prefix = src.lines[tok.start[0] - 1][:tok.start[1]]
+        if not prefix.strip():
+            continue
+        gap = prefix[len(prefix.rstrip()):]
+        if len(gap) < 2 or gap.strip(" "):
+            violations.append(Violation(src.path, tok.start[0], "L033", "行末コメントの前は空白2つ以上"))
+        # #: はSphinxの説明コメント。# : へ変えると説明として認識されなくなる。
+        if not tok.string.startswith(("# ", "#:")):
+            violations.append(Violation(src.path, tok.start[0], "L033", "行末コメントの # の後は空白1つ"))
+
+
+def check_named_lambdas(src, violations):
+    """名前へ直接代入するlambdaだけを検出し、コールバック引数等は許可する。"""
+    pending = [src.tree]
+    while pending:
+        node = pending.pop()
+        if isinstance(node, ast.JoinedStr):
+            continue
+        pending.extend(ast.iter_child_nodes(node))
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+            targets = [node.target]
+        else:
+            continue
+        if isinstance(node.value, ast.Lambda) and any(isinstance(target, ast.Name) for target in targets):
+            violations.append(Violation(src.path, node.lineno, "L034", "名前付き関数はlambdaの代入ではなくdefで定義する"))
+
+
+def public_input_asserts(src):
+    """公開入口の冒頭で引数に直接触れるassertを、入力検証の候補として返す。
+
+    テスト、内部関数、self/clsだけの確認、処理開始後のassertは対象外。
+    任意の関数内データフローや、入力検証と内部整合性の完全な判別は行わない。
+    """
+    if (src.path.name.startswith("test_")
+            or src.path.name.startswith("_") and src.path.name != "__init__.py"
+            or {"__tests__", "tests"} & set(src.path.parts)):
+        return []
+    result = []
+
+    def visit(body):
+        for item in body:
+            if isinstance(item, ast.ClassDef) and not item.name.startswith("_"):
+                visit(item.body)
+            elif isinstance(item, FUNCTIONS) and (not item.name.startswith("_")
+                                                  or item.name in {"__init__", "__new__"}):
+                args = item.args
+                inputs = {arg.arg for arg in args.posonlyargs + args.args + args.kwonlyargs}
+                inputs.update(arg.arg for arg in (args.vararg, args.kwarg) if arg is not None)
+                inputs -= {"self", "cls"}
+                for stmt in item.body:
+                    if is_docstring(stmt):
+                        continue
+                    if not isinstance(stmt, ast.Assert):
+                        break
+                    if names_in(stmt.test) & inputs:
+                        result.append(stmt)
+    visit(src.tree.body)
+    return result
+
+
+def rewrite_input_asserts(src, line_numbers, error_type):
+    """選んだ入力assertだけを変換し、行の共有・コメント等は書換え前に拒否する。"""
+    if error_type not in {"TypeError", "ValueError"}:
+        raise ValueError("例外型はTypeErrorまたはValueErrorを指定してください")
+    for node in ast.walk(src.tree):
+        if ((isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store) and node.id == error_type)
+                or (isinstance(node, ast.arg) and node.arg == error_type)
+                or (isinstance(node, DEFINITIONS) and node.name == error_type)
+                or (isinstance(node, IMPORTS) and any((alias.asname or alias.name.split(".")[0]) == error_type for alias in node.names))):
+            raise ValueError("選択した例外名がソース内で再定義されているため、手動で修正してください")
+    candidates = {node.lineno: node for node in public_input_asserts(src)}
+    if not line_numbers or any(line not in candidates for line in line_numbers):
+        raise ValueError("--lineにはL040で報告された入力assertの行を指定してください")
+    reps = []
+    for line in sorted(set(line_numbers)):
+        node = candidates[line]
+        _, column = ast_position(src, node)
+        _, end_column = ast_position(src, node, end=True)
+        indent = src.lines[line - 1][:column]
+        if indent.strip() or src.lines[node.end_lineno - 1][end_column:].strip():
+            raise ValueError("他の文・行末コメントと同じ行のassertは手動で修正してください")
+        if any(tok.type == tokenize.COMMENT and line <= tok.start[0] <= node.end_lineno
+               for tok in src.tokens):
+            raise ValueError("コメントを含むassertは手動で修正してください")
+        test = ast.unparse(node.test)
+        message = ast.unparse(node.msg) if node.msg is not None else ""
+        reps.append((line, node.end_lineno + 1,
+                     [indent + "if not (" + test + "):",
+                      indent + "    raise " + error_type + "(" + message + ")"]))
+    text = "\n".join(apply_replacements(list(src.lines), reps)) + "\n"
+    ast.parse(text, filename=str(src.path))
+    return text
+
+
+def check_simple_enumeration(src, violations):
+    """要素を読む単純なrange(len(name))を、enumerate検討候補として表示する。"""
+    for loop in ast.walk(src.tree):
+        if not isinstance(loop, ast.For) or not isinstance(loop.target, ast.Name):
+            continue
+        outer = loop.iter
+        if not (isinstance(outer, ast.Call) and isinstance(outer.func, ast.Name)
+                and outer.func.id == "range" and len(outer.args) == 1 and not outer.keywords):
+            continue
+        inner = outer.args[0]
+        if not (isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name)
+                and inner.func.id == "len" and len(inner.args) == 1
+                and not inner.keywords and isinstance(inner.args[0], ast.Name)):
+            continue
+        sequence = inner.args[0].id
+        reads = False
+        unsafe = False
+        for stmt in loop.body:
+            for node in ast.walk(stmt):
+                if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Name) and node.value.id == sequence:
+                    if (not isinstance(node.ctx, ast.Load) or not isinstance(node.slice, ast.Name)
+                            or node.slice.id != loop.target.id):
+                        unsafe = True
+                    else:
+                        reads = True
+                if isinstance(node, ast.Name) and node.id in {sequence, loop.target.id} and isinstance(node.ctx, (ast.Store, ast.Del)):
+                    unsafe = True
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name) and node.func.value.id == sequence:
+                    unsafe = True
+        if reads and not unsafe:
+            violations.append(Violation(src.path, loop.lineno, "L041",
+                                        "確認候補: {}の番号と要素はenumerateで取得できるか確認する（自動修正なし）".format(sequence)))
+
+
+def scope_nodes(root):
+    """入れ子の関数・クラスへ入らず、1つのスコープ内のASTを列挙する。"""
+    pending = list(reversed(root.body))
+    while pending:
+        node = pending.pop()
+        yield node
+        if not isinstance(node, DEFINITIONS + (ast.Lambda,)):
+            pending.extend(reversed(list(ast.iter_child_nodes(node))))
+
+
+def check_file_operations(src, violations):
+    """既知のファイルAPIの文字コードと、os.pathの置換候補を静的に確認する。
+
+    パスの文字列形式から推測せず、importとPath生成・型注釈で分かる対象に限る。
+    """
+    imports = {}
+    for node in src.tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports[alias.asname or alias.name.split(".")[0]] = alias.name if alias.asname else alias.name.split(".")[0]
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            for alias in node.names:
+                imports[alias.asname or alias.name] = (node.module or "") + "." + alias.name
+
+    def qualified(node):
+        if isinstance(node, ast.Name):
+            if node.id in imports and node.id in shadowed:
+                return ""
+            return imports.get(node.id, node.id)
+        if isinstance(node, ast.Attribute):
+            return qualified(node.value) + "." + node.attr
+        return ""
+
+    scopes = [src.tree] + [node for node in ast.walk(src.tree) if isinstance(node, DEFINITIONS)]
+    for scope in scopes:
+        nodes = list(scope_nodes(scope))
+        paths = set()
+        shadowed = {node.id for node in nodes if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)}
+        shadowed.update(node.name for node in nodes if isinstance(node, DEFINITIONS))
+        if isinstance(scope, FUNCTIONS):
+            args = scope.args
+            arguments = args.posonlyargs + args.args + args.kwonlyargs
+            arguments += [arg for arg in (args.vararg, args.kwarg) if arg is not None]
+            shadowed.update(arg.arg for arg in arguments)
+            paths.update(arg.arg for arg in arguments if arg.annotation is not None and qualified(arg.annotation) == "pathlib.Path")
+
+        def is_path(node):
+            return ((isinstance(node, ast.Name) and node.id in paths)
+                    or (isinstance(node, ast.Call) and qualified(node.func) == "pathlib.Path")
+                    or (isinstance(node, ast.Attribute) and node.attr == "parent" and is_path(node.value))
+                    or (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) and is_path(node.left)))
+
+        for node in nodes:
+            if isinstance(node, (ast.Assign, ast.AnnAssign)):
+                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+                for target in targets:
+                    if isinstance(target, ast.Name):
+                        if node.value is not None and is_path(node.value):
+                            paths.add(target.id)
+                        else:
+                            paths.discard(target.id)
+            if not isinstance(node, ast.Call):
+                continue
+            name = qualified(node.func)
+            if name in {"os.path.join", "os.path.dirname", "os.path.basename"}:
+                violations.append(Violation(src.path, node.lineno, "L042",
+                                            "確認候補: {}をpathlibで表せるか確認する（ファイルパスのみ・自動修正なし）".format(name)))
+            encoding_index = None
+            mode_index = None
+            if name in {"open", "io.open"} and not (isinstance(node.func, ast.Name) and node.func.id in shadowed):
+                encoding_index, mode_index = 3, 1
+            elif isinstance(node.func, ast.Attribute) and is_path(node.func.value):
+                if node.func.attr == "open":
+                    encoding_index, mode_index = 2, 0
+                elif node.func.attr in {"read_text", "write_text"}:
+                    encoding_index = 0 if node.func.attr == "read_text" else 1
+            if (encoding_index is None or any(kw.arg is None for kw in node.keywords)
+                    or any(isinstance(arg, ast.Starred) for arg in node.args)):
+                continue
+            if mode_index is not None:
+                mode = next((kw.value for kw in node.keywords if kw.arg == "mode"),
+                            node.args[mode_index] if len(node.args) > mode_index else ast.Constant(value="r"))
+                if not isinstance(mode, ast.Constant) or not isinstance(mode.value, str) or "b" in mode.value:
+                    continue
+            encoding = next((kw.value for kw in node.keywords if kw.arg == "encoding"),
+                            node.args[encoding_index] if len(node.args) > encoding_index else None)
+            if encoding is None or isinstance(encoding, ast.Constant) and encoding.value is None:
+                violations.append(Violation(src.path, node.lineno, "L043",
+                                            "テキストファイルの文字コードをencodingで明示する（自動推測しない）"))
+
+
 def check_source(src):
     violations = []
     check_imports(src, violations)
     check_module(src, violations)
     check_blank_lines(src, violations)
     check_classes(src, violations)
+    check_spacing(src, violations)
+    check_named_lambdas(src, violations)
+    for node in public_input_asserts(src):
+        violations.append(Violation(src.path, node.lineno, "L040",
+                                    "入力検証候補: assertを型付きraiseへ変更する。内部整合性なら用途を個別確認する"))
+    check_simple_enumeration(src, violations)
+    check_file_operations(src, violations)
     violations.sort(key=lambda v: v.line)
     return violations
 
@@ -1035,7 +1372,26 @@ def main(argv=None):
     mode.add_argument("--snapshot", metavar="JSON", help="構造の要約を保存する")
     mode.add_argument("--compare", metavar="JSON", help="保存した要約と比較する")
     mode.add_argument("--outline", action="store_true", help="クラスのメンバー構成を表示する")
+    mode.add_argument("--fix-asserts", choices=("TypeError", "ValueError"),
+                      help="選んだ入力assertを、指定した例外型のraiseへ変換する")
+    parser.add_argument("--line", action="append", type=int, dest="assert_lines",
+                        help="--fix-assertsで修正するL040の行番号（繰り返し指定可）")
     args = parser.parse_args(argv)
+    if args.assert_lines and not args.fix_asserts:
+        parser.error("--lineは--fix-assertsと組み合わせて指定してください")
+    if args.fix_asserts:
+        if len(args.paths) != 1 or not Path(args.paths[0]).is_file() or not args.assert_lines:
+            parser.error("--fix-assertsには対象ファイル1つと--lineを指定してください")
+        path = Path(args.paths[0]).resolve()
+        source, eol, bom = load(path)
+        try:
+            fixed = rewrite_input_asserts(source, args.assert_lines, args.fix_asserts)
+        except ValueError as error:
+            print("修正中止: {}".format(error), file=sys.stderr)
+            return 1
+        write_source(path, fixed, eol, bom)
+        print("fixed input assertions: {} ({})".format(relative(path), args.fix_asserts))
+        return 0
     targets = [Path(p).resolve() for p in args.paths] if args.paths else [PACKAGE_ROOT]
     files = list(iter_files(targets))
     if args.check:

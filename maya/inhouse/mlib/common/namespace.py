@@ -178,10 +178,11 @@ class Namespace:
             return []
         # nodes.nodeもcommon.namespaceを参照するため、
         # 循環回避のためここで遅延 import する（mlib で意図的な相互依存の一つ）。
-        from ..nodes import Node
+        from ..nodes.node import Node, _resolve_node
 
         mobjects = om2.MNamespace.getNamespaceObjects(self._name, recurse) or []
-        return [Node(mobject) for mobject in mobjects]
+        # Node(mobject)と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
+        return [Node._wrap_resolved(*_resolve_node(mobject)) for mobject in mobjects]
 
     @undoChunk("mlibNamespaceSetCurrent")
     def setCurrent(self):

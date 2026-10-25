@@ -6,11 +6,71 @@ from typing import TYPE_CHECKING
 import maya.api.OpenMaya as om2
 
 from .eulerRotate import EulerRotate
-from .matrix import Matrix
+from .matrix import Matrix, _compose_into, _new, _xyz
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
 from .translate import Translate
+from .vector import _vector_of
+
+_MQuaternion = om2.MQuaternion
+_isfinite = math.isfinite
+#: 成分のコピーで、Python の ``__init__`` を通さずに同じ値を写す型と関数。
+#: いずれも ``cls(値)`` と同じ成分の代入(``setValue``)で、値はビット単位で一致する。
+_VECTOR_TYPES = (Translate, Scale, Shear)
+_WRAPPED_TYPES = (Quaternion, EulerRotate)
+
+
+def _copy_component(cls, value):
+    """保持成分を ``cls(value)`` と同じ値の独立したインスタンスへコピーする。
+
+    Args:
+        cls (type): 成分の型。
+        value (object): コピー元の保持成分。
+
+    Returns:
+        object: cls の新しいインスタンス。
+    """
+    if cls in _VECTOR_TYPES:
+        return _vector_of(cls, value)
+    if cls in _WRAPPED_TYPES:
+        return cls._wrap(value)
+    return cls(value)
+
+
+def _translation_matrix(value):
+    """``Matrix(translate=value)`` と同じ要素の平行移動マトリクスを作る。
+
+    Matrix のコンストラクタの引数の解析を通さず、同じ書込み(:func:`~mlib.maths.matrix._compose_into`)を行う。
+
+    Args:
+        value (om2.MVector | Iterable[float]): 平行移動。
+
+    Returns:
+        Matrix: 新しいマトリクス。
+    """
+    return _compose_into(_new(Matrix), _xyz(value), None, None, None)
+
+
+def _rotation_matrix(rotation):
+    """``Matrix(rotate=rotation)`` と同じ要素の回転マトリクスを作る。
+
+    正規化と変換は ``Quaternion.normal().asMatrix()`` と同じ om2 の関数で、mlib の値への
+    包み直しだけを省く。
+
+    Args:
+        rotation (om2.MQuaternion): 回転。
+
+    Returns:
+        Matrix: 新しいマトリクス。
+
+    Raises:
+        ValueError: ゼロクォータニオンの場合。
+    """
+    if (rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z
+            + rotation.w * rotation.w == 0.0):
+        raise ValueError("Cannot normalize a zero quaternion")
+    return _compose_into(_new(Matrix), None, _MQuaternion.asMatrix(_MQuaternion.normal(rotation)), None, None)
 
 
 class Transformation:
@@ -76,32 +136,40 @@ class Transformation:
             **kwargs: Mayaの成分名または短縮名。角度はradian、距離はcm。
                 matrixと同時指定した補助成分は分解の条件として使う。
         """
-        object.__setattr__(self, "_values", {})
-        for name, cls in self._types.items():
-            self._values[name] = cls((1, 1, 1)) if name in ("scale", "inverseScale") else cls()
-        self._values["segmentScaleCompensate"] = True
+        values = {}
+        object.__setattr__(self, "_values", values)
         if isinstance(value, Transformation):
-            for name, val in value._values.items():
-                if name in self._types:
-                    self._values[name] = self._types[name](val)
+            # コピー元は全成分を持つため、既定値を作らずに同じ並びでコピーする。
+            source = value._values
+            for name, cls in self._types.items():
+                if name in source:
+                    values[name] = _copy_component(cls, source[name])
                 else:
-                    self._values[name] = val
-        elif isinstance(value, om2.MTransformationMatrix):
-            space = om2.MSpace.kTransform
-            components = dict(translate=value.translation(space), rotate=value.rotation(),
-                              scale=value.scale(space), shear=value.shear(space),
-                              rotateAxis=value.rotationOrientation(),
-                              rotatePivot=tuple(value.rotatePivot(space))[:3],
-                              rotatePivotTranslate=value.rotatePivotTranslation(space),
-                              scalePivot=tuple(value.scalePivot(space))[:3],
-                              scalePivotTranslate=value.scalePivotTranslation(space))
-            for name, item in components.items():
-                setattr(self, name, item)
-        elif value is not None:
-            kwargs = dict(kwargs)
-            if "matrix" in kwargs or "m" in kwargs:
-                raise TypeError("Matrix input was specified twice")
-            kwargs["matrix"] = value
+                    values[name] = self._default(name, cls)
+            values["segmentScaleCompensate"] = source.get("segmentScaleCompensate", True)
+            for name, val in source.items():
+                if name not in values:
+                    values[name] = val
+        else:
+            for name, cls in self._types.items():
+                values[name] = self._default(name, cls)
+            values["segmentScaleCompensate"] = True
+            if isinstance(value, om2.MTransformationMatrix):
+                space = om2.MSpace.kTransform
+                components = dict(translate=value.translation(space), rotate=value.rotation(),
+                                  scale=value.scale(space), shear=value.shear(space),
+                                  rotateAxis=value.rotationOrientation(),
+                                  rotatePivot=tuple(value.rotatePivot(space))[:3],
+                                  rotatePivotTranslate=value.rotatePivotTranslation(space),
+                                  scalePivot=tuple(value.scalePivot(space))[:3],
+                                  scalePivotTranslate=value.scalePivotTranslation(space))
+                for name, item in components.items():
+                    setattr(self, name, item)
+            elif value is not None:
+                kwargs = dict(kwargs)
+                if "matrix" in kwargs or "m" in kwargs:
+                    raise TypeError("Matrix input was specified twice")
+                kwargs["matrix"] = value
         normalized = {}
         for name, val in kwargs.items():
             name = self._aliases.get(name, name)
@@ -274,6 +342,25 @@ class Transformation:
         return all(all(abs(a - b) <= tolerance for a, b in zip(self._values[n], other._values[n])) for n in self._types)
 
     @staticmethod
+    def _default(name, cls):
+        """成分の既定値を返す。
+
+        Args:
+            name (str): 成分名。
+            cls (type): 成分の型。
+
+        Returns:
+            object: scale・inverseScaleは(1, 1, 1)、それ以外はゼロ・単位の新しい値。
+        """
+        if cls in _VECTOR_TYPES or cls in _WRAPPED_TYPES:
+            # 各型の __new__ は om2 の既定値(ゼロ・単位・XYZ順)を確保する。cls() と同じ値。
+            value = cls.__new__(cls)
+            if name in ("scale", "inverseScale"):
+                value.x = value.y = value.z = 1.0
+            return value
+        return cls((1, 1, 1)) if name in ("scale", "inverseScale") else cls()
+
+    @staticmethod
     def _quaternion(value):
         """EulerまたはQuaternionを有限な単位Quaternionへコピーする。
 
@@ -289,22 +376,47 @@ class Transformation:
 
     def _compensation(self):
         """有効な逆スケール補正マトリクスを返す。"""
-        if not self.segmentScaleCompensate:
-            return Matrix()
-        if any(abs(v) <= 1e-15 for v in self.inverseScale):
+        values = self._values
+        if not values["segmentScaleCompensate"]:
+            return _new(Matrix)
+        x, y, z = values["inverseScale"]
+        if abs(x) <= 1e-15 or abs(y) <= 1e-15 or abs(z) <= 1e-15:
             raise ValueError("inverseScale must be nonzero while SSC is enabled")
-        return Matrix(scale=tuple(1.0 / v for v in self.inverseScale))
+        # Matrix(scale=...) と同じ書込み(引数の解析だけを省く)。
+        return _compose_into(_new(Matrix), None, None, (1.0 / x, 1.0 / y, 1.0 / z), None)
+
+    def _require_finite(self):
+        """保持する数学成分がすべて有限か確かめる。
+
+        Raises:
+            ValueError: 非有限の成分がある場合。
+        """
+        values = self._values
+        for name in self._types:
+            value = values[name]
+            if not (_isfinite(value.x) and _isfinite(value.y) and _isfinite(value.z)
+                    and (not isinstance(value, _MQuaternion) or _isfinite(value.w))):
+                raise ValueError("Transformation components must be finite")
 
     def _compose(self):
-        """Mayaの順序でピボット・回転・SSCを含むマトリクスを合成する。"""
-        if any(not math.isfinite(value) for name in self._types for value in self._values[name]):
-            raise ValueError("Transformation components must be finite")
-        sp, rp = self.scalePivot, self.rotatePivot
-        rotation = self.rotateAxis * self.quaternion * self.jointOrient
-        return (Matrix(translate=-sp) * Matrix(scale=self.scale, shear=self.shear)
-                * Matrix(translate=sp + self.scalePivotTranslate - rp)
-                * Matrix(rotate=rotation) * Matrix(translate=rp + self.rotatePivotTranslate)
-                * self._compensation() * Matrix(translate=self.translate))
+        """Mayaの順序でピボット・回転・SSCを含むマトリクスを合成する。
+
+        各マトリクスは ``Matrix(translate=...)`` 等と同じ書込み、回転は
+        ``rotateAxis * quaternion * jointOrient`` と同じ om2 の積で作る(値は同じ)。
+        """
+        self._require_finite()
+        values = self._values
+        sp, rp = values["scalePivot"], values["rotatePivot"]
+        # Quaternion.__mul__ と同じく、左辺のコピーへ右辺を順に掛ける。
+        quaternion = Quaternion._wrap(values["rotate"])
+        rotation = Quaternion._wrap(values["rotateAxis"])
+        _MQuaternion.__imul__(rotation, quaternion)
+        _MQuaternion.__imul__(rotation, values["jointOrient"])
+        return (_translation_matrix(-sp)
+                * _compose_into(_new(Matrix), None, None, _xyz(values["scale"]), _xyz(values["shear"]))
+                * _translation_matrix(sp + values["scalePivotTranslate"] - rp)
+                * _rotation_matrix(rotation) * _translation_matrix(rp + values["rotatePivotTranslate"])
+                * self._compensation() * _translation_matrix(values["translate"]))
 
     def _set_matrix(self, value):
         """補助成分を条件にマトリクスからTRS・シアーを求める。

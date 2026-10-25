@@ -15,7 +15,8 @@ class BacklogContractsTest(unittest.TestCase):
         undo = importlib.import_module('mlib.decorator')
         logger = importlib.import_module('mlib.logger')
         error = ValueError('primary')
-        with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[None, RuntimeError('close')]), mock.patch.object(logger, 'warning') as warning:
+        # 1回目はUndo状態の問い合わせ(有効)、2回目が開く、3回目が閉じる。
+        with mock.patch.object(undo.cmds, 'undoInfo', side_effect=[True, None, RuntimeError('close')]), mock.patch.object(logger, 'warning') as warning:
             with self.assertRaises(ValueError) as caught:
                 with undo.undoChunk():
                     raise error

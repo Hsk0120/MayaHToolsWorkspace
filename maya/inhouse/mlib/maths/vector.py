@@ -768,7 +768,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 演算結果を保持する新しいmlib値。
         """
-        return Vector(_MVector.normal(self, *args))
+        return _vector_of(Vector, _MVector.normal(self, *args))
 
     def rotateBy(self, *args):
         """OpenMayaの回転規則でXYZベクトルを回し、独立したVectorを返す。
@@ -784,7 +784,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 基底Vectorの新しい値。派生型や追加Python状態は引き継がない。
         """
-        return Vector(_MVector.rotateBy(self, *args))
+        return _vector_of(Vector, _MVector.rotateBy(self, *args))
 
     def rotateTo(self, *args):
         """自身の方向から指定した方向へ向けるQuaternionを返す。
@@ -812,7 +812,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 演算結果を保持する新しいmlib値。
         """
-        return Vector(_MVector.transformAsNormal(self, *args))
+        return _vector_of(Vector, _MVector.transformAsNormal(self, *args))
 
     def unitIt(self):
         """ゼロ値を拒否して自身を正規化する。

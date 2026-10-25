@@ -89,7 +89,10 @@ class ObjectSet(Node):
     def isMember(self, member):
         """指定入力の全要素が、このセットの直接メンバーに含まれるか調べる。
 
-        入力を選択リストへ解決し、各DAG/Plug/ComponentをhasItem()で照合する。
+        入力を選択リストへ解決し、各要素をアトリビュート(MPlug)、DAG/コンポーネント
+        (DAGパスとコンポーネント)、DGノード(MObject)の順に取り出してhasItem()で照合する。
+        DGノード・DGノードのアトリビュート・DAGノードのアトリビュートも
+        ``cmds.sets(member, isMember=set)`` と同じ結果になる。
         入れ子セットを展開した集合を使わず、名前文字列だけで同一性を判定しない。
 
         Args:
@@ -103,12 +106,16 @@ class ObjectSet(Node):
         query.add(_InputObject._input_name(member))
         members = om2.MFnSet(self.mnode()).getMembers(False)
         for index in range(query.length()):
+            # getComponent は DG ノードやアトリビュートの要素で RuntimeError ではなく TypeError を出し、
+            # getPlug はノードの要素で空の MPlug を返す。両方を判定して要素の種類を選ぶ。
             try:
-                item = query.getComponent(index)
-            except RuntimeError:
+                item = query.getPlug(index)
+            except (RuntimeError, TypeError):
+                item = None
+            if item is None or item.isNull:
                 try:
-                    item = query.getPlug(index)
-                except RuntimeError:
+                    item = query.getComponent(index)
+                except (RuntimeError, TypeError):
                     item = query.getDependNode(index)
             if not members.hasItem(item):
                 return False

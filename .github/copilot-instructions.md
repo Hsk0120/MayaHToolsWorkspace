@@ -2,6 +2,12 @@
 
 ## 基本方針
 
+- 2026-10-25のユーザー指定により、公開APIの入力検証はassertでなく型付きraiseを使う（テスト・内部整合性のassertは可）。単純な番号/要素の列挙はenumerate、ファイルパスはpathlib、テキストI/Oは明示encodingを基本とする。既存layoutのL040/L043で入力assert候補/文字コード未指定、L041/L042で列挙/pathlibの確認候補を表示する。assertの修正は`--fix-asserts TypeError/ValueError`と対象ファイル・`--line`を明示し、例外型や文字コードを自動推測しない。MayaのDAG名・添字更新・テスト/内部assertを一律変換しない。検出範囲と修正条件は`docs/mlib-api-design.md`の「入力検証・列挙・ファイル操作」を参照する。
+
+- 2026-10-25のユーザー指定により、代入・複合代入・比較演算子の前後は空白1つ、同じ行で次の項目が続くカンマの後は空白1つ、括弧内側は不要な空白なしとする。型注釈なしの既定値・キーワード指定は`fast=False`、型注釈付きの既定値は`fast: bool = False`。行末コメントの前は空白2つ以上、`#`の後は空白1つ（Sphinxの`#:`記法は維持）。名前へ直接代入するlambdaは通常のdefにし、コールバック引数等のlambdaは許可する。既存layoutの`--check`（L030〜L034）で検査し、この5項目は`--fix`で自動修正しない。詳細と対象外は`docs/mlib-api-design.md`を参照する。
+
+- 2026-10-25のユーザー指定により、mlib・`mlib_*`のimportは原則モジュールdocstringの後、定数・関数・クラス定義の前にまとめる。`from __future__`は通常importより先。標準ライブラリ → Maya等の外部 → mlib内部（相対import・`mlib.*`、拡張では自パッケージも含む）の順に分類し、グループ間に空行1行を置く。関数内importは循環参照・任意依存・Maya非依存の維持など必要な理由がある場合だけ使い、直前に短い理由コメントを付ける（同じ理由の連続したimport群は1つでよい）。`import os, sys`は分離し、`from x import A, B`は許可、`from x import *`は禁止。インデントはスペース4、末尾空白なし、長い式は原則括弧内で改行する。reload・型登録等の初期化順、`TYPE_CHECKING`、対応Python構文と文字列データは保持し、一律にimportを移動しない。詳細は`docs/mlib-api-design.md`の「ファイル・クラスのレイアウト規則」を正とする。
+
 - mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
 
 - 2026-10-23のユーザー指示により、`_core`は`core`へ改名し、実行フォルダ名で公開/非公開を区分しない。正式なAPIは通常の明示import・`__all__`・文書で示し、集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。`core`内の全関数を正式APIへ拡大せず、既存の`NodeRegistry`・`reload_package`と登録用プロトコルの名前・意味を維持する。旧`mlib._core`や移動前のcommon小モジュールの互換ファイル・別名は残さない。`_docs`・`__tests__`は実行APIと別の文書・検証素材なので配置名を維持する。

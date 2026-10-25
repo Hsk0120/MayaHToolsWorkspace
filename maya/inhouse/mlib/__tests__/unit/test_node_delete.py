@@ -25,8 +25,9 @@ class NodeDeleteTest(unittest.TestCase):
         root = mlib.createNode('transform', skipSelect=True)
         child = mlib.createNode('transform', parent=root, skipSelect=True)
         names = [root.getFullName(), child.getFullName()]
-        original = mlib.nodes.Node.delete
-        with patch.object(mlib.nodes.Node, 'delete', autospec=True, side_effect=original) as method:
+        # 2026-10-26 の削除の一括化で、各Node.deleteへの委譲から1回のcmds.deleteへ変わった。
+        # 重複・親子を含めてもMayaの1回の削除にまとめることを確かめる。
+        with patch.object(cmds, 'delete', wraps=cmds.delete) as method:
             mlib.delete([root, child, root])
             self.assertEqual(method.call_count, 1)
         self.assertTrue(all(not cmds.objExists(name) for name in names))

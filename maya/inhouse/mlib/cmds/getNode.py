@@ -33,6 +33,9 @@ def getNode(value):
             含めて複数の対象に一致する)場合、または空・削除済みのラッパーや om2 オブジェクトを
             指定した場合。
     """
-    from ..nodes import Node
+    from ..nodes.node import Node, _resolve_node
 
+    if isinstance(value, str):
+        # Node(value) と同じ解決・型選択を、生成の入口の再判定なしで行う。
+        return Node._wrap_resolved(*_resolve_node(value))
     return Node(value)

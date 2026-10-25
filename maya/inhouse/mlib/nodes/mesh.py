@@ -13,7 +13,7 @@ from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core.fastWrite import writable
 from ..decorator import undoTransaction
-from ..maths.vector import Vector
+from ..maths.vector import Vector, _vector_of
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
 from .shape import Shape
@@ -291,7 +291,8 @@ class Mesh(Shape):
             worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-        return [Vector(value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
+        # MFloatVectorはom2の多重定義の解決を通さず、成分を写して同じ値のVectorにする。
+        return [_vector_of(Vector, value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
 
     def getVertexAdjacency(self, worldSpace=_UNSET, *, ws=_UNSET):
         """頂点IDごとの隣接頂点とエッジ長を照会する。

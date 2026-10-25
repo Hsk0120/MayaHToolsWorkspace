@@ -11,7 +11,7 @@ from ..core.attributeType import _convert_units
 from ..core.fastWrite import _require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object
-from ..decorator import undoChunk
+from ..decorator import _undo_recording, undoChunk
 from ..util import _ArgumentError, _UNSET
 
 #: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
@@ -165,10 +165,6 @@ class Plug(Object):
                 ない node を渡した誤用)。
         """
         if cls is Plug:
-            # ArrayPlug/CompoundPlug との循環importを避けるため呼び出し時に遅延importする。
-            from .arrayPlug import ArrayPlug
-            from .compoundPlug import CompoundPlug
-
             handle = node._handle
             if handle is None or not handle.isValid():
                 raise RuntimeError("所有ノードが無効な(削除済みの)アトリビュートの Plug は作成できません")
@@ -177,7 +173,8 @@ class Plug(Object):
                 # attributeClass() では検出できないため、MPlug の所有ノードと比べる。
                 raise RuntimeError("MPlug は指定したノードのアトリビュートではありません(所有ノードを指定してください)")
             attribute = mplug.attribute()
-            attribute_class = _attribute_class(node, om2.MObjectHandle(attribute), attribute)
+            attribute_handle = om2.MObjectHandle(attribute)
+            attribute_class = _attribute_class(node, attribute_handle, attribute)
             if attribute_class == _INVALID_ATTRIBUTE:
                 raise RuntimeError("削除済みのアトリビュートの Plug は作成できません")
             if Plug._has_unresolved_index(mplug):
@@ -187,6 +184,8 @@ class Plug(Object):
                 )
             target = cls
             if mplug.isArray:
+                # ArrayPlug/CompoundPlug との循環importを避けるため、使う分岐で遅延importする。
+                from .arrayPlug import ArrayPlug
                 target = ArrayPlug
             else:
                 resolved_class = None
@@ -196,11 +195,13 @@ class Plug(Object):
                 if resolved_class is not None:
                     target = resolved_class
                 elif mplug.isCompound:
+                    from .compoundPlug import CompoundPlug
                     target = CompoundPlug
             # 選んだクラスの __new__ だけを呼び、__init__ は呼び出し元(Plug(...))の1回に任せる。
             instance = target.__new__(target, node, mplug) if target is not cls else super().__new__(cls)
-            # 静的アトリビュートかどうかの判定結果を __init__ へ引き継ぎ、判定を繰り返さない。
-            instance._pending_static_attribute = attribute_class == _NORMAL_ATTRIBUTE
+            # 静的アトリビュートかどうかの判定結果と、判定に使ったアトリビュートとハンドルを __init__ へ
+            # 引き継ぎ、判定と取得を繰り返さない(同じ mplug のアトリビュートなので __init__ で取り直す値と同じ)。
+            instance._pending_static_attribute = (attribute_class == _NORMAL_ATTRIBUTE, attribute, attribute_handle)
             return instance
         return super().__new__(cls)
 
@@ -220,12 +221,14 @@ class Plug(Object):
         self._mplug = om2.MPlug(mplug)
         self._identity_path = "." + mplug.partialName(includeNonMandatoryIndices=True, includeInstancedIndices=True)
         self._identity_hash = hash((hash(node), self._identity_path))
-        attribute = self._attribute = self._mplug.attribute()
-        # アトリビュートが破棄されたこと(Undo の対象から外れた削除)を検出するためのハンドル。
-        self._attribute_handle = om2.MObjectHandle(attribute)
         # 静的アトリビュートは削除されない(ノードが有効な間は常に存在する)ため、判定は一度だけ行う。
-        static = self.__dict__.pop("_pending_static_attribute", None)
-        if static is None:
+        pending = self.__dict__.pop("_pending_static_attribute", None)
+        if pending is not None:
+            static, self._attribute, self._attribute_handle = pending
+        else:
+            attribute = self._attribute = self._mplug.attribute()
+            # アトリビュートが破棄されたこと(Undo の対象から外れた削除)を検出するためのハンドル。
+            self._attribute_handle = om2.MObjectHandle(attribute)
             handle = node._handle
             static = (handle is not None and handle.isValid()
                       and _attribute_class(node, self._attribute_handle, attribute) == _NORMAL_ATTRIBUTE)
@@ -1680,7 +1683,9 @@ class Plug(Object):
                 raise RuntimeError("Attribute is locked: " + self.getFullName())
             # 配列親を先に解除する。親がロックされたまま空き番号を探すと
             # 全要素がロック扱いになり、探索が終わらなくなる。
-            with self._temporarily_unlocked_connection_path(force and unlock, fast=fast):
+            # 一時解除しない場合は何もしない区間なので、generatorを作らずnullcontextにする。
+            with (self._temporarily_unlocked_connection_path(True, fast=fast) if force and unlock
+                  else nullcontext()):
                 target = self
                 if self.isArray() and (nextAvailable or na):
                     def occupied(plug):
@@ -1698,11 +1703,13 @@ class Plug(Object):
                 current = target.getSource(skipConversionNodes=False)
                 if current is not None and current.getFullName() == src.getFullName():
                     raise RuntimeError("Already connected: " + src.getFullName() + " -> " + target.getFullName())
-                target_name = target.getFullName()
                 keep_self = target is self and not self.mplug().isNetworked
+                # fastで自身を返す場合、名前はエラー表示だけに使うので必要になるまで求めない。
+                target_name = None if fast and keep_self else target.getFullName()
                 if fast:
                     if current is not None and not force:
-                        raise RuntimeError("Destination already has an input: " + target_name)
+                        raise RuntimeError("Destination already has an input: "
+                                           + (target_name or target.getFullName()))
                     modifier = om2.MDGModifier()
                     if current is not None:
                         modifier.disconnect(current.mplug(), target.mplug())
@@ -1758,7 +1765,12 @@ class Plug(Object):
             source (Plug | om2.MPlug | str | None): srcの別名。同時指定は不可。
 
         Returns:
-            Plug | list[Plug]: 単一切断は取り直した入力元Plug（自身ではない）。配列検索は接続先要素のlist。
+            Plug | list[Plug]: 単一切断は切断した入力元Plug（自身ではない）。srcを渡した場合は
+                そのPlug(Plugならそのオブジェクト、MPlug・名前なら解決したPlug)、省略した場合は
+                切断前に現在の直接入力として取得したPlugを返し、名前から取り直さない。
+                接続由来(networked)のMPlugを持つ場合は、切断前に同じアトリビュートを指す
+                非networkedのMPlugへ持ち替える(自身も同様。切断後も安全に比較・使用できる)。
+                配列検索は接続先要素のlist。
 
         Raises:
             TypeError: srcがbool等の未対応型、長短名の競合、またはfastがbool以外の場合。
@@ -1791,20 +1803,30 @@ class Plug(Object):
                     target.disconnect(src, force=force or f, fast=fast)
                 return [Plug._resolve_input(name) for name in names]
             if src is None:
+                # 現在の直接入力はconnectedTo(True, False)の先頭なので、接続済みの再判定を省く。
                 src = self.getSource(skipConversionNodes=False)
-            if src is None:
-                raise RuntimeError("Input connection not found: " + self.getFullName())
-            if not self.isConnectedTo(src, src=True, dst=False):
-                raise RuntimeError("Input connection not found: " + self.getFullName())
-            source_name = src.getFullName()
-            with self._temporarily_unlocked_connection_path(force or f, fast=fast):
+                if src is None:
+                    raise RuntimeError("Input connection not found: " + self.getFullName())
+            else:
+                # isConnectedTo(src, src=True, dst=False)と同じ判定。自身の検証は済んでいる。
+                src._require_valid()
+                source_mplug = src.mplug()
+                if not any(connected == source_mplug for connected in self._mplug.connectedTo(True, False)):
+                    raise RuntimeError("Input connection not found: " + self.getFullName())
+            force = force or f
+            # 接続から得たMPlug(networked)は切断すると破棄され、後の比較・使用でMayaが異常終了する。
+            # 返すsrcと自身は、切断前に同じアトリビュートを指す非networkedのMPlugへ持ち替える。
+            src._mplug = Plug._unnetworked(src._mplug)
+            self._mplug = Plug._unnetworked(self._mplug)
+            with self._temporarily_unlocked_connection_path(True, fast=fast) if force else nullcontext():
                 if fast:
                     modifier = om2.MDGModifier()
                     modifier.disconnect(src.mplug(), self.mplug())
                     modifier.doIt()
                 else:
                     cmds.disconnectAttr(src.getFullName(), self.getFullName())
-            return Plug._resolve_input(source_name)
+            # 入力元は手元のPlugをそのまま返す(名前からの取り直しはしない)。
+            return src
 
     def disconnectAll(self, *, src=_UNSET, dst=_UNSET, fast=False, source=_UNSET, destination=_UNSET):
         """入力、次に出力の直接接続を解除する。ロックは解除しない。
@@ -1890,7 +1912,8 @@ class Plug(Object):
         self._require_valid()
         if uiUnits:
             value = _convert_units(self._mplug, value, to_ui=False)
-        if attributeType(self._mplug) is None:
+        # 数値・文字列はマトリクスの入力に当たらないため、型の判定(attributeType)を省く。
+        if not isinstance(value, (int, float, str)) and attributeType(self._mplug) is None:
             from ..maths import Matrix, Transformation
             if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix, Transformation))
                     or isinstance(value, (tuple, list)) and len(value) == 16):
@@ -2074,6 +2097,7 @@ class Plug(Object):
 
         未作成の配列要素は実体化しない。数値・単位・enumなど、
         共通の数値操作で表せるものだけを対象にする。
+        Undoが無効なら記録されないため、同値の書込み自体を省く。
         """
         mp = self._mplug
         current = mp
@@ -2093,6 +2117,8 @@ class Plug(Object):
         if (attribute.hasFn(om2.MFn.kNumericAttribute) or
                 attribute.hasFn(om2.MFn.kUnitAttribute) or
                 attribute.hasFn(om2.MFn.kEnumAttribute)):
+            if not _undo_recording():
+                return
             self.set(self.get())
 
     def _set_flags(self, leaf, *, fast=False, **flags):
@@ -2490,6 +2516,26 @@ class Plug(Object):
         return (dag_path if dag_path is not None else mobject), mplug
 
     @staticmethod
+    def _unnetworked(mplug):
+        """接続由来(networked)のMPlugを、同じアトリビュートを指す非networkedのMPlugにする。
+
+        networkedのMPlugは接続が解除されると破棄されるため、切断後も使う参照はこれに持ち替える。
+
+        Args:
+            mplug (om2.MPlug): 対象のMPlug。
+
+        Returns:
+            om2.MPlug: 非networkedならそのまま、networkedなら配列要素・子を辿って作り直したMPlug。
+        """
+        if not mplug.isNetworked:
+            return mplug
+        if mplug.isElement:
+            return Plug._unnetworked(mplug.array()).elementByLogicalIndex(mplug.logicalIndex())
+        if mplug.isChild:
+            return Plug._unnetworked(mplug.parent()).child(mplug.attribute())
+        return om2.MPlug(mplug.node(), mplug.attribute())
+
+    @staticmethod
     def _resolve_input(value):
         """対象を mlib の Plug インスタンスへ変換する。
 
@@ -2544,8 +2590,9 @@ class Plug(Object):
                 raise TypeError(f"アトリビュートを指す名前ではありません: {value}") from error
             owner, mplug = resolved
             return Plug(Node(owner), mplug)
-        mobject, dag_path = Node._selection_owner(selection, 0, value)
-        return Plug(Node(dag_path if dag_path is not None else mobject), mplug)
+        mobject, dag_path = Node._selection_owner(selection, 0, value, plug=True)
+        # 選択リストから取得したばかりの有効な所有ノードなので、Node(...) の入力解決を省いて同じ型で包む。
+        return Plug(Node._wrap_resolved(mobject, dag_path), mplug)
 
     def _attribute_exists(self):
         """アトリビュートが所有ノードに存在し続けているか判定する(所有ノードは有効であること)。
@@ -2661,6 +2708,7 @@ class Plug(Object):
         """
         # nodes.node が ..plugs.plug を逆方向 import するため、
         # 循環回避のためここで遅延 import する（mlib で意図的な相互依存の一つ）。
-        from ..nodes.node import Node
+        from ..nodes.node import Node, _resolve_node
 
-        return Node(mplug.node())
+        # Node(mplug.node()) と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
+        return Node._wrap_resolved(*_resolve_node(mplug.node()))

@@ -218,6 +218,8 @@ def ls(*args,
         RuntimeError: 検索結果をノードとして解決できない場合。
 
     型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。
+    結果の名前はまとめて解決するが、並び順はMayaが返した順のまま変えない。Mayaの結果に同じ名前が
+    重複して含まれる場合も統合せず、それぞれを別の参照として返す。
     """
     if absoluteName is not _UNSET:
         if an is not _UNSET:
@@ -609,17 +611,33 @@ def ls(*args,
     if component is None and node_type == "skinCluster":
         return SkinClusters(names)
     # Mayaの検索・並び順を維持し、解決だけを既存のOpenMaya経路へ任せる。
-    # 全件を単一Selectionにすると重複が除かれるため、結果ごとに解決する。
-    from ..nodes.node import Node
+    # ノード名とアトリビュート名は、名前ごとに選択リストを作らずまとめて解決する(_resolve_names)。
+    # 対応付けは cmds の結果の順に行い、対応付けられない名前(重複・統合・コンポーネント・
+    # 複数一致・解決の失敗)は従来の名前ごとの経路で判定する。
+    from ..nodes.node import Node, _resolve_node
     from ..plugs.plug import Plug
     from ..components import Component
+    from ..common.selection import _resolve_names
 
+    if component is None:
+        resolved_nodes = iter(_resolve_names([name for name in names if "." not in name]))
+        resolved_plugs = iter(_resolve_names([name for name in names if "." in name], plugs=True))
     result = []
     for name in names:
         if "." not in name:
             if component is None:
-                result.append(Node(name))
+                found = next(resolved_nodes)
+                # Node(name) と同じ解決・型選択を、生成の入口の再判定なしで行う。
+                result.append(Node._wrap_resolved(found[0], found[1]) if found is not None
+                              else Node._wrap_resolved(*_resolve_node(name)))
             continue
+        if component is None:
+            # 1要素のアトリビュートだけに解決する名前は、下の Selection(name) と
+            # Plug._resolve_input(name) が同じ手順で作る Plug をまとめた解決の結果から作る。
+            found = next(resolved_plugs)
+            if found is not None:
+                result.append(Plug(Node._wrap_resolved(found[0], found[1]), found[2]))
+                continue
         resolved = Selection(name).items
         if resolved and isinstance(resolved[0], Component):
             result.extend(resolved)

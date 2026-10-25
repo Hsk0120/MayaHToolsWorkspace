@@ -4,7 +4,8 @@ from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 
-from ..core.fastWrite import _require_supported_type, set_plug
+from ..core.attributeType import _convert_units, attributeType, value_reader
+from ..core.fastWrite import _require_supported_type, set_attr, set_plug
 from ..decorator import undoChunk
 from .plug import Plug
 
@@ -16,6 +17,9 @@ class CompoundPlug(Plug):
     番号はArrayPlugの論理番号とは異なる。基底のget()は子の値を定義順tupleで返す。
     maya.cmdsへは ``str(plug)`` で渡す。mlib.selectにはそのまま渡せる。
     """
+
+    _child_readers = None  #: 子の値を直接読む関数の列。初回の内部単位get()で子の定義から選ぶ。
+    _bulk_children = None  #: 子を1回のsetAttrでまとめて書けるか。初回のset()で子の定義から判定する。
 
     def __getattr__(self, name):
         """子を Python アトリビュート形式で取得する。
@@ -99,6 +103,8 @@ class CompoundPlug(Plug):
         """
         self._require_valid()
         self._validate_ui_units(uiUnits)
+        if not uiUnits:
+            return tuple(self._child_values())
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
@@ -146,6 +152,8 @@ class CompoundPlug(Plug):
                 elif self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
                     self._require_writable()
                     Plug.set(self, values, safe=False, uiUnits=uiUnits, fast=fast)
+                elif not uiUnits:
+                    self._set_child_values(values)
                 else:
                     for index, child_value in enumerate(values):
                         self._child_at(index).set(child_value, safe=False, uiUnits=uiUnits, fast=fast)
@@ -170,6 +178,99 @@ class CompoundPlug(Plug):
         """
         self._require_valid()
         return [self._child_at(index) for index in range(self._mplug.numChildren())]
+
+    def _child_values(self):
+        """有効性を確かめ済みの前提で、直接の子の内部単位の値を定義順に読む。
+
+        子のPlugラッパーを作らず、子の ``get()`` と同じ読取関数をMPlugへ直接適用する。
+        読取関数はアトリビュート定義から一度だけ選んで保持し、値は毎回読み直す。
+        複合・配列の子と、読取関数を持たない型(generic・message・マトリクス等)の子は、
+        従来どおり子Plugの ``get()`` へ委譲する。
+
+        Returns:
+            list: 子の値。型・単位は各子の ``get()`` と同じ(距離cm・角度rad・時間秒)。
+        """
+        mplug = self._mplug
+        readers = self._child_readers
+        if readers is None:
+            selected = []
+            for index in range(mplug.numChildren()):
+                child = mplug.child(index)
+                if child.isCompound or child.isArray:
+                    selected.append(False)
+                else:
+                    selected.append(value_reader(child.attribute()))
+            readers = self._child_readers = tuple(selected)
+        return [
+            reader(mplug.child(index)) if reader is not False else self._child_at(index).get()
+            for index, reader in enumerate(readers)
+        ]
+
+    def _set_child_values(self, values, *, writable_checked=False):
+        """内部単位の値を、cmdsの経路で定義順に子へ書き込む。
+
+        double2・double3の数値の子だけを持ち、値がすべてint・floatで、全子が書込み可能なら、
+        親へ1回の ``cmds.setAttr`` でまとめて書く。それ以外、またはまとめた書込みが失敗した
+        場合は、従来どおり子ごとに ``set()`` するため、例外の種類・文言と部分更新の順序は
+        子ごとの書込みと同じになる。Undoチャンクは呼出し元で開く。
+
+        Args:
+            values (tuple): 子数と同じ長さの内部単位の値(距離cm・角度rad・時間秒)。
+            writable_checked (bool): Trueは呼出し元が ``_require_writable()`` を確認済み。
+
+        Raises:
+            RuntimeError: 子の書込みに失敗した場合。
+            TypeError: 子の値の型が不正な場合。
+            ValueError: 子の値を変換できない場合。
+        """
+        mplug = self._mplug
+        if self._can_set_at_once(values):
+            try:
+                if not writable_checked:
+                    self._require_writable()
+            except RuntimeError:
+                pass  # 書けない子は、子ごとの書込みで従来の例外にする。
+            else:
+                try:
+                    set_attr(self.getFullName(), *_convert_units(mplug, values), fast=False)
+                    return
+                except (RuntimeError, TypeError, ValueError):
+                    pass  # 子ごとに書き直し、従来の例外と更新順にする。
+        for index, child_value in enumerate(values):
+            self._child_at(index).set(child_value, safe=False, fast=False)
+
+    def _can_set_at_once(self, values):
+        """子を1回のsetAttrでまとめて書けるか判定する。シーンは変更しない。
+
+        子の構成はアトリビュート定義から一度だけ判定して保持し、値の型は毎回確かめる。
+
+        Args:
+            values (tuple): 書き込む値。
+
+        Returns:
+            bool: double2・double3で、子が数値・単位付きの単純なアトリビュートで、
+                値がすべてint・float(boolを除く)の場合はTrue。
+        """
+        bulk = self._bulk_children
+        if bulk is None:
+            mplug = self._mplug
+            bulk = attributeType(mplug) in ("double2", "double3")
+            if bulk:
+                for index in range(mplug.numChildren()):
+                    child = mplug.child(index)
+                    attribute = child.attribute()
+                    if (child.isCompound or child.isArray
+                            or not (attribute.hasFn(om2.MFn.kNumericAttribute)
+                                    or attribute.hasFn(om2.MFn.kUnitAttribute))):
+                        bulk = False
+                        break
+            self._bulk_children = bulk
+        if not bulk:
+            return False
+        for item in values:
+            if type(item) is not float and type(item) is not int:
+                return False
+        return True
 
     def _child_at(self, index):
         """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。

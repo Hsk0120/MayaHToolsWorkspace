@@ -117,7 +117,21 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-26): mlibの約束の変更4件(disconnectは渡されたPlug/切断前の接続元を返す、削除を1回のcmds.delete/MDagModifierにまとめ削除できないものが含まれれば何も消さない、setRotateはrotateだけ・setMatrix/setTransformationは値の変わるチャンネルだけ書く、ls/Selection/getHistoryの名前をまとめて解決)と不具合4件(fastで既定ノード削除の異常終了、削除済みanimCurveのfast操作の異常終了、ObjectSet.isMemberのDGノード/アトリビュート、getHistoryの例外をRuntimeErrorへ)を修正。あわせて破棄済みノードのgetType等の異常終了も修正。試験 test_contract_changes_{A,B,C}.py を追加。Maya 2022〜2027でmlib全件・mlrig setups合格。未コミット。docs/mlib-api-design.md への反映はCodexの未コミットの変更があるため未実施。
+
+- Claude Code (2026-10-25〜26): mlibの高速化(第0〜14回、未コミット)。意味(Undo/fast/safe・例外・戻り値・単位・公開API)を変えずに、スキンウェイト・blendShapeウェイトの範囲setAttr、Undo無効時と外側のundoTransaction内のundoChunk省略、double3のまとめた書込み、ラッパー作成の名前の再解決の省略(ls・階層・接続一覧・ヒストリー等)、Transformation・ArrayPlug・AnimCurve・import時の拡張探索などを短縮。変更: mlib の cmds/{delete,getNode,ls}.py・common/{namespace,selection}.py・core/{extensions,fastWrite,nodeEdit}.py・decorator.py・logger.py・util.py・maths/{matrix,transformation,vector}.py・nodes/{animCurve,blendShape,container,dagNode,dagPose,displayLayer,mesh,node,shadingEngine,skinCluster,transform}.py・plugs/{arrayPlug,compoundPlug,double3Plug,plug}.py、テスト integration/test_speedup_contracts.py・unit/test_skin_weight_ranges.py(新規)・integration/test_backlog_contracts.py、tools/test_rig_packages.py(--suite mlib のパス)。Maya 2022〜2027 で mlib 全1247件合格、mlrig 全スイート合格。ユーザー判断待ちの候補と既存の不具合は docs/research/mlib-speed-8h/SUMMARY.md(ローカル)。
+
 - 2026-10-26 Claude Code(夜間タスク): mlrigに四節リンク機構 FourBarLinkage(`setups/fourBarLinkage.py`)を追加。クランクのピンとロッカーの支点から、カプラーとロッカーの関節を2円の交点(生成時の枝を固定)として標準ノードだけで求め、rockerMatrix・couplerMatrix・jointMatrix・excess(閉ループが作れない量)・transmissionAngle を出力。Python版 `jointPosition()`。Setup Samplesに1項目、文書 `docs/four_bar_linkage.rst`、検証デモ `tools/demo_four_bar_linkage.py`。試験 `test_setup_four_bar_linkage.py` 8件、隔離Maya 2027で setups 543件・standard 76件OK、Sphinx -W 警告0。検証動画は隔離GUIで360フレーム判定OK、Driveの同期フォルダー `Maya検証動画/mlrig-nightly` へ保存(リンク共有はコネクター非対応で未設定)。バックエンドは標準ノードのみ。コミット・プッシュ(このコミット)。
+
+- 2026-10-25 Codex: 既存layoutへL040（公開入口の冒頭の入力assert候補）・L041（単純列挙の確認候補）・L042（os.pathのpathlib置換候補）・L043（判定できるテキストI/Oのencoding未指定）を追加。L041/L042は情報表示。assertは対象ファイル/行とTypeErrorまたはValueErrorを明示する--fix-assertsで修正でき、コメント・共有行・不明な行・例外名再定義は保存前に拒否。最適化時も有効なraiseと失敗時だけのメッセージ評価、BOM/CRLFを検証。Maya名・添字更新・内部/テストassert・バイナリ・不明なmode/引数等を一律変換しない。17テスト追加、runStatic100件成功、最後の引数展開除外後は関連42件再成功。最終layout170ファイル違反0、初期化情報5件/pathlib確認候補1件。正式規則/README/3ガイド同期・git diff --check成功。Maya未起動、並行する製品コードの変更は編集せず保持。未commit/push。証拠: `.maya-output/mlib-modern-checks-20261025/result.json`。
+
+- 2026-10-25 Codex: 既存check_mlib_layout.pyの--checkへL030〜L034（代入/比較、カンマ/括弧、既定値/キーワードの=、行末コメント、名前へ直接代入するlambda）を追加。AST/tokenizeで型注釈・UTF-8位置・コールバックlambda・複数行・文字列/f-string対象外を区別し、Sphinxの#:記法を保護。新規5規則は検査のみ、既存--fixの変更範囲は維持。17テスト追加、runStaticは83件全成功・公開不一致0・本体170ファイル違反0/情報5件。構文・3ガイド同期・README見出し・git diff --check成功。README/API設計/AGENTS/CLAUDE/Copilotを同期。Maya未起動、並行するClaude Codeの製品速度改善差分は編集せず保持。未commit/push。証拠: `.maya-output/mlib-layout-spacing-20261025/result.json`。
+
+- 2026-10-25 Codex: 指定5規則（importの先頭配置・標準/外部/内部の分類・理由コメント付き関数内import・複数モジュール分離/ワイルドカード禁止・4スペース/末尾空白なし/括弧内改行）をdocs/mlib-api-design.mdへ統合し、AGENTS/CLAUDE/Copilotへ同一方針を同期。reload初期化順・TYPE_CHECKING・既存__all__位置を保持し、既存検査の対象範囲とsnapshot比較の限界も明記。5項目と3ガイドの一致・参照先・差分/空白を確認。製品コード/検査ツール変更なし、Maya/Sphinx未実行。Claude Codeの速度改善作業行と既存差分を保持、未commit/push。
+
+- 2026-10-25 Codex: ユーザー指示でmlibの既存runStatic.pyを実行し、公開不一致0、レイアウト170ファイル違反0（初期化順保護の情報5件）、静的66テスト全成功。既存layout --fixも実行して変更0/170、事前snapshotとの比較170ファイル差分0、git diff --check成功。修正対象がなかったため本体変更なし。新PEP 8規則・検査は追加せず、Maya未起動。既存WORK_LOG差分保持。証拠: `.maya-output/mlib-existing-checks-20261025/result.json`。
+
+- 2026-10-25 Codex: PEP 8公式とmlib既存規則・レイアウト検査を照合。本体170ファイルのimport配置をAST集計し、先頭配置・理由付き遅延import・空白/改行/行長等の提案をGit対象外`docs/research/mlib-pep8-20261025.md`へ保存。関数内201 import文は違反とは扱わず、標準ライブラリ4候補の周囲とNode循環回避・reload初期化順を確認。既存layout検査は170ファイル違反0・情報5件、関数内import非検査と絶対名mlibの分類差を小さなプローブで確認。正式規則・本体は変更せず、Maya未起動。証拠: `.maya-output/mlib-pep8-20261025/`。
 
 - Codex (2026-10-25): ユーザー依頼で説明用語統一・ls中心の入門・Maya2027参照・単体配置の実行環境案内を一括commit/push対象として確認。実行AST170Python・API参照2041件・継承図159件の不変を再照合し、Sphinx332ページ/22855リンク・静的66件・Maya2022/2027の説明例・6画面条件の成功記録を確認。調査資料/生成HTML/画像/専用Maya設定は除外。今回Maya/ブラウザの再起動なし。
 

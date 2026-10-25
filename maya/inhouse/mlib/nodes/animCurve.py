@@ -46,7 +46,11 @@ class AnimCurve(Node):
 
         Returns:
             bool: 横軸が時間ならTrue、単位なしならFalse。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
         """
+        self._require_valid()
         return self.getType()[9] == "T"
 
     def getKeyCount(self):
@@ -132,6 +136,7 @@ class AnimCurve(Node):
             TypeError: fastがbool以外、または数値へ変換できない型。
             ValueError: 非有限値、不正な数値、またはfastでfixed/global/未知の接線型を指定した場合。
             NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
+            RuntimeError: ノードが無効(削除済み)の場合。fastも通常と同じ文言で、編集前に拒否する。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -483,8 +488,29 @@ class AnimCurve(Node):
                 fn.setWeightsLocked(i, weights_locked)
 
     def _curve_fn(self):
-        """保持ノードのAPI 2.0カーブ関数セットを返す。"""
+        """保持ノードのAPI 2.0カーブ関数セットを返す。
+
+        削除済みの MObject へ関数セットを作るとMayaが異常終了するため、先に有効性を検査する。
+
+        Returns:
+            oma2.MFnAnimCurve: 有効なカーブの関数セット。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid()
         return oma2.MFnAnimCurve(self.mnode())
+
+    def _require_valid(self):
+        """削除済みのカーブへAPIで触れる前に、通常経路と同じ RuntimeError を送出する。
+
+        通常経路のキー編集は単位変換の ``getPlug`` で無効なノードを拒否するため、同じ文言にする。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        if not self.isValid():
+            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
 
     def _api_input(self, value):
         """内部単位の入力をAPIが要求する時間値または数値へ変換する。"""
@@ -536,7 +562,17 @@ class AnimCurve(Node):
         Returns:
             float: 単位型に応じた値。無次元のアトリビュートでは値をそのまま使う。
         """
-        return _convert_units(self.getPlug("output" if output else "input").mplug(), value, to_ui)
+        name = "output" if output else "input"
+        if self.isValid():
+            # getPlug(name).mplug() と同じ findPlug の結果を、Plugラッパーを作らずに使う。
+            # 解決できない場合と無効なノードは、従来どおりgetPlugの結果・例外に委ねる。
+            try:
+                mplug = self._dependency_fn().findPlug(name, False)
+            except RuntimeError:
+                mplug = None
+            if mplug is not None:
+                return _convert_units(mplug, value, to_ui)
+        return _convert_units(self.getPlug(name).mplug(), value, to_ui)
 
     @staticmethod
     def _finite(value):

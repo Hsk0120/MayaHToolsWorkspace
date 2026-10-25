@@ -24,14 +24,15 @@ class DisplayLayer(Node):
         """
         if hasattr(om2, "MFnDisplayLayer"):
             members = om2.MFnDisplayLayer(self.mnode()).getMembers()
-            return [Node(members.getDagPath(index)) for index in range(members.length())]
+            # 選択リストから取得したばかりのパスなので、入力の再解決を省いてラッパーにする。
+            return [Node._wrap_dag_path(members.getDagPath(index)) for index in range(members.length())]
         if not self.getPlug("identification").get():
             # 2022/2023にはMFnDisplayLayerがない。defaultLayer固有の除外規則を
             # 単なる未接続DAG走査で再現せず、既存コマンドの意味を維持する。
             names = cmds.editDisplayLayerMembers(self.getName(), query=True, fullNames=True) or []
             return [Node(name) for name in names]
         output = self.getPlug("drawInfo").mplug()
-        return [Node(om2.MDagPath.getAPathTo(plug.node()))
+        return [Node._wrap_dag_path(om2.MDagPath.getAPathTo(plug.node()))
                 for plug in output.connectedTo(False, True)
                 if plug.node().hasFn(om2.MFn.kDagNode)]
 

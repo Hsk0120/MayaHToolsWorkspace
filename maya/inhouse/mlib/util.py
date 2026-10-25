@@ -7,7 +7,6 @@
 import copy
 import copyreg
 import math
-import statistics
 import string
 import time
 from operator import index as _as_index
@@ -96,6 +95,9 @@ def measure(operation, samples=30, warmup=3):
         raise TypeError("operation must be callable")
     if type(samples) is not int or samples <= 0 or type(warmup) is not int or warmup < 0:
         raise ValueError("Invalid sample count")
+    # statisticsはfractions・decimalも読むため、import mlibの時間を増やさないよう計測前に読む。
+    import statistics
+
     for _ in range(warmup):
         operation()
     values = []

@@ -8,7 +8,10 @@ import maya.cmds as cmds
 
 __all__ = ["nativeUnits", "preservedSelection", "preservedSkinShape", "undoChunk", "undoTransaction", "viewportOff"]
 
+# 外側のundoChunkの状態。Falseはチャンク外、Trueは開いたチャンク内、
+# _CHUNK_SKIPPEDはUndo無効のため開閉を省いたチャンク内。
 _chunk_active = ContextVar("mlib_undo_chunk_active", default=False)
+_CHUNK_SKIPPED = "skipped"
 
 # reloadはモジュール辞書を維持するため、廃止済みの公開名を取り除く。
 for _obsolete_name in ("undoable", "undo_chunk", "undo_transaction", "native_units",
@@ -18,7 +21,87 @@ for _obsolete_name in ("undoable", "undo_chunk", "undo_transaction", "native_uni
     globals().pop(_obsolete_name, None)
 
 
-@contextlib.contextmanager
+class _UndoChunk(contextlib.ContextDecorator):
+    """undoChunkの実体。withと関数デコレーターの両方で使う。
+
+    generatorの生成を避け、Undoが無効な場合はチャンクの開閉を省略する。
+    デコレーターとして使う場合は呼出しごとに新しいインスタンスを作るため、
+    再帰や入れ子の呼出しでも状態を共有しない。
+    """
+
+    __slots__ = ("_name", "_opened", "_token")
+
+    def __init__(self, name):
+        """チャンク名を保持する。Undoキューはwithの開始まで変更しない。
+
+        Args:
+            name (str | None): Undoキューのチャンク名。
+        """
+        self._name = name
+        self._opened = False
+        self._token = None
+
+    def __enter__(self):
+        """外側のチャンクが無く、Undoが有効ならチャンクを開く。
+
+        Returns:
+            None: withの ``as`` で受け取る値。
+        """
+        if _chunk_active.get():
+            return None
+        if not cmds.undoInfo(query=True, state=True):
+            # Undoが無効なら記録されないため、チャンクを開かない。入れ子の
+            # 問い合わせも省くため、外側のチャンクとして扱う。
+            self._token = _chunk_active.set(_CHUNK_SKIPPED)
+            return None
+        if self._name:
+            cmds.undoInfo(openChunk=True, chunkName=str(self._name))
+        else:
+            cmds.undoInfo(openChunk=True)
+        self._opened = True
+        self._token = _chunk_active.set(True)
+        return None
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """開いたチャンクを閉じる。閉じる失敗は警告し、ブロック内の例外は抑制しない。
+
+        Returns:
+            bool: 常にFalse。
+        """
+        token = self._token
+        if token is not None:
+            self._token = None
+            _chunk_active.reset(token)
+        if self._opened:
+            self._opened = False
+            try:
+                cmds.undoInfo(closeChunk=True)
+            except Exception as exc:
+                from . import logger
+                logger.warning("Undo chunk close failed: %s", exc)
+        return False
+
+    def _recreate_cm(self):
+        """デコレーター呼出しごとに独立したインスタンスを返す。"""
+        return type(self)(self._name)
+
+
+def _undo_recording():
+    """現在の操作がUndoへ記録される状態か判定する。
+
+    Undo有効時に開いたundoChunkの内側では、開いた時点の問い合わせ結果を使って
+    ``cmds.undoInfo`` の問い合わせを省く。それ以外は毎回問い合わせる。
+    ブロック内でUndoを無効にした場合もTrueを返し得るため、Falseのときに
+    Undo用だけの処理を省く判定にだけ使う。Falseは毎回の問い合わせ結果なので正確。
+
+    Returns:
+        bool: Undoへ記録される状態ならTrue。
+    """
+    if _chunk_active.get() is True:
+        return True
+    return bool(cmds.undoInfo(query=True, state=True))
+
+
 def undoChunk(name=None):
     """MayaのUndo対象操作を一つのチャンクへまとめる。
 
@@ -27,31 +110,18 @@ def undoChunk(name=None):
     終了時は例外の有無によらずチャンクを閉じる。閉じる失敗は警告し、
     ブロック内の例外は再送出する。自動ロールバックやfastのUndo対応は行わない。
 
+    開始時にUndoが無効(``cmds.undoInfo(query=True, state=True)`` がFalse)なら、
+    記録されないためチャンクを開閉しない。ブロック内でUndoを有効にしても、
+    そのブロックの操作は一つのチャンクにまとめない。
+
     Args:
         name (str | None): Undoキューのチャンク名。省略時はMayaの既定表示。
+
+    Returns:
+        contextlib.ContextDecorator: withまたはデコレーターとして使うコンテキスト。
+            withの ``as`` で受け取る値はNone。
     """
-    if _chunk_active.get():
-        yield
-        return
-    opened = False
-    token = None
-    try:
-        kwargs = {"openChunk": True}
-        if name:
-            kwargs["chunkName"] = str(name)
-        cmds.undoInfo(**kwargs)
-        opened = True
-        token = _chunk_active.set(True)
-        yield
-    finally:
-        if token is not None:
-            _chunk_active.reset(token)
-        if opened:
-            try:
-                cmds.undoInfo(closeChunk=True)
-            except Exception as exc:
-                from . import logger
-                logger.warning("Undo chunk close failed: %s", exc)
+    return _UndoChunk(name)
 
 
 @contextlib.contextmanager
@@ -66,13 +136,26 @@ def undoTransaction(name=None):
     失敗した場合はUndoしない。復旧の失敗は警告し、元の例外を再送出する。
     巻戻しの完了は保証しない。
 
+    名前を指定した場合、ブロック内のundoChunkはこのチャンクの内側として扱い、Mayaの
+    チャンクを入れ子に開かない(Mayaは入れ子のチャンクを外側の一つへまとめ、表示名は
+    最初に開いた名前付きチャンクの名前になるため、Undoの単位と名前は同じ)。この扱いは
+    外側にundoChunkも名前付きのundoTransactionも無い場合だけ、開始時のUndoの状態を
+    一度問い合わせて決め、無効ならブロック内のundoChunkも従来どおり開閉しない。
+    名前を省略した場合は、最初の内側のチャンク名が表示名になるため従来どおり開く。
+
     Args:
         name (str | None): Undoキューのチャンク名。省略時はMayaの既定表示。
     """
+    token = None
+    outermost = bool(name) and not _chunk_active.get()
+    if outermost:
+        recording = cmds.undoInfo(query=True, state=True)
     kwargs = {"openChunk": True}
     if name:
         kwargs["chunkName"] = str(name)
     cmds.undoInfo(**kwargs)
+    if outermost:
+        token = _chunk_active.set(True if recording else _CHUNK_SKIPPED)
     try:
         yield
     except BaseException:
@@ -103,6 +186,9 @@ def undoTransaction(name=None):
         raise
     else:
         cmds.undoInfo(closeChunk=True)
+    finally:
+        if token is not None:
+            _chunk_active.reset(token)
 
 
 @contextlib.contextmanager

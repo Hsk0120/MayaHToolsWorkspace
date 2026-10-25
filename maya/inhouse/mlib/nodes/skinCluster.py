@@ -117,7 +117,8 @@ class SkinCluster(Node):
             list[Node]: influenceObjects()のDAGパスから作る新しいラッパーのリスト。
                 登録型に応じJoint以外も返す。リスト位置はweights[]の論理番号とは限らず、ノードは複製しない。
         """
-        return [Node(path) for path in self.fn.influenceObjects()]
+        # influenceObjects()が返したばかりの有効なパスなので、入力の再解決を省いてラッパーにする。
+        return [Node._wrap_dag_path(path) for path in self.fn.influenceObjects()]
 
     @undoChunk("mlibSkinClusterAddInfluences")
     def addInfluences(self, joints):
@@ -137,7 +138,7 @@ class SkinCluster(Node):
         """
         from ..core.object import Object as _InputObject
 
-        existing = {Node(path.node()).getUuid() for path in self.fn.influenceObjects()}
+        existing = {om2.MFnDependencyNode(path.node()).uuid().asString() for path in self.fn.influenceObjects()}
         names = []
         for name in _InputObject._input_names(joints):
             node = Node(name)
@@ -228,7 +229,7 @@ class SkinCluster(Node):
         for path in self.fn.influenceObjects():
             selection, _ = self.fn.getPointsAffectedByInfluence(path)
             if not selection.length():
-                result.append(Node(path))
+                result.append(Node._wrap_dag_path(path))
         return result
 
     def removeUnusedInfluences(self, *, force=_UNSET, fast=False, f=_UNSET):
@@ -326,7 +327,7 @@ class SkinCluster(Node):
         if not uuid:
             return False
         return any(
-            self._uuid(path.fullPathName()) == uuid
+            self._path_uuid(path) == uuid
             for path in self.fn.influenceObjects()
         )
 
@@ -351,7 +352,8 @@ class SkinCluster(Node):
     def setWeights(self, joints, weights, *, fast=False):
         """指定influenceの全頂点ウェイトを、正規化せず生の値として設定する。
 
-        共通検証後、通常はcmds.setAttrで頂点・指定列の順に書く。fastは全対象Plugの
+        共通検証後、通常はcmds.setAttrで頂点・指定列の順に書く。指定順で連続する論理番号は
+        範囲指定の1回のsetAttrにまとめるが、失敗時の部分更新とエラーは要素ごとの書込みと同じ。fastは全対象Plugの
         ロック・入力接続・書込み可否とアトリビュート範囲を先に検査し、MPlug.setDoubleで順に書く。
         どちらもMFnSkinCluster.setWeightsによる未指定列の再配分は使わない。
 
@@ -718,6 +720,25 @@ class SkinCluster(Node):
         except RuntimeError:
             return None
 
+    @staticmethod
+    def _path_uuid(path):
+        """influenceのDAGパスから、名前を経由せずにMaya UUIDを取得する。
+
+        ``_uuid(path.fullPathName())`` と同じ値を、名前の再解決なしで求める。
+
+        Args:
+            path (om2.MDagPath): influenceObjects()のパス。
+
+        Returns:
+            str | None: 対応するUUID。パスまたはノードが無効ならNone。
+        """
+        if not path.isValid():
+            return None
+        node = path.node()
+        if not om2.MObjectHandle(node).isValid():
+            return None
+        return om2.MFnDependencyNode(node).uuid().asString()
+
     def _get_dag_path(self, name):
         """geometry 名から shape まで展開した MDagPath を取得する。
 
@@ -832,25 +853,70 @@ class SkinCluster(Node):
             logical_indices (list[int]): weights[]の論理番号。指定influence順。
         """
         weights_plug = om2.MFnDependencyNode(self.mnode()).findPlug("weightList", False)
+        # 全要素が同じweightsアトリビュートなので、書込み可否と範囲の定義を読むfunction setは
+        # 1つを共有する。ロック・入力接続は要素ごと、親側(weightList[v].weights より上)は
+        # 頂点ごとに毎回調べる。拒否する要素ではwritable()を呼び、従来と同じ例外を送出する。
+        attribute_fn = range_fn = None
+        attribute_writable = has_limits = True
         edits = []
         for vertex in range(num_vertices):
             row = weights_plug.elementByLogicalIndex(vertex).child(0)
+            row_blocked = self._plug_chain_blocked(row)
             offset = 0 if len(values) == width else vertex * width
             for column, index in enumerate(logical_indices):
                 plug = row.elementByLogicalIndex(index)
-                writable(plug)
-                check_range(plug, values[offset + column])
+                if attribute_fn is None:
+                    attribute = plug.attribute()
+                    attribute_fn = om2.MFnAttribute(attribute)
+                    attribute_writable = attribute_fn.writable
+                    if attribute.hasFn(om2.MFn.kNumericAttribute):
+                        range_fn = om2.MFnNumericAttribute(attribute)
+                        has_limits = range_fn.hasMin() or range_fn.hasMax()
+                if row_blocked or plug.isLocked or plug.isDestination or not attribute_writable:
+                    writable(plug, attribute_fn)
+                if has_limits:
+                    check_range(plug, values[offset + column], range_fn)
                 edits.append((plug, values[offset + column]))
         # MFnSkinCluster.setWeightsはliw等の設定によって未指定値を再配分する。
         # 通常モードと同じ生値を維持するため、MPlugに直接書き込む。
         for plug, value in edits:
             plug.setDouble(value)
 
+    @staticmethod
+    def _plug_chain_blocked(plug):
+        """Plugと、その親・配列側の全段にロックまたは入力接続があるか調べる。
+
+        :func:`mlib.core.fastWrite.writable` が要素から辿る親側の判定を、同じ頂点の要素で
+        共有するために使う。例外は送出せず、書込み不能アトリビュートの判定も行わない。
+
+        Args:
+            plug (om2.MPlug): 調べる起点。weightList[v].weights のような配列Plug。
+
+        Returns:
+            bool: いずれかの段がロックされているか、入力接続を持つ場合True。
+        """
+        current = plug
+        while True:
+            if current.isLocked or current.isDestination:
+                return True
+            if current.isChild:
+                current = current.parent()
+            elif current.isElement:
+                current = current.array()
+            else:
+                return False
+
     def _set_weight_values_cmds(self, values, width, num_vertices, logical_indices):
         """頂点・指定influence列の順に、cmdsで生のウェイト値を書き込む。
 
-        weights[]には疎な論理番号を使う。全Plugの事前検査はせず、途中で拒否された場合も
-        先行する書込みを自動で戻さない。Undoチャンクは呼出し側が管理する。
+        weights[]には疎な論理番号を使う。指定順で論理番号が1ずつ増える列は
+        ``weights[a:b]`` の範囲指定で1回のsetAttrにまとめ、番号の穴や順序の入れ替わりで区切る。
+        全Plugの事前検査はせず、途中で拒否された場合も先行する書込みを自動で戻さない。
+        Undoチャンクは呼出し側が管理する。
+
+        範囲指定のsetAttrはロック・入力接続などで拒否されると範囲内のどの要素も更新しない。
+        その場合だけ同じ範囲を要素ごとのsetAttrで書き直し、従来の要素ごとの書込みと同じく
+        拒否された要素の手前まで更新して、その要素のMayaのエラーを送出する。
 
         Args:
             values (list[float]): 検証済みのV*K値または共通K値。
@@ -859,13 +925,45 @@ class SkinCluster(Node):
             logical_indices (list[int]): weights[]の論理番号。指定influence順。
         """
         name = self.getFullName()
+        runs = self._consecutive_runs(logical_indices)
+        shared = len(values) == width
         for vertex in range(num_vertices):
-            offset = 0 if len(values) == width else vertex * width
-            for column, logical_index in enumerate(logical_indices):
-                set_attr(
-                    f"{name}.weightList[{vertex}].weights[{logical_index}]",
-                    values[offset + column],
-                )
+            offset = 0 if shared else vertex * width
+            prefix = f"{name}.weightList[{vertex}].weights"
+            for column, first, count in runs:
+                start = offset + column
+                if count == 1:
+                    set_attr(f"{prefix}[{first}]", values[start])
+                    continue
+                row = values[start:start + count]
+                try:
+                    set_attr(f"{prefix}[{first}:{first + count - 1}]", *row)
+                except RuntimeError:
+                    # 範囲指定は失敗時に何も書かないため、要素ごとに書き直して
+                    # 拒否された要素までの部分更新とエラーを従来と揃える。
+                    for position, value in enumerate(row):
+                        set_attr(f"{prefix}[{first + position}]", value)
+
+    @staticmethod
+    def _consecutive_runs(logical_indices):
+        """指定順の論理番号を、1ずつ増える連続した区間へ分ける。
+
+        Args:
+            logical_indices (Sequence[int]): weights[]の論理番号。指定influence順。
+
+        Returns:
+            list[tuple[int, int, int]]: 区間ごとの、指定列での開始位置・先頭の論理番号・要素数。
+                例えば[0, 1, 3, 2]は[(0, 0, 2), (2, 3, 1), (3, 2, 1)]。
+        """
+        runs = []
+        for column, index in enumerate(logical_indices):
+            if runs:
+                start, first, count = runs[-1]
+                if index == first + count:
+                    runs[-1] = (start, first, count + 1)
+                    continue
+            runs.append((column, index, 1))
+        return runs
 
     def _influence_indices(self, joints, influences):
         """一回の操作内でUUIDと名前の検索表を共有する。
@@ -886,13 +984,13 @@ class SkinCluster(Node):
             joint = joints[0]
             uuid = self._uuid(joint)
             for index, path in enumerate(influences):
-                if ((uuid and self._uuid(path.fullPathName()) == uuid)
+                if ((uuid and self._path_uuid(path) == uuid)
                         or path.partialPathName() == joint):
                     return [index]
             return [None]
         by_uuid, by_name = {}, {}
         for index, path in enumerate(influences):
-            uuid = self._uuid(path.fullPathName())
+            uuid = self._path_uuid(path)
             if uuid:
                 by_uuid.setdefault(uuid, index)
             by_name.setdefault(path.partialPathName(), index)

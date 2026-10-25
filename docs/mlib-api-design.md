@@ -134,25 +134,36 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 ### ファイル・クラスのレイアウト規則
 
-mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並びは挙動に影響しないため、
-名前・本文・デコレータの積み順・docstringを変えずに整える。
-`python maya/inhouse/mlib/__tests__/checks/check_mlib_layout.py --check` が規則を検査し、`--fix` が並び替えと空行の正規化を行い、
+mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロジェクト固有の並び順と例外を使う。
+2026-10-25のユーザー指示により、import位置・分類・関数内import・import形式・空白と改行を明文化する。
+整理では依存関係と初期化順を維持し、名前・本文・デコレータの積み順・docstringを変えない。
+`python maya/inhouse/mlib/__tests__/checks/check_mlib_layout.py --check` が既存の並び順と空行を検査し、`--fix` がその整形を行う。
+`--check` は下記の演算子・カンマ/括弧・引数指定・行末コメント・名前付きlambdaも検査する。
+これら5項目は検査のみで、`--fix` による自動修正はしない。
+関数内importの必要性・理由コメント、複数モジュールimport、ワイルドカード、インデント・末尾空白・長い式の改行をすべて検査するものではない。
 `--snapshot`/`--compare` で整理前後の関数本体・import束縛・モジュール文が同一であることを確認できる(Maya不要。
-実行方法は `maya/inhouse/mlib/__tests__/README.md`)。
+実行方法は `maya/inhouse/mlib/__tests__/README.md`)。この比較だけでimport移動後の実行順や挙動の同一性は保証しない。
 
 | 位置 | 規則 |
 | --- | --- |
-| モジュール先頭 | docstring → `from __future__` → import → `if TYPE_CHECKING:` → `__all__`・定数 → 関数・クラス |
-| import群 | 標準ライブラリ → `maya.*` などのサードパーティ → 相対import の3グループ。グループ間は空行1行。グループ内は isort の既定と同じく `import x` 形式を先にまとめ、続けて `from x import y` 形式を置き、それぞれをモジュール名順(大文字小文字を区別しない。`..` は `.` より先)にする。例: `import inspect` → `import re` → `from functools import wraps`。 |
-| import形式 | `import maya.cmds as cmds`、`import maya.mel as mel`、`import maya.api.OpenMaya as om2`。`from maya.api.OpenMaya import MSpace` のような個別名のimportは可。 |
+| import位置 | 原則、モジュールdocstringの後、定数・関数・クラス定義の前にまとめる。`from __future__` があれば通常importより先に置く。基本の順は docstring → `from __future__` → import → `if TYPE_CHECKING:` → `__all__`・定数 → 関数・クラス。初期化順に依存する例外は下記を参照。 |
+| import群 | 標準ライブラリ → `maya.*` などの外部ライブラリ → mlib内部の3グループ。相対importと絶対名の `mlib.*` はどちらも内部に分類し、拡張では自パッケージも内部とする。グループ間は空行1行。グループ内は既存規則どおり `import x` 形式を先にまとめ、続けて `from x import y` 形式を置き、それぞれをモジュール名順(大文字小文字を区別しない。`..` は `.` より先)にする。例: `import inspect` → `import re` → `from functools import wraps`。 |
+| 関数内import | 循環参照の回避・任意依存・Maya非依存の維持など、必要な理由がある場合だけ使う。その理由をimportの直前に短くコメントする。同じ理由の連続したimport群にはコメント1つでよい。 |
+| import形式 | `import os, sys` のような複数モジュールのimportは1行ずつ分離する。`from x import A, B` は許可し、`from x import *` は禁止する。Mayaは `import maya.cmds as cmds`、`import maya.mel as mel`、`import maya.api.OpenMaya as om2` を使う。`from maya.api.OpenMaya import MSpace` のような個別名のimportは可。 |
 | 定数 | 原則import群の直後。先行する関数・クラスを参照する対応表等は依存先の定義後に置く。説明は `#:` を使う。 |
+| 空白・改行 | インデントはスペース4とし、末尾空白を残さない。長い式は原則 `()`・`[]`・`{}` 内で改行する。対象MayaのPythonが対応しない構文へは置き換えない。文字列中の空白や改行はデータとして保持する。 |
+| 演算子の空白 | 代入・複合代入・比較演算子の前後は空白1つとする。例: `value = 10`、`value += 1`、`value >= 0`。通常の算術演算子全体には今回の検査を広げない。 |
+| カンマ・括弧の空白 | 同じ行で次の項目が続くカンマの後は空白1つ。括弧の内側に不要な空白を置かない。例: `getValue(node, index)`。末尾カンマと括弧内の改行・字下げは許可する。 |
+| 引数の既定値・キーワード指定 | 型注釈なしの既定値と呼出しのキーワード指定は `=` の前後に空白を置かない。例: `fast=False`。型注釈付きの既定値は `fast: bool = False` とする。 |
+| 行末コメント | コードとの間に空白2つ以上、`#` の後に空白1つを置く。例: `index += 1  # 次の要素へ`。Sphinxの説明コメントは意味を保つため `#:` の記法を維持する。単独行のコメントや文字列中の `#` はこの検査の対象外。 |
+| 名前付き関数 | `function = lambda ...` のように名前へ直接代入する場合は通常の `def` を使う。型付き代入・連鎖代入・代入式も対象とする。コールバック引数や既定値・戻り値・コレクション内のlambdaは許可する。 |
 | 空行 | トップレベルの定義間は2行、クラス内のメンバー間は1行、`class` 行とdocstringの間は0行、デコレータと `def` の間は0行、3行以上の空行は使わない。ファイル末尾は改行1つ。クラス内に区切り線のコメント(`# ----- 比較` など)は置かず、下記の並び順で区分する。 |
 | クラス内の順 | docstring → クラス属性 → `__new__`/`__init__`/`__post_init__` → その他の特殊メソッド → 公開 classmethod/staticmethod → property → 公開メソッド → 非公開メソッド(`_` 始まり。static/classmethodも含む) |
 | 対になる操作 | `getX`/`setX`、`isX`/`setX`、`connect`/`disconnect*`、`lock`/`unlock`、`show`/`hide`、`addX`/`removeX`、`__eq__`/`__ne__`/`__hash__`、`__repr__`/`__str__`、`__getitem__`/`__setitem__`、`__copy__`/`__deepcopy__`、各演算子と `__r*__`/`__i*__` は隣接させる。property の setter は getter の直後。 |
 
 - 公開メソッドの全体をアルファベット順には並べ替えない。対の隣接と上記グループ分けだけを行う。
-- 関数・メソッド内の遅延import(循環回避、Maya非依存の維持)、`try/except ImportError`、
-  `if TYPE_CHECKING:` の中身は移動しない。
+- 関数内importは上記の理由を確認する。理由のある遅延import、`try/except ImportError`、
+  `if TYPE_CHECKING:` の中身は機械的に先頭へ移さない。
 - import文の間に実行文があり、その初期化順そのものが仕様の `__init__.py`(ルートと `core`・`cmds`・`nodes`・`plugs` の初期化)は
   import群の並び替え対象外。空行だけを整える(`--check` は「スキップ」として表示する)。
 - それ以外の `__init__.py` も通常の規則で並べる。import群の途中にあった `globals().pop(...)`・
@@ -163,6 +174,34 @@ mlib・`mlib_*` のPythonファイルはPEP8の並びを基準にする。並び
 - `__all__` はPEP8の「import前」ではなく、import群の直後に置く(`__init__.py` の動的な
   `__all__` と位置を揃えるための意図的な逸脱)。
 - 行の長さは規則の対象外。
+- 新しい検査コードは `L030`（代入・比較）、`L031`（カンマ・括弧）、`L032`（引数の `=`）、
+  `L033`（行末コメント）、`L034`（名前付きlambda）。文字列内部は検査せず、f-stringは埋込み式も含めて対象外にする。
+
+### 入力検証・列挙・ファイル操作
+
+- 公開APIの入力検証には`assert`を使わず、`TypeError`・`ValueError`等を明示する。
+  テストと内部の整合性確認には`assert`を使用できる。`L040`は公開関数・公開クラスのメソッドと
+  constructorの冒頭で、引数を直接参照するassertを入力検証の候補として検出する。
+  内部関数・テスト・self/clsの状態確認・処理開始後のassertは対象外。
+  全分岐のデータフローを解析する検査ではなく、入力検証か内部整合性かは最終的に本文で判断する。
+- 番号と要素を単に列挙する場合は`enumerate`を基本にする。`L041`は
+  `range(len(name))`と`name[index]`の読取りから確認候補を表示する。
+  要素更新・削除・隣接番号の計算等は一律に変更しない。任意オブジェクトの反復と添字の同等性は推測しない。
+- ファイルパスには`pathlib`、テキストの読書きには明示的な`encoding`を基本にする。
+  `L042`は既知の`os.path.join/dirname/basename`を置換の確認候補として表示する。
+  `normcase/realpath`等のOS固有の意味は維持し、MayaのDAGパス・アトリビュート名をファイルパスへ変換しない。
+  `L043`は組込み`open`・`io.open`と、Path生成/型注釈で対象を判定できる
+  `Path.open/read_text/write_text`の文字コード未指定・`encoding=None`を検出する。
+  バイナリ・動的なmode・`*args`/`**kwargs`・不明なオブジェクトは断定しない。
+  Pythonソースの宣言に従う`tokenize.open`も対象外。外部ファイルの文字コードをUTF-8と自動推測しない。
+
+`L041`と`L042`は個別判断が必要な情報表示で、単独では検査を失敗にしない。
+`L040`と`L043`は検査失敗となる。既存の`--fix`では上記を書き換えない。
+入力assertの修正だけは`--fix-asserts TypeError`または`--fix-asserts ValueError`を使い、
+対象ファイル1つと`--line`で確認した行を明示する。例外型の選択と変更の承認は呼出し側で行う。
+複数行指定は全件を検証してから書き込み、コメントを含むassertや他の文と行を共有する場合、
+選んだ例外名がソース内で再定義されている場合は拒否する。
+この修正は例外型と最適化実行時の挙動を意図的に変更するため、既存の公開仕様と呼出し側も確認する。
 
 ## 公開名・型対応・複数形APIの宣言
 

@@ -103,7 +103,8 @@ class ShadingEngine(ObjectSet):
         result = []
         for index in range(selection.length()):
             path, component = selection.getComponent(index)
-            node = Node(path)
+            # 選択リストから取得したばかりのパスなので、入力の再解決を省いてラッパーにする。
+            node = Node._wrap_dag_path(path)
             if component.hasFn(om2.MFn.kMeshPolygonComponent):
                 fn = om2.MFnSingleIndexedComponent(component)
                 indices = range(om2.MFnMesh(path).numPolygons) if fn.isComplete else fn.getElements()

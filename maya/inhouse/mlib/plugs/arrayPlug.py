@@ -5,7 +5,7 @@ from contextlib import nullcontext
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.attributeType import is_internal_data_type
+from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
 from ..decorator import undoChunk
 from ..util import _ArgumentError, _UNSET
 from .plug import Plug, _instance_count
@@ -69,7 +69,34 @@ class ArrayPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効、または要素値を取得できない場合。
         """
         self._validate_ui_units(uiUnits)
-        return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
+        if type(self).getElements is not ArrayPlug.getElements:
+            return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
+        indices = self.getIndices()
+        if not indices:
+            return {}
+        # 要素は同じアトリビュート定義を共有するため、ラッパーの型と読取関数は全要素で同じになる。
+        # 基底Plugの読取(get/_get_internal)をそのまま使う型に限り、2個目以降のラッパー作成を省いて
+        # 同じ手順(有効性の確認→読取関数→単位換算)で読む。それ以外は従来どおり要素ごとのget。
+        mplug = self._mplug
+        first = Plug(self._node, mplug.elementByLogicalIndex(indices[0]))
+        element_class = type(first)
+        reader = None
+        if (element_class.get is Plug.get and element_class._get_internal is Plug._get_internal
+                and element_class._require_valid is Plug._require_valid):
+            first._require_valid()
+            reader = first._reader
+            if reader is None:
+                reader = first._reader = value_reader(first._attribute)
+        if not reader:
+            elements = [first] + [Plug(self._node, mplug.elementByLogicalIndex(index)) for index in indices[1:]]
+            return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in elements}
+        result = {}
+        for index in indices:
+            element = mplug.elementByLogicalIndex(index)
+            first._require_valid()
+            value = reader(element)
+            result[element.logicalIndex()] = _convert_units(element, value) if uiUnits else value
+        return result
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """配列全体への値設定を拒否する。各要素のset()を使う。

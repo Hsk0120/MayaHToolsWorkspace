@@ -2,6 +2,7 @@
 
 import ast
 import importlib
+import importlib.machinery
 import os
 import pkgutil
 import re
@@ -169,11 +170,39 @@ def _find_candidates():
     """
     candidates = {}
     for path in dict.fromkeys(sys.path):
+        if not _may_contain_candidate(path):
+            continue
         for info in pkgutil.iter_modules([path]):
             if info.ispkg and _extension_pattern.fullmatch(info.name):
                 location = os.path.normcase(os.path.realpath(path))
                 candidates.setdefault(info.name, set()).add(location)
     return candidates
+
+
+def _may_contain_candidate(path):
+    """探索パスの直下に拡張名と一致する項目があり得るかを、パッケージ判定の前に調べる。
+
+    pkgutil.iter_modulesは通常のフォルダーに対して全サブフォルダーの中身を一覧するため、
+    Mayaの長い探索パスでは起動が遅くなる。通常のフォルダー(FileFinder)でパッケージとして
+    返る名前はフォルダー名そのものなので、直下に名前が一致する項目が無ければ結果は空になる。
+    zip等の他のimporterは判定せず、従来どおりiter_modulesへ任せる。
+
+    Args:
+        path (str): sys.pathの1項目。
+
+    Returns:
+        bool: iter_modulesで拡張の候補を探す必要があればTrue。
+    """
+    importer = pkgutil.get_importer(path)
+    if not isinstance(importer, importlib.machinery.FileFinder):
+        return True
+    if importer.path is None or not os.path.isdir(importer.path):
+        return False
+    try:
+        filenames = os.listdir(importer.path)
+    except OSError:
+        return False
+    return any(_extension_pattern.fullmatch(filename) for filename in filenames)
 
 
 def _load_candidate(name, locations):

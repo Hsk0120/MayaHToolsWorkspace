@@ -34,7 +34,7 @@ def main():
             plugin=Path(sys.executable).resolve().parents[1]/'plug-ins/fbx/plug-ins/fbxmaya.mll'
             if plugin.is_file() and not cmds.pluginInfo('fbxmaya',q=True,loaded=True):
                 cmds.loadPlugin(str(plugin),quiet=True)
-            files += ['mlib/__tests__/'+name+'.py' for name in (
+            files += ['mlib/__tests__/unit/'+name+'.py' for name in (
                 'test_fbx_hik','test_typing_exports','test_node_creation','test_package_layout','test_events')]
         if args.suite in ('all','setups'):
             files.append('mlrig/__tests__/test_setup_joint_hierarchy.py')
