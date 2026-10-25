@@ -1545,6 +1545,16 @@ def _ui_update_state(*_):
     cmds.optionMenuGrp("oj_third_space", e=True, en=third_enabled)
     cmds.optionMenuGrp("oj_third_ref_axis", e=True, en=(third_enabled and third_space in ("world", "local")))
 
+def _open_help(*_):
+    """このツールの説明ページを開きます。
+
+    Args:
+        *_: Maya コールバック用の未使用引数。
+    """
+    # runpy で __main__ として実行されるため、ページ名は文字列で明示する。
+    from HTools import toolHelp
+    toolHelp.openHelp("rigging", "advancedOrientJointUI")
+
 def show_orient_joint_like_window():
     """カスタム Orient Joint オプションウィンドウを作成して表示します。
 
@@ -1557,7 +1567,10 @@ def show_orient_joint_like_window():
     if cmds.window(_WIN, exists=True):
         cmds.deleteUI(_WIN)
 
-    cmds.window(_WIN, title="Orient Joint Options (Custom)", sizeable=False, widthHeight=(460, 1))
+    cmds.window(_WIN, title="Orient Joint Options (Custom)", sizeable=False, widthHeight=(460, 1), menuBar=True)
+    # ツールの説明ページ(Sphinx)を開く Help メニュー。
+    cmds.menu(label="Help", helpMenu=True)
+    cmds.menuItem(label="Advanced Orient Joint Help", command=_open_help)
     cmds.columnLayout(adj=True, rs=8)
     label_width = 170
     field_width = 180

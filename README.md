@@ -24,6 +24,11 @@ mlrigの機能仕様・テスト方法・テストシーン・計測結果を掲
 コマ送り・2本の比較・連番画像に対応した動画プレイヤー FramePlayer の使い方と、Mayaとの連携の手順を画像付きで説明します。
 [ビルド手順](maya/inhouse/FramePlayer/docs/README.md)
 
+[HTools Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/htools/)
+
+HToolsメニューの各ツールの使い方と画面を、スクリーンショット付きで説明します。各ツールの画面とHToolsメニューの Help からも開けます。
+[ビルド手順](maya/inhouse/HTools/_docs/README.md)
+
 ## ▼カスタム内容
 
 - `maya_core.bat`で各種ツールパスを設定し、起動バッチで環境を切り替えています。

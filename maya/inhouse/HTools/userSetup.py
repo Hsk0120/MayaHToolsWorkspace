@@ -194,15 +194,17 @@ def _inhouse_add_htools_menu_items(main_menu):
     HTools_dir = current_file.parent
 
     # HTools 配下のディレクトリをカテゴリとしてメニュー化する。
+    # "_" で始まるもの(__pycache__・説明ページの _docs)はカテゴリにしない。
     folders = [
         d.name
         for d in HTools_dir.iterdir()
-        if d.is_dir() and not d.name.startswith("__")
+        if d.is_dir() and not d.name.startswith("_")
     ]
     
     # Sort folders alphabetically
     folders.sort()
 
+    tools_by_folder = {}
     for folder in folders:
         submenu_result = main_menu.addMenu(folder)
         submenu = submenu_result
@@ -231,6 +233,44 @@ def _inhouse_add_htools_menu_items(main_menu):
             module_name = f"HTools.{folder}.{tool}"
             action = submenu.addAction(tool)
             action.triggered.connect(_inhouse_execute_module(module_name))
+        tools_by_folder[folder] = py_files
+
+    _inhouse_add_htools_help_menu(main_menu, tools_by_folder)
+
+
+def _inhouse_open_help(category=None, tool=None):
+    """説明ページを開くメニュー用のコールバックを返します。
+
+    Args:
+        category: カテゴリのフォルダー名。None ならHTools全体の目次。
+        tool: ツールのファイル名(拡張子なし)。None ならカテゴリの目次。
+    """
+    def callback(*_):
+        importlib.import_module("HTools.toolHelp").openHelp(category, tool)
+    return callback
+
+
+def _inhouse_add_htools_help_menu(main_menu, tools_by_folder):
+    """各ツールの説明ページを開く Help サブメニューを末尾へ追加します。
+
+    Args:
+        main_menu: Main Qt menu object.
+        tools_by_folder: カテゴリ名からツール名の一覧への辞書。
+    """
+    main_menu.addSeparator()
+    # 親を指定して作り、所有をQt側に持たせる(addMenu(str) の戻り値だけを持つと、
+    # Python側の後片付けの時に一緒に消えることがある)。
+    help_menu = QtWidgets.QMenu("Help", main_menu)
+    help_menu.setTearOffEnabled(True)
+    main_menu.addMenu(help_menu)
+    help_menu.addAction("HTools Documentation").triggered.connect(_inhouse_open_help())
+    help_menu.addSeparator()
+    # 画面の無いツールもここから説明ページを開けるよう、カテゴリごとに全ツールを並べる。
+    for folder in sorted(tools_by_folder):
+        category_menu = QtWidgets.QMenu(folder, help_menu)
+        help_menu.addMenu(category_menu)
+        for tool in tools_by_folder[folder]:
+            category_menu.addAction(tool).triggered.connect(_inhouse_open_help(folder, tool))
 
 
 def _inhouse_install_htools_menu():

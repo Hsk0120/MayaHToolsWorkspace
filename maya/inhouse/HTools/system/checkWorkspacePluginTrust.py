@@ -89,11 +89,15 @@ def run():
     print("# " + message.replace("\n", "\n# "))
     if not cmds.about(batch=True):
         answer = cmds.confirmDialog(title="Trusted Plug-in Locations", message=message,
-                                    button=["Open Preferences", "Close"], defaultButton="Close",
+                                    button=["Open Preferences", "Help", "Close"], defaultButton="Close",
                                     cancelButton="Close", dismissString="Close")
         if answer == "Open Preferences":
             import maya.mel as mel
             mel.eval("PreferencesWindow")
+        elif answer == "Help":
+            # runpy で __main__ として実行されるため、ページ名は文字列で明示する。
+            from HTools import toolHelp
+            toolHelp.openHelp("system", "checkWorkspacePluginTrust")
     return pending
 
 

@@ -8,6 +8,7 @@ on:
       - 'maya/inhouse/MayaCodeEditor/docs/**'
       - 'maya/inhouse/mlrig/docs/**'
       - 'maya/inhouse/FramePlayer/docs/**'
+      - 'maya/inhouse/HTools/_docs/**'
       - 'maya/inhouse/FramePlayer/src/app/FramePlayer.rc'
       - '.github/workflows/mlib-docs.yml'
       - 'tools/check_mlib_docs.py'
@@ -86,6 +87,10 @@ jobs:
           python -m sphinx -E -a -b html -W --keep-going maya/inhouse/FramePlayer/docs maya/inhouse/mlib/_docs/_build/html/frameplayer
           # 英語版(locale/en の .po の英訳。英訳は手元で tools/translate_docs.py が作る)。
           python -m sphinx -E -a -b html -W --keep-going -D language=en maya/inhouse/FramePlayer/docs maya/inhouse/mlib/_docs/_build/html/frameplayer/en
+      - name: Build HTools documentation into the published site
+        run: |
+          python -m pip install -r maya/inhouse/HTools/_docs/requirements.txt
+          python -m sphinx -E -a -b html -W --keep-going maya/inhouse/HTools/_docs maya/inhouse/mlib/_docs/_build/html/htools
       - uses: actions/upload-pages-artifact@v3
         with:
           path: maya/inhouse/mlib/_docs/_build/html

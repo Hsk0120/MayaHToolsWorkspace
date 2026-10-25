@@ -14,6 +14,8 @@ mlib に依存せず、maya.cmds と OpenMaya(API 2.0)だけで実装してい�
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from HTools import toolHelp
+
 
 _WINDOW = "HToolsCreateTwistJoints"
 #: 名前の既定の書式。``{root}`` は根本の短い名前(名前空間なし)、``{index}`` は 1 から始まる番号。
@@ -193,9 +195,12 @@ class CreateTwistJointsWindow:
                                       adjustableColumn=2,
                                       annotation="{root}: root joint name, {index}: number from 1")
         cmds.text(label="Joints are evenly spaced, parented to Root, with zero rotation.", align="left")
-        cmds.rowLayout(numberOfColumns=2, adjustableColumn=1, columnAttach=[(1, "both", 0), (2, "both", 4)])
+        cmds.rowLayout(numberOfColumns=3, adjustableColumn=1,
+                       columnAttach=[(1, "both", 0), (2, "both", 4), (3, "both", 4)])
         cmds.button(label="Load Selection (Root, End)", command=lambda *_: self.loadSelection())
         cmds.button(label="Create", width=120, command=lambda *_: self.create())
+        # 説明ページ(Sphinx)を開く。runpyで__main__として動くため名前を明示する。
+        cmds.button(label="Help", width=60, command=lambda *_: toolHelp.openHelp("rigging", "createTwistJoints"))
         cmds.setParent("..")
         cmds.showWindow(self.window)
         self.loadSelection(quiet=True)

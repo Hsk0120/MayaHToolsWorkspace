@@ -28,6 +28,8 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from HTools import toolHelp
+
 
 _WINDOW = "HToolsUeCollisionGuide"
 #: 作ったガイドをまとめるグループ。
@@ -797,6 +799,8 @@ def show():
     cmds.button(_WINDOW + "BetweenButton", label="Capsule between two selected (follows)", height=28,
                 command=_between)
     cmds.button(label="Bake selected guides (remove history)", height=24, command=lambda *_: bake())
+    # このツールの説明ページ(Sphinx)を開く。runpy で __main__ として動くので名前は文字列で渡す。
+    cmds.button(label="Help", height=24, command=lambda *_: toolHelp.openHelp("rigging", "ueCollisionGuide"))
     cmds.text(label="Guides go under {}. Edit radius / length / size / segments in the Channel Box.".format(GROUP),
               align="left", wordWrap=True)
     cmds.separator(style="none", height=6)

@@ -7,6 +7,8 @@ import time
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from HTools import toolHelp
+
 
 _WINDOW = "HToolsInspectCycles"
 _SEPARATOR = "__HTOOLS_CYCLE_SEPARATOR__"
@@ -308,10 +310,12 @@ class CycleInspector:
         self.status = cmds.text(label="Not inspected", align="left")
         self.paths = cmds.textScrollList(height=130, allowMultiSelection=True,
                                         selectCommand=self.showDetails)
-        cmds.rowLayout(numberOfColumns=3, adjustableColumn=1)
+        cmds.rowLayout(numberOfColumns=4, adjustableColumn=1)
         cmds.button(label="Select Nodes in Selected Path", command=self.selectNodes)
         cmds.button(label="Show All Results", command=self.showAll)
         cmds.button(label="Save All Results…", command=self.saveReport)
+        # このツールの説明ページ(Sphinx)を開く。runpy で __main__ として動くので名前は文字列で渡す。
+        cmds.button(label="Help", command=lambda *_: toolHelp.openHelp("rigging", "inspectCycles"))
         cmds.setParent("..")
         self.details = cmds.scrollField(editable=False, wordWrap=False, height=340, text=_LIMITATION)
         cmds.showWindow(self.window)

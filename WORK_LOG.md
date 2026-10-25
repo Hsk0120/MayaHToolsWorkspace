@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-25): HToolsのSphinx説明ページ `maya/inhouse/HTools/_docs/` を追加(35ツール各1ページ・画面のスクリーンショット53枚、GitHub Pagesの `htools/` へ公開する手順をmlib-docs.ymlに1つ追加、README・CLAUDE.mdに案内)。`HTools/toolHelp.py` を追加し、HToolsメニュー末尾にHelp(全ツールのページ)、画面のある11ツールに Help メニュー/ボタンを追加。メニューは `_` で始まるフォルダーをカテゴリにしないよう変更。
+
 - Codex (2026-10-25): ユーザー指示で残り未コミット全4ファイル（QuickPathExplorerの共有タブ/ドックサイズ・列幅修正、GUI検証スクリプト、共有作業ログ）をコミット・push対象として確認。Python3ファイルの構文と差分検査成功、既存Maya2027専用GUIの5確認成功・終了0・crash dumpなしの記録を確認。今回はGUIを再実行せず、生成物/調査資料はGit対象外を維持。
 
 - Codex (2026-10-25 11:22 JST): ユーザー指示でSphinx導入説明復元・全体幅/右目次調整の6ファイルと今回の記録をコミットし、c74751cをorigin/mainへpush。ls-remoteのSHA一致とahead/behind 0/0を確認。日英Sphinx警告0・32表示条件の検証済み差分と一致し、別作業のQPE/共有WORK_LOG差分を保持。

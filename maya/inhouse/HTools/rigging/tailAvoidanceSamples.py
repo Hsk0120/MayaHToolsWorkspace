@@ -15,6 +15,8 @@ from pathlib import Path
 
 from maya import cmds
 
+from HTools import toolHelp
+
 WINDOW = "tailAvoidanceSamplesWindow"
 WORKSPACE = Path(__file__).resolve().parents[4]
 TOOLS = WORKSPACE/"tools"
@@ -201,6 +203,8 @@ def show():
     cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnAttach=("both", 8))
     cmds.text(label="One-axis (rotateX) tail avoidance samples", align="left", font="boldLabelFont", height=24)
     cmds.text(label="Each button replaces the current scene. Save your work first.", align="left")
+    # このツールの説明ページ(Sphinx)を開く。runpy で __main__ として動くので名前は文字列で渡す。
+    cmds.button(label="Help", height=24, command=lambda *_: toolHelp.openHelp("rigging", "tailAvoidanceSamples"))
     for module_name, title, description, options in SAMPLES:
         cmds.separator(style="in", height=10)
         cmds.text(label=title, align="left", font="boldLabelFont")

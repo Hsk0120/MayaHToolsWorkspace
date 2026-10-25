@@ -6,6 +6,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from HTools import toolHelp
 from mlrig.setups.aimAxisConversion import AimAxisConversion
 
 
@@ -93,9 +94,11 @@ class AimAxisConversionWindow:
         self.useContainer = cmds.checkBox(label="Put generated nodes in a container", value=True,
                                          annotation="When off, the math nodes connect directly and the restore data is stored on a network node.")
         cmds.button(label="Convert / Switch Method (one Undo reverts it)", command=self.convert)
-        cmds.rowLayout(numberOfColumns=2, adjustableColumn=1)
+        cmds.rowLayout(numberOfColumns=3, adjustableColumn=1)
         cmds.button(label="Restore Original Aim and Settings", command=self.restore)
         cmds.button(label="Refresh Result", command=self.refresh)
+        # 説明ページ(Sphinx)を開く。runpyで__main__として動くため名前を明示する。
+        cmds.button(label="Help", width=60, command=lambda *_: toolHelp.openHelp("rigging", "convertAimAxes"))
         cmds.setParent("..")
         self.status = cmds.scrollField(editable=False, wordWrap=True, height=160, text="Not converted")
         cmds.scrollField(editable=False, wordWrap=True, height=300, text=_HELP)

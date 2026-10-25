@@ -6,6 +6,8 @@ from maya import OpenMayaUI as omui
 from PySide6 import QtCore, QtWidgets
 from shiboken6 import wrapInstance
 
+from HTools import toolHelp
+
 
 def extrude_face_along_curve_even(face, curve, divisions=3, curve_spans=12):
     """フェースをカーブに沿って均一分割で押し出します。
@@ -138,6 +140,7 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
 
         self.execute_btn = QtWidgets.QPushButton("Execute")
         self.close_btn = QtWidgets.QPushButton("Close")
+        self.help_btn = QtWidgets.QPushButton("Help")
 
         form_layout = QtWidgets.QFormLayout()
         form_layout.addRow("divisions", self.divisions_spin)
@@ -146,6 +149,7 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
         btn_layout = QtWidgets.QHBoxLayout()
         btn_layout.addWidget(self.execute_btn)
         btn_layout.addWidget(self.close_btn)
+        btn_layout.addWidget(self.help_btn)
 
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.addLayout(form_layout)
@@ -155,6 +159,8 @@ class ExtrudeFaceAlongCurveEvenUI(QtWidgets.QDialog):
         """シグナル接続を設定します。"""
         self.execute_btn.clicked.connect(self._on_execute)
         self.close_btn.clicked.connect(self.close)
+        # 説明ページ(Sphinx)を開く。runpyで__main__として動くため名前を明示する。
+        self.help_btn.clicked.connect(lambda *_: toolHelp.openHelp("rigging", "extrudeFaceAlongCurveEven"))
 
     def _on_execute(self):
         """Execute ボタン押下時に押し出し処理を実行します。"""

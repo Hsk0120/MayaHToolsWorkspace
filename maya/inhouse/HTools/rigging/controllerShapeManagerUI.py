@@ -11,6 +11,7 @@ from maya.app.general.mayaMixin import MayaQWidgetDockableMixin
 import maya.cmds as cmds
 
 import HTools.rigging.lib_.controllerShapeManager as controllerShapeManager
+from HTools import toolHelp
 
 reload(controllerShapeManager)
 
@@ -544,6 +545,14 @@ class ControllerShapeManagerUI(MayaQWidgetDockableMixin, QtWidgets.QDialog):
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setContentsMargins(8, 8, 8, 8)
         main_layout.setSpacing(8)
+
+        # メニューバー(Help)。説明ページ(Sphinx)を開く。runpyで__main__として動くため名前を明示する。
+        menu_bar = QtWidgets.QMenuBar(self)
+        help_menu = menu_bar.addMenu("Help")
+        help_action = help_menu.addAction("Controller Shape Manager Help")
+        help_action.triggered.connect(
+            lambda *_: toolHelp.openHelp("rigging", "controllerShapeManagerUI"))
+        main_layout.setMenuBar(menu_bar)
         
         # All Shapes（グループの中にタブ）
         shapes_group = QtWidgets.QGroupBox("All Shapes")

@@ -16,6 +16,8 @@ import maya
 import maya.cmds as cmds
 import maya.api.OpenMaya as om
 
+from HTools import toolHelp
+
 
 _WINDOW = "HToolsEditSkinJoints"
 _SESSION = "HToolsSkinJointEditSession"
@@ -807,6 +809,9 @@ def _buildWindow(owner):
     cmds.text(label="Selected joints only: rotate to jointOrient. Translation and scale are kept.\n"
                     "Updates their bindPreMatrix and bindPose to the current pose (one Undo).",
               align="left", wordWrap=True)
+    cmds.separator(style="in", height=12)
+    # 説明ページ(Sphinx)を開く。runpyで__main__として動くため名前を明示する。
+    cmds.button(label="Help", command=lambda *_: toolHelp.openHelp("rigging", "editSkinJoints"))
     for event in ("Undo", "Redo", "SceneOpened", "NewSceneOpened"):
         cmds.scriptJob(event=[event, refresh], parent=_WINDOW)
     cmds.scriptJob(event=["ToolChanged", refreshPreserve], parent=_WINDOW)

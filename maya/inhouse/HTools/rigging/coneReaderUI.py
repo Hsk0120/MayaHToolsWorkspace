@@ -34,11 +34,21 @@ def create(*_):
           .format(reader.container.getName(), reader.cone, reader.container.getName()))
 
 
+def openHelp(*_):
+    """このツールの説明ページを開く。"""
+    # runpy で __main__ として実行されるため、ページ名は文字列で明示する。
+    from HTools import toolHelp
+    toolHelp.openHelp("rigging", "coneReaderUI")
+
+
 def show():
     """ウィンドウを開く。"""
     if cmds.window(WINDOW, exists=True):
         cmds.deleteUI(WINDOW, window=True)
-    cmds.window(WINDOW, title="Cone Reader", widthHeight=(420, 10), sizeable=True)
+    cmds.window(WINDOW, title="Cone Reader", widthHeight=(420, 10), sizeable=True, menuBar=True)
+    # ツールの説明ページ(Sphinx)を開く Help メニュー。
+    cmds.menu(label="Help", helpMenu=True)
+    cmds.menuItem(label="Cone Reader Help", command=openHelp)
     cmds.columnLayout(adjustableColumn=True, rowSpacing=6, columnAttach=("both", 8))
     cmds.text(label="Select the driver joint, then (optional) the joint the cone follows.", align="left")
     cmds.textFieldGrp("coneReaderName", label="Name", text="coneReader", columnWidth2=(110, 280))
