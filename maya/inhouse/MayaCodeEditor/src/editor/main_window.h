@@ -225,21 +225,25 @@ private:
 
     // ---- 未保存タブの自動復元 ----
 
-    /** @brief tabs.jsonを読み、タブを復元する。読めなければ出力欄で知らせる。 */
+    /** @brief 確定した復元世代を読み、タブを復元する。読めなければ出力欄で知らせる。 */
     void restoreSession();
-    /** @brief 全タブの内容をtabs.jsonへ保存する。前回の保存から何も変わっていなければ書かない。
+    /** @brief 過去の復元世代からタブを追加する。現在のタブを置き換えない。 */
+    void recoverSnapshot();
+    /** @brief 全タブの状態を新しい復元世代へ保存する。前回の保存から何も変わっていなければ書かない。
      * @return 保存できた(または変更が無かった)らtrue。
      * @details 失敗したら、次の自動保存までの間隔を1.5秒・3秒・6秒…と最大60秒まで延ばす
      * (書けない場所へ毎秒書き直したり、ステータスバーに同じ失敗を毎秒出したりしない)。
      */
     bool saveSession();
+    /** @brief 保存失敗をカーソル移動でも消えない表示で知らせる。 @param error 原因。 */
+    void showRecoveryError(const QString& error);
     /** @brief 本文・タブの並びなど、すぐ保存すべき変化があったことを記録する。
-     * @details 最後の変化から1.5秒後に1回だけ保存する(入力中は保存しない。落ちても失うのは約1.5秒分)。
+     * @details 本文は変更通知で同期保存する。メタデータは最初の変化から1.5秒後までに保存する。
      */
     void markSessionDirty();
     /** @brief カーソル・選択の位置だけが変わったことを記録する。
      * @details 位置だけの変化では、すぐには書かない。隠す・閉じる・終了するとき、本文の保存のついで、
-     * または30秒後にまとめて保存する(カーソルを動かすだけでtabs.jsonを書き続けない)。
+     * または30秒後にまとめて保存する(カーソルを動かすだけで世代を作り続けない)。
      */
     void markCursorDirty();
 
@@ -276,7 +280,7 @@ private:
 
     EditorServices services_;        ///< Maya側の処理の一式。
     EditorPreferences preferences_;  ///< 設定(preferences.ini)。
-    SessionStore session_;           ///< 未保存タブの復元ファイル(tabs.json)。
+    SessionStore session_;           ///< 未保存タブの復元ストア。
     std::unique_ptr<CodeAssist> assist_;  ///< 入力の補助。servicesとpreferencesより後に壊れるよう、それらの後に置く。
     bool sessionDirty_ = true;       ///< 前回の自動保存の後に、本文・タブの並びなどの変化があったか。最初は保存が必要として始める。
     bool cursorDirty_ = false;       ///< 前回の自動保存の後に、カーソル・選択の位置だけが変わったか。
@@ -299,9 +303,10 @@ private:
     QMenu* recentMenu_ = nullptr;            ///< File > Open recent。
     QComboBox* languageSelector_ = nullptr;  ///< ステータスバーの言語(Python/MEL)。
     QLabel* completionStatus_ = nullptr;     ///< ステータスバーの補完の状態。
+    QLabel* recoveryStatus_ = nullptr;       ///< 保存できない間だけ表示する警告。ウィンドウが所有する。
     QHash<QString, QAction*> optionActions_; ///< Preferencesのチェック項目(保存名 → メニュー項目)。
 
-    QTimer sessionTimer_;        ///< 本文などの最後の変化から1.5秒後(失敗した後は延ばした間隔の後)に1回だけ自動保存する。
+    QTimer sessionTimer_;        ///< メタデータの最初の変化から1.5秒後(失敗した後は延ばした間隔の後)に1回だけ自動保存する。
     QTimer cursorSessionTimer_;  ///< カーソルの位置だけの変化を、30秒後にまとめて保存する。
     QTimer outlineTimer_;        ///< 入力が止まって0.4秒後にアウトラインを作り直す。
     QTimer outlineSelectTimer_;  ///< カーソルが止まって0.1秒後に、アウトラインのカーソルの行の項目を選ぶ。

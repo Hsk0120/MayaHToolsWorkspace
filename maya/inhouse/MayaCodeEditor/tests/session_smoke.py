@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import traceback
+import zlib
 
 
 def main(output_dir, finished):
@@ -65,21 +66,32 @@ def main(output_dir, finished):
             result['checks'].append('restored_tabs_text_paths_selection_active_modified')
             result['checks'].append('inactive_tab_loaded_on_first_selection')
 
-        # 自動保存は1秒間隔の確認で入力停止1.5秒後に行うため、固定時間ではなく保存を待つ。
+        # 本文は同期保存される。カーソルとタブ順の遅延保存はイベントループで待つ。
         # 待機は壁時計ではなくイベントループが回った回数(200ms×25回)で数える。Maya 2024では
         # 起動直後にArnold(mtoa)の遅延登録がGUIスレッドを約5秒止めるため、壁時計だと停止中に
         # 期限が切れ、停止明けに自動保存のタイマーより先にこの確認が走って誤って失敗する。
         remaining = [25]
 
         def saved():
-            # tabs.jsonにはタブの並びなどだけを書き、本文はタブごとの tabs/<id>.txt に書く。
+            # 世代の確定後にだけ親世代から進む。最新の先端を調べる。
             try:
-                data = json.loads(path.read_text(encoding='utf-8'))
-                tabs = data.get('tabs', [])
-                if len(tabs) != 2 or 'text' in tabs[0]:
+                recovery = Path(str(path) + '.recovery')
+                entries = {p.stem: json.loads(p.read_text(encoding='utf-8'))
+                           for p in (recovery / 'snapshots').glob('*.json')}
+                parents = {parent for entry in entries.values() for parent in entry['parents']}
+                heads = [entry for key, entry in entries.items() if key not in parents]
+                if len(heads) != 1:
                     return None
-                body = path.with_name('tabs').joinpath(tabs[0]['id'] + '.txt').read_text(encoding='utf-8')
-            except (OSError, ValueError, KeyError):
+                data = heads[0]
+                saved_tabs = data.get('tabs', [])
+                if len(saved_tabs) != 2 or data['active'] != 0:
+                    return None
+                first = saved_tabs[0]
+                if (first['anchor'], first['position']) != (2, 7):
+                    return None
+                compressed = (recovery / 'bodies' / (data['bodies'][first['id']] + '.qz')).read_bytes()
+                body = zlib.decompress(compressed[4:]).decode('utf-8')
+            except (OSError, ValueError, KeyError, zlib.error):
                 return None
             return data if body == text else None
 

@@ -45,7 +45,7 @@
    │  │  ├ syntax_highlighter.*  Python / MEL の色分け
    │  │  ├ editor_tabs.*      タブ欄(ホイールで移動、タブのコード欄の取り出し・見出しの更新)
    │  │  ├ editor_preferences.*  Preferences の設定の表と preferences.json への保存(0.2.x の preferences.ini から移行)
-   │  │  ├ session_store.*    tabs.json とタブごとの本文(tabs/<id>.txt)の読み書きとロック
+   │  │  ├ session_store.*    不変の本文・確定世代・並行編集の復元(tabs.json.recovery)
    │  │  ├ explorer.*         Explorer(フォルダーツリー。フォルダーの中身は別スレッドで読む)
    │  │  ├ spelling.*         Windows の辞書を使った英語スペルチェック
    │  │  ├ ui_scale.*         画面の拡大率(4K など)とアイコンの取り出し方

@@ -297,8 +297,9 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
         tabs_->updateTitle(first);
     }
 
-    // 開いた直後に1回保存する(以前の形式の変換と、前回のMayaが残した本文のファイルの片付けを兼ねる)。
-    sessionTimer_.start(kSessionSaveDelay);
+    // 復元完了後に移行・統合を確定する。復元中の空タブは保存しない。
+    markSessionDirty();
+    saveSession();
     assist_->refreshCompletion();
     assist_->scheduleAnalysis();
     setProperty("openMilliseconds", openTimer.nsecsElapsed() / 1000000.0);
@@ -403,6 +404,10 @@ void MainWindow::buildLayout() {
 }
 
 void MainWindow::buildStatusBar() {
+    recoveryStatus_ = new QLabel("Recovery save failed — use Save as…");
+    recoveryStatus_->setObjectName("recoveryStatus");
+    statusBar()->addPermanentWidget(recoveryStatus_);
+    recoveryStatus_->hide();
     completionStatus_ = new QLabel("Completion: ready (in Maya)");
     completionStatus_->setObjectName("completionStatus");
     statusBar()->addPermanentWidget(completionStatus_);
@@ -439,8 +444,7 @@ void MainWindow::setUpTimers() {
             outline_->selectLine(line);
         }
     });
-    // 入力中に全タブをJSONにしてディスクへ書かないよう、最後の変化から1.5秒経ってから1回だけ保存する
-    // (markSessionDirtyのたびに数え直す)。常に動くタイマーは使わない。
+    // 本文はtextChangedで同期保存する。タブ順などのメタデータと失敗時の再試行だけを予約する。
     sessionTimer_.setSingleShot(true);
     connect(&sessionTimer_, &QTimer::timeout, this, [this] { saveSession(); });
     // カーソルの位置だけの変化は、30秒後にまとめて保存する(隠す・閉じるときはすぐ保存する)。
@@ -510,6 +514,11 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
 
 void MainWindow::onTextChanged(CodeEditor* editor) {
     markSessionDirty();
+    // 入力停止を待たず、確定した編集をイベント処理から戻る前に保全する。
+    // IMEの未確定文字は文書に入るまで保存対象にしない。失敗時は既存の再試行間隔を守る。
+    if (saveRetryDelay_ == 0) {
+        saveSession();
+    }
     assist_->onTextChanged(editor);  // 補完・構文チェック・スペルチェックを予約し直す。
     if (editor == currentEditor()) {
         findBar_->scheduleRefresh();  // 本文が変わったので、検索の件数と強調を出し直す。
@@ -581,7 +590,7 @@ void MainWindow::ensureLoaded(CodeEditor* editor) {
     const bool wasRestoring = restoring_;
     restoring_ = true;
     editor->setPlainText(pending.text);
-    // 本文はtabs/<id>.txtと同じなので、本文が変わるまで本文のファイルを書き直さない。
+    // 本文は復元ストアと同じなので、本文が変わるまで本文のファイルを書き直さない。
     editor->setProperty(kSavedRevisionProperty, editor->document()->revision());
     if (!editor->filePath().isEmpty()) {
         // 行番号の横の変更の印は、元のファイルの内容と比べる。復元時に読んでいなければ、今読む。
@@ -734,16 +743,17 @@ void MainWindow::restoreSession() {
     case SessionStore::OpenResult::NoFile:
         return;
     case SessionStore::OpenResult::CannotCreateDirectory:
-        output_->appendNote("Tab recovery unavailable: cannot create recovery directory.");
-        return;
-    case SessionStore::OpenResult::Locked:
-        output_->appendNote("Tab recovery is in use by another Maya. This window will not overwrite it.");
+        showRecoveryError("Cannot create recovery directory.");
         return;
     case SessionStore::OpenResult::Unreadable:
         output_->appendNote("Tab recovery file could not be read. It has been preserved: " + session_.path());
         return;
     case SessionStore::OpenResult::Loaded:
         break;
+    }
+
+    if (!session_.notice().isEmpty()) {
+        output_->appendNote(session_.notice());
     }
 
     // 保存されていたタブを作り直す。タブごとの処理(自動保存の印・構文チェックの予約など)は、
@@ -818,7 +828,7 @@ void MainWindow::restoreSession() {
 }
 
 bool MainWindow::saveSession() {
-    if (!session_.canSave()) {
+    if (restoring_ || !session_.canSave() || tabs_->count() == 0) {
         return false;
     }
     if (!sessionDirty_ && !cursorDirty_) {
@@ -837,7 +847,7 @@ bool MainWindow::saveSession() {
         tab.modified = editor->document()->isModified();
         const auto pending = pendingTabs_.constFind(editor);
         if (pending != pendingTabs_.constEnd()) {
-            // 読み込んでいないタブ: 本文はtabs/<id>.txtのまま(書き直さない)。位置は復元したときの値。
+            // 読み込んでいないタブ: 本文は復元ストアのまま(書き直さない)。位置は復元したときの値。
             tab.textLoaded = false;
             tab.position = pending->position;
             tab.anchor = pending->anchor;
@@ -862,7 +872,7 @@ bool MainWindow::saveSession() {
         saveRetryDelay_ = saveRetryDelay_ == 0 ? kSessionSaveDelay : qMin(saveRetryDelay_ * 2, kMaximumSaveRetryDelay);
         cursorSessionTimer_.stop();
         sessionTimer_.start(saveRetryDelay_);
-        showStatus("Tab recovery save failed: " + error);
+        showRecoveryError(error);
         return false;
     }
     for (const auto& entry : written) {
@@ -871,6 +881,7 @@ bool MainWindow::saveSession() {
     sessionDirty_ = false;
     cursorDirty_ = false;
     saveRetryDelay_ = 0;
+    recoveryStatus_->hide();
     sessionTimer_.stop();
     cursorSessionTimer_.stop();
     // 計測用: 書き込みとフォルダーの一覧の回数(テストが動的プロパティで読む)。
@@ -878,6 +889,14 @@ bool MainWindow::saveSession() {
     setProperty("sessionTextWrites", session_.textWrites());
     setProperty("sessionListings", session_.listings());
     return true;
+}
+
+void MainWindow::showRecoveryError(const QString& error) {
+    if (recoveryStatus_->isHidden()) {
+        output_->appendNote("Tab recovery save failed: " + error + " Use File > Save as… to protect your code.");
+    }
+    recoveryStatus_->setToolTip(error + "\n" + session_.recoveryPath());
+    recoveryStatus_->show();
 }
 
 void MainWindow::markSessionDirty() {
@@ -892,7 +911,9 @@ void MainWindow::markSessionDirty() {
         }
         return;
     }
-    sessionTimer_.start(kSessionSaveDelay);  // 最後の変化から数え直す。
+    if (!sessionTimer_.isActive()) {
+        sessionTimer_.start(kSessionSaveDelay);  // 連続操作でも先延ばしにしない。
+    }
 }
 
 void MainWindow::markCursorDirty() {

@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QDockWidget>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -32,6 +33,37 @@ constexpr const char* kOutlineVisibleFlagName = "outlineVisible";
 
 }  // namespace
 
+void MainWindow::recoverSnapshot() {
+    QFileDialog dialog(this, "Recover previous tabs (UTC timestamps)",
+        session_.recoveryPath() + "/snapshots", "Recovery snapshots (*.json)");
+    dialog.setObjectName("recoverySnapshotDialog");
+    dialog.setOption(QFileDialog::DontUseNativeDialog);
+    dialog.setFileMode(QFileDialog::ExistingFile);
+    if (dialog.exec() != QDialog::Accepted) { return; }
+    const QString path = dialog.selectedFiles().value(0);
+    SessionData data;
+    const bool complete = session_.readSnapshot(QFileInfo(path).completeBaseName(), &data);
+    if (data.tabs.isEmpty()) {
+        QMessageBox::warning(this, "Tab recovery", "This snapshot could not be read. The original files have been preserved.");
+        return;
+    }
+    // 復旧中の部分的な画面を保存しない。元タブとファイルは変更せず、新しい未保存タブを追加する。
+    restoring_ = true;
+    for (const TabState& tab : data.tabs) {
+        CodeEditor* editor = newTab(languageFromName(tab.language));
+        editor->setPlainText(tab.text);
+        editor->document()->setModified(true);
+        tabs_->updateTitle(editor);
+    }
+    restoring_ = false;
+    tabs_->setCurrentIndex(tabs_->count() - 1);
+    markSessionDirty();
+    saveSession();
+    if (!complete) {
+        output_->appendNote("Some tab bodies could not be read. Available tabs were recovered; the original files are preserved.");
+    }
+}
+
 void MainWindow::buildMenusAndToolbar() {
     // ---- File ----
     QMenu* file = menuBar()->addMenu("File");
@@ -40,6 +72,7 @@ void MainWindow::buildMenusAndToolbar() {
     QAction* openAction = file->addAction("Open…", this, [this] {
         openFile(QFileDialog::getOpenFileName(this, "Open script", {}, "Scripts (*.py *.mel);;All files (*)"));
     }, QKeySequence::Open);
+    file->addAction("Recover previous tabs…", this, [this] { recoverSnapshot(); })->setObjectName("recoverSnapshot");
     recentMenu_ = file->addMenu("Open recent");
     recentMenu_->setObjectName("recentMenu");
     connect(recentMenu_, &QMenu::aboutToShow, this, [this] { rebuildRecentMenu(); });

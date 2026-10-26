@@ -14,6 +14,7 @@ C++ 側の計測値(動的プロパティ)があれば、それも記録する�
 未保存の印・検索の件数・保存の内容が正しいことは確かめる(失敗は ``AssertionError``)。
 """
 import json
+import zlib
 import os
 from pathlib import Path
 import sys
@@ -187,6 +188,8 @@ def _measure(result, output_dir):
     timings['unload_plugin_welcome_ms'] = milliseconds(lambda: cmds.unloadPlugin('mayaCodeEditor'))
 
     # ---- タブ1つ(保存済み)----
+    session = session.with_name("one-tab.json")
+    os.environ["MCE_SESSION_FILE"] = str(session)
     _write_session(session, [_python_source(LINES_PER_TAB, 0)], [])
     cmds.loadPlugin('mayaCodeEditor', quiet=True)
     timings['open_1tab_ms'] = milliseconds(lambda: cmds.mayaCodeEditorTest(editor=True))
@@ -199,6 +202,8 @@ def _measure(result, output_dir):
     # ---- 2,000行のタブ30個(Explorer に多数のファイルのフォルダー)----
     texts = [_python_source(LINES_PER_TAB, index) for index in range(TAB_COUNT)]
     folder = _picker_folder()
+    session = session.with_name("thirty-tabs.json")
+    os.environ["MCE_SESSION_FILE"] = str(session)
     ids = _write_session(session, texts, [folder], active=0)
     cmds.loadPlugin('mayaCodeEditor', quiet=True)
     timings['open_30tabs_ms'] = milliseconds(lambda: cmds.mayaCodeEditorTest(editor=True))
@@ -228,11 +233,7 @@ def _measure(result, output_dir):
     wait(2500)  # 開いた直後の保存を済ませる。
 
     def stamp():
-        try:
-            info = os.stat(str(session))
-            return (info.st_mtime_ns, info.st_ino, info.st_size)
-        except OSError:
-            return None
+        return int(window.property('sessionWrites') or 0)
 
     code = tabs.currentWidget()
     code.setFocus()
@@ -255,15 +256,20 @@ def _measure(result, output_dir):
     timings['cursor_only_moves'] = moves[0]
     timings['cpp_session'] = cpp_timings(window, ['sessionWrites', 'sessionTextWrites', 'sessionListings'])
 
-    # 本文を変えたら、入力が止まってから約1.5秒で本文のファイルへ保存される(落ちても失わない)。
+    # 確定した本文は、挿入処理が戻る前に新しい世代へ保存される。
     before = stamp()
+    started = time.perf_counter()
     code.textCursor().insertText('# edited\n')
     edited_text = code.toPlainText()
-    text_file = session.parent / 'tabs' / (ids[0] + '.txt')
-    latency = wait_until(lambda: text_file.read_text(encoding='utf-8') == edited_text, 10000, 20)
-    timings['edit_to_text_file_ms'] = latency
-    assert latency is not None, 'the edited text was not autosaved'
-    assert stamp() != before
+    timings['edit_to_text_file_ms'] = (time.perf_counter() - started) * 1000
+    assert stamp() > before
+    recovery = Path(str(session) + '.recovery')
+    entries = {p.stem: json.loads(p.read_text(encoding='utf-8')) for p in (recovery / 'snapshots').glob('*.json')}
+    parents = {parent for entry in entries.values() for parent in entry['parents']}
+    heads = [entry for key, entry in entries.items() if key not in parents]
+    assert len(heads) == 1
+    body = recovery / 'bodies' / (heads[0]['bodies'][ids[0]] + '.qz')
+    assert zlib.decompress(body.read_bytes()[4:]).decode('utf-8') == edited_text
     result['checks'].append('edit_autosaved')
 
     # ---- 文字サイズの変更と新しいタブ ----

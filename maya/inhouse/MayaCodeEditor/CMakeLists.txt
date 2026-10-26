@@ -193,6 +193,12 @@ target_include_directories(mayaCodeEditor_ui_smoke PRIVATE src ${INCLUDE_DIRS})
 target_link_libraries(mayaCodeEditor_ui_smoke PRIVATE ${PACKAGE_LIBS} ole32)
 set_target_properties(mayaCodeEditor_ui_smoke PROPERTIES CXX_STANDARD 17)
 
+# 復元ストアを本番と同じ実装で検証する。子プロセスの強制終了も専用の一時フォルダーで行う。
+add_executable(mayaCodeEditor_recovery_test src/core/session_data.cpp src/editor/session_store.cpp tests/session_recovery.cpp)
+target_include_directories(mayaCodeEditor_recovery_test PRIVATE src ${INCLUDE_DIRS})
+target_link_libraries(mayaCodeEditor_recovery_test PRIVATE ${PACKAGE_LIBS})
+set_target_properties(mayaCodeEditor_recovery_test PROPERTIES CXX_STANDARD 17)
+
 # Mayaのプラグイン(.mll)の出力先。版のフォルダーは作らない(release/plug-ins/windows/<Mayaの年>/mayaCodeEditor.mll)。
 # 版ごとにフォルダーを変えると、Mayaの「信頼済みのプラグインの場所」とオートロードの設定が版を上げるたびに外れるため。
 set(MCE_RELEASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/release/plug-ins/windows/${MAYA_VERSION}")

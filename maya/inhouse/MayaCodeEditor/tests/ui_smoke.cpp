@@ -252,25 +252,25 @@ bool sessionDataPasses() {
                                "{\"version\":2,\"tabs\":[{\"id\":\"../x\",\"path\":\"\",\"modified\":false}]}"}) {
         if (mce::sessionFromJson(broken, &loaded)) { qWarning() << "accepted broken session" << broken; return false; }
     }
-    // SessionStore: 本文は変わったタブだけ書き、閉じたタブの本文のファイルは消す。
+    // 保存済み本文はタブを閉じても保持し、別の画面も復元と保存ができる。
     {
         QTemporaryDir directory;
         const QString path = QDir(directory.path()).filePath("tabs.json");
         mce::SessionStore store(path);
         mce::SessionData opened;
-        if (store.open(&opened) != mce::SessionStore::OpenResult::NoFile) { qWarning() << "store open"; return false; }
+        if (store.open(&opened) != mce::SessionStore::OpenResult::NoFile) { return false; }
         QString error;
-        if (!store.save(data, &error)) { qWarning() << "store save" << error; return false; }
+        if (!store.save(data, &error)) { qWarning() << error; return false; }
+        const QString pythonText = store.textPath(python.id);
         const QString melText = store.textPath(mel.id);
-        QFile::remove(melText);  // 2回目の保存で本文を書かないタブは、ファイルが作り直されないことで確かめる。
         mce::SessionData unchanged = data;
         unchanged.tabs[1].textLoaded = false;
-        unchanged.tabs.removeFirst();  // 1つ目のタブを閉じた。
-        if (!store.save(unchanged, &error) || QFile::exists(melText) || QFile::exists(store.textPath(python.id))) {
-            qWarning() << "store incremental save"; return false;
-        }
+        unchanged.tabs.removeFirst();
+        if (!store.save(unchanged, &error) || !QFile::exists(melText) || !QFile::exists(pythonText)
+            || store.textWrites() != 2) { qWarning() << "incremental recovery"; return false; }
         mce::SessionStore other(path);
-        if (other.open(&opened) != mce::SessionStore::OpenResult::Locked) { qWarning() << "store lock"; return false; }
+        if (other.open(&opened) != mce::SessionStore::OpenResult::Loaded || !other.canSave()
+            || opened.tabs.size() != 1 || opened.tabs[0].text != mel.text) { return false; }
     }
     if (mce::classifyHistoryLine("// Warning: x") != mce::OutputKind::Warning
         || mce::classifyHistoryLine("# Error: x") != mce::OutputKind::Error

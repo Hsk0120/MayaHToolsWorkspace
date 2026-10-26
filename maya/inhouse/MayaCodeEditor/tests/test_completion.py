@@ -206,7 +206,8 @@ class CompletionTests(unittest.TestCase):
         source = 'import mlib\njnt = mlib.nodes.Joints("spine_IK_jnt")\njnt.'
         found = names(source)
         self.assertIn('jointOrientToRotate', found)
-        self.assertIn('getOverrideColor', found)
+        # 色専用APIはmlibの確定仕様で廃止済み。DagNodesからの継承補完を現行APIで検証する。
+        self.assertIn('getVisibility', found)
         typed = names('import mlib\ndef f(jnt: mlib.nodes.Joint):\n    jnt.')
         self.assertIn('getJointOrient', typed)
 

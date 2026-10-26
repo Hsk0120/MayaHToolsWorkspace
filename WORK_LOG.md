@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-26): Maya Code Editor 0.8.0。先着Mayaだけの復元ロックと本文削除を廃止し、不変の圧縮本文・親世代付きスナップショットへ追記保存。本文変更直後の同期保存、並行編集の両方復元、破損時の親世代回収、履歴の追加復元、保存失敗の常時表示を実装。旧復元データを.maya-output/mce-recovery-20261026/user-backupへ保護。全6版ビルド・ストア多重プロセス/破損/失敗テスト合格。2022/2027 GUIで2重起動・入力直後の強制終了・2回再起動・履歴復元・通常解除復元、2027で保存失敗/再試行/ドック再生成と30タブ性能を検証。C++ UI/補完等の回帰も両版合格（廃止済みmlib色APIの期待を現行getVisibilityへ更新）。テストのダイアログ選択/古いQtラッパー参照を修正後再実行。結果.maya-output/mce-recovery-20261026/verification.json。動画 https://drive.google.com/file/d/18WPjF2BCC2WdwE4Gcvi1dxCgDeC8SQeQ/view 。電源断・物理IME入力・2023〜2026のGUI未検証。公開前に全6版の検証済みバイナリのSHA256一致と差分検査を再確認。MCE 0.8.0のみ公開対象とし、QPE差分と他作業の記録は保持。
+
 - Claude Code (2026-10-26): 仕様固めのテストで見つかった食い違い・不具合26件を修正(AngleBetween.getAxisの評価、Reference.getFilenameの引数、mlib.deleteのアトリビュート名の拒否、fastの丸め・型の検証を通常経路に統一、ピボットのロックを両経路で拒否、型の登録にdagNode/shape、作成前の型検査、削除直後のDAG参照の例外、enumの例外の統一、BlendMatrix.setTargetのfastなど)。テストを新しい約束に更新。Maya 2022〜2027でmlib全件・mlrig setups合格。
 
 - Claude Code (2026-10-26): mlibの仕様を固めるテストを追加(__tests__ の test_spec_{A,B,C,D}_*.py・test_static_spec_D_numeric.py、23ファイル・約630件)。計算ノード・Plug・シーンのノード・cmds/common/maths/components/decorator/core の公開APIの引数・戻り値・例外・Undo・fast/safe・不正入力を確認し、テストに一度も出ない公開APIを0件に。docstringとの食い違い26件と不具合(AngleBetween.getAxis・Reference.getFilename)はローカルの .maya-output/mlib-spec-tests/FINDINGS_*.md に記録(テストは今の振る舞いを固定)。test_contract_changes_C の時間の比較の上限を6倍に緩和(揺れ対策)。Maya 2022〜2027で全件合格。
