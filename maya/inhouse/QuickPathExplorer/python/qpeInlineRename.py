@@ -32,6 +32,11 @@ class InlineRename(QtWidgets.QLineEdit):
             return
         self._finished = True
         value = self.text()
+        # キーで終了した場合だけ一覧へ戻す。別の欄へのクリックによる
+        # focusOutでは、その新しい入力先を奪わない。
+        if self.hasFocus():
+            view = self.parentWidget().parentWidget()
+            view.setFocus(QtCore.Qt.OtherFocusReason)
         self.close()
         if commit:
             self.committed.emit(value)

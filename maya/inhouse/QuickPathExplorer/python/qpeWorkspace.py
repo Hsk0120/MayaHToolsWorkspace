@@ -155,7 +155,7 @@ class WorkspaceFeatures(QtCore.QObject):
             return True
         if kind == QtCore.QEvent.Resize and watched is self.grid.viewport():
             QtCore.QTimer.singleShot(0, self.scheduleImages)
-        if kind == QtCore.QEvent.KeyPress and QtWidgets.QApplication.focusWidget() in (self.grid, self.tree):
+        if kind in (QtCore.QEvent.KeyPress, QtCore.QEvent.ShortcutOverride) and QtWidgets.QApplication.focusWidget() in (self.grid, self.tree):
             key, mods = event.key(), event.modifiers()
             if mods == QtCore.Qt.ControlModifier:
                 actions = {QtCore.Qt.Key_C: lambda: self.tools.clipboard(self.selected()),
@@ -163,9 +163,15 @@ class WorkspaceFeatures(QtCore.QObject):
                            QtCore.Qt.Key_V: lambda: self.tools.paste(self.e.currentDirectory),
                            QtCore.Qt.Key_Z: self.tools.undo, QtCore.Qt.Key_Y: self.redo}
                 if key in actions:
-                    actions[key]()
+                    if kind == QtCore.QEvent.ShortcutOverride:
+                        event.accept()
+                    else:
+                        actions[key]()
                     return True
             if mods == QtCore.Qt.NoModifier and key in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter, QtCore.Qt.Key_F2, QtCore.Qt.Key_Space):
+                if kind == QtCore.QEvent.ShortcutOverride:
+                    event.accept()
+                    return True
                 paths = self.selected()
                 if key == QtCore.Qt.Key_Delete:
                     self.tools.transfer('trash', paths)

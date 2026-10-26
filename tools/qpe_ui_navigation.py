@@ -18,8 +18,10 @@ def columns(widget):
     Returns:
         list: 可視カラム。
     """
+    # QColumnViewは空の末尾列を幅0のまま再showすることがある。
+    # 画面上の領域がない列は表示カラムではない。幅を持つ空列は引き続き検出する。
     return [v for v in widget.columns.findChildren(QtWidgets.QListView)
-            if v.isVisible() and v.rootIndex().isValid()]
+            if v.isVisible() and v.width() > 0 and v.rootIndex().isValid()]
 
 
 def visibleWidth(widget, view):
@@ -74,6 +76,27 @@ def inspectFolder(widget, folder, require_visible=True):
     try:
         waitFor(contentsMatch)
     except AssertionError:
+        # GUI起動の標準出力に依存せず、間欠的な失敗の状態を証跡へ残す。
+        diagnostic = {
+            'expected': str(folder),
+            'directory': widget.currentDirectory,
+            'current': widget.folderModel.filePath(widget.columns.currentIndex()),
+            'hint_timer': widget.columns._hintTimer.isActive(),
+            'models': [{
+                'active': list(model._active),
+                'states': {str(path): state for path, state in model.states.items()},
+            } for model in (widget.folderModel, widget.fileModel)],
+            'views': [{
+                'visible': v.isVisible(), 'hidden': v.isHidden(),
+                'width': v.width(), 'x': v.x(),
+                'root': widget.folderModel.filePath(v.rootIndex()),
+                'rows': v.model().rowCount(v.rootIndex()),
+            } for v in widget.columns.findChildren(QtWidgets.QListView)],
+        }
+        settings = os.environ.get('QPE_SETTINGS_FILE')
+        if settings:
+            with (Path(settings).parent / 'navigation-failures.jsonl').open('a', encoding='utf-8') as stream:
+                stream.write(json.dumps(diagnostic, ensure_ascii=False, default=str) + '\n')
         print('COLUMN_CURRENT', widget.folderModel.filePath(widget.columns.currentIndex()),
               widget.folderModel.filePath(widget.columns.rootIndex()), widget.columns._hintTimer.isActive(), flush=True)
         print('COLUMN_DIAGNOSTICS', [(v.isVisible(), v.isHidden(), v.width(), v.x(),

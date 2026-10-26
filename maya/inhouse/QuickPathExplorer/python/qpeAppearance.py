@@ -7,6 +7,21 @@ from qpeTheme import Theme
 class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
     """フォルダー・ファイル・サイドバーで共通の行高を使用する。"""
 
+    def initStyleOption(self, option, index):
+        """矢印の分だけ文字を省略し、背景とアイコンはQt標準描画へ渡す。
+
+        Args:
+            option (QStyleOptionViewItem): Qtが描画に使用する項目情報。
+            index (QModelIndex): 描画する項目。
+        """
+        super().initStyleOption(option, index)
+        view = self.parent()
+        if isinstance(view, QtWidgets.QListView) and option.rect.isValid():
+            arrow_space = max(12, option.fontMetrics.height())
+            option.text = option.fontMetrics.elidedText(
+                option.text, QtCore.Qt.ElideRight,
+                max(0, option.rect.width() - arrow_space - view.iconSize().width() - 12))
+
     def paint(self, painter, option, index):
         """共通の行描画でもカラムの階層矢印を保持する。
 
@@ -16,13 +31,11 @@ class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
             index (QModelIndex): 項目。
         """
         view = self.parent()
+        # QWidget.style()はPySide側にQStyleSheetStyleへの参照を残す。
+        # 共有スタイルのDLL終了順による再無効化を避け、Qt内部で描画させる。
+        super().paint(painter, option, index)
         if isinstance(view, QtWidgets.QListView):
-            item_option = QtWidgets.QStyleOptionViewItem(option)
-            self.initStyleOption(item_option, index)
             arrow_space = max(12, option.fontMetrics.height())
-            item_option.text = option.fontMetrics.elidedText(item_option.text, QtCore.Qt.ElideRight,
-                                                           max(0, option.rect.width() - arrow_space - view.iconSize().width() - 12))
-            view.style().drawControl(QtWidgets.QStyle.CE_ItemViewItem, item_option, painter, view)
             model = index.model()
             path = model.filePath(index)
             ready = model.states.get(path, ('loading', ''))[0] == 'ready'
@@ -42,8 +55,6 @@ class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
                     QtCore.QPointF(x + radius / 2, y),
                     QtCore.QPointF(x - radius / 2, y + radius)]))
                 painter.restore()
-        else:
-            super().paint(painter, option, index)
 
     def sizeHint(self, option, index):
         """フォントとUI倍率に追従した行の大きさを返す。
@@ -76,15 +87,20 @@ class Appearance:
         self.dpiScale = dpi_scale
         self.key = 'mayaAppearance' if widget._maya else 'standaloneAppearance'
         self.dialog = None
+        # QLineEditの消去ボタンなど、Qt内部が生成した部品の寸法はQtに任せる。
+        # 再生成を繰り返すと内部部品のラッパーがisValidでもminimumSizeで落ちる
+        # Maya Qt6環境があるため、QPEがPythonで作った部品だけを直接操作する。
         self.dimensions = [(w, w.minimumSize(), w.maximumSize())
-                           for w in widget.findChildren(QtWidgets.QWidget)]
+                           for w in widget.findChildren(QtWidgets.QWidget)
+                           if shiboken.isValid(w) and shiboken.createdByPython(w)]
         self.layouts = [(layout, layout.contentsMargins(), layout.spacing())
-                        for layout in widget.findChildren(QtWidgets.QLayout)]
+                        for layout in widget.findChildren(QtWidgets.QLayout)
+                        if shiboken.isValid(layout) and shiboken.createdByPython(layout)]
         self.baseFont = QtGui.QFont('Segoe UI')
         self.baseFont.setWeight(QtGui.QFont.Normal)
         value = readSettings().get(self.key, {})
         value = value if isinstance(value, dict) else {}
-        self.fontSize = self._number(value.get('fontSize'), 13, 10, 24)
+        self.fontSize = self._number(value.get('fontSize'), 12, 10, 24)
         self.uiPercent = self._number(value.get('uiPercent'), 100, 75, 200)
         self.density = value.get('density', 'compact')
         if self.density not in ('compact', 'comfortable'):
@@ -177,7 +193,7 @@ class Appearance:
             self.widget.modern.applyMetrics()
         if self.dialog is not None:
             self.dialog.setFont(font)
-            presets = {(13, 100): 0, (13, 125): 1, (13, 150): 2}
+            presets = {(12, 100): 0, (13, 125): 1, (13, 150): 2}
             self.presetCombo.blockSignals(True)
             self.presetCombo.setCurrentIndex(presets.get((self.fontSize, self.uiPercent), 3))
             self.presetCombo.blockSignals(False)
@@ -304,11 +320,11 @@ class Appearance:
             return
         self.fontSpin.blockSignals(True)
         self.scaleSpin.blockSignals(True)
-        self.fontSpin.setValue(13)
+        self.fontSpin.setValue(12 if index == 0 else 13)
         self.scaleSpin.setValue((100, 125, 150)[index])
         self.fontSpin.blockSignals(False)
         self.scaleSpin.blockSignals(False)
-        self.apply(13, (100, 125, 150)[index])
+        self.apply(self.fontSpin.value(), (100, 125, 150)[index])
 
     def _changed(self, value):
         """操作した値を直ちに反映する。

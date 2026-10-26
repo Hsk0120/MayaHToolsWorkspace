@@ -116,18 +116,24 @@ class Interaction(QtCore.QObject):
                 bar.setValue(bar.value() - round(amount))
             event.accept()
             return True
-        if kind == QtCore.QEvent.KeyPress:
+        if kind in (QtCore.QEvent.KeyPress, QtCore.QEvent.ShortcutOverride):
             focus = QtWidgets.QApplication.focusWidget()
             if focus not in (view, view.viewport()):
                 return False
             key = event.key()
             if key in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Enter) and event.modifiers() == QtCore.Qt.NoModifier:
+                if kind == QtCore.QEvent.ShortcutOverride:
+                    event.accept()
+                    return True
                 if view is owner.files and len(owner.selectedPaths()) != 1:
                     return True
                 path = owner.selectedPath() if view is owner.files else owner.currentDirectory
                 owner.renamePath(path)
                 return True
             if key == QtCore.Qt.Key_Space and view is owner.files and event.modifiers() == QtCore.Qt.NoModifier:
+                if kind == QtCore.QEvent.ShortcutOverride:
+                    event.accept()
+                    return True
                 owner.openSelectedFile()
                 return True
         if view is not owner.files and kind in (QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseMove,

@@ -283,7 +283,7 @@ class Organizer(QtCore.QObject):
         self.toolsMenu = QtWidgets.QMenu(self.button)
         self.toolsMenu.aboutToShow.connect(self.populateTools)
         self.button.setMenu(self.toolsMenu)
-        explorer.layout().itemAt(1).layout().addWidget(self.button)
+        explorer.navigationBar.addWidget(self.button)
         self.dropStart = None
         self.views = {}
         explorer.files.setDragEnabled(False)
@@ -556,6 +556,8 @@ class Organizer(QtCore.QObject):
         menu.addAction('Configure Everything CLI…', lambda: self.configureExecutable('everythingExecutable'))
         self.workspace.addTools(menu)
         self.groupTools()
+        if hasattr(self.explorer, 'modern'):
+            self.explorer.modern.addNavigationMenu(menu)
 
     def groupTools(self):
         """画面を越える長いメニューを、操作名を保ったまま用途別に整理する。"""
@@ -930,14 +932,14 @@ class Organizer(QtCore.QObject):
         """編集欄に触れず、ファイル一覧の操作とドロップだけを処理する。"""
         e = self.explorer
         kind = event.type()
-        if kind not in (QtCore.QEvent.KeyPress, QtCore.QEvent.DragEnter, QtCore.QEvent.DragMove,
+        if kind not in (QtCore.QEvent.KeyPress, QtCore.QEvent.ShortcutOverride, QtCore.QEvent.DragEnter, QtCore.QEvent.DragMove,
                         QtCore.QEvent.Drop, QtCore.QEvent.MouseButtonPress, QtCore.QEvent.MouseMove,
                         QtCore.QEvent.MouseButtonRelease) or not shiboken.isValid(e.files):
             return False
         view = e.files if watched in (e.files, e.files.viewport()) else self.views.get(watched)
         is_files = view is e.files
         paths = e.selectedPaths if is_files else lambda: [e.folderModel.filePath(view.currentIndex())] if view and view.currentIndex().isValid() else []
-        if kind == QtCore.QEvent.KeyPress and view and QtWidgets.QApplication.focusWidget() in (view, view.viewport()):
+        if kind in (QtCore.QEvent.KeyPress, QtCore.QEvent.ShortcutOverride) and view and QtWidgets.QApplication.focusWidget() in (view, view.viewport()):
             key, modifiers = event.key(), event.modifiers()
             if modifiers == QtCore.Qt.ControlModifier:
                 actions = {QtCore.Qt.Key_C: lambda: self.clipboard(paths()),
@@ -948,13 +950,24 @@ class Organizer(QtCore.QObject):
                            QtCore.Qt.Key_Tab: lambda: e.folderTabs.bar.setCurrentIndex((e.folderTabs.active + 1) % e.folderTabs.bar.count()),
                            QtCore.Qt.Key_W: lambda: e.folderTabs.close(e.folderTabs.active)}
                 if key in actions:
-                    actions[key]()
+                    # ホストのQActionより先に、この一覧が扱うキーだけを予約する。
+                    # 操作自体はKeyPressで一度だけ実行し、編集欄には触れない。
+                    if kind == QtCore.QEvent.ShortcutOverride:
+                        event.accept()
+                    else:
+                        actions[key]()
                     return True
             if modifiers == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and key == QtCore.Qt.Key_T:
-                e.folderTabs.reopen()
+                if kind == QtCore.QEvent.ShortcutOverride:
+                    event.accept()
+                else:
+                    e.folderTabs.reopen()
                 return True
             if key == QtCore.Qt.Key_Delete and modifiers == QtCore.Qt.NoModifier:
-                self.transfer('trash', paths())
+                if kind == QtCore.QEvent.ShortcutOverride:
+                    event.accept()
+                else:
+                    self.transfer('trash', paths())
                 return True
         if kind in (QtCore.QEvent.DragEnter, QtCore.QEvent.DragMove):
             if event.mimeData().hasUrls():

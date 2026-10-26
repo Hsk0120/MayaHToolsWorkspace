@@ -241,7 +241,11 @@ def main(output_dir, finished=None):
         checks.append('ancestor highlights are muted when the file pane has focus')
 
         step('05  横に戻した位置を読込完了で引き戻さない')
-        widget.resize(820, 790)
+        # Mayaの子ウィジェットだけをresizeしても親レイアウトが元へ戻す。
+        if finished:
+            cmds.workspaceControl(qpeHost.CONTROL, edit=True, resizeWidth=820, resizeHeight=790)
+        else:
+            widget.resize(820, 790)
         pause(100)
         bar = widget.columns.horizontalScrollBar()
         assert bar.maximum() > 0

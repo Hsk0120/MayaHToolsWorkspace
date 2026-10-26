@@ -83,6 +83,15 @@ def main(output_dir, finished):
             result["checks"].append("seed_saved_before_return")
             wait(1500)
         elif stage in ("A", "B"):
+            qpe = None
+            if os.environ.get("MCE_RECOVERY_WITH_QPE") == "1":
+                # 併用試験も各GUI専用の設定へ隔離し、共有するのはMCEの復元データだけ。
+                root = Path(__file__).resolve().parents[4]
+                sys.path.insert(0, str(root / "maya/inhouse/QuickPathExplorer/python"))
+                os.environ["QPE_SETTINGS_FILE"] = str(output / "qpe-settings.json")
+                import qpeHost
+                qpe = qpeHost.show(str(output))
+                wait(400)
             # 両方が同じ状態を復元してから編集を開始する。
             signal = path.with_name(stage + ".ready")
             signal.write_text(str(os.getpid()), encoding="utf-8")
@@ -98,15 +107,31 @@ def main(output_dir, finished):
                 code.moveCursor(QtGui.QTextCursor.End)
                 code.insertPlainText("value_{} = {}\n".format(step, step))
                 assert code.toPlainText() in heads(path), "Edit was not committed synchronously"
+                if qpe is not None and step in (3, 7, 11):
+                    before = code.toPlainText()
+                    cmds.deleteUI(qpeHost.CONTROL)
+                    qpe = qpeHost.show(str(output))
+                    wait(100)
+                    assert code.toPlainText() == before, "QPE recreation changed the editor"
+                    assert before in heads(path), "QPE recreation lost saved recovery text"
                 wait(100)
             # 待機もQt終了通知も挟まず、最後の入力直後にプロセスを終了する。
             code.insertPlainText("last_edit_" + stage + " = 'survives crash'\n")
             assert code.toPlainText() in heads(path)
             capture()
             result["checks"].append("every_edit_committed_without_idle")
-            result["checks"].append("exit_without_destructor_or_aboutToQuit")
+            external_termination = os.environ.get("MCE_RECOVERY_EXTERNAL_TERMINATE") == "1"
+            result["checks"].append("external_termination_ready" if external_termination
+                                    else "os_exit_without_Qt_aboutToQuit")
+            if qpe is not None:
+                result["checks"].append("qpe_recreated_three_times_during_concurrent_editing")
             result["status"] = "passed"
             (output / "result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+            if external_termination:
+                # 所有PIDを確認した親ランナーがTerminateProcessするまでGUIを生かす。
+                # Windowsのos._exitはDLL終了処理を通るため、別の障害条件として扱う。
+                wait(30000)
+                raise RuntimeError("External termination did not arrive within 30 seconds")
             os._exit(23)
         else:
             values = all_texts()
@@ -144,11 +169,32 @@ def main(output_dir, finished):
                 result["checks"].append("history_recovery_adds_tab_without_replacing_current")
                 wait(1800)
                 # 追加した履歴タブだけ閉じる。確認ダイアログでDiscardを選ぶ。
+                discard_attempts = [0]
+                discard_widgets = []
                 def discard():
-                    for widget in QtWidgets.QApplication.topLevelWidgets():
-                        if isinstance(widget, QtWidgets.QMessageBox):
-                            widget.button(QtWidgets.QMessageBox.Discard).click()
+                    """専用モーダルが表示されるまで待ち、選んだボタンも証跡に残す。"""
+                    discard_attempts[0] += 1
+                    widget = QtWidgets.QApplication.activeModalWidget()
+                    if widget is not None:
+                        discard_widgets.append(widget)
+                    buttons = widget.findChildren(QtWidgets.QAbstractButton) if widget is not None else []
+                    (output / "discard-poll.json").write_text(json.dumps({
+                        "attempt": discard_attempts[0],
+                        "title": widget.windowTitle() if widget is not None else None,
+                        "type": type(widget).__name__,
+                        "buttons": [button.text() for button in buttons],
+                    }), encoding="utf-8")
+                    if widget is not None and widget.windowTitle() == "Unsaved script":
+                        button = next((button for button in buttons
+                                       if button.text().replace("&", "") == "Discard"), None)
+                        if button is not None:
+                            button.click()
                             return
+                    if discard_attempts[0] < 50:
+                        QtCore.QTimer.singleShot(100, discard)
+                    elif widget is not None:
+                        # 失敗時はテストを返してタブ数のassertで失敗させる。
+                        widget.close()
                 QtCore.QTimer.singleShot(200, discard)
                 tabs.tabCloseRequested.emit(2)
                 wait(1800)

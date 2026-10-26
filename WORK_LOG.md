@@ -117,6 +117,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-27): プッシュ依頼に対応し、QPEの6時間検証修正・B02終了クラッシュ修正・既定文字12pxと関連QPE/MCE回帰テストを公開対象に整理。既存GUI検証証拠、差分、Python構文と監査ランナー単体テストを確認。mlib/mlrig等の並行変更と他担当の作業ログをコミット対象から除外し、手元に保持。
+
+- Codex (2026-10-27): QPEの既定文字サイズを13pxから12pxへ変更し、Standard/Restore Defaultsも統一。保存済み指定・Large/Largest・DPI倍率を維持。Qt5.15.2/Qt6.8.3の専用設定で表示、標準復帰、15px/125%の再読込とDPI2倍を確認。Maya GUIは今回は未実施。6秒の比較画像動画をDriveへ非公開保存・サイズ/URL/権限を読戻し。証拠 `.maya-output/qpe-font-size-20261027/`。未プッシュ。
+
+- Codex (2026-10-27): QPE B02終了時クラッシュを切り分け、QWidget.style()が保持する共有QStyleSheetStyle参照とShiboken破棄順の衝突を修正。標準delegate描画・部品寸法による列幅計算・アプリstyleからの標準アイコン取得へ変更。最小Qt再現は旧条件3/16回AV・参照なし0/16回、修正QPE単体CDB監視12回成功。Maya2022/2027で16プロセス・128回再生成の終了検証、navigation/theme/tabs/dock_lifetime/MCE併用10スイート合格。専用テストとREADMEを追加。Qt自動操作の再生成画像を16秒動画化し、Drive所有者限定・サイズ/URL読戻し確認。実第三者ツール全組合せ・今回修正後2023〜2026・実IME/物理DPIは未確認。MCE製品C++変更なし。証拠 `.maya-output/qpe-shutdown-20261027/diagnosis.txt`・`final-summary.json`。検証用Maya残存0。既存差分を保持し、未コミット・未プッシュ。
+
+- Codex (2026-10-27): QPE/Maya Code Editorの6時間検証を04:20 JSTで終了。QPEのキー伝播、自己参照誤成功、再生成時のQt内部部品参照、破棄済みタイマー、改名後フォーカス、狭幅UIを修正。2022/2027の併用・シーン操作・同時異常終了後の本文復元・最終20回再生成と実Windows入力を検証し、2023〜2026は併用回帰を確認。終了時ShibokenクラッシュB02は未解決。共有タブの実ドラッグ・複雑IME・実他ツール・混在物理DPI等は未確認。MCE製品C++変更なし。期限後は新規テスト/製品修正なし、稼働Mayaなしを確認、両自動化停止済み。詳細/証拠/再現手順は `.maya-output/qpe-mce-six-hour-20261026/final-report.txt` と `progress.json`。他タスク変更を保持し、未コミット・未プッシュ。
+
 - Codex (2026-10-26): QPEの監視を本体と専用workspaceControlへ限定し、共有タブの制約変更を廃止。再生成前の監視解除、現在の内容/親の確認、旧close通知の世代排除、Qt5親ラッパーの寿命保持を追加。配置補正は明示表示/復元時に分離。Maya2022/2027で削除・即再生成・uiScript復元・共有親不変・閉じる/再表示・右/下/共有タブ縮小を検証し、2027の4段階再起動復元も成功。結果.maya-output/verification/qpe-dock-safe-20261026/verified-results.json。他ツール固有の例外手順と物理入力は未確認。公開前に検証結果・構文・差分を再確認し、QPEの修正と回帰テストを公開対象として整理。
 - Codex (2026-10-26): QPEのQt寿命を調査。隔離Maya2022/2027で削除直後の再生成が旧watcherを再利用し、イベントループ復帰後に新画面だけ残る不具合と、制御用共有タブで破棄時のサイズ制約復元漏れを再現。Maya Code Editorとの差分・共有親監視・未検証リスクをdocs/research/qpe-qt-lifetime-20261026.txtへ記録（Git対象外）。他ツール固有の例外・クラッシュは未再現。製品コード・ユーザー設定は変更なし。証拠は.maya-output/qpe-qt-investigation-20261026/。
 

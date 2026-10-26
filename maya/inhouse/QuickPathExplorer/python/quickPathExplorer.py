@@ -271,8 +271,7 @@ class FolderColumns(QtWidgets.QColumnView):
         # 子ビューの縦バーは非同期読込や高さ変更で出入りするため常に予約する。
         # delegateが消費する矢印・アイコン・余白と同じ寸法を使う。
         padding = (max(12, metrics.height()) + self.iconSize().width() + 12
-                   + self.style().pixelMetric(QtWidgets.QStyle.PM_ScrollBarExtent)
-                   + 2 * self.style().pixelMetric(QtWidgets.QStyle.PM_DefaultFrameWidth) + 4)
+                   + self.verticalScrollBar().sizeHint().width() + 2 * self.frameWidth() + 4)
         return max(round(80 * scale), width + padding,
                    round(self._manualWidths.get(path, 0) * scale))
 
@@ -495,9 +494,13 @@ class Explorer(QtWidgets.QWidget):
         """サイドバーとリサイズできる上下段を構築する。"""
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 8)
-        bar = QtWidgets.QHBoxLayout()
+        self.navigationFrame = QtWidgets.QWidget(self)
+        self.navigationFrame.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
+        bar = QtWidgets.QHBoxLayout(self.navigationFrame)
+        self.navigationBar = bar
+        bar.setContentsMargins(0, 0, 0, 0)
         bar.setSpacing(4)
-        layout.addLayout(bar)
+        layout.addWidget(self.navigationFrame)
         self.sidebarButton = QtWidgets.QToolButton(self)
         self.sidebarButton.setObjectName('sidebarToggle')
         self.sidebarButton.setIcon(QtGui.QIcon(str(ICON.parent / 'sidebar.svg')))
@@ -1150,7 +1153,8 @@ class Explorer(QtWidgets.QWidget):
     def _quickLocations(self):
         """サイドバーを開かずによく使う場所へ移動する。"""
         menu = self.createLocationsMenu()
-        menu.exec_(self.locationsButton.mapToGlobal(QtCore.QPoint(0, self.locationsButton.height())))
+        anchor = self.locationsButton if self.locationsButton.isVisible() else self.organizer.button
+        menu.exec_(anchor.mapToGlobal(QtCore.QPoint(0, anchor.height())))
         menu.deleteLater()
 
     def createLocationsMenu(self):
@@ -1408,7 +1412,7 @@ class Explorer(QtWidgets.QWidget):
                 for name in settings.get('savedSearches', {}):
                     item = QtWidgets.QTreeWidgetItem(group, ['Search: ' + name])
                     item.setData(0, QtCore.Qt.UserRole, 'qpe-search:' + name)
-                    item.setIcon(0, self.style().standardIcon(QtWidgets.QStyle.SP_FileDialogContentsView))
+                    item.setIcon(0, QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_FileDialogContentsView))
         self.places.verticalScrollBar().setValue(scroll)
 
     def _placeClicked(self, item, column):
@@ -2032,6 +2036,25 @@ class Explorer(QtWidgets.QWidget):
         size = value.get('size')
         if isinstance(size, list) and len(size) == 2 and all(isinstance(v, int) for v in size):
             self.resize(max(800, min(size[0], 2400)), max(500, min(size[1], 1600)))
+
+    def event(self, event):
+        """子が使わなかった修飾キー単体をMayaへ伝播させない。
+
+        Args:
+            event (QEvent): この画面へ配送されたイベント。
+
+        Returns:
+            bool: イベントを処理したか。
+        """
+        if (event.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.KeyRelease)
+                and event.key() in (QtCore.Qt.Key_Control, QtCore.Qt.Key_Shift)):
+            focus = QtWidgets.QApplication.focusWidget()
+            if focus is self or (focus is not None and self.isAncestorOf(focus)):
+                # 入力欄自身の処理後にここへ届く。文字編集・IMEは横取りしない。
+                # Mayaへ渡すと次のキーより先に別パネルへフォーカスが移る。
+                event.accept()
+                return True
+        return super().event(event)
 
     def hideEvent(self, event):
         """非表示時にレイアウトを保存する。

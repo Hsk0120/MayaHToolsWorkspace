@@ -1,5 +1,5 @@
 """QPE内の表示規則と段階的な表示設定。ホスト全体は変更しない。"""
-from qpeQt import QtCore, QtGui, QtWidgets
+from qpeQt import QtCore, QtGui, QtWidgets, shiboken
 from pathlib import Path
 import sys
 
@@ -94,6 +94,15 @@ class ModernLayout(QtCore.QObject):
         super().__init__(explorer)
         self.e = explorer
         self.w = explorer.organizer.workspace
+        self.viewport = None
+        self.compactToolbar = False
+        self.compactFiles = False
+        self.filePanel = explorer.search.parentWidget()
+        self.filePanel.installEventFilter(self)
+        self.toolbarTimer = QtCore.QTimer(self)
+        self.toolbarTimer.setSingleShot(True)
+        self.toolbarTimer.timeout.connect(self.fitNavigation)
+        explorer.installEventFilter(self)
         self.button = QtWidgets.QToolButton(explorer)
         self.button.setObjectName('viewOptionsButton')
         self.button.setToolTip('View: layout, grouping, tags and columns')
@@ -150,11 +159,85 @@ class ModernLayout(QtCore.QObject):
         self.popup.layout().setSpacing(px(8))
         self.w.bar.layout().setSpacing(px(4))
         self.button.setMinimumHeight(px(28))
+        self.toolbarTimer.start(0)
         from qpeAppearance import BrowserItemDelegate
         self.w.tree.setProperty('qpeRowHeight', self.e.files.property('qpeRowHeight'))
         if not isinstance(self.w.tree.itemDelegate(), BrowserItemDelegate):
             self.w.tree.setItemDelegate(BrowserItemDelegate(self.w.tree))
         self.w.tree.doItemsLayout()
+
+    def watchViewport(self, viewport):
+        """自分のスクロール領域だけを監視し、Mayaの他パネルには触れない。"""
+        if self.viewport is not None:
+            self.viewport.removeEventFilter(self)
+        self.viewport = viewport
+        viewport.installEventFilter(self)
+        self.toolbarTimer.start(0)
+
+    def eventFilter(self, watched, event):
+        """表示領域や倍率変更後の配置を一度にまとめる。"""
+        if event.type() in (QtCore.QEvent.Resize, QtCore.QEvent.LayoutRequest, QtCore.QEvent.Show):
+            self.toolbarTimer.start(0)
+        return False
+
+    def fitNavigation(self):
+        """狭いドックでは補助ボタンをメニューへ移し、パスを画面内に残す。"""
+        e = self.e
+        scale = e.appearance.dpiScale * e.appearance.uiPercent / 100.0
+        margins = e.layout().contentsMargins()
+        available = min(e.width(), self.viewport.width()) if self.viewport is not None else e.width()
+        available = max(1, available - margins.left() - margins.right())
+        secondary = [e.locationsButton, e.displayButton, e.rootButton]
+        if e._maya:
+            secondary.extend([e.newSceneButton, e.saveAsButton])
+        primary = [e.sidebarButton, e.backButton, e.forwardButton, e.inspectorButton]
+        tool_width = e.organizer.button.fontMetrics().horizontalAdvance('Tools') + round(30 * scale)
+        required = sum(max(0, button.sizeHint().width()) for button in primary + secondary)
+        required += tool_width + round(180 * scale) + e.navigationBar.spacing() * (len(primary + secondary) + 1)
+        self.compactToolbar = available < required
+        for button in secondary:
+            button.setVisible(not self.compactToolbar and (button is not e.rootButton or bool(button.text())))
+        e.organizer.button.setAccessibleName('Tools')
+        e.organizer.button.setText('…' if self.compactToolbar else 'Tools')
+        e.organizer.button.setMinimumWidth(0 if self.compactToolbar else tool_width)
+        e.address.setMinimumWidth(round(100 * scale))
+        if e.navigationFrame.maximumWidth() != available:
+            e.navigationFrame.setMaximumWidth(available)
+        self.fitFileToolbar()
+
+    def fitFileToolbar(self):
+        """一覧が狭い場合は場所名を省き、検索欄の入力幅を優先する。"""
+        e = self.e
+        scale = e.appearance.dpiScale * e.appearance.uiPercent / 100.0
+        full_title = 'View · ' + self.w.mode.currentText()
+        required = (round(230 * scale) + e.fileFilter.sizeHint().width()
+                    + self.button.fontMetrics().horizontalAdvance(full_title)
+                    + round(24 * scale) + e.fileToolbar.spacing() * 3)
+        self.compactFiles = self.filePanel.width() < required
+        e.folderLabel.setVisible(not self.compactFiles)
+        e.search.setMinimumWidth(round(100 * scale))
+        self.button.setText('View' if self.compactFiles else full_title)
+        self.button.setToolTip('View: ' + self.w.mode.currentText() + '; layout, grouping, tags and columns')
+
+    def addNavigationMenu(self, menu):
+        """省略した操作も元と同じコールバックで実行できるようにする。"""
+        if not self.compactToolbar:
+            return
+        e = self.e
+        # メニューを作り直す間も、PySideの一時ラッパーだけに所有を任せない。
+        submenu = getattr(self, 'navigationMenu', None)
+        if submenu is None or not shiboken.isValid(submenu):
+            submenu = QtWidgets.QMenu('Navigation / scene', menu)
+            self.navigationMenu = submenu
+        else:
+            submenu.clear()
+        menu.addMenu(submenu)
+        submenu.addAction('Quick locations…', e._quickLocations)
+        submenu.addAction('Display settings…', e.appearance.show)
+        if e._maya:
+            submenu.addAction('New Scene', e.newSceneButton.click)
+            submenu.addAction('Save Scene As…', e.saveAsButton.click)
+        submenu.addAction('Reset start folder' if e.browseRoot else 'Set current folder as start folder', e.rootButton.click)
 
     def showOptions(self):
         """現在のボタン直下で開き、画面端では収まる位置へ補正する。"""
@@ -169,7 +252,7 @@ class ModernLayout(QtCore.QObject):
 
     def refresh(self, *unused):
         """適用中条件を省略表示し、全文と解除操作をツールチップで伝える。"""
-        self.button.setText('View · ' + self.w.mode.currentText())
+        self.fitFileToolbar()
         visible = False
         for control, chip in self.chips:
             if isinstance(control, QtWidgets.QLineEdit):

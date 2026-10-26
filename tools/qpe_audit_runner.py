@@ -6,7 +6,7 @@ import subprocess
 import sys
 
 
-SUITES = ['open', 'audit', 'navigation', 'context', 'p0', 'finder', 'ux',
+SUITES = ['open', 'audit', 'navigation', 'context', 'p0', 'finder', 'shortcuts', 'ux',
           'inspector', 'theme', 'tabs', 'sidebars', 'organizer', 'advanced', 'productivity', 'performance', 'scene']
 
 
@@ -32,8 +32,17 @@ def main():
                     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "maya/inhouse/mlib/__tests__"))
                     from runGui import run_version
                     suite = name if name.startswith('qpe_') else 'qpe_ui_'+name
+                    # runpyはスイートの親フォルダーをsys.pathへ追加しない。
+                    # 隔離Mayaでも同じtools内の共通補助を読めるようにする。
+                    bootstrap = out / ('bootstrap_' + name + '.py')
+                    bootstrap.write_text(
+                        'import runpy\nimport sys\n'
+                        'sys.path.insert(0, {!r})\n'
+                        'main = runpy.run_path({!r})["main"]\n'.format(
+                            str(root / 'tools'), str(root / 'tools' / (suite + '.py'))),
+                        encoding='utf-8')
                     outcome = run_version(args.maya, target, Path('C:/Program Files/Autodesk'), 240,
-                                          shutdown_timeout=45, suite_path=root/'tools'/(suite+'.py'))
+                                          shutdown_timeout=45, suite_path=bootstrap)
                     summary[name] = outcome
                     dumps = [str(path) for path in target.rglob('*.dmp')]
                     outcome['crashDumps'] = dumps
@@ -54,7 +63,11 @@ def main():
                 summary[name] = dict(status='timeout')
         (out/'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf8')
         print(name, summary[name].get('exitCode', 'timeout'), flush=True)
+    if args.maya:
+        return 0 if all(row.get('status') == 'passed' for row in summary.values()) else 1
+    return 0 if all(row.get('exitCode') == 0 and row.get('result', {}).get('status') == 'passed'
+                    for row in summary.values()) else 1
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

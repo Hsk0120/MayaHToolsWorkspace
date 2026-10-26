@@ -81,6 +81,7 @@ def show(path=None, _restoring=False):
     container.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
     container.setWidget(widget)
     widget._dockViewport = container
+    widget.modern.watchViewport(container.viewport())
     # workspaceControlがQtウィジェットを所有する。シーン操作はGUIスレッドで実行する。
     pointer = OpenMayaUI.MQtUtil.findControl(CONTROL)
     OpenMayaUI.MQtUtil.addWidgetToMayaLayout(int(shiboken.getCppPointer(container)[0]), int(pointer))
@@ -181,7 +182,16 @@ def readFile(path, action, options):
         path (str): 読込元。
         action (str): importまたはreference。
         options (dict): 検証済みfile引数。
+
+    Raises:
+        ValueError: 現在のシーン自身をリファレンスしようとした場合。
     """
+    # Mayaは現在シーン自身の参照を生成せずに戻る場合がある。
+    # 成功表示や不要な親ネームスペース作成より前に、この操作を明示的に拒否する。
+    if action == 'reference':
+        scene = cmds.file(query=True, sceneName=True)
+        if scene and Path(path).resolve() == Path(scene).resolve():
+            raise ValueError('Cannot reference the current scene into itself. Save the working scene under a different name first.')
     # fileは存在しない親を含むnamespaceを末尾名へ縮めるため親だけ作る。
     # 葉はfileに作らせ、衝突時の自動採番を維持する。現在namespaceは変えない。
     parent = ':'

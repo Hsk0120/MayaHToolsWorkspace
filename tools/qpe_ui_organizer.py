@@ -44,9 +44,20 @@ def main(output_dir, finished=None):
         menu = e.createFileMenu([str(folder / 'notes.txt')])
         assert any(a.text() == 'Copy' for a in menu.actions())
         selectFile(e, folder / 'notes.txt')
+        e.window().raise_()
+        e.window().activateWindow()
+        QtWidgets.QApplication.setActiveWindow(e.window())
+        pause(150)
         e.files.setFocus()
+        waitFor(lambda: QtWidgets.QApplication.focusWidget() is e.files)
         QtTest.QTest.keyClick(e.files, QtCore.Qt.Key_C, QtCore.Qt.ControlModifier)
-        assert QtWidgets.QApplication.clipboard().mimeData().urls()[0].toLocalFile().replace('\\', '/') == (folder / 'notes.txt').as_posix()
+        urls = QtWidgets.QApplication.clipboard().mimeData().urls()
+        assert [Path(url.toLocalFile()) for url in urls] == [folder / 'notes.txt'], {
+            'urls': [url.toString() for url in urls],
+            'status': e.status.text(), 'selected': e.selectedPaths(),
+            'focus': repr(QtWidgets.QApplication.focusWidget()),
+            'active': e.isActiveWindow(),
+            'clipboard': QtWidgets.QApplication.clipboard().text()}
         e.navigate(str(target))
         e.organizer.paste(str(target))
         waitFor(lambda: e.organizer.task is None)

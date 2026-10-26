@@ -158,8 +158,14 @@ class DockWatcher(QtCore.QObject):
     def stop(self):
         """旧画面の予約と監視を解除する。繰り返し呼んでも安全。"""
         self.active = False
-        self.timer.stop()
-        self.restoreTimer.stop()
+        # Maya Qt5では親のdestroyed通知までに子タイマーが削除される場合がある。
+        # Python参照を保持している利用側からの停止も、Qt破棄後には何もしない。
+        if not shiboken.isValid(self):
+            self.targets = []
+            return
+        for timer in (self.timer, self.restoreTimer):
+            if shiboken.isValid(timer):
+                timer.stop()
         for target in self.targets:
             if shiboken.isValid(target):
                 target.removeEventFilter(self)
