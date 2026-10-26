@@ -44,8 +44,10 @@ def show(path=None, _restoring=False):
     global _window, _building
     if _building:
         return _window
-    from qpeDock import opened, restoreState
-    if _window is not None and shiboken.isValid(_window) and cmds.workspaceControl(CONTROL, exists=True):
+    from qpeDock import opened, restoreState, releaseWatcher, _control_widget
+    control = _control_widget(CONTROL)
+    if (_window is not None and shiboken.isValid(_window) and control is not None
+            and control.isAncestorOf(_window)):
         if not _restoring:
             cmds.workspaceControl(CONTROL, edit=True, restore=True)
             opened(_window)
@@ -53,6 +55,7 @@ def show(path=None, _restoring=False):
             _window.navigate(path)
         refresh(_window)
         return _window
+    releaseWatcher()
     # MayaCodeEditorと同じMQtUtilの倍率を使う。Qt全体のDPI設定は変更しない。
     dpi_scale = float(OpenMayaUI.MQtUtil.dpiScale(1.0))
     screen = QtWidgets.QApplication.primaryScreen().availableGeometry()
@@ -115,7 +118,7 @@ def refresh(widget, follow_scene=False):
         widget (Explorer): 表示先。
         follow_scene (bool): シーン読込成功時だけ、その保存先へ移動する。
     """
-    if not shiboken.isValid(widget):
+    if widget is not _window or not shiboken.isValid(widget):
         return
     root = cmds.workspace(query=True, rootDirectory=True)
     folders = []

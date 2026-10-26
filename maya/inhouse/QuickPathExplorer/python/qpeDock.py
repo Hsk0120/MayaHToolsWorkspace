@@ -10,16 +10,34 @@ _quitting = False
 _open = False
 _started = False
 _quitJob = None
+_closeGeneration = 0
 
 
 def _control_widget(name):
-    """Maya所有のコントロールを所有権を移さず取得する。"""
+    """既存ラッパーを優先し、他UIのラッパーを新たに作らない。"""
     pointer = OpenMayaUI.MQtUtil.findControl(name)
-    if pointer:
-        for widget in QtWidgets.QApplication.allWidgets():
-            if shiboken.isValid(widget) and int(shiboken.getCppPointer(widget)[0]) == int(pointer):
-                return widget
-    return None
+    if not pointer:
+        return None
+    # Qt5で既存の派生型をQWidgetとして包み直すと、旧ラッパーが無効になる場合がある。
+    # allWidgets()で全UIをラップせず、Python側で既に生きている対象だけを再利用する。
+    for widget in shiboken.getAllValidWrappers():
+        if (isinstance(widget, QtWidgets.QWidget) and shiboken.isValid(widget)
+                and int(shiboken.getCppPointer(widget)[0]) == int(pointer)):
+            return widget
+    widget = shiboken.wrapInstance(int(pointer), QtWidgets.QWidget)
+    return widget if shiboken.isValid(widget) else None
+
+
+def _parent_widget(widget):
+    """再ドックで無効になった親はたどらず、補正を中止できるようにする。"""
+    if widget is None or not shiboken.isValid(widget):
+        return None
+    try:
+        parent = widget.parentWidget()
+        return parent if parent is not None and shiboken.isValid(parent) else None
+    except RuntimeError:
+        # Qt5では親の付け替え中に無効なPythonラッパーが返る場合がある。
+        return None
 
 
 def _dock_splitter(control):
@@ -28,7 +46,7 @@ def _dock_splitter(control):
     # 現在のcontrolから直接たどり、無関係な破棄待ちの領域を参照しない。
     item = control
     while item is not None and shiboken.isValid(item):
-        parent = item.parentWidget()
+        parent = _parent_widget(item)
         if parent is None or not shiboken.isValid(parent):
             break
         if isinstance(parent, QtWidgets.QSplitter):
@@ -42,12 +60,15 @@ def _repair_fixed_row_dock():
     if not cmds.workspaceControl(CONTROL, exists=True) or cmds.workspaceControl(CONTROL, query=True, floating=True):
         return
     control = _control_widget(CONTROL)
-    parent = control.parentWidget() if control is not None else None
+    parent = _parent_widget(control)
+    parents = []
     while parent is not None:
+        # Qt5の一時的な親ラッパーを判定中に解放しない。監視や所有権は付けない。
+        parents.append(parent)
         if isinstance(parent, QtWidgets.QTabWidget) and parent.count() > 1:
             # 利用者が他エディターとまとめたタブを自動的に分離しない。
             return
-        parent = parent.parentWidget()
+        parent = _parent_widget(parent)
     found = _dock_splitter(control) if control is not None else None
     slider, main = _control_widget('TimeSlider'), _control_widget('MainPane')
     if found is None or slider is None:
@@ -88,73 +109,91 @@ def savedState():
 
 
 class DockWatcher(QtCore.QObject):
-    """移動・サイズ変更・ドックの付け替えをまとめて保存する。"""
+    """QPEの画面と専用workspaceControlだけを監視する。"""
 
     def __init__(self, widget):
-        """画面を所有者として保存タイマーと監視対象を登録する。"""
+        """画面の寿命に属するタイマーを作り、共有親には変更を加えない。"""
         super().__init__(widget)
         self.widget = widget
+        self.control = _control_widget(CONTROL)
         self.targets = []
-        self._tab_limits = None
+        self.active = True
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(350)
         self.timer.timeout.connect(self.flush)
+        # 配置補正は表示・復元時に一度だけ予約し、保存処理から切り離す。
+        self.restoreTimer = QtCore.QTimer(self)
+        self.restoreTimer.setSingleShot(True)
+        self.restoreTimer.timeout.connect(self.restorePlacement)
+        widget.destroyed.connect(self.stop)
         self.bind()
 
+    def isCurrent(self):
+        """遅延通知が現在の画面・現在のドックに属するかを確認する。"""
+        from qpeHost import _window
+        if (_quitting or not self.active or _watcher is not self or _window is not self.widget
+                or not shiboken.isValid(self.widget)):
+            return False
+        control = _control_widget(CONTROL)
+        if control is None or not control.isAncestorOf(self.widget):
+            return False
+        # Mayaは再ドック時に専用controlも作り直す。新しい画面の親にだけ付け直す。
+        if self.control is not control:
+            self.control = control
+            self.bind()
+        return True
+
     def bind(self):
-        """ドック移動後に変化した親のウィンドウへ監視を付け直す。"""
-        # Mayaはドック移動時にタブ/スタック側だけを付け替える場合がある。
-        # 内容とトップウィンドウだけでなく、その間の親の変更も監視する。
-        targets = [target for target in QtWidgets.QApplication.allWidgets()
-                   if shiboken.isValid(target) and (target is self.widget or target.isAncestorOf(self.widget))]
+        """Maya本体・共有タブ・共有splitterへの監視は設置しない。"""
         for target in self.targets:
             if shiboken.isValid(target):
                 target.removeEventFilter(self)
-        self.targets = [target for target in targets if target is not None]
+        self.targets = [target for target in (self.widget, self.control)
+                        if target is not None and shiboken.isValid(target)]
         for target in self.targets:
             target.installEventFilter(self)
-        self._update_tab_limits()
 
-    def _update_tab_limits(self):
-        """QPE表示中だけ、Mayaのタブが記憶したサイズを最小値に使わない。"""
-        tab = self.widget.parentWidget()
-        while tab is not None and not isinstance(tab, QtWidgets.QTabWidget):
-            tab = tab.parentWidget()
-        active = (tab is not None and tab.currentWidget() is not None
-                  and tab.currentWidget().isAncestorOf(self.widget))
-        previous = self._tab_limits
-        if previous and (not active or previous[0] is not tab):
-            old_tab, policy, minimum = previous
-            if shiboken.isValid(old_tab):
-                old_tab.setSizePolicy(policy)
-                old_tab.setMinimumSize(minimum)
-                old_tab.updateGeometry()
-            self._tab_limits = None
-        if active and self._tab_limits is None:
-            self._tab_limits = (tab, tab.sizePolicy(), tab.minimumSize())
-            # Mayaのタブは現在サイズをminimumSizeHintとして返すことがある。
-            # 共有エディターの制約は変更せず、QPEを表示する間だけ無視する。
-            area = self.widget._dockViewport
-            tab.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Ignored)
-            tab.setMinimumSize(area.minimumWidth() + 4,
-                               area.minimumHeight() + tab.tabBar().sizeHint().height() + 4)
-            tab.updateGeometry()
+    @QtCore.Slot()
+    def stop(self):
+        """旧画面の予約と監視を解除する。繰り返し呼んでも安全。"""
+        self.active = False
+        self.timer.stop()
+        self.restoreTimer.stop()
+        for target in self.targets:
+            if shiboken.isValid(target):
+                target.removeEventFilter(self)
+        self.targets = []
 
     def eventFilter(self, watched, event):
-        """イベントを妨げず、配置が落ち着いてから保存する。"""
-        if not _quitting and event.type() in (QtCore.QEvent.Move, QtCore.QEvent.Resize,
-                QtCore.QEvent.ParentChange, QtCore.QEvent.Show, QtCore.QEvent.Hide,
-                QtCore.QEvent.WindowStateChange):
+        """QPEの変化だけ保存を予約し、イベントは通常どおり配送する。"""
+        if self.active and not _quitting and event.type() in (
+                QtCore.QEvent.Move, QtCore.QEvent.Resize, QtCore.QEvent.ParentChange,
+                QtCore.QEvent.Show, QtCore.QEvent.Hide, QtCore.QEvent.WindowStateChange):
             self.timer.start()
         return False
 
     def flush(self):
-        """監視の更新と保存を行う。"""
-        if not _quitting:
-            _repair_fixed_row_dock()
-            self.bind()
+        """現在の画面の状態だけを保存し、レイアウトは変更しない。"""
+        if self.isCurrent():
             saveState()
+
+    def restorePlacement(self):
+        """表示時の補正を生存中の画面にだけ適用する。"""
+        if self.isCurrent():
+            if _open:
+                _repair_fixed_row_dock()
+            else:
+                hideClosed()
+
+
+def releaseWatcher():
+    """再生成前に旧監視を止め、遅延破棄を通常のQtループへ任せる。"""
+    global _watcher
+    previous, _watcher = _watcher, None
+    if previous is not None and shiboken.isValid(previous):
+        previous.stop()
+        previous.deleteLater()
 
 
 def saveState():
@@ -178,12 +217,17 @@ def saveState():
         writeSettings({stateKey(): state})
 
 
-def closed():
-    """明示的に閉じた場合だけ次回の自動表示を止める。"""
+def closed(generation=None):
+    """現在のドックを閉じた通知だけで次回の自動表示を止める。
+
+    Args:
+        generation (int | None): 登録したcloseCommandの世代。古い通知は無視する。
+    """
     global _open
-    if not _quitting:
+    if not _quitting and generation == _closeGeneration:
         _open = False
         saveState()
+        releaseWatcher()
 
 
 def quitting():
@@ -191,8 +235,7 @@ def quitting():
     global _quitting
     saveState()
     _quitting = True
-    if _watcher is not None and shiboken.isValid(_watcher):
-        _watcher.timer.stop()
+    releaseWatcher()
     from qpeHost import _window
     if _window is not None and shiboken.isValid(_window):
         # MayaがQtを破棄し始めてからのHide通知では遅い場合がある。
@@ -229,17 +272,20 @@ def opened(widget, restoring=False):
         widget (Explorer): Mayaに取り付け済みの画面。
         restoring (bool): Maya標準の配置復元から呼ばれた場合。
     """
-    global _watcher, _open, _quitJob
+    global _watcher, _open, _quitJob, _closeGeneration
     _open = savedState().get('open', True) if restoring else True
+    _closeGeneration += 1
     cmds.workspaceControl(CONTROL, edit=True,
                           uiScript='import qpeHost; qpeHost.restore()',
-                          closeCommand='import qpeDock; qpeDock.closed()')
-    if _watcher is None or not shiboken.isValid(_watcher):
+                          closeCommand='import qpeDock; qpeDock.closed(%d)' % _closeGeneration)
+    if (_watcher is None or not shiboken.isValid(_watcher)
+            or _watcher.widget is not widget or not _watcher.active):
+        releaseWatcher()
         _watcher = DockWatcher(widget)
     if _quitJob is None or not cmds.scriptJob(exists=_quitJob):
         _quitJob = cmds.scriptJob(event=['quitApplication', quitting], runOnce=True)
-    if not _open:
-        QtCore.QTimer.singleShot(0, hideClosed)
+    # Mayaのタブ・親の付け替えが完了してから、この表示要求だけを補正する。
+    _watcher.restoreTimer.start(350)
     _watcher.timer.start()
 
 

@@ -5,7 +5,8 @@ from pathlib import Path
 import sys
 import traceback
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'maya/inhouse/QuickPathExplorer/python'))
-from qpeQt import QtCore, QtGui, QtWidgets
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from qpeQt import QtCore, QtGui, QtWidgets, shiboken
 from qpe_ui_maya import pause
 
 
@@ -73,10 +74,21 @@ def main(output_dir, finished):
         pause(500)
         for side in ('right','bottom'):
             cmds.workspaceControl(qpeHost.CONTROL, edit=True, dockToMainWindow=(side,False))
+            # 配置補正はMaya Code Editorと同じく明示的な表示・復元時に行う。
+            qpeHost.show()
             pause(900)
             control=qpeDock._control_widget(qpeHost.CONTROL)
             if side=='bottom':
                 slider=qpeDock._control_widget('TimeSlider')
+                result['bottomRestore'] = {
+                    'currentWatcher': qpeDock._watcher.isCurrent(),
+                    'pending': qpeDock._watcher.restoreTimer.isActive(),
+                }
+                # 再ドックで置換され得るcontrolは、遅延処理の後に再取得する。
+                control = qpeDock._control_widget(qpeHost.CONTROL)
+                slider = qpeDock._control_widget('TimeSlider')
+                result['bottomRestore']['controlValid'] = shiboken.isValid(control)
+                result['bottomRestore']['sliderValid'] = shiboken.isValid(slider)
                 assert control.mapToGlobal(QtCore.QPoint()).y()<slider.mapToGlobal(QtCore.QPoint()).y()
             splitter,item=qpeDock._dock_splitter(control)
             index=splitter.indexOf(item)

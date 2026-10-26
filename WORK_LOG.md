@@ -117,6 +117,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-26): QPEの監視を本体と専用workspaceControlへ限定し、共有タブの制約変更を廃止。再生成前の監視解除、現在の内容/親の確認、旧close通知の世代排除、Qt5親ラッパーの寿命保持を追加。配置補正は明示表示/復元時に分離。Maya2022/2027で削除・即再生成・uiScript復元・共有親不変・閉じる/再表示・右/下/共有タブ縮小を検証し、2027の4段階再起動復元も成功。結果.maya-output/verification/qpe-dock-safe-20261026/verified-results.json。他ツール固有の例外手順と物理入力は未確認。公開前に検証結果・構文・差分を再確認し、QPEの修正と回帰テストを公開対象として整理。
+- Codex (2026-10-26): QPEのQt寿命を調査。隔離Maya2022/2027で削除直後の再生成が旧watcherを再利用し、イベントループ復帰後に新画面だけ残る不具合と、制御用共有タブで破棄時のサイズ制約復元漏れを再現。Maya Code Editorとの差分・共有親監視・未検証リスクをdocs/research/qpe-qt-lifetime-20261026.txtへ記録（Git対象外）。他ツール固有の例外・クラッシュは未再現。製品コード・ユーザー設定は変更なし。証拠は.maya-output/qpe-qt-investigation-20261026/。
+
 - Codex (2026-10-26): Maya Code Editor 0.8.0。先着Mayaだけの復元ロックと本文削除を廃止し、不変の圧縮本文・親世代付きスナップショットへ追記保存。本文変更直後の同期保存、並行編集の両方復元、破損時の親世代回収、履歴の追加復元、保存失敗の常時表示を実装。旧復元データを.maya-output/mce-recovery-20261026/user-backupへ保護。全6版ビルド・ストア多重プロセス/破損/失敗テスト合格。2022/2027 GUIで2重起動・入力直後の強制終了・2回再起動・履歴復元・通常解除復元、2027で保存失敗/再試行/ドック再生成と30タブ性能を検証。C++ UI/補完等の回帰も両版合格（廃止済みmlib色APIの期待を現行getVisibilityへ更新）。テストのダイアログ選択/古いQtラッパー参照を修正後再実行。結果.maya-output/mce-recovery-20261026/verification.json。動画 https://drive.google.com/file/d/18WPjF2BCC2WdwE4Gcvi1dxCgDeC8SQeQ/view 。電源断・物理IME入力・2023〜2026のGUI未検証。公開前に全6版の検証済みバイナリのSHA256一致と差分検査を再確認。MCE 0.8.0のみ公開対象とし、QPE差分と他作業の記録は保持。
 
 - Claude Code (2026-10-26): 仕様固めのテストで見つかった食い違い・不具合26件を修正(AngleBetween.getAxisの評価、Reference.getFilenameの引数、mlib.deleteのアトリビュート名の拒否、fastの丸め・型の検証を通常経路に統一、ピボットのロックを両経路で拒否、型の登録にdagNode/shape、作成前の型検査、削除直後のDAG参照の例外、enumの例外の統一、BlendMatrix.setTargetのfastなど)。テストを新しい約束に更新。Maya 2022〜2027でmlib全件・mlrig setups合格。
