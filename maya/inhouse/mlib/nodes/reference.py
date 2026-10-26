@@ -25,12 +25,15 @@ class Reference(Node):
             resolved (bool): True の場合、パス変数などを解決した実際のパスを返す。
                 False の場合はシーンに保存されている未解決のパスを返す。
             with_copy_number (bool): True の場合、同じファイルを複数回参照した
-                際のコピー番号(``{1}`` 等)を含める。
+                際のコピー番号(``{1}`` 等)を含める。最初の参照には番号が付かない。
+                ``cmds.referenceQuery(ref, filename=True)`` と同じ値になる。
 
         Returns:
-            str: 参照ファイルのパス。
+            str: 参照ファイルのパス(常にディレクトリを含む)。
         """
-        return self.referenceFn().fileName(resolved, with_copy_number, False)
+        # MFnReference.fileName の2番目はパスを除く指定(Falseでディレクトリを含む)、
+        # 3番目がコピー番号を含める指定。
+        return self.referenceFn().fileName(resolved, False, with_copy_number)
 
     def getAssociatedNamespace(self):
         """参照内容が読み込まれている Namespace を取得する。

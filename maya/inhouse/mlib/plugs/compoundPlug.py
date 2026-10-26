@@ -111,6 +111,9 @@ class CompoundPlug(Plug):
         """子数と同じ長さの値を、アトリビュート定義順に設定する。
 
         通常はUndo有効時に一括記録し、固定長数値型は型付き設定、それ以外は子ごとに更新する。
+        どの経路も書き込む前に自身と全子の書込み可否(ロック・入力接続・書込み禁止)を検査し、
+        書けない子が1つでもあれば何も書かずに例外にする(safe=Falseの場合)。子の値の型の誤りは
+        子ごとに書く時点で検出するため、先行する子の更新が残る場合がある(1回のUndoで戻る)。
         fastは全成分を事前検証して直接更新するが、書込み途中の失敗を自動で戻すものではない。
         safe=Trueは対応する失敗後に子を再試行し、書ける子を更新する。先行変更は戻さない。
 
@@ -152,9 +155,13 @@ class CompoundPlug(Plug):
                 elif self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
                     self._require_writable()
                     Plug.set(self, values, safe=False, uiUnits=uiUnits, fast=fast)
-                elif not uiUnits:
-                    self._set_child_values(values)
                 else:
+                    # 子ごとに書く経路でも、先に全子の書込み可否を検査する。ロック・入力接続の
+                    # ある子より前の子だけが書かれて残ることを防ぐ(Double3Plugと同じ)。
+                    self._require_writable()
+                    if not uiUnits:
+                        self._set_child_values(values, writable_checked=True)
+                        return 0 if safe else self
                     for index, child_value in enumerate(values):
                         self._child_at(index).set(child_value, safe=False, uiUnits=uiUnits, fast=fast)
             except NotImplementedError:

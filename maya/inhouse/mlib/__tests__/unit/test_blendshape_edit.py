@@ -17,6 +17,7 @@ class BlendShapeEditTest(unittest.TestCase):
 
     def setUp(self):
         self.before = set(cmds.ls(long=True))
+        self.undo_enabled = cmds.undoInfo(query=True, state=True)
         cmds.undoInfo(state=True)
         self.base = cmds.polyCube(ch=False)[0]
         self.target = cmds.duplicate(self.base)[0]
@@ -31,6 +32,8 @@ class BlendShapeEditTest(unittest.TestCase):
             if cmds.objExists(node):
                 cmds.delete(node)
         self.directory.cleanup()
+        cmds.undoInfo(state=self.undo_enabled)
+        self.assertEqual(cmds.undoInfo(query=True, state=True), self.undo_enabled)
 
     def point(self, vertex=0):
         """ベース頂点のオブジェクト空間位置を照会する。"""
@@ -365,13 +368,16 @@ class BlendShapeEditTest(unittest.TestCase):
         self.bs.dumpTargets(path)
         mesh = cmds.polyCube(ch=False)[0]
         restored = mlib.getNode(cmds.blendShape(mesh)[0])
-        cmds.undoInfo(stateWithoutFlush=False)
+        # stateWithoutFlush=Falseは、Maya 2025/2027のmayapyで以後のcreateNodeの名前空間が外れるため、
+        # Undoの切替えはstate=を使う(FINDINGS_D.md の参考の件。テスト側 7 で修正)。
+        cmds.undoInfo(state=False)
         try:
             with self._no_commands():
                 restored.loadTargets(path, fast=True)
             self.assertFalse(cmds.undoInfo(query=True, state=True))
         finally:
-            cmds.undoInfo(stateWithoutFlush=True)
+            cmds.undoInfo(state=True)
+        self.assertTrue(cmds.undoInfo(query=True, state=True))
         actual = cmds.xform(mesh + ".vtx[0]", query=True, translation=True, objectSpace=True)
         for a, b in zip(actual, self.point()):
             self.assertAlmostEqual(a, b)

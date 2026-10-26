@@ -86,16 +86,18 @@ class DecomposeMatrix(Node):
         """マトリクスPlugを入力へ接続する。
 
         Args:
-            source (Plug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
+            source (Plug | str | MPlug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
-            src (Plug): sourceの別名。同時指定は不可。
+            src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             DecomposeMatrix: 自身。
 
         Raises:
-            RuntimeError: 型不一致などでMayaが接続を拒否した場合。
+            TypeError: sourceがPlug・名前・MPlugのいずれでもない、または名前がアトリビュートを指していない場合。
+            ValueError: sourceが空文字列または空のMPlugの場合。
+            RuntimeError: 名前を解決できない場合、または型不一致などでMayaが接続を拒否した場合。
         """
         if src is not _UNSET:
             if source is not _UNSET:
@@ -109,6 +111,8 @@ class DecomposeMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
+        from ..plugs.plug import Plug
+        source = Plug._resolve_input(source)
         with undoChunk("mlibDecomposeMatrixConnectInput"):
             source.connectTo(self.getPlug("inputMatrix"), force=force)
             return self

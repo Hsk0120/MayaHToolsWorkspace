@@ -4,6 +4,7 @@ from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 
+from ..core.attributeType import typed_data
 from ..core.fastWrite import set_attr, set_plug
 from ..decorator import undoChunk
 from ..maths import Matrix
@@ -20,14 +21,21 @@ class MatrixPlug(Plug):
             uiUnits (bool): Plug共通の単位指定。マトリクス成分の単位変換は行わない。
 
         Returns:
-            Matrix: 対象アトリビュートのマトリクスの複製。uiUnitsにかかわらず内部単位を維持する。
+            Matrix | None: 対象アトリビュートのマトリクスの複製。uiUnitsにかかわらず内部単位を維持する。
+                値を一度も設定していない ``dataType="matrix"`` (型付きデータ)はNone。
+                ``attributeType="matrix"`` は未設定でも既定の単位行列を返す。
 
         Raises:
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: uiUnitsがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、または値を読み取れない場合。
         """
         self._validate_ui_units(uiUnits)
         self._require_valid()
-        return Matrix.fromMMatrix(om2.MFnMatrixData(self._mplug.asMObject()).matrix())
+        # 未初期化の型付きデータはasMObjectがkFailureになるため、nullだけをNoneにする。
+        data = typed_data(self._mplug)
+        if data.isNull():
+            return None
+        return Matrix.fromMMatrix(om2.MFnMatrixData(data).matrix())
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
         """マトリクスアトリビュートへ直接設定する。TransformのTRSは操作しない。

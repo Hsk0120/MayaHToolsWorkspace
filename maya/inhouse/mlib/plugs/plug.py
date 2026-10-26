@@ -608,6 +608,9 @@ class Plug(Object):
     def mute(self, *, fast=False):
         """現在値でミュートし、自身を返す。
 
+        アニメーション(入力のアニメーションカーブ)の無いチャンネルでは、Mayaが警告を出すだけで
+        何もしない(muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはしない。
+
         Args:
             fast (bool): Trueは未対応で、変更前にNotImplementedError。
 
@@ -931,11 +934,14 @@ class Plug(Object):
     def getDefault(self):
         """アトリビュートの既定値を取得する。
 
-        数値アトリビュートは ``float``/``bool``、角度・距離・時間アトリビュートは対応する Maya API 2.0
+        数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
         の単位付きオブジェクト、enum アトリビュートは ``int`` をそのまま返す。
+        scale・double3・float3のような数値の複合アトリビュートは、子の既定値の ``tuple``
+        (例 ``(1.0, 1.0, 1.0)``)を返す。
 
         Returns:
-            object | None: 既定値。対応しないアトリビュート型では ``None``。
+            object | None: 既定値。対応しないアトリビュート型(文字列・message・マトリクス・
+                数値以外の汎用の複合など)では ``None``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -1062,13 +1068,13 @@ class Plug(Object):
 
         Raises:
             TypeError: enum アトリビュートでない場合。
+            ValueError: 現在値に対応するフィールドが無い場合(``a=1:b=5`` で3が設定されている
+                場合など、欠番の値)。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        attr = self._mplug.attribute()
-        if not attr.hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("enumName は enum アトリビュートにのみ使用できます")
-        return om2.MFnEnumAttribute(attr).fieldName(int(self.get()))
+        attr = self._enum_attribute("getEnumName")
+        return self._enum_field_name(attr, int(self.get()))
 
     def setEnumNames(self, names, *, fast=False):
         """enumアトリビュートの表示名を指定順に更新する。
@@ -1082,9 +1088,10 @@ class Plug(Object):
             Plug: 更新した自身。
 
         Raises:
-            TypeError: enumアトリビュートでない、または名前が文字列でない場合。
+            TypeError: enumアトリビュートでない、名前が文字列でない、またはfastがbool以外の場合。
             ValueError: 空の列、空の名前、区切り文字を含む名前の場合。
             RuntimeError: アトリビュートが無効、またはMayaが変更を拒否した場合。
+            NotImplementedError: fast=Trueの場合。変更前に拒否する。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -1092,8 +1099,7 @@ class Plug(Object):
             if fast:
                 raise NotImplementedError("setEnumNames does not support fast=True")
             self._require_valid()
-            if not self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
-                raise TypeError("setEnumNames requires an enum attribute")
+            self._enum_attribute("setEnumNames")
             if isinstance(names, str):
                 raise TypeError("names must be a sequence of strings")
             names = list(names)
@@ -1119,10 +1125,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        attr = self._mplug.attribute()
-        if not attr.hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("enumValue は enum アトリビュートにのみ使用できます")
-        enum_fn = om2.MFnEnumAttribute(attr)
+        enum_fn = om2.MFnEnumAttribute(self._enum_attribute("getEnumValue"))
         for value in range(enum_fn.getMin(), enum_fn.getMax() + 1):
             try:
                 if enum_fn.fieldName(value) == name:
@@ -1179,6 +1182,9 @@ class Plug(Object):
 
     def setMuted(self, state, *, fast=False):
         """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
+
+        アニメーションの無いチャンネルへのTrueは、Mayaが警告を出すだけで何もしない
+        (muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはせず自身を返す。
 
         Args:
             state (bool): ミュートする場合はTrue。
@@ -1268,6 +1274,11 @@ class Plug(Object):
                 未初期化データはNone、空配列は空list。generic/kAnyは現在値に応じて
                 Matrix・数値・tuple等を返す。マトリクス・型付き配列の成分と無単位値は換算しない。
 
+        Note:
+            まだ作られていない配列要素(``array[9]`` のように参照しただけの要素)を読むと、
+            ``cmds.getAttr`` と同じくMayaがその要素を作る(以後 ``getIndices()`` に現れる)。
+            参照の取得だけでは要素を作らない。
+
         Raises:
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 参照が無効、または値を読み取れない場合。
@@ -1288,6 +1299,8 @@ class Plug(Object):
             safe (bool): Trueは対応する失敗を数える。既定Falseは例外を送出する。
             uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは内部単位。
             fast (bool): Trueは対応型をOpenMayaで直接更新する。Undoへ記録せず、Undo設定も変更しない。
+                入力の意味と検証は通常経路と同じ(整数型・enum・boolへの小数は四捨五入、
+                数値型への文字列や文字列型への数値はRuntimeError)。
 
         Returns:
             Plug | int: 通常は自身。safe=Trueは成功なら0、子の再試行では失敗数の合計。
@@ -1299,10 +1312,11 @@ class Plug(Object):
                 safe=Falseで不正な入力の場合も送出する。
             ValueError: safe=Falseで値の変換等に失敗した場合。
             RuntimeError: safe=Falseで無効参照・ロック・入力接続等により書けない場合。
-            NotImplementedError: fast未対応型。safe=Trueでも部分更新前に拒否する。
+            NotImplementedError: fast未対応型(messageなど)。ロック等の書込み可否より先に検査し、
+                safe=Trueでも部分更新前に拒否する。
 
         Note:
-            safe=Trueのfast複合値は、値や書込み可否より先に全子の型対応を確認する。
+            fastは値や書込み可否より先に、全子の型対応を確認する。
             呼出し形式の誤りや、上記以外の例外を一律には抑制しない。
         """
         if not isinstance(fast, bool):
@@ -1380,7 +1394,9 @@ class Plug(Object):
 
         Raises:
             TypeError: 配列全体・文字列・messageなど既定値を扱えないアトリビュートの場合。
-            RuntimeError: ロック・入力接続などで変更できない場合。
+            RuntimeError: ロック・入力接続などで変更できない場合。enumの既定値がフィールドの
+                最小〜最大の外にある場合(``a=1:b=5`` の既定値0など)も、Mayaの設定どおり
+                書込みを拒否してRuntimeErrorになる(値は変えない)。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
         fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
@@ -1408,16 +1424,24 @@ class Plug(Object):
             return self
 
     def getEnumFieldName(self, val):
-        """指定値のenumフィールド名を返す。
+        """指定値のenumフィールド名を返す(getEnumValueの逆引き)。
 
         Args:
-            val (int): enum値。
+            val (int): enum値。boolは受け付けない。
 
         Returns:
             str: フィールド名。
+
+        Raises:
+            TypeError: enum アトリビュートでない、またはvalが整数でない場合。
+            ValueError: valに対応するフィールドが無い場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return om2.MFnEnumAttribute(self.mplug().attribute()).fieldName(val)
+        attr = self._enum_attribute("getEnumFieldName")
+        if isinstance(val, bool) or not isinstance(val, int):
+            raise TypeError("enum value must be an int: {!r}".format(val))
+        return self._enum_field_name(attr, val)
 
     def getSource(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
         """直接の入力元を取得する。子・配列要素の独立接続は展開しない。
@@ -1666,6 +1690,8 @@ class Plug(Object):
         Raises:
             TypeError: 接続元が未指定・未対応型、長短名の競合、またはfastがbool以外の場合。
             RuntimeError: 同一接続・forceなしの入力置換・ロック・接続やロック復元の失敗。
+                接続元・接続先の所有ノードやアトリビュートが削除済みの場合も、何も変更せずに
+                送出する(接続元は削除前のアトリビュートパスを文言に含める)。
         """
         if source is not _UNSET:
             if src is not _UNSET:
@@ -1678,6 +1704,10 @@ class Plug(Object):
         with nullcontext() if fast else undoChunk("mlibPlugConnect"):
             self._require_valid()
             src = Plug._resolve_input(src)
+            if not src.isValid():
+                # 削除済みの接続元をMayaへ渡すと名前が空になり、どれが原因か分からない。
+                raise RuntimeError("Connection source is invalid (its node or attribute was deleted): "
+                                   + src._label() + " -> " + self.getFullName())
             force, lock = force or f, lock or l
             if self.isLocked() and not (force and unlock):
                 raise RuntimeError("Attribute is locked: " + self.getFullName())
@@ -2593,6 +2623,56 @@ class Plug(Object):
         mobject, dag_path = Node._selection_owner(selection, 0, value, plug=True)
         # 選択リストから取得したばかりの有効な所有ノードなので、Node(...) の入力解決を省いて同じ型で包む。
         return Plug(Node._wrap_resolved(mobject, dag_path), mplug)
+
+    def _enum_attribute(self, caller):
+        """有効性を確かめ済みの前提で、enumアトリビュートの定義を返す。
+
+        Args:
+            caller (str): エラー表示に使うメソッド名。
+
+        Returns:
+            om2.MObject: enumアトリビュートの定義。
+
+        Raises:
+            TypeError: enumアトリビュートでない場合。
+        """
+        attr = self._mplug.attribute()
+        if not attr.hasFn(om2.MFn.kEnumAttribute):
+            raise TypeError("{} requires an enum attribute: {}".format(caller, self.getFullName()))
+        return attr
+
+    def _enum_field_name(self, attr, value):
+        """enumの値に対応するフィールド名を返す。
+
+        Args:
+            attr (om2.MObject): enumアトリビュートの定義。
+            value (int): enum値。
+
+        Returns:
+            str: フィールド名。
+
+        Raises:
+            ValueError: 対応するフィールドが無い場合(MayaのRuntimeErrorを読み替える)。
+        """
+        try:
+            return om2.MFnEnumAttribute(attr).fieldName(value)
+        except RuntimeError as error:
+            raise ValueError("No enum field for value {} on {}".format(value, self.getFullName())) from error
+
+    def _label(self):
+        """エラー表示用の名前を返す。削除済みでも作成時のアトリビュートパスで示す。
+
+        Returns:
+            str: 有効なら :meth:`getFullName`。無効なら所有ノード名(削除済みなら
+                ``<deleted node>``)と作成時のアトリビュートパス。
+        """
+        name = self.getFullName()
+        if name:
+            return name
+        node = self._node
+        handle = node._handle
+        owner = node.getName() if handle is not None and handle.isValid() else "<deleted node>"
+        return owner + self._identity_path
 
     def _attribute_exists(self):
         """アトリビュートが所有ノードに存在し続けているか判定する(所有ノードは有効であること)。

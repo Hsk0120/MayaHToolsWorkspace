@@ -181,6 +181,11 @@ class BlendMatrix(Node):
 
         Returns:
             BlendMatrix: 自身。ウェイト設定が失敗しても、先に完了した接続は残る。
+
+        Note:
+            weightを省略すると1.0を設定する(既存のウェイトは引き継がない)。
+            Undoでは接続とウェイト設定をまとめて戻す。接続前から要素があった場合も、
+            MayaのconnectAttrのUndoにより要素ごと消え、以前のウェイトは戻らない(Mayaの挙動)。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -248,7 +253,7 @@ class BlendMatrix(Node):
         target = self.getTargetPlug(index)
         return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
-    def setTarget(self, index=_UNSET, matrix=_UNSET, weight=1.0, *, idx=_UNSET):
+    def setTarget(self, index=_UNSET, matrix=_UNSET, weight=1.0, *, fast=False, idx=_UNSET):
         """ターゲットのマトリクスとウェイトを順に設定する。
 
         番号・マトリクス・有限ウェイトを検証してから書き込む。ウェイト設定が失敗しても、先に設定したマトリクスは残る。
@@ -256,11 +261,20 @@ class BlendMatrix(Node):
         Args:
             index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
             matrix (Matrix | Iterable[float]): マトリクス。
-            weight (float): 有限なウェイト。
+            weight (float): 有限なウェイト。上限は無い。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             BlendMatrix: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: 番号・マトリクス・ウェイトが不正な場合。
+            RuntimeError: ロックや入力接続により設定できない場合。
+
+        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
+        完了済みの直接更新は自動で戻さない。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -270,12 +284,14 @@ class BlendMatrix(Node):
             raise _ArgumentError("Missing required argument: 'index'")
         if matrix is _UNSET:
             raise _ArgumentError("Missing required argument: 'matrix'")
-        with undoChunk("mlibCalculationEdit"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
             index = _Calculation.index(index)
             matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
             target = self.getPlug("target")[index]
-            target["targetMatrix"].set(matrix)
-            target["weight"].set(weight)
+            target["targetMatrix"].set(matrix, fast=fast)
+            target["weight"].set(weight, fast=fast)
             return self
 
     def getOutputPlug(self):

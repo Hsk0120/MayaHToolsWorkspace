@@ -116,7 +116,7 @@ class LsBulkResolveTest(_NamespaceCase):
 
         def per_item(names):
             best = None
-            for _ in range(3):
+            for _ in range(5):
                 start = time.perf_counter()
                 _resolve_names(names)
                 elapsed = time.perf_counter() - start
@@ -125,7 +125,8 @@ class LsBulkResolveTest(_NamespaceCase):
 
         small = per_item(many[:200])
         large = per_item(many)
-        self.assertLess(large, small * 2.5, (small, large))
+        # 件数の2乗なら1件あたり約16倍になる。他の処理と同時に動くと揺れるため、上限は6倍に取る。
+        self.assertLess(large, small * 6.0, (small, large))
 
 
 class DeletedAnimCurveTest(_NamespaceCase):

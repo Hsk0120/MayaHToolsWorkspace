@@ -29,6 +29,9 @@ _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
 
 _TRANSFORM_ATTRIBUTES = {}
 
+# getEulerでゼロとみなすスケール軸の長さ。Mayaは scale 0 を 1e-12 として評価する。
+_NEAR_ZERO_AXIS = 1e-10
+
 
 def _transform_attribute(name):
     """transform ノード型のアトリビュートの MObject を取得する(初回だけ問い合わせて保持する)。
@@ -554,7 +557,9 @@ class Transform(DagNode):
         Raises:
             TypeError: 対象がJoint、fastがbool以外、またはworldSpace/wsを同時指定した場合。
             ValueError: worldSpaceがbool以外、またはkindが不正な場合。
-            RuntimeError: Mayaが更新を拒否した場合。
+            RuntimeError: 変更するピボットまたは補償値の成分がロック・入力接続されている
+                場合(通常・fastとも更新前に検査し、何も変更しない)、またはMayaが更新を
+                拒否した場合。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -663,7 +668,9 @@ class Transform(DagNode):
         Raises:
             ValueError: kind、座標の要素数・有限値が不正な場合。
             TypeError: preserveがboolでない、または対象がJointの場合。
-            RuntimeError: ノードが無効、または Maya が設定を拒否した場合。
+            RuntimeError: ノードが無効、変更するピボットまたは補償値(preserve=True時)の
+                成分がロック・入力接続されている場合、または Maya が設定を拒否した場合。
+                ロックの検査は通常・fastとも更新前に行い、何も変更しない。
 
         Jointは独立したピボットの変更をサポートしないため、更新前に拒否する。
         """
@@ -686,18 +693,11 @@ class Transform(DagNode):
             values = tuple(value)
             if len(values) != 3 or not all(math.isfinite(v) for v in values):
                 raise ValueError("Expected three finite pivot coordinates")
+            kinds = ("scale", "rotate") if kind == "both" else (kind,)
+            # APIはロックを迂回し、cmds.xformはロックされた成分を黙って飛ばすため、
+            # 通常とfastのどちらも変更する補償値を含めて書く前に確認する。
+            self._check_pivots_writable(kinds, preserve)
             if fast:
-                kinds = ("scale", "rotate") if kind == "both" else (kind,)
-                # APIはロックを迂回できるため、変更する補償値も含めて事前に確認する。
-                for selected in kinds:
-                    names = [selected + "Pivot"]
-                    if preserve:
-                        names.append(selected + "PivotTranslate")
-                    for name in names:
-                        plug = self.getPlug(name).mplug()
-                        writable(plug)
-                        for index in range(plug.numChildren()):
-                            writable(plug.child(index))
                 fn = self.transformFn()
                 point = om2.MPoint(*values)
                 space = MSpace.kWorld if ws else MSpace.kPreTransform
@@ -725,7 +725,8 @@ class Transform(DagNode):
 
         Raises:
             TypeError: fastがbool以外、またはfastで対象がJointの場合。
-            RuntimeError: 無効参照・ロックなどでMayaが更新を拒否した場合。
+            RuntimeError: 無効参照の場合、ピボットまたは補償値の成分がロック・入力接続
+                されている場合(通常・fastとも更新前に検査する)、またはMayaが更新を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
@@ -734,6 +735,8 @@ class Transform(DagNode):
                 center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
                 return self.setPivot((center.x, center.y, center.z), worldSpace=True,
                                      kind="both", preserve=True, fast=fast)
+            # fast(setPivot経由)と同じく、xformが黙って飛ばすロックを先に拒否する。
+            self._check_pivots_writable(("scale", "rotate"), True)
             cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
             return self
 
@@ -1742,7 +1745,9 @@ class Transform(DagNode):
             EulerRotate: 評価済みの回転値（radian、XYZ 順序）。
 
         Raises:
-            ValueError: マトリクスを分解できない場合(いずれかのスケール軸がゼロなど)。
+            ValueError: マトリクスを分解できない場合。いずれかのスケール軸の長さが
+                ``_NEAR_ZERO_AXIS`` (1e-10)以下のときも含む。Mayaは scale 0 を 1e-12 として
+                評価するため、0 のスケールチャンネル(自身または親)はこの判定で拒否する。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1751,7 +1756,11 @@ class Transform(DagNode):
         if worldSpace is _UNSET:
             worldSpace = False
         ws = _world_space(worldSpace)
-        _, quaternion, _, _, _ = self._decompose_like_channels(self.getMatrix(ws=ws))
+        matrix = self.getMatrix(ws=ws)
+        for row in range(3):
+            if math.sqrt(sum(matrix[row, col] ** 2 for col in range(3))) <= _NEAR_ZERO_AXIS:
+                raise ValueError("Cannot decompose a matrix with a zero scale axis")
+        _, quaternion, _, _, _ = self._decompose_like_channels(matrix)
         return EulerRotate._wrap(quaternion.asEulerRotation())
 
     def freeze(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
@@ -2303,6 +2312,26 @@ class Transform(DagNode):
             int: 0(xyz)〜5(zyx)。om2.MEulerRotation.kXYZ〜kZYX と同じ番号。
         """
         return om2.MFnTransform(self.mnode()).rotation(om2.MSpace.kTransform).order
+
+    def _check_pivots_writable(self, kinds, preserve):
+        """変更するピボットと補償値の全成分が書き込めるか、更新前に検査する。
+
+        Args:
+            kinds (Iterable[str]): 検査するピボットの種類(rotate/scale)。
+            preserve (bool): Trueは補償値(rotatePivotTranslate等)も検査する。
+
+        Raises:
+            RuntimeError: いずれかの成分がロック・入力接続・書込み不能の場合。
+        """
+        for selected in kinds:
+            names = [selected + "Pivot"]
+            if preserve:
+                names.append(selected + "PivotTranslate")
+            for name in names:
+                plug = self.getPlug(name).mplug()
+                writable(plug)
+                for index in range(plug.numChildren()):
+                    writable(plug.child(index))
 
     def _channel_state(self):
         """現在の scale チャンネル値と rotate チャンネル値を内部単位で取得する。

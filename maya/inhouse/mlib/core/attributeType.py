@@ -43,6 +43,7 @@ float の頂点座標として扱い ``cmds.getAttr(type=True)`` が ``float3`` 
 ``float3`` を返す(nurbsCurve・nurbsSurface・lattice は ``double3``)。
 """
 
+import math
 import re
 from functools import partial
 
@@ -246,6 +247,28 @@ def is_internal_data_type(mplug):
     return name is not None and name not in _PUBLIC_DATA_TYPES
 
 
+def _require_number(plug, value):
+    """数値・単位・enumへの入力が数値か確かめる(cmds.setAttrと同じ拒否)。
+
+    通常経路の ``cmds.setAttr`` は数値アトリビュートへの文字列・None・列をRuntimeErrorにするため、
+    fastと単位アトリビュートの換算でも変換せずに同じ例外で拒否する。boolは数値として受け付ける。
+
+    Args:
+        plug (om2.MPlug): エラー表示に使う書込み先。
+        value (object): 書き込む値。
+
+    Raises:
+        RuntimeError: 文字列・bytes・None、またはfloatへ変換できない値の場合。
+    """
+    if not isinstance(value, (str, bytes)) and value is not None:
+        try:
+            float(value)
+            return
+        except (TypeError, ValueError):
+            pass
+    raise RuntimeError("Expected a numeric value for {}: {!r}".format(plug.name(), value))
+
+
 def _convert_units(plug, value, to_ui=True):
     """数値・複合値を変換する。単位のない型はそのまま返す。
 
@@ -256,6 +279,9 @@ def _convert_units(plug, value, to_ui=True):
 
     Returns:
         object: 変換した値。マトリクスや型付き配列の成分は単位変換しない。
+
+    Raises:
+        RuntimeError: 単位アトリビュートへ数値以外(文字列・None等)を指定した場合。
     """
     if plug.isCompound:
         return tuple(_convert_units(plug.child(i), item, to_ui) for i, item in enumerate(value))
@@ -275,6 +301,8 @@ def _convert_units(plug, value, to_ui=True):
     if isinstance(value, unit_class):
         # 単位オブジェクトは元単位を保持するため、数値用の元単位を付け直さない。
         return value.asUnits(unit_class.uiUnit() if to_ui else internal_unit)
+    # 文字列・None等はcmds.setAttrの数値アトリビュートと同じくRuntimeErrorにする。
+    _require_number(plug, value)
     if to_ui:
         source_unit, target_unit = internal_unit, unit_class.uiUnit()
     else:
@@ -320,14 +348,50 @@ def _read_time(mplug):
     return mplug.asMTime().asUnits(om2.MTime.kSeconds)
 
 
+def _round_integer(value):
+    """cmds.setAttrと同じく、小数を0から遠い側への四捨五入で整数にする。
+
+    整数型・enum・boolのfast書込みで、通常経路(``cmds.setAttr``)と入力の意味を揃える
+    (2.5は3、-2.5は-3、2.4999は2)。整数はそのまま返す。
+
+    Args:
+        value (int | float): 数値。型の検査は呼出し元が行う。
+
+    Returns:
+        int: 四捨五入した整数。
+
+    Raises:
+        ValueError: nanの場合。
+        OverflowError: 無限大の場合。
+    """
+    if isinstance(value, int):
+        return int(value)
+    value = float(value)
+    rounded = math.floor(abs(value) + 0.5)
+    return int(rounded) if value >= 0 else -int(rounded)
+
+
+def _round_bool(value):
+    """cmds.setAttrと同じく、四捨五入した値が0以外ならTrueにする(0.4はFalse、0.6はTrue)。
+
+    Args:
+        value (int | float): 数値。範囲(0〜1)の検査は呼出し元が行う。
+
+    Returns:
+        bool: 四捨五入した値が0以外ならTrue。
+    """
+    return _round_integer(value) != 0
+
+
 #: 型名 -> (読取、fast setter、入力変換)。数値はOpenMayaで直接読む。
 #: floatは読取時にdouble精度で取得し、書込時にはfloatへ設定する。
+#: 整数型とboolの入力変換は、cmds.setAttrと同じ四捨五入にする(切捨てにしない)。
 _NUMERIC_ACCESS = {
-    "bool": (om2.MPlug.asBool, om2.MPlug.setBool, bool),
-    "byte": (om2.MPlug.asInt, om2.MPlug.setInt, int),
-    "char": (om2.MPlug.asChar, om2.MPlug.setInt, int),
-    "short": (om2.MPlug.asInt, om2.MPlug.setInt, int),
-    "long": (om2.MPlug.asInt, om2.MPlug.setInt, int),
+    "bool": (om2.MPlug.asBool, om2.MPlug.setBool, _round_bool),
+    "byte": (om2.MPlug.asInt, om2.MPlug.setInt, _round_integer),
+    "char": (om2.MPlug.asChar, om2.MPlug.setInt, _round_integer),
+    "short": (om2.MPlug.asInt, om2.MPlug.setInt, _round_integer),
+    "long": (om2.MPlug.asInt, om2.MPlug.setInt, _round_integer),
     "float": (om2.MPlug.asDouble, om2.MPlug.setFloat, float),
     "double": (om2.MPlug.asDouble, om2.MPlug.setDouble, float),
 }

@@ -52,9 +52,9 @@ def delete(nodes, *, fast=False):
 
     Raises:
         ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合(何も削除しない)。
-        TypeError: 要素が対応しない型の場合。要素に Plug(ArrayPlug を含む)・om2.MPlug が
-            含まれる場合(maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。
-            何も削除しない)。
+        TypeError: 要素が対応しない型の場合。要素に Plug(ArrayPlug を含む)・om2.MPlug、
+            またはアトリビュートに解決される文字列(``"node.tx"`` 等)が含まれる場合
+            (maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。何も削除しない)。
         RuntimeError: 存在しない名前を含む場合(``getNode`` と同じ文言。何も削除しない)。
             ロック・参照・削除できないノードを含む場合(何も削除しない。文言は
             cmds.delete の要素ごとの表示に合わせ、例えば ``Cannot delete locked node 'x'.``、
@@ -75,6 +75,12 @@ def delete(nodes, *, fast=False):
         # アトリビュート・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。
         node_names = [name for name in names if "." not in name]
         components = [name for name in names if "." in name]
+        for name in components:
+            # "node.tx" のようなアトリビュート名の文字列も、Plugと同じく削除の前に拒否する。
+            if _resolves_to_plug(name):
+                raise TypeError(
+                    f"アトリビュート名は指定できません: {name}"
+                    "(所有ノードを対象にする場合はノード名を指定してください)")
         if components and fast:
             raise NotImplementedError("fast component/topology deletion is not supported")
         nodes = []
@@ -106,3 +112,28 @@ def delete(nodes, *, fast=False):
             # 親・所有コンテナの削除や重複指定で既に消えた対象は再削除しない。
             if node.isValid():
                 node.delete(fast=fast)
+
+
+def _resolves_to_plug(name):
+    """文字列がアトリビュート(プラグ)を指すか判定する。
+
+    Mayaが解決できない名前・コンポーネント名は False にし、従来どおり ``cmds.delete`` の扱いに任せる。
+
+    Args:
+        name (str): ``"."`` を含む対象名。
+
+    Returns:
+        bool: 一致した要素のいずれかがプラグの場合は True。
+    """
+    selection = om2.MSelectionList()
+    try:
+        selection.add(name)
+    except RuntimeError:
+        return False
+    for index in range(selection.length()):
+        try:
+            selection.getPlug(index)
+        except (TypeError, RuntimeError):
+            continue
+        return True
+    return False

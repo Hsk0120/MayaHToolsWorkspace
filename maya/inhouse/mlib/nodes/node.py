@@ -543,8 +543,11 @@ class Node(Object):
 
         Raises:
             ValueError: typeが空・文字列以外、またはparentが空文字列・無効な参照の場合。
-            TypeError: 長短名の競合、fastがbool以外、またはparentが未対応型・複数対象の場合。
-            RuntimeError: 親名を解決できない、またはMayaが作成を拒否した場合。
+            TypeError: 長短名の競合、fastがbool以外、parentが未対応型・複数対象の場合、
+                または呼び出したクラス(Joint.create等)とtypeのラッパー型が非互換な場合。
+                型の互換は作成前に検査し、ノードを作らない。
+            RuntimeError: Mayaが認識しないtype(unknownノードを残さない。fastは作成前に拒否)、
+                親名を解決できない、またはMayaが作成を拒否した場合。
             NotImplementedError: fastで未対応のフラグを指定した場合。
         """
         if n is not _UNSET:
@@ -589,7 +592,7 @@ class Node(Object):
         with nullcontext() if fast else undoChunk("mlib.nodes.node.create"):
             # fastは作成したMObjectから直接構築する。名前の取り直しと同じくMFnDagNode.getPath()の
             # 最初のインスタンスを使うため、選ばれるパス・ラッパー型は名前経由と変わらない。
-            created = Node._create_node_name(type, kwargs, fast=fast, as_object=fast)
+            created = Node._create_node_name(type, kwargs, fast=fast, as_object=fast, expected_class=cls)
             if not fast or Node._registry is None:
                 return cls(created)
             # 作成したばかりの有効なMObjectなので、cls(created)と同じ解決・型選択・型の検査を
@@ -1023,11 +1026,17 @@ class Node(Object):
             str: Mayaが確定した変更後のノード名。
 
         Raises:
-            RuntimeError: ノード名を変更できない場合。
+            TypeError: fastがboolでない場合。
+            RuntimeError: ノードが無効(削除済み)の場合(``Cannot rename an invalid node``。
+                fastも同じ)、保持するDAGインスタンスが削除された場合、またはMayaが
+                改名を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibNodeRename"):
+            if not self.isValid():
+                # cmds.renameへ空の名前を渡すと文言の無いRuntimeErrorになるため、先に判定する。
+                raise RuntimeError("Cannot rename an invalid node")
             if fast:
                 from ..core.nodeEdit import rename_node
                 return rename_node(self.mnode(), name, ignoreShape)
@@ -1903,8 +1912,15 @@ class Node(Object):
         return dag_path.fullPathName()
 
     @staticmethod
-    def _create_node_name(node_type, flags, *, require_creatable=False, fast=False, as_object=False):
+    def _create_node_name(node_type, flags, *, require_creatable=False, fast=False, as_object=False,
+                          expected_class=None):
         """既存の作成規則でMayaノードを作り、Mayaが返した実名を取得する。
+
+        Mayaが認識しない型名(標準プラグインのロード後も未知の型)を拒否する。cmds.createNodeは
+        未知の型でも例外にせずunknownノードを作るため、ここで止める。型名の照会で認識できる名前は
+        作成前に判定する。版の互換名(2027のaddDoubleLinear等)のように照会では分からない名前は、
+        通常経路では作成した結果がunknownノードなら削除して拒否し(Undoの記録は作成と削除が対になる)、
+        fastでは作成前に拒否する。
 
         Args:
             node_type (str): Maya nodeType名。
@@ -1912,6 +1928,8 @@ class Node(Object):
             require_creatable (bool): Trueなら抽象型・未導入型を作成前に拒否する。
             fast (bool): TrueならOpenMayaで作成し、Falseならcmdsで作成する。
             as_object (bool): fast=Trueのとき、名前ではなく作成したMObjectを返す。
+            expected_class (type | None): 指定すると、node_typeに対応するラッパー型が
+                このクラスの派生型でない場合に作成前に拒否する。
 
         Returns:
             str | om2.MObject: Mayaの名前補正・連番を反映したノード名。fastとas_objectが
@@ -1919,8 +1937,10 @@ class Node(Object):
 
         Raises:
             ValueError: nodeType名が空文字列または文字列以外の場合。
-            TypeError: 作成可能な具体型でない場合、またはparentが未対応型の場合。
-            RuntimeError: Mayaがプラグインのロードやノード作成を拒否した場合。
+            TypeError: 作成可能な具体型でない場合、expected_classと型が非互換な場合、
+                またはparentが未対応型の場合。
+            RuntimeError: Mayaが認識しないnodeType名の場合、またはMayaがプラグインのロードや
+                ノード作成を拒否した場合。
 
         Note:
             Undoチャンクは呼出し側で管理する。既存Node.createとconstructorの
@@ -1933,6 +1953,21 @@ class Node(Object):
         Plugin.ensureNodePlugin(node_type)
         if require_creatable and node_type not in (cmds.allNodeTypes() or []):
             raise TypeError("create=True requires a creatable Maya nodeType: " + node_type)
+        from ..core.registry import _node_type_exists
+        # Mayaの版で改名された型の旧名(2027のaddDoubleLinear→addDL等)は、型名の照会・OpenMayaでは
+        # 解決できないがcmds.createNodeは互換名として作成する。照会で分からない名前は、通常経路では
+        # 作成した結果がunknownノードかどうかで判定し、fastはOpenMayaが作成できないため作成前に拒否する。
+        known = _node_type_exists(node_type)
+        if not known and fast:
+            raise RuntimeError("Unknown Maya nodeType: " + node_type)
+        registry = Node._registry
+        if (expected_class is not None and expected_class is not Node and registry is not None
+                and (known or registry.lookup(node_type) is not None)):
+            # 作成後に検査するとノードがシーンに残る(fastではUndoでも消せない)ため、型名で先に判定する。
+            wrapper = registry.wrapper_class(node_type)
+            if not issubclass(wrapper, expected_class):
+                raise TypeError("{} requires a compatible node, got {}".format(
+                    expected_class.__name__, wrapper.__name__))
         for key in ("parent", "p"):
             if flags.get(key) is not None:
                 flags[key] = Node._input_name(flags[key])
@@ -1940,7 +1975,20 @@ class Node(Object):
             from ..core.nodeEdit import create_node
             obj = create_node(node_type, flags)
             return obj if as_object else Node._unique_node_name(obj)
-        return cmds.createNode(node_type, **flags)
+        if known:
+            return cmds.createNode(node_type, **flags)
+        unknown_types = ["unknown", "unknownDag", "unknownTransform"]
+        existing = set(cmds.ls(type=unknown_types, uuid=True) or [])
+        selection = cmds.ls(selection=True, long=True) or []
+        created = cmds.createNode(node_type, **flags)
+        if isinstance(created, str) and cmds.objExists(created):
+            uuid = (cmds.ls(created, uuid=True) or [None])[0]
+            if cmds.nodeType(created) in unknown_types and uuid not in existing:
+                # 未知の名前でMayaが作ったunknownノードは消し、作成前の選択へ戻してから拒否する。
+                cmds.delete(created)
+                cmds.select(selection, replace=True) if selection else cmds.select(clear=True)
+                raise RuntimeError("Unknown Maya nodeType: " + node_type)
+        return created
 
     def _has_delete_connections(self):
         """自身とDAG子孫のDG接続をOMで検査する。
@@ -2254,15 +2302,24 @@ class Node(Object):
     def _current_dag_path(self):
         """保持パスを返す。消失したインスタンスを別パスへ切り替えない。
 
+        ノードごと削除された場合は、Undoの記録に残る間(MDagPathが有効のまま古いパスを返す間)も
+        無効として扱う。
+
         Returns:
             om2.MDagPath | None: 保持しているパス。非DAGはNone。
 
         Raises:
-            RuntimeError: 保持しているDAGインスタンスが削除された場合。
+            RuntimeError: 保持しているDAGインスタンス、またはノード自体が削除された場合。
         """
         dag_path = self._dag_path
-        if dag_path is not None and not dag_path.isValid():
-            raise RuntimeError("The referenced DAG instance no longer exists")
+        if dag_path is not None:
+            if not dag_path.isValid():
+                raise RuntimeError("The referenced DAG instance no longer exists")
+            handle = self._handle
+            if handle is not None and not handle.isValid():
+                # 削除直後のMDagPathはisValid()がTrueのまま空のパス・削除前の名前を返すため、
+                # ノードのハンドルでも確かめる。
+                raise RuntimeError("The referenced DAG node no longer exists")
         return dag_path
 
     @staticmethod

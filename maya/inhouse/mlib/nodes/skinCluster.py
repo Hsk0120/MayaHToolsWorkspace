@@ -99,6 +99,14 @@ class SkinCluster(Node):
         Args:
             target (str | SkinCluster): 別のバインド済み転送先。
 
+        Returns:
+            None: 値は返さない。
+
+        Raises:
+            ValueError: 転送先が自身の場合。
+            TypeError: 転送先がskinCluster以外のノードの場合。
+            RuntimeError: 転送先の名前が存在しない場合、またはMayaが転送を拒否した場合。
+
         Note:
             closestPoint、name/closestJointによる近似転送で正規化する。
             異なる基準姿勢の補正やメッシュ削減は行わない。

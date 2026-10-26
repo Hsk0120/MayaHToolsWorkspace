@@ -122,12 +122,24 @@ class AngleBetween(Node):
         return self.getPlug("angle").get()
 
     def getAxis(self):
-        """回転軸を取得する。
+        """評価済みの回転軸を取得する。
 
         Returns:
-            Vector: 回転軸。
+            Vector: 入力ベクトル1から2への回転軸(単位ベクトル)。
+
+        Note:
+            axisは複合axisAngleの子で、angleBetweenはaxisAngle全体を要求されたときに軸を
+            計算する。子のaxisだけをOpenMayaで読むと再計算されず既定値(0, 0, 1)が返るため、
+            親のaxisAngleをデータハンドルで評価してから子の値を読む。
         """
-        return Vector(self.getPlug("axis").get())
+        parent = self.getPlug("axisAngle").mplug()
+        child = self.getPlug("axis").mplug().attribute()
+        handle = parent.asMDataHandle()
+        try:
+            value = handle.child(child).asDouble3()
+        finally:
+            parent.destructHandle(handle)
+        return Vector(value)
 
     def getRotate(self):
         """Euler回転を取得する。

@@ -83,6 +83,15 @@ class HIKCharacterNode(Node):
             role (str): HumanIK標準の骨名。例: Hips、LeftArm。
             joint: mlibで解決可能なjoint。
 
+        Returns:
+            None: 値は返さない。
+
+        Raises:
+            RuntimeError: 定義がロック済みの場合、jointを解決できない場合、または
+                HumanIKが割り当てを反映しなかった場合。
+            TypeError: jointがjoint以外のノード、またはroleが文字列でない場合。
+            ValueError: roleがHumanIK標準の骨名でない場合。
+
         Note:
             定義の検証・ロックはMayaのHumanIK UIで行う。
         """

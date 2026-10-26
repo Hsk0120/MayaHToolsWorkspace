@@ -43,6 +43,29 @@ def _inherited_node_types(node_type):
     return chain
 
 
+def _node_type_exists(node_type):
+    """Mayaが型名として認識するnodeTypeか判定する。
+
+    :func:`_inherited_node_types` と同じ照会とキャッシュを使う。認識済みの型だけを
+    キャッシュし、未知型は後からプラグインが導入される可能性があるため毎回問い合わせる。
+
+    Args:
+        node_type (str): Maya の nodeType 名。
+
+    Returns:
+        bool: ``cmds.nodeType(node_type, isTypeName=True)`` が型名として認識する場合は True。
+    """
+    if node_type in _INHERITED_TYPES_CACHE:
+        return True
+    try:
+        chain = cmds.nodeType(node_type, isTypeName=True, inherited=True)
+    except RuntimeError:
+        return False
+    if chain:
+        _INHERITED_TYPES_CACHE[node_type] = tuple(reversed(chain))
+    return True
+
+
 def _clear_type_hierarchy_cache():
     """キャッシュを消去する。
 

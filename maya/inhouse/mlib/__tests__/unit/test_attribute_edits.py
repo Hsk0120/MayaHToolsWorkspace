@@ -24,13 +24,13 @@ class AttributeEditsTest(unittest.TestCase):
         self.node = mlib.getNode(cmds.createNode("network", name=self.namespace + ":node"))
         self.undo_enabled = cmds.undoInfo(query=True, state=True)
         if not self.undo_enabled:
-            cmds.undoInfo(stateWithoutFlush=True)
+            cmds.undoInfo(state=True)
 
     def tearDown(self):
         """専用ノードを削除し、元のUndo設定へ戻す。"""
         cmds.namespace(removeNamespace=self.namespace, deleteNamespaceContent=True)
-        if not self.undo_enabled:
-            cmds.undoInfo(stateWithoutFlush=False)
+        cmds.undoInfo(state=self.undo_enabled)
+        self.assertEqual(cmds.undoInfo(query=True, state=True), self.undo_enabled)
 
     def _definition(self, name):
         """Mayaの定義とPlug状態を、比較できる値として取得する。
@@ -177,15 +177,21 @@ class AttributeEditsTest(unittest.TestCase):
         """復旧できないUndo無効時は、定義を削除する前に拒否する。"""
         self.node.addAttr("first")
         self.node.addAttr("second")
+        # stateWithoutFlush=Falseは、Maya 2025/2027のmayapyで以後のcreateNodeの名前空間が外れるため、
+        # Undoの切替えはstate=を使う(FINDINGS_D.md の参考の件。テスト側 7 で修正)。
         before = self.node.getExtraAttrs(asNames=True)
-        cmds.undoInfo(stateWithoutFlush=False)
+        cmds.undoInfo(state=False)
         try:
             with self.assertRaisesRegex(RuntimeError, "requires Undo"):
                 self.node.moveAttrOrder("first", 1)
             self.assertFalse(cmds.undoInfo(query=True, state=True))
             self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
         finally:
-            cmds.undoInfo(stateWithoutFlush=True)
+            cmds.undoInfo(state=True)
+        self.assertTrue(cmds.undoInfo(query=True, state=True))
+        # 切替え後も専用名前空間の中にノードを作れる。
+        probe = cmds.createNode("network", name=self.namespace + ":probe")
+        self.assertEqual(probe, self.namespace + ":probe")
         # fast引数のない操作は外側の呼出しモードに依存せず通常Undoを使う。
         self.node.moveAttrOrder("first", 1)
         self.assertEqual(self.node.getExtraAttrs(asNames=True), ["second", "first"])

@@ -131,10 +131,15 @@ class _Calculation:
             int: 列挙値。
 
         Raises:
-            ValueError: 未対応のモードの場合。
+            ValueError: 未対応のモードの場合。名前の誤りは
+                ``Unsupported value 'x' (choices: ...)`` の文言で選択肢を示す。
         """
         if isinstance(value, str):
-            return names.index(value.lower())
+            try:
+                return names.index(value.lower())
+            except ValueError:
+                raise ValueError(
+                    "Unsupported value %r (choices: %s)" % (value, ", ".join(names))) from None
         return _Calculation.index(value, range(len(names)))
 
     @staticmethod

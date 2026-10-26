@@ -22,8 +22,8 @@ class MultMatrix(Node):
             Plug: 入力アトリビュートの参照。
 
         Raises:
-            ValueError: indexが非負整数でない場合。
-            IndexError: 指定した入力要素が存在しない、または番号が範囲外の場合。
+            ValueError: indexが整数でない・負数・boolの場合。
+            IndexError: 指定した入力要素が存在しない、または番号が論理番号の範囲(0..2147483647)を超える場合。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -47,7 +47,8 @@ class MultMatrix(Node):
             Matrix: 現在の入力値。
 
         Raises:
-            IndexError: 入力要素が存在しない場合。
+            ValueError: indexが整数でない・負数・boolの場合。
+            IndexError: 入力要素が存在しない、または番号が範囲外の場合。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -70,7 +71,8 @@ class MultMatrix(Node):
             MultMatrix: 自身。
 
         Raises:
-            ValueError: インデックスやマトリクスが不正な場合。
+            ValueError: インデックスが整数でない・負数・boolの場合、またはマトリクスが不正な場合。
+            IndexError: インデックスが論理番号の範囲(0..2147483647)を超える場合。
             RuntimeError: ロックや入力接続により設定できない場合。
 
         ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
@@ -107,7 +109,8 @@ class MultMatrix(Node):
             MultMatrix: 自身。
 
         Raises:
-            ValueError: インデックスが不正な場合。
+            ValueError: インデックスが整数でない・負数・boolの場合。
+            IndexError: インデックスが論理番号の範囲(0..2147483647)を超える場合。
             RuntimeError: 型不一致などでMayaが接続を拒否した場合。
         """
         if idx is not _UNSET:
@@ -153,7 +156,7 @@ class MultMatrix(Node):
 
     @staticmethod
     def _index(index):
-        """非負の整数インデックスを検証する。不正値はValueError。
+        """非負の整数インデックスを検証する。型・負数はValueError、上限超えはIndexError。
 
         Args:
             index: 対象要素の番号または探索開始番号。

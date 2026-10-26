@@ -53,7 +53,8 @@ def createNode(type, *, fast=False,
     Raises:
         TypeError: 長名・短名の同時指定、fastがbool以外、またはparentが対応しない型の場合。
         ValueError: parent が空文字列、または削除済みの対象の場合。
-        RuntimeError: parent を解決できない場合、またはMayaが作成を拒否した場合。
+        RuntimeError: Mayaが認識しないノード型名の場合(unknownノードを残さない。版の互換名は作成できる)、
+            parent を解決できない場合、またはMayaが作成を拒否した場合。
         NotImplementedError: fast=Trueで未対応のフラグを指定した場合。
     """
     if name is not _UNSET:

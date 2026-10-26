@@ -3,7 +3,7 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .attributeType import NUMERIC_WRITERS, _convert_units
+from .attributeType import NUMERIC_WRITERS, _convert_units, _require_number, _round_integer
 
 _TYPED_DATA_FACTORIES = {
     om2.MFnData.kDoubleArray: om2.MFnDoubleArrayData,
@@ -120,6 +120,8 @@ def _prepared_writes(plug, value, writable_checked=False):
 
     Raises:
         NotImplementedError: API 2.0で値を構築できない型の場合。
+        RuntimeError: 書込み不能、数値型への数値以外・文字列型への文字列以外の入力、
+            またはハード範囲外(enumはフィールドの最小〜最大の外)の場合。
     """
     attribute = plug.attribute()
     unit = attribute.hasFn(om2.MFn.kUnitAttribute)
@@ -142,6 +144,7 @@ def _prepared_writes(plug, value, writable_checked=False):
         return writes
     owner = None
     if unit:
+        _require_number(plug, value)
         check_range(plug, value, fn)
         kind = fn.unitType()
         if kind == om2.MFnUnitAttribute.kAngle:
@@ -151,8 +154,14 @@ def _prepared_writes(plug, value, writable_checked=False):
         else:
             setter, result = om2.MPlug.setMTime, om2.MTime(value, om2.MTime.kSeconds)
     elif attribute.hasFn(om2.MFn.kEnumAttribute):
-        setter, result = om2.MPlug.setInt, int(value)
+        _require_number(plug, value)
+        enum_fn = om2.MFnEnumAttribute(attribute)
+        # cmds.setAttrと同じく、四捨五入前の値をフィールドの最小〜最大と比べる。
+        if value < enum_fn.getMin() or value > enum_fn.getMax():
+            raise RuntimeError("Value outside attribute limits: " + plug.name())
+        setter, result = om2.MPlug.setInt, _round_integer(value)
     elif numeric:
+        _require_number(plug, value)
         check_range(plug, value, fn)
         writer = NUMERIC_WRITERS.get(fn.numericType())
         if writer is None:
@@ -167,7 +176,10 @@ def _prepared_writes(plug, value, writable_checked=False):
 def set_plug(plug, value, _writable_checked=False):
     """全成分を事前検証してMPlugへ設定する。Undoには記録しない。
 
-    型・書込み可否・ハード範囲を確認し、型付きデータを構築してから準備順に書き込む。
+    最初に全子の型がfastに対応するかを確かめ(未対応ならロック等より先にNotImplementedError)、
+    次に書込み可否・入力の型・ハード範囲を確認し、型付きデータを構築してから準備順に書き込む。
+    入力の意味は通常経路(cmds.setAttr)と同じにする: 整数型・enum・boolへの小数は四捨五入し、
+    数値型への文字列や文字列型への数値は変換せずRuntimeErrorにする。
     function setはデータの受渡しが終わるまで保持する。Undo設定は変更しない。
     事前検証後のAPI書込みで失敗した場合、先に書いた成分の自動復元は行わない。
 
@@ -178,8 +190,11 @@ def set_plug(plug, value, _writable_checked=False):
             :func:`writable` で検査済みならTrue。その検査だけを重ねて行わない。
 
     Raises:
-        NotImplementedError: API 2.0で未対応の型の場合。更新前に拒否する。
+        NotImplementedError: API 2.0で未対応の型の場合。書込み可否より先に、更新前に拒否する。
+        RuntimeError: 書込み不能、入力の型の不一致、またはハード範囲外の場合。
+        ValueError: 複合の値の成分数が子数と異なる場合。
     """
+    _require_supported_type(plug)
     writes = _prepared_writes(plug, value, _writable_checked)
     for setter, target, item, owner in writes:
         # データを受け渡すまで作成用function setを保持する。
@@ -233,7 +248,10 @@ def prepare_data(attribute, value, *, name=None):
     elif attribute.hasFn(om2.MFn.kTypedAttribute):
         kind = om2.MFnTypedAttribute(attribute).attrType()
         if kind == om2.MFnData.kString:
-            setter, result = om2.MPlug.setString, str(value)
+            if not isinstance(value, str):
+                # cmds.setAttr(type="string")と同じく、文字列以外を変換せずに拒否する。
+                raise RuntimeError("Expected a string value for {}: {!r}".format(label, value))
+            setter, result = om2.MPlug.setString, value
         elif kind == om2.MFnData.kMatrix:
             matrix = value if isinstance(value, om2.MMatrix) else om2.MMatrix(value)
             owner = om2.MFnMatrixData()

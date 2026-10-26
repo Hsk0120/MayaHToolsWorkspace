@@ -303,11 +303,11 @@ class CompoundBulkSetTest(unittest.TestCase):
         self.assertEqual(self.values("translate"), [1.0, 0.0, 3.0])
         cmds.connectAttr(self.source + ".tx", self.node + ".vecDZ")
         plug = node.getPlug("vecD")
-        # CompoundPlug.setは書込み可否を事前に確かめないため、先頭の子から順に書いて止まる。
+        # CompoundPlug.setも全子の書込み可否を事前に確かめ、何も書かずに止まる(FINDINGS B-10で修正)。
         cmds.setAttr(self.node + ".vecDY", lock=True)
         with self.assertRaisesRegex(RuntimeError, "locked or connected"):
             CompoundPlug.set(plug, (4.0, 5.0, 6.0))
-        self.assertEqual(self.values("vecD"), [4.0, 0.0, 0.0])
+        self.assertEqual(self.values("vecD"), [0.0, 0.0, 0.0])
         self.assertEqual(CompoundPlug.set(plug, (7.0, 8.0, 9.0), safe=True), 2)
         self.assertEqual(self.values("vecD"), [7.0, 0.0, 0.0])
 

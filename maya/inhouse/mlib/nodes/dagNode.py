@@ -16,6 +16,10 @@ class DagNode(Node):
     """Transform・ShapeのDAGパスを保持し、階層を照会する。
 
     getParent/getChildrenは保持パス基準。全インスタンスの参照はgetInstancesで取得する。
+
+    各メソッドの「保持するDAGパスが無効」には、保持インスタンスだけが外れた場合に加え、
+    ノードごと削除された場合(Undoの記録に残っている間も含む)を含む。その間もMDagPathは
+    古いパスを返すため、パスを使う照会は空文字列・削除前の名前を返さずRuntimeErrorにする。
     """
 
     def getSkinClusters(self):
@@ -306,6 +310,9 @@ class DagNode(Node):
 
         Returns:
             bool: 親階層を含むDAGの表示状態。
+
+        Raises:
+            RuntimeError: 保持するDAGパスが無効な場合(削除済みのノードを含む)。
         """
         return self.mpath().isVisible()
 

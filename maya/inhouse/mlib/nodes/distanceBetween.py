@@ -12,6 +12,11 @@ class DistanceBetween(Node):
     """distanceBetweenノードを参照し、inMatrix1/2で変換したpoint1/2間の距離を評価する。
 
     値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+
+    Note:
+        distance・point1/2のアトリビュート型はMayaの版で異なる(2027は単位なしのdouble、
+        2022〜2025は距離型)。mlibの値はどの版でもcmで扱うが、UI単位がcm以外のときの
+        ``cmds.getAttr`` の値は版により変わる。
     """
 
     def setPoints(self, point1, point2, *, fast=False):

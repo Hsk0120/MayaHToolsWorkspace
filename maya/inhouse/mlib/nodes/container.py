@@ -213,6 +213,12 @@ class Container(Node):
 
         Args:
             name (str): Bind済みの公開名。
+
+        Returns:
+            None: 値は返さない。
+
+        Raises:
+            ValueError: nameが公開名でない、または未Bindの場合。何も変更しない。
         """
         plug = self.getPublishedAttrs().get(name)
         if plug is None:
@@ -225,6 +231,12 @@ class Container(Node):
 
         Args:
             name (str): 未Bindの公開名。
+
+        Returns:
+            None: 値は返さない。
+
+        Raises:
+            ValueError: nameが公開名でない、またはBind済みの場合。何も変更しない。
         """
         published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
