@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-28): mlrig夜間タスク。球コライダーへの柔らかい押し出し SphereCollision を追加(setups/sphereCollision.py。標準ノードのみ。d=|p-c|-radius に PlaneCollision と同じ指数の押し出し、matrix・distance・push・penetration を出力、中心一致は押し出さない)。PlaneCollision の押し出し部分を_pushGraph へ切り出して共有、Setup Samplesに1項目、文書 sphere_collision.rst と検証デモ tools/demo_sphere_collision.py を追加。隔離Maya 2027で test_setup_sphere_collision 8件・setups 551件・standard 76件OK、Sphinx -W 警告0、検証動画294フレーム判定OK。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-10-27): mlib 2.2.0。内部メソッド名・引数・処理の書き方のブレを調査(nodes/plugs/components/common/core/cmds/maths を 4 並列で読了)し統一: bool 検査・別名解消・無効ノード検査・ロック拒否・プラグ遡上を decorator/util/core の共通ヘルパーへ集約(約 650 箇所)、例外を 4 分類(型/値/状態/未対応)に揃え日本語メッセージ約 70 件を英語化、Undo チャンク名を mlib<Class><Method> に統一、内部名を _require_/_resolve_/_<method>_fast|_cmds 規則へ改名、Plug.set の Template Method 化・Nodes.__init_subclass__ での一括宣言合成、docstring 402 件を固定文・用語・項目順に整形。mlib.reload() の親パッケージ依存の順序不良を修正。規則は docs/mlib-api-design.md「内部実装の定型」。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685 件、静的検査・Sphinx(-W)・文書検査が合格。
 
 - Codex (2026-10-27): プッシュ依頼に対応し、KawaiiPhysics・UnrealEngineのサブモジュール設定/参照と担当履歴を公開対象に整理。origin/mainとの一致、両サブモジュールの未変更、調査メモのGit除外、ステージ差分を確認。並行作業中のmlib等と他担当の作業ログは対象外として保持。

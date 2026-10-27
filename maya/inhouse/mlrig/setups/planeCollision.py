@@ -37,6 +37,67 @@ class PlaneCollision(TwistDistribution):
         return softness * math.exp((distance - softness) / softness)
 
     @classmethod
+    def _pushGraph(cls, graph, d, s):
+        """距離 d と softness s から、押し出し量 response(d, s) - d を出力する標準ノードを作る。
+
+        Args:
+            graph (TwistDistribution): ノードを所有するグラフ。
+            d (Plug): radiusを引いた符号付き距離(cm)。
+            s (Plug): softness(cm)。
+
+        Returns:
+            Node: output1D が押し出し量の plusMinusAverage。
+        """
+        # 分母が0にならないよう、硬い場合だけ1へ置き換える(その場合の結果は使わない)。
+        safe = graph._node("condition", "safeSoftness")
+        safe.getPlug("operation").set(2)
+        s.connectTo(safe.getPlug("firstTerm"))
+        safe.getPlug("secondTerm").set(_HARD_SOFTNESS)
+        s.connectTo(safe.getPlug("colorIfTrueR"))
+        safe.getPlug("colorIfFalseR").set(1.0)
+        # soft = s * e^((d - s) / s)
+        excess = graph._node("plusMinusAverage", "excess")
+        excess.getPlug("operation").set(2)
+        d.connectTo(excess.getPlug("input1D")[0])
+        s.connectTo(excess.getPlug("input1D")[1])
+        exponent = graph._node("multiplyDivide", "exponent")
+        exponent.getPlug("operation").set(2)
+        excess.getPlug("output1D").connectTo(exponent.getPlug("input1X"))
+        safe.getPlug("outColorR").connectTo(exponent.getPlug("input2X"))
+        power = graph._node("multiplyDivide", "power")
+        power.getPlug("operation").set(3)
+        power.getPlug("input1X").set(math.e)
+        exponent.getPlug("outputX").connectTo(power.getPlug("input2X"))
+        soft = graph._node("multiplyDivide", "soft")
+        power.getPlug("outputX").connectTo(soft.getPlug("input1X"))
+        s.connectTo(soft.getPlug("input2X"))
+        # 帯の外は入力のまま、硬い場合は max(d, 0)
+        limited = graph._node("condition", "limited")
+        limited.getPlug("operation").set(3)
+        d.connectTo(limited.getPlug("firstTerm"))
+        s.connectTo(limited.getPlug("secondTerm"))
+        d.connectTo(limited.getPlug("colorIfTrueR"))
+        soft.getPlug("outputX").connectTo(limited.getPlug("colorIfFalseR"))
+        hard = graph._node("condition", "hard")
+        hard.getPlug("operation").set(3)
+        d.connectTo(hard.getPlug("firstTerm"))
+        hard.getPlug("secondTerm").set(0.0)
+        d.connectTo(hard.getPlug("colorIfTrueR"))
+        hard.getPlug("colorIfFalseR").set(0.0)
+        result = graph._node("condition", "result")
+        result.getPlug("operation").set(2)
+        s.connectTo(result.getPlug("firstTerm"))
+        result.getPlug("secondTerm").set(_HARD_SOFTNESS)
+        limited.getPlug("outColorR").connectTo(result.getPlug("colorIfTrueR"))
+        hard.getPlug("outColorR").connectTo(result.getPlug("colorIfFalseR"))
+        # push = d' - d
+        push = graph._node("plusMinusAverage", "push")
+        push.getPlug("operation").set(2)
+        result.getPlug("outColorR").connectTo(push.getPlug("input1D")[0])
+        d.connectTo(push.getPlug("input1D")[1])
+        return push
+
+    @classmethod
     @undoTransaction("mlrig.PlaneCollision.create")
     def create(cls, target, plane, name="planeCollision", axis="y", softness=1.0, radius=0.0):
         """targetのワールド位置を、planeの面より下へ沈まないよう押し出した行列を生成する。
@@ -119,53 +180,7 @@ class PlaneCollision(TwistDistribution):
         d.connectTo(owner.getPlug("distance"))
         s = owner.getPlug("softness")
 
-        # 分母が0にならないよう、硬い場合だけ1へ置き換える(その場合の結果は使わない)。
-        safe = graph._node("condition", "safeSoftness")
-        safe.getPlug("operation").set(2)
-        s.connectTo(safe.getPlug("firstTerm"))
-        safe.getPlug("secondTerm").set(_HARD_SOFTNESS)
-        s.connectTo(safe.getPlug("colorIfTrueR"))
-        safe.getPlug("colorIfFalseR").set(1.0)
-        # soft = s * e^((d - s) / s)
-        excess = graph._node("plusMinusAverage", "excess")
-        excess.getPlug("operation").set(2)
-        d.connectTo(excess.getPlug("input1D")[0])
-        s.connectTo(excess.getPlug("input1D")[1])
-        exponent = graph._node("multiplyDivide", "exponent")
-        exponent.getPlug("operation").set(2)
-        excess.getPlug("output1D").connectTo(exponent.getPlug("input1X"))
-        safe.getPlug("outColorR").connectTo(exponent.getPlug("input2X"))
-        power = graph._node("multiplyDivide", "power")
-        power.getPlug("operation").set(3)
-        power.getPlug("input1X").set(math.e)
-        exponent.getPlug("outputX").connectTo(power.getPlug("input2X"))
-        soft = graph._node("multiplyDivide", "soft")
-        power.getPlug("outputX").connectTo(soft.getPlug("input1X"))
-        s.connectTo(soft.getPlug("input2X"))
-        # 帯の外は入力のまま、硬い場合は max(d, 0)
-        limited = graph._node("condition", "limited")
-        limited.getPlug("operation").set(3)
-        d.connectTo(limited.getPlug("firstTerm"))
-        s.connectTo(limited.getPlug("secondTerm"))
-        d.connectTo(limited.getPlug("colorIfTrueR"))
-        soft.getPlug("outputX").connectTo(limited.getPlug("colorIfFalseR"))
-        hard = graph._node("condition", "hard")
-        hard.getPlug("operation").set(3)
-        d.connectTo(hard.getPlug("firstTerm"))
-        hard.getPlug("secondTerm").set(0.0)
-        d.connectTo(hard.getPlug("colorIfTrueR"))
-        hard.getPlug("colorIfFalseR").set(0.0)
-        result = graph._node("condition", "result")
-        result.getPlug("operation").set(2)
-        s.connectTo(result.getPlug("firstTerm"))
-        result.getPlug("secondTerm").set(_HARD_SOFTNESS)
-        limited.getPlug("outColorR").connectTo(result.getPlug("colorIfTrueR"))
-        hard.getPlug("outColorR").connectTo(result.getPlug("colorIfFalseR"))
-        # push = d' - d
-        push = graph._node("plusMinusAverage", "push")
-        push.getPlug("operation").set(2)
-        result.getPlug("outColorR").connectTo(push.getPlug("input1D")[0])
-        d.connectTo(push.getPlug("input1D")[1])
+        push = cls._pushGraph(graph, d, s)
         push.getPlug("output1D").connectTo(owner.getPlug("push"))
 
         # matrix = targetのworldMatrix · T(n * push)

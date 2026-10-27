@@ -83,6 +83,7 @@ class SetupSamples:
         ("lipZip", "LipZip - sticky lips"),
         ("squashBox", "SquashBox - four sides"),
         ("planeCollision", "PlaneCollision - soft floor"),
+        ("sphereCollision", "SphereCollision - soft head collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
         ("cameraAngleReader", "CameraAngleReader - face and camera"),
         ("dollyZoom", "DollyZoom - camera keeps the subject size"),
@@ -919,6 +920,19 @@ class SetupSamples:
         control = _locator(name + "_footCtrl", root, translate=(0, 3, 0))
         setup = PlaneCollision.create(control, floor, name=name, axis="y", softness=1.0, radius=0.5)
         _output(name + "_footOut", root, str(setup.container) + ".matrix", ((0, -0.5, 0),))
+        return setup, control
+
+    @classmethod
+    def _sphereCollision(cls, name, root):
+        """頭を表す球のコライダー(locator)と手のコントロール(locator)。コントロールを球へ近づけると、
+        表面から softness の距離で出力(緑)が柔らかく止まり始め、球の中へは入らない。"""
+        from .setups import SphereCollision
+
+        head = _locator(name + "_head", root, translate=(0, 6, 0))
+        _set(head, "scale", (3.0, 3.0, 3.0))
+        control = _locator(name + "_handCtrl", root, translate=(6, 6, 0))
+        setup = SphereCollision.create(control, head, name=name, radius=3.0, softness=1.0)
+        _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
 
     @classmethod

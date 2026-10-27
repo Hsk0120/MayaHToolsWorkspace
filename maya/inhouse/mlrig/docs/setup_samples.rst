@@ -134,6 +134,9 @@
    * - PlaneCollision - soft floor
      - 足のコントロールのlocator
      - 下げると、出力(緑)が床から ``radius`` + ``softness`` (1.5cm)の高さで柔らかく止まり始め、少し傾いた床(locator)より下へは沈まない。床を回す・動かすと面が付いてくる。containerの ``softness`` を0にすると硬く止まる。
+   * - SphereCollision - soft head collider
+     - 手のコントロールのlocator
+     - ``translateX`` を下げて頭の球(locator、半径3cm)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、球の中へは入らない。球を動かすと押し出す向きが付いてくる。containerの ``penetration`` は押し込んだ深さ、 ``softness`` を0にすると硬く止まる。
    * - SpaceBlend - world, chest and hand
      - 手の空間のlocator
      - 動かすと、worldと手の空間に半分ずつ追従する出力(緑)が、手の動きの半分だけ付いてくる。containerの ``weight0`` (world)・ ``weight1`` (胸)・ ``weight2`` (手)を変えると、割合に応じて追従先が混ざる(作成時の位置からは跳ねない)。
