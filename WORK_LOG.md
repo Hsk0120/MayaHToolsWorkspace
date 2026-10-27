@@ -117,6 +117,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-28): Simple Cloth / Simple PhysicsのHTools入口をriggingからユーザー指定のphsycsカテゴリへ移動し、両READMEの起動案内を更新。既存userSetupのフォルダ探索仕様、移動先モジュール解決・Python構文・旧入口の除去を確認。Maya GUI未起動のためメニュー表示・クリックは未確認。次回起動時に反映。既存変更を保持、未コミット・未プッシュ。
+
+- Codex (2026-10-27): Simple Cloth 0.1.0を独立したPython API 2.0メッシュプラグインとして追加。XPBD伸び/曲げ近似、Max Distanceペイント、固定頂点、Backstop、風、球/カプセル/平面、粒子セルフコリジョン、プリセット、独立blendShapeベイク、設定UI・HTools入口・READMEを実装。UEコードの組込みなし。Maya2027 mayapyで13件成功（スキン入力、時刻/過去キー、DG/Serial/Parallel、cm/m、UV、保存再読込、Undo、ベイク独立性）。専用GUIでペイントFlood/Undo、微小係数の実操作/Undo、HTools入口を確認。99頂点・145フレーム録画の固定/移動上限/点の球クリアランス検証成功（最大伸び残差7.62%）。成果物verification/20261027-223426-5a369998、.maya-output/simple-cloth/。動画をDriveへ保存しサイズ335246 bytesを読み戻し確認。Drive共有UIが「現在、共有できません」と返すため一般リンク共有のみ未完了、所有者限定を記録。Python性能・点衝突・Chaos完全互換なし等を明記。他担当の変更を保持、未コミット・未プッシュ。
+
+- Codex (2026-10-27): Simple Physics 0.1.0を独立したMaya Python API 2.0プラグインとして追加。Kawaii Physicsを参考にした係数・ランプ・根元/除外/仮想ボーン、球/カプセル/平面、角度/平面/距離拘束、固定時間評価、プリセット、別階層へのベイク、設定UIとHTools入口を実装。MIT通知・使い方・未対応機能を記載。Maya2027の専用mayapyで15件成功、専用GUIでHTools入口・係数の実操作、DG/Parallelの145フレーム一致、最終動画145フレームの骨長/角度/点のクリアランス検証を確認。動画をDriveのMaya検証動画へ保存しリンク閲覧権限とサイズを読み戻し確認。拘束競合時の残留貫通、既存スキン自動付替えなし、Python性能制限を明記。成果物は.maya-output/simple-physics/とverification/20261027-215600-c2b27d33/。他担当のmlib変更を保持、未コミット・未プッシュ。
+
 - Claude Code (2026-10-28): mlrig夜間タスク。球コライダーへの柔らかい押し出し SphereCollision を追加(setups/sphereCollision.py。標準ノードのみ。d=|p-c|-radius に PlaneCollision と同じ指数の押し出し、matrix・distance・push・penetration を出力、中心一致は押し出さない)。PlaneCollision の押し出し部分を_pushGraph へ切り出して共有、Setup Samplesに1項目、文書 sphere_collision.rst と検証デモ tools/demo_sphere_collision.py を追加。隔離Maya 2027で test_setup_sphere_collision 8件・setups 551件・standard 76件OK、Sphinx -W 警告0、検証動画294フレーム判定OK。コミット・プッシュ(このコミット)。
 
 - Claude Code (2026-10-27): mlib 2.2.0。内部メソッド名・引数・処理の書き方のブレを調査(nodes/plugs/components/common/core/cmds/maths を 4 並列で読了)し統一: bool 検査・別名解消・無効ノード検査・ロック拒否・プラグ遡上を decorator/util/core の共通ヘルパーへ集約(約 650 箇所)、例外を 4 分類(型/値/状態/未対応)に揃え日本語メッセージ約 70 件を英語化、Undo チャンク名を mlib<Class><Method> に統一、内部名を _require_/_resolve_/_<method>_fast|_cmds 規則へ改名、Plug.set の Template Method 化・Nodes.__init_subclass__ での一括宣言合成、docstring 402 件を固定文・用語・項目順に整形。mlib.reload() の親パッケージ依存の順序不良を修正。規則は docs/mlib-api-design.md「内部実装の定型」。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685 件、静的検査・Sphinx(-W)・文書検査が合格。
