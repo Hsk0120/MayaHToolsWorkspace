@@ -205,7 +205,8 @@ def _rotate_matrix(rotate):
     if isinstance(rotate, _MQuaternion):
         if rotate.x * rotate.x + rotate.y * rotate.y + rotate.z * rotate.z + rotate.w * rotate.w == 0.0:
             raise ValueError("Cannot normalize a zero quaternion")
-        return rotate.normal().asMatrix()
+        # mlibの派生クラスで包み直さないよう、om2の関数を直接呼ぶ(値は rotate.normal().asMatrix() と同じ)。
+        return _MQuaternion.asMatrix(_MQuaternion.normal(rotate))
     if isinstance(rotate, _MEuler):
         return rotate.asMatrix()
     x, y, z = rotate
@@ -276,7 +277,7 @@ def _components(translate, rotate, scale, shear):
 class Matrix(om2.MMatrix):
     """om2.MMatrixを継承した、Mayaの行ベクトル規約の可変な4行4列のマトリクス。
 
-    OpenMaya APIへそのまま渡せる。入力はコピーし、16要素は行優先、平行移動は添字12〜14。
+    OpenMaya APIへそのまま渡せる。入力はコピーし、16要素は行優先、平行移動は番号12〜14。
     Mayaへ渡す平行移動はcmで、UI単位へ換算しない。
     合成・分解はアフィン変換を想定する。分解はMTransformationMatrixの規約で、
     負の行列式ではZスケールを負にして180度の補償回転を入れる(cmds.xform/decomposeMatrixと同じ)。
@@ -376,15 +377,15 @@ class Matrix(om2.MMatrix):
         """マトリクスの要素を取得する。
 
         Args:
-            index (int | slice | tuple[int, int]): 平坦な添字(負の添字も可)、スライス、
+            index (int | slice | tuple[int, int]): 平坦な番号(負の番号も可)、スライス、
                 または (行, 列)。行・列はそれぞれ -4〜3。
 
         Returns:
             float | tuple[float, ...]: 指定要素。スライスでは tuple。
 
         Raises:
-            IndexError: 添字が範囲外の場合(平坦な添字は -16〜15)。
-            TypeError: 添字が整数・スライス・tuple 以外の場合。
+            TypeError: 番号が整数・スライス・tuple 以外の場合。
+            IndexError: 番号が範囲外の場合(平坦な番号は -16〜15)。
         """
         if index.__class__ is _INT:
             if -16 <= index < 16:
@@ -409,15 +410,15 @@ class Matrix(om2.MMatrix):
         """マトリクスの要素を設定する。
 
         Args:
-            index (int | tuple[int, int]): 平坦な添字(-16〜15)、または (行, 列)。
+            index (int | tuple[int, int]): 平坦な番号(-16〜15)、または (行, 列)。
             value (float): 設定する値。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・tuple 以外の場合。
+            TypeError: 番号が整数・tuple 以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is _INT:
             if -16 <= index < 16:
@@ -779,7 +780,7 @@ class Matrix(om2.MMatrix):
     def values(self):
         """マトリクスの16成分を行優先順の独立したtupleとして取得する。
 
-        Mayaの行ベクトル規約で、平行移動は添字12・13・14にある。
+        Mayaの行ベクトル規約で、平行移動は番号12・13・14にある。
         要素は数値のスナップショットで、マトリクスを後から変更してもこのtupleは変わらない。
 
         Returns:
@@ -802,9 +803,9 @@ class Matrix(om2.MMatrix):
 
     @property
     def translate(self):
-        """Translate 成分(添字12〜14)を取得または設定する。
+        """Translate 成分(番号12〜14)を取得または設定する。
 
-        取得値は複製。設定時は3成分を受け取り、マトリクスを分解せずに添字12〜14へ直接
+        取得値は複製。設定時は3成分を受け取り、マトリクスを分解せずに番号12〜14へ直接
         書き込むため、ゼロスケールなど分解できないマトリクスにも使える。
         ``matrix.translate.x = value`` は複製だけを変更する。マトリクスの更新には
         ``matrix.translate = value`` を使う。Transformationの保持成分とは異なる。
@@ -816,7 +817,7 @@ class Matrix(om2.MMatrix):
 
     @translate.setter
     def translate(self, value):
-        """添字12〜14へ平行移動を直接書き込む。
+        """番号12〜14へ平行移動を直接書き込む。
 
         Args:
             value (Iterable[float]): 新しい平行移動。3成分。
@@ -944,7 +945,7 @@ class Matrix(om2.MMatrix):
         """Mayaの規約でマトリクスを分解し、独立したTRS・シアー値を取得する。
 
         一つのMTransformationMatrixで回転・スケール・シアーを分解し、平行移動は
-        元Matrixの添字12〜14から取得する。戻り値は独立した数学値として作る。
+        元Matrixの番号12〜14から取得する。戻り値は独立した数学値として作る。
         元のピボットやEulerの回転周期・元の負スケール軸を復元する操作ではない。
         分解規約はOpenMayaに従い、UI単位への換算は行わない。
 
@@ -1172,7 +1173,7 @@ class Matrix(om2.MMatrix):
         return _MTransformationMatrix(self)
 
     def _translate(self):
-        """添字12〜14を Translate として返す。
+        """番号12〜14を Translate として返す。
 
         Returns:
             Translate: 平行移動成分の新しいインスタンス。
@@ -1211,17 +1212,17 @@ class Matrix(om2.MMatrix):
 
 
 def _flat_index(index):
-    """(行, 列) を平坦な添字へ変換する。
+    """(行, 列) を平坦な番号へ変換する。
 
     Args:
         index (tuple[int, int]): 行と列。それぞれ -4〜3。
 
     Returns:
-        int: 0〜15 の添字。
+        int: 0〜15 の番号。
 
     Raises:
-        IndexError: 範囲外、または2要素でない場合。
         TypeError: 行・列が整数として扱えない場合。
+        IndexError: 範囲外、または2要素でない場合。
     """
     try:
         row, column = index

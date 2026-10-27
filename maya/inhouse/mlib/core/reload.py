@@ -29,7 +29,7 @@ def reload_package(package_name):
     loaded_names = {
         name
         for name in sys.modules
-        if name == package_name or name.startswith(package_name + ".")
+        if name == package_name or name.startswith(f"{package_name}.")
     }
     for stale_name in loaded_names - set(module_names):
         stale_module = sys.modules.pop(stale_name, None)
@@ -62,7 +62,7 @@ def _discover_module_names(package_name):
     """
     package = sys.modules[package_name]
     names = {package_name}
-    for module_info in pkgutil.walk_packages(package.__path__, package_name + "."):
+    for module_info in pkgutil.walk_packages(package.__path__, f"{package_name}."):
         names.add(module_info.name)
     return tuple(sorted(names))
 
@@ -115,8 +115,8 @@ def _reload_order(module_names):
 def _module_dependencies(module, module_names):
     """module の globals から mlib 内の依存 module 名を抽出する。
 
-    循環依存を避けるために関数内で遅延 import している参照（例: nodes.node と
-    plugs.plug の相互参照）は module の globals に現れないため、ここでは検出でき
+    循環依存を避けるために関数内で遅延 import している参照(例: nodes.node と
+    plugs.plug の相互参照)は module の globals に現れないため、ここでは検出でき
     ない。これらは reload 順序に影響しないが、実行時には呼び出しの都度その時点の
     sys.modules から解決されるため、reload 漏れにはならない。
 
@@ -135,4 +135,11 @@ def _module_dependencies(module, module_names):
             owner = getattr(value, "__module__", None)
         if owner in module_names and owner != module.__name__:
             dependencies.add(owner)
+            # `from ..maths import Matrix` のようにパッケージ経由で取り込んだ名前は、
+            # 定義 module だけでなくその親パッケージ(__init__)も先に読み直す必要がある。
+            package = owner.rpartition(".")[0]
+            while package and package in module_names:
+                if package != module.__name__ and not module.__name__.startswith(package + "."):
+                    dependencies.add(package)
+                package = package.rpartition(".")[0]
     return dependencies

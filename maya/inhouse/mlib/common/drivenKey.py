@@ -5,7 +5,7 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.attributeType import attributeType
+from ..core.attributeType import _convert_units, attributeType
 from ..decorator import undoChunk
 from ..plugs.plug import Plug
 
@@ -27,24 +27,6 @@ _NUMERIC_SCALAR_TYPES = frozenset(
 )
 
 
-def _exists(name):
-    """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
-
-    一意な完全名に対しては ``cmds.objExists`` と同じ結果になる(配列の未作成要素も True)。
-
-    Args:
-        name (str): 調べる完全名。
-
-    Returns:
-        bool: 選択リストへ追加できた場合 True。
-    """
-    try:
-        om2.MSelectionList().add(name)
-    except RuntimeError:
-        return False
-    return True
-
-
 def _plug(value):
     """Plug・MPlug・アトリビュート名を、数値スカラーのPlugとして検証する。
 
@@ -60,12 +42,12 @@ def _plug(value):
     Returns:
         Plug: 有効な数値スカラーのアトリビュート参照。
     """
-    from ..plugs.plug import Plug as _InputPlug
     if isinstance(value, (Plug, om2.MPlug)) or (isinstance(value, str) and "." in value):
-        result = _InputPlug._resolve_input(value)
+        result = Plug._resolve_input(value)
     else:
         raise TypeError("Expected a Plug, MPlug or node.attribute string")
-    if not result.isValid() or not _exists(result.getFullName()):
+    # Plug.isValidは所有ノードとアトリビュート(deleteAttrで消えた動的アトリビュートを含む)の存在を確かめる。
+    if not result.isValid():
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
         raise ValueError("Expected a scalar plug, not an array or compound")
@@ -75,7 +57,7 @@ def _plug(value):
 
 
 def _contains_plug(plugs, mplug):
-    """同じプラグ(所有ノード・アトリビュート・配列インデックスが一致)が含まれるか判定する。
+    """同じプラグ(所有ノード・アトリビュート・配列番号が一致)が含まれるか判定する。
 
     インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから取得しても同じ
     プラグになる。名前(インスタンスのパスを含む ``getFullName()``)では比較しない。
@@ -163,8 +145,8 @@ class DrivenKey:
             driven (Plug | om2.MPlug | str): 駆動されるアトリビュート。
 
         Raises:
-            ValueError: 非スカラー、非数値、または同一アトリビュートの場合。
             TypeError: Plug・MPlug・アトリビュート名のいずれでもない場合。
+            ValueError: 非スカラー、非数値、または同一アトリビュートの場合。
             RuntimeError: アトリビュートが存在しない場合。
         """
         self._driver, self._driven = _plug(driver), _plug(driven)
@@ -192,8 +174,8 @@ class DrivenKey:
                 変わる generic アトリビュートなど)。同じドライバー(プラグ自体で照合する)は1件にまとめる。
 
         Raises:
-            ValueError: driven が非スカラー・非数値の場合。
             TypeError: driven が Plug・MPlug・アトリビュート名のいずれでもない場合。
+            ValueError: driven が非スカラー・非数値の場合。
             RuntimeError: driven のアトリビュートが存在しない場合。
         """
         target = _plug(driven)
@@ -280,16 +262,16 @@ class DrivenKey:
             DrivenKey: 自身。
 
         Raises:
-            ValueError: 数値が非有限、またはfloat()で変換できない場合。
             TypeError: 数値の型がfloat()へ変換できない場合。
+            ValueError: 数値が非有限、またはfloat()で変換できない場合。
             RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
                 またはMayaがキー作成を拒否した場合。
 
-        複数ドライバーの合成にはMaya標準のblendWeightedを使い、pairBlendの
-        自動挿入は行わない。最終出力は他カーブや合成ウェイトにも依存する。
-        後続の失敗に対する自動ロールバックは行わない。
+        Note:
+            複数ドライバーの合成にはMaya標準のblendWeightedを使い、pairBlendの
+            自動挿入は行わない。最終出力は他カーブや合成ウェイトにも依存する。
+            後続の失敗に対する自動ロールバックは行わない。
         """
-        from ..core.attributeType import _convert_units
         x, y = float(driverValue), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")

@@ -542,7 +542,7 @@ class DisconnectCreateDeleteTest(unittest.TestCase):
         short = [name.rpartition(":")[2] for name in removed]
         self.assertEqual([name for name in short if name.startswith("d")], ["dc", "d0", "dmd", "d1", "d2"])
         self.assertTrue(any(name.startswith("unitConversion") for name in short))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlib.cmds.delete.delete")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDelete")
         cmds.undo()
         self.assertEqual(sorted(cmds.ls(long=True)), before)
         cmds.lockNode(names[1], lock=True)
@@ -806,7 +806,7 @@ class UndoTransactionNestingTest(unittest.TestCase):
         with undoTransaction():
             mlib.getNode(self.node).getPlug("tx").set(2)
             cmds.setAttr(self.node + ".ty", 3)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibPlugSet")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDoubleLinearPlugSet")
         cmds.undo()
         self.assertEqual((cmds.getAttr(self.node + ".tx"), cmds.getAttr(self.node + ".ty")), (0.0, 0.0))
 
@@ -898,7 +898,7 @@ class ArrayAndWeightRunTest(unittest.TestCase):
         # 削除済みアトリビュート・ノードは従来どおりRuntimeError。
         array = wrapped.getPlug("lng")
         cmds.deleteAttr(node + ".lng")
-        with self.assertRaisesRegex(RuntimeError, "削除済みのアトリビュート"):
+        with self.assertRaisesRegex(RuntimeError, "attribute was deleted"):
             array.get()
 
     def test_array_get_world_space_instances(self):
@@ -1180,7 +1180,7 @@ class FastPathOverheadTest(unittest.TestCase):
         node = self._double3_node("d3")
         plug = mlib.getNode(node).getPlug("dv")
         cmds.flushUndo()
-        with mock.patch.object(fastWrite, "writable", wraps=fastWrite.writable) as spy:
+        with mock.patch.object(fastWrite, "require_writable", wraps=fastWrite.require_writable) as spy:
             plug.set((0.25, 1.5, -2.0), fast=True)
         # 親と3つの子を1回ずつ。検査の後に型・範囲を確かめて書き込む。
         self.assertEqual(spy.call_count, 4)
@@ -1417,7 +1417,7 @@ class ConnectionHistoryAttrListTest(unittest.TestCase):
         cmds.delete(dead.getFullName())
         # 削除済みノードは docstring どおり RuntimeError(2026-10-26 に実装を docstring へ揃えた。
         # 従来は cmds.listHistory("") の ValueError だった)。
-        with self.assertRaisesRegex(RuntimeError, "invalid node"):
+        with self.assertRaisesRegex(RuntimeError, r"invalid \w+"):
             dead.getHistory()
 
     def test_extra_attrs_skip_static_and_extension(self):
@@ -1456,7 +1456,7 @@ class ConnectionHistoryAttrListTest(unittest.TestCase):
         self.assertEqual([(type(m), m.getFullName()) for m in cont.getMembers()],
                          [(type(Node(o)), Node(o).getFullName())
                           for o in om2.MFnContainerNode(cont.mnode()).getMembers()])
-        with self.assertRaisesRegex(ValueError, "このcontainerに所属していないノードが含まれています。"):
+        with self.assertRaisesRegex(ValueError, "nodes must all be members of this container"):
             cont.removeMembers(names[0], outsider)
         self.assertEqual(len(cont.getMembers()), 3)
         cmds.undoInfo(state=True)

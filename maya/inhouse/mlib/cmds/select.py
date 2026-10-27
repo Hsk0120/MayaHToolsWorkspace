@@ -12,13 +12,11 @@ MayaのUndoに対応する。``fast=True`` は ``MGlobal.setActiveSelectionList`
     mlib.select(clear=True)
 """
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _edit_context, _merge_flags
+from ..util import _UNSET
 
 
 #: fastで扱えるフラグ。選択方法のフラグは同時に1つだけ指定できる。
@@ -107,103 +105,26 @@ def select(nodes=None, *,
             対象を伴うclear、対象なしのclear以外のフラグ、またはnoExpandなしでセットを指定した場合。
             選択を変更する前に送出する。
     """
-    if add is not _UNSET:
-        kwargs["add"] = add
-    if addFirst is not _UNSET:
-        if af is not _UNSET:
-            raise _ArgumentError("Specify only one of 'addFirst' and 'af'")
-        kwargs["addFirst"] = addFirst
-    elif af is not _UNSET:
-        kwargs["addFirst"] = af
-    if all is not _UNSET:
-        kwargs["all"] = all
-    if allDagObjects is not _UNSET:
-        if ado is not _UNSET:
-            raise _ArgumentError("Specify only one of 'allDagObjects' and 'ado'")
-        kwargs["allDagObjects"] = allDagObjects
-    elif ado is not _UNSET:
-        kwargs["allDagObjects"] = ado
-    if allDependencyNodes is not _UNSET:
-        if adn is not _UNSET:
-            raise _ArgumentError("Specify only one of 'allDependencyNodes' and 'adn'")
-        kwargs["allDependencyNodes"] = allDependencyNodes
-    elif adn is not _UNSET:
-        kwargs["allDependencyNodes"] = adn
-    if clear is not _UNSET:
-        if cl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'clear' and 'cl'")
-        kwargs["clear"] = clear
-    elif cl is not _UNSET:
-        kwargs["clear"] = cl
-    if containerCentric is not _UNSET:
-        if cc is not _UNSET:
-            raise _ArgumentError("Specify only one of 'containerCentric' and 'cc'")
-        kwargs["containerCentric"] = containerCentric
-    elif cc is not _UNSET:
-        kwargs["containerCentric"] = cc
-    if deselect is not _UNSET:
-        if d is not _UNSET:
-            raise _ArgumentError("Specify only one of 'deselect' and 'd'")
-        kwargs["deselect"] = deselect
-    elif d is not _UNSET:
-        kwargs["deselect"] = d
-    if hierarchy is not _UNSET:
-        if hi is not _UNSET:
-            raise _ArgumentError("Specify only one of 'hierarchy' and 'hi'")
-        kwargs["hierarchy"] = hierarchy
-    elif hi is not _UNSET:
-        kwargs["hierarchy"] = hi
-    if noExpand is not _UNSET:
-        if ne is not _UNSET:
-            raise _ArgumentError("Specify only one of 'noExpand' and 'ne'")
-        kwargs["noExpand"] = noExpand
-    elif ne is not _UNSET:
-        kwargs["noExpand"] = ne
-    if replace is not _UNSET:
-        if r is not _UNSET:
-            raise _ArgumentError("Specify only one of 'replace' and 'r'")
-        kwargs["replace"] = replace
-    elif r is not _UNSET:
-        kwargs["replace"] = r
-    if symmetry is not _UNSET:
-        if sym is not _UNSET:
-            raise _ArgumentError("Specify only one of 'symmetry' and 'sym'")
-        kwargs["symmetry"] = symmetry
-    elif sym is not _UNSET:
-        kwargs["symmetry"] = sym
-    if symmetrySide is not _UNSET:
-        if sys is not _UNSET:
-            raise _ArgumentError("Specify only one of 'symmetrySide' and 'sys'")
-        kwargs["symmetrySide"] = symmetrySide
-    elif sys is not _UNSET:
-        kwargs["symmetrySide"] = sys
-    if toggle is not _UNSET:
-        if tgl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'toggle' and 'tgl'")
-        kwargs["toggle"] = toggle
-    elif tgl is not _UNSET:
-        kwargs["toggle"] = tgl
-    if visible is not _UNSET:
-        if vis is not _UNSET:
-            raise _ArgumentError("Specify only one of 'visible' and 'vis'")
-        kwargs["visible"] = visible
-    elif vis is not _UNSET:
-        kwargs["visible"] = vis
-    if query is not _UNSET:
-        if q is not _UNSET:
-            raise _ArgumentError("Specify only one of 'query' and 'q'")
-        kwargs["query"] = query
-    elif q is not _UNSET:
-        kwargs["query"] = q
-    if edit is not _UNSET:
-        if e is not _UNSET:
-            raise _ArgumentError("Specify only one of 'edit' and 'e'")
-        kwargs["edit"] = edit
-    elif e is not _UNSET:
-        kwargs["edit"] = e
-    if not isinstance(fast, bool):
-        raise TypeError("fast must be a bool")
-    with nullcontext() if fast else undoChunk("mlib.cmds.select.select"):
+    _merge_flags(kwargs, (
+        (addFirst, af, "addFirst", "af"),
+        (allDagObjects, ado, "allDagObjects", "ado"),
+        (allDependencyNodes, adn, "allDependencyNodes", "adn"),
+        (clear, cl, "clear", "cl"),
+        (containerCentric, cc, "containerCentric", "cc"),
+        (deselect, d, "deselect", "d"),
+        (hierarchy, hi, "hierarchy", "hi"),
+        (noExpand, ne, "noExpand", "ne"),
+        (replace, r, "replace", "r"),
+        (symmetry, sym, "symmetry", "sym"),
+        (symmetrySide, sys, "symmetrySide", "sys"),
+        (toggle, tgl, "toggle", "tgl"),
+        (visible, vis, "visible", "vis"),
+        (query, q, "query", "q"),
+        (edit, e, "edit", "e"),
+        (add, _UNSET, "add", None),
+        (all, _UNSET, "all", None),
+    ))
+    with _edit_context("mlibSelect", fast):
         from ..core.object import Object as _InputObject
 
         if fast:
@@ -223,6 +144,9 @@ def _select_fast(nodes, flags):
         nodes (object): selectのnodes。
         flags (dict): 長名へそろえたMayaフラグ。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         NotImplementedError: fastで再現しないフラグや組合せの場合。
     """
@@ -232,7 +156,7 @@ def _select_fast(nodes, flags):
 
     unsupported = sorted(name for name, value in flags.items() if name not in _FAST_FLAGS and value is not False)
     if unsupported:
-        raise NotImplementedError("fast select does not support flags: " + ", ".join(unsupported))
+        raise NotImplementedError(f"fast select does not support flags: {', '.join(unsupported)}")
     modes = [name for name in ("add", "addFirst", "clear", "deselect", "replace") if flags.get(name)]
     if len(modes) > 1:
         raise NotImplementedError("fast select supports only one of add, addFirst, clear, deselect and replace")

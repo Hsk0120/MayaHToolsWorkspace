@@ -49,7 +49,7 @@ from functools import partial
 
 import maya.api.OpenMaya as om2
 
-__all__ = ["attributeType", "is_internal_data_type", "value_reader"]
+__all__ = ["attributeType", "is_internal_data_type", "typed_data", "value_reader"]
 
 _N = om2.MFnNumericData
 _D = om2.MFnData
@@ -179,7 +179,10 @@ def _is_mesh_control_points(mplug, attribute):
 
 
 def attributeType(mplug):
-    """プラグのアトリビュート型名を、``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列で返す。
+    """プラグのアトリビュート型名を、``cmds.getAttr(<プラグ名>, type=True)`` と同じ文字列で取得する。
+
+    core の関数は snake_case を基本とするが、この名前は ``Plug`` 側のアトリビュート型 dispatch
+    (``Plug._registry`` のキー)と ``cmds.getAttr(type=True)`` の呼び方に合わせた既存名として維持する。
 
     アトリビュート定義だけから求めるため、存在しない配列要素や、``cmds.getAttr`` が例外になる
     mesh の内部アトリビュートにも使え、シーンを変更しない。配列プラグは要素の型名を返す
@@ -250,15 +253,19 @@ def is_internal_data_type(mplug):
 def _require_number(plug, value):
     """数値・単位・enumへの入力が数値か確かめる(cmds.setAttrと同じ拒否)。
 
-    通常経路の ``cmds.setAttr`` は数値アトリビュートへの文字列・None・列をRuntimeErrorにするため、
-    fastと単位アトリビュートの換算でも変換せずに同じ例外で拒否する。boolは数値として受け付ける。
+    通常経路の ``cmds.setAttr`` は数値アトリビュートへの文字列・None・列を拒否するため、
+    fastと単位アトリビュートの換算でも変換せず、型違いの規則に合わせてTypeErrorで拒否する。
+    boolは数値として受け付ける。
 
     Args:
         plug (om2.MPlug): エラー表示に使う書込み先。
         value (object): 書き込む値。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
-        RuntimeError: 文字列・bytes・None、またはfloatへ変換できない値の場合。
+        TypeError: 文字列・bytes・None、またはfloatへ変換できない値の場合。
     """
     if not isinstance(value, (str, bytes)) and value is not None:
         try:
@@ -266,7 +273,7 @@ def _require_number(plug, value):
             return
         except (TypeError, ValueError):
             pass
-    raise RuntimeError("Expected a numeric value for {}: {!r}".format(plug.name(), value))
+    raise TypeError(f"Expected a numeric value for {plug.name()}: {value!r}")
 
 
 def _convert_units(plug, value, to_ui=True):

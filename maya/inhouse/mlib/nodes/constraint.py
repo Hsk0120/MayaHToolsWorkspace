@@ -1,11 +1,9 @@
 """Maya の標準コンストレイントに共通するターゲット・ウェイトの取得と設定を扱う。"""
 
-from contextlib import nullcontext
-
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
-from .node import Node
+from ..decorator import _edit_context
+from .node import Node, Nodes
 from .transform import Transform
 
 
@@ -69,8 +67,7 @@ class Constraint(Transform):
         Raises:
             ValueError: ターゲットが登録されていない場合。
         """
-        from .node import Node as _InputNode
-        requested = _InputNode._resolve_input(target).getFullName()
+        requested = Node._resolve_input(target).getFullName()
         for node, plug in zip(self.getTargets(), self.getWeightPlugs()):
             if node.getFullName() == requested:
                 return plug.get()
@@ -95,20 +92,16 @@ class Constraint(Transform):
             Constraint: 自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 明示ターゲットがこのコンストレイントに登録されていない場合。
-            TypeError: fastがboolでない場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibConstraintSetWeight"):
-            from .node import Node as _InputNode
-            from .node import Nodes as _InputNodes
+        with _edit_context("mlibConstraintSetWeight", fast):
             weight_plugs = self.getWeightPlugs()
             if not targets:
                 for plug in weight_plugs:
                     plug.set(weight, fast=fast)
                 return self
-            requested = {_InputNode._resolve_input(target).getFullName() for target in _InputNodes._resolve_inputs(targets)}
+            requested = {Node._resolve_input(target).getFullName() for target in Nodes._resolve_inputs(targets)}
             available = {node.getFullName(): plug for node, plug in zip(self.getTargets(), weight_plugs)}
             missing = requested - available.keys()
             if missing:

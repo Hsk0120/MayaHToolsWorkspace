@@ -14,7 +14,8 @@
 
 import maya.cmds as cmds
 
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _merge_flags
+from ..util import _UNSET
 
 
 def ls(*args,
@@ -217,371 +218,75 @@ def ls(*args,
         ValueError: 位置引数に削除済みの対象が含まれる場合。
         RuntimeError: 検索結果をノードとして解決できない場合。
 
-    型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。
-    結果の名前はまとめて解決するが、並び順はMayaが返した順のまま変えない。Mayaの結果に同じ名前が
-    重複して含まれる場合も統合せず、それぞれを別の参照として返す。
+    Note:
+        型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。
+        結果の名前はまとめて解決するが、並び順はMayaが返した順のまま変えない。Mayaの結果に同じ名前が
+        重複して含まれる場合も統合せず、それぞれを別の参照として返す。
     """
-    if absoluteName is not _UNSET:
-        if an is not _UNSET:
-            raise _ArgumentError("Specify only one of 'absoluteName' and 'an'")
-        kwargs["absoluteName"] = absoluteName
-    elif an is not _UNSET:
-        kwargs["absoluteName"] = an
-    if allPaths is not _UNSET:
-        if ap is not _UNSET:
-            raise _ArgumentError("Specify only one of 'allPaths' and 'ap'")
-        kwargs["allPaths"] = allPaths
-    elif ap is not _UNSET:
-        kwargs["allPaths"] = ap
     short_assemblies = kwargs.pop("as", _UNSET)
-    if assemblies is not _UNSET:
-        if short_assemblies is not _UNSET:
-            raise _ArgumentError("Specify only one of 'assemblies' and 'as'")
-        kwargs["assemblies"] = assemblies
-    elif short_assemblies is not _UNSET:
-        kwargs["assemblies"] = short_assemblies
-    if cameras is not _UNSET:
-        if ca is not _UNSET:
-            raise _ArgumentError("Specify only one of 'cameras' and 'ca'")
-        kwargs["cameras"] = cameras
-    elif ca is not _UNSET:
-        kwargs["cameras"] = ca
-    if containerType is not _UNSET:
-        if ct is not _UNSET:
-            raise _ArgumentError("Specify only one of 'containerType' and 'ct'")
-        kwargs["containerType"] = containerType
-    elif ct is not _UNSET:
-        kwargs["containerType"] = ct
-    if containers is not _UNSET:
-        if con is not _UNSET:
-            raise _ArgumentError("Specify only one of 'containers' and 'con'")
-        kwargs["containers"] = containers
-    elif con is not _UNSET:
-        kwargs["containers"] = con
-    if dagObjects is not _UNSET:
-        if dag is not _UNSET:
-            raise _ArgumentError("Specify only one of 'dagObjects' and 'dag'")
-        kwargs["dagObjects"] = dagObjects
-    elif dag is not _UNSET:
-        kwargs["dagObjects"] = dag
-    if defaultNodes is not _UNSET:
-        if dn is not _UNSET:
-            raise _ArgumentError("Specify only one of 'defaultNodes' and 'dn'")
-        kwargs["defaultNodes"] = defaultNodes
-    elif dn is not _UNSET:
-        kwargs["defaultNodes"] = dn
-    if dependencyNodes is not _UNSET:
-        if dep is not _UNSET:
-            raise _ArgumentError("Specify only one of 'dependencyNodes' and 'dep'")
-        kwargs["dependencyNodes"] = dependencyNodes
-    elif dep is not _UNSET:
-        kwargs["dependencyNodes"] = dep
-    if exactType is not _UNSET:
-        if et is not _UNSET:
-            raise _ArgumentError("Specify only one of 'exactType' and 'et'")
-        kwargs["exactType"] = exactType
-    elif et is not _UNSET:
-        kwargs["exactType"] = et
-    if excludeType is not _UNSET:
-        if ext is not _UNSET:
-            raise _ArgumentError("Specify only one of 'excludeType' and 'ext'")
-        kwargs["excludeType"] = excludeType
-    elif ext is not _UNSET:
-        kwargs["excludeType"] = ext
-    if flatten is not _UNSET:
-        if fl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'flatten' and 'fl'")
-        kwargs["flatten"] = flatten
-    elif fl is not _UNSET:
-        kwargs["flatten"] = fl
-    if geometry is not _UNSET:
-        if g is not _UNSET:
-            raise _ArgumentError("Specify only one of 'geometry' and 'g'")
-        kwargs["geometry"] = geometry
-    elif g is not _UNSET:
-        kwargs["geometry"] = g
-    if ghost is not _UNSET:
-        if gh is not _UNSET:
-            raise _ArgumentError("Specify only one of 'ghost' and 'gh'")
-        kwargs["ghost"] = ghost
-    elif gh is not _UNSET:
-        kwargs["ghost"] = gh
-    if head is not _UNSET:
-        if hd is not _UNSET:
-            raise _ArgumentError("Specify only one of 'head' and 'hd'")
-        kwargs["head"] = head
-    elif hd is not _UNSET:
-        kwargs["head"] = hd
-    if hilite is not _UNSET:
-        if hl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'hilite' and 'hl'")
-        kwargs["hilite"] = hilite
-    elif hl is not _UNSET:
-        kwargs["hilite"] = hl
-    if intermediateObjects is not _UNSET:
-        if io is not _UNSET:
-            raise _ArgumentError("Specify only one of 'intermediateObjects' and 'io'")
-        kwargs["intermediateObjects"] = intermediateObjects
-    elif io is not _UNSET:
-        kwargs["intermediateObjects"] = io
-    if invisible is not _UNSET:
-        if iv is not _UNSET:
-            raise _ArgumentError("Specify only one of 'invisible' and 'iv'")
-        kwargs["invisible"] = invisible
-    elif iv is not _UNSET:
-        kwargs["invisible"] = iv
-    if leaf is not _UNSET:
-        if lf is not _UNSET:
-            raise _ArgumentError("Specify only one of 'leaf' and 'lf'")
-        kwargs["leaf"] = leaf
-    elif lf is not _UNSET:
-        kwargs["leaf"] = lf
-    if lights is not _UNSET:
-        if lt is not _UNSET:
-            raise _ArgumentError("Specify only one of 'lights' and 'lt'")
-        kwargs["lights"] = lights
-    elif lt is not _UNSET:
-        kwargs["lights"] = lt
-    if live is not _UNSET:
-        if lv is not _UNSET:
-            raise _ArgumentError("Specify only one of 'live' and 'lv'")
-        kwargs["live"] = live
-    elif lv is not _UNSET:
-        kwargs["live"] = lv
-    if lockedNodes is not _UNSET:
-        if ln is not _UNSET:
-            raise _ArgumentError("Specify only one of 'lockedNodes' and 'ln'")
-        kwargs["lockedNodes"] = lockedNodes
-    elif ln is not _UNSET:
-        kwargs["lockedNodes"] = ln
-    if long is not _UNSET:
-        if l is not _UNSET:
-            raise _ArgumentError("Specify only one of 'long' and 'l'")
-        kwargs["long"] = long
-    elif l is not _UNSET:
-        kwargs["long"] = l
-    if materials is not _UNSET:
-        if mat is not _UNSET:
-            raise _ArgumentError("Specify only one of 'materials' and 'mat'")
-        kwargs["materials"] = materials
-    elif mat is not _UNSET:
-        kwargs["materials"] = mat
-    if modified is not _UNSET:
-        if mod is not _UNSET:
-            raise _ArgumentError("Specify only one of 'modified' and 'mod'")
-        kwargs["modified"] = modified
-    elif mod is not _UNSET:
-        kwargs["modified"] = mod
-    if noIntermediate is not _UNSET:
-        if ni is not _UNSET:
-            raise _ArgumentError("Specify only one of 'noIntermediate' and 'ni'")
-        kwargs["noIntermediate"] = noIntermediate
-    elif ni is not _UNSET:
-        kwargs["noIntermediate"] = ni
-    if nodeTypes is not _UNSET:
-        if nt is not _UNSET:
-            raise _ArgumentError("Specify only one of 'nodeTypes' and 'nt'")
-        kwargs["nodeTypes"] = nodeTypes
-    elif nt is not _UNSET:
-        kwargs["nodeTypes"] = nt
-    if objectsOnly is not _UNSET:
-        if o is not _UNSET:
-            raise _ArgumentError("Specify only one of 'objectsOnly' and 'o'")
-        kwargs["objectsOnly"] = objectsOnly
-    elif o is not _UNSET:
-        kwargs["objectsOnly"] = o
-    if orderedComponentSelection is not _UNSET:
-        if ocs is not _UNSET:
-            raise _ArgumentError("Specify only one of 'orderedComponentSelection' and 'ocs'")
-        kwargs["orderedComponentSelection"] = orderedComponentSelection
-    elif ocs is not _UNSET:
-        kwargs["orderedComponentSelection"] = ocs
-    if orderedSelection is not _UNSET:
-        if os is not _UNSET:
-            raise _ArgumentError("Specify only one of 'orderedSelection' and 'os'")
-        kwargs["orderedSelection"] = orderedSelection
-    elif os is not _UNSET:
-        kwargs["orderedSelection"] = os
-    if partitions is not _UNSET:
-        if pr is not _UNSET:
-            raise _ArgumentError("Specify only one of 'partitions' and 'pr'")
-        kwargs["partitions"] = partitions
-    elif pr is not _UNSET:
-        kwargs["partitions"] = pr
-    if persistentNodes is not _UNSET:
-        if pn is not _UNSET:
-            raise _ArgumentError("Specify only one of 'persistentNodes' and 'pn'")
-        kwargs["persistentNodes"] = persistentNodes
-    elif pn is not _UNSET:
-        kwargs["persistentNodes"] = pn
-    if planes is not _UNSET:
-        if pl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'planes' and 'pl'")
-        kwargs["planes"] = planes
-    elif pl is not _UNSET:
-        kwargs["planes"] = pl
-    if preSelectHilite is not _UNSET:
-        if psh is not _UNSET:
-            raise _ArgumentError("Specify only one of 'preSelectHilite' and 'psh'")
-        kwargs["preSelectHilite"] = preSelectHilite
-    elif psh is not _UNSET:
-        kwargs["preSelectHilite"] = psh
-    if readOnly is not _UNSET:
-        if ro is not _UNSET:
-            raise _ArgumentError("Specify only one of 'readOnly' and 'ro'")
-        kwargs["readOnly"] = readOnly
-    elif ro is not _UNSET:
-        kwargs["readOnly"] = ro
-    if recursive is not _UNSET:
-        if r is not _UNSET:
-            raise _ArgumentError("Specify only one of 'recursive' and 'r'")
-        kwargs["recursive"] = recursive
-    elif r is not _UNSET:
-        kwargs["recursive"] = r
-    if referencedNodes is not _UNSET:
-        if rn is not _UNSET:
-            raise _ArgumentError("Specify only one of 'referencedNodes' and 'rn'")
-        kwargs["referencedNodes"] = referencedNodes
-    elif rn is not _UNSET:
-        kwargs["referencedNodes"] = rn
-    if references is not _UNSET:
-        if rf is not _UNSET:
-            raise _ArgumentError("Specify only one of 'references' and 'rf'")
-        kwargs["references"] = references
-    elif rf is not _UNSET:
-        kwargs["references"] = rf
-    if renderGlobals is not _UNSET:
-        if rg is not _UNSET:
-            raise _ArgumentError("Specify only one of 'renderGlobals' and 'rg'")
-        kwargs["renderGlobals"] = renderGlobals
-    elif rg is not _UNSET:
-        kwargs["renderGlobals"] = rg
-    if renderQualities is not _UNSET:
-        if rq is not _UNSET:
-            raise _ArgumentError("Specify only one of 'renderQualities' and 'rq'")
-        kwargs["renderQualities"] = renderQualities
-    elif rq is not _UNSET:
-        kwargs["renderQualities"] = rq
-    if renderResolutions is not _UNSET:
-        if rr is not _UNSET:
-            raise _ArgumentError("Specify only one of 'renderResolutions' and 'rr'")
-        kwargs["renderResolutions"] = renderResolutions
-    elif rr is not _UNSET:
-        kwargs["renderResolutions"] = rr
-    if renderSetups is not _UNSET:
-        if rs is not _UNSET:
-            raise _ArgumentError("Specify only one of 'renderSetups' and 'rs'")
-        kwargs["renderSetups"] = renderSetups
-    elif rs is not _UNSET:
-        kwargs["renderSetups"] = rs
-    if selection is not _UNSET:
-        if sl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'selection' and 'sl'")
-        kwargs["selection"] = selection
-    elif sl is not _UNSET:
-        kwargs["selection"] = sl
-    if sets is not _UNSET:
-        if set is not _UNSET:
-            raise _ArgumentError("Specify only one of 'sets' and 'set'")
-        kwargs["sets"] = sets
-    elif set is not _UNSET:
-        kwargs["sets"] = set
-    if shapes is not _UNSET:
-        if s is not _UNSET:
-            raise _ArgumentError("Specify only one of 'shapes' and 's'")
-        kwargs["shapes"] = shapes
-    elif s is not _UNSET:
-        kwargs["shapes"] = s
-    if shortNames is not _UNSET:
-        if sn is not _UNSET:
-            raise _ArgumentError("Specify only one of 'shortNames' and 'sn'")
-        kwargs["shortNames"] = shortNames
-    elif sn is not _UNSET:
-        kwargs["shortNames"] = sn
-    if showNamespace is not _UNSET:
-        if sns is not _UNSET:
-            raise _ArgumentError("Specify only one of 'showNamespace' and 'sns'")
-        kwargs["showNamespace"] = showNamespace
-    elif sns is not _UNSET:
-        kwargs["showNamespace"] = sns
-    if showType is not _UNSET:
-        if st is not _UNSET:
-            raise _ArgumentError("Specify only one of 'showType' and 'st'")
-        kwargs["showType"] = showType
-    elif st is not _UNSET:
-        kwargs["showType"] = st
-    if tail is not _UNSET:
-        if tl is not _UNSET:
-            raise _ArgumentError("Specify only one of 'tail' and 'tl'")
-        kwargs["tail"] = tail
-    elif tl is not _UNSET:
-        kwargs["tail"] = tl
-    if templated is not _UNSET:
-        if tm is not _UNSET:
-            raise _ArgumentError("Specify only one of 'templated' and 'tm'")
-        kwargs["templated"] = templated
-    elif tm is not _UNSET:
-        kwargs["templated"] = tm
-    if textures is not _UNSET:
-        if tex is not _UNSET:
-            raise _ArgumentError("Specify only one of 'textures' and 'tex'")
-        kwargs["textures"] = textures
-    elif tex is not _UNSET:
-        kwargs["textures"] = tex
-    if transforms is not _UNSET:
-        if tr is not _UNSET:
-            raise _ArgumentError("Specify only one of 'transforms' and 'tr'")
-        kwargs["transforms"] = transforms
-    elif tr is not _UNSET:
-        kwargs["transforms"] = tr
-    if type is not _UNSET:
-        if typ is not _UNSET:
-            raise _ArgumentError("Specify only one of 'type' and 'typ'")
-        kwargs["type"] = type
-    elif typ is not _UNSET:
-        kwargs["type"] = typ
-    if ufeObjects is not _UNSET:
-        if ufe is not _UNSET:
-            raise _ArgumentError("Specify only one of 'ufeObjects' and 'ufe'")
-        kwargs["ufeObjects"] = ufeObjects
-    elif ufe is not _UNSET:
-        kwargs["ufeObjects"] = ufe
-    if undeletable is not _UNSET:
-        if ud is not _UNSET:
-            raise _ArgumentError("Specify only one of 'undeletable' and 'ud'")
-        kwargs["undeletable"] = undeletable
-    elif ud is not _UNSET:
-        kwargs["undeletable"] = ud
-    if untemplated is not _UNSET:
-        if ut is not _UNSET:
-            raise _ArgumentError("Specify only one of 'untemplated' and 'ut'")
-        kwargs["untemplated"] = untemplated
-    elif ut is not _UNSET:
-        kwargs["untemplated"] = ut
-    if uuid is not _UNSET:
-        if uid is not _UNSET:
-            raise _ArgumentError("Specify only one of 'uuid' and 'uid'")
-        kwargs["uuid"] = uuid
-    elif uid is not _UNSET:
-        kwargs["uuid"] = uid
-    if visible is not _UNSET:
-        if v is not _UNSET:
-            raise _ArgumentError("Specify only one of 'visible' and 'v'")
-        kwargs["visible"] = visible
-    elif v is not _UNSET:
-        kwargs["visible"] = v
-    if query is not _UNSET:
-        if q is not _UNSET:
-            raise _ArgumentError("Specify only one of 'query' and 'q'")
-        kwargs["query"] = query
-    elif q is not _UNSET:
-        kwargs["query"] = q
-    if edit is not _UNSET:
-        if e is not _UNSET:
-            raise _ArgumentError("Specify only one of 'edit' and 'e'")
-        kwargs["edit"] = edit
-    elif e is not _UNSET:
-        kwargs["edit"] = e
+    _merge_flags(kwargs, (
+        (absoluteName, an, "absoluteName", "an"),
+        (allPaths, ap, "allPaths", "ap"),
+        (assemblies, short_assemblies, "assemblies", "as"),
+        (cameras, ca, "cameras", "ca"),
+        (containerType, ct, "containerType", "ct"),
+        (containers, con, "containers", "con"),
+        (dagObjects, dag, "dagObjects", "dag"),
+        (defaultNodes, dn, "defaultNodes", "dn"),
+        (dependencyNodes, dep, "dependencyNodes", "dep"),
+        (exactType, et, "exactType", "et"),
+        (excludeType, ext, "excludeType", "ext"),
+        (flatten, fl, "flatten", "fl"),
+        (geometry, g, "geometry", "g"),
+        (ghost, gh, "ghost", "gh"),
+        (head, hd, "head", "hd"),
+        (hilite, hl, "hilite", "hl"),
+        (intermediateObjects, io, "intermediateObjects", "io"),
+        (invisible, iv, "invisible", "iv"),
+        (leaf, lf, "leaf", "lf"),
+        (lights, lt, "lights", "lt"),
+        (live, lv, "live", "lv"),
+        (lockedNodes, ln, "lockedNodes", "ln"),
+        (long, l, "long", "l"),
+        (materials, mat, "materials", "mat"),
+        (modified, mod, "modified", "mod"),
+        (noIntermediate, ni, "noIntermediate", "ni"),
+        (nodeTypes, nt, "nodeTypes", "nt"),
+        (objectsOnly, o, "objectsOnly", "o"),
+        (orderedComponentSelection, ocs, "orderedComponentSelection", "ocs"),
+        (orderedSelection, os, "orderedSelection", "os"),
+        (partitions, pr, "partitions", "pr"),
+        (persistentNodes, pn, "persistentNodes", "pn"),
+        (planes, pl, "planes", "pl"),
+        (preSelectHilite, psh, "preSelectHilite", "psh"),
+        (readOnly, ro, "readOnly", "ro"),
+        (recursive, r, "recursive", "r"),
+        (referencedNodes, rn, "referencedNodes", "rn"),
+        (references, rf, "references", "rf"),
+        (renderGlobals, rg, "renderGlobals", "rg"),
+        (renderQualities, rq, "renderQualities", "rq"),
+        (renderResolutions, rr, "renderResolutions", "rr"),
+        (renderSetups, rs, "renderSetups", "rs"),
+        (selection, sl, "selection", "sl"),
+        (sets, set, "sets", "set"),
+        (shapes, s, "shapes", "s"),
+        (shortNames, sn, "shortNames", "sn"),
+        (showNamespace, sns, "showNamespace", "sns"),
+        (showType, st, "showType", "st"),
+        (tail, tl, "tail", "tl"),
+        (templated, tm, "templated", "tm"),
+        (textures, tex, "textures", "tex"),
+        (transforms, tr, "transforms", "tr"),
+        (type, typ, "type", "typ"),
+        (ufeObjects, ufe, "ufeObjects", "ufe"),
+        (undeletable, ud, "undeletable", "ud"),
+        (untemplated, ut, "untemplated", "ut"),
+        (uuid, uid, "uuid", "uid"),
+        (visible, v, "visible", "v"),
+        (query, q, "query", "q"),
+        (edit, e, "edit", "e"),
+    ))
+    # nodes・components・common.selectionはcmdsを参照するため、循環importを避けて関数内で読み込む。
     from ..nodes.node import Nodes as _InputNodes
     from ..core.object import Object as _InputObject
     from ..nodes import Joints, SkinClusters
@@ -597,8 +302,6 @@ def ls(*args,
 
     targets = []
     for arg in _InputNodes._resolve_inputs([arg for arg in args if arg is not None]):
-        if arg is None:
-            continue
         if isinstance(arg, str):
             targets.append(arg)
         else:
@@ -614,7 +317,7 @@ def ls(*args,
     # ノード名とアトリビュート名は、名前ごとに選択リストを作らずまとめて解決する(_resolve_names)。
     # 対応付けは cmds の結果の順に行い、対応付けられない名前(重複・統合・コンポーネント・
     # 複数一致・解決の失敗)は従来の名前ごとの経路で判定する。
-    from ..nodes.node import Node, _resolve_node
+    from ..nodes.node import Node
     from ..plugs.plug import Plug
     from ..components import Component
     from ..common.selection import _resolve_names
@@ -629,7 +332,7 @@ def ls(*args,
                 found = next(resolved_nodes)
                 # Node(name) と同じ解決・型選択を、生成の入口の再判定なしで行う。
                 result.append(Node._wrap_resolved(found[0], found[1]) if found is not None
-                              else Node._wrap_resolved(*_resolve_node(name)))
+                              else Node._from_name(name))
             continue
         if component is None:
             # 1要素のアトリビュートだけに解決する名前は、下の Selection(name) と

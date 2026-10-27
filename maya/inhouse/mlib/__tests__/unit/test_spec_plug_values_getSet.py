@@ -316,7 +316,11 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
                     self.assertEqual(cmds.getAttr(plug.getFullName()), before)
 
     def test_string_and_number_cross_input_rejected_by_both_paths(self):
-        """数値へ文字列・Noneや文字列へ数値は通常・fastともRuntimeErrorで、値を変えない。"""
+        """数値へ文字列・Noneや文字列へ数値は拒否され、値を変えない。
+
+        fastと単位アトリビュートの事前換算はTypeError(型違い)。通常経路の他の型は ``cmds.setAttr`` 自身の
+        RuntimeErrorがそのまま伝わるため、通常経路はどちらも許す。
+        """
         long_plug = self.add("lg", attributeType="long")
         double_plug = self.add("db", attributeType="double")
         enum_plug = self.add("en", attributeType="enum", enumName="a:b:c")
@@ -325,7 +329,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
                             (enum_plug, "1"), (angle, "1")):
             for fast in (False, True):
                 with self.subTest(plug=plug.getAttrName(), value=value, fast=fast):
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaises(TypeError if fast else (TypeError, RuntimeError)):
                         plug.set(value, fast=fast)
                     self.assertEqual(plug.set(value, safe=True, fast=fast), 1)
                     self.assertEqual(cmds.getAttr(plug.getFullName()), 0)
@@ -334,7 +338,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         for value in (5, 7.0, None, True):
             for fast in (False, True):
                 with self.subTest(text=value, fast=fast):
-                    with self.assertRaises(RuntimeError):
+                    with self.assertRaises(TypeError if fast else (TypeError, RuntimeError)):
                         text.set(value, fast=fast)
                     self.assertEqual(text.set(value, safe=True, fast=fast), 1)
                     self.assertEqual(text.get(), "keep")

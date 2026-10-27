@@ -21,7 +21,7 @@ class CV(PointComponent):
         Returns:
             str: 同じ位置を編集するMayaコンポーネント名。indexはAPI番号を保持する。
         """
-        self._validate()
+        self._require_valid()
         index = command_indices(self.shape, [self.index])[0]
         return "{}.cv[{}]".format(self.shape.getFullName(), index)
 
@@ -42,11 +42,11 @@ class CVs(PointComponents):
             list[str]: 保持順のMayaコンポーネント名。indicesはAPI番号を保持する。
 
         Raises:
-            RuntimeError: 所有シェイプが無効な場合。
             TypeError: 所有シェイプの種類がNurbsCurveでない場合。
             IndexError: 保持番号が現在のCV範囲外になった場合。
+            RuntimeError: 所有シェイプが無効な場合。
         """
-        self._validate()
+        self._require_valid()
         name = self.shape.getFullName()
         return ["{}.cv[{}]".format(name, index)
                 for index in command_indices(self.shape, self.indices)]
@@ -58,8 +58,8 @@ class CVs(PointComponents):
             list[str]: getFullNamesと同じ、保持順のMayaコンポーネント名。
 
         Raises:
-            RuntimeError: 所有シェイプが無効な場合。
             TypeError: 所有シェイプの種類がNurbsCurveでない場合。
             IndexError: 保持番号が現在のCV範囲外になった場合。
+            RuntimeError: 所有シェイプが無効な場合。
         """
         return self.getFullNames()

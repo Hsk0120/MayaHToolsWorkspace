@@ -33,7 +33,7 @@ class PluginTest(unittest.TestCase):
     def test_constructor_rejects_invalid_names(self):
         with self.assertRaises(ValueError):
             Plugin("")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             Plugin(123)
 
     def test_name_and_string_representations(self):

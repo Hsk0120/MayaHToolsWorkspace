@@ -13,8 +13,8 @@ class IkHandle(Transform):
         """IK チェーンの末端 joint を取得する。
 
         ikEffector ノードの translate 接続元を辿って end joint を特定する
-        （``cmds.ikHandle(query=True, jointList=True)`` は end joint を含まない
-        ため、別経路で解決する）。
+        (``cmds.ikHandle(query=True, jointList=True)`` は end joint を含まない
+        ため、別経路で解決する)。
 
         Returns:
             Joint | None: end joint。接続が見つからない場合は ``None``。
@@ -48,8 +48,7 @@ class IkHandle(Transform):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot query the joint list of an invalid IK handle")
+        self._require_valid("query the joint list of")
         fn = self._dependency_fn()
         start = fn.findPlug("startJoint", False).source()
         effector = fn.findPlug("endEffector", False).source()

@@ -58,18 +58,18 @@ class AimOffsetTest(_SpecCase):
             self.assertAlmostEqual(actual, wanted)
 
     def test_set_offset_errors_change_nothing(self):
-        """要素数・非有限・変換できない値・ロック・入力接続は ValueError で、何も変えない。"""
+        """要素数・非有限・変換できない値は ValueError、ロック・入力接続は RuntimeError で、何も変えない。"""
         for value in ((1, 2), (1, 2, float("nan")), (1, 2, float("inf")), ("a", 1, 2)):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
                     self.node.setOffset(value)
         cmds.setAttr(self.constraint + ".offsetX", lock=True)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(RuntimeError):
             self.node.setOffset((0.1, 0.2, 0.3))
         cmds.setAttr(self.constraint + ".offsetX", lock=False)
         source = cmds.createNode("transform", name=self.name("source"), skipSelect=True)
         cmds.connectAttr(source + ".rotateY", self.constraint + ".offsetY")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(RuntimeError):
             self.node.setOffset((0.1, 0.2, 0.3))
         self.assertEqual(self.node.getOffset(), (0.0, 0.0, 0.0))
 

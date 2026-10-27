@@ -6,7 +6,9 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from ..decorator import undoChunk, undoTransaction
+from ..core.nodeEdit import require_editable
+from ..core.object import Object
+from ..decorator import _pick_alias, _require_bool, undoChunk, undoTransaction
 from ..maths import Matrix
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
@@ -70,8 +72,7 @@ class DagPose(Node):
             ValueError: skinCluster以外を指定した場合。
             RuntimeError: 無効なノード、またはdagPose以外が接続されている場合。
         """
-        from .node import Node as _InputNode
-        skin = _InputNode._resolve_input(skinCluster)
+        skin = Node._resolve_input(skinCluster)
         if not skin.isValid():
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.isType("skinCluster"):
@@ -119,7 +120,7 @@ class DagPose(Node):
                 for i in self.getMemberIndices()]
 
     def getMemberIndex(self, member):
-        """指定メンバーの論理番号を返す。
+        """指定メンバーの論理番号を取得する。
 
         Args:
             member (Node | str): 保存対象のノード。
@@ -130,8 +131,7 @@ class DagPose(Node):
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
-        from .node import Node as _InputNode
-        node = _InputNode._resolve_input(member)
+        node = Node._resolve_input(member)
         for index, item in zip(self.getMemberIndices(), self.getMembers()):
             if item.getFullName() == node.getFullName():
                 return index
@@ -154,12 +154,7 @@ class DagPose(Node):
         Raises:
             ValueError: このポーズのメンバーでない場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         index = self.getMemberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
@@ -224,11 +219,12 @@ class DagPose(Node):
             DagPose: 自身。
 
         Raises:
-            ValueError: 型・フラグ・保存情報の競合、通常ポーズとbindPoseの混在。
+            TypeError: currentPose・deleteSourcesがbool以外の場合。
+            ValueError: 型・保存情報の競合、通常ポーズとbindPoseの混在。
             RuntimeError: ロック・参照・インスタンス・不正な保存情報、またはMayaの編集失敗。
         """
-        if type(currentPose) is not bool or type(deleteSources) is not bool:
-            raise ValueError("currentPose and deleteSources must be bool")
+        _require_bool(currentPose, "currentPose")
+        _require_bool(deleteSources, "deleteSources")
         name, poses, sources = self._merge_collect_poses(sources)
         if not sources:
             return self
@@ -264,12 +260,7 @@ class DagPose(Node):
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         with undoChunk("mlibDagPoseRestore"):
             ws = _world_space(worldSpace)
             cmds.dagPose(self._pose_name(), restore=True, g=ws)
@@ -304,7 +295,7 @@ class DagPose(Node):
         cmds.dagPose(names, reset=True, name=name)
         return self
 
-    @undoChunk("mlibDagPoseAdd")
+    @undoChunk("mlibDagPoseAddMembers")
     def addMembers(self, *members):
         """TransformまたはJointを現在の姿勢で追加する。
 
@@ -317,7 +308,7 @@ class DagPose(Node):
         cmds.dagPose(self._transform_names(members), addToPose=True, name=self._pose_name())
         return self
 
-    @undoChunk("mlibDagPoseRemove")
+    @undoChunk("mlibDagPoseRemoveMembers")
     def removeMembers(self, *members):
         """メンバーをポーズから外す。シーンのノード自体は削除しない。
 
@@ -355,7 +346,7 @@ class DagPose(Node):
         for value in nodes:
             node = Node._resolve_input(value)
             if not node.isType("dagPose"):
-                raise ValueError("Expected a dagPose: " + node.getFullName())
+                raise ValueError(f"Expected a dagPose: {node.getFullName()}")
             poses.setdefault(node.getFullName(), node)
         sources = [pose for key, pose in poses.items() if key != name]
         return name, poses, sources
@@ -383,7 +374,7 @@ class DagPose(Node):
             for member, row in snapshot.items():
                 if not current_pose and member in rows:
                     if not self._merge_rows_equal(rows[member], row):
-                        raise ValueError("Conflicting saved pose: " + member)
+                        raise ValueError(f"Conflicting saved pose: {member}")
                 else:
                     rows[member] = row
             if pose is not self:
@@ -400,17 +391,20 @@ class DagPose(Node):
 
         Args:
             skins (dict): 再接続するskinCluster辞書。
+
+        Returns:
+            None: 値を返さない。
         """
         self._merge_check_editable(self)
         for attr in ("members", "parents", "worldMatrix", "xformMatrix", "global"):
             plug = self.getPlug(attr).mplug()
             if plug.isLocked or any(plug.elementByLogicalIndex(i).isLocked
                                     for i in plug.getExistingArrayAttributeIndices()):
-                raise RuntimeError("Locked pose attribute: " + plug.name())
+                raise RuntimeError(f"Locked pose attribute: {plug.name()}")
         for skin in skins.values():
             self._merge_check_editable(skin)
             if skin.getPlug("bindPose").mplug().isLocked:
-                raise RuntimeError("Locked bindPose: " + skin.getFullName())
+                raise RuntimeError(f"Locked bindPose: {skin.getFullName()}")
 
     def _merge_allocate_indices(self, rows, target_rows):
         """既存の疎な保存番号を保ち、未登録メンバーへ後続の番号を割り当てる。
@@ -442,6 +436,9 @@ class DagPose(Node):
             target_rows (dict): 対象の既存保存行。
             indices (dict): メンバー名から保存先の論理番号への対応。
             current_pose (bool): 既存メンバーも現在姿勢の行で更新するか。
+
+        Returns:
+            None: 値を返さない。
         """
         for member, row in rows.items():
             index = indices[member]
@@ -480,9 +477,7 @@ class DagPose(Node):
     @staticmethod
     def _merge_check_editable(node):
         """参照とノードロックを変更前に拒否する。"""
-        fn = om2.MFnDependencyNode(node.getPlug("message").mplug().node())
-        if fn.isFromReferencedFile or fn.isLocked:
-            raise RuntimeError("Referenced or locked node: " + node.getFullName())
+        require_editable(node.getPlug("message").mplug().node())
 
     @staticmethod
     def _merge_matrix_payload(plug):
@@ -493,13 +488,13 @@ class DagPose(Node):
         """
         commands = plug.getSetAttrCmds(om2.MPlug.kAll, True)
         if len(commands) != 1:
-            raise RuntimeError("Unsupported matrix data: " + plug.name())
+            raise RuntimeError(f"Unsupported matrix data: {plug.name()}")
         import shlex  # この読取りだけで使うため、import mlibの時間に含めない。
 
         tokens = shlex.split(commands[0].strip().rstrip(";"))
         start = tokens.index("-type")
         if tokens[start + 1] != "matrix":
-            raise RuntimeError("Expected matrix data: " + plug.name())
+            raise RuntimeError(f"Expected matrix data: {plug.name()}")
         values = []
         for token in tokens[start + 2:]:
             if token == "xform":
@@ -509,7 +504,7 @@ class DagPose(Node):
             else:
                 value = float(token)
                 if not math.isfinite(value):
-                    raise ValueError("Non-finite pose data: " + plug.name())
+                    raise ValueError(f"Non-finite pose data: {plug.name()}")
                 values.append(value)
         if values and values[0] == "xform":
             # rotationOrderはcmdsが整数を要求する。
@@ -527,17 +522,17 @@ class DagPose(Node):
             source = plug.source()
             node = Node(source.node())
             if not node.isType("transform") or source.partialName(useLongNames=True) != "message":
-                raise RuntimeError("Unsupported pose member: " + plug.name())
+                raise RuntimeError(f"Unsupported pose member: {plug.name()}")
             if om2.MFnDagNode(source.node()).isInstanced():
-                raise RuntimeError("Instanced pose member: " + node.getFullName())
+                raise RuntimeError(f"Instanced pose member: {node.getFullName()}")
             indices[index] = node.getFullName()
         if len(set(indices.values())) != len(indices):
-            raise RuntimeError("Duplicate pose members: " + self.getFullName())
+            raise RuntimeError(f"Duplicate pose members: {self.getFullName()}")
         rows = {}
         for index, member in indices.items():
             parent_plug = self.getPlug("parents")[index].mplug()
             if not parent_plug.isDestination:
-                raise RuntimeError("Missing saved parent: " + member)
+                raise RuntimeError(f"Missing saved parent: {member}")
             source = parent_plug.source()
             external_parent = False
             if source == self.getPlug("world").mplug():
@@ -548,16 +543,17 @@ class DagPose(Node):
                 parent = Node(source.node()).getFullName()
                 external_parent = True
             else:
-                raise RuntimeError("Unsupported saved parent: " + member)
+                raise RuntimeError(f"Unsupported saved parent: {member}")
             row = {"index": index, "parent": parent, "externalParent": external_parent}
             for attr in ("worldMatrix", "xformMatrix", "global"):
                 plug = self.getPlug(attr)[index].mplug()
                 if plug.isDestination:
                     source = plug.source()
                     # Maya標準のbindPoseはjoint.bindPoseから保存ワールドマトリクスを受け取る。
-                    expected = Node(member).getPlug("bindPose").mplug() if Node(member).isType("joint") else None
+                    member_node = Node(member)
+                    expected = member_node.getPlug("bindPose").mplug() if member_node.isType("joint") else None
                     if attr != "worldMatrix" or source != expected or source.isDestination:
-                        raise RuntimeError("Driven pose data: " + plug.name())
+                        raise RuntimeError(f"Driven pose data: {plug.name()}")
                     plug = source
                 row[attr] = plug.asBool() if attr == "global" else self._merge_matrix_payload(plug)
             rows[member] = row
@@ -598,7 +594,7 @@ class DagPose(Node):
                     continue
                 if attr == "message" and other_attr == "bindPose" and other.node().hasFn(om2.MFn.kSkinClusterFilter):
                     continue
-                raise RuntimeError("Source pose has another connection: " + plug.name())
+                raise RuntimeError(f"Source pose has another connection: {plug.name()}")
 
     @staticmethod
     def _transform_names(members):
@@ -607,9 +603,8 @@ class DagPose(Node):
         Args:
             members: 所属または保存対象として扱うノード・コンポーネント。
         """
-        from ..core.object import Object as _InputObject
         names = []
-        for name in _InputObject._input_names(members):
+        for name in Object._input_names(members):
             node = Node(name)
             if not node.isValid() or not node.isType("transform"):
                 raise ValueError(f"Expected a valid transform or joint: {name}")
@@ -621,6 +616,5 @@ class DagPose(Node):
 
     def _pose_name(self):
         """有効なdagPoseの名前を返す。削除済みならRuntimeError。"""
-        if not self.isValid():
-            raise RuntimeError("Cannot access an invalid dagPose")
+        self._require_valid("access")
         return self.getFullName()

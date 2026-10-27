@@ -48,13 +48,13 @@ class InternalRefactoringTest(unittest.TestCase):
         skin = mlib.getNode(cmds.skinCluster(joints, mesh, tsb=True)[0])
         joints[0] = cmds.rename(joints[0], "renamedInfluence")
         queries = [joints[2], joints[0], joints[2], "notAnInfluence"]
-        self.assertEqual([skin._jnt_index(x) for x in queries],
+        self.assertEqual([skin._influence_index(x) for x in queries],
                          skin._influence_indices(queries, skin.mfn().influenceObjects()))
         cmds.skinCluster(skin.getFullName(), edit=True, removeInfluence=joints[1])
-        self.assertIsNone(skin._jnt_index(joints[1]))
-        self.assertEqual(skin._jnt_index(joints[2]), 1)
+        self.assertIsNone(skin._influence_index(joints[1]))
+        self.assertEqual(skin._influence_index(joints[2]), 1)
         cmds.undo()
-        self.assertEqual(skin._jnt_index(joints[2]), 2)
+        self.assertEqual(skin._influence_index(joints[2]), 2)
 
     def test_numeric_read_write_and_units(self):
         """数値型の共有定義が通常更新・fast更新・単位規則を変えない。"""

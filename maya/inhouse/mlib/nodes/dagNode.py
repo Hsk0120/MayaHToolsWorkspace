@@ -1,14 +1,13 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
 import inspect
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET, _world_space
+from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..util import _UNSET, _world_space
 from .node import Node, Nodes
 
 
@@ -167,8 +166,8 @@ class DagNode(Node):
         適用し、ワールド空間のボックスを返す。Shape では自身のローカル形状から計算する。
 
         Args:
-            worldSpace (bool): True はワールド空間、False は親の変換を含まない空間。既定 False。
-            ws (bool): worldSpace の別名。同時指定は不可。
+            worldSpace (bool): Trueはワールド空間、Falseは親の変換を含まない空間。既定False。
+            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
@@ -178,15 +177,9 @@ class DagNode(Node):
             ValueError: worldSpace(ws)が bool でない場合。
             RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         world = _world_space(worldSpace)
-        if not self.isValid():
-            raise RuntimeError("Cannot compute the bounding box of an invalid node")
+        self._require_valid("compute the bounding box of")
         path = self.mpath()
         box = om2.MFnDagNode(path).boundingBox
         if not world:
@@ -299,9 +292,9 @@ class DagNode(Node):
             ValueError: 探索順が不正、またはleavesとshapesを併用した場合。
             RuntimeError: ノードは有効だが保持するDAGパスが無効な場合。
         """
-        flags = (allDescendents, leaves, includeSelf, underWorld)
-        if any(type(value) is not bool for value in flags):
-            raise TypeError("DAG search flags must be bool")
+        for value, name in ((allDescendents, "allDescendents"), (leaves, "leaves"),
+                            (includeSelf, "includeSelf"), (underWorld, "underWorld")):
+            _require_bool(value, name)
         if order not in ("depthFirst", "breadthFirst"):
             raise ValueError("order must be 'depthFirst' or 'breadthFirst'")
         if leaves and shapes:
@@ -325,31 +318,26 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    def getShape(self, idx=_UNSET, intermediates=False, *, index=_UNSET):
+    def getShape(self, index=_UNSET, intermediates=False, *, idx=_UNSET):
         """保持パスに対応する Shape を取得する。
 
-        契約: 自身が Shape なら ``idx``・``intermediates`` を無視して自身を返す。Transform は
-        派生クラス(Transform.getShape)が直下の Shape を ``idx`` 番目(0 始まり。範囲外は None)で返す。
-        それ以外の DAG ノードは None。無効な idx で IndexError にはしない(cymel の shape() と同じ)。
+        契約: 自身が Shape なら ``index``・``intermediates`` を無視して自身を返す。Transform は
+        派生クラス(Transform.getShape)が直下の Shape を ``index`` 番目(0 始まり。範囲外は None)で返す。
+        それ以外の DAG ノードは None。無効な index で IndexError にはしない(cymel の shape() と同じ)。
 
         Args:
-            idx (int): Transform で選ぶ Shape の番号。Shape では無視する。既定 0。
+            index (int): Transform で選ぶ Shape の番号。Shape では無視する。既定 0。
             intermediates (bool): Transform で中間オブジェクトも候補に含める。Shape では無視する。
-            index (int): idx の別名。同時指定は不可。
+            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             DagNode | None: Shape なら自身、Transform は選んだ Shape、該当なしは None。
 
         Raises:
-            TypeError: idx と index を同時指定した場合。
+            TypeError: index と idx を同時指定した場合。
             RuntimeError: ノードが破棄されている場合。
         """
-        if index is not _UNSET:
-            if idx is not _UNSET:
-                raise _ArgumentError("Specify only one of 'idx' and 'index'")
-            idx = index
-        if idx is _UNSET:
-            idx = 0
+        index = _pick_alias(index, idx, "index", "idx", default=0)
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
 
     def isVisible(self):
@@ -367,13 +355,13 @@ class DagNode(Node):
         """visibility を有効にして自身を返す。``setVisibility(True, fast=fast)`` と同じ。
 
         Args:
-            fast (bool): True は OpenMaya 直接更新(Undo なし)。既定 False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
         Raises:
-            TypeError: fast が bool でない場合。
+            TypeError: fastがbool以外の場合。
         """
         return self.setVisibility(True, fast=fast)
 
@@ -381,13 +369,13 @@ class DagNode(Node):
         """visibility を無効にして自身を返す。``setVisibility(False, fast=fast)`` と同じ。
 
         Args:
-            fast (bool): True は OpenMaya 直接更新(Undo なし)。既定 False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
         Raises:
-            TypeError: fast が bool でない場合。
+            TypeError: fastがbool以外の場合。
         """
         return self.setVisibility(False, fast=fast)
 
@@ -404,19 +392,17 @@ class DagNode(Node):
 
         Args:
             state (bool): visibilityへ設定する値。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
+            fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeSetVisible"):
-            if not isinstance(state, bool):
-                raise TypeError("state must be a bool")
+        with _edit_context("mlibDagNodeSetVisibility", fast):
+            _require_bool(state, "state")
             self.getPlug("visibility").set(state, fast=fast)
             return self
 
@@ -430,7 +416,8 @@ class DagNode(Node):
             AttributeError: hiddenInOutlinerがないノードの場合。
             RuntimeError: ノードが無効な場合。
 
-        エディターのフィルター・親の折り畳み・非表示ノード表示設定は判定しない。
+        Note:
+            エディターのフィルター・親の折り畳み・非表示ノード表示設定は判定しない。
         """
         return not bool(self.getPlug("hiddenInOutliner").get())
 
@@ -438,25 +425,23 @@ class DagNode(Node):
         """ノードのアウトライナー表示を切り替える。
 
         Args:
-            state (bool): Trueで表示、Falseで非表示（hiddenInOutlinerを反転設定）。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            state (bool): Trueで表示、Falseで非表示(hiddenInOutlinerを反転設定)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。DagNodes・Transforms・Jointsからの一括操作にも対応する。
 
         Raises:
-            TypeError: stateまたはfastがboolでない場合。
+            TypeError: stateまたはfastがbool以外の場合。
             AttributeError: 対応アトリビュートがない場合。
             RuntimeError: ロック・入力接続などで更新できない場合。
 
-        ビューポートのvisibilityは変更しない。表示の最終結果は各Outlinerの
-        フィルターや非表示ノード表示設定にも依存する。
+        Note:
+            ビューポートのvisibilityは変更しない。表示の最終結果は各Outlinerの
+            フィルターや非表示ノード表示設定にも依存する。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeSetOutlinerVisibility"):
-            if not isinstance(state, bool):
-                raise TypeError("state must be a bool")
+        with _edit_context("mlibDagNodeSetOutlinerVisibility", fast):
+            _require_bool(state, "state")
             self.getPlug("hiddenInOutliner").set(not state, fast=fast)
             return self
 
@@ -564,14 +549,6 @@ class DagNodes(Nodes):
         "hide": (DagNode.hide, "self"),
         "setVisibility": (DagNode.setVisibility, "self"),
         "setOutlinerVisibility": (DagNode.setOutlinerVisibility, "self"),
-    }
-    _bulk_methods = {
-        **Nodes._bulk_methods,
-        **{name: entry[0] for name, entry in _bulk_entries.items()},
-    }
-    _bulk_returns = {
-        **Nodes._bulk_returns,
-        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset()
 

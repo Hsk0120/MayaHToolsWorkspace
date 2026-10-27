@@ -185,7 +185,7 @@ class GetRotateOrderTest(_SpecCase):
                     node.getRotate(order=order)
         with self.assertRaises(TypeError):
             node.getRotate(True, ws=True)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             node.getRotate("yes")
 
     def test_zero_scale_axis_raises_for_both_rules(self):

@@ -151,9 +151,9 @@ class PointPositionSpecTest(_ComponentCase):
         self.assertAlmostEqual(vertex.getPositionX(ws=True), 9.5)
 
     def test_space_argument_validation(self):
-        """worldSpaceがbool以外はValueError、長短名の同時指定とfastの非boolはTypeError。"""
+        """worldSpaceがbool以外、長短名の同時指定、fastの非boolはいずれもTypeError。"""
         vertex = Vertex(self.mesh, 0)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             vertex.getPosition(worldSpace=1)
         with self.assertRaises(TypeError):
             vertex.getPosition(worldSpace=True, ws=True)

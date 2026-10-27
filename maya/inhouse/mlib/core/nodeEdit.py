@@ -4,8 +4,30 @@
 事前検査と、1回にまとめた削除を提供する。
 """
 
+import itertools
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+
+
+def _dag_descendants(mobject):
+    """DAGノードの全子孫を深さ優先で列挙する。DGノードは何も返さない。
+
+    Args:
+        mobject (om2.MObject): 起点のノード。自身は含めない。
+
+    Yields:
+        om2.MObject: 子、その子孫の順(各親の子は末尾から辿る)。
+    """
+    if not mobject.hasFn(om2.MFn.kDagNode):
+        return
+    pending = [mobject]
+    while pending:
+        dag = om2.MFnDagNode(pending.pop())
+        for i in range(dag.childCount()):
+            child = dag.child(i)
+            yield child
+            pending.append(child)
 
 
 def require_editable(node, descendants=False):
@@ -14,10 +36,16 @@ def require_editable(node, descendants=False):
     Args:
         node (MObject): 対象ノード。
         descendants (bool): DAG子孫も検査するか。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        RuntimeError: 無効なノード、またはロック・参照されたノードが対象か子孫に含まれる場合。
     """
-    pending, seen = [node], set()
-    while pending:
-        obj = pending.pop()
+    seen = set()
+    # 子孫の列挙は遅延するため、対象自身の有効性を確かめてから子孫を辿る。
+    for obj in itertools.chain((node,), _dag_descendants(node) if descendants else ()):
         handle = om2.MObjectHandle(obj)
         if not handle.isValid() or not handle.isAlive():
             raise RuntimeError("Cannot edit an invalid node")
@@ -27,10 +55,7 @@ def require_editable(node, descendants=False):
         seen.add(key)
         fn = om2.MFnDependencyNode(obj)
         if fn.isLocked or fn.isFromReferencedFile:
-            raise RuntimeError("Node is locked or referenced: " + fn.name())
-        if descendants and obj.hasFn(om2.MFn.kDagNode):
-            dag = om2.MFnDagNode(obj)
-            pending.extend(dag.child(i) for i in range(dag.childCount()))
+            raise RuntimeError(f"Node is locked or referenced: {fn.name()}")
 
 
 def check_deletion(nodes, fast=False):
@@ -63,15 +88,7 @@ def check_deletion(nodes, fast=False):
     descendants = []
     names = [path for _obj, path in entries]
     for obj, _path in entries:
-        found = []
-        if obj.hasFn(om2.MFn.kDagNode):
-            pending = [obj]
-            while pending:
-                dag = om2.MFnDagNode(pending.pop())
-                for i in range(dag.childCount()):
-                    child = dag.child(i)
-                    found.append(child)
-                    pending.append(child)
+        found = list(_dag_descendants(obj))
         descendants.append(found)
         names += [om2.MDagPath.getAPathTo(child).fullPathName() for child in found]
     # cmds.ls(undeletable=True) が、既定・共有ノード等のMayaが削除を拒否するノードを返す
@@ -82,7 +99,7 @@ def check_deletion(nodes, fast=False):
         fn = om2.MFnDependencyNode(obj)
         if fn.isLocked or fn.isFromReferencedFile:
             if fast:
-                raise _deletion_error(index, "Node is locked or referenced: " + fn.name())
+                raise _deletion_error(index, f"Node is locked or referenced: {fn.name()}")
             if fn.isLocked:
                 raise _deletion_error(index, f"Cannot delete locked node '{_display_name(path)}'.")
             raise _deletion_error(
@@ -95,7 +112,7 @@ def check_deletion(nodes, fast=False):
             child_fn = om2.MFnDependencyNode(child)
             if child_fn.isLocked or child_fn.isFromReferencedFile:
                 if fast:
-                    raise _deletion_error(index, "Node is locked or referenced: " + child_fn.name())
+                    raise _deletion_error(index, f"Node is locked or referenced: {child_fn.name()}")
                 raise _deletion_error(
                     index, f"Cannot delete '{_display_name(path)}' as it has locked or read-only children.")
             if child_fn.isDefaultNode or child_path in blocked:
@@ -114,9 +131,12 @@ def delete_nodes(nodes, fast=False, checked=None):
 
     Args:
         nodes (Sequence[Node]): 呼出し順の削除対象。1つ以上。
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
         checked (list | None): 同じ nodes に対する :func:`check_deletion` の戻り値。
             Noneならここで検査する。
+
+    Returns:
+        None: 値を返さない。
 
     Raises:
         RuntimeError: :func:`check_deletion` が拒否した場合。何も削除しない。
@@ -216,20 +236,20 @@ def create_node(node_type, flags):
             名前だけ再利用するが、ここでは名前空間付きの名前でも既存ノードを返す近似)。
 
     Raises:
-        NotImplementedError: name/parent/skipSelect/shared以外のフラグを指定した場合。
         RuntimeError: Mayaが認識しないnodeType、ロック・参照された親、またはshared=Trueで
             同名ノードの型が違う場合(cmdsは新しい連番名で作るが、fastは型を見て拒否する)。
+        NotImplementedError: name/parent/skipSelect/shared以外のフラグを指定した場合。
     """
     from ..nodes.node import Node
 
     unsupported = set(flags) - {"name", "parent", "skipSelect", "shared"}
     if unsupported:
-        raise NotImplementedError("Unsupported fast createNode flags: " + ", ".join(sorted(unsupported)))
+        raise NotImplementedError(f"fast createNode does not support flags: {', '.join(sorted(unsupported))}")
     # MNodeClassは未知の型名でも例外にならず typeId が 0 になるため、値で判定して作成前に拒否する
     # (呼出し側の _node_type_exists と二重だが安価)。DAG作成の失敗時にDGへ切り替えても、
     # doIt前なので途中のノードをシーンへ残さない。
     if om2.MNodeClass(node_type).typeId.id() == 0:
-        raise RuntimeError("Unknown Maya nodeType: " + node_type)
+        raise RuntimeError(f"Unknown Maya nodeType: {node_type}")
     parent = Node(flags["parent"]).mnode() if flags.get("parent") else om2.MObject.kNullObj
     if not parent.isNull():
         require_editable(parent)
@@ -245,8 +265,8 @@ def create_node(node_type, flags):
                 existing = selection.getDependNode(0)
                 existing_type = om2.MFnDependencyNode(existing).typeName
                 if existing_type != node_type:
-                    raise RuntimeError("shared=True: existing node {!r} has type {!r}, not {!r}".format(
-                        name, existing_type, node_type))
+                    raise RuntimeError(
+                        f"shared=True: existing node {name!r} has type {existing_type!r}, not {node_type!r}")
                 return existing
     modifier = om2.MDagModifier()
     try:

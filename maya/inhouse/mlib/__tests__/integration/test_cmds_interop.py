@@ -672,12 +672,12 @@ class NodeArgumentRulesTest(_InteropCase):
                 self.assertEqual(len(cmds.ls(name)), 2)
                 with self.assertRaises(RuntimeError) as context:
                     Node(name)
-                self.assertIn("一意", str(context.exception))
+                self.assertIn("not unique", str(context.exception))
                 with self.assertRaises(RuntimeError):
                     mlib.getNode(name)
         with self.assertRaises(RuntimeError) as context:
             Node(self.ns("doesNotExist"))
-        self.assertIn("見つかりません", str(context.exception))
+        self.assertIn("not found", str(context.exception))
         # Components は所有シェイプ、アトリビュートの MObject は TypeError、空・削除済みは RuntimeError。
         self.assertIsInstance(mlib.getNode(Vertices(mesh, [0, 1])), Mesh)
         with self.assertRaises(TypeError):
@@ -705,7 +705,7 @@ class NodeArgumentRulesTest(_InteropCase):
             with self.subTest(factory=factory.__name__):
                 with self.assertRaises(RuntimeError) as context:
                     factory(pattern)
-                self.assertIn("一意", str(context.exception))
+                self.assertIn("not unique", str(context.exception))
         self.assertEqual(mlib.getNode(self.ns("lonely*")).getFullName(), lonely.getFullName())
         self.assertEqual(
             sorted(node.getFullName() for node in mlib.ls(pattern)),

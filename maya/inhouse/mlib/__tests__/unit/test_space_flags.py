@@ -50,7 +50,7 @@ class SpaceFlagsTest(unittest.TestCase):
         """旧名・長短名重複・非boolを更新前に拒否する。"""
         for flags, error in [({"space": 4}, TypeError),
                              ({"ws": True, "worldSpace": True}, TypeError),
-                             ({"ws": 1}, ValueError), ({"worldSpace": "world"}, ValueError)]:
+                             ({"ws": 1}, TypeError), ({"worldSpace": "world"}, TypeError)]:
             with self.assertRaises(error):
                 self.child.setTranslate((99, 0, 0), **flags, at=4)
             self.assertEqual(self.child.getPlug("translateX").get(), 2)

@@ -260,9 +260,8 @@ class AccessorTableTest(_CalcCase):
                     setter(*index, om2.MMatrix())
                 before = getter(*index)
                 setter(*index, value)
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibMultMatrixSetInput"
-                                 if kind == "multMatrix" else "mlibDecomposeMatrixSetInput"
-                                 if kind == "decomposeMatrix" else "mlibCalculationEdit")
+                self.assertEqual(cmds.undoInfo(query=True, undoName=True),
+                                 "mlib" + type(node).__name__ + "Set" + stem)
                 cmds.undo()
                 self.assertClose(getter(*index), before)
                 cmds.redo()
@@ -630,7 +629,7 @@ class EnumAccessorTest(_CalcCase):
         with self.assertRaisesRegex(TypeError, "fast must be a bool"):
             node.setRotateOrder(1, fast=None)
         node.setRotateOrder(2)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDecomposeMatrixRotateOrder")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDecomposeMatrixSetRotateOrder")
         cmds.undo()
         self.assertEqual(node.getRotateOrder(), 5)
 

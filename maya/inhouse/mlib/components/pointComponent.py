@@ -4,7 +4,7 @@ import math
 from contextlib import nullcontext
 
 from ..core import geometryEdit as geometry_edit
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, _require_bool, undoChunk
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
 from .component import Component, Components
@@ -14,7 +14,7 @@ class PointComponent(Component):
     """Shape参照と頂点/CV番号を保持し、現在のXYZ座標を照会・編集する。
 
     座標をキャッシュせず、取得ごとにMayaへ問い合わせる。XYZの距離単位はcmで、
-    既定はShapeのobject空間。world空間では保持ShapeのDAGパスを使う。
+    既定はShapeのオブジェクト空間。ワールド空間では保持ShapeのDAGパスを使う。
     CVはAPIの制御点位置を扱い、カーブ上のパラメータ位置を取得する処理ではない。
     """
 
@@ -24,25 +24,20 @@ class PointComponent(Component):
         Shapeと番号を検証してOpenMayaへ問い合わせる。UIの距離単位には換算しない。
 
         Args:
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             tuple[float, float, float]: 新しいXYZ値。シーン内座標への書換え可能な参照ではない。
 
         Raises:
-            ValueError: worldSpaceがbool以外の場合。
+            TypeError: worldSpaceがbool以外の場合。
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
         ws = _world_space(worldSpace)
-        self._validate()
+        self._require_valid()
         return geometry_edit.positions(self.shape, [self.index], ws)[0]
 
     def setPosition(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
@@ -52,17 +47,17 @@ class PointComponent(Component):
         Shape/対象点のロック・入力接続を事前検査する。CVのwは保持する。
 
         Args:
-            value (Iterable[float]): 有限なXYZ（cm）。
-            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に記録する。Undo設定は変更しない。
+            value (Iterable[float]): 有限なXYZ(cm)。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponent: 自身。共有Shapeの編集は全インスタンスへ影響する。
 
         Raises:
-            ValueError: 座標・空間が不正、または必要なworld逆変換が特異な場合。
             TypeError: fastがbool以外、または長短名を同時指定した場合。
+            ValueError: 座標・空間が不正、または必要なworld逆変換が特異な場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: 対象が無効・書込み不可、またはMayaが更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
@@ -71,19 +66,13 @@ class PointComponent(Component):
             通常Meshのworld更新はcmdsへ委ね、独自の特異マトリクス判定は行わない。
             書込み中の失敗で完了済みの変更は自動で戻さない。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibComponentPosition"):
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibPointComponentSetPosition"):
             ws = _world_space(worldSpace)
             value = self._finite_coordinates(value, 3)
-            self._validate()
-            geometry_edit.setPositions(self.shape, [self.index], [value], ws, fast=fast)
+            self._require_valid()
+            geometry_edit.set_positions(self.shape, [self.index], [value], ws, fast=fast)
             return self
 
     def getPositionX(self, worldSpace=_UNSET, *, ws=_UNSET):
@@ -96,14 +85,7 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(0, ws=ws)
+        return _axis_position(self, 0, worldSpace, ws)
 
     def setPositionX(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """X成分だけを設定し、他の成分を維持する。
@@ -111,28 +93,19 @@ class PointComponent(Component):
         Args:
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponent: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(0, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 0, value, worldSpace, ws, fast)
 
     def getPositionY(self, worldSpace=_UNSET, *, ws=_UNSET):
         """Y成分の現在値を取得する。
@@ -144,14 +117,7 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(1, ws=ws)
+        return _axis_position(self, 1, worldSpace, ws)
 
     def setPositionY(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """Y成分だけを設定し、他の成分を維持する。
@@ -159,28 +125,19 @@ class PointComponent(Component):
         Args:
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponent: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(1, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 1, value, worldSpace, ws, fast)
 
     def getPositionZ(self, worldSpace=_UNSET, *, ws=_UNSET):
         """Z成分の現在値を取得する。
@@ -192,14 +149,7 @@ class PointComponent(Component):
         Returns:
             float: 座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(2, ws=ws)
+        return _axis_position(self, 2, worldSpace, ws)
 
     def setPositionZ(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """Z成分だけを設定し、他の成分を維持する。
@@ -207,28 +157,19 @@ class PointComponent(Component):
         Args:
             value (float): 有限な座標。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponent: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(2, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 2, value, worldSpace, ws, fast)
 
 
 class PointComponents(Components):
@@ -245,9 +186,9 @@ class PointComponents(Components):
         fastは対応条件の検査後に点配列を一括設定する。全件の書込み成功や自動復元は保証しない。
 
         Args:
-            values (Iterable[Iterable[float]]): 保持番号と同じ件数のXYZ行（cm）。
-            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。Undo設定は変更しない。
+            values (Iterable[Iterable[float]]): 保持番号と同じ件数のXYZ行(cm)。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
@@ -255,27 +196,21 @@ class PointComponents(Components):
                 CVのwは保持し、共有Shapeの編集は全インスタンスへ影響する。
 
         Raises:
-            ValueError: 件数・座標・空間が不正、または必要なworld逆変換が特異な場合。
             TypeError: fastがbool以外、または長短名を同時指定した場合。
+            ValueError: 件数・座標・空間が不正、または必要なworld逆変換が特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: 対象が無効・書込み不可、またはMayaが更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibComponentsSetPositions"):
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibPointComponentsSetPositions"):
             ws = _world_space(worldSpace)
             rows = self._coordinate_rows(values, 3)
             if not self._indices:
                 return self
-            self._validate()
-            geometry_edit.setPositions(self._shape, self._indices, rows, ws, fast=fast)
+            self._require_valid()
+            geometry_edit.set_positions(self._shape, self._indices, rows, ws, fast=fast)
             return self
 
     def getPositionX(self, worldSpace=_UNSET, *, ws=_UNSET):
@@ -288,14 +223,7 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(0, ws=ws)
+        return _axis_position(self, 0, worldSpace, ws)
 
     def setPositionX(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """X成分だけを設定し、他の成分を維持する。
@@ -303,28 +231,19 @@ class PointComponents(Components):
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(0, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 0, value, worldSpace, ws, fast)
 
     def getPositionY(self, worldSpace=_UNSET, *, ws=_UNSET):
         """Y成分の現在値を取得する。
@@ -336,14 +255,7 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(1, ws=ws)
+        return _axis_position(self, 1, worldSpace, ws)
 
     def setPositionY(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """Y成分だけを設定し、他の成分を維持する。
@@ -351,28 +263,19 @@ class PointComponents(Components):
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(1, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 1, value, worldSpace, ws, fast)
 
     def getPositionZ(self, worldSpace=_UNSET, *, ws=_UNSET):
         """Z成分の現在値を取得する。
@@ -384,14 +287,7 @@ class PointComponents(Components):
         Returns:
             list[float]: 保持順の座標値。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        return self._get_coordinate(2, ws=ws)
+        return _axis_position(self, 2, worldSpace, ws)
 
     def setPositionZ(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """Z成分だけを設定し、他の成分を維持する。
@@ -399,28 +295,19 @@ class PointComponents(Components):
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標・空間指定または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        ws = _world_space(worldSpace)
-        return self._set_coordinate(2, value, ws=ws, fast=fast)
+        return _set_axis_position(self, 2, value, worldSpace, ws, fast)
 
     def getPosition(self, worldSpace=_UNSET, *, ws=_UNSET):
         """保持番号の順に、頂点/CVの現在のXYZ座標をcmで取得する。
@@ -428,7 +315,7 @@ class PointComponents(Components):
         UIの距離単位には換算せず、座標の取得に伴うMayaの評価が発生し得る。
 
         Args:
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
@@ -436,20 +323,15 @@ class PointComponents(Components):
                 空集合はShapeを再照会せず空リストを返す。
 
         Raises:
-            ValueError: worldSpaceがbool以外の場合。空集合でも検証する。
+            TypeError: worldSpaceがbool以外の場合。空集合でも検証する。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
         ws = _world_space(worldSpace)
         if not self._indices:
             return []
-        self._validate()
+        self._require_valid()
         return geometry_edit.positions(self._shape, self._indices, ws)
 
     def setPosition(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
@@ -459,28 +341,22 @@ class PointComponents(Components):
 
         Args:
             value (Iterable[float]): 全要素に共通の有限なXYZ。cm単位。
-            worldSpace (bool): Trueは保持DAGパスのworld空間、FalseはShapeのobject空間。短縮名ws。
-            fast (bool): TrueはUndoなしの直接更新。setPositionsと同じ制限に従う。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。setPositionsと同じ制限に従う。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 自身。要素別に異なる座標を指定する場合はsetPositionsを使う。
 
         Raises:
-            ValueError: XYZ・空間指定が不正、または必要なworld逆変換が特異な場合。空集合でも入力値を検証する。
             TypeError: fastがbool以外の場合。
+            ValueError: XYZ・空間指定が不正、または必要なworld逆変換が特異な場合。空集合でも入力値を検証する。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: 対象が無効・書込み不可、またはMayaが更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+        _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         point = Component._finite_coordinates(value, 3)
         return self.setPositions([point] * len(self), ws=ws, fast=fast)
@@ -493,17 +369,17 @@ class PointComponents(Components):
 
         Args:
             axis (str): 重複しないx/y/zの組合せ。大文字も可。
-            worldSpace (bool): Trueは保持DAGパスのworld、既定FalseはShapeのobject空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             PointComponents: 自身。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             TypeError: fastがbool以外、または長短名を同時指定した場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが取得・更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
@@ -511,15 +387,9 @@ class PointComponents(Components):
         Note:
             更新制限はsetPositionsと同じ。途中失敗で完了済みの変更は自動で戻さない。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibComponentsMirror"):
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibPointComponentsMirror"):
             ws = _world_space(worldSpace)
             if not isinstance(axis, str) or not axis or any(a not in "xyz" for a in axis.lower()):
                 raise ValueError("axis must contain x, y, or z")
@@ -553,3 +423,41 @@ class PointComponents(Components):
                 rows.append(row)
             self.setPositions(rows, ws=ws, fast=fast)
             return self
+
+
+def _axis_position(target, axis, worldSpace, ws):
+    """getPositionX/Y/Zの共通本体。空間指定を検証して1成分を取得する。
+
+    Args:
+        target (PointComponent | PointComponents): 照会する対象。
+        axis (int): 成分番号(0=X、1=Y、2=Z)。
+        worldSpace (bool): 空間指定の長名側の値。未指定は ``_UNSET``。
+        ws (bool): 空間指定の短名側の値。未指定は ``_UNSET``。
+
+    Returns:
+        float | list[float]: 対象の ``_get_coordinate`` の戻り値。
+    """
+    worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+    return target._get_coordinate(axis, ws=_world_space(worldSpace))
+
+
+def _set_axis_position(target, axis, value, worldSpace, ws, fast):
+    """setPositionX/Y/Zの共通本体。空間指定とfastを検証して1成分を設定する。
+
+    Args:
+        target (PointComponent | PointComponents): 更新する対象。
+        axis (int): 成分番号(0=X、1=Y、2=Z)。
+        value (float | Iterable[float]): 設定する座標。
+        worldSpace (bool): 空間指定の長名側の値。未指定は ``_UNSET``。
+        ws (bool): 空間指定の短名側の値。未指定は ``_UNSET``。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+    Returns:
+        PointComponent | PointComponents: 対象の ``_set_coordinate`` の戻り値(自身)。
+
+    Raises:
+        TypeError: fastまたは空間指定がbool以外、または長短名を同時指定した場合。
+    """
+    worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", False)
+    _require_bool(fast, "fast")
+    return target._set_coordinate(axis, value, ws=_world_space(worldSpace), fast=fast)

@@ -1,8 +1,6 @@
 """Mayaのfileノードを扱う。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _edit_context
 from .texture2d import Texture2d
 
 
@@ -31,11 +29,10 @@ class File(Texture2d):
             TypeError: fastがbool以外、またはpathがstr以外の場合。
             RuntimeError: ロックや入力接続により設定できない場合。
 
-        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
+        Note:
+            ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibFileSetPath"):
+        with _edit_context("mlibFileSetFilePath", fast):
             if not isinstance(path, str):
                 raise TypeError("path must be a string")
             self.getPlug("fileTextureName").set(path, fast=fast)
@@ -66,11 +63,10 @@ class File(Texture2d):
             TypeError: fastがbool以外、またはnameがstr以外の場合。
             RuntimeError: ロックや入力接続により設定できない場合。
 
-        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
+        Note:
+            ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibFileSetColorSpace"):
+        with _edit_context("mlibFileSetColorSpace", fast):
             if not isinstance(name, str):
                 raise TypeError("name must be a string")
             self.getPlug("colorSpace").set(name, fast=fast)

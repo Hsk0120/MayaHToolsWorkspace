@@ -91,9 +91,9 @@ class ComponentRefactoringTest(unittest.TestCase):
                 events.append(("create", index))
                 super().__init__(shape, index)
 
-            def _validate(self):
+            def _require_valid(self):
                 events.append(("validate", self.index))
-                return super()._validate()
+                return super()._require_valid()
 
         class CustomVertices(Vertices):
             component_class = CustomVertex
@@ -119,14 +119,14 @@ class ComponentRefactoringTest(unittest.TestCase):
                 setter = getattr(item, "setPosition" + axis)
                 with self.subTest(collection=item is collection, axis=axis):
                     with patch.object(item, "getPosition", return_value=positions) as read:
-                        with self.assertRaises(ValueError):
+                        with self.assertRaises(TypeError):
                             getter(worldSpace=1)
                         read.assert_not_called()
                         getter(ws=True)
                         read.assert_called_once_with(ws=True)
                     with patch.object(item, "getPosition", return_value=positions) as read:
                         with patch.object(item, setter_name, return_value=item) as write:
-                            with self.assertRaises(ValueError):
+                            with self.assertRaises(TypeError):
                                 setter(9.0, worldSpace="world", fast=True)
                             read.assert_not_called()
                             write.assert_not_called()
@@ -285,7 +285,7 @@ class ComponentRefactoringTest(unittest.TestCase):
                 self.assertEqual(items.getVertices().indices, expected)
             self.assertTrue(events)
             events.clear()
-            with patch.object(Vertex, "_validate", side_effect=LookupError("custom validation")):
+            with patch.object(Vertex, "_require_valid", side_effect=LookupError("custom validation")):
                 with self.assertRaisesRegex(LookupError, "custom validation"):
                     items.getVertices()
 

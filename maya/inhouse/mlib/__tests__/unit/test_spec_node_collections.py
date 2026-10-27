@@ -185,8 +185,8 @@ class BulkFailureTest(_SpecCase):
         self.assertEqual(cmds.getAttr(self.names[0] + ".tx"), 0.0)
 
     def test_value_error_is_wrapped_in_runtime_error(self):
-        """単数では ValueError になる失敗も、一括では番号付きの RuntimeError になる。"""
-        with self.assertRaises(ValueError):
+        """単数では TypeError になる失敗(ws の型違い)も、一括では番号付きの RuntimeError になる。"""
+        with self.assertRaises(TypeError):
             self.nodes[0].getTranslate(ws=1)
         with self.assertRaisesRegex(RuntimeError, r"Transforms\.getTranslate failed at item 0"):
             self.nodes.getTranslate(ws=1)
@@ -212,7 +212,7 @@ class BulkFailureTest(_SpecCase):
             self.nodes.delete()
         self.assertTrue(cmds.objExists(self.names[0]))
         self.assertTrue(cmds.objExists(self.names[2]))
-        with self.assertRaisesRegex(TypeError, "safe must be bool"):
+        with self.assertRaisesRegex(TypeError, "safe must be a bool"):
             Transforms(self.names[:1]).delete(safe=1)
 
 

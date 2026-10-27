@@ -69,7 +69,12 @@ def createReference(path, namespace=None):
     Raises:
         ValueError: pathが空またはstr/Path以外の場合。
         RuntimeError: Mayaが作成を拒否した、または新規トップレベル参照が1件に定まらない場合。
+
+    Note:
+        fast引数は持たない。参照の読込み(ファイルの読込み・参照ノードと名前空間の作成)は
+        ``cmds.file(reference=True)`` だけが行え、OpenMayaに同等のUndoなし経路が無いため。
     """
+    # commonの初期化時にnodesを読み込まないよう、使用時にReferenceを読み込む。
     from ..nodes.reference import Reference
 
     if not isinstance(path, (str, Path)) or not str(path):

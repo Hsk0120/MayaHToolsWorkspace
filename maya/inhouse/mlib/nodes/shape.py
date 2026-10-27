@@ -3,14 +3,13 @@
 import math
 import numbers
 import operator
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
-from ..core import geometryEdit
-from ..decorator import undoChunk
+from ..core import geometryEdit as geometry_edit
+from ..decorator import _edit_context, _pick_alias
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
@@ -28,11 +27,11 @@ class Shape(DagNode):
 
         Args:
             scale (float | Iterable[float]): 有限な一様倍率、またはXYZ倍率。負数・0も可。
-            worldSpace (bool): 既定FalseはShapeのobject空間。Trueはworld空間。
+            worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
             pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
                 Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。
-            fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新（Undoなし）。
+            fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新(Undoなし)。
                 FalseはMaya標準コマンドをUndo有効時にまとめる。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
@@ -40,21 +39,14 @@ class Shape(DagNode):
             Shape: 自身。
 
         Raises:
-            ValueError: 倍率・中心・空間が不正、またはworld変換がほぼ特異な場合。
-            IndexError: 対象番号が範囲外の場合。
             TypeError: fast・番号の型、または長短名の指定が不正な場合。
-            NotImplementedError: 未対応Shape、またはfastでサーフェス・周期カーブ・入力履歴付き形状の場合。
+            ValueError: 倍率・中心・空間が不正、world変換がほぼ特異、またはメッシュ・NURBS以外のShapeの場合。
+            IndexError: 対象番号が範囲外の場合。
             RuntimeError: Mayaが編集を拒否した場合。
+            NotImplementedError: fastでサーフェス・周期カーブ・入力履歴付き形状の場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibShapeScaleGeometry"):
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        with _edit_context("mlibShapeScaleGeometry", fast):
             ws = _world_space(worldSpace)
             try:
                 factors = (float(scale),) * 3 if isinstance(scale, numbers.Real) else tuple(float(v) for v in scale)
@@ -76,9 +68,9 @@ class Shape(DagNode):
                 counts = (fn.numCVsInU, fn.numCVsInV)
                 token = "cv"
             else:
-                raise NotImplementedError("scaleGeometry supports meshes and NURBS shapes")
+                raise ValueError("scaleGeometry supports meshes and NURBS shapes")
             if fast and len(counts) == 2:
-                raise NotImplementedError("fast scaling of NURBS surfaces is not supported")
+                raise NotImplementedError("fast scaleGeometry does not support NURBS surfaces")
             selected = []
             if indices is None:
                 components = []
@@ -106,7 +98,7 @@ class Shape(DagNode):
                     if any(v < 0 or v >= count for v, count in zip(row, counts)):
                         raise IndexError("Component index out of range")
                     if path.node().hasFn(om2.MFn.kNurbsCurve):
-                        row = (geometryEdit.command_indices(self, row)[0],)
+                        row = (geometry_edit.command_indices(self, row)[0],)
                     elif path.node().hasFn(om2.MFn.kNurbsSurface):
                         fn = om2.MFnNurbsSurface(path)
                         row = tuple(
@@ -131,12 +123,12 @@ class Shape(DagNode):
                     raise ValueError("Cannot scale in world space with a near-singular transform")
             if len(counts) == 1:
                 # 全座標を先にAPIで読む。周期CVも独立番号にまとめ、二重に拡縮しない。
-                positions = geometryEdit.positions(self, selected, ws)
+                positions = geometry_edit.positions(self, selected, ws)
                 values = [tuple(center[i] + (point[i] - center[i]) * factors[i] for i in range(3))
                           for point in positions]
                 if not all(math.isfinite(v) for row in values for v in row):
                     raise ValueError("Scaled positions must be finite")
-                geometryEdit.setPositions(self, selected, values, ws, fast=fast)
+                geometry_edit.set_positions(self, selected, values, ws, fast=fast)
                 return self
             center = tuple(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in center)
             # scaleコマンドのpivot解釈に依存せず、同じ空間で読んだ座標を変換する。
@@ -156,7 +148,7 @@ class Shape(DagNode):
             return self
 
     def getTransform(self):
-        """このShapeの親Transformを返す。
+        """このShapeの親Transformを取得する。
 
         Returns:
             Transform | None: 親Transform。存在しない場合は ``None``。

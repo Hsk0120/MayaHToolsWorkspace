@@ -2,15 +2,15 @@
 
 import inspect
 import math
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.fastWrite import set_attr
-from ..decorator import undoChunk
+from ..decorator import _edit_context, _pick_alias, _require_bool
 from ..maths import EulerRotate, Matrix, Scale
-from ..util import _ArgumentError, _UNSET
+from ..util import _UNSET
+from .node import Node
 from .transform import Transform, Transforms, _closest_euler
 
 
@@ -39,20 +39,17 @@ class Joint(Transform):
 
         Args:
             state (bool): Trueで補正を有効、Falseで無効にする。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: stateまたはfastがboolでない場合。
+            TypeError: stateまたはfastがbool以外の場合。
             RuntimeError: ロックや入力接続などで編集できない場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointSetSegmentScaleCompensate"):
-            if not isinstance(state, bool):
-                raise TypeError("state must be a bool")
+        with _edit_context("mlibJointSetSegmentScaleCompensate", fast):
+            _require_bool(state, "state")
             self.getPlug("segmentScaleCompensate").set(state, fast=fast)
             return self
 
@@ -76,7 +73,7 @@ class Joint(Transform):
         現在フレームだけを処理する。jointOrientがXYZとも0なら書込み検査と更新を省略する。
 
         Args:
-            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。
@@ -88,11 +85,8 @@ class Joint(Transform):
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointsJointOrientToRotate"):
-            if not self.isValid():
-                raise RuntimeError("Cannot change orientation of an invalid joint")
+        with _edit_context("mlibJointJointOrientToRotate", fast):
+            self._require_valid("change orientation of")
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(), fast=fast)
             return self
 
@@ -104,7 +98,7 @@ class Joint(Transform):
         rotateがXYZとも0なら書込み検査と更新を省略する。
 
         Args:
-            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。
@@ -116,11 +110,8 @@ class Joint(Transform):
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointsFreezeRotation"):
-            if not self.isValid():
-                raise RuntimeError("Cannot freeze rotation of an invalid joint")
+        with _edit_context("mlibJointFreezeRotate", fast):
+            self._require_valid("freeze rotation of")
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True, fast=fast)
             return self
 
@@ -135,7 +126,7 @@ class Joint(Transform):
                 親がなければ変更しない。
             force (bool): 既定False。Trueは既存入力を置換し、接続先側のロックを一時解除する。
                 ロック復元の規則は :meth:`~mlib.plugs.plug.Plug.connect` と同じ。
-            fast (bool): 既定Falseはcmds。TrueはUndoなしのOpenMaya直接接続。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (object | None): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -150,27 +141,12 @@ class Joint(Transform):
         Note:
             Jointsでもsource=Noneなら各要素の親を使う。通常処理はUndo有効時に1回で戻せる。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            source = None
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointConnectInverseScale"):
-            from .node import Node as _InputNode
-            if not isinstance(force, bool):
-                raise TypeError("force must be a bool")
-            if not self.isValid():
-                raise RuntimeError("Cannot connect inverseScale on an invalid joint")
-            source = self.getParent() if source is None else _InputNode._resolve_input(source)
+        source = _pick_alias(source, src, "source", "src", default=None)
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _edit_context("mlibJointConnectInverseScale", fast):
+            _require_bool(force, "force")
+            self._require_valid("connect inverseScale on")
+            source = self.getParent() if source is None else Node._resolve_input(source)
             if source is None:
                 return self
             if not isinstance(source, Transform):
@@ -190,7 +166,7 @@ class Joint(Transform):
         切断後の値はMayaの動作に従う。
 
         Args:
-            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接切断。Undo設定は変えない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。Jointsからも一括実行できる。
@@ -202,9 +178,7 @@ class Joint(Transform):
         Note:
             通常処理はUndo有効時に一つのチャンクへ記録する。先行した切断は自動で戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointDisconnectInverseScale"):
+        with _edit_context("mlibJointDisconnectInverseScale", fast):
             for name in ("inverseScale", "inverseScaleX", "inverseScaleY", "inverseScaleZ"):
                 target = self.getPlug(name)
                 origin = target.getSource(skipConversionNodes=False)
@@ -225,19 +199,17 @@ class Joint(Transform):
 
         Args:
             value (float): 0以上の有限値。最終表示はMaya全体の表示倍率にも依存する。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。Jointsでは各要素に同じ値を設定する。
 
         Raises:
+            TypeError: valueが数値でない、またはfastがbool以外の場合。
             ValueError: valueが負数・非有限値の場合。
-            TypeError: valueが数値でない、またはfastがboolでない場合。
             RuntimeError: Mayaが編集を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointSetRadius"):
+        with _edit_context("mlibJointSetRadius", fast):
             import numbers
             if isinstance(value, bool) or not isinstance(value, numbers.Real):
                 raise TypeError("radius must be a number")
@@ -331,7 +303,7 @@ class Joint(Transform):
             transferToParent (bool): Trueは最も近い祖先influenceへ加算する。
                 False、または移送先がなければ標準の再配分に任せる。
             force (bool): 不正ウェイトを修復してから解除する。修復時に正規化・ロック解除・レイヤー回避は行わない。
-            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
@@ -344,29 +316,19 @@ class Joint(Transform):
             NotImplementedError: fastで、いずれかのskinClusterが単数
                 :meth:`SkinCluster.removeInfluence` のfastの未対応条件に当たる場合。どのskinも変更しない。
         """
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointRemoveInfluence"):
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _edit_context("mlibJointRemoveInfluence", fast):
             from .skinCluster import SkinCluster
-            if not self.isValid():
-                raise RuntimeError("Cannot remove an invalid joint influence")
-            if not isinstance(transferToParent, bool):
-                raise TypeError("transferToParent must be a bool")
-            if type(force) is not bool:
-                raise TypeError("force must be a bool")
+            self._require_valid("remove")
+            _require_bool(transferToParent, "transferToParent")
+            _require_bool(force, "force")
             skins = self.getSkinClusters() if skinCluster is None else [skinCluster if isinstance(skinCluster, SkinCluster) else SkinCluster(skinCluster)]
             for skin in skins:
                 source, target = skin._influence_removal_target(self, transfer_to_parent=transferToParent, force=force)
                 if fast:
                     # fastの未対応(再配分を再現できない等)を、どのskinも変更する前に検出する。
-                    from ..core.skinEdit import validate_removal
-                    validate_removal(skin, source, target, force=force)
+                    from ..core.skinEdit import validate_removals
+                    validate_removals(skin, [(source, target)], force=force)
             for skin in skins:
                 skin.removeInfluence(self, transferToParent=transferToParent, force=force, fast=fast)
             return self
@@ -391,33 +353,40 @@ class Joint(Transform):
         """子 joint を指定した親 joint へ付け替える。
 
         Args:
-            parentJoint (str): 直接の子 joint を付け替える親ノード名。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            parentJoint (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                直接の子 joint を付け替える親ノード。``Node._input_name`` と同じ規則で解決する
+                (Plug・MPlug は所有ノード)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            None: 値を返さない。
+            Joint: 自身。
+
+        Raises:
+            TypeError: fastがbool以外、またはparentJointが対応しない型の場合。
+            ValueError: parentJointが空文字列・無効な対象の場合。
+            RuntimeError: parentJointを解決できない、またはMayaが親変更を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlib.nodes.joint.reparentChildren"):
+        with _edit_context("mlibJointReparentChildren", fast):
+            parent_name = Node._input_name(parentJoint)
             if fast:
+                # core.jointEdit は nodes を参照するため、循環importを避けて呼出し時に取得する。
                 from ..core.jointEdit import reparent, reparent_plan
-                from .node import Node
-                parent = Node(parentJoint)
+                parent = Node(parent_name)
                 plans = [reparent_plan(Joint(name), parent) for name in self.getChildJointNames()]
                 for plan in plans:
                     reparent(plan)
             else:
                 for child_joint in self.getChildJointNames():
-                    cmds.parent(child_joint, parentJoint)
+                    cmds.parent(child_joint, parent_name)
+            return self
 
     def getChainFromHere(self, to=None):
         """自身を起点とする joint チェーンを順に取得する。
 
         Args:
             to (Joint | str | None): チェーンの終端 joint。指定した場合は自身から
-                その joint までの経路を辿る（子孫でなければならない）。省略時は、
-                子 joint がちょうど1つの間だけ辿り、分岐（子が0または2つ以上）に
+                その joint までの経路を辿る(子孫でなければならない)。省略時は、
+                子 joint がちょうど1つの間だけ辿り、分岐(子が0または2つ以上)に
                 達したところで止める。
 
         Returns:
@@ -425,11 +394,10 @@ class Joint(Transform):
                 自身を含む。
 
         Raises:
-            RuntimeError: 自身が無効な場合。
             ValueError: to が自身の子孫でない場合。
+            RuntimeError: 自身が無効な場合。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot build a chain from an invalid joint")
+        self._require_valid("build a chain from")
         if to is None:
             chain = [self]
             current = self
@@ -504,8 +472,7 @@ class Joint(Transform):
         Raises:
             RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot change orientation of an invalid joint")
+        self._require_valid("change orientation of")
         orient = self._compound_values("jointOrient", angle=True)
         rotate = self._compound_values("rotate", angle=True)
         if not any(rotate if to_orient else orient):
@@ -517,7 +484,7 @@ class Joint(Transform):
                 try:
                     self.getPlug(attribute + suffix)._require_writable()
                 except RuntimeError as exc:
-                    raise RuntimeError("Attribute must be unlocked and have no input connection: " + plug) from exc
+                    raise RuntimeError(f"Attribute must be unlocked and have no input connection: {plug}") from exc
         rotation = om2.MEulerRotation(
             *(math.radians(v) for v in rotate),
             self._joint_rotate_order())
@@ -535,6 +502,9 @@ class Joint(Transform):
             values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
             to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
             fast (bool): TrueならOpenMayaで直接更新する。
+
+        Returns:
+            None: 値を返さない。
         """
         if values is None:
             return
@@ -652,29 +622,10 @@ class Joint(Transform):
         """
         if not self.isValid():
             return (0.0, 0.0, 0.0)
-        plug = om2.MFnDependencyNode(self._mobject).findPlug(attribute, False)
+        plug = self._dependency_fn().findPlug(attribute, False)
         if angle:
             return tuple(plug.child(index).asMAngle().asDegrees() for index in range(3))
         return tuple(plug.child(index).asDouble() for index in range(3))
-
-    @staticmethod
-    def _unique_ordered(items):
-        """順序を保ったまま重複要素を除外する。
-
-        Args:
-            items (Iterable[Hashable]): 重複を除去するハッシュ可能な要素。
-
-        Returns:
-            list: 最初の出現順を維持した要素リスト。
-        """
-        seen = set()
-        unique_items = []
-        for item in items:
-            if item in seen:
-                continue
-            seen.add(item)
-            unique_items.append(item)
-        return unique_items
 
 
 class Joints(Transforms):
@@ -693,7 +644,7 @@ class Joints(Transforms):
         "getDepth": (Joint.getDepth, "list"),
         "getSkinClusters": (Joint.getSkinClusters, "list"),
         "getTransferTarget": (Joint.getTransferTarget, "list"),
-        "reparentChildren": (Joint.reparentChildren, "list"),
+        "reparentChildren": (Joint.reparentChildren, "self"),
         "getChainFromHere": (Joint.getChainFromHere, "list"),
         "getIkHandles": (Joint.getIkHandles, "list"),
         "setSegmentScaleCompensate": (Joint.setSegmentScaleCompensate, "self"),
@@ -702,16 +653,7 @@ class Joints(Transforms):
         "connectInverseScale": (Joint.connectInverseScale, "self"),
         "disconnectInverseScale": (Joint.disconnectInverseScale, "self"),
         "setRadius": (Joint.setRadius, "self"),
-        "delete": (Joint.delete, "self"),
         "removeInfluence": (Joint.removeInfluence, "self"),
-    }
-    _bulk_methods = {
-        **Transforms._bulk_methods,
-        **{name: entry[0] for name, entry in _bulk_entries.items()},
-    }
-    _bulk_returns = {
-        **Transforms._bulk_returns,
-        **{name: entry[1] for name, entry in _bulk_entries.items()},
     }
     _bulk_per_item_only = frozenset()
 
@@ -856,14 +798,14 @@ class Joints(Transforms):
     getTransferTarget.__signature__ = inspect.signature(Joint.getTransferTarget)
 
     def reparentChildren(self, *args, **kwargs):
-        """各要素のreparentChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
+        """各要素のreparentChildrenを同じ引数で呼び、コレクション自身を返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
             **kwargs: 単数メソッドに渡すキーワード引数。
 
         Returns:
-            list: 保持順の戻り値リスト。
+            Joints | list: コレクション自身。
         """
         return self._dispatch_shared("reparentChildren", args, kwargs)
 
@@ -954,7 +896,7 @@ class Joints(Transforms):
         jointOrientがXYZとも0の対象は書込み検査と更新を省略し、空コレクションは変更しない。
 
         Args:
-            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joints: 自身。
@@ -966,9 +908,7 @@ class Joints(Transforms):
         Note:
             通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointsJointOrientToRotate"):
+        with _edit_context("mlibJointsJointOrientToRotate", fast):
             return self._transfer_rotate(fast=fast)
 
     def freezeRotate(self, *, fast=False):
@@ -979,7 +919,7 @@ class Joints(Transforms):
         ウェイト・bindPreMatrix・バインドポーズは変えず、移動/スケールのフリーズやベイクは行わない。
 
         Args:
-            fast (bool): 既定Falseはcmds、TrueはUndoなしのOM2直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joints: 自身。
@@ -991,9 +931,7 @@ class Joints(Transforms):
         Note:
             通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibJointsFreezeRotation"):
+        with _edit_context("mlibJointsFreezeRotate", fast):
             return self._transfer_rotate(to_orient=True, fast=fast)
 
     def getSkinClusters(self):

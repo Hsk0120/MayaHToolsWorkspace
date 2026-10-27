@@ -1,11 +1,11 @@
 """Maya の objectSet(セット)を扱う。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
+from ..core.nodeEdit import require_editable
+from ..core.object import Object
+from ..decorator import _edit_context
 from .node import Node
 
 
@@ -47,15 +47,12 @@ class ObjectSet(Node):
         Raises:
             RuntimeError: fastでセットがロックまたは参照されている場合、またはMayaが追加を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibObjectSetAdd"):
-            from ..core.object import Object as _InputObject
+        with _edit_context("mlibObjectSetAddMembers", fast):
             if members:
                 if fast:
                     self._editable_set().addMembers(self._member_selection(members))
                 else:
-                    cmds.sets(_InputObject._input_names(members), add=self.getName())
+                    cmds.sets(Object._input_names(members), add=self.getName())
             return self
 
     def removeMembers(self, *members, fast=False):
@@ -65,7 +62,7 @@ class ObjectSet(Node):
 
         Args:
             *members (Node | str): 除外するノードやコンポーネント表記などの入力。
-            fast (bool): TrueはUndo設定を変えないMFnSet更新（Undoなし）。
+            fast (bool): TrueはUndo設定を変えないMFnSet更新(Undoなし)。
                 Falseはcmds.setsによる通常更新をUndo有効時にまとめる。
 
         Returns:
@@ -75,15 +72,12 @@ class ObjectSet(Node):
             TypeError: fastがbool以外の場合。
             RuntimeError: fastでセットがロック/参照されている、またはMayaが除外を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibObjectSetRemove"):
-            from ..core.object import Object as _InputObject
+        with _edit_context("mlibObjectSetRemoveMembers", fast):
             if members:
                 if fast:
                     self._editable_set().removeMembers(self._member_selection(members))
                 else:
-                    cmds.sets(_InputObject._input_names(members), remove=self.getName())
+                    cmds.sets(Object._input_names(members), remove=self.getName())
             return self
 
     def isMember(self, member):
@@ -101,9 +95,8 @@ class ObjectSet(Node):
         Returns:
             bool: 解決した全要素が含まれる場合はTrue。一部でも未登録ならFalse。
         """
-        from ..core.object import Object as _InputObject
         query = om2.MSelectionList()
-        query.add(_InputObject._input_name(member))
+        query.add(Object._input_name(member))
         members = om2.MFnSet(self.mnode()).getMembers(False)
         for index in range(query.length()):
             # getComponent は DG ノードやアトリビュートの要素で RuntimeError ではなく TypeError を出し、
@@ -146,7 +139,5 @@ class ObjectSet(Node):
         Raises:
             RuntimeError: セットがロックまたは参照されている場合。
         """
-        fn = om2.MFnSet(self.mnode())
-        if fn.isLocked or fn.isFromReferencedFile:
-            raise RuntimeError("Cannot edit a locked or referenced set")
-        return fn
+        require_editable(self.mnode())
+        return om2.MFnSet(self.mnode())

@@ -41,20 +41,24 @@ def _build(flags, children=None):
 
     Returns:
         MObject: 新しいアトリビュート定義。
+
+    Raises:
+        ValueError: longName・shortNameのどちらも無い場合。
+        NotImplementedError: fastで扱えないフラグ・型の場合。
     """
     unsupported = set(flags) - _DEFINITION_FLAGS
     if unsupported:
-        raise NotImplementedError("Unsupported fast addAttr flags: " + ", ".join(sorted(unsupported)))
+        raise NotImplementedError(f"fast addAttr does not support flags: {', '.join(sorted(unsupported))}")
     name = flags.get("longName") or flags.get("shortName")
     short = flags.get("shortName") or name
     if not isinstance(name, str) or not name:
-        raise ValueError("Specify longName or shortName")
+        raise ValueError("Expected longName or shortName")
     kind = flags.get("attributeType", "double")
     default = flags.get("defaultValue", 0)
     if flags.get("dataType"):
         kind = flags["dataType"]
         if kind not in _DATA_TYPES:
-            raise NotImplementedError("Unsupported fast dataType: " + str(kind))
+            raise NotImplementedError(f"fast addAttr does not support dataType: {kind}")
         fn = om2.MFnTypedAttribute()
         obj = fn.create(name, short, _DATA_TYPES[kind])
     elif kind in _NUMERIC_TYPES:
@@ -94,7 +98,7 @@ def _build(flags, children=None):
         for child in children or []:
             fn.addChild(child)
     else:
-        raise NotImplementedError("Unsupported fast attributeType: " + str(kind))
+        raise NotImplementedError(f"fast addAttr does not support attributeType: {kind}")
     base = om2.MFnAttribute(obj)
     for flag, property_name in _PROPERTIES.items():
         if flag in flags:
@@ -124,18 +128,24 @@ def _attach(node, attribute):
     Args:
         node (Node): 追加先。
         attribute (MObject): シーン未登録のアトリビュート定義。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        RuntimeError: ノードがロック・参照されている、または同名のアトリビュートがある場合。
     """
     require_editable(node.mnode())
     fn = om2.MFnDependencyNode(node.mnode())
     name = om2.MFnAttribute(attribute).name
     if fn.hasAttribute(name):
-        raise RuntimeError("Attribute already exists: " + name)
+        raise RuntimeError(f"Attribute already exists: {name}")
     modifier = om2.MDGModifier()
     modifier.addAttribute(node.mnode(), attribute)
     modifier.doIt()
 
 
-def extra_children(name, flags, numeric, count, deferred, child_names,
+def extra_children(name, flags, numeric, count, *, deferred, child_names,
                    child_short_names, child_suffixes, sub_type):
     """自動生成する子の名前・成分数を、親追加より前に検証する。
 
@@ -152,6 +162,9 @@ def extra_children(name, flags, numeric, count, deferred, child_names,
 
     Returns:
         list[tuple[str, str, dict]]: 長名・型・公開addAttrへ渡すフラグ。
+
+    Raises:
+        ValueError: 子の名前・既定値・範囲の個数が子数と異なる場合。
     """
     if not count:
         return []
@@ -190,6 +203,14 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
         children (list[tuple[str, str, dict]]): 検証済みの子の作成入力。
         validate_defaults (bool): 通常経路の既定値も登録前に検証するか。
             fast経路では未登録の親子定義の構築時に検証するためFalse。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        TypeError: 配列アトリビュートへ既定値を直接設定しようとした場合。
+        ValueError: 名前が空文字列または文字列以外の場合。
+        RuntimeError: 同名のアトリビュートがある、または書込み禁止の定義へ既定値を渡した場合。
     """
     names = [(name, flags.get("shortName") or name)]
     names.extend((child, options.get("shortName") or child) for child, _, options in children)
@@ -200,7 +221,7 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
             if not isinstance(candidate, str) or not candidate:
                 raise ValueError("Attribute names must be non-empty strings")
             if candidate in used or fn.hasAttribute(candidate):
-                raise RuntimeError("Attribute already exists: " + candidate)
+                raise RuntimeError(f"Attribute already exists: {candidate}")
         used.update((long_name, short_name))
     if not validate_defaults:
         return
@@ -216,7 +237,7 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
     if flags.get("multi"):
         raise TypeError("Set an array element instead of the array plug")
     if not flags.get("writable", True):
-        raise RuntimeError("Attribute is not writable: " + name)
+        raise RuntimeError(f"Attribute is not writable: {name}")
     # 通常経路で扱える型までfast専用の対応範囲へ狭めない。
     # factoryを持つ型だけ登録前に値を検査し、それ以外は既存のMaya処理へ渡す。
     data_type = flags.get("dataType")
@@ -230,7 +251,7 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
         prepare_data(attribute, deferred, name=name)
 
 
-def create_extra_attribute(node, name, flags, numeric, count, deferred,
+def create_extra_attribute(node, name, flags, numeric, count, *, deferred,
                            child_names, child_short_names, child_suffixes, sub_type):
     """Node.addAttrの親子定義を登録前に全て作る。
 
@@ -252,8 +273,9 @@ def create_extra_attribute(node, name, flags, numeric, count, deferred,
     flags = dict(flags)
     children = []
     if count:
-        definitions = extra_children(name, flags, numeric, count, deferred, child_names,
-                                     child_short_names, child_suffixes, sub_type)
+        definitions = extra_children(name, flags, numeric, count, deferred=deferred,
+                                     child_names=child_names, child_short_names=child_short_names,
+                                     child_suffixes=child_suffixes, sub_type=sub_type)
         for key in ("minValue", "maxValue", "softMinValue", "softMaxValue"):
             flags.pop(key, None)
         for child_name, child_type, child_flags in definitions:
@@ -269,7 +291,7 @@ def create_extra_attribute(node, name, flags, numeric, count, deferred,
         if definition.array:
             raise TypeError("Set an array element instead of the array plug")
         if not definition.writable:
-            raise RuntimeError("Attribute is not writable: " + name)
+            raise RuntimeError(f"Attribute is not writable: {name}")
         if (attribute.hasFn(om2.MFn.kMatrixAttribute) or
                 attribute.hasFn(om2.MFn.kTypedAttribute) and
                 om2.MFnTypedAttribute(attribute).attrType() == om2.MFnData.kMatrix):

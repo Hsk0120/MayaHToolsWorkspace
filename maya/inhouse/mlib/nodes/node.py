@@ -11,10 +11,11 @@ import maya.cmds as cmds
 
 from ..core.object import Object
 from ..core.registry import _inherited_node_types, _node_type_exists
-from ..decorator import undoChunk, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoChunk, undoTransaction
 from ..logger import raise_with_notify
 from ..util import _ArgumentError, _UNSET
 
+#: om2の数値データ型からaddAttrの型名への対応(moveAttrOrderでの再作成に使う)。
 _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kBoolean: "bool",
     om2.MFnNumericData.kByte: "byte",
@@ -108,30 +109,30 @@ def _resolve_node(node):
             # MSelectionList は複数のノードに一致する名前も「存在しない」として拒否するため、
             # 利用者が原因を判別できるよう maya.cmds で一致数を確かめてからメッセージを選ぶ。
             if node and len(cmds.ls(node) or []) > 1:
-                message = f"名前が一意ではありません(複数のノードに一致します): {node}"
+                message = f"Name is not unique (matches multiple nodes): {node}"
             else:
-                message = f"ノードが見つかりません: {node}"
+                message = f"Node not found: {node}"
             raise_with_notify(RuntimeError, message, from_exception=original_error)
         if selection.length() != 1:
             # "dup.tx" のようなプラグ名・コンポーネント名は、同名ノードがあると複数の要素になる。
             raise_with_notify(
                 RuntimeError,
-                f"名前が一意ではありません(複数の対象に一致します): {node}",
+                f"Name is not unique (matches multiple objects): {node}",
                 from_exception=None,
             )
         return Node._selection_owner(selection, 0, node)
     if isinstance(node, om2.MDagPath):
         if not node.isValid() or not om2.MObjectHandle(node.node()).isValid():
-            raise RuntimeError("無効な(削除済みの)MDagPath からノードは解決できません")
+            raise RuntimeError("Cannot resolve a node from an invalid (deleted) MDagPath")
         dag_path = om2.MDagPath(node)
         return dag_path.node(), dag_path
     if isinstance(node, om2.MObject):
         if node.isNull():
-            raise RuntimeError("空の MObject からノードは解決できません")
+            raise RuntimeError("Cannot resolve a node from a null MObject")
         if not om2.MObjectHandle(node).isValid():
-            raise RuntimeError("削除済みノードの MObject からノードは解決できません")
+            raise RuntimeError("Cannot resolve a node from the MObject of a deleted node")
         if not node.hasFn(om2.MFn.kDependencyNode):
-            raise TypeError("MObject には依存ノードを指定してください(アトリビュート・コンポーネント・データは不可)")
+            raise TypeError("MObject must be a dependency node (not an attribute, component or data)")
         mobject = om2.MObject(node)
         dag_path = om2.MFnDagNode(mobject).getPath() if mobject.hasFn(om2.MFn.kDagNode) else None
         return mobject, dag_path
@@ -139,16 +140,16 @@ def _resolve_node(node):
     from ..plugs.plug import DeletedAttributeError, Plug
     if isinstance(node, om2.MPlug):
         if node.isNull:
-            raise RuntimeError("空の MPlug からノードは解決できません")
+            raise RuntimeError("Cannot resolve a node from a null MPlug")
         owner = node.node()
         # 所有ノードが有効でも、deleteAttr で削除されたアトリビュートの MPlug は削除済みの対象として扱う
         # (mlib のコマンドと同じ。所有ノードが削除済みなら下の MObject の解決で RuntimeError)。
         if om2.MObjectHandle(owner).isValid() and not Plug._mplug_attribute_exists(node, owner):
-            raise DeletedAttributeError("削除済みのアトリビュートの MPlug からノードは解決できません")
+            raise DeletedAttributeError("Cannot resolve a node from the MPlug of a deleted attribute")
         return _resolve_node(owner)
     if isinstance(node, Node):
         if not node.isValid():
-            raise RuntimeError("無効な(削除済みの)ノードは指定できません")
+            raise RuntimeError("Cannot use an invalid (deleted) node")
         dag_path = node._current_dag_path()
         return om2.MObject(node._mobject), om2.MDagPath(dag_path) if dag_path is not None else None
     # Componentもnodesを参照するため、必要な分岐に達してからimportする。
@@ -187,7 +188,7 @@ def _is_deleted_api_object(value):
     return False
 
 
-def _query_target(other):
+def _resolve_input_or_none(other):
     """判定メソッド(``isParentOf`` など)の対象をノードへ解決する。
 
     ``mlib.nodes.Node._resolve_input`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
@@ -239,7 +240,7 @@ def _dump_movable_attr(plug):
     attr = plug.mplug().attribute()
     definition = om2.MFnAttribute(attr)
     if not definition.connectable:
-        raise TypeError("Cannot recreate a non-connectable attribute with Maya commands: " + plug.getFullName())
+        raise TypeError(f"Cannot recreate a non-connectable attribute with Maya commands: {plug.getFullName()}")
     info = {
         "longName": plug.getLongName(),
         "shortName": plug.getShortName(),
@@ -410,7 +411,7 @@ class Node(Object):
     Raises:
         TypeError: 入力型が不正、または指定クラスと対象型が非互換の場合。
         ValueError: 所有ノードが有効でアトリビュートだけが削除済みのPlugの場合。
-            MPlugも含み、DeletedAttributeError（RuntimeErrorの派生でもある）。
+            MPlugも含み、DeletedAttributeError(RuntimeErrorの派生でもある)。
         RuntimeError: 取得対象が空・削除済み・存在しない・一意でない場合。
     """
 
@@ -452,7 +453,7 @@ class Node(Object):
         resolved = _resolve_node(node)
         resolved_class = registry.wrapper_class(_node_type_name(resolved[0]))
         if cls is not Node and not issubclass(resolved_class, cls):
-            message = "{} requires a compatible node, got {}".format(cls.__name__, resolved_class.__name__)
+            message = f"{cls.__name__} requires a compatible node, got {resolved_class.__name__}"
             if getattr(cls, "_generated", False):
                 # 登録表の作り直し(reload・register)で無効になった生成クラスを保持したまま使った場合の案内。
                 message += " (a generated class kept across mlib.reload() or a registry change is stale;"                            " fetch mlib.nodes.{} again)".format(cls.__name__)
@@ -555,12 +556,11 @@ class Node(Object):
         """
         if name.startswith("_"):
             raise AttributeError(name)
-        if not self.isValid():
-            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
+        self._require_valid("access attributes of")
         try:
             return self.getPlug(name)
         except (AttributeError, RuntimeError) as error:
-            raise AttributeError(f"アトリビュートが見つかりません: {self.getName()}.{name}") from error
+            raise AttributeError(f"Attribute not found: {self.getName()}.{name}") from error
 
     def getShadingEngines(self):
         """自身から直接接続されているShadingEngineを重複なしで返す。
@@ -637,7 +637,7 @@ class Node(Object):
         return self._alive_fn()
 
     def getType(self, inherited=False):
-        """Maya の nodeType 名、または nodeType の継承チェーンを返す。
+        """Maya の nodeType 名、または nodeType の継承チェーンを取得する。
 
         動的に生成したクラスを含め、ラッパーのクラス名ではなく Maya の nodeType 名をそのまま返す。
 
@@ -652,8 +652,7 @@ class Node(Object):
             TypeError: inherited が bool 以外の場合。
             RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
-        if not isinstance(inherited, bool):
-            raise TypeError("inherited must be a bool")
+        _require_bool(inherited, "inherited")
         type_name = self._alive_fn().typeName
         if not inherited:
             return type_name
@@ -756,20 +755,17 @@ class Node(Object):
 
         Args:
             state (bool): True でロック、False で解除。既定 True。
-            fast (bool): True は OpenMaya 直接更新(Undo なし)。既定 False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Node: 自身。
 
         Raises:
-            TypeError: state または fast が bool でない場合。
+            TypeError: state または fastがbool以外の場合。
             RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)、または Maya が更新を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeSetLocked"):
-            if not isinstance(state, bool):
-                raise TypeError("state must be a bool")
+        with _edit_context("mlibNodeSetLocked", fast):
+            _require_bool(state, "state")
             fn = self._alive_fn()
             if fast:
                 fn.isLocked = state
@@ -802,7 +798,7 @@ class Node(Object):
             TypeError: otherが未対応型の場合。
             RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
         """
-        other_node = _query_target(other)
+        other_node = _resolve_input_or_none(other)
         self_full = self.getFullName()
         if other_node is None or not self_full:
             return False
@@ -823,7 +819,7 @@ class Node(Object):
             TypeError: otherが未対応型の場合。
             RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
         """
-        other_node = _query_target(other)
+        other_node = _resolve_input_or_none(other)
         self_full = self.getFullName()
         if other_node is None or not self_full:
             return False
@@ -842,11 +838,11 @@ class Node(Object):
         """
         dag_path = self._current_dag_path()
         if dag_path is None:
-            raise RuntimeError("DAG ノードではありません")
+            raise RuntimeError("Node is not a DAG node")
         return dag_path.length() == 1
 
     def getNodeName(self, removeNamespace=False):
-        """DAG パスを除いたノード名を返す。
+        """DAG パスを除いたノード名を取得する。
 
         DGノードにも使用できる。DAGの別階層に同名ノードがある場合も
         親パスは付けないため、Mayaコマンドへ渡す一意な名前にはgetNameを使う。
@@ -867,7 +863,7 @@ class Node(Object):
         return node_name
 
     def getNamespace(self):
-        """ノードが属するネームスペースを返す。
+        """ノードが属するネームスペースを取得する。
 
         Returns:
             Namespace: ノードが属するNamespace。
@@ -886,7 +882,7 @@ class Node(Object):
 
         Args:
             namespace (str | Namespace): 移動先のnamespace名。末尾の ``":"`` は任意。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             str: Mayaが確定したnamespace付きノード名。
@@ -896,9 +892,7 @@ class Node(Object):
             RuntimeError: namespace移動に失敗した場合。
         """
         # common.namespaceとnodesの相互依存を避けるための遅延import。getNamespaceと同じ理由。
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeSetNamespace"):
+        with _edit_context("mlibNodeSetNamespace", fast):
             from ..common import Namespace
 
             if isinstance(namespace, Namespace):
@@ -939,7 +933,7 @@ class Node(Object):
             safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は削除しない。
                 入力・出力・message・Set/マテリアル接続を全て含む。
                 Falseは従来の削除。ロック解除や例外抑制は行わない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             None: 値を返さない。
@@ -949,13 +943,9 @@ class Node(Object):
             RuntimeError: 対象が無効、ロック・参照・削除できないノードを含む、またはMayaが
                 削除を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeDelete"):
-            if type(safe) is not bool:
-                raise TypeError("safe must be bool")
-            if not self.isValid():
-                raise RuntimeError("Cannot delete an invalid node")
+        with _edit_context("mlibNodeDelete", fast):
+            _require_bool(safe, "safe")
+            self._require_valid("delete")
             if safe and self._has_delete_connections():
                 return
             from ..core.nodeEdit import delete_nodes
@@ -967,31 +957,28 @@ class Node(Object):
         Args:
             name (str): 新しいノード名。
             ignoreShape (bool): ``True`` の場合はShapeの名前変更を抑制する。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             str: Mayaが確定した変更後のノード名。
 
         Raises:
-            TypeError: fastがboolでない場合。
+            TypeError: fastがbool以外の場合。
             RuntimeError: ノードが無効(削除済み)の場合(``Cannot rename an invalid node``。
                 fastも同じ)、保持するDAGインスタンスが削除された場合、またはMayaが
                 改名を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeRename"):
-            if not self.isValid():
-                # cmds.renameへ空の名前を渡すと文言の無いRuntimeErrorになるため、先に判定する。
-                raise RuntimeError("Cannot rename an invalid node")
+        with _edit_context("mlibNodeRename", fast):
+            # cmds.renameへ空の名前を渡すと文言の無いRuntimeErrorになるため、先に判定する。
+            self._require_valid("rename")
             if fast:
                 from ..core.nodeEdit import rename_node
                 return rename_node(self.mnode(), name, ignoreShape)
             return cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True, destination=True,
-        connections=False, type=None, exactType=False, skipConversionNodes=False, asPair=False, asNode=False,
-        index=_UNSET, *, idx=_UNSET):
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=_UNSET,
+        destination=_UNSET, connections=False, type=None, exactType=False, skipConversionNodes=False,
+        asPair=False, asNode=False, index=_UNSET, *, idx=_UNSET, src=_UNSET, dst=_UNSET):
         """接続をPlug・Node・ペアとして照会する。
 
         Args:
@@ -1009,18 +996,20 @@ class Node(Object):
             skipConversionNodes (bool): unitConversion系を飛ばす。
             asPair (bool): 自身側Plugと相手側のペアを返す。
             asNode (bool): 相手側をNodeで返す。
-            index (int | None): 結果の一件。範囲外はNone。 別名 ``idx`` も使用可能。
+            index (int | None): 結果の一件。範囲外はNone。
             idx (int | None): indexの別名。同時指定は不可。
+            src (bool): sourceの別名。同時指定は不可。
+            dst (bool): destinationの別名。同時指定は不可。
 
         Returns:
             list | Plug | Node | tuple | None: 条件に合う結果。
+
+        Raises:
+            TypeError: 長短の別名を同時に指定した場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            index = None
+        index = _pick_alias(index, idx, "index", "idx", default=None)
+        source = _pick_alias(source, src, "source", "src", default=True)
+        destination = _pick_alias(destination, dst, "destination", "dst", default=True)
         from ..plugs.plug import Plug
         pairs = []
         as_pair = asPair or c or connections
@@ -1036,6 +1025,9 @@ class Node(Object):
             Args:
                 mplug (om2.MPlug): 接続をたどる自身側のプラグ。
                 local (Plug | None): ペアの自身側。ペアで返さない場合はNone。
+
+            Returns:
+                None: 値を返さない。
             """
             for incoming in directions:
                 if skip_conversion:
@@ -1067,7 +1059,7 @@ class Node(Object):
                                        as_pair, asNode, index)
 
     def getHistory(self, type=None, future=False):
-        """構築履歴を ``MItDependencyGraph`` で検索し、対応するノードラッパーを返す。
+        """構築履歴を ``MItDependencyGraph`` で検索し、対応するノードラッパーを取得する。
 
         Args:
             type (str | None): 継承型を含むノード型フィルター。Noneは全型。
@@ -1081,8 +1073,7 @@ class Node(Object):
         Raises:
             RuntimeError: 無効な(削除済みの)ノードの場合。
         """
-        if not self.isValid():
-            raise RuntimeError("Cannot get the history of an invalid node")
+        self._require_valid("get the history of")
         # cmds.listHistory(leaf=True) と同じく、Shapeを持つTransformは中間オブジェクトでない
         # 直下のShapeから探索する(Transform自身の入出力は含めない)。
         roots = [self._mobject]
@@ -1128,8 +1119,8 @@ class Node(Object):
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
                 数値・単位・enumアトリビュートを対象とし、配列・ロック・入力接続・書込み禁止・
                 非対応型は除外する(通常/fastで同じ選択)。
-                明示指定したアトリビュートのエラーは除外せず送出する。 別名 ``attrs`` も使用可能。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+                明示指定したアトリビュートのエラーは除外せず送出する。別名 ``attrs`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             attrs (str | Iterable[str] | None): attributesの別名。同時指定は不可。
 
         Returns:
@@ -1140,15 +1131,8 @@ class Node(Object):
             TypeError: 明示指定したアトリビュートがリセット非対応の場合。
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
-        if attrs is not _UNSET:
-            if attributes is not _UNSET:
-                raise _ArgumentError("Specify only one of 'attributes' and 'attrs'")
-            attributes = attrs
-        if attributes is _UNSET:
-            attributes = None
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeResetAttrs"):
+        attributes = _pick_alias(attributes, attrs, "attributes", "attrs", default=None)
+        with _edit_context("mlibNodeResetAttrs", fast):
             if attributes is None:
                 # getPlugs(keyable, scalar) は cmds.listAttr と同じ列挙を om2 で行うため、fastでもcmdsを呼ばない。
                 # listAttr(scalar=True) は配列も返すため配列を除く(要素ごとのresetが必要)。
@@ -1177,8 +1161,7 @@ class Node(Object):
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
-            fast (bool): TrueはUndoなしのOM2更新。FalseはUndo有効時に一つのチャンクへ記録する。
-                Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             attrs (str | Iterable[str]): attributesの別名。同時指定は不可。
 
         Returns:
@@ -1189,17 +1172,9 @@ class Node(Object):
             TypeError: 必須引数の不足・長短名の競合、fastや状態の型が不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
         """
-        if attrs is not _UNSET:
-            if attributes is not _UNSET:
-                raise _ArgumentError("Specify only one of 'attributes' and 'attrs'")
-            attributes = attrs
-        if attributes is _UNSET:
-            raise _ArgumentError("Missing required argument: 'attributes'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeSetAttrFlags"):
-            from ..plugs.plug import Plug
-            flags = Plug._validated_flags(locked, keyable, channelBox)
+        attributes = _pick_alias(attributes, attrs, "attributes", "attrs")
+        with _edit_context("mlibNodeSetAttrFlags", fast):
+            flags = _validated_flags(locked, keyable, channelBox)
             if isinstance(attributes, str):
                 attributes = [attributes]
             plugs = [self.getPlug(name) for name in attributes]
@@ -1231,12 +1206,9 @@ class Node(Object):
             RuntimeError: ノードが無効、listAttrが失敗、またはuserDefined=TrueかつincludeChildren=Trueで
                 番号を指定しない複合配列の子が含まれる場合。
         """
-        if type(userDefined) is not bool:
-            raise TypeError("userDefined must be a bool")
-        if type(includeChildren) is not bool:
-            raise TypeError("includeChildren must be a bool")
-        if not self.isValid():
-            raise RuntimeError("Cannot list attributes on an invalid node")
+        _require_bool(userDefined, "userDefined")
+        _require_bool(includeChildren, "includeChildren")
+        self._require_valid("list attributes on")
         if userDefined:
             if listAttrFlags:
                 raise TypeError("userDefined=True cannot be combined with listAttr flags: "
@@ -1270,8 +1242,7 @@ class Node(Object):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        if not self.isValid():
-            raise RuntimeError("無効なノードのエイリアスは取得できません")
+        self._require_valid("get aliases of")
         # 配列・複合パスはgetPlugで解決し、別のMayaコマンドで名前を再解決しない。
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
@@ -1306,7 +1277,7 @@ class Node(Object):
             childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
-            fast (bool): TrueはUndoなしの直接追加。既定Falseはcmds。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -1379,7 +1350,7 @@ class Node(Object):
             usedAsProxy (bool): MayaのusedAsProxyフラグ。
             uap (bool): usedAsProxyの別名。
             worldSpace (bool): MayaのworldSpaceフラグ。
-            ws (bool): worldSpaceの別名。
+            ws (bool): worldSpaceの別名。同時指定は不可。
             writable (bool): Mayaのwritableフラグ。
             w (bool): writableの別名。
             cb (bool): channelBoxの別名。
@@ -1400,249 +1371,80 @@ class Node(Object):
             通常の子追加だけは公開addAttrへ委譲し、overrideを呼ぶ。fastは親子定義を一括構築する。
             Mayaやoverride、作成後の既定値・表示・proxy接続が失敗しても、完了済みの追加は戻さない。
         """
-        if at is not _UNSET:
-            if attributeType is not _UNSET:
-                raise _ArgumentError("Specify only one of 'attributeType' and 'at'")
-            attributeType = at
-        if attributeType is not _UNSET:
-            kwargs["attributeType"] = attributeType
-        if bt is not _UNSET:
-            if binaryTag is not _UNSET:
-                raise _ArgumentError("Specify only one of 'binaryTag' and 'bt'")
-            binaryTag = bt
-        if binaryTag is not _UNSET:
-            kwargs["binaryTag"] = binaryTag
-        if ci is not _UNSET:
-            if cachedInternally is not _UNSET:
-                raise _ArgumentError("Specify only one of 'cachedInternally' and 'ci'")
-            cachedInternally = ci
-        if cachedInternally is not _UNSET:
-            kwargs["cachedInternally"] = cachedInternally
-        if ct is not _UNSET:
-            if category is not _UNSET:
-                raise _ArgumentError("Specify only one of 'category' and 'ct'")
-            category = ct
-        if category is not _UNSET:
-            kwargs["category"] = category
-        if dt is not _UNSET:
-            if dataType is not _UNSET:
-                raise _ArgumentError("Specify only one of 'dataType' and 'dt'")
-            dataType = dt
-        if dataType is not _UNSET:
-            kwargs["dataType"] = dataType
-        if dv is not _UNSET:
-            if defaultValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'defaultValue' and 'dv'")
-            defaultValue = dv
-        if defaultValue is not _UNSET:
-            kwargs["defaultValue"] = defaultValue
-        if dcb is not _UNSET:
-            if disconnectBehaviour is not _UNSET:
-                raise _ArgumentError("Specify only one of 'disconnectBehaviour' and 'dcb'")
-            disconnectBehaviour = dcb
-        if disconnectBehaviour is not _UNSET:
-            kwargs["disconnectBehaviour"] = disconnectBehaviour
+        _merge_flags(kwargs, (
+            (attributeType, at, "attributeType", "at"),
+            (binaryTag, bt, "binaryTag", "bt"),
+            (cachedInternally, ci, "cachedInternally", "ci"),
+            (category, ct, "category", "ct"),
+            (dataType, dt, "dataType", "dt"),
+            (defaultValue, dv, "defaultValue", "dv"),
+            (disconnectBehaviour, dcb, "disconnectBehaviour", "dcb"),
+            (enforcingUniqueName, eun, "enforcingUniqueName", "eun"),
+            (enumName, en, "enumName", "en"),
+            (exists, ex, "exists", "ex"),
+            (fromPlugin, fp, "fromPlugin", "fp"),
+            (hasMaxValue, hxv, "hasMaxValue", "hxv"),
+            (hasMinValue, hnv, "hasMinValue", "hnv"),
+            (hasSoftMaxValue, hsx, "hasSoftMaxValue", "hsx"),
+            (hasSoftMinValue, hsn, "hasSoftMinValue", "hsn"),
+            (hidden, h, "hidden", "h"),
+            (indexMatters, im, "indexMatters", "im"),
+        ))
         if e is not _UNSET:
             if edit is not _UNSET:
                 raise _ArgumentError("Specify only one of 'edit' and 'e'")
             edit = e
         if edit is not _UNSET:
             kwargs["edit"] = edit
-        if eun is not _UNSET:
-            if enforcingUniqueName is not _UNSET:
-                raise _ArgumentError("Specify only one of 'enforcingUniqueName' and 'eun'")
-            enforcingUniqueName = eun
-        if enforcingUniqueName is not _UNSET:
-            kwargs["enforcingUniqueName"] = enforcingUniqueName
-        if en is not _UNSET:
-            if enumName is not _UNSET:
-                raise _ArgumentError("Specify only one of 'enumName' and 'en'")
-            enumName = en
-        if enumName is not _UNSET:
-            kwargs["enumName"] = enumName
-        if ex is not _UNSET:
-            if exists is not _UNSET:
-                raise _ArgumentError("Specify only one of 'exists' and 'ex'")
-            exists = ex
-        if exists is not _UNSET:
-            kwargs["exists"] = exists
-        if fp is not _UNSET:
-            if fromPlugin is not _UNSET:
-                raise _ArgumentError("Specify only one of 'fromPlugin' and 'fp'")
-            fromPlugin = fp
-        if fromPlugin is not _UNSET:
-            kwargs["fromPlugin"] = fromPlugin
-        if hxv is not _UNSET:
-            if hasMaxValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'hasMaxValue' and 'hxv'")
-            hasMaxValue = hxv
-        if hasMaxValue is not _UNSET:
-            kwargs["hasMaxValue"] = hasMaxValue
-        if hnv is not _UNSET:
-            if hasMinValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'hasMinValue' and 'hnv'")
-            hasMinValue = hnv
-        if hasMinValue is not _UNSET:
-            kwargs["hasMinValue"] = hasMinValue
-        if hsx is not _UNSET:
-            if hasSoftMaxValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'hasSoftMaxValue' and 'hsx'")
-            hasSoftMaxValue = hsx
-        if hasSoftMaxValue is not _UNSET:
-            kwargs["hasSoftMaxValue"] = hasSoftMaxValue
-        if hsn is not _UNSET:
-            if hasSoftMinValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'hasSoftMinValue' and 'hsn'")
-            hasSoftMinValue = hsn
-        if hasSoftMinValue is not _UNSET:
-            kwargs["hasSoftMinValue"] = hasSoftMinValue
-        if h is not _UNSET:
-            if hidden is not _UNSET:
-                raise _ArgumentError("Specify only one of 'hidden' and 'h'")
-            hidden = h
-        if hidden is not _UNSET:
-            kwargs["hidden"] = hidden
-        if im is not _UNSET:
-            if indexMatters is not _UNSET:
-                raise _ArgumentError("Specify only one of 'indexMatters' and 'im'")
-            indexMatters = im
-        if indexMatters is not _UNSET:
-            kwargs["indexMatters"] = indexMatters
         if "is" in kwargs:
             if internalSet is not _UNSET:
                 raise _ArgumentError("Specify only one of 'internalSet' and 'is'")
             internalSet = kwargs.pop("is")
         if internalSet is not _UNSET:
             kwargs["internalSet"] = internalSet
-        if k is not _UNSET:
-            if keyable is not _UNSET:
-                raise _ArgumentError("Specify only one of 'keyable' and 'k'")
-            keyable = k
-        if keyable is not _UNSET:
-            kwargs["keyable"] = keyable
-        if ln is not _UNSET:
-            if longName is not _UNSET:
-                raise _ArgumentError("Specify only one of 'longName' and 'ln'")
-            longName = ln
-        if longName is _UNSET:
-            longName = ""
-        if max is not _UNSET:
-            if maxValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'maxValue' and 'max'")
-            maxValue = max
-        if maxValue is not _UNSET:
-            kwargs["maxValue"] = maxValue
-        if min is not _UNSET:
-            if minValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'minValue' and 'min'")
-            minValue = min
-        if minValue is not _UNSET:
-            kwargs["minValue"] = minValue
-        if m is not _UNSET:
-            if multi is not _UNSET:
-                raise _ArgumentError("Specify only one of 'multi' and 'm'")
-            multi = m
-        if multi is not _UNSET:
-            kwargs["multi"] = multi
-        if nn is not _UNSET:
-            if niceName is not _UNSET:
-                raise _ArgumentError("Specify only one of 'niceName' and 'nn'")
-            niceName = nn
-        if niceName is not _UNSET:
-            kwargs["niceName"] = niceName
-        if nc is not _UNSET:
-            if numberOfChildren is not _UNSET:
-                raise _ArgumentError("Specify only one of 'numberOfChildren' and 'nc'")
-            numberOfChildren = nc
-        if numberOfChildren is not _UNSET:
-            kwargs["numberOfChildren"] = numberOfChildren
-        if p is not _UNSET:
-            if parent is not _UNSET:
-                raise _ArgumentError("Specify only one of 'parent' and 'p'")
-            parent = p
-        if parent is not _UNSET:
-            kwargs["parent"] = parent
-        if pxy is not _UNSET:
-            if proxy is not _UNSET:
-                raise _ArgumentError("Specify only one of 'proxy' and 'pxy'")
-            proxy = pxy
-        if proxy is _UNSET:
-            proxy = None
+        _merge_flags(kwargs, (
+            (keyable, k, "keyable", "k"),
+        ))
+        longName = _pick_alias(longName, ln, "longName", "ln", default="")
+        _merge_flags(kwargs, (
+            (maxValue, max, "maxValue", "max"),
+            (minValue, min, "minValue", "min"),
+            (multi, m, "multi", "m"),
+            (niceName, nn, "niceName", "nn"),
+            (numberOfChildren, nc, "numberOfChildren", "nc"),
+            (parent, p, "parent", "p"),
+        ))
+        proxy = _pick_alias(proxy, pxy, "proxy", "pxy", default=None)
+        _merge_flags(kwargs, (
+            (readable, r, "readable", "r"),
+            (softMaxValue, smx, "softMaxValue", "smx"),
+            (softMinValue, smn, "softMinValue", "smn"),
+            (storable, s, "storable", "s"),
+            (usedAsColor, uac, "usedAsColor", "uac"),
+            (usedAsFilename, uaf, "usedAsFilename", "uaf"),
+            (worldSpace, ws, "worldSpace", "ws"),
+            (writable, w, "writable", "w"),
+        ))
         if q is not _UNSET:
             if query is not _UNSET:
                 raise _ArgumentError("Specify only one of 'query' and 'q'")
             query = q
         if query is not _UNSET:
             kwargs["query"] = query
-        if r is not _UNSET:
-            if readable is not _UNSET:
-                raise _ArgumentError("Specify only one of 'readable' and 'r'")
-            readable = r
-        if readable is not _UNSET:
-            kwargs["readable"] = readable
         if sn is not _UNSET:
             if shortName is not _UNSET:
                 raise _ArgumentError("Specify only one of 'shortName' and 'sn'")
             shortName = sn
         if shortName is not _UNSET:
             kwargs["shortName"] = shortName
-        if smx is not _UNSET:
-            if softMaxValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'softMaxValue' and 'smx'")
-            softMaxValue = smx
-        if softMaxValue is not _UNSET:
-            kwargs["softMaxValue"] = softMaxValue
-        if smn is not _UNSET:
-            if softMinValue is not _UNSET:
-                raise _ArgumentError("Specify only one of 'softMinValue' and 'smn'")
-            softMinValue = smn
-        if softMinValue is not _UNSET:
-            kwargs["softMinValue"] = softMinValue
-        if s is not _UNSET:
-            if storable is not _UNSET:
-                raise _ArgumentError("Specify only one of 'storable' and 's'")
-            storable = s
-        if storable is not _UNSET:
-            kwargs["storable"] = storable
-        if uac is not _UNSET:
-            if usedAsColor is not _UNSET:
-                raise _ArgumentError("Specify only one of 'usedAsColor' and 'uac'")
-            usedAsColor = uac
-        if usedAsColor is not _UNSET:
-            kwargs["usedAsColor"] = usedAsColor
-        if uaf is not _UNSET:
-            if usedAsFilename is not _UNSET:
-                raise _ArgumentError("Specify only one of 'usedAsFilename' and 'uaf'")
-            usedAsFilename = uaf
-        if usedAsFilename is not _UNSET:
-            kwargs["usedAsFilename"] = usedAsFilename
         if uap is not _UNSET:
             if usedAsProxy is not _UNSET:
                 raise _ArgumentError("Specify only one of 'usedAsProxy' and 'uap'")
             usedAsProxy = uap
         if usedAsProxy is not _UNSET:
             kwargs["usedAsProxy"] = usedAsProxy
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is not _UNSET:
-            kwargs["worldSpace"] = worldSpace
-        if w is not _UNSET:
-            if writable is not _UNSET:
-                raise _ArgumentError("Specify only one of 'writable' and 'w'")
-            writable = w
-        if writable is not _UNSET:
-            kwargs["writable"] = writable
-        if cb is not _UNSET:
-            if channelBox is not _UNSET:
-                raise _ArgumentError("Specify only one of 'channelBox' and 'cb'")
-            channelBox = cb
-        if channelBox is _UNSET:
-            channelBox = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodeAddAttr"):
+        channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
+        with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
             flags = {key: value for key, value in kwargs.items()
                      if value is not None}
@@ -1702,9 +1504,9 @@ class Node(Object):
             Node: 自身。全変更を一回の Undo にまとめる。
 
         Raises:
-            ValueError: name がトップレベルのユーザー定義アトリビュート一覧に無い場合。
             TypeError: 移動範囲に複合・配列アトリビュート、または対応しないアトリビュート型が
                 含まれる場合。cmdsで再現できないnon-connectable定義も変更前に拒否する。
+            ValueError: name がトップレベルのユーザー定義アトリビュート一覧に無い場合。
             RuntimeError: ノードが無効、または安全な復元に必要なUndoが無効な場合。
         """
         # aliasAttrが管理する内部の保存領域は、表示順の変更や再作成の対象にしない。
@@ -1739,7 +1541,7 @@ class Node(Object):
                 connections[key] = source, destination
         # 削除後は古いPlugを使わず、全定義を作ってから接続を再解決する。
         # 途中のMayaエラーでは、この処理のチャンクだけをUndoして元の状態へ戻す。
-        with undoTransaction("mlibNodeMoveAttribute"):
+        with undoTransaction("mlibNodeMoveAttrOrder"):
             for alias, _ in aliases:
                 cmds.aliasAttr(self.getFullName() + "." + alias, remove=True)
             for attr_name in to_remove:
@@ -1775,11 +1577,9 @@ class Node(Object):
         """
         # nodes/plugsの相互依存を避けるため遅延importする。
         from ..plugs.plug import MAX_LOGICAL_INDEX, Plug
-        _InputPlug = Plug
         if not isinstance(name, str) or not name:
-            raise ValueError("name には空でないアトリビュートパスを指定してください")
-        if not self.isValid():
-            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
+            raise ValueError("name must be a non-empty attribute path")
+        self._require_valid("access attributes of")
 
         if "[" not in name:
             # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
@@ -1791,13 +1591,13 @@ class Node(Object):
             if mplug is not None:
                 return Plug(self, mplug)
 
-        mplug = _InputPlug._attribute_path_plug(self._mobject, name)
+        mplug = Plug._attribute_path_plug(self._mobject, name)
         if mplug is None:
-            if _InputPlug._has_out_of_range_index(name):
+            if Plug._has_out_of_range_index(name):
                 raise AttributeError(
-                    f"配列インデックスは 0〜{MAX_LOGICAL_INDEX} で指定してください: {self.getName()}.{name}"
+                    f"Array index must be between 0 and {MAX_LOGICAL_INDEX}: {self.getName()}.{name}"
                 )
-            raise AttributeError(f"アトリビュートが見つかりません: {self.getName()}.{name}")
+            raise AttributeError(f"Attribute not found: {self.getName()}.{name}")
         return Plug(self, mplug)
 
     def hasAttr(self, name):
@@ -1816,7 +1616,7 @@ class Node(Object):
         return True
 
     def getUuid(self):
-        """ノードの Maya UUID を返す。
+        """ノードの Maya UUID を取得する。
 
         Returns:
             str | None: 有効なノードの UUID。無効な場合は ``None``。
@@ -1881,15 +1681,15 @@ class Node(Object):
         Args:
             node_type (str): Maya nodeType名。
             flags (dict): createNodeへ渡す正規化済みのフラグ。parent/pを所有ノード名へ変換する。
-            fast (bool): TrueならOpenMayaで作成し(Undoなし)、Falseならcmdsで作成する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Node: 作成(sharedでは共有)したノードの、実際のnodeTypeに対応するラッパー。
                 登録表の規則で選んだクラス(登録型・動的クラス・Node)になる。
 
         Raises:
-            ValueError: nodeType名が空文字列または文字列以外、またはparentが空文字列・無効な参照の場合。
             TypeError: parentが未対応型・複数対象の場合。
+            ValueError: nodeType名が空文字列または文字列以外、またはparentが空文字列・無効な参照の場合。
             RuntimeError: Mayaが認識しないnodeType名の場合、親名を解決できない場合、またはMayaが
                 プラグインのロードやノード作成を拒否した場合。
             NotImplementedError: fastで未対応のフラグを指定した場合。
@@ -1904,7 +1704,7 @@ class Node(Object):
         # 作成した結果がunknownノードかどうかで判定し、fastはOpenMayaが作成できないため作成前に拒否する。
         known = _node_type_exists(node_type)
         if not known and fast:
-            raise RuntimeError("Unknown Maya nodeType: " + node_type)
+            raise RuntimeError(f"Unknown Maya nodeType: {node_type}")
         for key in ("parent", "p"):
             if flags.get(key) is not None:
                 flags[key] = Node._input_name(flags[key])
@@ -1927,12 +1727,12 @@ class Node(Object):
                     # 未知の名前でMayaが作ったunknownノードは消し、作成前の選択へ戻してから拒否する。
                     cmds.delete(created)
                     cmds.select(selection, replace=True) if selection else cmds.select(clear=True)
-                    raise RuntimeError("Unknown Maya nodeType: " + node_type)
+                    raise RuntimeError(f"Unknown Maya nodeType: {node_type}")
         if created is None:
             # shared=Trueで同名・同型のノードが既にある場合、cmds.createNodeは作成せずNoneを返す。
             name = flags.get("name") or flags.get("n")
             if not name:
-                raise RuntimeError("Maya did not create a node of type " + node_type)
+                raise RuntimeError(f"Maya did not create a node of type {node_type}")
             return Node(name)
         return Node(created)
 
@@ -2050,15 +1850,15 @@ class Node(Object):
             str: 完全 DAG パス(最初のインスタンス)、または DG ノード名。
 
         Raises:
-            ValueError: 空、または削除済みノードの MObject の場合。
             TypeError: アトリビュート・コンポーネント・データなど依存ノード以外を指す場合。
+            ValueError: 空、または削除済みノードの MObject の場合。
         """
         if mobject.isNull():
-            raise ValueError("空の MObject は指定できません")
+            raise ValueError("MObject must not be null")
         if not om2.MObjectHandle(mobject).isValid():
-            raise ValueError("削除済みノードの MObject は指定できません")
+            raise ValueError("MObject must not belong to a deleted node")
         if not mobject.hasFn(om2.MFn.kDependencyNode):
-            raise TypeError("MObject には依存ノードを指定してください(アトリビュート・コンポーネント・データは不可)")
+            raise TypeError("MObject must be a dependency node (not an attribute, component or data)")
         if mobject.hasFn(om2.MFn.kDagNode):
             return om2.MFnDagNode(mobject).getPath().fullPathName()
         return om2.MFnDependencyNode(mobject).name()
@@ -2245,6 +2045,42 @@ class Node(Object):
         instance.__init__(dag_path if dag_path is not None else mobject)
         return instance
 
+    @staticmethod
+    def _from_name(value):
+        """ノードを表す入力を解決し、``Node(value)`` と同じ型選択でラッパーにする。
+
+        ``Node._wrap_resolved(*_resolve_node(value))`` の短縮。生成の入口(``Node.__new__``)の
+        再判定を省くため、cmds・common のように解決済みの名前・MObject を多数ラップする側で使う。
+
+        Args:
+            value (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
+                ``_resolve_node`` が受け付ける入力。
+
+        Returns:
+            Node: 実際のノード型に対応するラッパー。
+
+        Raises:
+            TypeError: 対応しない入力型の場合。
+            RuntimeError: 名前を解決できない、または無効な参照の場合。
+        """
+        return Node._wrap_resolved(*_resolve_node(value))
+
+    def _require_valid(self, action):
+        """操作の前にノードが有効か確かめ、無効なら統一した文言で拒否する。
+
+        Args:
+            action (str): 例外メッセージに使う動作の動詞句(``"rename"``・``"delete"`` 等)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: ノードが削除済み・無効な場合。文言は
+                ``Cannot <action> an invalid <クラス名>``。
+        """
+        if not self.isValid():
+            raise RuntimeError(f"Cannot {action} an invalid {type(self).__name__}")
+
     def _current_dag_path(self):
         """保持パスを返す。消失したインスタンスを別パスへ切り替えない。
 
@@ -2347,14 +2183,16 @@ class Node(Object):
             fast (bool): Trueなら定義をOpenMayaで追加する。
         """
         from ..core.attributeEdit import extra_children, validate_extra_attribute
-        children = extra_children(name, flags, numeric, count, deferred, child_names,
-                                  child_short_names, child_suffixes, sub_type)
+        children = extra_children(name, flags, numeric, count, deferred=deferred,
+                                  child_names=child_names, child_short_names=child_short_names,
+                                  child_suffixes=child_suffixes, sub_type=sub_type)
         validate_extra_attribute(self, name, flags, count, deferred, children,
                                  validate_defaults=not fast)
         if fast:
             from ..core.attributeEdit import create_extra_attribute
-            return create_extra_attribute(self, name, flags, numeric, count, deferred,
-                                          child_names, child_short_names, child_suffixes, sub_type)
+            return create_extra_attribute(self, name, flags, numeric, count, deferred=deferred,
+                                          child_names=child_names, child_short_names=child_short_names,
+                                          child_suffixes=child_suffixes, sub_type=sub_type)
         if count:
             # 子の範囲・既定値は子へ指定し、親には渡さない。
             for key in ("minValue", "maxValue", "softMinValue", "softMaxValue"):
@@ -2519,8 +2357,8 @@ class Nodes:
 
         Raises:
             TypeError: 解決結果がitem_classの派生でない場合。
-            RuntimeError: 名前を解決できない、または無効なノードの場合。
             ValueError: 入力解決で不正な参照を検出した場合。
+            RuntimeError: 名前を解決できない、または無効なノードの場合。
         """
         if isinstance(names, (str, Node)):
             names = [names]
@@ -2559,6 +2397,26 @@ class Nodes:
                 items.append(node)
         self._items = items
 
+    def __init_subclass__(cls, **kwargs):
+        """派生クラスが宣言した ``_bulk_entries`` を、基底の転送表と返却方針へ合成する。
+
+        派生クラスは単数の呼出し先と返却方針を ``_bulk_entries`` に1行ずつ宣言するだけでよく、
+        ``_bulk_methods``・``_bulk_returns`` の辞書合成を各クラスで繰り返さない。
+
+        Args:
+            **kwargs: ``object.__init_subclass__`` へ渡すキーワード引数。
+
+        Returns:
+            None: 値を返さない。
+        """
+        super().__init_subclass__(**kwargs)
+        entries = cls.__dict__.get("_bulk_entries")
+        if entries is None:
+            return
+        base = super(cls, cls)
+        cls._bulk_methods = {**base._bulk_methods, **{name: entry[0] for name, entry in entries.items()}}
+        cls._bulk_returns = {**base._bulk_returns, **{name: entry[1] for name, entry in entries.items()}}
+
     def __iter__(self):
         """保持順に要素を反復する。
 
@@ -2582,7 +2440,7 @@ class Nodes:
         構築後に削除された参照も保持する。
 
         Args:
-            index (int | slice): Pythonリストの添字。負数とboolも同じ規則で扱う。
+            index (int | slice): Pythonリストの番号。負数とboolも同じ規則で扱う。
 
         Returns:
             Node | Nodes: 同じNode参照、または参照を共有する新しい容器。
@@ -3107,8 +2965,8 @@ class Nodes:
             list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。入れ子のリストも保持する。
 
         Raises:
-            ValueError: メソッド名または件数が不正な場合。
             TypeError: 呼出形式・fast型が不正、または単数メソッドで長短名の競合等を検出した場合。
+            ValueError: メソッド名または件数が不正な場合。
             RuntimeError: 単数メソッドのその他の失敗。対象番号を含み、後続は実行しない。
         """
         functions, args, kwargs = self._prepare_calls(method, arguments, keywordArguments)
@@ -3146,7 +3004,7 @@ class Nodes:
 
         Args:
             safe (bool): TrueならDG接続を持つ対象(自身またはDAG子孫)を残す。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             None: 空なら何もしない。Jointsも同じMaya標準削除を継承する。
@@ -3157,11 +3015,8 @@ class Nodes:
                 削除できない対象を含む(``failed at item <番号>: <理由>``。何も削除しない)。
                 全体は一回のUndoで戻せる。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibNodesDelete"):
-            if type(safe) is not bool:
-                raise TypeError("safe must be bool")
+        with _edit_context("mlibNodesDelete", fast):
+            _require_bool(safe, "safe")
             for index, node in enumerate(self):
                 if not node.isValid():
                     raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
@@ -3228,6 +3083,9 @@ class Nodes:
         Args:
             values (list): Objectが展開した対象列。値の変換は行わない。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
             TypeError: 名前とNodeが混在する場合。
         """
@@ -3287,8 +3145,7 @@ class Nodes:
                 if key[0] is not None:
                     bound_cache[key] = bound
             requested = bound.arguments.get("fast", parameter.default)
-            if not isinstance(requested, bool):
-                raise TypeError("fast must be a bool")
+            _require_bool(requested, "fast")
             fast_values.append(requested)
             bindings.append(bound)
         all_fast = bool(fast_values) and all(fast_values)
@@ -3362,8 +3219,8 @@ class Nodes:
             tuple: 呼出先・位置引数・キーワード引数の各リスト。
 
         Raises:
-            ValueError: メソッド名または件数が不正な場合。
             TypeError: 引数が各呼出先のシグネチャと一致しない場合。
+            ValueError: メソッド名または件数が不正な場合。
         """
         if method not in self._bulk_methods:
             raise ValueError(f"Unsupported instance method: {method}")

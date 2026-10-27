@@ -168,7 +168,7 @@ class VisibilityTest(_SpecCase):
         cmds.flushUndo()
         self.assertIs(self.node.hide(), self.node)
         self.assertFalse(cmds.getAttr(self.child_name + ".visibility"))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibNodeSetVisible")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDagNodeSetVisibility")
         cmds.undo()
         self.assertTrue(cmds.getAttr(self.child_name + ".visibility"))
         self.node.setVisibility(False)
@@ -217,7 +217,7 @@ class VisibilityTest(_SpecCase):
 
     def test_get_children_argument_checks(self):
         """探索フラグは bool、order は2種類、leaves と shapes は併用できない。"""
-        with self.assertRaisesRegex(TypeError, "must be bool"):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
             self.node.getChildren(allDescendents=1)
         with self.assertRaisesRegex(ValueError, "order"):
             self.node.getChildren(order="random")

@@ -17,7 +17,7 @@ class Edge(Component):
         Returns:
             Vertices: Maya の接続順の頂点群。
         """
-        self._validate()
+        self._require_valid()
         return Vertices(self.shape, self.shape._geometry_fn().getEdgeVertices(self.index))
 
 

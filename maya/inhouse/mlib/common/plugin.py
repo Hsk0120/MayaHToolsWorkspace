@@ -3,7 +3,8 @@
 import maya.cmds as cmds
 
 from ..core.registry import _clear_type_hierarchy_cache
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _pick_alias
+from ..util import _UNSET
 from .version import Version
 
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
@@ -32,9 +33,12 @@ class Plugin:
             None: 値を返さない。
 
         Raises:
-            ValueError: name が空文字列または文字列以外の場合。
+            TypeError: name が文字列以外の場合。
+            ValueError: name が空文字列の場合。
         """
-        if not isinstance(name, str) or not name:
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+        if not name:
             raise ValueError("name must be a non-empty string")
         self._name = name
 
@@ -194,7 +198,7 @@ class Plugin:
         # Pythonプラグインの初期化失敗は、例外なしのNoneとして返る場合がある。
         # 戻り値だけでは既にロード済みのquiet呼出しと区別できないため状態を照会する。
         if not self.isLoaded():
-            raise RuntimeError("Plugin initialization did not complete: " + self._name)
+            raise RuntimeError(f"Plugin initialization did not complete: {self._name}")
         _clear_type_hierarchy_cache()
         return self
 
@@ -204,30 +208,23 @@ class Plugin:
         正常完了後はmlibのノード型継承キャッシュを消去する。
 
         Args:
-            force (bool): True の場合、使用中でも強制的にアンロードする。 別名 ``f`` も使用可能。
+            force (bool): True の場合、使用中でも強制的にアンロードする。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             Plugin: 自身。
 
         Raises:
+            TypeError: forceとfを同時に指定した場合。
             RuntimeError: Maya がアンロードを拒否した場合。
         """
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if force is _UNSET:
-            force = False
+        force = _pick_alias(force, f, "force", "f", default=False)
         cmds.unloadPlugin(self._name, force=force)
         _clear_type_hierarchy_cache()
         return self
 
     def ensureLoaded(self):
         """未ロードであればロードする(冪等)。
-
-        Args:
-            なし。
 
         Returns:
             Plugin: 自身。

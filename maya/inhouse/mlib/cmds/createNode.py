@@ -17,10 +17,8 @@ MayaのnodeType名を返す。
     child = mlib.createNode("joint", n="child", p=node, ss=True)
 """
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _edit_context, _merge_flags
+from ..util import _UNSET
 
 
 def createNode(type, *, fast=False,
@@ -43,7 +41,7 @@ def createNode(type, *, fast=False,
 
     Args:
         type (str): Mayaノード型名。
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定Falseは通常処理。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
         name (str): Mayaへ渡すノード名。
         n (str): nameの短縮名。同時指定はできない。
         parent (object): 親ノード。Node・Plug・Component・API参照は所有ノードの完全パスへ変換する。
@@ -67,33 +65,13 @@ def createNode(type, *, fast=False,
             またはMayaが作成を拒否した場合。
         NotImplementedError: fast=Trueで未対応のフラグを指定した場合。
     """
-    if name is not _UNSET:
-        if n is not _UNSET:
-            raise _ArgumentError("Specify only one of 'name' and 'n'")
-        kwargs["name"] = name
-    elif n is not _UNSET:
-        kwargs["name"] = n
-    if parent is not _UNSET:
-        if p is not _UNSET:
-            raise _ArgumentError("Specify only one of 'parent' and 'p'")
-        kwargs["parent"] = parent
-    elif p is not _UNSET:
-        kwargs["parent"] = p
-    if shared is not _UNSET:
-        if s is not _UNSET:
-            raise _ArgumentError("Specify only one of 'shared' and 's'")
-        kwargs["shared"] = shared
-    elif s is not _UNSET:
-        kwargs["shared"] = s
-    if skipSelect is not _UNSET:
-        if ss is not _UNSET:
-            raise _ArgumentError("Specify only one of 'skipSelect' and 'ss'")
-        kwargs["skipSelect"] = skipSelect
-    elif ss is not _UNSET:
-        kwargs["skipSelect"] = ss
-    if not isinstance(fast, bool):
-        raise TypeError("fast must be a bool")
-    with nullcontext() if fast else undoChunk("mlib.cmds.createNode.createNode"):
+    _merge_flags(kwargs, (
+        (name, n, "name", "n"),
+        (parent, p, "parent", "p"),
+        (shared, s, "shared", "s"),
+        (skipSelect, ss, "skipSelect", "ss"),
+    ))
+    with _edit_context("mlibCreateNode", fast):
         # 作成の実体はNodeの内部ヘルパー。nodesはcmdsを参照するため循環importを避けて関数内で読み込む。
         from ..nodes import Node
 

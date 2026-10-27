@@ -1,11 +1,12 @@
 """マテリアル接続と形状への割り当てを扱う。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
+from ..core.nodeEdit import require_editable
+from ..core.object import Object
+from ..decorator import _edit_context
+from .node import Node
 from .objectSet import ObjectSet
 
 
@@ -42,7 +43,7 @@ class ShadingEngine(ObjectSet):
             shader (Node | Plug | str): ノードまたは出力Plug。
             kind (str): surface/volume/displacement。
             output (str | None): ノード指定時の出力名。既定はoutColor、変位はdisplacement。
-            fast (bool): TrueはOpenMaya直接接続でUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             ShadingEngine: 自身。
@@ -51,17 +52,14 @@ class ShadingEngine(ObjectSet):
             ValueError: 種別が不正な場合。
             RuntimeError: Mayaが接続を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibShadingEngineSetShader"):
-            from .node import Node as _InputNode
-            from ..plugs.plug import Plug as _InputPlug
-            from ..plugs import Plug
+        with _edit_context("mlibShadingEngineSetShader", fast):
+            # plugs は nodes を参照するため、循環importを避けて呼出し時に取得する。
+            from ..plugs.plug import Plug
             target = self.getPlug(self._shader_attribute(kind))
             if isinstance(shader, Plug) or isinstance(shader, str) and "." in shader:
-                source = _InputPlug._resolve_input(shader)
+                source = Plug._resolve_input(shader)
             else:
-                source = _InputNode._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
+                source = Node._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
             source.connectTo(target, force=True, fast=fast)
             return self
 
@@ -80,11 +78,8 @@ class ShadingEngine(ObjectSet):
             RuntimeError: Mayaが割り当てを拒否した場合。
             NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibShadingEngineAssign"):
-            from ..core.object import Object as _InputObject
-            names = _InputObject._input_names(targets)
+        with _edit_context("mlibShadingEngineAssign", fast):
+            names = Object._input_names(targets)
             if names:
                 if fast:
                     self._assign_meshes(names)
@@ -98,7 +93,6 @@ class ShadingEngine(ObjectSet):
         Returns:
             list[Node | Face]: オブジェクトまたは単体フェース。インスタンスパスを保持する。
         """
-        from .node import Node
         selection = om2.MFnSet(self.mnode()).getMembers(False)
         result = []
         for index in range(selection.length()):
@@ -119,33 +113,35 @@ class ShadingEngine(ObjectSet):
         Args:
             names (Iterable[str]): 解決済みのポリゴンまたは末端Transform。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            NotImplementedError: フェース・非ポリゴン・インスタンス・階層指定の場合。
             RuntimeError: 割り当て対象または既存セットを安全に更新できない場合。
+            NotImplementedError: フェース・非ポリゴン・インスタンス・階層指定の場合。
         """
-        from .node import Node
+        # nodes パッケージ内の読込み順に依存しないよう、Transform は呼出し時に取得する。
         from .transform import Transform
 
         target_fn = self._editable_set()
         meshes, seen = [], set()
         for name in names:
             if "." in name or "," in name:
-                raise NotImplementedError("fast assignment supports whole polygon meshes only")
+                raise NotImplementedError("fast assign does not support members other than whole polygon meshes")
             node = Node(name)
             if isinstance(node, Transform):
                 if node.getChildren():
-                    raise NotImplementedError("fast assignment does not support transform hierarchies")
+                    raise NotImplementedError("fast assign does not support transform hierarchies")
                 shapes = node.getShapes()
             else:
                 shapes = [node]
             if not shapes or any(not shape.mnode().hasFn(om2.MFn.kMesh) for shape in shapes):
-                raise NotImplementedError("fast assignment supports polygon meshes only")
+                raise NotImplementedError("fast assign does not support non-polygon shapes")
             for shape in shapes:
                 if shape.mpath().isInstanced():
-                    raise NotImplementedError("fast assignment does not support instanced meshes")
+                    raise NotImplementedError("fast assign does not support instanced meshes")
+                require_editable(shape.mnode())
                 fn = shape.mfn()
-                if fn.isLocked or fn.isFromReferencedFile:
-                    raise RuntimeError("Cannot edit a locked or referenced mesh membership")
                 token = om2.MObjectHandle(shape.mnode()).hashCode()
                 if token not in seen:
                     seen.add(token)
@@ -164,8 +160,7 @@ class ShadingEngine(ObjectSet):
                 fn = om2.MFnSet(shader)
                 if shader != self.mnode() and not (partitions(fn) & target_partitions):
                     continue
-                if fn.isLocked or fn.isFromReferencedFile:
-                    raise RuntimeError("Cannot remove a locked or referenced shading membership")
+                require_editable(fn.object())
                 membership = fn.findPlug("dagSetMembers", False)
                 if membership.isLocked or any(
                         membership.elementByLogicalIndex(i).isLocked

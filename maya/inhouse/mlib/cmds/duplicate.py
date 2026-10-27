@@ -16,13 +16,12 @@
 """
 
 import re
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _edit_context, _merge_flags
+from ..util import _UNSET
 
 #: fast=True で複製できる階層内のnodeType。他の型はcmds固有の複製規則を確かめていないため拒否する。
 _FAST_NODE_TYPES = frozenset(("transform", "joint", "mesh", "nurbsCurve", "nurbsSurface", "locator"))
@@ -71,7 +70,7 @@ def duplicate(node, *, fast=False,
 
     Args:
         node (object): 複製元のNode・Plug・Component・API参照または名前。Mayaへ渡す一意な名前へ変換する。
-        fast (bool): TrueはOpenMayaで複製しUndoに記録しない。既定Falseはcmds.duplicate。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
         fullPath (bool): Mayaの複製結果を完全DAGパスで受け取る指定。mlibの戻り型は変わらない。
         f (bool): fullPathの短縮名。同時指定はできない。
         inputConnections (bool): 入力接続も複製する指定。
@@ -108,81 +107,21 @@ def duplicate(node, *, fast=False,
         RuntimeError: Maya が複製を拒否した場合。
         NotImplementedError: fast=Trueで上記の対応範囲外の対象・フラグを指定した場合(複製しない)。
     """
-    if fullPath is not _UNSET:
-        if f is not _UNSET:
-            raise _ArgumentError("Specify only one of 'fullPath' and 'f'")
-        kwargs["fullPath"] = fullPath
-    elif f is not _UNSET:
-        kwargs["fullPath"] = f
-    if inputConnections is not _UNSET:
-        if ic is not _UNSET:
-            raise _ArgumentError("Specify only one of 'inputConnections' and 'ic'")
-        kwargs["inputConnections"] = inputConnections
-    elif ic is not _UNSET:
-        kwargs["inputConnections"] = ic
-    if instanceLeaf is not _UNSET:
-        if ilf is not _UNSET:
-            raise _ArgumentError("Specify only one of 'instanceLeaf' and 'ilf'")
-        kwargs["instanceLeaf"] = instanceLeaf
-    elif ilf is not _UNSET:
-        kwargs["instanceLeaf"] = ilf
-    if name is not _UNSET:
-        if n is not _UNSET:
-            raise _ArgumentError("Specify only one of 'name' and 'n'")
-        kwargs["name"] = name
-    elif n is not _UNSET:
-        kwargs["name"] = n
-    if parentOnly is not _UNSET:
-        if po is not _UNSET:
-            raise _ArgumentError("Specify only one of 'parentOnly' and 'po'")
-        kwargs["parentOnly"] = parentOnly
-    elif po is not _UNSET:
-        kwargs["parentOnly"] = po
-    if renameChildren is not _UNSET:
-        if rc is not _UNSET:
-            raise _ArgumentError("Specify only one of 'renameChildren' and 'rc'")
-        kwargs["renameChildren"] = renameChildren
-    elif rc is not _UNSET:
-        kwargs["renameChildren"] = rc
-    if returnRootsOnly is not _UNSET:
-        if rr is not _UNSET:
-            raise _ArgumentError("Specify only one of 'returnRootsOnly' and 'rr'")
-        kwargs["returnRootsOnly"] = returnRootsOnly
-    elif rr is not _UNSET:
-        kwargs["returnRootsOnly"] = rr
-    if smartTransform is not _UNSET:
-        if st is not _UNSET:
-            raise _ArgumentError("Specify only one of 'smartTransform' and 'st'")
-        kwargs["smartTransform"] = smartTransform
-    elif st is not _UNSET:
-        kwargs["smartTransform"] = st
-    if transformsOnly is not _UNSET:
-        if to is not _UNSET:
-            raise _ArgumentError("Specify only one of 'transformsOnly' and 'to'")
-        kwargs["transformsOnly"] = transformsOnly
-    elif to is not _UNSET:
-        kwargs["transformsOnly"] = to
-    if upstreamNodes is not _UNSET:
-        if un is not _UNSET:
-            raise _ArgumentError("Specify only one of 'upstreamNodes' and 'un'")
-        kwargs["upstreamNodes"] = upstreamNodes
-    elif un is not _UNSET:
-        kwargs["upstreamNodes"] = un
-    if query is not _UNSET:
-        if q is not _UNSET:
-            raise _ArgumentError("Specify only one of 'query' and 'q'")
-        kwargs["query"] = query
-    elif q is not _UNSET:
-        kwargs["query"] = q
-    if edit is not _UNSET:
-        if e is not _UNSET:
-            raise _ArgumentError("Specify only one of 'edit' and 'e'")
-        kwargs["edit"] = edit
-    elif e is not _UNSET:
-        kwargs["edit"] = e
-    if not isinstance(fast, bool):
-        raise TypeError("fast must be a bool")
-    with nullcontext() if fast else undoChunk("mlib.cmds.duplicate.duplicate"):
+    _merge_flags(kwargs, (
+        (fullPath, f, "fullPath", "f"),
+        (inputConnections, ic, "inputConnections", "ic"),
+        (instanceLeaf, ilf, "instanceLeaf", "ilf"),
+        (name, n, "name", "n"),
+        (parentOnly, po, "parentOnly", "po"),
+        (renameChildren, rc, "renameChildren", "rc"),
+        (returnRootsOnly, rr, "returnRootsOnly", "rr"),
+        (smartTransform, st, "smartTransform", "st"),
+        (transformsOnly, to, "transformsOnly", "to"),
+        (upstreamNodes, un, "upstreamNodes", "un"),
+        (query, q, "query", "q"),
+        (edit, e, "edit", "e"),
+    ))
+    with _edit_context("mlibDuplicate", fast):
         # nodesはcmdsを参照するため、循環importを避けて関数内で読み込む。
         from ..core.object import Object as _InputObject
         from ..nodes import Node
@@ -208,8 +147,8 @@ def _duplicate_fast(name, flags):
 
     Raises:
         ValueError: nameが存在しない、または複数のノードに一致する場合。
-        NotImplementedError: 対応範囲外の対象・フラグの場合。
         RuntimeError: 複製した階層が複製元と対応しない場合(複製結果は削除する)。
+        NotImplementedError: 対応範囲外の対象・フラグの場合。
     """
     new_name = _fast_name(flags)
     source = _source_path(name)
@@ -224,7 +163,7 @@ def _duplicate_fast(name, flags):
         modifier = om2.MDagModifier()
         modifier.deleteNode(root.node())
         modifier.doIt()
-        raise RuntimeError("Duplicated hierarchy does not match the source: " + name)
+        raise RuntimeError(f"Duplicated hierarchy does not match the source: {name}")
     _apply_names(nodes, copies, new_name)
     for state, copy in zip(states, copies):
         _restore_plug_states(om2.MFnDependencyNode(copy.node()), state)
@@ -261,7 +200,7 @@ def _fast_name(flags):
                          if key != "name" and key not in _FAST_RESULT_FLAGS
                          and not (key in _FAST_FALSE_ONLY_FLAGS and value is False))
     if unsupported:
-        raise NotImplementedError("Unsupported fast duplicate flags: " + ", ".join(unsupported))
+        raise NotImplementedError(f"fast duplicate does not support flags: {', '.join(unsupported)}")
     new_name = flags.get("name")
     if new_name is None or new_name == "":
         return None
@@ -291,9 +230,9 @@ def _source_path(name):
     try:
         selection.add(name)
     except RuntimeError:
-        raise ValueError("No object matches name: " + name) from None
+        raise ValueError(f"No object matches name: {name}") from None
     if selection.length() != 1:
-        raise ValueError("More than one object matches name: " + name)
+        raise ValueError(f"More than one object matches name: {name}")
     if not selection.getDependNode(0).hasFn(om2.MFn.kTransform):
         raise NotImplementedError("fast duplicate supports only DAG transforms")
     return selection.getDagPath(0)
@@ -345,7 +284,7 @@ def _fast_hierarchy(source):
         if path.isInstanced():
             raise NotImplementedError("fast duplicate does not support instanced nodes")
         if fn.typeName not in _FAST_NODE_TYPES:
-            raise NotImplementedError("fast duplicate does not support node type " + fn.typeName)
+            raise NotImplementedError(f"fast duplicate does not support node type {fn.typeName}")
         if fn.isIntermediateObject:
             raise NotImplementedError("fast duplicate does not support intermediate objects")
         if fn.isLocked or fn.isFromReferencedFile:
@@ -396,8 +335,8 @@ def _fast_connections(nodes):
                         and target_node.hasFn(om2.MFn.kSet)):
                     set_links.append((index, target_node))
                     continue
-                raise NotImplementedError("fast duplicate does not support the connection " + plug.name()
-                                          + " -> " + target.name())
+                raise NotImplementedError(
+                    f"fast duplicate does not support the connection {plug.name()} -> {target.name()}")
     return joint_links, set_links
 
 
@@ -412,6 +351,9 @@ def _apply_names(nodes, copies, new_name):
         nodes (list[om2.MDagPath]): 複製元の階層。
         copies (list[om2.MDagPath]): 同じ順の複製側の階層。
         new_name (str | None): ルートの名前。Noneは複製時のMayaの連番名。
+
+    Returns:
+        None: 値を返さない。
     """
     old_root = om2.MFnDependencyNode(nodes[0].node()).name()
     root_fn = om2.MFnDependencyNode(copies[0].node())
@@ -454,6 +396,9 @@ def _collect_plug_states(plug, states):
     Args:
         plug (om2.MPlug): 対象のプラグ。
         states (dict): 状態を追加する辞書。
+
+    Returns:
+        None: 値を返さない。
     """
     key = plug.partialName(includeNonMandatoryIndices=True, includeInstancedIndices=True,
                            useFullAttributePath=True, useLongNames=True)
@@ -472,6 +417,9 @@ def _restore_plug_states(fn, states):
     Args:
         fn (om2.MFnDependencyNode): 複製側のノード。
         states (dict): 複製元の :func:`_plug_states` の戻り値。
+
+    Returns:
+        None: 値を返さない。
     """
     copied = _plug_states(fn)
     for key, (_, locked, keyable, channel_box) in states.items():

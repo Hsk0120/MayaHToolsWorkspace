@@ -54,7 +54,7 @@ class AimConstraintTest(unittest.TestCase):
                     self.assertAlmostEqual(actual, expected)
         self.assertFalse(hasattr(type(self.aim), "getSettingPlugs"))
         cmds.connectAttr(self.target + ".rotateX", self.aim.getFullName() + ".offsetX")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(RuntimeError):
             self.aim.setOffset((1, 2, 3))
         self.assertAlmostEqual(self.aim.getOffset()[1], values[1])
 
@@ -63,7 +63,7 @@ class AimConstraintTest(unittest.TestCase):
         self.aim.setRestRotate((0, 0, 0))
         cmds.setAttr(self.aim.getFullName() + ".restRotateZ", lock=True)
         try:
-            with self.assertRaises(ValueError):
+            with self.assertRaises(RuntimeError):
                 self.aim.setRestRotate((1, 2, 3))
             self.assertEqual(self.aim.getRestRotate(), (0, 0, 0))
         finally:

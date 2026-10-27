@@ -23,11 +23,13 @@ class ScriptJob:
             compressUndo (bool): コールバックの更新を直前の操作のUndoにまとめる。
 
         Raises:
-            ValueError: eventとattributeの指定が一方だけでない場合。
             TypeError: callbackが呼び出せない場合。
+            ValueError: eventとattributeの指定が一方だけでない場合。
             RuntimeError: バッチ実行中、またはMayaが登録を拒否した場合。
         """
+        # commonの初期化時にplugsを読み込まないよう、使用時にPlugを読み込む。
         from ..plugs.plug import Plug as _InputPlug
+
         if (event is None) == (attribute is None):
             raise ValueError("Specify exactly one of event or attribute")
         if not callable(callback):

@@ -153,7 +153,7 @@ class MeshReorderTest(unittest.TestCase):
 
     def test_history_rejected(self):
         source = mlib.getNode(cmds.polyCube(ch=True)[0]).getShape()
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(ValueError):
             source.reorderVertices(self.target)
 
     def test_tolerance_and_face_topology(self):
@@ -175,7 +175,7 @@ class MeshReorderTest(unittest.TestCase):
         cmds.setAttr(self.target.getFullName() + ".outMesh", lock=False)
         self.assertEqual(self.snapshot(), before)
         cmds.instance(cmds.listRelatives(self.target.getFullName(), parent=True, fullPath=True)[0])
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(ValueError):
             self.target.reorderVertices(self.reference)
 
     def test_materials_normals_multiple_uvs(self):
@@ -239,12 +239,12 @@ class MeshReorderTest(unittest.TestCase):
         destination = cmds.createNode("mesh")
         cmds.connectAttr(self.target.getFullName() + ".outMesh", destination + ".inMesh")
         before = self.snapshot()
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(ValueError):
             self.target.reorderVertices(self.reference)
         self.assertEqual(self.snapshot(), before)
         cmds.disconnectAttr(self.target.getFullName() + ".outMesh", destination + ".inMesh")
         cmds.polyColorSet(self.target.getFullName(), create=True, colorSet="colors")
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(ValueError):
             self.target.reorderVertices(self.reference)
 
 

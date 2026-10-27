@@ -79,7 +79,7 @@ class CurveLengthTest(unittest.TestCase):
         for tolerance in (0, -1, float("nan"), float("inf")):
             with self.assertRaises(ValueError):
                 curve.getLength(tolerance)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             curve.getLength(ws=1)
         with self.assertRaises(TypeError):
             curve.getLength(unit=1)

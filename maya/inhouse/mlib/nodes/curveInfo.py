@@ -1,9 +1,7 @@
 """接続したcurveの形状情報をMayaで評価する。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _pick_alias
+from ..util import _UNSET
 from ._calculation import _Calculation
 from .abstractBaseCreate import AbstractBaseCreate
 
@@ -16,8 +14,8 @@ class CurveInfo(AbstractBaseCreate):
 
         Args:
             curve (Node | str | MObject | MDagPath): 対象形状。
-            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
-            force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。短縮名ws。
+            force (bool): 接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -28,21 +26,9 @@ class CurveInfo(AbstractBaseCreate):
         Note:
             force=True では既存接続を置き換えます。通常モードでは失敗前の変更もUndoで戻せます。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if worldSpace is _UNSET:
-            worldSpace = True
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=True)
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectCurve", fast):
             source = _Calculation.geometry_output(curve, "nurbsCurve", worldSpace)
             source.connectTo(self.getPlug("inputCurve"), force=force, fast=fast)
             return self

@@ -5,8 +5,9 @@ from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 
+from ..decorator import _require_bool
 from .eulerRotate import EulerRotate
-from .matrix import Matrix, _compose_into, _new, _xyz
+from .matrix import Matrix, _compose_into, _new, _rotate_matrix, _xyz
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
@@ -55,8 +56,7 @@ def _translation_matrix(value):
 def _rotation_matrix(rotation):
     """``Matrix(rotate=rotation)`` と同じ要素の回転マトリクスを作る。
 
-    正規化と変換は ``Quaternion.normal().asMatrix()`` と同じ om2 の関数で、mlib の値への
-    包み直しだけを省く。
+    回転の変換は ``Matrix(rotate=...)`` と同じ :func:`mlib.maths.matrix._rotate_matrix` を使う。
 
     Args:
         rotation (om2.MQuaternion): 回転。
@@ -67,10 +67,7 @@ def _rotation_matrix(rotation):
     Raises:
         ValueError: ゼロクォータニオンの場合。
     """
-    if (rotation.x * rotation.x + rotation.y * rotation.y + rotation.z * rotation.z
-            + rotation.w * rotation.w == 0.0):
-        raise ValueError("Cannot normalize a zero quaternion")
-    return _compose_into(_new(Matrix), None, _MQuaternion.asMatrix(_MQuaternion.normal(rotation)), None, None)
+    return _compose_into(_new(Matrix), None, _rotate_matrix(rotation), None, None)
 
 
 class Transformation:
@@ -174,7 +171,7 @@ class Transformation:
         for name, val in kwargs.items():
             name = self._aliases.get(name, name)
             if name in normalized:
-                raise TypeError("Duplicate transformation component: " + name)
+                raise TypeError(f"Duplicate transformation component: {name}")
             normalized[name] = val
         # rotateの入力は指定した順序で解釈し、matrixは全ての補助成分が確定してから分解する。
         for name in ["rotateOrder"] + [n for n in normalized if n not in ("rotateOrder", "matrix")] + ["matrix"]:
@@ -233,9 +230,7 @@ class Transformation:
             self._values["rotate"].reorderIt(value)
             return
         if name == "segmentScaleCompensate":
-            if not isinstance(value, bool):
-                raise TypeError("segmentScaleCompensate must be bool")
-            self._values[name] = value
+            self._values[name] = _require_bool(value, "segmentScaleCompensate")
             return
         if name == "quaternion":
             rotation = self._quaternion(value).asEulerRotate()
@@ -425,6 +420,9 @@ class Transformation:
 
         Args:
             value (object): Matrixで解釈する有限なアフィンマトリクス。
+
+        Returns:
+            None: 値を返さない。
         """
         matrix = Matrix(value)
         if not all(math.isfinite(v) for v in matrix):

@@ -1,13 +1,14 @@
-"""配列アトリビュートの論理インデックスと要素プラグを扱う。"""
+"""配列アトリビュートの論理番号と要素プラグを扱う。"""
 
+import operator
 from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _pick_alias, _require_bool, undoChunk
+from ..util import _UNSET
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 
 
@@ -38,7 +39,7 @@ class ArrayPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        index = self._validate_index(index)
+        index = self._validated_logical_index(index)
         return Plug(self._node, self._mplug.elementByLogicalIndex(index))
 
     def __iter__(self):
@@ -68,20 +69,20 @@ class ArrayPlug(Plug):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または要素値を取得できない場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         if type(self).getElements is not ArrayPlug.getElements:
             return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
         indices = self.getIndices()
         if not indices:
             return {}
         # 要素は同じアトリビュート定義を共有するため、ラッパーの型と読取関数は全要素で同じになる。
-        # 基底Plugの読取(get/_get_internal)をそのまま使う型に限り、2個目以降のラッパー作成を省いて
+        # 基底Plugの読取(get/_get_value)をそのまま使う型に限り、2個目以降のラッパー作成を省いて
         # 同じ手順(有効性の確認→読取関数→単位換算)で読む。それ以外は従来どおり要素ごとのget。
         mplug = self._mplug
         first = Plug(self._node, mplug.elementByLogicalIndex(indices[0]))
         element_class = type(first)
         reader = None
-        if (element_class.get is Plug.get and element_class._get_internal is Plug._get_internal
+        if (element_class.get is Plug.get and element_class._get_value is Plug._get_value
                 and element_class._require_valid is Plug._require_valid):
             first._require_valid()
             reader = first._reader
@@ -97,25 +98,6 @@ class ArrayPlug(Plug):
             value = reader(element)
             result[element.logicalIndex()] = _convert_units(element, value) if uiUnits else value
         return result
-
-    def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """配列全体への値設定を拒否する。各要素のset()を使う。
-
-        Args:
-            value (object): 内容にかかわらず拒否する設定要求値。
-            safe (bool): Trueでも拒否を抑制しない。
-            uiUnits (bool): Plug共通の単位指定。全体設定は許可しない。
-            fast (bool): Plug共通の経路指定。全体設定は許可しない。
-
-        Returns:
-            NoReturn: 必ずTypeErrorを送出する。
-
-        Raises:
-            TypeError: fastがbool以外の場合、および配列全体への設定要求。
-        """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        raise TypeError("Set an array element instead of the array plug")
 
     def getElement(self, index=_UNSET, *, idx=_UNSET):
         """既存の論理番号の要素を、評価・実体化せず参照する。
@@ -135,14 +117,9 @@ class ArrayPlug(Plug):
             IndexError: 要素が存在しない、または番号が範囲外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         self._require_valid()
-        index = self._validate_index(index)
+        index = self._validated_logical_index(index)
         if index not in self.getIndices():
             raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
         return self[index]
@@ -211,26 +188,25 @@ class ArrayPlug(Plug):
         """
         for name, flag in (("asPlug", asPlug), ("checkLocked", checkLocked),
                            ("checkChildren", checkChildren), ("vacant", vacant)):
-            if not isinstance(flag, bool):
-                raise TypeError("{} must be a bool".format(name))
+            _require_bool(flag, name)
         if isinstance(start, bool) or not isinstance(start, int):
             raise TypeError("start must be an integer")
         self._require_valid()
         mp = self._mplug
         if vacant:
             existing = set(mp.getExistingArrayAttributeIndices())
-            index = self._validate_index(max(start, 0))
+            index = self._validated_logical_index(max(start, 0))
             while index in existing:
                 index += 1
             if index > MAX_LOGICAL_INDEX:
                 raise IndexError("No available array index")
             return Plug(self._node, mp.elementByLogicalIndex(index)) if asPlug else index
         if checkLocked and mp.isLocked:
-            raise RuntimeError("Array is locked: " + self.getFullName())
+            raise RuntimeError(f"Array is locked: {self.getFullName()}")
         if start < 0:
             count = mp.numConnectedElements()
             start = mp.connectionByPhysicalIndex(count - 1).logicalIndex() + 1 if count else 0
-        index = self._validate_index(start)
+        index = self._validated_logical_index(start)
 
         def occupied(value):
             """子階層を含む入力とロックを確認する。"""
@@ -258,8 +234,8 @@ class ArrayPlug(Plug):
         fastはMDGModifierで削除し、Undo設定を変更しない。
 
         Args:
-            index (int): 削除する論理番号。別名 ``idx`` も使用可能。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            index (int): 削除する論理番号。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
@@ -270,17 +246,11 @@ class ArrayPlug(Plug):
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        index = _pick_alias(index, idx, "index", "idx")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibArrayPlugRemoveElement"):
             self._require_valid()
-            index = self._validate_index(index)
+            index = self._validated_logical_index(index)
             if index not in self._mplug.getExistingArrayAttributeIndices():
                 raise IndexError(f"No element at logical index {index} on {self.getFullName()}")
             if fast:
@@ -288,11 +258,11 @@ class ArrayPlug(Plug):
                 modifier.removeMultiInstance(self._mplug.elementByLogicalIndex(index), True)
                 modifier.doIt()
             else:
-                cmds.removeMultiInstance(f"{self.getFullName()}[{index}]", b=True)
+                cmds.removeMultiInstance(self._element_at(index).getFullName(), b=True)
             return self
 
     def getSourceNodes(self):
-        """配列要素への接続元ノードを論理インデックス順に取得する。
+        """配列要素への接続元ノードを論理番号順に取得する。
 
         Returns:
             dict[int, Node]: 接続のある要素のみ。未接続の穴を維持して返す。
@@ -305,18 +275,17 @@ class ArrayPlug(Plug):
         return result
 
     def appendMessage(self, node, *, fast=False):
-        """message配列の最大インデックスの次へノード参照を追加する。
+        """message配列の最大番号の次へノード参照を追加する。
 
         Args:
             node (str | Node): 保存する参照。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            int: 追加した論理インデックス。途中の穴は再利用しない。
+            int: 追加した論理番号。途中の穴は再利用しない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlib.ArrayPlug.appendMessage"):
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibArrayPlugAppendMessage"):
             # 循環import(nodes → plugs)を避けるため、使う時点で読み込む。
             from ..nodes.node import Node
             self._require_valid()
@@ -325,7 +294,7 @@ class ArrayPlug(Plug):
             index = max(self.getIndices(), default=-1) + 1
             if index > MAX_LOGICAL_INDEX:
                 raise IndexError("Message array index limit reached")
-            Node(node).getPlug("message").connectTo(self._element_reference(index), fast=fast)
+            Node(node).getPlug("message").connectTo(self._element_at(index), fast=fast)
             return index
 
     def getIndices(self):
@@ -333,7 +302,7 @@ class ArrayPlug(Plug):
 
         疎な番号が[2, 10]なら[2, 10]を返し、物理的な列挙位置の[0, 1]へ詰め直さない。
         worldSpace配列はOpenMayaの既存番号に全DAGインスタンスの0〜数-1を補完する
-        （祖先による間接インスタンスを含む）。欠番を実体化せず、getElements()も同じ番号を使う。
+        (祖先による間接インスタンスを含む)。欠番を実体化せず、getElements()も同じ番号を使う。
 
         Returns:
             list[int]: 新しい論理番号リスト。
@@ -349,26 +318,30 @@ class ArrayPlug(Plug):
         return indices
 
     @staticmethod
-    def _validate_index(index):
-        """配列要素への参照・編集に使う論理番号を検証する。
+    def _validated_logical_index(index):
+        """配列要素への参照・編集に使う論理番号を検証し、intで返す。
 
         Args:
-            index (int): 対象要素の論理番号。探索開始番号の検証には使わない。
+            index (int): 対象要素の論理番号。``operator.index`` で整数へ変換できる値(boolを除く)。
 
         Returns:
-            int: 変換せずに返す検証済み番号。
+            int: 検証済みの論理番号。
 
         Raises:
             TypeError: boolまたは整数以外の場合。
             IndexError: 0〜2147483647の範囲外の場合。
         """
-        if isinstance(index, bool) or not isinstance(index, int):
+        if isinstance(index, bool):
             raise TypeError("Logical index must be an integer")
+        try:
+            index = operator.index(index)
+        except TypeError:
+            raise TypeError("Logical index must be an integer") from None
         if not 0 <= index <= MAX_LOGICAL_INDEX:
             raise IndexError("Logical index must be in 0..2147483647")
         return index
 
-    def _element_reference(self, index):
+    def _element_at(self, index):
         """書込み・接続用の参照のみを取得し、欠番の要素を作成しない。
 
         Args:
@@ -378,8 +351,8 @@ class ArrayPlug(Plug):
             Plug: 型付き参照。危険な内部データ型の未作成要素は拒否する。
         """
         self._require_valid()
-        index = self._validate_index(index)
+        index = self._validated_logical_index(index)
         mplug = self._mplug.elementByLogicalIndex(index)
         if is_internal_data_type(mplug) and index not in self._mplug.getExistingArrayAttributeIndices():
-            raise RuntimeError("Cannot create an internal data element: " + self.getFullName())
+            raise RuntimeError(f"Cannot create an internal data element: {self.getFullName()}")
         return Plug(self._node, mplug)

@@ -22,7 +22,6 @@ ALLOWED = {
     ("mlib/core/registry.py", "NodeRegistry.__init__"): "既存の登録プロトコル",
     ("mlib/core/registry.py", "NodeRegistry.register"): "既存の登録プロトコル",
     ("mlib/core/registry.py", "NodeRegistry.wrapper_class"): "既存の登録プロトコル",
-    ("mlib/core/registry.py", "NodeRegistry.get"): "既存の登録プロトコル",
     ("mlib/core/reload.py", "reload_package"): "既存の再読み込みプロトコル",
     ("mlib/core/attributeEdit.py", "extra_children"): "coreの内部編集基盤(__all__外)",
     ("mlib/core/attributeEdit.py", "validate_extra_attribute"): "coreの内部編集基盤(__all__外)",

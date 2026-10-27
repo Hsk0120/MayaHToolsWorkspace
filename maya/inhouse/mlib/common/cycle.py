@@ -21,9 +21,7 @@ class Cycle:
         Args:
             plugs (Iterable[Plug | str]): 検出順のアトリビュート。
         """
-        from ..cmds.getPlug import getPlug
-
-        self._plugs = tuple(getPlug(plug) for plug in plugs)
+        self._plugs = tuple(Plug._resolve_input(plug) for plug in plugs)
 
     @classmethod
     def find(cls, targets=None, includeDag=True, seconds=10.0, firstOnly=False):
@@ -32,22 +30,20 @@ class Cycle:
         Args:
             targets (Iterable[str | Node | Plug] | None): Noneでシーン全体。単数も可。
             includeDag (bool): DAGの親子関係を検出に含める。
-            seconds (float): 検索時間の上限（秒）。
+            seconds (float): 検索時間の上限(秒)。
             firstOnly (bool): 最初の完全なサイクルだけを要求する。
 
         Returns:
             list[Cycle]: 検出経路。時間制限や実行時依存により0件でも無循環を保証しない。
 
         Raises:
-            ValueError: 空の対象または不正な時間上限。
             TypeError: 対象の型が不正。
+            ValueError: 空の対象または不正な時間上限。
             RuntimeError: 検索または検出アトリビュートの解決に失敗。
         """
-        from ..cmds.getPlug import getPlug
-
         seconds = float(seconds)
         if not math.isfinite(seconds) or seconds <= 0:
-            raise ValueError("検索時間は0より大きい有限の秒数を指定してください。")
+            raise ValueError(f"seconds must be a positive finite number: {seconds}")
         names = []
         if targets is not None:
             if isinstance(targets, (str, Node, Plug)):
@@ -56,14 +52,14 @@ class Cycle:
                 if isinstance(target, (Node, Plug)):
                     obj = target
                 elif isinstance(target, str):
-                    obj = getPlug(target) if "." in target else Node(target)
+                    obj = Plug._resolve_input(target) if "." in target else Node(target)
                 else:
-                    raise TypeError("ノードまたはアトリビュートを指定してください。")
+                    raise TypeError("targets must contain nodes or attributes")
                 if not isinstance(obj, (Node, Plug)):
-                    raise TypeError("ノードまたはアトリビュートを指定してください。")
+                    raise TypeError("targets must contain nodes or attributes")
                 names.append(obj.getFullName() if isinstance(obj, Plug) else obj.getName())
             if not names:
-                raise ValueError("調査するノードを選択してください。")
+                raise ValueError("targets must contain at least one node or attribute")
         options = dict(list=True, dag=includeDag, secondary=True,
                        timeLimit=f"{seconds}sec", listSeparator=_SEPARATOR,
                        firstCycleOnly=firstOnly)

@@ -1,8 +1,6 @@
 """指定の生成先へ標準scalar演算を構築する。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoTransaction
+from ..decorator import _edit_context
 from ..nodes.container import Container
 from ..plugs.plug import Plug
 
@@ -24,11 +22,15 @@ class ScalarGraph:
             createNode (Callable | None): (node_type, name=...)を受け取りNodeを返す生成関数。
                 構築メソッドへfast=Trueを渡す場合は、キーワード ``fast=True`` も受け取る必要がある
                 (例: ``mlib.createNode``)。
+
+        Raises:
+            TypeError: createNodeが呼び出せない値の場合。
+            ValueError: containerとcreateNodeを両方指定した、またはどちらも指定しない場合。
         """
         if (container is None) == (createNode is None):
-            raise ValueError("containerかcreate_nodeのどちらか一方を指定してください。")
+            raise ValueError("Specify exactly one of 'container' and 'createNode'")
         if createNode is not None and not callable(createNode):
-            raise TypeError("create_nodeは呼出可能な生成関数を指定してください。")
+            raise TypeError("createNode must be callable")
         self.container = Container(container) if container is not None else None
         self._createNode = self.container.createNode if self.container is not None else createNode
 
@@ -49,7 +51,7 @@ class ScalarGraph:
             TypeError: fastがbool以外の場合。
             NotImplementedError: containerを所有先にしてfast=Trueを指定した場合。
         """
-        with self._edit("mlib.ScalarGraph.sum", fast):
+        with self._edit("mlibScalarGraphSum", fast):
             node = self._node("plusMinusAverage", role, fast)
             node.getPlug("operation").set(2 if subtract else 1, fast=fast)
             self._feed(left, node.getPlug("input1D")[0], fast)
@@ -73,7 +75,7 @@ class ScalarGraph:
             TypeError: fastがbool以外の場合。
             NotImplementedError: containerを所有先にしてfast=Trueを指定した場合。
         """
-        with self._edit("mlib.ScalarGraph.multiply", fast):
+        with self._edit("mlibScalarGraphMultiply", fast):
             node = self._node("multiplyDivide", role, fast)
             node.getPlug("operation").set(operation, fast=fast)
             self._feed(left, node.getPlug("input1X"), fast)
@@ -98,7 +100,7 @@ class ScalarGraph:
             TypeError: fastがbool以外の場合。
             NotImplementedError: containerを所有先にしてfast=Trueを指定した場合。
         """
-        with self._edit("mlib.ScalarGraph.condition", fast):
+        with self._edit("mlibScalarGraphCondition", fast):
             node = self._node("condition", role, fast)
             node.getPlug("operation").set(2, fast=fast)
             for value, attr in (
@@ -115,7 +117,7 @@ class ScalarGraph:
 
         Args:
             name (str): 通常経路のUndoチャンク名。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             contextlib.AbstractContextManager: 通常はundoTransaction、fastはnullcontext。
@@ -124,11 +126,11 @@ class ScalarGraph:
             TypeError: fastがbool以外の場合。
             NotImplementedError: containerを所有先にしてfast=Trueを指定した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        # 構築途中の失敗を巻き戻すため、通常経路はUndo無効時に拒否するundoTransactionを使う。
+        context = _edit_context(name, fast, transaction=True)
         if fast and self.container is not None:
             raise NotImplementedError("fast=True is not supported when the owner is a container")
-        return nullcontext() if fast else undoTransaction(name)
+        return context
 
     def _node(self, kind, role, fast=False):
         """設定した生成先へ演算ノードを作成する。
@@ -153,7 +155,7 @@ class ScalarGraph:
         Args:
             value (float | str | Plug): 定数または入力プラグ名。
             destination (Plug | str): 接続先アトリビュート。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             None: 値を返さない。

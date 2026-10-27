@@ -68,7 +68,7 @@ class ComponentCollectionsTest(unittest.TestCase):
         empty = self.mesh.getVertices([])
         self.assertIs(empty.setPositions([]), empty)
         self.assertEqual(empty.getPosition(), [])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             empty.setPositions([], ws=1)
 
     def test_uv_bulk_axes_and_undo(self):

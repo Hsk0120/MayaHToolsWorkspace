@@ -370,7 +370,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         for shape in self.mirror_shapes():
             before = self.positions(shape)
             for kwargs, error in [({'axis': ''}, ValueError), ({'axis': 'xx'}, ValueError),
-                                  ({'axis': 'a'}, ValueError), ({'ws': 'world'}, ValueError),
+                                  ({'axis': 'a'}, ValueError), ({'ws': 'world'}, TypeError),
                                   ({'pivot': (0, 1)}, ValueError), ({'pivot': (0, float('nan'), 0)}, ValueError),
                                   ({'indices': [0, -1]}, IndexError), ({'indices': [0, 10000]}, IndexError),
                                   ({'indices': [0, 1.2]}, TypeError)]:

@@ -1,7 +1,9 @@
-"""Mayaのコンポーネント（頂点・エッジ・フェース・CV・UV）と同一シェイプの要素群。"""
+"""Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)と同一シェイプの要素群。"""
 
 import math
 import operator
+
+import maya.api.OpenMaya as om2
 
 from ..core.object import Object
 
@@ -38,7 +40,7 @@ class Component(Object):
         if isinstance(index, bool):
             raise TypeError("Component index must be an integer, not bool")
         self._index = operator.index(index)
-        self._validate()
+        self._require_valid()
 
     def __eq__(self, other):
         """同じシェイプのインスタンス・種類・番号を指すか比較する。
@@ -88,7 +90,7 @@ class Component(Object):
         Returns:
             str: シェイプの完全パスとコンポーネントの種類・番号を含む名前。
         """
-        self._validate()
+        self._require_valid()
         return f"{self._shape.getFullName()}.{self.component_type}[{self._index}]"
 
     def isValid(self):
@@ -102,14 +104,14 @@ class Component(Object):
             UVは現在のUVセットの番号範囲を使う。
         """
         try:
-            self._validate()
+            self._require_valid()
         except (RuntimeError, TypeError, ValueError, IndexError):
             return False
         return True
 
     @staticmethod
     def _from_api(path, component):
-        """OpenMayaの単一インデックス型コンポーネントを、要素別の参照へ展開する。
+        """OpenMayaの単一番号型コンポーネントを、要素別の参照へ展開する。
 
         明示番号はgetElements()の順序、complete指定は現在のShapeの全番号を使う。
         各参照は同じShapeラッパーを共有し、座標値は取得しない。
@@ -127,7 +129,7 @@ class Component(Object):
             IndexError: 明示番号が現在のShapeの範囲外の場合。
             RuntimeError: 所有Shapeを解決・参照できない場合。
         """
-        import maya.api.OpenMaya as om2
+        # nodes・具体コンポーネント型はこのモジュールを継承・importするため、循環を避けて使う時点で読み込む。
         from ..nodes.node import Node
         from .vertex import Vertex
         from .edge import Edge
@@ -157,7 +159,7 @@ class Component(Object):
         """コンポーネント名・既存参照・APIの組から、一つの要素参照を解決する。
 
         既存Componentは再検証せず同じラッパーを返す。文字列はMSelectionListで解決し、
-        API入力は単一インデックス型かと要素数を確認してから展開する。
+        API入力は単一番号型かと要素数を確認してから展開する。
         単数でないと判定した入力は、展開前に拒否する。展開後も一件であることを確認する。
 
         Args:
@@ -173,7 +175,6 @@ class Component(Object):
             IndexError: 明示番号が現在のShapeの範囲外の場合。
             RuntimeError: 名前や所有Shapeを解決できない場合。
         """
-        import maya.api.OpenMaya as om2
         if isinstance(value, Component):
             return value
         if isinstance(value, str):
@@ -224,7 +225,7 @@ class Component(Object):
         position[axis] = value
         return self.setPosition(position, fast=fast, **space)
 
-    def _validate(self):
+    def _require_valid(self):
         """現在のシェイプ型と番号を再検査する。
 
         Returns:
@@ -237,8 +238,8 @@ class Component(Object):
         """
         self._validate_shape(self._shape, self.shape_type)
         if self._index < 0:
-            self._validate_index(self._index, 0)
-        self._validate_index(self._index, getattr(self._shape, self.count_attribute)())
+            self._require_index_range(self._index, 0)
+        self._require_index_range(self._index, getattr(self._shape, self.count_attribute)())
 
     @staticmethod
     def _validate_shape(shape, shape_type):
@@ -247,6 +248,9 @@ class Component(Object):
         Args:
             shape (Shape): 検査する参照。
             shape_type (str): 必要なMayaシェイプ型。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             TypeError: シェイプ参照または型が不正な場合。
@@ -260,12 +264,15 @@ class Component(Object):
             raise TypeError(f"Expected a {shape_type} shape")
 
     @staticmethod
-    def _validate_index(index, count):
+    def _require_index_range(index, count):
         """正規化済みの実番号を、呼出し内で照会した要素数と比較する。
 
         Args:
             index (int): コンポーネントの実番号。
             count (int): 現在の要素数。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             IndexError: 番号が範囲外の場合。
@@ -298,11 +305,11 @@ class Component(Object):
 
 # 利用側が標準単数処理を置換した場合は、その処理を一括経路から省略しない。
 _COMPONENT_INIT = Component.__init__
-_COMPONENT_VALIDATE = Component._validate
+_COMPONENT_REQUIRE_VALID = Component._require_valid
 _COMPONENT_INDEX = Component.index
 _COMPONENT_SHAPE = Component.shape
 _COMPONENT_VALIDATE_SHAPE = Component._validate_shape
-_COMPONENT_VALIDATE_INDEX = Component._validate_index
+_COMPONENT_REQUIRE_INDEX_RANGE = Component._require_index_range
 
 
 class Components:
@@ -343,10 +350,10 @@ class Components:
             count = len(selected) if indices is None else None
             for index in selected:
                 if index < 0:
-                    Component._validate_index(index, 0)
+                    Component._require_index_range(index, 0)
                 if count is None:
                     count = getattr(shape, self.component_class.count_attribute)()
-                Component._validate_index(index, count)
+                Component._require_index_range(index, count)
             self._indices = tuple(dict.fromkeys(selected))
         else:
             self._indices = tuple(dict.fromkeys(self.component_class(shape, index).index for index in selected))
@@ -372,9 +379,9 @@ class Components:
             yield self.component_class(self._shape, index)
 
     def __getitem__(self, index):
-        """保持列のPython添字から単数参照、sliceから同型の部分コレクションを取得する。
+        """保持列のPythonの位置番号から単数参照、sliceから同型の部分コレクションを取得する。
 
-        添字はMayaの実番号ではない。負数とboolはtupleと同じ位置として扱う。
+        位置番号はMayaの実番号ではない。負数とboolはtupleと同じ位置として扱う。
         取得対象の現在番号を再検証し、元と同じShapeラッパーを共有する。
 
         Args:
@@ -384,9 +391,9 @@ class Components:
             Component | Components: 新しい単数参照または同じ型の新しいコレクション。
 
         Raises:
-            TypeError: tupleが受理しない添字、またはShape型が不正な場合。
-            IndexError: 保持列の位置または現在のMaya番号が範囲外の場合。
+            TypeError: tupleが受理しない番号、またはShape型が不正な場合。
             ValueError: sliceのstepが0の場合。
+            IndexError: 保持列の位置または現在のMaya番号が範囲外の場合。
             RuntimeError: Shapeが無効な場合。
         """
         if isinstance(index, slice):
@@ -469,7 +476,7 @@ class Components:
             UVは現在のUVセットの番号範囲を使う。
         """
         try:
-            self._validate()
+            self._require_valid()
         except (RuntimeError, TypeError, ValueError, IndexError):
             return False
         return all(index >= 0 for index in self._indices)
@@ -483,6 +490,7 @@ class Components:
         Returns:
             bool: 利用側の派生型や置換された単数処理でなければTrue。
         """
+        # 具体コンポーネント型はこのモジュールを継承するため、循環を避けて使う時点で読み込む。
         from .cv import CV
         from .edge import Edge
         from .face import Face
@@ -491,11 +499,11 @@ class Components:
         component_class = self.component_class if component_class is None else component_class
         return (component_class in (Vertex, Edge, Face, UV, CV)
                 and component_class.__init__ is _COMPONENT_INIT
-                and component_class._validate is _COMPONENT_VALIDATE
+                and component_class._require_valid is _COMPONENT_REQUIRE_VALID
                 and component_class.index is _COMPONENT_INDEX
                 and component_class.shape is _COMPONENT_SHAPE
                 and component_class._validate_shape is _COMPONENT_VALIDATE_SHAPE
-                and component_class._validate_index is _COMPONENT_VALIDATE_INDEX)
+                and component_class._require_index_range is _COMPONENT_REQUIRE_INDEX_RANGE)
 
     def _has_standard_shape(self, component_class=None):
         """標準のシェイプ型か判定し、利用側の形状派生の照会処理を維持する。
@@ -506,6 +514,7 @@ class Components:
         Returns:
             bool: MeshまたはNurbsCurveそのものならTrue。
         """
+        # nodes → components の循環importを避けるため、使う時点で読み込む。
         from ..nodes.mesh import Mesh
         from ..nodes.nurbsCurve import NurbsCurve
         shape_class = type(self._shape)
@@ -539,6 +548,7 @@ class Components:
         Returns:
             bool: Vertices/Vertexへの利用側の差替えを省略しなければTrue。
         """
+        # vertexはこのモジュールを継承するため、循環を避けて使う時点で読み込む。
         from .vertex import Vertex, Vertices
         return (Vertices.component_class is Vertex and self._has_standard_component(Vertex)
                 and self._has_standard_shape(Vertex)
@@ -561,7 +571,7 @@ class Components:
             mesh_fn = self.shape._geometry_fn()
             count = getattr(mesh_fn, count_name)
             for index in self._indices:
-                Component._validate_index(index, count)
+                Component._require_index_range(index, count)
                 indices.extend(getattr(mesh_fn, vertices_method)(index))
         return indices
 
@@ -576,10 +586,10 @@ class Components:
             IndexError: いずれかの番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
         """
-        self._validate()
+        self._require_valid()
         return f"{self._shape.getFullName()}.{self.component_class.component_type}"
 
-    def _validate(self):
+    def _require_valid(self):
         """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
 
         Raises:

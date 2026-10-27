@@ -20,7 +20,7 @@ _VIEWPORT_COLORS = {
     logging.ERROR: "#ff4d4d",
     logging.CRITICAL: "#ff4d4d",
 }
-_UNSET = object()
+_NO_CAUSE = object()
 
 
 def _message_from(record):
@@ -199,7 +199,7 @@ def error(message, *args, **kwargs):
     get_logger().error(message, *args, **kwargs)
 
 
-def raise_with_notify(exception_type, message, *args, from_exception=_UNSET, **kwargs):
+def raise_with_notify(exception_type, message, *args, from_exception=_NO_CAUSE, **kwargs):
     """エラーを通知してから指定型の例外を送出する。
 
     Args:
@@ -207,7 +207,7 @@ def raise_with_notify(exception_type, message, *args, from_exception=_UNSET, **k
         message (str): 通知と例外の先頭引数に使うメッセージ。
         *args (object): 例外コンストラクタへ渡す追加位置引数。ログには渡さない。
         from_exception (BaseException | None): 指定時は ``raise ... from from_exception``
-            として例外連鎖を明示する（``None`` を渡すと連鎖を明示的に抑制する）。省略時は
+            として例外連鎖を明示する(``None`` を渡すと連鎖を明示的に抑制する)。省略時は
             通常の ``raise`` と同じく、except 節内であれば暗黙の連鎖を保持する。
         **kwargs (object): 例外コンストラクタへ渡すキーワード引数。ログには渡さない。
 
@@ -219,6 +219,6 @@ def raise_with_notify(exception_type, message, *args, from_exception=_UNSET, **k
     """
     error(message)
     exception = exception_type(message, *args, **kwargs)
-    if from_exception is _UNSET:
+    if from_exception is _NO_CAUSE:
         raise exception
     raise exception from from_exception

@@ -23,9 +23,12 @@ class Module:
             name (str): モジュール名(``.mod`` の ``+`` 行に書いた名前。例: ``"Bifrost"``)。
 
         Raises:
-            ValueError: name が空文字列または文字列以外の場合。
+            TypeError: name が文字列以外の場合。
+            ValueError: name が空文字列の場合。
         """
-        if not isinstance(name, str) or not name:
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+        if not name:
             raise ValueError("name must be a non-empty string")
         self._name = name
 

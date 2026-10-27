@@ -17,7 +17,7 @@ class Face(Component):
         Returns:
             ShadingEngine | None: このインスタンスのフェースに割り当てられたセット。
         """
-        self._validate()
+        self._require_valid()
         return self.shape.getFaceShadingEngines()[self.index]
 
     def getMaterial(self):
@@ -35,7 +35,7 @@ class Face(Component):
         Returns:
             Vertices: Maya の接続順の頂点群。
         """
-        self._validate()
+        self._require_valid()
         return Vertices(self.shape, self.shape._geometry_fn().getPolygonVertices(self.index))
 
 
@@ -56,7 +56,7 @@ class Faces(Components):
         result = []
         assignments = self.shape.getFaceShadingEngines()
         for face in self:
-            face._validate()
+            face._require_valid()
             group = assignments[face.index]
             if group is not None and group not in result:
                 result.append(group)

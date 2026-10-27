@@ -2,7 +2,7 @@
 
 import maya.api.OpenMaya as om2
 
-from .fastWrite import writable
+from .fastWrite import require_writable
 from .nodeEdit import require_editable
 
 
@@ -31,9 +31,9 @@ def reparent_plan(joint, parent):
         parent_matrix = Matrix()
     for name in ("translate", "jointOrient"):
         plug = joint.getPlug(name).mplug()
-        writable(plug)
+        require_writable(plug)
         for i in range(plug.numChildren()):
-            writable(plug.child(i))
+            require_writable(plug.child(i))
     inverse = joint.getPlug("inverseScale").mplug()
     old_source = inverse.connectedTo(True, False)
     old_parent = joint.getParent()
@@ -62,6 +62,9 @@ def reparent(plan):
 
     Args:
         plan (tuple): reparent_planが返した計画。
+
+    Returns:
+        None: 値を返さない。
     """
     joint, parent, translate, orientation, new_source = plan
     inverse = joint.getPlug("inverseScale").mplug()

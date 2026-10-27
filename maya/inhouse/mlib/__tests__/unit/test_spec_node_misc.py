@@ -191,7 +191,7 @@ class DagPoseSpecTest(_SpecCase):
         cmds.delete(self.pose)
         for method in ("getMemberIndices", "getNotAtPose", "isAtPose"):
             with self.subTest(method=method):
-                with self.assertRaisesRegex(RuntimeError, "invalid dagPose"):
+                with self.assertRaisesRegex(RuntimeError, r"(?i)invalid dagPose"):
                     getattr(self.node, method)()
 
 

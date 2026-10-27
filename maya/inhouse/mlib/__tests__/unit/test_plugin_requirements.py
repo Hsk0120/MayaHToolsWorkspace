@@ -52,8 +52,10 @@ class PluginVersionTest(unittest.TestCase):
 
 class ModuleTest(unittest.TestCase):
     def test_constructor_rejects_invalid_names(self):
-        for bad in ("", None, 3):
-            with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError):
+            Module("")
+        for bad in (None, 3):
+            with self.assertRaises(TypeError):
                 Module(bad)
 
     def test_unknown_module(self):
@@ -142,14 +144,15 @@ class PluginPackageFlowTest(unittest.TestCase):
         return result, loader
 
     def test_constructor_validation(self):
-        for bad in ("", None):
-            with self.assertRaises(ValueError):
-                PluginPackage(bad, plugins=("a",))
+        with self.assertRaises(ValueError):
+            PluginPackage("", plugins=("a",))
+        with self.assertRaises(TypeError):
+            PluginPackage(None, plugins=("a",))
         with self.assertRaises(ValueError):
             PluginPackage("x")
         with self.assertRaises(ValueError):
             PluginPackage("x", plugins=("a",), minimumVersion="bad")
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             Plugin(3)
 
     def test_accessors_and_defaults(self):

@@ -1,7 +1,9 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
+import math
 import re
 from contextlib import contextmanager, nullcontext
+from functools import partial
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -9,11 +11,16 @@ import maya.cmds as cmds
 
 from ..core.attributeType import attributeType, is_internal_data_type, value_reader
 from ..core.attributeType import _convert_units
-from ..core.fastWrite import _require_supported_type, set_attr
+from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object
-from ..decorator import _undo_recording, undoChunk
+from ..decorator import _pick_alias, _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError, _UNSET
+
+#: 配列全体へのset()を拒否するときの文言。
+_ARRAY_SET_MESSAGE = "Set an array element instead of the array plug"
+#: 配列全体へのreset()を拒否するときの文言。
+_ARRAY_RESET_MESSAGE = "Reset an array element instead of the array plug"
 
 #: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
 _PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
@@ -61,7 +68,7 @@ def _instance_count(array):
     return om2.MFnDagNode(node).instanceCount(True)
 
 
-def _attribute_class(node, attribute_handle, attribute):
+def _attribute_class(fn, attribute_handle, attribute):
     """アトリビュートが所有ノードに存在するかと、静的なアトリビュートかを判定する。
 
     ``addAttr`` による動的アトリビュート(``addExtension`` による拡張アトリビュートを含む)は削除でき、削除済みの
@@ -72,23 +79,23 @@ def _attribute_class(node, attribute_handle, attribute):
     取り消したアトリビュートと名前を変更したアトリビュートは同じアトリビュートのまま。
 
     Args:
-        node (Node): 所有ノードのラッパー。有効(削除済みでない)であること。
+        fn (om2.MFnDependencyNode): 所有ノードの関数セット。ノードが有効(削除済みでない)であること。
         attribute_handle (om2.MObjectHandle): アトリビュートの MObject のハンドル。
         attribute (om2.MObject): アトリビュートの MObject。
 
     Returns:
-        int: ``MFnDependencyNode`` の ``kNormalAttr``(静的アトリビュート)・``kLocalDynamicAttr``・
+        int: ``MFnDependencyNode`` の ``kNormalAttr`` (静的アトリビュート)・``kLocalDynamicAttr``・
             ``kExtensionAttr``、またはノードに無いアトリビュートの ``kInvalidAttr``。
     """
     if not attribute_handle.isValid():
         return _INVALID_ATTRIBUTE
-    return node._dependency_fn().attributeClass(attribute)
+    return fn.attributeClass(attribute)
 
 
-def _plug_exists(mplug):
+def _array_element_exists(mplug):
     """プラグ(と経由する配列要素)がシーンに存在するか判定する。
 
-    配列要素は、配列の既存の論理インデックス(``getExistingArrayAttributeIndices()``。
+    配列要素は、配列の既存の論理番号(``getExistingArrayAttributeIndices()``。
     値を持つ要素と接続された要素)に含まれる場合に存在する。値を読まないため、
     存在しない要素を作らない。
 
@@ -98,17 +105,8 @@ def _plug_exists(mplug):
     Returns:
         bool: プラグと、経由するすべての配列要素が存在する場合は True。
     """
-    current = mplug
-    while True:
-        if current.isElement:
-            array = current.array()
-            if current.logicalIndex() not in array.getExistingArrayAttributeIndices():
-                return False
-            current = array
-        elif current.isChild:
-            current = current.parent()
-        else:
-            return True
+    return all(current.logicalIndex() in current.array().getExistingArrayAttributeIndices()
+               for current in _ancestor_plugs(mplug) if current.isElement)
 
 
 class DeletedAttributeError(ValueError, RuntimeError):
@@ -160,7 +158,7 @@ class Plug(Object):
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。削除済みの
                 Plug から要素・子・親の Plug を取得した場合も含む(``Node.getPlug()`` と同じ規則)。
-                プラグが未確定(-1)の配列インデックスを経由する場合(``cmp[-1].child`` や
+                プラグが未確定(-1)の配列番号を経由する場合(``cmp[-1].child`` や
                 ``inputTarget[-1].inputTargetGroup`` のような maya.cmds で解決できないプラグ)。
                 MPlug の所有ノードが node と異なる場合(静的アトリビュート・動的アトリビュートとも。所有ノードでは
                 ない node を渡した誤用)。
@@ -168,20 +166,20 @@ class Plug(Object):
         if cls is Plug:
             handle = node._handle
             if handle is None or not handle.isValid():
-                raise RuntimeError("所有ノードが無効な(削除済みの)アトリビュートの Plug は作成できません")
+                raise RuntimeError("Cannot create a Plug for an invalid node (it was deleted)")
             if not mplug.isNull and mplug.node() != node._mobject:
                 # 所有ノードではない node を渡した誤用。静的アトリビュートは同じ型の別ノードにも存在し
                 # attributeClass() では検出できないため、MPlug の所有ノードと比べる。
-                raise RuntimeError("MPlug は指定したノードのアトリビュートではありません(所有ノードを指定してください)")
+                raise RuntimeError("MPlug does not belong to the given node (pass its owner node)")
             attribute = mplug.attribute()
             attribute_handle = om2.MObjectHandle(attribute)
-            attribute_class = _attribute_class(node, attribute_handle, attribute)
+            attribute_class = _attribute_class(node._dependency_fn(), attribute_handle, attribute)
             if attribute_class == _INVALID_ATTRIBUTE:
-                raise RuntimeError("削除済みのアトリビュートの Plug は作成できません")
+                raise RuntimeError("Cannot create a Plug for a deleted attribute")
             if Plug._has_unresolved_index(mplug):
                 raise RuntimeError(
-                    "配列要素のインデックスが未確定(-1)のアトリビュートの Plug は作成できません: "
-                    + mplug.partialName(False, True, True, True, False, True)
+                    "Cannot create a Plug with an unresolved array index (-1): "
+                    f"{mplug.partialName(False, True, True, True, False, True)}"
                 )
             target = cls
             if mplug.isArray:
@@ -196,6 +194,7 @@ class Plug(Object):
                 if resolved_class is not None:
                     target = resolved_class
                 elif mplug.isCompound:
+                    # 同上(CompoundPlugはPlugを継承するため循環importになる)。
                     from .compoundPlug import CompoundPlug
                     target = CompoundPlug
             # 選んだクラスの __new__ だけを呼び、__init__ は呼び出し元(Plug(...))の1回に任せる。
@@ -232,7 +231,7 @@ class Plug(Object):
             self._attribute_handle = om2.MObjectHandle(attribute)
             handle = node._handle
             static = (handle is not None and handle.isValid()
-                      and _attribute_class(node, self._attribute_handle, attribute) == _NORMAL_ATTRIBUTE)
+                      and _attribute_class(node._dependency_fn(), self._attribute_handle, attribute) == _NORMAL_ATTRIBUTE)
         self._static_attribute = static
 
     def __eq__(self, other):
@@ -350,7 +349,7 @@ class Plug(Object):
         """最短一意ノード名と短いアトリビュート名を含むPlug名を取得する。
 
         Returns:
-            str: 必要な multi インデックスを含むプラグ名。所有ノードが無効(削除済み)、
+            str: 必要な multi 番号を含むプラグ名。所有ノードが無効(削除済み)、
                 またはアトリビュートが削除済みの場合は空文字列(:meth:`getFullName` と同じ)。
         """
         if not self.isValid():
@@ -358,7 +357,7 @@ class Plug(Object):
         return self.getNode().getName() + self.getAttrName()
 
     def getAttrName(self):
-        """先頭ドットと必要な要素番号を含む短いアトリビュートパスを返す。
+        """先頭ドットと必要な要素番号を含む短いアトリビュートパスを取得する。
 
         Returns:
             str: ノード名を除いたPlug名。無効な場合は空文字列。
@@ -535,14 +534,14 @@ class Plug(Object):
         """
         self._require_valid()
         if not self._mplug.isElement:
-            raise TypeError("getIndex requires an array element plug: " + self.getFullName())
+            raise TypeError(f"getIndex requires an array element plug: {self.getFullName()}")
         return self._mplug.logicalIndex()
 
     def isKeyable(self):
         """チャンネルボックスでキー可能なアトリビュートか判定する。
 
         setAttr(keyable=...) によるプラグ単位の動的な上書きを反映する
-        （アトリビュート定義の既定値だけを見る MFnAttribute.keyable とは異なる）。
+        (アトリビュート定義の既定値だけを見る MFnAttribute.keyable とは異なる)。
 
         Returns:
             bool: キー可能な場合は ``True``。
@@ -558,14 +557,13 @@ class Plug(Object):
 
         Args:
             val (bool): キー設定可否。
-            leaf (bool): コンパウンドの末端だけを設定する。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            leaf (bool): 複合の末端だけを設定する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetKeyable"):
             return self._set_flags(leaf, keyable=val, fast=fast)
 
@@ -576,7 +574,7 @@ class Plug(Object):
             locked (bool | None): ロック状態。
             keyable (bool | None): キー設定可否。
             channelBox (bool | None): Channel Box表示。キー可能なアトリビュートはFalseでも表示される。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 自身。
@@ -585,10 +583,9 @@ class Plug(Object):
             TypeError: 状態がbool/None以外の場合。
             RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetFlags"):
-            flags = self._validated_flags(locked, keyable, channelBox)
+            flags = _validated_flags(locked, keyable, channelBox)
             self._require_valid()
             if flags:
                 if fast:
@@ -600,10 +597,10 @@ class Plug(Object):
             return self
 
     def isChannelBox(self):
-        """Channel Boxフラグ（keyableによる表示を含まない）。
+        """Channel Boxフラグ(keyableによる表示を含まない)。
 
         Returns:
-            bool: Channel Boxフラグ（keyableによる表示を含まない）。
+            bool: Channel Boxフラグ(keyableによる表示を含まない)。
         """
         self._require_valid()
         return self.mplug().isChannelBox
@@ -613,14 +610,13 @@ class Plug(Object):
 
         Args:
             val (bool): 表示状態。有効時はkeyableを無効にする。
-            leaf (bool): コンパウンドの末端だけを設定する。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            leaf (bool): 複合の末端だけを設定する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetChannelBox"):
             return self._set_flags(leaf, channelBox=val, fast=fast)
 
@@ -631,7 +627,7 @@ class Plug(Object):
 
         Args:
             below (bool): 子階層(複合の子・配列の既存要素)も解除する。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             list[Plug]: 実際に解除したPlugを上位から返す。解除するものが無ければ空のlist。
@@ -640,21 +636,11 @@ class Plug(Object):
             TypeError: belowまたはfastがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        if not isinstance(below, bool):
-            raise TypeError("below must be a bool")
+        _require_bool(fast, "fast")
+        _require_bool(below, "below")
         with nullcontext() if fast else undoChunk("mlibPlugUnlock"):
             self._require_valid()
-            queue, mp = [], self.mplug()
-            while True:
-                queue.append(Plug(self.getNode(), mp))
-                if mp.isChild:
-                    mp = mp.parent()
-                elif mp.isElement:
-                    mp = mp.array()
-                else:
-                    break
+            queue = [Plug(self.getNode(), mp) for mp in _ancestor_plugs(self.mplug())]
             result = []
             def unlock_one(plug):
                 """継承ロックが解除された後の自身のロックだけを変更する。"""
@@ -685,8 +671,7 @@ class Plug(Object):
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self.setMuted(True, fast=fast)
 
     def unmute(self, *, fast=False):
@@ -699,8 +684,7 @@ class Plug(Object):
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self.setMuted(False, fast=fast)
 
     def isConnected(self, *, src=_UNSET, dst=_UNSET, source=_UNSET, destination=_UNSET):
@@ -719,20 +703,11 @@ class Plug(Object):
             TypeError: 方向指定がboolでない場合、または別名と重複指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        if source is not _UNSET:
-            if src is not _UNSET:
-                raise _ArgumentError("Specify only one of 'src' and 'source'")
-            src = source
-        if destination is not _UNSET:
-            if dst is not _UNSET:
-                raise _ArgumentError("Specify only one of 'dst' and 'destination'")
-            dst = destination
-        if src is _UNSET:
-            src = True
-        if dst is _UNSET:
-            dst = True
+        src = _pick_alias(src, source, "src", "source", True)
+        dst = _pick_alias(dst, destination, "dst", "destination", True)
         self._require_valid()
-        self._validate_connection_directions(src, dst)
+        _require_bool(src, "src")
+        _require_bool(dst, "dst")
         if src and dst:
             return self._mplug.isConnected
         return (src and self._mplug.isDestination) or (dst and self._mplug.isSource)
@@ -774,10 +749,10 @@ class Plug(Object):
         return om2.MFnAttribute(self._mplug.attribute()).hidden
 
     def isDynamic(self):
-        """動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート等）か判定する。
+        """動的に追加されたアトリビュート(addAttr によるカスタムアトリビュート等)か判定する。
 
         Returns:
-            bool: 動的アトリビュートの場合は ``True``。静的（ノード型に組み込み）のアトリビュートは ``False``。
+            bool: 動的アトリビュートの場合は ``True``。静的(ノード型に組み込み)のアトリビュートは ``False``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -875,7 +850,7 @@ class Plug(Object):
         """設定されている最小値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクト（``MAngle``/``MDistance``/``MTime``）をそのまま返す。
+        単位付きオブジェクト(``MAngle``/``MDistance``/``MTime``)をそのまま返す。
         既定(``uiUnits=False``)では単位の換算を行わない。
 
         Args:
@@ -890,7 +865,7 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         fn = self._range_attribute_fn()
         if fn is None or not fn.hasMin():
             return None
@@ -901,7 +876,7 @@ class Plug(Object):
         """設定されている最大値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクト（``MAngle``/``MDistance``/``MTime``）をそのまま返す。
+        単位付きオブジェクト(``MAngle``/``MDistance``/``MTime``)をそのまま返す。
 
         Args:
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
@@ -914,7 +889,7 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         fn = self._range_attribute_fn()
         if fn is None or not fn.hasMax():
             return None
@@ -922,7 +897,7 @@ class Plug(Object):
         return _convert_units(self._mplug, value) if uiUnits else value
 
     def hasSoftMin(self):
-        """ソフト最小値（UIスライダーの下限）を持つアトリビュートか判定する。
+        """ソフト最小値(UIスライダーの下限)を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
 
@@ -936,7 +911,7 @@ class Plug(Object):
         return fn.hasSoftMin() if fn is not None else False
 
     def hasSoftMax(self):
-        """ソフト最大値（UIスライダーの上限）を持つアトリビュートか判定する。
+        """ソフト最大値(UIスライダーの上限)を持つアトリビュートか判定する。
 
         数値アトリビュート、角度・距離・時間アトリビュートのみ対応する。それ以外は常に ``False``。
 
@@ -950,7 +925,7 @@ class Plug(Object):
         return fn.hasSoftMax() if fn is not None else False
 
     def getSoftMin(self, *, uiUnits=False):
-        """設定されているソフト最小値（UIスライダーの下限）を取得する。
+        """設定されているソフト最小値(UIスライダーの下限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
@@ -966,7 +941,7 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         fn = self._range_attribute_fn()
         if fn is None or not fn.hasSoftMin():
             return None
@@ -974,7 +949,7 @@ class Plug(Object):
         return _convert_units(self._mplug, value) if uiUnits else value
 
     def getSoftMax(self, *, uiUnits=False):
-        """設定されているソフト最大値（UIスライダーの上限）を取得する。
+        """設定されているソフト最大値(UIスライダーの上限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
@@ -990,7 +965,7 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         fn = self._range_attribute_fn()
         if fn is None or not fn.hasSoftMax():
             return None
@@ -1017,7 +992,7 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
@@ -1047,13 +1022,12 @@ class Plug(Object):
 
         Args:
             name (str | None): 別名。Noneまたは空文字で解除。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetAlias"):
             self._require_valid()
             if fast:
@@ -1071,7 +1045,7 @@ class Plug(Object):
         """対象アトリビュートへキーを設定する。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: Maya setKeyframeのフラグ。値・時間はMayaのUI単位。
                 fastは単一のtime/t・value/v・inTangentType/itt・outTangentType/ottのみ。
                 レイヤー、範囲、複合入力等は更新前に拒否する。
@@ -1082,8 +1056,7 @@ class Plug(Object):
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetKey"):
             self._require_valid()
             if fast:
@@ -1168,7 +1141,7 @@ class Plug(Object):
         if value is None:
             value = int(self.get())
         elif isinstance(value, bool) or not isinstance(value, int):
-            raise TypeError("enum value must be an int or None: {!r}".format(value))
+            raise TypeError(f"enum value must be an int or None: {value!r}")
         return self._enum_field_name(attr, value)
 
     def getEnumNames(self):
@@ -1199,7 +1172,7 @@ class Plug(Object):
         Args:
             names (Iterable[str]): 値0から順に対応する空でない名前列。
                 API 2.0は既存enumフィールドの削除を公開しないためfast=Trueは未対応。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 更新した自身。
@@ -1210,8 +1183,7 @@ class Plug(Object):
             RuntimeError: アトリビュートが無効、またはMayaが変更を拒否した場合。
             NotImplementedError: fast=Trueの場合。変更前に拒否する。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetEnumNames"):
             if fast:
                 raise NotImplementedError("setEnumNames does not support fast=True")
@@ -1268,14 +1240,13 @@ class Plug(Object):
 
         Args:
             val (bool): ロック状態。
-            leaf (bool): コンパウンドでは末端だけを設定する。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            leaf (bool): 複合では末端だけを設定する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetLocked"):
             return self._set_flags(leaf, locked=val, fast=fast)
 
@@ -1310,22 +1281,20 @@ class Plug(Object):
 
         Args:
             state (bool): ミュートする場合はTrue。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: stateまたはfastがboolでない場合。
-            NotImplementedError: fast=Trueで、上記の再現できない条件に当たる場合。
+            TypeError: stateまたはfastがbool以外の場合。
             RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
+            NotImplementedError: fast=Trueで、上記の再現できない条件に当たる場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetMuted"):
             self._require_valid()
-            if not isinstance(state, bool):
-                raise TypeError("state must be a bool")
+            _require_bool(state, "state")
             if fast:
                 self._set_muted_direct(state)
             elif state:
@@ -1337,15 +1306,15 @@ class Plug(Object):
     def delete(self, force=_UNSET, *, fast=False, f=_UNSET):
         """このアトリビュートをノードから削除する。
 
-        動的に追加されたアトリビュート（addAttr によるカスタムアトリビュート）にのみ使用できる。
-        静的（ノード型に組み込み）のアトリビュートを削除しようとすると Maya が拒否する。
+        動的に追加されたアトリビュート(addAttr によるカスタムアトリビュート)にのみ使用できる。
+        静的(ノード型に組み込み)のアトリビュートを削除しようとすると Maya が拒否する。
         接続がある場合は force に関わらず Maya が自動的に切断してから削除する。
 
         Args:
             force (bool): True の場合、ロックされていれば一時的に解除してから
                 削除する。False でロックされているアトリビュートを削除しようとすると
-                RuntimeError になる。 別名 ``f`` も使用可能。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+                RuntimeError になる。別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
@@ -1356,15 +1325,9 @@ class Plug(Object):
                 削除を試みた場合など、Maya が削除を拒否した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibPlugDeleteAttr"):
+        force = _pick_alias(force, f, "force", "f", False)
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibPlugDelete"):
             self._require_valid()
             if fast:
                 attribute = self._mplug.attribute()
@@ -1372,7 +1335,7 @@ class Plug(Object):
                 if not fn.dynamic or not fn.parent.isNull():
                     raise RuntimeError("Only top-level dynamic attributes can be deleted")
                 if self.isLocked() and not force:
-                    raise RuntimeError("Attribute is locked: " + self.getFullName())
+                    raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
                 modifier = om2.MDGModifier()
                 modifier.removeAttribute(self.getNode().mnode(), attribute)
                 if force and self.isLocked():
@@ -1396,17 +1359,17 @@ class Plug(Object):
                 未初期化データはNone、空配列は空list。generic/kAnyは現在値に応じて
                 Matrix・数値・tuple等を返す。マトリクス・型付き配列の成分と無単位値は換算しない。
 
+        Raises:
+            TypeError: uiUnitsがbool以外の場合。
+            RuntimeError: 参照が無効、または値を読み取れない場合。
+
         Note:
             まだ作られていない配列要素(``array[9]`` のように参照しただけの要素)を読むと、
             ``cmds.getAttr`` と同じくMayaがその要素を作る(以後 ``getIndices()`` に現れる)。
             参照の取得だけでは要素を作らない。
-
-        Raises:
-            TypeError: uiUnitsがbool以外の場合。
-            RuntimeError: 参照が無効、または値を読み取れない場合。
         """
-        self._validate_ui_units(uiUnits)
-        value = self._get_internal()
+        _require_bool(uiUnits, "uiUnits")
+        value = self._get_value()
         return _convert_units(self._mplug, value) if uiUnits else value
 
     def set(self, value, safe=False, *, uiUnits=False, fast=False):
@@ -1417,7 +1380,7 @@ class Plug(Object):
         複合値の失敗は子ごとに再試行する。成功した子の更新は残る。
 
         Args:
-            value (object): 内部単位の値（距離cm・角度rad・時間秒）。
+            value (object): 内部単位の値(距離cm・角度rad・時間秒)。
             safe (bool): Trueは対応する失敗を数える。既定Falseは例外を送出する。
             uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは内部単位。
             fast (bool): Trueは対応型をOpenMayaで直接更新する。Undoへ記録せず、Undo設定も変更しない。
@@ -1441,23 +1404,7 @@ class Plug(Object):
             fastは値や書込み可否より先に、全子の型対応を確認する。
             呼出し形式の誤りや、上記以外の例外を一律には抑制しない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibPlugSet"):
-            if self.isArray():
-                raise TypeError("Set an array element instead of the array plug")
-            if safe and fast and self.isValid() and self.mplug().isCompound:
-                # 未対応の子を、ロックや入力値の失敗に読み替えて部分更新しない。
-                _require_supported_type(self.mplug())
-            try:
-                self._set_value(value, uiUnits=uiUnits, fast=fast)
-            except NotImplementedError:
-                raise
-            except (RuntimeError, TypeError, ValueError):
-                if not safe:
-                    raise
-                return self._set_children_safely(value, uiUnits=uiUnits, fast=fast)
-            return 0 if safe else self
+        return self._set_template(value, safe, uiUnits=uiUnits, fast=fast)
 
     def setIfChanged(self, value, *, unlock=False, fast=False):
         """現在のスカラー値と異なる場合だけ書き込み、更新の有無を返す。
@@ -1469,7 +1416,7 @@ class Plug(Object):
             value (bool | int | float | str): 比較・設定する値。数値は許容誤差なしで比較し、単位はcm/rad/秒。
             unlock (bool): Trueで対象自身のロックを一時解除し、値更新の成否にかかわらず
                 再ロックを試みる。親のロックや入力接続は解除しない。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。内側のset/状態更新にも同じ値を渡す。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。内側のset/状態更新にも同じ値を渡す。
 
         Returns:
             bool: 更新に成功した場合はTrue。同値のため書き込まなかった場合はFalse。
@@ -1482,8 +1429,7 @@ class Plug(Object):
             通常は値とロックの更新をUndoが有効なら同じチャンクへ記録する。
             fastはUndo設定を変更せず、更新済みの値の自動ロールバックは行わない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugSetIfChanged"):
             if not isinstance(value, (bool, int, float, str)):
                 raise TypeError("setIfChanged supports scalar values only")
@@ -1508,7 +1454,7 @@ class Plug(Object):
         接続の切断やロック解除はしない。
 
         Args:
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 自身。通常はUndoが有効なら子の変更を同じチャンクへ記録する。
@@ -1520,14 +1466,14 @@ class Plug(Object):
                 最小〜最大の外にある場合(``a=1:b=5`` の既定値0など)も、Mayaの設定どおり
                 書込みを拒否してRuntimeErrorになる(値は変えない)。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
+            fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugReset"):
             if self.isArray():
-                raise TypeError("Reset an array element instead of the array plug")
+                raise TypeError(_ARRAY_RESET_MESSAGE)
             self._require_valid()
             if self._mplug.isCompound:
                 for index in range(self._mplug.numChildren()):
@@ -1563,12 +1509,7 @@ class Plug(Object):
             TypeError: 長短名を同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        if scn is not _UNSET:
-            if skipConversionNodes is not _UNSET:
-                raise _ArgumentError("Specify only one of 'skipConversionNodes' and 'scn'")
-            skipConversionNodes = scn
-        if skipConversionNodes is _UNSET:
-            skipConversionNodes = True
+        skipConversionNodes = _pick_alias(skipConversionNodes, scn, "skipConversionNodes", "scn", True)
         self._require_valid()
         if not kwargs:
             sources = ([self._mplug.source()] if skipConversionNodes else
@@ -1596,12 +1537,7 @@ class Plug(Object):
             TypeError: 長短名を同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        if scn is not _UNSET:
-            if skipConversionNodes is not _UNSET:
-                raise _ArgumentError("Specify only one of 'skipConversionNodes' and 'scn'")
-            skipConversionNodes = scn
-        if skipConversionNodes is _UNSET:
-            skipConversionNodes = True
+        skipConversionNodes = _pick_alias(skipConversionNodes, scn, "skipConversionNodes", "scn", True)
         self._require_valid()
         if not kwargs:
             targets = (self._mplug.destinations() if skipConversionNodes else
@@ -1637,7 +1573,7 @@ class Plug(Object):
             asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
             checkChildren (bool): 複合の子も探索する。
             checkElements (bool): 既存配列要素も探索する。
-            index (int | None): 絞込み後のPython添字。負数可、範囲外はNone。
+            index (int | None): 絞込み後のPythonの位置番号。負数可、範囲外はNone。
             idx (int | None): indexの別名。同時指定は不可。
             src (bool): sourceの別名。同時指定は不可。
             dst (bool): destinationの別名。同時指定は不可。
@@ -1651,24 +1587,9 @@ class Plug(Object):
             TypeError: index/idx・source/src・destination/dstを同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if dst is not _UNSET:
-            if destination is not _UNSET:
-                raise _ArgumentError("Specify only one of 'destination' and 'dst'")
-            destination = dst
-        if source is _UNSET:
-            source = True
-        if destination is _UNSET:
-            destination = True
-        if index is _UNSET:
-            index = None
+        index = _pick_alias(index, idx, "index", "idx", None)
+        source = _pick_alias(source, src, "source", "src", True)
+        destination = _pick_alias(destination, dst, "destination", "dst", True)
         self._require_valid()
         pairs = []
         def visit(plug):
@@ -1700,7 +1621,7 @@ class Plug(Object):
         """このプラグに直接接続された animCurve ノードを取得する。
 
         pairBlend やアニメーションレイヤーを介した間接的な animCurve は解決しない
-        （直接の入力接続だけを対象とする）。
+        (直接の入力接続だけを対象とする)。
 
         Returns:
             Node | None: 接続されている animCurve ノード。無ければ ``None``。
@@ -1742,20 +1663,11 @@ class Plug(Object):
                 other の文字列を解決できない(存在しない、または複数のアトリビュートに一致する)場合、
                 other のPlugまたはMPlugの所有ノード・アトリビュートが削除済みの場合。
         """
-        if source is not _UNSET:
-            if src is not _UNSET:
-                raise _ArgumentError("Specify only one of 'src' and 'source'")
-            src = source
-        if destination is not _UNSET:
-            if dst is not _UNSET:
-                raise _ArgumentError("Specify only one of 'dst' and 'destination'")
-            dst = destination
-        if src is _UNSET:
-            src = True
-        if dst is _UNSET:
-            dst = True
+        src = _pick_alias(src, source, "src", "source", True)
+        dst = _pick_alias(dst, destination, "dst", "destination", True)
         self._require_valid()
-        self._validate_connection_directions(src, dst)
+        _require_bool(src, "src")
+        _require_bool(dst, "dst")
         other = Plug._resolve_input(other)
         other._require_valid()
         return any(
@@ -1782,7 +1694,7 @@ class Plug(Object):
                 複合の子も判定する。定数値や出力接続がある要素も候補になる。
             na (bool): nextAvailableとORする。
             unlock (bool): Falseならforceでもロックを解除しない。
-            fast (bool): TrueはUndoなしの直接接続。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             source (Plug | om2.MPlug | str): srcの別名。同時指定は不可。
 
         Returns:
@@ -1794,24 +1706,18 @@ class Plug(Object):
                 接続元・接続先の所有ノードやアトリビュートが削除済みの場合も、何も変更せずに
                 送出する(接続元は削除前のアトリビュートパスを文言に含める)。
         """
-        if source is not _UNSET:
-            if src is not _UNSET:
-                raise _ArgumentError("Specify only one of 'src' and 'source'")
-            src = source
-        if src is _UNSET:
-            raise _ArgumentError("Missing required argument: 'src'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        src = _pick_alias(src, source, "src", "source")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugConnect"):
             self._require_valid()
             src = Plug._resolve_input(src)
             if not src.isValid():
                 # 削除済みの接続元をMayaへ渡すと名前が空になり、どれが原因か分からない。
                 raise RuntimeError("Connection source is invalid (its node or attribute was deleted): "
-                                   + src._label() + " -> " + self.getFullName())
+                                   f"{src._label()} -> {self.getFullName()}")
             force, lock = force or f, lock or l
             if self.isLocked() and not (force and unlock):
-                raise RuntimeError("Attribute is locked: " + self.getFullName())
+                raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
             # 配列親を先に解除する。親がロックされたまま空き番号を探すと
             # 全要素がロック扱いになり、探索が終わらなくなる。
             # 一時解除しない場合は何もしない区間なので、generatorを作らずnullcontextにする。
@@ -1833,7 +1739,7 @@ class Plug(Object):
                         index += 1
                 current = target.getSource(skipConversionNodes=False)
                 if current is not None and current.getFullName() == src.getFullName():
-                    raise RuntimeError("Already connected: " + src.getFullName() + " -> " + target.getFullName())
+                    raise RuntimeError(f"Already connected: {src.getFullName()} -> {target.getFullName()}")
                 keep_self = target is self and not self.mplug().isNetworked
                 # fastで自身を返す場合、名前はエラー表示だけに使うので必要になるまで求めない。
                 target_name = None if fast and keep_self else target.getFullName()
@@ -1853,7 +1759,7 @@ class Plug(Object):
                         target._record_connection_value()
                     cmds.connectAttr(src.getFullName(), target_name, force=force)
                     if lock:
-                        cmds.setAttr(target_name, lock=True)
+                        target.setFlags(locked=True, fast=False)
             return self if keep_self else Plug._resolve_input(target_name)
 
     def disconnectInput(self, *, fast=False):
@@ -1863,7 +1769,7 @@ class Plug(Object):
         子/配列要素の独立接続は展開せず、ロックも一時解除しない。
 
         Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 自身。disconnectの単件返却である入力元ではない。
@@ -1871,8 +1777,7 @@ class Plug(Object):
         Raises:
             RuntimeError: 無効な参照、またはロック等により切断できない場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnectInput"):
             source = self.getSource(skipConversionNodes=False)
             if source is not None:
@@ -1892,11 +1797,11 @@ class Plug(Object):
             f (bool): forceとORする。
             nextAvailable (bool): 配列内でsrcへ直結した既存要素を全て解除する。src明示時だけ有効。
             na (bool): nextAvailableとORする。
-            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             source (Plug | om2.MPlug | str | None): srcの別名。同時指定は不可。
 
         Returns:
-            Plug | list[Plug]: 単一切断は切断した入力元Plug（自身ではない）。srcを渡した場合は
+            Plug | list[Plug]: 単一切断は切断した入力元Plug(自身ではない)。srcを渡した場合は
                 そのPlug(Plugならそのオブジェクト、MPlug・名前なら解決したPlug)、省略した場合は
                 切断前に現在の直接入力として取得したPlugを返し、名前から取り直さない。
                 接続由来(networked)のMPlugを持つ場合は、切断前に同じアトリビュートを指す
@@ -1911,14 +1816,8 @@ class Plug(Object):
             配列検索は既存順に切断し、後半の失敗でも先行する切断は戻さない。
             未接続時に何もしない入力解除は :meth:`disconnectInput` を使う。
         """
-        if source is not _UNSET:
-            if src is not _UNSET:
-                raise _ArgumentError("Specify only one of 'src' and 'source'")
-            src = source
-        if src is _UNSET:
-            src = None
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        src = _pick_alias(src, source, "src", "source", None)
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnect"):
             self._require_valid()
             if isinstance(src, bool):
@@ -1928,7 +1827,7 @@ class Plug(Object):
             if self.isArray() and (nextAvailable or na) and src is not None:
                 targets = [p for p in self.getElements() if p.getSource(skipConversionNodes=False) == src]
                 if not targets:
-                    raise RuntimeError("Input connection not found: " + self.getFullName())
+                    raise RuntimeError(f"Input connection not found: {self.getFullName()}")
                 names = [target.getFullName() for target in targets]
                 for target in targets:
                     target.disconnect(src, force=force or f, fast=fast)
@@ -1937,13 +1836,13 @@ class Plug(Object):
                 # 現在の直接入力はconnectedTo(True, False)の先頭なので、接続済みの再判定を省く。
                 src = self.getSource(skipConversionNodes=False)
                 if src is None:
-                    raise RuntimeError("Input connection not found: " + self.getFullName())
+                    raise RuntimeError(f"Input connection not found: {self.getFullName()}")
             else:
                 # isConnectedTo(src, src=True, dst=False)と同じ判定。自身の検証は済んでいる。
                 src._require_valid()
                 source_mplug = src.mplug()
                 if not any(connected == source_mplug for connected in self._mplug.connectedTo(True, False)):
-                    raise RuntimeError("Input connection not found: " + self.getFullName())
+                    raise RuntimeError(f"Input connection not found: {self.getFullName()}")
             force = force or f
             # 接続から得たMPlug(networked)は切断すると破棄され、後の比較・使用でMayaが異常終了する。
             # 返すsrcと自身は、切断前に同じアトリビュートを指す非networkedのMPlugへ持ち替える。
@@ -1968,7 +1867,7 @@ class Plug(Object):
         Args:
             src (bool): 入力を解除する。既定True。
             dst (bool): 全出力を解除する。既定True。
-            fast (bool): TrueはUndoなしの直接更新。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             source (bool): srcの別名。同時指定は不可。
             destination (bool): dstの別名。同時指定は不可。
 
@@ -1979,23 +1878,13 @@ class Plug(Object):
             TypeError: 方向・fastがbool以外、または長短名を同時指定した場合。
             RuntimeError: 無効参照、またはロック等により切断できない場合。
         """
-        if source is not _UNSET:
-            if src is not _UNSET:
-                raise _ArgumentError("Specify only one of 'src' and 'source'")
-            src = source
-        if destination is not _UNSET:
-            if dst is not _UNSET:
-                raise _ArgumentError("Specify only one of 'dst' and 'destination'")
-            dst = destination
-        if src is _UNSET:
-            src = True
-        if dst is _UNSET:
-            dst = True
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        src = _pick_alias(src, source, "src", "source", True)
+        dst = _pick_alias(dst, destination, "dst", "destination", True)
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnectAll"):
             self._require_valid()
-            self._validate_connection_directions(src, dst)
+            _require_bool(src, "src")
+            _require_bool(dst, "dst")
             if src:
                 self.disconnectInput(fast=fast)
             if dst:
@@ -2011,23 +1900,56 @@ class Plug(Object):
         fast指定は内側のconnectへ引数で渡す。
 
         Args:
-            dst (Plug | om2.MPlug | str): 接続先。 別名 ``destination`` も使用可能。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
+            dst (Plug | om2.MPlug | str): 接続先。別名 ``destination`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: connectのforce/f・lock/l・nextAvailable/na・unlock。
             destination (Plug | om2.MPlug | str): dstの別名。同時指定は不可。
 
         Returns:
             Plug: 実際の接続先。
         """
-        if destination is not _UNSET:
-            if dst is not _UNSET:
-                raise _ArgumentError("Specify only one of 'dst' and 'destination'")
-            dst = destination
-        if dst is _UNSET:
-            raise _ArgumentError("Missing required argument: 'dst'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        dst = _pick_alias(dst, destination, "dst", "destination")
+        _require_bool(fast, "fast")
         return Plug._resolve_input(dst).connect(self, **kwargs, fast=fast)
+
+    def _set_template(self, value, safe, *, fast, _writer=None, **options):
+        """set()の共通骨格。Undo文脈・配列拒否・fast未対応型の事前検査・safeの例外吸収を担う。
+
+        派生クラスは値の書込み本体 :meth:`_set_value` と、safeの再試行 :meth:`_set_children_safely`
+        だけをoverrideする。Undoチャンク名は ``mlib<クラス名>Set``。
+
+        Args:
+            value (object): 書き込む値。
+            safe (bool): Trueは対応する失敗を数える。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            _writer (callable | None): 内部専用。値の書込みに使う関数(既定は自身の ``_set_value``)。
+                Transform が Double3 の回転変換を通さずに基底の書込みを使うときに ``Plug._set_value`` を渡す。
+            **options: ``_set_value`` と ``_set_children_safely`` へ渡す追加指定(uiUnits・unit)。
+
+        Returns:
+            Plug | int: safe=Falseは自身。safe=Trueは成功0、または失敗数。
+
+        Raises:
+            TypeError: fastがbool以外、または配列全体への設定。safe=Trueでも拒否する。
+            NotImplementedError: fast未対応型。safe=Trueでも拒否する。
+        """
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk(f"mlib{type(self).__name__}Set"):
+            if self.isArray():
+                raise TypeError(_ARRAY_SET_MESSAGE)
+            if safe and fast and self.isValid() and self.mplug().isCompound:
+                # 未対応の子を、ロックや入力値の失敗に読み替えて部分更新しない。
+                require_supported_type(self.mplug())
+            try:
+                writer = self._set_value if _writer is None else partial(_writer, self)
+                writer(value, fast=fast, **options)
+            except NotImplementedError:
+                raise
+            except (RuntimeError, TypeError, ValueError):
+                if not safe:
+                    raise
+                return self._set_children_safely(value, fast=fast, **options)
+            return 0 if safe else self
 
     def _set_value(self, value, *, uiUnits=False, fast=False):
         """値の型と単位を揃え、指定した更新経路へ書き込む。
@@ -2038,13 +1960,17 @@ class Plug(Object):
             value (object): 書き込む値。
             uiUnits (bool): TrueならUI単位から内部単位へ変換する。
             fast (bool): TrueならOpenMayaで直接更新する。
+
+        Returns:
+            None: 値を返さない。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         self._require_valid()
         if uiUnits:
             value = _convert_units(self._mplug, value, to_ui=False)
         # 数値・文字列はマトリクスの入力に当たらないため、型の判定(attributeType)を省く。
         if not isinstance(value, (int, float, str)) and attributeType(self._mplug) is None:
+            # mlib.reload()でmathsが作り直された後も現在のMatrix型を返すため、使う時点で読み込む。
             from ..maths import Matrix, Transformation
             if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix, Transformation))
                     or isinstance(value, (tuple, list)) and len(value) == 16):
@@ -2088,7 +2014,7 @@ class Plug(Object):
         if not self.isValid() or not self.mplug().isCompound:
             return 1
         try:
-            self._validate_ui_units(uiUnits)
+            _require_bool(uiUnits, "uiUnits")
             values = tuple(value)
             if len(values) != self.mplug().numChildren():
                 return 1
@@ -2101,7 +2027,7 @@ class Plug(Object):
         except (RuntimeError, TypeError, ValueError):
             return 1
 
-    def _get_internal(self):
+    def _get_value(self):
         """評価済みの Maya アトリビュート値を取得する。
 
         最初の呼出しで読取関数を選んで保持し、値そのものは毎回読み直す。
@@ -2115,12 +2041,12 @@ class Plug(Object):
 
         Returns:
             object: アトリビュート値。1要素のリストにタプルが入っている場合のみ、
-                そのタプルを返す（cmds.getAttr フォールバック時のみ該当）。
+                そのタプルを返す(cmds.getAttr フォールバック時のみ該当)。
                 文字列、数値、配列、None など実際のアトリビュート型に依存する。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合
-                (:meth:`isValid` が ``False``。削除前の古い値は返さない)。
+                (:meth:`isValid` が ``False``。削除前の古い値を返さない)。
                 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
                 配列要素の場合(値を読むと Maya が異常終了する場合があるため。
                 :func:`mlib.core.attributeType.is_internal_data_type`)。
@@ -2133,9 +2059,9 @@ class Plug(Object):
         if reader is not False:
             return reader(self._mplug)
 
-        if is_internal_data_type(self._mplug) and not _plug_exists(self._mplug):
+        if is_internal_data_type(self._mplug) and not _array_element_exists(self._mplug):
             raise RuntimeError(
-                f"Maya 内部のデータ型の存在しない要素の値は読めません: {self.getFullName()}"
+                f"Cannot read a missing element of an internal data type: {self.getFullName()}"
             )
         if attributeType(self._mplug) is None and om2.MFnAttribute(self._attribute).readable:
             # generic/kAnyの参照型は固定し、実際の値を読む時だけマトリクスを判定する。
@@ -2145,6 +2071,7 @@ class Plug(Object):
             except RuntimeError:
                 data = None
             if data is not None and not data.isNull() and data.hasFn(om2.MFn.kMatrixData):
+                # 同上(mlib.reload()後も現在のMatrix型を返す)。
                 from ..maths import Matrix
                 return Matrix.fromMMatrix(om2.MFnMatrixData(data).matrix())
         value = cmds.getAttr(self.getFullName())
@@ -2158,13 +2085,15 @@ class Plug(Object):
         Args:
             kwargs (dict): value/timeと入出力接線型。長名とMaya短名を受け付ける。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
+            ValueError: 明示的なfixed・global・未知の接線型を指定した場合。
             NotImplementedError: 範囲・レイヤー・非時間カーブ等の場合。生成前に拒否。
                 入力stepnextもMayaの版で補正が異なるため生成前に拒否する。
-            ValueError: 明示的なfixed・global・未知の接線型を指定した場合。
         """
-        import math
-        import maya.api.OpenMayaAnim as oma2
+        # nodes → plugs の循環importを避けるため、使う時点で読み込む。
         from ..nodes.animCurve import AnimCurve
         aliases = {"v": "value", "t": "time", "itt": "inTangentType",
                    "ott": "outTangentType"}
@@ -2172,16 +2101,16 @@ class Plug(Object):
         for short, long in aliases.items():
             if short in options:
                 if long in options:
-                    raise _ArgumentError("Specify only one of {!r} and {!r}".format(short, long))
+                    raise _ArgumentError(f"Specify only one of '{long}' and '{short}'")
                 options[long] = options.pop(short)
         if set(options) - {"value", "time", "inTangentType", "outTangentType"}:
             raise NotImplementedError("Unsupported fast setKey flags")
         if self.isArray() or self.isCompound():
             raise NotImplementedError("fast setKey requires a scalar plug")
         if self.isLocked():
-            raise RuntimeError("Attribute is locked: " + self.getFullName())
+            raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
         if not om2.MFnAttribute(self._mplug.attribute()).writable:
-            raise RuntimeError("Attribute is not writable: " + self.getFullName())
+            raise RuntimeError(f"Attribute is not writable: {self.getFullName()}")
         key_time = options.get("time")
         if isinstance(key_time, (tuple, list)):
             if len(key_time) != 1:
@@ -2231,14 +2160,9 @@ class Plug(Object):
         Undoが無効なら記録されないため、同値の書込み自体を省く。
         """
         mp = self._mplug
-        current = mp
-        while current.isChild or current.isElement:
-            if current.isElement:
-                if current.logicalIndex() not in current.array().getExistingArrayAttributeIndices():
-                    return
-                current = current.array()
-            else:
-                current = current.parent()
+        for current in _ancestor_plugs(mp):
+            if current.isElement and current.logicalIndex() not in current.array().getExistingArrayAttributeIndices():
+                return
         attribute = mp.attribute()
         fn = om2.MFnAttribute(attribute)
         if not fn.writable or fn.isProxyAttribute or mp.isArray:
@@ -2273,35 +2197,6 @@ class Plug(Object):
         return self
 
     @staticmethod
-    def _validate_ui_units(value):
-        """UI単位の選択を値の取得・更新前に検証する。
-
-        Args:
-            value (bool): 内部単位とUI単位の選択。
-
-        Raises:
-            TypeError: bool以外の場合。
-        """
-        if type(value) is not bool:
-            raise TypeError("uiUnits must be bool")
-
-    @staticmethod
-    def _validate_connection_directions(src, dst):
-        """接続方向のbool指定をシーンの編集前に検証する。
-
-        Args:
-            src (bool): 入力方向の指定。
-            dst (bool): 出力方向の指定。
-
-        Raises:
-            TypeError: どちらかがboolでない場合。
-        """
-        if not isinstance(src, bool):
-            raise TypeError("src must be bool")
-        if not isinstance(dst, bool):
-            raise TypeError("dst must be bool")
-
-    @staticmethod
     def _connection_results(pairs, node_type, exact, as_pair, as_node, index):
         """接続ペアを相手ノードの型で絞り、初出順のPlug/Node一覧へ整える。
 
@@ -2313,7 +2208,7 @@ class Plug(Object):
             exact (bool): Trueはノード型名の完全一致、Falseは派生型も含める。
             as_pair (bool): Trueは自身側と相手側の組を返す。
             as_node (bool): Trueは相手側だけNodeへ変換する。
-            index (int | None): 結果のPython添字。負数も使用できる。
+            index (int | None): 結果のPythonの位置番号。負数も使用できる。
 
         Returns:
             list | Plug | Node | tuple | None: 一覧、またはindexで選んだ一件。範囲外はNone。
@@ -2375,15 +2270,7 @@ class Plug(Object):
         Returns:
             list[Plug]: 実際にロックを解除した参照。上位から自身への順序。
         """
-        chain, plug = [], self.mplug()
-        while True:
-            chain.append(Plug(self.getNode(), plug))
-            if plug.isChild:
-                plug = plug.parent()
-            elif plug.isElement:
-                plug = plug.array()
-            else:
-                break
+        chain = [Plug(self.getNode(), plug) for plug in _ancestor_plugs(self.mplug())]
         unlocked = []
         try:
             for item in reversed(chain):
@@ -2400,7 +2287,7 @@ class Plug(Object):
     def _plug_path(mplug):
         """ノード名を除いた、maya.cmds で解決できるアトリビュートパスを返す。
 
-        ロング名と、必要な配列インデックス(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
+        ロング名と、必要な配列番号(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
         インスタンス番号を含み、エイリアスがあればエイリアス名を使う
         (``MPlug.name()`` のアトリビュート部分と同じ表記)。
 
@@ -2431,12 +2318,12 @@ class Plug(Object):
             bool: アトリビュートが存在する場合は True。
         """
         attribute = mplug.attribute()
-        if attribute.isNull() or not om2.MObjectHandle(attribute).isValid():
+        if attribute.isNull():
             return False
         if node is None:
             node = mplug.node()
-        kind = om2.MFnDependencyNode(node).attributeClass(attribute)
-        return kind != om2.MFnDependencyNode.kInvalidAttr
+        fn = om2.MFnDependencyNode(node)
+        return _attribute_class(fn, om2.MObjectHandle(attribute), attribute) != _INVALID_ATTRIBUTE
 
     @staticmethod
     def _mplug_name(mplug):
@@ -2455,14 +2342,15 @@ class Plug(Object):
         Raises:
             ValueError: 空の MPlug、所有ノードが削除済み、またはアトリビュートが削除済み(``deleteAttr``)の場合。
         """
+        # nodes → plugs の循環importを避けるため、使う時点で読み込む。
         from ..nodes.node import Node
         if mplug.isNull:
-            raise ValueError("空の MPlug は指定できません")
+            raise ValueError("MPlug must not be null")
         node = mplug.node()
         if not om2.MObjectHandle(node).isValid():
-            raise ValueError("削除済みノードの MPlug は指定できません")
+            raise ValueError("MPlug must not belong to a deleted node")
         if not Plug._mplug_attribute_exists(mplug, node):
-            raise ValueError("削除済みのアトリビュートの MPlug は指定できません")
+            raise ValueError("MPlug must not refer to a deleted attribute")
         return Node._unique_node_name(node) + "." + Plug._plug_path(mplug)
 
     @staticmethod
@@ -2477,7 +2365,7 @@ class Plug(Object):
                 所有ノードが削除済みの場合(無効な所有ノードとして扱う)と、有効な Plug は None。
         """
         if plug.getNode().isValid() and not plug.isValid():
-            return DeletedAttributeError("削除済みのアトリビュートの Plug からノードは解決できません")
+            return DeletedAttributeError("Cannot resolve the node of a Plug whose attribute was deleted")
         return None
 
     @staticmethod
@@ -2506,19 +2394,19 @@ class Plug(Object):
 
     @staticmethod
     def _has_out_of_range_index(attribute_path):
-        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える配列インデックスを含むか判定する。
+        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える配列番号を含むか判定する。
 
         Args:
             attribute_path (str): ノード名を含まないアトリビュートパス(``input1D[4294967296]`` など)。
 
         Returns:
-            bool: 範囲外のインデックスを含む場合は True。
+            bool: 範囲外の番号を含む場合は True。
         """
         return any(int(index) > MAX_LOGICAL_INDEX for index in _PLUG_PATH_INDEX.findall(attribute_path))
 
     @staticmethod
     def _has_unresolved_index(mplug):
-        """論理インデックスが未確定(-1)の配列要素を経由するプラグか判定する。
+        """論理番号が未確定(-1)の配列要素を経由するプラグか判定する。
 
         ``findPlug("input3Dx")`` のように配列複合アトリビュートの子を要素を指定せずに取得すると
         ``input3D[-1].input3Dx`` のようなプラグになり、maya.cmds では解決できない。
@@ -2527,7 +2415,7 @@ class Plug(Object):
             mplug (om2.MPlug): 判定するプラグ。
 
         Returns:
-            bool: 未確定のインデックスを含む場合は True。
+            bool: 未確定の番号を含む場合は True。
         """
         current = mplug
         while True:
@@ -2545,7 +2433,7 @@ class Plug(Object):
         """ノードとアトリビュートパス(``input1D[3]``、``pnts[2].pntx`` など)から MPlug を求める。
 
         ``.`` で区切った各区切りのアトリビュート名(ロング名・ショート名。先頭はエイリアスも可)と
-        ``[i]`` の論理インデックスを順に辿る。存在しない配列要素もプラグとして返し、
+        ``[i]`` の論理番号を順に辿る。存在しない配列要素もプラグとして返し、
         要素は作らない(シーンを変更しない)。
 
         Args:
@@ -2556,7 +2444,7 @@ class Plug(Object):
 
         Returns:
             om2.MPlug | None: プラグ。アトリビュートとして解決できない場合(存在しないアトリビュート、範囲指定、
-                配列でないアトリビュートへのインデックス、:data:`MAX_LOGICAL_INDEX` を超えるインデックス、
+                配列でないアトリビュートへの番号、:data:`MAX_LOGICAL_INDEX` を超える番号、
                 配列要素の番号を指定しない子アトリビュートなど)は None。
         """
         mplug = None
@@ -2609,7 +2497,7 @@ class Plug(Object):
         Returns:
             tuple[om2.MObject | om2.MDagPath, om2.MPlug] | None: 所有ノード(DAG ノードは
                 名前が指すインスタンスの MDagPath)とプラグ。アトリビュートとして解決できない場合
-                (存在しないアトリビュート、範囲指定、配列でないアトリビュートへのインデックスなど)は None。
+                (存在しないアトリビュート、範囲指定、配列でないアトリビュートへの番号など)は None。
         """
         node_part, separator, attribute_path = text.partition(".")
         if not separator or not attribute_path:
@@ -2698,26 +2586,26 @@ class Plug(Object):
             return value
         if isinstance(value, om2.MPlug):
             if value.isNull:
-                raise ValueError("空の MPlug は指定できません")
+                raise ValueError("MPlug must not be null")
             return Plug(Node(value.node()), value)
         if not isinstance(value, str):
-            raise TypeError(f"Plug、om2.MPlug、またはアトリビュート名を指定してください: {type(value).__name__}")
+            raise TypeError(f"Expected a Plug, om2.MPlug or attribute name: {type(value).__name__}")
         if not value:
-            raise ValueError("空でないアトリビュート名を指定してください")
+            raise ValueError("Attribute name must be a non-empty string")
         selection = om2.MSelectionList()
         try:
             selection.add(value)
         except RuntimeError as error:
-            raise RuntimeError(f"アトリビュートが見つかりません: {value}") from error
+            raise RuntimeError(f"Attribute does not exist: {value}") from error
         if selection.length() != 1:
-            raise RuntimeError(f"複数の対象に一致します。一意なアトリビュート名を指定してください: {value}")
+            raise RuntimeError(f"Attribute name matches multiple objects (use a unique name): {value}")
         try:
             mplug = selection.getPlug(0)
         except TypeError as error:
             # pnts[i]・controlPoints[i] などは頂点・CV として登録されるため、アトリビュートパスを辿る。
             resolved = Plug._plug_from_path(value)
             if resolved is None:
-                raise TypeError(f"アトリビュートを指す名前ではありません: {value}") from error
+                raise TypeError(f"Name does not refer to an attribute: {value}") from error
             owner, mplug = resolved
             return Plug(Node(owner), mplug)
         mobject, dag_path = Node._selection_owner(selection, 0, value, plug=True)
@@ -2738,7 +2626,7 @@ class Plug(Object):
         """
         attr = self._mplug.attribute()
         if not attr.hasFn(om2.MFn.kEnumAttribute):
-            raise TypeError("{} requires an enum attribute: {}".format(caller, self.getFullName()))
+            raise TypeError(f"{caller} requires an enum attribute: {self.getFullName()}")
         return attr
 
     def _enum_field_name(self, attr, value):
@@ -2757,7 +2645,7 @@ class Plug(Object):
         try:
             return om2.MFnEnumAttribute(attr).fieldName(value)
         except RuntimeError as error:
-            raise ValueError("No enum field for value {} on {}".format(value, self.getFullName())) from error
+            raise ValueError(f"No enum field for value {value} on {self.getFullName()}") from error
 
     def _label(self):
         """エラー表示用の名前を返す。削除済みでも作成時のアトリビュートパスで示す。
@@ -2789,7 +2677,7 @@ class Plug(Object):
             return False
         return self._node._dependency_fn().attributeClass(self._attribute) != _INVALID_ATTRIBUTE
 
-    def _require_valid(self):
+    def _require_valid(self, action="use"):
         """所有ノードとアトリビュートが有効か確かめる。
 
         削除済みの動的アトリビュートの MPlug で値を読み書きすると Maya が異常終了し、削除済みノードの
@@ -2797,6 +2685,9 @@ class Plug(Object):
         ある)ため、MPlug・アトリビュートを扱う前に必ず確かめる。静的アトリビュートはノードが有効な間は常に
         存在するため、ノードの確認だけで済む。動的アトリビュートは所有ノードの
         ``MFnDependencyNode.attributeClass()`` で存在を確かめる(:meth:`_attribute_exists`)。
+
+        Args:
+            action (str): 例外メッセージの動詞(``Cannot {action} an invalid Plug``)。
 
         Returns:
             None: 値を返さない。
@@ -2807,7 +2698,7 @@ class Plug(Object):
         node = self._node
         handle = node._handle
         if handle is None or not handle.isValid():
-            raise RuntimeError("所有ノードが無効な(削除済みの)アトリビュートは扱えません")
+            raise RuntimeError(f"Cannot {action} an invalid Plug (its node was deleted)")
         if self._static_attribute:
             return
         # _attribute_exists() と同じ判定。get()/set() のたびに呼ばれるため直接書く。
@@ -2815,7 +2706,7 @@ class Plug(Object):
         if fn is None:
             fn = node._dependency_fn()
         if not self._attribute_handle.isValid() or fn.attributeClass(self._attribute) == _INVALID_ATTRIBUTE:
-            raise RuntimeError("削除済みのアトリビュートは扱えません")
+            raise RuntimeError(f"Cannot {action} an invalid Plug (its attribute was deleted)")
 
     def _range_attribute_fn(self):
         """寿命を検証し、範囲照会に対応する型のFunction Setを返す。
@@ -2832,29 +2723,6 @@ class Plug(Object):
             return om2.MFnUnitAttribute(attr)
         return None
 
-    @staticmethod
-    def _validated_flags(locked=None, keyable=None, channelBox=None):
-        """状態値を全件検証し、Mayaのフラグ名へ変換する。
-
-        Args:
-            locked (bool | None): ロック状態。Noneは変更しない。
-            keyable (bool | None): キー可能状態。
-            channelBox (bool | None): Channel Box表示状態。
-
-        Returns:
-            dict: 指定されたMayaフラグだけを含む辞書。
-
-        Raises:
-            TypeError: boolまたはNone以外の状態がある場合。
-        """
-        flags = {}
-        for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channelBox)):
-            if value is not None:
-                if not isinstance(value, bool):
-                    raise TypeError(f"{name} must be bool or None")
-                flags[name] = value
-        return flags
-
     def _mute_targets(self):
         """setMuted の fast 経路で扱うチャンネルを cmds.mute と同じ規則で集める。
 
@@ -2867,7 +2735,7 @@ class Plug(Object):
         """
         if self._mplug.isArray:
             raise NotImplementedError("fast setMuted does not support array attributes")
-        if ":" in self._dependency_name() or om2.MNamespace.currentNamespace() != ":":
+        if ":" in self._node._dependency_fn().name() or om2.MNamespace.currentNamespace() != ":":
             raise NotImplementedError("fast setMuted requires a node and current namespace in the root namespace")
         if self._mplug.isCompound:
             targets = [self._mplug.child(index) for index in range(self._mplug.numChildren())]
@@ -2877,27 +2745,18 @@ class Plug(Object):
         for target in targets:
             if target.isCompound or "." in target.partialName(useLongNames=True, useAlias=True):
                 raise NotImplementedError("fast setMuted does not support nested compound children")
-            current = target
-            while True:
-                if current.isLocked:
-                    raise NotImplementedError("fast setMuted does not support locked attributes")
-                if current.isChild:
-                    current = current.parent()
-                elif current.isElement:
-                    current = current.array()
-                else:
-                    break
+            if any(current.isLocked for current in _ancestor_plugs(target)):
+                raise NotImplementedError("fast setMuted does not support locked attributes")
         return targets
-
-    def _dependency_name(self):
-        """所有ノードの短い名前(名前空間を含む)を返す。"""
-        return om2.MFnDependencyNode(self._mplug.node()).name()
 
     def _set_muted_direct(self, state):
         """setMuted の fast 経路。cmds.mute と同じ mute ノードを MDGModifier 1 回で作成・削除する。
 
         Args:
             state (bool): Trueはミュート、Falseは解除。
+
+        Returns:
+            None: 値を返さない。
 
         Raises:
             NotImplementedError: :meth:`_mute_targets` が拒否した場合。変更前に送出する。
@@ -2909,7 +2768,7 @@ class Plug(Object):
             if not source.isNull and om2.MFnDependencyNode(source.node()).typeName == "mute":
                 source = om2.MFnDependencyNode(source.node()).findPlug("input", False).sourceWithConversion()
             if not source.isNull and source.node().hasFn(om2.MFn.kUnitConversion):
-                raise NotImplementedError("fast setMuted does not support unit conversion inputs: " + target.name())
+                raise NotImplementedError(f"fast setMuted does not support unit conversion inputs: {target.name()}")
         modifier = om2.MDGModifier()
         changed = False
         for target in targets:
@@ -2918,7 +2777,7 @@ class Plug(Object):
                 if source.isNull:
                     if not self._mplug.isCompound:
                         om2.MGlobal.displayWarning(
-                            "Skipping non-animated channel '{}'.".format(target.name()))
+                            f"Skipping non-animated channel '{target.name()}'.")
                     continue
                 if om2.MFnDependencyNode(source.node()).typeName == "mute":
                     # 既存の mute ノードは cmds.mute と同じく、現在時刻・現在値で固定し直す。
@@ -2926,7 +2785,8 @@ class Plug(Object):
                 else:
                     mute = modifier.createNode("mute")
                     name = target.partialName(useLongNames=True, useAlias=True)
-                    name = "mute_{}_{}".format(self._dependency_name(), re.sub(r"[\[\]]", "_", name))
+                    name = re.sub(r"[\[\]]", "_", name)
+                    name = f"mute_{self._node._dependency_fn().name()}_{name}"
                     modifier.renameNode(mute, name)
                     mute_fn = om2.MFnDependencyNode(mute)
                     modifier.disconnect(source, target)
@@ -2956,12 +2816,13 @@ class Plug(Object):
         Raises:
             RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
         """
-        from ..core.fastWrite import writable
+        # テストがfastWrite.require_writableを差し替えて呼出し回数を数えるため、呼出し時に参照する。
+        from ..core.fastWrite import require_writable
         self._require_valid()
 
         def check(plug):
             """複合の子と既存配列要素だけを確認し、未作成要素を作らない。"""
-            writable(plug)
+            require_writable(plug)
             if plug.isArray:
                 for index in plug.getExistingArrayAttributeIndices():
                     check(plug.elementByLogicalIndex(index))
@@ -2982,7 +2843,7 @@ class Plug(Object):
             Node: 所有ノードの型登録に従って解決したラッパー。
         """
         # nodes.node が ..plugs.plug を逆方向 import するため、
-        # 循環回避のためここで遅延 import する（mlib で意図的な相互依存の一つ）。
+        # 循環回避のためここで遅延 import する(mlib で意図的な相互依存の一つ)。
         from ..nodes.node import Node, _resolve_node
 
         # Node(mplug.node()) と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。

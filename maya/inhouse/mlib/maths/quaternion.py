@@ -4,11 +4,11 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
 from .vector import (
     Vector,
-    _as_mvector,
     _reduce_value,
+    _resolve_mvector,
     _zero,
 )
 
@@ -71,7 +71,7 @@ class Quaternion(om2.MQuaternion):
     ``*=`` / ``+=`` / ``-=`` は自身更新で、OM2にない ``+=`` / ``-=`` も同じオブジェクトを更新する。
     数学値を返す継承メソッドも対応するmlib型を返し、コピー操作とIt付きの自身更新を区別する。
 
-    成分へ代入できる。lenは4、添字は-4〜3、範囲外はIndexError。スライスは成分tuple、反復はXYZW順。
+    成分へ代入できる。lenは4、番号は-4〜3、範囲外はIndexError。スライスは成分tuple、反復はXYZW順。
     ``==`` は成分の完全一致で、同じ回転でもqと-qは等しくない。
     異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
     """
@@ -110,14 +110,14 @@ class Quaternion(om2.MQuaternion):
             None: 値を返さない。
 
         Raises:
-            ValueError: om2 のコンストラクタが受け付けない引数の場合。
             TypeError: 未知のキーワード引数、または同じ成分を二重に指定した場合。
+            ValueError: om2 のコンストラクタが受け付けない引数の場合。
         """
         if kwargs:
             try:
                 args = _quaternion_keywords(*args, **kwargs)
             except TypeError as error:
-                raise TypeError("{}() {}".format(type(self).__name__, str(error).split("() ", 1)[-1])) from None
+                _rethrow_init_error(type(self), error)
         count = len(args)
         values = args
         if count == 1:
@@ -149,14 +149,14 @@ class Quaternion(om2.MQuaternion):
         """成分を取得する。
 
         Args:
-            index (int | slice): -4〜3 の添字(X、Y、Z、W の順)、またはスライス。
+            index (int | slice): -4〜3 の番号(X、Y、Z、W の順)、またはスライス。
 
         Returns:
             float | tuple[float, ...]: 指定成分。スライスでは成分の tuple。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・スライス以外の場合。
+            TypeError: 番号が整数・スライス以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is int and -4 <= index < 4:
             return _GET(self, index)
@@ -168,15 +168,15 @@ class Quaternion(om2.MQuaternion):
         """成分を設定する。
 
         Args:
-            index (int): -4〜3 の添字。
+            index (int): -4〜3 の番号。
             value (float): 設定する値。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数以外の場合。
+            TypeError: 番号が整数以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is not int or not -4 <= index < 4:
             index = _checked_index(index, 4, "Quaternion")
@@ -423,7 +423,7 @@ class Quaternion(om2.MQuaternion):
         Raises:
             ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)。
         """
-        axis = _as_mvector(axis)
+        axis = _resolve_mvector(axis)
         length = axis.length()
         if length == 0.0:
             raise ValueError("Cannot normalize a zero vector")
@@ -556,7 +556,7 @@ class Quaternion(om2.MQuaternion):
             ValueError: 自身がゼロQuaternionの場合。
         """
         result = _zero(Vector)
-        _MVector.__iadd__(result, _as_mvector(vector).rotateBy(_unit_copy(self)))
+        _MVector.__iadd__(result, _resolve_mvector(vector).rotateBy(_unit_copy(self)))
         return result
 
     def angleTo(self, other):
@@ -648,7 +648,7 @@ class Quaternion(om2.MQuaternion):
         Raises:
             ValueError: axis がゼロベクトルの場合、または自身がゼロクォータニオンの場合。
         """
-        axis = _as_mvector(axis)
+        axis = _resolve_mvector(axis)
         length = axis.length()
         if length == 0.0:
             raise ValueError("Cannot normalize a zero vector")

@@ -152,9 +152,9 @@ class GetBoundingBoxTest(HierarchyFixture):
         node = Node(self.leaf)
         with self.assertRaises(TypeError):
             node.getBoundingBox(True, ws=True)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             node.getBoundingBox(1)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             node.getBoundingBox(ws="yes")
 
     def test_invalid_node_raises(self):
@@ -185,7 +185,7 @@ class ShowHideTest(HierarchyFixture):
         cmds.flushUndo()
         self.assertIs(node.hide(), node)
         self.assertFalse(self.visible())
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibNodeSetVisible")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDagNodeSetVisibility")
         cmds.undo()
         self.assertTrue(self.visible())
         node.hide()

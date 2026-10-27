@@ -249,7 +249,7 @@ class DagPoseTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             target.merge(source, deleteSources=True)
         for kwargs in ({"currentPose": 1}, {"deleteSources": "yes"}):
-            with self.assertRaises(ValueError):
+            with self.assertRaises(TypeError):
                 target.merge(source, **kwargs)
         with self.assertRaises(ValueError):
             target.merge(self.root)

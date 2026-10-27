@@ -43,7 +43,7 @@ def _distance_unit(unit):
         "mi": om2.MDistance.kMiles, "mile": om2.MDistance.kMiles,
     }
     if unit not in names:
-        raise ValueError("Unsupported distance unit: " + unit)
+        raise ValueError(f"Unsupported distance unit: {unit}")
     return names[unit]
 
 

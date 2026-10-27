@@ -86,7 +86,7 @@ class VertexAdjacencyTest(_SpecCase):
         """長短名の同時指定は TypeError、bool 以外は ValueError。"""
         with self.assertRaisesRegex(TypeError, "Specify only one of 'worldSpace' and 'ws'"):
             self.mesh.getVertexAdjacency(True, ws=True)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             self.mesh.getVertexAdjacency(ws=1)
 
     def test_num_uvs_is_current_set(self):

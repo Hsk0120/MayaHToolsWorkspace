@@ -298,7 +298,7 @@ class DeleteSpecTest(_CmdsCase):
                       attribute_owner + ".translate"):
             for fast in (False, True):
                 with self.subTest(value=value, fast=fast):
-                    with self.assertRaisesRegex(TypeError, "アトリビュート名は指定できません"):
+                    with self.assertRaisesRegex(TypeError, "Attribute names are not accepted"):
                         mlib.delete(value, fast=fast)
                     self.assertTrue(cmds.objExists(attribute_owner))
                     self.assertTrue(cmds.objExists(other))

@@ -133,7 +133,7 @@ class BatchDeleteTest(unittest.TestCase):
         short = [name.rpartition(":")[2] for name in removed]
         # 渡した順(dc, dmd, d0...)ではなく、Mayaがまとめて削除するときの順になる。
         self.assertEqual(short, ["dc", "d0", "dmd", "d1", "d2"])
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlib.cmds.delete.delete")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDelete")
         cmds.undo()
         self.assertEqual(sorted(cmds.ls(long=True)), before)
 
@@ -277,9 +277,9 @@ class HistoryInvalidNodeTest(unittest.TestCase):
     def test_deleted_node_raises_runtime_error(self):
         node = mlib.getNode(cmds.createNode("transform", name="mlibContractA_history_" + uuid.uuid4().hex))
         cmds.delete(node.getFullName())
-        with self.assertRaisesRegex(RuntimeError, "Cannot get the history of an invalid node"):
+        with self.assertRaisesRegex(RuntimeError, r"Cannot get the history of an invalid \w+"):
             node.getHistory()
-        with self.assertRaisesRegex(RuntimeError, "invalid node"):
+        with self.assertRaisesRegex(RuntimeError, r"invalid \w+"):
             node.getHistory(future=True)
 
     def test_history_matches_cmds_order(self):
@@ -313,7 +313,7 @@ class DestroyedNodeTest(unittest.TestCase):
         for method in ("getType", "getTypeId", "getPluginName", "isLocked", "isFromReferencedFile",
                        "getNodeName", "getClassification"):
             with self.subTest(method=method):
-                with self.assertRaisesRegex(RuntimeError, "Cannot access an invalid node"):
+                with self.assertRaisesRegex(RuntimeError, r"Cannot access an invalid \w+"):
                     getattr(node, method)()
         self.assertEqual(node.getName(), "")
         self.assertFalse(node.isType("multiplyDivide"))

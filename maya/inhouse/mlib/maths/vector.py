@@ -4,7 +4,7 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison, _instance_state
+from ..util import _checked_index, _copy_state, _foreign_comparison, _instance_state, _rethrow_init_error
 
 _MVector = om2.MVector
 _MPoint = om2.MPoint
@@ -21,7 +21,7 @@ _NUMBER = (int, float)
 _OM2_POINT_TYPES = (_MPoint, om2.MFloatVector, om2.MFloatPoint)
 
 
-def _as_mvector(value):
+def _resolve_mvector(value):
     """値を om2.MVector として扱える形へ変換する。
 
     MVector 系(mlib の Vector 派生を含む)はそのまま返す。MPoint などの om2 の
@@ -35,8 +35,8 @@ def _as_mvector(value):
         om2.MVector: value 自身、または新しい MVector。
 
     Raises:
-        ValueError: 反復可能オブジェクトの要素数が3でない場合。
         TypeError: 反復できない値の場合。
+        ValueError: 反復可能オブジェクトの要素数が3でない場合。
     """
     if isinstance(value, _MVector):
         return value
@@ -194,7 +194,7 @@ class Vector(om2.MVector):
     ただし ``v *= w`` は内積のfloatへ束ね直す。コピーを返す操作と自身更新を区別し、
     数学値を返す継承メソッドも対応するmlib型を使う。OpenMayaの共有クラス定数は変更しない。
 
-    成分・添字へ代入可能。添字は-3〜2、範囲外はIndexError。スライスは代入不可のtuple、反復はXYZ順。
+    成分・番号へ代入可能。番号は-3〜2、範囲外はIndexError。スライスは代入不可のtuple、反復はXYZ順。
     ``==`` はMVector系の成分の完全一致で、派生型が違っても等しくなり得る。
     それ以外はOM2型ならFalse、他は相手の比較へ委ね、未判定ならFalse。
     OM2型が左辺の比較はOM2側でTypeErrorになり得る。
@@ -233,14 +233,14 @@ class Vector(om2.MVector):
             None: 値を返さない。
 
         Raises:
-            ValueError: om2 のコンストラクタが受け付けない引数(文字列の成分など)の場合。
             TypeError: 未知のキーワード引数、または同じ成分を二重に指定した場合。
+            ValueError: om2 のコンストラクタが受け付けない引数(文字列の成分など)の場合。
         """
         if kwargs:
             try:
                 args = _vector_keywords(*args, **kwargs)
             except TypeError as error:
-                raise TypeError("{}() {}".format(type(self).__name__, str(error).split("() ", 1)[-1])) from None
+                _rethrow_init_error(type(self), error)
         count = len(args)
         values = args
         if count == 1:
@@ -274,14 +274,14 @@ class Vector(om2.MVector):
         """成分を取得する。
 
         Args:
-            index (int | slice): -3〜2 の添字、またはスライス。
+            index (int | slice): -3〜2 の番号、またはスライス。
 
         Returns:
             float | tuple[float, ...]: 指定成分。スライスでは成分の tuple。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・スライス以外の場合。
+            TypeError: 番号が整数・スライス以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is int and -3 <= index < 3:
             return _GET(self, index)
@@ -293,15 +293,15 @@ class Vector(om2.MVector):
         """成分を設定する。
 
         Args:
-            index (int): -3〜2 の添字。
+            index (int): -3〜2 の番号。
             value (float): 設定する値。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数以外の場合。
+            TypeError: 番号が整数以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is not int or not -3 <= index < 3:
             index = _checked_index(index, 3, "Vector")
@@ -346,7 +346,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 自身と同じクラスの新しいインスタンス。
         """
-        return _copy_state(self, self._duplicate())
+        return _copy_state(self, type(self)._wrap(self))
 
     def __deepcopy__(self, memo):
         """同じ型・同じ成分の複製を返す。
@@ -359,7 +359,7 @@ class Vector(om2.MVector):
         Returns:
             Vector: 自身と同じクラスの新しいインスタンス。
         """
-        return _copy_state(self, self._duplicate(), memo)
+        return _copy_state(self, type(self)._wrap(self), memo)
 
     def __repr__(self):
         """クラス名と3成分を含むデバッグ表現を返す。
@@ -731,7 +731,7 @@ class Vector(om2.MVector):
         Returns:
             float: 内積。
         """
-        return _MVector.__mul__(self, _as_mvector(other))
+        return _MVector.__mul__(self, _resolve_mvector(other))
 
     def cross(self, other):
         """外積を返す。
@@ -744,7 +744,7 @@ class Vector(om2.MVector):
         """
         result = _NEW(Vector)
         _INIT(result)
-        _MVector.__iadd__(result, _MVector.__xor__(self, _as_mvector(other)))
+        _MVector.__iadd__(result, _MVector.__xor__(self, _resolve_mvector(other)))
         return result
 
     def lengthSq(self):
@@ -857,7 +857,7 @@ class Vector(om2.MVector):
         Returns:
             float: 距離。
         """
-        return _MVector.__sub__(self, _as_mvector(other)).length()
+        return _MVector.__sub__(self, _resolve_mvector(other)).length()
 
     def angleTo(self, other):
         """別のベクトルとの成す角度をラジアンで返す。
@@ -874,7 +874,7 @@ class Vector(om2.MVector):
         Raises:
             ValueError: 自身または other がゼロベクトルの場合。
         """
-        other = _as_mvector(other)
+        other = _resolve_mvector(other)
         if _MVector.__mul__(self, self) == 0.0 or _MVector.__mul__(other, other) == 0.0:
             raise ValueError("Cannot measure the angle to or from a zero vector")
         return math.atan2(_MVector.__xor__(self, other).length(), _MVector.__mul__(self, other))
@@ -892,7 +892,7 @@ class Vector(om2.MVector):
         Returns:
             bool: ほぼ等しければ True。
         """
-        return _MVector.isEquivalent(self, _as_mvector(other), tolerance)
+        return _MVector.isEquivalent(self, _resolve_mvector(other), tolerance)
 
     def lerp(self, other, t):
         """別のベクトルとの線形補間 ``self + (other - self) * t`` を返す。
@@ -906,23 +906,28 @@ class Vector(om2.MVector):
         """
         result = _NEW(Vector)
         _INIT(result)
-        _MVector.__iadd__(result, _as_mvector(other))
+        _MVector.__iadd__(result, _resolve_mvector(other))
         _MVector.__isub__(result, self)
         _MVector.__imul__(result, t)
         _MVector.__iadd__(result, self)
         return result
 
-    def _duplicate(self):
-        """同じ型・同じ成分の新しいインスタンスを返す(追加のアトリビュートは写さない)。
+    @classmethod
+    def _wrap(cls, value):
+        """3成分の値を複製した cls のインスタンスを返す(追加のアトリビュートは写さない)。
 
-        利用者の派生クラスの ``__init__`` は呼ばない。
+        Python の ``__new__`` / ``__init__`` を通さない(利用者の派生クラスの
+        ``__init__`` も呼ばない)。
+
+        Args:
+            value (om2.MVector): 複製元。x・y・zを持つ値。
 
         Returns:
-            Vector: 自身と同じクラスの新しいインスタンス。
+            Vector: cls の新しいインスタンス。
         """
-        result = _NEW(type(self))
+        result = _NEW(cls)
         _INIT(result)
-        result.x = self.x
-        result.y = self.y
-        result.z = self.z
+        result.x = value.x
+        result.y = value.y
+        result.z = value.z
         return result

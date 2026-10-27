@@ -47,11 +47,13 @@ class PluginPackage:
             installHint (str | None): 導入不足の通知へ加える説明。
 
         Raises:
-            ValueError: 名前や最小版が不正、またはpluginsもmoduleも指定されない場合。
-                非文字列・空のプラグイン名もValueErrorとなる。
-            TypeError: pluginsを反復できない、またはminimumMayaを整数に変換できない型の場合。
+            TypeError: 名前・プラグイン名が文字列以外、pluginsを反復できない、
+                またはminimumMayaを整数に変換できない型の場合。
+            ValueError: 名前・プラグイン名が空文字列、最小版が不正、またはpluginsもmoduleも指定されない場合。
         """
-        if not isinstance(name, str) or not name:
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+        if not name:
             raise ValueError("name must be a non-empty string")
         self._name = name
         self._plugins = tuple(item if isinstance(item, Plugin) else Plugin(item) for item in plugins)
@@ -77,7 +79,8 @@ class PluginPackage:
         Returns:
             str: 型名・製品名・最小の版を含む文字列表現。
         """
-        return "PluginPackage({!r}, minimumVersion={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))
+        minimum = str(self._minimum_version) if self._minimum_version is not None else "なし"
+        return f"PluginPackage({self._name!r}, minimumVersion={minimum})"
 
     @staticmethod
     def showDialog(message, title="インストールが必要です"):
@@ -201,16 +204,16 @@ class PluginPackage:
         """
         if found is None:
             found = self.getInstalledVersion()
-        wanted = "{} {}".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし")) if self._minimum_version \
-            else self._name
+        wanted = f"{self._name} {self._minimum_version}" if self._minimum_version else self._name
         year = self._maya_year()
-        hint = self._install_hint or "Autodesk アカウントなどから Maya {} 用の {} 以降を入手してインストールしてください。".format(
-            year, wanted)
+        hint = self._install_hint or (
+            f"Autodesk アカウントなどから Maya {year} 用の {wanted} 以降を入手してインストールしてください。")
+        found_text = str(found) if found is not None else "なし"
         return (
-            "{wanted} 以降が見つかりません(検出した版: {found})。\n\n{hint}\n"
+            f"{wanted} 以降が見つかりません(検出した版: {found_text})。\n\n{hint}\n"
             "インストール後に Maya を再起動すると、自動でロードされます。\n\n"
-            "{wanted} or later was not found for Maya {year}. Please install it."
-        ).format(wanted=wanted, found=(str(found) if found is not None else "なし"), hint=hint, year=year)
+            f"{wanted} or later was not found for Maya {year}. Please install it."
+        )
 
     def loadPlugins(self):
         """全プラグインをロードする。ロードできない名前があっても続行する。
@@ -224,8 +227,8 @@ class PluginPackage:
                 plugin.load(quiet=True)
             except Exception as error:
                 failed.append(plugin.name)
-                logger.warning("[mlib] %s のプラグイン %s をロードできません: %s",
-                               self._name, plugin.name, error)
+                logger.warning("[mlib] Cannot load plugin %s for %s: %s",
+                               plugin.name, self._name, error)
         return failed
 
     def tryLoad(self, dialog=True, warn=True):
@@ -242,8 +245,8 @@ class PluginPackage:
                 個別のロード失敗警告はこのフラグで抑制しない。
 
         Returns:
-            str: SKIPPED（対象外）、LOADED（成功）、MISSING（未導入・版不足）、
-                OUTDATED（ロード済み版が古い）、LOAD_FAILED（ロード失敗あり）。
+            str: SKIPPED(対象外)、LOADED(成功)、MISSING(未導入・版不足)、
+                OUTDATED(ロード済み版が古い)、LOAD_FAILED(ロード失敗あり)。
         """
         if not self.isMayaSupported():
             return SKIPPED

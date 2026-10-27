@@ -8,14 +8,14 @@ class CurveFit:
 
     @staticmethod
     def basis(count, parameter):
-        """0〜1のパラメータで基底重みを計算する。
+        """0〜1のパラメータで基底ウェイトを計算する。
 
         Args:
             count (int): 4以上のCV数。
             parameter (float): 正規化カーブパラメータ。
 
         Returns:
-            list[float]: CVごとの重み。
+            list[float]: CVごとのウェイト。
         """
         if count < 4 or not 0 <= parameter <= 1:
             raise ValueError("Use count >= 4 and parameter in 0..1")

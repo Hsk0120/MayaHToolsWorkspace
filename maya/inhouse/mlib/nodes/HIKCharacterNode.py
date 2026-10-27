@@ -6,8 +6,8 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from ..common.plugin import Plugin
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 from .node import Node
 
 
@@ -70,12 +70,12 @@ class HIKCharacterNode(Node):
         _prepare()
         index = cmds.hikGetNodeIdFromName(role)
         if index < 0 or cmds.GetHIKNodeName(index) != role:
-            raise ValueError("Unknown HumanIK role: " + role)
+            raise ValueError(f"Unknown HumanIK role: {role}")
         values = cmds.listConnections(self.getFullName() + "." + role,
                                       source=True, destination=False) or []
         return Node(values[0]) if values else None
 
-    @undoChunk("mlib.HIKCharacterNode.setJoint")
+    @undoChunk("mlibHIKCharacterNodeSetJoint")
     def setJoint(self, role, joint):
         """ロック前の定義へ骨を割り当てる。
 
@@ -84,29 +84,28 @@ class HIKCharacterNode(Node):
             joint: mlibで解決可能なjoint。
 
         Returns:
-            None: 値は返さない。
+            None: 値を返さない。
 
         Raises:
-            RuntimeError: 定義がロック済みの場合、jointを解決できない場合、または
-                HumanIKが割り当てを反映しなかった場合。
             TypeError: jointがjoint以外のノード、またはroleが文字列でない場合。
             ValueError: roleがHumanIK標準の骨名でない場合。
+            RuntimeError: 定義がロック済みの場合、jointを解決できない場合、または
+                HumanIKが割り当てを反映しなかった場合。
 
         Note:
             定義の検証・ロックはMayaのHumanIK UIで行う。
         """
-        from .node import Node as _InputNode
         _prepare()
         if self.isDefinitionLocked():
             raise RuntimeError("Unlock the character definition before editing")
-        name = _InputNode._input_name(joint)
+        name = Node._input_name(joint)
         if cmds.nodeType(name) != "joint":
             raise TypeError("Expected a joint")
         if not isinstance(role, str):
             raise TypeError("role must be a HumanIK bone name")
         index = cmds.hikGetNodeIdFromName(role)
         if index < 0 or cmds.GetHIKNodeName(index) != role:
-            raise ValueError("Unknown HumanIK role: " + role)
+            raise ValueError(f"Unknown HumanIK role: {role}")
         mel.eval("hikSetCharacterObject({}, {}, {}, 0);".format(
             _quote(name), _quote(self.getFullName()), index))
         if not self.joint(role) or self.joint(role).getFullName() != name:
@@ -127,16 +126,14 @@ class HIKCharacterNode(Node):
 
         Args:
             source (HIKCharacterNode | str): 自分以外のソースキャラクタ。
-                両キャラクタの定義がロック済みであること。 別名 ``src`` も使用可能。
+                両キャラクタの定義がロック済みであること。別名 ``src`` も使用可能。
             src (HIKCharacterNode | str): sourceの別名。同時指定は不可。
+
+        Returns:
+            None: 値を返さない。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        with undoChunk("mlib.HIKCharacterNode.setSource"):
+        source = _pick_alias(source, src, "source", "src")
+        with undoChunk("mlibHIKCharacterNodeSetSource"):
             _prepare()
             source = Node(source)
             if not isinstance(source, HIKCharacterNode) or source == self:

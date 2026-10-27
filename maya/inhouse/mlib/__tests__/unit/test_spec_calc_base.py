@@ -114,7 +114,7 @@ class CalculationValidatorTest(unittest.TestCase):
         self.assertIs(_Calculation.boolean(False), False)
         for value in (0, 1, "True", None, 1.0):
             with self.subTest(value=value):
-                with self.assertRaisesRegex(TypeError, "Expected bool"):
+                with self.assertRaisesRegex(TypeError, "must be a bool"):
                     _Calculation.boolean(value)
 
     def test_enum_value(self):
@@ -191,7 +191,7 @@ class GeometryOutputTest(unittest.TestCase):
     def test_errors(self):
         """worldSpaceの型→シェイプ数→シェイプ型の順に検証する。"""
         curve = cmds.curve(d=1, p=[(0, 0, 0), (1, 0, 0)])
-        with self.assertRaisesRegex(TypeError, "Expected bool"):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
             _Calculation.geometry_output("noSuchNode", "nurbsCurve", 1)
         cube = cmds.polyCube()[0]
         with self.assertRaisesRegex(ValueError, "exactly one matching shape"):

@@ -4,6 +4,97 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+2.2.0 (2026-10-27)
+------------------
+
+内部実装の表記のブレ(内部名・引数・例外・Undo チャンク名・docstring)を調べて統一し、重なっていた内部処理を
+共通ヘルパーへまとめました。規則は ``docs/mlib-api-design.md`` の「内部実装の定型」に記録しています。
+公開 API の名前・引数・戻り値は原則変えていませんが、例外の型と文言に次の変更があります。
+
+.. rubric:: 破壊的変更
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 30 30
+
+   * - 対象
+     - 変更
+     - 補足
+   * - 例外の型の 4 分類
+     - 型違い・別名競合・必須欠落は ``TypeError``\ 、値違いは ``ValueError``\ 、シーンの状態(ロック・接続・参照・
+       削除済み・不在)は ``RuntimeError``\ 、fast や実装上の未対応は ``NotImplementedError``
+     - 以下はこの分類に合わせて型が変わったもの
+   * - ``worldSpace`` / ``ws`` が bool 以外
+     - ``ValueError`` → ``TypeError``
+     - ``mlib.util._world_space`` を使う全メソッド
+   * - ``DagPose.merge`` の ``currentPose`` / ``deleteSources`` が bool 以外
+     - ``ValueError`` → ``TypeError``
+     - —
+   * - ``AimConstraint.setOffset`` / ``setRestRotate`` のロック・参照・入力接続の拒否
+     - ``ValueError`` → ``RuntimeError``
+     - 状態エラーに分類
+   * - ``Namespace``\ ・``Plugin``\ ・``Module``\ ・``PluginPackage`` の名前、``NodeRegistry`` の型名が str 以外
+     - ``ValueError`` → ``TypeError``\ (空文字は従来どおり ``ValueError``)
+     - —
+   * - fast と無関係な非対応(``Shape.scaleGeometry`` のメッシュ・NURBS 以外、``BlendShape.addTargetDeltas`` の
+       特殊 origin / deformationOrder、``Mesh`` の並べ替え系の 6 条件)
+     - ``NotImplementedError`` → ``ValueError``
+     - fast の未対応だけが ``NotImplementedError``
+   * - fast と単位アトリビュートの事前換算で数値・文字列でない値
+     - ``RuntimeError`` → ``TypeError``
+     - 通常経路の非単位型は cmds の ``RuntimeError`` のまま
+   * - 例外メッセージ
+     - 日本語のメッセージ約 70 件を英語化し、形式を統一(``<arg> must be <型>``\ ・``Specify only one of '<long>' and
+       '<short>'``\ ・``Missing required argument: '<arg>'``\ ・``Cannot <action> an invalid <Type>``\ ・
+       ``<Target> is locked|connected|referenced: <name>``\ ・``fast <method> does not support <条件>``)
+     - 文言を照合しているコードは更新が必要
+   * - Undo チャンク名
+     - ``mlib<Class><Method>``\ (メソッド)と ``mlib<Func>``\ (``mlibCreateNode`` 等)に統一。ドット形(``mlib.cmds.*``\ ・
+       ``mlib.Container.*`` 等)と短縮名(``mlibTransformMatch`` 等)を廃止。計算ノードの共通名 ``mlibCalculationEdit`` は
+       ``mlib<Node><Method>`` に、``Plug.set`` は ``mlib<型別クラス>Set``\ (例 ``mlibDoubleLinearPlugSet``)に
+     - Undo 履歴の表示名
+   * - ``DagNode.getShape(index=0, intermediates=False, *, idx=...)``
+     - 主引数名を ``idx`` から ``index`` に(位置引数の意味は不変)
+     - —
+   * - ``Joint.reparentChildren``
+     - 入力を Node / 名前で受け、戻り値を ``self`` に(以前は ``None``)
+     - —
+   * - ``core.fastWrite.writable`` / ``check_range`` / ``_require_supported_type``\ 、``core.geometryEdit.setPositions``\ 、
+       ``core.skinEdit.validate_removal``\ 、``core.registry.get``
+     - ``require_writable`` / ``require_range`` / ``require_supported_type``\ 、``set_positions``\ 、``validate_removals``\ 、
+       ``wrapper_class`` へ
+     - core の内部連携名
+
+.. rubric:: 追加
+
+- ``Node.getConnections`` に ``src`` / ``dst`` の別名(Plug と同じ)。
+- 共通ヘルパー: ``decorator._require_bool`` / ``_pick_alias`` / ``_merge_flags`` / ``_edit_context``\ 、``util._finite`` /
+  ``_finite_vector`` / ``_checked_tolerance`` / ``_unique_ordered`` / ``_rethrow_init_error``\ 、``core.object._exists`` /
+  ``_selection_plug`` / ``_selection_component``\ 、``core.fastWrite._ancestor_plugs`` / ``writable_compound``\ 、
+  ``Node._from_name`` / ``_require_valid``\ 。bool 検査約 230 箇所、別名解消約 370 対、無効ノード検査約 35 箇所、
+  ロック・参照拒否 12 箇所、プラグ階層の遡上 10 箇所を置き換えました。
+- ``Plug.set`` を Template Method 化(派生は ``_set_value`` だけを override)。``Nodes.__init_subclass__`` が複数形クラスの
+  ``_bulk_methods`` / ``_bulk_returns`` を ``_bulk_entries`` から合成。
+
+.. rubric:: 修正
+
+- ``mlib.reload()`` が、``from ..maths import Matrix`` のようにパッケージ経由で取り込んだ名前の親パッケージを依存先に
+  数えず、読み直しの順序が崩れることがあった。
+- ``Transform.setMatrix`` 等がアニメーション付きのチャンネルへ書けなくなっていた(``Plug.set`` の骨格化の途中で混入)。
+
+.. rubric:: 内部名
+
+- 検証は ``_require_<条件>``\ (旧 ``_validate_*`` / ``_check_*``)、変換は ``_resolve_<対象>``\ 、書込みの経路は
+  ``_<method>_fast`` / ``_<method>_cmds`` に統一。skinCluster・blendShape の略語(``_jnt_index``\ ・``_xfer_pair``\ ・
+  ``_attr``\ ・``_group`` 等)を完全語へ。``cameraFn`` 系の廃止に続き ``_dependency_name``\ 、``Vector._duplicate``\ 、
+  ``_as_mvector``\ 、``Joint._unique_ordered`` 等を削除・改名。
+
+.. rubric:: 据え置き(次版の候補)
+
+- joint 側の回転補助(``_rotate_quaternion`` 等)の transform への統合、計算ノードの ``getResult`` の戻り型の統一、
+  ``getRotateOrder`` の enum 名表の ``maths.eulerRotate`` への集約、``SkinCluster.mesh_path`` と ``Component.component_type``
+  の lowerCamelCase 化、docstring の裸の ``list`` / ``tuple`` / ``dict`` 型表記(約 160 件)と概要・Returns の重複(41 件)。
+
 2.1.0 (2026-10-27)
 ------------------
 

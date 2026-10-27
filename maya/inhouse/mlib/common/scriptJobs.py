@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 
+from .. import logger
 from .scriptJob import ScriptJob
 
 
@@ -50,8 +51,6 @@ class ScriptJobs:
         Raises:
             RuntimeError: 解除失敗が一つ以上ある場合。最初の原因例外を__cause__に保持する。
         """
-        from .. import logger
-
         failures = []
         for key, job in list(self._jobs.items()):
             try:
@@ -62,7 +61,8 @@ class ScriptJobs:
             else:
                 del self._jobs[key]
         if failures:
-            raise RuntimeError("Failed to stop scriptJobs: " + ", ".join(repr(key) for key, _ in failures)) from failures[0][1]
+            raise RuntimeError(
+                f"Failed to stop scriptJobs: {', '.join(repr(key) for key, _ in failures)}") from failures[0][1]
 
     @contextmanager
     def temporary(self):

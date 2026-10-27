@@ -5,7 +5,7 @@ from contextlib import nullcontext
 import maya.cmds as cmds
 
 from ..core import geometryEdit as geometry_edit
-from ..decorator import undoChunk
+from ..decorator import _require_bool, undoChunk
 from .component import Component, Components
 
 
@@ -24,13 +24,13 @@ class UV(Component):
         """現在のUVセットから、保持番号のU/V座標を取得する。
 
         Returns:
-            tuple[float, float]: 新しい無次元の(U, V)値。UI距離単位やobject/world空間とは無関係。
+            tuple[float, float]: 新しい無次元の(U, V)値。UI距離単位やobject/ワールド空間とは無関係。
 
         Raises:
             IndexError: 保持番号が現在のUVセットの範囲外の場合。
             RuntimeError: Meshまたは現在のUVセットを参照できない場合。
         """
-        self._validate()
+        self._require_valid()
         mesh_fn = self.shape._geometry_fn()
         return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
@@ -42,14 +42,14 @@ class UV(Component):
 
         Args:
             value (Iterable[float]): 有限なU/Vの2成分。無次元で0〜1に限定しない。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に記録する。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UV: 自身。UVセットや割当ては作成しない。
 
         Raises:
-            ValueError: 座標が不正な場合。
             TypeError: fastがbool以外の場合。
+            ValueError: 座標が不正な場合。
             IndexError: 番号が現在のUVセットの範囲外の場合。
             RuntimeError: 対象を参照できない、またはMayaが更新を拒否した場合。
             NotImplementedError: fastでinMesh入力付きShapeを編集する場合。
@@ -57,12 +57,11 @@ class UV(Component):
         Note:
             API更新中の失敗で完了済みの変更は自動で戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibUVPosition"):
+        _require_bool(fast, "fast")
+        with nullcontext() if fast else undoChunk("mlibUVSetPosition"):
             u, v = self._finite_coordinates(value, 2)
             if fast:
-                self._validate()
+                self._require_valid()
                 geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
                 return self
             cmds.polyEditUV(self.getFullName(), relative=False, uValue=u, vValue=v,
@@ -82,19 +81,18 @@ class UV(Component):
 
         Args:
             value (float): 有限な座標。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UV: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self._set_coordinate(0, value, fast=fast)
 
     def getV(self):
@@ -110,19 +108,18 @@ class UV(Component):
 
         Args:
             value (float): 有限な座標。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UV: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self._set_coordinate(1, value, fast=fast)
 
 
@@ -146,14 +143,14 @@ class UVs(Components):
 
         Args:
             values (Iterable[Iterable[float]]): 保持番号と同じ件数の有限な(U,V)行。無次元。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に同じチャンクへ記録する。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UVs: 自身。標準実装の空集合と空列はShapeを再照会せず何もしない。
 
         Raises:
-            ValueError: 件数または座標が不正な場合。
             TypeError: fastがbool以外の場合。
+            ValueError: 件数または座標が不正な場合。
             IndexError: 保持番号が現在のUVセットの範囲外の場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fastでinMesh入力付きShapeを編集する場合。
@@ -161,8 +158,7 @@ class UVs(Components):
         Note:
             UVセット/割当ての作成、全UV-set Plugの書込み検査、自動ロールバックは行わない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibUVsSetPositions"):
             rows = self._coordinate_rows(values, 2)
             if fast and self._uses_standard_iteration(UV):
@@ -170,7 +166,7 @@ class UVs(Components):
                     Component._validate_shape(self._shape, UV.shape_type)
                     count = self._shape.getNumUVs()
                     for index in self._indices:
-                        Component._validate_index(index, count)
+                        Component._require_index_range(index, count)
                 geometry_edit.set_uvs(self._shape, self._indices, rows)
                 return self
             components = list(self)
@@ -194,19 +190,18 @@ class UVs(Components):
 
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UVs: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self._set_coordinate(0, value, fast=fast)
 
     def getV(self):
@@ -222,19 +217,18 @@ class UVs(Components):
 
         Args:
             value (float | Iterable[float]): 同値スカラーまたは保持順の値列。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             UVs: 更新した自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 座標または要素数が不正な場合。
-            TypeError: fastがboolでない場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fast更新で未対応の形状の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self._set_coordinate(1, value, fast=fast)
 
     def getPosition(self):
@@ -261,7 +255,7 @@ class UVs(Components):
         uv_set = mesh_fn.currentUVSetName()
         result = []
         for index in self._indices:
-            Component._validate_index(index, count)
+            Component._require_index_range(index, count)
             result.append(tuple(mesh_fn.getUV(index, uvSet=uv_set)))
         return result
 
@@ -272,19 +266,18 @@ class UVs(Components):
 
         Args:
             value (Iterable[float]): 全要素に共通の有限なU/V。無次元。
-            fast (bool): TrueはUndoなしの直接更新。setPositionsと同じ制限に従う。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。setPositionsと同じ制限に従う。
 
         Returns:
             UVs: 自身。要素ごとに異なる座標を指定する場合はsetPositionsを使う。
 
         Raises:
-            ValueError: U/Vが不正な場合。空集合でも入力値を検証する。
             TypeError: fastがbool以外の場合。
+            ValueError: U/Vが不正な場合。空集合でも入力値を検証する。
             IndexError: 保持番号が現在のUVセットの範囲外の場合。
             RuntimeError: 対象が無効、またはMayaが更新を拒否した場合。
             NotImplementedError: fastでinMesh入力のあるShapeを編集する場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         point = Component._finite_coordinates(value, 2)
         return self.setPositions([point] * len(self), fast=fast)

@@ -1,6 +1,70 @@
-"""Mayaシーン内の単一対象を表す共通基底。"""
+"""Mayaシーン内の単一対象を表す共通基底と、選択リストによる対象の判別補助。"""
 
 import maya.api.OpenMaya as om2
+
+
+def _exists(name):
+    """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
+
+    一意な完全名に対しては ``cmds.objExists`` と同じ結果になる(範囲外のコンポーネント番号や
+    配列の未作成要素も True)。
+
+    Args:
+        name (str): 調べる完全名。
+
+    Returns:
+        bool: 選択リストへ追加できた場合 True。
+    """
+    try:
+        om2.MSelectionList().add(name)
+    except RuntimeError:
+        return False
+    return True
+
+
+def _selection_plug(selection, index):
+    """選択リストの要素がアトリビュートなら、そのMPlugを取得する。
+
+    ``MSelectionList.getPlug`` はノード・コンポーネントの要素で RuntimeError または
+    TypeError(Mayaの版で異なる)になるため、両方をNoneに読み替える。
+
+    Args:
+        selection (om2.MSelectionList): 選択リスト。
+        index (int): 要素の番号。
+
+    Returns:
+        om2.MPlug | None: アトリビュートの要素ならMPlug。それ以外、またはnullのMPlugならNone。
+    """
+    try:
+        plug = selection.getPlug(index)
+    except (RuntimeError, TypeError):
+        return None
+    if plug.isNull:
+        return None
+    return plug
+
+
+def _selection_component(selection, index):
+    """選択リストの要素がコンポーネントなら、所有DAGパスとコンポーネントを取得する。
+
+    ``MSelectionList.getComponent`` はDGノードの要素で RuntimeError または TypeError になり、
+    DAGノード単体ではnullのコンポーネントを返すため、どちらもNoneに読み替える。
+
+    Args:
+        selection (om2.MSelectionList): 選択リスト。
+        index (int): 要素の番号。
+
+    Returns:
+        tuple[om2.MDagPath, om2.MObject] | None: コンポーネントの要素なら(所有DAGパス, コンポーネント)。
+            DGノード・DAGノード単体ならNone。
+    """
+    try:
+        path, component = selection.getComponent(index)
+    except (RuntimeError, TypeError):
+        return None
+    if component.isNull():
+        return None
+    return path, component
 
 
 class _ObjectType(type):
@@ -82,19 +146,12 @@ class Object(metaclass=_ObjectType):
         selection = om2.MSelectionList()
         selection.add(value)
         if selection.length() != 1:
-            raise RuntimeError("Object requires one unambiguous target")
-        try:
-            selection.getPlug(0)
-        except (RuntimeError, TypeError):
-            pass
-        else:
+            raise RuntimeError(f"Object requires one unambiguous target: {value}")
+        if _selection_plug(selection, 0) is not None:
             return Plug._resolve_input(value)
-        try:
-            path, component = selection.getComponent(0)
-        except (RuntimeError, TypeError):
-            return Node._resolve_input(value)
-        if not component.isNull():
-            return Component._resolve_input((path, component))
+        found = _selection_component(selection, 0)
+        if found is not None:
+            return Component._resolve_input(found)
         return Node._resolve_input(value)
 
     @staticmethod
@@ -121,8 +178,8 @@ class Object(metaclass=_ObjectType):
             TypeError: 送出する例外。
         """
         return TypeError(
-            f"対応していない型です: {type(value).__name__}"
-            "(str / Node / Plug / Component / om2.MObject / om2.MDagPath / om2.MPlug を指定してください)"
+            f"Expected str, Node, Plug, Component, om2.MObject, om2.MDagPath or om2.MPlug, "
+            f"not {type(value).__name__}"
         )
 
     @staticmethod
@@ -149,28 +206,28 @@ class Object(metaclass=_ObjectType):
         elif isinstance(value, node_class):
             name = value.getFullName()
             if not name:
-                raise ValueError("無効な(削除済みの)ノードは指定できません")
+                raise ValueError("Cannot use an invalid (deleted) Node")
         elif isinstance(value, plug_class):
             name = value.getFullName()
             if not name:
-                raise ValueError("無効な(所有ノードまたはアトリビュートが削除済みの)Plug は指定できません")
+                raise ValueError("Cannot use an invalid Plug (its node or attribute was deleted)")
         elif isinstance(value, component_class):
             try:
                 name = value.getFullName()
             except (RuntimeError, IndexError) as error:
-                raise ValueError(f"無効なコンポーネントは指定できません: {error}") from error
+                raise ValueError(f"Cannot use an invalid Component: {error}") from error
         elif isinstance(value, om2.MPlug):
             name = _InputPlug._mplug_name(value)
         elif isinstance(value, om2.MDagPath):
             if not value.isValid() or not om2.MObjectHandle(value.node()).isValid():
-                raise ValueError("無効な(削除済みの)MDagPath は指定できません")
+                raise ValueError("Cannot use an invalid (deleted) MDagPath")
             name = value.fullPathName()
         elif isinstance(value, om2.MObject):
             name = _InputNode._mobject_name(value)
         else:
             raise Object._unsupported(value)
         if not name:
-            raise ValueError("空でない名前を指定してください")
+            raise ValueError("Expected a non-empty object name")
         return name
 
     @staticmethod
@@ -258,10 +315,11 @@ class Object(metaclass=_ObjectType):
         names = []
 
         def collect(value):
+            """単数参照を名前にし、Componentsは範囲名へまとめ、容器だけを展開する。"""
             if not allow_plugs and isinstance(value, (plug_class, om2.MPlug)):
                 raise TypeError(
-                    f"アトリビュート(Plug・MPlug)は指定できません: {type(value).__name__}"
-                    "(所有ノードを対象にする場合は plug.getNode() を指定してください)"
+                    f"Attributes (Plug, MPlug) are not accepted here: {type(value).__name__} "
+                    "(pass plug.getNode() to target the owning node)"
                 )
             if isinstance(value, singles):
                 names.append(Object._name(value, node_class, plug_class, component_class))
@@ -271,7 +329,7 @@ class Object(metaclass=_ObjectType):
                     # 全番号の検証はコレクションごとに1回だけ行い、連続する番号は範囲指定にまとめる。
                     names.extend(value.getCompactNames())
                 except (RuntimeError, IndexError) as error:
-                    raise ValueError(f"無効なコンポーネントは指定できません: {error}") from error
+                    raise ValueError(f"Cannot use an invalid Component: {error}") from error
                 return
             try:
                 iterator = iter(value)

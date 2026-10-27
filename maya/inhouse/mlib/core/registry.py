@@ -6,7 +6,7 @@ import maya.cmds as cmds
 
 __all__ = ["NodeRegistry"]
 
-for _name in ("collection_export", "discover_node_package", "node_wrapper", "plug_wrapper"):
+for _name in ("collection_export", "discover_node_package", "get", "node_wrapper", "plug_wrapper"):
     globals().pop(_name, None)
 
 
@@ -152,11 +152,14 @@ class NodeRegistry:
             node_type (str): 空でない登録キー。
             wrapper_class (type): 対応するクラス。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            ValueError: キーが空または文字列以外の場合。
-            TypeError: wrapper_classがクラス以外の場合。
+            TypeError: キーが文字列以外、またはwrapper_classがクラス以外の場合。
+            ValueError: キーが空文字列の場合。
         """
-        self._validate_entry(node_type, wrapper_class)
+        self._require_entry(node_type, wrapper_class)
         self._classes[node_type] = wrapper_class
         self._invalidate_generated()
 
@@ -173,13 +176,16 @@ class NodeRegistry:
         Args:
             wrappers (Mapping[str, type]): 登録キーとクラスの対応。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            ValueError: キーが空または文字列以外の場合。
-            TypeError: 値がクラス以外の場合。
+            TypeError: キーが文字列以外、または値がクラス以外の場合。
+            ValueError: キーが空文字列の場合。
         """
         validated = {}
         for node_type, wrapper_class in wrappers.items():
-            self._validate_entry(node_type, wrapper_class)
+            self._require_entry(node_type, wrapper_class)
             validated[node_type] = wrapper_class
         self._classes.clear()
         self._classes.update(validated)
@@ -220,26 +226,15 @@ class NodeRegistry:
         """登録済みクラスを返す。未登録なら ``None``。
 
         フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う
-        （例: Plug のアトリビュート型 dispatch）。生成クラスは登録ではないので返さない。
+        (例: Plug のアトリビュート型 dispatch)。生成クラスは登録ではないので返さない。
 
         Args:
-            key (str): 登録キー（nodeType またはアトリビュート型など）。
+            key (str): 登録キー(nodeType またはアトリビュート型など)。
 
         Returns:
             type | None: 登録済みクラス。
         """
         return self._classes.get(key)
-
-    def get(self, node_type):
-        """登録キーをwrapper_classと同じ規則で解決する。
-
-        Args:
-            node_type (str): ノード型・アトリビュート型等の登録キー。
-
-        Returns:
-            type: 完全一致、生成クラス、設定された祖先検索、またはフォールバックで選んだクラス。
-        """
-        return self.wrapper_class(node_type)
 
     def _generate_class(self, node_type):
         """Maya が認識する未登録の型に対応するクラスを生成し、キャッシュして返す。
@@ -305,18 +300,23 @@ class NodeRegistry:
         return sorted(key for key, wrapper in self._classes.items() if issubclass(wrapper, base))
 
     @staticmethod
-    def _validate_entry(node_type, wrapper_class):
+    def _require_entry(node_type, wrapper_class):
         """汎用登録の型名とクラスを検証する。既存キーの上書きは拒否しない。
 
         Args:
             node_type (str): 登録する型名。
             wrapper_class (type): 対応するクラス。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            ValueError: 型名が空文字列または文字列以外の場合。
-            TypeError: wrapper_classがクラスではない場合。
+            TypeError: 型名が文字列以外、またはwrapper_classがクラスではない場合。
+            ValueError: 型名が空文字列の場合。
         """
-        if not isinstance(node_type, str) or not node_type:
+        if not isinstance(node_type, str):
+            raise TypeError("node_type must be a str")
+        if not node_type:
             raise ValueError("node_type must be a non-empty string")
         if not isinstance(wrapper_class, type):
             raise TypeError("wrapper_class must be a class")
@@ -334,6 +334,9 @@ class NodeRegistry:
 
         Args:
             snapshot (dict[str, type]): _snapshotで取得した内部状態。
+
+        Returns:
+            None: 値を返さない。
         """
         self._classes.clear()
         self._classes.update(snapshot)

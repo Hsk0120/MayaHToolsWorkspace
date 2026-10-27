@@ -1,10 +1,8 @@
 """マトリクスの使用成分を選択する。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _pick_alias
 from ..maths import Matrix
-from ..util import _ArgumentError, _UNSET
+from ..util import _UNSET
 from ._calculation import _Calculation
 from .node import Node
 
@@ -37,14 +35,12 @@ class PickMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             PickMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setInput", fast):
             _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
             return self
 
@@ -61,21 +57,9 @@ class PickMatrix(Node):
         Returns:
             PickMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectInput", fast):
             _Calculation.connect(source, self.getInputPlug, force=force, fast=fast)
             return self
 
@@ -100,14 +84,12 @@ class PickMatrix(Node):
 
         Args:
             value (bool): Trueで移動成分を出力へ含める。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             PickMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setUseTranslate", fast):
             _Calculation.set_value(value, _Calculation.boolean, self.getUseTranslatePlug, fast=fast)
             return self
 
@@ -124,21 +106,9 @@ class PickMatrix(Node):
         Returns:
             PickMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectUseTranslate", fast):
             _Calculation.connect(source, self.getUseTranslatePlug, force=force, fast=fast)
             return self
 
@@ -163,14 +133,12 @@ class PickMatrix(Node):
 
         Args:
             value (bool): Trueで回転成分を出力へ含める。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             PickMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setUseRotate", fast):
             _Calculation.set_value(value, _Calculation.boolean, self.getUseRotatePlug, fast=fast)
             return self
 
@@ -187,21 +155,9 @@ class PickMatrix(Node):
         Returns:
             PickMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectUseRotate", fast):
             _Calculation.connect(source, self.getUseRotatePlug, force=force, fast=fast)
             return self
 
@@ -226,14 +182,12 @@ class PickMatrix(Node):
 
         Args:
             value (bool): Trueでスケール成分を出力へ含める。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             PickMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setUseScale", fast):
             _Calculation.set_value(value, _Calculation.boolean, self.getUseScalePlug, fast=fast)
             return self
 
@@ -250,21 +204,9 @@ class PickMatrix(Node):
         Returns:
             PickMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectUseScale", fast):
             _Calculation.connect(source, self.getUseScalePlug, force=force, fast=fast)
             return self
 
@@ -289,14 +231,12 @@ class PickMatrix(Node):
 
         Args:
             value (bool): Trueでシアー成分を出力へ含める。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             PickMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setUseShear", fast):
             _Calculation.set_value(value, _Calculation.boolean, self.getUseShearPlug, fast=fast)
             return self
 
@@ -313,21 +253,9 @@ class PickMatrix(Node):
         Returns:
             PickMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectUseShear", fast):
             _Calculation.connect(source, self.getUseShearPlug, force=force, fast=fast)
             return self
 

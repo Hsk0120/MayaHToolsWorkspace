@@ -200,13 +200,13 @@ class PluginPackageSpecTest(unittest.TestCase):
         """名前・プラグイン・最小版・最小Mayaの不正はValueError/TypeError。"""
         with self.assertRaises(ValueError):
             PluginPackage("", [self.missing_plugin])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             PluginPackage(None, [self.missing_plugin])
         with self.assertRaises(ValueError):
             PluginPackage("Product")
         with self.assertRaises(ValueError):
             PluginPackage("Product", [""])
-        with self.assertRaises(ValueError):
+        with self.assertRaises(TypeError):
             PluginPackage("Product", [5])
         with self.assertRaises(TypeError):
             PluginPackage("Product", 5)
@@ -288,8 +288,10 @@ class PluginSpecTest(unittest.TestCase):
         self.assertFalse(unknown.isVersionAtLeast("1.0"))
         with self.assertRaises(ValueError):
             unknown.isVersionAtLeast("beta")
-        for name in ("", None, 5):
-            with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError):
+            Plugin("")
+        for name in (None, 5):
+            with self.assertRaises(TypeError):
                 Plugin(name)
         with self.assertRaises(TypeError):
             unknown.unload(force=True, f=True)
@@ -494,8 +496,10 @@ class NamespaceSpecTest(unittest.TestCase):
         self.assertEqual(Namespace("x"), Namespace(":x"))
         self.assertEqual(hash(Namespace("x")), hash(Namespace(":x")))
         self.assertNotEqual(Namespace("x"), ":x")
-        for value in ("", None, 5):
-            with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError):
+            Namespace("")
+        for value in (None, 5):
+            with self.assertRaises(TypeError):
                 Namespace(value)
 
     def test_parent_is_computed_from_name(self):

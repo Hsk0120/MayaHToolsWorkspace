@@ -1,8 +1,6 @@
 """内積・外積・マトリクスによる点/ベクトル変換。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _pick_alias
 from ..maths import Matrix, Vector
 from ..util import _ArgumentError, _UNSET
 from ._calculation import _Calculation
@@ -12,68 +10,51 @@ from .shadingDependNode import ShadingDependNode
 class VectorProduct(ShadingDependNode):
     """vectorProductノードを参照し、内積・外積・マトリクスによる点/ベクトル変換を扱う。
 
-    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新(Undoなし)。途中の変更は自動で戻さない。
     """
 
     def getInputPlug(self, index=_UNSET, *, idx=_UNSET):
         """入力のPlugを取得する。
 
         Args:
-            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+            index (int): 入力番号1または2。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Plug: 接続・値操作用の参照。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return self.getPlug(f"input{_Calculation.index(index, (1, 2))}")
 
     def getInput(self, index=_UNSET, *, idx=_UNSET):
         """入力の評価値を取得する。
 
         Args:
-            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+            index (int): 入力番号1または2。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
-            Iterable[float]: 現在の値。
+            tuple[float, float, float]: 現在の値。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return self.getInputPlug(index).get()
 
     def setInput(self, index=_UNSET, value=_UNSET, *, fast=False, idx=_UNSET):
         """入力へ定数値を設定する。
 
         Args:
-            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
+            index (int): 入力番号1または2。
             value (Iterable[float]): XYZ順の有限な3成分。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             VectorProduct: 自身。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         if value is _UNSET:
             raise _ArgumentError("Missing required argument: 'value'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setInput", fast):
             _Calculation.set_value(value, _Calculation.vector, self.getInputPlug, index, fast=fast)
             return self
 
@@ -81,9 +62,9 @@ class VectorProduct(ShadingDependNode):
         """入力へ接続する。
 
         Args:
-            index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            index (int): 入力番号1または2。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
@@ -92,27 +73,10 @@ class VectorProduct(ShadingDependNode):
         Returns:
             VectorProduct: 自身。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        index = _pick_alias(index, idx, "index", "idx")
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectInput", fast):
             _Calculation.connect(source, self.getInputPlug, index, force=force, fast=fast)
             return self
 
@@ -129,14 +93,12 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             mode (str | int): none, dot, cross, vector_matrix, point_matrix、またはMayaの番号。
-            fast (bool): TrueはUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             VectorProduct: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setOperation", fast):
             value = _Calculation.enum_value(mode, ("none", "dot", "cross", "vector_matrix", "point_matrix"))
             self.getPlug("operation").set(value, fast=fast)
             return self
@@ -162,14 +124,12 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             VectorProduct: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setMatrix", fast):
             _Calculation.set_value(value, Matrix, self.getMatrixPlug, fast=fast)
             return self
 
@@ -177,8 +137,8 @@ class VectorProduct(ShadingDependNode):
         """マトリクスへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -186,21 +146,9 @@ class VectorProduct(ShadingDependNode):
         Returns:
             VectorProduct: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectMatrix", fast):
             _Calculation.connect(source, self.getMatrixPlug, force=force, fast=fast)
             return self
 
@@ -217,14 +165,12 @@ class VectorProduct(ShadingDependNode):
 
         Args:
             value (bool): 出力を正規化するか。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             VectorProduct: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setNormalizeOutput", fast):
             _Calculation.set_value(value, _Calculation.boolean, self.getPlug, "normalizeOutput", fast=fast)
             return self
 
@@ -232,8 +178,8 @@ class VectorProduct(ShadingDependNode):
         """出力正規化へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -241,21 +187,9 @@ class VectorProduct(ShadingDependNode):
         Returns:
             VectorProduct: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectNormalizeOutput", fast):
             _Calculation.connect(source, self.getPlug, "normalizeOutput", force=force, fast=fast)
             return self
 

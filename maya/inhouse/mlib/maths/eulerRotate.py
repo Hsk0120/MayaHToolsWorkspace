@@ -5,7 +5,7 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
 from .quaternion import Quaternion
 from .vector import _reduce_value
 
@@ -82,7 +82,7 @@ class EulerRotate(om2.MEulerRotation):
     ``数値 * e`` と ``e / 数値`` はmlibの拡張。``+=`` / ``-=`` / ``*=`` / ``/=`` は自身更新。
     数学値を返す継承メソッドも対応するmlib型を返し、コピー操作とIt付きの自身更新を区別する。
 
-    ハッシュ不可。添字は-3〜2、範囲外はIndexError。スライスは成分tuple、反復はXYZ順。
+    ハッシュ不可。番号は-3〜2、範囲外はIndexError。スライスは成分tuple、反復はXYZ順。
     ``==`` は順序を含む成分の完全一致。異種型との比較は :class:`~mlib.maths.vector.Vector` と同じ扱い。
     表示は度、内部値はrad。
     """
@@ -121,8 +121,8 @@ class EulerRotate(om2.MEulerRotation):
             None: 値を返さない。
 
         Raises:
-            ValueError: 未対応の回転順序、または成分が数値でない場合。
             TypeError: 引数の数や型が不正な場合、または同じ引数を二重に指定した場合。
+            ValueError: 未対応の回転順序、または成分が数値でない場合。
         """
         if not kwargs:
             # よく使う ()、(x, y, z)、(x, y, z, order) は解析を省く。
@@ -146,11 +146,11 @@ class EulerRotate(om2.MEulerRotation):
             try:
                 x, y, z, order = _euler_keywords(*args, **kwargs)
             except TypeError as error:
-                raise TypeError("{}() {}".format(type(self).__name__, str(error).split("() ", 1)[-1])) from None
+                _rethrow_init_error(type(self), error)
         else:
             order = kwargs.pop("order", None)
             if kwargs:
-                raise TypeError("EulerRotate got unexpected keyword arguments: " + ", ".join(sorted(kwargs)))
+                raise TypeError(f"EulerRotate got unexpected keyword arguments: {', '.join(sorted(kwargs))}")
             count = len(args)
             if count == 1 and order is None and isinstance(args[0], _MEuler):
                 self.setValue(args[0])
@@ -185,14 +185,14 @@ class EulerRotate(om2.MEulerRotation):
         """回転成分を取得する。
 
         Args:
-            index (int | slice): -3〜2 の添字(X、Y、Z の順)、またはスライス。
+            index (int | slice): -3〜2 の番号(X、Y、Z の順)、またはスライス。
 
         Returns:
             float | tuple[float, ...]: 指定成分(ラジアン)。スライスでは成分の tuple。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数・スライス以外の場合。
+            TypeError: 番号が整数・スライス以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is int and -3 <= index < 3:
             return _GET(self, index)
@@ -204,15 +204,15 @@ class EulerRotate(om2.MEulerRotation):
         """回転成分を設定する。
 
         Args:
-            index (int): -3〜2 の添字。
+            index (int): -3〜2 の番号。
             value (float): 設定する値(ラジアン)。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            IndexError: 添字が範囲外の場合。
-            TypeError: 添字が整数以外の場合。
+            TypeError: 番号が整数以外の場合。
+            IndexError: 番号が範囲外の場合。
         """
         if index.__class__ is not int or not -3 <= index < 3:
             index = _checked_index(index, 3, "EulerRotate")
@@ -625,7 +625,7 @@ class EulerRotate(om2.MEulerRotation):
         等価な別解や一定の角度範囲へ正規化する処理も行わない。
 
         Returns:
-            tuple[float, float, float]: XYZ角度の独立した値列（度）。自身は変化しない。
+            tuple[float, float, float]: XYZ角度の独立した値列(度)。自身は変化しない。
         """
         return (math.degrees(self.x), math.degrees(self.y), math.degrees(self.z))
 

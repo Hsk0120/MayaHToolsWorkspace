@@ -11,8 +11,8 @@ from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
-from ..core.fastWrite import writable
-from ..decorator import undoTransaction
+from ..core.fastWrite import require_writable
+from ..decorator import _pick_alias, _require_bool, undoTransaction
 from ..maths.vector import Vector, _vector_of
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
@@ -37,7 +37,7 @@ class Mesh(Shape):
             fast (bool): TrueはUndoなしで再構築し、非ゼロtweakを現在位置へベイクする。
                 既定FalseはUndo有効が必須で、非ゼロtweakは未対応。
             match (str): 既定uv、またはposition。
-            worldSpace (bool): 位置照合でTrueはworld、既定Falseは各Shapeのobject空間。UV照合では使わない。
+            worldSpace (bool): 位置照合でTrueはワールド空間、Falseは各Shapeのオブジェクト空間。UV照合では使わない。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
@@ -45,23 +45,17 @@ class Mesh(Shape):
 
         Raises:
             TypeError: 入力型・fast/worldSpaceが不正、または長短名を同時指定した場合。
-            ValueError: 対応が曖昧/不完全、またはトポロジー/面の向きが一致しない場合。
-            NotImplementedError: 再構築時に入出力履歴・インスタンス・参照・色セット・クリース等がある場合。
+            ValueError: 対応が曖昧/不完全、トポロジー/面の向きが一致しない、または再構築時に
+                入出力履歴・インスタンス・参照・色セット・クリース等がある場合。
             RuntimeError: 再構築時にロック、または通常処理でUndoが無効の場合。
+            NotImplementedError: 通常経路で頂点のtweakがある法線の並べ替えの場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        _require_bool(fast, "fast")
         from .node import Node
         if match not in ("uv", "position"):
             raise ValueError("match must be uv or position")
-        if type(worldSpace) is not bool:
-            raise TypeError("worldSpace must be bool")
+        _require_bool(worldSpace, "worldSpace")
         if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or tolerance < 0:
             raise ValueError("tolerance must be finite and nonnegative")
         if match == "uv" and (not isinstance(uvSet, str) or not uvSet):
@@ -87,7 +81,7 @@ class Mesh(Shape):
             raise ValueError("Vertex correspondence does not preserve face topology and winding")
         if all(old == new for old, new in enumerate(mapping)):
             return self
-        self._check_reorder_supported(target, fast=fast)
+        self._require_reorder_supported(target, fast=fast)
         data = self._reordered_mesh_data(target, counts, connects, remapped, mapping)
         materials = self.getFaceShadingEngines()
         current_uv = target.currentUVSetName()
@@ -135,18 +129,18 @@ class Mesh(Shape):
 
         Args:
             axis (str): 重複しないx/y/zの組合せ。大文字も可。
-            worldSpace (bool): Trueは保持パスのworld、既定FalseはShapeのobject空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点で、Transformのピボットとは独立。
+            worldSpace (bool): Trueは保持パスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
             indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に1回で戻せる通常更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Mesh: 自身。頂点番号・面の接続と頂点順は保持する。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             TypeError: 番号型・fastが不正、または長短名を同時指定した場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             IndexError: 頂点番号が負または範囲外の場合。
             RuntimeError: Mayaが形状の取得・更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeを編集する場合。
@@ -154,14 +148,8 @@ class Mesh(Shape):
         Note:
             途中失敗で完了済みの変更は自動で戻さない。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot, fast=fast)
         return self
@@ -170,7 +158,7 @@ class Mesh(Shape):
         """頂点番号から単体ラッパーを取得する。
 
         Args:
-            index (int): ゼロ始まりの頂点番号。 別名 ``idx`` も使用可能。
+            index (int): ゼロ始まりの頂点番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
@@ -179,12 +167,7 @@ class Mesh(Shape):
         Raises:
             IndexError: 頂点番号が範囲外の場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return Vertex(self, index)
 
     def getVertices(self, indices=None):
@@ -199,7 +182,7 @@ class Mesh(Shape):
         return Vertices(self, indices)
 
     def getShadingEngines(self):
-        """このDAGインスタンスのフェースへ割り当てられたShadingEngineを返す。
+        """このDAGインスタンスのフェースへ割り当てられたShadingEngineを取得する。
 
         Returns:
             list[ShadingEngine]: 使用中のセット。未割り当ては除外する。
@@ -276,12 +259,7 @@ class Mesh(Shape):
         Returns:
             om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self._geometry_fn().getPoints(space)
@@ -291,19 +269,14 @@ class Mesh(Shape):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            angleWeighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
+            angleWeighted (bool): True の場合は隣接面の角度でウェイト付けした法線を取得する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             list[Vector]: 頂点番号順の平均法線。angleWeighted=False では
-                角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
+                角度によるウェイト付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         # MFloatVectorはom2の多重定義の解決を通さず、成分を写して同じ値のVectorにする。
@@ -321,12 +294,7 @@ class Mesh(Shape):
             各要素は隣接頂点IDとcm単位の距離で、エッジID順に格納する。
             孤立頂点は空リスト、重複エッジは別々に保持する。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         points = self.getPoints(ws=worldSpace)
         adjacency = [[] for _ in points]
         mesh_fn = self._geometry_fn()
@@ -342,18 +310,13 @@ class Mesh(Shape):
         """番号から Edge を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            index (int): ゼロ始まりの番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Edge: シーンを参照する単体ラッパー。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return Edge(self, index)
 
     def getEdges(self, indices=None):
@@ -371,18 +334,13 @@ class Mesh(Shape):
         """番号から Face を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            index (int): ゼロ始まりの番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Face: シーンを参照する単体ラッパー。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return Face(self, index)
 
     def getFaces(self, indices=None):
@@ -400,18 +358,13 @@ class Mesh(Shape):
         """番号から UV を取得する。
 
         Args:
-            index (int): ゼロ始まりの番号。 別名 ``idx`` も使用可能。
+            index (int): ゼロ始まりの番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             UV: シーンを参照する単体ラッパー。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return UV(self, index)
 
     def getUVs(self, indices=None):
@@ -467,7 +420,7 @@ class Mesh(Shape):
         """面頂点UV群が一意に一致する旧対象番号→基準番号を求める。"""
         def signatures(fn):
             if uv_set not in fn.getUVSetNames():
-                raise ValueError("UV set does not exist: " + uv_set)
+                raise ValueError(f"UV set does not exist: {uv_set}")
             counts, connects = fn.getVertices()
             uv_counts, uv_ids = fn.getAssignedUVs(uv_set)
             if list(counts) != list(uv_counts):
@@ -514,25 +467,25 @@ class Mesh(Shape):
             offset += count
         return Counter(result)
 
-    def _check_reorder_supported(self, fn, *, fast=False):
+    def _require_reorder_supported(self, fn, *, fast=False):
         """番号依存の外部接続や未対応のメッシュデータを変更前に拒否する。"""
-        if self.mpath().isInstanced() or om2.MFnDependencyNode(self.mnode()).isFromReferencedFile:
-            raise NotImplementedError("Instanced or referenced targets are not supported")
-        if om2.MFnDependencyNode(self.mnode()).isLocked:
+        if self.mpath().isInstanced() or self._dependency_fn().isFromReferencedFile:
+            raise ValueError("Instanced or referenced targets are not supported")
+        if self._dependency_fn().isLocked:
             raise RuntimeError("Mesh is locked")
         if self.getPlug("outMesh").mplug().isLocked:
             raise RuntimeError("Mesh output is locked")
         sets, members = fn.getConnectedSetsAndMembers(self.mpath().instanceNumber(), False)
         if any(not member.isNull() and not group.hasFn(om2.MFn.kShadingEngine)
                for group, member in zip(sets, members)):
-            raise NotImplementedError("Component sets other than shading assignments are not supported")
+            raise ValueError("Component sets other than shading assignments are not supported")
         if self.getPlug("inMesh").mplug().isDestination:
-            raise NotImplementedError("Target must have no input history")
+            raise ValueError("Target must have no input history")
         for name in ("outMesh", "worldMesh"):
             plug = self.getPlug(name).mplug()
             plugs = [plug.elementByLogicalIndex(i) for i in plug.getExistingArrayAttributeIndices()] if plug.isArray else [plug]
             if any(p.isSource for p in plugs):
-                raise NotImplementedError("Target must not drive downstream geometry")
+                raise ValueError("Target must not drive downstream geometry")
         creased = False
         for getter in (fn.getCreaseEdges, fn.getCreaseVertices):
             try:
@@ -541,20 +494,20 @@ class Mesh(Shape):
                 # クリースデータ自体がない通常メッシュではMayaがkFailureを返す。
                 pass
         if fn.getColorSetNames() or creased or fn.getHoles():
-            raise NotImplementedError("Color sets, creases and polygon holes are not supported")
+            raise ValueError("Color sets, creases and polygon holes are not supported")
         if any(fn.hasBlindData(kind) for kind in (om2.MFn.kMeshVertComponent,
                                                   om2.MFn.kMeshEdgeComponent,
                                                   om2.MFn.kMeshPolygonComponent)):
-            raise NotImplementedError("Mesh blind data is not supported")
+            raise ValueError("Mesh blind data is not supported")
         for name in ("inMesh", "cachedInMesh", "pnts"):
             plug = self.getPlug(name).mplug()
-            writable(plug)
+            require_writable(plug)
             if plug.isArray:
                 for i in plug.getExistingArrayAttributeIndices():
                     item = plug.elementByLogicalIndex(i)
-                    writable(item)
+                    require_writable(item)
                     for j in range(item.numChildren()):
-                        writable(item.child(j))
+                        require_writable(item.child(j))
                         if not fast and item.child(j).asFloat() != 0:
                             raise NotImplementedError("Normal reorder does not support vertex tweaks; use fast=True on a copy")
 

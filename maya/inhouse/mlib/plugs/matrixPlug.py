@@ -1,12 +1,10 @@
 """マトリクスアトリビュートの値を読み書きする。ノードの変換はTransformで扱う。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 
 from ..core.attributeType import typed_data
 from ..core.fastWrite import set_attr, set_plug
-from ..decorator import undoChunk
+from ..decorator import _require_bool
 from ..maths import Matrix
 from .plug import Plug
 
@@ -23,13 +21,13 @@ class MatrixPlug(Plug):
         Returns:
             Matrix | None: 対象アトリビュートのマトリクスの複製。uiUnitsにかかわらず内部単位を維持する。
                 値を一度も設定していない ``dataType="matrix"`` (型付きデータ)はNone。
-                ``attributeType="matrix"`` は未設定でも既定の単位行列を返す。
+                ``attributeType="matrix"`` は未設定でも既定の単位マトリクスを返す。
 
         Raises:
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または値を読み取れない場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         self._require_valid()
         # 未初期化の型付きデータはasMObjectがkFailureになるため、nullだけをNoneにする。
         data = typed_data(self._mplug)
@@ -37,51 +35,31 @@ class MatrixPlug(Plug):
             return None
         return Matrix.fromMMatrix(om2.MFnMatrixData(data).matrix())
 
-    def set(self, value, safe=False, *, uiUnits=False, fast=False):
+    def _set_value(self, value, *, uiUnits=False, fast=False):
         """マトリクスアトリビュートへ直接設定する。TransformのTRSは操作しない。
 
-        worldMatrixは計算出力のため拒否する。ロック解除・入力切断は行わない。
-        通常処理はUndo有効時に記録し、fastはUndo設定を変えず直接更新する。
+        骨格は :meth:`Plug.set`。worldMatrixは計算出力のため拒否する。ロック解除・入力切断は行わない。
+        safe=Trueの失敗は成分別に再試行せず1を返す。
 
         Args:
             value (Matrix | Transformation | om2.MMatrix | sequence): Matrix(value)で変換するマトリクス値。
-            safe (bool): Trueは対応する書込み失敗を0/1で返す。既定Falseは例外を送出する。
             uiUnits (bool): 共通フラグとして受理するが、マトリクス成分は換算しない。
-            fast (bool): 既定Falseはcmds.setAttr。TrueはOpenMaya直接更新でUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            MatrixPlug | int: 通常は自身。safe=Trueは成功0、参照検査・マトリクスへの変換・UI指定・
-                書込みのRuntimeError/TypeError/ValueErrorを1にする。成分別の部分更新はしない。
+            None: 値を返さない。
 
         Raises:
-            TypeError: fastがbool以外、または配列全体を指定した場合。safe=Trueでも拒否する。
-                safe=FalseではworldMatrixや不正なUI指定・入力型も拒否する。
-            ValueError: safe=Falseでマトリクス値を変換できない場合。
-            RuntimeError: safe=Falseで参照が無効、またはMayaが書込みを拒否した場合。
-            NotImplementedError: fastで未対応の条件。safe=Trueでも抑制しない。
-
-        Note:
-            完了済みの変更は自動では戻さない。
+            TypeError: worldMatrixや不正なUI指定・入力型の場合。
+            ValueError: マトリクス値を変換できない場合。
+            RuntimeError: 参照が無効、またはMayaが書込みを拒否した場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibMatrixPlugSet"):
-            if self.isArray():
-                raise TypeError("Set an array element instead of the array plug")
-            try:
-                self._validate_ui_units(uiUnits)
-                self._require_valid()
-                if self.getLongName() in ("worldMatrix", "wm"):
-                    raise TypeError("worldMatrix is a computed output and cannot be set")
-                matrix = Matrix(value)
-                if fast:
-                    set_plug(self._mplug, matrix)
-                else:
-                    set_attr(self.getFullName(), *tuple(matrix), type="matrix", fast=False)
-            except NotImplementedError:
-                raise
-            except (RuntimeError, TypeError, ValueError):
-                if not safe:
-                    raise
-                return 1
-            return 0 if safe else self
+        _require_bool(uiUnits, "uiUnits")
+        self._require_valid()
+        if self.getLongName() in ("worldMatrix", "wm"):
+            raise TypeError("worldMatrix is a computed output and cannot be set")
+        matrix = Matrix(value)
+        if fast:
+            set_plug(self._mplug, matrix)
+        else:
+            set_attr(self.getFullName(), *tuple(matrix), type="matrix", fast=False)

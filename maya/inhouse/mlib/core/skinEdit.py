@@ -19,6 +19,8 @@ import math
 
 import maya.api.OpenMaya as om2
 
+from ..util import _finite
+from .fastWrite import _ancestor_plugs
 from .nodeEdit import require_editable
 
 #: Mayaの再配分で0とみなす値の上限(実測)。
@@ -31,6 +33,13 @@ def transfer_weights(skin, pairs):
     Args:
         skin (SkinCluster): 更新先。
         pairs (list[tuple[str, str]]): 検証済みのinfluence名ペア。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        RuntimeError: ウェイトがロック・接続されていて書き込めない場合。
+        NotImplementedError: geometryが1個でない場合。
     """
     if len(skin.mfn().getOutputGeometry()) != 1:
         raise NotImplementedError("fast weight transfer requires one geometry")
@@ -65,17 +74,20 @@ def remove_influence(skin, source):
         skin (SkinCluster): 対象skinCluster。単一meshに限定する。
         source (Joint): 登録解除するinfluence。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
-        NotImplementedError: 再配分を再現できない条件の場合。シーンは変更しない。
         RuntimeError: ノード・ウェイト・構造プラグのロック等で編集できない場合。
+        NotImplementedError: 再配分を再現できない条件の場合。シーンは変更しない。
     """
     require_editable(skin.mnode())
     _require_single_mesh(skin)
-    _validate_weight_plugs(skin)
+    _require_weight_plugs(skin)
     influences = skin.getInfluences()
     names = [node.getName() for node in influences]
     values = list(skin.getWeights(names))
-    _require_finite(values)
+    _require_finite_weights(values)
     index = _column(influences, source)
     logical = skin.mfn().indexForInfluenceObject(influences[index].mpath())
     state = _RemovalState(skin, influences, values)
@@ -86,7 +98,7 @@ def remove_influence(skin, source):
         row = weight_list.elementByLogicalIndex(vertex).child(0)
         if logical in row.getExistingArrayAttributeIndices():
             remove.append(row.elementByLogicalIndex(logical))
-    _validate_removal_locks(remove)
+    _require_unlocked_removal(remove)
     # 再配分後の値。解除するinfluenceの列は0になっている。
     skin.setWeights(names, state.values(names), fast=True)
     # 切断・配列削除は一つのmodifierで実行する。ノード削除はこの中へ混在させない。
@@ -129,35 +141,22 @@ def _removal_structure(skin, source, logical):
     return remove
 
 
-def _validate_removal_locks(remove):
+def _require_unlocked_removal(remove):
     """親を含むロックを、全ての配列削除より前に確認する。
 
     Args:
         remove (list[MPlug]): 除去予定の配列要素。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        RuntimeError: 要素自身、または親・配列がロックされている場合。
     """
     for plug in remove:
-        current = plug
-        while True:
+        for current in _ancestor_plugs(plug):
             if current.isLocked:
-                raise RuntimeError("Attribute is locked: " + plug.name())
-            if current.isChild:
-                current = current.parent()
-            elif current.isElement:
-                current = current.array()
-            else:
-                break
-
-
-def validate_removal(skin, source, target=None, force=False):
-    """ウェイト移送・修復前に、構造の変更可否と再配分の再現可否を確認する。
-
-    Args:
-        skin (SkinCluster): 対象。
-        source (Joint): 除去するinfluence。
-        target (Node | str | None): 解除前にウェイトを加算する祖先influence。
-        force (bool): 解除前に不正ウェイトを除去するか。
-    """
-    validate_removals(skin, [(source, target)], force=force)
+                raise RuntimeError(f"Attribute is locked: {plug.name()}")
 
 
 def validate_removals(skin, steps, force=False):
@@ -166,18 +165,22 @@ def validate_removals(skin, steps, force=False):
     Args:
         skin (SkinCluster): 対象。
         steps (list[tuple[Node, Node | str | None]]): 処理順の(解除するinfluence, 移送先)。
+            単独の解除は ``[(source, target)]`` の1要素で渡す。
         force (bool): 解除前に不正ウェイトを除去するか。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
-        NotImplementedError: geometryが1個のmeshでない、または再配分を再現できない場合。
         RuntimeError: ノード・ウェイト・構造プラグのロック等で編集できない場合。
+        NotImplementedError: geometryが1個のmeshでない、または再配分を再現できない場合。
     """
     require_editable(skin.mnode())
     _require_single_mesh(skin)
-    _validate_weight_plugs(skin)
+    _require_weight_plugs(skin)
     for source, _ in steps:
         logical = skin.mfn().indexForInfluenceObject(source.mpath())
-        _validate_removal_locks(_removal_structure(skin, source, logical))
+        _require_unlocked_removal(_removal_structure(skin, source, logical))
     influences = skin.getInfluences()
     names = [node.getName() for node in influences]
     values = list(skin.getWeights(names))
@@ -185,7 +188,7 @@ def validate_removals(skin, steps, force=False):
         # removeInvalidWeightsは不正要素を除去するため、既定値0として試算する。
         values = [v if math.isfinite(v) and v >= 0 else 0.0 for v in values]
     else:
-        _require_finite(values)
+        _require_finite_weights(values)
     state = _RemovalState(skin, influences, values)
     # 移送先の名前解決はNodeで行う。循環import回避のため関数内で読み込む。
     from ..nodes.node import Node
@@ -201,19 +204,33 @@ def _require_single_mesh(skin):
 
     Args:
         skin (SkinCluster): 対象。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        TypeError: geometryがmeshでない場合(``MFnMesh`` の構築が拒否する)。
+        NotImplementedError: geometryが1個でない場合。
     """
     if len(skin.mfn().getOutputGeometry()) != 1:
-        raise NotImplementedError("fast influence removal requires one geometry")
+        raise NotImplementedError("fast removeInfluence requires one geometry")
     om2.MFnMesh(skin.mesh_path)
 
 
-def _validate_weight_plugs(skin):
+def _require_weight_plugs(skin):
     """レイヤーとweightListのロック・接続を確認する。
 
     通常経路のremoveInfluenceはlockInfluenceWeightsを拒否しないため、ここでも拒否しない。
 
     Args:
         skin (SkinCluster): 対象。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        RuntimeError: weightListがロック・接続されている、または要素がロックされている場合。
+        NotImplementedError: レイヤーを持つskinClusterの場合。
     """
     skin._raise_if_layers()
     weight_list = skin.getPlug("weightList").mplug()
@@ -222,14 +239,26 @@ def _validate_weight_plugs(skin):
     skin._validate_weight_locks(weight_list)
 
 
-def _require_finite(values):
+def _require_finite_weights(values):
     """再配分を再現できない負値・非有限値を拒否する。
+
+    有限性の判定は :func:`mlib.util._finite` に合わせ、fastの未対応としてNotImplementedErrorにする。
 
     Args:
         values (list[float]): 全頂点・全influenceのウェイト。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        NotImplementedError: 負値・無限大・NaNのウェイトがある場合。
     """
-    if any(not math.isfinite(v) or v < 0 for v in values):
-        raise NotImplementedError("fast influence removal requires finite non-negative weights")
+    try:
+        finite = all(_finite(v, "weights") >= 0 for v in values)
+    except (TypeError, ValueError):
+        finite = False
+    if not finite:
+        raise NotImplementedError("fast removeInfluence requires finite non-negative weights")
 
 
 def _column(influences, node):
@@ -246,8 +275,8 @@ def _column(influences, node):
     return next(i for i, item in enumerate(influences) if item.getUuid() == uuid)
 
 
-def _matrix(plug):
-    """マトリクス型のプラグ値を返す。
+def _read_matrix(plug):
+    """マトリクス型のプラグ値を取得する。
 
     Args:
         plug (MPlug): matrixアトリビュート。
@@ -258,8 +287,8 @@ def _matrix(plug):
     return om2.MFnMatrixData(plug.asMObject()).matrix()
 
 
-def _position(matrix):
-    """マトリクスの移動成分を返す。
+def _translation_of(matrix):
+    """マトリクスの移動成分を取得する。
 
     Args:
         matrix (MMatrix): 変換マトリクス。
@@ -299,6 +328,7 @@ class _RemovalState(object):
     """
 
     def __init__(self, skin, influences, values):
+        """ウェイトを頂点ごとの行へ分け、正規化設定と形状キャッシュを初期化する。"""
         self.skin = skin
         self.influences = list(influences)
         width = len(influences)
@@ -330,6 +360,9 @@ class _RemovalState(object):
         Args:
             source (int): 移送元の列番号。
             target (int): 移送先の列番号。
+
+        Returns:
+            None: 値を返さない。
         """
         for row in self.rows:
             row[target] += row[source]
@@ -365,6 +398,12 @@ class _RemovalState(object):
             vertex (int): 頂点番号。
             row (list[float]): 頂点のウェイト。直接更新する。
             index (int): 解除する列番号。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            NotImplementedError: ロック無しの配分先が無い等、再配分を再現できない場合。
         """
         locked = [i for i, node in enumerate(self.influences) if i != index and self._locked(node)]
         free = [i for i in range(len(row)) if i != index and i not in locked]
@@ -384,7 +423,7 @@ class _RemovalState(object):
             amount = 1.0
         if not free or amount <= _ZERO:
             raise NotImplementedError(
-                "fast influence removal cannot reproduce redistribution without unlocked influences")
+                "fast removeInfluence cannot reproduce redistribution without unlocked influences")
         weights = self._distance_weights(vertex, index, free, bool(locked) and self.normalize == 1)
         for i in free:
             row[i] = amount * weights.get(i, 0.0)
@@ -415,11 +454,11 @@ class _RemovalState(object):
         """
         if not inverse and self.skin.getPlug("bindMethod").get() != 0:
             raise NotImplementedError(
-                "fast influence removal reproduces zero-weight redistribution only for "
+                "fast removeInfluence reproduces zero-weight redistribution only for "
                 "bindMethod closest distance")
         limit = self.skin.getPlug("maxInfluences").get()
         if limit < 1:
-            raise NotImplementedError("fast influence removal requires maxInfluences of at least 1")
+            raise NotImplementedError("fast removeInfluence requires maxInfluences of at least 1")
         point = self._vertex_points()[vertex]
         distances = []
         for column in columns:
@@ -429,7 +468,7 @@ class _RemovalState(object):
             else:
                 distance = (point - start).length()
             if distance <= 0:
-                raise NotImplementedError("fast influence removal cannot redistribute a vertex on an influence")
+                raise NotImplementedError("fast removeInfluence cannot redistribute a vertex on an influence")
             distances.append((distance, column, dropoff))
         # 近い順、同距離は物理順。sortedは安定なので列番号順の入力をそのまま使う。
         chosen = sorted(distances, key=lambda item: item[0])[:limit]
@@ -448,7 +487,7 @@ class _RemovalState(object):
             fn = self.skin.mfn()
             geometry = fn.indexForOutputShape(self.skin.mesh_path.node())
             plug = self.skin.getPlug("input").mplug().elementByLogicalIndex(geometry).child(0)
-            matrix = _matrix(self.skin.getPlug("geomMatrix").mplug())
+            matrix = _read_matrix(self.skin.getPlug("geomMatrix").mplug())
             self._points = [om2.MVector(p * matrix) for p in om2.MFnMesh(plug.asMObject()).getPoints()]
         return self._points
 
@@ -463,7 +502,7 @@ class _RemovalState(object):
         """
         logical = self.skin.mfn().indexForInfluenceObject(node.mpath())
         plug = self.skin.getPlug("bindPreMatrix").mplug().elementByLogicalIndex(logical)
-        return _matrix(plug).inverse()
+        return _read_matrix(plug).inverse()
 
     def _shape(self, column, index):
         """距離計算に使うjoint位置・子joint位置・dropoffを返す。
@@ -479,7 +518,7 @@ class _RemovalState(object):
             return self._shapes[column]
         node = self.influences[column]
         if not node.mnode().hasFn(om2.MFn.kJoint):
-            raise NotImplementedError("fast influence removal redistributes only to joint influences")
+            raise NotImplementedError("fast removeInfluence redistributes only to joint influences")
         bind = self._bind_matrix(node)
         registered = {item.getUuid(): item for item in self.influences}
         ends = []
@@ -490,11 +529,11 @@ class _RemovalState(object):
                 continue
             uuid = om2.MFnDependencyNode(child).uuid().asString()
             if uuid in registered:
-                ends.append(_position(self._bind_matrix(registered[uuid])))
+                ends.append(_translation_of(self._bind_matrix(registered[uuid])))
             else:
-                local = _matrix(om2.MFnDependencyNode(child).findPlug("matrix", False))
-                ends.append(_position(local * bind))
+                local = _read_matrix(om2.MFnDependencyNode(child).findPlug("matrix", False))
+                ends.append(_translation_of(local * bind))
         logical = self.skin.mfn().indexForInfluenceObject(node.mpath())
         dropoff = self.skin.getPlug("dropoff").mplug().elementByLogicalIndex(logical).asDouble()
-        self._shapes[column] = (_position(bind), ends, dropoff)
+        self._shapes[column] = (_translation_of(bind), ends, dropoff)
         return self._shapes[column]

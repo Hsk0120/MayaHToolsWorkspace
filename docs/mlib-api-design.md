@@ -112,7 +112,8 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   対応型のないMPoint/単位値/クラス定数は維持する。ゼロ値などの演算条件は変更しない。
 - 引数の追加別名は `idx/index`・`src/source`・`dst/destination`・`attr/attribute`・
   `attrs/attributes`・`f/force`。対応APIの使用例はショート優先。既存シグネチャと位置引数は維持し、
-  新規別名の二重指定は同値でも拒否する。既存の接続方向フラグやOR/AND規則は維持する。
+  新規別名の二重指定は同値でも拒否する。署名は長名側に既定値・短名はkeyword-onlyの `_UNSET` とし、
+  選択は `_pick_alias` で行う(「内部実装の定型」の「別名引数の書き方」)。既存の接続方向フラグやOR/AND規則は維持する。
 - メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
 - Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
 - om2から継承・オーバーライドする名前、`__init__`等のPython特殊メソッド、`dump`/`loads`等の標準APIは維持する。
@@ -157,7 +158,89 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 診断ログと通知は `mlib.logger` に集約する。進捗表示の指定streamへの描画やJSON等の保存出力は
 診断ログとは別の機能であり、その出力先・描画・戻り値の契約を保つ。
-エラーメッセージの言語を一律変更したり、通常raiseをすべて通知付きへ置き換えたりしない。
+例外メッセージはmlib内で英語に統一する(2026-10-27。混在していた日本語文言を英語化し、形式は下記「例外の4分類と文言形式」に従う)。
+通常raiseをすべて通知付きへ置き換えたりしない。
+
+### 内部実装の定型(2026-10-27の表記ブレ統一)
+
+2026-10-27の表記ブレ調査で確定した内部実装の書き方。公開APIの意味・戻り値は変えず、内部名・引数・例外文言・docstringを揃える。
+既存コードと矛盾する場合はこの節を正とし、旧名は `grep` で0件にする(互換別名は残さない)。
+
+#### fastの定型
+
+- 署名は `*, fast=False` をkeyword-onlyの先頭に置く(型注釈なしの既定値は `fast=False`)。既存の位置が違うものは公開署名の順序変更になるので一度に動かさず、changelogに載せる変更として扱う。
+- 本体の冒頭で `_require_bool(fast, "fast")`(`decorator.py`)を呼ぶ。委譲型(show/hide・計算ノードのset*/connect*・ScalarGraph等)も省かない。
+- Undo文脈は `with _edit_context("mlib<Class><Method>", fast):`(`decorator.py`。`nullcontext() if fast else undoChunk(name)` の1行化)で包む。`undoTransaction` はUndo無効時に拒否する必要がある構築処理(reorderVertices・loadTargets・container系)だけに使い、`transaction=True` と理由コメントを付ける。
+- 対象解決・値検証はwithの内側に1回だけ書く(fast=Trueではnullcontextなので挙動は変わらない)。書込み直前に `if fast:` で `_<method>_fast` / `_<method>_cmds` へ分岐し、内側の更新先へ `fast=fast` を明示的に渡す。未対応は変更前にNotImplementedErrorで拒否する。
+- Undoチャンク名はメソッドが `mlib<Class><Method>`(クラス名・メソッド名どおり。短縮やクラス名違いは不可。単数Jointが複数形の名を使わない)、モジュール関数・cmdsが `mlib<Func>`(`mlibCreateNode`・`mlibDelete`・`mlibDuplicate`・`mlibSelect`・`mlibCreateReference`)。ドット区切り(`mlib.<Class>.<method>`)は使わない。計算ノードの共通setterは `"mlib" + type(self).__name__ + "<Method>"` を呼出し側から渡し、Undoキューで区別できるようにする。
+- `_Calculation.set_value/connect` のfastも既定 `False`。
+
+#### 例外の4分類と文言形式
+
+| 分類 | 例外型 | 対象 |
+| --- | --- | --- |
+| 型違い・別名競合・必須欠落 | `TypeError`(別名は `util._ArgumentError`。TypeErrorの派生) | boolでないfast、長短名の同時指定、必須引数の不足、受け付けない入力型 |
+| 値違い | `ValueError` | 空文字、範囲外、特異マトリクス、空集合、fastと無関係な非対応値(`scaleGeometry`・`addTargetDeltas`・mesh reorderの制限) |
+| シーンの状態 | `RuntimeError` | ロック、接続済み、参照、削除済み・無効ノード、不在 |
+| 実装上の未対応 | `NotImplementedError` | fast経路で扱えない操作・フラグ(変更前に拒否) |
+
+- `must be a non-empty string` 系は非strをTypeError、空文字をValueErrorに分ける。公開例外型の変更はchangelogの「破壊的変更」に載せる。
+- 文言は英語でf-stringを使い(`"..." + name` の連結は不可)、対象名は末尾に `: <getFullName() または plug.name()>` で付ける。
+  - 型違い: `<arg> must be <型>`(`_require_bool` は `fast must be a bool`)
+  - 別名競合: `Specify only one of '<long>' and '<short>'`(長→短の順)
+  - 必須欠落: `Missing required argument: '<long>'`
+  - 値違い: `<arg> must be <条件>` または `Expected <条件>`
+  - 状態: `<対象> is locked|connected|referenced: <名前>`、`Cannot <action> an invalid <type>`(`Node._require_valid(action)`)
+  - fast非対応: `fast <publicMethodName> does not support <条件>`、`fast <publicMethodName> does not support flags: a, b`(説明語ではなく公開メソッド名を書く)
+- テストが文言を `assertRaisesRegex` している箇所は同時に更新する。
+
+#### 別名引数の書き方
+
+- 署名は長名側に通常の既定値、短名はkeyword-onlyで `_UNSET`: `worldSpace=False, *, ws=_UNSET`、`index=0, *, idx=_UNSET`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
+- 選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行い、インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。
+- cmds層のようにMayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
+- 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。計算ノード3本(curveInfo・pointOnCurveInfo・pointOnSurfaceInfo)の `worldSpace=True` 既定はそのまま。
+- `index/idx` は主名 `index`、別名 `idx`(位置引数の意味は変えない)。内部関数へ渡すときも `fast`/`ws` 等の同じ名前を使い、`world_space` のような別名を増やさない。
+
+#### 内部名の規則
+
+- 検証は `_require_<条件>`(例外を送出し、戻り値は無しか検査済み値)。`_validate_*`・`_check_*` で例外を送出する関数は `_require_*` へ改名し、boolを返す判定は `_is_*`/`_has_*` にする。登録プロトコルとしてDESIGN/CLAUDE.mdに名のある `Nodes._validate_inputs`・`skinEdit.validate_removals`・`attributeEdit.validate_extra_attribute` は維持する。`_validated_*`(`_validated_flags` 等)は検査済みの値を返す検証の名前。
+- 変換・解決は `_resolve_<対象>`(`_resolve_mvector`・`_resolve_mesh`・`_resolve_input_or_none`)。`_as_*`・`_coerce_*` は使わない。
+- 書込みの実装分岐は `_<method>_fast` / `_<method>_cmds`(`_direct`・`_fast_xxx` 前置は使わない)。
+- function setの取得は `_<kind>_fn`(`_dependency_fn`・`_geometry_fn`。キャッシュ付きでも `_cached_` は付けない)。`om2.MFnDependencyNode(self.mnode())` を直接書かず `_dependency_fn()` を使う。
+- 内部専用の引数は先頭 `_`(`_fn=None`・`_writable_checked=False`)。公開defには置かない。
+- 略語を使わず完全語にする(`_jnt_index`→`_influence_index`、`_xfer_pair`→`_transfer_pair`、`_all_verts`→`_all_vertices`、`_attr`→`_full_attr_name` 等)。
+- 入力の名前解決は `Node._from_name(value)`・`Node._input_name`・`Nodes._resolve_inputs` を使い、`Node(n)` で二重解決しない。`cmds` へ渡す名前はDAGノードでは `getFullName()`。
+- core層(`core/*.py`)の関数名はsnake_case(`set_positions`・`require_writable`・`require_range`)。
+
+#### docstringの固定文と項目順
+
+- 項目順は `Args → Returns(Yields) → Raises → Note → Examples`。見出し無しの自由文(Returns/Raisesの後)はNoteへ移し、非標準見出しは置かない。
+- 1行目は動詞文「〜する。」。get系は「〜を取得する。」、set系は「〜を設定する。」。概要とReturnsの逐語一致は避け、Returnsは型と値の説明にする。
+- 固定文:
+  - `fast (bool): TrueはUndoなしのOpenMaya更新。既定False。`(内部関数へ転送するだけの引数は転送先を書いてよい)
+  - `worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。`(Shape系は「Falseはオブジェクト空間」)
+  - `ws (bool): worldSpaceの別名。同時指定は不可。`
+  - `idx (int): indexの別名。同時指定は不可。`(主引数側に「別名 ``idx`` も使用可能」を重ねて書かない)
+  - Raises: `TypeError: fastがbool以外の場合。`
+  - `Returns:` の `None: 値を返さない。`(`Args:` があって値を返さない処理には必ず書く。「値は返さない」は使わない)
+- Raisesの並びは `TypeError → ValueError → IndexError → RuntimeError → NotImplementedError`。
+- 型表記は `list[Node]`・`tuple[float, float, float]`・`dict[str, Any]` のように要素型を書き、裸の `list`/`tuple`/`dict` は使わない。計算ノードのgetterは `tuple[float, float, float]`、入力は `Iterable[float]` のままでよい。
+- 用語はCGWORLDのMaya記事に合わせ「アトリビュート」「マトリクス」(determinantは「行列式」のまま)「クォータニオン」「コンストレイント」「ワールド空間/ローカル空間/オブジェクト空間」「番号」(インデックス・添字は使わない)「ウェイト」。括弧は半角、文の区切りは句点のみで半角スペースで区切らない。モジュール定数には `#:` を付ける。
+
+#### 共通ヘルパーの置き場
+
+| 置き場 | 責務 | 主な内部ヘルパー |
+| --- | --- | --- |
+| `decorator.py` | fast/safe・フラグ正規化の内部補助、Undo文脈 | `_require_bool`・`_pick_alias`・`_merge_flags`・`_validated_flags`・`_edit_context`・`_undo_recording` |
+| `util.py`(標準ライブラリのみ) | クラスに属さない値処理 | `_UNSET`・`_ArgumentError`・`_world_space`・`_finite`・`_finite_vector`・`_checked_tolerance`・`_checked_index`・`_unique_ordered`・`_rethrow_init_error` |
+| `core/object.py` | 入力の存在・選択の判定 | `_exists`・`_selection_plug`・`_selection_component` |
+| `core/fastWrite.py` | Plugへのom2書込み基盤 | `require_supported_type`・`require_writable`・`require_range`・`writable_compound`・`_ancestor_plugs`・`set_plug`・`set_attr`・`prepare_data` |
+| `core/nodeEdit.py` | ノードの編集可否・削除検査 | `require_editable`・`check_deletion`・`_dag_descendants` |
+| `core/geometryEdit.py`・`core/skinEdit.py`・`core/attributeEdit.py` | 形状・スキン・アトリビュートの編集基盤 | `set_positions`・`validate_removals`・`validate_extra_attribute` |
+| `nodes/node.py` | ノード固有の解決・検証 | `Node._from_name`・`Node._require_valid`・`Node._input_name`・`Nodes._resolve_inputs` |
+
+共通化しないもの: 計算ノードのgetXPlug/getX/setX/connectX4連と複数形クラスの転送defの生成化(通常のdefで公開する)、`Node.delete`/`Nodes.delete`、`SkinCluster.mesh/mesh_path`・`Component.component_type`(core/common/cmdsが参照する内部契約)、`Version.isAtLeast` への委譲、cmds/ls.pyのフラグ列挙、core→commonのimport方向を作る単位変換の置換。
 
 ### 2026-10-09の利用者向け追加仕様
 
@@ -343,7 +426,7 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 - 空間指定は`worldSpace=True/False`、短縮名は`ws`。使用例は原則`ws=True`とする。
   Trueはワールド、Falseはローカル。bool以外・長短名の同時指定・旧`space=`は拒否する。
   既定値は各メソッドの仕様を維持する（`SkinCluster.restoreBindPose` はTrue、`Transform.getPivot/setPivot/mirrorTransform`・
-  `DagNode.getBoundingBox` はFalse）。Mayaフラグの短縮名を足す場合(`setParent` の `r`)も同じ長短規則で、同時指定は拒否する。
+  `DagNode.getBoundingBox` はFalse、計算ノードの`CurveInfo`・`PointOnCurveInfo`・`PointOnSurfaceInfo`の取得はTrue）。Mayaフラグの短縮名を足す場合(`setParent` の `r`)も同じ長短規則で、同時指定は拒否する。
   OpenMaya標準APIのMSpace引数は変更しない。
 - 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`asUnitMatrix`・
   `asCanonicalAxisAngle`・`asDecomposedEulerRotate`で、標準の`asMatrix`等と区別する。
@@ -428,7 +511,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 内部の照会・数値計算はOpenMaya API 2.0を基本とする。通常のシーン更新はUndo対応の`maya.cmds`を使い、対応APIの`fast=True`ではAPI 2.0で直接更新する。
 - 読取りの高速化に`fast`指定を要求しない。単点・一括取得を使い分け、保持するMPlugやMDagPathを名前へ戻して再解決しない。型・単位・順序・削除検出の契約は維持する。
 - `fast`は検証を省略する指定ではない。未対応の直接更新は変更前に拒否し、Undoのグローバル設定変更や独自プラグインで補わない。内側の対応処理へも`fast=fast`を明示的に渡す。
-- 2026-10-26の指定により、書き込み系の公開メソッドは原則 `fast=False` 引数を持ち、定型(boolでなければTypeError → `nullcontext() if fast else undoChunk("mlib<Class><Method>")` → 検証・対象解決は通常/fast共通に1回 → 書込み直前の `if fast:` 分岐 → 内側へ `fast=fast` を明示 → 未対応は変更前にNotImplementedError)で実装する。fastでも入力検証・例外型・単位・戻り値は同じ。複数のom2操作は1つのmodifierに積んで `doIt` を1回にし、DAG削除とDG操作を同じmodifierに混在させない。
+- 2026-10-26の指定により、書き込み系の公開メソッドは原則 `fast=False` 引数を持ち、定型(`_require_bool(fast, "fast")` → `with _edit_context("mlib<Class><Method>", fast):`(`nullcontext() if fast else undoChunk(...)`) → 検証・対象解決はwith内に通常/fast共通で1回 → 書込み直前の `if fast:` 分岐 → 内側へ `fast=fast` を明示 → 未対応は変更前にNotImplementedError)で実装する。fastでも入力検証・例外型・単位・戻り値は同じ。複数のom2操作は1つのmodifierに積んで `doIt` を1回にし、DAG削除とDG操作を同じmodifierに混在させない。
 - `fast` を持たない書き込みはom2に同等機能が無いものに限り、docstringに「fast引数は持たない」と理由を書く: `Transform.addConstraint`(コンストレイント作成APIなし)、`makeIdentity`(形状へのベイク)、`SkinCluster.bind/copyWeightsTo/addInfluences/restoreBindPose/resetBindPose`(バインド・コピーAPIなし)、`BlendShape` のターゲット追加・削除・デルタ・インビトウィーン・ミラー/フリップ(MELの後処理とUI編集モード)、`DagPose.create/merge/restore/reset/addMembers/removeMembers`(Mayaの階層補完・復元規則)、`Container/DagContainer` の作成・所属・publish系(MFnContainerNodeは照会専用)、`HIKCharacterNode`(HumanIK MEL)、`Reference.load/unload/remove`・`createReference`(ファイル操作)、`DrivenKey.setKey`、`Plugin.load/unload`(環境操作)、`moveAttrOrder`、`duplicate`。`Plug.setMuted`・`setEnumNames` は引数を持つが `fast=True` をNotImplementedErrorで拒否する。
 - cmds→om2の読み取り置換は `__tests__/integration/test_cmds_parity.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`dagPose -atPose`、`keyTangent -g`、HumanIK、`cycleCheck`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。

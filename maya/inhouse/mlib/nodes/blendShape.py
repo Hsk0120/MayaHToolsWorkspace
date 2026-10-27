@@ -5,7 +5,6 @@ import math
 import os
 import re
 import tempfile
-from contextlib import nullcontext
 from pathlib import Path
 
 import maya.api.OpenMaya as om2
@@ -15,8 +14,8 @@ import maya.mel as mel
 
 from ..components.vertex import Vertex, Vertices
 from ..core.attributeType import typed_data
-from ..core.fastWrite import writable
-from ..decorator import undoChunk, undoTransaction
+from ..core.fastWrite import require_writable
+from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
 from ..maths.vector import Vector
 from .node import Node
 
@@ -87,8 +86,8 @@ class BlendShape(Node):
             base (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug | None):
                 変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
                 省略時は getGeometry() の先頭を使う。
-            weightIndex (int | None): 使用する weight 配列インデックス。省略時は
-                空いている最小のインデックス(``getPlug("weight").getNextAvailable(vacant=True)``)
+            weightIndex (int | None): 使用する weight 配列番号。省略時は
+                空いている最小の番号(``getPlug("weight").getNextAvailable(vacant=True)``)
                 を自動で使う。
             fullWeight (float): このターゲットが完全に効いた状態(既定 1.0)の
                 weight 値。
@@ -97,20 +96,19 @@ class BlendShape(Node):
             Plug: 追加したターゲットの weight 要素プラグ。
 
         Raises:
-            RuntimeError: base を省略し、かつ base geometry を特定できない場合。
-                target・base の名前を解決できない場合。
             TypeError: target・base が対応しない型の場合。
             ValueError: target・base が空文字列、または削除済みの対象の場合。
+            RuntimeError: base を省略し、かつ base geometry を特定できない場合。
+                target・base の名前を解決できない場合。
         """
-        from .node import Node as _InputNode
-        target_name = _InputNode._input_name(target)
+        target_name = Node._input_name(target)
         if base is None:
             geometries = self.getGeometry()
             if not geometries:
                 raise RuntimeError("Cannot determine the base geometry for this blendShape")
             base_name = geometries[0].getFullName()
         else:
-            base_name = _InputNode._input_name(base)
+            base_name = Node._input_name(base)
         if weightIndex is None:
             weightIndex = self.getPlug("weight").getNextAvailable(vacant=True)
         cmds.blendShape(
@@ -158,23 +156,23 @@ class BlendShape(Node):
             Plug: 作成したweight要素。初期値0で、ターゲット操作へそのまま渡せる。
 
         Raises:
-            ValueError: デルタ・番号・別名・入力geometryが不正な場合。
             TypeError: ポリゴンメッシュ以外のベース、またはデルタが辞書でない場合。
+            ValueError: デルタ・番号・別名・入力geometryが不正、またはpost-deformation・user-defined originの場合。
             RuntimeError: Undoが無効、入力geometryを取得できない、またはMayaの編集失敗。
-            NotImplementedError: post-deformation・user-defined originの場合。
 
-        全入力を登録前に検証し、通常Undoで一回にまとめる。例外時はUndoによる巻戻しを試みる。
-        復旧の二次失敗は警告し、元例外を優先する。巻戻しの完了は保証しない。
-        一時ノード登録が必要なためfastフラグは提供しない。頂点順・変形前座標・
-        頂点マスク等を含む全体復元にはloadTargetsを使用する。
+        Note:
+            全入力を登録前に検証し、通常Undoで一回にまとめる。例外時はUndoによる巻戻しを試みる。
+            復旧の二次失敗は警告し、元例外を優先する。巻戻しの完了は保証しない。
+            一時ノード登録が必要なためfastフラグは提供しない。頂点順・変形前座標・
+            頂点マスク等を含む全体復元にはloadTargetsを使用する。
         """
         bi = self._base_index(base)
         shape = self._base_shape(bi)
         index = self._new_index(weightIndex)
-        self._check_alias(alias)
+        self._require_alias(alias)
         values = self._delta_values(deltas, om2.MFnMesh(shape.mnode()).numVertices)
         if self.getPlug("origin").get() not in (0, 1) or self.getPlug("deformationOrder").get():
-            raise NotImplementedError("addTargetDeltas supports ordinary local/world-origin targets")
+            raise ValueError("addTargetDeltas supports ordinary local/world-origin targets")
         geometry = typed_data(self.getPlug(f"input[{bi}].inputGeometry").mplug())
         if geometry.isNull() or not geometry.hasFn(om2.MFn.kMesh):
             raise RuntimeError("Cannot read the blendShape's undeformed input mesh")
@@ -231,8 +229,8 @@ class BlendShape(Node):
         """
         bases = self._base_indices() if base is None else [self._base_index(base)]
         return sorted({index for bi in bases
-                       for index in self._indices(f"inputTarget[{bi}].inputTargetGroup")
-                       if self._indices(
+                       for index in self._existing_indices(f"inputTarget[{bi}].inputTargetGroup")
+                       if self._existing_indices(
                            self._group_path(bi, index) + ".inputTargetItem")})
 
     def getTargetPlug(self, target):
@@ -249,8 +247,8 @@ class BlendShape(Node):
             Plug: 同じweight要素への参照。値をコピーしたものではない。
 
         Raises:
-            ValueError: ターゲットがない、未知のalias、または他ノード/別アトリビュートのPlug。
             TypeError: targetが受理型でない場合。
+            ValueError: ターゲットがない、未知のalias、または他ノード/別アトリビュートのPlug。
         """
         return self.getPlug("weight")[self._target_index(target)]
 
@@ -262,17 +260,15 @@ class BlendShape(Node):
             geometry (Node | str): 新しいターゲットメッシュ。
             base (Node | str | None): ベース。省略時は先頭。
             fullWeight (float): 差し替える既存項目のウェイト。
-            fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 既存のweight要素。エイリアスと現在値を維持する。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeReplaceTarget"):
-            bi, index, item = self._item(target, base, fullWeight)
-            shape = self._mesh(geometry)
-            self._check_topology(bi, shape)
+        with _edit_context("mlibBlendShapeReplaceTarget", fast):
+            bi, index, item = self._resolve_item(target, base, fullWeight)
+            shape = self._resolve_mesh(geometry)
+            self._require_topology(bi, shape)
             # 既存項目へblendShape -targetを再発行するとMayaが拒否する。
             # 入力だけを差し替え、weight・エイリアス・ドライバ・中間形状の設定を保持する。
             source = shape.getPlug("worldMesh")[shape.mpath().instanceNumber()]
@@ -297,14 +293,13 @@ class BlendShape(Node):
         Returns:
             Plug: 親ターゲットのweight要素。
         """
-        bi, index = self._group(target, base)
+        bi, index = self._resolve_group(target, base)
         item = self._weight_item(weight)
-        if item in (5000, 6000) or item in self._indices(self._group_path(bi, index) + ".inputTargetItem"):
+        if item in (5000, 6000) or item in self._existing_indices(self._group_path(bi, index) + ".inputTargetItem"):
             raise ValueError("In-between weight is reserved or already exists")
-        if type(relative) is not bool:
-            raise TypeError("relative must be bool")
-        shape = self._mesh(geometry)
-        self._check_topology(bi, shape)
+        _require_bool(relative, "relative")
+        shape = self._resolve_mesh(geometry)
+        self._require_topology(bi, shape)
         cmds.blendShape(self.getName(), edit=True, inBetween=True,
                         inBetweenType="relative" if relative else "absolute",
                         target=(self._base_shape(bi).getFullName(), index,
@@ -324,7 +319,7 @@ class BlendShape(Node):
         """
         index = self._target_index(target)
         item = self._weight_item(weight)
-        if item == 6000 or not any(item in self._indices(
+        if item == 6000 or not any(item in self._existing_indices(
                 self._group_path(bi, index) + ".inputTargetItem") for bi in self._base_indices()
                 if index in self.getTargetIndices(self._base_shape(bi))):
             raise ValueError("No removable in-between at this weight")
@@ -347,11 +342,11 @@ class BlendShape(Node):
         Returns:
             BlendShape: 自身。
 
-        Maya標準sculptTargetを使用しUndoに対応する。複数ベースではノード全体に適用。
-        weight値・選択・操作ツールは変更しない。fastフラグは持たない。
+        Note:
+            Maya標準sculptTargetを使用しUndoに対応する。複数ベースではノード全体に適用。
+            weight値・選択・操作ツールは変更しない。fastフラグは持たない。
         """
-        if type(state) is not bool:
-            raise TypeError("state must be bool")
+        _require_bool(state, "state")
         if not state:
             cmds.sculptTarget(self.getName(), edit=True, target=-1)
             return self
@@ -359,7 +354,7 @@ class BlendShape(Node):
             raise ValueError("A target is required to enter edit mode")
         index = self._target_index(target)
         item = self._weight_item(fullWeight)
-        if not any(item in self._indices(self._group_path(bi, index) + ".inputTargetItem")
+        if not any(item in self._existing_indices(self._group_path(bi, index) + ".inputTargetItem")
                    for bi in self._base_indices()
                    if index in self.getTargetIndices(self._base_shape(bi))):
             raise ValueError("No target item at this weight")
@@ -381,8 +376,8 @@ class BlendShape(Node):
         Returns:
             list[float]: 無次元の項目ウェイト。選択ベースのgroupが空なら空リスト。
         """
-        bi, index = self._group(target, base)
-        return [(item - 5000) / 1000.0 for item in self._indices(
+        bi, index = self._resolve_group(target, base)
+        return [(item - 5000) / 1000.0 for item in self._existing_indices(
             self._group_path(bi, index) + ".inputTargetItem") if item != 6000]
 
     def getTargetWeights(self, target, base=None):
@@ -399,10 +394,10 @@ class BlendShape(Node):
         Returns:
             list[float]: 頂点数と同じ長さの新しい値リスト。変更してもシーンへ書き戻さない。
         """
-        bi, index = self._group(target, base)
+        bi, index = self._resolve_group(target, base)
         count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
         path = self._group_path(bi, index) + ".targetWeights"
-        existing = set(self._indices(path))
+        existing = set(self._existing_indices(path))
         array = self.getPlug(path).mplug()
         return [array.elementByLogicalIndex(i).asFloat() if i in existing else 1.0
                 for i in range(count)]
@@ -431,10 +426,8 @@ class BlendShape(Node):
         Raises:
             ValueError: 頂点番号、値の有限性、または全頂点列の長さが不正な場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeSetTargetWeights"):
-            bi, index = self._group(target, base)
+        with _edit_context("mlibBlendShapeSetTargetWeights", fast):
+            bi, index = self._resolve_group(target, base)
             count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
             values = self._vertex_values(weights, count)
             path = self._group_path(bi, index) + ".targetWeights"
@@ -463,7 +456,7 @@ class BlendShape(Node):
         Returns:
             dict[int, Vector]: 変位を持つ頂点と変位。ゼロは省略されうる。
         """
-        bi, index, item = self._item(target, base, fullWeight)
+        bi, index, item = self._resolve_item(target, base, fullWeight)
         data = self._read_item(bi, index, item)
         return {vertex: Vector(point[:3]) for vertex, point in data["absolute"]}
 
@@ -480,17 +473,14 @@ class BlendShape(Node):
             fullWeight (float): 更新する既存項目のウェイト。
             disconnect (bool): Trueなら接続中のターゲット入力を切断する。
                 既定では接続がある場合に変更せず拒否する。
-            fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             BlendShape: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeSetTargetDeltas"):
-            bi, index, item = self._item(target, base, fullWeight)
-            if type(disconnect) is not bool:
-                raise TypeError("disconnect must be bool")
+        with _edit_context("mlibBlendShapeSetTargetDeltas", fast):
+            bi, index, item = self._resolve_item(target, base, fullWeight)
+            _require_bool(disconnect, "disconnect")
             count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
             values = self._delta_values(deltas, count)
             path = self._item_path(bi, index, item)
@@ -517,17 +507,14 @@ class BlendShape(Node):
             fullWeight (float): 除外する項目のウェイト。in-betweenも指定可能。
             disconnect (bool): 既定Falseは接続先のメッシュを自動編集する。
                 Trueなら従来どおり入力を切断して保存デルタだけを編集する。
-            fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             BlendShape: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeResetTargetVertices"):
-            bi, index, item = self._item(target, base, fullWeight)
-            if type(disconnect) is not bool:
-                raise TypeError("disconnect must be bool")
+        with _edit_context("mlibBlendShapeResetTargetVertices", fast):
+            bi, index, item = self._resolve_item(target, base, fullWeight)
+            _require_bool(disconnect, "disconnect")
             shape = self._base_shape(bi)
             if isinstance(vertices, Vertices):
                 if vertices.shape.mnode() != shape.mnode():
@@ -572,17 +559,15 @@ class BlendShape(Node):
             target (int | str | Plug): 元の番号またはエイリアス。
             weightIndex (int | None): 未使用の番号。省略時は最小の空き番号。
             alias (str | None): 新しい別名。省略時はMayaのweight表記。
-            fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 新しいターゲットのweight要素。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeDuplicateTarget"):
+        with _edit_context("mlibBlendShapeDuplicateTarget", fast):
             index = self._target_index(target)
             destination = self._new_index(weightIndex)
-            self._check_alias(alias)
+            self._require_alias(alias)
             data = self._read_target(index)
             self._write_target(destination, data, alias=alias, value=0.0, fast=fast)
             return self.getPlug("weight")[destination]
@@ -628,14 +613,12 @@ class BlendShape(Node):
             fullWeight (float): 編集する項目のウェイト。in-betweenも指定可能。
             disconnect (bool): 既定Falseは接続先のメッシュを自動編集する。
                 Trueなら入力を切断して保存デルタだけを編集する。
-            fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             BlendShape: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibBlendShapeReduceTargetDeltas"):
+        with _edit_context("mlibBlendShapeReduceTargetDeltas", fast):
             if (isinstance(tolerance, bool) or not isinstance(tolerance, (int, float))
                     or not math.isfinite(tolerance) or tolerance < 0):
                 raise ValueError("tolerance must be a finite nonnegative number")
@@ -657,8 +640,8 @@ class BlendShape(Node):
         Returns:
             BlendShape: 自身。接続中のターゲットは変更せず拒否する。
         """
-        bi, index = self._group(target, base)
-        self._check_mirror(bi, index, axis)
+        bi, index = self._resolve_group(target, base)
+        self._require_mirror(bi, index, axis)
         if type(direction) is not int or direction not in (0, 1):
             raise ValueError("direction must be 0 or 1")
         cmds.blendShape(self.getName(), edit=True, mirrorTarget=(bi, index),
@@ -677,8 +660,8 @@ class BlendShape(Node):
         Returns:
             BlendShape: 自身。接続中のターゲットは変更せず拒否する。
         """
-        bi, index = self._group(target, base)
-        self._check_mirror(bi, index, axis)
+        bi, index = self._resolve_group(target, base)
+        self._require_mirror(bi, index, axis)
         cmds.blendShape(self.getName(), edit=True, flipTarget=(bi, index),
                         symmetryAxis=axis, symmetrySpace=1)
         return self
@@ -724,27 +707,26 @@ class BlendShape(Node):
         """JSONの全ターゲットを空のblendShapeへ復元する。
 
         先に全データと全ベースの頂点・面接続順を検証する。ベースは保存時と
-        同じ論理インデックスで対応させる。既存ターゲットがあれば拒否する。
+        同じ論理番号で対応させる。既存ターゲットがあれば拒否する。
         既存ノードへの追加ではなく、空のノードへの一式復元用。
 
         Args:
             path (str | os.PathLike): dumpTargetsで保存したJSON。
-            fast (bool): TrueはOpenMaya直接更新。Undoと失敗時の巻き戻しは行わない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。失敗時の巻き戻しは行わない。
 
         Returns:
             BlendShape: 自身。通常は1回でUndoでき、失敗時はUndoによる復元を試みる。
                 fast=Trueでは変更済みのデータを自動では戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         with open(path, encoding="utf-8") as stream:
             data = json.load(stream)
-        self._validate_file(data)
-        if self.getTargetIndices() or self._indices("weight"):
+        self._require_file(data)
+        if self.getTargetIndices() or self._existing_indices("weight"):
             raise ValueError("loadTargets requires an empty blendShape")
         if not fast and not cmds.undoInfo(query=True, state=True):
             raise RuntimeError("loadTargets requires Maya Undo to be enabled")
-        with nullcontext() if fast else undoTransaction("mlibBlendShapeLoadTargets"):
+        with _edit_context("mlibBlendShapeLoadTargets", fast, transaction=True):
             for key, target in data["targets"].items():
                 self._write_target(int(key), target, alias=target["alias"], value=target["value"], fast=fast)
             for attr in ("envelope", "origin", "supportNegativeWeights"):
@@ -772,8 +754,8 @@ class BlendShape(Node):
                             or path.instanceNumber() == source.logicalIndex()), None)
         if target_path is None:
             raise ValueError("Cannot resolve target mesh instance")
-        shape = self._mesh(Node(target_path))
-        self._check_topology(bi, shape)
+        shape = self._resolve_mesh(Node(target_path))
+        self._require_topology(bi, shape)
         points = om2.MFnMesh(shape.mnode()).getPoints(om2.MSpace.kObject)
         deltas = {vertex: om2.MVector(*point[:3]) for vertex, point in data["absolute"]}
         affected = sorted(indices.intersection(deltas))
@@ -804,7 +786,7 @@ class BlendShape(Node):
             else:
                 cmds.disconnectAttr(sources[0].name(), destination.name())
 
-    def _attr(self, path):
+    def _full_attr_name(self, path):
         """内部アトリビュートの完全名を作る。"""
         return self.getName() + "." + path
 
@@ -821,6 +803,9 @@ class BlendShape(Node):
         Args:
             array (ArrayPlug): 書込み先の配列Plug。要素は無単位の数値アトリビュート。
             values (dict[int, float]): 検証済みの論理番号と値。挿入順に書き込む。
+
+        Returns:
+            None: 値を返さない。
         """
         runs = []
         for index, value in values.items():
@@ -841,7 +826,7 @@ class BlendShape(Node):
                 for position, value in enumerate(row):
                     array[first + position].set(value)
 
-    def _indices(self, path):
+    def _existing_indices(self, path):
         """配列を確保せず既存の論理番号を取得する。"""
         return sorted(self.getPlug(path).mplug().getExistingArrayAttributeIndices())
 
@@ -853,7 +838,7 @@ class BlendShape(Node):
     def _base_shape(self, index):
         """番号に対応するポリゴンベースを取得する。"""
         fn = oma2.MFnGeometryFilter(self.mnode())
-        return self._mesh(Node(fn.outputShapeAtIndex(index)))
+        return self._resolve_mesh(Node(fn.outputShapeAtIndex(index)))
 
     def _base_index(self, base):
         """ベースMeshを出力geometryの論理番号へ解決する。
@@ -863,15 +848,15 @@ class BlendShape(Node):
         Meshへ限定する。出力ShapeのMObject一致でベースを特定する。
 
         Raises:
-            ValueError: ベースがない、TransformのShapeが一つでない、または登録外のgeometry。
             TypeError: 解決したShapeがポリゴンMeshでない場合。
+            ValueError: ベースがない、TransformのShapeが一つでない、または登録外のgeometry。
         """
         if base is None:
             indices = self._base_indices()
             if not indices:
                 raise ValueError("BlendShape has no base geometry")
             return indices[0]
-        shape = self._mesh(base)
+        shape = self._resolve_mesh(base)
         fn = oma2.MFnGeometryFilter(self.mnode())
         for index in self._base_indices():
             if fn.outputShapeAtIndex(index) == shape.mnode():
@@ -879,7 +864,7 @@ class BlendShape(Node):
         raise ValueError("Geometry is not a base of this blendShape")
 
     @staticmethod
-    def _mesh(value):
+    def _resolve_mesh(value):
         """transformまたはshapeを単一ポリゴンメッシュへ解決する。"""
         node = Node(Node._input_name(value))
         if node.mnode().hasFn(om2.MFn.kTransform):
@@ -919,7 +904,7 @@ class BlendShape(Node):
                        if alias == target and plug.mplug().isElement
                        and plug.getLongName() == "weight"]
             if not matches:
-                raise ValueError("Unknown target alias: " + target)
+                raise ValueError(f"Unknown target alias: {target}")
             index = matches[0]
         else:
             raise TypeError("Target must be an integer index, alias string, or weight Plug")
@@ -927,7 +912,7 @@ class BlendShape(Node):
             raise ValueError(f"Unknown target index: {index}")
         return index
 
-    def _group(self, target, base):
+    def _resolve_group(self, target, base):
         """ベースとターゲットを解決し、指定ベースのinputTargetGroupの存在を検査する。
 
         ターゲット自体は全ベースのいずれかに項目が必要だが、このベースではgroupの
@@ -937,7 +922,7 @@ class BlendShape(Node):
             tuple[int, int]: ベース論理番号とターゲット論理番号。
         """
         bi, index = self._base_index(base), self._target_index(target)
-        if index not in self._indices(f"inputTarget[{bi}].inputTargetGroup"):
+        if index not in self._existing_indices(f"inputTarget[{bi}].inputTargetGroup"):
             raise ValueError("Target does not exist on this base")
         return bi, index
 
@@ -956,7 +941,7 @@ class BlendShape(Node):
         """項目ウェイトをMayaのinputTargetItem論理番号へ変換する。
 
         有限なint/floatからweight * 1000 + 5000を計算し、0〜2147483647の範囲と
-        整数への差1e-6以内を検査する。boolは拒否する。5000（0.0）や6000（1.0）を
+        整数への差1e-6以内を検査する。boolは拒否する。5000(0.0)や6000(1.0)を
         予約値として拒否するのは呼出し側の責務であり、この変換では受理する。
 
         Returns:
@@ -972,11 +957,11 @@ class BlendShape(Node):
             raise ValueError("Weight must be >= -5 and representable in steps of 0.001")
         return int(round(scaled))
 
-    def _item(self, target, base, weight):
+    def _resolve_item(self, target, base, weight):
         """実在するターゲット項目だけを解決する。"""
-        bi, index = self._group(target, base)
+        bi, index = self._resolve_group(target, base)
         item = self._weight_item(weight)
-        if item not in self._indices(self._group_path(bi, index) + ".inputTargetItem"):
+        if item not in self._existing_indices(self._group_path(bi, index) + ".inputTargetItem"):
             raise ValueError("Target item does not exist at this weight")
         return bi, index, item
 
@@ -987,7 +972,7 @@ class BlendShape(Node):
         counts, vertices = fn.getVertices()
         return {"vertices": fn.numVertices, "counts": list(counts), "connects": list(vertices)}
 
-    def _check_topology(self, bi, shape):
+    def _require_topology(self, bi, shape):
         """番号まで同一のトポロジーであることを確認する。"""
         if self._topology(self._base_shape(bi)) != self._topology(shape):
             raise ValueError("Mesh topology differs from the base")
@@ -1052,8 +1037,8 @@ class BlendShape(Node):
         if fast:
             points_plug = self.getPlug(path + "." + prefix + "PointsTarget").mplug()
             components_plug = self.getPlug(path + "." + prefix + "ComponentsTarget").mplug()
-            writable(points_plug)
-            writable(components_plug)
+            require_writable(points_plug)
+            require_writable(components_plug)
             component_list = om2.MFnComponentListData()
             components = component_list.create()
             if values:
@@ -1065,14 +1050,14 @@ class BlendShape(Node):
             points_plug.setMObject(points)
             components_plug.setMObject(components)
             return
-        cmds.setAttr(self._attr(path + "." + prefix + "PointsTarget"), len(values),
+        cmds.setAttr(self._full_attr_name(path + "." + prefix + "PointsTarget"), len(values),
                      *[point for _, point in values], type="pointArray")
-        cmds.setAttr(self._attr(path + "." + prefix + "ComponentsTarget"), len(values),
+        cmds.setAttr(self._full_attr_name(path + "." + prefix + "ComponentsTarget"), len(values),
                      *[f"vtx[{vertex}]" for vertex, _ in values], type="componentList")
 
     def _new_index(self, index):
         """既存weightとターゲットを上書きしない番号を選ぶ。"""
-        used = set(self.getTargetIndices()) | set(self._indices("weight"))
+        used = set(self.getTargetIndices()) | set(self._existing_indices("weight"))
         if index is None:
             index = 0
             while index in used:
@@ -1081,19 +1066,19 @@ class BlendShape(Node):
             raise ValueError("Expected an unused nonnegative target index")
         return index
 
-    def _check_alias(self, alias):
+    def _require_alias(self, alias):
         """別名の構文と既存アトリビュートとの衝突を検証する。"""
         if alias is not None and (not isinstance(alias, str)
                                   or not re.fullmatch(r"[^\W\d]\w*(?::[^\W\d]\w*)*", alias)
                                   or self.hasAttr(alias)):
             raise ValueError("Alias is invalid or already exists")
 
-    def _check_mirror(self, bi, index, axis):
+    def _require_mirror(self, bi, index, axis):
         """ミラー条件と接続のないデルタであることを確認する。"""
         self._base_shape(bi)
         if axis not in ("X", "Y", "Z"):
             raise ValueError("axis must be X, Y, or Z")
-        for item in self._indices(self._group_path(bi, index) + ".inputTargetItem"):
+        for item in self._existing_indices(self._group_path(bi, index) + ".inputTargetItem"):
             if self.getPlug(self._item_path(bi, index, item) + ".inputGeomTarget").mplug().isDestination:
                 raise ValueError("Mirror requires baked targets; duplicateTarget first")
 
@@ -1102,11 +1087,11 @@ class BlendShape(Node):
         aliases = {plug.mplug().logicalIndex(): alias for alias, plug in self.getAliases()
                    if plug.mplug().isElement and plug.getLongName() == "weight"}
         result = {"alias": aliases.get(index),
-                  "value": self.getPlug("weight")[index].get() if index in self._indices("weight") else 0.0,
+                  "value": self.getPlug("weight")[index].get() if index in self._existing_indices("weight") else 0.0,
                   "bases": {}, "inbetweens": {}}
         for bi in self._base_indices():
             group = self._group_path(bi, index)
-            if index not in self._indices(f"inputTarget[{bi}].inputTargetGroup"):
+            if index not in self._existing_indices(f"inputTarget[{bi}].inputTargetGroup"):
                 continue
             if any(self.getPlug(group + "." + attr).get() != 0
                    for attr in ("postDeformersMode", "normalizationId")):
@@ -1114,17 +1099,17 @@ class BlendShape(Node):
             result["bases"][str(bi)] = {
                 "weights": self.getTargetWeights(index, self._base_shape(bi)),
                 "items": {str(item): self._read_item(bi, index, item) for item in
-                          self._indices(group + ".inputTargetItem")}}
-        if index in self._indices("inbetweenInfoGroup"):
+                          self._existing_indices(group + ".inputTargetItem")}}
+        if index in self._existing_indices("inbetweenInfoGroup"):
             root = f"inbetweenInfoGroup[{index}].inbetweenInfo"
-            for item in self._indices(root):
+            for item in self._existing_indices(root):
                 path = root + f"[{item}]"
                 metadata = {attr: self.getPlug(path + "." + attr).get() for attr in
                             ("inbetweenTargetType", "inbetweenTargetName", "interpolation", "inbetweenVisibility")}
                 metadata["inbetweenTargetName"] = metadata["inbetweenTargetName"] or "IB"
                 metadata["curve"] = {str(i): list(self.getPlug(
                     path + f".interpolationCurve[{i}]").get())
-                    for i in self._indices(path + ".interpolationCurve")}
+                    for i in self._existing_indices(path + ".interpolationCurve")}
                 result["inbetweens"][str(item)] = metadata
         return result
 
@@ -1132,7 +1117,7 @@ class BlendShape(Node):
         """ベースの頂点マスクを既定値を補って取得する。"""
         count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
         path = f"inputTarget[{bi}].baseWeights"
-        existing = set(self._indices(path))
+        existing = set(self._existing_indices(path))
         array = self.getPlug(path).mplug()
         return [array.elementByLogicalIndex(i).asFloat() if i in existing else 1.0
                 for i in range(count)]
@@ -1155,7 +1140,7 @@ class BlendShape(Node):
                 self._write_deltas(path, payload["absolute"], fast=fast)
                 self._write_deltas(path, payload["relative"], relative=True, fast=fast)
             if not fast and "6000" not in group["items"]:
-                cmds.removeMultiInstance(self._attr(self._item_path(int(bi), index, 6000)), b=True)
+                cmds.removeMultiInstance(self._full_attr_name(self._item_path(int(bi), index, 6000)), b=True)
             path = self._group_path(int(bi), index) + ".targetWeights"
             array = None
             for vertex, weight in enumerate(group["weights"]):
@@ -1176,7 +1161,7 @@ class BlendShape(Node):
         plug.set(value, fast=fast)
         if fast:
             # MFnDependencyNodeによる別名更新もUndoキューを使わない。
-            fn = om2.MFnDependencyNode(self.mnode())
+            fn = self._dependency_fn()
             name = f"weight[{index}]"
             if alias and not fn.setAlias(alias, name, plug.mplug(), True):
                 raise RuntimeError("Could not set target alias")
@@ -1189,11 +1174,11 @@ class BlendShape(Node):
     def _require_unlocked(plug):
         """入力接続の切断前に所有ノードと親を含むロックを検査する。"""
         if om2.MFnDependencyNode(plug.node()).isLocked:
-            raise RuntimeError("Node is locked: " + plug.name())
+            raise RuntimeError(f"Node is locked: {plug.name()}")
         current = plug
         while True:
             if current.isLocked:
-                raise RuntimeError("Attribute is locked: " + plug.name())
+                raise RuntimeError(f"Attribute is locked: {plug.name()}")
             if current.isChild:
                 current = current.parent()
             elif current.isElement:
@@ -1205,10 +1190,10 @@ class BlendShape(Node):
     def _replace_connection(source, destination):
         """OpenMayaで接続を置換し、通常のforce接続と同様にロックを戻す。"""
         if om2.MFnDependencyNode(destination.node()).isLocked:
-            raise RuntimeError("Node is locked: " + destination.name())
+            raise RuntimeError(f"Node is locked: {destination.name()}")
         sources = destination.connectedTo(True, False)
         if sources and sources[0] == source:
-            raise RuntimeError("Already connected: " + destination.name())
+            raise RuntimeError(f"Already connected: {destination.name()}")
         locked = []
         current = destination
         while True:
@@ -1232,7 +1217,7 @@ class BlendShape(Node):
             for plug in locked:
                 plug.isLocked = True
 
-    def _validate_file(self, data):
+    def _require_file(self, data):
         """ファイル全体を検証し任意のアトリビュート書き込みを防止する。"""
         if not isinstance(data, dict) or data.get("format") != "mlib.blendShape" or data.get("version") != 1:
             raise ValueError("Unsupported blendShape file")
@@ -1252,7 +1237,7 @@ class BlendShape(Node):
         for key, target in data["targets"].items():
             self._file_index(key)
             alias = target["alias"]
-            self._check_alias(alias)
+            self._require_alias(alias)
             if alias and alias in aliases:
                 raise ValueError("Duplicate target alias")
             aliases.add(alias)

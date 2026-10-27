@@ -223,7 +223,7 @@ class DeletedNodeTest(_SpecCase):
                 with self.assertRaises(RuntimeError):
                     getattr(node, method)(*args)
         self.assertEqual(node.getConnections(), [])
-        with self.assertRaisesRegex(RuntimeError, "Cannot delete an invalid node"):
+        with self.assertRaisesRegex(RuntimeError, r"Cannot delete an invalid \w+"):
             node.delete()
 
     def test_deleted_node_rename_message(self):
@@ -232,9 +232,9 @@ class DeletedNodeTest(_SpecCase):
         cmds.delete(node.getFullName())
         for fast in (False, True):
             with self.subTest(fast=fast):
-                with self.assertRaisesRegex(RuntimeError, "^Cannot rename an invalid node$"):
+                with self.assertRaisesRegex(RuntimeError, r"^Cannot rename an invalid \w+$"):
                     node.rename(self.name("renamed"), fast=fast)
-                with self.assertRaisesRegex(RuntimeError, "Cannot rename an invalid node"):
+                with self.assertRaisesRegex(RuntimeError, r"Cannot rename an invalid \w+"):
                     node.setNamespace(self.ns, fast=fast)
         self.assertFalse(cmds.objExists(self.name("renamed")))
 

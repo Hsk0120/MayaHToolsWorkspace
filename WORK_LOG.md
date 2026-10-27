@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-27): mlib 2.2.0。内部メソッド名・引数・処理の書き方のブレを調査(nodes/plugs/components/common/core/cmds/maths を 4 並列で読了)し統一: bool 検査・別名解消・無効ノード検査・ロック拒否・プラグ遡上を decorator/util/core の共通ヘルパーへ集約(約 650 箇所)、例外を 4 分類(型/値/状態/未対応)に揃え日本語メッセージ約 70 件を英語化、Undo チャンク名を mlib<Class><Method> に統一、内部名を _require_/_resolve_/_<method>_fast|_cmds 規則へ改名、Plug.set の Template Method 化・Nodes.__init_subclass__ での一括宣言合成、docstring 402 件を固定文・用語・項目順に整形。mlib.reload() の親パッケージ依存の順序不良を修正。規則は docs/mlib-api-design.md「内部実装の定型」。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685 件、静的検査・Sphinx(-W)・文書検査が合格。
+
 - Codex (2026-10-27): プッシュ依頼に対応し、KawaiiPhysics・UnrealEngineのサブモジュール設定/参照と担当履歴を公開対象に整理。origin/mainとの一致、両サブモジュールの未変更、調査メモのGit除外、ステージ差分を確認。並行作業中のmlib等と他担当の作業ログは対象外として保持。
 
 - Codex (2026-10-27): ユーザー指示でUnrealEngineの限定展開を解除。固定済みUE 5.8.4（f45729c0b6）の全224,010追跡ファイルを展開。sparseCheckout=false・skip-worktree 0件・取得済み参照の不足Gitオブジェクト0件・上流差分なしを確認。履歴はdepth 1を維持、Setup依存バイナリ取得・ビルドは未実行。既存変更を保持。

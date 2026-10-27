@@ -1,9 +1,14 @@
 """形状座標の照会と通常/fast更新。通常はcmds、fastは履歴なし形状へ直接書く。"""
 
+from collections import namedtuple
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from .fastWrite import writable
+from .fastWrite import require_writable
+
+#: :func:`geometry` の戻り値。保持DAGパス・関数セット・Meshかどうか。
+_Geometry = namedtuple("_Geometry", ("path", "fn", "is_mesh"))
 
 
 def geometry(shape, indices, edit=False):
@@ -20,12 +25,12 @@ def geometry(shape, indices, edit=False):
         edit (bool): Trueで直接編集の制限を検査する。Falseは照会用。
 
     Returns:
-        tuple: 保持DAGパス、MFnMeshまたはMFnNurbsCurve、MeshならTrue。
-            関数セットの取得自体では座標を書き換えない。
+        _Geometry: ``path`` (保持DAGパス)・``fn`` (MFnMeshまたはMFnNurbsCurve)・``is_mesh`` (MeshならTrue)
+            のnamedtuple。tupleとして展開できる。関数セットの取得自体では座標を書き換えない。
 
     Raises:
-        NotImplementedError: edit=Trueで周期カーブまたはinMesh/create入力がある場合。
         RuntimeError: 直接編集時のロック・入力接続・書込み禁止、またはShapeを参照できない場合。
+        NotImplementedError: edit=Trueで周期カーブまたはinMesh/create入力がある場合。
     """
     path = shape.mpath()
     mesh = path.node().hasFn(om2.MFn.kMesh)
@@ -42,10 +47,10 @@ def geometry(shape, indices, edit=False):
         points = dependency.findPlug("pnts" if mesh else "controlPoints", False)
         for index in indices:
             point = points.elementByLogicalIndex(index)
-            writable(point)
+            require_writable(point)
             for child in range(point.numChildren()):
-                writable(point.child(child))
-    return path, fn, mesh
+                require_writable(point.child(child))
+    return _Geometry(path, fn, mesh)
 
 
 def positions(shape, indices, ws=False):
@@ -91,7 +96,7 @@ def command_indices(shape, indices):
     return list(indices)
 
 
-def setPositions(shape, indices, values, ws=False, *, fast=False):
+def set_positions(shape, indices, values, ws=False, *, fast=False):
     """検証済みのcm座標を書き込む。Undo範囲は呼出元が管理する。
 
     Args:
@@ -99,16 +104,19 @@ def setPositions(shape, indices, values, ws=False, *, fast=False):
         indices (Sequence[int]): 検証済みのAPI番号。重複は後の値を優先。
         values (Sequence[Sequence[float]]): 番号と同数の有限なXYZ。
         ws (bool): Trueならワールド座標。
-        fast (bool): TrueはOpenMaya直接更新。通常はcmds.xformを使う。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+    Returns:
+        None: 値を返さない。
 
     Raises:
-        NotImplementedError: fastで未対応の形状の場合。
         RuntimeError: Mayaが書込みを拒否した場合。完了済みの変更は戻さない。
+        NotImplementedError: fastで未対応の形状の場合。
     """
     if not indices:
         return
     if fast:
-        _set_positions_direct(shape, indices, values, ws)
+        _set_positions_fast(shape, indices, values, ws)
         return
     _, _, mesh = geometry(shape, indices)
     if ws and not mesh:
@@ -119,18 +127,26 @@ def setPositions(shape, indices, values, ws=False, *, fast=False):
     unit = om2.MDistance.uiUnit()
     for index, value in zip(numbers, values):
         coordinates = [om2.MDistance(v).asUnits(unit) for v in value]
-        cmds.xform("{}.{}[{}]".format(name, token, index), absolute=True,
+        cmds.xform(f"{name}.{token}[{index}]", absolute=True,
                    translation=coordinates, worldSpace=ws, objectSpace=not ws)
 
 
-def _set_positions_direct(shape, indices, values, ws=False):
-    """検証済みのcm座標を一括設定する。CVのwは変更しない。
+def _set_positions_fast(shape, indices, values, ws=False):
+    """検証済みのcm座標をOpenMayaで一括設定する。CVのwは変更しない。
 
     Args:
         shape (Shape): 履歴なしMeshまたは非周期NurbsCurve。
         indices (Sequence[int]): 検証済みの番号。
         values (Sequence[Sequence[float]]): 設定するXYZ。
         ws (bool): TrueならAPIワールド座標、Falseならローカル座標。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        ValueError: ワールド空間で変換マトリクスが特異な場合。
+        RuntimeError: ロック・入力接続・書込み禁止がある場合。
+        NotImplementedError: 周期カーブまたは入力履歴のある形状の場合。
     """
     if not indices:
         return
@@ -154,7 +170,7 @@ def _set_positions_direct(shape, indices, values, ws=False):
 
 
 def object_positions(shape, indices, values):
-    """APIのワールド座標を、CVの重みを保持したローカルXYZへ変換する。
+    """APIのワールド座標を、CVのウェイトを保持したローカルXYZへ変換する。
 
     Args:
         shape (Shape): MeshまたはNurbsCurve。
@@ -196,9 +212,12 @@ def set_uvs(shape, indices, values):
         indices (Sequence[int]): 検証済みのUV番号。
         values (Sequence[Sequence[float]]): indicesに対応する無次元の(U, V)行。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
-        NotImplementedError: inMeshへの入力がある場合。
         RuntimeError: Shapeがロックされている、またはMayaの読取り・設定・更新に失敗した場合。
+        NotImplementedError: inMeshへの入力がある場合。
 
     Note:
         指定外の番号は読み出した値を保持する。setUVs後にupdateSurfaceを呼び、

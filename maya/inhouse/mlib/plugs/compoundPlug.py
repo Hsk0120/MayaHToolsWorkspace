@@ -1,12 +1,10 @@
 """複合アトリビュートとその子プラグを扱う。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 
 from ..core.attributeType import _convert_units, attributeType, value_reader
-from ..core.fastWrite import _require_supported_type, set_attr, set_plug
-from ..decorator import undoChunk
+from ..core.fastWrite import set_attr, set_plug
+from ..decorator import _require_bool
 from .plug import Plug
 
 
@@ -101,76 +99,11 @@ class CompoundPlug(Plug):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または子の値を取得できない場合。
         """
+        _require_bool(uiUnits, "uiUnits")
         self._require_valid()
-        self._validate_ui_units(uiUnits)
         if not uiUnits:
             return tuple(self._child_values())
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
-
-    def set(self, value, safe=False, *, uiUnits=False, fast=False):
-        """子数と同じ長さの値を、アトリビュート定義順に設定する。
-
-        通常はUndo有効時に一括記録し、固定長数値型は型付き設定、それ以外は子ごとに更新する。
-        どの経路も書き込む前に自身と全子の書込み可否(ロック・入力接続・書込み禁止)を検査し、
-        書けない子が1つでもあれば何も書かずに例外にする(safe=Falseの場合)。子の値の型の誤りは
-        子ごとに書く時点で検出するため、先行する子の更新が残る場合がある(1回のUndoで戻る)。
-        fastは全成分を事前検証して直接更新するが、書込み途中の失敗を自動で戻すものではない。
-        safe=Trueは対応する失敗後に子を再試行し、書ける子を更新する。先行変更は戻さない。
-
-        Args:
-            value (Iterable[object]): 子数と同じ数の値。
-            safe (bool): Trueは対応する書込み失敗を抑制し、失敗数を返す。
-            uiUnits (bool): TrueはUI単位。既定Falseは内部単位（角度rad・距離cm・時間秒）。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定Falseはcmds。
-
-        Returns:
-            CompoundPlug | int: safe=Falseは自身。safe=Trueは子の失敗数、成功は0。
-                要素数不一致等で子へ分けられない場合や再試行を完了できない場合は1。
-                厳密な未更新成分数とは限らない。
-
-        Raises:
-            TypeError: 配列全体への設定、fastがbool以外、またはsafe=Falseで入力型が不正な場合。
-            ValueError: safe=Falseで要素数が子数と一致しない場合。
-            RuntimeError: safe=Falseで参照が無効、または書込みに失敗した場合。
-            NotImplementedError: fastで未対応の型。safe=Trueでも部分更新前に拒否する。
-        """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCompoundPlugSet"):
-            if self.isArray():
-                raise TypeError("Set an array element instead of the array plug")
-            if safe and fast and self.isValid() and self.mplug().isCompound:
-                _require_supported_type(self.mplug())
-            try:
-                self._require_valid()
-                self._validate_ui_units(uiUnits)
-                values = tuple(value)
-                if len(values) != self._mplug.numChildren():
-                    raise ValueError("Compound plug value length does not match its child count")
-                if fast:
-                    if uiUnits:
-                        from ..core.attributeType import _convert_units
-                        values = _convert_units(self._mplug, values, to_ui=False)
-                    set_plug(self._mplug, values)
-                elif self.getType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
-                    self._require_writable()
-                    Plug.set(self, values, safe=False, uiUnits=uiUnits, fast=fast)
-                else:
-                    # 子ごとに書く経路でも、先に全子の書込み可否を検査する。ロック・入力接続の
-                    # ある子より前の子だけが書かれて残ることを防ぐ(Double3Plugと同じ)。
-                    self._require_writable()
-                    if not uiUnits:
-                        self._set_child_values(values, writable_checked=True)
-                        return 0 if safe else self
-                    for index, child_value in enumerate(values):
-                        self._child_at(index).set(child_value, safe=False, uiUnits=uiUnits, fast=fast)
-            except NotImplementedError:
-                raise
-            except (RuntimeError, TypeError, ValueError):
-                if not safe:
-                    raise
-                return self._set_children_safely(value, uiUnits=uiUnits, fast=fast)
-            return 0 if safe else self
 
     def getChildren(self):
         """複合アトリビュートの直接の子Plugを、定義順で取得する。
@@ -213,6 +146,47 @@ class CompoundPlug(Plug):
             for index, reader in enumerate(readers)
         ]
 
+    def _set_value(self, value, *, uiUnits=False, fast=False):
+        """子数と同じ数の値を、全子の書込み可否を確認してから書き込む。
+
+        骨格は :meth:`Plug.set`。書けない子が1つでもあれば何も書かずに例外にする。子の値の型の誤りは
+        子ごとに書く時点で検出するため、先行する子の更新が残る場合がある(1回のUndoで戻る)。
+
+        Args:
+            value (Iterable[object]): 子数と同じ数の値。
+            uiUnits (bool): TrueはUI単位。既定Falseは内部単位(角度rad・距離cm・時間秒)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: 入力型が不正な場合。
+            ValueError: 要素数が子数と一致しない場合。
+            RuntimeError: 参照が無効、または書込みに失敗した場合。
+        """
+        self._require_valid()
+        _require_bool(uiUnits, "uiUnits")
+        values = tuple(value)
+        if len(values) != self._mplug.numChildren():
+            raise ValueError("Compound plug value length does not match its child count")
+        if fast:
+            if uiUnits:
+                values = _convert_units(self._mplug, values, to_ui=False)
+            set_plug(self._mplug, values)
+        elif self.getType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
+            self._require_writable()
+            Plug._set_value(self, values, uiUnits=uiUnits, fast=fast)
+        else:
+            # 子ごとに書く経路でも、先に全子の書込み可否を検査する。ロック・入力接続の
+            # ある子より前の子だけが書かれて残ることを防ぐ(Double3Plugと同じ)。
+            self._require_writable()
+            if not uiUnits:
+                self._set_child_values(values, writable_checked=True)
+                return
+            for index, child_value in enumerate(values):
+                self._child_at(index).set(child_value, safe=False, uiUnits=uiUnits, fast=fast)
+
     def _set_child_values(self, values, *, writable_checked=False):
         """内部単位の値を、cmdsの経路で定義順に子へ書き込む。
 
@@ -225,10 +199,13 @@ class CompoundPlug(Plug):
             values (tuple): 子数と同じ長さの内部単位の値(距離cm・角度rad・時間秒)。
             writable_checked (bool): Trueは呼出し元が ``_require_writable()`` を確認済み。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            RuntimeError: 子の書込みに失敗した場合。
             TypeError: 子の値の型が不正な場合。
             ValueError: 子の値を変換できない場合。
+            RuntimeError: 子の書込みに失敗した場合。
         """
         mplug = self._mplug
         if self._can_set_at_once(values):
@@ -280,10 +257,10 @@ class CompoundPlug(Plug):
         return True
 
     def _child_at(self, index):
-        """有効性を確かめ済みの前提で、子インデックスの子 Plug を作る。
+        """有効性を確かめ済みの前提で、子番号の子 Plug を作る。
 
         Args:
-            index (int): 子インデックス。
+            index (int): 子番号。
 
         Returns:
             Plug: 子プラグ。

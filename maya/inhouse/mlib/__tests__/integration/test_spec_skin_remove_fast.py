@@ -221,7 +221,7 @@ class RemoveInfluenceFastTest(NamespaceCase):
         before = rig.raw()
         cmds.flushUndo()
         rig.skins[0].removeInfluence(rig.tip, transferToParent=False)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlib.nodes.skinCluster.removeInfluence")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterRemoveInfluence")
         cmds.undo()
         self.assertEqual(rig.raw(), before)
 

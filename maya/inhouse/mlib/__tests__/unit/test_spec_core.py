@@ -126,7 +126,7 @@ class NodeRegistrySpecTest(unittest.TestCase):
         registry = NodeRegistry(self.Fallback)
         registry.register("transform", self.TransformLike)
         self.assertIs(registry.wrapper_class("transform"), self.TransformLike)
-        self.assertIs(registry.get("transform"), self.TransformLike)
+        self.assertIs(registry.wrapper_class("transform"), self.TransformLike)
         self.assertIs(registry.wrapper_class("joint"), self.Fallback)
         self.assertIsNone(registry.lookup("joint"))
         self.assertIs(registry.lookup("transform"), self.TransformLike)
@@ -144,10 +144,12 @@ class NodeRegistrySpecTest(unittest.TestCase):
         self.assertIsNone(registry.lookup("joint"))
 
     def test_validation_and_atomic_replace(self):
-        """キーは空でない文字列、値はクラス。replaceは全件検証し、失敗時は現在の登録を保つ。"""
+        """キーは空でない文字列(非strはTypeError・空はValueError)、値はクラス。replaceは全件検証し、失敗時は現在の登録を保つ。"""
         registry = NodeRegistry(self.Fallback)
-        for key in ("", None, 5):
-            with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError):
+            registry.register("", self.TransformLike)
+        for key in (None, 5):
+            with self.assertRaises(TypeError):
                 registry.register(key, self.TransformLike)
         with self.assertRaises(TypeError):
             registry.register("transform", self.TransformLike())

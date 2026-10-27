@@ -214,6 +214,7 @@ __all__ = [
     "VectorProduct",
 ]
 
+#: Mayaの型名とラッパークラスの明示対応表。
 _WRAPPER_CLASSES = {
     "HIKCharacterNode": HIKCharacterNode,
     "HIKControlSetNode": HIKControlSetNode,

@@ -48,7 +48,7 @@ def getDiagnostics():
     シーン/UIを変更しないことが宣言の契約となる。
 
     Returns:
-        dict[str, dict]: initializationは初期化記録のコピー（未記録ならNone）、availableはbool。
+        dict[str, dict]: initializationは初期化記録のコピー(未記録ならNone)、availableはbool。
             宣言未読込・初期化中・宣言不正・再入・照会失敗ではavailable=Noneで、reasonへ理由を入れる。
             初期化記録と登録表は変更しない。
     """
@@ -101,7 +101,7 @@ def _prepare_reload():
     roots.update(_attempted)
     if _loading or any(getattr(getattr(sys.modules.get(name), "__spec__", None),
                                "_initializing", False) for name in roots):
-        raise RuntimeError("Cannot reload " + _package_name + " while an extension is initializing")
+        raise RuntimeError(f"Cannot reload {_package_name} while an extension is initializing")
     for name in list(sys.modules):
         if name.split(".", 1)[0] in roots:
             del sys.modules[name]
@@ -129,17 +129,21 @@ def _is_available(package):
     return available
 
 
-def _validate_dependencies(name, locations):
+def _require_dependencies(name, locations):
     """拡張のPythonソースにある他拡張へのimportを登録前に拒否する。
 
     Args:
         name (str): 検査する拡張名。
         locations (Iterable[str]): パッケージの親フォルダー。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         ValueError: 他のmlib_*へのimportがある場合。
 
-    動的importまで実行して解析しない。拡張作者は動的importでも同じ規則に従う。
+    Note:
+        動的importまで実行して解析しない。拡張作者は動的importでも同じ規則に従う。
     """
     for location in locations:
         root = Path(location) / name
@@ -158,8 +162,7 @@ def _validate_dependencies(name, locations):
                 for target in imports:
                     package = target.split(".", 1)[0]
                     if package != name and _extension_pattern.fullmatch(package):
-                        raise ValueError("Extensions must not depend on each other: "
-                                         + name + " -> " + package)
+                        raise ValueError(f"Extensions must not depend on each other: {name} -> {package}")
 
 
 def _find_candidates():
@@ -216,15 +219,15 @@ def _load_candidate(name, locations):
         dict | None: 読み飛ばす場合の状態。利用可能な拡張ならNone。
 
     Raises:
+        TypeError: 可用性判定がboolを返さない場合。
         ValueError: 同じ名前の拡張が複数箇所にある場合。
         RuntimeError: 拡張の初期化中に再入した場合。
-        TypeError: 可用性判定がboolを返さない場合。
     """
     if len(locations) != 1:
-        raise ValueError("Duplicate extension package: " + name)
+        raise ValueError(f"Duplicate extension package: {name}")
     previous = sys.modules.get(name)
     if getattr(getattr(previous, "__spec__", None), "_initializing", False):
-        raise RuntimeError("Extension __init__ must not import " + _package_name + " or wrappers; "
+        raise RuntimeError(f"Extension __init__ must not import {_package_name} or wrappers; "
                            "finish its declarations before loading submodules")
     _attempted.add(name)
     package = importlib.import_module(name)
@@ -248,30 +251,32 @@ def _validated_entries(name, bases):
         list[tuple[NodeRegistry, dict[str, type]]]: 登録表と検証済みの型対応。
 
     Raises:
-        ValueError: 型名が不正、または既存登録と衝突する場合。
         TypeError: 宣言・基底型・他拡張からの継承が不正な場合。
+        ValueError: 型名が不正、または既存登録と衝突する場合。
     """
     entries = []
     for suffix, base in bases:
-        if importlib.util.find_spec(name + "." + suffix) is None:
+        if importlib.util.find_spec(f"{name}.{suffix}") is None:
             continue
-        namespace = importlib.import_module(name + "." + suffix)
+        namespace = importlib.import_module(f"{name}.{suffix}")
         # 公開名は拡張の__init__で定義する。ここでは型対応だけを検証する。
         declared = getattr(namespace, "_WRAPPER_CLASSES", {})
         if not isinstance(declared, Mapping):
             raise TypeError("_WRAPPER_CLASSES must be a mapping")
         wrappers = dict(declared)
         for key, cls in wrappers.items():
-            if not isinstance(key, str) or not key:
+            if not isinstance(key, str):
+                raise TypeError("Wrapper type must be a str")
+            if not key:
                 raise ValueError("Wrapper type must be a non-empty string")
             if not isinstance(cls, type) or not issubclass(cls, base):
-                raise TypeError("Invalid wrapper base: " + key)
+                raise TypeError(f"Invalid wrapper base: {key}")
             if any(_extension_pattern.fullmatch(base_cls.__module__.split(".", 1)[0])
                    and base_cls.__module__.split(".", 1)[0] != name
                    for base_cls in cls.__mro__):
                 raise TypeError("Extension wrappers must not inherit from another extension")
             if base._registry.lookup(key) is not None:
-                raise ValueError("Duplicate wrapper type: " + key)
+                raise ValueError(f"Duplicate wrapper type: {key}")
         entries.append((base._registry, wrappers))
     return entries
 
@@ -281,6 +286,9 @@ def _apply_entries(entries):
 
     Args:
         entries (list[tuple[NodeRegistry, dict[str, type]]]): 適用する型対応。
+
+    Returns:
+        None: 値を返さない。
 
     Raises:
         Exception: 復元後、登録中の例外をそのまま再送出する。
@@ -311,7 +319,7 @@ def _initialize():
             try:
                 state = _load_candidate(name, locations)
                 if state is None:
-                    _validate_dependencies(name, locations)
+                    _require_dependencies(name, locations)
                     entries = _validated_entries(name, (("nodes", Node), ("plugs", Plug)))
                     _apply_entries(entries)
                     state = {"state": "loaded", "reason": ""}

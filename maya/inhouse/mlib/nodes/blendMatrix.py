@@ -1,8 +1,6 @@
 """論理番号順にマトリクスをブレンドする。加重平均ではない。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _pick_alias
 from ..maths import Matrix
 from ..util import _ArgumentError, _UNSET
 from ._calculation import _Calculation
@@ -38,14 +36,12 @@ class BlendMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             BlendMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setInput", fast):
             _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
             return self
 
@@ -62,21 +58,9 @@ class BlendMatrix(Node):
         Returns:
             BlendMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectInput", fast):
             _Calculation.connect(source, self.getInputPlug, force=force, fast=fast)
             return self
 
@@ -101,14 +85,12 @@ class BlendMatrix(Node):
 
         Args:
             value (float): 有限な全体ウェイト。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             BlendMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setEnvelope", fast):
             _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug, fast=fast)
             return self
 
@@ -125,21 +107,9 @@ class BlendMatrix(Node):
         Returns:
             BlendMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectEnvelope", fast):
             _Calculation.connect(source, self.getEnvelopePlug, force=force, fast=fast)
             return self
 
@@ -155,18 +125,13 @@ class BlendMatrix(Node):
         """既存ターゲットを参照する。
 
         Args:
-            index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+            index (int): 既存の論理番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             CompoundPlug: ターゲット。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         plug = self.getPlug("target")[_Calculation.index(index)]
         if index not in self.getTargetIndices():
             raise IndexError(f"No target at logical index {index}")
@@ -177,7 +142,7 @@ class BlendMatrix(Node):
         """マトリクスPlugをターゲットへ接続し、その後ウェイトを設定する。
 
         Args:
-            index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
+            index (int): 非負の論理番号。
             source (Plug | str | MPlug): 接続元。
             weight (float): 有限なウェイト。
             force (bool): Trueで既存の入力接続を置き換える。
@@ -201,30 +166,14 @@ class BlendMatrix(Node):
             ``fast=True`` は通常と同じ検証の後、接続とウェイト設定をOpenMayaで直接行う(Undoなし)。
             接続後にウェイト設定が失敗した場合も接続は残り、自動では戻さない。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
-            from ..plugs.plug import Plug as _InputPlug
+        index = _pick_alias(index, idx, "index", "idx")
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectTarget", fast):
+            # plugs は nodes を参照するため、循環importを避けて呼出し時に取得する。
+            from ..plugs.plug import Plug
             index = _Calculation.index(index)
-            source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
+            source, weight = Plug._resolve_input(source), _Calculation.scalar(weight)
             target = self.getPlug("target")[index]
             source.connectTo(target["targetMatrix"], force=force, fast=fast)
             target["weight"].set(weight, fast=fast)
@@ -234,7 +183,7 @@ class BlendMatrix(Node):
         """指定論理番号のターゲット要素を、接続ごと削除する。
 
         Args:
-            index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+            index (int): 既存の論理番号。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
@@ -244,15 +193,8 @@ class BlendMatrix(Node):
         Raises:
             TypeError: fastがbool以外の場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        index = _pick_alias(index, idx, "index", "idx")
+        with _Calculation.edit_context(self, "removeTarget", fast):
             self.getPlug("target").removeElement(_Calculation.index(index), fast=fast)
             return self
 
@@ -260,18 +202,13 @@ class BlendMatrix(Node):
         """ターゲットの評価値を取得する。
 
         Args:
-            index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+            index (int): 既存の論理番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             dict: matrix/weight。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         target = self.getTargetPlug(index)
         return {"matrix": Matrix(target["targetMatrix"].get()), "weight": target["weight"].get()}
 
@@ -281,7 +218,7 @@ class BlendMatrix(Node):
         番号・マトリクス・有限ウェイトを検証してから書き込む。ウェイト設定が失敗しても、先に設定したマトリクスは残る。
 
         Args:
-            index (int): 非負の論理番号。 別名 ``idx`` も使用可能。
+            index (int): 非負の論理番号。
             matrix (Matrix | Iterable[float]): マトリクス。
             weight (float): 有限なウェイト。上限は無い。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -295,20 +232,14 @@ class BlendMatrix(Node):
             ValueError: 番号・マトリクス・ウェイトが不正な場合。
             RuntimeError: ロックや入力接続により設定できない場合。
 
-        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
-        完了済みの直接更新は自動で戻さない。
+        Note:
+            ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
+            完了済みの直接更新は自動で戻さない。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         if matrix is _UNSET:
             raise _ArgumentError("Missing required argument: 'matrix'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setTarget", fast):
             index = _Calculation.index(index)
             matrix, weight = Matrix(matrix), _Calculation.scalar(weight)
             target = self.getPlug("target")[index]

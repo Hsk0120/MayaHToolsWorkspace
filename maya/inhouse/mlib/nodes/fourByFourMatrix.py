@@ -1,9 +1,7 @@
 """個別の16要素からマトリクスを構築する。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
 from ..maths import Matrix
+from ._calculation import _Calculation
 from .node import Node
 
 
@@ -27,14 +25,12 @@ class FourByFourMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): マトリクス。
-            fast (bool): TrueはUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             FourByFourMatrix: 自身。途中の失敗でも先に設定した要素は残る。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setMatrix", fast):
             value = Matrix(value)
             for r in range(4):
                 for c in range(4):

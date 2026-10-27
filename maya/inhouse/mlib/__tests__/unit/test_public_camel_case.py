@@ -54,6 +54,7 @@ class PublicCamelCaseTest(unittest.TestCase):
                             ('core/registry.py', 'NodeRegistry', 'wrapper_class'),
                             ('core/attributeType.py', 'is_internal_data_type', 'is_internal_data_type'),
                             ('core/attributeType.py', 'value_reader', 'value_reader'),
+                            ('core/attributeType.py', 'typed_data', 'typed_data'),
                             ('core/reload.py', 'reload_package', 'reload_package')}:
                         continue
                     if '_' in name:

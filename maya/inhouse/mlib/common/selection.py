@@ -1,7 +1,5 @@
 """ノード・アトリビュート・コンポーネントの取得時点の選択を保持する。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
@@ -11,7 +9,8 @@ from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
-from ..decorator import undoChunk
+from ..core.object import _exists, _selection_component, _selection_plug
+from ..decorator import _edit_context
 from ..nodes.node import Node
 from ..plugs.plug import Plug
 
@@ -44,10 +43,10 @@ class Selection:
             TypeError: 非対応型、またはMesh/NurbsCurve以外のコンポーネントの場合。
             RuntimeError: 名前が解決できない場合。
 
-        ノード名だけの文字列(「.」・ワイルドカードを含まないもの)は1つの選択リストへまとめて
-        解決するが、対応付けは文字列の順に行うため、保持順と重複の除き方は名前ごとの解決と同じ。
+        Note:
+            ノード名だけの文字列(「.」・ワイルドカードを含まないもの)は1つの選択リストへまとめて
+            解決するが、対応付けは文字列の順に行うため、保持順と重複の除き方は名前ごとの解決と同じ。
         """
-        from ..plugs.plug import Plug as _InputPlug
         singles = (
             str,
             Node,
@@ -87,7 +86,7 @@ class Selection:
             elif isinstance(item, om2.MSelectionList):
                 resolved.extend(self._resolve(item))
             elif isinstance(item, om2.MPlug):
-                resolved.append(_InputPlug._resolve_input(item))
+                resolved.append(Plug._resolve_input(item))
             elif isinstance(item, (om2.MObject, om2.MDagPath)):
                 resolved.append(Node(item))
             else:
@@ -230,19 +229,17 @@ class Selection:
         Args:
             mode (str): replaceは置換、addは追加、removeは除外。
             missing (str): skipは無効対象を除外、errorは変更前に例外。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Selection: 自身。空集合はreplaceだけ選択を解除する。
 
         Raises:
-            TypeError: fastがboolでない場合。
+            TypeError: fastがbool以外の場合。
             ValueError: modeまたはmissingが未対応の場合。
             RuntimeError: missingがerrorで対象が削除済みの場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibSelectionSelect"):
+        with _edit_context("mlibSelectionSelect", fast):
             if mode not in ("replace", "add", "remove"):
                 raise ValueError("mode must be replace, add or remove")
             names = self._names(missing)
@@ -272,28 +269,20 @@ class Selection:
         Returns:
             list[Node | Plug | Component]: 選択要素の順序を維持した単数参照の列。
         """
-        from ..nodes.node import Node as _InputNode
         result = []
         for index in range(selection.length()):
-            try:
-                plug = selection.getPlug(index)
-            except (RuntimeError, TypeError):
-                plug = None
-            if plug is not None and not plug.isNull:
+            plug = _selection_plug(selection, index)
+            if plug is not None:
                 # インスタンス化されたノードのアトリビュートは、選択されたインスタンスのノードを所有ノードにする。
                 hint = name if selection.length() == 1 else None
-                mobject, path = _InputNode._selection_owner(selection, index, hint, plug=True)
+                mobject, path = Node._selection_owner(selection, index, hint, plug=True)
                 result.append(Plug(Node(path if path is not None else mobject), plug))
                 continue
-            try:
-                path, component = selection.getComponent(index)
-            except (RuntimeError, TypeError):
-                result.append(Node(selection.getDependNode(index)))
+            found = _selection_component(selection, index)
+            if found is None:
+                result.append(Node(_selection_node(selection, index)))
                 continue
-            if component.isNull():
-                result.append(Node(path))
-                continue
-            result.extend(Component._from_api(path, component))
+            result.extend(Component._from_api(*found))
         return result
 
     def _valid(self, item):
@@ -335,23 +324,20 @@ class Selection:
         return names
 
 
-def _exists(name):
-    """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
-
-    一意な完全名に対しては ``cmds.objExists`` と同じ結果になる(範囲外のコンポーネント番号や
-    配列の未作成要素も True)。
+def _selection_node(selection, index):
+    """選択リストのノード要素を、DAGノードは選択されたインスタンスのDAGパスで取得する。
 
     Args:
-        name (str): 調べる完全名。
+        selection (om2.MSelectionList): 選択リスト。
+        index (int): 要素の番号。
 
     Returns:
-        bool: 選択リストへ追加できた場合 True。
+        om2.MDagPath | om2.MObject: DAGノードならDAGパス、DGノードならMObject。
     """
-    try:
-        om2.MSelectionList().add(name)
-    except RuntimeError:
-        return False
-    return True
+    node = selection.getDependNode(index)
+    if node.hasFn(om2.MFn.kDagNode):
+        return selection.getDagPath(index)
+    return node
 
 
 def _set_active_selection(names, mode, noExpand=False):
@@ -367,6 +353,9 @@ def _set_active_selection(names, mode, noExpand=False):
         mode (int): ``om2.MGlobal`` の kReplaceList・kAddToList・kAddToHeadOfList・kRemoveFromList。
         noExpand (bool): Falseでセットが含まれる場合は、cmdsがメンバーへ展開するため未対応とする。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         ValueError: 名前が見つからない場合(``cmds.select`` と同じ型)。
         NotImplementedError: noExpandがFalseで、対象にセットが含まれる場合。
@@ -377,7 +366,7 @@ def _set_active_selection(names, mode, noExpand=False):
         try:
             items.add(name)
         except RuntimeError:
-            raise ValueError("No object matches name: " + name) from None
+            raise ValueError(f"No object matches name: {name}") from None
         for index in range(items.length()):
             _append_selection_item(selection, items, index, noExpand)
     om2.MGlobal.setActiveSelectionList(selection, mode)
@@ -392,34 +381,30 @@ def _append_selection_item(selection, items, index, noExpand):
         index (int): itemsの要素番号。
         noExpand (bool): Falseでセットを未対応とする。
 
+    Returns:
+        None: 値を返さない。
+
     Raises:
         NotImplementedError: noExpandがFalseで、要素がセットの場合。
     """
-    try:
-        plug = items.getPlug(index)
-    except (RuntimeError, TypeError):
-        plug = None
-    if plug is not None and not plug.isNull:
+    plug = _selection_plug(items, index)
+    if plug is not None:
         selection.add(plug, False)
         return
-    try:
-        path, component = items.getComponent(index)
-    except (RuntimeError, TypeError):
-        node = items.getDependNode(index)
-        if not noExpand and node.hasFn(om2.MFn.kSet):
+    found = _selection_component(items, index)
+    if found is None:
+        node = _selection_node(items, index)
+        if isinstance(node, om2.MObject) and not noExpand and node.hasFn(om2.MFn.kSet):
             raise NotImplementedError("fast select does not expand sets; use noExpand=True")
         selection.add(node, False)
         return
-    if component.isNull():
-        selection.add(path, False)
-        return
+    path, component = found
     last = selection.length() - 1
     if last >= 0:
-        try:
-            last_path, last_component = selection.getComponent(last)
-        except (RuntimeError, TypeError):
-            last_path = last_component = None
-        if (last_component is not None and not last_component.isNull() and last_path == path
+        last_found = _selection_component(selection, last)
+        if last_found is not None:
+            last_path, last_component = last_found
+        if (last_found is not None and last_path == path
                 and last_component.apiType() == component.apiType()):
             merged = om2.MSelectionList()
             merged.add((last_path, last_component))
@@ -463,7 +448,6 @@ def _resolve_names(names, plugs=False):
         list[tuple | None]: names と同じ長さの列。対応付けた名前は
             ``(MObject, MDagPath | None, MPlug | None)`` (DG ノードの DAG パスと、ノード名の MPlug は None)。
     """
-    from ..nodes.node import Node as _InputNode
     result = [None] * len(names)
     selection = om2.MSelectionList()
     for start in range(0, len(names), _NAME_CHUNK):
@@ -483,15 +467,12 @@ def _resolve_names(names, plugs=False):
         for position, index in added:
             name = names[position]
             if plugs:
-                try:
-                    mplug = selection.getPlug(index)
-                except (RuntimeError, TypeError):
+                mplug = _selection_plug(selection, index)
+                if mplug is None:
                     continue
-                if mplug.isNull:
-                    continue
-                mobject, dag_path = _InputNode._selection_owner(selection, index, name, plug=True)
+                mobject, dag_path = Node._selection_owner(selection, index, name, plug=True)
                 result[position] = (mobject, dag_path, mplug)
             else:
-                mobject, dag_path = _InputNode._selection_owner(selection, index, name)
+                mobject, dag_path = Node._selection_owner(selection, index, name)
                 result[position] = (mobject, dag_path, None)
     return result

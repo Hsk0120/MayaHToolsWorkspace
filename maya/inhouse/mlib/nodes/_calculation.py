@@ -2,9 +2,31 @@
 
 import math
 
+from ..decorator import _edit_context, _require_bool
+
 
 class _Calculation:
     """Mayaノード継承を変更せず共有する内部操作。"""
+
+    @staticmethod
+    def edit_context(node, method, fast):
+        """計算ノードの書込みメソッドを包むUndo文脈を返す。
+
+        Undoチャンク名は ``"mlib" + type(node).__name__ + <Method>`` とし、Undoキューで
+        ノード型とメソッドを区別できるようにする。
+
+        Args:
+            node (Node): 書込み対象の計算ノード。
+            method (str): 呼出し元の公開メソッド名(lowerCamelCase)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            contextlib.AbstractContextManager: fastはnullcontext、通常はundoChunk。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+        """
+        return _edit_context(f"mlib{type(node).__name__}{method[:1].upper()}{method[1:]}", fast)
 
     @staticmethod
     def set_value(value, validator, target, *indices, fast=False):
@@ -16,6 +38,9 @@ class _Calculation:
             target (callable): ノード固有のPlug取得メソッド。
             *indices: Plug取得に渡す番号。
             fast (bool): Trueは対象PlugをOpenMayaで更新する。
+
+        Returns:
+            None: 値を返さない。
 
         Note:
             値の検証を先に行い、不正値による対象解決を避ける。
@@ -33,7 +58,10 @@ class _Calculation:
             target (callable): ノード固有のPlug取得メソッド。
             *indices: Plug取得に渡す番号。
             force (bool): 既存接続を置き換えるか。
-            fast (bool): Trueは接続をOpenMayaで行う(Undoなし)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            None: 値を返さない。
 
         Note:
             接続方向とロック処理はPlug.connectToへ委譲する。
@@ -41,8 +69,8 @@ class _Calculation:
             Undoチャンクは呼出元で管理し、fastは接続へ明示的に渡す。
         """
         # 計算ノード側からPlugを参照するため、循環importを避けて遅延importする。
-        from ..plugs.plug import Plug as _InputPlug
-        source = _InputPlug._resolve_input(source)
+        from ..plugs.plug import Plug
+        source = Plug._resolve_input(source)
         source.connectTo(target(*indices), force=force, fast=fast)
 
     @staticmethod
@@ -61,7 +89,7 @@ class _Calculation:
         """
         from ..plugs.arrayPlug import ArrayPlug
         try:
-            ArrayPlug._validate_index(value)
+            ArrayPlug._validated_logical_index(value)
         except (TypeError, IndexError):
             raise ValueError("Expected an integer index in 0..2147483647") from None
         if allowed is not None and value not in allowed:
@@ -118,8 +146,7 @@ class _Calculation:
         Raises:
             TypeError: bool以外の場合。
         """
-        if type(value) is not bool:
-            raise TypeError("Expected bool")
+        _require_bool(value, "value")
         return value
 
     @staticmethod
@@ -174,17 +201,18 @@ class _Calculation:
             TypeError: シェイプ型が異なる場合。
             ValueError: Transformの対象シェイプが一意でない場合。
         """
-        from .node import Node as _InputNode
+        # transform は計算ノードの基底を参照するため、循環importを避けて呼出し時に取得する。
+        from .node import Node
         from .transform import Transform
         _Calculation.boolean(world_space)
-        node = _InputNode._resolve_input(value)
+        node = Node._resolve_input(value)
         if isinstance(node, Transform):
             shapes = [s for s in node.getShapes() if s.isType(node_type)]
             if len(shapes) != 1:
                 raise ValueError("Expected exactly one matching shape")
             node = shapes[0]
         if not node.isType(node_type):
-            raise TypeError("Expected a " + node_type)
+            raise TypeError(f"Expected a {node_type}")
         if world_space:
             # 接続時に実体化する。参照の取得では未評価worldSpace要素を作成しない。
             return node.getPlug("worldSpace")[node.mpath().instanceNumber()]

@@ -1,10 +1,9 @@
 """逆マトリクスを計算する。Maya付属matrixNodesの明示的なロードが必要。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _pick_alias
 from ..maths import Matrix
-from ..util import _ArgumentError, _UNSET
+from ..util import _UNSET
+from ._calculation import _Calculation
 from .THdependNode import THDependNode
 
 
@@ -36,14 +35,12 @@ class InverseMatrix(THDependNode):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             InverseMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setInput", fast):
             value = Matrix(value)
             self.getInputPlug().set(value, fast=fast)
             return self
@@ -61,23 +58,12 @@ class InverseMatrix(THDependNode):
         Returns:
             InverseMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
-            from ..plugs.plug import Plug as _InputPlug
-            _InputPlug._resolve_input(source).connectTo(self.getInputPlug(), force=force, fast=fast)
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectInput", fast):
+            # plugs は nodes を参照するため、循環importを避けて呼出し時に取得する。
+            from ..plugs.plug import Plug
+            Plug._resolve_input(source).connectTo(self.getInputPlug(), force=force, fast=fast)
             return self
 
     def getOutputPlug(self):

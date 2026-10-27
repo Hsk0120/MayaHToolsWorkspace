@@ -1,12 +1,13 @@
 """クラスに属さない汎用関数と、数学値・空間指定の内部補助を提供する。
 
 公開関数は名前の整形・操作の計測・ミラー入力の検証を扱う。
-型の添字・比較・派生状態の複製と空間指定の検証は、先頭_の内部関数へ分ける。
+型の番号・比較・派生状態の複製と空間指定の検証は、先頭 ``_`` の内部関数へ分ける。
 """
 
 import copy
 import copyreg
 import math
+import numbers
 import string
 import time
 from operator import index as _as_index
@@ -59,9 +60,7 @@ def legalizeName(name):
         'rig:_2nd_joint'
     """
     if not isinstance(name, str):
-        raise TypeError(
-            f"name には str を指定してください(受け取った型: {type(name).__name__})"
-        )
+        raise TypeError(f"name must be a str, not {type(name).__name__}")
     text = name.strip()
     segments = []
     for part in text.split(_SEPARATOR):
@@ -168,29 +167,28 @@ def _clean_segment(segment):
 
 
 def _checked_index(index, size, name):
-    """添字を検査し、0〜size-1 へ正規化する。
+    """番号を検査し、0〜size-1 へ正規化する。
 
-    om2 の添字は負の範囲外の値を検査しない(Python が長さを1回だけ足して渡すため、
+    om2 の番号は負の範囲外の値を検査しない(Python が長さを1回だけ足して渡すため、
     MVector の ``v[-4]`` が最後の成分を返し、MMatrix の -17 以下は範囲外のメモリを
     読み書きする)ため、om2 へ渡す前に必ずここで検査する。
 
     Args:
-        index (int): 添字。負の値は末尾から数える。
+        index (int): 番号。負の値は末尾から数える。
         size (int): 要素数。
         name (str): 例外メッセージに使う型名。
 
     Returns:
-        int: 0〜size-1 の添字。
+        int: 0〜size-1 の番号。
 
     Raises:
-        IndexError: 範囲外の場合。
         TypeError: 整数として扱えない場合。
+        IndexError: 範囲外の場合。
     """
     try:
         position = _as_index(index)
     except TypeError:
-        raise TypeError("{} indices must be integers or slices, not {}".format(
-            name, type(index).__name__)) from None
+        raise TypeError(f"{name} indices must be integers or slices, not {type(index).__name__}") from None
     if position < 0:
         position += size
     if not 0 <= position < size:
@@ -335,8 +333,116 @@ def _world_space(value):
         bool: 検証済みの指定。
 
     Raises:
-        ValueError: bool以外を指定した場合。
+        TypeError: bool以外を指定した場合。
     """
     if type(value) is not bool:
-        raise ValueError("worldSpace (ws) must be a bool")
+        raise TypeError("worldSpace (ws) must be a bool")
     return value
+
+
+def _finite(value, name):
+    """有限な実数を検証し、floatへ変換する。
+
+    Args:
+        value (numbers.Real): 検証する値。boolは数値として受け付けない。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        float: 変換済みの値。
+
+    Raises:
+        TypeError: 実数以外(boolを含む)の場合。
+        ValueError: 無限大・NaNの場合。
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real):
+        raise TypeError(f"{name} must be a number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError(f"{name} must be finite")
+    return result
+
+
+def _finite_vector(value, size, name):
+    """成分数の決まった有限な実数列を検証し、floatのtupleへ変換する。
+
+    Args:
+        value (Iterable[numbers.Real]): 検証する成分列。
+        size (int): 期待する成分数。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[float, ...]: 変換済みの成分。
+
+    Raises:
+        TypeError: 反復できない値、または成分に実数以外(boolを含む)がある場合。
+        ValueError: 成分数が異なる、または無限大・NaNの成分がある場合。
+    """
+    try:
+        items = tuple(value)
+    except TypeError:
+        raise TypeError(f"{name} must be a sequence of {size} numbers") from None
+    if len(items) != size:
+        raise ValueError(f"{name} must have {size} components")
+    return tuple(_finite(item, name) for item in items)
+
+
+def _checked_tolerance(value, *, positive=False):
+    """許容誤差を検証し、floatへ変換する。
+
+    Args:
+        value (numbers.Real): 許容誤差。
+        positive (bool): Trueなら0を拒否し、正の値だけを受け付ける。既定は0以上。
+
+    Returns:
+        float: 変換済みの許容誤差。
+
+    Raises:
+        TypeError: 実数以外(boolを含む)の場合。
+        ValueError: 無限大・NaN・負、またはpositive=Trueで0の場合。
+    """
+    result = _finite(value, "tolerance")
+    if positive and result <= 0:
+        raise ValueError("tolerance must be positive")
+    if result < 0:
+        raise ValueError("tolerance must be non-negative")
+    return result
+
+
+def _unique_ordered(items, key=None):
+    """最初の出現順を保ったまま重複を除く。
+
+    Args:
+        items (Iterable[object]): 要素列。keyを省略する場合はハッシュ可能な要素。
+        key (callable | None): 重複判定に使うキーを返す関数。Noneは要素自身。
+
+    Returns:
+        list: 最初の出現順を維持した要素。
+    """
+    seen = set()
+    result = []
+    for item in items:
+        marker = item if key is None else key(item)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        result.append(item)
+    return result
+
+
+def _rethrow_init_error(cls, error):
+    """キーワード解析のTypeErrorを、構築中のクラス名を先頭にした文言で送り直す。
+
+    maths の ``__init__`` が ``_vector_keywords`` 等の補助関数から受けた
+    ``"<helper>() <理由>"`` 形式のメッセージを、``"<Class>() <理由>"`` に書き換える。
+
+    Args:
+        cls (type): 構築中のクラス。
+        error (TypeError): 補助関数が送出した例外。
+
+    Returns:
+        NoReturn: 正常には戻らない。
+
+    Raises:
+        TypeError: 書き換えたメッセージの例外。元の例外は連鎖しない。
+    """
+    raise TypeError(f"{cls.__name__}() {str(error).split('() ', 1)[-1]}") from None

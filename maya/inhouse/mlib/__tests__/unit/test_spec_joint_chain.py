@@ -45,7 +45,7 @@ class ReparentChildrenTest(_SpecCase):
     def test_normal_and_undo(self):
         """子 joint だけを移して位置を保ち、inverseScale を新しい親へつなぐ。1回の Undo で戻る。"""
         cmds.flushUndo()
-        self.assertIsNone(self.node.reparentChildren(self.d))
+        self.assertEqual(self.node.reparentChildren(self.d), self.node)
         self.assertEqual(self.children(self.b), ["extra"])
         self.assertEqual(self.children(self.d), ["c"])
         self.assertEqual(cmds.xform(self.c, query=True, worldSpace=True, translation=True), [2.0, 0.0, 0.0])
@@ -73,7 +73,8 @@ class ReparentChildrenTest(_SpecCase):
         self.assertEqual(self.children(self.b), ["c", "extra"])
         with self.assertRaisesRegex(TypeError, "fast must be a bool"):
             self.node.reparentChildren(self.d, fast=1)
-        self.assertIsNone(Node(self.d).reparentChildren(self.a))
+        joint = Node(self.d)
+        self.assertEqual(joint.reparentChildren(self.a), joint)
         self.assertEqual(self.children(self.a), ["b"])
 
 
@@ -183,7 +184,7 @@ class IkHandleTest(_SpecCase):
     def test_deleted_handle(self):
         """削除済みのハンドルの getJoints は RuntimeError。"""
         cmds.delete(self.handle)
-        with self.assertRaisesRegex(RuntimeError, "invalid IK handle"):
+        with self.assertRaisesRegex(RuntimeError, r"invalid IkHandle"):
             self.node.getJoints()
 
 

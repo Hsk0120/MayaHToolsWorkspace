@@ -319,8 +319,8 @@ class SelectFastTest(_FastCase):
             selection.select(fast="yes")
 
     def test_exists_matches_obj_exists(self):
-        """選択・ドリブンキーの存在確認は cmds.objExists と同じ結果になる。"""
-        from mlib.common import drivenKey, selection
+        """選択の存在確認(core.object._exists)は cmds.objExists と同じ結果になる。"""
+        from mlib.core.object import _exists
 
         shape = cmds.listRelatives(self.cube, shapes=True, fullPath=True)[0]
         curve_shape = cmds.listRelatives(self.curve, shapes=True, fullPath=True)[0]
@@ -332,8 +332,7 @@ class SelectFastTest(_FastCase):
                  node + ".arr[5]", node + ".worldMatrix[3]", node, node + "|nope", "|" + self.ns + ":missing"]
         for name in names:
             with self.subTest(name=name):
-                self.assertEqual(selection._exists(name), cmds.objExists(name))
-                self.assertEqual(drivenKey._exists(name), cmds.objExists(name))
+                self.assertEqual(_exists(name), cmds.objExists(name))
 
 
 class MatchTransformFastTest(_FastCase):
@@ -419,7 +418,7 @@ class MatchTransformFastTest(_FastCase):
         before = self.snapshot(source)
         cmds.flushUndo()
         mlib.getNode(source).matchTransform(target, pivots=True)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibTransformMatch")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibTransformMatchTransform")
         cmds.undo()
         self.assertSequenceAlmostEqual(self.snapshot(source), before)
 

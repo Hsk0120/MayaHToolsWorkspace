@@ -1,10 +1,16 @@
-"""Undoチャンクと、Mayaの単位・選択・スキン・表示状態の一時変更を提供する。"""
+"""Undoチャンクと、Mayaの単位・選択・スキン・表示状態の一時変更を提供する。
+
+公開6入口のほかに、fast/safeの状態管理とフラグ正規化の内部補助(先頭 ``_``)を集約する。
+"""
 
 import contextlib
 from contextvars import ContextVar
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+
+from . import logger
+from .util import _ArgumentError, _UNSET
 
 __all__ = ["nativeUnits", "preservedSelection", "preservedSkinShape", "undoChunk", "undoTransaction", "viewportOff"]
 
@@ -77,7 +83,6 @@ class _UndoChunk(contextlib.ContextDecorator):
             try:
                 cmds.undoInfo(closeChunk=True)
             except Exception as exc:
-                from . import logger
                 logger.warning("Undo chunk close failed: %s", exc)
         return False
 
@@ -100,6 +105,123 @@ def _undo_recording():
     if _chunk_active.get() is True:
         return True
     return bool(cmds.undoInfo(query=True, state=True))
+
+
+def _require_bool(value, name):
+    """bool型の引数を検証する。
+
+    Args:
+        value (bool): 検証する値。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        bool: 検証済みの値。
+
+    Raises:
+        TypeError: bool以外の場合。
+    """
+    if type(value) is not bool:
+        raise TypeError(f"{name} must be a bool")
+    return value
+
+
+def _pick_alias(long, short, longName, shortName, default=_UNSET):
+    """長短の別名引数から指定された値を選ぶ。
+
+    Args:
+        long (object): 長名側の値。未指定は ``_UNSET``。
+        short (object): 短名側の値。未指定は ``_UNSET``。
+        longName (str): 長名の引数名。例外メッセージに使う。
+        shortName (str): 短名の引数名。例外メッセージに使う。
+        default (object): 両方未指定のときに返す値。``_UNSET`` なら必須引数として拒否する。
+
+    Returns:
+        object: 指定された値、または既定値。
+
+    Raises:
+        TypeError: 長短を同時に指定した場合、または既定値が無く両方未指定の場合
+            (いずれも ``_ArgumentError``)。
+    """
+    if short is not _UNSET:
+        if long is not _UNSET:
+            raise _ArgumentError(f"Specify only one of '{longName}' and '{shortName}'")
+        return short
+    if long is not _UNSET:
+        return long
+    if default is _UNSET:
+        raise _ArgumentError(f"Missing required argument: '{longName}'")
+    return default
+
+
+def _merge_flags(kwargs, pairs):
+    """長短の別名で受けたcmdsのフラグ群を、指定分だけ長名で辞書へ詰める。
+
+    Args:
+        kwargs (dict): 詰める先。Mayaコマンドへ ``**kwargs`` で渡す辞書。
+        pairs (Iterable[tuple[object, object, str, str]]): (長名の値, 短名の値, 長名, 短名) の列。
+            未指定の値は ``_UNSET``。
+
+    Returns:
+        dict: 渡されたkwargs自身。省略したフラグは追加しない。
+
+    Raises:
+        TypeError: 同じフラグの長短を同時に指定した場合(``_ArgumentError``)。
+    """
+    for long, short, long_name, short_name in pairs:
+        if short is not _UNSET:
+            if long is not _UNSET:
+                raise _ArgumentError(f"Specify only one of '{long_name}' and '{short_name}'")
+            kwargs[long_name] = short
+        elif long is not _UNSET:
+            kwargs[long_name] = long
+    return kwargs
+
+
+def _validated_flags(locked=None, keyable=None, channelBox=None):
+    """アトリビュートの状態値を全件検証し、Mayaのフラグ名へ変換する。
+
+    Args:
+        locked (bool | None): ロック状態。Noneは変更しない。
+        keyable (bool | None): キー可能状態。
+        channelBox (bool | None): Channel Box表示状態。
+
+    Returns:
+        dict[str, bool]: 指定されたMayaフラグ(``lock``・``keyable``・``channelBox``)だけを含む辞書。
+
+    Raises:
+        TypeError: boolまたはNone以外の状態がある場合。
+    """
+    flags = {}
+    for name, value in (("lock", locked), ("keyable", keyable), ("channelBox", channelBox)):
+        if value is not None:
+            if type(value) is not bool:
+                raise TypeError(f"{name} must be a bool or None")
+            flags[name] = value
+    return flags
+
+
+def _edit_context(name, fast, *, transaction=False):
+    """fastを検証し、書込みメソッドの本体を包むUndo文脈を返す。
+
+    ``with _edit_context("mlibClassMethod", fast):`` の形で、fastの定型
+    (``nullcontext() if fast else undoChunk(name)``)を1行にする。
+
+    Args:
+        name (str): 通常経路のUndoチャンク名(``mlib<Class><Method>``)。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+        transaction (bool): Trueなら通常経路に ``undoTransaction`` を使う
+            (Undo無効時に拒否する必要がある構築処理用)。既定は ``undoChunk``。
+
+    Returns:
+        contextlib.AbstractContextManager: fastはnullcontext、通常はundoChunkまたはundoTransaction。
+
+    Raises:
+        TypeError: fastがbool以外の場合。
+    """
+    _require_bool(fast, "fast")
+    if fast:
+        return contextlib.nullcontext()
+    return undoTransaction(name) if transaction else undoChunk(name)
 
 
 def undoChunk(name=None):
@@ -166,22 +288,18 @@ def undoTransaction(name=None):
             guard_created = True
             cmds.delete(guard)
         except Exception as exc:
-            from . import logger
             logger.warning("Undo guard creation failed: %s", exc)
         try:
             cmds.undoInfo(closeChunk=True)
             closed = True
         except Exception as exc:
-            from . import logger
             logger.warning("Undo chunk close failed: %s", exc)
         if guard_created and closed:
             try:
                 cmds.undo()
             except Exception as exc:
-                from . import logger
                 logger.warning("Undo rollback failed: %s", exc)
         else:
-            from . import logger
             logger.warning("Undo rollback skipped: guard creation or chunk close did not succeed")
         raise
     else:
@@ -246,7 +364,6 @@ def preservedSkinShape(joints):
     Yields:
         SkinClusters: 保護対象のコレクション。
     """
-    from . import logger
     from .nodes.joint import Joints
 
     skins = Joints(joints).getSkinClusters()
@@ -258,12 +375,12 @@ def preservedSkinShape(joints):
             try:
                 previous_modes[name] = bool(cmds.skinCluster(name, query=True, moveJointsMode=True))
             except RuntimeError as exc:
-                logger.warning("スキン保護のモード照会に失敗しました: %s (%s)", name, exc)
+                logger.warning("Skin shape protection could not query moveJointsMode: %s (%s)", name, exc)
                 continue
             try:
                 cmds.skinCluster(name, edit=True, moveJointsMode=True)
             except RuntimeError as exc:
-                logger.warning("スキン保護のモード切替に失敗しました: %s (%s)", name, exc)
+                logger.warning("Skin shape protection could not enable moveJointsMode: %s (%s)", name, exc)
                 continue
         try:
             yield skins
@@ -272,12 +389,12 @@ def preservedSkinShape(joints):
                 try:
                     cmds.skinCluster(name, edit=True, recacheBindMatrices=True)
                 except RuntimeError as exc:
-                    logger.warning("スキン保護のバインド行列再キャッシュに失敗しました: %s (%s)", name, exc)
+                    logger.warning("Skin shape protection could not recache bind matrices: %s (%s)", name, exc)
             for name, state in previous_modes.items():
                 try:
                     cmds.skinCluster(name, edit=True, moveJointsMode=state)
                 except RuntimeError as exc:
-                    logger.warning("スキン保護のモード復元に失敗しました: %s (%s)", name, exc)
+                    logger.warning("Skin shape protection could not restore moveJointsMode: %s (%s)", name, exc)
 
 
 @contextlib.contextmanager

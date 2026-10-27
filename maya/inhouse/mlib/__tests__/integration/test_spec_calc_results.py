@@ -352,7 +352,7 @@ class BlendMatrixTest(_ResultCase):
         """setTarget・removeTarget・connectTargetはそれぞれ1回のUndoで戻る。"""
         node = mlib.createNode("blendMatrix")
         node.setTarget(1, _trs((1, 0, 0)), 0.4)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibCalculationEdit")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibBlendMatrixSetTarget")
         cmds.undo()
         self.assertEqual(node.getTargetIndices(), [])
         cmds.redo()

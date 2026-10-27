@@ -3,9 +3,9 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoTransaction
+from ..decorator import _pick_alias, undoTransaction
 from ..plugs.plug import Plug
-from ..util import _ArgumentError, _UNSET
+from ..util import _UNSET
 from .node import Node, Nodes, _resolve_node
 
 
@@ -44,7 +44,7 @@ class _ContainerMixin:
         Returns:
             Container: 呼び出したクラスの新しい所有ノード(DagContainer.create は DagContainer)。
         """
-        with undoTransaction("mlib." + cls.__name__ + ".create"):
+        with undoTransaction("mlib" + cls.__name__ + "Create"):
             container = cls(cmds.container(name=name, **cls._CONTAINER_FLAGS))
             if members:
                 container.addMembers(members)
@@ -62,7 +62,7 @@ class _ContainerMixin:
         # Node(obj)と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
         return [Node._wrap_resolved(*_resolve_node(obj)) for obj in om2.MFnContainerNode(self.mnode()).getMembers()]
 
-    @undoTransaction("mlib.Container.add")
+    @undoTransaction("mlibContainerAddMembers")
     def addMembers(self, *members):
         """指定ノードを所有下へ追加する。別containerからは強制移動しない。
 
@@ -75,7 +75,7 @@ class _ContainerMixin:
         nodes = Nodes._resolve_inputs(members)
         if nodes:
             cmds.container(
-                self.getFullName(), edit=True, addNode=[Node(n).getFullName() for n in nodes]
+                self.getFullName(), edit=True, addNode=[Node._resolve_input(n).getFullName() for n in nodes]
             )
         return self
 
@@ -87,7 +87,7 @@ class _ContainerMixin:
 
         Args:
             *members (Node | str | Iterable[Node]): 解除するメンバー。
-            force (bool): Trueなら全containerから解除する。ロック解除ではない。 別名 ``f`` も使用可能。
+            force (bool): Trueなら全containerから解除する。ロック解除ではない。別名 ``f`` も使用可能。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
@@ -96,24 +96,19 @@ class _ContainerMixin:
         Raises:
             ValueError: 未所属ノードを含む場合。
         """
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if force is _UNSET:
-            force = False
-        with undoTransaction("mlib.Container.removeMembers"):
-            nodes = [Node(node) for node in Nodes._resolve_inputs(members)]
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with undoTransaction("mlibContainerRemoveMembers"):
+            nodes = [Node._resolve_input(node) for node in Nodes._resolve_inputs(members)]
             # Nodeの等価なら__hash__も等しいため、集合での所属判定はリストの`in`と同じ結果になる。
             current = set(self.getMembers())
             if any(node not in current for node in nodes):
-                raise ValueError("このcontainerに所属していないノードが含まれています。")
+                raise ValueError("nodes must all be members of this container")
             if nodes:
                 cmds.container(self.getFullName(), edit=True,
                                removeNode=[node.getFullName() for node in nodes], force=force)
             return self
 
-    @undoTransaction("mlib.Container.createNode")
+    @undoTransaction("mlibContainerCreateNode")
     def createNode(self, type, name=None):
         """標準ノードを生成し所有下へまとめる。
 
@@ -132,7 +127,7 @@ class _ContainerMixin:
         self.addMembers(node)
         return node
 
-    @undoTransaction("mlib.Container.removeContainer")
+    @undoTransaction("mlibContainerRemoveContainer")
     def removeContainer(self):
         """直接メンバーの所属を外してから、container自身を解除する。
 
@@ -151,7 +146,7 @@ class _ContainerMixin:
                            removeNode=[node.getFullName() for node in members])
         cmds.container(self.getFullName(), edit=True, removeContainer=True)
 
-    @undoTransaction("mlib.Container.publishName")
+    @undoTransaction("mlibContainerPublishName")
     def publishName(self, name):
         """未Bindの公開名を作る。
 
@@ -162,7 +157,7 @@ class _ContainerMixin:
             str: 作成した公開名。
         """
         if name in self.getPublishedAttrs():
-            raise ValueError("既に公開されている名前です: " + name)
+            raise ValueError(f"Published name already exists: {name}")
         result = cmds.container(self.getFullName(), edit=True, publishName=name)
         return result[0] if isinstance(result, (list, tuple)) else result
 
@@ -183,7 +178,7 @@ class _ContainerMixin:
             result[name] = Plug._resolve_input(plug)
         return result
 
-    @undoTransaction("mlib.Container.bindAttribute")
+    @undoTransaction("mlibContainerBindAttr")
     def bindAttr(self, name, plug):
         """未Bindの公開名へ内部PlugをBindする。
 
@@ -199,14 +194,14 @@ class _ContainerMixin:
         """
         published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
-            raise ValueError("未Bindの公開名を指定してください: " + name)
+            raise ValueError(f"Expected an unbound published name: {name}")
         plug = Plug._resolve_input(plug)
         if plug.getNode() not in self.getMembers():
-            raise ValueError("所属ノードのアトリビュートを指定してください。")
+            raise ValueError("plug must belong to a member node")
         cmds.container(self.getFullName(), edit=True, bindAttr=(plug.getFullName(), name))
         return plug
 
-    @undoTransaction("mlib.Container.publishAndBind")
+    @undoTransaction("mlibContainerPublishAndBind")
     def publishAndBind(self, name, plug):
         """公開名を作成し、内部PlugへBindする。
 
@@ -221,14 +216,14 @@ class _ContainerMixin:
             ValueError: nameが既存の公開名、またはPlugの所有ノードが直接メンバーでない場合。
         """
         if name in self.getPublishedAttrs():
-            raise ValueError("既に公開されている名前です: " + name)
+            raise ValueError(f"Published name already exists: {name}")
         plug = Plug._resolve_input(plug)
         if plug.getNode() not in self.getMembers():
-            raise ValueError("所属ノードのアトリビュートを指定してください。")
+            raise ValueError("plug must belong to a member node")
         cmds.container(self.getFullName(), edit=True, publishAndBind=(plug.getFullName(), name))
         return plug
 
-    @undoTransaction("mlib.Container.unbindAttribute")
+    @undoTransaction("mlibContainerUnbindAttr")
     def unbindAttr(self, name):
         """対応付けだけを解除し、公開名を残す。
 
@@ -236,17 +231,17 @@ class _ContainerMixin:
             name (str): Bind済みの公開名。
 
         Returns:
-            None: 値は返さない。
+            None: 値を返さない。
 
         Raises:
             ValueError: nameが公開名でない、または未Bindの場合。何も変更しない。
         """
         plug = self.getPublishedAttrs().get(name)
         if plug is None:
-            raise ValueError("Bind済みの公開名を指定してください: " + name)
+            raise ValueError(f"Expected a bound published name: {name}")
         cmds.container(self.getFullName(), edit=True, unbindAttr=(plug.getFullName(), name))
 
-    @undoTransaction("mlib.Container.unpublishName")
+    @undoTransaction("mlibContainerUnpublishName")
     def unpublishName(self, name):
         """未Bindの公開名を削除する。
 
@@ -254,14 +249,14 @@ class _ContainerMixin:
             name (str): 未Bindの公開名。
 
         Returns:
-            None: 値は返さない。
+            None: 値を返さない。
 
         Raises:
             ValueError: nameが公開名でない、またはBind済みの場合。何も変更しない。
         """
         published = self.getPublishedAttrs()
         if name not in published or published[name] is not None:
-            raise ValueError("未Bindの公開名を指定してください: " + name)
+            raise ValueError(f"Expected an unbound published name: {name}")
         cmds.container(self.getFullName(), edit=True, unpublishName=name)
 
 

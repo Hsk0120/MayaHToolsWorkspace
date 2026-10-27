@@ -1,13 +1,12 @@
 """double3アトリビュートを意味付きの3成分値として読み書きする。"""
 
 import math
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 
 from ..core.attributeType import _convert_units
-from ..core.fastWrite import _require_supported_type, set_plug
-from ..decorator import undoChunk
+from ..core.fastWrite import set_plug
+from ..decorator import _require_bool
 from ..maths import EulerRotate, Scale, Shear, Translate, Vector
 from .compoundPlug import CompoundPlug
 
@@ -38,7 +37,7 @@ class Double3Plug(CompoundPlug):
             TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        self._validate_ui_units(uiUnits)
+        _require_bool(uiUnits, "uiUnits")
         self._require_valid()
         if uiUnits:
             return tuple(self._child_at(i).get(uiUnits=True) for i in range(3))
@@ -65,7 +64,7 @@ class Double3Plug(CompoundPlug):
             unit (str): uiUnits=Falseではrotateの数値列にrad/degを使い、他のアトリビュートでは未使用。
                 型付き回転はradのみ。
             uiUnits (bool): TrueはUI単位の数値列を指定する。数学型と既定rad以外のunitは受理しない。
-            fast (bool): TrueはUndoなしのOpenMaya直接更新。Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Double3Plug | int: safe=Falseは自身。safe=Trueは成功0、子の失敗数、または入力変換失敗の1。
@@ -74,45 +73,48 @@ class Double3Plug(CompoundPlug):
         Raises:
             TypeError: fastがbool以外、または配列全体への設定。safe=Trueでも抑制しない。
                 safe=Falseでは入力型が不正な場合も送出する。
-            NotImplementedError: fastで未対応の型の場合。safe=Trueでも抑制しない。
             ValueError: safe=Falseで成分数・有限値・角度単位が不正な場合。
             RuntimeError: safe=Falseで無効参照、ロック・入力接続、またはMayaの編集失敗。
+            NotImplementedError: fastで未対応の型の場合。safe=Trueでも抑制しない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDouble3PlugSet"):
-            if self.isArray():
-                raise TypeError("Set an array element instead of the array plug")
-            if safe and fast and self.isValid() and self.mplug().isCompound:
-                _require_supported_type(self.mplug())
-            original_value = value
-            try:
-                self._require_valid()
-                self._validate_ui_units(uiUnits)
-                if uiUnits:
-                    if unit != "rad":
-                        raise ValueError("uiUnits=True cannot be combined with a non-default unit")
-                    value = self._ui_components(value)
-                values = self._set_components(value, unit)
-                self._require_writable()
-                if fast and super().set.__func__ is CompoundPlug.set:
-                    # CompoundPlug.set(fast)と同じ子数の検査と直接更新。参照の検証と全子の
-                    # 書込み可否は上で済んでいるため、set_plugでは型・範囲だけを検査する。
-                    if len(values) != self._mplug.numChildren():
-                        raise ValueError("Compound plug value length does not match its child count")
-                    set_plug(self._mplug, values, _writable_checked=True)
-                elif fast:
-                    super().set(values, safe=False, fast=fast)
-                else:
-                    # 書込み可否は確認済みのため、親への1回のsetAttrを試す。
-                    self._set_child_values(values, writable_checked=True)
-            except NotImplementedError:
-                raise
-            except (RuntimeError, TypeError, ValueError):
-                if not safe:
-                    raise
-                return self._set_children_safely(original_value, unit=unit, uiUnits=uiUnits, fast=fast)
-            return 0 if safe else self
+        return self._set_template(value, safe, uiUnits=uiUnits, fast=fast, unit=unit)
+
+    def _set_value(self, value, *, unit="rad", uiUnits=False, fast=False):
+        """3成分の入力と書込み可否を確認して書き込む。骨格は :meth:`Plug.set`。
+
+        Args:
+            value (Iterable[float] | EulerRotate | Quaternion): 3成分の値。
+            unit (str): rotateの数値列の角度単位(rad/deg)。
+            uiUnits (bool): TrueはUI単位の数値列。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: 入力型が不正な場合。
+            ValueError: 成分数・有限値・角度単位が不正な場合。
+            RuntimeError: 無効参照、ロック・入力接続、またはMayaの編集失敗。
+        """
+        self._require_valid()
+        _require_bool(uiUnits, "uiUnits")
+        if uiUnits:
+            if unit != "rad":
+                raise ValueError("uiUnits=True cannot be combined with a non-default unit")
+            value = self._ui_components(value)
+        values = self._set_components(value, unit)
+        self._require_writable()
+        if fast and super()._set_value.__func__ is CompoundPlug._set_value:
+            # CompoundPlug._set_value(fast)と同じ子数の検査と直接更新。参照の検証と全子の
+            # 書込み可否は上で済んでいるため、set_plugでは型・範囲だけを検査する。
+            if len(values) != self._mplug.numChildren():
+                raise ValueError("Compound plug value length does not match its child count")
+            set_plug(self._mplug, values, _writable_checked=True)
+        elif fast:
+            super()._set_value(values, fast=fast)
+        else:
+            # 書込み可否は確認済みのため、親への1回のsetAttrを試す。
+            self._set_child_values(values, writable_checked=True)
 
     def _set_children_safely(self, value, *, unit="rad", uiUnits=False, fast=False):
         """回転順序と入力単位を揃えてから、子のsafe設定を順に試す。
@@ -131,7 +133,7 @@ class Double3Plug(CompoundPlug):
         if not self.isValid() or not self.mplug().isCompound:
             return 1
         try:
-            self._validate_ui_units(uiUnits)
+            _require_bool(uiUnits, "uiUnits")
             if uiUnits:
                 if unit != "rad":
                     raise ValueError("uiUnits=True cannot be combined with a non-default unit")

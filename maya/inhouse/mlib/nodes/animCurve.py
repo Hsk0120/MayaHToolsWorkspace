@@ -1,7 +1,6 @@
 """アニメーションカーブの共通操作。通常編集はUndo、fastはAPI直接更新。"""
 
 import math
-from contextlib import nullcontext
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -9,12 +8,12 @@ import maya.cmds as cmds
 
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..util import _UNSET
 from .node import Node
 
 
-# コマンドの接線名を正式な入口にし、APIのSmooth等の別表記を外へ出さない。
+#: コマンドの接線名からAPIの接線定数への対応。APIのSmooth等の別表記を外へ出さない。
 _TANGENT_TYPES = {
     name: getattr(oma2.MFnAnimCurve, constant)
     for name, constant in (
@@ -29,6 +28,7 @@ _TANGENT_TYPES = {
     )
     if hasattr(oma2.MFnAnimCurve, constant)
 }
+#: APIの接線定数からコマンドの接線名への逆引き。
 _TANGENT_NAMES = {value: name for name, value in _TANGENT_TYPES.items()}
 
 
@@ -50,7 +50,7 @@ class AnimCurve(Node):
         Raises:
             RuntimeError: ノードが無効(削除済み)の場合。
         """
-        self._require_valid()
+        self._require_valid("access attributes of")
         return self.getType()[9] == "T"
 
     def getKeyCount(self):
@@ -100,9 +100,9 @@ class AnimCurve(Node):
             float: 出力型に従うrad/cm/秒、または無次元の値。
 
         Raises:
-            RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
-            ValueError: 非有限値、またはfloat()変換で受理できない値。
             TypeError: float()へ変換できない型。
+            ValueError: 非有限値、またはfloat()変換で受理できない値。
+            RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
         """
         fn = self._curve_fn()
         if not fn.numKeys:
@@ -126,8 +126,7 @@ class AnimCurve(Node):
             value (float): 出力型に従うrad/cm/秒、または無次元。inputと共に有限値へ変換する。
             inTangentType (str): Mayaの入力接線型。fastのstepはautoへ補正する。
             outTangentType (str): Mayaの出力接線型。
-            fast (bool): TrueはUndoなしの直接更新。FalseはUndo有効時に一つのチャンクへまとめる。
-                Undo設定は変更しない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。fixed接線の角度・ウェイト指定にはsetTangentを使う。
@@ -135,12 +134,10 @@ class AnimCurve(Node):
         Raises:
             TypeError: fastがbool以外、または数値へ変換できない型。
             ValueError: 非有限値、不正な数値、またはfastでfixed/global/未知の接線型を指定した場合。
-            NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
             RuntimeError: ノードが無効(削除済み)の場合。fastも通常と同じ文言で、編集前に拒否する。
+            NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveSetKey"):
+        with _edit_context("mlibAnimCurveSetKey", fast):
             input, value = self._finite(input), self._finite(value)
             if fast:
                 fn = self._curve_fn()
@@ -173,22 +170,15 @@ class AnimCurve(Node):
         """指定番号のキーを削除する。キークリップボードは変更しない。
 
         Args:
-            index (int): 0始まりのキー番号。 別名 ``idx`` も使用可能。
-            fast (bool): TrueはAPI 2.0によるUndoなし削除。
+            index (int): 0始まりのキー番号。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             AnimCurve: 自身。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveRemoveKey"):
+        index = _pick_alias(index, idx, "index", "idx")
+        with _edit_context("mlibAnimCurveRemoveKey", fast):
             span = self._index(index)
             if fast:
                 self._require_curve_writable()
@@ -205,7 +195,7 @@ class AnimCurve(Node):
         lock/weightLockはキー単位、weightedTangentsはカーブ全体の状態である。
 
         Args:
-            index (int): 0始まりの既存キー番号。別名 ``idx`` も使用可能。
+            index (int): 0始まりの既存キー番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
@@ -216,12 +206,7 @@ class AnimCurve(Node):
         Raises:
             IndexError: bool、非int、負値、またはキー数以上の番号の場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         self._index(index)
         fn = self._curve_fn()
         incoming = fn.getTangentAngleWeight(index, True)
@@ -242,9 +227,8 @@ class AnimCurve(Node):
         入力側、出力側の順に更新し、後半の失敗による先行変更を自動復元しない。
 
         Args:
-            index (int): 0始まりの既存キー番号。別名 ``idx`` も使用可能。
-            fast (bool): TrueはAPIで更新しUndoへ記録しない。
-                Falseは通常更新をUndo有効時にまとめ、Undo設定は変えない。
+            index (int): 0始まりの既存キー番号。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             **kwargs: getTangent()の辞書と同じ9種類の長名フラグ。角度はrad、
                 接線ウェイトはAPIの値を使う。fastでは角度/ウェイトをfloat()で有限性検査し、
                 負のウェイトを拒否する。fastの型名は大文字小文字を区別せず、spline表記を使う。
@@ -255,20 +239,13 @@ class AnimCurve(Node):
             AnimCurve: 自身。
 
         Raises:
-            IndexError: キー番号が不正な場合。
             ValueError: フラグが空/未知、またはfastで不正値やglobal/未知の接線型を指定した場合。
+            IndexError: キー番号が不正な場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
                 ロック・ウェイトを含む更新より前に拒否する。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveSetTangent"):
+        index = _pick_alias(index, idx, "index", "idx")
+        with _edit_context("mlibAnimCurveSetTangent", fast):
             allowed = {"inTangentType", "outTangentType", "inAngle", "outAngle", "inWeight",
                        "outWeight", "lock", "weightLock", "weightedTangents"}
             if not kwargs or set(kwargs) - allowed:
@@ -326,19 +303,17 @@ class AnimCurve(Node):
             pre (str | None): constant/linear/cycle/cycleRelative/oscillate。
                 Noneは変更しない。
             post (str | None): preと同じ選択肢。Noneは変更しない。
-            fast (bool): Trueはom2で直接更新し、Undoなし。既定Falseはcmdsで更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 指定した外挿方法が不正な場合。両側を変更前に検証する。
-            TypeError: fastがboolでない場合。
             RuntimeError: ノードが無効、または更新先がロック・接続などで書込み不可の場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveInfinity"):
+        with _edit_context("mlibAnimCurveSetInfinity", fast):
             allowed = {"constant": 0, "linear": 1, "cycle": 3, "cycleRelative": 4, "oscillate": 5}
             values = {key: value for key, value in (("pre", pre), ("post", post)) if value is not None}
             if any(not isinstance(value, str) or value not in allowed for value in values.values()):
@@ -358,14 +333,12 @@ class AnimCurve(Node):
         Args:
             inputOffset (float): 横軸の移動量。時間型は秒。
             valueOffset (float): 縦軸の移動量。内部単位(cm/rad/秒)。
-            fast (bool): TrueはAPI直接更新でUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。空カーブは変更しない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveShift"):
+        with _edit_context("mlibAnimCurveShiftKeys", fast):
             inputOffset, valueOffset = self._finite(inputOffset), self._finite(valueOffset)
             if fast:
                 self._transform_keys(1, 1, inputOffset, valueOffset)
@@ -386,20 +359,18 @@ class AnimCurve(Node):
             valueScale (float): 縦軸倍率。
             inputPivot (float): 横軸の基準値。
             valuePivot (float): 縦軸の基準値。
-            fast (bool): TrueはAPI直接更新。負の入力倍率は更新前に未対応として拒否。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。負の入力倍率は更新前に未対応として拒否。
 
         Returns:
             AnimCurve: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAnimCurveScale"):
+        with _edit_context("mlibAnimCurveScaleKeys", fast):
             x, y, px, py = map(self._finite, (inputScale, valueScale, inputPivot, valuePivot))
             if not x:
                 raise ValueError("Input scale cannot be zero")
             if fast:
                 if x < 0:
-                    raise NotImplementedError("fast scaleKeys requires a positive input scale")
+                    raise NotImplementedError("fast scaleKeys does not support a non-positive input scale")
                 self._transform_keys(x, y, px * (1 - x), py * (1 - y))
                 return self
             px, py = self._unit_value(px), self._unit_value(py, output=True)
@@ -417,13 +388,12 @@ class AnimCurve(Node):
             value (bool): 縦軸を反転するか。
             inputPivot (float): 横軸の反転中心。
             valuePivot (float): 縦軸の反転中心。
-            fast (bool): TrueはAPI直接更新。input=Trueとの併用は未対応。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。input=Trueとの併用は未対応。
 
         Returns:
             AnimCurve: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         return self.scaleKeys(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, fast=fast)
 
     def _set_api_value(self, fn, index, value):
@@ -433,6 +403,9 @@ class AnimCurve(Node):
             fn (oma2.MFnAnimCurve): 更新対象カーブ。
             index (int): キー番号。
             value (float): 内部単位の値。
+
+        Returns:
+            None: 値を返さない。
         """
         if self.getType().endswith("T"):
             # MFnAnimCurve.setValueは時間出力をdoubleで正しく更新できない。
@@ -449,6 +422,9 @@ class AnimCurve(Node):
             y_scale (float): 出力倍率。
             x_offset (float): 内部単位の入力オフセット。
             y_offset (float): 内部単位の出力オフセット。
+
+        Returns:
+            None: 値を返さない。
         """
         self._require_curve_writable()
         fn = self._curve_fn()
@@ -498,19 +474,8 @@ class AnimCurve(Node):
         Raises:
             RuntimeError: ノードが無効(削除済み)の場合。
         """
-        self._require_valid()
+        self._require_valid("access attributes of")
         return oma2.MFnAnimCurve(self.mnode())
-
-    def _require_valid(self):
-        """削除済みのカーブへAPIで触れる前に、通常経路と同じ RuntimeError を送出する。
-
-        通常経路のキー編集は単位変換の ``getPlug`` で無効なノードを拒否するため、同じ文言にする。
-
-        Raises:
-            RuntimeError: ノードが無効(削除済み)の場合。
-        """
-        if not self.isValid():
-            raise RuntimeError("無効なノードのアトリビュートにはアクセスできません")
 
     def _api_input(self, value):
         """内部単位の入力をAPIが要求する時間値または数値へ変換する。"""
@@ -536,7 +501,7 @@ class AnimCurve(Node):
         if key and name == "fixed":
             raise ValueError("setKey cannot use fixed tangents; use setTangent")
         if incoming and name == "stepnext":
-            raise NotImplementedError("fast editing of incoming stepnext tangents is not supported")
+            raise NotImplementedError("fast setKey does not support incoming stepnext tangents")
         if incoming and name == "step":
             name = "auto"
         return _TANGENT_TYPES[name]
@@ -588,8 +553,8 @@ class AnimCurve(Node):
             float: 有限な値。
 
         Raises:
-            ValueError: 変換できない文字列など、またはNaN/正負の無限大の場合。
             TypeError: float()が受理しない型の場合。
+            ValueError: 変換できない文字列など、またはNaN/正負の無限大の場合。
         """
         value = float(value)
         if not math.isfinite(value):

@@ -383,7 +383,7 @@ class GenericRegistrySpecTest(unittest.TestCase):
         self.assertEqual(joint.__name__, "Joint")
         self.assertIs(joint.__mro__[1], _RegisteredClass)
         self.assertIs(registry.wrapper_class("joint"), joint)
-        self.assertIs(registry.get("joint"), joint)
+        self.assertIs(registry.wrapper_class("joint"), joint)
         self.assertIsNone(registry.lookup("joint"))
         network = registry.wrapper_class("network")
         self.assertEqual(network.__name__, "Network")

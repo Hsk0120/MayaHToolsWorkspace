@@ -1042,7 +1042,7 @@ class NodeApiTest(unittest.TestCase):
                 # 静的アトリビュートは同じ型の別ノードにも存在するが、所有ノードでない node は拒否する。
                 with self.assertRaises(RuntimeError) as context:
                     Plug(second, mplug)
-                self.assertIn("所有ノード", str(context.exception))
+                self.assertIn("owner node", str(context.exception))
 
 
 if __name__ == "__main__":

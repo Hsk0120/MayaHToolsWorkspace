@@ -1,11 +1,12 @@
 """Maya の displayLayer を扱う。"""
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
+from ..core.nodeEdit import require_editable
+from ..core.object import Object
+from ..decorator import _edit_context
+from .dagNode import DagNode
 from .node import Node
 
 
@@ -47,15 +48,12 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDisplayLayerAddMembers"):
-            from ..core.object import Object as _InputObject
+        with _edit_context("mlibDisplayLayerAddMembers", fast):
             if members:
                 if fast:
                     self._move_members(members)
                 else:
-                    cmds.editDisplayLayerMembers(self.getName(), _InputObject._input_names(members))
+                    cmds.editDisplayLayerMembers(self.getName(), Object._input_names(members))
             return self
 
     def removeMembers(self, *members, fast=False):
@@ -63,20 +61,17 @@ class DisplayLayer(Node):
 
         Args:
             members (Node | str): 除外するDAGノード。
-            fast (bool): TrueはOpenMayaで直接移動し、Undoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DisplayLayer: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDisplayLayerRemoveMembers"):
-            from ..core.object import Object as _InputObject
+        with _edit_context("mlibDisplayLayerRemoveMembers", fast):
             if members:
                 if fast:
                     DisplayLayer("defaultLayer")._move_members(members)
                 else:
-                    cmds.editDisplayLayerMembers("defaultLayer", _InputObject._input_names(members))
+                    cmds.editDisplayLayerMembers("defaultLayer", Object._input_names(members))
             return self
 
     def setCurrent(self, *, fast=False):
@@ -88,9 +83,7 @@ class DisplayLayer(Node):
         Returns:
             DisplayLayer: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDisplayLayerSetCurrent"):
+        with _edit_context("mlibDisplayLayerSetCurrent", fast):
             if fast:
                 Node("layerManager").getPlug("currentDisplayLayer").set(self.getPlug("identification").get(), fast=fast)
             else:
@@ -103,19 +96,18 @@ class DisplayLayer(Node):
         Args:
             members (Iterable): 子階層も含めて移動するノード。
 
+        Returns:
+            None: 値を返さない。
+
         Raises:
-            NotImplementedError: コンポーネント・UFE・標準外接続の場合。
             RuntimeError: ノード・レイヤーの参照やロックにより編集できない場合。
+            NotImplementedError: コンポーネント・UFE・標準外接続の場合。
         """
-        from ..core.object import Object
-        from .dagNode import DagNode
-        layer_fn = om2.MFnDependencyNode(self.mnode())
-        if layer_fn.isLocked or layer_fn.isFromReferencedFile:
-            raise RuntimeError("Cannot edit a locked or referenced display layer")
+        require_editable(self.mnode())
         nodes, seen = [], set()
         for name in Object._input_names(members):
             if "." in name or "," in name:
-                raise NotImplementedError("fast display-layer edits support whole Maya DAG nodes only")
+                raise NotImplementedError("fast addMembers/removeMembers does not support members other than whole DAG nodes")
             node = Node(name)
             if not isinstance(node, DagNode):
                 raise TypeError("Display-layer member must be a DAG node")
@@ -128,9 +120,8 @@ class DisplayLayer(Node):
         default = not self.getPlug("identification").get()
         plan = []
         for node in nodes:
+            require_editable(node.mnode())
             fn = node.mfn()
-            if fn.isLocked or fn.isFromReferencedFile:
-                raise RuntimeError("Cannot move a locked or referenced display-layer member")
             target = fn.findPlug("drawOverride", False)
             if target.isLocked or any(target.child(i).isLocked for i in range(target.numChildren())):
                 raise RuntimeError("Display override is locked")
@@ -139,8 +130,7 @@ class DisplayLayer(Node):
                 source_fn = om2.MFnDependencyNode(source.node())
                 if source_fn.typeName != "displayLayer" or source != source_fn.findPlug("drawInfo", False):
                     raise NotImplementedError("Custom display-override connections are not supported")
-                if source_fn.isLocked or source_fn.isFromReferencedFile:
-                    raise RuntimeError("Cannot remove a member from a locked or referenced display layer")
+                require_editable(source_fn.object())
             if (not sources and default) or (len(sources) == 1 and sources[0] == output):
                 continue
             plan.append((target, sources))

@@ -12,7 +12,7 @@
 
 
 def getNode(value):
-    """既存のMayaノードを参照する新しいラッパーを返す。
+    """既存のMayaノードを参照する新しいラッパーを取得する。
 
     入力がNodeでも同じMayaノードへの参照を作り、シーンのノードを複製しない。
     ラッパー型はnodeTypeの登録、無ければMayaの継承に沿って生成したクラス(基底は最寄りの登録クラス)、Mayaが認識しない型名だけNodeの順に選ぶ。
@@ -33,9 +33,9 @@ def getNode(value):
             含めて複数の対象に一致する)場合、または空・削除済みのラッパーや om2 オブジェクトを
             指定した場合。
     """
-    from ..nodes.node import Node, _resolve_node
+    from ..nodes.node import Node
 
     if isinstance(value, str):
         # Node(value) と同じ解決・型選択を、生成の入口の再判定なしで行う。
-        return Node._wrap_resolved(*_resolve_node(value))
+        return Node._from_name(value)
     return Node(value)

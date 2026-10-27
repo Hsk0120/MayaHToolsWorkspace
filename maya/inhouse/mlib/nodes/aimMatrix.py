@@ -1,10 +1,8 @@
 """指定した軸をターゲットへ向けるマトリクスを生成する。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
+from ..decorator import _pick_alias
 from ..maths import Matrix
-from ..util import _ArgumentError, _UNSET
+from ..util import _UNSET
 from ._calculation import _Calculation
 from .node import Node
 
@@ -12,7 +10,7 @@ from .node import Node
 class AimMatrix(Node):
     """aimMatrixノードを参照し、入力軸・ターゲットと出力マトリクスを扱う。
 
-    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新(Undoなし)。途中の変更は自動で戻さない。
     """
 
     def getInputPlug(self):
@@ -36,14 +34,12 @@ class AimMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setInput", fast):
             _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
             return self
 
@@ -51,8 +47,8 @@ class AimMatrix(Node):
         """入力へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -60,21 +56,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectInput", fast):
             _Calculation.connect(source, self.getInputPlug, force=force, fast=fast)
             return self
 
@@ -99,14 +83,12 @@ class AimMatrix(Node):
 
         Args:
             value (float): 設定値。数値は有限値。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setEnvelope", fast):
             _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug, fast=fast)
             return self
 
@@ -114,8 +96,8 @@ class AimMatrix(Node):
         """全体ウェイトへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -123,21 +105,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectEnvelope", fast):
             _Calculation.connect(source, self.getEnvelopePlug, force=force, fast=fast)
             return self
 
@@ -162,14 +132,12 @@ class AimMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setPrimaryMatrix", fast):
             _Calculation.set_value(value, Matrix, self.getPrimaryMatrixPlug, fast=fast)
             return self
 
@@ -177,8 +145,8 @@ class AimMatrix(Node):
         """primaryターゲットマトリクスへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -186,21 +154,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectPrimaryMatrix", fast):
             _Calculation.connect(source, self.getPrimaryMatrixPlug, force=force, fast=fast)
             return self
 
@@ -216,7 +172,7 @@ class AimMatrix(Node):
         """primary入力軸の評価値を取得する。
 
         Returns:
-            Iterable[float]: 現在の値。
+            tuple[float, float, float]: 現在の値。
         """
         return self.getPrimaryAxisPlug().get()
 
@@ -225,14 +181,12 @@ class AimMatrix(Node):
 
         Args:
             value (Iterable[float]): XYZ順の有限な3成分。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setPrimaryAxis", fast):
             _Calculation.set_value(value, _Calculation.vector, self.getPrimaryAxisPlug, fast=fast)
             return self
 
@@ -240,8 +194,8 @@ class AimMatrix(Node):
         """primary入力軸へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -249,21 +203,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectPrimaryAxis", fast):
             _Calculation.connect(source, self.getPrimaryAxisPlug, force=force, fast=fast)
             return self
 
@@ -279,7 +221,7 @@ class AimMatrix(Node):
         """primaryターゲットベクトルの評価値を取得する。
 
         Returns:
-            Iterable[float]: 現在の値。
+            tuple[float, float, float]: 現在の値。
         """
         return self.getPrimaryVectorPlug().get()
 
@@ -288,14 +230,12 @@ class AimMatrix(Node):
 
         Args:
             value (Iterable[float]): XYZ順の有限な3成分。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setPrimaryVector", fast):
             _Calculation.set_value(value, _Calculation.vector, self.getPrimaryVectorPlug, fast=fast)
             return self
 
@@ -303,8 +243,8 @@ class AimMatrix(Node):
         """primaryターゲットベクトルへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -312,21 +252,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectPrimaryVector", fast):
             _Calculation.connect(source, self.getPrimaryVectorPlug, force=force, fast=fast)
             return self
 
@@ -343,14 +271,12 @@ class AimMatrix(Node):
 
         Args:
             mode (str | int): lock, aim, align、またはMayaの番号。
-            fast (bool): TrueはUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setPrimaryMode", fast):
             value = _Calculation.enum_value(mode, ("lock", "aim", "align"))
             self.getPlug("primaryMode").set(value, fast=fast)
             return self
@@ -376,14 +302,12 @@ class AimMatrix(Node):
 
         Args:
             value (Matrix | Iterable[float]): Matrix(value)で解釈するマトリクス。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setSecondaryMatrix", fast):
             _Calculation.set_value(value, Matrix, self.getSecondaryMatrixPlug, fast=fast)
             return self
 
@@ -391,8 +315,8 @@ class AimMatrix(Node):
         """secondaryターゲットマトリクスへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -400,21 +324,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectSecondaryMatrix", fast):
             _Calculation.connect(source, self.getSecondaryMatrixPlug, force=force, fast=fast)
             return self
 
@@ -430,7 +342,7 @@ class AimMatrix(Node):
         """secondary入力軸の評価値を取得する。
 
         Returns:
-            Iterable[float]: 現在の値。
+            tuple[float, float, float]: 現在の値。
         """
         return self.getSecondaryAxisPlug().get()
 
@@ -439,14 +351,12 @@ class AimMatrix(Node):
 
         Args:
             value (Iterable[float]): XYZ順の有限な3成分。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setSecondaryAxis", fast):
             _Calculation.set_value(value, _Calculation.vector, self.getSecondaryAxisPlug, fast=fast)
             return self
 
@@ -454,8 +364,8 @@ class AimMatrix(Node):
         """secondary入力軸へ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -463,21 +373,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectSecondaryAxis", fast):
             _Calculation.connect(source, self.getSecondaryAxisPlug, force=force, fast=fast)
             return self
 
@@ -493,7 +391,7 @@ class AimMatrix(Node):
         """secondaryターゲットベクトルの評価値を取得する。
 
         Returns:
-            Iterable[float]: 現在の値。
+            tuple[float, float, float]: 現在の値。
         """
         return self.getSecondaryVectorPlug().get()
 
@@ -502,14 +400,12 @@ class AimMatrix(Node):
 
         Args:
             value (Iterable[float]): XYZ順の有限な3成分。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setSecondaryVector", fast):
             _Calculation.set_value(value, _Calculation.vector, self.getSecondaryVectorPlug, fast=fast)
             return self
 
@@ -517,8 +413,8 @@ class AimMatrix(Node):
         """secondaryターゲットベクトルへ接続する。
 
         Args:
-            source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
-            force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            source (Plug | str | MPlug): 接続元。別名 ``src`` も使用可能。
+            force (bool): 既存接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -526,21 +422,9 @@ class AimMatrix(Node):
         Returns:
             AimMatrix: 自身。
         """
-        if src is not _UNSET:
-            if source is not _UNSET:
-                raise _ArgumentError("Specify only one of 'source' and 'src'")
-            source = src
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if source is _UNSET:
-            raise _ArgumentError("Missing required argument: 'source'")
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        source = _pick_alias(source, src, "source", "src")
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _Calculation.edit_context(self, "connectSecondaryVector", fast):
             _Calculation.connect(source, self.getSecondaryVectorPlug, force=force, fast=fast)
             return self
 
@@ -557,14 +441,12 @@ class AimMatrix(Node):
 
         Args:
             mode (str | int): none, aim, align、またはMayaの番号。
-            fast (bool): TrueはUndoなし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimMatrix: 自身。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+        with _Calculation.edit_context(self, "setSecondaryMode", fast):
             value = _Calculation.enum_value(mode, ("none", "aim", "align"))
             self.getPlug("secondaryMode").set(value, fast=fast)
             return self

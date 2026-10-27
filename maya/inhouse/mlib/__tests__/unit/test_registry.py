@@ -20,19 +20,19 @@ class _RegisteredClass:
 
 
 class NodeRegistryTest(unittest.TestCase):
-    """register/get/lookup/wrapper_class/clear/replace の基本動作を検証する。"""
+    """register/lookup/wrapper_class/clear/replace の基本動作を検証する。"""
 
     def setUp(self):
         self.registry = NodeRegistry(_FallbackClass)
 
     def test_unregistered_type_falls_back_and_lookup_returns_none(self):
         self.assertIs(self.registry.wrapper_class("unregisteredType"), _FallbackClass)
-        self.assertIs(self.registry.get("unregisteredType"), _FallbackClass)
+        self.assertIs(self.registry.wrapper_class("unregisteredType"), _FallbackClass)
         self.assertIsNone(self.registry.lookup("unregisteredType"))
 
     def test_register_and_get(self):
         self.registry.register("myType", _RegisteredClass)
-        self.assertIs(self.registry.get("myType"), _RegisteredClass)
+        self.assertIs(self.registry.wrapper_class("myType"), _RegisteredClass)
         self.assertIs(self.registry.lookup("myType"), _RegisteredClass)
         self.assertIs(self.registry.wrapper_class("otherType"), _FallbackClass)
 
@@ -51,7 +51,7 @@ class NodeRegistryTest(unittest.TestCase):
         self.registry.register("staleType", _RegisteredClass)
         self.registry.replace({"myType": _RegisteredClass})
         self.assertIs(self.registry.wrapper_class("staleType"), _FallbackClass)
-        self.assertIs(self.registry.get("myType"), _RegisteredClass)
+        self.assertIs(self.registry.wrapper_class("myType"), _RegisteredClass)
 
     def test_replace_validates_all_entries_before_changing_registry(self):
         """不正な後続エントリーで、既存登録を失わず部分登録もしない。"""

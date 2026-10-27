@@ -1,9 +1,9 @@
 """Maya の aimConstraint を扱う。"""
 
 import math
-from contextlib import nullcontext
 
-from ..decorator import undoChunk
+from ..core.nodeEdit import require_editable
+from ..decorator import _edit_context
 from ..maths import EulerRotate
 from .constraint import Constraint
 
@@ -48,7 +48,8 @@ class AimConstraint(Constraint):
 
         Raises:
             TypeError: fastがbool以外の場合。
-            ValueError: 値が不正、参照・ロック・入力接続がある場合。
+            ValueError: 値が不正な場合。
+            RuntimeError: ノードが参照・ロックされている、またはアトリビュートがロック・入力接続されている場合。
         """
         return self._set_angles("restRotate", value, fast=fast)
 
@@ -72,7 +73,8 @@ class AimConstraint(Constraint):
 
         Raises:
             TypeError: fastがbool以外の場合。
-            ValueError: 値が不正、参照・ロック・入力接続がある場合。
+            ValueError: 値が不正な場合。
+            RuntimeError: ノードが参照・ロックされている、またはアトリビュートがロック・入力接続されている場合。
         """
         return self._set_angles("offset", value, fast=fast)
 
@@ -94,27 +96,26 @@ class AimConstraint(Constraint):
         Args:
             attribute (str): 更新する複合アトリビュート。
             value (Sequence[float]): ラジアン3値。
-            fast (bool): TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimConstraint: 自身。
 
         Raises:
             TypeError: fastがbool以外の場合。
-            ValueError: 値が不正、参照・ロック・入力接続がある場合。
+            ValueError: 値が不正な場合。
+            RuntimeError: ノードが参照・ロックされている、またはアトリビュートがロック・入力接続されている場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibAimConstraintSetAngles"):
+        with _edit_context("mlibAimConstraintSetAngles", fast):
             values = tuple(float(component) for component in value)
             if len(values) != 3 or not all(math.isfinite(component) for component in values):
-                raise ValueError("角度は有限のラジアン3値を指定してください。")
+                raise ValueError("angles must be 3 finite radian values")
             parent = self.getPlug(attribute)
             children = [self.getPlug(attribute + axis) for axis in "XYZ"]
-            if (self.isLocked() or self.isFromReferencedFile()
-                    or any((plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None
-                            for plug in [parent] + children))):
-                raise ValueError("参照・ロック・入力接続のある設定は変更できません: " + parent.getFullName())
+            require_editable(self.mnode())
+            if any(plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None
+                   for plug in [parent] + children):
+                raise RuntimeError(f"Attribute is locked or connected: {parent.getFullName()}")
             for plug, component in zip(children, values):
                 plug.set(component, fast=fast)
             return self

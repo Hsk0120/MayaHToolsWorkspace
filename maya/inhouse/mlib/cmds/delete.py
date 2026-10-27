@@ -13,12 +13,11 @@ Plug・MPlugは受け付けない。アトリビュートの削除は ``plug.del
     mlib.delete(node)
 """
 
-from contextlib import nullcontext
-
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
+from ..core.object import _selection_plug
+from ..decorator import _edit_context
 
 
 def delete(nodes, *, fast=False):
@@ -38,7 +37,23 @@ def delete(nodes, *, fast=False):
             削除する対象、またはその列(入れ子のコレクションも展開する)。
             同じノードの重複、親と子の両方の指定はまとめて1回だけ削除する(親と一緒に消える)。
             ワイルドカードは一致したノードへ展開する。
-        fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
+        fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        TypeError: 要素が対応しない型の場合、またはfastがbool以外の場合。要素に Plug(ArrayPlug を含む)・
+            om2.MPlug、またはアトリビュートに解決される文字列(``"node.tx"`` 等)が含まれる場合
+            (maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。何も削除しない)。
+        ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合(何も削除しない)。
+        RuntimeError: 存在しない名前を含む場合(``getNode`` と同じ文言。何も削除しない)。
+            ロック・参照・削除できないノードを含む場合(何も削除しない。文言は
+            cmds.delete の要素ごとの表示に合わせ、例えば ``Cannot delete locked node 'x'.``、
+            ``Cannot delete 'x' as it has locked or read-only children.``、
+            ``Non-deletable node 'x' cannot be deleted.``。fastのロック・参照は
+            ``Node is locked or referenced: x``)、または Maya が削除を拒否した場合。
+        NotImplementedError: fast=Trueでコンポーネントを含む入力を指定した場合(何も削除しない)。
 
     Note:
         fastはノードの直接削除に限る。コンポーネントのトポロジー削除には
@@ -46,32 +61,15 @@ def delete(nodes, *, fast=False):
         専用のdeleteを上書きした派生クラスのノードを含む場合だけ、従来どおり各ノードの
         deleteを順に呼ぶ(親の削除で既に消えた対象は飛ばす)。
         コンポーネントは、ノードの検査の後、ノードより先に別の1回の ``cmds.delete`` で削除する。
-
-    Returns:
-        None: 値を返さない。
-
-    Raises:
-        ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合(何も削除しない)。
-        TypeError: 要素が対応しない型の場合。要素に Plug(ArrayPlug を含む)・om2.MPlug、
-            またはアトリビュートに解決される文字列(``"node.tx"`` 等)が含まれる場合
-            (maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。何も削除しない)。
-        RuntimeError: 存在しない名前を含む場合(``getNode`` と同じ文言。何も削除しない)。
-            ロック・参照・削除できないノードを含む場合(何も削除しない。文言は
-            cmds.delete の要素ごとの表示に合わせ、例えば ``Cannot delete locked node 'x'.``、
-            ``Cannot delete 'x' as it has locked or read-only children.``、
-            ``Non-deletable node 'x' cannot be deleted.``。fastのロック・参照は
-            ``Node is locked or referenced: x``)、または Maya が削除を拒否した場合。
     """
-    if not isinstance(fast, bool):
-        raise TypeError("fast must be a bool")
-    with nullcontext() if fast else undoChunk("mlib.cmds.delete.delete"):
+    with _edit_context("mlibDelete", fast):
         from ..core.nodeEdit import check_deletion, delete_nodes
         from ..core.object import Object as _InputObject
-        from ..nodes.node import Node, _resolve_node
+        from ..nodes.node import Node
 
         names = _InputObject._input_names(nodes, allow_plugs=False)
         if not names:
-            raise ValueError("nodes には1つ以上のノードを指定してください")
+            raise ValueError("nodes must contain at least one node")
         # アトリビュート・コンポーネント文字列は所有ノードへ変換せず、標準の扱いを維持する。
         node_names = [name for name in names if "." not in name]
         components = [name for name in names if "." in name]
@@ -79,8 +77,8 @@ def delete(nodes, *, fast=False):
             # "node.tx" のようなアトリビュート名の文字列も、Plugと同じく削除の前に拒否する。
             if _resolves_to_plug(name):
                 raise TypeError(
-                    f"アトリビュート名は指定できません: {name}"
-                    "(所有ノードを対象にする場合はノード名を指定してください)")
+                    f"Attribute names are not accepted: {name} "
+                    "(specify the node name to delete the owning node)")
         if components and fast:
             raise NotImplementedError("fast component/topology deletion is not supported")
         nodes = []
@@ -92,7 +90,7 @@ def delete(nodes, *, fast=False):
             else:
                 resolved = [name]
             # 名前は Node(value) と同じ解決・型選択を、生成の入口の再判定なしで行う。
-            nodes.extend(Node._wrap_resolved(*_resolve_node(value)) for value in (resolved or [name]))
+            nodes.extend(Node._from_name(value) for value in (resolved or [name]))
         batch = all(type(node).delete is Node.delete for node in nodes)
         checked = None
         if nodes and (batch or fast):
@@ -130,10 +128,4 @@ def _resolves_to_plug(name):
         selection.add(name)
     except RuntimeError:
         return False
-    for index in range(selection.length()):
-        try:
-            selection.getPlug(index)
-        except (TypeError, RuntimeError):
-            continue
-        return True
-    return False
+    return any(_selection_plug(selection, index) is not None for index in range(selection.length()))

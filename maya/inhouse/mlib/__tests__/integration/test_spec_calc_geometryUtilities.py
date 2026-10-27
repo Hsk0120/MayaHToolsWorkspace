@@ -184,7 +184,7 @@ class PointOnCurveInfoTest(_GeometryCase):
         fn = om2.MFnNurbsCurve(_dag(curve).extendToShape())
         node = mlib.createNode("pointOnCurveInfo")
         self.assertIs(node.connectCurve(curve), node)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibCalculationEdit")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibPointOnCurveInfoConnectCurve")
         for parameter in (0.0, 0.3, 1.0, 1.7, 2.0):
             with self.subTest(parameter=parameter):
                 self.assertIs(node.setParameter(parameter), node)
@@ -241,9 +241,9 @@ class PointOnCurveInfoTest(_GeometryCase):
         self.assertEqual(cmds.getAttr(sentinel + ".tx"), 0)
         self.assertAlmostEqual(node.getPlug("parameter").get(), 1.0)
         for value in (1, None, "True"):
-            with self.assertRaisesRegex(TypeError, "Expected bool"):
+            with self.assertRaisesRegex(TypeError, "must be a bool"):
                 node.getNormal(value)
-            with self.assertRaisesRegex(TypeError, "Expected bool"):
+            with self.assertRaisesRegex(TypeError, "must be a bool"):
                 node.getTangent(value)
 
     def test_connect_curve_rules(self):
@@ -264,7 +264,7 @@ class PointOnCurveInfoTest(_GeometryCase):
             fresh.connectCurve(cube)
         with self.assertRaisesRegex(TypeError, "Expected a nurbsCurve"):
             fresh.connectCurve(cmds.listRelatives(cube, shapes=True, fullPath=True)[0])
-        with self.assertRaisesRegex(TypeError, "Expected bool"):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
             fresh.connectCurve(curve, worldSpace=1)
         with self.assertRaisesRegex(_ArgumentError, "Specify only one of 'worldSpace' and 'ws'"):
             fresh.connectCurve(curve, True, ws=True)
@@ -335,9 +335,9 @@ class PointOnSurfaceInfoTest(_GeometryCase):
         for bad in ("U", "w", None):
             with self.assertRaisesRegex(ValueError, "direction must be u or v"):
                 node.getTangent(bad)
-        with self.assertRaisesRegex(TypeError, "Expected bool"):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
             node.getTangent("u", 1)
-        with self.assertRaisesRegex(TypeError, "Expected bool"):
+        with self.assertRaisesRegex(TypeError, "must be a bool"):
             node.getNormal(0)
 
     def test_connect_surface_rules(self):
@@ -409,7 +409,7 @@ class TextureNodesTest(_GeometryCase):
                 self.assertEqual(cmds.getAttr(node.getFullName() + ".fileTextureName"), path)
         node.setFilePath("first.png")
         node.setFilePath("second.png")
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibFileSetPath")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibFileSetFilePath")
         cmds.undo()
         self.assertEqual(node.getFilePath(), "first.png")
         for bad in (None, b"x.png", 5):
@@ -447,7 +447,7 @@ class TextureNodesTest(_GeometryCase):
         self.assertIsNone(texture.getPlacement())
         place = mlib.createNode("place2dTexture")
         self.assertIs(place.connectTexture(texture), place)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibPlace2dConnect")
+        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibPlace2dTextureConnectTexture")
         names = ("coverage", "translateFrame", "rotateFrame", "mirrorU", "mirrorV", "stagger", "wrapU", "wrapV",
                  "repeatUV", "offset", "rotateUV", "noiseUV", "vertexUvOne", "vertexUvTwo", "vertexUvThree",
                  "vertexCameraOne")

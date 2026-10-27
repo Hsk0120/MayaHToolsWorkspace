@@ -6,6 +6,7 @@ import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
+from ..decorator import _require_bool, _pick_alias
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
 from .shape import Shape
@@ -22,18 +23,18 @@ class NurbsCurve(Shape):
 
         Args:
             axis (str): 重複しないx/y/zの組合せ。大文字も可。
-            worldSpace (bool): Trueは保持パスのworld、既定FalseはShapeのobject空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の反転中心XYZ（cm）。既定は原点で、Transformのピボットとは独立。
+            worldSpace (bool): Trueは保持パスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
             indices (Iterable[int] | None): OpenMayaのCV番号。Noneは全CV、空列は変更なし。重複は1回だけ処理する。
-            fast (bool): TrueはUndoなし。既定FalseはUndo有効時に1回で戻せる通常更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             NurbsCurve: 自身。
 
         Raises:
-            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             TypeError: 番号型・fastが不正、または長短名を同時指定した場合。
+            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
             IndexError: CV番号が負または範囲外の場合。
             RuntimeError: Mayaが形状の取得・更新を拒否した場合。
             NotImplementedError: fastで入力履歴付きShapeまたは周期カーブを編集する場合。
@@ -41,14 +42,8 @@ class NurbsCurve(Shape):
         Note:
             途中失敗で完了済みの変更は自動で戻さない。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         self.getCVs(indices).mirror(axis=axis, ws=ws, pivot=pivot, fast=fast)
         return self
@@ -57,7 +52,7 @@ class NurbsCurve(Shape):
         """CV 番号から単体ラッパーを取得する。
 
         Args:
-            index (int): ゼロ始まりの CV 番号。 別名 ``idx`` も使用可能。
+            index (int): ゼロ始まりの CV 番号。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
@@ -66,12 +61,7 @@ class NurbsCurve(Shape):
         Raises:
             IndexError: CV 番号が範囲外の場合。
         """
-        if idx is not _UNSET:
-            if index is not _UNSET:
-                raise _ArgumentError("Specify only one of 'index' and 'idx'")
-            index = idx
-        if index is _UNSET:
-            raise _ArgumentError("Missing required argument: 'index'")
+        index = _pick_alias(index, idx, "index", "idx")
         return CV(self, index)
 
     def getCVs(self, indices=None):
@@ -157,16 +147,11 @@ class NurbsCurve(Shape):
                 ws=Trueは親の非均等スケール・シアーとインスタンスの変換を含む。
 
         Raises:
-            ValueError: toleranceが正の有限値でない、worldSpaceがboolでない、または単位名が未対応の場合。
             TypeError: 単位の型が不正な場合。
+            ValueError: toleranceが正の有限値でない、worldSpaceがboolでない、または単位名が未対応の場合。
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         from ..common import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
@@ -174,8 +159,7 @@ class NurbsCurve(Shape):
         tolerance = float(tolerance)
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("tolerance must be positive and finite")
-        if type(ws) is not bool:
-            raise TypeError("ws must be a bool")
+        _require_bool(ws, "ws")
         if not ws:
             return self._geometry_fn().length(tolerance) * factor
         # lengthはオブジェクト空間で計算するため、メモリ内のコピーだけを
@@ -199,12 +183,7 @@ class NurbsCurve(Shape):
         Returns:
             om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self._geometry_fn().cvPositions(space)
@@ -215,8 +194,8 @@ class NurbsCurve(Shape):
         周期カーブの重複 CV や、クリーンアップ前のカーブの検証などに使う。
 
         Args:
-            tolerance (float): 同一位置とみなす距離の許容誤差（Maya API の
-                内部距離単位）。正の値を指定する。
+            tolerance (float): 同一位置とみなす距離の許容誤差(Maya API の
+                内部距離単位)。正の値を指定する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
@@ -228,12 +207,7 @@ class NurbsCurve(Shape):
         Raises:
             ValueError: tolerance が正の値でない場合。
         """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")

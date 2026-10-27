@@ -1,5 +1,6 @@
 """Maya の locator シェイプを扱う。"""
 
+from ..decorator import _require_bool
 from ..maths import Translate
 from .shape import Shape
 
@@ -20,15 +21,15 @@ class Locator(Shape):
 
         Args:
             value (Translate | Iterable[float]): 新しい localPosition。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Locator: 自身。
 
-        ``fast=True`` はOpenMaya直接更新（Undoなし）。既定の ``False`` は通常処理。
-        fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+        Note:
+            ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
+            fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
+        _require_bool(fast, "fast")
         self.getPlug("localPosition").set(tuple(value), fast=fast)
         return self

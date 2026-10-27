@@ -1,9 +1,7 @@
 """二点間、またはTransformの原点間の距離を扱う。"""
 
-from contextlib import nullcontext
-
-from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _edit_context, _pick_alias
+from ..util import _UNSET
 from .node import Node
 from .transform import Transform
 
@@ -11,7 +9,7 @@ from .transform import Transform
 class DistanceBetween(Node):
     """distanceBetweenノードを参照し、inMatrix1/2で変換したpoint1/2間の距離を評価する。
 
-    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
+    値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新(Undoなし)。途中の変更は自動で戻さない。
 
     Note:
         distance・point1/2のアトリビュート型はMayaの版で異なる(2027は単位なしのdouble、
@@ -27,7 +25,7 @@ class DistanceBetween(Node):
         Args:
             point1 (Iterable[float]): 第一の点。XYZ順の有限な3成分、cm。
             point2 (Iterable[float]): 第二の点。同じ単位・形式。
-            fast (bool): 既定Falseは通常更新。TrueはUndoなしのOpenMaya更新。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DistanceBetween: 自身。
@@ -37,9 +35,7 @@ class DistanceBetween(Node):
             ValueError: 座標が3成分でない、不正な数値文字列、または非有限値の場合。
             RuntimeError: ロックや入力接続などで設定できない場合。
         """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDistanceBetweenSetPoints"):
+        with _edit_context("mlibDistanceBetweenSetPoints", fast):
             import math
 
             points = [tuple(float(v) for v in point) for point in (point1, point2)]
@@ -58,7 +54,7 @@ class DistanceBetween(Node):
         Args:
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
             second (Transform | str): 第二のTransform。
-            force (bool): 既存のマトリクス入力接続を置き換えるか。 別名 ``f`` も使用可能。
+            force (bool): 既存のマトリクス入力接続を置き換えるか。別名 ``f`` も使用可能。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             f (bool): forceの別名。同時指定は不可。
 
@@ -69,17 +65,9 @@ class DistanceBetween(Node):
             TypeError: fastがbool以外、またはTransform以外を指定した場合。
             RuntimeError: ロックや既存接続により変更できない場合。
         """
-        if f is not _UNSET:
-            if force is not _UNSET:
-                raise _ArgumentError("Specify only one of 'force' and 'f'")
-            force = f
-        if force is _UNSET:
-            force = False
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibDistanceBetweenConnectTransforms"):
-            from .node import Node as _InputNode
-            nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
+        force = _pick_alias(force, f, "force", "f", default=False)
+        with _edit_context("mlibDistanceBetweenConnectTransforms", fast):
+            nodes = [Node._resolve_input(first), Node._resolve_input(second)]
             if not all(isinstance(node, Transform) for node in nodes):
                 raise TypeError("Both inputs must be transforms")
             self.setPoints((0, 0, 0), (0, 0, 0), fast=fast)
