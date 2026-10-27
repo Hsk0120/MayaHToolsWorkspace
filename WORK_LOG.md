@@ -117,6 +117,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-27): プッシュ依頼に対応し、KawaiiPhysics・UnrealEngineのサブモジュール設定/参照と担当履歴を公開対象に整理。origin/mainとの一致、両サブモジュールの未変更、調査メモのGit除外、ステージ差分を確認。並行作業中のmlib等と他担当の作業ログは対象外として保持。
+
+- Codex (2026-10-27): ユーザー指示でUnrealEngineの限定展開を解除。固定済みUE 5.8.4（f45729c0b6）の全224,010追跡ファイルを展開。sparseCheckout=false・skip-worktree 0件・取得済み参照の不足Gitオブジェクト0件・上流差分なしを確認。履歴はdepth 1を維持、Setup依存バイナリ取得・ビルドは未実行。既存変更を保持。
+
+- Codex (2026-10-27): UE公式リポジトリをmaya/external/UnrealEngineへサブモジュール追加。releaseの5.8.4（f45729c0b6f097038e72b52d366a62baeca3275b）を固定。depth 1・blob:none・ローカルsparse checkoutでChaos/Cloth関連ソースを展開。gitlink・取得元・クリーン状態・差分検査を確認。Setup・ビルド・Mayaロードは未実行。既存変更を保持、未コミット・未プッシュ。
+
+- Codex (2026-10-27): 依頼されたKawaiiPhysicsをmaya/external/KawaiiPhysicsへ浅いサブモジュールとして追加（feee5fe727261ba9cfe725c4af280aa9e381c31d）。gitlink・取得元・上流の未変更を確認。Maya実装や自動ロード設定は未追加、Maya/UE実行は未実施。調査メモはGit対象外docs/research/へ保存。既存変更を保持、未コミット・未プッシュ。
+
 - Claude Code (2026-10-27): mlib 2.1.0。2.0.0 で次版へ送った項目を対応。計算ノード系・removeInfluences・Namespace・select・setMuted・duplicate・matchTransform(position/pivots)に fast を追加(cmds と同じ結果にできない指定は変更前に NotImplementedError)。isSettable・resetAttrs 絞込み・getHistory・getPlugs・IkHandle.getJoints・listReferences 等の読み取りを om2 化し test_cmds_parity.py で突き合わせ。influence 除去の fast の再配分を cmds の距離規則に一致させた(既存不具合)。公開引数を lowerCamelCase へ改名(test_static_public_args.py で検査)、cameraFn/meshFn/curveFn/referenceFn・SkinCluster.fn を mfn() へ統合、_ContainerMixin 化、仕様テストを機能別のファイル名へ改名し NamespaceCase へ統合。changelog・版番号・api-design・CLAUDE.md を更新。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685件、静的検査・Sphinx(-W)・文書検査が合格。
 
 - Claude Code (2026-10-27): mlib 2.0.0 をリリース。未登録ノードタイプの動的クラス生成(基底は最寄りの登録クラス、`mlib.nodes.<TypeName>`)、作成を `mlib.createNode` に一本化(`Node.create`・`create=True` 廃止)、cymel に近いメソッドの統合・廃止(getPath系→getFullName/getName、dagFn/transformFn→mfn、getExtraAttrs→getPlugs(userDefined=)、Transform.reset→resetAttrs、getEuler→getRotate(order=)、Plug.getDataType→getType 等)、追加(setLocked・getRoot/getSiblings/getBoundingBox の DagNode 化・Plug 演算子 `>>`/`<<`/`//`・getAlias/getArray/getIndex/getEnumNames・uiUnits)。仕様テスト9ファイル追加・既存テストと mlrig の呼出しを移行。版番号・changelog.rst・Sphinx ガイド・api-design・CLAUDE.md を更新。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685件、静的検査・Sphinx(-W)・文書検査が合格。fast の追加・om2 読み取り置換(Phase 3)と snake_case 引数の改名は次版へ送った。
