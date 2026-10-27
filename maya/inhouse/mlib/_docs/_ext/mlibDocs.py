@@ -41,10 +41,20 @@ class _ReexportedSubpackageFilter(logging.Filter):
         return not message.startswith(self._IGNORED_MESSAGE_PREFIXES)
 
 
-def _include_constructors(app, what, name, obj, skip, options):
-    """AutoAPI が既定で隠す初期化・割り当てメソッドも掲載する。"""
-    if what == "method" and obj.short_name in {"__init__", "__new__"}:
-        if not obj.inherited and not obj.imported:
+def _include_private_base_members(app, what, name, obj, skip, options):
+    """掲載する member を AutoAPI の既定から調整する。
+
+    - 非公開の基底クラス(先頭 ``_``、例 ``_ContainerMixin``)から受け継いだ公開 member は、
+      基底のページを載せないため、受け継いだ公開クラスのページに掲載する。
+      公開の基底から受け継いだ member は従来どおり基底のページだけに載せる。
+
+    Returns:
+        bool | None: False は掲載、None は AutoAPI の判定に任せる。
+    """
+    if getattr(obj, "inherited", False) and not obj.short_name.startswith("_"):
+        base = obj.obj.get("inherited_from") or {}
+        base_name = base.get("full_name", "").rpartition(".")[2]
+        if base_name.startswith("_"):
             return False
     return None
 
@@ -143,4 +153,4 @@ def setup(app):
     logging.getLogger("sphinx").addFilter(_ReexportedSubpackageFilter())
     app.connect("source-read", _adapt_package_name)
     app.connect("include-read", _adapt_included_package_name)
-    app.connect("autoapi-skip-member", _include_constructors)
+    app.connect("autoapi-skip-member", _include_private_base_members)

@@ -29,8 +29,10 @@ version = release
 extensions = ["autoapi.extension", "sphinx.ext.napoleon", "mlibDocs"]
 autoapi_dirs = [str(_MLIB_ROOT)]
 autoapi_ignore = ["*/__tests__/*", "*/_docs/*"]
+# 先頭 _ の非公開メソッド・関数・クラスと、__init__・__eq__ 等の特殊メソッドは載せない
+# (private-members・special-members を指定しない)。constructor の引数はクラスの署名に表示される。
 autoapi_options = [
-    "members", "undoc-members", "private-members", "special-members",
+    "members", "undoc-members",
     "show-inheritance", "show-module-summary",
 ]
 autoapi_python_class_content = "class"
