@@ -18,7 +18,7 @@ def bind_mesh(rig, mesh, helpers=True):
         str: 作成したskinCluster。
     """
     joints = rig.getJoints() if helpers else rig.getJoints()[:3]
-    return mlib.nodes.SkinCluster.bind(mesh, joints, max_influences=4).getFullName()
+    return mlib.nodes.SkinCluster.bind(mesh, joints, maxInfluences=4).getFullName()
 
 
 @undoChunk("mlrig.create_skin_lod")

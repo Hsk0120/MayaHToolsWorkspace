@@ -30,7 +30,7 @@ class AimAxisConversion:
         self.container = Node(container)
         if not self.container.hasAttr(_TAG):
             raise ValueError("Aim軸変換の管理ノードではありません。")
-        self._graph = ScalarGraph(create_node=self._createNode)
+        self._graph = ScalarGraph(createNode=self._createNode)
         self._serial = 0
 
     @classmethod

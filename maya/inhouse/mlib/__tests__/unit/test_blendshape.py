@@ -61,7 +61,7 @@ class BlendShapeTest(unittest.TestCase):
         self.created.append(target3)
         cmds.move(0, 0, 3, target3 + ".vtx[0]")
 
-        weightPlug = self.bs.addTarget(target3, weight_index=5)
+        weightPlug = self.bs.addTarget(target3, weightIndex=5)
         self.assertEqual(weightPlug.getFullName(), self.bs.getFullName() + "." + target3)
         self.assertEqual(weightPlug.getLongName(), "weight")
 

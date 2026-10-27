@@ -1,6 +1,6 @@
 """Reference・Container・DagPose・マテリアル系・Constraint・AnimCurve の参照の少ないAPIの約束を固定する(担当C)。
 
-対象: Reference.referenceFn・getFilename の引数・isFromReferencedFile、Container の公開名
+対象: Reference.mfn・getFilename の引数・isFromReferencedFile、Container の公開名
 (publishName・bindAttr・unbindAttr・unpublishName)と removeContainer、DagPose.getNotAtPose・getMemberIndices、
 ShadingEngine.getShaderPlug、Node.getAssignedObjects・getMaterials、File のパスと色空間、
 Texture2d.getPlacement、Place2dTexture.connectTexture、Constraint.getWeightAliases、AnimCurve.isTimeInput。
@@ -20,27 +20,14 @@ mlib.reload()
 from mlib.components import Face
 from mlib.nodes import Container, DagPose, File, Node, Place2dTexture, Reference
 from mlib.plugs import Plug
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定と選択を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCMisc_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-        self.selection = cmds.ls(selection=True, long=True)
-        cmds.select(clear=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-        cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibSpecNodeMisc_"
+    CLEAR_SELECTION = True
 
 
 class ReferenceSpecTest(unittest.TestCase):
@@ -68,8 +55,8 @@ class ReferenceSpecTest(unittest.TestCase):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_reference_fn(self):
-        """referenceFn は自身の MFnReference。"""
-        fn = Node(self.refs[0]).referenceFn()
+        """mfn は自身の MFnReference。"""
+        fn = Node(self.refs[0]).mfn()
         self.assertIsInstance(fn, om2.MFnReference)
         self.assertEqual(fn.name(), self.refs[0])
 
@@ -82,15 +69,15 @@ class ReferenceSpecTest(unittest.TestCase):
         self.assertEqual(second.getFilename(resolved=False), self.path)
 
     def test_get_filename_with_copy_number(self):
-        """with_copy_number=True は referenceQuery(filename=True) と同じ完全パスで、2つ目以降に {1} 等が付く。
+        """withCopyNumber=True は referenceQuery(filename=True) と同じ完全パスで、2つ目以降に {1} 等が付く。
 
-        FINDINGS C-09 で修正(フラグを MFnReference.fileName の3番目の引数へ渡す)。
+        フラグは MFnReference.fileName の3番目の引数へ渡す。
         """
         expected = cmds.referenceQuery(self.refs[1], filename=True)
         self.assertTrue(expected.endswith("{1}"))
-        self.assertEqual(Node(self.refs[1]).getFilename(with_copy_number=True), expected)
-        self.assertEqual(Node(self.refs[1]).getFilename(with_copy_number=True), self.path + "{1}")
-        first = Node(self.refs[0]).getFilename(with_copy_number=True)
+        self.assertEqual(Node(self.refs[1]).getFilename(withCopyNumber=True), expected)
+        self.assertEqual(Node(self.refs[1]).getFilename(withCopyNumber=True), self.path + "{1}")
+        first = Node(self.refs[0]).getFilename(withCopyNumber=True)
         self.assertEqual(first, cmds.referenceQuery(self.refs[0], filename=True))
         self.assertEqual(first, self.path)
 
@@ -107,7 +94,7 @@ class ReferenceSpecTest(unittest.TestCase):
         self.assertEqual(Node(self.refs[1]).getEditNodeNames(), [])
 
 
-class ContainerPublishTest(_NamespaceCase):
+class ContainerPublishTest(_SpecCase):
     """公開名の作成・Bind・解除・削除と removeContainer。"""
 
     def setUp(self):
@@ -171,7 +158,7 @@ class ContainerPublishTest(_NamespaceCase):
         self.assertEqual(restored.getMembers(), [self.member])
 
 
-class DagPoseSpecTest(_NamespaceCase):
+class DagPoseSpecTest(_SpecCase):
     """getNotAtPose・isAtPose・getMemberIndices。"""
 
     def setUp(self):
@@ -208,7 +195,7 @@ class DagPoseSpecTest(_NamespaceCase):
                     getattr(self.node, method)()
 
 
-class MaterialTest(_NamespaceCase):
+class MaterialTest(_SpecCase):
     """ShadingEngine.getShaderPlug と、マテリアル・割り当ての照会。"""
 
     def setUp(self):
@@ -262,7 +249,7 @@ class MaterialTest(_NamespaceCase):
         self.assertEqual(len(materials), 2)
 
 
-class TextureTest(_NamespaceCase):
+class TextureTest(_SpecCase):
     """File・Texture2d・Place2dTexture。"""
 
     def setUp(self):
@@ -284,8 +271,6 @@ class TextureTest(_NamespaceCase):
 
     def test_color_space(self):
         """色空間名を設定・取得する。名前は検証せずに保存し、str 以外は何も変えず TypeError。
-
-        FINDINGS C-10 で修正(setFilePath と同じく str だけを受け付ける)。
         """
         self.assertEqual(self.file.getColorSpace(), cmds.getAttr(self.file.getName() + ".colorSpace"))
         self.assertIs(self.file.setColorSpace("Raw"), self.file)
@@ -324,7 +309,7 @@ class TextureTest(_NamespaceCase):
             other.connectTexture(material)
 
 
-class ConstraintAnimCurveTest(_NamespaceCase):
+class ConstraintAnimCurveTest(_SpecCase):
     """Constraint.getWeightAliases と AnimCurve.isTimeInput。"""
 
     def test_weight_aliases(self):

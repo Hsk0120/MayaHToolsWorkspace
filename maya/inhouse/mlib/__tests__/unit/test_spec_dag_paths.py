@@ -6,7 +6,6 @@ getChildren の引数検査、保持インスタンスだけが消えた参照�
 """
 
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -14,33 +13,16 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.nodes import DagNodes, Node
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCDag_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
+    PREFIX = "mlibSpecDagPaths_"
 
 
-class InstancedPathTest(_NamespaceCase):
+class InstancedPathTest(_SpecCase):
     """インスタンス化した Transform のパス・親の照会。"""
 
     def setUp(self):
@@ -123,8 +105,8 @@ class InstancedPathTest(_NamespaceCase):
         self.assertEqual(self.first.getFullName(), self.paths[0])
 
 
-class DeletedDagNodeTest(_NamespaceCase):
-    """ノードごと削除した DAG 参照の照会(FINDINGS C-05 で修正)。"""
+class DeletedDagNodeTest(_SpecCase):
+    """ノードごと削除した DAG 参照の照会。"""
 
     #: 削除直後(Undo の記録に残る間)も、破棄後も RuntimeError になるパスの照会。
     PATH_METHODS = ("isVisible", "getParent", "getParents", "mpath",
@@ -172,7 +154,7 @@ class DeletedDagNodeTest(_NamespaceCase):
         self.assertEqual(self.node.getChildren(), [])
 
 
-class VisibilityTest(_NamespaceCase):
+class VisibilityTest(_SpecCase):
     """show・hide・setVisibility と、getVisibility・isVisible の違い。"""
 
     def setUp(self):
@@ -243,7 +225,7 @@ class VisibilityTest(_NamespaceCase):
             self.node.getChildren(leaves=True, shapes=True)
 
 
-class DagNodesTest(_NamespaceCase):
+class DagNodesTest(_SpecCase):
     """DagNodes の同名メソッドの一括動作。"""
 
     def setUp(self):

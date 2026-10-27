@@ -2,7 +2,7 @@
 
 mlibの参照やコレクションを名前へ変換し、``maya.cmds.select`` へ渡す。
 対象を省略するとフラグだけで呼び出し、空の列は空の列として渡す。
-MayaのUndoに対応する。
+MayaのUndoに対応する。``fast=True`` は ``MGlobal.setActiveSelectionList`` で反映し、Undoに記録しない。
 
 .. code-block:: python
 
@@ -12,10 +12,23 @@ MayaのUndoに対応する。
     mlib.select(clear=True)
 """
 
+from contextlib import nullcontext
+
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..decorator import undoChunk
 from ..util import _ArgumentError, _UNSET
+
+
+#: fastで扱えるフラグ。選択方法のフラグは同時に1つだけ指定できる。
+_FAST_FLAGS = ("add", "addFirst", "clear", "deselect", "noExpand", "replace")
+_FAST_MODES = {
+    "add": om2.MGlobal.kAddToList,
+    "addFirst": om2.MGlobal.kAddToHeadOfList,
+    "deselect": om2.MGlobal.kRemoveFromList,
+    "replace": om2.MGlobal.kReplaceList,
+}
 
 
 def select(nodes=None, *,
@@ -36,6 +49,7 @@ def select(nodes=None, *,
         visible=_UNSET, vis=_UNSET,
         query=_UNSET, q=_UNSET,
         edit=_UNSET, e=_UNSET,
+        fast=False,
         **kwargs):
     """指定したノード・アトリビュート・コンポーネントを選択する。
 
@@ -76,15 +90,22 @@ def select(nodes=None, *,
         q (bool): queryの短縮名。同時指定はできない。
         edit (bool): 編集モード。コマンドが対応しない場合はMayaが拒否する。
         e (bool): editの短縮名。同時指定はできない。
+        fast (bool): TrueはUndoなしのOpenMaya直接更新。既定False。対象の並びと、直前の要素と同じ形状・
+            種類のコンポーネントをまとめる規則は ``cmds.select`` と同じ。使えるフラグは
+            add・addFirst・clear(対象なし)・deselect・noExpand・replace だけで、
+            他のフラグ(Falseを除く)や未知のフラグはNotImplementedError。
         **kwargs (object): 今後追加される未知のMayaフラグ。そのままMayaへ渡す。
 
     Returns:
         None: 値を返さない。
 
     Raises:
-        TypeError: 長名・短名を同時指定した場合、またはnodesの要素が対応しない型の場合。
-        ValueError: nodes の要素に空文字列、または削除済みの対象が含まれる場合。
+        TypeError: 長名・短名を同時指定した場合、nodesの要素が対応しない型の場合、またはfastがbool以外の場合。
+        ValueError: nodes の要素に空文字列、または削除済みの対象が含まれる場合。fastで名前が見つからない場合。
         RuntimeError: Maya が選択を拒否した場合。
+        NotImplementedError: fastで、未対応のフラグ(hierarchy・allDagObjects・toggle等)、複数の選択方法、
+            対象を伴うclear、対象なしのclear以外のフラグ、またはnoExpandなしでセットを指定した場合。
+            選択を変更する前に送出する。
     """
     if add is not _UNSET:
         kwargs["add"] = add
@@ -180,11 +201,49 @@ def select(nodes=None, *,
         kwargs["edit"] = edit
     elif e is not _UNSET:
         kwargs["edit"] = e
-    with undoChunk("mlib.cmds.select.select"):
+    if not isinstance(fast, bool):
+        raise TypeError("fast must be a bool")
+    with nullcontext() if fast else undoChunk("mlib.cmds.select.select"):
         from ..core.object import Object as _InputObject
 
+        if fast:
+            _select_fast(nodes, kwargs)
+            return
         if nodes is None:
             cmds.select(**kwargs)
             return
         names = _InputObject._input_names(nodes)
         cmds.select(names, **kwargs)
+
+
+def _select_fast(nodes, flags):
+    """selectのfast経路。対応しない指定は選択を変える前に拒否する。
+
+    Args:
+        nodes (object): selectのnodes。
+        flags (dict): 長名へそろえたMayaフラグ。
+
+    Raises:
+        NotImplementedError: fastで再現しないフラグや組合せの場合。
+    """
+    # common.selectionはnodes・componentsを読み込むため、cmdsパッケージの読込み時には読み込まない。
+    from ..common.selection import _set_active_selection
+    from ..core.object import Object as _InputObject
+
+    unsupported = sorted(name for name, value in flags.items() if name not in _FAST_FLAGS and value is not False)
+    if unsupported:
+        raise NotImplementedError("fast select does not support flags: " + ", ".join(unsupported))
+    modes = [name for name in ("add", "addFirst", "clear", "deselect", "replace") if flags.get(name)]
+    if len(modes) > 1:
+        raise NotImplementedError("fast select supports only one of add, addFirst, clear, deselect and replace")
+    if nodes is None:
+        if modes == ["clear"]:
+            om2.MGlobal.setActiveSelectionList(om2.MSelectionList(), om2.MGlobal.kReplaceList)
+        elif modes:
+            raise NotImplementedError("fast select without nodes supports only clear")
+        return
+    if modes == ["clear"]:
+        raise NotImplementedError("fast select does not support clear with nodes")
+    names = _InputObject._input_names(nodes)
+    mode = _FAST_MODES[modes[0]] if modes else om2.MGlobal.kReplaceList
+    _set_active_selection(names, mode, noExpand=bool(flags.get("noExpand")))

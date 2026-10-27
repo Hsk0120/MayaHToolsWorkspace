@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..decorator import undoChunk
@@ -10,22 +11,43 @@ from ..decorator import undoChunk
 _SHARED_REFERENCE_NODE = "sharedReferenceNode"
 
 
-def listReferences(top_level_only=False):
+def _reference_nodes():
+    """共有参照ノードを除く参照ノードを、``cmds.ls(type="reference")`` と同じ名前順で列挙する。
+
+    Returns:
+        list[tuple[str, om2.MObject]]: ``(ノード名, MObject)`` の名前順(文字コード順)の list。
+    """
+    iterator = om2.MItDependencyNodes(om2.MFn.kReference)
+    fn = om2.MFnDependencyNode()
+    nodes = []
+    while not iterator.isDone():
+        mobject = iterator.thisNode()
+        iterator.next()
+        fn.setObject(mobject)
+        name = fn.name()
+        if name != _SHARED_REFERENCE_NODE:
+            nodes.append((name, mobject))
+    # cmds.ls(type="reference") は名前の文字コード順で返すため、作成順の反復結果を並べ替える。
+    nodes.sort(key=lambda item: item[0])
+    return nodes
+
+
+def listReferences(topLevelOnly=False):
     """シーン内の参照を Reference ラッパーの一覧として取得する。
 
     Args:
-        top_level_only (bool): True の場合、他の参照にネストされていない
+        topLevelOnly (bool): True の場合、他の参照にネストされていない
             トップレベルの参照だけを返す。
 
     Returns:
-        list[Reference]: 参照ラッパーの一覧。参照が無ければ空リスト。
+        list[Reference]: 参照ラッパーの一覧(``cmds.ls(type="reference")`` と同じ名前順)。
+            参照が無ければ空リスト。
     """
     # commonの初期化時にnodesを読み込まないよう、使用時にReferenceを読み込む。
     from ..nodes.reference import Reference
 
-    names = [name for name in (cmds.ls(type="reference") or []) if name != _SHARED_REFERENCE_NODE]
-    references = [Reference(name) for name in names]
-    if top_level_only:
+    references = [Reference(mobject) for _, mobject in _reference_nodes()]
+    if topLevelOnly:
         references = [reference for reference in references if reference.getParentReference() is None]
     return references
 
@@ -54,13 +76,13 @@ def createReference(path, namespace=None):
         raise ValueError("path must be a non-empty string or Path")
     scene_path = Path(path).expanduser()
 
-    existing = set(cmds.ls(type="reference") or [])
+    existing = {name for name, _ in _reference_nodes()}
     kwargs = {"reference": True}
     if namespace is not None:
         kwargs["namespace"] = namespace
     cmds.file(str(scene_path), **kwargs)
 
-    created = [Reference(name) for name in (cmds.ls(type="reference") or []) if name not in existing]
+    created = [Reference(mobject) for name, mobject in _reference_nodes() if name not in existing]
     # 参照先ファイル自身がネストした参照を持つ場合、その子参照ノードも同時に
     # 新規ノードとして現れるため、親を持たないトップレベルのものだけを選ぶ。
     top_level = [reference for reference in created if reference.getParentReference() is None]

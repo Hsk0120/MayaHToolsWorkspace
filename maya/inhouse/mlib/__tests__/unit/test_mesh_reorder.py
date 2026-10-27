@@ -14,7 +14,7 @@ class MeshReorderTest(unittest.TestCase):
         self.before = set(cmds.ls(long=True))
         cmds.undoInfo(state=True)
         self.reference = mlib.getNode(cmds.polyCube(ch=False)[0]).getShape()
-        source = self.reference.meshFn()
+        source = self.reference.mfn()
         self.permutation = [3, 6, 0, 7, 1, 5, 2, 4]
         points = source.getPoints()
         target_points = om2.MPointArray(points)
@@ -25,7 +25,7 @@ class MeshReorderTest(unittest.TestCase):
         fn = om2.MFnMesh()
         transform = fn.create(target_points, counts, [self.permutation[v] for v in connects])
         self.target = mlib.getNode(om2.MFnDagNode(transform).fullPathName()).getShape()
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         fn.setUVs(*source.getUVs("map1"), uvSet="map1")
         fn.assignUVs(*source.getAssignedUVs("map1"), uvSet="map1")
 
@@ -35,24 +35,24 @@ class MeshReorderTest(unittest.TestCase):
                 cmds.delete(name)
 
     def snapshot(self):
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         return ([tuple(p) for p in fn.getPoints()], tuple(fn.getVertices()[1]),
                 tuple(fn.getUVs()[0]), tuple(fn.getAssignedUVs()[1]))
 
     def set_matching_positions(self, offset=0):
-        points = self.reference.meshFn().getPoints()
+        points = self.reference.mfn().getPoints()
         for source, target in enumerate(self.permutation):
-            p = self.target.meshFn().getPoint(target)
+            p = self.target.mfn().getPoint(target)
             points[source] = om2.MPoint(p.x - offset, p.y, p.z)
-        self.reference.meshFn().setPoints(points)
+        self.reference.mfn().setPoints(points)
 
     def test_position_preserves_different_uvs_and_undo(self):
         self.set_matching_positions()
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         u, v = fn.getUVs()
         fn.setUVs([x * 2 + 1 for x in u], [y * 3 - 1 for y in v])
         before = self.snapshot()
-        self.assertIs(self.target.reorderVertices(self.reference, match="position", uv_set=None), self.target)
+        self.assertIs(self.target.reorderVertices(self.reference, match="position", uvSet=None), self.target)
         after = self.snapshot()
         self.assertEqual(after[0], [before[0][i] for i in self.permutation])
         self.assertEqual(after[2:], before[2:])
@@ -84,7 +84,7 @@ class MeshReorderTest(unittest.TestCase):
         self.target.reorderVertices(self.reference, match="position", tolerance=0.13)
         self.assertEqual(self.snapshot()[0], [before[0][i] for i in self.permutation])
         for mesh in (self.reference, self.target):
-            mesh.meshFn().setPoints([om2.MPoint(0, 0, 0)] * 8)
+            mesh.mfn().setPoints([om2.MPoint(0, 0, 0)] * 8)
         before = self.snapshot()
         with self.assertRaises(ValueError):
             self.target.reorderVertices(self.reference, match="position", tolerance=0)
@@ -104,7 +104,7 @@ class MeshReorderTest(unittest.TestCase):
         self.assertIs(self.target.reorderVertices(self.reference), self.target)
         after = self.snapshot()
         self.assertEqual(after[0], expected)
-        self.assertEqual(after[1], tuple(self.reference.meshFn().getVertices()[1]))
+        self.assertEqual(after[1], tuple(self.reference.mfn().getVertices()[1]))
         self.assertEqual(after[2:], before[2:])
         cmds.undo()
         self.assertEqual(self.snapshot(), before)
@@ -132,8 +132,8 @@ class MeshReorderTest(unittest.TestCase):
     def test_named_uv_set(self):
         for mesh in (self.reference, self.target):
             cmds.polyUVSet(mesh.getFullName(), rename=True, uvSet="map1", newUVSet="matchUV")
-        self.target.reorderVertices(self.reference, uv_set="matchUV")
-        self.assertEqual(self.target.meshFn().getUVSetNames(), ("matchUV",))
+        self.target.reorderVertices(self.reference, uvSet="matchUV")
+        self.assertEqual(self.target.mfn().getUVSetNames(), ("matchUV",))
 
     def test_validation_before_changes(self):
         before = self.snapshot()
@@ -141,9 +141,9 @@ class MeshReorderTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.target.reorderVertices(self.reference, tolerance=tolerance)
         with self.assertRaises(ValueError):
-            self.target.reorderVertices(self.reference, uv_set="missing")
+            self.target.reorderVertices(self.reference, uvSet="missing")
         self.assertEqual(self.snapshot(), before)
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         u, v = fn.getUVs()
         fn.setUVs([0] * len(u), [0] * len(v))
         before = self.snapshot()
@@ -157,7 +157,7 @@ class MeshReorderTest(unittest.TestCase):
             source.reorderVertices(self.target)
 
     def test_tolerance_and_face_topology(self):
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         u, v = fn.getUVs()
         fn.setUVs([value + 0.00001 for value in u], v)
         before = self.snapshot()
@@ -183,7 +183,7 @@ class MeshReorderTest(unittest.TestCase):
         cmds.sets(name + ".f[0:2]", e=True, forceElement="initialShadingGroup")
         cmds.polyUVSet(name, copy=True, uvSet="map1", newUVSet="secondUV")
         cmds.polyUVSet(name, currentUVSet=True, uvSet="secondUV")
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         vertex = fn.getPolygonVertices(0)[0]
         fn.setFaceVertexNormal(om2.MVector(1, 0, 0), 0, vertex)
         fn.lockFaceVertexNormals([0], [vertex])
@@ -192,7 +192,7 @@ class MeshReorderTest(unittest.TestCase):
         materials = self.target.getFaceShadingEngines()
         normals = [tuple(n) for i in range(fn.numPolygons) for n in fn.getFaceVertexNormals(i)]
         self.target.reorderVertices(self.reference)
-        fn = self.target.meshFn()
+        fn = self.target.mfn()
         self.assertEqual(self.snapshot()[0], [before[0][i] for i in self.permutation])
         self.assertEqual(self.target.getFaceShadingEngines(), materials)
         self.assertEqual((tuple(fn.getUVs("secondUV")[0]), tuple(fn.getAssignedUVs("secondUV")[1])), uv)
@@ -206,7 +206,7 @@ class MeshReorderTest(unittest.TestCase):
         self.assertEqual(self.target.getFaceShadingEngines(), materials)
         cmds.redo()
         self.assertEqual(self.target.getFaceShadingEngines(), materials)
-        self.assertEqual(self.target.meshFn().currentUVSetName(), "secondUV")
+        self.assertEqual(self.target.mfn().currentUVSetName(), "secondUV")
 
     def test_fast_with_tweaks_materials_and_uvs(self):
         name = self.target.getFullName()
@@ -222,12 +222,12 @@ class MeshReorderTest(unittest.TestCase):
         self.target.reorderVertices(self.reference, fast=True)
         self.assertEqual(self.snapshot()[0], [before[0][i] for i in self.permutation])
         self.assertEqual(self.target.getFaceShadingEngines(), materials)
-        self.assertEqual(self.target.meshFn().getUVSetNames(), ("map1", "secondUV"))
-        self.assertEqual(self.target.meshFn().currentUVSetName(), "secondUV")
+        self.assertEqual(self.target.mfn().getUVSetNames(), ("map1", "secondUV"))
+        self.assertEqual(self.target.mfn().currentUVSetName(), "secondUV")
 
     def test_ambiguous_uv_rejected(self):
         for mesh in (self.reference, self.target):
-            fn = mesh.meshFn()
+            fn = mesh.mfn()
             u, v = fn.getUVs()
             fn.setUVs([0] * len(u), [0] * len(v))
         before = self.snapshot()

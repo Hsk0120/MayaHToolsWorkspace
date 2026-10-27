@@ -126,8 +126,8 @@ class TweakLayer:
                         plug.getFullName(),
                         attribute=plug,
                         callback=partial(cls._changed, rig.root.getUuid()),
-                        kill_with_scene=True,
-                        compress_undo=True,
+                        killWithScene=True,
+                        compressUndo=True,
                     )
                 cls._jobs[key] = jobs
 

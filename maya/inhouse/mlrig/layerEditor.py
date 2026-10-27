@@ -431,7 +431,7 @@ class LayerEditor(QtWidgets.QDialog):
                             (uuid, name),
                             attribute=rig.root.getPlug(name),
                             callback=self.schedule_refresh,
-                            kill_with_scene=True,
+                            killWithScene=True,
                         )
             for item in self.rows():
                 data = item.data(0, QtCore.Qt.UserRole)
@@ -512,7 +512,7 @@ class LayerEditor(QtWidgets.QDialog):
                 (uuid, name),
                 attribute=rig.root.getPlug(name),
                 callback=self.schedule_refresh,
-                kill_with_scene=True,
+                killWithScene=True,
             )
 
     def _skirt_rows(self, rig, root_item):
@@ -595,7 +595,7 @@ class LayerEditor(QtWidgets.QDialog):
                 (uuid, name),
                 attribute=rig.root.getPlug(name),
                 callback=self.schedule_refresh,
-                kill_with_scene=True,
+                killWithScene=True,
             )
 
     def _tweak_rows(self, rig, parent):
@@ -622,7 +622,7 @@ class LayerEditor(QtWidgets.QDialog):
                 group.getUuid(),
                 attribute=group.getPlug("enabled"),
                 callback=self.schedule_refresh,
-                kill_with_scene=True,
+                killWithScene=True,
             )
 
     def _control_rows(self, rig, parent):
@@ -652,7 +652,7 @@ class LayerEditor(QtWidgets.QDialog):
                 (rig.root.getUuid(), attr),
                 attribute=rig.root.getPlug(attr),
                 callback=self.schedule_refresh,
-                kill_with_scene=True,
+                killWithScene=True,
             )
 
     def edit_poses(self):

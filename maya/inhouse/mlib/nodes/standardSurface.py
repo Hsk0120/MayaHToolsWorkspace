@@ -1,13 +1,12 @@
 """MayaのstandardSurfaceノードを扱う。"""
 
-import maya.cmds as cmds
-
+from ..core.registry import _inherited_node_types
 from .paintableShadingDependNode import PaintableShadingDependNode
 from .shadingDependNode import ShadingDependNode
 
 # Mayaのバージョンで異なる中間型の有無を反映する。
 _SurfaceBase = (PaintableShadingDependNode
-                if "paintableShadingDependNode" in cmds.nodeType("standardSurface", isTypeName=True, inherited=True)
+                if "paintableShadingDependNode" in _inherited_node_types("standardSurface")
                 else ShadingDependNode)
 
 

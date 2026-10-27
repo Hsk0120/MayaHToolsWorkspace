@@ -7,7 +7,6 @@ setRotate・setMatrix の書き込むチャンネルは test_contract_changes_B.
 
 import math
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -16,47 +15,18 @@ import mlib
 mlib.reload()
 from mlib.maths import EulerRotate, Quaternion, Shear
 from mlib.nodes import Node, Transforms
+from support.specCase import NamespaceCase
 
 TOLERANCE = 1e-9
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCXform_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
-
-    def assertSequenceAlmostEqual(self, actual, expected, places=9):
-        self.assertEqual(len(list(actual)), len(list(expected)))
-        for a, e in zip(actual, expected):
-            self.assertAlmostEqual(a, e, places=places)
-
-    def assertSameRotation(self, actual, expected):
-        """四元数は q と -q が同じ回転なので、符号をそろえて比べる。"""
-        actual, expected = list(actual), list(expected)
-        if sum(a * e for a, e in zip(actual, expected)) < 0:
-            expected = [-value for value in expected]
-        self.assertSequenceAlmostEqual(actual, expected)
+    PREFIX = "mlibSpecXformMisc_"
 
 
-class JointOrientQuaternionTest(_NamespaceCase):
+class JointOrientQuaternionTest(_SpecCase):
     """getQuaternion(r=False) は jointOrient(とワールドなら親)だけの回転。"""
 
     def setUp(self):
@@ -107,7 +77,7 @@ class JointOrientQuaternionTest(_NamespaceCase):
         self.assertEqual(cmds.getAttr(self.joint_name + ".jointOrient")[0], (0.0, 45.0, 0.0))
 
 
-class EulerShearTest(_NamespaceCase):
+class EulerShearTest(_SpecCase):
     """getRotate(order=0) と getShear。"""
 
     def setUp(self):
@@ -136,7 +106,7 @@ class EulerShearTest(_NamespaceCase):
             self.child.getRotate(ws="yes", order=0)
 
     def test_get_euler_with_zero_scale_raises(self):
-        """自身・親のスケールが0(Maya は 1e-12 として評価)なら ValueError。FINDINGS C-06 で修正。"""
+        """自身・親のスケールが0(Maya は 1e-12 として評価)なら ValueError。"""
         cmds.setAttr(self.parent + ".scale", 0, 1, 1)
         with self.assertRaisesRegex(ValueError, "zero scale axis"):
             self.child.getRotate(ws=True, order=0)
@@ -169,7 +139,7 @@ class EulerShearTest(_NamespaceCase):
             self.child.getShear(worldSpace=True, ws=True)
 
 
-class ResetPivotTest(_NamespaceCase):
+class ResetPivotTest(_SpecCase):
     """setPivot((0, 0, 0), ws=True, kind="both") は姿勢を保ってピボットを原点へ移す。"""
 
     def setUp(self):
@@ -234,7 +204,7 @@ class ResetPivotTest(_NamespaceCase):
             self.node.setPivot((0, 0, 0), worldSpace=True, ws=True, kind="both")
 
     def test_locked_pivot(self):
-        """ロックされたピボットの成分は通常・fast とも RuntimeError で、何も変えない。FINDINGS C-07 で修正。"""
+        """ロックされたピボットの成分は通常・fast とも RuntimeError で、何も変えない。"""
         cmds.setAttr(self.name_ + ".rotatePivotX", lock=True)
         before = [cmds.getAttr(self.name_ + "." + name)[0]
                   for name in ("rotatePivot", "rotatePivotTranslate", "scalePivot", "scalePivotTranslate")]
@@ -270,7 +240,7 @@ class ResetPivotTest(_NamespaceCase):
         self.assertEqual(cmds.getAttr(self.name_ + ".rotatePivotTranslate")[0], translate_before)
 
 
-class MakeIdentityTest(_NamespaceCase):
+class MakeIdentityTest(_SpecCase):
     """makeIdentity は cmds.makeIdentity へ委譲する。"""
 
     def setUp(self):
@@ -305,7 +275,7 @@ class MakeIdentityTest(_NamespaceCase):
             self.node.makeIdentity(apply=True)
 
 
-class MirrorGeometryTest(_NamespaceCase):
+class MirrorGeometryTest(_SpecCase):
     """mirrorGeometry は直下の Shape の mirror へ委譲する。"""
 
     def setUp(self):
@@ -359,7 +329,7 @@ class MirrorGeometryTest(_NamespaceCase):
         self.assertIs(empty.mirrorGeometry(), empty)
 
 
-class HierarchyQueryTest(_NamespaceCase):
+class HierarchyQueryTest(_SpecCase):
     """getRoot・getSiblings・getBoundingBox。"""
 
     def test_root_and_siblings(self):
@@ -392,7 +362,7 @@ class HierarchyQueryTest(_NamespaceCase):
             cmds.exactWorldBoundingBox(cube))
 
 
-class TransformsBulkTest(_NamespaceCase):
+class TransformsBulkTest(_SpecCase):
     """Transforms の同名メソッド。"""
 
     def test_bulk_queries_and_reset_pivot(self):

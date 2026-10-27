@@ -129,7 +129,7 @@ class BlendShapeEditTest(unittest.TestCase):
     def test_duplicate_bakes_live_and_inbetweens(self):
         self.inbetween()
         self.bs.setTargetWeights(0, {0: 0.5})
-        plug = self.bs.duplicateTarget("smile", weight_index=5, alias="smileCopy")
+        plug = self.bs.duplicateTarget("smile", weightIndex=5, alias="smileCopy")
         self.assertEqual(self.bs.getTargetIndices(), [0, 5])
         self.assertEqual(self.bs.getInBetweenWeights(5), [0.5])
         self.assertAlmostEqual(self.bs.getTargetWeights(5)[0], 0.5)
@@ -201,7 +201,7 @@ class BlendShapeEditTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.bs.addInBetween(0, self.target, value)
         with self.assertRaises(ValueError):
-            self.bs.duplicateTarget(0, weight_index=0)
+            self.bs.duplicateTarget(0, weightIndex=0)
         with self.assertRaises(ValueError):
             self.bs.duplicateTarget(0, alias="smile")
         with self.assertRaises(ValueError):
@@ -214,10 +214,10 @@ class BlendShapeEditTest(unittest.TestCase):
         cmds.blendShape(self.bs.getName(), edit=True, geometry=second)
         other = cmds.polyCube(ch=False)[0]
         cmds.move(0, 0, 3, other + ".vtx[2]", relative=True)
-        self.bs.addTarget(other, base=second, weight_index=0)
+        self.bs.addTarget(other, base=second, weightIndex=0)
         # ベース別に同じweight番号へ異なるデルタが保持される。
         self.assertAlmostEqual(self.bs.getTargetDeltas(0, base=second)[2].z, 3)
-        self.bs.duplicateTarget(0, weight_index=8, alias="copyBoth")
+        self.bs.duplicateTarget(0, weightIndex=8, alias="copyBoth")
         self.assertAlmostEqual(self.bs.getTargetDeltas(8, base=second)[2].z, 3)
         self.assertAlmostEqual(self.bs.getTargetDeltas(8, base=self.base)[0].y, 2)
         path = os.path.join(self.directory.name, "multi.json")
@@ -237,8 +237,8 @@ class BlendShapeEditTest(unittest.TestCase):
         self.assertAlmostEqual(self.bs.getTargetDeltas(0)[0].y, 2)
 
     def test_nondefault_full_weight_duplicate(self):
-        self.bs.addTarget(self.target, weight_index=4, full_weight=0.8)
-        self.bs.duplicateTarget(4, weight_index=5)
+        self.bs.addTarget(self.target, weightIndex=4, fullWeight=0.8)
+        self.bs.duplicateTarget(4, weightIndex=5)
         self.assertEqual(self.bs.getInBetweenWeights(5), [0.8])
         self.bs.getTargetPlug(5).set(0.8)
         self.assertAlmostEqual(self.point()[1], 1.5)
@@ -256,7 +256,7 @@ class BlendShapeEditTest(unittest.TestCase):
 
     def test_duplicate_undo_redo(self):
         self.inbetween()
-        self.bs.duplicateTarget(0, weight_index=5)
+        self.bs.duplicateTarget(0, weightIndex=5)
         cmds.undo()
         self.assertEqual(self.bs.getTargetIndices(), [0])
         cmds.redo()
@@ -288,12 +288,12 @@ class BlendShapeEditTest(unittest.TestCase):
     def test_relative_set_deltas(self):
         self.bake()
         self.inbetween(relative=True)
-        original = self.bs.getTargetDeltas(0, full_weight=0.5)
-        self.bs.setTargetDeltas(0, {0: (0, 0, 3)}, full_weight=0.5)
-        actual = self.bs.getTargetDeltas(0, full_weight=0.5)
+        original = self.bs.getTargetDeltas(0, fullWeight=0.5)
+        self.bs.setTargetDeltas(0, {0: (0, 0, 3)}, fullWeight=0.5)
+        actual = self.bs.getTargetDeltas(0, fullWeight=0.5)
         self.assertAlmostEqual(actual[0].z, 3)
         cmds.undo()
-        self.assertAlmostEqual(self.bs.getTargetDeltas(0, full_weight=0.5)[0].z, original[0].z)
+        self.assertAlmostEqual(self.bs.getTargetDeltas(0, fullWeight=0.5)[0].z, original[0].z)
 
     def test_readers_do_not_use_commands(self):
         self.inbetween(relative=True)
@@ -345,10 +345,10 @@ class BlendShapeEditTest(unittest.TestCase):
     def test_fast_duplicate_matches_normal(self):
         self.inbetween(relative=True)
         self.bs.setTargetWeights(0, {0: 0.5})
-        self.bs.duplicateTarget(0, weight_index=4, alias="normalCopy")
+        self.bs.duplicateTarget(0, weightIndex=4, alias="normalCopy")
         previous = cmds.undoInfo(query=True, undoName=True)
         with self._no_commands():
-            copied = self.bs.duplicateTarget(0, weight_index=5, alias="fastCopy", fast=True)
+            copied = self.bs.duplicateTarget(0, weightIndex=5, alias="fastCopy", fast=True)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), previous)
         self.assertEqual(copied, self.bs.getTargetPlug("fastCopy"))
         for weight in (0.25, 0.5, 0.75, 1.0):
@@ -369,7 +369,7 @@ class BlendShapeEditTest(unittest.TestCase):
         mesh = cmds.polyCube(ch=False)[0]
         restored = mlib.getNode(cmds.blendShape(mesh)[0])
         # stateWithoutFlush=Falseは、Maya 2025/2027のmayapyで以後のcreateNodeの名前空間が外れるため、
-        # Undoの切替えはstate=を使う(FINDINGS_D.md の参考の件。テスト側 7 で修正)。
+        # Undoの切替えはstate=を使う。
         cmds.undoInfo(state=False)
         try:
             with self._no_commands():
@@ -420,13 +420,13 @@ class BlendShapeEditTest(unittest.TestCase):
 
     def test_target_vertices_inbetween_and_second_base(self):
         self.inbetween()
-        self.bs.setTargetDeltas(0, {2: (0, 0, 1)}, full_weight=0.5)
-        self.assertEqual(self.bs.getTargetVertices(0, full_weight=0.5).indices, (2,))
+        self.bs.setTargetDeltas(0, {2: (0, 0, 1)}, fullWeight=0.5)
+        self.assertEqual(self.bs.getTargetVertices(0, fullWeight=0.5).indices, (2,))
         second = cmds.polyCube(ch=False)[0]
         target = cmds.polyCube(ch=False)[0]
         cmds.move(0, 0, 1, target + ".vtx[5]", relative=True)
         cmds.blendShape(self.bs.getName(), edit=True, geometry=second)
-        self.bs.addTarget(target, base=second, weight_index=0)
+        self.bs.addTarget(target, base=second, weightIndex=0)
         vertices = self.bs.getTargetVertices(0, base=second)
         self.assertEqual(vertices.indices, (5,))
         self.assertEqual(vertices.shape, mlib.getNode(second).getShape())
@@ -459,10 +459,10 @@ class BlendShapeEditTest(unittest.TestCase):
         self.bs.setTargetDeltas(0, {0: (0, 2, 0), 3: (0, 1, 0)}, disconnect=True)
         self.bs.setTargetWeights(0, {3: 0.4})
         before = self.bs.getTargetDeltas(0)
-        half = self.bs.getTargetDeltas(0, full_weight=0.5)
+        half = self.bs.getTargetDeltas(0, fullWeight=0.5)
         self.assertIs(self.bs.resetTargetVertices("smile", [0, 0]), self.bs)
         self.assertEqual(set(self.bs.getTargetDeltas(0)), {3})
-        self.assertEqual(self.bs.getTargetDeltas(0, full_weight=0.5), half)
+        self.assertEqual(self.bs.getTargetDeltas(0, fullWeight=0.5), half)
         self.assertAlmostEqual(self.bs.getTargetWeights(0)[3], 0.4)
         cmds.undo()
         self.assertEqual(self.bs.getTargetDeltas(0), before)
@@ -516,8 +516,8 @@ class BlendShapeEditTest(unittest.TestCase):
     def test_remove_deltas_inbetween(self):
         self.inbetween()
         before = self.bs.getTargetDeltas(0)
-        self.bs.resetTargetVertices(0, 0, full_weight=0.5)
-        self.assertEqual(self.bs.getTargetDeltas(0, full_weight=0.5), {})
+        self.bs.resetTargetVertices(0, 0, fullWeight=0.5)
+        self.assertEqual(self.bs.getTargetDeltas(0, fullWeight=0.5), {})
         self.assertEqual(self.bs.getTargetDeltas(0), before)
 
     def test_reduce_deltas_default_boundary_and_undo(self):
@@ -533,15 +533,15 @@ class BlendShapeEditTest(unittest.TestCase):
 
     def test_reduce_deltas_fast_masks_and_inbetween(self):
         self.inbetween()
-        self.bs.setTargetDeltas(0, {0: (0, 0, 0), 1: (0, 2, 0)}, full_weight=0.5)
+        self.bs.setTargetDeltas(0, {0: (0, 0, 0), 1: (0, 2, 0)}, fullWeight=0.5)
         self.bs.setTargetWeights(0, {1: 0})
         self.bs.getPlug("envelope").set(0)
         full = self.bs.getTargetDeltas(0)
         previous = cmds.undoInfo(query=True, undoName=True)
         with self._no_commands():
-            self.bs.reduceTargetDeltas(0, 1, full_weight=0.5, fast=True)
+            self.bs.reduceTargetDeltas(0, 1, fullWeight=0.5, fast=True)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), previous)
-        self.assertEqual(set(self.bs.getTargetDeltas(0, full_weight=0.5)), {1})
+        self.assertEqual(set(self.bs.getTargetDeltas(0, fullWeight=0.5)), {1})
         self.assertEqual(self.bs.getTargetDeltas(0), full)
         self.assertEqual(self.bs.getTargetWeights(0)[1], 0)
 
@@ -581,12 +581,12 @@ class BlendShapeEditTest(unittest.TestCase):
         full = self.bs.getTargetDeltas(0)
         previous = cmds.undoInfo(q=True, undoName=True)
         with self._no_commands():
-            self.bs.reduceTargetDeltas(0, 0.125, full_weight=0.5, fast=True)
+            self.bs.reduceTargetDeltas(0, 0.125, fullWeight=0.5, fast=True)
         self.assertEqual(cmds.undoInfo(q=True, undoName=True), previous)
-        self.assertEqual(self.bs.getTargetVertices(0, full_weight=0.5).indices, (2,))
+        self.assertEqual(self.bs.getTargetVertices(0, fullWeight=0.5).indices, (2,))
         self.assertEqual(self.bs.getTargetDeltas(0), full)
         cmds.move(0, 1, 0, mesh + ".vtx[1]", r=True)
-        self.assertIn(1, self.bs.getTargetVertices(0, full_weight=0.5).indices)
+        self.assertIn(1, self.bs.getTargetVertices(0, fullWeight=0.5).indices)
 
     def test_live_world_origin_transforms(self):
         cmds.setAttr(self.base + ".translate", 5, 0, 0)
@@ -607,14 +607,14 @@ class BlendShapeEditTest(unittest.TestCase):
         mesh = cmds.polyCube(ch=True)[0]
         cmds.move(0, 1, 0, mesh + ".vtx[0]", r=True)
         self.bs.addInBetween(0, mesh, 0.5, relative=True)
-        before = self.bs.getTargetDeltas(0, full_weight=0.5)
+        before = self.bs.getTargetDeltas(0, fullWeight=0.5)
         with self.assertRaises(NotImplementedError):
-            self.bs.resetTargetVertices(0, 0, full_weight=0.5, fast=True)
-        self.assertEqual(self.bs.getTargetDeltas(0, full_weight=0.5), before)
-        self.bs.resetTargetVertices(0, 0, full_weight=0.5)
-        self.assertEqual(self.bs.getTargetVertices(0, full_weight=0.5).indices, ())
+            self.bs.resetTargetVertices(0, 0, fullWeight=0.5, fast=True)
+        self.assertEqual(self.bs.getTargetDeltas(0, fullWeight=0.5), before)
+        self.bs.resetTargetVertices(0, 0, fullWeight=0.5)
+        self.assertEqual(self.bs.getTargetVertices(0, fullWeight=0.5).indices, ())
         cmds.undo()
-        self.assertEqual(self.bs.getTargetDeltas(0, full_weight=0.5), before)
+        self.assertEqual(self.bs.getTargetDeltas(0, fullWeight=0.5), before)
 
     def test_target_edit_toggle_and_undo(self):
         state = self.bs.getPlug("inputTarget[0].sculptTargetIndex")
@@ -632,10 +632,10 @@ class BlendShapeEditTest(unittest.TestCase):
 
     def test_target_edit_inbetween_and_validation(self):
         self.inbetween()
-        self.bs.targetEdit("smile", True, full_weight=0.5)
+        self.bs.targetEdit("smile", True, fullWeight=0.5)
         self.assertAlmostEqual(self.bs.getPlug("inputTarget[0].sculptInbetweenWeight").get(), 0.5)
         for kwargs, error in (({}, ValueError), ({"target": "missing"}, ValueError),
-                              ({"target": 0, "full_weight": 0.25}, ValueError),
+                              ({"target": 0, "fullWeight": 0.25}, ValueError),
                               ({"target": 0, "state": 1}, TypeError)):
             with self.assertRaises(error):
                 self.bs.targetEdit(**kwargs)

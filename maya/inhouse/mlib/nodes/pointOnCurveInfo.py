@@ -15,13 +15,14 @@ class PointOnCurveInfo(AbstractBaseCreate):
     値設定では入力接続を切らない。通常編集はUndo有効時にまとめ、fast=TrueはUndo設定を変えないOM2直接更新（Undoなし）。途中の変更は自動で戻さない。
     """
 
-    def connectCurve(self, curve, worldSpace=_UNSET, force=_UNSET, *, ws=_UNSET, f=_UNSET):
+    def connectCurve(self, curve, worldSpace=_UNSET, force=_UNSET, *, fast=False, ws=_UNSET, f=_UNSET):
         """nurbsCurveのlocal/worldSpaceをinputCurveへ接続する。
 
         Args:
             curve (Node | str | MObject | MDagPath): nurbsCurveシェイプ、または対応シェイプが1個のTransform。
             worldSpace (bool): 既定Trueは解決したDAGインスタンスのworldSpace、Falseはlocal。
             force (bool): 接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             ws (bool): worldSpaceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -29,7 +30,7 @@ class PointOnCurveInfo(AbstractBaseCreate):
             PointOnCurveInfo: 自身。
 
         Raises:
-            TypeError: 対象のシェイプ型またはworldSpaceの型が不正な場合。
+            TypeError: fastがbool以外、または対象のシェイプ型またはworldSpaceの型が不正な場合。
             ValueError: Transformの対応シェイプが1個に定まらない場合。
         """
         if ws is not _UNSET:
@@ -44,9 +45,11 @@ class PointOnCurveInfo(AbstractBaseCreate):
             worldSpace = True
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
             source = _Calculation.geometry_output(curve, "nurbsCurve", worldSpace)
-            source.connectTo(self.getPlug("inputCurve"), force=force)
+            source.connectTo(self.getPlug("inputCurve"), force=force, fast=fast)
             return self
 
     def setParameter(self, value, percentage=False, *, fast=False):

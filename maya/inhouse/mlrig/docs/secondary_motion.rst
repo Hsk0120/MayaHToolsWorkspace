@@ -10,7 +10,7 @@ Mayaノードを生成せず、Python標準ライブラリだけで計算しま�
 
    result = DampedSpring.solve(
        [(0.0,), (30.0,), (30.0,)],
-       seconds_per_sample=1.0 / 24.0,
+       secondsPerSample=1.0 / 24.0,
        frequency=3.0, damping=0.5, limit=45.0,
    )
 

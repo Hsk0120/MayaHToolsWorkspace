@@ -49,7 +49,7 @@ class InternalRefactoringTest(unittest.TestCase):
         joints[0] = cmds.rename(joints[0], "renamedInfluence")
         queries = [joints[2], joints[0], joints[2], "notAnInfluence"]
         self.assertEqual([skin._jnt_index(x) for x in queries],
-                         skin._influence_indices(queries, skin.fn.influenceObjects()))
+                         skin._influence_indices(queries, skin.mfn().influenceObjects()))
         cmds.skinCluster(skin.getFullName(), edit=True, removeInfluence=joints[1])
         self.assertIsNone(skin._jnt_index(joints[1]))
         self.assertEqual(skin._jnt_index(joints[2]), 1)

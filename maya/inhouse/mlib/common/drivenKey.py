@@ -27,6 +27,24 @@ _NUMERIC_SCALAR_TYPES = frozenset(
 )
 
 
+def _exists(name):
+    """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
+
+    一意な完全名に対しては ``cmds.objExists`` と同じ結果になる(配列の未作成要素も True)。
+
+    Args:
+        name (str): 調べる完全名。
+
+    Returns:
+        bool: 選択リストへ追加できた場合 True。
+    """
+    try:
+        om2.MSelectionList().add(name)
+    except RuntimeError:
+        return False
+    return True
+
+
 def _plug(value):
     """Plug・MPlug・アトリビュート名を、数値スカラーのPlugとして検証する。
 
@@ -47,7 +65,7 @@ def _plug(value):
         result = _InputPlug._resolve_input(value)
     else:
         raise TypeError("Expected a Plug, MPlug or node.attribute string")
-    if not result.isValid() or not cmds.objExists(result.getFullName()):
+    if not result.isValid() or not _exists(result.getFullName()):
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
         raise ValueError("Expected a scalar plug, not an array or compound")
@@ -242,7 +260,7 @@ class DrivenKey:
         return bool(self.getCurves())
 
     @undoChunk("mlibDrivenKeySetKey")
-    def setKey(self, driver_value, value, inTangentType="linear", outTangentType="linear"):
+    def setKey(self, driverValue, value, inTangentType="linear", outTangentType="linear"):
         """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
 
         両値をfloat()で有限性検査し、それぞれのPlug定義に従って内部単位から
@@ -253,8 +271,8 @@ class DrivenKey:
         呼出元のfast指定には影響されず、Undo設定は変更しない。
 
         Args:
-            driver_value (float): ドライバーの内部単位の値。角度rad、距離cm、時間秒、その他は無次元。
-            value (float): 駆動先の内部単位の値。単位はdriver_valueと独立に解釈する。
+            driverValue (float): ドライバーの内部単位の値。角度rad、距離cm、時間秒、その他は無次元。
+            value (float): 駆動先の内部単位の値。単位はdriverValueと独立に解釈する。
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
 
@@ -272,7 +290,7 @@ class DrivenKey:
         後続の失敗に対する自動ロールバックは行わない。
         """
         from ..core.attributeType import _convert_units
-        x, y = float(driver_value), float(value)
+        x, y = float(driverValue), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
         driver, driven = self.getDriverPlug(), self.getDrivenPlug()

@@ -7,12 +7,12 @@ class DampedSpring:
     """再生履歴に依存しない、ベイク用の数値ソルバー。"""
 
     @staticmethod
-    def solve(samples, seconds_per_sample, frequency=3.0, damping=0.5, limit=45.0):
+    def solve(samples, secondsPerSample, frequency=3.0, damping=0.5, limit=45.0):
         """目標値の列へ追従するばねを先頭から計算する。
 
         Args:
             samples (Sequence[Sequence[float]]): 等時間隔の目標値。各成分を独立計算する。
-            seconds_per_sample (float): サンプル間隔、秒。
+            secondsPerSample (float): サンプル間隔、秒。
             frequency (float): 固有振動数、Hz。0より大きく30以下。
             damping (float): 減衰比。0〜2。1が臨界減衰。
             limit (float): 目標からの最大差分。正の値。
@@ -29,15 +29,15 @@ class DampedSpring:
             raise ValueError("Expected equally sized nonempty samples")
         if not all(math.isfinite(v) for row in rows for v in row):
             raise ValueError("Samples must be finite")
-        if not all(math.isfinite(v) for v in (seconds_per_sample, frequency, damping, limit)):
+        if not all(math.isfinite(v) for v in (secondsPerSample, frequency, damping, limit)):
             raise ValueError("Settings must be finite")
-        if not (seconds_per_sample > 0 and 0 < frequency <= 30 and 0 <= damping <= 2 and limit > 0):
+        if not (secondsPerSample > 0 and 0 < frequency <= 30 and 0 <= damping <= 2 and limit > 0):
             raise ValueError("Invalid spring settings")
         omega = 2 * math.pi * frequency
-        count = max(1, int(math.ceil(seconds_per_sample * omega * 20)))
+        count = max(1, int(math.ceil(secondsPerSample * omega * 20)))
         if count > 10000:
             raise ValueError("Sample interval is too large")
-        dt = seconds_per_sample / count
+        dt = secondsPerSample / count
         position, velocity = list(rows[0]), [0.0] * len(rows[0])
         result = [tuple(position)]
         for before, after in zip(rows, rows[1:]):

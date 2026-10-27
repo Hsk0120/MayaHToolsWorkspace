@@ -22,7 +22,7 @@ from .shape import Shape
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
-    def reorderVertices(self, reference, uv_set="map1", tolerance=1e-6, *, fast=False, match="uv",
+    def reorderVertices(self, reference, uvSet="map1", tolerance=1e-6, *, fast=False, match="uv",
         worldSpace=_UNSET, ws=_UNSET):
         """UVまたは頂点位置の一意な対応で、対象の頂点番号を基準メッシュへ合わせる。
 
@@ -32,7 +32,7 @@ class Mesh(Shape):
 
         Args:
             reference (Mesh | Node | str): 基準Meshまたは単一メッシュTransform。
-            uv_set (str): UV照合のセット名。位置照合では使わない。
+            uvSet (str): UV照合のセット名。位置照合では使わない。
             tolerance (float): 非負有限値。UVは成分差、位置はcm距離の許容誤差。
             fast (bool): TrueはUndoなしで再構築し、非ゼロtweakを現在位置へベイクする。
                 既定FalseはUndo有効が必須で、非ゼロtweakは未対応。
@@ -64,8 +64,8 @@ class Mesh(Shape):
             raise TypeError("worldSpace must be bool")
         if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)) or not math.isfinite(tolerance) or tolerance < 0:
             raise ValueError("tolerance must be finite and nonnegative")
-        if match == "uv" and (not isinstance(uv_set, str) or not uv_set):
-            raise ValueError("uv_set must be a nonempty name")
+        if match == "uv" and (not isinstance(uvSet, str) or not uvSet):
+            raise ValueError("uvSet must be a nonempty name")
         reference = Node(Node._input_name(reference))
         if reference.mnode().hasFn(om2.MFn.kTransform):
             shapes = reference.getShapes()
@@ -74,12 +74,12 @@ class Mesh(Shape):
             reference = shapes[0]
         if not isinstance(reference, Mesh):
             raise TypeError("reference must be a mesh")
-        source, target = reference.meshFn(), self.meshFn()
+        source, target = reference._geometry_fn(), self._geometry_fn()
         if source.numVertices != target.numVertices or source.numPolygons != target.numPolygons:
             raise ValueError("Meshes must have equal vertex and face counts")
         if not target.numPolygons:
             raise ValueError("Meshes must have polygon faces")
-        mapping = (self._uv_vertex_mapping(source, target, uv_set, tolerance) if match == "uv"
+        mapping = (self._uv_vertex_mapping(source, target, uvSet, tolerance) if match == "uv"
                    else self._position_vertex_mapping(source, target, tolerance, worldSpace))
         counts, connects = target.getVertices()
         remapped = [mapping[v] for v in connects]
@@ -205,7 +205,7 @@ class Mesh(Shape):
             list[ShadingEngine]: 使用中のセット。未割り当ては除外する。
         """
         from .shadingEngine import ShadingEngine
-        groups, indices = self.meshFn().getConnectedShaders(self.mpath().instanceNumber())
+        groups, indices = self._geometry_fn().getConnectedShaders(self.mpath().instanceNumber())
         return [ShadingEngine(groups[i]) for i in sorted(set(indices)) if i >= 0]
 
     def getFaceShadingEngines(self):
@@ -215,27 +215,32 @@ class Mesh(Shape):
             list[ShadingEngine | None]: 全フェースの割り当て。未割り当てはNone。
         """
         from .shadingEngine import ShadingEngine
-        groups, indices = self.meshFn().getConnectedShaders(self.mpath().instanceNumber())
+        groups, indices = self._geometry_fn().getConnectedShaders(self.mpath().instanceNumber())
         wrapped = [ShadingEngine(group) for group in groups]
         return [wrapped[i] if i >= 0 else None for i in indices]
 
     def mfn(self):
-        """この mesh で最も具体的な om2 function set を取得する。
+        """この mesh で最も具体的な om2 function set を、呼び出すたびに新しく作って返す。
 
-        呼び出すたびに新しい ``om2.MFnMesh`` を保持する DAG パスから作る。
-
-        Returns:
-            om2.MFnMesh: この mesh の function set。
-        """
-        return om2.MFnMesh(self.mpath())
-
-    def meshFn(self):
-        """MFnMesh を取得する。
+        形状データを持つ場合は ``om2.MFnMesh``。``mlib.createNode("mesh")`` 直後のように形状データを
+        持たない空のシェイプは ``om2.MFnMesh`` が使えない(Maya 2027 では作成時に ValueError、
+        版により作成後の照会で RuntimeError)ため、``om2.MFnDagNode`` を返す。DagNode 共通の照会
+        (中間オブジェクト判定・親の列挙等)は空のシェイプでも使える。
 
         Returns:
-            om2.MFnMesh: この mesh の function set。
+            om2.MFnMesh | om2.MFnDagNode: この mesh の function set。空のシェイプでは MFnDagNode。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
         """
-        return om2.MFnMesh(self.mpath())
+        path = self.mpath()
+        try:
+            fn = om2.MFnMesh(path)
+            # 版により作成は通り照会で失敗するため、形状データの有無を作成直後に確かめる。
+            fn.typeId
+        except (RuntimeError, ValueError):
+            return om2.MFnDagNode(path)
+        return fn
 
     def getNumVertices(self):
         """頂点数を取得する。
@@ -243,7 +248,7 @@ class Mesh(Shape):
         Returns:
             int: mesh の頂点数。
         """
-        return self.meshFn().numVertices
+        return self._geometry_fn().numVertices
 
     def getNumPolygons(self):
         """ポリゴン数を取得する。
@@ -251,7 +256,7 @@ class Mesh(Shape):
         Returns:
             int: mesh のポリゴン数。
         """
-        return self.meshFn().numPolygons
+        return self._geometry_fn().numPolygons
 
     def getNumEdges(self):
         """エッジ数を取得する。
@@ -259,7 +264,7 @@ class Mesh(Shape):
         Returns:
             int: メッシュのエッジ数。
         """
-        return self.meshFn().numEdges
+        return self._geometry_fn().numEdges
 
     def getPoints(self, worldSpace=_UNSET, *, ws=_UNSET):
         """全頂点の位置を取得する。
@@ -279,18 +284,18 @@ class Mesh(Shape):
             worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-        return self.meshFn().getPoints(space)
+        return self._geometry_fn().getPoints(space)
 
-    def getVertexNormals(self, worldSpace=_UNSET, angle_weighted=False, *, ws=_UNSET):
+    def getVertexNormals(self, worldSpace=_UNSET, angleWeighted=False, *, ws=_UNSET):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            angle_weighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
+            angleWeighted (bool): True の場合は隣接面の角度で重み付けした法線を取得する。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            list[Vector]: 頂点番号順の平均法線。angle_weighted=False では
+            list[Vector]: 頂点番号順の平均法線。angleWeighted=False では
                 角度による重み付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
         if ws is not _UNSET:
@@ -302,7 +307,7 @@ class Mesh(Shape):
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         # MFloatVectorはom2の多重定義の解決を通さず、成分を写して同じ値のVectorにする。
-        return [_vector_of(Vector, value) for value in self.meshFn().getVertexNormals(angle_weighted, space)]
+        return [_vector_of(Vector, value) for value in self._geometry_fn().getVertexNormals(angleWeighted, space)]
 
     def getVertexAdjacency(self, worldSpace=_UNSET, *, ws=_UNSET):
         """頂点IDごとの隣接頂点とエッジ長を照会する。
@@ -324,7 +329,7 @@ class Mesh(Shape):
             worldSpace = False
         points = self.getPoints(ws=worldSpace)
         adjacency = [[] for _ in points]
-        mesh_fn = self.meshFn()
+        mesh_fn = self._geometry_fn()
         for index in range(mesh_fn.numEdges):
             first, second = mesh_fn.getEdgeVertices(index)
             delta = points[first] - points[second]
@@ -426,7 +431,7 @@ class Mesh(Shape):
         Returns:
             int: UV 数。
         """
-        return self.meshFn().numUVs()
+        return self._geometry_fn().numUVs()
 
     @staticmethod
     def _position_vertex_mapping(source, target, tolerance, world_space):
@@ -603,3 +608,17 @@ class Mesh(Shape):
             rebuilt.setFaceVertexNormals([om2.MVector(normals[normal_ids[i]]) for i in locked],
                                          [faces[i] for i in locked], [remapped[i] for i in locked])
             rebuilt.lockFaceVertexNormals([faces[i] for i in locked], [remapped[i] for i in locked])
+
+    def _geometry_fn(self):
+        """形状データを要する照会用に ``om2.MFnMesh`` を返す。
+
+        Returns:
+            om2.MFnMesh: この mesh の function set。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効、または形状データを持たない空のシェイプの場合。
+        """
+        fn = self.mfn()
+        if not isinstance(fn, om2.MFnMesh):
+            raise RuntimeError("mesh has no geometry data: %s" % self.getFullName())
+        return fn

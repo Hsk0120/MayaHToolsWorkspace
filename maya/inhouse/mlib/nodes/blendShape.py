@@ -77,7 +77,7 @@ class BlendShape(Node):
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
 
     @undoChunk("mlibBlendShapeAddTarget")
-    def addTarget(self, target, base=None, weight_index=None, full_weight=1.0):
+    def addTarget(self, target, base=None, weightIndex=None, fullWeight=1.0):
         """ターゲットを追加する。
 
         Args:
@@ -87,10 +87,10 @@ class BlendShape(Node):
             base (Node | str | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug | None):
                 変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
                 省略時は getGeometry() の先頭を使う。
-            weight_index (int | None): 使用する weight 配列インデックス。省略時は
+            weightIndex (int | None): 使用する weight 配列インデックス。省略時は
                 空いている最小のインデックス(``getPlug("weight").getNextAvailable(vacant=True)``)
                 を自動で使う。
-            full_weight (float): このターゲットが完全に効いた状態(既定 1.0)の
+            fullWeight (float): このターゲットが完全に効いた状態(既定 1.0)の
                 weight 値。
 
         Returns:
@@ -111,13 +111,13 @@ class BlendShape(Node):
             base_name = geometries[0].getFullName()
         else:
             base_name = _InputNode._input_name(base)
-        if weight_index is None:
-            weight_index = self.getPlug("weight").getNextAvailable(vacant=True)
+        if weightIndex is None:
+            weightIndex = self.getPlug("weight").getNextAvailable(vacant=True)
         cmds.blendShape(
             self.getName(), edit=True,
-            target=(base_name, weight_index, target_name, full_weight),
+            target=(base_name, weightIndex, target_name, fullWeight),
         )
-        return self.getPlug("weight")[weight_index]
+        return self.getPlug("weight")[weightIndex]
 
     @undoChunk("mlibBlendShapeRemoveTarget")
     def removeTarget(self, target):
@@ -141,7 +141,7 @@ class BlendShape(Node):
             raise RuntimeError("Maya did not remove the target")
         return self
 
-    def addTargetDeltas(self, deltas, base=None, weight_index=None, alias=None):
+    def addTargetDeltas(self, deltas, base=None, weightIndex=None, alias=None):
         """疎なデルタだけから、新しい通常ターゲットを登録する。
 
         BlendShapeへ入る変形前のgeometryを一時メッシュへ複製し、通常1.0の項目を
@@ -151,7 +151,7 @@ class BlendShape(Node):
         Args:
             deltas (dict[int, Sequence[float]]): 頂点番号とxyz変位。通常のobject-space cm。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
-            weight_index (int | None): 未使用のweight番号。省略時は最小の空き番号。
+            weightIndex (int | None): 未使用のweight番号。省略時は最小の空き番号。
             alias (str | None): 新しい別名。省略時はweight表記。
 
         Returns:
@@ -170,7 +170,7 @@ class BlendShape(Node):
         """
         bi = self._base_index(base)
         shape = self._base_shape(bi)
-        index = self._new_index(weight_index)
+        index = self._new_index(weightIndex)
         self._check_alias(alias)
         values = self._delta_values(deltas, om2.MFnMesh(shape.mnode()).numVertices)
         if self.getPlug("origin").get() not in (0, 1) or self.getPlug("deformationOrder").get():
@@ -197,7 +197,7 @@ class BlendShape(Node):
                 data = om2.MFnMeshData().create()
                 om2.MFnMesh().copy(geometry, data)
                 neutral.getPlug("cachedInMesh").mplug().setMObject(data)
-                weight = self.addTarget(neutral, base=shape, weight_index=index)
+                weight = self.addTarget(neutral, base=shape, weightIndex=index)
                 self.setTargetDeltas(weight, normalized, base=shape, disconnect=True)
                 weight.set(0.0)
                 weight.setAlias(alias)
@@ -239,7 +239,7 @@ class BlendShape(Node):
         """登録済みターゲットに対応するweight要素のPlug参照を取得する。
 
         少なくとも一つのベースにinputTargetItemがあることを検査する。
-        特定のベースやfull_weight項目の存在までは検査せず、weight値も取得しない。
+        特定のベースやfullWeight項目の存在までは検査せず、weight値も取得しない。
 
         Args:
             target (int | str | Plug): 論理番号、weightのalias、または自身のweight要素Plug。
@@ -254,14 +254,14 @@ class BlendShape(Node):
         """
         return self.getPlug("weight")[self._target_index(target)]
 
-    def replaceTarget(self, target, geometry, base=None, full_weight=1.0, *, fast=False):
+    def replaceTarget(self, target, geometry, base=None, fullWeight=1.0, *, fast=False):
         """既存ターゲット項目を別メッシュへ差し替える。
 
         Args:
             target (int | str | Plug): 番号またはエイリアス。
             geometry (Node | str): 新しいターゲットメッシュ。
             base (Node | str | None): ベース。省略時は先頭。
-            full_weight (float): 差し替える既存項目のウェイト。
+            fullWeight (float): 差し替える既存項目のウェイト。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
 
         Returns:
@@ -270,7 +270,7 @@ class BlendShape(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibBlendShapeReplaceTarget"):
-            bi, index, item = self._item(target, base, full_weight)
+            bi, index, item = self._item(target, base, fullWeight)
             shape = self._mesh(geometry)
             self._check_topology(bi, shape)
             # 既存項目へblendShape -targetを再発行するとMayaが拒否する。
@@ -333,7 +333,7 @@ class BlendShape(Node):
         return self
 
     @undoChunk("mlibBlendShapeTargetEdit")
-    def targetEdit(self, target=None, state=True, full_weight=1.0):
+    def targetEdit(self, target=None, state=True, fullWeight=1.0):
         """ターゲットの編集モードを開始または終了する。
 
         Args:
@@ -341,7 +341,7 @@ class BlendShape(Node):
                 開始時は必須。
                 終了時は省略可能で、指定しても使用しない。
             state (bool): Trueは開始、FalseはこのblendShapeの編集を終了する。
-            full_weight (float): 編集項目のウェイト。通常1、in-betweenならその値。
+            fullWeight (float): 編集項目のウェイト。通常1、in-betweenならその値。
                 終了時は使用しない。
 
         Returns:
@@ -358,12 +358,12 @@ class BlendShape(Node):
         if target is None:
             raise ValueError("A target is required to enter edit mode")
         index = self._target_index(target)
-        item = self._weight_item(full_weight)
+        item = self._weight_item(fullWeight)
         if not any(item in self._indices(self._group_path(bi, index) + ".inputTargetItem")
                    for bi in self._base_indices()
                    if index in self.getTargetIndices(self._base_shape(bi))):
             raise ValueError("No target item at this weight")
-        cmds.sculptTarget(self.getName(), edit=True, target=index, inbetweenWeight=full_weight)
+        cmds.sculptTarget(self.getName(), edit=True, target=index, inbetweenWeight=fullWeight)
         return self
 
     def getInBetweenWeights(self, target, base=None):
@@ -447,7 +447,7 @@ class BlendShape(Node):
             self._set_weight_runs(array, values)
             return self
 
-    def getTargetDeltas(self, target, base=None, full_weight=1.0):
+    def getTargetDeltas(self, target, base=None, fullWeight=1.0):
         """保存された疎なデルタを頂点番号とVectorの辞書で取得する。
 
         接続中のターゲットはMayaに評価させた現在のデルタを取得する。
@@ -458,16 +458,16 @@ class BlendShape(Node):
         Args:
             target (int | str | Plug): 番号またはエイリアス。
             base (Node | str | None): ベース。省略時は先頭。
-            full_weight (float): 取得する項目のウェイト。
+            fullWeight (float): 取得する項目のウェイト。
 
         Returns:
             dict[int, Vector]: 変位を持つ頂点と変位。ゼロは省略されうる。
         """
-        bi, index, item = self._item(target, base, full_weight)
+        bi, index, item = self._item(target, base, fullWeight)
         data = self._read_item(bi, index, item)
         return {vertex: Vector(point[:3]) for vertex, point in data["absolute"]}
 
-    def setTargetDeltas(self, target, deltas, base=None, full_weight=1.0, disconnect=False, *, fast=False):
+    def setTargetDeltas(self, target, deltas, base=None, fullWeight=1.0, disconnect=False, *, fast=False):
         """既存項目の絶対デルタ全体を置換する。省略頂点は変位ゼロになる。
 
         inputPointsTargetを書き換え、同項目の相対補助デルタを消去する。
@@ -477,7 +477,7 @@ class BlendShape(Node):
             target (int | str | Plug): 番号またはエイリアス。
             deltas (dict[int, Sequence[float]]): 頂点番号とxyz変位(cm)。
             base (Node | str | None): ベース。省略時は先頭。
-            full_weight (float): 更新する既存項目のウェイト。
+            fullWeight (float): 更新する既存項目のウェイト。
             disconnect (bool): Trueなら接続中のターゲット入力を切断する。
                 既定では接続がある場合に変更せず拒否する。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
@@ -488,7 +488,7 @@ class BlendShape(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibBlendShapeSetTargetDeltas"):
-            bi, index, item = self._item(target, base, full_weight)
+            bi, index, item = self._item(target, base, fullWeight)
             if type(disconnect) is not bool:
                 raise TypeError("disconnect must be bool")
             count = om2.MFnMesh(self._base_shape(bi).mnode()).numVertices
@@ -500,7 +500,7 @@ class BlendShape(Node):
             self._write_deltas(path, [], relative=True, fast=fast)
             return self
 
-    def resetTargetVertices(self, target, vertices, base=None, full_weight=1.0,
+    def resetTargetVertices(self, target, vertices, base=None, fullWeight=1.0,
                            disconnect=False, *, fast=False):
         """ターゲット項目の指定頂点の変位をゼロへ戻す。
 
@@ -514,7 +514,7 @@ class BlendShape(Node):
             vertices (int | Vertex | Vertices | Iterable[int | Vertex]): 除外する
                 ベース頂点番号またはベースメッシュの頂点。重複はまとめる。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
-            full_weight (float): 除外する項目のウェイト。in-betweenも指定可能。
+            fullWeight (float): 除外する項目のウェイト。in-betweenも指定可能。
             disconnect (bool): 既定Falseは接続先のメッシュを自動編集する。
                 Trueなら従来どおり入力を切断して保存デルタだけを編集する。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
@@ -525,7 +525,7 @@ class BlendShape(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibBlendShapeResetTargetVertices"):
-            bi, index, item = self._item(target, base, full_weight)
+            bi, index, item = self._item(target, base, fullWeight)
             if type(disconnect) is not bool:
                 raise TypeError("disconnect must be bool")
             shape = self._base_shape(bi)
@@ -562,7 +562,7 @@ class BlendShape(Node):
                 self._write_deltas(path, [row for row in data[key] if row[0] not in indices], relative=relative, fast=fast)
             return self
 
-    def duplicateTarget(self, target, weight_index=None, alias=None, *, fast=False):
+    def duplicateTarget(self, target, weightIndex=None, alias=None, *, fast=False):
         """全ベースのターゲット・in-between・頂点ウェイトを複製する。
 
         接続は複製せず、現在の形状をベイクする。新しいweight値は0。
@@ -570,7 +570,7 @@ class BlendShape(Node):
 
         Args:
             target (int | str | Plug): 元の番号またはエイリアス。
-            weight_index (int | None): 未使用の番号。省略時は最小の空き番号。
+            weightIndex (int | None): 未使用の番号。省略時は最小の空き番号。
             alias (str | None): 新しい別名。省略時はMayaのweight表記。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
 
@@ -581,13 +581,13 @@ class BlendShape(Node):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibBlendShapeDuplicateTarget"):
             index = self._target_index(target)
-            destination = self._new_index(weight_index)
+            destination = self._new_index(weightIndex)
             self._check_alias(alias)
             data = self._read_target(index)
             self._write_target(destination, data, alias=alias, value=0.0, fast=fast)
             return self.getPlug("weight")[destination]
 
-    def getTargetVertices(self, target, base=None, full_weight=1.0, *, tolerance=0.0):
+    def getTargetVertices(self, target, base=None, fullWeight=1.0, *, tolerance=0.0):
         """指定デルタの変位がしきい値を超えるベース頂点だけを取得する。
 
         現在のweight・envelope・頂点マスクによる変形量ではなく、
@@ -596,7 +596,7 @@ class BlendShape(Node):
         Args:
             target (int | str | Plug): ターゲット番号またはweightのエイリアス。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
-            full_weight (float): 取得する項目のウェイト。in-betweenも指定可能。
+            fullWeight (float): 取得する項目のウェイト。in-betweenも指定可能。
             tolerance (float): 除外する変位長の上限。有限の非負数。
                 通常ターゲットではcm。既定0は明示的に格納されたゼロも除外する。
 
@@ -608,11 +608,11 @@ class BlendShape(Node):
             raise ValueError("tolerance must be a finite nonnegative number")
         bi = self._base_index(base)
         shape = self._base_shape(bi)
-        deltas = self.getTargetDeltas(target, base=shape, full_weight=full_weight)
+        deltas = self.getTargetDeltas(target, base=shape, fullWeight=fullWeight)
         return shape.getVertices(sorted(index for index, delta in deltas.items()
                                         if delta.length() > tolerance))
 
-    def reduceTargetDeltas(self, target, tolerance=0.0, base=None, full_weight=1.0,
+    def reduceTargetDeltas(self, target, tolerance=0.0, base=None, fullWeight=1.0,
                            disconnect=False, *, fast=False):
         """絶対デルタの長さがしきい値以下の頂点をターゲット項目から除外する。
 
@@ -625,7 +625,7 @@ class BlendShape(Node):
             tolerance (float): 除外する変位長の上限。有限の非負数。
                 通常ターゲットではcm。既定0はゼロデルタのみ除外する。
             base (Node | str | None): ベース。省略時は最小のベース論理番号。
-            full_weight (float): 編集する項目のウェイト。in-betweenも指定可能。
+            fullWeight (float): 編集する項目のウェイト。in-betweenも指定可能。
             disconnect (bool): 既定Falseは接続先のメッシュを自動編集する。
                 Trueなら入力を切断して保存デルタだけを編集する。
             fast (bool): TrueはOpenMaya直接更新。Undoには記録しない。
@@ -639,9 +639,9 @@ class BlendShape(Node):
             if (isinstance(tolerance, bool) or not isinstance(tolerance, (int, float))
                     or not math.isfinite(tolerance) or tolerance < 0):
                 raise ValueError("tolerance must be a finite nonnegative number")
-            deltas = self.getTargetDeltas(target, base=base, full_weight=full_weight)
+            deltas = self.getTargetDeltas(target, base=base, fullWeight=fullWeight)
             vertices = [index for index, delta in deltas.items() if delta.length() <= tolerance]
-            return self.resetTargetVertices(target, vertices, base=base, full_weight=full_weight,
+            return self.resetTargetVertices(target, vertices, base=base, fullWeight=fullWeight,
                                            disconnect=disconnect, fast=fast)
 
     @undoChunk("mlibBlendShapeMirrorTarget")

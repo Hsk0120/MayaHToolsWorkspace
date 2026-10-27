@@ -19,6 +19,7 @@ from ..decorator import preservedSelection, undoChunk
 from ..maths import easing
 from ..util import _world_space
 from ..util import _ArgumentError, _UNSET
+from .dagNode import DagNode
 from .joint import Joint
 from .node import Node, Nodes, _PerItemOnly
 
@@ -33,14 +34,14 @@ class SkinCluster(Node):
 
     _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
 
-    def __init__(self, skin_cluster):
+    def __init__(self, skinCluster):
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
 
         取得専用で、新規バインドは :meth:`bind` を使う。先頭 geometry のみを保持する。
         頂点ウェイト操作ではその geometry が mesh であることを前提とする。
 
         Args:
-            skin_cluster (str | om2.MObject | om2.MDagPath): skinCluster の名前または API オブジェクト。
+            skinCluster (str | om2.MObject | om2.MDagPath): skinCluster の名前または API オブジェクト。
 
         Returns:
             None: 値を返さない。
@@ -49,20 +50,21 @@ class SkinCluster(Node):
             IndexError: 対象 geometry がない場合。
             RuntimeError: geometry を解決できない場合。
         """
-        super().__init__(skin_cluster)
+        super().__init__(skinCluster)
         self.mesh = self._mesh()
         self.mesh_path = self._get_dag_path(self.mesh)
-        self.fn = oma2.MFnSkinCluster(self.mnode())
+        # 内部の照会で使い回す。公開の取得口は毎回新しく作る mfn()。
+        self._skin_fn = oma2.MFnSkinCluster(self.mnode())
 
     @classmethod
     @undoChunk("mlib.SkinCluster.bind")
-    def bind(cls, mesh, influences, max_influences=4):
+    def bind(cls, mesh, influences, maxInfluences=4):
         """未スキニングの形状を指定influenceへバインドする。
 
         Args:
             mesh (str | Node): Mayaがバインド可能な形状またはtransform。
             influences (Sequence[str | Node]): バインドする骨等のtransform。
-            max_influences (int): 1頂点に割り当てる最大数。正の整数。
+            maxInfluences (int): 1頂点に割り当てる最大数。正の整数。
 
         Returns:
             SkinCluster: 作成したskinCluster。
@@ -70,25 +72,47 @@ class SkinCluster(Node):
         from .node import Nodes as _InputNodes
         mesh = Node(mesh)
         influences = [Node(n) for n in _InputNodes._resolve_inputs(influences)]
-        if not influences or type(max_influences) is not int or max_influences < 1:
+        if not influences or type(maxInfluences) is not int or maxInfluences < 1:
             raise ValueError("Expected influences and a positive maximum influence count")
-        if cmds.ls(cmds.listHistory(mesh.getFullName()) or [], type="skinCluster"):
+        if SkinCluster._geometry_skin_uuids(mesh):
             raise ValueError("Geometry already has a skinCluster")
         return cls(cmds.skinCluster([n.getFullName() for n in influences], mesh.getFullName(),
-                                   toSelectedBones=True, maximumInfluences=max_influences,
+                                   toSelectedBones=True, maximumInfluences=maxInfluences,
                                    normalizeWeights=1)[0])
 
+    def mfn(self):
+        """このskinClusterのMFnSkinClusterを、呼び出すたびに新しく作って返す。
+
+        ``oma2.MFnSkinCluster`` は ``om2.MFnDependencyNode`` の派生で、:meth:`Node.mfn` の契約どおり
+        内部で使い回す function set とは共有しない。
+
+        Returns:
+            oma2.MFnSkinCluster: このskinClusterの function set。
+
+        Raises:
+            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
+        """
+        # 破棄済みノードへ function set を作るとMayaが異常終了するため、先に確かめる。
+        self._alive_fn()
+        return oma2.MFnSkinCluster(self.mnode())
+
     def deforms(self, geometry):
-        """指定形状の履歴に自身が含まれるか照会する。
+        """指定形状を自身が変形するか照会する。
+
+        :meth:`mlib.nodes.DagNode.getSkinClusters` と同じく、Shapeは自身、Transformは直下の
+        非中間Shapeの上流から、出力geometryがその形状であるskinClusterを探す。
+        Jointは形状を持たないためFalseで、influenceとしての登録は :meth:`hasInfluence` で調べる。
 
         Args:
             geometry (str | Node): 調べる形状またはtransform。
 
         Returns:
-            bool: 履歴内に存在する場合True。
+            bool: 自身が対象形状を変形する場合True。DAGノード以外もFalse。
+
+        Raises:
+            RuntimeError: 名前が存在しない場合、またはMayaの検索が失敗した場合。
         """
-        history = cmds.ls(cmds.listHistory(Node(geometry).getFullName()) or [], type="skinCluster") or []
-        return self.getUuid() in [Node(n).getUuid() for n in history]
+        return self.getUuid() in self._geometry_skin_uuids(Node(geometry))
 
     @undoChunk("mlib.SkinCluster.copyWeightsTo")
     def copyWeightsTo(self, target):
@@ -124,7 +148,7 @@ class SkinCluster(Node):
                 登録型に応じJoint以外も返す。リスト位置はweights[]の論理番号とは限らず、ノードは複製しない。
         """
         # influenceObjects()が返したばかりの有効なパスなので、入力の再解決を省いてラッパーにする。
-        return [Node._wrap_dag_path(path) for path in self.fn.influenceObjects()]
+        return [Node._wrap_dag_path(path) for path in self._skin_fn.influenceObjects()]
 
     @undoChunk("mlibSkinClusterAddInfluences")
     def addInfluences(self, joints):
@@ -144,7 +168,7 @@ class SkinCluster(Node):
         """
         from ..core.object import Object as _InputObject
 
-        existing = {om2.MFnDependencyNode(path.node()).uuid().asString() for path in self.fn.influenceObjects()}
+        existing = {om2.MFnDependencyNode(path.node()).uuid().asString() for path in self._skin_fn.influenceObjects()}
         names = []
         for name in _InputObject._input_names(joints):
             node = Node(name)
@@ -232,8 +256,8 @@ class SkinCluster(Node):
             RuntimeError: skinClusterが無効、または照会に失敗した場合。
         """
         result = []
-        for path in self.fn.influenceObjects():
-            selection, _ = self.fn.getPointsAffectedByInfluence(path)
+        for path in self._skin_fn.influenceObjects():
+            selection, _ = self._skin_fn.getPointsAffectedByInfluence(path)
             if not selection.length():
                 result.append(Node._wrap_dag_path(path))
         return result
@@ -282,7 +306,7 @@ class SkinCluster(Node):
                 for node in unused:
                     validate_removal(self, node)
             for node in unused:
-                self.removeInfluence(node.getFullName(), transfer_to_parent=False, fast=fast)
+                self.removeInfluence(node.getFullName(), transferToParent=False, fast=fast)
             return unused
 
     def removeInvalidWeights(self, *, fast=False):
@@ -334,7 +358,7 @@ class SkinCluster(Node):
             return False
         return any(
             self._path_uuid(path) == uuid
-            for path in self.fn.influenceObjects()
+            for path in self._skin_fn.influenceObjects()
         )
 
     def getWeights(self, joints):
@@ -353,7 +377,7 @@ class SkinCluster(Node):
             setWeightsの空・未登録・重複検証は行わず、入力失敗は名前解決・配列変換・APIへ委譲する。
         """
         vertices, _ = self._all_verts()
-        return self.fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
+        return self._skin_fn.getWeights(self.mesh_path, vertices, self._jnt_indices(joints))
 
     def setWeights(self, joints, weights, *, fast=False):
         """指定influenceの全頂点ウェイトを、正規化せず生の値として設定する。
@@ -507,15 +531,15 @@ class SkinCluster(Node):
                     raise IndexError(f"Vertex index out of range: {vertex}")
             if not vertex_indices:
                 return
-            influence_paths = self.fn.influenceObjects()
+            influence_paths = self._skin_fn.influenceObjects()
             all_indices = om2.MIntArray(range(len(influence_paths)))
-            logical_indices = [self.fn.indexForInfluenceObject(path) for path in influence_paths]
+            logical_indices = [self._skin_fn.indexForInfluenceObject(path) for path in influence_paths]
             name = self.getFullName()
             for vertex in vertex_indices:
                 component_fn = om2.MFnSingleIndexedComponent()
                 component = component_fn.create(om2.MFn.kMeshVertComponent)
                 component_fn.addElement(vertex)
-                row = list(self.fn.getWeights(self.mesh_path, component, all_indices))
+                row = list(self._skin_fn.getWeights(self.mesh_path, component, all_indices))
                 total = sum(row)
                 if total <= 0.0:
                     raise ValueError(f"Vertex {vertex} has no weight to redistribute")
@@ -528,7 +552,7 @@ class SkinCluster(Node):
                 for logical_index, value in zip(logical_indices, final):
                     set_attr(f"{name}.weightList[{vertex}].weights[{logical_index}]", value, fast=fast)
 
-    def transferWeights(self, source_target_pairs, *, fast=False):
+    def transferWeights(self, sourceTargetPairs, *, fast=False):
         """指定順のsource/target組で、sourceの影響頂点からtargetへウェイトを移す。
 
         全組の参照と登録を検証してから処理し、同じinfluence同士は省く。
@@ -537,7 +561,7 @@ class SkinCluster(Node):
         fastは単一geometryと編集条件を検査し、interactive正規化を再現する。完了済み変更は戻さない。
 
         Args:
-            source_target_pairs (Iterable[tuple[Node | str, Node | str]]): 登録済みinfluenceの組。
+            sourceTargetPairs (Iterable[tuple[Node | str, Node | str]]): 登録済みinfluenceの組。
                 Maya APIのノード参照も受理する。
             fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしのOM2直接更新。
 
@@ -557,7 +581,7 @@ class SkinCluster(Node):
             self._raise_if_layers()
 
             pairs = []
-            for pair in source_target_pairs:
+            for pair in sourceTargetPairs:
                 if isinstance(pair, (str, bytes)):
                     raise ValueError("Expected a source/target pair, not a string")
                 pair = tuple(pair)
@@ -576,16 +600,17 @@ class SkinCluster(Node):
                     for source_joint, target_joint in pairs:
                         self._xfer_pair(source_joint, target_joint)
 
-    def removeInfluence(self, joint, transfer_to_parent=True, *, force=_UNSET, fast=False, f=_UNSET):
+    def removeInfluence(self, joint, transferToParent=True, *, force=_UNSET, fast=False, f=_UNSET):
         """祖先influenceへ加算してから登録を外す。ノード自体は削除しない。
 
         移送先は同じskinClusterの最も近い祖先influence。生ウェイトを加算してsourceを0にし、登録を外す。
         移送しない場合は通常cmds、fastはOM2で再配分する。最後の登録は外せない。
+        fastの再配分はcmdsの規則(:mod:`mlib.core.skinEdit` に記載)を再現し、同じ生ウェイトになる。
         修復・移送・解除は順次行い、後続失敗で完了済み変更は戻さない。
 
         Args:
             joint (Joint | str): 解除対象のinfluence。
-            transfer_to_parent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
+            transferToParent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
             force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
             fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
             f (bool): forceの別名。同時指定は不可。
@@ -594,10 +619,13 @@ class SkinCluster(Node):
             None: 値を返さない。
 
         Raises:
-            TypeError: transfer_to_parent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            TypeError: transferToParent・force・fastがbool以外、またはforce/fを同時指定した場合。
             ValueError: 未登録、または最後のinfluenceの場合。
             RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
-            NotImplementedError: fastでgeometryが1個でない場合。
+            NotImplementedError: fastでgeometryが1個のmeshでない、負値・非有限値のウェイトがある、
+                または再配分を再現できない場合(残りの合計が0になる頂点があり、ロックがなく
+                bindMethodがClosest distance以外、配分先がjoint以外かロック済みだけ等)。
+                修復・移送より前に送出し、何も変更しない。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -608,10 +636,10 @@ class SkinCluster(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlib.nodes.skinCluster.removeInfluence"):
-            source, target = self._influence_removal_target(joint, transfer_to_parent, force=force)
+            source, target = self._influence_removal_target(joint, transferToParent, force=force)
             if fast:
                 from ..core.skinEdit import validate_removal
-                validate_removal(self, source)
+                validate_removal(self, source, target, force=force)
             if force:
                 self.removeInvalidWeights(fast=fast)
             if target is not None:
@@ -712,6 +740,22 @@ class SkinCluster(Node):
                 self.setWeights(*computed, fast=fast)
             return self
 
+    @staticmethod
+    def _geometry_skin_uuids(node):
+        """形状を変形するskinClusterのUUIDを、DagNode.getSkinClustersの規則で集める。
+
+        Jointの同名メソッドはinfluence接続の照会なので、DagNodeの実装を直接呼ぶ。
+
+        Args:
+            node (Node): 調べるノード。DAGノード以外は空。
+
+        Returns:
+            list[str]: skinClusterのUUID文字列。getSkinClustersと同じ順。
+        """
+        if not isinstance(node, DagNode):
+            return []
+        return [skin.getUuid() for skin in DagNode.getSkinClusters(node)]
+
     def _uuid(self, node):
         """ノード名から Maya UUID を取得する。
 
@@ -784,7 +828,7 @@ class SkinCluster(Node):
             int | None: influenceObjects()のリスト位置。一致するUUIDまたはpartial名の候補のうち
                 最初の物理番号を選び、weights[]の論理番号は返さない。未登録はNone。
         """
-        return self._influence_indices((joint,), self.fn.influenceObjects())[0]
+        return self._influence_indices((joint,), self._skin_fn.influenceObjects())[0]
 
     def _all_verts(self):
         """mesh の全頂点 component と頂点数を生成する。
@@ -812,7 +856,7 @@ class SkinCluster(Node):
             setWeightsの登録/重複検証をこの取得用補助へ集約したものではない。
         """
         from ..core.object import Object as _InputObject
-        return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self.fn.influenceObjects()))
+        return om2.MIntArray(self._influence_indices(_InputObject._input_names(joints), self._skin_fn.influenceObjects()))
 
     def _prepare_weight_values(self, joints, weights):
         """指定influenceと平坦なウェイト入力を検証し、書込み用の論理番号へ変換する。
@@ -830,7 +874,7 @@ class SkinCluster(Node):
         """
         from ..core.object import Object as _InputObject
         joints = _InputObject._input_names(joints)
-        influences = self.fn.influenceObjects()
+        influences = self._skin_fn.influenceObjects()
         physical_indices = self._influence_indices(joints, influences)
         if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
             raise ValueError("Influences must be non-empty, registered and unique")
@@ -842,7 +886,7 @@ class SkinCluster(Node):
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
         # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
-        logical_indices = [self.fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
+        logical_indices = [self._skin_fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
         return values, width, num_vertices, logical_indices
 
     def _set_weight_values_fast(self, values, width, num_vertices, logical_indices):
@@ -1031,7 +1075,7 @@ class SkinCluster(Node):
             force: 不正ウェイトの除去を許可するか。検証中は変更しない。
         """
         if not isinstance(transfer_to_parent, bool):
-            raise TypeError("transfer_to_parent must be a bool")
+            raise TypeError("transferToParent must be a bool")
         if type(force) is not bool:
             raise TypeError("force must be a bool")
         self._raise_if_layers()
@@ -1095,7 +1139,7 @@ class SkinCluster(Node):
             RuntimeError: ウェイトが編集不可、または除去対象に出力接続がある場合。
         """
         _, weight_list = self._editable_weight_list()
-        registered = {self.fn.indexForInfluenceObject(path) for path in self.fn.influenceObjects()}
+        registered = {self._skin_fn.indexForInfluenceObject(path) for path in self._skin_fn.influenceObjects()}
         elements, used = [], set()
         for vertex in weight_list.getExistingArrayAttributeIndices():
             row = weight_list.elementByLogicalIndex(vertex).child(0)
@@ -1424,26 +1468,32 @@ class SkinClusters(Nodes):
 
     addInfluences.__signature__ = inspect.signature(SkinCluster.addInfluences)
 
-    def removeInfluences(self, joints, transfer_to_parent=True, *, force=_UNSET, f=_UNSET):
+    def removeInfluences(self, joints, transferToParent=True, *, force=_UNSET, fast=False, f=_UNSET):
         """保持するskinClusterだけから、指定jointのinfluence登録を外す。
 
         jointノードと親子関係は残す。未登録の組は省き、全登録の解除は変更前に拒否する。
         全組を事前確認し、skinClusterの保持順、各skin内は深いjoint順に処理する。
-        通常処理のみで、Undo有効時に一つのチャンクへ記録する。先行変更は自動で戻さない。
+        通常処理はUndo有効時に一つのチャンクへ記録する。fastは各組を単数の
+        :meth:`SkinCluster.removeInfluence` へ ``fast=True`` で渡し、Undoに記録しない。
+        先行変更は自動で戻さない。
 
         Args:
             joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
-            transfer_to_parent (bool): Trueは最も近い祖先influenceへ加算し、なければ標準再配分。Falseも標準再配分。
+            transferToParent (bool): Trueは最も近い祖先influenceへ加算し、なければ標準再配分。Falseも標準再配分。
             force (bool): 不正ウェイトを修復してから登録解除する。
+            fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしのOpenMaya直接更新。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             SkinClusters: 自身。
 
         Raises:
-            TypeError: transfer_to_parent/forceがbool以外、またはforce/fを同時指定した場合。
+            TypeError: transferToParent/force/fastがbool以外、またはforce/fを同時指定した場合。
             ValueError: 最後のinfluenceまで解除しようとした場合。
             RuntimeError: 無効joint、レイヤー・ロック、またはMayaの編集失敗。
+            NotImplementedError: fastで、解除する組のskinClusterが単数
+                :meth:`SkinCluster.removeInfluence` のfastの未対応条件に当たる場合。
+                同じskinでの連続解除を順に試算する全組の事前確認で送出し、どのskinClusterも変更しない。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -1451,11 +1501,13 @@ class SkinClusters(Nodes):
             force = f
         if force is _UNSET:
             force = False
-        with undoChunk("mlibSkinClustersRemoveInfluences"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibSkinClustersRemoveInfluences"):
             from .joint import Joints
 
-            if not isinstance(transfer_to_parent, bool):
-                raise TypeError("transfer_to_parent must be a bool")
+            if not isinstance(transferToParent, bool):
+                raise TypeError("transferToParent must be a bool")
             if type(force) is not bool:
                 raise TypeError("force must be a bool")
             targets = Joints([joints] if isinstance(joints, (Node, str)) else joints)
@@ -1467,11 +1519,17 @@ class SkinClusters(Nodes):
                 names = [joint.getFullName() for joint in targets if skin.hasInfluence(joint.getFullName())]
                 if names and len(names) >= len(skin.getInfluences()):
                     raise ValueError("Cannot remove all influences of " + skin.getFullName())
+                steps = []
                 for name in names:
-                    skin._influence_removal_target(name, transfer_to_parent, force=force)
+                    steps.append(skin._influence_removal_target(name, transferToParent, force=force))
                     plans.append((skin, name))
+                if fast and steps:
+                    # 単数fastの未対応(geometryが1個でない、再配分を再現できない等)を、
+                    # 同じskinでの連続解除を順に試算して、どのskinも変更する前に検出する。
+                    from ..core.skinEdit import validate_removals
+                    validate_removals(skin, steps, force=force)
             for skin, name in plans:
-                skin.removeInfluence(name, transfer_to_parent=transfer_to_parent, force=force)
+                skin.removeInfluence(name, transferToParent=transferToParent, force=force, fast=fast)
             return self
 
     def restoreBindPose(self, *args, **kwargs):

@@ -21,40 +21,17 @@ mlib.reload()
 from mlib.common import Namespace
 from mlib.nodes import DagNode, Joint, Mesh, Node, Nodes, Reflect, Shape, SkinCluster, Transform
 from mlib.plugs import Plug
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定と選択を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCNode_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-        self.selection = cmds.ls(selection=True, long=True)
-        self.extra_namespaces = []
-
-    def tearDown(self):
-        for name in cmds.ls(self.ns + ":*", long=True) or []:
-            if cmds.objExists(name):
-                cmds.lockNode(name, lock=False)
-        for namespace in [self.ns] + self.extra_namespaces:
-            if cmds.namespace(exists=namespace):
-                cmds.namespace(removeNamespace=namespace, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-        cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
+    PREFIX = "mlibSpecNodeSingle_"
+    UNLOCK_NODES = True
 
 
-class TypeSelectionTest(_NamespaceCase):
+class TypeSelectionTest(_SpecCase):
     """nodeType から登録型・Maya の継承に沿ったクラス・Node を選び、具体クラスの指定では非互換を拒否する。
 
     未登録型のクラスは登録表の規則(登録祖先型、または動的に生成したその派生クラス)で決まるため、
@@ -135,7 +112,7 @@ class TypeSelectionTest(_NamespaceCase):
                     Node(value)
 
 
-class NoCreationPathTest(_NamespaceCase):
+class NoCreationPathTest(_SpecCase):
     """Node は取得専用で、Node.create と create キーワードは無い(作成は mlib.createNode)。"""
 
     def test_create_classmethod_is_absent(self):
@@ -167,7 +144,7 @@ class NoCreationPathTest(_NamespaceCase):
         self.assertEqual(created.getName(), self.name("created"))
 
 
-class IdentityTest(_NamespaceCase):
+class IdentityTest(_SpecCase):
     """sameNode・==・hash の区別(旧 sameInstance は廃止し == へ統合)。"""
 
     def setUp(self):
@@ -211,7 +188,7 @@ class IdentityTest(_NamespaceCase):
         self.assertEqual(hash(node), value)
 
 
-class DeletedNodeTest(_NamespaceCase):
+class DeletedNodeTest(_SpecCase):
     """削除後(Undo の記録に残る間)と破棄後(記録が消えた後)の振る舞い。"""
 
     def test_deleted_but_alive(self):
@@ -228,7 +205,7 @@ class DeletedNodeTest(_NamespaceCase):
         self.assertEqual(repr(node), "<Transform invalid>")
         self.assertEqual(node.getType(), "transform")
         # 削除したノードは名前空間から外れるため、葉の名前だけを比べる。
-        self.assertEqual(node.getNodeName(remove_namespace=True), "gone")
+        self.assertEqual(node.getNodeName(removeNamespace=True), "gone")
         self.assertFalse(node.hasAttr("tx"))
         self.assertFalse(node.isType("transform"))
         # Undo の記録に残る間は生存中として同じノード扱いになる。
@@ -250,7 +227,7 @@ class DeletedNodeTest(_NamespaceCase):
             node.delete()
 
     def test_deleted_node_rename_message(self):
-        """削除済みノードの rename は通常・fast とも文言付きの RuntimeError(FINDINGS C-04 で修正)。"""
+        """削除済みノードの rename は通常・fast とも文言付きの RuntimeError。"""
         node = Node(self.make())
         cmds.delete(node.getFullName())
         for fast in (False, True):
@@ -276,7 +253,7 @@ class DeletedNodeTest(_NamespaceCase):
                     getattr(node, method)()
 
 
-class TypeQueryTest(_NamespaceCase):
+class TypeQueryTest(_SpecCase):
     """型・ロック・アトリビュート数の照会を OpenMaya・cmds の値と比べる。"""
 
     def test_type_id_and_plugin(self):
@@ -383,7 +360,7 @@ class TypeQueryTest(_NamespaceCase):
         self.assertEqual(node.mfn().attributeCount(), count + 5)
 
 
-class NamePathTest(_NamespaceCase):
+class NamePathTest(_SpecCase):
     """名前・パス・namespace の照会と変更。"""
 
     def test_dag_names(self):
@@ -394,7 +371,7 @@ class NamePathTest(_NamespaceCase):
         self.assertEqual(first.getName(), cmds.ls(first.getFullName())[0])
         self.assertIn("|", first.getName())
         self.assertEqual(first.getNodeName(), self.name("leaf"))
-        self.assertEqual(first.getNodeName(remove_namespace=True), "leaf")
+        self.assertEqual(first.getNodeName(removeNamespace=True), "leaf")
         self.assertEqual(first.getFullName(), "|" + self.name("pa") + "|" + self.name("leaf"))
         self.assertFalse(hasattr(first, "getPath"))
         self.assertFalse(first.isRoot())
@@ -476,7 +453,7 @@ class NamePathTest(_NamespaceCase):
         self.assertTrue(cmds.objExists(self.name("followShape")))
 
 
-class AttributeQueryTest(_NamespaceCase):
+class AttributeQueryTest(_SpecCase):
     """getPlug・hasAttr・getAliases・getPlugs(userDefined=)。"""
 
     def setUp(self):
@@ -552,7 +529,7 @@ class AttributeQueryTest(_NamespaceCase):
                          [cmds.ls(self.node_name + "." + name)[0] for name in names])
 
 
-class ResetAndFlagsTest(_NamespaceCase):
+class ResetAndFlagsTest(_SpecCase):
     """resetAttrs と setAttrFlags。"""
 
     def setUp(self):
@@ -645,7 +622,7 @@ class ResetAndFlagsTest(_NamespaceCase):
             self.node.setAttrFlags("mlibMissing")
 
 
-class ConnectionHistoryTest(_NamespaceCase):
+class ConnectionHistoryTest(_SpecCase):
     """getConnections の index・asNode・type と、getHistory の型の絞り込み。"""
 
     def setUp(self):

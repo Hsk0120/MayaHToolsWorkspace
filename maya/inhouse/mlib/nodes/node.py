@@ -25,6 +25,14 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kDouble: "double",
 }  #: moveAttrOrder() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
 
+#: ``cmds.listAttr(scalar=True)`` が除く、複数成分の数値型(double3 等。複合アトリビュートとして定義される)。
+_MULTI_COMPONENT_NUMERIC_TYPES = frozenset(
+    getattr(om2.MFnNumericData, name) for name in dir(om2.MFnNumericData) if name[:2] in ("k2", "k3", "k4")
+)
+
+#: Node.getPlugs() が ``cmds.listAttr`` を使わず OpenMaya で列挙するフラグ(値は True のときだけ)。
+_OM2_LIST_ATTR_FLAGS = frozenset(("keyable", "scalar"))
+
 #: ラッパー型の選択で型名だけを読むために使い回す関数セット。setObject() で対象を差し替えるため、
 #: ノードごとに MFnDependencyNode を作るより速い。値や名前を保持せず、呼出しのたびに対象を設定し直す。
 _TYPE_NAME_FN = om2.MFnDependencyNode()
@@ -269,13 +277,66 @@ def _dump_movable_attr(plug):
         info["defaultValue"] = plug.getDefault()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
         info["attributeType"] = "enum"
-        info["enumName"] = cmds.attributeQuery(plug.getLongName(), node=plug.getNode().getFullName(), listEnum=True)[0]
+        info["enumName"] = _enum_definition(plug)
         info["defaultValue"] = plug.getDefault()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
         info["dataType"] = "string"
     else:
         raise TypeError(f"Unsupported attribute type for reordering: {plug.getFullName()}")
     return info
+
+
+def _enum_definition(plug):
+    """enum の全フィールドを ``cmds.attributeQuery(listEnum=True)`` と同じ書式の文字列にする。
+
+    値の昇順に並べ、直前の値 + 1(先頭は0)と異なる値だけ ``名前=値`` と書く(例: ``a=1:b=5``)。
+
+    Args:
+        plug (Plug): enum アトリビュートのプラグ。
+
+    Returns:
+        str: ``addAttr(enumName=...)`` へそのまま渡せるフィールド定義。
+    """
+    parts = []
+    expected = 0
+    for name, value in plug.getEnumNames():
+        parts.append(name if value == expected else "{}={}".format(name, value))
+        expected = value + 1
+    return ":".join(parts)
+
+
+def _scalar_attribute(attribute):
+    """``cmds.listAttr(scalar=True)`` が列挙する、単一成分の数値・単位・enum 型か判定する。
+
+    配列(multi)であっても、要素が単一成分なら対象に含める(listAttr と同じ)。
+
+    Args:
+        attribute (om2.MObject): アトリビュート定義。
+
+    Returns:
+        bool: scalar として列挙する場合は True。
+    """
+    if attribute.hasFn(om2.MFn.kCompoundAttribute):
+        return False
+    if attribute.hasFn(om2.MFn.kNumericAttribute):
+        return om2.MFnNumericAttribute(attribute).numericType() not in _MULTI_COMPONENT_NUMERIC_TYPES
+    return attribute.hasFn(om2.MFn.kUnitAttribute) or attribute.hasFn(om2.MFn.kEnumAttribute)
+
+
+def _writable_plug(plug):
+    """Plug._require_writable() が通るか(ロック・入力接続・書込み禁止が無いか)を返す。
+
+    Args:
+        plug (Plug): 検査するプラグ。
+
+    Returns:
+        bool: 書き込める場合は True。シーンは変更しない。
+    """
+    try:
+        plug._require_writable()
+    except RuntimeError:
+        return False
+    return True
 
 
 def _movable_connection_ref(plug):
@@ -653,26 +714,26 @@ class Node(Object):
         # cmdsは分類なしでも[""]を返す。その既存の返却形を維持する。
         return [om2.MNodeClass(self.getType()).classification]
 
-    def isType(self, node_type):
+    def isType(self, nodeType):
         """自身の nodeType が指定型そのもの、またはその派生型か判定する。
 
         ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
         例えば mesh ノードは ``isType("shape")`` で True になる。
 
         Args:
-            node_type (str): 判定する Maya nodeType 名。
+            nodeType (str): 判定する Maya nodeType 名。
 
         Returns:
-            bool: 継承チェーンに node_type が含まれる場合は True。
+            bool: 継承チェーンに nodeType が含まれる場合は True。
 
         Raises:
-            ValueError: node_type が空文字列または文字列以外の場合。
+            ValueError: nodeType が空文字列または文字列以外の場合。
         """
-        if not isinstance(node_type, str) or not node_type:
-            raise ValueError("node_type must be a non-empty string")
+        if not isinstance(nodeType, str) or not nodeType:
+            raise ValueError("nodeType must be a non-empty string")
         if not self.isValid():
             return False
-        return node_type in _inherited_node_types(self.getType())
+        return nodeType in _inherited_node_types(self.getType())
 
     def isLocked(self):
         """ノード自体がロックされているか判定する。
@@ -784,24 +845,24 @@ class Node(Object):
             raise RuntimeError("DAG ノードではありません")
         return dag_path.length() == 1
 
-    def getNodeName(self, remove_namespace=False):
+    def getNodeName(self, removeNamespace=False):
         """DAG パスを除いたノード名を返す。
 
         DGノードにも使用できる。DAGの別階層に同名ノードがある場合も
         親パスは付けないため、Mayaコマンドへ渡す一意な名前にはgetNameを使う。
 
         Args:
-            remove_namespace (bool): ``True`` の場合はnamespaceも除外する。
+            removeNamespace (bool): ``True`` の場合はnamespaceも除外する。
 
         Returns:
-            str: namespaceを含むノード名。``remove_namespace`` が ``True`` の場合は
+            str: namespaceを含むノード名。``removeNamespace`` が ``True`` の場合は
                 namespaceを含まないノード名。
 
         Raises:
             RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
         node_name = self._alive_fn().name()
-        if remove_namespace:
+        if removeNamespace:
             node_name = node_name.rsplit(":", 1)[-1]
         return node_name
 
@@ -1006,37 +1067,58 @@ class Node(Object):
                                        as_pair, asNode, index)
 
     def getHistory(self, type=None, future=False):
-        """構築履歴を検索し、対応するノードラッパーを返す。
+        """構築履歴を ``MItDependencyGraph`` で検索し、対応するノードラッパーを返す。
 
         Args:
             type (str | None): 継承型を含むノード型フィルター。Noneは全型。
             future (bool): Trueは下流、Falseは上流を検索する。
 
         Returns:
-            list[Node]: Mayaの履歴順。自身と重複を除く。該当なしなら空リスト。
+            list[Node]: ``cmds.listHistory`` と同じ順(深さ優先)。自身と重複を除く。該当なしなら空リスト。
+                Shapeを持つTransformは、``listHistory`` と同じく中間オブジェクトでない直下のShapeの
+                履歴を返す。DAGノードは最初のDAGパスで返す。
 
         Raises:
-            RuntimeError: 無効な(削除済みの)ノード、またはMayaの履歴検索が失敗した場合。
+            RuntimeError: 無効な(削除済みの)ノードの場合。
         """
         if not self.isValid():
-            # 名前が空になりlistHistoryがValueErrorを出す前に、他のメソッドと同じ種類で拒否する。
             raise RuntimeError("Cannot get the history of an invalid node")
-        names = cmds.listHistory(self.getFullName(), future=future) or []
-        # 名前を1つの選択リストでまとめて解決する(順は names のまま)。対応付けられない名前は
-        # 従来どおり名前ごとに解決する。循環importを避けて関数内で読み込む。
-        from ..common.selection import _resolve_names
-        found = _resolve_names(names)
-        result, seen = [], {self.getUuid()}
-        for name, item in zip(names, found):
-            # Node(name)と同じ解決・型選択。UUIDは同じ値を2回求めず1回だけ取得する。
-            node = (Node._wrap_resolved(*_resolve_node(name)) if item is None
-                    else Node._wrap_resolved(item[0], item[1]))
-            uuid = node.getUuid()
-            if uuid in seen:
-                continue
-            seen.add(uuid)
-            if type is None or node.isType(type):
-                result.append(node)
+        # cmds.listHistory(leaf=True) と同じく、Shapeを持つTransformは中間オブジェクトでない
+        # 直下のShapeから探索する(Transform自身の入出力は含めない)。
+        roots = [self._mobject]
+        if self._mobject.hasFn(om2.MFn.kTransform):
+            dag = om2.MFnDagNode(self._mobject)
+            shapes = []
+            for index in range(dag.childCount()):
+                child = dag.child(index)
+                if child.hasFn(om2.MFn.kShape) and not om2.MFnDagNode(child).isIntermediateObject:
+                    shapes.append(child)
+            roots = shapes or roots
+        direction = om2.MItDependencyGraph.kDownstream if future else om2.MItDependencyGraph.kUpstream
+        result = []
+        uuid_fn = om2.MFnDependencyNode()
+
+        def uuid_of(mobject):
+            """重複判定用のUUID文字列(ノードごとに一意)。"""
+            uuid_fn.setObject(mobject)
+            return uuid_fn.uuid().asString()
+
+        seen = {uuid_of(self._mobject)}
+        for root in roots:
+            # listHistory と同じ深さ優先・ノード単位の順。各ノードは最初の出現だけを残す。
+            iterator = om2.MItDependencyGraph(root, om2.MFn.kInvalid, direction,
+                                              om2.MItDependencyGraph.kDepthFirst,
+                                              om2.MItDependencyGraph.kNodeLevel)
+            while not iterator.isDone():
+                mobject = iterator.currentNode()
+                iterator.next()
+                key = uuid_of(mobject)
+                if key in seen:
+                    continue
+                seen.add(key)
+                node = Node._wrap_resolved(*_resolve_node(mobject))
+                if type is None or node.isType(type):
+                    result.append(node)
         return result
 
     def resetAttrs(self, attributes=_UNSET, *, fast=False, attrs=_UNSET):
@@ -1044,7 +1126,8 @@ class Node(Object):
 
         Args:
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
-                数値・単位・enumアトリビュートを対象とし、ロック・入力接続・非対応型は除外する。
+                数値・単位・enumアトリビュートを対象とし、配列・ロック・入力接続・書込み禁止・
+                非対応型は除外する(通常/fastで同じ選択)。
                 明示指定したアトリビュートのエラーは除外せず送出する。 別名 ``attrs`` も使用可能。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
             attrs (str | Iterable[str] | None): attributesの別名。同時指定は不可。
@@ -1067,26 +1150,13 @@ class Node(Object):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibNodeResetAttrs"):
             if attributes is None:
-                if fast:
-                    from ..plugs.plug import Plug
-                    fn = self._dependency_fn()
-                    plugs = []
-                    for index in range(fn.attributeCount()):
-                        mp = om2.MPlug(self.mnode(), fn.attribute(index))
-                        if not mp.isKeyable or mp.isArray or mp.isCompound:
-                            continue
-                        plug = Plug(self, mp)
-                        if plug.getDefault() is None or plug.isDestination():
-                            continue
-                        try:
-                            plug._require_writable()
-                        except RuntimeError:
-                            continue
-                        plugs.append(plug)
-                else:
-                    plugs = [plug for plug in self.getPlugs(keyable=True, scalar=True)
-                             if plug.getDefault() is not None and not plug.isDestination()
-                             and cmds.getAttr(plug.getFullName(), settable=True)]
+                # getPlugs(keyable, scalar) は cmds.listAttr と同じ列挙を om2 で行うため、fastでもcmdsを呼ばない。
+                # listAttr(scalar=True) は配列も返すため配列を除く(要素ごとのresetが必要)。
+                plugs = [plug for plug in self.getPlugs(keyable=True, scalar=True)
+                         if not plug.mplug().isArray and plug.getDefault() is not None
+                         and not plug.isDestination()]
+                # 通常/fastとも、ロック・入力接続・書込み禁止をfastの書込みと同じ検査で除く。
+                plugs = [plug for plug in plugs if _writable_plug(plug)]
             else:
                 if isinstance(attributes, str):
                     attributes = [attributes]
@@ -1143,7 +1213,9 @@ class Node(Object):
 
         ``userDefined=True`` はユーザー追加(動的)アトリビュートだけを、Mayaの定義から追加順に
         型付きPlugで作る(cmdsは使わない。配列はArrayPlug、非表示・非keyableも含む)。
-        それ以外は ``cmds.listAttr`` の条件で列挙する(``keyable=True`` 等)。
+        それ以外は ``cmds.listAttr`` の条件で列挙する(``keyable=True`` 等)。フラグ無し・``keyable=True``・
+        ``scalar=True`` (併用可)は ``cmds.listAttr`` を呼ばず、同じ順序・同じ結果をOpenMayaの定義の
+        走査で求める(トップレベルの定義順に、複合の子を親の直後へ並べ、配列の複合の子は含めない)。
 
         Args:
             userDefined (bool): Trueはユーザー定義アトリビュートだけを返す。listAttrのフラグとは併用できない。
@@ -1173,6 +1245,10 @@ class Node(Object):
             from ..plugs.plug import Plug
             return [Plug(self, om2.MPlug(self._mobject, attribute))
                     for attribute in self._user_attributes(includeChildren)]
+        if all(name in _OM2_LIST_ATTR_FLAGS and value is True for name, value in listAttrFlags.items()):
+            from ..plugs.plug import Plug
+            return [Plug(self, om2.MPlug(self._mobject, attribute))
+                    for attribute in self._listed_attributes(includeChildren, **listAttrFlags)]
         names = cmds.listAttr(self.getFullName(), **listAttrFlags) or []
         plugs = []
         for name in names:
@@ -2289,6 +2365,43 @@ class Node(Object):
         else:
             cmds.addAttr(self.getFullName(), **flags)
 
+    def _listed_attributes(self, include_children=True, keyable=False, scalar=False):
+        """``cmds.listAttr`` と同じ順で、getPlugs() が返すアトリビュート定義を列挙する。
+
+        トップレベルの定義を定義順に辿り、配列でない複合は子を親の直後へ深さ優先で並べる
+        (配列の複合の子は、番号の無い名前を Plug にできないため listAttr の結果からも除かれる)。
+
+        Args:
+            include_children (bool): Falseならトップレベルの定義だけを返す。
+            keyable (bool): Trueならプラグがkeyableのものだけ(``listAttr(keyable=True)``)。
+            scalar (bool): Trueなら単一成分の数値・単位・enumだけ(``listAttr(scalar=True)``)。
+
+        Returns:
+            list[om2.MObject]: アトリビュート定義。配列要素の取得・作成は行わない。
+        """
+        fn = self._dependency_fn()
+        ordered = []
+
+        def visit(attribute):
+            """定義を追加し、配列でない複合なら子を続けて追加する。"""
+            ordered.append(attribute)
+            if (include_children and attribute.hasFn(om2.MFn.kCompoundAttribute)
+                    and not om2.MFnAttribute(attribute).array):
+                compound = om2.MFnCompoundAttribute(attribute)
+                for index in range(compound.numChildren()):
+                    visit(compound.child(index))
+
+        for index in range(fn.attributeCount()):
+            attribute = fn.attribute(index)
+            if om2.MFnAttribute(attribute).parent.isNull():
+                visit(attribute)
+        if keyable:
+            # 定義でなくプラグのkeyable(Shapeのvisibility等はノードが上書きする)で判定する。
+            ordered = [attribute for attribute in ordered if om2.MPlug(self._mobject, attribute).isKeyable]
+        if scalar:
+            ordered = [attribute for attribute in ordered if _scalar_attribute(attribute)]
+        return ordered
+
     def _user_attributes(self, include_children=False):
         """動的アトリビュートの定義を追加順に列挙する。
 
@@ -2978,7 +3091,7 @@ class Nodes:
 
     moveAttrOrder.__signature__ = inspect.signature(Node.moveAttrOrder)
 
-    def callEach(self, method, arguments, keyword_arguments=None):
+    def callEach(self, method, arguments, keywordArguments=None):
         """各ノードの公開メソッドを、要素別の引数で保持順に呼ぶ。
 
         呼出形式は全件、fastのbool型はfast引数を持つ呼出先について実行前に検査する。長短名の組合せ・省略値・その他の値は
@@ -2988,7 +3101,7 @@ class Nodes:
         Args:
             method (str): setTranslate等の登録済み単数メソッド。create・特殊メソッドは不可。
             arguments (Iterable[tuple]): 要素数と同数の位置引数tuple。
-            keyword_arguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空辞書。
+            keywordArguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空辞書。
 
         Returns:
             list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。入れ子のリストも保持する。
@@ -2998,7 +3111,7 @@ class Nodes:
             TypeError: 呼出形式・fast型が不正、または単数メソッドで長短名の競合等を検出した場合。
             RuntimeError: 単数メソッドのその他の失敗。対象番号を含み、後続は実行しない。
         """
-        functions, args, kwargs = self._prepare_calls(method, arguments, keyword_arguments)
+        functions, args, kwargs = self._prepare_calls(method, arguments, keywordArguments)
         return self._execute_calls(method, functions, args, kwargs)
 
     def copy(self):

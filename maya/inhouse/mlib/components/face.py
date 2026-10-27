@@ -36,7 +36,7 @@ class Face(Component):
             Vertices: Maya の接続順の頂点群。
         """
         self._validate()
-        return Vertices(self.shape, self.shape.meshFn().getPolygonVertices(self.index))
+        return Vertices(self.shape, self.shape._geometry_fn().getPolygonVertices(self.index))
 
 
 _FACE_GET_VERTICES = Face.getVertices

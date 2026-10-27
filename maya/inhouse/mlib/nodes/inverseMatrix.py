@@ -12,7 +12,7 @@ class InverseMatrix(THDependNode):
     """inverseMatrixノードを参照し、逆マトリクスを評価する。Maya付属matrixNodesの明示的なロードが必要。
 
     値設定は入力接続を切断しない。通常の設定・接続はUndo有効時にチャンクへ記録する。
-    fast=Trueの設定はUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
+    設定・接続のfast=TrueはUndoなしのOM2直接更新で、Undo設定は変えない。途中失敗の変更は自動で戻さない。
     """
 
     def getInputPlug(self):
@@ -48,12 +48,13 @@ class InverseMatrix(THDependNode):
             self.getInputPlug().set(value, fast=fast)
             return self
 
-    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
             force (bool): Trueで既存の入力接続を置き換える。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -72,9 +73,11 @@ class InverseMatrix(THDependNode):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
             from ..plugs.plug import Plug as _InputPlug
-            _InputPlug._resolve_input(source).connectTo(self.getInputPlug(), force=force)
+            _InputPlug._resolve_input(source).connectTo(self.getInputPlug(), force=force, fast=fast)
             return self
 
     def getOutputPlug(self):

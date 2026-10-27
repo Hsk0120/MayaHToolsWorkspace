@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-27): mlib 2.1.0。2.0.0 で次版へ送った項目を対応。計算ノード系・removeInfluences・Namespace・select・setMuted・duplicate・matchTransform(position/pivots)に fast を追加(cmds と同じ結果にできない指定は変更前に NotImplementedError)。isSettable・resetAttrs 絞込み・getHistory・getPlugs・IkHandle.getJoints・listReferences 等の読み取りを om2 化し test_cmds_parity.py で突き合わせ。influence 除去の fast の再配分を cmds の距離規則に一致させた(既存不具合)。公開引数を lowerCamelCase へ改名(test_static_public_args.py で検査)、cameraFn/meshFn/curveFn/referenceFn・SkinCluster.fn を mfn() へ統合、_ContainerMixin 化、仕様テストを機能別のファイル名へ改名し NamespaceCase へ統合。changelog・版番号・api-design・CLAUDE.md を更新。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685件、静的検査・Sphinx(-W)・文書検査が合格。
+
 - Claude Code (2026-10-27): mlib 2.0.0 をリリース。未登録ノードタイプの動的クラス生成(基底は最寄りの登録クラス、`mlib.nodes.<TypeName>`)、作成を `mlib.createNode` に一本化(`Node.create`・`create=True` 廃止)、cymel に近いメソッドの統合・廃止(getPath系→getFullName/getName、dagFn/transformFn→mfn、getExtraAttrs→getPlugs(userDefined=)、Transform.reset→resetAttrs、getEuler→getRotate(order=)、Plug.getDataType→getType 等)、追加(setLocked・getRoot/getSiblings/getBoundingBox の DagNode 化・Plug 演算子 `>>`/`<<`/`//`・getAlias/getArray/getIndex/getEnumNames・uiUnits)。仕様テスト9ファイル追加・既存テストと mlrig の呼出しを移行。版番号・changelog.rst・Sphinx ガイド・api-design・CLAUDE.md を更新。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685件、静的検査・Sphinx(-W)・文書検査が合格。fast の追加・om2 読み取り置換(Phase 3)と snake_case 引数の改名は次版へ送った。
 
 - Codex (2026-10-27): プッシュ依頼に対応し、QPEの6時間検証修正・B02終了クラッシュ修正・既定文字12pxと関連QPE/MCE回帰テストを公開対象に整理。既存GUI検証証拠、差分、Python構文と監査ランナー単体テストを確認。mlib/mlrig等の並行変更と他担当の作業ログをコミット対象から除外し、手元に保持。

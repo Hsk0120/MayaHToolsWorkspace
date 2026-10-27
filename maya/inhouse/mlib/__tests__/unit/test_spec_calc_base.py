@@ -123,7 +123,7 @@ class CalculationValidatorTest(unittest.TestCase):
         self.assertEqual(_Calculation.enum_value("aim", names), 1)
         self.assertEqual(_Calculation.enum_value("ALIGN", names), 2)
         self.assertEqual(_Calculation.enum_value(0, names), 0)
-        # 未対応の名前はValueError。文言に不正な値と選択肢を示す(FINDINGS A-3 で修正)。
+        # 未対応の名前はValueError。文言に不正な値と選択肢を示す。
         for value in ("none", "", "1"):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError) as caught:

@@ -98,7 +98,7 @@ class ContainerTest(unittest.TestCase):
             created.append(node)
             return node
 
-        for graph in (ScalarGraph(self.owner), ScalarGraph(create_node=create_node)):
+        for graph in (ScalarGraph(self.owner), ScalarGraph(createNode=create_node)):
             value = graph.sum("sum", 2, 3)
             result = graph.multiply("mul", value, 4)
             self.assertEqual(graph.condition("choose", result, 10, result, 0).get(), 20)

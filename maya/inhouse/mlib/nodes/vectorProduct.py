@@ -77,13 +77,14 @@ class VectorProduct(ShadingDependNode):
             _Calculation.set_value(value, _Calculation.vector, self.getInputPlug, index, fast=fast)
             return self
 
-    def connectInput(self, index=_UNSET, source=_UNSET, force=_UNSET, *, idx=_UNSET, src=_UNSET, f=_UNSET):
+    def connectInput(self, index=_UNSET, source=_UNSET, force=_UNSET, *, fast=False, idx=_UNSET, src=_UNSET, f=_UNSET):
         """入力へ接続する。
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -109,8 +110,10 @@ class VectorProduct(ShadingDependNode):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getInputPlug, index, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getInputPlug, index, force=force, fast=fast)
             return self
 
     def getOperation(self):
@@ -170,12 +173,13 @@ class VectorProduct(ShadingDependNode):
             _Calculation.set_value(value, Matrix, self.getMatrixPlug, fast=fast)
             return self
 
-    def connectMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectMatrix(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """マトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -194,8 +198,10 @@ class VectorProduct(ShadingDependNode):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getMatrixPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getMatrixPlug, force=force, fast=fast)
             return self
 
     def getNormalizeOutput(self):
@@ -222,12 +228,13 @@ class VectorProduct(ShadingDependNode):
             _Calculation.set_value(value, _Calculation.boolean, self.getPlug, "normalizeOutput", fast=fast)
             return self
 
-    def connectNormalizeOutput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectNormalizeOutput(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """出力正規化へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -246,8 +253,10 @@ class VectorProduct(ShadingDependNode):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getPlug, "normalizeOutput", force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getPlug, "normalizeOutput", force=force, fast=fast)
             return self
 
     def getResult(self):

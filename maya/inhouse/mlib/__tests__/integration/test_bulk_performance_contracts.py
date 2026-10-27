@@ -77,7 +77,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
 
         class CustomItems(Items):
             """公開一括入口を拡張する利用側コレクション。"""
-            def callEach(self, method, arguments, keyword_arguments=None):
+            def callEach(self, method, arguments, keywordArguments=None):
                 """利用側のoverrideへ委譲されることを確認する。"""
                 return "custom"
 

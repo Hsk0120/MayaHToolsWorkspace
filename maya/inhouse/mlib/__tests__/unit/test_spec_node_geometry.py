@@ -1,13 +1,12 @@
 """Shape 系(Mesh・NurbsCurve・Camera)とデフォーマー(Cluster・BlendShape)の照会の約束を固定する(担当C)。
 
 対象: Mesh.getVertexAdjacency(ローカル/ワールド・孤立頂点)・getNumUVs、NurbsCurve.getNumSpans・getForm、
-Shape.isIntermediateObject、Camera.getFocalLength・cameraFn、Cluster.getWeightedNode・getGeometry、
+Shape.isIntermediateObject、Camera.getFocalLength・mfn、Cluster.getWeightedNode・getGeometry、
 BlendShape.getGeometry。値は cmds・OpenMaya で独立に求めた値と比べる。
 """
 
 import math
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -15,30 +14,17 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.nodes import Camera, Cluster, Mesh, Node, NurbsCurve
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定・UI 単位・選択を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCGeo_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        self.linear = cmds.currentUnit(query=True, linear=True)
-        self.selection = cmds.ls(selection=True, long=True)
-
-    def tearDown(self):
-        cmds.currentUnit(linear=self.linear)
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-        cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibSpecNodeGeo_"
+    ENABLE_UNDO = False
 
 
-class VertexAdjacencyTest(_NamespaceCase):
+class VertexAdjacencyTest(_SpecCase):
     """getVertexAdjacency は頂点ごとの (隣接頂点, cm の距離) をエッジ順に返す。"""
 
     def setUp(self):
@@ -111,7 +97,7 @@ class VertexAdjacencyTest(_NamespaceCase):
         self.assertEqual(self.mesh.getNumUVs(), 0)
 
 
-class CurveTest(_NamespaceCase):
+class CurveTest(_SpecCase):
     """NurbsCurve の数の照会。"""
 
     def test_spans_and_form(self):
@@ -128,7 +114,7 @@ class CurveTest(_NamespaceCase):
         self.assertEqual(circle.getForm(), om2.MFnNurbsCurve.kPeriodic)
 
 
-class IntermediateCameraTest(_NamespaceCase):
+class IntermediateCameraTest(_SpecCase):
     """Shape.isIntermediateObject と Camera。"""
 
     def test_intermediate(self):
@@ -145,7 +131,7 @@ class IntermediateCameraTest(_NamespaceCase):
         transform, shape = cmds.camera(name=self.name("cam"), focalLength=50)
         camera = Node(shape)
         self.assertIsInstance(camera, Camera)
-        self.assertIsInstance(camera.cameraFn(), om2.MFnCamera)
+        self.assertIsInstance(camera.mfn(), om2.MFnCamera)
         self.assertEqual(camera.getFocalLength(), 50.0)
         cmds.currentUnit(linear="mm")
         self.assertEqual(camera.getFocalLength(), 50.0)
@@ -153,7 +139,7 @@ class IntermediateCameraTest(_NamespaceCase):
         self.assertIsNot(type(Node(transform)), Camera)
 
 
-class DeformerTest(_NamespaceCase):
+class DeformerTest(_SpecCase):
     """Cluster と BlendShape の照会。"""
 
     def test_cluster(self):

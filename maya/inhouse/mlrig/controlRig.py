@@ -211,8 +211,8 @@ class ControlRig:
                     name,
                     attribute=rig.root.getPlug(name),
                     callback=partial(cls._changed, key),
-                    kill_with_scene=True,
-                    compress_undo=True,
+                    killWithScene=True,
+                    compressUndo=True,
                 )
             cls._jobs[key] = jobs
 

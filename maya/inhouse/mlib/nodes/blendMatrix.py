@@ -14,7 +14,7 @@ class BlendMatrix(Node):
 
     ターゲットは疎な論理番号で扱い、getTargetPlugは既存要素だけを参照する。
     値設定は入力接続を切断しない。通常の設定・接続・削除はUndo有効時にチャンクへ記録する。
-    fast引数を持つ設定のTrueはUndoなしのOM2直接更新。Undo設定は変えず、途中失敗の変更は自動で戻さない。
+    設定・接続・削除のfast=TrueはUndoなしのOM2直接更新。Undo設定は変えず、途中失敗の変更は自動で戻さない。
     """
 
     def getInputPlug(self):
@@ -49,12 +49,13 @@ class BlendMatrix(Node):
             _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
             return self
 
-    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
             force (bool): Trueで既存の入力接続を置き換える。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -73,8 +74,10 @@ class BlendMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getInputPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getInputPlug, force=force, fast=fast)
             return self
 
     def getEnvelopePlug(self):
@@ -109,12 +112,13 @@ class BlendMatrix(Node):
             _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug, fast=fast)
             return self
 
-    def connectEnvelope(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectEnvelope(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """全体ウェイトへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。
             force (bool): Trueで既存の入力接続を置き換える。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -133,8 +137,10 @@ class BlendMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getEnvelopePlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getEnvelopePlug, force=force, fast=fast)
             return self
 
     def getTargetIndices(self):
@@ -166,8 +172,8 @@ class BlendMatrix(Node):
             raise IndexError(f"No target at logical index {index}")
         return plug
 
-    def connectTarget(self, index=_UNSET, source=_UNSET, weight=1.0, force=_UNSET, *, idx=_UNSET, src=_UNSET,
-        f=_UNSET):
+    def connectTarget(self, index=_UNSET, source=_UNSET, weight=1.0, force=_UNSET, *, fast=False, idx=_UNSET,
+        src=_UNSET, f=_UNSET):
         """マトリクスPlugをターゲットへ接続し、その後ウェイトを設定する。
 
         Args:
@@ -175,17 +181,25 @@ class BlendMatrix(Node):
             source (Plug | str | MPlug): 接続元。
             weight (float): 有限なウェイト。
             force (bool): Trueで既存の入力接続を置き換える。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
-            BlendMatrix: 自身。ウェイト設定が失敗しても、先に完了した接続は残る。
+            BlendMatrix: 自身。ウェイト設定が失敗しても、先に完了した接続は残る(fast=Trueでも同じ)。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: 番号・ウェイトが不正な場合。
+            RuntimeError: ロックや型不一致などで接続・設定できない場合。
 
         Note:
             weightを省略すると1.0を設定する(既存のウェイトは引き継がない)。
             Undoでは接続とウェイト設定をまとめて戻す。接続前から要素があった場合も、
             MayaのconnectAttrのUndoにより要素ごと消え、以前のウェイトは戻らない(Mayaの挙動)。
+            ``fast=True`` は通常と同じ検証の後、接続とウェイト設定をOpenMayaで直接行う(Undoなし)。
+            接続後にウェイト設定が失敗した場合も接続は残り、自動では戻さない。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -205,24 +219,30 @@ class BlendMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
             from ..plugs.plug import Plug as _InputPlug
             index = _Calculation.index(index)
             source, weight = _InputPlug._resolve_input(source), _Calculation.scalar(weight)
             target = self.getPlug("target")[index]
-            source.connectTo(target["targetMatrix"], force=force)
-            target["weight"].set(weight)
+            source.connectTo(target["targetMatrix"], force=force, fast=fast)
+            target["weight"].set(weight, fast=fast)
             return self
 
-    def removeTarget(self, index=_UNSET, *, idx=_UNSET):
+    def removeTarget(self, index=_UNSET, *, fast=False, idx=_UNSET):
         """指定論理番号のターゲット要素を、接続ごと削除する。
 
         Args:
             index (int): 既存の論理番号。 別名 ``idx`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
 
         Returns:
             BlendMatrix: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
         """
         if idx is not _UNSET:
             if index is not _UNSET:
@@ -230,8 +250,10 @@ class BlendMatrix(Node):
             index = idx
         if index is _UNSET:
             raise _ArgumentError("Missing required argument: 'index'")
-        with undoChunk("mlibCalculationEdit"):
-            self.getPlug("target").removeElement(_Calculation.index(index))
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            self.getPlug("target").removeElement(_Calculation.index(index), fast=fast)
             return self
 
     def getTarget(self, index=_UNSET, *, idx=_UNSET):

@@ -42,7 +42,7 @@ class CompoundPlug(Plug):
         except (AttributeError, TypeError, RuntimeError) as error:
             raise AttributeError(f"No plug member named {name!r}") from error
 
-    def __getitem__(self, name_or_index):
+    def __getitem__(self, nameOrIndex):
         """複合アトリビュートの直接の子を、定義順の番号または子名で参照する。
 
         整数は0始まりの子番号で、multi要素の論理番号ではない。負数・sliceは使えない。
@@ -50,7 +50,7 @@ class CompoundPlug(Plug):
         子の値は読み出さない。
 
         Args:
-            name_or_index (str | int): 子のロング名、ショート名、または定義順の子番号。
+            nameOrIndex (str | int): 子のロング名、ショート名、または定義順の子番号。
 
         Returns:
             Plug: 同じ所有Nodeを共有する新しい子ラッパー。値やノードの複製ではない。
@@ -62,18 +62,18 @@ class CompoundPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         self._require_valid()
-        if isinstance(name_or_index, bool) or not isinstance(name_or_index, (int, str)):
+        if isinstance(nameOrIndex, bool) or not isinstance(nameOrIndex, (int, str)):
             raise TypeError("Child index must be an integer or attribute name")
-        if isinstance(name_or_index, int):
-            if not 0 <= name_or_index < self._mplug.numChildren():
+        if isinstance(nameOrIndex, int):
+            if not 0 <= nameOrIndex < self._mplug.numChildren():
                 raise IndexError("Child index out of range")
-            return self._child_at(name_or_index)
+            return self._child_at(nameOrIndex)
         for index in range(self._mplug.numChildren()):
             child = self._mplug.child(index)
             attribute = om2.MFnAttribute(child.attribute())
-            if name_or_index in (attribute.name, attribute.shortName):
+            if nameOrIndex in (attribute.name, attribute.shortName):
                 return Plug(self._node, child)
-        raise AttributeError(f"No child named {name_or_index!r} on {self.getFullName()}")
+        raise AttributeError(f"No child named {nameOrIndex!r} on {self.getFullName()}")
 
     def __iter__(self):
         """直接の子の参照一覧を取得し、アトリビュート定義順に反復する。

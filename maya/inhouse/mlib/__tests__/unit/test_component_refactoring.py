@@ -31,7 +31,7 @@ class ComponentRefactoringTest(unittest.TestCase):
         for shape, cls in ((self.mesh, Vertices), (self.mesh, Edges), (self.mesh, Faces),
                            (self.mesh, UVs), (self.curve, CVs)):
             method = cls.component_class.count_attribute
-            function_set = "meshFn" if shape is self.mesh else "curveFn"
+            function_set = "mfn"
             with patch.object(shape, function_set, wraps=getattr(shape, function_set)) as query:
                 self.assertEqual(cls(shape, [2, 0, 2, 1]).indices, (2, 0, 1))
                 self.assertEqual(query.call_count, 1)
@@ -139,7 +139,7 @@ class ComponentRefactoringTest(unittest.TestCase):
         from mlib.components import UV
         items = self.mesh.getUVs([3, 0, 2])
         expected = [UV(self.mesh, index).getPosition() for index in items.indices]
-        native = self.mesh.meshFn()
+        native = self.mesh.mfn()
 
         class MeshQueries:
             """実APIへ委譲しつつ、一括取得の照会数を記録する。"""
@@ -162,7 +162,7 @@ class ComponentRefactoringTest(unittest.TestCase):
                 return native.getUV(index, **kwargs)
 
         queries = MeshQueries()
-        with patch.object(self.mesh, "meshFn", return_value=queries) as function_set:
+        with patch.object(self.mesh, "_geometry_fn", return_value=queries) as function_set:
             self.assertEqual(items.getPosition(), expected)
             self.assertEqual(function_set.call_count, 1)
         self.assertEqual((queries.count_queries, queries.set_queries, queries.position_queries), (1, 1, 3))
@@ -222,7 +222,7 @@ class ComponentRefactoringTest(unittest.TestCase):
         shape = mlib.getNode(cmds.listRelatives(instance, shapes=True, fullPath=True)[0])
         for items, method in ((shape.getEdges([3, 0, 2]), "getEdgeVertices"),
                               (shape.getFaces([3, 0, 2]), "getPolygonVertices")):
-            native = shape.meshFn()
+            native = shape.mfn()
             expected = tuple(dict.fromkeys(index for number in items.indices
                                            for index in getattr(native, method)(number)))
             creates = []
@@ -231,7 +231,7 @@ class ComponentRefactoringTest(unittest.TestCase):
                 if event == "call" and frame.f_code is Component.__init__.__code__:
                     creates.append(frame.f_locals["index"])
 
-            with patch.object(shape, "meshFn", wraps=shape.meshFn) as function_set:
+            with patch.object(shape, "mfn", wraps=shape.mfn) as function_set:
                 old_profile = sys.getprofile()
                 sys.setprofile(profile)
                 try:
@@ -247,7 +247,7 @@ class ComponentRefactoringTest(unittest.TestCase):
     def test_empty_topology_collections_keep_shape_without_function_set_queries(self):
         """空の頂点集約でもShapeを保持し、不要なFunction Setは生成しない。"""
         for items in (self.mesh.getEdges([]), self.mesh.getFaces([])):
-            with patch.object(self.mesh, "meshFn", wraps=self.mesh.meshFn) as function_set:
+            with patch.object(self.mesh, "mfn", wraps=self.mesh.mfn) as function_set:
                 vertices = items.getVertices()
                 self.assertEqual(vertices.indices, ())
                 self.assertIs(vertices.shape, self.mesh)

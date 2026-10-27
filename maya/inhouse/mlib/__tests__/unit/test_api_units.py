@@ -82,7 +82,7 @@ class ApiUnitsTest(unittest.TestCase):
     def test_periodic_cv_index_and_undo(self):
         """API末尾の重複CVを正しい独立CVへ対応付けてUndoする。"""
         shape = mlib.getNode(cmds.circle(ch=False)[0]).getShape()
-        fn = shape.curveFn()
+        fn = shape.mfn()
         index = fn.numCVs - fn.degree
         cv = shape.getCV(index)
         before = cv.getPosition()

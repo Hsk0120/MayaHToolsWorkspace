@@ -88,7 +88,7 @@ class PluginVersionValueTest(unittest.TestCase):
 
     def test_package_uses_values(self):
         """最低版・導入版・ロード版に共通の値型を使う。"""
-        package = PluginPackage("Example", plugins=("example",), minimum_version=Version("3"))
+        package = PluginPackage("Example", plugins=("example",), minimumVersion=Version("3"))
         self.assertIsInstance(package.minimumVersion, Version)
         with patch.object(Plugin, "getVersionText", return_value="3.1-build"), patch.object(
             Plugin, "isLoaded", return_value=True

@@ -303,7 +303,7 @@ class CompoundBulkSetTest(unittest.TestCase):
         self.assertEqual(self.values("translate"), [1.0, 0.0, 3.0])
         cmds.connectAttr(self.source + ".tx", self.node + ".vecDZ")
         plug = node.getPlug("vecD")
-        # CompoundPlug.setも全子の書込み可否を事前に確かめ、何も書かずに止まる(FINDINGS B-10で修正)。
+        # CompoundPlug.setも全子の書込み可否を事前に確かめ、何も書かずに止まる。
         cmds.setAttr(self.node + ".vecDY", lock=True)
         with self.assertRaisesRegex(RuntimeError, "locked or connected"):
             CompoundPlug.set(plug, (4.0, 5.0, 6.0))
@@ -984,8 +984,8 @@ class ArrayAndWeightRunTest(unittest.TestCase):
         for world in (False, True):
             for weighted in (False, True):
                 space = om2.MSpace.kWorld if world else om2.MSpace.kObject
-                raw = shape.meshFn().getVertexNormals(weighted, space)
-                actual = shape.getVertexNormals(worldSpace=world, angle_weighted=weighted)
+                raw = shape.mfn().getVertexNormals(weighted, space)
+                actual = shape.getVertexNormals(worldSpace=world, angleWeighted=weighted)
                 self.assertEqual([type(v) for v in actual], [Vector] * len(raw))
                 self.assertEqual([tuple(map(repr, v)) for v in actual],
                                  [tuple(map(repr, Vector(v))) for v in raw])
@@ -1294,7 +1294,9 @@ class WrapperCreationCostTest(unittest.TestCase):
         wrapped = Node._wrap_resolved(mlib.getNode(skin)._mobject, None)
         self.assertIs(type(wrapped), SkinCluster)
         self.assertEqual(sorted(wrapped.__dict__), sorted(Node(skin).__dict__))
-        self.assertTrue(hasattr(wrapped, "fn"))
+        # SkinCluster.__init__ が呼ばれ、function set のキャッシュを保持していること(公開属性 fn は 2.1.0 で廃止)。
+        self.assertTrue(hasattr(wrapped, "_skin_fn"))
+        self.assertFalse(hasattr(wrapped, "fn"))
 
     def test_registry_changes_apply_to_next_wrapper(self):
         from mlib.nodes.node import Node

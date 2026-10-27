@@ -59,7 +59,7 @@ class CurveLengthTest(unittest.TestCase):
         cmds.currentUnit(linear="m")
         self.assertEqual(cmds.currentUnit(query=True, linear=True), "m")
         self.assertAlmostEqual(units.convertDistance(100, "cm"), 1)
-        self.assertAlmostEqual(units.convertDistance(1, to_unit="cm"), 100)
+        self.assertAlmostEqual(units.convertDistance(1, toUnit="cm"), 100)
 
     def test_curved_history_and_updates(self):
         """曲線の弧長と履歴・親の変更を評価する。"""

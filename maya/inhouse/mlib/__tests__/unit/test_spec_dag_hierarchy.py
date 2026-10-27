@@ -8,7 +8,6 @@ collectSkinClusters)が DagNode・DagNodes から消えていること、DagNode
 
 import inspect
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -16,33 +15,16 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.nodes import DagNode, DagNodes, Node, Shape, Transform
+from support.specCase import NamespaceCase
 
 
 REMOVED_DAG_METHODS = ("dagFn", "getParentPath", "getFullPath", "getPartialPath", "collectSkinClusters")
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecDagHier_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
+    PREFIX = "mlibSpecDagHier_"
 
     def cube(self, text, parent=None):
         """polyCube を作り (transform, shape) の完全パスを返す。"""
@@ -54,7 +36,7 @@ class _NamespaceCase(unittest.TestCase):
         return transform, shape
 
 
-class HierarchyFixture(_NamespaceCase):
+class HierarchyFixture(_SpecCase):
     """root > mid > (leaf, leaf2, leafShape...) の階層。"""
 
     def setUp(self):

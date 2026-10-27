@@ -31,7 +31,7 @@ class UV(Component):
             RuntimeError: Meshまたは現在のUVセットを参照できない場合。
         """
         self._validate()
-        mesh_fn = self.shape.meshFn()
+        mesh_fn = self.shape._geometry_fn()
         return tuple(mesh_fn.getUV(self._index, uvSet=mesh_fn.currentUVSetName()))
 
     def setPosition(self, value, *, fast=False):
@@ -66,7 +66,7 @@ class UV(Component):
                 geometry_edit.set_uvs(self.shape, [self.index], [(u, v)])
                 return self
             cmds.polyEditUV(self.getFullName(), relative=False, uValue=u, vValue=v,
-                            uvSetName=self.shape.meshFn().currentUVSetName())
+                            uvSetName=self.shape._geometry_fn().currentUVSetName())
             return self
 
     def getU(self):
@@ -256,7 +256,7 @@ class UVs(Components):
         if not self._indices:
             return []
         Component._validate_shape(self._shape, UV.shape_type)
-        mesh_fn = self._shape.meshFn()
+        mesh_fn = self._shape._geometry_fn()
         count = mesh_fn.numUVs()
         uv_set = mesh_fn.currentUVSetName()
         result = []

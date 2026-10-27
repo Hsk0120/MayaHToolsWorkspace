@@ -20,21 +20,13 @@ class Reference(Node):
         """
         return om2.MFnReference(self.mnode())
 
-    def referenceFn(self):
-        """MFnReference を取得する。
-
-        Returns:
-            om2.MFnReference: この reference ノードの function set。
-        """
-        return om2.MFnReference(self.mnode())
-
-    def getFilename(self, resolved=True, with_copy_number=False):
+    def getFilename(self, resolved=True, withCopyNumber=False):
         """参照ファイルのパスを取得する。
 
         Args:
             resolved (bool): True の場合、パス変数などを解決した実際のパスを返す。
                 False の場合はシーンに保存されている未解決のパスを返す。
-            with_copy_number (bool): True の場合、同じファイルを複数回参照した
+            withCopyNumber (bool): True の場合、同じファイルを複数回参照した
                 際のコピー番号(``{1}`` 等)を含める。最初の参照には番号が付かない。
                 ``cmds.referenceQuery(ref, filename=True)`` と同じ値になる。
 
@@ -43,7 +35,7 @@ class Reference(Node):
         """
         # MFnReference.fileName の2番目はパスを除く指定(Falseでディレクトリを含む)、
         # 3番目がコピー番号を含める指定。
-        return self.referenceFn().fileName(resolved, False, with_copy_number)
+        return self.mfn().fileName(resolved, False, withCopyNumber)
 
     def getAssociatedNamespace(self):
         """参照内容が読み込まれている Namespace を取得する。
@@ -55,7 +47,7 @@ class Reference(Node):
         # mlib 内の他の相互依存箇所と合わせて遅延 import で統一する。
         from ..common import Namespace
 
-        return Namespace(self.referenceFn().associatedNamespace(False))
+        return Namespace(self.mfn().associatedNamespace(False))
 
     def isLoaded(self):
         """参照が現在ロードされているか判定する。
@@ -63,7 +55,7 @@ class Reference(Node):
         Returns:
             bool: ロード済みなら True。
         """
-        return self.referenceFn().isLoaded()
+        return self.mfn().isLoaded()
 
     def getNodes(self):
         """この参照が持ち込んだノードを取得する。
@@ -76,15 +68,22 @@ class Reference(Node):
         """
         if not self.isLoaded():
             raise RuntimeError("Cannot enumerate nodes of an unloaded reference")
-        return [Node(mobject) for mobject in self.referenceFn().nodes()]
+        return [Node(mobject) for mobject in self.mfn().nodes()]
 
     def getParentReference(self):
         """親の Reference を取得する(ネストした参照の場合)。
 
         Returns:
             Reference | None: 親参照。トップレベルの参照では None。
+            ファイルを持たない参照ノード(createNode で作ったもの等。MFnReference.parentReference
+            が失敗する)も None。
         """
-        parent = self.referenceFn().parentReference()
+        try:
+            parent = self.mfn().parentReference()
+        except RuntimeError:
+            if not self.isValid():
+                raise
+            return None
         if parent.isNull():
             return None
         return Reference(parent)

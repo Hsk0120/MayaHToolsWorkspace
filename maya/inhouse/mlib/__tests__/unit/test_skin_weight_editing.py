@@ -34,20 +34,20 @@ class SkinWeightEditingTest(unittest.TestCase):
 
     def test_joint_remove_without_parent_transfer_matches_skin(self):
         """Joint入口も親移送を無効にでき、SkinCluster入口と同じ値になる。"""
-        self.skin.removeInfluence(self.child, transfer_to_parent=False)
+        self.skin.removeInfluence(self.child, transferToParent=False)
         expected = list(self.skin.getWeights([self.parent, self.other]))
         cmds.undo()
         joint = mlib.getNode(self.child)
-        joint.removeInfluence(self.skin, transfer_to_parent=False)
+        joint.removeInfluence(self.skin, transferToParent=False)
         actual = list(self.skin.getWeights([self.parent, self.other]))
         for a, b in zip(actual, expected):
             self.assertAlmostEqual(a, b)
         self.assertTrue(joint.isValid())
         cmds.undo()
         with self.assertRaises(TypeError):
-            joint.removeInfluence(self.skin, transfer_to_parent="false")
+            joint.removeInfluence(self.skin, transferToParent="false")
         self.assertTrue(self.skin.hasInfluence(self.child))
-        mlib.nodes.Joints([self.child]).removeInfluence(self.skin, transfer_to_parent=False)
+        mlib.nodes.Joints([self.child]).removeInfluence(self.skin, transferToParent=False)
         self.assertFalse(self.skin.hasInfluence(self.child))
 
     def test_remove_influence_transfers_and_keeps_joint(self):

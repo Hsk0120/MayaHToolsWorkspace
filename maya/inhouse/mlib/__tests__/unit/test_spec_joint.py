@@ -9,7 +9,6 @@ Joints の一括転送(``_bulk_entries``・転送 def・``__signature__``)。
 import inspect
 import math
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -18,37 +17,17 @@ import mlib
 mlib.reload()
 from mlib.maths import EulerRotate
 from mlib.nodes import Joint, Joints, Node, Transform, Transforms
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecJoint_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibSpecJoint_"
 
     def make(self, kind="joint", text="joint#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
-
-    def assertSequenceAlmostEqual(self, actual, expected, places=9):
-        actual = list(actual)
-        expected = list(expected)
-        self.assertEqual(len(actual), len(expected))
-        for a, e in zip(actual, expected):
-            self.assertAlmostEqual(a, e, places=places)
+        """既定で joint を作る(引数は NamespaceCase.make と同じ)。"""
+        return super().make(kind, text, parent)
 
 
 class RemovedApiTest(unittest.TestCase):
@@ -85,7 +64,7 @@ class RemovedApiTest(unittest.TestCase):
                 self.assertNotIn(name, Joints._bulk_methods)
 
 
-class TypeQueryTest(_NamespaceCase):
+class TypeQueryTest(_SpecCase):
     """isJoint の代替。"""
 
     def test_isinstance_and_istype(self):
@@ -105,7 +84,7 @@ class TypeQueryTest(_NamespaceCase):
             Joints([self.make(), transform])
 
 
-class MfnTest(_NamespaceCase):
+class MfnTest(_SpecCase):
     """Joint の mfn() は MFnTransform(joint 専用の function set は om2 に無い)。"""
 
     def test_mfn(self):
@@ -118,7 +97,7 @@ class MfnTest(_NamespaceCase):
         self.assertEqual([type(fn) for fn in fns], [om2.MFnTransform])
 
 
-class GetRotateTest(_NamespaceCase):
+class GetRotateTest(_SpecCase):
     """Joint の getRotate は jointOrient と rotateAxis を含み、ゼロ回転に最も近い解を選ぶ。"""
 
     def test_default_includes_orient_and_matches_matrix(self):
@@ -182,7 +161,7 @@ class GetRotateTest(_NamespaceCase):
         return om2.MTransformationMatrix(om2.MMatrix(cmds.getAttr(name + ".matrix"))).rotation(asQuaternion=True)
 
 
-class SetParentTest(_NamespaceCase):
+class SetParentTest(_SpecCase):
     """Joint の setParent は cmds.parent に従う(inverseScale の接続は relative=False のときだけ)。fast は未対応。"""
 
     def test_relative_keeps_channels_without_inverse_scale(self):
@@ -233,7 +212,7 @@ class SetParentTest(_NamespaceCase):
             joint.setParent(parent, True, r=True)
 
 
-class ResetAttrsTest(_NamespaceCase):
+class ResetAttrsTest(_SpecCase):
     """Joint.resetAttrs の既定は TRS とシアーだけで、jointOrient は戻さない。"""
 
     def test_default_keeps_joint_orient(self):
@@ -260,7 +239,7 @@ class ResetAttrsTest(_NamespaceCase):
             self.assertEqual(cmds.getAttr(name + ".translate")[0], (0.0, 0.0, 0.0))
 
 
-class InvalidJointTest(_NamespaceCase):
+class InvalidJointTest(_SpecCase):
     """削除済み joint への操作は isValid() の判定で RuntimeError。"""
 
     def test_operations_on_deleted_joint(self):

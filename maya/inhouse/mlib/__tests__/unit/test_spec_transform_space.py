@@ -9,7 +9,6 @@ Transforms の一括転送(``_bulk_entries``・転送 def・``__signature__``)�
 import inspect
 import math
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -20,6 +19,7 @@ from mlib.maths import EulerRotate, Matrix, Shear
 from mlib.maths.eulerRotate import ORDER_NAMES
 from mlib.nodes import Camera, Mesh, Node, NurbsCurve, Transform, Transforms
 from mlib.plugs import Plug
+from support.specCase import NamespaceCase
 
 TOLERANCE = 1e-9
 
@@ -30,48 +30,10 @@ REMOVED_NAMES = (
 )
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecXformSpace_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
-
-    def assertSequenceAlmostEqual(self, actual, expected, places=9):
-        actual = list(actual)
-        expected = list(expected)
-        self.assertEqual(len(actual), len(expected))
-        for a, e in zip(actual, expected):
-            self.assertAlmostEqual(a, e, places=places)
-
-    def flushUndo(self):
-        """Undo キューを空にして、以後の操作が記録する項目数を数えられるようにする。"""
-        cmds.flushUndo()
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-
-    def assertUndoesInOneStep(self, check_before, check_after):
-        """直前の操作が Undo 1 回で戻り、キューに他の項目を残さないことを確かめる。"""
-        check_after()
-        self.assertFalse(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        cmds.undo()
-        check_before()
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+    PREFIX = "mlibSpecXformSpace_"
 
 
 def _world_quaternion(name):
@@ -117,14 +79,8 @@ class RemovedApiTest(unittest.TestCase):
         self.assertEqual(parameters["r"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertEqual(parameters["fast"].kind, inspect.Parameter.KEYWORD_ONLY)
 
-    def test_getrotate_signature_has_order(self):
-        parameters = inspect.signature(Transform.getRotate).parameters
-        self.assertIn("order", parameters)
-        self.assertEqual(parameters["order"].kind, inspect.Parameter.KEYWORD_ONLY)
-        self.assertIsNone(parameters["order"].default)
 
-
-class MfnTest(_NamespaceCase):
+class MfnTest(_SpecCase):
     """mfn() はそのノードで最も具体的な om2 function set を毎回新規に返す。"""
 
     def test_transform_mfn(self):
@@ -161,7 +117,7 @@ class MfnTest(_NamespaceCase):
         self.assertEqual([fn.fullPathName() for fn in fns], cmds.ls(names, long=True))
 
 
-class GetRotateOrderTest(_NamespaceCase):
+class GetRotateOrderTest(_SpecCase):
     """getRotate(order=) の二段規則。"""
 
     def test_default_matches_channels_and_cmds(self):
@@ -249,7 +205,7 @@ class GetRotateOrderTest(_NamespaceCase):
         return Node(name)
 
 
-class ShearTest(_NamespaceCase):
+class ShearTest(_SpecCase):
     """getShear/setShear は Maya のアトリビュート名に揃えた入口。"""
 
     def test_getshear_local_matches_cmds(self):
@@ -335,7 +291,7 @@ class ShearTest(_NamespaceCase):
         self.assertTrue(all(isinstance(shear, Shear) for shear in shears))
 
 
-class ResetAttrsTest(_NamespaceCase):
+class ResetAttrsTest(_SpecCase):
     """Transform.resetAttrs は既定で TRS とシアーを戻し、戻した Plug の list を返す。"""
 
     def test_default_resets_trs_and_shear_only(self):
@@ -416,7 +372,7 @@ class ResetAttrsTest(_NamespaceCase):
             self.assertSequenceAlmostEqual(actual, wanted)
 
 
-class SetParentTest(_NamespaceCase):
+class SetParentTest(_SpecCase):
     """setParent の relative/r と Undo。"""
 
     def test_relative_keeps_local_values(self):
@@ -492,7 +448,7 @@ class SetParentTest(_NamespaceCase):
         return parent, child
 
 
-class ConstraintSupportTest(_NamespaceCase):
+class ConstraintSupportTest(_SpecCase):
     """addConstraint の対応型は Constraint 派生の登録型から求め、抽象型 constraint は除く。"""
 
     def test_supported_and_unsupported_types(self):
@@ -506,7 +462,7 @@ class ConstraintSupportTest(_NamespaceCase):
         self.assertEqual(cmds.nodeType(str(created)), "parentConstraint")
 
 
-class ReplacementTest(_NamespaceCase):
+class ReplacementTest(_SpecCase):
     """廃止した入口の代替が同じ結果を返す。"""
 
     def test_offset_parent_matrix_via_plug(self):

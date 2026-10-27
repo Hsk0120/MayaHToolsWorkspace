@@ -129,8 +129,8 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.addCleanup(warning_patcher.stop)
 
     def make(self, **kwargs):
-        options = dict(plugins=("pluginA", "pluginB"), module="ModuleX", version_plugin="pluginA",
-                       minimum_version="3.0.0", minimum_maya=2025)
+        options = dict(plugins=("pluginA", "pluginB"), module="ModuleX", versionPlugin="pluginA",
+                       minimumVersion="3.0.0", minimumMaya=2025)
         options.update(kwargs)
         return PluginPackage("ProductX", **options)
 
@@ -148,7 +148,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             PluginPackage("x")
         with self.assertRaises(ValueError):
-            PluginPackage("x", plugins=("a",), minimum_version="bad")
+            PluginPackage("x", plugins=("a",), minimumVersion="bad")
         with self.assertRaises(ValueError):
             Plugin(3)
 
@@ -221,7 +221,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(self.shown, [])
 
     def test_no_minimum_version_only_needs_installation(self):
-        package = self.make(minimum_version=None)
+        package = self.make(minimumVersion=None)
         result, loader = self.run_flow(package, (1, 0))
         self.assertEqual(result, LOADED)
         loader.assert_called_once_with()
@@ -245,7 +245,7 @@ class PluginPackageFlowTest(unittest.TestCase):
         self.assertEqual(self.fake.dialogs, [])
 
     def test_custom_install_hint(self):
-        package = self.make(install_hint="社内サーバーから入手してください。")
+        package = self.make(installHint="社内サーバーから入手してください。")
         self.assertIn("社内サーバー", package.getMessage())
 
 
@@ -254,7 +254,7 @@ class PluginPackageRealTest(unittest.TestCase):
 
     def test_unknown_package_is_not_installed(self):
         package = PluginPackage("Unknown", plugins=("mlibDoesNotExistPlugin123",),
-                                module="mlibDoesNotExistModule123", minimum_version="1.0")
+                                module="mlibDoesNotExistModule123", minimumVersion="1.0")
         self.assertIsNone(package.getInstalledVersion())
         self.assertIsNone(package.getLoadedVersion())
         self.assertFalse(package.isInstalled())
@@ -294,8 +294,8 @@ class BifrostTest(unittest.TestCase):
     def setUp(self):
         year = int(str(cmds.about(version=True)).split(".")[0])
         self.package = PluginPackage("Bifrost", plugins=("mayaVnnPlugin", "bifrostGraph", "flowWedging"),
-                                     module="Bifrost", version_plugin="bifrostGraph",
-                                     minimum_version="3.0.0", minimum_maya=2025)
+                                     module="Bifrost", versionPlugin="bifrostGraph",
+                                     minimumVersion="3.0.0", minimumMaya=2025)
         if year < 2025 or not self.package.isInstalled():
             self.skipTest("Maya 2025以降でBifrost 3.0.0以降が導入された環境でのみ実行する")
 
@@ -308,7 +308,7 @@ class BifrostTest(unittest.TestCase):
         self.assertTrue(self.package.getLoadedVersion().isAtLeast("3.0.0"))
 
     def test_too_new_version_is_reported_missing(self):
-        package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimum_version="99.0")
+        package = PluginPackage("Bifrost", plugins=("bifrostGraph",), module="Bifrost", minimumVersion="99.0")
         shown = []
         self.assertEqual(package.tryLoad(dialog=shown.append), MISSING)
         self.assertIn("99.0", shown[0])

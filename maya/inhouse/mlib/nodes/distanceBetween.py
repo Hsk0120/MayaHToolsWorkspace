@@ -49,7 +49,7 @@ class DistanceBetween(Node):
                 self.getPlug(name).set(point, fast=fast)
             return self
 
-    def connectTransforms(self, first, second, force=_UNSET, *, f=_UNSET):
+    def connectTransforms(self, first, second, force=_UNSET, *, fast=False, f=_UNSET):
         """二つのTransformのワールドマトリクスを接続し、原点間距離を測る。
 
         両方のTransformを解決して型を検査し、point1/2を原点へ戻した後にマトリクスを順に接続する。
@@ -59,13 +59,14 @@ class DistanceBetween(Node):
             first (Transform | str): 第一のTransform。ラッパーが解決したDAGパスを使う。
             second (Transform | str): 第二のTransform。
             force (bool): 既存のマトリクス入力接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             f (bool): forceの別名。同時指定は不可。
 
         Returns:
             DistanceBetween: 自身。point1/2は原点にリセットする。
 
         Raises:
-            TypeError: Transform以外を指定した場合。
+            TypeError: fastがbool以外、またはTransform以外を指定した場合。
             RuntimeError: ロックや既存接続により変更できない場合。
         """
         if f is not _UNSET:
@@ -74,16 +75,18 @@ class DistanceBetween(Node):
             force = f
         if force is _UNSET:
             force = False
-        with undoChunk("mlibDistanceBetweenConnectTransforms"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibDistanceBetweenConnectTransforms"):
             from .node import Node as _InputNode
             nodes = [_InputNode._resolve_input(first), _InputNode._resolve_input(second)]
             if not all(isinstance(node, Transform) for node in nodes):
                 raise TypeError("Both inputs must be transforms")
-            self.setPoints((0, 0, 0), (0, 0, 0))
+            self.setPoints((0, 0, 0), (0, 0, 0), fast=fast)
             for number, node in enumerate(nodes, 1):
                 index = node.mpath().instanceNumber()
                 node.getPlug("worldMatrix")[index].connectTo(
-                    self.getPlug(f"inMatrix{number}"), force=force)
+                    self.getPlug(f"inMatrix{number}"), force=force, fast=fast)
             return self
 
     def getDistance(self):

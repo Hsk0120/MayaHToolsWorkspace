@@ -50,7 +50,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
             int: weightList内の論理番号。
         """
         skin = self.skin if skin is None else skin
-        return skin.fn.indexForInfluenceObject(joint.mpath())
+        return skin.mfn().indexForInfluenceObject(joint.mpath())
 
     def _row(self, vertex=0, skin=None):
         """指定頂点のweights配列Plugを取得する。
@@ -120,7 +120,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         """削除で空いた番号と未登録番号だけを除去し、疎な正規登録を保持する。"""
         old_child = self._index(self.child)
         other = self._index(self.other)
-        self.skin.removeInfluence(self.child, transfer_to_parent=False)
+        self.skin.removeInfluence(self.child, transferToParent=False)
         self.skin.setWeights([str(self.parent), str(self.other)], [1.4, 0.6])
         self.assertNotEqual(other, 1)
         self._inject(old_child, 0.75)

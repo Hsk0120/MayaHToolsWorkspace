@@ -84,7 +84,7 @@ class PublicCamelCaseTest(unittest.TestCase):
     def test_properties_keep_constructor_contracts(self):
         """保持propertyの表記にかかわらず構築引数を維持する。"""
         from mlib.common import PluginPackage
-        package = PluginPackage('Example', plugins=('example',), minimum_version='3.0', minimum_maya=2025)
+        package = PluginPackage('Example', plugins=('example',), minimumVersion='3.0', minimumMaya=2025)
         self.assertEqual(package.minimumVersion.parts, (3, 0))
         self.assertEqual(package.minimumMaya, 2025)
         self.assertNotIn('minimum_version', vars(type(package)))

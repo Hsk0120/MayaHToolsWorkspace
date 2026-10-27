@@ -47,13 +47,13 @@ def _distance_unit(unit):
     return names[unit]
 
 
-def convertDistance(value, from_unit=None, to_unit=None):
+def convertDistance(value, fromUnit=None, toUnit=None):
     """シーン設定を変更せず距離を変換する。
 
     Args:
         value (float): 変換する距離。
-        from_unit (str | None): 入力単位。Noneは現在のシーン単位。
-        to_unit (str | None): 出力単位。Noneは現在のシーン単位。
+        fromUnit (str | None): 入力単位。Noneは現在のシーン単位。
+        toUnit (str | None): 出力単位。Noneは現在のシーン単位。
             mm/cm/m/km/in/ft/yd/mi、またはMayaの長名を指定する。
 
     Returns:
@@ -63,8 +63,8 @@ def convertDistance(value, from_unit=None, to_unit=None):
         TypeError: 単位の型が不正な場合。
         ValueError: 単位名が未対応の場合。
     """
-    source = _distance_unit(from_unit)
-    target = _distance_unit(to_unit)
+    source = _distance_unit(fromUnit)
+    target = _distance_unit(toUnit)
     return om2.MDistance(value, source).asUnits(target)
 
 

@@ -47,12 +47,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, Matrix, self.getInputPlug, fast=fast)
             return self
 
-    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -71,8 +72,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getInputPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getInputPlug, force=force, fast=fast)
             return self
 
     def getEnvelopePlug(self):
@@ -107,12 +110,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, _Calculation.scalar, self.getEnvelopePlug, fast=fast)
             return self
 
-    def connectEnvelope(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectEnvelope(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """全体ウェイトへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -131,8 +135,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getEnvelopePlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getEnvelopePlug, force=force, fast=fast)
             return self
 
     def getPrimaryMatrixPlug(self):
@@ -167,12 +173,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, Matrix, self.getPrimaryMatrixPlug, fast=fast)
             return self
 
-    def connectPrimaryMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectPrimaryMatrix(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """primaryターゲットマトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -191,8 +198,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getPrimaryMatrixPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getPrimaryMatrixPlug, force=force, fast=fast)
             return self
 
     def getPrimaryAxisPlug(self):
@@ -227,12 +236,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getPrimaryAxisPlug, fast=fast)
             return self
 
-    def connectPrimaryAxis(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectPrimaryAxis(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """primary入力軸へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -251,8 +261,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getPrimaryAxisPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getPrimaryAxisPlug, force=force, fast=fast)
             return self
 
     def getPrimaryVectorPlug(self):
@@ -287,12 +299,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getPrimaryVectorPlug, fast=fast)
             return self
 
-    def connectPrimaryVector(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectPrimaryVector(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """primaryターゲットベクトルへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -311,8 +324,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getPrimaryVectorPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getPrimaryVectorPlug, force=force, fast=fast)
             return self
 
     def getPrimaryMode(self):
@@ -372,12 +387,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, Matrix, self.getSecondaryMatrixPlug, fast=fast)
             return self
 
-    def connectSecondaryMatrix(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectSecondaryMatrix(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """secondaryターゲットマトリクスへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -396,8 +412,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getSecondaryMatrixPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getSecondaryMatrixPlug, force=force, fast=fast)
             return self
 
     def getSecondaryAxisPlug(self):
@@ -432,12 +450,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getSecondaryAxisPlug, fast=fast)
             return self
 
-    def connectSecondaryAxis(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectSecondaryAxis(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """secondary入力軸へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -456,8 +475,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getSecondaryAxisPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getSecondaryAxisPlug, force=force, fast=fast)
             return self
 
     def getSecondaryVectorPlug(self):
@@ -492,12 +513,13 @@ class AimMatrix(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getSecondaryVectorPlug, fast=fast)
             return self
 
-    def connectSecondaryVector(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectSecondaryVector(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """secondaryターゲットベクトルへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -516,8 +538,10 @@ class AimMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getSecondaryVectorPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getSecondaryVectorPlug, force=force, fast=fast)
             return self
 
     def getSecondaryMode(self):

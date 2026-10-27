@@ -40,8 +40,7 @@ class ConsolidatedCalculationTests(unittest.TestCase):
                 cls = getattr(mlib.nodes, class_name)
                 self.assertIs(mlib.nodes._WRAPPER_CLASSES[node_type], cls)
                 if node_type not in (cmds.allNodeTypes() or []) and node_type.endswith("DL"):
-                    # 旧Maya(addDL等の無い版)では、未知の型名をunknownノードにせず作成前に拒否する
-                    # (FINDINGS C-03 で修正)。
+                    # 旧Maya(addDL等の無い版)では、未知の型名をunknownノードにせず作成前に拒否する。
                     with self.assertRaisesRegex(RuntimeError, "Unknown Maya nodeType"):
                         mlib.createNode(node_type)
                     continue

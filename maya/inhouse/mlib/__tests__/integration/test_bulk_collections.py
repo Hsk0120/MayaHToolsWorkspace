@@ -60,9 +60,9 @@ class BulkCollectionsTest(unittest.TestCase):
         class CustomJoints(mlib.nodes.Joints):
             """要素別入口を拡張する利用側コレクション。"""
 
-            def callEach(self, method, arguments, keyword_arguments=None):
+            def callEach(self, method, arguments, keywordArguments=None):
                 """既定値を補わず元の指定を受け取る。"""
-                captured.append((method, arguments, keyword_arguments))
+                captured.append((method, arguments, keywordArguments))
                 return self
 
         joints = CustomJoints(self.names)

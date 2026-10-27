@@ -1,7 +1,6 @@
 """Plugの接続・切断・接続照会の約束(方向・force・lock・nextAvailable・fast・Undo・戻り値)を固定する。
 
-期待値はmaya.cmdsの接続照会と比べる。食い違いは`.maya-output/mlib-spec-tests/FINDINGS_B.md`の
-番号をコメントに書き、実際の今の振る舞いを固定する。
+期待値はmaya.cmdsの接続照会と比べる。
 """
 
 import unittest
@@ -193,7 +192,7 @@ class ConnectSpecTest(_ConnectionSpecCase):
             self.a.getPlug("rz").connectTo(self.b.getPlug("rz"), fast=1)
 
     def test_connect_from_deleted_attribute_source(self):
-        """削除済みアトリビュートの接続元は事前に拒否し、対象名入りのRuntimeError(FINDINGS B-8で修正)。"""
+        """削除済みアトリビュートの接続元は事前に拒否し、対象名入りのRuntimeError。"""
         cmds.addAttr(self.an, longName="gone", attributeType="double")
         gone = self.a.getPlug("gone")
         cmds.deleteAttr(self.an + ".gone")

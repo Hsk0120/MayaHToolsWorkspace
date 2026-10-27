@@ -26,14 +26,14 @@ class Cycle:
         self._plugs = tuple(getPlug(plug) for plug in plugs)
 
     @classmethod
-    def find(cls, targets=None, include_dag=True, seconds=10.0, first_only=False):
+    def find(cls, targets=None, includeDag=True, seconds=10.0, firstOnly=False):
         """シーンを変更せず循環候補を検出する。
 
         Args:
             targets (Iterable[str | Node | Plug] | None): Noneでシーン全体。単数も可。
-            include_dag (bool): DAGの親子関係を検出に含める。
+            includeDag (bool): DAGの親子関係を検出に含める。
             seconds (float): 検索時間の上限（秒）。
-            first_only (bool): 最初の完全なサイクルだけを要求する。
+            firstOnly (bool): 最初の完全なサイクルだけを要求する。
 
         Returns:
             list[Cycle]: 検出経路。時間制限や実行時依存により0件でも無循環を保証しない。
@@ -64,9 +64,9 @@ class Cycle:
                 names.append(obj.getFullName() if isinstance(obj, Plug) else obj.getName())
             if not names:
                 raise ValueError("調査するノードを選択してください。")
-        options = dict(list=True, dag=include_dag, secondary=True,
+        options = dict(list=True, dag=includeDag, secondary=True,
                        timeLimit=f"{seconds}sec", listSeparator=_SEPARATOR,
-                       firstCycleOnly=first_only)
+                       firstCycleOnly=firstOnly)
         if targets is None:
             options["all"] = True
         raw = cmds.cycleCheck(*names, **options) or []

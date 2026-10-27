@@ -104,7 +104,7 @@ class DistanceBetweenTest(_GeometryCase):
         cmds.currentUnit(linear="mm")
         node.setPoints((0, 0, 0), (3, 4, 0))
         # mlibは常にcm。distanceの型はMaya 2027でdouble(単位なし)、それ以前はdoubleLinear(距離)で、
-        # cmds.getAttrの値だけが版により変わる(FINDINGS_A.md A-7)。
+        # cmds.getAttrの値だけが版により変わる。
         self.assertAlmostEqual(node.getDistance(), 5.0)
         linear = cmds.attributeQuery("distance", node=node.getFullName(), attributeType=True) == "doubleLinear"
         factor = 10.0 if linear else 1.0
@@ -421,7 +421,7 @@ class TextureNodesTest(_GeometryCase):
         """利用可能な色空間名を往復し、Undoで戻る。
 
         名前は検証せずに保持する(色管理の設定で変わるため)。str以外は値を変えずにTypeError
-        (setFilePathと同じ。FINDINGS A-4 で修正)。
+        (setFilePathと同じ)。
         """
         node = mlib.createNode("file")
         names = cmds.colorManagementPrefs(query=True, inputSpaceNames=True)

@@ -57,11 +57,11 @@ class DagPose(Node):
         return Node(result)
 
     @classmethod
-    def fromSkinCluster(cls, skin_cluster):
+    def fromSkinCluster(cls, skinCluster):
         """skinClusterに接続されているバインドポーズを取得する。
 
         Args:
-            skin_cluster (Node | str): 照会するskinCluster。
+            skinCluster (Node | str): 照会するskinCluster。
 
         Returns:
             DagPose | None: bindPoseアトリビュートに接続されたポーズ。未接続ならNone。
@@ -71,7 +71,7 @@ class DagPose(Node):
             RuntimeError: 無効なノード、またはdagPose以外が接続されている場合。
         """
         from .node import Node as _InputNode
-        skin = _InputNode._resolve_input(skin_cluster)
+        skin = _InputNode._resolve_input(skinCluster)
         if not skin.isValid():
             raise RuntimeError("Cannot access an invalid skinCluster")
         if not skin.isType("skinCluster"):

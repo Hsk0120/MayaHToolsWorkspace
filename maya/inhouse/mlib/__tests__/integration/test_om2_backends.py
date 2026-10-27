@@ -50,7 +50,7 @@ class Om2BackendsTest(unittest.TestCase):
                 cmds.currentUnit(linear=unit)
                 for ws in (False, True):
                     space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-                    fn = shape.meshFn() if shape.getType() == 'mesh' else shape.curveFn()
+                    fn = shape.mfn() if shape.getType() == 'mesh' else shape.mfn()
                     raw = fn.getPoints(space) if shape.getType() == 'mesh' else fn.cvPositions(space)
                     expected = [(raw[i].x, raw[i].y, raw[i].z) for i in items.indices]
                     with self.forbidden('xform', 'getAttr'):
@@ -67,7 +67,7 @@ class Om2BackendsTest(unittest.TestCase):
         transform = cmds.circle(ch=False)[0]
         shape = mlib.getNode(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
         items = shape.getCVs()
-        expected = [(p.x, p.y, p.z) for p in shape.curveFn().cvPositions()]
+        expected = [(p.x, p.y, p.z) for p in shape.mfn().cvPositions()]
         self.assert_points(items.getPosition(), expected)
 
     def test_component_range_rejected_before_expansion(self):
@@ -165,13 +165,13 @@ class Om2BackendsTest(unittest.TestCase):
                     self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
                     cmds.undo()
                     queue = cmds.undoInfo(query=True, undoName=True)
-                    weights = None if shape.getType() == 'mesh' else [p.w for p in shape.curveFn().cvPositions()]
+                    weights = None if shape.getType() == 'mesh' else [p.w for p in shape.mfn().cvPositions()]
                     with self.forbidden('xform', 'ls', 'getAttr', 'setAttr', 'undoInfo'):
                         node.scaleGeometry(factors, ws=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2], fast=True)
                     self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
                     self.assertEqual(cmds.undoInfo(query=True, undoName=True), queue)
                     if weights is not None:
-                        self.assertEqual([p.w for p in shape.curveFn().cvPositions()], weights)
+                        self.assertEqual([p.w for p in shape.mfn().cvPositions()], weights)
                 cmds.currentUnit(linear='cm')
 
     def test_scale_geometry_fast_rejections_preserve_points(self):
@@ -200,7 +200,7 @@ class Om2BackendsTest(unittest.TestCase):
     def test_periodic_scaling_maps_duplicate_cv_once(self):
         """API末尾と先頭の同一CVを通常モードで一回だけ拡縮する。"""
         shape = mlib.getNode(cmds.circle(ch=False)[0]).getShape()
-        end = shape.getNumCVs() - shape.curveFn().degree
+        end = shape.getNumCVs() - shape.mfn().degree
         before = shape.getCVs().getPosition()
         shape.scaleGeometry(2, indices=[0, end, 0])
         expected = [tuple(v * 2 for v in point) if i in (0, end) else point for i, point in enumerate(before)]
@@ -246,6 +246,62 @@ class Om2BackendsTest(unittest.TestCase):
         self.assertNotIn('sparseWeight', dict(node.getAliases()))
         cmds.undo()
         self.assertIn('sparseWeight', dict(node.getAliases()))
+
+    def test_om2_reads_do_not_call_commands(self):
+        """2.1.0でom2へ置き換えた読取りはcmdsの照会コマンドを呼ばない。"""
+        from mlib.common.references import listReferences
+        from mlib.nodes.node import _enum_definition
+
+        cube = cmds.polyCube()[0]
+        cmds.polyBevel(cube + '.e[0]')
+        cmds.select(clear=True)
+        joints = [cmds.joint(position=(index, 0, 0)) for index in range(3)]
+        handle = cmds.ikHandle(startJoint=joints[0], endEffector=joints[2])[0]
+        cmds.addAttr(cube, longName='choice', attributeType='enum', enumName='a=1:b=5', keyable=True)
+        cmds.setAttr(cube + '.tx', lock=True)
+        node = mlib.getNode(cube)
+        multiply = mlib.createNode('multiplyDivide')
+        names = ('getAttr', 'listHistory', 'listAttr', 'ikHandle', 'ls', 'attributeQuery', 'listConnections')
+        with self.forbidden(*names):
+            self.assertFalse(node.getPlug('tx').isSettable())
+            self.assertTrue(node.getPlug('worldMatrix').isSettable())
+            self.assertTrue(node.getHistory())
+            self.assertTrue(node.getHistory(future=True))
+            self.assertTrue(node.getPlugs())
+            self.assertTrue(node.getPlugs(keyable=True, scalar=True, includeChildren=False))
+            self.assertEqual(_enum_definition(node.getPlug('choice')), 'a=1:b=5')
+            self.assertEqual(len(mlib.getNode(handle).getJoints()), 2)
+            self.assertEqual(listReferences(), [])
+            self.assertTrue(multiply.resetAttrs(fast=True))
+            self.assertEqual(node.getPlug('ty').getAnimLayers(), [])
+
+    def test_fast_set_muted_uses_api_without_undo(self):
+        """fastのmute・解除はcmdsを呼ばずUndoに記録しない。通常経路は1回のUndoで戻る。"""
+        node = cmds.createNode('transform', name='fastMuted')
+        cmds.setKeyframe(node + '.tx', time=1, value=2)
+        cmds.setKeyframe(node + '.tx', time=10, value=5)
+        cmds.currentTime(4)
+        plug = mlib.getPlug(node + '.tx')
+        held = plug.get()
+        before = cmds.undoInfo(q=True, undoName=True)
+        with self.forbidden('mute', 'createNode', 'connectAttr', 'disconnectAttr', 'setAttr', 'delete',
+                            'rename', 'undoInfo'):
+            self.assertIs(plug.setMuted(True, fast=True), plug)
+        self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
+        self.assertTrue(plug.isMuted())
+        self.assertTrue(cmds.mute(node + '.tx', query=True))
+        cmds.currentTime(8)
+        self.assertAlmostEqual(plug.get(), held)
+        with self.forbidden('mute', 'createNode', 'connectAttr', 'disconnectAttr', 'setAttr', 'delete',
+                            'undoInfo'):
+            plug.setMuted(False, fast=True)
+        self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
+        self.assertFalse(plug.isMuted())
+        self.assertEqual(cmds.ls(type='mute'), [])
+        plug.setMuted(True)
+        cmds.undo()
+        self.assertFalse(plug.isMuted())
+        self.assertEqual(cmds.ls(type='mute'), [])
 
 
 if __name__ == '__main__':

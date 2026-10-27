@@ -125,10 +125,10 @@ class ReferenceTest(unittest.TestCase):
         self.assertIn(self.ref_node_name, [reference.getName() for reference in references])
 
     def test_list_references_top_level_only_excludes_none_here(self):
-        # このテストではネストした参照を作らないため、top_level_only=True でも
+        # このテストではネストした参照を作らないため、topLevelOnly=True でも
         # 通常の一覧と同じ結果になることだけを確認する。
         all_refs = {reference.getName() for reference in listReferences()}
-        top_refs = {reference.getName() for reference in listReferences(top_level_only=True)}
+        top_refs = {reference.getName() for reference in listReferences(topLevelOnly=True)}
         self.assertEqual(all_refs, top_refs)
 
 

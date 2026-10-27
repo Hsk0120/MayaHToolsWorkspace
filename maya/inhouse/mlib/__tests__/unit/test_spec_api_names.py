@@ -3,6 +3,7 @@
 旧名(別名を含む)が単数・複数形クラスのどこにも残らないこと、新名が単数に定義され
 複数形クラスへ同じ署名で転送されること、`_calculating_setters` と `_bulk_methods` の
 文字列が改名に追従していること、mlib 本体のソースに旧名の def が無いことを確かめる。
+2.1.0 で lowerCamelCase へ改名した公開引数に旧名が残らないことも確かめる。
 個々の新しい約束(引数・戻り値・Undo・fast)は test_spec_node_*/dag_*/transform_*/plug_* が受け持つ。
 """
 
@@ -205,6 +206,74 @@ class SourceTextTest(unittest.TestCase):
             for match in pattern.finditer(text):
                 offenders.append("%s: %s" % (file.relative_to(root), match.group(0).strip()))
         self.assertEqual(offenders, [])
+
+
+class RenamedArgumentsTest(unittest.TestCase):
+    """2.1.0 で lowerCamelCase へ改名した公開引数に旧名が残らない(互換の旧名も受け付けない)。"""
+
+    @staticmethod
+    def renamed():
+        """(呼出し先の表示名, 呼出し先, 旧引数名, 新引数名)を返す。"""
+        from mlib import common
+        from mlib.common import references, units
+        from mlib.nodes import AnimCurve, BlendShape, DagPose, IkHandle, Mesh, Reference, SkinCluster, SkinClusters
+        return (
+            ("Node.isType", Node.isType, "node_type", "nodeType"),
+            ("Nodes.isType", Nodes.isType, "node_type", "nodeType"),
+            ("Node.getNodeName", Node.getNodeName, "remove_namespace", "removeNamespace"),
+            ("Nodes.callEach", Nodes.callEach, "keyword_arguments", "keywordArguments"),
+            ("Transform.getClosestAxisToVector", Transform.getClosestAxisToVector, "ref_vector", "refVector"),
+            ("Transforms.getClosestAxisToVector", Transforms.getClosestAxisToVector, "include_negative", "includeNegative"),
+            ("Joint.removeInfluence", Joint.removeInfluence, "transfer_to_parent", "transferToParent"),
+            ("Joints.removeInfluence", Joints.removeInfluence, "skin_cluster", "skinCluster"),
+            ("Joints.reparentChildren", Joints.reparentChildren, "parent_joint", "parentJoint"),
+            ("SkinCluster.__init__", SkinCluster.__init__, "skin_cluster", "skinCluster"),
+            ("SkinCluster.bind", SkinCluster.bind, "max_influences", "maxInfluences"),
+            ("SkinCluster.removeInfluence", SkinCluster.removeInfluence, "transfer_to_parent", "transferToParent"),
+            ("SkinClusters.removeInfluence", SkinClusters.removeInfluence, "transfer_to_parent", "transferToParent"),
+            ("SkinClusters.removeInfluences", SkinClusters.removeInfluences, "transfer_to_parent", "transferToParent"),
+            ("SkinCluster.transferWeights", SkinCluster.transferWeights, "source_target_pairs", "sourceTargetPairs"),
+            ("DagPose.fromSkinCluster", DagPose.fromSkinCluster, "skin_cluster", "skinCluster"),
+            ("IkHandle.getJoints", IkHandle.getJoints, "include_tip", "includeTip"),
+            ("Mesh.reorderVertices", Mesh.reorderVertices, "uv_set", "uvSet"),
+            ("Mesh.getVertexNormals", Mesh.getVertexNormals, "angle_weighted", "angleWeighted"),
+            ("Reference.getFilename", Reference.getFilename, "with_copy_number", "withCopyNumber"),
+            ("AnimCurve.shiftKeys", AnimCurve.shiftKeys, "input_offset", "inputOffset"),
+            ("AnimCurve.scaleKeys", AnimCurve.scaleKeys, "value_pivot", "valuePivot"),
+            ("AnimCurve.mirror", AnimCurve.mirror, "input_pivot", "inputPivot"),
+            ("BlendShape.addTarget", BlendShape.addTarget, "weight_index", "weightIndex"),
+            ("BlendShape.getTargetDeltas", BlendShape.getTargetDeltas, "full_weight", "fullWeight"),
+            ("CompoundPlug.__getitem__", CompoundPlug.__getitem__, "name_or_index", "nameOrIndex"),
+            ("Cycle.find", common.Cycle.find, "include_dag", "includeDag"),
+            ("Cycle.find", common.Cycle.find, "first_only", "firstOnly"),
+            ("DampedSpring.solve", common.DampedSpring.solve, "seconds_per_sample", "secondsPerSample"),
+            ("DrivenKey.setKey", common.DrivenKey.setKey, "driver_value", "driverValue"),
+            ("Plugin.ensureNodePlugin", common.Plugin.ensureNodePlugin, "node_type", "nodeType"),
+            ("PluginPackage.__init__", common.PluginPackage.__init__, "minimum_version", "minimumVersion"),
+            ("ScalarGraph.__init__", common.ScalarGraph.__init__, "create_node", "createNode"),
+            ("ScriptJob.__init__", common.ScriptJob.__init__, "kill_with_scene", "killWithScene"),
+            ("listReferences", references.listReferences, "top_level_only", "topLevelOnly"),
+            ("units.convertDistance", units.convertDistance, "to_unit", "toUnit"),
+        )
+
+    def test_old_argument_names_are_absent(self):
+        for label, function, old, new in self.renamed():
+            with self.subTest(function=label, old=old):
+                parameters = inspect.signature(function).parameters
+                self.assertNotIn(old, parameters)
+                self.assertIn(new, parameters)
+
+    def test_old_keyword_raises_type_error(self):
+        from mlib.common import DampedSpring, references, units
+        calls = (
+            ("units.convertDistance", lambda: units.convertDistance(1.0, to_unit="cm")),
+            ("DampedSpring.solve", lambda: DampedSpring.solve([0.0, 1.0], seconds_per_sample=1.0 / 24.0)),
+            ("listReferences", lambda: references.listReferences(top_level_only=True)),
+        )
+        for label, call in calls:
+            with self.subTest(function=label):
+                with self.assertRaises(TypeError):
+                    call()
 
 
 if __name__ == "__main__":

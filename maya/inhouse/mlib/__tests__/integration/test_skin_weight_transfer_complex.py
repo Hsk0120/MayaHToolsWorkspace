@@ -658,7 +658,7 @@ class AncestorlessTransferTest(_SkinTransferCase):
                         self.assertWeights(_snapshot(skin), before, "native undo")
                         expected = _expected_removal(before, [j[name]], normalize, transfer)
                         self.assertWeights(native, expected, "model vs Maya")
-                        wrapper.removeInfluence(j[name], transfer_to_parent=transfer, fast=fast)
+                        wrapper.removeInfluence(j[name], transferToParent=transfer, fast=fast)
                         self.assertWeights(_snapshot(skin), expected, "mlib")
 
     def test_child_then_root_together(self):

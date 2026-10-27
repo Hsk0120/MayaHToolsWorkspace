@@ -88,22 +88,27 @@ class NurbsCurve(Shape):
         return CVs(self, indices)
 
     def mfn(self):
-        """このカーブで最も具体的な om2 function set を取得する。
+        """このカーブで最も具体的な om2 function set を、呼び出すたびに新しく作って返す。
 
-        呼び出すたびに新しい ``om2.MFnNurbsCurve`` を保持する DAG パスから作る。
-
-        Returns:
-            om2.MFnNurbsCurve: このカーブの function set。
-        """
-        return om2.MFnNurbsCurve(self.mpath())
-
-    def curveFn(self):
-        """カーブの関数セットを取得する。
+        形状データを持つ場合は ``om2.MFnNurbsCurve``。``mlib.createNode("nurbsCurve")`` 直後のように形状データを
+        持たない空のシェイプは ``om2.MFnNurbsCurve`` が使えない(Maya 2027 では作成時に ValueError、
+        版により作成後の照会で RuntimeError)ため、``om2.MFnDagNode`` を返す。DagNode 共通の照会
+        (中間オブジェクト判定・親の列挙等)は空のシェイプでも使える。
 
         Returns:
-            om2.MFnNurbsCurve: 保持する DAG パスの関数セット。
+            om2.MFnNurbsCurve | om2.MFnDagNode: このカーブの function set。空のシェイプでは MFnDagNode。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
         """
-        return om2.MFnNurbsCurve(self.mpath())
+        path = self.mpath()
+        try:
+            fn = om2.MFnNurbsCurve(path)
+            # 版により作成は通り照会で失敗するため、形状データの有無を作成直後に確かめる。
+            fn.typeId
+        except (RuntimeError, ValueError):
+            return om2.MFnDagNode(path)
+        return fn
 
     def getNumCVs(self):
         """CV 数を取得する。
@@ -111,7 +116,7 @@ class NurbsCurve(Shape):
         Returns:
             int: カーブの CV 数。
         """
-        return self.curveFn().numCVs
+        return self._geometry_fn().numCVs
 
     def getNumSpans(self):
         """スパン数を取得する。
@@ -119,7 +124,7 @@ class NurbsCurve(Shape):
         Returns:
             int: カーブのスパン数。
         """
-        return self.curveFn().numSpans
+        return self._geometry_fn().numSpans
 
     def getDegree(self):
         """カーブの次数を取得する。
@@ -127,7 +132,7 @@ class NurbsCurve(Shape):
         Returns:
             int: NURBS カーブの次数。
         """
-        return self.curveFn().degree
+        return self._geometry_fn().degree
 
     def getForm(self):
         """カーブの開閉形式を取得する。
@@ -135,7 +140,7 @@ class NurbsCurve(Shape):
         Returns:
             int: MFnNurbsCurve の kOpen、kClosed、kPeriodic のいずれか。
         """
-        return self.curveFn().form
+        return self._geometry_fn().form
 
     def getLength(self, tolerance=1e-6, *, worldSpace=_UNSET, unit="cm", ws=_UNSET):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
@@ -165,18 +170,18 @@ class NurbsCurve(Shape):
         ws = _world_space(worldSpace)
         from ..common import units
         # 単位は毎回照会する。係数を使うためシーンの単位設定は変更しない。
-        factor = units.convertDistance(1.0, from_unit="cm", to_unit=unit)
+        factor = units.convertDistance(1.0, fromUnit="cm", toUnit=unit)
         tolerance = float(tolerance)
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("tolerance must be positive and finite")
         if type(ws) is not bool:
             raise TypeError("ws must be a bool")
         if not ws:
-            return self.curveFn().length(tolerance) * factor
+            return self._geometry_fn().length(tolerance) * factor
         # lengthはオブジェクト空間で計算するため、メモリ内のコピーだけを
         # ワールド座標へ変換する。元のCV・履歴・Undoキューは変更しない。
         # copyにより次数・ノット・有理カーブのウェイトも維持する。
-        source = self.curveFn()
+        source = self._geometry_fn()
         data = om2.MFnNurbsCurveData().create()
         copied = om2.MFnNurbsCurve().copy(source.object(), data)
         curve = om2.MFnNurbsCurve(copied)
@@ -202,7 +207,7 @@ class NurbsCurve(Shape):
             worldSpace = False
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-        return self.curveFn().cvPositions(space)
+        return self._geometry_fn().cvPositions(space)
 
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=_UNSET, *, ws=_UNSET):
         """ほぼ同じ位置にある CV をグループ化して取得する。
@@ -247,3 +252,17 @@ class NurbsCurve(Shape):
                 assigned[i] = True
                 groups.append(group)
         return groups
+
+    def _geometry_fn(self):
+        """形状データを要する照会用に ``om2.MFnNurbsCurve`` を返す。
+
+        Returns:
+            om2.MFnNurbsCurve: このカーブの function set。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効、または形状データを持たない空のシェイプの場合。
+        """
+        fn = self.mfn()
+        if not isinstance(fn, om2.MFnNurbsCurve):
+            raise RuntimeError("nurbsCurve has no geometry data: %s" % self.getFullName())
+        return fn

@@ -91,7 +91,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertAlmostEqual(camera.getFocalLength(), 50.0)
 
         import maya.api.OpenMaya as om2
-        self.assertIsInstance(camera.cameraFn(), om2.MFnCamera)
+        self.assertIsInstance(camera.mfn(), om2.MFnCamera)
 
     def test_mesh_and_curve_geometry(self):
         cube = mlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
@@ -134,7 +134,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             )
         )
 
-        weighted = mesh.getVertexNormals(angle_weighted=True)
+        weighted = mesh.getVertexNormals(angleWeighted=True)
         self.assertEqual(len(weighted), mesh.getNumVertices())
 
     def test_basic_constraints_targets_weights_and_registration(self):
@@ -235,7 +235,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertEqual(handle.getEndJoint().getFullName(), j3.getFullName())
         joint_list = handle.getJoints()
         self.assertEqual([joint.getFullName() for joint in joint_list], [j1.getFullName(), j2.getFullName()])
-        joint_list_with_tip = handle.getJoints(include_tip=True)
+        joint_list_with_tip = handle.getJoints(includeTip=True)
         self.assertEqual(
             [joint.getFullName() for joint in joint_list_with_tip],
             [j1.getFullName(), j2.getFullName(), j3.getFullName()],

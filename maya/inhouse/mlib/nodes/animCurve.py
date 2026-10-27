@@ -352,12 +352,12 @@ class AnimCurve(Node):
                 plug.set(value, fast=fast)
             return self
 
-    def shiftKeys(self, input_offset=0, value_offset=0, *, fast=False):
+    def shiftKeys(self, inputOffset=0, valueOffset=0, *, fast=False):
         """全キーを移動する。
 
         Args:
-            input_offset (float): 横軸の移動量。時間型は秒。
-            value_offset (float): 縦軸の移動量。内部単位(cm/rad/秒)。
+            inputOffset (float): 横軸の移動量。時間型は秒。
+            valueOffset (float): 縦軸の移動量。内部単位(cm/rad/秒)。
             fast (bool): TrueはAPI直接更新でUndoなし。
 
         Returns:
@@ -366,26 +366,26 @@ class AnimCurve(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibAnimCurveShift"):
-            input_offset, value_offset = self._finite(input_offset), self._finite(value_offset)
+            inputOffset, valueOffset = self._finite(inputOffset), self._finite(valueOffset)
             if fast:
-                self._transform_keys(1, 1, input_offset, value_offset)
+                self._transform_keys(1, 1, inputOffset, valueOffset)
                 return self
-            x = self._unit_value(input_offset)
-            y = self._unit_value(value_offset, output=True)
+            x = self._unit_value(inputOffset)
+            y = self._unit_value(valueOffset, output=True)
             if self.getKeyCount():
                 flag = "timeChange" if self.isTimeInput() else "floatChange"
                 cmds.keyframe(self.getFullName(), edit=True, relative=True, animation="objects",
                               valueChange=y, **{flag: x})
             return self
 
-    def scaleKeys(self, input_scale=1, value_scale=1, input_pivot=0, value_pivot=0, *, fast=False):
+    def scaleKeys(self, inputScale=1, valueScale=1, inputPivot=0, valuePivot=0, *, fast=False):
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
 
         Args:
-            input_scale (float): 横軸倍率。0はキーが重なるためValueError。
-            value_scale (float): 縦軸倍率。
-            input_pivot (float): 横軸の基準値。
-            value_pivot (float): 縦軸の基準値。
+            inputScale (float): 横軸倍率。0はキーが重なるためValueError。
+            valueScale (float): 縦軸倍率。
+            inputPivot (float): 横軸の基準値。
+            valuePivot (float): 縦軸の基準値。
             fast (bool): TrueはAPI直接更新。負の入力倍率は更新前に未対応として拒否。
 
         Returns:
@@ -394,7 +394,7 @@ class AnimCurve(Node):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibAnimCurveScale"):
-            x, y, px, py = map(self._finite, (input_scale, value_scale, input_pivot, value_pivot))
+            x, y, px, py = map(self._finite, (inputScale, valueScale, inputPivot, valuePivot))
             if not x:
                 raise ValueError("Input scale cannot be zero")
             if fast:
@@ -409,14 +409,14 @@ class AnimCurve(Node):
                               **{prefix + "Scale": x, prefix + "Pivot": px})
             return self
 
-    def mirror(self, input=False, value=True, input_pivot=0, value_pivot=0, *, fast=False):
+    def mirror(self, input=False, value=True, inputPivot=0, valuePivot=0, *, fast=False):
         """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
 
         Args:
             input (bool): 横軸を反転するか。
             value (bool): 縦軸を反転するか。
-            input_pivot (float): 横軸の反転中心。
-            value_pivot (float): 縦軸の反転中心。
+            inputPivot (float): 横軸の反転中心。
+            valuePivot (float): 縦軸の反転中心。
             fast (bool): TrueはAPI直接更新。input=Trueとの併用は未対応。
 
         Returns:
@@ -424,7 +424,7 @@ class AnimCurve(Node):
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
-        return self.scaleKeys(-1 if input else 1, -1 if value else 1, input_pivot, value_pivot, fast=fast)
+        return self.scaleKeys(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, fast=fast)
 
     def _set_api_value(self, fn, index, value):
         """キー値を直接更新し、時間出力の秒をMTimeで保持する。

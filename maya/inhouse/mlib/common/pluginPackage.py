@@ -33,23 +33,23 @@ class PluginPackage:
     ロード済みのプラグインを自動アンロードする責務は持たない。
     """
 
-    def __init__(self, name, plugins=(), module=None, version_plugin=None,
-                 minimum_version=None, minimum_maya=None, install_hint=None):
+    def __init__(self, name, plugins=(), module=None, versionPlugin=None,
+                 minimumVersion=None, minimumMaya=None, installHint=None):
         """製品名・ロード対象・必要版を保持する。Mayaへは問い合わせない。
 
         Args:
             name (str): 通知に表示する製品名。
             plugins (Iterable[str | Plugin]): ロード順のプラグイン。
-            module (str | Module | None): 版の取得元。未取得ならversion_pluginの版を使う。
-            version_plugin (str | Plugin | None): 版を調べるプラグイン。既定はpluginsの先頭。
-            minimum_version (Version | str | int | tuple[int, ...] | None): 最小版。Noneは版を問わない。
-            minimum_maya (int | None): 対象Mayaの最小年版。それ未満ではtryLoadを省略する。
-            install_hint (str | None): 導入不足の通知へ加える説明。
+            module (str | Module | None): 版の取得元。未取得ならversionPluginの版を使う。
+            versionPlugin (str | Plugin | None): 版を調べるプラグイン。既定はpluginsの先頭。
+            minimumVersion (Version | str | int | tuple[int, ...] | None): 最小版。Noneは版を問わない。
+            minimumMaya (int | None): 対象Mayaの最小年版。それ未満ではtryLoadを省略する。
+            installHint (str | None): 導入不足の通知へ加える説明。
 
         Raises:
             ValueError: 名前や最小版が不正、またはpluginsもmoduleも指定されない場合。
                 非文字列・空のプラグイン名もValueErrorとなる。
-            TypeError: pluginsを反復できない、またはminimum_mayaを整数に変換できない型の場合。
+            TypeError: pluginsを反復できない、またはminimumMayaを整数に変換できない型の場合。
         """
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a non-empty string")
@@ -58,18 +58,18 @@ class PluginPackage:
         self._module = module if isinstance(module, Module) or module is None else Module(module)
         if not self._plugins and self._module is None:
             raise ValueError("plugins or module is required")
-        if version_plugin is None:
+        if versionPlugin is None:
             self._version_plugin = self._plugins[0] if self._plugins else None
         else:
-            self._version_plugin = version_plugin if isinstance(version_plugin, Plugin) else Plugin(version_plugin)
-        if minimum_version is None:
+            self._version_plugin = versionPlugin if isinstance(versionPlugin, Plugin) else Plugin(versionPlugin)
+        if minimumVersion is None:
             self._minimum_version = None
         else:
-            self._minimum_version = Version.parse(minimum_version)
+            self._minimum_version = Version.parse(minimumVersion)
             if self._minimum_version is None:
-                raise ValueError(f"minimum_version must be a version such as '3.0.0': {minimum_version!r}")
-        self._minimum_maya = None if minimum_maya is None else int(minimum_maya)
-        self._install_hint = install_hint
+                raise ValueError(f"minimumVersion must be a version such as '3.0.0': {minimumVersion!r}")
+        self._minimum_maya = None if minimumMaya is None else int(minimumMaya)
+        self._install_hint = installHint
 
     def __repr__(self):
         """デバッグ用に製品名と最小の版を含む表現を返す。
@@ -77,7 +77,7 @@ class PluginPackage:
         Returns:
             str: 型名・製品名・最小の版を含む文字列表現。
         """
-        return "PluginPackage({!r}, minimum_version={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))
+        return "PluginPackage({!r}, minimumVersion={})".format(self._name, (str(self._minimum_version) if self._minimum_version is not None else "なし"))
 
     @staticmethod
     def showDialog(message, title="インストールが必要です"):
@@ -143,7 +143,7 @@ class PluginPackage:
         """現在の Maya が対象のバージョンか判定する。
 
         Returns:
-            bool: ``minimum_maya`` が未指定、または現在の Maya の年がそれ以上なら True。
+            bool: ``minimumMaya`` が未指定、または現在の Maya の年がそれ以上なら True。
         """
         return self._minimum_maya is None or self._maya_year() >= self._minimum_maya
 
@@ -174,11 +174,11 @@ class PluginPackage:
     def isInstalled(self):
         """必要な版が導入されているか判定する。
 
-        ロード前のプラグインは Maya に登録されていない場合がある。``minimum_version`` を
+        ロード前のプラグインは Maya に登録されていない場合がある。``minimumVersion`` を
         指定しない製品は、この判定が False でも :meth:`tryLoad` がロードを試みる。
 
         Returns:
-            bool: ``minimum_version`` 以上が導入されていれば True。``minimum_version`` を指定していない
+            bool: ``minimumVersion`` 以上が導入されていれば True。``minimumVersion`` を指定していない
             場合は、版が取れるか、モジュールまたはプラグインが 1 つでも登録されていれば True。
         """
         version = self.getInstalledVersion()
@@ -231,7 +231,7 @@ class PluginPackage:
     def tryLoad(self, dialog=True, warn=True):
         """対象Mayaと必要版を確認してロードし、結果の定数を返す。
 
-        minimum_maya未満なら何もしない。最小版指定時は未導入・版不足ならロードしない。
+        minimumMaya未満なら何もしない。最小版指定時は未導入・版不足ならロードしない。
         最小版なしでは未検出でもロードを試し、全プラグインが失敗すればMISSINGとする。
         失敗時も成功済みプラグインを自動ではアンロードしない。
 

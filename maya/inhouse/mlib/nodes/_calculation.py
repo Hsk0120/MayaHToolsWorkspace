@@ -25,7 +25,7 @@ class _Calculation:
         target(*indices).set(value, fast=fast)
 
     @staticmethod
-    def connect(source, target, *indices, force=False):
+    def connect(source, target, *indices, force=False, fast=False):
         """接続元を解決してから対象Plugを取得し、接続する。
 
         Args:
@@ -33,14 +33,17 @@ class _Calculation:
             target (callable): ノード固有のPlug取得メソッド。
             *indices: Plug取得に渡す番号。
             force (bool): 既存接続を置き換えるか。
+            fast (bool): Trueは接続をOpenMayaで行う(Undoなし)。
 
         Note:
             接続方向とロック処理はPlug.connectToへ委譲する。
             接続元の解決失敗時には接続先を取得しない。
+            Undoチャンクは呼出元で管理し、fastは接続へ明示的に渡す。
         """
+        # 計算ノード側からPlugを参照するため、循環importを避けて遅延importする。
         from ..plugs.plug import Plug as _InputPlug
         source = _InputPlug._resolve_input(source)
-        source.connectTo(target(*indices), force=force)
+        source.connectTo(target(*indices), force=force, fast=fast)
 
     @staticmethod
     def index(value, allowed=None):

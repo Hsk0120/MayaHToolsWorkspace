@@ -55,7 +55,7 @@ class CalculationNodesTest(unittest.TestCase):
         angle.setInput(1, (1, 0, 0)).setInput(2, (0, 1, 0))
         self.assertAlmostEqual(angle.getResult(), math.pi / 2)
         self.assertVector(angle.getAxis(), (0, 0, 1))
-        # 既定値(0, 0, 1)と異なる軸も評価済みの値を返す(FINDINGS A-5 で修正)。
+        # 既定値(0, 0, 1)と異なる軸も評価済みの値を返す。
         angle.setInput(2, (0, 0, 1))
         self.assertVector(angle.getAxis(), (0, -1, 0))
 

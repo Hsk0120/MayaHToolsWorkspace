@@ -167,13 +167,13 @@ class ConsolidatedAnimationTest(unittest.TestCase):
                 for x, y in ((0, 0), (1, 10)):
                     normal.setKey(x, y)
                     fast.setKey(x, y, fast=True)
-                operations = (("shiftKeys", {"input_offset": 2}),
-                              ("scaleKeys", {"value_scale": .5}),
-                              ("shiftKeys", {"value_offset": 1}),
+                operations = (("shiftKeys", {"inputOffset": 2}),
+                              ("scaleKeys", {"valueScale": .5}),
+                              ("shiftKeys", {"valueOffset": 1}),
                               ("shiftKeys", {}),
                               ("scaleKeys", {}),
-                              ("scaleKeys", {"input_scale": 2, "input_pivot": 2}),
-                              ("scaleKeys", {"input_scale": .5, "input_pivot": 2}),
+                              ("scaleKeys", {"inputScale": 2, "inputPivot": 2}),
+                              ("scaleKeys", {"inputScale": .5, "inputPivot": 2}),
                               ("mirror", {}))
                 for method, kwargs in operations:
                     getattr(normal, method)(**kwargs)

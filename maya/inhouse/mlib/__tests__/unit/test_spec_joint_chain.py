@@ -5,7 +5,6 @@ isType("joint")、getDepth・getChainFromHere の境界、IkHandle.getEndJoint�
 """
 
 import unittest
-import uuid
 
 import maya.cmds as cmds
 
@@ -13,27 +12,14 @@ import mlib
 mlib.reload()
 from mlib.maths import Scale
 from mlib.nodes import IkHandle, Joint, Joints, Node
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間で joint を作り、Undo の設定と選択を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCJoint_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-        self.selection = cmds.ls(selection=True, long=True)
-        cmds.select(clear=True)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-        cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibSpecJointChain_"
+    CLEAR_SELECTION = True
 
     def chain(self, *items):
         """(名前, 位置) の並びで、選択を使わずに親子の joint を作る。"""
@@ -43,7 +29,7 @@ class _NamespaceCase(unittest.TestCase):
         return names
 
 
-class ReparentChildrenTest(_NamespaceCase):
+class ReparentChildrenTest(_SpecCase):
     """reparentChildren は直接の子 joint だけを付け替える。"""
 
     def setUp(self):
@@ -91,7 +77,7 @@ class ReparentChildrenTest(_NamespaceCase):
         self.assertEqual(self.children(self.a), ["b"])
 
 
-class JointsOrderTest(_NamespaceCase):
+class JointsOrderTest(_SpecCase):
     """Joints.sortedByDepth。"""
 
     def test_sorted_by_depth(self):
@@ -115,7 +101,7 @@ class JointsOrderTest(_NamespaceCase):
         self.assertIsNone(Node(child).getParentJointName())
 
 
-class InverseScaleTest(_NamespaceCase):
+class InverseScaleTest(_SpecCase):
     """getInverseScale と isType("joint")。"""
 
     def test_inverse_scale_value(self):
@@ -151,7 +137,7 @@ class InverseScaleTest(_NamespaceCase):
         self.assertEqual([list(value) for value in joints.getInverseScale()], [[1.0] * 3, [2.0] * 3])
 
 
-class ChainTest(_NamespaceCase):
+class ChainTest(_SpecCase):
     """getChainFromHere の境界。"""
 
     def test_chain_until_branch_and_to(self):
@@ -170,7 +156,7 @@ class ChainTest(_NamespaceCase):
             Node(root).getChainFromHere(to=root)
 
 
-class IkHandleTest(_NamespaceCase):
+class IkHandleTest(_SpecCase):
     """IkHandle.getEndJoint・getJoints。"""
 
     def setUp(self):
@@ -180,11 +166,11 @@ class IkHandleTest(_NamespaceCase):
         self.node = Node(self.handle)
 
     def test_end_joint_and_joints(self):
-        """getJoints は jointList(末端を含まない)、include_tip=True で末端を足す。"""
+        """getJoints は jointList(末端を含まない)、includeTip=True で末端を足す。"""
         self.assertIs(type(self.node), IkHandle)
         self.assertEqual(self.node.getEndJoint(), Joint(self.j3))
         self.assertEqual(self.node.getJoints(), [Joint(self.j1), Joint(self.j2)])
-        self.assertEqual(self.node.getJoints(include_tip=True), [Joint(self.j1), Joint(self.j2), Joint(self.j3)])
+        self.assertEqual(self.node.getJoints(includeTip=True), [Joint(self.j1), Joint(self.j2), Joint(self.j3)])
         self.assertTrue(all(type(item) is Joint for item in self.node.getJoints(True)))
 
     def test_disconnected_effector(self):
@@ -192,7 +178,7 @@ class IkHandleTest(_NamespaceCase):
         effector = cmds.listConnections(self.handle + ".endEffector")[0]
         cmds.disconnectAttr(self.j3 + ".translateX", effector + ".translateX")
         self.assertIsNone(self.node.getEndJoint())
-        self.assertEqual(self.node.getJoints(include_tip=True), [Joint(self.j1), Joint(self.j2)])
+        self.assertEqual(self.node.getJoints(includeTip=True), [Joint(self.j1), Joint(self.j2)])
 
     def test_deleted_handle(self):
         """削除済みのハンドルの getJoints は RuntimeError。"""

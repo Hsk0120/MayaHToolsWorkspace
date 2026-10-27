@@ -1,13 +1,12 @@
 """Mayaのlambertノードを扱う。"""
 
-import maya.cmds as cmds
-
+from ..core.registry import _inherited_node_types
 from .paintableShadingDependNode import PaintableShadingDependNode
 from .shadingDependNode import ShadingDependNode
 
 # Maya 2022にはpaintableShadingDependNodeがないため、実際の継承列に合わせる。
 _SurfaceBase = (PaintableShadingDependNode
-                if "paintableShadingDependNode" in cmds.nodeType("lambert", isTypeName=True, inherited=True)
+                if "paintableShadingDependNode" in _inherited_node_types("lambert")
                 else ShadingDependNode)
 
 

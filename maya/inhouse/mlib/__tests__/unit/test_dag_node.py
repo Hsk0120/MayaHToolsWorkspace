@@ -40,7 +40,7 @@ class DagNodeTest(unittest.TestCase):
         self.assertEqual(shape.getParent(), transform)
         self.assertEqual(shape.getTransform(), transform)
         self.assertEqual(transform.getTransform(), transform)
-        # mfn は最も具体的な function set(Transform は MFnTransform)。空の mesh は MFnMesh を作れないので transform で確かめる。
+        # mfn は最も具体的な function set(Transform は MFnTransform)。空の mesh の mfn() は MFnDagNode を返すので transform で確かめる。
         self.assertEqual(transform.mfn().object(), transform.mnode())
         self.assertIsInstance(transform.mfn(), om2.MFnTransform)
 

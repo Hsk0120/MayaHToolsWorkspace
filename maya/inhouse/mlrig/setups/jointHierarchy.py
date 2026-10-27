@@ -56,7 +56,7 @@ class JointHierarchy:
                         skin.transferWeights([(joint, target)], fast=fast)
                         stage = "remove influence"
                         if not fast:
-                            skin.removeInfluence(joint, transfer_to_parent=False, fast=fast)
+                            skin.removeInfluence(joint, transferToParent=False, fast=fast)
                         # fast削除はMaya標準の削除通知でinfluence構造も解除する。
                         stage = "transfer weights"
                     stage = "reparent children"
@@ -110,7 +110,7 @@ class JointHierarchy:
             deleted_ids = {joint.getUuid() for joint in targets}
             for joint, transfers in plans:
                 for skin, _ in transfers:
-                    if len(skin.fn.getOutputGeometry()) != 1:
+                    if len(skin.mfn().getOutputGeometry()) != 1:
                         raise NotImplementedError("fast weight transfer requires one geometry")
                     skin._editable_weights()
                 require_editable(joint.mnode(), descendants=True)

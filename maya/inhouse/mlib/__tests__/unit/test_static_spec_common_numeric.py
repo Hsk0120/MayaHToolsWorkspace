@@ -2,7 +2,7 @@
 
 curveFit.py と dampedSpring.py は標準ライブラリの math だけを使う。``mlib`` パッケージ全体
 (maya.cmds を読み込む)を経由せず、ファイルを単独のモジュールとして読み込んで検証する。
-Maya の NURBS 評価との突き合わせは ``test_spec_D_common.py`` で行う。
+Maya の NURBS 評価との突き合わせは ``test_spec_common_api.py`` で行う。
 """
 
 import copy
@@ -229,12 +229,12 @@ class DampedSpringSpecTest(unittest.TestCase):
     def test_rejects_invalid_settings(self):
         """間隔・振動数・減衰比・制限が範囲外または非有限ならValueError。"""
         cases = [
-            dict(seconds_per_sample=0.0), dict(seconds_per_sample=-1.0),
-            dict(seconds_per_sample=float("nan")), dict(frequency=0.0), dict(frequency=30.0001),
+            dict(secondsPerSample=0.0), dict(secondsPerSample=-1.0),
+            dict(secondsPerSample=float("nan")), dict(frequency=0.0), dict(frequency=30.0001),
             dict(damping=-0.01), dict(damping=2.01), dict(limit=0.0), dict(limit=float("inf")),
         ]
         for overrides in cases:
-            options = dict(seconds_per_sample=0.04)
+            options = dict(secondsPerSample=0.04)
             options.update(overrides)
             with self.assertRaises(ValueError, msg=repr(overrides)):
                 DampedSpring.solve([(0.0,), (1.0,)], **options)

@@ -189,11 +189,11 @@ class ConsolidatedNodesTest(unittest.TestCase):
             cmds.file(new=True, force=True)
             skin, root, middle, other = self.skin_fixture()
             skin.getPlug("normalizeWeights").set(normalize)
-            skin.removeInfluence(middle, transfer_to_parent=False)
+            skin.removeInfluence(middle, transferToParent=False)
             expected = list(skin.getWeights([root.getFullName(), other.getFullName()]))
             cmds.undo()
             with self.api_only():
-                skin.removeInfluence(middle, transfer_to_parent=False, fast=True)
+                skin.removeInfluence(middle, transferToParent=False, fast=True)
             self.assertEqual([n.getUuid() for n in skin.getInfluences()], [root.getUuid(), other.getUuid()])
             self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
 

@@ -558,7 +558,7 @@ class Components:
         Component._validate_shape(self.shape, self.component_class.shape_type)
         indices = []
         if self._indices:
-            mesh_fn = self.shape.meshFn()
+            mesh_fn = self.shape._geometry_fn()
             count = getattr(mesh_fn, count_name)
             for index in self._indices:
                 Component._validate_index(index, count)

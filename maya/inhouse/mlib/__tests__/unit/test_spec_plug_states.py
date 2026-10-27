@@ -1,7 +1,6 @@
 """Plugの名前・状態フラグ・別名・ミュート・定義照会・有効性の約束を固定する。
 
-期待値はmaya.cmdsとOpenMayaで独立に求めた値と比べる。食い違いは
-`.maya-output/mlib-spec-tests/FINDINGS_B.md`の番号をコメントに書き、実際の今の振る舞いを固定する。
+期待値はmaya.cmdsとOpenMayaで独立に求めた値と比べる。
 """
 
 import unittest
@@ -311,7 +310,7 @@ class PlugMuteSpecTest(_StateSpecCase):
         self.assertFalse(self.sz.isMuted())
 
     def test_mute_without_animation_is_silent_noop(self):
-        """アニメーションの無いチャンネルのmuteはMayaが警告して何もせず、自身を返す(FINDINGS B-6でdocstringに明記)。"""
+        """アニメーションの無いチャンネルのmuteはMayaが警告して何もせず、自身を返す。"""
         sy = self.node.getPlug("sy")
         self.assertIs(sy.mute(), sy)
         self.assertFalse(sy.isMuted())

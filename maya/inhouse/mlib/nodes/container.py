@@ -9,8 +9,13 @@ from ..util import _ArgumentError, _UNSET
 from .node import Node, Nodes, _resolve_node
 
 
-class Container(Node):
-    """containerノードの参照を保持し、直接所属と公開名/内部Plugの対応を管理する。
+class _ContainerMixin:
+    """containerBase 系のノード(:class:`Container`・:class:`~mlib.nodes.dagContainer.DagContainer`)が
+    共有する所属・公開名の操作。
+
+    Node を継承しない混ぜ込み用のクラスで、単独では使わない。Container は ``_ContainerMixin`` と
+    Node、DagContainer は Transform と Container を基底に持つため、``isinstance(x, Container)`` は
+    container・dagContainer の両方で True のまま。
 
     接続先を自動収集するラッパーではなく、Mayaのcontainer所属と公開名のBindを扱う。
     メンバーや公開Plugの照会はOpenMaya、所属・公開名の編集はcmdsを使う。
@@ -20,12 +25,15 @@ class Container(Node):
     createNodeの内部ノード生成にも通常のUndo可能な編集を使う。
     """
 
+    #: create が ``cmds.container`` へ渡す型の指定。派生クラスが上書きする(container は指定なし)。
+    _CONTAINER_FLAGS = {}
+
     @classmethod
-    @undoTransaction("mlib.Container.create")
     def create(cls, name="container", members=()):
-        """所有containerを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
+        """containerを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
 
         ``cmds.container`` 専用の特化ビルダーで、現在のcontainer文脈への自動所属などcmdsの規則に従う。
+        Container は ``cmds.container(name=...)``、DagContainer は ``type="dagContainer"`` で作る。
         空のcontainerだけが必要なら ``mlib.createNode("container", name=...)`` でも作れる。
         fast引数は持たない(cmds.containerにOpenMayaの同等機能が無い)。
 
@@ -34,12 +42,13 @@ class Container(Node):
             members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
 
         Returns:
-            Container: 新しい所有ノード。
+            Container: 呼び出したクラスの新しい所有ノード(DagContainer.create は DagContainer)。
         """
-        container = cls(cmds.container(name=name))
-        if members:
-            container.addMembers(members)
-        return container
+        with undoTransaction("mlib." + cls.__name__ + ".create"):
+            container = cls(cmds.container(name=name, **cls._CONTAINER_FLAGS))
+            if members:
+                container.addMembers(members)
+            return container
 
     def getMembers(self):
         """Maya containerへ直接所属するノード参照を取得する。
@@ -254,3 +263,12 @@ class Container(Node):
         if name not in published or published[name] is not None:
             raise ValueError("未Bindの公開名を指定してください: " + name)
         cmds.container(self.getFullName(), edit=True, unpublishName=name)
+
+
+class Container(_ContainerMixin, Node):
+    """containerノードの参照を保持し、直接所属と公開名/内部Plugの対応を管理する。
+
+    所属・公開名の操作(create・getMembers・addMembers・removeMembers・createNode・removeContainer・
+    publishName・getPublishedAttrs・bindAttr・publishAndBind・unbindAttr・unpublishName)は
+    :class:`_ContainerMixin` に定義し、:class:`~mlib.nodes.dagContainer.DagContainer` と共有する。
+    """

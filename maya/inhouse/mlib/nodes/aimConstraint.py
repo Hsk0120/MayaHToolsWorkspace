@@ -1,8 +1,9 @@
 """Maya の aimConstraint を扱う。"""
 
 import math
+from contextlib import nullcontext
 
-from ..decorator import undoTransaction
+from ..decorator import undoChunk
 from ..maths import EulerRotate
 from .constraint import Constraint
 
@@ -35,16 +36,21 @@ class AimConstraint(Constraint):
         """
         return tuple(self.getPlug("restRotate" + axis).get() for axis in "XYZ")
 
-    def setRestRotate(self, value):
+    def setRestRotate(self, value, *, fast=False):
         """Rest Rotateだけを設定する。追従状態や対象の回転は直接変更しない。
 
         Args:
             value (Sequence[float]): XYZの有限なラジアン3値。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimConstraint: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: 値が不正、参照・ロック・入力接続がある場合。
         """
-        return self._set_angles("restRotate", value)
+        return self._set_angles("restRotate", value, fast=fast)
 
     def getOffset(self):
         """OffsetのXYZ設定値をラジアン3値で返す。
@@ -54,16 +60,21 @@ class AimConstraint(Constraint):
         """
         return tuple(self.getPlug("offset" + axis).get() for axis in "XYZ")
 
-    def setOffset(self, value):
+    def setOffset(self, value, *, fast=False):
         """Offsetだけを設定する。Maintain Offsetの再計算は行わない。
 
         Args:
             value (Sequence[float]): XYZの有限なラジアン3値。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AimConstraint: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: 値が不正、参照・ロック・入力接続がある場合。
         """
-        return self._set_angles("offset", value)
+        return self._set_angles("offset", value, fast=fast)
 
     def getOutputRotate(self):
         """constraintRotateをその回転順序で取得する。
@@ -74,28 +85,36 @@ class AimConstraint(Constraint):
         values = [self.getPlug("constraintRotate" + axis).get() for axis in "XYZ"]
         return EulerRotate(*values, order=int(self.getPlug("constraintRotateOrder").get()))
 
-    @undoTransaction("mlib.AimConstraint.setAngles")
-    def _set_angles(self, attribute, value):
+    def _set_angles(self, attribute, value, fast=False):
         """入力・ロックを事前検証し、角度3値を一括更新する。
+
+        検証はすべて書込み前に行う。通常はUndo 1回で戻せるチャンクにまとめ、
+        fast=TrueはOpenMayaで直接更新する(Undoなし)。
 
         Args:
             attribute (str): 更新する複合アトリビュート。
             value (Sequence[float]): ラジアン3値。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
 
         Returns:
             AimConstraint: 自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: 値が不正、参照・ロック・入力接続がある場合。
         """
-        values = tuple(float(component) for component in value)
-        if len(values) != 3 or not all(math.isfinite(component) for component in values):
-            raise ValueError("角度は有限のラジアン3値を指定してください。")
-        parent = self.getPlug(attribute)
-        children = [self.getPlug(attribute + axis) for axis in "XYZ"]
-        if (self.isLocked() or self.isFromReferencedFile()
-                or any((plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None for plug in [parent] + children))):
-            raise ValueError("参照・ロック・入力接続のある設定は変更できません: " + parent.getFullName())
-        for plug, component in zip(children, values):
-            plug.set(component)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibAimConstraintSetAngles"):
+            values = tuple(float(component) for component in value)
+            if len(values) != 3 or not all(math.isfinite(component) for component in values):
+                raise ValueError("角度は有限のラジアン3値を指定してください。")
+            parent = self.getPlug(attribute)
+            children = [self.getPlug(attribute + axis) for axis in "XYZ"]
+            if (self.isLocked() or self.isFromReferencedFile()
+                    or any((plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None
+                            for plug in [parent] + children))):
+                raise ValueError("参照・ロック・入力接続のある設定は変更できません: " + parent.getFullName())
+            for plug, component in zip(children, values):
+                plug.set(component, fast=fast)
+            return self

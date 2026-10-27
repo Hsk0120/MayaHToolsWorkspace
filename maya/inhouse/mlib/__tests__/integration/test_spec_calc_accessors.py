@@ -411,7 +411,7 @@ class AccessorTableTest(_CalcCase):
     def test_connect_source_forms(self):
         """接続元はPlug・名前・MPlugを受け付け、ノードや数値はTypeError。
 
-        decomposeMatrixも他の計算ノードと同じく名前・MPlugを受け付ける(FINDINGS A-1 で修正)。
+        decomposeMatrixも他の計算ノードと同じく名前・MPlugを受け付ける。
         """
         for kind, stem, index, attr, value, _, source_kind, _ in _ACCESSORS:
             with self.subTest(kind=kind, stem=stem, index=index):
@@ -505,7 +505,7 @@ class IndexedAccessorTest(_CalcCase):
     def test_multmatrix_index(self):
         """multMatrixの番号は非負整数。既存要素のない番号の取得はIndexError。
 
-        2**31以上はgetInputPlug・setInput・connectInputともIndexError(docstringを修正。FINDINGS A-2 で修正)。
+        2**31以上はgetInputPlug・setInput・connectInputともIndexError。
         """
         node = mlib.createNode("multMatrix")
         with self.assertRaisesRegex(IndexError, "No input at logical index 0"):
@@ -569,7 +569,7 @@ class EnumAccessorTest(_CalcCase):
             with self.assertRaisesRegex(TypeError, "fast must be a bool"):
                 setter(names[1], fast=1)
             self.assertEqual(getter(), before)
-            # 名前の誤りは不正な値と選択肢を文言に示す(FINDINGS A-3 で修正)。
+            # 名前の誤りは不正な値と選択肢を文言に示す。
             with self.subTest(kind=kind, attr=attr, message=True):
                 with self.assertRaises(ValueError) as caught:
                     setter("bogus")

@@ -8,40 +8,23 @@ callEach の件数・メソッド名・呼出形式の検査、一括メソッ�
 """
 
 import unittest
-import uuid
 
 import maya.cmds as cmds
 
 import mlib
 mlib.reload()
 from mlib.nodes import DagNodes, Joint, Joints, Node, Nodes, Transform, Transforms
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCNodes_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        for name in cmds.ls(self.ns + ":*", long=True) or []:
-            if cmds.objExists(name):
-                cmds.lockNode(name, lock=False)
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.ns + ":" + text, "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
+    PREFIX = "mlibSpecNodeColl_"
+    UNLOCK_NODES = True
 
 
-class ConstructionTest(_NamespaceCase):
+class ConstructionTest(_SpecCase):
     """入力の展開・重複除去・型の検証。"""
 
     def test_single_and_nested_inputs(self):
@@ -91,7 +74,7 @@ class ConstructionTest(_NamespaceCase):
             Nodes(5)
 
 
-class ContainerProtocolTest(_NamespaceCase):
+class ContainerProtocolTest(_SpecCase):
     """添字・スライス・copy・getNames。"""
 
     def setUp(self):
@@ -126,7 +109,7 @@ class ContainerProtocolTest(_NamespaceCase):
         self.assertEqual(len(self.nodes), 3)
 
 
-class CallEachTest(_NamespaceCase):
+class CallEachTest(_SpecCase):
     """callEach の事前検査と、要素別の引数による実行。"""
 
     def setUp(self):
@@ -183,7 +166,7 @@ class CallEachTest(_NamespaceCase):
         self.assertEqual([cmds.getAttr(name + ".tx") for name in self.names], [5.0] * 3)
 
 
-class BulkFailureTest(_NamespaceCase):
+class BulkFailureTest(_SpecCase):
     """一括メソッドの失敗時の番号・例外の種類・先行変更。"""
 
     def setUp(self):

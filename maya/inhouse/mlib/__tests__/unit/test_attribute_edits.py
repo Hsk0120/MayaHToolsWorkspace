@@ -178,7 +178,7 @@ class AttributeEditsTest(unittest.TestCase):
         self.node.addAttr("first")
         self.node.addAttr("second")
         # stateWithoutFlush=Falseは、Maya 2025/2027のmayapyで以後のcreateNodeの名前空間が外れるため、
-        # Undoの切替えはstate=を使う(FINDINGS_D.md の参考の件。テスト側 7 で修正)。
+        # Undoの切替えはstate=を使う。
         before = [p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)]
         cmds.undoInfo(state=False)
         try:

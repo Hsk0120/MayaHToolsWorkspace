@@ -81,7 +81,15 @@ class Shape(DagNode):
                 raise NotImplementedError("fast scaling of NURBS surfaces is not supported")
             selected = []
             if indices is None:
-                components = [self.getFullName() + "." + token + "[*]" * len(counts)]
+                components = []
+                if len(counts) == 2:
+                    # cmds.ls("cv[*][*]", flatten=True) と同じく、周期方向は独立CV(数 - 次数)だけを u 優先で並べる。
+                    counts_u, counts_v = (
+                        count - degree if form == om2.MFnNurbsSurface.kPeriodic else count
+                        for count, degree, form in zip(counts, (fn.degreeInU, fn.degreeInV),
+                                                       (fn.formInU, fn.formInV))
+                    )
+                    components = [(u, v) for u in range(counts_u) for v in range(counts_v)]
                 if len(counts) == 1:
                     count = counts[0]
                     if token == "cv" and fn.form == om2.MFnNurbsCurve.kPeriodic:
@@ -113,7 +121,7 @@ class Shape(DagNode):
                     if len(counts) == 1:
                         selected.append(row[0])
                     else:
-                        components.append(self.getFullName() + "." + token + "".join(f"[{v}]" for v in row))
+                        components.append(row)
             if not selected and (len(counts) == 1 or not components):
                 return self
             if ws:
@@ -132,13 +140,19 @@ class Shape(DagNode):
                 return self
             center = tuple(om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in center)
             # scaleコマンドのpivot解釈に依存せず、同じ空間で読んだ座標を変換する。
-            # 全座標を先に保持し、周期CVの連動で後続の読取り値が変わるのを防ぐ。
-            components = cmds.ls(components, flatten=True) or []
-            positions = [cmds.xform(component, query=True, translation=True,
-                                    worldSpace=ws, objectSpace=not ws) for component in components]
-            for component, position in zip(components, positions):
+            # 全座標を先にMFnNurbsSurfaceで読み(cmds.xform(query=True)と同じUI単位の値)、
+            # 周期CVの連動で後続の読取り値が変わるのを防ぐ。書込みはUndoのためcmds.xformを使う。
+            space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
+            surface = om2.MFnNurbsSurface(path)
+            ui_unit = om2.MDistance.uiUnit()
+            positions = []
+            for u, v in components:
+                point = surface.cvPosition(u, v, space)
+                positions.append([om2.MDistance(point[i]).asUnits(ui_unit) for i in range(3)])
+            name = self.getFullName() + "." + token
+            for (u, v), position in zip(components, positions):
                 values = [center[i] + (position[i] - center[i]) * factors[i] for i in range(3)]
-                cmds.xform(component, translation=values, worldSpace=ws, objectSpace=not ws)
+                cmds.xform(f"{name}[{u}][{v}]", translation=values, worldSpace=ws, objectSpace=not ws)
             return self
 
     def getTransform(self):

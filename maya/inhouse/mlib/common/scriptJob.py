@@ -11,7 +11,7 @@ class ScriptJob:
     """
 
     def __init__(
-        self, *, event=None, attribute=None, callback, kill_with_scene=False, compress_undo=False
+        self, *, event=None, attribute=None, callback, killWithScene=False, compressUndo=False
     ):
         """イベントまたはアトリビュート変更の監視を開始する。
 
@@ -19,8 +19,8 @@ class ScriptJob:
             event (str | None): Mayaのイベント名。attributeと排他的。
             attribute (str | Plug | MPlug | None): 監視するアトリビュート。eventと排他的。
             callback (Callable): 引数なしで呼ぶ処理。
-            kill_with_scene (bool): シーンをクリアするときに解除する。
-            compress_undo (bool): コールバックの更新を直前の操作のUndoにまとめる。
+            killWithScene (bool): シーンをクリアするときに解除する。
+            compressUndo (bool): コールバックの更新を直前の操作のUndoにまとめる。
 
         Raises:
             ValueError: eventとattributeの指定が一方だけでない場合。
@@ -34,7 +34,7 @@ class ScriptJob:
             raise TypeError("callback must be callable")
         if cmds.about(batch=True):
             raise RuntimeError("scriptJob requires a Maya GUI session")
-        options = {"killWithScene": kill_with_scene, "compressUndo": compress_undo}
+        options = {"killWithScene": killWithScene, "compressUndo": compressUndo}
         if event is not None:
             options["event"] = [event, callback]
         else:

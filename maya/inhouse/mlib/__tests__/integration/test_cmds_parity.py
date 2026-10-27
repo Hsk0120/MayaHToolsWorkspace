@@ -47,6 +47,45 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   ``mlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
   書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.getRotate``/
   ``setRotate`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
+
+### 2.1.0 で om2 へ置き換えた読み取り(``_NewSceneCase`` 以降のクラス)
+
+- ``Plug.isSettable()`` (``MPlug.isFreeToChange() == kFreeToChange``)と ``cmds.getAttr(settable=True)``。
+  自身・複合の親・子のロック、入力接続、キー、lockNode、出力・``writable=False`` の動的アトリビュート
+  (cmds は定義の writable を見ないので True)、配列・要素・複合配列の子・メッシュの pnts 要素
+- ``Node.resetAttrs()`` の省略時の絞込み(``_require_writable``)と ``cmds.listAttr(keyable, scalar)``・
+  ``getAttr(settable=True)``・入力接続(通常/fast とも。Transform は独自の resetAttrs のため DG ノードで確認)
+- moveAttrOrder の enum 再作成情報(``_enum_definition``)と ``cmds.attributeQuery(listEnum=True)``
+  (欠番・負の値・値の逆順・重複値・空白を含む名前)
+- ``IkHandle.getJoints()`` (startJoint・endEffector の接続と DAG 親)と ``cmds.ikHandle(jointList=True)``
+  (RP/SC/スプライン、1本の骨、途中から、名前空間、チェーンのインスタンス)
+- ``Node.getHistory()`` (``MItDependencyGraph`` の深さ優先・ノード単位、Transform は中間でない直下の Shape)と
+  ``cmds.listHistory`` の順序・範囲(複数 Shape・中間 Shape だけの Transform・インスタンス・デフォーマー・
+  コンストレイント・循環・名前空間・future/past・type フィルター)
+- ``Node.getPlugs()`` のフラグ無し・``keyable``・``scalar`` (定義の深さ優先の走査)と ``cmds.listAttr`` の名前を
+  ``getPlug`` で解決した並び(多数のノード型・動的な配列/複合/複合配列・Shape の visibility の keyable 上書き・
+  includeChildren)
+- ``Plug.getAnimLayers()`` (blend ノードの message 出力先を om2 で取得)と
+  ``cmds.animLayer(query=True, affectedLayers=True)``・``animLayer(attribute=True)``
+- ``mlib.common.references.listReferences``/``createReference`` (``MItDependencyNodes(kReference)`` を名前順に)と
+  ``cmds.ls(type="reference")``・``referenceQuery(parent=True)`` (入れ子・同じファイルの複数参照・アンロード・
+  作成順と名前順が異なる参照ノード)
+- ``Shape.scaleGeometry`` の NURBS サーフェス分岐(``MFnNurbsSurface.cvPosition`` で読む)と 2.0.0 の
+  ``cmds.ls(flatten=True)``/``cmds.xform`` による結果(開いた/周期的、負のスケール、object/world、cm/m、
+  周期の重複番号)
+- ``Plug.setMuted(fast=True)`` (MDGModifier 1 回)と ``cmds.mute`` の後のシーン(mute ノードの名前・接続・
+  ``hold``/``holdTime``/``mute``/``isHistoricallyInteresting``、解除後の接続)。unitConversion を挟む入力は
+  fast が変更前に NotImplementedError
+
+- ``Namespace.create`` の relativeNames 照会(``om2.MNamespace.relativeNames``)、選択・ドリブンキーの存在確認
+  (``MSelectionList.add`` と ``cmds.objExists``)、``SkinCluster.deforms``/``bind`` の既スキン判定
+  (``DagNode.getSkinClusters``)、``Lambert``/``StandardSurface`` の基底(``registry._inherited_node_types``):
+  ``test_spec_common_fast.py``・``test_spec_skin_fast.py`` で突き合わせ(他ファイル)
+
+### cmds のまま残したもの(突き合わせで om2 が一致しなかった・照会できない)
+
+- ``_resolve_node`` の一意性の文言(``cmds.ls`` の一致数): ``MSelectionList.add``・
+  ``MGlobal.getSelectionListByName`` はどちらも複数に一致する名前を数えずに失敗するため
 """
 from maya.api.OpenMaya import MSpace
 
@@ -762,6 +801,594 @@ class NameResolutionParityTest(unittest.TestCase):
                 actual = list(node.getMatrix(ws=True))
                 for value, reference in zip(actual, expected):
                     self.assertAlmostEqual(value, reference)
+
+
+class _NewSceneCase(unittest.TestCase):
+    """新規シーンで始め、Undoと単位・時刻の設定を元に戻す(名前に依存する突き合わせ用)。"""
+
+    def setUp(self):
+        cmds.file(new=True, force=True)
+        self.undo_state = cmds.undoInfo(query=True, state=True)
+        cmds.undoInfo(state=True)
+        self.linear = cmds.currentUnit(query=True, linear=True)
+        self.angle = cmds.currentUnit(query=True, angle=True)
+
+    def tearDown(self):
+        cmds.currentUnit(linear=self.linear, angle=self.angle)
+        cmds.undoInfo(state=self.undo_state)
+        cmds.file(new=True, force=True)
+
+
+class PlugSettableParityTest(_NewSceneCase):
+    """Plug.isSettable() (MPlug.isFreeToChange)と cmds.getAttr(settable=True) の一致。
+
+    ロック(自身・複合の親・子)、入力接続、キー、lockNode、書込み禁止の出力・動的アトリビュート、
+    配列と要素、複合配列の子、メッシュの pnts 要素で確かめる。cmds の settable は定義の writable を
+    見ないため、``worldMatrix``・``outputX``・``writable=False`` の動的アトリビュートも True になる。
+    """
+
+    def test_is_settable_matches_cmds_getAttr_settable(self):
+        node = cmds.createNode("transform", name="settable")
+        driver = cmds.createNode("transform", name="settableDriver")
+        cmds.setAttr(node + ".tx", lock=True)
+        cmds.connectAttr(driver + ".ry", node + ".ry")
+        cmds.setAttr(node + ".scale", lock=True)
+        cmds.setKeyframe(node + ".tz", time=1, value=1)
+        cmds.addAttr(node, longName="plain", attributeType="double")
+        cmds.addAttr(node, longName="readOnly", attributeType="double", writable=False)
+        cmds.addAttr(node, longName="multiValue", attributeType="double", multi=True)
+        cmds.setAttr(node + ".multiValue[3]", 1)
+        cmds.addAttr(node, longName="vector", attributeType="double3")
+        for axis in "XYZ":
+            cmds.addAttr(node, longName="vector" + axis, attributeType="double", parent="vector")
+        cmds.setAttr(node + ".vectorY", lock=True)
+        mesh = cmds.polyCube(name="settableCube")[0]
+        shape = cmds.listRelatives(mesh, shapes=True)[0]
+        multiply = cmds.createNode("multiplyDivide", name="settableMultiply")
+        locked = cmds.createNode("transform", name="settableLockedNode")
+        cmds.lockNode(locked, lock=True)
+        names = [node + "." + attribute for attribute in (
+            "tx", "ty", "tz", "translate", "rotate", "ry", "scale", "sx", "plain", "readOnly",
+            "multiValue", "multiValue[3]", "multiValue[7]", "vector", "vectorX", "vectorY",
+            "worldMatrix", "worldMatrix[0]", "matrix", "message", "parentMatrix[0]", "boundingBox",
+            "center", "visibility", "instObjGroups[0].objectGroups[0].objectGroupId")]
+        names += [multiply + ".output", multiply + ".outputX", multiply + ".input1X",
+                  shape + ".vrts", shape + ".pnts", shape + ".pnts[0]", shape + ".inMesh", shape + ".outMesh",
+                  locked + ".tx", locked + ".translate"]
+        try:
+            for name in names:
+                with self.subTest(plug=name):
+                    self.assertIs(mlib.getPlug(name).isSettable(), bool(cmds.getAttr(name, settable=True)))
+        finally:
+            cmds.lockNode(locked, lock=False)
+
+
+class NodeResetAttrsParityTest(_NewSceneCase):
+    """Node.resetAttrs() の省略時の絞込みと、cmds.listAttr(keyable, scalar)・getAttr(settable) の一致。
+
+    書込み禁止の定義が無い keyable な scalar では、``_require_writable`` による除外は
+    ``getAttr(settable=True)`` が False のもの(ロック・入力接続・親のロック)と一致する。
+    通常経路と fast で同じアトリビュートを選ぶことも確かめる。Transform は独自の resetAttrs を
+    持つため、Node.resetAttrs を使う DG ノードで確かめる。
+    """
+
+    def expected(self, name):
+        """cmds だけで求めた、リセット対象(既定値を持ち入力接続が無く settable)のロング名。"""
+        result = []
+        for attribute in cmds.listAttr(name, keyable=True, scalar=True) or []:
+            plug = name + "." + attribute
+            if not cmds.objExists(plug) or cmds.attributeQuery(attribute, node=name, multi=True):
+                continue  # 番号の無い配列の子と配列自体(要素ごとに reset する)は対象外。
+            if cmds.listConnections(plug, source=True, destination=False):
+                continue
+            if not cmds.getAttr(plug, settable=True):
+                continue
+            if mlib.getPlug(plug).getDefault() is None:
+                continue
+            result.append(cmds.attributeQuery(attribute, node=name, longName=True))
+        return result
+
+    def test_reset_attrs_selection_matches_cmds(self):
+        driver = cmds.createNode("transform", name="resetDriver")
+        multiply = cmds.createNode("multiplyDivide", name="resetMultiply")
+        cmds.setAttr(multiply + ".input1X", lock=True)
+        cmds.connectAttr(driver + ".ty", multiply + ".input1Y")
+        cmds.setAttr(multiply + ".input2", lock=True)
+        cmds.setKeyframe(multiply + ".input1Z", time=1, value=1)
+        network = cmds.createNode("network", name="resetNetwork")
+        cmds.addAttr(network, longName="custom", attributeType="double", keyable=True, defaultValue=2)
+        cmds.addAttr(network, longName="choice", attributeType="enum", enumName="a:b:c", keyable=True)
+        cmds.addAttr(network, longName="locked", attributeType="double", keyable=True)
+        cmds.setAttr(network + ".locked", lock=True)
+        cmds.addAttr(network, longName="driven", attributeType="double", keyable=True)
+        cmds.connectAttr(driver + ".tx", network + ".driven")
+        cmds.addAttr(network, longName="vector", attributeType="double3", keyable=True)
+        for axis in "XYZ":
+            cmds.addAttr(network, longName="vector" + axis, attributeType="double", parent="vector", keyable=True)
+        cmds.setAttr(network + ".vector", lock=True)
+        names = (multiply, network, cmds.createNode("plusMinusAverage", name="resetAverage"),
+                 cmds.createNode("condition", name="resetCondition"))
+        for name in names:
+            for fast in (False, True):
+                with self.subTest(node=name, fast=fast):
+                    expected = self.expected(name)
+                    actual = [plug.getLongName() for plug in mlib.getNode(name).resetAttrs(fast=fast)]
+                    self.assertEqual(sorted(actual), sorted(expected))
+
+
+class EnumDefinitionParityTest(_NewSceneCase):
+    """moveAttrOrder の再作成情報(``_enum_definition``)と cmds.attributeQuery(listEnum=True) の一致。"""
+
+    def test_enum_definition_matches_attribute_query_list_enum(self):
+        from mlib.nodes.node import _enum_definition
+
+        node = cmds.createNode("transform", name="enumOwner")
+        definitions = ["a:b:c", "a=1:b=5", "a=2:b:c", "x=-1:y", "p=3:q=1", "a=1:b=1", "s p:t", "only"]
+        for index, definition in enumerate(definitions):
+            name = "choice{}".format(index)
+            cmds.addAttr(node, longName=name, attributeType="enum", enumName=definition)
+            with self.subTest(definition=definition):
+                expected = cmds.attributeQuery(name, node=node, listEnum=True)[0]
+                self.assertEqual(_enum_definition(mlib.getPlug(node + "." + name)), expected)
+
+
+class IkHandleJointsParityTest(_NewSceneCase):
+    """IkHandle.getJoints()(startJoint・endEffector の接続と DAG 親)と cmds.ikHandle(jointList=True) の一致。
+
+    RP/SC/スプライン、1本の骨、チェーンの途中から、名前空間、チェーンのインスタンスがある場合を確かめる。
+    """
+
+    def chain(self, count, prefix, axis=0):
+        cmds.select(clear=True)
+        joints = []
+        for index in range(count):
+            position = [0, 0, 0]
+            position[axis] = index
+            joints.append(cmds.joint(position=position, name="{}{}".format(prefix, index)))
+        cmds.select(clear=True)
+        return joints
+
+    def test_get_joints_matches_cmds_joint_list(self):
+        handles = []
+        joints = self.chain(5, "ikLong")
+        handles.append(cmds.ikHandle(startJoint=joints[0], endEffector=joints[4])[0])
+        handles.append(cmds.ikHandle(startJoint=joints[1], endEffector=joints[3], solver="ikSCsolver")[0])
+        short = self.chain(2, "ikShort", axis=1)
+        handles.append(cmds.ikHandle(startJoint=short[0], endEffector=short[1])[0])
+        spline = self.chain(6, "ikSpline", axis=2)
+        handles.append(cmds.ikHandle(startJoint=spline[0], endEffector=spline[5], solver="ikSplineSolver")[0])
+        cmds.namespace(add="ikParity")
+        spaced = self.chain(3, "ikParity:spaced")
+        handles.append(cmds.ikHandle(startJoint=spaced[0], endEffector=spaced[2])[0])
+        cmds.instance(joints[0])
+        for handle in handles:
+            with self.subTest(handle=handle):
+                expected = cmds.ls(cmds.ikHandle(handle, query=True, jointList=True), uuid=True)
+                node = mlib.getNode(handle)
+                self.assertEqual([joint.getUuid() for joint in node.getJoints()], expected)
+                with_tip = node.getJoints(includeTip=True)
+                self.assertEqual([joint.getUuid() for joint in with_tip[:-1]], expected)
+                self.assertEqual(with_tip[-1], node.getEndJoint())
+
+
+class NodeHistoryParityTest(_NewSceneCase):
+    """Node.getHistory()(MItDependencyGraph の深さ優先)と cmds.listHistory の順序・範囲の一致。
+
+    Shapeを持つTransform(中間オブジェクトだけのTransformを含む)・複数Shape・インスタンス・
+    skinCluster/blendShape/構築履歴・コンストレイント・循環接続・接続の無いノード・名前空間・
+    future/past と type フィルターで確かめる。
+    """
+
+    def expected(self, name, future, kind=None):
+        names = cmds.listHistory(name, future=future) or []
+        own = cmds.ls(name, uuid=True)[0]
+        result = []
+        for item in names:
+            uuid = cmds.ls(item, uuid=True)[0]
+            if uuid == own or uuid in result:
+                continue
+            if kind is None or kind in (cmds.nodeType(item, inherited=True) or []):
+                result.append(uuid)
+        return result
+
+    def test_history_matches_cmds_list_history(self):
+        cube = cmds.polyCube(name="historyCube")[0]
+        cmds.polyBevel(cube + ".e[0]")
+        cmds.select(clear=True)
+        root = cmds.joint(name="historyRoot")
+        tip = cmds.joint(position=(0, 1, 0), name="historyTip")
+        cmds.skinCluster(root, tip, cube)
+        cmds.blendShape(cmds.duplicate(cube)[0], cube, frontOfChain=True)
+        cmds.setKeyframe(cube + ".tx")
+        first = cmds.circle(name="historyCircleA")[0]
+        second = cmds.circle(name="historyCircleB")[0]
+        moved = cmds.listRelatives(second, shapes=True, fullPath=True)[0]
+        cmds.parent(moved, first, shape=True, relative=True)
+        hidden = cmds.polySphere(name="historyHidden")[0]
+        cmds.setAttr(cmds.listRelatives(hidden, shapes=True, fullPath=True)[0] + ".intermediateObject", 1)
+        locator = cmds.spaceLocator(name="historyLocator")[0]
+        cmds.parentConstraint(tip, locator)
+        left = cmds.createNode("multiplyDivide", name="historyLeft")
+        right = cmds.createNode("multiplyDivide", name="historyRight")
+        cmds.connectAttr(left + ".outputX", right + ".input1X")
+        cmds.connectAttr(right + ".outputX", left + ".input1Y")
+        cmds.createNode("transform", name="historyAlone")
+        cmds.namespace(add="historyNs")
+        cmds.polyCube(name="historyNs:cube")
+        cmds.instance(cube, name="historyInstance")
+        names = cmds.ls(dependencyNodes=True) or []
+        names = [name for name in names if name.startswith(("history", "skinCluster", "blendShape", "polyBevel",
+                                                            "bindPose", "historyNs:"))]
+        names += cmds.ls(type=("animCurve", "parentConstraint", "mesh", "nurbsCurve")) or []
+        names += ["initialShadingGroup", "time1"]
+        self.assertGreater(len(names), 20)
+        for name in names:
+            node = mlib.getNode(name)
+            for future in (False, True):
+                with self.subTest(node=name, future=future):
+                    actual = [item.getUuid() for item in node.getHistory(future=future)]
+                    self.assertEqual(actual, self.expected(name, future))
+        for name, kind in ((cube, "geometryFilter"), (cube, "mesh"), (root, "dagNode"), (locator, "constraint")):
+            for future in (False, True):
+                with self.subTest(node=name, type=kind, future=future):
+                    actual = [item.getUuid() for item in mlib.getNode(name).getHistory(type=kind, future=future)]
+                    self.assertEqual(actual, self.expected(name, future, kind))
+
+
+class NodeGetPlugsParityTest(_NewSceneCase):
+    """Node.getPlugs()(フラグ無し・keyable・scalar を om2 の定義の走査で列挙)と cmds.listAttr の一致。
+
+    期待値は 2.0.0 の実装と同じく、``cmds.listAttr`` の名前を ``getPlug`` で解決できたものの並び。
+    多数のノード型、動的な配列・複合・複合配列、Shape の keyable 上書き(visibility)で確かめる。
+    """
+
+    def expected(self, node, include_children, **flags):
+        result = []
+        for name in cmds.listAttr(node.getFullName(), **flags) or []:
+            try:
+                plug = node.getPlug(name)
+            except (AttributeError, RuntimeError, ValueError):
+                continue
+            if include_children or not plug.mplug().isChild:
+                result.append((plug.getFullName(), type(plug).__name__))
+        return result
+
+    def test_get_plugs_matches_cmds_list_attr(self):
+        cube = cmds.polyCube(name="plugsCube")[0]
+        cmds.blendShape(cmds.duplicate(cube)[0], cube, name="plugsBlend")
+        cmds.addAttr(cube, longName="values", attributeType="double", multi=True, keyable=True)
+        cmds.setAttr(cube + ".values[2]", 1)
+        cmds.addAttr(cube, longName="pairs", attributeType="compound", numberOfChildren=2, multi=True)
+        cmds.addAttr(cube, longName="pairA", attributeType="double", parent="pairs", keyable=True)
+        cmds.addAttr(cube, longName="pairB", attributeType="double", parent="pairs")
+        cmds.addAttr(cube, longName="label", dataType="string")
+        cmds.addAttr(cube, longName="mode", attributeType="enum", enumName="a:b", keyable=True)
+        cmds.addAttr(cube, longName="toggle", attributeType="bool", keyable=True)
+        cmds.addAttr(cube, longName="offset", attributeType="double3", keyable=True)
+        for axis in "XYZ":
+            cmds.addAttr(cube, longName="offset" + axis, attributeType="double", parent="offset", keyable=True)
+        cmds.addAttr(cube, longName="pose", attributeType="matrix")
+        sphere = cmds.sphere(name="plugsSphere")[0]
+        cmds.select(clear=True)
+        joint = cmds.joint(name="plugsJoint")
+        skin = cmds.skinCluster(joint, cmds.polyCube(name="plugsSkinned")[0])[0]
+        locator = cmds.spaceLocator(name="plugsLocator")[0]
+        constraint = cmds.parentConstraint(joint, locator)[0]
+        names = [cube, "plugsBlend", cmds.listRelatives(cube, shapes=True)[0], sphere,
+                 cmds.listRelatives(sphere, shapes=True)[0], joint, skin, constraint,
+                 cmds.listRelatives(locator, shapes=True)[0], "persp", "perspShape"]
+        for kind in ("multiplyDivide", "plusMinusAverage", "blendColors", "choice", "unitConversion",
+                     "condition", "decomposeMatrix", "animCurveTL", "lambert", "place2dTexture", "time",
+                     "pairBlend", "nurbsCurve", "camera"):
+            names.append(cmds.createNode(kind))
+        flag_sets = ({}, {"keyable": True}, {"scalar": True}, {"keyable": True, "scalar": True})
+        for name in names:
+            node = mlib.getNode(name)
+            for flags in flag_sets:
+                for include_children in (True, False):
+                    with self.subTest(node=name, flags=flags, includeChildren=include_children):
+                        actual = [(plug.getFullName(), type(plug).__name__)
+                                  for plug in node.getPlugs(includeChildren=include_children, **flags)]
+                        self.assertEqual(actual, self.expected(node, include_children, **flags))
+
+
+class PlugAnimLayersParityTest(_NewSceneCase):
+    """Plug.getAnimLayers()(blend ノードの message 出力先の animLayer を om2 で取得)と cmds.animLayer の一致。
+
+    期待値は ``cmds.animLayer(query=True, affectedLayers=True)`` の順から、そのアトリビュートを
+    含むレイヤー(``animLayer(attribute=True)``)とベースレイヤーを残したもの。
+    """
+
+    def test_anim_layers_match_cmds_anim_layer(self):
+        node = cmds.createNode("transform", name="layered")
+        cmds.setKeyframe(node + ".tx", value=1)
+        cmds.setKeyframe(node + ".rx", value=1)
+        cmds.animLayer("layerA")
+        cmds.animLayer("layerB")
+        cmds.animLayer("layerC", parent="layerA")
+        for layer in ("layerA", "layerB"):
+            cmds.animLayer(layer, edit=True, attribute=[node + ".tx", node + ".rx"])
+        cmds.animLayer("layerC", edit=True, attribute=node + ".tx")
+        cmds.select(node)
+        affected = cmds.animLayer(query=True, affectedLayers=True)
+        root = cmds.animLayer(query=True, root=True)
+        for attribute in ("translateX", "rotateX", "translateY"):
+            name = node + "." + attribute
+            with self.subTest(plug=name):
+                expected = [layer for layer in affected
+                            if layer == root or name in (cmds.animLayer(layer, query=True, attribute=True) or [])]
+                self.assertEqual(mlib.getPlug(name).getAnimLayers(), expected)
+
+
+class ReferencesParityTest(_NewSceneCase):
+    """listReferences/createReference(MItDependencyNodes(kReference))と cmds.ls(type="reference") の一致。
+
+    入れ子の参照、同じファイルの複数回の参照、アンロード中の参照、作成順と名前順が異なる手作りの
+    参照ノードで、順序(名前の文字コード順)と topLevelOnly を確かめる。
+    """
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        from pathlib import Path
+
+        self.directory = Path(tempfile.mkdtemp(prefix="mlibParityReferences_"))
+        cmds.polyCube(name="referencedCube")
+        self.child = self.directory / "child.ma"
+        cmds.file(rename=str(self.child))
+        cmds.file(save=True, type="mayaAscii")
+        cmds.file(new=True, force=True)
+        cmds.file(str(self.child), reference=True, namespace="nested")
+        cmds.polySphere(name="referencedSphere")
+        self.parent = self.directory / "parent.ma"
+        cmds.file(rename=str(self.parent))
+        cmds.file(save=True, type="mayaAscii")
+        cmds.file(new=True, force=True)
+
+    def tearDown(self):
+        import shutil
+
+        super().tearDown()
+        shutil.rmtree(str(self.directory), ignore_errors=True)
+
+    def expected(self, top_level_only=False):
+        names = [name for name in cmds.ls(type="reference") or [] if name != "sharedReferenceNode"]
+        if top_level_only:
+            names = [name for name in names if not cmds.referenceQuery(name, referenceNode=True, parent=True)]
+        return names
+
+    def test_list_and_create_references_match_cmds_ls(self):
+        from mlib.common.references import createReference, listReferences
+
+        first = createReference(self.parent, namespace="first")
+        self.assertEqual(first.getName(), cmds.referenceQuery(str(self.parent), referenceNode=True))
+        createReference(self.child, namespace="direct")
+        again = createReference(self.parent, namespace="second")
+        self.assertEqual(again.getParentReference(), None)
+        cmds.file(unloadReference=again.getName())
+        for top_level_only in (False, True):
+            with self.subTest(top_level_only=top_level_only):
+                actual = [reference.getName() for reference in listReferences(topLevelOnly=top_level_only)]
+                self.assertEqual(actual, self.expected(top_level_only))
+        # 作成順と名前順が異なる参照ノード(ファイルを持たないため topLevelOnly は照会しない)。
+        for name in ("zzManualRN", "aaManualRN", "MmManualRN", "_underscoreRN", "B2ManualRN"):
+            cmds.createNode("reference", name=name)
+        self.assertEqual([reference.getName() for reference in listReferences()], self.expected())
+
+
+class SurfaceScaleGeometryParityTest(_NewSceneCase):
+    """Shape.scaleGeometry の NURBS サーフェス分岐(MFnNurbsSurface で読む)と cmds.ls/xform の一致。
+
+    2.0.0 の実装(``cmds.ls(flatten=True)`` で展開し ``cmds.xform`` で読み書き)を複製したサーフェスへ
+    適用し、全CVの結果が一致することを、開いた/周期的なサーフェス・負のスケールのTransform・
+    object/world 空間・cm/m・全CV/番号指定(周期の重複番号を含む)で確かめる。
+    """
+
+    def scale_with_cmds(self, shape, factors, pivot, indices, ws):
+        center = [om2.MDistance(value).asUnits(om2.MDistance.uiUnit()) for value in pivot]
+        if indices is None:
+            components = [shape + ".cv[*][*]"]
+        else:
+            path = mlib.getNode(shape).mpath()
+            fn = om2.MFnNurbsSurface(path)
+            components, seen = [], set()
+            for row in indices:
+                row = tuple(
+                    value % (count - degree) if form == om2.MFnNurbsSurface.kPeriodic else value
+                    for value, count, degree, form in zip(
+                        row, (fn.numCVsInU, fn.numCVsInV), (fn.degreeInU, fn.degreeInV), (fn.formInU, fn.formInV)))
+                if row not in seen:
+                    seen.add(row)
+                    components.append("{}.cv[{}][{}]".format(shape, *row))
+        components = cmds.ls(components, flatten=True) or []
+        positions = [cmds.xform(component, query=True, translation=True, worldSpace=ws, objectSpace=not ws)
+                     for component in components]
+        for component, position in zip(components, positions):
+            values = [center[i] + (position[i] - center[i]) * factors[i] for i in range(3)]
+            cmds.xform(component, translation=values, worldSpace=ws, objectSpace=not ws)
+
+    def test_scale_geometry_surface_matches_cmds_xform(self):
+        makers = (lambda: cmds.sphere(constructionHistory=False)[0],
+                  lambda: cmds.nurbsPlane(constructionHistory=False, patchesU=3, patchesV=2)[0],
+                  lambda: cmds.torus(constructionHistory=False)[0])
+        cases = ((None, False), (None, True), ([(0, 0), (1, 2), (6, 9), (0, 8)], False), ([(2, 1), (3, 3)], True))
+        for unit in ("cm", "m"):
+            cmds.currentUnit(linear=unit)
+            for make_index, make in enumerate(makers):
+                for indices, ws in cases:
+                    with self.subTest(unit=unit, surface=make_index, indices=indices, ws=ws):
+                        transform = make()
+                        cmds.setAttr(transform + ".translate", 1, 2, 3)
+                        cmds.setAttr(transform + ".scale", 2, 1, -1)
+                        copy = cmds.duplicate(transform)[0]
+                        shape = cmds.listRelatives(transform, shapes=True, fullPath=True)[0]
+                        copy_shape = cmds.listRelatives(copy, shapes=True, fullPath=True)[0]
+                        fn = om2.MFnNurbsSurface(mlib.getNode(shape).mpath())
+                        limit = (fn.numCVsInU, fn.numCVsInV)
+                        valid = None if indices is None else [
+                            row for row in indices if row[0] < limit[0] and row[1] < limit[1]]
+                        mlib.getNode(shape).scaleGeometry((2.0, 0.5, -1.5), ws=ws, pivot=(0.5, 1.0, -2.0),
+                                                          indices=valid)
+                        self.scale_with_cmds(copy_shape, (2.0, 0.5, -1.5), (0.5, 1.0, -2.0), valid, ws)
+                        actual = fn.cvPositions(om2.MSpace.kObject)
+                        expected = om2.MFnNurbsSurface(mlib.getNode(copy_shape).mpath()).cvPositions(
+                            om2.MSpace.kObject)
+                        self.assertEqual(len(actual), len(expected))
+                        for first, second in zip(actual, expected):
+                            for a, b in zip(first, second):
+                                self.assertAlmostEqual(a, b, places=6)
+                        cmds.delete(transform, copy)
+        cmds.currentUnit(linear="cm")
+
+
+class PlugSetMutedFastParityTest(_NewSceneCase):
+    """Plug.setMuted(fast=True)(MDGModifier)と cmds.mute の結果(ノード型・名前・接続・値)の一致。
+
+    同じ手順を新規シーンで2回作り、通常経路(cmds.mute)と fast の後のシーンの状態を比べる。
+    距離・角度・bool・enum・long、複合(アニメーションのある子だけ)、エイリアス、配列要素、
+    アニメーションカーブ以外の入力、名前の衝突、既存の mute ノード(mute=0/1)、アニメーションの無い
+    チャンネル、cm/m で確かめる。unitConversion を挟む入力は fast が NotImplementedError で拒否する。
+    """
+
+    @staticmethod
+    def keyed(name="muteTarget", parent=None):
+        flags = {"name": name}
+        if parent:
+            flags["parent"] = parent
+        node = cmds.createNode("transform", **flags)
+        cmds.setKeyframe(node + ".tx", time=1, value=2)
+        cmds.setKeyframe(node + ".tx", time=10, value=5)
+        return node
+
+    def cases(self):
+        def basic():
+            return self.keyed() + ".tx"
+
+        def rotate():
+            node = self.keyed()
+            cmds.setKeyframe(node + ".rx", time=1, value=10)
+            cmds.setKeyframe(node + ".rx", time=10, value=80)
+            return node + ".rx"
+
+        def compound():
+            node = self.keyed()
+            cmds.setKeyframe(node + ".sx", value=2)
+            return node + ".scale"
+
+        def alias():
+            node = self.keyed()
+            cmds.aliasAttr("moved", node + ".tx")
+            return node + ".moved"
+
+        def element():
+            node = self.keyed()
+            cmds.addAttr(node, longName="values", attributeType="double", multi=True, keyable=True)
+            cmds.setAttr(node + ".values[2]", 4)
+            cmds.setKeyframe(node + ".values[2]")
+            return node + ".values[2]"
+
+        def driven():
+            node = self.keyed()
+            multiply = cmds.createNode("multiplyDivide")
+            cmds.setAttr(multiply + ".input1Z", 3)
+            cmds.connectAttr(multiply + ".outputZ", node + ".tz")
+            return node + ".tz"
+
+        def static():
+            return self.keyed() + ".tz"
+
+        def collision():
+            self.keyed()
+            group = cmds.createNode("transform", name="muteGroup")
+            self.keyed(parent=group)
+            cmds.mute("|muteTarget.tx")
+            return "muteGroup|muteTarget.tx"
+
+        def existing_names():
+            cmds.createNode("transform", name="mute_muteTarget_translateX")
+            cmds.createNode("transform", name="mute_muteTarget_translateX1")
+            return self.keyed() + ".tx"
+
+        def boolean():
+            node = self.keyed()
+            cmds.setKeyframe(node + ".v", value=1)
+            return node + ".v"
+
+        def enum():
+            node = self.keyed()
+            cmds.addAttr(node, longName="mode", attributeType="enum", enumName="a:b:c", keyable=True)
+            cmds.setAttr(node + ".mode", 2)
+            cmds.setKeyframe(node + ".mode")
+            return node + ".mode"
+
+        def digits():
+            node = self.keyed()
+            cmds.addAttr(node, longName="value1", attributeType="long", keyable=True)
+            cmds.setKeyframe(node + ".value1", value=3)
+            cmds.createNode("transform", name="mute_muteTarget_value1")
+            return node + ".value1"
+
+        def remute_disabled():
+            node = self.keyed()
+            cmds.currentTime(2)
+            cmds.mute(node + ".tx")
+            cmds.setAttr("mute_muteTarget_translateX.mute", 0)
+            cmds.currentTime(4)
+            return node + ".tx"
+
+        def remute_enabled():
+            node = self.keyed()
+            cmds.currentTime(2)
+            cmds.mute(node + ".tx")
+            cmds.currentTime(4)
+            return node + ".tx"
+
+        return (basic, rotate, compound, alias, element, driven, static, collision, existing_names,
+                boolean, enum, digits, remute_disabled, remute_enabled)
+
+    @staticmethod
+    def describe():
+        mutes = []
+        for name in sorted(cmds.ls(type="mute") or []):
+            values = [cmds.getAttr(name + "." + attribute) for attribute in (
+                "hold", "holdTime", "mute", "isHistoricallyInteresting", "nodeState", "caching", "frozen")]
+            mutes.append((name, sorted(cmds.listConnections(name, connections=True, plugs=True,
+                                                           skipConversionNodes=False) or []),
+                          [round(value, 9) if isinstance(value, float) else value for value in values]))
+        transforms = sorted(
+            (name, round(cmds.getAttr(name + ".tx"), 9),
+             sorted(cmds.listConnections(name, source=True, destination=False, connections=True, plugs=True,
+                                         skipConversionNodes=False) or []))
+            for name in cmds.ls(type="transform"))
+        return mutes, transforms, sorted(cmds.ls())
+
+    def run_case(self, case, unit, fast):
+        cmds.file(new=True, force=True)
+        cmds.currentUnit(linear=unit, angle="deg")
+        cmds.currentTime(4)
+        plug = mlib.getPlug(case())
+        plug.setMuted(True, fast=fast)
+        muted = self.describe()
+        cmds.currentTime(7)
+        plug.setMuted(False, fast=fast)
+        return muted, self.describe()
+
+    def test_fast_set_muted_matches_cmds_mute(self):
+        for unit in ("cm", "m"):
+            for case in self.cases():
+                if unit == "m" and case.__name__ == "driven":
+                    continue  # m 単位では入力に unitConversion が挟まる(下のテストで拒否を確かめる)。
+                with self.subTest(unit=unit, case=case.__name__):
+                    self.assertEqual(self.run_case(case, unit, True), self.run_case(case, unit, False))
+
+    def test_fast_rejects_unit_conversion_input_before_changes(self):
+        node = cmds.createNode("transform", name="muteConverted")
+        multiply = cmds.createNode("multiplyDivide")
+        cmds.connectAttr(multiply + ".outputY", node + ".ry")
+        before = self.describe()
+        with self.assertRaises(NotImplementedError):
+            mlib.getPlug(node + ".ry").setMuted(True, fast=True)
+        self.assertEqual(self.describe(), before)
 
 
 if __name__ == "__main__":

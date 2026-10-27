@@ -1,5 +1,7 @@
 """Mayaのfileノードを扱う。"""
 
+from contextlib import nullcontext
+
 from ..decorator import undoChunk
 from .texture2d import Texture2d
 
@@ -15,23 +17,29 @@ class File(Texture2d):
         """
         return self.getPlug("fileTextureName").get()
 
-    @undoChunk("mlibFileSetPath")
-    def setFilePath(self, path):
+    def setFilePath(self, path, *, fast=False):
         """ファイルパスを設定する。存在確認・コピーは行わない。
 
         Args:
             path (str): パスまたはUDIM等のトークンを含むパターン。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             File: 自身。
 
         Raises:
-            TypeError: pathがstr以外の場合。
+            TypeError: fastがbool以外、またはpathがstr以外の場合。
+            RuntimeError: ロックや入力接続により設定できない場合。
+
+        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
         """
-        if not isinstance(path, str):
-            raise TypeError("path must be a string")
-        self.getPlug("fileTextureName").set(path)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibFileSetPath"):
+            if not isinstance(path, str):
+                raise TypeError("path must be a string")
+            self.getPlug("fileTextureName").set(path, fast=fast)
+            return self
 
     def getColorSpace(self):
         """現在の入力色空間名。
@@ -41,8 +49,7 @@ class File(Texture2d):
         """
         return self.getPlug("colorSpace").get()
 
-    @undoChunk("mlibFileSetColorSpace")
-    def setColorSpace(self, name):
+    def setColorSpace(self, name, *, fast=False):
         """入力色空間を設定する。
 
         名前は検証せず、そのまま保持する。利用できる色空間は色管理の設定(OCIO構成など)で
@@ -50,14 +57,21 @@ class File(Texture2d):
 
         Args:
             name (str): 色空間名。現在のMaya色管理設定で利用可能な名前を指定する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             File: 自身。パス変更時の自動ルール設定は変更しない。
 
         Raises:
-            TypeError: nameがstr以外の場合。
+            TypeError: fastがbool以外、またはnameがstr以外の場合。
+            RuntimeError: ロックや入力接続により設定できない場合。
+
+        ``fast=True`` は通常と同じ検証の後にOpenMayaで直接更新する(Undoなし)。
         """
-        if not isinstance(name, str):
-            raise TypeError("name must be a string")
-        self.getPlug("colorSpace").set(name)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibFileSetColorSpace"):
+            if not isinstance(name, str):
+                raise TypeError("name must be a string")
+            self.getPlug("colorSpace").set(name, fast=fast)
+            return self

@@ -10,7 +10,6 @@
 import sys
 import time
 import unittest
-import uuid
 
 import maya.cmds as cmds
 
@@ -20,24 +19,17 @@ from mlib.common.selection import Selection, _resolve_names
 from mlib.components import Vertex
 from mlib.nodes import AnimCurve, ObjectSet
 from mlib.plugs import Plug
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、終了時に削除する。"""
+class _ContractCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibContractC_" + uuid.uuid4().hex
-        cmds.namespace(add=self.ns)
-
-    def tearDown(self):
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibContractC_"
+    ENABLE_UNDO = False
 
 
-class LsBulkResolveTest(_NamespaceCase):
+class LsBulkResolveTest(_ContractCase):
     """ls の名前をまとめて解決しても、並び順と結果が cmds・名前ごとの解決と同じになることを確かめる。"""
 
     def setUp(self):
@@ -129,7 +121,7 @@ class LsBulkResolveTest(_NamespaceCase):
         self.assertLess(large, small * 6.0, (small, large))
 
 
-class DeletedAnimCurveTest(_NamespaceCase):
+class DeletedAnimCurveTest(_ContractCase):
     """削除済みの animCurve に触れても異常終了せず、通常経路と同じ RuntimeError になることを確かめる。"""
 
     def test_fast_methods_raise_like_normal(self):
@@ -172,7 +164,7 @@ class DeletedAnimCurveTest(_NamespaceCase):
                 self.assertEqual(str(caught.exception), str(normal.exception))
 
 
-class ObjectSetIsMemberTest(_NamespaceCase):
+class ObjectSetIsMemberTest(_ContractCase):
     """ObjectSet.isMember が DG ノードやアトリビュートでも cmds.sets(isMember=) と一致することを確かめる。"""
 
     def test_matches_cmds(self):

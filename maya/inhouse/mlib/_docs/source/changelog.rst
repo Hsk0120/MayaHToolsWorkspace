@@ -4,6 +4,75 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+2.1.0 (2026-10-27)
+------------------
+
+2.0.0 で次版へ送った項目を対応しました。読み取りを OpenMaya へ寄せ、書き込み系の ``fast`` を広げ、
+公開引数を lowerCamelCase に揃えました。旧引数名・旧メソッドの互換入口は残していません。
+
+.. rubric:: 破壊的変更
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - 旧 API
+     - 新 API
+     - 補足
+   * - snake_case の公開引数(``transfer_to_parent``・``skin_cluster``・``max_influences``・``source_target_pairs``・
+       ``weight_index``・``full_weight``・``input_offset``・``value_offset``・``input_scale``・``value_scale``・
+       ``input_pivot``・``value_pivot``・``include_tip``・``parent_joint``・``uv_set``・``angle_weighted``・
+       ``node_type``・``remove_namespace``・``keyword_arguments``・``with_copy_number``・``ref_vector``・
+       ``include_negative``・``include_dag``・``first_only``・``seconds_per_sample``・``driver_value``・
+       ``top_level_only``・``from_unit``・``to_unit``・``create_node``・``kill_with_scene``・``compress_undo``・
+       ``version_plugin``・``minimum_version``・``minimum_maya``・``install_hint``・``name_or_index``)
+     - 同じ意味の lowerCamelCase(``transferToParent``・``skinCluster``・``maxInfluences`` …)
+     - 旧名でのキーワード指定は ``TypeError``。位置引数の呼出しは変わりません
+   * - ``Camera.cameraFn()``・``Mesh.meshFn()``・``NurbsCurve.curveFn()``・``Reference.referenceFn()``
+     - ``mfn()``
+     - 形状データの無い mesh / nurbsCurve の ``mfn()`` は ``MFnDagNode``。形状を要する照会は ``RuntimeError``\ (以前は ``ValueError``)
+   * - ``SkinCluster.fn``\ (属性)
+     - ``SkinCluster.mfn()``\ (呼ぶたびに新しい ``MFnSkinCluster``)
+     - —
+   * - ``SkinCluster.deforms``・``bind`` の既スキン判定(形状の履歴に含まれるか)
+     - 出力 geometry がその形状である skinCluster か(``DagNode.getSkinClusters`` と同じ規則)
+     - 上流の別形状を変形する skinCluster は対象外になりました
+   * - influence 除去の ``fast=True``\ (合計 0 の頂点を等分)
+     - 通常経路(``cmds.skinCluster -removeInfluence``)と同じ距離による再配分
+     - bindMethod が 0 以外で合計 0 の頂点が出る場合、負値・非有限値のウェイトは変更前に ``NotImplementedError``\ (負値は以前 ``ValueError``)。liw のロックは fast でも許可
+   * - ``Node.resetAttrs()`` の省略時
+     - 配列アトリビュートを除外
+     - 以前は plusMinusAverage 等で ``TypeError`` になっていました
+
+.. rubric:: 追加
+
+- 計算ノードの ``connect*``\ ・``connectInput``\ ・``connectCurve``\ ・``connectSurface``\ ・``connectTransforms``\ ・
+  ``BlendMatrix.connectTarget``/``removeTarget``\ ・``Place2dTexture.connectTexture``\ ・``File.setFilePath``/``setColorSpace``\ ・
+  ``AimConstraint.setRestRotate``/``setOffset``\ ・``ScalarGraph.sum``/``multiply``/``condition`` に ``fast``。
+- ``SkinClusters.removeInfluences``\ ・``Namespace.create``/``setCurrent``/``rename``/``move``/``remove``\ ・
+  ``mlib.select``/``Selection.select``\ ・``Plug.setMuted``\ ・``mlib.duplicate`` に ``fast``。
+  cmds と同じ結果にできない指定(名前空間の非 ASCII 名、選択の toggle・hierarchy 等、名前空間内の mute、
+  インスタンスや表示レイヤーを含む複製など)は変更前に ``NotImplementedError`` です。
+- ``Transform.matchTransform(fast=)``。fast は position と pivots だけで、rotation・scale は ``NotImplementedError``
+  (既定が True なので、fast では ``rotation=False, scale=False`` を明示します)。
+- OpenMaya で読むようにしたもの: ``Plug.isSettable``\ ・``Node.resetAttrs`` の絞込み・``Node.getHistory``\ ・
+  ``Node.getPlugs``\ (フラグ無し・``keyable``\ ・``scalar``)・``IkHandle.getJoints``\ ・``listReferences``\ ・
+  ``Plug.getAnimLayers``\ ・``Shape.scaleGeometry``\ (NURBS サーフェスの読取り)・``Namespace.create`` の照会・
+  選択とドリブンキーの存在確認。いずれも ``test_cmds_parity.py`` 等で cmds と突き合わせています。
+- ``Container`` と ``DagContainer`` の共通処理を ``_ContainerMixin`` へまとめました(公開 API と isinstance は不変)。
+
+.. rubric:: 修正
+
+- ``Reference.getParentReference()`` はファイルを持たない参照ノードで ``None`` を返します(以前は RuntimeError)。
+
+.. rubric:: 据え置き
+
+- ``ArrayPlug.getSourceNodes()`` は論理番号つきで要素ごとの接続元を返し、``getConnections(asNode=True)`` では
+  代替できないため維持します。
+- ``Plug.setEnumNames`` の fast は、API 2.0 が enum フィールドの削除を公開しないため ``NotImplementedError`` のままです。
+- ``SkinCluster.setWeights`` の fast は ``MFnSkinCluster.setWeights`` に置き換えません(正規化と 0 の要素の扱いが
+  通常経路と変わるため)。
+
 2.0.0 (2026-10-27)
 ------------------
 
@@ -191,7 +260,7 @@ cymel に近い使い勝手を目標に、重なっていたメソッドの統�
    ``isinstance`` か ``isType()`` に直します。
 4. ``mlib.reload()`` の後は、保持していた Node / Plug / 生成クラスを取り直します。
 
-.. rubric:: 次版の予定
+.. rubric:: 次版の予定(2.1.0 で対応済み)
 
 - 公開引数の snake_case 名(``input_offset``・``weight_index``・``skin_cluster``・``transfer_to_parent``・
   ``remove_namespace``・``keyword_arguments``・``include_tip``・``with_copy_number``・``max_influences`` など)の

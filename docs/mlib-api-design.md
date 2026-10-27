@@ -34,7 +34,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 | Mayaコマンド・アトリビュート・nodeType | Maya標準の原名 | `createNode`、`offsetParentMatrix`、`skinCluster` |
 | 一般Pythonファイル | lowerCamelCase | `scriptJob.py`、`eulerRotate.py` |
 | 内部関数・内部メソッド・ローカル変数 | snake_caseを基本とする | `_resolve_input`、`namespace_map` |
-| 引数 | 既存公開仕様・Mayaフラグを維持。新規の独自引数はsnake_caseを基本とする | `worldSpace`、`uiUnits`、`namespace_map` |
+| 引数 | 公開の独自引数はlowerCamelCase。Mayaのフラグと同じ名前はMayaの表記 | `worldSpace`、`uiUnits`、`transferToParent` |
 | 定数 | UPPER_SNAKE_CASE | `LOAD_FAILED` |
 
 - `get`/`set`は値の取得・設定、`is`/`has`は判定、`create`/`add`/`remove`は作成・追加・除外に使う。
@@ -51,11 +51,12 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `fast=True` はOpenMayaで直接作成しUndoを記録しない。入力検証・例外・戻り値の意味は通常経路と同じで、
   `shared=True` と `name` 指定で同名ノードが既にある場合は同じnodeTypeのときだけそれを返し、型が違えばRuntimeErrorとする。
   未知の型名はどちらの経路でもRuntimeErrorとし、unknownノードを残さない。`query/edit` フラグは `cmds.createNode` に無いので受け付けない。
-- 2026-10-27のmlib 2.0.0では、公開引数の表記規則(上表)は変えない。既存のsnake_case公開引数(`isType(node_type)`・
-  `getNodeName(remove_namespace)`・`SkinCluster.bind(max_influences)`・`removeInfluence(transfer_to_parent)`・
-  `getClosestAxisToVector(ref_vector, include_negative)`・`Nodes.callEach(keyword_arguments)` 等)のlowerCamelCase化は次版に送り、
-  今回改名したのは統合で新署名になった `getPlugs(includeChildren=)`(旧 `getExtraAttrs(include_children)`)だけとする。
-  対象の一覧は `maya/inhouse/mlib/_docs/source/changelog.rst` の「次版の予定」に置く。
+- 2026-10-27のmlib 2.0.0で次版へ送ったsnake_case公開引数のlowerCamelCase化は、2.1.0で改名済み
+  (`isType(nodeType)`・`getNodeName(removeNamespace)`・`SkinCluster.bind(maxInfluences)`・`removeInfluence(transferToParent)`・
+  `getClosestAxisToVector(refVector, includeNegative)`・`Nodes.callEach(keywordArguments)` 等)。旧引数名の互換は残さず、
+  旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
+  既存の通知契約・登録プロトコル(`logger.raise_with_notify`・`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
+  公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。対応表は `maya/inhouse/mlib/_docs/source/changelog.rst` の2.1.0に置く。
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
   判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
@@ -75,7 +76,8 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   function setは `mfn()` がそのノードで最も具体的なOpenMayaのfunction set(Node→MFnDependencyNode、DagNode→MFnDagNode、
   Transform→MFnTransform、Mesh/Camera/NurbsCurve/Referenceは各クラスのoverrideでMFnMesh等)を毎回新規に返す。
   `dagFn()`・`transformFn()` は廃止、`getAttrCount()` は `mfn().attributeCount()`、`hasFn(fn)` は `mnode().hasFn` の公開入口。
-  `cameraFn/meshFn/curveFn/referenceFn` と `SkinCluster.fn`(oma2)は次版まで維持する。
+  2.1.0で`cameraFn/meshFn/curveFn/referenceFn`と`SkinCluster.fn`は廃止し、`mfn()`(SkinClusterはoma2.MFnSkinCluster)へ統合した。
+  形状データの無いmesh/nurbsCurve(作成直後など)の`mfn()`は`MFnDagNode`を返し、形状を要する照会は`RuntimeError`にする。
   アトリビュートの列挙は `getPlugs(userDefined=False, includeChildren=True, **listAttrFlags)` に集約し、
   `getExtraAttrs(include_children, *, asNames)` は廃止する。`userDefined=True` はユーザー定義アトリビュートだけを
   OpenMaya経路で追加順の型付きPlug(配列はArrayPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
@@ -272,7 +274,7 @@ Mayaの型名・状態は`getType()`・`isLocked()`・`isSettable()`等の専用
 2026-10-26のユーザー指定により、型の照会はNodeとPlugで同じ名前・同じ意味にする。
 `getType()`はどちらもMayaの型名を返す(Nodeは`cmds.nodeType`のnodeType名、Plugはアトリビュートの定義型名で
 generic/kAnyはNone。値は評価しない)。Nodeの`getType(inherited=True)`は`cmds.nodeType(inherited=True)`と
-同順(基底→自身)の`list[str]`、Mayaの継承に基づく判定は`isType(node_type)`、Pythonのラッパークラスは
+同順(基底→自身)の`list[str]`、Mayaの継承に基づく判定は`isType(nodeType)`、Pythonのラッパークラスは
 `type(x)`・`isinstance`で調べる。旧`Plug.getType()`(Pythonクラスを返す)と`Plug.getDataType()`は廃止し、
 `nodeType()`等の別名は追加しない。`getTypeId()/getPluginName()/getClassification()`は名前・戻り値を維持する。
 現在値の型名が必要な場合は、

@@ -963,9 +963,16 @@ class Transform(DagNode):
                 cmds.parent(self.getName(), parent_name, relative=relative, add=add)
             return self
 
-    @undoChunk("mlibTransformMatch")
-    def matchTransform(self, target, position=True, rotation=True, scale=True, pivots=False):
+    def matchTransform(self, target, position=True, rotation=True, scale=True, pivots=False, *, fast=False):
         """自身の変換を指定Transformへ合わせる。選択状態は使用しない。
+
+        通常はmaya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用し、Undo有効時に
+        一つのチャンクへ記録する。fastはpositionとpivotsだけに対応し、Undoに記録しない。
+        positionはワールドの回転ピボット位置の差だけワールドマトリクスを平行移動して
+        ``setMatrix(ws=True, fast=True)`` で書き、pivotsは合わせ先のワールドの回転・スケール
+        ピボットを ``setPivot(ws=True, fast=True)`` で設定する(cmdsと同じくposition→pivotsの順。
+        自身がjointの場合、cmdsと同じくピボットは変更しない)。
+        shearの一致やマトリクス全体のコピーは保証しない。
 
         Args:
             target (Transform | str | om2.MObject | om2.MDagPath): 合わせ先のTransformまたはjoint。
@@ -974,28 +981,47 @@ class Transform(DagNode):
             rotation (bool): 回転を合わせる。
             scale (bool): スケールを合わせる。
             pivots (bool): 回転・スケールピボットも合わせる。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。既定False。
 
         Returns:
             Transform: 自身。全フラグFalseなら何も変更しない。
 
         Raises:
-            TypeError: targetがTransformではない場合。
-            RuntimeError: ノードが無効、またはMayaが変更を拒否した場合。
+            TypeError: targetがTransformではない場合、またはfastがbool以外の場合。
+            RuntimeError: ノードが無効、またはMayaが変更を拒否した場合。fastで変更する成分が
+                ロック・入力接続されている場合は、setMatrix・setPivotと同じく拒否する。
+            NotImplementedError: fastでrotationまたはscaleがTrueの場合。cmds.matchTransformは
+                親の非一様スケールやshearがある場合に独自の分解規則で回転・スケールを求め、
+                ワールドマトリクスの分解では同じ値にならないため、変更前に拒否する。
             DeletedAttributeError: targetに、アトリビュートが削除済みの Plug / MPlug を渡した場合
                 (ValueError と RuntimeError の両方の派生)。
-
-        maya.cmds.matchTransformと同じ空間・joint・ピボット処理を使用する。
-        shearの一致やマトリクス全体のコピーは保証しない。
         """
         from .node import Node as _InputNode
 
-        target = _InputNode._resolve_input(target)
-        if not isinstance(target, Transform):
-            raise TypeError("Target must be a transform or joint")
-        if any((position, rotation, scale, pivots)):
-            cmds.matchTransform(self.getFullName(), target.getFullName(), position=position,
-                                rotation=rotation, scale=scale, pivots=pivots)
-        return self
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibTransformMatch"):
+            target = _InputNode._resolve_input(target)
+            if not isinstance(target, Transform):
+                raise TypeError("Target must be a transform or joint")
+            if fast:
+                if rotation or scale:
+                    raise NotImplementedError("fast matchTransform supports only position and pivots; "
+                                              "pass rotation=False and scale=False")
+                if position:
+                    delta = om2.MPoint(target.getPivot(ws=True)) - om2.MPoint(self.getPivot(ws=True))
+                    matrix = om2.MMatrix(self.getMatrix(ws=True))
+                    for axis, offset in enumerate((delta.x, delta.y, delta.z)):
+                        matrix.setElement(3, axis, matrix.getElement(3, axis) + offset)
+                    self.setMatrix(matrix, ws=True, fast=True)
+                if pivots and not self.isType("joint"):
+                    self.setPivot(target.getPivot(ws=True), ws=True, kind="rotate", fast=True)
+                    self.setPivot(target.getPivot(ws=True, kind="scale"), ws=True, kind="scale", fast=True)
+                return self
+            if any((position, rotation, scale, pivots)):
+                cmds.matchTransform(self.getFullName(), target.getFullName(), position=position,
+                                    rotation=rotation, scale=scale, pivots=pivots)
+            return self
 
     def mirrorTransform(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), *, fast=False, ws=_UNSET):
         """位置と向きを指定空間でビヘイビアミラーする。
@@ -1736,38 +1762,38 @@ class Transform(DagNode):
             cmds.makeIdentity(self.getFullName(), **kwargs)
             return self
 
-    def getClosestAxisToVector(self, ref_vector, include_negative=True):
+    def getClosestAxisToVector(self, refVector, includeNegative=True):
         """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。
 
         各ローカル軸をワールドマトリクス（回転・スケールのみ、平行移動は無視）で変換し、
-        正規化した上で ref_vector との内積が最大のものを選ぶ。
+        正規化した上で refVector との内積が最大のものを選ぶ。
 
         Args:
-            ref_vector (Vector | Iterable[float]): 比較対象のワールド空間方向ベクトル。
-            include_negative (bool): True の場合、負方向の軸（-x/-y/-z）も候補に含める。
+            refVector (Vector | Iterable[float]): 比較対象のワールド空間方向ベクトル。
+            includeNegative (bool): True の場合、負方向の軸（-x/-y/-z）も候補に含める。
 
         Returns:
-            str: 最も近い軸名("x"、"y"、"z"。include_negative が True なら
+            str: 最も近い軸名("x"、"y"、"z"。includeNegative が True なら
                 "-x"、"-y"、"-z" も返り得る)。
 
         Raises:
             RuntimeError: ノードが無効な場合。
-            ValueError: ref_vector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
+            ValueError: refVector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
         """
         if not self.isValid():
             raise RuntimeError("Cannot evaluate axes of an invalid transform")
-        if not isinstance(ref_vector, Vector):
-            ref_vector = Vector(*ref_vector)
-        ref_vector = ref_vector.unit()
+        if not isinstance(refVector, Vector):
+            refVector = Vector(*refVector)
+        refVector = refVector.unit()
         matrix = self.getMatrix(ws=True)
         axes = {"x": Vector(1.0, 0.0, 0.0), "y": Vector(0.0, 1.0, 0.0), "z": Vector(0.0, 0.0, 1.0)}
-        if include_negative:
+        if includeNegative:
             axes.update({f"-{name}": axis * -1.0 for name, axis in axes.items()})
         best_axis = None
         best_dot = None
         for name, axis in axes.items():
             world_axis = matrix.transformVector(axis).unit()
-            dot = world_axis.dot(ref_vector)
+            dot = world_axis.dot(refVector)
             if best_dot is None or dot > best_dot:
                 best_dot = dot
                 best_axis = name

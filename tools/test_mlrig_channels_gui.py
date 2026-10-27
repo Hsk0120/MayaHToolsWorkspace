@@ -59,7 +59,7 @@ def main(output_dir=None, finished=None):
         external = external_owner.add('external', event='SelectionChanged', callback=lambda: None)
         try:
             first = common_owner.add('setting', attribute=probe.getPlug('setting'),
-                                     callback=lambda: observed.append(1), kill_with_scene=True)
+                                     callback=lambda: observed.append(1), killWithScene=True)
             check(first is common_owner.add('setting', attribute=probe.getPlug('setting'),
                                             callback=lambda: None), 'Common jobs deduplicate by key')
             probe.getPlug('setting').set(1)
@@ -77,7 +77,7 @@ def main(output_dir=None, finished=None):
             yield
             check(len(observed) == 2 and external.exists(), 'Stopping owner preserves unrelated jobs')
             common_owner.add('setting', attribute=probe.getPlug('setting'),
-                             callback=lambda: None, kill_with_scene=True)
+                             callback=lambda: None, killWithScene=True)
             cmds.file(new=True, force=True)
             yield
             check(not common_owner.exists() and external.exists(), 'Scene clear ends only scene jobs')

@@ -94,13 +94,14 @@ class MultMatrix(Node):
             self.getPlug("matrixIn")[index].set(value, fast=fast)
             return self
 
-    def connectInput(self, index=_UNSET, source=_UNSET, force=_UNSET, *, idx=_UNSET, src=_UNSET, f=_UNSET):
+    def connectInput(self, index=_UNSET, source=_UNSET, force=_UNSET, *, fast=False, idx=_UNSET, src=_UNSET, f=_UNSET):
         """マトリクスPlugを指定スロットへ接続する。
 
         Args:
             index (int): 非負の論理インデックス。 別名 ``idx`` も使用可能。
             source (Plug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -109,6 +110,7 @@ class MultMatrix(Node):
             MultMatrix: 自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             ValueError: インデックスが整数でない・負数・boolの場合。
             IndexError: インデックスが論理番号の範囲(0..2147483647)を超える場合。
             RuntimeError: 型不一致などでMayaが接続を拒否した場合。
@@ -131,11 +133,13 @@ class MultMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibMultMatrixConnectInput"):
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibMultMatrixConnectInput"):
             index = self._index(index)
             from ..plugs.plug import Plug
             source = Plug._resolve_input(source)
-            source.connectTo(self.getPlug("matrixIn")[index], force=force)
+            source.connectTo(self.getPlug("matrixIn")[index], force=force, fast=fast)
             return self
 
     def getOutputPlug(self):

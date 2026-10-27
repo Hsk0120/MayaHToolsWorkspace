@@ -320,15 +320,15 @@ class Joint(Transform):
             result.append(SkinCluster(node.mnode()))
         return result
 
-    def removeInfluence(self, skin_cluster=None, *, transfer_to_parent=True, force=_UNSET, fast=False, f=_UNSET):
+    def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=_UNSET, fast=False, f=_UNSET):
         """指定skinClusterから自身のinfluence登録を外す。jointノードは残す。
 
         全対象の登録・移送条件を先に検査し、取得順にSkinCluster.removeInfluenceへ委譲する。
         fast固有の構造検査は各skinClusterの処理時に行い、後続の失敗で先行処理は戻さない。
 
         Args:
-            skin_cluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
-            transfer_to_parent (bool): Trueは最も近い祖先influenceへ加算する。
+            skinCluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
+            transferToParent (bool): Trueは最も近い祖先influenceへ加算する。
                 False、または移送先がなければ標準の再配分に任せる。
             force (bool): 不正ウェイトを修復してから解除する。修復時に正規化・ロック解除・レイヤー回避は行わない。
             fast (bool): 既定FalseはUndo有効時に一つのチャンクへ記録。TrueはUndoなしの直接更新。
@@ -338,10 +338,11 @@ class Joint(Transform):
             Joint: 自身。対象省略で未スキニングなら変更しない。
 
         Raises:
-            TypeError: transfer_to_parent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            TypeError: transferToParent・force・fastがbool以外、またはforce/fを同時指定した場合。
             ValueError: 未登録、または最後のinfluenceを解除する場合。
             RuntimeError: 無効joint、レイヤー・ロック、または編集失敗。
-            NotImplementedError: fastで単一geometry条件を満たさない場合。
+            NotImplementedError: fastで、いずれかのskinClusterが単数
+                :meth:`SkinCluster.removeInfluence` のfastの未対応条件に当たる場合。どのskinも変更しない。
         """
         if f is not _UNSET:
             if force is not _UNSET:
@@ -355,15 +356,19 @@ class Joint(Transform):
             from .skinCluster import SkinCluster
             if not self.isValid():
                 raise RuntimeError("Cannot remove an invalid joint influence")
-            if not isinstance(transfer_to_parent, bool):
-                raise TypeError("transfer_to_parent must be a bool")
+            if not isinstance(transferToParent, bool):
+                raise TypeError("transferToParent must be a bool")
             if type(force) is not bool:
                 raise TypeError("force must be a bool")
-            skins = self.getSkinClusters() if skin_cluster is None else [skin_cluster if isinstance(skin_cluster, SkinCluster) else SkinCluster(skin_cluster)]
+            skins = self.getSkinClusters() if skinCluster is None else [skinCluster if isinstance(skinCluster, SkinCluster) else SkinCluster(skinCluster)]
             for skin in skins:
-                skin._influence_removal_target(self, transfer_to_parent=transfer_to_parent, force=force)
+                source, target = skin._influence_removal_target(self, transfer_to_parent=transferToParent, force=force)
+                if fast:
+                    # fastの未対応(再配分を再現できない等)を、どのskinも変更する前に検出する。
+                    from ..core.skinEdit import validate_removal
+                    validate_removal(skin, source, target, force=force)
             for skin in skins:
-                skin.removeInfluence(self, transfer_to_parent=transfer_to_parent, force=force, fast=fast)
+                skin.removeInfluence(self, transferToParent=transferToParent, force=force, fast=fast)
             return self
 
     def getTransferTarget(self, skin):
@@ -382,11 +387,11 @@ class Joint(Transform):
             ancestor = Joint(ancestor).getParentJointName()
         return None
 
-    def reparentChildren(self, parent_joint, *, fast=False):
+    def reparentChildren(self, parentJoint, *, fast=False):
         """子 joint を指定した親 joint へ付け替える。
 
         Args:
-            parent_joint (str): 直接の子 joint を付け替える親ノード名。
+            parentJoint (str): 直接の子 joint を付け替える親ノード名。
             fast (bool): TrueはOpenMaya直接更新でUndoなし。既定FalseはMaya標準コマンドを使用する。
 
         Returns:
@@ -398,13 +403,13 @@ class Joint(Transform):
             if fast:
                 from ..core.jointEdit import reparent, reparent_plan
                 from .node import Node
-                parent = Node(parent_joint)
+                parent = Node(parentJoint)
                 plans = [reparent_plan(Joint(name), parent) for name in self.getChildJointNames()]
                 for plan in plans:
                     reparent(plan)
             else:
                 for child_joint in self.getChildJointNames():
-                    cmds.parent(child_joint, parent_joint)
+                    cmds.parent(child_joint, parentJoint)
 
     def getChainFromHere(self, to=None):
         """自身を起点とする joint チェーンを順に取得する。

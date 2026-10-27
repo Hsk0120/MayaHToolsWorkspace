@@ -109,7 +109,7 @@ class UnitsSpecTest(unittest.TestCase):
         self.assertAlmostEqual(units.convertDistance(3.0, "yd", "ft"), 9.0)
         self.assertAlmostEqual(units.convertDistance(1.0, "mi", "km"), 1.609344)
         self.assertAlmostEqual(units.convertDistance(5.0, "mm"), 0.5)
-        self.assertAlmostEqual(units.convertDistance(5.0, to_unit="mm"), 50.0)
+        self.assertAlmostEqual(units.convertDistance(5.0, toUnit="mm"), 50.0)
         self.assertAlmostEqual(units.convertDistance(7.0), 7.0)
         cmds.currentUnit(linear="m")
         self.assertAlmostEqual(units.convertDistance(1.0, "cm"), 0.01)
@@ -120,7 +120,7 @@ class UnitsSpecTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             units.convertDistance(1.0, 1)
         with self.assertRaises(TypeError):
-            units.convertDistance(1.0, to_unit=om2.MDistance.kMeters)
+            units.convertDistance(1.0, toUnit=om2.MDistance.kMeters)
         for name in ("CM", "meters", "", "pt"):
             with self.assertRaises(ValueError, msg=name):
                 units.convertDistance(1.0, name)
@@ -177,21 +177,21 @@ class PluginPackageSpecTest(unittest.TestCase):
     missing_plugin = "mlibSpecDMissingPlugin"
 
     def test_is_maya_supported_compares_year(self):
-        """minimum_mayaが未指定または現在の年以下ならTrue、より新しい年ならFalse。"""
+        """minimumMayaが未指定または現在の年以下ならTrue、より新しい年ならFalse。"""
         year = _maya_year()
         self.assertTrue(PluginPackage("Product", [self.missing_plugin]).isMayaSupported())
-        self.assertTrue(PluginPackage("Product", [self.missing_plugin], minimum_maya=year).isMayaSupported())
-        self.assertTrue(PluginPackage("Product", [self.missing_plugin], minimum_maya=year - 1).isMayaSupported())
-        self.assertFalse(PluginPackage("Product", [self.missing_plugin], minimum_maya=year + 1).isMayaSupported())
-        # minimum_mayaはint()で正規化して保持する。
-        package = PluginPackage("Product", [self.missing_plugin], minimum_maya=str(year + 1))
+        self.assertTrue(PluginPackage("Product", [self.missing_plugin], minimumMaya=year).isMayaSupported())
+        self.assertTrue(PluginPackage("Product", [self.missing_plugin], minimumMaya=year - 1).isMayaSupported())
+        self.assertFalse(PluginPackage("Product", [self.missing_plugin], minimumMaya=year + 1).isMayaSupported())
+        # minimumMayaはint()で正規化して保持する。
+        package = PluginPackage("Product", [self.missing_plugin], minimumMaya=str(year + 1))
         self.assertEqual(package.minimumMaya, year + 1)
         self.assertFalse(package.isMayaSupported())
 
     def test_unsupported_maya_skips_without_loading_or_notifying(self):
         """対象外のMayaではプラグインを照会・ロードせずSKIPPEDを返し、通知もしない。"""
         notified = []
-        package = PluginPackage("Product", [self.missing_plugin], minimum_maya=_maya_year() + 1)
+        package = PluginPackage("Product", [self.missing_plugin], minimumMaya=_maya_year() + 1)
         with mock.patch.object(PluginPackage, "loadPlugins", side_effect=AssertionError("loaded")):
             self.assertEqual(package.tryLoad(dialog=notified.append, warn=False), SKIPPED)
         self.assertEqual(notified, [])
@@ -211,13 +211,13 @@ class PluginPackageSpecTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             PluginPackage("Product", 5)
         with self.assertRaises(ValueError):
-            PluginPackage("Product", [self.missing_plugin], minimum_version="beta")
+            PluginPackage("Product", [self.missing_plugin], minimumVersion="beta")
         with self.assertRaises(TypeError):
-            PluginPackage("Product", [self.missing_plugin], minimum_maya=[2025])
+            PluginPackage("Product", [self.missing_plugin], minimumMaya=[2025])
 
     def test_properties_do_not_query_maya_and_are_copies(self):
         """プロパティは保持値を返し、pluginsは独立したlist。"""
-        package = PluginPackage("Product", ["a", "b"], minimum_version="3.1", minimum_maya=2024)
+        package = PluginPackage("Product", ["a", "b"], minimumVersion="3.1", minimumMaya=2024)
         self.assertEqual(package.name, "Product")
         plugins = package.plugins
         self.assertEqual([plugin.name for plugin in plugins], ["a", "b"])
@@ -240,7 +240,7 @@ class PluginPackageSpecTest(unittest.TestCase):
 
     def test_missing_minimum_version_skips_loading(self):
         """最小版を満たさない場合はロードせずMISSING。dialog=Falseは通知しない。"""
-        package = PluginPackage("Product", [self.missing_plugin], minimum_version="1.0")
+        package = PluginPackage("Product", [self.missing_plugin], minimumVersion="1.0")
         self.assertFalse(package.isInstalled())
         self.assertIsNone(package.getInstalledVersion())
         self.assertIsNone(package.getLoadedVersion())
@@ -691,7 +691,7 @@ class ReferencesSpecTest(unittest.TestCase):
         self.assertIsInstance(result, list)
         self.assertTrue(all(isinstance(item, Reference) for item in result))
         self.assertNotIn("sharedReferenceNode", [item.getName() for item in result])
-        top = references.listReferences(top_level_only=True)
+        top = references.listReferences(topLevelOnly=True)
         self.assertTrue(all(item.getParentReference() is None for item in top))
 
     def test_create_reference_rejects_invalid_path_before_maya(self):
@@ -723,7 +723,7 @@ class CycleSpecTest(unittest.TestCase):
 
     def test_find_returns_cycles_with_plugs(self):
         """循環を含む対象からCycleのlistを返し、経路はPlugのtuple。"""
-        cycles = Cycle.find([self.a], include_dag=False, seconds=5.0)
+        cycles = Cycle.find([self.a], includeDag=False, seconds=5.0)
         self.assertIsInstance(cycles, list)
         self.assertTrue(cycles)
         for cycle in cycles:

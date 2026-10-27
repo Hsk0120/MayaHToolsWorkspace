@@ -137,9 +137,9 @@ class ApiRefinementsTest(unittest.TestCase):
         skin, joints = self.skin()
         before = list(skin.getWeights(joints))
         actions = (
-            lambda value: skin.removeInfluence(joints[1], transfer_to_parent=value),
-            lambda value: joints[1].removeInfluence(skin, transfer_to_parent=value),
-            lambda value: mlib.nodes.SkinClusters([skin]).removeInfluences(joints[1], transfer_to_parent=value),
+            lambda value: skin.removeInfluence(joints[1], transferToParent=value),
+            lambda value: joints[1].removeInfluence(skin, transferToParent=value),
+            lambda value: mlib.nodes.SkinClusters([skin]).removeInfluences(joints[1], transferToParent=value),
         )
         for action in actions:
             for value in ("False", 0, None):

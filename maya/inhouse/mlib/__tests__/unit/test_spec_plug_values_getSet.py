@@ -1,7 +1,6 @@
 """Plugの型別の値の取得・設定(単位・safe・fast・setIfChanged・reset)の約束を固定する。
 
-期待値はmaya.cmdsで独立に求めた値と比べる。docstringと実際の振る舞いが食い違う箇所は
-実際の振る舞いを固定し、`.maya-output/mlib-spec-tests/FINDINGS_B.md`の番号をコメントに書く。
+期待値はmaya.cmdsで独立に求めた値と比べる。
 """
 
 import math
@@ -275,7 +274,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         self.assertIs(plug.get(), False)
 
     def test_float_to_integer_rounding_matches_between_paths(self):
-        """long・short・enum・boolへの小数は通常・fastとも0から遠い側へ四捨五入する(FINDINGS B-2で修正)。"""
+        """long・short・enum・boolへの小数は通常・fastとも0から遠い側へ四捨五入する。"""
         long_plug = self.add("lg", attributeType="long")
         short_plug = self.add("st", attributeType="short")
         for plug in (long_plug, short_plug):
@@ -317,7 +316,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
                     self.assertEqual(cmds.getAttr(plug.getFullName()), before)
 
     def test_string_and_number_cross_input_rejected_by_both_paths(self):
-        """数値へ文字列・Noneや文字列へ数値は通常・fastともRuntimeErrorで、値を変えない(FINDINGS B-3で修正)。"""
+        """数値へ文字列・Noneや文字列へ数値は通常・fastともRuntimeErrorで、値を変えない。"""
         long_plug = self.add("lg", attributeType="long")
         double_plug = self.add("db", attributeType="double")
         enum_plug = self.add("en", attributeType="enum", enumName="a:b:c")
@@ -519,7 +518,7 @@ class PlugEnumSpecTest(_PlugSpecCase):
         self.assertEqual(rotate_order.getEnumValue("zyx"), 5)
 
     def test_missing_field_errors(self):
-        """名前・番号に対応するフィールドが無ければValueError(FINDINGS B-4・B-5で修正)。"""
+        """名前・番号に対応するフィールドが無ければValueError。"""
         plug = self.enum_plug
         with self.assertRaises(ValueError):
             plug.getEnumValue("zz")
@@ -566,7 +565,7 @@ class PlugEnumSpecTest(_PlugSpecCase):
         self.assertEqual(plug.get(), 5)
 
     def test_non_enum_errors(self):
-        """enum以外ではgetEnumName・getEnumValue・getEnumName(value)・setEnumNamesがTypeError(FINDINGS B-4で修正)。"""
+        """enum以外ではgetEnumName・getEnumValue・getEnumName(value)・setEnumNamesがTypeError。"""
         for plug in (self.node.getPlug("tx"), self.add("txt", dataType="string"), self.node.getPlug("visibility")):
             for call in (plug.getEnumName, lambda: plug.getEnumValue("a"), lambda: plug.getEnumName(0),
                          lambda: plug.setEnumNames(["a"])):
@@ -659,7 +658,7 @@ class PlugDataValueSpecTest(_PlugSpecCase):
             plug.get(uiUnits=1)
 
     def test_typed_matrix_uninitialized_get_returns_none(self):
-        """dataType=matrixの未初期化値のgetはNone(FINDINGS B-1で修正)。設定後は往復する。"""
+        """dataType=matrixの未初期化値のgetはNone。設定後は往復する。"""
         plug = self.add("dm", dataType="matrix")
         self.assertIsNone(plug.get())
         self.assertIsNone(plug.get(uiUnits=True))
@@ -731,7 +730,7 @@ class PlugFastBackendSpecTest(_PlugSpecCase):
         self.assertIsNone(plug.get())
 
     def test_scalar_message_fast_reports_unsupported_type_first(self):
-        """スカラーのmessageのfastは型の対応を先に検査し、safeでもNotImplementedError(FINDINGS B-11で修正)。"""
+        """スカラーのmessageのfastは型の対応を先に検査し、safeでもNotImplementedError。"""
         message = self.node.getPlug("message")
         with self.assertRaises(NotImplementedError):
             message.set(1, fast=True)
@@ -771,7 +770,7 @@ class PlugResetDefaultSpecTest(_PlugSpecCase):
     """getDefaultの戻り値の型とresetのUndo・失敗時の扱い。"""
 
     def test_default_value_types(self):
-        """数値はfloat・bool・int、単位付きはMAngle・MDistance・MTime、数値の複合はtuple(FINDINGS B-9でdocstringを修正)。"""
+        """数値はfloat・bool・int、単位付きはMAngle・MDistance・MTime、数値の複合はtuple。"""
         self.assertEqual(self.node.getPlug("sx").getDefault(), 1.0)
         self.assertIs(self.node.getPlug("visibility").getDefault(), True)
         self.assertEqual(self.node.getPlug("rotateOrder").getDefault(), 0)

@@ -18,18 +18,10 @@ class Camera(Shape):
         """
         return om2.MFnCamera(self.mpath())
 
-    def cameraFn(self):
-        """MFnCamera を取得する。
-
-        Returns:
-            om2.MFnCamera: この camera の function set。
-        """
-        return om2.MFnCamera(self.mpath())
-
     def getFocalLength(self):
         """焦点距離を取得する。
 
         Returns:
             float: Maya の焦点距離。
         """
-        return self.cameraFn().focalLength
+        return self.mfn().focalLength

@@ -58,7 +58,7 @@ class NodeApiTest(unittest.TestCase):
 
         namespaced = transform.setNamespace(self.namespace)
         self.assertIn("mlibNodeApiRenamed", namespaced)
-        self.assertEqual(transform.getNodeName(remove_namespace=True), "mlibNodeApiRenamed")
+        self.assertEqual(transform.getNodeName(removeNamespace=True), "mlibNodeApiRenamed")
         self.assertEqual(transform.getNamespace(), Namespace(self.namespace))
 
         missing_namespace = ":mlibNodeApiMissing:child"
@@ -565,7 +565,7 @@ class NodeApiTest(unittest.TestCase):
 
         self.assertEqual(transform.getClosestAxisToVector(Vector(1.0, 0.0, 0.0)), "x")
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, -1.0, 0.0)), "-y")
-        self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 1.0, 0.0), include_negative=False), "y")
+        self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 1.0, 0.0), includeNegative=False), "y")
 
         transform.setRotate((0.0, math.radians(90.0), 0.0))
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 0.0, -1.0)), "x")

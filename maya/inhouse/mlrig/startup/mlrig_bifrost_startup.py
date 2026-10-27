@@ -51,9 +51,9 @@ def package():
         "Bifrost",
         plugins=PLUGINS,
         module=MODULE,
-        version_plugin=VERSION_PLUGIN,
-        minimum_version=minimum_version(),
-        minimum_maya=MIN_MAYA_VERSION,
+        versionPlugin=VERSION_PLUGIN,
+        minimumVersion=minimum_version(),
+        minimumMaya=MIN_MAYA_VERSION,
     )
 
 

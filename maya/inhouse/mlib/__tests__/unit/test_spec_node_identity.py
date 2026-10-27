@@ -7,7 +7,6 @@ getAssignedObjects・getMaterials・getExtraAttrs)が Node・Nodes から消え�
 """
 
 import unittest
-import uuid
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -16,40 +15,21 @@ import mlib
 mlib.reload()
 from mlib.nodes import DagNode, Node, Nodes, Transform
 from mlib.plugs import ArrayPlug, Plug
+from support.specCase import NamespaceCase
 
 
 REMOVED_NODE_METHODS = ("isChildOf", "getAttrCount", "getPath", "sameInstance", "getAssignedObjects",
                         "getMaterials", "getExtraAttrs")
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecNodeId_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-
-    def tearDown(self):
-        for name in cmds.ls(self.ns + ":*", long=True) or []:
-            if cmds.objExists(name) and cmds.lockNode(name, query=True, lock=True)[0]:
-                cmds.lockNode(name, lock=False)
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-
-    def name(self, text):
-        return self.ns + ":" + text
-
-    def make(self, kind="transform", text="node#", parent=None):
-        flags = {"name": self.name(text), "skipSelect": True}
-        if parent is not None:
-            flags["parent"] = parent
-        return cmds.createNode(kind, **flags)
+    PREFIX = "mlibSpecNodeId_"
+    UNLOCK_NODES = True
 
 
-class MfnTest(_NamespaceCase):
+class MfnTest(_SpecCase):
     """mfn() はクラスごとに最も具体的な om2 function set を毎回新しく返す。"""
 
     def test_node_returns_dependency_fn(self):
@@ -98,7 +78,7 @@ class MfnTest(_NamespaceCase):
         self.assertEqual([fn.name() for fn in result], [cmds.ls(name)[0] for name in names])
 
 
-class SetLockedTest(_NamespaceCase):
+class SetLockedTest(_SpecCase):
     """setLocked は通常 cmds.lockNode(Undo 1 回)、fast は MFnDependencyNode.isLocked 直接。"""
 
     def setUp(self):
@@ -182,7 +162,7 @@ class SetLockedTest(_NamespaceCase):
         self.assertEqual(cmds.lockNode(names, query=True, lock=True), [False, False])
 
 
-class GetPlugsTest(_NamespaceCase):
+class GetPlugsTest(_SpecCase):
     """getPlugs(userDefined, includeChildren, **listAttrFlags)。"""
 
     def setUp(self):
@@ -250,7 +230,7 @@ class GetPlugsTest(_NamespaceCase):
         self.assertEqual(names, ["a3", "a1", "a2"])
 
 
-class RemovedNamesTest(_NamespaceCase):
+class RemovedNamesTest(_SpecCase):
     """廃止した名前は Node・Nodes のどちらにも無い。"""
 
     def test_removed_from_node_class(self):

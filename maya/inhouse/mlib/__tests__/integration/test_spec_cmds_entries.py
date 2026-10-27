@@ -201,7 +201,7 @@ class CreateNodeSpecTest(_CmdsCase):
         self.assertEqual(child.getParent(), parent)
 
     def test_invalid_type_is_rejected_before_creation(self):
-        """未知の型名は作成前にRuntimeErrorで、unknownノードを作らない(FINDINGS C-03 で修正)。"""
+        """未知の型名は作成前にRuntimeErrorで、unknownノードを作らない。"""
         for fast in (False, True):
             with self.subTest(fast=fast):
                 before = set(cmds.ls(type="unknown") or [])
@@ -289,7 +289,7 @@ class DeleteSpecTest(_CmdsCase):
         self.assertTrue(all(cmds.objExists(name) for name in names))
 
     def test_attribute_name_string_is_rejected(self):
-        """アトリビュート名の文字列もPlugと同じく、何も削除せずTypeError(FINDINGS D-1 で修正)。"""
+        """アトリビュート名の文字列もPlugと同じく、何も削除せずTypeError。"""
         attribute_owner = cmds.createNode("transform", name=self.name("owner"))
         other = cmds.createNode("transform", name=self.name("other"))
         cube = cmds.polyCube(name=self.name("attrCube"), constructionHistory=False)[0]

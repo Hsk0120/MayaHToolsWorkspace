@@ -6,7 +6,6 @@ AimConstraint の角度は UI の角度単位によらず radian。設定は入�
 
 import math
 import unittest
-import uuid
 
 import maya.cmds as cmds
 
@@ -14,31 +13,16 @@ import mlib
 mlib.reload()
 from mlib.maths import EulerRotate
 from mlib.nodes import AimConstraint, HIKCharacterNode, Joint, Node
+from support.specCase import NamespaceCase
 
 
-class _NamespaceCase(unittest.TestCase):
-    """専用の一時名前空間でノードを作り、Undo の設定・角度単位・選択を元に戻す。"""
+class _SpecCase(NamespaceCase):
+    """このテストファイルの名前空間の先頭と、共通基底からの差分。"""
 
-    def setUp(self):
-        self.ns = "mlibSpecCRig_" + uuid.uuid4().hex[:12]
-        cmds.namespace(add=self.ns)
-        self.undo_state = cmds.undoInfo(query=True, state=True)
-        cmds.undoInfo(state=True)
-        self.angle = cmds.currentUnit(query=True, angle=True)
-        self.selection = cmds.ls(selection=True, long=True)
-
-    def tearDown(self):
-        cmds.currentUnit(angle=self.angle)
-        if cmds.namespace(exists=self.ns):
-            cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-        cmds.undoInfo(state=self.undo_state)
-        cmds.select(self.selection, replace=True) if self.selection else cmds.select(clear=True)
-
-    def name(self, text):
-        return self.ns + ":" + text
+    PREFIX = "mlibSpecNodeRig_"
 
 
-class AimOffsetTest(_NamespaceCase):
+class AimOffsetTest(_SpecCase):
     """getOffset・setOffset・getOutputRotate。"""
 
     def setUp(self):
@@ -90,7 +74,7 @@ class AimOffsetTest(_NamespaceCase):
         self.assertEqual(self.node.getOffset(), (0.0, 0.0, 0.0))
 
 
-class MirrorTargetTest(_NamespaceCase):
+class MirrorTargetTest(_SpecCase):
     """mirrorTarget の検査と Undo。"""
 
     def setUp(self):
@@ -132,7 +116,7 @@ class MirrorTargetTest(_NamespaceCase):
         self.assertEqual(set(self.node.getTargetDeltas(0)), before)
 
 
-class HumanIKDefinitionTest(_NamespaceCase):
+class HumanIKDefinitionTest(_SpecCase):
     """HIKCharacterNode の作成・定義割当の検査。"""
 
     def setUp(self):

@@ -17,7 +17,7 @@ __tests__/
 │  └─ test_static_*.py  通常のPythonで動くもの
 ├─ integration/      複数のmlib機能を組み合わせる結合テスト
 ├─ checks/           公開名・配置・生成文書の検査ツール
-├─ support/          GUI内の実行・プロセス監視の補助
+├─ support/          仕様テストの共通基底(specCase.py)、GUI内の実行・プロセス監視の補助
 ├─ manual/           自動実行しない個別確認・API調査
 └─ _output/          結果・ログ・専用Maya設定（Git対象外）
 ```
@@ -135,6 +135,24 @@ Mayaの起動・終了の異常や時間切れでは、取得できた例外と�
 通常Pythonで動くものは`unit/test_static_名前.py`とします。`runStatic.py`が検出し、
 Maya版ランナーはそのファイルを除外します。各テストは作ったノード・設定を後片付けしてください。
 他パッケージとの連携はmlib本体に混ぜず、利用側のリポジトリへ置きます。
+
+### 仕様テスト(test_spec_*.py)
+
+公開APIの約束を固定する仕様テストは、対象の領域ごとに次の名前にします。
+
+| 領域 | ファイル名 |
+|---|---|
+| 計算ノード | `test_spec_calc_<領域>.py` |
+| Plug | `test_spec_plug_<領域>.py` |
+| Node・DAG・Transform・Joint・Skin | `test_spec_node_*`・`test_spec_dag_*`・`test_spec_transform_*`・`test_spec_joint*`・`test_spec_skin*` |
+| common・components・core・decorator・maths・cmds | `test_spec_common_*`・`test_spec_components*`・`test_spec_core*`・`test_spec_decorator*`・`test_spec_maths*`・`test_spec_cmds_*` |
+
+Maya不要のものは`unit/test_static_spec_<領域>_<名前>.py`とします。
+一時名前空間でノードを作るテストは`from support.specCase import NamespaceCase`を基底にします。
+名前空間・Undoの設定・UI単位(linear・angle)・選択を終了時に元へ戻し、`name()`・`make()`・
+`flushUndo()`・`assertUndoesInOneStep()`・`assertUndoEmpty()`等の補助を持ちます。
+ファイルごとの差分は薄い派生クラスのクラス属性(`PREFIX`・`ENABLE_UNDO`・`CLEAR_SELECTION`・
+`UNLOCK_NODES`)と、そのファイルだけで使う作成の補助で表します。
 
 ## コードの書式を検査する
 

@@ -55,7 +55,7 @@ class RemoveJointsTest(unittest.TestCase):
             for skin in (actual, expected):
                 skin.setWeights([self.child, self.other], [0.75, 0.25])
             cmds.skinCluster(expected.getFullName(), edit=True, removeInfluence=self.child)
-            mlib.nodes.SkinClusters([actual]).removeInfluences(self.child, transfer_to_parent=transfer)
+            mlib.nodes.SkinClusters([actual]).removeInfluences(self.child, transferToParent=transfer)
             self.assertEqual(list(actual.getWeights([self.other])), list(expected.getWeights([self.other])))
             self.assertTrue(cmds.objExists(self.child))
 

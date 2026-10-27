@@ -4,6 +4,7 @@ import re
 from contextlib import contextmanager, nullcontext
 
 import maya.api.OpenMaya as om2
+import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from ..core.attributeType import attributeType, is_internal_data_type, value_reader
@@ -678,7 +679,8 @@ class Plug(Object):
         何もしない(muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはしない。
 
         Args:
-            fast (bool): Trueは未対応で、変更前にNotImplementedError。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新(:meth:`setMuted` と同じ条件。再現できない
+                場合は変更前にNotImplementedError)。
 
         Returns:
             Plug: 自身。
@@ -691,7 +693,8 @@ class Plug(Object):
         """ミュートを解除し、自身を返す。
 
         Args:
-            fast (bool): Trueは未対応で、変更前にNotImplementedError。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新(:meth:`setMuted` と同じ条件。再現できない
+                場合は変更前にNotImplementedError)。
 
         Returns:
             Plug: 自身。
@@ -811,19 +814,22 @@ class Plug(Object):
         return om2.MFnAttribute(self._mplug.attribute()).writable
 
     def isSettable(self):
-        """Maya標準のsettable照会で、現在値を設定可能か取得する。
+        """Maya標準のsettable照会と同じ基準で、現在値を設定可能か取得する。
 
-        定義上のwritableとは異なり、ロックや入力接続の現在状態を反映する。
+        ``maya.cmds.getAttr(settable=True)`` と同じ値を、``MPlug.isFreeToChange()`` で求める
+        (自身・親・子のロックと入力接続を反映する)。定義上の writable は判定に含まない
+        (cmds と同じく、``worldMatrix`` などの出力アトリビュートも True になる)。
         値の型・範囲や実行時エラーまで含めたset()の成功保証ではない。
 
         Returns:
-            bool: maya.cmds.getAttr(settable=True)の結果。
+            bool: 自身・親・子にロックも入力接続も無い場合は ``True``。
 
         Raises:
-            RuntimeError: 所有ノード・アトリビュートが無効、または照会に失敗した場合。
+            RuntimeError: 所有ノード・アトリビュートが無効な場合。
         """
         self._require_valid()
-        return bool(cmds.getAttr(self.getFullName(), settable=True))
+        # isFreeToChange は enum(kFreeToChange == 0)を返すため、bool 評価でなく比較で判定する。
+        return self._mplug.isFreeToChange() == om2.MPlug.kFreeToChange
 
     def isStorable(self):
         """シーンファイルへ値が保存されるアトリビュートか判定する。
@@ -1126,8 +1132,10 @@ class Plug(Object):
                 driver = mode if mode in (1, 2) else node.getPlug("currentDriver").get()
                 current = node.getPlug("i" + suffix + ("2" if driver == 2 else "1"))
                 continue
-            layers = cmds.listConnections(str(node) + ".message", s=False, d=True,
-                                          type="animLayer") or []
+            # listConnections(type="animLayer") と同じく、message の出力先の animLayer を接続順に集める。
+            targets = (om2.MFnDependencyNode(target.node())
+                       for target in node._dependency_fn().findPlug("message", False).destinations())
+            layers = [target.name() for target in targets if target.typeName == "animLayer"]
             if not layers or not node.hasAttr("inputA"):
                 break
             layer = layers[0]
@@ -1292,28 +1300,35 @@ class Plug(Object):
 
         アニメーションの無いチャンネルへのTrueは、Mayaが警告を出すだけで何もしない
         (muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはせず自身を返す。
+        複合アトリビュートは入力接続のある子だけを対象にする(``cmds.mute`` と同じ)。
+
+        ``fast=True`` は ``cmds.mute`` と同じ型・名前・接続・値(``holdTime`` は現在時刻、
+        ``hold`` は現在値の内部単位、``isHistoricallyInteresting`` は0)の mute ノードを
+        MDGModifier の1回の ``doIt`` で作成・接続し、Falseでは mute ノードを削除して元の入力を
+        つなぎ直す。Mayaの命名規則を再現できない場合(所有ノードが名前空間にある、現在の名前空間が
+        ルート以外、複合配列の子、ロック中、入力が unitConversion)は変更前に NotImplementedError にする。
 
         Args:
             state (bool): ミュートする場合はTrue。
-            fast (bool): Trueは未対応で、変更前にNotImplementedError。
+            fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
 
         Raises:
             TypeError: stateまたはfastがboolでない場合。
-            NotImplementedError: fast=Trueの場合。
+            NotImplementedError: fast=Trueで、上記の再現できない条件に当たる場合。
             RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibPlugSetMuted"):
-            if fast:
-                raise NotImplementedError("setMuted does not support fast=True")
             self._require_valid()
             if not isinstance(state, bool):
                 raise TypeError("state must be a bool")
-            if state:
+            if fast:
+                self._set_muted_direct(state)
+            elif state:
                 cmds.mute(self.getFullName())
             else:
                 cmds.mute(self.getFullName(), disable=True, force=True)
@@ -2839,6 +2854,101 @@ class Plug(Object):
                     raise TypeError(f"{name} must be bool or None")
                 flags[name] = value
         return flags
+
+    def _mute_targets(self):
+        """setMuted の fast 経路で扱うチャンネルを cmds.mute と同じ規則で集める。
+
+        Returns:
+            list[om2.MPlug]: 自身(非複合)、または入力接続のある子(複合)。
+
+        Raises:
+            NotImplementedError: 配列(要素でない)・複合配列の子・ロック中・名前空間付きの所有ノード・
+                ルート以外の現在の名前空間など、cmds.mute の命名・挙動を再現できない場合。
+        """
+        if self._mplug.isArray:
+            raise NotImplementedError("fast setMuted does not support array attributes")
+        if ":" in self._dependency_name() or om2.MNamespace.currentNamespace() != ":":
+            raise NotImplementedError("fast setMuted requires a node and current namespace in the root namespace")
+        if self._mplug.isCompound:
+            targets = [self._mplug.child(index) for index in range(self._mplug.numChildren())]
+            targets = [target for target in targets if target.isDestination]
+        else:
+            targets = [self._mplug]
+        for target in targets:
+            if target.isCompound or "." in target.partialName(useLongNames=True, useAlias=True):
+                raise NotImplementedError("fast setMuted does not support nested compound children")
+            current = target
+            while True:
+                if current.isLocked:
+                    raise NotImplementedError("fast setMuted does not support locked attributes")
+                if current.isChild:
+                    current = current.parent()
+                elif current.isElement:
+                    current = current.array()
+                else:
+                    break
+        return targets
+
+    def _dependency_name(self):
+        """所有ノードの短い名前(名前空間を含む)を返す。"""
+        return om2.MFnDependencyNode(self._mplug.node()).name()
+
+    def _set_muted_direct(self, state):
+        """setMuted の fast 経路。cmds.mute と同じ mute ノードを MDGModifier 1 回で作成・削除する。
+
+        Args:
+            state (bool): Trueはミュート、Falseは解除。
+
+        Raises:
+            NotImplementedError: :meth:`_mute_targets` が拒否した場合。変更前に送出する。
+        """
+        targets = self._mute_targets()
+        for target in targets:
+            # 変換ノードは接続を外すとMayaが自動で削除・付け替えるため、cmds.mute と同じ接続にできない。
+            source = target.sourceWithConversion()
+            if not source.isNull and om2.MFnDependencyNode(source.node()).typeName == "mute":
+                source = om2.MFnDependencyNode(source.node()).findPlug("input", False).sourceWithConversion()
+            if not source.isNull and source.node().hasFn(om2.MFn.kUnitConversion):
+                raise NotImplementedError("fast setMuted does not support unit conversion inputs: " + target.name())
+        modifier = om2.MDGModifier()
+        changed = False
+        for target in targets:
+            source = target.sourceWithConversion()
+            if state:
+                if source.isNull:
+                    if not self._mplug.isCompound:
+                        om2.MGlobal.displayWarning(
+                            "Skipping non-animated channel '{}'.".format(target.name()))
+                    continue
+                if om2.MFnDependencyNode(source.node()).typeName == "mute":
+                    # 既存の mute ノードは cmds.mute と同じく、現在時刻・現在値で固定し直す。
+                    mute_fn = om2.MFnDependencyNode(source.node())
+                else:
+                    mute = modifier.createNode("mute")
+                    name = target.partialName(useLongNames=True, useAlias=True)
+                    name = "mute_{}_{}".format(self._dependency_name(), re.sub(r"[\[\]]", "_", name))
+                    modifier.renameNode(mute, name)
+                    mute_fn = om2.MFnDependencyNode(mute)
+                    modifier.disconnect(source, target)
+                    modifier.connect(source, mute_fn.findPlug("input", False))
+                    modifier.connect(mute_fn.findPlug("output", False), target)
+                    modifier.newPlugValueInt(mute_fn.findPlug("isHistoricallyInteresting", False), 0)
+                modifier.newPlugValueMTime(mute_fn.findPlug("holdTime", False), oma2.MAnimControl.currentTime())
+                modifier.newPlugValueDouble(mute_fn.findPlug("hold", False), target.asDouble())
+                modifier.newPlugValueBool(mute_fn.findPlug("mute", False), True)
+                changed = True
+            elif not source.isNull and om2.MFnDependencyNode(source.node()).typeName == "mute":
+                mute = source.node()
+                original = om2.MFnDependencyNode(mute).findPlug("input", False).sourceWithConversion()
+                # 削除を接続より先に積む(connect の後に deleteNode を積むと doIt が失敗する)。
+                # mute.input 側の接続は deleteNode が外す。
+                modifier.disconnect(source, target)
+                modifier.deleteNode(mute)
+                if not original.isNull:
+                    modifier.connect(original, target)
+                changed = True
+        if changed:
+            modifier.doIt()
 
     def _require_writable(self):
         """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。

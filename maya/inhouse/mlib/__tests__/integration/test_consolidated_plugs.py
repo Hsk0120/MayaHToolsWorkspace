@@ -287,8 +287,11 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         plug.setMuted(True)
         with patch.object(cmds, "mute", side_effect=AssertionError("cmds mute query")):
             self.assertTrue(plug.isMuted())
-        with self.assertRaises(NotImplementedError):
+        # 2.1.0: fast の解除は MDGModifier で mute ノードを削除し、元の入力をつなぎ直す。
+        with patch.object(cmds, "mute", side_effect=AssertionError("cmds mute")):
             plug.setMuted(False, fast=True)
+        self.assertFalse(plug.isMuted())
+        plug.setMuted(True)
         plug.setMuted(False)
         self.assertFalse(plug.isMuted())
 

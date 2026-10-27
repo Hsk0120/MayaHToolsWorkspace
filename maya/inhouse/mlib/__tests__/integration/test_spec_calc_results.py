@@ -313,7 +313,7 @@ class BlendMatrixTest(_ResultCase):
             node.setTarget(matrix=matrix)
         with self.assertRaisesRegex(_ArgumentError, "Specify only one of 'index' and 'idx'"):
             node.getTarget(2, idx=2)
-        # fastは他のsetXxxと同じ意味で、Undoに残さず書く(FINDINGS A-8 で修正)。
+        # fastは他のsetXxxと同じ意味で、Undoに残さず書く。
         with self.assertRaisesRegex(TypeError, "fast must be a bool"):
             node.setTarget(3, matrix, fast=1)
         self.assertEqual(node.getTargetIndices(), [2])
@@ -366,7 +366,7 @@ class BlendMatrixTest(_ResultCase):
         cmds.undo()
         self.assertIsNone(cmds.listConnections(node.getFullName() + ".target[1].targetMatrix", source=True))
         # 接続のUndoでは、接続前からあった要素(weight=0.4)ごと消える。cmdsのconnectAttrのUndoと同じ
-        # Mayaの挙動(FINDINGS_A.md A-6)。
+        # Mayaの挙動。
         self.assertEqual(node.getTargetIndices(), [])
         node.setTarget(1, _trs((1, 0, 0)), 0.4)
         self.assertIs(node.removeTarget(idx=1), node)
@@ -497,7 +497,7 @@ class VectorNodesTest(_ResultCase):
                 node = mlib.createNode("angleBetween")
                 node.setInput(1, v1).setInput(2, v2)
                 self.assertAlmostEqual(node.getResult(), a.angle(b), places=6)
-                # getAxisはcmdsで評価する前から評価済みの値を返す(FINDINGS A-5 で修正)。
+                # getAxisはcmdsで評価する前から評価済みの値を返す。
                 expected = tuple((a ^ b).normal())
                 self.assertClose(node.getAxis(), expected)
                 self.assertClose(cmds.getAttr(node.getFullName() + ".axis")[0], expected)
@@ -505,7 +505,7 @@ class VectorNodesTest(_ResultCase):
                 self.assertClose(node.getRotate(), (euler.x, euler.y, euler.z))
 
     def test_angle_between_axis_without_cmds(self):
-        """getAxisはcmdsで評価しなくても評価済みの回転軸を返す(FINDINGS A-5 で修正)。
+        """getAxisはcmdsで評価しなくても評価済みの回転軸を返す。
 
         axisは複合axisAngleの子で、子Plugだけの読み取りでは再計算されなかった。
         入力の変更・接続元の変更のたびに新しい値になることも確かめる。

@@ -77,11 +77,11 @@ class Plugin:
         return self._name
 
     @classmethod
-    def ensureNodePlugin(cls, node_type):
+    def ensureNodePlugin(cls, nodeType):
         """指定ノード型が必要とする標準同梱プラグインをロードする。
 
         Args:
-            node_type (str): 作成するMayaノード型。HumanIK以外は何もしない。
+            nodeType (str): 作成するMayaノード型。HumanIK以外は何もしない。
 
         Returns:
             None: 値を返さない。
@@ -89,7 +89,7 @@ class Plugin:
         Raises:
             RuntimeError: Mayaがプラグインのロードを拒否した場合。
         """
-        if node_type in cls._HIK_NODE_TYPES:
+        if nodeType in cls._HIK_NODE_TYPES:
             cls("mayaHIK").ensureLoaded()
 
     @classmethod

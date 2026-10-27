@@ -1,7 +1,6 @@
 """CompoundPlug・Double3Plug・ArrayPlugの子・要素・値の約束を固定する。
 
-期待値はmaya.cmdsで独立に求めた値と比べる。食い違いは`.maya-output/mlib-spec-tests/FINDINGS_B.md`
-の番号をコメントに書き、実際の今の振る舞いを固定する。
+期待値はmaya.cmdsで独立に求めた値と比べる。
 """
 
 import math
@@ -126,7 +125,7 @@ class CompoundPlugSpecTest(_PlugSpecCase):
         """safeはロックされた子を失敗数に数え、書ける子は更新する。"""
         cmds.setAttr(self.name + ".second", lock=True)
         # 汎用の複合もDouble3Plugと同じく事前に全子の書込み可否を検査し、
-        # safe=Falseでは何も書かずに例外にする(FINDINGS B-10で修正)。
+        # safe=Falseでは何も書かずに例外にする。
         cmds.flushUndo()
         for ui_units in (False, True):
             with self.subTest(uiUnits=ui_units):
@@ -322,7 +321,7 @@ class ArrayPlugSpecTest(_PlugSpecCase):
                          [self.net_name + ".vals[2]", self.net_name + ".vals[5]"])
 
     def test_get_of_missing_element_creates_it(self):
-        """未作成の要素のget()は要素を作る(cmds.getAttrと同じ。FINDINGS B-7でdocstringに明記)。"""
+        """未作成の要素のget()は要素を作る(cmds.getAttrと同じ)。"""
         self.assertEqual(self.array[9].get(), 0.0)
         self.assertEqual(self.array.getIndices(), [9])
 

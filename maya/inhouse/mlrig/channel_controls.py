@@ -327,8 +327,8 @@ def refresh_jobs():
                     attr,
                     attribute=attr,
                     callback=partial(_changed, key),
-                    kill_with_scene=True,
-                    compress_undo=True,
+                    killWithScene=True,
+                    compressUndo=True,
                 )
         except Exception:
             jobs.stop()

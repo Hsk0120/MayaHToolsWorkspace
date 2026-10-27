@@ -73,7 +73,7 @@ class TargetWorkflowTest(unittest.TestCase):
         self.bs.addInBetween(self.weight, half, 0.5)
         self.assertEqual(self.bs.getInBetweenWeights(self.weight), [0.5])
         replacement = mlib.getNode(cmds.duplicate(half.getFullName())[0])
-        self.bs.replaceTarget(self.weight, replacement, full_weight=0.5)
+        self.bs.replaceTarget(self.weight, replacement, fullWeight=0.5)
         self.bs.removeInBetween(self.weight, 0.5)
         self.assertEqual(self.bs.getInBetweenWeights(self.weight), [])
         copied = self.bs.duplicateTarget(self.weight, alias="copy")
@@ -84,10 +84,10 @@ class TargetWorkflowTest(unittest.TestCase):
         self.assertEqual(self.bs.getTargetIndices(), [0])
 
     def test_target_edit_false_ignores_invalid_target_reference(self):
-        """編集終了は以前どおりtargetとfull_weightを使用しない。"""
+        """編集終了は以前どおりtargetとfullWeightを使用しない。"""
         with mock.patch("mlib.nodes.blendShape.cmds.sculptTarget") as sculpt:
             self.assertIs(self.bs.targetEdit(self.target.getPlug("tx"), state=False,
-                                             full_weight=object()), self.bs)
+                                             fullWeight=object()), self.bs)
             self.assertEqual(sculpt.call_args[1]["target"], -1)
 
 
@@ -99,7 +99,7 @@ class TargetWorkflowTest(unittest.TestCase):
         before = self.point()
         shapes = set(cmds.ls(type="mesh", long=True))
         transforms = set(cmds.ls(type="transform", long=True))
-        copied = self.bs.addTargetDeltas({0: (0, 3, 0)}, weight_index=4, alias="deltaOnly")
+        copied = self.bs.addTargetDeltas({0: (0, 3, 0)}, weightIndex=4, alias="deltaOnly")
         self.assertEqual(self.bs.getTargetIndices(), [0, 4])
         self.assertEqual(copied.get(), 0)
         self.assertEqual(self.bs.getTargetDeltas(copied)[0], mlib.maths.Vector(0, 3, 0))
@@ -154,7 +154,7 @@ class TargetWorkflowTest(unittest.TestCase):
     def test_add_delta_preflight_and_failure_cleanup(self):
         """不正入力は作成前、登録途中の例外は一時shapeとtargetを巻き戻す。"""
         before = set(cmds.ls(long=True))
-        for flags in ({"alias": "smile"}, {"weight_index": 0}, {"alias": "bad.alias"}):
+        for flags in ({"alias": "smile"}, {"weightIndex": 0}, {"alias": "bad.alias"}):
             with self.assertRaises(ValueError):
                 self.bs.addTargetDeltas({0: (0, 1, 0)}, **flags)
             self.assertEqual(set(cmds.ls(long=True)), before)

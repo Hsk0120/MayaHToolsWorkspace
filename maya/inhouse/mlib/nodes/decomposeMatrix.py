@@ -82,12 +82,13 @@ class DecomposeMatrix(Node):
             self.getPlug("inputRotateOrder").set(orderIndex(order), fast=fast)
             return self
 
-    def connectInput(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectInput(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """マトリクスPlugを入力へ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元のマトリクスPlug。 別名 ``src`` も使用可能。
             force (bool): 既存入力を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -95,7 +96,7 @@ class DecomposeMatrix(Node):
             DecomposeMatrix: 自身。
 
         Raises:
-            TypeError: sourceがPlug・名前・MPlugのいずれでもない、または名前がアトリビュートを指していない場合。
+            TypeError: fastがbool以外、またはsourceがPlug・名前・MPlugのいずれでもない、または名前がアトリビュートを指していない場合。
             ValueError: sourceが空文字列または空のMPlugの場合。
             RuntimeError: 名前を解決できない場合、または型不一致などでMayaが接続を拒否した場合。
         """
@@ -111,8 +112,10 @@ class DecomposeMatrix(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
         from ..plugs.plug import Plug
         source = Plug._resolve_input(source)
-        with undoChunk("mlibDecomposeMatrixConnectInput"):
-            source.connectTo(self.getPlug("inputMatrix"), force=force)
+        with nullcontext() if fast else undoChunk("mlibDecomposeMatrixConnectInput"):
+            source.connectTo(self.getPlug("inputMatrix"), force=force, fast=fast)
             return self

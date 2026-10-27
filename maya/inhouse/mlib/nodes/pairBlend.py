@@ -46,12 +46,13 @@ class PairBlend(Node):
             _Calculation.set_value(value, _Calculation.scalar, self.getWeightPlug, fast=fast)
             return self
 
-    def connectWeight(self, source=_UNSET, force=_UNSET, *, src=_UNSET, f=_UNSET):
+    def connectWeight(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
         """ブレンドウェイトへ接続する。
 
         Args:
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
 
@@ -70,8 +71,10 @@ class PairBlend(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getWeightPlug, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getWeightPlug, force=force, fast=fast)
             return self
 
     def getRotateInterpolation(self):
@@ -186,13 +189,14 @@ class PairBlend(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getTranslatePlug, index, fast=fast)
             return self
 
-    def connectTranslate(self, index=_UNSET, source=_UNSET, force=_UNSET, *, idx=_UNSET, src=_UNSET, f=_UNSET):
+    def connectTranslate(self, index=_UNSET, source=_UNSET, force=_UNSET, *, fast=False, idx=_UNSET, src=_UNSET, f=_UNSET):
         """translate入力（cm）へ接続する。
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -218,8 +222,10 @@ class PairBlend(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getTranslatePlug, index, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getTranslatePlug, index, force=force, fast=fast)
             return self
 
     def getRotatePlug(self, index=_UNSET, *, idx=_UNSET):
@@ -284,13 +290,14 @@ class PairBlend(Node):
             _Calculation.set_value(value, _Calculation.vector, self.getRotatePlug, index, fast=fast)
             return self
 
-    def connectRotate(self, index=_UNSET, source=_UNSET, force=_UNSET, *, idx=_UNSET, src=_UNSET, f=_UNSET):
+    def connectRotate(self, index=_UNSET, source=_UNSET, force=_UNSET, *, fast=False, idx=_UNSET, src=_UNSET, f=_UNSET):
         """rotate入力（rad）へ接続する。
 
         Args:
             index (int): 入力番号1または2。 別名 ``idx`` も使用可能。
             source (Plug | str | MPlug): 接続元。 別名 ``src`` も使用可能。
             force (bool): 既存接続を置き換えるか。 別名 ``f`` も使用可能。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             idx (int): indexの別名。同時指定は不可。
             src (Plug | str | MPlug): sourceの別名。同時指定は不可。
             f (bool): forceの別名。同時指定は不可。
@@ -316,8 +323,10 @@ class PairBlend(Node):
             raise _ArgumentError("Missing required argument: 'source'")
         if force is _UNSET:
             force = False
-        with undoChunk("mlibCalculationEdit"):
-            _Calculation.connect(source, self.getRotatePlug, index, force=force)
+        if not isinstance(fast, bool):
+            raise TypeError("fast must be a bool")
+        with nullcontext() if fast else undoChunk("mlibCalculationEdit"):
+            _Calculation.connect(source, self.getRotatePlug, index, force=force, fast=fast)
             return self
 
     def getOutputPlug(self, kind="translate"):
