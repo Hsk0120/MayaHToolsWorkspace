@@ -65,7 +65,7 @@ class ClassDesignTest(unittest.TestCase):
         empty = Transforms()
         self.assertIs(empty.setTranslate((0, 0, 0), at=4), empty)
         self.assertEqual(empty.getTranslate(at=4), [])
-        self.assertIs(nodes.freeze(), nodes)
+        self.assertIs(nodes.makeIdentity(apply=True, t=True, r=True, s=True), nodes)
 
     def test_bulk_requires_declaration(self):
         """単数クラスへのメソッド追加だけでは公開範囲が広がらない。"""

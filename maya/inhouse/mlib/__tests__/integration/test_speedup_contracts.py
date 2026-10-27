@@ -9,7 +9,7 @@ Nodesの重複判定の省略と、influence・displayLayer・shadingEngineの�
 ArrayPlug.getの要素ラッパーの省略、BlendShapeのtargetWeightsの範囲setAttr、Vectorの演算結果の複製も対象とする。
 fast=Trueの経路で重ねていた書込み可否の検査・名前の取得・ラッパー生成の入口の省略も対象とする。
 ノード・Plugのラッパー作成での関数セットの使い回し・ハンドルの共有・__init__の直接展開も対象とする。
-Node.getConnectionsの自身側Plugの省略、getHistoryのUUIDの1回取得、getExtraAttrsのattributeClassでの選別、
+Node.getConnectionsの自身側Plugの省略、getHistoryのUUIDの1回取得、getPlugs(userDefined=True)の選別、
 Container.removeMembersの集合での所属判定、Container/Namespaceの列挙結果から直接作るラッパーも対象とする。
 拡張の探索で名前の一致しない探索パスのパッケージ判定を省くことと、import時に読まない標準モジュールも対象とする。
 Matrixの生成で循環importを省く入力の型と、TransformのsetMatrixでrotateAxisを1回だけ読むことも対象とする。
@@ -230,7 +230,7 @@ class ChildWrapperAndBulkTest(unittest.TestCase):
         for child in children:
             # 入力解決を省いても、Node(MDagPath)と同じ型・同じインスタンスのパスになる。
             self.assertIs(type(child), type(mlib.getNode(child.mpath())))
-            self.assertTrue(child.sameInstance(mlib.getNode(child.mpath())))
+            self.assertEqual(child, mlib.getNode(child.mpath()))
             self.assertTrue(child.isValid())
         self.assertIsInstance(root.getChildren()[0], mlib.nodes.Joint)
 
@@ -495,8 +495,6 @@ class DisconnectCreateDeleteTest(unittest.TestCase):
         shared = mlib.createNode("multiplyDivide", name=self.ns + ":sh", fast=True)
         again = mlib.createNode("multiplyDivide", name=self.ns + ":sh", shared=True, skipSelect=True, fast=True)
         self.assertTrue(again.sameNode(shared))
-        with self.assertRaises(TypeError):
-            mlib.nodes.Joint.create("transform", fast=True)
 
     def test_fast_delete_parent_and_child(self):
         """fast削除で親子を両方渡しても、先行する親の下の子は重ねて検証しない。"""
@@ -1225,16 +1223,12 @@ class FastPathOverheadTest(unittest.TestCase):
         self.assertFalse(cmds.isConnected(a + ".tx", b + ".tx"))
 
     def test_create_and_delete_fast_wrappers(self):
-        from mlib.nodes import Joint, Transform
         cmds.namespace(setNamespace=self.ns)
         try:
-            created = [Transform.create("joint", fast=True), mlib.createNode("locator", name="loc", fast=True),
+            created = [mlib.createNode("joint", fast=True), mlib.createNode("locator", name="loc", fast=True),
                        mlib.createNode("multiplyDivide", fast=True)]
-            with self.assertRaises(TypeError) as caught:
-                Joint.create("transform", fast=True)
         finally:
             cmds.namespace(setNamespace=":")
-        self.assertEqual(str(caught.exception), "Joint requires a compatible node, got Transform")
         for node in created:
             expected = mlib.getNode(node.getFullName())
             self.assertIs(type(node), type(expected))
@@ -1306,7 +1300,10 @@ class WrapperCreationCostTest(unittest.TestCase):
         from mlib.nodes.node import Node
         registry = Node._registry
         name = cmds.createNode("animBlendNodeAdditive", name=self.ns + ":abn")
-        self.assertIs(type(mlib.getNode(name)), Node)
+        # 未登録型は動的クラス(型名の先頭を大文字にした名前)になる。登録表の変更で生成キャッシュは無効化される。
+        generated = mlib.getNode(name)
+        self.assertEqual(type(generated).__name__, "AnimBlendNodeAdditive")
+        self.assertIsInstance(generated, Node)
         snapshot = registry._snapshot()
 
         class Probe(Node):
@@ -1318,7 +1315,10 @@ class WrapperCreationCostTest(unittest.TestCase):
             self.assertIs(type(mlib.ls(name)[0]), Probe)
         finally:
             registry._restore(snapshot)
-        self.assertIs(type(mlib.getNode(name)), Node)
+        restored = mlib.getNode(name)
+        self.assertEqual(type(restored).__name__, "AnimBlendNodeAdditive")
+        self.assertIsInstance(restored, Node)
+        self.assertNotIsInstance(restored, Probe)
 
     def test_plug_handle_shared_with_validity(self):
         node = cmds.createNode("transform", name=self.ns + ":p")
@@ -1437,10 +1437,10 @@ class ConnectionHistoryAttrListTest(unittest.TestCase):
                 if definition.dynamic and (include_children or definition.parent.isNull()):
                     expected.append(definition.name)
             with self.subTest(include_children=include_children):
-                self.assertEqual(node.getExtraAttrs(include_children, asNames=True), expected)
-                self.assertEqual([p.getLongName() for p in node.getExtraAttrs(include_children)], expected)
+                self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=include_children)], expected)
+                self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=include_children)], expected)
                 self.assertNotIn(self.extension, expected)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ["dynM", "dynV", "late"])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ["dynM", "dynV", "late"])
 
     def test_container_membership_and_namespace_nodes(self):
         from mlib.common.namespace import Namespace
@@ -1507,7 +1507,7 @@ class ConnectionHistoryAttrListTest(unittest.TestCase):
         for mp in node._dependency_fn().getConnections():
             pairs.extend(Plug(node, mp).getConnections(asPair=True, checkChildren=False,
                                                        checkElements=False, **flags))
-        return Plug._connection_results(pairs, node_type, exact, as_pair, as_node, index, None)
+        return Plug._connection_results(pairs, node_type, exact, as_pair, as_node, index)
 
 
 class ImportCostTest(unittest.TestCase):

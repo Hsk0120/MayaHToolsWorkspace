@@ -40,7 +40,7 @@ class ConsolidatedNodesTest(unittest.TestCase):
         previous = cmds.undoInfo(query=True, undoName=True)
         with self.api_only():
             node = mlib.createNode("network", n="direct", skipSelect=True, fast=True)
-            transform = mlib.nodes.Node.create("transform", name="directTransform", fast=True)
+            transform = mlib.createNode("transform", name="directTransform", fast=True)
             shape = mlib.createNode("mesh", parent=transform, name="directShape", fast=True)
             self.assertEqual(shape.getType(), "mesh")
             self.assertEqual(shape.getParent(), transform)
@@ -68,8 +68,8 @@ class ConsolidatedNodesTest(unittest.TestCase):
             enum = node.addAttr("mode", "enum", enumName="zero:three=3:four", defaultValue=3, fast=True)
             self.assertEqual(enum.getEnumName(), "three")
             node.resetAttrs(["amount"], fast=True)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ["amount", "ignored", "offset", "label", "mode"])
-        self.assertEqual(len(node.getExtraAttrs()), 5)
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ["amount", "ignored", "offset", "label", "mode"])
+        self.assertEqual(len(node.getPlugs(userDefined=True, includeChildren=False)), 5)
         for obsolete in ("getInputs", "getOutputs", "getExtraAttrNames"):
             self.assertFalse(hasattr(type(node), obsolete))
 

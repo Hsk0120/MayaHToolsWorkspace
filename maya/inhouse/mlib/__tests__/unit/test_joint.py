@@ -223,14 +223,14 @@ class JointTest(unittest.TestCase):
         self.assertEqual(mid.getDepth(), 1)
         self.assertEqual(leaf.getDepth(), 2)
 
-        self.assertTrue(root.isJoint())
+        self.assertIsInstance(root, Joint)
 
-        non_joint = Node.create(type="transform", name="mlibJointNonJoint")
+        non_joint = mlib.createNode(type="transform", name="mlibJointNonJoint")
         self.created.append(non_joint.getName())
         self.assertNotIsInstance(non_joint, Joint)
 
     def test_parent_returns_none_when_parent_is_not_a_joint(self):
-        transform_parent = Node.create(type="transform", name="mlibJointTransformParent")
+        transform_parent = mlib.createNode(type="transform", name="mlibJointTransformParent")
         self.created.append(transform_parent.getName())
         joint = self.create_joint("mlibJointUnderTransform")
         cmds.parent(joint.getName(), transform_parent.getName())

@@ -91,7 +91,7 @@ class Joint(Transform):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibJointsJointOrientToRotate"):
-            if not self.isJoint():
+            if not self.isValid():
                 raise RuntimeError("Cannot change orientation of an invalid joint")
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(), fast=fast)
             return self
@@ -119,7 +119,7 @@ class Joint(Transform):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibJointsFreezeRotation"):
-            if not self.isJoint():
+            if not self.isValid():
                 raise RuntimeError("Cannot freeze rotation of an invalid joint")
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True, fast=fast)
             return self
@@ -300,14 +300,6 @@ class Joint(Transform):
             current_joint = Joint(current_joint).getParentJointName()
         return depth
 
-    def isJoint(self):
-        """ラップ対象が joint か判定する。
-
-        Returns:
-            bool: 有効な joint の場合は ``True``。
-        """
-        return self.isValid() and self.mnode().hasFn(om2.MFn.kJoint)
-
     def getSkinClusters(self):
         """この joint に接続する skinCluster を取得する。
 
@@ -361,7 +353,7 @@ class Joint(Transform):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibJointRemoveInfluence"):
             from .skinCluster import SkinCluster
-            if not self.isJoint():
+            if not self.isValid():
                 raise RuntimeError("Cannot remove an invalid joint influence")
             if not isinstance(transfer_to_parent, bool):
                 raise TypeError("transfer_to_parent must be a bool")
@@ -507,7 +499,7 @@ class Joint(Transform):
         Raises:
             RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
         """
-        if not self.isJoint():
+        if not self.isValid():
             raise RuntimeError("Cannot change orientation of an invalid joint")
         orient = self._compound_values("jointOrient", angle=True)
         rotate = self._compound_values("rotate", angle=True)
@@ -694,7 +686,6 @@ class Joints(Transforms):
         "getParentJointName": (Joint.getParentJointName, "list"),
         "getChildJointNames": (Joint.getChildJointNames, "list"),
         "getDepth": (Joint.getDepth, "list"),
-        "isJoint": (Joint.isJoint, "list"),
         "getSkinClusters": (Joint.getSkinClusters, "list"),
         "getTransferTarget": (Joint.getTransferTarget, "list"),
         "reparentChildren": (Joint.reparentChildren, "list"),
@@ -844,20 +835,6 @@ class Joints(Transforms):
         return self._dispatch_shared("getDepth", args, kwargs)
 
     getDepth.__signature__ = inspect.signature(Joint.getDepth)
-
-    def isJoint(self, *args, **kwargs):
-        """各要素のisJointを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isJoint", args, kwargs)
-
-    isJoint.__signature__ = inspect.signature(Joint.isJoint)
 
     def getTransferTarget(self, *args, **kwargs):
         """各要素のgetTransferTargetを同じ引数で呼び、保持順の戻り値リストを返す。

@@ -88,7 +88,7 @@ class BlendShape(Node):
                 変形対象の base geometry(target と同じ規則で所有ノードへ解決する)。
                 省略時は getGeometry() の先頭を使う。
             weight_index (int | None): 使用する weight 配列インデックス。省略時は
-                空いている最小のインデックス(``getPlug("weight").getNextAvailableIndex()``)
+                空いている最小のインデックス(``getPlug("weight").getNextAvailable(vacant=True)``)
                 を自動で使う。
             full_weight (float): このターゲットが完全に効いた状態(既定 1.0)の
                 weight 値。
@@ -112,7 +112,7 @@ class BlendShape(Node):
         else:
             base_name = _InputNode._input_name(base)
         if weight_index is None:
-            weight_index = self.getPlug("weight").getNextAvailableIndex()
+            weight_index = self.getPlug("weight").getNextAvailable(vacant=True)
         cmds.blendShape(
             self.getName(), edit=True,
             target=(base_name, weight_index, target_name, full_weight),

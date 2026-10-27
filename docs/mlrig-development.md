@@ -50,7 +50,7 @@ def set_layer_enabled(self, layer, enabled):
 - 操作シェイプは`mlrig.setups.ControlShape`、単位境界は`mlib.common.units`を使う。
   Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
   空間指定は`mlib.maths.MSpace`の定数を使う。
-  型名が必要な場合は`Plug.getDataType()`を使用する（`Plug.getType()`はPythonクラス）。
+  型名が必要な場合は`Plug.getType()`を使用する（Mayaのアトリビュート型名を返す。Pythonクラスは`type(plug)`）。
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはmlrigの責務とする。
 - 単位なし標準DG演算は`mlib.common.scalarGraph.ScalarGraph`、Soft IKは`mlrig.setups.SoftIK`。

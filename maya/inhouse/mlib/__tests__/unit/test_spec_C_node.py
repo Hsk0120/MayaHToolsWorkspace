@@ -1,8 +1,9 @@
 """Node 単数の公開APIの約束(仕様)を固定する(担当C)。
 
-対象: 型の選択(登録型・登録祖先型・フォールバック・不一致の拒否)、create=True と Node.create の
-作成と拒否、同一性(sameNode・sameInstance・==・hash)、型の照会(getTypeId・getPluginName・
-getClassification・isType・isLocked・isFromReferencedFile・getAttrCount)、名前とパス、
+対象: 型の選択(登録型・未登録型の Maya 継承に沿った選択・フォールバック・不一致の拒否)、作成経路が
+無いこと(作成は mlib.createNode。その仕様は test_spec_cmds_createNode.py)、同一性(sameNode・
+==・hash)、型の照会(getType(inherited=)・hasFn・getTypeId・getPluginName・
+getClassification・isType・isLocked・isFromReferencedFile・mfn)、名前とパス、
 namespace の移動と rename、アトリビュートの照会と既定値への復帰・フラグ変更、接続と履歴の照会、
 削除済み(Undo の記録に残る)ノードと破棄済みノードの扱い。
 
@@ -18,7 +19,7 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.common import Namespace
-from mlib.nodes import DagNode, Joint, Mesh, Node, Reflect, Shape, SkinCluster, Transform
+from mlib.nodes import DagNode, Joint, Mesh, Node, Nodes, Reflect, Shape, SkinCluster, Transform
 from mlib.plugs import Plug
 
 
@@ -54,7 +55,11 @@ class _NamespaceCase(unittest.TestCase):
 
 
 class TypeSelectionTest(_NamespaceCase):
-    """nodeType から登録型・登録祖先型・Node を選び、具体クラスの指定では非互換を拒否する。"""
+    """nodeType から登録型・Maya の継承に沿ったクラス・Node を選び、具体クラスの指定では非互換を拒否する。
+
+    未登録型のクラスは登録表の規則(登録祖先型、または動的に生成したその派生クラス)で決まるため、
+    クラスの同一性ではなく isinstance と登録表の結果で比べる。
+    """
 
     def test_registered_exact_types(self):
         """登録された nodeType はそのクラスで包む。"""
@@ -63,30 +68,36 @@ class TypeSelectionTest(_NamespaceCase):
         self.assertIs(type(Node(self.make("mesh", parent=self.make()))), Mesh)
 
     def test_registered_ancestor_type(self):
-        """未登録の型は最も近い登録祖先型で包む(anisotropic は reflect)。"""
+        """未登録の型は最も近い登録祖先型の派生になる(anisotropic は reflect の派生)。"""
         shader = cmds.shadingNode("anisotropic", asShader=True, name=self.name("aniso"))
-        self.assertIs(type(Node(shader)), Reflect)
+        node = Node(shader)
+        self.assertIsInstance(node, Reflect)
+        self.assertIs(type(node), Node._registry.wrapper_class("anisotropic"))
+        self.assertEqual(node.getType(), "anisotropic")
 
-    def test_unregistered_types_fall_back_to_registered_dag_bases(self):
-        """登録祖先が無い DAG 型は DagNode・Shape、DG 型は Node になる(FINDINGS C-01 で修正)。"""
-        self.assertIs(type(Node(self.make("network"))), Node)
+    def test_unregistered_types_follow_maya_inheritance(self):
+        """登録祖先が無い DAG 型は DagNode・Shape の派生、DG 型は Node の派生になり、getType は Maya の型名。"""
+        network = Node(self.make("network"))
+        self.assertIsInstance(network, Node)
+        self.assertNotIsInstance(network, DagNode)
+        self.assertEqual(network.getType(), "network")
         light = self.make("pointLight", "light#", parent=self.make())
         node = Node(light)
-        self.assertIs(type(node), Shape)
-        self.assertEqual(node.getFullPath(), cmds.ls(light, long=True)[0])
-        self.assertEqual(node.getParent().getFullPath(), cmds.listRelatives(light, parent=True, fullPath=True)[0])
+        self.assertIsInstance(node, Shape)
+        self.assertEqual(node.getType(), "pointLight")
+        self.assertEqual(node.getFullName(), cmds.ls(light, long=True)[0])
+        self.assertEqual(node.getParent().getFullName(), cmds.listRelatives(light, parent=True, fullPath=True)[0])
         self.assertFalse(node.isRoot())
-        # shape・transform 以外の DAG 型(unknownDag 等、dagNode の直接の派生)は DagNode。
+        # shape・transform 以外の DAG 型(unknownDag 等、dagNode の直接の派生)は DagNode の派生。
         registry = Node._registry
         self.assertIs(registry.wrapper_class("dagNode"), DagNode)
         self.assertIs(registry.wrapper_class("shape"), Shape)
-        self.assertIs(registry.wrapper_class("unknownDag"), DagNode)
-        self.assertIs(registry.wrapper_class("pointLight"), Shape)
-        self.assertIs(registry.wrapper_class("network"), Node)
-        # 抽象型の dagNode・shape は登録されていても作成しない。
-        with self.assertRaises(TypeError):
-            DagNode(self.name("abstractDag"), create=True)
-        self.assertFalse(cmds.objExists(self.name("abstractDag")))
+        self.assertTrue(issubclass(registry.wrapper_class("unknownDag"), DagNode))
+        self.assertFalse(issubclass(registry.wrapper_class("unknownDag"), Transform))
+        self.assertTrue(issubclass(registry.wrapper_class("pointLight"), Shape))
+        self.assertTrue(issubclass(registry.wrapper_class("network"), Node))
+        self.assertFalse(issubclass(registry.wrapper_class("network"), DagNode))
+        self.assertIs(type(node), registry.wrapper_class("pointLight"))
 
     def test_concrete_class_accepts_subclass_and_rejects_others(self):
         """具体クラスの指定は派生型を受け、非互換は TypeError(差し替えない)。"""
@@ -124,136 +135,40 @@ class TypeSelectionTest(_NamespaceCase):
                     Node(value)
 
 
-class ConstructorCreateTest(_NamespaceCase):
-    """create=True の作成・拒否と、作成前に拒否した場合にノードを残さないこと。"""
+class NoCreationPathTest(_NamespaceCase):
+    """Node は取得専用で、Node.create と create キーワードは無い(作成は mlib.createNode)。"""
 
-    def test_create_and_undo_once(self):
-        """登録型は指定名で作成し、1回の Undo で取り消せる。"""
-        cmds.flushUndo()
-        joint = Joint(self.name("created"), create=True)
-        self.assertIs(type(joint), Joint)
-        self.assertEqual(joint.getName(), self.name("created"))
-        cmds.undo()
-        self.assertFalse(cmds.objExists(self.name("created")))
+    def test_create_classmethod_is_absent(self):
+        """Node・派生クラス・Nodes に create は無い。"""
+        for wrapper in (Node, DagNode, Transform, Joint, Mesh, SkinCluster, Nodes):
+            with self.subTest(wrapper=wrapper.__name__):
+                self.assertFalse(hasattr(wrapper, "create"))
+                with self.assertRaises(AttributeError):
+                    wrapper.create
 
-    def test_name_clash_uses_maya_numbering(self):
-        """同名があれば Maya の連番名で作る。"""
-        self.make("transform", "same")
-        node = Transform(self.name("same"), create=True)
-        self.assertNotEqual(node.getName(), self.name("same"))
-        self.assertTrue(node.getName().startswith(self.name("same")))
-
-    def test_rejected_before_creation(self):
-        """型の決まらないクラス・bind が必要なクラス・不正な引数はノードを作らずに拒否する。"""
+    def test_create_keyword_is_rejected_before_resolution(self):
+        """create= は存在しない名前でも TypeError(RuntimeError より先)で、ノードを作らない。"""
         before = set(cmds.ls())
-        with self.assertRaisesRegex(TypeError, "exactly one Maya nodeType: Node"):
-            Node(self.name("a"), create=True)
-        with self.assertRaisesRegex(TypeError, "SkinCluster cannot be initialized"):
-            SkinCluster(self.name("b"), create=True)
+        for wrapper in (Node, Transform, Joint, SkinCluster):
+            for value in (True, False):
+                with self.subTest(wrapper=wrapper.__name__, create=value):
+                    with self.assertRaises(TypeError):
+                        wrapper(self.name("notCreated"), create=value)
         with self.assertRaises(TypeError):
-            Joint(self.name("c"), create=True, unknown=1)
-        with self.assertRaisesRegex(TypeError, "create must be a bool"):
-            Joint(self.name("d"), create=1)
-        with self.assertRaisesRegex(TypeError, "requires a node name string"):
-            Joint(Node(self.make()), create=True)
-        with self.assertRaisesRegex(ValueError, "non-empty node name"):
-            Joint("", create=True)
-        # 先の Node(self.make()) で作った1つ以外、何も残さない。
-        self.assertEqual(len(set(cmds.ls()) - before), 1)
-        self.assertFalse(cmds.ls(self.ns + ":a", self.ns + ":b", self.ns + ":c", self.ns + ":d"))
-
-
-class NodeCreateTest(_NamespaceCase):
-    """classmethod create の引数検査・fast・型の検査。"""
-
-    def test_argument_errors(self):
-        """type の不正は ValueError、長短名の競合・fast の型は TypeError、空の parent は ValueError。"""
-        for value in ("", 5, None):
-            with self.subTest(type=value):
-                with self.assertRaisesRegex(ValueError, "type must be a non-empty string"):
-                    Node.create(value)
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'name' and 'n'"):
-            Node.create("transform", name=self.name("a"), n=self.name("b"))
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'parent' and 'p'"):
-            Node.create("transform", parent=self.make(), p=self.make())
-        with self.assertRaisesRegex(TypeError, "fast must be a bool"):
-            Node.create("transform", fast=1)
-        with self.assertRaises(ValueError):
-            Node.create("transform", parent="")
-        with self.assertRaises(RuntimeError):
-            Node.create("transform", parent=self.name("missing"))
-
-    def test_parent_and_type(self):
-        """parent に Node を渡すとその下に作り、型に合うラッパーを返す。"""
-        parent = Node(self.make())
-        child = Node.create("joint", name=self.name("child"), parent=parent)
-        self.assertIs(type(child), Joint)
-        self.assertTrue(parent.isParentOf(child))
-        self.assertIs(type(Transform.create("joint", name=self.name("j2"))), Joint)
-
-    def test_fast_is_not_recorded(self):
-        """fast=True は Undo に記録しない。通常は1回の Undo で消える。"""
-        cmds.flushUndo()
-        Node.create("transform", name=self.name("fast"), fast=True)
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        Node.create("transform", name=self.name("normal"))
-        cmds.undo()
-        self.assertTrue(cmds.objExists(self.name("fast")))
-        self.assertFalse(cmds.objExists(self.name("normal")))
-
-    def test_incompatible_class_raises_before_creation(self):
-        """具体クラスと非互換な型は作成前に TypeError で、ノードを残さない(FINDINGS C-02 で修正)。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                cmds.flushUndo()
-                name = self.name("leakFast" if fast else "leak")
-                with self.assertRaisesRegex(TypeError, "Joint requires a compatible node, got Transform"):
-                    Joint.create("transform", name=name, fast=fast)
-                self.assertFalse(cmds.objExists(name))
-                self.assertFalse(cmds.ls(self.name("leak*")))
-                self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        with self.assertRaisesRegex(TypeError, "Mesh requires a compatible node, got Joint"):
-            Mesh.create("joint", name=self.name("leakJoint"))
-        self.assertFalse(cmds.objExists(self.name("leakJoint")))
-        # 派生型の作成は従来どおり受け付ける。
-        self.assertIs(type(Transform.create("joint", name=self.name("okJoint"))), Joint)
-
-    def test_unknown_type_is_rejected_before_creation(self):
-        """未知の nodeType は作成前に RuntimeError で、unknown ノードを作らない(FINDINGS C-03 で修正)。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                before = set(cmds.ls(type="unknown") or [])
-                name = self.name("unknownFast" if fast else "unknownType")
-                with self.assertRaisesRegex(RuntimeError, "Unknown Maya nodeType: mlibSpecNoSuchType"):
-                    Node.create("mlibSpecNoSuchType", name=name, fast=fast)
-                with self.assertRaisesRegex(RuntimeError, "Unknown Maya nodeType"):
-                    mlib.createNode("mlibSpecNoSuchType", name=name, fast=fast)
-                self.assertFalse(cmds.objExists(name))
-                self.assertEqual(set(cmds.ls(type="unknown") or []), before)
-        # 具体クラスでも、型の互換より先に未知の型名を報告する。
-        with self.assertRaisesRegex(RuntimeError, "Unknown Maya nodeType"):
-            Joint.create("mlibSpecNoSuchType", name=self.name("unknownJoint"))
-        # 通常経路は作成前の選択を保ち、Undo しても unknown ノードは現れない。
-        keep = self.make("transform", "keepSelected")
-        cmds.select(keep, replace=True)
-        with self.assertRaises(RuntimeError):
-            Node.create("mlibSpecNoSuchType", name=self.name("unknownSel"))
-        self.assertEqual(cmds.ls(selection=True), [keep])
-        cmds.undo()
-        self.assertFalse(cmds.objExists(self.name("unknownSel")))
-
-    def test_version_compatible_type_names_are_created(self):
-        """cmds.createNode が受け付ける版の互換名(2027 の addDoubleLinear→addDL 等)は作成できる。"""
-        for kind in ("addDoubleLinear", "multDoubleLinear"):
-            with self.subTest(kind=kind):
-                node = Node.create(kind, name=self.name(kind))
-                self.assertEqual(node.getType(), cmds.nodeType(self.name(kind)))
-                self.assertIn(node.getType(), (kind, kind.replace("DoubleLinear", "DL")))
-                self.assertIs(type(node), Node._registry.wrapper_class(node.getType()))
+            Transform(self.make(), create=True)
+        with self.assertRaises(TypeError):
+            Transform(self.make(), "extra")
+        # 先の self.make() で作った 2 つ以外、何も残さない。
+        self.assertEqual(len(set(cmds.ls()) - before), 2)
+        self.assertFalse(cmds.objExists(self.name("notCreated")))
+        # mlib.createNode は実際の型のラッパーを返す(詳細は test_spec_cmds_createNode.py)。
+        created = mlib.createNode("joint", name=self.name("created"), skipSelect=True)
+        self.assertIs(type(created), Joint)
+        self.assertEqual(created.getName(), self.name("created"))
 
 
 class IdentityTest(_NamespaceCase):
-    """sameNode・sameInstance・==・hash の区別。"""
+    """sameNode・==・hash の区別(旧 sameInstance は廃止し == へ統合)。"""
 
     def setUp(self):
         super().setUp()
@@ -264,22 +179,25 @@ class IdentityTest(_NamespaceCase):
         self.paths = cmds.ls(self.shape, allPaths=True, long=True)
 
     def test_instances(self):
-        """別インスタンスは sameNode だけ True、== と sameInstance は False。"""
+        """別インスタンスは sameNode だけ True、== は False。同じ保持パスは == が True。"""
         first, second = Node(self.paths[0]), Node(self.paths[1])
         self.assertTrue(first.sameNode(second))
-        self.assertFalse(first.sameInstance(second))
         self.assertNotEqual(first, second)
-        self.assertTrue(first.sameInstance(Node(self.paths[0])))
+        self.assertEqual(first, Node(self.paths[0]))
+        self.assertFalse(hasattr(first, "sameInstance"))
 
     def test_dg_and_other_values(self):
-        """DG ノードの sameInstance は同じノードでも False。Node 以外は両方 False。"""
+        """DG ノードは同じノードなら sameNode・== とも True。Node 以外は両方 False。"""
         dg = Node(self.make("network"))
         self.assertTrue(dg.sameNode(Node(dg.getName())))
-        self.assertFalse(dg.sameInstance(Node(dg.getName())))
+        self.assertEqual(dg, Node(dg.getName()))
         for value in (dg.getName(), None, dg.mnode()):
             with self.subTest(value=value):
                 self.assertFalse(dg.sameNode(value))
-                self.assertFalse(dg.sameInstance(value))
+        # MObject との == は OpenMaya 側の比較が TypeError を出すため、文字列と None だけ確かめる。
+        for value in (dg.getName(), None):
+            with self.subTest(value=value):
+                self.assertFalse(dg == value)
         self.assertFalse(dg == dg.getName())
 
     def test_hash_is_stable_after_rename_and_delete(self):
@@ -322,7 +240,7 @@ class DeletedNodeTest(_NamespaceCase):
         node = Node(self.make())
         cmds.delete(node.getFullName())
         for method, args in (("getPlug", ("tx",)), ("getHistory", ()), ("getAliases", ()),
-                             ("getExtraAttrs", ()), ("getPlugs", ()), ("delete", ()),
+                             ("getPlugs", ()), ("delete", ()),
                              ("rename", (self.name("x"),))):
             with self.subTest(method=method):
                 with self.assertRaises(RuntimeError):
@@ -352,7 +270,7 @@ class DeletedNodeTest(_NamespaceCase):
         self.assertFalse(node.sameNode(node))
         self.assertFalse(node == node)
         for method in ("getType", "getTypeId", "getPluginName", "isLocked", "isFromReferencedFile",
-                       "getAttrCount", "getNodeName"):
+                       "mfn", "getNodeName"):
             with self.subTest(method=method):
                 with self.assertRaises(RuntimeError):
                     getattr(node, method)()
@@ -379,6 +297,54 @@ class TypeQueryTest(_NamespaceCase):
                 self.assertEqual(node.getClassification(), cmds.getClassification(kind))
                 self.assertEqual(len(node.getClassification()), 1)
 
+    def test_get_type_inherited(self):
+        """getType(inherited=True) は cmds.nodeType(inherited=True) と同じ順のリスト、bool 以外は TypeError。"""
+        shape = Node(self.make("mesh", parent=self.make()))
+        network = Node(self.make("network"))
+        for node in (shape, network, Node(self.make("joint"))):
+            with self.subTest(type=node.getType()):
+                chain = node.getType(inherited=True)
+                self.assertIsInstance(chain, list)
+                self.assertEqual(chain, cmds.nodeType(node.getFullName(), inherited=True))
+                self.assertEqual(chain[-1], node.getType())
+                self.assertNotIn("node", chain)
+                self.assertEqual(node.getType(inherited=False), node.getType())
+                # 戻り値は新しいリストで、内部のキャッシュを共有しない。
+                chain.append("edited")
+                self.assertNotIn("edited", node.getType(inherited=True))
+        self.assertEqual(shape.getType(inherited=True)[-1], "mesh")
+        self.assertIn("shape", shape.getType(inherited=True))
+        self.assertLess(shape.getType(inherited=True).index("shape"), shape.getType(inherited=True).index("mesh"))
+        self.assertEqual(network.getType(inherited=True), ["network"])
+        for value in (1, None, "yes"):
+            with self.subTest(value=value):
+                with self.assertRaises(TypeError):
+                    shape.getType(inherited=value)
+        # 複数形は保持順のリストを返す。
+        self.assertEqual(Nodes([shape, network]).getType(inherited=True),
+                         [shape.getType(inherited=True), network.getType(inherited=True)])
+        self.assertEqual(Nodes([shape, network]).getType(), ["mesh", "network"])
+
+    def test_has_fn(self):
+        """hasFn は mnode().hasFn と同じで、int 以外は TypeError。"""
+        shape = Node(self.make("mesh", parent=self.make()))
+        network = Node(self.make("network"))
+        for node, fn, expected in ((shape, om2.MFn.kMesh, True), (shape, om2.MFn.kDagNode, True),
+                                   (shape, om2.MFn.kTransform, False), (network, om2.MFn.kDagNode, False),
+                                   (network, om2.MFn.kDependencyNode, True)):
+            with self.subTest(type=node.getType(), fn=fn):
+                self.assertIs(node.hasFn(fn), expected)
+                self.assertEqual(node.hasFn(fn), node.mnode().hasFn(fn))
+        for value in ("kMesh", None, 1.5, True):
+            with self.subTest(value=value):
+                with self.assertRaises(TypeError):
+                    shape.hasFn(value)
+        self.assertEqual(Nodes([shape, network]).hasFn(om2.MFn.kDagNode), [True, False])
+        cmds.delete(network.getFullName())
+        cmds.flushUndo()
+        with self.assertRaises(RuntimeError):
+            network.hasFn(om2.MFn.kDependencyNode)
+
     def test_is_type(self):
         """isType は継承を含めて判定し、空・文字列以外は ValueError。"""
         shape = Node(self.make("mesh", parent=self.make()))
@@ -403,17 +369,18 @@ class TypeQueryTest(_NamespaceCase):
         self.assertFalse(node.isFromReferencedFile())
 
     def test_attr_count(self):
-        """getAttrCount は MFnDependencyNode.attributeCount と同じで、複合は子も数える。"""
+        """旧 getAttrCount は廃止。mfn().attributeCount() は複合の子も数える。"""
         name = self.make()
         node = Node(name)
-        count = node.getAttrCount()
+        self.assertFalse(hasattr(node, "getAttrCount"))
+        count = node.mfn().attributeCount()
         self.assertEqual(count, om2.MFnDependencyNode(node.mnode()).attributeCount())
         cmds.addAttr(name, longName="single", attributeType="double")
-        self.assertEqual(node.getAttrCount(), count + 1)
+        self.assertEqual(node.mfn().attributeCount(), count + 1)
         cmds.addAttr(name, longName="triple", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(name, longName="triple" + axis, attributeType="double", parent="triple")
-        self.assertEqual(node.getAttrCount(), count + 5)
+        self.assertEqual(node.mfn().attributeCount(), count + 5)
 
 
 class NamePathTest(_NamespaceCase):
@@ -429,17 +396,16 @@ class NamePathTest(_NamespaceCase):
         self.assertEqual(first.getNodeName(), self.name("leaf"))
         self.assertEqual(first.getNodeName(remove_namespace=True), "leaf")
         self.assertEqual(first.getFullName(), "|" + self.name("pa") + "|" + self.name("leaf"))
-        self.assertEqual(first.getPath(), first.getName())
-        self.assertEqual(first.getPath(full=True), first.getFullName())
+        self.assertFalse(hasattr(first, "getPath"))
         self.assertFalse(first.isRoot())
         self.assertTrue(Node(parent_a).isRoot())
 
     def test_dg_names(self):
-        """DG ノードの getFullName はノード名で、getPath・isRoot は RuntimeError。"""
+        """DG ノードの getFullName はノード名で、isRoot は RuntimeError。"""
         node = Node(self.make("network", "dg"))
         self.assertEqual(node.getFullName(), self.name("dg"))
         self.assertEqual(node.getName(), self.name("dg"))
-        for method in ("getPath", "isRoot"):
+        for method in ("isRoot",):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(RuntimeError, "DAG"):
                     getattr(node, method)()
@@ -511,7 +477,7 @@ class NamePathTest(_NamespaceCase):
 
 
 class AttributeQueryTest(_NamespaceCase):
-    """getPlug・hasAttr・getAliases・getExtraAttrs・getPlugs。"""
+    """getPlug・hasAttr・getAliases・getPlugs(userDefined=)。"""
 
     def setUp(self):
         super().setUp()
@@ -550,27 +516,33 @@ class AttributeQueryTest(_NamespaceCase):
         self.assertEqual(self.node.getPlug("aliasA").mplug(), self.node.getPlug("weightA").mplug())
 
     def test_extra_attrs(self):
-        """追加順で、子は include_children=True のときだけ。aliasAttr の内部領域も含む。"""
-        self.assertEqual(self.node.getExtraAttrs(), [])
+        """getPlugs(userDefined=True) は追加順で、子は includeChildren=True のときだけ。aliasAttr の内部領域も含む。"""
+        def names(include_children):
+            return [plug.getLongName() for plug in
+                    self.node.getPlugs(userDefined=True, includeChildren=include_children)]
+
+        self.assertFalse(hasattr(self.node, "getExtraAttrs"))
+        self.assertEqual(self.node.getPlugs(userDefined=True), [])
         cmds.addAttr(self.node_name, longName="first", attributeType="double")
         cmds.addAttr(self.node_name, longName="vec", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(self.node_name, longName="vec" + axis, attributeType="double", parent="vec")
         cmds.addAttr(self.node_name, longName="text", dataType="string")
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ["first", "vec", "text"])
-        self.assertEqual(self.node.getExtraAttrs(True, asNames=True),
-                         ["first", "vec", "vecX", "vecY", "vecZ", "text"])
-        plugs = self.node.getExtraAttrs()
+        self.assertEqual(names(False), ["first", "vec", "text"])
+        self.assertEqual(names(True), ["first", "vec", "vecX", "vecY", "vecZ", "text"])
+        plugs = self.node.getPlugs(userDefined=True, includeChildren=False)
         self.assertTrue(all(isinstance(plug, Plug) for plug in plugs))
         self.assertEqual([plug.getFullName() for plug in plugs],
                          [self.node_name + "." + name for name in ("first", "vec", "text")])
         cmds.aliasAttr("firstAlias", self.node_name + ".first")
         # cmds.listAttr(userDefined=True) と同じく aliasAttr の内部アトリビュートを含む。
-        self.assertIn("attributeAliasList", self.node.getExtraAttrs(asNames=True))
-        with self.assertRaisesRegex(TypeError, "include_children"):
-            self.node.getExtraAttrs(1)
-        with self.assertRaisesRegex(TypeError, "asNames"):
-            self.node.getExtraAttrs(asNames=1)
+        self.assertIn("attributeAliasList", names(False))
+        with self.assertRaises(TypeError):
+            self.node.getPlugs(userDefined=True, includeChildren=1)
+        with self.assertRaises(TypeError):
+            self.node.getPlugs(userDefined=1)
+        with self.assertRaises(TypeError):
+            self.node.getPlugs(userDefined=True, keyable=True)
 
     def test_get_plugs_matches_list_attr(self):
         """getPlugs は listAttr と同じ順・同じ名前。"""
@@ -602,15 +574,25 @@ class ResetAndFlagsTest(_NamespaceCase):
         cmds.flushUndo()
         plugs = self.node.resetAttrs()
         names = [plug.getName() for plug in plugs]
+        # Transform の省略時は translate・rotate・scale・shear の子だけ(追加アトリビュートは対象外)。
         self.assertIn(self.node_name + ".tx", names)
-        self.assertIn(self.node_name + ".extraValue", names)
+        self.assertNotIn(self.node_name + ".extraValue", names)
         self.assertNotIn(self.node_name + ".ty", names)
         self.assertNotIn(self.node_name + ".tz", names)
         self.assertEqual(cmds.getAttr(self.node_name + ".tx"), 0.0)
         self.assertEqual(cmds.getAttr(self.node_name + ".ty"), 4.0)
-        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 2.0)
+        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 7.0)
         cmds.undo()
         self.assertEqual(cmds.getAttr(self.node_name + ".tx"), 3.0)
+        # Node の既定(キー設定可能で書ける数値アトリビュート全体)は追加アトリビュートも戻す。
+        cmds.flushUndo()
+        names = [plug.getName() for plug in Node.resetAttrs(self.node)]
+        self.assertIn(self.node_name + ".tx", names)
+        self.assertIn(self.node_name + ".extraValue", names)
+        self.assertNotIn(self.node_name + ".ty", names)
+        self.assertNotIn(self.node_name + ".tz", names)
+        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 2.0)
+        cmds.undo()
         self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 7.0)
 
     def test_reset_fast_matches_normal(self):

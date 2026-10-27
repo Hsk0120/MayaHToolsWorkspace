@@ -43,7 +43,7 @@ class JointHierarchy:
                 joints = [joints]
             targets = mlib.nodes.Joints(joints)
             for joint in targets:
-                if not joint.isJoint():
+                if not joint.isType("joint"):
                     raise RuntimeError("Cannot delete an invalid joint")
             if safe:
                 targets = mlib.nodes.Joints([joint for joint in targets if not joint._has_delete_connections()])

@@ -1,7 +1,7 @@
 """Joint・Joints・IkHandle の参照の少ない公開APIの約束を固定する(担当C)。
 
 対象: reparentChildren(通常・fast・Undo・Joint 以外の子)、Joints.sortedByDepth、getInverseScale、
-isJoint、getDepth・getChainFromHere の境界、IkHandle.getEndJoint・getJoints。
+isType("joint")、getDepth・getChainFromHere の境界、IkHandle.getEndJoint・getJoints。
 """
 
 import unittest
@@ -116,7 +116,7 @@ class JointsOrderTest(_NamespaceCase):
 
 
 class InverseScaleTest(_NamespaceCase):
-    """getInverseScale と isJoint。"""
+    """getInverseScale と isType("joint")。"""
 
     def test_inverse_scale_value(self):
         """接続された親の scale、切断後は保持値をそのまま返す。逆数にはしない。"""
@@ -134,20 +134,20 @@ class InverseScaleTest(_NamespaceCase):
         self.assertEqual(list(node.getInverseScale()), [5.0, 6.0, 7.0])
 
     def test_deleted_joint(self):
-        """削除済みでは getInverseScale は (0, 0, 0)、isJoint は False。"""
+        """削除済みでは getInverseScale は (0, 0, 0)、isType("joint") は False。"""
         joint, = self.chain(("deleted", (0, 0, 0)))
         node = Node(joint)
-        self.assertTrue(node.isJoint())
+        self.assertTrue(node.isType("joint"))
         cmds.delete(joint)
         self.assertEqual(list(node.getInverseScale()), [0.0, 0.0, 0.0])
-        self.assertFalse(node.isJoint())
+        self.assertFalse(node.isType("joint"))
 
     def test_bulk(self):
         """Joints の同名メソッドは保持順のリスト。"""
         root, child = self.chain(("bulkRoot", (0, 0, 0)), ("bulkChild", (1, 0, 0)))
         cmds.setAttr(root + ".scale", 2, 2, 2)
         joints = Joints([root, child])
-        self.assertEqual(joints.isJoint(), [True, True])
+        self.assertEqual(joints.isType("joint"), [True, True])
         self.assertEqual([list(value) for value in joints.getInverseScale()], [[1.0] * 3, [2.0] * 3])
 
 

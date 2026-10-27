@@ -128,7 +128,7 @@ class DisplayLayer(Node):
         default = not self.getPlug("identification").get()
         plan = []
         for node in nodes:
-            fn = node.dagFn()
+            fn = node.mfn()
             if fn.isLocked or fn.isFromReferencedFile:
                 raise RuntimeError("Cannot move a locked or referenced display-layer member")
             target = fn.findPlug("drawOverride", False)

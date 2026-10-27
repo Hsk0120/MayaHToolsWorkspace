@@ -87,6 +87,16 @@ class NurbsCurve(Shape):
         """
         return CVs(self, indices)
 
+    def mfn(self):
+        """このカーブで最も具体的な om2 function set を取得する。
+
+        呼び出すたびに新しい ``om2.MFnNurbsCurve`` を保持する DAG パスから作る。
+
+        Returns:
+            om2.MFnNurbsCurve: このカーブの function set。
+        """
+        return om2.MFnNurbsCurve(self.mpath())
+
     def curveFn(self):
         """カーブの関数セットを取得する。
 

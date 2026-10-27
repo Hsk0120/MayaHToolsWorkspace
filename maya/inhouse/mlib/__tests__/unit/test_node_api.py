@@ -34,7 +34,7 @@ class NodeApiTest(unittest.TestCase):
             cmds.namespace(removeNamespace=self.namespace, deleteNamespaceContent=True)
 
     def create_transform(self, name):
-        node = Node.create(type="transform", name=name)
+        node = mlib.createNode(type="transform", name=name)
         self.created.append(node.getName())
         return node
 
@@ -44,14 +44,11 @@ class NodeApiTest(unittest.TestCase):
         self.created.append(shape_name)
         shape = transform.getShape()
 
-        self.assertEqual(transform.getPath(), transform.getName())
-        self.assertEqual(transform.getPath(full=True), "|" + transform.getName())
-        self.assertEqual(transform.getPath(), transform.getName())
-        self.assertEqual(transform.getPath(full=True), "|" + transform.getName())
+        self.assertEqual(transform.getFullName(), "|" + transform.getName())
         self.assertTrue(transform.isRoot())
         self.assertEqual(len(transform.getShapes()), 1)
         self.assertEqual(shape.getTransform().getName(), transform.getName())
-        self.assertTrue(shape.getPath(full=True).endswith("|" + shape_name))
+        self.assertTrue(shape.getFullName().endswith("|" + shape_name))
 
     def test_rename_namespace_and_add_attr(self):
         transform = self.create_transform("mlibNodeApiRename")
@@ -360,10 +357,10 @@ class NodeApiTest(unittest.TestCase):
         self.assertFalse(grandparent.isParentOf(child))
         self.assertTrue(grandparent.isAncestorOf(child))
 
-        self.assertTrue(parent.isChildOf(grandparent))
-        self.assertFalse(child.isChildOf(grandparent))
+        self.assertTrue(parent.isParentOf(child))
+        self.assertFalse(child.isParentOf(parent))
 
-        self.assertGreater(child.getAttrCount(), 0)
+        self.assertGreater(child.mfn().attributeCount(), 0)
 
     def test_plug_delete_attr(self):
         transform = self.create_transform("mlibNodeApiDeleteAttr")
@@ -528,11 +525,11 @@ class NodeApiTest(unittest.TestCase):
         target = self.create_transform("mlibNodeApiArrayNextAvailTarget")
         array_plug = target.addAttr("samples", attributeType="double", multi=True)
 
-        self.assertEqual(array_plug.getNextAvailableIndex(), 0)
+        self.assertEqual(array_plug.getNextAvailable(vacant=True), 0)
 
         array_plug[0].set(0)
-        self.assertEqual(array_plug.getNextAvailableIndex(), 1)
-        self.assertEqual(array_plug.getNextAvailableIndex(start=5), 5)
+        self.assertEqual(array_plug.getNextAvailable(vacant=True), 1)
+        self.assertEqual(array_plug.getNextAvailable(start=5, vacant=True), 5)
 
         element = array_plug[1].set(2)
         self.assertEqual(element.getLongName(), "samples")
@@ -587,9 +584,9 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_shear_quaternion_euler_and_decompose(self):
         transform = self.create_transform("mlibNodeApiShearQuat")
-        result = transform.setShearing((0.1, 0.2, 0.3))
+        result = transform.setShear((0.1, 0.2, 0.3))
         self.assertIs(result, transform)
-        shear = transform.getShearing()
+        shear = transform.getShear()
         self.assertIsInstance(shear, Shear)
         self.assertAlmostEqual(shear.x, 0.1, places=6)
         self.assertAlmostEqual(shear.y, 0.2, places=6)
@@ -598,7 +595,7 @@ class NodeApiTest(unittest.TestCase):
         transform.setRotate((0.0, math.radians(90.0), 0.0))
         quaternion = transform.getQuaternion()
         self.assertIsInstance(quaternion, Quaternion)
-        euler = transform.getEuler()
+        euler = transform.getRotate(order=0)
         self.assertIsInstance(euler, EulerRotate)
         self.assertAlmostEqual(euler.y, math.radians(90.0), places=6)
 
@@ -704,7 +701,7 @@ class NodeApiTest(unittest.TestCase):
             lambda: node.setMatrix(world, ws=True),
             lambda: node.setTranslate((0.0, 0.0, 0.0), at=4),
             lambda: node.setScale(node.getScale()),
-            lambda: node.setShearing(node.getShearing()),
+            lambda: node.setShear(node.getShear()),
             lambda: node.setRotate((10.0, 20.0, 30.0), unit="deg"),
             lambda: node.getPlug("rotate").set(tuple(node.getPlug("rotate").get())),
         ):
@@ -920,7 +917,7 @@ class NodeApiTest(unittest.TestCase):
         cmds.addAttr(node.getFullName(), longName="attrCompoundZ", attributeType="double", parent="attrCompound")
         node.addAttr("attrB", attributeType="double", defaultValue=0.0)
 
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrCompound', 'attrB'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrCompound', 'attrB'])
 
     def test_move_attribute_reorders_and_preserves_state_and_connections(self):
         node = self.create_transform("mlibNodeApiMoveAttrNode")
@@ -932,12 +929,12 @@ class NodeApiTest(unittest.TestCase):
         node.getPlug("attrB").setFlags(locked=True)
         source.getPlug("translateX").set(7.0)
         source.getPlug("translateX").connectTo(node.getPlug("attrC"))
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB', 'attrC'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrB', 'attrC'])
 
         result = node.moveAttrOrder("attrC", -2)
 
         self.assertIs(result, node)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrC', 'attrA', 'attrB'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrC', 'attrA', 'attrB'])
         self.assertEqual(node.getPlug("attrA").get(), 1.0)
         self.assertEqual(node.getPlug("attrB").get(), 5.0)
         self.assertTrue(node.getPlug("attrB").isLocked())
@@ -957,7 +954,7 @@ class NodeApiTest(unittest.TestCase):
 
         node.moveAttrOrder("attrMode", 1)
 
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrLabel', 'attrMode'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrLabel', 'attrMode'])
         self.assertEqual(node.getPlug("attrMode").get(), 2)
         self.assertEqual(node.getPlug("attrMode").getEnumName(), "Auto")
         self.assertEqual(node.getPlug("attrLabel").get(), "hello world")
@@ -969,13 +966,13 @@ class NodeApiTest(unittest.TestCase):
 
         result = node.moveAttrOrder("attrA", 0)
         self.assertIs(result, node)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrB'])
 
         node.moveAttrOrder("attrA", 100)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrB', 'attrA'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrB', 'attrA'])
 
         node.moveAttrOrder("attrA", -100)
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrB'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrB'])
 
     def test_move_attribute_raises_for_unknown_name_and_unsupported_type(self):
         node = self.create_transform("mlibNodeApiMoveAttrErrors")
@@ -992,7 +989,7 @@ class NodeApiTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             node.moveAttrOrder("attrB", -1)
         # 型エラー時は何も削除・変更されていない(ダンプ段階での検証が先に走るため)。
-        self.assertEqual(node.getExtraAttrs(asNames=True), ['attrA', 'attrCompound', 'attrB'])
+        self.assertEqual([p.getLongName() for p in node.getPlugs(userDefined=True, includeChildren=False)], ['attrA', 'attrCompound', 'attrB'])
 
     def test_unresolvable_node_name_raises_runtime_error(self):
         with self.assertRaises(RuntimeError) as context:
@@ -1006,7 +1003,7 @@ class NodeApiTest(unittest.TestCase):
     def test_plug_paths_reject_indices_beyond_logical_index_range(self):
         # MPlug.elementByLogicalIndex() は範囲外の番号を別の番号へ変換する(4294967296 は 0)。
         # アトリビュートパス・要素番号では別の要素へ読み替えず、例外にする。
-        average = Node.create(type="plusMinusAverage", name="mlibNodeApiIndexRange")
+        average = mlib.createNode(type="plusMinusAverage", name="mlibNodeApiIndexRange")
         self.created.append(average.getName())
         maximum = 2147483647
         self.assertEqual(average.getPlug("input1D[%d]" % maximum).mplug().logicalIndex(), maximum)

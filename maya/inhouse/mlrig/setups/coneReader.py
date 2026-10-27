@@ -223,7 +223,7 @@ class ConeReader:
         Returns:
             Node: 新規ノード。
         """
-        node = mlib.nodes.Node.create(
+        node = mlib.createNode(
             kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)

@@ -69,7 +69,7 @@ class NodeAliasesParityTest(unittest.TestCase):
     """Node.getAliases() が cmds.aliasAttr(query=True) と一致し続けることを検証する。"""
 
     def setUp(self):
-        self.node = Node.create(type="transform", name="mlibParityAliases")
+        self.node = mlib.createNode(type="transform", name="mlibParityAliases")
 
     def tearDown(self):
         if cmds.objExists(self.node.getName()):
@@ -104,7 +104,7 @@ class NodeConnectionsParityTest(unittest.TestCase):
                 cmds.delete(name)
 
     def create_transform(self, name):
-        node = Node.create(type="transform", name=name)
+        node = mlib.createNode(type="transform", name=name)
         self.created.append(node.getName())
         return node
 

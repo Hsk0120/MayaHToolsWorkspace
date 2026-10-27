@@ -152,7 +152,7 @@ class CompoundPlug(Plug):
                         from ..core.attributeType import _convert_units
                         values = _convert_units(self._mplug, values, to_ui=False)
                     set_plug(self._mplug, values)
-                elif self.getDataType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
+                elif self.getType() in {"float2", "float3", "long2", "long3", "short2", "short3"}:
                     self._require_writable()
                     Plug.set(self, values, safe=False, uiUnits=uiUnits, fast=fast)
                 else:

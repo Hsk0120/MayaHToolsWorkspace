@@ -75,7 +75,7 @@ class PoseRbf:
         Returns:
             Node: 新規ノード。
         """
-        node = mlib.nodes.Node.create(
+        node = mlib.createNode(
             kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)
@@ -106,7 +106,7 @@ class PoseRbf:
         if len(drivers) != len(scales) or cmds.objExists(name):
             raise ValueError("Driver count mismatch or name exists")
         for plug in drivers:
-            kind = plug.getDataType()
+            kind = plug.getType()
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
                 or plug.isArray()
@@ -120,7 +120,7 @@ class PoseRbf:
         owner.getPlug("data").set(json.dumps(dict(poses=poses, values=values, scales=scales)))
         for index, source in enumerate(drivers):
             destination = owner.getPlug("inputs")[index]
-            if source.getDataType() == "doubleAngle":
+            if source.getType() == "doubleAngle":
                 convert = graph._node("unitConversion", "degrees{}".format(index))
                 source.connectTo(convert.getPlug("input"))
                 convert.getPlug("conversionFactor").set(180 / math.pi)

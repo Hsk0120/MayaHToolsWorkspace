@@ -244,10 +244,13 @@ class CalculationTypeTest(unittest.TestCase):
                 self.assertIs(type(node), mlib.nodes._WRAPPER_CLASSES[actual])
 
     def test_texture2d_family(self):
-        """登録されていない2Dテクスチャ型はTexture2dへフォールバックする。"""
+        """登録されていない2Dテクスチャ型は、Texture2dを親にした自動生成クラスになる。"""
         for kind in ("checker", "ramp"):
             with self.subTest(kind=kind):
-                self.assertIs(type(mlib.createNode(kind)), mlib.nodes.Texture2d)
+                cls = type(mlib.createNode(kind))
+                self.assertEqual(cls.__name__, kind[0].upper() + kind[1:])
+                self.assertIs(cls.__mro__[1], mlib.nodes.Texture2d)
+                self.assertTrue(issubclass(cls, mlib.nodes.Texture2d))
 
     def test_nodes_collection_does_not_forward_calculation_methods(self):
         """Nodesは計算ノード固有のメソッドを一括転送しない(現在の仕様)。"""

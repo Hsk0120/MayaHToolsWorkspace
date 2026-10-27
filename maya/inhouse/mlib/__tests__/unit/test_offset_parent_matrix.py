@@ -56,41 +56,31 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(self.target.getMatrix().isEquivalent(local, 1e-9))
         self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(world, 1e-8))
 
-    def test_transform_methods_and_collection(self):
+    def test_plug_route_and_collection(self):
+        """offsetParentMatrix は getPlug("offsetParentMatrix") の get/set で扱う(Transform の専用入口は無い)。"""
+        from mlib.decorator import undoChunk
         from mlib.nodes import Transforms
         nodes = Transforms([self.source, self.target])
         value = Matrix(translate=(4, 5, 6))
-        self.assertIs(self.target.setOffsetParentMatrix(value), self.target)
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
+        for name in ("getOffsetParentMatrix", "setOffsetParentMatrix"):
+            self.assertFalse(hasattr(self.target, name))
+            self.assertFalse(hasattr(nodes, name))
+        plug = self.target.getPlug("offsetParentMatrix")
+        self.assertIs(plug.set(value), plug)
+        self.assertTrue(plug.get().isEquivalent(value))
         cmds.undo()
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(Matrix()))
-        nodes.setOffsetParentMatrix(value)
-        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.getOffsetParentMatrix()))
+        self.assertTrue(plug.get().isEquivalent(Matrix()))
+        with undoChunk("mlibOffsetParentMatrixTest"):
+            for node in nodes:
+                node.getPlug("offsetParentMatrix").set(value)
+        self.assertTrue(all(node.getPlug("offsetParentMatrix").get().isEquivalent(value) for node in nodes))
         cmds.undo()
-        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
-        self.target.setOffsetParentMatrix(value, fast=True)
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
+        self.assertTrue(all(node.getPlug("offsetParentMatrix").get().isEquivalent(Matrix()) for node in nodes))
+        plug.set(value, fast=True)
+        self.assertTrue(plug.get().isEquivalent(value))
         cmds.setAttr(self.target.getFullName() + ".offsetParentMatrix", lock=True)
         with self.assertRaises(RuntimeError):
-            self.target.setOffsetParentMatrix(Matrix())
-
-    def test_transform_methods_and_collection(self):
-        from mlib.nodes import Transforms
-        nodes = Transforms([self.source, self.target])
-        value = Matrix(translate=(4, 5, 6))
-        self.assertIs(self.target.setOffsetParentMatrix(value), self.target)
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
-        cmds.undo()
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(Matrix()))
-        nodes.setOffsetParentMatrix(value)
-        self.assertTrue(all(matrix.isEquivalent(value) for matrix in nodes.getOffsetParentMatrix()))
-        cmds.undo()
-        self.assertTrue(all(matrix.isEquivalent(Matrix()) for matrix in nodes.getOffsetParentMatrix()))
-        self.target.setOffsetParentMatrix(value, fast=True)
-        self.assertTrue(self.target.getOffsetParentMatrix().isEquivalent(value))
-        cmds.setAttr(self.target.getFullName() + ".offsetParentMatrix", lock=True)
-        with self.assertRaises(RuntimeError):
-            self.target.setOffsetParentMatrix(Matrix())
+            plug.set(Matrix())
 
 
 if __name__ == "__main__":

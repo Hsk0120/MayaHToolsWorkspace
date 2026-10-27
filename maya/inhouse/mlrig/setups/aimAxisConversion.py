@@ -115,7 +115,7 @@ class AimAxisConversion:
         constraint_settings = cls._captureSettings(source)
         name = source.getName().split("|")[-1] + "_axisConversion"
         owner = (Container.create(name=name) if use_container else
-                 Node.create("network", name=name, skipSelect=True))
+                 mlib.createNode("network", name=name, skipSelect=True))
         owner.addAttr(longName=_TAG, attributeType="bool", defaultValue=True)
         for attr, node in (("sourceConstraint", source), ("drivenNode", target)):
             owner.addAttr(longName=attr, attributeType="message")
@@ -315,7 +315,7 @@ class AimAxisConversion:
         name = self.container.getName() + "_" + (name or kind)
         if isinstance(self.container, Container):
             return self.container.createNode(kind, name=name)
-        node = Node.create(kind, name=name, skipSelect=True)
+        node = mlib.createNode(kind, name=name, skipSelect=True)
         self.container.getPlug("generatedNodes").appendMessage(node)
         return node
 

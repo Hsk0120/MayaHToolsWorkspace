@@ -1,6 +1,7 @@
 """mlibのSphinx設定。本文の編集方法とビルド手順は../README.mdを参照。"""
 
 from pathlib import Path
+import re
 import sys
 
 # 1. 文書の場所と基本情報
@@ -17,6 +18,11 @@ from mlibDocs import prepare_autoapi
 project = _PACKAGE_NAME
 copyright = "2026 Hsk0120"
 language = "ja"
+
+# 版番号はmlib/__init__.pyの__version__を正本にする(mlibはimportしない)。
+_match = re.search(r'^__version__\s*=\s*"([^"]+)"', (_MLIB_ROOT / "__init__.py").read_text(encoding="utf-8"), re.M)
+release = _match.group(1) if _match else "unknown"
+version = release
 
 # 2. APIページの自動生成
 # AutoAPIはPythonソースを静的解析する。Mayaもmlibもimportしない。

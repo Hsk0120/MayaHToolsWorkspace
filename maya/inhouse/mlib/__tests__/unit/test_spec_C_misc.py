@@ -230,21 +230,34 @@ class MaterialTest(_NamespaceCase):
         empty = cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name=self.name("emptySG"))
         self.assertIsNone(Node(empty).getShaderPlug())
 
+    @staticmethod
+    def assigned(node):
+        """node に繋がる ShadingEngine の割り当て先を保持順に集める。"""
+        return [member for engine in node.getShadingEngines() for member in engine.getMembers()]
+
+    @staticmethod
+    def materials(node):
+        """node に繋がる ShadingEngine のサーフェスシェーダーを重複なしで集める。"""
+        result = []
+        for engine in node.getShadingEngines():
+            shader = engine.getShader()
+            if shader is not None and shader not in result:
+                result.append(shader)
+        return result
+
     def test_assigned_objects_and_materials(self):
-        """マテリアルからは割り当て先、Shape からはマテリアル。Transform は直接接続が無ければ空。"""
+        """割り当て先は ShadingEngine.getMembers()、マテリアルは getShader() を getShadingEngines() ごとに集める。"""
         shape = Node(self.cube).getShape()
-        self.assertEqual(Node(self.material).getAssignedObjects(), [shape])
-        self.assertEqual(Node(self.material).getMaterials(), [Node(self.material)])
-        self.assertEqual(shape.getMaterials(), [Node(self.material)])
-        self.assertEqual(shape.getAssignedObjects(), [shape])
+        self.assertEqual(self.assigned(Node(self.material)), [shape])
+        self.assertEqual(self.materials(shape), [Node(self.material)])
 
     def test_face_assignment(self):
         """フェース単位の割り当てでは Face を返し、Shape のマテリアルは重複なしで両方。"""
         cmds.sets(self.cube + ".f[0]", edit=True, forceElement="initialShadingGroup")
-        assigned = Node(self.material).getAssignedObjects()
+        assigned = self.assigned(Node(self.material))
         self.assertTrue(assigned)
         self.assertTrue(all(isinstance(item, Face) for item in assigned))
-        materials = Node(self.cube).getShape().getMaterials()
+        materials = self.materials(Node(self.cube).getShape())
         self.assertIn(Node(self.material), materials)
         self.assertEqual(len(materials), 2)
 

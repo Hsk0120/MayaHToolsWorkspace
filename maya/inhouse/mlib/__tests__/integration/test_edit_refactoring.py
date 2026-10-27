@@ -69,8 +69,14 @@ class EditRefactoringTest(unittest.TestCase):
             _bulk_returns = dict(mlib.nodes.Nodes._bulk_returns, setTranslate="self")
             _bulk_undo = False
 
-        with patch.dict(mlib.nodes.Node._registry._classes, {"transform": NamedNode}):
+        # 登録表の内部辞書を直接書き換えず、register/_restoreで生成済みクラスも含めて戻す。
+        registry = mlib.nodes.Node._registry
+        snapshot = registry._snapshot()
+        registry.register("transform", NamedNode)
+        try:
             nodes = NamedNodes(self.names)
+        finally:
+            registry._restore(snapshot)
         result = nodes.callEach("setTranslate", [((1, 2, 3), True), ((4, 5, 6),)],
                                 [{"fast": True}, {"get": False}])
         self.assertEqual(result[0], (1, 2, 3))

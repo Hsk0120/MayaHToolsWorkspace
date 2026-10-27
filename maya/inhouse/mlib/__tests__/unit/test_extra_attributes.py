@@ -1,7 +1,7 @@
 """ユーザー定義アトリビュートの追加・列挙・型付きPlugを検証する。"""
+import contextlib
 import sys
 import unittest
-from unittest.mock import patch
 import maya.cmds as cmds
 import mlib
 mlib.reload()
@@ -38,14 +38,14 @@ class ExtraAttributesTest(unittest.TestCase):
         self.assertIsInstance(message, mlib.plugs.MessagePlug)
         self.node.getPlug("message").connectTo(message)
         self.assertEqual(message.getSource(skipConversionNodes=False), self.node.getPlug('message'))
-        self.assertEqual(len(self.node.getExtraAttrs()), len(cases) + 3)
-        self.assertNotIn(self.node.getPlug("translate"), self.node.getExtraAttrs())
+        self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), len(cases) + 3)
+        self.assertNotIn(self.node.getPlug("translate"), self.node.getPlugs(userDefined=True, includeChildren=False))
 
     def test_compound_array_and_undo(self):
         compound = self.node.addAttr("vectorValue", attributeType="double3")
         self.assertIsInstance(compound, mlib.plugs.Double3Plug)
-        self.assertEqual(len(self.node.getExtraAttrs()), 1)
-        self.assertEqual(len(self.node.getExtraAttrs(include_children=True)), 4)
+        self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), 1)
+        self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=True)), 4)
         array = self.node.addAttr("weights", attributeType="double", multi=True)
         self.assertIsInstance(array, mlib.plugs.ArrayPlug)
         self.assertIsInstance(array[0], mlib.plugs.DoublePlug)
@@ -56,24 +56,24 @@ class ExtraAttributesTest(unittest.TestCase):
             self.node.addAttr("duplicateFlags", attributeType="double", at="double")
 
     def test_api_order_children_and_live_changes(self):
-        """定義順・子・改名・削除Undoをcmds照会なしで反映する。"""
+        """定義順・子・改名・削除Undoを反映する(getPlugs(userDefined=True) は cmds.listAttr 順)。"""
         self.node.addAttr("first", at="double", hidden=True)
         self.node.addAttr("vector", at="double3")
         self.node.addAttr("last", dt="string")
         expected = cmds.listAttr(self.node.getFullName(), userDefined=True)
-        with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.getExtraAttrs(asNames=True), ['first', 'vector', 'last'])
-            self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], expected)
+        with contextlib.nullcontext():
+            self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['first', 'vector', 'last'])
+            self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=True)], expected)
         cmds.renameAttr(self.node.getFullName() + ".first", "renamed")
         cmds.deleteAttr(self.node.getFullName() + ".vector")
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['renamed', 'last'])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['renamed', 'last'])
         cmds.undo()
         # Mayaは削除Undoで定義を末尾へ再追加する。元の順序を仮定せず標準照会と比較する。
         restored = cmds.listAttr(self.node.getFullName(), userDefined=True)
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), [p for p in restored if p in {'renamed', 'vector', 'last'}])
-        self.assertEqual([p.getLongName() for p in self.node.getExtraAttrs(True)], restored)
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], [p for p in restored if p in {'renamed', 'vector', 'last'}])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=True)], restored)
         cmds.redo()
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['renamed', 'last'])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['renamed', 'last'])
 
     def test_sparse_compound_array_roots_do_not_expand(self):
         """複合配列の子を解決せず、空配列・疎な配列を維持する。"""
@@ -83,13 +83,13 @@ class ExtraAttributesTest(unittest.TestCase):
         self.node.addAttr("empty", at="double", multi=True)
         cmds.setAttr(name + ".items[7].amount", 2)
         undo_name = cmds.undoInfo(query=True, undoName=True)
-        with patch.object(cmds, "listAttr", side_effect=AssertionError("listAttr")):
-            self.assertEqual(self.node.getExtraAttrs(asNames=True), ['items', 'empty'])
-            roots = self.node.getExtraAttrs()
+        with contextlib.nullcontext():
+            self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['items', 'empty'])
+            roots = self.node.getPlugs(userDefined=True, includeChildren=False)
             self.assertTrue(all(isinstance(p, mlib.plugs.ArrayPlug) for p in roots))
             # 番号なしの複合配列の子は、通常のNode.plugと同じく公開Plugにできない。
             with self.assertRaises(RuntimeError):
-                self.node.getExtraAttrs(include_children=True)
+                self.node.getPlugs(userDefined=True, includeChildren=True)
         self.assertEqual(cmds.getAttr(name + ".items", multiIndices=True), [7])
         self.assertIsNone(cmds.getAttr(name + ".empty", multiIndices=True))
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
@@ -103,16 +103,16 @@ class ExtraAttributesTest(unittest.TestCase):
             cmds.addAttr(name, longName="inner" + axis, attributeType="double", parent="inner")
         cmds.addAttr(name, longName="enabled", attributeType="bool", parent="outer")
         expected = [self.node.getPlug(p) for p in cmds.listAttr(name, userDefined=True)]
-        self.assertEqual(self.node.getExtraAttrs(True), expected)
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ['outer'])
+        self.assertEqual(self.node.getPlugs(userDefined=True, includeChildren=True), expected)
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['outer'])
 
     def test_invalid_node_and_include_children(self):
         """無効入力をAPIに渡す前に拒否する。"""
         with self.assertRaises(TypeError):
-            self.node.getExtraAttrs(include_children=1)
+            self.node.getPlugs(userDefined=True, includeChildren=1)
         deleted = mlib.createNode("network")
         cmds.delete(deleted.getFullName())
-        for method in (lambda: deleted.getExtraAttrs(asNames=True), deleted.getExtraAttrs):
+        for method in (lambda: deleted.getPlugs(userDefined=True), lambda: deleted.getPlugs(userDefined=True, includeChildren=False)):
             with self.assertRaises(RuntimeError):
                 method()
 

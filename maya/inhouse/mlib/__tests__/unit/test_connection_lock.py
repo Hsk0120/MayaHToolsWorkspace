@@ -4,7 +4,7 @@ import unittest
 
 import maya.cmds as cmds
 
-from mlib.nodes import Node
+import mlib
 
 
 class ConnectionLockTest(unittest.TestCase):
@@ -12,7 +12,7 @@ class ConnectionLockTest(unittest.TestCase):
 
     def test_force_without_unlock(self):
         """unlock=Falseは既存入力とロックを保持して失敗する。"""
-        nodes = [Node.create("multiplyDivide") for _ in range(3)]
+        nodes = [mlib.createNode("multiplyDivide") for _ in range(3)]
         original, replacement, target = nodes
         output = original.getPlug("outputX")
         destination = target.getPlug("input1X")

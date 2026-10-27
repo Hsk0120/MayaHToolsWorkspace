@@ -15,7 +15,7 @@ def getNode(value):
     """既存のMayaノードを参照する新しいラッパーを返す。
 
     入力がNodeでも同じMayaノードへの参照を作り、シーンのノードを複製しない。
-    ラッパー型はnodeTypeの登録、近い順の登録済み祖先型、Nodeの順に選ぶ。
+    ラッパー型はnodeTypeの登録、無ければMayaの継承に沿って生成したクラス(基底は最寄りの登録クラス)、Mayaが認識しない型名だけNodeの順に選ぶ。
 
     Args:
         value (str | Node | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug):

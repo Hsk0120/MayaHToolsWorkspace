@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-27): mlib 2.0.0 をリリース。未登録ノードタイプの動的クラス生成(基底は最寄りの登録クラス、`mlib.nodes.<TypeName>`)、作成を `mlib.createNode` に一本化(`Node.create`・`create=True` 廃止)、cymel に近いメソッドの統合・廃止(getPath系→getFullName/getName、dagFn/transformFn→mfn、getExtraAttrs→getPlugs(userDefined=)、Transform.reset→resetAttrs、getEuler→getRotate(order=)、Plug.getDataType→getType 等)、追加(setLocked・getRoot/getSiblings/getBoundingBox の DagNode 化・Plug 演算子 `>>`/`<<`/`//`・getAlias/getArray/getIndex/getEnumNames・uiUnits)。仕様テスト9ファイル追加・既存テストと mlrig の呼出しを移行。版番号・changelog.rst・Sphinx ガイド・api-design・CLAUDE.md を更新。Maya 2022〜2027 で mlib 全件、2027 で mlrig 685件、静的検査・Sphinx(-W)・文書検査が合格。fast の追加・om2 読み取り置換(Phase 3)と snake_case 引数の改名は次版へ送った。
+
 - Codex (2026-10-27): プッシュ依頼に対応し、QPEの6時間検証修正・B02終了クラッシュ修正・既定文字12pxと関連QPE/MCE回帰テストを公開対象に整理。既存GUI検証証拠、差分、Python構文と監査ランナー単体テストを確認。mlib/mlrig等の並行変更と他担当の作業ログをコミット対象から除外し、手元に保持。
 
 - Codex (2026-10-27): QPEの既定文字サイズを13pxから12pxへ変更し、Standard/Restore Defaultsも統一。保存済み指定・Large/Largest・DPI倍率を維持。Qt5.15.2/Qt6.8.3の専用設定で表示、標準復帰、15px/125%の再読込とDPI2倍を確認。Maya GUIは今回は未実施。6秒の比較画像動画をDriveへ非公開保存・サイズ/URL/権限を読戻し。証拠 `.maya-output/qpe-font-size-20261027/`。未プッシュ。
@@ -125,10 +127,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Codex (2026-10-27): QPE/Maya Code Editorの6時間検証を04:20 JSTで終了。QPEのキー伝播、自己参照誤成功、再生成時のQt内部部品参照、破棄済みタイマー、改名後フォーカス、狭幅UIを修正。2022/2027の併用・シーン操作・同時異常終了後の本文復元・最終20回再生成と実Windows入力を検証し、2023〜2026は併用回帰を確認。終了時ShibokenクラッシュB02は未解決。共有タブの実ドラッグ・複雑IME・実他ツール・混在物理DPI等は未確認。MCE製品C++変更なし。期限後は新規テスト/製品修正なし、稼働Mayaなしを確認、両自動化停止済み。詳細/証拠/再現手順は `.maya-output/qpe-mce-six-hour-20261026/final-report.txt` と `progress.json`。他タスク変更を保持し、未コミット・未プッシュ。
 
+- Codex (2026-10-26): Maya Code Editor 0.8.0。先着Mayaだけの復元ロックと本文削除を廃止し、不変の圧縮本文・親世代付きスナップショットへ追記保存。本文変更直後の同期保存、並行編集の両方復元、破損時の親世代回収、履歴の追加復元、保存失敗の常時表示を実装。旧復元データを.maya-output/mce-recovery-20261026/user-backupへ保護。全6版ビルド・ストア多重プロセス/破損/失敗テスト合格。2022/2027 GUIで2重起動・入力直後の強制終了・2回再起動・履歴復元・通常解除復元、2027で保存失敗/再試行/ドック再生成と30タブ性能を検証。C++ UI/補完等の回帰も両版合格（廃止済みmlib色APIの期待を現行getVisibilityへ更新）。テストのダイアログ選択/古いQtラッパー参照を修正後再実行。結果.maya-output/mce-recovery-20261026/verification.json。動画 https://drive.google.com/file/d/18WPjF2BCC2WdwE4Gcvi1dxCgDeC8SQeQ/view 。電源断・物理IME入力・2023〜2026のGUI未検証。公開前に全6版の検証済みバイナリのSHA256一致と差分検査を再確認。MCE 0.8.0のみ公開対象とし、QPE差分と他作業の記録は保持。
 - Codex (2026-10-26): QPEの監視を本体と専用workspaceControlへ限定し、共有タブの制約変更を廃止。再生成前の監視解除、現在の内容/親の確認、旧close通知の世代排除、Qt5親ラッパーの寿命保持を追加。配置補正は明示表示/復元時に分離。Maya2022/2027で削除・即再生成・uiScript復元・共有親不変・閉じる/再表示・右/下/共有タブ縮小を検証し、2027の4段階再起動復元も成功。結果.maya-output/verification/qpe-dock-safe-20261026/verified-results.json。他ツール固有の例外手順と物理入力は未確認。公開前に検証結果・構文・差分を再確認し、QPEの修正と回帰テストを公開対象として整理。
 - Codex (2026-10-26): QPEのQt寿命を調査。隔離Maya2022/2027で削除直後の再生成が旧watcherを再利用し、イベントループ復帰後に新画面だけ残る不具合と、制御用共有タブで破棄時のサイズ制約復元漏れを再現。Maya Code Editorとの差分・共有親監視・未検証リスクをdocs/research/qpe-qt-lifetime-20261026.txtへ記録（Git対象外）。他ツール固有の例外・クラッシュは未再現。製品コード・ユーザー設定は変更なし。証拠は.maya-output/qpe-qt-investigation-20261026/。
-
-- Codex (2026-10-26): Maya Code Editor 0.8.0。先着Mayaだけの復元ロックと本文削除を廃止し、不変の圧縮本文・親世代付きスナップショットへ追記保存。本文変更直後の同期保存、並行編集の両方復元、破損時の親世代回収、履歴の追加復元、保存失敗の常時表示を実装。旧復元データを.maya-output/mce-recovery-20261026/user-backupへ保護。全6版ビルド・ストア多重プロセス/破損/失敗テスト合格。2022/2027 GUIで2重起動・入力直後の強制終了・2回再起動・履歴復元・通常解除復元、2027で保存失敗/再試行/ドック再生成と30タブ性能を検証。C++ UI/補完等の回帰も両版合格（廃止済みmlib色APIの期待を現行getVisibilityへ更新）。テストのダイアログ選択/古いQtラッパー参照を修正後再実行。結果.maya-output/mce-recovery-20261026/verification.json。動画 https://drive.google.com/file/d/18WPjF2BCC2WdwE4Gcvi1dxCgDeC8SQeQ/view 。電源断・物理IME入力・2023〜2026のGUI未検証。公開前に全6版の検証済みバイナリのSHA256一致と差分検査を再確認。MCE 0.8.0のみ公開対象とし、QPE差分と他作業の記録は保持。
 
 - Claude Code (2026-10-26): 仕様固めのテストで見つかった食い違い・不具合26件を修正(AngleBetween.getAxisの評価、Reference.getFilenameの引数、mlib.deleteのアトリビュート名の拒否、fastの丸め・型の検証を通常経路に統一、ピボットのロックを両経路で拒否、型の登録にdagNode/shape、作成前の型検査、削除直後のDAG参照の例外、enumの例外の統一、BlendMatrix.setTargetのfastなど)。テストを新しい約束に更新。Maya 2022〜2027でmlib全件・mlrig setups合格。
 

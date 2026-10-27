@@ -1,7 +1,7 @@
 """Transform の参照の少ない公開APIの約束を固定する(担当C)。
 
-対象: getJointOrientQuaternion・getEuler・getShearing(ローカル/ワールド)、resetPivot、makeIdentity、
-mirrorGeometry、getRoot・getSiblings、getBoundingBox(ws)、reset と Transforms の同名メソッド。
+対象: getQuaternion(r=False)・getRotate(order=0)・getShear(ローカル/ワールド)、setPivot((0, 0, 0))、makeIdentity、
+mirrorGeometry、getRoot・getSiblings、getBoundingBox(ws)、resetAttrs と Transforms の同名メソッド。
 setRotate・setMatrix の書き込むチャンネルは test_contract_changes_B.py が確かめているため重ねない。
 """
 
@@ -57,7 +57,7 @@ class _NamespaceCase(unittest.TestCase):
 
 
 class JointOrientQuaternionTest(_NamespaceCase):
-    """getJointOrientQuaternion は getQuaternion(r=False) と同じ。"""
+    """getQuaternion(r=False) は jointOrient(とワールドなら親)だけの回転。"""
 
     def setUp(self):
         super().setUp()
@@ -71,7 +71,7 @@ class JointOrientQuaternionTest(_NamespaceCase):
 
     def test_local_joint_is_joint_orient(self):
         """ローカルの Joint は jointOrient だけを Quaternion で返し、rotate を含めない。"""
-        value = self.joint.getJointOrientQuaternion()
+        value = self.joint.getQuaternion(r=False)
         self.assertIsInstance(value, Quaternion)
         expected = om2.MEulerRotation(0, math.radians(45), 0).asQuaternion()
         self.assertSameRotation(value, expected)
@@ -81,34 +81,34 @@ class JointOrientQuaternionTest(_NamespaceCase):
         """ワールドは保持パスから求め、親の回転を含めて rotate だけを除く。"""
         expected = (om2.MEulerRotation(0, math.radians(45), 0).asQuaternion()
                     * om2.MEulerRotation(math.radians(30), 0, 0).asQuaternion())
-        self.assertSameRotation(self.joint.getJointOrientQuaternion(ws=True), expected)
-        self.assertSameRotation(self.joint.getJointOrientQuaternion(worldSpace=True), expected)
+        self.assertSameRotation(self.joint.getQuaternion(ws=True, r=False), expected)
+        self.assertSameRotation(self.joint.getQuaternion(worldSpace=True, r=False), expected)
 
     def test_transform(self):
         """非 Joint のローカルは単位回転、ワールドは親側の回転(ワールド直下なら単位)。"""
-        self.assertSameRotation(self.transform.getJointOrientQuaternion(), [0, 0, 0, 1])
-        self.assertSameRotation(self.transform.getJointOrientQuaternion(ws=True), [0, 0, 0, 1])
+        self.assertSameRotation(self.transform.getQuaternion(r=False), [0, 0, 0, 1])
+        self.assertSameRotation(self.transform.getQuaternion(ws=True, r=False), [0, 0, 0, 1])
         child = Node(self.make("transform", "child", parent=self.parent))
         cmds.setAttr(child.getFullName() + ".rotate", 0, 90, 0)
-        self.assertSameRotation(child.getJointOrientQuaternion(ws=True),
+        self.assertSameRotation(child.getQuaternion(ws=True, r=False),
                                 om2.MEulerRotation(math.radians(30), 0, 0).asQuaternion())
 
     def test_argument_errors(self):
         """ws と worldSpace の同時指定は TypeError、bool 以外は ValueError。"""
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'ws' and 'worldSpace'"):
-            self.joint.getJointOrientQuaternion(ws=True, worldSpace=True)
+        with self.assertRaisesRegex(TypeError, "Specify only one of"):
+            self.joint.getQuaternion(ws=True, worldSpace=True, r=False)
         with self.assertRaises(ValueError):
-            self.joint.getJointOrientQuaternion(ws=1)
+            self.joint.getQuaternion(ws=1, r=False)
 
     def test_independent_value(self):
         """戻り値を変えてもシーンは変わらない。"""
-        value = self.joint.getJointOrientQuaternion()
+        value = self.joint.getQuaternion(r=False)
         value.x = 0.9
         self.assertEqual(cmds.getAttr(self.joint_name + ".jointOrient")[0], (0.0, 45.0, 0.0))
 
 
 class EulerShearTest(_NamespaceCase):
-    """getEuler と getShearing。"""
+    """getRotate(order=0) と getShear。"""
 
     def setUp(self):
         super().setUp()
@@ -118,10 +118,10 @@ class EulerShearTest(_NamespaceCase):
         self.child = Node(self.child_name)
 
     def test_get_euler_is_xyz_regardless_of_rotate_order(self):
-        """getEuler は rotateOrder によらず XYZ 順の radian。"""
+        """getRotate(order=0) は rotateOrder によらず XYZ 順の radian。"""
         cmds.setAttr(self.child_name + ".rotateOrder", 2)
         cmds.setAttr(self.child_name + ".rotate", 0, 0, 40)
-        value = self.child.getEuler()
+        value = self.child.getRotate(order=0)
         self.assertIsInstance(value, EulerRotate)
         self.assertEqual(value.order, om2.MEulerRotation.kXYZ)
         self.assertSequenceAlmostEqual(list(value), [0.0, 0.0, math.radians(40)])
@@ -131,46 +131,46 @@ class EulerShearTest(_NamespaceCase):
         cmds.setAttr(self.child_name + ".rotate", 0, 0, 40)
         expected = om2.MTransformationMatrix(om2.MMatrix(cmds.getAttr(self.child_name + ".worldMatrix[0]")))
         expected = expected.rotation(asQuaternion=True).asEulerRotation()
-        self.assertSequenceAlmostEqual(list(self.child.getEuler(ws=True)), list(expected))
+        self.assertSequenceAlmostEqual(list(self.child.getRotate(ws=True, order=0)), list(expected))
         with self.assertRaises(ValueError):
-            self.child.getEuler(ws="yes")
+            self.child.getRotate(ws="yes", order=0)
 
     def test_get_euler_with_zero_scale_raises(self):
         """自身・親のスケールが0(Maya は 1e-12 として評価)なら ValueError。FINDINGS C-06 で修正。"""
         cmds.setAttr(self.parent + ".scale", 0, 1, 1)
         with self.assertRaisesRegex(ValueError, "zero scale axis"):
-            self.child.getEuler(ws=True)
-        self.assertIsInstance(self.child.getEuler(), EulerRotate)
+            self.child.getRotate(ws=True, order=0)
+        self.assertIsInstance(self.child.getRotate(order=0), EulerRotate)
         cmds.setAttr(self.parent + ".scale", 1, 1, 1)
         cmds.setAttr(self.child_name + ".scale", 1, 0, 1)
         with self.assertRaisesRegex(ValueError, "zero scale axis"):
-            self.child.getEuler()
+            self.child.getRotate(order=0)
         with self.assertRaisesRegex(ValueError, "zero scale axis"):
-            self.child.getEuler(ws=True)
+            self.child.getRotate(ws=True, order=0)
 
     def test_get_euler_with_small_scale(self):
         """小さくても0でないスケールは分解する。"""
         cmds.setAttr(self.child_name + ".rotate", 0, 0, 40)
         cmds.setAttr(self.child_name + ".scale", 1e-4, 1e-4, 1e-4)
-        self.assertSequenceAlmostEqual(list(self.child.getEuler()), [0.0, 0.0, math.radians(40)])
+        self.assertSequenceAlmostEqual(list(self.child.getRotate(order=0)), [0.0, 0.0, math.radians(40)])
 
     def test_get_shearing(self):
         """ローカルは shear チャンネル、ワールドは API の分解値。戻り値は Shear。"""
         cmds.setAttr(self.child_name + ".shear", 0.5, 0, 0)
-        local = self.child.getShearing()
+        local = self.child.getShear()
         self.assertIsInstance(local, Shear)
         self.assertSequenceAlmostEqual(list(local), [0.5, 0.0, 0.0])
         cmds.setAttr(self.parent + ".rotate", 0, 0, 0)
         cmds.setAttr(self.parent + ".shear", 0.2, 0, 0)
         expected = om2.MTransformationMatrix(om2.MMatrix(cmds.getAttr(self.child_name + ".worldMatrix[0]")))
-        self.assertSequenceAlmostEqual(list(self.child.getShearing(ws=True)), list(expected.shear(om2.MSpace.kTransform)))
-        self.assertSequenceAlmostEqual(list(self.child.getShearing(ws=True)), [0.7, 0.0, 0.0])
+        self.assertSequenceAlmostEqual(list(self.child.getShear(ws=True)), list(expected.shear(om2.MSpace.kTransform)))
+        self.assertSequenceAlmostEqual(list(self.child.getShear(ws=True)), [0.7, 0.0, 0.0])
         with self.assertRaises(TypeError):
-            self.child.getShearing(worldSpace=True, ws=True)
+            self.child.getShear(worldSpace=True, ws=True)
 
 
 class ResetPivotTest(_NamespaceCase):
-    """resetPivot は姿勢を保ってピボットを原点へ移す。"""
+    """setPivot((0, 0, 0), ws=True, kind="both") は姿勢を保ってピボットを原点へ移す。"""
 
     def setUp(self):
         super().setUp()
@@ -189,7 +189,7 @@ class ResetPivotTest(_NamespaceCase):
     def test_both_world_and_undo(self):
         """既定は両方のピボットをワールド原点へ移し、姿勢を変えない。1回の Undo で戻る。"""
         cmds.flushUndo()
-        self.assertIs(self.node.resetPivot(), self.node)
+        self.assertIs(self.node.setPivot((0, 0, 0), ws=True, kind="both"), self.node)
         rotate_pivot, scale_pivot = self.world_pivots()
         self.assertSequenceAlmostEqual(rotate_pivot, [0, 0, 0])
         self.assertSequenceAlmostEqual(scale_pivot, [0, 0, 0])
@@ -201,11 +201,11 @@ class ResetPivotTest(_NamespaceCase):
 
     def test_kind_and_object_space(self):
         """kind=rotate は回転ピボットだけ、ws=False は object 空間の原点へ移す。"""
-        self.node.resetPivot(kind="rotate")
+        self.node.setPivot((0, 0, 0), ws=True, kind="rotate")
         rotate_pivot, scale_pivot = self.world_pivots()
         self.assertSequenceAlmostEqual(rotate_pivot, [0, 0, 0])
         self.assertSequenceAlmostEqual(scale_pivot, [4, 5, 6])
-        self.node.resetPivot(ws=False, kind="scale")
+        self.node.setPivot((0, 0, 0), ws=False, kind="scale")
         self.assertSequenceAlmostEqual(
             cmds.xform(self.name_, query=True, objectSpace=True, scalePivot=True), [0, 0, 0])
         self.assertSequenceAlmostEqual(cmds.getAttr(self.name_ + ".worldMatrix[0]"), self.matrix)
@@ -213,7 +213,7 @@ class ResetPivotTest(_NamespaceCase):
     def test_fast_matches_and_is_not_recorded(self):
         """fast=True も同じ結果で、Undo に記録しない。"""
         cmds.flushUndo()
-        self.node.resetPivot(fast=True)
+        self.node.setPivot((0, 0, 0), ws=True, fast=True, kind="both")
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         rotate_pivot, scale_pivot = self.world_pivots()
         self.assertSequenceAlmostEqual(rotate_pivot, [0, 0, 0])
@@ -223,15 +223,15 @@ class ResetPivotTest(_NamespaceCase):
     def test_errors(self):
         """kind・ws の不正は ValueError、Joint・fast の型は TypeError。"""
         with self.assertRaisesRegex(ValueError, "kind"):
-            self.node.resetPivot(kind="both2")
+            self.node.setPivot((0, 0, 0), ws=True, kind="both2")
         with self.assertRaises(ValueError):
-            self.node.resetPivot(ws=1)
+            self.node.setPivot((0, 0, 0), ws=1, kind="both")
         with self.assertRaisesRegex(TypeError, "fast must be a bool"):
-            self.node.resetPivot(fast=1)
+            self.node.setPivot((0, 0, 0), ws=True, fast=1, kind="both")
         with self.assertRaisesRegex(TypeError, "Joint does not support"):
-            Node(self.make("joint", "jointPivot")).resetPivot()
+            Node(self.make("joint", "jointPivot")).setPivot((0, 0, 0), ws=True, kind="both")
         with self.assertRaisesRegex(TypeError, "Specify only one"):
-            self.node.resetPivot(worldSpace=True, ws=True)
+            self.node.setPivot((0, 0, 0), worldSpace=True, ws=True, kind="both")
 
     def test_locked_pivot(self):
         """ロックされたピボットの成分は通常・fast とも RuntimeError で、何も変えない。FINDINGS C-07 で修正。"""
@@ -242,7 +242,7 @@ class ResetPivotTest(_NamespaceCase):
         for fast in (True, False):
             for kind in ("rotate", "both"):
                 with self.assertRaisesRegex(RuntimeError, "locked or connected"):
-                    self.node.resetPivot(kind=kind, fast=fast)
+                    self.node.setPivot((0, 0, 0), ws=True, kind=kind, fast=fast)
                 with self.assertRaisesRegex(RuntimeError, "locked or connected"):
                     self.node.setPivot((0, 0, 0), kind=kind, fast=fast)
             with self.assertRaisesRegex(RuntimeError, "locked or connected"):
@@ -252,7 +252,7 @@ class ResetPivotTest(_NamespaceCase):
         self.assertEqual(after, before)
         self.assertSequenceAlmostEqual(cmds.getAttr(self.name_ + ".worldMatrix[0]"), self.matrix)
         # ロックされていない種類は変更できる。
-        self.node.resetPivot(kind="scale")
+        self.node.setPivot((0, 0, 0), ws=True, kind="scale")
         _, scale_pivot = self.world_pivots()
         self.assertSequenceAlmostEqual(scale_pivot, [0, 0, 0])
 
@@ -396,21 +396,21 @@ class TransformsBulkTest(_NamespaceCase):
     """Transforms の同名メソッド。"""
 
     def test_bulk_queries_and_reset_pivot(self):
-        """照会はリスト、resetPivot は自身を返す。Joint を含むと番号付きで止まる。"""
+        """照会はリスト、setPivot は自身を返す。Joint を含むと番号付きで止まる。"""
         names = [self.make("transform", "bulk#") for _ in range(2)]
         for name in names:
             cmds.setAttr(name + ".shear", 0.25, 0, 0)
             cmds.xform(name, worldSpace=True, rotatePivot=(1, 1, 1))
         nodes = Transforms(names)
-        self.assertEqual([list(value) for value in nodes.getShearing()], [[0.25, 0.0, 0.0]] * 2)
-        self.assertEqual(len(nodes.getJointOrientQuaternion()), 2)
-        self.assertEqual(len(nodes.getEuler(ws=True)), 2)
-        self.assertIs(nodes.resetPivot(kind="rotate"), nodes)
+        self.assertEqual([list(value) for value in nodes.getShear()], [[0.25, 0.0, 0.0]] * 2)
+        self.assertEqual(len(nodes.getQuaternion(r=False)), 2)
+        self.assertEqual(len(nodes.getRotate(ws=True, order=0)), 2)
+        self.assertIs(nodes.setPivot((0, 0, 0), ws=True, kind="rotate"), nodes)
         for name in names:
             self.assertSequenceAlmostEqual(cmds.xform(name, query=True, worldSpace=True, rotatePivot=True), [0, 0, 0])
         mixed = Transforms(names + [self.make("joint", "bulkJoint")])
-        with self.assertRaisesRegex(RuntimeError, r"Transforms\.resetPivot failed at item 2"):
-            mixed.resetPivot()
+        with self.assertRaisesRegex(RuntimeError, r"Transforms\.setPivot failed at item 2"):
+            mixed.setPivot((0, 0, 0), ws=True, kind="both")
 
 
 if __name__ == "__main__":

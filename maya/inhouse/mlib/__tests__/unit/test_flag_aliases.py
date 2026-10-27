@@ -103,7 +103,7 @@ class FlagAliasesTest(unittest.TestCase):
         matrix = mlib.createNode("multMatrix")
         attempts = (
             lambda: node.setTranslate((1, 2, 3), worldSpace=False, ws=False),
-            lambda: node.reset(attributes=None, attrs=None),
+            lambda: node.resetAttrs(attributes=None, attrs=None),
             lambda: node.addAttr(longName="value", ln="value"),
             lambda: matrix.setInput(idx=2),
             lambda: matrix.setInput(value=mlib.maths.Matrix()),

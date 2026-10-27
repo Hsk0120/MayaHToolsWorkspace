@@ -55,9 +55,9 @@ class ConsolidatedDagTests(unittest.TestCase):
         a = mlib.getNode(first).getChildren()[0]
         b = mlib.getNode(second).getChildren()[0]
         self.assertEqual(a.mnode(), b.mnode())
-        self.assertNotEqual(a.getFullPath(), b.getFullPath())
-        self.assertEqual(a.getParent().getFullPath(), "|firstRoot")
-        self.assertEqual(b.getParent().getFullPath(), "|secondRoot")
+        self.assertNotEqual(a.getFullName(), b.getFullName())
+        self.assertEqual(a.getParent().getFullName(), "|firstRoot")
+        self.assertEqual(b.getParent().getFullName(), "|secondRoot")
 
     def test_pivot_fast_matches_cmds_and_read_is_api_only(self):
         """非一様スケールと親を含むピボット設定を通常経路と比較する。"""

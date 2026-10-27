@@ -135,7 +135,7 @@ def _node(kind, name):
     Returns:
         Node: 作ったノード。
     """
-    return mlib.nodes.Node.create(kind, name=name, skipSelect=True)
+    return mlib.createNode(kind, name=name, skipSelect=True)
 
 
 def _multiply(name, source, factor):

@@ -129,6 +129,13 @@ mlib入門
    * - 値・単位・接続を扱う
      - ``node.getPlug("translateX").get()``、``plug.getSource()``
      - :class:`~mlib.plugs.plug.Plug`
+   * - ノードの型を調べ、Mayaの継承で判定する
+     - ``node.getType()``、``node.isType("shape")``、``node.getType(inherited=True)``
+     - :meth:`~mlib.nodes.node.Node.isType`、:ref:`dynamic-node-classes`
+   * - ユーザー定義アトリビュートを列挙する
+     - ``node.getPlugs(userDefined=True)``。名前は ``[p.getLongName() for p in plugs]``。
+       ``userDefined=True`` は ``cmds.listAttr`` のフラグと併用できません(TypeError)
+     - :meth:`~mlib.nodes.node.Node.getPlugs`
    * - 選択した頂点をShapeごとにまとめる
      - ``Selection.capture().filter("vertex").getComponents()``
      - :class:`~mlib.common.selection.Selection`
@@ -172,14 +179,21 @@ mlib入門
 ``Joint("transform1")`` はTypeError、``Transform("joint1")`` はJointを返します。
 名前や型からまとめて検索する場合は ``mlib.ls`` を使います。
 
+ノードの作成は :func:`~mlib.cmds.createNode.createNode`\ (``mlib.createNode``。``cmds.createNode`` 相当)
+だけで行います。クラスのconstructorは既存ノードの取得専用で、作成を指示する引数や
+クラスメソッドはありません。
+
 .. code-block:: python
 
-   joint = Joint("newJoint", create=True)
-   control = Transform("newControl", create=True)
+   joint = mlib.createNode("joint", name="newJoint")           # Joint
+   control = mlib.createNode("transform", name="newControl")   # Transform
+   shape = mlib.createNode("mesh", parent=control)             # Mesh。親を省略するとtransformが自動で作られます
+   quick = mlib.createNode("multiplyDivide", fast=True)        # OpenMayaで直接作成。Undoに記録されません
 
-``create=True`` は新規作成です。指定名が既にある場合はMayaの規則で連番化されます。
-作成には名前だけで初期化でき、Maya nodeTypeへ一意に登録された具象クラスが必要です。
-詳細は :meth:`~mlib.nodes.node.Node.__new__` を参照してください。
+戻り値は作成したノードの実際のnodeTypeに対応するラッパーです。指定名が既にある場合は
+Mayaの規則で連番化されます。``name``・``parent``・``shared``・``skipSelect`` と
+その短縮名は ``cmds.createNode`` と同じ意味で、追加のMayaフラグもそのまま渡せます。
+詳細は :func:`~mlib.cmds.createNode.createNode` を参照してください。
 
 複数形は保持順に実行し、後続の失敗で先行変更を自動では戻しません。
 同じ値をまとめて設定する例です。要素別の引数は :meth:`~mlib.nodes.node.Nodes.callEach` で渡します。
@@ -188,6 +202,75 @@ mlib入門
 
    joints = mlib.ls(type="joint")
    joints.setRadius(1)
+
+.. _dynamic-node-classes:
+
+動的ノードクラス
+----------------
+
+``mlib.nodes`` に手書きクラスが無いnodeType(``pointLight``・``airField``・``wrap`` など)のノードも、
+``mlib.ls``・``mlib.getNode``・``mlib.createNode`` の結果は ``Node`` 固定ではなく、
+そのnodeTypeに対応するクラスのインスタンスになります。クラスは最初に要求されたときに
+型名の先頭を大文字にした名前(``pointLight`` なら ``PointLight``)で自動生成され、
+``mlib.nodes.PointLight`` のように ``mlib.nodes.<TypeName>`` でも取得できます。
+``getType()`` はラッパーのクラス名ではなくMayaのnodeType名をそのまま返します。
+
+.. code-block:: python
+
+   import mlib
+
+   light = mlib.createNode("pointLight", name="mlibLightShape")
+   print(type(light).__name__)                      # PointLight
+   print(isinstance(light, mlib.nodes.PointLight))  # True
+   print(isinstance(light, mlib.nodes.Shape))       # True。基底は最寄りの登録クラス
+   print(light.getType())                           # pointLight
+   print(light.isType("light"))                     # True。Mayaの継承チェーンで判定
+
+   same = mlib.nodes.PointLight("mlibLightShape")   # 具象クラスを明示した取得も可能
+
+基底はMayaの継承チェーン(``cmds.nodeType(inherited=True)``)上で最も近い登録クラスで、
+``pointLight`` なら ``Shape``、``wrap`` なら ``Node``、``symmetryConstraint`` なら
+``Constraint`` です。登録クラスと生成対象の間にある抽象型(``geometryFilter``・
+``containerBase``・``entity`` など)のクラスは作られず、生成クラス同士が親子になることも
+ありません。生成クラスについて保証するのは「最寄りの登録クラスの派生である」ことだけです。
+
+手書きクラスも同様で、``SkinCluster`` は ``Node`` の直接の派生、``Transform`` は
+``DagNode`` の直接の派生です。したがって ``isinstance`` はMayaの抽象祖先を含む継承関係を
+表しません。Mayaの継承に基づく判定は ``isType()`` か ``getType(inherited=True)``\ (基底型から
+自身への順の ``list[str]``)で行います。``type(node) is mlib.nodes.Node`` のような厳密な型比較も、
+未登録型が生成クラスになるため ``isinstance`` か ``isType()`` に置き換えてください。
+
+.. code-block:: python
+
+   skin = mlib.ls(type="skinCluster")[0]
+   print(skin.isType("geometryFilter"))                      # True
+   print("geometryFilter" in skin.getType(inherited=True))   # True
+   print(isinstance(skin, mlib.nodes.GeometryFilter))        # False。手書きクラスは抽象祖先を継承しない
+
+``mlib.nodes.GeometryFilter`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
+対応するインスタンスが無いため ``isinstance`` には使えません。Mayaが認識しない型名
+(プラグイン未ロードを含む)は ``AttributeError``、``mlib.nodes.pointLight`` のような
+先頭小文字の綴りも ``AttributeError`` です。生成クラスは ``mlib.nodes.__all__`` と
+APIリファレンスには載りません。
+
+生成クラスは要求時に作られてキャッシュされ、次の3つの契機で廃棄されます。
+廃棄後の取得では作り直されるため、保持していたクラス参照に対する ``isinstance`` は偽になり、
+そのクラスを明示した取得は ``TypeError`` になります。保持中の生成クラスは
+``mlib.nodes.<TypeName>`` で取り直してください。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - 契機
+     - 内容
+   * - 型登録表の変更
+     - ``register``・``replace``・``clear`` による登録の追加・置換と、拡張(``mlib_*``)の登録・解除
+   * - ``mlib.reload()``
+     - 型登録表を作り直すため、生成クラスもすべて廃棄する
+   * - プラグインのロード/アンロード
+     - :class:`~mlib.common.plugin.Plugin` の ``load()``・``unload()``\ (``PluginPackage`` 経由を含む)で
+       継承キャッシュと生成クラスを廃棄する。``cmds.loadPlugin`` の直接呼出しやPlug-in Managerの操作には追従しない
 
 再読み込み
 ----------

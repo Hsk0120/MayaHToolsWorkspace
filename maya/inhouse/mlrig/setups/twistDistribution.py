@@ -28,7 +28,7 @@ class TwistDistribution:
         Returns:
             Node: 生成ノード。
         """
-        node = mlib.nodes.Node.create(
+        node = mlib.createNode(
             kind, name=self.container.getName() + "_" + suffix, skipSelect=True
         )
         self.container.addMembers(node)

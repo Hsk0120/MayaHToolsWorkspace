@@ -86,7 +86,7 @@ class PlugReferencesTest(unittest.TestCase):
     def test_state_and_reference_are_separate_operations(self):
         """状態は専用照会で取得し、参照入口へ照会フラグを渡さない。"""
         angle = self.node.getPlug("rotateX")
-        self.assertEqual(angle.getDataType(), "doubleAngle")
+        self.assertEqual(angle.getType(), "doubleAngle")
         self.assertTrue(angle.isSettable())
         angle.setLocked(True)
         self.assertTrue(angle.isLocked())

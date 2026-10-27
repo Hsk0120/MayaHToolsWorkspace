@@ -311,7 +311,7 @@ class DestroyedNodeTest(unittest.TestCase):
         if node.isAlive():
             self.skipTest("the deleted node is still alive in this Maya version")
         for method in ("getType", "getTypeId", "getPluginName", "isLocked", "isFromReferencedFile",
-                       "getAttrCount", "getNodeName", "getClassification"):
+                       "getNodeName", "getClassification"):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(RuntimeError, "Cannot access an invalid node"):
                     getattr(node, method)()

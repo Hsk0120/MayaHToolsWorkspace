@@ -38,14 +38,14 @@ class Graph:
         Note:
             Shapeの作成に失敗した場合は、この処理で作成した親を削除する。
         """
-        MayaNode = coreModule('nodes').Node
+        createNode = coreModule('cmds').createNode
         from ..common.bifrost import Bifrost
 
         Bifrost.ensure_available()
-        parent = MayaNode.create("transform", name=name + "Transform", skipSelect=True)
+        parent = createNode("transform", name=name + "Transform", skipSelect=True)
         try:
             return cls(
-                MayaNode.create("bifrostGraphShape", name=name, parent=parent, skipSelect=True)
+                createNode("bifrostGraphShape", name=name, parent=parent, skipSelect=True)
             )
         except Exception:
             cmds.delete(parent.getFullName())

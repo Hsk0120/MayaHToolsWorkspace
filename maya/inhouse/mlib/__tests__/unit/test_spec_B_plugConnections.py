@@ -411,7 +411,7 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
             self.a.getPlug("tx").getDestinations(scn=True, skipConversionNodes=True)
 
     def test_get_connections_on_compound_and_flags(self):
-        """getConnectionsは子を再帰し、変換ノードは既定で飛ばさない。方向・ペア・index・pclsの扱い。"""
+        """getConnectionsは子を再帰し、変換ノードは既定で飛ばさない。方向・ペア・indexの扱い(pclsは無い)。"""
         translate = self.b.getPlug("translate")
         self.assertEqual(translate.getConnections(), [self.a.getPlug("tx")])
         self.assertEqual(translate.getConnections(checkChildren=False), [])
@@ -424,9 +424,10 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertEqual(self.b.getPlug("rx").getConnections(scn=True), [self.a.getPlug("tx")])
         self.assertIsNone(translate.getConnections(index=5))
         self.assertEqual(translate.getConnections(idx=0), self.a.getPlug("tx"))
-        # pclsは指定クラスで構築する。基底Plugを渡すと型登録に従って派生クラスを選ぶ。
-        self.assertIs(type(translate.getConnections(pcls=plugs.DoublePlug)[0]), plugs.DoublePlug)
-        self.assertIs(type(translate.getConnections(pcls=plugs.Plug)[0]), plugs.DoubleLinearPlug)
+        # 戻り値の型は型登録に従う(pcls 引数は廃止)。
+        self.assertIs(type(translate.getConnections()[0]), plugs.DoubleLinearPlug)
+        with self.assertRaises(TypeError):
+            translate.getConnections(pcls=plugs.DoublePlug)
         self.assertEqual(self.a.getPlug("tx").getConnections(dst=False), [])
         for kwargs in (dict(index=0, idx=0), dict(source=True, src=True), dict(destination=True, dst=True)):
             with self.subTest(**kwargs):

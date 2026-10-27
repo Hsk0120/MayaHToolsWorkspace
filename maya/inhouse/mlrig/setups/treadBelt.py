@@ -85,7 +85,7 @@ class TreadBelt(TwistDistribution):
             raise ValueError("The curve must be closed or periodic: " + shape.getFullName())
         if driver is not None:
             driver = mlib.getPlug(str(driver))
-            if driver.getDataType() != "doubleLinear":
+            if driver.getType() != "doubleLinear":
                 raise ValueError("driver must be a linear (distance) plug")
 
         graph = cls(mlib.nodes.Container.create(name=name))

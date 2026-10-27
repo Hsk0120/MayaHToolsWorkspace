@@ -158,10 +158,11 @@ class CreateNodeSpecTest(_CmdsCase):
         self.assertEqual(cmds.ls(selection=True), [self.name("loud")])
 
     def test_conflicting_flags_are_rejected_before_creation(self):
-        """長短名の同時指定・fastの非boolはノードを作る前にTypeError。"""
+        """長短名の同時指定・fastの非bool・cmdsに無いquery/editはノードを作る前にTypeError。"""
         before = self.transforms()
+        # query/edit は cmds.createNode に無いフラグで、他の不明なフラグと同様に Maya が TypeError にする。
         for kwargs in (dict(name="a", n="b"), dict(parent=":", p=":"), dict(skipSelect=True, ss=True),
-                       dict(shared=True, s=True), dict(query=True, q=True), dict(edit=True, e=True),
+                       dict(shared=True, s=True), dict(query=True), dict(q=True), dict(edit=True), dict(e=True),
                        dict(fast=1)):
             with self.assertRaises(TypeError, msg=repr(kwargs)):
                 mlib.createNode("transform", **kwargs)

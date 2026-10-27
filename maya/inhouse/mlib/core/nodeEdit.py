@@ -212,15 +212,24 @@ def create_node(node_type, flags):
 
     Returns:
         MObject: 作成したノード。Shapeの暗黙の親ではなくShapeを返す。
+            shared=Trueで同名・同型のノードが一意に存在する場合はそのノード(cmdsはルート名前空間の
+            名前だけ再利用するが、ここでは名前空間付きの名前でも既存ノードを返す近似)。
+
+    Raises:
+        NotImplementedError: name/parent/skipSelect/shared以外のフラグを指定した場合。
+        RuntimeError: Mayaが認識しないnodeType、ロック・参照された親、またはshared=Trueで
+            同名ノードの型が違う場合(cmdsは新しい連番名で作るが、fastは型を見て拒否する)。
     """
     from ..nodes.node import Node
 
     unsupported = set(flags) - {"name", "parent", "skipSelect", "shared"}
     if unsupported:
         raise NotImplementedError("Unsupported fast createNode flags: " + ", ".join(sorted(unsupported)))
-    # 不明な型は作成前に拒否する。DAG作成の失敗時にDGへ切り替えても、
+    # MNodeClassは未知の型名でも例外にならず typeId が 0 になるため、値で判定して作成前に拒否する
+    # (呼出し側の _node_type_exists と二重だが安価)。DAG作成の失敗時にDGへ切り替えても、
     # doIt前なので途中のノードをシーンへ残さない。
-    om2.MNodeClass(node_type)
+    if om2.MNodeClass(node_type).typeId.id() == 0:
+        raise RuntimeError("Unknown Maya nodeType: " + node_type)
     parent = Node(flags["parent"]).mnode() if flags.get("parent") else om2.MObject.kNullObj
     if not parent.isNull():
         require_editable(parent)
@@ -233,7 +242,12 @@ def create_node(node_type, flags):
             pass
         else:
             if selection.length() == 1:
-                return selection.getDependNode(0)
+                existing = selection.getDependNode(0)
+                existing_type = om2.MFnDependencyNode(existing).typeName
+                if existing_type != node_type:
+                    raise RuntimeError("shared=True: existing node {!r} has type {!r}, not {!r}".format(
+                        name, existing_type, node_type))
+                return existing
     modifier = om2.MDagModifier()
     try:
         obj = modifier.createNode(node_type, parent)

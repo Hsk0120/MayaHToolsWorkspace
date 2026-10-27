@@ -53,9 +53,6 @@ class ConnectionDirectionsTest(unittest.TestCase):
         """方向指定に型・ペア・ノード・単一結果・明示Plug型を併用できる。"""
         source, center, destinations = self._chain("filters")
 
-        class CustomPlug(mlib.plugs.Plug):
-            """接続照会で明示する戻り値のPlug型。"""
-
         self.assertEqual(center.getConnections(src=True, dst=False, index=0), source)
         self.assertEqual(center.getConnections(source=True, destination=False, idx=0), source)
         self.assertIsNone(center.getConnections(src=False, dst=False, idx=0))
@@ -66,18 +63,19 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertEqual(center.getConnections(src=True, dst=False, type="network", exactType=True),
                          [source])
         self.assertEqual(center.getConnections(src=True, dst=True, t="transform", et=True), [])
-        pair = center.getConnections(src=True, dst=False, asPair=True, pcls=CustomPlug, index=0)
-        self.assertIsInstance(pair[0], CustomPlug)
-        self.assertIsInstance(pair[1], CustomPlug)
+        # pcls は廃止。ペアの両側は型登録に従う Plug で、位置はそのまま。
+        pair = center.getConnections(src=True, dst=False, asPair=True, index=0)
+        self.assertIsInstance(pair[0], mlib.plugs.Plug)
+        self.assertIsInstance(pair[1], mlib.plugs.Plug)
         self.assertEqual(pair, (center, source))
 
     def test_query_original_positional_signature_is_preserved(self):
         """従来の位置引数を保ち、追加別名と省略判定を署名に明示する。"""
         names = ("self", "s", "d", "c", "t", "et", "scn", "source", "destination",
                  "connections", "type", "exactType", "skipConversionNodes", "asPair",
-                 "asNode", "checkChildren", "checkElements", "index", "pcls")
+                 "asNode", "checkChildren", "checkElements", "index")
         defaults = (True, True, False, None, False, False, _UNSET, _UNSET, False, None,
-                    False, False, False, False, True, True, _UNSET, None)
+                    False, False, False, False, True, True, _UNSET)
         signature = inspect.signature(mlib.plugs.Plug.getConnections)
         aliases = ("idx", "src", "dst")
         self.assertEqual(tuple(signature.parameters), names + aliases)
@@ -91,7 +89,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
         source, center, destinations = self._chain("positional")
         self.assertEqual(center.getConnections(True, False, False, None, False, False,
                                               True, True, False, None, False, False,
-                                              False, False, True, True, 0, None), source)
+                                              False, False, True, True, 0), source)
         self.assertCountEqual(center.getConnections(False, True), destinations)
         self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.plugs.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.plugs.Plug.getConnections).parameters.values())[1:]))
 

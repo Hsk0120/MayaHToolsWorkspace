@@ -81,7 +81,6 @@ class IdentityContractTest(unittest.TestCase):
         a=Node(cmds.listRelatives(t,shapes=True,fullPath=True)[0])
         b=Node(cmds.listRelatives(other,shapes=True,fullPath=True)[0])
         self.assertTrue(a.sameNode(b))
-        self.assertFalse(a.sameInstance(b))
         self.assertNotEqual(a,b)
         self.assertEqual(hash(a),hash(b))
         cmds.delete(t)

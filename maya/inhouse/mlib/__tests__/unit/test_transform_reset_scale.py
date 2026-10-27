@@ -20,17 +20,17 @@ class TransformResetScaleTest(unittest.TestCase):
         for node in nodes:
             cmds.setAttr(node.getFullName() + ".translate", 1, 2, 3)
             cmds.setAttr(node.getFullName() + ".scale", 2, 3, 4)
-        nodes.reset(["tx", "scale"])
+        nodes.resetAttrs(["tx", "scale"])
         for node in nodes:
             self.assertEqual(tuple(node.getTranslate(at=4)), (0, 2, 3))
             self.assertEqual(tuple(node.getScale()), (1, 1, 1))
         cmds.undo()
         self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (1, 2, 3))
-        nodes[0].reset(fast=True)
+        nodes[0].resetAttrs(fast=True)
         self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (0, 0, 0))
         cmds.addAttr(nodes[0].getFullName(), longName="customValue", attributeType="double", defaultValue=7)
         nodes[0].getPlug("customValue").set(12)
-        nodes[0].reset("customValue")
+        nodes[0].resetAttrs("customValue")
         self.assertEqual(nodes[0].getPlug("customValue").get(), 7)
 
     def test_reset_pivot_preserves_matrix(self):
@@ -41,7 +41,7 @@ class TransformResetScaleTest(unittest.TestCase):
         cmds.setAttr(node.getFullName() + ".scale", 2, 3, 4)
         before = node.getMatrix(ws=True)
         for ws in (True, False):
-            node.resetPivot(ws=ws)
+            node.setPivot((0, 0, 0), ws=ws, kind="both")
             self.assertTrue(before.isEquivalent(node.getMatrix(ws=True), 1e-8))
             for kind in ("rotate", "scale"):
                 for value in node.getPivot(ws=ws, kind=kind):

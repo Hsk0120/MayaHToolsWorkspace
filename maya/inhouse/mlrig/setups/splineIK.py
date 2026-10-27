@@ -96,10 +96,10 @@ class SplineIK:
             ][0]
         )
         for index, control in enumerate(controls):
-            matrix = mlib.nodes.Node.create(
+            matrix = mlib.createNode(
                 "multMatrix", name=name + "_cv{}Matrix".format(index), skipSelect=True
             )
-            position = mlib.nodes.Node.create(
+            position = mlib.createNode(
                 "decomposeMatrix", name=name + "_cv{}Position".format(index), skipSelect=True
             )
             control.getPlug("worldMatrix")[0].connectTo(matrix.getPlug("matrixIn")[0])

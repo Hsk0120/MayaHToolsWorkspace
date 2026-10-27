@@ -49,7 +49,7 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - Vertex・CV・Edge・Face・UV
      - コンポーネント（頂点・エッジ・フェース・CV・UV）を参照し、座標や接続情報を扱う
    * - ``maths``
-     - Matrix・Quaternion・Vector・EulerRotate
+     - Matrix・Quaternion・Vector・EulerRotation
      - シーンから取得した値の計算。計算だけではシーンを変更しない
    * - ``common``
      - Selection・Namespace・Plugin・ScriptJobs
@@ -57,6 +57,11 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
    * - ``cmds``
      - getNode・getPlug・createNode・lsなどの基礎7関数
      - 対象の取得・作成の入口。検索には ``mlib.ls()``、作成には ``mlib.createNode()`` を使う
+
+``nodes`` に手書きクラスが無いnodeTypeのノードも ``Node`` 固定にはならず、Mayaの継承チェーン上で
+最も近い登録クラスを基底にしたクラスが自動生成され、``mlib.nodes.<TypeName>`` で取得できます。
+手書き・自動生成のどちらも ``isinstance`` はMayaの抽象祖先を含まないため、Mayaの継承に基づく
+判定は ``isType()`` で行います(:ref:`dynamic-node-classes`)。
 
 ここでいうコンポーネントは、Mayaの形状を構成する要素です。
 例えばメッシュの頂点・エッジ・フェースや、カーブのCVを指します。
@@ -129,9 +134,18 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    * - 対象
      - メソッド
      - 用途
+   * - Node
+     - ``getType()`` / ``isType()``
+     - MayaのnodeType名を取得し、Mayaの継承チェーンで型を判定する
+   * - Node
+     - ``mfn()``
+     - そのノードで最も具体的なOpenMayaのfunction setを取得する
    * - Transform
      - ``getMatrix()`` / ``setMatrix()``
      - マトリクスを取得・反映する
+   * - Transform
+     - ``resetAttrs()``
+     - translate・rotate・scale・shearを既定値へ戻す
    * - Transform
      - ``addConstraint()`` / ``deleteConstraints()``
      - コンストレイントを作成・削除する
@@ -175,9 +189,15 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    target.getPlug("visibility").set(False)
    target.getPlug("visibility").setFlags(locked=True)
 
-``tx`` と ``translateX`` は同じアトリビュートを指します。
+``tx`` と ``translateX`` は同じアトリビュートを指します。接続は
+``source.getPlug("tx") >> target.getPlug("tx")`` のように演算子でも書けます。
+``a >> b`` は ``a.connectTo(b)`` で接続先 ``b`` を、``a << b`` は ``a.connect(b)`` で自身 ``a`` を、
+``a // b`` は ``a`` から ``b`` への接続の解除(``b.disconnect(a)``)で接続先 ``b`` を返します。
+いずれもUndoに記録される通常経路だけで、配列アトリビュート全体への ``>>`` はMayaと同じく
+``RuntimeError`` になるため、空き要素への接続は ``a.connectTo(array, nextAvailable=True)`` を使います。
 ``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
-アトリビュートの構造に合ったラッパーが選ばれます。
+アトリビュートの構造に合ったラッパーが選ばれます。``plug.getType()`` はMayaのアトリビュート型名
+(``doubleLinear``・``double3`` など)を返し、ラッパーのクラスは ``type(plug)`` で調べます。
 
 ノードの ``setRotate()`` は姿勢を扱い、``getPlug("rotate").set()`` はrotateアトリビュートの値を扱います。
 JointのjointOrientなどがある場合、この2つは同じ操作とは限りません。

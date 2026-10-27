@@ -101,7 +101,7 @@ class AckermannSteering(TwistDistribution):
                 raise ValueError("Could not measure trackWidth: the wheels are at the same position")
         if driver is not None:
             driver = mlib.getPlug(str(driver))
-            if driver.getDataType() != "doubleAngle":
+            if driver.getType() != "doubleAngle":
                 raise ValueError("driver must be an angle plug")
         channel = "rotate" + axis.upper()
         if connect:

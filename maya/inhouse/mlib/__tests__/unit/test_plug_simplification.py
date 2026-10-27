@@ -29,7 +29,7 @@ class PlugSimplificationTest(unittest.TestCase):
         choice.getPlug("input")[2].connect(source.getPlug("translate"))
         output = choice.getPlug("output")
         self.assertIs(type(output), mlib.plugs.Plug)
-        self.assertIsNone(output.getDataType())
+        self.assertIsNone(output.getType())
         with patch.object(cmds, "getAttr", side_effect=AssertionError("matrix value used cmds")):
             first = output.get()
         self.assertIsInstance(first, mlib.maths.Matrix)

@@ -351,15 +351,14 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.indices(self.net_name + ".vals"), [3])
 
     def test_get_next_available_index(self):
-        """getNextAvailableIndexは既存番号に無い最初の番号。負数はValueError。要素を作らない。"""
+        """getNextAvailable(vacant=True)は既存番号に無い最初の番号。負数は0から。要素を作らない。"""
         self.array[0].set(1)
         self.array[1].set(1)
         self.array[3].set(1)
-        self.assertEqual(self.array.getNextAvailableIndex(), 2)
-        self.assertEqual(self.array.getNextAvailableIndex(3), 4)
-        self.assertEqual(self.array.getNextAvailableIndex(10), 10)
-        with self.assertRaises(ValueError):
-            self.array.getNextAvailableIndex(-1)
+        self.assertEqual(self.array.getNextAvailable(vacant=True), 2)
+        self.assertEqual(self.array.getNextAvailable(3, vacant=True), 4)
+        self.assertEqual(self.array.getNextAvailable(10, vacant=True), 10)
+        self.assertEqual(self.array.getNextAvailable(-1, vacant=True), 2)
         self.assertEqual(self.indices(self.net_name + ".vals"), [0, 1, 3])
 
     def test_get_next_available_for_connections(self):
@@ -375,7 +374,7 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.array.getNextAvailable(0, checkLocked=False), 0)
         element = self.array.getNextAvailable(asPlug=True)
         self.assertEqual(element.getFullName(), self.net_name + ".vals[3]")
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AttributeError):
             self.array[2].getNextAvailable()
         cmds.setAttr(self.net_name + ".vals", lock=True)
         with self.assertRaises(RuntimeError):

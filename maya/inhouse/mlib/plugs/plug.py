@@ -263,6 +263,60 @@ class Plug(Object):
             return "<Plug invalid>"
         return f"Plug({name!r})"
 
+    def __rshift__(self, dst):
+        """``self >> dst`` で自身から dst へ接続し、接続先を返す(:meth:`connectTo` の通常経路)。
+
+        ``a >> b.x`` は ``a >> (b.x)`` と評価される(属性参照が演算子より優先する)。
+        Undo を記録する通常経路のみで、fast 経路は無い。cymel の同名演算子は None を返すが、
+        mlib では戻り値を持つ。
+
+        Args:
+            dst (Plug | om2.MPlug | str): 接続先。配列全体は受け付けない(空き要素を選ぶには
+                ``self.connectTo(array, nextAvailable=True)`` を使う)。
+
+        Returns:
+            Plug: 実際の接続先(dst を解決した Plug)。
+
+        Raises:
+            TypeError: dst が未対応の型の場合。
+            RuntimeError: 同一接続・入力済み・ロック・無効な Plug、配列全体への接続の場合
+                (:meth:`connect` と同じ)。
+        """
+        return self.connectTo(dst)
+
+    def __lshift__(self, src):
+        """``self << src`` で src から自身へ接続し、自身を返す(:meth:`connect` の通常経路)。
+
+        Args:
+            src (Plug | om2.MPlug | str): 接続元。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: src が未対応の型の場合。
+            RuntimeError: 同一接続・入力済み・ロック・無効な Plug の場合(:meth:`connect` と同じ)。
+        """
+        self.connect(src)
+        return self
+
+    def __floordiv__(self, dst):
+        """``self // dst`` で自身から dst への直接接続を解除し、dst を返す(:meth:`disconnect` の通常経路)。
+
+        Args:
+            dst (Plug | om2.MPlug | str): 接続先。
+
+        Returns:
+            Plug: 解決した接続先 Plug。
+
+        Raises:
+            TypeError: dst が未対応の型の場合。
+            RuntimeError: 自身から dst への接続が無い、または無効な Plug の場合。
+        """
+        dst = Plug._resolve_input(dst)
+        dst.disconnect(self)
+        return dst
+
     def getNode(self):
         """この Plug を所有する mlib ノードを取得する。
 
@@ -324,21 +378,6 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).shortName
-
-    def getPlugName(self, short=False, fullAttrPath=False):
-        """ノード名を含むPlug名を取得する。
-
-        Args:
-            short (bool): アトリビュートの短名を使う。
-            fullAttrPath (bool): コンパウンドの全階層を含める。
-
-        Returns:
-            str: Plug名。
-        """
-        self._require_valid()
-        return self.getNode().getName() + "." + self._mplug.partialName(
-            includeNonMandatoryIndices=True, includeInstancedIndices=True,
-            useFullAttributePath=fullAttrPath, useLongNames=not short)
 
     def getFullName(self):
         """maya.cmdsで一意に解決できるプラグ名を取得する。
@@ -402,28 +441,19 @@ class Plug(Object):
         return cmds.attributeName(self.getFullName(), nice=True)
 
     def getType(self):
-        """この参照のPythonラッパークラスを取得する。
+        """アトリビュート定義からMayaの型名を取得する。値の評価は行わない。
 
-        type(self)を返すだけで、Mayaへの照会や有効性の検査は行わない。
-        genericの実値が変化してもラッパークラスは変更しない。
-
-        Returns:
-            type: Plugまたはその派生クラス（例: ``DoubleLinearPlug``）。
-        """
-        return type(self)
-
-    def getDataType(self):
-        """アトリビュート定義からMayaのデータ型名を取得する。値の評価は行わない。
+        ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名(``doubleLinear``・``double3``・
+        ``matrix``・``string`` 等)を返す。:meth:`Node.getType` が Maya の nodeType 名を
+        返すのと同じ流儀で、Python のラッパークラスは ``type(plug)`` で調べる。
 
         Returns:
-            str | None: doubleLinear等の定義上のMaya型名。multi全体では要素の型名。
-                generic/kAny等は実値を評価せずNoneを返し、値を取得した後もこの規則は変わらない。
+            str | None: 定義上のMaya型名。multi全体では要素の型名。
+                generic/kAny等の値で型が決まるアトリビュートは実値を評価せずNoneを返し、
+                値を取得した後もこの規則は変わらない。
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-
-        Note:
-            getType()はPythonラッパークラスを返す。未作成の配列要素を生成しない。
         """
         self._require_valid()
         return attributeType(self._mplug)
@@ -477,6 +507,35 @@ class Plug(Object):
         if not self._mplug.isChild:
             return None
         return Plug(self._node, self._mplug.parent())
+
+    def getArray(self):
+        """multi アトリビュートの要素プラグであれば、その配列全体のプラグを取得する。
+
+        Returns:
+            ArrayPlug | None: 配列全体のプラグ。要素プラグでない場合は ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        if not self._mplug.isElement:
+            return None
+        return Plug(self._node, self._mplug.array())
+
+    def getIndex(self):
+        """multi アトリビュートの要素プラグの論理番号を取得する。
+
+        Returns:
+            int: 要素の論理番号(``array[index]`` の index。物理的な並び順ではない)。
+
+        Raises:
+            TypeError: 要素プラグでない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        if not self._mplug.isElement:
+            raise TypeError("getIndex requires an array element plug: " + self.getFullName())
+        return self._mplug.logicalIndex()
 
     def isKeyable(self):
         """チャンネルボックスでキー可能なアトリビュートか判定する。
@@ -564,19 +623,26 @@ class Plug(Object):
         with nullcontext() if fast else undoChunk("mlibPlugSetChannelBox"):
             return self._set_flags(leaf, channelBox=val, fast=fast)
 
-    def unlock(self, below=False, undoable=True, *, fast=False):
+    def unlock(self, below=False, *, fast=False):
         """上位と必要な下位階層をアンロックする。
 
+        通常は1回のUndoで戻る。fastはOpenMayaで直接更新し、Undoに記録しない。
+
         Args:
-            below (bool): 子階層も解除する。
-            undoable (bool): FalseはOpenMayaによるUndoなしの更新。
+            below (bool): 子階層(複合の子・配列の既存要素)も解除する。
             fast (bool): TrueはUndoなしのOpenMaya直接更新。未対応操作は更新前に拒否。
 
         Returns:
-            list[Plug]: 実際に解除したPlugを上位から返す。
+            list[Plug]: 実際に解除したPlugを上位から返す。解除するものが無ければ空のlist。
+
+        Raises:
+            TypeError: belowまたはfastがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
+        if not isinstance(below, bool):
+            raise TypeError("below must be a bool")
         with nullcontext() if fast else undoChunk("mlibPlugUnlock"):
             self._require_valid()
             queue, mp = [], self.mplug()
@@ -592,7 +658,7 @@ class Plug(Object):
             def unlock_one(plug):
                 """継承ロックが解除された後の自身のロックだけを変更する。"""
                 if plug.isLocked():
-                    plug.setFlags(locked=False, fast=fast or not undoable)
+                    plug.setFlags(locked=False, fast=fast)
                     result.append(plug)
             for plug in reversed(queue):
                 unlock_one(plug)
@@ -633,45 +699,6 @@ class Plug(Object):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         return self.setMuted(False, fast=fast)
-
-    def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True):
-        """入力接続できる次の配列要素を探す。
-
-        Args:
-            start (int): 探索開始番号。負数は最後の接続要素の次。
-            asPlug (bool): 番号の代わりにPlugを返す。
-            checkLocked (bool): ロックされた要素を避ける。
-            checkChildren (bool): 子とその配列も調べる。
-
-        Returns:
-            int | Plug: 空き番号または要素。
-        """
-        self._require_valid()
-        mp = self.mplug()
-        if not mp.isArray:
-            raise TypeError("Expected an array plug")
-        if checkLocked and self.isLocked():
-            raise RuntimeError("Array is locked: " + self.getFullName())
-        if start < 0:
-            count = mp.numConnectedElements()
-            start = mp.connectionByPhysicalIndex(count - 1).logicalIndex() + 1 if count else 0
-        index = self._validate_index(start)
-        def occupied(value):
-            """子階層を含む入力とロックを確認する。"""
-            if value.isDestination or (checkLocked and value.isLocked):
-                return True
-            if checkChildren:
-                if value.isArray:
-                    return any(occupied(value.elementByLogicalIndex(i)) for i in value.getExistingArrayAttributeIndices())
-                if value.isCompound:
-                    return any(occupied(value.child(i)) for i in range(value.numChildren()))
-            return False
-        while index <= MAX_LOGICAL_INDEX:
-            candidate = mp.elementByLogicalIndex(index)
-            if not occupied(candidate):
-                return Plug(self.getNode(), candidate) if asPlug else index
-            index += 1
-        raise IndexError("No available array index")
 
     def isConnected(self, *, src=_UNSET, dst=_UNSET, source=_UNSET, destination=_UNSET):
         """指定方向の直接の接続を持つか判定する。
@@ -838,38 +865,55 @@ class Plug(Object):
         fn = self._range_attribute_fn()
         return fn.hasMax() if fn is not None else False
 
-    def getMin(self):
+    def getMin(self, *, uiUnits=False):
         """設定されている最小値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクト（``MAngle``/``MDistance``/``MTime``）をそのまま返す。
-        誤った単位換算を避けるため、内部でのラジアン/センチメートル変換は行わない。
+        既定(``uiUnits=False``)では単位の換算を行わない。
+
+        Args:
+            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す。
+                既定Falseは内部の単位付きオブジェクトのまま返す。
 
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: 最小値。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
+            TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
+        self._validate_ui_units(uiUnits)
         fn = self._range_attribute_fn()
-        return fn.getMin() if fn is not None and fn.hasMin() else None
+        if fn is None or not fn.hasMin():
+            return None
+        value = fn.getMin()
+        return _convert_units(self._mplug, value) if uiUnits else value
 
-    def getMax(self):
+    def getMax(self, *, uiUnits=False):
         """設定されている最大値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクト（``MAngle``/``MDistance``/``MTime``）をそのまま返す。
+
+        Args:
+            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: 最大値。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
+            TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
+        self._validate_ui_units(uiUnits)
         fn = self._range_attribute_fn()
-        return fn.getMax() if fn is not None and fn.hasMax() else None
+        if fn is None or not fn.hasMax():
+            return None
+        value = fn.getMax()
+        return _convert_units(self._mplug, value) if uiUnits else value
 
     def hasSoftMin(self):
         """ソフト最小値（UIスライダーの下限）を持つアトリビュートか判定する。
@@ -899,39 +943,55 @@ class Plug(Object):
         fn = self._range_attribute_fn()
         return fn.hasSoftMax() if fn is not None else False
 
-    def getSoftMin(self):
+    def getSoftMin(self, *, uiUnits=False):
         """設定されているソフト最小値（UIスライダーの下限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
+
+        Args:
+            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最小値。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
+            TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
+        self._validate_ui_units(uiUnits)
         fn = self._range_attribute_fn()
-        return fn.getSoftMin() if fn is not None and fn.hasSoftMin() else None
+        if fn is None or not fn.hasSoftMin():
+            return None
+        value = fn.getSoftMin()
+        return _convert_units(self._mplug, value) if uiUnits else value
 
-    def getSoftMax(self):
+    def getSoftMax(self, *, uiUnits=False):
         """設定されているソフト最大値（UIスライダーの上限）を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
+
+        Args:
+            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
             float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最大値。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
+            TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
+        self._validate_ui_units(uiUnits)
         fn = self._range_attribute_fn()
-        return fn.getSoftMax() if fn is not None and fn.hasSoftMax() else None
+        if fn is None or not fn.hasSoftMax():
+            return None
+        value = fn.getSoftMax()
+        return _convert_units(self._mplug, value) if uiUnits else value
 
-    def getDefault(self):
+    def getDefault(self, *, uiUnits=False):
         """アトリビュートの既定値を取得する。
 
         数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
@@ -939,22 +999,42 @@ class Plug(Object):
         scale・double3・float3のような数値の複合アトリビュートは、子の既定値の ``tuple``
         (例 ``(1.0, 1.0, 1.0)``)を返す。
 
+        Args:
+            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す
+                (複合は子ごとに換算したtuple)。既定Falseは内部単位のまま。
+
         Returns:
             object | None: 既定値。対応しないアトリビュート型(文字列・message・マトリクス・
                 数値以外の汎用の複合など)では ``None``。
 
         Raises:
+            TypeError: uiUnitsがbool以外の場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
+        self._validate_ui_units(uiUnits)
         self._require_valid()
         attr = self._mplug.attribute()
         if attr.hasFn(om2.MFn.kNumericAttribute):
-            return om2.MFnNumericAttribute(attr).default
-        if attr.hasFn(om2.MFn.kUnitAttribute):
-            return om2.MFnUnitAttribute(attr).default
-        if attr.hasFn(om2.MFn.kEnumAttribute):
+            value = om2.MFnNumericAttribute(attr).default
+        elif attr.hasFn(om2.MFn.kUnitAttribute):
+            value = om2.MFnUnitAttribute(attr).default
+        elif attr.hasFn(om2.MFn.kEnumAttribute):
             return om2.MFnEnumAttribute(attr).default
-        return None
+        else:
+            return None
+        return _convert_units(self._mplug, value) if uiUnits else value
+
+    def getAlias(self):
+        """このプラグに設定されているエイリアス名を取得する。
+
+        Returns:
+            str | None: エイリアス名。設定されていない場合は ``None``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return self._node._dependency_fn().plugsAlias(self._mplug) or None
 
     def setAlias(self, name=None, *, fast=False):
         """別名を設定または解除する。
@@ -1060,21 +1140,50 @@ class Plug(Object):
             result.append(base)
         return result
 
-    def getEnumName(self):
-        """enum アトリビュートの現在値に対応するフィールド名を取得する。
+    def getEnumName(self, value=None):
+        """enum アトリビュートの値に対応するフィールド名を取得する(:meth:`getEnumValue` の逆引き)。
+
+        Args:
+            value (int | None): 名前を調べる enum 値。既定の None は現在値(``get()``)を使う。
+                bool は受け付けない。
 
         Returns:
-            str: 現在値に対応するフィールド名。
+            str: 値に対応するフィールド名。
 
         Raises:
-            TypeError: enum アトリビュートでない場合。
-            ValueError: 現在値に対応するフィールドが無い場合(``a=1:b=5`` で3が設定されている
-                場合など、欠番の値)。
+            TypeError: enum アトリビュートでない、または value が None・整数以外の場合。
+            ValueError: 値に対応するフィールドが無い場合(``a=1:b=5`` で3を指定した場合など、欠番の値)。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         attr = self._enum_attribute("getEnumName")
-        return self._enum_field_name(attr, int(self.get()))
+        if value is None:
+            value = int(self.get())
+        elif isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError("enum value must be an int or None: {!r}".format(value))
+        return self._enum_field_name(attr, value)
+
+    def getEnumNames(self):
+        """enum アトリビュートの全フィールドを ``(名前, 値)`` の組で値の昇順に取得する。
+
+        ``a=1:b=5`` のような欠番のある定義では、フィールドのある値だけを含む。
+
+        Returns:
+            list[tuple[str, int]]: ``(フィールド名, enum 値)`` の新しい list。値の昇順。
+
+        Raises:
+            TypeError: enum アトリビュートでない場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        enum_fn = om2.MFnEnumAttribute(self._enum_attribute("getEnumNames"))
+        result = []
+        for value in range(enum_fn.getMin(), enum_fn.getMax() + 1):
+            try:
+                result.append((enum_fn.fieldName(value), value))
+            except RuntimeError:
+                continue  # フィールドの無い欠番の値。
+        return result
 
     def setEnumNames(self, names, *, fast=False):
         """enumアトリビュートの表示名を指定順に更新する。
@@ -1161,8 +1270,6 @@ class Plug(Object):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibPlugSetLocked"):
             return self._set_flags(leaf, locked=val, fast=fast)
-
-    lock = setLocked
 
     def isMuted(self):
         """アトリビュートがミュートされているか判定する。
@@ -1423,26 +1530,6 @@ class Plug(Object):
             self.set(value, fast=fast)
             return self
 
-    def getEnumFieldName(self, val):
-        """指定値のenumフィールド名を返す(getEnumValueの逆引き)。
-
-        Args:
-            val (int): enum値。boolは受け付けない。
-
-        Returns:
-            str: フィールド名。
-
-        Raises:
-            TypeError: enum アトリビュートでない、またはvalが整数でない場合。
-            ValueError: valに対応するフィールドが無い場合。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
-        """
-        self._require_valid()
-        attr = self._enum_attribute("getEnumFieldName")
-        if isinstance(val, bool) or not isinstance(val, int):
-            raise TypeError("enum value must be an int: {!r}".format(val))
-        return self._enum_field_name(attr, val)
-
     def getSource(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
         """直接の入力元を取得する。子・配列要素の独立接続は展開しない。
 
@@ -1511,7 +1598,7 @@ class Plug(Object):
 
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=_UNSET,
         destination=_UNSET, connections=False, type=None, exactType=False, skipConversionNodes=False,
-        asPair=False, asNode=False, checkChildren=True, checkElements=True, index=_UNSET, pcls=None, *,
+        asPair=False, asNode=False, checkChildren=True, checkElements=True, index=_UNSET, *,
         idx=_UNSET, src=_UNSET, dst=_UNSET):
         """接続参照を取得する。既定は変換ノードを省略しない。
 
@@ -1536,7 +1623,6 @@ class Plug(Object):
             checkChildren (bool): 複合の子も探索する。
             checkElements (bool): 既存配列要素も探索する。
             index (int | None): 絞込み後のPython添字。負数可、範囲外はNone。
-            pcls (type | None): Plugとして返す側をこのクラスで構築する。
             idx (int | None): indexの別名。同時指定は不可。
             src (bool): sourceの別名。同時指定は不可。
             dst (bool): destinationの別名。同時指定は不可。
@@ -1593,7 +1679,7 @@ class Plug(Object):
                     visit(child)
         visit(self)
         return self._connection_results(pairs, type or t, exactType or et,
-                                        asPair or c or connections, asNode, index, pcls)
+                                        asPair or c or connections, asNode, index)
 
     def getAnimCurve(self):
         """このプラグに直接接続された animCurve ノードを取得する。
@@ -2201,7 +2287,7 @@ class Plug(Object):
             raise TypeError("dst must be bool")
 
     @staticmethod
-    def _connection_results(pairs, node_type, exact, as_pair, as_node, index, pcls):
+    def _connection_results(pairs, node_type, exact, as_pair, as_node, index):
         """接続ペアを相手ノードの型で絞り、初出順のPlug/Node一覧へ整える。
 
         重複統合の後でindexを適用する。ペアでは入力方向でも自身側を先に返す。
@@ -2213,7 +2299,6 @@ class Plug(Object):
             as_pair (bool): Trueは自身側と相手側の組を返す。
             as_node (bool): Trueは相手側だけNodeへ変換する。
             index (int | None): 結果のPython添字。負数も使用できる。
-            pcls (type | None): Plugを作り直すクラス。Node化する相手には適用しない。
 
         Returns:
             list | Plug | Node | tuple | None: 一覧、またはindexで選んだ一件。範囲外はNone。
@@ -2228,8 +2313,8 @@ class Plug(Object):
             if key in seen:
                 continue
             seen.add(key)
-            target = node if as_node else pcls(remote.getNode(), remote.mplug()) if pcls else remote
-            result.append((pcls(local.getNode(), local.mplug()) if pcls else local, target) if as_pair else target)
+            target = node if as_node else remote
+            result.append((local, target) if as_pair else target)
         if index is not None:
             try:
                 return result[index]

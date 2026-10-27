@@ -22,16 +22,24 @@ class Container(Node):
 
     @classmethod
     @undoTransaction("mlib.Container.create")
-    def create(cls, name="container"):
-        """空の所有containerを作成する。
+    def create(cls, name="container", members=()):
+        """所有containerを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
+
+        ``cmds.container`` 専用の特化ビルダーで、現在のcontainer文脈への自動所属などcmdsの規則に従う。
+        空のcontainerだけが必要なら ``mlib.createNode("container", name=...)`` でも作れる。
+        fast引数は持たない(cmds.containerにOpenMayaの同等機能が無い)。
 
         Args:
-            name (str): 希望名。衝突時はMayaが一意名にする。
+            name (str): 希望名。衝突時はMayaが一意名にする。位置引数でも指定できる。
+            members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
 
         Returns:
             Container: 新しい所有ノード。
         """
-        return cls(cmds.container(name=name))
+        container = cls(cmds.container(name=name))
+        if members:
+            container.addMembers(members)
+        return container
 
     def getMembers(self):
         """Maya containerへ直接所属するノード参照を取得する。
@@ -105,9 +113,13 @@ class Container(Node):
             name (str | None): 希望名。省略時はcontainer名に型名を付加。
 
         Returns:
-            Node: 作成したノード。
+            Node: 作成したノード(実際のnodeTypeに対応するラッパー)。
+
+        Raises:
+            ValueError: typeが空文字列・文字列以外の場合。
+            RuntimeError: Mayaが認識しないtypeの場合(unknownノードを残さない)。
         """
-        node = Node.create(type, name=name or self.getName() + "_" + type, skipSelect=True)
+        node = Node._create_node(type, {"name": name or self.getName() + "_" + type, "skipSelect": True})
         self.addMembers(node)
         return node
 

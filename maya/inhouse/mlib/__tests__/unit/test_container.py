@@ -4,7 +4,8 @@ import unittest
 
 import maya.cmds as cmds
 
-from mlib.nodes import Container, Node
+import mlib
+from mlib.nodes import Container
 from mlib.common.scalarGraph import ScalarGraph
 
 
@@ -48,7 +49,7 @@ class ContainerTest(unittest.TestCase):
 
     def test_publish_failure(self):
         """外部ノードの公開を拒否し、作成途中の公開名を残さない。"""
-        foreign = Node.create("multiplyDivide")
+        foreign = mlib.createNode("multiplyDivide")
         with self.assertRaises(ValueError):
             self.owner.publishAndBind("External", foreign.getPlug("input1X"))
         self.assertFalse(self.owner.getPublishedAttrs())
@@ -93,7 +94,7 @@ class ContainerTest(unittest.TestCase):
 
         def create_node(kind, name=None):
             """生成物をリストに記録する。"""
-            node = Node.create(kind, name=name)
+            node = mlib.createNode(kind, name=name)
             created.append(node)
             return node
 

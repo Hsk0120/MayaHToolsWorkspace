@@ -64,20 +64,15 @@ class PlugNameSpecTest(_StateSpecCase):
         self.assertEqual(tx.getShortName(), "tx")
         self.assertEqual(tx.getLongName(), "translateX")
         self.assertEqual(tx.getNiceName(), "Translate X")
-        self.assertEqual(tx.getPlugName(), self.name + ".translateX")
-        self.assertEqual(tx.getPlugName(short=True), self.name + ".tx")
         self.assertEqual(tx.getFullName(), self.name + ".translateX")
         self.assertEqual(str(tx), tx.getFullName())
         self.assertEqual(repr(tx), "Plug(%r)" % tx.getFullName())
         self.assertEqual(cmds.getAttr(tx), 0.0)
 
     def test_full_attribute_path_option(self):
-        """fullAttrPath=Trueは複合の全階層を含める。getFullNameは最短のパス。"""
+        """複合の子でも getFullName は最短のパス(全階層のパスを返す入口は無い)。"""
         child = self.node.getPlug("boundingBoxMinX")
-        self.assertEqual(child.getPlugName(), self.name + ".boundingBoxMinX")
-        self.assertEqual(child.getPlugName(fullAttrPath=True),
-                         self.name + ".boundingBox.boundingBoxMin.boundingBoxMinX")
-        self.assertEqual(child.getPlugName(short=True, fullAttrPath=True), self.name + ".bb.bbmn.bbnx")
+        self.assertFalse(hasattr(child, "getPlugName"))
         self.assertEqual(child.getFullName(), self.name + ".boundingBoxMinX")
 
     def test_element_and_child_names(self):
@@ -114,12 +109,11 @@ class PlugNameSpecTest(_StateSpecCase):
         self.assertTrue(tx.getFullName().endswith(self.name + ".translateX"))
 
     def test_alias_is_used_by_full_name_only(self):
-        """別名があればgetFullNameは別名を使い、getName・getPlugName・getLongNameは元の名前。"""
+        """別名があればgetFullNameは別名を使い、getName・getLongNameは元の名前。"""
         cmds.aliasAttr("myAlias", self.name + ".ty")
         ty = self.node.getPlug("ty")
         self.assertEqual(ty.getFullName(), self.name + ".myAlias")
         self.assertEqual(ty.getName(), self.name + ".ty")
-        self.assertEqual(ty.getPlugName(), self.name + ".translateY")
         self.assertEqual(ty.getLongName(), "translateY")
         self.assertEqual(self.node.getPlug("myAlias"), ty)
 
@@ -174,7 +168,6 @@ class PlugFlagSpecTest(_StateSpecCase):
         self.assertEqual([cmds.getAttr(self.name + ".t" + a, keyable=True) for a in "xyz"], [False] * 3)
         translate.setChannelBox(True, leaf=True)
         self.assertEqual([cmds.getAttr(self.name + ".t" + a, channelBox=True) for a in "xyz"], [True] * 3)
-        self.assertIs(plugs.Plug.lock, plugs.Plug.setLocked)
 
     def test_set_flags_validation(self):
         """setFlagsは省略した状態を変えず、bool・None以外は変更前にTypeError。"""
@@ -213,16 +206,14 @@ class PlugFlagSpecTest(_StateSpecCase):
         self.assertEqual(self.node.getPlug("rotate").unlock(below=True), [])
 
     def test_unlock_undo_paths(self):
-        """通常のunlockは1回のUndoで戻り、undoable=False・fast=Trueは記録しない。"""
+        """通常のunlockは1回のUndoで戻り、fast=Trueは記録しない。undoable引数は無い。"""
         cmds.setAttr(self.name + ".r", lock=True)
         cmds.flushUndo()
         self.node.getPlug("rotate").unlock()
         cmds.undo()
         self.assertTrue(cmds.getAttr(self.name + ".r", lock=True))
-        cmds.flushUndo()
-        self.node.getPlug("rotate").unlock(undoable=False)
-        self.assertFalse(cmds.getAttr(self.name + ".r", lock=True))
-        self.assertUndoEmpty()
+        with self.assertRaises(TypeError):
+            self.node.getPlug("rotate").unlock(undoable=False)
         cmds.setAttr(self.name + ".r", lock=True)
         cmds.flushUndo()
         self.node.getPlug("rotate").unlock(fast=True)
@@ -429,8 +420,8 @@ class PlugValiditySpecTest(_StateSpecCase):
         self.assertEqual((plug.getFullName(), plug.getName(), plug.getAttrName(), str(plug)), ("", "", "", ""))
         self.assertEqual(repr(plug), "<Plug invalid>")
         self.assertFalse(plug.isArray())
-        self.assertIs(plug.getType(), plugs.DoublePlug)
-        for method in ("get", "getLongName", "getShortName", "getPlugName", "getNiceName", "getDataType",
+        self.assertIs(type(plug), plugs.DoublePlug)
+        for method in ("get", "getLongName", "getShortName", "getNiceName", "getType",
                        "getParent", "isLocked", "isKeyable", "isChannelBox", "isConnected", "isSource",
                        "isDestination", "getSource", "getDestinations", "getConnections", "getDefault", "hasMin",
                        "getMin", "isSettable", "isDynamic", "isHidden", "getAnimCurve", "isMuted", "unlock",
@@ -439,7 +430,7 @@ class PlugValiditySpecTest(_StateSpecCase):
                 with self.assertRaises(RuntimeError):
                     getattr(plug, method)()
         for call in (lambda: plug.set(1), lambda: plug.set(1, fast=True), lambda: plug.setLocked(True),
-                     lambda: plug.setIfChanged(2.0), lambda: plug.getEnumFieldName(0),
+                     lambda: plug.setIfChanged(2.0), lambda: plug.getEnumName(0),
                      lambda: plug.connect(self.node.getPlug("tx"))):
             with self.assertRaises(RuntimeError):
                 call()

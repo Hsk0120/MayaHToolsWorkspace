@@ -143,7 +143,7 @@ class ShadingEngine(ObjectSet):
             for shape in shapes:
                 if shape.mpath().isInstanced():
                     raise NotImplementedError("fast assignment does not support instanced meshes")
-                fn = shape.dagFn()
+                fn = shape.mfn()
                 if fn.isLocked or fn.isFromReferencedFile:
                     raise RuntimeError("Cannot edit a locked or referenced mesh membership")
                 token = om2.MObjectHandle(shape.mnode()).hashCode()

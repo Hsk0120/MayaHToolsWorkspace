@@ -14,8 +14,8 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         cmds.undoInfo(state=True)
         self.base = mlib.getNode(cmds.polyCube(ch=False)[0])
-        self.first = mlib.nodes.Joint("first", create=True)
-        self.second = mlib.nodes.Joint("second", create=True)
+        self.first = mlib.createNode("joint", name="first")
+        self.second = mlib.createNode("joint", name="second")
         self.skin = mlib.nodes.SkinCluster.bind(self.base, [self.first, self.second])
         self.skin.setWeights([self.first, self.second], [0.25, 0.75])
 
@@ -63,33 +63,43 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(list(self.skin.getWeights([self.first, self.second])), before)
 
+    @staticmethod
+    def collect(nodes):
+        """DagNodes.getSkinClusters() の入れ子を、最初に見た順で重複なしの SkinClusters にまとめる。"""
+        seen = []
+        for row in nodes.getSkinClusters():
+            for skin in row:
+                if skin not in seen:
+                    seen.append(skin)
+        return mlib.nodes.SkinClusters(seen)
+
     def test_collect_skins_is_typed_deduplicated_and_preserves_getters(self):
-        """Shape/Transform/Jointを集約し、従来のnested/Joint返却は変えない。"""
+        """Shape/Transform/Joint の getSkinClusters() を SkinClusters に集約し、nested/Joint 返却は変えない。"""
         nodes = mlib.nodes.DagNodes([self.base, self.base.getShape(), self.first])
-        self.assertIsInstance(self.base.collectSkinClusters(), mlib.nodes.SkinClusters)
-        self.assertEqual(list(nodes.collectSkinClusters()), [self.skin])
+        self.assertIsInstance(mlib.nodes.SkinClusters(self.base.getSkinClusters()), mlib.nodes.SkinClusters)
+        self.assertEqual(list(self.collect(nodes)), [self.skin])
         self.assertIsInstance(nodes.getSkinClusters(), list)
         self.assertTrue(all(isinstance(row, list) for row in nodes.getSkinClusters()))
         joints = mlib.nodes.Joints([self.first, self.second])
         self.assertIsInstance(joints.getSkinClusters(), mlib.nodes.SkinClusters)
-        self.assertEqual(list(joints.collectSkinClusters()), [self.skin])
-        self.assertEqual(len(mlib.nodes.DagNodes().collectSkinClusters()), 0)
-        results = nodes.callEach("collectSkinClusters", [()] * len(nodes))
-        self.assertTrue(all(isinstance(row, mlib.nodes.SkinClusters) for row in results))
+        self.assertEqual(list(joints.getSkinClusters()), [self.skin])
+        self.assertEqual(len(self.collect(mlib.nodes.DagNodes())), 0)
+        results = nodes.callEach("getSkinClusters", [()] * len(nodes))
+        self.assertTrue(all(isinstance(row, list) for row in results))
 
     def test_collect_preserves_first_seen_order_and_does_not_recurse_groups(self):
         """別skinの保持順と直下shape検索の既存境界を保つ。"""
         mesh = mlib.getNode(cmds.polyCube(ch=False)[0])
         other = mlib.nodes.SkinCluster.bind(mesh, [self.first, self.second])
-        group = mlib.nodes.Transform("group", create=True)
+        group = mlib.createNode("transform", name="group")
         mesh.setParent(group)
-        self.assertEqual(len(group.collectSkinClusters()), 0)
+        self.assertEqual(len(group.getSkinClusters()), 0)
         nodes = mlib.nodes.DagNodes([mesh, self.base, self.first])
-        self.assertEqual(list(nodes.collectSkinClusters()), [other, self.skin])
+        self.assertEqual(list(self.collect(nodes)), [other, self.skin])
 
     def test_settable_matches_maya_current_state_and_keeps_writable_definition(self):
         """定義writableは維持し、ロック・入力・キーのsettableをMayaと比較する。"""
-        control = mlib.nodes.Transform("control", create=True)
+        control = mlib.createNode("transform", name="control")
         plug = control.getPlug("translateX")
         self.assertTrue(plug.isWritable())
         self.assertTrue(plug.isSettable())

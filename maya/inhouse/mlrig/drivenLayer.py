@@ -71,7 +71,7 @@ class DrivenLayer:
         ):
             raise ValueError("Provide at least two unique finite driver keys")
         joint, driven = mlib.getNode(joint), mlib.getPlug(driven)
-        kind = driven.getDataType()
+        kind = driven.getType()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
             or driven.getSource(skipConversionNodes=False)

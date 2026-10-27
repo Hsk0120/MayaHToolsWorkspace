@@ -1,7 +1,7 @@
 """DagNode・DagNodes の階層とパス・表示の約束を固定する(担当C)。
 
-対象: getPartialPath・getFullPath(インスタンスごと)、getParents(indirect)、getParent(step)、
-getInstances(noSelf)、dagFn、show・hide・setVisibility(Undo・fast・ロック)、getVisibility と isVisible の違い、
+対象: getName・getFullName(インスタンスごと)、getParents(indirect)、getParent(step)、
+getInstances(noSelf)、mfn、show・hide・setVisibility(Undo・fast・ロック)、getVisibility と isVisible の違い、
 getChildren の引数検査、保持インスタンスだけが消えた参照と削除済みノードの扱い、DagNodes の同名メソッド。
 """
 
@@ -52,23 +52,23 @@ class InstancedPathTest(_NamespaceCase):
         self.first, self.second = Node(self.paths[0]), Node(self.paths[1])
 
     def test_partial_and_full_path_per_instance(self):
-        """getPartialPath は保持インスタンスの最短一意パス、getFullPath は完全パス。"""
-        self.assertEqual(self.first.getFullPath(), self.paths[0])
-        self.assertEqual(self.second.getFullPath(), self.paths[1])
-        self.assertEqual([self.first.getPartialPath(), self.second.getPartialPath()], cmds.ls(self.paths))
-        self.assertEqual(self.first.getPartialPath(), self.first.mpath().partialPathName())
-        self.assertEqual(self.first.getPartialPath(), self.first.getName())
+        """getName は保持インスタンスの最短一意パス、getFullName は完全パス。"""
+        self.assertEqual(self.first.getFullName(), self.paths[0])
+        self.assertEqual(self.second.getFullName(), self.paths[1])
+        self.assertEqual([self.first.getName(), self.second.getName()], cmds.ls(self.paths))
+        self.assertEqual(self.first.getName(), self.first.mpath().partialPathName())
+        self.assertEqual(self.first.getName(), self.first.getName())
 
     def test_partial_path_of_unique_node_is_its_name(self):
-        """一意な名前のノードでは getPartialPath はノード名だけになる。"""
+        """一意な名前のノードでは getName はノード名だけになる。"""
         node = Node(self.make("transform", "unique", parent=self.g1))
-        self.assertEqual(node.getPartialPath(), self.name("unique"))
+        self.assertEqual(node.getName(), self.name("unique"))
 
     def test_get_parents(self):
         """直接の親を API の順で返し、保持パスの親はそのパスを使う。ワールド直下は空。"""
-        self.assertEqual([parent.getFullPath() for parent in self.first.getParents()],
+        self.assertEqual([parent.getFullName() for parent in self.first.getParents()],
                          ["|" + self.g1, "|" + self.g2])
-        self.assertEqual([parent.getFullPath() for parent in self.second.getParents()],
+        self.assertEqual([parent.getFullName() for parent in self.second.getParents()],
                          ["|" + self.g1, "|" + self.g2])
         self.assertEqual(Node(self.g1).getParents(), [])
 
@@ -80,9 +80,9 @@ class InstancedPathTest(_NamespaceCase):
         leaf_paths = cmds.ls(self.name("leaf"), allPaths=True, long=True)
         self.assertEqual(len(leaf_paths), 2)
         node = Node(leaf_paths[0])
-        self.assertEqual([parent.getFullPath() for parent in node.getParents()],
+        self.assertEqual([parent.getFullName() for parent in node.getParents()],
                          [leaf_paths[0].rsplit("|", 1)[0]])
-        self.assertEqual([parent.getFullPath() for parent in node.getParents(indirect=True)],
+        self.assertEqual([parent.getFullName() for parent in node.getParents(indirect=True)],
                          [path.rsplit("|", 1)[0] for path in leaf_paths])
 
     def test_get_parent_step(self):
@@ -91,8 +91,8 @@ class InstancedPathTest(_NamespaceCase):
         # 親がインスタンスなので deep にもパスが2つある。g2 側のパスを明示して保持する。
         deep = Node([path for path in cmds.ls(self.name("deep"), allPaths=True, long=True)
                      if path.startswith("|" + self.g2)][0])
-        self.assertEqual(deep.getParent().getFullPath(), self.paths[1])
-        self.assertEqual(deep.getParent(2).getFullPath(), "|" + self.g2)
+        self.assertEqual(deep.getParent().getFullName(), self.paths[1])
+        self.assertEqual(deep.getParent(2).getFullName(), "|" + self.g2)
         for step in (0, -1, 3, 10):
             with self.subTest(step=step):
                 self.assertIsNone(deep.getParent(step))
@@ -100,14 +100,14 @@ class InstancedPathTest(_NamespaceCase):
     def test_get_instances(self):
         """getInstances は全パスで、保持パスは自身。noSelf=True は保持パスを除く。"""
         instances = self.first.getInstances()
-        self.assertEqual([item.getFullPath() for item in instances], self.paths)
+        self.assertEqual([item.getFullName() for item in instances], self.paths)
         self.assertIs(instances[0], self.first)
-        self.assertEqual([item.getFullPath() for item in self.first.getInstances(noSelf=True)], [self.paths[1]])
-        self.assertEqual([item.getFullPath() for item in self.second.getInstances(noSelf=True)], [self.paths[0]])
+        self.assertEqual([item.getFullName() for item in self.first.getInstances(noSelf=True)], [self.paths[1]])
+        self.assertEqual([item.getFullName() for item in self.second.getInstances(noSelf=True)], [self.paths[0]])
 
     def test_dag_fn(self):
-        """dagFn は保持インスタンスの MFnDagNode。"""
-        fn = self.second.dagFn()
+        """mfn は保持インスタンスの MFnDagNode(Transform は MFnTransform)。"""
+        fn = self.second.mfn()
         self.assertIsInstance(fn, om2.MFnDagNode)
         self.assertEqual(fn.fullPathName(), self.paths[1])
 
@@ -115,21 +115,20 @@ class InstancedPathTest(_NamespaceCase):
         """保持インスタンスだけが外れると、ノードは有効でもパスを使う照会は RuntimeError。"""
         cmds.parent(self.paths[1], removeObject=True)
         self.assertTrue(self.second.isValid())
-        for method in ("getPartialPath", "getFullPath", "getName", "getParents", "getChildren",
-                       "getParentPath", "mpath", "dagFn"):
+        for method in ("getName", "getFullName", "getName", "getParents", "getChildren",
+                       "mpath", "mfn"):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(RuntimeError, "no longer exists"):
                     getattr(self.second, method)()
-        self.assertEqual(self.first.getFullPath(), self.paths[0])
+        self.assertEqual(self.first.getFullName(), self.paths[0])
 
 
 class DeletedDagNodeTest(_NamespaceCase):
     """ノードごと削除した DAG 参照の照会(FINDINGS C-05 で修正)。"""
 
     #: 削除直後(Undo の記録に残る間)も、破棄後も RuntimeError になるパスの照会。
-    PATH_METHODS = ("getPartialPath", "getFullPath", "isVisible", "getParent", "getParents", "mpath",
-                    "dagFn", "getInstances", "getSkinClusters", "getBindPoses", "collectSkinClusters",
-                    "getPath", "isRoot")
+    PATH_METHODS = ("isVisible", "getParent", "getParents", "mpath",
+                    "mfn", "getInstances", "getSkinClusters", "getBindPoses", "isRoot")
 
     def setUp(self):
         super().setUp()
@@ -141,8 +140,7 @@ class DeletedDagNodeTest(_NamespaceCase):
         """Undo の記録に残る間も、パスの照会は古い値・空文字列を返さず RuntimeError。
 
         名前の照会(getName・getFullName)は従来どおり空文字列、getChildren は空リスト、
-        getParentPath は None(docstring どおり、無効なノードの値)。
-        """
+            """
         self.assertTrue(self.node.isAlive())
         for method in self.PATH_METHODS:
             with self.subTest(method=method):
@@ -151,7 +149,6 @@ class DeletedDagNodeTest(_NamespaceCase):
         self.assertEqual(self.node.getName(), "")
         self.assertEqual(self.node.getFullName(), "")
         self.assertEqual(self.node.getChildren(), [])
-        self.assertIsNone(self.node.getParentPath())
         with self.assertRaises(RuntimeError):
             self.node.getVisibility()
         with self.assertRaises(RuntimeError):
@@ -161,8 +158,8 @@ class DeletedDagNodeTest(_NamespaceCase):
         """削除を Undo すると、同じ参照のパスの照会が再び使える。"""
         cmds.undo()
         self.assertTrue(self.node.isValid())
-        self.assertEqual(self.node.getFullPath(), cmds.ls(self.name("gone"), long=True)[0])
-        self.assertEqual(self.node.getParent().getFullPath(), cmds.ls(self.parent, long=True)[0])
+        self.assertEqual(self.node.getFullName(), cmds.ls(self.name("gone"), long=True)[0])
+        self.assertEqual(self.node.getParent().getFullName(), cmds.ls(self.parent, long=True)[0])
         self.assertTrue(self.node.isVisible())
 
     def test_destroyed(self):
@@ -196,11 +193,17 @@ class VisibilityTest(_NamespaceCase):
         self.assertIs(self.node.show(), self.node)
         self.assertTrue(cmds.getAttr(self.child_name + ".visibility"))
 
-    def test_show_hide_have_no_fast(self):
-        """show・hide は fast を受けない。fast は setVisibility を使う。"""
+    def test_show_hide_accept_fast(self):
+        """show・hide の fast=True は setVisibility(fast=True) と同じで、Undo に記録しない。bool 以外は TypeError。"""
         with self.assertRaises(TypeError):
-            self.node.hide(fast=True)
+            self.node.hide(fast=1)
         cmds.flushUndo()
+        self.assertIs(self.node.hide(fast=True), self.node)
+        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        self.assertFalse(cmds.getAttr(self.child_name + ".visibility"))
+        self.assertIs(self.node.show(fast=True), self.node)
+        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        self.assertTrue(cmds.getAttr(self.child_name + ".visibility"))
         self.node.setVisibility(False, fast=True)
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         self.assertFalse(cmds.getAttr(self.child_name + ".visibility"))
@@ -251,10 +254,10 @@ class DagNodesTest(_NamespaceCase):
 
     def test_bulk_queries(self):
         """照会は保持順のリスト。"""
-        self.assertEqual(self.nodes.getPartialPath(), [self.parent] + self.children)
-        self.assertEqual(self.nodes.getFullPath(), cmds.ls([self.parent] + self.children, long=True))
+        self.assertEqual(self.nodes.getName(), [self.parent] + self.children)
+        self.assertEqual(self.nodes.getFullName(), cmds.ls([self.parent] + self.children, long=True))
         self.assertEqual(self.nodes.getParents(), [[], [Node(self.parent)], [Node(self.parent)]])
-        self.assertEqual([fn.fullPathName() for fn in self.nodes.dagFn()], self.nodes.getFullPath())
+        self.assertEqual([fn.fullPathName() for fn in self.nodes.mfn()], self.nodes.getFullName())
 
     def test_bulk_hide_show_undo_once(self):
         """hide・show は自身を返し、通常は1回の Undo で全件戻る。"""

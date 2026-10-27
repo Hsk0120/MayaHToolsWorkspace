@@ -98,7 +98,7 @@ class ConvenienceTests(unittest.TestCase):
         self.assertEqual(len(c.getParents()), 2)
         self.assertEqual(len(c.getParents(indirect=True)), 2)
         self.assertEqual(len(list(root.getChildren(allDescendents=True, includeSelf=True, order='breadthFirst'))), 5)
-        self.assertNotEqual(c.getInstances()[0].getFullPath(), c.getInstances()[1].getFullPath())
+        self.assertNotEqual(c.getInstances()[0].getFullName(), c.getInstances()[1].getFullName())
 
     def test_animation_layers(self):
         node = mlib.createNode('transform')
@@ -123,7 +123,7 @@ class ConvenienceTests(unittest.TestCase):
         self.assertEqual(len(list(node.getChildren(allDescendents=True, includeSelf=True, order='breadthFirst'))), 1)
         for order in ("breadthFirst", "depthFirst"):
             self.assertEqual(len(list(node.getChildren(allDescendents=True, includeSelf=True, order=order, underWorld=True))), 2)
-            paths = [n.getFullPath() for n in node.getChildren(shapes=True, allDescendents=True, includeSelf=True, order=order, underWorld=True)]
+            paths = [n.getFullName() for n in node.getChildren(shapes=True, allDescendents=True, includeSelf=True, order=order, underWorld=True)]
             self.assertEqual(len(paths), 4)
             self.assertIn('->', paths[-1])
 

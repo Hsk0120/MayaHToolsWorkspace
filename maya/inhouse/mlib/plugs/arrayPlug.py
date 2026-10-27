@@ -8,7 +8,7 @@ import maya.cmds as cmds
 from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
 from ..decorator import undoChunk
 from ..util import _ArgumentError, _UNSET
-from .plug import Plug, _instance_count
+from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 
 
 class ArrayPlug(Plug):
@@ -163,30 +163,92 @@ class ArrayPlug(Plug):
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
                 for index in self.getIndices()]
 
-    def getNextAvailableIndex(self, start=0):
-        """OpenMayaの既存番号にない最初の候補を返す。要素の作成・予約はしない。
+    def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False):
+        """次に使える配列要素の論理番号(またはその要素Plug)を探す。要素の作成・予約はしない。
 
-        getIndices()のworldSpaceインスタンス番号補完や、ロック・子の入力接続は調べない。
-        そのため ``connect(nextAvailable=True)`` が選ぶ接続先とは異なる。
+        既定(``vacant=False``)は入力接続できる要素を探す。``start`` が負なら最後の接続要素の次
+        (途中の空きは飛ばす)から、入力接続と、``checkLocked`` ならロック、``checkChildren`` なら
+        子(とその配列)の入力接続・ロックも避けた最初の番号を返す。値を持つだけの既存要素や出力接続
+        だけの要素は候補になる。
+
+        ``vacant=True`` は既存番号(``getExistingArrayAttributeIndices()``)に無い最初の番号を探す。
+        ``start`` が負なら0から。checkLocked/checkChildren は無視し、配列のロックも例外にしない。
+        worldSpace配列のインスタンス番号補完(:meth:`getIndices`)も使わない。
+
+        3つの探索規則の対比:
+
+        .. list-table::
+           :header-rows: 1
+
+           * - 呼び方
+             - 開始
+             - 避けるもの
+           * - ``getNextAvailable()``
+             - 最後の接続要素の次(start<0)
+             - 入力接続・ロック・子の入力
+           * - ``getNextAvailable(vacant=True)``
+             - 0(start<0)
+             - 既存番号(値・接続のある要素)
+           * - ``appendMessage(node)``
+             - 最大番号+1
+             - 既存番号すべて(穴は再利用しない)
 
         Args:
-            start (int): 開始候補。負数のみ検査し、整数型や上限は検査しない。
+            start (int): 探索開始番号。負数は上記の既定開始位置。bool は受け付けない。
+            asPlug (bool): Trueは番号の代わりにその要素Plugを返す。
+            checkLocked (bool): ロックされた要素(と配列全体のロック)を避ける。vacantでは無視。
+            checkChildren (bool): 複合の子とその配列も調べる。vacantでは無視。
+            vacant (bool): Trueは既存番号(値・接続のある要素)に無い最初の番号を探す。
 
         Returns:
-            int: start以上で既存番号にない候補。``array[index]`` が受理する型・範囲とは限らない。
+            int | Plug: 空き番号、または ``asPlug=True`` でその要素Plug。
 
         Raises:
-            ValueError: startが負の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+            TypeError: startがboolまたは整数以外、asPlug/checkLocked/checkChildren/vacantがbool以外の場合。
+            IndexError: startが上限(2147483647)を超える、または空きが無い場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、または ``vacant=False`` かつ
+                ``checkLocked=True`` で配列全体がロックされている場合。
         """
-        if start < 0:
-            raise ValueError("start must be >= 0")
+        for name, flag in (("asPlug", asPlug), ("checkLocked", checkLocked),
+                           ("checkChildren", checkChildren), ("vacant", vacant)):
+            if not isinstance(flag, bool):
+                raise TypeError("{} must be a bool".format(name))
+        if isinstance(start, bool) or not isinstance(start, int):
+            raise TypeError("start must be an integer")
         self._require_valid()
-        existing = set(self._mplug.getExistingArrayAttributeIndices())
-        index = start
-        while index in existing:
+        mp = self._mplug
+        if vacant:
+            existing = set(mp.getExistingArrayAttributeIndices())
+            index = self._validate_index(max(start, 0))
+            while index in existing:
+                index += 1
+            if index > MAX_LOGICAL_INDEX:
+                raise IndexError("No available array index")
+            return Plug(self._node, mp.elementByLogicalIndex(index)) if asPlug else index
+        if checkLocked and mp.isLocked:
+            raise RuntimeError("Array is locked: " + self.getFullName())
+        if start < 0:
+            count = mp.numConnectedElements()
+            start = mp.connectionByPhysicalIndex(count - 1).logicalIndex() + 1 if count else 0
+        index = self._validate_index(start)
+
+        def occupied(value):
+            """子階層を含む入力とロックを確認する。"""
+            if value.isDestination or (checkLocked and value.isLocked):
+                return True
+            if checkChildren:
+                if value.isArray:
+                    return any(occupied(value.elementByLogicalIndex(i))
+                               for i in value.getExistingArrayAttributeIndices())
+                if value.isCompound:
+                    return any(occupied(value.child(i)) for i in range(value.numChildren()))
+            return False
+        while index <= MAX_LOGICAL_INDEX:
+            candidate = mp.elementByLogicalIndex(index)
+            if not occupied(candidate):
+                return Plug(self._node, candidate) if asPlug else index
             index += 1
-        return index
+        raise IndexError("No available array index")
 
     def removeElement(self, index=_UNSET, *, fast=False, idx=_UNSET):
         """実体のある配列要素を、接続を切断して削除する。
@@ -255,7 +317,7 @@ class ArrayPlug(Plug):
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlib.ArrayPlug.appendMessage"):
-            from .plug import MAX_LOGICAL_INDEX
+            # 循環import(nodes → plugs)を避けるため、使う時点で読み込む。
             from ..nodes.node import Node
             self._require_valid()
             if not self._mplug.attribute().hasFn(om2.MFn.kMessageAttribute):
@@ -300,7 +362,6 @@ class ArrayPlug(Plug):
             TypeError: boolまたは整数以外の場合。
             IndexError: 0〜2147483647の範囲外の場合。
         """
-        from .plug import MAX_LOGICAL_INDEX
         if isinstance(index, bool) or not isinstance(index, int):
             raise TypeError("Logical index must be an integer")
         if not 0 <= index <= MAX_LOGICAL_INDEX:

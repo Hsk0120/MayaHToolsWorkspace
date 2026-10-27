@@ -60,7 +60,7 @@ class _PlugSpecCase(unittest.TestCase):
 
 
 class PlugTypeSelectionSpecTest(_PlugSpecCase):
-    """アトリビュート定義から選ばれるラッパー型とgetDataType・getTypeの対応。"""
+    """アトリビュート定義から選ばれるラッパー型とgetType(Mayaの型名)の対応。"""
 
     def test_registered_types_follow_cmds_type_names(self):
         """登録型はcmds.getAttr(type=True)の型名に対応するクラスになる。"""
@@ -82,8 +82,7 @@ class PlugTypeSelectionSpecTest(_PlugSpecCase):
             with self.subTest(type_name=type_name):
                 plug = self.add("a%d" % index, **flags)
                 self.assertIs(type(plug), cls)
-                self.assertIs(plug.getType(), cls)
-                self.assertEqual(plug.getDataType(), type_name)
+                self.assertEqual(plug.getType(), type_name)
                 if type_name != "message":
                     self.assertEqual(cmds.getAttr(plug.getFullName(), type=True), type_name)
 
@@ -95,7 +94,7 @@ class PlugTypeSelectionSpecTest(_PlugSpecCase):
             with self.subTest(type_name=type_name):
                 plug = self.add("b%d" % index, **flags)
                 self.assertIs(type(plug), plugs.Plug)
-                self.assertEqual(plug.getDataType(), type_name)
+                self.assertEqual(plug.getType(), type_name)
 
     def test_typed_matrix_and_double3_and_compound(self):
         """dataType=matrixもMatrixPlug、double3はDouble3Plug、それ以外の複合はCompoundPlug。"""
@@ -107,13 +106,13 @@ class PlugTypeSelectionSpecTest(_PlugSpecCase):
             cmds.addAttr(self.name, longName="f3" + axis, attributeType="float", parent="f3")
         f3 = self.node.getPlug("f3")
         self.assertIs(type(f3), plugs.CompoundPlug)
-        self.assertEqual(f3.getDataType(), "float3")
+        self.assertEqual(f3.getType(), "float3")
 
     def test_multi_reports_element_type_and_is_array_plug(self):
-        """multi全体はArrayPlugで、getDataTypeは要素の型名を返す。"""
+        """multi全体はArrayPlugで、getTypeは要素の型名を返す。"""
         values = self.add("values", attributeType="long", multi=True)
         self.assertIs(type(values), plugs.ArrayPlug)
-        self.assertEqual(values.getDataType(), "long")
+        self.assertEqual(values.getType(), "long")
         self.assertIs(type(values[3]), plugs.LongPlug)
         self.assertIs(type(self.node.getPlug("worldMatrix")[0]), plugs.MatrixPlug)
 
@@ -507,16 +506,16 @@ class PlugEnumSpecTest(_PlugSpecCase):
         self.enum_plug = self.add("en", attributeType="enum", enumName="a=1:b=5:c=10")
 
     def test_names_values_and_field_lookup(self):
-        """番号とフィールド名の往復。getEnumValueは名前から番号、getEnumFieldNameは番号から名前。"""
+        """番号とフィールド名の往復。getEnumValueは名前から番号、getEnumName(value)は番号から名前。"""
         plug = self.enum_plug
         plug.set(5)
         self.assertEqual(plug.getEnumName(), "b")
         self.assertEqual(plug.getEnumValue("c"), 10)
-        self.assertEqual(plug.getEnumFieldName(1), "a")
-        self.assertEqual(plug.getEnumFieldName(10), "c")
+        self.assertEqual(plug.getEnumName(1), "a")
+        self.assertEqual(plug.getEnumName(10), "c")
         self.assertEqual(cmds.getAttr(plug.getFullName(), asString=True), "b")
         rotate_order = self.node.getPlug("rotateOrder")
-        self.assertEqual(rotate_order.getEnumFieldName(5), "zyx")
+        self.assertEqual(rotate_order.getEnumName(5), "zyx")
         self.assertEqual(rotate_order.getEnumValue("zyx"), 5)
 
     def test_missing_field_errors(self):
@@ -527,11 +526,11 @@ class PlugEnumSpecTest(_PlugSpecCase):
         for value in (3, 0, 11, -1):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError):
-                    plug.getEnumFieldName(value)
-        for value in (1.0, True, "1", None):
+                    plug.getEnumName(value)
+        for value in (1.0, True, "1"):
             with self.subTest(bad=value):
                 with self.assertRaises(TypeError):
-                    plug.getEnumFieldName(value)
+                    plug.getEnumName(value)
         # 既定値0はフィールドの無い番号。getEnumNameもValueError。
         self.assertEqual(plug.get(), 0)
         with self.assertRaises(ValueError):
@@ -567,9 +566,9 @@ class PlugEnumSpecTest(_PlugSpecCase):
         self.assertEqual(plug.get(), 5)
 
     def test_non_enum_errors(self):
-        """enum以外ではgetEnumName・getEnumValue・getEnumFieldName・setEnumNamesがTypeError(FINDINGS B-4で修正)。"""
+        """enum以外ではgetEnumName・getEnumValue・getEnumName(value)・setEnumNamesがTypeError(FINDINGS B-4で修正)。"""
         for plug in (self.node.getPlug("tx"), self.add("txt", dataType="string"), self.node.getPlug("visibility")):
-            for call in (plug.getEnumName, lambda: plug.getEnumValue("a"), lambda: plug.getEnumFieldName(0),
+            for call in (plug.getEnumName, lambda: plug.getEnumValue("a"), lambda: plug.getEnumName(0),
                          lambda: plug.setEnumNames(["a"])):
                 with self.subTest(plug=plug.getAttrName(), call=call):
                     with self.assertRaises(TypeError):
@@ -761,7 +760,7 @@ class PlugFastBackendSpecTest(_PlugSpecCase):
         choice = mlib.getNode(cmds.createNode("choice", name=self.namespace + ":choice#", skipSelect=True))
         element = choice.getPlug("input")[0]
         self.assertIs(type(element), plugs.Plug)
-        self.assertIsNone(element.getDataType())
+        self.assertIsNone(element.getType())
         element.set(2.5)
         self.assertEqual(element.get(), 2.5)
         with self.assertRaises(NotImplementedError):

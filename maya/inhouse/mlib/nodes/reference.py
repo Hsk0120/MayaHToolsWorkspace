@@ -10,6 +10,16 @@ from .node import Node
 class Reference(Node):
     """Maya の reference ノードラッパー。参照ファイルの照会・ロード制御を提供する。"""
 
+    def mfn(self):
+        """この reference ノードで最も具体的な om2 function set を取得する。
+
+        呼び出すたびに新しい ``om2.MFnReference`` を保持するノードから作る。
+
+        Returns:
+            om2.MFnReference: この reference ノードの function set。
+        """
+        return om2.MFnReference(self.mnode())
+
     def referenceFn(self):
         """MFnReference を取得する。
 

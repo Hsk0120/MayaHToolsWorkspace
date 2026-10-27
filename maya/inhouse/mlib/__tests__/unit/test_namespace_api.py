@@ -48,7 +48,7 @@ class NamespaceApiTest(unittest.TestCase):
         self.assertIn(child, self.root.getChildren())
 
     def test_nodes_and_node_namespace(self):
-        node = Node.create(type="transform", name="namespaceNode")
+        node = mlib.createNode(type="transform", name="namespaceNode")
         node.setNamespace(self.root)
         self.assertEqual(node.getNamespace(), self.root)
         self.assertIn(node.getName(), [item.getName() for item in self.root.getNodes()])
@@ -56,9 +56,9 @@ class NamespaceApiTest(unittest.TestCase):
 
     def test_nodes_recurse_includes_child_namespace_nodes(self):
         child = Namespace.create(f"{self.root_name}:child")
-        top_node = Node.create(type="transform", name="mlibNamespaceRecurseTop")
+        top_node = mlib.createNode(type="transform", name="mlibNamespaceRecurseTop")
         top_node.setNamespace(self.root)
-        child_node = Node.create(type="transform", name="mlibNamespaceRecurseChild")
+        child_node = mlib.createNode(type="transform", name="mlibNamespaceRecurseChild")
         child_node.setNamespace(child)
 
         direct_names = [item.getName() for item in self.root.getNodes()]

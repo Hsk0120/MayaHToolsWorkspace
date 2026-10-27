@@ -27,7 +27,7 @@ class TransformExecutionTest(unittest.TestCase):
                 (lambda **flags: node.setTranslate((3, 4, 5), **flags), list),
                 (lambda **flags: node.setRotate((.1, .2, .3), **flags), list),
                 (lambda **flags: node.setScale((2, 3, 4), **flags), list),
-                (lambda **flags: node.setShearing((.1, .2, .3), **flags), list),
+                (lambda **flags: node.setShear((.1, .2, .3), **flags), list),
                 (lambda **flags: node.setQuaternion(Quaternion(), **flags), list),
                 (lambda **flags: node.setMatrix(Matrix(translate=(3, 4, 5)), **flags), dict),
                 (lambda **flags: node.setTransformation(Transformation(t=(3, 4, 5)), **flags), Transformation),

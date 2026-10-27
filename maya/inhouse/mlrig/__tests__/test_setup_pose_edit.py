@@ -69,7 +69,7 @@ class PoseEditTest(unittest.TestCase):
         choice = mlib.createNode("choice")
         choice.getPlug("input")[0].connect(driver)
         output = choice.getPlug("output")
-        self.assertIsNone(output.getDataType())
+        self.assertIsNone(output.getType())
         before = cmds.ls(uuid=True)
         with patch.object(cmds, "getAttr", side_effect=AssertionError("driver value evaluated")):
             with self.assertRaisesRegex(ValueError, "scalar numeric/angle"):

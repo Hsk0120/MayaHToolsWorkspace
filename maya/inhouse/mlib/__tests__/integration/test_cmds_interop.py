@@ -559,7 +559,7 @@ class NodeArgumentRulesTest(_InteropCase):
             with self.subTest(parent=type(parent).__name__):
                 created = mlib.createNode("transform", name="k%d" % index, parent=parent)
                 self.assertEqual(created.getParent().getFullName(), expected_parent)
-        child = Node.create("transform", name="viaCreate", p=group.getPlug("ty"))
+        child = mlib.createNode("transform", name="viaCreate", p=group.getPlug("ty"))
         self.assertEqual(child.getParent().getFullName(), expected_parent)
         # Component は所有シェイプを親にする(シェイプを直接指定した場合と同じ配置)。
         _, mesh = self.cube()
@@ -1109,7 +1109,7 @@ class PlugCreationSideEffectTest(_InteropCase):
             "elements": array_plug.getElements,
             "get": array_plug.get,
             "remove": lambda: array_plug.removeElement(2),
-            "getNextAvailableIndex": array_plug.getNextAvailableIndex,
+            "getNextAvailable": array_plug.getNextAvailable,
             "Plug": lambda: Plug(network, array_plug.mplug().elementByLogicalIndex(4)),
         }
         for label, call in calls.items():
@@ -1163,7 +1163,7 @@ class PlugValidityTest(_InteropCase):
             lambda: compound.set((1, 2, 3)),
             array_plug.getElements,
             lambda: array_plug[2],
-            array_plug.getNextAvailableIndex,
+            array_plug.getNextAvailable,
             lambda: compound[0],
             plug.reset,
             child.getParent,
@@ -1275,9 +1275,6 @@ class PlugValidityTest(_InteropCase):
             with self.subTest(owner="child", value=type(value).__name__):
                 self.assertFalse(parent.isParentOf(value))
                 self.assertFalse(parent.isAncestorOf(value))
-        for value in (plugs["parent"], mplugs["parent"]):
-            with self.subTest(owner="parent", value=type(value).__name__):
-                self.assertFalse(child.isChildOf(value))
 
     def test_parent_queries_return_false_for_deleted_api_objects(self):
         parent = self.create("transform", "parent")
@@ -1505,10 +1502,11 @@ class NodeConstructionTest(_InteropCase):
 
         node_module._resolve_node = counting
         try:
+            # 未登録型(network)は動的クラスになるため、クラス名で比較する。
             cases = [
                 (Node, joint, Joint),
                 (Node, transform, Transform),
-                (Node, network, Node),
+                (Node, network, "Network"),
                 (Transform, joint, Joint),
                 (Node, Node(joint).mnode(), Joint),
                 (mlib.getNode, joint, Joint),
@@ -1517,7 +1515,11 @@ class NodeConstructionTest(_InteropCase):
                 with self.subTest(factory=getattr(factory, "__name__", factory), value=str(value)):
                     del calls[:]
                     result = factory(value)
-                    self.assertIs(type(result), expected)
+                    if isinstance(expected, str):
+                        self.assertEqual(type(result).__name__, expected)
+                        self.assertIsInstance(result, Node)
+                    else:
+                        self.assertIs(type(result), expected)
                     self.assertTrue(result.isValid())
                     self.assertEqual(len(calls), 1)
         finally:

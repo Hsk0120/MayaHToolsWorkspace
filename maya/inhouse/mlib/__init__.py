@@ -20,7 +20,7 @@ from .core.registry import NodeRegistry as _NodeRegistry
 from .core.reload import reload_package as _reload_package
 
 # 標準型の対応表を構築してから任意拡張を検出する。
-_node_registry = _NodeRegistry(nodes.Node, resolve_inherited_types=True)
+_node_registry = _NodeRegistry(nodes.Node, generate_classes=True)
 _plug_registry = _NodeRegistry(plugs.Plug)
 _node_registry.replace(nodes._WRAPPER_CLASSES)
 _plug_registry.replace(plugs._WRAPPER_CLASSES)
@@ -57,6 +57,9 @@ __all__ = [
     "select",
     "util",
 ]
+
+#: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
+__version__ = "2.0.0"
 
 
 def reload():

@@ -16,8 +16,8 @@ class DisplayLayerTest(unittest.TestCase):
 
     def setUp(self):
         self.created = []
-        self.a = Node.create(type="transform", name="mlibDisplayLayerA")
-        self.b = Node.create(type="transform", name="mlibDisplayLayerB")
+        self.a = mlib.createNode(type="transform", name="mlibDisplayLayerA")
+        self.b = mlib.createNode(type="transform", name="mlibDisplayLayerB")
         self.created.extend([self.a.getName(), self.b.getName()])
         layer_name = cmds.createDisplayLayer(name="mlibDisplayLayerTest", empty=True)
         self.created.append(layer_name)

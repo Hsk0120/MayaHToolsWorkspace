@@ -72,7 +72,8 @@ class ConstructionTest(_NamespaceCase):
     def test_item_class_checked(self):
         """派生コレクションは item_class の派生だけを受け、Joint は Transforms に入る。"""
         a, j, dg = self.make(), self.make("joint"), self.make("network")
-        with self.assertRaisesRegex(TypeError, "Transforms requires Transform, got Node"):
+        # network は Node を親にした自動生成クラス Network で包まれる。
+        with self.assertRaisesRegex(TypeError, "Transforms requires Transform, got Network"):
             Transforms([a, dg])
         with self.assertRaisesRegex(TypeError, "Joints requires Joint, got Transform"):
             Joints([a])

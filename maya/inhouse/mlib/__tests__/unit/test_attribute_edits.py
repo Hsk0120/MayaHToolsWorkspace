@@ -97,7 +97,7 @@ class AttributeEditsTest(unittest.TestCase):
         Returns:
             list[str]: 表示順を変更するアトリビュート長名。
         """
-        return [name for name in self.node.getExtraAttrs(asNames=True) if name != "attributeAliasList"]
+        return [name for name in [p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)] if name != "attributeAliasList"]
 
     def test_move_preserves_short_name_limits_and_flags(self):
         """短名・soft limit・表示状態・定義フラグを再作成とUndoで保つ。"""
@@ -111,11 +111,11 @@ class AttributeEditsTest(unittest.TestCase):
         self.node.addAttr("secondValue")
         before = self._definition("firstValue")
         self.assertIs(self.node.moveAttrOrder("firstValue", 1), self.node)
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ["secondValue", "firstValue"])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ["secondValue", "firstValue"])
         self.assertEqual(self._definition("firstValue"), before)
         self.assertFalse(first.isValid())
         cmds.undo()
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ["firstValue", "secondValue"])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ["firstValue", "secondValue"])
         self.assertEqual(self._definition("firstValue"), before)
         cmds.redo()
         self.assertEqual(self._definition("firstValue"), before)
@@ -167,10 +167,10 @@ class AttributeEditsTest(unittest.TestCase):
         first = self.node.addAttr("first")
         self.node.addAttr("second")
         om2.MFnAttribute(first.mplug().attribute()).connectable = False
-        before = self.node.getExtraAttrs(asNames=True)
+        before = [p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)]
         with self.assertRaisesRegex(TypeError, "non-connectable"):
             self.node.moveAttrOrder("first", 1)
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], before)
         self.assertTrue(first.isValid())
 
     def test_move_rejects_undo_disabled_before_changes(self):
@@ -179,13 +179,13 @@ class AttributeEditsTest(unittest.TestCase):
         self.node.addAttr("second")
         # stateWithoutFlush=Falseは、Maya 2025/2027のmayapyで以後のcreateNodeの名前空間が外れるため、
         # Undoの切替えはstate=を使う(FINDINGS_D.md の参考の件。テスト側 7 で修正)。
-        before = self.node.getExtraAttrs(asNames=True)
+        before = [p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)]
         cmds.undoInfo(state=False)
         try:
             with self.assertRaisesRegex(RuntimeError, "requires Undo"):
                 self.node.moveAttrOrder("first", 1)
             self.assertFalse(cmds.undoInfo(query=True, state=True))
-            self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
+            self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], before)
         finally:
             cmds.undoInfo(state=True)
         self.assertTrue(cmds.undoInfo(query=True, state=True))
@@ -194,9 +194,9 @@ class AttributeEditsTest(unittest.TestCase):
         self.assertEqual(probe, self.namespace + ":probe")
         # fast引数のない操作は外側の呼出しモードに依存せず通常Undoを使う。
         self.node.moveAttrOrder("first", 1)
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), ["second", "first"])
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ["second", "first"])
         cmds.undo()
-        self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
+        self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], before)
 
     def test_add_preflights_child_names_and_component_counts(self):
         """親追加前に子の重複・既存名・成分数・不正既定値を拒否する。"""
@@ -213,11 +213,11 @@ class AttributeEditsTest(unittest.TestCase):
         for fast in (False, True):
             for index, flags in enumerate(attempts):
                 name = "attempt_{}_{}".format(int(fast), index)
-                before = self.node.getExtraAttrs(asNames=True)
+                before = [p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)]
                 with self.subTest(fast=fast, flags=flags):
                     with self.assertRaises((TypeError, ValueError, RuntimeError)):
                         self.node.addAttr(name, "double3", fast=fast, **flags)
-                    self.assertEqual(self.node.getExtraAttrs(asNames=True), before)
+                    self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], before)
 
     def test_add_preflights_typed_defaults_and_keeps_default_return(self):
         """typed既定値を追加前に検証し、既定Plug返却とgetPlug=Falseを保つ。"""

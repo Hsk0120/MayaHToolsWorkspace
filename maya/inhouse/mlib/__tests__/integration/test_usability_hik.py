@@ -16,8 +16,8 @@ class HIKVerificationTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         self.module = importlib.import_module("mlib.nodes.HIKCharacterNode")
         self.module._prepare()
-        self.target = mlib.nodes.HIKCharacterNode("verifyTarget", create=True)
-        self.source = mlib.nodes.HIKCharacterNode("verifySource", create=True)
+        self.target = mlib.createNode("HIKCharacterNode", name="verifyTarget")
+        self.source = mlib.createNode("HIKCharacterNode", name="verifySource")
 
     def tearDown(self):
         """テストシーンを破棄する。"""

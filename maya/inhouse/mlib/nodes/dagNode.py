@@ -8,7 +8,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from ..decorator import undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..util import _ArgumentError, _UNSET, _world_space
 from .node import Node, Nodes
 
 
@@ -66,22 +66,6 @@ class DagNode(Node):
                 iterator.next()
         return result
 
-    def collectSkinClusters(self):
-        """自身に関連するSkinClusterを操作可能なコレクションで取得する。
-
-        Shape/Transformは変形対象、Jointはinfluence接続の既存getSkinClustersを使う。
-        getSkinClustersのlist返却や検索範囲は変更しない。
-
-        Returns:
-            SkinClusters: 重複を除き、既存照会の順を保った参照コレクション。
-
-        Raises:
-            RuntimeError: 対象が無効、または既存照会に失敗した場合。
-        """
-        from .skinCluster import SkinClusters
-
-        return SkinClusters(self.getSkinClusters())
-
     def getBindPoses(self):
         """getSkinClusters()で得たSkinClusterのバインドポーズを取得する。
 
@@ -116,6 +100,115 @@ class DagNode(Node):
             RuntimeError: 保持パスが無効な場合。別インスタンスへ切り替えない。
         """
         return self._current_dag_path()
+
+    def mfn(self):
+        """保持する DAG パスに対応する function set を、呼び出すたびに新しく作って返す。
+
+        Transform・Mesh 等の派生クラスはさらに具体的な function set へ上書きする。
+
+        Returns:
+            om2.MFnDagNode: このインスタンスの function set。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
+        """
+        return om2.MFnDagNode(self.mpath())
+
+    def getRoot(self):
+        """保持するパスの最上位(ワールド直下)の祖先を取得する。
+
+        DAG 上の親は常に Transform なので、Shape から呼んでも戻り値は Transform。
+        自身がワールド直下ならその自身を返す。
+
+        Returns:
+            DagNode: ワールド直下の祖先、または自身。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
+        """
+        node = self
+        parent = node.getParent()
+        while parent is not None:
+            node = parent
+            parent = node.getParent()
+        return node
+
+    def getSiblings(self):
+        """同じ親の下にある同じ種類の兄弟を取得する(自身と自身の別インスタンスは含まない)。
+
+        Transform は親直下の他の Transform、Shape は親直下の他の非中間 Shape を DAG の子順で返す。
+        自身がワールド直下の Transform なら、他のワールド直下 Transform を対象にする。
+
+        Returns:
+            list[DagNode]: 兄弟の参照。無効なノードや兄弟なしは空リスト。
+
+        Raises:
+            RuntimeError: ノードは有効だが保持する DAG パスが無効な場合。
+        """
+        if not self.isValid():
+            return []
+        is_shape = self.mnode().hasFn(om2.MFn.kShape)
+        parent = self.getParent()
+        if parent is not None:
+            candidates = parent._direct_children(is_shape, False, shapes_only=is_shape)
+        elif is_shape:
+            candidates = []
+        else:
+            candidates = DagNode._world_assemblies()
+        self_uuid = self.getUuid()
+        return [candidate for candidate in candidates if candidate.getUuid() != self_uuid]
+
+    def getBoundingBox(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """バウンディングボックスを取得する。
+
+        ``MFnDagNode.boundingBox`` は自身の translate/rotate/scale(Transform の場合)は含むが、
+        親から継承した変換は含まない(``cmds.xform(-boundingBox)`` と同じ)。
+        ``worldSpace=True`` はそこへ保持パスの ``exclusiveMatrix`` (親までのワールドマトリクス)を
+        適用し、ワールド空間のボックスを返す。Shape では自身のローカル形状から計算する。
+
+        Args:
+            worldSpace (bool): True はワールド空間、False は親の変換を含まない空間。既定 False。
+            ws (bool): worldSpace の別名。同時指定は不可。
+
+        Returns:
+            om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
+                子 Shape が無い Transform では原点のみを含む空に近いボックスになる。
+
+        Raises:
+            ValueError: worldSpace(ws)が bool でない場合。
+            RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
+        """
+        if ws is not _UNSET:
+            if worldSpace is not _UNSET:
+                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
+            worldSpace = ws
+        if worldSpace is _UNSET:
+            worldSpace = False
+        world = _world_space(worldSpace)
+        if not self.isValid():
+            raise RuntimeError("Cannot compute the bounding box of an invalid node")
+        path = self.mpath()
+        box = om2.MFnDagNode(path).boundingBox
+        if not world:
+            return box
+        parent_matrix = path.exclusiveMatrix()
+        world_box = om2.MBoundingBox()
+        for x in (box.min.x, box.max.x):
+            for y in (box.min.y, box.max.y):
+                for z in (box.min.z, box.max.z):
+                    world_box.expand(om2.MPoint(x, y, z) * parent_matrix)
+        return world_box
+
+    def isIntermediateObject(self):
+        """中間オブジェクト(履歴用の非表示 Shape)か判定する。Transform では常に False。
+
+        Returns:
+            bool: 中間オブジェクトの場合は True。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
+        """
+        return self.mfn().isIntermediateObject
 
     def getInstances(self, noSelf=False):
         """同じDAGノードの全インスタンスを、複製せず参照する。
@@ -155,40 +248,11 @@ class DagNode(Node):
             return []
         if indirect:
             return [instance.getParent() for instance in self.getInstances() if instance.getParent() is not None]
-        fn = self.dagFn()
+        fn = self.mfn()
         return [parent if fn.parent(index) == parent.mnode()
                 else Node._wrap_dag_path(om2.MDagPath.getAPathTo(fn.parent(index)))
                 for index in range(fn.parentCount())
                 if not fn.parent(index).hasFn(om2.MFn.kWorld)]
-
-    def dagFn(self):
-        """保持するDAGパスに対応するfunction setを取得する。
-
-        Returns:
-            om2.MFnDagNode: このインスタンスのfunction set。
-
-        Raises:
-            RuntimeError: 保持していたパスが無効な場合。
-        """
-        return om2.MFnDagNode(self.mpath())
-
-    def getParentPath(self):
-        """保持するインスタンスの親パスを取得する。
-
-        Returns:
-            om2.MDagPath | None: 親のパス。無効なノード、またはルートならNone。
-
-        Raises:
-            RuntimeError: ノードは存在するが保持していたパスが無効な場合。
-        """
-        if not self.isValid():
-            return None
-        path = self.mpath()
-        if path.length() <= 1:
-            return None
-        parent = om2.MDagPath(path)
-        parent.pop()
-        return parent
 
     def getParent(self, step=1):
         """保持パスを指定階層だけ遡る。
@@ -210,17 +274,6 @@ class DagNode(Node):
         path.pop(step)
         # 有効な保持パスの複製を遡ったパスなので、Node(path) の入力解決を省いて同じ型で包む。
         return Node._wrap_dag_path(path)
-
-    def getFullPath(self):
-        """保持するDAGインスタンスの完全パスを取得する。
-
-        Returns:
-            str: 保持するDAGインスタンスの完全パス。
-
-        Raises:
-            RuntimeError: 保持するDAGパスが無効な場合。空文字列には変換しない。
-        """
-        return self.mpath().fullPathName()
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
                     order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
@@ -273,18 +326,23 @@ class DagNode(Node):
         return result
 
     def getShape(self, idx=_UNSET, intermediates=False, *, index=_UNSET):
-        """Shapeなら自身を返す。TransformのShape取得は派生クラス側で行う。
+        """保持パスに対応する Shape を取得する。
+
+        契約: 自身が Shape なら ``idx``・``intermediates`` を無視して自身を返す。Transform は
+        派生クラス(Transform.getShape)が直下の Shape を ``idx`` 番目(0 始まり。範囲外は None)で返す。
+        それ以外の DAG ノードは None。無効な idx で IndexError にはしない(cymel の shape() と同じ)。
 
         Args:
-            idx (int): この実装では無視する。
-            intermediates (bool): この実装では無視する。
-            index (int): idxの別名。同時指定は不可。
+            idx (int): Transform で選ぶ Shape の番号。Shape では無視する。既定 0。
+            intermediates (bool): Transform で中間オブジェクトも候補に含める。Shape では無視する。
+            index (int): idx の別名。同時指定は不可。
 
         Returns:
-            DagNode | None: Shapeなら自身、それ以外はNone。
+            DagNode | None: Shape なら自身、Transform は選んだ Shape、該当なしは None。
 
         Raises:
-            TypeError: idxとindexを同時指定した場合。
+            TypeError: idx と index を同時指定した場合。
+            RuntimeError: ノードが破棄されている場合。
         """
         if index is not _UNSET:
             if idx is not _UNSET:
@@ -293,17 +351,6 @@ class DagNode(Node):
         if idx is _UNSET:
             idx = 0
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
-
-    def getPartialPath(self):
-        """保持するDAGインスタンスの最短一意パスを取得する。
-
-        Returns:
-            str: 保持するDAGインスタンスの最短一意パス。
-
-        Raises:
-            RuntimeError: 保持するDAGパスが無効な場合。空文字列には変換しない。
-        """
-        return self.mpath().partialPathName()
 
     def isVisible(self):
         """親階層を含むDAGの表示状態。
@@ -316,21 +363,33 @@ class DagNode(Node):
         """
         return self.mpath().isVisible()
 
-    def show(self):
-        """visibilityを有効にして自身を返す。
+    def show(self, *, fast=False):
+        """visibility を有効にして自身を返す。``setVisibility(True, fast=fast)`` と同じ。
+
+        Args:
+            fast (bool): True は OpenMaya 直接更新(Undo なし)。既定 False。
 
         Returns:
-            DagNode: visibilityを有効にして自身を返す。
-        """
-        return self.setVisibility(True)
+            DagNode: 自身。
 
-    def hide(self):
-        """visibilityを無効にして自身を返す。
+        Raises:
+            TypeError: fast が bool でない場合。
+        """
+        return self.setVisibility(True, fast=fast)
+
+    def hide(self, *, fast=False):
+        """visibility を無効にして自身を返す。``setVisibility(False, fast=fast)`` と同じ。
+
+        Args:
+            fast (bool): True は OpenMaya 直接更新(Undo なし)。既定 False。
 
         Returns:
-            DagNode: visibilityを無効にして自身を返す。
+            DagNode: 自身。
+
+        Raises:
+            TypeError: fast が bool でない場合。
         """
-        return self.setVisibility(False)
+        return self.setVisibility(False, fast=fast)
 
     def getVisibility(self):
         """自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
@@ -401,6 +460,23 @@ class DagNode(Node):
             self.getPlug("hiddenInOutliner").set(not state, fast=fast)
             return self
 
+    @staticmethod
+    def _world_assemblies():
+        """ワールド直下の Transform をすべて取得する。
+
+        Returns:
+            list[DagNode]: ワールド直下(DAG パスの長さが 1)の Transform ラッパー。
+        """
+        iterator = om2.MItDag(om2.MItDag.kBreadthFirst, om2.MFn.kTransform)
+        assemblies = []
+        while not iterator.isDone():
+            path = iterator.getPath()
+            if path.length() == 1:
+                # MItDag が返した有効なパスなので、Node(path) の入力解決を省いて同じ型で包む。
+                assemblies.append(Node._wrap_dag_path(path))
+            iterator.next()
+        return assemblies
+
     def _direct_children(self, shapes, intermediates, shapes_only=False):
         """直接の子をAPIで列挙し、インスタンスの親パスを維持する。
 
@@ -469,20 +545,20 @@ class DagNodes(Nodes):
     # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
     _bulk_entries = {
         "mpath": (DagNode.mpath, "list"),
-        "dagFn": (DagNode.dagFn, "list"),
-        "getParentPath": (DagNode.getParentPath, "list"),
+        "mfn": (DagNode.mfn, "list"),
+        "getRoot": (DagNode.getRoot, "list"),
+        "getSiblings": (DagNode.getSiblings, "list"),
+        "getBoundingBox": (DagNode.getBoundingBox, "list"),
+        "isIntermediateObject": (DagNode.isIntermediateObject, "list"),
         "getParent": (DagNode.getParent, "list"),
         "getParents": (DagNode.getParents, "list"),
         "getInstances": (DagNode.getInstances, "list"),
         "getChildren": (DagNode.getChildren, "list"),
         "getShape": (DagNode.getShape, "list"),
-        "getFullPath": (DagNode.getFullPath, "list"),
-        "getPartialPath": (DagNode.getPartialPath, "list"),
         "isVisible": (DagNode.isVisible, "list"),
         "getVisibility": (DagNode.getVisibility, "list"),
         "getOutlinerVisibility": (DagNode.getOutlinerVisibility, "list"),
         "getSkinClusters": (DagNode.getSkinClusters, "list"),
-        "collectSkinClusters": (DagNode.collectSkinClusters, "list"),
         "getBindPoses": (DagNode.getBindPoses, "list"),
         "show": (DagNode.show, "self"),
         "hide": (DagNode.hide, "self"),
@@ -513,8 +589,8 @@ class DagNodes(Nodes):
 
     mpath.__signature__ = inspect.signature(DagNode.mpath)
 
-    def dagFn(self, *args, **kwargs):
-        """各要素のdagFnを同じ引数で呼び、保持順の戻り値リストを返す。
+    def mfn(self, *args, **kwargs):
+        """各要素のmfnを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -523,12 +599,12 @@ class DagNodes(Nodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("dagFn", args, kwargs)
+        return self._dispatch_shared("mfn", args, kwargs)
 
-    dagFn.__signature__ = inspect.signature(DagNode.dagFn)
+    mfn.__signature__ = inspect.signature(DagNode.mfn)
 
-    def getParentPath(self, *args, **kwargs):
-        """各要素のgetParentPathを同じ引数で呼び、保持順の戻り値リストを返す。
+    def getRoot(self, *args, **kwargs):
+        """各要素のgetRootを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -537,9 +613,51 @@ class DagNodes(Nodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("getParentPath", args, kwargs)
+        return self._dispatch_shared("getRoot", args, kwargs)
 
-    getParentPath.__signature__ = inspect.signature(DagNode.getParentPath)
+    getRoot.__signature__ = inspect.signature(DagNode.getRoot)
+
+    def getSiblings(self, *args, **kwargs):
+        """各要素のgetSiblingsを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getSiblings", args, kwargs)
+
+    getSiblings.__signature__ = inspect.signature(DagNode.getSiblings)
+
+    def getBoundingBox(self, *args, **kwargs):
+        """各要素のgetBoundingBoxを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("getBoundingBox", args, kwargs)
+
+    getBoundingBox.__signature__ = inspect.signature(DagNode.getBoundingBox)
+
+    def isIntermediateObject(self, *args, **kwargs):
+        """各要素のisIntermediateObjectを同じ引数で呼び、保持順の戻り値リストを返す。
+
+        Args:
+            *args: 単数メソッドに渡す位置引数。
+            **kwargs: 単数メソッドに渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値リスト。
+        """
+        return self._dispatch_shared("isIntermediateObject", args, kwargs)
+
+    isIntermediateObject.__signature__ = inspect.signature(DagNode.isIntermediateObject)
 
     def getParent(self, *args, **kwargs):
         """各要素のgetParentを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -610,34 +728,6 @@ class DagNodes(Nodes):
         return self._dispatch_shared("getShape", args, kwargs)
 
     getShape.__signature__ = inspect.signature(DagNode.getShape)
-
-    def getFullPath(self, *args, **kwargs):
-        """各要素のgetFullPathを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getFullPath", args, kwargs)
-
-    getFullPath.__signature__ = inspect.signature(DagNode.getFullPath)
-
-    def getPartialPath(self, *args, **kwargs):
-        """各要素のgetPartialPathを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getPartialPath", args, kwargs)
-
-    getPartialPath.__signature__ = inspect.signature(DagNode.getPartialPath)
 
     def isVisible(self, *args, **kwargs):
         """各要素のisVisibleを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -722,22 +812,6 @@ class DagNodes(Nodes):
         return self._dispatch_shared("getSkinClusters", args, kwargs)
 
     getSkinClusters.__signature__ = inspect.signature(DagNode.getSkinClusters)
-
-    def collectSkinClusters(self):
-        """各DAGノードのSkinClusterを保持順で集約し、重複を除く。
-
-        既存getSkinClustersの要素ごとのlist返却や、Jointsの既存集約は変更しない。
-        この明示集約は、複数geometryで共有されるSkinClusterを一回だけ操作する用途。
-
-        Returns:
-            SkinClusters: 各要素のgetSkinClusters順で初出を保つコレクション。
-
-        Raises:
-            RuntimeError: 無効な対象、または既存照会の失敗。
-        """
-        from .skinCluster import SkinClusters
-
-        return SkinClusters(skin for node in self for skin in node.getSkinClusters())
 
     def getBindPoses(self, *args, **kwargs):
         """各要素のgetBindPosesを同じ引数で呼び、保持順の戻り値リストを返す。

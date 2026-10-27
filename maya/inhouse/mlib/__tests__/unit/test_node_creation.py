@@ -16,7 +16,7 @@ from mlib.nodes.skinCluster import SkinClusters
 
 
 class NodeCreationTest(unittest.TestCase):
-    """Node.create と mlib.cmds.createNode の基本動作を検証する。"""
+    """mlib.createNode と mlib.cmds.createNode の基本動作を検証する。"""
 
     def setUp(self):
         self.previous_namespace = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
@@ -45,8 +45,8 @@ class NodeCreationTest(unittest.TestCase):
         self.assertIsInstance(transform, Node)
         self.assertEqual(transform.getName(), "mlibCreateTransform")
 
-    def test_node_create_forwards_create_node_flags(self):
-        transform = Node.create(type="transform", name="mlibCreateTransform")
+    def test_root_create_node_forwards_create_node_flags(self):
+        transform = mlib.createNode(type="transform", name="mlibCreateTransform")
 
         self.assertIsInstance(transform, Node)
         self.assertEqual(transform.getName(), "mlibCreateTransform")

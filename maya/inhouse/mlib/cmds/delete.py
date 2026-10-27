@@ -24,7 +24,7 @@ from ..decorator import undoChunk
 def delete(nodes, *, fast=False):
     """指定したノード・コンポーネントを削除する。
 
-    ノードは全対象を1回の削除にまとめる。通常は1回の ``cmds.delete``(1回のUndoで全て戻る)、
+    ノードは全対象を1回の削除にまとめる。通常は1回の ``cmds.delete`` (1回のUndoで全て戻る)、
     fastは1つの MDagModifier の doIt 1回で削除する。削除の順(削除通知の順)と連鎖して消える
     ノード(unitConversion・構築履歴など)は、Mayaがまとめて削除するときの規則に従う
     (DGとDAGが混ざると渡した順にならない場合がある)。

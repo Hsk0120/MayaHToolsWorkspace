@@ -69,7 +69,7 @@ class InternalRefactoringTest(unittest.TestCase):
             plug.set(0, fast=True)
             plug.set(value, fast=True)
             self.assertEqual(plug.get(), normal)
-            self.assertEqual(plug.getDataType(), kind)
+            self.assertEqual(plug.getType(), kind)
         cmds.currentUnit(linear="m", angle="rad")
         node.getPlug("tx").set(2, fast=True)
         self.assertAlmostEqual(node.getPlug("tx").get(), 2)

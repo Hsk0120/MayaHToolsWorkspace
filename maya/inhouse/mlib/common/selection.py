@@ -351,7 +351,7 @@ def _resolve_names(names, plugs=False):
 
     Returns:
         list[tuple | None]: names と同じ長さの列。対応付けた名前は
-            ``(MObject, MDagPath | None, MPlug | None)``(DG ノードの DAG パスと、ノード名の MPlug は None)。
+            ``(MObject, MDagPath | None, MPlug | None)`` (DG ノードの DAG パスと、ノード名の MPlug は None)。
     """
     from ..nodes.node import Node as _InputNode
     result = [None] * len(names)

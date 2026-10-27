@@ -48,7 +48,8 @@ class PredicateAliasesTest(unittest.TestCase):
     def test_canonical_predicates_exist_without_short_aliases(self):
         """正式判定を型ごとに残し、同名の別APIを除く省略入口は公開しない。"""
         definitions = list(_predicate_definitions())
-        self.assertGreaterEqual(len(definitions), 64)
+        # isChildOf・sameInstance・isJoint の廃止(mlib 2.0)で 3 件減った。
+        self.assertGreaterEqual(len(definitions), 61)
         for module_name, owner_name, name in definitions:
             module = importlib.import_module(module_name)
             owner = module if owner_name is None else getattr(module, owner_name)

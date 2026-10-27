@@ -36,7 +36,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
         """mlibの完全名を対象にする。"""
         self.docs = ConstructorDocumentation("mlib")
         self.node = _class(
-            "mlib.nodes.node.Node", args="node, *, create=False",
+            "mlib.nodes.node.Node", args="node",
             bases=["mlib.core.object.Object"],
         )
 
@@ -70,7 +70,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
 
     def test_nearest_constructor_wins_after_node_lineage_is_confirmed(self):
         """最近接の独自署名を採用してもNodeまでの系統検査を続ける。"""
-        parent = _class("mlib.nodes.custom.Custom", args="value, *, create=False",
+        parent = _class("mlib.nodes.custom.Custom", args="value",
                         bases=[self.node.id])
         child = _class("mlib.nodes.child.Child", bases=[parent.id])
         _environment(self.node, parent, child)
@@ -79,7 +79,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
     def test_skin_cluster_keeps_its_own_arguments(self):
         """SkinClusterの引数名をNodeの引数名へ置き換えない。"""
         skin = _class("mlib.nodes.skinCluster.SkinCluster",
-                      args="skin_cluster, *, create=False", bases=[self.node.id])
+                      args="skinCluster", bases=[self.node.id])
         child = _class("mlib.nodes.skinChild.SkinChild", bases=[skin.id])
         _environment(self.node, skin, child)
         self.assertEqual(self.docs.signature(skin), skin.args)
@@ -127,7 +127,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
 
     def test_renamed_package_has_its_own_node_boundary(self):
         """別名へ改名しても同じ規則で解決し、別パッケージのNodeを混ぜない。"""
-        node = _class("renamed_lib.nodes.node.Node", args="node, *, create=False")
+        node = _class("renamed_lib.nodes.node.Node", args="node")
         dag = _class("renamed_lib.nodes.dagNode.DagNode", bases=[node.id])
         transform = _class("renamed_lib.nodes.transform.Transform", bases=[dag.id])
         child = _class("renamed_lib.nodes.joint.Joint", bases=[transform.id])
@@ -192,7 +192,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
                     if case == "other":
                         right.bases = ["builtins.object"]
                     elif case == "different":
-                        right.args = "special, *, create=False"
+                        right.args = "special"
                     elif case == "cycle":
                         right.bases = [lambert.id]
                     elif case == "multiple":
@@ -233,7 +233,7 @@ class ConstructorDocumentationTest(unittest.TestCase):
                 "from .right import Right\n"
                 "_SurfaceBase = left_module.Left if flag else Right\n", encoding="utf-8")
             docs = ConstructorDocumentation("mlib", root)
-            node = _class("mlib.nodes.node.Node", args="node, *, create=False")
+            node = _class("mlib.nodes.node.Node", args="node")
             left = _class("mlib.nodes.left.Left", bases=[node.id])
             right = _class("mlib.nodes.right.Right", bases=[node.id])
             surface = _class("mlib.nodes.surface.Surface",

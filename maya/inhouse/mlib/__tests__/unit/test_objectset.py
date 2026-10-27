@@ -16,8 +16,8 @@ class ObjectSetTest(unittest.TestCase):
 
     def setUp(self):
         self.created = []
-        self.a = Node.create(type="transform", name="mlibObjectSetA")
-        self.b = Node.create(type="transform", name="mlibObjectSetB")
+        self.a = mlib.createNode(type="transform", name="mlibObjectSetA")
+        self.b = mlib.createNode(type="transform", name="mlibObjectSetB")
         self.created.extend([self.a.getName(), self.b.getName()])
         set_name = cmds.sets(name="mlibObjectSetTestSet", empty=True)
         self.created.append(set_name)

@@ -13,6 +13,7 @@ from ..core.attributeType import value_reader
 from ..core.fastWrite import writable
 from ..decorator import undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector, Transformation
+from ..maths.eulerRotate import orderIndex
 from ..maths.vector import _vector_of
 from ..plugs.plug import Plug
 from ..util import _world_space
@@ -29,7 +30,7 @@ _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
 
 _TRANSFORM_ATTRIBUTES = {}
 
-# getEulerでゼロとみなすスケール軸の長さ。Mayaは scale 0 を 1e-12 として評価する。
+# getRotateでゼロとみなすスケール軸の長さ。Mayaは scale 0 を 1e-12 として評価する。
 _NEAR_ZERO_AXIS = 1e-10
 
 
@@ -345,11 +346,9 @@ class Transform(DagNode):
             if not isinstance(type, str):
                 raise TypeError("type must be a string")
             command_name = type if type.endswith("Constraint") else type + "Constraint"
-            # 型登録を重複管理せず、明示登録されたクラスと型名の対応から判定する。
-            supported = {
-                key for key, wrapper in Node._registry._classes.items()
-                if issubclass(wrapper, Constraint)
-            }
+            # 型登録を重複管理せず、Constraint 派生として明示登録された型名から判定する。
+            # 抽象型 "constraint" は cmds に同名コマンドが無いので除く(生成クラスは含まれない)。
+            supported = set(Node._registry._registered_types(base=Constraint)) - {"constraint"}
             if command_name not in supported:
                 raise ValueError(f"Unsupported constraint type: {type}")
             if not self.isValid():
@@ -490,30 +489,40 @@ class Transform(DagNode):
                     cmds.delete(names)
             return names
 
-    def transformFn(self):
-        """Transform 用の MFnTransform を取得する。
+    def mfn(self):
+        """この Transform で最も具体的な om2 function set を取得する。
+
+        呼び出すたびに新しい ``om2.MFnTransform`` を保持する DAG パスから作る。
+        Joint など派生型もこの function set を使う。
 
         Returns:
             om2.MFnTransform: この Transform の function set。
+
+        Raises:
+            RuntimeError: 保持していた DAG パスが無効な場合。
         """
         return om2.MFnTransform(self.mpath())
 
-    def reset(self, attributes=_UNSET, *, fast=False, attrs=_UNSET):
-        """指定アトリビュートを定義上の既定値へ戻す。
+    def resetAttrs(self, attributes=_UNSET, *, fast=False, attrs=_UNSET):
+        """指定アトリビュートを定義上の既定値へ戻す。省略時は translate・rotate・scale・shear。
+
+        :meth:`Node.resetAttrs` の override。省略時の既定(キー設定可能な全アトリビュート)を
+        TRS とシアーの 4 チャンネルに置き換える。明示指定時の扱いは Node と同じ。
 
         Args:
             attributes (str | Iterable[str] | None): tx/translateX/translateなど。
-                省略時はtranslate・rotate・scale・shear。独自数値アトリビュートも可。 別名 ``attrs`` も使用可能。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。
+                省略時はtranslate・rotate・scale・shear。ロック・入力接続のある子は除外し、除外のある
+                複合だけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。 別名 ``attrs`` も使用可能。
+            fast (bool): TrueはOpenMaya直接更新(Undoなし)。
             attrs (str | Iterable[str] | None): attributesの別名。同時指定は不可。
 
         Returns:
-            Transform: 自身。
+            list[Plug]: リセットしたアトリビュート(指定順)。Transforms では各要素の list を並べた list。
 
         Raises:
-            TypeError: 名前が文字列でない、または既定値を扱えない型の場合。
+            TypeError: 名前が文字列でない、fast が bool 以外、または既定値を扱えない型の場合。
             AttributeError: 指定アトリビュートが存在しない場合。
-            RuntimeError: ロックや入力接続などで変更できない場合。
+            RuntimeError: 明示指定したアトリビュートがロックや入力接続などで変更できない場合。
 
         フリーズではなく値を戻す操作なので姿勢は変わる。jointOrient・ピボット・
         offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
@@ -527,53 +536,30 @@ class Transform(DagNode):
             attributes = None
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibTransformReset"):
+        with nullcontext() if fast else undoChunk("mlibTransformResetAttrs"):
             if attributes is None:
-                attributes = ("translate", "rotate", "scale", "shear")
-            elif isinstance(attributes, str):
-                attributes = (attributes,)
-            attributes = tuple(attributes)
-            if not all(isinstance(name, str) and name for name in attributes):
-                raise TypeError("attributes must contain non-empty attribute names")
-            plugs = [self.getPlug(name) for name in attributes]
+                # 省略時は 4 チャンネル。ロック・入力接続のある子を Node と同じく除外し、
+                # 除外のある複合だけを書ける子へ展開する(除外が無ければ複合の Plug を返す)。
+                plugs = []
+                for name in ("translate", "rotate", "scale", "shear"):
+                    compound = self.getPlug(name)
+                    if compound.isDestination():
+                        continue
+                    children = compound.getChildren()
+                    usable = [child for child in children
+                              if not child.isLocked() and not child.isDestination()
+                              and (fast or cmds.getAttr(child.getFullName(), settable=True))]
+                    plugs.extend([compound] if len(usable) == len(children) else usable)
+            else:
+                if isinstance(attributes, str):
+                    attributes = (attributes,)
+                attributes = tuple(attributes)
+                if not all(isinstance(name, str) and name for name in attributes):
+                    raise TypeError("attributes must contain non-empty attribute names")
+                plugs = [self.getPlug(name) for name in attributes]
             for plug in plugs:
                 plug.reset(fast=fast)
-            return self
-
-    def resetPivot(self, worldSpace=_UNSET, *, kind="both", fast=False, ws=_UNSET):
-        """姿勢を保ち、指定したピボットを指定空間の原点へ移す。
-
-        setPivotへ委譲し、ピボット補償値を調整する。translateはリセットしない。
-
-        Args:
-            worldSpace (bool): 既定Trueはワールド空間。FalseはxformのobjectSpace。
-            kind (str): bothは両方、rotateは回転、scaleはスケールピボット。
-            fast (bool): TrueはUndoなしのOM2更新。FalseはUndo有効時に記録する。
-            ws (bool): worldSpaceの別名。同時指定は不可。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            TypeError: 対象がJoint、fastがbool以外、またはworldSpace/wsを同時指定した場合。
-            ValueError: worldSpaceがbool以外、またはkindが不正な場合。
-            RuntimeError: 変更するピボットまたは補償値の成分がロック・入力接続されている
-                場合(通常・fastとも更新前に検査し、何も変更しない)、またはMayaが更新を
-                拒否した場合。
-        """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = True
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibTransformResetPivot"):
-            ws = _world_space(worldSpace)
-            if not isinstance(ws, bool):
-                raise TypeError("ws must be a bool")
-            return self.setPivot((0, 0, 0), ws=ws, kind=kind, preserve=True, fast=fast)
+            return plugs
 
     def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """直下の非中間Shapeの頂点・CVを拡縮する。Transformのマトリクスは変更しない。
@@ -643,7 +629,7 @@ class Transform(DagNode):
         if kind not in ("rotate", "scale"):
             raise ValueError("kind must be 'rotate' or 'scale'")
         # xformのobjectSpaceはMFnTransformのkPreTransformに対応する。
-        fn = self.transformFn()
+        fn = self.mfn()
         space = MSpace.kWorld if ws else MSpace.kPreTransform
         point = fn.rotatePivot(space) if kind == "rotate" else fn.scalePivot(space)
         return Translate(point.x, point.y, point.z)
@@ -698,7 +684,7 @@ class Transform(DagNode):
             # 通常とfastのどちらも変更する補償値を含めて書く前に確認する。
             self._check_pivots_writable(kinds, preserve)
             if fast:
-                fn = self.transformFn()
+                fn = self.mfn()
                 point = om2.MPoint(*values)
                 space = MSpace.kWorld if ws else MSpace.kPreTransform
                 for selected in kinds:
@@ -732,69 +718,13 @@ class Transform(DagNode):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibTransformCenterPivot"):
             if fast:
-                center = self.dagFn().boundingBox.center * self.mpath().exclusiveMatrix()
+                center = self.mfn().boundingBox.center * self.mpath().exclusiveMatrix()
                 return self.setPivot((center.x, center.y, center.z), worldSpace=True,
                                      kind="both", preserve=True, fast=fast)
             # fast(setPivot経由)と同じく、xformが黙って飛ばすロックを先に拒否する。
             self._check_pivots_writable(("scale", "rotate"), True)
             cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
             return self
-
-    def getBoundingBox(self, worldSpace=_UNSET, *, ws=_UNSET):
-        """直下の Shape 階層を含むバウンディングボックスを取得する。
-
-        MFnDagNode.boundingBox は自身の translate/rotate/scale は含むが、
-        親から継承した変換は含まない（``cmds.xform(-boundingBox)`` と同じ）。
-        ``ws=True`` はそこへ親のワールドマトリクスをさらに適用し、真のワールド空間の
-        バウンディングボックスを返す。
-
-        Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-                （親の変換は含まない）。
-            ws (bool): worldSpaceの別名。同時指定は不可。
-
-        Returns:
-            om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
-                子 Shape が無い場合は原点のみを含む空に近いボックスになる。
-
-        Raises:
-            RuntimeError: ノードが無効な場合。
-        """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        if not self.isValid():
-            raise RuntimeError("Cannot compute the bounding box of an invalid transform")
-        box = self.dagFn().boundingBox
-        if not ws:
-            return box
-        parent_matrix = self._parent_world_matrix()
-        world_box = om2.MBoundingBox()
-        for x in (box.min.x, box.max.x):
-            for y in (box.min.y, box.max.y):
-                for z in (box.min.z, box.max.z):
-                    # Matrix は om2.MMatrix の派生なので、MPoint との積をそのまま使える。
-                    world_box.expand(om2.MPoint(x, y, z) * parent_matrix)
-        return world_box
-
-    def getRoot(self):
-        """DAG 階層の最上位祖先を取得する。
-
-        DAG 上の親は常に Transform であるため、祖先も常に Transform になる。
-
-        Returns:
-            Transform: ワールド直下の祖先ノード。自身がワールド直下ならその自身を返す。
-        """
-        node = self
-        parent = node.getParent()
-        while parent is not None:
-            node = parent
-            parent = node.getParent()
-        return node
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
                     order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
@@ -815,27 +745,6 @@ class Transform(DagNode):
         return super().getChildren(shapes, intermediates, allDescendents=allDescendents,
                                    order=order, leaves=leaves, includeSelf=includeSelf,
                                    underWorld=underWorld)
-
-    def getSiblings(self):
-        """親を同じくする兄弟 Transform を取得する（自身は含まない）。
-
-        自身がワールド直下の場合は、他のワールド直下 Transform を対象にする。
-
-        Returns:
-            list[Transform]: 兄弟 Transform のリスト。
-        """
-        if not self.isValid():
-            return []
-        parent = self.getParent()
-        if parent is not None:
-            candidates = parent.getChildren()
-        else:
-            candidates = self._world_assemblies()
-        self_uuid = self.getUuid()
-        return [
-            candidate for candidate in candidates
-            if isinstance(candidate, Transform) and candidate.getUuid() != self_uuid
-        ]
 
     def getUnusedIntermediateShapes(self):
         """直下から削除可能な未使用中間Shapeを取得する。
@@ -1002,19 +911,35 @@ class Transform(DagNode):
         """
         return self
 
-    def setParent(self, parent=None, relative=False, add=False, *, fast=False):
+    def setParent(self, parent=None, relative=_UNSET, add=False, *, fast=False, r=_UNSET):
         """Transformの親を変更する。
 
         Args:
             parent (Node | str | om2.MObject | om2.MDagPath | None): 新しい親。None はワールド直下。
                 ``Node(parent)`` で解決できる型(Plug・Component は所有ノード)を受け付ける。
-            relative (bool): True は親変更前のローカル変換を保持する。False は Maya の既定動作。
+            relative (bool): True は親変更前のローカル変換を保持する。既定 False は Maya の既定動作
+                (ワールド姿勢を保つ)。短縮名 ``r``。
             add (bool): True は既存の親を維持して追加の親を設定する。parent が None の場合は渡されない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。Joint・インスタンス・親の追加は未対応。
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。Joint・インスタンス・親の追加は未対応
+                (NotImplementedError)。通常経路の Joint は cmds.parent に従い、relative=False の
+                ときだけ親 joint の scale を inverseScale へ接続する(relative=True では接続しない。
+                Maya の仕様)。
+            r (bool): relative の別名。同時指定は不可。
 
         Returns:
             Transform: 自身。
+
+        Raises:
+            TypeError: fast が bool 以外、relative と r を同時指定、または fast で parent が Transform 以外の場合。
+            RuntimeError: 自身が無効、または fast でロック・参照・循環により変更できない場合。
+            NotImplementedError: fast で Joint・インスタンス・add=True を指定した場合。
         """
+        if r is not _UNSET:
+            if relative is not _UNSET:
+                raise _ArgumentError("Specify only one of 'relative' and 'r'")
+            relative = r
+        if relative is _UNSET:
+            relative = False
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlibTransformSetParent"):
@@ -1023,7 +948,7 @@ class Transform(DagNode):
             if fast:
                 return self._set_parent_fast(parent, relative, add)
             if parent is None:
-                if self.getParentPath() is None and not self.mpath().isInstanced():
+                if self.getParent() is None and not self.mpath().isInstanced():
                     return self
                 cmds.parent(self.getName(), world=True, relative=relative)
             else:
@@ -1031,9 +956,9 @@ class Transform(DagNode):
                 parent_name = target.getFullName()
                 # 古いMayaでは同じ親への再parentがエラーになる。
                 # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
-                current = self.getParentPath()
+                current = self.getParent()
                 if (not add and not self.mpath().isInstanced() and current is not None
-                        and current.fullPathName() == parent_name):
+                        and current.mpath().fullPathName() == parent_name):
                     return self
                 cmds.parent(self.getName(), parent_name, relative=relative, add=add)
             return self
@@ -1144,41 +1069,6 @@ class Transform(DagNode):
             list[ShadingEngine]: 直下の非中間Shapeで使用中のセット。インスタンス経路を保持。
         """
         return list(dict.fromkeys(group for shape in self.getShapes() for group in shape.getShadingEngines()))
-
-    def getOffsetParentMatrix(self):
-        """offsetParentMatrixの現在値を取得する。
-
-        Returns:
-            Matrix: アトリビュート値の複製。ワールドマトリクスやローカルマトリクスとの合成はしない。
-
-        Raises:
-            RuntimeError: ノードやアトリビュートが無効の場合。
-        """
-        return self.getPlug("offsetParentMatrix").get()
-
-    def setOffsetParentMatrix(self, value, *, fast=False):
-        """offsetParentMatrixへマトリクス値を設定する。
-
-        Args:
-            value (Matrix | Iterable[float]): 別Transform.getMatrix()の戻り値などの4x4マトリクス。
-            fast (bool): TrueはOpenMaya直接更新（Undoなし）。既定False。
-
-        Returns:
-            Transform: 自身。Transformsでは各対象へ同じ値を設定する。
-
-        Raises:
-            TypeError: fastがboolでない場合。
-            ValueError: マトリクス値が不正な場合。
-            RuntimeError: 無効な対象・ロック・入力接続などで更新できない場合。
-
-        TRSチャンネル値は変更しない。指定マトリクスは既存ローカルマトリクスと親マトリクスに合成される。
-        ワールド姿勢の自動一致・入力接続の切断・ロック解除は行わない。
-        """
-        if not isinstance(fast, bool):
-            raise TypeError("fast must be a bool")
-        with nullcontext() if fast else undoChunk("mlibTransformSetOffsetParentMatrix"):
-            self.getPlug("offsetParentMatrix").set(value, fast=fast)
-            return self
 
     def getTransformation(self, worldSpace=_UNSET, *, ws=_UNSET):
         """TRSチャンネルとピボット等の補助成分を、独立した変換値として取得する。
@@ -1452,22 +1342,34 @@ class Transform(DagNode):
             self._set_channel_value("translate", result, safe=safe, fast=fast)
             return self
 
-    def getRotate(self, worldSpace=_UNSET, *, ws=_UNSET):
-        """選択空間のマトリクスから、ノードのrotateOrderでEuler回転を取得する。
+    def getRotate(self, worldSpace=_UNSET, *, order=None, ws=_UNSET):
+        """選択空間のマトリクスの回転を Euler 回転として取得する。
 
-        rotateAxisと、JointではjointOrientを含む回転を返す。
-        スケール符号は現在のチャンネルを基準とし、Eulerの等価解はTransformでは現在の
-        rotate、Jointではゼロ回転に最も近いものを選ぶ。
+        rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
+
+        回転順序と等価解の選び方は二段の規則に従う。
+
+        * ``order`` を省略、またはノードの rotateOrder と同じ順序を指定した場合は、ノードの
+          rotateOrder で表し、Euler の等価解は Transform では現在の rotate チャンネル、
+          Joint ではゼロ回転に最も近いものを選ぶ(``setRotate`` の往復でチャンネル値が保たれる)。
+        * それ以外の順序を指定した場合は、クォータニオンを ``asEulerRotation().reorder(order)``
+          で素直に分解した値(等価解の選択なし)を返す。``order=0``(xyz)は旧 ``getEuler`` と同じ値。
 
         Args:
             worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。短縮名ws。
+            order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
+                (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
+                None はノードの rotateOrder。
             ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
-            EulerRotate: rad単位・ノードのrotateOrderで表した独立した回転値。
+            EulerRotate: rad単位の独立した回転値。``order`` の回転順序(省略時はノードの rotateOrder)。
 
         Raises:
-            ValueError: ゼロスケール等でマトリクスを分解できない場合。
+            TypeError: worldSpace と ws を同時指定した場合。
+            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
+                いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
+                ときも含む。
         """
         if ws is not _UNSET:
             if worldSpace is not _UNSET:
@@ -1476,8 +1378,16 @@ class Transform(DagNode):
         if worldSpace is _UNSET:
             worldSpace = False
         ws = _world_space(worldSpace)
-        _, quaternion, _, _, reference = self._decompose_like_channels(self.getMatrix(ws=ws))
-        return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
+        if order is not None:
+            order = orderIndex(order)
+        matrix = self.getMatrix(ws=ws)
+        for row in range(3):
+            if math.sqrt(sum(matrix[row, col] ** 2 for col in range(3))) <= _NEAR_ZERO_AXIS:
+                raise ValueError("Cannot decompose a matrix with a zero scale axis")
+        _, quaternion, _, _, reference = self._decompose_like_channels(matrix)
+        if order is None or order == reference.order:
+            return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
+        return EulerRotate._wrap(quaternion.asEulerRotation().reorder(order))
 
     def setRotate(self, value, worldSpace=_UNSET, safe=False, get=False, *, unit="rad", fast=False, ws=_UNSET):
         """選択空間の回転を設定する。書込むrotateは現在値に最も近い等価解を使う。
@@ -1590,7 +1500,7 @@ class Transform(DagNode):
         self._set_channel_value("scale", values, safe=safe, fast=fast)
         return self
 
-    def getShearing(self, worldSpace=_UNSET, *, ws=_UNSET):
+    def getShear(self, worldSpace=_UNSET, *, ws=_UNSET):
         """指定空間のシアー値を取得する。
 
         Args:
@@ -1611,7 +1521,7 @@ class Transform(DagNode):
             return Shear(*om2.MTransformationMatrix(self.getMatrix(ws=True)).shear(MSpace.kTransform))
         return self.getPlug("shear").get()
 
-    def setShearing(self, value, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
+    def setShear(self, value, worldSpace=_UNSET, safe=False, get=False, *, fast=False, ws=_UNSET):
         """shearチャンネルだけを設定する。
 
         ワールド指定では要求シアーをローカル設定値へ変換する。
@@ -1730,136 +1640,6 @@ class Transform(DagNode):
                 return list(rotation)
             self._set_channel_value(name, rotation, safe=safe, fast=fast)
             return self
-
-    def getEuler(self, worldSpace=_UNSET, *, ws=_UNSET):
-        """回転を XYZ 順序の EulerRotate として取得する。
-
-        マトリクスから分解した回転をXYZ順序で返す。getQuaternionのra/r/joによる
-        合成対象の選択は行わない。ノードのrotateOrderで表す場合はgetRotateを使う。
-
-        Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            ws (bool): worldSpaceの別名。同時指定は不可。
-
-        Returns:
-            EulerRotate: 評価済みの回転値（radian、XYZ 順序）。
-
-        Raises:
-            ValueError: マトリクスを分解できない場合。いずれかのスケール軸の長さが
-                ``_NEAR_ZERO_AXIS`` (1e-10)以下のときも含む。Mayaは scale 0 を 1e-12 として
-                評価するため、0 のスケールチャンネル(自身または親)はこの判定で拒否する。
-        """
-        if ws is not _UNSET:
-            if worldSpace is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldSpace' and 'ws'")
-            worldSpace = ws
-        if worldSpace is _UNSET:
-            worldSpace = False
-        ws = _world_space(worldSpace)
-        matrix = self.getMatrix(ws=ws)
-        for row in range(3):
-            if math.sqrt(sum(matrix[row, col] ** 2 for col in range(3))) <= _NEAR_ZERO_AXIS:
-                raise ValueError("Cannot decompose a matrix with a zero scale axis")
-        _, quaternion, _, _, _ = self._decompose_like_channels(matrix)
-        return EulerRotate._wrap(quaternion.asEulerRotation())
-
-    def freeze(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
-        preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
-        t=_UNSET, query=_UNSET, q=_UNSET, edit=_UNSET, e=_UNSET, **kwargs):
-        """makeIdentity(apply=True)でフリーズする。
-
-        子階層・Joint・スキニング・接続の扱いはMaya標準に従う。
-        通常のcmds更新をUndo有効時にまとめ、途中失敗の変更は戻さない。
-
-        Args:
-            apply (bool): 省略時True。形状へ変換を適用するため、Trueだけを受け付ける。
-            a (bool): applyの別名。同時指定は不可。
-            jointOrient (bool): MayaのjointOrientフラグ。省略時はMayaの既定に従う。
-            jo (bool): jointOrientの別名。同時指定は不可。
-            normal (int): Mayaのnormalフラグ。省略時はMayaの既定に従う。
-            n (int): normalの別名。同時指定は不可。
-            preserveNormals (bool): MayaのpreserveNormalsフラグ。省略時はMayaの既定に従う。
-            pn (bool): preserveNormalsの別名。同時指定は不可。
-            rotate (bool): Mayaのrotateフラグ。省略時はMayaの既定に従う。
-            r (bool): rotateの別名。同時指定は不可。
-            scale (bool): Mayaのscaleフラグ。省略時はMayaの既定に従う。
-            s (bool): scaleの別名。同時指定は不可。
-            translate (bool): Mayaのtranslateフラグ。省略時はMayaの既定に従う。
-            t (bool): translateの別名。同時指定は不可。
-            query (bool): Mayaのqueryフラグ。省略時はMayaの既定に従う。
-            q (bool): queryの別名。同時指定は不可。
-            edit (bool): Mayaのeditフラグ。省略時はMayaの既定に従う。
-            e (bool): editの別名。同時指定は不可。
-            **kwargs (object): makeIdentityへ渡す追加フラグ。成分の省略時の扱いもMayaに従う。
-
-        Returns:
-            Transform: 自身。
-
-        Raises:
-            ValueError: applyにTrue以外を指定した場合。
-            TypeError: 長短フラグを重複指定した場合。
-            RuntimeError: Mayaがフリーズを拒否した場合。
-
-        resetやJoint.freezeRotateの姿勢移送とは異なる。
-        """
-        if a is not _UNSET:
-            if apply is not _UNSET:
-                raise _ArgumentError("Specify only one of 'apply' and 'a'")
-            apply = a
-        if apply is not _UNSET:
-            kwargs["apply"] = apply
-        if jo is not _UNSET:
-            if jointOrient is not _UNSET:
-                raise _ArgumentError("Specify only one of 'jointOrient' and 'jo'")
-            jointOrient = jo
-        if jointOrient is not _UNSET:
-            kwargs["jointOrient"] = jointOrient
-        if n is not _UNSET:
-            if normal is not _UNSET:
-                raise _ArgumentError("Specify only one of 'normal' and 'n'")
-            normal = n
-        if normal is not _UNSET:
-            kwargs["normal"] = normal
-        if pn is not _UNSET:
-            if preserveNormals is not _UNSET:
-                raise _ArgumentError("Specify only one of 'preserveNormals' and 'pn'")
-            preserveNormals = pn
-        if preserveNormals is not _UNSET:
-            kwargs["preserveNormals"] = preserveNormals
-        if r is not _UNSET:
-            if rotate is not _UNSET:
-                raise _ArgumentError("Specify only one of 'rotate' and 'r'")
-            rotate = r
-        if rotate is not _UNSET:
-            kwargs["rotate"] = rotate
-        if s is not _UNSET:
-            if scale is not _UNSET:
-                raise _ArgumentError("Specify only one of 'scale' and 's'")
-            scale = s
-        if scale is not _UNSET:
-            kwargs["scale"] = scale
-        if t is not _UNSET:
-            if translate is not _UNSET:
-                raise _ArgumentError("Specify only one of 'translate' and 't'")
-            translate = t
-        if translate is not _UNSET:
-            kwargs["translate"] = translate
-        if q is not _UNSET:
-            if query is not _UNSET:
-                raise _ArgumentError("Specify only one of 'query' and 'q'")
-            query = q
-        if query is not _UNSET:
-            kwargs["query"] = query
-        if e is not _UNSET:
-            if edit is not _UNSET:
-                raise _ArgumentError("Specify only one of 'edit' and 'e'")
-            edit = e
-        if edit is not _UNSET:
-            kwargs["edit"] = edit
-        with undoChunk("mlibTransformFreeze"):
-            if kwargs.pop("apply", True) is not True:
-                raise ValueError("freeze requires apply=True")
-            return self.makeIdentity(apply=True, **kwargs)
 
     def makeIdentity(self, *, apply=_UNSET, a=_UNSET, jointOrient=_UNSET, jo=_UNSET, normal=_UNSET, n=_UNSET,
         preserveNormals=_UNSET, pn=_UNSET, rotate=_UNSET, r=_UNSET, scale=_UNSET, s=_UNSET, translate=_UNSET,
@@ -1993,30 +1773,6 @@ class Transform(DagNode):
                 best_axis = name
         return best_axis
 
-    # 公開APIの短縮メソッド。旧mlib名の互換入口ではない。
-    def getJointOrientQuaternion(self, ws=_UNSET, *, worldSpace=_UNSET):
-        """getQuaternionでrotateを除いた回転を取得する。
-
-        ``getQuaternion(ws=ws, r=False)`` へ委譲する。
-        ローカルではJointのjointOrient、非Jointでは単位回転を返す。
-        ワールドでは保持パスから求め、非Jointでは親側のマトリクスの回転を返す。
-        jointOrientアトリビュートだけをQuaternionへ変換する入口ではない。
-
-        Args:
-            ws (bool): ワールド空間を使う。 別名 ``worldSpace`` も使用可能。
-            worldSpace (bool): wsの別名。同時指定は不可。
-
-        Returns:
-            Quaternion: ノードと独立した回転値。
-        """
-        if worldSpace is not _UNSET:
-            if ws is not _UNSET:
-                raise _ArgumentError("Specify only one of 'ws' and 'worldSpace'")
-            ws = worldSpace
-        if ws is _UNSET:
-            ws = False
-        return self.getQuaternion(ws=ws, r=False)
-
     def _local_matrix(self, matrix, ws):
         """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。
 
@@ -2086,7 +1842,8 @@ class Transform(DagNode):
         if (self.mnode().hasFn(om2.MFn.kJoint) or path.isInstanced()
                 or (target is not None and target.mpath().isInstanced()) or add):
             raise NotImplementedError("fast parenting does not support joints, instances or add=True")
-        if self.dagFn().isLocked or self.dagFn().isFromReferencedFile:
+        fn = self.mfn()
+        if fn.isLocked or fn.isFromReferencedFile:
             raise RuntimeError("Cannot reparent a locked or referenced transform")
         if target is not None:
             ancestor = om2.MDagPath(target.mpath())
@@ -2094,7 +1851,8 @@ class Transform(DagNode):
                 if ancestor.node() == self.mnode():
                     raise RuntimeError("Cannot create a DAG parenting cycle")
                 ancestor.pop()
-            if target.dagFn().isLocked or target.dagFn().isFromReferencedFile:
+            target_fn = target.mfn()
+            if target_fn.isLocked or target_fn.isFromReferencedFile:
                 raise RuntimeError("Cannot parent under a locked or referenced transform")
         current = self.getParent()
         if (current is None and target is None) or (
@@ -2103,7 +1861,7 @@ class Transform(DagNode):
         world = None if relative else self.getMatrix(ws=True)
         if world is not None:
             parent_matrix = Matrix() if target is None else target.getMatrix(ws=True)
-            opm = self.getOffsetParentMatrix()
+            opm = self.getPlug("offsetParentMatrix").get()
             if abs(parent_matrix.det4x4()) <= 1e-12 or abs(opm.det4x4()) <= 1e-12:
                 raise RuntimeError("Cannot preserve world transform with a singular parent or offset matrix")
             for name in ("translate", "rotate", "scale", "shear"):
@@ -2276,34 +2034,6 @@ class Transform(DagNode):
             value = self._static_value(name)
         order = self._rotate_order() if name == "rotate" else om2.MEulerRotation.kXYZ
         return om2.MEulerRotation(*tuple(value), order).asQuaternion()
-
-    @staticmethod
-    def _world_assemblies():
-        """ワールド直下の Transform をすべて取得する。
-
-        Returns:
-            list[Node]: ワールド直下(DAGパスの長さが1)の Transform ラッパー。
-        """
-        iterator = om2.MItDag(om2.MItDag.kBreadthFirst, om2.MFn.kTransform)
-        assemblies = []
-        while not iterator.isDone():
-            path = iterator.getPath()
-            if path.length() == 1:
-                # MItDagが返した有効なパスなので、Node(path) の入力解決を省いて同じ型で包む。
-                assemblies.append(Node._wrap_dag_path(path))
-            iterator.next()
-        return assemblies
-
-    def _parent_world_matrix(self):
-        """親Transformのワールドマトリクスを取得する。
-
-        Returns:
-            Matrix: 親のワールドマトリクス。親がない、または親に getMatrix がなければ単位マトリクス。
-        """
-        parent = self.getParent()
-        if parent is None or not hasattr(parent, "getMatrix"):
-            return Matrix()
-        return parent.getMatrix(ws=True)
 
     def _rotate_order(self):
         """ノードの rotateOrder を om2 の回転順序の番号として取得する。
@@ -2627,30 +2357,22 @@ class Transforms(DagNodes):
     _bulk_entries = {
         "addConstraint": (Transform.addConstraint, "list"),
         "deleteConstraints": (Transform.deleteConstraints, "list"),
-        "transformFn": (Transform.transformFn, "list"),
+        "mfn": (Transform.mfn, "list"),
         "getPivot": (Transform.getPivot, "list"),
-        "getBoundingBox": (Transform.getBoundingBox, "list"),
-        "getRoot": (Transform.getRoot, "list"),
         "getChildren": (Transform.getChildren, "list"),
-        "getSiblings": (Transform.getSiblings, "list"),
         "getShapes": (Transform.getShapes, "list"),
         "getShape": (Transform.getShape, "list"),
         "getShadingEngines": (Transform.getShadingEngines, "list"),
-        "getOffsetParentMatrix": (Transform.getOffsetParentMatrix, "list"),
         "getMatrix": (Transform.getMatrix, "list"),
-        "getJointOrientQuaternion": (Transform.getJointOrientQuaternion, "list"),
         "getTransformation": (Transform.getTransformation, "list"),
         "getTranslate": (Transform.getTranslate, "list"),
         "getRotate": (Transform.getRotate, "list"),
         "getScale": (Transform.getScale, "list"),
-        "getShearing": (Transform.getShearing, "list"),
+        "getShear": (Transform.getShear, "list"),
         "getQuaternion": (Transform.getQuaternion, "list"),
-        "getEuler": (Transform.getEuler, "list"),
         "getClosestAxisToVector": (Transform.getClosestAxisToVector, "list"),
         "getUnusedIntermediateShapes": (Transform.getUnusedIntermediateShapes, "list"),
-        "freeze": (Transform.freeze, "self"),
-        "resetPivot": (Transform.resetPivot, "self"),
-        "reset": (Transform.reset, "self"),
+        "resetAttrs": (Transform.resetAttrs, "list"),
         "scaleGeometry": (Transform.scaleGeometry, "self"),
         "setPivot": (Transform.setPivot, "self"),
         "centerPivot": (Transform.centerPivot, "self"),
@@ -2659,13 +2381,12 @@ class Transforms(DagNodes):
         "setParent": (Transform.setParent, "self"),
         "matchTransform": (Transform.matchTransform, "self"),
         "mirrorTransform": (Transform.mirrorTransform, "self"),
-        "setOffsetParentMatrix": (Transform.setOffsetParentMatrix, "self"),
         "setMatrix": (Transform.setMatrix, "self"),
         "setTransformation": (Transform.setTransformation, "self"),
         "setTranslate": (Transform.setTranslate, "self"),
         "setRotate": (Transform.setRotate, "self"),
         "setScale": (Transform.setScale, "self"),
-        "setShearing": (Transform.setShearing, "self"),
+        "setShear": (Transform.setShear, "self"),
         "setQuaternion": (Transform.setQuaternion, "self"),
         "makeIdentity": (Transform.makeIdentity, "self"),
         "deleteUnusedIntermediateShapes": (Transform.deleteUnusedIntermediateShapes, "self"),
@@ -2708,8 +2429,8 @@ class Transforms(DagNodes):
 
     deleteConstraints.__signature__ = inspect.signature(Transform.deleteConstraints)
 
-    def transformFn(self, *args, **kwargs):
-        """各要素のtransformFnを同じ引数で呼び、保持順の戻り値リストを返す。
+    def mfn(self, *args, **kwargs):
+        """各要素のmfnを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -2718,9 +2439,9 @@ class Transforms(DagNodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("transformFn", args, kwargs)
+        return self._dispatch_shared("mfn", args, kwargs)
 
-    transformFn.__signature__ = inspect.signature(Transform.transformFn)
+    mfn.__signature__ = inspect.signature(Transform.mfn)
 
     def getPivot(self, *args, **kwargs):
         """各要素のgetPivotを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2750,34 +2471,6 @@ class Transforms(DagNodes):
 
     setPivot.__signature__ = inspect.signature(Transform.setPivot)
 
-    def getBoundingBox(self, *args, **kwargs):
-        """各要素のgetBoundingBoxを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getBoundingBox", args, kwargs)
-
-    getBoundingBox.__signature__ = inspect.signature(Transform.getBoundingBox)
-
-    def getRoot(self, *args, **kwargs):
-        """各要素のgetRootを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getRoot", args, kwargs)
-
-    getRoot.__signature__ = inspect.signature(Transform.getRoot)
-
     def getChildren(self, *args, **kwargs):
         """各要素のgetChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2791,20 +2484,6 @@ class Transforms(DagNodes):
         return self._dispatch_shared("getChildren", args, kwargs)
 
     getChildren.__signature__ = inspect.signature(Transform.getChildren)
-
-    def getSiblings(self, *args, **kwargs):
-        """各要素のgetSiblingsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getSiblings", args, kwargs)
-
-    getSiblings.__signature__ = inspect.signature(Transform.getSiblings)
 
     def getShapes(self, *args, **kwargs):
         """各要素のgetShapesを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -2848,34 +2527,6 @@ class Transforms(DagNodes):
 
     getShadingEngines.__signature__ = inspect.signature(Transform.getShadingEngines)
 
-    def getOffsetParentMatrix(self, *args, **kwargs):
-        """各要素のgetOffsetParentMatrixを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getOffsetParentMatrix", args, kwargs)
-
-    getOffsetParentMatrix.__signature__ = inspect.signature(Transform.getOffsetParentMatrix)
-
-    def setOffsetParentMatrix(self, *args, **kwargs):
-        """各要素のsetOffsetParentMatrixを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Transforms | list: コレクション自身。
-        """
-        return self._dispatch_shared("setOffsetParentMatrix", args, kwargs)
-
-    setOffsetParentMatrix.__signature__ = inspect.signature(Transform.setOffsetParentMatrix)
-
     def getMatrix(self, *args, **kwargs):
         """各要素のgetMatrixを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -2903,20 +2554,6 @@ class Transforms(DagNodes):
         return self._dispatch_shared("setMatrix", args, kwargs)
 
     setMatrix.__signature__ = inspect.signature(Transform.setMatrix)
-
-    def getJointOrientQuaternion(self, *args, **kwargs):
-        """各要素のgetJointOrientQuaternionを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getJointOrientQuaternion", args, kwargs)
-
-    getJointOrientQuaternion.__signature__ = inspect.signature(Transform.getJointOrientQuaternion)
 
     def getTransformation(self, *args, **kwargs):
         """各要素のgetTransformationを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -3030,8 +2667,8 @@ class Transforms(DagNodes):
 
     setScale.__signature__ = inspect.signature(Transform.setScale)
 
-    def getShearing(self, *args, **kwargs):
-        """各要素のgetShearingを同じ引数で呼び、保持順の戻り値リストを返す。
+    def getShear(self, *args, **kwargs):
+        """各要素のgetShearを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -3040,12 +2677,12 @@ class Transforms(DagNodes):
         Returns:
             list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("getShearing", args, kwargs)
+        return self._dispatch_shared("getShear", args, kwargs)
 
-    getShearing.__signature__ = inspect.signature(Transform.getShearing)
+    getShear.__signature__ = inspect.signature(Transform.getShear)
 
-    def setShearing(self, *args, **kwargs):
-        """各要素のsetShearingを同じ引数で呼び、コレクション自身を返す。
+    def setShear(self, *args, **kwargs):
+        """各要素のsetShearを同じ引数で呼び、コレクション自身を返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
@@ -3054,9 +2691,9 @@ class Transforms(DagNodes):
         Returns:
             Transforms | list: コレクション自身。
         """
-        return self._dispatch_shared("setShearing", args, kwargs)
+        return self._dispatch_shared("setShear", args, kwargs)
 
-    setShearing.__signature__ = inspect.signature(Transform.setShearing)
+    setShear.__signature__ = inspect.signature(Transform.setShear)
 
     def getQuaternion(self, *args, **kwargs):
         """各要素のgetQuaternionを同じ引数で呼び、保持順の戻り値リストを返す。
@@ -3086,20 +2723,6 @@ class Transforms(DagNodes):
 
     setQuaternion.__signature__ = inspect.signature(Transform.setQuaternion)
 
-    def getEuler(self, *args, **kwargs):
-        """各要素のgetEulerを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getEuler", args, kwargs)
-
-    getEuler.__signature__ = inspect.signature(Transform.getEuler)
-
     def getClosestAxisToVector(self, *args, **kwargs):
         """各要素のgetClosestAxisToVectorを同じ引数で呼び、保持順の戻り値リストを返す。
 
@@ -3128,47 +2751,19 @@ class Transforms(DagNodes):
 
     getUnusedIntermediateShapes.__signature__ = inspect.signature(Transform.getUnusedIntermediateShapes)
 
-    def freeze(self, *args, **kwargs):
-        """各要素のfreezeを同じ引数で呼び、コレクション自身を返す。
+    def resetAttrs(self, *args, **kwargs):
+        """各要素のresetAttrsを同じ引数で呼び、保持順の戻り値リストを返す。
 
         Args:
             *args: 単数メソッドに渡す位置引数。
             **kwargs: 単数メソッドに渡すキーワード引数。
 
         Returns:
-            Transforms | list: コレクション自身。
+            list: 保持順の戻り値リスト。
         """
-        return self._dispatch_shared("freeze", args, kwargs)
+        return self._dispatch_shared("resetAttrs", args, kwargs)
 
-    freeze.__signature__ = inspect.signature(Transform.freeze)
-
-    def resetPivot(self, *args, **kwargs):
-        """各要素のresetPivotを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Transforms | list: コレクション自身。
-        """
-        return self._dispatch_shared("resetPivot", args, kwargs)
-
-    resetPivot.__signature__ = inspect.signature(Transform.resetPivot)
-
-    def reset(self, *args, **kwargs):
-        """各要素のresetを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Transforms | list: コレクション自身。
-        """
-        return self._dispatch_shared("reset", args, kwargs)
-
-    reset.__signature__ = inspect.signature(Transform.reset)
+    resetAttrs.__signature__ = inspect.signature(Transform.resetAttrs)
 
     def scaleGeometry(self, *args, **kwargs):
         """各要素のscaleGeometryを同じ引数で呼び、コレクション自身を返す。

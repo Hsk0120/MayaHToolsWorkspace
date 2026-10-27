@@ -141,17 +141,6 @@ class Shape(DagNode):
                 cmds.xform(component, translation=values, worldSpace=ws, objectSpace=not ws)
             return self
 
-    def getParent(self, step=1):
-        """指定階層の親DAGノードを取得する。
-
-        Args:
-            step (int): 遡る階層数。
-
-        Returns:
-            DagNode | None: 親。存在しない場合は ``None``。
-        """
-        return super().getParent(step)
-
     def getTransform(self):
         """このShapeの親Transformを返す。
 
@@ -159,11 +148,3 @@ class Shape(DagNode):
             Transform | None: 親Transform。存在しない場合は ``None``。
         """
         return self.getParent()
-
-    def isIntermediateObject(self):
-        """中間オブジェクト（履歴用の非表示Shape）か判定する。
-
-        Returns:
-            bool: 中間オブジェクトの場合は True。
-        """
-        return self.dagFn().isIntermediateObject

@@ -50,7 +50,7 @@ class SpaceSwitch:
         buffer.addAttr(longName="spaceChoice", attributeType="message")
         buffer.addAttr(longName="spaceLabels", dataType="string")
         buffer.getPlug("spaceLabels").set("[]")
-        choice = mlib.nodes.Node.create("choice", name=buffer.getName() + "_choice", skipSelect=True)
+        choice = mlib.createNode("choice", name=buffer.getName() + "_choice", skipSelect=True)
         choice.getPlug("message").connectTo(buffer.getPlug("spaceChoice"))
         return cls(buffer)
 
@@ -130,7 +130,7 @@ class SpaceSwitch:
                 )
             ] or []
             for destination, source in zip(pairs[::2], pairs[1::2]):
-                if mlib.getPlug(destination).getDataType() != "message":
+                if mlib.getPlug(destination).getType() != "message":
                     pending.append(source.getNode())
 
     @staticmethod
@@ -170,7 +170,7 @@ class SpaceSwitch:
         reference = target.getPlug("worldMatrix")[0].get() if target else Matrix()
         reference = Matrix(reference)
         offset = Matrix(world) * self._inverse(reference)
-        matrix = mlib.nodes.Node.create(
+        matrix = mlib.createNode(
             "multMatrix", name=self.buffer.getName() + "_" + label + "_multMatrix", skipSelect=True
         )
         matrix.getPlug("matrixIn")[0].set(offset)

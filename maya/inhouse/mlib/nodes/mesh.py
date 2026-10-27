@@ -219,6 +219,16 @@ class Mesh(Shape):
         wrapped = [ShadingEngine(group) for group in groups]
         return [wrapped[i] if i >= 0 else None for i in indices]
 
+    def mfn(self):
+        """この mesh で最も具体的な om2 function set を取得する。
+
+        呼び出すたびに新しい ``om2.MFnMesh`` を保持する DAG パスから作る。
+
+        Returns:
+            om2.MFnMesh: この mesh の function set。
+        """
+        return om2.MFnMesh(self.mpath())
+
     def meshFn(self):
         """MFnMesh を取得する。
 

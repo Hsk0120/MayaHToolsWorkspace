@@ -1,6 +1,7 @@
 """DAG共通基底と具象型の選択をMaya内で検証する。"""
 import unittest
 
+import maya.api.OpenMaya as om2
 from maya import cmds
 import mlib
 from mlib.nodes import DagNode, Node, Shape, Transform, Joint, Mesh
@@ -27,19 +28,21 @@ class DagNodeTest(unittest.TestCase):
 
     def test_shared_methods_and_parent(self):
         """共通実装を継承し、親取得とtransform取得の違いを保持する。"""
-        for method in ("mpath", "dagFn", "getParentPath"):
+        for method in ("mpath",):
             self.assertIs(getattr(Transform, method), getattr(DagNode, method))
             self.assertIs(getattr(Shape, method), getattr(DagNode, method))
         parent = cmds.createNode("transform")
         child = cmds.createNode("transform", parent=parent)
         mesh = cmds.createNode("mesh", parent=child)
         root, transform, shape = map(DagNode, (parent, child, mesh))
-        self.assertIsNone(root.getParentPath())
+        self.assertIsNone(root.getParent())
         self.assertEqual(transform.getParent(), root)
         self.assertEqual(shape.getParent(), transform)
         self.assertEqual(shape.getTransform(), transform)
         self.assertEqual(transform.getTransform(), transform)
-        self.assertEqual(shape.dagFn().object(), shape.mnode())
+        # mfn は最も具体的な function set(Transform は MFnTransform)。空の mesh は MFnMesh を作れないので transform で確かめる。
+        self.assertEqual(transform.mfn().object(), transform.mnode())
+        self.assertIsInstance(transform.mfn(), om2.MFnTransform)
 
 
 if __name__ == "__main__":

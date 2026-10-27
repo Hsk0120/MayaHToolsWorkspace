@@ -26,7 +26,7 @@ class BindMirrorFreezeTest(unittest.TestCase):
             cmds.setAttr(name + ".translate", 2, 3, 4)
             cmds.setAttr(name + ".rotate", 10, 20, 30)
             cmds.setAttr(name + ".scale", 2, 3, 4)
-        Node(names[0]).freeze(t=True, r=True, s=True)
+        Node(names[0]).makeIdentity(apply=True, t=True, r=True, s=True)
         cmds.makeIdentity(names[1], apply=True, translate=True, rotate=True, scale=True)
         for attr in ("translate", "rotate", "scale"):
             self.assertEqual(cmds.getAttr(names[0] + "." + attr), cmds.getAttr(names[1] + "." + attr))
@@ -36,7 +36,7 @@ class BindMirrorFreezeTest(unittest.TestCase):
             for x, y in zip(a, b): self.assertAlmostEqual(x, y)
         nodes = Transforms([Node(name) for name in names])
         nodes.setTranslate((3, 2, 1), at=4)
-        nodes.freeze()
+        nodes.makeIdentity(apply=True, t=True, r=True, s=True)
         cmds.undo()
         self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (3, 2, 1))
 
