@@ -84,6 +84,7 @@ class SetupSamples:
         ("squashBox", "SquashBox - four sides"),
         ("planeCollision", "PlaneCollision - soft floor"),
         ("sphereCollision", "SphereCollision - soft head collider"),
+        ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
         ("cameraAngleReader", "CameraAngleReader - face and camera"),
         ("dollyZoom", "DollyZoom - camera keeps the subject size"),
@@ -933,6 +934,21 @@ class SetupSamples:
         control = _locator(name + "_handCtrl", root, translate=(6, 6, 0))
         setup = SphereCollision.create(control, head, name=name, radius=3.0, softness=1.0)
         _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
+        return setup, control
+
+    @classmethod
+    def _capsuleCollision(cls, name, root):
+        """太ももを表すカプセルのコライダー(股関節と膝のlocator)とスカートのコントロール(locator)。
+        コントロールを太ももへ近づけると、表面から softness の距離で出力(緑)が柔らかく止まり始め、
+        先細りのカプセルの中へは入らない。"""
+        from .setups import CapsuleCollision
+
+        hip = _locator(name + "_hip", root, translate=(0, 10, 0))
+        knee = _locator(name + "_knee", root, translate=(0, 2, 0))
+        control = _locator(name + "_skirtCtrl", root, translate=(6, 6, 0))
+        setup = CapsuleCollision.create(control, hip, knee, name=name, startRadius=2.5, endRadius=1.8,
+                                        softness=1.0)
+        _output(name + "_skirtOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
 
     @classmethod

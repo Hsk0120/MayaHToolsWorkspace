@@ -42,6 +42,7 @@ from .piston import Piston
 from .planarIK import PlanarIK
 from .planeCollision import PlaneCollision
 from .sphereCollision import SphereCollision
+from .capsuleCollision import CapsuleCollision
 from .poleVectorPlacement import PoleVectorPlacement
 from .poseRbf import PoseRbf
 from .radialWeights import RadialWeights
@@ -118,6 +119,7 @@ __all__ = [
     "PlanarIK",
     "PlaneCollision",
     "SphereCollision",
+    "CapsuleCollision",
     "PoleVectorPlacement",
     "PoseRbf",
     "RadialWeights",

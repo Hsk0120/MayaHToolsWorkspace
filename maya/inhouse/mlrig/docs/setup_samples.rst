@@ -137,6 +137,9 @@
    * - SphereCollision - soft head collider
      - 手のコントロールのlocator
      - ``translateX`` を下げて頭の球(locator、半径3cm)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、球の中へは入らない。球を動かすと押し出す向きが付いてくる。containerの ``penetration`` は押し込んだ深さ、 ``softness`` を0にすると硬く止まる。
+   * - CapsuleCollision - soft thigh collider
+     - スカートのコントロールのlocator
+     - ``translateX`` を下げて太もものカプセル(股関節と膝のlocatorを結ぶ軸、半径は股関節側2.5cm・膝側1.8cm)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、カプセルの中へは入らない。上下へ動かすと先細りの半径に沿い、軸の端より先では端の半球に沿う。膝のlocatorを動かすと軸が付いてくる。containerの ``parameter`` は軸上の位置(0〜1)。
    * - SpaceBlend - world, chest and hand
      - 手の空間のlocator
      - 動かすと、worldと手の空間に半分ずつ追従する出力(緑)が、手の動きの半分だけ付いてくる。containerの ``weight0`` (world)・ ``weight1`` (胸)・ ``weight2`` (手)を変えると、割合に応じて追従先が混ざる(作成時の位置からは跳ねない)。

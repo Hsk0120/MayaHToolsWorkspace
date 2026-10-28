@@ -94,18 +94,35 @@ class SphereCollision(TwistDistribution):
         owner.addAttr(longName="penetration", attributeType="double")
         owner.addAttr(longName="matrix", dataType="matrix")
 
-        # 中心 c と対象の位置 p、v = p - c とその向き u
+        # 中心 c と対象の位置 p
         center = graph._node("decomposeMatrix", "center")
         sphere.getPlug("worldMatrix")[0].connectTo(center.getPlug("inputMatrix"))
         position = graph._node("decomposeMatrix", "position")
         target.getPlug("worldMatrix")[0].connectTo(position.getPlug("inputMatrix"))
+        cls._radialGraph(graph, target, position.getPlug("outputTranslate"), center.getPlug("outputTranslate"),
+                         owner.getPlug("radius"))
+        return graph
+
+    @classmethod
+    def _radialGraph(cls, graph, target, point, center, radius):
+        """中心から対象への向きへ柔らかく押し出すDGを作り、containerの出力へつなぐ。
+
+        Args:
+            graph (SphereCollision): 所有者。containerに softness・distance・push・penetration・matrix を持つ。
+            target (Node): 押し出す対象のtransform。出力の行列はこのworldMatrixを基にする。
+            point (Plug): 対象のワールド位置 p(double3)。
+            center (Plug): 押し出しの中心 c(double3)。
+            radius (Plug): 中心からの半径(double)。
+        """
+        owner = graph.container
+        # v = p - c とその向き u
         offset = graph._node("plusMinusAverage", "offset")
         offset.getPlug("operation").set(2)
-        position.getPlug("outputTranslate").connectTo(offset.getPlug("input3D")[0])
-        center.getPlug("outputTranslate").connectTo(offset.getPlug("input3D")[1])
+        point.connectTo(offset.getPlug("input3D")[0])
+        center.connectTo(offset.getPlug("input3D")[1])
         length = graph._node("distanceBetween", "length")
-        position.getPlug("outputTranslate").connectTo(length.getPlug("point1"))
-        center.getPlug("outputTranslate").connectTo(length.getPlug("point2"))
+        point.connectTo(length.getPlug("point1"))
+        center.connectTo(length.getPlug("point2"))
         # 中心と一致する場合は長さ0のベクトルを正規化しないよう、仮の向き(+X)へ置き換える(押し出し量は0にする)。
         safeOffset = graph._node("condition", "safeOffset")
         safeOffset.getPlug("operation").set(2)
@@ -122,7 +139,7 @@ class SphereCollision(TwistDistribution):
         distance = graph._node("plusMinusAverage", "distance")
         distance.getPlug("operation").set(2)
         length.getPlug("distance").connectTo(distance.getPlug("input1D")[0])
-        owner.getPlug("radius").connectTo(distance.getPlug("input1D")[1])
+        radius.connectTo(distance.getPlug("input1D")[1])
         d = distance.getPlug("output1D")
         d.connectTo(owner.getPlug("distance"))
 
@@ -159,4 +176,3 @@ class SphereCollision(TwistDistribution):
         target.getPlug("worldMatrix")[0].connectTo(world.getPlug("matrixIn")[0])
         translate.getPlug("outputMatrix").connectTo(world.getPlug("matrixIn")[1])
         world.getPlug("matrixSum").connectTo(owner.getPlug("matrix"))
-        return graph
