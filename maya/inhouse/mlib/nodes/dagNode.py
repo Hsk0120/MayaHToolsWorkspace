@@ -1,14 +1,11 @@
 """TransformとShapeに共通するDAG階層へのアクセスを提供する。"""
 
-import inspect
-
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
-import maya.cmds as cmds
 
-from ..decorator import _edit_context, _pick_alias, _require_bool
-from ..util import _UNSET, _world_space
-from .node import Node, Nodes
+from ..decorator import _edit_context, _require_bool
+from ..util import _world_space
+from .node import Node
 
 
 class DagNode(Node):
@@ -157,7 +154,7 @@ class DagNode(Node):
         self_uuid = self.getUuid()
         return [candidate for candidate in candidates if candidate.getUuid() != self_uuid]
 
-    def getBoundingBox(self, worldSpace=_UNSET, *, ws=_UNSET):
+    def getBoundingBox(self, worldSpace=False):
         """バウンディングボックスを取得する。
 
         ``MFnDagNode.boundingBox`` は自身の translate/rotate/scale(Transform の場合)は含むが、
@@ -167,17 +164,15 @@ class DagNode(Node):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親の変換を含まない空間。既定False。
-            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
                 子 Shape が無い Transform では原点のみを含む空に近いボックスになる。
 
         Raises:
-            ValueError: worldSpace(ws)が bool でない場合。
+            ValueError: worldSpaceが bool でない場合。
             RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         world = _world_space(worldSpace)
         self._require_valid("compute the bounding box of")
         path = self.mpath()
@@ -318,7 +313,7 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    def getShape(self, index=_UNSET, intermediates=False, *, idx=_UNSET):
+    def getShape(self, index=0, intermediates=False):
         """保持パスに対応する Shape を取得する。
 
         契約: 自身が Shape なら ``index``・``intermediates`` を無視して自身を返す。Transform は
@@ -328,16 +323,13 @@ class DagNode(Node):
         Args:
             index (int): Transform で選ぶ Shape の番号。Shape では無視する。既定 0。
             intermediates (bool): Transform で中間オブジェクトも候補に含める。Shape では無視する。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             DagNode | None: Shape なら自身、Transform は選んだ Shape、該当なしは None。
 
         Raises:
-            TypeError: index と idx を同時指定した場合。
             RuntimeError: ノードが破棄されている場合。
         """
-        index = _pick_alias(index, idx, "index", "idx", default=0)
         return self if self.mnode().hasFn(om2.MFn.kShape) else None
 
     def isVisible(self):
@@ -520,314 +512,3 @@ class DagNode(Node):
                                 result.append(Node._wrap_dag_path(path))
         result.extend(self._direct_children(shapes, intermediates))
         return result
-
-
-class DagNodes(Nodes):
-    """DAG参照の集合。表示操作と階層照会を共有する。"""
-
-    item_class = DagNode
-
-    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
-    _bulk_entries = {
-        "mpath": (DagNode.mpath, "list"),
-        "mfn": (DagNode.mfn, "list"),
-        "getRoot": (DagNode.getRoot, "list"),
-        "getSiblings": (DagNode.getSiblings, "list"),
-        "getBoundingBox": (DagNode.getBoundingBox, "list"),
-        "isIntermediateObject": (DagNode.isIntermediateObject, "list"),
-        "getParent": (DagNode.getParent, "list"),
-        "getParents": (DagNode.getParents, "list"),
-        "getInstances": (DagNode.getInstances, "list"),
-        "getChildren": (DagNode.getChildren, "list"),
-        "getShape": (DagNode.getShape, "list"),
-        "isVisible": (DagNode.isVisible, "list"),
-        "getVisibility": (DagNode.getVisibility, "list"),
-        "getOutlinerVisibility": (DagNode.getOutlinerVisibility, "list"),
-        "getSkinClusters": (DagNode.getSkinClusters, "list"),
-        "getBindPoses": (DagNode.getBindPoses, "list"),
-        "show": (DagNode.show, "self"),
-        "hide": (DagNode.hide, "self"),
-        "setVisibility": (DagNode.setVisibility, "self"),
-        "setOutlinerVisibility": (DagNode.setOutlinerVisibility, "self"),
-    }
-    _bulk_per_item_only = frozenset()
-
-    def mpath(self, *args, **kwargs):
-        """各要素のmpathを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("mpath", args, kwargs)
-
-    mpath.__signature__ = inspect.signature(DagNode.mpath)
-
-    def mfn(self, *args, **kwargs):
-        """各要素のmfnを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("mfn", args, kwargs)
-
-    mfn.__signature__ = inspect.signature(DagNode.mfn)
-
-    def getRoot(self, *args, **kwargs):
-        """各要素のgetRootを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getRoot", args, kwargs)
-
-    getRoot.__signature__ = inspect.signature(DagNode.getRoot)
-
-    def getSiblings(self, *args, **kwargs):
-        """各要素のgetSiblingsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getSiblings", args, kwargs)
-
-    getSiblings.__signature__ = inspect.signature(DagNode.getSiblings)
-
-    def getBoundingBox(self, *args, **kwargs):
-        """各要素のgetBoundingBoxを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getBoundingBox", args, kwargs)
-
-    getBoundingBox.__signature__ = inspect.signature(DagNode.getBoundingBox)
-
-    def isIntermediateObject(self, *args, **kwargs):
-        """各要素のisIntermediateObjectを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isIntermediateObject", args, kwargs)
-
-    isIntermediateObject.__signature__ = inspect.signature(DagNode.isIntermediateObject)
-
-    def getParent(self, *args, **kwargs):
-        """各要素のgetParentを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getParent", args, kwargs)
-
-    getParent.__signature__ = inspect.signature(DagNode.getParent)
-
-    def getParents(self, *args, **kwargs):
-        """各要素のgetParentsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getParents", args, kwargs)
-
-    getParents.__signature__ = inspect.signature(DagNode.getParents)
-
-    def getInstances(self, *args, **kwargs):
-        """各要素のgetInstancesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getInstances", args, kwargs)
-
-    getInstances.__signature__ = inspect.signature(DagNode.getInstances)
-
-    def getChildren(self, *args, **kwargs):
-        """各要素のgetChildrenを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getChildren", args, kwargs)
-
-    getChildren.__signature__ = inspect.signature(DagNode.getChildren)
-
-    def getShape(self, *args, **kwargs):
-        """各要素のgetShapeを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getShape", args, kwargs)
-
-    getShape.__signature__ = inspect.signature(DagNode.getShape)
-
-    def isVisible(self, *args, **kwargs):
-        """各要素のisVisibleを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isVisible", args, kwargs)
-
-    isVisible.__signature__ = inspect.signature(DagNode.isVisible)
-
-    def getVisibility(self, *args, **kwargs):
-        """各要素のgetVisibilityを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getVisibility", args, kwargs)
-
-    getVisibility.__signature__ = inspect.signature(DagNode.getVisibility)
-
-    def setVisibility(self, *args, **kwargs):
-        """各要素のsetVisibilityを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            DagNodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("setVisibility", args, kwargs)
-
-    setVisibility.__signature__ = inspect.signature(DagNode.setVisibility)
-
-    def getOutlinerVisibility(self, *args, **kwargs):
-        """各要素のgetOutlinerVisibilityを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getOutlinerVisibility", args, kwargs)
-
-    getOutlinerVisibility.__signature__ = inspect.signature(DagNode.getOutlinerVisibility)
-
-    def setOutlinerVisibility(self, *args, **kwargs):
-        """各要素のsetOutlinerVisibilityを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            DagNodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("setOutlinerVisibility", args, kwargs)
-
-    setOutlinerVisibility.__signature__ = inspect.signature(DagNode.setOutlinerVisibility)
-
-    def getSkinClusters(self, *args, **kwargs):
-        """各要素のgetSkinClustersを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getSkinClusters", args, kwargs)
-
-    getSkinClusters.__signature__ = inspect.signature(DagNode.getSkinClusters)
-
-    def getBindPoses(self, *args, **kwargs):
-        """各要素のgetBindPosesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getBindPoses", args, kwargs)
-
-    getBindPoses.__signature__ = inspect.signature(DagNode.getBindPoses)
-
-    def show(self, *args, **kwargs):
-        """各要素のshowを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            DagNodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("show", args, kwargs)
-
-    show.__signature__ = inspect.signature(DagNode.show)
-
-    def hide(self, *args, **kwargs):
-        """各要素のhideを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            DagNodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("hide", args, kwargs)
-
-    hide.__signature__ = inspect.signature(DagNode.hide)

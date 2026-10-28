@@ -14,12 +14,11 @@ from .matrix import Matrix
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
-from .transformation import Transformation
 from .translate import Translate
 from .vector import Vector
 
 # importlib.reloadは辞書を保持するため、廃止した公開名を明示的に除く。
-for _obsolete in ("Translation", "EulerRotation", "Rotate"):
+for _obsolete in ("Translation", "EulerRotation", "Rotate", "Transformation"):
     globals().pop(_obsolete, None)
 
 __all__ = [
@@ -30,7 +29,6 @@ __all__ = [
     "Scale",
     "Shear",
     "Translate",
-    "Transformation",
     "Vector",
     "easing",
 ]

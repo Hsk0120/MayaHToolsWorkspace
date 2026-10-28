@@ -221,12 +221,14 @@ class ModuleAttributeSpecTest(_DynamicTypeCase):
         self.assertIs(mlib.nodes.PointLight, cls)
 
     def test_registered_name_variants_resolve_to_registered_class(self):
-        """型名の表記が規則と違う登録(THdependNode)は、属性では同名のサブモジュールが優先し、
-        属性探索の本体(__getattr__)は登録表の完全一致で登録クラスを返す。"""
-        self.assertIs(mlib.nodes.THdependNode, sys.modules["mlib.nodes.THdependNode"])
-        self.assertIs(mlib.nodes.__getattr__("THdependNode"), mlib.nodes.THDependNode)
-        self.assertIs(mlib.nodes.Node._registry.lookup("THdependNode"), mlib.nodes.THDependNode)
+        """登録クラスは属性探索の本体(__getattr__)でもそのまま返り、先頭が大文字の未登録型名
+        (THdependNode)は名前そのままで生成クラスを返す。"""
         self.assertIs(mlib.nodes.__getattr__("Joint"), mlib.nodes.Joint)
+        self.assertIsNone(mlib.nodes.Node._registry.lookup("THdependNode"))
+        cls = mlib.nodes.__getattr__("THdependNode")
+        self.assertEqual(cls.__name__, "THdependNode")
+        self.assertTrue(issubclass(cls, mlib.nodes.Node))
+        self.assertIs(mlib.nodes.THdependNode, cls)
 
     def test_attribute_access_matches_wrapping(self):
         """属性で得たクラスと Node() が選ぶクラスは同じ名前で、同じ契約を持つ。"""

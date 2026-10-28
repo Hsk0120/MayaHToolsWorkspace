@@ -49,14 +49,14 @@ class ResponsibilityTest(unittest.TestCase):
         """不正値・入力元・ロックの失敗前に配列の穴を実体化しない。"""
         matrix = mlib.createNode('multMatrix')
         inputs = matrix.getPlug('matrixIn')
-        with self.assertRaises((TypeError, ValueError)):
-            matrix.setInput(7, [1, 2])
-        with self.assertRaises((AttributeError, RuntimeError)):
-            matrix.connectInput(7, 'missingNode.missingPlug')
+        with self.assertRaises((TypeError, ValueError, RuntimeError)):
+            inputs[7].set([1, 2])
+        with self.assertRaises((AttributeError, RuntimeError, ValueError)):
+            inputs[7].connect('missingNode.missingPlug')
         inputs.setFlags(locked=True)
         for fast in (False, True):
             with self.assertRaises(RuntimeError):
-                matrix.setInput(7, mlib.maths.Matrix(), fast=fast)
+                inputs[7].set(mlib.maths.Matrix(), fast=fast)
         self.assertEqual(list(inputs.mplug().getExistingArrayAttributeIndices()), [])
         for index in (True, 1.5):
             with self.assertRaises(TypeError):
@@ -94,24 +94,6 @@ class ResponsibilityTest(unittest.TestCase):
                 self.assertEqual(tuple(actual), tuple(old[i] * (2, 3, 4)[i] for i in range(3)))
         cmds.undo()
         self.assertEqual([shape.getVertices().getPosition() for shape in node.getShapes()], originals)
-
-    def test_geometry_batch_preserves_order_and_single_undo(self):
-        """配列書込みは単数編集を反復せず保持順とcm契約を維持する。"""
-        from mlib.components.pointComponent import PointComponent
-        shape = mlib.getNode(cmds.polyCube(constructionHistory=False)[0]).getShapes()[0]
-        points = shape.getVertices([5, 1, 3])
-        original = points.getPosition()
-        cmds.currentUnit(linear='m')
-        rows = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
-        try:
-            with patch.object(PointComponent, 'setPosition', side_effect=AssertionError('single edit')):
-                points.setPositions(iter(rows), ws=False)
-            self.assertEqual(points.getPosition(), rows)
-            cmds.undo()
-            self.assertEqual(points.getPosition(), original)
-        finally:
-            cmds.currentUnit(linear='cm')
-
 
 
 if __name__ == '__main__':

@@ -45,17 +45,14 @@ class ComponentUsabilityTest(unittest.TestCase):
             getter = getattr(shape, formal)
             self.assertFalse(hasattr(type(shape), short))
             parameters = inspect.signature(getter).parameters
-            self.assertEqual(tuple(parameters), ("index", "idx"))
-            self.assertIs(parameters["index"].default, Ellipsis)
-            self.assertIs(parameters["idx"].default, Ellipsis)
-            self.assertEqual(parameters["idx"].kind, inspect.Parameter.KEYWORD_ONLY)
-            self.assertIsInstance(getter(idx=0), expected)
-            self.assertEqual(getter(0), getter(idx=0))
-            for method in (getter,):
-                with self.assertRaises(TypeError):
-                    method(index=0, idx=1)
-                with self.assertRaises(IndexError):
-                    method(-1)
+            self.assertEqual(tuple(parameters), ("index",))
+            self.assertIs(parameters["index"].default, inspect.Parameter.empty)
+            self.assertIsInstance(getter(index=0), expected)
+            self.assertEqual(getter(0), getter(index=0))
+            with self.assertRaises(TypeError):
+                getter(idx=0)
+            with self.assertRaises(IndexError):
+                getter(-1)
         plural = (
             (self.mesh, "getVertices", "vertices", Vertices),
             (self.mesh, "getEdges", "edges", Edges),

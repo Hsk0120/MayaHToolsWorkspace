@@ -6,7 +6,7 @@ import inspect
 from pathlib import Path
 import re
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from maya import cmds
 import maya.api.OpenMaya as om2
@@ -14,8 +14,8 @@ import mlib
 
 
 _PRESERVED_NAMES = {
-    ("Node", "isType"), ("Nodes", "isType"),
-    ("Node", "isRoot"), ("Nodes", "isRoot"),
+    ("Node", "isType"),
+    ("Node", "isRoot"),
     ("Plug", "isSource"), ("Plug", "isElement"),
     ("Plugin", "isLoaded"),
 }
@@ -48,8 +48,9 @@ class PredicateAliasesTest(unittest.TestCase):
     def test_canonical_predicates_exist_without_short_aliases(self):
         """正式判定を型ごとに残し、同名の別APIを除く省略入口は公開しない。"""
         definitions = list(_predicate_definitions())
-        # isChildOf・sameInstance・isJoint の廃止(mlib 2.0)で 3 件減った。
-        self.assertGreaterEqual(len(definitions), 61)
+        # isChildOf・sameInstance・isJoint の廃止(mlib 2.0)で 3 件、
+        # DagPose・Transformation 等の縮小(mlib 3.0)で 4 件、複数形の一括転送の廃止(mlib 3.0)で 10 件減った。
+        self.assertGreaterEqual(len(definitions), 47)
         for module_name, owner_name, name in definitions:
             module = importlib.import_module(module_name)
             owner = module if owner_name is None else getattr(module, owner_name)
@@ -69,8 +70,8 @@ class PredicateAliasesTest(unittest.TestCase):
         marker = object()
         plug = self.first.getPlug("translateX")
         with patch.object(plug, "isConnected", return_value=marker) as predicate:
-            self.assertIs(plug.isConnected(src=False, destination=True), marker)
-            predicate.assert_called_once_with(src=False, destination=True)
+            self.assertIs(plug.isConnected(source=False, destination=True), marker)
+            predicate.assert_called_once_with(source=False, destination=True)
 
         class DerivedTransform(mlib.nodes.Transform):
             """正式判定を通常のdefで追加する検証用派生型。"""
@@ -83,42 +84,20 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertEqual(derived.isLocked(4, marker="raw"), ((4,), {"marker": "raw"}))
 
     def test_connections_keep_direction_booleans_and_source_getter(self):
-        """正式判定は接続方向・別名競合・bool検証を維持する。"""
+        """正式判定は接続方向・bool検証を維持する。"""
         src, dst = self.first.getPlug("translateX"), self.second.getPlug("translateX")
         dst.connect(src)
-        self.assertTrue(src.isConnected(src=False, dst=True))
-        self.assertFalse(src.isConnected(src=True, dst=False))
+        self.assertTrue(src.isConnected(source=False, destination=True))
+        self.assertFalse(src.isConnected(source=True, destination=False))
         self.assertTrue(dst.isConnected(source=True, destination=False))
         self.assertTrue(src.isConnectedTo(dst, source=False, destination=True))
-        self.assertFalse(dst.isConnectedTo(src, src=False, dst=True))
-        self.assertFalse(dst.isConnected(src=False, dst=False))
+        self.assertFalse(dst.isConnectedTo(src, source=False, destination=True))
+        self.assertFalse(dst.isConnected(source=False, destination=False))
         self.assertEqual(dst.getSource(), src)
         self.assertTrue(src.isSource())
         self.assertTrue(dst.isDestination())
         with self.assertRaises(TypeError):
-            dst.isConnected(src=True, source=True)
-        with self.assertRaises(TypeError):
-            src.isConnectedTo(dst, dst=True, destination=True)
-        with self.assertRaises(TypeError):
-            dst.isConnected(src=1)
-
-    def test_collections_keep_order_empty_results_and_prevalidation(self):
-        """正式名の一括判定とcallEachが署名を事前検査し保持順で返す。"""
-        nodes = mlib.nodes.Transforms([self.first, self.second])
-        cmds.lockNode(str(self.second), lock=True)
-        try:
-            self.assertEqual(nodes.isValid(), [True, True])
-            self.assertEqual(nodes.isLocked(), [False, True])
-            self.assertEqual(nodes.callEach("isLocked", [(), ()]), [False, True])
-            self.assertEqual(mlib.nodes.Nodes().isValid(), [])
-            self.assertEqual(mlib.nodes.Nodes().callEach("isValid", []), [])
-            first = Mock(return_value=False)
-            with patch.object(self.first, "isLocked", first):
-                with self.assertRaises(TypeError):
-                    nodes.callEach("isLocked", [(), (1,)])
-            first.assert_not_called()
-        finally:
-            cmds.lockNode(str(self.second), lock=False)
+            dst.isConnected(source=1)
 
     def test_removed_references_and_plug_structure_keep_results(self):
         """参照の有効性と未実体化要素の構造判定に評価を追加しない。"""
@@ -152,7 +131,6 @@ class PredicateAliasesTest(unittest.TestCase):
             (mlib.maths.Vector(1, 2, 3), mlib.maths.Vector(1 + 1e-8, 2, 3), om2.MVector),
             (mlib.maths.Matrix(), mlib.maths.Matrix(), om2.MMatrix),
             (mlib.maths.EulerRotate(), mlib.maths.EulerRotate(), om2.MEulerRotation),
-            (mlib.maths.Transformation(), mlib.maths.Transformation(), None),
         )
         for value, other, native_type in pairs:
             with self.subTest(value=type(value).__name__):
@@ -171,9 +149,7 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertEqual(self.first.getType(), "transform")
         self.assertTrue(self.first.isType("dagNode"))
         self.assertTrue(self.first.isRoot())
-        transforms = mlib.nodes.Transforms([self.first])
-        self.assertEqual(transforms.isRoot(), [True])
-        self.assertEqual(transforms.getRoot(), [self.first])
+        self.assertEqual(self.first.getRoot(), self.first)
         self.assertIsInstance(mlib.common.Plugin.loaded(), list)
         self.assertTrue(callable(mlib.nodes.Reference.getRoot))
         attribute = self.first.addAttr("valid", attributeType="bool")

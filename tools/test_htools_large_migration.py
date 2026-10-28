@@ -185,7 +185,7 @@ def verifySharedApis():
     first = Mesh(cmds.listRelatives(mesh, shapes=True, fullPath=True)[0])
     second = Mesh(cmds.listRelatives(instance, shapes=True, fullPath=True)[0])
     local = first.getVertexAdjacency()
-    world = second.getVertexAdjacency(ws=True)
+    world = second.getVertexAdjacency(worldSpace=True)
     assert len(local) == 4 and all(len(neighbors) == 2 for neighbors in local)
     assert equivalent(world, [[(index, length * 2) for index, length in neighbors] for neighbors in local])
     target = cmds.curve(name="control", degree=1, point=[(0, 0, 0), (1, 0, 0)])

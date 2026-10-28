@@ -79,7 +79,7 @@ class SplineIK:
                 raise ValueError("Joint rotation already has an input")
         graph = cls(mlib.nodes.Container.create(name=name))
         points = [
-            tuple(mlib.common.units.distanceToUi(v) for v in c.getTranslate(ws=True, at=4))
+            tuple(mlib.common.units.distanceToUi(v) for v in c.getTranslate(worldSpace=True, at=4))
             for c in controls
         ]
         curve = mlib.getNode(cmds.curve(degree=3, point=points, name=name + "_curve"))

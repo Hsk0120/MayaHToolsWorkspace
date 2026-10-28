@@ -54,7 +54,7 @@ class ApiNamingTest(unittest.TestCase):
         node.rename('renamed')
         self.assertNotEqual(node.getFullName(), before)
         self.assertTrue(plug.getFullName().startswith(node.getName() + '.'))
-        self.assertIsInstance(mlib.nodes.Joints([node]).getUuid(), list)
+        self.assertEqual([joint.getUuid() for joint in mlib.nodes.Joints([node])], [node.getUuid()])
 
     def test_public_collection_has_no_deletion_workflow(self):
         for name in ('gather', 'apply', 'finalize'):

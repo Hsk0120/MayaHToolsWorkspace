@@ -297,10 +297,6 @@ class TypeQueryTest(_SpecCase):
             with self.subTest(value=value):
                 with self.assertRaises(TypeError):
                     shape.getType(inherited=value)
-        # 複数形は保持順のリストを返す。
-        self.assertEqual(Nodes([shape, network]).getType(inherited=True),
-                         [shape.getType(inherited=True), network.getType(inherited=True)])
-        self.assertEqual(Nodes([shape, network]).getType(), ["mesh", "network"])
 
     def test_has_fn(self):
         """hasFn は mnode().hasFn と同じで、int 以外は TypeError。"""
@@ -316,7 +312,6 @@ class TypeQueryTest(_SpecCase):
             with self.subTest(value=value):
                 with self.assertRaises(TypeError):
                     shape.hasFn(value)
-        self.assertEqual(Nodes([shape, network]).hasFn(om2.MFn.kDagNode), [True, False])
         cmds.delete(network.getFullName())
         cmds.flushUndo()
         with self.assertRaises(RuntimeError):
@@ -592,14 +587,12 @@ class ResetAndFlagsTest(_SpecCase):
             self.node.resetAttrs("mlibMissing")
         with self.assertRaises(TypeError):
             self.node.resetAttrs("extraText")
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'attributes' and 'attrs'"):
-            self.node.resetAttrs("tx", attrs="tx")
-        self.assertEqual([plug.getName() for plug in self.node.resetAttrs(attrs=["tx"])],
+        self.assertEqual([plug.getName() for plug in self.node.resetAttrs(attributes=["tx"])],
                          [self.node_name + ".tx"])
 
     def test_set_attr_flags(self):
         """全名前を解決してから更新し、無い名前を含めば何も変えない。戻り値は自身。"""
-        with self.assertRaisesRegex(TypeError, "Missing required argument: 'attributes'"):
+        with self.assertRaisesRegex(TypeError, "attributes"):
             self.node.setAttrFlags()
         with self.assertRaises(TypeError):
             self.node.setAttrFlags("tx", locked=1)
@@ -616,7 +609,7 @@ class ResetAndFlagsTest(_SpecCase):
 
     def test_set_attr_flags_without_flags_changes_nothing(self):
         """フラグを全て None にすると、名前の検査だけで変更しない。"""
-        self.assertIs(self.node.setAttrFlags(attrs="tx"), self.node)
+        self.assertIs(self.node.setAttrFlags(attributes="tx"), self.node)
         self.assertFalse(cmds.getAttr(self.node_name + ".tx", lock=True))
         with self.assertRaises(AttributeError):
             self.node.setAttrFlags("mlibMissing")
@@ -639,10 +632,8 @@ class ConnectionHistoryTest(_SpecCase):
         plugs = self.node.getConnections()
         self.assertEqual(len(plugs), 2)
         self.assertEqual(self.node.getConnections(index=0), plugs[0])
-        self.assertEqual(self.node.getConnections(idx=-1), plugs[-1])
+        self.assertEqual(self.node.getConnections(index=-1), plugs[-1])
         self.assertIsNone(self.node.getConnections(index=5))
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'index' and 'idx'"):
-            self.node.getConnections(index=0, idx=0)
 
     def test_type_and_as_node(self):
         """type で相手の型を絞り、asNode は相手のノードを返す。"""

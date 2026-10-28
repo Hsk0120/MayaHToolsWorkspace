@@ -69,7 +69,7 @@ class MeshReorderTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.target.reorderVertices(self.reference, match="position")
         previous = cmds.undoInfo(q=True, undoName=True)
-        self.target.reorderVertices(self.reference, match="position", ws=True, fast=True)
+        self.target.reorderVertices(self.reference, match="position", worldSpace=True, fast=True)
         self.assertEqual(self.snapshot()[0], [before[0][i] for i in self.permutation])
         self.assertEqual(self.snapshot()[2:], before[2:])
         self.assertEqual(cmds.undoInfo(q=True, undoName=True), previous)
@@ -92,8 +92,7 @@ class MeshReorderTest(unittest.TestCase):
 
     def test_match_flags_validation(self):
         before = self.snapshot()
-        for kwargs in ({"match": "nearest"}, {"match": True}, {"worldSpace": 1},
-                       {"ws": True, "worldSpace": True}):
+        for kwargs in ({"match": "nearest"}, {"match": True}, {"worldSpace": 1}, {"ws": True}):
             with self.assertRaises((ValueError, TypeError)):
                 self.target.reorderVertices(self.reference, **kwargs)
         self.assertEqual(self.snapshot(), before)

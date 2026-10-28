@@ -8,8 +8,7 @@ import maya.cmds as cmds
 
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units
-from ..decorator import _edit_context, _pick_alias, _require_bool
-from ..util import _UNSET
+from ..decorator import _edit_context, _require_bool
 from .node import Node
 
 
@@ -166,18 +165,16 @@ class AnimCurve(Node):
                             outTangentType=outTangentType, **{flag: position})
             return self
 
-    def removeKey(self, index=_UNSET, *, fast=False, idx=_UNSET):
+    def removeKey(self, index, *, fast=False):
         """指定番号のキーを削除する。キークリップボードは変更しない。
 
         Args:
             index (int): 0始まりのキー番号。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             AnimCurve: 自身。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         with _edit_context("mlibAnimCurveRemoveKey", fast):
             span = self._index(index)
             if fast:
@@ -187,7 +184,7 @@ class AnimCurve(Node):
                 cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
             return self
 
-    def getTangent(self, index=_UNSET, *, idx=_UNSET):
+    def getTangent(self, index):
         """指定キーの入力/出力接線型、角度、ウェイトとロック状態を取得する。
 
         角度はMAngleからradへ変換する。接線ウェイトはgetTangentAngleWeight()の
@@ -196,7 +193,6 @@ class AnimCurve(Node):
 
         Args:
             index (int): 0始まりの既存キー番号。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             dict: inTangentType/outTangentType、inAngle/outAngle、inWeight/outWeight、
@@ -206,7 +202,6 @@ class AnimCurve(Node):
         Raises:
             IndexError: bool、非int、負値、またはキー数以上の番号の場合。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         self._index(index)
         fn = self._curve_fn()
         incoming = fn.getTangentAngleWeight(index, True)
@@ -218,7 +213,7 @@ class AnimCurve(Node):
                 "lock": fn.tangentsLocked(index), "weightLock": fn.weightsLocked(index),
                 "weightedTangents": fn.isWeighted}
 
-    def setTangent(self, index=_UNSET, *, fast=False, idx=_UNSET, **kwargs):
+    def setTangent(self, index, *, fast=False, **kwargs):
         """指定キーの接線をMayaの接線ロック規則に従って変更する。
 
         weightedTangentsを指定した場合はカーブ全体のウェイト付き接線モードだけを適用し、
@@ -233,7 +228,6 @@ class AnimCurve(Node):
                 接線ウェイトはAPIの値を使う。fastでは角度/ウェイトをfloat()で有限性検査し、
                 負のウェイトを拒否する。fastの型名は大文字小文字を区別せず、spline表記を使う。
                 入力stepはautoへ補正する。ロックは自動解除しない。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             AnimCurve: 自身。
@@ -244,7 +238,6 @@ class AnimCurve(Node):
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
                 ロック・ウェイトを含む更新より前に拒否する。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         with _edit_context("mlibAnimCurveSetTangent", fast):
             allowed = {"inTangentType", "outTangentType", "inAngle", "outAngle", "inWeight",
                        "outWeight", "lock", "weightLock", "weightedTangents"}

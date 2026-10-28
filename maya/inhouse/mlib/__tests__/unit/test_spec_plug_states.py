@@ -298,13 +298,10 @@ class PlugMuteSpecTest(_StateSpecCase):
         self.assertFalse(self.sz.isMuted())
         self.assertFalse(cmds.mute(self.name + ".sz", query=True))
 
-    def test_fast_and_argument_errors(self):
-        """fast=TrueはNotImplementedError、bool以外の状態・fastはTypeErrorで、状態を変えない。"""
-        for call in (lambda: self.sz.mute(fast=True), lambda: self.sz.unmute(fast=True),
+    def test_argument_errors(self):
+        """bool以外の状態とfast引数(3.0.0で外した)はTypeErrorで、状態を変えない。"""
+        for call in (lambda: self.sz.mute(fast=True), lambda: self.sz.setMuted(1), lambda: self.sz.unmute(fast=False),
                      lambda: self.sz.setMuted(True, fast=True)):
-            with self.assertRaises(NotImplementedError):
-                call()
-        for call in (lambda: self.sz.mute(fast=1), lambda: self.sz.setMuted(1), lambda: self.sz.unmute(fast=None)):
             with self.assertRaises(TypeError):
                 call()
         self.assertFalse(self.sz.isMuted())
@@ -513,7 +510,7 @@ class PlugDeleteSpecTest(_StateSpecCase):
         with self.assertRaises(RuntimeError):
             plug.delete()
         self.assertTrue(cmds.attributeQuery("extra", node=self.name, exists=True))
-        plug.delete(f=True)
+        plug.delete(force=True)
         self.assertFalse(plug.isValid())
 
     def test_delete_fast_and_errors(self):
@@ -535,8 +532,6 @@ class PlugDeleteSpecTest(_StateSpecCase):
             self.node.getPlug("message").delete(fast=True)
         with self.assertRaises(RuntimeError):
             self.node.getPlug("tx").delete(fast=True)
-        with self.assertRaises(TypeError):
-            self.node.getPlug("message").delete(force=True, f=True)
         with self.assertRaises(TypeError):
             self.node.getPlug("message").delete(fast=1)
 

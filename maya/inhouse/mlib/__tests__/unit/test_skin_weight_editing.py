@@ -47,8 +47,6 @@ class SkinWeightEditingTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             joint.removeInfluence(self.skin, transferToParent="false")
         self.assertTrue(self.skin.hasInfluence(self.child))
-        mlib.nodes.Joints([self.child]).removeInfluence(self.skin, transferToParent=False)
-        self.assertFalse(self.skin.hasInfluence(self.child))
 
     def test_remove_influence_transfers_and_keeps_joint(self):
         self.skin.removeInfluence(mlib.getNode(self.child))

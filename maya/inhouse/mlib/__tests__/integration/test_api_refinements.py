@@ -75,18 +75,18 @@ class ApiRefinementsTest(unittest.TestCase):
             node.setRotate((.3, .4, .5))
             node.setScale((1.2, .7, 2))
             if type == "joint":
-                before = node.getMatrix(ws=True)
+                before = node.getMatrix(worldSpace=True)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
                         node.setPivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.getMatrix(ws=True).isEquivalent(before))
+                    self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(before))
                 continue
             if type == "joint":
-                before = node.getMatrix(ws=True)
+                before = node.getMatrix(worldSpace=True)
                 for kind in ("rotate", "scale", "both"):
                     with self.assertRaises(TypeError):
                         node.setPivot((1, 2, 3), kind=kind)
-                    self.assertTrue(node.getMatrix(ws=True).isEquivalent(before))
+                    self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(before))
                 continue
             node.setPivot((1, 2, 3), kind="rotate")
             node.setPivot((-2, 1, 4), kind="scale")
@@ -94,20 +94,20 @@ class ApiRefinementsTest(unittest.TestCase):
                 cmds.currentUnit(linear=unit)
                 for ws in (False, True):
                     for kind in ("rotate", "scale", "both"):
-                        before = node.getMatrix(ws=True)
-                        old = {k: tuple(node.getPivot(ws=ws, kind=k)) for k in ("rotate", "scale")}
-                        node.setPivot((12, 15, 18), ws=ws, kind=kind)
-                        self.assertTrue(node.getMatrix(ws=True).isEquivalent(before, 1e-8))
+                        before = node.getMatrix(worldSpace=True)
+                        old = {k: tuple(node.getPivot(worldSpace=ws, kind=k)) for k in ("rotate", "scale")}
+                        node.setPivot((12, 15, 18), worldSpace=ws, kind=kind)
+                        self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(before, 1e-8))
                         for k in ("rotate", "scale"):
                             expected = (12, 15, 18) if kind in (k, "both") else old[k]
-                            for a, b in zip(node.getPivot(ws=ws, kind=k), expected):
+                            for a, b in zip(node.getPivot(worldSpace=ws, kind=k), expected):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.undo()
                         for k in old:
-                            for a, b in zip(node.getPivot(ws=ws, kind=k), old[k]):
+                            for a, b in zip(node.getPivot(worldSpace=ws, kind=k), old[k]):
                                 self.assertAlmostEqual(a, b, places=7, msg=(type, unit, ws, kind, k))
                         cmds.redo()
-                        self.assertTrue(node.getMatrix(ws=True).isEquivalent(before, 1e-8))
+                        self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(before, 1e-8))
                         cmds.undo()
 
     def test_pivot_validation_and_default_target(self):
@@ -133,13 +133,12 @@ class ApiRefinementsTest(unittest.TestCase):
         self.assertEqual(node.getPivot(), node.getPivot())
 
     def test_removal_flag_validation_across_entries(self):
-        """単体・複数・Jointとも文字列のFalseを更新前に拒否する。"""
+        """SkinCluster・Jointとも文字列のFalseを更新前に拒否する。"""
         skin, joints = self.skin()
         before = list(skin.getWeights(joints))
         actions = (
             lambda value: skin.removeInfluence(joints[1], transferToParent=value),
             lambda value: joints[1].removeInfluence(skin, transferToParent=value),
-            lambda value: mlib.nodes.SkinClusters([skin]).removeInfluences(joints[1], transferToParent=value),
         )
         for action in actions:
             for value in ("False", 0, None):

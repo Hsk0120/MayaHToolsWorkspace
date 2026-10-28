@@ -105,7 +105,7 @@ class TwistLayer:
         start, end = mlib.getNode(start), mlib.getNode(end)
         if start.getType() != "joint" or end.getType() != "joint" or start == end:
             raise ValueError("Expected two different joints")
-        relative = end.getMatrix(ws=True) * start.getMatrix(ws=True).inverse()
+        relative = end.getMatrix(worldSpace=True) * start.getMatrix(worldSpace=True).inverse()
         position = tuple(relative)[12:15]
         if sum(value * value for value in position) < 1e-12:
             raise ValueError("Twist endpoints must not coincide")

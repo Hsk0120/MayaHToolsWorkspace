@@ -1,7 +1,7 @@
 """mlib.common の公開APIの約束を固定する仕様テスト(担当D)。
 
 units・CurveFit(Mayaの NURBS 評価との突き合わせ)・PluginPackage・undo・Deferred・
-ScriptJob/ScriptJobs(バッチ時の拒否)・Namespace・Selection・references・Cycle を対象にする。
+ScriptJob/ScriptJobs(バッチ時の拒否)・Namespace・Selection・references を対象にする。
 シーン・選択・UI単位・Undo設定・名前空間は各テストの後に元へ戻す。
 """
 
@@ -20,7 +20,6 @@ from mlib.common import LOADED
 from mlib.common import MISSING
 from mlib.common import SKIPPED
 from mlib.common import CurveFit
-from mlib.common import Cycle
 from mlib.common import Deferred
 from mlib.common import DrivenKey
 from mlib.common import Namespace
@@ -293,8 +292,6 @@ class PluginSpecTest(unittest.TestCase):
         for name in (None, 5):
             with self.assertRaises(TypeError):
                 Plugin(name)
-        with self.assertRaises(TypeError):
-            unknown.unload(force=True, f=True)
 
     def test_ensure_node_plugin_targets_only_humanik(self):
         """HumanIKのノード型だけmayaHIKのロードを確かめ、他の型では何もしない。"""
@@ -579,7 +576,7 @@ class NamespaceSpecTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             first.rename("second")
         with self.assertRaises(TypeError):
-            first.remove(":", dst=":")
+            first.remove(":", destination=":")
         with self.assertRaises(RuntimeError):
             first.remove(self.root + ":missing")
         self.assertTrue(first.exists())
@@ -704,55 +701,6 @@ class ReferencesSpecTest(unittest.TestCase):
             for path in ("", None, 5):
                 with self.assertRaises(ValueError):
                     references.createReference(path)
-
-
-class CycleSpecTest(unittest.TestCase):
-    """Cycle.findの入力検証と検出結果の型を固定する。"""
-
-    def setUp(self):
-        """一時名前空間に2ノードの循環を作る。
-
-        Maya 2027のmayapyではaddDoubleLinear同士の循環接続で異常終了するため、transformを使う。
-        """
-        self.ns = "mlibSpecDCycle_" + uuid.uuid4().hex[:8]
-        cmds.namespace(add=self.ns)
-        self.a = cmds.createNode("transform", name=self.ns + ":a")
-        self.b = cmds.createNode("transform", name=self.ns + ":b")
-        cmds.connectAttr(self.a + ".translateX", self.b + ".translateX")
-        cmds.connectAttr(self.b + ".translateX", self.a + ".translateX")
-
-    def tearDown(self):
-        """一時名前空間を中身ごと削除する。"""
-        cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-
-    def test_find_returns_cycles_with_plugs(self):
-        """循環を含む対象からCycleのlistを返し、経路はPlugのtuple。"""
-        cycles = Cycle.find([self.a], includeDag=False, seconds=5.0)
-        self.assertIsInstance(cycles, list)
-        self.assertTrue(cycles)
-        for cycle in cycles:
-            self.assertIsInstance(cycle.plugs, tuple)
-            self.assertTrue(all(isinstance(plug, Plug) for plug in cycle.plugs))
-        names = {plug.getNode().getName() for cycle in cycles for plug in cycle.plugs}
-        self.assertTrue({self.a, self.b} & names)
-        connections = cycles[0].getConnections()
-        self.assertTrue(all(isinstance(pair, tuple) and len(pair) == 2 for pair in connections))
-        self.assertEqual(cycles[0].getParents(), [])
-
-    def test_find_validation(self):
-        """時間上限が0以下・非有限、対象が空ならValueError、型が不正ならTypeError。"""
-        for seconds in (0, -1, float("inf"), float("nan")):
-            with self.assertRaises(ValueError):
-                Cycle.find([self.a], seconds=seconds)
-        with self.assertRaises(ValueError):
-            Cycle.find([])
-        with self.assertRaises(TypeError):
-            Cycle.find([5])
-
-    def test_manual_cycle_keeps_order(self):
-        """手動指定の経路は検証せず、指定順のPlugを保持する。"""
-        cycle = Cycle([self.b + ".translateX", self.a + ".translateX"])
-        self.assertEqual([plug.getNode().getName() for plug in cycle.plugs], [self.b, self.a])
 
 
 if __name__ == "__main__":

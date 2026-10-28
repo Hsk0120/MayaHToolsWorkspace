@@ -83,7 +83,7 @@ mlib入門
 対応するAPIの ``fast=True`` はUndoなしの直接更新で、Undo設定は変更しません。
 ``Plug.set(safe=True)`` は対応する書込み失敗数を返し、成功した成分の更新は残します。
 未対応条件や他のsetterのsafeの意味は、各メソッドを参照してください。
-``worldSpace`` と ``ws`` は一方だけを指定します。他の長短名の併用規則は各APIを参照してください。
+Mayaのコマンドのフラグを受け取る入口(``mlib.ls`` 等)は、Mayaと同じ長短の名前を受け付け、長短の一方だけを指定します。
 署名の ``_UNSET``・``Ellipsis`` は省略判定用の内部値です。
 
 名前・選択・型から取得する
@@ -142,9 +142,6 @@ mlib入門
    * - Meshやカーブの要素を取得する
      - Transformから ``getShape()``、Meshは ``getVertices()``、NurbsCurveは ``getCVs()``
      - :doc:`autoapi/mlib/components/index`
-   * - ターゲットのデルタを編集する
-     - ``getTargetDeltas()``、``setTargetDeltas()``、``resetTargetVertices()``
-     - :class:`~mlib.nodes.blendShape.BlendShape`
    * - 選択頂点のスキンウェイトを再配分する
      - ``skin.redistributeWeights(mlib.ls(selection=True, type="vertex"))``
      - :meth:`~mlib.nodes.skinCluster.SkinCluster.redistributeWeights`
@@ -195,13 +192,13 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 その短縮名は ``cmds.createNode`` と同じ意味で、追加のMayaフラグもそのまま渡せます。
 詳細は :func:`~mlib.cmds.createNode.createNode` を参照してください。
 
-複数形は保持順に実行し、後続の失敗で先行変更を自動では戻しません。
-同じ値をまとめて設定する例です。要素別の引数は :meth:`~mlib.nodes.node.Nodes.callEach` で渡します。
+複数形(``Joints``・``SkinClusters`` 等)は、重複を除いたノード参照を保持順に持つ容器です。
+各要素への操作は、単数のメソッドを ``for`` で呼びます。
 
 .. code-block:: python
 
-   joints = mlib.ls(type="joint")
-   joints.setRadius(1)
+   for joint in mlib.ls(type="joint"):
+       joint.setRadius(1)
 
 .. _dynamic-node-classes:
 

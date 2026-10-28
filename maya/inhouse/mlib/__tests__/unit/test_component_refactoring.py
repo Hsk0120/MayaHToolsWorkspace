@@ -107,32 +107,22 @@ class ComponentRefactoringTest(unittest.TestCase):
         self.assertEqual(events, [("create", 2), ("validate", 2), ("create", 0), ("validate", 0)])
 
     def test_axis_access_validates_space_before_overridden_position_methods(self):
-        """座標getter/setterの差替え時も、軸入口が先に空間指定を検証する。"""
+        """座標getterの差替え時も、軸入口が先に空間指定を検証する。"""
         single = self.mesh.getVertex(0)
         collection = self.mesh.getVertices([0])
-        for item, positions, setter_name in (
-            (single, (1.0, 2.0, 3.0), "setPosition"),
-            (collection, [(1.0, 2.0, 3.0)], "setPositions"),
+        for item, positions in (
+            (single, (1.0, 2.0, 3.0)),
+            (collection, [(1.0, 2.0, 3.0)]),
         ):
             for axis in "XYZ":
                 getter = getattr(item, "getPosition" + axis)
-                setter = getattr(item, "setPosition" + axis)
                 with self.subTest(collection=item is collection, axis=axis):
                     with patch.object(item, "getPosition", return_value=positions) as read:
                         with self.assertRaises(TypeError):
                             getter(worldSpace=1)
                         read.assert_not_called()
-                        getter(ws=True)
-                        read.assert_called_once_with(ws=True)
-                    with patch.object(item, "getPosition", return_value=positions) as read:
-                        with patch.object(item, setter_name, return_value=item) as write:
-                            with self.assertRaises(TypeError):
-                                setter(9.0, worldSpace="world", fast=True)
-                            read.assert_not_called()
-                            write.assert_not_called()
-                            self.assertIs(setter(9.0, ws=True, fast=True), item)
-                            read.assert_called_once_with(ws=True)
-                            self.assertTrue(write.call_args[1]["ws"])
+                        getter(worldSpace=True)
+                        read.assert_called_once_with(worldSpace=True)
 
     def test_uv_query_shares_function_set_and_current_set(self):
         """非連続番号でも関数セットと現在セットを呼出し内で一回だけ得る。"""
@@ -168,13 +158,14 @@ class ComponentRefactoringTest(unittest.TestCase):
         self.assertEqual((queries.count_queries, queries.set_queries, queries.position_queries), (1, 1, 3))
 
     def test_uv_current_set_switch_and_empty_deleted_reference(self):
-        """保持中のUVは現在セットへ追従し、空集合は削除後も照会・更新しない。"""
+        """保持中のUVは現在セットへ追従し、空集合は削除後も照会しない。"""
         items = self.mesh.getUVs([2, 0])
         before = items.getPosition()
         cmds.polyUVSet(self.transform, copy=True, uvSet="map1", newUVSet="alternate")
         cmds.polyUVSet(self.transform, currentUVSet=True, uvSet="alternate")
         values = [(10.0, 20.0), (30.0, 40.0)]
-        items.setPositions(values)
+        for item, (u, v) in zip(items, values):
+            cmds.polyEditUV(item.getFullName(), relative=False, uValue=u, vValue=v, uvSetName="alternate")
         self.assertEqual(items.getPosition(), values)
         cmds.polyUVSet(self.transform, currentUVSet=True, uvSet="map1")
         self.assertEqual(items.getPosition(), before)
@@ -185,8 +176,6 @@ class ComponentRefactoringTest(unittest.TestCase):
         empty = self.mesh.getUVs([])
         cmds.delete(self.transform)
         self.assertEqual(empty.getPosition(), [])
-        self.assertIs(empty.setPositions([]), empty)
-        self.assertIs(empty.setPositions([], fast=True), empty)
         with self.assertRaises(RuntimeError):
             items.getPosition()
 

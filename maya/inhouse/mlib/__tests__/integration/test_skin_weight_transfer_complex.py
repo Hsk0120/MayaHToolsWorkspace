@@ -1,18 +1,18 @@
 """複雑な階層・複数skinClusterで、influence解除時の祖先へのウェイト移送を独立計算と比べる。
 
-対象は ``SkinCluster.removeInfluence``・``SkinClusters.removeInfluences``・``Joint.removeInfluence``・
-``Joints.removeInfluence`` の通常経路とfast経路、およびスキンされたjointの削除
-(``Joint.delete``・``Joints.delete``・``mlib.delete``。Maya標準の再配分に任せる約束)。
+対象は ``SkinCluster.removeInfluence``・``Joint.removeInfluence`` (3.0.0 で fast 引数は外した)、
+およびスキンされたjointの削除(``Joint.delete``・``mlib.delete``。Maya標準の再配分に任せる約束)。
+複数jointの同時解除は、単数の ``SkinCluster.removeInfluence`` を深いjointから順に一つのUndoチャンクで呼ぶ。
 
 期待値はmlibを使わず、OpenMayaで読んだ移送前のウェイトから次の規則で計算する。
 
-- 解除は呼出しの処理順(``removeInfluences`` は深いjointから、同じ深さは指定順)に1つずつ行う。
+- 解除は呼出しの処理順(同時解除は深いjointから、同じ深さは指定順)に1つずつ行う。
 - 移送先は、親をjointだけ辿って最初に見つかる、その時点で同じskinClusterに登録済みのinfluence。
   親がjoint以外(transform等)になった時点で探索を終える。
 - 移送先があれば ``移送先 += 移送元`` として移送元の列を除く。他の列は変えない。
 - 移送先がなければMaya標準の再配分(``skinCluster -removeInfluence``。interactiveは残りを合計1へ
   比例配分し、none/postは残りをそのまま残す)。残りの合計が0になる頂点では、Mayaはjointとの距離で
-  配り直す(fastは均等に配る)ため、試験データはそのような頂点を作らない。
+  配り直すため、試験データはそのような頂点を作らない。
 
 許容誤差は1e-9とする。ウェイトはdoubleで保存され、移送の加算順の違い(複数の移送が同じ移送先へ
 足される場合や、Mayaが登録解除時に行う合計1への再正規化)による差は1e-15程度に留まる。
@@ -131,7 +131,7 @@ def _joint_depth(path):
 
 
 def _deep_first(paths):
-    """深いjointから、同じ深さは指定順に並べる(removeInfluencesの処理順)。"""
+    """深いjointから、同じ深さは指定順に並べる(同時解除の処理順)。"""
     unique, seen = [], set()
     for path in paths:
         key = _uuid(path)
@@ -139,6 +139,14 @@ def _deep_first(paths):
             seen.add(key)
             unique.append(path)
     return sorted(unique, key=_joint_depth, reverse=True)
+
+
+def _remove_deep_first(skin, paths):
+    """単数のremoveInfluenceを深いjointから順に、一つのUndoチャンクで呼ぶ。"""
+    wrapper = mlib.getNode(skin)
+    with undoChunk("testRemoveInfluencesDeepFirst"):
+        for path in _deep_first(paths):
+            wrapper.removeInfluence(path)
 
 
 def _expected_removal(before, order, normalize, transfer=True):
@@ -278,10 +286,6 @@ class _SkinTransferCase(unittest.TestCase):
         for skin in skins:
             self.assertWeights(_snapshot(skin), after[skin], "redo " + skin)
 
-    def assertNoUndoEntry(self, previous):
-        """fastの処理がUndoキューへ記録されていない。"""
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), previous)
-
 
 class ChainTransferTest(_SkinTransferCase):
     """途中にinfluenceでないjointを挟む階層での移送先と加算。"""
@@ -295,42 +299,36 @@ class ChainTransferTest(_SkinTransferCase):
         return j, skin
 
     def test_single_removal_skips_non_influence_joints(self):
-        """e→d、d→b(cを飛ばす)、b→root(aを飛ばす)。通常・fastの両方。"""
+        """e→d、d→b(cを飛ばす)、b→root(aを飛ばす)。"""
         cases = (("e", "d"), ("d", "b"), ("b", "root"))
-        for fast in (False, True):
-            for source, target in cases:
-                with self.subTest(fast=fast, source=source):
-                    cmds.file(new=True, force=True)
-                    j, skin = self.setup_chain(seed={"e": 101, "d": 102, "b": 103}[source])
-                    wrapper = mlib.getNode(skin)
-                    self.assertEqual(_long(mlib.nodes.Joint(j[source]).getTransferTarget(wrapper)), j[target])
-                    before = _snapshot(skin)
-                    expected = _expected_removal(before, [j[source]], 1)
-                    previous = cmds.undoInfo(query=True, undoName=True)
-                    wrapper.removeInfluence(j[source], fast=fast)
-                    after = _snapshot(skin)
-                    self.assertWeights(after, expected, "removeInfluence " + source)
-                    # 移送先の列だけが増え、他の列は変わらない。
-                    for key in after:
-                        if key != _uuid(j[target]):
-                            self.assertEqual(after[key], before[key])
-                    self.assertTrue(cmds.objExists(j[source]))
-                    if fast:
-                        self.assertNoUndoEntry(previous)
-                    else:
-                        self.assertUndoRedo([skin], {skin: before}, {skin: after})
+        for source, target in cases:
+            with self.subTest(source=source):
+                cmds.file(new=True, force=True)
+                j, skin = self.setup_chain(seed={"e": 101, "d": 102, "b": 103}[source])
+                wrapper = mlib.getNode(skin)
+                self.assertEqual(_long(mlib.nodes.Joint(j[source]).getTransferTarget(wrapper)), j[target])
+                before = _snapshot(skin)
+                expected = _expected_removal(before, [j[source]], 1)
+                wrapper.removeInfluence(j[source])
+                after = _snapshot(skin)
+                self.assertWeights(after, expected, "removeInfluence " + source)
+                # 移送先の列だけが増え、他の列は変わらない。
+                for key in after:
+                    if key != _uuid(j[target]):
+                        self.assertEqual(after[key], before[key])
+                self.assertTrue(cmds.objExists(j[source]))
+                self.assertUndoRedo([skin], {skin: before}, {skin: after})
 
     def test_parent_and_child_removed_together(self):
         """b・d・eを同時に解除すると、全てaを飛ばしてrootへ集まる。入口・指定順によらない。"""
         entries = (
-            ("SkinClusters.removeInfluences", False,
-             lambda j, skin: mlib.nodes.SkinClusters([skin]).removeInfluences([j["d"], j["e"], j["b"]])),
-            ("Joints.removeInfluence", False,
-             lambda j, skin: mlib.nodes.Joints([j["b"], j["e"], j["d"]]).removeInfluence()),
-            ("Joint.removeInfluence fast", True,
-             lambda j, skin: [mlib.nodes.Joint(j[k]).removeInfluence(skin, fast=True) for k in "bed"]),
+            ("SkinCluster.removeInfluence deep first", True,
+             lambda j, skin: _remove_deep_first(skin, [j["d"], j["e"], j["b"]])),
+            # Joint単位の呼出しは呼出しごとに一つのUndoになるため、Undo/Redoの1回での確認は省く。
+            ("Joint.removeInfluence", False,
+             lambda j, skin: [mlib.nodes.Joint(j[k]).removeInfluence(skin) for k in "bed"]),
         )
-        for label, fast, entry in entries:
+        for label, single_undo, entry in entries:
             with self.subTest(entry=label):
                 cmds.file(new=True, force=True)
                 j, skin = self.setup_chain(seed=7)
@@ -347,49 +345,45 @@ class ChainTransferTest(_SkinTransferCase):
                 self.assertWeights(after, expected, label)
                 for vertex in range(len(after[root])):
                     self.assertAlmostEqual(sum(row[vertex] for row in after.values()), 1.0, delta=TOL)
-                if not fast:
+                if single_undo:
                     self.assertUndoRedo([skin], {skin: before}, {skin: after})
 
     def test_normalize_none_and_post_keep_raw_sums(self):
         """none/postで合計が1でない頂点も、移送で頂点ごとの合計が変わらない。"""
         for normalize in (0, 2):
-            for fast in (False, True):
-                with self.subTest(normalize=normalize, fast=fast):
-                    cmds.file(new=True, force=True)
-                    j, skin = self.setup_chain(normalize=normalize, total=(0.4, 1.6), seed=11)
-                    before = _snapshot(skin)
-                    order = _deep_first([j["e"], j["d"]])
-                    expected = _expected_removal(before, order, normalize)
-                    wrapper = mlib.getNode(skin)
-                    for path in order:
-                        wrapper.removeInfluence(path, fast=fast)
-                    after = _snapshot(skin)
-                    self.assertWeights(after, expected)
-                    for vertex in range(len(after[_uuid(j["root"])])):
-                        self.assertAlmostEqual(sum(row[vertex] for row in after.values()),
-                                               sum(row[vertex] for row in before.values()), delta=TOL)
-                    self.assertEqual(cmds.getAttr(skin + ".normalizeWeights"), normalize)
-
-    def test_max_influences_not_exceeded(self):
-        """各頂点3本の制限で、移送の合流後も非ゼロの本数が制限を超えず、設定も変えない。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
+            with self.subTest(normalize=normalize):
                 cmds.file(new=True, force=True)
-                j = self.chain()
-                mesh = self.mesh()
-                skin = self.bind(mesh, [j[k] for k in ("root", "b", "d", "e", "side")], max_influences=3)
-                cmds.setAttr(skin + ".maintainMaxInfluences", True)
-                _random_rows(skin, 5, per_vertex=3, must=(j["d"], j["e"]))
+                j, skin = self.setup_chain(normalize=normalize, total=(0.4, 1.6), seed=11)
                 before = _snapshot(skin)
-                expected = _expected_removal(before, [j["e"], j["d"]], 1)
+                order = _deep_first([j["e"], j["d"]])
+                expected = _expected_removal(before, order, normalize)
                 wrapper = mlib.getNode(skin)
-                wrapper.removeInfluence(j["e"], fast=fast)
-                wrapper.removeInfluence(j["d"], fast=fast)
+                for path in order:
+                    wrapper.removeInfluence(path)
                 after = _snapshot(skin)
                 self.assertWeights(after, expected)
                 for vertex in range(len(after[_uuid(j["root"])])):
-                    self.assertLessEqual(sum(1 for row in after.values() if row[vertex] > 0), 3)
-                self.assertEqual(cmds.getAttr(skin + ".maxInfluences"), 3)
+                    self.assertAlmostEqual(sum(row[vertex] for row in after.values()),
+                                           sum(row[vertex] for row in before.values()), delta=TOL)
+                self.assertEqual(cmds.getAttr(skin + ".normalizeWeights"), normalize)
+
+    def test_max_influences_not_exceeded(self):
+        """各頂点3本の制限で、移送の合流後も非ゼロの本数が制限を超えず、設定も変えない。"""
+        j = self.chain()
+        mesh = self.mesh()
+        skin = self.bind(mesh, [j[k] for k in ("root", "b", "d", "e", "side")], max_influences=3)
+        cmds.setAttr(skin + ".maintainMaxInfluences", True)
+        _random_rows(skin, 5, per_vertex=3, must=(j["d"], j["e"]))
+        before = _snapshot(skin)
+        expected = _expected_removal(before, [j["e"], j["d"]], 1)
+        wrapper = mlib.getNode(skin)
+        wrapper.removeInfluence(j["e"])
+        wrapper.removeInfluence(j["d"])
+        after = _snapshot(skin)
+        self.assertWeights(after, expected)
+        for vertex in range(len(after[_uuid(j["root"])])):
+            self.assertLessEqual(sum(1 for row in after.values() if row[vertex] > 0), 3)
+        self.assertEqual(cmds.getAttr(skin + ".maxInfluences"), 3)
 
     def test_undo_disabled_and_outer_chunks(self):
         """Undo無効時も同じ結果。外側のundoChunkは一回で戻り、undoTransactionは例外で巻き戻る。"""
@@ -398,7 +392,7 @@ class ChainTransferTest(_SkinTransferCase):
         expected = _expected_removal(before, _deep_first([j["e"], j["d"]]), 1)
         cmds.undoInfo(state=False)
         try:
-            mlib.nodes.SkinClusters([skin]).removeInfluences([j["e"], j["d"]])
+            _remove_deep_first(skin, [j["e"], j["d"]])
         finally:
             cmds.undoInfo(state=True)
         self.assertWeights(_snapshot(skin), expected, "undo disabled")
@@ -426,39 +420,32 @@ class ChainTransferTest(_SkinTransferCase):
 
     def test_rejections_leave_weights_unchanged(self):
         """移送で使うskinClusterのロック・レイヤー・最後のinfluenceを、変更前に拒否する。"""
-        for fast in (False, True):
-            for locked in ("d", "e", "side"):
-                with self.subTest(fast=fast, locked=locked):
-                    cmds.file(new=True, force=True)
-                    j, skin = self.setup_chain(seed=13)
-                    cmds.setAttr(j[locked] + ".lockInfluenceWeights", True)
-                    before = _snapshot(skin)
-                    with self.assertRaises(RuntimeError):
-                        mlib.getNode(skin).removeInfluence(j["e"], fast=fast)
-                    self.assertWeights(_snapshot(skin), before)
-            with self.subTest(fast=fast, case="layer"):
+        for locked in ("d", "e", "side"):
+            with self.subTest(locked=locked):
                 cmds.file(new=True, force=True)
                 j, skin = self.setup_chain(seed=13)
-                layer = cmds.createNode("network", name="ngSkinToolsData_test")
-                cmds.addAttr(skin, longName="layerLink", attributeType="message")
-                cmds.connectAttr(layer + ".message", skin + ".layerLink")
+                cmds.setAttr(j[locked] + ".lockInfluenceWeights", True)
                 before = _snapshot(skin)
                 with self.assertRaises(RuntimeError):
-                    mlib.nodes.Joint(j["e"]).removeInfluence(fast=fast)
+                    mlib.getNode(skin).removeInfluence(j["e"])
                 self.assertWeights(_snapshot(skin), before)
-            with self.subTest(fast=fast, case="last"):
-                cmds.file(new=True, force=True)
-                j = self.chain()
-                skin = self.bind(self.mesh(), [j["e"]])
-                with self.assertRaises(ValueError):
-                    mlib.nodes.Joint(j["e"]).removeInfluence(fast=fast)
-                self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
-        cmds.file(new=True, force=True)
-        j, skin = self.setup_chain(seed=13)
-        before = _snapshot(skin)
-        with self.assertRaises(ValueError):
-            mlib.nodes.SkinClusters([skin]).removeInfluences([j[k] for k in ("root", "b", "d", "e", "side")])
-        self.assertWeights(_snapshot(skin), before)
+        with self.subTest(case="layer"):
+            cmds.file(new=True, force=True)
+            j, skin = self.setup_chain(seed=13)
+            layer = cmds.createNode("network", name="ngSkinToolsData_test")
+            cmds.addAttr(skin, longName="layerLink", attributeType="message")
+            cmds.connectAttr(layer + ".message", skin + ".layerLink")
+            before = _snapshot(skin)
+            with self.assertRaises(RuntimeError):
+                mlib.nodes.Joint(j["e"]).removeInfluence()
+            self.assertWeights(_snapshot(skin), before)
+        with self.subTest(case="last"):
+            cmds.file(new=True, force=True)
+            j = self.chain()
+            skin = self.bind(self.mesh(), [j["e"]])
+            with self.assertRaises(ValueError):
+                mlib.nodes.Joint(j["e"]).removeInfluence()
+            self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
 
 
 class BranchTransferTest(_SkinTransferCase):
@@ -472,37 +459,36 @@ class BranchTransferTest(_SkinTransferCase):
                      must=[j[k] for k in ("handL", "f1L", "f2L", "f3tipL", "handR", "f1R", "head")])
         return j, skin
 
-    def run_case(self, names, fast=False, entry="removeInfluences"):
+    def run_case(self, names, entry="deepFirst"):
         """指定jointを同時に解除し、独立計算と比べてUndo/Redoを確かめる。"""
         j, skin = self.setup_branch()
         paths = [j[name] for name in names]
         before = _snapshot(skin)
-        if entry == "removeInfluences":
+        if entry == "deepFirst":
             order = _deep_first(paths)
-            mlib.nodes.SkinClusters([skin]).removeInfluences(paths)
+            _remove_deep_first(skin, paths)
         else:
             # Joint単位で指定順に処理する(浅いjointを先に解除しても結果は同じになる)。
             order = paths
             for path in paths:
-                mlib.nodes.Joint(path).removeInfluence(fast=fast)
+                mlib.nodes.Joint(path).removeInfluence()
         expected = _expected_removal(before, order, 1)
         after = _snapshot(skin)
         self.assertWeights(after, expected, ",".join(names))
         for name in names:
             self.assertTrue(cmds.objExists(j[name]))
             self.assertFalse(mlib.getNode(skin).hasInfluence(j[name]))
-        if not fast:
-            # Joint単位の呼出しは呼出しごとに一つのUndoになる。
-            steps = 1 if entry == "removeInfluences" else len(paths)
-            self.assertUndoRedo([skin], {skin: before}, {skin: after}, steps)
+        # Joint単位の呼出しは呼出しごとに一つのUndoになる。
+        steps = 1 if entry == "deepFirst" else len(paths)
+        self.assertUndoRedo([skin], {skin: before}, {skin: after}, steps)
         return j, before, after
 
     def test_siblings_add_to_same_target(self):
         """f1L・f2L・f3tipL(f3Lを飛ばす)が全てhandLへ加算される。"""
-        for fast, entry in ((False, "removeInfluences"), (False, "joint"), (True, "joint")):
-            with self.subTest(fast=fast, entry=entry):
+        for entry in ("deepFirst", "joint"):
+            with self.subTest(entry=entry):
                 cmds.file(new=True, force=True)
-                j, before, after = self.run_case(["f1L", "f2L", "f3tipL"], fast, entry)
+                j, before, after = self.run_case(["f1L", "f2L", "f3tipL"], entry)
                 hand = _uuid(j["handL"])
                 for vertex in range(len(before[hand])):
                     total = before[hand][vertex] + sum(before[_uuid(j[k])][vertex] for k in ("f1L", "f2L", "f3tipL"))
@@ -511,10 +497,10 @@ class BranchTransferTest(_SkinTransferCase):
     def test_cousins_and_parent_child_across_branches(self):
         """handL・f1Lは同時に消えるhandLを飛ばしてarmLへ、handR・f1RはarmRへ、headはneckを飛ばしてchestへ。"""
         names = ["f1L", "handR", "head", "handL", "f1R"]
-        for fast, entry in ((False, "removeInfluences"), (False, "joint"), (True, "joint")):
-            with self.subTest(fast=fast, entry=entry):
+        for entry in ("deepFirst", "joint"):
+            with self.subTest(entry=entry):
                 cmds.file(new=True, force=True)
-                j, before, after = self.run_case(names, fast, entry)
+                j, before, after = self.run_case(names, entry)
                 for target, sources in (("armL", ("handL", "f1L")), ("armR", ("handR", "f1R")), ("chest", ("head",))):
                     key = _uuid(j[target])
                     for vertex in range(len(before[key])):
@@ -529,7 +515,7 @@ class BranchTransferTest(_SkinTransferCase):
         before = _snapshot(skin)
         paths = [j[k] for k in ("f1L", "f2L", "f3tipL", "handL", "armL", "f1R", "head", "spine")]
         expected = _expected_removal(before, _deep_first(paths), 1)
-        mlib.nodes.SkinClusters([skin]).removeInfluences(paths)
+        _remove_deep_first(skin, paths)
         after = _snapshot(skin)
         self.assertWeights(after, expected)
         self.assertEqual(len(after), len(self.BRANCH_INFLUENCES) - len(paths))
@@ -563,33 +549,29 @@ class MultipleSkinTest(_SkinTransferCase):
 
     def test_joint_removal_uses_each_skins_own_target(self):
         """Joint.removeInfluence()は全skinClusterから外し、移送先はskinClusterごとに決まる。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                cmds.file(new=True, force=True)
-                j, skins = self.setup_skins()
-                before = {skin: _snapshot(skin) for skin in skins}
-                expected = {skin: _expected_removal(before[skin], [j["leaf"]], 1) for skin in skins}
-                self.assertIn(_uuid(j["root"]), before[skins[1]])
-                mlib.nodes.Joint(j["leaf"]).removeInfluence(fast=fast)
-                after = {skin: _snapshot(skin) for skin in skins}
-                for skin in skins:
-                    self.assertWeights(after[skin], expected[skin], skin)
-                # skin2ではrootへ、skin1・skin3ではmidへ加算された。
-                leaf = _uuid(j["leaf"])
-                for skin, target in ((skins[0], "mid"), (skins[1], "root"), (skins[2], "mid")):
-                    key = _uuid(j[target])
-                    self.assertAlmostEqual(sum(after[skin][key]), sum(before[skin][key]) + sum(before[skin][leaf]),
-                                           delta=TOL * len(after[skin][key]))
-                if not fast:
-                    self.assertUndoRedo(skins, before, after)
-
-    def test_only_specified_skins_change(self):
-        """SkinClusters([skin2])・Joint.removeInfluence(skin3)は指定外のskinClusterを変えない。"""
         j, skins = self.setup_skins()
         before = {skin: _snapshot(skin) for skin in skins}
-        mlib.nodes.SkinClusters([skins[1]]).removeInfluences(j["leaf"])
+        expected = {skin: _expected_removal(before[skin], [j["leaf"]], 1) for skin in skins}
+        self.assertIn(_uuid(j["root"]), before[skins[1]])
+        mlib.nodes.Joint(j["leaf"]).removeInfluence()
+        after = {skin: _snapshot(skin) for skin in skins}
+        for skin in skins:
+            self.assertWeights(after[skin], expected[skin], skin)
+        # skin2ではrootへ、skin1・skin3ではmidへ加算された。
+        leaf = _uuid(j["leaf"])
+        for skin, target in ((skins[0], "mid"), (skins[1], "root"), (skins[2], "mid")):
+            key = _uuid(j[target])
+            self.assertAlmostEqual(sum(after[skin][key]), sum(before[skin][key]) + sum(before[skin][leaf]),
+                                   delta=TOL * len(after[skin][key]))
+        self.assertUndoRedo(skins, before, after)
+
+    def test_only_specified_skins_change(self):
+        """SkinCluster.removeInfluence・Joint.removeInfluence(skin3)は指定外のskinClusterを変えない。"""
+        j, skins = self.setup_skins()
+        before = {skin: _snapshot(skin) for skin in skins}
+        mlib.getNode(skins[1]).removeInfluence(j["leaf"])
         self.assertWeights(_snapshot(skins[1]), _expected_removal(before[skins[1]], [j["leaf"]], 1))
-        mlib.nodes.Joint(j["leaf"]).removeInfluence(skins[2], fast=True)
+        mlib.nodes.Joint(j["leaf"]).removeInfluence(skins[2])
         self.assertWeights(_snapshot(skins[2]), _expected_removal(before[skins[2]], [j["leaf"]], 1))
         self.assertWeights(_snapshot(skins[0]), before[skins[0]])
         self.assertTrue(mlib.getNode(skins[0]).hasInfluence(j["leaf"]))
@@ -597,8 +579,7 @@ class MultipleSkinTest(_SkinTransferCase):
     def test_lock_in_one_skin_rejects_all_before_changes(self):
         """後のskinClusterにロックがあれば、先のskinClusterも変更しない。"""
         for label, call in (
-                ("Joint", lambda j, skins: mlib.nodes.Joint(j["leaf"]).removeInfluence()),
-                ("SkinClusters", lambda j, skins: mlib.nodes.SkinClusters(skins[:2]).removeInfluences(j["leaf"]))):
+                ("Joint", lambda j, skins: mlib.nodes.Joint(j["leaf"]).removeInfluence()),):
             with self.subTest(entry=label):
                 cmds.file(new=True, force=True)
                 j, skins = self.setup_skins()
@@ -645,21 +626,20 @@ class AncestorlessTransferTest(_SkinTransferCase):
     def test_matches_maya_standard_redistribution(self):
         """rootの解除・transformを挟むunder・移送なしのmidは、Maya標準と独立計算の両方に一致する。"""
         for normalize in (1, 0, 2):
-            for fast in (False, True):
-                for name, transfer in (("root", True), ("under", True), ("mid", False)):
-                    with self.subTest(normalize=normalize, fast=fast, joint=name, transfer=transfer):
-                        cmds.file(new=True, force=True)
-                        j, skin = self.setup_scene(normalize)
-                        wrapper = mlib.getNode(skin)
-                        if name != "mid":
-                            self.assertIsNone(mlib.nodes.Joint(j[name]).getTransferTarget(wrapper))
-                        before = _snapshot(skin)
-                        native = self.native(skin, [j[name]])
-                        self.assertWeights(_snapshot(skin), before, "native undo")
-                        expected = _expected_removal(before, [j[name]], normalize, transfer)
-                        self.assertWeights(native, expected, "model vs Maya")
-                        wrapper.removeInfluence(j[name], transferToParent=transfer, fast=fast)
-                        self.assertWeights(_snapshot(skin), expected, "mlib")
+            for name, transfer in (("root", True), ("under", True), ("mid", False)):
+                with self.subTest(normalize=normalize, joint=name, transfer=transfer):
+                    cmds.file(new=True, force=True)
+                    j, skin = self.setup_scene(normalize)
+                    wrapper = mlib.getNode(skin)
+                    if name != "mid":
+                        self.assertIsNone(mlib.nodes.Joint(j[name]).getTransferTarget(wrapper))
+                    before = _snapshot(skin)
+                    native = self.native(skin, [j[name]])
+                    self.assertWeights(_snapshot(skin), before, "native undo")
+                    expected = _expected_removal(before, [j[name]], normalize, transfer)
+                    self.assertWeights(native, expected, "model vs Maya")
+                    wrapper.removeInfluence(j[name], transferToParent=transfer)
+                    self.assertWeights(_snapshot(skin), expected, "mlib")
 
     def test_child_then_root_together(self):
         """root・midの同時解除は、midをrootへ加算した後にrootを標準の再配分で外す。"""
@@ -671,7 +651,7 @@ class AncestorlessTransferTest(_SkinTransferCase):
                 order = _deep_first([j["root"], j["mid"]])
                 self.assertEqual(order, [j["mid"], j["root"]])
                 expected = _expected_removal(before, order, normalize)
-                mlib.nodes.SkinClusters([skin]).removeInfluences([j["root"], j["mid"]])
+                _remove_deep_first(skin, [j["root"], j["mid"]])
                 after = _snapshot(skin)
                 self.assertWeights(after, expected)
                 self.assertUndoRedo([skin], {skin: before}, {skin: after})
@@ -682,8 +662,8 @@ class NamingTransferTest(_SkinTransferCase):
 
     def test_same_short_names_and_namespaces(self):
         """同名のhandを完全パスで指定し、それぞれ自分のarmへ加算する。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
+        for entry in ("deepFirst", "removeInfluence"):
+            with self.subTest(entry=entry):
                 cmds.file(new=True, force=True)
                 j = {}
                 for group in ("grpA", "grpB"):
@@ -705,14 +685,14 @@ class NamingTransferTest(_SkinTransferCase):
                 before = _snapshot(skin)
                 hands = [j["grpA"][2], j["grpB"][2], j["charA"][2]]
                 order = list(hands)
-                if fast:
+                if entry == "removeInfluence":
                     for path in hands:
-                        mlib.getNode(skin).removeInfluence(path, fast=True)
+                        mlib.getNode(skin).removeInfluence(path)
                 else:
-                    mlib.nodes.SkinClusters([skin]).removeInfluences(hands)
+                    _remove_deep_first(skin, hands)
                     order = _deep_first(hands)
                 # 名前空間付きの部分名でも指定できる。
-                mlib.nodes.Joint("charB:arm").removeInfluence(fast=fast)
+                mlib.nodes.Joint("charB:arm").removeInfluence()
                 order.append(j["charB"][1])
                 after = _snapshot(skin)
                 self.assertWeights(after, _expected_removal(before, order, 1))
@@ -766,30 +746,26 @@ class LargeMeshTransferTest(_SkinTransferCase):
                 return fn.indexForInfluenceObject(influence)
         raise AssertionError(path)
 
-    def test_large_mesh_transfer_normal_and_fast(self):
+    def test_large_mesh_transfer(self):
         """leaf→mid→rootとy→xを続けて解除し、Undo/Redoで全頂点が戻る。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                cmds.file(new=True, force=True)
-                j, skin = self.setup_large()
-                self.assertEqual(_geometry(skin)[3], 5041)
-                # 移送元と移送先の論理番号が連続し、setWeightsの範囲指定の経路を通る。
-                self.assertEqual(self.logical(skin, j["mid"]), self.logical(skin, j["leaf"]) + 1)
-                self.assertEqual(self.logical(skin, j["x"]), self.logical(skin, j["y"]) + 1)
-                wrapper = mlib.getNode(skin)
-                states = [_snapshot(skin)]
-                for name in ("leaf", "mid", "y"):
-                    wrapper.removeInfluence(j[name], fast=fast)
-                    expected = _expected_removal(states[-1], [j[name]], 1)
-                    states.append(_snapshot(skin))
-                    self.assertWeights(states[-1], expected, name)
-                if not fast:
-                    for state in reversed(states[:-1]):
-                        cmds.undo()
-                        self.assertWeights(_snapshot(skin), state, "undo")
-                    for state in states[1:]:
-                        cmds.redo()
-                        self.assertWeights(_snapshot(skin), state, "redo")
+        j, skin = self.setup_large()
+        self.assertEqual(_geometry(skin)[3], 5041)
+        # 移送元と移送先の論理番号が連続し、setWeightsの範囲指定の経路を通る。
+        self.assertEqual(self.logical(skin, j["mid"]), self.logical(skin, j["leaf"]) + 1)
+        self.assertEqual(self.logical(skin, j["x"]), self.logical(skin, j["y"]) + 1)
+        wrapper = mlib.getNode(skin)
+        states = [_snapshot(skin)]
+        for name in ("leaf", "mid", "y"):
+            wrapper.removeInfluence(j[name])
+            expected = _expected_removal(states[-1], [j[name]], 1)
+            states.append(_snapshot(skin))
+            self.assertWeights(states[-1], expected, name)
+        for state in reversed(states[:-1]):
+            cmds.undo()
+            self.assertWeights(_snapshot(skin), state, "undo")
+        for state in states[1:]:
+            cmds.redo()
+            self.assertWeights(_snapshot(skin), state, "redo")
 
     def test_large_mesh_set_weights_with_gaps(self):
         """論理番号の穴と順序の入替えを含む全列のsetWeightsが、全頂点で指定値になる。"""
@@ -818,7 +794,6 @@ class SkinnedJointDeleteTest(_SkinTransferCase):
         """親子・兄弟・別の枝を同時に、複数skinClusterから削除しても標準の削除と一致する。"""
         entries = (
             ("Joint.delete", lambda nodes, fast: [node.delete(fast=fast) for node in nodes]),
-            ("Joints.delete", lambda nodes, fast: mlib.nodes.Joints(nodes).delete(fast=fast)),
             ("mlib.delete", lambda nodes, fast: mlib.delete(nodes, fast=fast)),
         )
         targets = ("f1L", "handL", "f2R", "head", "clavR")

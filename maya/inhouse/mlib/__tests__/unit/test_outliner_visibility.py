@@ -4,37 +4,44 @@ import unittest
 import maya.cmds as cmds
 import mlib
 mlib.reload()
-from mlib.nodes import DagNodes
+from mlib.decorator import undoChunk
 
 
 class OutlinerVisibilityTest(unittest.TestCase):
-    """設定値とUndo、一括操作を検証する。"""
+    """設定値とUndo、複数ノードへの順次操作を検証する。"""
 
     def test_visibility_and_undo(self):
-        nodes = DagNodes([mlib.createNode("transform"), mlib.createNode("joint")])
+        nodes = [mlib.createNode("transform"), mlib.createNode("joint")]
+
+        def outliner():
+            return [node.getOutlinerVisibility() for node in nodes]
+
+        def visibility():
+            return [node.getVisibility() for node in nodes]
+
         try:
-            self.assertEqual(nodes.getOutlinerVisibility(), [True, True])
-            nodes.setOutlinerVisibility(False)
-            self.assertEqual(nodes.getOutlinerVisibility(), [False, False])
+            self.assertEqual(outliner(), [True, True])
+            with undoChunk("mlibOutlinerVisibilityTest"):
+                for node in nodes:
+                    self.assertIs(node.setOutlinerVisibility(False), node)
+            self.assertEqual(outliner(), [False, False])
             for node in nodes:
                 self.assertTrue(cmds.getAttr(node.getFullName() + ".hiddenInOutliner"))
                 self.assertTrue(cmds.getAttr(node.getFullName() + ".visibility"))
             cmds.undo()
-            self.assertEqual(nodes.getOutlinerVisibility(), [True, True])
+            self.assertEqual(outliner(), [True, True])
             cmds.redo()
-            self.assertEqual(nodes.getOutlinerVisibility(), [False, False])
+            self.assertEqual(outliner(), [False, False])
             self.assertIs(nodes[0].setOutlinerVisibility(True, fast=True), nodes[0])
             self.assertTrue(nodes[0].getOutlinerVisibility())
-            nodes.setVisibility(False)
-            self.assertEqual(nodes.getVisibility(), [False, False])
-            self.assertTrue(nodes[0].getOutlinerVisibility())
-            cmds.undo()
-            self.assertEqual(nodes.getVisibility(), [True, True])
-            nodes.setVisibility(False)
-            self.assertEqual(nodes.getVisibility(), [False, False])
-            self.assertTrue(nodes[0].getOutlinerVisibility())
-            cmds.undo()
-            self.assertEqual(nodes.getVisibility(), [True, True])
+            for _ in range(2):
+                with undoChunk("mlibOutlinerVisibilityTest"):
+                    for node in nodes:
+                        node.setVisibility(False)
+                self.assertEqual(visibility(), [False, False])
+                self.assertTrue(nodes[0].getOutlinerVisibility())
+                cmds.undo()
+                self.assertEqual(visibility(), [True, True])
             with self.assertRaises(TypeError):
                 nodes[0].setOutlinerVisibility(1)
         finally:

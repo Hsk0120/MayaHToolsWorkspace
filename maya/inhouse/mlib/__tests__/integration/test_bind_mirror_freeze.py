@@ -5,7 +5,7 @@ import unittest
 import maya.cmds as cmds
 import mlib
 mlib.reload()
-from mlib.nodes import Node, Joint, Joints, Transforms, SkinCluster, SkinClusters
+from mlib.nodes import Node
 
 
 class BindMirrorFreezeTest(unittest.TestCase):
@@ -34,11 +34,17 @@ class BindMirrorFreezeTest(unittest.TestCase):
             a = cmds.pointPosition(names[0] + ".vtx[%d]" % i, world=True)
             b = cmds.pointPosition(names[1] + ".vtx[%d]" % i, world=True)
             for x, y in zip(a, b): self.assertAlmostEqual(x, y)
-        nodes = Transforms([Node(name) for name in names])
-        nodes.setTranslate((3, 2, 1), at=4)
-        nodes.makeIdentity(apply=True, t=True, r=True, s=True)
+        nodes = [Node(name) for name in names]
+        for node in nodes:
+            node.setTranslate((3, 2, 1), at=4)
+        for node in nodes:
+            node.makeIdentity(apply=True, t=True, r=True, s=True)
+        for node in nodes:
+            self.assertEqual(tuple(node.getTranslate(at=4)), (0, 0, 0))
         cmds.undo()
-        self.assertEqual(tuple(nodes[0].getTranslate(at=4)), (3, 2, 1))
+        cmds.undo()
+        for node in nodes:
+            self.assertEqual(tuple(node.getTranslate(at=4)), (3, 2, 1))
 
 
 

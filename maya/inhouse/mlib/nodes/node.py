@@ -1,9 +1,7 @@
 """Maya の依存ノードと DAG ノードを扱う基底ラッパー。"""
 
-import contextlib
 import inspect
 import re
-from contextlib import nullcontext
 from typing import Any
 
 import maya.api.OpenMaya as om2
@@ -11,7 +9,7 @@ import maya.cmds as cmds
 
 from ..core.object import Object
 from ..core.registry import _inherited_node_types, _node_type_exists
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoChunk, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
 from ..logger import raise_with_notify
 from ..util import _ArgumentError, _UNSET
 
@@ -538,7 +536,7 @@ class Node(Object):
     def __getattr__(self, name) -> Any:
         """通常アトリビュートにない名前を Maya Plug として動的に解決する。
 
-        静的解析では、具象クラス(BlendShape 等)のメソッドを基底の Node 型で呼んだ場合に
+        静的解析では、具象クラス(SkinCluster 等)のメソッドを基底の Node 型で呼んだ場合に
         Plug 型と誤判定しないよう、戻り値の注釈は Any としている。
 
         Args:
@@ -976,9 +974,9 @@ class Node(Object):
                 return rename_node(self.mnode(), name, ignoreShape)
             return cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=_UNSET,
-        destination=_UNSET, connections=False, type=None, exactType=False, skipConversionNodes=False,
-        asPair=False, asNode=False, index=_UNSET, *, idx=_UNSET, src=_UNSET, dst=_UNSET):
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
+        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
+        asPair=False, asNode=False, index=None):
         """接続をPlug・Node・ペアとして照会する。
 
         Args:
@@ -997,19 +995,10 @@ class Node(Object):
             asPair (bool): 自身側Plugと相手側のペアを返す。
             asNode (bool): 相手側をNodeで返す。
             index (int | None): 結果の一件。範囲外はNone。
-            idx (int | None): indexの別名。同時指定は不可。
-            src (bool): sourceの別名。同時指定は不可。
-            dst (bool): destinationの別名。同時指定は不可。
 
         Returns:
             list | Plug | Node | tuple | None: 条件に合う結果。
-
-        Raises:
-            TypeError: 長短の別名を同時に指定した場合。
         """
-        index = _pick_alias(index, idx, "index", "idx", default=None)
-        source = _pick_alias(source, src, "source", "src", default=True)
-        destination = _pick_alias(destination, dst, "destination", "dst", default=True)
         from ..plugs.plug import Plug
         pairs = []
         as_pair = asPair or c or connections
@@ -1112,16 +1101,15 @@ class Node(Object):
                     result.append(node)
         return result
 
-    def resetAttrs(self, attributes=_UNSET, *, fast=False, attrs=_UNSET):
+    def resetAttrs(self, attributes=None, *, fast=False):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
         Args:
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
                 数値・単位・enumアトリビュートを対象とし、配列・ロック・入力接続・書込み禁止・
                 非対応型は除外する(通常/fastで同じ選択)。
-                明示指定したアトリビュートのエラーは除外せず送出する。別名 ``attrs`` も使用可能。
+                明示指定したアトリビュートのエラーは除外せず送出する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            attrs (str | Iterable[str] | None): attributesの別名。同時指定は不可。
 
         Returns:
             list[Plug]: リセットしたアトリビュート。全変更を一回のUndoにまとめる。
@@ -1131,7 +1119,6 @@ class Node(Object):
             TypeError: 明示指定したアトリビュートがリセット非対応の場合。
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
-        attributes = _pick_alias(attributes, attrs, "attributes", "attrs", default=None)
         with _edit_context("mlibNodeResetAttrs", fast):
             if attributes is None:
                 # getPlugs(keyable, scalar) は cmds.listAttr と同じ列挙を om2 で行うため、fastでもcmdsを呼ばない。
@@ -1149,8 +1136,7 @@ class Node(Object):
                 plug.reset(fast=fast)
             return plugs
 
-    def setAttrFlags(self, attributes=_UNSET, locked=None, keyable=None, channelBox=None, *, fast=False,
-        attrs=_UNSET):
+    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
         """指定アトリビュートのロック・キー設定可否・Channel Box表示を変更する。
 
         状態の型を検査し、全アトリビュートを解決してから順に更新する。
@@ -1162,17 +1148,15 @@ class Node(Object):
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            attrs (str | Iterable[str]): attributesの別名。同時指定は不可。
 
         Returns:
             Node: 自身。
 
         Raises:
             AttributeError: 指定アトリビュートが存在しない場合。
-            TypeError: 必須引数の不足・長短名の競合、fastや状態の型が不正な場合。
+            TypeError: 必須引数の不足、fastや状態の型が不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
         """
-        attributes = _pick_alias(attributes, attrs, "attributes", "attrs")
         with _edit_context("mlibNodeSetAttrFlags", fast):
             flags = _validated_flags(locked, keyable, channelBox)
             if isinstance(attributes, str):
@@ -2262,30 +2246,6 @@ class Node(Object):
                 yield attribute
 
 
-class _PerItemOnly:
-    """継承した一括入口も隠し、callEachからの要素別指定だけを許可する。"""
-
-    def __init__(self, name):
-        """直接呼び出しを禁止するメソッド名を保持する。
-
-        Args:
-            name (str): 要素別の引数を必要とする単数メソッド名。
-        """
-        self._name = name
-
-    def __get__(self, instance, owner=None):
-        """クラス・インスタンスのどちらからも直接取得を拒否する。
-
-        Args:
-            instance: 取得元のインスタンス。クラスから取得する場合はNone。
-            owner: 取得元のクラス。
-
-        Raises:
-            AttributeError: 要素別の引数指定が必要な場合。
-        """
-        raise AttributeError(f"{self._name} requires callEach with per-item arguments")
-
-
 class Nodes:
     """型を検証し、入力順のノード参照を保持するコレクション。
 
@@ -2294,60 +2254,6 @@ class Nodes:
     """
 
     item_class = Node
-
-    # 基底Nodes.callEachや利用側の同名メソッドにも適用する結果収集方針。
-    _calculating_setters = frozenset((
-        "setTranslate", "setRotate", "setQuaternion", "setScale", "setShear",
-        "setMatrix", "setTransformation",
-    ))
-
-    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
-    _bulk_entries = {
-        "getShadingEngines": (Node.getShadingEngines, "list"),
-        "sameNode": (Node.sameNode, "list"),
-        "isValid": (Node.isValid, "list"),
-        "isAlive": (Node.isAlive, "list"),
-        "mnode": (Node.mnode, "list"),
-        "mfn": (Node.mfn, "list"),
-        "getType": (Node.getType, "list"),
-        "getTypeId": (Node.getTypeId, "list"),
-        "getPluginName": (Node.getPluginName, "list"),
-        "getClassification": (Node.getClassification, "list"),
-        "isType": (Node.isType, "list"),
-        "hasFn": (Node.hasFn, "list"),
-        "isLocked": (Node.isLocked, "list"),
-        "isFromReferencedFile": (Node.isFromReferencedFile, "list"),
-        "isAncestorOf": (Node.isAncestorOf, "list"),
-        "isParentOf": (Node.isParentOf, "list"),
-        "isRoot": (Node.isRoot, "list"),
-        "getNodeName": (Node.getNodeName, "list"),
-        "getNamespace": (Node.getNamespace, "list"),
-        "rename": (Node.rename, "list"),
-        "getConnections": (Node.getConnections, "list"),
-        "getHistory": (Node.getHistory, "list"),
-        "resetAttrs": (Node.resetAttrs, "list"),
-        "getPlugs": (Node.getPlugs, "list"),
-        "getAliases": (Node.getAliases, "list"),
-        "addAttr": (Node.addAttr, "list"),
-        "getPlug": (Node.getPlug, "list"),
-        "hasAttr": (Node.hasAttr, "list"),
-        "getUuid": (Node.getUuid, "list"),
-        "getName": (Node.getName, "list"),
-        "getFullName": (Node.getFullName, "list"),
-        "delete": (Node.delete, "self"),
-        "setNamespace": (Node.setNamespace, "self"),
-        "setAttrFlags": (Node.setAttrFlags, "self"),
-        "setLocked": (Node.setLocked, "self"),
-        "moveAttrOrder": (Node.moveAttrOrder, "self"),
-    }
-    _bulk_methods = {
-        **{name: entry[0] for name, entry in _bulk_entries.items()},
-    }
-    _bulk_returns = {
-        **{name: entry[1] for name, entry in _bulk_entries.items()},
-    }
-    _bulk_per_item_only = frozenset()
-    _bulk_undo = True
 
     def __init__(self, names=()):
         """入力からノード参照を解決し、要素型を検証して保持する。
@@ -2397,26 +2303,6 @@ class Nodes:
                 items.append(node)
         self._items = items
 
-    def __init_subclass__(cls, **kwargs):
-        """派生クラスが宣言した ``_bulk_entries`` を、基底の転送表と返却方針へ合成する。
-
-        派生クラスは単数の呼出し先と返却方針を ``_bulk_entries`` に1行ずつ宣言するだけでよく、
-        ``_bulk_methods``・``_bulk_returns`` の辞書合成を各クラスで繰り返さない。
-
-        Args:
-            **kwargs: ``object.__init_subclass__`` へ渡すキーワード引数。
-
-        Returns:
-            None: 値を返さない。
-        """
-        super().__init_subclass__(**kwargs)
-        entries = cls.__dict__.get("_bulk_entries")
-        if entries is None:
-            return
-        base = super(cls, cls)
-        cls._bulk_methods = {**base._bulk_methods, **{name: entry[0] for name, entry in entries.items()}}
-        cls._bulk_returns = {**base._bulk_returns, **{name: entry[1] for name, entry in entries.items()}}
-
     def __iter__(self):
         """保持順に要素を反復する。
 
@@ -2459,519 +2345,6 @@ class Nodes:
         """
         return f"{type(self).__name__}({self._items!r})"
 
-    def getShadingEngines(self, *args, **kwargs):
-        """各要素のgetShadingEnginesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getShadingEngines", args, kwargs)
-
-    getShadingEngines.__signature__ = inspect.signature(Node.getShadingEngines)
-
-    def sameNode(self, *args, **kwargs):
-        """各要素のsameNodeを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("sameNode", args, kwargs)
-
-    sameNode.__signature__ = inspect.signature(Node.sameNode)
-
-    def isValid(self, *args, **kwargs):
-        """各要素のisValidを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isValid", args, kwargs)
-
-    isValid.__signature__ = inspect.signature(Node.isValid)
-
-    def isAlive(self, *args, **kwargs):
-        """各要素のisAliveを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isAlive", args, kwargs)
-
-    isAlive.__signature__ = inspect.signature(Node.isAlive)
-
-    def mnode(self, *args, **kwargs):
-        """各要素のmnodeを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("mnode", args, kwargs)
-
-    mnode.__signature__ = inspect.signature(Node.mnode)
-
-    def mfn(self, *args, **kwargs):
-        """各要素のmfnを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("mfn", args, kwargs)
-
-    mfn.__signature__ = inspect.signature(Node.mfn)
-
-    def getType(self, *args, **kwargs):
-        """各要素のgetTypeを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getType", args, kwargs)
-
-    getType.__signature__ = inspect.signature(Node.getType)
-
-    def getTypeId(self, *args, **kwargs):
-        """各要素のgetTypeIdを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getTypeId", args, kwargs)
-
-    getTypeId.__signature__ = inspect.signature(Node.getTypeId)
-
-    def getPluginName(self, *args, **kwargs):
-        """各要素のgetPluginNameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getPluginName", args, kwargs)
-
-    getPluginName.__signature__ = inspect.signature(Node.getPluginName)
-
-    def getClassification(self, *args, **kwargs):
-        """各要素のgetClassificationを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getClassification", args, kwargs)
-
-    getClassification.__signature__ = inspect.signature(Node.getClassification)
-
-    def isType(self, *args, **kwargs):
-        """各要素のisTypeを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isType", args, kwargs)
-
-    isType.__signature__ = inspect.signature(Node.isType)
-
-    def hasFn(self, *args, **kwargs):
-        """各要素のhasFnを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("hasFn", args, kwargs)
-
-    hasFn.__signature__ = inspect.signature(Node.hasFn)
-
-    def isLocked(self, *args, **kwargs):
-        """各要素のisLockedを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isLocked", args, kwargs)
-
-    isLocked.__signature__ = inspect.signature(Node.isLocked)
-
-    def setLocked(self, *args, **kwargs):
-        """各要素のsetLockedを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Nodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("setLocked", args, kwargs)
-
-    setLocked.__signature__ = inspect.signature(Node.setLocked)
-
-    def isFromReferencedFile(self, *args, **kwargs):
-        """各要素のisFromReferencedFileを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isFromReferencedFile", args, kwargs)
-
-    isFromReferencedFile.__signature__ = inspect.signature(Node.isFromReferencedFile)
-
-    def isAncestorOf(self, *args, **kwargs):
-        """各要素のisAncestorOfを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isAncestorOf", args, kwargs)
-
-    isAncestorOf.__signature__ = inspect.signature(Node.isAncestorOf)
-
-    def isParentOf(self, *args, **kwargs):
-        """各要素のisParentOfを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isParentOf", args, kwargs)
-
-    isParentOf.__signature__ = inspect.signature(Node.isParentOf)
-
-    def isRoot(self, *args, **kwargs):
-        """各要素のisRootを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("isRoot", args, kwargs)
-
-    isRoot.__signature__ = inspect.signature(Node.isRoot)
-
-    def getNodeName(self, *args, **kwargs):
-        """各要素のgetNodeNameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getNodeName", args, kwargs)
-
-    getNodeName.__signature__ = inspect.signature(Node.getNodeName)
-
-    def getNamespace(self, *args, **kwargs):
-        """各要素のgetNamespaceを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getNamespace", args, kwargs)
-
-    getNamespace.__signature__ = inspect.signature(Node.getNamespace)
-
-    def setNamespace(self, *args, **kwargs):
-        """各要素のsetNamespaceを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Nodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("setNamespace", args, kwargs)
-
-    setNamespace.__signature__ = inspect.signature(Node.setNamespace)
-
-    def rename(self, *args, **kwargs):
-        """各要素のrenameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("rename", args, kwargs)
-
-    rename.__signature__ = inspect.signature(Node.rename)
-
-    def getConnections(self, *args, **kwargs):
-        """各要素のgetConnectionsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getConnections", args, kwargs)
-
-    getConnections.__signature__ = inspect.signature(Node.getConnections)
-
-    def getHistory(self, *args, **kwargs):
-        """各要素のgetHistoryを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getHistory", args, kwargs)
-
-    getHistory.__signature__ = inspect.signature(Node.getHistory)
-
-    def resetAttrs(self, *args, **kwargs):
-        """各要素のresetAttrsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("resetAttrs", args, kwargs)
-
-    resetAttrs.__signature__ = inspect.signature(Node.resetAttrs)
-
-    def getPlugs(self, *args, **kwargs):
-        """各要素のgetPlugsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getPlugs", args, kwargs)
-
-    getPlugs.__signature__ = inspect.signature(Node.getPlugs)
-
-    def getAliases(self, *args, **kwargs):
-        """各要素のgetAliasesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getAliases", args, kwargs)
-
-    getAliases.__signature__ = inspect.signature(Node.getAliases)
-
-    def addAttr(self, *args, **kwargs):
-        """各要素のaddAttrを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("addAttr", args, kwargs)
-
-    addAttr.__signature__ = inspect.signature(Node.addAttr)
-
-    def getPlug(self, *args, **kwargs):
-        """各要素のgetPlugを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getPlug", args, kwargs)
-
-    getPlug.__signature__ = inspect.signature(Node.getPlug)
-
-    def hasAttr(self, *args, **kwargs):
-        """各要素のhasAttrを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("hasAttr", args, kwargs)
-
-    hasAttr.__signature__ = inspect.signature(Node.hasAttr)
-
-    def getUuid(self, *args, **kwargs):
-        """各要素のgetUuidを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getUuid", args, kwargs)
-
-    getUuid.__signature__ = inspect.signature(Node.getUuid)
-
-    def getName(self, *args, **kwargs):
-        """各要素のgetNameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getName", args, kwargs)
-
-    getName.__signature__ = inspect.signature(Node.getName)
-
-    def getFullName(self, *args, **kwargs):
-        """各要素のgetFullNameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getFullName", args, kwargs)
-
-    getFullName.__signature__ = inspect.signature(Node.getFullName)
-
-    def setAttrFlags(self, *args, **kwargs):
-        """各要素のsetAttrFlagsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Nodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("setAttrFlags", args, kwargs)
-
-    setAttrFlags.__signature__ = inspect.signature(Node.setAttrFlags)
-
-    def moveAttrOrder(self, *args, **kwargs):
-        """各要素のmoveAttrOrderを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Nodes | list: コレクション自身。
-        """
-        return self._dispatch_shared("moveAttrOrder", args, kwargs)
-
-    moveAttrOrder.__signature__ = inspect.signature(Node.moveAttrOrder)
-
-    def callEach(self, method, arguments, keywordArguments=None):
-        """各ノードの公開メソッドを、要素別の引数で保持順に呼ぶ。
-
-        呼出形式は全件、fastのbool型はfast引数を持つ呼出先について実行前に検査する。長短名の組合せ・省略値・その他の値は
-        単数メソッド内で順に検査し、後続が失敗しても先行変更は自動で戻さない。
-        通常・混在呼出しのUndo対象操作は一つのチャンクへまとめ、全件fastは記録しない。
-
-        Args:
-            method (str): setTranslate等の登録済み単数メソッド。create・特殊メソッドは不可。
-            arguments (Iterable[tuple]): 要素数と同数の位置引数tuple。
-            keywordArguments (Iterable[dict] | None): 要素別キーワード引数。省略時は空辞書。
-
-        Returns:
-            list | Nodes: 照会・結果を返す操作は保持順のリスト、更新は自身。入れ子のリストも保持する。
-
-        Raises:
-            TypeError: 呼出形式・fast型が不正、または単数メソッドで長短名の競合等を検出した場合。
-            ValueError: メソッド名または件数が不正な場合。
-            RuntimeError: 単数メソッドのその他の失敗。対象番号を含み、後続は実行しない。
-        """
-        functions, args, kwargs = self._prepare_calls(method, arguments, keywordArguments)
-        return self._execute_calls(method, functions, args, kwargs)
-
     def copy(self):
         """同じ参照を共有する、同じ具象型の独立した容器を返す。
 
@@ -2982,70 +2355,6 @@ class Nodes:
         result.__dict__.update(self.__dict__)
         result._items = list(self._items)
         return result
-
-    def getNames(self):
-        """保持順の現在のノード名。
-
-        Returns:
-            list[str]: 保持順の現在のノード名。
-        """
-        return [node.getName() for node in self]
-
-    def delete(self, *, safe=False, fast=False):
-        """全ノードを1回の削除にまとめて削除する。
-
-        通常は1回の ``cmds.delete``、fastは1つの MDagModifier の doIt 1回で削除する。
-        削除の順・連鎖して消えるノードはMayaがまとめて削除するときの規則に従い、
-        親子の両方・重複を含めてもよい(親と一緒に消えた子は重ねて削除しない)。
-        削除の前に全対象とDAG子孫を検査し、ロック・参照・削除できないノード(既定・共有ノード等)が
-        あれば何も削除せずRuntimeErrorにする(検査は :meth:`Node.delete` と同じ)。
-        専用のdeleteを上書きした派生クラスの要素を含む場合だけ、従来どおり各ノードのdeleteを
-        順に呼び、親削除で消えた後続対象はスキップする。
-
-        Args:
-            safe (bool): TrueならDG接続を持つ対象(自身またはDAG子孫)を残す。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            None: 空なら何もしない。Jointsも同じMaya標準削除を継承する。
-
-        Raises:
-            TypeError: safeがboolでない場合。
-            RuntimeError: 実行前に削除済みの参照がある(``invalid item <番号>``)、または
-                削除できない対象を含む(``failed at item <番号>: <理由>``。何も削除しない)。
-                全体は一回のUndoで戻せる。
-        """
-        with _edit_context("mlibNodesDelete", fast):
-            _require_bool(safe, "safe")
-            for index, node in enumerate(self):
-                if not node.isValid():
-                    raise RuntimeError(f"{type(self).__name__}.delete invalid item {index}")
-            from ..core.nodeEdit import check_deletion, delete_nodes
-            batch = all(type(node).delete is Node.delete for node in self)
-            if batch or fast:
-                indices = [index for index, node in enumerate(self)
-                           if not (safe and node._has_delete_connections())]
-                if batch and not indices:
-                    return
-                try:
-                    if batch:
-                        delete_nodes([self._items[index] for index in indices], fast=fast)
-                    else:
-                        # 専用deleteを持つ要素を含むfastは、従来どおり各deleteの前に全体を検査する。
-                        check_deletion([self._items[index] for index in indices], fast=True)
-                except RuntimeError as exc:
-                    if not hasattr(exc, "index"):
-                        raise
-                    raise RuntimeError(f"{type(self).__name__}.delete failed at item "
-                                       f"{indices[exc.index]}: {exc}") from exc
-                if batch:
-                    return
-            for index, node in enumerate(self):
-                if node.isValid():
-                    try:
-                        node.delete(safe=safe, fast=fast)
-                    except Exception as exc:
-                        raise RuntimeError(f"{type(self).__name__}.delete failed at item {index}: {exc}") from exc
 
     @staticmethod
     def _resolve_inputs(values):
@@ -3091,179 +2400,3 @@ class Nodes:
         """
         if any(isinstance(value, str) for value in values) and any(isinstance(value, Node) for value in values):
             raise TypeError("Names and Node objects cannot be mixed in the same target collection")
-
-    @staticmethod
-    def _calculation_results(method, functions, args, kwargs, bindings=None):
-        """get指定で計算値を返すsetterについて結果列が必要か判定する。
-
-        Args:
-            method (str): 一括実行するメソッド名。
-            functions (Sequence[callable]): 実際の呼出し先。
-            args (Sequence[tuple]): 要素別の位置引数。
-            kwargs (Sequence[dict]): 要素別のキーワード引数。
-            bindings (Sequence[inspect.BoundArguments | None] | None): 同じ呼出し内で
-                束縛済みの引数。Noneの要素と省略時はここで束縛する。
-
-        Returns:
-            bool: 少なくとも一つの対象がget指定で計算値を返す場合True。
-        """
-        if method not in Nodes._calculating_setters:
-            return False
-        if bindings is None:
-            bindings = [None] * len(functions)
-        return any((bound if bound is not None else inspect.signature(fn).bind(*row, **flags))
-                   .arguments.get("get", False)
-                   for fn, row, flags, bound in zip(functions, args, kwargs, bindings))
-
-    def _execute_calls(self, method, functions, args, kwargs):
-        """検証済み呼出しを実行し、更新操作では不要な結果配列を作らない。
-
-        Args:
-            method: 一括実行するメソッド名。
-            functions: 要素ごとに解決済みの呼出し先関数。
-            args: 処理先へ渡す位置引数の列。
-            kwargs: 処理先へ渡すキーワード引数の辞書。
-        """
-        fast_values = []
-        bindings = []
-        # signatureは同じ実メソッドで、束縛結果は同じ引数オブジェクトの組でこの呼出し内だけ共有する。
-        # 一括の共有呼出しでは全要素が同じ位置引数tuple・同じキーワード辞書を受け取るため、
-        # 要素ごとのinspect.signature/bindを省ける。呼出し後はどちらも保持しない。
-        signatures = {}
-        bound_cache = {}
-        for function, row, flags in zip(functions, args, kwargs):
-            signature = self._signature(function, signatures)
-            parameter = signature.parameters.get("fast")
-            if parameter is None:
-                fast_values.append(False)
-                bindings.append(None)
-                continue
-            key = (function.__func__ if inspect.ismethod(function) else None, id(row), id(flags))
-            bound = bound_cache.get(key) if key[0] is not None else None
-            if bound is None:
-                bound = signature.bind(*row, **flags)
-                if key[0] is not None:
-                    bound_cache[key] = bound
-            requested = bound.arguments.get("fast", parameter.default)
-            _require_bool(requested, "fast")
-            fast_values.append(requested)
-            bindings.append(bound)
-        all_fast = bool(fast_values) and all(fast_values)
-        # 全件fastの直接更新ではチャンクを作らず、通常・混在・空列は既存のUndo方針に従う。
-        if self._bulk_undo and not all_fast:
-            context = undoChunk("mlibBulk_" + method)
-        else:
-            context = contextlib.nullcontext()
-        calculating = self._calculation_results(method, functions, args, kwargs, bindings)
-        result = [] if calculating or self._bulk_returns[method] != "self" else None
-        with context:
-            for index, (function, row, flags) in enumerate(zip(functions, args, kwargs)):
-                try:
-                    value = function(*row, **flags)
-                    if result is not None:
-                        result.append(value)
-                except _ArgumentError as exc:
-                    raise _ArgumentError(f"{type(self).__name__}.{method} failed at item {index}: {exc}") from exc
-                except Exception as exc:
-                    raise RuntimeError(f"{type(self).__name__}.{method} failed at item {index}: {exc}") from exc
-        return self if result is None else result
-
-    def _dispatch_shared(self, method, args, kwargs):
-        """単体APIの転送先を決める。独自callEachのoverrideを維持する。
-
-        Args:
-            method: 一括実行するメソッド名。
-            args: 処理先へ渡す位置引数の列。
-            kwargs: 処理先へ渡すキーワード引数の辞書。
-        """
-        if type(self).callEach is not Nodes.callEach:
-            return self.callEach(method, [args] * len(self), [kwargs] * len(self))
-        return self._call_shared(method, args, kwargs)
-
-    def _call_shared(self, method, args, kwargs):
-        """同じ引数の呼出形式を関数ごとに検証し、保持順に実行する。
-
-        共有はこの呼出し内だけに限定する。派生overrideと個体callableは別に検証し、
-        クラス差替え・reload後の古いメソッドを保持しない。fast型を除く値の検証は各単数本文で行う。
-
-        Args:
-            method: 登録済みの単数メソッド名。
-            args: 全要素に渡す位置引数。
-            kwargs: 全要素に渡すキーワード引数。
-        """
-        functions = [self._call_target(item, method) for item in self._items]
-        shared = {}
-        signatures = {}
-        keywords = []
-        for function in functions:
-            key = function.__func__ if inspect.ismethod(function) else None
-            if key is not None and key in shared:
-                flags = shared[key]
-            else:
-                flags = dict(kwargs)
-                self._signature(function, signatures).bind(*args, **flags)
-                if key is not None:
-                    shared[key] = flags
-            keywords.append(flags)
-        return self._execute_calls(method, functions, [args] * len(functions), keywords)
-
-    def _prepare_calls(self, method, arguments, keyword_arguments):
-        """全要素の呼出形式を実行前に解決・検証する。
-
-        Args:
-            method (str): 登録済みの単体メソッド名。
-            arguments (Iterable[tuple]): 要素別の位置引数。
-            keyword_arguments (Iterable[dict] | None): 要素別のキーワード引数。
-
-        Returns:
-            tuple: 呼出先・位置引数・キーワード引数の各リスト。
-
-        Raises:
-            TypeError: 引数が各呼出先のシグネチャと一致しない場合。
-            ValueError: メソッド名または件数が不正な場合。
-        """
-        if method not in self._bulk_methods:
-            raise ValueError(f"Unsupported instance method: {method}")
-        args = [tuple(row) for row in arguments]
-        kwargs = [{} for _ in self._items] if keyword_arguments is None else [dict(row) for row in keyword_arguments]
-        if len(args) != len(self) or len(kwargs) != len(self):
-            raise ValueError("Argument count must match collection length")
-        functions = [self._call_target(item, method) for item in self._items]
-        kwargs = [dict(flags) for flags in kwargs]
-        # この呼出内だけ共有し、reloadやクラスの差替え後に古いsignatureを保持しない。
-        signatures = {}
-        # 長短の組合せ・省略判定・値の妥当性は、各メソッド本文が保持順で検査する。
-        for function, row, flags in zip(functions, args, kwargs):
-            self._signature(function, signatures).bind(*row, **flags)
-        return functions, args, kwargs
-
-    @staticmethod
-    def _call_target(item, method):
-        """保持中の単数参照から、現在の公開メソッドを解決する。
-
-        Args:
-            item (Node): 呼出し先の単数参照。
-            method (str): 管理表に登録した公開メソッド名。
-
-        Returns:
-            callable: 派生override・個体差替えを反映した実際の呼出し先。
-        """
-        return getattr(item, method)
-
-    @staticmethod
-    def _signature(function, signatures):
-        """一回の検証内で実メソッドのsignatureだけを共有する。
-
-        Args:
-            function (callable): 実際に呼び出すメソッドまたは個体callable。
-            signatures (dict): 呼出し内だけで使うキャッシュ。
-
-        Returns:
-            inspect.Signature: 束縛済み引数に対応するsignature。
-        """
-        if not inspect.ismethod(function):
-            return inspect.signature(function)
-        key = function.__func__
-        if key not in signatures:
-            signatures[key] = inspect.signature(function)
-        return signatures[key]

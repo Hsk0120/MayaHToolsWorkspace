@@ -1,6 +1,5 @@
 """Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)と同一シェイプの要素群。"""
 
-import math
 import operator
 
 import maya.api.OpenMaya as om2
@@ -208,22 +207,9 @@ class Component(Object):
 
         Args:
             axis: 座標成分の番号。0=X、1=Y、2=Z。
-            **space: 座標空間の指定。ws=Trueでワールド空間。
+            **space: 座標空間の指定。worldSpace=Trueでワールド空間。
         """
         return self.getPosition(**space)[axis]
-
-    def _set_coordinate(self, axis, value, *, fast=False, **space):
-        """指定軸だけを置換し、派生クラスの座標更新へ委譲する。
-
-        Args:
-            axis: 座標成分の番号。0=X、1=Y、2=Z。
-            value: 指定軸へ設定する座標値。
-            fast (bool): 座標更新へ渡す直接編集の指定。
-            **space: 座標空間の指定。ws=Trueでワールド空間。
-        """
-        position = list(self.getPosition(**space))
-        position[axis] = value
-        return self.setPosition(position, fast=fast, **space)
 
     def _require_valid(self):
         """現在のシェイプ型と番号を再検査する。
@@ -280,30 +266,7 @@ class Component(Object):
         if not 0 <= index < count:
             raise IndexError(f"Component index out of range: {index}")
 
-    @staticmethod
-    def _finite_coordinates(value, size):
-        """有限な座標列に変換する。
 
-        Args:
-            value (Iterable[float]): 入力座標。
-            size (int): 必要な成分数。
-
-        Returns:
-            tuple[float, ...]: 検証済み座標。
-
-        Raises:
-            ValueError: 成分数や数値が不正な場合。
-        """
-        try:
-            result = tuple(float(item) for item in value)
-        except (TypeError, ValueError) as error:
-            raise ValueError("Invalid coordinates") from error
-        if len(result) != size or not all(math.isfinite(item) for item in result):
-            raise ValueError(f"Expected {size} finite coordinates")
-        return result
-
-
-# 利用側が標準単数処理を置換した場合は、その処理を一括経路から省略しない。
 _COMPONENT_INIT = Component.__init__
 _COMPONENT_REQUIRE_VALID = Component._require_valid
 _COMPONENT_INDEX = Component.index
@@ -623,68 +586,14 @@ class Components:
             return f"{prefix}[{start}]"
         return f"{prefix}[{start}:{end}]"
 
-    def _coordinate_rows(self, values, size):
-        """要素別座標を全件検証する。個数・座標不正はValueError。
-
-        Args:
-            values (Iterable[Iterable[float]]): 保持順の座標列。
-            size (int): 1座標の成分数。
-
-        Returns:
-            list[tuple[float, ...]]: 検証済みの座標列。
-
-        Raises:
-            ValueError: 座標が不正、または values の件数が保持している要素数と一致しない場合。
-        """
-        rows = [Component._finite_coordinates(value, size) for value in values]
-        if len(rows) != len(self):
-            raise ValueError("Coordinate count must match component count")
-        return rows
-
     def _get_coordinate(self, axis, **space):
         """保持順の指定軸の値を返す。axisは派生クラスが選択する。
 
         Args:
             axis: 座標成分の番号。0=X、1=Y、2=Z。
-            **space: 座標空間の指定。ws=Trueでワールド空間。
+            **space: 座標空間の指定。worldSpace=Trueでワールド空間。
         """
         return [point[axis] for point in self.getPosition(**space)]
-
-    def _set_coordinate(self, axis, value, *, fast=False, **space):
-        """全要素の指定軸を置換し、座標列の検証・更新へ委譲する。
-
-        Args:
-            axis: 座標成分の番号。0=X、1=Y、2=Z。
-            value: 指定軸へ設定する座標値。
-            fast (bool): 座標更新へ渡す直接編集の指定。
-            **space: 座標空間の指定。ws=Trueでワールド空間。
-        """
-        return self.setPositions(self._axis_rows(self.getPosition(**space), axis, value), fast=fast, **space)
-
-    def _axis_rows(self, positions, axis, value):
-        """軸の一括設定用座標を作る。スカラーは全要素、列は保持順に対応する。
-
-        Args:
-            positions (Iterable[Iterable[float]]): 現在座標。
-            axis (int): 成分番号。
-            value (float | Iterable[float]): 軸の値。
-
-        Returns:
-            list[list[float]]: 更新後の座標列。シーンは変更しない。
-
-        Raises:
-            ValueError: value を反復した要素数が保持している要素数と一致しない場合。
-        """
-        try:
-            values = list(value)
-        except TypeError:
-            values = [value] * len(self)
-        if len(values) != len(self):
-            raise ValueError("Axis value count must match component count")
-        rows = [list(position) for position in positions]
-        for row, item in zip(rows, values):
-            row[axis] = item
-        return rows
 
 
 _COMPONENTS_INIT = Components.__init__

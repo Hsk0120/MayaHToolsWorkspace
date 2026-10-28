@@ -49,11 +49,11 @@ class DisconnectReferenceTest(unittest.TestCase):
                     center.disconnect()
 
     def test_removed_directions_and_duplicate_aliases_fail_before_editing(self):
-        """bool src・dst/destination・入力別名重複を変更前に拒否する。"""
+        """bool source・dst/destination・廃止した短縮名srcを変更前に拒否する。"""
         source, center, destinations = self._chain("invalid")
         for flags in ({"src": True}, {"src": False}, {"source": True},
                       {"dst": True}, {"dst": False}, {"destination": True},
-                      {"src": source, "source": source}):
+                      {"src": source}):
             with self.subTest(flags=flags):
                 with self.assertRaises(TypeError):
                     center.disconnect(**flags)
@@ -69,7 +69,7 @@ class DisconnectReferenceTest(unittest.TestCase):
         for src, dst in ((True, False), (False, True), (True, True), (False, False)):
             source, center, destinations = self._chain("directions" + str(src) + str(dst))
             cmds.flushUndo()
-            self.assertIs(center.disconnectAll(src=src, dst=dst), center)
+            self.assertIs(center.disconnectAll(source=src, destination=dst), center)
             self.assertEqual(center.getSource(), None if src else source)
             self.assertCountEqual(center.getDestinations(), [] if dst else destinations)
             if src or dst:

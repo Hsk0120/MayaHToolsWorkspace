@@ -148,9 +148,6 @@ class BatchDeleteTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, pattern):
                     mlib.delete(names, fast=fast)
                 self.assertEqual([cmds.objExists(name) for name in names], [True] * 3)
-                with self.assertRaisesRegex(RuntimeError, "Nodes.delete failed at item 2: " + pattern):
-                    mlib.nodes.Nodes(names).delete(fast=fast)
-                self.assertEqual([cmds.objExists(name) for name in names], [True] * 3)
                 cmds.lockNode(names[2], lock=False)
                 parent = self._make("lp")[0]
                 child = cmds.createNode("transform", name=self.ns + ":lc", parent=parent)
@@ -259,16 +256,6 @@ class BatchDeleteTest(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     mlib.delete(names + [self.ns + ":missing"], fast=fast)
                 self.assertTrue(cmds.objExists(names[0]))
-
-    def test_safe_nodes_delete_keeps_connected(self):
-        """Nodes.delete(safe=True) は接続を持つ対象だけ残し、残りを1回で削除する。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                a, b, c = self._make("sa", "sb", "sc")
-                cmds.connectAttr(a + ".tx", b + ".tx")
-                mlib.nodes.Nodes([a, b, c]).delete(safe=True, fast=fast)
-                self.assertEqual([cmds.objExists(name) for name in (a, b, c)], [True, True, False])
-                mlib.delete([a, b], fast=fast)
 
 
 class HistoryInvalidNodeTest(unittest.TestCase):

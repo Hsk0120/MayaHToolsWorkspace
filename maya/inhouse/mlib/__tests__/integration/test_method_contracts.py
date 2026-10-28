@@ -73,7 +73,7 @@ class MethodContractTest(unittest.TestCase):
         self.assertEqual(cmds.ls(selection=True), [str(self.node)])
 
     def test_removed_names_and_bulk_api(self):
-        """リロード後も互換入口を公開せず、複数形も新しい入口を使う。"""
+        """リロード後も互換入口を公開せず、複数形も一括転送を持たない。"""
         from mlib.nodes.node import Node
         from mlib.nodes.transform import Transform
         from mlib.nodes.skinCluster import SkinCluster, SkinClusters
@@ -86,9 +86,9 @@ class MethodContractTest(unittest.TestCase):
                            (MatrixPlug, ('set_value',))):
             for name in names:
                 self.assertFalse(hasattr(cls, name), (cls, name))
-        self.assertIn('setVisibility', Joints._bulk_methods)
-        self.assertIn('hide', Joints._bulk_methods)
-
+        # 3.0.0 で複数形の一括転送は廃止した。
+        self.assertFalse(hasattr(Joints, 'setVisibility'))
+        self.assertFalse(hasattr(Joints, 'hide'))
 
     def test_joint_channels_round_trip_in_both_backends_and_units(self):
         """jointOrient・親スケールを持つJointもアトリビュート値の往復で姿勢を変えない。"""
@@ -106,12 +106,12 @@ class MethodContractTest(unittest.TestCase):
                     joint.getPlug('rotate').set((17, 23, 31), unit='deg')
                     joint.getPlug('scale').set((1.2, 1.3, 1.4))
                     for fast in (False, True):
-                        before = joint.getMatrix(ws=True)
+                        before = joint.getMatrix(worldSpace=True)
                         rotation = joint.getPlug('rotate').get()
                         scale = joint.getPlug('scale').get()
                         joint.getPlug('rotate').set(rotation, fast=fast)
                         joint.getPlug('scale').set(scale, fast=fast)
-                        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(before, 1e-9))
+                        self.assertTrue(joint.getMatrix(worldSpace=True).isEquivalent(before, 1e-9))
                         self.assertTrue(joint.getPlug('rotate').get().isEquivalent(rotation, 1e-9))
         finally:
             cmds.currentUnit(angle=old_unit)

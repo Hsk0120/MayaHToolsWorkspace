@@ -314,7 +314,7 @@ class SplineRig:
         if self.lod() != 1 or not self.layer_enabled():
             raise ValueError("Enable Spline and Full LOD before matching")
         joints = self.getMembers("deform")
-        matrices = [Matrix(n.getMatrix(ws=True)) for n in joints]
+        matrices = [Matrix(n.getMatrix(worldSpace=True)) for n in joints]
         points = [[m[12], m[13], m[14]] for m in matrices]
         controls = self.controls()
         cvs = CurveFit.fit(points, len(controls))
@@ -335,7 +335,7 @@ class SplineRig:
                     ]
                 ][0]
             )
-            parent_inverse = Matrix(parent.getMatrix(ws=True)).inverse()
+            parent_inverse = Matrix(parent.getMatrix(worldSpace=True)).inverse()
             local = parent_inverse.transformPoint(point)
             for a, value in zip("XYZ", (local.x, local.y, local.z)):
                 control.getPlug("translate" + a).set(value)
@@ -351,7 +351,7 @@ class SplineRig:
             self.set_mode("ik")
             errors = []
             for target, joint in zip(points, joints):
-                matrix = joint.getMatrix(ws=True)
+                matrix = joint.getMatrix(worldSpace=True)
                 errors.append(math.sqrt(sum((target[i] - matrix[12 + i]) ** 2 for i in range(3))))
             error = mlib.common.units.distanceToUi(max(errors))
         finally:

@@ -39,7 +39,7 @@ def _set_world_matrix(node, matrix):
         xform(worldSpace=True)のRedo時の親空間再変換を避けるため、
         計算済みTRSを標準setAttrで保存する。ピボット編集は対象外。
     """
-    mlib.getNode(node).setMatrix(matrix, ws=True)
+    mlib.getNode(node).setMatrix(matrix, worldSpace=True)
 
 
 class LimbRig:
@@ -560,7 +560,7 @@ class LimbRig:
     @undoChunk("mlrig.LimbRig.match_fk")
     def match_fk(self):
         """現在の変形姿勢をFKへ合わせる。モード切替やキー設定は行わない。"""
-        matrices = [mlib.getNode(j).getMatrix(ws=True) for j in self.getJoints()[:3]]
+        matrices = [mlib.getNode(j).getMatrix(worldSpace=True) for j in self.getJoints()[:3]]
         for index, matrix in enumerate(matrices):
             _set_world_matrix(self._member("fk" + str(index)), matrix)
 
@@ -579,14 +579,14 @@ class LimbRig:
             ):
                 raise ValueError("Reset reverse-foot rolls before matching IK")
         joints = self.getJoints()[:3]
-        a, b, c = [Vector(mlib.getNode(j).getTranslate(ws=True, at=4)) for j in joints]
+        a, b, c = [Vector(mlib.getNode(j).getTranslate(worldSpace=True, at=4)) for j in joints]
         axis = c - a
         if axis.length() < 1e-8:
             raise ValueError("Cannot match IK when the endpoint coincides with the root")
         projection = a + axis * (((b - a) * axis) / (axis * axis))
         offset = b - projection
         if offset.length() < 1e-8:
-            offset = Vector(mlib.getNode(self._member("pole")).getTranslate(ws=True, at=4)) - b
+            offset = Vector(mlib.getNode(self._member("pole")).getTranslate(worldSpace=True, at=4)) - b
             offset -= axis * ((offset * axis) / (axis * axis))
         if offset.length() < 1e-8:
             raise ValueError("Choose a pole direction before matching a straight chain")
@@ -614,7 +614,7 @@ class LimbRig:
         pole = self._member("pole")
         local_position = Vector(local_end).normal() * desired
         world_position = inverse.inverse().transformPoint(local_position)
-        matrix = list(mlib.getNode(joints[-1]).getMatrix(ws=True))
+        matrix = list(mlib.getNode(joints[-1]).getMatrix(worldSpace=True))
         matrix[12:15] = tuple(world_position)[:3]
         _set_world_matrix(target, matrix)
         # PoleがFoot空間の場合はIK目標の移動後の親空間へ変換する。

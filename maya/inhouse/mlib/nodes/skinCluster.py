@@ -2,7 +2,6 @@
 
 """
 
-import inspect
 import json
 import math
 from decimal import Decimal, localcontext, ROUND_FLOOR
@@ -10,17 +9,15 @@ from decimal import Decimal, localcontext, ROUND_FLOOR
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
-from maya.api.OpenMaya import MSpace
 
 from ..core.fastWrite import require_range, require_writable, set_attr
 from ..core.object import Object
-from ..decorator import _edit_context, _pick_alias, _require_bool, preservedSelection, undoChunk
+from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
 from ..util import _world_space
-from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .joint import Joint
-from .node import Node, Nodes, _PerItemOnly
+from .node import Node, Nodes
 
 
 class SkinCluster(Node):
@@ -192,15 +189,14 @@ class SkinCluster(Node):
 
         return DagPose.fromSkinCluster(self)
 
-    def restoreBindPose(self, worldSpace=_UNSET, *, ws=_UNSET):
+    def restoreBindPose(self, worldSpace=True):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 
         ポーズを共有する別のskinClusterや、influence以外のメンバーにも影響する。
         ロックや入力接続は解除しない。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            ws (bool): worldSpaceの別名。同時指定は不可。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
             SkinCluster: 自身。
@@ -208,35 +204,13 @@ class SkinCluster(Node):
         Raises:
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=True)
         with undoChunk("mlibSkinClusterRestoreBindPose"):
             ws = _world_space(worldSpace)
             pose = self.getBindPose()
             if pose is None:
                 raise RuntimeError(f"No bind pose connected to {self.getFullName()}")
-            pose.restore(ws=ws)
+            pose.restore(worldSpace=ws)
             return self
-
-    @undoChunk("mlibSkinClusterResetBindPose")
-    def resetBindPose(self):
-        """このskinClusterのinfluenceの保存姿勢を現在の姿勢へ更新する。
-
-        接続されたポーズ内のinfluenceだけを更新する。共有ポーズを参照する他の
-        skinClusterからも更新が見える。bindPreMatrixやウェイトは変更しない。
-        ポーズに存在しないinfluenceは自動追加せず、更新前に例外を出す。
-
-        Returns:
-            SkinCluster: 自身。
-
-        Raises:
-            ValueError: influenceが空、またはポーズに含まれていない場合。
-            RuntimeError: ポーズが未接続、ノードが無効、またはMayaが更新を拒否した場合。
-        """
-        pose = self.getBindPose()
-        if pose is None:
-            raise RuntimeError(f"No bind pose connected to {self.getFullName()}")
-        pose.reset(self.getInfluences())
-        return self
 
     def getUnusedInfluences(self):
         """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
@@ -255,43 +229,35 @@ class SkinCluster(Node):
                 result.append(Node._wrap_dag_path(path))
         return result
 
-    def removeUnusedInfluences(self, *, force=_UNSET, fast=False, f=_UNSET):
+    def removeUnusedInfluences(self, *, force=False):
         """未使用influenceの登録を外し、ノード自体は残す。
 
-        force時は不正ウェイトを修復してから未使用を検索する。fastでは、その後で
-        解除対象の構造を全件検査してから登録を外す。先行した修復・解除は自動で戻さない。
+        force時は不正ウェイトを修復してから未使用を検索する。Undo有効時は一つのチャンクへ記録する。
+        fast引数は持たない。先行した修復・解除は自動で戻さない。
 
         Args:
             force (bool): 修復後に未使用を調べる。正規化やロック解除は行わない。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             list[Node]: influence順の、登録を外したノード参照。対象がなければ空リスト。
 
         Raises:
-            TypeError: force/fastがbool以外、またはforce/fを同時指定した場合。
+            TypeError: forceがbool以外の場合。
             ValueError: 解除すると登録が空になる場合。
             RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
-            NotImplementedError: fastで単一geometry条件を満たさない場合。
         """
-        force = _pick_alias(force, f, "force", "f", default=False)
-        with _edit_context("mlibSkinClusterRemoveUnusedInfluences", fast):
+        with undoChunk("mlibSkinClusterRemoveUnusedInfluences"):
             _require_bool(force, "force")
             if force:
                 _, used = self._weight_cleanup_plan()
                 if not used:
                     raise ValueError("Cannot remove every influence from a skinCluster")
-                self.removeInvalidWeights(fast=fast)
+                self.removeInvalidWeights()
             unused = self.getUnusedInfluences()
             if unused and len(unused) == len(self.getInfluences()):
                 raise ValueError("Cannot remove every influence from a skinCluster")
-            if fast:
-                from ..core.skinEdit import validate_removals
-                for node in unused:
-                    validate_removals(self, [(node, None)])
             for node in unused:
-                self.removeInfluence(node.getFullName(), transferToParent=False, fast=fast)
+                self.removeInfluence(node.getFullName(), transferToParent=False)
             return unused
 
     def removeInvalidWeights(self, *, fast=False):
@@ -576,53 +542,39 @@ class SkinCluster(Node):
                     for source_joint, target_joint in pairs:
                         self._transfer_pair(source_joint, target_joint)
 
-    def removeInfluence(self, joint, transferToParent=True, *, force=_UNSET, fast=False, f=_UNSET):
+    def removeInfluence(self, joint, transferToParent=True, *, force=False):
         """祖先influenceへ加算してから登録を外す。ノード自体は削除しない。
 
         移送先は同じskinClusterの最も近い祖先influence。生ウェイトを加算してsourceを0にし、登録を外す。
-        移送しない場合は通常cmds、fastはOM2で再配分する。最後の登録は外せない。
-        fastの再配分はcmdsの規則(:mod:`mlib.core.skinEdit` に記載)を再現し、同じ生ウェイトになる。
+        登録の解除と残りの再配分は ``cmds.skinCluster(edit=True, removeInfluence=...)`` に任せる。
+        最後の登録は外せない。Undo有効時は一つのチャンクへ記録する。fast引数は持たない。
         修復・移送・解除は順次行い、後続失敗で完了済み変更は戻さない。
 
         Args:
             joint (Joint | str): 解除対象のinfluence。
             transferToParent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
             force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            TypeError: transferToParent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceの場合。
             RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
-            NotImplementedError: fastでgeometryが1個のmeshでない、負値・非有限値のウェイトがある、
-                または再配分を再現できない場合(残りの合計が0になる頂点があり、ロックがなく
-                bindMethodがClosest distance以外、配分先がjoint以外かロック済みだけ等)。
-                修復・移送より前に送出し、何も変更しない。
         """
-        force = _pick_alias(force, f, "force", "f", default=False)
-        with _edit_context("mlibSkinClusterRemoveInfluence", fast):
+        with undoChunk("mlibSkinClusterRemoveInfluence"):
             source, target = self._influence_removal_target(joint, transferToParent, force=force)
-            if fast:
-                from ..core.skinEdit import validate_removals
-                validate_removals(self, [(source, target)], force=force)
             if force:
-                self.removeInvalidWeights(fast=fast)
+                self.removeInvalidWeights()
             if target is not None:
                 # skinPercentの移送は正規化設定に依存するため、保存値を明示的に加算する。
                 weights = list(self.getWeights([source.getFullName(), target]))
                 summed = []
                 for i in range(0, len(weights), 2):
                     summed.extend((0.0, weights[i] + weights[i + 1]))
-                self.setWeights([source.getFullName(), target], summed, fast=fast)
-            if fast:
-                from ..core.skinEdit import remove_influence
-                remove_influence(self, source)
-            else:
-                cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
+                self.setWeights([source.getFullName(), target], summed)
+            cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
 
     def normalizeWeights(self, decimals=None, *, fast=False):
         """先頭Meshの各頂点について、全登録influenceのウェイトを合計1へ正規化する。
@@ -1216,355 +1168,6 @@ class SkinCluster(Node):
 
 
 class SkinClusters(Nodes):
-    """重複を除き、保持順にSkinClusterを操作するコレクション。"""
+    """重複を除き、保持順にSkinClusterを保持するコレクション。"""
 
     item_class = SkinCluster
-
-    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
-    _bulk_entries = {
-        "deforms": (SkinCluster.deforms, "list"),
-        "getInfluences": (SkinCluster.getInfluences, "list"),
-        "getBindPose": (SkinCluster.getBindPose, "list"),
-        "getUnusedInfluences": (SkinCluster.getUnusedInfluences, "list"),
-        "removeUnusedInfluences": (SkinCluster.removeUnusedInfluences, "list"),
-        "hasInfluence": (SkinCluster.hasInfluence, "list"),
-        "getWeights": (SkinCluster.getWeights, "list"),
-        "dumpWeights": (SkinCluster.dumpWeights, "list"),
-        "getMaxInfluences": (SkinCluster.getMaxInfluences, "list"),
-        "redistributeWeights": (SkinCluster.redistributeWeights, "self"),
-        "copyWeightsTo": (SkinCluster.copyWeightsTo, "self"),
-        "addInfluences": (SkinCluster.addInfluences, "self"),
-        "restoreBindPose": (SkinCluster.restoreBindPose, "self"),
-        "resetBindPose": (SkinCluster.resetBindPose, "self"),
-        "setWeights": (SkinCluster.setWeights, "self"),
-        "loadWeights": (SkinCluster.loadWeights, "self"),
-        "transferWeights": (SkinCluster.transferWeights, "self"),
-        "removeInfluence": (SkinCluster.removeInfluence, "self"),
-        "removeInvalidWeights": (SkinCluster.removeInvalidWeights, "self"),
-        "normalizeWeights": (SkinCluster.normalizeWeights, "self"),
-        "setMaxInfluences": (SkinCluster.setMaxInfluences, "self"),
-    }
-    _bulk_per_item_only = frozenset(("dumpWeights", "loadWeights"))
-    dumpWeights = _PerItemOnly("dumpWeights")
-    loadWeights = _PerItemOnly("loadWeights")
-
-    def deforms(self, *args, **kwargs):
-        """各要素のdeformsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("deforms", args, kwargs)
-
-    deforms.__signature__ = inspect.signature(SkinCluster.deforms)
-
-    def getInfluences(self, *args, **kwargs):
-        """各要素のgetInfluencesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getInfluences", args, kwargs)
-
-    getInfluences.__signature__ = inspect.signature(SkinCluster.getInfluences)
-
-    def getBindPose(self, *args, **kwargs):
-        """各要素のgetBindPoseを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getBindPose", args, kwargs)
-
-    getBindPose.__signature__ = inspect.signature(SkinCluster.getBindPose)
-
-    def getUnusedInfluences(self, *args, **kwargs):
-        """各要素のgetUnusedInfluencesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getUnusedInfluences", args, kwargs)
-
-    getUnusedInfluences.__signature__ = inspect.signature(SkinCluster.getUnusedInfluences)
-
-    def removeUnusedInfluences(self, *args, **kwargs):
-        """各要素のremoveUnusedInfluencesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("removeUnusedInfluences", args, kwargs)
-
-    removeUnusedInfluences.__signature__ = inspect.signature(SkinCluster.removeUnusedInfluences)
-
-    def hasInfluence(self, *args, **kwargs):
-        """各要素のhasInfluenceを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("hasInfluence", args, kwargs)
-
-    hasInfluence.__signature__ = inspect.signature(SkinCluster.hasInfluence)
-
-    def getWeights(self, *args, **kwargs):
-        """各要素のgetWeightsを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getWeights", args, kwargs)
-
-    getWeights.__signature__ = inspect.signature(SkinCluster.getWeights)
-
-    def setWeights(self, *args, **kwargs):
-        """各要素のsetWeightsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("setWeights", args, kwargs)
-
-    setWeights.__signature__ = inspect.signature(SkinCluster.setWeights)
-
-    def getMaxInfluences(self, *args, **kwargs):
-        """各要素のgetMaxInfluencesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getMaxInfluences", args, kwargs)
-
-    getMaxInfluences.__signature__ = inspect.signature(SkinCluster.getMaxInfluences)
-
-    def setMaxInfluences(self, *args, **kwargs):
-        """各要素のsetMaxInfluencesを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("setMaxInfluences", args, kwargs)
-
-    setMaxInfluences.__signature__ = inspect.signature(SkinCluster.setMaxInfluences)
-
-    def redistributeWeights(self, *args, **kwargs):
-        """各要素のredistributeWeightsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("redistributeWeights", args, kwargs)
-
-    redistributeWeights.__signature__ = inspect.signature(SkinCluster.redistributeWeights)
-
-    def copyWeightsTo(self, *args, **kwargs):
-        """各要素のcopyWeightsToを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("copyWeightsTo", args, kwargs)
-
-    copyWeightsTo.__signature__ = inspect.signature(SkinCluster.copyWeightsTo)
-
-    def addInfluences(self, *args, **kwargs):
-        """各要素のaddInfluencesを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("addInfluences", args, kwargs)
-
-    addInfluences.__signature__ = inspect.signature(SkinCluster.addInfluences)
-
-    def removeInfluences(self, joints, transferToParent=True, *, force=_UNSET, fast=False, f=_UNSET):
-        """保持するskinClusterだけから、指定jointのinfluence登録を外す。
-
-        jointノードと親子関係は残す。未登録の組は省き、全登録の解除は変更前に拒否する。
-        全組を事前確認し、skinClusterの保持順、各skin内は深いjoint順に処理する。
-        通常処理はUndo有効時に一つのチャンクへ記録する。fastは各組を単数の
-        :meth:`SkinCluster.removeInfluence` へ ``fast=True`` で渡し、Undoに記録しない。
-        先行変更は自動で戻さない。
-
-        Args:
-            joints (Joint | str | Iterable[Joint | str]): 登録を解除するjoint。
-            transferToParent (bool): Trueは最も近い祖先influenceへ加算し、なければ標準再配分。Falseも標準再配分。
-            force (bool): 不正ウェイトを修復してから登録解除する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            f (bool): forceの別名。同時指定は不可。
-
-        Returns:
-            SkinClusters: 自身。
-
-        Raises:
-            TypeError: transferToParent/force/fastがbool以外、またはforce/fを同時指定した場合。
-            ValueError: 最後のinfluenceまで解除しようとした場合。
-            RuntimeError: 無効joint、レイヤー・ロック、またはMayaの編集失敗。
-            NotImplementedError: fastで、解除する組のskinClusterが単数
-                :meth:`SkinCluster.removeInfluence` のfastの未対応条件に当たる場合。
-                同じskinでの連続解除を順に試算する全組の事前確認で送出し、どのskinClusterも変更しない。
-        """
-        force = _pick_alias(force, f, "force", "f", default=False)
-        with _edit_context("mlibSkinClustersRemoveInfluences", fast):
-            from .joint import Joints
-
-            _require_bool(transferToParent, "transferToParent")
-            _require_bool(force, "force")
-            targets = Joints([joints] if isinstance(joints, (Node, str)) else joints)
-            if any(not joint.isValid() for joint in targets):
-                raise RuntimeError("Expected valid joints")
-            targets = targets.sortedByDepth()
-            plans = []
-            for skin in self:
-                names = [joint.getFullName() for joint in targets if skin.hasInfluence(joint.getFullName())]
-                if names and len(names) >= len(skin.getInfluences()):
-                    raise ValueError(f"Cannot remove all influences of {skin.getFullName()}")
-                steps = []
-                for name in names:
-                    steps.append(skin._influence_removal_target(name, transferToParent, force=force))
-                    plans.append((skin, name))
-                if fast and steps:
-                    # 単数fastの未対応(geometryが1個でない、再配分を再現できない等)を、
-                    # 同じskinでの連続解除を順に試算して、どのskinも変更する前に検出する。
-                    from ..core.skinEdit import validate_removals
-                    validate_removals(skin, steps, force=force)
-            for skin, name in plans:
-                skin.removeInfluence(name, transferToParent=transferToParent, force=force, fast=fast)
-            return self
-
-    def restoreBindPose(self, *args, **kwargs):
-        """各要素のrestoreBindPoseを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("restoreBindPose", args, kwargs)
-
-    restoreBindPose.__signature__ = inspect.signature(SkinCluster.restoreBindPose)
-
-    def resetBindPose(self, *args, **kwargs):
-        """各要素のresetBindPoseを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("resetBindPose", args, kwargs)
-
-    resetBindPose.__signature__ = inspect.signature(SkinCluster.resetBindPose)
-
-    def transferWeights(self, *args, **kwargs):
-        """各要素のtransferWeightsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("transferWeights", args, kwargs)
-
-    transferWeights.__signature__ = inspect.signature(SkinCluster.transferWeights)
-
-    def removeInfluence(self, *args, **kwargs):
-        """各要素のremoveInfluenceを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("removeInfluence", args, kwargs)
-
-    removeInfluence.__signature__ = inspect.signature(SkinCluster.removeInfluence)
-
-    def removeInvalidWeights(self, *args, **kwargs):
-        """各skinClusterの不正ウェイトを除去し、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。fastを指定できる。
-
-        Returns:
-            SkinClusters: 自身。
-        """
-        return self._dispatch_shared("removeInvalidWeights", args, kwargs)
-
-    removeInvalidWeights.__signature__ = inspect.signature(SkinCluster.removeInvalidWeights)
-
-    def normalizeWeights(self, *args, **kwargs):
-        """各要素のnormalizeWeightsを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            SkinClusters | list: コレクション自身。
-        """
-        return self._dispatch_shared("normalizeWeights", args, kwargs)
-
-    normalizeWeights.__signature__ = inspect.signature(SkinCluster.normalizeWeights)

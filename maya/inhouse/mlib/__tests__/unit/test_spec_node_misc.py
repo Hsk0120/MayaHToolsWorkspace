@@ -1,7 +1,7 @@
 """Reference・Container・DagPose・マテリアル系・Constraint・AnimCurve の参照の少ないAPIの約束を固定する(担当C)。
 
 対象: Reference.mfn・getFilename の引数・isFromReferencedFile、Container の公開名
-(publishName・bindAttr・unbindAttr・unpublishName)と removeContainer、DagPose.getNotAtPose・getMemberIndices、
+(publishName・bindAttr・unbindAttr・unpublishName)と removeContainer、DagPose.restore、
 ShadingEngine.getShaderPlug、Node.getAssignedObjects・getMaterials、File のパスと色空間、
 Texture2d.getPlacement、Place2dTexture.connectTexture、Constraint.getWeightAliases、AnimCurve.isTimeInput。
 """
@@ -159,7 +159,7 @@ class ContainerPublishTest(_SpecCase):
 
 
 class DagPoseSpecTest(_SpecCase):
-    """getNotAtPose・isAtPose・getMemberIndices。"""
+    """取得した DagPose の型と削除後の restore。"""
 
     def setUp(self):
         super().setUp()
@@ -169,30 +169,12 @@ class DagPoseSpecTest(_SpecCase):
         self.pose = cmds.dagPose(self.a, self.b, save=True, name=self.name("pose"))
         self.node = Node(self.pose)
 
-    def test_not_at_pose(self):
-        """保存姿勢と違うメンバーだけを返し、isAtPose はその空判定。"""
-        self.assertIsInstance(self.node, DagPose)
-        self.assertEqual(self.node.getNotAtPose(), [])
-        self.assertTrue(self.node.isAtPose())
-        cmds.setAttr(self.b + ".rotateZ", 30)
-        self.assertEqual(self.node.getNotAtPose(), [Node(self.b)])
-        self.assertFalse(self.node.isAtPose())
-
-    def test_member_indices_skip_disconnected(self):
-        """切断した要素の番号は除き、残りの番号は詰めない。"""
-        self.assertEqual(self.node.getMemberIndices(), [0, 1])
-        self.assertTrue(cmds.isConnected(self.a + ".message", self.pose + ".members[0]"))
-        cmds.disconnectAttr(self.a + ".message", self.pose + ".members[0]")
-        self.assertEqual(self.node.getMemberIndices(), [1])
-        self.assertEqual(self.node.getMembers(), [Node(self.b)])
-
     def test_deleted_pose(self):
-        """削除済みのポーズは RuntimeError。"""
+        """取得は DagPose。削除済みのポーズの restore は RuntimeError。"""
+        self.assertIsInstance(self.node, DagPose)
         cmds.delete(self.pose)
-        for method in ("getMemberIndices", "getNotAtPose", "isAtPose"):
-            with self.subTest(method=method):
-                with self.assertRaisesRegex(RuntimeError, r"(?i)invalid dagPose"):
-                    getattr(self.node, method)()
+        with self.assertRaisesRegex(RuntimeError, r"(?i)invalid dagPose"):
+            self.node.restore()
 
 
 class MaterialTest(_SpecCase):
@@ -300,10 +282,8 @@ class TextureTest(_SpecCase):
         other = Node(cmds.shadingNode("place2dTexture", asUtility=True, name=self.name("other")))
         with self.assertRaises(RuntimeError):
             other.connectTexture(self.file)
-        self.assertIs(other.connectTexture(self.file, f=True), other)
+        self.assertIs(other.connectTexture(self.file, force=True), other)
         self.assertEqual(self.file.getPlacement(), other)
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'force' and 'f'"):
-            other.connectTexture(self.file, force=True, f=True)
         material = cmds.shadingNode("lambert", asShader=True, name=self.name("notTexture"))
         with self.assertRaisesRegex(TypeError, "texture must be Texture2d"):
             other.connectTexture(material)

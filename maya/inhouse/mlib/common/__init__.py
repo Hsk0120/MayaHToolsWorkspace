@@ -13,7 +13,6 @@ for _name in globals().get("__all__", ()):
 
 _exports = {
     "CurveFit": ("curveFit", "CurveFit"),
-    "Cycle": ("cycle", "Cycle"),
     "DampedSpring": ("dampedSpring", "DampedSpring"),
     "Deferred": ("deferred", "Deferred"),
     "DrivenKey": ("drivenKey", "DrivenKey"),
@@ -44,7 +43,6 @@ for _name in __all__ + ["legalizeName", "legalize_name", "progress_bar"]:
 if TYPE_CHECKING:
     from . import units
     from .curveFit import CurveFit
-    from .cycle import Cycle
     from .dampedSpring import DampedSpring
     from .deferred import Deferred
     from .drivenKey import DrivenKey

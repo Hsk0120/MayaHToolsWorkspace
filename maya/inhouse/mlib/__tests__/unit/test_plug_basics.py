@@ -142,8 +142,6 @@ class PlugBasicsTest(unittest.TestCase):
             with self.subTest(fast=fast):
                 with self.assertRaises(RuntimeError):
                     destination.disconnect(wrong, fast=fast)
-                with self.assertRaises(TypeError):
-                    destination.disconnect(src=source, source=source, fast=fast)
                 self.assertTrue(cmds.isConnected(source.getFullName(), destination.getFullName()))
 
     def test_force_reconnect_restores_lock_and_undo_restores_old_source(self):
@@ -205,8 +203,6 @@ class PlugBasicsTest(unittest.TestCase):
         for index in (-1, 2147483648):
             with self.assertRaises(IndexError):
                 array[index]
-        with self.assertRaises(TypeError):
-            array.getElement(index=3, idx=3)
         self.assertEqual(array.getIndices(), [3, 1000])
         self.assertEqual(cmds.getAttr(array.getFullName(), multiIndices=True), [3, 1000])
 

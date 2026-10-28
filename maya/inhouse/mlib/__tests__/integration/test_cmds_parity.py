@@ -73,14 +73,11 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 - ``Shape.scaleGeometry`` の NURBS サーフェス分岐(``MFnNurbsSurface.cvPosition`` で読む)と 2.0.0 の
   ``cmds.ls(flatten=True)``/``cmds.xform`` による結果(開いた/周期的、負のスケール、object/world、cm/m、
   周期の重複番号)
-- ``Plug.setMuted(fast=True)`` (MDGModifier 1 回)と ``cmds.mute`` の後のシーン(mute ノードの名前・接続・
-  ``hold``/``holdTime``/``mute``/``isHistoricallyInteresting``、解除後の接続)。unitConversion を挟む入力は
-  fast が変更前に NotImplementedError
 
 - ``Namespace.create`` の relativeNames 照会(``om2.MNamespace.relativeNames``)、選択・ドリブンキーの存在確認
   (``MSelectionList.add`` と ``cmds.objExists``)、``SkinCluster.deforms``/``bind`` の既スキン判定
   (``DagNode.getSkinClusters``)、``Lambert``/``StandardSurface`` の基底(``registry._inherited_node_types``):
-  ``test_spec_common_fast.py``・``test_spec_skin_fast.py`` で突き合わせ(他ファイル)
+  ``test_spec_common_edits.py``・``test_spec_skin_fast.py`` で突き合わせ(他ファイル)
 
 ### cmds のまま残したもの(突き合わせで om2 が一致しなかった・照会できない)
 
@@ -305,11 +302,11 @@ class TransformMatrixParityTest(unittest.TestCase):
     def test_get_matrix_matches_cmds_getAttr_and_xform(self):
         node = Node(self.child)
         self.assertEqual(list(node.getMatrix()), cmds.getAttr(self.child + ".matrix"))
-        self.assertEqual(list(node.getMatrix(ws=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
+        self.assertEqual(list(node.getMatrix(worldSpace=True)), cmds.getAttr(self.child + ".worldMatrix[0]"))
         self.assert_sequence_almost_equal(
-            list(node.getMatrix(ws=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
+            list(node.getMatrix(worldSpace=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
         self.assert_sequence_almost_equal(
-            tuple(node.getTranslate(ws=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
+            tuple(node.getTranslate(worldSpace=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
 
     def test_world_matrix_follows_the_dag_instance(self):
         # getMatrix(ws=True) はラッパーの DAG パスのインスタンス番号の worldMatrix 要素を読む。
@@ -326,7 +323,7 @@ class TransformMatrixParityTest(unittest.TestCase):
         for path in paths:
             node = Node(path)
             self.assert_sequence_almost_equal(
-                list(node.getMatrix(ws=True)), cmds.xform(path, query=True, worldSpace=True, matrix=True))
+                list(node.getMatrix(worldSpace=True)), cmds.xform(path, query=True, worldSpace=True, matrix=True))
 
     def test_negative_determinant_decomposition_matches_xform_and_decompose_matrix(self):
         om2 = self.om2
@@ -374,13 +371,13 @@ class TransformMatrixParityTest(unittest.TestCase):
             self.assertEqual(local.order, order)
             self.assert_sequence_almost_equal(local.asDegrees(), cmds.xform(self.child, query=True, rotation=True))
 
-            world = node.getRotate(ws=True)
+            world = node.getRotate(worldSpace=True)
             self.assertEqual(world.order, order)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             self.assertTrue(world.asMatrix().isEquivalent(expected.asMatrix(), 1e-9), order)
 
-            node.setRotate((10.0, -20.0, 30.0), unit="deg", ws=True)
+            node.setRotate((10.0, -20.0, 30.0), unit="deg", worldSpace=True)
             queried = cmds.xform(self.child, query=True, worldSpace=True, rotation=True)
             expected = om2.MEulerRotation([math.radians(value) for value in queried], order)
             wanted = om2.MEulerRotation(math.radians(10.0), math.radians(-20.0), math.radians(30.0), order)
@@ -798,7 +795,7 @@ class NameResolutionParityTest(unittest.TestCase):
             with self.subTest(path=path):
                 node = Node(path)
                 expected = cmds.xform(path, query=True, matrix=True, worldSpace=True)
-                actual = list(node.getMatrix(ws=True))
+                actual = list(node.getMatrix(worldSpace=True))
                 for value, reference in zip(actual, expected):
                     self.assertAlmostEqual(value, reference)
 
@@ -1227,7 +1224,7 @@ class SurfaceScaleGeometryParityTest(_NewSceneCase):
                         limit = (fn.numCVsInU, fn.numCVsInV)
                         valid = None if indices is None else [
                             row for row in indices if row[0] < limit[0] and row[1] < limit[1]]
-                        mlib.getNode(shape).scaleGeometry((2.0, 0.5, -1.5), ws=ws, pivot=(0.5, 1.0, -2.0),
+                        mlib.getNode(shape).scaleGeometry((2.0, 0.5, -1.5), worldSpace=ws, pivot=(0.5, 1.0, -2.0),
                                                           indices=valid)
                         self.scale_with_cmds(copy_shape, (2.0, 0.5, -1.5), (0.5, 1.0, -2.0), valid, ws)
                         actual = fn.cvPositions(om2.MSpace.kObject)
@@ -1239,156 +1236,6 @@ class SurfaceScaleGeometryParityTest(_NewSceneCase):
                                 self.assertAlmostEqual(a, b, places=6)
                         cmds.delete(transform, copy)
         cmds.currentUnit(linear="cm")
-
-
-class PlugSetMutedFastParityTest(_NewSceneCase):
-    """Plug.setMuted(fast=True)(MDGModifier)と cmds.mute の結果(ノード型・名前・接続・値)の一致。
-
-    同じ手順を新規シーンで2回作り、通常経路(cmds.mute)と fast の後のシーンの状態を比べる。
-    距離・角度・bool・enum・long、複合(アニメーションのある子だけ)、エイリアス、配列要素、
-    アニメーションカーブ以外の入力、名前の衝突、既存の mute ノード(mute=0/1)、アニメーションの無い
-    チャンネル、cm/m で確かめる。unitConversion を挟む入力は fast が NotImplementedError で拒否する。
-    """
-
-    @staticmethod
-    def keyed(name="muteTarget", parent=None):
-        flags = {"name": name}
-        if parent:
-            flags["parent"] = parent
-        node = cmds.createNode("transform", **flags)
-        cmds.setKeyframe(node + ".tx", time=1, value=2)
-        cmds.setKeyframe(node + ".tx", time=10, value=5)
-        return node
-
-    def cases(self):
-        def basic():
-            return self.keyed() + ".tx"
-
-        def rotate():
-            node = self.keyed()
-            cmds.setKeyframe(node + ".rx", time=1, value=10)
-            cmds.setKeyframe(node + ".rx", time=10, value=80)
-            return node + ".rx"
-
-        def compound():
-            node = self.keyed()
-            cmds.setKeyframe(node + ".sx", value=2)
-            return node + ".scale"
-
-        def alias():
-            node = self.keyed()
-            cmds.aliasAttr("moved", node + ".tx")
-            return node + ".moved"
-
-        def element():
-            node = self.keyed()
-            cmds.addAttr(node, longName="values", attributeType="double", multi=True, keyable=True)
-            cmds.setAttr(node + ".values[2]", 4)
-            cmds.setKeyframe(node + ".values[2]")
-            return node + ".values[2]"
-
-        def driven():
-            node = self.keyed()
-            multiply = cmds.createNode("multiplyDivide")
-            cmds.setAttr(multiply + ".input1Z", 3)
-            cmds.connectAttr(multiply + ".outputZ", node + ".tz")
-            return node + ".tz"
-
-        def static():
-            return self.keyed() + ".tz"
-
-        def collision():
-            self.keyed()
-            group = cmds.createNode("transform", name="muteGroup")
-            self.keyed(parent=group)
-            cmds.mute("|muteTarget.tx")
-            return "muteGroup|muteTarget.tx"
-
-        def existing_names():
-            cmds.createNode("transform", name="mute_muteTarget_translateX")
-            cmds.createNode("transform", name="mute_muteTarget_translateX1")
-            return self.keyed() + ".tx"
-
-        def boolean():
-            node = self.keyed()
-            cmds.setKeyframe(node + ".v", value=1)
-            return node + ".v"
-
-        def enum():
-            node = self.keyed()
-            cmds.addAttr(node, longName="mode", attributeType="enum", enumName="a:b:c", keyable=True)
-            cmds.setAttr(node + ".mode", 2)
-            cmds.setKeyframe(node + ".mode")
-            return node + ".mode"
-
-        def digits():
-            node = self.keyed()
-            cmds.addAttr(node, longName="value1", attributeType="long", keyable=True)
-            cmds.setKeyframe(node + ".value1", value=3)
-            cmds.createNode("transform", name="mute_muteTarget_value1")
-            return node + ".value1"
-
-        def remute_disabled():
-            node = self.keyed()
-            cmds.currentTime(2)
-            cmds.mute(node + ".tx")
-            cmds.setAttr("mute_muteTarget_translateX.mute", 0)
-            cmds.currentTime(4)
-            return node + ".tx"
-
-        def remute_enabled():
-            node = self.keyed()
-            cmds.currentTime(2)
-            cmds.mute(node + ".tx")
-            cmds.currentTime(4)
-            return node + ".tx"
-
-        return (basic, rotate, compound, alias, element, driven, static, collision, existing_names,
-                boolean, enum, digits, remute_disabled, remute_enabled)
-
-    @staticmethod
-    def describe():
-        mutes = []
-        for name in sorted(cmds.ls(type="mute") or []):
-            values = [cmds.getAttr(name + "." + attribute) for attribute in (
-                "hold", "holdTime", "mute", "isHistoricallyInteresting", "nodeState", "caching", "frozen")]
-            mutes.append((name, sorted(cmds.listConnections(name, connections=True, plugs=True,
-                                                           skipConversionNodes=False) or []),
-                          [round(value, 9) if isinstance(value, float) else value for value in values]))
-        transforms = sorted(
-            (name, round(cmds.getAttr(name + ".tx"), 9),
-             sorted(cmds.listConnections(name, source=True, destination=False, connections=True, plugs=True,
-                                         skipConversionNodes=False) or []))
-            for name in cmds.ls(type="transform"))
-        return mutes, transforms, sorted(cmds.ls())
-
-    def run_case(self, case, unit, fast):
-        cmds.file(new=True, force=True)
-        cmds.currentUnit(linear=unit, angle="deg")
-        cmds.currentTime(4)
-        plug = mlib.getPlug(case())
-        plug.setMuted(True, fast=fast)
-        muted = self.describe()
-        cmds.currentTime(7)
-        plug.setMuted(False, fast=fast)
-        return muted, self.describe()
-
-    def test_fast_set_muted_matches_cmds_mute(self):
-        for unit in ("cm", "m"):
-            for case in self.cases():
-                if unit == "m" and case.__name__ == "driven":
-                    continue  # m 単位では入力に unitConversion が挟まる(下のテストで拒否を確かめる)。
-                with self.subTest(unit=unit, case=case.__name__):
-                    self.assertEqual(self.run_case(case, unit, True), self.run_case(case, unit, False))
-
-    def test_fast_rejects_unit_conversion_input_before_changes(self):
-        node = cmds.createNode("transform", name="muteConverted")
-        multiply = cmds.createNode("multiplyDivide")
-        cmds.connectAttr(multiply + ".outputY", node + ".ry")
-        before = self.describe()
-        with self.assertRaises(NotImplementedError):
-            mlib.getPlug(node + ".ry").setMuted(True, fast=True)
-        self.assertEqual(self.describe(), before)
 
 
 if __name__ == "__main__":

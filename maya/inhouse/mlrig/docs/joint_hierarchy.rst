@@ -3,7 +3,7 @@
 
 ``mlrig.setups.JointHierarchy.delete`` は、ウェイト移送と子の保持を伴う
 ジョイント削除です。Maya標準の削除を行う ``mlib.nodes.Joint.delete`` /
-``Joints.delete`` とは入口を分けています。
+``mlib.delete`` とは入口を分けています。
 
 使い方
 ------
@@ -35,10 +35,9 @@
    joint = mlib.getNode("helper_jnt")
    JointHierarchy.delete(joint)  # ウェイト移送・子の再親付けを伴う整理
 
-``joint.delete()`` / ``mlib.delete(joint)`` / ``joints.delete()`` はMaya標準の削除で、
+``joint.delete()`` / ``mlib.delete(joint)`` はMaya標準の削除で、
 ウェイトを移送せず、子階層も標準の規則で削除します。
-influence登録だけを外してジョイントを残す場合は、mlibの ``removeInfluence`` /
-``removeInfluences`` を使います。
+influence登録だけを外してジョイントを残す場合は、mlibの ``removeInfluence`` を使います。
 
 safe・fast・失敗時の動作
 ----------------------------------------

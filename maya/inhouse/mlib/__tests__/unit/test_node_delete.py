@@ -73,27 +73,11 @@ class NodeDeleteTest(unittest.TestCase):
         mesh.delete(safe=True)
         self.assertTrue(mesh.isValid())
 
-    def test_safe_unconnected_and_collections_undo(self):
-        connected = mlib.createNode('multiplyDivide', skipSelect=True)
-        target = mlib.createNode('multiplyDivide', skipSelect=True)
-        cmds.connectAttr(connected.getFullName() + '.outputX', target.getFullName() + '.input1X')
-        empty = mlib.createNode('transform', skipSelect=True)
-        child = mlib.createNode('transform', parent=empty, skipSelect=True)
-        names = [empty.getFullName(), child.getFullName()]
-        self.assertIsNone(mlib.nodes.Nodes([connected, empty, target]).delete(safe=True))
-        self.assertTrue(connected.isValid() and target.isValid())
-        self.assertFalse(any(cmds.objExists(n) for n in names))
-        cmds.undo()
-        self.assertTrue(all(cmds.objExists(n) for n in names))
-        cmds.redo()
-        self.assertFalse(any(cmds.objExists(n) for n in names))
-
     def test_safe_validation_and_no_exception_suppression(self):
         node = mlib.createNode('transform', skipSelect=True)
-        for target in (node, mlib.nodes.Nodes([node])):
-            with self.assertRaises(TypeError):
-                target.delete(safe='yes')
-            self.assertTrue(node.isValid())
+        with self.assertRaises(TypeError):
+            node.delete(safe='yes')
+        self.assertTrue(node.isValid())
         cmds.lockNode(node.getFullName(), lock=True)
         try:
             with self.assertRaises(RuntimeError):

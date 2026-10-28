@@ -11,7 +11,7 @@ mlib版OBBは提供しない。旧import・互換別名・旧保存形式reader�
 通常JSON文字列は標準`json`、標準UIは利用側のcmds/mel、表示色はPlugで扱う。
 `mlib.cmds`とルート関数は`getNode/getPlug/createNode/ls/delete/duplicate/select`に限定する。
 複数形・reload・拡張自動探索・数学所有権・単位・通常Undo/fastと、保持APIの引数/返却は維持する。
-Mesh.reorderVertices/DagPose.mergeと小さな便利メソッドは残す。
+Mesh.reorderVerticesと小さな便利メソッドは残す。
 
 追加縮小では、AddDL/AddDoubleLinear/MultDL/MultDoubleLinear/BlendColors/BlendWeighted/
 Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/UnitConversionの
@@ -47,13 +47,13 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   getNode等の取得関数・複数形・Object入口も作成を兼ねない。2026-10-09の `create=False` 規則はこの指定で置き換える。
   createNode以上の処理をする特化ビルダーだけを残す: `Container.create(name="container", members=())`(作成+addMembers。
   位置引数の name と互換)、`Container.createNode(type, name=None)`、`DagPose.create(...)`、`SkinCluster.bind(...)`、
-  `HIKCharacterNode.createCharacter(...)`、拡張の `Graph.create(name)`(mlib_bifrost)。単なるcreateNodeの言い換えは追加しない。
+  拡張の `Graph.create(name)`(mlib_bifrost)。単なるcreateNodeの言い換えは追加しない。
   `fast=True` はOpenMayaで直接作成しUndoを記録しない。入力検証・例外・戻り値の意味は通常経路と同じで、
   `shared=True` と `name` 指定で同名ノードが既にある場合は同じnodeTypeのときだけそれを返し、型が違えばRuntimeErrorとする。
   未知の型名はどちらの経路でもRuntimeErrorとし、unknownノードを残さない。`query/edit` フラグは `cmds.createNode` に無いので受け付けない。
 - 2026-10-27のmlib 2.0.0で次版へ送ったsnake_case公開引数のlowerCamelCase化は、2.1.0で改名済み
   (`isType(nodeType)`・`getNodeName(removeNamespace)`・`SkinCluster.bind(maxInfluences)`・`removeInfluence(transferToParent)`・
-  `getClosestAxisToVector(refVector, includeNegative)`・`Nodes.callEach(keywordArguments)` 等)。旧引数名の互換は残さず、
+  `getClosestAxisToVector(refVector, includeNegative)` 等)。旧引数名の互換は残さず、
   旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
   既存の通知契約・登録プロトコル(`logger.raise_with_notify`・`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
   公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。対応表は `maya/inhouse/mlib/_docs/source/changelog.rst` の2.1.0に置く。
@@ -83,16 +83,15 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   OpenMaya経路で追加順の型付きPlug(配列はArrayPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
   `userDefined=False` は `cmds.listAttr` 経路。`includeChildren=False` は複合の子を省く。名前の列は
   `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getAttrName()` は `.tx` 形式の短名なので使わない)。
-  DAG共通の `getRoot()`・`getSiblings()`・`getBoundingBox(worldSpace=False, *, ws)`・`isIntermediateObject()` は
+  DAG共通の `getRoot()`・`getSiblings()`・`getBoundingBox(worldSpace=False)`・`isIntermediateObject()` は
   `DagNode` に置き、TransformとShapeの両方から使う。`getSiblings()` はShapeでは親直下の他の非中間Shape、
   `getBoundingBox` は `MDagPath.exclusiveMatrix` で空間を切り替える。
-  `getShape(idx=0, intermediates=False, *, index)` は自身がShapeなら引数を無視して自身、Transformは派生側の実装、無効なidxはNone。
-  `collectSkinClusters()`(DagNode/DagNodes)は廃止し `SkinClusters(node.getSkinClusters())`、
+  `getShape(index=0, intermediates=False)` は自身がShapeなら引数を無視して自身、Transformは派生側の実装、無効なindexはNone。
+  `collectSkinClusters()`(DagNode)は廃止し `SkinClusters(node.getSkinClusters())`、
   `getAssignedObjects()`・`getMaterials()` は廃止し `getShadingEngines()` の結果に `ShadingEngine.getMembers()/getShader()` を使う。
   二重入口のうち `show()/hide()` と `setVisibility(state)`、`mute()/unmute()` と `setMuted(state)` は両方残す。
-  `isConnected(src=, dst=)` と `isSource()/isDestination()`、切断3本(`disconnect/disconnectInput/disconnectAll`)は
-  戻り値・no-op規則が違うので統合しない。複数形クラスの転送 `def`・`_bulk_entries`・`callEach("名前")` の文字列は
-  単数の改名・廃止と同じ変更で更新する。
+  `isConnected(source=, destination=)` と `isSource()/isDestination()`、切断3本(`disconnect/disconnectInput/disconnectAll`)は
+  戻り値・no-op規則が違うので統合しない。
 - 2026-10-23のユーザー指定により、独自の判定は正式な `isX` へ一本化する。
   is省略入口は提供せず、説明・使用例・Sphinxも実際の正式名を使う。
   判定本体の引数・戻り値・フラグ、OpenMaya/外部SDKの標準名と他クラスの別APIは維持する。
@@ -110,10 +109,10 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `invertIt/mirrorIt` の形式とする。OpenMaya標準の `Vector.normalize()` は例外として維持する。
 - 数学値の戻り型は継承メソッドも対応するmlib型へ統一する。数値・真偽値・生API取得入口、
   対応型のないMPoint/単位値/クラス定数は維持する。ゼロ値などの演算条件は変更しない。
-- 引数の追加別名は `idx/index`・`src/source`・`dst/destination`・`attr/attribute`・
-  `attrs/attributes`・`f/force`。対応APIの使用例はショート優先。既存シグネチャと位置引数は維持し、
-  新規別名の二重指定は同値でも拒否する。署名は長名側に既定値・短名はkeyword-onlyの `_UNSET` とし、
-  選択は `_pick_alias` で行う(「内部実装の定型」の「別名引数の書き方」)。既存の接続方向フラグやOR/AND規則は維持する。
+- 3.0.0で、mlib独自メソッドの短縮名の別名引数(`ws`・`idx`・`src`・`dst`・`attrs`・`f`・`r`・`scn` 等)を廃止し、
+  長名(`worldSpace`・`index`・`source`・`destination`・`attributes`・`force`・`relative`・`skipConversionNodes`)だけにした。
+  短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(「内部実装の定型」の「別名引数の書き方」)。
+  既存の接続方向フラグやOR/AND規則は維持する。
 - メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
 - Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
 - om2から継承・オーバーライドする名前、`__init__`等のPython特殊メソッド、`dump`/`loads`等の標準APIは維持する。
@@ -169,8 +168,8 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 #### fastの定型
 
 - 署名は `*, fast=False` をkeyword-onlyの先頭に置く(型注釈なしの既定値は `fast=False`)。既存の位置が違うものは公開署名の順序変更になるので一度に動かさず、changelogに載せる変更として扱う。
-- 本体の冒頭で `_require_bool(fast, "fast")`(`decorator.py`)を呼ぶ。委譲型(show/hide・計算ノードのset*/connect*・ScalarGraph等)も省かない。
-- Undo文脈は `with _edit_context("mlib<Class><Method>", fast):`(`decorator.py`。`nullcontext() if fast else undoChunk(name)` の1行化)で包む。`undoTransaction` はUndo無効時に拒否する必要がある構築処理(reorderVertices・loadTargets・container系)だけに使い、`transaction=True` と理由コメントを付ける。
+- 本体の冒頭で `_require_bool(fast, "fast")`(`decorator.py`)を呼ぶ。委譲型(show/hide・ScalarGraph等)も省かない。
+- Undo文脈は `with _edit_context("mlib<Class><Method>", fast):`(`decorator.py`。`nullcontext() if fast else undoChunk(name)` の1行化)で包む。`undoTransaction` はUndo無効時に拒否する必要がある構築処理(reorderVertices・container系)だけに使い、`transaction=True` と理由コメントを付ける。
 - 対象解決・値検証はwithの内側に1回だけ書く(fast=Trueではnullcontextなので挙動は変わらない)。書込み直前に `if fast:` で `_<method>_fast` / `_<method>_cmds` へ分岐し、内側の更新先へ `fast=fast` を明示的に渡す。未対応は変更前にNotImplementedErrorで拒否する。
 - Undoチャンク名はメソッドが `mlib<Class><Method>`(クラス名・メソッド名どおり。短縮やクラス名違いは不可。単数Jointが複数形の名を使わない)、モジュール関数・cmdsが `mlib<Func>`(`mlibCreateNode`・`mlibDelete`・`mlibDuplicate`・`mlibSelect`・`mlibCreateReference`)。ドット区切り(`mlib.<Class>.<method>`)は使わない。計算ノードの共通setterは `"mlib" + type(self).__name__ + "<Method>"` を呼出し側から渡し、Undoキューで区別できるようにする。
 - `_Calculation.set_value/connect` のfastも既定 `False`。
@@ -179,7 +178,7 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 | 分類 | 例外型 | 対象 |
 | --- | --- | --- |
-| 型違い・別名競合・必須欠落 | `TypeError`(別名は `util._ArgumentError`。TypeErrorの派生) | boolでないfast、長短名の同時指定、必須引数の不足、受け付けない入力型 |
+| 型違い・別名競合・必須欠落 | `TypeError`(別名は `util._ArgumentError`。TypeErrorの派生) | boolでないfast、Mayaフラグの長短名の同時指定、必須引数の不足、受け付けない入力型 |
 | 値違い | `ValueError` | 空文字、範囲外、特異マトリクス、空集合、fastと無関係な非対応値(`scaleGeometry`・`addTargetDeltas`・mesh reorderの制限) |
 | シーンの状態 | `RuntimeError` | ロック、接続済み、参照、削除済み・無効ノード、不在 |
 | 実装上の未対応 | `NotImplementedError` | fast経路で扱えない操作・フラグ(変更前に拒否) |
@@ -196,11 +195,12 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 #### 別名引数の書き方
 
-- 署名は長名側に通常の既定値、短名はkeyword-onlyで `_UNSET`: `worldSpace=False, *, ws=_UNSET`、`index=0, *, idx=_UNSET`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
-- 選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行い、インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。
-- cmds層のようにMayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
-- 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。計算ノード3本(curveInfo・pointOnCurveInfo・pointOnSurfaceInfo)の `worldSpace=True` 既定はそのまま。
-- `index/idx` は主名 `index`、別名 `idx`(位置引数の意味は変えない)。内部関数へ渡すときも `fast`/`ws` 等の同じ名前を使い、`world_space` のような別名を増やさない。
+- 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select`・`delete` のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。
+- それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`worldSpace=False`、`index=0`)。短縮名の別名・`_UNSET` による省略判定を追加しない。
+- 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
+- Mayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
+- 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。
+- 内部関数へ渡すときも `fast`/`worldSpace` 等の同じ名前を使い、`world_space` のような別名を増やさない(core層のsnake_case関数の既存引数 `ws` は維持)。
 
 #### 内部名の規則
 
@@ -219,13 +219,12 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 - 1行目は動詞文「〜する。」。get系は「〜を取得する。」、set系は「〜を設定する。」。概要とReturnsの逐語一致は避け、Returnsは型と値の説明にする。
 - 固定文:
   - `fast (bool): TrueはUndoなしのOpenMaya更新。既定False。`(内部関数へ転送するだけの引数は転送先を書いてよい)
-  - `worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。`(Shape系は「Falseはオブジェクト空間」)
-  - `ws (bool): worldSpaceの別名。同時指定は不可。`
-  - `idx (int): indexの別名。同時指定は不可。`(主引数側に「別名 ``idx`` も使用可能」を重ねて書かない)
+  - `worldSpace (bool): Trueはワールド空間、Falseはローカル空間。`(Shape系は「Falseはオブジェクト空間」)
+  - Mayaフラグの短名: `e (bool): editの別名。同時指定は不可。`(主引数側に「別名 ``e`` も使用可能」を重ねて書かない)
   - Raises: `TypeError: fastがbool以外の場合。`
   - `Returns:` の `None: 値を返さない。`(`Args:` があって値を返さない処理には必ず書く。「値は返さない」は使わない)
 - Raisesの並びは `TypeError → ValueError → IndexError → RuntimeError → NotImplementedError`。
-- 型表記は `list[Node]`・`tuple[float, float, float]`・`dict[str, Any]` のように要素型を書き、裸の `list`/`tuple`/`dict` は使わない。計算ノードのgetterは `tuple[float, float, float]`、入力は `Iterable[float]` のままでよい。
+- 型表記は `list[Node]`・`tuple[float, float, float]`・`dict[str, Any]` のように要素型を書き、裸の `list`/`tuple`/`dict` は使わない。
 - 用語はCGWORLDのMaya記事に合わせ「アトリビュート」「マトリクス」(determinantは「行列式」のまま)「クォータニオン」「コンストレイント」「ワールド空間/ローカル空間/オブジェクト空間」「番号」(インデックス・添字は使わない)「ウェイト」。括弧は半角、文の区切りは句点のみで半角スペースで区切らない。モジュール定数には `#:` を付ける。
 
 #### 共通ヘルパーの置き場
@@ -240,12 +239,11 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 | `core/geometryEdit.py`・`core/skinEdit.py`・`core/attributeEdit.py` | 形状・スキン・アトリビュートの編集基盤 | `set_positions`・`validate_removals`・`validate_extra_attribute` |
 | `nodes/node.py` | ノード固有の解決・検証 | `Node._from_name`・`Node._require_valid`・`Node._input_name`・`Nodes._resolve_inputs` |
 
-共通化しないもの: 計算ノードのgetXPlug/getX/setX/connectX4連と複数形クラスの転送defの生成化(通常のdefで公開する)、`Node.delete`/`Nodes.delete`、`SkinCluster.mesh/mesh_path`・`Component.component_type`(core/common/cmdsが参照する内部契約)、`Version.isAtLeast` への委譲、cmds/ls.pyのフラグ列挙、core→commonのimport方向を作る単位変換の置換。
+共通化しないもの: `Node.delete`、`SkinCluster.mesh/mesh_path`・`Component.component_type`(core/common/cmdsが参照する内部契約)、`Version.isAtLeast` への委譲、cmds/ls.pyのフラグ列挙、core→commonのimport方向を作る単位変換の置換。
 
 ### 2026-10-09の利用者向け追加仕様
 
 - 利用者視点の全体検討に対する「全て対応」の指示に基づき、既存型を次の操作へ渡す入力を追加する。
-  BlendShapeターゲット指定は同じノードの実ターゲットに対応するweight Plugも受理する。
   SkinCluster.redistributeWeightsは先頭geometryのmeshに属するVertex/Verticesも受理する。
   既存の整数・エイリアス・返却・単位・Undo・fast・途中更新は維持する。
 - Selection.filterはcomponent正式名を追加し、既存記号・保持順・未知の型名の空結果を維持する。
@@ -328,12 +326,11 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 選んだ例外名がソース内で再定義されている場合は拒否する。
 この修正は例外型と最適化実行時の挙動を意図的に変更するため、既存の公開仕様と呼出し側も確認する。
 
-## 公開名・型対応・複数形APIの宣言
+## 公開名・型対応の宣言
 
 - 公開名は所属パッケージの `__init__.py` へ明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__` を使う。`common` は初期化順とreloadに合わせ、遅延公開の `_exports` と静的解析用の `if TYPE_CHECKING:` を維持する。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書に宣言する。公開するクラス名とは分けて管理する。手書きクラスの明示登録は維持し、動的クラス(下記「動的ノードクラス」)はその補完に限る。
 - 外部拡張の検出は `extensions` が担当する。拡張側も `nodes`・`plugs` の明示import・`__all__`・`_WRAPPER_CLASSES` を用い、実行時のクラス注入や登録デコレーターは使わない。
-- 複数形APIの入口は通常の `def` で明示する。共通の引数検証・保持順実行・Undo処理へ委譲し、実行時に単数メソッドから公開メソッドを生成しない。対象メソッドと戻り方針は一つの一覧で宣言し、既存の内部辞書を構成する。既存の引数仕様・戻り値・override・専用集約処理を維持する。
 - 追加・削除後はリポジトリルートで `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
 
 ### 動的ノードクラス
@@ -343,7 +340,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 移行例は `maya/inhouse/mlib/_docs/source/changelog.rst` を参照する。
 
 - 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
-- クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。登録名が規則と違う手書きクラス(`THdependNode` → `THDependNode`)は登録表で吸収し、別名は生成しない。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
+- クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
 - 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`geometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(Node)`、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.nodes.GeometryFilter`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
 - 生成クラスは `__slots__ = ()` で `__init__` を定義せず、`_generated_node_type`(型名)と `_generated = True` を持つ。`mlib.nodes.AirField("airField1")` の明示構築もでき、型が合わなければ登録クラスと同じ `Node.__new__` のTypeError(「参照と入力の固定規則」)。
 - isinstanceの約束: 生成クラスは「最寄りの登録クラスの派生である」ことだけを保証する。手書きクラスの `isinstance` 階層はPythonの継承で決まり、Mayaの抽象祖先を含まない(`SkinCluster(Node)` なので `isinstance(skin, mlib.nodes.GeometryFilter)` はFalse。`Container(Node)`・`Transform(DagNode)` も同様)。Mayaの継承に基づく型判定は `node.isType("geometryFilter")`、Maya型名の取得は `getType()`(`getType(inherited=True)` で基底→自身の順)を使う。手書きクラスの基底はMayaの親に揃える(`PoleVectorConstraint(PointConstraint)`)。`DagContainer(Transform, Container)` はMayaの全祖先を含んだ上位集合として据え置く(mixin化は次版)。
@@ -369,18 +366,18 @@ generic/kAnyはNone。値は評価しない)。Nodeの`getType(inherited=True)`�
 
 ### Plugの接続と切断
 
-`Plug.disconnect(src=None, force=False, f=False, nextAvailable=False, na=False, *, fast=False)`は
-入力だけを解除する。`src`（別名`source`）はPlug/MPlug/アトリビュート名またはNoneで、
-bool方向と`dst/destination`は受け付けない。入力省略時は現在の入力を解除する。
+`Plug.disconnect(source=None, force=False, f=False, nextAvailable=False, na=False, *, fast=False)`は
+入力だけを解除する。`source`はPlug/MPlug/アトリビュート名またはNoneで、
+bool方向と`destination`は受け付けない。入力省略時は現在の入力を解除する。
 単一切断は入力元Plugを返し、入力がない・指定接続がない場合はRuntimeErrorとする。
 入力元を指定した`nextAvailable/na`は配列内の直結を検索し、切断した接続先要素のリストを返す。
 `force/f`と`nextAvailable/na`のOR評価、通常Undo/fast OM2の方針は維持する。
 
-`isConnected(*, src=True, dst=True)`、`isConnectedTo(other, *, src=True, dst=True)`、
-`disconnectAll(*, src=True, dst=True)`はboolの方向指定と`source/destination`別名を受け付ける。
-bool以外や同名と別名の重複指定はTypeErrorとする。両Falseでは判定はFalse、
+`isConnected(*, source=True, destination=True)`、`isConnectedTo(other, *, source=True, destination=True)`、
+`disconnectAll(*, source=True, destination=True)`はboolの方向指定を受け付ける。
+bool以外はTypeErrorとする。両Falseでは判定はFalse、
 `disconnectAll`は何もせず自身を返す。`getConnections`の既存の位置引数、
-入力`s and source`、出力`d and destination`、`src/dst`別名、型・ペア・ノード・番号・
+入力`s and source`、出力`d and destination`、型・ペア・ノード・番号・
 子・配列要素の列挙フラグと戻り値は維持する。
 `isConnected`は既存のMPlug接続状態判定を維持し、子・配列要素を列挙しない。
 `isConnectedTo`・`disconnectAll`は対象Plugの直結だけを扱う。
@@ -391,7 +388,7 @@ bool以外や同名と別名の重複指定はTypeErrorとする。両Falseで�
 接続元・接続先は`getSource/getDestinations(skipConversionNodes=...)`、
 方向付き照会は`getConnections`へ集約する。
 `isSource/isDestination/disconnectInput/getSourceNodes`に方向boolは追加しない。
-`connect(src)`と`connectTo(dst)`は接続相手を受け取る。
+`connect(source)`と`connectTo(destination)`は接続相手を受け取る。
 
 `getConnections`の`pcls`引数(戻り値のPlugクラス指定)は2026-10-26にNode/Plugの両方から削除した。
 戻り値は常に実際のアトリビュート型に対応するPlugラッパーとする。
@@ -403,11 +400,11 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 
 ### 単位・フラグ・戻り値
 
-`SkinCluster.removeInfluence`・`Joint.removeInfluence`・`SkinClusters.removeInfluences` と
-`SkinCluster.removeUnusedInfluences` は、キーワード専用の `force=False` と短縮名 `f` を受け付ける。
+`SkinCluster.removeInfluence`・`Joint.removeInfluence` と
+`SkinCluster.removeUnusedInfluences` は、キーワード専用の `force=False` を受け付ける。
 `force=True` は不正ウェイトを除去してから既存の移送・登録解除を実行する指定で、
 ロック解除・レイヤー保護の回避・最後のinfluenceの解除を許可する指定ではない。
-新規の `force/f` は同時指定を拒否し、既存の位置引数・戻り値を維持する。
+既存の位置引数・戻り値を維持する。
 `removeInvalidWeights(*, fast=False)` は、負値・非有限値・未登録influence論理番号の
 既存ウェイト要素だけを除去し、単数/複数とも自身を返す。
 正規化・合計0の補填・1超の有限値の切捨ては行わない。
@@ -423,10 +420,10 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 - オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
   `getTranslate/setTranslate`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
-- 空間指定は`worldSpace=True/False`、短縮名は`ws`。使用例は原則`ws=True`とする。
-  Trueはワールド、Falseはローカル。bool以外・長短名の同時指定・旧`space=`は拒否する。
+- 空間指定は`worldSpace=True/False`(3.0.0で短縮名`ws`は廃止)。使用例は`worldSpace=True`とする。
+  Trueはワールド、Falseはローカル。bool以外・旧`space=`は拒否する。
   既定値は各メソッドの仕様を維持する（`SkinCluster.restoreBindPose` はTrue、`Transform.getPivot/setPivot/mirrorTransform`・
-  `DagNode.getBoundingBox` はFalse、計算ノードの`CurveInfo`・`PointOnCurveInfo`・`PointOnSurfaceInfo`の取得はTrue）。Mayaフラグの短縮名を足す場合(`setParent` の `r`)も同じ長短規則で、同時指定は拒否する。
+  `DagNode.getBoundingBox` はFalse）。
   OpenMaya標準APIのMSpace引数は変更しない。
 - 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`asUnitMatrix`・
   `asCanonicalAxisAngle`・`asDecomposedEulerRotate`で、標準の`asMatrix`等と区別する。
@@ -447,19 +444,19 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 名前の重なるメソッドの統合・改名で確定した契約。旧名の互換入口は残さず、対応表と移行例は
 `maya/inhouse/mlib/_docs/source/changelog.rst` に置く。
 
-- `Node.resetAttrs(attributes=None, *, fast=False, attrs=None)` はリセットしたPlugの `list[Plug]` を返す(別名対 `attributes/attrs` を維持)。
-  `Transform.resetAttrs` は省略時の既定だけをoverrideし、translate/rotate/scale/shearを対象にする。`Transforms.resetAttrs` の一括戻り値もlist。
+- `Node.resetAttrs(attributes=None, *, fast=False)` はリセットしたPlugの `list[Plug]` を返す(3.0.0で別名 `attrs` は廃止)。
+  `Transform.resetAttrs` は省略時の既定だけをoverrideし、translate/rotate/scale/shearを対象にする。
   旧 `Transform.reset`(戻りself)・`resetPivot`(`setPivot((0, 0, 0), worldSpace=True, kind=...)` で代替)・`freeze`(`makeIdentity(apply=True, ...)`)は廃止。
-- `Transform.getRotate(worldSpace=False, *, order=None, ws)` は二段の規則で等価解を選ぶ。`order` を省略、またはノードのrotateOrderと同じ順序なら、
+- `Transform.getRotate(worldSpace=False, *, order=None)` は二段の規則で等価解を選ぶ。`order` を省略、またはノードのrotateOrderと同じ順序なら、
   Transformは現在のrotateチャンネル、Jointはゼロ回転に最も近い等価解を返す(`setRotate` との往復でチャンネル値が保たれる)。
   それ以外の順序なら `quaternion.asEulerRotation().reorder(order)` の素の分解値(等価解の選択なし)を返し、`order=0`(xyz)は旧 `getEuler` と同値。
   `order` はom2の番号(int)または名前。ゼロスケール軸のValueErrorは両方で共通。
-  旧 `getEuler`・`getJointOrientQuaternion`(`getQuaternion(ws, r=False)` と同値)・
+  旧 `getEuler`・`getJointOrientQuaternion`(`getQuaternion(worldSpace, r=False)` と同値)・
   `getOffsetParentMatrix/setOffsetParentMatrix`(`getPlug("offsetParentMatrix").get()/set(value, fast=)`)は廃止。
-- `Transform.getShear(worldSpace=False, *, ws)` / `setShear(value, worldSpace=False, safe=False, get=False, *, fast=False, ws)`(旧 `getShearing/setShearing`)。
-- `Transform.setParent(parent=None, relative=False, add=False, *, fast=False, r=...)`: `r` は `relative` の短縮名。
+- `Transform.getShear(worldSpace=False)` / `setShear(value, worldSpace=False, safe=False, get=False, *, fast=False)`(旧 `getShearing/setShearing`)。
+- `Transform.setParent(parent=None, relative=False, add=False, *, fast=False)`(3.0.0で短縮名 `r` は廃止)。
   JointのinverseScaleは `cmds.parent` と同じく `relative=False` のときだけ接続される(Mayaの仕様)。fastはJoint未対応で、変更前にNotImplementedErrorとする。
-- `Joint.isJoint()`・`Joints.isJoint` は廃止し、`isinstance(x, mlib.nodes.Joint)` または `x.isType("joint")` を使う。
+- `Joint.isJoint()` は廃止し、`isinstance(x, mlib.nodes.Joint)` または `x.isType("joint")` を使う。
 - `Node.setLocked(state=True, *, fast=False)` はノード自体のロックで自身を返す(通常は `cmds.lockNode` でUndo1回、fastは `MFnDependencyNode.isLocked` のsetter)。
   アトリビュートのロックは `Plug.setLocked()`。`Node.mfn()` は毎回新規のfunction setを返す(Mesh/Camera/NurbsCurve/ReferenceはMFnMesh等を返すoverride)。
 - `Plug.unlock(below=False, *, fast=False)` は実際に解除したPlugの `list[Plug]` を上位から返す。旧 `undoable=` 引数は廃止し、Undoなしは `fast=True`。
@@ -477,7 +474,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
   `getEnumNames()` は `list[tuple[str, int]]` を値順で返す。`setEnumNames(names, *, fast)`・`getEnumValue(name)` は維持。
 - `Plug.getAlias()`(`MFnDependencyNode.plugsAlias`)、`getArray()`(要素が属する配列Plug)、`getIndex()`(要素の論理番号。非要素はTypeError)を追加。
   `getPlugName(short, fullAttrPath)` は廃止し `getName()/getFullName()`。
-- `DagNode.show(*, fast=False)` / `hide(*, fast=False)` は `setVisibility(state, fast=)` へ通す。`SkinClusters.removeInfluences(..., *, fast=False)` は単数の `removeInfluence(fast=)` へ渡す。
+- `DagNode.show(*, fast=False)` / `hide(*, fast=False)` は `setVisibility(state, fast=)` へ通す。
 
 ## メソッドとプロパティ
 
@@ -485,7 +482,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 | --- | --- | --- |
 | Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.getFullName()`、`node.isLocked()`、`plug.getName()` |
 | Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getPositionX()`、`mesh.getNumVertices()` |
-| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`vertex.setPositionX(value)`、`node.rename(name)` |
+| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`transform.setTranslate(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `component.shape`、`component.index`、`components.indices` |
 | 数学値(`mlib.maths`)を参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate` |
 
@@ -512,8 +509,9 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 読取りの高速化に`fast`指定を要求しない。単点・一括取得を使い分け、保持するMPlugやMDagPathを名前へ戻して再解決しない。型・単位・順序・削除検出の契約は維持する。
 - `fast`は検証を省略する指定ではない。未対応の直接更新は変更前に拒否し、Undoのグローバル設定変更や独自プラグインで補わない。内側の対応処理へも`fast=fast`を明示的に渡す。
 - 2026-10-26の指定により、書き込み系の公開メソッドは原則 `fast=False` 引数を持ち、定型(`_require_bool(fast, "fast")` → `with _edit_context("mlib<Class><Method>", fast):`(`nullcontext() if fast else undoChunk(...)`) → 検証・対象解決はwith内に通常/fast共通で1回 → 書込み直前の `if fast:` 分岐 → 内側へ `fast=fast` を明示 → 未対応は変更前にNotImplementedError)で実装する。fastでも入力検証・例外型・単位・戻り値は同じ。複数のom2操作は1つのmodifierに積んで `doIt` を1回にし、DAG削除とDG操作を同じmodifierに混在させない。
-- `fast` を持たない書き込みはom2に同等機能が無いものに限り、docstringに「fast引数は持たない」と理由を書く: `Transform.addConstraint`(コンストレイント作成APIなし)、`makeIdentity`(形状へのベイク)、`SkinCluster.bind/copyWeightsTo/addInfluences/restoreBindPose/resetBindPose`(バインド・コピーAPIなし)、`BlendShape` のターゲット追加・削除・デルタ・インビトウィーン・ミラー/フリップ(MELの後処理とUI編集モード)、`DagPose.create/merge/restore/reset/addMembers/removeMembers`(Mayaの階層補完・復元規則)、`Container/DagContainer` の作成・所属・publish系(MFnContainerNodeは照会専用)、`HIKCharacterNode`(HumanIK MEL)、`Reference.load/unload/remove`・`createReference`(ファイル操作)、`DrivenKey.setKey`、`Plugin.load/unload`(環境操作)、`moveAttrOrder`、`duplicate`。`Plug.setMuted`・`setEnumNames` は引数を持つが `fast=True` をNotImplementedErrorで拒否する。
-- cmds→om2の読み取り置換は `__tests__/integration/test_cmds_parity.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`dagPose -atPose`、`keyTangent -g`、HumanIK、`cycleCheck`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
+- `fast` を持たない書き込みはom2に同等機能が無いものに限り、docstringに「fast引数は持たない」と理由を書く: `Transform.addConstraint`(コンストレイント作成APIなし)、`makeIdentity`(形状へのベイク)、`SkinCluster.bind/copyWeightsTo/addInfluences/restoreBindPose`(バインド・コピーAPIなし)、`DagPose.create/restore`(Mayaの階層補完・復元規則)、`Container/DagContainer` の作成・所属・publish系(MFnContainerNodeは照会専用)、`Reference.load/unload/remove`・`createReference`(ファイル操作)、`DrivenKey.setKey`、`Plugin.load/unload`(環境操作)、`moveAttrOrder`。`setEnumNames` は引数を持つが `fast=True` をNotImplementedErrorで拒否する。
+- 3.0.0 で次の書き込みから `fast` を外した。利用がほぼ無く、cmds と同じ結果を保つ補正が保守の負担になるため 3.0.0 で外した: `mlib.duplicate`(`MFnDagNode.duplicate` の名前・ロック・セット所属・inverseScale の補正)、`mlib.select`・`Selection.select`(`MGlobal.setActiveSelectionList` でのコンポーネントのまとめ方の再現)、`Namespace.create/setCurrent/rename/move/remove`(`om2.MNamespace` の作成名の特定・ASCII以外の拒否)、`Plug.setMuted/mute/unmute`(`MDGModifier` での mute ノードの命名・接続の再現)、`Transform.matchTransform`(position・pivots だけの再現)、`SkinCluster.removeInfluence/removeUnusedInfluences`・`Joint.removeInfluence`(`cmds.skinCluster -removeInfluence` の再配分・距離配分の再現)。いずれも通常経路(cmds、Undo 1 回)だけを持つ。
+- cmds→om2の読み取り置換は `__tests__/integration/test_cmds_parity.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。
 
 - 引数がない、処理が軽い、戻り値が単純な数値という理由だけではプロパティにしない。Mayaの現在値を取得するならメソッドにする。
@@ -564,9 +562,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 このファイル名規則はmlibとすべての `mlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。nodes/plugs/componentsの公開メソッドはlowerCamelCaseとする。
 
-- 値の取得・設定を対にするAPIは `getPosition()` / `setPosition()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
+- 値の取得・設定を対にするAPIは `getTranslate()` / `setTranslate()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
 - 子クラスで基底メソッドと同名の別機能を公開しない。`Node.getConnections(source=True, destination=False, type=...)` は接続検索とし、`AnimCurve.getKeyInputs()` と `BlendWeighted.getInputPlugs()` は専用名を使う。
-- 複数形クラスは単体の同名メソッドを一括実行できるようにする。集約・重複除外・要素別設定などで意味が異なる場合は、戻り値と適用範囲を明示する。
 - 同じ処理の別名を増やさない。正式な入口へ使用側も更新し、旧名の互換入口は残さない。判定も正式is名へ一本化する。
 
 ## 追加・変更時の確認
@@ -594,7 +591,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 排他的な選択操作は `Selection.select(mode="replace")` のようなモードで指定する。
 - メンバーの操作は `addMembers` / `removeMembers`、個数の照会は `getNumVertices` / `getNumCVs` 等のget付き正式名にする。
 - `Plug.get/set` は対象アトリビュートを扱い、マトリクスアトリビュートから所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.getMatrix/setMatrix` を使用する。
-- 単数形と複数形の座標取得はともに `getPosition`。全要素を同じ座標にする `setPosition` と要素別の `setPositions` は区別する。
+- 単数形と複数形の座標取得はともに `getPosition`。コンポーネントは座標の照会だけを提供し、書込みは `cmds.xform` 等を使う。
 - 戻り値の型・単位・更新対象・破壊性が違う操作は、名前が似ていても安易にフラグ統合しない。
 
 - Plug系の空間指定は廃止し、アトリビュート値とTransformの姿勢を区別する。Double3Plugのrotateは回転順序・単位変換だけを行い、jointOrientや他のチャンネルを合成しない。
@@ -603,13 +600,12 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 複数形ノードの基底クラス
 
-- ノードコレクションは `Nodes` を基底にし、単体に対応して `DagNodes` → `Transforms` → `Joints` のように継承する。`SkinClusters` は `Nodes` の派生。`Nodes` 自体は `Node` を継承しない。
+- ノードコレクションは `Nodes` を基底にし、`Joints`・`SkinClusters` は `Nodes` の派生とする。`Nodes` 自体は `Node` を継承しない。3.0.0で `DagNodes`・`Transforms`、単数メソッドへの一括転送(`_bulk_entries`・`callEach`)は利用が無いため廃止した。各要素の操作は単数のメソッドを `for` で呼ぶ。
+- 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`)と入力検証(`_resolve_inputs`・`_validate_inputs`)に加え、`Joints.sortedByDepth()`・`Joints.getSkinClusters()`(重複を除いた `SkinClusters`)だけとする。`mlib.ls(type="joint")` は `Joints`、`type="skinCluster"` は `SkinClusters` を返す。
 - `item_class` で受け入れるラッパー型を宣言する。入力は各基底クラスの共通処理で解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
 - 重複は同一ノードかつ同一DAGパスで判定する。異なるインスタンスパスをUUIDだけでまとめない。構築後の参照の削除によってコレクション長を暗黙に変えない。
 - 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。
-- 照会・結果が必要な生成操作の一括転送は結果リストを保つ。通常の更新はコレクション自身を返す。関係検索を一律に平坦化したり、結果の内容からコレクション型を推測したりしない。
-- 複数形メソッドは各クラスの通常の `def` と継承で公開する。派生型で単数メソッドの引数仕様が変わる場合は複数形側も明示する。要素別の入力が必要な操作は派生にも制限を引き継ぎ、直接の同一引数による一括入口を公開しない。
-- `Joint.delete` / `Joints.delete` はNode/Nodesから継承するMaya標準削除とし、ウェイト移送と子保持を行わない。これらを伴う階層整理は`mlrig.setups.JointHierarchy.delete(joints, *, safe=False, fast=False)`へ分ける。一般にUndo対応は失敗時の自動ロールバックを意味しない。`ls`の返却規則は維持する。
+- `Joint.delete`・`mlib.delete(joints)` はMaya標準削除とし、ウェイト移送と子保持を行わない。これらを伴う階層整理は`mlrig.setups.JointHierarchy.delete(joints, *, safe=False, fast=False)`へ分ける。一般にUndo対応は失敗時の自動ロールバックを意味しない。`ls`の返却規則は維持する。
 
 
 ### 参照対象と取得契約
@@ -639,7 +635,6 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 通常JSON文字列は標準jsonで扱う。型codec・汎用Snapshot・参照保存の本体機能は持たない。
 - 表示色はMaya標準アトリビュートのPlugで扱い、色値型や専用一括操作を追加しない。
 - ConstraintはTransform派生。Nodesは全DGノード共通の参照・アトリビュート・接続処理を扱う。
-- 複数形APIは通常のメソッドで明示し、照会は保持順の結果リスト、通常更新は自身を返す。
 - mlibはQtをimportしない。横断的な通知はlogger、表示停止と復帰はdecorator.viewportOffを使う。
 
 ## 入力解決とパッケージ境界
@@ -660,8 +655,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 - 入力の汎用展開は `Object._flatten_inputs()`、展開済み列の名前/Node混在検査は `Nodes._validate_inputs()`。検査からObjectの展開へ戻らない。`Nodes._resolve_inputs()` は両者を順に呼ぶノード側入口。
 - 公開コマンドはクラス側の共通処理に委譲する。`createNode` はフラグ正規化とUndoチャンクを一本で行い、内部ヘルパー `Node._create_node(node_type, flags, *, fast=False)` へ委譲する(`Container.createNode` も同じヘルパーを呼ぶ)。クラス側から公開コマンドへ戻らない。Undoと短縮フラグは各公開入口の契約を維持する。
-- 複数形の転送入口は各クラスへ通常の`def`として明示し、実行は`Nodes._dispatch_shared()`に任せる。独自`callEach()`のoverride判定、共通引数の実行方針、計算用setterの`get`指定による結果収集はNodesが所有し、基底Nodes経由でも同じ返却を維持する。
-- Undo等のコンテキストは `decorator.py`、定義に基づく単位境界は `core.attributeType._convert_units`、型継承照会とその単一キャッシュは `core.registry` に集約する。fast/safeは各メソッド本文で判定し、更新先へ明示的に渡す。長短の引数も通常defへ列挙して本文で検証し、Maya helpの実行時解析・別名メタデータ・汎用resolverは使わない。省略判定専用の`util._UNSET`でFalse/Noneの明示指定と省略を区別する。長短競合・必須値欠落は各単数の更新前に拒否し、複数形でもTypeErrorを保つ。複数形の全件事前検査はPythonの呼出形式を対象とする。通常Undo・安全検証と単位の既存規則を維持する。
+- Undo等のコンテキストは `decorator.py`、定義に基づく単位境界は `core.attributeType._convert_units`、型継承照会とその単一キャッシュは `core.registry` に集約する。fast/safeは各メソッド本文で判定し、更新先へ明示的に渡す。長短の引数も通常defへ列挙して本文で検証し、Maya helpの実行時解析・別名メタデータ・汎用resolverは使わない。省略判定専用の`util._UNSET`でFalse/Noneの明示指定と省略を区別する。長短競合・必須値欠落は各単数の更新前に拒否する。通常Undo・安全検証と単位の既存規則を維持する。
 
 ### 任意拡張の参照方向と再読み込み
 
@@ -685,15 +679,11 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 所有Plugの`getNode()`は保持参照でもメソッドとする。独自の取得は`getParent/getLongName/getFullName`等の正式名へ集約し、取得短名の互換入口は残さない。判定の正式is名と`hasAttr`、操作の`delete`、生API取得の`mnode/mpath/mplug`はそれぞれの確定契約を維持する。固定Plugの参照だけを返す専用入口は増やさず、`getPlug()`を使う。用途ごとの固定一覧は利用側で選定する。複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/mlib/nodes/node.py`と`maya/inhouse/mlib/plugs/plug.py`の公開APIのdocstringを参照する。
 
-### Transformationの追加仕様
-
-`mlib.maths.Transformation` は既存数学値をまとめるシーン非依存の可変値で、om2型の派生ではない。値の保持・成分編集はプロパティ、シーン照会/適用は`Transform.getTransformation`/`setTransformation`に分ける。距離cm・角度radianを使い、通常setterは自身、`get=True`は適合後のTransformationを返す。ユーザーの連携統一指示により`Matrix.asTransformation()`はmlibのTransformationを返す。OpenMaya型は`om2.MTransformationMatrix(matrix)`で明示変換する。`Matrix(value)`・`Matrix.fromTransformation(value)`・MatrixPlug.setはTransformationの合成マトリクスを受け取る。`setMatrix(get=True)`の辞書返却は維持する。成分・空間・制限は`maya/inhouse/mlib/maths/transformation.py`と`maya/inhouse/mlib/nodes/transform.py`の公開APIのdocstringを参照する。
-
 配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存要素だけの取得には`getElement(index)`を使い、未作成ならIndexErrorとする。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはgetFullNameで文字列化する。mlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、mlib.cmdsの同名ラッパーは作らない。
 
 
 ### 参照・計算・書込みの責務
 
-- Transformの設定予定値の計算とチャンネル書込みは内部で分ける。`safe/get/at/ra/r/jo/ws`の既存の意味、返却型、単位は変更しない。通常cmdsのUndoとfastのOM2直接更新を維持し、内部のチャンネル更新へfast/safeを明示的に渡す。呼出元の状態で`fast=False`や省略値を上書きしない。
+- Transformの設定予定値の計算とチャンネル書込みは内部で分ける。`safe/get/at/ra/r/jo/worldSpace`の既存の意味、返却型、単位は変更しない。通常cmdsのUndoとfastのOM2直接更新を維持し、内部のチャンネル更新へfast/safeを明示的に渡す。呼出元の状態で`fast=False`や省略値を上書きしない。
 - Transformationは入力をコピーして保持するが、成分プロパティは保持する可変値の参照を返す。合成マトリクス・quaternionとMatrixの成分取得は独立した値である。Transformationのmatrix代入・マトリクスによる自身更新では成分が置き換わり、以前取得した成分参照は更新先へ追従しない。ノードから取得した値はシーンと独立し、反映には明示的なsetterを使う。
 - `moveAttrOrder`は対応する定義・値・フラグ・別名を復元し、全定義が揃ってから接続を復元する。変更途中の失敗はこの処理のUndoで復元するため、実際に並びを変更する場合はUndo無効を削除前に拒否する。fast引数は持たず、通常Undoを使う。

@@ -1,12 +1,11 @@
-"""DagNode・DagNodes の共通化後の約束を固定する(Phase 2 2A)。
+"""DagNode の共通化後の約束を固定する(Phase 2 2A)。
 
 対象: mfn()(MFnDagNode)、DagNode へ移した getRoot・getSiblings・getBoundingBox(worldSpace/ws)・
 isIntermediateObject(Transform・Shape 双方で使える)、show/hide の fast(Undo 1 回・fast は Undo なし)、
 getShape の契約(Shape は自身)、廃止した名前(dagFn・getParentPath・getFullPath・getPartialPath・
-collectSkinClusters)が DagNode・DagNodes から消えていること、DagNodes の宣言。
+collectSkinClusters)が DagNode から消えていること。
 """
 
-import inspect
 import unittest
 
 import maya.api.OpenMaya as om2
@@ -14,7 +13,7 @@ import maya.cmds as cmds
 
 import mlib
 mlib.reload()
-from mlib.nodes import DagNode, DagNodes, Node, Shape, Transform
+from mlib.nodes import DagNode, Node, Shape, Transform
 from support.specCase import NamespaceCase
 
 
@@ -141,21 +140,18 @@ class GetBoundingBoxTest(HierarchyFixture):
         self.assertBox(Node(self.leaf_shape).getBoundingBox(), [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5])
 
     def test_world_matches_exact_world_bounding_box(self):
-        """worldSpace=True(別名 ws)は cmds.exactWorldBoundingBox と同じ。Transform・Shape で同じ値。"""
+        """worldSpace=True は cmds.exactWorldBoundingBox と同じ。Transform・Shape で同じ値。"""
         expected = cmds.exactWorldBoundingBox(self.leaf_shape)
         for name in (self.leaf, self.leaf_shape):
-            for flags in ({"worldSpace": True}, {"ws": True}):
-                with self.subTest(name=name, flags=flags):
-                    self.assertBox(Node(name).getBoundingBox(**flags), expected)
+            with self.subTest(name=name):
+                self.assertBox(Node(name).getBoundingBox(worldSpace=True), expected)
 
     def test_flag_validation(self):
         node = Node(self.leaf)
         with self.assertRaises(TypeError):
-            node.getBoundingBox(True, ws=True)
-        with self.assertRaises(TypeError):
             node.getBoundingBox(1)
         with self.assertRaises(TypeError):
-            node.getBoundingBox(ws="yes")
+            node.getBoundingBox(worldSpace="yes")
 
     def test_invalid_node_raises(self):
         node = Node(self.leaf2)
@@ -212,27 +208,13 @@ class ShowHideTest(HierarchyFixture):
                     getattr(node, method)(True)
         self.assertTrue(self.visible())
 
-    def test_dag_nodes_forward_fast(self):
-        """DagNodes.hide(fast=True) は全要素を更新してコレクション自身を返す。"""
-        nodes = DagNodes([self.leaf, self.leaf2])
-        cmds.flushUndo()
-        self.assertIs(nodes.hide(fast=True), nodes)
-        self.assertEqual([cmds.getAttr(name + ".visibility") for name in (self.leaf, self.leaf2)], [False, False])
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        self.assertIs(nodes.show(), nodes)
-        self.assertEqual([cmds.getAttr(name + ".visibility") for name in (self.leaf, self.leaf2)], [True, True])
-
 
 class GetShapeContractTest(HierarchyFixture):
     def test_shape_returns_self_regardless_of_arguments(self):
         shape = Node(self.leaf_shape)
-        for flags in ({}, {"idx": 5}, {"index": 3, "intermediates": True}):
+        for flags in ({}, {"index": 5}, {"index": 3, "intermediates": True}):
             with self.subTest(flags=flags):
                 self.assertIs(shape.getShape(**flags), shape)
-
-    def test_index_aliases_conflict(self):
-        with self.assertRaises(TypeError):
-            Node(self.leaf_shape).getShape(0, index=0)
 
     def test_transform_out_of_range_is_none(self):
         self.assertIsNone(Node(self.leaf).getShape(5))
@@ -244,8 +226,6 @@ class RemovedNamesTest(HierarchyFixture):
         for name in REMOVED_DAG_METHODS:
             with self.subTest(name=name):
                 self.assertFalse(hasattr(DagNode, name))
-                self.assertFalse(hasattr(DagNodes, name))
-                self.assertNotIn(name, DagNodes._bulk_entries)
 
     def test_removed_from_instances(self):
         node = Node(self.leaf)
@@ -260,26 +240,6 @@ class RemovedNamesTest(HierarchyFixture):
         self.assertEqual(node.getFullName(), node.mpath().fullPathName())
         self.assertEqual(node.getName(), node.mpath().partialPathName())
         self.assertEqual(node.getParent().mpath().fullPathName(), self.leaf)
-
-
-class DagNodesDeclarationTest(unittest.TestCase):
-    def test_moved_entries_present(self):
-        for name in ("mfn", "getRoot", "getSiblings", "getBoundingBox", "isIntermediateObject"):
-            with self.subTest(name=name):
-                self.assertIs(DagNodes._bulk_entries[name][0], getattr(DagNode, name))
-                self.assertEqual(DagNodes._bulk_entries[name][1], "list")
-                self.assertEqual(inspect.signature(getattr(DagNodes, name)),
-                                 inspect.signature(getattr(DagNode, name)))
-
-    def test_show_hide_entries_return_self(self):
-        self.assertEqual(DagNodes._bulk_entries["show"][1], "self")
-        self.assertEqual(DagNodes._bulk_entries["hide"][1], "self")
-        self.assertEqual(inspect.signature(DagNodes.show), inspect.signature(DagNode.show))
-
-    def test_every_entry_has_forwarder(self):
-        for name in DagNodes._bulk_entries:
-            with self.subTest(name=name):
-                self.assertTrue(callable(getattr(DagNodes, name)))
 
 
 if __name__ == "__main__":

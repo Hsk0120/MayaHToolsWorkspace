@@ -100,7 +100,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertEqual((mesh.getNumVertices(), mesh.getNumEdges(), mesh.getNumPolygons()), (8, 12, 6))
         local_x = mesh.getPoints()[0].x
         cmds.setAttr(cube.getFullName() + '.translateX', 5)
-        self.assertAlmostEqual(mesh.getPoints(ws=True)[0].x, local_x + 5)
+        self.assertAlmostEqual(mesh.getPoints(worldSpace=True)[0].x, local_x + 5)
 
         curve = mlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.getShape()
@@ -110,7 +110,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         cmds.setAttr(curve.getFullName() + '.scaleX', 2)
         self.assertAlmostEqual(shape.getLength(), 7)
         cmds.setAttr(curve.getFullName() + '.translateY', 2)
-        self.assertAlmostEqual(shape.getCvPositions(ws=True)[0].y, 2)
+        self.assertAlmostEqual(shape.getCvPositions(worldSpace=True)[0].y, 2)
         self.assertAlmostEqual(shape.getCvPositions()[0].y, 0)
         with self.assertRaises(ValueError):
             shape.getLength(0)
@@ -125,7 +125,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertAlmostEqual(sum(c * c for c in (normal.x, normal.y, normal.z)) ** 0.5, 1.0, places=5)
 
         cmds.setAttr(cube.getFullName() + '.rotateY', 90)
-        world_normals = mesh.getVertexNormals(ws=True)
+        world_normals = mesh.getVertexNormals(worldSpace=True)
         self.assertEqual(len(world_normals), mesh.getNumVertices())
         self.assertFalse(
             all(
@@ -304,94 +304,6 @@ class ShapesConstraintsTest(unittest.TestCase):
                 # Mesh の座標保存精度を考慮し、距離単位変更時も相対誤差で比較する。
                 self.assertAlmostEqual(component, value, delta=max(1e-5, abs(value) * 1e-6))
 
-    def test_mirror_axes_in_world_and_object_space(self):
-        for ws in (False, True):
-            for axes in ('x', 'Y', 'z', 'xy', 'xz', 'yz', 'xyz'):
-                for shape in self.mirror_shapes():
-                    with self.subTest(shape=shape.getType(), ws=ws, axes=axes):
-                        before = self.positions(shape, ws)
-                        parent = shape.getParent()
-                        matrix = cmds.xform(parent.getFullName(), query=True, matrix=True, worldSpace=True)
-                        selected = {'xyz'.index(a) for a in axes.lower()}
-                        expected = [tuple(-v if i in selected else v for i, v in enumerate(p)) for p in before]
-                        self.assertIs(shape.mirror(axes, ws=ws), shape)
-                        self.assert_positions(self.positions(shape, ws), expected)
-                        self.assertEqual(cmds.xform(parent.getFullName(), query=True, matrix=True, worldSpace=True), matrix)
-
-    def test_transform_mirror_all_shapes(self):
-        parent = self.getTransform()
-        cube = mlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
-        curve = mlib.nodes.Node(cmds.curve(degree=1, point=[(1, 2, 3), (4, 1, -2), (2, 5, 1)]))
-        cmds.parent(cube.getShape().getFullName(), curve.getShape().getFullName(), parent.getFullName(), shape=True, relative=True)
-        shapes = parent.getShapes()
-        before = {shape.getFullName(): self.positions(shape, True) for shape in shapes}
-        matrix = cmds.xform(parent.getFullName(), query=True, matrix=True, worldSpace=True)
-
-        self.assertIs(parent.mirrorGeometry(axis='x', ws=True), parent)
-
-        mirrored_shapes = parent.getShapes()
-        self.assertEqual({shape.getFullName() for shape in mirrored_shapes}, set(before))
-        for shape in mirrored_shapes:
-            positions = before[shape.getFullName()]
-            expected = [(-point[0], point[1], point[2]) for point in positions]
-            self.assert_positions(self.positions(shape, True), expected)
-        self.assertEqual(cmds.xform(parent.getFullName(), query=True, matrix=True, worldSpace=True), matrix)
-
-    def test_mirror_custom_pivot_subset_and_distance_units(self):
-        import maya.api.OpenMaya as om2
-        previous = cmds.currentUnit(query=True, linear=True)
-        try:
-            cmds.currentUnit(linear='m')
-            for ws in (False, True):
-                for shape in self.mirror_shapes():
-                    before = self.positions(shape, ws)
-                    pivot = (1, 2, 3)
-                    internal = pivot
-                    expected = list(before)
-                    expected[0] = (2 * internal[0] - before[0][0], before[0][1], 2 * internal[2] - before[0][2])
-                    shape.mirror('xz', ws=ws, pivot=pivot, indices=[0, 0])
-                    self.assert_positions(self.positions(shape, ws), expected)
-        finally:
-            cmds.currentUnit(linear=previous)
-
-    def test_mirror_undo_redo(self):
-        if not cmds.undoInfo(query=True, state=True):
-            self.skipTest('Undo is disabled in this Maya session')
-        for shape in self.mirror_shapes():
-            before = self.positions(shape, True)
-            shape.mirror('x', ws=True)
-            after = self.positions(shape, True)
-            cmds.undo()
-            self.assert_positions(self.positions(shape, True), before)
-            cmds.redo()
-            self.assert_positions(self.positions(shape, True), after)
-
-    def test_mirror_validation_before_mutation(self):
-        for shape in self.mirror_shapes():
-            before = self.positions(shape)
-            for kwargs, error in [({'axis': ''}, ValueError), ({'axis': 'xx'}, ValueError),
-                                  ({'axis': 'a'}, ValueError), ({'ws': 'world'}, TypeError),
-                                  ({'pivot': (0, 1)}, ValueError), ({'pivot': (0, float('nan'), 0)}, ValueError),
-                                  ({'indices': [0, -1]}, IndexError), ({'indices': [0, 10000]}, IndexError),
-                                  ({'indices': [0, 1.2]}, TypeError)]:
-                with self.assertRaises(error):
-                    shape.mirror(**kwargs)
-                self.assert_positions(self.positions(shape), before)
-            self.assertIs(shape.mirror(indices=[]), shape)
-            self.assert_positions(self.positions(shape), before)
-            cmds.setAttr(shape.getParent().getFullName() + '.scaleX', 0)
-            with self.assertRaises(ValueError):
-                shape.mirror(ws=True)
-
-    def test_mirror_periodic_curve(self):
-        curve = mlib.nodes.Node(cmds.circle(constructionHistory=False)[0])
-        shape = curve.getShape()
-        before = self.positions(shape)
-        form, degree, count = shape.getForm(), shape.getDegree(), shape.getNumCVs()
-        shape.mirror('x')
-        self.assert_positions(self.positions(shape), [(-x, y, z) for x, y, z in before])
-        self.assertEqual((shape.getForm(), shape.getDegree(), shape.getNumCVs()), (form, degree, count))
-
     def test_nurbs_curve_get_collocated_cv_groups(self):
         curve = mlib.nodes.Node(
             cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0)])
@@ -424,9 +336,8 @@ class ShapesConstraintsTest(unittest.TestCase):
             self.assertEqual(collection[:1].indices, (2,))
             self.assertEqual(collection[0].getPosition(), collection.getPosition()[0])
             single = shape.getVertex(2) if is_mesh else shape.getCV(2)
-            before = single.getPosition()
-            self.assertIs(collection.mirror('z'), collection)
-            self.assert_positions([single.getPosition()], [(before[0], before[1], -before[2])])
+            cmds.xform(single.getFullName(), objectSpace=True, translation=(0.25, 0.5, -0.75))
+            self.assert_positions([single.getPosition()], [(0.25, 0.5, -0.75)])
             old_name = single.getFullName()
             shape.rename('renamedMirrorShape')
             self.assertNotEqual(single.getFullName(), old_name)
@@ -441,18 +352,11 @@ class ShapesConstraintsTest(unittest.TestCase):
     def test_xyz_and_mesh_components(self):
         mesh, curve = self.mirror_shapes()
         for item in (mesh.getVertex(0), curve.getCV(0)):
-            before = item.getPosition()
-            for axis in 'xyz':
-                getattr(item, "setPosition" + axis.upper())(2.75)
-                self.assertAlmostEqual(getattr(item, "getPosition" + axis.upper())(), 2.75)
-                cmds.undo()
-                self.assert_positions([item.getPosition()], [before])
-            item.setPosition((3, 4, 5), ws=True)
-            self.assert_positions([item.getPosition(ws=True)], [(3, 4, 5)])
-            cmds.undo()
-            with self.assertRaises(ValueError):
-                item.setPosition((1, float('nan'), 3))
-            self.assert_positions([item.getPosition()], [before])
+            position = item.getPosition()
+            for index, axis in enumerate('xyz'):
+                self.assertAlmostEqual(getattr(item, "getPosition" + axis.upper())(), position[index])
+            cmds.xform(item.getFullName(), worldSpace=True, translation=(3, 4, 5))
+            self.assert_positions([item.getPosition(worldSpace=True)], [(3, 4, 5)])
         self.assertEqual(len(mesh.getEdges()), mesh.getNumEdges())
         self.assertEqual(len(mesh.getFaces()), mesh.getNumPolygons())
         self.assertEqual(len(mesh.getEdge(0).getVertices()), 2)
@@ -461,16 +365,8 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertEqual(len(mesh.getFaces().getVertices()), mesh.getNumVertices())
         self.assertEqual(len(mesh.getUVs()), mesh.getNumUVs())
         uv = mesh.getUV(0)
-        before = uv.getPosition()
-        uv.setU(0.125)
-        self.assertAlmostEqual(uv.getU(), 0.125)
-        self.assertAlmostEqual(uv.getV(), before[1])
-        cmds.undo()
-        self.assertEqual(uv.getPosition(), before)
-        uv.setV(0.375)
-        self.assertAlmostEqual(uv.getV(), 0.375)
-        cmds.undo()
-        self.assertEqual(mesh.getUVs([0]).getPosition(), [before])
+        self.assertEqual(uv.getPosition(), (uv.getU(), uv.getV()))
+        self.assertEqual(mesh.getUVs([0]).getPosition(), [uv.getPosition()])
         for collection in (mlib.components.Edges, mlib.components.Faces, mlib.components.UVs):
             with self.assertRaises(TypeError):
                 collection(curve)

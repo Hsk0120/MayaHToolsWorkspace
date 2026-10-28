@@ -2,7 +2,6 @@
 import sys
 import unittest
 import uuid
-from unittest.mock import patch
 import maya.cmds as cmds
 import mlib
 
@@ -23,7 +22,7 @@ class ClassDesignTest(unittest.TestCase):
 
     def test_constraint_is_transform(self):
         """型変換・DAG照会・コレクション格納がMayaの継承と一致する。"""
-        from mlib.nodes import Node, DagNode, Transform, Transforms
+        from mlib.nodes import Node, Nodes, DagNode, Transform
         for kind in ("parentConstraint", "pointConstraint", "aimConstraint"):
             name = cmds.createNode(kind, name=self.ns + ":" + kind)
             self.assertIn("transform", cmds.nodeType(name, inherited=True))
@@ -31,76 +30,24 @@ class ClassDesignTest(unittest.TestCase):
             self.assertIsInstance(node, Transform)
             self.assertEqual(DagNode(name).mpath().fullPathName(), node.getFullName())
             self.assertEqual(Transform(name), node)
-            nodes = Transforms([node])
-            self.assertIs(nodes.setVisibility(False), nodes)
+            nodes = Nodes([node])
+            self.assertIsInstance(nodes[0], Transform)
+            self.assertIs(nodes[0].setVisibility(False), nodes[0])
             self.assertFalse(node.getVisibility())
 
     def test_display_api_is_dag_only(self):
-        """DG基底に表示専用APIを公開せずDAG単数・複数で共有する。"""
-        from mlib.nodes import Node, Nodes, DagNode, DagNodes, Transforms, Joints
+        """DG基底に表示専用APIを公開せずDAG単数だけが持つ。複数形は転送しない。"""
+        from mlib.nodes import Node, Nodes, DagNode, Joints
         methods = ("getVisibility", "setVisibility", "getOutlinerVisibility", "setOutlinerVisibility")
         for method in methods:
             self.assertFalse(hasattr(Node, method))
             self.assertFalse(hasattr(Nodes, method))
             self.assertTrue(hasattr(DagNode, method))
-            self.assertTrue(hasattr(DagNodes, method))
-        self.assertTrue(issubclass(Transforms, DagNodes))
-        self.assertTrue(issubclass(Joints, Transforms))
+            self.assertFalse(hasattr(Joints, method))
+        self.assertTrue(issubclass(Joints, Nodes))
         name = cmds.createNode("multiplyDivide", name=self.ns + ":dg")
         with self.assertRaises(TypeError):
-            DagNodes([name])
-
-    def test_bulk_returns_and_undo(self):
-        """更新は自身、照会は保持順の値、生成は生成物を返しUndoも維持する。"""
-        from mlib.nodes import Transforms
-        names = [cmds.createNode("transform", name=self.ns + ":t" + str(i)) for i in range(2)]
-        nodes = Transforms(names)
-        self.assertIs(nodes.setTranslate((1, 2, 3), at=4), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(1, 2, 3)] * 2)
-        cmds.undo()
-        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(0, 0, 0)] * 2)
-        self.assertIs(nodes.callEach("setTranslate", [((4, 0, 0),), ((5, 0, 0),)]), nodes)
-        self.assertEqual([tuple(v) for v in nodes.getTranslate(at=4)], [(4, 0, 0), (5, 0, 0)])
-        self.assertEqual(len(nodes.addAttr("custom", attributeType="double")), 2)
-        empty = Transforms()
-        self.assertIs(empty.setTranslate((0, 0, 0), at=4), empty)
-        self.assertEqual(empty.getTranslate(at=4), [])
-        self.assertIs(nodes.makeIdentity(apply=True, t=True, r=True, s=True), nodes)
-
-    def test_bulk_requires_declaration(self):
-        """単数クラスへのメソッド追加だけでは公開範囲が広がらない。"""
-        class Item(mlib.nodes.Node):
-            """公開対象を選択する単体。"""
-            def __new__(cls):
-                """転送検証用の参照を、Maya照会なしで作る。"""
-                return object.__new__(cls)
-
-            def __init__(self):
-                """テスト用のためMayaノードを保持しない。"""
-
-            def query(self):
-                """保持値を返す。"""
-                return 3
-            def not_exported(self):
-                """一括公開しない操作。"""
-                raise AssertionError("must not run")
-        class Items(mlib.nodes.Nodes):
-            """明示した照会だけを持つ集合。"""
-
-            _bulk_returns = {**mlib.nodes.Nodes._bulk_returns, "query": "list"}
-            _bulk_methods = {**mlib.nodes.Nodes._bulk_methods, "query": Item.query}
-            _bulk_undo = False
-
-            def query(self, *args, **kwargs):
-                """明示した照会を共通処理へ委譲する。"""
-                return self._dispatch_shared("query", args, kwargs)
-        values = Items()
-        values._items = [Item()]
-        self.assertEqual(values.query(), [3])
-        self.assertFalse(hasattr(values, "not_exported"))
-        with self.assertRaises(ValueError):
-            values.callEach("not_exported", [()])
-
+            Joints([name])
 
 
 if __name__ == "__main__":

@@ -61,21 +61,10 @@ class LsComponentsTest(unittest.TestCase):
         with self.assertRaises(TypeError):
             mlib.ls(sl=True, selection=True, type="vertex")
 
-    def test_instance_path_and_direct_delta_removal(self):
+    def test_instance_path(self):
         instance = cmds.instance(self.mesh, name=self.ns + ":instance")[0]
         vertex = mlib.ls(instance + ".vtx[0]", type="vertex")[0]
         self.assertIn(instance, vertex.getFullName())
-        target = cmds.duplicate(self.other, name=self.ns + ":target")[0]
-        bs = mlib.getNode(cmds.blendShape(target, self.other)[0])
-        try:
-            bs.setTargetDeltas(0, {0: (0, 1, 0), 1: (0, 2, 0)}, disconnect=True)
-            cmds.select(self.other + ".vtx[0]", r=True)
-            bs.resetTargetVertices(0, mlib.ls(sl=True, type="vertex"))
-            self.assertEqual(set(bs.getTargetDeltas(0)), {1})
-            cmds.undo()
-            self.assertEqual(set(bs.getTargetDeltas(0)), {0, 1})
-        finally:
-            cmds.delete(bs.getName())
 
 
 if __name__ == "__main__":

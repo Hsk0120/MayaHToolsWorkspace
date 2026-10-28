@@ -1,8 +1,8 @@
-"""Shape 系(Mesh・NurbsCurve・Camera)とデフォーマー(Cluster・BlendShape)の照会の約束を固定する(担当C)。
+"""Shape 系(Mesh・NurbsCurve・Camera)とデフォーマー(Cluster)の照会の約束を固定する(担当C)。
 
 対象: Mesh.getVertexAdjacency(ローカル/ワールド・孤立頂点)・getNumUVs、NurbsCurve.getNumSpans・getForm、
-Shape.isIntermediateObject、Camera.getFocalLength・mfn、Cluster.getWeightedNode・getGeometry、
-BlendShape.getGeometry。値は cmds・OpenMaya で独立に求めた値と比べる。
+Shape.isIntermediateObject、Camera.getFocalLength・mfn、Cluster.getWeightedNode・getGeometry。
+値は cmds・OpenMaya で独立に求めた値と比べる。
 """
 
 import math
@@ -60,7 +60,7 @@ class VertexAdjacencyTest(_SpecCase):
         local = self.mesh.getVertexAdjacency()
         self.assertAdjacency(local, self.expected(False))
         self.assertAlmostEqual(local[0][0][1], 2.0)
-        world = self.mesh.getVertexAdjacency(ws=True)
+        world = self.mesh.getVertexAdjacency(worldSpace=True)
         self.assertAdjacency(world, self.expected(True))
         self.assertAlmostEqual(world[0][0][1], 6.0)
         self.assertAdjacency(self.mesh.getVertexAdjacency(worldSpace=True), world)
@@ -83,11 +83,11 @@ class VertexAdjacencyTest(_SpecCase):
         self.assertEqual(adjacency[3], [(2, 1.0), (0, 1.0)])
 
     def test_argument_errors(self):
-        """長短名の同時指定は TypeError、bool 以外は ValueError。"""
-        with self.assertRaisesRegex(TypeError, "Specify only one of 'worldSpace' and 'ws'"):
-            self.mesh.getVertexAdjacency(True, ws=True)
+        """bool 以外の空間指定と、廃止した短縮名 ws は TypeError。"""
         with self.assertRaises(TypeError):
-            self.mesh.getVertexAdjacency(ws=1)
+            self.mesh.getVertexAdjacency(ws=True)
+        with self.assertRaises(TypeError):
+            self.mesh.getVertexAdjacency(worldSpace=1)
 
     def test_num_uvs_is_current_set(self):
         """getNumUVs は現在の UV セットの数。空のセットへ切り替えると0。"""
@@ -140,7 +140,7 @@ class IntermediateCameraTest(_SpecCase):
 
 
 class DeformerTest(_SpecCase):
-    """Cluster と BlendShape の照会。"""
+    """Cluster の照会。"""
 
     def test_cluster(self):
         """getWeightedNode は matrix の入力元のハンドル、切断すると None。getGeometry は出力 Shape。"""
@@ -153,16 +153,6 @@ class DeformerTest(_SpecCase):
         self.assertEqual(node.getGeometry(), [Node(cube).getShape()])
         cmds.disconnectAttr(handle + ".worldMatrix[0]", cluster + ".matrix")
         self.assertIsNone(node.getWeightedNode())
-
-    def test_blend_shape_geometry(self):
-        """getGeometry は出力のベース Shape。出力の無い blendShape は空リスト。"""
-        target = cmds.polyCube(name=self.name("target"))[0]
-        base = cmds.polyCube(name=self.name("base"))[0]
-        blend = cmds.blendShape(target, base, name=self.name("blend"))[0]
-        self.assertEqual(Node(blend).getGeometry(), [Node(base).getShape()])
-        empty = cmds.createNode("blendShape", name=self.name("emptyBlend"), skipSelect=True)
-        self.assertEqual(Node(empty).getGeometry(), [])
-
 
 if __name__ == "__main__":
     unittest.main()

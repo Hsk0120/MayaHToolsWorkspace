@@ -50,7 +50,7 @@ class MatrixFollowTest(unittest.TestCase):
         self.source.setTranslate((4, 0, 0), at=4)
         self.parent.setTranslate((0, 3, 0), at=4)
         MatrixFollow.create(self.source, self.target)
-        self.assertAlmostEqual(self.target.getTranslate(ws=True, at=4)[0], 0)
+        self.assertAlmostEqual(self.target.getTranslate(worldSpace=True, at=4)[0], 0)
         self.source.setTranslate((6, 0, 0), at=4)
         expected = tuple(self.target.getPlug("worldMatrix[0]").get())
         source_name, target_name = self.source.getFullName(), self.target.getFullName()
@@ -63,7 +63,7 @@ class MatrixFollowTest(unittest.TestCase):
             cmds.file(str(path), open=True, force=True)
             self.assertMatrix(mlib.getNode(target_name).getPlug("worldMatrix[0]").get(), expected)
             mlib.getNode(source_name).setTranslate((7, 0, 0), at=4)
-            self.assertAlmostEqual(mlib.getNode(target_name).getTranslate(ws=True, at=4)[0], 3)
+            self.assertAlmostEqual(mlib.getNode(target_name).getTranslate(worldSpace=True, at=4)[0], 3)
 
     def test_undo_redo(self):
         """構築を1回のUndo/Redoで元へ戻せる。"""

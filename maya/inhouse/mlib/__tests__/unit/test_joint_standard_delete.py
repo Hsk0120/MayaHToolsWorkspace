@@ -8,7 +8,7 @@ import mlib
 
 
 class JointStandardDeleteTest(unittest.TestCase):
-    """単数・複数・コマンド入口がジョイント整理を暗黙実行しない。"""
+    """単数・コマンド入口がジョイント整理を暗黙実行しない。"""
 
     def setUp(self):
         """使い捨てのシーンを作る。"""
@@ -17,7 +17,7 @@ class JointStandardDeleteTest(unittest.TestCase):
 
     def test_hierarchy_deletion_matches_native_and_supports_undo(self):
         """Jointの子も削除し、通常更新は一回のUndoで復元する。"""
-        for entry in (lambda n: n.delete(), lambda n: mlib.nodes.Joints([n]).delete(), mlib.delete):
+        for entry in (lambda n: n.delete(), mlib.delete):
             root = mlib.createNode("joint")
             child = mlib.createNode("joint", parent=root)
             control = mlib.createNode("transform", parent=child)
@@ -69,9 +69,8 @@ class JointStandardDeleteTest(unittest.TestCase):
         root.delete(safe=True)
         self.assertTrue(root.isValid())
         self.assertTrue(child.isValid())
-        for target in (root, mlib.nodes.Joints([root])):
-            with self.assertRaises(TypeError):
-                target.delete(safe=1)
+        with self.assertRaises(TypeError):
+            root.delete(safe=1)
 
 
 if __name__ == "__main__":

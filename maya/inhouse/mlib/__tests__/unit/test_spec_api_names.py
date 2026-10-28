@@ -1,8 +1,7 @@
 """mlib 2.0 の名前方針(DESIGN §2・§3)を対応表データで固定する。
 
-旧名(別名を含む)が単数・複数形クラスのどこにも残らないこと、新名が単数に定義され
-複数形クラスへ同じ署名で転送されること、`_calculating_setters` と `_bulk_methods` の
-文字列が改名に追従していること、mlib 本体のソースに旧名の def が無いことを確かめる。
+旧名(別名を含む)が単数・複数形クラスのどこにも残らないこと、新名が単数に定義されること、
+複数形クラスが単数への一括転送を持たないこと、mlib 本体のソースに旧名の def が無いことを確かめる。
 2.1.0 で lowerCamelCase へ改名した公開引数に旧名が残らないことも確かめる。
 個々の新しい約束(引数・戻り値・Undo・fast)は test_spec_node_*/dag_*/transform_*/plug_* が受け持つ。
 """
@@ -14,10 +13,10 @@ from pathlib import Path
 
 import mlib
 mlib.reload()
-from mlib.nodes import DagNode, DagNodes, Joint, Joints, Node, Nodes, Shape, Transform, Transforms
+from mlib.nodes import DagNode, Joint, Joints, Node, Nodes, Shape, Transform
 from mlib.plugs import ArrayPlug, CompoundPlug, Plug
 
-#: 廃止した名前(DESIGN §3)。単数クラスと、その複数形(転送 def・_bulk_methods のキー)の双方に残らない。
+#: 廃止した名前(DESIGN §3)。単数クラスと、その複数形の双方に残らない。
 REMOVED = {
     Node: ("create", "getPath", "isChildOf", "getAttrCount", "sameInstance", "getAssignedObjects",
            "getMaterials", "getExtraAttrs"),
@@ -30,9 +29,9 @@ REMOVED = {
 }
 
 #: 単数クラスと対応する複数形クラス。
-PLURALS = {Node: Nodes, DagNode: DagNodes, Transform: Transforms, Joint: Joints}
+PLURALS = {Node: Nodes, Joint: Joints}
 
-#: 統合後に定義されている名前(DESIGN §2)。単数の def と複数形の転送を確かめる。
+#: 統合後に定義されている名前(DESIGN §2)。単数の def を確かめる。
 REQUIRED = {
     Node: ("mfn", "hasFn", "setLocked", "getType", "isType", "resetAttrs", "getPlugs", "getConnections",
            "isParentOf", "isAncestorOf", "getName", "getFullName", "sameNode"),
@@ -43,8 +42,12 @@ REQUIRED = {
     Joint: ("getJointOrient", "jointOrientToRotate", "freezeRotate", "getSkinClusters"),
 }
 
-#: 複数形に転送しない(複数形だけの)名前。
-PLURAL_ONLY = {"callEach", "copy", "getNames", "delete", "sortedByDepth", "removeInfluences"}
+#: 複数形が独自の集約として持つ名前(単数への転送ではない)。Joints.getSkinClusters は重複を除いた SkinClusters を返す。
+PLURAL_OWN = ("getSkinClusters",)
+
+#: 3.0.0 で廃止した複数形の一括転送と、その基盤の名前。
+REMOVED_PLURAL = ("callEach", "getNames", "delete", "removeInfluences", "jointOrientToRotate", "freezeRotate",
+                  "_bulk_entries", "_bulk_methods", "_bulk_returns", "_dispatch_shared", "_calculating_setters")
 
 
 class RemovedNamesTest(unittest.TestCase):
@@ -64,7 +67,6 @@ class RemovedNamesTest(unittest.TestCase):
                 for name in names:
                     with self.subTest(cls=plural.__name__, name=name):
                         self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))
-                        self.assertNotIn(name, plural._bulk_methods)
 
     def test_array_plug_owns_next_available(self):
         """getNextAvailable は ArrayPlug だけに定義され、Plug・CompoundPlug には無い。"""
@@ -110,37 +112,26 @@ class RequiredNamesTest(unittest.TestCase):
                 with self.subTest(cls=cls.__name__, name=name):
                     self.assertTrue(callable(getattr(cls, name)), "%s.%s missing" % (cls.__name__, name))
 
-    def test_plural_classes_forward_required_names(self):
+    def test_plural_classes_do_not_forward(self):
+        """複数形クラスは単数への一括転送を持たない。要素ごとに単数のメソッドを呼ぶ。"""
         for cls, plural in PLURALS.items():
             for base, names in REQUIRED.items():
                 if not issubclass(cls, base):
                     continue
                 for name in names:
+                    if name in PLURAL_OWN:
+                        continue
                     with self.subTest(cls=plural.__name__, name=name):
-                        forwarded = getattr(plural, name)
-                        self.assertTrue(callable(forwarded))
-                        self.assertIn(name, plural._bulk_methods)
-                        self.assertIs(plural._bulk_methods[name], getattr(cls, name))
-                        self.assertEqual(inspect.signature(forwarded), inspect.signature(getattr(cls, name)))
-
-    def test_bulk_methods_match_forwarding_defs(self):
-        """_bulk_methods のキーはすべて単数の公開 def を指し、同名の転送 def を持つ。"""
-        for cls, plural in PLURALS.items():
-            for name, method in plural._bulk_methods.items():
+                        self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))
+            for name in PLURAL_OWN:
+                with self.subTest(cls=plural.__name__, own=name):
+                    if plural is Joints:
+                        self.assertIn(name, Joints.__dict__)
+            for name in REMOVED_PLURAL:
                 with self.subTest(cls=plural.__name__, name=name):
-                    self.assertFalse(name.startswith("_"))
-                    self.assertTrue(callable(getattr(cls, name)), "%s.%s missing" % (cls.__name__, name))
-                    self.assertIs(method, getattr(cls, name))
-                    # 転送 def は複数形(またはその基底の複数形)に定義され、単数の関数そのものではない。
-                    self.assertIsNot(inspect.getattr_static(plural, name), method,
-                                     "%s has no forwarding def %s" % (plural.__name__, name))
-
-    def test_calculating_setters_use_current_names(self):
-        self.assertIn("setShear", Nodes._calculating_setters)
-        self.assertNotIn("setShearing", Nodes._calculating_setters)
-        for name in Nodes._calculating_setters:
-            with self.subTest(name=name):
-                self.assertTrue(callable(getattr(Transform, name)))
+                    self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))
+        self.assertFalse(hasattr(mlib.nodes, "DagNodes"))
+        self.assertFalse(hasattr(mlib.nodes, "Transforms"))
 
     def test_moved_dag_queries_live_on_dag_node(self):
         """getRoot・getSiblings・getBoundingBox・isIntermediateObject は DagNode が持ち、Transform は継承する。"""
@@ -148,7 +139,6 @@ class RequiredNamesTest(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn(name, DagNode.__dict__)
                 self.assertNotIn(name, Transform.__dict__)
-                self.assertIn(name, DagNodes._bulk_methods)
 
     def test_rotate_accepts_order(self):
         parameters = inspect.signature(Transform.getRotate).parameters
@@ -156,10 +146,11 @@ class RequiredNamesTest(unittest.TestCase):
         self.assertEqual(parameters["order"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIsNone(parameters["order"].default)
 
-    def test_set_parent_accepts_short_relative(self):
+    def test_set_parent_has_no_short_relative(self):
+        """3.0.0で短縮名rは廃止し、長名relativeだけを持つ。"""
         parameters = inspect.signature(Transform.setParent).parameters
-        self.assertIn("r", parameters)
-        self.assertEqual(parameters["r"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIn("relative", parameters)
+        self.assertNotIn("r", parameters)
 
     def test_get_plugs_signature(self):
         parameters = inspect.signature(Node.getPlugs).parameters
@@ -216,22 +207,18 @@ class RenamedArgumentsTest(unittest.TestCase):
         """(呼出し先の表示名, 呼出し先, 旧引数名, 新引数名)を返す。"""
         from mlib import common
         from mlib.common import references, units
-        from mlib.nodes import AnimCurve, BlendShape, DagPose, IkHandle, Mesh, Reference, SkinCluster, SkinClusters
+        from mlib.nodes import AnimCurve, DagPose, IkHandle, Mesh, Reference, SkinCluster
         return (
             ("Node.isType", Node.isType, "node_type", "nodeType"),
-            ("Nodes.isType", Nodes.isType, "node_type", "nodeType"),
             ("Node.getNodeName", Node.getNodeName, "remove_namespace", "removeNamespace"),
-            ("Nodes.callEach", Nodes.callEach, "keyword_arguments", "keywordArguments"),
             ("Transform.getClosestAxisToVector", Transform.getClosestAxisToVector, "ref_vector", "refVector"),
-            ("Transforms.getClosestAxisToVector", Transforms.getClosestAxisToVector, "include_negative", "includeNegative"),
+            ("Transform.getClosestAxisToVector", Transform.getClosestAxisToVector, "include_negative", "includeNegative"),
             ("Joint.removeInfluence", Joint.removeInfluence, "transfer_to_parent", "transferToParent"),
-            ("Joints.removeInfluence", Joints.removeInfluence, "skin_cluster", "skinCluster"),
-            ("Joints.reparentChildren", Joints.reparentChildren, "parent_joint", "parentJoint"),
+            ("Joint.removeInfluence", Joint.removeInfluence, "skin_cluster", "skinCluster"),
+            ("Joint.reparentChildren", Joint.reparentChildren, "parent_joint", "parentJoint"),
             ("SkinCluster.__init__", SkinCluster.__init__, "skin_cluster", "skinCluster"),
             ("SkinCluster.bind", SkinCluster.bind, "max_influences", "maxInfluences"),
             ("SkinCluster.removeInfluence", SkinCluster.removeInfluence, "transfer_to_parent", "transferToParent"),
-            ("SkinClusters.removeInfluence", SkinClusters.removeInfluence, "transfer_to_parent", "transferToParent"),
-            ("SkinClusters.removeInfluences", SkinClusters.removeInfluences, "transfer_to_parent", "transferToParent"),
             ("SkinCluster.transferWeights", SkinCluster.transferWeights, "source_target_pairs", "sourceTargetPairs"),
             ("DagPose.fromSkinCluster", DagPose.fromSkinCluster, "skin_cluster", "skinCluster"),
             ("IkHandle.getJoints", IkHandle.getJoints, "include_tip", "includeTip"),
@@ -241,11 +228,7 @@ class RenamedArgumentsTest(unittest.TestCase):
             ("AnimCurve.shiftKeys", AnimCurve.shiftKeys, "input_offset", "inputOffset"),
             ("AnimCurve.scaleKeys", AnimCurve.scaleKeys, "value_pivot", "valuePivot"),
             ("AnimCurve.mirror", AnimCurve.mirror, "input_pivot", "inputPivot"),
-            ("BlendShape.addTarget", BlendShape.addTarget, "weight_index", "weightIndex"),
-            ("BlendShape.getTargetDeltas", BlendShape.getTargetDeltas, "full_weight", "fullWeight"),
             ("CompoundPlug.__getitem__", CompoundPlug.__getitem__, "name_or_index", "nameOrIndex"),
-            ("Cycle.find", common.Cycle.find, "include_dag", "includeDag"),
-            ("Cycle.find", common.Cycle.find, "first_only", "firstOnly"),
             ("DampedSpring.solve", common.DampedSpring.solve, "seconds_per_sample", "secondsPerSample"),
             ("DrivenKey.setKey", common.DrivenKey.setKey, "driver_value", "driverValue"),
             ("Plugin.ensureNodePlugin", common.Plugin.ensureNodePlugin, "node_type", "nodeType"),

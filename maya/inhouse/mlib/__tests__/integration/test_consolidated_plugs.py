@@ -77,13 +77,10 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         conversion.getPlug("output").connectTo(destination)
         self.assertEqual(destination.getSource(), source)
         self.assertEqual(destination.getSource(skipConversionNodes=False).getNode(), conversion)
-        self.assertEqual(destination.getSource(scn=False).getNode(), conversion)
         self.assertEqual(destination.getConnections(s=True, d=False), [conversion.getPlug("output")])
         self.assertEqual(source.getDestinations(), [destination])
-        self.assertEqual(source.getDestinations(scn=False), [conversion.getPlug("input")])
+        self.assertEqual(source.getDestinations(skipConversionNodes=False), [conversion.getPlug("input")])
         self.assertEqual(destination.getSource(asNode=True), source.getNode())
-        with self.assertRaises(TypeError):
-            destination.getSource(scn=True, skipConversionNodes=False)
         self.assertFalse(hasattr(type(destination), "getSourceWithConversion"))
         self.assertFalse(hasattr(type(destination), "getInputs"))
 
@@ -97,15 +94,15 @@ class ConsolidatedPlugsTest(unittest.TestCase):
                 patch.object(cmds, "disconnectAttr", side_effect=AssertionError("cmds disconnect")), \
                 patch.object(cmds, "setAttr", side_effect=AssertionError("cmds set")):
             self.assertEqual(source.connectTo(destination, fast=True), destination)
-            self.assertEqual(destination.getSource(scn=False), source)
+            self.assertEqual(destination.getSource(skipConversionNodes=False), source)
             destination.setLocked(True, fast=True)
             replacement = self.node.getPlug("ty")
             replacement.set(33, fast=True)
             destination.connect(replacement, force=True, fast=True)
             self.assertTrue(destination.isLocked())
-            self.assertEqual(destination.getSource(scn=False), replacement)
+            self.assertEqual(destination.getSource(skipConversionNodes=False), replacement)
             destination.unlock(fast=True)
-            destination.disconnectAll(fast=True, src=True, dst=False)
+            destination.disconnectAll(fast=True, source=True, destination=False)
         self.assertIsNone(destination.getSource())
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
@@ -236,7 +233,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         with patch.object(cmds, "setKeyframe", side_effect=AssertionError("cmds key")):
             self.assertIs(plug.setKey(t=24, v=90, itt="linear", ott="linear", fast=True), plug)
             plug.setKey(time=48, value=180, fast=True)
-        curve = plug.getSource(scn=False).getNode()
+        curve = plug.getSource(skipConversionNodes=False).getNode()
         self.assertEqual(curve.getKeyInputs(), [1, 2])
         self.assertEqual(curve.getKeyValues(), [math.pi / 2, math.pi])
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
@@ -274,7 +271,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         matrix = mlib.createNode("distanceBetween").getPlug("inMatrix1")
         source = self.node.getPlug("worldMatrix")[0]
         self.assertEqual(matrix.connect(source), matrix)
-        self.assertEqual(matrix.getSource(scn=False), source)
+        self.assertEqual(matrix.getSource(skipConversionNodes=False), source)
 
     def test_fast_alias_and_mute_query(self):
         """別名をAPIで編集し、muteの状態照会もAPIで読む。"""
@@ -287,11 +284,6 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         plug.setMuted(True)
         with patch.object(cmds, "mute", side_effect=AssertionError("cmds mute query")):
             self.assertTrue(plug.isMuted())
-        # 2.1.0: fast の解除は MDGModifier で mute ノードを削除し、元の入力をつなぎ直す。
-        with patch.object(cmds, "mute", side_effect=AssertionError("cmds mute")):
-            plug.setMuted(False, fast=True)
-        self.assertFalse(plug.isMuted())
-        plug.setMuted(True)
         plug.setMuted(False)
         self.assertFalse(plug.isMuted())
 

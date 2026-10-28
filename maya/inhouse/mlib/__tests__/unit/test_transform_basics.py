@@ -130,7 +130,7 @@ class TransformBasicsTest(unittest.TestCase):
                 cmds.setAttr(reference.getFullName() + ".s", 1.2, 2.3, 3.4)
                 cmds.setAttr(reference.getFullName() + ".sh", .1, -.2, .3)
                 target = self.matrix(reference, world=True)
-                self.assertIs(node.setMatrix(target, ws=True, fast=fast), node)
+                self.assertIs(node.setMatrix(target, worldSpace=True, fast=fast), node)
                 self.assertValuesAlmostEqual(self.matrix(node, world=True), target)
 
     def test_matrix_update_is_one_undo_step_for_all_trs_and_shear(self):
@@ -176,7 +176,7 @@ class TransformBasicsTest(unittest.TestCase):
         cmds.setAttr(node.getFullName() + ".tx", lock=True)
         before = self.matrix(node)
         cmds.flushUndo()
-        planned = node.setTranslate((14, 29, 46), ws=True, at=1, safe=True, get=True)
+        planned = node.setTranslate((14, 29, 46), worldSpace=True, at=1, safe=True, get=True)
         self.assertIsInstance(planned, list)
         self.assertValuesAlmostEqual(planned, (2, 3, 4))
         planned[0] = 999
@@ -262,7 +262,7 @@ class TransformBasicsTest(unittest.TestCase):
             for flags in ({}, {"safe": True}, {"get": True}, {"safe": True, "get": True}):
                 with self.subTest(fast=fast, flags=flags):
                     with self.assertRaises(ValueError):
-                        node.setMatrix(self.matrix(reference), ws=True, fast=fast, **flags)
+                        node.setMatrix(self.matrix(reference), worldSpace=True, fast=fast, **flags)
                     self.assertEqual(self.matrix(node), before)
                     self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
@@ -275,7 +275,7 @@ class TransformBasicsTest(unittest.TestCase):
             node, reference = self.make(parent), self.make()
             cmds.setAttr(reference.getFullName() + ".t", 3, 4, 5)
             target = self.matrix(reference)
-            self.assertIs(node.setMatrix(target, ws=True, fast=fast), node)
+            self.assertIs(node.setMatrix(target, worldSpace=True, fast=fast), node)
             self.assertValuesAlmostEqual(self.matrix(node, world=True), target)
 
     def test_flag_conflicts_and_invalid_fast_do_not_record_changes(self):

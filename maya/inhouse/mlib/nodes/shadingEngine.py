@@ -22,7 +22,7 @@ class ShadingEngine(ObjectSet):
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
         """
-        return self.getPlug(self._shader_attribute(kind)).getSource(scn=False)
+        return self.getPlug(self._shader_attribute(kind)).getSource(skipConversionNodes=False)
 
     def getShader(self, kind="surface"):
         """接続元のシェーダーノードを取得する。

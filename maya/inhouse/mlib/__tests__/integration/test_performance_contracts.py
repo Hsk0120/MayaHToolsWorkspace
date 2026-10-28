@@ -93,7 +93,7 @@ class PerformanceContractsTest(unittest.TestCase):
         path = node.mpath()
         for ws, attr in ((True, "worldMatrix[%d]" % path.instanceNumber()), (False, "matrix")):
             expected = cmds.getAttr(path.fullPathName() + "." + attr)
-            for a, b in zip(node.getMatrix(ws=ws), expected):
+            for a, b in zip(node.getMatrix(worldSpace=ws), expected):
                 self.assertAlmostEqual(a, b, places=8)
 
     def test_matrix_joint_and_transform_evaluation(self):
@@ -136,7 +136,7 @@ class PerformanceContractsTest(unittest.TestCase):
         first, second = mlib.getNode("|a|child"), mlib.getNode("|b|child")
         self.assert_matrix(first)
         self.assert_matrix(second)
-        self.assertNotEqual(list(first.getMatrix(ws=True)), list(second.getMatrix(ws=True)))
+        self.assertNotEqual(list(first.getMatrix(worldSpace=True)), list(second.getMatrix(worldSpace=True)))
         n = cmds.createNode("transform", name="single")
         node = mlib.getNode(n)
         n = cmds.rename(n, "renamed")
@@ -144,7 +144,7 @@ class PerformanceContractsTest(unittest.TestCase):
         self.assert_matrix(node)
         cmds.delete(node.getFullName())
         with self.assertRaises(RuntimeError):
-            node.getMatrix(ws=True)
+            node.getMatrix(worldSpace=True)
         cmds.undo()
         self.assert_matrix(node)
 

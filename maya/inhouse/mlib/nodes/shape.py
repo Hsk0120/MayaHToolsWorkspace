@@ -9,9 +9,8 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context, _pick_alias
+from ..decorator import _edit_context
 from ..util import _world_space
-from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .transform import Transform
 
@@ -19,7 +18,7 @@ from .transform import Transform
 class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
-    def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
+    def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
         Transformのマトリクス・面の頂点順は変えず、共有形状は全インスタンスに影響する。
@@ -27,25 +26,23 @@ class Shape(DagNode):
 
         Args:
             scale (float | Iterable[float]): 有限な一様倍率、またはXYZ倍率。負数・0も可。
-            worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
+            worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
             pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
                 Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。
             fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新(Undoなし)。
                 FalseはMaya標準コマンドをUndo有効時にまとめる。
-            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Shape: 自身。
 
         Raises:
-            TypeError: fast・番号の型、または長短名の指定が不正な場合。
+            TypeError: fast・番号の型が不正な場合。
             ValueError: 倍率・中心・空間が不正、world変換がほぼ特異、またはメッシュ・NURBS以外のShapeの場合。
             IndexError: 対象番号が範囲外の場合。
             RuntimeError: Mayaが編集を拒否した場合。
             NotImplementedError: fastでサーフェス・周期カーブ・入力履歴付き形状の場合。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         with _edit_context("mlibShapeScaleGeometry", fast):
             ws = _world_space(worldSpace)
             try:

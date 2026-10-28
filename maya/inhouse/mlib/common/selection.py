@@ -10,7 +10,7 @@ from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core.object import _exists, _selection_component, _selection_plug
-from ..decorator import _edit_context
+from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
 
@@ -219,36 +219,27 @@ class Selection:
                 result.append(item)
         return Selection(result)
 
-    def select(self, mode="replace", missing="skip", *, fast=False):
+    def select(self, mode="replace", missing="skip"):
         """保持した対象を現在の選択に反映する。
 
-        通常は ``cmds.select(noExpand=True)`` でUndo有効時に一つのチャンクへ記録する。
-        fastは同じ並び・コンポーネントのまとめ方の選択リストを作り、
-        ``MGlobal.setActiveSelectionList`` で反映してUndoに記録しない。
+        ``cmds.select(noExpand=True)`` でUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             mode (str): replaceは置換、addは追加、removeは除外。
             missing (str): skipは無効対象を除外、errorは変更前に例外。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Selection: 自身。空集合はreplaceだけ選択を解除する。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             ValueError: modeまたはmissingが未対応の場合。
             RuntimeError: missingがerrorで対象が削除済みの場合。
         """
-        with _edit_context("mlibSelectionSelect", fast):
+        with undoChunk("mlibSelectionSelect"):
             if mode not in ("replace", "add", "remove"):
                 raise ValueError("mode must be replace, add or remove")
             names = self._names(missing)
-            if fast:
-                if names or mode == "replace":
-                    api_mode = {"replace": om2.MGlobal.kReplaceList, "add": om2.MGlobal.kAddToList,
-                                "remove": om2.MGlobal.kRemoveFromList}[mode]
-                    _set_active_selection(names, api_mode, noExpand=True)
-            elif names:
+            if names:
                 flag = {"replace": "replace", "add": "add", "remove": "deselect"}[mode]
                 cmds.select(names, noExpand=True, **{flag: True})
             elif mode == "replace":
@@ -338,81 +329,6 @@ def _selection_node(selection, index):
     if node.hasFn(om2.MFn.kDagNode):
         return selection.getDagPath(index)
     return node
-
-
-def _set_active_selection(names, mode, noExpand=False):
-    """名前の列を ``cmds.select`` と同じ並びの選択リストにして、現在の選択へ反映する。
-
-    ``MSelectionList.add`` の既定は同じ形状のコンポーネントを先頭の要素へまとめるが、
-    ``cmds.select`` は直前の要素と同じ形状・種類のコンポーネントだけをまとめる。
-    その規則で選択リストを組み立ててから ``MGlobal.setActiveSelectionList`` を1回呼ぶ。
-    全ての名前を解決してから反映するので、失敗時に選択は変わらない。Undoには記録しない。
-
-    Args:
-        names (Iterable[str]): 選択する名前。ワイルドカード・範囲指定も使える。
-        mode (int): ``om2.MGlobal`` の kReplaceList・kAddToList・kAddToHeadOfList・kRemoveFromList。
-        noExpand (bool): Falseでセットが含まれる場合は、cmdsがメンバーへ展開するため未対応とする。
-
-    Returns:
-        None: 値を返さない。
-
-    Raises:
-        ValueError: 名前が見つからない場合(``cmds.select`` と同じ型)。
-        NotImplementedError: noExpandがFalseで、対象にセットが含まれる場合。
-    """
-    selection = om2.MSelectionList()
-    for name in names:
-        items = om2.MSelectionList()
-        try:
-            items.add(name)
-        except RuntimeError:
-            raise ValueError(f"No object matches name: {name}") from None
-        for index in range(items.length()):
-            _append_selection_item(selection, items, index, noExpand)
-    om2.MGlobal.setActiveSelectionList(selection, mode)
-
-
-def _append_selection_item(selection, items, index, noExpand):
-    """選択リストの1要素を、直前の要素とだけコンポーネントをまとめて末尾へ加える。
-
-    Args:
-        selection (om2.MSelectionList): 組み立て中の選択リスト。
-        items (om2.MSelectionList): 1つの名前を解決した選択リスト。
-        index (int): itemsの要素番号。
-        noExpand (bool): Falseでセットを未対応とする。
-
-    Returns:
-        None: 値を返さない。
-
-    Raises:
-        NotImplementedError: noExpandがFalseで、要素がセットの場合。
-    """
-    plug = _selection_plug(items, index)
-    if plug is not None:
-        selection.add(plug, False)
-        return
-    found = _selection_component(items, index)
-    if found is None:
-        node = _selection_node(items, index)
-        if isinstance(node, om2.MObject) and not noExpand and node.hasFn(om2.MFn.kSet):
-            raise NotImplementedError("fast select does not expand sets; use noExpand=True")
-        selection.add(node, False)
-        return
-    path, component = found
-    last = selection.length() - 1
-    if last >= 0:
-        last_found = _selection_component(selection, last)
-        if last_found is not None:
-            last_path, last_component = last_found
-        if (last_found is not None and last_path == path
-                and last_component.apiType() == component.apiType()):
-            merged = om2.MSelectionList()
-            merged.add((last_path, last_component))
-            merged.add((path, component), True)
-            selection.remove(last)
-            selection.add(merged.getComponent(0), False)
-            return
-    selection.add((path, component), False)
 
 
 def _is_plain_node_name(name):

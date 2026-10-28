@@ -1,17 +1,15 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
-import inspect
 import math
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.fastWrite import set_attr
-from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
-from ..util import _UNSET
-from .node import Node
-from .transform import Transform, Transforms, _closest_euler
+from .node import Node, Nodes
+from .transform import Transform, _closest_euler
 
 
 class Joint(Transform):
@@ -115,7 +113,7 @@ class Joint(Transform):
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True, fast=fast)
             return self
 
-    def connectInverseScale(self, source=_UNSET, force=_UNSET, *, fast=False, src=_UNSET, f=_UNSET):
+    def connectInverseScale(self, source=None, force=False, *, fast=False):
         """接続元Transformのscaleを自身のinverseScaleへ接続する。
 
         segmentScaleCompensateは変更せず、姿勢の補償は行わない。
@@ -127,22 +125,18 @@ class Joint(Transform):
             force (bool): 既定False。Trueは既存入力を置換し、接続先側のロックを一時解除する。
                 ロック復元の規則は :meth:`~mlib.plugs.plug.Plug.connect` と同じ。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            src (object | None): sourceの別名。同時指定は不可。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             Joint: 自身。同じ直接接続が既にあれば変更しない。
 
         Raises:
-            TypeError: Transformへ解決できない、force/fastがbool以外、または長短名を同時指定した場合。
+            TypeError: Transformへ解決できない、force/fastがbool以外の場合。
             ValueError: 自身を接続元にした、または入力参照が不正な場合。
             RuntimeError: 対象が無効、名前解決・接続・ロック復元に失敗した場合。
 
         Note:
             Jointsでもsource=Noneなら各要素の親を使う。通常処理はUndo有効時に1回で戻せる。
         """
-        source = _pick_alias(source, src, "source", "src", default=None)
-        force = _pick_alias(force, f, "force", "f", default=False)
         with _edit_context("mlibJointConnectInverseScale", fast):
             _require_bool(force, "force")
             self._require_valid("connect inverseScale on")
@@ -292,45 +286,36 @@ class Joint(Transform):
             result.append(SkinCluster(node.mnode()))
         return result
 
-    def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=_UNSET, fast=False, f=_UNSET):
+    def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=False):
         """指定skinClusterから自身のinfluence登録を外す。jointノードは残す。
 
         全対象の登録・移送条件を先に検査し、取得順にSkinCluster.removeInfluenceへ委譲する。
-        fast固有の構造検査は各skinClusterの処理時に行い、後続の失敗で先行処理は戻さない。
+        Undo有効時は一つのチャンクへ記録する。fast引数は持たない。後続の失敗で先行処理は戻さない。
 
         Args:
             skinCluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
             transferToParent (bool): Trueは最も近い祖先influenceへ加算する。
                 False、または移送先がなければ標準の再配分に任せる。
             force (bool): 不正ウェイトを修復してから解除する。修復時に正規化・ロック解除・レイヤー回避は行わない。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             Joint: 自身。対象省略で未スキニングなら変更しない。
 
         Raises:
-            TypeError: transferToParent・force・fastがbool以外、またはforce/fを同時指定した場合。
+            TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceを解除する場合。
             RuntimeError: 無効joint、レイヤー・ロック、または編集失敗。
-            NotImplementedError: fastで、いずれかのskinClusterが単数
-                :meth:`SkinCluster.removeInfluence` のfastの未対応条件に当たる場合。どのskinも変更しない。
         """
-        force = _pick_alias(force, f, "force", "f", default=False)
-        with _edit_context("mlibJointRemoveInfluence", fast):
+        with undoChunk("mlibJointRemoveInfluence"):
             from .skinCluster import SkinCluster
             self._require_valid("remove")
             _require_bool(transferToParent, "transferToParent")
             _require_bool(force, "force")
             skins = self.getSkinClusters() if skinCluster is None else [skinCluster if isinstance(skinCluster, SkinCluster) else SkinCluster(skinCluster)]
             for skin in skins:
-                source, target = skin._influence_removal_target(self, transfer_to_parent=transferToParent, force=force)
-                if fast:
-                    # fastの未対応(再配分を再現できない等)を、どのskinも変更する前に検出する。
-                    from ..core.skinEdit import validate_removals
-                    validate_removals(skin, [(source, target)], force=force)
+                skin._influence_removal_target(self, transfer_to_parent=transferToParent, force=force)
             for skin in skins:
-                skin.removeInfluence(self, transferToParent=transferToParent, force=force, fast=fast)
+                skin.removeInfluence(self, transferToParent=transferToParent, force=force)
             return self
 
     def getTransferTarget(self, skin):
@@ -628,258 +613,10 @@ class Joint(Transform):
         return tuple(plug.child(index).asDouble() for index in range(3))
 
 
-class Joints(Transforms):
-    """Joint参照を保持するTransforms派生。型・重複規則はNodesに従う。"""
+class Joints(Nodes):
+    """Joint参照を保持するコレクション。型・重複規則はNodesに従う。"""
 
     item_class = Joint
-
-    # 単数の呼出し先と返却方針を同じ行で宣言し、追加漏れを防ぐ。
-    _bulk_entries = {
-        "getSegmentScaleCompensate": (Joint.getSegmentScaleCompensate, "list"),
-        "getJointOrient": (Joint.getJointOrient, "list"),
-        "getRadius": (Joint.getRadius, "list"),
-        "getInverseScale": (Joint.getInverseScale, "list"),
-        "getParentJointName": (Joint.getParentJointName, "list"),
-        "getChildJointNames": (Joint.getChildJointNames, "list"),
-        "getDepth": (Joint.getDepth, "list"),
-        "getSkinClusters": (Joint.getSkinClusters, "list"),
-        "getTransferTarget": (Joint.getTransferTarget, "list"),
-        "reparentChildren": (Joint.reparentChildren, "self"),
-        "getChainFromHere": (Joint.getChainFromHere, "list"),
-        "getIkHandles": (Joint.getIkHandles, "list"),
-        "setSegmentScaleCompensate": (Joint.setSegmentScaleCompensate, "self"),
-        "jointOrientToRotate": (Joint.jointOrientToRotate, "self"),
-        "freezeRotate": (Joint.freezeRotate, "self"),
-        "connectInverseScale": (Joint.connectInverseScale, "self"),
-        "disconnectInverseScale": (Joint.disconnectInverseScale, "self"),
-        "setRadius": (Joint.setRadius, "self"),
-        "removeInfluence": (Joint.removeInfluence, "self"),
-    }
-    _bulk_per_item_only = frozenset()
-
-    def getSegmentScaleCompensate(self, *args, **kwargs):
-        """各要素のgetSegmentScaleCompensateを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getSegmentScaleCompensate", args, kwargs)
-
-    getSegmentScaleCompensate.__signature__ = inspect.signature(Joint.getSegmentScaleCompensate)
-
-    def setSegmentScaleCompensate(self, *args, **kwargs):
-        """各要素のsetSegmentScaleCompensateを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("setSegmentScaleCompensate", args, kwargs)
-
-    setSegmentScaleCompensate.__signature__ = inspect.signature(Joint.setSegmentScaleCompensate)
-
-    def getJointOrient(self, *args, **kwargs):
-        """各要素のgetJointOrientを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getJointOrient", args, kwargs)
-
-    getJointOrient.__signature__ = inspect.signature(Joint.getJointOrient)
-
-    def getRadius(self, *args, **kwargs):
-        """各要素のgetRadiusを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getRadius", args, kwargs)
-
-    getRadius.__signature__ = inspect.signature(Joint.getRadius)
-
-    def setRadius(self, *args, **kwargs):
-        """各要素のsetRadiusを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("setRadius", args, kwargs)
-
-    setRadius.__signature__ = inspect.signature(Joint.setRadius)
-
-    def getInverseScale(self, *args, **kwargs):
-        """各要素のgetInverseScaleを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getInverseScale", args, kwargs)
-
-    getInverseScale.__signature__ = inspect.signature(Joint.getInverseScale)
-
-    def getParentJointName(self, *args, **kwargs):
-        """各要素のgetParentJointNameを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getParentJointName", args, kwargs)
-
-    getParentJointName.__signature__ = inspect.signature(Joint.getParentJointName)
-
-    def getChildJointNames(self, *args, **kwargs):
-        """各要素のgetChildJointNamesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getChildJointNames", args, kwargs)
-
-    getChildJointNames.__signature__ = inspect.signature(Joint.getChildJointNames)
-
-    def getDepth(self, *args, **kwargs):
-        """各要素のgetDepthを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getDepth", args, kwargs)
-
-    getDepth.__signature__ = inspect.signature(Joint.getDepth)
-
-    def getTransferTarget(self, *args, **kwargs):
-        """各要素のgetTransferTargetを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getTransferTarget", args, kwargs)
-
-    getTransferTarget.__signature__ = inspect.signature(Joint.getTransferTarget)
-
-    def reparentChildren(self, *args, **kwargs):
-        """各要素のreparentChildrenを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("reparentChildren", args, kwargs)
-
-    reparentChildren.__signature__ = inspect.signature(Joint.reparentChildren)
-
-    def getChainFromHere(self, *args, **kwargs):
-        """各要素のgetChainFromHereを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getChainFromHere", args, kwargs)
-
-    getChainFromHere.__signature__ = inspect.signature(Joint.getChainFromHere)
-
-    def getIkHandles(self, *args, **kwargs):
-        """各要素のgetIkHandlesを同じ引数で呼び、保持順の戻り値リストを返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            list: 保持順の戻り値リスト。
-        """
-        return self._dispatch_shared("getIkHandles", args, kwargs)
-
-    getIkHandles.__signature__ = inspect.signature(Joint.getIkHandles)
-
-    def connectInverseScale(self, *args, **kwargs):
-        """各要素のconnectInverseScaleを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("connectInverseScale", args, kwargs)
-
-    connectInverseScale.__signature__ = inspect.signature(Joint.connectInverseScale)
-
-    def disconnectInverseScale(self, *args, **kwargs):
-        """各要素のdisconnectInverseScaleを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("disconnectInverseScale", args, kwargs)
-
-    disconnectInverseScale.__signature__ = inspect.signature(Joint.disconnectInverseScale)
-
-    def removeInfluence(self, *args, **kwargs):
-        """各要素のremoveInfluenceを同じ引数で呼び、コレクション自身を返す。
-
-        Args:
-            *args: 単数メソッドに渡す位置引数。
-            **kwargs: 単数メソッドに渡すキーワード引数。
-
-        Returns:
-            Joints | list: コレクション自身。
-        """
-        return self._dispatch_shared("removeInfluence", args, kwargs)
-
-    removeInfluence.__signature__ = inspect.signature(Joint.removeInfluence)
 
     def sortedByDepth(self):
         """深い joint から順に並べた新しいコレクションを返す。
@@ -888,51 +625,6 @@ class Joints(Transforms):
             Joints: 子 joint を先に処理できる深さ順コレクション。
         """
         return Joints(sorted(self._items, key=lambda joint: joint.getDepth(), reverse=True))
-
-    def jointOrientToRotate(self, *, fast=False):
-        """全jointのjointOrientをrotateへ合成して0にし、現在の姿勢を保つ。
-
-        全対象の移送値と書込み可否を準備してから保持順に適用する。
-        jointOrientがXYZとも0の対象は書込み検査と更新を省略し、空コレクションは変更しない。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            Joints: 自身。
-
-        Raises:
-            TypeError: fastがbool以外の場合。
-            RuntimeError: 無効joint、ロック・入力接続・書込み不可、または編集失敗。
-
-        Note:
-            通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
-        """
-        with _edit_context("mlibJointsJointOrientToRotate", fast):
-            return self._transfer_rotate(fast=fast)
-
-    def freezeRotate(self, *, fast=False):
-        """全jointのrotateをjointOrientへ合成し、姿勢を保ってrotateを0にする。
-
-        全対象の移送値と書込み可否を準備してから保持順に適用する。
-        rotateがXYZとも0の対象は書込み検査と更新を省略し、空コレクションは変更しない。
-        ウェイト・bindPreMatrix・バインドポーズは変えず、移動/スケールのフリーズやベイクは行わない。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            Joints: 自身。
-
-        Raises:
-            TypeError: fastがbool以外の場合。
-            RuntimeError: 無効joint、ロック・入力接続・書込み不可、または編集失敗。
-
-        Note:
-            通常処理はUndo有効時に一つのチャンクへ記録する。適用中の失敗で先行変更は戻さない。
-        """
-        with _edit_context("mlibJointsFreezeRotate", fast):
-            return self._transfer_rotate(to_orient=True, fast=fast)
 
     def getSkinClusters(self):
         """全 joint に関連する skinCluster を取得する。
@@ -951,18 +643,3 @@ class Joints(Transforms):
                 seen.add(skin.getUuid())
                 skin_clusters.append(skin)
         return SkinClusters(skin_clusters)
-
-    def _transfer_rotate(self, to_orient=False, *, fast=False):
-        """全対象の準備成功後に回転移送を適用する。
-
-        Args:
-            to_orient (bool): TrueならrotateをjointOrientへ移す。
-            fast (bool): Trueなら各jointをOpenMayaで更新する。
-
-        Returns:
-            Joints: 自身。途中の失敗で完了済み更新は自動で戻さない。
-        """
-        plans = [(joint, joint._joint_rotate_transfer_values(to_orient=to_orient)) for joint in self]
-        for joint, values in plans:
-            joint._apply_rotate_transfer(values, to_orient=to_orient, fast=fast)
-        return self

@@ -5,12 +5,7 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _edit_context, _pick_alias
-from ..util import _UNSET
-
-#: fastで作成できない名前を拒否するときのメッセージ。ASCII以外の文字は、OpenMayaへ渡す際の
-#: 文字コード変換でcmdsと異なる名前になる(例: ``äx`` はcmdsで ``ax``)。
-_FAST_NON_ASCII = "fast namespace operations require ASCII names: "
+from ..decorator import undoChunk
 
 
 class Namespace:
@@ -86,36 +81,31 @@ class Namespace:
         return cls(om2.MNamespace.currentNamespace())
 
     @classmethod
-    def create(cls, name, parent=":", *, fast=False):
+    def create(cls, name, parent=":"):
         """指定先の名前空間を作成する。既存なら作成せず参照を返す。
 
         カレントNamespaceは変更しない。/は:と同じ区切りとして扱う。
-        通常はcmds.namespaceでUndo有効時に一つのチャンクへ記録する。fastは
-        om2.MNamespace.addNamespaceで作成し、Undoに記録しない。
+        cmds.namespaceでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             name (str | Namespace): 相対名はparent配下、絶対名とNamespace参照はparentを無視する。
                 多段名も指定できる。
             parent (str | Namespace): 作成先の親。相対文字列はカレントから解決する。
                 既定はルート(:)。存在しない親も再帰的に作成する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Namespace: 新規・既存の作成先の完全名を保持するラッパー。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             ValueError: nameまたはparentが不正な場合。
             RuntimeError: Mayaが作成を拒否した場合。
-            NotImplementedError: fastで、作成先の名前にASCII以外の文字が含まれる場合。OpenMayaへ渡す際の
-                文字コード変換でcmdsと異なる名前になるため、作成前に拒否する。
 
         Note:
-            ASCIIの不正文字(``-``・空白・先頭の数字・``#`` 等)は通常・fastとも同じ規則でMayaが置き換え、
+            不正文字(``-``・空白・先頭の数字・``#`` 等)はMayaの規則で置き換え、
             置き換え後の名前が既存なら末尾に番号を付ける。戻り値はMayaが実際に作った名前。
         """
-        with _edit_context("mlibNamespaceCreate", fast):
-            return cls._create(name, parent, fast)
+        with undoChunk("mlibNamespaceCreate"):
+            return cls._create(name, parent)
 
     @property
     def name(self):
@@ -182,30 +172,21 @@ class Namespace:
         # Node(mobject)と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
         return [Node._from_name(mobject) for mobject in mobjects]
 
-    def setCurrent(self, *, fast=False):
+    def setCurrent(self):
         """カレントNamespaceを自身へ切り替える。
 
-        Args:
-            fast (bool): Trueはom2.MNamespace.setCurrentNamespaceで切り替え、Undoに記録しない。
-                既定FalseはcmdsでUndo有効時に一つのチャンクへ記録する。
+        cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Returns:
             Namespace: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             RuntimeError: 自身が存在しない場合。
-            NotImplementedError: fastで、自身の名前にASCII以外の文字が含まれる場合。
         """
-        with _edit_context("mlibNamespaceSetCurrent", fast):
+        with undoChunk("mlibNamespaceSetCurrent"):
             if not self.exists():
                 raise RuntimeError(f"Namespace does not exist: {self._name}")
-            if fast:
-                if not self._name.isascii():
-                    raise NotImplementedError(f"{_FAST_NON_ASCII}{self._name}")
-                om2.MNamespace.setCurrentNamespace(self._name)
-            else:
-                cmds.namespace(set=self._name)
+            cmds.namespace(set=self._name)
             return self
 
     @contextmanager
@@ -229,51 +210,47 @@ class Namespace:
             if previous.exists():
                 previous.setCurrent()
 
-    def rename(self, name, *, fast=False):
+    def rename(self, name):
         """Namespace自身の名前を変更する。
+
+        cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             name (str | Namespace): 新しい名前。最後の階層名だけを使用し、現在の親は維持する。
-            fast (bool): Trueはom2.MNamespaceで作成・移動・削除し、Undoに記録しない。
-                既定FalseはcmdsでUndo有効時に一つのチャンクへ記録する。
 
         Returns:
             Namespace: 保持名を更新した自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             ValueError: ルートの変更、または名前が不正な場合。
             RuntimeError: 移動先が既存、親が存在しない、または Maya 操作が失敗した場合。
-            NotImplementedError: fastで、新しい名前にASCII以外の文字が含まれる場合。変更前に拒否する。
         """
-        with _edit_context("mlibNamespaceRename", fast):
+        with undoChunk("mlibNamespaceRename"):
             if self._name == ":":
                 raise ValueError("root namespace cannot be renamed")
             target = Namespace(name)
             parent = self.getParent()
             target = Namespace(f"{parent.name}:{target.name.rsplit(':', 1)[-1]}")
-            self._move_contents(target, fast)
+            self._move_contents(target)
             self._name = target.name
             return self
 
-    def move(self, parent=":", *, fast=False):
+    def move(self, parent=":"):
         """Namespaceを指定した親Namespaceへ移動する。
+
+        cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             parent (str | Namespace): 移動先の既存の親名前空間。末尾の自身の名前は維持する。
-            fast (bool): Trueはom2.MNamespaceで作成・移動・削除し、Undoに記録しない。
-                既定FalseはcmdsでUndo有効時に一つのチャンクへ記録する。
 
         Returns:
             Namespace: 保持名を更新した自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             ValueError: ルートの移動、または parent が不正な場合。
             RuntimeError: 親が存在しない、移動先が既存、または Maya 操作が失敗した場合。
-            NotImplementedError: fastで、自身または移動先の名前にASCII以外の文字が含まれる場合。変更前に拒否する。
         """
-        with _edit_context("mlibNamespaceMove", fast):
+        with undoChunk("mlibNamespaceMove"):
             if self._name == ":":
                 raise ValueError("root namespace cannot be moved")
             parent_namespace = Namespace(parent)
@@ -281,56 +258,43 @@ class Namespace:
                 raise RuntimeError(f"Namespace does not exist: {parent_namespace.name}")
             leaf_name = self._name.rsplit(":", 1)[-1]
             target = Namespace(f"{parent_namespace.name}:{leaf_name}")
-            self._move_contents(target, fast)
+            self._move_contents(target)
             self._name = target.name
             return self
 
-    def remove(self, destination=_UNSET, *, dst=_UNSET, fast=False):
+    def remove(self, destination=":"):
         """内容を移動してNamespaceを削除する。
 
-        名前が衝突するノードは、移動時にMayaの規則で末尾に番号を付けて改名する
-        (cmdsのforce移動とom2.MNamespace.moveNamespaceで同じ名前になる)。
+        名前が衝突するノードは、移動時にMayaの規則(cmdsのforce移動)で末尾に番号を付けて改名する。
+        cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。
-            dst (str | Namespace): destinationの別名。同時指定は不可。
-            fast (bool): Trueはom2.MNamespaceで移動・削除し、Undoに記録しない。
-                既定FalseはcmdsでUndo有効時に一つのチャンクへ記録する。
 
         Returns:
             Namespace: 内容を受け取った移動先。自身の保持名は削除前のまま。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             ValueError: ルートの削除、または destination が不正な場合。
             RuntimeError: 移動先が存在しない、または Maya 操作が失敗した場合。
-            NotImplementedError: fastで、自身または移動先の名前にASCII以外の文字が含まれる場合。変更前に拒否する。
         """
-        destination = _pick_alias(destination, dst, "destination", "dst", default=":")
-        with _edit_context("mlibNamespaceRemove", fast):
+        with undoChunk("mlibNamespaceRemove"):
             if self._name == ":":
                 raise ValueError("root namespace cannot be removed")
             destination_namespace = Namespace(destination)
             if not destination_namespace.exists():
                 raise RuntimeError(f"Namespace does not exist: {destination_namespace.name}")
-            if fast:
-                if not (self._name + destination_namespace.name).isascii():
-                    raise NotImplementedError(f"{_FAST_NON_ASCII}{self._name}")
-                om2.MNamespace.moveNamespace(self._name, destination_namespace.name, True)
-                om2.MNamespace.removeNamespace(self._name)
-            else:
-                cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
-                cmds.namespace(removeNamespace=self._name)
+            cmds.namespace(moveNamespace=(self._name, destination_namespace.name), force=True)
+            cmds.namespace(removeNamespace=self._name)
             return destination_namespace
 
     @classmethod
-    def _create(cls, name, parent, fast):
+    def _create(cls, name, parent):
         """createの本体。Undoチャンクは呼出し側が管理する。
 
         Args:
             name (str | Namespace): createのname。
             parent (str | Namespace): createのparent。
-            fast (bool): Trueはom2.MNamespaceで作成する。
 
         Returns:
             Namespace: 作成先の完全名を保持するラッパー。
@@ -348,41 +312,13 @@ class Namespace:
             return namespace
         if parent_namespace is None:
             raise ValueError("root namespace cannot be created")
-        if fast and not namespace.name.isascii():
-            raise NotImplementedError(f"{_FAST_NON_ASCII}{namespace.name}")
         if not parent_namespace.exists():
-            cls._create(parent_namespace, ":", fast)
+            cls._create(parent_namespace, ":")
         leaf_name = namespace.name.rsplit(":", 1)[-1]
-        if fast:
-            return cls(cls._add_fast(leaf_name, parent_namespace))
         created_name = cmds.namespace(add=leaf_name, parent=parent_namespace.name)
         if not created_name.startswith(":") and om2.MNamespace.relativeNames():
             created_name = cls.getCurrent().name.rstrip(":") + ":" + created_name
         return cls(created_name)
-
-    @staticmethod
-    def _add_fast(leaf_name, parent):
-        """om2.MNamespace.addNamespaceで作成し、Mayaが実際に作った絶対名を返す。
-
-        addNamespaceは作成名を返さず、不正文字の置換や番号付けで名前が変わり得るため、
-        親の直下の子を作成前後で比べて求める。
-
-        Args:
-            leaf_name (str): 作成する階層名。
-            parent (Namespace): 既存の親。
-
-        Returns:
-            str: 作成した名前空間の絶対名。
-
-        Raises:
-            RuntimeError: Mayaが作成を拒否した場合、または作成した名前を特定できない場合。
-        """
-        before = set(parent.getChildren())
-        om2.MNamespace.addNamespace(leaf_name, parent.name)
-        created = [child for child in parent.getChildren() if child not in before]
-        if len(created) != 1:
-            raise RuntimeError(f"Cannot identify the namespace created from {leaf_name!r} under {parent.name}")
-        return created[0].name
 
     @staticmethod
     def _normalize(name):
@@ -400,21 +336,19 @@ class Namespace:
         name = name.strip(":")
         return ":" + name
 
-    def _move_contents(self, target, fast=False):
+    def _move_contents(self, target):
         """Namespaceの内容を別Namespaceへ移し、元Namespaceを削除する。
 
         移動先を作成し、force=True で内容を移して元を削除する。自身の保持名はここでは更新しない。
 
         Args:
-            target (Namespace): 新規作成する移動先。親は存在している必要がある。
-            fast (bool): Trueはom2.MNamespaceで操作する。Undoチャンクは呼出し側が管理する。
+            target (Namespace): 新規作成する移動先。親は存在している必要がある。Undoチャンクは呼出し側が管理する。
 
         Returns:
             None: 値を返さない。
 
         Raises:
             RuntimeError: 移動先が既存、親が存在しない、または Maya 操作が失敗した場合。
-            NotImplementedError: fastで、自身または移動先の名前にASCII以外の文字が含まれる場合。変更前に拒否する。
         """
         if target.exists():
             raise RuntimeError(f"Namespace already exists: {target.name}")
@@ -422,13 +356,6 @@ class Namespace:
         if target_parent is None or not target_parent.exists():
             raise RuntimeError(f"Namespace does not exist: {target_parent}")
         leaf_name = target.name.rsplit(":", 1)[-1]
-        if fast:
-            if not (self._name + target.name).isascii():
-                raise NotImplementedError(f"{_FAST_NON_ASCII}{target.name}")
-            om2.MNamespace.addNamespace(leaf_name, target_parent.name)
-            om2.MNamespace.moveNamespace(self._name, target.name, True)
-            om2.MNamespace.removeNamespace(self._name)
-            return
         cmds.namespace(add=leaf_name, parent=target_parent.name)
         cmds.namespace(moveNamespace=(self._name, target.name), force=True)
         cmds.namespace(removeNamespace=self._name)

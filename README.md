@@ -220,7 +220,7 @@ Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/ml
 Maya を起動せず、ソースから HTML を生成できます。
 手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md)を参照してください。
 
-現行版は 2.2.0 です。版ごとの変更点と移行手順は [変更履歴](maya/inhouse/mlib/_docs/source/changelog.rst) を参照してください。
+現行版は 3.0.0 です。版ごとの変更点と移行手順は [変更履歴](maya/inhouse/mlib/_docs/source/changelog.rst) を参照してください。
 
 mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`core` です。
 選択・参照関係・単位・プラグイン・イベントと既存の共通計算は `common` にまとめ、

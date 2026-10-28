@@ -1,4 +1,4 @@
-"""後始末・衝突検出・一括引数検証の失敗経路を検証する。"""
+"""後始末・衝突検出の失敗経路を検証する。"""
 import importlib
 from pathlib import Path
 import tempfile
@@ -86,26 +86,6 @@ class BacklogContractsTest(unittest.TestCase):
             self.assertIn('fixture.nodes.a', diagnostic)
             self.assertIn('nodes\\b.py', diagnostic.replace('/', '\\'))
             self.assertIn('Sample', diagnostic)
-
-    def test_signature_cache_respects_overrides(self):
-        """派生ごとの引数と後からの変更を独立に検証する。"""
-        bulk = importlib.import_module('mlib.nodes.node')
-        class A:
-            def edit(self, value):
-                """1引数を受け取る。"""
-        class B:
-            def edit(self, value, required):
-                """2引数を受け取る。"""
-        group = bulk.Nodes()
-        group._bulk_methods = {'edit': A.edit}
-        group._items = [A(), A(), B()]
-        with self.assertRaises(TypeError):
-            group._prepare_calls('edit', [(1,)] * 3, None)
-        with mock.patch.object(bulk.inspect, 'signature', wraps=bulk.inspect.signature) as signature:
-            group._prepare_calls('edit', [(1,), (2,), (3, 4)], None)
-            self.assertEqual(signature.call_count, 2)
-        B.edit = A.edit
-        group._prepare_calls('edit', [(1,)] * 3, None)
 
 
 if __name__ == '__main__':

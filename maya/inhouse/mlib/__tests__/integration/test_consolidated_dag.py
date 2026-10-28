@@ -5,7 +5,6 @@ from unittest import mock
 
 from maya import cmds
 import mlib
-from mlib.maths import Transformation
 
 
 class ConsolidatedDagTests(unittest.TestCase):
@@ -69,16 +68,16 @@ class ConsolidatedDagTests(unittest.TestCase):
                     nodes = [mlib.createNode("transform", parent=parent) for _ in range(2)]
                     for node in nodes:
                         node.setTranslate((1, 2, 3)).setRotate((0.3, 0.1, 0.5)).setScale((2, 3, 4))
-                    nodes[0].setPivot((4, 5, 6), ws=world, kind=kind, preserve=preserve)
+                    nodes[0].setPivot((4, 5, 6), worldSpace=world, kind=kind, preserve=preserve)
                     cmds.flushUndo()
                     with mock.patch.object(cmds, "xform", side_effect=AssertionError("cmds xform used")):
-                        nodes[1].setPivot((4, 5, 6), ws=world, kind=kind, preserve=preserve, fast=True)
+                        nodes[1].setPivot((4, 5, 6), worldSpace=world, kind=kind, preserve=preserve, fast=True)
                         for pivot_kind in ("rotate", "scale"):
-                            expected = nodes[0].getPivot(ws=world, kind=pivot_kind)
-                            actual = nodes[1].getPivot(ws=world, kind=pivot_kind)
+                            expected = nodes[0].getPivot(worldSpace=world, kind=pivot_kind)
+                            actual = nodes[1].getPivot(worldSpace=world, kind=pivot_kind)
                             self.assertTrue(actual.isEquivalent(expected, 1e-8),
                                             (world, kind, preserve, pivot_kind, tuple(actual), tuple(expected)))
-                    self.assertTrue(nodes[0].getMatrix(ws=True).isEquivalent(nodes[1].getMatrix(ws=True), 1e-8))
+                    self.assertTrue(nodes[0].getMatrix(worldSpace=True).isEquivalent(nodes[1].getMatrix(worldSpace=True), 1e-8))
                     self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_pivot_regular_undo_and_fast_lock_validation(self):
@@ -102,15 +101,15 @@ class ConsolidatedDagTests(unittest.TestCase):
         node = mlib.createNode("transform", name="reparentChild", parent=old)
         node.setTranslate((3, 1, 2)).setRotate((0.4, 0.2, 0.1))
         node.setPivot((1, 2, 1), kind="both")
-        initial = node.getMatrix(ws=True)
+        initial = node.getMatrix(worldSpace=True)
         cmds.flushUndo()
         with mock.patch.object(cmds, "parent", side_effect=AssertionError("cmds parent used")):
             self.assertIs(node.setParent(new, fast=True), node)
             self.assertEqual(node.getParent(), new)
-            self.assertTrue(node.getMatrix(ws=True).isEquivalent(initial, 1e-8))
+            self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(initial, 1e-8))
             node.setParent(None, fast=True)
             self.assertIsNone(node.getParent())
-            self.assertTrue(node.getMatrix(ws=True).isEquivalent(initial, 1e-8))
+            self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(initial, 1e-8))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_reparent_relative_and_joint_rejection(self):
@@ -127,18 +126,6 @@ class ConsolidatedDagTests(unittest.TestCase):
             joint.setParent(parent, fast=True)
         self.assertIsNone(joint.getParent())
 
-    def test_transformation_fast_and_regular(self):
-        """補助成分を含む更新が通常・高速で同じ結果を作る。"""
-        first = mlib.createNode("transform")
-        second = mlib.createNode("transform")
-        value = Transformation(translate=(1, 2, 3), rotate=(0.2, 0.3, 0.4),
-                               scale=(2, 3, 4), rotatePivot=(2, 1, 3))
-        first.setTransformation(value)
-        cmds.flushUndo()
-        second.setTransformation(value, fast=True)
-        self.assertTrue(first.getMatrix().isEquivalent(second.getMatrix(), 1e-8))
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-
     def test_center_pivot_fast_matches_standard(self):
         """非対称形状のバウンディング中心を通常経路と比較する。"""
         parent = mlib.createNode("transform")
@@ -153,8 +140,8 @@ class ConsolidatedDagTests(unittest.TestCase):
         cmds.flushUndo()
         with mock.patch.object(cmds, "xform", side_effect=AssertionError("cmds xform used")):
             second.centerPivot(fast=True)
-        self.assertTrue(first.getPivot(ws=True).isEquivalent(second.getPivot(ws=True), 1e-8))
-        self.assertTrue(first.getMatrix(ws=True).isEquivalent(second.getMatrix(ws=True), 1e-8))
+        self.assertTrue(first.getPivot(worldSpace=True).isEquivalent(second.getPivot(worldSpace=True), 1e-8))
+        self.assertTrue(first.getMatrix(worldSpace=True).isEquivalent(second.getMatrix(worldSpace=True), 1e-8))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_constraint_fast_delete_uses_api_and_keeps_sources(self):

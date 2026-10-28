@@ -1,8 +1,8 @@
-"""DagNode・DagNodes の階層とパス・表示の約束を固定する(担当C)。
+"""DagNode の階層とパス・表示の約束を固定する(担当C)。
 
 対象: getName・getFullName(インスタンスごと)、getParents(indirect)、getParent(step)、
 getInstances(noSelf)、mfn、show・hide・setVisibility(Undo・fast・ロック)、getVisibility と isVisible の違い、
-getChildren の引数検査、保持インスタンスだけが消えた参照と削除済みノードの扱い、DagNodes の同名メソッド。
+getChildren の引数検査、保持インスタンスだけが消えた参照と削除済みノードの扱い。
 """
 
 import unittest
@@ -12,7 +12,7 @@ import maya.cmds as cmds
 
 import mlib
 mlib.reload()
-from mlib.nodes import DagNodes, Node
+from mlib.nodes import Node
 from support.specCase import NamespaceCase
 
 
@@ -223,41 +223,6 @@ class VisibilityTest(_SpecCase):
             self.node.getChildren(order="random")
         with self.assertRaisesRegex(ValueError, "leaves"):
             self.node.getChildren(leaves=True, shapes=True)
-
-
-class DagNodesTest(_SpecCase):
-    """DagNodes の同名メソッドの一括動作。"""
-
-    def setUp(self):
-        super().setUp()
-        self.parent = self.make("transform", "bulkParent")
-        self.children = [self.make("transform", "bulk#", parent=self.parent) for _ in range(2)]
-        self.nodes = DagNodes([self.parent] + self.children)
-
-    def test_bulk_queries(self):
-        """照会は保持順のリスト。"""
-        self.assertEqual(self.nodes.getName(), [self.parent] + self.children)
-        self.assertEqual(self.nodes.getFullName(), cmds.ls([self.parent] + self.children, long=True))
-        self.assertEqual(self.nodes.getParents(), [[], [Node(self.parent)], [Node(self.parent)]])
-        self.assertEqual([fn.fullPathName() for fn in self.nodes.mfn()], self.nodes.getFullName())
-
-    def test_bulk_hide_show_undo_once(self):
-        """hide・show は自身を返し、通常は1回の Undo で全件戻る。"""
-        cmds.flushUndo()
-        self.assertIs(self.nodes.hide(), self.nodes)
-        self.assertEqual([cmds.getAttr(name + ".visibility") for name in self.nodes.getNames()], [False] * 3)
-        cmds.undo()
-        self.assertEqual([cmds.getAttr(name + ".visibility") for name in self.nodes.getNames()], [True] * 3)
-        with self.assertRaises(TypeError):
-            self.nodes.show(1)
-
-    def test_bulk_hide_reports_failed_item(self):
-        """ロックされた要素の番号で止まり、先行の変更は残る。"""
-        cmds.setAttr(self.children[0] + ".visibility", lock=True)
-        with self.assertRaisesRegex(RuntimeError, r"DagNodes\.hide failed at item 1"):
-            self.nodes.hide()
-        self.assertFalse(cmds.getAttr(self.parent + ".visibility"))
-        self.assertTrue(cmds.getAttr(self.children[1] + ".visibility"))
 
 
 if __name__ == "__main__":

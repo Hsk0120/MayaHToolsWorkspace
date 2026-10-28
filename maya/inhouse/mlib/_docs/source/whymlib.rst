@@ -19,7 +19,7 @@ mlibはPyMELに依存せず、独自のAPIを提供します。
    control = mlib.ls("control")[0]
    control.setTranslate((1, 2, 3))
    control.getPlug("visibility").set(True)
-   matrix = control.getMatrix(ws=True)
+   matrix = control.getMatrix(worldSpace=True)
 
 この例の ``control`` は既存のTransform名です。以下の作成例はMaya内で実行できます。
 mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリです。
@@ -97,12 +97,10 @@ mlibのクラス名はこのドキュメントのAPIリファレンスへリン�
 
 数学型はそれぞれ対応するOpenMayaの型を直接継承しています。
 例えば ``Matrix`` は ``MMatrix`` の派生クラスで、mlibの操作メソッドを追加しています。
-TRSやピボットをまとめる :class:`~mlib.maths.transformation.Transformation` は、
-これらの値を保持するクラスで、OpenMaya型の派生ではありません。
 
 ``Shape`` と ``Transform`` はどちらもDAGノードです。
 シーン上でShapeがTransformの子になることと、クラスの継承は別の関係です。
-単数クラスは1対象、複数形クラスは複数対象を扱います。
+単数クラスは1対象を操作し、複数形クラスは複数の対象を保持します。
 
 **Mayaへの問い合わせはメソッド、保持する値はプロパティを基本とします。**
 例えば ``node.getName()`` は現在の名前を問い合わせ、``plug.getNode()`` は保持する所有ノード参照です。
@@ -126,7 +124,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    source.setScale((2, 2, 2))
    source.getPlug("useOutlinerColor").set(True)
    source.getPlug("outlinerColor").set((0.3, 0.7, 1.0))
-   target.setMatrix(source.getMatrix(ws=True), ws=True)
+   target.setMatrix(source.getMatrix(worldSpace=True), worldSpace=True)
 
 .. list-table:: 便利な操作の例
    :header-rows: 1
@@ -155,20 +153,15 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    * - SkinCluster
      - ``getWeights()`` / ``setWeights()``
      - スキンウェイトを取得・反映する
-   * - Mesh・NurbsCurve
-     - ``mirror()``
-     - 指定した軸・空間で頂点またはCVを反転する
 
-同じ操作を複数の対象へ適用する場合は、複数形クラスを使えます。
+複数の対象へ同じ操作を行う場合は、単数のメソッドを ``for`` で呼びます。
+複数形クラス(``Joints``・``SkinClusters`` 等)は、重複を除いた参照を保持順に持つ容器です。
 
 .. code-block:: python
 
-   transforms = mlib.nodes.Transforms([source, target])
-   transforms.setTranslate((0, 5, 0))
-   matrices = transforms.getMatrix(ws=True)
-
-一括操作の戻り値と事前検証の範囲は各メソッドの仕様に従います。
-操作の一覧と返却型は :mod:`~mlib.nodes` と :doc:`modules` を参照してください。
+   for transform in (source, target):
+       transform.setTranslate((0, 5, 0))
+   matrices = [transform.getMatrix(worldSpace=True) for transform in (source, target)]
 
 アトリビュート単位で操作する
 ----------------------------------------------------------------------
@@ -226,12 +219,12 @@ Mayaの行ベクトル規約では、相対マトリクスに基準のワール�
    reference.setTranslate((10, 0, 0))
    driven.setTranslate((12, 3, 0))
 
-   reference_world = reference.getMatrix(ws=True)
-   driven_world = driven.getMatrix(ws=True)
+   reference_world = reference.getMatrix(worldSpace=True)
+   driven_world = driven.getMatrix(worldSpace=True)
    relative = driven_world * reference_world.inverse()
 
    restored_world = relative * reference_world
-   driven.setMatrix(restored_world, ws=True)
+   driven.setMatrix(restored_world, worldSpace=True)
 
 ``*`` でマトリクスの積、``inverse()`` で逆マトリクスを扱えます。
 逆マトリクスを求める例では、ゼロスケールなどの特異なマトリクスを避けてください。
@@ -252,10 +245,10 @@ Mayaの行ベクトル規約では、相対マトリクスに基準のワール�
    result = mlib.createNode("transform", name="mlibDemo_result")
    end.setRotate((0, 90, 0), unit="deg")
 
-   q_start = start.getQuaternion(ws=True)
-   q_end = end.getQuaternion(ws=True)
+   q_start = start.getQuaternion(worldSpace=True)
+   q_end = end.getQuaternion(worldSpace=True)
    q_middle = q_start.slerp(q_end, 0.5)
-   result.setRotate(q_middle, ws=True)
+   result.setRotate(q_middle, worldSpace=True)
 
    rotation_matrix = q_middle.asMatrix()
 

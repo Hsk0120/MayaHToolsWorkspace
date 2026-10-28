@@ -3,9 +3,8 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import _pick_alias, undoTransaction
+from ..decorator import undoTransaction
 from ..plugs.plug import Plug
-from ..util import _UNSET
 from .node import Node, Nodes, _resolve_node
 
 
@@ -79,7 +78,7 @@ class _ContainerMixin:
             )
         return self
 
-    def removeMembers(self, *members, force=_UNSET, f=_UNSET):
+    def removeMembers(self, *members, force=False):
         """指定ノードの直接所属を解除する。
 
         全件の所属を変更前に検査し、force=Trueでも未所属は拒否する。ノード自体は削除しない。
@@ -87,8 +86,7 @@ class _ContainerMixin:
 
         Args:
             *members (Node | str | Iterable[Node]): 解除するメンバー。
-            force (bool): Trueなら全containerから解除する。ロック解除ではない。別名 ``f`` も使用可能。
-            f (bool): forceの別名。同時指定は不可。
+            force (bool): Trueなら全containerから解除する。ロック解除ではない。
 
         Returns:
             Container: 自身。
@@ -96,7 +94,6 @@ class _ContainerMixin:
         Raises:
             ValueError: 未所属ノードを含む場合。
         """
-        force = _pick_alias(force, f, "force", "f", default=False)
         with undoTransaction("mlibContainerRemoveMembers"):
             nodes = [Node._resolve_input(node) for node in Nodes._resolve_inputs(members)]
             # Nodeの等価なら__hash__も等しいため、集合での所属判定はリストの`in`と同じ結果になる。

@@ -1,8 +1,7 @@
 """Transform の空間・回転・シアー・親子付けの共通化(mlib 2.0、担当 2B)の約束を固定する。
 
 対象: ``getRotate(order=)`` の二段規則、``getShear/setShear``、``resetAttrs`` の戻り値、
-``setParent(r=)``、``mfn()`` と派生クラスの override、廃止した入口が無いこと、
-Transforms の一括転送(``_bulk_entries``・転送 def・``__signature__``)。
+``setParent(relative=)``、``mfn()`` と派生クラスの override、廃止した入口が無いこと。
 期待値は cmds と om2 で独立に求める。
 """
 
@@ -17,7 +16,7 @@ import mlib
 mlib.reload()
 from mlib.maths import EulerRotate, Matrix, Shear
 from mlib.maths.eulerRotate import ORDER_NAMES
-from mlib.nodes import Camera, Mesh, Node, NurbsCurve, Transform, Transforms
+from mlib.nodes import Camera, Mesh, Node, NurbsCurve, Transform
 from mlib.plugs import Plug
 from support.specCase import NamespaceCase
 
@@ -43,40 +42,22 @@ def _world_quaternion(name):
 
 
 class RemovedApiTest(unittest.TestCase):
-    """廃止した名前が単数・複数形・一括宣言のどこにも残っていないこと。"""
+    """廃止した名前が残っていないこと。"""
 
     def test_removed_names_are_absent(self):
         for name in REMOVED_NAMES:
             with self.subTest(name=name):
                 self.assertFalse(hasattr(Transform, name))
-                self.assertFalse(hasattr(Transforms, name))
-                self.assertNotIn(name, Transforms._bulk_entries)
-                self.assertNotIn(name, Transforms._bulk_methods)
 
     def test_renamed_names_are_present(self):
         for name in ("mfn", "resetAttrs", "getShear", "setShear", "getRotate", "setParent"):
             with self.subTest(name=name):
                 self.assertTrue(callable(getattr(Transform, name)))
-                self.assertTrue(callable(getattr(Transforms, name)))
-                self.assertIn(name, Transforms._bulk_entries)
 
-    def test_bulk_entries_match_singular_and_forwarders(self):
-        """チェックリスト(DESIGN §6.8): 宣言・単数 def・転送 def・__signature__ が揃う。"""
-        for name, (function, policy) in Transforms._bulk_entries.items():
-            with self.subTest(name=name):
-                self.assertIs(getattr(Transform, name), function)
-                self.assertIn(policy, ("list", "self"))
-                forwarder = Transforms.__dict__.get(name)
-                self.assertIsNotNone(forwarder, "Transforms lacks a forwarder def for " + name)
-                self.assertEqual(forwarder.__signature__, inspect.signature(function))
-        self.assertEqual(Transforms._bulk_returns["resetAttrs"], "list")
-        self.assertEqual(Transforms._bulk_returns["mfn"], "list")
-        self.assertEqual(Transforms._bulk_returns["setShear"], "self")
-
-    def test_setparent_signature_has_relative_alias(self):
+    def test_setparent_signature_has_no_short_relative(self):
         parameters = inspect.signature(Transform.setParent).parameters
-        self.assertIn("r", parameters)
-        self.assertEqual(parameters["r"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertIn("relative", parameters)
+        self.assertNotIn("r", parameters)
         self.assertEqual(parameters["fast"].kind, inspect.Parameter.KEYWORD_ONLY)
 
 
@@ -110,12 +91,6 @@ class MfnTest(_SpecCase):
                 self.assertIs(type(fn), fn_class)
                 self.assertEqual(fn.fullPathName(), name)
 
-    def test_transforms_mfn_returns_list(self):
-        names = [self.make(), self.make()]
-        fns = Transforms(names).mfn()
-        self.assertEqual([type(fn) for fn in fns], [om2.MFnTransform, om2.MFnTransform])
-        self.assertEqual([fn.fullPathName() for fn in fns], cmds.ls(names, long=True))
-
 
 class GetRotateOrderTest(_SpecCase):
     """getRotate(order=) の二段規則。"""
@@ -135,9 +110,9 @@ class GetRotateOrderTest(_SpecCase):
             with self.subTest(rotateOrder=rotate_order):
                 node = self._rotated(rotate_order)
                 for ws in (False, True):
-                    default = node.getRotate(ws=ws)
-                    by_int = node.getRotate(ws=ws, order=rotate_order)
-                    by_name = node.getRotate(ws=ws, order=ORDER_NAMES[rotate_order])
+                    default = node.getRotate(worldSpace=ws)
+                    by_int = node.getRotate(worldSpace=ws, order=rotate_order)
+                    by_name = node.getRotate(worldSpace=ws, order=ORDER_NAMES[rotate_order])
                     self.assertSequenceAlmostEqual(by_int, default)
                     self.assertSequenceAlmostEqual(by_name, default)
                     self.assertEqual(by_int.order, rotate_order)
@@ -153,7 +128,7 @@ class GetRotateOrderTest(_SpecCase):
                     om2.MMatrix(cmds.getAttr(str(node) + ".matrix"))).rotation(asQuaternion=True)
             for order in (0, 1, 2, 4, 5):
                 with self.subTest(ws=ws, order=order):
-                    rotate = node.getRotate(ws=ws, order=order)
+                    rotate = node.getRotate(worldSpace=ws, order=order)
                     expected = quaternion.asEulerRotation().reorder(order)
                     self.assertEqual(rotate.order, order)
                     self.assertSequenceAlmostEqual(rotate, (expected.x, expected.y, expected.z))
@@ -166,10 +141,10 @@ class GetRotateOrderTest(_SpecCase):
                 attribute = ".worldMatrix[0]" if ws else ".matrix"
                 matrix = om2.MMatrix(cmds.getAttr(str(node) + attribute))
                 expected = om2.MTransformationMatrix(matrix).rotation(asQuaternion=True).asEulerRotation()
-                rotate = node.getRotate(ws=ws, order=0)
+                rotate = node.getRotate(worldSpace=ws, order=0)
                 self.assertEqual(rotate.order, 0)
                 self.assertSequenceAlmostEqual(rotate, (expected.x, expected.y, expected.z))
-                self.assertSequenceAlmostEqual(node.getRotate(ws=ws, order="XYZ"), rotate)
+                self.assertSequenceAlmostEqual(node.getRotate(worldSpace=ws, order="XYZ"), rotate)
 
     def test_roundtrip_with_setrotate_keeps_channels(self):
         node = self._rotated(4)
@@ -183,8 +158,6 @@ class GetRotateOrderTest(_SpecCase):
             with self.subTest(order=order):
                 with self.assertRaises(ValueError):
                     node.getRotate(order=order)
-        with self.assertRaises(TypeError):
-            node.getRotate(True, ws=True)
         with self.assertRaises(TypeError):
             node.getRotate("yes")
 
@@ -214,7 +187,7 @@ class ShearTest(_SpecCase):
         shear = Node(name).getShear()
         self.assertIsInstance(shear, Shear)
         self.assertSequenceAlmostEqual(shear, cmds.getAttr(name + ".shear")[0])
-        self.assertSequenceAlmostEqual(Node(name).getShear(ws=False), shear)
+        self.assertSequenceAlmostEqual(Node(name).getShear(worldSpace=False), shear)
 
     def test_getshear_world_matches_om2(self):
         parent = self.make(text="parent#")
@@ -224,11 +197,7 @@ class ShearTest(_SpecCase):
         cmds.setAttr(name + ".shear", 0.25, -0.5, 0.75)
         matrix = om2.MMatrix(cmds.getAttr(name + ".worldMatrix[0]"))
         expected = om2.MTransformationMatrix(matrix).shear(om2.MSpace.kTransform)
-        for flags in ({"worldSpace": True}, {"ws": True}):
-            with self.subTest(flags=flags):
-                self.assertSequenceAlmostEqual(Node(name).getShear(**flags), expected)
-        with self.assertRaises(TypeError):
-            Node(name).getShear(True, ws=True)
+        self.assertSequenceAlmostEqual(Node(name).getShear(worldSpace=True), expected)
 
     def test_setshear_undo_fast_get(self):
         name = self.make()
@@ -263,8 +232,8 @@ class ShearTest(_SpecCase):
         cmds.setAttr(name + ".rotate", -15.0, 25.0, 5.0)
         before = (cmds.getAttr(name + ".rotate")[0], cmds.getAttr(name + ".scale")[0])
         node = Node(name)
-        node.setShear((0.2, 0.1, -0.3), ws=True)
-        self.assertSequenceAlmostEqual(node.getShear(ws=True), (0.2, 0.1, -0.3), places=6)
+        node.setShear((0.2, 0.1, -0.3), worldSpace=True)
+        self.assertSequenceAlmostEqual(node.getShear(worldSpace=True), (0.2, 0.1, -0.3), places=6)
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".rotate")[0], before[0])
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".scale")[0], before[1])
 
@@ -273,22 +242,12 @@ class ShearTest(_SpecCase):
         with self.assertRaises(TypeError):
             node.setShear((0.1, 0.2, 0.3), fast="yes")
         with self.assertRaises(TypeError):
-            node.setShear((0.1, 0.2, 0.3), True, ws=True)
+            node.setShear((0.1, 0.2, 0.3), True, worldSpace=True)
         cmds.setAttr(str(node) + ".shearXY", lock=True)
         with self.assertRaises(RuntimeError):
             node.setShear((0.1, 0.2, 0.3))
         node.setShear((0.1, 0.2, 0.3), safe=True)
         self.assertSequenceAlmostEqual(cmds.getAttr(str(node) + ".shear")[0], (0.0, 0.2, 0.3))
-
-    def test_transforms_setshear_returns_self(self):
-        names = [self.make(), self.make()]
-        nodes = Transforms(names)
-        self.assertIs(nodes.setShear((0.1, 0.2, 0.3)), nodes)
-        for name in names:
-            self.assertSequenceAlmostEqual(cmds.getAttr(name + ".shear")[0], (0.1, 0.2, 0.3))
-        shears = nodes.getShear()
-        self.assertEqual(len(shears), 2)
-        self.assertTrue(all(isinstance(shear, Shear) for shear in shears))
 
 
 class ResetAttrsTest(_SpecCase):
@@ -309,10 +268,10 @@ class ResetAttrsTest(_SpecCase):
         self.assertValues(name, [(1.0, 2.0, 3.0), (10.0, 20.0, 30.0), (2.0, 3.0, 4.0), (0.1, 0.2, 0.3)])
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
-    def test_explicit_attributes_and_alias(self):
+    def test_explicit_attributes(self):
         name = self._dirty()
         node = Node(name)
-        for flags in ({"attributes": ("tx", "scale")}, {"attrs": ["tx", "scale"]}):
+        for flags in ({"attributes": ("tx", "scale")}, {"attributes": ["tx", "scale"]}):
             with self.subTest(flags=flags):
                 cmds.setAttr(name + ".translateX", 1.0)
                 cmds.setAttr(name + ".scale", 2.0, 3.0, 4.0)
@@ -337,23 +296,12 @@ class ResetAttrsTest(_SpecCase):
         with self.assertRaises(TypeError):
             node.resetAttrs(fast=1)
         with self.assertRaises(TypeError):
-            node.resetAttrs("tx", attrs="ty")
-        with self.assertRaises(TypeError):
             node.resetAttrs([1, 2])
         with self.assertRaises(AttributeError):
             node.resetAttrs("noSuchAttribute")
         cmds.setAttr(str(node) + ".translateX", lock=True)
         with self.assertRaises(RuntimeError):
             node.resetAttrs("translate")
-
-    def test_transforms_returns_list_of_lists(self):
-        names = [self._dirty(), self._dirty()]
-        result = Transforms(names).resetAttrs()
-        self.assertIsInstance(result, list)
-        self.assertEqual(len(result), 2)
-        for name, plugs in zip(names, result):
-            self.assertEqual([plug.getLongName() for plug in plugs], ["translate", "rotate", "scale", "shear"])
-            self.assertEqual(cmds.getAttr(name + ".translate")[0], (0.0, 0.0, 0.0))
 
     def _dirty(self):
         name = self.make()
@@ -373,10 +321,10 @@ class ResetAttrsTest(_SpecCase):
 
 
 class SetParentTest(_SpecCase):
-    """setParent の relative/r と Undo。"""
+    """setParent の relative と Undo。"""
 
     def test_relative_keeps_local_values(self):
-        for flags in ({"relative": True}, {"r": True}):
+        for flags in ({"relative": True},):
             with self.subTest(flags=flags):
                 parent, child = self._pair()
                 node = Node(child)
@@ -401,8 +349,8 @@ class SetParentTest(_SpecCase):
     def test_world_and_noop(self):
         parent, child = self._pair()
         node = Node(child)
-        node.setParent(parent, r=True)
-        node.setParent(None, r=True)
+        node.setParent(parent, relative=True)
+        node.setParent(None, relative=True)
         self.assertIsNone(cmds.listRelatives(str(node), parent=True))
         self.assertSequenceAlmostEqual(cmds.getAttr(str(node) + ".translate")[0], (1.0, 2.0, 3.0))
         self.flushUndo()
@@ -416,7 +364,7 @@ class SetParentTest(_SpecCase):
         cmds.parent(reference_child, parent, relative=True)
         node = Node(child)
         self.flushUndo()
-        node.setParent(parent, r=True, fast=True)
+        node.setParent(parent, relative=True, fast=True)
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         self.assertSequenceAlmostEqual(cmds.getAttr(str(node) + ".matrix"), cmds.getAttr(reference_child + ".matrix"))
 
@@ -424,20 +372,12 @@ class SetParentTest(_SpecCase):
         parent, child = self._pair()
         node = Node(child)
         with self.assertRaises(TypeError):
-            node.setParent(parent, True, r=True)
+            node.setParent(parent, True, relative=True)
         with self.assertRaises(TypeError):
             node.setParent(parent, fast="yes")
-        node.setParent(parent, r=True)
+        node.setParent(parent, relative=True)
         with self.assertRaises(RuntimeError):
             Node(parent).setParent(node)
-
-    def test_transforms_setparent_returns_self(self):
-        parent = self.make(text="parent#")
-        names = [self.make(), self.make()]
-        nodes = Transforms(names)
-        self.assertIs(nodes.setParent(parent, r=True), nodes)
-        for name in nodes.getNames():
-            self.assertEqual(cmds.listRelatives(name, parent=True, fullPath=True)[0], cmds.ls(parent, long=True)[0])
 
     def _pair(self):
         parent = self.make(text="parent#")

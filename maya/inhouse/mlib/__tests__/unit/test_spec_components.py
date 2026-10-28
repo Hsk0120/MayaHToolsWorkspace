@@ -135,7 +135,7 @@ class SingleComponentSpecTest(_ComponentCase):
 
 
 class PointPositionSpecTest(_ComponentCase):
-    """Vertex/CVの座標取得・設定・Undo・fastを固定する。"""
+    """Vertex/CVの座標取得を固定する。"""
 
     def test_get_position_object_and_world_in_cm(self):
         """getPositionは既定でobject空間、worldSpace/wsでworld空間。UI単位によらずcm。"""
@@ -143,89 +143,27 @@ class PointPositionSpecTest(_ComponentCase):
         self.assertIsInstance(vertex.getPosition(), tuple)
         self.assertPoint(vertex.getPosition(), self.om2_point(self.mesh, 0))
         self.assertPoint(vertex.getPosition(worldSpace=True), self.om2_point(self.mesh, 0, world=True))
-        self.assertPoint(vertex.getPosition(ws=True), self.om2_point(self.mesh, 0, world=True))
         self.assertPoint(vertex.getPosition(True), cmds.pointPosition(vertex.getFullName(), world=True))
         cmds.currentUnit(linear="mm")
         self.assertPoint(vertex.getPosition(), self.om2_point(self.mesh, 0))
         self.assertAlmostEqual(vertex.getPositionX(), -0.5)
-        self.assertAlmostEqual(vertex.getPositionX(ws=True), 9.5)
+        self.assertAlmostEqual(vertex.getPositionX(worldSpace=True), 9.5)
 
     def test_space_argument_validation(self):
-        """worldSpaceがbool以外、長短名の同時指定、fastの非boolはいずれもTypeError。"""
+        """worldSpaceがbool以外、長短名の同時指定はいずれもTypeError。"""
         vertex = Vertex(self.mesh, 0)
         with self.assertRaises(TypeError):
             vertex.getPosition(worldSpace=1)
-        with self.assertRaises(TypeError):
-            vertex.getPosition(worldSpace=True, ws=True)
-        with self.assertRaises(TypeError):
-            vertex.setPosition((0, 0, 0), fast=1)
-        with self.assertRaises(TypeError):
-            vertex.setPositionY(1.0, worldSpace=False, ws=False)
-
-    def test_set_position_uses_cm_under_mm_ui_and_one_undo(self):
-        """UI単位がmmでもsetPositionはcmで設定し、1回のUndoで戻る。"""
-        cmds.currentUnit(linear="mm")
-        vertex = Vertex(self.mesh, 2)
-        before = vertex.getPosition()
-        self.assertIs(vertex.setPosition((1, 2, 3)), vertex)
-        self.assertPoint(self.om2_point(self.mesh, 2), (1, 2, 3))
-        self.assertPoint(cmds.pointPosition(vertex.getFullName(), local=True), (10, 20, 30), places=4)
-        cmds.undo()
-        self.assertPoint(vertex.getPosition(), before)
-        cmds.redo()
-        self.assertPoint(vertex.getPosition(), (1, 2, 3))
-
-    def test_set_world_position(self):
-        """worldSpace=Trueはworld座標を設定し、object座標は親の変換を除いた値になる。"""
-        vertex = Vertex(self.mesh, 1)
-        vertex.setPosition((12, 1, 1), worldSpace=True)
-        self.assertPoint(vertex.getPosition(ws=True), (12, 1, 1))
-        self.assertPoint(vertex.getPosition(), (2, 1, 1))
-
-    def test_axis_setters_keep_other_components(self):
-        """setPositionX/Y/Zは1成分だけを変え、他の成分を保つ。"""
-        vertex = Vertex(self.mesh, 3)
-        x, y, z = vertex.getPosition()
-        vertex.setPositionY(4.0)
-        self.assertPoint(vertex.getPosition(), (x, 4.0, z))
-        vertex.setPositionZ(-4.0)
-        self.assertAlmostEqual(vertex.getPositionZ(), -4.0)
-        self.assertAlmostEqual(vertex.getPositionY(), 4.0)
-        vertex.setPositionX(11.0, ws=True)
-        self.assertAlmostEqual(vertex.getPositionX(), 1.0)
-
-    def test_invalid_coordinates_are_rejected_without_change(self):
-        """3成分以外・非有限・数値以外はValueErrorで、座標を変えない。"""
-        vertex = Vertex(self.mesh, 0)
-        before = vertex.getPosition()
-        for value in ((1, 2), (1, 2, 3, 4), (float("nan"), 0, 0), ("a", 0, 0), 5):
-            with self.assertRaises(ValueError):
-                vertex.setPosition(value)
-        self.assertPoint(vertex.getPosition(), before)
-
-    def test_fast_is_not_recorded_in_undo(self):
-        """fast=TrueはUndoへ記録しない。入力履歴付きのShapeはNotImplementedError。"""
-        cmds.select(clear=True)
-        marker = cmds.undoInfo(query=True, undoName=True)
-        vertex = Vertex(self.mesh, 0)
-        vertex.setPosition((5, 5, 5), fast=True)
-        self.assertPoint(self.om2_point(self.mesh, 0), (5, 5, 5))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), marker)
-        with self.assertRaises(NotImplementedError):
-            Vertex(self.history_mesh, 0).setPosition((1, 1, 1), fast=True)
 
     def test_cv_positions_match_cmds(self):
-        """CVの座標はcmds.pointPositionと一致し、設定も1回のUndoで戻る。"""
+        """CVの座標はcmds.pointPositionと一致する。"""
         cv = CV(self.curve, 1)
         self.assertPoint(cv.getPosition(), cmds.pointPosition(cv.getFullName(), local=True))
-        cv.setPosition((7, 8, 9))
-        self.assertPoint(cmds.pointPosition(cv.getFullName(), local=True), (7, 8, 9))
-        cmds.undo()
         self.assertPoint(cv.getPosition(), (1, 2, 3))
 
 
 class PointCollectionSpecTest(_ComponentCase):
-    """Vertices/CVsの保持順・一括取得と設定・mirrorを固定する。"""
+    """Vertices/CVsの保持順・一括取得を固定する。"""
 
     def test_indices_order_and_duplicates(self):
         """番号は初出順で重複を除いたtuple。Noneは全要素、空列は空集合。"""
@@ -259,53 +197,14 @@ class PointCollectionSpecTest(_ComponentCase):
         with self.assertRaises(IndexError):
             vertices[5]
 
-    def test_bulk_positions_order_and_one_undo(self):
-        """setPositionsは保持順の座標を設定し、1回のUndoで全て戻る。件数不一致はValueError。"""
-        vertices = Vertices(self.mesh, [4, 2])
-        before = vertices.getPosition()
-        self.assertIs(vertices.setPositions([(1, 1, 1), (2, 2, 2)]), vertices)
-        self.assertPoint(self.om2_point(self.mesh, 4), (1, 1, 1))
-        self.assertPoint(self.om2_point(self.mesh, 2), (2, 2, 2))
-        cmds.undo()
-        for actual, expected in zip(vertices.getPosition(), before):
-            self.assertPoint(actual, expected)
-        with self.assertRaises(ValueError):
-            vertices.setPositions([(1, 1, 1)])
-        with self.assertRaises(ValueError):
-            vertices.setPosition((1, 1))
-
     def test_axis_values_for_collections(self):
-        """getPositionY等は保持順のlist、setPositionYはスカラーまたは同数の列を受ける。"""
-        vertices = Vertices(self.mesh, [0, 1])
-        vertices.setPositionY(3.0)
+        """getPositionY等は保持順のlistで、各要素のgetPositionの成分と一致する。"""
+        vertices = Vertices(self.mesh, [1, 0])
+        cmds.xform(vertices[0].getFullName(), objectSpace=True, translation=(0.5, 3.0, 1.0))
+        cmds.xform(vertices[1].getFullName(), objectSpace=True, translation=(-0.5, 3.0, -1.0))
         self.assertEqual(vertices.getPositionY(), [3.0, 3.0])
-        vertices.setPositionZ([1.0, -1.0])
         self.assertEqual(vertices.getPositionZ(), [1.0, -1.0])
-        with self.assertRaises(ValueError):
-            vertices.setPositionZ([1.0])
-
-    def test_set_position_collapses_all(self):
-        """setPositionは全要素を同じ絶対座標へ集める。"""
-        vertices = Vertices(self.mesh, [0, 1, 2])
-        vertices.setPosition((0, 9, 0))
-        for point in vertices.getPosition():
-            self.assertPoint(point, (0, 9, 0))
-
-    def test_mirror(self):
-        """mirrorは指定軸をpivot中心に反転し、1回のUndoで戻る。軸・pivotの不正はValueError。"""
-        vertices = Vertices(self.mesh, [0, 1])
-        before = vertices.getPosition()
-        self.assertIs(vertices.mirror("x", pivot=(1, 0, 0)), vertices)
-        for actual, original in zip(vertices.getPosition(), before):
-            self.assertPoint(actual, (2 - original[0], original[1], original[2]))
-        cmds.undo()
-        for actual, original in zip(vertices.getPosition(), before):
-            self.assertPoint(actual, original)
-        for axis in ("w", "xx", "", 0):
-            with self.assertRaises(ValueError):
-                vertices.mirror(axis)
-        with self.assertRaises(ValueError):
-            vertices.mirror("x", pivot=(0, 0))
+        self.assertEqual(vertices.getPositionX(worldSpace=True), [v.getPositionX(worldSpace=True) for v in vertices])
 
     def test_cvs_bulk(self):
         """CVsも保持順に座標を返す。周期CVの対応を保つため名前は範囲へ圧縮しない。"""
@@ -402,46 +301,24 @@ class EdgeFaceSpecTest(_ComponentCase):
 
 
 class UVSpecTest(_ComponentCase):
-    """UVの取得・設定・Undoを固定する。"""
+    """UVの取得を固定する。"""
 
     def test_uv_positions_match_cmds_and_undo(self):
-        """getPositionはpolyEditUVの照会と一致し、setPositionは1回のUndoで戻る。"""
+        """getPosition・getU・getVはpolyEditUVの照会と一致する。"""
         uv = UV(self.mesh, 3)
         expected = cmds.polyEditUV(uv.getFullName(), query=True)
         self.assertPoint(uv.getPosition(), expected)
         self.assertAlmostEqual(uv.getU(), expected[0])
         self.assertAlmostEqual(uv.getV(), expected[1])
-        self.assertIs(uv.setPosition((1.5, -0.25)), uv)
-        self.assertPoint(cmds.polyEditUV(uv.getFullName(), query=True), (1.5, -0.25))
-        cmds.undo()
-        self.assertPoint(uv.getPosition(), expected)
-        uv.setV(0.75)
-        self.assertPoint(uv.getPosition(), (expected[0], 0.75))
-        with self.assertRaises(ValueError):
-            uv.setPosition((1, 2, 3))
-        with self.assertRaises(TypeError):
-            uv.setPosition((0, 0), fast="no")
+        cmds.polyEditUV(uv.getFullName(), relative=False, uValue=1.5, vValue=-0.25)
+        self.assertPoint(uv.getPosition(), (1.5, -0.25))
 
     def test_uvs_bulk(self):
-        """UVs.setPositionsは保持順の行を設定し、件数不一致はValueError。"""
+        """UVsは保持順に座標を返す。"""
         uvs = UVs(self.mesh, [1, 0])
-        uvs.setPositions([(0.1, 0.2), (0.3, 0.4)])
-        self.assertPoint(UV(self.mesh, 1).getPosition(), (0.1, 0.2))
-        self.assertPoint(UV(self.mesh, 0).getPosition(), (0.3, 0.4))
+        self.assertEqual(uvs.getPosition(), [UV(self.mesh, 1).getPosition(), UV(self.mesh, 0).getPosition()])
         self.assertEqual(uvs.getU(), [UV(self.mesh, 1).getU(), UV(self.mesh, 0).getU()])
-        with self.assertRaises(ValueError):
-            uvs.setPositions([(0.1, 0.2)])
-
-    def test_uv_fast_is_not_recorded(self):
-        """UVのfast更新はUndoへ記録せず、履歴付きShapeはNotImplementedError。"""
-        cmds.select(clear=True)
-        marker = cmds.undoInfo(query=True, undoName=True)
-        UV(self.mesh, 0).setPosition((0.9, 0.9), fast=True)
-        self.assertPoint(UV(self.mesh, 0).getPosition(), (0.9, 0.9))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), marker)
-        with self.assertRaises(NotImplementedError):
-            UV(self.history_mesh, 0).setPosition((0.1, 0.1), fast=True)
-
+        self.assertEqual(uvs.getV(), [UV(self.mesh, 1).getV(), UV(self.mesh, 0).getV()])
 
 if __name__ == "__main__":
     unittest.main(argv=[sys.argv[0]])

@@ -61,7 +61,7 @@ class ApiUnitsTest(unittest.TestCase):
             self.assertAlmostEqual(angle.get(), .5)
 
     def test_geometry_and_transform_units(self):
-        """頂点・CV・行列の位置は表示単位によらずcmで一致する。"""
+        """頂点・CV・行列の位置は表示単位によらずcmで返す。"""
         for shape_name in (cmds.polyCube(ch=False)[0], cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3)])):
             node = mlib.getNode(shape_name)
             shape = node.getShape()
@@ -71,12 +71,12 @@ class ApiUnitsTest(unittest.TestCase):
                 node.setTranslate((25, 50, 75), fast=fast, at=4)
                 self.assertEqual(tuple(node.getTranslate(at=4)), (25, 50, 75))
                 self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
-                item.setPosition((1, 2, 3), fast=fast)
-                self.assertEqual(item.getPosition(), (1, 2, 3))
-                self.assertEqual(item.getPosition(ws=True), (26, 52, 78))
-            item.setPosition((4, 5, 6))
-            cmds.undo()
-            self.assertEqual(item.getPosition(), (1, 2, 3))
+                # 表示単位mでの0.01・0.02・0.03 = 1・2・3cm。
+                cmds.xform(item.getFullName(), objectSpace=True, translation=(0.01, 0.02, 0.03))
+                for actual, expected in zip(item.getPosition(), (1, 2, 3)):
+                    self.assertAlmostEqual(actual, expected)
+                for actual, expected in zip(item.getPosition(worldSpace=True), (26, 52, 78)):
+                    self.assertAlmostEqual(actual, expected)
             cmds.currentUnit(linear="cm")
 
     def test_periodic_cv_index_and_undo(self):
@@ -88,11 +88,6 @@ class ApiUnitsTest(unittest.TestCase):
         before = cv.getPosition()
         self.assertEqual(cv.getPosition(), shape.getCV(0).getPosition())
         self.assertEqual(cv.getFullName(), shape.getCV(0).getFullName())
-        cv.setPosition((1, 2, 3))
-        self.assertEqual(cv.getPosition(), (1, 2, 3))
-        cmds.undo()
-        for a, b in zip(cv.getPosition(), before):
-            self.assertAlmostEqual(a, b)
         shape.scaleGeometry(2, indices=[index])
         for a, b in zip(cv.getPosition(), before):
             self.assertAlmostEqual(a, b * 2)

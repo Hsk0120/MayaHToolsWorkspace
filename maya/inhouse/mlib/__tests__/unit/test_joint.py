@@ -40,31 +40,38 @@ class JointTest(unittest.TestCase):
         self.created.append(joint_name)
         return Joint(joint_name)
 
-    def test_segment_scale_compensate_bulk_and_undo(self):
-        from mlib.nodes.joint import Joints
+    def test_segment_scale_compensate_and_undo(self):
         parent = self.create_joint("sscParent")
         child = self.create_joint("sscChild", parent)
-        joints = Joints([parent, child])
-        self.assertEqual(joints.getSegmentScaleCompensate(), [True, True])
-        joints.setSegmentScaleCompensate(False)
-        self.assertEqual(joints.getSegmentScaleCompensate(), [False, False])
+        joints = [parent, child]
+
+        def values():
+            return [joint.getSegmentScaleCompensate() for joint in joints]
+
+        self.assertEqual(values(), [True, True])
+        for joint in joints:
+            self.assertIs(joint.setSegmentScaleCompensate(False), joint)
+        self.assertEqual(values(), [False, False])
         cmds.undo()
-        self.assertEqual(joints.getSegmentScaleCompensate(), [True, True])
+        self.assertEqual(values(), [False, True])
+        cmds.undo()
+        self.assertEqual(values(), [True, True])
         cmds.redo()
-        self.assertEqual(joints.getSegmentScaleCompensate(), [False, False])
+        cmds.redo()
+        self.assertEqual(values(), [False, False])
         self.assertIs(child.setSegmentScaleCompensate(True, fast=True), child)
         self.assertTrue(child.getSegmentScaleCompensate())
         with self.assertRaises(TypeError):
             child.setSegmentScaleCompensate(1)
 
-    def test_inverse_scale_connect_disconnect_bulk(self):
-        from mlib.nodes.joint import Joints
+    def test_inverse_scale_connect_disconnect(self):
         parent = self.create_joint("connectParent")
         child = self.create_joint("connectChild", parent)
-        joints = Joints([parent, child])
-        joints.disconnectInverseScale()
+        for joint in (parent, child):
+            joint.disconnectInverseScale()
         self.assertIsNone(child.getPlug('inverseScale').getSource(skipConversionNodes=False))
-        joints.connectInverseScale()
+        for joint in (parent, child):
+            joint.connectInverseScale()
         self.assertEqual(child.getPlug('inverseScale').getSource(skipConversionNodes=False), parent.getPlug('scale'))
         cmds.undo()
         self.assertIsNone(child.getPlug('inverseScale').getSource(skipConversionNodes=False))
@@ -81,16 +88,22 @@ class JointTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             child.connectInverseScale(child)
 
-    def test_joint_radius_and_bulk_undo(self):
-        from mlib.nodes.joint import Joints
-        joints = Joints([self.create_joint("radiusA"), self.create_joint("radiusB")])
-        before = joints.getRadius()
-        joints.setRadius(2.5)
-        self.assertEqual(joints.getRadius(), [2.5, 2.5])
+    def test_joint_radius_and_undo(self):
+        joints = [self.create_joint("radiusA"), self.create_joint("radiusB")]
+
+        def radii():
+            return [joint.getRadius() for joint in joints]
+
+        before = radii()
+        for joint in joints:
+            self.assertIs(joint.setRadius(2.5), joint)
+        self.assertEqual(radii(), [2.5, 2.5])
         cmds.undo()
-        self.assertEqual(joints.getRadius(), before)
+        cmds.undo()
+        self.assertEqual(radii(), before)
         cmds.redo()
-        self.assertEqual(joints.getRadius(), [2.5, 2.5])
+        cmds.redo()
+        self.assertEqual(radii(), [2.5, 2.5])
         joints[0].setRadius(0, fast=True)
         self.assertEqual(joints[0].getRadius(), 0)
         for value in (-1, float("nan"), float("inf")):
@@ -156,12 +169,12 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.getMatrix(ws=True)
+        world = joint.getMatrix(worldSpace=True)
 
         joint.setMatrix(joint.getMatrix())
-        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
-        joint.setMatrix(world, ws=True)
-        self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
+        self.assertTrue(joint.getMatrix(worldSpace=True).isEquivalent(world, 1e-9))
+        joint.setMatrix(world, worldSpace=True)
+        self.assertTrue(joint.getMatrix(worldSpace=True).isEquivalent(world, 1e-9))
         self.assertAlmostEqual(cmds.getAttr(name + ".jointOrientZ"), 30.0, places=6)
 
     def test_segment_scale_compensate_round_trip_under_scaled_parent(self):
@@ -177,15 +190,15 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(name + ".jointOrient", 10.0, 20.0, 30.0)
         cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
         cmds.setAttr(name + ".scale", -1.0, 2.0, 3.0)
-        world = joint.getMatrix(ws=True)
+        world = joint.getMatrix(worldSpace=True)
         for operation in (
             lambda: joint.setMatrix(joint.getMatrix()),
-            lambda: joint.setMatrix(world, ws=True),
+            lambda: joint.setMatrix(world, worldSpace=True),
             lambda: joint.setTranslate(joint.getTranslate(at=4), at=4),
             lambda: joint.setScale(joint.getScale()),
         ):
             operation()
-            self.assertTrue(joint.getMatrix(ws=True).isEquivalent(world, 1e-9))
+            self.assertTrue(joint.getMatrix(worldSpace=True).isEquivalent(world, 1e-9))
             for actual, expected in zip(cmds.getAttr(name + ".translate")[0], (1.0, 2.0, 3.0)):
                 self.assertAlmostEqual(actual, expected, places=9)
             for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], (40.0, -50.0, 60.0)):

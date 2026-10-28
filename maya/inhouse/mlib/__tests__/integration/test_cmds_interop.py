@@ -351,7 +351,7 @@ class PassToMayaCmdsTest(_InteropCase):
         cmds.select(Selection([child, vertex]))
         self.assertEqual(len(cmds.ls(selection=True, flatten=True)), 2)
         cmds.xform(vertex, worldSpace=True, translation=(0.0, 5.0, 0.0))
-        self.assertAlmostEqual(vertex.getPosition(ws=True)[1], 5.0)
+        self.assertAlmostEqual(vertex.getPosition(worldSpace=True)[1], 5.0)
 
         joints = Joints(
             [cmds.createNode("joint", name="jointA"), cmds.createNode("joint", name="jointB")]
@@ -452,20 +452,6 @@ class MlibCommandInputTest(_InteropCase):
                 self.assertTrue(d.isValid())
         mlib.delete(d.getPlug("tx").getNode())
         self.assertFalse(d.isValid())
-
-    def test_blend_shape_add_target_resolves_owner_nodes(self):
-        base = cmds.polyCube(name="base")[0]
-        first = cmds.polyCube(name="first")[0]
-        second = cmds.polyCube(name="second")[0]
-        blend = mlib.getNode(cmds.blendShape(first, base, name="blend")[0])
-        # Plug・"node.attribute" は所有ノードをターゲット・ベースとして扱う。
-        weight = blend.addTarget(
-            mlib.getNode(second).getPlug("tx"), base=mlib.getNode(base).getShape().getPlug("v")
-        )
-        self.assertEqual(weight.getFullName(), blend.getName() + ".second")
-        third = cmds.polyCube(name="third")[0]
-        weight = blend.addTarget(third + ".translateX")
-        self.assertEqual(weight.getFullName(), blend.getName() + ".third")
 
     def test_ls_duplicate_and_createNode(self):
         a = self.create("transform", "a")
@@ -793,11 +779,11 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(sorted(world.get()), [0, 1])
         self.assertEqual(world[1].getFullName(), world.getFullName() + "[1]")
         # getMatrix(ws=True) はラッパーが保持するインスタンスの worldMatrix を使う。
-        self.assertEqual(list(second.getMatrix(ws=True)), cmds.getAttr(world.getFullName() + "[1]"))
-        self.assertAlmostEqual(list(second.getTranslate(ws=True, at=4))[0], 10.0)
-        self.assertAlmostEqual(list(first.getTranslate(ws=True, at=4))[0], 0.0)
+        self.assertEqual(list(second.getMatrix(worldSpace=True)), cmds.getAttr(world.getFullName() + "[1]"))
+        self.assertAlmostEqual(list(second.getTranslate(worldSpace=True, at=4))[0], 10.0)
+        self.assertAlmostEqual(list(first.getTranslate(worldSpace=True, at=4))[0], 0.0)
         self.assertEqual(
-            list(first.getMatrix(ws=True)), cmds.getAttr(first.getFullName() + ".worldMatrix[0]")
+            list(first.getMatrix(worldSpace=True)), cmds.getAttr(first.getFullName() + ".worldMatrix[0]")
         )
 
 

@@ -3,7 +3,7 @@
 対象の約束(2026-10-26 変更):
     * ``setRotate`` はrotateチャンネルだけを書く。translate・scale・shearはロック・接続
       されていても例外にならず、通知・Undoの記録もrotateだけになる。
-    * ``setMatrix``・``setTransformation`` は、分解した書込み値が現在値(内部単位)と完全に
+    * ``setMatrix`` は、分解した書込み値が現在値(内部単位)と完全に
       一致するチャンネルを書かない。書き込むチャンネルがロックされていれば従来どおり失敗する。
     * 通常・fast・safeのいずれも同じ考え方で、Jointでも同じ。
 """
@@ -150,12 +150,12 @@ class SetRotateOnlyRotateTest(_Base):
         self.lock(name, "t", "s", "sh")
         node = mlib.getNode(name)
         recorder = self.record(name)
-        node.setRotate((0.1, 0.2, 0.3), ws=True)
+        node.setRotate((0.1, 0.2, 0.3), worldSpace=True)
         self.assertEqual(recorder.channels(), {"r"})
 
 
 class SetMatrixChangedOnlyTest(_Base):
-    """setMatrix・setTransformationが変わるチャンネルだけを書くことを確かめる。"""
+    """setMatrixが変わるチャンネルだけを書くことを確かめる。"""
 
     def _translate_only_matrix(self, name):
         # 分解の往復で値が完全に再現される回転・スケールにする(90度回転と整数のスケール)。
@@ -167,7 +167,7 @@ class SetMatrixChangedOnlyTest(_Base):
         return node, matrix
 
     def test_unchanged_channels_locked(self):
-        for kwargs in ({}, {"fast": True}, {"safe": True}, {"ws": True}):
+        for kwargs in ({}, {"fast": True}, {"safe": True}, {"worldSpace": True}):
             with self.subTest(**kwargs):
                 name = self.make(name="m%d" % len(self.recorders))
                 node, matrix = self._translate_only_matrix(name)
@@ -216,23 +216,6 @@ class SetMatrixChangedOnlyTest(_Base):
         node.setMatrix(matrix)
         cmds.undo()
         self.assertEqual(cmds.getAttr(name + ".t")[0], (0.0, 0.0, 0.0))
-
-    def test_set_transformation_same_value(self):
-        for node_type in ("transform", "joint"):
-            with self.subTest(node_type=node_type):
-                name = self.make(node_type, "tr_" + node_type)
-                cmds.setAttr(name + ".t", 1, 2, 3)
-                cmds.setAttr(name + ".ra", 10, 0, 0)
-                node = mlib.getNode(name)
-                value = node.getTransformation()
-                value.translate = (4.0, 5.0, 6.0)
-                pivots = ("ra",) + (("jo",) if node_type == "joint" else ("rp", "sp", "rpt", "spt"))
-                self.lock(name, *pivots)
-                recorder = self.record(name)
-                node.setTransformation(value)
-                self.assertNotIn("ra", recorder.channels())
-                self.assertIn("t", recorder.channels())
-                self.assertTrue(_close(cmds.getAttr(name + ".t")[0], (4, 5, 6)))
 
     def test_joint_translate_only(self):
         name = self.make("joint", "jointM")

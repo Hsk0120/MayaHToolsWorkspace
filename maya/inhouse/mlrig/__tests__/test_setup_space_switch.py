@@ -30,15 +30,15 @@ class SpaceSwitchTest(unittest.TestCase):
         self.root.setTranslate((3, 0, 0), at=4)
         self.switch.switch("world")
         self.root.setTranslate((5, 0, 0), at=4)
-        self.assertAlmostEqual(self.child.getTranslate(ws=True, at=4)[0], 5)
+        self.assertAlmostEqual(self.child.getTranslate(worldSpace=True, at=4)[0], 5)
         self.assertAlmostEqual(self.child.getTranslate(at=4)[0], 2)
         self.switch.switch("local")
         self.root.setTranslate((6, 0, 0), at=4)
-        self.assertAlmostEqual(self.child.getTranslate(ws=True, at=4)[0], 6)
+        self.assertAlmostEqual(self.child.getTranslate(worldSpace=True, at=4)[0], 6)
         cmds.undo()
         cmds.undo()
         self.assertEqual(SpaceSwitch(self.buffer).getCurrent(), "world")
-        self.assertAlmostEqual(self.child.getTranslate(ws=True, at=4)[0], 5)
+        self.assertAlmostEqual(self.child.getTranslate(worldSpace=True, at=4)[0], 5)
 
     def test_reject_descendant_and_singular(self):
         """自己依存と逆行列のない空間をシーン変更なしで拒否する。"""
@@ -58,7 +58,7 @@ class SpaceSwitchTest(unittest.TestCase):
         self.switch.switch("external")
         self.assertNotIn(external.getFullName(), [node.getFullName() for node in self.switch.getNodes()])
         external.setTranslate((0, 3, 0), at=4)
-        self.assertAlmostEqual(self.child.getTranslate(ws=True, at=4)[1], 3)
+        self.assertAlmostEqual(self.child.getTranslate(worldSpace=True, at=4)[1], 3)
 
 
 if __name__ == "__main__":

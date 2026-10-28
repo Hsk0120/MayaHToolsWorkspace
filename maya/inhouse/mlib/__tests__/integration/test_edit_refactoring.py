@@ -1,4 +1,4 @@
-"""内部処理の分割後も、利用側overrideと複数形の返却契約を維持する。"""
+"""内部処理の分割後も、利用側overrideの契約を維持する。"""
 
 import sys
 import unittest
@@ -48,43 +48,6 @@ class EditRefactoringTest(unittest.TestCase):
         self.assertEqual(tuple(plug.get()), (1, 2, 3))
         cmds.undo()
         self.assertFalse(node.hasAttr("customVector"))
-
-    def test_base_collection_keeps_named_calculation_policy_and_mixed_results(self):
-        """Transform以外の同名setterにも従来のget結果収集を適用する。"""
-        calls = []
-
-        class NamedNode(mlib.nodes.Node):
-            """シーン更新を行わず、返却方針だけ確認する利用側Node。"""
-
-            def setTranslate(self, value, get=False, *, fast=False):
-                """getは計算値、それ以外は自身を返す。"""
-                calls.append((self.getName(), value, get, fast))
-                return tuple(value) if get else self
-
-        class NamedNodes(mlib.nodes.Nodes):
-            """基底のcallEachを利用する明示登録済みコレクション。"""
-
-            item_class = NamedNode
-            _bulk_methods = dict(mlib.nodes.Nodes._bulk_methods, setTranslate=NamedNode.setTranslate)
-            _bulk_returns = dict(mlib.nodes.Nodes._bulk_returns, setTranslate="self")
-            _bulk_undo = False
-
-        # 登録表の内部辞書を直接書き換えず、register/_restoreで生成済みクラスも含めて戻す。
-        registry = mlib.nodes.Node._registry
-        snapshot = registry._snapshot()
-        registry.register("transform", NamedNode)
-        try:
-            nodes = NamedNodes(self.names)
-        finally:
-            registry._restore(snapshot)
-        result = nodes.callEach("setTranslate", [((1, 2, 3), True), ((4, 5, 6),)],
-                                [{"fast": True}, {"get": False}])
-        self.assertEqual(result[0], (1, 2, 3))
-        self.assertIs(result[1], nodes[1])
-        self.assertEqual([(row[2], row[3]) for row in calls], [(True, True), (False, False)])
-        self.assertIs(nodes.callEach("setTranslate", [((0, 0, 0),)] * 2), nodes)
-        empty = NamedNodes()
-        self.assertIs(empty.callEach("setTranslate", []), empty)
 
 
 if __name__ == "__main__":

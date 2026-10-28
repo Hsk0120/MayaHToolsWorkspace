@@ -3,8 +3,6 @@
 import maya.cmds as cmds
 
 from ..core.registry import _clear_type_hierarchy_cache
-from ..decorator import _pick_alias
-from ..util import _UNSET
 from .version import Version
 
 # 旧構成からreloadした場合も、移動したコレクションクラスを残さない。
@@ -202,14 +200,13 @@ class Plugin:
         _clear_type_hierarchy_cache()
         return self
 
-    def unload(self, force=_UNSET, *, f=_UNSET):
+    def unload(self, force=False):
         """プラグインをアンロードする。
 
         正常完了後はmlibのノード型継承キャッシュを消去する。
 
         Args:
             force (bool): True の場合、使用中でも強制的にアンロードする。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             Plugin: 自身。
@@ -218,7 +215,6 @@ class Plugin:
             TypeError: forceとfを同時に指定した場合。
             RuntimeError: Maya がアンロードを拒否した場合。
         """
-        force = _pick_alias(force, f, "force", "f", default=False)
         cmds.unloadPlugin(self._name, force=force)
         _clear_type_hierarchy_cache()
         return self

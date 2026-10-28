@@ -338,11 +338,9 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         """getElementは既存要素だけを返し、欠番はIndexError。idx別名と同時指定の扱い。"""
         self.array[3].set(1.0)
         self.assertEqual(self.array.getElement(3).get(), 1.0)
-        self.assertEqual(self.array.getElement(idx=3).getFullName(), self.net_name + ".vals[3]")
+        self.assertEqual(self.array.getElement(index=3).getFullName(), self.net_name + ".vals[3]")
         with self.assertRaises(IndexError):
             self.array.getElement(4)
-        with self.assertRaises(TypeError):
-            self.array.getElement(3, idx=3)
         with self.assertRaises(TypeError):
             self.array.getElement()
         with self.assertRaises(TypeError):
@@ -393,7 +391,7 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.array.getIndices(), [0, 1, 2])
         self.assertTrue(cmds.isConnected(source + ".tx", self.net_name + ".vals[1]"))
         cmds.flushUndo()
-        self.array.removeElement(idx=0, fast=True)
+        self.array.removeElement(index=0, fast=True)
         self.assertEqual(self.array.getIndices(), [1, 2])
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         with self.assertRaises(IndexError):
@@ -402,8 +400,6 @@ class ArrayPlugSpecTest(_PlugSpecCase):
             self.array.removeElement()
         with self.assertRaises(TypeError):
             self.array.removeElement("1")
-        with self.assertRaises(TypeError):
-            self.array.removeElement(1, idx=1)
         with self.assertRaises(TypeError):
             self.array.removeElement(1, fast=1)
 

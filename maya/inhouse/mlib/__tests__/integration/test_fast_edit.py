@@ -63,33 +63,6 @@ class FastEditTest(unittest.TestCase):
             for a, b in zip(node.getMatrix(), expected):
                 self.assertAlmostEqual(a, b, places=7)
 
-    def test_geometry(self):
-        mesh = mlib.getNode(cmds.listRelatives(cmds.polyCube(ch=False)[0], shapes=True)[0])
-        curve = mlib.getNode(cmds.listRelatives(cmds.curve(d=1, p=[(0, 0, 0), (1, 2, 3), (4, 2, 1)]), shapes=True)[0])
-        for points in (mesh.getVertices(), curve.getCVs()):
-            before = points.getPosition()
-            rows = [(x + .2, y * 2, z - .3) for x, y, z in before]
-            points.setPositions(rows)
-            expected = points.getPosition()
-            points.setPositions(before)
-            with self.api_only():
-                points.setPositions(rows, fast=True)
-            for actual, wanted in zip(points.getPosition(), expected):
-                for a, b in zip(actual, wanted):
-                    self.assertAlmostEqual(a, b, places=6)
-        uvs = mesh.getUVs()
-        with self.api_only():
-            uvs.setPosition((.2, .3), fast=True)
-        for uv in uvs:
-            for a, b in zip(uv.getPosition(), (.2, .3)):
-                self.assertAlmostEqual(a, b, places=6)
-        history = mlib.getNode(cmds.listRelatives(cmds.polyCube()[0], shapes=True)[0])
-        with self.assertRaises(NotImplementedError):
-            history.getVertices().setPosition((1, 2, 3), fast=True)
-        periodic = mlib.getNode(cmds.listRelatives(cmds.circle(ch=False)[0], shapes=True)[0])
-        with self.assertRaises(NotImplementedError):
-            periodic.getCVs().mirror(fast=True)
-
     def test_skin(self):
         mesh = cmds.polyPlane(ch=False, sx=2, sy=2)[0]
         joints = [cmds.createNode('joint') for _ in range(3)]
@@ -103,7 +76,7 @@ class FastEditTest(unittest.TestCase):
                 skin.setWeights(joints, [.2, .3, .5], fast=True)
             self.assertEqual(list(skin.getWeights(joints)), expected)
 
-    def test_units_flags_and_bulk(self):
+    def test_units_flags_and_ls_joints(self):
         node = mlib.getNode(cmds.createNode('transform'))
         old_angle = cmds.currentUnit(query=True, angle=True)
         old_linear = cmds.currentUnit(query=True, linear=True)
@@ -120,8 +93,10 @@ class FastEditTest(unittest.TestCase):
             cmds.currentUnit(angle=old_angle, linear=old_linear)
         joints = [cmds.createNode('joint') for _ in range(2)]
         collection = mlib.ls(joints, type='joint')
+        self.assertIsInstance(collection, mlib.nodes.Joints)
         with self.api_only():
-            collection.setTranslate((1, 2, 3), fast=True, at=4)
+            for joint in collection:
+                joint.setTranslate((1, 2, 3), fast=True, at=4)
             node.setAttrFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
         self.assertTrue(cmds.getAttr(node.getFullName() + '.tx', lock=True))
         for joint in joints:
@@ -170,27 +145,6 @@ class FastEditTest(unittest.TestCase):
         cmds.connectAttr(a + '.tx', b + '.tx')
         with self.assertRaises(RuntimeError):
             mlib.getNode(b).getPlug('tx').set(10, fast=True)
-
-    def test_geometry_world_space_and_units(self):
-        transform = cmds.polyCube(ch=False)[0]
-        cmds.setAttr(transform + '.translate', 10, 20, 30)
-        cmds.setAttr(transform + '.rotate', 20, 30, 40)
-        cmds.setAttr(transform + '.scale', 2, 3, 4)
-        shape = mlib.getNode(cmds.listRelatives(transform, shapes=True)[0])
-        points = shape.getVertices([1, 3, 5])
-        old = cmds.currentUnit(query=True, linear=True)
-        try:
-            for unit in ('cm', 'm'):
-                cmds.currentUnit(linear=unit)
-                rows = [(1, 2, 3), (2, 4, 6), (3, 6, 9)]
-                with self.api_only():
-                    points.setPositions(rows, ws=True, fast=True)
-                for actual, expected in zip(points.getPosition(ws=True), rows):
-                    for a, b in zip(actual, expected):
-                        # Mesh内部のfloat座標を非一様スケールで変換した丸め誤差。
-                        self.assertAlmostEqual(a, b, delta=1e-5)
-        finally:
-            cmds.currentUnit(linear=old)
 
 
 if __name__ == '__main__':

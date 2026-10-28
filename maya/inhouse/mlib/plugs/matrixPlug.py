@@ -42,7 +42,7 @@ class MatrixPlug(Plug):
         safe=Trueの失敗は成分別に再試行せず1を返す。
 
         Args:
-            value (Matrix | Transformation | om2.MMatrix | sequence): Matrix(value)で変換するマトリクス値。
+            value (Matrix | om2.MMatrix | sequence): Matrix(value)で変換するマトリクス値。
             uiUnits (bool): 共通フラグとして受理するが、マトリクス成分は換算しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 

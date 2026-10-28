@@ -4,11 +4,11 @@ from unittest.mock import patch
 import maya.cmds as cmds
 import mlib
 mlib.reload()
-from mlib.nodes import Node, Joints, SkinClusters
+from mlib.nodes import Joint, Joints, Node, SkinCluster, SkinClusters
 from mlib.common import Namespace
 
 class NamingContractsTest(unittest.TestCase):
-    """改名後の戻り値と複数形への展開を検証する。"""
+    """改名後の戻り値と公開入口を検証する。"""
 
     def test_stored_names_do_not_query_maya(self):
         """保持名は照会を必要とせず、Namespace入力も受け取る。"""
@@ -29,12 +29,14 @@ class NamingContractsTest(unittest.TestCase):
         finally:
             cmds.delete(node.getFullName())
 
-    def test_bulk_getters_are_exposed(self):
-        """複数形へ明示した取得入口が正式名で公開される。"""
-        self.assertTrue(callable(Joints.getJointOrient))
-        self.assertTrue(callable(Joints.getInverseScale))
-        self.assertTrue(callable(SkinClusters.getMaxInfluences))
-        self.assertNotIn('joint_orient', Joints.__dict__)
+    def test_getters_are_exposed(self):
+        """取得入口が正式名で公開され、複数形には転送しない。"""
+        self.assertTrue(callable(Joint.getJointOrient))
+        self.assertTrue(callable(Joint.getInverseScale))
+        self.assertTrue(callable(SkinCluster.getMaxInfluences))
+        self.assertNotIn('joint_orient', Joint.__dict__)
+        self.assertFalse(hasattr(Joints, 'getJointOrient'))
+        self.assertFalse(hasattr(SkinClusters, 'getMaxInfluences'))
 
 
 if __name__ == "__main__":

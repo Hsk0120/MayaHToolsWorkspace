@@ -14,8 +14,8 @@ from ..core.attributeType import _convert_units
 from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object
-from ..decorator import _pick_alias, _require_bool, _undo_recording, _validated_flags, undoChunk
-from ..util import _ArgumentError, _UNSET
+from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
+from ..util import _ArgumentError
 
 #: 配列全体へのset()を拒否するときの文言。
 _ARRAY_SET_MESSAGE = "Set an array element instead of the array plug"
@@ -658,59 +658,46 @@ class Plug(Object):
                 visit(self)
             return result
 
-    def mute(self, *, fast=False):
+    def mute(self):
         """現在値でミュートし、自身を返す。
 
         アニメーション(入力のアニメーションカーブ)の無いチャンネルでは、Mayaが警告を出すだけで
         何もしない(muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはしない。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新(:meth:`setMuted` と同じ条件。再現できない
-                場合は変更前にNotImplementedError)。
+        fast引数は持たない。
 
         Returns:
             Plug: 自身。
         """
-        _require_bool(fast, "fast")
-        return self.setMuted(True, fast=fast)
+        return self.setMuted(True)
 
-    def unmute(self, *, fast=False):
-        """ミュートを解除し、自身を返す。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya直接更新(:meth:`setMuted` と同じ条件。再現できない
-                場合は変更前にNotImplementedError)。
+    def unmute(self):
+        """ミュートを解除し、自身を返す。fast引数は持たない。
 
         Returns:
             Plug: 自身。
         """
-        _require_bool(fast, "fast")
-        return self.setMuted(False, fast=fast)
+        return self.setMuted(False)
 
-    def isConnected(self, *, src=_UNSET, dst=_UNSET, source=_UNSET, destination=_UNSET):
+    def isConnected(self, *, source=True, destination=True):
         """指定方向の直接の接続を持つか判定する。
 
         Args:
-            src (bool): 入力元からの接続を調べる。別名 ``source`` も使用可能。
-            dst (bool): 出力先への接続を調べる。別名 ``destination`` も使用可能。
-            source (bool): srcの別名。同時指定は不可。
-            destination (bool): dstの別名。同時指定は不可。
+            source (bool): 入力元からの接続を調べる。
+            destination (bool): 出力先への接続を調べる。
 
         Returns:
             bool: 指定方向に接続を持つ場合は ``True``。両Falseなら ``False``。
 
         Raises:
-            TypeError: 方向指定がboolでない場合、または別名と重複指定した場合。
+            TypeError: 方向指定がboolでない場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        src = _pick_alias(src, source, "src", "source", True)
-        dst = _pick_alias(dst, destination, "dst", "destination", True)
         self._require_valid()
-        _require_bool(src, "src")
-        _require_bool(dst, "dst")
-        if src and dst:
+        _require_bool(source, "source")
+        _require_bool(destination, "destination")
+        if source and destination:
             return self._mplug.isConnected
-        return (src and self._mplug.isDestination) or (dst and self._mplug.isSource)
+        return (source and self._mplug.isDestination) or (destination and self._mplug.isSource)
 
     def isSource(self):
         """出力接続元か判定する。
@@ -1266,44 +1253,34 @@ class Plug(Object):
         node = om2.MFnDependencyNode(source.node())
         return node.typeName == "mute" and node.findPlug("mute", False).asBool()
 
-    def setMuted(self, state, *, fast=False):
+    def setMuted(self, state):
         """ミュート状態を設定する。Trueは現在値で固定し、Falseは解除する。
 
         アニメーションの無いチャンネルへのTrueは、Mayaが警告を出すだけで何もしない
         (muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはせず自身を返す。
         複合アトリビュートは入力接続のある子だけを対象にする(``cmds.mute`` と同じ)。
-
-        ``fast=True`` は ``cmds.mute`` と同じ型・名前・接続・値(``holdTime`` は現在時刻、
-        ``hold`` は現在値の内部単位、``isHistoricallyInteresting`` は0)の mute ノードを
-        MDGModifier の1回の ``doIt`` で作成・接続し、Falseでは mute ノードを削除して元の入力を
-        つなぎ直す。Mayaの命名規則を再現できない場合(所有ノードが名前空間にある、現在の名前空間が
-        ルート以外、複合配列の子、ロック中、入力が unitConversion)は変更前に NotImplementedError にする。
+        ``cmds.mute`` でUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             state (bool): ミュートする場合はTrue。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: stateまたはfastがbool以外の場合。
+            TypeError: stateがbool以外の場合。
             RuntimeError: 所有ノード・アトリビュートが無効、またはMayaが更新を拒否した場合。
-            NotImplementedError: fast=Trueで、上記の再現できない条件に当たる場合。
         """
-        _require_bool(fast, "fast")
-        with nullcontext() if fast else undoChunk("mlibPlugSetMuted"):
+        with undoChunk("mlibPlugSetMuted"):
             self._require_valid()
             _require_bool(state, "state")
-            if fast:
-                self._set_muted_direct(state)
-            elif state:
+            if state:
                 cmds.mute(self.getFullName())
             else:
                 cmds.mute(self.getFullName(), disable=True, force=True)
             return self
 
-    def delete(self, force=_UNSET, *, fast=False, f=_UNSET):
+    def delete(self, force=False, *, fast=False):
         """このアトリビュートをノードから削除する。
 
         動的に追加されたアトリビュート(addAttr によるカスタムアトリビュート)にのみ使用できる。
@@ -1313,9 +1290,8 @@ class Plug(Object):
         Args:
             force (bool): True の場合、ロックされていれば一時的に解除してから
                 削除する。False でロックされているアトリビュートを削除しようとすると
-                RuntimeError になる。別名 ``f`` も使用可能。
+                RuntimeError になる。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
-            f (bool): forceの別名。同時指定は不可。
 
         Returns:
             None: 値を返さない。
@@ -1325,7 +1301,6 @@ class Plug(Object):
                 削除を試みた場合など、Maya が削除を拒否した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        force = _pick_alias(force, f, "force", "f", False)
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDelete"):
             self._require_valid()
@@ -1491,25 +1466,21 @@ class Plug(Object):
             self.set(value, fast=fast)
             return self
 
-    def getSource(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
+    def getSource(self, *, skipConversionNodes=True, **kwargs):
         """直接の入力元を取得する。子・配列要素の独立接続は展開しない。
 
         Args:
             skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。
                 Falseは直結したPlug。getConnectionsの既定とは異なる。
-            scn (bool): skipConversionNodesの別名。同時指定は不可。
             **kwargs: getConnectionsの型・ペア・Node化等の指定。子/要素展開は無効、indexは0に固定。
-                idxは固定したindexと競合するため指定不可。
 
         Returns:
             Plug | Node | tuple | None: 既定は入力元Plug。未接続や型条件不一致はNone。
                 asPairは(自身側Plug, 入力元)、asNodeは相手Node。値や接続は変更しない。
 
         Raises:
-            TypeError: 長短名を同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        skipConversionNodes = _pick_alias(skipConversionNodes, scn, "skipConversionNodes", "scn", True)
         self._require_valid()
         if not kwargs:
             sources = ([self._mplug.source()] if skipConversionNodes else
@@ -1520,12 +1491,11 @@ class Plug(Object):
                       checkElements=False, index=0)
         return self.getConnections(True, False, **kwargs)
 
-    def getDestinations(self, *, skipConversionNodes=_UNSET, scn=_UNSET, **kwargs):
+    def getDestinations(self, *, skipConversionNodes=True, **kwargs):
         """直接の出力先を取得する。子・配列要素の独立接続は展開しない。
 
         Args:
             skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。Falseは直結したPlug。
-            scn (bool): skipConversionNodesの別名。同時指定は不可。
             **kwargs: getConnectionsの型・ペア・Node化・index等の指定。子/要素展開は無効。
 
         Returns:
@@ -1534,10 +1504,8 @@ class Plug(Object):
                 indexは絞込み・重複統合後の一件を選び、範囲外はNone。値や接続は変更しない。
 
         Raises:
-            TypeError: 長短名を同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        skipConversionNodes = _pick_alias(skipConversionNodes, scn, "skipConversionNodes", "scn", True)
         self._require_valid()
         if not kwargs:
             targets = (self._mplug.destinations() if skipConversionNodes else
@@ -1547,10 +1515,9 @@ class Plug(Object):
                       checkElements=False)
         return self.getConnections(False, True, **kwargs)
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=_UNSET,
-        destination=_UNSET, connections=False, type=None, exactType=False, skipConversionNodes=False,
-        asPair=False, asNode=False, checkChildren=True, checkElements=True, index=_UNSET, *,
-        idx=_UNSET, src=_UNSET, dst=_UNSET):
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
+        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
+        asPair=False, asNode=False, checkChildren=True, checkElements=True, index=None):
         """接続参照を取得する。既定は変換ノードを省略しない。
 
         自身の入力・出力、次に既存配列要素または子へ再帰する。
@@ -1574,9 +1541,6 @@ class Plug(Object):
             checkChildren (bool): 複合の子も探索する。
             checkElements (bool): 既存配列要素も探索する。
             index (int | None): 絞込み後のPythonの位置番号。負数可、範囲外はNone。
-            idx (int | None): indexの別名。同時指定は不可。
-            src (bool): sourceの別名。同時指定は不可。
-            dst (bool): destinationの別名。同時指定は不可。
 
         Returns:
             list | Plug | Node | tuple | None: 既定は相手Plugのlist。index指定時は一件またはNone。
@@ -1584,12 +1548,8 @@ class Plug(Object):
                 値やノードの複製は行わない。
 
         Raises:
-            TypeError: index/idx・source/src・destination/dstを同時指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
-        index = _pick_alias(index, idx, "index", "idx", None)
-        source = _pick_alias(source, src, "source", "src", True)
-        destination = _pick_alias(destination, dst, "destination", "dst", True)
         self._require_valid()
         pairs = []
         def visit(plug):
@@ -1638,7 +1598,7 @@ class Plug(Object):
             return None
         return self._node_from_mplug(sources[0])
 
-    def isConnectedTo(self, other, *, src=_UNSET, dst=_UNSET, source=_UNSET, destination=_UNSET):
+    def isConnectedTo(self, other, *, source=True, destination=True):
         """指定したプラグと接続されているか判定する。
 
         既定では入力・出力いずれの向きでも一致すれば True を返す。
@@ -1647,36 +1607,32 @@ class Plug(Object):
         Args:
             other (Plug | om2.MPlug | str): 判定対象のプラグ。文字列は
                 ``"node.attribute"`` 形式のアトリビュート名。
-            src (bool): otherから自身への入力接続を調べる。別名 ``source`` も使用可能。
-            dst (bool): 自身からotherへの出力接続を調べる。別名 ``destination`` も使用可能。
-            source (bool): srcの別名。同時指定は不可。
-            destination (bool): dstの別名。同時指定は不可。
+            source (bool): otherから自身への入力接続を調べる。
+            destination (bool): 自身からotherへの出力接続を調べる。
 
         Returns:
             bool: 指定方向で接続されている場合は True。両Falseなら False。
 
         Raises:
             TypeError: other が Plug・MPlug・アトリビュート名のいずれでもない場合、または文字列が
-                アトリビュートを指していない場合。方向指定がboolでない、または別名と重複した場合。
+                アトリビュートを指していない場合。方向指定がboolでない場合。
             ValueError: other が空文字列、または空の MPlug の場合。
             RuntimeError: 自身の所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
                 other の文字列を解決できない(存在しない、または複数のアトリビュートに一致する)場合、
                 other のPlugまたはMPlugの所有ノード・アトリビュートが削除済みの場合。
         """
-        src = _pick_alias(src, source, "src", "source", True)
-        dst = _pick_alias(dst, destination, "dst", "destination", True)
         self._require_valid()
-        _require_bool(src, "src")
-        _require_bool(dst, "dst")
+        _require_bool(source, "source")
+        _require_bool(destination, "destination")
         other = Plug._resolve_input(other)
         other._require_valid()
         return any(
             connected == other.mplug()
-            for connected in self._mplug.connectedTo(src, dst)
+            for connected in self._mplug.connectedTo(source, destination)
         )
 
-    def connect(self, src=_UNSET, force=False, f=False, lock=False, l=False, nextAvailable=False, na=False, *,
-        unlock=True, fast=False, source=_UNSET):
+    def connect(self, source, force=False, f=False, lock=False, l=False, nextAvailable=False, na=False, *,
+        unlock=True, fast=False):
         """srcから自身へ接続し、接続先を返す。同一の既存接続も例外にする。
 
         通常はcmds.connectAttrでUndo有効時に記録する。fastはMDGModifierを使う。
@@ -1684,7 +1640,7 @@ class Plug(Object):
         接続済みの変更は、後続の失敗だけでは自動で戻さない。
 
         Args:
-            src (Plug | om2.MPlug | str): 接続元。
+            source (Plug | om2.MPlug | str): 接続元。
             force (bool): 既存入力を置換する。unlock=Trueなら接続先と上位の複合/配列を一時解除する。
                 接続元のロックは変更しない。
             f (bool): forceとORする。
@@ -1695,26 +1651,24 @@ class Plug(Object):
             na (bool): nextAvailableとORする。
             unlock (bool): Falseならforceでもロックを解除しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            source (Plug | om2.MPlug | str): srcの別名。同時指定は不可。
 
         Returns:
             Plug: 実際の接続先。nextAvailable時は選んだ要素。参照を取り直す場合があり、self同一性は保証しない。
 
         Raises:
-            TypeError: 接続元が未指定・未対応型、長短名の競合、またはfastがbool以外の場合。
+            TypeError: 接続元が未指定・未対応型、またはfastがbool以外の場合。
             RuntimeError: 同一接続・forceなしの入力置換・ロック・接続やロック復元の失敗。
                 接続元・接続先の所有ノードやアトリビュートが削除済みの場合も、何も変更せずに
                 送出する(接続元は削除前のアトリビュートパスを文言に含める)。
         """
-        src = _pick_alias(src, source, "src", "source")
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugConnect"):
             self._require_valid()
-            src = Plug._resolve_input(src)
-            if not src.isValid():
+            source = Plug._resolve_input(source)
+            if not source.isValid():
                 # 削除済みの接続元をMayaへ渡すと名前が空になり、どれが原因か分からない。
                 raise RuntimeError("Connection source is invalid (its node or attribute was deleted): "
-                                   f"{src._label()} -> {self.getFullName()}")
+                                   f"{source._label()} -> {self.getFullName()}")
             force, lock = force or f, lock or l
             if self.isLocked() and not (force and unlock):
                 raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
@@ -1738,8 +1692,8 @@ class Plug(Object):
                             break
                         index += 1
                 current = target.getSource(skipConversionNodes=False)
-                if current is not None and current.getFullName() == src.getFullName():
-                    raise RuntimeError(f"Already connected: {src.getFullName()} -> {target.getFullName()}")
+                if current is not None and current.getFullName() == source.getFullName():
+                    raise RuntimeError(f"Already connected: {source.getFullName()} -> {target.getFullName()}")
                 keep_self = target is self and not self.mplug().isNetworked
                 # fastで自身を返す場合、名前はエラー表示だけに使うので必要になるまで求めない。
                 target_name = None if fast and keep_self else target.getFullName()
@@ -1750,14 +1704,14 @@ class Plug(Object):
                     modifier = om2.MDGModifier()
                     if current is not None:
                         modifier.disconnect(current.mplug(), target.mplug())
-                    modifier.connect(src.mplug(), target.mplug())
+                    modifier.connect(source.mplug(), target.mplug())
                     modifier.doIt()
                     if lock:
                         target.mplug().isLocked = True
                 else:
                     if current is None:
                         target._record_connection_value()
-                    cmds.connectAttr(src.getFullName(), target_name, force=force)
+                    cmds.connectAttr(source.getFullName(), target_name, force=force)
                     if lock:
                         target.setFlags(locked=True, fast=False)
             return self if keep_self else Plug._resolve_input(target_name)
@@ -1784,21 +1738,19 @@ class Plug(Object):
                 self.disconnect(source, fast=fast)
             return self
 
-    def disconnect(self, src=_UNSET, force=False, f=False, nextAvailable=False, na=False, *, fast=False,
-        source=_UNSET):
+    def disconnect(self, source=None, force=False, f=False, nextAvailable=False, na=False, *, fast=False):
         """指定入力元との直接接続を解除する。子接続へ再帰せず、変換ノードも飛ばさない。
 
         通常はcmds.disconnectAttrでUndo有効時に記録し、fastはMDGModifierを使う。
         変換ノードは削除しない。ロック復元の失敗は例外で打ち切り、完了済みの切断は戻さない。
 
         Args:
-            src (Plug | om2.MPlug | str | None): 入力元。省略またはNoneは現在の直接入力。
+            source (Plug | om2.MPlug | str | None): 入力元。省略またはNoneは現在の直接入力。
             force (bool): 接続先と上位を一時解除し、逆順に再ロックする。入力元のロックは変えない。
             f (bool): forceとORする。
             nextAvailable (bool): 配列内でsrcへ直結した既存要素を全て解除する。src明示時だけ有効。
             na (bool): nextAvailableとORする。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            source (Plug | om2.MPlug | str | None): srcの別名。同時指定は不可。
 
         Returns:
             Plug | list[Plug]: 単一切断は切断した入力元Plug(自身ではない)。srcを渡した場合は
@@ -1809,108 +1761,101 @@ class Plug(Object):
                 配列検索は接続先要素のlist。
 
         Raises:
-            TypeError: srcがbool等の未対応型、長短名の競合、またはfastがbool以外の場合。
+            TypeError: sourceがbool等の未対応型、またはfastがbool以外の場合。
             RuntimeError: 入力・指定接続がない、または切断やロック復元に失敗した場合。
 
         Note:
             配列検索は既存順に切断し、後半の失敗でも先行する切断は戻さない。
             未接続時に何もしない入力解除は :meth:`disconnectInput` を使う。
         """
-        src = _pick_alias(src, source, "src", "source", None)
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnect"):
             self._require_valid()
-            if isinstance(src, bool):
-                raise TypeError("src must be an input plug reference, not bool; use disconnectAll for directions")
-            if src is not None:
-                src = Plug._resolve_input(src)
-            if self.isArray() and (nextAvailable or na) and src is not None:
-                targets = [p for p in self.getElements() if p.getSource(skipConversionNodes=False) == src]
+            if isinstance(source, bool):
+                raise TypeError("source must be an input plug reference, not bool; use disconnectAll for directions")
+            if source is not None:
+                source = Plug._resolve_input(source)
+            if self.isArray() and (nextAvailable or na) and source is not None:
+                targets = [p for p in self.getElements() if p.getSource(skipConversionNodes=False) == source]
                 if not targets:
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
                 names = [target.getFullName() for target in targets]
                 for target in targets:
-                    target.disconnect(src, force=force or f, fast=fast)
+                    target.disconnect(source, force=force or f, fast=fast)
                 return [Plug._resolve_input(name) for name in names]
-            if src is None:
+            if source is None:
                 # 現在の直接入力はconnectedTo(True, False)の先頭なので、接続済みの再判定を省く。
-                src = self.getSource(skipConversionNodes=False)
-                if src is None:
+                source = self.getSource(skipConversionNodes=False)
+                if source is None:
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
             else:
-                # isConnectedTo(src, src=True, dst=False)と同じ判定。自身の検証は済んでいる。
-                src._require_valid()
-                source_mplug = src.mplug()
+                # isConnectedTo(source, source=True, destination=False)と同じ判定。自身の検証は済んでいる。
+                source._require_valid()
+                source_mplug = source.mplug()
                 if not any(connected == source_mplug for connected in self._mplug.connectedTo(True, False)):
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
             force = force or f
             # 接続から得たMPlug(networked)は切断すると破棄され、後の比較・使用でMayaが異常終了する。
             # 返すsrcと自身は、切断前に同じアトリビュートを指す非networkedのMPlugへ持ち替える。
-            src._mplug = Plug._unnetworked(src._mplug)
+            source._mplug = Plug._unnetworked(source._mplug)
             self._mplug = Plug._unnetworked(self._mplug)
             with self._temporarily_unlocked_connection_path(True, fast=fast) if force else nullcontext():
                 if fast:
                     modifier = om2.MDGModifier()
-                    modifier.disconnect(src.mplug(), self.mplug())
+                    modifier.disconnect(source.mplug(), self.mplug())
                     modifier.doIt()
                 else:
-                    cmds.disconnectAttr(src.getFullName(), self.getFullName())
+                    cmds.disconnectAttr(source.getFullName(), self.getFullName())
             # 入力元は手元のPlugをそのまま返す(名前からの取り直しはしない)。
-            return src
+            return source
 
-    def disconnectAll(self, *, src=_UNSET, dst=_UNSET, fast=False, source=_UNSET, destination=_UNSET):
+    def disconnectAll(self, *, source=True, destination=True, fast=False):
         """入力、次に出力の直接接続を解除する。ロックは解除しない。
 
         子・配列要素の独立接続は展開せず、変換ノードも削除しない。
         通常はUndo有効時に同じチャンクへ記録する。途中失敗で完了済みの切断は戻さない。
 
         Args:
-            src (bool): 入力を解除する。既定True。
-            dst (bool): 全出力を解除する。既定True。
+            source (bool): 入力を解除する。既定True。
+            destination (bool): 全出力を解除する。既定True。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            source (bool): srcの別名。同時指定は不可。
-            destination (bool): dstの別名。同時指定は不可。
 
         Returns:
             Plug: 自身。未接続または両Falseなら変更しない。
 
         Raises:
-            TypeError: 方向・fastがbool以外、または長短名を同時指定した場合。
+            TypeError: 方向・fastがbool以外の場合。
             RuntimeError: 無効参照、またはロック等により切断できない場合。
         """
-        src = _pick_alias(src, source, "src", "source", True)
-        dst = _pick_alias(dst, destination, "dst", "destination", True)
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnectAll"):
             self._require_valid()
-            _require_bool(src, "src")
-            _require_bool(dst, "dst")
-            if src:
+            _require_bool(source, "source")
+            _require_bool(destination, "destination")
+            if source:
                 self.disconnectInput(fast=fast)
-            if dst:
-                for destination in self.getDestinations(skipConversionNodes=False):
-                    destination.disconnect(self, fast=fast)
+            if destination:
+                for target in self.getDestinations(skipConversionNodes=False):
+                    target.disconnect(self, fast=fast)
             return self
 
-    def connectTo(self, dst=_UNSET, *, fast=False, destination=_UNSET, **kwargs):
+    def connectTo(self, destination, *, fast=False, **kwargs):
         """自身からdstへ接続し、接続先Plugを返す。
 
-        dstをPlugへ解決し、 ``dst.connect(self, **kwargs)`` へ委譲する。
+        dstをPlugへ解決し、 ``destination.connect(self, **kwargs)`` へ委譲する。
         通常Undo・force時のロック復元・配列の空き番号選択はconnectと共通。
         fast指定は内側のconnectへ引数で渡す。
 
         Args:
-            dst (Plug | om2.MPlug | str): 接続先。別名 ``destination`` も使用可能。
+            destination (Plug | om2.MPlug | str): 接続先。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: connectのforce/f・lock/l・nextAvailable/na・unlock。
-            destination (Plug | om2.MPlug | str): dstの別名。同時指定は不可。
 
         Returns:
             Plug: 実際の接続先。
         """
-        dst = _pick_alias(dst, destination, "dst", "destination")
         _require_bool(fast, "fast")
-        return Plug._resolve_input(dst).connect(self, **kwargs, fast=fast)
+        return Plug._resolve_input(destination).connect(self, **kwargs, fast=fast)
 
     def _set_template(self, value, safe, *, fast, _writer=None, **options):
         """set()の共通骨格。Undo文脈・配列拒否・fast未対応型の事前検査・safeの例外吸収を担う。
@@ -1971,8 +1916,8 @@ class Plug(Object):
         # 数値・文字列はマトリクスの入力に当たらないため、型の判定(attributeType)を省く。
         if not isinstance(value, (int, float, str)) and attributeType(self._mplug) is None:
             # mlib.reload()でmathsが作り直された後も現在のMatrix型を返すため、使う時点で読み込む。
-            from ..maths import Matrix, Transformation
-            if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix, Transformation))
+            from ..maths import Matrix
+            if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix))
                     or isinstance(value, (tuple, list)) and len(value) == 16):
                 value = Matrix(value)
                 if fast:
@@ -2722,93 +2667,6 @@ class Plug(Object):
         if attr.hasFn(om2.MFn.kUnitAttribute):
             return om2.MFnUnitAttribute(attr)
         return None
-
-    def _mute_targets(self):
-        """setMuted の fast 経路で扱うチャンネルを cmds.mute と同じ規則で集める。
-
-        Returns:
-            list[om2.MPlug]: 自身(非複合)、または入力接続のある子(複合)。
-
-        Raises:
-            NotImplementedError: 配列(要素でない)・複合配列の子・ロック中・名前空間付きの所有ノード・
-                ルート以外の現在の名前空間など、cmds.mute の命名・挙動を再現できない場合。
-        """
-        if self._mplug.isArray:
-            raise NotImplementedError("fast setMuted does not support array attributes")
-        if ":" in self._node._dependency_fn().name() or om2.MNamespace.currentNamespace() != ":":
-            raise NotImplementedError("fast setMuted requires a node and current namespace in the root namespace")
-        if self._mplug.isCompound:
-            targets = [self._mplug.child(index) for index in range(self._mplug.numChildren())]
-            targets = [target for target in targets if target.isDestination]
-        else:
-            targets = [self._mplug]
-        for target in targets:
-            if target.isCompound or "." in target.partialName(useLongNames=True, useAlias=True):
-                raise NotImplementedError("fast setMuted does not support nested compound children")
-            if any(current.isLocked for current in _ancestor_plugs(target)):
-                raise NotImplementedError("fast setMuted does not support locked attributes")
-        return targets
-
-    def _set_muted_direct(self, state):
-        """setMuted の fast 経路。cmds.mute と同じ mute ノードを MDGModifier 1 回で作成・削除する。
-
-        Args:
-            state (bool): Trueはミュート、Falseは解除。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            NotImplementedError: :meth:`_mute_targets` が拒否した場合。変更前に送出する。
-        """
-        targets = self._mute_targets()
-        for target in targets:
-            # 変換ノードは接続を外すとMayaが自動で削除・付け替えるため、cmds.mute と同じ接続にできない。
-            source = target.sourceWithConversion()
-            if not source.isNull and om2.MFnDependencyNode(source.node()).typeName == "mute":
-                source = om2.MFnDependencyNode(source.node()).findPlug("input", False).sourceWithConversion()
-            if not source.isNull and source.node().hasFn(om2.MFn.kUnitConversion):
-                raise NotImplementedError(f"fast setMuted does not support unit conversion inputs: {target.name()}")
-        modifier = om2.MDGModifier()
-        changed = False
-        for target in targets:
-            source = target.sourceWithConversion()
-            if state:
-                if source.isNull:
-                    if not self._mplug.isCompound:
-                        om2.MGlobal.displayWarning(
-                            f"Skipping non-animated channel '{target.name()}'.")
-                    continue
-                if om2.MFnDependencyNode(source.node()).typeName == "mute":
-                    # 既存の mute ノードは cmds.mute と同じく、現在時刻・現在値で固定し直す。
-                    mute_fn = om2.MFnDependencyNode(source.node())
-                else:
-                    mute = modifier.createNode("mute")
-                    name = target.partialName(useLongNames=True, useAlias=True)
-                    name = re.sub(r"[\[\]]", "_", name)
-                    name = f"mute_{self._node._dependency_fn().name()}_{name}"
-                    modifier.renameNode(mute, name)
-                    mute_fn = om2.MFnDependencyNode(mute)
-                    modifier.disconnect(source, target)
-                    modifier.connect(source, mute_fn.findPlug("input", False))
-                    modifier.connect(mute_fn.findPlug("output", False), target)
-                    modifier.newPlugValueInt(mute_fn.findPlug("isHistoricallyInteresting", False), 0)
-                modifier.newPlugValueMTime(mute_fn.findPlug("holdTime", False), oma2.MAnimControl.currentTime())
-                modifier.newPlugValueDouble(mute_fn.findPlug("hold", False), target.asDouble())
-                modifier.newPlugValueBool(mute_fn.findPlug("mute", False), True)
-                changed = True
-            elif not source.isNull and om2.MFnDependencyNode(source.node()).typeName == "mute":
-                mute = source.node()
-                original = om2.MFnDependencyNode(mute).findPlug("input", False).sourceWithConversion()
-                # 削除を接続より先に積む(connect の後に deleteNode を積むと doIt が失敗する)。
-                # mute.input 側の接続は deleteNode が外す。
-                modifier.disconnect(source, target)
-                modifier.deleteNode(mute)
-                if not original.isNull:
-                    modifier.connect(original, target)
-                changed = True
-        if changed:
-            modifier.doIt()
 
     def _require_writable(self):
         """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。

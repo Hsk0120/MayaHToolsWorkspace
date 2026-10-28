@@ -1,4 +1,4 @@
-"""SkinCluster.copyWeightsTo・deforms と SkinClusters の同名メソッドの約束を固定する(担当C)。
+"""SkinCluster.copyWeightsTo・deforms の約束を固定する(担当C)。
 
 copyWeightsTo は最近傍の点と name/closestJoint でウェイトを写し、1回の Undo で戻る。
 deforms は形状の履歴に自身が含まれるかを返す。
@@ -11,7 +11,7 @@ import maya.cmds as cmds
 
 import mlib
 mlib.reload()
-from mlib.nodes import Node, SkinCluster, SkinClusters
+from mlib.nodes import Node, SkinCluster
 
 
 class SkinCopyTest(unittest.TestCase):
@@ -92,15 +92,6 @@ class SkinCopyTest(unittest.TestCase):
         self.assertFalse(skin.deforms(self.root))
         with self.assertRaises(RuntimeError):
             skin.deforms(self.name("missing"))
-
-    def test_bulk(self):
-        """deforms はリスト、copyWeightsTo は自身。自身を含むと番号付きで止まる。"""
-        skins = SkinClusters([self.source_skin, self.target_skin])
-        self.assertEqual(skins.deforms(self.target), [False, True])
-        single = SkinClusters([self.source_skin])
-        self.assertIs(single.copyWeightsTo(self.target_skin), single)
-        with self.assertRaisesRegex(RuntimeError, r"SkinClusters\.copyWeightsTo failed at item 1: .*must differ"):
-            skins.copyWeightsTo(self.target_skin)
 
 
 if __name__ == "__main__":

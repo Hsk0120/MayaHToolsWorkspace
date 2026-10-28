@@ -98,7 +98,7 @@ class SkinClusterInfluenceTest(unittest.TestCase):
 
 
 class SkinClustersBatchTest(unittest.TestCase):
-    """SkinClusters(コレクション)の influence解除とJoints.delete を検証する。"""
+    """Joints(コレクション)からのskinCluster取得・influence解除と、Jointsの標準削除を検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="mlibSkinBatchRoot")
@@ -130,7 +130,7 @@ class SkinClustersBatchTest(unittest.TestCase):
         self.assertEqual(ordered, [self.leaf, self.mid, self.root])
 
     def test_delete_joints_uses_native_hierarchy_and_weight_rules(self):
-        """Joints削除は子階層も削除し、ウェイトを標準の削除規則で処理する。"""
+        """mlib.deleteでのJoints削除は子階層も削除し、ウェイトを標準の削除規則で処理する。"""
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
@@ -140,7 +140,7 @@ class SkinClustersBatchTest(unittest.TestCase):
         cmds.delete(self.mid)
         expected = list(self.skin.getWeights([self.root]))
         cmds.undo()
-        mid_joints.delete()
+        mlib.delete(mid_joints)
 
         self.assertFalse(cmds.objExists(self.mid))
         self.assertFalse(cmds.objExists(self.leaf))
@@ -151,12 +151,16 @@ class SkinClustersBatchTest(unittest.TestCase):
         self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
 
         mid_joints = Joints([self.mid])
-        mid_joints.getSkinClusters().removeInfluences(mid_joints)
+        skin_clusters = mid_joints.getSkinClusters()
+        self.assertIsInstance(skin_clusters, mlib.nodes.SkinClusters)
+        for skin in skin_clusters:
+            for joint in mid_joints:
+                skin.removeInfluence(joint)
 
         self.assertTrue(cmds.objExists(self.mid))
         self.assertFalse(self.skin.hasInfluence(self.mid))
         self.assertEqual(list(self.skin.getWeights([self.root])), [1.0] * 8)
-        # removeInfluences は joint ノード自体を削除しないため、階層はそのまま。
+        # removeInfluence は joint ノード自体を削除しないため、階層はそのまま。
         self.assertEqual(cmds.listRelatives(self.leaf, parent=True), [self.mid])
 
 

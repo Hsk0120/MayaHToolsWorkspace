@@ -12,10 +12,9 @@ from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core.fastWrite import require_writable
-from ..decorator import _pick_alias, _require_bool, undoTransaction
+from ..decorator import _require_bool, undoTransaction
 from ..maths.vector import Vector, _vector_of
 from ..util import _world_space
-from ..util import _ArgumentError, _UNSET
 from .shape import Shape
 
 
@@ -23,7 +22,7 @@ class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
 
     def reorderVertices(self, reference, uvSet="map1", tolerance=1e-6, *, fast=False, match="uv",
-        worldSpace=_UNSET, ws=_UNSET):
+        worldSpace=False):
         """UVまたは頂点位置の一意な対応で、対象の頂点番号を基準メッシュへ合わせる。
 
         頂点位置・面順/向き・UV・法線・面マテリアルは保持する。エッジ番号は変わり得る。
@@ -38,19 +37,17 @@ class Mesh(Shape):
                 既定FalseはUndo有効が必須で、非ゼロtweakは未対応。
             match (str): 既定uv、またはposition。
             worldSpace (bool): 位置照合でTrueはワールド空間、Falseは各Shapeのオブジェクト空間。UV照合では使わない。
-            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             Mesh: 自身。番号対応が既に同一なら再構築せず返し、再構築用の制限検査にも進まない。
 
         Raises:
-            TypeError: 入力型・fast/worldSpaceが不正、または長短名を同時指定した場合。
+            TypeError: 入力型・fast/worldSpaceが不正な場合。
             ValueError: 対応が曖昧/不完全、トポロジー/面の向きが一致しない、または再構築時に
                 入出力履歴・インスタンス・参照・色セット・クリース等がある場合。
             RuntimeError: 再構築時にロック、または通常処理でUndoが無効の場合。
             NotImplementedError: 通常経路で頂点のtweakがある法線の並べ替えの場合。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         _require_bool(fast, "fast")
         from .node import Node
         if match not in ("uv", "position"):
@@ -121,45 +118,11 @@ class Mesh(Shape):
                     cmds.sets(faces, edit=True, forceElement=material)
         return self
 
-    def mirror(self, axis="x", worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
-        """頂点座標を指定空間の中心で反転する。Transformとトポロジーは変更しない。
-
-        共有Shapeの全インスタンスへ影響する。複製・結合・片側からの対称化・法線反転は行わない。
-        奇数軸の反転で面の向きが変わる場合、必要な法線処理は別途行う。
-
-        Args:
-            axis (str): 重複しないx/y/zの組合せ。大文字も可。
-            worldSpace (bool): Trueは保持パスのワールド空間、FalseはShapeのオブジェクト空間。短縮名ws。
-            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
-            indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            ws (bool): worldSpaceの別名。同時指定は不可。
-
-        Returns:
-            Mesh: 自身。頂点番号・面の接続と頂点順は保持する。
-
-        Raises:
-            TypeError: 番号型・fastが不正、または長短名を同時指定した場合。
-            ValueError: 軸・空間・中心が不正、またはworld変換が数値的にほぼ特異な場合。
-            IndexError: 頂点番号が負または範囲外の場合。
-            RuntimeError: Mayaが形状の取得・更新を拒否した場合。
-            NotImplementedError: fastで入力履歴付きShapeを編集する場合。
-
-        Note:
-            途中失敗で完了済みの変更は自動で戻さない。
-        """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
-        _require_bool(fast, "fast")
-        ws = _world_space(worldSpace)
-        self.getVertices(indices).mirror(axis=axis, ws=ws, pivot=pivot, fast=fast)
-        return self
-
-    def getVertex(self, index=_UNSET, *, idx=_UNSET):
+    def getVertex(self, index):
         """頂点番号から単体ラッパーを取得する。
 
         Args:
             index (int): ゼロ始まりの頂点番号。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Vertex: シーン上の頂点を参照するラッパー。
@@ -167,7 +130,6 @@ class Mesh(Shape):
         Raises:
             IndexError: 頂点番号が範囲外の場合。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         return Vertex(self, index)
 
     def getVertices(self, indices=None):
@@ -249,53 +211,47 @@ class Mesh(Shape):
         """
         return self._geometry_fn().numEdges
 
-    def getPoints(self, worldSpace=_UNSET, *, ws=_UNSET):
+    def getPoints(self, worldSpace=False):
         """全頂点の位置を取得する。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            ws (bool): worldSpaceの別名。同時指定は不可。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
             om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self._geometry_fn().getPoints(space)
 
-    def getVertexNormals(self, worldSpace=_UNSET, angleWeighted=False, *, ws=_UNSET):
+    def getVertexNormals(self, worldSpace=False, angleWeighted=False):
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             angleWeighted (bool): True の場合は隣接面の角度でウェイト付けした法線を取得する。
-            ws (bool): worldSpaceの別名。同時指定は不可。
 
         Returns:
             list[Vector]: 頂点番号順の平均法線。angleWeighted=False では
                 角度によるウェイト付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         # MFloatVectorはom2の多重定義の解決を通さず、成分を写して同じ値のVectorにする。
         return [_vector_of(Vector, value) for value in self._geometry_fn().getVertexNormals(angleWeighted, space)]
 
-    def getVertexAdjacency(self, worldSpace=_UNSET, *, ws=_UNSET):
+    def getVertexAdjacency(self, worldSpace=False):
         """頂点IDごとの隣接頂点とエッジ長を照会する。
 
         Args:
-            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。短縮名ws。
-            ws (bool): worldSpaceの別名。同時指定は不可。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
             list[list[tuple[int, float]]]: 頂点ID順の隣接リスト。
             各要素は隣接頂点IDとcm単位の距離で、エッジID順に格納する。
             孤立頂点は空リスト、重複エッジは別々に保持する。
         """
-        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
-        points = self.getPoints(ws=worldSpace)
+        points = self.getPoints(worldSpace=worldSpace)
         adjacency = [[] for _ in points]
         mesh_fn = self._geometry_fn()
         for index in range(mesh_fn.numEdges):
@@ -306,17 +262,15 @@ class Mesh(Shape):
             adjacency[second].append((first, length))
         return adjacency
 
-    def getEdge(self, index=_UNSET, *, idx=_UNSET):
+    def getEdge(self, index):
         """番号から Edge を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Edge: シーンを参照する単体ラッパー。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         return Edge(self, index)
 
     def getEdges(self, indices=None):
@@ -330,17 +284,15 @@ class Mesh(Shape):
         """
         return Edges(self, indices)
 
-    def getFace(self, index=_UNSET, *, idx=_UNSET):
+    def getFace(self, index):
         """番号から Face を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             Face: シーンを参照する単体ラッパー。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         return Face(self, index)
 
     def getFaces(self, indices=None):
@@ -354,17 +306,15 @@ class Mesh(Shape):
         """
         return Faces(self, indices)
 
-    def getUV(self, index=_UNSET, *, idx=_UNSET):
+    def getUV(self, index):
         """番号から UV を取得する。
 
         Args:
             index (int): ゼロ始まりの番号。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             UV: シーンを参照する単体ラッパー。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         return UV(self, index)
 
     def getUVs(self, indices=None):

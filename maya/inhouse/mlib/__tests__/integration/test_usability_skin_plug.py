@@ -65,27 +65,25 @@ class SkinPlugWorkflowTest(unittest.TestCase):
 
     @staticmethod
     def collect(nodes):
-        """DagNodes.getSkinClusters() の入れ子を、最初に見た順で重複なしの SkinClusters にまとめる。"""
+        """各ノードの getSkinClusters() を、最初に見た順で重複なしの SkinClusters にまとめる。"""
         seen = []
-        for row in nodes.getSkinClusters():
-            for skin in row:
+        for node in nodes:
+            for skin in node.getSkinClusters():
                 if skin not in seen:
                     seen.append(skin)
         return mlib.nodes.SkinClusters(seen)
 
     def test_collect_skins_is_typed_deduplicated_and_preserves_getters(self):
         """Shape/Transform/Joint の getSkinClusters() を SkinClusters に集約し、nested/Joint 返却は変えない。"""
-        nodes = mlib.nodes.DagNodes([self.base, self.base.getShape(), self.first])
+        nodes = [self.base, self.base.getShape(), self.first]
         self.assertIsInstance(mlib.nodes.SkinClusters(self.base.getSkinClusters()), mlib.nodes.SkinClusters)
         self.assertEqual(list(self.collect(nodes)), [self.skin])
-        self.assertIsInstance(nodes.getSkinClusters(), list)
-        self.assertTrue(all(isinstance(row, list) for row in nodes.getSkinClusters()))
+        self.assertTrue(all(isinstance(node.getSkinClusters(), list) for node in nodes))
         joints = mlib.nodes.Joints([self.first, self.second])
         self.assertIsInstance(joints.getSkinClusters(), mlib.nodes.SkinClusters)
         self.assertEqual(list(joints.getSkinClusters()), [self.skin])
-        self.assertEqual(len(self.collect(mlib.nodes.DagNodes())), 0)
-        results = nodes.callEach("getSkinClusters", [()] * len(nodes))
-        self.assertTrue(all(isinstance(row, list) for row in results))
+        self.assertEqual(len(self.collect([])), 0)
+        self.assertEqual(len(mlib.nodes.Joints().getSkinClusters()), 0)
 
     def test_collect_preserves_first_seen_order_and_does_not_recurse_groups(self):
         """別skinの保持順と直下shape検索の既存境界を保つ。"""
@@ -94,7 +92,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         group = mlib.createNode("transform", name="group")
         mesh.setParent(group)
         self.assertEqual(len(group.getSkinClusters()), 0)
-        nodes = mlib.nodes.DagNodes([mesh, self.base, self.first])
+        nodes = [mesh, self.base, self.first]
         self.assertEqual(list(self.collect(nodes)), [other, self.skin])
 
     def test_settable_matches_maya_current_state_and_keeps_writable_definition(self):

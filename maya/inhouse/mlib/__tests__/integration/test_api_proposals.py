@@ -7,7 +7,7 @@ import unittest
 import maya.cmds as cmds
 import mlib
 mlib.reload()
-from mlib.nodes import Node, DagPose, Container
+from mlib.nodes import Node, Container
 
 class ApiProposalTest(unittest.TestCase):
     """隔離テストシーン上で新しい公開契約を確認する。"""
@@ -23,22 +23,6 @@ class ApiProposalTest(unittest.TestCase):
         cmds.namespace(set=self.previous)
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
-    def test_sparse_getters_do_not_create_elements(self):
-        """未設定入力の照会で疎配列を変更しない。"""
-        for kind, value in [('multMatrix', mlib.maths.Matrix())]:
-            node = Node(cmds.createNode(kind))
-            node.setInput(4, value)
-            attr = 'input' if kind == 'blendWeighted' else 'matrixIn'
-            before = cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True)
-            self.assertIsNotNone(node.getInputPlug(4).get())
-            with self.assertRaises(IndexError):
-                node.getInputPlug(2).get()
-            self.assertEqual(before, cmds.getAttr(node.getFullName()+'.'+attr, multiIndices=True))
-        decompose = Node(cmds.createNode('decomposeMatrix'))
-        decompose.setRotateOrder('zyx')
-        self.assertEqual(decompose.getRotateOrder(), 5)
-        self.assertIsInstance(decompose.getInput(), mlib.maths.Matrix)
-
     def test_members_and_constraint_weight(self):
         """リスト入力と可変長入力のメンバー追加を検証する。"""
         a, b, c = [Node(cmds.createNode('transform')) for _ in range(3)]
@@ -50,11 +34,6 @@ class ApiProposalTest(unittest.TestCase):
         # 所有containerと他のテスト用関係を分離し、Mayaの一括削除へ二重所有を渡さない。
         cmds.delete(container.getFullName())
         a, b, c = [Node(cmds.createNode('transform')) for _ in range(3)]
-        pose = DagPose.create([a], hierarchy=False)
-        pose.addMembers(b, c)
-        self.assertEqual(len(pose.getMembers()), 3)
-        pose.removeMembers([b, c])
-        self.assertEqual(len(pose.getMembers()), 1)
         constraint = c.addConstraint([a, b], type='point')
         constraint.setWeight(.25, a)
         self.assertAlmostEqual(constraint.getWeight(a), .25)
@@ -62,26 +41,18 @@ class ApiProposalTest(unittest.TestCase):
             constraint.getWeight(c)
 
     def test_axis_flags_return_and_undo(self):
-        """単数・複数の軸更新は空間とfastを受け自身を返す。"""
+        """単数・複数の軸照会は空間を受け、Transformの表示切替は自身の状態を変える。"""
         transform = cmds.polyCube(constructionHistory=False)[0]
         cmds.setAttr(transform+'.translateX', 10)
         mesh = Node(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
         vertex = mesh.getVertex(0)
-        before = vertex.getPosition(ws=True)
-        self.assertIs(vertex.setPositionX(12, ws=True), vertex)
-        self.assertAlmostEqual(vertex.getPositionX(ws=True), 12)
-        self.assertAlmostEqual(vertex.getPositionY(ws=True), before[1])
-        cmds.undo()
-        self.assertEqual(vertex.getPosition(ws=True), before)
+        position = vertex.getPosition(worldSpace=True)
+        self.assertAlmostEqual(vertex.getPositionX(worldSpace=True), position[0])
+        self.assertAlmostEqual(vertex.getPositionX(), position[0] - 10)
         vertices = mesh.getVertices()[:2]
-        self.assertIs(vertices.setPositionX([13,14], ws=True, fast=True), vertices)
-        self.assertEqual(vertices.getPositionX(ws=True), [13,14])
-        uv = mesh.getUV(0)
-        self.assertIs(uv.setU(.25), uv)
+        self.assertEqual(vertices.getPositionX(worldSpace=True), [v.getPositionX(worldSpace=True) for v in vertices])
         uvs = mesh.getUVs()[:2]
-        self.assertIs(uvs.setV([.2,.3], fast=True), uvs)
-        for actual, expected in zip(uvs.getV(), [.2,.3]):
-            self.assertAlmostEqual(actual,expected,places=6)
+        self.assertEqual(uvs.getV(), [uv.getV() for uv in uvs])
         transform = mesh.getTransform()
         transform.setVisibility(False)
         self.assertFalse(transform.getVisibility())

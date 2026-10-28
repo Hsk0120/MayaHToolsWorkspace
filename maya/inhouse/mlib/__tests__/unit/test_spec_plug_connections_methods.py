@@ -324,7 +324,7 @@ class DisconnectSpecTest(_ConnectionSpecCase):
         cmds.connectAttr(self.an + ".tx", self.bn + ".tx")
         cmds.connectAttr(self.bn + ".tx", self.bn + ".ty")
         cmds.connectAttr(self.bn + ".tx", self.bn + ".tz")
-        self.assertIs(middle.disconnectAll(src=False, dst=False), middle)
+        self.assertIs(middle.disconnectAll(source=False, destination=False), middle)
         self.assertTrue(cmds.isConnected(self.an + ".tx", self.bn + ".tx"))
         middle.disconnectAll(source=False)
         self.assertTrue(cmds.isConnected(self.an + ".tx", self.bn + ".tx"))
@@ -339,9 +339,7 @@ class DisconnectSpecTest(_ConnectionSpecCase):
         unconnected = self.a.getPlug("sx")
         self.assertIs(unconnected.disconnectAll(), unconnected)
         with self.assertRaises(TypeError):
-            middle.disconnectAll(src=1)
-        with self.assertRaises(TypeError):
-            middle.disconnectAll(dst=True, destination=True)
+            middle.disconnectAll(source=1)
         with self.assertRaises(TypeError):
             middle.disconnectAll(fast=1)
 
@@ -380,14 +378,12 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertEqual(self.b.getPlug("rx").getSource(), self.a.getPlug("tx"))
         direct = self.b.getPlug("rx").getSource(skipConversionNodes=False)
         self.assertEqual(direct.getNode().getName(), self.conversion)
-        self.assertEqual(self.b.getPlug("rx").getSource(scn=False), direct)
+        self.assertEqual(self.b.getPlug("rx").getSource(skipConversionNodes=False), direct)
         self.assertEqual(self.b.getPlug("ty").getSource(asNode=True), self.a)
         pair = self.b.getPlug("ty").getSource(asPair=True)
         self.assertEqual(pair, (self.b.getPlug("ty"), self.a.getPlug("tx")))
         self.assertEqual(self.b.getPlug("ty").getSource(type="transform"), self.a.getPlug("tx"))
         self.assertIsNone(self.b.getPlug("ty").getSource(type="joint"))
-        with self.assertRaises(TypeError):
-            self.b.getPlug("ty").getSource(scn=True, skipConversionNodes=True)
         with self.assertRaises(TypeError):
             self.b.getPlug("ty").getSource(idx=0)
 
@@ -406,8 +402,6 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertEqual(self.a.getPlug("sx").getDestinations(), [])
         self.assertIsNone(self.a.getPlug("tx").getDestinations(index=99))
         self.assertIsInstance(self.a.getPlug("tx").getDestinations(index=-1), plugs.Plug)
-        with self.assertRaises(TypeError):
-            self.a.getPlug("tx").getDestinations(scn=True, skipConversionNodes=True)
 
     def test_get_connections_on_compound_and_flags(self):
         """getConnectionsは子を再帰し、変換ノードは既定で飛ばさない。方向・ペア・indexの扱い(pclsは無い)。"""
@@ -422,13 +416,13 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertEqual(self.b.getPlug("rx").getConnections()[0].getNode().getName(), self.conversion)
         self.assertEqual(self.b.getPlug("rx").getConnections(scn=True), [self.a.getPlug("tx")])
         self.assertIsNone(translate.getConnections(index=5))
-        self.assertEqual(translate.getConnections(idx=0), self.a.getPlug("tx"))
+        self.assertEqual(translate.getConnections(index=0), self.a.getPlug("tx"))
         # 戻り値の型は型登録に従う(pcls 引数は廃止)。
         self.assertIs(type(translate.getConnections()[0]), plugs.DoubleLinearPlug)
         with self.assertRaises(TypeError):
             translate.getConnections(pcls=plugs.DoublePlug)
-        self.assertEqual(self.a.getPlug("tx").getConnections(dst=False), [])
-        for kwargs in (dict(index=0, idx=0), dict(source=True, src=True), dict(destination=True, dst=True)):
+        self.assertEqual(self.a.getPlug("tx").getConnections(destination=False), [])
+        for kwargs in (dict(idx=0), dict(src=True), dict(dst=True)):
             with self.subTest(**kwargs):
                 with self.assertRaises(TypeError):
                     translate.getConnections(**kwargs)
@@ -437,9 +431,9 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         """isConnectedは方向別に直接の接続を判定する。両Falseは常にFalse、bool以外はTypeError。"""
         ax = self.a.getPlug("tx")
         self.assertTrue(ax.isConnected())
-        self.assertFalse(ax.isConnected(dst=False))
-        self.assertTrue(ax.isConnected(src=False))
-        self.assertFalse(ax.isConnected(src=False, dst=False))
+        self.assertFalse(ax.isConnected(destination=False))
+        self.assertTrue(ax.isConnected(source=False))
+        self.assertFalse(ax.isConnected(source=False, destination=False))
         self.assertTrue(self.b.getPlug("ty").isConnected(destination=False))
         self.assertFalse(self.b.getPlug("translate").isConnected())
         self.assertTrue(ax.isSource())
@@ -447,9 +441,7 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertTrue(self.b.getPlug("ty").isDestination())
         self.assertFalse(self.b.getPlug("ty").isSource())
         with self.assertRaises(TypeError):
-            ax.isConnected(src=1)
-        with self.assertRaises(TypeError):
-            ax.isConnected(src=True, source=True)
+            ax.isConnected(source=1)
 
     def test_is_connected_to(self):
         """isConnectedToは直結だけを方向別に判定し、変換ノードの先は展開しない。"""
@@ -458,10 +450,10 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertTrue(by.isConnectedTo(self.an + ".tx"))
         self.assertTrue(by.isConnectedTo(ax.mplug()))
         self.assertTrue(ax.isConnectedTo(by))
-        self.assertFalse(by.isConnectedTo(ax, src=False))
-        self.assertTrue(ax.isConnectedTo(by, src=False))
-        self.assertFalse(ax.isConnectedTo(by, dst=False))
-        self.assertFalse(by.isConnectedTo(ax, src=False, dst=False))
+        self.assertFalse(by.isConnectedTo(ax, source=False))
+        self.assertTrue(ax.isConnectedTo(by, source=False))
+        self.assertFalse(ax.isConnectedTo(by, destination=False))
+        self.assertFalse(by.isConnectedTo(ax, source=False, destination=False))
         self.assertFalse(self.b.getPlug("rx").isConnectedTo(ax))
         self.assertFalse(by.isConnectedTo(self.a.getPlug("ty")))
         with self.assertRaises(TypeError):
@@ -473,9 +465,7 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         with self.assertRaises(RuntimeError):
             by.isConnectedTo(self.an + ".missingAttr")
         with self.assertRaises(TypeError):
-            by.isConnectedTo(ax, src=1)
-        with self.assertRaises(TypeError):
-            by.isConnectedTo(ax, dst=True, destination=True)
+            by.isConnectedTo(ax, source=1)
 
     def test_get_anim_curve_direct_only(self):
         """getAnimCurveは直接のanimCurve入力だけを返し、それ以外はNone。"""

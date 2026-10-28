@@ -1,10 +1,6 @@
-"""計算ノード系の接続・設定メソッドに足した ``fast`` 引数の約束を、表で網羅的に固定する。
+"""ユーティリティノード系の接続・設定メソッドに足した ``fast`` 引数の約束を、表で網羅的に固定する。
 
-2.1.0 の担当A。対象は ``_Calculation.connect`` を通る aimMatrix・blendMatrix・composeMatrix・
-pickMatrix・pairBlend・vectorProduct・angleBetween の connect*、multMatrix・decomposeMatrix・
-inverseMatrix の connectInput、curveInfo・pointOnCurveInfo・pointOnSurfaceInfo の
-connectCurve/connectSurface、distanceBetween.connectTransforms、blendMatrix の
-connectTarget/removeTarget、place2dTexture.connectTexture、file の setFilePath/setColorSpace、
+2.1.0 の担当A。対象は place2dTexture.connectTexture、file の setFilePath/setColorSpace、
 aimConstraint の setRestRotate/setOffset、ScalarGraph の sum/multiply/condition。各行について次を確かめる。
 
 - 通常経路はシーンを変更し、Undo 1 回で呼出前の状態へ戻る。
@@ -47,7 +43,6 @@ class CalcFastTest(NamespaceCase):
     PREFIX = "mlibSpecCalcFast_"
 
     def setUp(self):
-        cmds.loadPlugin("matrixNodes", quiet=True)
         self.units = (cmds.currentUnit(query=True, linear=True), cmds.currentUnit(query=True, angle=True))
         cmds.currentUnit(linear="cm", angle="rad")
         super().setUp()
@@ -55,70 +50,6 @@ class CalcFastTest(NamespaceCase):
     def tearDown(self):
         super().tearDown()
         cmds.currentUnit(linear=self.units[0], angle=self.units[1])
-
-    # ---- 準備 ----------------------------------------------------------------
-
-    def source(self):
-        """接続元のtransformとdecomposeMatrixを作り、種類ごとのPlugを返す。
-
-        Returns:
-            dict[str, Plug]: 接続元の種類ごとのPlug。
-        """
-        name = self.make("transform", "src#")
-        cmds.setAttr(name + ".translate", 1.5, 2.5, -3.5)
-        cmds.setAttr(name + ".rotate", 0.2, -0.1, 0.4)
-        cmds.setAttr(name + ".scale", 0.5, 0.25, 0.75)
-        decompose = self.make("decomposeMatrix", "srcDecompose#")
-        cmds.connectAttr(name + ".matrix", decompose + ".inputMatrix")
-        node = mlib.getNode(name)
-        return {
-            "matrix": node.getPlug("matrix"),
-            "translate": node.getPlug("translate"),
-            "rotate": node.getPlug("rotate"),
-            "scale": node.getPlug("scale"),
-            "scalar": node.getPlug("scaleX"),
-            "bool": node.getPlug("visibility"),
-            "quat": mlib.getNode(decompose).getPlug("outputQuat"),
-        }
-
-    def calc_rows(self):
-        """_Calculation.connectを通る接続の行を返す。
-
-        Returns:
-            list[tuple]: (ラベル, Maya型, メソッド名, 位置引数の前半, 接続元の種類)。
-        """
-        rows = []
-        for stem, kind in (("Input", "matrix"), ("Envelope", "scalar"), ("PrimaryMatrix", "matrix"),
-                           ("PrimaryAxis", "scale"), ("PrimaryVector", "translate"),
-                           ("SecondaryMatrix", "matrix"), ("SecondaryAxis", "scale"),
-                           ("SecondaryVector", "translate")):
-            rows.append(("aimMatrix", "connect" + stem, (), kind))
-        for stem, kind in (("Input", "matrix"), ("Envelope", "scalar")):
-            rows.append(("blendMatrix", "connect" + stem, (), kind))
-        for stem, kind in (("Translate", "translate"), ("Rotate", "rotate"), ("Scale", "scale"),
-                           ("Shear", "scale"), ("Quaternion", "quat"), ("UseEulerRotation", "bool")):
-            rows.append(("composeMatrix", "connect" + stem, (), kind))
-        for stem, kind in (("Input", "matrix"), ("UseTranslate", "bool"), ("UseRotate", "bool"),
-                           ("UseScale", "bool"), ("UseShear", "bool")):
-            rows.append(("pickMatrix", "connect" + stem, (), kind))
-        rows += [
-            ("pairBlend", "connectWeight", (), "scalar"),
-            ("pairBlend", "connectTranslate", (1,), "translate"),
-            ("pairBlend", "connectTranslate", (2,), "translate"),
-            ("pairBlend", "connectRotate", (1,), "rotate"),
-            ("pairBlend", "connectRotate", (2,), "rotate"),
-            ("vectorProduct", "connectInput", (1,), "translate"),
-            ("vectorProduct", "connectInput", (2,), "translate"),
-            ("vectorProduct", "connectMatrix", (), "matrix"),
-            ("vectorProduct", "connectNormalizeOutput", (), "bool"),
-            ("angleBetween", "connectInput", (1,), "translate"),
-            ("angleBetween", "connectInput", (2,), "translate"),
-            ("multMatrix", "connectInput", (0,), "matrix"),
-            ("multMatrix", "connectInput", (3,), "matrix"),
-            ("decomposeMatrix", "connectInput", (), "matrix"),
-            ("inverseMatrix", "connectInput", (), "matrix"),
-        ]
-        return rows
 
     def cases(self):
         """全行を (ラベル, 準備関数) で返す。準備関数は (呼出関数, 観察するノード名の列) を返す。
@@ -129,66 +60,6 @@ class CalcFastTest(NamespaceCase):
             list[tuple[str, callable]]: ラベルと準備関数。
         """
         result = []
-        for kind, method, head, source_kind in self.calc_rows():
-            def prepare(kind=kind, method=method, head=head, source_kind=source_kind):
-                plugs = self.source()
-                node = mlib.getNode(self.make(kind, kind + "#"))
-                bound = getattr(node, method)
-
-                def call(**kwargs):
-                    return bound(*(head + (plugs[source_kind],)), **kwargs)
-                return call, [node.getFullName()]
-            result.append(("%s.%s%s" % (kind, method, head), prepare))
-
-        def target_connect():
-            plugs = self.source()
-            node = mlib.getNode(self.make("blendMatrix", "blend#"))
-
-            def call(**kwargs):
-                return node.connectTarget(2, plugs["matrix"], 0.25, **kwargs)
-            return call, [node.getFullName()]
-        result.append(("blendMatrix.connectTarget", target_connect))
-
-        def target_remove():
-            plugs = self.source()
-            node = self.make("blendMatrix", "blend#")
-            cmds.connectAttr(plugs["matrix"].getName(), node + ".target[3].targetMatrix")
-            cmds.setAttr(node + ".target[3].weight", 0.5)
-            wrapper = mlib.getNode(node)
-
-            def call(**kwargs):
-                return wrapper.removeTarget(3, **kwargs)
-            return call, [node]
-        result.append(("blendMatrix.removeTarget", target_remove))
-
-        for kind, method, shape in (("curveInfo", "connectCurve", "curve"),
-                                    ("pointOnCurveInfo", "connectCurve", "curve"),
-                                    ("pointOnSurfaceInfo", "connectSurface", "surface")):
-            for world in (True, False):
-                def geometry(kind=kind, method=method, shape=shape, world=world):
-                    if shape == "curve":
-                        transform = cmds.curve(name=self.name("crv#"), degree=1, point=[(0, 0, 0), (1, 2, 3)])
-                    else:
-                        transform = cmds.nurbsPlane(name=self.name("srf#"), constructionHistory=False)[0]
-                    node = mlib.getNode(self.make(kind, kind + "#"))
-                    bound = getattr(node, method)
-
-                    def call(**kwargs):
-                        return bound(transform, world, **kwargs)
-                    return call, [node.getFullName()]
-                result.append(("%s.%s(worldSpace=%s)" % (kind, method, world), geometry))
-
-        def distance():
-            first, second = self.make("transform", "a#"), self.make("transform", "b#")
-            cmds.setAttr(first + ".translate", 1, 2, 3)
-            node = self.make("distanceBetween", "dist#")
-            cmds.setAttr(node + ".point1", 4, 5, 6)
-            wrapper = mlib.getNode(node)
-
-            def call(**kwargs):
-                return wrapper.connectTransforms(first, second, **kwargs)
-            return call, [node]
-        result.append(("distanceBetween.connectTransforms", distance))
 
         def place2d():
             place = mlib.getNode(self.make("place2dTexture", "place#"))
@@ -315,32 +186,6 @@ class CalcFastTest(NamespaceCase):
                     with self.assertRaises(TypeError):
                         call(fast=bad)
                     self.assertEqual(self.snapshot(names), before)
-
-    def test_fast_force_replaces_connection(self):
-        """fastでもforce=Trueで既存接続を置き換え、force=Falseでは置き換えない。"""
-        plugs = self.source()
-        other = self.make("transform", "other#")
-        node = mlib.getNode(self.make("aimMatrix", "aim#"))
-        cmds.connectAttr(other + ".matrix", node.getFullName() + ".inputMatrix")
-        with self.assertRaises(RuntimeError):
-            node.connectInput(plugs["matrix"], fast=True)
-        with _api_only():
-            node.connectInput(plugs["matrix"], force=True, fast=True)
-        self.assertTrue(cmds.isConnected(plugs["matrix"].getName(), node.getFullName() + ".inputMatrix"))
-        self.assertFalse(cmds.isConnected(other + ".matrix", node.getFullName() + ".inputMatrix"))
-
-    def test_blend_target_weight_failure_keeps_connection(self):
-        """connectTargetはfastでも、接続後のウェイト設定に失敗すると接続が残る。"""
-        for fast in (False, True):
-            with self.subTest(fast=fast):
-                plugs = self.source()
-                node = mlib.getNode(self.make("blendMatrix", "blend#"))
-                driver = self.make("transform", "weightDriver#")
-                cmds.connectAttr(driver + ".tx", node.getFullName() + ".target[1].weight")
-                with self.assertRaises(RuntimeError):
-                    node.connectTarget(1, plugs["matrix"], 0.5, fast=fast)
-                self.assertTrue(cmds.isConnected(plugs["matrix"].getName(),
-                                                 node.getFullName() + ".target[1].targetMatrix"))
 
     def test_scalar_graph_container_fast_not_implemented(self):
         """containerを所有先にしたScalarGraphのfast=Trueは、変更前にNotImplementedError。"""

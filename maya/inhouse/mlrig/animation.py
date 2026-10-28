@@ -77,7 +77,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         ]
         for frame in frames:
             cmds.currentTime(frame)
-            matrices = [list(mlib.getNode(node).getMatrix(ws=True)) for node in sources]
+            matrices = [list(mlib.getNode(node).getMatrix(worldSpace=True)) for node in sources]
             if mode == "ik":
                 inverse = Matrix(mlib.getNode(root).getPlug("worldInverseMatrix")[0].get())
                 points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]

@@ -183,20 +183,6 @@ class ConsolidatedNodesTest(unittest.TestCase):
             if expected_exists:
                 self.assertEqual(list(skin.getWeights([targets[-1].getFullName()])), expected_weights)
 
-    def test_fast_remove_influence_matches_normal(self):
-        """正規化設定別のinfluence解除と残存ウェイトを比較する。"""
-        for normalize in (0, 1, 2):
-            cmds.file(new=True, force=True)
-            skin, root, middle, other = self.skin_fixture()
-            skin.getPlug("normalizeWeights").set(normalize)
-            skin.removeInfluence(middle, transferToParent=False)
-            expected = list(skin.getWeights([root.getFullName(), other.getFullName()]))
-            cmds.undo()
-            with self.api_only():
-                skin.removeInfluence(middle, transferToParent=False, fast=True)
-            self.assertEqual([n.getUuid() for n in skin.getInfluences()], [root.getUuid(), other.getUuid()])
-            self.assertEqual(list(skin.getWeights([root.getFullName(), other.getFullName()])), expected)
-
     def test_fast_mixed_delete_preflights_before_first_node(self):
         """後続Jointのノードロックで先行Nodeを部分削除しない。"""
         skin, root, middle, other = self.skin_fixture()
@@ -209,17 +195,6 @@ class ConsolidatedNodesTest(unittest.TestCase):
         self.assertTrue(untouched.isValid())
         self.assertTrue(middle.isValid())
         self.assertEqual(list(skin.getWeights(names)), weights)
-
-    def test_fast_influence_structure_failure_precedes_transfer(self):
-        """influenceの構造ロックを祖先への加算より前に拒否する。"""
-        skin, root, middle, other = self.skin_fixture()
-        names = [n.getFullName() for n in (root, middle, other)]
-        weights = list(skin.getWeights(names))
-        skin.getPlug("matrix")[1].setFlags(locked=True)
-        with self.api_only(), self.assertRaises(RuntimeError):
-            skin.removeInfluence(middle, fast=True)
-        self.assertEqual(list(skin.getWeights(names)), weights)
-        self.assertEqual(len(skin.getInfluences()), 3)
 
 
 if __name__ == "__main__":

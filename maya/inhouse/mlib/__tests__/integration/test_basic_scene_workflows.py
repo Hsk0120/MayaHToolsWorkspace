@@ -7,7 +7,6 @@ import maya.cmds as cmds
 
 import mlib
 from mlib.decorator import undoChunk, undoTransaction
-from mlib.nodes import Nodes
 
 
 class BasicSceneWorkflowsTest(unittest.TestCase):
@@ -200,14 +199,16 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
                     self.assertConnected(driver.getPlug("ty"), child.getPlug("ty"))
 
     def test_safe_batch_delete_preserves_connected_subtree_and_restores_other_nodes(self):
-        """安全な一括削除で接続を持つ子孫を保護し、孤立ノードだけをUndoで戻す。"""
+        """safe削除で接続を持つ子孫を保護し、孤立ノードだけをUndoで戻す。"""
         root = self.make()
         child = self.make(parent=root)
         receiver, isolated = self.make("network"), self.make()
         input_plug = receiver.addAttr("input", type="message")
         input_plug.connect(child.getPlug("message"))
         cmds.flushUndo()
-        Nodes([root, isolated]).delete(safe=True)
+        with undoChunk("basicSceneSafeDelete"):
+            for node in (root, isolated):
+                node.delete(safe=True)
         self.assertTrue(root.isValid() and child.isValid() and receiver.isValid())
         self.assertFalse(isolated.isValid())
         self.assertConnected(child.getPlug("message"), input_plug)
@@ -250,7 +251,7 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
                 self.assertEqual(child.getPlug("tx").get(), 100)
                 self.assertAlmostEqual(cmds.xform(child.getFullName(), query=True,
                                                 worldSpace=True, translation=True)[0], expected_ui)
-                self.assertAlmostEqual(child.getTranslate(ws=True, at=4).x, 300)
+                self.assertAlmostEqual(child.getTranslate(worldSpace=True, at=4).x, 300)
                 self.assertConnected(driver.getPlug("tx"), child.getPlug("tx"))
 
 

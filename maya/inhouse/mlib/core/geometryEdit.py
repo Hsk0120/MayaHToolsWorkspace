@@ -198,37 +198,3 @@ def object_positions(shape, indices, values):
     points = [om2.MPoint(row[0], row[1], row[2], weight) * inverse
               for row, weight in zip(values, weights)]
     return [(point.x, point.y, point.z) for point in points]
-
-
-def set_uvs(shape, indices, values):
-    """現在のUV配列を読み、指定番号のU/Vを置換してOpenMayaへ一括設定する。
-
-    空の番号列はMayaへ問い合わせず戻る。非空なら入力履歴とShapeノードのロックを検査するが、
-    個々のUV-set Plugの書込み可否は検査しない。UV割当てやセットは作成しない。
-    Undoへ記録せず、Undo設定も変更しない。呼出し側が座標・件数・番号範囲を検証する。
-
-    Args:
-        shape (Mesh): 対象Mesh。
-        indices (Sequence[int]): 検証済みのUV番号。
-        values (Sequence[Sequence[float]]): indicesに対応する無次元の(U, V)行。
-
-    Returns:
-        None: 値を返さない。
-
-    Raises:
-        RuntimeError: Shapeがロックされている、またはMayaの読取り・設定・更新に失敗した場合。
-        NotImplementedError: inMeshへの入力がある場合。
-
-    Note:
-        指定外の番号は読み出した値を保持する。setUVs後にupdateSurfaceを呼び、
-        後段の失敗時に自動で元の配列へ戻す処理は持たない。
-    """
-    if not indices:
-        return
-    _, fn, _ = geometry(shape, [], edit=True)
-    uv_set = fn.currentUVSetName()
-    us, vs = fn.getUVs(uvSet=uv_set)
-    for index, (u, v) in zip(indices, values):
-        us[index], vs[index] = u, v
-    fn.setUVs(us, vs, uvSet=uv_set)
-    fn.updateSurface()

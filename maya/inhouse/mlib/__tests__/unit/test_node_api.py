@@ -138,17 +138,17 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(transform.getPivot(), Translate(1.0, 2.0, 3.0))
 
         transform.setTranslate((10.0, 0.0, 0.0), at=4)
-        self.assertEqual(transform.getPivot(ws=True), Translate(11.0, 2.0, 3.0))
+        self.assertEqual(transform.getPivot(worldSpace=True), Translate(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
         try:
             cmds.currentUnit(linear="m")
-            transform.setPivot((25.0, 50.0, 75.0), ws=True, kind="both", preserve=False)
-            self.assertEqual(transform.getPivot(ws=True), Translate(25.0, 50.0, 75.0))
+            transform.setPivot((25.0, 50.0, 75.0), worldSpace=True, kind="both", preserve=False)
+            self.assertEqual(transform.getPivot(worldSpace=True), Translate(25.0, 50.0, 75.0))
             cmds.undo()
-            self.assertEqual(transform.getPivot(ws=True), Translate(11.0, 2.0, 3.0))
+            self.assertEqual(transform.getPivot(worldSpace=True), Translate(11.0, 2.0, 3.0))
             cmds.redo()
-            self.assertEqual(transform.getPivot(ws=True), Translate(25.0, 50.0, 75.0))
+            self.assertEqual(transform.getPivot(worldSpace=True), Translate(25.0, 50.0, 75.0))
         finally:
             cmds.currentUnit(linear=previous_unit)
 
@@ -164,7 +164,7 @@ class NodeApiTest(unittest.TestCase):
         # boundingBox() は自身の translate は含むが、親の変換はまだ無いので world と一致する。
         transform.setTranslate((10.0, 0.0, 0.0), at=4)
         self.assertAlmostEqual(transform.getBoundingBox().min.x, 9.5, places=5)
-        self.assertAlmostEqual(transform.getBoundingBox(ws=True).min.x, 9.5, places=5)
+        self.assertAlmostEqual(transform.getBoundingBox(worldSpace=True).min.x, 9.5, places=5)
 
         parent = self.create_transform("mlibNodeApiBoundingBoxParent")
         parent.setTranslate((100.0, 0.0, 0.0), at=4)
@@ -174,7 +174,7 @@ class NodeApiTest(unittest.TestCase):
 
         # ws=False は親の translate を含まない。ws=True は含む。
         self.assertAlmostEqual(transform.getBoundingBox().min.x, 9.5, places=5)
-        world_box = transform.getBoundingBox(ws=True)
+        world_box = transform.getBoundingBox(worldSpace=True)
         self.assertAlmostEqual(world_box.min.x, 109.5, places=5)
         self.assertAlmostEqual(world_box.max.x, 110.5, places=5)
 
@@ -599,20 +599,20 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsInstance(euler, EulerRotate)
         self.assertAlmostEqual(euler.y, math.radians(90.0), places=6)
 
-        matrix = transform.getMatrix(ws=True)
+        matrix = transform.getMatrix(worldSpace=True)
         self.assertIsInstance(matrix, Matrix)
-        self.assertEqual(matrix, transform.getMatrix(ws=True))
+        self.assertEqual(matrix, transform.getMatrix(worldSpace=True))
 
     def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("mlibNodeApiComposeSource")
         source.setTranslate((1.0, 2.0, 3.0), at=4)
         source.setRotate((0.0, math.radians(45.0), 0.0))
-        matrix = source.getMatrix(ws=True)
+        matrix = source.getMatrix(worldSpace=True)
 
         target = self.create_transform("mlibNodeApiComposeTarget")
-        result = target.setMatrix(matrix, ws=True)
+        result = target.setMatrix(matrix, worldSpace=True)
         self.assertIs(result, target)
-        self.assertTrue(target.getMatrix(ws=True).isEquivalent(matrix, tolerance=1e-6))
+        self.assertTrue(target.getMatrix(worldSpace=True).isEquivalent(matrix, tolerance=1e-6))
 
         with self.assertRaises(ValueError):
             target.setMatrix((1, 2, 3))
@@ -650,14 +650,14 @@ class NodeApiTest(unittest.TestCase):
             cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
             cmds.setAttr(name + ".rotate", 40.0, -50.0, 60.0)
             cmds.setAttr(name + ".scale", 1.0, 2.0, 3.0)
-            world = node.getMatrix(ws=True)
+            world = node.getMatrix(worldSpace=True)
 
             node.setMatrix(node.getMatrix())
-            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
-            node.setMatrix(world, ws=True)
-            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
+            self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
+            node.setMatrix(world, worldSpace=True)
+            self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
             node.setTranslate((4.0, 5.0, 6.0), at=4)
-            self.assertTrue(node.getQuaternion(ws=True).isEquivalent(world.quaternion, 1e-9), order)
+            self.assertTrue(node.getQuaternion(worldSpace=True).isEquivalent(world.quaternion, 1e-9), order)
 
             before = node.getMatrix()
             rotate = node.getPlug("rotate").get()
@@ -695,10 +695,10 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(rotate.isEquivalent(EulerRotate.fromDegrees(10.0, 20.0, 30.0), 1e-12))
         self.assertTrue(Matrix(rotate=node.getQuaternion(), scale=scale).isEquivalent(matrix, 1e-12))
 
-        world = node.getMatrix(ws=True)
+        world = node.getMatrix(worldSpace=True)
         for operation in (
             lambda: node.setMatrix(matrix),
-            lambda: node.setMatrix(world, ws=True),
+            lambda: node.setMatrix(world, worldSpace=True),
             lambda: node.setTranslate((0.0, 0.0, 0.0), at=4),
             lambda: node.setScale(node.getScale()),
             lambda: node.setShear(node.getShear()),
@@ -753,9 +753,9 @@ class NodeApiTest(unittest.TestCase):
         child = self.create_transform("mlibNodeApiScaleSignChild")
         child.setParent(parent)
         cmds.setAttr(child.getFullName() + ".rotate", 10.0, 20.0, 30.0)
-        child.setScale((-1.0, 1.0, 1.0), ws=True)
+        child.setScale((-1.0, 1.0, 1.0), worldSpace=True)
         self.assert_channels(child.getFullName(), (10.0, 20.0, 30.0), (0.5, 0.5, -0.5))
-        self.assertTrue(child.getScale(ws=True).isEquivalent(Scale(1.0, 1.0, -1.0), 1e-9))
+        self.assertTrue(child.getScale(worldSpace=True).isEquivalent(Scale(1.0, 1.0, -1.0), 1e-9))
 
         # setMatrix は現在のチャンネルの符号に揃え、合わなければ om2 の規約(Z が負)で書く。
         target = self.create_transform("mlibNodeApiScaleSignMatrix")
@@ -786,7 +786,7 @@ class NodeApiTest(unittest.TestCase):
             cmds.setAttr(name + ".rotateOrder", order)
             cmds.setAttr(name + ".rotate", 10.0, 20.0, 30.0)
             local = node.getMatrix()
-            world = node.getMatrix(ws=True)
+            world = node.getMatrix(worldSpace=True)
 
             rotate = node.getRotate()
             self.assertEqual(rotate.order, order)
@@ -796,9 +796,9 @@ class NodeApiTest(unittest.TestCase):
             plug.set(tuple(plug.get()))
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
             node.setRotate(tuple(node.getRotate()))
-            node.setRotate(tuple(node.getRotate(ws=True)), ws=True)
-            self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-9), order)
-            node.setRotate(tuple(node.getRotate(ws=True)), ws=True)
+            node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True)
+            self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
+            node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True)
             self.assertTrue(node.getMatrix().isEquivalent(local, 1e-9), order)
 
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
@@ -830,9 +830,9 @@ class NodeApiTest(unittest.TestCase):
         selection = om2.MSelectionList()
         selection.add(node.getFullName())
         world = selection.getDagPath(0).inclusiveMatrix()
-        self.assertTrue(node.getMatrix(ws=True).isEquivalent(world, 1e-12))
-        self.assertTrue((om2.MPoint(1.0, 0.0, 0.0) * node.getMatrix(ws=True)).isEquivalent(
-            om2.MPoint(node.getMatrix(ws=True).transformPoint((1.0, 0.0, 0.0))), 1e-12))
+        self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-12))
+        self.assertTrue((om2.MPoint(1.0, 0.0, 0.0) * node.getMatrix(worldSpace=True)).isEquivalent(
+            om2.MPoint(node.getMatrix(worldSpace=True).transformPoint((1.0, 0.0, 0.0))), 1e-12))
 
         plug = om2.MFnDependencyNode(node.mnode()).findPlug("offsetParentMatrix", False)
         plug.setMObject(om2.MFnMatrixData().create(Matrix(translate=(10.0, 0.0, 0.0))))

@@ -56,20 +56,16 @@ class FlagAliasesTest(unittest.TestCase):
         node.ca.set(2)
         self.assertEqual(node.customAmount.get(), 2)
 
-    def test_constraint_and_bulk_aliases(self):
+    def test_constraint_aliases(self):
         source = mlib.createNode("transform")
         joint = mlib.createNode("joint")
         result = mlib.getNode(joint).addConstraint(source, typ="point", mo=True)
         self.assertEqual(cmds.nodeType(result.getFullName()), "pointConstraint")
         mlib.delete(result)
-        joints = mlib.nodes.Joints([joint])
-        results = joints.addConstraint(source, typ="point", mo=True)
-        self.assertEqual(len(results), 1)
-        mlib.delete(results)
         with self.assertRaises(TypeError):
             joint.addConstraint(source, "point", typ="point")
         with self.assertRaises(TypeError):
-            joints.addConstraint(source, type="point", typ="point")
+            joint.addConstraint(source, type="point", typ="point")
 
     def test_native_command_specific_flags(self):
         parent = mlib.getNode(cmds.group(em=True, n="parent"))
@@ -83,30 +79,27 @@ class FlagAliasesTest(unittest.TestCase):
         self.assertEqual(mlib.ls(sl=True), [])
 
     def test_explicit_parameters_do_not_query_maya_help(self):
-        """長短名を引数へ公開し、実行中にhelpや別名メタデータを使わない。"""
+        """独自メソッドは長名だけを引数へ公開し、実行中にhelpや別名メタデータを使わない。"""
         node = mlib.createNode("transform")
         parameters = inspect.signature(node.getTranslate).parameters
         self.assertIn("worldSpace", parameters)
-        self.assertIn("ws", parameters)
-        self.assertEqual(parameters["ws"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertNotIn("ws", parameters)
         self.assertFalse(hasattr(type(node).getTranslate, "__mlib_flag_aliases__"))
         with patch.object(cmds, "help", side_effect=AssertionError("runtime help lookup")):
             child = mlib.createNode("transform", n="explicitChild", p=node)
-            child.setTranslate((1, 2, 3), ws=False, at=4, fast=True)
+            child.setTranslate((1, 2, 3), worldSpace=False, at=4, fast=True)
             mlib.select(child, r=True)
             self.assertEqual(mlib.ls(sl=True, typ="transform"), [child])
-            self.assertEqual(tuple(child.getTranslate(ws=False, at=4)), (1, 2, 3))
+            self.assertEqual(tuple(child.getTranslate(worldSpace=False, at=4)), (1, 2, 3))
 
     def test_alias_conflicts_and_missing_values_precede_undo(self):
         """False/Noneの重複と必須値欠落も、Undoや書込みを開始する前に拒否する。"""
         node = mlib.createNode("transform")
-        matrix = mlib.createNode("multMatrix")
+        curve = mlib.createNode("animCurveTL")
+        curve.setKey(1.0, 2.0)
         attempts = (
-            lambda: node.setTranslate((1, 2, 3), worldSpace=False, ws=False),
-            lambda: node.resetAttrs(attributes=None, attrs=None),
             lambda: node.addAttr(longName="value", ln="value"),
-            lambda: matrix.setInput(idx=2),
-            lambda: matrix.setInput(value=mlib.maths.Matrix()),
+            lambda: curve.removeKey(),
         )
         with patch.object(cmds, "undoInfo", side_effect=AssertionError("Undo must not start")):
             for operation in attempts:
@@ -121,10 +114,11 @@ class FlagAliasesTest(unittest.TestCase):
                          [node.getFullName() for node in short_roots])
         with self.assertRaises(TypeError):
             mlib.ls(assemblies=False, **{"as": False})
-        matrix = mlib.createNode("multMatrix")
-        value = mlib.maths.Matrix(translate=(1, 2, 3))
-        self.assertIs(matrix.setInput(idx=2, value=value, fast=True), matrix)
-        self.assertTrue(matrix.getInput(idx=2).isEquivalent(value))
+        curve = mlib.createNode("animCurveTL")
+        curve.setKey(1.0, 2.0)
+        curve.setKey(3.0, 4.0)
+        self.assertIs(curve.removeKey(index=0, fast=True), curve)
+        self.assertEqual(curve.getKeyCount(), 1)
 
 
 if __name__ == "__main__":

@@ -1,12 +1,12 @@
-"""高速化した読取・列挙・一括呼出しが、従来の経路と同じ結果になることを実Mayaで検証する。
+"""高速化した読取・列挙が、従来の経路と同じ結果になることを実Mayaで検証する。
 
 対象は、複合Plugの子ラッパーを作らない値読取、Transformの静的チャンネルの直接読取、
-子の列挙で入力解決を省いたラッパー作成、一括呼出し内のsignature・束縛の共有、
+子の列挙で入力解決を省いたラッパー作成、
 double2・double3の親への1回のsetAttr、Undo無効時のチャンク開閉と接続前の定数記録の省略、
 名前付きundoTransactionの内側のundoChunkで入れ子のチャンクを開かないことも対象とする。
 ls・getNode・getPlug・親/Shape/インスタンスの取得で入力解決を省いたラッパー作成も対象とする。
 Nodesの重複判定の省略と、influence・displayLayer・shadingEngineの列挙結果から直接作るラッパーも対象とする。
-ArrayPlug.getの要素ラッパーの省略、BlendShapeのtargetWeightsの範囲setAttr、Vectorの演算結果の複製も対象とする。
+ArrayPlug.getの要素ラッパーの省略、Vectorの演算結果の複製も対象とする。
 fast=Trueの経路で重ねていた書込み可否の検査・名前の取得・ラッパー生成の入口の省略も対象とする。
 ノード・Plugのラッパー作成での関数セットの使い回し・ハンドルの共有・__init__の直接展開も対象とする。
 Node.getConnectionsの自身側Plugの省略、getHistoryのUUIDの1回取得、getPlugs(userDefined=True)の選別、
@@ -25,7 +25,6 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.decorator import undoChunk, undoTransaction
-from mlib.nodes import Transforms
 from mlib.plugs import CompoundPlug
 
 
@@ -176,21 +175,21 @@ class TransformStaticReadTest(unittest.TestCase):
             for target in (self.node, self.child_joint):
                 node = mlib.getNode(target)
                 with self.subTest(target=target, unit=unit):
-                    self.assert_close(node.getTranslate(ws=True),
+                    self.assert_close(node.getTranslate(worldSpace=True),
                                       [v / scale for v in cmds.xform(target, q=True, ws=True, rotatePivot=True)])
-                    self.assert_close(node.getTranslate(ws=True, at=3),
+                    self.assert_close(node.getTranslate(worldSpace=True, at=3),
                                       [v / scale for v in cmds.xform(target, q=True, ws=True, scalePivot=True)])
                     self.assert_close(node.getTranslate(at=1), [v / scale for v in cmds.getAttr(target + ".t")[0]])
 
     def test_set_translate_round_trip_and_undo(self):
         node = mlib.getNode(self.node)
         before = cmds.getAttr(self.node + ".t")[0]
-        node.setTranslate((3, -2, 1), ws=True)
+        node.setTranslate((3, -2, 1), worldSpace=True)
         self.assert_close(cmds.xform(self.node, q=True, ws=True, rotatePivot=True), (3, -2, 1))
         cmds.undo()
         self.assert_close(cmds.getAttr(self.node + ".t")[0], before)
         joint = mlib.getNode(self.child_joint)
-        joint.setTranslate((0.5, 0.25, -0.5), ws=True, fast=True)
+        joint.setTranslate((0.5, 0.25, -0.5), worldSpace=True, fast=True)
         self.assert_close(cmds.xform(self.child_joint, q=True, ws=True, rotatePivot=True), (0.5, 0.25, -0.5))
 
     def test_invalid_node_raises_like_get_plug(self):
@@ -233,24 +232,6 @@ class ChildWrapperAndBulkTest(unittest.TestCase):
             self.assertEqual(child, mlib.getNode(child.mpath()))
             self.assertTrue(child.isValid())
         self.assertIsInstance(root.getChildren()[0], mlib.nodes.Joint)
-
-    def test_bulk_calls_share_validation_but_keep_contracts(self):
-        nodes = Transforms([self.root, self.joint, self.mesh, self.locator])
-        matrices = nodes.getMatrix(ws=True)
-        self.assertEqual([list(m) for m in matrices], [list(mlib.getNode(n).getMatrix(ws=True)) for n in nodes])
-        with self.assertRaises(TypeError):
-            nodes.setTranslate((1, 2, 3), fast="yes")
-        with self.assertRaises(TypeError):
-            nodes.getMatrix(unknown=True)
-        self.assertIs(nodes.setTranslate((1, 2, 3), fast=True), nodes)
-        self.assertEqual(nodes.setTranslate((4, 5, 6), get=True),
-                         [mlib.getNode(n).setTranslate((4, 5, 6), get=True) for n in nodes])
-        mixed = nodes.callEach("setTranslate", [((0, 0, 0),)] * 4,
-                               [{"fast": True}, {}, {"fast": True}, {"get": True}])
-        self.assertIsInstance(mixed, list)
-        self.assertEqual(len(mixed), 4)
-        with self.assertRaises(TypeError):
-            nodes.callEach("setTranslate", [((0, 0, 0),)] * 4, [{}, {"fast": 1}, {}, {}])
 
 
 class CompoundBulkSetTest(unittest.TestCase):
@@ -913,50 +894,6 @@ class ArrayAndWeightRunTest(unittest.TestCase):
             self.assertEqual(list(actual), [0, 1])
             self.assertEqual(actual, expected)
 
-    def test_target_weights_runs_keep_order_undo_and_errors(self):
-        node, path = self._blend_shape()
-        sets = []
-
-        def callback(message, plug, other, data):
-            if message & om2.MNodeMessage.kAttributeSet:
-                sets.append(plug.logicalIndex())
-        cid = om2.MNodeMessage.addAttributeChangedCallback(node.mnode(), callback)
-        try:
-            node.setTargetWeights(0, {7: 0.1, 5: 0.2, 6: 0.3, 2: 0.4, 3: 0.5, 24: 0.6})
-        finally:
-            om2.MMessage.removeCallback(cid)
-        # 指定順の書込み(連続区間でも要素ごとの属性変更通知が同じ順に出る)。
-        self.assertEqual(sets, [7, 5, 6, 2, 3, 24])
-        weights = dict(self._weights(path))
-        for index, value in ((7, 0.1), (5, 0.2), (6, 0.3), (2, 0.4), (3, 0.5), (24, 0.6), (4, 0.9)):
-            self.assertAlmostEqual(weights[index], value, places=6)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibBlendShapeSetTargetWeights")
-        cmds.undo()
-        self.assertTrue(all(abs(v - 0.9) < 1e-6 for _, v in self._weights(path)))
-        cmds.redo()
-        self.assertAlmostEqual(cmds.getAttr(path + "[24]"), 0.6, places=6)
-        # 全頂点列。範囲内のロックは手前まで書いて、その要素のMayaのエラー。
-        cmds.setAttr(path + "[6]", lock=True)
-        with self.assertRaisesRegex(RuntimeError, r"targetWeights\[6\]"):
-            node.setTargetWeights(0, [i / 25.0 for i in range(25)])
-        self.assertAlmostEqual(cmds.getAttr(path + "[5]"), 5 / 25.0, places=6)
-        self.assertAlmostEqual(cmds.getAttr(path + "[7]"), 0.1, places=6)
-        self.assertAlmostEqual(cmds.getAttr(path + "[8]"), 0.9, places=6)
-        cmds.setAttr(path + "[6]", lock=False)
-        # 入力接続も同じ扱い。
-        driver = cmds.createNode("transform", name=self.ns + ":drv")
-        cmds.connectAttr(driver + ".tx", path + "[4]")
-        with self.assertRaisesRegex(RuntimeError, r"targetWeights\[4\]"):
-            node.setTargetWeights(0, {2: 0.11, 3: 0.12, 4: 0.13, 5: 0.14})
-        self.assertAlmostEqual(cmds.getAttr(path + "[3]"), 0.12, places=6)
-        self.assertAlmostEqual(cmds.getAttr(path + "[5]"), 5 / 25.0, places=6)
-        # 空辞書は配列を解決せず何もしない。検証の失敗は書込み前。
-        before = self._weights(path)
-        node.setTargetWeights(0, {})
-        with self.assertRaises(ValueError):
-            node.setTargetWeights(0, [0.5] * 24)
-        self.assertEqual(self._weights(path), before)
-
     def test_vector_copies_are_base_vectors(self):
         from mlib.maths import EulerRotate, Matrix, Quaternion, Vector
 
@@ -1019,20 +956,8 @@ class ArrayAndWeightRunTest(unittest.TestCase):
                 for got, current in zip(values[channel], node.getPlug(channel).get()):
                     self.assertAlmostEqual(got, current, places=9)
 
-    def _blend_shape(self):
-        base = cmds.polyPlane(subdivisionsX=4, subdivisionsY=4, name=self.ns + ":base")[0]
-        target = cmds.duplicate(base, name=self.ns + ":tg")[0]
-        bs = cmds.blendShape(target, base, name=self.ns + ":bs")[0]
-        path = bs + ".inputTarget[0].inputTargetGroup[0].targetWeights"
-        cmds.setAttr(path + "[0:24]", *([0.9] * 25))
-        return mlib.getNode(bs), path
-
-    def _weights(self, path):
-        return [(i, cmds.getAttr(f"{path}[{i}]")) for i in cmds.getAttr(path, multiIndices=True)]
-
-
-class TransformationAndAnimKeyTest(unittest.TestCase):
-    """Transformationの合成・コピーと、AnimCurveの単位変換の内部経路が従来の公開APIの計算と同じ値になることを確かめる。"""
+class AnimKeyTest(unittest.TestCase):
+    """AnimCurveの単位変換の内部経路が従来の公開APIの計算と同じ値になることを確かめる。"""
 
     def setUp(self):
         self.ns = "speedupR7_" + uuid.uuid4().hex[:8]
@@ -1044,60 +969,6 @@ class TransformationAndAnimKeyTest(unittest.TestCase):
         cmds.currentUnit(linear=self.units[0], angle=self.units[1], time=self.units[2])
         if cmds.namespace(exists=self.ns):
             cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
-
-    def test_compose_matches_public_operations(self):
-        """matrixの合成が、従来の式(公開のMatrix/Quaternion演算)とビット単位で一致する。"""
-        for t in self._random_transformations():
-            self.assertEqual(self._hex(t.matrix), self._hex(self._reference_matrix(t)), repr(t))
-
-    def test_copy_and_defaults(self):
-        """コピーは同じ並び・型・値で成分を共有せず、既定値はコンストラクタの既定値と同じ。"""
-        from mlib.maths import EulerRotate, Quaternion, Scale, Shear, Transformation, Translate
-        for t in self._random_transformations(50):
-            c = t.copy()
-            self.assertEqual(list(c._values), list(t._values))
-            for name, value in t._values.items():
-                copied = c._values[name]
-                if isinstance(value, bool):
-                    self.assertIs(copied, value)
-                    continue
-                self.assertIsNot(copied, value, name)
-                self.assertIs(type(copied), type(value), name)
-                self.assertEqual(self._hex(copied), self._hex(value), name)
-                if isinstance(value, om2.MEulerRotation):
-                    self.assertEqual(copied.order, value.order)
-            self.assertEqual(repr(c), repr(t))
-            self.assertTrue(c == t)
-        default = Transformation()
-        expected = {"translate": Translate(), "rotate": EulerRotate(), "scale": Scale((1, 1, 1)), "shear": Shear(),
-                    "rotateAxis": Quaternion(), "jointOrient": Quaternion(), "rotatePivot": Translate(),
-                    "rotatePivotTranslate": Translate(), "scalePivot": Translate(), "scalePivotTranslate": Translate(),
-                    "inverseScale": Scale((1, 1, 1))}
-        self.assertEqual(list(default._values), list(expected) + ["segmentScaleCompensate"])
-        for name, value in expected.items():
-            self.assertIs(type(default._values[name]), type(value))
-            self.assertEqual(self._hex(default._values[name]), self._hex(value), name)
-        self.assertEqual(default.rotate.order, 0)
-
-    def test_compose_errors(self):
-        """非有限の成分とSSC有効時のゼロのinverseScaleは従来と同じ例外になる。"""
-        from mlib.maths import Transformation
-        t = Transformation(translate=(1, 2, 3))
-        t.translate.x = float("nan")
-        with self.assertRaises(ValueError) as caught:
-            t.matrix  # noqa: B018
-        self.assertEqual(str(caught.exception), "Transformation components must be finite")
-        t = Transformation()
-        t.rotateAxis.w = float("inf")
-        with self.assertRaises(ValueError) as caught:
-            t.matrix  # noqa: B018
-        self.assertEqual(str(caught.exception), "Transformation components must be finite")
-        t = Transformation(inverseScale=(1, 0, 1))
-        with self.assertRaises(ValueError) as caught:
-            t.matrix  # noqa: B018
-        self.assertEqual(str(caught.exception), "inverseScale must be nonzero while SSC is enabled")
-        t.segmentScaleCompensate = False
-        self.assertEqual(self._hex(t.matrix), self._hex(self._reference_matrix(t)))
 
     def test_anim_unit_value_matches_get_plug(self):
         """AnimCurveの単位変換がgetPlug(...).mplug()を使った変換と同じ値で、削除済みでは同じ例外になる。"""
@@ -1120,46 +991,6 @@ class TransformationAndAnimKeyTest(unittest.TestCase):
         with self.assertRaises(RuntimeError) as caught:
             node.setKey(1.0, 1.0)
         self.assertEqual(str(caught.exception), str(expected.exception))
-
-    @staticmethod
-    def _hex(values):
-        return [float(v).hex() for v in values]
-
-    @staticmethod
-    def _reference_matrix(t):
-        """従来の_composeと同じ式を、公開のMatrix・Quaternionの演算で計算する。"""
-        from mlib.maths import Matrix
-        sp, rp = t.scalePivot, t.rotatePivot
-        rotation = t.rotateAxis * t.quaternion * t.jointOrient
-        compensation = Matrix(scale=tuple(1.0 / v for v in t.inverseScale)) if t.ssc else Matrix()
-        return (Matrix(translate=-sp) * Matrix(scale=t.scale, shear=t.shear)
-                * Matrix(translate=sp + t.scalePivotTranslate - rp)
-                * Matrix(rotate=rotation) * Matrix(translate=rp + t.rotatePivotTranslate)
-                * compensation * Matrix(translate=t.translate))
-
-    def _random_transformations(self, count=200):
-        import random
-        from mlib.maths import Quaternion, Transformation
-        rng = random.Random(7)
-
-        def vec(scale):
-            return tuple(rng.uniform(-scale, scale) for _ in range(3))
-
-        def scale():
-            return tuple(rng.choice([rng.uniform(0.1, 3), -rng.uniform(0.1, 3), -1.0, 1.0]) for _ in range(3))
-        result = [Transformation(), Transformation(translate=(-0.0, 0.0, -0.0), scale=(-1, -1, 1))]
-        for _ in range(count):
-            kwargs = dict(rotateOrder=rng.randrange(6), rotate=vec(7), translate=vec(10), scale=scale(), shear=vec(1),
-                          rotatePivot=vec(3), rotatePivotTranslate=vec(3), scalePivot=vec(3), scalePivotTranslate=vec(3),
-                          rotateAxis=Quaternion(*(rng.uniform(-1, 1) for _ in range(4))),
-                          jointOrient=Quaternion(*(rng.uniform(-1, 1) for _ in range(4))))
-            if rng.random() < 0.5:
-                kwargs["inverseScale"] = scale()
-            else:
-                kwargs["segmentScaleCompensate"] = rng.random() < 0.5
-            result.append(Transformation(**kwargs))
-        return result
-
 
 class FastPathOverheadTest(unittest.TestCase):
     """fast=Trueの経路で検査の重複を省いても、検査の順序・例外・戻り値・Undoの扱いが変わらないことを確かめる。"""
@@ -1570,7 +1401,7 @@ class ImportCostTest(unittest.TestCase):
         self.assertTrue(local <= set(found))
 
     def test_lazy_standard_modules(self):
-        """util.measure・Mayaへの通知・DagPoseの読取りが関数内のimportで動く。"""
+        """util.measure・Mayaへの通知・DagPoseの取得が関数内のimportで動く。"""
         import logging
         from mlib import logger, util
         result = util.measure(lambda: None, samples=3, warmup=1)
@@ -1588,9 +1419,6 @@ class ImportCostTest(unittest.TestCase):
             from mlib.nodes import DagPose
             node = mlib.getNode(pose)
             self.assertIsInstance(node, DagPose)
-            selection = om2.MSelectionList()
-            selection.add(pose + ".xformMatrix[0]")
-            self.assertTrue(DagPose._merge_matrix_payload(selection.getPlug(0)))
         finally:
             for name in cmds.ls(type="dagPose") or []:
                 if joint in (cmds.dagPose(name, query=True, members=True) or []):
@@ -1632,24 +1460,17 @@ class MatrixTransformCostTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_matrix_inputs_keep_type_and_values(self):
-        """MMatrix・Matrix・列・派生型・Transformation・不正入力の扱いが型ごとに変わらない。"""
+        """MMatrix・Matrix・列・派生型・不正入力の扱いが型ごとに変わらない。"""
         from mlib.maths.matrix import Matrix
-        from mlib.maths.transformation import Transformation
 
         class SubMatrix(Matrix):
             pass
 
-        class SubTransformation(Transformation):
-            pass
-
         values = [float(index) for index in range(16)]
-        transformation = SubTransformation(translate=(1, 2, 3), rotate=(0.1, 0.2, 0.3), scale=(2, 3, 4))
         for source, expected in ((om2.MMatrix(values), values), (Matrix(values), values),
                                  (SubMatrix(values), values), (tuple(values), values),
                                  (om2.MFloatMatrix(values), values), ((value for value in values), values),
-                                 ([values[0:4], values[4:8], values[8:12], values[12:16]], values),
-                                 (transformation, list(transformation.matrix)),
-                                 (Transformation(scale=(1, 2, 3)), list(Transformation(scale=(1, 2, 3)).matrix))):
+                                 ([values[0:4], values[4:8], values[8:12], values[12:16]], values)):
             result = Matrix(source)
             self.assertIs(type(result), Matrix)
             self.assertEqual(list(result), expected)
@@ -1676,8 +1497,8 @@ class MatrixTransformCostTest(unittest.TestCase):
         legacy = mlib.getNode(str(node))
         legacy.__class__ = Legacy
         for space in (False, True):
-            fast = node.setMatrix(target, ws=space, get=True)
-            slow = legacy.setMatrix(target, ws=space, get=True)
+            fast = node.setMatrix(target, worldSpace=space, get=True)
+            slow = legacy.setMatrix(target, worldSpace=space, get=True)
             self.assertEqual(sorted(fast), sorted(slow))
             for key in fast:
                 self.assertIs(type(fast[key]), type(slow[key]))

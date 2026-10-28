@@ -324,8 +324,8 @@ class Matrix(om2.MMatrix):
         入力をすべて検証してから書き込むため、例外時に値は変わらない。
 
         Args:
-            values (Transformation | om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
-                変換情報、16要素または4行4列のマトリクス。指定時は他の変換引数をすべて無視する。
+            values (om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
+                16要素または4行4列のマトリクス。指定時は他の変換引数をすべて無視する。
             translate (Iterable[float] | None): XYZ の平行移動成分。None は 0。
             rotate (Iterable[float] | EulerRotate | Quaternion | None): XYZ 順の
                 ラジアン3成分、回転順序を反映する EulerRotate(om2.MEulerRotation)、
@@ -343,13 +343,6 @@ class Matrix(om2.MMatrix):
         """
         if values is not None:
             kind = values.__class__
-            # list・tuple・MMatrix・Matrixそのものの型はTransformationではないため、
-            # 循環importを避ける関数内のimportを省く(それ以外の型は従来どおり判定する)。
-            if kind is not list and kind is not tuple and kind is not _MMatrix and kind is not Matrix:
-                from .transformation import Transformation
-                if isinstance(values, Transformation):
-                    values = values.matrix
-                    kind = values.__class__
             if kind is not list and kind is not tuple:
                 if isinstance(values, _MMatrix):
                     _assign(self, values)
@@ -764,17 +757,15 @@ class Matrix(om2.MMatrix):
 
     @classmethod
     def fromTransformation(cls, transformation):
-        """mlibまたはMaya API 2.0の変換情報からマトリクスを生成する。
+        """Maya API 2.0の変換情報からマトリクスを生成する。
 
         Args:
-            transformation (Transformation | om2.MTransformationMatrix): 合成する変換情報。
+            transformation (om2.MTransformationMatrix): 合成する変換情報。
 
         Returns:
             Matrix: 呼び出したクラスの新しいマトリクス。
         """
-        from .transformation import Transformation
-        return cls._wrap(transformation.matrix if isinstance(transformation, Transformation)
-                         else transformation.asMatrix())
+        return cls._wrap(transformation.asMatrix())
 
     @property
     def values(self):
@@ -808,7 +799,7 @@ class Matrix(om2.MMatrix):
         取得値は複製。設定時は3成分を受け取り、マトリクスを分解せずに番号12〜14へ直接
         書き込むため、ゼロスケールなど分解できないマトリクスにも使える。
         ``matrix.translate.x = value`` は複製だけを変更する。マトリクスの更新には
-        ``matrix.translate = value`` を使う。Transformationの保持成分とは異なる。
+        ``matrix.translate = value`` を使う。
 
         Returns:
             Translate: マトリクスの平行移動成分。
@@ -931,15 +922,6 @@ class Matrix(om2.MMatrix):
             None: 値を返さない。
         """
         self._recompose(rotate=value)
-
-    def asTransformation(self):
-        """mlibのTransformationへ変換する。
-
-        Returns:
-            Transformation: マトリクスを分解した独立した値。元のピボット情報は復元しない。
-        """
-        from .transformation import Transformation
-        return Transformation(self)
 
     def decompose(self):
         """Mayaの規約でマトリクスを分解し、独立したTRS・シアー値を取得する。

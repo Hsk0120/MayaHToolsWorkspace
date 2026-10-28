@@ -1,9 +1,9 @@
-"""2.1.0 で om2 へ置き換えた読取りと、Plug.setMuted の fast の約束(仕様)を固定する(担当C)。
+"""2.1.0 で om2 へ置き換えた読取りと、Plug.setMuted の約束(仕様)を固定する(担当C)。
 
 対象: Plug.isSettable(isFreeToChange の比較)、Node.resetAttrs の省略時の絞込み(通常/fastで同じ選択)、
 Node.getHistory(Transform は直下のShapeの履歴)、Node.getPlugs(om2 で扱うフラグと cmds へ渡すフラグ)、
-IkHandle.getJoints、Plug.setMuted(fast=True)(cmds を呼ばない・Undoに記録しない・通常経路と同じ結果・
-再現できない条件は変更前に NotImplementedError)と通常経路の Undo 1 回。
+IkHandle.getJoints、Plug.setMuted の結果(mute ノードの名前・holdTime)と Undo 1 回。
+3.0.0 で setMuted の fast 引数は外した。
 
 cmds の生の値との突き合わせは ``integration/test_cmds_parity.py`` が担当し、ここでは重ねない。
 """
@@ -149,8 +149,8 @@ class IkHandleJointsSpecTest(NamespaceCase):
         self.assertEqual([joint.getName() for joint in tipped], [joints[1], joints[2], joints[3]])
 
 
-class PlugSetMutedFastSpecTest(unittest.TestCase):
-    """setMuted(fast=True) の約束。fast は名前空間の無いノードだけ扱うため、ルートに一意な名前で作る。"""
+class PlugSetMutedSpecTest(unittest.TestCase):
+    """setMuted の約束。mute ノードの名前を確かめるため、ルートに一意な名前で作る。"""
 
     def setUp(self):
         self.prefix = "mlibSpecMute" + uuid.uuid4().hex[:8]
@@ -171,24 +171,16 @@ class PlugSetMutedFastSpecTest(unittest.TestCase):
         cmds.setKeyframe(node + "." + attribute, time=10, value=5)
         return node
 
-    def test_fast_matches_normal_without_cmds_or_undo(self):
-        fast_node, normal_node = self.keyed(), self.keyed()
-        cmds.flushUndo()
-        with patch.object(cmds, "mute", side_effect=AssertionError("mute")):
-            mlib.getPlug(fast_node + ".tx").setMuted(True, fast=True)
-        self.assertUndoEmpty()
-        mlib.getPlug(normal_node + ".tx").setMuted(True)
-        for node in (fast_node, normal_node):
-            mute = cmds.listConnections(node + ".tx", source=True, destination=False)[0]
-            self.assertEqual(cmds.nodeType(mute), "mute")
-            self.assertEqual(mute, "mute_{}_translateX".format(node))
-            self.assertEqual(cmds.getAttr(mute + ".holdTime"), 4.0)
-        self.assertEqual(cmds.getAttr(fast_node + ".tx"), cmds.getAttr(normal_node + ".tx"))
-        cmds.flushUndo()
-        mlib.getPlug(fast_node + ".tx").setMuted(False, fast=True)
-        self.assertUndoEmpty()
-        self.assertFalse(mlib.getPlug(fast_node + ".tx").isMuted())
-        self.assertEqual(cmds.nodeType(cmds.listConnections(fast_node + ".tx", source=True,
+    def test_mute_node_and_unmute(self):
+        node = self.keyed()
+        mlib.getPlug(node + ".tx").setMuted(True)
+        mute = cmds.listConnections(node + ".tx", source=True, destination=False)[0]
+        self.assertEqual(cmds.nodeType(mute), "mute")
+        self.assertEqual(mute, "mute_{}_translateX".format(node))
+        self.assertEqual(cmds.getAttr(mute + ".holdTime"), 4.0)
+        mlib.getPlug(node + ".tx").setMuted(False)
+        self.assertFalse(mlib.getPlug(node + ".tx").isMuted())
+        self.assertEqual(cmds.nodeType(cmds.listConnections(node + ".tx", source=True,
                                                             destination=False)[0]), "animCurveTL")
 
     def test_normal_undo_once(self):
@@ -201,45 +193,19 @@ class PlugSetMutedFastSpecTest(unittest.TestCase):
 
     def test_compound_mutes_animated_children_and_static_is_noop(self):
         node = self.keyed("sx")
-        mlib.getPlug(node + ".scale").setMuted(True, fast=True)
+        mlib.getPlug(node + ".scale").setMuted(True)
         self.assertTrue(mlib.getPlug(node + ".sx").isMuted())
         self.assertEqual(cmds.ls("mute_" + node + "*"), ["mute_{}_scaleX".format(node)])
-        mlib.getPlug(node + ".ty").setMuted(True, fast=True)
+        mlib.getPlug(node + ".ty").setMuted(True)
         self.assertFalse(mlib.getPlug(node + ".ty").isMuted())
-
-    def test_unsupported_cases_raise_before_changes(self):
-        cmds.namespace(add=self.prefix + "Ns")
-        try:
-            spaced = cmds.createNode("transform", name=self.prefix + "Ns:node")
-            cmds.setKeyframe(spaced + ".tx", value=1)
-            locked = self.keyed()
-            cmds.setAttr(locked + ".tx", lock=True)
-            converted = cmds.createNode("transform", name=self.prefix + "#")
-            cmds.connectAttr(cmds.createNode("multiplyDivide", name=self.prefix + "#") + ".outputX",
-                             converted + ".rx")
-            array = self.keyed()
-            cmds.addAttr(array, longName="values", attributeType="double", multi=True)
-            cases = (spaced + ".tx", locked + ".tx", converted + ".rx", array + ".values")
-            before = cmds.ls(type="mute")
-            for name in cases:
-                with self.subTest(plug=name):
-                    with self.assertRaises(NotImplementedError):
-                        mlib.getPlug(name).setMuted(True, fast=True)
-                    self.assertEqual(cmds.ls(type="mute"), before)
-        finally:
-            cmds.namespace(removeNamespace=self.prefix + "Ns", deleteNamespaceContent=True)
 
     def test_argument_errors(self):
         node = self.keyed()
-        for call in (lambda: mlib.getPlug(node + ".tx").setMuted(1, fast=True),
-                     lambda: mlib.getPlug(node + ".tx").setMuted(True, fast=1)):
+        for call in (lambda: mlib.getPlug(node + ".tx").setMuted(1),
+                     lambda: mlib.getPlug(node + ".tx").setMuted(True, fast=True)):
             with self.assertRaises(TypeError):
                 call()
         self.assertFalse(mlib.getPlug(node + ".tx").isMuted())
-
-    def assertUndoEmpty(self):
-        """Undo キューが空であることを確かめる(fast 経路の確認用)。"""
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
 
 if __name__ == "__main__":

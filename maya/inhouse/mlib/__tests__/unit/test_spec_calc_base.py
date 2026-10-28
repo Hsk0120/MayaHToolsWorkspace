@@ -1,211 +1,38 @@
-"""計算ノードの共通基底(_Calculation)と、計算・ユーティリティノードの型登録の仕様を固定する。
+"""計算・ユーティリティノードの型登録の仕様を固定する。
 
-担当A。`nodes/_calculation.py` の検証・解決規則と、計算ノード型とラッパークラスの対応、
-メソッドを持たない計算ノード(multiplyDivide等)が通常のPlugで扱えることを確かめる。
+担当A。計算ノード型とラッパークラスの対応、専用クラスを持たない計算ノード
+(composeMatrix・multMatrix等)が Node 派生の自動生成クラスになり、通常のPlugで扱えることを確かめる。
 """
 
 import math
 import unittest
-from unittest import mock
 
 import maya.cmds as cmds
 import mlib
-from mlib.nodes._calculation import _Calculation
 
 
 # 計算・ユーティリティノードのMaya型と公開クラス・直接の基底クラス名。
 _TYPE_TABLE = (
-    ("aimMatrix", "AimMatrix", "Node"),
-    ("angleBetween", "AngleBetween", "Node"),
     ("blendColors", "BlendColors", "Node"),
-    ("blendMatrix", "BlendMatrix", "Node"),
     ("blendWeighted", "BlendWeighted", "Node"),
     ("clamp", "Clamp", "Node"),
-    ("composeMatrix", "ComposeMatrix", "Node"),
     ("condition", "Condition", "Node"),
-    ("curveInfo", "CurveInfo", "AbstractBaseCreate"),
-    ("decomposeMatrix", "DecomposeMatrix", "Node"),
-    ("distanceBetween", "DistanceBetween", "Node"),
     ("file", "File", "Texture2d"),
-    ("fourByFourMatrix", "FourByFourMatrix", "Node"),
-    ("inverseMatrix", "InverseMatrix", "THDependNode"),
-    ("multMatrix", "MultMatrix", "Node"),
     ("multiplyDivide", "MultiplyDivide", "ShadingDependNode"),
-    ("pairBlend", "PairBlend", "Node"),
-    ("pickMatrix", "PickMatrix", "Node"),
     ("place2dTexture", "Place2dTexture", "ShadingDependNode"),
     ("plusMinusAverage", "PlusMinusAverage", "ShadingDependNode"),
-    ("pointOnCurveInfo", "PointOnCurveInfo", "AbstractBaseCreate"),
-    ("pointOnSurfaceInfo", "PointOnSurfaceInfo", "AbstractBaseCreate"),
     ("remapValue", "RemapValue", "Node"),
     ("reverse", "Reverse", "Node"),
     ("setRange", "SetRange", "Node"),
     ("unitConversion", "UnitConversion", "Node"),
-    ("vectorProduct", "VectorProduct", "ShadingDependNode"),
 )
 
-
-class _FakePlug:
-    """enum_nameへ渡す最小のPlug代用。get()だけを持つ。"""
-
-    def __init__(self, value):
-        self.value = value
-
-    def get(self):
-        return self.value
-
-
-class CalculationValidatorTest(unittest.TestCase):
-    """_Calculationの検証関数。シーンを変更しない。"""
-
-    def test_index_accepts_logical_range(self):
-        """0から2147483647までの整数をそのまま返す。"""
-        self.assertEqual(_Calculation.index(0), 0)
-        self.assertEqual(_Calculation.index(2147483647), 2147483647)
-        self.assertEqual(_Calculation.index(2, (1, 2)), 2)
-
-    def test_index_rejects_invalid(self):
-        """bool・負数・範囲外・非整数・許可外はValueError。"""
-        for value in (True, False, -1, 2 ** 31, 1.0, "1", None):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "Expected an integer index"):
-                    _Calculation.index(value)
-        with self.assertRaisesRegex(ValueError, "outside the allowed values"):
-            _Calculation.index(3, (1, 2))
-        with self.assertRaisesRegex(ValueError, "outside the allowed values"):
-            _Calculation.index(0, range(1, 3))
-
-    def test_scalar(self):
-        """有限な数値をfloatへ変換する。数値文字列はfloat()の規則で受け付ける。"""
-        self.assertIsInstance(_Calculation.scalar(2), float)
-        self.assertEqual(_Calculation.scalar(2), 2.0)
-        self.assertEqual(_Calculation.scalar("1.5"), 1.5)
-        self.assertEqual(_Calculation.scalar(-0.0), 0.0)
-        for value in (float("nan"), float("inf"), float("-inf"), "inf"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "finite"):
-                    _Calculation.scalar(value)
-        with self.assertRaises(ValueError):
-            _Calculation.scalar("x")
-        with self.assertRaises(TypeError):
-            _Calculation.scalar(None)
-
-    def test_vector(self):
-        """固定長の有限なfloatのtupleを返す。長さ・数値の不正はValueError。"""
-        values = _Calculation.vector([1, 2, 3])
-        self.assertEqual(values, (1.0, 2.0, 3.0))
-        self.assertIsInstance(values, tuple)
-        self.assertTrue(all(isinstance(v, float) for v in values))
-        self.assertEqual(_Calculation.vector((v for v in (0, 0, 0, 1)), 4), (0.0, 0.0, 0.0, 1.0))
-        with self.assertRaisesRegex(ValueError, "Expected 3 components"):
-            _Calculation.vector((1, 2))
-        with self.assertRaisesRegex(ValueError, "Expected 4 components"):
-            _Calculation.vector((1, 2, 3), 4)
-        with self.assertRaisesRegex(ValueError, "finite"):
-            _Calculation.vector((1, float("nan"), 3))
-        with self.assertRaises(ValueError):
-            _Calculation.vector("abc")
-        with self.assertRaises(TypeError):
-            _Calculation.vector(None)
-
-    def test_boolean(self):
-        """bool型だけを受け付け、0/1や文字列はTypeError。"""
-        self.assertIs(_Calculation.boolean(True), True)
-        self.assertIs(_Calculation.boolean(False), False)
-        for value in (0, 1, "True", None, 1.0):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(TypeError, "must be a bool"):
-                    _Calculation.boolean(value)
-
-    def test_enum_value(self):
-        """名前は大文字小文字を問わず番号へ、番号は範囲内だけを受け付ける。"""
-        names = ("lock", "aim", "align")
-        self.assertEqual(_Calculation.enum_value("aim", names), 1)
-        self.assertEqual(_Calculation.enum_value("ALIGN", names), 2)
-        self.assertEqual(_Calculation.enum_value(0, names), 0)
-        # 未対応の名前はValueError。文言に不正な値と選択肢を示す。
-        for value in ("none", "", "1"):
-            with self.subTest(value=value):
-                with self.assertRaises(ValueError) as caught:
-                    _Calculation.enum_value(value, names)
-                self.assertEqual(str(caught.exception),
-                                 "Unsupported value %r (choices: lock, aim, align)" % value)
-        for value in (3, -1, True, 1.0, None):
-            with self.subTest(value=value):
-                with self.assertRaises(ValueError):
-                    _Calculation.enum_value(value, names)
-
-    def test_enum_name(self):
-        """Plugの番号を名前へ変換し、範囲外の番号はValueError。"""
-        names = ("euler", "quaternion")
-        self.assertEqual(_Calculation.enum_name(_FakePlug(1), names), "quaternion")
-        with self.assertRaises(ValueError):
-            _Calculation.enum_name(_FakePlug(2), names)
-
-    def test_set_value_validates_before_target(self):
-        """検証の失敗時は対象Plugを解決しない。成功時はfastをPlug.setへ渡す。"""
-        target = mock.Mock()
-        with self.assertRaises(ValueError):
-            _Calculation.set_value((1, 2), _Calculation.vector, target, 1, fast=True)
-        target.assert_not_called()
-        _Calculation.set_value((1, 2, 3), _Calculation.vector, target, 2, fast=True)
-        target.assert_called_once_with(2)
-        target.return_value.set.assert_called_once_with((1.0, 2.0, 3.0), fast=True)
-
-    def test_connect_resolves_source_before_target(self):
-        """接続元の解決に失敗した場合は接続先を取得しない。"""
-        target = mock.Mock()
-        with self.assertRaises(TypeError):
-            _Calculation.connect(5, target)
-        target.assert_not_called()
-
-
-class GeometryOutputTest(unittest.TestCase):
-    """_Calculation.geometry_outputのシェイプ解決。専用名前空間で行う。"""
-
-    def setUp(self):
-        self.old_namespace = cmds.namespaceInfo(currentNamespace=True)
-        self.namespace = cmds.namespace(add="mlibSpecACalcBase")
-        cmds.namespace(set=self.namespace)
-
-    def tearDown(self):
-        cmds.namespace(set=self.old_namespace)
-        cmds.namespace(removeNamespace=self.namespace, deleteNamespaceContent=True)
-
-    def test_transform_and_shape(self):
-        """Transformは唯一の対応シェイプへ解決し、worldSpaceはインスタンス番号の要素を返す。"""
-        curve = cmds.curve(d=1, p=[(0, 0, 0), (1, 0, 0)])
-        shape = cmds.listRelatives(curve, shapes=True, fullPath=True)[0]
-        plug = _Calculation.geometry_output(curve, "nurbsCurve", True)
-        self.assertEqual(plug.getNode().getFullName(), shape)
-        self.assertTrue(str(plug).endswith(".worldSpace[0]"))
-        local = _Calculation.geometry_output(shape, "nurbsCurve", False)
-        self.assertTrue(str(local).endswith(".local"))
-        # 2番目のインスタンスパスではworldSpace[1]を返す。
-        group = cmds.group(empty=True)
-        instance = cmds.instance(curve)[0]
-        cmds.parent(instance, group)
-        instanced = _Calculation.geometry_output(instance, "nurbsCurve", True)
-        self.assertTrue(str(instanced).endswith(".worldSpace[1]"))
-
-    def test_errors(self):
-        """worldSpaceの型→シェイプ数→シェイプ型の順に検証する。"""
-        curve = cmds.curve(d=1, p=[(0, 0, 0), (1, 0, 0)])
-        with self.assertRaisesRegex(TypeError, "must be a bool"):
-            _Calculation.geometry_output("noSuchNode", "nurbsCurve", 1)
-        cube = cmds.polyCube()[0]
-        with self.assertRaisesRegex(ValueError, "exactly one matching shape"):
-            _Calculation.geometry_output(cube, "nurbsCurve", True)
-        mesh = cmds.listRelatives(cube, shapes=True, fullPath=True)[0]
-        with self.assertRaisesRegex(TypeError, "Expected a nurbsCurve"):
-            _Calculation.geometry_output(mesh, "nurbsCurve", True)
-        second = cmds.curve(d=1, p=[(0, 0, 0), (0, 1, 0)])
-        second_shape = cmds.listRelatives(second, shapes=True, fullPath=True)[0]
-        cmds.parent(second_shape, curve, shape=True, relative=True)
-        with self.assertRaisesRegex(ValueError, "exactly one matching shape"):
-            _Calculation.geometry_output(curve, "nurbsCurve", True)
-        with self.assertRaises((ValueError, RuntimeError)):
-            _Calculation.geometry_output("noSuchNode_specA", "nurbsCurve", True)
+# 専用クラスを持たない計算ノード。登録表に無く、自動生成クラスで返る。
+_GENERATED_TYPES = (
+    "aimMatrix", "angleBetween", "blendMatrix", "composeMatrix", "curveInfo", "decomposeMatrix",
+    "distanceBetween", "fourByFourMatrix", "inverseMatrix", "multMatrix", "pairBlend", "pickMatrix",
+    "pointOnCurveInfo", "pointOnSurfaceInfo", "vectorProduct",
+)
 
 
 class CalculationTypeTest(unittest.TestCase):
@@ -252,14 +79,20 @@ class CalculationTypeTest(unittest.TestCase):
                 self.assertIs(cls.__mro__[1], mlib.nodes.Texture2d)
                 self.assertTrue(issubclass(cls, mlib.nodes.Texture2d))
 
-    def test_nodes_collection_does_not_forward_calculation_methods(self):
-        """Nodesは計算ノード固有のメソッドを一括転送しない(現在の仕様)。"""
-        nodes = mlib.nodes.Nodes([mlib.createNode("composeMatrix"), mlib.createNode("composeMatrix")])
-        self.assertFalse(hasattr(nodes, "setRotateOrder"))
-        for method in ("setTranslate", "getResult", "connectInput"):
-            with self.subTest(method=method):
-                with self.assertRaisesRegex(ValueError, "Unsupported instance method"):
-                    nodes.callEach(method, [(), ()])
+    def test_unregistered_calculation_types_are_generated(self):
+        """専用クラスの無い計算ノードは公開名・登録表に無く、Node派生の生成クラスで返る。"""
+        for kind in _GENERATED_TYPES:
+            with self.subTest(kind=kind):
+                name = kind[0].upper() + kind[1:]
+                self.assertNotIn(name, mlib.nodes.__all__)
+                self.assertNotIn(kind, mlib.nodes._WRAPPER_CLASSES)
+                node = mlib.createNode(kind)
+                cls = type(node)
+                self.assertEqual(cls.__name__, name)
+                self.assertTrue(issubclass(cls, mlib.nodes.Node))
+                self.assertIs(mlib.nodes.__getattr__(name), cls)
+                self.assertEqual(node.getType(), kind)
+                self.assertTrue(node.hasAttr("message"))
 
 
 class PlainCalculationNodeTest(unittest.TestCase):

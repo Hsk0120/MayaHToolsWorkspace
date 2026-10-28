@@ -32,7 +32,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertIsInstance(plug.get(), Matrix)
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
         self.assertTrue(self.target.getMatrix().isEquivalent(Matrix(), 1e-9))
-        self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(value, 1e-9))
+        self.assertTrue(self.target.getMatrix(worldSpace=True).isEquivalent(value, 1e-9))
         cmds.undo()
         self.assertTrue(plug.get().isEquivalent(Matrix(), 1e-9))
         cmds.redo()
@@ -50,21 +50,19 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.target.setTranslate((1, 2, 3), at=4)
         self.target.setRotate((.4, .5, .6))
         local = self.target.getMatrix()
-        world = self.source.getMatrix(ws=True)
-        offset = local.inverse() * world * self.root.getMatrix(ws=True).inverse()
+        world = self.source.getMatrix(worldSpace=True)
+        offset = local.inverse() * world * self.root.getMatrix(worldSpace=True).inverse()
         self.target.getPlug("offsetParentMatrix").set(offset)
         self.assertTrue(self.target.getMatrix().isEquivalent(local, 1e-9))
-        self.assertTrue(self.target.getMatrix(ws=True).isEquivalent(world, 1e-8))
+        self.assertTrue(self.target.getMatrix(worldSpace=True).isEquivalent(world, 1e-8))
 
-    def test_plug_route_and_collection(self):
+    def test_plug_route_and_multiple_nodes(self):
         """offsetParentMatrix は getPlug("offsetParentMatrix") の get/set で扱う(Transform の専用入口は無い)。"""
         from mlib.decorator import undoChunk
-        from mlib.nodes import Transforms
-        nodes = Transforms([self.source, self.target])
+        nodes = [self.source, self.target]
         value = Matrix(translate=(4, 5, 6))
         for name in ("getOffsetParentMatrix", "setOffsetParentMatrix"):
             self.assertFalse(hasattr(self.target, name))
-            self.assertFalse(hasattr(nodes, name))
         plug = self.target.getPlug("offsetParentMatrix")
         self.assertIs(plug.set(value), plug)
         self.assertTrue(plug.get().isEquivalent(value))

@@ -81,20 +81,21 @@ class Om2BackendsTest(unittest.TestCase):
     def test_fast_new_array_matrix_and_normal_undo(self):
         """fastの新規配列要素はgetAttrやsetAttrを使わず値を書き込む。"""
         node = mlib.createNode('multMatrix')
+        plug = node.getPlug('matrixIn')[37]
         matrix = mlib.maths.Matrix(translate=(1, 2, 3))
         before = cmds.undoInfo(q=True, undoName=True)
         with self.forbidden('getAttr', 'setAttr', 'undoInfo'):
-            node.setInput(37, matrix, fast=True)
+            plug.set(matrix, fast=True)
         self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
-        self.assertEqual(list(node.getInput(37)), list(matrix))
-        node.setInput(37, mlib.maths.Matrix())
+        self.assertEqual(list(plug.get()), list(matrix))
+        plug.set(mlib.maths.Matrix())
         cmds.undo()
-        self.assertEqual(list(node.getInput(37)), list(matrix))
+        self.assertEqual(list(plug.get()), list(matrix))
         cmds.redo()
-        self.assertEqual(list(node.getInput(37)), list(mlib.maths.Matrix()))
-        node.getInputPlug(37).setFlags(locked=True)
+        self.assertEqual(list(plug.get()), list(mlib.maths.Matrix()))
+        plug.setFlags(locked=True)
         with self.assertRaises(RuntimeError):
-            node.setInput(37, matrix, fast=True)
+            plug.set(matrix, fast=True)
 
     def test_typed_arrays_keep_empty_and_singleton_shapes(self):
         """型付き配列のnull・空・一要素・複数要素の返却形式を維持する。"""
@@ -150,25 +151,25 @@ class Om2BackendsTest(unittest.TestCase):
             for unit in ('cm', 'm'):
                 cmds.currentUnit(linear=unit)
                 for space in (MSpace.kObject, MSpace.kWorld):
-                    before = points.getPosition(ws=(space == MSpace.kWorld))
+                    before = points.getPosition(worldSpace=(space == MSpace.kWorld))
                     factors, pivot = (2, .5, -1), (1, 2, 3)
                     expected = [tuple(pivot[i] + (p[i] - pivot[i]) * factors[i] for i in range(3))
                                 if index in (0, 2) else p for index, p in enumerate(before)]
                     with patch.object(cmds, 'xform', wraps=cmds.xform) as xform:
-                        node.scaleGeometry(factors, ws=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2])
+                        node.scaleGeometry(factors, worldSpace=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2])
                     self.assertEqual(len(xform.call_args_list), 2)
                     self.assertTrue(all(not call[1].get('query') for call in xform.call_args_list))
-                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
+                    self.assert_points(points.getPosition(worldSpace=(space == MSpace.kWorld)), expected)
                     cmds.undo()
-                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), before)
+                    self.assert_points(points.getPosition(worldSpace=(space == MSpace.kWorld)), before)
                     cmds.redo()
-                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
+                    self.assert_points(points.getPosition(worldSpace=(space == MSpace.kWorld)), expected)
                     cmds.undo()
                     queue = cmds.undoInfo(query=True, undoName=True)
                     weights = None if shape.getType() == 'mesh' else [p.w for p in shape.mfn().cvPositions()]
                     with self.forbidden('xform', 'ls', 'getAttr', 'setAttr', 'undoInfo'):
-                        node.scaleGeometry(factors, ws=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2], fast=True)
-                    self.assert_points(points.getPosition(ws=(space == MSpace.kWorld)), expected)
+                        node.scaleGeometry(factors, worldSpace=(space == MSpace.kWorld), pivot=pivot, indices=[2, 0, 2], fast=True)
+                    self.assert_points(points.getPosition(worldSpace=(space == MSpace.kWorld)), expected)
                     self.assertEqual(cmds.undoInfo(query=True, undoName=True), queue)
                     if weights is not None:
                         self.assertEqual([p.w for p in shape.mfn().cvPositions()], weights)
@@ -209,24 +210,22 @@ class Om2BackendsTest(unittest.TestCase):
         self.assert_points(shape.getCVs().getPosition(), before)
 
     def test_rational_cv_world_position_roundtrip(self):
-        """重み付きCVはAPIワールドXYZの取得と通常・fast設定で往復する。"""
+        """重み付きCVはAPIワールドXYZ(cm)をcmdsを使わずに取得する。"""
         node = mlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
         node.setTranslate((10, 20, 30), at=4)
         node.setScale((-2, 3, .5))
-        cvs = node.getShape().getCVs()
+        shape = node.getShape()
+        cvs = shape.getCVs()
+        fn = om2.MFnNurbsCurve(shape.mpath())
+        expected = []
+        for index in range(fn.numCVs):
+            point = fn.cvPosition(index, om2.MSpace.kWorld)
+            expected.append((point.x, point.y, point.z))
         cmds.currentUnit(linear='m')
         try:
-            before = cvs.getPosition(True)
-            cvs.setPositions(before, ws=True)
-            self.assert_points(cvs.getPosition(True), before)
-            changed = [tuple(v + 1 for v in point) for point in before]
-            cvs.setPositions(changed, ws=True)
-            self.assert_points(cvs.getPosition(True), changed)
-            cmds.undo()
-            self.assert_points(cvs.getPosition(True), before)
-            with self.forbidden('xform', 'setAttr', 'undoInfo'):
-                cvs.setPositions(changed, ws=True, fast=True)
-            self.assert_points(cvs.getPosition(True), changed)
+            with self.forbidden('xform', 'pointPosition', 'getAttr'):
+                actual = cvs.getPosition(True)
+            self.assert_points(actual, expected)
         finally:
             cmds.currentUnit(linear='cm')
 
@@ -275,27 +274,20 @@ class Om2BackendsTest(unittest.TestCase):
             self.assertTrue(multiply.resetAttrs(fast=True))
             self.assertEqual(node.getPlug('ty').getAnimLayers(), [])
 
-    def test_fast_set_muted_uses_api_without_undo(self):
-        """fastのmute・解除はcmdsを呼ばずUndoに記録しない。通常経路は1回のUndoで戻る。"""
-        node = cmds.createNode('transform', name='fastMuted')
+    def test_set_muted_holds_value_and_undoes_once(self):
+        """mute・解除はcmds.muteで行い、現在値を保持する。1回のUndoで戻る。"""
+        node = cmds.createNode('transform', name='mutedPlug')
         cmds.setKeyframe(node + '.tx', time=1, value=2)
         cmds.setKeyframe(node + '.tx', time=10, value=5)
         cmds.currentTime(4)
         plug = mlib.getPlug(node + '.tx')
         held = plug.get()
-        before = cmds.undoInfo(q=True, undoName=True)
-        with self.forbidden('mute', 'createNode', 'connectAttr', 'disconnectAttr', 'setAttr', 'delete',
-                            'rename', 'undoInfo'):
-            self.assertIs(plug.setMuted(True, fast=True), plug)
-        self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
+        self.assertIs(plug.setMuted(True), plug)
         self.assertTrue(plug.isMuted())
         self.assertTrue(cmds.mute(node + '.tx', query=True))
         cmds.currentTime(8)
         self.assertAlmostEqual(plug.get(), held)
-        with self.forbidden('mute', 'createNode', 'connectAttr', 'disconnectAttr', 'setAttr', 'delete',
-                            'undoInfo'):
-            plug.setMuted(False, fast=True)
-        self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
+        plug.setMuted(False)
         self.assertFalse(plug.isMuted())
         self.assertEqual(cmds.ls(type='mute'), [])
         plug.setMuted(True)

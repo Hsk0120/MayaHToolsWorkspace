@@ -19,7 +19,6 @@ from mlib.maths import Matrix
 from mlib.maths import Quaternion
 from mlib.maths import Scale
 from mlib.maths import Shear
-from mlib.maths import Transformation
 from mlib.maths import Translate
 from mlib.maths import Vector
 from mlib.maths.eulerRotate import ORDER_NAMES
@@ -59,18 +58,15 @@ class ValueTypeContractTest(unittest.TestCase):
                 hash(value)
             with self.assertRaises(TypeError):
                 {value: 1}
-        with self.assertRaises(TypeError):
-            hash(Transformation())
 
     def test_defaults(self):
-        """既定値はゼロベクトル・単位クォータニオン・xyz順の0回転・単位マトリクス・スケール1。"""
+        """既定値はゼロベクトル・単位クォータニオン・xyz順の0回転・単位マトリクス。"""
         self.assertEqual(tuple(Vector()), (0.0, 0.0, 0.0))
         self.assertEqual(tuple(Scale()), (0.0, 0.0, 0.0))
         self.assertEqual(tuple(Quaternion()), (0.0, 0.0, 0.0, 1.0))
         self.assertEqual(EulerRotate().order, om2.MEulerRotation.kXYZ)
         self.assertEqual(Matrix(), om2.MMatrix())
         self.assertEqual(Matrix.identity(), om2.MMatrix())
-        self.assertEqual(tuple(Transformation().scale), (1.0, 1.0, 1.0))
 
     def test_copy_and_pickle_keep_type_and_independence(self):
         """copy・deepcopy・pickleは同じ型の独立した値を作る。"""
@@ -730,89 +726,10 @@ class MatrixSpecTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.a.mirror("q")
 
-    def test_transformation_round_trip(self):
-        """asTransformation・fromTransformationでマトリクスを往復できる。"""
-        transformation = self.a.asTransformation()
-        self.assertIsInstance(transformation, Transformation)
-        self.assertTrue(Matrix.fromTransformation(transformation).isEquivalent(self.a, 1e-9))
+    def test_from_transformation_matrix(self):
+        """fromTransformationはom2.MTransformationMatrixからマトリクスを作る。"""
         tm = om2.MTransformationMatrix(self.om_a)
         self.assertTrue(Matrix.fromTransformation(tm).isEquivalent(self.om_a, 1e-12))
-
-
-class TransformationSpecTest(unittest.TestCase):
-    """Transformationの成分保持・合成・検証を固定する。"""
-
-    def test_matrix_matches_compose_and_aliases(self):
-        """TRSだけの変換はMatrix.composeと一致し、短縮名で同じ成分を参照する。"""
-        value = Transformation(t=(1, 2, 3), r=EulerRotate(0.1, 0.2, 0.3, "yzx"), s=(2, 1, 0.5))
-        self.assertIs(value.t, value.translate)
-        self.assertIs(type(value.translate), Translate)
-        self.assertEqual(value.ro, om2.MEulerRotation.kYZX)
-        expected = Matrix.compose(translate=(1, 2, 3), rotate=EulerRotate(0.1, 0.2, 0.3, "yzx"), scale=(2, 1, 0.5))
-        self.assertTrue(value.matrix.isEquivalent(expected, 1e-12))
-        self.assertIsNot(value.matrix, value.matrix)
-        self.assertTrue(value.q.isEquivalent(value.rotate.asQuaternion(), 1e-12))
-
-    def test_matches_om2_transformation_matrix_with_pivots(self):
-        """MTransformationMatrixからの複製は、ピボットを含めて同じマトリクスになる。"""
-        tm = om2.MTransformationMatrix()
-        tm.setTranslation(om2.MVector(1, 2, 3), om2.MSpace.kTransform)
-        tm.setRotation(om2.MEulerRotation(0.4, -0.2, 0.9))
-        tm.setScale([1.5, 2.0, 0.5], om2.MSpace.kTransform)
-        tm.setRotatePivot(om2.MPoint(0.5, 0.0, -1.0), om2.MSpace.kTransform, False)
-        tm.setScalePivot(om2.MPoint(-0.5, 1.0, 0.0), om2.MSpace.kTransform, False)
-        value = Transformation(tm)
-        self.assertTrue(value.matrix.isEquivalent(tm.asMatrix(), 1e-9))
-
-    def test_rotate_order_keeps_orientation(self):
-        """rotateOrderの変更は向きを保ってrotateを並べ替える。不正な順序はValueError。"""
-        value = Transformation(r=(0.3, 0.6, -0.2))
-        before = value.matrix
-        value.rotateOrder = 5
-        self.assertEqual(value.rotate.orderName, "zyx")
-        self.assertTrue(value.matrix.isEquivalent(before, 1e-9))
-        for order in (6, True, "xyz", -1):
-            with self.assertRaises(ValueError):
-                value.rotateOrder = order
-
-    def test_validation(self):
-        """未知の成分はAttributeError、SSCはbool、非有限はValueError、重複指定はTypeError。"""
-        value = Transformation()
-        with self.assertRaises(AttributeError):
-            value.unknown
-        with self.assertRaises(AttributeError):
-            value.unknown = 1
-        with self.assertRaises(TypeError):
-            value.segmentScaleCompensate = 1
-        with self.assertRaises(ValueError):
-            value.translate = (float("nan"), 0, 0)
-        with self.assertRaises(TypeError):
-            Transformation(t=(1, 2, 3), translate=(1, 2, 3))
-        with self.assertRaises(TypeError):
-            Transformation(Matrix(), matrix=Matrix())
-
-    def test_copy_equality_and_held_components(self):
-        """保持成分の編集は自身へ反映し、copyは成分を共有しない。==は全成分の完全一致。"""
-        value = Transformation(t=(1, 2, 3))
-        value.translate.x = 5
-        self.assertEqual(value.matrix[12], 5.0)
-        duplicate = value.copy()
-        self.assertEqual(duplicate, value)
-        duplicate.translate.y = 9
-        self.assertNotEqual(duplicate, value)
-        self.assertEqual(value.translate.y, 2.0)
-        self.assertNotEqual(value, Transformation(value.matrix, ssc=False))
-
-    def test_matrix_assignment_and_post_multiplication(self):
-        """matrixの代入で成分を置き換え、Transformation * Mは後乗算のマトリクスになる。"""
-        matrix = _sample_matrix()
-        value = Transformation(matrix)
-        self.assertTrue(value.matrix.isEquivalent(matrix, 1e-9))
-        other = Matrix(rotate=(0.0, 0.5, 0.0), translate=(1, 0, 0))
-        product = value * other
-        self.assertIsInstance(product, Transformation)
-        self.assertTrue(product.matrix.isEquivalent(Matrix(matrix) * other, 1e-9))
-        self.assertTrue(value.matrix.isEquivalent(matrix, 1e-9))
 
 
 if __name__ == "__main__":

@@ -3,10 +3,9 @@
 対象: ``isJoint()`` の廃止と代替(``isinstance``・``isType("joint")``)、Joint の
 ``getRotate(order=)``(ゼロ回転に最も近い等価解)、``setParent(r=)`` と inverseScale の保守、
 ``resetAttrs`` が jointOrient を戻さないこと、``mfn()``、無効 joint への操作の例外、
-Joints の一括転送(``_bulk_entries``・転送 def・``__signature__``)。
+Joints が単数への一括転送を持たないこと。
 """
 
-import inspect
 import math
 import unittest
 
@@ -16,7 +15,7 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.maths import EulerRotate
-from mlib.nodes import Joint, Joints, Node, Transform, Transforms
+from mlib.nodes import Joint, Joints, Node, Transform
 from support.specCase import NamespaceCase
 
 
@@ -31,37 +30,18 @@ class _SpecCase(NamespaceCase):
 
 
 class RemovedApiTest(unittest.TestCase):
-    """isJoint は単数・複数形・一括宣言のどこにも残さない。"""
+    """isJoint は単数・複数形のどこにも残さない。複数形は単数への一括転送を持たない。"""
 
     def test_isjoint_is_absent(self):
-        for owner in (Joint, Joints, Transform, Transforms):
+        for owner in (Joint, Joints, Transform):
             with self.subTest(owner=owner.__name__):
                 self.assertFalse(hasattr(owner, "isJoint"))
-        self.assertNotIn("isJoint", Joints._bulk_entries)
-        self.assertNotIn("isJoint", Joints._bulk_methods)
-        self.assertNotIn("isJoint", Joints._bulk_returns)
 
-    def test_bulk_entries_match_singular_and_forwarders(self):
-        """チェックリスト(DESIGN §6.8): 宣言・単数 def・転送 def・__signature__ が揃う。"""
-        for name, (function, policy) in Joints._bulk_entries.items():
+    def test_joints_has_no_forwarders(self):
+        for name in ("mfn", "resetAttrs", "getShear", "setShear", "getRotate", "setParent",
+                     "jointOrientToRotate", "freezeRotate", "_bulk_entries", "_bulk_methods"):
             with self.subTest(name=name):
-                self.assertIs(getattr(Joint, name), function)
-                self.assertIn(policy, ("list", "self"))
-                forwarder = getattr(Joints, name)
-                self.assertTrue(callable(forwarder))
-                if hasattr(forwarder, "__signature__"):
-                    # 定型の転送 def。手書きの一括(jointOrientToRotate 等)と継承(delete)は署名を持たない。
-                    self.assertEqual(forwarder.__signature__, inspect.signature(function))
-        # Transforms から継承した転送は Joint 側で override していなければ Transform の宣言を使う。
-        for name in ("mfn", "resetAttrs", "getShear", "setShear", "getRotate", "setParent"):
-            with self.subTest(inherited=name):
-                self.assertIn(name, Joints._bulk_methods)
-                self.assertTrue(callable(getattr(Joints, name)))
-        for name in ("transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
-                     "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"):
-            with self.subTest(removed=name):
                 self.assertFalse(hasattr(Joints, name))
-                self.assertNotIn(name, Joints._bulk_methods)
 
 
 class TypeQueryTest(_SpecCase):
@@ -93,8 +73,6 @@ class MfnTest(_SpecCase):
         self.assertIs(type(fn), om2.MFnTransform)
         self.assertEqual(fn.fullPathName(), cmds.ls(str(joint), long=True)[0])
         self.assertIsNot(fn, joint.mfn())
-        fns = Joints([str(joint)]).mfn()
-        self.assertEqual([type(fn) for fn in fns], [om2.MFnTransform])
 
 
 class GetRotateTest(_SpecCase):
@@ -128,9 +106,9 @@ class GetRotateTest(_SpecCase):
     def test_order_rules(self):
         joint = self._joint(2)
         for ws in (False, True):
-            default = joint.getRotate(ws=ws)
-            self.assertSequenceAlmostEqual(joint.getRotate(ws=ws, order=2), default)
-            self.assertSequenceAlmostEqual(joint.getRotate(ws=ws, order="zxy"), default)
+            default = joint.getRotate(worldSpace=ws)
+            self.assertSequenceAlmostEqual(joint.getRotate(worldSpace=ws, order=2), default)
+            self.assertSequenceAlmostEqual(joint.getRotate(worldSpace=ws, order="zxy"), default)
             if ws:
                 matrix = om2.MMatrix(cmds.getAttr(str(joint) + ".worldMatrix[0]"))
             else:
@@ -139,13 +117,11 @@ class GetRotateTest(_SpecCase):
             for order in (0, 1, 3, 4, 5):
                 with self.subTest(ws=ws, order=order):
                     expected = quaternion.asEulerRotation().reorder(order)
-                    actual = joint.getRotate(ws=ws, order=order)
+                    actual = joint.getRotate(worldSpace=ws, order=order)
                     self.assertEqual(actual.order, order)
                     self.assertSequenceAlmostEqual(actual, (expected.x, expected.y, expected.z))
         with self.assertRaises(ValueError):
             joint.getRotate(order=7)
-        with self.assertRaises(TypeError):
-            joint.getRotate(False, ws=False)
 
     def _joint(self, rotate_order):
         parent = self.make(text="parent#")
@@ -165,7 +141,7 @@ class SetParentTest(_SpecCase):
     """Joint の setParent は cmds.parent に従う(inverseScale の接続は relative=False のときだけ)。fast は未対応。"""
 
     def test_relative_keeps_channels_without_inverse_scale(self):
-        for flags in ({"relative": True}, {"r": True}):
+        for flags in ({"relative": True},):
             with self.subTest(flags=flags):
                 parent = self.make(text="parent#")
                 cmds.setAttr(parent + ".translate", 3.0, 0.0, 0.0)
@@ -206,10 +182,10 @@ class SetParentTest(_SpecCase):
         with self.assertRaises(NotImplementedError):
             joint.setParent(parent, fast=True)
         with self.assertRaises(NotImplementedError):
-            joint.setParent(parent, r=True, fast=True)
+            joint.setParent(parent, relative=True, fast=True)
         self.assertIsNone(cmds.listRelatives(str(joint), parent=True))
         with self.assertRaises(TypeError):
-            joint.setParent(parent, True, r=True)
+            joint.setParent(parent, True, relative=True)
 
 
 class ResetAttrsTest(_SpecCase):
@@ -228,15 +204,6 @@ class ResetAttrsTest(_SpecCase):
         plugs = joint.resetAttrs("jointOrient")
         self.assertEqual([plug.getLongName() for plug in plugs], ["jointOrient"])
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".jointOrient")[0], (0.0, 0.0, 0.0))
-
-    def test_joints_returns_list_of_lists(self):
-        names = [self.make(), self.make()]
-        for name in names:
-            cmds.setAttr(name + ".translate", 1.0, 2.0, 3.0)
-        result = Joints(names).resetAttrs("translate", fast=True)
-        self.assertEqual([[plug.getLongName() for plug in plugs] for plugs in result], [["translate"], ["translate"]])
-        for name in names:
-            self.assertEqual(cmds.getAttr(name + ".translate")[0], (0.0, 0.0, 0.0))
 
 
 class InvalidJointTest(_SpecCase):

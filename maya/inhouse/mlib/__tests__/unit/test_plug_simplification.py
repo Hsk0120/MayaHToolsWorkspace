@@ -58,7 +58,7 @@ class PlugSimplificationTest(unittest.TestCase):
         self.assertEqual(array.getElements(), [])
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
         reference.set(4)
-        self.assertEqual(array.getElement(idx=9), reference)
+        self.assertEqual(array.getElement(index=9), reference)
         cmds.undo()
         self.assertEqual(array.getElements(), [])
 
@@ -128,10 +128,8 @@ class PlugSimplificationTest(unittest.TestCase):
         self.assertEqual(array[2147483647].mplug().logicalIndex(), 2147483647)
         self.assertEqual(array.getElements(), [])
         parameters = inspect.signature(type(array).getElement).parameters
-        self.assertEqual(tuple(parameters), ("self", "index", "idx"))
-        self.assertIs(parameters["index"].default, Ellipsis)
-        self.assertIs(parameters["idx"].default, Ellipsis)
-        self.assertEqual(parameters["idx"].kind, inspect.Parameter.KEYWORD_ONLY)
+        self.assertEqual(tuple(parameters), ("self", "index"))
+        self.assertIs(parameters["index"].default, inspect.Parameter.empty)
 
 
 if __name__ == "__main__":

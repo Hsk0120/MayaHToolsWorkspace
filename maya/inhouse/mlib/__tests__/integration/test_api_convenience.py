@@ -3,7 +3,7 @@ import unittest
 import maya.cmds as cmds
 import maya.api.OpenMaya as om2
 import mlib
-from mlib.maths import Matrix, Transformation
+from mlib.maths import Matrix
 
 
 class ConvenienceTests(unittest.TestCase):
@@ -44,13 +44,10 @@ class ConvenienceTests(unittest.TestCase):
 
     def test_matrix_interop(self):
         matrix = Matrix(translate=(2,3,4), scale=(2,3,4))
-        value = matrix.asTransformation()
-        self.assertIsInstance(value, Transformation)
-        self.assertTrue(Matrix(value).isEquivalent(matrix))
+        value = om2.MTransformationMatrix(matrix)
         self.assertTrue(Matrix.fromTransformation(value).isEquivalent(matrix))
-        self.assertTrue(Matrix.fromTransformation(om2.MTransformationMatrix(matrix)).isEquivalent(matrix))
         node = mlib.createNode('transform')
-        node.getPlug('offsetParentMatrix').set(value)
+        node.getPlug('offsetParentMatrix').set(Matrix.fromTransformation(value))
         self.assertTrue(node.getPlug('offsetParentMatrix').get().isEquivalent(matrix))
 
     def test_compound_brackets_and_cmds_boundary(self):

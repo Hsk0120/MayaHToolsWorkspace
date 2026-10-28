@@ -1,8 +1,5 @@
-"""SkinClusters.removeInfluences の fast と、既スキン判定・setWeights の fast の約束を固定する(2.1.0 担当B)。
+"""既スキン判定・setWeights の fast の約束を固定する(2.1.0 担当B)。
 
-- removeInfluences(fast=True) は単数 removeInfluence へ fast を渡し、cmds を呼ばず Undo に記録しない。
-  通常経路と同じウェイト・登録になり、通常経路は Undo 1 回で戻る。
-- 未対応(geometry が 2 個の skinCluster)は、どの skinCluster も変更する前に NotImplementedError。
 - SkinCluster.deforms / bind の既スキン判定は DagNode.getSkinClusters と同じ規則で、cmds.listHistory を使わない。
 - setWeights(fast=True) は MFnSkinCluster.setWeights を使わず、通常経路と同じ生値・同じ既存要素になる。
 """
@@ -15,7 +12,7 @@ import maya.cmds as cmds
 
 import mlib
 mlib.reload()
-from mlib.nodes import SkinCluster, SkinClusters
+from mlib.nodes import SkinCluster
 from support.specCase import NamespaceCase
 
 
@@ -66,64 +63,6 @@ class _SkinCase(NamespaceCase):
         return stack
 
 
-class RemoveInfluencesFastTest(_SkinCase):
-
-    def test_fast_matches_normal(self):
-        """transferToParent の両方で、fast と通常は同じ登録・ウェイトになる。
-
-        transferToParent=False で複数を続けて外すと、残りの合計が 0 になった頂点の再配分が
-        単数 removeInfluence の fast(core/skinEdit)と cmds で異なるため、False は 1 本だけ外す。
-        """
-        for transfer, joints in ((True, [self.tip, self.mid]), (False, [self.tip])):
-            with self.subTest(transferToParent=transfer):
-                _, normal = self.skin()
-                _, fast = self.skin()
-                SkinClusters([normal]).removeInfluences(joints, transferToParent=transfer)
-                cmds.setAttr(self.make() + ".tx", 3)
-                undo_name = cmds.undoInfo(query=True, undoName=True)
-                with self.no_cmds("skinCluster", "skinPercent", "setAttr", "undoInfo"):
-                    result = SkinClusters([fast]).removeInfluences(joints, transferToParent=transfer, fast=True)
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
-                self.assertIsInstance(result, SkinClusters)
-                self.assertEqual([node.getFullName() for node in fast.getInfluences()],
-                                 [node.getFullName() for node in normal.getInfluences()])
-                names = [self.root, self.other]
-                for value, expected in zip(fast.getWeights(names), normal.getWeights(names)):
-                    self.assertAlmostEqual(value, expected, places=9)
-
-    def test_normal_undo_once(self):
-        """通常経路は Undo 1 回で登録とウェイトが戻る。"""
-        _, skin = self.skin()
-        before = list(skin.getWeights([self.root, self.mid, self.tip, self.other]))
-        cmds.flushUndo()
-        SkinClusters([skin]).removeInfluences([self.tip, self.mid])
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClustersRemoveInfluences")
-        cmds.undo()
-        self.assertEqual(len(skin.getInfluences()), 4)
-        self.assertSequenceAlmostEqual(skin.getWeights([self.root, self.mid, self.tip, self.other]), before)
-
-    def test_fast_not_implemented_before_any_change(self):
-        """2つ目の skinCluster が geometry を 2 個持つと、1つ目も変更しない。"""
-        _, first = self.skin()
-        _, second = self.skin()
-        extra = cmds.polyCube(name=self.name("extra"))[0]
-        cmds.skinCluster(second.getFullName(), edit=True, geometry=extra)
-        before = self.raw(first)
-        with self.assertRaises(NotImplementedError):
-            SkinClusters([first, second]).removeInfluences(self.tip, fast=True)
-        self.assertEqual(len(first.getInfluences()), 4)
-        self.assertEqual(self.raw(first), before)
-
-    def test_fast_type_and_validation(self):
-        """fast は bool だけ。全登録の解除は fast でも変更前に ValueError。"""
-        _, skin = self.skin([self.root, self.mid])
-        with self.assertRaisesRegex(TypeError, "fast must be a bool"):
-            SkinClusters([skin]).removeInfluences(self.mid, fast=1)
-        with self.assertRaises(ValueError):
-            SkinClusters([skin]).removeInfluences([self.root, self.mid], fast=True)
-        self.assertEqual(len(skin.getInfluences()), 2)
-
-
 class SkinQueryTest(_SkinCase):
 
     def test_deforms_without_history_command(self):
@@ -139,7 +78,7 @@ class SkinQueryTest(_SkinCase):
             self.assertFalse(skin.deforms(self.root))
             # DAG ノード以外は False。
             self.assertFalse(skin.deforms(skin))
-            self.assertEqual(SkinClusters([skin, other]).deforms(other_mesh), [False, True])
+            self.assertTrue(other.deforms(other_mesh))
         with self.assertRaises(RuntimeError):
             skin.deforms(self.name("missing"))
 
@@ -175,7 +114,6 @@ class SkinMfnTest(_SkinCase):
         self.assertEqual(first.name(), second.name())
         self.assertEqual(len(first.influenceObjects()), 4)
         self.assertFalse(hasattr(skin, "fn"))
-        self.assertEqual(len(SkinClusters([skin]).mfn()), 1)
 
 
 class SetWeightsFastTest(_SkinCase):

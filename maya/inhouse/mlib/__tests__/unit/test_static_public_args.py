@@ -99,6 +99,42 @@ def find_snake_case_arguments():
     return tuple(offenders), frozenset(used)
 
 
+#: 3.0.0で廃止した独自メソッドの短縮名の別名。Mayaコマンドへフラグを渡す入口だけに許可する。
+REMOVED_SHORT_ALIASES = frozenset(("ws", "idx", "src", "dst", "attrs"))
+
+#: 短縮名を持ってよい公開def(Mayaコマンドのフラグをそのまま受ける入口)。
+MAYA_FLAG_ENTRIES = {
+    ("mlib/nodes/node.py", "Node.addAttr"): "cmds.addAttrのworldSpace/ws",
+}
+
+
+@functools.lru_cache(maxsize=None)
+def find_short_alias_arguments():
+    """許可した入口の外で、廃止した短縮名の別名を引数に持つ公開defを列挙する。
+
+    Returns:
+        tuple[tuple[str, ...], frozenset[tuple[str, str]]]: 違反の説明と、実際に使われた許可キー。
+    """
+    offenders = []
+    used = set()
+    for relative, path in _iter_source_files():
+        if "/core/" in relative:
+            # coreの内部編集基盤はsnake_caseの内部引数wsを維持する。
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for qualified, function in _iter_public_functions(tree):
+            names = sorted(REMOVED_SHORT_ALIASES & set(_parameter_names(function)))
+            # 演算子(>>・<<・//)の相手は位置でだけ渡すため対象外。
+            if not names or qualified.rsplit(".", 1)[-1].startswith("__"):
+                continue
+            key = (relative, qualified)
+            if key in MAYA_FLAG_ENTRIES:
+                used.add(key)
+                continue
+            offenders.append("%s:%d %s(%s)" % (relative, function.lineno, qualified, ", ".join(names)))
+    return tuple(offenders), frozenset(used)
+
+
 class PublicArgumentNameTest(unittest.TestCase):
     """公開defの引数名はlowerCamelCase、またはMayaのフラグと同じ表記。"""
 
@@ -113,6 +149,12 @@ class PublicArgumentNameTest(unittest.TestCase):
         """許可リスト外の公開defにsnake_caseの引数が無い。"""
         offenders, _ = find_snake_case_arguments()
         self.assertEqual(list(offenders), [], "snake_case public arguments:\n" + "\n".join(offenders))
+
+    def test_no_removed_short_aliases(self):
+        """独自メソッドは短縮名の別名(ws・idx・src・dst・attrs)を持たない。"""
+        offenders, used = find_short_alias_arguments()
+        self.assertEqual(list(offenders), [], "short alias arguments:\n" + "\n".join(offenders))
+        self.assertEqual(sorted(set(MAYA_FLAG_ENTRIES) - used), [])
 
     def test_allowlist_has_no_stale_entries(self):
         """許可リストの全行が現存し、実際にsnake_caseの引数を持つ。"""

@@ -64,35 +64,38 @@ class JointOrientToRotateTest(unittest.TestCase):
                         self.assertMatrix(node, before)
                         self.assertMatrix(child, child_before)
 
-    def test_collection_undo_redo(self):
+    def test_hierarchy_undo_redo(self):
         root = self.joint()
         child = self.joint(root)
         nodes = [root, child]
         before = [(cmds.getAttr(n + ".rotate"), cmds.getAttr(n + ".jointOrient"), self.matrix(n)) for n in nodes]
-        collection = mlib.nodes.Joints(nodes)
-        self.assertIs(collection.jointOrientToRotate(), collection)
+        for n in nodes:
+            wrapper = mlib.getNode(n)
+            self.assertIs(wrapper.jointOrientToRotate(), wrapper)
         for n, state in zip(nodes, before):
             self.assertMatrix(n, state[2])
-        cmds.undo()
+        for _ in nodes:
+            cmds.undo()
         for n, state in zip(nodes, before):
             self.assertEqual(cmds.getAttr(n + ".rotate"), state[0])
             self.assertEqual(cmds.getAttr(n + ".jointOrient"), state[1])
-        cmds.redo()
+        for _ in nodes:
+            cmds.redo()
         for n, state in zip(nodes, before):
             self.assertEqual(cmds.getAttr(n + ".jointOrient")[0], (0, 0, 0))
             self.assertMatrix(n, state[2])
 
     def test_preflight_rejects_lock_and_input_without_partial_edit(self):
         for attribute in ("rotateX", "jointOrient", "jointOrientY"):
-            a, b = self.joint(), self.joint()
-            before = cmds.getAttr(a + ".jointOrient")
+            b = self.joint()
+            before = (cmds.getAttr(b + ".rotate"), cmds.getAttr(b + ".jointOrient"))
             cmds.setAttr(b + "." + attribute, lock=True)
             try:
                 with self.assertRaises(RuntimeError):
-                    mlib.nodes.Joints([a, b]).jointOrientToRotate()
+                    mlib.getNode(b).jointOrientToRotate()
                 with self.assertRaises(RuntimeError):
-                    mlib.nodes.Joints([a, b]).freezeRotate()
-                self.assertEqual(cmds.getAttr(a + ".jointOrient"), before)
+                    mlib.getNode(b).freezeRotate()
+                self.assertEqual((cmds.getAttr(b + ".rotate"), cmds.getAttr(b + ".jointOrient")), before)
             finally:
                 cmds.setAttr(b + "." + attribute, lock=False)
         a, b = self.joint(), self.joint()
@@ -120,14 +123,11 @@ class JointOrientToRotateTest(unittest.TestCase):
             wrapper.jointOrientToRotate()
         with self.assertRaises(RuntimeError):
             wrapper.freezeRotate()
-        empty = mlib.nodes.Joints()
-        self.assertIs(empty.jointOrientToRotate(), empty)
-        self.assertIs(empty.freezeRotate(), empty)
 
-    def test_freeze_skinned_joint_and_collection_undo_redo(self):
+    def test_freeze_skinned_joints_undo_redo(self):
         for skinning_method in (0, 1, 2):
-            for bulk in (False, True):
-                with self.subTest(skinning_method=skinning_method, bulk=bulk):
+            for both in (False, True):
+                with self.subTest(skinning_method=skinning_method, both=both):
                     root = self.joint()
                     child = self.joint(root)
                     cmds.setAttr(child + ".translateX", 3)
@@ -142,14 +142,15 @@ class JointOrientToRotateTest(unittest.TestCase):
                     # バインド後に曲げた状態でフリーズする。
                     cmds.setAttr(root + ".rotate", 23, -18, 41)
                     cmds.setAttr(child + ".rotate", -27, 33, 12)
-                    nodes = [root, child] if bulk else [child]
+                    nodes = [root, child] if both else [child]
                     before = [(cmds.getAttr(n + ".rotate"), cmds.getAttr(n + ".jointOrient")) for n in nodes]
                     matrices = [self.matrix(root), self.matrix(child)]
                     vertices = cmds.xform(mesh + ".vtx[*]", query=True, worldSpace=True, translation=True)
                     binds = cmds.getAttr(skin + ".bindPreMatrix[*]")
                     weights = [cmds.skinPercent(skin, mesh + ".vtx[{}]".format(i), query=True, value=True) for i in range(8)]
-                    target = mlib.nodes.Joints(nodes) if bulk else mlib.getNode(child)
-                    self.assertIs(target.freezeRotate(), target)
+                    for n in nodes:
+                        target = mlib.getNode(n)
+                        self.assertIs(target.freezeRotate(), target)
 
                     def assert_skin_unchanged():
                         self.assertMatrix(root, matrices[0])
@@ -164,12 +165,14 @@ class JointOrientToRotateTest(unittest.TestCase):
                     assert_skin_unchanged()
                     for n in nodes:
                         self.assertEqual(cmds.getAttr(n + ".rotate")[0], (0, 0, 0))
-                    cmds.undo()
+                    for _ in nodes:
+                        cmds.undo()
                     for n, values in zip(nodes, before):
                         self.assertEqual(cmds.getAttr(n + ".rotate"), values[0])
                         self.assertEqual(cmds.getAttr(n + ".jointOrient"), values[1])
                     assert_skin_unchanged()
-                    cmds.redo()
+                    for _ in nodes:
+                        cmds.redo()
                     for n in nodes:
                         self.assertEqual(cmds.getAttr(n + ".rotate")[0], (0, 0, 0))
                     assert_skin_unchanged()

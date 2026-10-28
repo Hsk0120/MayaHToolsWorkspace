@@ -4,6 +4,89 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+3.0.0 (2026-10-28)
+------------------
+
+AI なしで理解・保守できる規模にするため、外部(mlrig・HTools・tools・拡張)から使われていない機能と、
+ほぼ使われていない fast 経路・複数形クラス・短縮名の別名引数を削除しました。本体は 37,323 行から
+27,156 行、テストは 50,147 行から 43,317 行になりました。互換の別名・入口は残していません。
+
+.. rubric:: 削除した機能
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - 削除したもの
+     - 代わりの書き方
+   * - ``BlendShape``
+     - ``mlib.createNode("blendShape")`` 等で取得したノードの Plug を使う、または ``cmds.blendShape``
+   * - 計算ノードのラッパー(``AimMatrix``\ ・``ComposeMatrix``\ ・``PickMatrix``\ ・``BlendMatrix``\ ・``PairBlend``\ ・
+       ``VectorProduct``\ ・``MultMatrix``\ ・``DecomposeMatrix``\ ・``InverseMatrix``\ ・``AngleBetween``\ ・
+       ``DistanceBetween``\ ・``CurveInfo``\ ・``PointOnCurveInfo``\ ・``PointOnSurfaceInfo``\ ・``FourByFourMatrix``)
+     - これらの型は動的クラス(``Node`` の派生)で返る。``getPlug("inputMatrix").connect(...)`` のように Plug で接続・設定する
+   * - HIK 系(``HIKCharacterNode`` ほか 5 クラス)
+     - ``cmds`` と MEL の HumanIK コマンド
+   * - ``Transformation``\ 、``Transform.getTransformation`` / ``setTransformation``\ 、``Matrix.asTransformation``
+     - ``getMatrix`` / ``setMatrix``\ 、``om2.MTransformationMatrix``
+   * - ``Cycle``
+     - ``cmds.cycleCheck``
+   * - ``DagPose`` の ``merge``\ ・``reset``\ ・``addMembers``\ ・``removeMembers``\ ・``getMembers`` 系・``isAtPose`` 等(残すのは
+       ``create``\ ・``fromSkinCluster``\ ・``restore``)、``SkinCluster.resetBindPose``
+     - ``cmds.dagPose``
+   * - コンポーネントの書込み(``PointComponent(s).setPosition*``\ ・``mirror``\ 、``UV(s).setPosition*``\ ・``setU`` / ``setV``)、
+       ``Mesh.mirror``\ ・``NurbsCurve.mirror``\ ・``Transform.mirrorGeometry``
+     - ``cmds.xform``\ ・``cmds.polyEditUV``\ 。コンポーネントは読み取り専用の参照になった
+   * - 複数形クラス ``Transforms``\ ・``DagNodes``\ 、``Nodes`` / ``Joints`` / ``SkinClusters`` の単数への転送メソッド(約 75 個)、
+       ``Nodes.callEach``\ ・``getNames``\ ・``delete``\ 、``Joints.jointOrientToRotate`` / ``freezeRotate``\ 、
+       ``SkinClusters.removeInfluences``
+     - ``for node in nodes: node.method(...)`` で単数を呼ぶ。一括削除は ``mlib.delete(nodes)``\ 。``Nodes`` は入力検証と
+       list としての振る舞い、``Joints`` は ``sortedByDepth`` / ``getSkinClusters`` だけを持つ
+
+.. rubric:: 削除した fast
+
+``fast`` は ``Plug.get`` / ``set``\ ・``createNode``\ ・``delete``\ ・``setMatrix`` 系など中核の操作だけに残しました。次の
+fast は、利用がほぼ無く、cmds と同じ結果を保つ補正が保守の負担になるため外しました(引数ごと削除。通常経路は残る)。
+
+- ``mlib.duplicate``\ 、``mlib.select`` / ``Selection.select``\ 、``Namespace.create`` / ``setCurrent`` / ``rename`` / ``move`` / ``remove``
+- ``Plug.setMuted`` / ``mute`` / ``unmute``\ 、``Transform.matchTransform``
+- influence の除去(``SkinCluster.removeInfluence`` / ``removeUnusedInfluences``\ 、``Joint.removeInfluence``)
+
+.. rubric:: 削除した別名引数
+
+短縮名の別名は、Maya コマンドのフラグをそのまま受ける入口(``cmds/`` の 5 コマンド、``Node.addAttr``\ 、
+``Transform.addConstraint``\ 、``Transform.makeIdentity``\ 、``getConnections`` の listConnections フラグ、
+``Plug.connect`` / ``disconnect`` の ``f`` / ``l`` / ``na``)だけに残し、mlib 独自メソッドは長名だけにしました。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - 削除した別名
+     - 対象(主なもの)
+   * - ``ws``
+     - ``Transform`` の get/set 系(``getMatrix``\ ・``setTranslate``\ ・``getPivot`` 等)、``scaleGeometry``\ 、``getBoundingBox``\ 、
+       ``Mesh`` / ``NurbsCurve`` の照会、コンポーネントの ``getPosition``\ 、``restore`` / ``restoreBindPose`` → ``worldSpace``
+   * - ``idx``
+     - ``getShape``\ ・``getVertex``\ ・``getCV``\ ・``getElement``\ ・``removeElement``\ ・``AnimCurve`` の番号指定・
+       ``getConnections`` → ``index``
+   * - ``src`` / ``dst``
+     - ``Plug`` の ``connect``\ ・``connectTo``\ ・``disconnect``\ ・``isConnected``\ ・``isConnectedTo``\ ・``disconnectAll``\ ・
+       ``getConnections``\ 、``Joint.connectInverseScale``\ 、``Namespace.remove`` → ``source`` / ``destination``\ (Plug は主名も
+       ``source`` / ``destination`` に変更。位置引数の呼出しは変わらない)
+   * - ``attrs``\ 、``f``\ 、``r``\ 、``scn``
+     - ``resetAttrs`` / ``setAttrFlags`` → ``attributes``\ 、``Plug.delete``\ ・``Plugin.unload``\ ・``removeMembers``\ ・
+       ``removeInfluence`` 等 → ``force``\ 、``Transform.setParent`` → ``relative``\ 、``getSource`` / ``getDestinations`` →
+       ``skipConversionNodes``
+
+旧名でのキーワード指定は ``TypeError`` になります。mlrig の ``ws=`` 指定(約 15 か所)は ``worldSpace=`` へ移行済みです。
+
+.. rubric:: 移行手順
+
+1. 削除したクラス・メソッドを ``grep`` で探し、上表の書き方へ置き換える。
+2. ``fast=True`` を付けて呼んでいた上記の操作は、``fast`` を外す(通常経路で Undo に記録される)。
+3. ``ws=``\ ・``idx=``\ ・``src=`` 等の短縮名を長名へ置き換える。
+
 2.2.0 (2026-10-27)
 ------------------
 

@@ -55,9 +55,9 @@ class CommonRigApiTest(unittest.TestCase):
         try:
             cmds.currentUnit(angle="rad")
             cmds.setAttr(self.driver.getFullName() + ".rotate", 0.2, 0.4, -0.3)
-            matrix = self.driver.getMatrix(ws=True)
-            self.node.setMatrix(matrix, ws=True)
-            self.assertTrue(matrix.isEquivalent(self.node.getMatrix(ws=True), 1e-8))
+            matrix = self.driver.getMatrix(worldSpace=True)
+            self.node.setMatrix(matrix, worldSpace=True)
+            self.assertTrue(matrix.isEquivalent(self.node.getMatrix(worldSpace=True), 1e-8))
         finally:
             cmds.currentUnit(angle=previous)
 

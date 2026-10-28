@@ -3,7 +3,7 @@
 対象: mfn()(最も具体的な function set を毎回新規に返す)、setLocked(state, fast)(cmds.lockNode との
 突き合わせ・Undo 1 回・fast は Undo なし・不正入力)、getPlugs(userDefined, includeChildren, **listAttrFlags)、
 getConnections の pcls 廃止、廃止した名前(isChildOf・getAttrCount・getPath・sameInstance・
-getAssignedObjects・getMaterials・getExtraAttrs)が Node・Nodes から消えていること、Nodes の宣言。
+getAssignedObjects・getMaterials・getExtraAttrs)が Node・Nodes から消えていること。
 """
 
 import unittest
@@ -70,13 +70,6 @@ class MfnTest(_SpecCase):
         cmds.flushUndo()
         with self.assertRaises(RuntimeError):
             node.mfn()
-
-    def test_nodes_forward_mfn(self):
-        """Nodes.mfn は保持順に各要素の function set を返す。"""
-        names = [self.make("network", "n1"), self.make("network", "n2")]
-        result = Nodes(names).mfn()
-        self.assertEqual([fn.name() for fn in result], [cmds.ls(name)[0] for name in names])
-
 
 class SetLockedTest(_SpecCase):
     """setLocked は通常 cmds.lockNode(Undo 1 回)、fast は MFnDependencyNode.isLocked 直接。"""
@@ -151,16 +144,6 @@ class SetLockedTest(_SpecCase):
             with self.subTest(fast=fast):
                 with self.assertRaises(RuntimeError):
                     node.setLocked(True, fast=fast)
-
-    def test_nodes_set_locked_returns_collection(self):
-        """Nodes.setLocked は全要素をロックしてコレクション自身を返す。"""
-        names = [self.node_name, self.make("transform", "locked2")]
-        nodes = Nodes(names)
-        self.assertIs(nodes.setLocked(), nodes)
-        self.assertEqual(cmds.lockNode(names, query=True, lock=True), [True, True])
-        self.assertIs(nodes.setLocked(False, fast=True), nodes)
-        self.assertEqual(cmds.lockNode(names, query=True, lock=True), [False, False])
-
 
 class GetPlugsTest(_SpecCase):
     """getPlugs(userDefined, includeChildren, **listAttrFlags)。"""
@@ -238,7 +221,6 @@ class RemovedNamesTest(_SpecCase):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(Node, name))
                 self.assertFalse(hasattr(Nodes, name))
-                self.assertNotIn(name, Nodes._bulk_entries)
 
     def test_removed_from_instances(self):
         """インスタンスの __getattr__ もアトリビュート検索へ落ちて AttributeError。"""
@@ -254,38 +236,6 @@ class RemovedNamesTest(_SpecCase):
         with self.assertRaises(TypeError):
             node.getConnections(pcls=Plug)
         self.assertNotIn("pcls", Node.getConnections.__code__.co_varnames)
-
-    def test_call_each_rejects_removed_names(self):
-        """callEach の文字列でも廃止名は使えない。"""
-        nodes = Nodes([self.make("transform", "c1")])
-        for name in REMOVED_NODE_METHODS:
-            with self.subTest(name=name):
-                with self.assertRaises(ValueError):
-                    nodes.callEach(name, [()])
-
-
-class NodesDeclarationTest(unittest.TestCase):
-    """Nodes の宣言(_bulk_entries・転送 def・_calculating_setters)。"""
-
-    def test_new_entries_present(self):
-        self.assertIs(Nodes._bulk_entries["mfn"][0], Node.mfn)
-        self.assertEqual(Nodes._bulk_entries["mfn"][1], "list")
-        self.assertIs(Nodes._bulk_entries["setLocked"][0], Node.setLocked)
-        self.assertEqual(Nodes._bulk_entries["setLocked"][1], "self")
-
-    def test_forwarders_have_singular_signatures(self):
-        import inspect
-        self.assertEqual(inspect.signature(Nodes.mfn), inspect.signature(Node.mfn))
-        self.assertEqual(inspect.signature(Nodes.setLocked), inspect.signature(Node.setLocked))
-
-    def test_calculating_setters_use_set_shear(self):
-        self.assertIn("setShear", Nodes._calculating_setters)
-        self.assertNotIn("setShearing", Nodes._calculating_setters)
-
-    def test_every_entry_has_forwarder(self):
-        for name in Nodes._bulk_entries:
-            with self.subTest(name=name):
-                self.assertTrue(callable(getattr(Nodes, name)))
 
 
 if __name__ == "__main__":

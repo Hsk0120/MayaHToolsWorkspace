@@ -7,8 +7,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
-from ..decorator import _pick_alias, _require_bool, undoChunk
-from ..util import _UNSET
+from ..decorator import _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 
 
@@ -99,25 +98,23 @@ class ArrayPlug(Plug):
             result[element.logicalIndex()] = _convert_units(element, value) if uiUnits else value
         return result
 
-    def getElement(self, index=_UNSET, *, idx=_UNSET):
+    def getElement(self, index):
         """既存の論理番号の要素を、評価・実体化せず参照する。
 
         worldSpace配列は評価前のDAGインスタンス番号も既存として扱う。
         欠番の参照には ``array[index]``、作成にはその要素のset/connectを使う。
 
         Args:
-            index (int): 0〜2147483647の論理番号。短縮名idx。
-            idx (int): indexの別名。同時指定は不可。
+            index (int): 0〜2147483647の論理番号。
 
         Returns:
             Plug: 同じ所有Nodeを持つ新しい要素参照。
 
         Raises:
-            TypeError: index未指定、長短名の同時指定、boolまたは整数以外の場合。
+            TypeError: index未指定、boolまたは整数以外の場合。
             IndexError: 要素が存在しない、または番号が範囲外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         self._require_valid()
         index = self._validated_logical_index(index)
         if index not in self.getIndices():
@@ -226,7 +223,7 @@ class ArrayPlug(Plug):
             index += 1
         raise IndexError("No available array index")
 
-    def removeElement(self, index=_UNSET, *, fast=False, idx=_UNSET):
+    def removeElement(self, index, *, fast=False):
         """実体のある配列要素を、接続を切断して削除する。
 
         OpenMayaの既存要素番号を対象とし、getIndices()によるworldSpaceの補完だけでは
@@ -236,7 +233,6 @@ class ArrayPlug(Plug):
         Args:
             index (int): 削除する論理番号。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-            idx (int): indexの別名。同時指定は不可。
 
         Returns:
             ArrayPlug: 自身。
@@ -246,7 +242,6 @@ class ArrayPlug(Plug):
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
         """
-        index = _pick_alias(index, idx, "index", "idx")
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibArrayPlugRemoveElement"):
             self._require_valid()

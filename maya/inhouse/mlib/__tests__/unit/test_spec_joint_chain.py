@@ -89,8 +89,8 @@ class JointsOrderTest(_SpecCase):
         ordered = joints.sortedByDepth()
         self.assertIs(type(ordered), Joints)
         self.assertIsNot(ordered, joints)
-        self.assertEqual(ordered.getNames(), [leaf, middle, root, single])
-        self.assertEqual(joints.getNames(), [root, leaf, single, middle])
+        self.assertEqual([joint.getName() for joint in ordered], [leaf, middle, root, single])
+        self.assertEqual([joint.getName() for joint in joints], [root, leaf, single, middle])
         self.assertEqual(len(Joints().sortedByDepth()), 0)
 
     def test_depth_counts_joint_parents_only(self):
@@ -128,14 +128,6 @@ class InverseScaleTest(_SpecCase):
         cmds.delete(joint)
         self.assertEqual(list(node.getInverseScale()), [0.0, 0.0, 0.0])
         self.assertFalse(node.isType("joint"))
-
-    def test_bulk(self):
-        """Joints の同名メソッドは保持順のリスト。"""
-        root, child = self.chain(("bulkRoot", (0, 0, 0)), ("bulkChild", (1, 0, 0)))
-        cmds.setAttr(root + ".scale", 2, 2, 2)
-        joints = Joints([root, child])
-        self.assertEqual(joints.isType("joint"), [True, True])
-        self.assertEqual([list(value) for value in joints.getInverseScale()], [[1.0] * 3, [2.0] * 3])
 
 
 class ChainTest(_SpecCase):

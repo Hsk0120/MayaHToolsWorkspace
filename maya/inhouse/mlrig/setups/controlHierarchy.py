@@ -38,14 +38,14 @@ class ControlHierarchy:
             raise NotImplementedError("fast offset groups do not support joints or instances")
         if not names:
             names = (target.getName() + "_offset",)
-        matrix = target.getMatrix(ws=True)
+        matrix = target.getMatrix(worldSpace=True)
         groups = []
         for name in names:
             options = {"name": name, "skipSelect": True, "fast": fast}
             if parent is not None:
                 options["parent"] = parent
             group = mlib.createNode("transform", **options)
-            group.setMatrix(matrix, ws=True, fast=fast)
+            group.setMatrix(matrix, worldSpace=True, fast=fast)
             groups.append(group)
             parent = group
         target.setParent(groups[-1], fast=fast)

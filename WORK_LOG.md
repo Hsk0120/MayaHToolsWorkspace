@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-28): mlib 3.0.0 コード縮小。外部(mlrig・HTools・tools・拡張)で未使用の BlendShape・計算ノードのラッパー約15種・HIK・Transformation・Cycle・DagPose の大半・コンポーネントの書込みを削除、fast を中核の操作に限定(duplicate・select・Namespace・mute・matchTransform・influence除去の fast を削除)、複数形クラスの転送メソッドと Transforms/DagNodes を削除、短縮名の別名引数を Maya フラグの入口だけに限定(mlrig の ws= 約15か所を worldSpace= へ)。本体 37,323→27,156 行、テスト 50,147→43,317 行。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)・文書検査が合格。
+
 - Codex (2026-10-28): Simple Cloth / Simple PhysicsのHTools入口をriggingからユーザー指定のphsycsカテゴリへ移動し、両READMEの起動案内を更新。既存userSetupのフォルダ探索仕様、移動先モジュール解決・Python構文・旧入口の除去を確認。Maya GUI未起動のためメニュー表示・クリックは未確認。次回起動時に反映。既存変更を保持、未コミット・未プッシュ。
 
 - Codex (2026-10-27): Simple Cloth 0.1.0を独立したPython API 2.0メッシュプラグインとして追加。XPBD伸び/曲げ近似、Max Distanceペイント、固定頂点、Backstop、風、球/カプセル/平面、粒子セルフコリジョン、プリセット、独立blendShapeベイク、設定UI・HTools入口・READMEを実装。UEコードの組込みなし。Maya2027 mayapyで13件成功（スキン入力、時刻/過去キー、DG/Serial/Parallel、cm/m、UV、保存再読込、Undo、ベイク独立性）。専用GUIでペイントFlood/Undo、微小係数の実操作/Undo、HTools入口を確認。99頂点・145フレーム録画の固定/移動上限/点の球クリアランス検証成功（最大伸び残差7.62%）。成果物verification/20261027-223426-5a369998、.maya-output/simple-cloth/。動画をDriveへ保存しサイズ335246 bytesを読み戻し確認。Drive共有UIが「現在、共有できません」と返すため一般リンク共有のみ未完了、所有者限定を記録。Python性能・点衝突・Chaos完全互換なし等を明記。他担当の変更を保持、未コミット・未プッシュ。

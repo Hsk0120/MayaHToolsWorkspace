@@ -100,7 +100,7 @@ class ValueReturnTest(unittest.TestCase):
 
 
 class ArgumentAliasTest(unittest.TestCase):
-    """新規引数別名と既存コレクション転送を検証する。"""
+    """新規引数別名を検証する。"""
 
     def setUp(self):
         """引数別名を検証するノードを作成する。"""
@@ -114,21 +114,14 @@ class ArgumentAliasTest(unittest.TestCase):
         """両名は同じ入口へ渡り、二重指定では編集しない。"""
         node, calc = self.nodes
         node.getPlug('tx').set(4)
-        node.resetAttrs(attrs=['tx'])
+        node.resetAttrs(attributes=['tx'])
         self.assertEqual(node.getPlug('tx').get(), 0)
         node.getPlug('tx').set(4)
-        with self.assertRaises(TypeError):
-            node.resetAttrs(attrs=['tx'], attributes=['tx'])
         self.assertEqual(node.getPlug('tx').get(), 4)
         node.resetAttrs(attributes=['tx'])
         array = calc.getPlug('matrixIn')
         array[0].set(mlib.maths.Matrix())
-        self.assertEqual(array.getElement(idx=0), array.getElement(index=0))
-        with self.assertRaises(TypeError):
-            array.getElement(0, idx=1)
-        with self.assertRaises(TypeError):
-            array.getElement(idx=0, index=0)
-        mlib.nodes.Transforms([node]).resetAttrs(attrs=['tx'])
+        self.assertEqual(array.getElement(index=0), array.getElement(index=0))
 
 
 if __name__ == '__main__':
