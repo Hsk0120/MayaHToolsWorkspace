@@ -49,6 +49,47 @@ struct Token {
     int length = 0;                    ///< 長さ。
 };
 
+/** @brief 編集中のPython文字列と補間式の状態。文書ごとに所有し、入れ子の深さを固定しない。 */
+struct PythonLexFrame {
+    enum Mode { String, Expression, Format };  ///< 文字列、補間式、書式指定。
+    Mode mode = String;  ///< 現在の領域。
+    QChar quote;  ///< 文字列の引用符。
+    bool triple = false;  ///< 三重引用符か。
+    bool formatted = false;  ///< f文字列か。
+    bool continued = false;  ///< 行末のバックスラッシュで継続するか。
+    bool conversion = false;  ///< 補間式の!r・!s・!a指定の途中か。
+    QString brackets;  ///< 補間式の中でまだ閉じていない括弧。
+    /** @brief 再描画が次の行へ必要かを判断する値比較。 @param other 比較先。 @return 全状態が同じならtrue。 */
+    bool operator==(const PythonLexFrame& other) const {
+        return mode == other.mode && quote == other.quote && triple == other.triple
+               && formatted == other.formatted && continued == other.continued && conversion == other.conversion && brackets == other.brackets;
+    }
+};
+
+/** @brief 行をまたぐ編集用Python状態。宣言抽出用の整数状態とは分離する。 */
+struct PythonLexState {
+    QVector<PythonLexFrame> frames;  ///< 外側から内側への文字列・式のスタック。
+    bool comment = false;  ///< 現在位置が行コメントの中か。
+    /** @brief 値比較。 @param other 比較先。 @return 全状態が同じならtrue。 */
+    bool operator==(const PythonLexState& other) const { return frames == other.frames && comment == other.comment; }
+    /** @brief 自動補完を抑止する文字列・書式指定・コメント内か。 @return 式の中ならfalse。 */
+    bool insideText() const { return comment || (!frames.isEmpty() && (frames.last().mode != PythonLexFrame::Expression || frames.last().conversion)); }
+    /** @brief f文字列のリテラル部分か。 @return 単独の開き波括弧で式を開始できるならtrue。 */
+    bool formattedText() const {
+        return !comment && !frames.isEmpty()
+               && (frames.last().mode == PythonLexFrame::Format
+                   || (frames.last().mode == PythonLexFrame::String && frames.last().formatted));
+    }
+};
+
+/** @brief 編集用のPython字句解析。f文字列の式を通常のコードと同じ字句へ分ける。
+ * @param line 行全体、またはカーソルまでの行の接頭部分。
+ * @param state 前の行の状態を受け取り、現在位置の状態へ更新する。
+ * @return 行内の字句。式の波括弧はOperator、リテラルとformat specはString。
+ * @note 宣言抽出は文字列を1つの値として読む既存tokenizeLineを使う。画面・入力・引数解析はこの関数を共有する。
+ */
+QVector<Token> tokenizePythonEditing(QStringView line, PythonLexState* state);
+
 }  // namespace mce
 
 // Q_DECLARE_TYPEINFOは名前空間の外に書く。QVector<Token>を使うどの箇所よりも前に宣言する必要がある。

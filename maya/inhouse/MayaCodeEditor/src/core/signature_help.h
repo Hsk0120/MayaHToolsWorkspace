@@ -47,6 +47,12 @@ SignatureParts splitSignature(const QString& signature);
  */
 void dropBoundParameter(SignatureParts* parts);
 
+/** @brief 呼出し内でまだ指定していないキーワード引数を返す。
+ * @param arguments 開き括弧の後からカーソルまで。 @param parameters 仮引数。
+ * @return 入力中の接頭辞に一致する名前。入れ子や値の入力中は空。
+ */
+QStringList keywordParameterNames(const QString& arguments, const QStringList& parameters);
+
 /** @brief 今の引数が、見出しの何番目の引数にあたるかを返す。
  * @param parameters 引数の一覧。
  * @param argumentIndex 呼出しでの引数の番号。

@@ -13,6 +13,7 @@
 #include "core/script_file.h"
 #include "core/python_declarations.h"
 #include "core/script_lexer.h"
+#include "core/signature_help.h"
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -58,6 +59,18 @@ bool isImportLine(const QString& line) {
     static const QRegularExpression pattern("^\\s*(import|from)\\s+[\\w.]*$",
                                             QRegularExpression::UseUnicodePropertiesOption);
     return pattern.match(line).hasMatch();
+}
+
+/** @brief 関数・クラス・importの別名を新しく宣言している位置か。
+ * @param line カーソルまでの現在行。
+ * @return 新しい名前の入力中ならtrue。引数の既定値や基底クラスの式は含めない。
+ */
+bool isDeclaringName(const QString& line) {
+    static const QRegularExpression definition("^\\s*(?:async\\s+)?(?:def|class)\\s+\\w*$",
+                                               QRegularExpression::UseUnicodePropertiesOption);
+    static const QRegularExpression alias("^\\s*(?:import|from\\s+[\\w.]+\\s+import)\\s+.+\\s+as\\s+\\w*$",
+                                          QRegularExpression::UseUnicodePropertiesOption);
+    return definition.match(line).hasMatch() || alias.match(line).hasMatch();
 }
 
 /** @brief 候補にする名前の1件と、入力との一致の度合い。 */
@@ -353,9 +366,9 @@ void CompletionEngine::clearCaches() {
     merged_.clear();
 }
 
-const CompletionEngine::CachedLocals* CompletionEngine::findLocals(QStringView text) {
+const CompletionEngine::CachedLocals* CompletionEngine::findLocals(QStringView text, int cursorIndent) {
     for (CachedLocals& entry : locals_) {
-        if (entry.text.size() == text.size() && QStringView(entry.text) == text) {
+        if (entry.cursorIndent == cursorIndent && entry.text.size() == text.size() && QStringView(entry.text) == text) {
             entry.used = ++localsClock_;
             return &entry;
         }
@@ -363,13 +376,15 @@ const CompletionEngine::CachedLocals* CompletionEngine::findLocals(QStringView t
     return nullptr;
 }
 
-const CompletionEngine::CachedLocals& CompletionEngine::declarationsFor(QStringView text, const QString* whole) {
-    if (const CachedLocals* cached = findLocals(text)) {
+const CompletionEngine::CachedLocals& CompletionEngine::declarationsFor(QStringView text, const QString* whole, int cursorIndent) {
+    if (const CachedLocals* cached = findLocals(text, cursorIndent)) {
         return *cached;
     }
     CachedLocals entry;
     entry.text = whole ? *whole : text.toString();
-    const DeclarationResult result = extractPythonDeclarations(entry.text);
+    const DeclarationResult result = cursorIndent < 0 ? extractPythonDeclarations(entry.text)
+                                                     : extractPythonCompletionDeclarations(entry.text, cursorIndent);
+    entry.cursorIndent = cursorIndent;
     entry.symbols = result.symbols;
     entry.complete = result.complete;
     entry.used = ++localsClock_;
@@ -688,7 +703,7 @@ void CompletionEngine::followImports(Request& request, Symbol* item, QString* mo
 }
 
 CompletionEngine::Located CompletionEngine::resolveName(Request& request, const SymbolTable& scope, QStringView text,
-                                                       const QString& name, int depth) {
+                                                       const QString& name, int depth, bool allowImplicitModule) {
     Located located;
     const auto local = scope.find(name);
     if (local != scope.end() && local.value().type != SymbolType::Value) {
@@ -700,7 +715,7 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     if (depth < kMaximumInferDepth && !text.isEmpty()) {
         const QString expression = inferExpression(text, name);
         if (!expression.isEmpty() && expression != name) {
-            const Located type = walk(request, scope, text, expression.split('.'), depth + 1);
+            const Located type = walk(request, scope, text, expression.split('.'), depth + 1, allowImplicitModule);
             if (type.found && type.item.type == SymbolType::Class) {
                 return type;
             }
@@ -713,15 +728,20 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
         located.item = Symbol::category(SymbolType::Builtin);
         located.module = "builtins";
         located.path = QStringList{name};
-    } else {
+    } else if (allowImplicitModule) {
         located.item = Symbol::module(name);
+    } else {
+        located.found = false;
     }
     return located;
 }
 
 CompletionEngine::Located CompletionEngine::walk(Request& request, const SymbolTable& scope, QStringView text,
-                                                const QStringList& parts, int depth) {
-    Located located = resolveName(request, scope, text, parts.first(), depth);
+                                                const QStringList& parts, int depth, bool allowImplicitModule) {
+    Located located = resolveName(request, scope, text, parts.first(), depth, allowImplicitModule);
+    if (!located.found) {
+        return located;
+    }
     followImports(request, &located.item, &located.module, &located.path);
     for (int i = 1; i < parts.size(); ++i) {
         const SymbolTable members = membersOf(request, located, scope, depth);
@@ -778,6 +798,16 @@ SymbolTable CompletionEngine::classMembers(Request& request, const Symbol& item,
     return members;
 }
 
+bool CompletionEngine::isBoundMethod(Request& request, const SymbolTable& scope, QStringView text,
+                                     const QStringList& parts, const Located& located) {
+    if (parts.size() < 2 || located.item.binding == Symbol::StaticMethod) return false;
+    if (located.item.binding == Symbol::ClassMethod) return true;
+    const auto owner = walk(request, scope, text, parts.mid(0, parts.size() - 1), 0, false);
+    const auto declared = scope.constFind(parts.first());
+    return owner.found && owner.item.type == SymbolType::Class
+           && declared != scope.constEnd() && declared->type == SymbolType::Value;
+}
+
 HoverInfo CompletionEngine::describe(const QString& text, int end) {
     HoverInfo info;
     if (text.size() > kMaximumSourceLength || end < 0 || end > text.size()) {
@@ -795,13 +825,24 @@ HoverInfo CompletionEngine::describe(const QString& text, int end) {
     if (parts.size() == 1 && keywords_.contains(parts.first())) {
         return info;
     }
-    const SymbolTable locals = documentDeclarations(text);
+    SymbolTable locals = documentDeclarations(text);
+    const int lineStart = int(before.lastIndexOf(QLatin1Char('\n'))) + 1;
+    int indent = 0;
+    for (const QChar c : before.mid(lineStart)) {
+        if (c == ' ') ++indent;
+        else if (c == '\t') indent = (indent / 8 + 1) * 8;
+        else break;
+    }
+    const auto visible = declarationsFor(before, nullptr, indent).symbols;
+    for (auto it = visible.constBegin(); it != visible.constEnd(); ++it) locals.insert(it.key(), it.value());
     // 名前をたどる(変数は代入・型ヒントからクラスを推論する)。推論はカーソルより前の本文で行う。
     const Located located = walk(request, locals, before, parts, 0);
     if (!located.found) {
         return info;
     }
     const Symbol& item = located.item;
+    info.bindingKnown = true;
+    info.boundMethod = isBoundMethod(request, locals, before, parts, located);
     // モジュールなら、モジュールのdocstring。
     if (item.type == SymbolType::Module) {
         bool found = false;
@@ -933,9 +974,30 @@ CompletionResult CompletionEngine::complete(const QString& source) {
 
     const QString token = trailingDottedName(source);
     const int lastNewline = int(source.lastIndexOf('\n'));
-    const QString line = source.mid(lastNewline + 1);
+    const QString fullLine = source.mid(lastNewline + 1);
+    int statementStart = lastNewline + 1;
+    if (fullLine.contains(';')) {
+        int state = 0;
+        int offset = 0;
+        int depth = 0;
+        for (const auto& part : source.split('\n')) {
+            for (const auto& word : tokenizeLine(part, ScriptLanguage::Python, state, &state)) {
+                if (word.type != TokenType::Operator || word.length != 1) continue;
+                const QChar c = part[word.start];
+                if (c == '(' || c == '[' || c == '{') ++depth;
+                else if (c == ')' || c == ']' || c == '}') --depth;
+                else if (c == ';' && depth == 0 && offset >= lastNewline + 1) statementStart = offset + word.start + 1;
+            }
+            offset += int(part.size()) + 1;
+        }
+    }
+    const QString line = source.mid(statementStart);
     SymbolTable symbols;
     QString prefix;
+
+    if (isDeclaringName(line)) {
+        return result;
+    }
 
     if (isImportLine(line)) {
         if (token.contains('.')) {
@@ -953,9 +1015,17 @@ CompletionResult CompletionEngine::complete(const QString& source) {
         return result;
     }
 
-    // カーソルの行より前の宣言。最後の行は入力途中なので含めない。前の行が同じなら控えを使う(本文はコピーしない)。
+    // 最後の行は入力途中なので宣言に含めず、字下げだけを現在のスコープ判定へ渡す。
+    // 本文が同じでも字下げで関数の内外が変わるので、控えのキーにも含める。
+    int cursorIndent = 0;
+    for (const QChar character : fullLine) {
+        if (character == ' ') ++cursorIndent;
+        else if (character == '\t') cursorIndent = (cursorIndent / 8 + 1) * 8;
+        else if (character == '\f') cursorIndent = 0;
+        else break;
+    }
     const SymbolTable locals =
-        declarationsFor(lastNewline >= 0 ? QStringView(source).left(lastNewline) : QStringView()).symbols;
+        declarationsFor(QStringView(source).left(statementStart), nullptr, cursorIndent).symbols;
     static const QRegularExpression fromImport("^\\s*from\\s+([\\w.]+)\\s+import\\s+(\\w*)$",
                                                QRegularExpression::UseUnicodePropertiesOption);
     const QRegularExpressionMatch fromMatch = fromImport.match(line);
@@ -966,7 +1036,8 @@ CompletionResult CompletionEngine::complete(const QString& source) {
     } else if (token.contains('.')) {
         // a.b.c → aの中のbの中の、cで始まる名前。変数(x = pkg.A() / x: pkg.A)はクラスを推論する。
         const QStringList parts = token.split('.');
-        const Located located = walk(request, locals, source, parts.mid(0, parts.size() - 1), 0);
+        // 本文で使える名前だけを起点にする。Mayaがロード済みでも、未importの外部名は混ぜない。
+        const Located located = walk(request, locals, source, parts.mid(0, parts.size() - 1), 0, false);
         if (located.found) {
             symbols = membersOf(request, located, locals, 0);
         }
@@ -975,6 +1046,33 @@ CompletionResult CompletionEngine::complete(const QString& source) {
         // 名前だけ: 組み込みの名前・予約語・この本文の宣言(同じ名前なら本文の宣言が優先)。
         // 表を重ねてコピーせず、名前順に並べて読む。
         result.items = mergedItemsFor(baseNames_, locals, token);
+        const CallContext call = findCallContext(source);
+        if (call.nameEnd >= 0) {
+            const QString callee = trailingDottedName(source.left(call.nameEnd));
+            const QStringList parts = callee.split('.');
+            auto located = walk(request, locals, source, parts, 0, false);
+            bool bound = false;
+            if (located.found && located.item.type == SymbolType::Class) {
+                located = walk(request, locals, source, parts + QStringList{"__init__"}, 0, false);
+                bound = true;
+            } else {
+                bound = isBoundMethod(request, locals, source, parts, located);
+            }
+            if (located.found) {
+                QString signature = located.item.signature;
+                if (signature.isEmpty() && source_.describe && !located.module.isEmpty()) {
+                    QString doc;
+                    source_.describe(located.module, located.path, &signature, &doc);
+                }
+                auto signatureParts = splitSignature(signature);
+                if (bound) dropBoundParameter(&signatureParts);
+                const auto parameters = keywordParameterNames(source.mid(call.openParen + 1), signatureParts.parameters);
+                for (auto it = parameters.crbegin(); it != parameters.crend(); ++it) {
+                    result.items.prepend({*it + "=", signature, QString(), "variable"});
+                }
+                while (result.items.size() > kMaximumItems) result.items.removeLast();
+            }
+        }
         return result;
     }
     result.items = itemsFor(symbols, prefix);

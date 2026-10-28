@@ -34,4 +34,12 @@ struct DeclarationResult {
  */
 DeclarationResult extractPythonDeclarations(const QString& source, const QString& moduleName = QString());
 
+/** @brief 入力位置から参照できる宣言を、コードを実行せずに取り出す。
+ * @param source カーソル行より前の本文。
+ * @param cursorIndent カーソル行の字下げ幅。タブはPythonと同じ8桁。
+ * @return モジュールの名前と、現在の関数・外側の関数の引数/ローカル名。
+ * @note ファイルの公開メンバー抽出とは別。if/for/withの代入も読み、終了済みの関数の中身は混ぜない。
+ */
+DeclarationResult extractPythonCompletionDeclarations(const QString& source, int cursorIndent);
+
 }  // namespace mce

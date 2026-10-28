@@ -178,8 +178,7 @@ bool CodeEditor::nameAt(int position, int* start, int* end) const {
     const QString line = block.text();
     const int column = position - block.position();
     // 行をまたぐ文字列の途中かは、色分けが行ごとに保存している状態(前の行の終わり)で分かる。
-    const int state = qMax(0, block.previous().isValid() ? block.previous().userState() : 0);
-    for (const Token& token : tokenizeLine(line, ScriptLanguage::Python, state, nullptr)) {
+    for (const Token& token : blockTokens(block, ScriptLanguage::Python)) {
         if (column < token.start || column > token.start + token.length) {
             continue;
         }
@@ -496,6 +495,11 @@ void CodeEditor::insertCompletion(const QString& value) {
     QTextCursor cursor = textCursor();
     // 入力途中の名前を選択して、選んだ名前で置き換える。
     cursor.movePosition(QTextCursor::Left, QTextCursor::KeepAnchor, completionPrefix().size());
+    if (value.endsWith('=') && document()->characterAt(cursor.selectionEnd()) == '=') {
+        const int end = cursor.selectionEnd() + 1;
+        cursor.setPosition(cursor.selectionStart());
+        cursor.setPosition(end, QTextCursor::KeepAnchor);
+    }
     cursor.insertText(value);
     setTextCursor(cursor);
     insertingCompletion_ = false;
@@ -717,15 +721,7 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     //    以前はignore()して一覧に任せていたが、ignoreしたキーはQtの決まりで親へ順に回り、
     //    ドックの外のMayaのウィンドウまで届く。Mayaはそれを選択中のアウトライナなどへ渡し、
     //    フォーカスがコード欄から外れてしまっていた(確定後に改行などができなくなる)。
-    if (isCompletionVisible() && (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter)
-        && event->modifiers() == Qt::NoModifier) {
-        // 選んでいる候補が、打った名前と同じなら、確定しても何も変わらない。一覧を閉じて改行する
-        // (VS Codeの設定 editor.acceptSuggestionOnEnter を smart にしたときと同じ)。
-        const QModelIndex current = completer_->popup()->currentIndex();
-        if (current.isValid() && current.data().toString() == completionPrefix()) {
-            hideCompletions();
-        }
-    }
+    // 入力済みの名前と完全一致でも確定だけにする。改行は一覧を閉じた後の次のEnterで行う。
     if (isCompletionVisible()) {
         switch (event->key()) {
         case Qt::Key_Enter:
@@ -944,10 +940,13 @@ bool CodeEditor::handleAutoClosing(QKeyEvent* event) {
         pruneAutoClosers();
         return true;
     }
-    if (insideText || closers.contains(character)) {
+    const auto pythonState = language_ == ScriptLanguage::Python ? pythonInputState(document(), cursor.position()) : PythonLexState();
+    const bool interpolation = character == '{' && pythonState.formattedText();
+    if ((insideText && !interpolation) || closers.contains(character)) {
         return false;  // 文字列・コメントの中では閉じない。
     }
-    const bool roomAfter = after.isNull() || after.isSpace() || closers.contains(after) || QString(",:;").contains(after);
+    const bool roomAfter = after.isNull() || after.isSpace() || closers.contains(after) || QString(",:;").contains(after)
+                           || (!pythonState.frames.isEmpty() && (after == '\'' || after == '"'));
     if (!roomAfter) {
         return false;
     }

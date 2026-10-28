@@ -109,21 +109,32 @@ private:
         bool found = true;   ///< 最後までたどれたか。
     };
 
+    /** @brief 解決済み関数がインスタンスまたはクラスへ束縛されるか。
+     * @param request 問い合わせ。 @param scope 名前の表。 @param text 本文。
+     * @param parts 呼出し名。 @param located 解決結果。 @return 先頭のself/clsを省くならtrue。
+     */
+    bool isBoundMethod(Request& request, const SymbolTable& scope, QStringView text,
+                       const QStringList& parts, const Located& located);
+
     /** @brief 最初の名前を探す: 本文の宣言 → 変数ならクラスの推論 → 組み込みの名前 → モジュール名。
      * @param request 今の問い合わせ。
      * @param scope 名前を探す表(本文の宣言、またはモジュールの中身)。
      * @param text 型を推論する本文(カーソルより前)。空なら推論しない。コピーせずに本文の一部を指す。
      * @param name 名前。
      * @param depth 推論の深さ(循環を止める)。
+     * @param allowImplicitModule 本文に宣言のない名前をモジュールとして解決するか。補完ではfalse。
      * @return たどった結果。
      */
-    Located resolveName(Request& request, const SymbolTable& scope, QStringView text, const QString& name, int depth);
+    Located resolveName(Request& request, const SymbolTable& scope, QStringView text, const QString& name, int depth,
+                        bool allowImplicitModule);
 
     /** @brief ``a.b.c``をたどる(補完とホバーで共通)。 @param request 今の問い合わせ。 @param scope 最初の名前を探す表。
      * @param text 型を推論する本文。 @param parts 名前を点で分けたもの。 @param depth 推論の深さ。
+     * @param allowImplicitModule 未宣言モジュールを解決するか。外部クラスの基底など既知の完全名の解決はtrue。
      * @return たどった結果。途中で見つからなければfoundがfalse。
      */
-    Located walk(Request& request, const SymbolTable& scope, QStringView text, const QStringList& parts, int depth);
+    Located walk(Request& request, const SymbolTable& scope, QStringView text, const QStringList& parts, int depth,
+                 bool allowImplicitModule = true);
 
     /** @brief たどった名前の中身(モジュールの公開名・クラスのメンバー)を返す。
      * @param request 今の問い合わせ。 @param located たどった結果。 @param scope 本文の宣言。 @param depth 推論の深さ。
@@ -212,20 +223,26 @@ private:
         SymbolTable symbols;   ///< 宣言。
         bool complete = true;  ///< 本文の最後で括弧・三重引用符が閉じていたか(書きかけでないか)。
         quint64 used = 0;      ///< 最後に使った順番(大きいほど新しい)。
+        int cursorIndent = -1; ///< -1は公開メンバー抽出、それ以外は補完位置の字下げ幅。
     };
 
-    /** @brief 控えの中から、同じ本文の宣言を探す。 @param text 本文。 @return 控え。無ければnullptr。 */
-    const CachedLocals* findLocals(QStringView text);
+    /** @brief 控えの中から、同じ本文とスコープの宣言を探す。
+     * @param text 本文。
+     * @param cursorIndent カーソルの字下げ。-1は公開メンバー抽出。
+     * @return 控え。無ければnullptr。
+     */
+    const CachedLocals* findLocals(QStringView text, int cursorIndent = -1);
 
     /** @brief 本文の宣言を返す。控えに無ければ取り出して、いちばん古い控えと入れ替える。
      * @param text 本文。
      * @param whole textと同じ中身のQString(控えに暗黙の共有で入れ、コピーを省く)。無ければnullptr。
+     * @param cursorIndent カーソルの字下げ。-1は公開メンバー抽出。
      * @return 控え。次にこの関数を呼ぶまで有効。
      * @details 補完(カーソルの行より前)・ホバー(本文全体)・候補の説明(カーソルまで+候補の名前)は、それぞれ違う本文で
      * 問い合わせる。1件だけの控えでは互いに追い出し合うので、最近の数件(kMaximumCachedLocals)を残す。
      * 本文が同じかは、長さを比べてから中身を比べる(本文のコピーは、控えに無いときだけ作る)。
      */
-    const CachedLocals& declarationsFor(QStringView text, const QString* whole = nullptr);
+    const CachedLocals& declarationsFor(QStringView text, const QString* whole = nullptr, int cursorIndent = -1);
 
     /** @brief ホバー・定義へ移動で使う、本文全体の宣言を返す。
      * @param text 本文全体。

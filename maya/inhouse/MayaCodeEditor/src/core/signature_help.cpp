@@ -4,6 +4,8 @@
 #include "core/signature_help.h"
 #include "core/script_lexer.h"
 #include <QVector>
+#include <QSet>
+#include <QRegularExpression>
 
 namespace mce {
 namespace {
@@ -51,7 +53,7 @@ CallContext findCallContext(const QString& before) {
     const QStringView text(before);
     QVector<OpenBracket> stack;
     QVector<Token> tokens;  // 行ごとに使い回す。
-    int state = kLexerNormal;
+    PythonLexState state;
     int lineStart = start;
     while (lineStart <= text.size()) {
         int lineEnd = int(text.indexOf(QLatin1Char('\n'), lineStart));
@@ -59,8 +61,7 @@ CallContext findCallContext(const QString& before) {
             lineEnd = int(text.size());
         }
         const QStringView line = text.mid(lineStart, lineEnd - lineStart);
-        int endState = kLexerNormal;
-        tokenizeLineInto(line, ScriptLanguage::Python, state, &endState, &tokens);
+        tokens = tokenizePythonEditing(line, &state);
         for (int t = 0; t < tokens.size(); ++t) {
             const Token& token = tokens[t];
             const int position = lineStart + token.start;
@@ -100,7 +101,6 @@ CallContext findCallContext(const QString& before) {
             }
             top.afterComma = false;
         }
-        state = endState;
         if (lineEnd >= text.size()) {
             break;
         }
@@ -178,6 +178,53 @@ SignatureParts splitSignature(const QString& signature) {
     parts.tail = signature.mid(close);
     parts.valid = true;
     return parts;
+}
+
+QStringList keywordParameterNames(const QString& arguments, const QStringList& parameters) {
+    QStringList supplied;
+    int begin = 0;
+    int depth = 0;
+    int lineStart = 0;
+    PythonLexState state;
+    for (const QString& line : arguments.split('\n')) {
+        for (const auto& token : tokenizePythonEditing(QStringView(line), &state)) {
+            if (token.type != TokenType::Operator || token.length != 1) continue;
+            const QChar c = line[token.start];
+            if (c == '(' || c == '[' || c == '{') ++depth;
+            else if (c == ')' || c == ']' || c == '}') --depth;
+            else if (c == ',' && depth == 0) {
+                const int end = lineStart + token.start;
+                supplied.append(arguments.mid(begin, end - begin).trimmed());
+                begin = end + 1;
+            }
+        }
+        lineStart += int(line.size()) + 1;
+    }
+    const QString prefix = arguments.mid(begin).trimmed();
+    static const QRegularExpression identifier("^\\w*$", QRegularExpression::UseUnicodePropertiesOption);
+    if (depth != 0 || state.insideText() || !identifier.match(prefix).hasMatch()) return {};
+    QSet<QString> used;
+    int positional = 0;
+    for (const auto& argument : supplied) {
+        static const QRegularExpression keyword("^(\\w+)\\s*=(?!=)", QRegularExpression::UseUnicodePropertiesOption);
+        const auto match = keyword.match(argument);
+        if (match.hasMatch()) used.insert(match.captured(1));
+        else if (argument.startsWith('*')) return {};  // 展開内容を実行して推測しない。
+        else ++positional;
+    }
+    int slash = parameters.indexOf("/");
+    int position = 0;
+    bool keywordOnly = false;
+    QStringList result;
+    for (int index = 0; index < parameters.size(); ++index) {
+        const QString parameter = parameters[index].trimmed();
+        if (parameter == "/") continue;
+        if (parameter.startsWith('*')) { keywordOnly = true; continue; }
+        const QString name = parameterName(parameter);
+        const bool consumed = !keywordOnly && position++ < positional;
+        if (index > slash && !consumed && !used.contains(name) && name.startsWith(prefix) && !name.isEmpty()) result.append(name);
+    }
+    return result;
 }
 
 void dropBoundParameter(SignatureParts* parts) {

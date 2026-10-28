@@ -418,6 +418,123 @@ bool isNameStart(QChar character) {
     return character.isLetter() || character == '_';
 }
 
+QVector<Token> tokenizePythonEditing(QStringView line, PythonLexState* state) {
+    QVector<Token> tokens;
+    state->comment = false;
+    // 不完全な単行文字列は次の行へ持ち越さない。補間式と三重引用符は持ち越す。
+    if (!state->frames.isEmpty() && state->frames.last().mode == PythonLexFrame::String) {
+        const auto frame = state->frames.last();
+        if (!frame.triple && !frame.continued) state->frames.removeLast();
+        else state->frames.last().continued = false;
+    }
+    int i = 0;
+    const int size = int(line.size());
+    const auto emitToken = [&tokens](TokenType type, int start, int length) {
+        if (length <= 0) return;
+        if (type == TokenType::String && !tokens.isEmpty() && tokens.last().type == type
+            && tokens.last().start + tokens.last().length == start) tokens.last().length += length;
+        else tokens.append({type, start, length});
+    };
+    while (i < size) {
+        const QChar c = line[i];
+        if (!state->frames.isEmpty() && state->frames.last().mode != PythonLexFrame::Expression) {
+            const auto frame = state->frames.last();
+            const bool format = frame.mode == PythonLexFrame::Format;
+            if (!format && c == frame.quote
+                && (!frame.triple || (charAt(line, i + 1) == c && charAt(line, i + 2) == c))) {
+                const int length = frame.triple ? 3 : 1;
+                emitToken(TokenType::String, i, length);
+                i += length;
+                state->frames.removeLast();
+            } else if (!format && c == '\\' && charAt(line, i + 1) != '{' && charAt(line, i + 1) != '}') {
+                const int length = qMin(2, size - i);
+                state->frames.last().continued = length == 1;
+                emitToken(TokenType::String, i, length);
+                i += length;
+            } else if (!format && frame.formatted && (c == '{' || c == '}') && charAt(line, i + 1) == c) {
+                emitToken(TokenType::String, i, 2);
+                i += 2;
+            } else if ((format || frame.formatted) && c == '{') {
+                emitToken(TokenType::Operator, i++, 1);
+                PythonLexFrame expression;
+                expression.mode = PythonLexFrame::Expression;
+                state->frames.append(expression);
+            } else if (format && c == '}') {
+                emitToken(TokenType::Operator, i++, 1);
+                state->frames.removeLast();
+                if (!state->frames.isEmpty()) state->frames.removeLast();
+            } else {
+                emitToken(TokenType::String, i++, 1);
+            }
+            continue;
+        }
+        if (c.isSpace()) { ++i; continue; }
+        if (!state->frames.isEmpty() && state->frames.last().mode == PythonLexFrame::Expression
+            && state->frames.last().brackets.isEmpty()) {
+            if (c == '!' && charAt(line, i + 1) != '=') {
+                state->frames.last().conversion = true;
+                emitToken(TokenType::String, i++, 1);
+                continue;
+            }
+            if (state->frames.last().conversion && c != ':' && c != '}') {
+                emitToken(TokenType::String, i++, 1);
+                continue;
+            }
+        }
+        if (c == '#') {
+            emitToken(TokenType::Comment, i, size - i);
+            state->comment = true;
+            break;
+        }
+        int quoteStart = i;
+        if (isNameStart(c)) {
+            int end = i + 1;
+            while (end < size && isNamePart(line[end])) ++end;
+            if ((charAt(line, end) == '\'' || charAt(line, end) == '"') && isStringPrefix(line.mid(i, end - i))) {
+                quoteStart = end;
+            } else {
+                emitToken(TokenType::Name, i, end - i);
+                i = end;
+                continue;
+            }
+        }
+        const QChar quote = line[quoteStart];
+        if (quote == '\'' || quote == '"') {
+            PythonLexFrame frame;
+            frame.quote = quote;
+            frame.triple = charAt(line, quoteStart + 1) == quote && charAt(line, quoteStart + 2) == quote;
+            for (int p = i; p < quoteStart; ++p) frame.formatted |= asciiLower(line[p]) == 'f';
+            const int end = quoteStart + (frame.triple ? 3 : 1);
+            emitToken(TokenType::String, i, end - i);
+            state->frames.append(frame);
+            i = end;
+            continue;
+        }
+        if (c.isDigit() || (c == '.' && charAt(line, i + 1).isDigit())) {
+            const int end = int(scanNumber(line, i));
+            emitToken(TokenType::Number, i, end - i);
+            i = end;
+            continue;
+        }
+        const int length = operatorLength(line, i);
+        emitToken(TokenType::Operator, i, length);
+        if (!state->frames.isEmpty()) {
+            auto& expression = state->frames.last();
+            if (c == '{' || c == '[' || c == '(') expression.brackets.append(c);
+            else if (c == '}' && expression.brackets.isEmpty()) state->frames.removeLast();
+            else if (c == ')' || c == ']' || c == '}') {
+                if (!expression.brackets.isEmpty()) expression.brackets.chop(1);
+            } else if (c == ':' && length == 1 && expression.brackets.isEmpty()) {
+                PythonLexFrame format;
+                format.mode = PythonLexFrame::Format;
+                state->frames.append(format);
+            }
+        }
+        i += length;
+    }
+    return tokens;
+}
+
 bool isNamePart(QChar character) {
     return character.isLetterOrNumber() || character == '_' || character.isMark();
 }

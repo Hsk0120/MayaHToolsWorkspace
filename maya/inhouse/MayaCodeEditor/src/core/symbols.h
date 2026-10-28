@@ -40,6 +40,8 @@ enum class SymbolType {
 
 /** @brief 1つの名前の情報。 */
 struct Symbol {
+    enum MethodBinding { Normal, StaticMethod, ClassMethod };  ///< 明示的な標準デコレーター。
+    MethodBinding binding = Normal;  ///< ソースから確認できた束縛方式。任意デコレーターは推測しない。
     SymbolType type = SymbolType::Value;   ///< 種類。
     QString detail;                        ///< 候補の一覧に出す説明(関数の引数など)。
     QString target;                        ///< Module: モジュール名。

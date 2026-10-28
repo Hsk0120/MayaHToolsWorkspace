@@ -161,13 +161,48 @@ struct Range {
 
 }  // namespace
 
+/** @brief 前行までのPython状態を取得する。色分け前は文書をたどって復元する。
+ * @param block 対象行。 @return 前行末状態。
+ */
+static PythonLexState pythonStateBeforeBlock(const QTextBlock& block) {
+    PythonLexState state;
+    auto previous = block.previous();
+    QVector<QTextBlock> pending;
+    while (previous.isValid()) {
+        const auto* data = dynamic_cast<const PythonBlockData*>(previous.userData());
+        if (data) { state = data->state; break; }
+        pending.append(previous);
+        previous = previous.previous();
+    }
+    for (auto it = pending.crbegin(); it != pending.crend(); ++it) {
+        const QString text = it->text();
+        tokenizePythonEditing(QStringView(text), &state);
+    }
+    return state;
+}
+
 QVector<Token> blockTokens(const QTextBlock& block, ScriptLanguage language) {
+    const QString text = block.text();
+    if (language == ScriptLanguage::Python) {
+        auto state = pythonStateBeforeBlock(block);
+        return tokenizePythonEditing(QStringView(text), &state);
+    }
     const QTextBlock previous = block.previous();
     const int state = qMax(0, previous.isValid() ? previous.userState() : 0);
-    return tokenizeLine(block.text(), language, state, nullptr);
+    return tokenizeLine(text, language, state, nullptr);
+}
+
+PythonLexState pythonInputState(const QTextDocument* document, int position) {
+    const QTextBlock block = document->findBlock(position);
+    if (!block.isValid()) return {};
+    auto state = pythonStateBeforeBlock(block);
+    const QString text = block.text().left(position - block.position());
+    tokenizePythonEditing(QStringView(text), &state);
+    return state;
 }
 
 bool isInsideStringOrComment(const QTextDocument* document, ScriptLanguage language, int position) {
+    if (language == ScriptLanguage::Python) return pythonInputState(document, position).insideText();
     const QTextBlock block = document->findBlock(position);
     if (!block.isValid()) {
         return false;

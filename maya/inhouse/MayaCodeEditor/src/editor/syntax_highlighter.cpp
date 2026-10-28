@@ -2,6 +2,8 @@
  * @brief SyntaxHighlighterの実装。
  */
 #include "editor/syntax_highlighter.h"
+#include "editor/code_navigation.h"
+#include <QTextBlock>
 #include "editor/theme.h"
 #include <QColor>
 
@@ -51,7 +53,23 @@ void SyntaxHighlighter::setMel(bool mel) {
 
 void SyntaxHighlighter::highlightBlock(const QString& text) {
     int endState = kLexerNormal;
-    const auto tokens = tokenizeLine(text, language_, previousBlockState(), &endState);
+    QVector<Token> tokens;
+    if (language_ == ScriptLanguage::Python) {
+        PythonLexState state;
+        const auto* previous = dynamic_cast<const PythonBlockData*>(currentBlock().previous().userData());
+        if (previous) state = previous->state;
+        tokens = tokenizePythonEditing(QStringView(text), &state);
+        const auto* old = dynamic_cast<const PythonBlockData*>(currentBlockUserData());
+        if (!state.frames.isEmpty()) {
+            endState = old && old->state == state ? currentBlockState() : nextPythonState_++;
+        }
+        auto* data = new PythonBlockData;
+        data->state = state;
+        setCurrentBlockUserData(data);
+    } else {
+        tokens = tokenizeLine(text, language_, previousBlockState(), &endState);
+        setCurrentBlockUserData(nullptr);
+    }
     setCurrentBlockState(endState);
 
     const Colors& format = colors();

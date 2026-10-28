@@ -154,7 +154,140 @@ public:
         return result;
     }
 
+    /** @brief カーソルまでの字下げから、現在有効な名前のスコープを重ねる。
+     * @param cursorIndent カーソル行の字下げ幅。
+     * @return 補完で使える宣言。別関数・クラスの内部名は外へ漏らさない。
+     */
+    DeclarationResult readCompletion(int cursorIndent) {
+        DeclarationResult result = read();
+        struct Scope {
+            int indent = -1;
+            bool isClass = false;
+            SymbolTable names;
+        };
+        QVector<Scope> scopes;
+        scopes.append({-1, false, result.symbols});
+        for (int lineIndex = 0; lineIndex < lines_.size(); ++lineIndex) {
+            const LogicalLine& line = lines_[lineIndex];
+            while (scopes.size() > 1 && line.indent <= scopes.last().indent) {
+                scopes.removeLast();
+            }
+            Words words = lineWords(line);
+            if (isName(words[0], "async") && words.size() > 1) {
+                words.removeFirst();
+            }
+            const int colon = headerColon(words);
+            const bool function = isName(words[0], "def");
+            const bool klass = isName(words[0], "class");
+            if (function || klass) {
+                if (words.size() < 2 || !isPlainName(words[1]) || colon < 0) {
+                    continue;
+                }
+                Symbol symbol;
+                symbol.type = klass ? SymbolType::Class : SymbolType::Function;
+                if (function) symbol.binding = methodBinding(lineIndex, line.indent);
+                QString name = text(words[1]);
+                symbol.detail = klass ? "class " + name : functionDetail(words.mid(1), &name);
+                symbol.signature = joinWords(words.mid(0, colon));
+                symbol.doc = bodyDocstring(words.mid(colon + 1), lineIndex + 1, line.indent);
+                if (klass) {
+                    int bodyIndex = lineIndex + 1;
+                    symbol.bases = classBases(words.mid(0, colon));
+                    symbol.members = std::make_shared<SymbolTable>(readBody(words.mid(colon + 1), &bodyIndex, line.indent));
+                }
+                scopes.last().names.insert(name, symbol);
+                Scope scope{line.indent, klass, {}};
+                if (function) {
+                    // functionDetailは既定値と型を除いた引数名だけを返す。
+                    const QString arguments = symbol.detail.mid(name.size() + 1, symbol.detail.size() - name.size() - 2);
+                    for (QString argument : arguments.split(',')) {
+                        argument = argument.trimmed();
+                        while (argument.startsWith('*')) argument.remove(0, 1);
+                        if (!argument.isEmpty()) scope.names.insert(argument, Symbol());
+                    }
+                }
+                readCompletionStatements(words.mid(colon + 1), scope.names);
+                scopes.append(scope);
+                continue;
+            }
+            SymbolTable& table = scopes.last().names;
+            const bool forLoop = isName(words[0], "for");
+            const bool withBlock = isName(words[0], "with");
+            const bool control = forLoop || withBlock || isName(words[0], "if") || isName(words[0], "elif")
+                                 || isName(words[0], "else") || isName(words[0], "while") || isName(words[0], "try")
+                                 || isName(words[0], "except") || isName(words[0], "finally");
+            if (control && colon >= 0) {
+                if (forLoop) {
+                    for (int i = 1; i < colon; ++i) {
+                        if (isName(words[i], "in")) {
+                            readBindingTargets(words.mid(1, i - 1), table);
+                            break;
+                        }
+                    }
+                } else if (withBlock) {
+                    for (const Words& part : splitTopLevel(words.mid(1, colon - 1), ",")) {
+                        int depth = 0;
+                        for (int i = 0; i < part.size(); ++i) {
+                            if (depth == 0 && isName(part[i], "as")) {
+                                readBindingTargets(part.mid(i + 1), table);
+                                break;
+                            }
+                            depth += bracketDelta(part[i]);
+                        }
+                    }
+                }
+                readCompletionStatements(words.mid(colon + 1), table);
+            } else {
+                readCompletionStatements(words, table);
+            }
+        }
+        while (scopes.size() > 1 && cursorIndent <= scopes.last().indent) scopes.removeLast();
+        result.symbols.clear();
+        for (int i = 0; i < scopes.size(); ++i) {
+            // メソッドからクラス属性を裸の名前では参照できない。現在がクラス本体なら含める。
+            if (scopes[i].isClass && i + 1 < scopes.size()) continue;
+            for (auto it = scopes[i].names.begin(); it != scopes[i].names.end(); ++it) {
+                result.symbols.insert(it.key(), it.value());
+            }
+        }
+        return result;
+    }
+
 private:
+    /** @brief 名前・タプル・リストの代入先を読む。属性や添字への代入は宣言にしない。
+     * @param words 代入先の字句。
+     * @param table 名前の追加先。
+     */
+    void readBindingTargets(Words words, SymbolTable& table) const {
+        if (words.isEmpty()) return;
+        if (isOperator(words[0], "*")) words.removeFirst();
+        if (words.size() == 1 && isPlainName(words[0])) {
+            table.insert(text(words[0]), Symbol());
+            return;
+        }
+        const WordsList parts = splitTopLevel(words, ",");
+        if (parts.size() > 1) {
+            for (const Words& part : parts) readBindingTargets(part, table);
+        } else if (words.size() > 2 && ((isOperator(words.first(), "(") && isOperator(words.last(), ")"))
+                                       || (isOperator(words.first(), "[") && isOperator(words.last(), "]")))) {
+            readBindingTargets(words.mid(1, words.size() - 2), table);
+        }
+    }
+
+    /** @brief 補完用の単純文。通常の宣言に加え分割代入の名前を拾う。
+     * @param words 文の字句。
+     * @param table 追加先。
+     */
+    void readCompletionStatements(Words words, SymbolTable& table) const {
+        for (const Words& statement : splitTopLevel(words, ";")) {
+            if (statement.isEmpty()) continue;
+            readSimpleStatement(statement, table);
+            if (statement[0].type == TokenType::Name && isKeyword(view(statement[0]), ScriptLanguage::Python)) continue;
+            const WordsList parts = splitTopLevel(statement, "=");
+            for (int i = 0; i + 1 < parts.size(); ++i) readBindingTargets(parts[i], table);
+        }
+    }
+
     /** @brief 字句が指す本文の部分。 @param word 字句。 @return 本文の一部(コピーしない)。 */
     QStringView view(const Word& word) const { return source_.mid(word.start, word.end - word.start); }
 
@@ -648,6 +781,20 @@ private:
         return body;
     }
 
+    /** @brief 定義の直前にある標準メソッドデコレーターを読む。
+     * @param index 定義行。 @param indent 定義の字下げ。 @return 束縛方式。
+     */
+    Symbol::MethodBinding methodBinding(int index, int indent) const {
+        Symbol::MethodBinding binding = Symbol::Normal;
+        while (--index >= 0 && lines_[index].indent == indent) {
+            const Words words = lineWords(lines_[index]);
+            if (words.isEmpty() || !isOperator(words[0], "@")) break;
+            if (words.size() == 2 && isName(words[1], "staticmethod")) binding = Symbol::StaticMethod;
+            else if (words.size() == 2 && isName(words[1], "classmethod")) binding = Symbol::ClassMethod;
+        }
+        return binding;
+    }
+
     /** @brief 同じインデントの論理行を順に読む。
      * @param index 読み始める論理行。読み終えた次の位置に進める。
      * @param indent このブロックのインデント。これより浅い行でブロックは終わる。
@@ -674,6 +821,7 @@ private:
                     const int colon = headerColon(words);
                     Symbol symbol;
                     symbol.type = SymbolType::Function;
+                    symbol.binding = methodBinding(*index - 1, indent);
                     symbol.detail = detail;
                     symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
                     symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), *index, indent);
@@ -732,6 +880,10 @@ private:
 
 DeclarationResult extractPythonDeclarations(const QString& source, const QString& moduleName) {
     return DeclarationReader(source, moduleName).read();
+}
+
+DeclarationResult extractPythonCompletionDeclarations(const QString& source, int cursorIndent) {
+    return DeclarationReader(source, QString()).readCompletion(cursorIndent);
 }
 
 }  // namespace mce

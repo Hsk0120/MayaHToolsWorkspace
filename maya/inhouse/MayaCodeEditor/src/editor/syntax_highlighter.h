@@ -32,6 +32,7 @@ protected:
     void highlightBlock(const QString& text) override;
 
 private:
+    int nextPythonState_ = 1;  ///< 状態変更時だけ進め、後続行の再描画をQtへ通知する。
     ScriptLanguage language_ = ScriptLanguage::Python;  ///< 色分けする言語。
 };
 

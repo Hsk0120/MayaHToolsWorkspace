@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-29): Maya Code Editor 0.8.3。関数ローカル・importのスコープに沿った補完、候補確定Enterと改行の分離、f文字列の式の共有解析・色分け・自動ペア、キーワード引数候補とメソッド束縛別の引数ヒント、同一行の宣言検出を追加。2022〜2027の各43単体テスト・20コア検証群とMaya/入力回帰が合格。専用GUIは2022/2027各35項目、Windows実キーは2027で5ケース確認。6版の配布バイナリは検証時のSHA-256と一致。ユーザー指定でコード・テスト・配布物をコミット対象へ集約。
+
 - Claude Code (2026-10-28): mlib 4.0.0。ArrayPlug→MultiPlug(plugs/multiPlug.py)、Plug.isArray/isElement/getArray→isMulti/isMultiElement/getMulti に改名(互換の別名なし)。説明文・docstring・例外メッセージの呼び名をMayaのコマンドに合わせて「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」に統一し、docs/mlib-api-design.md 冒頭に mlib/Mayaコマンド/OpenMaya の対応表を追加。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)が合格。
 
 - Claude Code (2026-10-28): mlib の Undo 網羅テスト `__tests__/integration/test_undo_coverage.py` を追加(公開の書込み 175 ケースを通常経路で実行→Undo 1回で変更前・Redo で変更後に戻ることを確認、fast 119 ケースは Undo キューが空のままを確認、書込み API の網羅の番人 144 件・除外 17 件)。Maya 2027・2022 で全件合格。ユーザー報告の createNode の Undo 不具合は mayapy・使い捨て GUI・commandPort 経由のいずれでも再現せず。

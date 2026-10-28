@@ -36,6 +36,8 @@ struct CompletionResult {
 struct HoverInfo {
     QString signature;  ///< 定義の見出し(``def show(floating=None)``・``class Joint(Transform)``・``module maya.cmds``)。
     QString doc;        ///< docstring(字下げを整えたもの)。無ければ空。
+    bool bindingKnown = false;  ///< メソッドの束縛状態を解決済みか。
+    bool boundMethod = false;  ///< 呼出しで先頭のself/clsを渡さないか。
 
     /** @brief 表示するものがあるか。 @return 見出しかdocstringがあればtrue。 */
     bool isEmpty() const { return signature.isEmpty() && doc.isEmpty(); }

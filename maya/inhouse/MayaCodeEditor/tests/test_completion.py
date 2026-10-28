@@ -43,6 +43,44 @@ class CompletionTests(unittest.TestCase):
     """``mayaCodeEditorTest -complete`` による補完と、``maya_code_editor.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
+    def test_keyword_method_binding(self):
+        """静的・クラス・未束縛メソッドで、実際に指定する引数を残す。"""
+        source = ("class Builder:\n"
+                  "    @staticmethod\n    def static(self=1): pass\n"
+                  "    @classmethod\n    def create(cls, size=2): pass\n"
+                  "    def make(self, count=2): pass\nb = Builder()\n")
+        self.assertIn('self=', names(source + 'b.static(se'))
+        self.assertIn('self=', names(source + 'Builder.make(se'))
+        self.assertNotIn('cls=', names(source + 'Builder.create(cl'))
+        self.assertIn('size=', names(source + 'Builder.create(si'))
+
+    def test_same_line_completed_statements(self):
+        """現在行の完了した文だけを補完へ反映する。"""
+        self.assertIn('scene_name', names('scene_name = "demo"; sce'))
+        self.assertIn('loads', names('import json as j; j.loa'))
+        self.assertNotIn('scene_name', names('scene_name = sce'))
+        self.assertNotIn('leaked', names('text = "leaked = 1;"; lea'))
+
+    def test_keyword_argument_candidates(self):
+        """位置専用・既入力・位置引数で使用済みの名前は候補へ出さない。"""
+        source = 'def build(path, /, name, count=2, *, enabled=True, **kwargs):\n    pass\n'
+        self.assertEqual(names(source + 'build(co')[0], 'count=')
+        self.assertIn('enabled=', names(source + 'build(1, name="x", en'))
+        self.assertNotIn('path=', names(source + 'build(pa'))
+        self.assertNotIn('name=', names(source + 'build(1, "x", na'))
+        self.assertNotIn('count=', names(source + 'build(1, count=3, co'))
+        self.assertNotIn('count=', names(source + 'build(1, [co'))
+        self.assertNotIn('count=', names(source + 'build(1, count=co'))
+
+    def test_keyword_bound_method_and_constructor(self):
+        """インスタンス呼出しでは暗黙引数を除き、通常関数のselfは残す。"""
+        source = ('class Builder:\n    def __init__(self, size=1): pass\n'
+                  '    def make(self, count=2): pass\nb = Builder()\n')
+        self.assertIn('size=', names(source + 'Builder(si'))
+        self.assertIn('count=', names(source + 'b.make(co'))
+        self.assertNotIn('self=', names(source + 'b.make(se'))
+        self.assertIn('self=', names('def ordinary(self): pass\nordinary(se'))
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
@@ -202,12 +240,12 @@ class CompletionTests(unittest.TestCase):
             self.assertEqual(info['doc'], 'From the base class.')
 
     def test_mlib_collection_variable(self):
-        """mlib.nodes.Joints(...) を代入した変数で、Joints と親クラス(DagNodes など)のメソッドが出る。"""
+        """mlib.nodes.Joints(...) を代入した変数で、Jointsと親クラスNodesのメソッドが出る。"""
         source = 'import mlib\njnt = mlib.nodes.Joints("spine_IK_jnt")\njnt.'
         found = names(source)
-        self.assertIn('jointOrientToRotate', found)
-        # 色専用APIはmlibの確定仕様で廃止済み。DagNodesからの継承補完を現行APIで検証する。
-        self.assertIn('getVisibility', found)
+        # 現行JointsはNodesを継承し、単数Joint/旧DagNodesの操作を公開しない。
+        self.assertIn('getSkinClusters', found)
+        self.assertIn('copy', found)
         typed = names('import mlib\ndef f(jnt: mlib.nodes.Joint):\n    jnt.')
         self.assertIn('getJointOrient', typed)
 
@@ -234,9 +272,83 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('function', names('def function(arg):\n    pass\nfun'))
         self.assertEqual(names('import sample\nsample.Example.get_'), ['get_value'])
 
+    def test_visible_bindings_before_cursor(self):
+        """実行せずに現在のスコープの変数・引数だけを補完する。"""
+        cases = [
+            ('scene_name = "test"\nsce', 'scene_name'),
+            ('def build():\n    scene_name = "test"\n    sce', 'scene_name'),
+            ('def build(scene_name, *, scene_option=None, **scene_kwargs):\n    sce', 'scene_name'),
+            ('def build(scene_name, *, scene_option=None, **scene_kwargs):\n    sce', 'scene_kwargs'),
+            ('if enabled:\n    scene_name = "test"\nsce', 'scene_name'),
+            ('for scene_item in items:\n    sce', 'scene_item'),
+            ('for scene_index, scene_item in items:\n    sce', 'scene_index'),
+            ('with open(path) as scene_file:\n    sce', 'scene_file'),
+            ('scene_first, (scene_second, *scene_rest) = data\nsce', 'scene_rest'),
+            ('def outer(scene_arg):\n    scene_name = 1\n    def inner():\n        sce', 'scene_name'),
+            ('class Builder:\n    def build(self, scene_arg):\n        scene_name = 1\n        sce', 'scene_arg'),
+            ('def build():\n\tscene_name = 1\n\tsce', 'scene_name'),
+            ('def build():\n    import maya.cmds as local_cmds\n    local_cmds.l', 'ls'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertIn(expected, names(source))
+        hidden = [
+            'def other():\n    scene_hidden = 1\nsce',
+            'def other():\n    scene_hidden = 1\ndef build():\n    sce',
+            'class Builder:\n    scene_hidden = 1\n    def build(self):\n        sce',
+            'values = [scene_hidden for scene_hidden in data]\nsce',
+            '# scene_hidden = 1\nsce',
+            'text = "scene_hidden = 1"\nsce',
+        ]
+        for source in hidden:
+            with self.subTest(source=source):
+                self.assertNotIn('scene_hidden', names(source))
+        # 同じ本文でも字下げにより関数の内外が変わる。控えを混同しない。
+        prefix = 'def build():\n    scene_local = 1\n'
+        for suffix in ('    sce', 'sce', '    sce'):
+            self.assertEqual('scene_local' in names(prefix + suffix), suffix.startswith(' '))
+
     def test_from_import(self):
         self.assertEqual(names('from sample import cre'), ['create_node'])
         self.assertEqual(names('from sample import Example as E\nE.get'), ['get_value'])
+
+    def test_completion_requires_visible_import(self):
+        """未import・別名の元名・別関数内のimportをドット補完へ混ぜない。"""
+        for source in (
+            'sample.',
+            'import sample as s\nsample.',
+            'from sample import Example\nsample.',
+            'def other():\n    import sample\nsample.',
+            'def other():\n    import sample\ndef current():\n    sample.',
+            'value = sample.Example()\nvalue.',
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(names(source), [])
+        self.assertIn('create_node', names('import sample\nsample.'))
+        self.assertIn('create_node', names('import sample as s\ns.'))
+        self.assertIn('create_node', names('def build():\n    import sample\n    sample.'))
+        self.assertIn('create_node', names('from sample import cre'))
+        self.assertNotIn('create_node', names('import sample\ncre'))
+        self.assertIn('create_node', names('from sample import create_node\ncre'))
+        self.assertIn('get_value', names('import sample\nvalue = sample.Example()\nvalue.'))
+
+    def test_new_declaration_names_do_not_offer_existing_symbols(self):
+        """新しいdef/class/as名と、名前を参照する式を区別する。"""
+        for line in ('def sce', 'async def sce', 'class sce', 'import sample as sce',
+                     'from sample import Example as sce'):
+            with self.subTest(line=line):
+                self.assertEqual(names('scene_name = 1\n' + line), [])
+        self.assertIn('scene_name', names('scene_name = 1\ndef build(value=sce'))
+        self.assertIn('scene_name', names('scene_name = 1\nprint(sce'))
+        self.assertIn('Example', names('from sample import Example\nclass Child(Exa'))
+
+    def test_loaded_module_is_not_implicitly_imported(self):
+        """Mayaが読み込み済みでも、本文でimportしていない名前は補完しない。"""
+        module = types.ModuleType('mce_loaded_probe')
+        module.external_action = lambda: None
+        with mock.patch.dict(sys.modules, {'mce_loaded_probe': module}):
+            self.assertEqual(names('mce_loaded_probe.'), [])
+            self.assertEqual(names('import mce_loaded_probe as p\np.'), ['external_action'])
 
     def test_relative_export(self):
         package = self.root / 'package'; package.mkdir()

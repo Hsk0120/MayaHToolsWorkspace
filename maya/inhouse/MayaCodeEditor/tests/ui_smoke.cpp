@@ -1157,6 +1157,41 @@ bool lineDiffPasses() {
     return true;
 }
 
+/** @brief f文字列の式・書式指定・複数行を共有解析で照合する。 @return 全ケース一致ならtrue。 */
+bool formattedStringPasses() {
+    const QList<QPair<QString, bool>> cases{
+        {"f\"literal", true}, {"f\"{value", false}, {"f'{value", false},
+        {"rf\"{value", false}, {"f\"{{literal", true}, {"f\"{value!r:>10", true},
+        {"f\"{value:{width", false}, {"f\"{value:{width}} tail", true},
+        {"f\"{data['key", true}, {"f\"{data[\"key\"]", false},
+        {"f\"{f'{value", false}, {"f\"{f'{value}'", false},
+        {"f\"\"\"text\n{value", false}, {"f\"\"\"{value}\ntext", true},
+        {"'broken\nvalue", false}, {"f\"{value # comment", true},
+        {"f\"{value # comment\n + other", false}, {"f\"{(value := 1)", false},
+        {"f\"{value:{width}.{precision}f}\"", false},
+    };
+    for (const auto& test : cases) {
+        QTextDocument document(test.first);
+        const auto state = mce::pythonInputState(&document, int(test.first.size()));
+        if (state.insideText() != test.second) {
+            qWarning() << "f-string context" << test.first << "actual text" << document.toPlainText()
+                       << "comment" << state.comment << "frames" << state.frames.size();
+            for (const auto& frame : state.frames) qWarning() << "frame" << frame.mode << frame.quote << frame.formatted << frame.conversion << frame.brackets;
+            return false;
+        }
+    }
+    const QString source = "f\"text {scene_name.upper()} {value:{width}}\"";
+    mce::PythonLexState state;
+    QStringList names;
+    for (const auto& token : mce::tokenizePythonEditing(QStringView(source), &state)) {
+        if (token.type == mce::TokenType::Name) names.append(source.mid(token.start, token.length));
+    }
+    if (names != QStringList{"scene_name", "upper", "value", "width"} || !state.frames.isEmpty()) return false;
+    const auto call = mce::findCallContext("f\"{build(1, count=");
+    if (call.keyword != "count" || call.argumentIndex != 1) return false;
+    return true;
+}
+
 /** @brief 引数のヒントの解析(core/signature_help.cpp)。 @return 期待どおりならtrue。 */
 bool signatureHelpPasses() {
     auto context = [](const QString& before) { return mce::findCallContext(before); };
@@ -1595,6 +1630,7 @@ int main(int argc, char** argv) {
         {"codeOutline", codeOutlinePasses},
         {"lineDiff", lineDiffPasses},
         {"signatureHelp", signatureHelpPasses},
+        {"formattedStrings", formattedStringPasses},
         {"navigation", navigationPasses},
         {"outputPanel", outputPanelPasses},
         {"editorPerformance", editorPerformancePasses},
@@ -1691,6 +1727,21 @@ int main(int argc, char** argv) {
         editor->moveCursor(QTextCursor::End);
         type(Qt::Key_QuoteDbl, "\"");
         if (editor->toPlainText() != "x = f\"\"") { qWarning() << "string prefix" << editor->toPlainText(); return 34; }
+        type(Qt::Key_BraceLeft, "{");
+        if (editor->toPlainText() != "x = f\"{}\"") { qWarning() << "f-string braces" << editor->toPlainText(); return 80; }
+        type(Qt::Key_ParenLeft, "(");
+        type(Qt::Key_Apostrophe, "'");
+        if (editor->toPlainText() != "x = f\"{('')}\"") { qWarning() << "f-string expression pairs" << editor->toPlainText(); return 81; }
+        type(Qt::Key_Backspace, QString());
+        if (editor->toPlainText() != "x = f\"{()}\"") return 82;
+        type(Qt::Key_ParenRight, ")");
+        type(Qt::Key_BraceRight, "}");
+        type(Qt::Key_QuoteDbl, "\"");
+        if (editor->toPlainText() != "x = f\"{()}\"" || editor->textCursor().position() != editor->toPlainText().size()) return 83;
+        editor->setPlainText("f\"{{literal");
+        editor->moveCursor(QTextCursor::End);
+        type(Qt::Key_ParenLeft, "(");
+        if (editor->toPlainText() != "f\"{{literal(") return 84;
         editor->setPlainText("value");
         editor->moveCursor(QTextCursor::End);
         type(Qt::Key_QuoteDbl, "\"");
@@ -1774,7 +1825,7 @@ int main(int argc, char** argv) {
         }
         type(Qt::Key_Up, QString(), Qt::ControlModifier);
         if (editor->verticalScrollBar()->value() != scrollBefore) { qWarning() << "ctrl+up"; return 65; }
-        // 補完の一覧: 大文字小文字を区別せず絞り込み、打った名前と同じ候補だけならEnterで改行する。
+        // 補完の一覧: 完全一致した候補でもEnterは確定だけ。次のEnterで初めて改行する。
         editor->setPlainText("pcu");
         editor->moveCursor(QTextCursor::End);
         editor->showCompletions({{"polyCube", "", "", "function"}, {"polySphere", "", "", "function"}, {"PCurve", "", "", "function"}});
@@ -1788,8 +1839,12 @@ int main(int argc, char** argv) {
             editor->moveCursor(QTextCursor::End);
             editor->showCompletions({{"value", "", "", "variable"}, {"value2", "", "", "variable"}});
             type(Qt::Key_Return, "\r");
-            if (editor->toPlainText() != "value\n" || editor->isCompletionVisible()) {
+            if (editor->toPlainText() != "value" || editor->isCompletionVisible()) {
                 qWarning() << "exact match enter" << editor->toPlainText(); return 67;
+            }
+            type(Qt::Key_Return, "\r");
+            if (editor->toPlainText() != "value\n") {
+                qWarning() << "newline after completion" << editor->toPlainText(); return 67;
             }
         }
 

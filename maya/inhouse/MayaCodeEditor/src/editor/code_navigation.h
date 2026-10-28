@@ -11,11 +11,22 @@
 #include <QList>
 #include <QString>
 #include <QVector>
+#include <QTextBlockUserData>
 
 class QTextBlock;
 class QTextDocument;
 
 namespace mce {
+
+/** @brief 文書が所有する行末のPython状態。Qtの整数状態とは別に入れ子を保持する。 */
+struct PythonBlockData : QTextBlockUserData {
+    PythonLexState state;  ///< 行末状態。
+};
+
+/** @brief カーソル直前のPython字句状態を取得する。
+ * @param document 文書。 @param position カーソル位置。 @return 文字列・補間式の状態。
+ */
+PythonLexState pythonInputState(const QTextDocument* document, int position);
 
 /** @brief 1行の字句を返す(前の行の状態を引き継ぐ)。
  * @param block 行。

@@ -164,7 +164,7 @@ void CodeAssist::updateSignatureHelp(CodeEditor* editor) {
         if (info.doc.isEmpty()) {
             info.doc = init.doc;
         }
-    } else if (call.attribute) {
+    } else if (info.bindingKnown ? info.boundMethod : call.attribute) {
         dropBoundParameter(&parts);  // obj.method( では self を渡さない。
     }
     const QString family = editor->font().family();
