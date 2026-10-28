@@ -41,6 +41,37 @@ class MultiPlug(Plug):
         index = self._validated_logical_index(index)
         return Plug(self._node, self._mplug.elementByLogicalIndex(index))
 
+    def __contains__(self, item):
+        """論理番号または要素Plugが、既存要素に含まれるかを返す。
+
+        整数は論理番号として getIndices() と照合する(リスト上の位置ではない)。Plugは、このマルチアトリビュートの
+        既存要素と同じ参照かを比べる。値は読み出さず、欠番を実体化しない。
+        ``__len__`` は持たない(maya.cmdsが位置0〜len-1の並びとして展開し、論理番号と食い違う値を黙って返すため)。
+        要素数は ``len(multi.getIndices())`` で求める。
+
+        Args:
+            item (int | Plug): 論理番号、または要素のPlug。
+
+        Returns:
+            bool: 既存要素に含まれる場合True。範囲外の番号・別のアトリビュートのPlugはFalse。
+
+        Raises:
+            TypeError: boolまたは整数・Plug以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        if isinstance(item, Plug):
+            self._require_valid()
+            if not item.isValid() or not item.isMultiElement():
+                return False
+            return item.getMulti() == self and item.getIndex() in self.getIndices()
+        if isinstance(item, bool):
+            raise TypeError("Logical index must be an integer or element plug")
+        try:
+            index = operator.index(item)
+        except TypeError:
+            raise TypeError("Logical index must be an integer or element plug") from None
+        return index in self.getIndices()
+
     def __iter__(self):
         """既存要素の参照一覧を取得し、論理番号順に反復する。
 

@@ -252,16 +252,20 @@ class Plug(Object):
         return self._identity_hash
 
     def __repr__(self):
-        """デバッグ用に完全修飾プラグ名を含む表現を返す。
+        """デバッグ用に、ラッパーのクラス名と完全修飾プラグ名を含む表現を返す。
+
+        クラス名は ``Plug``, ``MultiPlug``, ``CompoundPlug`` などの実際の型で、マルチアトリビュート全体か
+        コンパウンドアトリビュートかを表示から判別できる。
 
         Returns:
-            str: Plug と完全修飾プラグ名を含む文字列表現。所有ノードが無効、またはアトリビュートが削除済みなら
-                ``<Plug invalid>``。
+            str: ``MultiPlug('pma.input1D')`` のような文字列表現。所有ノードが無効、またはアトリビュートが
+                削除済みなら ``<Plug invalid>`` のようにクラス名を含む無効表示。
         """
+        cls = type(self).__name__
         name = self.getFullName()
         if not name:
-            return "<Plug invalid>"
-        return f"Plug({name!r})"
+            return f"<{cls} invalid>"
+        return f"{cls}({name!r})"
 
     def __rshift__(self, dst):
         """``self >> dst`` で自身から dst へ接続し、接続先を返す(:meth:`connectTo` の通常経路)。

@@ -4,6 +4,26 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+4.1.0 (2026-10-29)
+------------------
+
+マルチアトリビュート全体(``MultiPlug``)で論理番号の存在を ``in`` で調べられるようにし、Plug の表示に型名を出すようにしました。
+
+.. rubric:: 追加
+
+``3 in multi`` は論理番号 3 の要素が存在するかを返します(リスト上の位置ではありません)。要素の Plug
+(``multi[3] in multi``)も受け付け、整数・Plug 以外は ``TypeError`` です。値は読み出さず、欠番の要素も作りません。
+
+``len(multi)`` は追加していません。``len`` があると ``maya.cmds`` が ``MultiPlug`` を位置 0〜len-1 の並びとして展開し、
+``cmds.getAttr(multi)`` が論理番号と違う要素の値を黙って返すためです。要素数は ``len(multi.getIndices())`` で求めます。
+
+.. rubric:: 変更
+
+``repr`` が実際のラッパーの型名を表示します。``Plug('pma.input1D')`` だったマルチアトリビュート全体は
+``MultiPlug('pma.input1D')``、``translate`` は ``Double3Plug('t.translate')``、``translateX`` は ``DoubleLinearPlug('t.translateX')``
+のようになり、無効な参照は ``<MultiPlug invalid>`` のように表示します。``str()`` と ``maya.cmds`` への受け渡しは変わりません。
+``repr`` の文字列を比べているコードは、新しい表示に合わせてください。
+
 4.0.0 (2026-10-28)
 ------------------
 

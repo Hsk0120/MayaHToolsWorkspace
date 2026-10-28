@@ -248,7 +248,7 @@ class NamingSpecTest(_InteropCase):
         self.assertEqual(str(node), "")
         self.assertEqual(str(plug), "")
         self.assertEqual(plug.getName(), "")
-        self.assertEqual(repr(plug), "<Plug invalid>")
+        self.assertEqual(repr(plug), "<DoubleLinearPlug invalid>")
 
     def test_plug_names_equal_node_name_and_attribute_path(self):
         # fullName() は短い名前が一意なノードで MPlug.name() をそのまま返す(高速経路)。
@@ -1139,7 +1139,7 @@ class PlugValidityTest(_InteropCase):
             with self.subTest(plug=type(item).__name__):
                 self.assertFalse(item.isValid())
                 self.assertEqual(str(item), "")
-                self.assertEqual(repr(item), "<Plug invalid>")
+                self.assertEqual(repr(item), "<%s invalid>" % type(item).__name__)
                 self.assertFalse(cmds.objExists(str(item)))
                 with self.assertRaises(RuntimeError):
                     item.get()
@@ -1350,7 +1350,7 @@ class PlugValidityTest(_InteropCase):
                 self.assertFalse(plug.isValid())
                 self.assertEqual(str(plug), "")
                 self.assertEqual(plug.getName(), "")
-                self.assertEqual(repr(plug), "<Plug invalid>")
+                self.assertEqual(repr(plug), "<%s invalid>" % type(plug).__name__)
                 self.assertFalse(cmds.objExists(str(plug)))
                 calls = [
                     plug.getLongName,

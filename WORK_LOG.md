@@ -117,6 +117,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-29): mlib 4.1.0。MultiPlug に論理番号・要素Plugの存在を返す `in` を追加し、Plug の repr を実際のラッパー型名の表示(`MultiPlug('pma.input1D')`・`<DoubleLinearPlug invalid>` 等)に変更。`len()` は cmds が位置0〜len-1の並びとして展開し論理番号と違う値を黙って返すと確認したため追加せず、設計文書・CLAUDE.md に理由を記載。Maya 2022〜2027 の mlib 全件、2027 の mlrig 692 件、静的検査・Sphinx(-W)が合格。
+
 - Codex (2026-10-29): Maya Code Editor 0.8.3。関数ローカル・importのスコープに沿った補完、候補確定Enterと改行の分離、f文字列の式の共有解析・色分け・自動ペア、キーワード引数候補とメソッド束縛別の引数ヒント、同一行の宣言検出を追加。2022〜2027の各43単体テスト・20コア検証群とMaya/入力回帰が合格。専用GUIは2022/2027各35項目、Windows実キーは2027で5ケース確認。6版の配布バイナリは検証時のSHA-256と一致。ユーザー指定でコード・テスト・配布物をコミット対象へ集約。
 
 - Claude Code (2026-10-28): mlib 4.0.0。ArrayPlug→MultiPlug(plugs/multiPlug.py)、Plug.isArray/isElement/getArray→isMulti/isMultiElement/getMulti に改名(互換の別名なし)。説明文・docstring・例外メッセージの呼び名をMayaのコマンドに合わせて「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」に統一し、docs/mlib-api-design.md 冒頭に mlib/Mayaコマンド/OpenMaya の対応表を追加。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)が合格。

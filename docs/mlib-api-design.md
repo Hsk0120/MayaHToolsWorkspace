@@ -549,6 +549,8 @@ mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 
 - シーンのノード・アトリビュート・コンポーネントを表すクラスの `__str__` は、`maya.cmds` が一意に解決できる名前を返す。`Node` は最短一意名、`Plug` は `<ノードの最短一意名>.<アトリビュートパス>`、`Component` はシェイプの完全パス付きの名前とし、呼び出すたびに現在のシーンから求める(名前変更・親子付け替えに追従する)。
 - 単一の対象を表すクラス(`Node`・`Plug` など)に `__len__`/`__iter__` を追加しない。`maya.cmds` がシーケンスとして展開してしまう。複数の対象を表すコレクションは反復可能にしてよい。
+  `MultiPlug`(マルチアトリビュート全体)も `__len__` を持たない。`__getitem__` が論理番号を取るため、`__len__` があると cmds が位置0〜len-1の並びとして展開し、`cmds.getAttr(multi)` が論理番号[0, 2]でなく[0, 1]の値を黙って返す(2026-10-29に確認)。現状は cmds がエラーにするので、`str(multi)` で渡す。要素数は `len(multi.getIndices())`。`in` は論理番号または要素Plugの存在を返す(`__contains__` は cmds の展開に影響しない)。
+- Plug の `repr` は実際のラッパーの型名を表示する(`Plug('t.translateX')`・`CompoundPlug('t.translate')`・`MultiPlug('pma.input1D')`、無効なら `<MultiPlug invalid>` など)。
 - ノードやアトリビュートを受け取るコマンド・メソッドは、文字列に加えて mlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `Object`・`Node`・`Plug`・`Component` の内部メソッドで行い、各APIで独自に判定しない。
 - ノードが必要な引数(`parent` など)は、Plug を所有ノード、Component を所有シェイプへ解決する。プラグ名を `maya.cmds` へそのまま渡して黙って無視させない。
 - 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `mlib.ls` で扱う)。対象を名前へ変換する内部処理(`Object._input_name/_input_names`・`Node._input_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`mlib.getNode`、`Transform.addConstraint` のターゲット・コンストレイント先)は、その規則を変えない(`Node._resolve_input` は既存Nodeの保持参照を返し、後続操作が有効性を検証する)。ただし所有ノードが有効なまま `deleteAttr` でアトリビュートが削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`isParentOf` など)は `False` を返す。

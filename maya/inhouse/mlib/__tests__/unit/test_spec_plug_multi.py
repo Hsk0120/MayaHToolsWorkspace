@@ -273,5 +273,64 @@ class ArgumentSpecTest(_MultiSpecCase):
         self.assertEqual(self.existing(), [2])
 
 
+class ContainerProtocolSpecTest(_MultiSpecCase):
+    """in・reprが論理番号と型を表し、要素を作らないことを確かめる。"""
+
+    def test_has_no_len(self):
+        """len を持つと maya.cmds が位置の並びとして展開し、論理番号と違う要素を黙って扱うため持たない。"""
+        cmds.setAttr(self.name + ".vals[2]", 1.0)
+        with self.assertRaises(TypeError):
+            len(self.values)
+        self.assertTrue(self.values)
+
+    def test_contains_logical_index(self):
+        cmds.setAttr(self.name + ".vals[2]", 1.0)
+        cmds.setAttr(self.name + ".vals[10]", 2.0)
+        for index, expected in ((2, True), (10, True), (0, False), (1, False), (3, False), (-1, False)):
+            with self.subTest(index=index):
+                self.assertIs(index in self.values, expected)
+
+    def test_contains_element_plug(self):
+        cmds.setAttr(self.name + ".vals[2]", 1.0)
+        self.assertIn(self.values[2], self.values)
+        self.assertNotIn(self.values[5], self.values)
+        self.assertNotIn(self.net.getPlug("msgs")[2], self.values)
+        self.assertNotIn(self.net.getPlug("pairs"), self.values)
+
+    def test_contains_type_errors(self):
+        for value in (True, "2", 2.0, None):
+            with self.subTest(value=repr(value)):
+                with self.assertRaises(TypeError):
+                    value in self.values  # noqa: B015
+
+    def test_protocol_does_not_create_elements_or_record_undo(self):
+        cmds.flushUndo()
+        5 in self.values
+        self.values[7] in self.values
+        repr(self.values)
+        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        self.assertEqual(self.existing(), [])
+
+    def test_repr_shows_wrapper_type(self):
+        pairs = self.net.getPlug("pairs")
+        self.assertEqual(repr(self.values), "MultiPlug(%r)" % self.values.getFullName())
+        self.assertEqual(repr(pairs[0]), "CompoundPlug(%r)" % pairs[0].getFullName())
+        self.assertEqual(repr(pairs[0]["px"]), "DoublePlug(%r)" % pairs[0]["px"].getFullName())
+        translate = self.src.getPlug("translate")
+        self.assertEqual(repr(translate), "Double3Plug(%r)" % translate.getFullName())
+        self.assertEqual(repr(translate[0]), "DoubleLinearPlug(%r)" % translate[0].getFullName())
+
+    def test_compound_has_no_len(self):
+        with self.assertRaises(TypeError):
+            len(self.src.getPlug("translate"))
+
+    def test_invalid_repr_shows_wrapper_type(self):
+        values = self.values
+        cmds.delete(self.name)
+        self.assertEqual(repr(values), "<MultiPlug invalid>")
+        with self.assertRaises(RuntimeError):
+            2 in values
+
+
 if __name__ == "__main__":
     unittest.main()

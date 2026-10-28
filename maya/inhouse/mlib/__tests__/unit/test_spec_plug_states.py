@@ -65,7 +65,7 @@ class PlugNameSpecTest(_StateSpecCase):
         self.assertEqual(tx.getNiceName(), "Translate X")
         self.assertEqual(tx.getFullName(), self.name + ".translateX")
         self.assertEqual(str(tx), tx.getFullName())
-        self.assertEqual(repr(tx), "Plug(%r)" % tx.getFullName())
+        self.assertEqual(repr(tx), "DoubleLinearPlug(%r)" % tx.getFullName())
         self.assertEqual(cmds.getAttr(tx), 0.0)
 
     def test_full_attribute_path_option(self):
@@ -414,7 +414,7 @@ class PlugValiditySpecTest(_StateSpecCase):
         cmds.deleteAttr(self.name + ".dynValue")
         self.assertFalse(plug.isValid())
         self.assertEqual((plug.getFullName(), plug.getName(), plug.getAttrName(), str(plug)), ("", "", "", ""))
-        self.assertEqual(repr(plug), "<Plug invalid>")
+        self.assertEqual(repr(plug), "<DoublePlug invalid>")
         self.assertFalse(plug.isMulti())
         self.assertIs(type(plug), plugs.DoublePlug)
         for method in ("get", "getLongName", "getShortName", "getNiceName", "getType",
@@ -465,7 +465,7 @@ class PlugValiditySpecTest(_StateSpecCase):
         cmds.delete(node.getFullName())
         self.assertFalse(tx.isValid())
         self.assertEqual(tx.getFullName(), "")
-        self.assertEqual(repr(tx), "<Plug invalid>")
+        self.assertEqual(repr(tx), "<DoubleLinearPlug invalid>")
         self.assertFalse(tx.isMulti())
         with self.assertRaises(RuntimeError):
             tx.get()
