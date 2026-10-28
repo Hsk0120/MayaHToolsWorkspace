@@ -593,10 +593,10 @@ class Joint(Transform):
         super()._apply_local_matrix(matrix, scale_reference, fast=fast)
 
     def _compound_values(self, attribute, angle=False):
-        """compound アトリビュートを 3 要素の tuple として取得する。
+        """コンパウンドアトリビュートを 3 要素の tuple として取得する。
 
         Args:
-            attribute (str): 読み取る複合アトリビュート名。
+            attribute (str): 読み取るコンパウンドアトリビュート名。
             angle (bool): True の場合、各子を角度アトリビュートとして度数法の値で取得する。
                 現在の UI 角度単位に関係なく、MAngle.asDegrees() を使用する。
                 False の場合は単位変換のない生の double として取得する。

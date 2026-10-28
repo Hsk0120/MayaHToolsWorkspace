@@ -51,15 +51,15 @@ def require_supported_type(plug):
 
 
 def _ancestor_plugs(mplug):
-    """プラグ自身から、複合の親・配列を順に遡って列挙する。
+    """プラグ自身から、コンパウンドアトリビュートの親・マルチアトリビュートを順に遡って列挙する。
 
-    ロック・入力接続は親(複合)や配列にも設定できるため、書込み可否の検査で使う。
+    ロック・入力接続は親(コンパウンドアトリビュート)やマルチアトリビュートにも設定できるため、書込み可否の検査で使う。
 
     Args:
         mplug (om2.MPlug): 起点のプラグ。
 
     Yields:
-        om2.MPlug: mplug自身、次に親または配列、最上位に達するまで。
+        om2.MPlug: mplug自身、次に親またはマルチアトリビュート、最上位に達するまで。
     """
     current = mplug
     while True:
@@ -97,7 +97,7 @@ def require_writable(plug, _fn=None):
 
 
 def writable_compound(mplug):
-    """プラグ自身と、複合なら全ての子の書込み可否を検査する。
+    """プラグ自身と、コンパウンドアトリビュートなら全ての子の書込み可否を検査する。
 
     Args:
         mplug (om2.MPlug): 検査するプラグ。
@@ -163,7 +163,7 @@ def _prepared_writes(plug, value, _writable_checked=False):
 
     Raises:
         TypeError: 数値型への数値以外、または文字列型への文字列以外の入力の場合。
-        ValueError: 複合の値の成分数が子数と異なる場合。
+        ValueError: コンパウンドアトリビュートの値の成分数が子数と異なる場合。
         RuntimeError: 書込み不能、またはハード範囲外(enumはフィールドの最小〜最大の外)の場合。
         NotImplementedError: API 2.0で値を構築できない型の場合。
     """
@@ -181,7 +181,7 @@ def _prepared_writes(plug, value, _writable_checked=False):
     if plug.isCompound:
         values = tuple(value)
         if len(values) != plug.numChildren():
-            raise ValueError("Compound value length mismatch")
+            raise ValueError("Compound attribute value length mismatch")
         writes = []
         for i, item in enumerate(values):
             writes.extend(_prepared_writes(plug.child(i), item, _writable_checked))
@@ -238,7 +238,7 @@ def set_plug(plug, value, _writable_checked=False):
 
     Raises:
         TypeError: 入力の型の不一致(数値型への数値以外・文字列型への文字列以外)の場合。
-        ValueError: 複合の値の成分数が子数と異なる場合。
+        ValueError: コンパウンドアトリビュートの値の成分数が子数と異なる場合。
         RuntimeError: 書込み不能、またはハード範囲外の場合。
         NotImplementedError: API 2.0で未対応の型の場合。書込み可否より先に、更新前に拒否する。
     """

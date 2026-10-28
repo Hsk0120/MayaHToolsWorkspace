@@ -12,7 +12,7 @@ from mlib.decorator import nativeUnits
 
 
 class RigFoundationsTest(unittest.TestCase):
-    """所有、疎な参照配列、形状、数値と単位の契約を確認する。"""
+    """所有、疎な参照のマルチアトリビュート、形状、数値と単位の契約を確認する。"""
 
     def setUp(self):
         """隔離シーンと単位を初期化する。"""
@@ -42,7 +42,7 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertFalse(cmds.ls(type="multiplyDivide"))
 
     def test_sparse_messages(self):
-        """穴のあるmessage配列を読み、末尾へ追加してUndoする。"""
+        """穴のあるmessageのマルチアトリビュートを読み、末尾へ追加してUndoする。"""
         owner = mlib.createNode("network", name="refs")
         array = owner.addAttr(longName="items", attributeType="message", multi=True)
         first = mlib.createNode("transform", name="first")

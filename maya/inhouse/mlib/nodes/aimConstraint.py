@@ -15,7 +15,7 @@ class AimConstraint(Constraint):
         """回転出力の直接接続を取得する。下流の探索や対象の選別は行わない。
 
         Returns:
-            list[tuple[Plug, Plug]]: 接続元と接続先。複合接続は親のペアのみ。
+            list[tuple[Plug, Plug]]: 接続元と接続先。コンパウンドアトリビュートの接続は親のペアのみ。
         """
         root = self.getPlug("constraintRotate")
         destinations = root.getDestinations(skipConversionNodes=False)
@@ -94,7 +94,7 @@ class AimConstraint(Constraint):
         fast=TrueはOpenMayaで直接更新する(Undoなし)。
 
         Args:
-            attribute (str): 更新する複合アトリビュート。
+            attribute (str): 更新するコンパウンドアトリビュート。
             value (Sequence[float]): ラジアン3値。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 

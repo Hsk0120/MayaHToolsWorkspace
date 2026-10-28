@@ -1,4 +1,4 @@
-"""CompoundPlug・Double3Plug・ArrayPlugの子・要素・値の約束を固定する。
+"""CompoundPlug・Double3Plug・MultiPlugの子・要素・値の約束を固定する。
 
 期待値はmaya.cmdsで独立に求めた値と比べる。
 """
@@ -51,7 +51,7 @@ class _PlugSpecCase(unittest.TestCase):
 
 
 class CompoundPlugSpecTest(_PlugSpecCase):
-    """複合アトリビュートの子の参照と値。"""
+    """コンパウンドアトリビュートの子の参照と値。"""
 
     def setUp(self):
         super().setUp()
@@ -124,7 +124,7 @@ class CompoundPlugSpecTest(_PlugSpecCase):
     def test_safe_updates_writable_children_and_counts_failures(self):
         """safeはロックされた子を失敗数に数え、書ける子は更新する。"""
         cmds.setAttr(self.name + ".second", lock=True)
-        # 汎用の複合もDouble3Plugと同じく事前に全子の書込み可否を検査し、
+        # 汎用のコンパウンドアトリビュートもDouble3Plugと同じく事前に全子の書込み可否を検査し、
         # safe=Falseでは何も書かずに例外にする。
         cmds.flushUndo()
         for ui_units in (False, True):
@@ -152,7 +152,7 @@ class CompoundPlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.pair.get(), (3.0, 0.0))
 
     def test_set_undo_is_one_step_and_fast_is_not_recorded(self):
-        """通常の複合setは1回のUndoで全子が戻り、fastは記録しない。"""
+        """通常のコンパウンドアトリビュートのsetは1回のUndoで全子が戻り、fastは記録しない。"""
         cmds.flushUndo()
         self.pair.set((1, 2))
         cmds.undo()
@@ -285,8 +285,8 @@ class Double3PlugSpecTest(_PlugSpecCase):
         self.assertEqual(cmds.getAttr(self.name + ".t"), [(0.0, 0.0, 0.0)])
 
 
-class ArrayPlugSpecTest(_PlugSpecCase):
-    """疎な論理番号、要素の作成と削除、message配列への追加。"""
+class MultiPlugSpecTest(_PlugSpecCase):
+    """疎な論理番号、要素の作成と削除、messageのマルチアトリビュートへの追加。"""
 
     def setUp(self):
         super().setUp()
@@ -295,22 +295,22 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         cmds.addAttr(self.net_name, longName="vals", attributeType="double", multi=True)
         self.array = self.net.getPlug("vals")
 
-    def test_empty_array(self):
-        """空の配列はget={}、getIndices=[]、反復しない。"""
-        self.assertIs(type(self.array), plugs.ArrayPlug)
+    def test_empty_multi(self):
+        """空のマルチアトリビュートはget={}、getIndices=[]、反復しない。"""
+        self.assertIs(type(self.array), plugs.MultiPlug)
         self.assertEqual(self.array.get(), {})
         self.assertEqual(self.array.getIndices(), [])
         self.assertEqual(self.array.getElements(), [])
         self.assertEqual(list(self.array), [])
         self.assertEqual(self.array.getSourceNodes(), {})
-        self.assertTrue(self.array.isArray())
-        self.assertFalse(self.array.isElement())
+        self.assertTrue(self.array.isMulti())
+        self.assertFalse(self.array.isMultiElement())
 
     def test_reference_does_not_create_but_set_does(self):
         """参照だけでは要素を作らず、setが作る。番号は詰めずにキーへ残る。"""
         element = self.array[5]
         self.assertEqual(element.getFullName(), self.net_name + ".vals[5]")
-        self.assertTrue(element.isElement())
+        self.assertTrue(element.isMultiElement())
         self.assertEqual(self.indices(self.net_name + ".vals"), [])
         element.set(1.5)
         self.array[2].set(0.5, fast=True)
@@ -403,8 +403,8 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         with self.assertRaises(TypeError):
             self.array.removeElement(1, fast=1)
 
-    def test_array_level_set_and_reset_rejected(self):
-        """配列全体のset・resetはsafeでもTypeError。"""
+    def test_multi_level_set_and_reset_rejected(self):
+        """マルチアトリビュート全体のset・resetはsafeでもTypeError。"""
         with self.assertRaises(TypeError):
             self.array.set({0: 1})
         with self.assertRaises(TypeError):
@@ -416,7 +416,7 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.array.getIndices(), [])
 
     def test_ui_units_per_element(self):
-        """角度配列のgetはuiUnitsを各要素へ渡す。"""
+        """角度のマルチアトリビュートのgetはuiUnitsを各要素へ渡す。"""
         cmds.addAttr(self.net_name, longName="angles", attributeType="doubleAngle", multi=True)
         angles = self.net.getPlug("angles")
         angles[0].set(math.pi)
@@ -429,7 +429,7 @@ class ArrayPlugSpecTest(_PlugSpecCase):
             angles.get(uiUnits=1)
 
     def test_compound_elements(self):
-        """複合の配列要素はCompoundPlugで、子の番号は要素ごとに独立する。"""
+        """コンパウンドアトリビュートであるマルチアトリビュートの要素はCompoundPlugで、子の番号は要素ごとに独立する。"""
         cmds.addAttr(self.net_name, longName="items", attributeType="compound", numberOfChildren=2, multi=True)
         cmds.addAttr(self.net_name, longName="ia", attributeType="double", parent="items")
         cmds.addAttr(self.net_name, longName="ib", attributeType="double", parent="items")
@@ -441,9 +441,9 @@ class ArrayPlugSpecTest(_PlugSpecCase):
         child = items[4]["ib"]
         self.assertEqual(child.getFullName(), self.net_name + ".items[4].ib")
         self.assertEqual(child.getParent().getFullName(), self.net_name + ".items[4]")
-        self.assertTrue(child.getParent().isElement())
+        self.assertTrue(child.getParent().isMultiElement())
 
-    def test_world_space_array_includes_instances(self):
+    def test_world_space_multi_includes_instances(self):
         """worldMatrixはインスタンス番号の要素を評価前から含む。"""
         world = self.node.getPlug("worldMatrix")
         self.assertEqual(world.getIndices(), [0])

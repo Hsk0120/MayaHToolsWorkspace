@@ -791,7 +791,7 @@ mlrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わ
 | 処理 | 実装先 |
 | --- | --- |
 | 計算ノードの所有・追加・列挙 | `mlib.nodes.Container` |
-| 保存用message配列 | `mlib.plugs.ArrayPlug.sourceNodes / appendMessage` |
+| 保存用messageのマルチアトリビュート | `mlib.plugs.MultiPlug.sourceNodes / appendMessage` |
 | 操作カーブ | `mlrig.setups.ControlShape` |
 | 表示単位変換 | `mlib.common.units` |
 | スキンのバインド・最近傍ウェイト転送 | `mlib.nodes.SkinCluster` |

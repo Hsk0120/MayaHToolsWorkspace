@@ -17,18 +17,18 @@ from ..core.object import Object
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError
 
-#: 配列全体へのset()を拒否するときの文言。
-_ARRAY_SET_MESSAGE = "Set an array element instead of the array plug"
-#: 配列全体へのreset()を拒否するときの文言。
-_ARRAY_RESET_MESSAGE = "Reset an array element instead of the array plug"
+#: マルチアトリビュート全体へのset()を拒否するときの文言。
+_MULTI_SET_MESSAGE = "Set a multi element instead of the multi attribute"
+#: マルチアトリビュート全体へのreset()を拒否するときの文言。
+_MULTI_RESET_MESSAGE = "Reset a multi element instead of the multi attribute"
 
-#: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理インデックスの並び。
+#: アトリビュートパスの1区切り(``pnts[2]``、``pntx`` など)。アトリビュート名と、続く論理番号の並び。
 _PLUG_PATH_TOKEN = re.compile(r"(\w+)((?:\[\d+\])*)\Z")
 
-#: 区切り内の論理インデックス(``[2]`` の ``2``)。
+#: 区切り内の論理番号(``[2]`` の ``2``)。
 _PLUG_PATH_INDEX = re.compile(r"\[(\d+)\]")
 
-#: 配列要素の論理インデックスの上限(``MPlug.logicalIndex()`` が返す符号付き 32 ビット整数の最大値)。
+#: マルチアトリビュートの要素の論理番号の上限(``MPlug.logicalIndex()`` が返す符号付き 32 ビット整数の最大値)。
 #: ``MPlug.elementByLogicalIndex()`` はこれを超える番号を黙って別の番号へ変換する
 #: (``2147483648``〜``4294967295`` は負の番号、``4294967296`` は ``0``)ため、アトリビュートパスでは
 #: 範囲外として扱う。
@@ -50,20 +50,20 @@ _INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
 _NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
 
 
-def _instance_count(array):
-    """ワールド空間アトリビュートの配列なら、所有 DAG ノードのインスタンス数を返す。
+def _instance_count(multi):
+    """ワールド空間アトリビュートがマルチアトリビュートなら、所有 DAG ノードのインスタンス数を返す。
 
     ``worldMatrix`` などのワールド空間アトリビュートは、インスタンス番号(0～インスタンス数-1)の
-    要素を評価前でも存在するものとして扱う(:class:`ArrayPlug` と同じ規則)。
+    要素を評価前でも存在するものとして扱う(:class:`MultiPlug` と同じ規則)。
 
     Args:
-        array (om2.MPlug): 配列プラグ。
+        multi (om2.MPlug): マルチアトリビュートのプラグ。
 
     Returns:
         int: 間接インスタンスを含むインスタンス数。ワールド空間アトリビュートでなければ 0。
     """
-    node = array.node()
-    if not node.hasFn(om2.MFn.kDagNode) or not om2.MFnAttribute(array.attribute()).worldSpace:
+    node = multi.node()
+    if not node.hasFn(om2.MFn.kDagNode) or not om2.MFnAttribute(multi.attribute()).worldSpace:
         return 0
     return om2.MFnDagNode(node).instanceCount(True)
 
@@ -92,10 +92,10 @@ def _attribute_class(fn, attribute_handle, attribute):
     return fn.attributeClass(attribute)
 
 
-def _array_element_exists(mplug):
-    """プラグ(と経由する配列要素)がシーンに存在するか判定する。
+def _multi_element_exists(mplug):
+    """プラグ(と経由するマルチアトリビュートの要素)がシーンに存在するか判定する。
 
-    配列要素は、配列の既存の論理番号(``getExistingArrayAttributeIndices()``。
+    マルチアトリビュートの要素は、マルチアトリビュートの既存の論理番号(``getExistingArrayAttributeIndices()``。
     値を持つ要素と接続された要素)に含まれる場合に存在する。値を読まないため、
     存在しない要素を作らない。
 
@@ -103,7 +103,7 @@ def _array_element_exists(mplug):
         mplug (om2.MPlug): 判定するプラグ。
 
     Returns:
-        bool: プラグと、経由するすべての配列要素が存在する場合は True。
+        bool: プラグと、経由するすべてのマルチアトリビュートの要素が存在する場合は True。
     """
     return all(current.logicalIndex() in current.array().getExistingArrayAttributeIndices()
                for current in _ancestor_plugs(mplug) if current.isElement)
@@ -125,12 +125,12 @@ class DeletedAttributeError(ValueError, RuntimeError):
 class Plug(Object):
     """所有NodeとMPlugを保持し、アトリビュートの値・接続・状態を扱う。
 
-    配列、登録型、複合型の順でラッパーを選ぶ。参照取得では値を評価せず、
+    マルチアトリビュート、登録型、コンパウンドアトリビュートの順でラッパーを選ぶ。参照取得では値を評価せず、
     generic/kAnyは基底Plugのままget時に値を解釈する。
     通常編集はUndo有効時に記録し、対応するfastはUndoなしで直接更新する。
 
     MayaコマンドへはgetFullName()で文字列化する。名前は改名・親変更に追従する。
-    特にArrayPlug・複合Plugは、cmdsによるシーケンス展開を避けるため文字列化が必要。
+    特にMultiPlug・コンパウンドアトリビュートのPlugは、cmdsによるシーケンス展開を避けるため文字列化が必要。
     所有ノードや動的アトリビュートの削除後はisValidがFalse、名前は空文字列になり、
     値の読書き・接続照会・子参照はRuntimeErrorになる。削除をUndoすれば再び有効になる。
     """
@@ -139,11 +139,11 @@ class Plug(Object):
     _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
 
     def __new__(cls, node, mplug):
-        """配列・登録アトリビュート型・複合アトリビュートの順にラッパー型を選ぶ。
+        """マルチアトリビュート・登録アトリビュート型・コンパウンドアトリビュートの順にラッパー型を選ぶ。
 
         登録アトリビュート型の判定には ``cmds.getAttr(type=True)`` と同じ型名を使う。型名は
         アトリビュート定義から求め(:func:`mlib.core.attributeType.attributeType`)、maya.cmds へ
-        問い合わせないため、存在しない配列要素の Plug を作っても要素は作られない。
+        問い合わせないため、存在しないマルチアトリビュートの要素の Plug を作っても要素は作られない。
         generic/kAnyは現在値を読まず、基底Plugとして参照する。
         マトリクスなどの値型はget()を呼んだ時に解釈するため、参照の作成や接続列挙で
         型選択のためのDG評価を行わない。値の型が変わっても同じPlugを保持できる。
@@ -158,7 +158,7 @@ class Plug(Object):
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。削除済みの
                 Plug から要素・子・親の Plug を取得した場合も含む(``Node.getPlug()`` と同じ規則)。
-                プラグが未確定(-1)の配列番号を経由する場合(``cmp[-1].child`` や
+                プラグが未確定(-1)の論理番号を経由する場合(``cmp[-1].child`` や
                 ``inputTarget[-1].inputTargetGroup`` のような maya.cmds で解決できないプラグ)。
                 MPlug の所有ノードが node と異なる場合(静的アトリビュート・動的アトリビュートとも。所有ノードでは
                 ない node を渡した誤用)。
@@ -178,14 +178,14 @@ class Plug(Object):
                 raise RuntimeError("Cannot create a Plug for a deleted attribute")
             if Plug._has_unresolved_index(mplug):
                 raise RuntimeError(
-                    "Cannot create a Plug with an unresolved array index (-1): "
+                    "Cannot create a Plug with an unresolved multi element logical index (-1): "
                     f"{mplug.partialName(False, True, True, True, False, True)}"
                 )
             target = cls
             if mplug.isArray:
-                # ArrayPlug/CompoundPlug との循環importを避けるため、使う分岐で遅延importする。
-                from .arrayPlug import ArrayPlug
-                target = ArrayPlug
+                # MultiPlug/CompoundPlug との循環importを避けるため、使う分岐で遅延importする。
+                from .multiPlug import MultiPlug
+                target = MultiPlug
             else:
                 resolved_class = None
                 if cls._registry is not None:
@@ -271,15 +271,15 @@ class Plug(Object):
         mlib では戻り値を持つ。
 
         Args:
-            dst (Plug | om2.MPlug | str): 接続先。配列全体は受け付けない(空き要素を選ぶには
-                ``self.connectTo(array, nextAvailable=True)`` を使う)。
+            dst (Plug | om2.MPlug | str): 接続先。マルチアトリビュート全体は受け付けない(空き要素を選ぶには
+                ``self.connectTo(multi, nextAvailable=True)`` を使う)。
 
         Returns:
             Plug: 実際の接続先(dst を解決した Plug)。
 
         Raises:
             TypeError: dst が未対応の型の場合。
-            RuntimeError: 同一接続・入力済み・ロック・無効な Plug、配列全体への接続の場合
+            RuntimeError: 同一接続・入力済み・ロック・無効な Plug、マルチアトリビュート全体への接続の場合
                 (:meth:`connect` と同じ)。
         """
         return self.connectTo(dst)
@@ -349,7 +349,7 @@ class Plug(Object):
         """最短一意ノード名と短いアトリビュート名を含むPlug名を取得する。
 
         Returns:
-            str: 必要な multi 番号を含むプラグ名。所有ノードが無効(削除済み)、
+            str: 必要な論理番号を含むプラグ名。所有ノードが無効(削除済み)、
                 またはアトリビュートが削除済みの場合は空文字列(:meth:`getFullName` と同じ)。
         """
         if not self.isValid():
@@ -383,7 +383,7 @@ class Plug(Object):
         """maya.cmdsで一意に解決できるプラグ名を取得する。
 
         ``<Node.getName()の名前>.<アトリビュートパス>`` の形式で、名前変更・親子付け替えに
-        追従する。アトリビュートはロング名と必要な配列番号を含み、エイリアスがあれば使う。
+        追従する。アトリビュートはロング名と必要な論理番号を含み、エイリアスがあれば使う。
 
         Returns:
             str: 一意なプラグ名。所有ノードやアトリビュートが削除済みなら空文字列。
@@ -448,7 +448,7 @@ class Plug(Object):
         返すのと同じ流儀で、Python のラッパークラスは ``type(plug)`` で調べる。
 
         Returns:
-            str | None: 定義上のMaya型名。multi全体では要素の型名。
+            str | None: 定義上のMaya型名。マルチアトリビュート全体では要素の型名。
                 generic/kAny等の値で型が決まるアトリビュートは実値を評価せずNoneを返し、
                 値を取得した後もこの規則は変わらない。
 
@@ -458,35 +458,35 @@ class Plug(Object):
         self._require_valid()
         return attributeType(self._mplug)
 
-    def isArray(self):
-        """multi アトリビュートか判定する。
+    def isMulti(self):
+        """マルチアトリビュートか判定する。
 
-        ``isArray``/``isCompound``/``isElement``/``isChild`` はプラグの構造だけを返すため、
+        ``isMulti``/``isCompound``/``isMultiElement``/``isChild`` はプラグの構造だけを返すため、
         無効な Plug(:meth:`isValid` が ``False``)でも例外にしない。
 
         Returns:
-            bool: array プラグの場合は ``True``。
+            bool: マルチアトリビュートのプラグの場合は ``True``。
         """
         return self._mplug.isArray
 
     def isCompound(self):
-        """compound アトリビュートか判定する。
+        """コンパウンドアトリビュートか判定する。
 
         Returns:
             bool: 子プラグを持つ場合は ``True``。
         """
         return self._mplug.isCompound
 
-    def isElement(self):
-        """multi アトリビュートの要素プラグか判定する。
+    def isMultiElement(self):
+        """マルチアトリビュートの要素プラグか判定する。
 
         Returns:
-            bool: array 要素の場合は ``True``。
+            bool: マルチアトリビュートの要素の場合は ``True``。
         """
         return self._mplug.isElement
 
     def isChild(self):
-        """compound アトリビュートの子プラグか判定する。
+        """コンパウンドアトリビュートの子プラグか判定する。
 
         Returns:
             bool: 子プラグの場合は ``True``。
@@ -494,7 +494,7 @@ class Plug(Object):
         return self._mplug.isChild
 
     def getParent(self):
-        """compound アトリビュートの子プラグであれば、その親プラグを取得する。
+        """コンパウンドアトリビュートの子プラグであれば、その親プラグを取得する。
 
         Returns:
             Plug | None: 親プラグ。子プラグでない場合は ``None``。
@@ -508,11 +508,11 @@ class Plug(Object):
             return None
         return Plug(self._node, self._mplug.parent())
 
-    def getArray(self):
-        """multi アトリビュートの要素プラグであれば、その配列全体のプラグを取得する。
+    def getMulti(self):
+        """マルチアトリビュートの要素プラグであれば、そのマルチアトリビュート全体のプラグを取得する。
 
         Returns:
-            ArrayPlug | None: 配列全体のプラグ。要素プラグでない場合は ``None``。
+            MultiPlug | None: マルチアトリビュート全体のプラグ。要素プラグでない場合は ``None``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -523,10 +523,10 @@ class Plug(Object):
         return Plug(self._node, self._mplug.array())
 
     def getIndex(self):
-        """multi アトリビュートの要素プラグの論理番号を取得する。
+        """マルチアトリビュートの要素プラグの論理番号を取得する。
 
         Returns:
-            int: 要素の論理番号(``array[index]`` の index。物理的な並び順ではない)。
+            int: 要素の論理番号(``multi[index]`` の index。物理的な並び順ではない)。
 
         Raises:
             TypeError: 要素プラグでない場合。
@@ -534,7 +534,7 @@ class Plug(Object):
         """
         self._require_valid()
         if not self._mplug.isElement:
-            raise TypeError(f"getIndex requires an array element plug: {self.getFullName()}")
+            raise TypeError(f"getIndex requires a multi element: {self.getFullName()}")
         return self._mplug.logicalIndex()
 
     def isKeyable(self):
@@ -557,7 +557,7 @@ class Plug(Object):
 
         Args:
             val (bool): キー設定可否。
-            leaf (bool): 複合の末端だけを設定する。
+            leaf (bool): コンパウンドアトリビュートの末端だけを設定する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
@@ -610,7 +610,7 @@ class Plug(Object):
 
         Args:
             val (bool): 表示状態。有効時はkeyableを無効にする。
-            leaf (bool): 複合の末端だけを設定する。
+            leaf (bool): コンパウンドアトリビュートの末端だけを設定する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
@@ -626,7 +626,7 @@ class Plug(Object):
         通常は1回のUndoで戻る。fastはOpenMayaで直接更新し、Undoに記録しない。
 
         Args:
-            below (bool): 子階層(複合の子・配列の既存要素)も解除する。
+            below (bool): 子階層(コンパウンドアトリビュートの子・マルチアトリビュートの既存要素)も解除する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
@@ -651,7 +651,7 @@ class Plug(Object):
                 unlock_one(plug)
             def visit(plug):
                 """下位階層を親から順に解除する。"""
-                for child in plug.getElements() if plug.isArray() else plug.getChildren() if plug.isCompound() else []:
+                for child in plug.getElements() if plug.isMulti() else plug.getChildren() if plug.isCompound() else []:
                     unlock_one(child)
                     visit(child)
             if below:
@@ -964,16 +964,16 @@ class Plug(Object):
 
         数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
         の単位付きオブジェクト、enum アトリビュートは ``int`` をそのまま返す。
-        scale・double3・float3のような数値の複合アトリビュートは、子の既定値の ``tuple``
+        scale・double3・float3のような数値のコンパウンドアトリビュートは、子の既定値の ``tuple``
         (例 ``(1.0, 1.0, 1.0)``)を返す。
 
         Args:
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す
-                (複合は子ごとに換算したtuple)。既定Falseは内部単位のまま。
+                (コンパウンドアトリビュートは子ごとに換算したtuple)。既定Falseは内部単位のまま。
 
         Returns:
             object | None: 既定値。対応しないアトリビュート型(文字列・message・マトリクス・
-                数値以外の汎用の複合など)では ``None``。
+                数値以外の汎用のコンパウンドアトリビュートなど)では ``None``。
 
         Raises:
             TypeError: uiUnitsがbool以外の場合。
@@ -1035,7 +1035,7 @@ class Plug(Object):
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: Maya setKeyframeのフラグ。値・時間はMayaのUI単位。
                 fastは単一のtime/t・value/v・inTangentType/itt・outTangentType/ottのみ。
-                レイヤー、範囲、複合入力等は更新前に拒否する。
+                レイヤー、範囲、コンパウンドアトリビュートの入力等は更新前に拒否する。
                 接線省略時はMayaのグローバル設定を使う。fastの入力stepはautoへ補正し、
                 入力stepnextはNotImplementedError、fixed/global/未知型はValueErrorで
                 カーブを生成・変更する前に拒否する。
@@ -1227,7 +1227,7 @@ class Plug(Object):
 
         Args:
             val (bool): ロック状態。
-            leaf (bool): 複合では末端だけを設定する。
+            leaf (bool): コンパウンドアトリビュートでは末端だけを設定する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
@@ -1258,7 +1258,7 @@ class Plug(Object):
 
         アニメーションの無いチャンネルへのTrueは、Mayaが警告を出すだけで何もしない
         (muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはせず自身を返す。
-        複合アトリビュートは入力接続のある子だけを対象にする(``cmds.mute`` と同じ)。
+        コンパウンドアトリビュートは入力接続のある子だけを対象にする(``cmds.mute`` と同じ)。
         ``cmds.mute`` でUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
@@ -1328,7 +1328,7 @@ class Plug(Object):
             uiUnits (bool): Trueは単位付き数値を現在のUI単位へ換算する。既定Falseはcm/rad/秒。
 
         Returns:
-            object: 型に応じた値。CompoundPlug.getは子の定義順tuple、ArrayPlug.getは
+            object: 型に応じた値。CompoundPlug.getは子の定義順tuple、MultiPlug.getは
                 論理番号をキーとするdict。API読取の型付き配列はlistで、各要素は
                 vectorArray=XYZ、pointArray=XYZW、matrixArray=16成分のtuple。
                 未初期化データはNone、空配列は空list。generic/kAnyは現在値に応じて
@@ -1339,7 +1339,7 @@ class Plug(Object):
             RuntimeError: 参照が無効、または値を読み取れない場合。
 
         Note:
-            まだ作られていない配列要素(``array[9]`` のように参照しただけの要素)を読むと、
+            まだ作られていないマルチアトリビュートの要素(``multi[9]`` のように参照しただけの要素)を読むと、
             ``cmds.getAttr`` と同じくMayaがその要素を作る(以後 ``getIndices()`` に現れる)。
             参照の取得だけでは要素を作らない。
         """
@@ -1352,7 +1352,7 @@ class Plug(Object):
 
         通常はcmds.setAttrで更新し、Undo有効時に記録する。
         safeは本体のRuntimeError/TypeError/ValueErrorを失敗数へ変換し、
-        複合値の失敗は子ごとに再試行する。成功した子の更新は残る。
+        コンパウンドアトリビュートの値の失敗は子ごとに再試行する。成功した子の更新は残る。
 
         Args:
             value (object): 内部単位の値(距離cm・角度rad・時間秒)。
@@ -1368,7 +1368,7 @@ class Plug(Object):
                 厳密な未更新成分の総数は保証しない。
 
         Raises:
-            TypeError: fastがbool以外、またはmulti全体への設定。safe=Trueでも拒否する。
+            TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
                 safe=Falseで不正な入力の場合も送出する。
             ValueError: safe=Falseで値の変換等に失敗した場合。
             RuntimeError: safe=Falseで無効参照・ロック・入力接続等により書けない場合。
@@ -1424,7 +1424,7 @@ class Plug(Object):
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
 
         単位アトリビュートの既定値をcm/rad/秒へ換算してsetへ渡す。
-        複合アトリビュートは定義順に子を更新し、途中で失敗したら例外を送出する。
+        コンパウンドアトリビュートは定義順に子を更新し、途中で失敗したら例外を送出する。
         全子の事前検証や、成功した子の自動ロールバックは行わない。
         接続の切断やロック解除はしない。
 
@@ -1436,7 +1436,7 @@ class Plug(Object):
                 fastは子へも引数で渡し、Undoへ記録しない。
 
         Raises:
-            TypeError: 配列全体・文字列・messageなど既定値を扱えないアトリビュートの場合。
+            TypeError: マルチアトリビュート全体・文字列・messageなど既定値を扱えないアトリビュートの場合。
             RuntimeError: ロック・入力接続などで変更できない場合。enumの既定値がフィールドの
                 最小〜最大の外にある場合(``a=1:b=5`` の既定値0など)も、Mayaの設定どおり
                 書込みを拒否してRuntimeErrorになる(値は変えない)。
@@ -1447,8 +1447,8 @@ class Plug(Object):
         """
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugReset"):
-            if self.isArray():
-                raise TypeError(_ARRAY_RESET_MESSAGE)
+            if self.isMulti():
+                raise TypeError(_MULTI_RESET_MESSAGE)
             self._require_valid()
             if self._mplug.isCompound:
                 for index in range(self._mplug.numChildren()):
@@ -1467,7 +1467,7 @@ class Plug(Object):
             return self
 
     def getSource(self, *, skipConversionNodes=True, **kwargs):
-        """直接の入力元を取得する。子・配列要素の独立接続は展開しない。
+        """直接の入力元を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
             skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。
@@ -1492,7 +1492,7 @@ class Plug(Object):
         return self.getConnections(True, False, **kwargs)
 
     def getDestinations(self, *, skipConversionNodes=True, **kwargs):
-        """直接の出力先を取得する。子・配列要素の独立接続は展開しない。
+        """直接の出力先を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
             skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。Falseは直結したPlug。
@@ -1520,7 +1520,7 @@ class Plug(Object):
         asPair=False, asNode=False, checkChildren=True, checkElements=True, index=None):
         """接続参照を取得する。既定は変換ノードを省略しない。
 
-        自身の入力・出力、次に既存配列要素または子へ再帰する。
+        自身の入力・出力、次にマルチアトリビュートの既存要素または子へ再帰する。
         型で絞り、初出順で重複を統合した後にindexを適用する。
 
         Args:
@@ -1538,8 +1538,8 @@ class Plug(Object):
             skipConversionNodes (bool): unitConversion系を省略する。
             asPair (bool): (自身側Plug, 相手側)の組で返す。入力方向でも同じ順序。
             asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
-            checkChildren (bool): 複合の子も探索する。
-            checkElements (bool): 既存配列要素も探索する。
+            checkChildren (bool): コンパウンドアトリビュートの子も探索する。
+            checkElements (bool): マルチアトリビュートの既存要素も探索する。
             index (int | None): 絞込み後のPythonの位置番号。負数可、範囲外はNone。
 
         Returns:
@@ -1602,7 +1602,7 @@ class Plug(Object):
         """指定したプラグと接続されているか判定する。
 
         既定では入力・出力いずれの向きでも一致すれば True を返す。
-        子・配列要素の独立した接続や変換ノードの先の接続は展開しない。
+        子・マルチアトリビュートの要素の独立した接続や変換ノードの先の接続は展開しない。
 
         Args:
             other (Plug | om2.MPlug | str): 判定対象のプラグ。文字列は
@@ -1641,13 +1641,13 @@ class Plug(Object):
 
         Args:
             source (Plug | om2.MPlug | str): 接続元。
-            force (bool): 既存入力を置換する。unlock=Trueなら接続先と上位の複合/配列を一時解除する。
+            force (bool): 既存入力を置換する。unlock=Trueなら接続先と上位のコンパウンドアトリビュート・マルチアトリビュートを一時解除する。
                 接続元のロックは変更しない。
             f (bool): forceとORする。
             lock (bool): 接続後にロックする。Falseでも元のロックは復元する。
             l (bool): lockとORする。
-            nextAvailable (bool): 配列全体では0から入力/ロックのない要素を探す。
-                複合の子も判定する。定数値や出力接続がある要素も候補になる。
+            nextAvailable (bool): マルチアトリビュート全体では0から入力/ロックのない要素を探す。
+                コンパウンドアトリビュートの子も判定する。定数値や出力接続がある要素も候補になる。
             na (bool): nextAvailableとORする。
             unlock (bool): Falseならforceでもロックを解除しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -1672,13 +1672,13 @@ class Plug(Object):
             force, lock = force or f, lock or l
             if self.isLocked() and not (force and unlock):
                 raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
-            # 配列親を先に解除する。親がロックされたまま空き番号を探すと
+            # 親のマルチアトリビュートを先に解除する。親がロックされたまま空き番号を探すと
             # 全要素がロック扱いになり、探索が終わらなくなる。
             # 一時解除しない場合は何もしない区間なので、generatorを作らずnullcontextにする。
             with (self._temporarily_unlocked_connection_path(True, fast=fast) if force and unlock
                   else nullcontext()):
                 target = self
-                if self.isArray() and (nextAvailable or na):
+                if self.isMulti() and (nextAvailable or na):
                     def occupied(plug):
                         """自身または子に入力接続・ロックがある要素を避ける。"""
                         if plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None:
@@ -1720,7 +1720,7 @@ class Plug(Object):
         """直接の入力だけを解除する。未接続なら何もせず自身を返す。
 
         変換ノードを飛ばさずに現在の入力を調べ、disconnectへ委譲する。
-        子/配列要素の独立接続は展開せず、ロックも一時解除しない。
+        子/マルチアトリビュートの要素の独立接続は展開せず、ロックも一時解除しない。
 
         Args:
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -1748,7 +1748,7 @@ class Plug(Object):
             source (Plug | om2.MPlug | str | None): 入力元。省略またはNoneは現在の直接入力。
             force (bool): 接続先と上位を一時解除し、逆順に再ロックする。入力元のロックは変えない。
             f (bool): forceとORする。
-            nextAvailable (bool): 配列内でsrcへ直結した既存要素を全て解除する。src明示時だけ有効。
+            nextAvailable (bool): マルチアトリビュート内でsrcへ直結した既存要素を全て解除する。src明示時だけ有効。
             na (bool): nextAvailableとORする。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
@@ -1758,14 +1758,14 @@ class Plug(Object):
                 切断前に現在の直接入力として取得したPlugを返し、名前から取り直さない。
                 接続由来(networked)のMPlugを持つ場合は、切断前に同じアトリビュートを指す
                 非networkedのMPlugへ持ち替える(自身も同様。切断後も安全に比較・使用できる)。
-                配列検索は接続先要素のlist。
+                マルチアトリビュートの検索は接続先要素のlist。
 
         Raises:
             TypeError: sourceがbool等の未対応型、またはfastがbool以外の場合。
             RuntimeError: 入力・指定接続がない、または切断やロック復元に失敗した場合。
 
         Note:
-            配列検索は既存順に切断し、後半の失敗でも先行する切断は戻さない。
+            マルチアトリビュートの検索は既存順に切断し、後半の失敗でも先行する切断は戻さない。
             未接続時に何もしない入力解除は :meth:`disconnectInput` を使う。
         """
         _require_bool(fast, "fast")
@@ -1775,7 +1775,7 @@ class Plug(Object):
                 raise TypeError("source must be an input plug reference, not bool; use disconnectAll for directions")
             if source is not None:
                 source = Plug._resolve_input(source)
-            if self.isArray() and (nextAvailable or na) and source is not None:
+            if self.isMulti() and (nextAvailable or na) and source is not None:
                 targets = [p for p in self.getElements() if p.getSource(skipConversionNodes=False) == source]
                 if not targets:
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
@@ -1812,7 +1812,7 @@ class Plug(Object):
     def disconnectAll(self, *, source=True, destination=True, fast=False):
         """入力、次に出力の直接接続を解除する。ロックは解除しない。
 
-        子・配列要素の独立接続は展開せず、変換ノードも削除しない。
+        子・マルチアトリビュートの要素の独立接続は展開せず、変換ノードも削除しない。
         通常はUndo有効時に同じチャンクへ記録する。途中失敗で完了済みの切断は戻さない。
 
         Args:
@@ -1843,7 +1843,7 @@ class Plug(Object):
         """自身からdstへ接続し、接続先Plugを返す。
 
         dstをPlugへ解決し、 ``destination.connect(self, **kwargs)`` へ委譲する。
-        通常Undo・force時のロック復元・配列の空き番号選択はconnectと共通。
+        通常Undo・force時のロック復元・マルチアトリビュートの空き番号選択はconnectと共通。
         fast指定は内側のconnectへ引数で渡す。
 
         Args:
@@ -1858,7 +1858,7 @@ class Plug(Object):
         return Plug._resolve_input(destination).connect(self, **kwargs, fast=fast)
 
     def _set_template(self, value, safe, *, fast, _writer=None, **options):
-        """set()の共通骨格。Undo文脈・配列拒否・fast未対応型の事前検査・safeの例外吸収を担う。
+        """set()の共通骨格。Undo文脈・マルチアトリビュート全体の拒否・fast未対応型の事前検査・safeの例外吸収を担う。
 
         派生クラスは値の書込み本体 :meth:`_set_value` と、safeの再試行 :meth:`_set_children_safely`
         だけをoverrideする。Undoチャンク名は ``mlib<クラス名>Set``。
@@ -1875,13 +1875,13 @@ class Plug(Object):
             Plug | int: safe=Falseは自身。safe=Trueは成功0、または失敗数。
 
         Raises:
-            TypeError: fastがbool以外、または配列全体への設定。safe=Trueでも拒否する。
+            TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
             NotImplementedError: fast未対応型。safe=Trueでも拒否する。
         """
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk(f"mlib{type(self).__name__}Set"):
-            if self.isArray():
-                raise TypeError(_ARRAY_SET_MESSAGE)
+            if self.isMulti():
+                raise TypeError(_MULTI_SET_MESSAGE)
             if safe and fast and self.isValid() and self.mplug().isCompound:
                 # 未対応の子を、ロックや入力値の失敗に読み替えて部分更新しない。
                 require_supported_type(self.mplug())
@@ -1944,7 +1944,7 @@ class Plug(Object):
         set_attr(self.getFullName(), value, fast=False)
 
     def _set_children_safely(self, value, *, uiUnits=False, fast=False):
-        """失敗した複合値を子の定義順で再試行し、失敗数を返す。
+        """失敗したコンパウンドアトリビュートの値を子の定義順で再試行し、失敗数を返す。
 
         分解できない入力や再試行を完了できない失敗は1とし、更新済みの子は戻さない。
 
@@ -1993,7 +1993,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合
                 (:meth:`isValid` が ``False``。削除前の古い値を返さない)。
                 Maya 内部のデータ型(nurbsSurface の ``patchUVIds`` など)の、存在しない
-                配列要素の場合(値を読むと Maya が異常終了する場合があるため。
+                マルチアトリビュートの要素の場合(値を読むと Maya が異常終了する場合があるため。
                 :func:`mlib.core.attributeType.is_internal_data_type`)。
         """
         self._require_valid()
@@ -2004,9 +2004,9 @@ class Plug(Object):
         if reader is not False:
             return reader(self._mplug)
 
-        if is_internal_data_type(self._mplug) and not _array_element_exists(self._mplug):
+        if is_internal_data_type(self._mplug) and not _multi_element_exists(self._mplug):
             raise RuntimeError(
-                f"Cannot read a missing element of an internal data type: {self.getFullName()}"
+                f"Cannot read a missing multi element of an internal data type: {self.getFullName()}"
             )
         if attributeType(self._mplug) is None and om2.MFnAttribute(self._attribute).readable:
             # generic/kAnyの参照型は固定し、実際の値を読む時だけマトリクスを判定する。
@@ -2050,7 +2050,7 @@ class Plug(Object):
                 options[long] = options.pop(short)
         if set(options) - {"value", "time", "inTangentType", "outTangentType"}:
             raise NotImplementedError("Unsupported fast setKey flags")
-        if self.isArray() or self.isCompound():
+        if self.isMulti() or self.isCompound():
             raise NotImplementedError("fast setKey requires a scalar plug")
         if self.isLocked():
             raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
@@ -2100,7 +2100,7 @@ class Plug(Object):
     def _record_connection_value(self):
         """既存入力定数をUndoへ記録し、接続後のUndoでも元値を復元する。
 
-        未作成の配列要素は実体化しない。数値・単位・enumなど、
+        未作成のマルチアトリビュートの要素は実体化しない。数値・単位・enumなど、
         共通の数値操作で表せるものだけを対象にする。
         Undoが無効なら記録されないため、同値の書込み自体を省く。
         """
@@ -2125,7 +2125,7 @@ class Plug(Object):
         """指定階層の末端または自身へフラグを適用する。
 
         Args:
-            leaf: 複合アトリビュートの末端へ適用するか。
+            leaf: コンパウンドアトリビュートの末端へ適用するか。
             fast (bool): 自身と子の状態更新へ渡す更新経路。
             **flags: 呼出し先へ渡すキーワード引数。
         """
@@ -2232,7 +2232,7 @@ class Plug(Object):
     def _plug_path(mplug):
         """ノード名を除いた、maya.cmds で解決できるアトリビュートパスを返す。
 
-        ロング名と、必要な配列番号(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
+        ロング名と、必要な論理番号(``worldMatrix[0]``、``pnts[2].pntx`` 等)・
         インスタンス番号を含み、エイリアスがあればエイリアス名を使う
         (``MPlug.name()`` のアトリビュート部分と同じ表記)。
 
@@ -2339,7 +2339,7 @@ class Plug(Object):
 
     @staticmethod
     def _has_out_of_range_index(attribute_path):
-        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える配列番号を含むか判定する。
+        """アトリビュートパスが :data:`MAX_LOGICAL_INDEX` を超える論理番号を含むか判定する。
 
         Args:
             attribute_path (str): ノード名を含まないアトリビュートパス(``input1D[4294967296]`` など)。
@@ -2351,9 +2351,9 @@ class Plug(Object):
 
     @staticmethod
     def _has_unresolved_index(mplug):
-        """論理番号が未確定(-1)の配列要素を経由するプラグか判定する。
+        """論理番号が未確定(-1)のマルチアトリビュートの要素を経由するプラグか判定する。
 
-        ``findPlug("input3Dx")`` のように配列複合アトリビュートの子を要素を指定せずに取得すると
+        ``findPlug("input3Dx")`` のようにマルチアトリビュートであるコンパウンドアトリビュートの子を要素を指定せずに取得すると
         ``input3D[-1].input3Dx`` のようなプラグになり、maya.cmds では解決できない。
 
         Args:
@@ -2378,7 +2378,7 @@ class Plug(Object):
         """ノードとアトリビュートパス(``input1D[3]``、``pnts[2].pntx`` など)から MPlug を求める。
 
         ``.`` で区切った各区切りのアトリビュート名(ロング名・ショート名。先頭はエイリアスも可)と
-        ``[i]`` の論理番号を順に辿る。存在しない配列要素もプラグとして返し、
+        ``[i]`` の論理番号を順に辿る。存在しないマルチアトリビュートの要素もプラグとして返し、
         要素は作らない(シーンを変更しない)。
 
         Args:
@@ -2389,8 +2389,8 @@ class Plug(Object):
 
         Returns:
             om2.MPlug | None: プラグ。アトリビュートとして解決できない場合(存在しないアトリビュート、範囲指定、
-                配列でないアトリビュートへの番号、:data:`MAX_LOGICAL_INDEX` を超える番号、
-                配列要素の番号を指定しない子アトリビュートなど)は None。
+                マルチアトリビュートでないアトリビュートへの番号、:data:`MAX_LOGICAL_INDEX` を超える番号、
+                マルチアトリビュートの要素の番号を指定しない子アトリビュートなど)は None。
         """
         mplug = None
         for token in attribute_path.split("."):
@@ -2442,7 +2442,7 @@ class Plug(Object):
         Returns:
             tuple[om2.MObject | om2.MDagPath, om2.MPlug] | None: 所有ノード(DAG ノードは
                 名前が指すインスタンスの MDagPath)とプラグ。アトリビュートとして解決できない場合
-                (存在しないアトリビュート、範囲指定、配列でないアトリビュートへの番号など)は None。
+                (存在しないアトリビュート、範囲指定、マルチアトリビュートでないアトリビュートへの番号など)は None。
         """
         node_part, separator, attribute_path = text.partition(".")
         if not separator or not attribute_path:
@@ -2488,7 +2488,7 @@ class Plug(Object):
             mplug (om2.MPlug): 対象のMPlug。
 
         Returns:
-            om2.MPlug: 非networkedならそのまま、networkedなら配列要素・子を辿って作り直したMPlug。
+            om2.MPlug: 非networkedならそのまま、networkedならマルチアトリビュートの要素・子を辿って作り直したMPlug。
         """
         if not mplug.isNetworked:
             return mplug
@@ -2669,7 +2669,7 @@ class Plug(Object):
         return None
 
     def _require_writable(self):
-        """保持参照と複合型の全子の書込み可否を検証する。シーンは変更しない。
+        """保持参照とコンパウンドアトリビュートの全子の書込み可否を検証する。シーンは変更しない。
 
         Raises:
             RuntimeError: 無効な参照、ロック、入力接続、書込み禁止の場合。
@@ -2679,7 +2679,7 @@ class Plug(Object):
         self._require_valid()
 
         def check(plug):
-            """複合の子と既存配列要素だけを確認し、未作成要素を作らない。"""
+            """コンパウンドアトリビュートの子とマルチアトリビュートの既存要素だけを確認し、未作成要素を作らない。"""
             require_writable(plug)
             if plug.isArray:
                 for index in plug.getExistingArrayAttributeIndices():

@@ -96,7 +96,7 @@ class PlugTypeSelectionSpecTest(_PlugSpecCase):
                 self.assertEqual(plug.getType(), type_name)
 
     def test_typed_matrix_and_double3_and_compound(self):
-        """dataType=matrixもMatrixPlug、double3はDouble3Plug、それ以外の複合はCompoundPlug。"""
+        """dataType=matrixもMatrixPlug、double3はDouble3Plug、それ以外のコンパウンドアトリビュートはCompoundPlug。"""
         self.assertIs(type(self.add("dm", dataType="matrix")), plugs.MatrixPlug)
         self.assertIs(type(self.node.getPlug("translate")), plugs.Double3Plug)
         self.assertIs(type(self.node.getPlug("boundingBox")), plugs.CompoundPlug)
@@ -107,10 +107,10 @@ class PlugTypeSelectionSpecTest(_PlugSpecCase):
         self.assertIs(type(f3), plugs.CompoundPlug)
         self.assertEqual(f3.getType(), "float3")
 
-    def test_multi_reports_element_type_and_is_array_plug(self):
-        """multi全体はArrayPlugで、getTypeは要素の型名を返す。"""
+    def test_multi_reports_element_type_and_is_multi_plug(self):
+        """マルチアトリビュート全体はMultiPlugで、getTypeは要素の型名を返す。"""
         values = self.add("values", attributeType="long", multi=True)
-        self.assertIs(type(values), plugs.ArrayPlug)
+        self.assertIs(type(values), plugs.MultiPlug)
         self.assertEqual(values.getType(), "long")
         self.assertIs(type(values[3]), plugs.LongPlug)
         self.assertIs(type(self.node.getPlug("worldMatrix")[0]), plugs.MatrixPlug)
@@ -710,7 +710,7 @@ class PlugFastBackendSpecTest(_PlugSpecCase):
     """fastで書ける型の範囲(core.fastWrite)と、未対応型の更新前の拒否。"""
 
     def test_unsupported_child_rejected_before_partial_update(self):
-        """未対応の子(message)を持つ複合のfastはsafeでもNotImplementedErrorで、どの子も書かない。"""
+        """未対応の子(message)を持つコンパウンドアトリビュートのfastはsafeでもNotImplementedErrorで、どの子も書かない。"""
         cmds.addAttr(self.name, longName="mix", attributeType="compound", numberOfChildren=2)
         cmds.addAttr(self.name, longName="mixA", attributeType="double", parent="mix")
         cmds.addAttr(self.name, longName="mixB", attributeType="message", parent="mix")
@@ -774,7 +774,7 @@ class PlugResetDefaultSpecTest(_PlugSpecCase):
     """getDefaultの戻り値の型とresetのUndo・失敗時の扱い。"""
 
     def test_default_value_types(self):
-        """数値はfloat・bool・int、単位付きはMAngle・MDistance・MTime、数値の複合はtuple。"""
+        """数値はfloat・bool・int、単位付きはMAngle・MDistance・MTime、数値のコンパウンドアトリビュートはtuple。"""
         self.assertEqual(self.node.getPlug("sx").getDefault(), 1.0)
         self.assertIs(self.node.getPlug("visibility").getDefault(), True)
         self.assertEqual(self.node.getPlug("rotateOrder").getDefault(), 0)
@@ -794,7 +794,7 @@ class PlugResetDefaultSpecTest(_PlugSpecCase):
         self.assertAlmostEqual(cmds.getAttr(plug.getFullName()), 20.0)
 
     def test_reset_compound_undo_and_fast(self):
-        """複合は子を定義順に戻し、通常は1回のUndoで戻る。fastは記録しない。"""
+        """コンパウンドアトリビュートは子を定義順に戻し、通常は1回のUndoで戻る。fastは記録しない。"""
         scale = self.node.getPlug("scale")
         scale.set((2, 3, 4))
         cmds.flushUndo()
@@ -819,8 +819,8 @@ class PlugResetDefaultSpecTest(_PlugSpecCase):
         cmds.undo()
         self.assertEqual(cmds.getAttr(self.name + ".s"), [(2.0, 3.0, 4.0)])
 
-    def test_reset_rejects_array_and_bad_fast(self):
-        """配列全体とbool以外のfastはTypeError。"""
+    def test_reset_rejects_multi_and_bad_fast(self):
+        """マルチアトリビュート全体とbool以外のfastはTypeError。"""
         with self.assertRaises(TypeError):
             self.node.getPlug("worldMatrix").reset()
         with self.assertRaises(TypeError):

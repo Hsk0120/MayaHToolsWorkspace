@@ -53,14 +53,14 @@ class SkinWeightCleanupTest(unittest.TestCase):
         return skin.mfn().indexForInfluenceObject(joint.mpath())
 
     def _row(self, vertex=0, skin=None):
-        """指定頂点のweights配列Plugを取得する。
+        """指定頂点のweightsマルチアトリビュートのPlugを取得する。
 
         Args:
             vertex (int): 頂点番号。
             skin (SkinCluster | None): 対象。省略時はsetUpのskin。
 
         Returns:
-            MPlug: weights配列。
+            MPlug: weightsのマルチアトリビュート。
         """
         skin = self.skin if skin is None else skin
         return skin.getPlug("weightList").mplug().elementByLogicalIndex(vertex).child(0)
@@ -238,7 +238,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         self.assertNotIn(77, self._indices(skin=skin))
 
     def test_locks_and_input_connections_reject_cleanup_and_force_without_unlocking(self):
-        """liw・配列親・leafロック・入力接続はforceでも解除しない。"""
+        """liw・親のマルチアトリビュート・leafロック・入力接続はforceでも解除しない。"""
         self._inject(77, 0.5)
         paths = (str(self.other) + ".lockInfluenceWeights", str(self.skin) + ".weightList",
                  self._row().elementByLogicalIndex(self._index(self.parent)).name())

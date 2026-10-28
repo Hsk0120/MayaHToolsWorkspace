@@ -24,7 +24,7 @@ _MOVABLE_NUMERIC_TYPES = {
     om2.MFnNumericData.kDouble: "double",
 }  #: moveAttrOrder() が再作成できる数値アトリビュート型と cmds.addAttr(attributeType=) の対応。
 
-#: ``cmds.listAttr(scalar=True)`` が除く、複数成分の数値型(double3 等。複合アトリビュートとして定義される)。
+#: ``cmds.listAttr(scalar=True)`` が除く、複数成分の数値型(double3 等。コンパウンドアトリビュートとして定義される)。
 _MULTI_COMPONENT_NUMERIC_TYPES = frozenset(
     getattr(om2.MFnNumericData, name) for name in dir(om2.MFnNumericData) if name[:2] in ("k2", "k3", "k4")
 )
@@ -221,7 +221,7 @@ def _resolve_input_or_none(other):
 def _dump_movable_attr(plug):
     """並び替え対応の単純な動的アトリビュートから再作成に必要な情報を集める。
 
-    数値(bool/byte/short/long/float/double)、enum、文字列型の非複合・非配列
+    数値(bool/byte/short/long/float/double)、enum、文字列型のコンパウンドアトリビュートでもマルチアトリビュートでもない
     トップレベル動的アトリビュートのみ対応する。
 
     Args:
@@ -231,10 +231,10 @@ def _dump_movable_attr(plug):
         dict: addAttr() での再作成と値・状態の復元に必要な情報。
 
     Raises:
-        TypeError: 複合・配列アトリビュート、または対応しないアトリビュート型の場合。
+        TypeError: コンパウンドアトリビュート・マルチアトリビュート、または対応しないアトリビュート型の場合。
     """
-    if plug.isArray() or plug.isCompound():
-        raise TypeError(f"Cannot reorder compound or array attributes: {plug.getFullName()}")
+    if plug.isMulti() or plug.isCompound():
+        raise TypeError(f"Cannot reorder compound attributes or multi attributes: {plug.getFullName()}")
     attr = plug.mplug().attribute()
     definition = om2.MFnAttribute(attr)
     if not definition.connectable:
@@ -307,7 +307,7 @@ def _enum_definition(plug):
 def _scalar_attribute(attribute):
     """``cmds.listAttr(scalar=True)`` が列挙する、単一成分の数値・単位・enum 型か判定する。
 
-    配列(multi)であっても、要素が単一成分なら対象に含める(listAttr と同じ)。
+    マルチアトリビュートであっても、要素が単一成分なら対象に含める(listAttr と同じ)。
 
     Args:
         attribute (om2.MObject): アトリビュート定義。
@@ -547,8 +547,8 @@ class Node(Object):
 
         Raises:
             AttributeError: 非公開名または存在しない Maya アトリビュートを指定した場合。
-                :meth:`getPlug` が RuntimeError にする名前(``input3Dx`` のような、配列要素の
-                番号を含まない配列複合アトリビュートの子)も、``hasattr``/``getattr(node, name, default)``
+                :meth:`getPlug` が RuntimeError にする名前(``input3Dx`` のような、マルチアトリビュートの要素の
+                番号を含まないマルチアトリビュートであるコンパウンドアトリビュートの子)も、``hasattr``/``getattr(node, name, default)``
                 が使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
             RuntimeError: ノードが無効な場合。
         """
@@ -1106,7 +1106,7 @@ class Node(Object):
 
         Args:
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
-                数値・単位・enumアトリビュートを対象とし、配列・ロック・入力接続・書込み禁止・
+                数値・単位・enumアトリビュートを対象とし、マルチアトリビュート・ロック・入力接続・書込み禁止・
                 非対応型は除外する(通常/fastで同じ選択)。
                 明示指定したアトリビュートのエラーは除外せず送出する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -1122,7 +1122,7 @@ class Node(Object):
         with _edit_context("mlibNodeResetAttrs", fast):
             if attributes is None:
                 # getPlugs(keyable, scalar) は cmds.listAttr と同じ列挙を om2 で行うため、fastでもcmdsを呼ばない。
-                # listAttr(scalar=True) は配列も返すため配列を除く(要素ごとのresetが必要)。
+                # listAttr(scalar=True) はマルチアトリビュートも返すためマルチアトリビュートを除く(要素ごとのresetが必要)。
                 plugs = [plug for plug in self.getPlugs(keyable=True, scalar=True)
                          if not plug.mplug().isArray and plug.getDefault() is not None
                          and not plug.isDestination()]
@@ -1171,14 +1171,14 @@ class Node(Object):
         """アトリビュートをPlug参照として列挙する。
 
         ``userDefined=True`` はユーザー追加(動的)アトリビュートだけを、Mayaの定義から追加順に
-        型付きPlugで作る(cmdsは使わない。配列はArrayPlug、非表示・非keyableも含む)。
+        型付きPlugで作る(cmdsは使わない。マルチアトリビュートはMultiPlug、非表示・非keyableも含む)。
         それ以外は ``cmds.listAttr`` の条件で列挙する(``keyable=True`` 等)。フラグ無し・``keyable=True``・
         ``scalar=True`` (併用可)は ``cmds.listAttr`` を呼ばず、同じ順序・同じ結果をOpenMayaの定義の
-        走査で求める(トップレベルの定義順に、複合の子を親の直後へ並べ、配列の複合の子は含めない)。
+        走査で求める(トップレベルの定義順に、コンパウンドアトリビュートの子を親の直後へ並べ、マルチアトリビュートであるコンパウンドアトリビュートの子は含めない)。
 
         Args:
             userDefined (bool): Trueはユーザー定義アトリビュートだけを返す。listAttrのフラグとは併用できない。
-            includeChildren (bool): Trueは複合アトリビュートの子も含める。Falseはトップレベルだけ。
+            includeChildren (bool): Trueはコンパウンドアトリビュートの子も含める。Falseはトップレベルだけ。
             **listAttrFlags: ``userDefined=False`` のときに ``cmds.listAttr`` へ渡すフラグ。
 
         Returns:
@@ -1188,7 +1188,7 @@ class Node(Object):
         Raises:
             TypeError: userDefined・includeChildrenがboolでない、またはuserDefined=TrueにlistAttrのフラグを併用した場合。
             RuntimeError: ノードが無効、listAttrが失敗、またはuserDefined=TrueかつincludeChildren=Trueで
-                番号を指定しない複合配列の子が含まれる場合。
+                番号を指定しないマルチアトリビュートであるコンパウンドアトリビュートの子が含まれる場合。
         """
         _require_bool(userDefined, "userDefined")
         _require_bool(includeChildren, "includeChildren")
@@ -1197,7 +1197,7 @@ class Node(Object):
             if listAttrFlags:
                 raise TypeError("userDefined=True cannot be combined with listAttr flags: "
                                 + ", ".join(sorted(listAttrFlags)))
-            # 名前へ変換して再検索せず、定義から型付きPlugを作る。配列の要素は展開しない。
+            # 名前へ変換して再検索せず、定義から型付きPlugを作る。マルチアトリビュートの要素は展開しない。
             from ..plugs.plug import Plug
             return [Plug(self, om2.MPlug(self._mobject, attribute))
                     for attribute in self._user_attributes(includeChildren)]
@@ -1227,7 +1227,7 @@ class Node(Object):
             RuntimeError: ノードが無効な場合。
         """
         self._require_valid("get aliases of")
-        # 配列・複合パスはgetPlugで解決し、別のMayaコマンドで名前を再解決しない。
+        # マルチアトリビュート・コンパウンドアトリビュートパスはgetPlugで解決し、別のMayaコマンドで名前を再解決しない。
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
@@ -1272,7 +1272,7 @@ class Node(Object):
             ct (str | Sequence[str]): categoryの別名。
             dataType (str | Sequence[str]): MayaのdataTypeフラグ。
             dt (str | Sequence[str]): dataTypeの別名。
-            defaultValue (object): 追加する型に対応した既定値。複合数値は成分列、型付きデータはPlug.setと同じ形で指定する。
+            defaultValue (object): 追加する型に対応した既定値。数値のコンパウンドアトリビュートは成分列、型付きデータはPlug.setと同じ形で指定する。
             dv (object): defaultValueの別名。
             disconnectBehaviour (int): MayaのdisconnectBehaviourフラグ。
             dcb (int): disconnectBehaviourの別名。
@@ -1312,7 +1312,7 @@ class Node(Object):
             nn (str): niceNameの別名。
             numberOfChildren (int): MayaのnumberOfChildrenフラグ。
             nc (int): numberOfChildrenの別名。
-            parent (str): 親にする既存の複合アトリビュート名。ノードの親指定ではない。
+            parent (str): 親にする既存のコンパウンドアトリビュート名。ノードの親指定ではない。
             p (str): parentの別名。
             pxy (Plug | str | None): proxyの別名。
             query (bool): Trueは作成専用のため拒否する。
@@ -1472,7 +1472,7 @@ class Node(Object):
         Maya にはアトリビュートの並び替え API が無いため、移動元と移動先のうち手前側の
         位置から末尾までのアトリビュートをまとめて削除し、新しい順序で再作成すること
         で実現する(移動先より後ろにある、移動と無関係なアトリビュートも再作成対象に
-        含まれる。数値・enum・文字列型の非複合・非配列トップレベル動的アトリビュート
+        含まれる。数値・enum・文字列型のコンパウンドアトリビュートでもマルチアトリビュートでもないトップレベル動的アトリビュート
         のみ対応。対応しないアトリビュートが再作成対象に含まれる場合は何も変更せず
         例外を送出する)。
 
@@ -1488,7 +1488,7 @@ class Node(Object):
             Node: 自身。全変更を一回の Undo にまとめる。
 
         Raises:
-            TypeError: 移動範囲に複合・配列アトリビュート、または対応しないアトリビュート型が
+            TypeError: 移動範囲にコンパウンドアトリビュート・マルチアトリビュート、または対応しないアトリビュート型が
                 含まれる場合。cmdsで再現できないnon-connectable定義も変更前に拒否する。
             ValueError: name がトップレベルのユーザー定義アトリビュート一覧に無い場合。
             RuntimeError: ノードが無効、または安全な復元に必要なUndoが無効な場合。
@@ -1547,12 +1547,12 @@ class Node(Object):
 
         Args:
             name (str): ロング名・ショート名・エイリアス、またはノード名を除いたパス。
-                配列要素と子を ``input3D[2].input3Dx`` のように指定できる。
+                マルチアトリビュートの要素と子を ``input3D[2].input3Dx`` のように指定できる。
                 論理番号は0〜2147483647。
 
         Returns:
             Plug: 自身を所有Nodeとする、型に対応した新しいラッパー。
-                未作成の配列要素も参照できる。genericは基底Plugで、値の型はget時に解釈する。
+                未作成のマルチアトリビュートの要素も参照できる。genericは基底Plugで、値の型はget時に解釈する。
 
         Raises:
             ValueError: nameが空または文字列以外の場合。
@@ -1566,7 +1566,7 @@ class Node(Object):
         self._require_valid("access attributes of")
 
         if "[" not in name:
-            # 配列インデックスを含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
+            # 論理番号を含まない名前(``boundingBox.boundingBoxMin`` のような子アトリビュートの
             # パスを含む)は、従来どおり findPlug で解決する。
             try:
                 mplug = self._dependency_fn().findPlug(name, False)
@@ -1579,7 +1579,7 @@ class Node(Object):
         if mplug is None:
             if Plug._has_out_of_range_index(name):
                 raise AttributeError(
-                    f"Array index must be between 0 and {MAX_LOGICAL_INDEX}: {self.getName()}.{name}"
+                    f"Multi element logical index must be between 0 and {MAX_LOGICAL_INDEX}: {self.getName()}.{name}"
                 )
             raise AttributeError(f"Attribute not found: {self.getName()}.{name}")
         return Plug(self, mplug)
@@ -2100,7 +2100,7 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
 
         Returns:
-            tuple: 数値複合型の一致情報・子数・作成後に設定する既定値。
+            tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。
         """
         if attribute_type is not None:
             flags.pop("attributeType", None)
@@ -2157,7 +2157,7 @@ class Node(Object):
         Args:
             name (str): 親アトリビュート名。
             flags (dict): 親へ渡すフラグ。子用の範囲値を取り出す。
-            numeric (object): 数値複合型の一致情報。
+            numeric (object): 数値のコンパウンドアトリビュートの一致情報。
             count (int): 子数。
             deferred (object): 子に渡す既定値。
             child_names (Sequence[str] | None): 子のロング名。
@@ -2190,8 +2190,8 @@ class Node(Object):
     def _listed_attributes(self, include_children=True, keyable=False, scalar=False):
         """``cmds.listAttr`` と同じ順で、getPlugs() が返すアトリビュート定義を列挙する。
 
-        トップレベルの定義を定義順に辿り、配列でない複合は子を親の直後へ深さ優先で並べる
-        (配列の複合の子は、番号の無い名前を Plug にできないため listAttr の結果からも除かれる)。
+        トップレベルの定義を定義順に辿り、マルチアトリビュートでないコンパウンドアトリビュートは子を親の直後へ深さ優先で並べる
+        (マルチアトリビュートであるコンパウンドアトリビュートの子は、番号の無い名前を Plug にできないため listAttr の結果からも除かれる)。
 
         Args:
             include_children (bool): Falseならトップレベルの定義だけを返す。
@@ -2199,13 +2199,13 @@ class Node(Object):
             scalar (bool): Trueなら単一成分の数値・単位・enumだけ(``listAttr(scalar=True)``)。
 
         Returns:
-            list[om2.MObject]: アトリビュート定義。配列要素の取得・作成は行わない。
+            list[om2.MObject]: アトリビュート定義。マルチアトリビュートの要素の取得・作成は行わない。
         """
         fn = self._dependency_fn()
         ordered = []
 
         def visit(attribute):
-            """定義を追加し、配列でない複合なら子を続けて追加する。"""
+            """定義を追加し、マルチアトリビュートでないコンパウンドアトリビュートなら子を続けて追加する。"""
             ordered.append(attribute)
             if (include_children and attribute.hasFn(om2.MFn.kCompoundAttribute)
                     and not om2.MFnAttribute(attribute).array):
@@ -2228,10 +2228,10 @@ class Node(Object):
         """動的アトリビュートの定義を追加順に列挙する。
 
         Args:
-            include_children (bool): Trueなら複合型の子の定義も含める。
+            include_children (bool): Trueならコンパウンドアトリビュートの子の定義も含める。
 
         Yields:
-            om2.MObject: アトリビュート定義。配列要素の取得・作成は行わない。
+            om2.MObject: アトリビュート定義。マルチアトリビュートの要素の取得・作成は行わない。
         """
         fn = self._dependency_fn()
         # 静的・拡張アトリビュートはattributeClassで先に除き、MFnAttributeの作成を動的なものだけにする。

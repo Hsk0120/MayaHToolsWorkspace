@@ -303,7 +303,7 @@ class AimAxisConversion:
         return self._createNode(kind, name="{}{}".format(role, self._serial))
 
     def _createNode(self, kind, name=None):
-        """生成物をcontainerまたはmessage配列へ登録する。
+        """生成物をcontainerまたはmessageのマルチアトリビュートへ登録する。
 
         Args:
             kind (str): 標準ノード型。

@@ -25,7 +25,7 @@ from mlib.core.attributeType import attributeType, is_internal_data_type
 from mlib.components import Faces, Vertex, Vertices
 from mlib.maths import EulerRotate, Translate
 from mlib.nodes import Joint, Joints, Mesh, Node
-from mlib.plugs import ArrayPlug, CompoundPlug, Plug
+from mlib.plugs import CompoundPlug, MultiPlug, Plug
 from mlib.common.selection import Selection
 
 
@@ -86,7 +86,7 @@ class DuplicateShortNameTest(_InteropCase):
                 self.assertEqual(plug.getFullName(), str(plug))
                 self.assertEqual(len(cmds.ls(str(plug))), 1)
         world = dup1.getPlug("worldMatrix")
-        self.assertIsInstance(world, ArrayPlug)
+        self.assertIsInstance(world, MultiPlug)
         element = world[0]
         self.assertEqual(type(element).__name__, "MatrixPlug")
         self.assertEqual(str(element), dup1.getName() + ".worldMatrix[0]")
@@ -154,7 +154,7 @@ class DuplicateShortNameTest(_InteropCase):
             mesh.getPlug("instObjGroups[0].objectGroups[0].objectGrpCompList").getFullName(), name
         )
         # 要素を指定しない子は cmp[-1].child のような maya.cmds で解決できないプラグになるため拒否する。
-        # 配列複合アトリビュートの子の配列(cmp[-1].childArray)も同じ(ArrayPlug でも str() を解決できない)。
+        # マルチアトリビュートであるコンパウンドアトリビュートの子のマルチアトリビュート(cmp[-1].childArray)も同じ(MultiPlug でも str() を解決できない)。
         for name in ("objectGrpCompList", "objectGroups"):
             with self.subTest(name=name):
                 with self.assertRaises(RuntimeError):
@@ -164,9 +164,9 @@ class DuplicateShortNameTest(_InteropCase):
             mesh.getPlug("instObjGroups[0].objectGroups").getFullName(),
             mesh.getName() + ".instObjGroups[0].objectGroups",
         )
-        # plugs() は未確定のインデックスを含むプラグを含まない(配列 Plug を含め、すべて解決できる)。
+        # plugs() は未確定のインデックスを含むプラグを含まない(マルチアトリビュートのPlug を含め、すべて解決できる)。
         plugs = mesh.getPlugs()
-        self.assertTrue(any(plug.isArray() for plug in plugs))
+        self.assertTrue(any(plug.isMulti() for plug in plugs))
         self.assertFalse(any("[-1]" in plug.mplug().name() for plug in plugs))
 
     def test_display_layer_members_with_duplicate_names(self):
@@ -182,7 +182,7 @@ class DuplicateShortNameTest(_InteropCase):
 
 
 class NamingSpecTest(_InteropCase):
-    """名前の追従・ネームスペース・入れ子の配列・インスタンスを検証する。"""
+    """名前の追従・ネームスペース・入れ子のマルチアトリビュート・インスタンスを検証する。"""
 
     def test_names_follow_rename_and_reparent(self):
         group = self.create("transform", "grp")
@@ -303,7 +303,7 @@ class PassToMayaCmdsTest(_InteropCase):
     """mlib のオブジェクトを maya.cmds へそのまま渡せることを検証する。"""
 
     def test_as_string(self):
-        """名前変換・複合/配列入力・名前変更後の追従を検証する。"""
+        """名前変換・コンパウンドアトリビュート・マルチアトリビュート入力・名前変更後の追従を検証する。"""
         node, mesh = self.cube()
         vertex = Vertex(mesh, 0)
         translate = node.getPlug("translate")
@@ -362,19 +362,19 @@ class PassToMayaCmdsTest(_InteropCase):
     def test_objects_that_cannot_be_passed_directly(self):
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
-        array_plug = network.getPlug("values")
-        array_plug[0].set(1.0)
-        array_plug[2].set(3.0)
-        # ArrayPlug は [] で要素を返すため maya.cmds がシーケンスとして扱い失敗する。
+        multi_plug = network.getPlug("values")
+        multi_plug[0].set(1.0)
+        multi_plug[2].set(3.0)
+        # MultiPlug は [] で要素を返すため maya.cmds がシーケンスとして扱い失敗する。
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
-            cmds.getAttr(array_plug, size=True)
-        self.assertEqual(cmds.getAttr(str(array_plug), size=True), 2)
-        self.assertEqual(cmds.getAttr(array_plug.getFullName(), size=True), 2)
+            cmds.getAttr(multi_plug, size=True)
+        self.assertEqual(cmds.getAttr(str(multi_plug), size=True), 2)
+        self.assertEqual(cmds.getAttr(multi_plug.getFullName(), size=True), 2)
         # om2.MObject の str() は repr のため名前として解決できない。
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
             cmds.select(network.mnode())
         # mlib のコマンドはどちらも受け付ける。
-        self.assertTrue(cmds.objExists(str(array_plug)))
+        self.assertTrue(cmds.objExists(str(multi_plug)))
         mlib.select(network.mnode())
         self.assertEqual(cmds.ls(selection=True), [network.getName()])
 
@@ -837,7 +837,7 @@ class ComponentNamedAttributeTest(_InteropCase):
 
 
 class PlugCreationSideEffectTest(_InteropCase):
-    """Plug の生成がシーンを変更しないこと(配列要素を作らない・異常終了しないこと)を検証する。"""
+    """Plug の生成がシーンを変更しないこと(マルチアトリビュートの要素を作らない・異常終了しないこと)を検証する。"""
 
     def existing(self, plug):
         return list(plug.mplug().getExistingArrayAttributeIndices())
@@ -1082,7 +1082,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         network = self.create("network", "net")
         network.addAttr("values", attributeType="double", multi=True)
         network.getPlug("values")[2].set(1.0)
-        array_plug = network.getPlug("values")
+        multi_plug = network.getPlug("values")
         name = network.getName()
         cmds.delete(network.getFullName())
         replacement = self.create("network", "net")
@@ -1090,13 +1090,13 @@ class PlugCreationSideEffectTest(_InteropCase):
         self.assertEqual(replacement.getName(), name)
         # 削除済みノードの名前で問い合わせると、同じ名前の新しいノードに要素ができてしまう。
         calls = {
-            "element": lambda: array_plug.getElement(2),
-            "getitem": lambda: array_plug[2],
-            "elements": array_plug.getElements,
-            "get": array_plug.get,
-            "remove": lambda: array_plug.removeElement(2),
-            "getNextAvailable": array_plug.getNextAvailable,
-            "Plug": lambda: Plug(network, array_plug.mplug().elementByLogicalIndex(4)),
+            "element": lambda: multi_plug.getElement(2),
+            "getitem": lambda: multi_plug[2],
+            "elements": multi_plug.getElements,
+            "get": multi_plug.get,
+            "remove": lambda: multi_plug.removeElement(2),
+            "getNextAvailable": multi_plug.getNextAvailable,
+            "Plug": lambda: Plug(network, multi_plug.mplug().elementByLogicalIndex(4)),
         }
         for label, call in calls.items():
             with self.subTest(call=label):
@@ -1104,18 +1104,18 @@ class PlugCreationSideEffectTest(_InteropCase):
                     call()
         self.assertEqual(self.existing(replacement.getPlug("values")), [])
 
-    def test_message_array_elements_exist_once_connected(self):
+    def test_message_multi_elements_exist_once_connected(self):
         network = self.create("network", "net")
         network.addAttr("links", attributeType="message", multi=True)
-        array_plug = network.getPlug("links")
-        first = array_plug.getNextAvailable(start=0, asPlug=True)
+        multi_plug = network.getPlug("links")
+        first = multi_plug.getNextAvailable(start=0, asPlug=True)
         self.assertEqual(first.getFullName(), network.getName() + ".links[0]")
         # message 型の要素は値を持たないため作成できず、接続するまでは同じ番号を返す。
-        self.assertEqual(array_plug.getElements(), [])
-        self.assertEqual(array_plug.getNextAvailable(start=0, asPlug=True).getFullName(), first.getFullName())
+        self.assertEqual(multi_plug.getElements(), [])
+        self.assertEqual(multi_plug.getNextAvailable(start=0, asPlug=True).getFullName(), first.getFullName())
         self.create("network", "src").getPlug("message").connectTo(first)
-        self.assertEqual([plug.getFullName() for plug in array_plug.getElements()], [first.getFullName()])
-        self.assertEqual(array_plug.getNextAvailable(start=0, asPlug=True).getFullName(), network.getName() + ".links[1]")
+        self.assertEqual([plug.getFullName() for plug in multi_plug.getElements()], [first.getFullName()])
+        self.assertEqual(multi_plug.getNextAvailable(start=0, asPlug=True).getFullName(), network.getName() + ".links[1]")
 
 
 class PlugValidityTest(_InteropCase):
@@ -1124,8 +1124,8 @@ class PlugValidityTest(_InteropCase):
     def test_deleted_dynamic_attribute(self):
         node = self.create("transform", "t")
         plug = node.addAttr("foo", attributeType="double")
-        array_plug = node.addAttr("arr", attributeType="double", multi=True)
-        array_plug[2].set(3.0)
+        multi_plug = node.addAttr("arr", attributeType="double", multi=True)
+        multi_plug[2].set(3.0)
         cmds.addAttr(node.getName(), longName="cmp", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(node.getName(), longName="cmp" + axis, attributeType="double", parent="cmp")
@@ -1135,7 +1135,7 @@ class PlugValidityTest(_InteropCase):
         for name in ("foo", "arr", "cmp"):
             cmds.deleteAttr(node.getName() + "." + name)
         # 削除済みのアトリビュートの MPlug で値を読み書きすると Maya が異常終了するため、RuntimeError にする。
-        for item in (plug, array_plug, compound, child):
+        for item in (plug, multi_plug, compound, child):
             with self.subTest(plug=type(item).__name__):
                 self.assertFalse(item.isValid())
                 self.assertEqual(str(item), "")
@@ -1147,9 +1147,9 @@ class PlugValidityTest(_InteropCase):
             lambda: plug.set(1.0),
             lambda: plug.set(1.0, fast=True),
             lambda: compound.set((1, 2, 3)),
-            array_plug.getElements,
-            lambda: array_plug[2],
-            array_plug.getNextAvailable,
+            multi_plug.getElements,
+            lambda: multi_plug[2],
+            multi_plug.getNextAvailable,
             lambda: compound[0],
             plug.reset,
             child.getParent,
@@ -1367,13 +1367,13 @@ class PlugValidityTest(_InteropCase):
                     plug.get,
                     lambda: plug.connectTo(self.create("transform", "x").getPlug("tx")),
                 ]
-                if not isinstance(plug, ArrayPlug):
-                    calls.append(lambda: plug.set(1.0))  # 配列全体の set() は常に TypeError
+                if not isinstance(plug, MultiPlug):
+                    calls.append(lambda: plug.set(1.0))  # マルチアトリビュート全体の set() は常に TypeError
                 for call in calls:
                     with self.assertRaises(RuntimeError):
                         call()
                 # 構造の判定は例外にしない。
-                self.assertIsInstance(plug.isArray(), bool)
+                self.assertIsInstance(plug.isMulti(), bool)
 
     def test_deleted_extension_attribute(self):
         node_type = "network"
@@ -1440,8 +1440,8 @@ class NodePlugPathTest(_InteropCase):
                 with self.assertRaises(AttributeError):
                     average.getPlug(path)
                 self.assertFalse(average.hasAttr(path))
-        # 配列要素の番号を含まない配列複合アトリビュートの子は maya.cmds で解決できないため拒否する
-        # (子が配列の場合も同じ。inputTarget[-1].inputTargetGroup の ArrayPlug は作らない)。
+        # マルチアトリビュートの要素の番号を含まないマルチアトリビュートであるコンパウンドアトリビュートの子は maya.cmds で解決できないため拒否する
+        # (子がマルチアトリビュートの場合も同じ。inputTarget[-1].inputTargetGroup の MultiPlug は作らない)。
         with self.assertRaises(RuntimeError):
             average.getPlug("input3Dx")
         self.assertFalse(average.hasAttr("input3Dx"))
@@ -1450,7 +1450,7 @@ class NodePlugPathTest(_InteropCase):
                 with self.assertRaises(RuntimeError):
                     blend.getPlug(path)
                 self.assertFalse(blend.hasAttr(path))
-        self.assertEqual(type(blend.getPlug(group)).__name__, "ArrayPlug")
+        self.assertEqual(type(blend.getPlug(group)).__name__, "MultiPlug")
         # Python のアトリビュートアクセスでは hasattr/getattr の既定値が使えるよう AttributeError にする。
         for node, name in (
             (average, "input3Dx"),

@@ -106,7 +106,7 @@ class GetNodeSpecTest(_CmdsCase):
 
 
 class GetPlugSpecTest(_CmdsCase):
-    """getPlugの入力・同一インスタンス・配列要素を固定する。"""
+    """getPlugの入力・同一インスタンス・マルチアトリビュートの要素を固定する。"""
 
     def test_inputs_and_identity(self):
         """名前・MPlugから新しいPlug、既存Plugは同じインスタンスを返す。"""
@@ -118,8 +118,8 @@ class GetPlugSpecTest(_CmdsCase):
         mplug = om2.MSelectionList().add(node + ".ty").getPlug(0)
         self.assertEqual(mlib.getPlug(mplug).getFullName().split(".")[-1], "translateY")
 
-    def test_array_element_is_not_created(self):
-        """未作成の配列要素も参照でき、参照取得だけでは要素を作らない。"""
+    def test_multi_element_is_not_created(self):
+        """未作成のマルチアトリビュートの要素も参照でき、参照取得だけでは要素を作らない。"""
         node = cmds.createNode("transform", name=self.name("node"))
         cmds.addAttr(node, longName="values", attributeType="double", multi=True)
         plug = mlib.getPlug(node + ".values[5]")

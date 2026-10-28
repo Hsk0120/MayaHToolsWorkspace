@@ -71,7 +71,7 @@ class Double3Plug(CompoundPlug):
                 CompoundPlug.setの再試行規則に従い、更新済みの値は自動では戻さない。
 
         Raises:
-            TypeError: fastがbool以外、または配列全体への設定。safe=Trueでも抑制しない。
+            TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも抑制しない。
                 safe=Falseでは入力型が不正な場合も送出する。
             ValueError: safe=Falseで成分数・有限値・角度単位が不正な場合。
             RuntimeError: safe=Falseで無効参照、ロック・入力接続、またはMayaの編集失敗。
@@ -108,7 +108,7 @@ class Double3Plug(CompoundPlug):
             # CompoundPlug._set_value(fast)と同じ子数の検査と直接更新。参照の検証と全子の
             # 書込み可否は上で済んでいるため、set_plugでは型・範囲だけを検査する。
             if len(values) != self._mplug.numChildren():
-                raise ValueError("Compound plug value length does not match its child count")
+                raise ValueError("Compound attribute value length does not match its child count")
             set_plug(self._mplug, values, _writable_checked=True)
         elif fast:
             super()._set_value(values, fast=fast)

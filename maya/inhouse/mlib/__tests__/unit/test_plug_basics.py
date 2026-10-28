@@ -1,4 +1,4 @@
-"""Plugの値・接続・疎配列・ロックを基本操作の境界から検証する。"""
+"""Plugの値・接続・疎なマルチアトリビュート・ロックを基本操作の境界から検証する。"""
 
 import math
 import unittest
@@ -192,8 +192,8 @@ class PlugBasicsTest(unittest.TestCase):
                     cmds.undo()
                     self.assertEqual(cmds.getAttr(transform.getFullName() + ".t")[0], (0, 12, 0))
 
-    def test_sparse_array_reference_errors_do_not_create_elements(self):
-        """欠番・不正番号・別名競合の照会は配列の論理番号を増やさない。"""
+    def test_sparse_multi_reference_errors_do_not_create_elements(self):
+        """欠番・不正番号・別名競合の照会はマルチアトリビュートの論理番号を増やさない。"""
         array = self.node.getPlug("values")
         array[3].set(2)
         array[1000].set(5)
@@ -206,8 +206,8 @@ class PlugBasicsTest(unittest.TestCase):
         self.assertEqual(array.getIndices(), [3, 1000])
         self.assertEqual(cmds.getAttr(array.getFullName(), multiIndices=True), [3, 1000])
 
-    def test_array_remove_restores_element_value_and_connection_on_undo(self):
-        """接続された疎配列要素の削除をUndo/redoし、欠番と他要素を保つ。"""
+    def test_multi_remove_restores_element_value_and_connection_on_undo(self):
+        """接続された疎なマルチアトリビュートの要素の削除をUndo/redoし、欠番と他要素を保つ。"""
         array = self.node.getPlug("values")
         source = self.number()
         source.set(9)
@@ -224,8 +224,8 @@ class PlugBasicsTest(unittest.TestCase):
         self.assertEqual(array.getIndices(), [2])
         self.assertEqual(cmds.getAttr(array[2].getFullName()), 3)
 
-    def test_array_whole_set_rejection_preserves_sparse_values(self):
-        """配列全体のsetはsafe指定でも拒否し、既存値を変更しない。"""
+    def test_multi_whole_set_rejection_preserves_sparse_values(self):
+        """マルチアトリビュート全体のsetはsafe指定でも拒否し、既存値を変更しない。"""
         array = self.node.getPlug("values")
         array[4].set(11)
         for fast in (False, True):

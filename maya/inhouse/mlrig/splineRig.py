@@ -166,7 +166,7 @@ class SplineRig:
         ControlShape.circle(node, radius=radius, normal=normal, color=color)
 
     def getMembers(self, attr):
-        """message配列を順に解決する。
+        """messageのマルチアトリビュートを順に解決する。
 
         Args:
             attr (str): fk/ik/deform/controls。

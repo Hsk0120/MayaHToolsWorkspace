@@ -41,13 +41,13 @@ class ExtraAttributesTest(unittest.TestCase):
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), len(cases) + 3)
         self.assertNotIn(self.node.getPlug("translate"), self.node.getPlugs(userDefined=True, includeChildren=False))
 
-    def test_compound_array_and_undo(self):
+    def test_compound_multi_and_undo(self):
         compound = self.node.addAttr("vectorValue", attributeType="double3")
         self.assertIsInstance(compound, mlib.plugs.Double3Plug)
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), 1)
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=True)), 4)
         array = self.node.addAttr("weights", attributeType="double", multi=True)
-        self.assertIsInstance(array, mlib.plugs.ArrayPlug)
+        self.assertIsInstance(array, mlib.plugs.MultiPlug)
         self.assertIsInstance(array[0], mlib.plugs.DoublePlug)
         self.node.addAttr("undoValue", attributeType="long")
         cmds.undo()
@@ -75,8 +75,8 @@ class ExtraAttributesTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['renamed', 'last'])
 
-    def test_sparse_compound_array_roots_do_not_expand(self):
-        """複合配列の子を解決せず、空配列・疎な配列を維持する。"""
+    def test_sparse_compound_multi_roots_do_not_expand(self):
+        """マルチアトリビュートであるコンパウンドアトリビュートの子を解決せず、空のマルチアトリビュート・疎なマルチアトリビュートを維持する。"""
         name = self.node.getFullName()
         cmds.addAttr(name, longName="items", attributeType="compound", numberOfChildren=1, multi=True)
         cmds.addAttr(name, longName="amount", attributeType="double", parent="items")
@@ -86,8 +86,8 @@ class ExtraAttributesTest(unittest.TestCase):
         with contextlib.nullcontext():
             self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['items', 'empty'])
             roots = self.node.getPlugs(userDefined=True, includeChildren=False)
-            self.assertTrue(all(isinstance(p, mlib.plugs.ArrayPlug) for p in roots))
-            # 番号なしの複合配列の子は、通常のNode.plugと同じく公開Plugにできない。
+            self.assertTrue(all(isinstance(p, mlib.plugs.MultiPlug) for p in roots))
+            # 番号なしのマルチアトリビュートであるコンパウンドアトリビュートの子は、通常のNode.plugと同じく公開Plugにできない。
             with self.assertRaises(RuntimeError):
                 self.node.getPlugs(userDefined=True, includeChildren=True)
         self.assertEqual(cmds.getAttr(name + ".items", multiIndices=True), [7])
@@ -95,7 +95,7 @@ class ExtraAttributesTest(unittest.TestCase):
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)
 
     def test_nested_compound_order(self):
-        """入れ子の複合定義でもMayaの列挙順と型を保持する。"""
+        """入れ子のコンパウンドアトリビュートの定義でもMayaの列挙順と型を保持する。"""
         name = self.node.getFullName()
         cmds.addAttr(name, longName="outer", attributeType="compound", numberOfChildren=2)
         cmds.addAttr(name, longName="inner", attributeType="double3", parent="outer")

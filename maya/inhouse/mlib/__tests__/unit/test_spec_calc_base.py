@@ -153,8 +153,8 @@ class PlainCalculationNodeTest(unittest.TestCase):
                 self.assertValues(actual, expected)
                 self.assertValues(raw[0] if isinstance(raw, list) else raw, expected)
 
-    def test_array_inputs(self):
-        """plusMinusAverage・blendWeightedの配列入力。"""
+    def test_multi_inputs(self):
+        """plusMinusAverage・blendWeightedのマルチアトリビュートの入力。"""
         node = mlib.createNode("plusMinusAverage")
         node.getPlug("operation").set(3)
         node.getPlug("input1D")[0].set(2.0)

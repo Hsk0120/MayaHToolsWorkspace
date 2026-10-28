@@ -230,7 +230,7 @@ def _transfer_weights(skin, source, target):
     source_index = fn.indexForInfluenceObject(source)
     target_index = fn.indexForInfluenceObject(target)
     weight_list = fn.findPlug("weightList", False)
-    # 書き込み前に全頂点の新しい値を計算する（論理番号で疎な配列を辿る）。
+    # 書き込み前に全頂点の新しい値を計算する（論理番号で疎なマルチアトリビュートを辿る）。
     edits = []
     for vertex in weight_list.getExistingArrayAttributeIndices():
         row = weight_list.elementByLogicalIndex(vertex).child(0)

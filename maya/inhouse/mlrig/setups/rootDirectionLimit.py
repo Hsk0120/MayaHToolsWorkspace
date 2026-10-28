@@ -108,11 +108,11 @@ class RootDirectionLimit(ScalarGraph):
         return graph
 
     def _vec(self, node, attr):
-        """複合アトリビュートの3成分Plugを取得する。
+        """コンパウンドアトリビュートの3成分Plugを取得する。
 
         Args:
             node (Node): 対象。
-            attr (str): 複合アトリビュート名。
+            attr (str): コンパウンドアトリビュート名。
 
         Returns:
             tuple: 3個のPlug。

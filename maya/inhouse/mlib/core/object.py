@@ -7,7 +7,7 @@ def _exists(name):
     """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
 
     一意な完全名に対しては ``cmds.objExists`` と同じ結果になる(範囲外のコンポーネント番号や
-    配列の未作成要素も True)。
+    マルチアトリビュートの未作成要素も True)。
 
     Args:
         name (str): 調べる完全名。
@@ -290,14 +290,14 @@ class Object(metaclass=_ObjectType):
         単一の対象(Object._input_name が受け付ける型)は1要素のリストになる。``Components``・
         ``Selection``・``Joints`` などのコレクションと、list/tuple/set/ジェネレーター
         などの反復可能オブジェクトは、入れ子も含めて保持順に展開する。
-        ``ArrayPlug`` は要素へ展開せず、配列アトリビュートそのものの名前として扱う。
+        ``MultiPlug`` は要素へ展開せず、マルチアトリビュートそのものの名前として扱う。
         ``Components`` は全番号をまとめて1回だけ検証し、保持順で連続する番号を
         ``|cube|cubeShape.vtx[0:9]`` のような範囲指定の名前にまとめる(要素数が多くても
         maya.cmds へ渡す名前が増えない)。
 
         Args:
             values (object): 変換対象。単一の対象、または対象を要素に持つ反復可能オブジェクト。
-            allow_plugs (bool): False の場合、Plug(``ArrayPlug`` を含む)と ``om2.MPlug`` を
+            allow_plugs (bool): False の場合、Plug(``MultiPlug`` を含む)と ``om2.MPlug`` を
                 TypeError にする(アトリビュートを渡しても maya.cmds が何もしないコマンド用。文字列は
                 解決しないため対象外)。
 

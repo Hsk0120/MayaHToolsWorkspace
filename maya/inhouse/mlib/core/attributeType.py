@@ -2,7 +2,7 @@
 
 Plug の派生クラスの選択(:class:`~mlib.core.registry.NodeRegistry` のアトリビュート型キー)と、
 ``Plug.set()`` の配列型の判定に使う型名を、``cmds.getAttr(<プラグ名>, type=True)`` と
-同じ文字列で返す。``cmds.getAttr(type=True)`` は存在しない配列要素を問い合わせると
+同じ文字列で返す。``cmds.getAttr(type=True)`` は存在しないマルチアトリビュートの要素を問い合わせると
 要素を作り(blendShape の ``weight[i]`` では ``parentDirectory[i]`` なども作られる)、
 nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終了し、mesh の内部アトリビュート
 (``edge[i]``・``face[i]`` など)では例外になる。この関数はプラグの値を読まず、
@@ -18,7 +18,7 @@ nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終
      - 結果
    * - 数値(``MFnNumericAttribute``)
      - ``bool``/``byte``/``char``/``short``/``long``/``float``/``double``/``addr`` と、
-       複合数値の ``double3``/``float3``/``long2`` など(``numericType()`` による)
+       数値のコンパウンドアトリビュートの ``double3``/``float3``/``long2`` など(``numericType()`` による)
    * - 単位(``MFnUnitAttribute``)
      - ``doubleLinear``/``floatLinear``/``doubleAngle``/``floatAngle``/``time``
    * - enum・message
@@ -29,7 +29,7 @@ nurbsSurface の ``patchUVIds`` の存在しない要素では Maya が異常終
      - ``string``/``matrix``/``doubleArray``/``Int32Array``/``mesh``/``nurbsCurve`` など。
        API 2.0 に列挙値の無いデータ型(``Int64Array``・``floatVectorArray``・
        データ型指定の ``double3`` など)は ``MFnAttribute.getAddAttrCmd()`` のデータ型名
-   * - 複合(``MFnCompoundAttribute``)・lightData
+   * - コンパウンドアトリビュート(``MFnCompoundAttribute``)・lightData
      - ``TdataCompound``
    * - 不透明(opaque)
      - ``getAddAttrCmd()`` のアトリビュート型名(``TattributeCtypeOf<...>``)
@@ -129,7 +129,7 @@ _ADD_ATTR_TYPE_NAMES = {
 
 #: ``cmds.addAttr(dataType=...)`` で作成できるデータ型名(maya.cmds で値を読み書きできる型)。
 #: 型付きアトリビュートのうちこれら以外(``nurbsPatchUVIds``・``polyFaces`` などの Maya 内部のデータ型)は、
-#: 存在しない配列要素の値を maya.cmds で問い合わせると Maya が異常終了する場合がある。
+#: 存在しないマルチアトリビュートの要素の値を maya.cmds で問い合わせると Maya が異常終了する場合がある。
 _PUBLIC_DATA_TYPES = frozenset(_DATA_TYPE_NAMES.values()) | frozenset((
     "Int64Array", "floatVectorArray", "reflectanceRGB", "spectrumRGB",
     "short2", "short3", "long2", "long3", "float2", "float3", "double2", "double3", "double4",
@@ -184,9 +184,9 @@ def attributeType(mplug):
     core の関数は snake_case を基本とするが、この名前は ``Plug`` 側のアトリビュート型 dispatch
     (``Plug._registry`` のキー)と ``cmds.getAttr(type=True)`` の呼び方に合わせた既存名として維持する。
 
-    アトリビュート定義だけから求めるため、存在しない配列要素や、``cmds.getAttr`` が例外になる
-    mesh の内部アトリビュートにも使え、シーンを変更しない。配列プラグは要素の型名を返す
-    (``cmds.getAttr(type=True)`` を配列全体に使った結果とは異なる)。規則はモジュールの
+    アトリビュート定義だけから求めるため、存在しないマルチアトリビュートの要素や、``cmds.getAttr`` が例外になる
+    mesh の内部アトリビュートにも使え、シーンを変更しない。マルチアトリビュートのプラグは要素の型名を返す
+    (``cmds.getAttr(type=True)`` をマルチアトリビュート全体に使った結果とは異なる)。規則はモジュールの
     説明を参照。
 
     Args:
@@ -229,7 +229,7 @@ def is_internal_data_type(mplug):
     """Maya 内部のデータ型(``cmds.addAttr`` で作成できない型)の型付きアトリビュートか判定する。
 
     nurbsSurface の ``patchUVIds`` (``nurbsPatchUVIds``)のような内部のデータ型は、
-    存在しない配列要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。
+    存在しないマルチアトリビュートの要素の値や型を maya.cmds・MPlug で読むと Maya が異常終了する場合がある。
     mlibはこれらの存在しない要素の値を読まず、``Plug.get()`` でRuntimeErrorにする。
     要素の参照取得だけでは値を評価しない。任意のデータを受け付ける
     型付きアトリビュート(値によって型が変わるアトリビュート)は対象外。
@@ -277,7 +277,7 @@ def _require_number(plug, value):
 
 
 def _convert_units(plug, value, to_ui=True):
-    """数値・複合値を変換する。単位のない型はそのまま返す。
+    """数値・コンパウンドアトリビュートの値を変換する。単位のない型はそのまま返す。
 
     Args:
         plug (om2.MPlug): 型を判定するプラグ。

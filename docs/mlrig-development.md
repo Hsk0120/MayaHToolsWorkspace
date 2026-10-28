@@ -45,8 +45,8 @@ def set_layer_enabled(self, layer, enabled):
   所属だけの解除は`removeMembers`、メンバーを残す箱の解除は`removeContainer`を使う。
   公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`getPublishedAttrs`を使う。
   箱自身の入出力アトリビュートを介する接続の移送は利用側が担当する。
-- 保存用message配列は`ArrayPlug.getSourceNodes()`と`appendMessage()`を使う。
-  前者は接続のある論理インデックスとノードの辞書、後者は既存最大番号の次へ追記する。
+- 保存用messageのマルチアトリビュートは`MultiPlug.getSourceNodes()`と`appendMessage()`を使う。
+  前者は接続のある論理番号とノードの辞書、後者は既存最大番号の次へ追記する。
 - 操作シェイプは`mlrig.setups.ControlShape`、単位境界は`mlib.common.units`を使う。
   Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
   空間指定は`mlib.maths.MSpace`の定数を使う。
@@ -55,7 +55,7 @@ def set_layer_enabled(self, layer, enabled):
   どの骨をLODへ含めるか、どのメッシュを表示するかはmlrigの責務とする。
 - 単位なし標準DG演算は`mlib.common.scalarGraph.ScalarGraph`、Soft IKは`mlrig.setups.SoftIK`。
   コンテナを使わない場合は`ScalarGraph(create_node=...)`へNodeを返す生成関数を渡し、
-  生成物を`ArrayPlug.appendMessage`等で記録する。一時コンテナを作る必要はない。
+  生成物を`MultiPlug.appendMessage`等で記録する。一時コンテナを作る必要はない。
   Bifrostの演算構築は`mlib_bifrost.common.MathBuilder`、Soft IKは`mlrig.setups.bifrostSoftIK.SoftIK`へ置く。
 - 共通APIへ依存方向を逆転させない。mlib/mlib_bifrostからmlrigをimportしない。
   移動時は使用側を新しいAPIへ更新し、旧import用アダプターは残さない。
@@ -91,7 +91,7 @@ Maya標準の概念・操作はmlibへ、リグの構成・追従・補正・コ
 ## 所有する参照への委譲
 
 - Nodeを保持している場合は `node.getPlug("translateX").get()` を使い、名前を組み立ててgetPlugで再解決しない。Plugの距離はcmのため、取得後のUI単位からの再変換は不要。
-- 入力だけを解除する場合は `destination.disconnectInput()` を使う。出力接続を維持し、未接続なら何もしない。親の複合接続は親Plugに対して解除する。
+- 入力だけを解除する場合は `destination.disconnectInput()` を使う。出力接続を維持し、未接続なら何もしない。親のコンパウンドアトリビュートの接続は親Plugに対して解除する。
 - 許可する接続元、リグの所有範囲、レイヤーの有効判定はmlrigで決める。検証や切断のためだけにMPlugへ降りず、既存の公開Plug APIを使用する。
 
 

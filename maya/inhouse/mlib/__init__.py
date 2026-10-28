@@ -5,7 +5,7 @@ for _name in globals().get("__all__", ()):
     if _name not in {"cmds", "nodes", "plugs", "components", "common", "logger",
                      "core", "decorator", "util", "maths", "reload"}:
         globals().pop(_name, None)
-for _name in ("Node", "Shape", "Transform", "Plug", "ArrayPlug", "CompoundPlug",
+for _name in ("Node", "Shape", "Transform", "Plug", "CompoundPlug",
               "NODE_REGISTRY", "PLUG_REGISTRY", "initialize_node_api",
               "initialize_plug_api", "reload_package", "importlib", "_core", "scenes",
               "session", "units", "workspace", "selection", "context", "editors",
@@ -59,7 +59,7 @@ __all__ = [
 ]
 
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "3.0.0"
+__version__ = "4.0.0"
 
 
 def reload():

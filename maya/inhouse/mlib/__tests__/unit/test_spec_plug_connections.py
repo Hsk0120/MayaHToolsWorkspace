@@ -2,7 +2,7 @@
 
 対象: ``a >> b``(connectTo、接続先を返す)・``a << b``(connect、自身を返す)・``a // b``(disconnect、接続先を返す)、
 通常のUndo経路のみ(1回のUndoで戻る)、不正入力の例外型、``getConnections`` の ``pcls`` 廃止と戻り値のクラス、
-``Plug`` から ``getNextAvailable`` が無くなったこと(配列は :class:`mlib.plugs.ArrayPlug`)。
+``Plug`` から ``getNextAvailable`` が無くなったこと(マルチアトリビュートは :class:`mlib.plugs.MultiPlug`)。
 期待値は maya.cmds の接続照会で独立に求める。
 """
 
@@ -93,8 +93,8 @@ class RightShiftSpecTest(_ConnectionSpecCase):
         self.assertEqual(self.inputs(self.bn + ".tx"), [self.an + ".translateX"])
         self.assertEqual(self.inputs(c.getName() + ".tx"), [self.bn + ".translateX"])
 
-    def test_array_destination_is_not_expanded(self):
-        """配列全体へはconnectTo(配列)と同じくRuntimeError。空き要素を選ぶのはconnectTo(nextAvailable=True)。"""
+    def test_multi_destination_is_not_expanded(self):
+        """マルチアトリビュート全体へはconnectTo(マルチアトリビュート)と同じくRuntimeError。空き要素を選ぶのはconnectTo(nextAvailable=True)。"""
         net = self.make("network")
         cmds.addAttr(net.getName(), longName="vals", attributeType="double", multi=True)
         values = net.getPlug("vals")
@@ -258,27 +258,27 @@ class GetConnectionsSpecTest(_ConnectionSpecCase):
 
 
 class NextAvailableLocationSpecTest(_ConnectionSpecCase):
-    """getNextAvailableはArrayPlugだけが持つ。"""
+    """getNextAvailableはMultiPlugだけが持つ。"""
 
     def test_plug_has_no_get_next_available(self):
-        """非配列PlugにはgetNextAvailableが無い(AttributeError)。配列全体のArrayPlugにはある。"""
+        """非マルチアトリビュートのPlugにはgetNextAvailableが無い(AttributeError)。マルチアトリビュート全体のMultiPlugにはある。"""
         tx = self.a.getPlug("tx")
         self.assertFalse(hasattr(tx, "getNextAvailable"))
         with self.assertRaises(AttributeError):
             tx.getNextAvailable()
         self.assertFalse(hasattr(self.a.getPlug("t"), "getNextAvailable"))
         self.assertNotIn("getNextAvailable", plugs.Plug.__dict__)
-        self.assertIn("getNextAvailable", plugs.ArrayPlug.__dict__)
+        self.assertIn("getNextAvailable", plugs.MultiPlug.__dict__)
         net = self.make("network")
         cmds.addAttr(net.getFullName(), longName="vals", attributeType="double", multi=True)
         values = net.getPlug("vals")
-        self.assertIsInstance(values, plugs.ArrayPlug)
+        self.assertIsInstance(values, plugs.MultiPlug)
         self.assertEqual(values.getNextAvailable(), 0)
         element = values[0]
         self.assertFalse(hasattr(element, "getNextAvailable"))
-        # Plug(node, mplug) で配列を包んだ場合も ArrayPlug になり、同じ入口を持つ。
+        # Plug(node, mplug) でマルチアトリビュートを包んだ場合も MultiPlug になり、同じ入口を持つ。
         wrapped = plugs.Plug(net, values.mplug())
-        self.assertIsInstance(wrapped, plugs.ArrayPlug)
+        self.assertIsInstance(wrapped, plugs.MultiPlug)
         self.assertEqual(wrapped.getNextAvailable(vacant=True), 0)
         self.assertIsInstance(values.mplug(), om2.MPlug)
 

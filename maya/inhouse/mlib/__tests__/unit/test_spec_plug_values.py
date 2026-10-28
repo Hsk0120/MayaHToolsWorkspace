@@ -1,8 +1,8 @@
-"""Plugの型照会・範囲と既定値の単位・enum名・エイリアス・配列要素の情報(mlib 2.0 の新しい約束)を固定する。
+"""Plugの型照会・範囲と既定値の単位・enum名・エイリアス・マルチアトリビュートの要素の情報(mlib 2.0 の新しい約束)を固定する。
 
 対象: ``getType()`` がMayaの型名を返すこと(旧 ``getDataType`` の契約)、
 ``getMin/getMax/getSoftMin/getSoftMax/getDefault(uiUnits=)``、``getEnumName(value=None)``・``getEnumNames()``、
-``getAlias()``・``getArray()``・``getIndex()``、``unlock(below, *, fast)``(``undoable`` の廃止)、
+``getAlias()``・``getMulti()``・``getIndex()``、``unlock(below, *, fast)``(``undoable`` の廃止)、
 廃止した名前(``getDataType``・``getPlugName``・``lock``・``getEnumFieldName``・``getNextAvailable`` 等)が
 無いこと。期待値は maya.cmds / OpenMaya で独立に求める。
 """
@@ -90,7 +90,7 @@ class GetTypeSpecTest(_ValueSpecCase):
                 self.assertNotIsInstance(plug.getType(), type)
 
     def test_builtin_attributes(self):
-        """組込みアトリビュートもcmdsと同じ型名。複合全体は複合の型名、子は子の型名。"""
+        """組込みアトリビュートもcmdsと同じ型名。コンパウンドアトリビュート全体はコンパウンドアトリビュートの型名、子は子の型名。"""
         for attr in ("translate", "translateX", "rotateX", "rotateOrder", "visibility", "worldMatrix[0]"):
             with self.subTest(attr=attr):
                 plug = self.node.getPlug(attr)
@@ -98,10 +98,10 @@ class GetTypeSpecTest(_ValueSpecCase):
         self.assertEqual(self.node.getPlug("translate").getType(), "double3")
         self.assertEqual(self.node.getPlug("translateX").getType(), "doubleLinear")
 
-    def test_array_whole_returns_element_type_and_generic_is_none(self):
-        """multi全体は要素の型名、generic(値で型が決まる)はNone。値を読んでも変わらない。"""
+    def test_multi_whole_returns_element_type_and_generic_is_none(self):
+        """マルチアトリビュート全体は要素の型名、generic(値で型が決まる)はNone。値を読んでも変わらない。"""
         values = self.add("vals", attributeType="long", multi=True)
-        self.assertIsInstance(values, plugs.ArrayPlug)
+        self.assertIsInstance(values, plugs.MultiPlug)
         self.assertEqual(values.getType(), "long")
         self.assertEqual(values[3].getType(), "long")
         choice = mlib.getNode(cmds.createNode("choice", name=self.namespace + ":c#", skipSelect=True))
@@ -140,9 +140,9 @@ class RemovedNamesSpecTest(_ValueSpecCase):
         for name in ("getNextAvailableIndex", "getDataType", "lock", "getPlugName"):
             with self.subTest(array=name):
                 self.assertFalse(hasattr(values, name))
-                self.assertFalse(hasattr(plugs.ArrayPlug, name))
+                self.assertFalse(hasattr(plugs.MultiPlug, name))
         self.assertTrue(hasattr(values, "getNextAvailable"))
-        self.assertTrue(hasattr(plugs.ArrayPlug, "getNextAvailable"))
+        self.assertTrue(hasattr(plugs.MultiPlug, "getNextAvailable"))
         self.assertIs(plugs.Plug.setLocked, plugs.Plug.__dict__["setLocked"])
 
     def test_removed_keyword_arguments(self):
@@ -230,7 +230,7 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                                        cmds.attributeQuery("tm", node=self.name, listDefault=True)[0])
 
     def test_plain_numbers_and_compounds(self):
-        """単位の無い数値はuiUnitsで変わらず、数値の複合は子ごとに換算したtuple。"""
+        """単位の無い数値はuiUnitsで変わらず、数値のコンパウンドアトリビュートは子ごとに換算したtuple。"""
         plain = self.add("num", attributeType="double", minValue=-1, maxValue=1, defaultValue=0.5)
         for name in ("getMin", "getMax", "getDefault"):
             with self.subTest(getter=name):
@@ -338,8 +338,8 @@ class EnumNamesSpecTest(_ValueSpecCase):
         self.assertEqual(plug.getEnumName(2), "z")
 
 
-class AliasArrayIndexSpecTest(_ValueSpecCase):
-    """getAlias/getArray/getIndex。"""
+class AliasMultiIndexSpecTest(_ValueSpecCase):
+    """getAlias/getMulti/getIndex。"""
 
     def test_get_alias(self):
         """エイリアス名を返し、無ければNone。cmds.aliasAttrと一致。"""
@@ -358,42 +358,42 @@ class AliasArrayIndexSpecTest(_ValueSpecCase):
         tx.setAlias("viaMlib")
         self.assertEqual(tx.getAlias(), "viaMlib")
 
-    def test_get_array_and_index_on_elements(self):
-        """要素はgetArray()で配列全体(ArrayPlug)、getIndex()で論理番号。"""
+    def test_get_multi_and_index_on_elements(self):
+        """要素はgetMulti()でマルチアトリビュート全体(MultiPlug)、getIndex()で論理番号。"""
         values = self.add("vals", attributeType="double", multi=True)
         element = values[7]
-        array = element.getArray()
-        self.assertIsInstance(array, plugs.ArrayPlug)
+        array = element.getMulti()
+        self.assertIsInstance(array, plugs.MultiPlug)
         self.assertEqual(array.getFullName(), values.getFullName())
         self.assertEqual(element.getIndex(), 7)
         self.assertEqual(self.node.getPlug("vals[12]").getIndex(), 12)
         self.assertEqual(self.node.getPlug("worldMatrix")[0].getIndex(), 0)
-        self.assertEqual(self.node.getPlug("worldMatrix")[0].getArray().getFullName(), self.name + ".worldMatrix")
-        # 要素の子はgetArray()がNone(子であって要素ではない)。
+        self.assertEqual(self.node.getPlug("worldMatrix")[0].getMulti().getFullName(), self.name + ".worldMatrix")
+        # 要素の子はgetMulti()がNone(子であって要素ではない)。
         cmds.addAttr(self.name, longName="pairs", attributeType="compound", numberOfChildren=2, multi=True)
         cmds.addAttr(self.name, longName="px", attributeType="double", parent="pairs")
         cmds.addAttr(self.name, longName="py", attributeType="double", parent="pairs")
         child = self.node.getPlug("pairs")[3].px
-        self.assertIsNone(child.getArray())
+        self.assertIsNone(child.getMulti())
         with self.assertRaises(TypeError):
             child.getIndex()
         self.assertEqual(child.getParent().getIndex(), 3)
-        self.assertEqual(child.getParent().getArray().getFullName(), self.name + ".pairs")
+        self.assertEqual(child.getParent().getMulti().getFullName(), self.name + ".pairs")
         # 参照を作っただけでは要素は作られない。
         self.assertIsNone(cmds.getAttr(self.name + ".vals", multiIndices=True))
 
-    def test_get_array_and_index_on_non_elements(self):
-        """要素でないPlugはgetArray()がNone、getIndex()はTypeError。削除済みはRuntimeError。"""
+    def test_get_multi_and_index_on_non_elements(self):
+        """要素でないPlugはgetMulti()がNone、getIndex()はTypeError。削除済みはRuntimeError。"""
         values = self.add("vals", attributeType="double", multi=True)
         for plug in (self.node.getPlug("tx"), self.node.getPlug("t"), values):
             with self.subTest(plug=plug.getAttrName()):
-                self.assertIsNone(plug.getArray())
+                self.assertIsNone(plug.getMulti())
                 with self.assertRaises(TypeError):
                     plug.getIndex()
         element = values[1]
         cmds.deleteAttr(self.name, attribute="vals")
         with self.assertRaises(RuntimeError):
-            element.getArray()
+            element.getMulti()
         with self.assertRaises(RuntimeError):
             element.getIndex()
 

@@ -35,7 +35,7 @@ class ResponsibilityTest(unittest.TestCase):
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), before)
 
     def test_disconnect_compound_input_keeps_outputs(self):
-        """親の複合接続は親で解除し、子の出力を保持する。"""
+        """親のコンパウンドアトリビュートの接続は親で解除し、子の出力を保持する。"""
         a, b, c = [mlib.createNode('transform') for _ in range(3)]
         a.getPlug('translate').connectTo(b.getPlug('translate'))
         b.getPlug('tx').connectTo(c.getPlug('tx'))
@@ -45,8 +45,8 @@ class ResponsibilityTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(b.getPlug('translate').getSource(skipConversionNodes=False), a.getPlug('translate'))
 
-    def test_array_failed_edit_does_not_create_elements(self):
-        """不正値・入力元・ロックの失敗前に配列の穴を実体化しない。"""
+    def test_multi_failed_edit_does_not_create_elements(self):
+        """不正値・入力元・ロックの失敗前にマルチアトリビュートの穴を実体化しない。"""
         matrix = mlib.createNode('multMatrix')
         inputs = matrix.getPlug('matrixIn')
         with self.assertRaises((TypeError, ValueError, RuntimeError)):
@@ -67,7 +67,7 @@ class ResponsibilityTest(unittest.TestCase):
         self.assertEqual(list(inputs.mplug().getExistingArrayAttributeIndices()), [])
 
     def test_numeric_compound_locked_child_preflight(self):
-        """数値複合型の子ロックを変更前に検出し、RGBの型を維持する。"""
+        """数値のコンパウンドアトリビュートの子ロックを変更前に検出し、RGBの型を維持する。"""
         node = mlib.createNode('blendColors')
         node.getPlug("color1").set((.2, .3, .4))
         before = node.getPlug("color1").get()

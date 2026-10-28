@@ -69,13 +69,13 @@ class PlugNameSpecTest(_StateSpecCase):
         self.assertEqual(cmds.getAttr(tx), 0.0)
 
     def test_full_attribute_path_option(self):
-        """複合の子でも getFullName は最短のパス(全階層のパスを返す入口は無い)。"""
+        """コンパウンドアトリビュートの子でも getFullName は最短のパス(全階層のパスを返す入口は無い)。"""
         child = self.node.getPlug("boundingBoxMinX")
         self.assertFalse(hasattr(child, "getPlugName"))
         self.assertEqual(child.getFullName(), self.name + ".boundingBoxMinX")
 
     def test_element_and_child_names(self):
-        """配列要素の子は必要な論理番号を含む名前になる。"""
+        """マルチアトリビュートの要素の子は必要な論理番号を含む名前になる。"""
         cmds.addAttr(self.name, longName="items", shortName="its", attributeType="compound",
                      numberOfChildren=1, multi=True)
         cmds.addAttr(self.name, longName="weight", shortName="wt", attributeType="double", parent="items")
@@ -155,7 +155,7 @@ class PlugFlagSpecTest(_StateSpecCase):
         self.assertUndoEmpty()
 
     def test_leaf_applies_to_children(self):
-        """leaf=Trueは複合の子へ設定し、親自身は変えない。leaf=Falseは親だけを変える。"""
+        """leaf=Trueはコンパウンドアトリビュートの子へ設定し、親自身は変えない。leaf=Falseは親だけを変える。"""
         translate = self.node.getPlug("translate")
         translate.setLocked(True, leaf=True)
         self.assertEqual([cmds.getAttr(self.name + ".t" + a, lock=True) for a in "xyz"], [True] * 3)
@@ -338,12 +338,12 @@ class PlugDefinitionQuerySpecTest(_StateSpecCase):
         self.assertFalse(self.node.getPlug("tx").isDynamic())
 
     def test_structure_predicates(self):
-        """isArray・isCompound・isElement・isChildはMPlugの構造を返す。"""
+        """isMulti・isCompound・isMultiElement・isChildはMPlugの構造を返す。"""
         world = self.node.getPlug("worldMatrix")
-        self.assertEqual((world.isArray(), world.isCompound(), world.isElement(), world.isChild()),
+        self.assertEqual((world.isMulti(), world.isCompound(), world.isMultiElement(), world.isChild()),
                          (True, False, False, False))
         element = world[0]
-        self.assertEqual((element.isArray(), element.isElement()), (False, True))
+        self.assertEqual((element.isMulti(), element.isMultiElement()), (False, True))
         tx = self.node.getPlug("tx")
         self.assertEqual((tx.isChild(), tx.isCompound()), (True, False))
         self.assertTrue(self.node.getPlug("translate").isCompound())
@@ -415,7 +415,7 @@ class PlugValiditySpecTest(_StateSpecCase):
         self.assertFalse(plug.isValid())
         self.assertEqual((plug.getFullName(), plug.getName(), plug.getAttrName(), str(plug)), ("", "", "", ""))
         self.assertEqual(repr(plug), "<Plug invalid>")
-        self.assertFalse(plug.isArray())
+        self.assertFalse(plug.isMulti())
         self.assertIs(type(plug), plugs.DoublePlug)
         for method in ("get", "getLongName", "getShortName", "getNiceName", "getType",
                        "getParent", "isLocked", "isKeyable", "isChannelBox", "isConnected", "isSource",
@@ -466,7 +466,7 @@ class PlugValiditySpecTest(_StateSpecCase):
         self.assertFalse(tx.isValid())
         self.assertEqual(tx.getFullName(), "")
         self.assertEqual(repr(tx), "<Plug invalid>")
-        self.assertFalse(tx.isArray())
+        self.assertFalse(tx.isMulti())
         with self.assertRaises(RuntimeError):
             tx.get()
         with self.assertRaises(RuntimeError):
@@ -485,7 +485,7 @@ class PlugValiditySpecTest(_StateSpecCase):
             plugs.Plug(self.node, other.getPlug("tx").mplug())
 
     def test_missing_element_reference_is_valid(self):
-        """未作成の配列要素の参照は有効で、名前を返す。"""
+        """未作成のマルチアトリビュートの要素の参照は有効で、名前を返す。"""
         net = self.make("network")
         cmds.addAttr(net.getName(), longName="vals", attributeType="double", multi=True)
         element = net.getPlug("vals")[20]
@@ -571,7 +571,7 @@ class PlugSetKeySpecTest(_StateSpecCase):
         self.assertIsNone(cmds.keyframe(self.name + ".ty", query=True, timeChange=True))
 
     def test_fast_set_key_rejections(self):
-        """fastは未対応のフラグ・複合・直接animCurve以外の入力・stepnextを生成前に拒否する。"""
+        """fastは未対応のフラグ・コンパウンドアトリビュート・直接animCurve以外の入力・stepnextを生成前に拒否する。"""
         tz = self.node.getPlug("tz")
         other = self.make("transform")
         cmds.connectAttr(other.getName() + ".tx", self.name + ".sz")

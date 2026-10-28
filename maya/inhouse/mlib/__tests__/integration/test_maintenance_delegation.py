@@ -1,4 +1,4 @@
-"""配列列挙と範囲照会の責務を共通化しても既存契約が変わらないことを検証する。"""
+"""マルチアトリビュートの列挙と範囲照会の責務を共通化しても既存契約が変わらないことを検証する。"""
 
 import sys
 import unittest
@@ -9,7 +9,7 @@ import maya.cmds as cmds
 
 import mlib
 from mlib.nodes import BlendWeighted
-from mlib.plugs import ArrayPlug
+from mlib.plugs import MultiPlug
 
 
 class MaintenanceDelegationTest(unittest.TestCase):
@@ -37,7 +37,7 @@ class MaintenanceDelegationTest(unittest.TestCase):
                 array[7]
                 cmds.flushUndo()
                 with patch.object(cmds, "getAttr", side_effect=AssertionError("value evaluated")), \
-                        patch.object(ArrayPlug, "getElements", side_effect=AssertionError("wrappers created")):
+                        patch.object(MultiPlug, "getElements", side_effect=AssertionError("wrappers created")):
                     self.assertEqual(array.getIndices(), [2, 9])
                 indices = array.getIndices()
                 indices.append(99)
@@ -65,8 +65,8 @@ class MaintenanceDelegationTest(unittest.TestCase):
         self.assertEqual(list(array.mplug().getExistingArrayAttributeIndices()), stored)
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
-    def test_array_index_validation_and_missing_errors_are_preserved(self):
-        """配列基底の番号検証と未存在要素拒否を維持する。"""
+    def test_multi_index_validation_and_missing_errors_are_preserved(self):
+        """MultiPlugの番号検証と未存在要素拒否を維持する。"""
         for kind, name in (("blendWeighted", "input"), ("plusMinusAverage", "input1D")):
             array = mlib.createNode(kind).getPlug(name)
             for value in (True, 1.5, -1, 2147483648):

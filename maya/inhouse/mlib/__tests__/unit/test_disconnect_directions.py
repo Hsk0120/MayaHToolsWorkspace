@@ -79,8 +79,8 @@ class DisconnectReferenceTest(unittest.TestCase):
             else:
                 self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
-    def test_array_search_keeps_specified_targets_and_other_connections(self):
-        """naは指定srcに直結した配列要素だけを返し、他の入出力を残す。"""
+    def test_multi_search_keeps_specified_targets_and_other_connections(self):
+        """naは指定srcに直結したマルチアトリビュートの要素だけを返し、他の入出力を残す。"""
         array = mlib.createNode("network").addAttr("values", "double", multi=True)
         source, other = self._value("arraySource"), self._value("arrayOther")
         first, second, independent = array[3], array[9], array[15]
@@ -152,8 +152,8 @@ class DisconnectReferenceTest(unittest.TestCase):
         self.assertIsNone(center.getSource())
         self.assertCountEqual(center.getDestinations(), destinations)
 
-    def test_fast_array_force_restores_locks_and_keeps_other_connections(self):
-        """fastの配列検索もf/naを保ち、上位と要素のロックを復元する。"""
+    def test_fast_multi_force_restores_locks_and_keeps_other_connections(self):
+        """fastのマルチアトリビュートの検索もf/naを保ち、上位と要素のロックを復元する。"""
         source, other = self._value("fastArraySource"), self._value("fastArrayOther")
         array = mlib.createNode("network").addAttr("values", "double", multi=True)
         first, second, independent = array[3], array[9], array[15]

@@ -3,6 +3,8 @@
 旧名(別名を含む)が単数・複数形クラスのどこにも残らないこと、新名が単数に定義されること、
 複数形クラスが単数への一括転送を持たないこと、mlib 本体のソースに旧名の def が無いことを確かめる。
 2.1.0 で lowerCamelCase へ改名した公開引数に旧名が残らないことも確かめる。
+4.0.0 でマルチアトリビュートの呼び名へ揃えた ``MultiPlug``・``isMulti``・``isMultiElement``・``getMulti`` について、
+旧名(``ArrayPlug``・``isArray``・``isElement``・``getArray``)が公開APIに残らないことも確かめる。
 個々の新しい約束(引数・戻り値・Undo・fast)は test_spec_node_*/dag_*/transform_*/plug_* が受け持つ。
 """
 
@@ -14,7 +16,7 @@ from pathlib import Path
 import mlib
 mlib.reload()
 from mlib.nodes import DagNode, Joint, Joints, Node, Nodes, Shape, Transform
-from mlib.plugs import ArrayPlug, CompoundPlug, Plug
+from mlib.plugs import CompoundPlug, MultiPlug, Plug
 
 #: 廃止した名前(DESIGN §3)。単数クラスと、その複数形の双方に残らない。
 REMOVED = {
@@ -24,9 +26,14 @@ REMOVED = {
     Transform: ("transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
                 "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"),
     Joint: ("isJoint",),
-    Plug: ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable"),
-    ArrayPlug: ("getNextAvailableIndex",),
+    Plug: ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable",
+           "isArray", "isElement", "getArray"),
+    MultiPlug: ("getNextAvailableIndex", "isArray", "isElement", "getArray"),
+    CompoundPlug: ("isArray", "isElement", "getArray"),
 }
+
+#: 4.0.0 でマルチアトリビュートの呼び名へ改名したPlugの判定・取得(旧名, 新名)。
+RENAMED_MULTI = (("isArray", "isMulti"), ("isElement", "isMultiElement"), ("getArray", "getMulti"))
 
 #: 単数クラスと対応する複数形クラス。
 PLURALS = {Node: Nodes, Joint: Joints}
@@ -68,13 +75,13 @@ class RemovedNamesTest(unittest.TestCase):
                     with self.subTest(cls=plural.__name__, name=name):
                         self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))
 
-    def test_array_plug_owns_next_available(self):
-        """getNextAvailable は ArrayPlug だけに定義され、Plug・CompoundPlug には無い。"""
-        self.assertIn("getNextAvailable", ArrayPlug.__dict__)
+    def test_multi_plug_owns_next_available(self):
+        """getNextAvailable は MultiPlug だけに定義され、Plug・CompoundPlug には無い。"""
+        self.assertIn("getNextAvailable", MultiPlug.__dict__)
         self.assertFalse(hasattr(Plug, "getNextAvailable"))
         self.assertFalse(hasattr(CompoundPlug, "getNextAvailable"))
-        self.assertFalse(hasattr(ArrayPlug, "getNextAvailableIndex"))
-        parameters = inspect.signature(ArrayPlug.getNextAvailable).parameters
+        self.assertFalse(hasattr(MultiPlug, "getNextAvailableIndex"))
+        parameters = inspect.signature(MultiPlug.getNextAvailable).parameters
         self.assertIn("vacant", parameters)
         self.assertEqual(parameters["vacant"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIs(parameters["vacant"].default, False)
@@ -101,6 +108,46 @@ class RemovedNamesTest(unittest.TestCase):
         for cls in (Node, Plug):
             with self.subTest(cls=cls.__name__):
                 self.assertNotIn("pcls", inspect.signature(cls.getConnections).parameters)
+
+
+class MultiRenameTest(unittest.TestCase):
+    """4.0.0 の改名: ArrayPlug → MultiPlug、isArray/isElement/getArray → isMulti/isMultiElement/getMulti。
+
+    互換の別名・旧モジュールは残さない。
+    """
+
+    def test_old_class_is_not_public(self):
+        """ArrayPlug は mlib.plugs・mlib のどちらにも無く、__all__ にも無い。"""
+        for module in (mlib.plugs, mlib):
+            with self.subTest(module=module.__name__):
+                self.assertFalse(hasattr(module, "ArrayPlug"))
+                self.assertNotIn("ArrayPlug", getattr(module, "__all__", ()))
+        self.assertIn("MultiPlug", mlib.plugs.__all__)
+        self.assertIs(mlib.plugs.MultiPlug, MultiPlug)
+        self.assertEqual(MultiPlug.__module__, "mlib.plugs.multiPlug")
+        self.assertTrue(issubclass(MultiPlug, Plug))
+
+    def test_old_module_is_removed(self):
+        """旧モジュール mlib.plugs.arrayPlug は import できず、ファイルも無い。"""
+        root = Path(mlib.__file__).resolve().parent
+        self.assertFalse((root / "plugs" / "arrayPlug.py").exists())
+        self.assertTrue((root / "plugs" / "multiPlug.py").exists())
+        with self.assertRaises(ImportError):
+            __import__("mlib.plugs.arrayPlug")
+
+    def test_plug_methods_are_renamed(self):
+        """新名は Plug に定義され、旧名はどのPlugクラスにも無い。"""
+        for old, new in RENAMED_MULTI:
+            with self.subTest(old=old, new=new):
+                self.assertIn(new, Plug.__dict__)
+                self.assertTrue(callable(getattr(Plug, new)))
+                for cls in (Plug, MultiPlug, CompoundPlug):
+                    self.assertFalse(hasattr(cls, old), "%s.%s remains" % (cls.__name__, old))
+        for name in mlib.plugs.__all__:
+            cls = getattr(mlib.plugs, name)
+            for old, _new in RENAMED_MULTI:
+                with self.subTest(cls=name, old=old):
+                    self.assertFalse(hasattr(cls, old), "%s.%s remains" % (name, old))
 
 
 class RequiredNamesTest(unittest.TestCase):

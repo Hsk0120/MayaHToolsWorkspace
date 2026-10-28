@@ -144,7 +144,7 @@ class ConnectSpecTest(_ConnectionSpecCase):
         self.assertTrue(cmds.getAttr(self.bn + ".ty", lock=True))
 
     def test_locked_parent_is_temporarily_unlocked_with_force(self):
-        """forceは上位の複合のロックも一時解除し、接続後に再ロックする。"""
+        """forceは上位のコンパウンドアトリビュートのロックも一時解除し、接続後に再ロックする。"""
         cmds.setAttr(self.bn + ".t", lock=True)
         tz = self.b.getPlug("tz")
         tz.connect(self.a.getPlug("tx"), force=True)
@@ -160,8 +160,8 @@ class ConnectSpecTest(_ConnectionSpecCase):
             with self.subTest(axis=axis):
                 self.assertTrue(cmds.getAttr(self.bn + ".t" + axis, lock=True))
 
-    def test_next_available_on_array(self):
-        """配列全体へのnextAvailable/naは入力・ロックの無い最初の要素を選んで返す。"""
+    def test_next_available_on_multi(self):
+        """マルチアトリビュート全体へのnextAvailable/naは入力・ロックの無い最初の要素を選んで返す。"""
         net = self.make("network")
         cmds.addAttr(net.getFullName(), longName="vals", attributeType="double", multi=True)
         values = net.getPlug("vals")
@@ -289,8 +289,8 @@ class DisconnectSpecTest(_ConnectionSpecCase):
         self.assertTrue(cmds.objExists(conversion))
         self.assertEqual(self.inputs(self.bn + ".rx"), [])
 
-    def test_disconnect_next_available_on_array(self):
-        """配列でsrcとnaを指定すると、srcへ直結した全要素を切断して要素のlistを返す。"""
+    def test_disconnect_next_available_on_multi(self):
+        """マルチアトリビュートでsrcとnaを指定すると、srcへ直結した全要素を切断して要素のlistを返す。"""
         net = self.make("network")
         name = net.getFullName()
         cmds.addAttr(name, longName="vals", attributeType="double", multi=True)

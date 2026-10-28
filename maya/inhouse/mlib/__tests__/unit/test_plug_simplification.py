@@ -95,7 +95,7 @@ class PlugSimplificationTest(unittest.TestCase):
         finally:
             cmds.currentUnit(linear="cm", angle="deg")
 
-    def test_message_array_is_created_by_connection_and_undoable(self):
+    def test_message_multi_is_created_by_connection_and_undoable(self):
         """messageの参照取得では作成せず、接続で要素を作ってUndoする。"""
         source = mlib.createNode("network")
         array = mlib.createNode("network").addAttr("links", "message", multi=True)

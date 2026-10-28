@@ -43,8 +43,8 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - Node・Transform・Joint・SkinCluster
      - ノード全体の操作。対象の型に合ったメソッドを提供
    * - ``plugs``
-     - Plug・Double3Plug・ArrayPlug
-     - アトリビュートの取得・設定・接続。複合アトリビュートや配列もオブジェクトとして扱う
+     - Plug・Double3Plug・MultiPlug
+     - アトリビュートの取得・設定・接続。コンパウンドアトリビュートやマルチアトリビュートもオブジェクトとして扱う
    * - ``components``
      - Vertex・CV・Edge・Face・UV
      - コンポーネント（頂点・エッジ・フェース・CV・UV）を参照し、座標や接続情報を扱う
@@ -186,9 +186,9 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 ``source.getPlug("tx") >> target.getPlug("tx")`` のように演算子でも書けます。
 ``a >> b`` は ``a.connectTo(b)`` で接続先 ``b`` を、``a << b`` は ``a.connect(b)`` で自身 ``a`` を、
 ``a // b`` は ``a`` から ``b`` への接続の解除(``b.disconnect(a)``)で接続先 ``b`` を返します。
-いずれもUndoに記録される通常経路だけで、配列アトリビュート全体への ``>>`` はMayaと同じく
-``RuntimeError`` になるため、空き要素への接続は ``a.connectTo(array, nextAvailable=True)`` を使います。
-``translate`` のような3成分アトリビュートは ``Double3Plug``、配列アトリビュートは ``ArrayPlug`` など、
+いずれもUndoに記録される通常経路だけで、マルチアトリビュート全体への ``>>`` はMayaと同じく
+``RuntimeError`` になるため、空き要素への接続は ``a.connectTo(multi, nextAvailable=True)`` を使います。
+``translate`` のような3成分アトリビュートは ``Double3Plug``、マルチアトリビュートは ``MultiPlug`` など、
 アトリビュートの構造に合ったラッパーが選ばれます。``plug.getType()`` はMayaのアトリビュート型名
 (``doubleLinear``・``double3`` など)を返し、ラッパーのクラスは ``type(plug)`` で調べます。
 
@@ -200,7 +200,7 @@ Mayaコマンドへ渡すときは ``getFullName()`` で名前へ変換します
 マトリクス・クォータニオンを取得して計算する
 ----------------------------------------------------------------------
 
-取得した値がそのまま数学オブジェクトになるため、配列から型を組み立て直さずに
+取得した値がそのまま数学オブジェクトになるため、マルチアトリビュートから型を組み立て直さずに
 積・逆マトリクス・回転補間などへ進めます。``mlib.maths`` の数学型は
 OpenMaya API 2.0の対応する型を継承しています。
 

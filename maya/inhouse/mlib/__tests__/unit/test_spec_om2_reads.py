@@ -48,7 +48,7 @@ class PlugIsSettableSpecTest(NamespaceCase):
 
 
 class NodeResetAttrsSpecTest(NamespaceCase):
-    """省略時の絞込みは通常/fastで同じで、配列・ロック・入力接続を除く。"""
+    """省略時の絞込みは通常/fastで同じで、マルチアトリビュート・ロック・入力接続を除く。"""
 
     def setUp(self):
         super().setUp()
@@ -83,7 +83,7 @@ class NodeResetAttrsSpecTest(NamespaceCase):
         self.assertEqual(cmds.getAttr(self.node + ".input1X"), 0)
         self.assertUndoEmpty()
 
-    def test_array_plugs_are_skipped(self):
+    def test_multi_plugs_are_skipped(self):
         average = self.make("plusMinusAverage", "average#")
         cmds.setAttr(average + ".input1D[0]", 2)
         for fast in (False, True):

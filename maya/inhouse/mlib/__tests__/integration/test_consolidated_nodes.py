@@ -94,7 +94,7 @@ class ConsolidatedNodesTest(unittest.TestCase):
             cmds.currentUnit(linear="cm", angle="deg", time="film")
 
     def test_fast_typed_defaults_validate_before_definition(self):
-        """未対応factory・不正値・配列親の既定値で定義を部分追加しない。"""
+        """未対応factory・不正値・親のマルチアトリビュートの既定値で定義を部分追加しない。"""
         node = mlib.createNode("network")
         attempts = [
             ("floats", "floatArray", [1, 2], {}, NotImplementedError),

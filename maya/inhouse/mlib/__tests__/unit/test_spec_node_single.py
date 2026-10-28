@@ -341,7 +341,7 @@ class TypeQueryTest(_SpecCase):
         self.assertFalse(node.isFromReferencedFile())
 
     def test_attr_count(self):
-        """旧 getAttrCount は廃止。mfn().attributeCount() は複合の子も数える。"""
+        """旧 getAttrCount は廃止。mfn().attributeCount() はコンパウンドアトリビュートの子も数える。"""
         name = self.make()
         node = Node(name)
         self.assertFalse(hasattr(node, "getAttrCount"))

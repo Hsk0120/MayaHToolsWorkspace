@@ -23,8 +23,8 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         """表示単位を復元する。"""
         cmds.currentUnit(linear="cm", angle="deg", time="film")
 
-    def test_scalar_compound_array_ui_units_and_types(self):
-        """内部値型を保ち、UIでは数値表現と疎な配列番号を返す。"""
+    def test_scalar_compound_multi_ui_units_and_types(self):
+        """内部値型を保ち、UIでは数値表現と疎な論理番号を返す。"""
         cmds.currentUnit(linear="m", angle="deg", time="ntsc")
         for fast in (False, True):
             self.node.getPlug("rx").set(90, uiUnits=True, fast=fast)
@@ -106,7 +106,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         self.assertIsNone(destination.getSource())
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
-    def test_normal_connection_undo_restores_existing_array_constant(self):
+    def test_normal_connection_undo_restores_existing_multi_constant(self):
         """接続のUndoで演算入力の元の定数値が消えない。"""
         blend = mlib.createNode("blendWeighted")
         target = blend.getPlug("input")[4]
@@ -122,7 +122,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual(target.get(), 21)
 
-    def test_fast_array_remove_and_dynamic_attr_delete(self):
+    def test_fast_multi_remove_and_dynamic_attr_delete(self):
         """要素・動的アトリビュートをcmdsなしに削除し、Undoへ積まない。"""
         cmds.addAttr(str(self.node), ln="values", at="double", multi=True)
         array = self.node.getPlug("values")
@@ -244,7 +244,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         self.assertIsNone(untouched.getSource())
         self.assertEqual(len(cmds.ls(type="animCurve")), before)
 
-    def test_array_reference_getters_do_not_materialize_elements(self):
+    def test_multi_reference_getters_do_not_materialize_elements(self):
         """参照・既存要素取得は値を書かず、廃止した作成指定を拒否する。"""
         cmds.addAttr(str(self.node), ln="samples", at="double", multi=True)
         array = self.node.getPlug("samples")

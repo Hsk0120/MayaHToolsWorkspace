@@ -203,10 +203,10 @@ class SkirtRig:
         return rig
 
     def _members(self, attr):
-        """message配列を保存順に解決する。
+        """messageのマルチアトリビュートを保存順に解決する。
 
         Args:
-            attr (str): 配列属性名。
+            attr (str): マルチアトリビュート名。
 
         Returns:
             list[Node]: 参照先ノード。
@@ -214,10 +214,10 @@ class SkirtRig:
         return list(self.root.getPlug(attr).getSourceNodes().values())
 
     def _chains(self, attr):
-        """骨の参照配列を列単位に区切る。
+        """骨の参照のマルチアトリビュートを列単位に区切る。
 
         Args:
-            attr (str): 保存配列。
+            attr (str): 保存用のマルチアトリビュート。
 
         Returns:
             list[list[Node]]: 円周順・根元から先端順の骨。

@@ -16,7 +16,7 @@ import mlib
 _PRESERVED_NAMES = {
     ("Node", "isType"),
     ("Node", "isRoot"),
-    ("Plug", "isSource"), ("Plug", "isElement"),
+    ("Plug", "isSource"), ("Plug", "isMultiElement"),
     ("Plugin", "isLoaded"),
 }
 
@@ -103,10 +103,10 @@ class PredicateAliasesTest(unittest.TestCase):
         """参照の有効性と未実体化要素の構造判定に評価を追加しない。"""
         scalar = self.first.getPlug("translateX")
         array = self.first.getPlug("worldMatrix")
-        self.assertTrue(array.isArray())
+        self.assertTrue(array.isMulti())
         self.assertTrue(self.first.getPlug("translate").isCompound())
         self.assertTrue(scalar.isChild())
-        self.assertTrue(array[0].isElement())
+        self.assertTrue(array[0].isMultiElement())
         self.assertEqual(array.getElement(0), array.getElement(0))
         self.first.delete()
         self.assertFalse(self.first.isValid())

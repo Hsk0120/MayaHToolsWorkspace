@@ -10,7 +10,7 @@ for _name in ("_discovered_wrappers", "_discovered_exports",
     globals().pop(_name, None)
 
 from .plug import Plug
-from .arrayPlug import ArrayPlug
+from .multiPlug import MultiPlug
 from .compoundPlug import CompoundPlug
 from .boolPlug import BoolPlug
 from .double3Plug import Double3Plug
@@ -28,7 +28,6 @@ from .timePlug import TimePlug
 
 # 公開名と型対応は別の責務として明示する。
 __all__ = [
-    "ArrayPlug",
     "BoolPlug",
     "CompoundPlug",
     "Double3Plug",
@@ -40,6 +39,7 @@ __all__ = [
     "LongPlug",
     "MatrixPlug",
     "MessagePlug",
+    "MultiPlug",
     "Plug",
     "ShortPlug",
     "StringPlug",

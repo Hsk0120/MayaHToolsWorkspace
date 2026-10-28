@@ -42,7 +42,7 @@ class PlugReferencesTest(unittest.TestCase):
             (self.node.getPlug("rotateX"), mlib.plugs.DoubleAnglePlug),
             (self.node.getPlug("translate"), mlib.plugs.Double3Plug),
             (self.node.getPlug("worldMatrix[0]"), mlib.plugs.MatrixPlug),
-            (samples, mlib.plugs.ArrayPlug), (label, mlib.plugs.StringPlug),
+            (samples, mlib.plugs.MultiPlug), (label, mlib.plugs.StringPlug),
         )
         for plug, expected in cases:
             with self.subTest(type=expected.__name__):

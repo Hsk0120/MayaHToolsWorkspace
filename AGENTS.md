@@ -16,9 +16,9 @@
 
 - 2026-10-23のユーザー指定により、機能縮小案A・Bを適用する。mlibはNode/Plug/Component/数学型と隣接基盤へ絞り、汎用UI、OptionVar/Preferences、型付きJSON・Snapshot、Colorと専用色操作、Scene/Workspace/FBX、mlib版OBBを提供しない。`mlib.json`と旧保存形式の読込保証は終了し、旧import・互換別名・readerを残さない。mlrigの通常JSON文字列は標準`json`、GUI名と標準Editor起動は利用側のcmds/mel、表示色はPlugで扱う。`viewportOff`の表示停止/復帰はdecoratorで維持する。`mlib.cmds`とルート再公開は`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口に限定し、他のMayaコマンドは利用側で直接使用して必要な戻り値をmlib参照へ変換する。CのMesh.reorderVertices/DagPose.mergeは維持する。数学所有権・単位・保持APIの引数/返却・複数形/reload/拡張自動探索・通常Undo/fastは維持する。
 
-- 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。ArrayPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。追加縮小の14型を除く演算ノードの検証/複合処理とBlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約は既存基盤へ委譲する。
+- 2026-10-23の保守性整理により、`AimConstraint.getSettingPlugs`は廃止し保存対象の選定を`mlrig.setups.AimAxisConversion`へ移す。`DecomposeMatrix.getOutputPlugs`、`AngleBetween/DistanceBetween.getOutputPlug`、`VectorProduct.getNormalizeOutputPlug/getOutputPlug`、`AnimCurve.getDriverPlug/getOutputPlug/getDrivenPlugs`は廃止し、Maya標準名の`getPlug`と既存の接続照会へ寄せる。旧別名は残さない。MultiPlugの`getIndices()`は`getElements()`と同じ既存要素の論理番号を未評価で返す。追加縮小の14型を除く演算ノードの検証/複合処理とBlendShapeのalias投影は維持し、列挙・範囲照会・頂点集約は既存基盤へ委譲する。
 
-- 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`ArrayPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効では破壊的処理前に拒否する。
+- 2026-10-23のユーザー指示により、10/22の複雑性調査の整理案を実施する。対象仕様への明示的な変更として、`mlib.getAttr`は廃止し、参照は`getPlug`・値は`Plug.get`・状態は専用照会へ分ける。`MultiPlug.getElement`は既存要素の取得のみとし`create`引数と`addElement`を廃止、未作成参照は`[]`・作成は`set/connect`で扱う。generic/kAnyは参照取得時に値評価せず基底Plugとし、実値の型解釈は`get`時に行う。`disconnect`は接続元参照の切断に限定しbool方向指定と`dst`を廃止、方向解除は`disconnectAll`へ寄せる。Joint/Jointsの`delete`はMaya標準削除とし、旧ウェイト移送・子階層保持は`mlrig.setups.JointHierarchy.delete`へ移す。これら以外の確定引数・単位・返却、Transformの`get/safe/at/ra/r/jo`、数学値の所有権、複数形/reload/拡張自動探索は維持する。`moveAttrOrder`は定義と接続を保全し、Undo無効では破壊的処理前に拒否する。
 
 - 2026-10-11のユーザー指示により、ライブラリの正式名は `mlib`、拡張は `mlib_*` とする。旧パッケージ名のimport互換・別名は設けない。拡張宣言は `MLIB_EXTENSION_API` とし、旧宣言の互換入口は提供しない。その他の公開APIの引数・戻り値・意味は維持する。
 
@@ -55,7 +55,7 @@
 
 - mlibのクラス実装は原則1クラス1ファイルとする。ただし単数クラスと対応する複数クラスは、単数形の同じファイルにまとめる（例: joint.pyのJoint/Joints、vertex.pyのVertex/Vertices）。既存の分離済みクラスをこの規則だけで移動する必要はない。関連する関数はクラスのメソッドへ、クラスに依存しない小さな中立の汎用関数・値処理補助は `mlib.util`、Mayaの状態・環境等の責務固有の処理は `mlib.common` へ置く。nodes/plugs/componentsなど型をまとめるパッケージ内に関数だけのPythonファイルを追加しない。commonでは用途単位の関数モジュールも扱う。公開コマンドは上記の命名・責務ルールに従う。
 
-- mlibおよび `mlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`arrayPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `mlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
+- mlibおよび `mlib_*` 拡張パッケージの一般Pythonファイル名はlowerCamelCaseに統一する（`eulerRotate.py`、`scriptJob.py`、`multiPlug.py`）。Mayaコマンド/nodeTypeと同名のファイル、`__init__.py`等の特殊名、テスト探索用 `test_*.py` は既存規則を維持する。先頭の内部用 `_` とパッケージ名 `mlib_bifrost` 等は保持する。クラス名や独自メソッド名はこのファイル名規則とは別に扱う。
 
 - mlibはMaya標準の名前・概念と汎用的な基礎APIを扱う。標準の関係型とリグ非依存の計算・汎用処理は `common`、骨の追従・Soft IK・補正・操作形状などの独自セットアップは `mlrig.setups` に置く。`mlib/animation` は作らない。Bifrostの演算部品は `mlib_bifrost.common`、リグの組み方はmlrigに置く。
 

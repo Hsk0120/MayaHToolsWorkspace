@@ -51,8 +51,8 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
 ### 2.1.0 で om2 へ置き換えた読み取り(``_NewSceneCase`` 以降のクラス)
 
 - ``Plug.isSettable()`` (``MPlug.isFreeToChange() == kFreeToChange``)と ``cmds.getAttr(settable=True)``。
-  自身・複合の親・子のロック、入力接続、キー、lockNode、出力・``writable=False`` の動的アトリビュート
-  (cmds は定義の writable を見ないので True)、配列・要素・複合配列の子・メッシュの pnts 要素
+  自身・コンパウンドアトリビュートの親・子のロック、入力接続、キー、lockNode、出力・``writable=False`` の動的アトリビュート
+  (cmds は定義の writable を見ないので True)、マルチアトリビュート・要素・マルチアトリビュートであるコンパウンドアトリビュートの子・メッシュの pnts 要素
 - ``Node.resetAttrs()`` の省略時の絞込み(``_require_writable``)と ``cmds.listAttr(keyable, scalar)``・
   ``getAttr(settable=True)``・入力接続(通常/fast とも。Transform は独自の resetAttrs のため DG ノードで確認)
 - moveAttrOrder の enum 再作成情報(``_enum_definition``)と ``cmds.attributeQuery(listEnum=True)``
@@ -63,7 +63,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   ``cmds.listHistory`` の順序・範囲(複数 Shape・中間 Shape だけの Transform・インスタンス・デフォーマー・
   コンストレイント・循環・名前空間・future/past・type フィルター)
 - ``Node.getPlugs()`` のフラグ無し・``keyable``・``scalar`` (定義の深さ優先の走査)と ``cmds.listAttr`` の名前を
-  ``getPlug`` で解決した並び(多数のノード型・動的な配列/複合/複合配列・Shape の visibility の keyable 上書き・
+  ``getPlug`` で解決した並び(多数のノード型・動的なマルチアトリビュート/コンパウンドアトリビュート/マルチアトリビュートであるコンパウンドアトリビュート・Shape の visibility の keyable 上書き・
   includeChildren)
 - ``Plug.getAnimLayers()`` (blend ノードの message 出力先を om2 で取得)と
   ``cmds.animLayer(query=True, affectedLayers=True)``・``animLayer(attribute=True)``
@@ -389,12 +389,12 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
     Plug(node, mplug) は登録済みラッパー(DoubleLinearPlug/Double3Plug 等)を選ぶために
     ``cmds.getAttr(<プラグ名>, type=True)`` と同じ型名を使う。mlib はその型名をアトリビュート定義から
     om2 で求める(``mlib.core.attributeType.attributeType``)ため、既存のプラグについて
-    cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しない配列要素を
+    cmds の生の値と一致することを確かめる。``cmds.getAttr(type=True)`` は存在しないマルチアトリビュートの要素を
     問い合わせると要素を作る(Maya が異常終了するアトリビュートもある)ため、cmds へ問い合わせるのは
     存在する要素(ワールド空間アトリビュートはインスタンス番号の要素)だけにする。
     """
 
-    #: 動的アトリビュートとして追加する attributeType(単体と multi)。
+    #: 動的アトリビュートとして追加する attributeType(単体とマルチアトリビュート)。
     ATTRIBUTE_TYPES = ("bool", "long", "short", "byte", "char", "enum", "float", "double",
                        "doubleAngle", "doubleLinear", "floatAngle", "floatLinear", "time",
                        "message", "matrix", "fltMatrix")
@@ -404,7 +404,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                   "componentList", "mesh", "nurbsCurve", "nurbsSurface", "lattice", "sphere",
                   "double2", "double3", "float2", "float3", "long2", "long3", "short2", "short3",
                   "reflectanceRGB", "spectrumRGB")
-    #: 子アトリビュートとともに追加する複合アトリビュートの attributeType、子の attributeType、子の数。
+    #: 子アトリビュートとともに追加するコンパウンドアトリビュートの attributeType、子の attributeType、子の数。
     COMPOUND_TYPES = (
         ("double2", "double", 2), ("double3", "double", 3), ("double4", "double", 4),
         ("float2", "float", 2), ("float3", "float", 3), ("long2", "long", 2), ("long3", "long", 3),
@@ -424,7 +424,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
 
     @staticmethod
     def exists(mplug):
-        """プラグの経路上の配列要素がすべて存在するか(cmds へ問い合わせてよいか)を返す。"""
+        """プラグの経路上のマルチアトリビュートの要素がすべて存在するか(cmds へ問い合わせてよいか)を返す。"""
         current = mplug
         while current.isElement or current.isChild:
             if current.isElement:
@@ -454,7 +454,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         return expected
 
     def plugs_of(self, node):
-        """ノードの全アトリビュートから、存在する配列要素と複合アトリビュートの子まで含めたプラグを列挙する。"""
+        """ノードの全アトリビュートから、存在するマルチアトリビュートの要素とコンパウンドアトリビュートの子まで含めたプラグを列挙する。"""
         fn = om2.MFnDependencyNode(node.mnode())
         result = []
 
@@ -545,7 +545,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         cmds.addAttr(name, longName="cp_linear", attributeType="double3")
         for axis in "XYZ":
             cmds.addAttr(name, longName="cp_linear" + axis, attributeType="doubleLinear", parent="cp_linear")
-        # 動的アトリビュートの配列要素は、値の設定・接続で作ってから問い合わせる。
+        # 動的アトリビュートのマルチアトリビュートの要素は、値の設定・接続で作ってから問い合わせる。
         source = Node(cmds.createNode("transform", name="source"))
         for attribute_type_name in self.ATTRIBUTE_TYPES:
             element = "%s.multi_%s[0]" % (name, attribute_type_name)
@@ -559,7 +559,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         top_level = [attribute for attribute in cmds.listAttr(name, userDefined=True) or []
                      if not network.getPlug(attribute).isChild()]
         for plug in [network.getPlug(attribute) for attribute in top_level]:
-            plugs = [plug[0]] if plug.isArray() else [plug]
+            plugs = [plug[0]] if plug.isMulti() else [plug]
             if plug.isCompound():
                 plugs.extend(plug.getChildren())
             for item in plugs:
@@ -699,7 +699,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 self.assertEqual(value, reference)
 
     def test_missing_elements_resolve_like_existing_elements_without_changes(self):
-        # 存在しない配列要素もアトリビュート定義から同じ型名になり、要素は作られない。cmds へは存在する
+        # 存在しないマルチアトリビュートの要素もアトリビュート定義から同じ型名になり、要素は作られない。cmds へは存在する
         # 要素だけを問い合わせる(存在しない要素の問い合わせは要素を作るため)。
         average = Node(cmds.createNode("plusMinusAverage", name="pma"))
         cmds.setAttr(average.getName() + ".input1D[0]", 1.0)
@@ -713,7 +713,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
         target = cmds.polyCube(name="missingTarget")[0]
         blend = Node(cmds.blendShape(target, base, name="missingBlend")[0])
         item = "inputTarget[0].inputTargetGroup[0].inputTargetItem[6000]"
-        # (存在しない要素のプラグ, 同じアトリビュートの既存要素のプラグ, 要素が作られうる配列)
+        # (存在しない要素のプラグ, 同じアトリビュートの既存要素のプラグ, 要素が作られうるマルチアトリビュート)
         cases = [
             (average, "input1D[10]", "input1D[0]", "input1D"),
             (average, "input3D[4].input3Dx", "input3D[0].input3Dx", "input3D"),
@@ -819,8 +819,8 @@ class _NewSceneCase(unittest.TestCase):
 class PlugSettableParityTest(_NewSceneCase):
     """Plug.isSettable() (MPlug.isFreeToChange)と cmds.getAttr(settable=True) の一致。
 
-    ロック(自身・複合の親・子)、入力接続、キー、lockNode、書込み禁止の出力・動的アトリビュート、
-    配列と要素、複合配列の子、メッシュの pnts 要素で確かめる。cmds の settable は定義の writable を
+    ロック(自身・コンパウンドアトリビュートの親・子)、入力接続、キー、lockNode、書込み禁止の出力・動的アトリビュート、
+    マルチアトリビュートと要素、マルチアトリビュートであるコンパウンドアトリビュートの子、メッシュの pnts 要素で確かめる。cmds の settable は定義の writable を
     見ないため、``worldMatrix``・``outputX``・``writable=False`` の動的アトリビュートも True になる。
     """
 
@@ -875,7 +875,7 @@ class NodeResetAttrsParityTest(_NewSceneCase):
         for attribute in cmds.listAttr(name, keyable=True, scalar=True) or []:
             plug = name + "." + attribute
             if not cmds.objExists(plug) or cmds.attributeQuery(attribute, node=name, multi=True):
-                continue  # 番号の無い配列の子と配列自体(要素ごとに reset する)は対象外。
+                continue  # 番号の無いマルチアトリビュートの子とマルチアトリビュート自体(要素ごとに reset する)は対象外。
             if cmds.listConnections(plug, source=True, destination=False):
                 continue
             if not cmds.getAttr(plug, settable=True):
@@ -1036,7 +1036,7 @@ class NodeGetPlugsParityTest(_NewSceneCase):
     """Node.getPlugs()(フラグ無し・keyable・scalar を om2 の定義の走査で列挙)と cmds.listAttr の一致。
 
     期待値は 2.0.0 の実装と同じく、``cmds.listAttr`` の名前を ``getPlug`` で解決できたものの並び。
-    多数のノード型、動的な配列・複合・複合配列、Shape の keyable 上書き(visibility)で確かめる。
+    多数のノード型、動的なマルチアトリビュート・コンパウンドアトリビュート・マルチアトリビュートであるコンパウンドアトリビュート、Shape の keyable 上書き(visibility)で確かめる。
     """
 
     def expected(self, node, include_children, **flags):

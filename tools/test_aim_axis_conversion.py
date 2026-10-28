@@ -178,7 +178,7 @@ class AimAxisConversionTest(unittest.TestCase):
         self.assertLess(graph.container.getPlug("valid").get(), 0.5)
 
     def test_compound_and_skipped_axes(self):
-        """複合接続と元のskip状態を正確に復元する。"""
+        """コンパウンドアトリビュートの接続と元のskip状態を正確に復元する。"""
         for axis in "XYZ":
             self.cmds.disconnectAttr(self.source + ".constraintRotate" + axis, self.driven + ".rotate" + axis)
         self.cmds.connectAttr(self.source + ".constraintRotate", self.driven + ".rotate")

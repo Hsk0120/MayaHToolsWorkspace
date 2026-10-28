@@ -1,12 +1,12 @@
 """高速化した読取・列挙が、従来の経路と同じ結果になることを実Mayaで検証する。
 
-対象は、複合Plugの子ラッパーを作らない値読取、Transformの静的チャンネルの直接読取、
+対象は、コンパウンドアトリビュートのPlugの子ラッパーを作らない値読取、Transformの静的チャンネルの直接読取、
 子の列挙で入力解決を省いたラッパー作成、
 double2・double3の親への1回のsetAttr、Undo無効時のチャンク開閉と接続前の定数記録の省略、
 名前付きundoTransactionの内側のundoChunkで入れ子のチャンクを開かないことも対象とする。
 ls・getNode・getPlug・親/Shape/インスタンスの取得で入力解決を省いたラッパー作成も対象とする。
 Nodesの重複判定の省略と、influence・displayLayer・shadingEngineの列挙結果から直接作るラッパーも対象とする。
-ArrayPlug.getの要素ラッパーの省略、Vectorの演算結果の複製も対象とする。
+MultiPlug.getの要素ラッパーの省略、Vectorの演算結果の複製も対象とする。
 fast=Trueの経路で重ねていた書込み可否の検査・名前の取得・ラッパー生成の入口の省略も対象とする。
 ノード・Plugのラッパー作成での関数セットの使い回し・ハンドルの共有・__init__の直接展開も対象とする。
 Node.getConnectionsの自身側Plugの省略、getHistoryのUUIDの1回取得、getPlugs(userDefined=True)の選別、
@@ -29,7 +29,7 @@ from mlib.plugs import CompoundPlug
 
 
 class CompoundDirectReadTest(unittest.TestCase):
-    """複合Plugのget()が、子Plugのget()を並べた値・cmds.getAttrと一致することを確かめる。"""
+    """コンパウンドアトリビュートのPlugのget()が、子Plugのget()を並べた値・cmds.getAttrと一致することを確かめる。"""
 
     def setUp(self):
         self.ns = "mlibSpeedup_" + uuid.uuid4().hex
@@ -414,7 +414,7 @@ class DisconnectCreateDeleteTest(unittest.TestCase):
             cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_disconnect_child_element_compound(self):
-        """子・配列要素・compoundの接続で、省略時と明示時の戻り値と切断結果が同じ。"""
+        """子・マルチアトリビュートの要素・コンパウンドアトリビュートの接続で、省略時と明示時の戻り値と切断結果が同じ。"""
         cmds.connectAttr(self.a + ".tx", self.b + ".tx")
         cmds.connectAttr(self.a + ".r", self.b + ".r")
         cmds.connectAttr(self.a + ".ty", self.bs + ".weight[3]")
@@ -439,7 +439,7 @@ class DisconnectCreateDeleteTest(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "Input connection not found"):
                         plug.disconnect(source if explicit else None, fast=fast)
                     cmds.connectAttr(source.getFullName(), destination)
-        # compoundの子を入力元に指定しても、親同士の接続とは一致しない。
+        # コンパウンドアトリビュートの子を入力元に指定しても、親同士の接続とは一致しない。
         with self.assertRaisesRegex(RuntimeError, "Input connection not found"):
             node_b.getPlug("r").disconnect(node_a.getPlug("rx"))
         self.assertTrue(cmds.isConnected(self.a + ".r", self.b + ".r"))
@@ -814,8 +814,8 @@ class UndoTransactionNestingTest(unittest.TestCase):
         self.assertIs(_chunk_active.get(), False)
 
 
-class ArrayAndWeightRunTest(unittest.TestCase):
-    """ArrayPlug.getの要素ラッパー省略、targetWeightsの範囲setAttr、Vectorの複製省略が従来と同じ結果になることを確かめる。"""
+class MultiAndWeightRunTest(unittest.TestCase):
+    """MultiPlug.getの要素ラッパー省略、targetWeightsの範囲setAttr、Vectorの複製省略が従来と同じ結果になることを確かめる。"""
 
     def setUp(self):
         self.ns = "mlibSpeedupArr_" + uuid.uuid4().hex
@@ -830,7 +830,7 @@ class ArrayAndWeightRunTest(unittest.TestCase):
         if cmds.namespace(exists=self.ns):
             cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
-    def test_array_get_matches_element_get(self):
+    def test_multi_get_matches_element_get(self):
         node = cmds.createNode("transform", name=self.ns + ":arr")
         specs = {"dbl": dict(attributeType="double"), "lng": dict(attributeType="long"),
                  "enm": dict(attributeType="enum", enumName="a:b:c"), "dst": dict(attributeType="doubleLinear"),
@@ -882,7 +882,7 @@ class ArrayAndWeightRunTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "attribute was deleted"):
             array.get()
 
-    def test_array_get_world_space_instances(self):
+    def test_multi_get_world_space_instances(self):
         loc = cmds.spaceLocator(name=self.ns + ":loc")[0]
         grp = cmds.group(loc, name=self.ns + ":grp")
         cmds.instance(grp, name=self.ns + ":grp2")

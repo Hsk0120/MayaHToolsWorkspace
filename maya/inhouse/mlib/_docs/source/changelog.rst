@@ -4,6 +4,74 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+4.0.0 (2026-10-28)
+------------------
+
+要素を持つアトリビュートの呼び名を、Maya のコマンド(``addAttr -multi``・``attributeQuery -multi``・
+``getAttr -multiIndices``)に合わせて「マルチアトリビュート」に統一しました。名前の変更で、互換の別名は残していません。
+
+.. rubric:: 破壊的変更
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 35 30
+
+   * - 旧名
+     - 新名
+     - 意味
+   * - ``mlib.plugs.ArrayPlug``\ (``plugs/arrayPlug.py``)
+     - ``mlib.plugs.MultiPlug``\ (``plugs/multiPlug.py``)
+     - マルチアトリビュート全体
+   * - ``Plug.isArray()``
+     - ``Plug.isMulti()``
+     - マルチアトリビュート全体か
+   * - ``Plug.isElement()``
+     - ``Plug.isMultiElement()``
+     - マルチアトリビュートの要素か(``input1D[3]`` のように番号で指すもの)
+   * - ``Plug.getArray()``
+     - ``Plug.getMulti()``
+     - 要素から、属するマルチアトリビュートを取得する
+
+``MultiPlug`` のメソッド(``getElement``\ ・``getElements``\ ・``removeElement``\ ・``getIndices``\ ・``getNextAvailable``\ ・
+``appendMessage``\ ・``getSourceNodes``)と、``CompoundPlug``\ ・``isCompound``\ ・``isChild`` の名前は変わりません。
+英語の例外メッセージも「multi attribute」「multi element」「compound attribute」に揃えました。
+
+.. rubric:: 呼び名の対応
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - 説明文
+     - mlib
+     - Maya のコマンド
+     - OpenMaya
+   * - マルチアトリビュート
+     - ``MultiPlug``\ ・``isMulti()``
+     - ``-multi``
+     - ``MPlug.isArray``
+   * - 要素
+     - ``isMultiElement()``\ ・``getMulti()``
+     - ``attr[番号]``
+     - ``MPlug.isElement``\ ・``array()``
+   * - 論理番号
+     - ``getIndices()``\ ・``getIndex()``
+     - ``getAttr -multiIndices``
+     - ``logicalIndex``
+   * - コンパウンドアトリビュート
+     - ``CompoundPlug``\ ・``isCompound()``
+     - ``-attributeType compound``
+     - ``MPlug.isCompound``
+   * - 子
+     - ``getChildren()``\ ・``isChild()``
+     - ``-listChildren``
+     - ``MPlug.child``\ ・``isChild``
+
+.. rubric:: 移行手順
+
+``ArrayPlug``\ ・``isArray(``\ ・``isElement(``\ ・``getArray(`` を ``grep`` で探し、上表の新名へ置き換えます。OpenMaya の
+``MPlug.isArray`` などを直接使っている箇所は変える必要はありません。
+
 3.0.0 (2026-10-28)
 ------------------
 

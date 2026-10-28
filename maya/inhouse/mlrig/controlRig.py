@@ -82,10 +82,10 @@ class ControlRig:
         return self.root.getPlug(role + 'Group').getSource(skipConversionNodes=False).getNode()
 
     def register(self, attr, node):
-        """配列の末尾へ参照を保存する。
+        """マルチアトリビュートの末尾へ参照を保存する。
 
         Args:
-            attr (str): message配列名。
+            attr (str): messageのマルチアトリビュート名。
             node (Node): 登録対象。
         """
         self.root.getPlug(attr).appendMessage(node)
@@ -94,7 +94,7 @@ class ControlRig:
         """登録順にノードを取得する。
 
         Args:
-            attr (str): 配列名。
+            attr (str): マルチアトリビュート名。
 
         Returns:
             list[Node]: 登録ノード。

@@ -3,6 +3,21 @@
 今後のAPI追加・変更では、**Mayaへ問い合わせる操作はメソッド、保持する値はプロパティ**を基本とする。
 実装・docstring・使用例を同じ基準に揃える。
 
+## 呼び名の対応表
+
+2026-10-28のユーザー指定(4.0.0)により、アトリビュートの構造はMayaのコマンドの呼び方へ揃える。
+説明・docstring・コメントでは「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」と書き、
+「配列」「multi」「マルチ」「複合」等の略称は使わない。英語の例外メッセージは「multi attribute」「multi element」
+「compound attribute」とする。Pythonのlist・`doubleArray`等の配列データ型・OpenMayaのAPI名はそのまま書く。
+
+| mlib の名前 | Maya コマンド | OpenMaya |
+| --- | --- | --- |
+| マルチアトリビュート: `MultiPlug`・`Plug.isMulti()` | `addAttr -multi` | `MPlug.isArray` |
+| マルチアトリビュートの要素: `Plug.isMultiElement()`・`Plug.getMulti()`(要素が属するマルチアトリビュート) | `attr[番号]` | `MPlug.isElement`・`MPlug.array()` |
+| 要素の番号(論理番号): `Plug.getIndex()`・`MultiPlug.getIndices()` | `[番号]` | `MPlug.logicalIndex()` |
+| コンパウンドアトリビュート: `CompoundPlug`・`Plug.isCompound()` | `addAttr -at compound` | `MPlug.isCompound` |
+| コンパウンドアトリビュートの子: `Plug.isChild()`・`Plug.getParent()` | `-parent` | `MPlug.isChild`・`MPlug.parent()` |
+
 ## 提供する機能の範囲
 
 2026-10-23の指定により、mlibはNode/Plug/Component/数学型と隣接基盤へ絞る。
@@ -16,7 +31,7 @@ Mesh.reorderVerticesと小さな便利メソッドは残す。
 追加縮小では、AddDL/AddDoubleLinear/MultDL/MultDoubleLinear/BlendColors/BlendWeighted/
 Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/UnitConversionの
 型クラスと登録を残し、専用APIを終了する。操作はMaya標準名の`getPlug`とPlugのAPIを使う。
-専用の検証・enum名・複合編集・戻り型変換は提供しない。
+専用の検証・enum名・コンパウンドアトリビュートの編集・戻り型変換は提供しない。
 判定は正式is名へ統一し、is省略入口と省略名へのSphinx投影は提供しない。
 `undo.enabled`も廃止し`undo.isEnabled`を使用する。保持APIの仕様と拡張機構は維持する。
 
@@ -60,8 +75,8 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
   判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
-  演算ノードはPlugで扱う。追加縮小14型の専用APIは検証・enum変換・複合処理も含め終了する。
-  対象外のノードの検証・複合処理は維持する。
+  演算ノードはPlugで扱う。追加縮小14型の専用APIは検証・enum変換・コンパウンドアトリビュート処理も含め終了する。
+  対象外のノードの検証・コンパウンドアトリビュート処理は維持する。
   Transform/Jointおよびマトリクス・TRS関連の専用アクセサーは維持する。
   接続は `getSource/getDestinations(skipConversionNodes=...)` と方向指定の `getConnections`、
   単位は `get/set(uiUnits=...)`、子孫探索は `getChildren(allDescendents/order/leaves/includeSelf)` に集約する。
@@ -80,8 +95,8 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   形状データの無いmesh/nurbsCurve(作成直後など)の`mfn()`は`MFnDagNode`を返し、形状を要する照会は`RuntimeError`にする。
   アトリビュートの列挙は `getPlugs(userDefined=False, includeChildren=True, **listAttrFlags)` に集約し、
   `getExtraAttrs(include_children, *, asNames)` は廃止する。`userDefined=True` はユーザー定義アトリビュートだけを
-  OpenMaya経路で追加順の型付きPlug(配列はArrayPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
-  `userDefined=False` は `cmds.listAttr` 経路。`includeChildren=False` は複合の子を省く。名前の列は
+  OpenMaya経路で追加順の型付きPlug(マルチアトリビュートはMultiPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
+  `userDefined=False` は `cmds.listAttr` 経路。`includeChildren=False` はコンパウンドアトリビュートの子を省く。名前の列は
   `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getAttrName()` は `.tx` 形式の短名なので使わない)。
   DAG共通の `getRoot()`・`getSiblings()`・`getBoundingBox(worldSpace=False)`・`isIntermediateObject()` は
   `DagNode` に置き、TransformとShapeの両方から使う。`getSiblings()` はShapeでは親直下の他の非中間Shape、
@@ -97,7 +112,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   判定本体の引数・戻り値・フラグ、OpenMaya/外部SDKの標準名と他クラスの別APIは維持する。
 - 2026-10-09のユーザー指定により、mlibの変換APIはMayaの `translate/rotate/scale` 表記へ統一する。
   クラスは `Translate/EulerRotate/Scale`、取得・設定は `getTranslate/setTranslate`・`getRotate/setRotate`・`getScale/setScale`、
-  対応する独自複合名・内部メソッド・ファイル・内製利用側も揃える。
+  対応する独自のコンパウンドアトリビュート名・内部メソッド・ファイル・内製利用側も揃える。
   移動・回転・スケールのPlugは `getPlug("translate")` 等で明示取得する。旧独自名・旧importの互換入口は残さない。
   OpenMaya標準名、Maya標準のフラグ・アトリビュート名に忠実な `useEulerRotation` 系、既存引数・単位・Undo・戻り値の意味は維持する。
   `Quaternion.asEulerRotate()` は標準の `asEulerRotation()` へ委譲する。
@@ -370,7 +385,7 @@ generic/kAnyはNone。値は評価しない)。Nodeの`getType(inherited=True)`�
 入力だけを解除する。`source`はPlug/MPlug/アトリビュート名またはNoneで、
 bool方向と`destination`は受け付けない。入力省略時は現在の入力を解除する。
 単一切断は入力元Plugを返し、入力がない・指定接続がない場合はRuntimeErrorとする。
-入力元を指定した`nextAvailable/na`は配列内の直結を検索し、切断した接続先要素のリストを返す。
+入力元を指定した`nextAvailable/na`はマルチアトリビュート内の直結を検索し、切断した接続先要素のリストを返す。
 `force/f`と`nextAvailable/na`のOR評価、通常Undo/fast OM2の方針は維持する。
 
 `isConnected(*, source=True, destination=True)`、`isConnectedTo(other, *, source=True, destination=True)`、
@@ -378,8 +393,8 @@ bool方向と`destination`は受け付けない。入力省略時は現在の入
 bool以外はTypeErrorとする。両Falseでは判定はFalse、
 `disconnectAll`は何もせず自身を返す。`getConnections`の既存の位置引数、
 入力`s and source`、出力`d and destination`、型・ペア・ノード・番号・
-子・配列要素の列挙フラグと戻り値は維持する。
-`isConnected`は既存のMPlug接続状態判定を維持し、子・配列要素を列挙しない。
+子・マルチアトリビュートの要素の列挙フラグと戻り値は維持する。
+`isConnected`は既存のMPlug接続状態判定を維持し、子・マルチアトリビュートの要素を列挙しない。
 `isConnectedTo`・`disconnectAll`は対象Plugの直結だけを扱う。
 `disconnectAll`は既定で両方向、未接続時no-op、自身返却で、force指定は持たない。
 入力だけの未接続時no-opは`disconnectInput()`とし、自身を返す。
@@ -394,8 +409,8 @@ bool以外はTypeErrorとする。両Falseでは判定はFalse、
 戻り値は常に実際のアトリビュート型に対応するPlugラッパーとする。
 Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dstを返す)、`dst << src`(`dst.connect(src)`。dst自身を返す)、
 `src // dst`(`dst.disconnect(src)`。接続先dstを返す)の3つで、`connect`/`connectTo`/`disconnect`と同じ入力解決・例外・
-通常Undoを持ち、fast経路は無い。配列全体への`>>`はMayaと同じRuntimeErrorで、空き要素への接続は
-`connectTo(array, nextAvailable=True)`を使う。cymelの同名演算子はNoneを返すが、mlibでは戻り値を持つ。
+通常Undoを持ち、fast経路は無い。マルチアトリビュート全体への`>>`はMayaと同じRuntimeErrorで、空き要素への接続は
+`connectTo(multi, nextAvailable=True)`を使う。cymelの同名演算子はNoneを返すが、mlibでは戻り値を持つ。
 `a >> b.x`は`a >> (b.x)`と評価される。`__len__`・`__add__`・無引数の作成・transform→shapeの暗黙のアトリビュート解決は追加しない。
 
 ### 単位・フラグ・戻り値
@@ -461,7 +476,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
   アトリビュートのロックは `Plug.setLocked()`。`Node.mfn()` は毎回新規のfunction setを返す(Mesh/Camera/NurbsCurve/ReferenceはMFnMesh等を返すoverride)。
 - `Plug.unlock(below=False, *, fast=False)` は実際に解除したPlugの `list[Plug]` を上位から返す。旧 `undoable=` 引数は廃止し、Undoなしは `fast=True`。
   `lock` 別名は廃止し `setLocked()`。
-- `ArrayPlug.getNextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False)` は配列Plugだけが持つ
+- `MultiPlug.getNextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False)` はマルチアトリビュートのPlugだけが持つ
   (基底Plugからは `AttributeError`)。要素の作成・予約はしない。`appendMessage(node, *, fast=False)` と `connect(nextAvailable=True)` は探索規則が違うので統合しない。
 
   | 呼び方 | 開始位置 | 返す番号 | checkLocked/checkChildren |
@@ -472,7 +487,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 
 - `Plug.getEnumName(value=None)`: 省略時は現在値の名前、指定時はその値の名前(旧 `getEnumFieldName(val)` を吸収)。
   `getEnumNames()` は `list[tuple[str, int]]` を値順で返す。`setEnumNames(names, *, fast)`・`getEnumValue(name)` は維持。
-- `Plug.getAlias()`(`MFnDependencyNode.plugsAlias`)、`getArray()`(要素が属する配列Plug)、`getIndex()`(要素の論理番号。非要素はTypeError)を追加。
+- `Plug.getAlias()`(`MFnDependencyNode.plugsAlias`)、`getMulti()`(要素が属するマルチアトリビュートのPlug)、`getIndex()`(要素の論理番号。非要素はTypeError)を追加。
   `getPlugName(short, fullAttrPath)` は廃止し `getName()/getFullName()`。
 - `DagNode.show(*, fast=False)` / `hide(*, fast=False)` は `setVisibility(state, fast=)` へ通す。
 
@@ -537,8 +552,8 @@ mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 - ノードやアトリビュートを受け取るコマンド・メソッドは、文字列に加えて mlib のオブジェクトと Maya API 2.0 のオブジェクト(`MObject`・`MDagPath`・`MPlug`)を受け付ける。正規化は `Object`・`Node`・`Plug`・`Component` の内部メソッドで行い、各APIで独自に判定しない。
 - ノードが必要な引数(`parent` など)は、Plug を所有ノード、Component を所有シェイプへ解決する。プラグ名を `maya.cmds` へそのまま渡して黙って無視させない。
 - 名前を解決できない場合(存在しない・複数の対象に一致する)は最初の一致を黙って返さず例外にする(`"bulk*"` のようなパターンも同じ。パターンは `mlib.ls` で扱う)。対象を名前へ変換する内部処理(`Object._input_name/_input_names`・`Node._input_name`)の例外の種類は、対応しない型が `TypeError`、空・削除済みの対象が `ValueError`、解決できない文字列が `RuntimeError` とする。既存の API が削除済みの対象を `RuntimeError` にしている場合(`Node(...)`/`mlib.getNode`、`Transform.addConstraint` のターゲット・コンストレイント先)は、その規則を変えない(`Node._resolve_input` は既存Nodeの保持参照を返し、後続操作が有効性を検証する)。ただし所有ノードが有効なまま `deleteAttr` でアトリビュートが削除された Plug・MPlug は、所有ノードへ解決すると削除済みの対象を黙って受け付けるため、ノードが必要な引数でも `ValueError` にする(`DeletedAttributeError`。既存の規則を保つため `RuntimeError` の派生でもある)。削除済みの対象の判定メソッド(`isParentOf` など)は `False` を返す。
-- オブジェクトの取得・ラップ(`node.getPlug()` などによるPlug生成)と接続列挙は値を評価せず、配列要素を作成しない。generic/kAnyは保持値によらず基底Plugのままとし、`get()`の時点で現在値を判定する。マトリクスならMatrix、数値の組ならtuple等の既存表現を返す。値の取得では上流の評価や出力配列の実体化が起こる場合がある。要素作成は`array[index].set(value)`または参照への接続で明示する。
-- 番号を受け取る API は、Maya が範囲外の値を黙って別の値へ変換する場合(`MPlug.elementByLogicalIndex()` は 0〜2147483647 の外の論理インデックスを別の番号へ変換し、`4294967296` は `0` になる)でも、別の対象へ読み替えずに例外にする。
+- オブジェクトの取得・ラップ(`node.getPlug()` などによるPlug生成)と接続列挙は値を評価せず、マルチアトリビュートの要素を作成しない。generic/kAnyは保持値によらず基底Plugのままとし、`get()`の時点で現在値を判定する。マトリクスならMatrix、数値の組ならtuple等の既存表現を返す。値の取得では上流の評価や出力マルチアトリビュートの実体化が起こる場合がある。要素作成は`array[index].set(value)`または参照への接続で明示する。
+- 番号を受け取る API は、Maya が範囲外の値を黙って別の値へ変換する場合(`MPlug.elementByLogicalIndex()` は 0〜2147483647 の外の論理番号を別の番号へ変換し、`4294967296` は `0` になる)でも、別の対象へ読み替えずに例外にする。
 - 解決したノードの種類を API が扱えない場合(parent/point などのターゲットに解決されたシェイプなど)は、`maya.cmds` のように黙って壊れた結果を作らず `TypeError` にする。
 - 生の `om2.MPlug` などの API オブジェクトは削除を検出できない場合があるため、mlib の内部でも削除操作をまたいで保持せず、ハンドルで有効性を確かめられる mlib のオブジェクトを保持する。
 
@@ -553,7 +568,7 @@ mlib のオブジェクトは `maya.cmds` へそのまま渡せることを仕�
 | パッケージ | 小文字、必要ならsnake_case | `nodes`、`components`、`common` |
 | Mayaコマンドとそのファイル | Mayaと同じcamelCase | `createNode.py` / `createNode()` |
 | Mayaノードのファイル | nodeTypeと同じ表記 | `skinCluster.py`、`animCurveTL.py` |
-| その他の実装ファイル | lowerCamelCase | `scriptJobs.py`、`eulerRotate.py`、`arrayPlug.py` |
+| その他の実装ファイル | lowerCamelCase | `scriptJobs.py`、`eulerRotate.py`、`multiPlug.py` |
 | クラス | PascalCase | `SkinCluster`、`ScriptJobs` |
 | オブジェクト層の公開メソッド | lowerCamelCase | `getMatrix()`、`setWeights()` |
 
@@ -613,7 +628,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 独自のアトリビュート操作名は `Attr/Attrs`。ユーザー定義アトリビュートの列挙は `getPlugs(userDefined=True)` で、専用の `Extra` 名は置かない。フラグ設定は `setFlags` を使う。
 - メソッドのオーバーライドで対象を切り替えない。`Reference.getAssociatedNamespace` は参照内容、継承した `getNamespace/setNamespace` はreferenceノード自身を扱う。
 - 内部の接続用参照は `*_plug`、文字列のみの一覧は `*_names` / `*_aliases` などで対象を明示する。公開名はlowerCamelCaseとする。
-- 配列の `getElement` は既存要素のみ。`array[index]` は未作成の非実体化参照も返し、作成はset/connectで行う。
+- マルチアトリビュートの `getElement` は既存要素のみ。`multi[index]` は未作成の非実体化参照も返し、作成はset/connectで行う。
 - `PluginPackage.tryLoad` は状態文字列を返し、`Plugin.ensureLoaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
 - `getVisibility/setVisibility` は自身のvisibilityアトリビュートだけを扱い、階層や表示レイヤーを含む最終可視性と区別する。
 
@@ -670,8 +685,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 - 具象Nodeは対象Plug・値の意味・更新順を決め、値設定はPlugへ委譲する。通常/fastの型付き書込みと単位境界をノードごとに再実装しない。
 - 複数Plugの更新可否を先に調べる処理は、Plugの内部検証を使う。事前検証と自動ロールバックは別の契約であり、fastの実行途中の失敗を自動で戻す保証はしない。
-- ArrayPlugは論理番号と要素の参照・存在を管理する。`array[index]`は未作成でも参照を返し、`getElement(index)`は既存要素のみを返す。`create`引数と`addElement`は公開しない。要素は値設定・接続で作成し、参照取得や検証で事前に実体化しない。空き番号の探索は `getNextAvailable(vacant=)`、message配列への追加は `appendMessage`(対比は「2026-10-26の統合で確定したメソッド契約」)。
-- ArrayPlugの`getIndices()`は既存の論理番号を昇順で返し、`getElements()`と同じくワールド空間アトリビュートのDAGインスタンス番号も含む。型固有の番号選択はノード側、列挙・既存性の管理はArrayPlug側へ寄せる。
+- MultiPlugは論理番号と要素の参照・存在を管理する。`multi[index]`は未作成でも参照を返し、`getElement(index)`は既存要素のみを返す。`create`引数と`addElement`は公開しない。要素は値設定・接続で作成し、参照取得や検証で事前に実体化しない。空き番号の探索は `getNextAvailable(vacant=)`、messageのマルチアトリビュートへの追加は `appendMessage`(対比は「2026-10-26の統合で確定したメソッド契約」)。
+- MultiPlugの`getIndices()`は既存の論理番号を昇順で返し、`getElements()`と同じくワールド空間アトリビュートのDAGインスタンス番号も含む。型固有の番号選択はノード側、列挙・既存性の管理はMultiPlug側へ寄せる。
 - Mesh/Curveの単数・複数コンポーネントとShapeの座標書込みは、非公開のgeometryEditを共有する。通常cmds/fast om2、CVの番号変換・重み・単位変換をこの境界へ集約する。Shapeは変形する座標列を決める。
 - Transform姿勢とJoint固有の変換、SkinClusterの一括ウェイト処理は、それぞれの意味と効率を持つため単純なPlugの反復へ置き換えない。
 
@@ -679,7 +694,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 所有Plugの`getNode()`は保持参照でもメソッドとする。独自の取得は`getParent/getLongName/getFullName`等の正式名へ集約し、取得短名の互換入口は残さない。判定の正式is名と`hasAttr`、操作の`delete`、生API取得の`mnode/mpath/mplug`はそれぞれの確定契約を維持する。固定Plugの参照だけを返す専用入口は増やさず、`getPlug()`を使う。用途ごとの固定一覧は利用側で選定する。複数フラグを扱う`setFlags()`等の独自操作は維持する。詳細・制限は`maya/inhouse/mlib/nodes/node.py`と`maya/inhouse/mlib/plugs/plug.py`の公開APIのdocstringを参照する。
 
-配列要素参照の標準表記は`array[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。配列反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存要素だけの取得には`getElement(index)`を使い、未作成ならIndexErrorとする。複合の子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。複合の整数番号は0以上の定義順、反復は子の定義順。配列・複合Plugをmaya.cmdsへ渡す時はstrまたはgetFullNameで文字列化する。mlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、mlib.cmdsの同名ラッパーは作らない。
+マルチアトリビュートの要素参照の標準表記は`multi[index]`とし、未作成の論理番号も非実体化のPlugとして参照できる。マルチアトリビュート反復は既存要素の論理番号順、`get()`は番号を保持する辞書。既存要素だけの取得には`getElement(index)`を使い、未作成ならIndexErrorとする。コンパウンドアトリビュートの子もユーザーの統一指示により`compound[index]`・`compound[name]`とし、旧childメソッドは残さない。コンパウンドアトリビュートの整数番号は0以上の定義順、反復は子の定義順。マルチアトリビュート・コンパウンドアトリビュートのPlugをmaya.cmdsへ渡す時はstrまたはgetFullNameで文字列化する。mlibコマンドでは直接受け取る。Plugの`setAlias`・`setKey`は自身を返す。`setKey`内部はmaya.cmds.setKeyframeを直接使用し、mlib.cmdsの同名ラッパーは作らない。
 
 
 ### 参照・計算・書込みの責務

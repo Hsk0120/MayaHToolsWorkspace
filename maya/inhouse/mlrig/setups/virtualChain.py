@@ -106,6 +106,6 @@ class VirtualChain(TwistDistribution):
         """
         pairs = cmds.listConnections(self.container.getFullName() + ".controls", source=True, destination=False,
                                      connections=True, fullNodeName=True) or []
-        # (受け側の "container.controls[i]", 送り側のノード) の組を、配列の番号の順に並べる。
+        # (受け側の "container.controls[i]", 送り側のノード) の組を、論理番号の順に並べる。
         items = sorted((int(plug.rsplit("[", 1)[1].rstrip("]")), node) for plug, node in zip(pairs[::2], pairs[1::2]))
         return [mlib.getNode(node) for _, node in items]

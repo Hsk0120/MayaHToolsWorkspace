@@ -147,8 +147,8 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
         cmds.redo()
         self.assertFalse(destination.isValid())
 
-    def test_sparse_array_removal_then_owner_delete_restore_separate_undo_steps(self):
-        """疎配列の接続要素削除と所有ノード削除を、別々にUndo/redoする。"""
+    def test_sparse_multi_removal_then_owner_delete_restore_separate_undo_steps(self):
+        """疎なマルチアトリビュートの接続要素削除と所有ノード削除を、別々にUndo/redoする。"""
         driver, owner = self.make("network"), self.make("network")
         source = driver.addAttr("amount", type="double")
         array = owner.addAttr("values", type="double", multi=True)

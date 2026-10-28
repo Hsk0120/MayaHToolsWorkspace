@@ -1,4 +1,4 @@
-"""ArrayPlug.getNextAvailable(start, asPlug, checkLocked, checkChildren, *, vacant=False) の約束を固定する。
+"""MultiPlug.getNextAvailable(start, asPlug, checkLocked, checkChildren, *, vacant=False) の約束を固定する。
 
 3 つの探索規則(``getNextAvailable()`` = 最後の接続要素の次から入力・ロック・子の入力を避ける、
 ``getNextAvailable(vacant=True)`` = 既存番号に無い最初の番号、``appendMessage`` = 最大番号+1)の違いと、
@@ -15,11 +15,11 @@ import mlib
 from mlib import plugs
 
 
-class _ArraySpecCase(unittest.TestCase):
-    """専用の名前空間とmulti付きのnetworkノードを用意し、終了時に削除する。"""
+class _MultiSpecCase(unittest.TestCase):
+    """専用の名前空間とマルチアトリビュート付きのnetworkノードを用意し、終了時に削除する。"""
 
     def setUp(self):
-        self.namespace = ":specPlugArrays_" + uuid.uuid4().hex
+        self.namespace = ":specPlugMulti_" + uuid.uuid4().hex
         self.before = set(cmds.ls(long=True) or [])
         cmds.namespace(add=self.namespace)
         self.undo_state = cmds.undoInfo(query=True, state=True)
@@ -68,11 +68,11 @@ class _ArraySpecCase(unittest.TestCase):
         self.assertTrue(all(i in existing for i in range(index)))
 
 
-class DefaultSearchSpecTest(_ArraySpecCase):
+class DefaultSearchSpecTest(_MultiSpecCase):
     """既定(vacant=False): 最後の接続要素の次から、入力接続・ロック・子の入力を避ける。"""
 
-    def test_empty_array(self):
-        """空の配列は0。vacantも0。appendMessageは0。"""
+    def test_empty_multi(self):
+        """空のマルチアトリビュートは0。vacantも0。appendMessageは0。"""
         self.assertEqual(self.values.getNextAvailable(), 0)
         self.assertEqual(self.values.getNextAvailable(vacant=True), 0)
         self.assertEqual(self.values.getNextAvailable(start=5), 5)
@@ -130,8 +130,8 @@ class DefaultSearchSpecTest(_ArraySpecCase):
         self.assertEqual(self.values.getNextAvailable(vacant=True, checkLocked=False),
                          self.values.getNextAvailable(vacant=True))
 
-    def test_locked_array(self):
-        """配列全体のロックは既定でRuntimeError。checkLocked=Falseとvacant=Trueは例外にしない。"""
+    def test_locked_multi(self):
+        """マルチアトリビュート全体のロックは既定でRuntimeError。checkLocked=Falseとvacant=Trueは例外にしない。"""
         cmds.setAttr(self.name + ".vals", lock=True)
         with self.assertRaises(RuntimeError):
             self.values.getNextAvailable()
@@ -142,7 +142,7 @@ class DefaultSearchSpecTest(_ArraySpecCase):
         self.assertEqual(self.values.getNextAvailable(vacant=True, checkLocked=True), 0)
 
     def test_check_children(self):
-        """checkChildren=Trueは複合要素の子の入力・ロックも避け、Falseは要素自身だけを見る。"""
+        """checkChildren=Trueはコンパウンドアトリビュートである要素の子の入力・ロックも避け、Falseは要素自身だけを見る。"""
         pairs = self.net.getPlug("pairs")
         cmds.connectAttr(self.sn + ".tx", self.name + ".pairs[0].px")
         cmds.setAttr(self.name + ".pairs[1].py", lock=True)
@@ -161,14 +161,14 @@ class DefaultSearchSpecTest(_ArraySpecCase):
                 index = self.values.getNextAvailable(vacant=vacant)
                 plug = self.values.getNextAvailable(asPlug=True, vacant=vacant)
                 self.assertIsInstance(plug, plugs.Plug)
-                self.assertNotIsInstance(plug, plugs.ArrayPlug)
+                self.assertNotIsInstance(plug, plugs.MultiPlug)
                 self.assertEqual(plug.getIndex(), index)
-                self.assertEqual(plug.getArray().getFullName(), self.values.getFullName())
+                self.assertEqual(plug.getMulti().getFullName(), self.values.getFullName())
                 self.assertEqual(plug.getFullName(), "{}.vals[{}]".format(self.name, index))
         self.assertEqual(self.existing(), [0])
 
 
-class ComparisonSpecTest(_ArraySpecCase):
+class ComparisonSpecTest(_MultiSpecCase):
     """appendMessage・connect(nextAvailable=True)との探索規則の対比。"""
 
     def test_append_message_uses_max_plus_one(self):
@@ -216,7 +216,7 @@ class ComparisonSpecTest(_ArraySpecCase):
                 self.assertNotIn(expected, self.existing())
 
 
-class ArgumentSpecTest(_ArraySpecCase):
+class ArgumentSpecTest(_MultiSpecCase):
     """不正入力・上限・旧名。"""
 
     def test_type_errors(self):
@@ -252,9 +252,9 @@ class ArgumentSpecTest(_ArraySpecCase):
             self.values.getNextAvailable(vacant=True)
 
     def test_old_name_is_removed(self):
-        """getNextAvailableIndexは無い。非配列PlugにgetNextAvailableは無い。"""
+        """getNextAvailableIndexは無い。非マルチアトリビュートのPlugにgetNextAvailableは無い。"""
         self.assertFalse(hasattr(self.values, "getNextAvailableIndex"))
-        self.assertFalse(hasattr(plugs.ArrayPlug, "getNextAvailableIndex"))
+        self.assertFalse(hasattr(plugs.MultiPlug, "getNextAvailableIndex"))
         with self.assertRaises(AttributeError):
             self.values.getNextAvailableIndex()
         with self.assertRaises(AttributeError):

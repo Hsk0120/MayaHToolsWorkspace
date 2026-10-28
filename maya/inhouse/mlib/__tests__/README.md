@@ -76,7 +76,7 @@ Mayaが標準配置にない場合は、`--install-root D:\Autodesk`、または
 | 区分 | ファイル | 主な確認内容 |
 | --- | --- | --- |
 | 単体 | `unit/test_delete_basics.py` | 入力型、削除前の拒否、接続された子孫の保護、保持参照の復元 |
-| 単体 | `unit/test_plug_basics.py` | 基本型の値、接続の置換・切断、ロック、疎配列、内部単位 |
+| 単体 | `unit/test_plug_basics.py` | 基本型の値、接続の置換・切断、ロック、疎なマルチアトリビュート、内部単位 |
 | 単体 | `unit/test_transform_basics.py` | ローカル/ワールド、TRS、回転順序、親変更、反転不能な親 |
 | 結合 | `integration/test_basic_scene_workflows.py` | DG評価、接続と削除、親子変更、複数操作のUndoと例外時の巻戻し |
 

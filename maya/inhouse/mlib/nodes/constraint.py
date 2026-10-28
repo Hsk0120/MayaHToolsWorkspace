@@ -21,7 +21,7 @@ class Constraint(Transform):
     def getTargets(self):
         """Maya標準コンストレイントコマンドで、登録ターゲットを問い合わせる。
 
-        nodeTypeに対応するコマンドのtargetList順を保つ。target配列の論理番号で
+        nodeTypeに対応するコマンドのtargetList順を保つ。targetのマルチアトリビュートの論理番号で
         独自にソートせず、getWeightAliases()の対応順として使う。
 
         Returns:

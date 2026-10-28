@@ -393,7 +393,7 @@ class NodeApiTest(unittest.TestCase):
         plugs = transform.getPlugs()
         self.assertIn("translateX", {plug.getLongName() for plug in plugs})
         self.assertTrue(all(hasattr(plug, "get") for plug in plugs))
-        # listAttr が報告する名前の一部（未確保の要素を持つ配列複合アトリビュートの子など）は
+        # listAttr が報告する名前の一部（未確保の要素を持つマルチアトリビュートであるコンパウンドアトリビュートの子など）は
         # 実際には評価できず黙ってスキップされるため、件数は必ずしも一致しない。
         self.assertLessEqual(len(plugs), len(cmds.listAttr(transform.getName()) or []))
 
@@ -520,26 +520,26 @@ class NodeApiTest(unittest.TestCase):
         value = transform.getPlug("mlibStringArray").get()
         self.assertEqual(value, cmds.getAttr(transform.getName() + ".mlibStringArray"))
 
-    def test_array_plug_next_available_set_and_remove_element(self):
-        source = self.create_transform("mlibNodeApiArrayNextAvailSource")
-        target = self.create_transform("mlibNodeApiArrayNextAvailTarget")
-        array_plug = target.addAttr("samples", attributeType="double", multi=True)
+    def test_multi_plug_next_available_set_and_remove_element(self):
+        source = self.create_transform("mlibNodeApiMultiNextAvailSource")
+        target = self.create_transform("mlibNodeApiMultiNextAvailTarget")
+        multi_plug = target.addAttr("samples", attributeType="double", multi=True)
 
-        self.assertEqual(array_plug.getNextAvailable(vacant=True), 0)
+        self.assertEqual(multi_plug.getNextAvailable(vacant=True), 0)
 
-        array_plug[0].set(0)
-        self.assertEqual(array_plug.getNextAvailable(vacant=True), 1)
-        self.assertEqual(array_plug.getNextAvailable(start=5, vacant=True), 5)
+        multi_plug[0].set(0)
+        self.assertEqual(multi_plug.getNextAvailable(vacant=True), 1)
+        self.assertEqual(multi_plug.getNextAvailable(start=5, vacant=True), 5)
 
-        element = array_plug[1].set(2)
+        element = multi_plug[1].set(2)
         self.assertEqual(element.getLongName(), "samples")
         self.assertTrue(element.getFullName().endswith("[1]"))
 
-        array_plug.removeElement(1)
-        self.assertNotIn(1, array_plug.get())
+        multi_plug.removeElement(1)
+        self.assertNotIn(1, multi_plug.get())
 
         with self.assertRaises(IndexError):
-            array_plug.removeElement(99)
+            multi_plug.removeElement(99)
 
     def test_transform_show_hide(self):
         transform = self.create_transform("mlibNodeApiShowHide")
@@ -845,20 +845,20 @@ class NodeApiTest(unittest.TestCase):
         world_matrix_plug = transform.getPlug("worldMatrix")
 
         self.assertTrue(translatePlug.isCompound())
-        self.assertFalse(translatePlug.isArray())
-        self.assertFalse(translatePlug.isElement())
+        self.assertFalse(translatePlug.isMulti())
+        self.assertFalse(translatePlug.isMultiElement())
         self.assertFalse(translatePlug.isChild())
 
         self.assertTrue(translate_x_plug.isChild())
         self.assertFalse(translate_x_plug.isCompound())
 
-        self.assertTrue(world_matrix_plug.isArray())
+        self.assertTrue(world_matrix_plug.isMulti())
 
         import maya.api.OpenMaya as om2
         self.assertIsInstance(translatePlug.mplug(), om2.MPlug)
 
         element = world_matrix_plug.getElement(0)
-        self.assertTrue(element.isElement())
+        self.assertTrue(element.isMultiElement())
 
     def test_plug_connection_introspection_and_disconnect(self):
         source = self.create_transform("mlibNodeApiPlugConnSource")
@@ -887,14 +887,14 @@ class NodeApiTest(unittest.TestCase):
         self.assertFalse(targetPlug.isConnected())
         self.assertEqual(source_plug.getDestinations(skipConversionNodes=False), [])
 
-    def test_array_plug_elements_returns_all_existing(self):
-        target = self.create_transform("mlibNodeApiArrayElements")
-        array_plug = target.getPlug("worldMatrix")
-        array_plug.getElement(0)
+    def test_multi_plug_elements_returns_all_existing(self):
+        target = self.create_transform("mlibNodeApiMultiElements")
+        multi_plug = target.getPlug("worldMatrix")
+        multi_plug.getElement(0)
 
-        elements = array_plug.getElements()
+        elements = multi_plug.getElements()
         self.assertEqual(len(elements), 1)
-        self.assertTrue(elements[0].isElement())
+        self.assertTrue(elements[0].isMultiElement())
 
     def test_bool_plug_toggle(self):
         transform = self.create_transform("mlibNodeApiBoolToggle")
@@ -1014,20 +1014,20 @@ class NodeApiTest(unittest.TestCase):
                     average.getPlug(path)
                 self.assertIn(str(maximum), str(context.exception))
                 self.assertFalse(average.hasAttr(path))
-        array_plug = average.getPlug("input1D")
+        multi_plug = average.getPlug("input1D")
         for index in (-1, maximum + 1, 4294967296):
             with self.subTest(index=index):
                 with self.assertRaises(IndexError):
-                    array_plug.getElement(index)
+                    multi_plug.getElement(index)
                 with self.assertRaises(IndexError):
-                    array_plug[index]
+                    multi_plug[index]
         # 要素は作られない(maya.cmds は 4294967296 を 2147483647 に切り詰めて作成する)。
-        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [])
-        created = array_plug[maximum]
-        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [])
+        self.assertEqual(list(multi_plug.mplug().getExistingArrayAttributeIndices()), [])
+        created = multi_plug[maximum]
+        self.assertEqual(list(multi_plug.mplug().getExistingArrayAttributeIndices()), [])
         created.set(0)
         self.assertEqual(created.mplug().logicalIndex(), maximum)
-        self.assertEqual(list(array_plug.mplug().getExistingArrayAttributeIndices()), [maximum])
+        self.assertEqual(list(multi_plug.mplug().getExistingArrayAttributeIndices()), [maximum])
 
     def test_plug_rejects_mplug_of_another_node(self):
         from mlib.plugs import Plug

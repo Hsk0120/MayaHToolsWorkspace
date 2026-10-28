@@ -94,7 +94,7 @@ class PoseRbf:
             name (str): 一意なcontainer名。
 
         Returns:
-            PoseRbf: outputs配列を公開する補間グラフ。
+            PoseRbf: outputsのマルチアトリビュートを公開する補間グラフ。
 
         Note:
             Gaussian RBFであり、Maya Pose Editorとの互換形式ではない。
@@ -109,7 +109,7 @@ class PoseRbf:
             kind = plug.getType()
             if (
                 kind not in ("double", "float", "long", "short", "doubleAngle")
-                or plug.isArray()
+                or plug.isMulti()
             ):
                 raise ValueError("Use scalar numeric/angle drivers")
         graph = cls(mlib.nodes.Container.create(name=name))

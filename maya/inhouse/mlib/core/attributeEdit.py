@@ -66,7 +66,7 @@ def _build(flags, children=None):
         obj = fn.create(name, short, _NUMERIC_TYPES[kind], default)
     elif children and kind.startswith(("double", "float", "long", "short")):
         if len(children) not in (2, 3):
-            raise NotImplementedError("fast numeric compounds support two or three children")
+            raise NotImplementedError("fast numeric compound attributes support two or three children")
         fn = om2.MFnNumericAttribute()
         obj = fn.create(name, short, *children)
     elif kind in ("doubleAngle", "doubleLinear", "time"):
@@ -152,7 +152,7 @@ def extra_children(name, flags, numeric, count, *, deferred, child_names,
     Args:
         name (str): 親の長名。
         flags (dict): 親の正規化済みフラグ。変更しない。
-        numeric (Match | None): 数値複合型の一致結果。
+        numeric (Match | None): 数値のコンパウンドアトリビュートの一致結果。
         count (int): 子数。
         deferred (object): 子へ配る既定値。
         child_names (Sequence[str] | None): 子の長名。
@@ -208,7 +208,7 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
         None: 値を返さない。
 
     Raises:
-        TypeError: 配列アトリビュートへ既定値を直接設定しようとした場合。
+        TypeError: マルチアトリビュートへ既定値を直接設定しようとした場合。
         ValueError: 名前が空文字列または文字列以外の場合。
         RuntimeError: 同名のアトリビュートがある、または書込み禁止の定義へ既定値を渡した場合。
     """
@@ -235,7 +235,7 @@ def validate_extra_attribute(node, name, flags, count, deferred, children, *, va
     if deferred is None or count:
         return
     if flags.get("multi"):
-        raise TypeError("Set an array element instead of the array plug")
+        raise TypeError("Set a multi element instead of the multi attribute")
     if not flags.get("writable", True):
         raise RuntimeError(f"Attribute is not writable: {name}")
     # 通常経路で扱える型までfast専用の対応範囲へ狭めない。
@@ -259,7 +259,7 @@ def create_extra_attribute(node, name, flags, numeric, count, *, deferred,
         node (Node): 追加先。
         name (str): 親名。
         flags (dict): 親フラグ。
-        numeric (Match | None): 数値複合型の一致結果。
+        numeric (Match | None): 数値のコンパウンドアトリビュートの一致結果。
         count (int): 子数。
         deferred (object): 子の既定値。
         child_names (Sequence[str] | None): 子の長名。
@@ -289,7 +289,7 @@ def create_extra_attribute(node, name, flags, numeric, count, *, deferred,
         from .fastWrite import prepare_data
         definition = om2.MFnAttribute(attribute)
         if definition.array:
-            raise TypeError("Set an array element instead of the array plug")
+            raise TypeError("Set a multi element instead of the multi attribute")
         if not definition.writable:
             raise RuntimeError(f"Attribute is not writable: {name}")
         if (attribute.hasFn(om2.MFn.kMatrixAttribute) or

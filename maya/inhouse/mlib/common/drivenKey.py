@@ -50,14 +50,14 @@ def _plug(value):
     if not result.isValid():
         raise RuntimeError("Cannot access an invalid plug")
     if result.mplug().isArray or result.mplug().isCompound:
-        raise ValueError("Expected a scalar plug, not an array or compound")
+        raise ValueError("Expected a scalar plug, not a multi attribute or compound attribute")
     if attributeType(result.mplug()) not in _NUMERIC_SCALAR_TYPES:
         raise ValueError("Expected a numeric scalar plug")
     return result
 
 
 def _contains_plug(plugs, mplug):
-    """同じプラグ(所有ノード・アトリビュート・配列番号が一致)が含まれるか判定する。
+    """同じプラグ(所有ノード・アトリビュート・論理番号が一致)が含まれるか判定する。
 
     インスタンス化されたシェイプのアトリビュートは、どのインスタンスのパスから取得しても同じ
     プラグになる。名前(インスタンスのパスを含む ``getFullName()``)では比較しない。
@@ -73,7 +73,7 @@ def _contains_plug(plugs, mplug):
 
 
 def _sources(plug):
-    """単位変換ノードを透過し、配列要素も含めた入力元Plugを返す。
+    """単位変換ノードを透過し、マルチアトリビュートの要素も含めた入力元Plugを返す。
 
     Args:
         plug (Plug | str): 接続元を調べるアトリビュート。

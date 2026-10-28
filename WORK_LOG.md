@@ -117,6 +117,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-28): mlib 4.0.0。ArrayPlug→MultiPlug(plugs/multiPlug.py)、Plug.isArray/isElement/getArray→isMulti/isMultiElement/getMulti に改名(互換の別名なし)。説明文・docstring・例外メッセージの呼び名をMayaのコマンドに合わせて「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」に統一し、docs/mlib-api-design.md 冒頭に mlib/Mayaコマンド/OpenMaya の対応表を追加。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)が合格。
+
+- Claude Code (2026-10-28): mlib の Undo 網羅テスト `__tests__/integration/test_undo_coverage.py` を追加(公開の書込み 175 ケースを通常経路で実行→Undo 1回で変更前・Redo で変更後に戻ることを確認、fast 119 ケースは Undo キューが空のままを確認、書込み API の網羅の番人 144 件・除外 17 件)。Maya 2027・2022 で全件合格。ユーザー報告の createNode の Undo 不具合は mayapy・使い捨て GUI・commandPort 経由のいずれでも再現せず。
+
 - Claude Code (2026-10-28): mlib 3.0.0 コード縮小。外部(mlrig・HTools・tools・拡張)で未使用の BlendShape・計算ノードのラッパー約15種・HIK・Transformation・Cycle・DagPose の大半・コンポーネントの書込みを削除、fast を中核の操作に限定(duplicate・select・Namespace・mute・matchTransform・influence除去の fast を削除)、複数形クラスの転送メソッドと Transforms/DagNodes を削除、短縮名の別名引数を Maya フラグの入口だけに限定(mlrig の ws= 約15か所を worldSpace= へ)。本体 37,323→27,156 行、テスト 50,147→43,317 行。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)・文書検査が合格。
 
 - Codex (2026-10-28): SimpleCloth・SimplePhysics本体、HTools/phsycs、対応mod・説明書・担当履歴の24ファイルをae16774dとしてコミットしorigin/mainへプッシュ。リモートのコミット一致を確認。並行作業のmlib変更と既存ステージを保持。

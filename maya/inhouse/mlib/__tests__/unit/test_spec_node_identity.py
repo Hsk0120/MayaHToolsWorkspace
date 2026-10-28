@@ -14,7 +14,7 @@ import maya.cmds as cmds
 import mlib
 mlib.reload()
 from mlib.nodes import DagNode, Node, Nodes, Transform
-from mlib.plugs import ArrayPlug, Plug
+from mlib.plugs import MultiPlug, Plug
 from support.specCase import NamespaceCase
 
 
@@ -164,7 +164,7 @@ class GetPlugsTest(_SpecCase):
         plugs = self.node.getPlugs(userDefined=True, includeChildren=False)
         self.assertEqual([plug.getLongName() for plug in plugs], ["scalar", "vec", "arr", "hiddenAttr"])
         self.assertTrue(all(isinstance(plug, Plug) for plug in plugs))
-        self.assertIsInstance(plugs[2], ArrayPlug)
+        self.assertIsInstance(plugs[2], MultiPlug)
 
     def test_user_defined_with_children_matches_list_attr(self):
         """userDefined=True(既定 includeChildren=True)は子も含み、cmds.listAttr(userDefined=True) と同じ集合。"""
@@ -179,7 +179,7 @@ class GetPlugsTest(_SpecCase):
         self.assertEqual([plug.getLongName() for plug in plugs], expected)
 
     def test_include_children_false_filters_list_attr(self):
-        """includeChildren=False は listAttr 経路でも複合の子(translateX 等)を除く。"""
+        """includeChildren=False は listAttr 経路でもコンパウンドアトリビュートの子(translateX 等)を除く。"""
         plugs = self.node.getPlugs(includeChildren=False)
         names = [plug.getLongName() for plug in plugs]
         self.assertIn("translate", names)

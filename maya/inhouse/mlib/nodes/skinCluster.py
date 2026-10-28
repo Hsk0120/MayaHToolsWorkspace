@@ -800,7 +800,7 @@ class SkinCluster(Node):
             raise ValueError("Weight count must match influence count or vertex count times influence count")
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
-        # 削除済み influence による配列の穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
+        # 削除済み influence によるマルチアトリビュートの穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
         logical_indices = [self._skin_fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
         return values, width, num_vertices, logical_indices
 
@@ -852,13 +852,13 @@ class SkinCluster(Node):
 
     @staticmethod
     def _plug_chain_blocked(plug):
-        """Plugと、その親・配列側の全段にロックまたは入力接続があるか調べる。
+        """Plugと、その親・マルチアトリビュート側の全段にロックまたは入力接続があるか調べる。
 
         :func:`mlib.core.fastWrite.writable` が要素から辿る親側の判定を、同じ頂点の要素で
         共有するために使う。例外は送出せず、書込み不能アトリビュートの判定も行わない。
 
         Args:
-            plug (om2.MPlug): 調べる起点。weightList[v].weights のような配列Plug。
+            plug (om2.MPlug): 調べる起点。weightList[v].weights のようなマルチアトリビュートのPlug。
 
         Returns:
             bool: いずれかの段がロックされているか、入力接続を持つ場合True。
@@ -1087,7 +1087,7 @@ class SkinCluster(Node):
             RuntimeError: 要素または親のアトリビュートがロックされている場合。
         """
         if plug.isLocked or plug.isDestination:
-            raise RuntimeError(f"Weight element is locked or connected: {plug.name()}")
+            raise RuntimeError(f"Weight multi element is locked or connected: {plug.name()}")
         if plug.isArray:
             for index in plug.getExistingArrayAttributeIndices():
                 SkinCluster._validate_weight_locks(plug.elementByLogicalIndex(index))

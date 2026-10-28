@@ -406,7 +406,7 @@ class Transform(DagNode):
         Args:
             attributes (str | Iterable[str] | None): tx/translateX/translateなど。
                 省略時はtranslate・rotate・scale・shear。ロック・入力接続のある子は除外し、除外のある
-                複合だけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。
+                コンパウンドアトリビュートだけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -425,7 +425,7 @@ class Transform(DagNode):
         with _edit_context("mlibTransformResetAttrs", fast):
             if attributes is None:
                 # 省略時は 4 チャンネル。ロック・入力接続のある子を Node と同じく除外し、
-                # 除外のある複合だけを書ける子へ展開する(除外が無ければ複合の Plug を返す)。
+                # 除外のあるコンパウンドアトリビュートだけを書ける子へ展開する(除外が無ければコンパウンドアトリビュートの Plug を返す)。
                 plugs = []
                 for name in ("translate", "rotate", "scale", "shear"):
                     compound = self.getPlug(name)
@@ -1428,7 +1428,7 @@ class Transform(DagNode):
         """ノード型に組み込みの数値アトリビュートの内部単位の値を、Plugラッパーを作らずに読む。
 
         ``getPlug(name).get()`` と同じ読取関数(距離cm・角度rad)をMPlugへ直接適用する。
-        複合アトリビュートは子の値のtuple、単一の値はその値を返す。計算の途中で何度も読む
+        コンパウンドアトリビュートは子の値のtuple、単一の値はその値を返す。計算の途中で何度も読む
         translate・ピボット等のために使い、値はキャッシュしない。ノードが無効な場合と
         読取関数を持たない型は、従来どおり ``getPlug(name).get()`` の結果・例外に委ねる。
 
@@ -1436,7 +1436,7 @@ class Transform(DagNode):
             name (str): 静的アトリビュートのロング名。
 
         Returns:
-            tuple[float, ...] | object: 複合なら子の値のtuple、それ以外は値。
+            tuple[float, ...] | object: コンパウンドアトリビュートなら子の値のtuple、それ以外は値。
         """
         if not self.isValid():
             # 無効なノードでは、従来と同じgetPlugの例外を送出する。
@@ -1747,7 +1747,7 @@ class Transform(DagNode):
 
         Args:
             name (str): 組み込みの数値アトリビュートのロング名。
-            value (tuple | object): 書込み予定の値。複合は成分のtuple。
+            value (tuple | object): 書込み予定の値。コンパウンドアトリビュートは成分のtuple。
 
         Returns:
             bool: 成分数と各成分が完全に一致すればTrue。読取れない場合はFalse(書込みへ委ねる)。

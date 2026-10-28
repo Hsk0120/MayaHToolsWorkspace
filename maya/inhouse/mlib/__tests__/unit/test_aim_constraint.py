@@ -29,7 +29,7 @@ class AimConstraintTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_connections(self):
-        """子接続・複合接続・演算ノード宛ての直接接続を区別する。"""
+        """子接続・コンパウンドアトリビュートの接続・演算ノード宛ての直接接続を区別する。"""
         pairs = self.aim.getRotateConnections()
         self.assertEqual(len(pairs), 3)
         for source, destination in pairs:

@@ -57,7 +57,7 @@ class LsComponentsTest(unittest.TestCase):
         self.assertIsInstance(mlib.ls(type="skinCluster"), mlib.nodes.SkinClusters)
         self.assertIsInstance(mlib.ls(self.mesh + ".translateX")[0], mlib.plugs.Plug)
         cmds.addAttr(self.joint, ln="values", at="double", multi=True)
-        self.assertIsInstance(mlib.ls(self.joint + ".values")[0], mlib.plugs.ArrayPlug)
+        self.assertIsInstance(mlib.ls(self.joint + ".values")[0], mlib.plugs.MultiPlug)
         with self.assertRaises(TypeError):
             mlib.ls(sl=True, selection=True, type="vertex")
 

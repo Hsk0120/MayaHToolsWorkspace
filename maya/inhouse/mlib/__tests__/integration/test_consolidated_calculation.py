@@ -25,7 +25,7 @@ _REMOVED_METHODS = {
 
 
 class ConsolidatedCalculationTests(unittest.TestCase):
-    """空シーンで型選択・PlugのUndo/fast・疎配列を確認する。"""
+    """空シーンで型選択・PlugのUndo/fast・疎なマルチアトリビュートを確認する。"""
 
     def setUp(self):
         """専用シーンと通常Undo、距離cmを準備する。"""
@@ -73,8 +73,8 @@ class ConsolidatedCalculationTests(unittest.TestCase):
         self.assertTrue(cmds.undoInfo(query=True, state=True))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
-    def test_standard_array_plugs_keep_logical_indices_and_connections(self):
-        """疎配列はArrayPlugで照会し、接続を一回のUndoで解除できる。"""
+    def test_standard_multi_plugs_keep_logical_indices_and_connections(self):
+        """疎なマルチアトリビュートはMultiPlugで照会し、接続を一回のUndoで解除できる。"""
         node = mlib.createNode("plusMinusAverage")
         inputs = node.getPlug("input1D")
         inputs[3].set(2)
@@ -95,7 +95,7 @@ class ConsolidatedCalculationTests(unittest.TestCase):
         self.assertAlmostEqual(node.getPlug("output1D").get(), -3)
 
     def test_enum_and_numeric_compounds_use_native_attribute_values(self):
-        """enumはMayaの番号、演算用RGBは数値複合Plugとして扱う。"""
+        """enumはMayaの番号、演算用RGBは数値のコンパウンドアトリビュートのPlugとして扱う。"""
         condition = mlib.createNode("condition")
         for name, value in (("firstTerm", 1), ("secondTerm", 2), ("operation", 4),
                             ("colorIfTrue", (.2, .4, .6)), ("colorIfFalse", (1, 0, 0))):

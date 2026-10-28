@@ -1,7 +1,7 @@
 """ノードまたはコンポーネントを削除する。戻り値はNone。
 
 Plug・MPlugは受け付けない。アトリビュートの削除は ``plug.delete()``、
-配列要素の削除は ``array_plug.removeElement(index)`` を使う。
+マルチアトリビュートの要素の削除は ``multi_plug.removeElement(index)`` を使う。
 通常はMayaのUndoに対応する。``fast=True`` はノードの直接削除に限り、
 コンポーネントを含む入力は何も削除せず拒否する。
 
@@ -43,7 +43,7 @@ def delete(nodes, *, fast=False):
         None: 値を返さない。
 
     Raises:
-        TypeError: 要素が対応しない型の場合、またはfastがbool以外の場合。要素に Plug(ArrayPlug を含む)・
+        TypeError: 要素が対応しない型の場合、またはfastがbool以外の場合。要素に Plug(MultiPlug を含む)・
             om2.MPlug、またはアトリビュートに解決される文字列(``"node.tx"`` 等)が含まれる場合
             (maya.cmds.delete はアトリビュートを削除せずエラーを表示するだけのため。何も削除しない)。
         ValueError: nodes が空、または要素が空文字列・削除済みの対象の場合(何も削除しない)。

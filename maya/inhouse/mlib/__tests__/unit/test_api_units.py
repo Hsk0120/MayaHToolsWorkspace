@@ -23,7 +23,7 @@ class ApiUnitsTest(unittest.TestCase):
         cmds.currentUnit(linear="cm", angle="deg", time="film")
 
     def test_scalar_compound_roundtrip_and_undo(self):
-        """単位型のスカラー・複合値はrad/cm/秒で往復する。"""
+        """単位型のスカラー・コンパウンドアトリビュートの値はrad/cm/秒で往復する。"""
         node = mlib.createNode("transform")
         time = node.addAttr("sampleTime", attributeType="time")
         for linear, angle, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):

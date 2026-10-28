@@ -36,7 +36,7 @@ class SecondaryLayer:
 
     @staticmethod
     def _members(group, attr):
-        """message配列を順に解決する。
+        """messageのマルチアトリビュートを順に解決する。
 
         Args:
             group (Node): 保存先。

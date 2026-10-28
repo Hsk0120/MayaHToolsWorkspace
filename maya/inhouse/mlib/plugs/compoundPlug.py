@@ -1,4 +1,4 @@
-"""複合アトリビュートとその子プラグを扱う。"""
+"""コンパウンドアトリビュートとその子プラグを扱う。"""
 
 import maya.api.OpenMaya as om2
 
@@ -9,10 +9,10 @@ from .plug import Plug
 
 
 class CompoundPlug(Plug):
-    """複合アトリビュートを参照し、直接の子Plugと値を扱う。
+    """コンパウンドアトリビュートを参照し、直接の子Plugと値を扱う。
 
     子は定義順の0始まりの連続番号かロング名・ショート名で取得する。
-    番号はArrayPlugの論理番号とは異なる。基底のget()は子の値を定義順tupleで返す。
+    番号はMultiPlugの論理番号とは異なる。基底のget()は子の値を定義順tupleで返す。
     maya.cmdsへは ``str(plug)`` で渡す。mlib.selectにはそのまま渡せる。
     """
 
@@ -41,9 +41,9 @@ class CompoundPlug(Plug):
             raise AttributeError(f"No plug member named {name!r}") from error
 
     def __getitem__(self, nameOrIndex):
-        """複合アトリビュートの直接の子を、定義順の番号または子名で参照する。
+        """コンパウンドアトリビュートの直接の子を、定義順の番号または子名で参照する。
 
-        整数は0始まりの子番号で、multi要素の論理番号ではない。負数・sliceは使えない。
+        整数は0始まりの子番号で、マルチアトリビュートの要素の論理番号ではない。負数・sliceは使えない。
         文字列は直接の子のロング名・ショート名と照合し、孫へのパスやaliasは解決しない。
         子の値は読み出さない。
 
@@ -87,7 +87,7 @@ class CompoundPlug(Plug):
         """直接の子の値を、アトリビュート定義順のtupleで取得する。
 
         各子でget()を呼ぶため、値取得に伴うDG評価が発生し得る。
-        入れ子の複合型や配列型の値は平坦化せず、各子の返却型を保つ。
+        入れ子のコンパウンドアトリビュートや配列型の値は平坦化せず、各子の返却型を保つ。
 
         Args:
             uiUnits (bool): 各子のgetへ渡す。TrueはUI単位、既定Falseは内部単位。
@@ -106,7 +106,7 @@ class CompoundPlug(Plug):
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
     def getChildren(self):
-        """複合アトリビュートの直接の子Plugを、定義順で取得する。
+        """コンパウンドアトリビュートの直接の子Plugを、定義順で取得する。
 
         孫は再帰的に列挙せず、子の値も読み出さない。
 
@@ -124,7 +124,7 @@ class CompoundPlug(Plug):
 
         子のPlugラッパーを作らず、子の ``get()`` と同じ読取関数をMPlugへ直接適用する。
         読取関数はアトリビュート定義から一度だけ選んで保持し、値は毎回読み直す。
-        複合・配列の子と、読取関数を持たない型(generic・message・マトリクス等)の子は、
+        コンパウンドアトリビュート・マルチアトリビュートの子と、読取関数を持たない型(generic・message・マトリクス等)の子は、
         従来どおり子Plugの ``get()`` へ委譲する。
 
         Returns:
@@ -169,7 +169,7 @@ class CompoundPlug(Plug):
         _require_bool(uiUnits, "uiUnits")
         values = tuple(value)
         if len(values) != self._mplug.numChildren():
-            raise ValueError("Compound plug value length does not match its child count")
+            raise ValueError("Compound attribute value length does not match its child count")
         if fast:
             if uiUnits:
                 values = _convert_units(self._mplug, values, to_ui=False)

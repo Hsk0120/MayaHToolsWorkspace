@@ -84,8 +84,8 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertCountEqual(center.getConnections(False, True), destinations)
         self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.plugs.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.plugs.Plug.getConnections).parameters.values())[1:]))
 
-    def test_query_child_and_array_expansion_does_not_change_direct_operations(self):
-        """照会は子・配列を展開し、接続判定と全切断は元のMPlugの範囲を保つ。"""
+    def test_query_child_and_multi_expansion_does_not_change_direct_operations(self):
+        """照会は子・マルチアトリビュートを展開し、接続判定と全切断は元のMPlugの範囲を保つ。"""
         owner = mlib.createNode("network", name="hierarchyOwner")
         cmds.addAttr(str(owner), longName="payload", attributeType="compound", numberOfChildren=1)
         cmds.addAttr(str(owner), longName="childValue", attributeType="double", parent="payload")
@@ -94,14 +94,14 @@ class ConnectionDirectionsTest(unittest.TestCase):
         array = owner.addAttr("values", attributeType="double", multi=True)
         source = self._value("hierarchySource")
         destination = self._value("hierarchyDestination")
-        array_destination = self._value("hierarchyArrayDestination")
+        multi_destination = self._value("hierarchyArrayDestination")
         child.connect(source)
         destination.connect(child)
         element = array[7]
         element.connect(source)
-        array_destination.connect(element)
+        multi_destination.connect(element)
         for target, local, output in ((parent, child, destination),
-                                      (array, element, array_destination)):
+                                      (array, element, multi_destination)):
             with self.subTest(target=str(target)):
                 self.assertEqual(target.getConnections(source=True, destination=False, asPair=True),
                                  [(local, source)])

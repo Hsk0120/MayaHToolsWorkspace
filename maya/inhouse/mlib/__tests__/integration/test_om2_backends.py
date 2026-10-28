@@ -78,8 +78,8 @@ class Om2BackendsTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 Component._resolve_input(mesh + '.vtx[*]')
 
-    def test_fast_new_array_matrix_and_normal_undo(self):
-        """fastの新規配列要素はgetAttrやsetAttrを使わず値を書き込む。"""
+    def test_fast_new_multi_matrix_and_normal_undo(self):
+        """fastの新規マルチアトリビュートの要素はgetAttrやsetAttrを使わず値を書き込む。"""
         node = mlib.createNode('multMatrix')
         plug = node.getPlug('matrixIn')[37]
         matrix = mlib.maths.Matrix(translate=(1, 2, 3))
@@ -230,7 +230,7 @@ class Om2BackendsTest(unittest.TestCase):
             cmds.currentUnit(linear='cm')
 
     def test_aliases_use_api_for_sparse_and_renamed_nodes(self):
-        """配列要素のalias取得はcmdsを使わず、改名・削除Undoを追跡する。"""
+        """マルチアトリビュートの要素のalias取得はcmdsを使わず、改名・削除Undoを追跡する。"""
         node = mlib.createNode('blendShape')
         cmds.setAttr(node.getFullName() + '.weight[7]', .5)
         cmds.aliasAttr('sparseWeight', node.getFullName() + '.weight[7]')

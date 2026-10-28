@@ -52,7 +52,7 @@ class AimAxisConversionSettingsTest(unittest.TestCase):
                     self.assertAlmostEqual(settings[prefix + axis], expected)
 
     def test_connected_child_and_parent_settings_are_not_saved(self):
-        """子または複合親が駆動された設定を復元値として記録しない。"""
+        """子またはコンパウンドアトリビュートの親が駆動された設定を復元値として記録しない。"""
         self.driver.getPlug("rotateX").connectTo(self.aim.getPlug("offsetX"))
         self.driver.getPlug("translate").connectTo(self.aim.getPlug("aimVector"))
         settings = AimAxisConversion._captureSettings(self.aim)

@@ -11,7 +11,7 @@ import mlib
 mlib.reload()
 from mlib.components import Vertex, Vertices
 from mlib.nodes import Node
-from mlib.plugs import ArrayPlug, Plug
+from mlib.plugs import MultiPlug, Plug
 from mlib.common.selection import Selection
 
 
@@ -129,15 +129,15 @@ class CoerceObjectInputTest(unittest.TestCase):
         self.assertEqual(_InputPlug._plug_path(plug.mplug()), "translateX")
         self.assertEqual(_InputNode._unique_node_name(self.node.mnode()), self.node.getName())
 
-    def test_array_plug_is_not_expanded(self):
+    def test_multi_plug_is_not_expanded(self):
         from mlib.core.object import Object as _InputObject
         self.network.addAttr("values", attributeType="double", multi=True)
-        array_plug = self.network.getPlug("values")
-        array_plug[0].set(1.0)
-        self.assertIsInstance(array_plug, ArrayPlug)
-        self.assertEqual(_InputObject._input_name(array_plug), self.network.getName() + ".values")
-        self.assertEqual(_InputObject._input_names(array_plug), [self.network.getName() + ".values"])
-        self.assertEqual(_InputObject._input_names([array_plug, array_plug[0]]),
+        multi_plug = self.network.getPlug("values")
+        multi_plug[0].set(1.0)
+        self.assertIsInstance(multi_plug, MultiPlug)
+        self.assertEqual(_InputObject._input_name(multi_plug), self.network.getName() + ".values")
+        self.assertEqual(_InputObject._input_names(multi_plug), [self.network.getName() + ".values"])
+        self.assertEqual(_InputObject._input_names([multi_plug, multi_plug[0]]),
                          [self.network.getName() + ".values", self.network.getName() + ".values[0]"])
 
     def test_components_are_expanded(self):
@@ -321,7 +321,7 @@ class CoerceObjectInputTest(unittest.TestCase):
                      "input1D[2147483648]", "input1D[4294967296]", "input3D[4294967297].input3Dx"):
             with self.subTest(path=path):
                 self.assertIsNone(_InputPlug._attribute_path_plug(mobject, path))
-        # 論理インデックスの上限(符号付き 32 ビット整数の最大値)までは解決する。
+        # 論理番号の上限(符号付き 32 ビット整数の最大値)までは解決する。
         self.assertEqual(_InputPlug._attribute_path_plug(mobject, "input1D[2147483647]").logicalIndex(), 2147483647)
         self.assertEqual(list(average.getPlug("input1D").mplug().getExistingArrayAttributeIndices()), [])
         cmds.aliasAttr("mlibCoerceAlias", average.getName() + ".input1D[4]")
