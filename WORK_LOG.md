@@ -59,6 +59,13 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
@@ -120,13 +127,25 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - Codex (2026-10-29): MCE 0.9.0に別プロセスの型解析・全文/未保存タブの補完/診断・定義/参照・リネーム・auto import・コードアクション・型色/行末ヒント、隔離コピー上の変数/関数抽出・モジュール移動・import整理を追加。取消/世代/破棄/下見/Undoを保護し、監視の不要な再解析を修正。2022〜2027ビルド・単体/standalone/offscreen合格（2022/2023の負荷時速度超過は同じ基準で再測定合格）。専用Maya 2022/2027のQt GUI各57チェック、隔離リファクタリング7件合格。撮影時のQt5一時ウィジェット参照を限定し再確認。詳細・制限・非公開動画リンクは.maya-output/mce-pylance-gap-20261029/verification.txt。ユーザー指定でコード・テスト・6版配布物をコミット対象へ集約。他ツールの変更を保持。
 
 - Claude Code (2026-10-29): VS Code 補完用に、mlib の docstring から型スタブ(.pyi)を各 .py の隣へ作る tools/generate_mlib_stubs.py・.bat を追加し、生成した 145 ファイルを Git 管理に(mlib本体のコードは変更なし、pyrightconfig の exclude で解析対象外)。ls・createNode・getConnections・getSource・getDestinations は引数ごとの戻り値を @overload で補い、Joints 等は要素型で反復。test_static_stub_generation.py が古いスタブを検出。runStatic 160件、Maya 2022・2027 の mlib 全件が合格。pyright の言語サーバーで補完・引数ヒント・ホバーを確認(VS Code の画面での確認は未実施)。
+- Codex (2026-10-29): MCE入力支援の機能調査を完了。隔離Maya2027/MCE0.8.3で補完15・診断5・定義位置1ケースを採取。詳細はローカルdocs/researchと.maya-output/mce-pylance-gap-20261029へ保存。製品コード変更・GUI再検証・プッシュなし。
+
 - Claude Code (2026-10-29): mlrig夜間タスク。カプセル(線分)コライダーへの柔らかい押し出し CapsuleCollision を追加(setups/capsuleCollision.py。標準ノードのみ。t = clamp(dot(p-a,b-a)/|b-a|^2,0,1)、q = a+t(b-a)、両端で半径を変えられる r(t) の先細り、SphereCollision と同じ指数の押し出し、matrix・distance・push・penetration・parameter を出力)。SphereCollision の押し出し部分を _radialGraph へ切り出して共有、Setup Samplesに1項目、文書 capsule_collision.rst と検証デモ tools/demo_capsule_collision.py を追加。隔離Maya 2027で test_setup_capsule_collision 9件・setups 560件・standard 76件OK、Sphinx -W 警告0、検証動画354フレーム判定OK。コミット・プッシュ(このコミット)。
 
 - Claude Code (2026-10-29): mlib 4.1.0。MultiPlug に論理番号・要素Plugの存在を返す `in` を追加し、Plug の repr を実際のラッパー型名の表示(`MultiPlug('pma.input1D')`・`<DoubleLinearPlug invalid>` 等)に変更。`len()` は cmds が位置0〜len-1の並びとして展開し論理番号と違う値を黙って返すと確認したため追加せず、設計文書・CLAUDE.md に理由を記載。Maya 2022〜2027 の mlib 全件、2027 の mlrig 692 件、静的検査・Sphinx(-W)が合格。
 
-- Codex (2026-10-29): Maya Code Editor 0.8.3。関数ローカル・importのスコープに沿った補完、候補確定Enterと改行の分離、f文字列の式の共有解析・色分け・自動ペア、キーワード引数候補とメソッド束縛別の引数ヒント、同一行の宣言検出を追加。2022〜2027の各43単体テスト・20コア検証群とMaya/入力回帰が合格。専用GUIは2022/2027各35項目、Windows実キーは2027で5ケース確認。6版の配布バイナリは検証時のSHA-256と一致。ユーザー指定でコード・テスト・配布物をコミット対象へ集約。
+- Codex (2026-10-29): ユーザー指定でMCE 0.8.3のコード・テスト・6版バイナリ・配布定義を91a95835としてorigin/mainへプッシュ。リモートHEADの一致を確認。既存のローカル調査記録とtrialを保持。
+
+- Codex (2026-10-29): MCE 0.8.3。f文字列の式/書式指定を共有解析し色分け・補完・引数ヒント・自動ペアへ適用。キーワード引数候補、指定済み除外、静的/クラス/インスタンスの束縛、同一行の宣言と既存=の再利用を追加。2022〜2027の全6版を再ビルド、各43単体・20コア検証群とMaya/入力回帰成功。専用GUIは2022/2027各35項目、Windows実キーは2027で5ケース確認。途中の2023中間オブジェクト混在を再コンパイルで解消し再現検証3回成功。証拠・非公開動画リンクは `.maya-output/mce-editing-fix-20261028/verification.json`。既存変更を保持、未コミット・未プッシュ。
+
+| Codex | 2026-10-28 | MCE編集挙動の比較調査を完了。Maya 2027/MCE 0.8.2で25ケースをQt操作、VS Codeは専用新規ウィンドウで主要ケースをWindows入力確認。引数名候補・f文字列の式解析・同一行の宣言検出に差を確認。自動候補タイミングは拡張の影響未分離。調査メモはdocs/research、証拠は.maya-outputへ保存。製品コード変更・プッシュなし。 |
 
 - Claude Code (2026-10-28): mlib 4.0.0。ArrayPlug→MultiPlug(plugs/multiPlug.py)、Plug.isArray/isElement/getArray→isMulti/isMultiElement/getMulti に改名(互換の別名なし)。説明文・docstring・例外メッセージの呼び名をMayaのコマンドに合わせて「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」に統一し、docs/mlib-api-design.md 冒頭に mlib/Mayaコマンド/OpenMaya の対応表を追加。Maya 2022〜2027 で mlib 全件、2027 で mlrig 692 件、静的検査・Sphinx(-W)が合格。
+
+- Codex (2026-10-28): MCEのm一文字補完を同じ4入力でVS Code/Pylanceと比較。Windows実操作でも空タブのmはMCE0.8.2が6件、VS Code1.140.0が同じ6件＋matchの7件と確認。VS Codeの言語サービス返却33件と画面の絞り込み後7件を区別。過剰候補はこの条件で未再現のため本体変更なし、実際の候補例・MCE版をユーザーへ依頼。専用Maya/VS Codeを終了、ユーザー環境と既存変更を保持。証拠・非公開比較クリップURLは`.maya-output/mce-letter-m-20261028/`およびGit対象外`docs/research/mce-letter-m-20261028.md`。未コミット・未プッシュ。
+
+- Codex (2026-10-28): MayaCodeEditor 0.8.2。VS Code 1.140.0/Pylance 2026.4.1の専用拡張テストホストで11ケース比較し、未importモジュール・別名元名・別関数内importを補完へ混ぜる経路を修正。型推論でも未宣言の外部名を解決しない。def/class/asの新しい名前を入力する場所では通常候補を抑制し、import文・組み込み・参照式・既存の変数/Enter修正は維持。2022〜2027の6版を再ビルドしunit/Maya/UI回帰すべて成功、補完39テスト、専用Maya2022/2027のQt GUI自動操作各18項目成功。実入力/IME未実施。調査メモはGit対象外のdocs/research、結果と非公開Drive動画URLは`.maya-output/mce-suggest-20261028/verification.json`。ユーザーMayaと他変更を保持、未コミット・未プッシュ。
+
+- Codex (2026-10-28): MayaCodeEditor 0.8.1。補完専用のスコープ抽出を追加し、現在/外側関数の引数・変数、制御ブロック・分割代入の名前を候補へ反映。完全一致の候補でEnterを改行へ流していた分岐を除去し、確定と次の改行を分離。現行mlibのJoints/Nodesに既存補完テストを追従。2022〜2027の6版を再ビルドしunit/Maya/UI回帰すべて成功、専用Maya2022/2027のQt GUI自動操作は各11項目成功。Windows実入力・IMEは今回未実施。証拠と非公開Drive動画URLは`.maya-output/mce-completion-20261028/verification.json`。ユーザーMaya・他タスクの変更を保持、未コミット・未プッシュ。
 
 - Claude Code (2026-10-28): mlib の Undo 網羅テスト `__tests__/integration/test_undo_coverage.py` を追加(公開の書込み 175 ケースを通常経路で実行→Undo 1回で変更前・Redo で変更後に戻ることを確認、fast 119 ケースは Undo キューが空のままを確認、書込み API の網羅の番人 144 件・除外 17 件)。Maya 2027・2022 で全件合格。ユーザー報告の createNode の Undo 不具合は mayapy・使い捨て GUI・commandPort 経由のいずれでも再現せず。
 
