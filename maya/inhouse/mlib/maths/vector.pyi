@@ -40,6 +40,20 @@ def _resolve_mvector(value: om2.MVector | om2.MPoint | Iterable[float]) -> om2.M
     """
     ...
 
+def _vector_operand(value: object) -> om2.MVector | None:
+    """加減算・比較の相手を om2.MVector として扱える形へそろえる。
+
+    MVector 系はそのまま返し、3個の数値(int/float。boolを除く)を持つ tuple/list は新しい
+    MVector へ変換する。MPoint などそれ以外の型は対応しないため None を返す。
+
+    Args:
+        value (object): 演算・比較の相手。
+
+    Returns:
+        om2.MVector | None: 相手の値。対応しない型は None。
+    """
+    ...
+
 def _zero(cls) -> Vector:
     """Python の ``__new__`` / ``__init__`` を通さずに cls のゼロベクトルを作る。
 
@@ -131,7 +145,8 @@ class Vector(om2.MVector):
     演算はOM2に従い、ベクトル結果は派生型によらず基底Vectorを返す。
     ``om2.MVector`` が左辺の ``+`` / ``-`` / ``^`` もVectorになる。
 
-    * ``+`` / ``-`` はMVector系の成分ごとの加減算。
+    * ``+`` / ``-`` はMVector系、または3個の数値のtuple/listとの成分ごとの加減算
+      (``v + (1, 1, 1)``・``(1, 1, 1) + v``・``v - [0, 1, 0]``)。結果はVector。
     * ``v * 数値`` / ``数値 * v`` / ``v / 数値`` はスカラー演算。0除算はZeroDivisionError。
     * ``v * w`` は内積(float)、``v ^ w`` は外積。
     * ``v * m`` は平行移動を含まない行ベクトルの方向変換。
@@ -142,8 +157,8 @@ class Vector(om2.MVector):
     数学値を返す継承メソッドも対応するmlib型を使う。OpenMayaの共有クラス定数は変更しない。
 
     成分・番号へ代入可能。番号は-3〜2、範囲外はIndexError。スライスは代入不可のtuple、反復はXYZ順。
-    ``==`` はMVector系の成分の完全一致で、派生型が違っても等しくなり得る。
-    それ以外はOM2型ならFalse、他は相手の比較へ委ね、未判定ならFalse。
+    ``==`` はMVector系、または3個の数値のtuple/listとの成分の完全一致で、派生型が違っても等しくなり得る。
+    MPointなどそれ以外のOM2型はFalse、他は相手の比較へ委ね、未判定ならFalse。
     OM2型が左辺の比較はOM2側でTypeErrorになり得る。
     """
     __slots__: tuple
@@ -272,7 +287,7 @@ class Vector(om2.MVector):
             other (object): 比較対象。
 
         Returns:
-            bool | types.NotImplementedType: MVector 系なら om2 と同じ成分比較の結果。
+            bool | types.NotImplementedType: MVector 系と3個の数値の tuple/list は成分比較の結果。
             その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
             どちらも判断しなければ False になる)。
         """
@@ -284,7 +299,7 @@ class Vector(om2.MVector):
             other (object): 比較対象。
 
         Returns:
-            bool | types.NotImplementedType: MVector 系なら om2 と同じ比較の結果。
+            bool | types.NotImplementedType: MVector 系と3個の数値の tuple/list は成分比較の結果。
             その他の om2 の型は True。それ以外の型は NotImplemented。
         """
         ...
@@ -292,7 +307,7 @@ class Vector(om2.MVector):
         """MVector 系との成分ごとの加算を返す。
 
         Args:
-            other (object): 加算する MVector 系。
+            other (object): 加算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
@@ -302,7 +317,7 @@ class Vector(om2.MVector):
         """左辺の MVector 系との成分ごとの加算を返す。
 
         Args:
-            other (object): 左辺の MVector 系。
+            other (object): 左辺の MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
@@ -315,7 +330,7 @@ class Vector(om2.MVector):
         NotImplemented が代入されてしまうため、型を検査してから委譲する。
 
         Args:
-            other (object): 加算する MVector 系。
+            other (object): 加算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented(TypeError になる)。
@@ -325,7 +340,7 @@ class Vector(om2.MVector):
         """MVector 系との成分ごとの減算を返す。
 
         Args:
-            other (object): 減算する MVector 系。
+            other (object): 減算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
@@ -335,7 +350,7 @@ class Vector(om2.MVector):
         """左辺の MVector 系から自身を引いた値を返す。
 
         Args:
-            other (object): 左辺の MVector 系。
+            other (object): 左辺の MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
@@ -345,7 +360,7 @@ class Vector(om2.MVector):
         """MVector 系を自身から減算する。
 
         Args:
-            other (object): 減算する MVector 系。
+            other (object): 減算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。

@@ -24,6 +24,7 @@ _exports = {
     "OUTDATED": ("pluginPackage", "OUTDATED"),
     "Plugin": ("plugin", "Plugin"),
     "PluginPackage": ("pluginPackage", "PluginPackage"),
+    "ProgressCancelled": ("progress", "ProgressCancelled"),
     "SKIPPED": ("pluginPackage", "SKIPPED"),
     "ScalarGraph": ("scalarGraph", "ScalarGraph"),
     "ScriptJob": ("scriptJob", "ScriptJob"),
@@ -55,7 +56,7 @@ if TYPE_CHECKING:
     from .scriptJobs import ScriptJobs
     from .selection import Selection
     from .version import Version
-    from .progress import progressBar
+    from .progress import ProgressCancelled, progressBar
 
 
 def __getattr__(name):

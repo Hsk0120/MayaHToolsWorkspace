@@ -7,6 +7,10 @@ import maya.api.OpenMaya as om2
 from ..core.object import Object
 
 
+#: Components の repr に表示する、範囲へまとめた名前の最大数。
+_REPR_LIMIT = 4
+
+
 class Component(Object):
     """シェイプ参照と実番号を保持し、一つのMayaコンポーネントを表す。
 
@@ -55,6 +59,21 @@ class Component(Object):
     def __hash__(self):
         """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
         return hash((self._shape, self.component_type, self._index))
+
+    def __repr__(self):
+        """デバッグ用に、型名とシェイプの最短一意名を使ったコンポーネント名を返す。
+
+        ``__str__`` (maya.cmds へ渡す完全パス名)とは別の表示で、名前はキャッシュしない。
+
+        Returns:
+            str: ``Vertex('boxShape.vtx[5]')`` のような文字列。シェイプの削除・種類違い・
+                番号範囲外の場合は ``<Vertex invalid>``。
+        """
+        cls = type(self).__name__
+        if not self.isValid():
+            return f"<{cls} invalid>"
+        full = self.getFullName()
+        return f"{cls}({self._shape.getName() + full[full.rindex('.'):]!r})"
 
     def __str__(self):
         """コンポーネント名を返す。
@@ -341,6 +360,39 @@ class Components:
         for index in self._indices:
             yield self.component_class(self._shape, index)
 
+    def __repr__(self):
+        """デバッグ用に、型名と範囲へまとめたコンポーネント名を返す。
+
+        保持順で+1ずつ連続する番号を ``[start:end]`` へまとめ、シェイプは最短一意名で表示する。
+        まとめた名前が ``_REPR_LIMIT`` 個を超える場合は先頭だけを表示し、件数を添える。
+
+        Returns:
+            str: ``CVs('curveShape.cv[0:7]')``、``Vertices('boxShape.vtx[0:2]', 'boxShape.vtx[5]')``、
+                多数なら ``Vertices('boxShape.vtx[0]', ..., count=120)``、空なら
+                ``Vertices('boxShape', count=0)``。無効なら ``<Vertices invalid>``。
+        """
+        cls = type(self).__name__
+        if not self.isValid():
+            return f"<{cls} invalid>"
+        shape = self._shape.getName()
+        if not self._indices:
+            return f"{cls}({shape!r}, count=0)"
+        prefix = f"{shape}.{self.component_class.component_type}"
+        names = []
+        start = previous = None
+        for index in self._repr_indices():
+            if previous is not None and index == previous + 1:
+                previous = index
+                continue
+            if start is not None:
+                names.append(self._range_name(prefix, start, previous))
+            start = previous = index
+        names.append(self._range_name(prefix, start, previous))
+        if len(names) > _REPR_LIMIT:
+            shown = ", ".join(repr(name) for name in names[:_REPR_LIMIT])
+            return f"{cls}({shown}, ..., count={len(self._indices)})"
+        return f"{cls}({', '.join(repr(name) for name in names)})"
+
     def __getitem__(self, index):
         """保持列のPythonの位置番号から単数参照、sliceから同型の部分コレクションを取得する。
 
@@ -551,6 +603,14 @@ class Components:
         """
         self._require_valid()
         return f"{self._shape.getFullName()}.{self.component_class.component_type}"
+
+    def _repr_indices(self):
+        """repr に表示する番号を保持順で返す。カーブCVはcmds用の番号へ写す。
+
+        Returns:
+            Sequence[int]: 表示用の番号列。
+        """
+        return self._indices
 
     def _require_valid(self):
         """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。

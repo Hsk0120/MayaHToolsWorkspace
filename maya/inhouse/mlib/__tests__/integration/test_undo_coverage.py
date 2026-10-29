@@ -40,7 +40,7 @@ from mlib.common.namespace import Namespace
 from mlib.common.scalarGraph import ScalarGraph
 from mlib.common.selection import Selection
 from mlib.maths import Matrix
-from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, SkinCluster
+from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, NurbsCurve, SkinCluster
 from support.specCase import NamespaceCase
 
 
@@ -593,6 +593,15 @@ def s_curve(c):
     c.ncrvShape = mlib.getNode(c.crvShape)
 
 
+def s_curves(c):
+    """形状を差し替える nurbsCurve(crv)と、取得元の nurbsCurve(src。tx=2)を作る。"""
+    s_curve(c)
+    c.ncrv = mlib.getNode(c.crv)
+    c.src = cmds.ls(cmds.curve(degree=1, point=[(0, 0, 0), (0, 2, 0)], name="src"), long=True)[0]
+    cmds.setAttr(c.src + ".tx", 2.0)
+    c.nsrc = mlib.getNode(c.src)
+
+
 def s_locator(c):
     """spaceLocator を作る。"""
     c.loc = cmds.spaceLocator(name="loc")[0]
@@ -1012,6 +1021,8 @@ CASES = [
       lambda c, **kw: c.na.setVisibility(False, **kw)),
     C("DagNode.setOutlinerVisibility", "setOutlinerVisibility", s_one,
       lambda c, **kw: c.na.setOutlinerVisibility(False, **kw)),
+    C("DagNode.setColor", "setColor index on shapes", s_curves, lambda c, **kw: c.ncrv.setColor(13)),
+    C("DagNode.setColor", "setColor rgb", s_one, lambda c, **kw: c.na.setColor((1.0, 0.5, 0.0))),
     # Transform
     C("Transform.setParent", "setParent", s_child, lambda c, **kw: c.na.setParent(c.q, **kw)),
     C("Transform.setParent", "setParent world", s_child, lambda c, **kw: c.na.setParent(None, **kw)),
@@ -1061,6 +1072,14 @@ CASES = [
       lambda c, **kw: c.nb.deleteConstraints(**kw)),
     C("Transform.deleteUnusedIntermediateShapes", "deleteUnusedIntermediateShapes", s_intermediate,
       lambda c, **kw: c.ncube.deleteUnusedIntermediateShapes(**kw)),
+    C("Transform.replaceShapes", "replaceShapes", s_curves, lambda c, **kw: c.ncrv.replaceShapes(c.nsrc)),
+    C("Transform.replaceShapes", "replaceShapes keepSource worldSpace", s_curves,
+      lambda c, **kw: c.ncrv.replaceShapes(c.nsrc, keepSource=True, worldSpace=True)),
+    C("NurbsCurve.create", "NurbsCurve.create periodic", None,
+      lambda c, **kw: NurbsCurve.create([(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], degree=3, closed=True,
+                                        name="made")),
+    C("NurbsCurve.setCvPositions", "setCvPositions worldSpace", s_curves,
+      lambda c, **kw: c.ncrvShape.setCvPositions([(0, 1, 0), (1, 1, 0), (2, 2, 0)], worldSpace=True)),
     C("Transform.scaleGeometry", "Transform.scaleGeometry", s_cube,
       lambda c, **kw: c.ncube.scaleGeometry(2.0, **kw)),
     C("Transform.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),

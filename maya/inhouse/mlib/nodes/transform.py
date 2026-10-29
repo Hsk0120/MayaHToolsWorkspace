@@ -10,7 +10,8 @@ from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable
 from ..core.nodeEdit import require_editable
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool, nativeUnits, undoChunk,
+                         undoTransaction)
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
@@ -696,6 +697,91 @@ class Transform(DagNode):
         # Shape以外の子はラッパーを作る前に除く(子の順と中間Shapeの扱いは同じ)。
         return self._direct_children(True, intermediates, shapes_only=True)
 
+    def replaceShapes(self, source, *, keepSource=False, worldSpace=False):
+        """自身のShapeを、sourceの中間でないShapeへ置き換えて自身を返す。
+
+        自身の直下の既存Shape(中間Shapeを含む)を削除し、sourceのShapeを ``cmds.parent(shape=True)`` で
+        自身の直下へ移す。自身のtranslate・rotate・scale・pivot・接続・子Transformは変更しない。
+        移したShapeは ``<自身の名前>Shape``、2個目以降は ``<自身の名前>Shape<番号>`` へ改名する。
+        コントローラーの形状差し替えを想定した操作で、全体を1回のUndoにまとめ、途中で失敗した場合は
+        巻き戻す。
+
+        Args:
+            source (Transform | Shape | str): 形状の取得元。Transformは直下の中間でないShape全部、
+                Shapeはそれ1つを使う。
+            keepSource (bool): Trueならsourceを複製して使い、元のノードを変更しない。Falseはsourceの
+                Shapeを移動し、Shapeが無くなり子も残らない取得元のTransformを削除する。
+            worldSpace (bool): Trueは取得元のTransformのワールド変換を形状へ焼き込み、ワールド空間での
+                見た目を保つ。False(既定)はShapeのローカル座標をそのまま使う(``parent -relative -shape``)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: keepSource・worldSpaceがbool以外、またはsourceがTransform・Shapeでない場合。
+            ValueError: sourceが自身・自身のShape・中間Shapeの場合、または使えるShapeが無い場合。
+            RuntimeError: 自身・sourceが無効、またはロック・参照等でMayaが変更を拒否した場合。
+        """
+        _require_bool(keepSource, "keepSource")
+        _require_bool(worldSpace, "worldSpace")
+        self._require_valid("replace the shapes of")
+        source = source if isinstance(source, Node) else Node(source)
+        if not source.isValid():
+            raise RuntimeError("Cannot replace shapes from an invalid source")
+        if isinstance(source, Transform):
+            holder = source
+            shapes = source.getShapes()
+        elif isinstance(source, DagNode) and source.mnode().hasFn(om2.MFn.kShape):
+            if source.isIntermediateObject():
+                raise ValueError("source must not be an intermediate shape")
+            holder = source.getParent()
+            shapes = [source]
+        else:
+            raise TypeError("source must be a Transform or a Shape")
+        if holder == self:
+            raise ValueError("source must not be the target transform or its shapes")
+        if not shapes:
+            raise ValueError(f"{source.getName()} has no shapes to use")
+        with undoTransaction("mlibTransformReplaceShapes"):
+            duplicate = None
+            moving = [shape.getFullName() for shape in shapes]
+            if keepSource:
+                # Shapeだけの複製は親Transformごと作られるため、Transformを複製して同じ位置の子Shapeを使う。
+                positions = [holder.getShapes(intermediates=True).index(shape) for shape in shapes]
+                duplicate = cmds.duplicate(holder.getFullName(), returnRootsOnly=True)[0]
+                duplicate = cmds.ls(duplicate, long=True)[0]
+                copies = cmds.listRelatives(duplicate, shapes=True, fullPath=True) or []
+                moving = [copies[position] for position in positions]
+            old = [shape.getFullName() for shape in self.getShapes(intermediates=True)]
+            if old:
+                cmds.delete(old)
+            target = self.getFullName()
+            if worldSpace:
+                matrix = list(holder.mpath().inclusiveMatrix())
+                temporary = cmds.createNode("transform", name="mlibReplaceShapesTmp#", skipSelect=True)
+                temporary = cmds.ls(temporary, long=True)[0]
+                # xformの平行移動は現在のUI単位で解釈されるため、内部単位(cm)へ切り替えて渡す。
+                with nativeUnits():
+                    cmds.xform(temporary, worldSpace=True, matrix=matrix)
+                cmds.parent(moving, temporary, shape=True, relative=True)
+                temporary = cmds.ls(cmds.parent(temporary, target)[0], long=True)[0]
+                # 取得元のワールド変換と自身の逆変換の差分を、Shapeの形状へ焼き込む。
+                cmds.makeIdentity(temporary, apply=True, translate=True, rotate=True, scale=True)
+                moving = cmds.listRelatives(temporary, shapes=True, fullPath=True) or []
+                cmds.parent(moving, target, shape=True, relative=True)
+                cmds.delete(temporary)
+            else:
+                cmds.parent(moving, target, shape=True, relative=True)
+            if duplicate is not None:
+                cmds.delete(duplicate)
+            elif (isinstance(holder, Transform) and holder.isValid()
+                    and not cmds.listRelatives(holder.getFullName(), children=True)):
+                cmds.delete(holder.getFullName())
+            leaf = self.getFullName().rsplit("|", 1)[-1]
+            for position, shape in enumerate(self.getShapes(intermediates=True)):
+                cmds.rename(shape.getFullName(), leaf + ("Shape" if position == 0 else "Shape#"))
+        return self
+
     def getShape(self, index=0, intermediates=False):
         """指定位置のShapeを取得する。
 
@@ -1318,6 +1404,15 @@ class Transform(DagNode):
                 best_dot = dot
                 best_axis = name
         return best_axis
+
+    def _color_targets(self):
+        """:meth:`setColor`・:meth:`getColor` の対象を返す。
+
+        Returns:
+            list[DagNode]: 直下の中間でないShape。Shapeが無ければ自身。
+        """
+        self._require_valid("set the color of")
+        return self.getShapes() or [self]
 
     def _local_matrix(self, matrix, ws):
         """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。

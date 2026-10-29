@@ -21,11 +21,11 @@ from .scriptJob import ScriptJob
 from .scriptJobs import ScriptJobs
 from .selection import Selection
 from .version import Version
-from .progress import progressBar
+from .progress import ProgressCancelled, progressBar
 from typing import Any
 
 _exports: dict
-__all__ = ['CurveFit', 'DampedSpring', 'Deferred', 'DrivenKey', 'LOADED', 'LOAD_FAILED', 'MISSING', 'Module', 'Namespace', 'OUTDATED', 'Plugin', 'PluginPackage', 'SKIPPED', 'ScalarGraph', 'ScriptJob', 'ScriptJobs', 'Selection', 'Version', 'progressBar', 'units']
+__all__ = ['CurveFit', 'DampedSpring', 'Deferred', 'DrivenKey', 'LOADED', 'LOAD_FAILED', 'MISSING', 'Module', 'Namespace', 'OUTDATED', 'Plugin', 'PluginPackage', 'ProgressCancelled', 'SKIPPED', 'ScalarGraph', 'ScriptJob', 'ScriptJobs', 'Selection', 'Version', 'progressBar', 'units']
 
 def __getattr__(name: str) -> Any:
     """公開名を現在の実装モジュールから取得する。
