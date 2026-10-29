@@ -53,10 +53,12 @@ class SkinCopyTest(unittest.TestCase):
         return cmds.skinPercent(self.target_skin, "{}.vtx[{}]".format(self.target, index), query=True, value=True)
 
     def test_copy_and_undo_once(self):
-        """最近傍のウェイトを写して None を返し、1回の Undo で元に戻る。"""
+        """最近傍のウェイトを写して転送先を返し、1回の Undo で元に戻る。"""
         before = [self.weights(index) for index in (0, 45)]
         cmds.flushUndo()
-        self.assertIsNone(SkinCluster(self.source_skin).copyWeightsTo(SkinCluster(self.target_skin)))
+        result = SkinCluster(self.source_skin).copyWeightsTo(SkinCluster(self.target_skin))
+        self.assertIsInstance(result, SkinCluster)
+        self.assertEqual(result.getUuid(), SkinCluster(self.target_skin).getUuid())
         # 下端の輪(0〜9)は root、上端の輪(40〜49)は tip だけになる。
         for index in (0, 5):
             self.assertEqual([round(value, 6) for value in self.weights(index)], [1.0, 0.0])
@@ -74,14 +76,20 @@ class SkinCopyTest(unittest.TestCase):
         self.assertEqual([round(value, 6) for value in self.weights(45)], [0.0, 1.0])
 
     def test_errors(self):
-        """自身は ValueError、存在しない名前は RuntimeError、skinCluster 以外は TypeError。"""
+        """自身は ValueError、存在しない名前は RuntimeError、skinCluster・形状以外は TypeError。"""
         skin = SkinCluster(self.source_skin)
         with self.assertRaisesRegex(ValueError, "must differ"):
             skin.copyWeightsTo(self.source_skin)
         with self.assertRaises(RuntimeError):
             skin.copyWeightsTo(self.name("missing"))
-        with self.assertRaisesRegex(TypeError, "SkinCluster requires a compatible node"):
+        with self.assertRaisesRegex(ValueError, "must differ"):
+            skin.copyWeightsTo(self.source)
+        with self.assertRaisesRegex(TypeError, "requires a skinCluster or a geometry, got joint"):
             skin.copyWeightsTo(self.root)
+        with self.assertRaisesRegex(TypeError, "without a shape"):
+            skin.copyWeightsTo(cmds.createNode("transform", name=self.name("empty")))
+        with self.assertRaisesRegex(TypeError, "requires a skinCluster or a geometry"):
+            skin.copyWeightsTo(cmds.createNode("multiplyDivide", name=self.name("md")))
 
     def test_deforms(self):
         """Transform・Shape のどちらでも履歴を調べ、他の形状・joint は False。"""

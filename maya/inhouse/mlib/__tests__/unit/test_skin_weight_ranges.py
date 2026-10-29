@@ -73,7 +73,7 @@ class SkinWeightRangeWriteTest(unittest.TestCase):
 
         calls.clear()
         with patch.object(skin_module, "set_attr", side_effect=record):
-            self.skin.setWeights([self.joints[0], self.joints[2], self.joints[3]], [0.5, 0.25, 0.125])
+            self.skin.setWeights([self.joints[0], self.joints[2], self.joints[3]], [0.5, 0.25, 0.125], broadcast=True)
         self.assertEqual(len(calls), self.count * 2)
         self.assertEqual(calls[0][0], self.element(0, 0))
         self.assertEqual(calls[1], (self.element(0, "2:3"), (0.25, 0.125)))
@@ -95,7 +95,7 @@ class SkinWeightRangeWriteTest(unittest.TestCase):
     def test_undo_redo_restores_ranges_in_one_step(self):
         before = self.raw(range(5))
         values = [0.2] * 5
-        self.skin.setWeights(self.joints, values)
+        self.skin.setWeights(self.joints, values, broadcast=True)
         after = self.raw(range(5))
         self.assertEqual(after, [values] * self.count)
         cmds.undo()
@@ -111,7 +111,7 @@ class SkinWeightRangeWriteTest(unittest.TestCase):
         self.assertEqual(self.raw(range(4)), before)
         values = [0.1, 0.2, 0.3, 0.4]
         with self.assertRaises(RuntimeError) as context:
-            self.skin.setWeights(self.joints[:4], values)
+            self.skin.setWeights(self.joints[:4], values, broadcast=True)
         self.assertEqual(str(context.exception), expected_message)
         current = self.raw(range(4))
         for v in range(self.count):
@@ -147,7 +147,7 @@ class SkinWeightRangeWriteTest(unittest.TestCase):
         before = self.raw(range(4))
         cmds.setAttr(f"{self.prefix}[3].weights", lock=True)
         with self.assertRaises(RuntimeError) as context:
-            self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True)
+            self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True, broadcast=True)
         self.assertEqual(str(context.exception),
                          "Attribute is locked or connected: " + self.skin.getName() + ".weightList[3].weights[0]")
         self.assertEqual(self.raw(range(4)), before)
@@ -155,12 +155,12 @@ class SkinWeightRangeWriteTest(unittest.TestCase):
         source = cmds.createNode("transform", name=self.ns + ":driver")
         cmds.connectAttr(source + ".translateX", self.element(4, 2))
         with self.assertRaises(RuntimeError) as context:
-            self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True)
+            self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True, broadcast=True)
         self.assertEqual(str(context.exception),
                          "Attribute is locked or connected: " + self.skin.getName() + ".weightList[4].weights[2]")
         self.assertEqual(self.raw(range(4))[:4], before[:4])
         cmds.disconnectAttr(source + ".translateX", self.element(4, 2))
-        self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True)
+        self.skin.setWeights(self.joints[:4], [0.1, 0.2, 0.3, 0.4], fast=True, broadcast=True)
         self.assertEqual(self.raw(range(4)), [[0.1, 0.2, 0.3, 0.4]] * self.count)
 
 

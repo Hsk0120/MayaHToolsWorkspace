@@ -54,7 +54,7 @@ class JointStandardDeleteTest(unittest.TestCase):
             mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
             skin = mlib.getNode(cmds.skinCluster([n.getFullName() for n in (root, middle, other)],
                                                 mesh, toSelectedBones=True)[0])
-            skin.setWeights([n.getFullName() for n in (root, middle, other)], [.2, .3, .5])
+            skin.setWeights([n.getFullName() for n in (root, middle, other)], [.2, .3, .5], broadcast=True)
             cmds.delete(middle.getFullName())
             expected = list(skin.getWeights([root, other]))
             cmds.undo()
