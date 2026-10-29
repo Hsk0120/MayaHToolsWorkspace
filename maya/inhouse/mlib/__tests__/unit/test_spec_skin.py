@@ -64,7 +64,7 @@ class SkinCopyTest(unittest.TestCase):
             self.assertEqual([round(value, 6) for value in self.weights(index)], [1.0, 0.0])
         for index in (40, 45):
             self.assertEqual([round(value, 6) for value in self.weights(index)], [0.0, 1.0])
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterCopyWeightsTo")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib copyWeightsTo( |$)")
         cmds.undo()
         for index, expected in zip((0, 45), before):
             for value, old in zip(self.weights(index), expected):

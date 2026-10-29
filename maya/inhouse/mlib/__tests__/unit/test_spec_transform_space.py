@@ -251,22 +251,35 @@ class ShearTest(_SpecCase):
 
 
 class ResetAttrsTest(_SpecCase):
-    """Transform.resetAttrs は既定で TRS とシアーを戻し、戻した Plug の list を返す。"""
+    """Transform.resetAttrs の既定は5.0.0から Node と同じくキー設定可能な全アトリビュートを戻す。"""
 
-    def test_default_resets_trs_and_shear_only(self):
+    #: 既定で戻すtransformのアトリビュート(キー設定可能な数値。shearはキー設定不可のため含まない)。
+    KEYABLE = ["visibility", "translateX", "translateY", "translateZ", "rotateX", "rotateY", "rotateZ",
+               "scaleX", "scaleY", "scaleZ"]
+
+    def test_default_resets_keyable_attributes(self):
         name = self._dirty()
         node = Node(name)
         self.flushUndo()
         plugs = node.resetAttrs()
         self.assertIsInstance(plugs, list)
         self.assertTrue(all(isinstance(plug, Plug) for plug in plugs))
-        self.assertEqual([plug.getLongName() for plug in plugs], ["translate", "rotate", "scale", "shear"])
-        self.assertValues(name, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0.0, 0.0, 0.0)])
-        self.assertFalse(cmds.getAttr(name + ".visibility"))
-        self.assertFalse(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        cmds.undo()
-        self.assertValues(name, [(1.0, 2.0, 3.0), (10.0, 20.0, 30.0), (2.0, 3.0, 4.0), (0.1, 0.2, 0.3)])
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
+        self.assertEqual([plug.getLongName() for plug in plugs], self.KEYABLE)
+        self.assertValues(name, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0.1, 0.2, 0.3)])
+        self.assertTrue(cmds.getAttr(name + ".visibility"))
+        self.assertUndoesInOneStep(
+            lambda: self.assertValues(name, [(1.0, 2.0, 3.0), (10.0, 20.0, 30.0), (2.0, 3.0, 4.0), (0.1, 0.2, 0.3)]),
+            lambda: self.assertValues(name, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0.1, 0.2, 0.3)]))
+
+    def test_plugs_mixed_with_names(self):
+        name = self._dirty()
+        node = Node(name)
+        plugs = node.resetAttrs([node.getPlug("tx"), "scale", node.shear])
+        self.assertEqual([plug.getLongName() for plug in plugs], ["translateX", "scale", "shear"])
+        self.assertValues(name, [(0.0, 2.0, 3.0), (10.0, 20.0, 30.0), (1.0, 1.0, 1.0), (0.0, 0.0, 0.0)])
+        other = Node(self.make())
+        with self.assertRaisesRegex(ValueError, "does not belong to"):
+            node.resetAttrs([other.getPlug("tx")])
 
     def test_explicit_attributes(self):
         name = self._dirty()
@@ -287,8 +300,8 @@ class ResetAttrsTest(_SpecCase):
         name = self._dirty()
         self.flushUndo()
         plugs = Node(name).resetAttrs(fast=True)
-        self.assertEqual(len(plugs), 4)
-        self.assertValues(name, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0.0, 0.0, 0.0)])
+        self.assertEqual(len(plugs), len(self.KEYABLE))
+        self.assertValues(name, [(0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (1.0, 1.0, 1.0), (0.1, 0.2, 0.3)])
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_invalid_inputs(self):

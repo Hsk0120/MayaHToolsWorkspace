@@ -82,6 +82,18 @@ def delete_nodes(nodes: Sequence[Node], fast: bool = ..., checked: list | None =
     """
     ...
 
+def _referenced_message(path: str, owner: str | None = ...) -> str:
+    """参照ファイルから読み込んだノードを削除しようとしたときの文言を作る。
+
+    Args:
+        path (str): 参照されたノードの完全パスまたは名前。
+        owner (str | None): 削除しようとした対象(pathがその子孫の場合)。
+
+    Returns:
+        str: 参照ノード(``RN`` ノード)とファイルを示す文言。
+    """
+    ...
+
 def _deletion_error(index: int, message: str) -> RuntimeError:
     """対象の番号を持つ削除の RuntimeError を作る。
 

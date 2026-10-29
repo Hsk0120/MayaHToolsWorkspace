@@ -136,7 +136,8 @@ class ConsolidatedNodesTest(unittest.TestCase):
         transform.setTranslate((2, 3, 4))
         matrix = list(transform.getMatrix(worldSpace=True))
         with self.api_only():
-            self.assertEqual(transform.rename("new", fast=True), "new")
+            self.assertIs(transform.rename("new", fast=True), transform)
+            self.assertEqual(transform.getNodeName(), "new")
             self.assertEqual(shape.getNodeName(), "newShape")
             transform.setNamespace(":direct:children", fast=True)
             self.assertEqual(transform.getNodeName(), "direct:children:new")

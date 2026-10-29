@@ -10,8 +10,8 @@ from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable
 from ..core.nodeEdit import require_editable
-from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool, nativeUnits, undoChunk,
-                         undoTransaction)
+from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool, _transform_argument_hints,
+                         nativeUnits, undoChunk, undoTransaction)
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
@@ -116,6 +116,28 @@ def _closest_euler(quaternion, reference):
     rotation = quaternion.asEulerRotation()
     rotation.reorderIt(reference.order)
     return rotation.closestSolution(reference)
+
+
+def _unwritable_channel_message(plug):
+    """ロック・入力接続された子を含むチャンネルへの書込み失敗を、原因の子を示す文言にする。
+
+    Args:
+        plug (Plug): 書込みに失敗したtranslate・rotate等のコンパウンドアトリビュート。
+
+    Returns:
+        str | None: 例外の文言。書込みを妨げる子(または自身)が見つからなければNone。
+    """
+    for target in [plug] + list(plug.getChildren()):
+        if target.isLocked():
+            reason = "is locked"
+        elif target.isDestination():
+            source = target.getSource()
+            reason = f"is connected from {source.getFullName()}" if source is not None else "has an input connection"
+        else:
+            continue
+        return (f"Cannot set {plug.getFullName()}: {target.getFullName()} {reason}; "
+                "unlock/disconnect it, or pass safe=True to skip channels that cannot be written")
+    return None
 
 
 class Transform(DagNode):
@@ -405,56 +427,6 @@ class Transform(DagNode):
         """
         return om2.MFnTransform(self.mpath())
 
-    def resetAttrs(self, attributes=None, *, fast=False):
-        """指定アトリビュートを定義上の既定値へ戻す。省略時は translate・rotate・scale・shear。
-
-        :meth:`Node.resetAttrs` の override。省略時の既定(キー設定可能な全アトリビュート)を
-        TRS とシアーの 4 チャンネルに置き換える。明示指定時の扱いは Node と同じ。
-
-        Args:
-            attributes (str | Iterable[str] | None): tx/translateX/translateなど。
-                省略時はtranslate・rotate・scale・shear。ロック・入力接続のある子は除外し、除外のある
-                コンパウンドアトリビュートだけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            list[Plug]: リセットしたアトリビュート(指定順)。
-
-        Raises:
-            TypeError: 名前が文字列でない、fastがbool以外、または既定値を扱えない型の場合。
-            AttributeError: 指定アトリビュートが存在しない場合。
-            RuntimeError: 明示指定したアトリビュートがロックや入力接続などで変更できない場合。
-
-        Note:
-            フリーズではなく値を戻す操作なので姿勢は変わる。jointOrient・ピボット・
-            offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
-            行わない。途中の失敗は例外とし、完了済みの変更は通常Undoで戻せる。
-        """
-        with _edit_context("mlibTransformResetAttrs", fast):
-            if attributes is None:
-                # 省略時は 4 チャンネル。ロック・入力接続のある子を Node と同じく除外し、
-                # 除外のあるコンパウンドアトリビュートだけを書ける子へ展開する(除外が無ければコンパウンドアトリビュートの Plug を返す)。
-                plugs = []
-                for name in ("translate", "rotate", "scale", "shear"):
-                    compound = self.getPlug(name)
-                    if compound.isDestination():
-                        continue
-                    children = compound.getChildren()
-                    usable = [child for child in children
-                              if not child.isLocked() and not child.isDestination()
-                              and (fast or cmds.getAttr(child.getFullName(), settable=True))]
-                    plugs.extend([compound] if len(usable) == len(children) else usable)
-            else:
-                if isinstance(attributes, str):
-                    attributes = (attributes,)
-                attributes = tuple(attributes)
-                if not all(isinstance(name, str) and name for name in attributes):
-                    raise TypeError("attributes must contain non-empty attribute names")
-                plugs = [self.getPlug(name) for name in attributes]
-            for plug in plugs:
-                plug.reset(fast=fast)
-            return plugs
-
     def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """直下の非中間Shapeの頂点・CVを拡縮する。Transformのマトリクスは変更しない。
 
@@ -593,10 +565,12 @@ class Transform(DagNode):
             return self
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
-                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
+                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False, type=None):
         """指定条件に合う直接の子、または子孫を取得する。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(派生型を含む。例 ``type="joint"``)。
+                規則は :meth:`~mlib.nodes.dagNode.DagNode.getChildren` と同じ。
             shapes (bool): TrueはShapeも含める。既定FalseはTransformのみ。
             intermediates (bool): Trueは中間オブジェクトも含める。
             allDescendents (bool): Trueは子孫全体。既定は直接の子だけ。
@@ -610,7 +584,7 @@ class Transform(DagNode):
         """
         return super().getChildren(shapes, intermediates, allDescendents=allDescendents,
                                    order=order, leaves=leaves, includeSelf=includeSelf,
-                                   underWorld=underWorld)
+                                   underWorld=underWorld, type=type)
 
     def getUnusedIntermediateShapes(self):
         """直下から削除可能な未使用中間Shapeを取得する。
@@ -953,6 +927,7 @@ class Transform(DagNode):
         """
         return list(dict.fromkeys(group for shape in self.getShapes() for group in shape.getShadingEngines()))
 
+    @_transform_argument_hints
     def getMatrix(self, worldSpace=False, p=False, inv=False):
         """指定空間の評価済みマトリクスを取得する。
 
@@ -984,6 +959,7 @@ class Transform(DagNode):
             matrix = om2.MFnMatrixData(plug.asMObject()).matrix()
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
+    @_transform_argument_hints
     def setMatrix(self, matrix, worldSpace=False, safe=False, get=False, *, fast=False):
         """マトリクスを分解し、translate・rotate・scale・shearのうち値が変わるものへ設定する。
 
@@ -1008,9 +984,10 @@ class Transform(DagNode):
                 safe/fastによらず計算だけ行い、書込み可否やsafe適用後の結果は検証しない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
+            TypeError: fastがbool以外、または ``space=``・``ws=`` を指定した場合(``worldSpace=True`` を案内する)。
             ValueError: マトリクスが不正・分解不能、またはワールド指定時に親側のマトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
+            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合(ロック・入力接続された成分と
+                ``safe=True`` を案内する)。
         """
         with _edit_context("mlibTransformSetMatrix", fast):
             local_matrix = self._local_matrix(matrix, _world_space(worldSpace))
@@ -1023,6 +1000,7 @@ class Transform(DagNode):
                 self._apply_local_matrix(local_matrix, fast=fast)
             return self
 
+    @_transform_argument_hints
     def getTranslate(self, worldSpace=False, at=2):
         """基準位置を取得する。既定は回転ピボット位置。
 
@@ -1057,6 +1035,7 @@ class Transform(DagNode):
                 point *= self.mpath().exclusiveMatrix()
         return Translate(point.x, point.y, point.z)
 
+    @_transform_argument_hints
     def setTranslate(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
 
@@ -1074,6 +1053,12 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueはcm単位の独立したXYZ3成分のlist。
                 safe指定時も書込み可否を反映した最終結果の予測ではない。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
+                案内する)、または ``setTranslate(1, 2, 3)`` のように成分を分けて渡した場合。
+            RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
+                (原因の成分と ``safe=True`` を案内する)。
         """
         with _edit_context("mlibTransformSetTranslate", fast):
             ws = _world_space(worldSpace)
@@ -1090,6 +1075,7 @@ class Transform(DagNode):
             self._set_channel_value("translate", result, safe=safe, fast=fast)
             return self
 
+    @_transform_argument_hints
     def getRotate(self, worldSpace=False, *, order=None, unit=None):
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
@@ -1139,6 +1125,7 @@ class Transform(DagNode):
             return rotation
         return tuple(_from_radians(value, angle_unit) for value in rotation)
 
+    @_transform_argument_hints
     def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="deg", fast=False):
         """選択空間の回転を設定する。書込むrotateは現在値に最も近い等価解を使う。
 
@@ -1164,10 +1151,12 @@ class Transform(DagNode):
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外、またはunitが文字列以外の場合。
+            TypeError: fastがbool以外、unitが文字列以外、``space=``・``ws=`` を指定した場合
+                (``worldSpace=True`` を案内する)、または成分を分けて渡した場合。
             ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
                 または必要な親マトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合(ロック・入力接続された
+                成分と ``safe=True`` を案内する)。
         """
         with _edit_context("mlibTransformSetRotate", fast):
             ws = _world_space(worldSpace)
@@ -1199,6 +1188,7 @@ class Transform(DagNode):
             return Scale(*om2.MTransformationMatrix(self.getMatrix(worldSpace=True)).scale(MSpace.kTransform))
         return self.getPlug("scale").get()
 
+    @_transform_argument_hints
     def setScale(self, value, worldSpace=False, safe=False, get=False, *, fast=False):
         """scaleチャンネルだけを設定する。
 
@@ -1955,8 +1945,15 @@ class Transform(DagNode):
             Plug | int: Plug.setの戻り値。通常はPlug、safe=Trueは失敗数。
         """
         # Double3Plug._set_value の回転変換・単位処理を通さず、基底 Plug の書込みを骨格ごと使う。
-        return Plug._set_template(self.getPlug(name), tuple(value), safe, fast=fast, unit="rad",
-                                  _writer=Plug._set_value)
+        plug = self.getPlug(name)
+        try:
+            return Plug._set_template(plug, tuple(value), safe, fast=fast, unit="rad",
+                                      _writer=Plug._set_value)
+        except RuntimeError as error:
+            message = None if safe else _unwritable_channel_message(plug)
+            if message is None:
+                raise
+            raise RuntimeError(message) from error
 
     def _matrix_channel_values(self, matrix, scale_reference=None):
         """マトリクスからtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。

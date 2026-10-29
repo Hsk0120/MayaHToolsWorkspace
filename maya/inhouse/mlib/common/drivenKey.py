@@ -121,7 +121,11 @@ def _curves(driven, strict=False):
             elif kind == "blendWeighted" and attribute == "output":
                 visit(node.getPlug("input"))
             elif strict:
-                raise RuntimeError(f"Unsupported driven-key connection: {source.getFullName()}")
+                raise RuntimeError(
+                    f"Cannot set a driven key on {driven.getFullName()}: {destination.getFullName()} already has "
+                    f"an input from {source.getFullName()} ({kind}), which is not a driven-key curve; "
+                    "disconnect it first (e.g. plug.disconnectInput()), or combine both inputs through a "
+                    "blendWeighted node")
 
     visit(driven)
     return found

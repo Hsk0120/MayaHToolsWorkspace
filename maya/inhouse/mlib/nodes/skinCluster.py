@@ -33,6 +33,8 @@ class SkinCluster(Node):
     _MIRROR_PLANES = ("XY", "YZ", "XZ")
     _SURFACE_ASSOCIATIONS = ("closestPoint", "rayCast", "closestComponent")
     _INFLUENCE_ASSOCIATIONS = ("closestJoint", "closestBone", "label", "name", "oneToOne")
+    mesh = None  #: 初期化時の先頭geometryの名前。クラスで宣言し、Node の代入の規則(Mayaアトリビュートへの書込み)から外す。
+    mesh_path = None  #: 初期化時の先頭geometryの MDagPath。
 
     def __init__(self, skinCluster):
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。

@@ -53,11 +53,12 @@ class NodeApiTest(unittest.TestCase):
     def test_rename_namespace_and_add_attr(self):
         transform = self.create_transform("mlibNodeApiRename")
         renamed = transform.rename("mlibNodeApiRenamed")
-        self.assertEqual(renamed, "mlibNodeApiRenamed")
+        self.assertIs(renamed, transform)
         self.assertEqual(transform.getName(), "mlibNodeApiRenamed")
 
         namespaced = transform.setNamespace(self.namespace)
-        self.assertIn("mlibNodeApiRenamed", namespaced)
+        self.assertIs(namespaced, transform)
+        self.assertIn("mlibNodeApiRenamed", transform.getNodeName())
         self.assertEqual(transform.getNodeName(removeNamespace=True), "mlibNodeApiRenamed")
         self.assertEqual(transform.getNamespace(), Namespace(self.namespace))
 

@@ -539,6 +539,37 @@ class Joints(Nodes):
             RuntimeError: 無効なjointを含む、またはMayaが編集を拒否した場合。先行した要素の変更は自動では戻さない。
         """
         ...
+    def setRadius(self, value: float, *, fast: bool = ...) -> Joints:
+        """各jointへ保持順に :meth:`Joint.setRadius` を適用する。
+
+        Args:
+            value (float): :meth:`Joint.setRadius` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setRadius` と同じ。
+            ValueError: :meth:`Joint.setRadius` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
+        """
+        ...
+    def setSegmentScaleCompensate(self, state: bool, *, fast: bool = ...) -> Joints:
+        """各jointへ保持順に :meth:`Joint.setSegmentScaleCompensate` を適用する。
+
+        Args:
+            state (bool): :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
+        """
+        ...
     def getSkinClusters(self) -> SkinClusters:
         """全 joint に関連する skinCluster を取得する。
 

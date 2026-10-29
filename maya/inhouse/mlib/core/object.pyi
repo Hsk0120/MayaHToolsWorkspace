@@ -7,6 +7,7 @@ from mlib.components.component import Component
 from mlib.nodes.node import Node
 from mlib.plugs.plug import Plug
 
+_MEMBER_HINTS: dict
 
 def _exists(name: str) -> bool:
     """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
@@ -50,6 +51,22 @@ def _selection_component(selection: om2.MSelectionList, index: int) -> tuple[om2
     Returns:
         tuple[om2.MDagPath, om2.MObject] | None: コンポーネントの要素なら(所有DAGパス, コンポーネント)。
             DGノード・DAGノード単体ならNone。
+    """
+    ...
+
+def _missing_member_message(obj: object, name: str, what: str = ...) -> str:
+    """存在しないメソッド・アトリビュートを参照したときのAttributeErrorの文言を作る。
+
+    クラスの公開メンバーから近い名前を候補に挙げ、PyMEL・maya.cmdsの名前にはmlibでの
+    書き方を案内する。
+
+    Args:
+        obj (object): 参照した対象。
+        name (str): 参照した名前。
+        what (str): 文言に使う種類(``"method or Maya attribute"`` 等)。
+
+    Returns:
+        str: 例外の文言。
     """
     ...
 

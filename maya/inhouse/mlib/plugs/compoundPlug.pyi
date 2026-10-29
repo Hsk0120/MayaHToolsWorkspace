@@ -4,6 +4,7 @@
 import maya.api.OpenMaya as om2
 from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, attributeType, value_reader
 from ..core.fastWrite import set_attr, set_plug
+from ..core.object import _missing_member_message
 from ..decorator import _require_bool
 from .plug import Plug
 from typing import Iterable, Iterator

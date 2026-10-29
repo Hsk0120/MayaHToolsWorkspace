@@ -38,7 +38,8 @@ class RemovedApiTest(unittest.TestCase):
                 self.assertFalse(hasattr(owner, "isJoint"))
 
     def test_joints_has_no_forwarders(self):
-        for name in ("mfn", "resetAttrs", "getShear", "setShear", "getRotate", "setParent",
+        # resetAttrs・setParent は5.0.0で一括の書込みとして Nodes へ戻した(test_spec_bulk_and_nodes)。
+        for name in ("mfn", "getShear", "setShear", "getRotate",
                      "jointOrientToRotate", "freezeRotate", "_bulk_entries", "_bulk_methods"):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(Joints, name))
@@ -189,7 +190,7 @@ class SetParentTest(_SpecCase):
 
 
 class ResetAttrsTest(_SpecCase):
-    """Joint.resetAttrs の既定は TRS とシアーだけで、jointOrient は戻さない。"""
+    """Joint.resetAttrs の既定は5.0.0からキー設定可能な全アトリビュートで、jointOrient は戻さない。"""
 
     def test_default_keeps_joint_orient(self):
         name = self.make()
@@ -198,7 +199,9 @@ class ResetAttrsTest(_SpecCase):
         cmds.setAttr(name + ".jointOrient", 5.0, 6.0, 7.0)
         joint = Node(name)
         plugs = joint.resetAttrs()
-        self.assertEqual([plug.getLongName() for plug in plugs], ["translate", "rotate", "scale", "shear"])
+        self.assertEqual([plug.getLongName() for plug in plugs], [
+            "visibility", "translateX", "translateY", "translateZ", "rotateX", "rotateY", "rotateZ",
+            "scaleX", "scaleY", "scaleZ"])
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".rotate")[0], (0.0, 0.0, 0.0))
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".jointOrient")[0], (5.0, 6.0, 7.0))
         plugs = joint.resetAttrs("jointOrient")

@@ -650,8 +650,9 @@ class SetupSamples:
         arm = _chain(name, root, (("shoulder", (0, 8, 0)), ("elbow", (3.5, 8, -0.3)),
                                   ("wrist", (6.5, 8, 0)), ("hand", (8, 8, 0))))
         for parent, child in zip(arm, arm[1:]):
-            # jointツールで作る骨と同じく、親のscaleを inverseScale へ繋いで segmentScaleCompensate を効かせる。
-            _connect(parent + ".scale", child + ".inverseScale")
+            # jointツールで作る骨と同じく、親のscaleを inverseScale へ繋いで segmentScaleCompensate を効かせる
+            # (mlib.createNode でjointの下へ作った場合は接続済みで、同じ接続なら変更しない)。
+            mlib.getNode(child).connectInverseScale(parent)
         _set(arm[1], "scale", (0.8, 1.6, 1.6))
         export = _transform(name + "_export", root)
         setup = LeafJoints.create(arm, name=name, parent=export)

@@ -3,6 +3,59 @@
 import maya.api.OpenMaya as om2
 
 
+#: PyMEL・maya.cmdsでよく使う名前と、mlibでの書き方の対応。値は (必要なメソッド名, 案内)、またはその組の列。
+#: 必要なメソッドが対象のクラスに無い案内は表示せず、列では最初に当てはまる案内を使う(None は常に表示する)。
+_MEMBER_HINTS = {
+    "getAttr": ("getPlug", "use getPlug(name).get()"),
+    "setAttr": ("getPlug", "use getPlug(name).set(value)"),
+    "attr": ("getPlug", "use getPlug(name)"),
+    "listAttr": ("getPlugs", "use getPlugs()"),
+    "hasAttribute": ("hasAttr", "use hasAttr(name)"),
+    "attributeExists": ("hasAttr", "use hasAttr(name)"),
+    "addAttribute": ("addAttr", "use addAttr(name, ...)"),
+    "deleteAttr": ("getPlug", "use getPlug(name).delete()"),
+    "connectAttr": ("getPlug", "use getPlug(name).connectTo(destination)"),
+    "disconnectAttr": ("getPlug", "use getPlug(name).disconnect()"),
+    "lockAndHide": (("setAttrFlags", "use setAttrFlags(names, locked=True, keyable=False, channelBox=False)"),
+                    ("setFlags", "use setFlags(locked=True, keyable=False, channelBox=False)")),
+    "lockNode": ("setLocked", "use setLocked(True)"),
+    "listConnections": ("getConnections", "use getConnections()"),
+    "connections": ("getConnections", "use getConnections()"),
+    "inputs": ("getSource", "use getSource()"),
+    "outputs": ("getDestinations", "use getDestinations()"),
+    "listRelatives": ("getChildren", "use getChildren() or getParent()"),
+    "getAllChildren": ("getChildren", "use getChildren(allDescendents=True)"),
+    "listHistory": ("getHistory", "use getHistory()"),
+    "history": ("getHistory", "use getHistory()"),
+    "firstParent": ("getParent", "use getParent()"),
+    "getAllParents": ("getParents", "use getParents()"),
+    "parent": ("setParent", "use setParent(parent) or getParent()"),
+    "nodeType": ("getType", "use getType()"),
+    "type": ("getType", "use getType()"),
+    "name": ("getName", "use getName(), or getNodeName() for the name without the DAG path"),
+    "nodeName": ("getNodeName", "use getNodeName()"),
+    "longName": ("getFullName", "use getFullName()"),
+    "fullPath": ("getFullName", "use getFullName()"),
+    "fullPathName": ("getFullName", "use getFullName()"),
+    "shortName": ("getNodeName", "use getNodeName()"),
+    "exists": ("isValid", "use isValid()"),
+    "getTranslation": ("getTranslate", "use getTranslate()"),
+    "setTranslation": ("setTranslate", "use setTranslate((x, y, z))"),
+    "getRotation": ("getRotate", "use getRotate()"),
+    "setRotation": ("setRotate", "use setRotate((x, y, z))"),
+    "xform": ("setMatrix", "use getMatrix()/setMatrix() or getTranslate()/setTranslate()"),
+    "getTransformation": ("getMatrix", "use getMatrix()"),
+    "setTransformation": ("setMatrix", "use setMatrix(matrix)"),
+    "orientJoint": ("orient", "use orient()"),
+    "getValue": ("get", "use get()"),
+    "setValue": ("set", "use set(value)"),
+    "lock": ("setLocked", "use setLocked(True)"),
+    "connect": ("connectTo", "use connectTo(destination)"),
+    "select": (None, "use mlib.select(obj)"),
+    "duplicate": (None, "use mlib.duplicate(obj)"),
+}
+
+
 def _exists(name):
     """名前がシーンの対象に解決できるか、選択リストへの追加で調べる。
 
@@ -65,6 +118,37 @@ def _selection_component(selection, index):
     if component.isNull():
         return None
     return path, component
+
+
+def _missing_member_message(obj, name, what="method"):
+    """存在しないメソッド・アトリビュートを参照したときのAttributeErrorの文言を作る。
+
+    クラスの公開メンバーから近い名前を候補に挙げ、PyMEL・maya.cmdsの名前にはmlibでの
+    書き方を案内する。
+
+    Args:
+        obj (object): 参照した対象。
+        name (str): 参照した名前。
+        what (str): 文言に使う種類(``"method or Maya attribute"`` 等)。
+
+    Returns:
+        str: 例外の文言。
+    """
+    # difflibは失敗時の文言を作るときだけ使うため、import mlibの時間に含めない。
+    import difflib
+
+    cls = type(obj)
+    message = f"'{cls.__name__}' has no {what} '{name}'"
+    hint = _MEMBER_HINTS.get(name, ())
+    for required, text in (hint if hint and isinstance(hint[0], tuple) else (hint,) if hint else ()):
+        if required is None or hasattr(cls, required):
+            message += f"; {text}"
+            break
+    public = sorted({member for member in dir(cls) if not member.startswith("_")})
+    close = difflib.get_close_matches(name, public, n=3, cutoff=0.6)
+    if close:
+        message += ". Did you mean: " + ", ".join(close) + "?"
+    return message
 
 
 class _ObjectType(type):

@@ -3,7 +3,7 @@
 
 import operator
 import maya.api.OpenMaya as om2
-from ..core.object import Object
+from ..core.object import Object, _missing_member_message
 from typing import Any, Iterable, Iterator, Sequence
 from mlib.nodes.shape import Shape
 from typing import overload
@@ -36,6 +36,17 @@ class Component(Object):
             TypeError: シェイプ型が不正、またはindexがboolか整数として扱えない場合。
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def __getattr__(self, name: str):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Vertex' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
         """
         ...
     def __eq__(self, other):
@@ -194,7 +205,6 @@ class Component(Object):
             IndexError: 番号が範囲外の場合。
         """
         ...
-    def __getattr__(self, name: str) -> Any: ...
 _COMPONENT_INIT: Any
 _COMPONENT_REQUIRE_VALID: Any
 _COMPONENT_INDEX: Any

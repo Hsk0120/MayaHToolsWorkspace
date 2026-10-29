@@ -269,7 +269,7 @@ class CompoundBulkSetTest(unittest.TestCase):
             self.assertAlmostEqual(om2.MAngle(actual, om2.MAngle.kDegrees).asRadians(), expected)
         node.getPlug("vecD").set((1.5, 2.5, 3.5))
         self.assertEqual(cmds.getAttr(self.node + ".vecD")[0], (1.5, 2.5, 3.5))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDouble3PlugSet")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib set( |$)")
         cmds.undo()
         self.assertEqual(cmds.getAttr(self.node + ".vecD")[0], (0.0, 0.0, 0.0))
         # 1回のUndoで戻るのは直前のset()だけで、それ以前の設定は残る。
@@ -525,7 +525,7 @@ class DisconnectCreateDeleteTest(unittest.TestCase):
         short = [name.rpartition(":")[2] for name in removed]
         self.assertEqual([name for name in short if name.startswith("d")], ["dc", "d0", "dmd", "d1", "d2"])
         self.assertTrue(any(name.startswith("unitConversion") for name in short))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDelete")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib delete( |$)")
         cmds.undo()
         self.assertEqual(sorted(cmds.ls(long=True)), before)
         cmds.lockNode(names[1], lock=True)
@@ -789,7 +789,7 @@ class UndoTransactionNestingTest(unittest.TestCase):
         with undoTransaction():
             mlib.getNode(self.node).getPlug("tx").set(2)
             cmds.setAttr(self.node + ".ty", 3)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDoubleLinearPlugSet")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib set( |$)")
         cmds.undo()
         self.assertEqual((cmds.getAttr(self.node + ".tx"), cmds.getAttr(self.node + ".ty")), (0.0, 0.0))
 

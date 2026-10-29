@@ -40,7 +40,7 @@ from mlib.common.namespace import Namespace
 from mlib.common.scalarGraph import ScalarGraph
 from mlib.common.selection import Selection
 from mlib.maths import Matrix
-from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, NurbsCurve, SkinCluster
+from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, Joints, Nodes, NurbsCurve, SkinCluster
 from support.specCase import NamespaceCase
 
 
@@ -1088,9 +1088,24 @@ CASES = [
       lambda c, **kw: c.na.setLimits(translateX=(None, 5.0), rotateZ=(-45.0, 90.0))),
     C("Transform.scaleGeometry", "Transform.scaleGeometry", s_cube,
       lambda c, **kw: c.ncube.scaleGeometry(2.0, **kw)),
-    C("Transform.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
-    C("Transform.resetAttrs", "Transform.resetAttrs named", s_two,
+    C("Node.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
+    C("Node.resetAttrs", "Transform.resetAttrs named", s_two,
       lambda c, **kw: c.nb.resetAttrs(["translateX", "scale"], **kw)),
+    # 複数形の一括の書込み(5.0.0)
+    C("Nodes.setAttrFlags", "Nodes.setAttrFlags", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setAttrFlags(["tx", "ry"], locked=True, keyable=False, **kw)),
+    C("Nodes.resetAttrs", "Nodes.resetAttrs", s_two, lambda c, **kw: Nodes([c.a, c.b]).resetAttrs(**kw)),
+    C("Nodes.setLocked", "Nodes.setLocked", s_two, lambda c, **kw: Nodes([c.a, c.b]).setLocked(True, **kw)),
+    C("Nodes.setColor", "Nodes.setColor", s_two, lambda c, **kw: Nodes([c.a, c.b]).setColor(13)),
+    C("Nodes.setVisibility", "Nodes.setVisibility", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setVisibility(False, **kw)),
+    C("Nodes.hide", "Nodes.hide", s_two, lambda c, **kw: Nodes([c.a, c.b]).hide(**kw)),
+    C("Nodes.show", "Nodes.show", s_hidden, lambda c, **kw: Nodes([c.a]).show(**kw)),
+    C("Nodes.setParent", "Nodes.setParent", s_two, lambda c, **kw: Nodes([c.b]).setParent(c.a, **kw)),
+    C("Joints.setRadius", "Joints.setRadius", s_joints,
+      lambda c, **kw: Joints([c.j0, c.jx]).setRadius(2.5, **kw)),
+    C("Joints.setSegmentScaleCompensate", "Joints.setSegmentScaleCompensate", s_joints,
+      lambda c, **kw: Joints([c.j1, c.j2]).setSegmentScaleCompensate(False, **kw)),
     # Shape
     C("Shape.scaleGeometry", "Mesh.scaleGeometry", s_cube,
       lambda c, **kw: c.nshape.scaleGeometry(2.0, **kw)),

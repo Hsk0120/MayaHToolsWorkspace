@@ -13,7 +13,7 @@ from ..core.attributeType import attributeType, is_internal_data_type, value_rea
 from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit
 from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
-from ..core.object import Object
+from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError, _angle_unit
 
@@ -320,6 +320,20 @@ class Plug(Object):
         dst = Plug._resolve_input(dst)
         dst.disconnect(self)
         return dst
+
+    def __getattr__(self, name):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Plug' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        raise AttributeError(_missing_member_message(self, name))
 
     def getNode(self):
         """この Plug を所有する mlib ノードを取得する。
@@ -2935,7 +2949,7 @@ class Plug(Object):
                 ノードの MPlug は検出できず、Maya が異常終了する)。
         """
         # Nodeとの循環importを避け、所有ノードの解決に使うクラスをここで取得する。
-        from ..nodes.node import Node
+        from ..nodes.node import Node, _not_unique_message
 
         if isinstance(value, Plug):
             return value
@@ -2951,9 +2965,12 @@ class Plug(Object):
         try:
             selection.add(value)
         except RuntimeError as error:
+            matches = cmds.ls(value, long=True) or []
+            if len(matches) > 1:
+                raise RuntimeError(_not_unique_message(value, matches)) from error
             raise RuntimeError(f"Attribute does not exist: {value}") from error
         if selection.length() != 1:
-            raise RuntimeError(f"Attribute name matches multiple objects (use a unique name): {value}")
+            raise RuntimeError(_not_unique_message(value, cmds.ls(value, long=True) or [value]))
         try:
             mplug = selection.getPlug(0)
         except TypeError as error:

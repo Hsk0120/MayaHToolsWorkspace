@@ -663,6 +663,9 @@ class ModuleStub:
                     elif names is not None:
                         # スタブではimportした名前は __all__ に無いと公開扱いにならない。
                         body.append("__all__ = " + repr(names))
+                    elif isinstance(stmt.value, ast.Name) and stmt.value.id in defined:
+                        # 同じモジュールのクラス・関数の別名(MultDL = MultDoubleLinear 等)は別名のまま書き出す。
+                        body.append("%s = %s" % (target.id, stmt.value.id))
                     elif target.id != "__all__":
                         body.append("%s: %s" % (target.id, self._value_type(stmt.value)))
         head = [HEADER.rstrip("\n")] + self._docstring(self.tree, "")

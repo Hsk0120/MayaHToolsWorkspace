@@ -795,6 +795,41 @@ class Joints(Nodes):
                 joint._orient(flags)
             return self
 
+    def setRadius(self, value, *, fast=False):
+        """各jointへ保持順に :meth:`Joint.setRadius` を適用する。
+
+        Args:
+            value (float): :meth:`Joint.setRadius` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setRadius` と同じ。
+            ValueError: :meth:`Joint.setRadius` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setRadius", (value,), fast)
+        return self
+
+    def setSegmentScaleCompensate(self, state, *, fast=False):
+        """各jointへ保持順に :meth:`Joint.setSegmentScaleCompensate` を適用する。
+
+        Args:
+            state (bool): :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setSegmentScaleCompensate", (state,), fast)
+        return self
+
     def getSkinClusters(self):
         """全 joint に関連する skinCluster を取得する。
 
