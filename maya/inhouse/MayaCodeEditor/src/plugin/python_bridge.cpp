@@ -293,6 +293,10 @@ void startModuleScan() {
     bridge().moduleScanner.refresh(moduleNames().paths);
 }
 
+QJsonObject languageConfiguration() {
+    return QJsonDocument::fromJson(callFunction("maya_code_editor.bridge", "language_configuration")).object();
+}
+
 void initialize() {
     if (!state) {
         state = std::make_unique<BridgeState>();

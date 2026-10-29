@@ -27,8 +27,9 @@ public:
 
     /** @brief 構文チェックの結果を一覧にする。
      * @param result 結果。
+     * @param typeAware 型解析を含む結果か。
      */
-    void showResult(const AnalysisResult& result);
+    void showResult(const AnalysisResult& result, bool typeAware = false);
 };
 
 }  // namespace mce

@@ -11,9 +11,12 @@
 #include "core/completion_types.h"
 #include <QByteArray>
 #include <QString>
+#include <QJsonObject>
 
 namespace mce {
 namespace python {
+/** @brief MayaのPython版と検索パスを解析へ渡す。 @return 実行しない解析用の設定。 */
+QJsonObject languageConfiguration();
 
 /** @brief Pythonのコードを、Maya標準のPython実行経路で実行する。
  * @param source 実行するコード。

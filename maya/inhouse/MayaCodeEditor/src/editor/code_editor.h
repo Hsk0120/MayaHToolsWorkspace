@@ -14,6 +14,7 @@
 #include "editor/code_navigation.h"
 #include "editor/numbered_text_edit.h"
 #include <QList>
+#include <QJsonArray>
 #include <QPair>
 #include <QString>
 #include <QStringList>
@@ -95,6 +96,12 @@ public:
      *        一致するものが無ければ一覧を閉じる。
      */
     void showCompletions(const QList<CompletionItem>& items);
+    /// 外部解析が提供した編集を確定する。trueなら通常の単語置換は行わない。
+    std::function<bool(const QString&)> onExternalCompletionAccepted;
+    /** @brief 解析由来の本文変更を1回のUndoへまとめる。 @param text 新しい本文。 @param caret 確定後位置。 */
+    void applyLanguageText(const QString& text, int caret);
+    /** @brief 最新文書の色とヒントだけを表示する。 @param tokens 意味トークン。 @param hints 行末ヒント。 */
+    void setLanguageDecorations(const QJsonArray& tokens, const QJsonArray& hints);
     /** @brief 候補の一覧を閉じる。 */
     void hideCompletions();
     /** @brief 候補の一覧を出しているか。 @return 出していればtrue。 */

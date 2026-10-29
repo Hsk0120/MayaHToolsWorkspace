@@ -8,6 +8,8 @@
 #include "core/completion_types.h"
 #include "editor/editor.h"
 #include "editor/spelling.h"
+#include "editor/language_assist.h"
+#include <memory>
 #include <QHash>
 #include <QObject>
 #include <QPointer>
@@ -27,6 +29,9 @@ class CodeAssist : public QObject {
 public:
     /** @brief MainWindowから受け取る、画面の状態を調べる関数の一式。 */
     struct Context {
+        std::function<void(CodeEditor*)> ensureLoaded;       ///< 復元待ちタブの本文を読み込む。
+        std::function<CodeEditor*(const QString&)> openEditor;  ///< 外部ファイルを未保存編集用に開く。
+        std::function<void(CodeEditor*)> activateEditor;    ///< 開いているタブを選択する。
         std::function<CodeEditor*()> currentEditor;          ///< 選択中のタブのコード欄。
         std::function<QList<CodeEditor*>()> editors;         ///< 全てのタブのコード欄。
         std::function<void(const QString&, int)> showStatus; ///< ステータスバーへ文字を出す(文字, ミリ秒)。
@@ -82,6 +87,9 @@ public:
 
     /** @brief 補完の一覧で選んでいる候補の説明を、一覧の横に出す。 @param editor コード欄。 */
     void updateCompletionDetail(CodeEditor* editor);
+
+    /** @brief 型解析のメニュー入口。 @return 未設定環境ではnullptr。 */
+    LanguageAssist* language() const { return language_.get(); }
 
 private:
     /** @brief 名前の説明を求める。同じ本文・同じ位置なら前回の結果を使う(Pythonへ問い合わせ直さない)。
@@ -147,6 +155,7 @@ private:
         int end = -1;                 ///< 名前の終わりの位置。
         HoverInfo info;               ///< 結果。
     } hoverCache_;
+    std::unique_ptr<LanguageAssist> language_;  ///< タイマーと文書より先に解析接続を閉じる。
 };
 
 }  // namespace mce

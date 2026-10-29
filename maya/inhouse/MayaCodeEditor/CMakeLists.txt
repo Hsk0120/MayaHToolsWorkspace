@@ -100,6 +100,7 @@ add_custom_command(
 # editor/ : Qtの編集画面(Mayaに依存しない。mayaCodeEditor_ui_smokeでもそのまま使う)
 # plugin/ : Maya APIを使う部分(コマンド・出力の購読・ドック・メニュー)
 set(MCE_CORE_SOURCES
+    src/core/language_client.cpp src/core/language_client.h
     src/core/output_message.h
     src/core/code_outline.cpp src/core/code_outline.h
     src/core/completion_types.cpp src/core/completion_types.h
@@ -120,6 +121,7 @@ set(MCE_CORE_SOURCES
     src/core/text_search.cpp src/core/text_search.h
 )
 set(MCE_EDITOR_SOURCES
+    src/editor/language_assist.cpp src/editor/language_assist.h
     src/editor/editor.cpp src/editor/editor.h
     src/editor/main_window.cpp src/editor/main_window_menus.cpp src/editor/main_window.h
     src/editor/code_assist.cpp src/editor/code_assist.h

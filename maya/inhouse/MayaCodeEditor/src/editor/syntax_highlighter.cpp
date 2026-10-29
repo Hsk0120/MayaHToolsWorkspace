@@ -2,6 +2,7 @@
  * @brief SyntaxHighlighterの実装。
  */
 #include "editor/syntax_highlighter.h"
+#include <QJsonObject>
 #include "editor/code_navigation.h"
 #include <QTextBlock>
 #include "editor/theme.h"
@@ -115,6 +116,24 @@ void SyntaxHighlighter::highlightBlock(const QString& text) {
             previousWord = QStringView();
         }
     }
+    if (language_ == ScriptLanguage::Python) {
+        for (const auto& entry : semantic_.value(currentBlock().blockNumber())) {
+            const auto token = entry.toObject();
+            const QString type = token.value("type").toString();
+            QColor color;
+            if (type == "class" || type == "type" || type == "typeParameter") color = QColor("#4ec9b0");
+            else if (type == "function" || type == "method") color = QColor("#dcdcaa");
+            else if (type == "parameter" || type == "variable" || type == "property") color = QColor("#9cdcfe");
+            else if (type == "namespace") color = QColor("#4ec9b0");
+            if (color.isValid()) setFormat(token.value("column").toInt(), token.value("length").toInt(), color);
+        }
+    }
+}
+
+void SyntaxHighlighter::setSemanticTokens(const QJsonArray& tokens) {
+    semantic_.clear();
+    for (const auto& token : tokens) semantic_[token.toObject().value("line").toInt()].append(token);
+    rehighlight();
 }
 
 }  // namespace mce

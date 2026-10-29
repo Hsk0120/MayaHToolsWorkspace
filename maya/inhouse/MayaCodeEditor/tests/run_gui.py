@@ -16,7 +16,7 @@ if __name__ == '__main__':
     parser.add_argument('version', nargs='?', default='2027', choices=['2022', '2023', '2024', '2025', '2026', '2027'])
     parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('--shutdown-timeout', type=int, default=30)
-    parser.add_argument('--suite', choices=['recovery_failure_smoke.py', 'gui_smoke.py', 'completion_output_smoke.py', 'completion_scope_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py', 'vscode_features_smoke.py', 'perf_smoke.py', 'dock_resize_smoke.py', 'restore_order_smoke.py'], default='gui_smoke.py')
+    parser.add_argument('--suite', choices=['language_smoke.py', 'recovery_failure_smoke.py', 'gui_smoke.py', 'completion_output_smoke.py', 'completion_scope_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py', 'vscode_features_smoke.py', 'perf_smoke.py', 'dock_resize_smoke.py', 'restore_order_smoke.py'], default='gui_smoke.py')
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:
         parser.error('timeouts must be positive')
@@ -30,11 +30,11 @@ if __name__ == '__main__':
     result = run_version(args.version, directory,
                          Path('C:/Program Files/Autodesk'), args.timeout, shutdown_timeout=args.shutdown_timeout,
                          suite_path=PROJECT / 'tests' / args.suite,
-                         environment={'MAYA_MODULE_PATH': str(modules), 'MCE_TEST_COMMANDS': '1'})
+                         environment={'MAYA_MODULE_PATH': str(modules), 'MCE_TEST_COMMANDS': '1', 'MCE_PROJECT_ROOT': str(directory), 'MCE_LANGUAGE_TRACE': str(directory / 'language.jsonl')})
     # GUI処理の成功を、終了時の停止によって見失わない。終了異常は非ゼロで通知する。
     suite_path = directory / 'result.json'
     if suite_path.exists():
         result['suite'] = json.loads(suite_path.read_text(encoding='utf-8'))
     (directory / 'run-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
-    print(json.dumps(result, ensure_ascii=False, indent=2), flush=True)
+    print(json.dumps(result, ensure_ascii=True, indent=2), flush=True)
     sys.exit(0 if result['status'] == 'passed' else 1)

@@ -4,6 +4,8 @@
 #pragma once
 #include "core/script_lexer.h"
 #include <QSyntaxHighlighter>
+#include <QJsonArray>
+#include <QHash>
 
 namespace mce {
 
@@ -24,6 +26,8 @@ public:
      * @param mel trueならMEL、falseならPython。
      */
     void setMel(bool mel);
+    /** @brief 型解析の色範囲を置換する。 @param tokens 文書の最新範囲。 */
+    void setSemanticTokens(const QJsonArray& tokens);
 
 protected:
     /** @brief 1行を色分けする。Qtが行ごとに呼ぶ。
@@ -32,6 +36,7 @@ protected:
     void highlightBlock(const QString& text) override;
 
 private:
+    QHash<int, QJsonArray> semantic_;  ///< 行単位の色範囲。
     int nextPythonState_ = 1;  ///< 状態変更時だけ進め、後続行の再描画をQtへ通知する。
     ScriptLanguage language_ = ScriptLanguage::Python;  ///< 色分けする言語。
 };

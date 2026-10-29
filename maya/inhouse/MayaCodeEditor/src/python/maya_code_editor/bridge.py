@@ -11,8 +11,28 @@ import itertools
 import json
 import keyword
 import os
+from pathlib import Path
 import sys
 import types
+
+
+def language_configuration():
+    """型解析用の環境だけを返す。ユーザーコードは実行しない。
+
+    Returns:
+        str: 解析ルート・Python版・検索パスのJSON。
+    """
+    root = Path(os.environ.get("MCE_PROJECT_ROOT", os.getcwd())).resolve()
+    for parent in ([] if "MCE_PROJECT_ROOT" in os.environ else [root] + list(root.parents)):
+        if (parent / "pyrightconfig.json").is_file() or (parent / ".git").exists():
+            root = parent
+            break
+    executable = Path(sys.executable).parent / "mayapy.exe"
+    return json.dumps({"root": str(root), "python": {"pythonPath": str(executable)},
+                       "basedpyright": {"analysis": {
+                           "pythonVersion": "{}.{}".format(*sys.version_info[:2]),
+                           "extraPaths": [str(root)] + [str(Path(path).resolve()) for path in sys.path if path and Path(path).is_dir()],
+                           **({"stubPath": str(root / "typings")} if (root / "typings").is_dir() else {}), "autoSearchPaths": True}}})
 
 
 def safe_call(function, *args):

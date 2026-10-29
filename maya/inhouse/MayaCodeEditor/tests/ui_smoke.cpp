@@ -19,6 +19,7 @@
 #include "editor/edit_commands.h"
 #include "editor/editor.h"
 #include "editor/code_editor.h"
+#include "editor/language_assist.h"
 #include "editor/code_navigation.h"
 #include "editor/diff_dialog.h"
 #include "editor/hover_popup.h"
@@ -33,6 +34,7 @@
 #include <QTreeWidget>
 #include "editor/ui_scale.h"
 #include <QApplication>
+#include <QEventLoop>
 #include <algorithm>
 #include <functional>
 #include <QElapsedTimer>
@@ -1601,6 +1603,83 @@ bool corePerformancePasses(const QByteArray& config) {
     return ok;
 }
 
+/** @brief UTF-16編集の境界、重複拒否とUndoの保持を検査する。 @return 全ケース合格か。 */
+bool languageEditsPasses() {
+    const QString text = QString::fromUtf8("# 😀\nvalue = 1\n");
+    QString output;
+    const auto range = [](int a, int b) { return QJsonObject{{"start", QJsonObject{{"line", 1}, {"character", a}}}, {"end", QJsonObject{{"line", 1}, {"character", b}}}}; };
+    const QJsonArray valid{QJsonObject{{"range", range(0, 5)}, {"newText", "count"}}, QJsonObject{{"range", range(8, 9)}, {"newText", "42"}}};
+    if (!mce::LanguageAssist::editedText(text, valid, &output) || output != QString::fromUtf8("# 😀\ncount = 42\n")) return false;
+    if (mce::LanguageAssist::offset(text, {{"line", 0}, {"character", 4}}) != 4) return false;
+    if (mce::LanguageAssist::offset(text, {{"line", 1}, {"character", 40}}) != -1) return false;
+    if (mce::LanguageAssist::editedText(text, {QJsonObject{{"range", range(0, 5)}, {"newText", "x"}}, QJsonObject{{"range", range(3, 8)}, {"newText", "y"}}}, &output)) return false;
+    if (!mce::LanguageAssist::editedText(text, {QJsonObject{{"range", range(0, 0)}, {"newText", "prefix: "}}, QJsonObject{{"range", range(0, 5)}, {"newText", "count"}}}, &output)
+        || output != QString::fromUtf8("# 😀\nprefix: count = 1\n")) return false;
+    mce::CodeEditor editor;
+    editor.setPlainText(text);
+    editor.applyLanguageText(QString::fromUtf8("# 😀\ncount = 42\n"), 12);
+    editor.undo();
+    return editor.toPlainText() == text;
+}
+
+/** @brief 専用サーバーで取消・順序逆転・破損フレーム・破棄後の応答を検査する。 @return 全ケース合格か。 */
+bool languageClientPasses() {
+    QJsonObject installed;
+    const QByteArray oldConfig = qgetenv("MCE_LANGUAGE_SERVER_CONFIG");
+    const QString path = oldConfig.isEmpty() ? qEnvironmentVariable("LOCALAPPDATA") + "/MayaCodeEditor/language-server/server.json" : QString::fromUtf8(oldConfig);
+    if (!mce::readJsonFile(path, &installed) || !QFileInfo::exists(installed.value("node").toString())) {
+        qWarning() << "SKIP languageClient: optional Node runtime is not installed";
+        return true;
+    }
+    QTemporaryDir temporary;
+    QFile config(temporary.filePath("server.json"));
+    if (!config.open(QIODevice::WriteOnly)) return false;
+    config.write(QJsonDocument(QJsonObject{{"node", installed.value("node")}, {"server", QFileInfo(QString::fromUtf8(__FILE__)).dir().filePath("language_client_server.js")}}).toJson());
+    config.close();
+    qputenv("MCE_LANGUAGE_SERVER_CONFIG", config.fileName().toUtf8());
+    const auto wait = [](int milliseconds) {
+        QEventLoop loop;
+        QTimer::singleShot(milliseconds, &loop, &QEventLoop::quit);
+        loop.exec();
+    };
+    bool cancelled = false, afterDestroy = false, ok = true;
+    QStringList order;
+    {
+        mce::LanguageClient client;
+        client.start({{"root", temporary.path()}});
+        QElapsedTimer timer; timer.start();
+        while (!client.ready() && timer.elapsed() < 5000) wait(20);
+        ok = client.ready();
+        const int id = client.request("delayed", {{"value", "cancelled"}, {"delay", 100}}, [&](const QJsonValue&, const QString&) { cancelled = true; });
+        client.cancel(id);
+        client.request("delayed", {{"value", "late"}, {"delay", 250}}, [&](const QJsonValue& value, const QString&) { order.append(value.toString()); });
+        client.request("delayed", {{"value", "early"}, {"delay", 20}}, [&](const QJsonValue& value, const QString&) { order.append(value.toString()); });
+        wait(500);
+        ok = ok && !cancelled && order == QStringList{"early", "late"};
+        client.request("malformed", {}, {});
+        wait(200);
+        ok = ok && !client.ready();
+        client.start({{"root", temporary.path()}});
+        timer.restart();
+        while (!client.ready() && timer.elapsed() < 5000) wait(20);
+        ok = ok && client.ready();
+        client.request("delayed", {{"value", "disposed"}, {"delay", 100}}, [&](const QJsonValue&, const QString&) { afterDestroy = true; });
+    }
+    wait(200);
+    // コールバック内で所有画面が閉じられても、受信ループが破棄済み接続を触らない。
+    QPointer<mce::LanguageClient> closing = new mce::LanguageClient;
+    closing->start({{"root", temporary.path()}});
+    QElapsedTimer closingTimer; closingTimer.start();
+    while (!closing->ready() && closingTimer.elapsed() < 5000) wait(20);
+    closing->request("delayed", {{"value", "close"}, {"delay", 20}}, [&closing](const QJsonValue&, const QString&) { delete closing.data(); });
+    wait(250);
+    ok = ok && closing.isNull();
+    delete closing.data();
+    if (oldConfig.isEmpty()) qunsetenv("MCE_LANGUAGE_SERVER_CONFIG"); else qputenv("MCE_LANGUAGE_SERVER_CONFIG", oldConfig);
+    if (!ok || afterDestroy) qWarning() << "language client" << cancelled << order << afterDestroy;
+    return ok && !afterDestroy;
+}
+
 int main(int argc, char** argv) {
 #ifdef _WIN32
     // テストの障害は終了コードで監視し、ユーザーの画面にWERを残さない。
@@ -1616,6 +1695,8 @@ int main(int argc, char** argv) {
     // Maya無しで確かめられる部分。1件ずつ名前を表示し、失敗があれば画面の検査に進まずに終える。
     const int failed = runCases({
         {"history", historyPasses},
+        {"languageEdits", languageEditsPasses},
+        {"languageClient", languageClientPasses},
         {"moduleScan", moduleScanPasses},
         {"textSearch", textSearchPasses},
         {"sessionData", sessionDataPasses},

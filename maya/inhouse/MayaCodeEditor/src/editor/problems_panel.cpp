@@ -25,7 +25,7 @@ void ProblemsPanel::showWaiting() {
     addItem("Checking after typing stops…");
 }
 
-void ProblemsPanel::showResult(const AnalysisResult& result) {
+void ProblemsPanel::showResult(const AnalysisResult& result, bool typeAware) {
     clear();
     if (!result.skipped.isEmpty()) {
         addItem(result.skipped);
@@ -43,7 +43,7 @@ void ProblemsPanel::showResult(const AnalysisResult& result) {
         item->setForeground(QColor(diagnostic.severity == "error" ? theme::kDiagnosticError : theme::kDiagnosticWarning));
     }
     if (count() == 0) {
-        addItem("No problems found (syntax and undefined names only; type checking is not performed)");
+        addItem(typeAware ? "No problems found by type analysis" : "No problems found (syntax and undefined names only; type checking is not performed)");
     }
 }
 

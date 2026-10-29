@@ -278,8 +278,15 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     buildStatusBar();
     // 入力の補助。一覧とステータスバーの部品を使うので、それらを作った後に作る。
     CodeAssist::Context context;
+    context.openEditor = [this](const QString& path) -> CodeEditor* {
+        openFile(path);
+        const int index = tabs_->indexOfFile(QFileInfo(path).absoluteFilePath());
+        return index >= 0 ? tabs_->editorAt(index) : nullptr;
+    };
     context.currentEditor = [this] { return currentEditor(); };
+    context.activateEditor = [this](CodeEditor* editor) { tabs_->setCurrentWidget(editor); };
     context.editors = [this] { return tabs_->editors(); };
+    context.ensureLoaded = [this](CodeEditor* editor) { if (!restoring_) ensureLoaded(editor); };
     context.showStatus = [this](const QString& text, int timeout) { showStatus(text, timeout); };
     assist_ = std::make_unique<CodeAssist>(services_, preferences_, problems_, completionStatus_, context);
     // 保存済みの文字サイズを表示に反映する。値は変えていないので、preferences.jsonへは書かない。
@@ -1085,6 +1092,10 @@ void MainWindow::moveCursorTo(CodeEditor* editor, int line, int column, bool foc
 }
 
 void MainWindow::goToDefinition(CodeEditor* editor, int end, bool peek) {
+    if (assist_->language() && assist_->language()->ready()) {
+        assist_->language()->navigate(editor, false, peek);
+        return;
+    }
     if (!editor || editor->isMel() || !services_.definition) {
         return;
     }

@@ -5,6 +5,9 @@
  * 畳んだ見出しはQTextCursorで覚えるので、上の行を編集しても見出しの位置に追従する。
  */
 #include "editor/code_editor.h"
+#include "editor/syntax_highlighter.h"
+#include <QJsonObject>
+#include <QSignalBlocker>
 #include "editor/code_navigation.h"
 #include "editor/hover_popup.h"
 #include "editor/marker_scroll_bar.h"
@@ -1077,6 +1080,29 @@ void CodeEditor::updateActiveGuide(int firstLine, int lastLine) {
 
 void CodeEditor::paintEvent(QPaintEvent* event) {
     NumberedTextEdit::paintEvent(event);
+    const auto hints = property("languageHints").toJsonArray();
+    if (!hints.isEmpty()) {
+        QPainter hintPainter(viewport());
+        hintPainter.setPen(QColor("#9a9a9a"));
+        QHash<int, QStringList> lines;
+        for (const auto& entry : hints) {
+            const auto hint = entry.toObject();
+            QString label;
+            const auto value = hint.value("label");
+            if (value.isString()) label = value.toString();
+            else for (const auto& part : value.toArray()) label += part.toObject().value("value").toString();
+            lines[hint.value("position").toObject().value("line").toInt()].append(label);
+        }
+        for (auto it = lines.begin(); it != lines.end(); ++it) {
+            const auto block = document()->findBlockByNumber(it.key());
+            if (!block.isValid() || !block.isVisible()) continue;
+            QTextCursor cursor(block); cursor.movePosition(QTextCursor::EndOfBlock);
+            const QRect rect = cursorRect(cursor);
+            if (rect.bottom() < 0 || rect.top() > viewport()->height()) continue;
+            hintPainter.drawText(rect.right() + fontMetrics().horizontalAdvance(' ') * 3,
+                                 rect.top() + fontMetrics().ascent(), it.value().join("  ·  "));
+        }
+    }
     // 色は描くたびに文字列から作らない(カーソルの点滅でも描き直しは来る)。staticに持つのは値の型の色(QColor)だけ。
     static const QColor guideColor(theme::kIndentGuide);
     static const QColor activeGuideColor(theme::kIndentGuideActive);
@@ -1167,6 +1193,14 @@ void CodeEditor::paintEvent(QPaintEvent* event) {
             painter.drawText(box, Qt::AlignCenter, QString(QChar(0x22EF)));
         }
     }
+}
+
+void CodeEditor::setLanguageDecorations(const QJsonArray& tokens, const QJsonArray& hints) {
+    if (property("languageTokens").toJsonArray() == tokens && property("languageHints").toJsonArray() == hints) return;
+    const QSignalBlocker blocker(this);  // 色の再描画を本文編集として通知しない。
+    setProperty("languageTokens", tokens); setProperty("languageHints", hints);
+    highlighter_->setSemanticTokens(tokens);
+    viewport()->update();
 }
 
 void CodeEditor::resizeEvent(QResizeEvent* event) {

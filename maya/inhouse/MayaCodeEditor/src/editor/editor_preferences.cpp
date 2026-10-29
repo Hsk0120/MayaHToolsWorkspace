@@ -14,6 +14,9 @@ namespace mce {
 const QList<OptionDefinition>& optionDefinitions() {
     // メニューに並ぶ順番。separatorBeforeがtrueの項目の前に区切り線が入る。
     static const QList<OptionDefinition> options = {
+        {"autoImports", "Suggest auto imports", false},
+        {"semanticColors", "Type-aware colors", true},
+        {"inlayHints", "Type and argument hints (line end)", false},
         {option::kCompleteLetters, "Completion while typing", true},
         {option::kCompleteDot, "Completion after dot", true},
         {option::kIncludeKeywords, "Include Python keywords", true},

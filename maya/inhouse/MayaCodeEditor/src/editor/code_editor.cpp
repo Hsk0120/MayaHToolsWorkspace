@@ -491,6 +491,7 @@ void CodeEditor::hideCompletions() {
 }
 
 void CodeEditor::insertCompletion(const QString& value) {
+    if (onExternalCompletionAccepted && onExternalCompletionAccepted(value)) return;
     insertingCompletion_ = true;
     QTextCursor cursor = textCursor();
     // 入力途中の名前を選択して、選んだ名前で置き換える。
@@ -506,6 +507,23 @@ void CodeEditor::insertCompletion(const QString& value) {
     hideCompletions();
     // 一覧(別のウィンドウ)が閉じた後も、入力を続けられるようにコード欄へフォーカスを戻す。
     setFocus(Qt::OtherFocusReason);
+}
+
+void CodeEditor::applyLanguageText(const QString& text, int caret) {
+    insertingCompletion_ = true;
+    // 共通の先頭/末尾を残し、カーソル・折り畳み・Undo履歴の変化を必要な範囲に留める。
+    const QString before = toPlainText();
+    int start = 0;
+    while (start < before.size() && start < text.size() && before[start] == text[start]) ++start;
+    int suffix = 0;
+    while (suffix < before.size() - start && suffix < text.size() - start
+           && before[before.size() - 1 - suffix] == text[text.size() - 1 - suffix]) ++suffix;
+    QTextCursor cursor(document()); cursor.beginEditBlock(); cursor.setPosition(start);
+    cursor.setPosition(int(before.size()) - suffix, QTextCursor::KeepAnchor);
+    cursor.insertText(text.mid(start, int(text.size()) - start - suffix)); cursor.endEditBlock();
+    cursor.setPosition(qBound(0, caret, int(text.size()))); setTextCursor(cursor);
+    insertingCompletion_ = false;
+    hideCompletions();
 }
 
 void CodeEditor::checkSpelling(Spelling& spelling) {
