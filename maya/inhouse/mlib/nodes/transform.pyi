@@ -9,7 +9,7 @@ from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable
 from ..core.nodeEdit import require_editable
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, nativeUnits, undoChunk, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _transform_argument_hints, nativeUnits, undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
@@ -73,6 +73,17 @@ def _closest_euler(quaternion: om2.MQuaternion, reference: om2.MEulerRotation) -
     Returns:
         om2.MEulerRotation: reference と同じ回転順序の、reference に最も近い解
         (``MEulerRotation.closestSolution``。360 度の周期と、中間軸を反転した別解を考慮する)。
+    """
+    ...
+
+def _unwritable_channel_message(plug: Plug) -> str | None:
+    """ロック・入力接続された子を含むチャンネルへの書込み失敗を、原因の子を示す文言にする。
+
+    Args:
+        plug (Plug): 書込みに失敗したtranslate・rotate等のコンパウンドアトリビュート。
+
+    Returns:
+        str | None: 例外の文言。書込みを妨げる子(または自身)が見つからなければNone。
     """
     ...
 
@@ -193,32 +204,6 @@ class Transform(DagNode):
             RuntimeError: 保持していた DAG パスが無効な場合。
         """
         ...
-    def resetAttrs(self, attributes: str | Iterable[str] | None = ..., *, fast: bool = ...) -> list[Plug]:
-        """指定アトリビュートを定義上の既定値へ戻す。省略時は translate・rotate・scale・shear。
-
-        :meth:`Node.resetAttrs` の override。省略時の既定(キー設定可能な全アトリビュート)を
-        TRS とシアーの 4 チャンネルに置き換える。明示指定時の扱いは Node と同じ。
-
-        Args:
-            attributes (str | Iterable[str] | None): tx/translateX/translateなど。
-                省略時はtranslate・rotate・scale・shear。ロック・入力接続のある子は除外し、除外のある
-                コンパウンドアトリビュートだけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            list[Plug]: リセットしたアトリビュート(指定順)。
-
-        Raises:
-            TypeError: 名前が文字列でない、fastがbool以外、または既定値を扱えない型の場合。
-            AttributeError: 指定アトリビュートが存在しない場合。
-            RuntimeError: 明示指定したアトリビュートがロックや入力接続などで変更できない場合。
-
-        Note:
-            フリーズではなく値を戻す操作なので姿勢は変わる。jointOrient・ピボット・
-            offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
-            行わない。途中の失敗は例外とし、完了済みの変更は通常Undoで戻せる。
-        """
-        ...
     def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ...) -> Transform:
         """直下の非中間Shapeの頂点・CVを拡縮する。Transformのマトリクスは変更しない。
 
@@ -304,10 +289,12 @@ class Transform(DagNode):
                 されている場合(通常・fastとも更新前に検査する)、またはMayaが更新を拒否した場合。
         """
         ...
-    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ...) -> list[DagNode]:
+    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[DagNode]:
         """指定条件に合う直接の子、または子孫を取得する。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(派生型を含む。例 ``type="joint"``)。
+                規則は :meth:`~mlib.nodes.dagNode.DagNode.getChildren` と同じ。
             shapes (bool): TrueはShapeも含める。既定FalseはTransformのみ。
             intermediates (bool): Trueは中間オブジェクトも含める。
             allDescendents (bool): Trueは子孫全体。既定は直接の子だけ。
@@ -531,9 +518,10 @@ class Transform(DagNode):
                 safe/fastによらず計算だけ行い、書込み可否やsafe適用後の結果は検証しない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
+            TypeError: fastがbool以外、または ``space=``・``ws=`` を指定した場合(``worldSpace=True`` を案内する)。
             ValueError: マトリクスが不正・分解不能、またはワールド指定時に親側のマトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
+            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合(ロック・入力接続された成分と
+                ``safe=True`` を案内する)。
         """
         ...
     def getTranslate(self, worldSpace: bool = ..., at: int = ...) -> Translate:
@@ -566,6 +554,12 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueはcm単位の独立したXYZ3成分のlist。
                 safe指定時も書込み可否を反映した最終結果の予測ではない。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
+                案内する)、または ``setTranslate(1, 2, 3)`` のように成分を分けて渡した場合。
+            RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
+                (原因の成分と ``safe=True`` を案内する)。
         """
         ...
     def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., unit: str | None = ...) -> EulerRotate | tuple[float, float, float]:
@@ -626,10 +620,12 @@ class Transform(DagNode):
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外、またはunitが文字列以外の場合。
+            TypeError: fastがbool以外、unitが文字列以外、``space=``・``ws=`` を指定した場合
+                (``worldSpace=True`` を案内する)、または成分を分けて渡した場合。
             ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
                 または必要な親マトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合(ロック・入力接続された
+                成分と ``safe=True`` を案内する)。
         """
         ...
     def getScale(self, worldSpace: bool = ...) -> Scale:

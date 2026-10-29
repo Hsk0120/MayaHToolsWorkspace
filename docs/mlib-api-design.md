@@ -71,7 +71,8 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   (`isType(nodeType)`・`getNodeName(removeNamespace)`・`SkinCluster.bind(maxInfluences)`・`removeInfluence(transferToParent)`・
   `getClosestAxisToVector(refVector, includeNegative)` 等)。旧引数名の互換は残さず、
   旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
-  既存の通知契約・登録プロトコル(`logger.raise_with_notify`・`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
+  既存の登録プロトコル(`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
+  5.0.0でログの公開関数もlowerCamelCaseへ改名した(`logger.getLogger`・`logger.raiseWithNotify`。旧名の別名は残さない)。
   公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。対応表は `maya/inhouse/mlib/_docs/source/changelog.rst` の2.1.0に置く。
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
@@ -132,7 +133,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 - メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
 - Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
 - om2から継承・オーバーライドする名前、`__init__`等のPython特殊メソッド、`dump`/`loads`等の標準APIは維持する。
-  ログの`get_logger`・`raise_with_notify`は既存の通知契約として例外にする。
+  ログの公開関数も5.0.0からlowerCamelCase(`getLogger`・`raiseWithNotify`)とし、例外にしない。
 - JSONの保存キー・データクラスの保存フィールド・外部形式・パッケージ名・テスト探索名は、公開メソッドの改名に巻き込まない。
 - 旧名の互換別名は残さない。内製使用側・テスト・ドキュメントを同時に更新し、`mlib.reload()`後も廃止名を公開しない。
 - Maya照会はメソッド、保持値はプロパティ。シーン編集は明示的なメソッドにする。
@@ -166,8 +167,10 @@ dataclassフィールド・TYPE_CHECKING下の保持値・補完に必要な `No
 
 通常の入力検証と下位処理の失敗は、対応する型の `raise` で呼出し側へ渡す。
 捕捉して戻り値・検証結果・診断へ変換する失敗に画面通知を追加しない。
-利用者へ通知して中断する入口では `logger.raise_with_notify` を使う。
-既存のNode名解決失敗の通知を含め、個別の例外型・通知契約は維持する。
+利用者へ通知して中断するツール側の入口では `logger.raiseWithNotify` を使う。
+mlib本体は例外を送出するだけで、同じ内容を `logger.error` で重ねて表示しない(5.0.0でNode名解決失敗の通知も外した)。
+Script Editorのエラー表示は、mlib内部のフレームを省いて利用者がmlibを呼んだ行を示す
+(`maya.utils.formatGuiException` を包む。環境変数 `MLIB_FULL_TRACEBACK=1` で省略しない)。例外オブジェクトのトレースバック自体は変更しない。
 `logger.error` は通知のみで例外を送出しない。復旧の二次失敗は必要時にwarningとし、元例外を優先する。
 広いexceptは拡張単位の隔離・後始末・再送出などの境界に限定し、通常の検証では具体的な例外を扱う。
 
@@ -550,9 +553,11 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - シーン編集用のproperty setterは追加しない。`mlib.maths` の数学型はom2の型を継承した可変の値型なので、ローカル値を更新するsetter(`vector.x = 1.0`、`matrix.translate = (...)` など)を使用できる。これは値の更新で、シーンは変更しない。
 - データクラスの保存フィールドは、そのまま公開してよい。保存フィールドを無意味なgetterで包む必要はない。
 
-`node.tx` はアトリビュート名を解決して `Plug` を取得する既存の省略アクセスであり、Pythonの値プロパティではない。
-正式な取得入口は `node.getPlug("tx")` とし、値は `.get()` / `.set()` で扱う。
-`node.tx = 10` をMayaへの書き込みとして実装・案内しない。
+`node.tx` はアトリビュート名を解決して `Plug` を取得する省略アクセスである。正式な取得入口は `node.getPlug("tx")`。
+5.0.0から `node.tx = 10` は `node.getPlug("tx").set(10)` と同じ書込みになる(PyMELと同じ。Undoに記録し、角度は度)。
+`_` で始まる名前とクラスに定義された名前(メソッド・プロパティ・クラス属性)は通常のPythonの代入のままで、
+Mayaアトリビュートの無い名前はAttributeErrorにする(Nodeのインスタンスへ任意のPython属性を追加しない。
+保持したい値はクラスで宣言する)。これは「シーン編集用のproperty setterは追加しない」の例外として扱う。
 
 ## maya.cmds との受け渡し
 

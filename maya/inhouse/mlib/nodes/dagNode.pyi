@@ -4,14 +4,30 @@
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
+from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _require_bool, undoTransaction
 from ..util import _finite_vector, _world_space
 from .node import Node
-from typing import Sequence
+from typing import Iterable, Sequence
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.skinCluster import SkinCluster
 
 _MAX_COLOR_INDEX: int
+
+def _type_filter(value: str | Iterable[str] | None) -> tuple[str, ...]:
+    """getChildren(type=) の指定を型名のtupleへ正規化する。
+
+    Args:
+        value (str | Iterable[str] | None): ノード型名、その列、またはNone。
+
+    Returns:
+        tuple[str, ...]: 型名。Noneは空。
+
+    Raises:
+        TypeError: 文字列・文字列の列・None以外の場合。
+        ValueError: 空文字列を含む場合。
+    """
+    ...
 
 
 class DagNode(Node):
@@ -175,12 +191,16 @@ class DagNode(Node):
             RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。
         """
         ...
-    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ...) -> list[DagNode]:
+    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[DagNode]:
         """保持パスに沿って子・子孫を列挙する。同じノードの別パスも残す。
 
         子パスを継ぎ足して探索し、名前から再解決しない。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(``cmds.listRelatives(type=)``
+                と同じく派生型を含む。:meth:`~mlib.nodes.node.Node.isType` で判定)。探索自体は絞らないため、
+                ``allDescendents=True`` では型の違う子の下も探す。Shapeの型(``"mesh"`` 等)を指定した場合は
+                shapes=Falseでも Shape を含めて探す。``multDoubleLinear``/``multDL`` のような版の互換名も使える。
             shapes (bool): Shapeも含める。既定はTransformのみ。
             intermediates (bool): 中間オブジェクトを含める。除外した子の下は探索しない。
             allDescendents (bool): Trueは子孫全体、Falseは直接の子だけ。
@@ -194,8 +214,9 @@ class DagNode(Node):
             list[DagNode]: 探索順の参照。対象なし、またはノード自体が無効なら空リスト。
 
         Raises:
-            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない場合。
-            ValueError: 探索順が不正、またはleavesとshapesを併用した場合。
+            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない、またはtypeが
+                文字列・文字列の列・None以外の場合。
+            ValueError: 探索順が不正、leavesとshapesを併用した、またはtypeが空文字列の場合。
             RuntimeError: ノードは有効だが保持するDAGパスが無効な場合。
         """
         ...
@@ -342,6 +363,22 @@ class DagNode(Node):
         Note:
             ビューポートのvisibilityは変更しない。表示の最終結果は各Outlinerの
             フィルターや非表示ノード表示設定にも依存する。
+        """
+        ...
+    def _collect_children(self, shapes: bool, intermediates: bool, all_descendents: bool, order: str, leaves: bool, include_self: bool, under_world: bool) -> list[DagNode]:
+        """検証済みの条件で子・子孫を探索する(:meth:`getChildren` の本体)。
+
+        Args:
+            shapes (bool): Shapeも含める。
+            intermediates (bool): 中間オブジェクトを含める。
+            all_descendents (bool): 子孫全体を探す。
+            order (str): depthFirstまたはbreadthFirst。
+            leaves (bool): 子Transformを持たないTransformだけを返す。
+            include_self (bool): 自身も判定する。
+            under_world (bool): アンダーワールドも探す。
+
+        Returns:
+            list[DagNode]: 探索順の参照。
         """
         ...
     def _color_targets(self) -> list[DagNode]:

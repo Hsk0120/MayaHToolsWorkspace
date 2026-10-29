@@ -42,7 +42,7 @@ try:
         extension = importlib.import_module(name + "_bifrost")
         assert name not in sys.modules  # 拡張の先行importではコアを読まない。
         core = importlib.import_module(name)
-        assert core.logger.get_logger().name == name
+        assert core.logger.getLogger().name == name
         states = core.core.extensions.status()
         assert states[name + "_bifrost"]["state"] in ("loaded", "unavailable"), states
         assert states[name + "_posedriverconnect"]["state"] == "loaded", states

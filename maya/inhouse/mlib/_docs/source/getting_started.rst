@@ -56,12 +56,34 @@ mlib入門
 
 ``createNode`` は作成した型に対応するラッパーを返します。
 既存ノードは ``mlib.ls("ノード名やパターン")`` で検索でき、完全DAGパスも指定できます。
+
+:meth:`~mlib.nodes.node.Node.getName` はMayaコマンドへ渡せる最短の一意な名前で、別の階層に同じ短い名前の
+ノードがあると ``grp1|ctrl`` のような部分パスになります。新しい名前を組み立てる(接尾辞を付け替える)ときは、
+DAGパスを含まない :meth:`~mlib.nodes.node.Node.getNodeName` を使います。ノード名に ``|`` は使えず、
+``createNode(name=...)``・``rename()`` はValueErrorにします(Mayaは黙って別の文字へ置き換えるため)。
+
+.. code-block:: python
+
+   joint = mlib.getNode("L_arm_JNT")
+   ctrl = mlib.createNode("transform", name=joint.getNodeName().replace("_JNT", "_CTRL"))
+
+名前の取得は呼び出すたびにMayaへ問い合わせます。保持したノードを削除した場合や、作成をUndoで
+取り消した場合は参照が無効になり、``getName()``・``getNodeName()`` はRuntimeErrorになります
+(``isValid()`` で確かめられます。``str(node)`` だけは ``maya.cmds`` へ渡せるよう空文字列を返します)。
+Redoで戻したノードを使う場合も、``mlib.getNode`` などで取得し直してください。
+
+mlibが送出した例外は、Script Editorでは利用者がmlibを呼んだ行(``file ... line N``)で表示されます
+(mlib内部のフレームを省きます)。内部の位置まで確かめる場合は、環境変数 ``MLIB_FULL_TRACEBACK=1`` を設定します。
+存在しないメソッドの名前を使うと、近い名前やmlibでの書き方(``getAttr`` なら ``getPlug(name).get()``)を
+案内するAttributeErrorになります。
 ``ls`` は通常ラッパーのリストを返し、``type="joint"``・``type="skinCluster"`` の場合は
 それぞれ ``Joints``・``SkinClusters`` を返します。
 
 アトリビュートは :meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` の ``get()``・``set()`` で読み書きします。
-``node.tx`` もPlugを返しますが、代入ではなく ``node.tx.set(10)`` で値を変更します。
+``node.tx`` もPlugを返し、``node.tx = 10`` は ``node.getPlug("tx").set(10)`` と同じ書込みになります
+(Undoに記録され、角度は度。``node.t = (1, 2, 3)`` も同じです)。Mayaアトリビュートの無い名前への代入は
+AttributeErrorになり、ノードへ任意のPython属性は追加できません。
 
 値の単位は距離cm・時刻秒を基本とし、角度の数値は度で扱います(5.0.0以降)。
 ``node.getPlug("rotateX").set(90)`` は90度、``get()`` も度を返します。ラジアンで扱う場合は
@@ -198,12 +220,16 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 詳細は :func:`~mlib.cmds.createNode.createNode` を参照してください。
 
 複数形(``Joints``・``SkinClusters`` 等)は、重複を除いたノード参照を保持順に持つ容器です。
-各要素への操作は、単数のメソッドを ``for`` で呼びます。
+よく使う書込み(``setAttrFlags``・``resetAttrs``・``setLocked``・``setColor``・``setVisibility``・
+``show``・``hide``・``setParent``、``Joints`` では ``setRadius``・``setSegmentScaleCompensate`` も)は
+容器から全要素へまとめて適用でき、1回のUndoで戻ります。それ以外の操作は単数のメソッドを ``for`` で呼びます。
 
 .. code-block:: python
 
-   for joint in mlib.ls(type="joint"):
-       joint.setRadius(1)
+   joints = mlib.ls(type="joint")
+   joints.setRadius(1)
+   for joint in joints:
+       print(joint.getNodeName(), joint.getDepth())
 
 .. _dynamic-node-classes:
 

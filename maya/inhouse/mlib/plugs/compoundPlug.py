@@ -4,6 +4,7 @@ import maya.api.OpenMaya as om2
 
 from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, attributeType, value_reader
 from ..core.fastWrite import set_attr, set_plug
+from ..core.object import _missing_member_message
 from ..decorator import _require_bool
 from .plug import Plug
 
@@ -38,7 +39,7 @@ class CompoundPlug(Plug):
         try:
             return self[name]
         except (AttributeError, TypeError, RuntimeError) as error:
-            raise AttributeError(f"No plug member named {name!r}") from error
+            raise AttributeError(_missing_member_message(self, name, "method or child attribute")) from error
 
     def __getitem__(self, nameOrIndex):
         """コンパウンドアトリビュートの直接の子を、定義順の番号または子名で参照する。

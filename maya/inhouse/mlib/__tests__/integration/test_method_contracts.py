@@ -73,7 +73,7 @@ class MethodContractTest(unittest.TestCase):
         self.assertEqual(cmds.ls(selection=True), [str(self.node)])
 
     def test_removed_names_and_bulk_api(self):
-        """リロード後も互換入口を公開せず、複数形も一括転送を持たない。"""
+        """リロード後も互換入口を公開しない。複数形は5.0.0で決めた書込みだけを一括適用する。"""
         from mlib.nodes.node import Node
         from mlib.nodes.transform import Transform
         from mlib.nodes.skinCluster import SkinCluster, SkinClusters
@@ -86,9 +86,11 @@ class MethodContractTest(unittest.TestCase):
                            (MatrixPlug, ('set_value',))):
             for name in names:
                 self.assertFalse(hasattr(cls, name), (cls, name))
-        # 3.0.0 で複数形の一括転送は廃止した。
-        self.assertFalse(hasattr(Joints, 'setVisibility'))
-        self.assertFalse(hasattr(Joints, 'hide'))
+        # 3.0.0 で複数形の一括転送は廃止し、5.0.0 で明示した書込み(setVisibility・hide等)だけを戻した。
+        self.assertTrue(hasattr(Joints, 'setVisibility'))
+        self.assertTrue(hasattr(Joints, 'hide'))
+        self.assertFalse(hasattr(Joints, 'setTranslate'))
+        self.assertFalse(hasattr(Joints, 'getVisibility'))
 
     def test_joint_channels_round_trip_in_both_backends_and_units(self):
         """jointOrient・親スケールを持つJointもアトリビュート値の往復で姿勢を変えない。"""

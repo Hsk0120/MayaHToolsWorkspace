@@ -255,7 +255,7 @@ class SetWeightsTest(_SkinCase):
         self.flushUndo()
         self.skin.setWeights([self.joints[1]], [0.7, 0.1], vertices=[3, 8], normalize=True)
         after = self.rows()
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterSetWeights")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib setWeights( |$)")
         self.assertUndoesInOneStep(lambda: self.assertRowsAlmostEqual(self.rows(), before),
                                    lambda: self.assertRowsAlmostEqual(self.rows(), after))
         self.flushUndo()
@@ -315,7 +315,7 @@ class VertexWeightsTest(_SkinCase):
         self.flushUndo()
         self.skin.setVertexWeights(2, {j0: 0.9})
         after = self.row(2)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterSetVertexWeights")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib setVertexWeights( |$)")
         self.assertUndoesInOneStep(lambda: self.assertSequenceAlmostEqual(self.row(2), before),
                                    lambda: self.assertSequenceAlmostEqual(self.row(2), after))
         self.flushUndo()
@@ -360,7 +360,7 @@ class PruneWeightsTest(_SkinCase):
                 self.assertIs(self.skin.pruneWeights(threshold), self.skin)
                 self.assertRowsAlmostEqual(self.rows(), expected)
                 if self.rows() != before:
-                    self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterPruneWeights")
+                    self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib pruneWeights( |$)")
                     self.assertUndoesInOneStep(lambda: self.assertRowsAlmostEqual(self.rows(), before),
                                                lambda: self.assertRowsAlmostEqual(self.rows(), expected))
                 else:
@@ -429,7 +429,7 @@ class MirrorWeightsTest(NamespaceCase):
         self.assertIs(self.skin.mirrorWeights(), self.skin)
         for index in self.minus:
             self.assertSequenceAlmostEqual(self.row(index), [0.0, 0.0, 1.0], places=6)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterMirrorWeights")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib mirrorWeights( |$)")
         cmds.undo()
         self.assertEqual([self.row(i) for i in self.minus], before)
 
@@ -499,7 +499,7 @@ class CopyWeightsToGeometryTest(NamespaceCase):
                 self.assertEqual(result.getMaxInfluences(), 2)
                 self.assertSequenceAlmostEqual(self.weights(result, 5), [1.0, 0.0], places=6)
                 self.assertSequenceAlmostEqual(self.weights(result, 45), [0.0, 1.0], places=6)
-                self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterCopyWeightsTo")
+                self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib copyWeightsTo( |$)")
                 cmds.undo()
                 self.assertFalse(Node(self.target).getSkinClusters())
                 self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))

@@ -12,7 +12,7 @@ from ..core.attributeType import attributeType, is_internal_data_type, value_rea
 from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit
 from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
-from ..core.object import Object
+from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError
 from typing import Any, Callable, ContextManager, Iterable, Iterator, Literal
@@ -215,6 +215,17 @@ class Plug(Object):
         Raises:
             TypeError: dst が未対応の型の場合。
             RuntimeError: 自身から dst への接続が無い、または無効な Plug の場合。
+        """
+        ...
+    def __getattr__(self, name: str):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Plug' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
         """
         ...
     def getNode(self) -> Node:
@@ -1743,6 +1754,5 @@ class Plug(Object):
             Node: 所有ノードの型登録に従って解決したラッパー。
         """
         ...
-    def __getattr__(self, name: str) -> Any: ...
     def __getitem__(self, key: int | str) -> Plug: ...
     def __iter__(self) -> Iterator[Plug]: ...

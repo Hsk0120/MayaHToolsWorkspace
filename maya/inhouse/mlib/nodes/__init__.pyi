@@ -19,8 +19,7 @@ from ..core.registry import _node_type_exists
 from .node import Node, Nodes
 from .shape import Shape
 from .transform import Transform
-from .addDL import AddDL
-from .addDoubleLinear import AddDoubleLinear
+from .addDoubleLinear import AddDL, AddDoubleLinear
 from .aimConstraint import AimConstraint
 from .animCurve import AnimCurve
 from .animCurveTA import AnimCurveTA
@@ -52,8 +51,7 @@ from .joint import Joint, Joints
 from .lambert import Lambert
 from .locator import Locator
 from .mesh import Mesh
-from .multDL import MultDL
-from .multDoubleLinear import MultDoubleLinear
+from .multDoubleLinear import MultDL, MultDoubleLinear
 from .multiplyDivide import MultiplyDivide
 from .normalConstraint import NormalConstraint
 from .nurbsCurve import NurbsCurve

@@ -37,6 +37,8 @@ class SkinCluster(Node):
     _MIRROR_PLANES: tuple
     _SURFACE_ASSOCIATIONS: tuple
     _INFLUENCE_ASSOCIATIONS: tuple
+    mesh: None
+    mesh_path: None
     def __init__(self, skinCluster: str | om2.MObject | om2.MDagPath) -> None:
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
 
@@ -990,8 +992,6 @@ class SkinCluster(Node):
             RuntimeError: _has_layer_plugs() が True の場合。
         """
         ...
-    mesh: Any
-    mesh_path: Any
 
 
 class SkinClusters(Nodes):

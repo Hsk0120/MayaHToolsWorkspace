@@ -39,11 +39,7 @@ class ConsolidatedCalculationTests(unittest.TestCase):
             with self.subTest(node_type=node_type):
                 cls = getattr(mlib.nodes, class_name)
                 self.assertIs(mlib.nodes._WRAPPER_CLASSES[node_type], cls)
-                if node_type not in (cmds.allNodeTypes() or []) and node_type.endswith("DL"):
-                    # 旧Maya(addDL等の無い版)では、未知の型名をunknownノードにせず作成前に拒否する。
-                    with self.assertRaisesRegex(RuntimeError, "Unknown Maya nodeType"):
-                        mlib.createNode(node_type)
-                    continue
+                # 5.0.0から2026の改名(addDoubleLinear→addDL等)の両方の名前を全版で作成できる。
                 node = mlib.createNode(node_type)
                 # MayaはaddDoubleLinear等を新しい派生nodeTypeへ正規化する版がある。
                 actual_type = cmds.nodeType(node.getFullName())

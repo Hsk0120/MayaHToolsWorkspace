@@ -4,7 +4,7 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from ..core.object import Object
+from ..core.object import Object, _missing_member_message
 
 
 #: Components の repr に表示する、範囲へまとめた名前の最大数。
@@ -44,6 +44,20 @@ class Component(Object):
             raise TypeError("Component index must be an integer, not bool")
         self._index = operator.index(index)
         self._require_valid()
+
+    def __getattr__(self, name):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Vertex' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        raise AttributeError(_missing_member_message(self, name))
 
     def __eq__(self, other):
         """同じシェイプのインスタンス・種類・番号を指すか比較する。

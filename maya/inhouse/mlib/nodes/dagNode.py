@@ -4,12 +4,36 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
+from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _require_bool, undoTransaction
 from ..util import _finite_vector, _world_space
 from .node import Node
 
 #: 描画のオーバーライドで指定できるカラーインデックスの上限(0〜31)。
 _MAX_COLOR_INDEX = 31
+
+
+def _type_filter(value):
+    """getChildren(type=) の指定を型名のtupleへ正規化する。
+
+    Args:
+        value (str | Iterable[str] | None): ノード型名、その列、またはNone。
+
+    Returns:
+        tuple[str, ...]: 型名。Noneは空。
+
+    Raises:
+        TypeError: 文字列・文字列の列・None以外の場合。
+        ValueError: 空文字列を含む場合。
+    """
+    if value is None:
+        return ()
+    names = (value,) if isinstance(value, str) else tuple(value) if isinstance(value, (list, tuple)) else None
+    if names is None or not all(isinstance(name, str) for name in names):
+        raise TypeError("type must be a node type name, a sequence of names, or None")
+    if not all(names):
+        raise ValueError("type must not contain an empty node type name")
+    return names
 
 
 class DagNode(Node):
@@ -268,12 +292,16 @@ class DagNode(Node):
         return Node._wrap_dag_path(path)
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
-                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
+                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False, type=None):
         """保持パスに沿って子・子孫を列挙する。同じノードの別パスも残す。
 
         子パスを継ぎ足して探索し、名前から再解決しない。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(``cmds.listRelatives(type=)``
+                と同じく派生型を含む。:meth:`~mlib.nodes.node.Node.isType` で判定)。探索自体は絞らないため、
+                ``allDescendents=True`` では型の違う子の下も探す。Shapeの型(``"mesh"`` 等)を指定した場合は
+                shapes=Falseでも Shape を含めて探す。``multDoubleLinear``/``multDL`` のような版の互換名も使える。
             shapes (bool): Shapeも含める。既定はTransformのみ。
             intermediates (bool): 中間オブジェクトを含める。除外した子の下は探索しない。
             allDescendents (bool): Trueは子孫全体、Falseは直接の子だけ。
@@ -287,8 +315,9 @@ class DagNode(Node):
             list[DagNode]: 探索順の参照。対象なし、またはノード自体が無効なら空リスト。
 
         Raises:
-            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない場合。
-            ValueError: 探索順が不正、またはleavesとshapesを併用した場合。
+            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない、またはtypeが
+                文字列・文字列の列・None以外の場合。
+            ValueError: 探索順が不正、leavesとshapesを併用した、またはtypeが空文字列の場合。
             RuntimeError: ノードは有効だが保持するDAGパスが無効な場合。
         """
         for value, name in ((allDescendents, "allDescendents"), (leaves, "leaves"),
@@ -298,23 +327,15 @@ class DagNode(Node):
             raise ValueError("order must be 'depthFirst' or 'breadthFirst'")
         if leaves and shapes:
             raise ValueError("leaves selects transforms and cannot be combined with shapes")
+        types = _type_filter(type)
+        if types and not leaves and not shapes:
+            # Shapeの型で絞る場合は、既定のTransformだけの探索では必ず空になるためShapeも探す。
+            shapes = any("shape" in _inherited_node_types(_real_node_type(name)) for name in types)
         if not self.isValid():
             return []
-        recursive = allDescendents or leaves
-        from collections import deque
-        pending = deque([(self, 0)])
-        result = []
-        while pending:
-            node, depth = pending.popleft() if order == "breadthFirst" else pending.pop()
-            is_shape = node.mnode().hasFn(om2.MFn.kShape)
-            children = node._traversal_children(shapes, intermediates, underWorld) if recursive or depth == 0 else []
-            selected = (includeSelf or depth > 0) and (shapes or not is_shape)
-            if selected and (not leaves or not any(
-                    child.mnode().hasFn(om2.MFn.kTransform) for child in children)):
-                result.append(node)
-            if recursive or depth == 0:
-                rows = [(child, depth + 1) for child in children]
-                pending.extend(rows if order == "breadthFirst" else reversed(rows))
+        result = self._collect_children(shapes, intermediates, allDescendents, order, leaves, includeSelf, underWorld)
+        if types:
+            result = [node for node in result if any(node.isType(name) for name in types)]
         return result
 
     def getShape(self, index=0, intermediates=False):
@@ -494,6 +515,38 @@ class DagNode(Node):
             _require_bool(state, "state")
             self.getPlug("hiddenInOutliner").set(not state, fast=fast)
             return self
+
+    def _collect_children(self, shapes, intermediates, all_descendents, order, leaves, include_self, under_world):
+        """検証済みの条件で子・子孫を探索する(:meth:`getChildren` の本体)。
+
+        Args:
+            shapes (bool): Shapeも含める。
+            intermediates (bool): 中間オブジェクトを含める。
+            all_descendents (bool): 子孫全体を探す。
+            order (str): depthFirstまたはbreadthFirst。
+            leaves (bool): 子Transformを持たないTransformだけを返す。
+            include_self (bool): 自身も判定する。
+            under_world (bool): アンダーワールドも探す。
+
+        Returns:
+            list[DagNode]: 探索順の参照。
+        """
+        recursive = all_descendents or leaves
+        from collections import deque
+        pending = deque([(self, 0)])
+        result = []
+        while pending:
+            node, depth = pending.popleft() if order == "breadthFirst" else pending.pop()
+            is_shape = node.mnode().hasFn(om2.MFn.kShape)
+            children = node._traversal_children(shapes, intermediates, under_world) if recursive or depth == 0 else []
+            selected = (include_self or depth > 0) and (shapes or not is_shape)
+            if selected and (not leaves or not any(
+                    child.mnode().hasFn(om2.MFn.kTransform) for child in children)):
+                result.append(node)
+            if recursive or depth == 0:
+                rows = [(child, depth + 1) for child in children]
+                pending.extend(rows if order == "breadthFirst" else reversed(rows))
+        return result
 
     def _color_targets(self):
         """:meth:`setColor`・:meth:`getColor` の対象を返す。DagNodeは自身。

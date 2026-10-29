@@ -9,12 +9,12 @@ import unittest
 
 import mlib
 mlib.reload()
-from mlib.logger import LOGGER_NAME, MayaHandler, debug, error, get_logger, raise_with_notify, warning
+from mlib.logger import LOGGER_NAME, MayaHandler, debug, error, getLogger, raiseWithNotify, warning
 from mlib import logger as output
 
 
 class LoggerTest(unittest.TestCase):
-    """get_logger/debug/warning/error/raise_with_notify/MayaHandler を検証する。"""
+    """getLogger/debug/warning/error/raiseWithNotify/MayaHandler を検証する。"""
 
     def test_info_supports_logging_format(self):
         with self.assertLogs(LOGGER_NAME, level="INFO") as captured:
@@ -39,14 +39,14 @@ class LoggerTest(unittest.TestCase):
         self.assertIs(mlib.logger.warning, output.warning)
 
     def test_old_handler_is_replaced_without_removing_external_handlers(self):
-        logger = get_logger()
+        logger = getLogger()
         old_type = type("MayaHandler", (logging.Handler,), {"__module__": output.__name__})
         old_handler = old_type()
         external = logging.NullHandler()
         logger.addHandler(old_handler)
         logger.addHandler(external)
         try:
-            get_logger()
+            getLogger()
             self.assertNotIn(old_handler, logger.handlers)
             self.assertIn(external, logger.handlers)
             self.assertEqual(sum(isinstance(h, output.MayaHandler) for h in logger.handlers), 1)
@@ -57,7 +57,7 @@ class LoggerTest(unittest.TestCase):
 
     def test_previous_package_handler_is_replaced_after_layout_migration(self):
         """旧utils配下のハンドラを除去し、外部ハンドラと一つの新ハンドラを保つ。"""
-        logger = get_logger()
+        logger = getLogger()
         previous_type = type("MayaHandler", (logging.Handler,),
                              {"__module__": mlib.__name__ + ".utils.logger"})
         previous = previous_type()
@@ -65,7 +65,7 @@ class LoggerTest(unittest.TestCase):
         logger.addHandler(previous)
         logger.addHandler(external)
         try:
-            get_logger()
+            getLogger()
             self.assertNotIn(previous, logger.handlers)
             self.assertIn(external, logger.handlers)
             self.assertEqual(sum(isinstance(handler, output.MayaHandler)
@@ -77,16 +77,16 @@ class LoggerTest(unittest.TestCase):
             external.close()
 
     def test_get_logger_is_idempotent_and_configured(self):
-        logger = get_logger()
+        logger = getLogger()
         self.assertEqual(logger.name, LOGGER_NAME)
         self.assertEqual(logger.level, logging.DEBUG)
         self.assertFalse(logger.propagate)
         handlers = [h for h in logger.handlers if isinstance(h, MayaHandler)]
         self.assertEqual(len(handlers), 1)
 
-        get_logger()
+        getLogger()
         handlers_after = [h for h in logging.getLogger(LOGGER_NAME).handlers if isinstance(h, MayaHandler)]
-        self.assertEqual(len(handlers_after), 1, "get_logger() should not add a duplicate MayaHandler")
+        self.assertEqual(len(handlers_after), 1, "getLogger() should not add a duplicate MayaHandler")
 
     def test_debug_warning_error_emit_expected_log_records(self):
         with self.assertLogs(LOGGER_NAME, level="DEBUG") as captured:
@@ -120,26 +120,26 @@ class LoggerTest(unittest.TestCase):
     def test_raise_with_notify_raises_specified_exception(self):
         with self.assertLogs(LOGGER_NAME, level="ERROR"):
             with self.assertRaises(ValueError) as context:
-                raise_with_notify(ValueError, "boom")
+                raiseWithNotify(ValueError, "boom")
         self.assertEqual(str(context.exception), "boom")
 
     def test_raise_with_notify_passes_extra_constructor_args(self):
         with self.assertLogs(LOGGER_NAME, level="ERROR"):
             with self.assertRaises(OSError) as context:
-                raise_with_notify(OSError, "boom", 2)
+                raiseWithNotify(OSError, "boom", 2)
         self.assertEqual(context.exception.args, ("boom", 2))
 
     def test_raise_with_notify_chains_from_exception(self):
         original = RuntimeError("original")
         with self.assertLogs(LOGGER_NAME, level="ERROR"):
             with self.assertRaises(ValueError) as context:
-                raise_with_notify(ValueError, "boom", from_exception=original)
+                raiseWithNotify(ValueError, "boom", fromException=original)
         self.assertIs(context.exception.__cause__, original)
 
     def test_raise_with_notify_suppresses_chain_when_from_exception_is_none(self):
         with self.assertLogs(LOGGER_NAME, level="ERROR"):
             with self.assertRaises(ValueError) as context:
-                raise_with_notify(ValueError, "boom", from_exception=None)
+                raiseWithNotify(ValueError, "boom", fromException=None)
         self.assertIsNone(context.exception.__cause__)
         self.assertTrue(context.exception.__suppress_context__)
 
@@ -149,7 +149,7 @@ class LoggerTest(unittest.TestCase):
                 try:
                     raise KeyError("inner")
                 except KeyError as inner:
-                    raise_with_notify(ValueError, "boom")
+                    raiseWithNotify(ValueError, "boom")
             except ValueError as outer:
                 self.assertIsInstance(outer.__context__, KeyError)
 
