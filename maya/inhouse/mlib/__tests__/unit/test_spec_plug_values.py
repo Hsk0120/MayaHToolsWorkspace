@@ -130,14 +130,14 @@ class RemovedNamesSpecTest(_ValueSpecCase):
         """旧名はAttributeError。クラス辞書にも無い。"""
         tx = self.node.getPlug("tx")
         values = self.add("vals", attributeType="double", multi=True)
-        for name in ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable",
+        for name in ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
                      "getNextAvailableIndex"):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(tx, name))
                 self.assertFalse(hasattr(plugs.Plug, name))
                 with self.assertRaises(AttributeError):
                     getattr(tx, name)
-        for name in ("getNextAvailableIndex", "getDataType", "lock", "getPlugName"):
+        for name in ("getNextAvailableIndex", "getDataType", "getPlugName"):
             with self.subTest(array=name):
                 self.assertFalse(hasattr(values, name))
                 self.assertFalse(hasattr(plugs.MultiPlug, name))

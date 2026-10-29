@@ -342,12 +342,12 @@ class MultiPlugSpecTest(_PlugSpecCase):
                     self.array[bad]
 
     def test_get_element(self):
-        """getElementは既存要素だけを返し、欠番はIndexError。idx別名と同時指定の扱い。"""
+        """getElementは欠番も参照を返し(multi[index]と同じ)、要素を作らない。"""
         self.array[3].set(1.0)
         self.assertEqual(self.array.getElement(3).get(), 1.0)
         self.assertEqual(self.array.getElement(index=3).getFullName(), self.net_name + ".vals[3]")
-        with self.assertRaises(IndexError):
-            self.array.getElement(4)
+        self.assertEqual(self.array.getElement(4), self.array[4])
+        self.assertNotIn(4, self.array)
         with self.assertRaises(TypeError):
             self.array.getElement()
         with self.assertRaises(TypeError):

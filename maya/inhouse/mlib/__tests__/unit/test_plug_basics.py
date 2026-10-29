@@ -198,8 +198,7 @@ class PlugBasicsTest(unittest.TestCase):
         array[3].set(2)
         array[1000].set(5)
         for index in (0, 2, 999):
-            with self.assertRaises(IndexError):
-                array.getElement(index)
+            self.assertEqual(array.getElement(index).getIndex(), index)
         for index in (-1, 2147483648):
             with self.assertRaises(IndexError):
                 array[index]

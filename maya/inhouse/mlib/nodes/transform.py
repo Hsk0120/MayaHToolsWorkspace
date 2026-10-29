@@ -27,6 +27,13 @@ _TRANSFORM_SOURCE_CONSTRAINTS = frozenset((
 ))
 
 
+#: setLimitsのキーと、cmds.transformLimitsの値・有効化フラグ、値の種類(角度・距離・倍率)。
+_LIMIT_FLAGS = {
+    "translate" + axis: ("translation" + axis, "enableTranslation" + axis, "distance") for axis in "XYZ"
+}
+_LIMIT_FLAGS.update({"rotate" + axis: ("rotation" + axis, "enableRotation" + axis, "angle") for axis in "XYZ"})
+_LIMIT_FLAGS.update({"scale" + axis: ("scale" + axis, "enableScale" + axis, "scale") for axis in "XYZ"})
+
 #: 変換アトリビュート名の照会キャッシュ。
 _TRANSFORM_ATTRIBUTES = {}
 
@@ -1415,6 +1422,70 @@ class Transform(DagNode):
                 best_dot = dot
                 best_axis = name
         return best_axis
+
+    def setLimits(self, *, unit="deg", **limits):
+        """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。
+
+        ``setLimits(translateX=(0, 10), rotateZ=(-45, 90), scaleY=(None, 2))`` のように、チャンネル名
+        (``translateX``〜``scaleZ`` のロング名)へ ``(最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
+        無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
+        距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
+        全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
+        fast引数は持たない。
+
+        Args:
+            unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+            **limits (tuple[float | None, float | None] | None): チャンネル名ごとの ``(最小, 最大)``。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: チャンネル名が未対応、値が2要素の列・None以外、要素が数値・None以外、
+                またはunitが文字列以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: ノードが無効、またはMayaが設定を拒否した場合(最小が最大より大きい等)。
+        """
+        angle_unit = _angle_unit(unit)
+        unknown = sorted(set(limits) - set(_LIMIT_FLAGS))
+        if unknown:
+            raise TypeError("Unsupported limit channel(s): " + ", ".join(unknown)
+                            + " (use translateX..scaleZ)")
+        self._require_valid("set limits of")
+        name = self.getFullName()
+        flags = {}
+        for channel, value in limits.items():
+            flag, enable_flag, kind = _LIMIT_FLAGS[channel]
+            if value is None:
+                value = (None, None)
+            if isinstance(value, (str, bytes)) or not isinstance(value, (tuple, list)) or len(value) != 2:
+                raise TypeError(f"{channel} limit must be a (min, max) pair or None: {value!r}")
+            current = None
+            sides = []
+            for index, side in enumerate(value):
+                if side is None:
+                    if current is None:
+                        current = cmds.transformLimits(name, query=True, **{flag: True})
+                    side = current[index]
+                    if kind == "distance":
+                        # 照会は移動だけcm(内部単位)で返り、設定はUI単位で受け取る。
+                        side = om2.MDistance(side, om2.MDistance.kCentimeters).asUnits(om2.MDistance.uiUnit())
+                    sides.append(side)
+                    continue
+                if isinstance(side, bool) or not isinstance(side, numbers.Real):
+                    raise TypeError(f"{channel} limit values must be numbers or None: {value!r}")
+                if kind == "angle":
+                    side = om2.MAngle(side, om2.MAngle.kDegrees if angle_unit == "deg"
+                                      else om2.MAngle.kRadians).asUnits(om2.MAngle.uiUnit())
+                elif kind == "distance":
+                    side = om2.MDistance(side, om2.MDistance.kCentimeters).asUnits(om2.MDistance.uiUnit())
+                sides.append(float(side))
+            flags[flag] = tuple(sides)
+            flags[enable_flag] = (value[0] is not None, value[1] is not None)
+        if flags:
+            with undoChunk("mlibTransformSetLimits"):
+                cmds.transformLimits(name, **flags)
+        return self
 
     def _color_targets(self):
         """:meth:`setColor`・:meth:`getColor` の対象を返す。

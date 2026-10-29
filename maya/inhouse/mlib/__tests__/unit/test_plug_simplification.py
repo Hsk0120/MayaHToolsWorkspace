@@ -50,8 +50,7 @@ class PlugSimplificationTest(unittest.TestCase):
         with patch.object(cmds, "getAttr", side_effect=AssertionError("reference evaluated")):
             reference = array[9]
             self.assertEqual(reference.mplug().logicalIndex(), 9)
-            with self.assertRaises(IndexError):
-                array.getElement(9)
+            self.assertEqual(array.getElement(9), reference)
             with self.assertRaises(TypeError):
                 array.getElement(9, create=True)
         self.assertFalse(hasattr(array, "addElement"))
@@ -100,8 +99,8 @@ class PlugSimplificationTest(unittest.TestCase):
         source = mlib.createNode("network")
         array = mlib.createNode("network").addAttr("links", "message", multi=True)
         reference = array[12]
-        with self.assertRaises(IndexError):
-            array.getElement(12)
+        self.assertEqual(array.getElement(12), reference)
+        self.assertNotIn(12, array)
         cmds.flushUndo()
         reference.connect(source.getPlug("message"))
         self.assertEqual(array.getElement(12), reference)

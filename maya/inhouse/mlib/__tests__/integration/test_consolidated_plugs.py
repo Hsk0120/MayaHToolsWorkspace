@@ -253,8 +253,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         cmds.flushUndo()
         with patch.object(cmds, "getAttr", side_effect=AssertionError("cmds get")):
             element = array[4]
-            with self.assertRaises(IndexError):
-                array.getElement(4)
+            self.assertEqual(array.getElement(4), element)
             with self.assertRaises(TypeError):
                 array.getElement(4, create=True)
         self.assertFalse(hasattr(array, "addElement"))

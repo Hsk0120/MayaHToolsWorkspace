@@ -136,10 +136,11 @@ class MultiPlug(Plug):
         return result
 
     def getElement(self, index):
-        """既存の論理番号の要素を、評価・実体化せず参照する。
+        """論理番号の要素を、評価・実体化せず参照する(``multi[index]`` と同じ)。
 
-        worldSpaceのマルチアトリビュートは評価前のDAGインスタンス番号も既存として扱う。
-        欠番の参照には ``multi[index]``、作成にはその要素のset/connectを使う。
+        まだ存在しない要素(欠番)も参照を返し、その要素へのset/connectで作成される。
+        参照の取得だけでは要素を作らない。存在する要素だけが必要なら :meth:`getElements`
+        (既存要素の一覧)または ``index in multi`` (存在の判定)を使う。
 
         Args:
             index (int): 0〜2147483647の論理番号。
@@ -149,19 +150,16 @@ class MultiPlug(Plug):
 
         Raises:
             TypeError: index未指定、boolまたは整数以外の場合。
-            IndexError: 要素が存在しない、または番号が範囲外の場合。
+            IndexError: 番号が0〜2147483647の範囲外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
-        self._require_valid()
-        index = self._validated_logical_index(index)
-        if index not in self.getIndices():
-            raise IndexError(f"No multi element at logical index {index} on {self.getFullName()}")
         return self[index]
 
     def getElements(self):
         """既存要素のPlugを、論理番号の昇順で取得する。
 
-        getIndices()の番号だけを参照し、欠番を埋めず、要素値も読み出さない。
+        getIndices()の番号だけを参照し、欠番を埋めず、要素値も読み出さない
+        (未作成の要素も参照する :meth:`getElement` とは異なる)。
         worldSpaceアトリビュートは、評価前でもDAGインスタンス番号の要素を含む。
 
         Returns:
@@ -177,14 +175,17 @@ class MultiPlug(Plug):
     def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False):
         """次に使えるマルチアトリビュートの要素の論理番号(またはその要素Plug)を探す。要素の作成・予約はしない。
 
-        既定(``vacant=False``)は入力接続できる要素を探す。``start`` が負なら最後の接続要素の次
-        (途中の空きは飛ばす)から、入力接続と、``checkLocked`` ならロック、``checkChildren`` なら
-        子(とそのマルチアトリビュート)の入力接続・ロックも避けた最初の番号を返す。値を持つだけの既存要素や出力接続
-        だけの要素は候補になる。
+        既定(``vacant=False``)は ``cmds.connectAttr(nextAvailable=True)`` と同じ規則で、
+        :meth:`Plug.connectTo` / :meth:`Plug.connect` の ``nextAvailable=True`` もこの結果へ接続する。
+        要素は入力接続が無ければ使える(値を持つだけの要素・出力接続だけの要素も候補)。``start`` が負なら
+        接続(子の接続を含む)のある最後の要素の次から探し、途中の空きは飛ばす。``checkLocked`` ならロック、
+        ``checkChildren`` なら子(とそのマルチアトリビュート)の入力接続・ロックも避ける。
 
-        ``vacant=True`` は既存番号(``getExistingArrayAttributeIndices()``)に無い最初の番号を探す。
+        ``vacant=True`` はMayaの規則とは別の「未使用の番号」の探索で、既存番号
+        (``getExistingArrayAttributeIndices()``。値を持つ要素も含む)に無い最初の番号を探す。
         ``start`` が負なら0から。checkLocked/checkChildren は無視し、マルチアトリビュートのロックも例外にしない。
         worldSpaceのマルチアトリビュートのインスタンス番号補完(:meth:`getIndices`)も使わない。
+        値を設定する空き要素を探す用途に使う。
 
         3つの探索規則の対比:
 

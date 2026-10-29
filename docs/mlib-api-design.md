@@ -98,7 +98,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `getExtraAttrs(include_children, *, asNames)` は廃止する。`userDefined=True` はユーザー定義アトリビュートだけを
   OpenMaya経路で追加順の型付きPlug(マルチアトリビュートはMultiPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
   `userDefined=False` は `cmds.listAttr` 経路。`includeChildren=False` はコンパウンドアトリビュートの子を省く。名前の列は
-  `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getAttrName()` は `.tx` 形式の短名なので使わない)。
+  `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getAttrName()` は `tx`・`wm[0]` 形式のショート名と論理番号のパスなので、ロング名の一覧には使わない)。
   DAG共通の `getRoot()`・`getSiblings()`・`getBoundingBox(worldSpace=False)`・`isIntermediateObject()` は
   `DagNode` に置き、TransformとShapeの両方から使う。`getSiblings()` はShapeでは親直下の他の非中間Shape、
   `getBoundingBox` は `MDagPath.exclusiveMatrix` で空間を切り替える。
@@ -415,6 +415,24 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 `connectTo(multi, nextAvailable=True)`を使う。cymelの同名演算子はNoneを返すが、mlibでは戻り値を持つ。
 `a >> b.x`は`a >> (b.x)`と評価される。`__len__`・`__add__`・無引数の作成・transform→shapeの暗黙のアトリビュート解決は追加しない。
 
+### 再実行向けのsafe(5.0.0)
+
+`safe=True` はAPIにより意味が違う。いずれも既定はFalseで、引数名は同じでも挙動と戻り値の契約が違う。
+
+| 意味 | API | safe=Trueの挙動 | 戻り値 |
+| --- | --- | --- | --- |
+| 失敗の集計 | `Plug.set`(既存) | ロック・入力接続等の失敗を例外にせず数える。コンパウンドアトリビュートは子ごとに再試行する | 失敗数(成功は0) |
+| 書ける成分だけ更新 | `Transform.setMatrix/setTranslate/setRotate/setScale/setShear/setQuaternion`(既存) | 書けないチャンネルを保持し、書けるチャンネルだけを更新する | 通常と同じ(自身) |
+| 再実行の許容 | `Node.addAttr`・`Plug.connect`・`Plug.connectTo`・`Plug.setAlias`(5.0.0) | 既に同じ状態(同名のアトリビュート・同じ接続・同じ別名)なら何も変更しない | 成功時と同じ値(Plug・接続先・自身)。件数は返さない |
+
+再実行の許容は「既に目的の状態」だけを成功とみなす。状態が違う(既存のアトリビュートの型やマルチアトリビュートかどうかが違う、
+別の入力がある、ロックされている、別名を別のアトリビュートが使っている)場合はsafeでも既定と同じ例外にする
+(`addAttr` の型違いはTypeError)。既存の状態は更新しない(`addAttr` の既定値・範囲・表示、`connect` のlockは変えない)。
+`connect/connectTo(nextAvailable=True, safe=True)` は、接続元が既にいずれかの要素へ接続されていればその要素を返す。
+同じ接続の判定はunitConversion等の変換ノードを経由した接続も含む(Mayaも同じ接続として拒否する)。演算子 `>>`・`<<` はsafeを持たない。
+再実行で失敗しない操作には追加しない: `Transform.addConstraint` は同じ種類の既存コンストレイントを再利用し、
+`Container.addMembers` は既存のメンバーを受け付け、`DrivenKey.setKey`・`AnimCurve.setKey` は同じ入力のキーを置き換える。
+
 ### 単位・フラグ・戻り値
 
 `SkinCluster.removeInfluence`・`Joint.removeInfluence` と
@@ -487,18 +505,44 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 - `Node.setLocked(state=True, *, fast=False)` はノード自体のロックで自身を返す(通常は `cmds.lockNode` でUndo1回、fastは `MFnDependencyNode.isLocked` のsetter)。
   アトリビュートのロックは `Plug.setLocked()`。`Node.mfn()` は毎回新規のfunction setを返す(Mesh/Camera/NurbsCurve/ReferenceはMFnMesh等を返すoverride)。
 - `Plug.unlock(below=False, *, fast=False)` は実際に解除したPlugの `list[Plug]` を上位から返す。旧 `undoable=` 引数は廃止し、Undoなしは `fast=True`。
-  `lock` 別名は廃止し `setLocked()`。
+  5.0.0で `Plug.lock(*, fast=False)`(`setFlags(locked=True)`、自身を返す)を再追加した。旧 `lock(val)` 別名とは別物で、
+  解除は戻り値の違う `unlock()`。`Plug.hide(*, fast=False)` は keyable・Channel Box表示をFalse、
+  `Plug.show(keyable=True, *, fast=False)` はその逆で、どちらもコンパウンドアトリビュートの子へ広げる(ロックは変えない)。
+- コンパウンドアトリビュートの状態: Mayaの `setAttr(keyable=/channelBox=)` は親(`t`)にだけ効き、子(`tx`)は変わらない
+  (ロックは親から継承される)。`Plug.setFlags(..., children=False)`・`Node.setAttrFlags(..., children=False)` は既定でこの挙動を保ち、
+  `children=True` は自身に続けて子孫へ同じ状態を明示的に設定する(マルチアトリビュートの要素へは広げない)。
+  `setKeyable/setChannelBox/setLocked(leaf=True)` は末端の子だけを変え、自身(親)は変えない点が `children=True` と異なる。
 - `MultiPlug.getNextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False)` はマルチアトリビュートのPlugだけが持つ
-  (基底Plugからは `AttributeError`)。要素の作成・予約はしない。`appendMessage(node, *, fast=False)` と `connect(nextAvailable=True)` は探索規則が違うので統合しない。
+  (基底Plugからは `AttributeError`)。要素の作成・予約はしない。5.0.0で「次に使える要素」はMayaの規則
+  (`cmds.connectAttr(nextAvailable=True)`)に統一し、`connect/connectTo(nextAvailable=True)` は `getNextAvailable()` の既定の結果へ接続する
+  (4.x の `connect(nextAvailable=True)` は0から探したため、途中の空きへ接続していた)。要素は入力接続が無ければ使え、値を持つだけの要素も候補になる。
+  `vacant=True` はMayaの規則と別の「未使用の番号」の探索で、値を設定する空き要素を探す用途に残す。`appendMessage(node, *, fast=False)` は探索規則が違うので統合しない。
 
   | 呼び方 | 開始位置 | 返す番号 | checkLocked/checkChildren |
   | --- | --- | --- | --- |
-  | `getNextAvailable()`(既定) | `start`。負数なら最後の接続要素の次(途中の空きは飛ばす) | 入力接続・ロック・子の入力接続の無い最初の論理番号(値を持つだけの既存要素も可) | 有効 |
+  | `getNextAvailable()`(既定。`connectTo(nextAvailable=True)` と `cmds.connectAttr(nextAvailable=True)` も同じ) | `start`。負数なら接続(子の接続を含む)のある最後の要素の次(途中の空きは飛ばす) | 入力接続・ロック・子の入力接続の無い最初の論理番号(値を持つだけの既存要素も可) | 有効 |
   | `getNextAvailable(vacant=True)`(旧 `getNextAvailableIndex`) | `start`。負数なら0 | 既存番号(値・接続のある要素)に無い最初の番号 | 無視する |
   | `appendMessage(node)` | 最大の既存番号+1 | その番号へmessage接続して返す(途中の穴は再利用しない) | — |
 
 - `Plug.getEnumName(value=None)`: 省略時は現在値の名前、指定時はその値の名前(旧 `getEnumFieldName(val)` を吸収)。
   `getEnumNames()` は `list[tuple[str, int]]` を値順で返す。`setEnumNames(names, *, fast)`・`getEnumValue(name)` は維持。
+  5.0.0で `EnumPlug.set()` はフィールド名(`set("head")`)も受け付ける(整数も可)。大文字・小文字を区別する完全一致で、
+  一致しなければ有効な名前を並べたValueError(safe=Trueでは失敗数1)。通常・fast・safeで同じ。
+  `Node.addAttr(..., type="enum", enumName=..., defaultValue="head")` も `enumName` からフィールドの値を求める。
+- 範囲の編集: `Plug.setMin/setMax/setSoftMin/setSoftMax(value, *, unit=None)` は動的アトリビュートの定義を
+  `cmds.addAttr(edit=True, minValue=...)` で編集し(Undo1回、fastなし)、`setMin/setMax(None)` で制限を外す(ソフト値の削除はMayaが編集できないため `setSoftMin/setSoftMax(None)` はNotImplementedError)。値の単位は `addAttr` の
+  `minValue` と同じ(角度は度が既定で `unit="rad"` も可、距離cm、時間は秒)。静的アトリビュートと数値・単位型以外はTypeError。
+  `Transform.setLimits(*, unit="deg", **limits)` は `cmds.transformLimits` の入口で、`translateX=(min, max)` のように
+  チャンネルのロング名へ組を渡す。片側の `None` はその側の制限を無効、値全体の `None` は両側を無効にする(距離cm・角度は度で、MayaのUI単位へ換算して渡す。`cmds.transformLimits` の照会は移動だけcm、回転はUI単位で返る)。
+- `Plug.getName()` は `<ノードの最短名>.<getAttrName()>`、`getAttrName()` は先頭ドットを含まないショート名と論理番号のパス
+  (`wm[0]`・`it[0].itg[3].tw[2]`)。5.0.0でworldSpaceの要素の番号も省かなくなった(4.x は `tt.wm`・`.wm`)。
+  `node.getPlug(plug.getAttrName())` で同じPlugへ戻せる。Mayaコマンドへは `getFullName()`/`str(plug)` を渡す。
+- `MultiPlug.getElement(index)` は `multi[index]` と同じく、未作成の要素も参照を返す(5.0.0。4.x は欠番をIndexError)。
+  既存要素だけが必要なら `getElements()`、存在の判定は `index in multi`。
+- generic/kAnyのアトリビュートへの定数のマトリクス(`plug.set(Matrix())`)は、Mayaの `setAttr` がマトリクスのデータを
+  受け付ける場合(`addAttr(dataType=["matrix", ...])` の動的アトリビュート等)だけ通常・fastとも書き込む。
+  `choice.input` のような組み込みのgenericはMayaがマトリクスの定数を受け付けず、OpenMayaで書き込めても保存したシーンを
+  読み込めない(値が失われる)ため、通常・fastともTypeErrorにする。マトリクスの出力(`holdMatrix.outMatrix` 等)を接続する。
 - `Plug.getAlias()`(`MFnDependencyNode.plugsAlias`)、`getMulti()`(要素が属するマルチアトリビュートのPlug)、`getIndex()`(要素の論理番号。非要素はTypeError)を追加。
   `getPlugName(short, fullAttrPath)` は廃止し `getName()/getFullName()`。
 - `DagNode.show(*, fast=False)` / `hide(*, fast=False)` は `setVisibility(state, fast=)` へ通す。

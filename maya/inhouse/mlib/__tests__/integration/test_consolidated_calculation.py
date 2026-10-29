@@ -80,8 +80,8 @@ class ConsolidatedCalculationTests(unittest.TestCase):
         inputs[3].set(2)
         inputs[8].set(5)
         self.assertEqual(inputs.getIndices(), [3, 8])
-        with self.assertRaises(IndexError):
-            inputs.getElement(4)
+        # 5.0.0: getElementは欠番も参照を返し、要素を作らない。
+        self.assertEqual(inputs.getElement(4), inputs[4])
         self.assertEqual(inputs.getIndices(), [3, 8])
         self.assertAlmostEqual(node.getPlug("output1D").get(), 7)
         node.getPlug("operation").set(2)

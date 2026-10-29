@@ -72,6 +72,10 @@ WRITER_OPERATORS = ("__rshift__", "__lshift__", "__floordiv__")
 
 #: 網羅の番人が拾っても Undo 検査の対象にしない API と理由。
 EXCLUDED = {
+    "Plug.setMin": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setMax": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setSoftMin": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setSoftMax": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
     "Reference.load": "外部ファイルの参照の読込み(ファイル I/O)。Undo 検査の対象外。",
     "Reference.unload": "外部ファイルの参照のアンロード(ファイル I/O)。Undo 検査の対象外。",
     "Reference.remove": "外部ファイルの参照の削除(ファイル I/O)。Undo 検査の対象外。",
@@ -1080,6 +1084,8 @@ CASES = [
                                         name="made")),
     C("NurbsCurve.setCvPositions", "setCvPositions worldSpace", s_curves,
       lambda c, **kw: c.ncrvShape.setCvPositions([(0, 1, 0), (1, 1, 0), (2, 2, 0)], worldSpace=True)),
+    C("Transform.setLimits", "Transform.setLimits", s_one,
+      lambda c, **kw: c.na.setLimits(translateX=(None, 5.0), rotateZ=(-45.0, 90.0))),
     C("Transform.scaleGeometry", "Transform.scaleGeometry", s_cube,
       lambda c, **kw: c.ncube.scaleGeometry(2.0, **kw)),
     C("Transform.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
@@ -1271,6 +1277,9 @@ CASES = [
     C("Plug.setLocked", "Plug.setLocked compound leaf", s_one,
       lambda c, **kw: mlib.getPlug(c.a + ".translate").setLocked(True, leaf=True, **kw)),
     C("Plug.unlock", "Plug.unlock", s_locked, lambda c, **kw: mlib.getPlug(c.a + ".tx").unlock(**kw)),
+    C("Plug.lock", "Plug.lock", s_one, lambda c, **kw: mlib.getPlug(c.a + ".tx").lock(**kw)),
+    C("Plug.hide", "Plug.hide compound", s_one, lambda c, **kw: mlib.getPlug(c.a + ".translate").hide(**kw)),
+    C("Plug.show", "Plug.show", s_user, lambda c, **kw: mlib.getPlug(c.a + ".hiddenNum").show(**kw)),
     C("Plug.mute", "Plug.mute", s_keyed, lambda c, **kw: mlib.getPlug(c.a + ".tx").mute()),
     C("Plug.unmute", "Plug.unmute", s_muted, lambda c, **kw: mlib.getPlug(c.a + ".tx").unmute(),
       mayaQuirk="素の cmds.mute(disable=True, force=True) も Undo 後に animCurve の stippleReverse が戻らない",
