@@ -49,6 +49,8 @@ from functools import partial
 
 import maya.api.OpenMaya as om2
 
+from ..util import _angle_unit
+
 __all__ = ["attributeType", "is_internal_data_type", "typed_data", "value_reader"]
 
 _N = om2.MFnNumericData
@@ -137,6 +139,10 @@ _PUBLIC_DATA_TYPES = frozenset(_DATA_TYPE_NAMES.values()) | frozenset((
 
 _ADD_ATTR_DATA_TYPE = re.compile(r'-dataType "([^"]+)"')
 _ADD_ATTR_ATTRIBUTE_TYPE = re.compile(r'-attributeType "([^"]+)"')
+
+#: 自身の単位を持つため、数値の角度として換算しない値。
+_SELF_UNIT_VALUES = (om2.MEulerRotation, om2.MQuaternion, om2.MAngle, om2.MDistance, om2.MTime,
+                     om2.MMatrix, om2.MTransformationMatrix)
 
 
 def _add_attr_type_name(attribute):
@@ -315,6 +321,80 @@ def _convert_units(plug, value, to_ui=True):
     else:
         source_unit, target_unit = unit_class.uiUnit(), internal_unit
     return unit_class(value, source_unit).asUnits(target_unit)
+
+
+def _plain_angle_unit(unit, ui_units):
+    """get/setの ``unit`` と ``uiUnits`` から、数値の角度の単位を決める。
+
+    Args:
+        unit (str | None): 角度の単位名。Noneは度。
+        ui_units (bool): Trueは現在のUI単位を使う(unitとは同時指定できない)。
+
+    Returns:
+        str | None: ``"deg"`` / ``"rad"``。uiUnits=TrueではNone(UI単位の換算に任せる)。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名、またはuiUnits=Trueとunitを同時に指定した場合。
+    """
+    if ui_units:
+        if unit is not None:
+            # 単位名の誤りを先に伝え、正しい名前なら同時指定を拒否する。
+            _angle_unit(unit)
+            raise ValueError("Specify either unit or uiUnits=True, not both")
+        return None
+    return _angle_unit(unit)
+
+
+def _is_angle_attribute(attribute):
+    """角度の単位アトリビュート(doubleAngle・floatAngle)か判定する。
+
+    Args:
+        attribute (om2.MObject): アトリビュート定義。
+
+    Returns:
+        bool: 角度の単位アトリビュートならTrue。
+    """
+    return (attribute.hasFn(om2.MFn.kUnitAttribute)
+            and om2.MFnUnitAttribute(attribute).unitType() == om2.MFnUnitAttribute.kAngle)
+
+
+def _convert_angles(plug, value, unit, to_internal=True):
+    """角度アトリビュートの数値を、指定単位とラジアン(内部単位)の間で換算する。
+
+    コンパウンドアトリビュートは子の定義ごとに換算し、角度以外の子・型付きの値
+    (EulerRotate・Quaternion・MAngle・マトリクス等の単位を持つ値)・数値以外はそのまま返す。
+    成分数が子数と違う入力も換算せず、検証は書込み側に任せる。
+
+    Args:
+        plug (om2.MPlug): 型を判定するプラグ。
+        value (object): 換算する値。
+        unit (str | None): ``"deg"`` / ``"rad"``。``"rad"`` とNoneは換算しない。
+        to_internal (bool): Trueは指定単位からrad、Falseはradから指定単位。
+
+    Returns:
+        object: 換算した値。換算した成分を含むコンパウンドアトリビュートはtuple、
+            換算の無い値は入力そのもの。
+    """
+    if unit != "deg" or value is None or isinstance(value, (str, bytes) + _SELF_UNIT_VALUES):
+        return value
+    if plug.isArray:
+        return value
+    if plug.isCompound:
+        try:
+            items = tuple(value)
+        except TypeError:
+            return value
+        if len(items) != plug.numChildren():
+            return value
+        converted = tuple(_convert_angles(plug.child(index), item, unit, to_internal)
+                          for index, item in enumerate(items))
+        if all(new is old for new, old in zip(converted, items)):
+            return value
+        return converted
+    if not isinstance(value, (int, float)) or not _is_angle_attribute(plug.attribute()):
+        return value
+    return math.radians(value) if to_internal else math.degrees(value)
 
 
 def _read_angle(mplug):

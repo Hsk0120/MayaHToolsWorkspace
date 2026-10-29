@@ -98,7 +98,7 @@ def setJointWorldOrientation(joint, matrix):
     rotation = Matrix(Matrix(matrix) * parent.inverse()).euler
     joint.getPlug("rotate").set((0, 0, 0))
     joint.getPlug("rotateAxis").set((0, 0, 0))
-    joint.getPlug("jointOrient").set((rotation.x, rotation.y, rotation.z))
+    joint.getPlug("jointOrient").set((rotation.x, rotation.y, rotation.z), unit="rad")
     for child, child_matrix in saved:
         child.setMatrix(child_matrix, worldSpace=True)
 

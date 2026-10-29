@@ -102,7 +102,7 @@ class NodeApiTest(unittest.TestCase):
         transform = self.create_transform("mlibNodeApiMatrix")
 
         transform.setTranslate((1.0, 2.0, 3.0), at=4)
-        transform.setRotate((0.0, math.radians(90.0), 0.0))
+        transform.setRotate((0.0, 90.0, 0.0))
         transform.setScale((2.0, 1.0, 1.0))
 
         translate = transform.getTranslate(at=4)
@@ -485,7 +485,9 @@ class NodeApiTest(unittest.TestCase):
                 plug_value = transform.getPlug(attribute).get()
                 cmds_value = cmds.getAttr(f"{name}.{attribute}")
                 if attribute == "mlibAngle":
-                    cmds_value = math.pi / 2
+                    # 角度の既定は度(cmds.getAttrのUI単位degと同じ)。radはunit="rad"。
+                    self.assertAlmostEqual(transform.getPlug(attribute).get(unit="rad"), math.pi / 2)
+                    cmds_value = 90.0
                 elif attribute == "mlibTime":
                     cmds_value = 3.0 / 24
                 self.assertAlmostEqual(plug_value, cmds_value) if isinstance(cmds_value, float) \
@@ -506,7 +508,7 @@ class NodeApiTest(unittest.TestCase):
             cmds.currentUnit(linear="mm", time="ntsc")
             for attribute, plug in plugs.items():
                 with self.subTest(attribute=attribute, unit="mm/ntsc"):
-                    self.assertAlmostEqual(plug.get(), {"mlibDistance": 5., "mlibTime": 3./24, "mlibAngle": math.pi/2, "translateX": 0.}[attribute])
+                    self.assertAlmostEqual(plug.get(), {"mlibDistance": 5., "mlibTime": 3./24, "mlibAngle": 90., "translateX": 0.}[attribute])
         finally:
             cmds.currentUnit(linear=previous[0], time=previous[1])
 
@@ -567,7 +569,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, -1.0, 0.0)), "-y")
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 1.0, 0.0), includeNegative=False), "y")
 
-        transform.setRotate((0.0, math.radians(90.0), 0.0))
+        transform.setRotate((0.0, 90.0, 0.0))
         self.assertEqual(transform.getClosestAxisToVector(Vector(0.0, 0.0, -1.0)), "x")
 
 
@@ -592,7 +594,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertAlmostEqual(shear.y, 0.2, places=6)
         self.assertAlmostEqual(shear.z, 0.3, places=6)
 
-        transform.setRotate((0.0, math.radians(90.0), 0.0))
+        transform.setRotate((0.0, 90.0, 0.0))
         quaternion = transform.getQuaternion()
         self.assertIsInstance(quaternion, Quaternion)
         euler = transform.getRotate(order=0)
@@ -606,7 +608,7 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("mlibNodeApiComposeSource")
         source.setTranslate((1.0, 2.0, 3.0), at=4)
-        source.setRotate((0.0, math.radians(45.0), 0.0))
+        source.setRotate((0.0, 45.0, 0.0))
         matrix = source.getMatrix(worldSpace=True)
 
         target = self.create_transform("mlibNodeApiComposeTarget")
@@ -668,7 +670,7 @@ class NodeApiTest(unittest.TestCase):
             node.setRotate(EulerRotate.fromDegrees(40.0, -50.0, 60.0, order))
             self.assertTrue(node.getMatrix().isEquivalent(before, 1e-9), order)
         with self.assertRaises(ValueError):
-            node.setRotate(EulerRotate(0.1, 0.2, 0.3), unit="deg")
+            node.setRotate((0.1, 0.2, 0.3), unit="grad")
 
     def assert_channels(self, name, rotate, scale, places=9):
         for actual, expected in zip(cmds.getAttr(name + ".rotate")[0], rotate):
@@ -703,7 +705,8 @@ class NodeApiTest(unittest.TestCase):
             lambda: node.setScale(node.getScale()),
             lambda: node.setShear(node.getShear()),
             lambda: node.setRotate((10.0, 20.0, 30.0), unit="deg"),
-            lambda: node.getPlug("rotate").set(tuple(node.getPlug("rotate").get())),
+            lambda: node.getPlug("rotate").set(tuple(node.getPlug("rotate").get()), unit="rad"),
+            lambda: node.getPlug("rotate").set(node.getPlug("rotate").get(unit="deg")),
         ):
             operation()
             self.assertTrue(node.getMatrix().isEquivalent(matrix, 1e-9))
@@ -793,19 +796,19 @@ class NodeApiTest(unittest.TestCase):
             self.assertTrue(rotate.isEquivalent(EulerRotate.fromDegrees(10.0, 20.0, 30.0, order), 1e-12))
 
             plug = node.getPlug("rotate")
-            plug.set(tuple(plug.get()))
+            plug.set(plug.get(unit="deg"))
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
-            node.setRotate(tuple(node.getRotate()))
-            node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True)
+            node.setRotate(node.getRotate(unit="deg"))
+            node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True, unit="rad")
             self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
-            node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True)
+            node.setRotate(node.getRotate(worldSpace=True, unit="deg"), worldSpace=True)
             self.assertTrue(node.getMatrix().isEquivalent(local, 1e-9), order)
 
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
             node.setRotate((10.0, 20.0, 30.0), unit="deg")
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
-            plug.set(tuple(math.radians(value) for value in (10.0, 20.0, 30.0)))
+            plug.set(tuple(math.radians(value) for value in (10.0, 20.0, 30.0)), unit="rad")
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
 
     def test_om2_function_sets_accept_mlib_maths_values(self):

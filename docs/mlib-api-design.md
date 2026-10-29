@@ -135,7 +135,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 - JSONの保存キー・データクラスの保存フィールド・外部形式・パッケージ名・テスト探索名は、公開メソッドの改名に巻き込まない。
 - 旧名の互換別名は残さない。内製使用側・テスト・ドキュメントを同時に更新し、`mlib.reload()`後も廃止名を公開しない。
 - Maya照会はメソッド、保持値はプロパティ。シーン編集は明示的なメソッドにする。
-- オブジェクト・数学層はcm/rad/秒とOpenMayaの概念、コマンド層はmaya.cmdsの単位・フラグを基準にする。
+- オブジェクト層はcm/秒・角度の数値は度(5.0.0)、数学層はOpenMayaの概念(角度rad)、コマンド層はmaya.cmdsの単位・フラグを基準にする。
 - 通常更新はcmdsによるUndo対応、対応する`fast=True`はom2によるUndoなし更新。同じ入力の意味・検証を維持する。
   読み取りはom2を基本とし、書き込み系の公開メソッドは原則 `fast` 引数を持つ。`fast` を持たない書き込みは
   om2に同等機能が無いものに限り、理由付きの一覧を「判断に迷う場合」に置く。
@@ -432,7 +432,17 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 - 全パッケージの公開関数・メソッド・プロパティは上記の例外を除きlowerCamelCase。
   シーン照会にはgetを付ける（`getNumVertices`・`getNumCVs`・`getCvPositions`等）。
   mlib独自の複合操作は独自名と仕様を明記し、MFnと同一の処理だと扱わない。
-- オブジェクトの数値は距離cm・角度rad・時間秒。`Plug.get/set`と数学型で同じ値を渡せる。
+- オブジェクトの数値は距離cm・時間秒・角度は度(5.0.0で既定をradから度へ変更)。角度の数値を受け渡す公開API
+  (`Plug.get/set`、`Transform.setRotate/getRotate/setQuaternion(get=True)`、`DrivenKey.setKey`、
+  `Node.addAttr`の角度の既定値・範囲、角度出力のAnimCurve・接線の角度、`AimConstraint`のoffset/restRotate、
+  `units.angleToUi/angleFromUi`)は`unit="deg"|"rad"`(別名`degree(s)`・`radian(s)`)を受け、既定は度とする。
+  `uiUnits=True`は現在のUI単位で、`unit`とは同時に指定できない(ValueError)。
+  `EulerRotate`・`Quaternion`は内部rad(om2互換)で値自身が単位を持つため、`unit`に関係なく換算しない。
+  `rotate`の`get()`は従来どおり`EulerRotate`を返し、`unit`を明示した場合だけ数値tupleを返す
+  (`tuple(rotate.get())`はradの数値になるので、度の数値列が必要なら`get(unit="deg")`を使う)。
+  `Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault`は既定で`MAngle`等の単位付きの値を返し、`unit`指定時に数値を返す。
+  数学型の生成は既定rad(`EulerRotate(..., unit="deg")`・`Quaternion.fromAxisAngle(..., unit="deg")`で度)。
+  内部処理はradで計算し、公開境界で一度だけ換算する(通常・fast・safeで同じ換算)。
   `getTranslate/setTranslate`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
 - 空間指定は`worldSpace=True/False`(3.0.0で短縮名`ws`は廃止)。使用例は`worldSpace=True`とする。
@@ -451,7 +461,7 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
   同じ内部単位の値をom2へ直接渡す。fastで入力単位・番号・戻り値の意味を変えない。
 - 旧Python名の互換入口は作らず、内製使用側・テスト・ドキュメントを更新する。
 
-`cmds.addAttr`の角度・距離のdefaultValue/minValue/maxValueは内部単位を使うなど、
+`cmds.addAttr`の角度・距離のdefaultValue/minValue/maxValueは内部単位を使う(`Node.addAttr`は角度を既定の度から換算して渡す)など、
 Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単位変換を機械的に適用しない。
 
 ### 2026-10-26の統合で確定したメソッド契約

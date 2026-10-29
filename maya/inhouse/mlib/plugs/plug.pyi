@@ -9,7 +9,7 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.attributeType import attributeType, is_internal_data_type, value_reader
-from ..core.attributeType import _convert_units
+from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit
 from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object
@@ -598,7 +598,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getMin(self, *, uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getMin(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されている最小値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -606,6 +606,9 @@ class Plug(Object):
         既定(``uiUnits=False``)では単位の換算を行わない。
 
         Args:
+            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
+                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+                角度以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す。
                 既定Falseは内部の単位付きオブジェクトのまま返す。
 
@@ -614,17 +617,21 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getMax(self, *, uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されている最大値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクト(``MAngle``/``MDistance``/``MTime``)をそのまま返す。
 
         Args:
+            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
+                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+                角度以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -632,7 +639,8 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
@@ -660,13 +668,16 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getSoftMin(self, *, uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getSoftMin(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されているソフト最小値(UIスライダーの下限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
 
         Args:
+            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
+                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+                角度以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -674,17 +685,21 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getSoftMax(self, *, uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getSoftMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されているソフト最大値(UIスライダーの上限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
         単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
 
         Args:
+            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
+                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+                角度以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -692,11 +707,12 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getDefault(self, *, uiUnits: bool = ...) -> Any:
+    def getDefault(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Any:
         """アトリビュートの既定値を取得する。
 
         数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
@@ -705,6 +721,9 @@ class Plug(Object):
         (例 ``(1.0, 1.0, 1.0)``)を返す。
 
         Args:
+            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
+                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+                角度以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す
                 (コンパウンドアトリビュートは子ごとに換算したtuple)。既定Falseは内部単位のまま。
 
@@ -713,7 +732,8 @@ class Plug(Object):
                 数値以外の汎用のコンパウンドアトリビュートなど)では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
@@ -900,11 +920,19 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def get(self, *, uiUnits: bool = ...) -> Any:
+    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Any:
         """現在の評価値を取得する。値はキャッシュしない。
 
+        角度アトリビュート(doubleAngle等。rotateX・jointOrientの子など)の数値は既定で度、
+        距離はcm、時間は秒で返す。角度のコンパウンドアトリビュートは子ごとに換算する。
+        rotateのEulerRotateのように自身の単位を持つ値は換算しない(内部はrad)。
+
         Args:
-            uiUnits (bool): Trueは単位付き数値を現在のUI単位へ換算する。既定Falseはcm/rad/秒。
+            unit (str | None): 数値の角度の単位。None(既定)と ``"deg"`` / ``"degree"`` /
+                ``"degrees"`` は度、``"rad"`` / ``"radian"`` / ``"radians"`` はラジアン。
+                角度以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは単位付き数値を現在のUI単位へ換算する。既定Falseは角度が度
+                (unitの指定に従う)、距離cm、時間秒。
 
         Returns:
             object: 型に応じた値。CompoundPlug.getは子の定義順tuple、MultiPlug.getは
@@ -914,7 +942,8 @@ class Plug(Object):
                 Matrix・数値・tuple等を返す。マトリクス・型付き配列の成分と無単位値は換算しない。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 参照が無効、または値を読み取れない場合。
 
         Note:
@@ -923,7 +952,7 @@ class Plug(Object):
             参照の取得だけでは要素を作らない。
         """
         ...
-    def set(self, value: object, safe: bool = ..., *, uiUnits: bool = ..., fast: bool = ...) -> Plug | int:
+    def set(self, value: object, safe: bool = ..., *, unit: str | None = ..., uiUnits: bool = ..., fast: bool = ...) -> Plug | int:
         """値を設定する。ロック解除や接続解除、自動ロールバックは行わない。
 
         通常はcmds.setAttrで更新し、Undo有効時に記録する。
@@ -931,9 +960,14 @@ class Plug(Object):
         コンパウンドアトリビュートの値の失敗は子ごとに再試行する。成功した子の更新は残る。
 
         Args:
-            value (object): 内部単位の値(距離cm・角度rad・時間秒)。
+            value (object): 設定する値。角度の数値は既定で度(unitで変更)、距離cm、時間秒。
+                EulerRotate・Quaternion・MAngleのように自身の単位を持つ値は換算しない。
             safe (bool): Trueは対応する失敗を数える。既定Falseは例外を送出する。
-            uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは内部単位。
+            unit (str | None): 数値の角度の単位。None(既定)と ``"deg"`` / ``"degree"`` /
+                ``"degrees"`` は度、``"rad"`` / ``"radian"`` / ``"radians"`` はラジアン。
+                角度以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは角度が度(unitの指定に従う)、
+                距離cm、時間秒。
             fast (bool): Trueは対応型をOpenMayaで直接更新する。Undoへ記録せず、Undo設定も変更しない。
                 入力の意味と検証は通常経路と同じ(整数型・enum・boolへの小数は四捨五入、
                 数値型への文字列や文字列型への数値はRuntimeError)。
@@ -945,8 +979,9 @@ class Plug(Object):
 
         Raises:
             TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
-                safe=Falseで不正な入力の場合も送出する。
-            ValueError: safe=Falseで値の変換等に失敗した場合。
+                safe=Falseでunitが文字列・None以外、または不正な入力の場合も送出する。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueの同時指定(safe=Trueでは1を返す)。
+                safe=Falseで値の変換等に失敗した場合。
             RuntimeError: safe=Falseで無効参照・ロック・入力接続等により書けない場合。
             NotImplementedError: fast未対応型(messageなど)。ロック等の書込み可否より先に検査し、
                 safe=Trueでも部分更新前に拒否する。
@@ -963,7 +998,8 @@ class Plug(Object):
         ロック変更をせずFalseを返す。異なる場合はsetへ委譲し、失敗は例外にする。
 
         Args:
-            value (bool | int | float | str): 比較・設定する値。数値は許容誤差なしで比較し、単位はcm/rad/秒。
+            value (bool | int | float | str): 比較・設定する値。数値は許容誤差なしで比較し、
+                単位は :meth:`get` / :meth:`set` の既定(角度は度、距離cm、時間秒)。
             unlock (bool): Trueで対象自身のロックを一時解除し、値更新の成否にかかわらず
                 再ロックを試みる。親のロックや入力接続は解除しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。内側のset/状態更新にも同じ値を渡す。
@@ -983,7 +1019,7 @@ class Plug(Object):
     def reset(self, *, fast: bool = ...) -> Plug:
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
 
-        単位アトリビュートの既定値をcm/rad/秒へ換算してsetへ渡す。
+        単位アトリビュートの既定値を内部単位(cm/rad/秒)へ換算し、``unit="rad"`` でsetへ渡す。
         コンパウンドアトリビュートは定義順に子を更新し、途中で失敗したら例外を送出する。
         全子の事前検証や、成功した子の自動ロールバックは行わない。
         接続の切断やロック解除はしない。
@@ -1264,7 +1300,7 @@ class Plug(Object):
             Plug: 実際の接続先。
         """
         ...
-    def _set_template(self, value: object, safe: bool, *, fast: bool, _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
+    def _set_template(self, value: object, safe: bool, *, fast: bool, unit: str | None = ..., uiUnits: bool = ..., _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
         """set()の共通骨格。Undo文脈・マルチアトリビュート全体の拒否・fast未対応型の事前検査・safeの例外吸収を担う。
 
         派生クラスは値の書込み本体 :meth:`_set_value` と、safeの再試行 :meth:`_set_children_safely`
@@ -1274,15 +1310,21 @@ class Plug(Object):
             value (object): 書き込む値。
             safe (bool): Trueは対応する失敗を数える。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            unit (str | None): 数値の角度の単位。Noneは度。ここで一度だけラジアンへ換算し、
+                書込み本体とsafeの再試行には内部単位の値を渡す。
+            uiUnits (bool): TrueはUI単位の数値。unitとは同時に指定できない。
             _writer (callable | None): 内部専用。値の書込みに使う関数(既定は自身の ``_set_value``)。
                 Transform が Double3 の回転変換を通さずに基底の書込みを使うときに ``Plug._set_value`` を渡す。
-            **options: ``_set_value`` と ``_set_children_safely`` へ渡す追加指定(uiUnits・unit)。
+            **options: ``_set_value`` と ``_set_children_safely`` へ渡す追加指定。
 
         Returns:
             Plug | int: safe=Falseは自身。safe=Trueは成功0、または失敗数。
 
         Raises:
             TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
+                safe=Falseでunitが文字列・None以外の場合も送出する。
+            ValueError: safe=Falseでunitが未対応、またはunitとuiUnits=Trueを同時に指定した場合。
+                safe=Trueではいずれも書込み前の失敗として1を返す。
             NotImplementedError: fast未対応型。safe=Trueでも拒否する。
         """
         ...
@@ -1661,6 +1703,18 @@ class Plug(Object):
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def _range_value(self, value: object, angle_unit: str | None, ui_units: bool) -> Any:
+        """getMin等の戻り値を、uiUnits・unitの指定に従って換算する。
+
+        Args:
+            value (object): 定義から読んだ値(単位付きオブジェクト・数値・tuple)。
+            angle_unit (str | None): ``"deg"`` / ``"rad"``。Noneは換算しない。
+            ui_units (bool): Trueは現在のUI単位の数値へ換算する。
+
+        Returns:
+            object: 換算した値。
         """
         ...
     def _range_attribute_fn(self) -> om2.MFnNumericAttribute | om2.MFnUnitAttribute | None:

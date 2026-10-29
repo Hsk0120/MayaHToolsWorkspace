@@ -159,17 +159,21 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
                 tx.set(2, uiUnits=True, fast=True)
                 self.assertAlmostEqual(tx.get(), 2.0 / factor)
 
-    def test_angle_internal_radians_and_ui_units(self):
-        """角度は内部rad。uiUnits=TrueはUIの角度単位(deg・rad)。"""
+    def test_angle_degrees_and_ui_units(self):
+        """角度の数値は既定で度、unit="rad"でラジアン。uiUnits=TrueはUIの角度単位(deg・rad)。"""
         rx = self.node.getPlug("rx")
-        rx.set(math.pi / 2)
+        rx.set(90)
         self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 90.0)
         self.assertAlmostEqual(rx.get(uiUnits=True), 90.0)
+        rx.set(math.pi / 2, unit="rad")
+        self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 90.0)
         rx.set(45, uiUnits=True)
-        self.assertAlmostEqual(rx.get(), math.pi / 4)
+        self.assertAlmostEqual(rx.get(), 45.0)
+        self.assertAlmostEqual(rx.get(unit="rad"), math.pi / 4)
         cmds.currentUnit(angle="rad")
         rx.set(1.0, uiUnits=True)
-        self.assertAlmostEqual(rx.get(), 1.0)
+        self.assertAlmostEqual(rx.get(unit="rad"), 1.0)
+        self.assertAlmostEqual(rx.get(), math.degrees(1.0))
         self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 1.0)
 
     def test_time_internal_seconds_and_ui_frames(self):

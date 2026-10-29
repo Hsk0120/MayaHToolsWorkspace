@@ -137,7 +137,7 @@ class CommonMethodsTest(unittest.TestCase):
         target.getPlug("translate").set((7, 8, 9))
         actual.matchTransform(target.getFullName(), rotation=False, scale=False)
         self.assertEqual(tuple(actual.getPlug("translate").get()), (7, 8, 9))
-        self.assertAlmostEqual(actual.getPlug("rotateX").get(), __import__("math").radians(15))
+        self.assertAlmostEqual(actual.getPlug("rotateX").get(), 15)
         undo_name = cmds.undoInfo(query=True, undoName=True)
         actual.matchTransform(target, position=False, rotation=False, scale=False)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), undo_name)

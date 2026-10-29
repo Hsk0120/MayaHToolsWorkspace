@@ -4,7 +4,7 @@ import math
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
+from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error, _to_radians
 from .vector import (
     Vector,
     _reduce_value,
@@ -410,19 +410,23 @@ class Quaternion(om2.MQuaternion):
         return Quaternion._wrap(_MQuaternion.__neg__(self))
 
     @classmethod
-    def fromAxisAngle(cls, axis, angle):
+    def fromAxisAngle(cls, axis, angle, *, unit="rad"):
         """軸と角度から回転クォータニオンを生成する。
 
         Args:
             axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
-            angle (float): 回転角度(ラジアン)。
+            angle (float): 回転角度。単位はunitに従う。
+            unit (str): angleの単位。既定 ``"rad"`` はラジアン(om2と同じ)、``"deg"`` は度
+                (``"degree"`` / ``"radians"`` 等の別名も可)。
 
         Returns:
             Quaternion: axis を中心に angle だけ回転する単位クォータニオン。
 
         Raises:
-            ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)。
+            TypeError: unitが文字列以外の場合。
+            ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)、またはunitが未対応の場合。
         """
+        angle = _to_radians(angle, _angle_unit(unit))
         axis = _resolve_mvector(axis)
         length = axis.length()
         if length == 0.0:

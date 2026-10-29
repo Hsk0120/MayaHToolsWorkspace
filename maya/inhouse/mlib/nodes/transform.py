@@ -14,7 +14,7 @@ from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool,
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _world_space
+from ..util import _angle_unit, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -997,7 +997,7 @@ class Transform(DagNode):
             self._set_channel_value("translate", result, safe=safe, fast=fast)
             return self
 
-    def getRotate(self, worldSpace=False, *, order=None):
+    def getRotate(self, worldSpace=False, *, order=None, unit=None):
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
@@ -1015,16 +1015,22 @@ class Transform(DagNode):
             order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
                 (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
                 None はノードの rotateOrder。
+            unit (str | None): None(既定)はEulerRotateを返す。``"deg"`` / ``"rad"``
+                (``"degree"`` 等の別名も可)を指定すると、その単位の数値3成分のtupleを返す。
 
         Returns:
-            EulerRotate: rad単位の独立した回転値。``order`` の回転順序(省略時はノードの rotateOrder)。
+            EulerRotate | tuple[float, float, float]: unit=Noneでは内部がradの独立した回転値。
+                ``order`` の回転順序(省略時はノードの rotateOrder)。unit指定時は同じ回転のXYZ成分を
+                指定単位で表したtuple。
 
         Raises:
-            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
+            TypeError: unit が文字列・None 以外の場合。
+            ValueError: worldSpace が bool 以外、order・unit が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
         """
         ws = _world_space(worldSpace)
+        angle_unit = _angle_unit(unit, default=None)
         if order is not None:
             order = orderIndex(order)
         matrix = self.getMatrix(worldSpace=ws)
@@ -1033,10 +1039,14 @@ class Transform(DagNode):
                 raise ValueError("Cannot decompose a matrix with a zero scale axis")
         _, quaternion, _, _, reference = self._decompose_like_channels(matrix)
         if order is None or order == reference.order:
-            return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
-        return EulerRotate._wrap(quaternion.asEulerRotation().reorder(order))
+            rotation = EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
+        else:
+            rotation = EulerRotate._wrap(quaternion.asEulerRotation().reorder(order))
+        if angle_unit is None:
+            return rotation
+        return tuple(_from_radians(value, angle_unit) for value in rotation)
 
-    def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="rad", fast=False):
+    def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="deg", fast=False):
         """選択空間の回転を設定する。書込むrotateは現在値に最も近い等価解を使う。
 
         3成分はノードのrotateOrderで解釈し、EulerRotateは値自身の回転順序を使う。
@@ -1051,37 +1061,34 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。
             safe (bool): 書けない成分を保持する。目標回転との一致は保証しない。
             get (bool): Trueは書き込まず、ローカルrotateの設定予定値を返す。
-            unit (str): 既定radはラジアン。degは通常の数値3成分だけに使用できる。
+            unit (str): 数値3成分とget=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` は
+                ラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。EulerRotate/Quaternionは自身の
+                単位(rad)を持つため、unitに関係なく換算しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            Transform | list[float]: 通常は自身。get=Trueはrad単位の独立したXYZ3成分のlist。
+            Transform | list[float]: 通常は自身。get=Trueはunitの単位(既定は度)の独立したXYZ3成分のlist。
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
-            ValueError: unitがrad/deg以外、degをEulerRotate/Quaternionと指定、
-                値が3成分でない、マトリクスが分解不能、または必要な親マトリクスが反転不能の場合。
+            TypeError: fastがbool以外、またはunitが文字列以外の場合。
+            ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
+                または必要な親マトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
         """
         with _edit_context("mlibTransformSetRotate", fast):
             ws = _world_space(worldSpace)
-            if unit not in ("rad", "deg"):
-                raise ValueError("unit must be 'rad' or 'deg'")
-            if isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
-                if unit == "deg":
-                    raise ValueError("unit='deg' is only supported for three plain components")
-            else:
+            angle_unit = _angle_unit(unit)
+            if not isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
                 self._require_valid("set")
                 x, y, z = value
-                if unit == "deg":
-                    x, y, z = math.radians(x), math.radians(y), math.radians(z)
+                x, y, z = _to_radians(x, angle_unit), _to_radians(y, angle_unit), _to_radians(z, angle_unit)
                 # cmds.xform と同じく、3成分はノードの rotateOrder の値として解釈する。
                 value = EulerRotate(x, y, z, self._rotate_order())
             matrix = self._replace_components(self.getMatrix(worldSpace=ws), rotate=value)
             rotation = self._matrix_channel_values(self._local_matrix(matrix, ws))["rotate"]
             if get:
-                return list(rotation)
+                return [_from_radians(component, angle_unit) for component in rotation]
             self._set_channel_value("rotate", rotation, safe=safe, fast=fast)
             return self
 
@@ -1199,7 +1206,7 @@ class Transform(DagNode):
         return Quaternion._wrap(q)
 
     def setQuaternion(self, value, worldSpace=False, ra=False, r=True, jo=True, safe=False, get=False, *,
-        fast=False):
+        unit="deg", fast=False):
         """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
 
         受理する組合せでは、r=Trueはrotate、r=FalseかつJointでjo=TrueはjointOrient、
@@ -1214,21 +1221,25 @@ class Transform(DagNode):
             jo (bool): jointOrientを含む。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
+            unit (str): get=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+                (``"degree"`` 等の別名も可)。書込みと入力のクォータニオンには影響しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
-                rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
+                unitの単位(既定は度)のlistとして返し、safe/fastの指定によらずシーンは変更しない。
                 入力のQuaternionや、XYZWの4成分を返す操作ではない。
                 rotateの設定予定値はノードのrotateOrder、他の書込み先はXYZ順序。
 
         Raises:
-            ValueError: 回転成分と空間指定が未対応の組合せの場合。
+            TypeError: unitが文字列以外の場合。
+            ValueError: 回転成分と空間指定が未対応の組合せ、またはunitが未対応の単位名の場合。
         """
         with _edit_context("mlibTransformSetQuaternion", fast):
+            angle_unit = _angle_unit(unit)
             name, rotation = self._quaternion_channel_values(value, _world_space(worldSpace), ra, r, jo)
             if get:
-                return list(rotation)
+                return [_from_radians(component, angle_unit) for component in rotation]
             self._set_channel_value(name, rotation, safe=safe, fast=fast)
             return self
 
@@ -1440,14 +1451,14 @@ class Transform(DagNode):
         """
         if not self.isValid():
             # 無効なノードでは、従来と同じgetPlugの例外を送出する。
-            return self.getPlug(name).get()
+            return self.getPlug(name).get(unit="rad")
         plug = self._dependency_fn().findPlug(name, False)
         targets = [plug.child(index) for index in range(plug.numChildren())] if plug.isCompound else [plug]
         values = []
         for target in targets:
             reader = value_reader(target.attribute())
             if reader is False:
-                value = self.getPlug(name).get()
+                value = self.getPlug(name).get(unit="rad")
                 return tuple(value) if plug.isCompound else value
             values.append(reader(target))
         return tuple(values) if plug.isCompound else values[0]
@@ -1493,7 +1504,7 @@ class Transform(DagNode):
             om2.MQuaternion: 新しい回転値。
         """
         if name == "jointOrient" and not self.mnode().hasFn(om2.MFn.kJoint):
-            value = self.getPlug(name).get()
+            value = self.getPlug(name).get(unit="rad")
         else:
             # 組み込みの角度アトリビュートは、getPlug(name).get()と同じ読取関数でPlugを作らずに読む。
             value = self._static_value(name)
@@ -1778,7 +1789,8 @@ class Transform(DagNode):
             Plug | int: Plug.setの戻り値。通常はPlug、safe=Trueは失敗数。
         """
         # Double3Plug._set_value の回転変換・単位処理を通さず、基底 Plug の書込みを骨格ごと使う。
-        return Plug._set_template(self.getPlug(name), tuple(value), safe, fast=fast, _writer=Plug._set_value)
+        return Plug._set_template(self.getPlug(name), tuple(value), safe, fast=fast, unit="rad",
+                                  _writer=Plug._set_value)
 
     def _matrix_channel_values(self, matrix, scale_reference=None):
         """マトリクスからtranslate/rotate/scale/shearの設定値を計算する。シーンは更新しない。

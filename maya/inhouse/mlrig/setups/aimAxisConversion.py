@@ -108,10 +108,10 @@ class AimAxisConversion:
         order = int(source.getPlug("constraintRotateOrder").get())
         if order != int(target.getPlug("rotateOrder").get()):
             raise ValueError("Aimと対象のRotate Orderが異なります。")
-        values = [target.getPlug("rotate" + a.upper()).get() for a in "xyz"]
+        values = [target.getPlug("rotate" + a.upper()).get(unit="rad") for a in "xyz"]
         rest_values = (original_state.get("restValues") if original_state else None)
         if rest_values is None:
-            rest_values = source.getRestRotate()
+            rest_values = source.getRestRotate(unit="rad")
         constraint_settings = cls._captureSettings(source)
         name = source.getName().split("|")[-1] + "_axisConversion"
         owner = (Container.create(name=name) if use_container else
@@ -159,11 +159,11 @@ class AimAxisConversion:
         for i, axis in enumerate("xyz"):
             owner.addAttr(longName="output" + axis.upper(), attributeType="doubleAngle")
             if axis not in axes:
-                owner.getPlug("output" + axis.upper()).set(values[i])
+                owner.getPlug("output" + axis.upper()).set(values[i], unit="rad")
                 continue
             output = outputs[axis]
             if preserve_pose and mode != "euler":
-                output = graph._sum(output, values[i] - output.get())
+                output = graph._sum(output, values[i] - output.get(unit="rad"))
             graph._angle(output).connectTo(owner.getPlug("output" + axis.upper()))
         # 結果値を評価してから元接続を外す。基準値に対象回転のライブ接続は作らない。
         for axis in axes:
@@ -179,7 +179,7 @@ class AimAxisConversion:
                 output = owner.getPlug("output" + axis.upper())
                 (output if use_container else output.getSource(skipConversionNodes=False)).connectTo(destination)
             elif axis in original:
-                destination.set(values[i])
+                destination.set(values[i], unit="rad")
         return graph
 
     @undoTransaction("mlrig.AimAxisConversion.restore")
@@ -204,7 +204,7 @@ class AimAxisConversion:
         updates = []
         for attr, value in settings.items():
             plug = source.getPlug(attr)
-            if plug.get() == value:
+            if plug.get(unit="rad") == value:
                 continue
             parent = plug.getParent() if plug.isChild() else None
             if (source.isLocked() or source.isFromReferencedFile() or plug.isLocked()
@@ -224,10 +224,10 @@ class AimAxisConversion:
         for axis in data["axes"]:
             target.getPlug("rotate" + axis.upper()).disconnectInput()
         for plug, value in updates:
-            plug.set(value)
+            plug.set(value, unit="rad")
         for i, axis in enumerate("xyz"):
             if axis in touched:
-                target.getPlug("rotate" + axis.upper()).set(data["values"][i])
+                target.getPlug("rotate" + axis.upper()).set(data["values"][i], unit="rad")
         if data["compound"]:
             source.getPlug("constraintRotate").connectTo(target.getPlug("rotate"))
         else:
@@ -257,7 +257,7 @@ class AimAxisConversion:
         for plug in [source.getPlug(attr) for attr in attrs] + source.getWeightPlugs():
             parent = plug.getParent() if plug.isChild() else None
             if plug.getSource(skipConversionNodes=False) is None and (parent is None or parent.getSource(skipConversionNodes=False) is None):
-                settings[plug.getFullName().split(".", 1)[1]] = plug.get()
+                settings[plug.getFullName().split(".", 1)[1]] = plug.get(unit="rad")
         return settings
 
     @staticmethod

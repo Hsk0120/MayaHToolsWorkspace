@@ -2,6 +2,8 @@
 
 import maya.api.OpenMaya as om2
 
+from ..util import _angle_unit
+
 
 def distanceToUi(centimeters):
     """cm距離を現在のUI距離単位の数値へ変換する。
@@ -80,28 +82,56 @@ def distanceFromUi(value):
     return om2.MDistance(value, om2.MDistance.uiUnit()).asCentimeters()
 
 
-def angleToUi(radians):
-    """rad角度を現在のUI角度単位の数値へ変換する。
+def _angle_constant(unit):
+    """角度の単位名をMAngleの単位定数へ解決する。
 
     Args:
-        radians (float): rad単位の角度。
+        unit (str): ``"deg"`` / ``"rad"`` と ``"degree"`` 等の別名。
+
+    Returns:
+        int: MAngleの単位定数。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    return om2.MAngle.kDegrees if _angle_unit(unit) == "deg" else om2.MAngle.kRadians
+
+
+def angleToUi(value, *, unit="deg"):
+    """角度を現在のUI角度単位の数値へ変換する。
+
+    Args:
+        value (float): unitの単位の角度。
+        unit (str): valueの単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+            (``"degree"`` / ``"radians"`` 等の別名も可)。
 
     Returns:
         float: 現在のUI角度単位で表した値。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: unitが未対応の単位名の場合。
     """
-    return om2.MAngle(radians).asUnits(om2.MAngle.uiUnit())
+    return om2.MAngle(value, _angle_constant(unit)).asUnits(om2.MAngle.uiUnit())
 
 
-def angleFromUi(value):
-    """現在のUI角度単位の数値をradへ変換する。
+def angleFromUi(value, *, unit="deg"):
+    """現在のUI角度単位の数値を、指定単位の角度へ変換する。
 
     Args:
         value (float): 現在のUI角度単位で表した値。
+        unit (str): 戻り値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+            (``"degree"`` / ``"radians"`` 等の別名も可)。
 
     Returns:
-        float: rad単位の角度。
+        float: unitの単位の角度。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: unitが未対応の単位名の場合。
     """
-    return om2.MAngle(value, om2.MAngle.uiUnit()).asRadians()
+    return om2.MAngle(value, om2.MAngle.uiUnit()).asUnits(_angle_constant(unit))
 
 
 def secondsPerFrame():

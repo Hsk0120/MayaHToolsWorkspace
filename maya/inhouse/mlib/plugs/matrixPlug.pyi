@@ -2,7 +2,7 @@
 """マトリクスアトリビュートの値を読み書きする。ノードの変換はTransformで扱う。"""
 
 import maya.api.OpenMaya as om2
-from ..core.attributeType import typed_data
+from ..core.attributeType import _plain_angle_unit, typed_data
 from ..core.fastWrite import set_attr, set_plug
 from ..decorator import _require_bool
 from ..maths import Matrix
@@ -13,10 +13,11 @@ from typing import Any, Sequence
 
 class MatrixPlug(Plug):
     """matrixアトリビュート用のPlug。対象アトリビュートの値だけを扱う。"""
-    def get(self, *, uiUnits: bool = ...) -> Matrix | None:
+    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Matrix | None:
         """対象アトリビュートのマトリクス値を取得する。
 
         Args:
+            unit (str | None): Plug共通の角度の単位指定。検証だけ行い、マトリクス成分は換算しない。
             uiUnits (bool): Plug共通の単位指定。マトリクス成分の単位変換は行わない。
 
         Returns:
@@ -25,7 +26,8 @@ class MatrixPlug(Plug):
                 ``attributeType="matrix"`` は未設定でも既定の単位マトリクスを返す。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または値を読み取れない場合。
         """
         ...

@@ -1,6 +1,6 @@
 """AimConstraint のオフセットの約束を固定する(担当C)。
 
-AimConstraint の角度は UI の角度単位によらず radian。設定は入力を検証してから一括で書き、
+AimConstraint の角度は UI の角度単位によらず既定で度(unit="rad"でラジアン)。設定は入力を検証してから一括で書き、
 ロック・入力接続は ValueError。
 """
 
@@ -34,19 +34,24 @@ class AimOffsetTest(_SpecCase):
         self.constraint = cmds.aimConstraint(self.target, self.driven)[0]
         self.node = Node(self.constraint)
 
-    def test_offset_in_radians_and_undo(self):
-        """getOffset・setOffset は radian の3値。UI 単位によらず、1回の Undo で戻る。"""
+    def test_offset_in_degrees_and_undo(self):
+        """getOffset・setOffset は既定で度の3値(unit="rad"はラジアン)。UI 単位によらず、1回の Undo で戻る。"""
         self.assertIsInstance(self.node, AimConstraint)
         self.assertEqual(self.node.getOffset(), (0.0, 0.0, 0.0))
         cmds.flushUndo()
-        self.assertIs(self.node.setOffset((0, 0, math.pi / 2)), self.node)
+        self.assertIs(self.node.setOffset((0, 0, 90)), self.node)
         self.assertAlmostEqual(cmds.getAttr(self.constraint + ".offsetZ"), 90.0)
         cmds.undo()
         self.assertEqual(self.node.getOffset(), (0.0, 0.0, 0.0))
         # currentUnit も Undo に積まれるため、単位の確認は Undo の後で行う。
-        self.node.setOffset((0, 0, math.pi / 2))
+        self.node.setOffset((0, 0, math.pi / 2), unit="rad")
         cmds.currentUnit(angle="rad")
-        self.assertAlmostEqual(self.node.getOffset()[2], math.pi / 2)
+        self.assertAlmostEqual(self.node.getOffset()[2], 90.0)
+        self.assertAlmostEqual(self.node.getOffset(unit="rad")[2], math.pi / 2)
+        self.node.setRestRotate((10, 20, 30), fast=True)
+        self.assertAlmostEqual(self.node.getRestRotate()[1], 20.0)
+        with self.assertRaises(ValueError):
+            self.node.setOffset((0, 0, 0), unit="grad")
 
     def test_output_rotate_uses_constraint_rotate_order(self):
         """getOutputRotate は constraintRotate を constraintRotateOrder の EulerRotate で返す。"""

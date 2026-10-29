@@ -13,7 +13,7 @@ from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool,
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _world_space
+from ..util import _angle_unit, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -542,7 +542,7 @@ class Transform(DagNode):
                 safe指定時も書込み可否を反映した最終結果の予測ではない。
         """
         ...
-    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ...) -> EulerRotate:
+    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., unit: str | None = ...) -> EulerRotate | tuple[float, float, float]:
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
@@ -560,12 +560,17 @@ class Transform(DagNode):
             order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
                 (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
                 None はノードの rotateOrder。
+            unit (str | None): None(既定)はEulerRotateを返す。``"deg"`` / ``"rad"``
+                (``"degree"`` 等の別名も可)を指定すると、その単位の数値3成分のtupleを返す。
 
         Returns:
-            EulerRotate: rad単位の独立した回転値。``order`` の回転順序(省略時はノードの rotateOrder)。
+            EulerRotate | tuple[float, float, float]: unit=Noneでは内部がradの独立した回転値。
+                ``order`` の回転順序(省略時はノードの rotateOrder)。unit指定時は同じ回転のXYZ成分を
+                指定単位で表したtuple。
 
         Raises:
-            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
+            TypeError: unit が文字列・None 以外の場合。
+            ValueError: worldSpace が bool 以外、order・unit が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
         """
@@ -585,17 +590,19 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。
             safe (bool): 書けない成分を保持する。目標回転との一致は保証しない。
             get (bool): Trueは書き込まず、ローカルrotateの設定予定値を返す。
-            unit (str): 既定radはラジアン。degは通常の数値3成分だけに使用できる。
+            unit (str): 数値3成分とget=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` は
+                ラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。EulerRotate/Quaternionは自身の
+                単位(rad)を持つため、unitに関係なく換算しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            Transform | list[float]: 通常は自身。get=Trueはrad単位の独立したXYZ3成分のlist。
+            Transform | list[float]: 通常は自身。get=Trueはunitの単位(既定は度)の独立したXYZ3成分のlist。
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
-            ValueError: unitがrad/deg以外、degをEulerRotate/Quaternionと指定、
-                値が3成分でない、マトリクスが分解不能、または必要な親マトリクスが反転不能の場合。
+            TypeError: fastがbool以外、またはunitが文字列以外の場合。
+            ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
+                または必要な親マトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
         """
         ...
@@ -675,7 +682,7 @@ class Transform(DagNode):
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
         ...
-    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ...) -> Transform | list[float]:
+    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ...) -> Transform | list[float]:
         """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
 
         受理する組合せでは、r=Trueはrotate、r=FalseかつJointでjo=TrueはjointOrient、
@@ -690,16 +697,19 @@ class Transform(DagNode):
             jo (bool): jointOrientを含む。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
+            unit (str): get=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+                (``"degree"`` 等の別名も可)。書込みと入力のクォータニオンには影響しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
-                rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
+                unitの単位(既定は度)のlistとして返し、safe/fastの指定によらずシーンは変更しない。
                 入力のQuaternionや、XYZWの4成分を返す操作ではない。
                 rotateの設定予定値はノードのrotateOrder、他の書込み先はXYZ順序。
 
         Raises:
-            ValueError: 回転成分と空間指定が未対応の組合せの場合。
+            TypeError: unitが文字列以外の場合。
+            ValueError: 回転成分と空間指定が未対応の組合せ、またはunitが未対応の単位名の場合。
         """
         ...
     def makeIdentity(self, *, apply: bool = ..., a: bool = ..., jointOrient: bool = ..., jo: bool = ..., normal: int = ..., n: int = ..., preserveNormals: bool = ..., pn: bool = ..., rotate: bool = ..., r: bool = ..., scale: bool = ..., s: bool = ..., translate: bool = ..., t: bool = ..., query: bool = ..., q: bool = ..., edit: bool = ..., e: bool = ..., **kwargs: object) -> Transform:

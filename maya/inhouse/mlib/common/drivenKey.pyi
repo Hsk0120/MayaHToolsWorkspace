@@ -4,9 +4,10 @@
 import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..core.attributeType import _convert_units, attributeType
+from ..core.attributeType import _convert_angles, _convert_units, attributeType
 from ..decorator import undoChunk
 from ..plugs.plug import Plug
+from ..util import _angle_unit
 from typing import Iterable
 from mlib.nodes.animCurve import AnimCurve
 
@@ -75,8 +76,9 @@ class DrivenKey:
     接続は問い合わせの都度調べ、単位変換ノードとblendWeightedのinput経由を辿る。
     pairBlend、アニメーションレイヤー、任意の計算ノードを辿る汎用探索ではない。
 
-    setKeyの数値は各アトリビュートの内部単位で受け取り、Mayaコマンド境界で
-    UI単位へ変換する。AnimCurveのU型カーブに渡す無次元入力と混同しない。
+    setKeyの数値は、角度アトリビュートでは既定で度(``unit="rad"`` でラジアン)、距離はcm、
+    時間は秒で受け取り、Mayaコマンド境界でUI単位へ変換する。
+    AnimCurveのU型カーブに渡す無次元入力と混同しない。
     """
     def __init__(self, driver: Plug | om2.MPlug | str, driven: Plug | om2.MPlug | str) -> None:
         """既存の数値Plugを保持する。関係が未作成でも取得できる。
@@ -154,28 +156,31 @@ class DrivenKey:
             bool: 対応するカーブ接続が存在するか。キーが空でもTrue。
         """
         ...
-    def setKey(self, driverValue: float, value: float, inTangentType: str = ..., outTangentType: str = ...) -> DrivenKey:
+    def setKey(self, driverValue: float, value: float, inTangentType: str = ..., outTangentType: str = ..., *, unit: str = ...) -> DrivenKey:
         """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
 
-        両値をfloat()で有限性検査し、それぞれのPlug定義に従って内部単位から
-        UI単位へ変換してsetDrivenKeyframeを呼ぶ。ドライバーの現在値やシーン時刻は
+        両値をfloat()で有限性検査し、それぞれのPlug定義に従ってUI単位へ変換して
+        setDrivenKeyframeを呼ぶ。ドライバーの現在値やシーン時刻は
         変更しない。作成後は対応カーブをdgdirtyで汚し、駆動先の再評価を促す。
 
         fast引数やOpenMaya更新は提供しない。Undo有効時は一回のチャンクにまとめる。
         呼出元のfast指定には影響されず、Undo設定は変更しない。
 
         Args:
-            driverValue (float): ドライバーの内部単位の値。角度rad、距離cm、時間秒、その他は無次元。
-            value (float): 駆動先の内部単位の値。単位はdriverValueと独立に解釈する。
+            driverValue (float): ドライバーの値。角度はunitの単位(既定は度)、距離cm、時間秒、
+                その他は無次元。
+            value (float): 駆動先の値。単位はdriverValueと独立に、駆動先のアトリビュート定義で解釈する。
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
+            unit (str): 角度アトリビュートの値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+                (``"degree"`` / ``"radians"`` 等の別名も可)。角度以外のアトリビュートでは使わない。
 
         Returns:
             DrivenKey: 自身。
 
         Raises:
-            TypeError: 数値の型がfloat()へ変換できない場合。
-            ValueError: 数値が非有限、またはfloat()で変換できない場合。
+            TypeError: 数値の型がfloat()へ変換できない、またはunitが文字列以外の場合。
+            ValueError: 数値が非有限、float()で変換できない、またはunitが未対応の単位名の場合。
             RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
                 またはMayaがキー作成を拒否した場合。
 

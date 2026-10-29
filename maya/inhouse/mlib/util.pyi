@@ -24,6 +24,7 @@ _NOT_AT_HEAD: frozenset
 _TYPE_CACHE_LIMIT: int
 _OM2_TYPES: dict
 _STATEFUL_TYPES: dict
+_ANGLE_UNITS: dict
 
 
 class _ArgumentError(TypeError):
@@ -190,6 +191,47 @@ def _copy_state(source: object, target: object, memo: dict | None = ...) -> Any:
 
     Returns:
         object: 渡されたtarget自身。sourceの数学成分は変更しない。
+    """
+    ...
+
+def _angle_unit(unit: str | None, default: str | None = ...) -> str | None:
+    """角度の単位名を ``"deg"`` / ``"rad"`` へ正規化する。
+
+    Args:
+        unit (str | None): ``"deg"``・``"degree"``・``"degrees"``・``"rad"``・``"radian"``・
+            ``"radians"`` のいずれか。Noneはdefaultを使う。
+        default (str | None): unitがNoneの場合に返す値。
+
+    Returns:
+        str | None: ``"deg"`` または ``"rad"``。unitとdefaultがNoneならNone。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    ...
+
+def _to_radians(value: float, unit: str) -> float:
+    """正規化済みの単位の数値をラジアンへ変換する。
+
+    Args:
+        value (float): 角度。
+        unit (str): ``"deg"`` または ``"rad"``。
+
+    Returns:
+        float: ラジアンの値。radはそのまま返す。
+    """
+    ...
+
+def _from_radians(value: float, unit: str) -> float:
+    """ラジアンの数値を正規化済みの単位へ変換する。
+
+    Args:
+        value (float): ラジアンの角度。
+        unit (str): ``"deg"`` または ``"rad"``。
+
+    Returns:
+        float: 指定単位の値。radはそのまま返す。
     """
     ...
 

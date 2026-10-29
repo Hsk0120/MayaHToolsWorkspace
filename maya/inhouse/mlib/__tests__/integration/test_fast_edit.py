@@ -85,7 +85,7 @@ class FastEditTest(unittest.TestCase):
                 for linear in ('cm', 'm'):
                     cmds.currentUnit(angle=angle, linear=linear)
                     with self.api_only():
-                        node.getPlug('rx').set(.4, fast=True)
+                        node.getPlug('rx').set(.4, unit='rad', fast=True)
                         node.getPlug('tx').set(.6, fast=True)
                     self.assertAlmostEqual(node.getPlug('rx').mplug().asMAngle().asRadians(), .4)
                     self.assertAlmostEqual(node.getPlug('tx').mplug().asMDistance().asCentimeters(), .6)

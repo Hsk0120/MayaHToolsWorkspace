@@ -63,8 +63,13 @@ mlib入門
 :class:`~mlib.plugs.plug.Plug` の ``get()``・``set()`` で読み書きします。
 ``node.tx`` もPlugを返しますが、代入ではなく ``node.tx.set(10)`` で値を変更します。
 
-値の単位は距離cm・角度rad・時刻秒を基本とします。Plugを現在のUI単位で扱う場合は
-``get(uiUnits=True)``・``set(..., uiUnits=True)`` を使います。
+値の単位は距離cm・時刻秒を基本とし、角度の数値は度で扱います(5.0.0以降)。
+``node.getPlug("rotateX").set(90)`` は90度、``get()`` も度を返します。ラジアンで扱う場合は
+``get(unit="rad")``・``set(..., unit="rad")`` を指定します。``rotate`` の ``get()`` が返す
+:class:`~mlib.maths.EulerRotate` や :class:`~mlib.maths.Quaternion` などの数学型は、OpenMayaと同じく
+内部がラジアンで、値自身が単位を持つため ``set()`` へそのまま渡せます。
+Plugを現在のUI単位で扱う場合は ``get(uiUnits=True)``・``set(..., uiUnits=True)`` を使います
+(``unit`` とは同時に指定できません)。
 ``maya.cmds`` へ渡すフラグ値はMayaの単位規則に従います。
 
 .. _tool-undo-chunk:

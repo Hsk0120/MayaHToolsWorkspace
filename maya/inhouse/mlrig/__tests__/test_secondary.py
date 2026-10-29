@@ -3,7 +3,6 @@
 import json
 from pathlib import Path
 import tempfile
-import math
 import unittest
 from unittest import mock
 
@@ -88,7 +87,7 @@ class SecondaryTest(unittest.TestCase):
         graph = group.getPlug('poseGraph').getSource(skipConversionNodes=False).getNode()
         cmds.currentTime(24)
         self.assertAlmostEqual(graph.getPlug("outputs[2]").get(), 20, places=4)
-        self.source.getPlug("rz").set(math.radians(60))
+        self.source.getPlug("rz").set(60)
         self.assertAlmostEqual(graph.getPlug("outputs[0]").get(), -20, places=4)
         self.assertAlmostEqual(graph.getPlug("outputs[2]").get(), 25, places=4)
         target = layer._members(group, "targets")[0]

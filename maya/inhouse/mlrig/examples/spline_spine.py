@@ -331,7 +331,7 @@ def _build(name, count, length, height, stretch):
                                 skipSelect=True)
         if index == 0:
             joint.getPlug("translate").set((0, mlib.common.units.distanceFromUi(height), 0))
-            joint.getPlug("jointOrient").set((0, 0, math.pi / 2))
+            joint.getPlug("jointOrient").set((0, 0, 90))
         else:
             joint.getPlug("translateX").set(mlib.common.units.distanceFromUi(segment))
         ik.append(joint)
