@@ -4,6 +4,128 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+5.0.0 (2026-10-29)
+------------------
+
+リガー(Maya の操作には詳しく Python は初心者)の目線で mlib を使ったリギング作業の検証を行い、見つかった問題を直しました。
+黙って間違った結果になっていた動作を止め、cmds に戻る必要があった作業(ジョイントの向き付け・IK・ミラー・
+コントローラー・blendShape・スキンの頂点単位の編集)を mlib で書けるようにしました。既存コードの結果が変わる変更を含みます。
+
+.. rubric:: 移行が必要な変更
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - 対象
+     - 4.1.0 まで
+     - 5.0.0
+   * - 角度アトリビュートの数値(``Plug.get/set``・``CompoundPlug``/``MultiPlug`` の角度の子・要素、
+       ``jointOrient``・``rotateAxis`` の ``get()``)
+     - ラジアン
+     - **度**。``unit="rad"`` でラジアン(``"deg"``・``"degree(s)"``・``"radian(s)"`` も可)。``uiUnits=True`` と ``unit`` は同時指定できない
+   * - ``Transform.setRotate``
+     - 既定 ``unit="rad"``
+     - 既定 ``unit="deg"``。``EulerRotate``・``Quaternion`` は unit に関係なくそのまま
+   * - ``Transform.getRotate``
+     - ``EulerRotate``
+     - 同じ。``unit="deg"``/``"rad"`` を指定するとその単位の tuple
+   * - ``DrivenKey.setKey``・``Node.addAttr`` の角度の範囲と既定値・``AnimCurve`` の角度のキー値と接線・
+       ``AimConstraint`` のオフセット・``common.units.angleToUi/angleFromUi``
+     - ラジアン
+     - 度(``unit=`` で指定可)。単位の無いドライバーは換算しない
+   * - ``Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault``
+     - ``MAngle``
+     - 既定は ``MAngle`` のまま。``unit=`` を指定すると数値
+   * - ``EulerRotate(...)``・``Quaternion.fromAxisAngle``
+     - ラジアン
+     - 既定はラジアンのまま(om2 と同じ)。``unit="deg"`` を追加
+   * - ``node.tx = 5``
+     - 何も書き込まず、Python の属性が作られる
+     - ``node.getPlug("tx").set(5)`` と同じ書き込み(Undo 1回、角度は度)。Maya のアトリビュートが無い名前は ``AttributeError``
+   * - ``createNode("joint", parent=<joint>)``
+     - inverseScale を接続しない
+     - 親の scale を inverseScale へ接続する(``cmds.joint`` と同じ)
+   * - ``connect/connectTo(nextAvailable=True)``
+     - 0 から探して途中の空き要素へ接続
+     - ``cmds.connectAttr(nextAvailable=True)`` と同じ(接続のある最後の要素の次)。``getNextAvailable()`` は変わらない
+   * - 同じ接続をもう一度 ``connect/connectTo``
+     - Maya のコマンドエラー
+     - ``RuntimeError("Already connected")``。``safe=True`` で何もしない
+   * - ``SkinCluster.setWeights(joints, [K個])``(頂点が2つ以上)
+     - 全頂点に同じ値
+     - ``ValueError``。``broadcast=True`` か ``vertices=`` を指定する
+   * - ``SkinCluster.getWeights`` の未登録の influence・Component
+     - ``TypeError: ... not convertable to int``
+     - ``ValueError``(未登録)・``TypeError``(Component、``vertices=`` を案内)
+   * - ``SkinCluster.copyWeightsTo``
+     - ``None`` を返し、skinCluster だけ受け付ける
+     - 転送先の ``SkinCluster`` を返し、形状も受け付ける(未バインドなら同じ influence でバインド)
+   * - ``Transform.resetAttrs()``
+     - translate・rotate・scale・shear だけ
+     - ``Node.resetAttrs()`` と同じくキー設定可能な全アトリビュート(ユーザー定義を含む)
+   * - ``createNode(name=)``・``rename()`` の ``|``
+     - Maya が黙って置き換える
+     - ``ValueError``
+   * - 無効な参照の ``getName()``・``getNodeName()``
+     - ``""``
+     - ``RuntimeError``(``str()`` は ``""`` のまま)
+   * - ``rename()``・``setNamespace()`` の戻り値
+     - 文字列
+     - 自身
+   * - ``Plug.getName()``・``getAttrName()``
+     - ``tt.wm``・``.wm``
+     - ``tt.wm[0]``・``wm[0]``(要素番号を含め、先頭のドットなし)
+   * - ``mlib.logger``
+     - ``get_logger``・``raise_with_notify(exception_type, ..., from_exception=)``
+     - ``getLogger``・``raiseWithNotify(exceptionType, ..., fromException=)``(旧名は残さない)
+   * - ``multDoubleLinear``/``multDL``・``addDoubleLinear``/``addDL``
+     - 版により一方だけ。2026 以降は旧名の ``ls(type=)``・``isType`` が外れる
+     - どの版でも両方の名前を受け付ける。``MultDL is MultDoubleLinear``(``getType()`` はその版の名前)
+   * - Undo の名前
+     - ``mlibTransformSetTranslate``
+     - ``mlib setTranslate L_arm_CTRL`` のように操作と対象
+   * - ``progressBar``(Maya GUI)
+     - Script Editor へテキスト
+     - 画面下のメイン進捗バー(Esc で ``ProgressCancelled``)。``gui=False`` でテキスト
+   * - ``Vector`` と 3 要素の tuple/list
+     - ``+`` は ``TypeError``、``==`` は黙って ``False``
+     - 加減算・比較ができる
+
+.. rubric:: 追加
+
+- ジョイント: ``Joint.orient()``・``Joints.orient()``(``cmds.joint -e -oj`` 相当)、``Joint.mirror(axis="YZ", behavior=True, searchReplace=)``
+  (``cmds.mirrorJoint`` 相当)、``mlib.duplicate(..., suffix="_FK")``(複製した子孫にも接尾辞)。
+- IK: ``IkHandle.create(startJoint, endJoint, solver=, name=, curve=)``、``IkHandle.getEffector()``・``getCurve()``。
+- blendShape: 手書きの ``mlib.nodes.BlendShape``。``create``・``getTargetNames``・``getTargetIndex``・``getWeightPlug``・
+  ``addTarget``・``removeTarget``(完全に取り除く)・``"name" in bs``・``getBaseGeometry``。
+- スキン: ``getWeights(..., vertices=)``・``setWeights(..., vertices=, normalize=, broadcast=)``・``getVertexWeights``・
+  ``setVertexWeights``・``mirrorWeights``・``pruneWeights``。
+- コントローラー: ``NurbsCurve.create(points, degree=, closed=, name=, parent=)``・``NurbsCurve.setCvPositions``・
+  ``Transform.replaceShapes``・``DagNode.setColor``/``getColor``。
+- アトリビュート: ``EnumPlug.set("name")``(名前での設定、``addAttr(defaultValue="name")`` も可)、
+  ``Plug.setMin/setMax/setSoftMin/setSoftMax``、``Transform.setLimits(translateX=(min, max), ...)``、
+  ``Plug.lock()``・``hide()``・``show()``、``setAttrFlags``/``setFlags`` の ``children=``(コンパウンドアトリビュートの子へも適用)、
+  ``Node.addAttr(..., safe=True)``・``connect/connectTo(..., safe=True)``・``setAlias(..., safe=True)``(再実行で既存を返す)。
+- その他: ``getChildren(type=)``、複数形(``Nodes``・``Joints`` 等)の一括の書き込み(``setAttrFlags``・``resetAttrs``・``setLocked``・
+  ``setColor``・``setVisibility``・``show``・``hide``・``setParent``・``setRadius`` 等)、``Selection.getChannelBoxPlugs()``・
+  ``Selection.getItems()``、``MultiPlug.getElement(i)`` で未作成の要素の参照、動的 generic アトリビュートへの定数 ``Matrix``(fast も可)、
+  ``Quaternion(EulerRotate)``・``Quaternion(Matrix)``、``EulerRotate(..., unit=)``、``resetAttrs``・``setAttrFlags`` に Plug も指定可。
+
+.. rubric:: 表示とエラー文
+
+- ``Vertex('boxShape.vtx[5]')``・``Vertices('boxShape.vtx[0:2]', ...)``・``CV``・``Selection([...])`` の読める ``repr``(無効なら ``<Vertex invalid>``)。
+- 無いメソッドを呼ぶと ``'Joint' has no method or Maya attribute 'orientJoint'; use orient(). Did you mean: ...?`` のように案内する。
+- Maya の Script Editor では、mlib の例外の発生場所を利用者のコードの行で表示する(``MLIB_FULL_TRACEBACK=1`` で内部の位置)。
+  ``getNode`` の失敗が通知と例外の2回表示されていた問題を直した。
+- 名前が一意でないときは一致したパスを3件まで表示する。``space=``・``setTranslate(1, 2, 3)``・ロックされた成分・
+  ドリブンキーの既存入力・参照ノードの削除・その版に無いノード型に、直し方を示すエラー文を出す。
+
+.. rubric:: 見送った点
+
+- ``choice.input`` のような Maya 組み込みの generic アトリビュートへの定数マトリクスは ``TypeError`` にした。OpenMaya では書けるが、
+  保存したシーンを開くと値が消えるため。マトリクスの出力を接続する。
+
 4.1.0 (2026-10-29)
 ------------------
 
