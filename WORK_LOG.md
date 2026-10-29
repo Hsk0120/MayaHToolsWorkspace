@@ -124,6 +124,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-29): mlib 5.0.0。リギング作業の使い勝手調査で決めた36項目を実装(角度の既定を度、node.tx=5 の書き込み、joint の inverseScale、nextAvailable を Maya の規則に、型名 multDL/addDL の読み替え、エラー文と Script Editor の発生場所、再実行向け safe=True、Joint.orient/mirror・IkHandle.create・BlendShape・スキンの頂点単位/ミラー/刈り込み・カーブ作成・setColor・enum の名前設定・setLimits 等)。mlrig 等の利用側も追従、logger を lowerCamelCase に(AGENTS.md も更新)。Maya 2022〜2027 の mlib 全件、mlrig 701件、静的検査、Sphinx(-W)が合格。調査と決定はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
 - Codex (2026-10-29): MCEの補完順位・Literal/TypedDict文字列候補、番号付きスニペット、位置付き型/引数ヒント、モジュール改名/import追従、新規モジュールへの移動、最後の変更セットUndo/Redoを実装。2022/2027をビルドし単体/standalone/UI回帰、専用GUI各77項目、Sphinx警告エラー化ビルド合格。2027でWindows実入力の補完/確定/Undoも確認し動画保存。複雑なスニペット形式等の制限は文書化。2023〜2026未検証。ユーザー指定でコード・テスト・文書・2022/2027配布物をコミットとプッシュの対象へ集約。他担当範囲は変更なし。
 
 - Codex (2026-10-29): MCE 0.9.2で改行差5ケース・本文Undoのカーソル復帰と、Python/MEL実行がcmds/mlibのシーンUndoを無効化する問題を修正。mlib本体は変更なし。2022〜2027全6版ビルド・単体/standalone/offscreen、2022/2027専用GUIの編集各52・シーンUndo各14項目、日英文書-Wが合格。既存編集比較137ケースの本文/位置差0。実OS入力と全mlib APIは未網羅。非公開動画・再現手順・制限は.maya-output/mce-enter-five-20261029/verification.txt。ユーザー指定で修正・検証・6版配布物をコミットとプッシュの対象へ集約。他作業変更を保持。
