@@ -1776,7 +1776,7 @@ bool editingInputSafetyPasses() {
         editor.setPlainText(source);
         editor.moveCursor(QTextCursor::End);
         key(Qt::Key_Return, "\r");
-        const QString expected = source + "\n" + (source.startsWith("    ") ? "    " : "");
+        const QString expected = source + "\n";
         if (editor.toPlainText() != expected) {
             qWarning() << "newline must preserve text" << source << editor.toPlainText();
             return false;
@@ -1825,6 +1825,72 @@ bool editingInputSafetyPasses() {
             || editor.textCursor().position() != test.caret) return false;
         editor.undo();
         if (editor.toPlainText() != test.source) return false;
+    }
+    return true;
+}
+
+/** @brief 文書先頭の改行とブロック内の字下げを、選択・Undo/Redoも含めて確認する。
+ * @return 本文とカーソルが期待どおりで、一操作で元へ戻せるか。
+ */
+bool newlineContextPasses() {
+    struct Case { QString before; QString after; };
+    const QVector<Case> cases{
+        {"    # comment|", "    # comment\n|"},
+        {"    'hello'|", "    'hello'\n|"},
+        {"    x = 1|    ", "    x = 1\n|    "},
+        {"    one|    two", "    one\n|two"},
+        {"    |one", "    \n|one"},
+    };
+    for (const QString& prefix : {QString(), QString("\n# header\n\n"), QString("def example():\n"), QString("if True:\n")}) {
+        for (const auto& test : cases) {
+            const bool nested = prefix.startsWith("def") || prefix.startsWith("if");
+            QString source = prefix + test.before;
+            const int position = source.indexOf('|'); source.remove(position, 1);
+            QString expected = prefix + test.after;
+            if (nested) expected.replace("\n|", "\n    |");
+            const int target = expected.indexOf('|'); expected.remove(target, 1);
+            for (const auto modifier : {Qt::NoModifier, Qt::ShiftModifier}) {
+                mce::CodeEditor editor;
+                editor.setPlainText(source);
+                auto cursor = editor.textCursor(); cursor.setPosition(position); editor.setTextCursor(cursor);
+                QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, modifier, "\r");
+                QApplication::sendEvent(&editor, &enter);
+                if (editor.toPlainText() != expected || editor.textCursor().position() != target || editor.textCursor().hasSelection()) {
+                    qWarning() << "newline context" << prefix << test.before << editor.toPlainText() << editor.textCursor().position();
+                    return false;
+                }
+                editor.undo();
+                if (editor.toPlainText() != source || editor.textCursor().position() != position) {
+                    qWarning() << "newline undo" << prefix << test.before << editor.toPlainText() << editor.textCursor().position() << position;
+                    return false;
+                }
+                editor.redo();
+                if (editor.toPlainText() != expected || editor.textCursor().position() != target) {
+                    qWarning() << "newline redo" << prefix << test.before << editor.toPlainText() << editor.textCursor().position() << target;
+                    return false;
+                }
+            }
+        }
+    }
+    // 選択削除後に先頭行へ戻った場合も、現在の文書から字下げを判断する。
+    for (const bool reverse : {false, true}) {
+        mce::CodeEditor editor;
+        const QString source = "    one DELETE\ntwo";
+        editor.setPlainText(source);
+        auto cursor = editor.textCursor();
+        cursor.setPosition(reverse ? source.indexOf("two") : source.indexOf(" DELETE"));
+        cursor.setPosition(reverse ? source.indexOf(" DELETE") : source.indexOf("two"), QTextCursor::KeepAnchor);
+        editor.setTextCursor(cursor);
+        QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier, "\r");
+        QApplication::sendEvent(&editor, &enter);
+        if (editor.toPlainText() != "    one\ntwo" || editor.textCursor().position() != 8) {
+            qWarning() << "newline selection" << reverse << editor.toPlainText() << editor.textCursor().position();
+            return false;
+        }
+        editor.undo();
+        if (editor.toPlainText() != source) return false;
+        editor.redo();
+        if (editor.toPlainText() != "    one\ntwo") return false;
     }
     return true;
 }
@@ -1971,6 +2037,7 @@ int main(int argc, char** argv) {
         {"history", historyPasses},
         {"languageEdits", languageEditsPasses},
         {"editingInputSafety", editingInputSafetyPasses},
+        {"newlineContext", newlineContextPasses},
         {"contextualPairs", contextualPairsPasses},
         {"tripleQuoteInput", tripleQuoteInputPasses},
         {"languageClient", languageClientPasses},

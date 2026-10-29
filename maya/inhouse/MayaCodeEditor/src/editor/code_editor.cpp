@@ -1114,6 +1114,20 @@ int leadingSpaces(const QString& text) {
     return count;
 }
 
+/** @brief 改行対象より前に、字下げを引き継ぐコードの文脈があるか。
+ * @param block 改行対象の行。
+ * @return 前にコードがある、または探索上限に達した場合true。
+ * @note 先頭の空行と行コメントだけはブロックを作らない。長い文書では保守的に既存の字下げを保つ。
+ */
+bool hasPreviousPythonCode(QTextBlock block) {
+    block = block.previous();
+    for (int visited = 0; block.isValid() && visited < 256; ++visited, block = block.previous()) {
+        const QString text = block.text().trimmed();
+        if (!text.isEmpty() && !text.startsWith('#')) return true;
+    }
+    return block.isValid();
+}
+
 }  // namespace
 
 void CodeEditor::insertNewlineWithIndent() {
@@ -1133,17 +1147,14 @@ void CodeEditor::insertNewlineWithIndent() {
     QString after = line.mid(column);
     QString indent(leadingSpaces(before), ' ');
     const QString code = codePart(document(), language_, block, before);
+    int splitSpaces = 0;
+    QTextCursor trailingWhitespace = cursor;
 
     // 行の途中で分割したとき、右側の既存空白に新しいインデントを重ねない。
     // 右側が空白だけの場合は、空行の既存処理に任せる。
     if (!isMel() && !after.trimmed().isEmpty()) {
-        int spaces = 0;
-        while (spaces < after.size() && (after[spaces] == ' ' || after[spaces] == '\t')) ++spaces;
-        if (spaces) {
-            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, spaces);
-            cursor.removeSelectedText();
-            after.remove(0, spaces);
-        }
+        while (splitSpaces < after.size() && (after[splitSpaces] == ' ' || after[splitSpaces] == '\t')) ++splitSpaces;
+        after.remove(0, splitSpaces);
     }
 
     if (isMel()) {
@@ -1169,8 +1180,9 @@ void CodeEditor::insertNewlineWithIndent() {
             //   foo(|)  →  foo(
             //                  |
             //              )
-            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, after.indexOf(rest[0]));
+            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, splitSpaces + after.indexOf(rest[0]));
             cursor.removeSelectedText();
+            splitSpaces = 0;
             cursor.insertText("\n" + indent + "    ");
             const int inside = cursor.position();
             cursor.insertText("\n" + indent);
@@ -1179,6 +1191,12 @@ void CodeEditor::insertNewlineWithIndent() {
             // 「:」や開き括弧で終わる行の次は1段深くする。
             cursor.insertText("\n" + indent + "    ");
         } else {
+            // 文書先頭には継承元のブロックがない。手入力された字下げを次行へ増殖させない。
+            // 開き括弧・コロン・空行は上の専用規則、文字列の途中は既存の字下げを維持する。
+            if (!indent.isEmpty() && !hasPreviousPythonCode(block)
+                && pythonInputState(document(), cursor.position()).frames.isEmpty()) {
+                indent.clear();
+            }
             // return・pass・break・continue・raise の次は、そのブロックを抜けるので1段浅くする。
             static const QRegularExpression exits("^(return|pass|break|continue|raise)\\b");
             if (rest.isEmpty() && exits.match(code).hasMatch() && indent.size() >= 4) {
@@ -1186,6 +1204,12 @@ void CodeEditor::insertNewlineWithIndent() {
             }
             cursor.insertText("\n" + indent);
         }
+    }
+    if (splitSpaces) {
+        // 改行の後に余剰空白を削除する。Undoは空白復元→改行取消の順になり、元のカーソルへ戻る。
+        // この独立カーソルは改行挿入に追従し、元の右側本文の開始を保持する。
+        trailingWhitespace.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, splitSpaces);
+        trailingWhitespace.removeSelectedText();
     }
     cursor.endEditBlock();
     setTextCursor(cursor);

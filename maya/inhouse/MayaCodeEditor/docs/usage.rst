@@ -37,6 +37,9 @@
 * Maya 標準のスクリプトエディターの「選択して Ctrl+Enter」に合わせた操作です。VS Code の「下に行を挿入」とは違い、
   Maya Code Editor では Ctrl+Enter は実行です。
 * 実行はメインスレッドで行うため、長い処理の間は Maya が待機します。
+* 実行したコードによるシーン変更は、Maya標準のEdit → Undo／Redoで戻せます。
+  コード欄内のCtrl+Zは本文の編集を戻します。Maya側でUndoが無効な場合や、
+  ``mlib`` の ``fast=True`` などUndoに記録しない処理は対象外です。
 
 タブとファイル
 --------------

@@ -77,7 +77,7 @@ def main(output_dir, finished):
         alt = QtCore.Qt.AltModifier
         cases = []
         for source in ("# keep this comment:", '"keep this text"', "    # keep", 'f"{value}"'):
-            expected = source + "\n" + ("    " if source.startswith("    ") else "")
+            expected = source + "\n"
             cases.append(("Enter preserves text", source, len(source), len(source), QtCore.Qt.Key_Return, no, expected, len(expected), len(expected)))
         cases += [
             ("Split without duplicate indentation", "def example():\n    one    two", 22, 22, QtCore.Qt.Key_Return, no, "def example():\n    one\n    two", 27, 27),
@@ -109,6 +109,23 @@ def main(output_dir, finished):
             ("Delete whitespace before word", "one two", 3, 3, QtCore.Qt.Key_Delete, ctrl, "onetwo", 3, 3),
             ("Delete consecutive whitespace", "one  two", 5, 5, QtCore.Qt.Key_Backspace, ctrl, "onetwo", 3, 3),
         ]
+        newline_cases = [
+            ("Indented comment", "    # comment|", "    # comment\n|"),
+            ("Indented string", "    'hello'|", "    'hello'\n|"),
+            ("Before trailing spaces", "    x = 1|    ", "    x = 1\n|    "),
+            ("Split before spaces", "    one|    two", "    one\n|two"),
+            ("Split before text", "    |one", "    \n|one"),
+        ]
+        for prefix, context in [("", "Top level"), ("\n# header\n\n", "After header"), ("def example():\n", "Function"), ("if True:\n", "If block")]:
+            for name, marked_source, marked_expected in newline_cases:
+                marked_source = prefix + marked_source
+                marked_expected = prefix + marked_expected
+                if context in ("Function", "If block"):
+                    marked_expected = marked_expected.replace("\n|", "\n    |")
+                position = marked_source.index("|")
+                target = marked_expected.index("|")
+                cases.append((context + ": " + name, marked_source.replace("|", ""), position, position,
+                              QtCore.Qt.Key_Return, no, marked_expected.replace("|", ""), target, target))
         for name, source, anchor, position, key, modifiers, expected, expected_anchor, expected_position in cases:
             code.setPlainText(source)
             cursor = code.textCursor()

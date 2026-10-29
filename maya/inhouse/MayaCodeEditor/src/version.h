@@ -8,4 +8,4 @@
  * @note 版を上げるときは、この値と、親リポジトリの``maya/modules/MayaCodeEditor.mod``・``docs/changelog.rst``を更新する。
  */
 #pragma once
-#define MCE_VERSION "0.9.1"
+#define MCE_VERSION "0.9.2"

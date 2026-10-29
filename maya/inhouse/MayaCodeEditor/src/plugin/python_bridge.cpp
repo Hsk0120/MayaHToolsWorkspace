@@ -217,8 +217,10 @@ QString runPython(const QString& source, const QString& path) {
     if (!path.isEmpty()) {
         callFunction("maya_code_editor.bridge", "push_main_file", pythonStringLiteral(path));
     }
-    // 第2引数true: Script Editorの履歴に表示する。第3引数false: Undoの記録はコード自身に任せる。
-    MGlobal::executePythonCommand(toMString(source), true, false);
+    // 第2引数true: Script Editorの履歴に表示する。第3引数true: MayaのUndo記録を許可する。
+    // falseはコード内部のcmds/mlibのUndoも一時的に無効化するため、通常実行には使わない。
+    // Maya全体のUndo設定やコード自身のfast指定は変更しない。
+    MGlobal::executePythonCommand(toMString(source), true, true);
     if (!path.isEmpty()) {
         callFunction("maya_code_editor.bridge", "pop_main_file");
     }
@@ -226,7 +228,8 @@ QString runPython(const QString& source, const QString& path) {
 }
 
 QString runMel(const QString& source) {
-    MGlobal::executeCommand(toMString(source), true, false);
+    // Pythonと同じく、実行したMayaコマンドを標準のUndoキューへ記録する。
+    MGlobal::executeCommand(toMString(source), true, true);
     return QString();
 }
 

@@ -23,13 +23,14 @@ QJsonObject languageConfiguration();
  * @param path 保存先のパス。空でなければ、実行中だけ``__main__.__file__``をこのパスにする
  * (保存済みのスクリプトが自分の場所を知れるように。実行後は元の値に戻す)。
  * @return 常に空(結果はMayaの共通の出力へ流れ、出力欄はそれを表示する)。
- * @note Script Editorと同じ名前空間(__main__)を使い、stdoutを横取りしない。
+ * @note Script Editorと同じ名前空間(__main__)を使い、stdoutを横取りしない。実行したMayaコマンドのUndo記録を許可する。
  */
 QString runPython(const QString& source, const QString& path = QString());
 
 /** @brief MELのコードを実行する。
  * @param source 実行するコード。
  * @return 常に空。
+ * @note 実行したMayaコマンドのUndo記録を許可し、Maya全体のUndo設定は変更しない。
  */
 QString runMel(const QString& source);
 
