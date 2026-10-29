@@ -382,12 +382,12 @@ def main(output_dir, finished):
             QtTest.QTest.mouseDClick(e.files.viewport(), QtCore.Qt.LeftButton, pos=e.files.visualRect(index).center())
             assert cmds.getAttr(cube+'.translateX')==2; r.hold()
             r.step('M05', 'Import：名前空間を指定して読込み')
-            selectFile(e, exported); e.readOptions.setCurrentIndex(0)
+            selectFile(e, exported); e.operationTabs.setCurrentIndex(1)
             fields=e.readOptions.controls['import']; fields['mode'].setCurrentIndex(1); fields['name'].setText('imported')
             pause(1300); e.actionButtons['import'].click()
             assert cmds.objExists('imported:reviewCube'); r.hold()
             r.step('M06', 'Reference：名前空間と遅延読込みを指定')
-            e.readOptions.setCurrentIndex(1); fields=e.readOptions.controls['reference']
+            e.operationTabs.setCurrentIndex(2); fields=e.readOptions.controls['reference']
             fields['mode'].setCurrentIndex(1); fields['name'].setText('referenced'); fields['deferReference'].setChecked(True)
             pause(1300); e.actionButtons['reference'].click()
             assert cmds.file(query=True, reference=True); r.hold()

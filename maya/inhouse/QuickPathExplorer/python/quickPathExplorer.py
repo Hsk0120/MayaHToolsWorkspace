@@ -716,15 +716,18 @@ class Explorer(QtWidgets.QWidget):
         actions.setAlignment(QtCore.Qt.AlignTop)
         actions.setContentsMargins(6, 0, 6, 0)
         self.operationTabs = QtWidgets.QTabWidget(self.actionsPanel)
+        self.operationTabs.tabBar().setExpanding(False)
         self.operationTabs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
         actions.addWidget(self.operationTabs)
         self.readPanel = QtWidgets.QWidget(self.operationTabs)
         self.savePanel = QtWidgets.QWidget(self.operationTabs)
-        self.operationTabs.addTab(self.readPanel, 'Selected file')
+        self.operationTabs.setObjectName('operationTabs')
+        self.operationTabs.addTab(self.readPanel, 'Open')
         if self._maya:
-            self.operationTabs.addTab(self.savePanel, 'Save Scene')
+            self.operationTabs.addTab(self.savePanel, 'Save')
         else:
             self.savePanel.hide()
+            self.operationTabs.tabBar().hide()
         self.readLayout = QtWidgets.QVBoxLayout(self.readPanel)
         self.readLayout.setSpacing(8)
         self.saveLayoutUi = QtWidgets.QVBoxLayout(self.savePanel)
@@ -732,14 +735,13 @@ class Explorer(QtWidgets.QWidget):
         self.readTarget.setObjectName('readTarget')
         self.readTarget.setTextFormat(QtCore.Qt.PlainText)
         self.readTarget.setWordWrap(True)
+        self.readTarget.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         self.readLayout.addWidget(self.readTarget)
         self.sceneTarget = QtWidgets.QLabel('Current scene: unsaved', self.savePanel)
         self.sceneTarget.setTextFormat(QtCore.Qt.PlainText)
         self.sceneTarget.setWordWrap(True)
         self.saveLayoutUi.addWidget(self.sceneTarget)
-        read_buttons = QtWidgets.QHBoxLayout()
         save_buttons = QtWidgets.QVBoxLayout()
-        self.readLayout.addLayout(read_buttons)
         self.saveLayoutUi.addLayout(save_buttons)
         self.actionButtons = {}
         for label, key in [('Open', 'open'), ('Import', 'import'), ('Reference', 'reference'),
@@ -748,33 +750,68 @@ class Explorer(QtWidgets.QWidget):
             button.clicked.connect(lambda checked=False, action=key:
                                    self.requestFiles(action, self.selectedPaths()) if action in ('open', 'import', 'reference')
                                    else self.actionRequested.emit(action))
-            (read_buttons if key in ('open', 'import', 'reference') else save_buttons).addWidget(button)
+            if key not in ('open', 'import', 'reference'):
+                save_buttons.addWidget(button)
             button.setObjectName('action_' + key)
             self.actionButtons[key] = button
             if key != 'open' and not self._maya:
+                button.hide()
                 button.setEnabled(False)
                 button.setToolTip('Available when running inside Maya')
-        maya_options = self._button('Maya Options…', lambda: self.actionRequested.emit('options'), actions)
+        maya_options = self._button('Maya File Dialogs…', lambda: self.actionRequested.emit('options'), actions)
         maya_options.setVisible(self._maya)
         if self._maya:
+            from qpeFbx import FbxOptions, MODES
+            self.fbxOptions = FbxOptions(self.readPanel)
+            self.readLayout.addWidget(self.fbxOptions)
+            self.fbxOptions.hide()
+            self.fbxModeButton = QtWidgets.QToolButton(self)
+            self.fbxModeButton.setObjectName('fbxModeButton')
+            self.fbxModeButton.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+            self.fbxModeButton.setToolTip('Choose what Open / double-click does with FBX files')
+            fbx_menu = QtWidgets.QMenu(self.fbxModeButton)
+            action_group_type = getattr(QtGui, 'QActionGroup', None) or QtWidgets.QActionGroup
+            self._fbxModeGroup = action_group_type(fbx_menu)
+            self._fbxModeGroup.setExclusive(True)
+            self._fbxModeActions = []
+            for index, (label, value) in enumerate(MODES):
+                item = fbx_menu.addAction(label)
+                item.setCheckable(True)
+                self._fbxModeGroup.addAction(item)
+                item.triggered.connect(lambda checked=False, i=index: self.fbxOptions.mode.setCurrentIndex(i))
+                self._fbxModeActions.append(item)
+            fbx_menu.addSeparator()
+            fbx_menu.addAction('FBX settings…', self._showFbxSettings)
+            self.fbxModeButton.setMenu(fbx_menu)
+            self.fbxModeButton.hide()
+            bar.insertWidget(bar.indexOf(self.inspectorButton), self.fbxModeButton)
+            self.fbxOptions.changed.connect(self._updateFbxMode)
+            self._updateFbxMode()
             from qpeReadOptions import ReadOptions
             self.readOptions = ReadOptions(self.readPanel)
-            self.readOptionsToggle = QtWidgets.QToolButton(self.readPanel)
-            self.readOptionsToggle.setText('Import / Reference settings')
-            self.readOptionsToggle.setCheckable(True)
-            self.readOptionsToggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
-            self.readOptionsToggle.setArrowType(QtCore.Qt.RightArrow)
-            self.readOptionsToggle.toggled.connect(self._toggleReadOptions)
-            self.readLayout.addWidget(self.readOptionsToggle)
-            self.readLayout.addWidget(self.readOptions)
+            # 同じ操作の設定と実行ボタンを同じページへ置く。ネストしたタブは使わない。
+            for index, action in enumerate(('import', 'reference'), 1):
+                page = self.readOptions.widget(0)
+                self.readOptions.removeTab(0)
+                page.layout().addWidget(self.actionButtons[action])
+                self.operationTabs.insertTab(index, page, action.title())
             self.readOptions.hide()
+            for toggle in self.readOptions.advancedToggles.values():
+                toggle.toggled.connect(lambda unused: self._operationTabChanged(self.operationTabs.currentIndex()))
+            for controls in self.readOptions.controls.values():
+                controls['mode'].currentIndexChanged.connect(lambda unused: self._operationTabChanged(self.operationTabs.currentIndex()))
+        self.openHint = QtWidgets.QLabel(self.readPanel)
+        self.openHint.setWordWrap(True)
+        self.readLayout.addWidget(self.openHint)
+        self.readLayout.addWidget(self.actionButtons['open'])
+        self.readLayout.addStretch(1)
+        self.actionButtons['open'].setProperty('primaryAction', True)
         self.details = QtWidgets.QWidget(self.actionsPanel)
-        actions.addWidget(self.details, 1)
         self.details.setObjectName('detailsPanel')
         self.details.setMinimumWidth(180)
         detail_layout = QtWidgets.QVBoxLayout(self.details)
         self.readLayout.removeWidget(self.readTarget)
-        detail_layout.addWidget(self.readTarget)
+        actions.insertWidget(0, self.readTarget)
         self.readTarget.setObjectName('fileTitle')
         detail_layout.setAlignment(QtCore.Qt.AlignTop)
         detail_layout.setContentsMargins(6, 0, 0, 0)
@@ -800,14 +837,16 @@ class Explorer(QtWidgets.QWidget):
         self.metadata.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
         self.metadata.setWordWrap(True)
         self.metadata.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
-        actions.removeWidget(self.operationTabs)
-        actions.addWidget(self.operationTabs)
-        self.detailsHeading = QtWidgets.QLabel('Details', self.details)
-        self.detailsHeading.setObjectName('sectionHeading')
+        self.detailsHeading = QtWidgets.QToolButton(self.actionsPanel)
+        self.detailsHeading.setText('File details')
+        self.detailsHeading.setCheckable(True)
+        self.detailsHeading.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        self.detailsHeading.setArrowType(QtCore.Qt.RightArrow)
+        self.detailsHeading.toggled.connect(self._toggleDetails)
         actions.addWidget(self.detailsHeading)
-        actions.addWidget(self.metadata)
-        actions.removeWidget(self.operationTabs)
-        actions.addWidget(self.operationTabs)
+        detail_layout.insertWidget(0, self.metadata)
+        actions.addWidget(self.details)
+        self.details.hide()
         actions.removeWidget(maya_options)
         actions.addWidget(maya_options)
         actions.addStretch(1)
@@ -853,11 +892,10 @@ class Explorer(QtWidgets.QWidget):
         self._operationTabChanged(0)
         self._updateActions()
 
-    def _toggleReadOptions(self, visible):
-        """読込設定を明示的に展開し、操作タブの高さを更新する。"""
-        self.readOptions.setVisible(visible)
-        self.readOptionsToggle.setArrowType(QtCore.Qt.DownArrow if visible else QtCore.Qt.RightArrow)
-        self._operationTabChanged(self.operationTabs.currentIndex())
+    def _toggleDetails(self, visible):
+        """ファイル情報は必要な時だけ開き、操作設定と競合させない。"""
+        self.details.setVisible(visible)
+        self.detailsHeading.setArrowType(QtCore.Qt.DownArrow if visible else QtCore.Qt.RightArrow)
 
     def _configureFileHeader(self, *unused):
         """非同期モデルの再構築後もファイル名へ余白を配分する。
@@ -963,13 +1001,17 @@ class Explorer(QtWidgets.QWidget):
         Args:
             index (int): 表示するタブ。
         """
-        reading = self.operationTabs.currentWidget() is self.readPanel
-        self.details.setVisible(reading)
-        self.metadata.setVisible(reading)
+        current_page = self.operationTabs.currentWidget()
+        if getattr(self, '_inspectorPage', None) is not current_page:
+            self._inspectorPage = current_page
+            self.inspectorScroll.verticalScrollBar().setValue(0)
+        reading = current_page is not self.savePanel
+        self.readTarget.setVisible(reading)
+        self.details.setVisible(reading and self.detailsHeading.isChecked())
         self.detailsHeading.setVisible(reading)
         for i in range(self.operationTabs.count()):
             panel = self.operationTabs.widget(i)
-            panel.setSizePolicy(QtWidgets.QSizePolicy.Preferred,
+            panel.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
                                 QtWidgets.QSizePolicy.Preferred if i == index else QtWidgets.QSizePolicy.Ignored)
             panel.updateGeometry()
         self.operationTabs.updateGeometry()
@@ -1712,11 +1754,50 @@ class Explorer(QtWidgets.QWidget):
         if hasattr(self, 'saveDestination'):
             self._operationTabChanged(self.operationTabs.currentIndex())
 
+    def _showFbxSettings(self):
+        """右サイドバーのFBX設定を表示する。"""
+        self.inspectorButton.setChecked(True)
+        self.operationTabs.setCurrentWidget(self.readPanel)
+        self.inspectorScroll.ensureWidgetVisible(self.fbxOptions)
+
+    def _updateFbxMode(self):
+        """サイドバー非表示中もFBXの実行モードを上部へ表示する。"""
+        self.fbxModeButton.setText('FBX: ' + self.fbxOptions.mode.currentText())
+        for index, item in enumerate(self._fbxModeActions):
+            item.setChecked(index == self.fbxOptions.mode.currentIndex())
+        if hasattr(self, 'openHint'):
+            self._updateOpenAction()
+        if hasattr(self, 'details'):
+            self._operationTabChanged(self.operationTabs.currentIndex())
+
+    def _updateOpenAction(self):
+        """読込結果を実行ボタンに明記し、更新をシーン切替と取り違えないようにする。"""
+        suffix = Path(self.selectedPath()).suffix.lower()
+        label = 'Open'
+        hint = 'Open with the associated application.'
+        if self._maya and suffix in ('.ma', '.mb', '.fbx'):
+            label = 'Open Scene'
+            hint = 'Replaces the current scene.'
+        if self._maya and suffix == '.fbx':
+            mode = self.fbxOptions.mode.currentData()
+            label = {'open': 'Open Scene', 'add': 'Add FBX', 'merge': 'Add / Update Animation',
+                     'exmerge': 'Update Animation', 'exmergekeyedxforms': 'Update Animation'}[mode]
+            hint = 'Double-click uses this FBX mode.'
+        if not self.selectedPaths():
+            hint = 'Select a file to open.'
+        self.openHint.setText(hint)
+        self.actionButtons['open'].setText(label)
+
     def _updateActions(self):
         """選択に応じて読込系ボタンを有効化する。"""
         self._updateFooter()
         paths = self.selectedPaths()
+        if hasattr(self, 'fbxOptions'):
+            fbx = len(paths) == 1 and Path(paths[0]).suffix.lower() == '.fbx'
+            self.fbxOptions.setVisible(fbx)
+            self.fbxModeButton.setVisible(fbx)
         selected = bool(paths)
+        self._updateOpenAction()
         if hasattr(self, 'readTarget'):
             self.readTarget.setText(Path(self.selectedPath()).name if selected else 'Select a file in the list')
             if len(paths) > 1:

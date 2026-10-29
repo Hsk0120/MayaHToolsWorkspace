@@ -150,6 +150,8 @@ class Theme(QtCore.QObject):
             }
             QColumnView QListView { border: none; border-right: 1px solid %(border)s; }
             QTabBar::tab { padding: 7px 14px; border: none; border-right: 1px solid %(border)s; }
+            QTabWidget#operationTabs > QTabBar::tab { padding: 7px 8px; }
+            QPushButton[primaryAction="true"] { border: 1px solid %(accent)s; }
             QTabBar::tab:selected { background: %(base)s; border-bottom: 2px solid %(accent)s; }
             QLabel#fileFooter { border-top: 1px solid %(border)s; padding: 5px 3px; color: %(muted)s; }
             QHeaderView::section, QTabBar::tab { background: %(window)s; color: %(text)s; }

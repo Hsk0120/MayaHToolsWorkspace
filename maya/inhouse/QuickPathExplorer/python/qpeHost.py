@@ -261,6 +261,19 @@ def perform(widget, action):
                 if answer != QtWidgets.QMessageBox.Ok:
                     return
             if action == 'open':
+                if Path(path).suffix.lower() == '.fbx':
+                    from qpeFbx import MODES, openFbx
+                    options = widget.fbxOptions.snapshot()
+                    if options['mode'] == 'open' and not _allowOpen(widget):
+                        return
+                    changed_scene = openFbx(path, options)
+                    widget.recordSuccessfulFiles([path])
+                    if changed_scene:
+                        recordRecentScene()
+                    refresh(widget)
+                    widget.status.setText('Completed: FBX / ' + dict(
+                        (value, label) for label, value in MODES)[options['mode']])
+                    return
                 if Path(path).suffix.lower() not in ('.ma', '.mb'):
                     widget.openAssociatedFile(path)
                     return

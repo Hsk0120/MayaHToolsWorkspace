@@ -74,14 +74,14 @@ def main(output_dir, finished=None):
         selectFile(e, directory / 'Hero_animation_02.ma')
         stage('04', '右ペインは情報から操作へ / ファイル名・基本情報・Open')
         if finished:
-            assert not e.readOptions.isVisible()
-            e.readOptionsToggle.click()
+            assert not e.readOptions.controls['import']['mode'].isVisible()
+            e.operationTabs.setCurrentIndex(1)
             pause(100)
-            assert e.readOptions.isVisible()
+            assert e.readOptions.controls['import']['mode'].isVisible()
             e.readOptions.controls['import']['mode'].setCurrentIndex(1)
             e.readOptions.controls['import']['name'].setText('hero')
-            stage('05', 'Import / Reference 設定を必要時に展開')
-            e.readOptionsToggle.click()
+            stage('05', 'Importタブでネームスペースを指定')
+            e.operationTabs.setCurrentWidget(e.readPanel)
             assert e.readOptions.fileArguments('import', str(directory / 'Hero_animation_02.ma'))['namespace'] == ':hero'
             checks.append('collapsed read options retain namespace and expand without executing an import')
         e.setInspectorVisible(False)
@@ -110,13 +110,15 @@ def main(output_dir, finished=None):
             if percentage == 200:
                 e.setInspectorVisible(True)
                 if finished:
-                    e.readOptionsToggle.setChecked(True)
+                    e.operationTabs.setCurrentIndex(1)
+                    e.readOptions.advancedToggles['import'].setChecked(True)
                 pause(100)
                 assert e.inspectorScroll.widget().height() >= e.inspectorScroll.viewport().height()
                 assert e.actionsPanel.height() == e.vertical.height()
                 if finished:
-                    e.readOptionsToggle.setChecked(False)
+                    e.operationTabs.setCurrentWidget(e.readPanel)
                 e.setInspectorVisible(False)
+            pause(150)  # サイドバーの遅延配置と更新再開を待って撮影する。
             e.grab().save(str(out / ('scale-%s.png' % percentage)))
         checks.append('100/150/200 percent text and rows fit without double application')
         e.resize(780, 700)

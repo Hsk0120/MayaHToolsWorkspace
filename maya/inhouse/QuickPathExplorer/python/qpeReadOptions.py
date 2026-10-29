@@ -1,7 +1,7 @@
 """Maya読込操作に渡す設定を操作ごとに保持する。"""
 import re
 from pathlib import Path
-from qpeQt import QtWidgets
+from qpeQt import QtCore, QtWidgets
 
 
 class ReadOptions(QtWidgets.QTabWidget):
@@ -11,9 +11,13 @@ class ReadOptions(QtWidgets.QTabWidget):
         """標準fileコマンドに対応する設定欄を作成する。"""
         super().__init__(parent)
         self.controls = {}
+        self.advancedToggles = {}
         for action, title in [('import', 'Import settings'), ('reference', 'Reference settings')]:
             page = QtWidgets.QWidget(self)
-            form = QtWidgets.QFormLayout(page)
+            layout = QtWidgets.QVBoxLayout(page)
+            layout.setContentsMargins(8, 10, 8, 10)
+            form = QtWidgets.QFormLayout()
+            layout.addLayout(form)
             form.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
             form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
             mode = QtWidgets.QComboBox(page)
@@ -23,14 +27,33 @@ class ReadOptions(QtWidgets.QTabWidget):
             name.setEnabled(False)
             mode.currentIndexChanged.connect(lambda index, field=name: field.setEnabled(index == 1))
             form.addRow('Namespace', mode)
-            form.addRow('Namespace name', name)
+            name_label = QtWidgets.QLabel('Namespace name', page)
+            form.addRow(name_label, name)
+            mode.currentIndexChanged.connect(lambda index, field=name, label=name_label:
+                                            (field.setVisible(index == 1), label.setVisible(index == 1)))
+            name.hide()
+            name_label.hide()
             values = {'mode': mode, 'name': name}
+            advanced_toggle = QtWidgets.QToolButton(page)
+            advanced_toggle.setText('Advanced options')
+            advanced_toggle.setCheckable(True)
+            advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
+            advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+            advanced = QtWidgets.QWidget(page)
+            advanced_form = QtWidgets.QFormLayout(advanced)
+            advanced_form.setContentsMargins(0, 0, 0, 0)
+            advanced_form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
+            advanced.hide()
+            advanced_toggle.toggled.connect(lambda checked, panel=advanced, button=advanced_toggle:
+                                            (panel.setVisible(checked), button.setArrowType(
+                                                QtCore.Qt.DownArrow if checked else QtCore.Qt.RightArrow)))
+            self.advancedToggles[action] = advanced_toggle
             for key, label, default in [
                 ('mergeNamespacesOnClash', 'Reuse existing namespace', False),
                 ('groupReference', 'Group objects', False),
                 ('executeScriptNodes', 'Execute script nodes', True),
             ] + ([('preserveReferences', 'Preserve references', True),
-                  ('removeDuplicateNetworks', 'Remove duplicate shading networks', False),
+                  ('removeDuplicateNetworks', 'Remove duplicate networks', False),
                   ('mergeBaseAnimLayer', 'Merge base animation layer', False),
                   ('renameAll', 'Rename all nodes', False),
                   ('importFrameRate', 'Import frame rate', False),
@@ -39,14 +62,16 @@ class ReadOptions(QtWidgets.QTabWidget):
                   ('lockReference', 'Lock reference', False)]):
                 box = QtWidgets.QCheckBox(label, page)
                 box.setChecked(default)
+                if key == 'removeDuplicateNetworks':
+                    box.setToolTip('Remove duplicate shading networks')
                 if key == 'mergeNamespacesOnClash':
                     box.setToolTip('Reuse a matching namespace. This does not merge existing nodes.')
-                form.addRow(box)
+                (form if key in ('mergeNamespacesOnClash', 'deferReference') else advanced_form).addRow(box)
                 values[key] = box
             depth = QtWidgets.QComboBox(page)
             for label, value in [('As saved', ''), ('All', 'all'), ('Top level only', 'topOnly'), ('None', 'none')]:
                 depth.addItem(label, value)
-            form.addRow('Load references', depth)
+            advanced_form.addRow('Load references', depth)
             values['loadReferenceDepth'] = depth
             if action == 'reference':
                 values['deferReference'].toggled.connect(lambda checked, field=depth: field.setEnabled(not checked))
@@ -57,13 +82,9 @@ class ReadOptions(QtWidgets.QTabWidget):
                 form.addRow('Playback range', time_range)
                 values['importTimeRange'] = time_range
             self.controls[action] = values
-            scroll = QtWidgets.QScrollArea(self)
-            scroll.setWidgetResizable(True)
-            scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
-            scroll.setWidget(page)
-            self.addTab(scroll, title)
-        self.setMinimumHeight(225)
-        self.setMaximumHeight(310)
+            layout.addWidget(advanced_toggle)
+            layout.addWidget(advanced)
+            self.addTab(page, title)
         self.setToolTip('Settings apply to the matching Import / Reference button and context menu.')
         from qpeSettings import readSettings
         self.restore(readSettings().get('readOptions', {}))

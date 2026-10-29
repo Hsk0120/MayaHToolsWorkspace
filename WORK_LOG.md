@@ -124,6 +124,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-30): QPEのFBX読込と操作別サイドバーをユーザー依頼でコミット・プッシュ対象へ選定。専用Maya2022/2027各70項目・単体UI10項目の結果、構文、差分を確認。共有WORK_LOGは今回QPE分のみをステージし、他担当と過去作業の未コミット記録を保持。
+
+- Codex (2026-10-30): QPE右ペインをOpen/Import/Reference/Save別に整理し、設定の下へ実行ボタンを配置。ネームスペース直接編集、追加設定と詳細の折りたたみ、FBX更新ボタン名、タブ切替時のスクロール復帰、拡大時の長文ラベルを改善。専用Maya2022/2027各UI26・表示6・名前空間7・FBX31、単体UI10件合格。Qt操作動画と画像を非公開Driveへ保存し読戻し確認。Windows実入力はアクセス拒否で未実施。詳細.maya-output/qpe-sidebar-20261030/verification.json。ユーザー指定でコミット・プッシュ対象へ集約。
+
+- Codex (2026-10-30): QPEのFBXダブルクリックを現在のMayaへ変更。右サイドバーと上部メニューに通常オープン／追加／アニメーション更新等の5モードと再生範囲設定を追加し、標準FBX設定を成功・失敗時に復元。Maya2022/2027の専用GUI各31件、Qt5/6のモード切替各7件、単体UI回帰10件が合格。Windows実入力は画面取得エラーで未実施。Qt操作動画を非公開Driveへ保存・読戻し確認。詳細.maya-output/qpe-fbx-20261030/verification.txt。ユーザー指定でコミット・プッシュ対象へ集約。
+
 - Claude Code (2026-10-30): mlrig夜間タスク。楕円体コライダーへの柔らかい押し出し EllipsoidCollision を追加(setups/ellipsoidCollision.py。標準ノードのみ。中心のtransformの回転を軸とし、軸ごとの半径 radiusX/Y/Z。放射方向の半径 R = 1/|(lx/rx, ly/ry, lz/rz)| と d = |p-c| - R に SphereCollision と同じ柔らかい押し出し。出力 matrix・distance・push・penetration・directionRadius。逆回転はクォータニオンの共役で作り matrixNodes に依存しない)。Setup Samples 1項目、test_setup_ellipsoid_collision.py 9件、文書 docs/ellipsoid_collision.rst、検証デモ tools/demo_ellipsoid_collision.py。隔離Maya 2027で setups 569件・standard 76件OK、Sphinx -W 成功、検証動画294フレーム判定OK。コミット・プッシュ(このコミット)。
 - Claude Code (2026-10-29): mlib 5.0.0。リギング作業の使い勝手調査で決めた36項目を実装(角度の既定を度、node.tx=5 の書き込み、joint の inverseScale、nextAvailable を Maya の規則に、型名 multDL/addDL の読み替え、エラー文と Script Editor の発生場所、再実行向け safe=True、Joint.orient/mirror・IkHandle.create・BlendShape・スキンの頂点単位/ミラー/刈り込み・カーブ作成・setColor・enum の名前設定・setLimits 等)。mlrig 等の利用側も追従、logger を lowerCamelCase に(AGENTS.md も更新)。Maya 2022〜2027 の mlib 全件、mlrig 701件、静的検査、Sphinx(-W)が合格。調査と決定はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
 - Codex (2026-10-29): MCEの補完順位・Literal/TypedDict文字列候補、番号付きスニペット、位置付き型/引数ヒント、モジュール改名/import追従、新規モジュールへの移動、最後の変更セットUndo/Redoを実装。2022/2027をビルドし単体/standalone/UI回帰、専用GUI各77項目、Sphinx警告エラー化ビルド合格。2027でWindows実入力の補完/確定/Undoも確認し動画保存。複雑なスニペット形式等の制限は文書化。2023〜2026未検証。ユーザー指定でコード・テスト・文書・2022/2027配布物をコミットとプッシュの対象へ集約。他担当範囲は変更なし。
