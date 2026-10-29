@@ -285,6 +285,59 @@ def _dump_movable_attr(plug):
     return info
 
 
+def _require_same_attr_definition(plug, flags):
+    """addAttr(safe=True)で、既存のアトリビュートが要求した型と一致するか検証する。
+
+    Args:
+        plug (Plug): 既存のアトリビュート。
+        flags (dict): 型を解決済みのaddAttrのフラグ(attributeType/dataType・multi)。
+
+    Raises:
+        TypeError: 型、またはマルチアトリビュートかどうかが一致しない場合。
+    """
+    existing = plug.getType()
+    data_type = flags.get("dataType")
+    if isinstance(data_type, (list, tuple)):
+        matched = existing is None or existing in data_type
+        requested = "/".join(data_type)
+    else:
+        requested = flags.get("attributeType") or data_type
+        matched = existing == {"compound": "TdataCompound"}.get(requested, requested)
+    if not matched:
+        raise TypeError(f"Attribute already exists with a different type: {plug.getFullName()} "
+                        f"is {existing!r}, requested {requested!r}")
+    if bool(flags.get("multi")) != plug.isMulti():
+        raise TypeError(f"Attribute already exists with a different multi setting: {plug.getFullName()}")
+
+
+def _enum_field_value(enum_name, field):
+    """``enumName`` の定義(``"a:b:c"``・``"a=2:b=5"``)からフィールド名の値を求める。
+
+    値を省いたフィールドは直前の値+1(先頭は0)で、Mayaの ``addAttr(enumName=...)`` と同じ。
+
+    Args:
+        enum_name (str | None): ``addAttr`` へ渡すenumNameの文字列。
+        field (str): 値を求めるフィールド名(大文字・小文字を区別する完全一致)。
+
+    Returns:
+        int: フィールドの値。
+
+    Raises:
+        ValueError: enumNameが無い、またはfieldに一致するフィールドが無い場合。
+    """
+    if not isinstance(enum_name, str) or not enum_name:
+        raise ValueError(f"defaultValue {field!r} requires enumName to resolve the enum field")
+    names = []
+    value = -1
+    for item in enum_name.split(":"):
+        name, separator, number = item.partition("=")
+        value = int(number) if separator else value + 1
+        if name == field:
+            return value
+        names.append(name)
+    raise ValueError(f"No enum field named {field!r} (valid names: " + ", ".join(repr(name) for name in names) + ")")
+
+
 def _enum_definition(plug):
     """enum の全フィールドを ``cmds.attributeQuery(listEnum=True)`` と同じ書式の文字列にする。
 
@@ -1136,17 +1189,20 @@ class Node(Object):
                 plug.reset(fast=fast)
             return plugs
 
-    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
+    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, children=False, fast=False):
         """指定アトリビュートのロック・キー設定可否・Channel Box表示を変更する。
 
         状態の型を検査し、全アトリビュートを解決してから順に更新する。
-        途中の失敗で、先行の変更は自動では戻さない。
+        途中の失敗で、先行の変更は自動では戻さない。各Plugの :meth:`Plug.setFlags` へ委譲する。
 
         Args:
-            attributes (str | Iterable[str]): アトリビュート名。子も変更するなら子名を明示する。
+            attributes (str | Iterable[str]): アトリビュート名。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
+            children (bool): Trueはコンパウンドアトリビュート(``t`` 等)の子(``tx`` 等)にも同じ状態を設定する。
+                既定Falseは指定したアトリビュートだけ(Mayaの ``setAttr`` と同じく、親のkeyable・Channel Box表示は
+                子へ及ばない。ロックは親から子へ継承される)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -1154,17 +1210,19 @@ class Node(Object):
 
         Raises:
             AttributeError: 指定アトリビュートが存在しない場合。
-            TypeError: 必須引数の不足、fastや状態の型が不正な場合。
+            TypeError: 必須引数の不足、fast・childrenや状態の型が不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
         """
         with _edit_context("mlibNodeSetAttrFlags", fast):
             flags = _validated_flags(locked, keyable, channelBox)
+            _require_bool(children, "children")
             if isinstance(attributes, str):
                 attributes = [attributes]
             plugs = [self.getPlug(name) for name in attributes]
             if flags:
                 for plug in plugs:
-                    plug.setFlags(locked=locked, keyable=keyable, channelBox=channelBox, fast=fast)
+                    plug.setFlags(locked=locked, keyable=keyable, channelBox=channelBox, children=children,
+                                  fast=fast)
             return self
 
     def getPlugs(self, userDefined=False, includeChildren=True, **listAttrFlags):
@@ -1231,7 +1289,7 @@ class Node(Object):
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
-        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, fast=False, unit="deg",
+        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, safe=False, fast=False, unit="deg",
         attributeType=_UNSET,
         at=_UNSET, binaryTag=_UNSET, bt=_UNSET, cachedInternally=_UNSET, ci=_UNSET, category=_UNSET, ct=_UNSET,
         dataType=_UNSET, dt=_UNSET, defaultValue=_UNSET, dv=_UNSET, disconnectBehaviour=_UNSET, dcb=_UNSET,
@@ -1263,6 +1321,11 @@ class Node(Object):
             childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
+            safe (bool): Trueは再実行向け。同じ名前のアトリビュートが既にあれば何も変更せず、既存のPlug
+                (getPlug=FalseならNone)を返す。既存の既定値・範囲・表示などは更新しない。既存のアトリビュートの型
+                (getType()で比べる)、またはマルチアトリビュートかどうかが要求と違う場合はsafeでもTypeError。
+                既定Falseは既存の名前をMayaのエラー(RuntimeError)にする。
+                ``Plug.set(safe=True)`` (失敗数を返す)とは意味が異なる。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
                 ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
@@ -1350,9 +1413,10 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、fastがbool以外、またはunitが文字列以外の場合。
+            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列以外、または
+                safe=Trueで既存のアトリビュートの型・マルチアトリビュートかどうかが要求と違う場合。
             ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
-                またはunitが未対応の単位名の場合。
+                unitが未対応の単位名、またはenumのdefaultValueのフィールド名がenumNameに無い場合。
             NotImplementedError: fastで型や定義フラグが未対応の場合。
 
         Note:
@@ -1433,6 +1497,7 @@ class Node(Object):
         if usedAsProxy is not _UNSET:
             kwargs["usedAsProxy"] = usedAsProxy
         channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
+        _require_bool(safe, "safe")
         angle_unit = _angle_unit(unit)
         with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
@@ -1455,6 +1520,10 @@ class Node(Object):
                 flags["usedAsProxy"] = True
             numeric, count, deferred = self._prepare_extra_attr_definition(
                 flags, type, childNames, childShortNames, childSuffixes, sub_type=subType, angle_unit=angle_unit)
+            if safe and self.hasAttr(name):
+                existing = self.getPlug(name)
+                _require_same_attr_definition(existing, flags)
+                return existing if getPlug else None
             prepared = self._create_extra_attr_definition(
                 name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType, fast=fast)
             if not getPlug and (deferred is None or count) and not show and proxy is None:
@@ -2142,6 +2211,8 @@ class Node(Object):
             # 固定子数型へncを渡すMayaエラーを事前検出する。
             if "numberOfChildren" in flags and flags.pop("numberOfChildren") != count:
                 raise ValueError("Vector child count does not match its type")
+        if kind == "enum" and isinstance(flags.get("defaultValue"), str):
+            flags["defaultValue"] = _enum_field_value(flags.get("enumName"), flags["defaultValue"])
         deferred = None
         if count or flags.get("dataType"):
             deferred = flags.pop("defaultValue", None)

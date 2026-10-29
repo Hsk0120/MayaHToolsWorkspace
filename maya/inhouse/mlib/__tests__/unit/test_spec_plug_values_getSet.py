@@ -329,14 +329,20 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         double_plug = self.add("db", attributeType="double")
         enum_plug = self.add("en", attributeType="enum", enumName="a:b:c")
         angle = self.node.getPlug("rx")
-        for plug, value in ((long_plug, "5"), (double_plug, "1.5"), (double_plug, None), (enum_plug, "c"),
-                            (enum_plug, "1"), (angle, "1")):
+        for plug, value in ((long_plug, "5"), (double_plug, "1.5"), (double_plug, None), (angle, "1")):
             for fast in (False, True):
                 with self.subTest(plug=plug.getAttrName(), value=value, fast=fast):
                     with self.assertRaises(TypeError if fast else (TypeError, RuntimeError)):
                         plug.set(value, fast=fast)
                     self.assertEqual(plug.set(value, safe=True, fast=fast), 1)
                     self.assertEqual(cmds.getAttr(plug.getFullName()), 0)
+        # 5.0.0: enumへの文字列はフィールド名として解釈し、無い名前はValueError。
+        for fast in (False, True):
+            with self.subTest(plug="en", fast=fast):
+                with self.assertRaises(ValueError):
+                    enum_plug.set("1", fast=fast)
+                self.assertEqual(enum_plug.set("1", safe=True, fast=fast), 1)
+                self.assertEqual(cmds.getAttr(enum_plug.getFullName()), 0)
         text = self.add("txt", dataType="string")
         text.set("keep")
         for value in (5, 7.0, None, True):
@@ -557,8 +563,8 @@ class PlugEnumSpecTest(_PlugSpecCase):
         self.assertEqual(cmds.getAttr(plug.getFullName()), 7)
         with self.assertRaises(RuntimeError):
             plug.set(-1)
-        with self.assertRaises(RuntimeError):
-            plug.set("c")
+        with self.assertRaises(ValueError):
+            plug.set("C")
 
     def test_reset_to_default_outside_fields_fails(self):
         """既定値0が最小値1を下回るため、resetはMayaの設定どおりRuntimeErrorになる(docstringに記載)。"""

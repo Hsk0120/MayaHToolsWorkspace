@@ -25,6 +25,7 @@ from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.nodes.shape import Shape
 
 _TRANSFORM_SOURCE_CONSTRAINTS: frozenset
+_LIMIT_FLAGS: dict
 _TRANSFORM_ATTRIBUTES: dict
 _NEAR_ZERO_AXIS: float
 
@@ -789,6 +790,30 @@ class Transform(DagNode):
         Raises:
             ValueError: refVector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
             RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> Transform:
+        """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。
+
+        ``setLimits(translateX=(0, 10), rotateZ=(-45, 90), scaleY=(None, 2))`` のように、チャンネル名
+        (``translateX``〜``scaleZ`` のロング名)へ ``(最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
+        無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
+        距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
+        全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
+        fast引数は持たない。
+
+        Args:
+            unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+            **limits (tuple[float | None, float | None] | None): チャンネル名ごとの ``(最小, 最大)``。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: チャンネル名が未対応、値が2要素の列・None以外、要素が数値・None以外、
+                またはunitが文字列以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: ノードが無効、またはMayaが設定を拒否した場合(最小が最大より大きい等)。
         """
         ...
     def _color_targets(self) -> list[DagNode]:

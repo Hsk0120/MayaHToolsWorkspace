@@ -320,7 +320,7 @@ class SecondaryLayer:
             for destination, source in zip(connections[::2], connections[1::2]):
                 if source.getNode().getUuid() in mapping:
                     destination.disconnect(source)
-                    mapping[source.getNode().getUuid()].getPlug(source.getAttrName()[1:]).connectTo(destination)
+                    mapping[source.getNode().getUuid()].getPlug(source.getAttrName()).connectTo(destination)
 
     def update(self):
         """停止レイヤーの入力を切断し、両方停止なら元の骨へ接続を戻す。"""

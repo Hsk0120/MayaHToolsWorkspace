@@ -129,6 +129,35 @@ def _dump_movable_attr(plug: Plug) -> dict:
     """
     ...
 
+def _require_same_attr_definition(plug: Plug, flags: dict):
+    """addAttr(safe=True)で、既存のアトリビュートが要求した型と一致するか検証する。
+
+    Args:
+        plug (Plug): 既存のアトリビュート。
+        flags (dict): 型を解決済みのaddAttrのフラグ(attributeType/dataType・multi)。
+
+    Raises:
+        TypeError: 型、またはマルチアトリビュートかどうかが一致しない場合。
+    """
+    ...
+
+def _enum_field_value(enum_name: str | None, field: str) -> int:
+    """``enumName`` の定義(``"a:b:c"``・``"a=2:b=5"``)からフィールド名の値を求める。
+
+    値を省いたフィールドは直前の値+1(先頭は0)で、Mayaの ``addAttr(enumName=...)`` と同じ。
+
+    Args:
+        enum_name (str | None): ``addAttr`` へ渡すenumNameの文字列。
+        field (str): 値を求めるフィールド名(大文字・小文字を区別する完全一致)。
+
+    Returns:
+        int: フィールドの値。
+
+    Raises:
+        ValueError: enumNameが無い、またはfieldに一致するフィールドが無い場合。
+    """
+    ...
+
 def _enum_definition(plug: Plug) -> str:
     """enum の全フィールドを ``cmds.attributeQuery(listEnum=True)`` と同じ書式の文字列にする。
 
@@ -689,17 +718,20 @@ class Node(Object):
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
         ...
-    def setAttrFlags(self, attributes: str | Iterable[str], locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., *, fast: bool = ...) -> Node:
+    def setAttrFlags(self, attributes: str | Iterable[str], locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., *, children: bool = ..., fast: bool = ...) -> Node:
         """指定アトリビュートのロック・キー設定可否・Channel Box表示を変更する。
 
         状態の型を検査し、全アトリビュートを解決してから順に更新する。
-        途中の失敗で、先行の変更は自動では戻さない。
+        途中の失敗で、先行の変更は自動では戻さない。各Plugの :meth:`Plug.setFlags` へ委譲する。
 
         Args:
-            attributes (str | Iterable[str]): アトリビュート名。子も変更するなら子名を明示する。
+            attributes (str | Iterable[str]): アトリビュート名。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
+            children (bool): Trueはコンパウンドアトリビュート(``t`` 等)の子(``tx`` 等)にも同じ状態を設定する。
+                既定Falseは指定したアトリビュートだけ(Mayaの ``setAttr`` と同じく、親のkeyable・Channel Box表示は
+                子へ及ばない。ロックは親から子へ継承される)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -707,7 +739,7 @@ class Node(Object):
 
         Raises:
             AttributeError: 指定アトリビュートが存在しない場合。
-            TypeError: 必須引数の不足、fastや状態の型が不正な場合。
+            TypeError: 必須引数の不足、fast・childrenや状態の型が不正な場合。
             RuntimeError: Mayaが更新を拒否した場合。
         """
         ...
@@ -746,7 +778,7 @@ class Node(Object):
             RuntimeError: ノードが無効な場合。
         """
         ...
-    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, fast: bool = ..., unit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
+    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, safe: bool = ..., fast: bool = ..., unit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
         """型・既定値・フラグを指定してアトリビュートを追加する。
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
@@ -765,6 +797,11 @@ class Node(Object):
             childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
+            safe (bool): Trueは再実行向け。同じ名前のアトリビュートが既にあれば何も変更せず、既存のPlug
+                (getPlug=FalseならNone)を返す。既存の既定値・範囲・表示などは更新しない。既存のアトリビュートの型
+                (getType()で比べる)、またはマルチアトリビュートかどうかが要求と違う場合はsafeでもTypeError。
+                既定Falseは既存の名前をMayaのエラー(RuntimeError)にする。
+                ``Plug.set(safe=True)`` (失敗数を返す)とは意味が異なる。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
                 ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
@@ -852,9 +889,10 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、fastがbool以外、またはunitが文字列以外の場合。
+            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列以外、または
+                safe=Trueで既存のアトリビュートの型・マルチアトリビュートかどうかが要求と違う場合。
             ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
-                またはunitが未対応の単位名の場合。
+                unitが未対応の単位名、またはenumのdefaultValueのフィールド名がenumNameに無い場合。
             NotImplementedError: fastで型や定義フラグが未対応の場合。
 
         Note:

@@ -26,7 +26,7 @@ REMOVED = {
     Transform: ("transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
                 "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"),
     Joint: ("isJoint",),
-    Plug: ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable",
+    Plug: ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
            "isArray", "isElement", "getArray"),
     MultiPlug: ("getNextAvailableIndex", "isArray", "isElement", "getArray"),
     CompoundPlug: ("isArray", "isElement", "getArray"),

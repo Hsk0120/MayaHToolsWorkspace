@@ -14,8 +14,9 @@ from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
-from ..util import _ArgumentError
+from ..util import _ArgumentError, _angle_unit
 from typing import Any, Callable, ContextManager, Iterable, Iterator, Literal
+from mlib.maths.matrix import Matrix
 from mlib.nodes.node import Node
 from mlib.plugs.multiPlug import MultiPlug
 from typing import overload
@@ -242,18 +243,26 @@ class Plug(Object):
         """
         ...
     def getName(self) -> str:
-        """最短一意ノード名と短いアトリビュート名を含むPlug名を取得する。
+        """最短一意ノード名と短いアトリビュートパスを含むPlug名を取得する。
+
+        ``<Node.getName()>.<getAttrName()>`` の形式で、要素の論理番号を常に含む
+        (``tt.wm[0]``・``bs.it[0].itg[3].tw[2]``)。表示・ログ向けの短い表記で、Mayaコマンドへ渡す
+        一意な名前は :meth:`getFullName` を使う。
 
         Returns:
-            str: 必要な論理番号を含むプラグ名。所有ノードが無効(削除済み)、
-                またはアトリビュートが削除済みの場合は空文字列(:meth:`getFullName` と同じ)。
+            str: プラグ名。所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合は
+                空文字列(:meth:`getFullName` と同じ)。
         """
         ...
     def getAttrName(self) -> str:
-        """先頭ドットと必要な要素番号を含む短いアトリビュートパスを取得する。
+        """ノード名と先頭ドットを除いた、短いアトリビュートパスを取得する。
+
+        ショート名と要素の論理番号を含む(``tx``・``wm[0]``・``it[0].itg[3].tw[2]``)。
+        worldSpaceのマルチアトリビュートの要素(``worldMatrix[0]``)も番号を省かない。
+        エイリアスは使わない。そのまま ``node.getPlug(plug.getAttrName())`` へ渡せる。
 
         Returns:
-            str: ノード名を除いたPlug名。無効な場合は空文字列。
+            str: ノード名を除いたアトリビュートパス。無効な場合は空文字列。
         """
         ...
     def getShortName(self) -> str:
@@ -392,27 +401,35 @@ class Plug(Object):
 
         Args:
             val (bool): キー設定可否。
-            leaf (bool): コンパウンドアトリビュートの末端だけを設定する。
+            leaf (bool): Trueはコンパウンドアトリビュートの末端の子だけを設定し、自身(親)は変えない。
+                自身と子孫の両方へ設定するには :meth:`setFlags` の ``children=True`` を使う。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
         """
         ...
-    def setFlags(self, *, locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., fast: bool = ...) -> Plug:
+    def setFlags(self, *, locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., children: bool = ..., fast: bool = ...) -> Plug:
         """アトリビュートの状態をまとめて変更する。省略した状態は変更しない。
+
+        Mayaの ``setAttr(keyable=..., channelBox=...)`` はコンパウンドアトリビュートの親にだけ効き、
+        子のkeyable・Channel Box表示は変わらない(ロックは親のロックが子へ継承される)。
+        ``children=True`` は自身に続けて、コンパウンドアトリビュートの子(孫以下も)へ同じ状態を明示的に設定する。
+        マルチアトリビュートの要素へは広げない。
 
         Args:
             locked (bool | None): ロック状態。
             keyable (bool | None): キー設定可否。
             channelBox (bool | None): Channel Box表示。キー可能なアトリビュートはFalseでも表示される。
+            children (bool): Trueはコンパウンドアトリビュートの子孫にも同じ状態を設定する。既定Falseは自身だけ。
+                :meth:`setKeyable` 等の ``leaf=True`` (末端だけを変え、自身を変えない)とは異なる。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: 状態がbool/None以外の場合。
+            TypeError: 状態・childrenがbool/None以外の場合。
             RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         ...
@@ -428,11 +445,29 @@ class Plug(Object):
 
         Args:
             val (bool): 表示状態。有効時はkeyableを無効にする。
-            leaf (bool): コンパウンドアトリビュートの末端だけを設定する。
+            leaf (bool): Trueはコンパウンドアトリビュートの末端の子だけを設定し、自身(親)は変えない。
+                自身と子孫の両方へ設定するには :meth:`setFlags` の ``children=True`` を使う。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
+        """
+        ...
+    def lock(self, *, fast: bool = ...) -> Plug:
+        """ロックする(``setFlags(locked=True)`` と同じ)。
+
+        コンパウンドアトリビュートの子は、Mayaの規則により親のロックを継承する。
+        解除は :meth:`unlock` (上位の継承ロックも解除し、解除したPlugのlistを返す)。
+
+        Args:
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         ...
     def unlock(self, below: bool = ..., *, fast: bool = ...) -> list[Plug]:
@@ -449,6 +484,41 @@ class Plug(Object):
 
         Raises:
             TypeError: belowまたはfastがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        ...
+    def show(self, keyable: bool = ..., *, fast: bool = ...) -> Plug:
+        """Channel Boxへ表示する(:meth:`hide` の逆)。
+
+        コンパウンドアトリビュートは子も表示する。ロックは変えない。
+
+        Args:
+            keyable (bool): 既定Trueはキー設定可能として表示する。FalseはキーできないChannel Box表示
+                (keyable=False, channelBox=True)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: keyable・fastがbool以外の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        ...
+    def hide(self, *, fast: bool = ...) -> Plug:
+        """Channel Boxから隠す(keyableとChannel Box表示をFalseにする)。
+
+        コンパウンドアトリビュート(``t`` 等)は子(``tx`` 等)も隠す(``setFlags(keyable=False, channelBox=False,
+        children=True)`` と同じ)。ロックは変えない。
+
+        Args:
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         ...
@@ -622,6 +692,28 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
+    def setMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ...) -> Plug:
+        """動的アトリビュートの最小値を設定する(``cmds.addAttr(edit=True, minValue=...)`` 相当)。
+
+        値の単位は :meth:`Node.addAttr` の ``minValue`` と同じ(角度は ``unit`` の単位で既定は度、距離はcm、
+        時間は秒。``om2.MAngle`` 等の単位付きの値はそのまま使う)。``None`` は最小値の制限を外す。
+        アトリビュートの定義を変えるため、マルチアトリビュートの要素では全要素に効く。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最小値。Noneは制限を外す。
+            unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: 静的(ノード型に組み込みの)アトリビュート、数値・単位型以外のアトリビュート、
+                valueが数値・単位付きの値・None以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
+        """
+        ...
     def getMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されている最大値を取得する。
 
@@ -642,6 +734,24 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def setMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ...) -> Plug:
+        """動的アトリビュートの最大値を設定する(``cmds.addAttr(edit=True, maxValue=...)`` 相当)。
+
+        値の単位と制限は :meth:`setMin` と同じ。``None`` は最大値の制限を外す。
+
+        Args:
+            value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最大値。Noneは制限を外す。
+            unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: :meth:`setMin` と同じ。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
     def hasSoftMin(self) -> bool:
@@ -690,6 +800,27 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
+    def setSoftMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ...) -> Plug:
+        """動的アトリビュートのソフト最小値(UIスライダーの下限)を設定する。
+
+        ``cmds.addAttr(edit=True, softMinValue=...)`` 相当。値の単位と制限は :meth:`setMin` と同じ。
+        Mayaはソフト最小値の削除を公開しない(``cmds.addAttr`` は ``hasSoftMinValue`` を編集できない)ため、
+        ``None`` はNotImplementedErrorにする。
+
+        Args:
+            value (float | om2.MAngle | om2.MDistance | om2.MTime): ソフト最小値。
+            unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: :meth:`setMin` と同じ。
+            ValueError: unitが未対応の単位名の場合。
+            NotImplementedError: valueがNoneの場合。変更前に拒否する。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
+        """
+        ...
     def getSoftMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されているソフト最大値(UIスライダーの上限)を取得する。
 
@@ -710,6 +841,27 @@ class Plug(Object):
             TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def setSoftMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ...) -> Plug:
+        """動的アトリビュートのソフト最大値(UIスライダーの上限)を設定する。
+
+        ``cmds.addAttr(edit=True, softMaxValue=...)`` 相当。値の単位と制限は :meth:`setMin` と同じ。
+        Mayaはソフト最大値の削除を公開しない(``cmds.addAttr`` は ``hasSoftMaxValue`` を編集できない)ため、
+        ``None`` はNotImplementedErrorにする。
+
+        Args:
+            value (float | om2.MAngle | om2.MDistance | om2.MTime): ソフト最大値。
+            unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: :meth:`setMin` と同じ。
+            ValueError: unitが未対応の単位名の場合。
+            NotImplementedError: valueがNoneの場合。変更前に拒否する。
+            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
     def getDefault(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Any:
@@ -747,15 +899,22 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def setAlias(self, name: str | None = ..., *, fast: bool = ...) -> Plug:
+    def setAlias(self, name: str | None = ..., *, safe: bool = ..., fast: bool = ...) -> Plug:
         """別名を設定または解除する。
 
         Args:
             name (str | None): 別名。Noneまたは空文字で解除。
+            safe (bool): Trueは再実行向け。自身が既に同じ別名を持てば何も変更せず自身を返す。
+                別のアトリビュートが使っている別名は既定と同じく例外にする。既定Falseは同じ別名の再設定も
+                Mayaのエラー(RuntimeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: safe・fastがbool以外の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが別名を拒否した場合。
         """
         ...
     def setKey(self, *, fast: bool = ..., **kwargs) -> Plug:
@@ -843,7 +1002,8 @@ class Plug(Object):
 
         Raises:
             TypeError: enum アトリビュートでない場合。
-            ValueError: name に一致するフィールドが無い場合。
+            ValueError: name に一致するフィールドが無い場合(大文字・小文字を区別する完全一致)。
+                文言に有効なフィールド名を並べる。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
@@ -862,7 +1022,8 @@ class Plug(Object):
 
         Args:
             val (bool): ロック状態。
-            leaf (bool): コンパウンドアトリビュートでは末端だけを設定する。
+            leaf (bool): Trueはコンパウンドアトリビュートの末端の子だけを設定し、自身(親)は変えない。
+                自身と子孫の両方へ設定するには :meth:`setFlags` の ``children=True`` を使う。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
@@ -1188,8 +1349,8 @@ class Plug(Object):
                 other のPlugまたはMPlugの所有ノード・アトリビュートが削除済みの場合。
         """
         ...
-    def connect(self, source: Plug | om2.MPlug | str, force: bool = ..., f: bool = ..., lock: bool = ..., l: bool = ..., nextAvailable: bool = ..., na: bool = ..., *, unlock: bool = ..., fast: bool = ...) -> Plug:
-        """srcから自身へ接続し、接続先を返す。同一の既存接続も例外にする。
+    def connect(self, source: Plug | om2.MPlug | str, force: bool = ..., f: bool = ..., lock: bool = ..., l: bool = ..., nextAvailable: bool = ..., na: bool = ..., *, unlock: bool = ..., safe: bool = ..., fast: bool = ...) -> Plug:
+        """srcから自身へ接続し、接続先を返す。既定では同一の既存接続も例外にする。
 
         通常はcmds.connectAttrでUndo有効時に記録する。fastはMDGModifierを使う。
         解除したロックは逆順に復元するが、復元失敗では例外になり残りを復元しない。
@@ -1202,18 +1363,23 @@ class Plug(Object):
             f (bool): forceとORする。
             lock (bool): 接続後にロックする。Falseでも元のロックは復元する。
             l (bool): lockとORする。
-            nextAvailable (bool): マルチアトリビュート全体では0から入力/ロックのない要素を探す。
-                コンパウンドアトリビュートの子も判定する。定数値や出力接続がある要素も候補になる。
+            nextAvailable (bool): マルチアトリビュート全体では、``cmds.connectAttr(nextAvailable=True)`` と同じ規則で
+                要素を選ぶ(:meth:`MultiPlug.getNextAvailable` の既定と同じ)。接続のある最後の要素の次から、
+                入力接続・ロック・子の入力接続の無い要素を探す。値を持つだけの要素も候補になり、途中の空きは使わない。
             na (bool): nextAvailableとORする。
             unlock (bool): Falseならforceでもロックを解除しない。
+            safe (bool): Trueは再実行向け。接続元から接続先への同じ接続(unitConversion等の変換ノード経由を含む)が
+                既にあれば何も変更せず(ロック・lockの指定も変えない)、成功時と同じく接続先を返す。
+                nextAvailable時は、接続元が既に接続された要素があればその要素を返す。
+                別の入力がある・ロックされている等の失敗は既定と同じく例外にする。既定Falseは同一接続もRuntimeError。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Plug: 実際の接続先。nextAvailable時は選んだ要素。参照を取り直す場合があり、self同一性は保証しない。
 
         Raises:
-            TypeError: 接続元が未指定・未対応型、またはfastがbool以外の場合。
-            RuntimeError: 同一接続・forceなしの入力置換・ロック・接続やロック復元の失敗。
+            TypeError: 接続元が未指定・未対応型、またはfast・safeがbool以外の場合。
+            RuntimeError: 同一接続(safe=Falseのとき)・forceなしの入力置換・ロック・接続やロック復元の失敗。
                 接続元・接続先の所有ノードやアトリビュートが削除済みの場合も、何も変更せずに
                 送出する(接続元は削除前のアトリビュートパスを文言に含める)。
         """
@@ -1284,20 +1450,22 @@ class Plug(Object):
             RuntimeError: 無効参照、またはロック等により切断できない場合。
         """
         ...
-    def connectTo(self, destination: Plug | om2.MPlug | str, *, fast: bool = ..., **kwargs) -> Plug:
+    def connectTo(self, destination: Plug | om2.MPlug | str, *, safe: bool = ..., fast: bool = ..., **kwargs) -> Plug:
         """自身からdstへ接続し、接続先Plugを返す。
 
         dstをPlugへ解決し、 ``destination.connect(self, **kwargs)`` へ委譲する。
-        通常Undo・force時のロック復元・マルチアトリビュートの空き番号選択はconnectと共通。
-        fast指定は内側のconnectへ引数で渡す。
+        通常Undo・force時のロック復元・マルチアトリビュートの空き番号選択(``nextAvailable=True`` は
+        ``cmds.connectAttr(nextAvailable=True)`` と同じ規則)はconnectと共通。
+        fast・safe指定は内側のconnectへ引数で渡す。``>>`` 演算子はsafeを持たず、同一接続を例外にする。
 
         Args:
             destination (Plug | om2.MPlug | str): 接続先。
+            safe (bool): Trueは同じ接続が既にあれば何もせず接続先を返す(:meth:`connect` のsafe)。既定False。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: connectのforce/f・lock/l・nextAvailable/na・unlock。
 
         Returns:
-            Plug: 実際の接続先。
+            Plug: 実際の接続先。safeで既存の接続を見つけた場合もその接続先。
         """
         ...
     def _set_template(self, value: object, safe: bool, *, fast: bool, unit: str | None = ..., uiUnits: bool = ..., _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
@@ -1402,6 +1570,81 @@ class Plug(Object):
         未作成のマルチアトリビュートの要素は実体化しない。数値・単位・enumなど、
         共通の数値操作で表せるものだけを対象にする。
         Undoが無効なら記録されないため、同値の書込み自体を省く。
+        """
+        ...
+    def _compound_descendants(self) -> list[om2.MPlug]:
+        """コンパウンドアトリビュートの子孫のMPlugを、親から定義順に返す。
+
+        Returns:
+            list[om2.MPlug]: 子孫のMPlug。コンパウンドアトリビュートでなければ空。マルチアトリビュートの要素は含めない。
+        """
+        ...
+    def _has_input_from(self, source: Plug) -> bool:
+        """sourceからの直接の入力、またはunitConversion等の変換ノードを経由した入力を持つか判定する。
+
+        Args:
+            source (Plug): 接続元。
+
+        Returns:
+            bool: Mayaが同じ接続とみなす入力がある場合はTrue。
+        """
+        ...
+    def _existing_connection_target(self, source: Plug, next_available: bool) -> Plug | None:
+        """safe=Trueの接続で、既にある同じ接続の接続先を返す。
+
+        Args:
+            source (Plug): 接続元。
+            next_available (bool): マルチアトリビュートの要素から探すか。
+
+        Returns:
+            Plug | None: 同じ接続の接続先。無ければNone。
+        """
+        ...
+    def _set_range(self, kind: str, value: object, unit: str | None) -> Plug:
+        """setMin等の共通処理。値を ``cmds.addAttr`` の単位へ換算して定義を編集する。
+
+        Args:
+            kind (str): ``"Min"``・``"Max"``・``"SoftMin"``・``"SoftMax"``。
+            value (object): 設定値。Noneは制限を外す。
+            unit (str | None): 角度の数値の単位。
+
+        Returns:
+            Plug: 自身。
+        """
+        ...
+    def _range_input(self, fn: om2.MFnNumericAttribute | om2.MFnUnitAttribute, value: object, angle_unit: str, method: str) -> float:
+        """setMin等の値を ``cmds.addAttr`` が受け取る単位の数値へ換算する。
+
+        ``cmds.addAttr`` は角度をrad、距離をcm、時間を現在の時間単位で受け取る(:meth:`Node.addAttr` と同じ換算)。
+
+        Args:
+            fn (om2.MFnNumericAttribute | om2.MFnUnitAttribute): 対象の定義。
+            value (object): 数値または単位付きの値。
+            angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
+            method (str): 例外メッセージに使うメソッド名。
+
+        Returns:
+            float: 換算した値。
+
+        Raises:
+            TypeError: 数値・対応する単位付きの値以外の場合。
+        """
+        ...
+    def _set_generic_matrix(self, matrix: Matrix, fast: bool):
+        """generic/kAnyのアトリビュートへ定数のマトリクスを書き込む。
+
+        通常は ``cmds.setAttr(type="matrix")``、fastはマトリクスのデータをMPlugへ直接設定する。
+        Mayaの ``setAttr`` がマトリクスのデータを受け付けないアトリビュート(``choice.input`` 等の組み込みの
+        generic)は、Mayaが保存したシーンを読み込めない(``setAttr`` の行がエラーになり値が失われる)ため、
+        fastでも書き込まずTypeErrorにする。
+
+        Args:
+            matrix (Matrix): 書き込む値。
+            fast (bool): TrueならOpenMayaで直接更新する。
+
+        Raises:
+            TypeError: アトリビュートがマトリクスのデータを受け付けない場合。
+            RuntimeError: ロック・入力接続・書込み禁止の場合。
         """
         ...
     def _set_flags(self, leaf, *, fast: bool = ..., **flags):
