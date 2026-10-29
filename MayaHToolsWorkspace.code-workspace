@@ -61,6 +61,22 @@
           "reveal": "always",
           "panel": "dedicated"
         }
+      },
+      {
+        "label": "mlib: Update type stubs",
+        "type": "process",
+        "command": "${config:maya.pythonExecutable}",
+        "args": [
+          "${workspaceFolder}/tools/generate_mlib_stubs.py"
+        ],
+        "options": {
+          "cwd": "${workspaceFolder}"
+        },
+        "problemMatcher": [],
+        "presentation": {
+          "reveal": "always",
+          "panel": "dedicated"
+        }
       }
     ],
     "inputs": [

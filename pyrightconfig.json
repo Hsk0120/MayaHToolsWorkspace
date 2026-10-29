@@ -12,6 +12,7 @@
     "**/.venv",
     "**/docs/_build",
     "maya/inhouse/mlib/_docs",
+    "maya/inhouse/mlib/**/*.pyi",
     "maya/external",
     ".maya-output",
     "typings"

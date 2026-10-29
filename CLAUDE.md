@@ -73,7 +73,7 @@ maya_2026_en.bat
 
 ### 静的解析(Pylance/pyright)
 
-`python tools/setup_maya_typings.py` で型スタブ(`types-maya`)を `typings/maya/` へ配置する(Git対象外)。設定はリポジトリ直下の `pyrightconfig.json`(解析対象・`extraPaths`・重大度)。スタブの不完全さに起因する指摘は警告にしてあり、エラーは実際の誤りだけ。コマンドラインでは `pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。詳細は `docs/vscode.md`。
+`python tools/setup_maya_typings.py` で型スタブ(`types-maya`)を `typings/maya/` へ配置する(Git対象外)。設定はリポジトリ直下の `pyrightconfig.json`(解析対象・`extraPaths`・重大度)。スタブの不完全さに起因する指摘は警告にしてあり、エラーは実際の誤りだけ。コマンドラインでは `pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。mlibの型はdocstringにしか無いため、`tools/generate_mlib_stubs.py`(`.bat`)がdocstringの型から型スタブを各`.py`の隣(`maya/inhouse/mlib/**/*.pyi`)へ作り、Gitで管理する(Pylanceは設定なしで隣の`.pyi`を読む。実行時は使われない)。**mlibのdocstringの型・引数・公開名を変えたらスタブを作り直して一緒にコミットする**(古い・注釈にできない型があると `__tests__/unit/test_static_stub_generation.py` が失敗する)。`.pyi`は手で編集しない。`ls`・`createNode`・`getConnections` 等の引数で戻り値が変わるAPIのオーバーロードは同スクリプトに書く。詳細は `docs/vscode.md`。
 
 ### テストの実行
 

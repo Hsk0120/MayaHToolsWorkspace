@@ -117,6 +117,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-29): VS Code 補完用に、mlib の docstring から型スタブ(.pyi)を各 .py の隣へ作る tools/generate_mlib_stubs.py・.bat を追加し、生成した 145 ファイルを Git 管理に(mlib本体のコードは変更なし、pyrightconfig の exclude で解析対象外)。ls・createNode・getConnections・getSource・getDestinations は引数ごとの戻り値を @overload で補い、Joints 等は要素型で反復。test_static_stub_generation.py が古いスタブを検出。runStatic 160件、Maya 2022・2027 の mlib 全件が合格。pyright の言語サーバーで補完・引数ヒント・ホバーを確認(VS Code の画面での確認は未実施)。
 - Claude Code (2026-10-29): mlrig夜間タスク。カプセル(線分)コライダーへの柔らかい押し出し CapsuleCollision を追加(setups/capsuleCollision.py。標準ノードのみ。t = clamp(dot(p-a,b-a)/|b-a|^2,0,1)、q = a+t(b-a)、両端で半径を変えられる r(t) の先細り、SphereCollision と同じ指数の押し出し、matrix・distance・push・penetration・parameter を出力)。SphereCollision の押し出し部分を _radialGraph へ切り出して共有、Setup Samplesに1項目、文書 capsule_collision.rst と検証デモ tools/demo_capsule_collision.py を追加。隔離Maya 2027で test_setup_capsule_collision 9件・setups 560件・standard 76件OK、Sphinx -W 警告0、検証動画354フレーム判定OK。コミット・プッシュ(このコミット)。
 
 - Claude Code (2026-10-29): mlib 4.1.0。MultiPlug に論理番号・要素Plugの存在を返す `in` を追加し、Plug の repr を実際のラッパー型名の表示(`MultiPlug('pma.input1D')`・`<DoubleLinearPlug invalid>` 等)に変更。`len()` は cmds が位置0〜len-1の並びとして展開し論理番号と違う値を黙って返すと確認したため追加せず、設計文書・CLAUDE.md に理由を記載。Maya 2022〜2027 の mlib 全件、2027 の mlrig 692 件、静的検査・Sphinx(-W)が合格。

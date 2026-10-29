@@ -53,6 +53,20 @@ Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`
 1. `python tools/setup_maya_typings.py`を1回実行します。型スタブ`types-maya`（MIT）を`typings/maya/`へ配置します（Git対象外、ネットワークが必要）。
 2. VS Codeで`MayaHToolsWorkspace.code-workspace`を開き直すか、`Developer: Reload Window`を実行します。
 
+### mlibの型スタブ
+
+mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`の`name (type):`と`Returns:`の先頭の`type:`）にだけ書いてあります。Pylanceはdocstringを型として読まないため、そのままでは`mlib.ls()`の戻り値などの型が分からず、その先の補完・引数ヒントが出ません。`tools/generate_mlib_stubs.py`がdocstringの型を注釈にした型スタブ（`.pyi`）を、各`.py`の隣（`maya/inhouse/mlib/nodes/node.pyi`等）へ作ります。
+
+- **設定は不要**: Pylanceは`.py`の隣の`.pyi`を優先して読むため、`stubPath`等を書かなくても認識されます。mlibのフォルダーだけを開いた場合や、別のプロジェクトから`maya/inhouse`をimportの検索パスに入れてmlibを使う場合も同じです。F12（定義へ移動）は`.pyi`を開き、本体を見るときは右クリックの「Go to Source Definition」を使います。
+- **Gitで管理**: スタブはコミットするので、cloneしただけで補完が効きます。Pythonは実行時に`.pyi`を読まないため、Mayaの動作には影響しません。スタブ自体の警告で問題一覧が埋まらないよう、`pyrightconfig.json`の`exclude`で解析対象からは外しています（型の参照には使われます）。
+- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`tools\generate_mlib_stubs.bat`（またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。
+- **引数で戻り値が変わるAPI**は、引数ごとの戻り値を`@overload`で補っています。
+  - `mlib.ls(type="joint")`は`Joints`、`type="skinCluster"`は`SkinClusters`、`type="transform"`等の登録済みの型名は`list[Transform]`等、`type="vertex"`等のコンポーネントは`list[Vertex]`等、そのほかの型名は`list[Node]`、`type`無しは`list[Node | Plug | Component]`。型名とクラスの対応は`nodes/__init__.py`の`_WRAPPER_CLASSES`から読みます。
+  - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。
+  - `getConnections`・`getSource`・`getDestinations`は`asNode`・`asPair`・`index`の指定で`list[Plug]`・`list[Node]`・`Node | None`等。`c`・`connections`でのペア指定は全候補の合併型になります。
+  - `Joints`・`Vertices`等の複数形のコレクションは、`for`と`[番号]`で要素の型（`Joint`・`Vertex`等）を返します。
+- **スタブだけで緩めている点**: `mlib.getNode()`は実際には`Joint`等の派生クラスを返しますが、型は`Node`になります。派生クラスのメソッドを使っても警告にならないよう、`Node`・`Plug`・`Component`の未定義の属性は`Any`扱いにしています（基底クラスのメソッドは補完に出ます。属性名の打ち間違いは検出されません）。派生クラスの補完を出したいときは`joint = mlib.ls("joint1", type="joint")[0]`のように型が決まる書き方にするか、`isinstance`で絞ります。`Plug`は`[]`と`for`も受け付けます（`getPlug()`がマルチアトリビュートでも`Plug`型になるため）。docstringで`object`と書いた戻り値（`Plug.get()`等）は`Any`にしています。
+
 設定はリポジトリ直下の`pyrightconfig.json`に集約しています（Pylanceが読み込みます）。解析対象、`extraPaths`（`maya/inhouse`・cymel・mgear等）、スタブの場所（`typings`）、ルールの重大度を定義しています。ユーザー設定の`python.analysis.extraPaths`は、この設定ファイルの`extraPaths`が優先されます。
 
 - スタブは完全ではないため、Mayaの実挙動と食い違う指摘は**警告**にしています。エラー（赤）として残るのは、未定義変数などの実際の誤りです。
