@@ -1084,23 +1084,29 @@ void CodeEditor::paintEvent(QPaintEvent* event) {
     if (!hints.isEmpty()) {
         QPainter hintPainter(viewport());
         hintPainter.setPen(QColor("#9a9a9a"));
-        QHash<int, QStringList> lines;
+        QMap<QPair<int, int>, QStringList> positions;
         for (const auto& entry : hints) {
             const auto hint = entry.toObject();
             QString label;
             const auto value = hint.value("label");
             if (value.isString()) label = value.toString();
             else for (const auto& part : value.toArray()) label += part.toObject().value("value").toString();
-            lines[hint.value("position").toObject().value("line").toInt()].append(label);
+            const auto position = hint.value("position").toObject();
+            positions[qMakePair(position.value("line").toInt(), position.value("character").toInt())].append(label);
         }
-        for (auto it = lines.begin(); it != lines.end(); ++it) {
-            const auto block = document()->findBlockByNumber(it.key());
+        for (auto it = positions.begin(); it != positions.end(); ++it) {
+            const auto block = document()->findBlockByNumber(it.key().first);
             if (!block.isValid() || !block.isVisible()) continue;
-            QTextCursor cursor(block); cursor.movePosition(QTextCursor::EndOfBlock);
+            const int column = it.key().second;
+            if (column <= 0 || column > block.text().size() || block.text().at(column - 1).isSurrogate() || block.text().at(column - 1) == '\t') continue;
+            QTextCursor cursor(block); cursor.setPosition(block.position() + column);
             const QRect rect = cursorRect(cursor);
             if (rect.bottom() < 0 || rect.top() > viewport()->height()) continue;
-            hintPainter.drawText(rect.right() + fontMetrics().horizontalAdvance(' ') * 3,
-                                 rect.top() + fontMetrics().ascent(), it.value().join("  ·  "));
+            const QString label = it.value().join("  ");
+            const QFontMetricsF metrics(document()->defaultFont());
+            const qreal width = metrics.horizontalAdvance(label) + metrics.horizontalAdvance(' ') * 2;
+            hintPainter.drawText(QPointF(rect.left() - width + metrics.horizontalAdvance(' '),
+                                        rect.top() + metrics.ascent()), label);
         }
     }
     // 色は描くたびに文字列から作らない(カーソルの点滅でも描き直しは来る)。staticに持つのは値の型の色(QColor)だけ。
@@ -1200,6 +1206,7 @@ void CodeEditor::setLanguageDecorations(const QJsonArray& tokens, const QJsonArr
     const QSignalBlocker blocker(this);  // 色の再描画を本文編集として通知しない。
     setProperty("languageTokens", tokens); setProperty("languageHints", hints);
     highlighter_->setSemanticTokens(tokens);
+    highlighter_->setInlayHints(hints);
     viewport()->update();
 }
 

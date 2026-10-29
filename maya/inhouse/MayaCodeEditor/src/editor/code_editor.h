@@ -8,6 +8,7 @@
 #pragma once
 #include "core/code_outline.h"
 #include "core/completion_types.h"
+#include "core/snippet.h"
 #include "core/line_diff.h"
 #include "core/script_lexer.h"
 #include "core/text_search.h"
@@ -64,6 +65,8 @@ public:
     bool isMel() const { return language_ == ScriptLanguage::Mel; }
     /** @brief 保存先を設定する。 @param path 絶対パス。未保存の新規タブは空。 */
     void setFilePath(const QString& path);
+    /** @brief 改名時に所有タブの見出しと復元状態を更新する通知。 */
+    std::function<void()> onFilePathChanged;
     /** @brief 保存先を返す。 @return 未保存の新規タブは空。
      * @note 保存先は動的プロパティ``path``そのものに持つ。GUIテストはPySideから``setProperty('path', ...)``で
      * 保存先を書き換えるため、C++側に別の変数を持つと食い違う。
@@ -100,7 +103,9 @@ public:
     std::function<bool(const QString&)> onExternalCompletionAccepted;
     /** @brief 解析由来の本文変更を1回のUndoへまとめる。 @param text 新しい本文。 @param caret 確定後位置。 */
     void applyLanguageText(const QString& text, int caret);
-    /** @brief 最新文書の色とヒントだけを表示する。 @param tokens 意味トークン。 @param hints 行末ヒント。 */
+    /** @brief 展開した補完の入力欄を開始する。@param start 挿入開始位置。@param stops 相対選択範囲。 */
+    void startSnippet(int start, const QVector<SnippetStop>& stops);
+    /** @brief 最新文書の色とヒントだけを表示する。 @param tokens 意味トークン。 @param hints 位置付きヒント。 */
     void setLanguageDecorations(const QJsonArray& tokens, const QJsonArray& hints);
     /** @brief 候補の一覧を閉じる。 */
     void hideCompletions();
@@ -314,6 +319,10 @@ protected:
     void gutterPressed(const QPoint& position) override;
 
 private:
+    QVector<SnippetStop> snippetStops_;  ///< 文書変更に追従する入力箇所。
+    int snippetIndex_ = -1;  ///< 選択中。-1は終了。
+    /** @brief Tab移動を適用する。@param direction 次は1、前は-1。@return 操作を消費したか。 */
+    bool moveSnippet(int direction);
     friend class StickyHeader;
 
     /** @brief 表示の部品(印のスクロールバー・見出しの固定表示)とタイマーを用意する(コンストラクターから1回だけ呼ぶ)。 */

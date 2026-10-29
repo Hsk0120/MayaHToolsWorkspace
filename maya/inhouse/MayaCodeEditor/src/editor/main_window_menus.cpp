@@ -106,11 +106,14 @@ void MainWindow::buildMenusAndToolbar() {
     QMenu* edit = menuBar()->addMenu("Edit");
     QMenu* refactor = edit->addMenu("Refactor");
     for (const auto& entry : QList<QPair<QString, QString>>{{"Extract variable…", "variable"}, {"Extract function…", "function"},
-            {"Move global symbol to module…", "move"}, {"Organize imports / remove unused…", "imports"}}) {
+            {"Move global symbol to module…", "move"}, {"Move global symbol to new module…", "move_new"},
+            {"Rename module and update imports…", "rename_module"}, {"Organize imports / remove unused…", "imports"}}) {
         refactor->addAction(entry.first, this, [this, entry] {
             if (assist_->language()) assist_->language()->refactor(currentEditor(), entry.second);
         })->setObjectName("refactor_" + entry.second);
     }
+    refactor->addAction("Undo last refactoring", this, [this] { if (assist_->language()) assist_->language()->restoreRefactoring(false); });
+    refactor->addAction("Redo last refactoring", this, [this] { if (assist_->language()) assist_->language()->restoreRefactoring(true); });
     buildPreferencesMenu(edit->addMenu("Preferences"));
     edit->addAction("Find…", this, [this] { findBar_->open(false); }, QKeySequence("Ctrl+F"));
     edit->addAction("Replace…", this, [this] { findBar_->open(true); }, QKeySequence("Ctrl+H"));

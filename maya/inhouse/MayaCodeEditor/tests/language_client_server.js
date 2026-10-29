@@ -15,6 +15,10 @@ process.stdin.on('data', data => {
         const item = JSON.parse(buffer.subarray(end + 4, end + 4 + length));
         buffer = buffer.subarray(end + 4 + length);
         if (item.method === 'initialize') send({jsonrpc: '2.0', id: item.id, result: {capabilities: {}}});
+        if (item.method === 'textDocument/completion') send({jsonrpc: '2.0', id: item.id, result: [{
+            label: 'call', insertTextFormat: 2, insertText: 'call(${1:first}, ${2:second})$0',
+            additionalTextEdits: [{range: {start: {line: 0, character: 0}, end: {line: 0, character: 0}}, newText: 'import helper\n'}]
+        }]});
         if (item.method === 'delayed') setTimeout(() => send({jsonrpc: '2.0', id: item.id, result: item.params.value}), item.params.delay);
         if (item.method === 'malformed') process.stdout.write('Content-Length: -1\r\n\r\n');
         if (item.method === 'exit') process.exit(0);

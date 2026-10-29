@@ -168,6 +168,41 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
     });
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
+    connect(document(), &QTextDocument::contentsChange, this, [this](int at, int removed, int added) {
+        if (snippetIndex_ < 0 || snippetIndex_ >= snippetStops_.size()) return;
+        auto& active = snippetStops_[snippetIndex_];
+        if (at < active.start || at + removed > active.start + active.length) {
+            snippetStops_.clear(); snippetIndex_ = -1; return;
+        }
+        const int delta = added - removed;
+        for (int i = 0; i < snippetStops_.size(); ++i) {
+            if (i != snippetIndex_ && snippetStops_[i].start >= at + removed) snippetStops_[i].start += delta;
+        }
+        active.length += delta;
+    });
+}
+
+void CodeEditor::startSnippet(int start, const QVector<SnippetStop>& stops) {
+    snippetStops_ = stops;
+    for (auto& stop : snippetStops_) stop.start += start;
+    snippetIndex_ = -1;
+    moveSnippet(1);
+}
+
+bool CodeEditor::moveSnippet(int direction) {
+    if (snippetStops_.isEmpty()) return false;
+    int next = snippetIndex_ + direction;
+    if (next < 0) next = 0;
+    if (next >= snippetStops_.size()) { snippetStops_.clear(); snippetIndex_ = -1; return true; }
+    const auto stop = snippetStops_[next];
+    if (stop.start < 0 || stop.start + stop.length >= document()->characterCount()) {
+        snippetStops_.clear(); snippetIndex_ = -1; return false;
+    }
+    snippetIndex_ = next;
+    QTextCursor cursor(document()); cursor.setPosition(stop.start);
+    cursor.setPosition(stop.start + stop.length, QTextCursor::KeepAnchor); setTextCursor(cursor);
+    if (stop.number == 0) { snippetStops_.clear(); snippetIndex_ = -1; }
+    return true;
 }
 
 bool CodeEditor::nameAt(int position, int* start, int* end) const {
@@ -351,7 +386,9 @@ void CodeEditor::setLanguage(ScriptLanguage language) {
 }
 
 void CodeEditor::setFilePath(const QString& path) {
+    if (filePath() == path) return;
     setProperty("path", path);
+    if (onFilePathChanged) onFilePathChanged();
 }
 
 QString CodeEditor::displayName() const {
@@ -672,6 +709,11 @@ bool CodeEditor::isRunKey(const QKeyEvent* event) {
 }
 
 bool CodeEditor::event(QEvent* event) {
+    if (event->type() == QEvent::FontChange) {
+        const bool handled = NumberedTextEdit::event(event);
+        if (highlighter_) highlighter_->rehighlight();
+        return handled;
+    }
     // ShortcutOverrideをacceptすると、Mayaやメニューのショートカットより先に、
     // このキーをkeyPressEventで受け取れる。
     if (event->type() == QEvent::ShortcutOverride) {
@@ -691,6 +733,22 @@ bool CodeEditor::event(QEvent* event) {
 }
 
 void CodeEditor::keyPressEvent(QKeyEvent* event) {
+    if (snippetIndex_ >= 0 && snippetIndex_ < snippetStops_.size()) {
+        const auto stop = snippetStops_[snippetIndex_];
+        if (textCursor().selectionStart() < stop.start || textCursor().selectionEnd() > stop.start + stop.length) {
+            snippetStops_.clear(); snippetIndex_ = -1;
+        }
+    }
+    if (!snippetStops_.isEmpty()) {
+        if (event->key() == Qt::Key_Escape || event->matches(QKeySequence::Undo) || event->matches(QKeySequence::Redo)) {
+            snippetStops_.clear(); snippetIndex_ = -1;
+        } else if (!isCompletionVisible() && !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))
+                   && (event->key() == Qt::Key_Tab || event->key() == Qt::Key_Backtab)) {
+            if (moveSnippet(event->key() == Qt::Key_Backtab || event->modifiers().testFlag(Qt::ShiftModifier) ? -1 : 1)) {
+                event->accept(); return;
+            }
+        }
+    }
     // 0. 名前の説明・定義をその場で見る表示を出している間のキー入力: Escは閉じるだけ、
     //    それ以外は閉じてから通常どおり処理する。
     const bool escape = event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier;

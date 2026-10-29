@@ -20,6 +20,7 @@
 #include "editor/editor.h"
 #include "editor/code_editor.h"
 #include "editor/language_assist.h"
+#include "editor/problems_panel.h"
 #include "editor/code_navigation.h"
 #include "editor/diff_dialog.h"
 #include "editor/find_bar.h"
@@ -1761,7 +1762,39 @@ bool languageEditsPasses() {
     editor.setPlainText(text);
     editor.applyLanguageText(QString::fromUtf8("# 😀\ncount = 42\n"), 12);
     editor.undo();
-    return editor.toPlainText() == text;
+    if (editor.toPlainText() != text) return false;
+    const QList<mce::CompletionItem> choices{{"__class__", {}, {}, {}, "01"}, {"getJointOrient", {}, {}, {}, "03"},
+        {"getChildJointNames", {}, {}, {}, "02"}, {"\"joint\"", {}, {}, {}, "04"}};
+    if (mce::rankCompletions(choices, "gJO").first().name != "getJointOrient") return false;
+    if (mce::rankCompletions(choices, "").last().name != "__class__") return false;
+    if (mce::rankCompletions(choices, "jo").first().name != "\"joint\"") return false;
+    if (mce::rankCompletions(choices, "__").first().name != "__class__") return false;
+    mce::SnippetExpansion snippet;
+    if (!mce::expandSnippet("call(${1:first}, ${2|second,other|})$0", &snippet) || snippet.text != "call(first, second)") return false;
+    editor.setPlainText(snippet.text);
+    editor.startSnippet(0, snippet.stops);
+    if (editor.textCursor().selectedText() != "first") return false;
+    editor.textCursor().insertText("changed");
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "\t");
+    QApplication::sendEvent(&editor, &tab);
+    if (editor.textCursor().selectedText() != "second") return false;
+    QKeyEvent back(QEvent::KeyPress, Qt::Key_Backtab, Qt::ShiftModifier);
+    QApplication::sendEvent(&editor, &back);
+    if (editor.textCursor().selectedText() != "changed") return false;
+    QApplication::sendEvent(&editor, &tab); QApplication::sendEvent(&editor, &tab);
+    if (editor.textCursor().position() != editor.toPlainText().size() || editor.textCursor().hasSelection()) return false;
+    if (mce::expandSnippet("${1|bad}", &snippet) || mce::expandSnippet("${1/a/b/}", &snippet)) return false;
+    if (!mce::expandSnippet("a\\$b${1:x}$0", &snippet) || snippet.text != "a$bx") return false;
+    if (!mce::expandSnippet("${1:C:\\temp}$0", &snippet) || snippet.text != "C:\\temp") return false;
+    // ヒントの空間だけが増え、本文・Undo履歴・カーソルの論理位置は変わらない。
+    editor.setPlainText("value = call(1, 2)");
+    QTextCursor hintCursor(editor.document()); hintCursor.setPosition(5);
+    const int beforeX = editor.cursorRect(hintCursor).x();
+    editor.setLanguageDecorations({}, {QJsonObject{{"position", QJsonObject{{"line", 0}, {"character", 5}}}, {"label", ": int"}}});
+    if (editor.toPlainText() != "value = call(1, 2)" || editor.document()->isUndoAvailable()
+        || editor.cursorRect(hintCursor).x() <= beforeX + 10) return false;
+    editor.setLanguageDecorations({}, {});
+    return editor.cursorRect(hintCursor).x() == beforeX;
 }
 
 /** @brief 改行でコメントや文字列を消さず、Tabで次の桁へ揃える。 @return 本文とUndoが保たれるか。 */
@@ -2015,6 +2048,34 @@ bool languageClientPasses() {
     wait(250);
     ok = ok && closing.isNull();
     delete closing.data();
+    {
+        // LSP受信から追加import、スニペット展開、Tab移動、Undoまで接続して検査する。
+        mce::CodeEditor editor;
+        mce::EditorPreferences preferences(temporary.filePath("preferences.json"));
+        mce::ProblemsPanel problems;
+        mce::LanguageAssist::Context context;
+        context.current = [&editor] { return &editor; };
+        context.editors = [&editor] { return QList<mce::CodeEditor*>{&editor}; };
+        context.status = [](const QString&) {};
+        editor.setPlainText("# example\nca"); editor.moveCursor(QTextCursor::End);
+        editor.show(); QApplication::setActiveWindow(&editor); editor.setFocus();
+        mce::LanguageAssist assist({{"root", temporary.path()}}, preferences, &problems, context, nullptr);
+        assist.attach(&editor);
+        QElapsedTimer timer; timer.start();
+        while (!assist.ready() && timer.elapsed() < 5000) wait(20);
+        ok = ok && assist.ready() && assist.complete(&editor);
+        timer.restart();
+        while (!editor.isCompletionVisible() && timer.elapsed() < 3000) wait(20);
+        ok = ok && editor.isCompletionVisible();
+        editor.onExternalCompletionAccepted("call");
+        ok = ok && editor.toPlainText() == "import helper\n# example\ncall(first, second)"
+             && editor.textCursor().selectedText() == "first";
+        QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "\t");
+        QApplication::sendEvent(&editor, &tab);
+        ok = ok && editor.textCursor().selectedText() == "second";
+        editor.undo();
+        ok = ok && editor.toPlainText() == "# example\nca";
+    }
     if (oldConfig.isEmpty()) qunsetenv("MCE_LANGUAGE_SERVER_CONFIG"); else qputenv("MCE_LANGUAGE_SERVER_CONFIG", oldConfig);
     if (!ok || afterDestroy) qWarning() << "language client" << cancelled << order << afterDestroy;
     return ok && !afterDestroy;

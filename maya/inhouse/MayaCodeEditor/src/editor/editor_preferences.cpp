@@ -16,7 +16,7 @@ const QList<OptionDefinition>& optionDefinitions() {
     static const QList<OptionDefinition> options = {
         {"autoImports", "Suggest auto imports", false},
         {"semanticColors", "Type-aware colors", true},
-        {"inlayHints", "Type and argument hints (line end)", false},
+        {"inlayHints", "Type and argument hints", false},
         {option::kCompleteLetters, "Completion while typing", true},
         {option::kCompleteDot, "Completion after dot", true},
         {option::kIncludeKeywords, "Include Python keywords", true},

@@ -2,6 +2,8 @@
  * @brief SyntaxHighlighterの実装。
  */
 #include "editor/syntax_highlighter.h"
+#include <QFontMetricsF>
+#include <QTextDocument>
 #include <QJsonObject>
 #include "editor/code_navigation.h"
 #include <QTextBlock>
@@ -128,6 +130,31 @@ void SyntaxHighlighter::highlightBlock(const QString& text) {
             if (color.isValid()) setFormat(token.value("column").toInt(), token.value("length").toInt(), color);
         }
     }
+    QHash<int, qreal> widths;
+    const QFontMetricsF metrics(document()->defaultFont());
+    for (const auto& entry : hints_.value(currentBlock().blockNumber())) {
+        const auto hint = entry.toObject();
+        const int column = hint.value("position").toObject().value("character").toInt();
+        if (column <= 0 || column > text.size() || text[column - 1].isSurrogate() || text[column - 1] == '\t') continue;
+        QString label;
+        const auto value = hint.value("label");
+        if (value.isString()) label = value.toString();
+        else for (const auto& part : value.toArray()) label += part.toObject().value("value").toString();
+        widths[column - 1] += metrics.horizontalAdvance(label) + metrics.horizontalAdvance(' ') * 2;
+    }
+    // QSyntaxHighlighterのformatは表示専用。保存本文・選択範囲・Undoへ文字を挿入しない。
+    for (auto it = widths.begin(); it != widths.end(); ++it) {
+        auto reserved = this->format(it.key());
+        reserved.setFontLetterSpacingType(QFont::AbsoluteSpacing);
+        reserved.setFontLetterSpacing(it.value());
+        setFormat(it.key(), 1, reserved);
+    }
+}
+
+void SyntaxHighlighter::setInlayHints(const QJsonArray& hints) {
+    hints_.clear();
+    for (const auto& entry : hints) hints_[entry.toObject().value("position").toObject().value("line").toInt()].append(entry);
+    rehighlight();
 }
 
 void SyntaxHighlighter::setSemanticTokens(const QJsonArray& tokens) {

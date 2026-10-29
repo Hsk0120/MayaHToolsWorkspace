@@ -3,6 +3,7 @@
  */
 #include "editor/language_assist.h"
 #include "editor/code_editor.h"
+#include "editor/code_navigation.h"
 #include "editor/editor_preferences.h"
 #include "editor/problems_panel.h"
 #include "core/script_file.h"
@@ -15,6 +16,7 @@
 #include <QDir>
 #include <QDateTime>
 #include <QFileInfo>
+#include <QFile>
 #include <QFileDialog>
 #include <QProcessEnvironment>
 #include <QInputDialog>
@@ -146,12 +148,15 @@ void LanguageAssist::refactor(CodeEditor* editor, const QString& action) {
         context_.status("Select an expression or statements first"); return;
     }
     QString name, destination;
-    if (action == "move") {
-        destination = QFileDialog::getOpenFileName(editor, "Move global symbol to existing module", root, "Python (*.py)");
+    if (action == "move" || action == "move_new") {
+        destination = action == "move" ? QFileDialog::getOpenFileName(editor, "Move global symbol to existing module", root, "Python (*.py)")
+                                      : QFileDialog::getSaveFileName(editor, "Move global symbol to new module", root, "Python (*.py)");
         if (!self || !target || destination.isEmpty()) return;
+        if (action == "move_new" && QFileInfo(destination).suffix().isEmpty()) destination += ".py";
     } else if (action != "imports") {
         bool ok = false;
-        name = QInputDialog::getText(editor, "Extract " + action, "New name", QLineEdit::Normal, QString(), &ok);
+        name = QInputDialog::getText(editor, action == "rename_module" ? "Rename module" : "Extract " + action,
+                                     action == "rename_module" ? "New module name (without .py)" : "New name", QLineEdit::Normal, QString(), &ok);
         if (!self || !target || !ok || name.isEmpty()) return;
     }
     QJsonObject overlays;
@@ -360,12 +365,14 @@ bool LanguageAssist::complete(CodeEditor* editor) {
                 if (name.isEmpty()) continue;
                 const int kind = object.value("kind").toInt();
                 if (kind == 14 && !preferences_.option(option::kIncludeKeywords)) continue;
-                items.append({name, object.value("detail").toString(), kind == 14 ? "keyword" : QString(), category(kind)});
+                items.append({name, object.value("detail").toString(), kind == 14 ? "keyword" : QString(), category(kind),
+                    object.value("sortText").toString(), object.value("filterText").toString()});
                 completions_[editor].insert(name, object);
             }
             completionVersions_[editor] = documents_.value(editor).version;
             // 静的に判別できないMaya公開名だけ、既存の非実行型補完へ戻す。
-            if (items.isEmpty() && context_.fallbackComplete) {
+            if (items.isEmpty() && context_.fallbackComplete
+                && !pythonInputState(editor->document(), editor->textCursor().position()).insideText()) {
                 const auto fallback = context_.fallbackComplete(editor->toPlainText().left(editor->textCursor().position()));
                 if (fallback.error.isEmpty()) items = fallback.items;
             }
@@ -406,8 +413,14 @@ bool LanguageAssist::accept(CodeEditor* editor, const QString& name) {
         if (edit.contains("replace")) edit.insert("range", edit.value("replace"));
         if (!edit.contains("range")) edit = {{"range", QJsonObject{{"start", position(editor->document(), at - prefix)}, {"end", position(editor->document(), at)}}},
             {"newText", item.value("insertText").toString(item.value("label").toString())}};
-        // スニペットは広告していない。返った場合は誤ったプレースホルダーを挿入しない。
-        if (item.value("insertTextFormat").toInt(1) == 2) { context_.status("Snippet completion is not supported"); return; }
+        SnippetExpansion snippet;
+        const bool isSnippet = item.value("insertTextFormat").toInt(1) == 2;
+        if (isSnippet) {
+            if (!expandSnippet(edit.value("newText").toString(), &snippet)) {
+                context_.status("Unsupported snippet syntax; document was not changed"); return;
+            }
+            edit.insert("newText", snippet.text);
+        }
         edits.append(edit);
         QString after;
         const QString before = editor->toPlainText();
@@ -422,6 +435,7 @@ bool LanguageAssist::accept(CodeEditor* editor, const QString& name) {
             if (right <= start) caret += a.value("newText").toString().size() - (right - left);
         }
         editor->applyLanguageText(after, caret);
+        if (isSnippet) editor->startSnippet(caret - snippet.text.size(), snippet.stops);
         completions_.remove(editor);
         sync();
     };
@@ -615,9 +629,45 @@ void LanguageAssist::actions(CodeEditor* editor) {
 
 void LanguageAssist::preview(const QJsonObject& edit) {
     QJsonObject changes = edit.value("changes").toObject();
+    QSet<QString> created;
+    QList<QPair<QString, QString>> renames;
+    QHash<QString, QByteArray> bytes;
+    QString operations;
     for (const auto& entry : edit.value("documentChanges").toArray()) {
         const auto object = entry.toObject();
-        if (object.contains("kind")) { context_.status("File creation, deletion and moves are not applied by this action"); return; }
+        if (object.contains("kind")) {
+            const QString kind = object.value("kind").toString();
+            const QUrl destination(object.value(kind == "create" ? "uri" : "newUri").toString());
+            const QString path = destination.toLocalFile();
+            if ((kind != "create" && kind != "rename") || !destination.isLocalFile()
+                || QFileInfo::exists(path) || QFileInfo(path).suffix() != "py" || !QFileInfo(QFileInfo(path).absolutePath()).isDir()) {
+                context_.status("File operation refused: choose an unused local Python module path"); return;
+            }
+            for (const auto& doc : documents_) if (sameUri(doc.uri, destination.toString())) {
+                context_.status("Destination is already open; close it before refactoring"); return;
+            }
+            if (kind == "create") {
+                if (created.contains(path)) { context_.status("Duplicate file creation"); return; }
+                created.insert(path);
+                if (!changes.contains(destination.toString())) changes.insert(destination.toString(), QJsonArray());
+                operations += "New unsaved module: " + path + "\n";
+            } else {
+                const QUrl source(object.value("oldUri").toString());
+                const QString old = source.toLocalFile();
+                QFile file(old);
+                if (!source.isLocalFile() || QFileInfo(old).isSymLink() || QFileInfo(old).suffix() != "py"
+                    || QFileInfo(old).absolutePath() != QFileInfo(path).absolutePath() || !file.open(QIODevice::ReadOnly)) {
+                    context_.status("Only existing Python modules in the same folder can be renamed"); return;
+                }
+                for (const auto& pair : renames) if (pair.first == old || pair.second == path) {
+                    context_.status("Duplicate module rename"); return;
+                }
+                renames.append(qMakePair(old, path)); bytes.insert(old, file.readAll());
+                if (!changes.contains(source.toString())) changes.insert(source.toString(), QJsonArray());
+                operations += "Rename on disk: " + old + " -> " + path + "\n";
+            }
+            continue;
+        }
         const auto document = object.value("textDocument").toObject();
         const QString address = document.value("uri").toString();
         if (!document.value("version").isNull() && !document.value("version").isUndefined()) {
@@ -629,26 +679,26 @@ void LanguageAssist::preview(const QJsonObject& edit) {
     }
     struct Plan { QString uri; QString path; QString before; QString after; QPointer<CodeEditor> editor; };
     QList<Plan> plans;
-    QString summary;
+    QString summary = operations + "\n";
     for (auto it = changes.begin(); it != changes.end(); ++it) {
         const QUrl url(it.key());
         if (!url.isLocalFile()) { context_.status("Only local Python documents can be edited"); return; }
         Plan plan; plan.uri = it.key(); plan.path = url.toLocalFile();
         for (const auto& doc : documents_) if (sameUri(doc.uri, plan.uri)) plan.editor = doc.editor;
         if (plan.editor) plan.before = plan.editor->toPlainText();
-        else {
+        else if (!created.contains(plan.path)) {
             QString error;
             if (!readScriptFile(plan.path, &plan.before, &error)) { context_.status(error); return; }
         }
         if (!editedText(plan.before, it.value().toArray(), &plan.after)) { context_.status("Invalid or overlapping edits"); return; }
-        if (plan.after == plan.before) continue;
+        if (plan.after == plan.before && !bytes.contains(plan.path) && !created.contains(plan.path)) continue;
         summary += plan.path + "\n--- Before ---\n" + plan.before + "\n+++ After +++\n" + plan.after + "\n\n";
         plans.append(plan);
     }
     if (plans.isEmpty()) { context_.status("No changes"); return; }
     const QPointer<LanguageAssist> self(this);
     QPointer<QDialog> dialog = new QDialog(context_.current());
-    dialog->setWindowTitle("Review changes — files remain unsaved"); dialog->resize(850, 600);
+    dialog->setWindowTitle("Review changes — text remains unsaved; module renames apply on disk"); dialog->resize(850, 600);
     auto* layout = new QVBoxLayout(dialog); auto* view = new QPlainTextEdit(dialog); view->setReadOnly(true); view->setPlainText(summary); layout->addWidget(view);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Apply | QDialogButtonBox::Cancel, dialog); layout->addWidget(buttons);
     connect(buttons->button(QDialogButtonBox::Apply), &QAbstractButton::clicked, dialog, &QDialog::accept);
@@ -660,15 +710,83 @@ void LanguageAssist::preview(const QJsonObject& edit) {
     for (auto& plan : plans) {
         QString current, error;
         if (plan.editor) current = plan.editor->toPlainText();
-        else if (!readScriptFile(plan.path, &current, &error)) { context_.status(error); return; }
+        else if (!created.contains(plan.path) && !readScriptFile(plan.path, &current, &error)) { context_.status(error); return; }
         if (current != plan.before) { context_.status("Document changed during preview; request the action again"); return; }
+    }
+    for (const auto& path : created) if (QFileInfo::exists(path)) { context_.status("New module path is now occupied"); return; }
+    for (const auto& pair : renames) {
+        QFile file(pair.first);
+        if (QFileInfo::exists(pair.second) || !file.open(QIODevice::ReadOnly) || file.readAll() != bytes.value(pair.first)) {
+            context_.status("Module changed on disk during preview; nothing applied"); return;
+        }
     }
     for (auto& plan : plans) {
         if (!plan.editor) plan.editor = context_.open(plan.path);
         if (!plan.editor || plan.editor->toPlainText() != plan.before) { context_.status("Could not open all edit targets; nothing applied"); return; }
     }
-    for (const auto& plan : plans) plan.editor->applyLanguageText(plan.after, qMin(plan.editor->textCursor().position(), int(plan.after.size())));
+    QList<QPair<QString, QString>> moved;
+    for (const auto& pair : renames) {
+        if (!QFile::rename(pair.first, pair.second)) {
+            QString rollback;
+            for (auto it = moved.crbegin(); it != moved.crend(); ++it)
+                if (!QFile::rename(it->second, it->first)) rollback += " Recovery needed: " + it->second;
+            context_.status("Module rename failed; text was not changed." + rollback); return;
+        }
+        moved.append(pair);
+    }
+    lastRefactoring_.clear(); lastRenames_ = renames; renameBytes_ = bytes; lastCreated_ = created;
+    for (const auto& plan : plans) {
+        lastRefactoring_.append({plan.editor, plan.before, plan.after, plan.path});
+        for (const auto& pair : renames) if (plan.path == pair.first) plan.editor->setFilePath(pair.second);
+        plan.editor->applyLanguageText(plan.after, qMin(plan.editor->textCursor().position(), int(plan.after.size())));
+    }
+    refactoringApplied_ = true;
     sync();
-    context_.status(QString("Updated %1 document(s); review and save. Undo is available in each tab.").arg(plans.size()));
+    context_.status(QString("Updated %1 document(s); review and save. Edit > Refactor > Undo last refactoring restores the group.").arg(plans.size()));
+}
+
+void LanguageAssist::restoreRefactoring(bool redo) {
+    if (lastRefactoring_.isEmpty() || refactoringApplied_ == redo) { context_.status("No refactoring to restore"); return; }
+    for (const auto& plan : lastRefactoring_) {
+        QString expectedPath = plan.path;
+        for (const auto& pair : lastRenames_) if (refactoringApplied_ && plan.path == pair.first) expectedPath = pair.second;
+        if (!plan.editor || QFileInfo(plan.editor->filePath()).absoluteFilePath().compare(QFileInfo(expectedPath).absoluteFilePath(), Qt::CaseInsensitive) != 0
+            || plan.editor->toPlainText() != (redo ? plan.before : plan.after)) {
+            context_.status("A target was edited, renamed or closed; group restore cancelled without changes"); return;
+        }
+    }
+    // 保存済みの新規ファイルは削除しない。外部変更やユーザーの保存を取り消さない。
+    for (const auto& path : lastCreated_) if (QFileInfo::exists(path)) {
+        context_.status("New module has been saved; use individual document Undo"); return;
+    }
+    QList<QPair<QString, QString>> operations;
+    for (const auto& pair : lastRenames_) {
+        const QString from = redo ? pair.first : pair.second;
+        const QString to = redo ? pair.second : pair.first;
+        QFile file(from);
+        if (QFileInfo::exists(to) || !file.open(QIODevice::ReadOnly) || file.readAll() != renameBytes_.value(pair.first)) {
+            context_.status("A module was saved or changed on disk; group restore cancelled"); return;
+        }
+        operations.append(qMakePair(from, to));
+    }
+    QList<QPair<QString, QString>> moved;
+    for (const auto& pair : operations) {
+        if (!QFile::rename(pair.first, pair.second)) {
+            QString rollback;
+            for (auto it = moved.crbegin(); it != moved.crend(); ++it)
+                if (!QFile::rename(it->second, it->first)) rollback += " Recovery needed: " + it->second;
+            context_.status("Restore rename failed; text was not changed." + rollback); return;
+        }
+        moved.append(pair);
+    }
+    for (const auto& plan : lastRefactoring_) {
+        QString path = plan.path;
+        for (const auto& pair : lastRenames_) if (redo && plan.path == pair.first) path = pair.second;
+        plan.editor->setFilePath(path);
+        const QString text = redo ? plan.after : plan.before;
+        plan.editor->applyLanguageText(text, qMin(plan.editor->textCursor().position(), int(text.size())));
+    }
+    refactoringApplied_ = redo;
+    sync(); context_.status(redo ? "Refactoring reapplied" : "Refactoring restored");
 }
 }  // namespace mce

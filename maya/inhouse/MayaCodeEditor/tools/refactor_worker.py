@@ -36,18 +36,18 @@ def calculate(request):
         dict: 変更前本文とWorkspaceEdit。元のプロジェクトに書込みはしない。
     """
     # 任意依存は外部プロセスの専用配置だけから取得する。
-    from rope.base.change import ChangeContents, ChangeSet
     from rope.base.project import Project
     from rope.refactor.extract import ExtractMethod, ExtractVariable
     from rope.refactor.importutils import ImportOrganizer
     from rope.refactor.move import MoveGlobal
+    from rope.refactor.rename import Rename
 
     root = Path(request["root"]).resolve(strict=True)
     source = Path(request["path"]).resolve()
     relative = source.relative_to(root)
     action = request["action"]
     name = request.get("name", "")
-    if action in ("variable", "function") and (not name.isidentifier() or keyword.iskeyword(name)):
+    if action in ("variable", "function", "rename_module") and (not name.isidentifier() or keyword.iskeyword(name)):
         raise ValueError("Use a valid Python identifier")
     texts = {}
     size = 0
@@ -96,38 +96,63 @@ def calculate(request):
                 changes = ExtractVariable(project, resource, start, end).get_changes(name, similar=False)
             elif action == "function":
                 changes = ExtractMethod(project, resource, start, end).get_changes(name, similar=False)
-            elif action == "move":
+            elif action in ("move", "move_new"):
                 destination = Path(request["destination"]).resolve().relative_to(root).as_posix()
+                if action == "move_new":
+                    dest = root / destination
+                    if dest.exists() or destination in texts or dest.suffix != ".py" or not dest.stem.isidentifier() or keyword.iskeyword(dest.stem):
+                        raise ValueError("Choose a new Python module name")
+                    if not dest.parent.is_dir():
+                        raise ValueError("The destination folder must already exist")
+                    (staging / destination).parent.mkdir(parents=True, exist_ok=True)
+                    (staging / destination).write_text("", encoding="utf-8")
+                    texts[destination] = ""
                 if destination not in texts or destination == relative.as_posix():
                     raise ValueError("Choose a different existing Python module inside this project")
                 changes = MoveGlobal(project, resource, start).get_changes(project.get_resource(destination))
+            elif action == "rename_module":
+                if source.name == "__init__.py":
+                    raise ValueError("Package renaming is not supported")
+                destination = relative.with_name(name + ".py").as_posix()
+                if (root / destination).exists() or destination in texts:
+                    raise ValueError("The destination already exists")
+                changes = Rename(project, resource).get_changes(name)
             elif action == "imports":
                 changes = ImportOrganizer(project).organize_imports(resource)
             else:
                 raise ValueError("Unknown refactoring")
-            edits, originals = {}, {}
-
-            def collect(change):
-                """テキスト編集だけを受け付け、ファイル操作を拒否する。"""
-                if change is None:
-                    return
-                if isinstance(change, ChangeSet):
-                    for child in change.changes:
-                        collect(child)
-                elif isinstance(change, ChangeContents):
-                    key = change.resource.path
-                    old = texts[key]
+            if changes is not None:
+                project.do(changes)
+            after_texts = {p.relative_to(staging).as_posix(): read_source(p)
+                           for p in staging.rglob("*") if p.is_file() and p.suffix in (".py", ".pyi")}
+            expected = set(texts)
+            if action == "rename_module":
+                expected.remove(relative.as_posix())
+                expected.add(destination)
+            if set(after_texts) != expected:
+                raise ValueError("Unexpected file operations in refactoring")
+            edits, originals, operations = {}, {}, []
+            new_path = destination if action == "move_new" else None
+            for key, old in texts.items():
+                if key == new_path:
+                    operations.append({"kind": "create", "uri": (root / key).as_uri()})
+                target_key = destination if action == "rename_module" and key == relative.as_posix() else key
+                if target_key not in after_texts:
+                    raise ValueError("Unexpected file deletion in refactoring")
+                updated = after_texts[target_key]
+                if updated != old or key == new_path:
                     address = (root / key).as_uri()
                     lines = old.split("\n")
                     finish = {"line": len(lines) - 1, "character": len(lines[-1].encode("utf-16-le")) // 2}
                     edits[address] = [{"range": {"start": {"line": 0, "character": 0}, "end": finish},
-                                       "newText": change.new_contents}]
-                    originals[address] = old
-                else:
-                    raise ValueError("File creation, deletion or renaming is not supported by this action")
-
-            collect(changes)
-            return {"edit": {"changes": edits}, "before": originals}
+                                       "newText": updated}]
+                    if key != new_path:
+                        originals[address] = old
+            if action == "rename_module":
+                operations.append({"kind": "rename", "oldUri": source.as_uri(),
+                                   "newUri": (root / destination).as_uri()})
+                originals[source.as_uri()] = before
+            return {"edit": {"changes": edits, "documentChanges": operations}, "before": originals}
         finally:
             project.close()
 

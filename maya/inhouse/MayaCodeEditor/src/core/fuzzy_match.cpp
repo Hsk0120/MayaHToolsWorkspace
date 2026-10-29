@@ -89,6 +89,8 @@ int scoreFrom(QStringView pattern, QStringView word, int start) {
         if (word[found] == pattern[i]) {
             score += kSameCaseBonus;
         }
+        // 離れた文字の一致より短い語境界の一致を優先する(gJO → getJointOrient)。
+        if (previous >= 0) score -= qMin(3, found - previous - 1);
         previous = found;
         position = found + 1;
     }
@@ -142,13 +144,23 @@ QList<CompletionItem> rankCompletions(const QList<CompletionItem>& items, const 
     QVector<Ranked> ranked;
     ranked.reserve(items.size());
     for (int i = 0; i < items.size(); ++i) {
-        const int score = fuzzyScore(pattern, items[i].name);
-        if (score >= 0) {
-            ranked.append({score, i});
-        }
+        QString name = items[i].filterText.isEmpty() ? items[i].name : items[i].filterText;
+        if (name.size() >= 2 && (name.front() == '\'' || name.front() == '"') && name.back() == name.front())
+            name = name.mid(1, name.size() - 2);
+        int score = fuzzyScore(pattern, name);
+        if (score < 0) continue;
+        // 内部名は明示的に_から探す場合だけ通常の順位にする。
+        if (score >= 0 && !pattern.startsWith('_') && name.startsWith('_')) score -= 1000;
+        ranked.append({score, i});
     }
-    // 同じ度合いの中では、元の順(補完エンジンが返した順)を保つ。
+    // 同点ならサーバーの順位、未提供なら従来の名前順を使う。
     std::stable_sort(ranked.begin(), ranked.end(), [&items](const Ranked& a, const Ranked& b) {
+        if (a.score == b.score) {
+            const auto& left = items[a.index]; const auto& right = items[b.index];
+            const QString leftKey = left.sortText.isEmpty() ? left.name.toCaseFolded() : left.sortText;
+            const QString rightKey = right.sortText.isEmpty() ? right.name.toCaseFolded() : right.sortText;
+            if (leftKey != rightKey) return leftKey < rightKey;
+        }
         return rankedBefore(a.score, items[a.index].name, b.score, items[b.index].name);
     });
     QList<CompletionItem> result;

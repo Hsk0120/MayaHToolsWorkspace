@@ -16,6 +16,8 @@ struct CompletionItem {
     QString kind;    ///< ``builtin``・``keyword``、または空。Preferencesでの絞り込みに使う。
     /// 一覧のアイコンの種類: ``function``・``class``・``module``・``variable``・``import``・``builtin``・``keyword``。
     QString category;
+    QString sortText;  ///< 言語サーバーの同点時優先順位。空なら従来の名前順。
+    QString filterText;  ///< 表示名とは別の検索名。引用符付き候補も本文に合わせて比較する。
 };
 
 }  // namespace mce

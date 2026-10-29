@@ -1,5 +1,6 @@
 """隔離Maya GUIで型解析の補完・確定・診断・全文共有を確認する。"""
 import json
+import os
 import faulthandler
 from pathlib import Path
 import sys
@@ -119,10 +120,14 @@ def main(output_dir, finished):
             """テスト専用入力と下見のApply/CancelをQt操作する。"""
             queue = list(replies)
             seen = []
+            deadline = time.monotonic() + 25
 
             def respond():
                 """予期したダイアログだけへ応答する。"""
                 dialog = QtWidgets.QApplication.activeModalWidget()
+                if time.monotonic() > deadline and dialog is not None:
+                    dialog.reject()
+                    return
                 if not queue or dialog is None or queue[0][0] not in dialog.windowTitle():
                     return
                 title, value = queue.pop(0)
@@ -142,6 +147,12 @@ def main(output_dir, finished):
                     else:
                         dialog.setTextValue(value)
                     dialog.accept()
+                elif dialog.findChild(QtWidgets.QLineEdit, "fileNameEdit") is not None:
+                    # 静的QFileDialogはPySideでは基底QDialogとして返る場合がある。
+                    field = dialog.findChild(QtWidgets.QLineEdit, "fileNameEdit")
+                    field.setText(value)
+                    field.setFocus()
+                    QtTest.QTest.keyClick(field, QtCore.Qt.Key_Return)
                 elif value:
                     dialog.accept()
                 else:
@@ -209,6 +220,24 @@ def main(output_dir, finished):
             QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
             wait(600)
             check(name + "_accept_no_newline", code.toPlainText().count("\n") == before.count("\n") and code.toPlainText().endswith(target), code.toPlainText())
+        literal = 'from typing_extensions import Literal\ndef create(kind: Literal["joint", "transform"]): pass\ncreate("jo")'
+        names = popup(literal, '"joint"', literal.rindex('jo') + 2)
+        check("literal_candidate", '"joint"' in names, names)
+        QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
+        wait(300)
+        check("literal_accept_quotes", code.toPlainText().endswith('create("joint")'), code.toPlainText())
+        code.undo()
+        check("literal_undo", code.toPlainText() == literal)
+        dictionary = 'from typing_extensions import TypedDict\nclass Settings(TypedDict):\n    namespace: str\nsettings: Settings = {"namespace": "rig"}\nsettings["na"]'
+        names = popup(dictionary, '"namespace"', dictionary.rindex('na') + 2)
+        check("typed_dict_candidate", '"namespace"' in names, names)
+        QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
+        wait(300)
+        check("typed_dict_accept", code.toPlainText().endswith('settings["namespace"]'), code.toPlainText())
+        names = popup("class Joint:\n    def getJointOrient(self): pass\n    def getChildJointNames(self): pass\njoint = Joint()\njoint.gJO", "getJointOrient")
+        check("fuzzy_best_match", names[0] == "getJointOrient", names)
+        names = popup("class Joint:\n    def getJointOrient(self): pass\njoint = Joint()\njoint.", "getJointOrient")
+        check("public_before_dunder", names.index("getJointOrient") < names.index("__class__"), names)
         (output / "sample.pyi").write_text(base, encoding="utf-8")
         names = popup("import sample\nw = sample.Widget()\nw.ru", "run")
         check("stub", "run" in names, names)
@@ -236,7 +265,7 @@ def main(output_dir, finished):
         check("type_call_import_diagnostics", count >= 3, count)
         window.grab().save(str(frames / "diagnostics.png"))
         check("semantic_colors", bool(code.property("languageTokens")))
-        action("Type and argument hints (line end)").trigger()
+        action("Type and argument hints").trigger()
         source = "def scale(amount: int):\n    return amount * 2\nvalue = scale(2)\n"
         code.setPlainText(source)
         wait(1200)
@@ -321,6 +350,51 @@ def main(output_dir, finished):
         wait(400)
         dialogs(lambda: action("refactor_imports").trigger(), [("Review changes", True)])
         check("organize_imports_gui", "import os" not in code.toPlainText() and "import sys" in code.toPlainText())
+        # 新規ファイル操作はテスト用ルートだけ。下見の取消、改名、変更セット復元を確認する。
+        original = (output / "source_a.py").read_text(encoding="utf-8")
+        consumer = (output / "source_b.py").read_text(encoding="utf-8")
+        code.setPlainText(original)
+        other.setPlainText(consumer)
+        tabs.setCurrentWidget(code)
+        code.setFocus()
+        wait(600)
+        dialogs(lambda: action("refactor_rename_module").trigger(), [("Rename module", "renamed_module"), ("Review changes", False)])
+        check("module_rename_cancel", (output / "source_a.py").exists() and not (output / "renamed_module.py").exists())
+        dialogs(lambda: action("refactor_rename_module").trigger(), [("Rename module", "renamed_module"), ("Review changes", True)])
+        check("module_rename_apply", not (output / "source_a.py").exists() and (output / "renamed_module.py").exists()
+              and "from renamed_module" in other.toPlainText(), {"path": code.property("path"), "text": other.toPlainText()})
+        check("module_rename_tab_title", tabs.tabText(tabs.indexOf(code)).startswith("renamed_module.py"), tabs.tabText(tabs.indexOf(code)))
+        action("Undo last refactoring").trigger()
+        check("module_group_undo", (output / "source_a.py").exists() and not (output / "renamed_module.py").exists()
+              and code.toPlainText() == original and other.toPlainText() == consumer,
+              {"path": code.property("path"), "text": code.toPlainText(), "consumer": other.toPlainText(),
+               "status": [label.text() for label in window.findChildren(QtWidgets.QLabel)]})
+        action("Redo last refactoring").trigger()
+        check("module_group_redo", (output / "renamed_module.py").exists() and "from renamed_module" in other.toPlainText())
+        other.moveCursor(QtGui.QTextCursor.End)
+        other.insertPlainText("# later user edit\n")
+        action("Undo last refactoring").trigger()
+        check("group_undo_conflict_preserved", (output / "renamed_module.py").exists() and "later user edit" in other.toPlainText())
+        other.undo()
+        action("Undo last refactoring").trigger()
+        check("group_undo_after_conflict_removed", (output / "source_a.py").exists() and other.toPlainText() == consumer)
+        QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_DontUseNativeDialogs, True)
+        tabs.setCurrentWidget(code)
+        code.setFocus()
+        cursor = code.textCursor(); cursor.setPosition(original.index("source_value") + 3); code.setTextCursor(cursor)
+        destination = output / "new_module.py"
+        dialogs(lambda: action("refactor_move_new").trigger(), [("Move global symbol", str(destination)), ("Review changes", True)])
+        new_code = next(item for item in window.findChildren(QtWidgets.QPlainTextEdit, "codeEditor")
+                        if str(item.property("path") or "").replace("\\", "/") == destination.as_posix())
+        check("move_new_module", "def source_value" in new_code.toPlainText() and "import new_module" in other.toPlainText()
+              and "new_module.source_value(2)" in other.toPlainText() and not destination.exists(),
+              {"new": new_code.toPlainText(), "consumer": other.toPlainText()})
+        action("Undo last refactoring").trigger()
+        check("move_new_group_undo", code.toPlainText() == original and other.toPlainText() == consumer and new_code.toPlainText() == "")
+        action("Redo last refactoring").trigger()
+        check("move_new_group_redo", "def source_value" in new_code.toPlainText() and "new_module.source_value(2)" in other.toPlainText())
+        action("Undo last refactoring").trigger()
+        tabs.setCurrentWidget(code)
         # 解析完了が別ウィジェットのフォーカスを奪わないことを確認。
         code.setPlainText("text = 'a'\ntext.upp")
         cursor = code.textCursor()

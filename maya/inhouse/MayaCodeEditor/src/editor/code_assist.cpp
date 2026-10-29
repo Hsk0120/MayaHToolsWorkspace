@@ -321,13 +321,12 @@ void CodeAssist::requestCompletion(bool force) {
         if (prefix.isEmpty() && !afterDot) {
             return;
         }
-        // コメント・文字列の中と、数字で始まる語(``10``・``2.5``)では自動で出さない(Enterで候補が確定されないように。
-        // VS Codeと同じ)。Ctrl+Spaceで求めたときは出す。
+        // コメントと数値は抑止する。文字列の候補は型解析が返すLiteral/キーだけを使う。
         if (!afterDot && prefix[0].isDigit()) {
             return;
         }
-        if (isInsideStringOrComment(editor->document(), editor->isMel() ? ScriptLanguage::Mel : ScriptLanguage::Python,
-                                    cursor.position())) {
+        const auto state = pythonInputState(editor->document(), cursor.position());
+        if (state.comment || (state.insideText() && (!language_ || !language_->ready()))) {
             return;
         }
     }
@@ -337,6 +336,7 @@ void CodeAssist::requestCompletion(bool force) {
     }
     // 文書の先頭からカーソルまでを渡す。
     if (language_ && language_->complete(editor)) return;
+    if (pythonInputState(editor->document(), cursor.position()).insideText()) return;
     cursor.setPosition(0, QTextCursor::KeepAnchor);
     const CompletionResult result = services_.complete(normalizeSelectedText(cursor.selectedText()));
     if (!result.error.isEmpty()) {

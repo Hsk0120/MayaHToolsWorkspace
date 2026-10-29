@@ -71,6 +71,31 @@ class RefactorTests(unittest.TestCase):
         self.assertNotIn("import os", after)
         self.assertIn("import sys", after)
 
+    def test_rename_module_updates_imports(self):
+        """改名とimport変更を提案し、元のディスクを維持する。"""
+        consumer = self.root / "use.py"
+        consumer.write_text("from source import total\nvalue = total(1, 2)\n", encoding="utf-8")
+        result = worker.calculate(self.request("rename_module", name="renamed"))
+        self.assertEqual(result["edit"]["documentChanges"], [{"kind": "rename", "oldUri": self.source.as_uri(),
+                                                             "newUri": (self.root / "renamed.py").as_uri()}])
+        self.assertIn("from renamed import total", result["edit"]["changes"][consumer.as_uri()][0]["newText"])
+        self.assertTrue(self.source.exists())
+        self.assertFalse((self.root / "renamed.py").exists())
+
+    def test_move_new_and_collision(self):
+        """新規モジュールへの移動案と衝突の拒否。"""
+        target = self.root / "new_module.py"
+        result = worker.calculate(self.request("move_new", start=6, destination=str(target)))
+        self.assertEqual(result["edit"]["documentChanges"], [{"kind": "create", "uri": target.as_uri()}])
+        self.assertIn("def total", result["edit"]["changes"][target.as_uri()][0]["newText"])
+        self.assertFalse(target.exists())
+        target.write_text("# preserve", encoding="utf-8")
+        for action, kwargs in (("move_new", {"start": 6, "destination": str(target)}),
+                               ("rename_module", {"name": "new_module"})):
+            with self.assertRaises(ValueError):
+                worker.calculate(self.request(action, **kwargs))
+        self.assertEqual(target.read_text(encoding="utf-8"), "# preserve")
+
     def test_declared_encoding(self):
         """coding宣言のあるコピーも同じ文字を保ち、元ファイルを更新しない。"""
         text = "# coding: cp932\n# 日本語\nimport os\nimport sys\nprint(sys.version)\n"

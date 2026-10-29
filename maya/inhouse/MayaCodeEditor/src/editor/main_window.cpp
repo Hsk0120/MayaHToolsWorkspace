@@ -279,6 +279,11 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     // 入力の補助。一覧とステータスバーの部品を使うので、それらを作った後に作る。
     CodeAssist::Context context;
     context.openEditor = [this](const QString& path) -> CodeEditor* {
+        if (!QFileInfo::exists(path) && tabs_->indexOfFile(QFileInfo(path).absoluteFilePath()) < 0) {
+            CodeEditor* editor = newTab(languageForPath(path));
+            editor->setFilePath(QFileInfo(path).absoluteFilePath());
+            return editor;
+        }
         openFile(path);
         const int index = tabs_->indexOfFile(QFileInfo(path).absoluteFilePath());
         return index >= 0 ? tabs_->editorAt(index) : nullptr;
@@ -500,6 +505,10 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
         }
     });
     // 見出しの未保存の印(●)は、未保存の状態が変わったときだけ付け直す(1文字ごとには付け直さない)。
+    editor->onFilePathChanged = [this, editor] {
+        tabs_->updateTitle(editor);
+        if (!restoring_) markSessionDirty();
+    };
     connect(editor->document(), &QTextDocument::modificationChanged, this, [this, editor] {
         if (!restoring_) {
             markSessionDirty();

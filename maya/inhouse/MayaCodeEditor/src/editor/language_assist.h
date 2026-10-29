@@ -56,6 +56,8 @@ public:
     void actions(CodeEditor* editor);
     /** @brief 抽出/移動/import整理の案を別プロセスで計算する。 @param editor 対象。 @param action variable/function/move/imports。 */
     void refactor(CodeEditor* editor, const QString& action);
+    /** @brief 最後の変更セットを全対象の競合確認後に戻す/再適用する。@param redo 再適用か。 */
+    void restoreRefactoring(bool redo);
     /** @brief プロジェクトを解析対象に追加する。 @param root ローカルディレクトリ。 */
     void addRoot(const QString& root);
     /** @brief 外部スタブ・設定を再読込する。未導入/停止後は再起動を試す。 */
@@ -70,6 +72,13 @@ public:
     static bool editedText(const QString& text, const QJsonArray& edits, QString* result);
 
 private:
+    /** @brief 下見で確認した本文と所有タブ。破棄されたタブには再適用しない。 */
+    struct RefactorDocument { QPointer<CodeEditor> editor; QString before; QString after; QString path; };
+    QList<RefactorDocument> lastRefactoring_;
+    QList<QPair<QString, QString>> lastRenames_;
+    QHash<QString, QByteArray> renameBytes_;
+    QSet<QString> lastCreated_;
+    bool refactoringApplied_ = false;
     struct Document { QPointer<CodeEditor> editor; QString uri; QString text; int version = 0; };
     /** @brief 文書要求と位置を作る。 @param editor 対象。 @param at Qt位置。 @return 引数。 */
     QJsonObject params(CodeEditor* editor, int at) const;

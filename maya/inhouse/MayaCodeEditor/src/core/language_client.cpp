@@ -70,7 +70,7 @@ bool LanguageClient::start(const QJsonObject& configuration) {
         const QString root = settings_.value("root").toString(QDir::currentPath());
         const QString uri = QUrl::fromLocalFile(root).toString();
         const QJsonObject textCapabilities = QJsonDocument::fromJson(R"json({
-            "completion": {"completionItem": {"snippetSupport": false,
+            "completion": {"completionItem": {"snippetSupport": true,
                 "documentationFormat": ["plaintext"], "resolveSupport": {"properties": ["documentation", "detail"]}}},
             "hover": {"contentFormat": ["plaintext"]},
             "signatureHelp": {"signatureInformation": {"documentationFormat": ["plaintext"], "parameterInformation": {"labelOffsetSupport": true}}},
