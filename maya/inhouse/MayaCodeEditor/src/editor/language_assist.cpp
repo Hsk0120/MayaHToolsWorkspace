@@ -425,8 +425,9 @@ bool LanguageAssist::accept(CodeEditor* editor, const QString& name) {
         completions_.remove(editor);
         sync();
     };
-    if (selected.value("_mceResolved").toBool()) apply(selected, QString());
-    else request(editor, "completionItem/resolve", selected, true, apply);
+    // 編集に必要な情報は補完応答で受け取る（遅延解決は説明だけを広告する）。
+    // Enter/Tab直後の入力より先に確定し、解決待ちによる入力の取り消し・順序逆転を防ぐ。
+    apply(selected, QString());
     return true;
 }
 

@@ -680,7 +680,7 @@ bool CodeEditor::event(QEvent* event) {
                                && key->modifiers() == Qt::ControlModifier;
         const bool homeKey = key->key() == Qt::Key_Home
                              && (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::ShiftModifier);
-        const bool handledHere = isRunKey(key) || scrollKey || homeKey
+        const bool handledHere = isRunKey(key) || isWordKey(key) || scrollKey || homeKey
                                  || editCommandForKey(key, textCursor().hasSelection()) != EditCommand::None;
         if (handledHere) {
             event->accept();
@@ -766,7 +766,17 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     }
 
     // 3. VS Code風の編集ショートカット。
-    const EditCommand command = editCommandForKey(event, textCursor().hasSelection());
+    EditCommand command = editCommandForKey(event, textCursor().hasSelection());
+    if (command == EditCommand::Indent && event->key() == Qt::Key_Tab) {
+        const auto cursor = textCursor();
+        const auto first = document()->findBlock(cursor.selectionStart());
+        const auto last = document()->findBlock(cursor.selectionEnd());
+        // 1行の部分選択は選択部分をタブへ置換する。行全体・複数行の選択は行を字下げする。
+        if (first == last && (cursor.selectionStart() != first.position()
+                              || cursor.selectionEnd() != first.position() + first.text().size())) {
+            command = EditCommand::None;
+        }
+    }
     if (command == EditCommand::CloseTab) {
         if (onCloseRequested) {
             onCloseRequested();
@@ -803,6 +813,12 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
+    if (isWordKey(event)) {
+        handleWordKey(event);
+        event->accept();
+        return;
+    }
+
     // 3b. Home は行頭の空白の後と行の先頭を行き来する。Ctrl+↑↓ はカーソルを動かさずに1行スクロールする(VS Codeと同じ)。
     if (event->key() == Qt::Key_Home
         && (event->modifiers() == Qt::NoModifier || event->modifiers() == Qt::ShiftModifier)) {
@@ -832,9 +848,16 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
         return;
     }
 
-    // 5. 選択なしのTabは空白4文字。
+    // 5. Tabは挿入位置（部分選択ならその先頭）から次の4桁へ進む。
     if (event->key() == Qt::Key_Tab && event->modifiers() == Qt::NoModifier) {
-        insertPlainText("    ");
+        const int start = textCursor().selectionStart();
+        const auto block = document()->findBlock(start);
+        const QString before = block.text().left(start - block.position());
+        int visualColumn = 0;
+        for (const QChar character : before) {
+            visualColumn += character == '\t' ? 4 - visualColumn % 4 : 1;
+        }
+        insertPlainText(QString(4 - visualColumn % 4, ' '));
         return;
     }
 
@@ -960,16 +983,30 @@ bool CodeEditor::handleAutoClosing(QKeyEvent* event) {
     }
     const auto pythonState = language_ == ScriptLanguage::Python ? pythonInputState(document(), cursor.position()) : PythonLexState();
     const bool interpolation = character == '{' && pythonState.formattedText();
-    if ((insideText && !interpolation) || closers.contains(character)) {
-        return false;  // 文字列・コメントの中では閉じない。
+    // Pythonの括弧はコメント・文字列の中でも対を作る。引用符は文字列中を除外し、
+    // コメント中ではダブル引用符だけを許可する（言語設定に合わせた入力境界）。
+    const bool pythonTextPair = language_ == ScriptLanguage::Python
+                                && (opener >= 0 || (character == '"' && pythonState.comment));
+    if ((insideText && !interpolation && !pythonTextPair) || closers.contains(character)) {
+        return false;
     }
     const bool roomAfter = after.isNull() || after.isSpace() || closers.contains(after) || QString(",:;").contains(after)
                            || (!pythonState.frames.isEmpty() && (after == '\'' || after == '"'));
     if (!roomAfter) {
         return false;
     }
+    if (quote && language_ == ScriptLanguage::Python && !insideText && column >= 2
+        && line[column - 1] == character && line[column - 2] == character
+        && (column == 2 || line[column - 3] != character)) {
+        // 空の短い文字列へ3つ目の引用符を打つと、三重引用符の閉じ側を補う。
+        // 複数文字の閉じ側は単一引用符の上書き/対削除とは分け、通常の本文として保持する。
+        cursor.insertText(QString(4, character));
+        cursor.movePosition(QTextCursor::PreviousCharacter, QTextCursor::MoveAnchor, 3);
+        setTextCursor(cursor);
+        return true;
+    }
     if (quote) {
-        if (before == character) {
+        if (before == character && !pythonState.comment) {
             return false;  // 三重引用符を打っている途中("" の次の ")。
         }
         if (isNamePart(before)) {
@@ -1093,9 +1130,21 @@ void CodeEditor::insertNewlineWithIndent() {
     const QString line = block.text();
     const int column = cursor.positionInBlock();
     const QString before = line.left(column);
-    const QString after = line.mid(column);
+    QString after = line.mid(column);
     QString indent(leadingSpaces(before), ' ');
     const QString code = codePart(document(), language_, block, before);
+
+    // 行の途中で分割したとき、右側の既存空白に新しいインデントを重ねない。
+    // 右側が空白だけの場合は、空行の既存処理に任せる。
+    if (!isMel() && !after.trimmed().isEmpty()) {
+        int spaces = 0;
+        while (spaces < after.size() && (after[spaces] == ' ' || after[spaces] == '\t')) ++spaces;
+        if (spaces) {
+            cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, spaces);
+            cursor.removeSelectedText();
+            after.remove(0, spaces);
+        }
+    }
 
     if (isMel()) {
         // MELは「{」で終わる行の次を1段深くする。
@@ -1103,7 +1152,7 @@ void CodeEditor::insertNewlineWithIndent() {
             indent += "    ";
         }
         cursor.insertText("\n" + indent);
-    } else if (code.isEmpty() && after.trimmed().isEmpty()) {
+    } else if (before.trimmed().isEmpty() && after.trimmed().isEmpty()) {
         // 空白だけの行: その行の空白を消してから改行する(空行にインデントを残さない。次の行は同じ深さ)。
         cursor.movePosition(QTextCursor::StartOfBlock);
         cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
@@ -1184,6 +1233,38 @@ void CodeEditor::dedentBlockKeyword() {
     edit.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, 4);
     edit.removeSelectedText();
     edit.endEditBlock();
+}
+
+bool CodeEditor::isWordKey(const QKeyEvent* event) {
+    const auto modifiers = event->modifiers();
+    const bool move = event->key() == Qt::Key_Left || event->key() == Qt::Key_Right;
+    const bool remove = event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete;
+    return (move && (modifiers == Qt::ControlModifier || modifiers == (Qt::ControlModifier | Qt::ShiftModifier)))
+           || (remove && modifiers == Qt::ControlModifier);
+}
+
+void CodeEditor::handleWordKey(const QKeyEvent* event) {
+    const bool deleting = event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete;
+    if (deleting && isReadOnly()) return;
+    if (event->key() == Qt::Key_Backspace) {
+        // 自動で閉じた空の括弧は、通常Backspaceと同じ所有情報を使って対で消す。
+        QKeyEvent pairDelete(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+        if (handleAutoClosing(&pairDelete)) return;
+    }
+    QTextCursor cursor = textCursor();
+    const bool forward = event->key() == Qt::Key_Right || event->key() == Qt::Key_Delete;
+    if (!deleting || !cursor.hasSelection()) {
+        const int target = wordBoundary(document(), cursor.position(), forward, deleting);
+        const bool select = deleting || event->modifiers().testFlag(Qt::ShiftModifier);
+        cursor.setPosition(target, select ? QTextCursor::KeepAnchor : QTextCursor::MoveAnchor);
+    }
+    if (deleting) {
+        cursor.beginEditBlock();
+        cursor.removeSelectedText();
+        cursor.endEditBlock();
+    }
+    setTextCursor(cursor);
+    ensureCursorVisible();
 }
 
 void CodeEditor::moveToLineHome(bool select) {

@@ -16,6 +16,13 @@ constexpr int kBracketSearchBlocks = 3000;
 /// 同じ名前を探す文書の上限(文字数)。
 constexpr int kOccurrenceDocumentLimit = 500000;
 
+/** @brief 単語操作用の文字種。 @param character 対象文字。 @return 空白0、区切り記号1、名前2。 */
+int wordCharacterKind(QChar character) {
+    if (character == ' ' || character == '\t') return 0;
+    static const QString separators = QStringLiteral("`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?");
+    return separators.contains(character) ? 1 : 2;
+}
+
 /** @brief 括弧の種類。 @param c 文字。 @return 開き括弧なら1、閉じ括弧なら-1、それ以外は0。 */
 int bracketKind(QChar c) {
     if (c == '(' || c == '[' || c == '{') {
@@ -431,6 +438,58 @@ bool expandedSelection(const QTextDocument* document, ScriptLanguage language, i
     *newStart = candidates[best].start;
     *newEnd = candidates[best].end;
     return true;
+}
+
+int wordBoundary(const QTextDocument* document, int position, bool forward, bool deleting) {
+    if (!document) return position;
+    position = qBound(0, position, document->characterCount() - 1);
+    QTextBlock block = document->findBlock(position);
+    int column = position - block.position();
+    QString line = block.text();
+    if (forward && column == line.size()) {
+        if (!block.next().isValid()) return position;
+        block = block.next();
+        line = block.text();
+        column = 0;
+        if (deleting) {
+            // 行末の削除は、次行の本文を消さず改行と字下げだけを取り除く。
+            while (column < line.size() && wordCharacterKind(line[column]) == 0) ++column;
+            return block.position() + column;
+        }
+    } else if (!forward && column == 0) {
+        if (!block.previous().isValid()) return position;
+        block = block.previous();
+        line = block.text();
+        column = line.size();
+        if (deleting) return block.position() + column;
+    }
+
+    if (forward) {
+        const int beforeSpaces = column;
+        while (column < line.size() && wordCharacterKind(line[column]) == 0) ++column;
+        if ((deleting && column > beforeSpaces) || column == line.size()) return block.position() + column;
+        const int start = column;
+        const int kind = wordCharacterKind(line[column]);
+        while (column < line.size() && wordCharacterKind(line[column]) == kind) ++column;
+        // 移動ではfoo.barの単独ドットを次の名前とまとめる。削除ではドットだけを消せる。
+        if (!deleting && kind == 1 && column - start == 1
+            && column < line.size() && wordCharacterKind(line[column]) == 2) {
+            while (column < line.size() && wordCharacterKind(line[column]) == 2) ++column;
+        }
+    } else {
+        const int afterSpaces = column;
+        while (column > 0 && wordCharacterKind(line[column - 1]) == 0) --column;
+        // 連続空白の削除は空白だけ。1文字の空白なら、その前の単語も対象にする。
+        if ((deleting && afterSpaces - column > 1) || column == 0) return block.position() + column;
+        const int end = column;
+        const int kind = wordCharacterKind(line[column - 1]);
+        while (column > 0 && wordCharacterKind(line[column - 1]) == kind) --column;
+        if (!deleting && kind == 1 && end - column == 1
+            && column > 0 && wordCharacterKind(line[column - 1]) == 2) {
+            while (column > 0 && wordCharacterKind(line[column - 1]) == 2) --column;
+        }
+    }
+    return block.position() + column;
 }
 
 }  // namespace mce

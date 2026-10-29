@@ -66,7 +66,10 @@ void selectLine(QPlainTextEdit* editor, LineRange range) {
     const int end = endBlock.position() + endBlock.text().size();
     int target = end + 1;  // 改行の後ろまで選ぶ。
     const QTextBlock nextBlock = endBlock.next();
-    if (editor->textCursor().hasSelection() && nextBlock.isValid()) {
+    const QTextCursor current = editor->textCursor();
+    // 部分選択では、触れた行をまず丸ごと選ぶ。既に改行まで選択済みの場合だけ次の行へ広げる。
+    if (current.hasSelection() && current.selectionStart() == start
+        && current.selectionEnd() == end + 1 && nextBlock.isValid()) {
         target = nextBlock.position() + nextBlock.length();
     }
     QTextCursor cursor = editor->textCursor();
@@ -117,6 +120,8 @@ void moveOrCopyLines(QPlainTextEdit* editor, LineRange range, EditCommand comman
     const QTextBlock endBlock = document->findBlockByNumber(range.last);
     const bool hadSelection = editor->textCursor().hasSelection();
     const int column = editor->textCursor().positionInBlock();
+    const int anchorOffset = editor->textCursor().anchor() - startBlock.position();
+    const int positionOffset = editor->textCursor().position() - startBlock.position();
 
     QStringList lines;
     for (int number = range.first; number <= range.last; ++number) {
@@ -159,9 +164,10 @@ void moveOrCopyLines(QPlainTextEdit* editor, LineRange range, EditCommand comman
     const QTextBlock target = document->findBlockByNumber(newFirst);
     cursor.setPosition(target.position() + qMin(column, int(target.text().size())));
     if (hadSelection) {
-        const QTextBlock tail = document->findBlockByNumber(newFirst + lines.size() - 1);
-        cursor.setPosition(target.position());
-        cursor.setPosition(tail.position() + tail.text().size(), QTextCursor::KeepAnchor);
+        // 全行へ広げず、途中の文字から始まる選択と逆向きの選択もそのまま移す。
+        const int documentEnd = document->characterCount() - 1;
+        cursor.setPosition(qMin(target.position() + anchorOffset, documentEnd));
+        cursor.setPosition(qMin(target.position() + positionOffset, documentEnd), QTextCursor::KeepAnchor);
     }
     editor->setTextCursor(cursor);
 }
@@ -178,21 +184,57 @@ int leadingWhitespace(const QString& line) {
     return count;
 }
 
-/** @brief 1行のインデントを解除する。
- * @param line 対象の行。書き換える。
- * @return 取り除いた文字数。
+/** @brief 見た目の4桁区切りで字下げし、タブを空白へ揃える。
+ * @param editor 対象の編集欄。文書の所有権は移動しない。
+ * @param range 編集する行の範囲。
+ * @param command IndentまたはOutdent。
+ * @note 字下げ内の部分選択は文字位置を保ち、本文内の端点は字下げの増減へ追従する。
  */
-int outdentLine(QString& line) {
-    int count = 0;
-    if (line.startsWith('\t')) {
-        count = 1;
-    } else {
-        while (count < 4 && count < line.size() && line[count] == ' ') {
+void changeIndentation(QPlainTextEdit* editor, LineRange range, EditCommand command) {
+    auto document = editor->document();
+    QTextCursor cursor = editor->textCursor();
+    const bool selected = cursor.hasSelection();
+    const auto anchorBlock = document->findBlock(cursor.anchor());
+    const auto positionBlock = document->findBlock(cursor.position());
+    const int anchorLine = anchorBlock.blockNumber();
+    const int positionLine = positionBlock.blockNumber();
+    const int anchorColumn = cursor.anchor() - anchorBlock.position();
+    const int positionColumn = cursor.position() - positionBlock.position();
+    QVector<int> previousSizes, nextSizes;
+    cursor.beginEditBlock();
+    for (int number = range.first; number <= range.last; ++number) {
+        const auto block = document->findBlockByNumber(number);
+        const QString line = block.text();
+        int count = 0, width = 0;
+        while (count < line.size() && (line[count] == ' ' || line[count] == '\t')) {
+            width += line[count] == '\t' ? 4 - width % 4 : 1;
             ++count;
         }
+        int target = command == EditCommand::Indent ? width + 4 - width % 4 : qMax(0, (width - 1) / 4 * 4);
+        if (line.isEmpty() && range.first != range.last) target = 0;
+        previousSizes.append(count);
+        nextSizes.append(target);
+        const QString replacement(target, ' ');
+        if (line.left(count) != replacement) {
+            QTextCursor change(block);
+            change.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor, count);
+            change.insertText(replacement);
+        }
     }
-    line.remove(0, count);
-    return count;
+    cursor.endEditBlock();
+    const auto restored = [&](int line, int column) {
+        if (line >= range.first && line <= range.last) {
+            const int before = previousSizes[line - range.first];
+            const int after = nextSizes[line - range.first];
+            column = column > before || (!selected && column == before)
+                         ? column + after - before : qMin(column, after);
+        }
+        const auto block = document->findBlockByNumber(line);
+        return block.position() + qMin(column, int(block.text().size()));
+    };
+    cursor.setPosition(restored(anchorLine, anchorColumn));
+    cursor.setPosition(restored(positionLine, positionColumn), QTextCursor::KeepAnchor);
+    editor->setTextCursor(cursor);
 }
 
 /** @brief Ctrl+/(コメント)・インデント・インデント解除。
@@ -204,68 +246,57 @@ int outdentLine(QString& line) {
  * 選択がなければ、カーソルの列を文字の増減に合わせてずらす。
  */
 void indentOrComment(QPlainTextEdit* editor, LineRange range, EditCommand command, const QString& marker) {
+    if (command == EditCommand::Indent || command == EditCommand::Outdent) {
+        changeIndentation(editor, range, command);
+        return;
+    }
     QTextDocument* document = editor->document();
-    const QTextBlock startBlock = document->findBlockByNumber(range.first);
-    const QTextBlock endBlock = document->findBlockByNumber(range.last);
-    const bool hadSelection = editor->textCursor().hasSelection();
-    const int column = editor->textCursor().positionInBlock();
-    const int start = startBlock.position();
-    const int end = endBlock.position() + endBlock.text().size();
-
     QStringList lines;
     for (int number = range.first; number <= range.last; ++number) {
         lines.append(document->findBlockByNumber(number).text());
     }
     bool uncomment = true;
+    int commentColumn = -1;
     for (const QString& line : lines) {
         const QString trimmed = line.trimmed();
-        if (!trimmed.isEmpty() && !trimmed.startsWith(marker)) {
-            uncomment = false;
+        if (!trimmed.isEmpty()) {
+            uncomment = uncomment && trimmed.startsWith(marker);
+            const int column = leadingWhitespace(line);
+            commentColumn = commentColumn < 0 ? column : qMin(commentColumn, column);
         }
     }
 
-    int firstLineColumnDelta = 0;  // 先頭の行で、カーソルより前に増減した文字数。
-    for (int i = 0; i < lines.size(); ++i) {
-        QString& line = lines[i];
-        int delta = 0;
-        if (command == EditCommand::Indent) {
-            line.prepend("    ");
-            delta = 4;
-        } else if (command == EditCommand::Outdent) {
-            delta = -outdentLine(line);
-        } else if (command == EditCommand::ToggleComment && !line.trimmed().isEmpty()) {
-            const int position = leadingWhitespace(line);
+    // 選択を全行へ置き換えず、元のカーソルを文書に追従させる。
+    // 後ろの行から最小範囲だけを編集すると、端点と選択方向を保てる。
+    QTextCursor cursor = editor->textCursor();
+    cursor.beginEditBlock();
+    for (int i = lines.size() - 1; i >= 0; --i) {
+        const QString& line = lines[i];
+        int position = 0;
+        int count = 0;
+        QString inserted;
+        if (command == EditCommand::ToggleComment && !line.trimmed().isEmpty()) {
             if (uncomment) {
                 // "# " のように記号の後ろの空白1つも一緒に外す。
-                int count = marker.size();
+                position = leadingWhitespace(line);
+                count = marker.size();
                 if (position + count < line.size() && line[position + count] == ' ') {
                     ++count;
                 }
-                line.remove(position, count);
-                if (column > position) {
-                    delta = -count;
-                }
             } else {
-                line.insert(position, marker + " ");
-                if (column >= position) {
-                    delta = marker.size() + 1;
-                }
+                position = commentColumn;
+                inserted = marker + " ";
             }
         }
-        if (i == 0) {
-            firstLineColumnDelta = delta;
+        if (count || !inserted.isEmpty()) {
+            QTextCursor change(document);
+            const int start = document->findBlockByNumber(range.first + i).position() + position;
+            change.setPosition(start);
+            change.setPosition(start + count, QTextCursor::KeepAnchor);
+            change.insertText(inserted);
         }
     }
-
-    const QString newText = lines.join("\n");
-    QTextCursor cursor = editor->textCursor();
-    replaceRange(cursor, start, end, newText);
-    if (hadSelection) {
-        cursor.setPosition(start);
-        cursor.setPosition(start + newText.size(), QTextCursor::KeepAnchor);
-    } else {
-        cursor.setPosition(start + qBound(0, column + firstLineColumnDelta, int(lines[0].size())));
-    }
+    cursor.endEditBlock();
     editor->setTextCursor(cursor);
 }
 

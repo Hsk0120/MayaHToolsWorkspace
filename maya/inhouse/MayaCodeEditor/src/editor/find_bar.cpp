@@ -920,12 +920,20 @@ bool FindBar::eventFilter(QObject* watched, QEvent* event) {
             setState(field, "focused", false);
         }
     }
-    // 検索欄のShift+Enterは前の一致へ(VS Codeと同じ)。
-    if (watched == findText_ && event->type() == QEvent::KeyPress) {
+    // QLineEditのreturnPressedだけに頼らず、Enterが親へ伝わるのを防ぐ。
+    // この入力欄で検索・置換を完了させ、ホストの実行キーには渡さない。
+    if ((watched == findText_ || watched == replaceText_)
+        && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress
+            || event->type() == QEvent::KeyRelease)) {
         auto key = static_cast<QKeyEvent*>(event);
         const bool enter = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
-        if (enter && key->modifiers() == Qt::ShiftModifier) {
-            findNext(true);
+        const auto modifiers = key->modifiers() & ~Qt::KeypadModifier;
+        if (enter && (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier)) {
+            event->accept();
+            if (event->type() == QEvent::KeyPress) {
+                if (watched == findText_) findNext(modifiers == Qt::ShiftModifier);
+                else replace(false);
+            }
             return true;
         }
     }

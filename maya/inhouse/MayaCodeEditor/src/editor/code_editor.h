@@ -429,6 +429,12 @@ private:
      */
     static bool isRunKey(const QKeyEvent* event);
 
+    /** @brief 単語単位の移動・選択・削除キーか判定する。 @param event キー入力。 @return 対象ならtrue。 */
+    static bool isWordKey(const QKeyEvent* event);
+
+    /** @brief 単語単位の移動・選択・削除を処理する。 @param event isWordKeyで確認済みの入力。 */
+    void handleWordKey(const QKeyEvent* event);
+
     /** @brief 空白だけの行頭で、Backspaceを4文字単位で消す。 @return 処理した場合true。 */
     bool deleteToIndentStop();
 

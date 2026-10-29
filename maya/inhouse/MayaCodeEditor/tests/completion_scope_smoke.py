@@ -47,6 +47,8 @@ def main(output_dir, finished):
         frames = out / "frames"
         frames.mkdir()
         frame_number = [0]
+        # 古いホストの遅延起動UIが落ち着いてから、Qt入力の検証を開始する。
+        wait(5000)
 
         def capture(label):
             """実画面と補完ポップアップを同じ画像へ記録する。"""
@@ -93,12 +95,28 @@ def main(output_dir, finished):
         code.moveCursor(QtGui.QTextCursor.End)
         window.activateWindow()
         code.setFocus()
-        wait(300)
+        # 起動時のホストUI構築が終わってから入力する。入力失敗を補完失敗と混同しない。
+        wait(1200)
+        QtWidgets.QApplication.setActiveWindow(window.window())
+        code.setFocus()
+        assert code.hasFocus(), "Code editor did not receive startup focus"
         QtTest.QTest.keyClicks(code, "sce", QtCore.Qt.NoModifier, 60)
-        wait(500)
+        assert code.toPlainText().endswith("    sce"), code.toPlainText()
+        deadline = time.monotonic() + 8
+        while time.monotonic() < deadline:
+            wait(100)
+            model = completer.completionModel()
+            names = [model.index(row, 0).data() for row in range(model.rowCount())]
+            if completer.popup().isVisible() and "scene_name" in names:
+                break
         model = completer.completionModel()
         names = [model.index(row, 0).data() for row in range(model.rowCount())]
-        assert completer.popup().isVisible() and "scene_name" in names, names
+        assert completer.popup().isVisible() and "scene_name" in names, {
+            "names": names, "focus": code.hasFocus(), "discard": code.property("languageDiscard"),
+            "received": code.property("languageCompletionCount"), "text": code.toPlainText(),
+            "active_window": QtWidgets.QApplication.activeWindow().objectName() if QtWidgets.QApplication.activeWindow() else None,
+            "focus_widget": QtWidgets.QApplication.focusWidget().objectName() if QtWidgets.QApplication.focusWidget() else None,
+        }
         capture("automatic local candidate while typing")
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Escape)
         result["checks"].append("ordinary typing automatically offers function local")
@@ -198,9 +216,19 @@ def main(output_dir, finished):
         result["checks"].append("keyword completion reuses existing equals")
         popup('scene_name = "test"; sce', 'scene_name')
         QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
-        assert code.toPlainText() == 'scene_name = "test"; scene_name'
+        assert code.toPlainText() == 'scene_name = "test"; scene_name', code.toPlainText()
         capture("same-line local accepted")
         result["checks"].append("same-line variable accepted")
+
+        # 解決応答を待たずに確定し、直後の入力を失わないことを確認する。
+        for key in (QtCore.Qt.Key_Return, QtCore.Qt.Key_Tab):
+            popup('scene_name = "test"\nsce', 'scene_name')
+            QtTest.QTest.keyClick(code, key)
+            assert code.toPlainText().endswith('\nscene_name'), code.toPlainText()
+            QtTest.QTest.keyClicks(code, '+1')
+            wait(300)
+            assert code.toPlainText() == 'scene_name = "test"\nscene_name+1', code.toPlainText()
+            result["checks"].append("completion commits before immediate following input: %s" % key)
 
         # f文字列では補間式だけ通常のコードと同じ入力支援を行う。
         for quote in ('"', "'"):
@@ -227,8 +255,8 @@ def main(output_dir, finished):
         for prefix, typed, expected in (
             ('f', '"{(\'\'', 'f"{(\'\')}"'),
             ('f', "'{(\"\"", "f'{(\"\")}'"),
-            ('f"{{literal', '(', 'f"{{literal('),
-            ('f"{value:>10', '(', 'f"{value:>10('),
+            ('f"{{literal', '(', 'f"{{literal()'),
+            ('f"{value:>10', '(', 'f"{value:>10()'),
             ('f"{value:{', '(', 'f"{value:{()'),
         ):
             completer.popup().hide()

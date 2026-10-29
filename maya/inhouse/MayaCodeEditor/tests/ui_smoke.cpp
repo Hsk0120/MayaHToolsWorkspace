@@ -22,6 +22,7 @@
 #include "editor/language_assist.h"
 #include "editor/code_navigation.h"
 #include "editor/diff_dialog.h"
+#include "editor/find_bar.h"
 #include "editor/hover_popup.h"
 #include "editor/marker_scroll_bar.h"
 #include "editor/outline_panel.h"
@@ -1603,6 +1604,147 @@ bool corePerformancePasses(const QByteArray& config) {
     return ok;
 }
 
+/** @brief 行操作の部分選択・逆方向・次行先頭の境界とUndoを検査する。 @return 全ケース合格か。 */
+bool lineSelectionPasses() {
+    struct Case {
+        mce::EditCommand command;
+        QString source;
+        int anchor;
+        int position;
+        QString expected;
+        int expectedAnchor;
+        int expectedPosition;
+    };
+    const QList<Case> cases = {
+        {mce::EditCommand::SelectLine, "one\ntwo\nthree", 1, 6, "one\ntwo\nthree", 0, 8},
+        {mce::EditCommand::SelectLine, "one\ntwo\nthree", 6, 1, "one\ntwo\nthree", 0, 8},
+        {mce::EditCommand::SelectLine, "one\ntwo\nthree", 0, 7, "one\ntwo\nthree", 0, 8},
+        {mce::EditCommand::SelectLine, "one\ntwo\nthree", 0, 4, "one\ntwo\nthree", 0, 8},
+        {mce::EditCommand::MoveDown, "one\ntwo\nthree", 1, 6, "three\none\ntwo", 7, 12},
+        {mce::EditCommand::MoveDown, "one\ntwo\nthree", 6, 1, "three\none\ntwo", 12, 7},
+        {mce::EditCommand::MoveDown, "one\ntwo\nthree", 4, 0, "two\none\nthree", 8, 4},
+        {mce::EditCommand::CopyDown, "one\ntwo\nthree", 1, 6, "one\ntwo\none\ntwo\nthree", 9, 14},
+        {mce::EditCommand::Indent, "one\n    two\nthree", 1, 11, "    one\n        two\nthree", 5, 19},
+        {mce::EditCommand::Indent, "one\ntwo\nthree", 7, 0, "    one\n    two\nthree", 15, 0},
+        {mce::EditCommand::Indent, "one\ntwo\nthree", 0, 4, "    one\ntwo\nthree", 0, 8},
+        {mce::EditCommand::Outdent, "    one\n        two\nthree", 6, 16, "one\n    two\nthree", 2, 8},
+        {mce::EditCommand::Indent, "     one\n     two", 1, 16, "        one\n        two", 1, 22},
+        {mce::EditCommand::Indent, "     one\n     two", 16, 1, "        one\n        two", 22, 1},
+        {mce::EditCommand::Outdent, "     one", 2, 2, "    one", 2, 2},
+        {mce::EditCommand::Outdent, "     one", 5, 5, "    one", 4, 4},
+        {mce::EditCommand::Indent, "\tone\n\t\ttwo", 1, 9, "        one\n            two", 1, 26},
+        {mce::EditCommand::Outdent, "\tone\n\t\ttwo", 1, 9, "one\n    two", 0, 10},
+        {mce::EditCommand::Indent, "one\n\ntwo", 0, 8, "    one\n\n    two", 0, 16},
+        {mce::EditCommand::Indent, "one\n  \ntwo", 0, 10, "    one\n    \n    two", 0, 20},
+        {mce::EditCommand::ToggleComment, "    one\n        two\n", 0, 19, "    # one\n    #     two\n", 0, 23},
+        {mce::EditCommand::ToggleComment, "one\n\ntwo", 0, 8, "# one\n\n# two", 2, 12},
+        {mce::EditCommand::ToggleComment, "one\ntwo\nthree", 7, 0, "# one\n# two\nthree", 11, 2},
+    };
+    for (const Case& test : cases) {
+        QPlainTextEdit editor;
+        editor.setPlainText(test.source);
+        auto cursor = editor.textCursor();
+        cursor.setPosition(test.anchor);
+        cursor.setPosition(test.position, QTextCursor::KeepAnchor);
+        editor.setTextCursor(cursor);
+        mce::applyLineCommand(&editor, test.command, "#");
+        if (editor.toPlainText() != test.expected || editor.textCursor().anchor() != test.expectedAnchor
+            || editor.textCursor().position() != test.expectedPosition) {
+            qWarning() << "line selection" << int(test.command) << editor.toPlainText()
+                       << editor.textCursor().anchor() << editor.textCursor().position();
+            return false;
+        }
+        editor.undo();
+        if (editor.toPlainText() != test.source) return false;
+        editor.redo();
+        if (editor.toPlainText() != test.expected) return false;
+    }
+    return true;
+}
+
+/** @brief 検索・置換のEnterを親へ伝えず、単一回だけ操作する。 @return 全ケース合格か。 */
+bool findInputBoundaryPasses() {
+    QTabWidget tabs;
+    auto editor = new mce::CodeEditor;
+    tabs.addTab(editor, "test");
+    editor->setPlainText("alpha alpha");
+    auto cursor = editor->textCursor();
+    cursor.setPosition(0);
+    cursor.setPosition(5, QTextCursor::KeepAnchor);
+    editor->setTextCursor(cursor);
+    mce::FindBar bar(&tabs);
+    bar.currentEditor = [editor] { return editor; };
+    tabs.show();
+    bar.open(false);
+    auto query = bar.findChild<QLineEdit*>("findText");
+    auto replacement = bar.findChild<QLineEdit*>("replaceText");
+    if (!query || !replacement) return false;
+    QKeyEvent next(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QApplication::sendEvent(query, &next);
+    if (!next.isAccepted() || editor->textCursor().selectionStart() != 6) return false;
+    QKeyEvent previous(QEvent::KeyPress, Qt::Key_Return, Qt::ShiftModifier);
+    QApplication::sendEvent(query, &previous);
+    if (!previous.isAccepted() || editor->textCursor().selectionStart() != 0) return false;
+    bar.open(true);
+    replacement->setText("item");
+    QKeyEvent replace(QEvent::KeyPress, Qt::Key_Enter, Qt::KeypadModifier);
+    QApplication::sendEvent(replacement, &replace);
+    if (!replace.isAccepted() || editor->toPlainText() != "item alpha") return false;
+    editor->undo();
+    if (editor->toPlainText() != "alpha alpha") return false;
+    QKeyEvent override(QEvent::ShortcutOverride, Qt::Key_Return, Qt::NoModifier);
+    override.ignore();
+    QApplication::sendEvent(query, &override);
+    return override.isAccepted();
+}
+
+/** @brief 単語移動と削除の異なる境界を検査する。 @return 全ケース合格か。 */
+bool wordNavigationPasses() {
+    struct Case { QString text; int position; bool forward; bool deleting; int expected; };
+    const QList<Case> cases = {
+        {"one.two", 3, true, false, 7}, {"one.two", 4, false, false, 0},
+        {"one..two", 3, true, false, 5}, {"one..two", 5, false, false, 3},
+        {"one + two", 3, true, false, 5}, {"one + two", 6, false, false, 4},
+        {"one.two", 3, true, true, 4}, {"one.two", 4, false, true, 3},
+        {"one  two", 3, true, true, 5}, {"one  two", 5, false, true, 3},
+        {"one  two", 4, false, true, 0}, {"one_two", 4, false, false, 0},
+        {"one_two", 3, true, false, 7}, {"one\n    two", 3, true, false, 11},
+        {"one\n    two", 3, true, true, 8}, {"one\n    two", 4, false, true, 3},
+        {"one\n    two", 4, false, false, 0}, {"one\n    two", 6, false, false, 4},
+        {"one\n\ntwo", 3, true, false, 4}, {"one\n\ntwo", 5, false, false, 4},
+    };
+    for (const auto& test : cases) {
+        QTextDocument document(test.text);
+        const int actual = mce::wordBoundary(&document, test.position, test.forward, test.deleting);
+        if (actual != test.expected) {
+            qWarning() << "word boundary" << test.text << test.position << test.forward << test.deleting << actual;
+            return false;
+        }
+    }
+    mce::CodeEditor editor;
+    editor.setPlainText("one.two");
+    auto cursor = editor.textCursor();
+    cursor.setPosition(3);
+    editor.setTextCursor(cursor);
+    QKeyEvent select(QEvent::KeyPress, Qt::Key_Right, Qt::ControlModifier | Qt::ShiftModifier);
+    QApplication::sendEvent(&editor, &select);
+    if (editor.textCursor().selectedText() != ".two") return false;
+    QKeyEvent remove(QEvent::KeyPress, Qt::Key_Delete, Qt::ControlModifier);
+    QApplication::sendEvent(&editor, &remove);
+    if (editor.toPlainText() != "one") return false;
+    editor.undo();
+    if (editor.toPlainText() != "one.two") return false;
+    editor.setPlainText(QString());
+    QKeyEvent opener(QEvent::KeyPress, Qt::Key_ParenLeft, Qt::NoModifier, "(");
+    QApplication::sendEvent(&editor, &opener);
+    QKeyEvent removePair(QEvent::KeyPress, Qt::Key_Backspace, Qt::ControlModifier);
+    QApplication::sendEvent(&editor, &removePair);
+    if (!editor.toPlainText().isEmpty()) return false;
+    editor.undo();
+    if (editor.toPlainText() != "()") return false;
+    return true;
+}
+
 /** @brief UTF-16編集の境界、重複拒否とUndoの保持を検査する。 @return 全ケース合格か。 */
 bool languageEditsPasses() {
     const QString text = QString::fromUtf8("# 😀\nvalue = 1\n");
@@ -1620,6 +1762,138 @@ bool languageEditsPasses() {
     editor.applyLanguageText(QString::fromUtf8("# 😀\ncount = 42\n"), 12);
     editor.undo();
     return editor.toPlainText() == text;
+}
+
+/** @brief 改行でコメントや文字列を消さず、Tabで次の桁へ揃える。 @return 本文とUndoが保たれるか。 */
+bool editingInputSafetyPasses() {
+    mce::CodeEditor editor;
+    const auto key = [&editor](int value, const QString& text) {
+        QKeyEvent event(QEvent::KeyPress, value, Qt::NoModifier, text);
+        QApplication::sendEvent(&editor, &event);
+    };
+    for (const QString& source : {QString("# comment:"), QString("    # comment"), QString("\"hello\""),
+                                  QString("    'hello'"), QString("f\"{value}\""), QString("\"\"\"doc\"\"\"")}) {
+        editor.setPlainText(source);
+        editor.moveCursor(QTextCursor::End);
+        key(Qt::Key_Return, "\r");
+        const QString expected = source + "\n" + (source.startsWith("    ") ? "    " : "");
+        if (editor.toPlainText() != expected) {
+            qWarning() << "newline must preserve text" << source << editor.toPlainText();
+            return false;
+        }
+        editor.undo();
+        if (editor.toPlainText() != source) return false;
+    }
+    for (int column = 0; column < 9; ++column) {
+        const QString source(column, ' ');
+        editor.setPlainText(source + "value");
+        auto cursor = editor.textCursor();
+        cursor.setPosition(column);
+        editor.setTextCursor(cursor);
+        key(Qt::Key_Tab, "\t");
+        const int target = column + 4 - column % 4;
+        if (editor.toPlainText() != QString(target, ' ') + "value" || editor.textCursor().position() != target) {
+            qWarning() << "tab stop" << column << editor.toPlainText();
+            return false;
+        }
+        editor.undo();
+        if (editor.toPlainText() != source + "value") return false;
+    }
+    editor.setPlainText("\txy");
+    editor.moveCursor(QTextCursor::End);
+    key(Qt::Key_Tab, "\t");
+    if (editor.toPlainText() != "\txy  ") return false;
+    const QString splitSource = "def example():\n    one    two";
+    editor.setPlainText(splitSource);
+    auto split = editor.textCursor(); split.setPosition(splitSource.indexOf("    two")); editor.setTextCursor(split);
+    key(Qt::Key_Return, "\r");
+    if (editor.toPlainText() != "def example():\n    one\n    two") return false;
+    editor.undo();
+    if (editor.toPlainText() != splitSource) return false;
+    struct TabCase { QString source; int anchor; int position; QString expected; int caret; };
+    for (const TabCase& test : {
+             TabCase{"one two", 1, 5, "o   wo", 4},
+             TabCase{"one two", 5, 1, "o   wo", 4},
+             TabCase{"   one", 0, 4, "    ne", 4},
+             TabCase{"   one", 1, 3, "    one", 4},
+             TabCase{"one    two", 3, 7, "one two", 4}}) {
+        editor.setPlainText(test.source);
+        auto selected = editor.textCursor(); selected.setPosition(test.anchor);
+        selected.setPosition(test.position, QTextCursor::KeepAnchor); editor.setTextCursor(selected);
+        key(Qt::Key_Tab, "\t");
+        if (editor.toPlainText() != test.expected || editor.textCursor().hasSelection()
+            || editor.textCursor().position() != test.caret) return false;
+        editor.undo();
+        if (editor.toPlainText() != test.source) return false;
+    }
+    return true;
+}
+
+/** @brief Pythonのコメント・文字列・補間式で対の挿入と削除を確認する。 @return 本文とカーソルが期待どおりか。 */
+bool contextualPairsPasses() {
+    struct Case { QString source; QString typed; QString expected; };
+    const QVector<Case> cases{
+        {"# note |", "(", "# note (|)"},
+        {"# note |", "[", "# note [|]"},
+        {"# note |", "{", "# note {|}"},
+        {"\"hello |\"", "(", "\"hello (|)\""},
+        {"'hello |'", "[", "'hello [|]'"},
+        {"# note |", "\"", "# note \"|\""},
+        {"# note |", "'", "# note '|"},
+        {"\"hello |\"", "'", "\"hello '|\""},
+        {"f\"{|}\"", "(", "f\"{(|)}\""},
+    };
+    for (const auto& test : cases) {
+        mce::CodeEditor editor;
+        QString original = test.source;
+        const int position = original.indexOf('|');
+        original.remove(position, 1);
+        editor.setPlainText(original);
+        auto cursor = editor.textCursor(); cursor.setPosition(position); editor.setTextCursor(cursor);
+        QKeyEvent event(QEvent::KeyPress, 0, Qt::NoModifier, test.typed);
+        QApplication::sendEvent(&editor, &event);
+        QString expected = test.expected;
+        const int target = expected.indexOf('|'); expected.remove(target, 1);
+        if (editor.toPlainText() != expected || editor.textCursor().position() != target) {
+            qWarning() << "contextual pair" << test.source << editor.toPlainText(); return false;
+        }
+        QKeyEvent backspace(QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier);
+        QApplication::sendEvent(&editor, &backspace);
+        if (editor.toPlainText() != original || editor.textCursor().position() != position) return false;
+        editor.undo();
+        if (editor.toPlainText() != expected) return false;
+    }
+    return true;
+}
+
+/** @brief 三重引用符の補完、本文入力、改行とUndoを確認する。 @return 閉じ側と編集位置を保持できるか。 */
+bool tripleQuoteInputPasses() {
+    for (const QChar quote : {QChar('"'), QChar('\'')}) {
+        for (const QString& prefix : {QString(), QString("r"), QString("f"), QString("    ")}) {
+            mce::CodeEditor editor;
+            editor.setPlainText(prefix + QString(2, quote));
+            editor.moveCursor(QTextCursor::End);
+            const auto type = [&editor](int key, const QString& text) {
+                QKeyEvent event(QEvent::KeyPress, key, Qt::NoModifier, text);
+                QApplication::sendEvent(&editor, &event);
+            };
+            type(0, QString(quote));
+            const QString paired = prefix + QString(6, quote);
+            if (editor.toPlainText() != paired || editor.textCursor().position() != prefix.size() + 3) return false;
+            type(Qt::Key_Backspace, QString());
+            if (editor.toPlainText() != prefix + QString(5, quote)) return false;
+            editor.undo();
+            if (editor.toPlainText() != paired) return false;
+            type(Qt::Key_Return, "\r");
+            const QString indent = prefix == "    " ? prefix : QString();
+            if (editor.toPlainText() != prefix + QString(3, quote) + "\n" + indent + QString(3, quote)) return false;
+            editor.undo();
+            if (editor.toPlainText() != paired) return false;
+            editor.undo();
+            if (editor.toPlainText() != prefix + QString(2, quote)) return false;
+        }
+    }
+    return true;
 }
 
 /** @brief 専用サーバーで取消・順序逆転・破損フレーム・破棄後の応答を検査する。 @return 全ケース合格か。 */
@@ -1696,11 +1970,17 @@ int main(int argc, char** argv) {
     const int failed = runCases({
         {"history", historyPasses},
         {"languageEdits", languageEditsPasses},
+        {"editingInputSafety", editingInputSafetyPasses},
+        {"contextualPairs", contextualPairsPasses},
+        {"tripleQuoteInput", tripleQuoteInputPasses},
         {"languageClient", languageClientPasses},
         {"moduleScan", moduleScanPasses},
         {"textSearch", textSearchPasses},
         {"sessionData", sessionDataPasses},
         {"editCommands", editCommandsPasses},
+        {"lineSelection", lineSelectionPasses},
+        {"wordNavigation", wordNavigationPasses},
+        {"findInputBoundary", findInputBoundaryPasses},
         {"lexer", lexerPasses},
         {"declarations", declarationsPasses},
         {"scriptFile", scriptFilePasses},
@@ -1822,7 +2102,7 @@ int main(int argc, char** argv) {
         editor->setPlainText("f\"{{literal");
         editor->moveCursor(QTextCursor::End);
         type(Qt::Key_ParenLeft, "(");
-        if (editor->toPlainText() != "f\"{{literal(") return 84;
+        if (editor->toPlainText() != "f\"{{literal()") return 84;
         editor->setPlainText("value");
         editor->moveCursor(QTextCursor::End);
         type(Qt::Key_QuoteDbl, "\"");

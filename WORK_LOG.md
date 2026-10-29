@@ -124,6 +124,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-29): MCE 0.9.1で補完確定直後の入力保持、改行時の本文保全、字下げ・選択・行/単語操作、引用符補完、検索の入力境界を修正。Sphinx見出し警告を解消。2022〜2027の配布ビルド・単体/standalone/offscreen、専用2022/2027のGUI編集32・補完37・前面化後の検索10項目、日英文書ビルドが合格。Windows実入力は検索/置換/Undo等を別途確認。比較で残る改行5件と未実施範囲、動画は.maya-output/mce-vscode-three-hour-20261029/verification.txtに記録。完全一致は未達。他作業変更を保持。
 - Codex (2026-10-29): MCE 0.9.0に別プロセスの型解析・全文/未保存タブの補完/診断・定義/参照・リネーム・auto import・コードアクション・型色/行末ヒント、隔離コピー上の変数/関数抽出・モジュール移動・import整理を追加。取消/世代/破棄/下見/Undoを保護し、監視の不要な再解析を修正。2022〜2027ビルド・単体/standalone/offscreen合格（2022/2023の負荷時速度超過は同じ基準で再測定合格）。専用Maya 2022/2027のQt GUI各57チェック、隔離リファクタリング7件合格。撮影時のQt5一時ウィジェット参照を限定し再確認。詳細・制限・非公開動画リンクは.maya-output/mce-pylance-gap-20261029/verification.txt。ユーザー指定でコード・テスト・6版配布物をコミット対象へ集約。他ツールの変更を保持。
 
 - Claude Code (2026-10-29): VS Code 補完用に、mlib の docstring から型スタブ(.pyi)を各 .py の隣へ作る tools/generate_mlib_stubs.py・.bat を追加し、生成した 145 ファイルを Git 管理に(mlib本体のコードは変更なし、pyrightconfig の exclude で解析対象外)。ls・createNode・getConnections・getSource・getDestinations は引数ごとの戻り値を @overload で補い、Joints 等は要素型で反復。test_static_stub_generation.py が古いスタブを検出。runStatic 160件、Maya 2022・2027 の mlib 全件が合格。pyright の言語サーバーで補完・引数ヒント・ホバーを確認(VS Code の画面での確認は未実施)。

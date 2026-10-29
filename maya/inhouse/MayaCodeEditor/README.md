@@ -236,7 +236,7 @@ Mayaと同じプロセスで同期解析するため、解析中は短時間UI�
 - zip内ソース、未ロードのバイナリ拡張、`__getattr__`で生成される未知の属性は完全には補完できません。
 - 補完は静的な名前の候補であり、型・構文の正しさを保証するものではありません。
 - スクリプト実行自体はMayaのメインスレッドで行うため、長時間の実行中はMayaが待機します。
-- WindowsのMaya 2022（Python 3）／2023／2024／2025／2026／2027でビルド、単体、standalone、GUI各28項目を検証済みです。2023はこの環境に未インストールのため未検証です。
+- WindowsのMaya 2022（Python 3）／2023／2024／2025／2026／2027向けにビルドします。各版の検証範囲は実行ログと`WORK_LOG.md`を参照してください。offscreenテストの合格は実機入力の確認とは区別します。
 
 ## 開発・テスト
 
@@ -247,16 +247,23 @@ Mayaと同じプロセスで同期解析するため、解析中は短時間UI�
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_tests.py 2022 2023 2024 2025 2026 2027
 ```
 
-テストは補完ユニットテスト、Maya standaloneでの`.mod`／プラグイン／実在する補完候補の確認、同じC++ウィジェットによるoffscreen描画・補完挿入・実行ボタン確認に分かれています。ログ・画像は`.maya-output/Maya Code Editor-tests/`に保存します。offscreen検証とMaya GUI内での操作確認は別です。
+テストは補完ユニットテスト、Maya standaloneでの`.mod`／プラグイン／実在する補完候補の確認、同じC++ウィジェットによるoffscreen描画・補完挿入・実行ボタン確認に分かれています。ログ・画像は`.maya-output/mce-tests/`に保存します。offscreen検証とMaya GUI内での操作確認は別です。
 
 GUI確認は次のコマンドで、既存のMayaとは別の空シーン・専用設定を使用して実施できます。
 
 ```powershell
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_gui.py 2024
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_gui.py 2027
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_gui.py 2027 --suite editing_selection_smoke.py
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_gui.py 2027 --suite search_navigation_smoke.py
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_gui.py 2027 --suite search_navigation_smoke.py --manual-focus --timeout 240
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_session.py 2024 2027
 & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tests/run_startup.py 2024 2027
 ```
+
+`editing_selection_smoke.py`は改行・引用符・字下げ・選択・単語操作とUndo／Redoを検査して画面を記録します。`search_navigation_smoke.py`は検索・置換と操作後のフォーカスを検査します。両方ともQtで合成した入力で、Windowsの実キー入力ではありません。検索テストでホストがフォーカスを移した場合は失敗として記録します。同じ専用画面でCtrl+F、検索語入力、Enter、Shift+Enter、置換欄でEnter、Escape、Undo／Redoを実際に操作し、本文とフォーカスを別途確認してください。
+
+検索テストの`--manual-focus`は、開始前に専用画面の「Start search verification」を90秒以内にクリックするモードです。Windows上の前面化を実クリックで行ってから同じQt検査を開始し、入力種別を結果に記録します。無操作の合成入力テストで発生したフォーカス移動を、製品の実操作でも起きる不具合と混同しないための切り分けに使います。
 
 テスト用モジュールディレクトリにはMaya Code Editorの`.mod`だけを用意します。ワークスペース全体の外部モジュールを読み込んでいた従来の起動タイムアウトは、この構成で解消しました。普段の起動バッチ・ユーザー設定・信頼設定は変更しません。外部ツールを全て有効にした構成の互換性検証とは別です。
 

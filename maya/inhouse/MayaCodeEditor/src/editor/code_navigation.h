@@ -1,6 +1,6 @@
 /** @file code_navigation.h
  * @brief コード欄の文書(QTextDocument)の上で、対応する括弧・同じ名前の位置・選択範囲の拡大を求める。
- * @details どれも字句解析(core/script_lexer.cpp)で文字列とコメントを区別する。行をまたぐ文字列の状態は、
+ * @details 括弧・名前・選択範囲は字句解析(core/script_lexer.cpp)で文字列とコメントを区別する。単語移動は文字種を使う。行をまたぐ文字列の状態は、
  * 構文強調が行ごとに保存している状態(QTextBlock::userState)を使う。画面の部品には依存しないので、
  * QTextDocumentだけでテストできる。
  */
@@ -17,6 +17,15 @@ class QTextBlock;
 class QTextDocument;
 
 namespace mce {
+
+/** @brief 単語移動・削除の到達位置を求める。文書は変更しない。
+ * @param document 対象文書。所有権は呼出側にある。
+ * @param position 現在のUTF-16位置。
+ * @param forward 右方向ならtrue。
+ * @param deleting 削除ならtrue。移動とは空白・単独記号・改行の扱いを分ける。
+ * @return 文書内の到達位置。名前のアンダースコアは単語の一部として扱う。
+ */
+int wordBoundary(const QTextDocument* document, int position, bool forward, bool deleting);
 
 /** @brief 文書が所有する行末のPython状態。Qtの整数状態とは別に入れ子を保持する。 */
 struct PythonBlockData : QTextBlockUserData {

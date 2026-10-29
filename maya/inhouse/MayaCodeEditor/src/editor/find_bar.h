@@ -106,7 +106,7 @@ public:
                                   const QString* replacementTemplate, bool* handled);
 
 protected:
-    /** @brief タブ欄の大きさの変化・入力欄のフォーカス・Shift+Enterを受け取る。
+    /** @brief タブ欄の大きさの変化・入力欄のフォーカス・EnterとShift+Enterを受け取る。
      * @param watched イベントの届いた部品。
      * @param event イベント。
      * @return イベントを処理した(ここで止める)ならtrue。
