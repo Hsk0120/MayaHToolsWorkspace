@@ -9,7 +9,7 @@ from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable
 from ..core.nodeEdit import require_editable
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, nativeUnits, undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
@@ -360,6 +360,32 @@ class Transform(DagNode):
 
         Returns:
             list[Shape]: 条件に一致するShapeのリスト。
+        """
+        ...
+    def replaceShapes(self, source: Transform | Shape | str, *, keepSource: bool = ..., worldSpace: bool = ...) -> Transform:
+        """自身のShapeを、sourceの中間でないShapeへ置き換えて自身を返す。
+
+        自身の直下の既存Shape(中間Shapeを含む)を削除し、sourceのShapeを ``cmds.parent(shape=True)`` で
+        自身の直下へ移す。自身のtranslate・rotate・scale・pivot・接続・子Transformは変更しない。
+        移したShapeは ``<自身の名前>Shape``、2個目以降は ``<自身の名前>Shape<番号>`` へ改名する。
+        コントローラーの形状差し替えを想定した操作で、全体を1回のUndoにまとめ、途中で失敗した場合は
+        巻き戻す。
+
+        Args:
+            source (Transform | Shape | str): 形状の取得元。Transformは直下の中間でないShape全部、
+                Shapeはそれ1つを使う。
+            keepSource (bool): Trueならsourceを複製して使い、元のノードを変更しない。Falseはsourceの
+                Shapeを移動し、Shapeが無くなり子も残らない取得元のTransformを削除する。
+            worldSpace (bool): Trueは取得元のTransformのワールド変換を形状へ焼き込み、ワールド空間での
+                見た目を保つ。False(既定)はShapeのローカル座標をそのまま使う(``parent -relative -shape``)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: keepSource・worldSpaceがbool以外、またはsourceがTransform・Shapeでない場合。
+            ValueError: sourceが自身・自身のShape・中間Shapeの場合、または使えるShapeが無い場合。
+            RuntimeError: 自身・sourceが無効、またはロック・参照等でMayaが変更を拒否した場合。
         """
         ...
     def getShape(self, index: int = ..., intermediates: bool = ...) -> Shape | None:
@@ -753,6 +779,13 @@ class Transform(DagNode):
         Raises:
             ValueError: refVector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
             RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def _color_targets(self) -> list[DagNode]:
+        """:meth:`setColor`・:meth:`getColor` の対象を返す。
+
+        Returns:
+            list[DagNode]: 直下の中間でないShape。Shapeが無ければ自身。
         """
         ...
     def _local_matrix(self, matrix: Matrix | Sequence[Any], ws: bool) -> Matrix:

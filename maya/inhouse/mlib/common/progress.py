@@ -1,7 +1,9 @@
-"""反復の処理件数をテキスト1行へ表示する。MayaのGUIバーは作らない。
+"""反復の処理件数を、Maya GUIではメインのプログレスバー、それ以外ではテキスト1行へ表示する。
 
-Mayaに依存せず、指定ストリームと任意のnotify callbackへ描画文字列を渡す。
-要素の取出しと描画はprogressBar()の返却イテレーターを反復した時に行う。
+Maya GUIでは既存の ``$gMainProgressBar`` (ステータスライン下のバー)を使い、独自のUIは作らない。
+バッチ・mayapy・出力先を指定した場合は、指定ストリームへテキストを描画する。どちらの場合も
+任意のnotify callbackへ同じ描画文字列を渡す。要素の取出しと描画はprogressBar()の返却イテレーターを
+反復した時に行う。Mayaのモジュールは表示先の判定時に読み込む。
 """
 
 import sys
@@ -133,6 +135,129 @@ class _ProgressLine(object):
             flush()
 
 
+class ProgressCancelled(KeyboardInterrupt):
+    """Maya GUIのプログレスバーでEscキーにより反復が中止されたことを表す。
+
+    ``KeyboardInterrupt`` の派生なので、``except Exception`` では捕捉されずに処理を止める。
+    中止を個別に扱う場合は ``except ProgressCancelled`` で捕捉する。
+    """
+
+
+class _MainProgressBar(_ProgressLine):
+    """Maya GUIのメインプログレスバーへ件数を表示する進捗行。
+
+    最初の描画で ``beginProgress`` (Escで中止可能)を行い、処理が1件進むたびに値とステータス文字列を
+    更新し、終了時に ``endProgress`` で閉じる。テキストは書き込まない。notifyにはテキスト表示と同じ
+    文字列を渡す。
+
+    Args:
+        label (str): ステータスの見出し。
+        total (int | None): 全体の件数。不明なら None。
+        width (int): notifyへ渡す文字列のバー部分の文字数。
+        bar (str): ``$gMainProgressBar`` のコントロール名。
+        notify (Callable[[str], object] | None): 描画した文字列の通知先。
+    """
+
+    def __init__(self, label, total, width, bar, notify):
+        """進捗の保持値を初期化する。ここではバーを表示しない。
+
+        Args:
+            label (str): 末尾の空白を除去して保持する表示名。
+            total (int | None): 全体の処理数。不明な場合は None。
+            width (int): notifyへ渡す文字列の進捗バーの表示幅。
+            bar (str): メインプログレスバーのコントロール名。
+            notify (callable | None): 描画した文字列を渡す通知先。
+        """
+        super().__init__(label, total, width, None, notify)
+        self.bar = bar
+        self.begun = False
+
+    def status(self):
+        """プログレスバーのステータス欄へ表示する文字列を組み立てる。
+
+        Returns:
+            str: ``見出し 処理済み/全体`` (全体が不明なら ``?``)。
+        """
+        total = _UNKNOWN_TOTAL if self.total is None else self.total
+        body = f"{self.done}/{total}"
+        return f"{self.label} {body}" if self.label else body
+
+    def draw(self):
+        """バーの値とステータスを更新し、通知先があればテキスト表示と同じ文字列を渡す。
+
+        Returns:
+            str: notifyへ渡した表示文字列。
+
+        Raises:
+            ProgressCancelled: Escキーで中止された場合。
+        """
+        # Maya外でもこのモジュールを読み込めるよう、バーを使う時にだけ読み込む。
+        from maya import cmds
+        if not self.begun:
+            self.begun = True
+            # 入れ子の progressBar() が同じバーを開き直さないよう、表示中は使用中として登録する。
+            _active_bars.add(self.bar)
+            maximum = max(self.total or 0, 1)
+            cmds.progressBar(self.bar, edit=True, beginProgress=True, isInterruptable=True,
+                             status=self.status(), minValue=0, maxValue=maximum)
+            cmds.progressBar(self.bar, edit=True, progress=0)
+        else:
+            if cmds.progressBar(self.bar, query=True, isCancelled=True):
+                raise ProgressCancelled(f"Progress cancelled at {self.done}")
+            progress = 0 if self.total is None else min(self.done, max(self.total, 1))
+            cmds.progressBar(self.bar, edit=True, progress=progress, status=self.status())
+        text = self.render()
+        if self.notify is not None:
+            self.notify(text)
+        return text
+
+    def finish(self, quiet=False):
+        """``endProgress`` でバーを閉じる。
+
+        Args:
+            quiet (bool): True なら、閉じる処理で起きた ``Exception`` を送出せずに捨てる。
+
+        Returns:
+            None: 値を返さない。
+        """
+        # Maya外でもこのモジュールを読み込めるよう、バーを使う時にだけ読み込む。
+        from maya import cmds
+        try:
+            if self.begun:
+                cmds.progressBar(self.bar, edit=True, endProgress=True)
+        except Exception:
+            if not quiet:
+                raise
+        finally:
+            _active_bars.discard(self.bar)
+
+
+#: 現在 progressBar() が使用中のメインプログレスバー。入れ子の反復はテキスト表示へ切り替える。
+_active_bars = set()
+
+
+def _main_progress_bar():
+    """Maya GUIで使えるメインプログレスバーのコントロール名を返す。
+
+    Returns:
+        str | None: ``$gMainProgressBar`` の名前。Mayaの外・バッチ・mayapy・バーが無い場合は None。
+    """
+    try:
+        # Maya外(通常のPython)でも動くよう、表示先の判定時にだけ読み込む。
+        from maya import cmds, mel
+    except ImportError:
+        return None
+    try:
+        if cmds.about(batch=True):
+            return None
+        bar = mel.eval("global string $gMainProgressBar; $mlibMainProgressBar = $gMainProgressBar;")
+        if bar and cmds.progressBar(bar, exists=True):
+            return bar
+    except (AttributeError, RuntimeError):
+        return None
+    return None
+
+
 def _track(iterable, line):
     """要素を順に返しながら、line の件数更新と描画を行うジェネレーター。
 
@@ -173,8 +298,14 @@ def _track(iterable, line):
         line.finish()
 
 
-def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify=None):
-    """要素を同じ順序で返しながら、処理済み件数をテキスト1行へ描画する。
+def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify=None, gui=None):
+    """要素を同じ順序で返しながら、処理済み件数をMayaのプログレスバーまたはテキスト1行へ描画する。
+
+    Maya GUIで ``stream`` を省略した場合は、メインプログレスバー(``$gMainProgressBar``)へ件数と
+    見出しを表示し、Script Editorへは書き込まない。Escキーで中止でき、中止すると次の要素を返す前に
+    :class:`ProgressCancelled` (``KeyboardInterrupt`` の派生)を送出してバーを閉じる。処理済みの
+    変更は戻さない。バッチ・mayapy・Maya外・``stream`` 指定時、または別の progressBar() がバーを
+    使用中の入れ子の反復は、従来どおりテキスト1行へ描画する。
 
     引数検証とlen()は呼出し時に行い、要素の取出しと描画は反復時に行う。
     最初の要素を取り出すと0件を表示し、次の要素を要求するたびに1件進む。
@@ -190,7 +321,9 @@ def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify
         stream (TextIO | None): write/任意のflushを持つ出力先。Noneは呼出し時のsys.stdout。
             行頭復帰を解釈しない出力先では描画が上書きされない場合がある。
         notify (Callable[[str], object] | None): 各描画の文字列を同期で受け取る。改行/行頭復帰は含まない。
-            戻り値は無視し、必要な通知の間引きは呼出し側で行う。
+            戻り値は無視し、必要な通知の間引きは呼出し側で行う。プログレスバー表示時も同じ文字列を渡す。
+        gui (bool | None): Noneは自動(Maya GUIかつstream省略時にプログレスバー)。Trueはプログレスバーを
+            要求し、使えない場合はRuntimeError。Falseは常にテキスト。表示先は呼出し時に決める。
 
     Returns:
         Iterator: 元の要素を保持順に返すジェネレーター。
@@ -198,6 +331,8 @@ def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify
     Raises:
         TypeError: labelの型、width/totalの整数型が不正な場合。boolは整数指定として拒否する。
         ValueError: widthが1未満、またはtotalが負の場合。
+        RuntimeError: gui=Trueでメインプログレスバーが使えない(バッチ・使用中等)場合。
+        ProgressCancelled: 反復中にプログレスバーがEscキーで中止された場合。
 
     Examples:
         >>> import io
@@ -224,6 +359,19 @@ def progressBar(iterable, *, label="", total=None, width=30, stream=None, notify
         raise TypeError(f"total must be an int or None, got {type(total).__name__}")
     elif total < 0:
         raise ValueError(f"total must not be negative, got {total}")
+
+    if gui is not None and not isinstance(gui, bool):
+        raise TypeError(f"gui must be a bool or None, got {type(gui).__name__}")
+
+    bar = None
+    if gui or (gui is None and stream is None):
+        bar = _main_progress_bar()
+        if bar in _active_bars:
+            bar = None
+        if bar is None and gui:
+            raise RuntimeError("Maya main progress bar is not available")
+    if bar is not None:
+        return _track(iterable, _MainProgressBar(label, total, width, bar, notify))
 
     if stream is None:
         stream = sys.stdout

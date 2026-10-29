@@ -3,16 +3,93 @@
 import math
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
-from ..decorator import _require_bool
-from ..util import _world_space
+from ..core import geometryEdit as geometry_edit
+from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..util import _finite_vector, _world_space
+from .node import Node
 from .shape import Shape
+
+#: 点として受け付ける、wを持つom2の型。XYZだけを使い、wでは割らない。
+_OM2_POINTS = (om2.MPoint, om2.MFloatPoint)
 
 
 class NurbsCurve(Shape):
-    """NURBS カーブの形状情報を提供するシェイプラッパー。"""
+    """NURBS カーブの形状情報を提供するシェイプラッパー。
+
+    点列からの作成は :meth:`create`、CV位置の一括書込みは :meth:`setCvPositions` を使う。
+    CV(:class:`~mlib.components.cv.CV`)の参照は読み取り専用。
+    """
+
+    @classmethod
+    def create(cls, points, degree=1, closed=False, name=None, parent=None):
+        """点列からNURBSカーブを作成し、そのシェイプを返す(``cmds.curve`` の特化ビルダー)。
+
+        点をそのままCVにする(通過点の補間ではない)。開いたカーブは ``cmds.curve`` の既定ノット、
+        ``closed=True`` は先頭 ``degree`` 個のCVを末尾へ重ねた周期カーブ(``getForm()`` が
+        ``om2.MFnNurbsCurve.kPeriodic``)にする。形状のライブラリは持たない。作成・親子付けを1回のUndoにまとめ、現在の選択は変更しない。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CVの位置。各点は3個の
+                有限な数値(boolを除く)。MPointはwで割らずにXYZを使う。距離はMaya APIの内部単位(cm)で、
+                現在のUI単位に依存しない。カーブのTransform(作成時は単位マトリクス)のローカル座標。
+            degree (int): 次数。1・2・3のいずれか。既定1。
+            closed (bool): Trueなら閉じたカーブにする。既定False。
+            name (str | None): Transformの希望名。シェイプは ``<名前>Shape``。Noneは
+                Mayaの既定名(``curve1`` 等)。衝突時はMayaが一意名にする。
+            parent (Node | str | None): Transformの親。Noneはワールド直下。親のローカル空間に
+                単位マトリクスで置くため、点は親の空間の座標になる。
+
+        Returns:
+            NurbsCurve: 作成したカーブのシェイプ。Transformは ``getTransform()`` で取得する
+                (``mlib.createNode("nurbsCurve")`` と同じくシェイプを返す)。
+
+        Raises:
+            TypeError: points・degree・closed・nameの型が不正、または点の成分が数値でない場合。
+            ValueError: degreeが1〜3でない、点の成分数が3でない・有限でない、または点の数が
+                不足する場合(開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)。
+            RuntimeError: 親が無効な場合、またはMayaが作成を拒否した場合。
+        """
+        values = _point_list(points)
+        if isinstance(degree, bool) or not isinstance(degree, int):
+            raise TypeError("degree must be an int")
+        if degree not in (1, 2, 3):
+            raise ValueError(f"degree must be 1, 2 or 3, got {degree}")
+        _require_bool(closed, "closed")
+        if name is not None and not isinstance(name, str):
+            raise TypeError("name must be a str or None")
+        if closed:
+            if len(values) < max(3, degree):
+                raise ValueError(f"A closed curve of degree {degree} needs at least {max(3, degree)} points")
+        elif len(values) < degree + 1:
+            raise ValueError(f"An open curve of degree {degree} needs at least {degree + 1} points")
+        parent_node = None if parent is None else Node._resolve_input(parent)
+        flags = {"degree": degree}
+        if closed:
+            count = len(values)
+            values = values + values[:degree]
+            # 周期カーブのノットは重なるCVの数だけ両端へはみ出す一様な列(CV数 + degree - 1 個)。
+            flags["periodic"] = True
+            flags["knot"] = [float(knot) for knot in range(-(degree - 1), count + degree)]
+        if name:
+            flags["name"] = name
+        with undoTransaction("mlibNurbsCurveCreate"), preservedSelection():
+            # cmds.curveの座標は現在のUI単位で解釈されるため、内部単位(cm)へ切り替えて渡す。
+            with nativeUnits():
+                transform = cmds.curve(point=values, **flags)
+            transform = cmds.ls(transform, long=True)[0]
+            if parent_node is not None:
+                transform = cmds.parent(transform, parent_node.getFullName(), relative=True)[0]
+                transform = cmds.ls(transform, long=True)[0]
+            shape = cmds.listRelatives(transform, shapes=True, fullPath=True, type="nurbsCurve")[0]
+            if name:
+                # cmds.curveはTransformだけを命名するため、シェイプを <Transform名>Shape へそろえる。
+                shape = cmds.rename(shape, transform.rsplit("|", 1)[-1] + "Shape")
+                shape = cmds.ls(transform + "|" + shape.rsplit("|", 1)[-1], long=True)[0]
+            return Node(shape)
 
     def getCV(self, index):
         """CV 番号から単体ラッパーを取得する。
@@ -148,6 +225,48 @@ class NurbsCurve(Shape):
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return self._geometry_fn().cvPositions(space)
 
+    def setCvPositions(self, points, worldSpace=False):
+        """全CVの位置を一度に書き込み、自身を返す。
+
+        :meth:`getCvPositions` と同じ並び・単位(内部単位cm)の点列を受け付け、``cmds.xform`` で
+        書き込んで1回のUndoにまとめる。CVの数・次数・ノット・ウェイトは変更しない。
+        周期カーブは、独立CV数(``getNumCVs() - getDegree()``)の点列か、末尾の重複CVを含む
+        ``getNumCVs()`` 個の点列(重複CVは先頭の対応CVと同じ位置であること)を受け付ける。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CV順の位置。各点は3個の
+                有限な数値。MPointはwで割らずにXYZを使う。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            NurbsCurve: 自身。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、または点の型・成分が不正な場合。
+            ValueError: 点の数がCV数と合わない、成分が有限でない、周期カーブの重複CVが先頭の
+                CVと一致しない、またはworldSpace=Trueで変換マトリクスが特異な場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+        """
+        ws = _world_space(worldSpace)
+        values = _point_list(points)
+        fn = self._geometry_fn()
+        count = fn.numCVs
+        independent = count
+        if fn.form == om2.MFnNurbsCurve.kPeriodic:
+            independent = count - fn.degree
+            if len(values) == count:
+                for index in range(independent, count):
+                    if values[index] != values[index - independent]:
+                        raise ValueError("Overlapping CVs of a periodic curve must match their first CVs")
+                values = values[:independent]
+        if len(values) != independent:
+            if independent != count:
+                raise ValueError(f"Expected {independent} or {count} points, got {len(values)}")
+            raise ValueError(f"Expected {count} points, got {len(values)}")
+        with undoTransaction("mlibNurbsCurveSetCvPositions"):
+            geometry_edit.set_positions(self, list(range(independent)), values, ws)
+        return self
+
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
@@ -198,3 +317,32 @@ class NurbsCurve(Shape):
         if not isinstance(fn, om2.MFnNurbsCurve):
             raise RuntimeError("nurbsCurve has no geometry data: %s" % self.getFullName())
         return fn
+
+
+def _point_list(points):
+    """点列を検証し、XYZのfloat tupleのリストへ変換する。
+
+    Args:
+        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
+
+    Returns:
+        list[tuple[float, float, float]]: 変換済みの点。
+
+    Raises:
+        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
+        ValueError: 成分数が3でない、または有限でない場合。
+    """
+    if isinstance(points, (str, bytes)) or isinstance(points, _OM2_POINTS + (om2.MVector,)):
+        raise TypeError("points must be an iterable of points")
+    try:
+        items = list(points)
+    except TypeError:
+        raise TypeError("points must be an iterable of points") from None
+    result = []
+    for item in items:
+        if isinstance(item, _OM2_POINTS):
+            item = (item.x, item.y, item.z)
+        elif isinstance(item, (str, bytes)):
+            raise TypeError("each point must be a sequence of 3 numbers")
+        result.append(_finite_vector(item, 3, "point"))
+    return result

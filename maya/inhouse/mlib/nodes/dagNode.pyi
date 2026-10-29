@@ -3,12 +3,15 @@
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
-from ..decorator import _edit_context, _require_bool
-from ..util import _world_space
+import maya.cmds as cmds
+from ..decorator import _edit_context, _require_bool, undoTransaction
+from ..util import _finite_vector, _world_space
 from .node import Node
+from typing import Sequence
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.skinCluster import SkinCluster
 
+_MAX_COLOR_INDEX: int
 
 
 class DagNode(Node):
@@ -250,6 +253,41 @@ class DagNode(Node):
             TypeError: fastがbool以外の場合。
         """
         ...
+    def getColor(self) -> int | tuple[float, float, float] | None:
+        """描画のオーバーライドの表示色を取得する。
+
+        Transformは直下の最初の中間でないShape、Shapeが無ければ自身を読む(:meth:`setColor` と同じ対象)。
+
+        Returns:
+            int | tuple[float, float, float] | None: ``overrideEnabled`` が無効ならNone。
+                ``overrideRGBColors`` が有効なら (r, g, b)、それ以外はカラーインデックス(0は既定色)。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setColor(self, color: int | Sequence[float]) -> DagNode:
+        """描画のオーバーライドで表示色を設定し、自身を返す。
+
+        ``overrideEnabled`` を有効にし、インデックス指定は ``overrideRGBColors`` を無効にして
+        ``overrideColor``、RGB指定は ``overrideRGBColors`` を有効にして ``overrideColorRGB`` を設定する。
+        Transformは直下の中間でないShapeへ設定し、Shapeが無いTransform(グループ・Joint等)は自身へ
+        設定する(:meth:`getColor` も同じ対象を読む)。``cmds.setAttr`` で1回のUndoにまとめ、途中で
+        失敗した場合は巻き戻す。
+
+        Args:
+            color (int | Sequence[float]): カラーインデックス(0〜31。0は既定色)、または
+                0〜1の有限な数値3個の (r, g, b)。RGBは表示色の値で、色空間の変換は行わない。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: colorがint・3個の数値の列以外(boolを含む)の場合。
+            ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        ...
     def getVisibility(self) -> bool:
         """自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
 
@@ -306,6 +344,13 @@ class DagNode(Node):
             フィルターや非表示ノード表示設定にも依存する。
         """
         ...
+    def _color_targets(self) -> list[DagNode]:
+        """:meth:`setColor`・:meth:`getColor` の対象を返す。DagNodeは自身。
+
+        Returns:
+            list[DagNode]: 表示色を設定するノード。
+        """
+        ...
     @staticmethod
     def _world_assemblies() -> list[DagNode]:
         """ワールド直下の Transform をすべて取得する。
@@ -335,3 +380,19 @@ class DagNode(Node):
             under_world: TrueはShape下のアンダーワールドも探索する。
         """
         ...
+
+def _color_value(color: int | Sequence[float]) -> tuple[int | None, tuple[float, float, float] | None]:
+    """setColorの色指定を検証する。
+
+    Args:
+        color (int | Sequence[float]): カラーインデックス、または (r, g, b)。
+
+    Returns:
+        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
+            RGB指定なら (None, (r, g, b))。
+
+    Raises:
+        TypeError: 型が不正な場合。
+        ValueError: 範囲・成分数が不正な場合。
+    """
+    ...

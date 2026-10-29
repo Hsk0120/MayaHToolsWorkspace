@@ -3,6 +3,7 @@
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+import maya.mel as mel
 from ..components.component import Component, Components
 from ..components.cv import CV, CVs
 from ..components.edge import Edge, Edges
@@ -16,6 +17,8 @@ from ..plugs.plug import Plug
 from typing import Iterator, Sequence
 
 _NAME_CHUNK: int
+_REPR_LIMIT: int
+_CHANNEL_BOX_SECTIONS: tuple
 
 
 class Selection:
@@ -71,6 +74,15 @@ class Selection:
             Node | Plug | Component | tuple: 番号に対応する単体参照、またはsliceに対応するtuple。
         """
         ...
+    def __repr__(self) -> str:
+        """デバッグ用に、型名と保持参照の repr を返す。
+
+        Returns:
+            str: ``Selection([Transform('a'), Vertex('boxShape.vtx[5]')])`` のような文字列。
+                ``_REPR_LIMIT`` 件を超える場合は先頭だけを表示し、``..., count=N`` を添える。
+                削除済みの参照は各型の無効表示(``<Transform invalid>`` 等)になる。
+        """
+        ...
     @classmethod
     def capture(cls) -> Selection:
         """Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。
@@ -79,10 +91,32 @@ class Selection:
             Selection: Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。
         """
         ...
+    @classmethod
+    def getChannelBoxPlugs(cls) -> list[Plug]:
+        """メインのChannel Boxで選択中のアトリビュートをPlugとして取得する。
+
+        Channel Boxの表示区分(オブジェクト・シェイプ・入力・出力)ごとに、選択中のアトリビュートと
+        その区分に表示中のノードを ``cmds.channelBox`` で照会し、ノードごと・アトリビュートの選択順に
+        並べる。:meth:`capture` はChannel Boxの選択を含めないため、こちらを使う。シーンは変更しない。
+
+        Returns:
+            list[Plug]: 選択中のアトリビュート。区分の順(オブジェクト→シェイプ→入力→出力)で、
+                同じ完全名は最初だけ残す。バッチ・mayapy・Channel Boxが無いGUI、または
+                選択が無い場合は空リスト。表示中のノードに存在しないアトリビュートは除く。
+        """
+        ...
     @property
     def items(self) -> list[Node | Plug | Component]:
         """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。
-        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。:meth:`getItems` と同じ値。"""
+        ...
+    def getItems(self) -> list[Node | Plug | Component]:
+        """保持順の対象を新しいリストで取得する。:attr:`items` と同じ値。
+
+        Returns:
+            list[Node | Plug | Component]: 保持順の単数参照。削除済み参照も含む。
+                リストを変更しても自身の保持内容は変わらない。
+        """
         ...
     def getNodes(self, type: str | None = ...) -> list[Node]:
         """ノードとして選ばれた対象を取得する。

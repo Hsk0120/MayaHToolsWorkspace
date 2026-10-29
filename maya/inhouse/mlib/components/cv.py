@@ -63,3 +63,13 @@ class CVs(PointComponents):
             RuntimeError: 所有シェイプが無効な場合。
         """
         return self.getFullNames()
+
+    def _repr_indices(self):
+        """repr に表示する番号を、cmds用の独立CV番号へ写して返す。
+
+        周期カーブの末尾の重複CVは先頭の独立CVと同じ名前になるため、表示では重複を除く。
+
+        Returns:
+            list[int]: 保持順で重複を除いた表示用番号。
+        """
+        return list(dict.fromkeys(command_indices(self.shape, self.indices)))

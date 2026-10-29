@@ -102,7 +102,9 @@ class Quaternion(om2.MQuaternion):
         Args:
             *args: ``()``、``(x, y, z, w)``、``(values)``、``(MQuaternion)``、
                 ``(angle, axis)``、``(a, b[, factor])`` など om2 の MQuaternion の
-                コンストラクタが受け付ける引数。
+                コンストラクタが受け付ける引数。加えて ``(EulerRotate | om2.MEulerRotation)`` は
+                ``asQuaternion()`` と同じ回転、``(Matrix | om2.MMatrix)`` は
+                ``om2.MTransformationMatrix`` で分解した回転成分(スケール・シアー・平行移動を除く)。
             **kwargs: ``x``、``y``、``z``、``w``。位置引数と合わせて使える。
                 省略した成分は (0, 0, 0, 1) の値。
 
@@ -124,6 +126,13 @@ class Quaternion(om2.MQuaternion):
             source = args[0]
             if isinstance(source, _MQuaternion):
                 self.setValue(source)
+                return
+            if isinstance(source, om2.MEulerRotation):
+                self.setValue(source.asQuaternion())
+                return
+            if isinstance(source, om2.MMatrix):
+                # スケール・シアーを除いた回転成分を、MTransformationMatrixの分解の規約で取り出す。
+                self.setValue(om2.MTransformationMatrix(source).rotation(asQuaternion=True))
                 return
             if type(source) in (tuple, list) and len(source) == 4:
                 values = source

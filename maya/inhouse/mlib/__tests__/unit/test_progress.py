@@ -8,7 +8,8 @@ import unittest
 import mlib
 mlib.reload()
 import mlib.common
-from mlib.common.progress import progressBar
+from maya import cmds
+from mlib.common.progress import ProgressCancelled, progressBar
 
 
 def _frames(output):
@@ -278,7 +279,7 @@ class ProgressBarStreamTest(unittest.TestCase):
     def test_default_stream_is_resolved_at_call_time(self):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            result = list(progressBar(["a"], width=2))
+            result = list(progressBar(["a"], width=2, gui=False))
         self.assertEqual(result, ["a"])
         self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
 
@@ -318,6 +319,103 @@ class ProgressBarValidationTest(unittest.TestCase):
     def test_options_are_keyword_only(self):
         with self.assertRaises(TypeError):
             progressBar(["a"], "label")
+
+    def test_invalid_gui_raises_immediately(self):
+        for value in (1, "yes", 0.0):
+            with self.subTest(value=value):
+                with self.assertRaises(TypeError):
+                    progressBar(["a"], gui=value)
+
+
+@unittest.skipUnless(cmds.about(batch=True), "Batch-only output selection")
+class ProgressBarBatchTest(unittest.TestCase):
+    """バッチ・mayapyでは自動でテキストを出力し、gui=Trueは使えないことを検証する。"""
+
+    def test_auto_uses_text_in_batch(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            result = list(progressBar(["a"], width=2))
+        self.assertEqual(result, ["a"])
+        self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
+
+    def test_gui_true_raises_in_batch(self):
+        with self.assertRaises(RuntimeError):
+            progressBar(["a"], gui=True)
+
+
+@unittest.skipIf(cmds.about(batch=True), "Requires Maya GUI main progress bar")
+class ProgressBarGuiTest(unittest.TestCase):
+    """Maya GUIではメインプログレスバーを使い、テキストを書かないことを検証する。"""
+
+    def setUp(self):
+        from maya import mel
+        self.bar = mel.eval("global string $gMainProgressBar; $mlibTestBar = $gMainProgressBar;")
+
+    def test_main_bar_is_used_without_text(self):
+        buffer = io.StringIO()
+        received = []
+        states = []
+        with contextlib.redirect_stdout(buffer):
+            for item in progressBar(["a", "b", "c"], label="demo", width=4, notify=received.append):
+                states.append((cmds.progressBar(self.bar, query=True, progress=True),
+                               cmds.progressBar(self.bar, query=True, maxValue=True),
+                               cmds.progressBar(self.bar, query=True, status=True)))
+        self.assertEqual(buffer.getvalue(), "")
+        self.assertEqual([state[0] for state in states], [0, 1, 2])
+        self.assertEqual({state[1] for state in states}, {3})
+        self.assertEqual(states[0][2], "demo 0/3")
+        self.assertEqual(received[-1], "demo |====| 100% 3/3")
+        self.assertEqual(len(received), 4)
+
+    def test_explicit_stream_and_gui_false_use_text(self):
+        buffer = io.StringIO()
+        list(progressBar(["a"], width=2, stream=buffer))
+        self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            list(progressBar(["a"], width=2, gui=False))
+        self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
+
+    def test_nested_progress_falls_back_to_text(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            for _ in progressBar(["outer"]):
+                inner = list(progressBar(["x"], width=2))
+                self.assertEqual(inner, ["x"])
+                with self.assertRaises(RuntimeError):
+                    progressBar(["y"], gui=True)
+        self.assertEqual(buffer.getvalue(), "\r|--|   0% 0/1\r|==| 100% 1/1\n")
+        # 外側の反復が終われば、再びメインプログレスバーを使える。
+        self.assertEqual(list(progressBar(["z"], gui=True)), ["z"])
+
+    def test_break_ends_progress(self):
+        iterator = progressBar(range(5))
+        next(iterator)
+        iterator.close()
+        # 閉じた後は同じバーを再び開ける(使用中の登録が解除されている)。
+        self.assertEqual(list(progressBar(range(2), gui=True)), [0, 1])
+
+    def test_cancel_raises_progress_cancelled(self):
+        self.assertTrue(issubclass(ProgressCancelled, KeyboardInterrupt))
+        self.assertIs(mlib.common.ProgressCancelled, ProgressCancelled)
+        processed = []
+        original = cmds.progressBar
+
+        def cancelled(*args, **kwargs):
+            # Escキーの入力は自動化できないため、中止の照会だけを差し替える。
+            if kwargs.get("query") and kwargs.get("isCancelled"):
+                return True
+            return original(*args, **kwargs)
+
+        cmds.progressBar = cancelled
+        try:
+            with self.assertRaises(ProgressCancelled):
+                for item in progressBar(range(5)):
+                    processed.append(item)
+        finally:
+            cmds.progressBar = original
+        self.assertEqual(processed, [0])
+        self.assertEqual(list(progressBar(range(2), gui=True)), [0, 1])
 
 
 if __name__ == "__main__":
