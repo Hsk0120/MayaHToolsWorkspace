@@ -85,6 +85,7 @@ class SetupSamples:
         ("planeCollision", "PlaneCollision - soft floor"),
         ("sphereCollision", "SphereCollision - soft head collider"),
         ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
+        ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
         ("cameraAngleReader", "CameraAngleReader - face and camera"),
         ("dollyZoom", "DollyZoom - camera keeps the subject size"),
@@ -950,6 +951,21 @@ class SetupSamples:
         setup = CapsuleCollision.create(control, hip, knee, name=name, startRadius=2.5, endRadius=1.8,
                                         softness=1.0)
         _output(name + "_skirtOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
+        return setup, control
+
+    @classmethod
+    def _ellipsoidCollision(cls, name, root):
+        """胸を表す楕円体のコライダー(横長・前後に薄い、少し傾けたlocator)と手のコントロール(locator)。
+        コントロールを胸へ近づけると、表面から softness の距離で出力(緑)が柔らかく止まり始め、
+        楕円体の中へは入らない。"""
+        from .setups import EllipsoidCollision
+
+        chest = _locator(name + "_chest", root, translate=(0, 8, 0))
+        mlib.getPlug(chest + ".rotateZ").set(15.0)
+        control = _locator(name + "_handCtrl", root, translate=(1, 8, 7))
+        setup = EllipsoidCollision.create(control, chest, name=name, radiusX=4.0, radiusY=5.0, radiusZ=2.5,
+                                          softness=1.0)
+        _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
 
     @classmethod

@@ -140,6 +140,9 @@
    * - CapsuleCollision - soft thigh collider
      - スカートのコントロールのlocator
      - ``translateX`` を下げて太もものカプセル(股関節と膝のlocatorを結ぶ軸、半径は股関節側2.5cm・膝側1.8cm)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、カプセルの中へは入らない。上下へ動かすと先細りの半径に沿い、軸の端より先では端の半球に沿う。膝のlocatorを動かすと軸が付いてくる。containerの ``parameter`` は軸上の位置(0〜1)。
+   * - EllipsoidCollision - soft chest collider
+     - 手のコントロールのlocator
+     - ``translateZ`` を下げて胸の楕円体(locator、横4cm・縦5cm・前後2.5cm、Zに15度傾けたもの)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、楕円体の中へは入らない。中で上下・左右へ動かすと、向きごとに違う半径の表面に沿う。胸のlocatorを回転させると軸の向きが付いてくる。containerの ``directionRadius`` は今の向きでの楕円体の半径。
    * - SpaceBlend - world, chest and hand
      - 手の空間のlocator
      - 動かすと、worldと手の空間に半分ずつ追従する出力(緑)が、手の動きの半分だけ付いてくる。containerの ``weight0`` (world)・ ``weight1`` (胸)・ ``weight2`` (手)を変えると、割合に応じて追従先が混ざる(作成時の位置からは跳ねない)。

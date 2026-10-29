@@ -124,6 +124,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-30): mlrig夜間タスク。楕円体コライダーへの柔らかい押し出し EllipsoidCollision を追加(setups/ellipsoidCollision.py。標準ノードのみ。中心のtransformの回転を軸とし、軸ごとの半径 radiusX/Y/Z。放射方向の半径 R = 1/|(lx/rx, ly/ry, lz/rz)| と d = |p-c| - R に SphereCollision と同じ柔らかい押し出し。出力 matrix・distance・push・penetration・directionRadius。逆回転はクォータニオンの共役で作り matrixNodes に依存しない)。Setup Samples 1項目、test_setup_ellipsoid_collision.py 9件、文書 docs/ellipsoid_collision.rst、検証デモ tools/demo_ellipsoid_collision.py。隔離Maya 2027で setups 569件・standard 76件OK、Sphinx -W 成功、検証動画294フレーム判定OK。コミット・プッシュ(このコミット)。
 - Claude Code (2026-10-29): mlib 5.0.0。リギング作業の使い勝手調査で決めた36項目を実装(角度の既定を度、node.tx=5 の書き込み、joint の inverseScale、nextAvailable を Maya の規則に、型名 multDL/addDL の読み替え、エラー文と Script Editor の発生場所、再実行向け safe=True、Joint.orient/mirror・IkHandle.create・BlendShape・スキンの頂点単位/ミラー/刈り込み・カーブ作成・setColor・enum の名前設定・setLimits 等)。mlrig 等の利用側も追従、logger を lowerCamelCase に(AGENTS.md も更新)。Maya 2022〜2027 の mlib 全件、mlrig 701件、静的検査、Sphinx(-W)が合格。調査と決定はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
 - Codex (2026-10-29): MCEの補完順位・Literal/TypedDict文字列候補、番号付きスニペット、位置付き型/引数ヒント、モジュール改名/import追従、新規モジュールへの移動、最後の変更セットUndo/Redoを実装。2022/2027をビルドし単体/standalone/UI回帰、専用GUI各77項目、Sphinx警告エラー化ビルド合格。2027でWindows実入力の補完/確定/Undoも確認し動画保存。複雑なスニペット形式等の制限は文書化。2023〜2026未検証。ユーザー指定でコード・テスト・文書・2022/2027配布物をコミットとプッシュの対象へ集約。他担当範囲は変更なし。
 

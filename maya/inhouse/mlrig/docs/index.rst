@@ -60,6 +60,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    plane_collision
    sphere_collision
    capsule_collision
+   ellipsoid_collision
    space_blend
    camera_angle_reader
    fk_ik_chain
