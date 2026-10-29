@@ -222,7 +222,7 @@ class JointHierarchyFastTest(unittest.TestCase):
         other = mlib.createNode("joint", name="other")
         skin = mlib.getNode(cmds.skinCluster([root.getFullName(), middle.getFullName(), other.getFullName()],
                                            mesh, toSelectedBones=True)[0])
-        skin.setWeights([root.getFullName(), middle.getFullName(), other.getFullName()], [.2, .3, .5])
+        skin.setWeights([root.getFullName(), middle.getFullName(), other.getFullName()], [.2, .3, .5], broadcast=True)
         return skin, root, middle, other
 
 

@@ -670,6 +670,27 @@ def s_skin_unnormalized(c):
     cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.3)
 
 
+def s_skin_uneven(c):
+    """頂点 0 を j0=0.9・j1=0.1 にし、X が正の頂点を j1=1 にした左右非対称のスキンを作る。"""
+    s_skin(c)
+    count = cmds.polyEvaluate(c.mesh, vertex=True)
+    for index in range(count):
+        if cmds.pointPosition("{}.vtx[{}]".format(c.mesh, index), world=True)[0] > 0:
+            # 0 を明示した要素は copySkinWeights の Undo で要素ごと消えるため、要素を除いて 0 にする。
+            cmds.removeMultiInstance("{}.weightList[{}].weights[0]".format(c.skinName, index), b=False)
+            cmds.setAttr("{}.weightList[{}].weights[1]".format(c.skinName, index), 1.0)
+    cmds.setAttr(c.skinName + ".weightList[0].weights[0]", 0.9)
+    cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.1)
+
+
+def s_skin_copy_unbound(c):
+    """スキンと、まだバインドしていない 2 つ目のメッシュを作る。"""
+    s_skin(c)
+    c.mesh2 = cmds.ls(cmds.polyCube(name="skinMesh2", subdivisionsY=2, constructionHistory=False)[0],
+                      long=True)[0]
+    cmds.select(clear=True)
+
+
 def s_skin_posed(c):
     """j1 を回したスキンを作る。"""
     s_skin(c)
@@ -1127,7 +1148,17 @@ CASES = [
     C("SkinCluster.removeInvalidWeights", "SkinCluster.removeInvalidWeights", s_skin_invalid,
       lambda c, **kw: c.skin.removeInvalidWeights(**kw)),
     C("SkinCluster.setWeights", "SkinCluster.setWeights", s_skin,
-      lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [0.25, 0.75], **kw)),
+      lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [0.25, 0.75], broadcast=True, **kw)),
+    C("SkinCluster.setWeights", "SkinCluster.setWeights vertices normalize", s_skin,
+      lambda c, **kw: c.skin.setWeights([c.j0], [0.25, 0.5], vertices=[0, 1], normalize=True, **kw)),
+    C("SkinCluster.setVertexWeights", "SkinCluster.setVertexWeights", s_skin,
+      lambda c, **kw: c.skin.setVertexWeights(0, {c.j0: 0.3}, **kw)),
+    C("SkinCluster.mirrorWeights", "SkinCluster.mirrorWeights", s_skin_uneven,
+      lambda c, **kw: c.skin.mirrorWeights()),
+    C("SkinCluster.pruneWeights", "SkinCluster.pruneWeights", s_skin_uneven,
+      lambda c, **kw: c.skin.pruneWeights(0.2)),
+    C("SkinCluster.copyWeightsTo", "SkinCluster.copyWeightsTo unbound mesh", s_skin_copy_unbound,
+      lambda c, **kw: c.skin.copyWeightsTo(c.mesh2)),
     C("SkinCluster.loadWeights", "SkinCluster.loadWeights", s_skin_saved,
       lambda c, **kw: c.skin.loadWeights(c.path, **kw)),
     C("SkinCluster.redistributeWeights", "SkinCluster.redistributeWeights", s_skin,

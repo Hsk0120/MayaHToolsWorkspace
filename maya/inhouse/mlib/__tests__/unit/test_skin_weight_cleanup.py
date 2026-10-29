@@ -36,7 +36,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         cmds.setAttr(str(skin) + ".normalizeWeights", 0)
         cmds.setAttr(str(skin) + ".maintainMaxInfluences", False)
         if len(influences) == 3:
-            skin.setWeights(influences, [0.4, 1.0, 0.6])
+            skin.setWeights(influences, [0.4, 1.0, 0.6], broadcast=True)
         return skin
 
     def _index(self, joint, skin=None):
@@ -101,7 +101,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
     def test_cleanup_removes_negative_nan_and_infinities_without_normalization(self):
         """負値・非有限値の要素だけを除去し、1超と微小な正値を維持する。"""
         parent, child, other = [self._index(joint) for joint in (self.parent, self.child, self.other)]
-        self.skin.setWeights(self.names, [1.4, 1e-8, 0.6])
+        self.skin.setWeights(self.names, [1.4, 1e-8, 0.6], broadcast=True)
         self._inject(parent, -0.25, vertex=0)
         self._inject(child, math.nan, vertex=1)
         self._inject(other, math.inf, vertex=2)
@@ -121,7 +121,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         old_child = self._index(self.child)
         other = self._index(self.other)
         self.skin.removeInfluence(self.child, transferToParent=False)
-        self.skin.setWeights([str(self.parent), str(self.other)], [1.4, 0.6])
+        self.skin.setWeights([str(self.parent), str(self.other)], [1.4, 0.6], broadcast=True)
         self.assertNotEqual(other, 1)
         self._inject(old_child, 0.75)
         self._inject(77, 0.0)
@@ -286,7 +286,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
 
     def test_unused_force_keeps_joint_nodes_and_rejects_empty_registration(self):
         """未使用検索の型・順序を維持し、force解除とUndoでjointを保持する。"""
-        self.skin.setWeights(self.names, [1.0, 0.0, 0.0])
+        self.skin.setWeights(self.names, [1.0, 0.0, 0.0], broadcast=True)
         self._inject(77, 0.5)
         unused = self.skin.getUnusedInfluences()
         self.assertEqual([node.getUuid() for node in unused], [self.child.getUuid(), self.other.getUuid()])
@@ -298,7 +298,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(len(self.skin.getInfluences()), 3)
         self.assertIn(77, self._indices())
-        self.skin.setWeights(self.names, [0.0, 0.0, 0.0])
+        self.skin.setWeights(self.names, [0.0, 0.0, 0.0], broadcast=True)
         with self.assertRaises(ValueError):
             self.skin.removeUnusedInfluences(force=True)
         self.assertIn(77, self._indices())
