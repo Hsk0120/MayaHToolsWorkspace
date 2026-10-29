@@ -2,7 +2,6 @@
 
 import os
 import tempfile
-import math
 import unittest
 from unittest.mock import patch
 
@@ -59,7 +58,7 @@ class SplineTest(unittest.TestCase):
             self.assertAlmostEqual(sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5, 10 / 6, places=4)
         last = rig.getJoints()[-2]
         before = cmds.xform(last, query=True, worldSpace=True, matrix=True)
-        rig.controls()[-1].getPlug("ry").set(math.radians(45))
+        rig.controls()[-1].getPlug("ry").set(45)
         after = cmds.xform(last, query=True, worldSpace=True, matrix=True)
         self.assertGreater(max(abs(a - b) for a, b in zip(before, after)), 0.05)
         for mode in ("off", "serial", "parallel"):
@@ -78,7 +77,7 @@ class SplineTest(unittest.TestCase):
         handle = rig.graph().member("handle")
         self.assertIsNone(handle.getPlug('inCurve').getSource(skipConversionNodes=False))
         self.assertEqual(handle.getPlug("nodeState").get(), 2)
-        rig.getMembers("fk")[1].getPlug("rz").set(math.radians(25))
+        rig.getMembers("fk")[1].getPlug("rz").set(25)
         self.same(self.position(rig.getJoints()[3]), self.position(rig.getMembers("fk")[3]))
         rig.set_mode("ik")
         self.same(self.position(rig.getJoints()[3]), before)

@@ -10,7 +10,7 @@ from ..core.object import Object
 from ..core.registry import _inherited_node_types, _node_type_exists
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
 from ..logger import raise_with_notify
-from ..util import _ArgumentError, _UNSET
+from ..util import _ArgumentError, _UNSET, _angle_unit
 from typing import Any, Iterable, Iterator, Literal, Sequence
 from mlib.common.namespace import Namespace
 from mlib.components.component import Component
@@ -746,12 +746,13 @@ class Node(Object):
             RuntimeError: ノードが無効な場合。
         """
         ...
-    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, fast: bool = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
+    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, fast: bool = ..., unit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
         """型・既定値・フラグを指定してアトリビュートを追加する。
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
         型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
-        単位型を直接追加する場合、既定値・制限は距離cm・角度rad・時刻秒で指定する。
+        単位型を追加する場合、数値の既定値・制限は距離cm・時刻秒、角度(doubleAngle、subType="doubleAngle"の子)は
+        unitの単位(既定は度)で指定する。om2.MAngle等の単位付きの値はそのまま使う。
         通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
 
         Args:
@@ -765,6 +766,8 @@ class Node(Object):
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
+                ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -849,8 +852,9 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
-            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、またはquery/edit=True。
+            TypeError: 長短名の同時指定、fastがbool以外、またはunitが文字列以外の場合。
+            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
+                またはunitが未対応の単位名の場合。
             NotImplementedError: fastで型や定義フラグが未対応の場合。
 
         Note:
@@ -1209,7 +1213,7 @@ class Node(Object):
         """
         ...
     @staticmethod
-    def _prepare_extra_attr_definition(flags: dict, attribute_type: str | None, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None) -> tuple:
+    def _prepare_extra_attr_definition(flags: dict, attribute_type: str | None, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None, *, sub_type: str | None = ..., angle_unit: str = ...) -> tuple:
         """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
@@ -1218,6 +1222,8 @@ class Node(Object):
             child_names (Sequence[str] | None): 子のロング名。
             child_short_names (Sequence[str] | None): 子のショート名。
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
+            sub_type (str | None): 自動生成する子の共通型。doubleAngleなら子の値をradへ換算する。
+            angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
 
         Returns:
             tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。

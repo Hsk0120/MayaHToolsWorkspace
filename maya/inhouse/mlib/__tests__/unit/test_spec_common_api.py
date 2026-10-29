@@ -71,16 +71,24 @@ class UnitsSpecTest(unittest.TestCase):
             self.assertEqual(cmds.currentUnit(query=True, linear=True), unit)
 
     def test_angle_to_and_from_ui_follow_angle_unit(self):
-        """angleToUi/FromUiは度とradの設定に従い、互いに逆変換になる。"""
+        """angleToUi/FromUiは度とradの設定に従い、互いに逆変換になる。値の既定は度、unit="rad"はラジアン。"""
         cmds.currentUnit(angle="deg")
-        self.assertAlmostEqual(units.angleToUi(1.0), 57.29577951308232, places=9)
-        self.assertAlmostEqual(units.angleFromUi(180.0), 3.141592653589793, places=12)
+        self.assertAlmostEqual(units.angleToUi(1.0, unit="rad"), 57.29577951308232, places=9)
+        self.assertAlmostEqual(units.angleFromUi(180.0, unit="rad"), 3.141592653589793, places=12)
+        self.assertAlmostEqual(units.angleToUi(30.0), 30.0, places=12)
+        self.assertAlmostEqual(units.angleFromUi(30.0), 30.0, places=12)
         cmds.currentUnit(angle="rad")
-        self.assertAlmostEqual(units.angleToUi(1.25), 1.25, places=12)
-        self.assertAlmostEqual(units.angleFromUi(-0.5), -0.5, places=12)
+        self.assertAlmostEqual(units.angleToUi(1.25, unit="rad"), 1.25, places=12)
+        self.assertAlmostEqual(units.angleFromUi(-0.5, unit="radians"), -0.5, places=12)
+        self.assertAlmostEqual(units.angleToUi(180.0), 3.141592653589793, places=12)
+        self.assertAlmostEqual(units.angleFromUi(3.141592653589793, unit="degrees"), 180.0, places=9)
         self.assertEqual(cmds.currentUnit(query=True, angle=True), "rad")
         cmds.currentUnit(angle="deg")
         self.assertAlmostEqual(units.angleFromUi(units.angleToUi(2.0)), 2.0, places=12)
+        with self.assertRaises(ValueError):
+            units.angleToUi(1.0, unit="grad")
+        with self.assertRaises(TypeError):
+            units.angleFromUi(1.0, unit=1)
 
     def test_seconds_per_frame_follows_time_unit(self):
         """secondsPerFrameは現在の時間単位の1フレームの秒数を返す。"""
@@ -96,7 +104,7 @@ class UnitsSpecTest(unittest.TestCase):
         cmds.currentUnit(linear="ft", angle="deg")
         self.assertAlmostEqual(units.distanceToUi(100.0),
                                om2.MDistance(100.0, om2.MDistance.kCentimeters).asUnits(om2.MDistance.kFeet))
-        self.assertAlmostEqual(units.angleToUi(0.3),
+        self.assertAlmostEqual(units.angleToUi(0.3, unit="rad"),
                                om2.MAngle(0.3, om2.MAngle.kRadians).asUnits(om2.MAngle.kDegrees))
 
     def test_convert_distance_names_and_defaults(self):

@@ -252,8 +252,8 @@ class OverShoulderCamera(TwistDistribution):
         owner = self.container
         owner.addAttr(longName="distance", attributeType="doubleLinear", defaultValue=distance, minValue=1e-4,
                       keyable=True)
-        owner.addAttr(longName="angle", attributeType="doubleAngle", defaultValue=math.radians(values["angle"]),
-                      minValue=0.0, maxValue=math.pi / 2.0, keyable=True)
+        owner.addAttr(longName="angle", attributeType="doubleAngle", defaultValue=values["angle"],
+                      minValue=0.0, maxValue=90.0, keyable=True)
         owner.addAttr(longName="height", attributeType="doubleLinear", defaultValue=values["height"], keyable=True)
         for key in ("side", "screenX", "screenY"):
             owner.addAttr(longName=key, attributeType="double", defaultValue=values[key], minValue=-1.0,

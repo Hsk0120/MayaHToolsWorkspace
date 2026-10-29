@@ -48,6 +48,7 @@ import math
 import re
 from functools import partial
 import maya.api.OpenMaya as om2
+from ..util import _angle_unit
 from typing import Any, Callable
 
 __all__ = ['attributeType', 'is_internal_data_type', 'typed_data', 'value_reader']
@@ -62,6 +63,7 @@ _ADD_ATTR_TYPE_NAMES: dict
 _PUBLIC_DATA_TYPES: Any
 _ADD_ATTR_DATA_TYPE: Any
 _ADD_ATTR_ATTRIBUTE_TYPE: Any
+_SELF_UNIT_VALUES: tuple
 
 def _add_attr_type_name(attribute: om2.MObject) -> str | None:
     """``MFnAttribute.getAddAttrCmd()`` の型指定から型名を求める。
@@ -163,6 +165,52 @@ def _convert_units(plug: om2.MPlug, value: object, to_ui: bool = ...) -> Any:
 
     Raises:
         RuntimeError: 単位アトリビュートへ数値以外(文字列・None等)を指定した場合。
+    """
+    ...
+
+def _plain_angle_unit(unit: str | None, ui_units: bool) -> str | None:
+    """get/setの ``unit`` と ``uiUnits`` から、数値の角度の単位を決める。
+
+    Args:
+        unit (str | None): 角度の単位名。Noneは度。
+        ui_units (bool): Trueは現在のUI単位を使う(unitとは同時指定できない)。
+
+    Returns:
+        str | None: ``"deg"`` / ``"rad"``。uiUnits=TrueではNone(UI単位の換算に任せる)。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名、またはuiUnits=Trueとunitを同時に指定した場合。
+    """
+    ...
+
+def _is_angle_attribute(attribute: om2.MObject) -> bool:
+    """角度の単位アトリビュート(doubleAngle・floatAngle)か判定する。
+
+    Args:
+        attribute (om2.MObject): アトリビュート定義。
+
+    Returns:
+        bool: 角度の単位アトリビュートならTrue。
+    """
+    ...
+
+def _convert_angles(plug: om2.MPlug, value: object, unit: str | None, to_internal: bool = ...) -> Any:
+    """角度アトリビュートの数値を、指定単位とラジアン(内部単位)の間で換算する。
+
+    コンパウンドアトリビュートは子の定義ごとに換算し、角度以外の子・型付きの値
+    (EulerRotate・Quaternion・MAngle・マトリクス等の単位を持つ値)・数値以外はそのまま返す。
+    成分数が子数と違う入力も換算せず、検証は書込み側に任せる。
+
+    Args:
+        plug (om2.MPlug): 型を判定するプラグ。
+        value (object): 換算する値。
+        unit (str | None): ``"deg"`` / ``"rad"``。``"rad"`` とNoneは換算しない。
+        to_internal (bool): Trueは指定単位からrad、Falseはradから指定単位。
+
+    Returns:
+        object: 換算した値。換算した成分を含むコンパウンドアトリビュートはtuple、
+            換算の無い値は入力そのもの。
     """
     ...
 

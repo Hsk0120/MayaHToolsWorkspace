@@ -5,7 +5,8 @@ import operator
 from contextlib import nullcontext
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
+from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, is_internal_data_type
+from ..core.attributeType import value_reader
 from ..decorator import _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 from typing import Iterator
@@ -67,21 +68,24 @@ class MultiPlug(Plug):
             Iterator[Plug]: 作成時に集めた要素参照の反復子。
         """
         ...
-    def get(self, *, uiUnits: bool = ...) -> dict[int, object]:
+    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> dict[int, object]:
         """既存要素の値を、論理番号をキーとするdictで取得する。
 
         getElements()の各要素でget()を呼ぶため、値取得に伴うDG評価が発生し得る。
         番号は詰め直さず、コンパウンドアトリビュートや配列型の要素値も平坦化しない。
 
         Args:
-            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは内部単位。
+            unit (str | None): 各要素のgetへ渡す角度の単位。None(既定)は度、``"rad"`` はラジアン。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは角度が度、距離cm、時間秒。
 
         Returns:
             dict[int, object]: 新しいdict。値の型・単位は各要素のgetに従う。
                 worldSpaceアトリビュートは、DAGインスタンス番号の要素も含む。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または要素値を取得できない場合。
         """
         ...

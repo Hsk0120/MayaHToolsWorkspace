@@ -778,7 +778,7 @@ def build_limb(definition=None, backend="standard"):
             keyable=True,
         )
         # preferredAngleで伸び切った初期チェーンの曲げ平面を定義する。
-        mlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(math.radians(-10))
+        mlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(-10)
         handle, effector = cmds.ikHandle(
             startJoint=rig._member("ik0"),
             endEffector=rig._member("ik2"),

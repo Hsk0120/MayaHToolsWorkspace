@@ -103,9 +103,11 @@ class CompoundDirectReadTest(unittest.TestCase):
             for name in self.names:
                 plug = self.wrapper.getPlug(name)
                 with self.subTest(name=name, linear=linear):
-                    self.assert_values_equal(tuple(plug.get()), self.child_values(plug))
+                    # rotateのEulerRotateは内部rad。子のget()と同じ度の数値はunit="deg"で取得する。
+                    options = {"unit": "deg"} if name == "rotate" else {}
+                    self.assert_values_equal(tuple(plug.get(**options)), self.child_values(plug))
                     # 同じPlugで2回目(読取関数を保持した後)も現在値を読み直す。
-                    self.assert_values_equal(tuple(plug.get()), self.child_values(plug))
+                    self.assert_values_equal(tuple(plug.get(**options)), self.child_values(plug))
                     ui = plug.get(uiUnits=True)
                     self.assertEqual(tuple(ui), tuple(child.get(uiUnits=True) for child in plug.getChildren()))
 
@@ -262,7 +264,7 @@ class CompoundBulkSetTest(unittest.TestCase):
         cmds.currentUnit(linear="mm", angle="deg")
         node.translate.set((1.0, 2, -3.5))
         self.assertEqual(self.values("translate"), [10.0, 20.0, -35.0])
-        node.rotate.set((0.5, 0.25, 0.125))
+        node.rotate.set((0.5, 0.25, 0.125), unit="rad")
         for actual, expected in zip(self.values("rotate"), (0.5, 0.25, 0.125)):
             self.assertAlmostEqual(om2.MAngle(actual, om2.MAngle.kDegrees).asRadians(), expected)
         node.getPlug("vecD").set((1.5, 2.5, 3.5))
@@ -766,7 +768,7 @@ class UndoTransactionNestingTest(unittest.TestCase):
                     self.created.append(md.getFullName())
                     node.getPlug("tx").connect(md.getPlug("input1X"))
                 with undoTransaction("mlibSpeedupInnerTx"):
-                    node.getPlug("rx").set(0.5)
+                    node.getPlug("rx").set(0.5, unit="rad")
         # 入れ子のundoTransactionは独立したチャンクを維持し、undoChunkだけ開かない。
         self.assertEqual(names, ["mlibSpeedupOuterTx", "mlibSpeedupInnerTx"])
         self.assertIs(_chunk_active.get(), False)
@@ -942,7 +944,7 @@ class MultiAndWeightRunTest(unittest.TestCase):
             for attr in ("rotate", "rotateAxis", "jointOrient"):
                 order = node._rotate_order() if attr == "rotate" else om2.MEulerRotation.kXYZ
                 try:
-                    expected = om2.MEulerRotation(*tuple(node.getPlug(attr).get()), order).asQuaternion()
+                    expected = om2.MEulerRotation(*tuple(node.getPlug(attr).get(unit="rad")), order).asQuaternion()
                 except Exception as exc:  # noqa: BLE001
                     with self.assertRaises(type(exc)) as caught:
                         node._component_quaternion(attr)

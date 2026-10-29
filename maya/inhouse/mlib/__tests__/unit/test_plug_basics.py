@@ -235,7 +235,7 @@ class PlugBasicsTest(unittest.TestCase):
                 self.assertEqual(array.get(), {4: 11})
 
     def test_internal_distance_and_angle_values_survive_ui_unit_changes(self):
-        """UIのm/mm・rad/degへ切り替えても内部cm/radとUI値を区別する。"""
+        """UIのm/mm・rad/degへ切り替えても、既定(cm・度)とUI値を区別する。"""
         transform = self.make("transform")
         distance, angle = transform.getPlug("tx"), transform.getPlug("rx")
         for fast in (False, True):
@@ -243,11 +243,12 @@ class PlugBasicsTest(unittest.TestCase):
                 with self.subTest(fast=fast, linear=linear, angle=angular):
                     cmds.currentUnit(linear=linear, angle=angular)
                     distance.set(100, fast=fast)
-                    angle.set(math.pi / 2, fast=fast)
+                    angle.set(90, fast=fast)
                     self.assertAlmostEqual(cmds.getAttr(distance.getFullName()), ui_distance)
                     self.assertAlmostEqual(cmds.getAttr(angle.getFullName()), ui_angle)
                     self.assertAlmostEqual(distance.get(), 100)
-                    self.assertAlmostEqual(angle.get(), math.pi / 2)
+                    self.assertAlmostEqual(angle.get(), 90)
+                    self.assertAlmostEqual(angle.get(unit="rad"), math.pi / 2)
                     self.assertAlmostEqual(distance.get(uiUnits=True), ui_distance)
                     self.assertAlmostEqual(angle.get(uiUnits=True), ui_angle)
 

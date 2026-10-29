@@ -92,7 +92,7 @@ class SplineRig:
         groups["ik"].getPlug("visibility").set(False)
         groups["setup"].getPlug("visibility").set(False)
         rig = cls(root)
-        angle = math.pi / 2
+        angle = 90  # jointOrientの数値は度。
         orient = {"x": (0, 0, 0), "y": (0, 0, angle), "z": (0, -angle, 0)}[axis]
         for role in ("fk", "ik", "deform"):
             parent = groups[role]
@@ -284,7 +284,8 @@ class SplineRig:
                         if locked:
                             joint.setAttrFlags([attr + axis], locked=False)
                         try:
-                            plug.set(value)
+                            # rotateはEulerRotate(rad)の成分のため、単位を明示する。
+                            plug.set(value, unit="rad")
                         finally:
                             if locked:
                                 joint.setAttrFlags([attr + axis], locked=True)
@@ -345,7 +346,7 @@ class SplineRig:
                 local_rotation = Matrix(rest.inverse() * rotation * parent_inverse).euler
                 local_rotation.reorderIt(control.getPlug("rotateOrder").get())
                 for a, value in zip("XYZ", local_rotation):
-                    control.getPlug("rotate" + a).set(value)
+                    control.getPlug("rotate" + a).set(value, unit="rad")
         mode = self.mode()
         try:
             self.set_mode("ik")

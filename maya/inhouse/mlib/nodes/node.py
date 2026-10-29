@@ -11,7 +11,7 @@ from ..core.object import Object
 from ..core.registry import _inherited_node_types, _node_type_exists
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
 from ..logger import raise_with_notify
-from ..util import _ArgumentError, _UNSET
+from ..util import _ArgumentError, _UNSET, _angle_unit
 
 #: om2の数値データ型からaddAttrの型名への対応(moveAttrOrderでの再作成に使う)。
 _MOVABLE_NUMERIC_TYPES = {
@@ -1231,7 +1231,8 @@ class Node(Object):
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
-        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, fast=False, attributeType=_UNSET,
+        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, fast=False, unit="deg",
+        attributeType=_UNSET,
         at=_UNSET, binaryTag=_UNSET, bt=_UNSET, cachedInternally=_UNSET, ci=_UNSET, category=_UNSET, ct=_UNSET,
         dataType=_UNSET, dt=_UNSET, defaultValue=_UNSET, dv=_UNSET, disconnectBehaviour=_UNSET, dcb=_UNSET,
         edit=_UNSET, e=_UNSET, enforcingUniqueName=_UNSET, eun=_UNSET, enumName=_UNSET, en=_UNSET, exists=_UNSET,
@@ -1248,7 +1249,8 @@ class Node(Object):
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
         型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
-        単位型を直接追加する場合、既定値・制限は距離cm・角度rad・時刻秒で指定する。
+        単位型を追加する場合、数値の既定値・制限は距離cm・時刻秒、角度(doubleAngle、subType="doubleAngle"の子)は
+        unitの単位(既定は度)で指定する。om2.MAngle等の単位付きの値はそのまま使う。
         通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
 
         Args:
@@ -1262,6 +1264,8 @@ class Node(Object):
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
+                ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -1346,8 +1350,9 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
-            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、またはquery/edit=True。
+            TypeError: 長短名の同時指定、fastがbool以外、またはunitが文字列以外の場合。
+            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
+                またはunitが未対応の単位名の場合。
             NotImplementedError: fastで型や定義フラグが未対応の場合。
 
         Note:
@@ -1428,6 +1433,7 @@ class Node(Object):
         if usedAsProxy is not _UNSET:
             kwargs["usedAsProxy"] = usedAsProxy
         channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
+        angle_unit = _angle_unit(unit)
         with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
             flags = {key: value for key, value in kwargs.items()
@@ -1448,7 +1454,7 @@ class Node(Object):
                 type = proxy.getType()
                 flags["usedAsProxy"] = True
             numeric, count, deferred = self._prepare_extra_attr_definition(
-                flags, type, childNames, childShortNames, childSuffixes)
+                flags, type, childNames, childShortNames, childSuffixes, sub_type=subType, angle_unit=angle_unit)
             prepared = self._create_extra_attr_definition(
                 name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType, fast=fast)
             if not getPlug and (deferred is None or count) and not show and proxy is None:
@@ -2089,7 +2095,8 @@ class Node(Object):
         return dag_path
 
     @staticmethod
-    def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes):
+    def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes, *,
+                                       sub_type=None, angle_unit="rad"):
         """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
@@ -2098,6 +2105,8 @@ class Node(Object):
             child_names (Sequence[str] | None): 子のロング名。
             child_short_names (Sequence[str] | None): 子のショート名。
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
+            sub_type (str | None): 自動生成する子の共通型。doubleAngleなら子の値をradへ換算する。
+            angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
 
         Returns:
             tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。
@@ -2136,6 +2145,20 @@ class Node(Object):
         deferred = None
         if count or flags.get("dataType"):
             deferred = flags.pop("defaultValue", None)
+        if count and sub_type == "doubleAngle" and angle_unit != "rad":
+            # 角度の子へ配る範囲・既定値をここで一度だけradへ換算し、子のaddAttrにはunit="rad"で渡す。
+            def to_radians(value):
+                """数値・数値列の角度をradへ換算する。単位付きの値はそのまま返す。"""
+                if isinstance(value, (tuple, list)):
+                    return type(value)(to_radians(item) for item in value)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    return om2.MAngle(value, om2.MAngle.kDegrees).asRadians()
+                return value
+            for flag in ("minValue", "maxValue", "softMinValue", "softMaxValue"):
+                if flag in flags:
+                    flags[flag] = to_radians(flags[flag])
+            deferred = to_radians(deferred)
+        angle_input = om2.MAngle.kDegrees if angle_unit == "deg" else om2.MAngle.kRadians
         unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
                 "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
                 "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
@@ -2144,7 +2167,8 @@ class Node(Object):
             for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
                 if flag in flags:
                     value = flags[flag]
-                    quantity = value if isinstance(value, cls) else cls(value, internal)
+                    source = angle_input if cls is om2.MAngle else internal
+                    quantity = value if isinstance(value, cls) else cls(value, source)
                     flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
         return numeric, count, deferred
 
@@ -2183,7 +2207,8 @@ class Node(Object):
                 flags.pop(key, None)
             cmds.addAttr(self.getFullName(), **flags)
             for child_name, child_type, child_flags in children:
-                self.addAttr(child_name, child_type, getPlug=False, fast=fast, **child_flags)
+                # 角度の子の値は_prepare_extra_attr_definitionでrad換算済み。
+                self.addAttr(child_name, child_type, getPlug=False, fast=fast, unit="rad", **child_flags)
         else:
             cmds.addAttr(self.getFullName(), **flags)
 

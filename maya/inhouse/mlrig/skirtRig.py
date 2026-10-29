@@ -141,7 +141,7 @@ class SkirtRig:
                 offset.getPlug("translate").set(
                     (radius * math.cos(angle), 0, radius * math.sin(angle))
                 )
-                offset.getPlug("rotateY").set(-angle)
+                offset.getPlug("rotateY").set(-angle, unit="rad")
                 parent = offset
                 for depth in range(joints_per_chain):
                     joint = mlib.createNode(
@@ -181,7 +181,7 @@ class SkirtRig:
                 rest.getPlug("translate").set(
                     (radius * math.cos(angle), -spacing * depth, radius * math.sin(angle))
                 )
-                rest.getPlug("rotateY").set(-angle)
+                rest.getPlug("rotateY").set(-angle, unit="rad")
                 constraint = joint.addConstraint(
                     [rest, drivers[indices[0]][depth], drivers[indices[1]][depth]],
                     maintainOffset=True,

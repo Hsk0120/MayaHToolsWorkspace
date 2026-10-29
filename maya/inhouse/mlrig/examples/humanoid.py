@@ -277,13 +277,14 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
             if not isinstance(joint, Joint):
                 continue
             orient = joint.getPlug("jointOrient")
-            values = tuple(orient.get())
+            # 等価解の判定はラジアンで行う。
+            values = tuple(orient.get(unit="rad"))
             # 行列の丸めで右大腿の-180度が+180度側へ出るのを避ける。
             # 2πだけずらす等価なEuler値なので、姿勢や子の位置は変えない。
             adjusted = tuple(value - 2 * math.pi if abs(value - math.pi) < 1e-7 else value
                              for value in values)
             if adjusted != values:
-                orient.set(adjusted)
+                orient.set(adjusted, unit="rad")
     for name in list(joints):
         if name.endswith("_l"):
             right = name[:-2]+"_r"

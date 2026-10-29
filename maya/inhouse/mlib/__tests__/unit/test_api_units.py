@@ -23,27 +23,28 @@ class ApiUnitsTest(unittest.TestCase):
         cmds.currentUnit(linear="cm", angle="deg", time="film")
 
     def test_scalar_compound_roundtrip_and_undo(self):
-        """単位型のスカラー・コンパウンドアトリビュートの値はrad/cm/秒で往復する。"""
+        """単位型のスカラー・コンパウンドアトリビュートの値は度/cm/秒で往復する(unit="rad"はラジアン)。"""
         node = mlib.createNode("transform")
         time = node.addAttr("sampleTime", attributeType="time")
         for linear, angle, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
             cmds.currentUnit(linear=linear, angle=angle, time=frame)
             for fast in (False, True):
-                node.getPlug("rx").set(math.pi / 2, fast=fast)
+                node.getPlug("rx").set(90, fast=fast)
                 node.getPlug("translate").set((25, 50, 75), fast=fast)
                 time.set(2, fast=fast)
-                self.assertAlmostEqual(node.getPlug("rx").get(), math.pi / 2)
+                self.assertAlmostEqual(node.getPlug("rx").get(), 90)
+                self.assertAlmostEqual(node.getPlug("rx").get(unit="rad"), math.pi / 2)
                 self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
                 self.assertEqual(time.get(), 2)
                 self.assertEqual(time.mplug().asMTime().asUnits(om2.MTime.kSeconds), 2)
                 self.assertAlmostEqual(mlib.getPlug(node.getPlug('rx')).get(uiUnits=True), 90 if angle == 'deg' else math.pi / 2)
                 self.assertAlmostEqual(mlib.getPlug(node.getPlug('tx')).get(uiUnits=True), 25 if linear == 'cm' else 0.25)
                 self.assertAlmostEqual(mlib.getPlug(time).get(uiUnits=True), 48 if frame == 'film' else 60)
-            node.getPlug("rx").set(.1)
+            node.getPlug("rx").set(.1, unit="rad")
             cmds.undo()
-            self.assertAlmostEqual(node.getPlug("rx").get(), math.pi / 2)
+            self.assertAlmostEqual(node.getPlug("rx").get(), 90)
             cmds.redo()
-            self.assertAlmostEqual(node.getPlug("rx").get(), .1)
+            self.assertAlmostEqual(node.getPlug("rx").get(unit="rad"), .1)
 
     def test_creation_limits_and_reset(self):
         """生成と範囲は内部単位。addAttr固有のcmds仕様も維持する。"""
@@ -101,7 +102,7 @@ class ApiUnitsTest(unittest.TestCase):
         for suffix in ("TA", "TL", "TT", "TU", "UA", "UL", "UT", "UU"):
             with self.subTest(suffix=suffix):
                 curve = mlib.createNode("animCurve" + suffix)
-                curve.setKey(0, 0).setKey(2, .5)
+                curve.setKey(0, 0).setKey(2, .5, unit="rad")
                 fn = oma2.MFnAnimCurve(curve.mnode())
                 input = fn.input(1)
                 if isinstance(input, om2.MTime):
@@ -118,8 +119,12 @@ class ApiUnitsTest(unittest.TestCase):
                     self.assertAlmostEqual(evaluated.asUnits(om2.MTime.kSeconds), .5)
                 else:
                     self.assertAlmostEqual(fn.value(1), .5)
-                self.assertAlmostEqual(curve.getKeyValues()[1], .5)
-                self.assertAlmostEqual(curve.evaluate(1), .25)
+                self.assertAlmostEqual(curve.getKeyValues(unit="rad")[1], .5)
+                self.assertAlmostEqual(curve.evaluate(1, unit="rad"), .25)
+                if suffix.endswith("A"):
+                    # 角度出力の既定は度。
+                    self.assertAlmostEqual(curve.getKeyValues()[1], math.degrees(.5))
+                    self.assertAlmostEqual(curve.evaluate(1), math.degrees(.25))
 
 
 if __name__ == "__main__":

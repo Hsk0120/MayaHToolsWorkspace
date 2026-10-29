@@ -34,6 +34,12 @@ _TYPE_CACHE_LIMIT = 256
 _OM2_TYPES = {}
 _STATEFUL_TYPES = {}
 
+#: 角度の単位名と正規化した名前。シーン操作の数値の角度は既定で度(``"deg"``)。
+_ANGLE_UNITS = {
+    "deg": "deg", "degree": "deg", "degrees": "deg",
+    "rad": "rad", "radian": "rad", "radians": "rad",
+}
+
 
 class _ArgumentError(TypeError):
     """長短引数の競合・必須値の欠落を、複数形でもTypeErrorとして伝える。"""
@@ -321,6 +327,57 @@ def _copy_state(source, target, memo=None):
         if slots:
             slots = copy.deepcopy(slots, memo)
     return _restore_state(target, state, slots)
+
+
+def _angle_unit(unit, default="deg"):
+    """角度の単位名を ``"deg"`` / ``"rad"`` へ正規化する。
+
+    Args:
+        unit (str | None): ``"deg"``・``"degree"``・``"degrees"``・``"rad"``・``"radian"``・
+            ``"radians"`` のいずれか。Noneはdefaultを使う。
+        default (str | None): unitがNoneの場合に返す値。
+
+    Returns:
+        str | None: ``"deg"`` または ``"rad"``。unitとdefaultがNoneならNone。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    if unit is None:
+        return default
+    if not isinstance(unit, str):
+        raise TypeError(f"Angle unit must be a string: {unit!r}")
+    try:
+        return _ANGLE_UNITS[unit]
+    except KeyError:
+        raise ValueError(f"Unsupported angle unit: {unit!r} (use 'deg' or 'rad')") from None
+
+
+def _to_radians(value, unit):
+    """正規化済みの単位の数値をラジアンへ変換する。
+
+    Args:
+        value (float): 角度。
+        unit (str): ``"deg"`` または ``"rad"``。
+
+    Returns:
+        float: ラジアンの値。radはそのまま返す。
+    """
+    return math.radians(value) if unit == "deg" else value
+
+
+def _from_radians(value, unit):
+    """ラジアンの数値を正規化済みの単位へ変換する。
+
+    Args:
+        value (float): ラジアンの角度。
+        unit (str): ``"deg"`` または ``"rad"``。
+
+    Returns:
+        float: 指定単位の値。radはそのまま返す。
+    """
+    return math.degrees(value) if unit == "deg" else value
 
 
 def _world_space(value):

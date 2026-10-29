@@ -243,7 +243,7 @@ Mayaの行ベクトル規約では、相対マトリクスに基準のワール�
    start = mlib.createNode("transform", name="mlibDemo_start")
    end = mlib.createNode("transform", name="mlibDemo_end")
    result = mlib.createNode("transform", name="mlibDemo_result")
-   end.setRotate((0, 90, 0), unit="deg")
+   end.setRotate((0, 90, 0))
 
    q_start = start.getQuaternion(worldSpace=True)
    q_end = end.getQuaternion(worldSpace=True)
@@ -253,7 +253,8 @@ Mayaの行ベクトル規約では、相対マトリクスに基準のワール�
    rotation_matrix = q_middle.asMatrix()
 
 ``0.5`` は2つの回転の中間です。Quaternionには角度単位を別途指定しません。
-数値で回転を渡す場合は既定がラジアンで、上の例では ``unit="deg"`` を明示しています。
+数値で回転を渡す場合は既定が度です(ラジアンは ``unit="rad"``)。EulerRotate・Quaternionは
+内部がラジアンの値で、``unit`` に関係なくそのまま渡せます。
 この例は現在の姿勢を計算するもので、アニメーションキーは作成しません。
 詳しい演算は :mod:`~mlib.maths` の各クラスを参照してください。
 

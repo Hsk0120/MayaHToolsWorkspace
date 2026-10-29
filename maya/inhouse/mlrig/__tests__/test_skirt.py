@@ -55,12 +55,12 @@ class SkirtTest(unittest.TestCase):
         rig = build_skirt()
         rest = [cmds.xform(j, query=True, worldSpace=True, matrix=True) for j in rig.getJoints()]
         drivers = rig.driver_chains()
-        drivers[0][0].getPlug("rotateX").set(math.radians(50))
-        drivers[0][1].getPlug("rotateZ").set(math.radians(15))
-        drivers[1][0].getPlug("rotateZ").set(math.radians(-30))
+        drivers[0][0].getPlug("rotateX").set(50)
+        drivers[0][1].getPlug("rotateZ").set(15)
+        drivers[1][0].getPlug("rotateZ").set(-30)
         followers = rig.chains()
-        self.assertAlmostEqual(followers[0][0].getPlug("rotateX").get(), math.radians(50), places=4)
-        self.assertAlmostEqual(followers[0][1].getPlug("rotateZ").get(), math.radians(15), places=4)
+        self.assertAlmostEqual(followers[0][0].getPlug("rotateX").get(), 50, places=4)
+        self.assertAlmostEqual(followers[0][1].getPlug("rotateZ").get(), 15, places=4)
         pose = [cmds.xform(j, query=True, worldSpace=True, matrix=True) for j in rig.getJoints()]
         rig.root.getPlug("blend").set(0)
         for joint, matrix in zip(rig.getJoints(), rest):
@@ -80,12 +80,12 @@ class SkirtTest(unittest.TestCase):
         rig.set_lod(0)
         self.assertIsNone(followers[0][0].getPlug('rotateX').getSource(skipConversionNodes=False))
         rig.set_lod(1)
-        self.assertAlmostEqual(followers[0][0].getPlug("rotateX").get(), math.radians(50), places=4)
+        self.assertAlmostEqual(followers[0][0].getPlug("rotateX").get(), 50, places=4)
 
     def test_parent_save_rename_delete(self):
         """親空間の移動・回転・一様scaleと保存後の参照を確認する。"""
         rig = build_skirt(driver_count=8, chain_count=8)
-        rig.driver_chains()[0][0].getPlug("rotateZ").set(math.radians(35))
+        rig.driver_chains()[0][0].getPlug("rotateZ").set(35)
         rotations = [cmds.getAttr(j + ".rotate")[0] for j in rig.getJoints()]
         rig.root.getPlug("translate").set((12, 5, -9))
         rig.root.getPlug("rotate").set((15, 37, -18))
@@ -103,7 +103,7 @@ class SkirtTest(unittest.TestCase):
         self.assertEqual(len(rig.chains()), 8)
         rig.set_lod(0)
         rig.set_lod(1)
-        self.assertAlmostEqual(rig.chains()[0][0].getPlug("rotateZ").get(), math.radians(35), places=4)
+        self.assertAlmostEqual(rig.chains()[0][0].getPlug("rotateZ").get(), 35, places=4)
         rig.delete()
         self.assertFalse(cmds.ls("skirt01*"))
         self.assertFalse(cmds.objExists("renamedSkirt"))
@@ -139,7 +139,7 @@ class SkirtTest(unittest.TestCase):
             )
             for value, expected in zip(position, (0, 0, 2)):
                 self.assertAlmostEqual(value, expected, places=4)
-            driver.getPlug("rotateX").set(0.5)
+            driver.getPlug("rotateX").set(0.5, unit="rad")
             self.assertAlmostEqual(cmds.getAttr(follower.getFullName() + ".rotateX"), 0.5, places=4)
             matrices = []
             for mode in ("off", "serial", "parallel"):

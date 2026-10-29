@@ -2,7 +2,6 @@
 
 from pathlib import Path
 import tempfile
-import math
 import unittest
 from unittest import mock
 
@@ -58,7 +57,7 @@ class FollowTest(unittest.TestCase):
         """スカートのドライバー入力と保存後の参照・削除を確認する。"""
         rig = build_skirt(chain_count=4)
         bone = rig.add_follow("driverHalf", ratio=0.5)
-        rig.driver_chains()[0][0].getPlug("rotateY").set(math.radians(80))
+        rig.driver_chains()[0][0].getPlug("rotateY").set(80)
         self.assertAlmostEqual(self.rotation(bone)[1], 40, places=4)
         rig.root.rename("renamed")
         with tempfile.TemporaryDirectory() as directory:
