@@ -21,7 +21,6 @@ MayaのnodeType名を返す。
 from ..decorator import _edit_context, _merge_flags
 from ..util import _UNSET
 from typing import Literal
-from mlib.nodes.addDL import AddDL
 from mlib.nodes.addDoubleLinear import AddDoubleLinear
 from mlib.nodes.aimConstraint import AimConstraint
 from mlib.nodes.animCurve import AnimCurve
@@ -34,6 +33,7 @@ from mlib.nodes.animCurveUL import AnimCurveUL
 from mlib.nodes.animCurveUT import AnimCurveUT
 from mlib.nodes.animCurveUU import AnimCurveUU
 from mlib.nodes.blendColors import BlendColors
+from mlib.nodes.blendShape import BlendShape
 from mlib.nodes.blendWeighted import BlendWeighted
 from mlib.nodes.blinn import Blinn
 from mlib.nodes.camera import Camera
@@ -53,7 +53,6 @@ from mlib.nodes.joint import Joint
 from mlib.nodes.lambert import Lambert
 from mlib.nodes.locator import Locator
 from mlib.nodes.mesh import Mesh
-from mlib.nodes.multDL import MultDL
 from mlib.nodes.multDoubleLinear import MultDoubleLinear
 from mlib.nodes.multiplyDivide import MultiplyDivide
 from mlib.nodes.node import Node
@@ -92,7 +91,7 @@ from typing import overload
 
 
 @overload
-def createNode(type: Literal["addDL"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AddDL: ...
+def createNode(type: Literal["addDL"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AddDoubleLinear: ...
 @overload
 def createNode(type: Literal["addDoubleLinear"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AddDoubleLinear: ...
 @overload
@@ -117,6 +116,8 @@ def createNode(type: Literal["animCurveUT"], *, fast: bool = ..., name: str = ..
 def createNode(type: Literal["animCurveUU"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AnimCurveUU: ...
 @overload
 def createNode(type: Literal["blendColors"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendColors: ...
+@overload
+def createNode(type: Literal["blendShape"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendShape: ...
 @overload
 def createNode(type: Literal["blendWeighted"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendWeighted: ...
 @overload
@@ -156,7 +157,7 @@ def createNode(type: Literal["locator"], *, fast: bool = ..., name: str = ..., n
 @overload
 def createNode(type: Literal["mesh"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Mesh: ...
 @overload
-def createNode(type: Literal["multDL"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultDL: ...
+def createNode(type: Literal["multDL"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultDoubleLinear: ...
 @overload
 def createNode(type: Literal["multDoubleLinear"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultDoubleLinear: ...
 @overload
@@ -237,10 +238,15 @@ def createNode(type: str, *, fast: bool = ..., name: str = ..., n: str = ..., pa
     fast=Trueは名前で既存の同型ノードを探す近似で、名前空間付きでも既存ノードを返し、同名ノードの型が
     違う場合は新しい連番名で作らず RuntimeError にする。
 
+    jointの下へ作ったjointは ``cmds.joint`` と同じく親の ``scale`` を ``inverseScale`` へ接続する
+    (通常は作成と同じ1回のUndoで戻る。fastも接続する)。2026で改名された型は、どの版でも
+    ``multDoubleLinear``/``multDL``・``addDoubleLinear``/``addDL`` のどちらの名前でも作成でき、
+    その版の実際の型のノードになる。
+
     Args:
         type (str): Mayaノード型名。
         fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-        name (str): Mayaへ渡すノード名。
+        name (str): Mayaへ渡すノード名。DAGパスの区切り ``|`` は含められない(Mayaは黙って置き換えるため拒否する)。
         n (str): nameの短縮名。同時指定はできない。
         parent (object): 親ノード。Node・Plug・Component・API参照は所有ノードの完全パスへ変換する。
         p (object): parentの短縮名。同時指定はできない。
@@ -257,8 +263,9 @@ def createNode(type: str, *, fast: bool = ..., name: str = ..., n: str = ..., pa
     Raises:
         TypeError: 長名・短名の同時指定、fastがbool以外、parentが対応しない型、
             またはcmds.createNodeに無いフラグ(query/edit等)を指定した場合。
-        ValueError: typeが空文字列・文字列以外、parent が空文字列、または削除済みの対象の場合。
-        RuntimeError: Mayaが認識しないノード型名の場合(unknownノードを残さない。版の互換名は作成できる)、
+        ValueError: typeが空文字列・文字列以外、nameに ``|`` を含む、parent が空文字列、または削除済みの対象の場合。
+        RuntimeError: Mayaが認識しないノード型名の場合(unknownノードを残さない。この版に無い型は
+            「not available in this Maya version」と示す)、
             parent を解決できない場合、fast=Trueでロック・参照された親を指定した場合、
             またはMayaが作成を拒否した場合。
         NotImplementedError: fast=Trueで未対応のフラグを指定した場合。

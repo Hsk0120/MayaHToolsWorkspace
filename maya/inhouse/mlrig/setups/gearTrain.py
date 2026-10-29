@@ -107,7 +107,8 @@ class GearTrain(TwistDistribution):
         # 駆動側の変化量(角度)。animBlendNodeAdditiveDA は角度のまま A*wA + B*wB を求める。
         delta = graph._node("animBlendNodeAdditiveDA", "driverDelta")
         driver.getPlug(channel).connectTo(delta.getPlug("inputA"))
-        delta.getPlug("inputB").set(driver.getPlug(channel).get())
+        # 角度の現在値をラジアンのまま写し、度との往復の丸めを入れない。
+        delta.getPlug("inputB").set(driver.getPlug(channel).get(unit="rad"), unit="rad")
         delta.getPlug("weightA").set(1.0)
         delta.getPlug("weightB").set(-1.0)
 
@@ -131,7 +132,7 @@ class GearTrain(TwistDistribution):
 
             # base = 生成時の回転 + phase、rotate = delta * ratio + base
             base = graph._node("animBlendNodeAdditiveDA", "base" + suffix)
-            base.getPlug("inputA").set(gear.getPlug(channel).get())
+            base.getPlug("inputA").set(gear.getPlug(channel).get(unit="rad"), unit="rad")
             owner.getPlug("phase" + suffix).connectTo(base.getPlug("inputB"))
             base.getPlug("weightA").set(1.0)
             base.getPlug("weightB").set(1.0)

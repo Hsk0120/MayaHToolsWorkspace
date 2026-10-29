@@ -3,11 +3,12 @@
 
 import operator
 import maya.api.OpenMaya as om2
-from ..core.object import Object
-from typing import Any, Iterable, Iterator
+from ..core.object import Object, _missing_member_message
+from typing import Any, Iterable, Iterator, Sequence
 from mlib.nodes.shape import Shape
 from typing import overload
 
+_REPR_LIMIT: int
 
 
 class Component(Object):
@@ -37,6 +38,17 @@ class Component(Object):
             RuntimeError: シェイプが無効な場合。
         """
         ...
+    def __getattr__(self, name: str):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Vertex' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
+        """
+        ...
     def __eq__(self, other):
         """同じシェイプのインスタンス・種類・番号を指すか比較する。
 
@@ -46,6 +58,16 @@ class Component(Object):
         ...
     def __hash__(self):
         """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
+        ...
+    def __repr__(self) -> str:
+        """デバッグ用に、型名とシェイプの最短一意名を使ったコンポーネント名を返す。
+
+        ``__str__`` (maya.cmds へ渡す完全パス名)とは別の表示で、名前はキャッシュしない。
+
+        Returns:
+            str: ``Vertex('boxShape.vtx[5]')`` のような文字列。シェイプの削除・種類違い・
+                番号範囲外の場合は ``<Vertex invalid>``。
+        """
         ...
     def __str__(self) -> str:
         """コンポーネント名を返す。
@@ -183,7 +205,6 @@ class Component(Object):
             IndexError: 番号が範囲外の場合。
         """
         ...
-    def __getattr__(self, name: str) -> Any: ...
 _COMPONENT_INIT: Any
 _COMPONENT_REQUIRE_VALID: Any
 _COMPONENT_INDEX: Any
@@ -228,6 +249,18 @@ class Components:
 
         Returns:
             int: 構築時に固定した件数。現在のShapeの要素数や生存は照会しない。
+        """
+        ...
+    def __repr__(self) -> str:
+        """デバッグ用に、型名と範囲へまとめたコンポーネント名を返す。
+
+        保持順で+1ずつ連続する番号を ``[start:end]`` へまとめ、シェイプは最短一意名で表示する。
+        まとめた名前が ``_REPR_LIMIT`` 個を超える場合は先頭だけを表示し、件数を添える。
+
+        Returns:
+            str: ``CVs('curveShape.cv[0:7]')``、``Vertices('boxShape.vtx[0:2]', 'boxShape.vtx[5]')``、
+                多数なら ``Vertices('boxShape.vtx[0]', ..., count=120)``、空なら
+                ``Vertices('boxShape', count=0)``。無効なら ``<Vertices invalid>``。
         """
         ...
     @property
@@ -347,6 +380,13 @@ class Components:
             TypeError: 対応しないシェイプ型の場合。
             IndexError: いずれかの番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def _repr_indices(self) -> Sequence[int]:
+        """repr に表示する番号を保持順で返す。カーブCVはcmds用の番号へ写す。
+
+        Returns:
+            Sequence[int]: 表示用の番号列。
         """
         ...
     def _require_valid(self):

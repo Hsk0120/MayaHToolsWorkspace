@@ -203,10 +203,13 @@ class Double3PlugSpecTest(_PlugSpecCase):
         self.assertEqual(self.node.getPlug("rotate").get(uiUnits=True), (90.0, 0.0, 0.0))
 
     def test_rotate_set_units(self):
-        """数値列は既定rad、unit='deg'で度。uiUnits=TrueはUI単位。不正な単位はValueError。"""
+        """数値列は既定で度、unit='rad'でラジアン。uiUnits=TrueはUI単位。不正な単位はValueError。"""
         rotate = self.node.getPlug("rotate")
-        rotate.set((math.pi / 2, 0, 0))
+        rotate.set((90, 0, 0))
         self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 90.0)
+        rotate.set((math.pi / 4, 0, 0), unit="rad")
+        self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 45.0)
+        self.assertEqual(rotate.get(unit="deg"), (45.0, 0.0, 0.0))
         rotate.set((0, 45, 0), unit="deg")
         self.assertAlmostEqual(cmds.getAttr(self.name + ".ry"), 45.0)
         rotate.set((0, 0, 30), uiUnits=True)
@@ -234,8 +237,12 @@ class Double3PlugSpecTest(_PlugSpecCase):
         cmds.setAttr(self.name + ".rotateOrder", 0)
         rotate.set(quaternion)
         self.assertAlmostEqual(cmds.getAttr(self.name + ".ry"), 90.0)
-        with self.assertRaises(ValueError):
-            rotate.set(euler, unit="deg")
+        # 型付きの回転は自身の単位(rad)を持つため、unitを指定しても換算しない。
+        cmds.setAttr(self.name + ".rotateOrder", 3)
+        rotate.set(euler, unit="deg")
+        actual = [math.radians(v) for v in cmds.getAttr(self.name + ".r")[0]]
+        for a, e in zip(actual, (expected.x, expected.y, expected.z)):
+            self.assertAlmostEqual(a, e)
         with self.assertRaises(TypeError):
             rotate.set(euler, uiUnits=True)
 
@@ -335,12 +342,12 @@ class MultiPlugSpecTest(_PlugSpecCase):
                     self.array[bad]
 
     def test_get_element(self):
-        """getElementは既存要素だけを返し、欠番はIndexError。idx別名と同時指定の扱い。"""
+        """getElementは欠番も参照を返し(multi[index]と同じ)、要素を作らない。"""
         self.array[3].set(1.0)
         self.assertEqual(self.array.getElement(3).get(), 1.0)
         self.assertEqual(self.array.getElement(index=3).getFullName(), self.net_name + ".vals[3]")
-        with self.assertRaises(IndexError):
-            self.array.getElement(4)
+        self.assertEqual(self.array.getElement(4), self.array[4])
+        self.assertNotIn(4, self.array)
         with self.assertRaises(TypeError):
             self.array.getElement()
         with self.assertRaises(TypeError):
@@ -419,11 +426,12 @@ class MultiPlugSpecTest(_PlugSpecCase):
         """角度のマルチアトリビュートのgetはuiUnitsを各要素へ渡す。"""
         cmds.addAttr(self.net_name, longName="angles", attributeType="doubleAngle", multi=True)
         angles = self.net.getPlug("angles")
-        angles[0].set(math.pi)
+        angles[0].set(180)
         angles[3].set(90, uiUnits=True)
         result = angles.get()
-        self.assertAlmostEqual(result[0], math.pi)
-        self.assertAlmostEqual(result[3], math.pi / 2)
+        self.assertAlmostEqual(result[0], 180)
+        self.assertAlmostEqual(result[3], 90)
+        self.assertAlmostEqual(angles.get(unit="rad")[0], math.pi)
         self.assertEqual(sorted(angles.get(uiUnits=True).items()), [(0, 180.0), (3, 90.0)])
         with self.assertRaises(TypeError):
             angles.get(uiUnits=1)

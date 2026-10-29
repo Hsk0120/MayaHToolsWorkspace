@@ -26,24 +26,24 @@ class ControlsTest(unittest.TestCase):
         """Curl、個別加算、重み、Spread、手付けFKと停止を確認する。"""
         rig = FingerRig.create(finger_count=3, joint_count=2)
         layer = rig.group("layer")
-        layer.getPlug("curl").set(math.radians(30))
-        layer.getPlug("curl1").set(math.radians(10))
+        layer.getPlug("curl").set(30)
+        layer.getPlug("curl1").set(10)
         layer.getPlug("curlWeight1_2").set(0.5)
-        layer.getPlug("spread").set(math.radians(20))
+        layer.getPlug("spread").set(20)
         targets = rig.getMembers("targets")
-        self.assertAlmostEqual(targets[0].getPlug("rz").get(), math.radians(40), places=4)
-        self.assertAlmostEqual(targets[1].getPlug("rz").get(), math.radians(20), places=4)
-        self.assertAlmostEqual(targets[0].getPlug("ry").get(), math.radians(-20), places=4)
-        self.assertAlmostEqual(targets[-2].getPlug("ry").get(), math.radians(20), places=4)
+        self.assertAlmostEqual(targets[0].getPlug("rz").get(), 40, places=4)
+        self.assertAlmostEqual(targets[1].getPlug("rz").get(), 20, places=4)
+        self.assertAlmostEqual(targets[0].getPlug("ry").get(), -20, places=4)
+        self.assertAlmostEqual(targets[-2].getPlug("ry").get(), 20, places=4)
         control = rig.getMembers("controls")[0]
-        control.getPlug("rz").set(math.radians(15))
+        control.getPlug("rz").set(15)
         node_count = len(cmds.ls())
         for i in range(3):
             rig.set_layer_enabled("finger", False)
-            self.assertAlmostEqual(targets[0].getPlug("rz").get(), math.radians(0))
-            self.assertAlmostEqual(control.getPlug("rz").get(), math.radians(15))
+            self.assertAlmostEqual(targets[0].getPlug("rz").get(), 0)
+            self.assertAlmostEqual(control.getPlug("rz").get(), 15)
             rig.set_layer_enabled("finger", True)
-            self.assertAlmostEqual(targets[0].getPlug("rz").get(), math.radians(40), places=4)
+            self.assertAlmostEqual(targets[0].getPlug("rz").get(), 40, places=4)
         self.assertEqual(len(cmds.ls()), node_count)
         rig.set_lod(0)
         self.assertIsNone(targets[0].getPlug('rx').getSource(skipConversionNodes=False))
@@ -57,17 +57,17 @@ class ControlsTest(unittest.TestCase):
         rig = AimRig.create()
         controls = rig.getMembers("controls")
         controls[1].getPlug("tx").set(3)
-        self.assertGreater(abs(rig.getMembers("targets")[0].getPlug("ry").get()), math.radians(20))
+        self.assertGreater(abs(rig.getMembers("targets")[0].getPlug("ry").get()), 20)
         controls[4].getPlug("tx").set(2)
-        self.assertGreater(abs(rig.getMembers("targets")[1].getPlug("ry").get()), math.radians(1))
+        self.assertGreater(abs(rig.getMembers("targets")[1].getPlug("ry").get()), 1)
         before = [list(n.getMatrix()) for n in rig.getMembers("deform")]
         rig.root.getPlug("tx").set(100)
         for matrix, node in zip(before, rig.getMembers("deform")):
             self.assertLess(max(abs(a - b) for a, b in zip(matrix, node.getMatrix())), 1e-5)
         rig.set_layer_enabled("aim", False)
-        self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("ry").get(), math.radians(0))
+        self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("ry").get(), 0)
         rig.set_layer_enabled("aim", True)
-        self.assertGreater(abs(rig.getMembers("targets")[0].getPlug("ry").get()), math.radians(20))
+        self.assertGreater(abs(rig.getMembers("targets")[0].getPlug("ry").get()), 20)
 
     def test_tweak_modules(self):
         """全モジュールで手付け、LOD、独立使用状態、スキン一覧を確認する。"""
@@ -94,8 +94,8 @@ class ControlsTest(unittest.TestCase):
             rig = build_spline("fit" + axis, axis=axis)
             rig.set_mode("fk")
             self.assertLess(rig.match_ik(), 1e-4)
-            rig.getMembers("fk")[1].getPlug("rz").set(math.radians(15))
-            rig.getMembers("fk")[3].getPlug("rz").set(math.radians(-10))
+            rig.getMembers("fk")[1].getPlug("rz").set(15)
+            rig.getMembers("fk")[3].getPlug("rz").set(-10)
             error = rig.match_ik()
             self.assertLess(error, 0.6)
             self.assertEqual(rig.mode(), "fk")
@@ -116,8 +116,8 @@ class ControlsTest(unittest.TestCase):
         cmds.file(path, open=True, force=True, executeScriptNodes=False)
         rig = ModuleRegistry.get(root)
         rig.root.rename("renamedHand")
-        rig.group("layer").getPlug("curl").set(math.radians(30))
-        self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("rz").get(), math.radians(30), places=4)
+        rig.group("layer").getPlug("curl").set(30)
+        self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("rz").get(), 30, places=4)
         self.assertEqual(len(TweakLayer(rig).getJoints()), 1)
         rig.delete()
         self.assertFalse(cmds.objExists("renamedHand"))
@@ -132,14 +132,14 @@ class ControlsTest(unittest.TestCase):
             before = set(cmds.ls())
             rig = kind.create()
             if kind is FingerRig:
-                rig.group("layer").getPlug("curl").set(math.pi / 4)
+                rig.group("layer").getPlug("curl").set(45)
                 self.assertAlmostEqual(
                     cmds.getAttr(rig.getMembers("targets")[0].getFullName() + ".rz"),
                     math.pi / 4,
                     places=5,
                 )
                 cmds.currentUnit(angle="deg")
-                self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("rz").get(), math.radians(45), places=4)
+                self.assertAlmostEqual(rig.getMembers("targets")[0].getPlug("rz").get(), 45, places=4)
             rig.delete()
             self.assertEqual(set(cmds.ls()), before)
 
@@ -151,7 +151,7 @@ class ControlsTest(unittest.TestCase):
         for axis in "XYZ":
             rig.root.getPlug("scale" + axis).set(2)
         rig.root.getPlug("tx").set(70)
-        rig.root.getPlug("rz").set(math.radians(25))
+        rig.root.getPlug("rz").set(25)
         rig.controls()[-1].getPlug("ty").set(5)
         rig.match_fk()
         rig.set_mode("fk")

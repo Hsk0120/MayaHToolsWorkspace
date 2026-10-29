@@ -9,11 +9,11 @@ from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable
 from ..core.nodeEdit import require_editable
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _transform_argument_hints, nativeUnits, undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _world_space
+from ..util import _angle_unit, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -25,6 +25,7 @@ from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.nodes.shape import Shape
 
 _TRANSFORM_SOURCE_CONSTRAINTS: frozenset
+_LIMIT_FLAGS: dict
 _TRANSFORM_ATTRIBUTES: dict
 _NEAR_ZERO_AXIS: float
 
@@ -73,6 +74,17 @@ def _closest_euler(quaternion: om2.MQuaternion, reference: om2.MEulerRotation) -
     Returns:
         om2.MEulerRotation: reference と同じ回転順序の、reference に最も近い解
         (``MEulerRotation.closestSolution``。360 度の周期と、中間軸を反転した別解を考慮する)。
+    """
+    ...
+
+def _unwritable_channel_message(plug: Plug) -> str | None:
+    """ロック・入力接続された子を含むチャンネルへの書込み失敗を、原因の子を示す文言にする。
+
+    Args:
+        plug (Plug): 書込みに失敗したtranslate・rotate等のコンパウンドアトリビュート。
+
+    Returns:
+        str | None: 例外の文言。書込みを妨げる子(または自身)が見つからなければNone。
     """
     ...
 
@@ -193,32 +205,6 @@ class Transform(DagNode):
             RuntimeError: 保持していた DAG パスが無効な場合。
         """
         ...
-    def resetAttrs(self, attributes: str | Iterable[str] | None = ..., *, fast: bool = ...) -> list[Plug]:
-        """指定アトリビュートを定義上の既定値へ戻す。省略時は translate・rotate・scale・shear。
-
-        :meth:`Node.resetAttrs` の override。省略時の既定(キー設定可能な全アトリビュート)を
-        TRS とシアーの 4 チャンネルに置き換える。明示指定時の扱いは Node と同じ。
-
-        Args:
-            attributes (str | Iterable[str] | None): tx/translateX/translateなど。
-                省略時はtranslate・rotate・scale・shear。ロック・入力接続のある子は除外し、除外のある
-                コンパウンドアトリビュートだけ書ける子の Plug を返す。明示指定時は除外せずエラーを送出する。独自数値アトリビュートも可。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            list[Plug]: リセットしたアトリビュート(指定順)。
-
-        Raises:
-            TypeError: 名前が文字列でない、fastがbool以外、または既定値を扱えない型の場合。
-            AttributeError: 指定アトリビュートが存在しない場合。
-            RuntimeError: 明示指定したアトリビュートがロックや入力接続などで変更できない場合。
-
-        Note:
-            フリーズではなく値を戻す操作なので姿勢は変わる。jointOrient・ピボット・
-            offsetParentMatrixは明示指定しない限り変更しない。ロック解除・接続切断は
-            行わない。途中の失敗は例外とし、完了済みの変更は通常Undoで戻せる。
-        """
-        ...
     def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ...) -> Transform:
         """直下の非中間Shapeの頂点・CVを拡縮する。Transformのマトリクスは変更しない。
 
@@ -304,10 +290,12 @@ class Transform(DagNode):
                 されている場合(通常・fastとも更新前に検査する)、またはMayaが更新を拒否した場合。
         """
         ...
-    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ...) -> list[DagNode]:
+    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[DagNode]:
         """指定条件に合う直接の子、または子孫を取得する。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(派生型を含む。例 ``type="joint"``)。
+                規則は :meth:`~mlib.nodes.dagNode.DagNode.getChildren` と同じ。
             shapes (bool): TrueはShapeも含める。既定FalseはTransformのみ。
             intermediates (bool): Trueは中間オブジェクトも含める。
             allDescendents (bool): Trueは子孫全体。既定は直接の子だけ。
@@ -360,6 +348,32 @@ class Transform(DagNode):
 
         Returns:
             list[Shape]: 条件に一致するShapeのリスト。
+        """
+        ...
+    def replaceShapes(self, source: Transform | Shape | str, *, keepSource: bool = ..., worldSpace: bool = ...) -> Transform:
+        """自身のShapeを、sourceの中間でないShapeへ置き換えて自身を返す。
+
+        自身の直下の既存Shape(中間Shapeを含む)を削除し、sourceのShapeを ``cmds.parent(shape=True)`` で
+        自身の直下へ移す。自身のtranslate・rotate・scale・pivot・接続・子Transformは変更しない。
+        移したShapeは ``<自身の名前>Shape``、2個目以降は ``<自身の名前>Shape<番号>`` へ改名する。
+        コントローラーの形状差し替えを想定した操作で、全体を1回のUndoにまとめ、途中で失敗した場合は
+        巻き戻す。
+
+        Args:
+            source (Transform | Shape | str): 形状の取得元。Transformは直下の中間でないShape全部、
+                Shapeはそれ1つを使う。
+            keepSource (bool): Trueならsourceを複製して使い、元のノードを変更しない。Falseはsourceの
+                Shapeを移動し、Shapeが無くなり子も残らない取得元のTransformを削除する。
+            worldSpace (bool): Trueは取得元のTransformのワールド変換を形状へ焼き込み、ワールド空間での
+                見た目を保つ。False(既定)はShapeのローカル座標をそのまま使う(``parent -relative -shape``)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: keepSource・worldSpaceがbool以外、またはsourceがTransform・Shapeでない場合。
+            ValueError: sourceが自身・自身のShape・中間Shapeの場合、または使えるShapeが無い場合。
+            RuntimeError: 自身・sourceが無効、またはロック・参照等でMayaが変更を拒否した場合。
         """
         ...
     def getShape(self, index: int = ..., intermediates: bool = ...) -> Shape | None:
@@ -505,9 +519,10 @@ class Transform(DagNode):
                 safe/fastによらず計算だけ行い、書込み可否やsafe適用後の結果は検証しない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
+            TypeError: fastがbool以外、または ``space=``・``ws=`` を指定した場合(``worldSpace=True`` を案内する)。
             ValueError: マトリクスが不正・分解不能、またはワールド指定時に親側のマトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
+            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合(ロック・入力接続された成分と
+                ``safe=True`` を案内する)。
         """
         ...
     def getTranslate(self, worldSpace: bool = ..., at: int = ...) -> Translate:
@@ -540,9 +555,15 @@ class Transform(DagNode):
         Returns:
             Transform | list[float]: 自身。get=Trueはcm単位の独立したXYZ3成分のlist。
                 safe指定時も書込み可否を反映した最終結果の予測ではない。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
+                案内する)、または ``setTranslate(1, 2, 3)`` のように成分を分けて渡した場合。
+            RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
+                (原因の成分と ``safe=True`` を案内する)。
         """
         ...
-    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ...) -> EulerRotate:
+    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., unit: str | None = ...) -> EulerRotate | tuple[float, float, float]:
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
@@ -560,12 +581,17 @@ class Transform(DagNode):
             order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
                 (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
                 None はノードの rotateOrder。
+            unit (str | None): None(既定)はEulerRotateを返す。``"deg"`` / ``"rad"``
+                (``"degree"`` 等の別名も可)を指定すると、その単位の数値3成分のtupleを返す。
 
         Returns:
-            EulerRotate: rad単位の独立した回転値。``order`` の回転順序(省略時はノードの rotateOrder)。
+            EulerRotate | tuple[float, float, float]: unit=Noneでは内部がradの独立した回転値。
+                ``order`` の回転順序(省略時はノードの rotateOrder)。unit指定時は同じ回転のXYZ成分を
+                指定単位で表したtuple。
 
         Raises:
-            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
+            TypeError: unit が文字列・None 以外の場合。
+            ValueError: worldSpace が bool 以外、order・unit が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
         """
@@ -585,18 +611,22 @@ class Transform(DagNode):
             worldSpace (bool): Trueはワールド、既定Falseはローカルマトリクスの回転。
             safe (bool): 書けない成分を保持する。目標回転との一致は保証しない。
             get (bool): Trueは書き込まず、ローカルrotateの設定予定値を返す。
-            unit (str): 既定radはラジアン。degは通常の数値3成分だけに使用できる。
+            unit (str): 数値3成分とget=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` は
+                ラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。EulerRotate/Quaternionは自身の
+                単位(rad)を持つため、unitに関係なく換算しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            Transform | list[float]: 通常は自身。get=Trueはrad単位の独立したXYZ3成分のlist。
+            Transform | list[float]: 通常は自身。get=Trueはunitの単位(既定は度)の独立したXYZ3成分のlist。
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外の場合。
-            ValueError: unitがrad/deg以外、degをEulerRotate/Quaternionと指定、
-                値が3成分でない、マトリクスが分解不能、または必要な親マトリクスが反転不能の場合。
-            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合。
+            TypeError: fastがbool以外、unitが文字列以外、``space=``・``ws=`` を指定した場合
+                (``worldSpace=True`` を案内する)、または成分を分けて渡した場合。
+            ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
+                または必要な親マトリクスが反転不能の場合。
+            RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合(ロック・入力接続された
+                成分と ``safe=True`` を案内する)。
         """
         ...
     def getScale(self, worldSpace: bool = ...) -> Scale:
@@ -675,7 +705,7 @@ class Transform(DagNode):
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
         ...
-    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ...) -> Transform | list[float]:
+    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ...) -> Transform | list[float]:
         """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
 
         受理する組合せでは、r=Trueはrotate、r=FalseかつJointでjo=TrueはjointOrient、
@@ -690,16 +720,19 @@ class Transform(DagNode):
             jo (bool): jointOrientを含む。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
+            unit (str): get=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+                (``"degree"`` 等の別名も可)。書込みと入力のクォータニオンには影響しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
-                rad単位のlistとして返し、safe/fastの指定によらずシーンは変更しない。
+                unitの単位(既定は度)のlistとして返し、safe/fastの指定によらずシーンは変更しない。
                 入力のQuaternionや、XYZWの4成分を返す操作ではない。
                 rotateの設定予定値はノードのrotateOrder、他の書込み先はXYZ順序。
 
         Raises:
-            ValueError: 回転成分と空間指定が未対応の組合せの場合。
+            TypeError: unitが文字列以外の場合。
+            ValueError: 回転成分と空間指定が未対応の組合せ、またはunitが未対応の単位名の場合。
         """
         ...
     def makeIdentity(self, *, apply: bool = ..., a: bool = ..., jointOrient: bool = ..., jo: bool = ..., normal: int = ..., n: int = ..., preserveNormals: bool = ..., pn: bool = ..., rotate: bool = ..., r: bool = ..., scale: bool = ..., s: bool = ..., translate: bool = ..., t: bool = ..., query: bool = ..., q: bool = ..., edit: bool = ..., e: bool = ..., **kwargs: object) -> Transform:
@@ -753,6 +786,37 @@ class Transform(DagNode):
         Raises:
             ValueError: refVector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
             RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> Transform:
+        """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。
+
+        ``setLimits(translateX=(0, 10), rotateZ=(-45, 90), scaleY=(None, 2))`` のように、チャンネル名
+        (``translateX``〜``scaleZ`` のロング名)へ ``(最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
+        無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
+        距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
+        全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
+        fast引数は持たない。
+
+        Args:
+            unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+            **limits (tuple[float | None, float | None] | None): チャンネル名ごとの ``(最小, 最大)``。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: チャンネル名が未対応、値が2要素の列・None以外、要素が数値・None以外、
+                またはunitが文字列以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: ノードが無効、またはMayaが設定を拒否した場合(最小が最大より大きい等)。
+        """
+        ...
+    def _color_targets(self) -> list[DagNode]:
+        """:meth:`setColor`・:meth:`getColor` の対象を返す。
+
+        Returns:
+            list[DagNode]: 直下の中間でないShape。Shapeが無ければ自身。
         """
         ...
     def _local_matrix(self, matrix: Matrix | Sequence[Any], ws: bool) -> Matrix:

@@ -91,7 +91,7 @@ class NamespaceTest(_CommonCase):
         root = ":" + self.ns
         cmds.flushUndo()
         Namespace.create("x:y", parent=root)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibNamespaceCreate")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib Namespace\.create( |$)")
         cmds.undo()
         self.assertFalse(cmds.namespace(exists=root + ":x"))
 
@@ -254,7 +254,7 @@ class MatchTransformTest(_CommonCase):
         before = self.snapshot(source)
         cmds.flushUndo()
         mlib.getNode(source).matchTransform(target, pivots=True)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibTransformMatchTransform")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib matchTransform( |$)")
         result = self.snapshot(source)
         cmds.undo()
         self.assertSequenceAlmostEqual(self.snapshot(source), before)

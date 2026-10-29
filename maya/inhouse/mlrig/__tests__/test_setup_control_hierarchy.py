@@ -25,7 +25,7 @@ class ControlHierarchyTests(unittest.TestCase):
             parent = mlib.createNode("transform")
             parent.setTranslate((5, 1, 2))
             target = mlib.createNode("transform", parent=parent)
-            target.setTranslate((1, 2, 3)).setRotate((0.2, 0.3, 0.4))
+            target.setTranslate((1, 2, 3)).setRotate((0.2, 0.3, 0.4), unit="rad")
             before = target.getMatrix(worldSpace=True)
             cmds.flushUndo()
             groups = ControlHierarchy.createOffsetGroups(target, "zero", "offset", fast=fast)

@@ -74,8 +74,7 @@ class MaintenanceDelegationTest(unittest.TestCase):
                     error = TypeError if isinstance(value, (bool, float)) else IndexError
                     with self.assertRaises(error):
                         array.getElement(value)
-            with self.assertRaises(IndexError):
-                array.getElement(7)
+            self.assertEqual(array.getElement(7).getIndex(), 7)
             self.assertEqual(array.getIndices(), [])
 
 

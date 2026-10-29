@@ -190,17 +190,15 @@ class ComparisonSpecTest(_MultiSpecCase):
         self.assertEqual(msgs.getNextAvailable(vacant=True), 0)
         self.assertEqual(msgs.getNextAvailable(), 7)
 
-    def test_connect_next_available_starts_at_zero(self):
-        """connect(nextAvailable=True)は0から探すので、getNextAvailable()(最後の接続の次)と選ぶ要素が違う。"""
+    def test_connect_next_available_matches_get_next_available(self):
+        """connect(nextAvailable=True)はgetNextAvailable()と同じ要素(最後の接続の次)を選ぶ(5.0.0でMayaの規則に統一)。"""
         self.connect("tx", 3)
         self.assertEqual(self.values.getNextAvailable(), 4)
-        expected = self.values.getNextAvailable(start=0)
         target = self.values.connect(self.src.getPlug("ty"), nextAvailable=True)
-        self.assertEqual(target.getIndex(), 0)
-        self.assertEqual(target.getIndex(), expected)
-        self.assertEqual(self.values.getNextAvailable(start=0), 1)
-        self.assertEqual(self.values.getNextAvailable(), 4)
-        self.assertEqual(self.values.getNextAvailable(vacant=True), 1)
+        self.assertEqual(target.getIndex(), 4)
+        self.assertEqual(self.values.getNextAvailable(start=0), 0)
+        self.assertEqual(self.values.getNextAvailable(), 5)
+        self.assertEqual(self.values.getNextAvailable(vacant=True), 0)
 
     def test_vacant_matches_cmds_multi_indices(self):
         """vacantの結果はcmds.getAttr(multiIndices)に無く、それより小さい番号は全て既存。"""

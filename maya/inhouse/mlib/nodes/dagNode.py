@@ -2,10 +2,38 @@
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
+import maya.cmds as cmds
 
-from ..decorator import _edit_context, _require_bool
-from ..util import _world_space
+from ..core.registry import _inherited_node_types, _real_node_type
+from ..decorator import _edit_context, _require_bool, undoTransaction
+from ..util import _finite_vector, _world_space
 from .node import Node
+
+#: 描画のオーバーライドで指定できるカラーインデックスの上限(0〜31)。
+_MAX_COLOR_INDEX = 31
+
+
+def _type_filter(value):
+    """getChildren(type=) の指定を型名のtupleへ正規化する。
+
+    Args:
+        value (str | Iterable[str] | None): ノード型名、その列、またはNone。
+
+    Returns:
+        tuple[str, ...]: 型名。Noneは空。
+
+    Raises:
+        TypeError: 文字列・文字列の列・None以外の場合。
+        ValueError: 空文字列を含む場合。
+    """
+    if value is None:
+        return ()
+    names = (value,) if isinstance(value, str) else tuple(value) if isinstance(value, (list, tuple)) else None
+    if names is None or not all(isinstance(name, str) for name in names):
+        raise TypeError("type must be a node type name, a sequence of names, or None")
+    if not all(names):
+        raise ValueError("type must not contain an empty node type name")
+    return names
 
 
 class DagNode(Node):
@@ -264,12 +292,16 @@ class DagNode(Node):
         return Node._wrap_dag_path(path)
 
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
-                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False):
+                    order="depthFirst", leaves=False, includeSelf=False, underWorld=False, type=None):
         """保持パスに沿って子・子孫を列挙する。同じノードの別パスも残す。
 
         子パスを継ぎ足して探索し、名前から再解決しない。
 
         Args:
+            type (str | Iterable[str] | None): Mayaのノード型で結果を絞る(``cmds.listRelatives(type=)``
+                と同じく派生型を含む。:meth:`~mlib.nodes.node.Node.isType` で判定)。探索自体は絞らないため、
+                ``allDescendents=True`` では型の違う子の下も探す。Shapeの型(``"mesh"`` 等)を指定した場合は
+                shapes=Falseでも Shape を含めて探す。``multDoubleLinear``/``multDL`` のような版の互換名も使える。
             shapes (bool): Shapeも含める。既定はTransformのみ。
             intermediates (bool): 中間オブジェクトを含める。除外した子の下は探索しない。
             allDescendents (bool): Trueは子孫全体、Falseは直接の子だけ。
@@ -283,8 +315,9 @@ class DagNode(Node):
             list[DagNode]: 探索順の参照。対象なし、またはノード自体が無効なら空リスト。
 
         Raises:
-            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない場合。
-            ValueError: 探索順が不正、またはleavesとshapesを併用した場合。
+            TypeError: allDescendents・leaves・includeSelf・underWorldがboolでない、またはtypeが
+                文字列・文字列の列・None以外の場合。
+            ValueError: 探索順が不正、leavesとshapesを併用した、またはtypeが空文字列の場合。
             RuntimeError: ノードは有効だが保持するDAGパスが無効な場合。
         """
         for value, name in ((allDescendents, "allDescendents"), (leaves, "leaves"),
@@ -294,23 +327,15 @@ class DagNode(Node):
             raise ValueError("order must be 'depthFirst' or 'breadthFirst'")
         if leaves and shapes:
             raise ValueError("leaves selects transforms and cannot be combined with shapes")
+        types = _type_filter(type)
+        if types and not leaves and not shapes:
+            # Shapeの型で絞る場合は、既定のTransformだけの探索では必ず空になるためShapeも探す。
+            shapes = any("shape" in _inherited_node_types(_real_node_type(name)) for name in types)
         if not self.isValid():
             return []
-        recursive = allDescendents or leaves
-        from collections import deque
-        pending = deque([(self, 0)])
-        result = []
-        while pending:
-            node, depth = pending.popleft() if order == "breadthFirst" else pending.pop()
-            is_shape = node.mnode().hasFn(om2.MFn.kShape)
-            children = node._traversal_children(shapes, intermediates, underWorld) if recursive or depth == 0 else []
-            selected = (includeSelf or depth > 0) and (shapes or not is_shape)
-            if selected and (not leaves or not any(
-                    child.mnode().hasFn(om2.MFn.kTransform) for child in children)):
-                result.append(node)
-            if recursive or depth == 0:
-                rows = [(child, depth + 1) for child in children]
-                pending.extend(rows if order == "breadthFirst" else reversed(rows))
+        result = self._collect_children(shapes, intermediates, allDescendents, order, leaves, includeSelf, underWorld)
+        if types:
+            result = [node for node in result if any(node.isType(name) for name in types)]
         return result
 
     def getShape(self, index=0, intermediates=False):
@@ -370,6 +395,60 @@ class DagNode(Node):
             TypeError: fastがbool以外の場合。
         """
         return self.setVisibility(False, fast=fast)
+
+    def getColor(self):
+        """描画のオーバーライドの表示色を取得する。
+
+        Transformは直下の最初の中間でないShape、Shapeが無ければ自身を読む(:meth:`setColor` と同じ対象)。
+
+        Returns:
+            int | tuple[float, float, float] | None: ``overrideEnabled`` が無効ならNone。
+                ``overrideRGBColors`` が有効なら (r, g, b)、それ以外はカラーインデックス(0は既定色)。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        fn = om2.MFnDependencyNode(self._color_targets()[0].mnode())
+        if not fn.findPlug("overrideEnabled", False).asBool():
+            return None
+        if fn.findPlug("overrideRGBColors", False).asBool():
+            plug = fn.findPlug("overrideColorRGB", False)
+            return tuple(plug.child(index).asFloat() for index in range(3))
+        return fn.findPlug("overrideColor", False).asInt()
+
+    def setColor(self, color):
+        """描画のオーバーライドで表示色を設定し、自身を返す。
+
+        ``overrideEnabled`` を有効にし、インデックス指定は ``overrideRGBColors`` を無効にして
+        ``overrideColor``、RGB指定は ``overrideRGBColors`` を有効にして ``overrideColorRGB`` を設定する。
+        Transformは直下の中間でないShapeへ設定し、Shapeが無いTransform(グループ・Joint等)は自身へ
+        設定する(:meth:`getColor` も同じ対象を読む)。``cmds.setAttr`` で1回のUndoにまとめ、途中で
+        失敗した場合は巻き戻す。
+
+        Args:
+            color (int | Sequence[float]): カラーインデックス(0〜31。0は既定色)、または
+                0〜1の有限な数値3個の (r, g, b)。RGBは表示色の値で、色空間の変換は行わない。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: colorがint・3個の数値の列以外(boolを含む)の場合。
+            ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        index, rgb = _color_value(color)
+        targets = [target.getFullName() for target in self._color_targets()]
+        with undoTransaction("mlibDagNodeSetColor"):
+            for name in targets:
+                cmds.setAttr(name + ".overrideEnabled", True)
+                if rgb is None:
+                    cmds.setAttr(name + ".overrideRGBColors", False)
+                    cmds.setAttr(name + ".overrideColor", index)
+                else:
+                    cmds.setAttr(name + ".overrideRGBColors", True)
+                    cmds.setAttr(name + ".overrideColorRGB", *rgb)
+        return self
 
     def getVisibility(self):
         """自身のvisibilityアトリビュート値。親や表示レイヤーを含む最終可視性ではない。
@@ -436,6 +515,47 @@ class DagNode(Node):
             _require_bool(state, "state")
             self.getPlug("hiddenInOutliner").set(not state, fast=fast)
             return self
+
+    def _collect_children(self, shapes, intermediates, all_descendents, order, leaves, include_self, under_world):
+        """検証済みの条件で子・子孫を探索する(:meth:`getChildren` の本体)。
+
+        Args:
+            shapes (bool): Shapeも含める。
+            intermediates (bool): 中間オブジェクトを含める。
+            all_descendents (bool): 子孫全体を探す。
+            order (str): depthFirstまたはbreadthFirst。
+            leaves (bool): 子Transformを持たないTransformだけを返す。
+            include_self (bool): 自身も判定する。
+            under_world (bool): アンダーワールドも探す。
+
+        Returns:
+            list[DagNode]: 探索順の参照。
+        """
+        recursive = all_descendents or leaves
+        from collections import deque
+        pending = deque([(self, 0)])
+        result = []
+        while pending:
+            node, depth = pending.popleft() if order == "breadthFirst" else pending.pop()
+            is_shape = node.mnode().hasFn(om2.MFn.kShape)
+            children = node._traversal_children(shapes, intermediates, under_world) if recursive or depth == 0 else []
+            selected = (include_self or depth > 0) and (shapes or not is_shape)
+            if selected and (not leaves or not any(
+                    child.mnode().hasFn(om2.MFn.kTransform) for child in children)):
+                result.append(node)
+            if recursive or depth == 0:
+                rows = [(child, depth + 1) for child in children]
+                pending.extend(rows if order == "breadthFirst" else reversed(rows))
+        return result
+
+    def _color_targets(self):
+        """:meth:`setColor`・:meth:`getColor` の対象を返す。DagNodeは自身。
+
+        Returns:
+            list[DagNode]: 表示色を設定するノード。
+        """
+        self._require_valid("set the color of")
+        return [self]
 
     @staticmethod
     def _world_assemblies():
@@ -512,3 +632,31 @@ class DagNode(Node):
                                 result.append(Node._wrap_dag_path(path))
         result.extend(self._direct_children(shapes, intermediates))
         return result
+
+
+def _color_value(color):
+    """setColorの色指定を検証する。
+
+    Args:
+        color (int | Sequence[float]): カラーインデックス、または (r, g, b)。
+
+    Returns:
+        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
+            RGB指定なら (None, (r, g, b))。
+
+    Raises:
+        TypeError: 型が不正な場合。
+        ValueError: 範囲・成分数が不正な場合。
+    """
+    if isinstance(color, bool):
+        raise TypeError("color must be an int index or an (r, g, b) sequence, not bool")
+    if isinstance(color, int):
+        if not 0 <= color <= _MAX_COLOR_INDEX:
+            raise ValueError(f"color index must be between 0 and {_MAX_COLOR_INDEX}, got {color}")
+        return color, None
+    if isinstance(color, (str, bytes)) or not hasattr(color, "__iter__"):
+        raise TypeError("color must be an int index or an (r, g, b) sequence")
+    rgb = _finite_vector(color, 3, "color")
+    if not all(0.0 <= value <= 1.0 for value in rgb):
+        raise ValueError("color RGB components must be between 0 and 1")
+    return None, rgb

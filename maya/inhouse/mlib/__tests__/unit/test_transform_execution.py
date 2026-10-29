@@ -1,5 +1,6 @@
 """Transformの計算・書込みと数学値の所有権を検証する。"""
 
+import math
 import unittest
 from unittest.mock import patch
 
@@ -49,13 +50,16 @@ class TransformExecutionTest(unittest.TestCase):
                 with self.subTest(kind=kind, flags=flags):
                     node = mlib.createNode(kind)
                     names = ("rotate", "rotateAxis", "jointOrient") if kind == "joint" else ("rotate", "rotateAxis")
-                    before = {name: tuple(node.getPlug(name).get()) for name in names}
-                    planned = node.setQuaternion(q, get=True, **flags)
-                    self.assertEqual({name: tuple(node.getPlug(name).get()) for name in names}, before)
+                    before = {name: tuple(node.getPlug(name).get(unit="rad")) for name in names}
+                    planned = node.setQuaternion(q, get=True, unit="rad", **flags)
+                    in_degrees = node.setQuaternion(q, get=True, **flags)
+                    for degrees, radians in zip(in_degrees, planned):
+                        self.assertAlmostEqual(degrees, math.degrees(radians), places=9)
+                    self.assertEqual({name: tuple(node.getPlug(name).get(unit="rad")) for name in names}, before)
                     self.assertIs(node.setQuaternion(q, **flags), node)
                     for name in names:
                         expected = planned if name == target else before[name]
-                        for actual, value in zip(node.getPlug(name).get(), expected):
+                        for actual, value in zip(node.getPlug(name).get(unit="rad"), expected):
                             self.assertAlmostEqual(actual, value, places=7)
 
     def test_matrix_safe_writes_keep_locked_component_in_both_modes(self):
@@ -106,12 +110,12 @@ class ExplicitFastTest(unittest.TestCase):
         original = cls._set_components
         called = []
 
-        def prepare(instance, value, unit="rad"):
+        def prepare(instance, value):
             """値の準備中に独立した通常更新を一度だけ行う。"""
             if instance is plug and not called:
                 called.append(True)
                 normal.getPlug("tx").set(5)
-            return original(instance, value, unit)
+            return original(instance, value)
 
         cmds.flushUndo()
         with patch.object(cls, "_set_components", prepare):

@@ -17,6 +17,27 @@ from mlib.nodes.skinCluster import SkinClusters
 from mlib.plugs.plug import Plug
 from typing import overload
 
+_ORIENTATIONS: tuple
+_SECONDARY_AXES: tuple
+_MIRROR_PLANES: dict
+
+def _orient_flags(orientation: str, secondaryAxisOrient: str, children: bool, zeroScaleOrient: bool) -> dict:
+    """Joint.orientの引数を検証し、cmds.jointへ渡すフラグを返す。
+
+    Args:
+        orientation (str): 主軸・副軸・第3軸の順の軸名、または ``"none"``。
+        secondaryAxisOrient (str): 副軸を向けるワールド軸。
+        children (bool): 子孫jointも処理するか。
+        zeroScaleOrient (bool): scaleOrientを0にするか。
+
+    Returns:
+        dict: ``cmds.joint(edit=True, ...)`` のフラグ。
+
+    Raises:
+        TypeError: 文字列・bool以外の場合。
+        ValueError: 対応しない軸名の場合。
+    """
+    ...
 
 
 class Joint(Transform):
@@ -102,6 +123,61 @@ class Joint(Transform):
 
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
+        """
+        ...
+    def orient(self, orientation: str = ..., secondaryAxisOrient: str = ..., children: bool = ..., zeroScaleOrient: bool = ...) -> Joint:
+        """jointの向きを子jointへ向けて揃える(``cmds.joint(edit=True, orientJoint=...)`` 相当)。
+
+        ``cmds.joint(edit=True, orientJoint=orientation, secondaryAxisOrient=secondaryAxisOrient,
+        children=children, zeroScaleOrient=zeroScaleOrient)`` を実行し、処理した中で子jointを持たない
+        末端jointの jointOrient を0にする(親jointと同じ向き。rotateは変えない)。子jointの位置は保つ。
+        末端jointの子にあるjoint以外のノードは、jointOrientの変更に合わせて動く。
+        fast引数は持たない(向きの計算をMaya標準のcmds.jointに委ねる)。Undo有効時は1回で戻せる。
+
+        Args:
+            orientation (str): 子jointへ向ける主軸・副軸・第3軸の順。``"xyz"``・``"yzx"``・``"zxy"``・
+                ``"zyx"``・``"yxz"``・``"xzy"``、または jointOrient を0にする ``"none"``。
+            secondaryAxisOrient (str): 副軸を向けるワールド軸。``"xup"``・``"xdown"``・``"yup"``・
+                ``"ydown"``・``"zup"``・``"zdown"``。
+            children (bool): Trueは子孫jointも同じ規則で処理する。Falseは自身だけ。
+            zeroScaleOrient (bool): TrueはscaleOrientを0にする。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: orientation・secondaryAxisOrientが文字列以外、children・zeroScaleOrientがbool以外の場合。
+            ValueError: 対応しない軸名の場合。
+            RuntimeError: 無効なjoint、またはロック・入力接続などでMayaが編集を拒否した場合。
+        """
+        ...
+    def mirror(self, axis: str = ..., behavior: bool = ..., searchReplace: tuple[str, str] | None = ...) -> Joint:
+        """jointチェーンを鏡映した新しいチェーンを作成する(``cmds.mirrorJoint`` 相当)。
+
+        自身と子孫のjoint(と子のikEffector等)をMaya標準の ``cmds.mirrorJoint`` で複製・鏡映する。
+        新しいルートは自身と同じ親の下に作られ、Mayaの規則どおり選択される。元のチェーンは変更しない。
+        Transformの :meth:`~mlib.nodes.Transform.mirrorTransform` (自身の値の鏡映)とは別の操作。
+        fast引数は持たない(OpenMayaに同等機能が無い)。Undo有効時は1回で戻せる。
+
+        Args:
+            axis (str): 鏡映面。``"YZ"`` (X方向の左右反転)・``"XY"``・``"XZ"``。大文字小文字は区別しない。
+            behavior (bool): Trueは ``mirrorBehavior`` (回転の向きを反転し、同じ回転値で逆向きに動く。
+                リグの左右対称で一般的)。Falseは向き(orientation)を鏡映する。
+            searchReplace (tuple[str, str] | None): 新しいjoint名の置換 ``(検索, 置換)``。
+                例: ``("L_", "R_")``。NoneならMayaの自動命名。
+
+        Returns:
+            Joint: 新しいチェーンのルートjoint。チェーン全体は ``getChildren(allDescendents=True)``
+                や :meth:`getChainFromHere` で取得する。
+
+        Raises:
+            TypeError: axisが文字列以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
+            ValueError: axisが対応しない値、またはsearchReplaceの検索文字列が空の場合。
+            RuntimeError: 無効なjoint、またはMayaが鏡映を拒否した場合。
+
+        Note:
+            Mayaの ``mirrorJoint`` は、searchReplaceで名前空間を含めて置換しない限り新しいjointを
+            現在の名前空間へ置く。
         """
         ...
     def connectInverseScale(self, source: object | None = ..., force: bool = ..., *, fast: bool = ...) -> Joint:
@@ -288,6 +364,16 @@ class Joint(Transform):
             list[IkHandle]: 自身を start joint とする IkHandle。無ければ空リスト。
         """
         ...
+    def _orient(self, flags: dict) -> None:
+        """検証済みのフラグで向きを揃え、末端jointのjointOrientを0にする。
+
+        Args:
+            flags (dict): :func:`_orient_flags` が返したcmds.jointのフラグ。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
     def _joint_rotate_order(self) -> int:
         """Maya の rotateOrder を API の回転順序へ変換する。
 
@@ -431,6 +517,57 @@ class Joints(Nodes):
 
         Returns:
             Joints: 子 joint を先に処理できる深さ順コレクション。
+        """
+        ...
+    def orient(self, orientation: str = ..., secondaryAxisOrient: str = ..., children: bool = ..., zeroScaleOrient: bool = ...) -> Joints:
+        """各jointへ保持順に :meth:`Joint.orient` を適用する。
+
+        全体を1つのUndoチャンクに記録する。引数は全要素の処理前に1回だけ検証する。
+
+        Args:
+            orientation (str): :meth:`Joint.orient` と同じ。
+            secondaryAxisOrient (str): :meth:`Joint.orient` と同じ。
+            children (bool): :meth:`Joint.orient` と同じ。
+            zeroScaleOrient (bool): :meth:`Joint.orient` と同じ。
+
+        Returns:
+            Joints: 自身。
+
+        Raises:
+            TypeError: :meth:`Joint.orient` と同じ。
+            ValueError: :meth:`Joint.orient` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが編集を拒否した場合。先行した要素の変更は自動では戻さない。
+        """
+        ...
+    def setRadius(self, value: float, *, fast: bool = ...) -> Joints:
+        """各jointへ保持順に :meth:`Joint.setRadius` を適用する。
+
+        Args:
+            value (float): :meth:`Joint.setRadius` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setRadius` と同じ。
+            ValueError: :meth:`Joint.setRadius` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
+        """
+        ...
+    def setSegmentScaleCompensate(self, state: bool, *, fast: bool = ...) -> Joints:
+        """各jointへ保持順に :meth:`Joint.setSegmentScaleCompensate` を適用する。
+
+        Args:
+            state (bool): :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Joints: 自身。通常は1回のUndoにまとめる。
+
+        Raises:
+            TypeError: :meth:`Joint.setSegmentScaleCompensate` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが更新を拒否した場合。
         """
         ...
     def getSkinClusters(self) -> SkinClusters:

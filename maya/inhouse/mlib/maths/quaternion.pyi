@@ -3,7 +3,7 @@
 
 import math
 import maya.api.OpenMaya as om2
-from ..util import _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
+from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error, _to_radians
 from .vector import Vector, _reduce_value, _resolve_mvector, _zero
 from typing import Any, Iterable, Iterator
 from mlib.maths.eulerRotate import EulerRotate
@@ -87,7 +87,9 @@ class Quaternion(om2.MQuaternion):
         Args:
             *args: ``()``、``(x, y, z, w)``、``(values)``、``(MQuaternion)``、
                 ``(angle, axis)``、``(a, b[, factor])`` など om2 の MQuaternion の
-                コンストラクタが受け付ける引数。
+                コンストラクタが受け付ける引数。加えて ``(EulerRotate | om2.MEulerRotation)`` は
+                ``asQuaternion()`` と同じ回転、``(Matrix | om2.MMatrix)`` は
+                ``om2.MTransformationMatrix`` で分解した回転成分(スケール・シアー・平行移動を除く)。
             **kwargs: ``x``、``y``、``z``、``w``。位置引数と合わせて使える。
                 省略した成分は (0, 0, 0, 1) の値。
 
@@ -307,18 +309,21 @@ class Quaternion(om2.MQuaternion):
         """
         ...
     @classmethod
-    def fromAxisAngle(cls, axis: om2.MVector | Iterable[float], angle: float) -> Quaternion:
+    def fromAxisAngle(cls, axis: om2.MVector | Iterable[float], angle: float, *, unit: str = ...) -> Quaternion:
         """軸と角度から回転クォータニオンを生成する。
 
         Args:
             axis (om2.MVector | Iterable[float]): 回転軸。内部で正規化する。
-            angle (float): 回転角度(ラジアン)。
+            angle (float): 回転角度。単位はunitに従う。
+            unit (str): angleの単位。既定 ``"rad"`` はラジアン(om2と同じ)、``"deg"`` は度
+                (``"degree"`` / ``"radians"`` 等の別名も可)。
 
         Returns:
             Quaternion: axis を中心に angle だけ回転する単位クォータニオン。
 
         Raises:
-            ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)。
+            TypeError: unitが文字列以外の場合。
+            ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)、またはunitが未対応の場合。
         """
         ...
     @staticmethod

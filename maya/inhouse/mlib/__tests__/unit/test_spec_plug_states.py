@@ -59,7 +59,7 @@ class PlugNameSpecTest(_StateSpecCase):
         """短い名前・ロング名・ニース名・Plug名とstrの対応。"""
         tx = self.node.getPlug("tx")
         self.assertEqual(tx.getName(), self.name + ".tx")
-        self.assertEqual(tx.getAttrName(), ".tx")
+        self.assertEqual(tx.getAttrName(), "tx")
         self.assertEqual(tx.getShortName(), "tx")
         self.assertEqual(tx.getLongName(), "translateX")
         self.assertEqual(tx.getNiceName(), "Translate X")
@@ -82,9 +82,17 @@ class PlugNameSpecTest(_StateSpecCase):
         child = self.node.getPlug("items[3].weight")
         self.assertEqual(child.getFullName(), self.name + ".items[3].weight")
         self.assertEqual(child.getName(), self.name + ".its[3].wt")
-        self.assertEqual(child.getAttrName(), ".its[3].wt")
+        self.assertEqual(child.getAttrName(), "its[3].wt")
         self.assertEqual(child.getShortName(), "wt")
         self.assertEqual(child.getParent().getFullName(), self.name + ".items[3]")
+
+    def test_world_space_element_names_keep_index(self):
+        """worldSpaceの要素もgetName・getAttrNameで論理番号を省かない。getAttrNameはgetPlugへ戻せる。"""
+        element = self.node.getPlug("worldMatrix[0]")
+        self.assertEqual(element.getName(), self.name + ".wm[0]")
+        self.assertEqual(element.getAttrName(), "wm[0]")
+        self.assertEqual(self.node.getPlug(element.getAttrName()), element)
+        self.assertEqual(self.node.getPlug("worldMatrix").getAttrName(), "wm")
 
     def test_names_follow_rename_and_reparent(self):
         """名前変更・親変更・Undoに追従し、DAGパスは一意になる最短の形を使う。"""

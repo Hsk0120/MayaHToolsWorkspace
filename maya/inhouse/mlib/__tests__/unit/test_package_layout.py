@@ -35,7 +35,7 @@ class PackageLayoutTest(unittest.TestCase):
         for package, names in {
             "common": ("Namespace", "Selection", "DrivenKey", "Plugin", "ScriptJob", "ScriptJobs", "Deferred"),
             "decorator": ("undoChunk", "undoTransaction", "preservedSelection", "preservedSkinShape", "viewportOff", "nativeUnits"),
-            "logger": ("get_logger", "debug", "info", "warning", "error", "print", "raise_with_notify"),
+            "logger": ("getLogger", "debug", "info", "warning", "error", "print", "raiseWithNotify"),
             "util": ("legalizeName", "measure", "mirrorArguments"),
             "core": ("NodeRegistry", "reload_package"),
         }.items():

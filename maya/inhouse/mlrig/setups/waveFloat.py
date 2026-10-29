@@ -118,7 +118,7 @@ class WaveFloat(TwistDistribution):
             owner.addAttr(longName="wavelength" + suffix, attributeType="double", defaultValue=10.0 + 4.0 * index,
                           minValue=0.01, keyable=True)
             owner.addAttr(longName="direction" + suffix, attributeType="doubleAngle",
-                          defaultValue=math.radians(35.0 * index), keyable=True)
+                          defaultValue=35.0 * index, keyable=True)
             owner.addAttr(longName="steepness" + suffix, attributeType="double", defaultValue=0.5,
                           minValue=0, maxValue=1, keyable=True)
             owner.addAttr(longName="speed" + suffix, attributeType="double", defaultValue=0.1, keyable=True)

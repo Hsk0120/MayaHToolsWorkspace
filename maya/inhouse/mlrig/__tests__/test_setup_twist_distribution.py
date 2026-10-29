@@ -43,7 +43,7 @@ class TwistDistributionTest(unittest.TestCase):
         end = mlib.createNode("transform", name="end", skipSelect=True)
         start.setTranslate((1, 0, 0), at=4)
         end.setTranslate((9, 0, 0), at=4)
-        end.getPlug("rotateX").set(math.radians(120))
+        end.getPlug("rotateX").set(120)
         graph = TwistDistribution.create(start, end)
         output = graph.sample(0.25, "quarter")
         matrix = om.MMatrix(output.get())

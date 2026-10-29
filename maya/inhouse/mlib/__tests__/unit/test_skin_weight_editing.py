@@ -24,7 +24,7 @@ class SkinWeightEditingTest(unittest.TestCase):
             cmds.rename(pose.getFullName(), self.ns + ":pose")
         self.names = [self.parent, self.child, self.other]
         cmds.setAttr(self.skin.getFullName() + ".normalizeWeights", 0)
-        self.skin.setWeights(self.names, [.2, .5, .3])
+        self.skin.setWeights(self.names, [.2, .5, .3], broadcast=True)
 
     def tearDown(self):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
@@ -75,7 +75,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertTrue(cmds.objExists(self.skin.getFullName()))
 
     def test_normalize_undo_and_decimal_sum(self):
-        self.skin.setWeights(self.names, [1, 1, 1])
+        self.skin.setWeights(self.names, [1, 1, 1], broadcast=True)
         self.skin.normalizeWeights()
         self.assertAlmostEqual(sum(self.weights()[:3]), 1)
         cmds.undo()
@@ -90,10 +90,10 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertEqual(self.weights()[:3], [.34, .33, .33])
 
     def test_zero_and_locked_rejected_before_changes(self):
-        self.skin.setWeights(self.names, [0, 0, 0])
+        self.skin.setWeights(self.names, [0, 0, 0], broadcast=True)
         with self.assertRaises(ValueError):
             self.skin.normalizeWeights()
-        self.skin.setWeights(self.names, [.2, .5, .3])
+        self.skin.setWeights(self.names, [.2, .5, .3], broadcast=True)
         cmds.setAttr(self.child + ".lockInfluenceWeights", True)
         before = self.weights()
         with self.assertRaises(RuntimeError):
@@ -130,7 +130,7 @@ class SkinWeightEditingTest(unittest.TestCase):
         self.assertTrue(self.skin.hasInfluence(self.child))
 
     def test_transfer_preserves_non_normalized_totals(self):
-        self.skin.setWeights(self.names, [.4, 1, .6])
+        self.skin.setWeights(self.names, [.4, 1, .6], broadcast=True)
         self.skin.removeInfluence(self.child)
         values = list(self.skin.getWeights([self.parent, self.other]))
         self.assertAlmostEqual(values[0], 1.4)

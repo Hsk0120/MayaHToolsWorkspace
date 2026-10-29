@@ -8,6 +8,10 @@ from typing import Any, Mapping
 __all__ = ['NodeRegistry']
 _INHERITED_TYPES_CACHE: dict
 _GENERATING_REGISTRIES: Any
+_RENAMED_NODE_TYPES: dict
+_NODE_TYPE_ALIASES: dict
+_REAL_TYPE_CACHE: dict
+_NODE_TYPES_SINCE: Any
 
 def _inherited_node_types(node_type: str) -> tuple[str, ...]:
     """指定ノードタイプの継承チェーンを取得する。
@@ -41,6 +45,43 @@ def _node_type_exists(node_type: str) -> bool:
 
     Returns:
         bool: ``cmds.nodeType(node_type, isTypeName=True)`` が型名として認識する場合は True。
+    """
+    ...
+
+def _real_node_type(node_type: object) -> Any:
+    """版の互換名を、このMayaが認識するノード型名へ読み替える。
+
+    2026で改名された ``multDoubleLinear``/``multDL``・``addDoubleLinear``/``addDL`` を、
+    どの版でもその版の名前へ読み替える。それ以外の名前と、どちらの名前も認識できない場合は
+    そのまま返す。
+
+    Args:
+        node_type (object): ノード型名。文字列以外はそのまま返す。
+
+    Returns:
+        object: この版の型名、または入力の値。
+    """
+    ...
+
+def _real_node_types(value: object) -> Any:
+    """``ls(type=...)`` 等の型名の指定(文字列またはその列)の互換名を読み替える。
+
+    Args:
+        value (object): 型名、型名の列、またはその他の値。
+
+    Returns:
+        object: 読み替えた値。列はlistにする。それ以外の値はそのまま返す。
+    """
+    ...
+
+def _unknown_node_type_message(node_type: str) -> str:
+    """作成できないノード型名の例外メッセージを作る。
+
+    Args:
+        node_type (str): Mayaが認識しないノード型名。
+
+    Returns:
+        str: 例外メッセージ。標準で追加された版が分かっている型は、その版を案内する。
     """
     ...
 

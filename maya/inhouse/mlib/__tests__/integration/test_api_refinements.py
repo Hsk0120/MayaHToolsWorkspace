@@ -41,7 +41,7 @@ class ApiRefinementsTest(unittest.TestCase):
         if pose:
             pose.rename(self.ns + ":pose")
         skin.getPlug("normalizeWeights").set(0)
-        skin.setWeights(joints, [.2, .5, .3])
+        skin.setWeights(joints, [.2, .5, .3], broadcast=True)
         return skin, joints
 
     def test_infinity_partial_update_and_undo(self):

@@ -15,8 +15,8 @@ from support.specCase import NamespaceCase
 
 
 def _names(nodes):
-    """保持順の現在のノード名。"""
-    return [node.getName() for node in nodes]
+    """保持順の現在のノード名(削除済みの要素は str() と同じ空文字列)。"""
+    return [str(node) for node in nodes]
 
 
 class _SpecCase(NamespaceCase):

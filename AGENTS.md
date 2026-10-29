@@ -28,7 +28,7 @@
 
 - mlibの確定済み公開APIの引数仕様は、ユーザーから対象仕様への明示的な変更指示がない限り変更禁止とする。引数名・順序・位置引数/キーワード専用の区分・短縮名/長名・既定値・単位・フラグの意味・戻り値を維持する。リファクタリング、他ライブラリへの追従、命名統一、最適化を理由に変更しない。対象には `ws/worldSpace`、`at`、`ra/r/jo`、`safe/get/fast`、接続方向と `f/l/na`、`Node.addAttr` の型指定・`getPlug` を含む。具体的な仕様は各公開APIのdocstringと `docs/mlib-api-design.md` を参照する。特に `Node.addAttr()` は既定で追加したPlugを返し、明示的な `getPlug=False` の場合のみNoneを返す。通常のsetterが自身を返す仕様も維持し、既定戻り値をNoneへ変更しない。ドキュメントやテストを先に書き換えて仕様変更を正当化することも禁止する。既存の呼び出し仕様を保つ内部修正・不具合修正は可能とする。
 
-- mlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持し、通知APIの`get_logger`/`raise_with_notify`も例外として維持する。2026-10-23のユーザー指示により、内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。既存の公開引数・拡張用プロトコル・Mayaフラグ・保存キーは変更しない。インデントはスペース4、文字列は原則ダブル引用符、単純な文字列埋込みはf-stringとし、エスケープを減らす引用符・raw正規表現・外部書式・数値書式・引数の評価順や参照回数を保つformat・loggingの遅延書式は例外とする。詳細は`docs/mlib-api-design.md`の「確定したコーディングルール」を参照する。
+- mlibの公開関数・メソッド・プロパティは全パッケージ共通でlowerCamelCase（`getSettings`・`undoChunk`・`minimumVersion`）とする。クラスはPascalCase。Maya標準名・om2継承/オーバーライド・Python特殊メソッド・標準ライブラリに合わせたAPIは元の名前を維持する。通知APIも5.0.0からlowerCamelCase(`getLogger`/`raiseWithNotify`)とする。2026-10-23のユーザー指示により、内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。既存の公開引数・拡張用プロトコル・Mayaフラグ・保存キーは変更しない。インデントはスペース4、文字列は原則ダブル引用符、単純な文字列埋込みはf-stringとし、エスケープを減らす引用符・raw正規表現・外部書式・数値書式・引数の評価順や参照回数を保つformat・loggingの遅延書式は例外とする。詳細は`docs/mlib-api-design.md`の「確定したコーディングルール」を参照する。
 
 - mlibではQt関連ライブラリ（PySide/PyQt/shiboken/qtpy等）をimportしない。汎用UIラッパーは提供せず、Maya標準UIの操作とQtウィジェット取得・変換は利用側へ置く。横断的な通知は既存のmlib.loggerで扱う。
 
@@ -39,7 +39,7 @@
 
 - C++の内製コードは日本語のDoxygen形式（`@brief`・`@param`・`@return`、必要時`@note`）でファイル・クラス・全ての名前付き関数を説明する。初心者が追えるよう、所有権・Qtシグナル/スロット・非同期処理・Maya呼出の理由もコメントする。引数や戻り値がないタグは省略し、自明な各行の逐語説明は避ける。PythonはGoogle形式docstringを使用する。詳細は `docs/cpp-documentation.md` を参照する。外部submoduleへ一括適用しない。
 
-- mlib・mlib_*・mlrigの診断ログと通知は `mlib.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。2026-10-23のユーザー指示により、通常の入力検証・下位処理の失敗は型付きの`raise`とし、利用者へ通知して中断する入口だけ`raise_with_notify`を使う。捕捉して戻り値・検証結果へ変換する失敗に通知を追加しない。`error`は通知のみ。復旧の二次失敗は必要時にwarningとし、元例外を優先する。ログの書式引数は標準loggingの遅延形式を使う。進捗表示の指定streamへの描画や保存データの出力は診断ログと区別し、既存の出力契約を維持する。`mlib.cmds.warning`やルートの`mlib.warning`は追加しない。
+- mlib・mlib_*・mlrigの診断ログと通知は `mlib.logger` の `debug`・`info`・`warning`・`error`・`print` に集約する。2026-10-23のユーザー指示により、通常の入力検証・下位処理の失敗は型付きの`raise`とし、利用者へ通知して中断する入口だけ`raiseWithNotify`を使う。捕捉して戻り値・検証結果へ変換する失敗に通知を追加しない。`error`は通知のみ。復旧の二次失敗は必要時にwarningとし、元例外を優先する。ログの書式引数は標準loggingの遅延形式を使う。進捗表示の指定streamへの描画や保存データの出力は診断ログと区別し、既存の出力契約を維持する。`mlib.cmds.warning`やルートの`mlib.warning`は追加しない。
 
 - mlibのAPIは「Mayaへ問い合わせる操作はメソッド」「保持する値はプロパティ」を基本とする。シーン更新は明示的なメソッドで行う。具体例と判断基準は `docs/mlib-api-design.md` を参照する。
 

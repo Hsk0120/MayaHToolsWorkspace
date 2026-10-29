@@ -3,17 +3,55 @@
 
 import math
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
-from ..decorator import _require_bool
-from ..util import _world_space
+from ..core import geometryEdit as geometry_edit
+from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..util import _finite_vector, _world_space
+from .node import Node
 from .shape import Shape
-from typing import Iterable
+from typing import Iterable, Sequence
 
+_OM2_POINTS: tuple
 
 
 class NurbsCurve(Shape):
-    """NURBS カーブの形状情報を提供するシェイプラッパー。"""
+    """NURBS カーブの形状情報を提供するシェイプラッパー。
+
+    点列からの作成は :meth:`create`、CV位置の一括書込みは :meth:`setCvPositions` を使う。
+    CV(:class:`~mlib.components.cv.CV`)の参照は読み取り専用。
+    """
+    @classmethod
+    def create(cls, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], degree: int = ..., closed: bool = ..., name: str | None = ..., parent: Node | str | None = ...) -> NurbsCurve:
+        """点列からNURBSカーブを作成し、そのシェイプを返す(``cmds.curve`` の特化ビルダー)。
+
+        点をそのままCVにする(通過点の補間ではない)。開いたカーブは ``cmds.curve`` の既定ノット、
+        ``closed=True`` は先頭 ``degree`` 個のCVを末尾へ重ねた周期カーブ(``getForm()`` が
+        ``om2.MFnNurbsCurve.kPeriodic``)にする。形状のライブラリは持たない。作成・親子付けを1回のUndoにまとめ、現在の選択は変更しない。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CVの位置。各点は3個の
+                有限な数値(boolを除く)。MPointはwで割らずにXYZを使う。距離はMaya APIの内部単位(cm)で、
+                現在のUI単位に依存しない。カーブのTransform(作成時は単位マトリクス)のローカル座標。
+            degree (int): 次数。1・2・3のいずれか。既定1。
+            closed (bool): Trueなら閉じたカーブにする。既定False。
+            name (str | None): Transformの希望名。シェイプは ``<名前>Shape``。Noneは
+                Mayaの既定名(``curve1`` 等)。衝突時はMayaが一意名にする。
+            parent (Node | str | None): Transformの親。Noneはワールド直下。親のローカル空間に
+                単位マトリクスで置くため、点は親の空間の座標になる。
+
+        Returns:
+            NurbsCurve: 作成したカーブのシェイプ。Transformは ``getTransform()`` で取得する
+                (``mlib.createNode("nurbsCurve")`` と同じくシェイプを返す)。
+
+        Raises:
+            TypeError: points・degree・closed・nameの型が不正、または点の成分が数値でない場合。
+            ValueError: degreeが1〜3でない、点の成分数が3でない・有限でない、または点の数が
+                不足する場合(開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)。
+            RuntimeError: 親が無効な場合、またはMayaが作成を拒否した場合。
+        """
+        ...
     def getCV(self, index: int) -> CV:
         """CV 番号から単体ラッパーを取得する。
 
@@ -111,6 +149,29 @@ class NurbsCurve(Shape):
             om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
         """
         ...
+    def setCvPositions(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ...) -> NurbsCurve:
+        """全CVの位置を一度に書き込み、自身を返す。
+
+        :meth:`getCvPositions` と同じ並び・単位(内部単位cm)の点列を受け付け、``cmds.xform`` で
+        書き込んで1回のUndoにまとめる。CVの数・次数・ノット・ウェイトは変更しない。
+        周期カーブは、独立CV数(``getNumCVs() - getDegree()``)の点列か、末尾の重複CVを含む
+        ``getNumCVs()`` 個の点列(重複CVは先頭の対応CVと同じ位置であること)を受け付ける。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CV順の位置。各点は3個の
+                有限な数値。MPointはwで割らずにXYZを使う。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            NurbsCurve: 自身。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、または点の型・成分が不正な場合。
+            ValueError: 点の数がCV数と合わない、成分が有限でない、周期カーブの重複CVが先頭の
+                CVと一致しない、またはworldSpace=Trueで変換マトリクスが特異な場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+        """
+        ...
     def getCollocatedCVGroups(self, tolerance: float = ..., worldSpace: bool = ...) -> list[list[int]]:
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
@@ -140,3 +201,18 @@ class NurbsCurve(Shape):
             RuntimeError: 保持する DAG パスが無効、または形状データを持たない空のシェイプの場合。
         """
         ...
+
+def _point_list(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector]) -> list[tuple[float, float, float]]:
+    """点列を検証し、XYZのfloat tupleのリストへ変換する。
+
+    Args:
+        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
+
+    Returns:
+        list[tuple[float, float, float]]: 変換済みの点。
+
+    Raises:
+        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
+        ValueError: 成分数が3でない、または有限でない場合。
+    """
+    ...

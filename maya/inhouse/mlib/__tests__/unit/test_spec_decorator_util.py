@@ -355,16 +355,16 @@ class LoggerSpecTest(unittest.TestCase):
         handler = logging.Handler()
         handler.emit = self.records.append
         self.handler = handler
-        logger.get_logger().addHandler(handler)
+        logger.getLogger().addHandler(handler)
 
     def tearDown(self):
         """記録用のハンドラを外す。"""
-        logger.get_logger().removeHandler(self.handler)
+        logger.getLogger().removeHandler(self.handler)
 
     def test_shared_logger_configuration(self):
         """共有ロガーはパッケージ名・DEBUG・伝播なしで、MayaHandlerは1つだけ。"""
-        first = logger.get_logger()
-        self.assertIs(logger.get_logger(), first)
+        first = logger.getLogger()
+        self.assertIs(logger.getLogger(), first)
         self.assertEqual(first.name, "mlib")
         self.assertEqual(first.level, logging.DEBUG)
         self.assertFalse(first.propagate)
@@ -391,18 +391,18 @@ class LoggerSpecTest(unittest.TestCase):
     def test_raise_with_notify(self):
         """通知してから例外を送出し、from_exceptionで連鎖を指定・抑制できる。"""
         with self.assertRaises(KeyError) as context:
-            logger.raise_with_notify(KeyError, "missing")
+            logger.raiseWithNotify(KeyError, "missing")
         self.assertEqual(context.exception.args, ("missing",))
         self.assertEqual(self.records[-1].levelno, logging.ERROR)
         cause = ValueError("cause")
         with self.assertRaises(RuntimeError) as context:
-            logger.raise_with_notify(RuntimeError, "chained", from_exception=cause)
+            logger.raiseWithNotify(RuntimeError, "chained", fromException=cause)
         self.assertIs(context.exception.__cause__, cause)
         try:
             raise ValueError("inner")
         except ValueError:
             with self.assertRaises(RuntimeError) as context:
-                logger.raise_with_notify(RuntimeError, "plain", from_exception=None)
+                logger.raiseWithNotify(RuntimeError, "plain", fromException=None)
         self.assertTrue(context.exception.__suppress_context__)
         self.assertIsNone(context.exception.__cause__)
 

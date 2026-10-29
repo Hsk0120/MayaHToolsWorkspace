@@ -16,6 +16,27 @@ _INHERITED_TYPES_CACHE = {}
 #: 動的クラスを生成する登録表。型継承キャッシュの消去時に生成済みクラスも廃棄する。
 _GENERATING_REGISTRIES = weakref.WeakSet()
 
+#: Mayaの版で改名されたノード型(2025以前の名前 -> 2026以降の名前)。どちらの名前も全版で使える。
+_RENAMED_NODE_TYPES = {
+    "multDoubleLinear": "multDL",
+    "addDoubleLinear": "addDL",
+}
+
+#: 改名の両方向の対応。
+_NODE_TYPE_ALIASES = dict(_RENAMED_NODE_TYPES, **{new: old for old, new in _RENAMED_NODE_TYPES.items()})
+
+#: 版の互換名から、この版のMayaが認識する型名への読み替えの結果(認識できた場合だけ保存する)。
+_REAL_TYPE_CACHE = {}
+
+#: 標準で追加されたMayaの版が分かっているノード型(型名 -> 最初の版)。作成できない場合の案内に使う。
+_NODE_TYPES_SINCE = dict.fromkeys((
+    "parentMatrix", "multiplyPointByMatrix", "multiplyVectorByMatrix", "crossProduct", "dotProduct",
+    "rotateVector", "axisFromMatrix", "rowFromMatrix", "columnFromMatrix", "determinant", "sum",
+    "multiply", "divide", "subtract", "absolute", "clampRange", "lerp", "length", "normalize", "equal",
+    "greaterThan", "lessThan", "and", "or", "not", "max", "min", "power", "sin", "cos", "acos", "atan2",
+    "floor", "ceil", "round", "truncate", "negate", "smoothStep", "average",
+), 2024)
+
 
 def _inherited_node_types(node_type):
     """指定ノードタイプの継承チェーンを取得する。
@@ -73,6 +94,74 @@ def _node_type_exists(node_type):
     return True
 
 
+def _real_node_type(node_type):
+    """版の互換名を、このMayaが認識するノード型名へ読み替える。
+
+    2026で改名された ``multDoubleLinear``/``multDL``・``addDoubleLinear``/``addDL`` を、
+    どの版でもその版の名前へ読み替える。それ以外の名前と、どちらの名前も認識できない場合は
+    そのまま返す。
+
+    Args:
+        node_type (object): ノード型名。文字列以外はそのまま返す。
+
+    Returns:
+        object: この版の型名、または入力の値。
+    """
+    if not isinstance(node_type, str):
+        return node_type
+    alias = _NODE_TYPE_ALIASES.get(node_type)
+    if alias is None:
+        return node_type
+    cached = _REAL_TYPE_CACHE.get(node_type)
+    if cached is not None:
+        return cached
+    if _node_type_exists(node_type):
+        resolved = node_type
+    elif _node_type_exists(alias):
+        resolved = alias
+    else:
+        return node_type
+    _REAL_TYPE_CACHE[node_type] = resolved
+    return resolved
+
+
+def _real_node_types(value):
+    """``ls(type=...)`` 等の型名の指定(文字列またはその列)の互換名を読み替える。
+
+    Args:
+        value (object): 型名、型名の列、またはその他の値。
+
+    Returns:
+        object: 読み替えた値。列はlistにする。それ以外の値はそのまま返す。
+    """
+    if isinstance(value, str):
+        return _real_node_type(value)
+    if isinstance(value, (list, tuple)):
+        return [_real_node_type(item) for item in value]
+    return value
+
+
+def _unknown_node_type_message(node_type):
+    """作成できないノード型名の例外メッセージを作る。
+
+    Args:
+        node_type (str): Mayaが認識しないノード型名。
+
+    Returns:
+        str: 例外メッセージ。標準で追加された版が分かっている型は、その版を案内する。
+    """
+    try:
+        version = cmds.about(majorVersion=True)
+    except (AttributeError, RuntimeError, TypeError):
+        version = "unknown"
+    since = _NODE_TYPES_SINCE.get(node_type)
+    if since is not None:
+        return (f"Unknown Maya nodeType: {node_type} (not available in this Maya version {version}; "
+                f"it requires Maya {since} or later)")
+    return (f"Unknown Maya nodeType: {node_type} (not available in this Maya version {version}, "
+            "or the plug-in that provides it is not loaded)")
+
+
 def _clear_type_hierarchy_cache():
     """型継承キャッシュと、動的クラスを生成する全登録表の生成済みクラスを消去する。
 
@@ -84,6 +173,7 @@ def _clear_type_hierarchy_cache():
         None: 値を返さない。
     """
     _INHERITED_TYPES_CACHE.clear()
+    _REAL_TYPE_CACHE.clear()
     for registry in list(_GENERATING_REGISTRIES):
         registry._invalidate_generated()
 

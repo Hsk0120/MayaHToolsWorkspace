@@ -1,6 +1,5 @@
 """RBF登録編集とカーブ近似の共通API検証。"""
 
-import math
 import unittest
 from unittest.mock import patch
 from maya import cmds
@@ -27,7 +26,7 @@ class PoseEditTest(unittest.TestCase):
         graph.container.getPlug("outputs[0]").connectTo(target.getPlug("value"))
         uuid = graph.container.getUuid()
         graph.set_data([[0], [30], [60]], [[0], [10], [40]], [40])
-        driver.getPlug("rx").set(math.radians(30))
+        driver.getPlug("rx").set(30)
         self.assertAlmostEqual(graph.capture()[0], 30, places=5)
         self.assertAlmostEqual(target.getPlug("value").get(), 10, places=4)
         graph.set_data([[0], [60]], [[0], [20]], [50])
@@ -42,12 +41,10 @@ class PoseEditTest(unittest.TestCase):
 
     def test_units(self):
         """m/radian環境でも登録角を度として解釈する。"""
-        import math
-
         cmds.currentUnit(linear="m", angle="rad")
         driver = mlib.createNode("transform", name="input")
         graph = PoseRbf.create([driver.getPlug("rx")], [[0], [60]], [[0], [30]], [60])
-        driver.getPlug("rx").set(math.pi / 3)
+        driver.getPlug("rx").set(60)
         self.assertAlmostEqual(graph.capture()[0], 60, places=4)
         self.assertAlmostEqual(graph.container.getPlug("outputs[0]").get(), 30, places=4)
 

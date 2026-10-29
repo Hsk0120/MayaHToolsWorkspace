@@ -36,14 +36,14 @@ class ClassDesignTest(unittest.TestCase):
             self.assertFalse(node.getVisibility())
 
     def test_display_api_is_dag_only(self):
-        """DG基底に表示専用APIを公開せずDAG単数だけが持つ。複数形は転送しない。"""
+        """DG基底に表示専用APIを公開せずDAG単数だけが持つ。複数形はsetVisibilityだけを一括適用する(5.0.0)。"""
         from mlib.nodes import Node, Nodes, DagNode, Joints
         methods = ("getVisibility", "setVisibility", "getOutlinerVisibility", "setOutlinerVisibility")
         for method in methods:
             self.assertFalse(hasattr(Node, method))
-            self.assertFalse(hasattr(Nodes, method))
+            self.assertEqual(hasattr(Nodes, method), method == "setVisibility")
             self.assertTrue(hasattr(DagNode, method))
-            self.assertFalse(hasattr(Joints, method))
+            self.assertEqual(hasattr(Joints, method), method == "setVisibility")
         self.assertTrue(issubclass(Joints, Nodes))
         name = cmds.createNode("multiplyDivide", name=self.ns + ":dg")
         with self.assertRaises(TypeError):

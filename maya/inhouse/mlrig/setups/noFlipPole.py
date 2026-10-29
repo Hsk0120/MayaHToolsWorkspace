@@ -157,13 +157,14 @@ class NoFlipPole(TwistDistribution):
         graph = cls(mlib.nodes.Container.create(name=name))
         owner = graph.container
         owner.addAttr(longName="kneeTwist", attributeType="doubleAngle", defaultValue=0.0, keyable=True)
-        owner.addAttr(longName="offset", attributeType="doubleAngle", defaultValue=offset, keyable=True)
+        owner.addAttr(longName="offset", attributeType="doubleAngle", defaultValue=offset, keyable=True,
+                      unit="rad")
         owner.addAttr(longName="distance", attributeType="doubleLinear", defaultValue=distance, minValue=0.0,
                       keyable=True)
         owner.addAttr(longName="position", attributeType="double", defaultValue=position, keyable=True)
         owner.addAttr(longName="legLength", attributeType="doubleLinear")
         # 既定値の単位の解釈に頼らず、内部単位(ラジアン・cm)で入れ直す。
-        owner.getPlug("offset").set(offset)
+        owner.getPlug("offset").set(offset, unit="rad")
         owner.getPlug("distance").set(distance)
         owner.addAttr(longName="matrix", dataType="matrix")
 

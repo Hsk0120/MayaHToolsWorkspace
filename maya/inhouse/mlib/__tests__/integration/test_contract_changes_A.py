@@ -133,7 +133,7 @@ class BatchDeleteTest(unittest.TestCase):
         short = [name.rpartition(":")[2] for name in removed]
         # 渡した順(dc, dmd, d0...)ではなく、Mayaがまとめて削除するときの順になる。
         self.assertEqual(short, ["dc", "d0", "dmd", "d1", "d2"])
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDelete")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib delete( |$)")
         cmds.undo()
         self.assertEqual(sorted(cmds.ls(long=True)), before)
 
@@ -210,7 +210,8 @@ class BatchDeleteTest(unittest.TestCase):
             local = self._make("r0")[0]
             for fast in (False, True):
                 with self.subTest(fast=fast):
-                    pattern = "Node is locked or referenced" if fast else "locked or read-only children"
+                    # 5.0.0から通常・fastとも参照ノードであることと参照元を示す。
+                    pattern = "it is a referenced node from reference '" + self.ns + "_refRN'"
                     with self.assertRaisesRegex(RuntimeError, pattern):
                         mlib.delete([local, ref_node], fast=fast)
                     self.assertTrue(cmds.objExists(local) and cmds.objExists(ref_node))
@@ -298,11 +299,16 @@ class DestroyedNodeTest(unittest.TestCase):
         if node.isAlive():
             self.skipTest("the deleted node is still alive in this Maya version")
         for method in ("getType", "getTypeId", "getPluginName", "isLocked", "isFromReferencedFile",
-                       "getNodeName", "getClassification"):
+                       "getClassification"):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(RuntimeError, r"Cannot access an invalid \w+"):
                     getattr(node, method)()
-        self.assertEqual(node.getName(), "")
+        # 5.0.0から名前の取得は無効なノードでRuntimeError。str()だけは空文字列を返す。
+        for method in ("getName", "getNodeName"):
+            with self.subTest(method=method):
+                with self.assertRaisesRegex(RuntimeError, r"was deleted or undone; check isValid\(\)"):
+                    getattr(node, method)()
+        self.assertEqual(str(node), "")
         self.assertFalse(node.isType("multiplyDivide"))
 
 

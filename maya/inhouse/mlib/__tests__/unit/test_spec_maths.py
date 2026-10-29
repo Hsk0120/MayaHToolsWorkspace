@@ -159,13 +159,69 @@ class VectorSpecTest(unittest.TestCase):
             Vector(1, 1, 1) / 0
 
     def test_equality(self):
-        """==はMVector系の成分の完全一致。派生型の違いは問わず、tupleとは等しくない。"""
+        """==はMVector系と3個の数値のtuple/listとの成分の完全一致。派生型の違いは問わない。"""
         self.assertEqual(Translate(1, 2, 3), Vector(1, 2, 3))
         self.assertEqual(Vector(1, 2, 3), om2.MVector(1, 2, 3))
-        self.assertNotEqual(Vector(1, 2, 3), (1, 2, 3))
+        self.assertEqual(Vector(1, 2, 3), (1, 2, 3))
+        self.assertEqual([1.0, 2.0, 3.0], Vector(1, 2, 3))
+        self.assertNotEqual(Vector(1, 2, 3), (1, 2, 4))
+        self.assertNotEqual(Vector(1, 2, 3), (1, 2))
+        self.assertNotEqual(Vector(1, 0, 0), (True, False, False))
+        self.assertNotEqual(Vector(1, 2, 3), ("1", 2, 3))
         self.assertNotEqual(Vector(1, 2, 3), om2.MPoint(1, 2, 3))
         self.assertNotEqual(Vector(1, 2, 3), None)
         self.assertNotEqual(Vector(1, 2, 3), Vector(1, 2, 3.0000001))
+
+    def test_sequence_operands(self):
+        """+ / - は3個の数値のtuple/listを相手にでき、om2で同じ成分を加減した値と一致する。"""
+        a = Translate(1, 2, 3)
+        om = om2.MVector(1, 2, 3)
+        cases = (
+            (a + (1, 1, 1), om + om2.MVector(1, 1, 1)),
+            ((1, 1, 1) + a, om + om2.MVector(1, 1, 1)),
+            (a - [0.5, 1, 0], om - om2.MVector(0.5, 1, 0)),
+            ([0.5, 1, 0] - a, om2.MVector(0.5, 1, 0) - om),
+        )
+        for result, expected in cases:
+            with self.subTest(result=result):
+                self.assertIs(type(result), Vector)
+                self.assertEqual(result, expected)
+        same = Translate(1, 2, 3)
+        before = same
+        same += (1, 1, 1)
+        same -= [0, 0, 1]
+        self.assertIs(same, before)
+        self.assertIs(type(same), Translate)
+        self.assertEqual(same, (2, 3, 3))
+        for invalid in ((1, 2), (1, 2, 3, 4), ("1", 2, 3), (True, 0, 0), om2.MPoint(1, 2, 3), None, {1, 2, 3}):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(TypeError):
+                    a + invalid
+                with self.assertRaises(TypeError):
+                    a - invalid
+        with self.assertRaises(TypeError):
+            value = Vector()
+            value += (1, 2)
+
+    def test_quaternion_from_euler_and_matrix(self):
+        """Quaternion(EulerRotate)はasQuaternion()、Quaternion(Matrix)はMTransformationMatrixの回転と一致する。"""
+        for order in ORDER_NAMES:
+            euler = EulerRotate(0.3, -1.1, 2.4, order)
+            with self.subTest(order=order):
+                result = Quaternion(euler)
+                self.assertIs(type(result), Quaternion)
+                self.assertEqual(result, euler.asQuaternion())
+                raw = om2.MEulerRotation(0.3, -1.1, 2.4, orderIndex(order))
+                self.assertEqual(Quaternion(raw), raw.asQuaternion())
+        source = _sample_matrix()
+        expected = om2.MTransformationMatrix(source).rotation(asQuaternion=True)
+        for value in (source, Matrix(source)):
+            with self.subTest(type=type(value).__name__):
+                result = Quaternion(value)
+                self.assertIs(type(result), Quaternion)
+                for actual, wanted in zip(result, expected):
+                    self.assertAlmostEqual(actual, wanted, places=12)
+        self.assertEqual(Quaternion(Matrix()), Quaternion())
 
     def test_measure_methods_match_om2(self):
         """dot・cross・length・lengthSq・distanceToはom2の計算と一致する。"""

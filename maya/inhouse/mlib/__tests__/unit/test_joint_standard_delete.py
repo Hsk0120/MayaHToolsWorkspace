@@ -54,7 +54,7 @@ class JointStandardDeleteTest(unittest.TestCase):
             mesh = cmds.polyPlane(ch=False, sx=1, sy=1)[0]
             skin = mlib.getNode(cmds.skinCluster([n.getFullName() for n in (root, middle, other)],
                                                 mesh, toSelectedBones=True)[0])
-            skin.setWeights([n.getFullName() for n in (root, middle, other)], [.2, .3, .5])
+            skin.setWeights([n.getFullName() for n in (root, middle, other)], [.2, .3, .5], broadcast=True)
             cmds.delete(middle.getFullName())
             expected = list(skin.getWeights([root, other]))
             cmds.undo()
@@ -64,8 +64,9 @@ class JointStandardDeleteTest(unittest.TestCase):
     def test_safe_preserves_connected_joint_and_descendants(self):
         """safeの接続保護は標準化後も維持する。"""
         root = mlib.createNode("joint")
+        # 5.0.0からjointの下へ作ったjointはinverseScaleを自動で接続する(cmds.jointと同じ)。
         child = mlib.createNode("joint", parent=root)
-        root.getPlug("scale").connectTo(child.getPlug("inverseScale"))
+        self.assertEqual(child.getPlug("inverseScale").getSource(), root.getPlug("scale"))
         root.delete(safe=True)
         self.assertTrue(root.isValid())
         self.assertTrue(child.isValid())

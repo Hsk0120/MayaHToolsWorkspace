@@ -129,7 +129,8 @@ class AckermannSteering(TwistDistribution):
             # steer = (driver - 生成時の値) * driverRatio(角度のまま足し引きし、単位変換ノードを入れない)。
             delta = graph._node("animBlendNodeAdditiveDA", "driverDelta")
             driver.connectTo(delta.getPlug("inputA"))
-            delta.getPlug("inputB").set(driver.get())
+            # 角度の現在値をラジアンのまま写し、度との往復の丸めを入れない。
+            delta.getPlug("inputB").set(driver.get(unit="rad"), unit="rad")
             delta.getPlug("weightA").set(1.0)
             delta.getPlug("weightB").set(-1.0)
             scaled = graph._node("animBlendNodeAdditiveDA", "driverScale")
@@ -181,7 +182,7 @@ class AckermannSteering(TwistDistribution):
             if connect:
                 rotate = graph._node("animBlendNodeAdditiveDA", side + "Rotate")
                 owner.getPlug(side + "Angle").connectTo(rotate.getPlug("inputA"))
-                rotate.getPlug("inputB").set(wheel.getPlug(channel).get())
+                rotate.getPlug("inputB").set(wheel.getPlug(channel).get(unit="rad"), unit="rad")
                 rotate.getPlug("weightA").set(1.0)
                 rotate.getPlug("weightB").set(1.0)
                 rotate.getPlug("output").connectTo(wheel.getPlug(channel))

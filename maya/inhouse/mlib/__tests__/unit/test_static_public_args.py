@@ -18,7 +18,6 @@ _SKIPPED_DIRECTORIES = {"__tests__", "_docs", "__pycache__"}
 
 #: snake_caseの引数を許可する公開def。キーは(パッケージからの相対パス, 修飾名)。
 ALLOWED = {
-    ("mlib/logger.py", "raise_with_notify"): "既存の通知契約(名前自体がsnake_case)",
     ("mlib/core/registry.py", "NodeRegistry.__init__"): "既存の登録プロトコル",
     ("mlib/core/registry.py", "NodeRegistry.register"): "既存の登録プロトコル",
     ("mlib/core/registry.py", "NodeRegistry.wrapper_class"): "既存の登録プロトコル",

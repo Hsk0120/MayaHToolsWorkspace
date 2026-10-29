@@ -19,8 +19,7 @@ from ..core.registry import _node_type_exists
 from .node import Node, Nodes
 from .shape import Shape
 from .transform import Transform
-from .addDL import AddDL
-from .addDoubleLinear import AddDoubleLinear
+from .addDoubleLinear import AddDL, AddDoubleLinear
 from .aimConstraint import AimConstraint
 from .animCurve import AnimCurve
 from .animCurveTA import AnimCurveTA
@@ -32,6 +31,7 @@ from .animCurveUL import AnimCurveUL
 from .animCurveUT import AnimCurveUT
 from .animCurveUU import AnimCurveUU
 from .blendColors import BlendColors
+from .blendShape import BlendShape
 from .blendWeighted import BlendWeighted
 from .blinn import Blinn
 from .camera import Camera
@@ -51,8 +51,7 @@ from .joint import Joint, Joints
 from .lambert import Lambert
 from .locator import Locator
 from .mesh import Mesh
-from .multDL import MultDL
-from .multDoubleLinear import MultDoubleLinear
+from .multDoubleLinear import MultDL, MultDoubleLinear
 from .multiplyDivide import MultiplyDivide
 from .normalConstraint import NormalConstraint
 from .nurbsCurve import NurbsCurve
@@ -84,7 +83,7 @@ from .tangentConstraint import TangentConstraint
 from .texture2d import Texture2d
 from .unitConversion import UnitConversion
 
-__all__ = ['AddDL', 'AddDoubleLinear', 'AimConstraint', 'AnimCurve', 'AnimCurveTA', 'AnimCurveTL', 'AnimCurveTT', 'AnimCurveTU', 'AnimCurveUA', 'AnimCurveUL', 'AnimCurveUT', 'AnimCurveUU', 'BlendColors', 'BlendWeighted', 'Blinn', 'Camera', 'Clamp', 'Cluster', 'Condition', 'Constraint', 'Container', 'DagContainer', 'DagNode', 'DagPose', 'DisplayLayer', 'File', 'GeometryConstraint', 'IkHandle', 'Joint', 'Joints', 'Lambert', 'Locator', 'Mesh', 'MultDL', 'MultDoubleLinear', 'MultiplyDivide', 'Node', 'Nodes', 'NormalConstraint', 'NurbsCurve', 'NurbsSurface', 'ObjectSet', 'OrientConstraint', 'PaintableShadingDependNode', 'ParentConstraint', 'Phong', 'PhongE', 'Place2dTexture', 'Place3dTexture', 'PlusMinusAverage', 'PointConstraint', 'PointOnPolyConstraint', 'PoleVectorConstraint', 'Reference', 'Reflect', 'RemapValue', 'Reverse', 'ScaleConstraint', 'SetRange', 'ShadingDependNode', 'ShadingEngine', 'Shape', 'SkinCluster', 'SkinClusters', 'StandardSurface', 'SurfaceShader', 'TangentConstraint', 'Texture2d', 'Transform', 'UnitConversion']
+__all__ = ['AddDL', 'AddDoubleLinear', 'AimConstraint', 'AnimCurve', 'AnimCurveTA', 'AnimCurveTL', 'AnimCurveTT', 'AnimCurveTU', 'AnimCurveUA', 'AnimCurveUL', 'AnimCurveUT', 'AnimCurveUU', 'BlendColors', 'BlendShape', 'BlendWeighted', 'Blinn', 'Camera', 'Clamp', 'Cluster', 'Condition', 'Constraint', 'Container', 'DagContainer', 'DagNode', 'DagPose', 'DisplayLayer', 'File', 'GeometryConstraint', 'IkHandle', 'Joint', 'Joints', 'Lambert', 'Locator', 'Mesh', 'MultDL', 'MultDoubleLinear', 'MultiplyDivide', 'Node', 'Nodes', 'NormalConstraint', 'NurbsCurve', 'NurbsSurface', 'ObjectSet', 'OrientConstraint', 'PaintableShadingDependNode', 'ParentConstraint', 'Phong', 'PhongE', 'Place2dTexture', 'Place3dTexture', 'PlusMinusAverage', 'PointConstraint', 'PointOnPolyConstraint', 'PoleVectorConstraint', 'Reference', 'Reflect', 'RemapValue', 'Reverse', 'ScaleConstraint', 'SetRange', 'ShadingDependNode', 'ShadingEngine', 'Shape', 'SkinCluster', 'SkinClusters', 'StandardSurface', 'SurfaceShader', 'TangentConstraint', 'Texture2d', 'Transform', 'UnitConversion']
 _WRAPPER_CLASSES: dict
 
 def __getattr__(name: str) -> type:

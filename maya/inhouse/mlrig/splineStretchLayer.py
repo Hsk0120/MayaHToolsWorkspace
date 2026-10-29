@@ -133,7 +133,8 @@ class SplineStretchLayer:
             for i, bone in enumerate(bones):
                 bone.getPlug("segmentScaleCompensate").set(True)
                 if i:
-                    bones[i - 1].getPlug("scale").connectTo(bone.getPlug("inverseScale"), force=True)
+                    # jointの下へ作ったjointは接続済み(同じ接続なら変更しない)。別の入力は置き換える。
+                    bone.connectInverseScale(bones[i - 1], force=True)
         rig.update()
         jobs = rig._jobs.pop(root.getUuid(), None)
         if jobs is not None:

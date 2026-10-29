@@ -2,6 +2,7 @@
 """シーン設定を書き換えずに距離・角度・時間を変換する。"""
 
 import maya.api.OpenMaya as om2
+from ..util import _angle_unit
 
 
 def distanceToUi(centimeters: float) -> float:
@@ -59,25 +60,52 @@ def distanceFromUi(value: float) -> float:
     """
     ...
 
-def angleToUi(radians: float) -> float:
-    """rad角度を現在のUI角度単位の数値へ変換する。
+def _angle_constant(unit: str) -> int:
+    """角度の単位名をMAngleの単位定数へ解決する。
 
     Args:
-        radians (float): rad単位の角度。
+        unit (str): ``"deg"`` / ``"rad"`` と ``"degree"`` 等の別名。
 
     Returns:
-        float: 現在のUI角度単位で表した値。
+        int: MAngleの単位定数。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: 未対応の単位名の場合。
     """
     ...
 
-def angleFromUi(value: float) -> float:
-    """現在のUI角度単位の数値をradへ変換する。
+def angleToUi(value: float, *, unit: str = ...) -> float:
+    """角度を現在のUI角度単位の数値へ変換する。
+
+    Args:
+        value (float): unitの単位の角度。
+        unit (str): valueの単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+            (``"degree"`` / ``"radians"`` 等の別名も可)。
+
+    Returns:
+        float: 現在のUI角度単位で表した値。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: unitが未対応の単位名の場合。
+    """
+    ...
+
+def angleFromUi(value: float, *, unit: str = ...) -> float:
+    """現在のUI角度単位の数値を、指定単位の角度へ変換する。
 
     Args:
         value (float): 現在のUI角度単位で表した値。
+        unit (str): 戻り値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+            (``"degree"`` / ``"radians"`` 等の別名も可)。
 
     Returns:
-        float: rad単位の角度。
+        float: unitの単位の角度。
+
+    Raises:
+        TypeError: unitが文字列以外の場合。
+        ValueError: unitが未対応の単位名の場合。
     """
     ...
 

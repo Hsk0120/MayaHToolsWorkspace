@@ -207,7 +207,7 @@ class SecondaryLayer:
             for frame in frames:
                 cmds.currentTime(frame, update=True)
                 row = [
-                    math.degrees(mlib.common.units.angleFromUi(v))
+                    mlib.common.units.angleFromUi(v)
                     for source in sources
                     for v in mlib.getPlug(source.getPlug('rotate')).get(uiUnits=True)
                 ]
@@ -228,7 +228,7 @@ class SecondaryLayer:
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
                 old_times = set(cmds.keyframe(curve.getFullName(), query=True, timeChange=True) or [])
                 for frame, row in zip(frames, solved):
-                    value = mlib.common.units.angleToUi(math.radians(row[column]))
+                    value = mlib.common.units.angleToUi(row[column])
                     cmds.setKeyframe(
                         curve.getFullName(),
                         time=frame,
@@ -320,7 +320,7 @@ class SecondaryLayer:
             for destination, source in zip(connections[::2], connections[1::2]):
                 if source.getNode().getUuid() in mapping:
                     destination.disconnect(source)
-                    mapping[source.getNode().getUuid()].getPlug(source.getAttrName()[1:]).connectTo(destination)
+                    mapping[source.getNode().getUuid()].getPlug(source.getAttrName()).connectTo(destination)
 
     def update(self):
         """停止レイヤーの入力を切断し、両方停止なら元の骨へ接続を戻す。"""
