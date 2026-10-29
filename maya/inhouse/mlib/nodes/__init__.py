@@ -40,6 +40,7 @@ from .animCurveUL import AnimCurveUL
 from .animCurveUT import AnimCurveUT
 from .animCurveUU import AnimCurveUU
 from .blendColors import BlendColors
+from .blendShape import BlendShape
 from .blendWeighted import BlendWeighted
 from .blinn import Blinn
 from .camera import Camera
@@ -107,6 +108,7 @@ __all__ = [
     "AnimCurveUT",
     "AnimCurveUU",
     "BlendColors",
+    "BlendShape",
     "BlendWeighted",
     "Blinn",
     "Camera",
@@ -181,6 +183,7 @@ _WRAPPER_CLASSES = {
     "animCurveUT": AnimCurveUT,
     "animCurveUU": AnimCurveUU,
     "blendColors": BlendColors,
+    "blendShape": BlendShape,
     "blendWeighted": BlendWeighted,
     "blinn": Blinn,
     "camera": Camera,

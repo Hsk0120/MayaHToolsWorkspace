@@ -34,6 +34,7 @@ from mlib.nodes.animCurveUL import AnimCurveUL
 from mlib.nodes.animCurveUT import AnimCurveUT
 from mlib.nodes.animCurveUU import AnimCurveUU
 from mlib.nodes.blendColors import BlendColors
+from mlib.nodes.blendShape import BlendShape
 from mlib.nodes.blendWeighted import BlendWeighted
 from mlib.nodes.blinn import Blinn
 from mlib.nodes.camera import Camera
@@ -117,6 +118,8 @@ def createNode(type: Literal["animCurveUT"], *, fast: bool = ..., name: str = ..
 def createNode(type: Literal["animCurveUU"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AnimCurveUU: ...
 @overload
 def createNode(type: Literal["blendColors"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendColors: ...
+@overload
+def createNode(type: Literal["blendShape"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendShape: ...
 @overload
 def createNode(type: Literal["blendWeighted"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendWeighted: ...
 @overload

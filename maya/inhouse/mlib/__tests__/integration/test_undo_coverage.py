@@ -40,7 +40,7 @@ from mlib.common.namespace import Namespace
 from mlib.common.scalarGraph import ScalarGraph
 from mlib.common.selection import Selection
 from mlib.maths import Matrix
-from mlib.nodes import Container, DagContainer, DagPose, SkinCluster
+from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, SkinCluster
 from support.specCase import NamespaceCase
 
 
@@ -812,6 +812,37 @@ def s_pose(c):
     c.npose = mlib.getNode(c.pose)
 
 
+def s_ik_joints(c):
+    """joint 連鎖を作る。Maya が最初の IK ハンドルで作るソルバー(Undo で消えない)は先に用意する。"""
+    if not cmds.ls(type="ikRPsolver"):
+        current = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
+        cmds.namespace(set=":")
+        try:
+            cmds.select(clear=True)
+            warm = [cmds.joint(name="mlibUndoCoverageWarmIk#", position=(0, i, 1)) for i in range(2)]
+            cmds.select(clear=True)
+            cmds.delete(cmds.ikHandle(startJoint=warm[0], endEffector=warm[1])[0], warm[0])
+        finally:
+            cmds.namespace(set=current)
+    s_joints(c)
+
+
+def s_blend_meshes(c):
+    """blendShape の基準メッシュと、同じ形のターゲットメッシュ 2 つを作る。"""
+    c.base, c.target, c.target2 = (
+        cmds.ls(cmds.polyCube(name=text, constructionHistory=False)[0], long=True)[0]
+        for text in ("base", "target", "target2"))
+    cmds.setAttr(c.target + ".vtx[0]", 0.0, 1.0, 0.0)
+    cmds.setAttr(c.target2 + ".vtx[1]", 0.0, 1.0, 0.0)
+
+
+def s_blend(c):
+    """ターゲット 1 つの blendShape と、追加用のターゲットメッシュを作る。"""
+    s_blend_meshes(c)
+    c.blend = cmds.blendShape(c.target, c.base, name="blend", frontOfChain=True)[0]
+    c.nblend = mlib.getNode(c.blend)
+
+
 def s_reorder(c):
     """基準の 4 頂点の平面と、頂点番号だけを入れ替えた同形の平面を作る。"""
     c.ref = cmds.ls(cmds.polyPlane(name="ref", subdivisionsX=1, subdivisionsY=1,
@@ -947,6 +978,7 @@ CASES = [
       fastSkip="コンポーネントの削除は fast の対象外"),
     C("cmds.duplicate", "duplicate transform", s_one, lambda c, **kw: mlib.duplicate(c.a)),
     C("cmds.duplicate", "duplicate mesh", s_cube, lambda c, **kw: mlib.duplicate(c.cube)),
+    C("cmds.duplicate", "duplicate suffix", s_joints, lambda c, **kw: mlib.duplicate(c.j0, suffix="_FK")),
     C("cmds.select", "select replace", s_two, lambda c, **kw: mlib.select([c.a, c.b])),
     C("cmds.select", "select clear", s_two_selected, lambda c, **kw: mlib.select(clear=True)),
     # Node
@@ -1060,6 +1092,20 @@ CASES = [
       lambda c, **kw: c.nj1.removeInfluence(c.skin)),
     C("Joint.reparentChildren", "reparentChildren", s_joints,
       lambda c, **kw: c.nj0.reparentChildren(c.jx, **kw)),
+    C("Joint.orient", "Joint.orient", s_joints, lambda c, **kw: c.nj0.orient()),
+    C("Joint.mirror", "Joint.mirror", s_joints, lambda c, **kw: c.nj0.mirror(searchReplace=("j", "m"))),
+    # IkHandle / BlendShape
+    C("IkHandle.create", "IkHandle.create", s_ik_joints,
+      lambda c, **kw: IkHandle.create(c.j0, c.j2, name="madeIk")),
+    C("BlendShape.create", "BlendShape.create", s_blend_meshes,
+      lambda c, **kw: BlendShape.create(c.base, [c.target, c.target2], name="madeBlend")),
+    C("BlendShape.addTarget", "BlendShape.addTarget", s_blend,
+      lambda c, **kw: c.nblend.addTarget(c.target2, name="added")),
+    C("BlendShape.removeTarget", "BlendShape.removeTarget", s_blend,
+      lambda c, **kw: c.nblend.removeTarget("target"),
+      mayaQuirk="Maya標準の blendShapeDeleteTargetGroup も、実体の無かった targetVisibility[i]・"
+                "targetParentVisibility[i] を Undo で既定値の要素として作り直す",
+      ignoreAttrs=("targetVisibility", "targetParentVisibility")),
     # Constraint
     C("Constraint.setWeight", "Constraint.setWeight", s_constraint,
       lambda c, **kw: c.ncon.setWeight(0.5, **kw)),
