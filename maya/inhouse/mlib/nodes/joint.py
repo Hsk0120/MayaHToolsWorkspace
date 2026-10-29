@@ -11,6 +11,44 @@ from ..maths import EulerRotate, Matrix, Scale
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 
+#: :meth:`Joint.orient` の orientation に指定できる値(``cmds.joint(orientJoint=...)`` と同じ)。
+_ORIENTATIONS = ("xyz", "yzx", "zxy", "zyx", "yxz", "xzy", "none")
+
+#: :meth:`Joint.orient` の secondaryAxisOrient に指定できる値(``cmds.joint`` と同じ)。
+_SECONDARY_AXES = ("xup", "xdown", "yup", "ydown", "zup", "zdown")
+
+#: :meth:`Joint.mirror` の axis(鏡映面)と ``cmds.mirrorJoint`` のフラグの対応。
+_MIRROR_PLANES = {"XY": "mirrorXY", "YZ": "mirrorYZ", "XZ": "mirrorXZ"}
+
+
+def _orient_flags(orientation, secondaryAxisOrient, children, zeroScaleOrient):
+    """Joint.orientの引数を検証し、cmds.jointへ渡すフラグを返す。
+
+    Args:
+        orientation (str): 主軸・副軸・第3軸の順の軸名、または ``"none"``。
+        secondaryAxisOrient (str): 副軸を向けるワールド軸。
+        children (bool): 子孫jointも処理するか。
+        zeroScaleOrient (bool): scaleOrientを0にするか。
+
+    Returns:
+        dict: ``cmds.joint(edit=True, ...)`` のフラグ。
+
+    Raises:
+        TypeError: 文字列・bool以外の場合。
+        ValueError: 対応しない軸名の場合。
+    """
+    for value, label in ((orientation, "orientation"), (secondaryAxisOrient, "secondaryAxisOrient")):
+        if not isinstance(value, str):
+            raise TypeError(f"{label} must be a string")
+    if orientation not in _ORIENTATIONS:
+        raise ValueError(f"orientation must be one of {', '.join(_ORIENTATIONS)}: {orientation!r}")
+    if secondaryAxisOrient not in _SECONDARY_AXES:
+        raise ValueError(f"secondaryAxisOrient must be one of {', '.join(_SECONDARY_AXES)}: {secondaryAxisOrient!r}")
+    _require_bool(children, "children")
+    _require_bool(zeroScaleOrient, "zeroScaleOrient")
+    return {"edit": True, "orientJoint": orientation, "secondaryAxisOrient": secondaryAxisOrient,
+            "children": children, "zeroScaleOrient": zeroScaleOrient}
+
 
 class Joint(Transform):
     """Jointの参照と、回転移送・スケール補償の操作を提供する。
@@ -112,6 +150,92 @@ class Joint(Transform):
             self._require_valid("freeze rotation of")
             self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True, fast=fast)
             return self
+
+    def orient(self, orientation="xyz", secondaryAxisOrient="yup", children=True, zeroScaleOrient=True):
+        """jointの向きを子jointへ向けて揃える(``cmds.joint(edit=True, orientJoint=...)`` 相当)。
+
+        ``cmds.joint(edit=True, orientJoint=orientation, secondaryAxisOrient=secondaryAxisOrient,
+        children=children, zeroScaleOrient=zeroScaleOrient)`` を実行し、処理した中で子jointを持たない
+        末端jointの jointOrient を0にする(親jointと同じ向き。rotateは変えない)。子jointの位置は保つ。
+        末端jointの子にあるjoint以外のノードは、jointOrientの変更に合わせて動く。
+        fast引数は持たない(向きの計算をMaya標準のcmds.jointに委ねる)。Undo有効時は1回で戻せる。
+
+        Args:
+            orientation (str): 子jointへ向ける主軸・副軸・第3軸の順。``"xyz"``・``"yzx"``・``"zxy"``・
+                ``"zyx"``・``"yxz"``・``"xzy"``、または jointOrient を0にする ``"none"``。
+            secondaryAxisOrient (str): 副軸を向けるワールド軸。``"xup"``・``"xdown"``・``"yup"``・
+                ``"ydown"``・``"zup"``・``"zdown"``。
+            children (bool): Trueは子孫jointも同じ規則で処理する。Falseは自身だけ。
+            zeroScaleOrient (bool): TrueはscaleOrientを0にする。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: orientation・secondaryAxisOrientが文字列以外、children・zeroScaleOrientがbool以外の場合。
+            ValueError: 対応しない軸名の場合。
+            RuntimeError: 無効なjoint、またはロック・入力接続などでMayaが編集を拒否した場合。
+        """
+        flags = _orient_flags(orientation, secondaryAxisOrient, children, zeroScaleOrient)
+        self._require_valid("orient")
+        with undoChunk("mlibJointOrient"):
+            self._orient(flags)
+            return self
+
+    def mirror(self, axis="YZ", behavior=True, searchReplace=None):
+        """jointチェーンを鏡映した新しいチェーンを作成する(``cmds.mirrorJoint`` 相当)。
+
+        自身と子孫のjoint(と子のikEffector等)をMaya標準の ``cmds.mirrorJoint`` で複製・鏡映する。
+        新しいルートは自身と同じ親の下に作られ、Mayaの規則どおり選択される。元のチェーンは変更しない。
+        Transformの :meth:`~mlib.nodes.Transform.mirrorTransform` (自身の値の鏡映)とは別の操作。
+        fast引数は持たない(OpenMayaに同等機能が無い)。Undo有効時は1回で戻せる。
+
+        Args:
+            axis (str): 鏡映面。``"YZ"`` (X方向の左右反転)・``"XY"``・``"XZ"``。大文字小文字は区別しない。
+            behavior (bool): Trueは ``mirrorBehavior`` (回転の向きを反転し、同じ回転値で逆向きに動く。
+                リグの左右対称で一般的)。Falseは向き(orientation)を鏡映する。
+            searchReplace (tuple[str, str] | None): 新しいjoint名の置換 ``(検索, 置換)``。
+                例: ``("L_", "R_")``。NoneならMayaの自動命名。
+
+        Returns:
+            Joint: 新しいチェーンのルートjoint。チェーン全体は ``getChildren(allDescendents=True)``
+                や :meth:`getChainFromHere` で取得する。
+
+        Raises:
+            TypeError: axisが文字列以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
+            ValueError: axisが対応しない値、またはsearchReplaceの検索文字列が空の場合。
+            RuntimeError: 無効なjoint、またはMayaが鏡映を拒否した場合。
+
+        Note:
+            Mayaの ``mirrorJoint`` は、searchReplaceで名前空間を含めて置換しない限り新しいjointを
+            現在の名前空間へ置く。
+        """
+        if not isinstance(axis, str):
+            raise TypeError("axis must be a string")
+        flag = _MIRROR_PLANES.get(axis.upper())
+        if flag is None:
+            raise ValueError(f"axis must be one of {', '.join(_MIRROR_PLANES)}: {axis!r}")
+        _require_bool(behavior, "behavior")
+        flags = {flag: True, "mirrorBehavior": behavior}
+        if searchReplace is not None:
+            if (isinstance(searchReplace, str) or not isinstance(searchReplace, (tuple, list))
+                    or len(searchReplace) != 2 or not all(isinstance(item, str) for item in searchReplace)):
+                raise TypeError("searchReplace must be a (search, replace) pair of strings or None")
+            if not searchReplace[0]:
+                raise ValueError("searchReplace search string must not be empty")
+            flags["searchReplace"] = tuple(searchReplace)
+        self._require_valid("mirror")
+        with undoChunk("mlibJointMirror"):
+            parent = self.getParent()
+            # mirrorJointの選択変更はUndoに記録されないため、前後の選択を明示してUndo/Redoで再現する。
+            cmds.select(self.getFullName(), replace=True)
+            result = cmds.mirrorJoint(self.getFullName(), **flags)
+            if not result:
+                raise RuntimeError(f"Maya did not create a mirrored joint for {self.getName()}")
+            prefix = parent.getFullName() if parent is not None else ""
+            root = Joint(prefix + "|" + result[0])
+            cmds.select(root.getFullName(), replace=True)
+            return root
 
     def connectInverseScale(self, source=None, force=False, *, fast=False):
         """接続元Transformのscaleを自身のinverseScaleへ接続する。
@@ -435,6 +559,24 @@ class Joint(Transform):
             result.append(IkHandle(node.mnode()))
         return result
 
+    def _orient(self, flags):
+        """検証済みのフラグで向きを揃え、末端jointのjointOrientを0にする。
+
+        Args:
+            flags (dict): :func:`_orient_flags` が返したcmds.jointのフラグ。
+
+        Returns:
+            None: 値を返さない。
+        """
+        name = self.getFullName()
+        cmds.joint(name, **flags)
+        targets = [name]
+        if flags["children"]:
+            targets += cmds.listRelatives(name, allDescendents=True, type="joint", fullPath=True) or []
+        for target in targets:
+            if not cmds.listRelatives(target, children=True, type="joint"):
+                cmds.setAttr(target + ".jointOrient", 0.0, 0.0, 0.0)
+
     def _joint_rotate_order(self):
         """Maya の rotateOrder を API の回転順序へ変換する。
 
@@ -625,6 +767,33 @@ class Joints(Nodes):
             Joints: 子 joint を先に処理できる深さ順コレクション。
         """
         return Joints(sorted(self._items, key=lambda joint: joint.getDepth(), reverse=True))
+
+    def orient(self, orientation="xyz", secondaryAxisOrient="yup", children=True, zeroScaleOrient=True):
+        """各jointへ保持順に :meth:`Joint.orient` を適用する。
+
+        全体を1つのUndoチャンクに記録する。引数は全要素の処理前に1回だけ検証する。
+
+        Args:
+            orientation (str): :meth:`Joint.orient` と同じ。
+            secondaryAxisOrient (str): :meth:`Joint.orient` と同じ。
+            children (bool): :meth:`Joint.orient` と同じ。
+            zeroScaleOrient (bool): :meth:`Joint.orient` と同じ。
+
+        Returns:
+            Joints: 自身。
+
+        Raises:
+            TypeError: :meth:`Joint.orient` と同じ。
+            ValueError: :meth:`Joint.orient` と同じ。
+            RuntimeError: 無効なjointを含む、またはMayaが編集を拒否した場合。先行した要素の変更は自動では戻さない。
+        """
+        flags = _orient_flags(orientation, secondaryAxisOrient, children, zeroScaleOrient)
+        for joint in self._items:
+            joint._require_valid("orient")
+        with undoChunk("mlibJointsOrient"):
+            for joint in self._items:
+                joint._orient(flags)
+            return self
 
     def getSkinClusters(self):
         """全 joint に関連する skinCluster を取得する。

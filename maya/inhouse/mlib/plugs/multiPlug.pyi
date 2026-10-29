@@ -181,6 +181,11 @@ class MultiPlug(Plug):
             TypeError: indexがboolまたは整数以外の場合。
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
+
+        Note:
+            デフォーマのターゲットはこの方法で除去しない。例えばblendShapeの ``weight`` の要素を
+            消しても、エイリアスと ``inputTarget[].inputTargetGroup[i]`` が残る。blendShapeのターゲットは
+            :meth:`mlib.nodes.BlendShape.removeTarget` で除去する。
         """
         ...
     def getSourceNodes(self) -> dict[int, Node]:
