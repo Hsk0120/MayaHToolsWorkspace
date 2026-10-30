@@ -5,12 +5,15 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..core.attributeType import _convert_angles, _convert_times, _convert_units, attributeType
-from ..decorator import undoChunk
+from ..core.fastWrite import require_writable
+from ..decorator import _edit_context
+from ..nodes.animCurve import AnimCurve
+from ..nodes.node import Node
 from ..plugs.plug import Plug
 from ..util import _angle_unit, _time_unit
 from typing import Iterable
-from mlib.nodes.animCurve import AnimCurve
 
+_CURVE_TYPES: dict
 _NUMERIC_SCALAR_TYPES: frozenset
 
 def _plug(value: Plug | om2.MPlug | str) -> Plug:
@@ -157,15 +160,20 @@ class DrivenKey:
             bool: 対応するカーブ接続が存在するか。キーが空でもTrue。
         """
         ...
-    def setKey(self, driverValue: float, value: float, inTangentType: str = ..., outTangentType: str = ..., *, unit: str = ..., timeUnit: str = ...) -> DrivenKey:
+    def setKey(self, driverValue: float, value: float, inTangentType: str = ..., outTangentType: str = ..., *, unit: str = ..., timeUnit: str = ..., fast: bool = ...) -> DrivenKey:
         """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
 
         両値をfloat()で有限性検査し、それぞれのPlug定義に従ってUI単位へ変換して
         setDrivenKeyframeを呼ぶ。ドライバーの現在値やシーン時刻は
         変更しない。作成後は対応カーブをdgdirtyで汚し、駆動先の再評価を促す。
+        Undo有効時は一回のチャンクにまとめる。
 
-        fast引数やOpenMaya更新は提供しない。Undo有効時は一回のチャンクにまとめる。
-        呼出元のfast指定には影響されず、Undo設定は変更しない。
+        ``fast=True`` はUndoに記録せず、OpenMayaで更新する。この組のカーブがあれば
+        :meth:`AnimCurve.setKey <mlib.nodes.animCurve.AnimCurve.setKey>` のfastでキーを追加・更新する。
+        無ければsetDrivenKeyframeと同じ型(駆動先が距離ならanimCurveUL、角度ならanimCurveUA、
+        時間ならanimCurveUT、他はanimCurveUU)・名前(名前空間を除いた ``<駆動先ノード>_<アトリビュート>``。
+        エイリアスがあればエイリアス)のカーブを作り、
+        ドライバー→カーブ→駆動先へ接続する(単位の違う接続にはMayaがunitConversionを挟む)。
 
         Args:
             driverValue (float): ドライバーの値。角度はunitの単位(既定は度)、距離cm、
@@ -177,19 +185,40 @@ class DrivenKey:
                 (``"degree"`` / ``"radians"`` 等の別名も可)。角度以外のアトリビュートでは使わない。
             timeUnit (str): 時間アトリビュートの値の単位。既定 ``"frame"`` は現在のUI時間単位のフレーム、
                 ``"sec"`` は秒(``"seconds"`` 等の別名も可)。時間以外のアトリビュートでは使わない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DrivenKey: 自身。
 
         Raises:
-            TypeError: 数値の型がfloat()へ変換できない、またはunit・timeUnitが文字列以外の場合。
-            ValueError: 数値が非有限、float()で変換できない、またはunit・timeUnitが未対応の単位名の場合。
-            RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
+            TypeError: 数値の型がfloat()へ変換できない、unit・timeUnitが文字列以外、またはfastがbool以外の場合。
+            ValueError: 数値が非有限、float()で変換できない、unit・timeUnitが未対応の単位名、
+                またはfastでfixed・global等の直接設定できない接線型を指定した場合。
+            RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、駆動先がロックされている、
                 またはMayaがキー作成を拒否した場合。
+            NotImplementedError: fastで、この組のカーブが無く駆動先に別のドライバーのカーブが既に
+                つながっている場合(MayaはblendWeightedを挟む)、または入力接線にstepnextを指定した場合。
+                いずれも変更前に拒否する。
 
         Note:
             複数ドライバーの合成にはMaya標準のblendWeightedを使い、pairBlendの
             自動挿入は行わない。最終出力は他カーブや合成ウェイトにも依存する。
             後続の失敗に対する自動ロールバックは行わない。
+        """
+        ...
+    def _set_key_fast(self, curves: list[AnimCurve], input: float, value: float, inTangentType: str, outTangentType: str, unit: str, timeUnit: str) -> None:
+        """:meth:`setKey` のfast経路。必要ならカーブを作って接続し、OpenMayaでキーを書く。
+
+        Args:
+            curves (list[AnimCurve]): この組のカーブ(0個か1個)。
+            input (float): カーブの横軸の値(ドライバーのUI単位)。
+            value (float): 駆動先の値。:meth:`setKey` のvalueと同じ単位。
+            inTangentType (str): Mayaの入力接線型。
+            outTangentType (str): Mayaの出力接線型。
+            unit (str): 角度の値の単位。
+            timeUnit (str): 時間の値の単位。
+
+        Returns:
+            None: 値を返さない。
         """
         ...

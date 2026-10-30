@@ -7,6 +7,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units, _from_seconds, _to_seconds
+from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _require_bool
 from ..util import _angle_unit, _from_radians, _time_unit, _to_radians
 from .node import Node
@@ -376,7 +377,14 @@ class AnimCurve(Node):
         """API接線型をMayaのコマンド表記へ変換する。"""
         ...
     def _require_curve_writable(self):
-        """直接編集前にカーブとキー格納先のロックを検査する。"""
+        """直接編集前に、キーを格納するアトリビュート(keyTimeValue)のロック・入力接続を検査する。
+
+        全キーの要素を調べるとキー数に比例して遅くなる(キーを打つたびに全要素を調べる)ため、
+        マルチアトリビュート自体だけを調べる。要素ごとのロックはcmds.setKeyframeでもエラーにならない。
+
+        Raises:
+            RuntimeError: ノードが無効、またはkeyTimeValueがロック・入力接続されている場合。
+        """
         ...
     def _unit_value(self, value: float, output: bool = ..., to_ui: bool = ...) -> float:
         """カーブの入出力アトリビュート定義に従い、コマンド境界で単位を変換する。

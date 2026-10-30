@@ -30,7 +30,7 @@ class Shape(DagNode):
             pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
                 Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。
-            fast (bool): Trueは履歴なしメッシュ・非周期カーブをOM2で更新(Undoなし)。
+            fast (bool): Trueは履歴なしメッシュ・カーブをOM2で更新(Undoなし)。
                 FalseはMaya標準コマンドをUndo有効時にまとめる。
 
         Returns:
@@ -41,7 +41,7 @@ class Shape(DagNode):
             ValueError: 倍率・中心・空間が不正、world変換がほぼ特異、またはメッシュ・NURBS以外のShapeの場合。
             IndexError: 対象番号が範囲外の場合。
             RuntimeError: Mayaが編集を拒否した場合。
-            NotImplementedError: fastでサーフェス・周期カーブ・入力履歴付き形状の場合。
+            NotImplementedError: fastでサーフェス・入力履歴付き形状の場合。
         """
         ...
     def getTransform(self) -> Transform | None:

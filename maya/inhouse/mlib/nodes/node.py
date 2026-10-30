@@ -2773,21 +2773,22 @@ class Nodes:
         self._forward("setLocked", (state,), fast)
         return self
 
-    def setColor(self, color):
+    def setColor(self, color, *, fast=False):
         """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setColor` を適用する。
 
         Args:
             color (object): :meth:`~mlib.nodes.dagNode.DagNode.setColor` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            Nodes: 自身。全体を1回のUndoにまとめる。
+            Nodes: 自身。通常は全体を1回のUndoにまとめる。
 
         Raises:
-            TypeError: DAGノード以外を含む、または色の指定が不正な場合。
+            TypeError: DAGノード以外を含む、色の指定が不正、またはfastがbool以外の場合。
             ValueError: 色の指定が不正な場合。
             RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
         """
-        self._forward("setColor", (color,), None)
+        self._forward("setColor", (color,), fast)
         return self
 
     def setVisibility(self, state, *, fast=False):

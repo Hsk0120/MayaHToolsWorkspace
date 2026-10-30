@@ -24,8 +24,9 @@ def geometry(shape: Mesh | NurbsCurve, indices: Iterable[int], edit: bool = ...)
     """Shapeの保持DAGパスと関数セットを取得し、必要なら直接編集の前提を検査する。
 
     呼出し側がShape型と番号範囲を検証済みであることを前提とする。edit=Trueでは
-    周期カーブ、inMesh/createへの入力、Shapeノードのロックを検査する。
+    inMesh/createへの入力、Shapeノードのロックを検査する。
     指定点のpnts/controlPointsとその子についても、上位を含むロック・入力接続と、各対象アトリビュートの書込み可否を調べる。
+    周期カーブでは、指定した独立CVに重なる末尾の重複CVも調べる。
     indicesが空のUV更新では、点Plugごとの検査は行わない。
 
     Args:
@@ -39,7 +40,7 @@ def geometry(shape: Mesh | NurbsCurve, indices: Iterable[int], edit: bool = ...)
 
     Raises:
         RuntimeError: 直接編集時のロック・入力接続・書込み禁止、またはShapeを参照できない場合。
-        NotImplementedError: edit=Trueで周期カーブまたはinMesh/create入力がある場合。
+        NotImplementedError: edit=TrueでinMesh/create入力がある場合。
     """
     ...
 
@@ -117,7 +118,7 @@ def _set_positions_fast(shape: Shape, indices: Sequence[int], values: Sequence[S
     """検証済みのcm座標をOpenMayaで一括設定する。CVのwは変更しない。
 
     Args:
-        shape (Shape): 履歴なしMeshまたは非周期NurbsCurve。
+        shape (Shape): 履歴なしMeshまたはNurbsCurve。
         indices (Sequence[int]): 検証済みの番号。
         values (Sequence[Sequence[float]]): 設定するXYZ。
         ws (bool): TrueならAPIワールド座標、Falseならローカル座標。
@@ -128,7 +129,7 @@ def _set_positions_fast(shape: Shape, indices: Sequence[int], values: Sequence[S
     Raises:
         ValueError: ワールド空間で変換マトリクスが特異な場合。
         RuntimeError: ロック・入力接続・書込み禁止がある場合。
-        NotImplementedError: 周期カーブまたは入力履歴のある形状の場合。
+        NotImplementedError: 入力履歴のある形状の場合。
     """
     ...
 

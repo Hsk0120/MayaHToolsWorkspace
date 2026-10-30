@@ -6,9 +6,15 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.attributeType import _convert_angles, _convert_times, _convert_units, attributeType
-from ..decorator import undoChunk
+from ..core.fastWrite import require_writable
+from ..decorator import _edit_context
+from ..nodes.animCurve import AnimCurve
+from ..nodes.node import Node
 from ..plugs.plug import Plug
 from ..util import _angle_unit, _time_unit
+
+#: fastで新しく作るカーブの型。駆動先のアトリビュート型から選ぶ(setDrivenKeyframeと同じ。他はanimCurveUU)。
+_CURVE_TYPES = {"doubleLinear": "animCurveUL", "doubleAngle": "animCurveUA", "time": "animCurveUT"}
 
 #: ドライバー・駆動先に使える数値スカラーのアトリビュート型名。
 _NUMERIC_SCALAR_TYPES = frozenset(
@@ -248,17 +254,21 @@ class DrivenKey:
         """
         return bool(self.getCurves())
 
-    @undoChunk("mlibDrivenKeySetKey")
     def setKey(self, driverValue, value, inTangentType="linear", outTangentType="linear", *, unit="deg",
-               timeUnit="frame"):
+               timeUnit="frame", fast=False):
         """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
 
         両値をfloat()で有限性検査し、それぞれのPlug定義に従ってUI単位へ変換して
         setDrivenKeyframeを呼ぶ。ドライバーの現在値やシーン時刻は
         変更しない。作成後は対応カーブをdgdirtyで汚し、駆動先の再評価を促す。
+        Undo有効時は一回のチャンクにまとめる。
 
-        fast引数やOpenMaya更新は提供しない。Undo有効時は一回のチャンクにまとめる。
-        呼出元のfast指定には影響されず、Undo設定は変更しない。
+        ``fast=True`` はUndoに記録せず、OpenMayaで更新する。この組のカーブがあれば
+        :meth:`AnimCurve.setKey <mlib.nodes.animCurve.AnimCurve.setKey>` のfastでキーを追加・更新する。
+        無ければsetDrivenKeyframeと同じ型(駆動先が距離ならanimCurveUL、角度ならanimCurveUA、
+        時間ならanimCurveUT、他はanimCurveUU)・名前(名前空間を除いた ``<駆動先ノード>_<アトリビュート>``。
+        エイリアスがあればエイリアス)のカーブを作り、
+        ドライバー→カーブ→駆動先へ接続する(単位の違う接続にはMayaがunitConversionを挟む)。
 
         Args:
             driverValue (float): ドライバーの値。角度はunitの単位(既定は度)、距離cm、
@@ -270,44 +280,93 @@ class DrivenKey:
                 (``"degree"`` / ``"radians"`` 等の別名も可)。角度以外のアトリビュートでは使わない。
             timeUnit (str): 時間アトリビュートの値の単位。既定 ``"frame"`` は現在のUI時間単位のフレーム、
                 ``"sec"`` は秒(``"seconds"`` 等の別名も可)。時間以外のアトリビュートでは使わない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DrivenKey: 自身。
 
         Raises:
-            TypeError: 数値の型がfloat()へ変換できない、またはunit・timeUnitが文字列以外の場合。
-            ValueError: 数値が非有限、float()で変換できない、またはunit・timeUnitが未対応の単位名の場合。
-            RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
+            TypeError: 数値の型がfloat()へ変換できない、unit・timeUnitが文字列以外、またはfastがbool以外の場合。
+            ValueError: 数値が非有限、float()で変換できない、unit・timeUnitが未対応の単位名、
+                またはfastでfixed・global等の直接設定できない接線型を指定した場合。
+            RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、駆動先がロックされている、
                 またはMayaがキー作成を拒否した場合。
+            NotImplementedError: fastで、この組のカーブが無く駆動先に別のドライバーのカーブが既に
+                つながっている場合(MayaはblendWeightedを挟む)、または入力接線にstepnextを指定した場合。
+                いずれも変更前に拒否する。
 
         Note:
             複数ドライバーの合成にはMaya標準のblendWeightedを使い、pairBlendの
             自動挿入は行わない。最終出力は他カーブや合成ウェイトにも依存する。
             後続の失敗に対する自動ロールバックは行わない。
         """
-        angle_unit = _angle_unit(unit)
-        time_unit = _time_unit(timeUnit)
-        x, y = float(driverValue), float(value)
-        if not math.isfinite(x) or not math.isfinite(y):
-            raise ValueError("Expected finite key values")
-        driver, driven = self.getDriverPlug(), self.getDrivenPlug()
-        # 角度・時間の値を内部単位(rad・秒)へ揃えてから、Mayaコマンドが受け取るUI単位へ換算する。
-        x = _convert_times(driver.mplug(), _convert_angles(driver.mplug(), x, angle_unit), time_unit)
-        y = _convert_times(driven.mplug(), _convert_angles(driven.mplug(), y, angle_unit), time_unit)
-        _curves(driven, strict=True)
-        if len(self.getCurves()) > 1:
-            raise RuntimeError("Multiple curves match this driver/driven pair")
-        count = cmds.setDrivenKeyframe(
-            driven.getFullName(),
-            currentDriver=driver.getFullName(),
-            driverValue=_convert_units(driver.mplug(), x),
-            value=_convert_units(driven.mplug(), y),
-            inTangentType=inTangentType,
-            outTangentType=outTangentType,
-            insertBlend=False,
-        )
-        if not count:
-            raise RuntimeError("Maya did not set a driven key")
-        # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
-        cmds.dgdirty([curve.getFullName() for curve in self.getCurves()])
-        return self
+        with _edit_context("mlibDrivenKeySetKey", fast):
+            angle_unit = _angle_unit(unit)
+            time_unit = _time_unit(timeUnit)
+            x, y = float(driverValue), float(value)
+            if not math.isfinite(x) or not math.isfinite(y):
+                raise ValueError("Expected finite key values")
+            driver, driven = self.getDriverPlug(), self.getDrivenPlug()
+            # 角度・時間の値を内部単位(rad・秒)へ揃えてから、Mayaコマンドが受け取るUI単位へ換算する。
+            x = _convert_times(driver.mplug(), _convert_angles(driver.mplug(), x, angle_unit), time_unit)
+            _curves(driven, strict=True)
+            curves = self.getCurves()
+            if len(curves) > 1:
+                raise RuntimeError("Multiple curves match this driver/driven pair")
+            if fast:
+                # カーブの横軸はドライバーのUI単位(unitConversion経由の値)。縦軸はAnimCurve.setKeyが換算する。
+                self._set_key_fast(curves, _convert_units(driver.mplug(), x), y, inTangentType, outTangentType,
+                                   unit, timeUnit)
+                return self
+            y = _convert_times(driven.mplug(), _convert_angles(driven.mplug(), y, angle_unit), time_unit)
+            count = cmds.setDrivenKeyframe(
+                driven.getFullName(),
+                currentDriver=driver.getFullName(),
+                driverValue=_convert_units(driver.mplug(), x),
+                value=_convert_units(driven.mplug(), y),
+                inTangentType=inTangentType,
+                outTangentType=outTangentType,
+                insertBlend=False,
+            )
+            if not count:
+                raise RuntimeError("Maya did not set a driven key")
+            # 現在値と異なる位置のキー更新後も、駆動先が古い評価値を保持しないようにする。
+            cmds.dgdirty([curve.getFullName() for curve in self.getCurves()])
+            return self
+
+    def _set_key_fast(self, curves, input, value, inTangentType, outTangentType, unit, timeUnit):
+        """:meth:`setKey` のfast経路。必要ならカーブを作って接続し、OpenMayaでキーを書く。
+
+        Args:
+            curves (list[AnimCurve]): この組のカーブ(0個か1個)。
+            input (float): カーブの横軸の値(ドライバーのUI単位)。
+            value (float): 駆動先の値。:meth:`setKey` のvalueと同じ単位。
+            inTangentType (str): Mayaの入力接線型。
+            outTangentType (str): Mayaの出力接線型。
+            unit (str): 角度の値の単位。
+            timeUnit (str): 時間の値の単位。
+
+        Returns:
+            None: 値を返さない。
+        """
+        # カーブを作る前に接線型を検証し、未対応の指定でノードを残さない。
+        AnimCurve._tangent_type(inTangentType, incoming=True, key=True)
+        AnimCurve._tangent_type(outTangentType, key=True)
+        if curves:
+            curve = curves[0]
+        else:
+            driver, driven = self.getDriverPlug(), self.getDrivenPlug()
+            if _sources(driven):
+                raise NotImplementedError("fast setKey does not support a second driver on "
+                                          f"{driven.getFullName()} (Maya inserts a blendWeighted node)")
+            require_writable(driven.mplug())
+            kind = _CURVE_TYPES.get(attributeType(driven.mplug()), "animCurveUU")
+            # setDrivenKeyframeと同じく、名前空間を除いたノード名とエイリアス(無ければロング名)を使う。
+            attribute = driven.mplug().partialName(useAlias=True, useLongNames=True)
+            name = driven.getNode().getName().rpartition("|")[2].rpartition(":")[2] + "_" + attribute
+            for character in "[].":
+                name = name.replace(character, "_")
+            curve = Node._create_node(kind, {"name": name.rstrip("_"), "skipSelect": True}, fast=True)
+            curve.getPlug("input").connect(driver, fast=True)
+            driven.connect(curve.getPlug("output"), fast=True)
+        curve.setKey(input, value, inTangentType, outTangentType, unit=unit, timeUnit=timeUnit, fast=True)

@@ -20,8 +20,9 @@ def geometry(shape, indices, edit=False):
     """Shapeの保持DAGパスと関数セットを取得し、必要なら直接編集の前提を検査する。
 
     呼出し側がShape型と番号範囲を検証済みであることを前提とする。edit=Trueでは
-    周期カーブ、inMesh/createへの入力、Shapeノードのロックを検査する。
+    inMesh/createへの入力、Shapeノードのロックを検査する。
     指定点のpnts/controlPointsとその子についても、上位を含むロック・入力接続と、各対象アトリビュートの書込み可否を調べる。
+    周期カーブでは、指定した独立CVに重なる末尾の重複CVも調べる。
     indicesが空のUV更新では、点Plugごとの検査は行わない。
 
     Args:
@@ -35,14 +36,17 @@ def geometry(shape, indices, edit=False):
 
     Raises:
         RuntimeError: 直接編集時のロック・入力接続・書込み禁止、またはShapeを参照できない場合。
-        NotImplementedError: edit=Trueで周期カーブまたはinMesh/create入力がある場合。
+        NotImplementedError: edit=TrueでinMesh/create入力がある場合。
     """
     path = shape.mpath()
     mesh = path.node().hasFn(om2.MFn.kMesh)
     fn = om2.MFnMesh(path) if mesh else om2.MFnNurbsCurve(path)
     if edit:
+        indices = list(indices)
         if not mesh and fn.form == om2.MFnNurbsCurve.kPeriodic:
-            raise NotImplementedError("fast edits of periodic curves are not supported")
+            # 周期カーブは末尾の重複CVも先頭の独立CVと同じ位置に書くので、重複側の書込み可否も調べる。
+            independent = fn.numCVs - fn.degree
+            indices += [index % independent + independent for index in indices if index % independent < fn.degree]
         dependency = om2.MFnDependencyNode(path.node())
         source = dependency.findPlug("inMesh" if mesh else "create", False)
         if source.isDestination:
@@ -162,7 +166,7 @@ def _set_positions_fast(shape, indices, values, ws=False):
     """検証済みのcm座標をOpenMayaで一括設定する。CVのwは変更しない。
 
     Args:
-        shape (Shape): 履歴なしMeshまたは非周期NurbsCurve。
+        shape (Shape): 履歴なしMeshまたはNurbsCurve。
         indices (Sequence[int]): 検証済みの番号。
         values (Sequence[Sequence[float]]): 設定するXYZ。
         ws (bool): TrueならAPIワールド座標、Falseならローカル座標。
@@ -173,7 +177,7 @@ def _set_positions_fast(shape, indices, values, ws=False):
     Raises:
         ValueError: ワールド空間で変換マトリクスが特異な場合。
         RuntimeError: ロック・入力接続・書込み禁止がある場合。
-        NotImplementedError: 周期カーブまたは入力履歴のある形状の場合。
+        NotImplementedError: 入力履歴のある形状の場合。
     """
     if not indices:
         return
@@ -183,11 +187,17 @@ def _set_positions_fast(shape, indices, values, ws=False):
     if ws and abs(transform.det4x4()) < 1e-12:
         raise ValueError("Cannot edit in world space with a singular transform")
     inverse = transform.inverse() if ws else om2.MMatrix()
+    independent = len(points) if mesh or fn.form != om2.MFnNurbsCurve.kPeriodic else fn.numCVs - fn.degree
     for index, value in zip(indices, values):
+        # 周期カーブの重複CVの番号は、対応する先頭の独立CVへ写して書く。
+        index %= independent
         # cvPositions(kWorld)はCVのwもマトリクスの積に使う。同じwで逆変換して往復を保つ。
         point = om2.MPoint(value[0], value[1], value[2], points[index].w) * inverse
         point.w = points[index].w
         points[index] = point
+    # 周期カーブの末尾の重複CVを、先頭の独立CVと同じ位置に揃える(cmds.xformのcv指定と同じ結果)。
+    for index in range(independent, len(points)):
+        points[index] = om2.MPoint(points[index - independent])
     if mesh:
         fn.setPoints(points)
         fn.updateSurface()

@@ -150,26 +150,28 @@ class SkinCluster(Node):
             RuntimeError: Mayaがミラーを拒否した場合。
         """
         ...
-    def pruneWeights(self, threshold: float, normalize: bool = ...) -> SkinCluster:
+    def pruneWeights(self, threshold: float, normalize: bool = ..., *, fast: bool = ...) -> SkinCluster:
         """先頭Meshの各頂点で、閾値未満の小さなウェイトを0にする。
 
         ``cmds.skinPercent(skin, mesh, pruneWeights=threshold)`` と同じく、値が ``0 < w < threshold``
         のinfluenceを0にし(閾値と等しい値は残す)、ロック以外の全てが閾値未満になる頂点は刈り込みも正規化もしない。
         lockInfluenceWeightsが有効なinfluenceは0にせず、正規化でも値を保つ。値が変わった頂点・列だけを
-        cmds.setAttrで書き、1回のUndoで戻る。fast引数は持たない(Maya標準の刈り込みに合わせた
-        編集の補助で、OpenMayaの一括APIは未指定列を再配分するため)。
+        書き込む。通常はcmds.setAttrで書き、1回のUndoで戻る。``fast=True`` は :meth:`setWeights` の
+        fastと同じく、全対象の書込み可否を先に調べてからOpenMayaでウェイトのPlugへ直接書き込み、
+        Undoに記録しない。
 
         Args:
             threshold (float): 0以上の有限な閾値。boolは不可。
             normalize (bool): Trueは上記の頂点を除く全頂点(刈り込みの無い頂点を含む)を、ロックされていないinfluenceの
                 比率を保ったまま合計1(ロック分を除いた残り)へ戻す。ロック以外が全て0の頂点は変えない。
                 ロックが無ければskinPercentの刈り込みと同じ値になる。Falseは0にするだけで、他の値は変えない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             SkinCluster: 自身。
 
         Raises:
-            TypeError: thresholdが数値でない、またはnormalizeがbool以外の場合。
+            TypeError: thresholdが数値でない、またはnormalize・fastがbool以外の場合。
             ValueError: thresholdが負・非有限、または刈り込む頂点に負値・非有限値・合計1を超えるロック値がある場合。
             RuntimeError: ウェイトがロック・入力接続されている、またはMayaが書込みを拒否した場合。
         """

@@ -996,7 +996,7 @@ class Plug(Object):
         値の単位は :meth:`Node.addAttr` の ``minValue`` と同じ(角度は ``unit`` の単位で既定は度、距離はcm、
         時間は ``timeUnit`` の単位で既定は現在のUI時間単位のフレーム。``om2.MAngle`` 等の単位付きの値はそのまま使う)。``None`` は最小値の制限を外す。
         アトリビュートの定義を変えるため、マルチアトリビュートの要素では全要素に効く。
-        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない(addAttr -e は1回が十数µsで、OpenMayaにしても差が小さい)。
 
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最小値。Noneは制限を外す。
@@ -2453,17 +2453,20 @@ class Plug(Object):
             raise ValueError("Expected a finite value")
         # MAnimControlのグローバル接線値はMFnAnimCurveの列挙値と一致しない。
         # 省略した側だけMayaの設定名を照会し、キーの直接更新にはcmdsを使わない。
-        tangent_in = (options["inTangentType"] if "inTangentType" in options else
-                      cmds.keyTangent(query=True, g=True, inTangentType=True)[0])
-        tangent_out = (options["outTangentType"] if "outTangentType" in options else
-                       cmds.keyTangent(query=True, g=True, outTangentType=True)[0])
+        tangent_in, tangent_out = options.get("inTangentType"), options.get("outTangentType")
+        if tangent_in is None or tangent_out is None:
+            # 省略した側の既定値を1回の照会でまとめて読む(入力・出力の順で返る)。
+            defaults = cmds.keyTangent(query=True, g=True, inTangentType=True, outTangentType=True)
+            tangent_in = defaults[0] if tangent_in is None else tangent_in
+            tangent_out = defaults[1] if tangent_out is None else tangent_out
         AnimCurve._tangent_type(tangent_in, incoming=True, key=True)
         AnimCurve._tangent_type(tangent_out, key=True)
-        source = self._source_plug(skipConversionNodes=False)
-        if source is not None:
-            if not source.getNode().mnode().hasFn(om2.MFn.kAnimCurve):
+        # 直接の入力元をMPlugのまま調べ、キーを打つたびにPlug・Nodeのラッパーを作らない。
+        source = self._mplug.source()
+        if not source.isNull:
+            if not source.node().hasFn(om2.MFn.kAnimCurve):
                 raise NotImplementedError("fast setKey requires a direct animCurve input")
-            curve = AnimCurve(source.getNode().mnode())
+            curve = AnimCurve(source.node())
             if not curve.isTimeInput():
                 raise NotImplementedError("fast setKey requires a time-input animCurve")
         else:

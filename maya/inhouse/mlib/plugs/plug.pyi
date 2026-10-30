@@ -742,7 +742,7 @@ class Plug(Object):
         値の単位は :meth:`Node.addAttr` の ``minValue`` と同じ(角度は ``unit`` の単位で既定は度、距離はcm、
         時間は ``timeUnit`` の単位で既定は現在のUI時間単位のフレーム。``om2.MAngle`` 等の単位付きの値はそのまま使う)。``None`` は最小値の制限を外す。
         アトリビュートの定義を変えるため、マルチアトリビュートの要素では全要素に効く。
-        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない(addAttr -e は1回が十数µsで、OpenMayaにしても差が小さい)。
 
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最小値。Noneは制限を外す。

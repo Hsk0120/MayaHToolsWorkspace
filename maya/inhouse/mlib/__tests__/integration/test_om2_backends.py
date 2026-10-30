@@ -176,8 +176,8 @@ class Om2BackendsTest(unittest.TestCase):
                 cmds.currentUnit(linear='cm')
 
     def test_scale_geometry_fast_rejections_preserve_points(self):
-        """履歴・周期・サーフェス・ロック・不正番号を直接更新前に拒否する。"""
-        for name in (cmds.polyCube(ch=True)[0], cmds.circle(ch=False)[0], cmds.nurbsPlane(ch=False)[0]):
+        """履歴・サーフェス・ロック・不正番号を直接更新前に拒否する。"""
+        for name in (cmds.polyCube(ch=True)[0], cmds.nurbsPlane(ch=False)[0]):
             node = mlib.getNode(name)
             shape = node.getShape()
             token = '.vtx[*]' if shape.getType() == 'mesh' else '.cv[*][*]' if shape.getType() == 'nurbsSurface' else '.cv[*]'
@@ -197,6 +197,20 @@ class Om2BackendsTest(unittest.TestCase):
         self.assert_points(shape.getVertices().getPosition(), before)
         with self.assertRaises(TypeError):
             shape.scaleGeometry(2, fast=1)
+
+    def test_periodic_fast_scaling_matches_normal(self):
+        """周期カーブのfast拡縮は通常と同じ位置になり、末尾の重複CVも先頭と揃う。"""
+        for indices in (None, [0, 1], [7]):
+            with self.subTest(indices=indices):
+                normal = mlib.getNode(cmds.circle(ch=False)[0]).getShape()
+                fast = mlib.getNode(cmds.circle(ch=False)[0]).getShape()
+                normal.scaleGeometry((2, 3, 1), indices=indices)
+                fast.scaleGeometry((2, 3, 1), indices=indices, fast=True)
+                self.assert_points(fast.getCVs().getPosition(), normal.getCVs().getPosition())
+                points = fast.mfn().cvPositions()
+                end = len(points) - fast.mfn().degree
+                for i in range(fast.mfn().degree):
+                    self.assertTrue(points[end + i].isEquivalent(points[i], 1e-9))
 
     def test_periodic_scaling_maps_duplicate_cv_once(self):
         """API末尾と先頭の同一CVを通常モードで一回だけ拡縮する。"""

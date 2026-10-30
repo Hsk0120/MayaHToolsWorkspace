@@ -9,7 +9,7 @@ from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..decorator import _edit_context, _require_bool, nativeUnits, preservedSelection, undoTransaction
 from ..maths.vector import _vectors_of_points
 from ..util import _world_space
 from .node import Node
@@ -226,11 +226,12 @@ class NurbsCurve(Shape):
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return _vectors_of_points(self._geometry_fn().cvPositions(space))
 
-    def setCvPositions(self, points, worldSpace=False):
+    def setCvPositions(self, points, worldSpace=False, *, fast=False):
         """全CVの位置を一度に書き込み、自身を返す。
 
-        :meth:`getCvPositions` と同じ並び・単位(内部単位cm)の点列を受け付け、``cmds.xform`` で
-        書き込んで1回のUndoにまとめる。CVの数・次数・ノット・ウェイトは変更しない。
+        :meth:`getCvPositions` と同じ並び・単位(内部単位cm)の点列を受け付け、通常は ``cmds.xform`` で
+        書き込んで1回のUndoにまとめる。``fast=True`` は ``MFnNurbsCurve.setCVPositions`` で全CVを1回で
+        書き込み、Undoに記録しない。CVの数・次数・ノット・ウェイトは変更しない。
         周期カーブは、独立CV数(``getNumCVs() - getDegree()``)の点列か、末尾の重複CVを含む
         ``getNumCVs()`` 個の点列(重複CVは先頭の対応CVと同じ位置であること)を受け付ける。
 
@@ -238,16 +239,19 @@ class NurbsCurve(Shape):
             points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CV順の位置。各点は3個の
                 有限な数値。MPointはwで割らずにXYZを使う。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             NurbsCurve: 自身。
 
         Raises:
-            TypeError: worldSpaceがbool以外、または点の型・成分が不正な場合。
+            TypeError: worldSpace・fastがbool以外、または点の型・成分が不正な場合。
             ValueError: 点の数がCV数と合わない、成分が有限でない、周期カーブの重複CVが先頭の
                 CVと一致しない、またはworldSpace=Trueで変換マトリクスが特異な場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、createへの入力(コンストラクションヒストリ)がある場合。
         """
+        _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         values = geometry_edit.point_list(points)
         fn = self._geometry_fn()
@@ -264,8 +268,8 @@ class NurbsCurve(Shape):
             if independent != count:
                 raise ValueError(f"Expected {independent} or {count} points, got {len(values)}")
             raise ValueError(f"Expected {count} points, got {len(values)}")
-        with undoTransaction("mlibNurbsCurveSetCvPositions"):
-            geometry_edit.set_positions(self, list(range(independent)), values, ws)
+        with _edit_context("mlibNurbsCurveSetCvPositions", fast, transaction=True):
+            geometry_edit.set_positions(self, list(range(independent)), values, ws, fast=fast)
         return self
 
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):

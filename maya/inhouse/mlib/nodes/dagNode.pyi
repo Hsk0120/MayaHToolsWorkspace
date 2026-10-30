@@ -4,6 +4,7 @@
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
+from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _require_bool, undoTransaction
 from ..util import _finite_vector, _world_space
@@ -287,24 +288,26 @@ class DagNode(Node):
             RuntimeError: ノードが無効な場合。
         """
         ...
-    def setColor(self, color: int | Sequence[float]) -> DagNode:
+    def setColor(self, color: int | Sequence[float], *, fast: bool = ...) -> DagNode:
         """描画のオーバーライドで表示色を設定し、自身を返す。
 
         ``overrideEnabled`` を有効にし、インデックス指定は ``overrideRGBColors`` を無効にして
         ``overrideColor``、RGB指定は ``overrideRGBColors`` を有効にして ``overrideColorRGB`` を設定する。
         Transformは直下の中間でないShapeへ設定し、Shapeが無いTransform(グループ・Joint等)は自身へ
-        設定する(:meth:`getColor` も同じ対象を読む)。``cmds.setAttr`` で1回のUndoにまとめ、途中で
-        失敗した場合は巻き戻す。
+        設定する(:meth:`getColor` も同じ対象を読む)。通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で
+        失敗した場合は巻き戻す。``fast=True`` は全対象アトリビュートの書込み可否を先に調べてから
+        OpenMayaで書き込み、Undoに記録しない。
 
         Args:
             color (int | Sequence[float]): カラーインデックス(0〜31。0は既定色)、または
                 0〜1の有限な数値3個の (r, g, b)。RGBは表示色の値で、色空間の変換は行わない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
         Raises:
-            TypeError: colorがint・3個の数値の列以外(boolを含む)の場合。
+            TypeError: colorがint・3個の数値の列以外(boolを含む)、またはfastがbool以外の場合。
             ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
             RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
         """
@@ -379,6 +382,23 @@ class DagNode(Node):
 
         Returns:
             list[DagNode]: 探索順の参照。
+        """
+        ...
+    def _set_color_fast(self, index: int | None, rgb: tuple[float, float, float] | None) -> None:
+        """:meth:`setColor` の値をOpenMayaで書き込む。Undoには記録しない。
+
+        一部の対象だけ色が変わるのを避けるため、全アトリビュート(コンパウンドアトリビュートは子も)の
+        書込み可否を先に調べてから書き込む。
+
+        Args:
+            index (int | None): カラーインデックス。RGB指定ではNone。
+            rgb (tuple[float, float, float] | None): RGB。インデックス指定ではNone。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
         """
         ...
     def _color_targets(self) -> list[DagNode]:

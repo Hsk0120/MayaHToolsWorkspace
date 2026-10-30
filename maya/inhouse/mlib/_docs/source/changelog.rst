@@ -4,6 +4,51 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+6.1.0 (2026-10-30)
+------------------
+
+書込みメソッドに ``fast`` 引数を足しました。``fast=True`` は Undo に記録せず OpenMaya で直接書き込みます。
+付けたのは、通常経路(cmds)より速くなるものだけです。``fast`` はデコレーターやコンテキストでは切り替えず、引数で指定します。
+内部で呼ぶ処理にも同じ値を渡します。既存コードの結果は変わりません。
+
+.. rubric:: fast を足したメソッド
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - メソッド
+     - fast=True の動き
+   * - ``Mesh.setPoints``\ ・\ ``NurbsCurve.setCvPositions``
+     - 全点を ``MFnMesh.setPoints``\ ・\ ``MFnNurbsCurve.setCVPositions`` で1回に書く。頂点ごとに ``cmds.xform`` を呼ぶ通常経路より、
+       点が多いほど速い。コンストラクションヒストリのある形状は ``NotImplementedError``\ (変更前に拒否)
+   * - ``DagNode.setColor``\ ・\ ``Nodes.setColor``
+     - 表示色のアトリビュートをすべて書けるか先に調べてから書く
+   * - ``BoolPlug.toggle``
+     - ``Plug.set(fast=True)`` で反転する
+   * - ``SkinCluster.pruneWeights``
+     - ``setWeights`` の fast と同じく、ウェイトの Plug へ直接書く
+   * - ``DrivenKey.setKey``
+     - この組のカーブがあれば ``AnimCurve.setKey`` の fast でキーを打つ。無ければ setDrivenKeyframe と同じ型・名前のカーブを作って接続する。
+       別のドライバーのカーブが既にある駆動先は、Maya が blendWeighted を挟むので ``NotImplementedError``\ (変更前に拒否)
+
+.. rubric:: fast の改善
+
+- 周期カーブ(``circle`` 等)で、fast の座標書込みが ``NotImplementedError`` にならなくなった(``setCvPositions``\ ・\ ``scaleGeometry``)。
+  末尾の重複 CV は先頭の独立 CV と同じ位置に揃える。
+- ``Plug.setKey``\ ・\ ``AnimCurve.setKey`` などのキー編集の fast が、キーの数に比例して遅くならなくなった(300キーで約20倍速い)。
+  書込み前の確認は、キーを格納するアトリビュート(keyTimeValue)自体のロック・入力接続だけにした。要素ごとのロックは
+  ``cmds.setKeyframe`` でもエラーにならない。
+
+.. rubric:: fast を付けなかったもの
+
+cmds と OpenMaya の時間を mayapy 2027 で比べ、差がほぼ無いものには付けていません。
+
+- ``Transform.setLimits``\ ・\ ``matchTransform``\ ・\ ``Joint.orient``\ ・\ ``NurbsCurve.create``
+- ``Plug.setMin``\ ・\ ``setMax``\ ・\ ``setSoftMin``\ ・\ ``setSoftMax``
+
+1回の cmds で全体を処理するもの(``copyWeightsTo``\ ・\ ``mirrorWeights``\ ・\ ``bind``\ ・\ ``makeIdentity`` 等)にも付けていません。
+
 6.0.0 (2026-10-30)
 ------------------
 

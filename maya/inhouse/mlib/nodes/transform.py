@@ -1439,7 +1439,7 @@ class Transform(DagNode):
         無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
         距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
         全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
-        fast引数は持たない。
+        fast引数は持たない(OpenMayaで制限のアトリビュートを書いても速くならない)。
 
         Args:
             unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。

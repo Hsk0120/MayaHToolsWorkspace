@@ -13,7 +13,7 @@ from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
-from ..decorator import _require_bool, undoTransaction
+from ..decorator import _edit_context, _require_bool, undoTransaction
 from ..maths.vector import Vector, _vector_of, _vectors_of_points
 from ..util import _world_space
 from .shape import Shape
@@ -226,11 +226,12 @@ class Mesh(Shape):
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
         return _vectors_of_points(self._geometry_fn().getPoints(space))
 
-    def setPoints(self, points, worldSpace=False):
+    def setPoints(self, points, worldSpace=False, *, fast=False):
         """全頂点の位置を一度に書き込み、自身を返す。
 
-        :meth:`getPoints` と同じ並び・単位(内部単位cm)の点列を受け付け、``cmds.xform`` で
-        書き込んで1回のUndoにまとめる。頂点数・トポロジー・UVは変更しない。
+        :meth:`getPoints` と同じ並び・単位(内部単位cm)の点列を受け付け、通常は ``cmds.xform`` で
+        書き込んで1回のUndoにまとめる。``fast=True`` は ``MFnMesh.setPoints`` で全頂点を1回で書き込み、
+        Undoに記録しない。頂点数・トポロジー・UVは変更しない。
         :meth:`NurbsCurve.setCvPositions <mlib.nodes.nurbsCurve.NurbsCurve.setCvPositions>` と同じ形の入口。
 
         Args:
@@ -238,20 +239,24 @@ class Mesh(Shape):
                 :meth:`getPoints` の結果(list[Vector])・3個の数値のtupleの列・``om2.MPointArray`` を
                 そのまま受け付ける。各点は3個の有限な数値。MPointはwで割らずにXYZを使う。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Mesh: 自身。
 
         Raises:
-            TypeError: worldSpaceがbool以外、または点の型・成分が不正な場合。
+            TypeError: worldSpace・fastがbool以外、または点の型・成分が不正な場合。
             ValueError: 点の数が頂点数と合わない、または成分が有限でない場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
 
         Note:
             現在と同じ位置の頂点は書き込まない(``getPoints()`` の結果を一部だけ変えて戻す使い方では、
             変えた頂点だけを書き込む)。書き込む頂点ごとに ``cmds.xform`` を呼ぶため(``setCvPositions``
             と同じ)、多数の頂点を動かす場合は頂点数に比例して時間がかかる(目安は1頂点あたり約1ms)。
+            ``fast=True`` は全頂点をまとめて書くため、頂点数が多いほど差が大きい。
         """
+        _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         values = geometry_edit.point_list(points)
         fn = self._geometry_fn()
@@ -261,8 +266,8 @@ class Mesh(Shape):
         current = fn.getPoints(om2.MSpace.kWorld if ws else om2.MSpace.kObject)
         changed = [index for index, (value, point) in enumerate(zip(values, current))
                    if value != (point.x, point.y, point.z)]
-        with undoTransaction("mlibMeshSetPoints"):
-            geometry_edit.set_positions(self, changed, [values[index] for index in changed], ws)
+        with _edit_context("mlibMeshSetPoints", fast, transaction=True):
+            geometry_edit.set_positions(self, changed, [values[index] for index in changed], ws, fast=fast)
         return self
 
     def getVertexNormals(self, worldSpace=False, angleWeighted=False):
