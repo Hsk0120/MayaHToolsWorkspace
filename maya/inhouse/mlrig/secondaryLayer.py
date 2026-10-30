@@ -320,7 +320,9 @@ class SecondaryLayer:
             for destination, source in zip(connections[::2], connections[1::2]):
                 if source.getNode().getUuid() in mapping:
                     destination.disconnect(source)
-                    mapping[source.getNode().getUuid()].getPlug(source.getAttrName()).connectTo(destination)
+                    # getName()はノード名とショート名のパス(wm[0]等)。ノード名は「.」を含まない。
+                    attribute = source.getName().partition(".")[2]
+                    mapping[source.getNode().getUuid()].getPlug(attribute).connectTo(destination)
 
     def update(self):
         """停止レイヤーの入力を切断し、両方停止なら元の骨へ接続を戻す。"""

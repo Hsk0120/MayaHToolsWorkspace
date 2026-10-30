@@ -284,7 +284,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         for plug in (long_plug, short_plug):
             for value, expected in ((2.9, 3), (2.5, 3), (-2.5, -3), (2.4999, 2), (-2.6, -3), (1.5, 2)):
                 for fast in (False, True):
-                    with self.subTest(plug=plug.getAttrName(), value=value, fast=fast):
+                    with self.subTest(plug=plug.getName(), value=value, fast=fast):
                         plug.set(0)
                         plug.set(value, fast=fast)
                         self.assertEqual(cmds.getAttr(plug.getFullName()), expected)
@@ -312,7 +312,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         for plug, value in ((flag, 1.4), (flag, -0.4), (limited, 5.4), (limited, -0.4),
                             (enum_plug, 0.6), (enum_plug, 10.4), (enum_plug, 11), (enum_plug, 0)):
             for fast in (False, True):
-                with self.subTest(plug=plug.getAttrName(), value=value, fast=fast):
+                with self.subTest(plug=plug.getName(), value=value, fast=fast):
                     before = cmds.getAttr(plug.getFullName())
                     with self.assertRaises(RuntimeError):
                         plug.set(value, fast=fast)
@@ -331,7 +331,7 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         angle = self.node.getPlug("rx")
         for plug, value in ((long_plug, "5"), (double_plug, "1.5"), (double_plug, None), (angle, "1")):
             for fast in (False, True):
-                with self.subTest(plug=plug.getAttrName(), value=value, fast=fast):
+                with self.subTest(plug=plug.getName(), value=value, fast=fast):
                     with self.assertRaises(TypeError if fast else (TypeError, RuntimeError)):
                         plug.set(value, fast=fast)
                     self.assertEqual(plug.set(value, safe=True, fast=fast), 1)
@@ -583,7 +583,7 @@ class PlugEnumSpecTest(_PlugSpecCase):
         for plug in (self.node.getPlug("tx"), self.add("txt", dataType="string"), self.node.getPlug("visibility")):
             for call in (plug.getEnumName, lambda: plug.getEnumValue("a"), lambda: plug.getEnumName(0),
                          lambda: plug.setEnumNames(["a"])):
-                with self.subTest(plug=plug.getAttrName(), call=call):
+                with self.subTest(plug=plug.getName(), call=call):
                     with self.assertRaises(TypeError):
                         call()
 

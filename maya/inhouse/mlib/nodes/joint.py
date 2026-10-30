@@ -370,7 +370,7 @@ class Joint(Transform):
             return []
         seen = set()
         result = []
-        for plug in self.getConnections(type="skinCluster"):
+        for plug in self.getConnections(type="skinCluster", skipConversionNodes=False):
             node = plug.getNode()
             if node.getUuid() in seen:
                 continue
@@ -521,7 +521,7 @@ class Joint(Transform):
             return []
         seen = set()
         result = []
-        for plug in self.getConnections(type="ikHandle"):
+        for plug in self.getConnections(type="ikHandle", skipConversionNodes=False):
             node = plug.getNode()
             if node.getUuid() in seen:
                 continue

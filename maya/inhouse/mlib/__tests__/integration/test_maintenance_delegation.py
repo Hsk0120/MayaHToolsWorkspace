@@ -58,7 +58,7 @@ class MaintenanceDelegationTest(unittest.TestCase):
                 self.assertEqual(array.getElement(index).mplug().logicalIndex(), index)
         self.assertEqual(list(array.mplug().getExistingArrayAttributeIndices()), stored)
         next_index = next(index for index in range(len(stored) + 1) if index not in stored)
-        self.assertEqual(array.getNextAvailable(vacant=True), next_index)
+        self.assertEqual(array.getNextAvailable(vacant=True).getIndex(), next_index)
         for index in set((0, 1)).difference(stored):
             with self.assertRaises(IndexError):
                 array.removeElement(index)

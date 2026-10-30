@@ -14,8 +14,8 @@ from pathlib import Path
 import sys
 
 CLASS_PACKAGES = ("nodes", "plugs", "components", "maths", "common")
-# 削除済みPlugへのアクセスを示す内部例外。既存の公開APIへ追加しない。
-PRIVATE_CLASSES = {("plugs.plug", "DeletedAttributeError")}
+# 削除済み・存在しないアトリビュートへのアクセスを示す例外。mlib.plugs.plug から取得し、公開名一覧へ追加しない。
+PRIVATE_CLASSES = {("plugs.plug", "DeletedAttributeError"), ("plugs.plug", "MissingAttributeError")}
 
 
 @dataclass(frozen=True)

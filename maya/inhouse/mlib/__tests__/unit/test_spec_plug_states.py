@@ -10,7 +10,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 import mlib
 from mlib import plugs
-from mlib.plugs.plug import MAX_LOGICAL_INDEX, DeletedAttributeError
+from mlib.plugs.plug import MAX_LOGICAL_INDEX, DeletedAttributeError, MissingAttributeError
 
 
 class _StateSpecCase(unittest.TestCase):
@@ -59,7 +59,7 @@ class PlugNameSpecTest(_StateSpecCase):
         """短い名前・ロング名・ニース名・Plug名とstrの対応。"""
         tx = self.node.getPlug("tx")
         self.assertEqual(tx.getName(), self.name + ".tx")
-        self.assertEqual(tx.getAttrName(), "tx")
+        self.assertFalse(hasattr(tx, "getAttrName"))
         self.assertEqual(tx.getShortName(), "tx")
         self.assertEqual(tx.getLongName(), "translateX")
         self.assertEqual(tx.getNiceName(), "Translate X")
@@ -82,17 +82,16 @@ class PlugNameSpecTest(_StateSpecCase):
         child = self.node.getPlug("items[3].weight")
         self.assertEqual(child.getFullName(), self.name + ".items[3].weight")
         self.assertEqual(child.getName(), self.name + ".its[3].wt")
-        self.assertEqual(child.getAttrName(), "its[3].wt")
         self.assertEqual(child.getShortName(), "wt")
         self.assertEqual(child.getParent().getFullName(), self.name + ".items[3]")
 
     def test_world_space_element_names_keep_index(self):
-        """worldSpaceの要素もgetName・getAttrNameで論理番号を省かない。getAttrNameはgetPlugへ戻せる。"""
+        """worldSpaceの要素もgetNameで論理番号を省かない。アトリビュート部分はgetPlugへ戻せる。"""
         element = self.node.getPlug("worldMatrix[0]")
         self.assertEqual(element.getName(), self.name + ".wm[0]")
-        self.assertEqual(element.getAttrName(), "wm[0]")
-        self.assertEqual(self.node.getPlug(element.getAttrName()), element)
-        self.assertEqual(self.node.getPlug("worldMatrix").getAttrName(), "wm")
+        self.assertEqual(element.getShortName(), "wm")
+        self.assertEqual(self.node.getPlug(element.getName().partition(".")[2]), element)
+        self.assertEqual(self.node.getPlug("worldMatrix").getName(), self.name + ".wm")
 
     def test_names_follow_rename_and_reparent(self):
         """名前変更・親変更・Undoに追従し、DAGパスは一意になる最短の形を使う。"""
@@ -198,37 +197,6 @@ class PlugFlagSpecTest(_StateSpecCase):
                     method(True, fast=1)
         self.assertFalse(cmds.getAttr(self.name + ".tx", lock=True))
 
-    def test_unlock_parents_and_children(self):
-        """unlockは自身と上位のロックを外し、below=Trueで子も外す。外したPlugを上位から返す。"""
-        cmds.setAttr(self.name + ".r", lock=True)
-        cmds.setAttr(self.name + ".ry", lock=True)
-        cmds.setAttr(self.name + ".rz", lock=True)
-        result = self.node.getPlug("ry").unlock()
-        self.assertEqual([p.getLongName() for p in result], ["rotate", "rotateY"])
-        self.assertTrue(cmds.getAttr(self.name + ".rz", lock=True))
-        cmds.setAttr(self.name + ".r", lock=True)
-        cmds.setAttr(self.name + ".ry", lock=True)
-        result = self.node.getPlug("rotate").unlock(below=True)
-        self.assertEqual([p.getLongName() for p in result], ["rotate", "rotateY", "rotateZ"])
-        self.assertEqual(self.node.getPlug("rotate").unlock(below=True), [])
-
-    def test_unlock_undo_paths(self):
-        """通常のunlockは1回のUndoで戻り、fast=Trueは記録しない。undoable引数は無い。"""
-        cmds.setAttr(self.name + ".r", lock=True)
-        cmds.flushUndo()
-        self.node.getPlug("rotate").unlock()
-        cmds.undo()
-        self.assertTrue(cmds.getAttr(self.name + ".r", lock=True))
-        with self.assertRaises(TypeError):
-            self.node.getPlug("rotate").unlock(undoable=False)
-        cmds.setAttr(self.name + ".r", lock=True)
-        cmds.flushUndo()
-        self.node.getPlug("rotate").unlock(fast=True)
-        self.assertFalse(cmds.getAttr(self.name + ".r", lock=True))
-        self.assertUndoEmpty()
-        with self.assertRaises(TypeError):
-            self.node.getPlug("rotate").unlock(fast=1)
-
     def test_locked_inherits_from_parent_in_query(self):
         """親がロックされていると子のisLockedもTrue(MPlugの判定)。"""
         cmds.setAttr(self.name + ".t", lock=True)
@@ -273,7 +241,7 @@ class PlugAliasSpecTest(_StateSpecCase):
 
 
 class PlugMuteSpecTest(_StateSpecCase):
-    """mute・unmute・setMuted・isMuted。"""
+    """setMuted・isMuted(6.0.0でmute・unmuteは廃止)。"""
 
     def setUp(self):
         super().setUp()
@@ -283,19 +251,19 @@ class PlugMuteSpecTest(_StateSpecCase):
         cmds.currentTime(5)
 
     def test_mute_holds_current_value_and_unmute_restores_animation(self):
-        """muteは現在値で固定し、unmuteはアニメーションへ戻す。繰り返しても状態は同じ。"""
+        """setMuted(True)は現在値で固定し、setMuted(False)はアニメーションへ戻す。繰り返しても状態は同じ。"""
         held = cmds.getAttr(self.name + ".sz")
-        self.assertIs(self.sz.mute(), self.sz)
+        self.assertIs(self.sz.setMuted(True), self.sz)
         self.assertTrue(self.sz.isMuted())
         self.assertTrue(cmds.mute(self.name + ".sz", query=True))
         cmds.currentTime(10)
         self.assertAlmostEqual(self.sz.get(), held)
-        self.sz.mute()
+        self.sz.setMuted(True)
         self.assertTrue(self.sz.isMuted())
-        self.assertIs(self.sz.unmute(), self.sz)
+        self.assertIs(self.sz.setMuted(False), self.sz)
         self.assertFalse(self.sz.isMuted())
         self.assertAlmostEqual(self.sz.get(), 4.0)
-        self.assertIs(self.sz.unmute(), self.sz)
+        self.assertIs(self.sz.setMuted(False), self.sz)
         self.assertFalse(self.sz.isMuted())
 
     def test_mute_undo(self):
@@ -308,8 +276,7 @@ class PlugMuteSpecTest(_StateSpecCase):
 
     def test_argument_errors(self):
         """bool以外の状態とfast引数(3.0.0で外した)はTypeErrorで、状態を変えない。"""
-        for call in (lambda: self.sz.mute(fast=True), lambda: self.sz.setMuted(1), lambda: self.sz.unmute(fast=False),
-                     lambda: self.sz.setMuted(True, fast=True)):
+        for call in (lambda: self.sz.setMuted(1), lambda: self.sz.setMuted(True, fast=True)):
             with self.assertRaises(TypeError):
                 call()
         self.assertFalse(self.sz.isMuted())
@@ -317,7 +284,7 @@ class PlugMuteSpecTest(_StateSpecCase):
     def test_mute_without_animation_is_silent_noop(self):
         """アニメーションの無いチャンネルのmuteはMayaが警告して何もせず、自身を返す。"""
         sy = self.node.getPlug("sy")
-        self.assertIs(sy.mute(), sy)
+        self.assertIs(sy.setMuted(True), sy)
         self.assertFalse(sy.isMuted())
         self.assertFalse(cmds.listConnections(self.name + ".sy", source=True, destination=False))
 
@@ -330,7 +297,7 @@ class PlugMuteSpecTest(_StateSpecCase):
 
 
 class PlugDefinitionQuerySpecTest(_StateSpecCase):
-    """定義の照会(hidden・dynamic・readable・writable・storable・範囲)と構造の判定。"""
+    """定義の照会(dynamic・readable・writable・storable・範囲)・Channel Boxの表示(isHidden)と構造の判定。"""
 
     def test_definition_flags_match_attribute_query(self):
         """定義フラグはcmds.attributeQueryと一致する。"""
@@ -338,12 +305,41 @@ class PlugDefinitionQuerySpecTest(_StateSpecCase):
         for attr in ("translateX", "worldMatrix", "message", "extraHidden"):
             with self.subTest(attr=attr):
                 plug = self.node.getPlug(attr)
-                self.assertEqual(plug.isHidden(), cmds.attributeQuery(attr, node=self.name, hidden=True))
                 self.assertEqual(plug.isReadable(), cmds.attributeQuery(attr, node=self.name, readable=True))
                 self.assertEqual(plug.isWritable(), cmds.attributeQuery(attr, node=self.name, writable=True))
                 self.assertEqual(plug.isStorable(), cmds.attributeQuery(attr, node=self.name, storable=True))
         self.assertTrue(self.node.getPlug("extraHidden").isDynamic())
         self.assertFalse(self.node.getPlug("tx").isDynamic())
+
+    def test_is_hidden_matches_hide_and_show(self):
+        """isHiddenはkeyableでもChannel Box表示でもないときTrue(hide/showと対応。attributeQueryのhiddenではない)。"""
+        tx = self.node.getPlug("tx")
+        self.assertFalse(tx.isHidden())
+        self.assertTrue(self.node.getPlug("worldMatrix").isHidden())
+        cmds.addAttr(self.name, longName="defHidden", attributeType="double", hidden=True, keyable=True)
+        # 定義のhiddenフラグとは別(keyableならChannel Boxに出る扱い)。
+        self.assertTrue(cmds.attributeQuery("defHidden", node=self.name, hidden=True))
+        self.assertFalse(self.node.getPlug("defHidden").isHidden())
+        for fast in (False, True):
+            with self.subTest(fast=fast):
+                self.assertTrue(tx.hide(fast=fast).isHidden())
+                self.assertFalse(tx.show(fast=fast).isHidden())
+                self.assertFalse(tx.show(keyable=False, fast=fast).isHidden())
+                self.assertEqual(tx.isHidden(), not (cmds.getAttr(tx, keyable=True) or cmds.getAttr(tx, channelBox=True)))
+                tx.show(fast=fast)
+
+    def test_is_hidden_for_compound(self):
+        """コンパウンドアトリビュートは子孫の末端がすべて隠れているときTrue。"""
+        translate = self.node.getPlug("t")
+        self.assertFalse(translate.isHidden())
+        translate.hide()
+        self.assertTrue(translate.isHidden())
+        self.node.getPlug("ty").show()
+        self.assertFalse(translate.isHidden())
+        # 親だけを隠しても、子が表示されていればChannel Boxに出る。
+        translate.show()
+        translate.setFlags(keyable=False, channelBox=False)
+        self.assertFalse(translate.isHidden())
 
     def test_structure_predicates(self):
         """isMulti・isCompound・isMultiElement・isChildはMPlugの構造を返す。"""
@@ -421,14 +417,14 @@ class PlugValiditySpecTest(_StateSpecCase):
         cmds.flushUndo()
         cmds.deleteAttr(self.name + ".dynValue")
         self.assertFalse(plug.isValid())
-        self.assertEqual((plug.getFullName(), plug.getName(), plug.getAttrName(), str(plug)), ("", "", "", ""))
+        self.assertEqual((plug.getFullName(), plug.getName(), str(plug)), ("", "", ""))
         self.assertEqual(repr(plug), "<DoublePlug invalid>")
         self.assertFalse(plug.isMulti())
         self.assertIs(type(plug), plugs.DoublePlug)
         for method in ("get", "getLongName", "getShortName", "getNiceName", "getType",
                        "getParent", "isLocked", "isKeyable", "isChannelBox", "isConnected", "isSource",
                        "isDestination", "getSource", "getDestinations", "getConnections", "getDefault", "hasMin",
-                       "getMin", "isSettable", "isDynamic", "isHidden", "getAnimCurve", "isMuted", "unlock",
+                       "getMin", "isSettable", "isDynamic", "isHidden", "getAnimCurve", "isMuted",
                        "reset", "delete", "disconnectInput"):
             with self.subTest(method=method):
                 with self.assertRaises(RuntimeError):
@@ -463,6 +459,26 @@ class PlugValiditySpecTest(_StateSpecCase):
         """DeletedAttributeErrorはValueErrorとRuntimeErrorの両方として捕捉できる。"""
         self.assertTrue(issubclass(DeletedAttributeError, ValueError))
         self.assertTrue(issubclass(DeletedAttributeError, RuntimeError))
+
+    def test_missing_attribute_error_is_shared(self):
+        """存在しないアトリビュートは mlib.getPlug・node.getPlug とも MissingAttributeError で文言も同じ。"""
+        self.assertTrue(issubclass(MissingAttributeError, AttributeError))
+        self.assertTrue(issubclass(MissingAttributeError, RuntimeError))
+        expected = "Attribute not found: {}.nope".format(self.name)
+        for label, call in (("mlib.getPlug", lambda: mlib.getPlug(self.name + ".nope")),
+                            ("Node.getPlug", lambda: self.node.getPlug("nope"))):
+            for error in (MissingAttributeError, AttributeError, RuntimeError):
+                with self.subTest(call=label, error=error.__name__):
+                    with self.assertRaises(error) as context:
+                        call()
+                    self.assertIs(type(context.exception), MissingAttributeError)
+                    self.assertEqual(str(context.exception), expected)
+        self.assertFalse(self.node.hasAttr("nope"))
+        # 属性参照は候補つきのAttributeErrorで、原因にMissingAttributeErrorを持つ。無関係な候補は出さない。
+        with self.assertRaises(AttributeError) as context:
+            self.node.nope
+        self.assertIsInstance(context.exception.__cause__, MissingAttributeError)
+        self.assertNotIn("Did you mean", str(context.exception))
 
     def test_deleted_node(self):
         """所有ノードの削除後は無効、Undoで同じ参照が再び有効になる。"""

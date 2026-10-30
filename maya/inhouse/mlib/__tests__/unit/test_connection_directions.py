@@ -69,8 +69,9 @@ class ConnectionDirectionsTest(unittest.TestCase):
         names = ("self", "s", "d", "c", "t", "et", "scn", "source", "destination",
                  "connections", "type", "exactType", "skipConversionNodes", "asPair",
                  "asNode", "checkChildren", "checkElements", "index")
-        defaults = (True, True, False, None, False, False, True, True, False, None,
-                    False, False, False, False, True, True, None)
+        # 6.0.0からscn・skipConversionNodesの既定はTrue(getSource/getDestinationsと同じ)。
+        defaults = (True, True, False, None, False, True, True, True, False, None,
+                    False, True, False, False, True, True, None)
         signature = inspect.signature(mlib.plugs.Plug.getConnections)
         self.assertEqual(tuple(signature.parameters), names)
         self.assertEqual(tuple(parameter.default for parameter in
@@ -197,10 +198,12 @@ class ConnectionDirectionsTest(unittest.TestCase):
         conversion_input.connect(source)
         center.connect(conversion_output)
         output.connect(center)
-        self.assertEqual(center.getConnections(source=True, destination=False), [conversion_output])
-        self.assertEqual(center.getConnections(source=True, destination=False, scn=True), [source])
-        self.assertEqual(source.getConnections(source=False, destination=True), [conversion_input])
-        self.assertEqual(source.getConnections(source=False, destination=True, skipConversionNodes=True), [center])
+        # 6.0.0から既定は変換ノードを飛ばす。scn=False・skipConversionNodes=Falseは直結。
+        self.assertEqual(center.getConnections(source=True, destination=False), [source])
+        self.assertEqual(center.getConnections(source=True, destination=False, scn=False), [conversion_output])
+        self.assertEqual(source.getConnections(source=False, destination=True), [center])
+        self.assertEqual(source.getConnections(source=False, destination=True, skipConversionNodes=False),
+                         [conversion_input])
         self.assertTrue(center.isConnectedTo(conversion_output, source=True, destination=False))
         self.assertFalse(center.isConnectedTo(source, source=True, destination=False))
         self.assertIs(center.disconnectAll(source=True, destination=False), center)

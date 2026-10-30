@@ -275,7 +275,7 @@ def _dump_movable_attr(plug):
         "longName": plug.getLongName(),
         "shortName": plug.getShortName(),
         "niceName": plug.getNiceName(),
-        "hidden": plug.isHidden(),
+        "hidden": definition.hidden,  # addAttr(hidden=)の定義フラグ。Channel Boxの表示はkeyable/channelBox。
         "keyable": plug.isKeyable(),
         "channelBox": plug.mplug().isChannelBox,
         "locked": plug.isLocked(),
@@ -1110,10 +1110,15 @@ class Node(Object):
                 cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
             return self
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
-        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=True, source=True,
+        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=True,
         asPair=False, asNode=False, index=None):
-        """接続をPlug・Node・ペアとして照会する。
+        """接続をPlug・Node・ペアとして照会する。既定はunitConversion系の変換ノードを飛ばす。
+
+        ``cmds.listConnections`` とは既定が違い、:meth:`~mlib.plugs.plug.Plug.getSource` /
+        :meth:`~mlib.plugs.plug.Plug.getDestinations` と同じくunitConversion系(unitConversion・
+        unitToTimeConversion・timeToUnitConversion)を飛ばしてその先を返す。
+        ``skipConversionNodes=False`` (または ``scn=False``)で直結した相手を返す。
 
         Args:
             s (bool): 入力を含める。sourceとANDする。
@@ -1121,13 +1126,14 @@ class Node(Object):
             c (bool): ペア指定の短縮名。
             t (str | None): typeの短縮名。
             et (bool): exactTypeの短縮名。
-            scn (bool): skipConversionNodesの短縮名。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
             source (bool): 入力を含める。
             destination (bool): 出力を含める。
             connections (bool): 自身側と相手側のペアを返す。
             type (str | None): 接続先ノード型。
             exactType (bool): 型名の完全一致で絞る。
-            skipConversionNodes (bool): unitConversion系を飛ばす。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
+                Falseは直結した相手。
             asPair (bool): 自身側Plugと相手側のペアを返す。
             asNode (bool): 相手側をNodeで返す。
             index (int | None): 結果の一件。範囲外はNone。
@@ -1138,7 +1144,7 @@ class Node(Object):
         from ..plugs.plug import Plug
         pairs = []
         as_pair = asPair or c or connections
-        skip_conversion = scn or skipConversionNodes
+        skip_conversion = scn and skipConversionNodes
         directions = [incoming for incoming, enabled in ((True, s and source), (False, d and destination))
                       if enabled]
 
@@ -1176,7 +1182,7 @@ class Node(Object):
             if local.__class__.getConnections is not Plug.getConnections:
                 # 派生クラスが接続の照会を上書きする場合は、その実装を通す(引数typeが組込みを隠すため__class__)。
                 pairs.extend(local.getConnections(s, d, source=source, destination=destination,
-                             scn=skip_conversion, asPair=True,
+                             skipConversionNodes=skip_conversion, asPair=True,
                              checkChildren=False, checkElements=False))
                 continue
             collect(local.mplug(), local)
@@ -1718,10 +1724,12 @@ class Node(Object):
         Raises:
             ValueError: nameが空または文字列以外の場合。
             RuntimeError: ノードが無効、または ``input3Dx`` 等の未確定な論理番号を含む参照の場合。
-            AttributeError: パスを解決できない、または論理番号が上限を超える場合。
+            MissingAttributeError: アトリビュートが存在しない場合(文言は ``Attribute not found: <ノード名>.<name>``)。
+                ``AttributeError`` と ``RuntimeError`` の両方の派生で、``mlib.getPlug("node.name")`` と同じ例外。
+            AttributeError: 論理番号が上限を超える場合。
         """
         # nodes/plugsの相互依存を避けるため遅延importする。
-        from ..plugs.plug import MAX_LOGICAL_INDEX, Plug
+        from ..plugs.plug import MAX_LOGICAL_INDEX, MissingAttributeError, Plug
         if not isinstance(name, str) or not name:
             raise ValueError("name must be a non-empty attribute path")
         self._require_valid("access attributes of")
@@ -1742,7 +1750,7 @@ class Node(Object):
                 raise AttributeError(
                     f"Multi element logical index must be between 0 and {MAX_LOGICAL_INDEX}: {self.getName()}.{name}"
                 )
-            raise AttributeError(f"Attribute not found: {self.getName()}.{name}")
+            raise MissingAttributeError(f"Attribute not found: {self.getName()}.{name}")
         return Plug(self, mplug)
 
     def hasAttr(self, name):

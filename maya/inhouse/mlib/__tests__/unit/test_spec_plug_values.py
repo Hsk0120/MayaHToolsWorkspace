@@ -2,7 +2,7 @@
 
 対象: ``getType()`` がMayaの型名を返すこと(旧 ``getDataType`` の契約)、
 ``getMin/getMax/getSoftMin/getSoftMax/getDefault(uiUnits=)``、``getEnumName(value=None)``・``getEnumNames()``、
-``getAlias()``・``getMulti()``・``getIndex()``、``unlock(below, *, fast)``(``undoable`` の廃止)、
+``getAlias()``・``getMulti()``・``getIndex()``、``setLocked``・``setFlags(locked=, children=)``(6.0.0で ``lock``/``unlock`` を廃止)、
 廃止した名前(``getDataType``・``getPlugName``・``lock``・``getEnumFieldName``・``getNextAvailable`` 等)が
 無いこと。期待値は maya.cmds / OpenMaya で独立に求める。
 """
@@ -146,12 +146,8 @@ class RemovedNamesSpecTest(_ValueSpecCase):
         self.assertIs(plugs.Plug.setLocked, plugs.Plug.__dict__["setLocked"])
 
     def test_removed_keyword_arguments(self):
-        """unlock(undoable=)とgetConnections(pcls=)は受け付けない。"""
+        """getConnections(pcls=)は受け付けない。"""
         tx = self.node.getPlug("tx")
-        with self.assertRaises(TypeError):
-            tx.unlock(undoable=False)
-        with self.assertRaises(TypeError):
-            tx.unlock(False, True)
         with self.assertRaises(TypeError):
             tx.getConnections(pcls=plugs.Plug)
 
@@ -391,7 +387,7 @@ class AliasMultiIndexSpecTest(_ValueSpecCase):
         """要素でないPlugはgetMulti()がNone、getIndex()はTypeError。削除済みはRuntimeError。"""
         values = self.add("vals", attributeType="double", multi=True)
         for plug in (self.node.getPlug("tx"), self.node.getPlug("t"), values):
-            with self.subTest(plug=plug.getAttrName()):
+            with self.subTest(plug=plug.getName()):
                 self.assertIsNone(plug.getMulti())
                 with self.assertRaises(TypeError):
                     plug.getIndex()
@@ -403,8 +399,8 @@ class AliasMultiIndexSpecTest(_ValueSpecCase):
             element.getIndex()
 
 
-class UnlockSpecTest(_ValueSpecCase):
-    """unlock(below=False, *, fast=False)。undoableは廃止し、fastだけがUndoなし。"""
+class LockSpecTest(_ValueSpecCase):
+    """6.0.0でlock()/unlock()を廃止し、ロックはsetLocked/setFlagsで扱う。"""
 
     def lock(self, *attrs):
         """cmdsでロックして記録を消す。"""
@@ -412,31 +408,32 @@ class UnlockSpecTest(_ValueSpecCase):
             cmds.setAttr(self.name + "." + attr, lock=True)
         cmds.flushUndo()
 
-    def test_unlock_returns_unlocked_plugs_and_undo_once(self):
-        """上位から順に解除したPlugのlistを返し、1回のUndoで全て戻る。"""
-        self.assertEqual(self.node.getPlug("ty").unlock(), [])
-        self.lock("t", "tx")
+    def test_set_locked_changes_only_the_plug_and_undo_once(self):
+        """setLocked(False)は自身のロックだけを外す(上位の継承ロックは外さない)。1回のUndoで戻る。"""
+        self.lock("tx")
         tx = self.node.getPlug("tx")
-        result = tx.unlock()
-        self.assertEqual([p.getFullName() for p in result], [self.name + ".translate", self.name + ".translateX"])
-        self.assertFalse(cmds.getAttr(self.name + ".t", lock=True))
+        self.assertIs(tx.setLocked(False), tx)
         self.assertFalse(cmds.getAttr(self.name + ".tx", lock=True))
         cmds.undo()
-        self.assertTrue(cmds.getAttr(self.name + ".t", lock=True))
         self.assertTrue(cmds.getAttr(self.name + ".tx", lock=True))
         self.assertUndoEmpty()
-        # 親 t がロックされたままなので、兄弟 ty の解除は親だけを解除する。
-        self.assertEqual([p.getLongName() for p in self.node.getPlug("ty").unlock()], ["translate"])
+        # 親がロックされていると、子のロックを外しても親から継承したロックが残る(MPlugの判定)。
+        self.lock("t")
+        tx.setLocked(False)
+        self.assertTrue(tx.isLocked())
+        # 上位の解除は親を明示する(旧unlock()が行っていた処理)。
+        self.assertEqual(tx.getParent().setLocked(False), tx.getParent())
+        self.assertFalse(tx.isLocked())
+        self.assertFalse(cmds.getAttr(self.name + ".t", lock=True))
 
-    def test_unlock_below_and_fast(self):
-        """below=Trueは子も解除する。fastはUndoに記録しない。"""
+    def test_children_and_fast(self):
+        """setFlags(locked=False, children=True)は自身と子を外す(旧unlock(below=True)の代わり)。fastはUndoに記録しない。"""
         for fast in (False, True):
             with self.subTest(fast=fast):
                 self.lock("t", "tx", "tz")
-                result = self.node.getPlug("t").unlock(below=True, fast=fast)
-                self.assertEqual([p.getLongName() for p in result], ["translate", "translateX", "translateZ"])
-                for axis in "xyz":
-                    self.assertFalse(cmds.getAttr(self.name + ".t" + axis, lock=True))
+                self.node.getPlug("t").setFlags(locked=False, children=True, fast=fast)
+                for attr in ("t", "tx", "ty", "tz"):
+                    self.assertFalse(cmds.getAttr(self.name + "." + attr, lock=True))
                 if fast:
                     self.assertUndoEmpty()
                 else:
@@ -444,19 +441,19 @@ class UnlockSpecTest(_ValueSpecCase):
                     self.assertTrue(cmds.getAttr(self.name + ".t", lock=True))
                     self.assertTrue(cmds.getAttr(self.name + ".tz", lock=True))
                     self.assertUndoEmpty()
-                for axis in "xyz":
-                    cmds.setAttr(self.name + ".t" + axis, lock=False)
-                cmds.setAttr(self.name + ".t", lock=False)
+                for attr in ("tx", "ty", "tz", "t"):
+                    cmds.setAttr(self.name + "." + attr, lock=False)
 
-    def test_unlock_argument_errors(self):
-        """below・fastはbool限定。位置引数はbelowだけ。"""
+    def test_removed_methods(self):
+        """lock・unlock・mute・unmuteはAttributeErrorで、案内にset系の名前を出す。"""
         tx = self.node.getPlug("tx")
-        with self.assertRaises(TypeError):
-            tx.unlock(below=1)
-        with self.assertRaises(TypeError):
-            tx.unlock(fast=1)
-        with self.assertRaises(TypeError):
-            tx.unlock(False, False)
+        for name, hint in (("lock", "setLocked(True)"), ("unlock", "setLocked(False)"),
+                           ("mute", "setMuted(True)"), ("unmute", "setMuted(False)")):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(plugs.Plug, name))
+                with self.assertRaises(AttributeError) as context:
+                    getattr(tx, name)
+                self.assertIn("use " + hint, str(context.exception))
 
 
 if __name__ == "__main__":

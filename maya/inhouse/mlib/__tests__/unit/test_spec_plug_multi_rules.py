@@ -3,7 +3,8 @@
 - 「次に使える要素」は ``cmds.connectAttr(nextAvailable=True)`` と同じ規則(``connectTo(nextAvailable=True)`` と
   ``MultiPlug.getNextAvailable()`` の既定)。同じ初期状態をcmdsとmlibで作り、選ばれた番号を突き合わせる。
 - ``MultiPlug.getElement(i)`` は未作成の要素も参照を返す。
-- ``Plug.getName()``・``getAttrName()`` は論理番号を省かず、getAttrNameは先頭ドットを持たない。
+- ``Plug.getName()`` は論理番号を省かない。6.0.0で廃止した ``getAttrName()`` の代わりに、アトリビュート部分
+  (``getName().partition(".")[2]``)を ``getPlug`` へ戻せる。
 - generic のアトリビュートへの定数のマトリクス。
 """
 
@@ -72,7 +73,7 @@ class NextAvailableParityTest(_Case):
                     setup(ours, self.feeder.getFullName())
                     expected = self.chosen_by_cmds(reference)
                     multi = mlib.getPlug(ours)
-                    self.assertEqual(multi.getNextAvailable(), expected)
+                    self.assertEqual(multi.getNextAvailable().getIndex(), expected)
                     element = self.source.getPlug("sx").connectTo(multi, nextAvailable=True, fast=fast)
                     self.assertEqual(element.getIndex(), expected)
 
@@ -100,8 +101,8 @@ class NextAvailableParityTest(_Case):
         attr = self.add_multi(self.node, "values")
         cmds.setAttr(attr + "[0]", 1)
         multi = mlib.getPlug(attr)
-        self.assertEqual(multi.getNextAvailable(), 0)
-        self.assertEqual(multi.getNextAvailable(vacant=True), 1)
+        self.assertEqual(multi.getNextAvailable().getIndex(), 0)
+        self.assertEqual(multi.getNextAvailable(vacant=True).getIndex(), 1)
 
     def test_undo_once(self):
         """nextAvailableの接続は1回のUndoで戻る。fastはUndoに積まない。"""
@@ -142,7 +143,7 @@ class GetElementTest(_Case):
 
 
 class PlugNamesTest(_Case):
-    """getName・getAttrNameは論理番号を省かず、getAttrNameはgetPlugへ戻せる。"""
+    """getNameは論理番号を省かず、アトリビュート部分はgetPlugへ戻せる。getAttrNameは無い。"""
 
     def test_names(self):
         name = self.node.getName()
@@ -154,9 +155,9 @@ class PlugNamesTest(_Case):
                             ("items[3].weight", "its[3].wt"), ("parentInverseMatrix[0]", "pim[0]")):
             with self.subTest(path=path):
                 plug = self.node.getPlug(path)
-                self.assertEqual(plug.getAttrName(), short)
+                self.assertFalse(hasattr(plug, "getAttrName"))
                 self.assertEqual(plug.getName(), name + "." + short)
-                self.assertEqual(self.node.getPlug(plug.getAttrName()), plug)
+                self.assertEqual(self.node.getPlug(plug.getName().partition(".")[2]), plug)
                 self.assertTrue(cmds.objExists(plug.getName()))
 
 

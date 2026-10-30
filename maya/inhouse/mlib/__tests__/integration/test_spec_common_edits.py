@@ -58,7 +58,7 @@ class FastArgumentRemovedTest(unittest.TestCase):
         from mlib.plugs import Plug
 
         targets = [mlib.duplicate, mlib.select, Selection.select, Namespace.create, Namespace.setCurrent,
-                   Namespace.rename, Namespace.move, Namespace.remove, Plug.setMuted, Plug.mute, Plug.unmute,
+                   Namespace.rename, Namespace.move, Namespace.remove, Plug.setMuted,
                    Transform.matchTransform, SkinCluster.removeInfluence, SkinCluster.removeUnusedInfluences,
                    Joint.removeInfluence]
         for target in targets:

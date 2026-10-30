@@ -99,14 +99,15 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `getExtraAttrs(include_children, *, asNames)` は廃止する。`userDefined=True` はユーザー定義アトリビュートだけを
   OpenMaya経路で追加順の型付きPlug(マルチアトリビュートはMultiPlug)として返し、`cmds.listAttr` のフラグとの併用はTypeError。
   `userDefined=False` は `cmds.listAttr` 経路。`includeChildren=False` はコンパウンドアトリビュートの子を省く。名前の列は
-  `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getAttrName()` は `tx`・`wm[0]` 形式のショート名と論理番号のパスなので、ロング名の一覧には使わない)。
+  `[p.getLongName() for p in node.getPlugs(userDefined=True)]`(`getName()` のアトリビュート部分は `tx`・`wm[0]` 形式のショート名と論理番号のパスなので、ロング名の一覧には使わない)。
   DAG共通の `getRoot()`・`getSiblings()`・`getBoundingBox(worldSpace=False)`・`isIntermediateObject()` は
   `DagNode` に置き、TransformとShapeの両方から使う。`getSiblings()` はShapeでは親直下の他の非中間Shape、
   `getBoundingBox` は `MDagPath.exclusiveMatrix` で空間を切り替える。
   `getShape(index=0, intermediates=False)` は自身がShapeなら引数を無視して自身、Transformは派生側の実装、無効なindexはNone。
   `collectSkinClusters()`(DagNode)は廃止し `SkinClusters(node.getSkinClusters())`、
   `getAssignedObjects()`・`getMaterials()` は廃止し `getShadingEngines()` の結果に `ShadingEngine.getMembers()/getShader()` を使う。
-  二重入口のうち `show()/hide()` と `setVisibility(state)`、`mute()/unmute()` と `setMuted(state)` は両方残す。
+  二重入口のうち `show()/hide()` と `setVisibility(state)` は両方残す。6.0.0でPlugの `lock()/unlock()`・`mute()/unmute()` は廃止し、
+  `setLocked(state)`・`setMuted(state)` に一本化した(`show()/hide()` は残し、`isHidden()` をその判定にした)。
   `isConnected(source=, destination=)` と `isSource()/isDestination()`、切断3本(`disconnect/disconnectInput/disconnectAll`)は
   戻り値・no-op規則が違うので統合しない。
 - 2026-10-23のユーザー指定により、独自の判定は正式な `isX` へ一本化する。
@@ -416,6 +417,9 @@ bool以外はTypeErrorとする。両Falseでは判定はFalse、
 
 接続元・接続先は`getSource/getDestinations(skipConversionNodes=...)`、
 方向付き照会は`getConnections`へ集約する。
+6.0.0で`Node.getConnections`・`Plug.getConnections`の`skipConversionNodes`(短縮名`scn`)の既定をTrueにし、
+`getSource/getDestinations`と揃えた。`cmds.listConnections`とは既定が違い、unitConversion系を飛ばしてその先を返す。
+`scn`と`skipConversionNodes`はANDで、どちらかをFalseにすると直結を返す。mlib内部で直結を前提にする呼び出しは`skipConversionNodes=False`を明示する。
 `isSource/isDestination/disconnectInput/getSourceNodes`に方向boolは追加しない。
 `connect(source)`と`connectTo(destination)`は接続相手を受け取る。
 
@@ -516,21 +520,26 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 - `Joint.isJoint()` は廃止し、`isinstance(x, mlib.nodes.Joint)` または `x.isType("joint")` を使う。
 - `Node.setLocked(state=True, *, fast=False)` はノード自体のロックで自身を返す(通常は `cmds.lockNode` でUndo1回、fastは `MFnDependencyNode.isLocked` のsetter)。
   アトリビュートのロックは `Plug.setLocked()`。`Node.mfn()` は毎回新規のfunction setを返す(Mesh/Camera/NurbsCurve/ReferenceはMFnMesh等を返すoverride)。
-- `Plug.unlock(below=False, *, fast=False)` は実際に解除したPlugの `list[Plug]` を上位から返す。旧 `undoable=` 引数は廃止し、Undoなしは `fast=True`。
-  5.0.0で `Plug.lock(*, fast=False)`(`setFlags(locked=True)`、自身を返す)を再追加した。旧 `lock(val)` 別名とは別物で、
-  解除は戻り値の違う `unlock()`。`Plug.hide(*, fast=False)` は keyable・Channel Box表示をFalse、
-  `Plug.show(keyable=True, *, fast=False)` はその逆で、どちらもコンパウンドアトリビュートの子へ広げる(ロックは変えない)。
+- 6.0.0で `Plug.lock()`・`unlock(below=)`・`mute()`・`unmute()` を廃止した。ロックは `setLocked(state, leaf=False, *, fast=False)`・
+  `setFlags(locked=)`、ミュートは `setMuted(state)` を使う。`unlock()` が行っていた上位のコンパウンドアトリビュート・マルチアトリビュートの
+  継承ロックの解除と `below=True` の下位の解除は `setLocked(False)` に無い(利用が無かったため引数は足していない)。
+  上位が必要なら `plug.getParent()`・`plug.getMulti()` の `setLocked(False)`、コンパウンドアトリビュートの子は `setFlags(locked=False, children=True)`。
+  接続時の一時解除は `connect(force=True)` が内部で行う。
+  `Plug.hide(*, fast=False)` は keyable・Channel Box表示をFalse、`Plug.show(keyable=True, *, fast=False)` はその逆で、
+  どちらもコンパウンドアトリビュートの子へ広げる(ロックは変えない)。`Plug.isHidden()` はその判定で、
+  keyableでもChannel Box表示でもない(コンパウンドアトリビュートは子孫の末端がすべてそう)ときTrue(6.0.0。5.0.0までは
+  `addAttr(hidden=True)` の定義フラグ `cmds.attributeQuery(hidden=True)` を返していた。定義フラグの照会入口は置かない)。
 - コンパウンドアトリビュートの状態: Mayaの `setAttr(keyable=/channelBox=)` は親(`t`)にだけ効き、子(`tx`)は変わらない
   (ロックは親から継承される)。`Plug.setFlags(..., children=False)`・`Node.setAttrFlags(..., children=False)` は既定でこの挙動を保ち、
   `children=True` は自身に続けて子孫へ同じ状態を明示的に設定する(マルチアトリビュートの要素へは広げない)。
   `setKeyable/setChannelBox/setLocked(leaf=True)` は末端の子だけを変え、自身(親)は変えない点が `children=True` と異なる。
-- `MultiPlug.getNextAvailable(start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False)` はマルチアトリビュートのPlugだけが持つ
-  (基底Plugからは `AttributeError`)。要素の作成・予約はしない。5.0.0で「次に使える要素」はMayaの規則
+- `MultiPlug.getNextAvailable(start=-1, checkLocked=True, checkChildren=True, *, vacant=False)` はマルチアトリビュートのPlugだけが持つ
+  (基底Plugからは `AttributeError`)。6.0.0から常に要素のPlugを返し、番号は `getIndex()` で取る(`asPlug` 引数は廃止)。要素の作成・予約はしない。5.0.0で「次に使える要素」はMayaの規則
   (`cmds.connectAttr(nextAvailable=True)`)に統一し、`connect/connectTo(nextAvailable=True)` は `getNextAvailable()` の既定の結果へ接続する
   (4.x の `connect(nextAvailable=True)` は0から探したため、途中の空きへ接続していた)。要素は入力接続が無ければ使え、値を持つだけの要素も候補になる。
   `vacant=True` はMayaの規則と別の「未使用の番号」の探索で、値を設定する空き要素を探す用途に残す。`appendMessage(node, *, fast=False)` は探索規則が違うので統合しない。
 
-  | 呼び方 | 開始位置 | 返す番号 | checkLocked/checkChildren |
+  | 呼び方 | 開始位置 | 返す要素の番号 | checkLocked/checkChildren |
   | --- | --- | --- | --- |
   | `getNextAvailable()`(既定。`connectTo(nextAvailable=True)` と `cmds.connectAttr(nextAvailable=True)` も同じ) | `start`。負数なら接続(子の接続を含む)のある最後の要素の次(途中の空きは飛ばす) | 入力接続・ロック・子の入力接続の無い最初の論理番号(値を持つだけの既存要素も可) | 有効 |
   | `getNextAvailable(vacant=True)`(旧 `getNextAvailableIndex`) | `start`。負数なら0 | 既存番号(値・接続のある要素)に無い最初の番号 | 無視する |
@@ -546,9 +555,14 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
   `minValue` と同じ(角度は度が既定で `unit="rad"` も可、距離cm、時間は秒)。静的アトリビュートと数値・単位型以外はTypeError。
   `Transform.setLimits(*, unit="deg", **limits)` は `cmds.transformLimits` の入口で、`translateX=(min, max)` のように
   チャンネルのロング名へ組を渡す。片側の `None` はその側の制限を無効、値全体の `None` は両側を無効にする(距離cm・角度は度で、MayaのUI単位へ換算して渡す。`cmds.transformLimits` の照会は移動だけcm、回転はUI単位で返る)。
-- `Plug.getName()` は `<ノードの最短名>.<getAttrName()>`、`getAttrName()` は先頭ドットを含まないショート名と論理番号のパス
-  (`wm[0]`・`it[0].itg[3].tw[2]`)。5.0.0でworldSpaceの要素の番号も省かなくなった(4.x は `tt.wm`・`.wm`)。
-  `node.getPlug(plug.getAttrName())` で同じPlugへ戻せる。Mayaコマンドへは `getFullName()`/`str(plug)` を渡す。
+- Plugの名前: `getName()` は `<ノードの最短名>.<ショート名と論理番号のパス>`(`tt.wm[0]`・`bs.it[0].itg[3].tw[2]`)、
+  `getFullName()`/`str(plug)` は `<ノードの一意名>.<ロング名のパス>`(エイリアスがあれば使う。Mayaコマンドへ渡す名前)、
+  `getShortName()`/`getLongName()` はアトリビュート自身の名前(ノード名・親・論理番号を含まない)、`getNiceName()` はUI表示名。
+  5.0.0でworldSpaceの要素の番号も省かなくなった(4.x は `tt.wm`・`.wm`)。6.0.0で `getAttrName()` は廃止した
+  (ノード名を除いたパスは `plug.getName().partition(".")[2]` で、`node.getPlug()` へ渡せば同じPlugへ戻せる)。
+- 「アトリビュートが無い」例外は `mlib.getPlug("node.nope")` と `node.getPlug("nope")` で同じ
+  `mlib.plugs.plug.MissingAttributeError`(`AttributeError` と `RuntimeError` の両方を継承。文言は `Attribute not found: node.nope`)。
+  `DeletedAttributeError(ValueError, RuntimeError)` と同じ作りで、既存の `except AttributeError`/`except RuntimeError` のどちらも効く。
 - `MultiPlug.getElement(index)` は `multi[index]` と同じく、未作成の要素も参照を返す(5.0.0。4.x は欠番をIndexError)。
   既存要素だけが必要なら `getElements()`、存在の判定は `index in multi`。
 - generic/kAnyのアトリビュートへの定数のマトリクス(`plug.set(Matrix())`)は、Mayaの `setAttr` がマトリクスのデータを
