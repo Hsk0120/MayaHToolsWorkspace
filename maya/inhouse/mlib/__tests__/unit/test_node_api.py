@@ -490,7 +490,8 @@ class NodeApiTest(unittest.TestCase):
                     self.assertAlmostEqual(transform.getPlug(attribute).get(unit="rad"), math.pi / 2)
                     cmds_value = 90.0
                 elif attribute == "mlibTime":
-                    cmds_value = 3.0 / 24
+                    # 時間の既定は現在のUI時間単位のフレーム(cmds.getAttrと同じ)。秒はtimeUnit="sec"。
+                    self.assertAlmostEqual(transform.getPlug(attribute).get(timeUnit="sec"), 3.0 / 24)
                 self.assertAlmostEqual(plug_value, cmds_value) if isinstance(cmds_value, float) \
                     else self.assertEqual(plug_value, cmds_value)
 
@@ -509,7 +510,7 @@ class NodeApiTest(unittest.TestCase):
             cmds.currentUnit(linear="mm", time="ntsc")
             for attribute, plug in plugs.items():
                 with self.subTest(attribute=attribute, unit="mm/ntsc"):
-                    self.assertAlmostEqual(plug.get(), {"mlibDistance": 5., "mlibTime": 3./24, "mlibAngle": 90., "translateX": 0.}[attribute])
+                    self.assertAlmostEqual(plug.get(), {"mlibDistance": 5., "mlibTime": 3.75, "mlibAngle": 90., "translateX": 0.}[attribute])
         finally:
             cmds.currentUnit(linear=previous[0], time=previous[1])
 

@@ -40,6 +40,12 @@ _ANGLE_UNITS = {
     "rad": "rad", "radian": "rad", "radians": "rad",
 }
 
+#: 時間の単位名と正規化した名前。シーン操作の数値の時間は既定で現在のUI時間単位のフレーム(``"frame"``)。
+_TIME_UNITS = {
+    "frame": "frame", "frames": "frame",
+    "sec": "sec", "second": "sec", "seconds": "sec",
+}
+
 
 class _ArgumentError(TypeError):
     """長短引数の競合・必須値の欠落を、複数形でもTypeErrorとして伝える。"""
@@ -351,7 +357,39 @@ def _angle_unit(unit, default="deg"):
     try:
         return _ANGLE_UNITS[unit]
     except KeyError:
+        if unit in _TIME_UNITS:
+            # 時間の単位を角度の引数へ渡した誤りを、正しい引数名で伝える。
+            raise ValueError(f"Unsupported angle unit: {unit!r} (use timeUnit for time values)") from None
         raise ValueError(f"Unsupported angle unit: {unit!r} (use 'deg' or 'rad')") from None
+
+
+def _time_unit(unit, default="frame"):
+    """時間の単位名を ``"frame"`` / ``"sec"`` へ正規化する。
+
+    ``"frame"`` は現在のUI時間単位(``currentUnit -time``。film なら1/24秒)の1フレームを表す。
+
+    Args:
+        unit (str | None): ``"frame"``・``"frames"``・``"sec"``・``"second"``・``"seconds"`` のいずれか。
+            Noneはdefaultを使う。
+        default (str | None): unitがNoneの場合に返す値。
+
+    Returns:
+        str | None: ``"frame"`` または ``"sec"``。unitとdefaultがNoneならNone。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    if unit is None:
+        return default
+    if not isinstance(unit, str):
+        raise TypeError(f"Time unit must be a string: {unit!r}")
+    try:
+        return _TIME_UNITS[unit]
+    except KeyError:
+        if unit in _ANGLE_UNITS:
+            raise ValueError(f"Unsupported time unit: {unit!r} (use unit for angle values)") from None
+        raise ValueError(f"Unsupported time unit: {unit!r} (use 'frame' or 'sec')") from None
 
 
 def _to_radians(value, unit):

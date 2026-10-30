@@ -5,10 +5,10 @@ import math
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.attributeType import _convert_angles, _convert_units, attributeType
+from ..core.attributeType import _convert_angles, _convert_times, _convert_units, attributeType
 from ..decorator import undoChunk
 from ..plugs.plug import Plug
-from ..util import _angle_unit
+from ..util import _angle_unit, _time_unit
 
 #: ドライバー・駆動先に使える数値スカラーのアトリビュート型名。
 _NUMERIC_SCALAR_TYPES = frozenset(
@@ -139,7 +139,8 @@ class DrivenKey:
     pairBlend、アニメーションレイヤー、任意の計算ノードを辿る汎用探索ではない。
 
     setKeyの数値は、角度アトリビュートでは既定で度(``unit="rad"`` でラジアン)、距離はcm、
-    時間は秒で受け取り、Mayaコマンド境界でUI単位へ変換する。
+    時間アトリビュートでは既定で現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)で受け取り、
+    Mayaコマンド境界でUI単位へ変換する。
     AnimCurveのU型カーブに渡す無次元入力と混同しない。
     """
 
@@ -248,7 +249,8 @@ class DrivenKey:
         return bool(self.getCurves())
 
     @undoChunk("mlibDrivenKeySetKey")
-    def setKey(self, driverValue, value, inTangentType="linear", outTangentType="linear", *, unit="deg"):
+    def setKey(self, driverValue, value, inTangentType="linear", outTangentType="linear", *, unit="deg",
+               timeUnit="frame"):
         """指定したドライバー値と駆動先値でドリブンキーを追加・更新する。
 
         両値をfloat()で有限性検査し、それぞれのPlug定義に従ってUI単位へ変換して
@@ -259,20 +261,22 @@ class DrivenKey:
         呼出元のfast指定には影響されず、Undo設定は変更しない。
 
         Args:
-            driverValue (float): ドライバーの値。角度はunitの単位(既定は度)、距離cm、時間秒、
-                その他は無次元。
+            driverValue (float): ドライバーの値。角度はunitの単位(既定は度)、距離cm、
+                時間はtimeUnitの単位(既定はフレーム)、その他は無次元。
             value (float): 駆動先の値。単位はdriverValueと独立に、駆動先のアトリビュート定義で解釈する。
             inTangentType (str): Mayaの入力接線型。
             outTangentType (str): Mayaの出力接線型。
             unit (str): 角度アトリビュートの値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
                 (``"degree"`` / ``"radians"`` 等の別名も可)。角度以外のアトリビュートでは使わない。
+            timeUnit (str): 時間アトリビュートの値の単位。既定 ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"seconds"`` 等の別名も可)。時間以外のアトリビュートでは使わない。
 
         Returns:
             DrivenKey: 自身。
 
         Raises:
-            TypeError: 数値の型がfloat()へ変換できない、またはunitが文字列以外の場合。
-            ValueError: 数値が非有限、float()で変換できない、またはunitが未対応の単位名の場合。
+            TypeError: 数値の型がfloat()へ変換できない、またはunit・timeUnitが文字列以外の場合。
+            ValueError: 数値が非有限、float()で変換できない、またはunit・timeUnitが未対応の単位名の場合。
             RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、
                 またはMayaがキー作成を拒否した場合。
 
@@ -282,13 +286,14 @@ class DrivenKey:
             後続の失敗に対する自動ロールバックは行わない。
         """
         angle_unit = _angle_unit(unit)
+        time_unit = _time_unit(timeUnit)
         x, y = float(driverValue), float(value)
         if not math.isfinite(x) or not math.isfinite(y):
             raise ValueError("Expected finite key values")
         driver, driven = self.getDriverPlug(), self.getDrivenPlug()
-        # 角度の値を内部単位(rad)へ揃えてから、Mayaコマンドが受け取るUI単位へ換算する。
-        x = _convert_angles(driver.mplug(), x, angle_unit)
-        y = _convert_angles(driven.mplug(), y, angle_unit)
+        # 角度・時間の値を内部単位(rad・秒)へ揃えてから、Mayaコマンドが受け取るUI単位へ換算する。
+        x = _convert_times(driver.mplug(), _convert_angles(driver.mplug(), x, angle_unit), time_unit)
+        y = _convert_times(driven.mplug(), _convert_angles(driven.mplug(), y, angle_unit), time_unit)
         _curves(driven, strict=True)
         if len(self.getCurves()) > 1:
             raise RuntimeError("Multiple curves match this driver/driven pair")

@@ -137,7 +137,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 - JSONの保存キー・データクラスの保存フィールド・外部形式・パッケージ名・テスト探索名は、公開メソッドの改名に巻き込まない。
 - 旧名の互換別名は残さない。内製使用側・テスト・ドキュメントを同時に更新し、`mlib.reload()`後も廃止名を公開しない。
 - Maya照会はメソッド、保持値はプロパティ。シーン編集は明示的なメソッドにする。
-- オブジェクト層はcm/秒・角度の数値は度(5.0.0)、数学層はOpenMayaの概念(角度rad)、コマンド層はmaya.cmdsの単位・フラグを基準にする。
+- オブジェクト層はcm・角度の数値は度(5.0.0)・時間の数値は現在のUI時間単位のフレーム(6.0.0)、数学層はOpenMayaの概念(角度rad)、コマンド層はmaya.cmdsの単位・フラグを基準にする。
 - 通常更新はcmdsによるUndo対応、対応する`fast=True`はom2によるUndoなし更新。同じ入力の意味・検証を維持する。
   読み取りはom2を基本とし、書き込み系の公開メソッドは原則 `fast` 引数を持つ。`fast` を持たない書き込みは
   om2に同等機能が無いものに限り、理由付きの一覧を「判断に迷う場合」に置く。
@@ -455,7 +455,8 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 - 全パッケージの公開関数・メソッド・プロパティは上記の例外を除きlowerCamelCase。
   シーン照会にはgetを付ける（`getNumVertices`・`getNumCVs`・`getCvPositions`等）。
   mlib独自の複合操作は独自名と仕様を明記し、MFnと同一の処理だと扱わない。
-- オブジェクトの数値は距離cm・時間秒・角度は度(5.0.0で既定をradから度へ変更)。角度の数値を受け渡す公開API
+- オブジェクトの数値は距離cm・時間は現在のUI時間単位のフレーム(6.0.0で既定を秒からフレームへ変更)・
+  角度は度(5.0.0で既定をradから度へ変更)。角度の数値を受け渡す公開API
   (`Plug.get/set`、`Transform.setRotate/getRotate/setQuaternion(get=True)`、`DrivenKey.setKey`、
   `Node.addAttr`の角度の既定値・範囲、角度出力のAnimCurve・接線の角度、`AimConstraint`のoffset/restRotate、
   `units.angleToUi/angleFromUi`)は`unit="deg"|"rad"`(別名`degree(s)`・`radian(s)`)を受け、既定は度とする。
@@ -464,6 +465,16 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
   `rotate`の`get()`は従来どおり`EulerRotate`を返し、`unit`を明示した場合だけ数値tupleを返す
   (`tuple(rotate.get())`はradの数値になるので、度の数値列が必要なら`get(unit="deg")`を使う)。
   `Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault`は既定で`MAngle`等の単位付きの値を返し、`unit`指定時に数値を返す。
+- 時間の数値を受け渡す公開API(`Plug.get/set`の時間アトリビュートと、時間の子を持つコンパウンド・マルチアトリビュート、
+  `Plug.setKey`の`time`、`AnimCurve`のT型入力・時間出力(`setKey`・`getKeyInputs`・`getKeyValues`・`evaluate`・
+  `shiftKeys`・`scaleKeys`/`mirror`のpivot)、`DrivenKey.setKey`、`Node.addAttr`の時間の既定値・範囲、
+  `Plug.setMin`等)は`timeUnit="frame"|"sec"`(別名`frames`・`second(s)`)を受け、既定は現在のUI時間単位のフレームとする。
+  角度の`unit`と別の引数にする(animCurveTAのように角度と時間を同時に持つ値でも、それぞれを指定できるため)。
+  単位名を逆の引数へ渡した場合(`unit="sec"`等)は、正しい引数名を示すValueErrorにする。
+  `uiUnits=True`はフレームと同じ値になるが、`timeUnit`とは同時に指定できない(ValueError)。
+  `MTime`は値自身が単位を持つため換算しない。`getMin`等は`timeUnit`指定時だけ`MTime`を数値で返す。
+  U型(ドリブンキー等の無次元入力)のカーブ入力・`scaleKeys`の倍率は無次元のまま。接線のウェイトは`keyTangent`と同じ値で、
+  `timeUnit`を持たない。
   数学型の生成は既定rad(`EulerRotate(..., unit="deg")`・`Quaternion.fromAxisAngle(..., unit="deg")`で度)。
   内部処理はradで計算し、公開境界で一度だけ換算する(通常・fast・safeで同じ換算)。
   `getTranslate/setTranslate`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
@@ -532,9 +543,9 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
   5.0.0で `EnumPlug.set()` はフィールド名(`set("head")`)も受け付ける(整数も可)。大文字・小文字を区別する完全一致で、
   一致しなければ有効な名前を並べたValueError(safe=Trueでは失敗数1)。通常・fast・safeで同じ。
   `Node.addAttr(..., type="enum", enumName=..., defaultValue="head")` も `enumName` からフィールドの値を求める。
-- 範囲の編集: `Plug.setMin/setMax/setSoftMin/setSoftMax(value, *, unit=None)` は動的アトリビュートの定義を
+- 範囲の編集: `Plug.setMin/setMax/setSoftMin/setSoftMax(value, *, unit=None, timeUnit=None)` は動的アトリビュートの定義を
   `cmds.addAttr(edit=True, minValue=...)` で編集し(Undo1回、fastなし)、`setMin/setMax(None)` で制限を外す(ソフト値の削除はMayaが編集できないため `setSoftMin/setSoftMax(None)` はNotImplementedError)。値の単位は `addAttr` の
-  `minValue` と同じ(角度は度が既定で `unit="rad"` も可、距離cm、時間は秒)。静的アトリビュートと数値・単位型以外はTypeError。
+  `minValue` と同じ(角度は度が既定で `unit="rad"` も可、距離cm、時間はフレームが既定で `timeUnit="sec"` も可)。静的アトリビュートと数値・単位型以外はTypeError。
   `Transform.setLimits(*, unit="deg", **limits)` は `cmds.transformLimits` の入口で、`translateX=(min, max)` のように
   チャンネルのロング名へ組を渡す。片側の `None` はその側の制限を無効、値全体の `None` は両側を無効にする(距離cm・角度は度で、MayaのUI単位へ換算して渡す。`cmds.transformLimits` の照会は移動だけcm、回転はUI単位で返る)。
 - `Plug.getName()` は `<ノードの最短名>.<getAttrName()>`、`getAttrName()` は先頭ドットを含まないショート名と論理番号のパス

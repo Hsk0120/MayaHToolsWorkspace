@@ -135,12 +135,16 @@ class FastEditTest(unittest.TestCase):
             node.getPlug('text').set('hello', fast=True)
             node.getPlug('numbers').set([1., 2., 3.], fast=True)
             node.getPlug('matrixValue').set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 3, 4, 1], fast=True)
-            node.getPlug('timeValue').set(12, fast=True)
+            node.getPlug('timeValue').set(12, timeUnit='sec', fast=True)
             node.getPlug('choice').set(2, fast=True)
         self.assertEqual(cmds.getAttr(node.getFullName() + '.text'), 'hello')
         self.assertEqual(list(cmds.getAttr(node.getFullName() + '.numbers')), [1, 2, 3])
         self.assertEqual(node.getPlug('timeValue').mplug().asMTime().asUnits(__import__('maya.api.OpenMaya', fromlist=['MTime']).MTime.kSeconds), 12)
         self.assertEqual(cmds.getAttr(node.getFullName() + '.choice'), 2)
+        with self.api_only():
+            node.getPlug('timeValue').set(36, fast=True)
+        self.assertAlmostEqual(node.getPlug('timeValue').mplug().asMTime().asUnits(__import__('maya.api.OpenMaya', fromlist=['MTime']).MTime.uiUnit()), 36)
+        self.assertAlmostEqual(node.getPlug('timeValue').get(), 36)
         a, b = [cmds.createNode('transform') for _ in range(2)]
         cmds.connectAttr(a + '.tx', b + '.tx')
         with self.assertRaises(RuntimeError):

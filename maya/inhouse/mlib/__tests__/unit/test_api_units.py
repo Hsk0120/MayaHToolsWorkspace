@@ -23,7 +23,7 @@ class ApiUnitsTest(unittest.TestCase):
         cmds.currentUnit(linear="cm", angle="deg", time="film")
 
     def test_scalar_compound_roundtrip_and_undo(self):
-        """単位型のスカラー・コンパウンドアトリビュートの値は度/cm/秒で往復する(unit="rad"はラジアン)。"""
+        """単位型のスカラー・コンパウンドアトリビュートの値は度/cm/フレームで往復する(unit="rad"・timeUnit="sec")。"""
         node = mlib.createNode("transform")
         time = node.addAttr("sampleTime", attributeType="time")
         for linear, angle, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
@@ -31,15 +31,21 @@ class ApiUnitsTest(unittest.TestCase):
             for fast in (False, True):
                 node.getPlug("rx").set(90, fast=fast)
                 node.getPlug("translate").set((25, 50, 75), fast=fast)
+                fps = 24 if frame == "film" else 30
                 time.set(2, fast=fast)
                 self.assertAlmostEqual(node.getPlug("rx").get(), 90)
                 self.assertAlmostEqual(node.getPlug("rx").get(unit="rad"), math.pi / 2)
                 self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
-                self.assertEqual(time.get(), 2)
-                self.assertEqual(time.mplug().asMTime().asUnits(om2.MTime.kSeconds), 2)
+                # 時間の数値の既定は現在のUI時間単位のフレーム。
+                self.assertAlmostEqual(time.get(), 2)
+                self.assertAlmostEqual(time.mplug().asMTime().asUnits(om2.MTime.kSeconds), 2 / fps)
+                time.set(2, timeUnit="sec", fast=fast)
+                self.assertAlmostEqual(time.get(timeUnit="sec"), 2)
+                self.assertAlmostEqual(time.get(), 2 * fps)
+                self.assertAlmostEqual(time.mplug().asMTime().asUnits(om2.MTime.kSeconds), 2)
                 self.assertAlmostEqual(mlib.getPlug(node.getPlug('rx')).get(uiUnits=True), 90 if angle == 'deg' else math.pi / 2)
                 self.assertAlmostEqual(mlib.getPlug(node.getPlug('tx')).get(uiUnits=True), 25 if linear == 'cm' else 0.25)
-                self.assertAlmostEqual(mlib.getPlug(time).get(uiUnits=True), 48 if frame == 'film' else 60)
+                self.assertAlmostEqual(mlib.getPlug(time).get(uiUnits=True), 2 * fps)
             node.getPlug("rx").set(.1, unit="rad")
             cmds.undo()
             self.assertAlmostEqual(node.getPlug("rx").get(), 90)
@@ -102,7 +108,7 @@ class ApiUnitsTest(unittest.TestCase):
         for suffix in ("TA", "TL", "TT", "TU", "UA", "UL", "UT", "UU"):
             with self.subTest(suffix=suffix):
                 curve = mlib.createNode("animCurve" + suffix)
-                curve.setKey(0, 0).setKey(2, .5, unit="rad")
+                curve.setKey(0, 0).setKey(2, .5, unit="rad", timeUnit="sec")
                 fn = oma2.MFnAnimCurve(curve.mnode())
                 input = fn.input(1)
                 if isinstance(input, om2.MTime):
@@ -119,12 +125,17 @@ class ApiUnitsTest(unittest.TestCase):
                     self.assertAlmostEqual(evaluated.asUnits(om2.MTime.kSeconds), .5)
                 else:
                     self.assertAlmostEqual(fn.value(1), .5)
-                self.assertAlmostEqual(curve.getKeyValues(unit="rad")[1], .5)
-                self.assertAlmostEqual(curve.evaluate(1, unit="rad"), .25)
+                self.assertAlmostEqual(curve.getKeyValues(unit="rad", timeUnit="sec")[1], .5)
+                self.assertAlmostEqual(curve.evaluate(1, unit="rad", timeUnit="sec"), .25)
+                # 時間の既定は現在のUI時間単位(ntscは30fps)のフレーム。U型の入力は無次元のまま。
+                self.assertAlmostEqual(curve.getKeyInputs()[1], 60 if suffix.startswith("T") else 2)
+                if suffix.endswith("T"):
+                    self.assertAlmostEqual(curve.getKeyValues()[1], 15)
+                    self.assertAlmostEqual(curve.evaluate(30 if suffix.startswith("T") else 1), 7.5)
                 if suffix.endswith("A"):
                     # 角度出力の既定は度。
                     self.assertAlmostEqual(curve.getKeyValues()[1], math.degrees(.5))
-                    self.assertAlmostEqual(curve.evaluate(1), math.degrees(.25))
+                    self.assertAlmostEqual(curve.evaluate(30 if suffix.startswith("T") else 1), math.degrees(.25))
 
 
 if __name__ == "__main__":

@@ -4,4 +4,4 @@ from .plug import Plug
 
 
 class TimePlug(Plug):
-    """時間のPlug。get/setは既定秒、uiUnits=Trueなら現在のUI時間単位。"""
+    """時間のPlug。get/setの数値は既定で現在のUI時間単位のフレーム、timeUnit="sec"なら秒。"""

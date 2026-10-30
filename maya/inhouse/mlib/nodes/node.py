@@ -11,7 +11,7 @@ from ..core.object import Object, _missing_member_message
 from ..core.registry import _inherited_node_types, _node_type_exists, _real_node_type
 from ..core.registry import _unknown_node_type_message
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
-from ..util import _ArgumentError, _UNSET, _angle_unit
+from ..util import _ArgumentError, _UNSET, _angle_unit, _time_unit
 
 #: om2の数値データ型からaddAttrの型名への対応(moveAttrOrderでの再作成に使う)。
 _MOVABLE_NUMERIC_TYPES = {
@@ -1375,7 +1375,7 @@ class Node(Object):
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
         childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, safe=False, fast=False, unit="deg",
-        attributeType=_UNSET,
+        timeUnit="frame", attributeType=_UNSET,
         at=_UNSET, binaryTag=_UNSET, bt=_UNSET, cachedInternally=_UNSET, ci=_UNSET, category=_UNSET, ct=_UNSET,
         dataType=_UNSET, dt=_UNSET, defaultValue=_UNSET, dv=_UNSET, disconnectBehaviour=_UNSET, dcb=_UNSET,
         edit=_UNSET, e=_UNSET, enforcingUniqueName=_UNSET, eun=_UNSET, enumName=_UNSET, en=_UNSET, exists=_UNSET,
@@ -1392,8 +1392,9 @@ class Node(Object):
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
         型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
-        単位型を追加する場合、数値の既定値・制限は距離cm・時刻秒、角度(doubleAngle、subType="doubleAngle"の子)は
-        unitの単位(既定は度)で指定する。om2.MAngle等の単位付きの値はそのまま使う。
+        単位型を追加する場合、数値の既定値・制限は距離cm、時間(time)はtimeUnitの単位(既定は現在のUI時間単位のフレーム)、
+        角度(doubleAngle、subType="doubleAngle"の子)はunitの単位(既定は度)で指定する。
+        om2.MAngle・om2.MTime等の単位付きの値はそのまま使う。
         通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
 
         Args:
@@ -1414,6 +1415,9 @@ class Node(Object):
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
                 ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
+            timeUnit (str): 時間アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"frame"`` は
+                現在のUI時間単位のフレーム、``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                Mayaのフラグではない。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -1585,6 +1589,8 @@ class Node(Object):
         _require_bool(safe, "safe")
         angle_unit = _angle_unit(unit)
         assert angle_unit is not None  # 既定値 "deg" を使うため None にならない。
+        time_unit = _time_unit(timeUnit)
+        assert time_unit is not None  # 既定値 "frame" を使うため None にならない。
         with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
             flags = {key: value for key, value in kwargs.items()
@@ -1605,13 +1611,15 @@ class Node(Object):
                 type = proxy.getType()
                 flags["usedAsProxy"] = True
             numeric, count, deferred = self._prepare_extra_attr_definition(
-                flags, type, childNames, childShortNames, childSuffixes, sub_type=subType, angle_unit=angle_unit)
+                flags, type, childNames, childShortNames, childSuffixes, sub_type=subType, angle_unit=angle_unit,
+                time_unit=time_unit)
             if safe and self.hasAttr(name):
                 existing = self.getPlug(name)
                 _require_same_attr_definition(existing, flags)
                 return existing if getPlug else None
             prepared = self._create_extra_attr_definition(
-                name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType, fast=fast)
+                name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType, fast=fast,
+                time_unit=time_unit)
             if not getPlug and (deferred is None or count) and not show and proxy is None:
                 return None
             plug = self.getPlug(name)
@@ -2324,7 +2332,7 @@ class Node(Object):
 
     @staticmethod
     def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes, *,
-                                       sub_type=None, angle_unit="rad"):
+                                       sub_type=None, angle_unit="rad", time_unit="frame"):
         """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
@@ -2335,6 +2343,7 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 自動生成する子の共通型。doubleAngleなら子の値をradへ換算する。
             angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
+            time_unit (str): 時間の数値の単位(``"frame"`` / ``"sec"``)。
 
         Returns:
             tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。
@@ -2389,6 +2398,7 @@ class Node(Object):
                     flags[flag] = to_radians(flags[flag])
             deferred = to_radians(deferred)
         angle_input = om2.MAngle.kDegrees if angle_unit == "deg" else om2.MAngle.kRadians
+        time_input = om2.MTime.uiUnit() if time_unit == "frame" else om2.MTime.kSeconds
         unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
                 "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
                 "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
@@ -2397,13 +2407,14 @@ class Node(Object):
             for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
                 if flag in flags:
                     value = flags[flag]
-                    source = angle_input if cls is om2.MAngle else internal
+                    source = {om2.MAngle: angle_input, om2.MTime: time_input}.get(cls, internal)
                     quantity = value if isinstance(value, cls) else cls(value, source)
                     flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
         return numeric, count, deferred
 
     def _create_extra_attr_definition(self, name, flags, numeric, count, deferred,
-                                      child_names, child_short_names, child_suffixes, sub_type, *, fast=False):
+                                      child_names, child_short_names, child_suffixes, sub_type, *, fast=False,
+                                      time_unit="frame"):
         """親と子の定義を従来の順序で追加する。
 
         通常は子を公開addAttrへ順に委譲する。fastは未登録の親子定義を一括構築して追加する。
@@ -2419,6 +2430,7 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 子の型。
             fast (bool): Trueなら定義をOpenMayaで追加する。
+            time_unit (str): 時間の子の数値の単位(``"frame"`` / ``"sec"``)。子のaddAttrへ渡す。
         """
         from ..core.attributeEdit import extra_children, validate_extra_attribute
         children = extra_children(name, flags, numeric, count, deferred=deferred,
@@ -2437,8 +2449,9 @@ class Node(Object):
                 flags.pop(key, None)
             cmds.addAttr(self.getFullName(), **flags)
             for child_name, child_type, child_flags in children:
-                # 角度の子の値は_prepare_extra_attr_definitionでrad換算済み。
-                self.addAttr(child_name, child_type, getPlug=False, fast=fast, unit="rad", **child_flags)
+                # 角度の子の値は_prepare_extra_attr_definitionでrad換算済み。時間の子は親と同じ単位で渡す。
+                self.addAttr(child_name, child_type, getPlug=False, fast=fast, unit="rad", timeUnit=time_unit,
+                             **child_flags)
         else:
             cmds.addAttr(self.getFullName(), **flags)
 
