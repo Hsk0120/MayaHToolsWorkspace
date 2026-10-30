@@ -124,6 +124,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-30): mlib の pyright 警告を2件解消(動作の変更なし)。Matrix の rotate 引数の docstring に om2.MEulerRotation・om2.MQuaternion を明記し、_merge_flags の pairs の短名を str | None に。スタブを再生成。runStatic 160件が合格。
 - Claude Code (2026-10-30): mlib 本体の pyright 警告を動作を変えずに削減(550件→157件。残りは主に Maya の型スタブ側の誤りと、スタブと本体の二重化)。docstring の型を実装に合わせ、内部だけに型注釈を追加。Node.mnode() の型を直し、generic への MTransformationMatrix 設定の不具合を修正。スタブ生成に setter・contextmanager のデコレーター利用・getType のオーバーロードを追加。runStatic、Maya 2022/2027 の mlib 全件、mlrig 710件が合格。
 - Codex (2026-10-30): MCE Outputの行頭Error/Warning/Result着色・配色・枠線・選択色・独立ズームと設定移行を修正。専用Maya2022/2027のQt/API各34項目、出力書式各26件＋保持、C++各29件が合格。全6版ビルドと日英Sphinx成功。2022の既存静的解析速度テストは変更前5.14秒／変更後5.16秒で5秒基準超過を確認し未解決として記録。実OS入力は未実施。比較画像・14.75秒動画を非公開Driveへ保存し読戻し確認。詳細 .maya-output/mce-output-fix-20261030/verification.json。ユーザー指定でソース・テスト・文書・全6版配布物をコミット／プッシュ対象へ集約。
 

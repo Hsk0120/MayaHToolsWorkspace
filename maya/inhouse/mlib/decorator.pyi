@@ -141,12 +141,12 @@ def _pick_alias(long: object, short: object, longName: str, shortName: str, defa
     """
     ...
 
-def _merge_flags(kwargs: dict, pairs: Iterable[tuple[object, object, str, str]]) -> dict:
+def _merge_flags(kwargs: dict, pairs: Iterable[tuple[object, object, str, str | None]]) -> dict:
     """長短の別名で受けたcmdsのフラグ群を、指定分だけ長名で辞書へ詰める。
 
     Args:
         kwargs (dict): 詰める先。Mayaコマンドへ ``**kwargs`` で渡す辞書。
-        pairs (Iterable[tuple[object, object, str, str]]): (長名の値, 短名の値, 長名, 短名) の列。
+        pairs (Iterable[tuple[object, object, str, str | None]]): (長名の値, 短名の値, 長名, 短名) の列。短名が無いフラグは短名を None にする。
             未指定の値は ``_UNSET``。
 
     Returns:

@@ -226,7 +226,7 @@ class Matrix(om2.MMatrix):
             Matrix: clsの単位マトリクス。
         """
         ...
-    def __init__(self, values: om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None = ..., *, translate: Iterable[float] | None = ..., rotate: Iterable[float] | EulerRotate | Quaternion | None = ..., scale: Iterable[float] | None = ..., shear: Iterable[float] | None = ...) -> None:
+    def __init__(self, values: om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None = ..., *, translate: Iterable[float] | None = ..., rotate: Iterable[float] | om2.MEulerRotation | om2.MQuaternion | None = ..., scale: Iterable[float] | None = ..., shear: Iterable[float] | None = ...) -> None:
         """入力マトリクス、または TRS / shear 成分から値を設定する。
 
         入力をすべて検証してから書き込むため、例外時に値は変わらない。
@@ -235,7 +235,7 @@ class Matrix(om2.MMatrix):
             values (om2.MMatrix | om2.MFloatMatrix | Iterable[float] | Iterable[Iterable[float]] | None):
                 16要素または4行4列のマトリクス。指定時は他の変換引数をすべて無視する。
             translate (Iterable[float] | None): XYZ の平行移動成分。None は 0。
-            rotate (Iterable[float] | EulerRotate | Quaternion | None): XYZ 順の
+            rotate (Iterable[float] | om2.MEulerRotation | om2.MQuaternion | None): XYZ 順の
                 ラジアン3成分、回転順序を反映する EulerRotate(om2.MEulerRotation)、
                 またはクォータニオン(正規化して使う)。None は回転なし。
             scale (Iterable[float] | None): XYZ のスケール成分。None は 1。0 や
@@ -498,12 +498,12 @@ class Matrix(om2.MMatrix):
         """
         ...
     @classmethod
-    def compose(cls, translate: Iterable[float] = ..., rotate: Iterable[float] | EulerRotate | Quaternion = ..., scale: Iterable[float] = ..., shear: Iterable[float] = ...) -> Matrix:
+    def compose(cls, translate: Iterable[float] = ..., rotate: Iterable[float] | om2.MEulerRotation | om2.MQuaternion = ..., scale: Iterable[float] = ..., shear: Iterable[float] = ...) -> Matrix:
         """TRS / shear 成分から Matrix を合成する。
 
         Args:
             translate (Iterable[float]): XYZ の平行移動成分。
-            rotate (Iterable[float] | EulerRotate | Quaternion): XYZ 順のラジアン
+            rotate (Iterable[float] | om2.MEulerRotation | om2.MQuaternion): XYZ 順のラジアン
                 3成分、回転順序を反映する EulerRotate、またはクォータニオン。
             scale (Iterable[float]): XYZ のスケール成分。
             shear (Iterable[float]): XY、XZ、YZ のシアー成分。
@@ -669,11 +669,11 @@ class Matrix(om2.MMatrix):
         """
         ...
     @rotate.setter
-    def rotate(self, value: Iterable[float] | EulerRotate | Quaternion) -> None:
+    def rotate(self, value: Iterable[float] | om2.MEulerRotation | om2.MQuaternion) -> None:
         """回転成分を置き換えて再合成する。
 
         Args:
-            value (Iterable[float] | EulerRotate | Quaternion): 新しい回転。
+            value (Iterable[float] | om2.MEulerRotation | om2.MQuaternion): 新しい回転。
 
         Returns:
             None: 値を返さない。
@@ -850,13 +850,13 @@ class Matrix(om2.MMatrix):
             Translate: 平行移動成分の新しいインスタンス。
         """
         ...
-    def _recompose(self, rotate: Iterable[float] | EulerRotate | Quaternion | None = ..., scale: Iterable[float] | None = ..., shear: Iterable[float] | None = ...) -> None:
+    def _recompose(self, rotate: Iterable[float] | om2.MEulerRotation | om2.MQuaternion | None = ..., scale: Iterable[float] | None = ..., shear: Iterable[float] | None = ...) -> None:
         """分解値の一部を置き換えて、自身の値を組み立て直す。
 
         入力の形と分解を先に検査する。要素代入で失敗した場合、先行変更は自動では戻さない。
 
         Args:
-            rotate (Iterable[float] | EulerRotate | Quaternion | None): 新しい回転。None は現在の値。
+            rotate (Iterable[float] | om2.MEulerRotation | om2.MQuaternion | None): 新しい回転。None は現在の値。
             scale (Iterable[float] | None): 新しいスケール。None は現在の値。
             shear (Iterable[float] | None): 新しいシアー。None は現在の値。
 
