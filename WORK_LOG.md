@@ -141,6 +141,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-31): mlrig夜間タスク。角を丸められる箱(OBB)コライダーへの柔らかい押し出し BoxCollision を追加(setups/boxCollision.py。標準ノードのみ。箱の局所の位置 l、内側の箱 e = clamp(size/2 - rounding, 0, size/2)、外は最近点 k = clamp(l,-e,e) から d = |l-k| - rounding と法線 (l-k)/|l-k|、中は最も浅い面で d = max(|l|-e) - rounding。PlaneCollision と同じ指数の押し出しを法線の向きへ当て、matrix・distance・push・penetration・normal を出力)。Setup Samples 1項目、test_setup_box_collision.py 9件、文書 docs/box_collision.rst、検証デモ tools/demo_box_collision.py。隔離Maya 2027で setups 578件・standard 76件OK、Sphinx -W 成功、検証動画354フレーム判定OK。コミット・プッシュ(このコミット)。
+
 - Codex (2026-10-30): QPE視覚設計の12ファイルをdd1d1ac3でorigin/mainへプッシュし、リモートSHAとQPE内容の一致を確認。別担当の未公開mlibコミットは公開せず、ローカル履歴と既存WORK_LOG差分を保持。
 
 - Claude Code (2026-10-30): mlib 6.1.0。fast 引数を Mesh.setPoints・NurbsCurve.setCvPositions・DagNode/Nodes.setColor・BoolPlug.toggle・SkinCluster.pruneWeights・DrivenKey.setKey に追加(引数だけで指定し内部へ同じ値を渡す。cmds との速度差がほぼ無い setLimits・matchTransform・Joint.orient・NurbsCurve.create・Plug.setMin 系には付けない)。周期カーブの fast 座標書込みに対応、キー編集の fast がキー数に比例して遅くなる問題を修正。全テスト中に fast=True で cmds の書込みが走らないことを記録で確認。Maya 2022〜2027 全6版で179ファイル・2200テスト、runStatic 160件、mlrig 710件、Sphinx と文書検査が合格。fast の方が cmds より遅い既存の経路(ワールド保持の setParent・reparentChildren・ShadingEngine.assign・ObjectSet/DisplayLayer のメンバー操作)は未対応で、扱いはユーザー判断待ち。

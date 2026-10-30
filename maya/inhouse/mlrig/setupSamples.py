@@ -86,6 +86,7 @@ class SetupSamples:
         ("sphereCollision", "SphereCollision - soft head collider"),
         ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
         ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
+        ("boxCollision", "BoxCollision - soft rounded table edge"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
         ("cameraAngleReader", "CameraAngleReader - face and camera"),
         ("dollyZoom", "DollyZoom - camera keeps the subject size"),
@@ -965,6 +966,21 @@ class SetupSamples:
         control = _locator(name + "_handCtrl", root, translate=(1, 8, 7))
         setup = EllipsoidCollision.create(control, chest, name=name, radiusX=4.0, radiusY=5.0, radiusZ=2.5,
                                           softness=1.0)
+        _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
+        return setup, control
+
+    @classmethod
+    def _boxCollision(cls, name, root):
+        """机の天板を表す箱のコライダー(横長で薄い、角を丸めたlocator)と手のコントロール(locator)。
+        コントロールを天板へ下ろすと、表面から softness の距離で出力(緑)が柔らかく止まり始め、
+        箱の中へは入らない。縁の外へ動かすと丸めた角に沿って回り込む。"""
+        from .setups import BoxCollision
+
+        table = _locator(name + "_table", root, translate=(0, 6, 0))
+        mlib.getPlug(table + ".rotateY").set(20.0)
+        control = _locator(name + "_handCtrl", root, translate=(2, 9, 1))
+        setup = BoxCollision.create(control, table, name=name, sizeX=10.0, sizeY=2.0, sizeZ=6.0, rounding=0.5,
+                                    softness=1.0)
         _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
 
