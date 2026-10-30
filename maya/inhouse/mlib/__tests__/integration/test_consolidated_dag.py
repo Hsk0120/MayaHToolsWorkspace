@@ -61,13 +61,13 @@ class ConsolidatedDagTests(unittest.TestCase):
     def test_pivot_fast_matches_cmds_and_read_is_api_only(self):
         """非一様スケールと親を含むピボット設定を通常経路と比較する。"""
         parent = mlib.createNode("transform", name="pivotParent")
-        parent.setTranslate((2, 3, 4)).setRotate((0.2, 0.3, 0.4)).setScale((1.5, 2, 3))
+        parent.setTranslation((2, 3, 4)).setRotate((0.2, 0.3, 0.4)).setScale((1.5, 2, 3))
         for world in (False, True):
             for kind in ("rotate", "scale", "both"):
                 for preserve in (False, True):
                     nodes = [mlib.createNode("transform", parent=parent) for _ in range(2)]
                     for node in nodes:
-                        node.setTranslate((1, 2, 3)).setRotate((0.3, 0.1, 0.5)).setScale((2, 3, 4))
+                        node.setTranslation((1, 2, 3)).setRotate((0.3, 0.1, 0.5)).setScale((2, 3, 4))
                     nodes[0].setPivot((4, 5, 6), worldSpace=world, kind=kind, preserve=preserve)
                     cmds.flushUndo()
                     with mock.patch.object(cmds, "xform", side_effect=AssertionError("cmds xform used")):
@@ -96,10 +96,10 @@ class ConsolidatedDagTests(unittest.TestCase):
         """高速再親付けで非一様スケール・回転・ピボットを含む姿勢を保つ。"""
         old = mlib.createNode("transform", name="oldParent")
         new = mlib.createNode("transform", name="newParent")
-        old.setTranslate((1, 2, 3)).setRotate((0.3, 0.1, 0.7)).setScale((2, 3, 4))
-        new.setTranslate((-4, 5, 2)).setRotate((0.1, 0.6, 0.2)).setScale((3, 2, 1))
+        old.setTranslation((1, 2, 3)).setRotate((0.3, 0.1, 0.7)).setScale((2, 3, 4))
+        new.setTranslation((-4, 5, 2)).setRotate((0.1, 0.6, 0.2)).setScale((3, 2, 1))
         node = mlib.createNode("transform", name="reparentChild", parent=old)
-        node.setTranslate((3, 1, 2)).setRotate((0.4, 0.2, 0.1))
+        node.setTranslation((3, 1, 2)).setRotate((0.4, 0.2, 0.1))
         node.setPivot((1, 2, 1), kind="both")
         initial = node.getMatrix(worldSpace=True)
         cmds.flushUndo()
@@ -115,9 +115,9 @@ class ConsolidatedDagTests(unittest.TestCase):
     def test_reparent_relative_and_joint_rejection(self):
         """relativeのローカル保持とJoint更新前拒否を確認する。"""
         parent = mlib.createNode("transform")
-        parent.setTranslate((5, 6, 7))
+        parent.setTranslation((5, 6, 7))
         node = mlib.createNode("transform")
-        node.setTranslate((1, 2, 3))
+        node.setTranslation((1, 2, 3))
         local = node.getMatrix()
         node.setParent(parent, relative=True, fast=True)
         self.assertTrue(node.getMatrix().isEquivalent(local))
@@ -129,13 +129,13 @@ class ConsolidatedDagTests(unittest.TestCase):
     def test_center_pivot_fast_matches_standard(self):
         """非対称形状のバウンディング中心を通常経路と比較する。"""
         parent = mlib.createNode("transform")
-        parent.setTranslate((3, 4, 5)).setRotate((0.2, 0.5, 0.7))
+        parent.setTranslation((3, 4, 5)).setRotate((0.2, 0.5, 0.7))
         first = mlib.getNode(cmds.polyCube(constructionHistory=False)[0])
         cmds.move(5, 2, 8, first.getFullName() + ".vtx[0]", relative=True)
         second = mlib.getNode(cmds.duplicate(first.getFullName())[0])
         for node in (first, second):
             node.setParent(parent, relative=True)
-            node.setTranslate((1, 2, 3)).setRotate((0.3, 0.2, 0.4)).setScale((2, 3, 4))
+            node.setTranslation((1, 2, 3)).setRotate((0.3, 0.2, 0.4)).setScale((2, 3, 4))
         first.centerPivot()
         cmds.flushUndo()
         with mock.patch.object(cmds, "xform", side_effect=AssertionError("cmds xform used")):

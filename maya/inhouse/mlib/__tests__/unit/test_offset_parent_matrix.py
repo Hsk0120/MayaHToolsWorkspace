@@ -21,7 +21,7 @@ class OffsetParentMatrixTest(unittest.TestCase):
         cmds.delete(self.root.getFullName())
 
     def test_matrix_type_copy_undo_and_fast(self):
-        self.source.setTranslate((2, 3, 4), at=4)
+        self.source.setTranslation((2, 3, 4), at=4)
         self.source.setRotate((.2, .3, .4))
         self.source.setScale((2, 3, 4))
         value = self.source.getMatrix()
@@ -43,11 +43,11 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(plug.get().isEquivalent(value, 1e-9))
 
     def test_world_alignment_preserves_channels(self):
-        self.root.setTranslate((10, 20, 30), at=4)
+        self.root.setTranslation((10, 20, 30), at=4)
         self.root.setRotate((.1, .2, .3))
         self.root.setScale((2, 3, 4))
-        self.source.setTranslate((4, 5, 6), at=4)
-        self.target.setTranslate((1, 2, 3), at=4)
+        self.source.setTranslation((4, 5, 6), at=4)
+        self.target.setTranslation((1, 2, 3), at=4)
         self.target.setRotate((.4, .5, .6))
         local = self.target.getMatrix()
         world = self.source.getMatrix(worldSpace=True)

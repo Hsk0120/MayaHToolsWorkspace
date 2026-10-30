@@ -36,15 +36,15 @@ class BindMirrorFreezeTest(unittest.TestCase):
             for x, y in zip(a, b): self.assertAlmostEqual(x, y)
         nodes = [Node(name) for name in names]
         for node in nodes:
-            node.setTranslate((3, 2, 1), at=4)
+            node.setTranslation((3, 2, 1), at=4)
         for node in nodes:
             node.makeIdentity(apply=True, t=True, r=True, s=True)
         for node in nodes:
-            self.assertEqual(tuple(node.getTranslate(at=4)), (0, 0, 0))
+            self.assertEqual(tuple(node.getTranslation(at=4)), (0, 0, 0))
         cmds.undo()
         cmds.undo()
         for node in nodes:
-            self.assertEqual(tuple(node.getTranslate(at=4)), (3, 2, 1))
+            self.assertEqual(tuple(node.getTranslation(at=4)), (3, 2, 1))
 
 
 

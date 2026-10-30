@@ -23,9 +23,9 @@ class ControlHierarchyTests(unittest.TestCase):
         """外側から内側への順序と対象のワールド姿勢を保つ。"""
         for fast in (False, True):
             parent = mlib.createNode("transform")
-            parent.setTranslate((5, 1, 2))
+            parent.setTranslation((5, 1, 2))
             target = mlib.createNode("transform", parent=parent)
-            target.setTranslate((1, 2, 3)).setRotate((0.2, 0.3, 0.4), unit="rad")
+            target.setTranslation((1, 2, 3)).setRotate((0.2, 0.3, 0.4), unit="rad")
             before = target.getMatrix(worldSpace=True)
             cmds.flushUndo()
             groups = ControlHierarchy.createOffsetGroups(target, "zero", "offset", fast=fast)

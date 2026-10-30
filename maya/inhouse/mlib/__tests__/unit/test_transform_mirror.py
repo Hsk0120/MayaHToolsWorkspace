@@ -25,7 +25,7 @@ class TransformMirrorTest(unittest.TestCase):
         for node_type in ("transform", "joint"):
             for fast in (False, True):
                 for ws in (False, True):
-                    for axis in ("x", "y", "z", "xy", "xz", "yz", "xyz"):
+                    for axis in ("x", "y", "z", "xy", "xz", "yz", "YZ"):
                         name = cmds.createNode(node_type, parent=self.parent)
                         node = Node(name)
                         cmds.setAttr(name + ".translate", 1, 2, 3)
@@ -77,7 +77,7 @@ class TransformMirrorTest(unittest.TestCase):
     def test_invalid_inputs_and_inherits_transform(self):
         node = Node(cmds.createNode("transform", parent=self.parent))
         node.getPlug("inheritsTransform").set(False)
-        node.setTranslate((1, 2, 3), at=4)
+        node.setTranslation((1, 2, 3), at=4)
         original = node.getMatrix(worldSpace=True)
         node.mirrorTransform("x")
         self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(original.mirror("x"), 1e-7))

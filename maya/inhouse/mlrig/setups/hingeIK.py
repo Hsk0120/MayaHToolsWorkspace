@@ -16,7 +16,7 @@ def worldPosition(node):
     Returns:
         Vector: 位置(シーンの長さの単位)。
     """
-    translate = mlib.getNode(node).getTranslate(worldSpace=True, at=4)
+    translate = mlib.getNode(node).getTranslation(worldSpace=True, at=4)
     return Vector(*(mlib.common.units.distanceToUi(value) for value in translate))
 
 

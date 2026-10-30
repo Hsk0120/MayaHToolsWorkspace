@@ -143,8 +143,8 @@ class ApiMethodsTest(unittest.TestCase):
     def test_transform_short_names(self):
         """短縮名の取得・更新と既定戻り値を確認する。"""
         node = Node(cmds.createNode("transform"))
-        self.assertIs(node.setTranslate((1, 2, 3)), node)
-        self.assertEqual(tuple(node.getTranslate()), tuple(node.getTranslate()))
+        self.assertIs(node.setTranslation((1, 2, 3)), node)
+        self.assertEqual(tuple(node.getTranslation()), tuple(node.getTranslation()))
         self.assertEqual(node.getMatrix(), node.getMatrix())
         self.assertEqual(node.getQuaternion(), node.getQuaternion())
         self.assertEqual(node.getJointOrientQuaternion(), node.getQuaternion(r=False))

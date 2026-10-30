@@ -177,21 +177,21 @@ class TransformStaticReadTest(unittest.TestCase):
             for target in (self.node, self.child_joint):
                 node = mlib.getNode(target)
                 with self.subTest(target=target, unit=unit):
-                    self.assert_close(node.getTranslate(worldSpace=True),
+                    self.assert_close(node.getTranslation(worldSpace=True),
                                       [v / scale for v in cmds.xform(target, q=True, ws=True, rotatePivot=True)])
-                    self.assert_close(node.getTranslate(worldSpace=True, at=3),
+                    self.assert_close(node.getTranslation(worldSpace=True, at=3),
                                       [v / scale for v in cmds.xform(target, q=True, ws=True, scalePivot=True)])
-                    self.assert_close(node.getTranslate(at=1), [v / scale for v in cmds.getAttr(target + ".t")[0]])
+                    self.assert_close(node.getTranslation(at=1), [v / scale for v in cmds.getAttr(target + ".t")[0]])
 
     def test_set_translate_round_trip_and_undo(self):
         node = mlib.getNode(self.node)
         before = cmds.getAttr(self.node + ".t")[0]
-        node.setTranslate((3, -2, 1), worldSpace=True)
+        node.setTranslation((3, -2, 1), worldSpace=True)
         self.assert_close(cmds.xform(self.node, q=True, ws=True, rotatePivot=True), (3, -2, 1))
         cmds.undo()
         self.assert_close(cmds.getAttr(self.node + ".t")[0], before)
         joint = mlib.getNode(self.child_joint)
-        joint.setTranslate((0.5, 0.25, -0.5), worldSpace=True, fast=True)
+        joint.setTranslation((0.5, 0.25, -0.5), worldSpace=True, fast=True)
         self.assert_close(cmds.xform(self.child_joint, q=True, ws=True, rotatePivot=True), (0.5, 0.25, -0.5))
 
     def test_invalid_node_raises_like_get_plug(self):
@@ -200,7 +200,7 @@ class TransformStaticReadTest(unittest.TestCase):
         with self.assertRaises(RuntimeError) as expected:
             node.getPlug("translate")
         with self.assertRaises(RuntimeError) as actual:
-            node.getTranslate(at=1)
+            node.getTranslation(at=1)
         self.assertEqual(str(actual.exception), str(expected.exception))
 
 

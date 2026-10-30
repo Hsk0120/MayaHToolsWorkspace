@@ -69,8 +69,8 @@ class ApiUnitsTest(unittest.TestCase):
             item = shape.getVertex(0) if shape.getType() == "mesh" else shape.getCV(0)
             cmds.currentUnit(linear="m")
             for fast in (False, True):
-                node.setTranslate((25, 50, 75), fast=fast, at=4)
-                self.assertEqual(tuple(node.getTranslate(at=4)), (25, 50, 75))
+                node.setTranslation((25, 50, 75), fast=fast, at=4)
+                self.assertEqual(tuple(node.getTranslation(at=4)), (25, 50, 75))
                 self.assertEqual(tuple(node.getPlug("translate").get()), (25, 50, 75))
                 # 表示単位mでの0.01・0.02・0.03 = 1・2・3cm。
                 cmds.xform(item.getFullName(), objectSpace=True, translation=(0.01, 0.02, 0.03))

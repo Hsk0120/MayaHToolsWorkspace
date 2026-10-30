@@ -95,7 +95,7 @@ class RootDirectionLimit(ScalarGraph):
             shear = tuple(node.getPlug("shear").get())
             if min(scale) <= 0 or max(scale) - min(scale) > 1e-6 or max(map(abs, shear)) > 1e-8:
                 raise ValueError("入力は正の一様scale・shearなしにしてください。")
-        positions = [n.getTranslate(worldSpace=True) for n in guides]
+        positions = [n.getTranslation(worldSpace=True) for n in guides]
         if any((a - b).length() < 1e-3 for a, b in zip(positions, positions[1:])):
             raise ValueError("初期guideの隣接位置は1e-3cm以上離してください。")
         if cmds.objExists(name) or cmds.objExists(name + "_output"):

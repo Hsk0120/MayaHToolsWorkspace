@@ -1486,7 +1486,7 @@ def _chain(name, parent, items):
     joints, current = [], parent
     for role, position in items:
         joint = _joint(name + "_" + role, current)
-        mlib.getNode(joint).setTranslate(position, worldSpace=True)
+        mlib.getNode(joint).setTranslation(position, worldSpace=True)
         joints.append(joint)
         current = joint
     return [_longName(joint) for joint in joints]

@@ -41,11 +41,11 @@ class ControlHierarchyTest(unittest.TestCase):
 
     def test_transform_create_offset_groups_preserves_world_position(self):
         parent = self.create_transform("mlibNodeApiOffsetParent")
-        parent.setTranslate((5.0, 0.0, 0.0), at=4)
+        parent.setTranslation((5.0, 0.0, 0.0), at=4)
         transform = self.create_transform("mlibNodeApiOffsetChild")
         transform.setParent(parent)
-        transform.setTranslate((1.0, 2.0, 3.0), at=4)
-        world_translate = transform.getTranslate(ws=True, at=4)
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
+        world_translate = transform.getTranslation(ws=True, at=4)
 
         zero, offset = ControlHierarchy.createOffsetGroups(transform, 'mlibNodeApiZero', 'mlibNodeApiOffset')
         self.created.extend([zero.getName(), offset.getName()])
@@ -53,10 +53,10 @@ class ControlHierarchyTest(unittest.TestCase):
         self.assertEqual(zero.getParent().getName(), parent.getName())
         self.assertEqual(offset.getParent().getName(), zero.getName())
         self.assertEqual(transform.getParent().getName(), offset.getName())
-        self.assertEqual(zero.getTranslate(ws=True, at=4), world_translate)
-        self.assertEqual(offset.getTranslate(ws=True, at=4), world_translate)
-        self.assertEqual(transform.getTranslate(ws=True, at=4), world_translate)
-        self.assertEqual(transform.getTranslate(at=4), Translate(0.0, 0.0, 0.0))
+        self.assertEqual(zero.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(offset.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslation(ws=True, at=4), world_translate)
+        self.assertEqual(transform.getTranslation(at=4), Translate(0.0, 0.0, 0.0))
 
 if __name__ == "__main__":
     unittest.main()

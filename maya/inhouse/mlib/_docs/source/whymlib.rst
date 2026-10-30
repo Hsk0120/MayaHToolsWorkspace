@@ -17,7 +17,7 @@ mlibはPyMELに依存せず、独自のAPIを提供します。
    import mlib
 
    control = mlib.ls("control")[0]
-   control.setTranslate((1, 2, 3))
+   control.setTranslation((1, 2, 3))
    control.getPlug("visibility").set(True)
    matrix = control.getMatrix(worldSpace=True)
 
@@ -120,7 +120,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
    source = mlib.createNode("transform", name="mlibDemo_source")
    target = mlib.createNode("transform", name="mlibDemo_target")
 
-   source.setTranslate((1, 2, 3))
+   source.setTranslation((1, 2, 3))
    source.setScale((2, 2, 2))
    source.getPlug("useOutlinerColor").set(True)
    source.getPlug("outlinerColor").set((0.3, 0.7, 1.0))
@@ -160,7 +160,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 .. code-block:: python
 
    for transform in (source, target):
-       transform.setTranslate((0, 5, 0))
+       transform.setTranslation((0, 5, 0))
    matrices = [transform.getMatrix(worldSpace=True) for transform in (source, target)]
 
 アトリビュート単位で操作する
@@ -216,8 +216,8 @@ Mayaの行ベクトル規約では、相対マトリクスに基準のワール�
 
    reference = mlib.createNode("transform", name="mlibDemo_reference")
    driven = mlib.createNode("transform", name="mlibDemo_driven")
-   reference.setTranslate((10, 0, 0))
-   driven.setTranslate((12, 3, 0))
+   reference.setTranslation((10, 0, 0))
+   driven.setTranslation((12, 3, 0))
 
    reference_world = reference.getMatrix(worldSpace=True)
    driven_world = driven.getMatrix(worldSpace=True)

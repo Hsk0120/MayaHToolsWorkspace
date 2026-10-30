@@ -21,7 +21,7 @@ class PlugSimplificationTest(unittest.TestCase):
     def test_generic_reference_reads_current_value_after_type_switch(self):
         """generic参照は常にPlugで、再取得せず行列・数値・組を読み分ける。"""
         source = mlib.createNode("transform")
-        source.setTranslate((2, 3, 4), at=4)
+        source.setTranslation((2, 3, 4), at=4)
         number = mlib.createNode("network").addAttr("value", "double", defaultValue=7)
         choice = mlib.createNode("choice")
         choice.getPlug("input")[0].connect(source.getPlug("worldMatrix")[0])

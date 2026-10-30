@@ -190,10 +190,10 @@ class JointHierarchyFastTest(unittest.TestCase):
         middle = mlib.createNode("joint", parent=parent, name="middle")
         child = mlib.createNode("joint", parent=middle, name="leaf")
         ctrl = mlib.createNode("transform", parent=middle, name="control")
-        parent.setTranslate((3, 2, 1))
-        middle.setTranslate((4, 0, 0))
+        parent.setTranslation((3, 2, 1))
+        middle.setTranslation((4, 0, 0))
         middle.getPlug("jointOrient").set((.2, .3, .1))
-        child.setTranslate((2, 0, 0))
+        child.setTranslation((2, 0, 0))
         middle.connectInverseScale()
         child.connectInverseScale()
         matrices = [list(n.getMatrix(worldSpace=True)) for n in (child, ctrl)]

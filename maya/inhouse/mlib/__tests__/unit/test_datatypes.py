@@ -1383,11 +1383,11 @@ def test_mirror_value_types():
         value = cls(1, 2, 3)
         result = value.mirror("xz", pivot=(4, 5, 6))
         assert type(result) is cls
-        assert tuple(result) == (7, 2, 9)
+        assert tuple(result) == (1, 8, 3)
         assert tuple(value) == (1, 2, 3)
         assert result.mirrorIt("xz", pivot=(4, 5, 6)) is result
         assert tuple(result) == tuple(value)
-    for axis in ("x", "y", "z", "xy", "xz", "yz", "xyz"):
+    for axis in ("x", "y", "z", "xy", "xz", "yz", "YZ", "ZX", 0, 1, 2):
         rotation = EulerRotate(.3, -.4, .7)
         rotation.order = 4
         matrix = rotation.asUnitMatrix() if isinstance(rotation, Quaternion) else rotation.asMatrix()
@@ -1403,10 +1403,10 @@ def test_mirror_value_types():
         assert matrix.mirrorIt(axis, (3, 4, 5)) is matrix
         matrix.mirrorIt(axis, (3, 4, 5))
         assert matrix.isEquivalent(original, 1e-9)
-    for axis in ("", "xx", "a", True, 3):
+    for axis in ("", "xx", "a", "xyz", True, 3):
         try:
             Matrix().mirror(axis)
-        except ValueError:
+        except (ValueError, TypeError):
             pass
         else:
             raise AssertionError(axis)

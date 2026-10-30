@@ -9,6 +9,7 @@ import maya.cmds as cmds
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
+from ..util import _MIRROR_PLANES, _mirror_axis
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 
@@ -17,9 +18,6 @@ _ORIENTATIONS = ("xyz", "yzx", "zxy", "zyx", "yxz", "xzy", "none")
 
 #: :meth:`Joint.orient` の secondaryAxisOrient に指定できる値(``cmds.joint`` と同じ)。
 _SECONDARY_AXES = ("xup", "xdown", "yup", "ydown", "zup", "zdown")
-
-#: :meth:`Joint.mirror` の axis(鏡映面)と ``cmds.mirrorJoint`` のフラグの対応。
-_MIRROR_PLANES = {"XY": "mirrorXY", "YZ": "mirrorYZ", "XZ": "mirrorXZ"}
 
 
 def _orient_flags(orientation, secondaryAxisOrient, children, zeroScaleOrient):
@@ -192,7 +190,9 @@ class Joint(Transform):
         fast引数は持たない(OpenMayaに同等機能が無い)。Undo有効時は1回で戻せる。
 
         Args:
-            axis (str): 鏡映面。``"YZ"`` (X方向の左右反転)・``"XY"``・``"XZ"``。大文字小文字は区別しない。
+            axis (str | int): 鏡映面 ``"YZ"`` (X方向の左右反転)・``"XZ"``・``"XY"``、または反転する軸
+                ``"x"``・``"y"``・``"z"`` (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、
+                または0/1/2。
             behavior (bool): Trueは ``mirrorBehavior`` (回転の向きを反転し、同じ回転値で逆向きに動く。
                 リグの左右対称で一般的)。Falseは向き(orientation)を鏡映する。
             searchReplace (tuple[str, str] | None): 新しいjoint名の置換 ``(検索, 置換)``。
@@ -203,7 +203,7 @@ class Joint(Transform):
                 や :meth:`getChainFromHere` で取得する。
 
         Raises:
-            TypeError: axisが文字列以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
+            TypeError: axisが文字列・int以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
             ValueError: axisが対応しない値、またはsearchReplaceの検索文字列が空の場合。
             RuntimeError: 無効なjoint、またはMayaが鏡映を拒否した場合。
 
@@ -211,11 +211,7 @@ class Joint(Transform):
             Mayaの ``mirrorJoint`` は、searchReplaceで名前空間を含めて置換しない限り新しいjointを
             現在の名前空間へ置く。
         """
-        if not isinstance(axis, str):
-            raise TypeError("axis must be a string")
-        flag = _MIRROR_PLANES.get(axis.upper())
-        if flag is None:
-            raise ValueError(f"axis must be one of {', '.join(_MIRROR_PLANES)}: {axis!r}")
+        flag = "mirror" + _MIRROR_PLANES[_mirror_axis(axis)]
         _require_bool(behavior, "behavior")
         flags: Dict[str, Any] = {flag: True, "mirrorBehavior": behavior}
         if searchReplace is not None:
@@ -349,35 +345,6 @@ class Joint(Transform):
         """
         return Scale(*self._compound_values("inverseScale"))
 
-    def getParentJointName(self):
-        """親 joint の名前を取得する。
-
-        Returns:
-            str | None: 親 joint 名。親が joint でない場合は ``None``。
-        """
-        if not self.isValid():
-            return None
-        parent = self.getParent()
-        if parent is None or not parent.isValid():
-            return None
-        if not parent._require_mnode().hasFn(om2.MFn.kJoint):
-            return None
-        return parent.getName()
-
-    def getChildJointNames(self):
-        """直接の子 joint 名を取得する。
-
-        Returns:
-            list[str]: 子 joint 名のリスト。
-        """
-        if not self.isValid():
-            return []
-        return [
-            child.getName()
-            for child in self.getChildren(shapes=True, intermediates=True)
-            if child._require_mnode().hasFn(om2.MFn.kJoint)
-        ]
-
     def getDepth(self):
         """joint 階層内の深さを取得する。
 
@@ -385,10 +352,10 @@ class Joint(Transform):
             int: root joint を 0 とする階層深度。
         """
         depth = 0
-        current_joint = self.getParentJointName()
-        while current_joint:
+        parent = self.getParent() if self.isValid() else None
+        while isinstance(parent, Joint):
             depth += 1
-            current_joint = Joint(current_joint).getParentJointName()
+            parent = parent.getParent()
         return depth
 
     def getSkinClusters(self):
@@ -454,11 +421,11 @@ class Joint(Transform):
         Returns:
             str | None: 移送先の親 joint 名。見つからない場合は ``None``。
         """
-        ancestor = self.getParentJointName()
-        while ancestor:
-            if skin.hasInfluence(ancestor):
-                return ancestor
-            ancestor = Joint(ancestor).getParentJointName()
+        ancestor = self.getParent() if self.isValid() else None
+        while isinstance(ancestor, Joint):
+            if skin.hasInfluence(ancestor.getName()):
+                return ancestor.getName()
+            ancestor = ancestor.getParent()
         return None
 
     def reparentChildren(self, parentJoint, *, fast=False):
@@ -484,12 +451,12 @@ class Joint(Transform):
                 # core.jointEdit は nodes を参照するため、循環importを避けて呼出し時に取得する。
                 from ..core.jointEdit import reparent, reparent_plan
                 parent = Node(parent_name)
-                plans = [reparent_plan(Joint(name), parent) for name in self.getChildJointNames()]
+                plans = [reparent_plan(child, parent) for child in self.getChildren(type="joint")]
                 for plan in plans:
                     reparent(plan)
             else:
-                for child_joint in self.getChildJointNames():
-                    cmds.parent(child_joint, parent_name)
+                for child_joint in self.getChildren(type="joint"):
+                    cmds.parent(child_joint.getFullName(), parent_name)
             return self
 
     def getChainFromHere(self, to=None):
@@ -514,10 +481,10 @@ class Joint(Transform):
             chain: List[Joint] = [self]
             current = self
             while True:
-                children = current.getChildJointNames()
+                children = current.getChildren(type="joint")
                 if len(children) != 1:
                     return chain
-                current = Joint(children[0])
+                current = children[0]
                 chain.append(current)
         target = to if isinstance(to, Joint) else Joint(to)
         if not self.isAncestorOf(target):
@@ -527,8 +494,8 @@ class Joint(Transform):
         while current.getUuid() != target.getUuid():
             next_joint = next(
                 (
-                    Joint(name) for name in current.getChildJointNames()
-                    if Joint(name).getUuid() == target.getUuid() or Joint(name).isAncestorOf(target)
+                    child for child in current.getChildren(type="joint")
+                    if child.getUuid() == target.getUuid() or child.isAncestorOf(target)
                 ),
                 None,
             )

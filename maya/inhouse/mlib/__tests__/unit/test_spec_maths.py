@@ -307,13 +307,15 @@ class VectorSpecTest(unittest.TestCase):
         mirrored = value.mirror("x", pivot=(1, 0, 0))
         self.assertIs(type(mirrored), Translate)
         self.assertEqual(tuple(mirrored), (-1.0, 2.0, 1.0))
-        self.assertEqual(tuple(value.mirror("yz")), (3.0, -2.0, -1.0))
+        self.assertEqual(tuple(value.mirror("yz")), (-3.0, 2.0, 1.0))
         self.assertEqual(tuple(value.mirror(2)), (3.0, 2.0, -1.0))
-        self.assertIs(value.mirrorIt("xyz"), value)
-        self.assertEqual(tuple(value), (-3.0, -2.0, -1.0))
-        for axis in ("w", "xx", "", 3, None):
+        self.assertIs(value.mirrorIt("XY"), value)
+        self.assertEqual(tuple(value), (3.0, 2.0, -1.0))
+        for axis in ("w", "xx", "", "xyz", 3):
             with self.assertRaises(ValueError):
                 value.mirror(axis)
+        with self.assertRaises(TypeError):
+            value.mirror(None)
         self.assertIs(type(Scale.fromIterable(iter([1, 2, 3]))), Scale)
         with self.assertRaises(ValueError):
             Vector.fromIterable([1, 2])

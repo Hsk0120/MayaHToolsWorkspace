@@ -274,12 +274,19 @@ class Transform(DagNode):
         with undoChunk("mlibTransformAddConstraint"):
             from .constraint import Constraint
 
-            if not isinstance(type, str):
-                raise TypeError("type must be a string")
-            command_name = type if type.endswith("Constraint") else type + "Constraint"
             # 型登録を重複管理せず、Constraint 派生として明示登録された型名から判定する。
             # 抽象型 "constraint" は cmds に同名コマンドが無いので除く(生成クラスは含まれない)。
             supported = set(Node._registry._registered_types(base=Constraint)) - {"constraint"}
+            if not isinstance(type, str):
+                # addConstraint("parent", ctrl) のように型名とターゲットを逆に渡した場合は順序を案内する。
+                if isinstance(sources, str) and (sources if sources.endswith("Constraint")
+                                                 else sources + "Constraint") in supported:
+                    raise TypeError(
+                        f"addConstraint() takes the target first and the constraint type as type=; "
+                        f"use addConstraint(target, type={sources!r})")
+                raise TypeError(f"type must be a string such as 'parent', got {type.__class__.__name__}; "
+                                "use addConstraint(target, type=\"parent\")")
+            command_name = type if type.endswith("Constraint") else type + "Constraint"
             if command_name not in supported:
                 raise ValueError(f"Unsupported constraint type: {type}")
             self._require_valid("constrain")
@@ -810,7 +817,8 @@ class Transform(DagNode):
 
         Raises:
             TypeError: fastがbool以外、または fast で parent が Transform 以外の場合。
-            RuntimeError: 自身が無効、または fast でロック・参照・循環により変更できない場合。
+            RuntimeError: 自身が無効、parent が自身または自身の子孫(fast も同じ)、または fast で
+                ロック・参照により変更できない場合。
             NotImplementedError: fast で Joint・インスタンス・add=True を指定した場合。
         """
         with _edit_context("mlibTransformSetParent", fast):
@@ -823,6 +831,8 @@ class Transform(DagNode):
                 cmds.parent(self.getFullName(), world=True, relative=relative)
             else:
                 target = parent if isinstance(parent, Node) else Node(parent)
+                if isinstance(target, Transform):
+                    self._require_not_own_descendant(target)
                 parent_name = target.getFullName()
                 # 古いMayaでは同じ親への再parentがエラーになる。
                 # add=Trueはインスタンス操作なのでMayaの判定に委ねる。
@@ -876,7 +886,8 @@ class Transform(DagNode):
         ローカルのスケール・シアーが変わる場合がある。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。xはYZ平面。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -885,8 +896,8 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
-            ValueError: 入力不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
+            TypeError: fastがbool以外、またはaxisが文字列・int以外の場合。
+            ValueError: axis・pivotが不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
             RuntimeError: ロックや入力接続で更新できない場合。
 
         Note:
@@ -1005,13 +1016,17 @@ class Transform(DagNode):
             return self
 
     @_transform_argument_hints
-    def getTranslate(self, worldSpace=False, at=2):
-        """基準位置を取得する。既定は回転ピボット位置。
+    def getTranslation(self, worldSpace=False, at=2):
+        """基準位置を取得する。既定は回転ピボットの位置。
+
+        既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
+        位置とする基準)で、translate チャンネルの値ではない。translate チャンネルの値は
+        ``node.t.get()``(または ``node.getPlug("translate").get()``)で取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
                 getPivotのオブジェクト空間とは異なる。
-            at (int): 0以下=親原点、1=translate、2=回転ピボット、
+            at (int): 0以下=親原点、1=translate、2=回転ピボット(既定)、
                 3=スケールピボット、4以上=マトリクス原点。
 
         Returns:
@@ -1040,8 +1055,12 @@ class Transform(DagNode):
         return Translate(point.x, point.y, point.z)
 
     @_transform_argument_hints
-    def setTranslate(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
+    def setTranslation(self, value, worldSpace=False, at=2, safe=False, get=False, *, fast=False):
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
+
+        既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
+        位置とする基準)を value へ合わせるよう translate を書き換える。translate チャンネルへ
+        値をそのまま書く場合は ``node.t.set((x, y, z))`` を使う。
 
         at=0以下は位置の絶対設定ではなく、親空間へ変換した入力から現在のtranslateを
         引いた値を設定する。例えば現在2・入力5ならtranslateは3になる。
@@ -1049,7 +1068,7 @@ class Transform(DagNode):
         Args:
             value (Iterable[float]): cm単位の位置。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
-            at (int): getTranslateと同じ基準。既定2。
+            at (int): getTranslationと同じ基準。既定2(回転ピボット)。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずローカルtranslateの設定予定値だけを返す。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -1060,11 +1079,11 @@ class Transform(DagNode):
 
         Raises:
             TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
-                案内する)、または ``setTranslate(1, 2, 3)`` のように成分を分けて渡した場合。
+                案内する)、または ``setTranslation(1, 2, 3)`` のように成分を分けて渡した場合。
             RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
                 (原因の成分と ``safe=True`` を案内する)。
         """
-        with _edit_context("mlibTransformSetTranslate", fast):
+        with _edit_context("mlibTransformSetTranslation", fast):
             ws = _world_space(worldSpace)
             point = om2.MPoint(tuple(value))
             if ws:
@@ -1073,14 +1092,14 @@ class Transform(DagNode):
             if at < 1:
                 result = om2.MVector(point) - current
             else:
-                result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslate(at=at))))
+                result = current + (om2.MVector(point) - om2.MVector(tuple(self.getTranslation(at=at))))
             if get:
                 return list(result)
             self._set_channel_value("translate", result, safe=safe, fast=fast)
             return self
 
     @_transform_argument_hints
-    def getRotate(self, worldSpace=False, *, order=None, unit=None):
+    def getRotate(self, worldSpace=False, *, order=None):
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
@@ -1098,22 +1117,17 @@ class Transform(DagNode):
             order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
                 (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
                 None はノードの rotateOrder。
-            unit (str | None): None(既定)はEulerRotateを返す。``"deg"`` / ``"rad"``
-                (``"degree"`` 等の別名も可)を指定すると、その単位の数値3成分のtupleを返す。
 
         Returns:
-            EulerRotate | tuple[float, float, float]: unit=Noneでは内部がradの独立した回転値。
-                ``order`` の回転順序(省略時はノードの rotateOrder)。unit指定時は同じ回転のXYZ成分を
-                指定単位で表したtuple。
+            EulerRotate: 内部がradの独立した回転値。``order`` の回転順序(省略時はノードの
+                rotateOrder)。度の3成分は ``getRotate().asDegrees()`` で取得する。
 
         Raises:
-            TypeError: unit が文字列・None 以外の場合。
-            ValueError: worldSpace が bool 以外、order・unit が未対応、またはマトリクスを分解できない場合。
+            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
         """
         ws = _world_space(worldSpace)
-        angle_unit = _angle_unit(unit, default=None)
         if order is not None:
             order = orderIndex(order)
         matrix = self.getMatrix(worldSpace=ws)
@@ -1122,12 +1136,8 @@ class Transform(DagNode):
                 raise ValueError("Cannot decompose a matrix with a zero scale axis")
         _, quaternion, _, _, reference = self._decompose_like_channels(matrix)
         if order is None or order == reference.order:
-            rotation = EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
-        else:
-            rotation = EulerRotate._wrap(quaternion.asEulerRotation().reorder(order))
-        if angle_unit is None:
-            return rotation
-        return tuple(_from_radians(value, angle_unit) for value in rotation)
+            return EulerRotate._wrap(_closest_euler(quaternion, self._rotate_reference(reference)))
+        return EulerRotate._wrap(quaternion.asEulerRotation().reorder(order))
 
     @_transform_argument_hints
     def setRotate(self, value, worldSpace=False, safe=False, get=False, *, unit="deg", fast=False):
@@ -1562,17 +1572,14 @@ class Transform(DagNode):
         target = None if parent is None else Node._resolve_input(parent)
         if target is not None and not isinstance(target, Transform):
             raise TypeError("Parent must be a transform")
+        if target is not None:
+            self._require_not_own_descendant(target)
         path = self.mpath()
         if (self._require_mnode().hasFn(om2.MFn.kJoint) or path.isInstanced()
                 or (target is not None and target.mpath().isInstanced()) or add):
             raise NotImplementedError("fast setParent does not support joints, instances or add=True")
         require_editable(self._require_mnode())
         if target is not None:
-            ancestor = om2.MDagPath(target.mpath())
-            while ancestor.length():
-                if ancestor.node() == self.mnode():
-                    raise RuntimeError("Cannot create a DAG parenting cycle")
-                ancestor.pop()
             require_editable(target._require_mnode())
         current = self.getParent()
         if (current is None and target is None) or (
@@ -1600,6 +1607,27 @@ class Transform(DagNode):
         if world is not None:
             self.setMatrix(world, worldSpace=True, fast=True)
         return self
+
+    def _require_not_own_descendant(self, target):
+        """親にしようとするノードが、自身または自身の子孫でないことを確かめる。
+
+        Mayaはこの場合 ``Not enough objects or values.`` などの原因が分かりにくいエラーになるため、
+        変更の前に分かる文言で拒否する。インスタンスでも判定できるよう、target の全パスの祖先を調べる。
+
+        Args:
+            target (Transform): 新しい親。
+
+        Raises:
+            RuntimeError: target が自身、または自身の子孫の場合。
+        """
+        own = self._require_mnode()
+        for path in om2.MDagPath.getAllPathsTo(target._require_mnode()):
+            while path.length():
+                if path.node() == own:
+                    raise RuntimeError(
+                        "Cannot parent a node under itself or one of its descendants: "
+                        f"{self.getFullName()} -> {target.getFullName()}")
+                path.pop()
 
     def _static_value(self, name):
         """ノード型に組み込みの数値アトリビュートの内部単位の値を、Plugラッパーを作らずに読む。

@@ -212,7 +212,7 @@ class Om2BackendsTest(unittest.TestCase):
     def test_rational_cv_world_position_roundtrip(self):
         """重み付きCVはAPIワールドXYZ(cm)をcmdsを使わずに取得する。"""
         node = mlib.getNode(cmds.curve(d=1, pw=[(1, 2, 3, 2), (3, 4, 5, .5)]))
-        node.setTranslate((10, 20, 30), at=4)
+        node.setTranslation((10, 20, 30), at=4)
         node.setScale((-2, 3, .5))
         shape = node.getShape()
         cvs = shape.getCVs()

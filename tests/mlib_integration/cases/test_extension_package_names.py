@@ -60,7 +60,7 @@ try:
         cmds.undo()
         assert node.getPlug("tx").get() == 0
         node.getPlug("translate").set((1, 2, 3), fast=True)
-        assert tuple(node.getTranslate()) == (1, 2, 3)
+        assert tuple(node.getTranslation()) == (1, 2, 3)
         mesh = core.getNode(cmds.polyCube(constructionHistory=False)[0]).getShape()
         mesh.getVertex(0).setPosition((2, 3, 4))
         assert tuple(mesh.getVertex(0).getPosition()) == (2, 3, 4)

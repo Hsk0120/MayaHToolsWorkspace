@@ -61,8 +61,8 @@ class ApiNamingTest(unittest.TestCase):
             self.assertFalse(hasattr(mlib.nodes.SkinClusters, name))
         joint = mlib.createNode('joint')
         child = mlib.createNode('joint', parent=joint.getFullName())
-        self.assertEqual(child.getParentJointName(), joint.getName())
-        self.assertEqual(joint.getChildJointNames(), [child.getName()])
+        self.assertEqual(child.getParent(), joint)
+        self.assertEqual(joint.getChildren(type="joint"), [child])
 
     def test_math_type_names(self):
         """数学型の正式名と値を保ち、旧名を再公開しない。"""

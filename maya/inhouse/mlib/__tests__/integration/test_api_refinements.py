@@ -67,7 +67,7 @@ class ApiRefinementsTest(unittest.TestCase):
     def test_pivot_kinds_preserve_matrix_and_units(self):
         """別々のピボット、親・負scale・Joint・単位変換とUndoを確認する。"""
         parent = self.create("transform")
-        parent.setTranslate((4, 6, 8), at=4)
+        parent.setTranslation((4, 6, 8), at=4)
         parent.setScale((-2, 3, 1))
         for type in ("transform", "joint"):
             node = self.create(type)

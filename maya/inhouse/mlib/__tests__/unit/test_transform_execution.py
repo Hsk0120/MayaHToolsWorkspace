@@ -25,7 +25,7 @@ class TransformExecutionTest(unittest.TestCase):
             node = mlib.createNode(kind)
             before = node.getMatrix()
             calls = (
-                (lambda **flags: node.setTranslate((3, 4, 5), **flags), list),
+                (lambda **flags: node.setTranslation((3, 4, 5), **flags), list),
                 (lambda **flags: node.setRotate((.1, .2, .3), **flags), list),
                 (lambda **flags: node.setScale((2, 3, 4), **flags), list),
                 (lambda **flags: node.setShear((.1, .2, .3), **flags), list),
@@ -76,12 +76,12 @@ class TransformExecutionTest(unittest.TestCase):
         """at=0の現在値に依存する計算を、通常の絶対設定へ変更しない。"""
         node = mlib.createNode("transform")
         node.getPlug("translate").set((2, 0, 0))
-        self.assertEqual(tuple(node.getTranslate(at=0)), (0, 0, 0))
-        self.assertEqual(node.setTranslate((5, 0, 0), at=0, get=True), [3, 0, 0])
+        self.assertEqual(tuple(node.getTranslation(at=0)), (0, 0, 0))
+        self.assertEqual(node.setTranslation((5, 0, 0), at=0, get=True), [3, 0, 0])
         self.assertEqual(tuple(node.getPlug("translate").get()), (2, 0, 0))
-        node.setTranslate((5, 0, 0), at=0)
+        node.setTranslation((5, 0, 0), at=0)
         self.assertEqual(tuple(node.getPlug("translate").get()), (3, 0, 0))
-        self.assertEqual(node.setTranslate((5, 0, 0), at=0, get=True), [2, 0, 0])
+        self.assertEqual(node.setTranslation((5, 0, 0), at=0, get=True), [2, 0, 0])
 
     def test_transform_forwards_fast_to_each_channel(self):
         """行列からのチャンネル更新はfastを明示して渡し、Undo APIを呼ばない。"""
@@ -130,8 +130,8 @@ class ExplicitFastTest(unittest.TestCase):
         """fastの直後でもfast=Falseはcmdsを使い、通常のUndo/Redoを維持する。"""
         node = mlib.createNode("transform")
         cmds.flushUndo()
-        node.setTranslate((1, 2, 3), fast=True)
-        node.setTranslate((4, 5, 6), fast=False)
+        node.setTranslation((1, 2, 3), fast=True)
+        node.setTranslation((4, 5, 6), fast=False)
         cmds.undo()
         self.assertEqual(tuple(node.getPlug("translate").get()), (1, 2, 3))
         cmds.redo()

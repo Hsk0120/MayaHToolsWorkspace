@@ -25,7 +25,7 @@ class MethodContractTest(unittest.TestCase):
 
     def test_matrix_attribute_never_redirects_to_transform(self):
         """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
-        self.node.setTranslate((2, 3, 4), at=4)
+        self.node.setTranslation((2, 3, 4), at=4)
         plug = self.node.addAttr(longName='storedMatrix', dataType='matrix')
         identity = mlib.maths.Matrix()
         plug.set(identity)
@@ -89,7 +89,7 @@ class MethodContractTest(unittest.TestCase):
         # 3.0.0 で複数形の一括転送は廃止し、5.0.0 で明示した書込み(setVisibility・hide等)だけを戻した。
         self.assertTrue(hasattr(Joints, 'setVisibility'))
         self.assertTrue(hasattr(Joints, 'hide'))
-        self.assertFalse(hasattr(Joints, 'setTranslate'))
+        self.assertFalse(hasattr(Joints, 'setTranslation'))
         self.assertFalse(hasattr(Joints, 'getVisibility'))
 
     def test_joint_channels_round_trip_in_both_backends_and_units(self):

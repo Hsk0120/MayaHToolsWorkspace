@@ -441,8 +441,9 @@ class MirrorWeightsTest(NamespaceCase):
 
     def test_argument_errors(self):
         cases = (
-            ({"axis": "yz"}, ValueError),
-            ({"axis": 0}, TypeError),
+            ({"axis": "w"}, ValueError),
+            ({"axis": "xyz"}, ValueError),
+            ({"axis": 1.5}, TypeError),
             ({"positiveToNegative": "yes"}, TypeError),
             ({"surfaceAssociation": "nearest"}, ValueError),
             ({"influenceAssociation": ()}, ValueError),

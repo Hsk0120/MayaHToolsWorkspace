@@ -194,7 +194,7 @@ class JointTest(unittest.TestCase):
         for operation in (
             lambda: joint.setMatrix(joint.getMatrix()),
             lambda: joint.setMatrix(world, worldSpace=True),
-            lambda: joint.setTranslate(joint.getTranslate(at=4), at=4),
+            lambda: joint.setTranslation(joint.getTranslation(at=4), at=4),
             lambda: joint.setScale(joint.getScale()),
         ):
             operation()
@@ -224,13 +224,15 @@ class JointTest(unittest.TestCase):
         mid = self.create_joint("mlibJointHierarchyMid", parent=root)
         leaf = self.create_joint("mlibJointHierarchyLeaf", parent=mid)
 
-        self.assertIsNone(root.getParentJointName())
-        self.assertEqual(mid.getParentJointName(), root.getName())
-        self.assertEqual(leaf.getParentJointName(), mid.getName())
+        self.assertIsNone(root.getParent())
+        self.assertEqual(mid.getParent(), root)
+        self.assertEqual(leaf.getParent(), mid)
+        for removed in ("getParentJointName", "getChildJointNames"):
+            self.assertFalse(hasattr(Joint, removed), removed)
 
-        self.assertEqual(root.getChildJointNames(), [mid.getName()])
-        self.assertEqual(mid.getChildJointNames(), [leaf.getName()])
-        self.assertEqual(leaf.getChildJointNames(), [])
+        self.assertEqual(root.getChildren(type="joint"), [mid])
+        self.assertEqual(mid.getChildren(type="joint"), [leaf])
+        self.assertEqual(leaf.getChildren(type="joint"), [])
 
         self.assertEqual(root.getDepth(), 0)
         self.assertEqual(mid.getDepth(), 1)
@@ -248,7 +250,8 @@ class JointTest(unittest.TestCase):
         joint = self.create_joint("mlibJointUnderTransform")
         cmds.parent(joint.getName(), transform_parent.getName())
 
-        self.assertIsNone(joint.getParentJointName())
+        self.assertNotIsInstance(joint.getParent(), Joint)
+        self.assertEqual(joint.getDepth(), 0)
 
     def test_reparent_children(self):
         root = self.create_joint("mlibJointReparentRoot")
@@ -261,10 +264,10 @@ class JointTest(unittest.TestCase):
         # mid 自身は root の子のまま残り、mid が持っていた子(leaf1/leaf2)だけが
         # root の直接の子へ移る。
         self.assertEqual(
-            sorted(root.getChildJointNames()),
+            sorted(child.getName() for child in root.getChildren(type="joint")),
             sorted([mid.getName(), leaf1.getName(), leaf2.getName()]),
         )
-        self.assertEqual(mid.getChildJointNames(), [])
+        self.assertEqual(mid.getChildren(type="joint"), [])
 
     def test_chain_from_here_and_ik_handles_dedupe_multiple_plugs(self):
         root = self.create_joint("mlibJointIkRoot")

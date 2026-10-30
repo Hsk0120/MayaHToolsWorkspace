@@ -780,8 +780,8 @@ class InstanceSpecificWrapperTest(_InteropCase):
         self.assertEqual(world[1].getFullName(), world.getFullName() + "[1]")
         # getMatrix(ws=True) はラッパーが保持するインスタンスの worldMatrix を使う。
         self.assertEqual(list(second.getMatrix(worldSpace=True)), cmds.getAttr(world.getFullName() + "[1]"))
-        self.assertAlmostEqual(list(second.getTranslate(worldSpace=True, at=4))[0], 10.0)
-        self.assertAlmostEqual(list(first.getTranslate(worldSpace=True, at=4))[0], 0.0)
+        self.assertAlmostEqual(list(second.getTranslation(worldSpace=True, at=4))[0], 10.0)
+        self.assertAlmostEqual(list(first.getTranslation(worldSpace=True, at=4))[0], 0.0)
         self.assertEqual(
             list(first.getMatrix(worldSpace=True)), cmds.getAttr(first.getFullName() + ".worldMatrix[0]")
         )

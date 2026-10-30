@@ -306,7 +306,7 @@ class TransformMatrixParityTest(unittest.TestCase):
         self.assert_sequence_almost_equal(
             list(node.getMatrix(worldSpace=True)), cmds.xform(self.child, query=True, worldSpace=True, matrix=True))
         self.assert_sequence_almost_equal(
-            tuple(node.getTranslate(worldSpace=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
+            tuple(node.getTranslation(worldSpace=True, at=4)), cmds.xform(self.child, query=True, worldSpace=True, translation=True))
 
     def test_world_matrix_follows_the_dag_instance(self):
         # getMatrix(ws=True) はラッパーの DAG パスのインスタンス番号の worldMatrix 要素を読む。

@@ -76,8 +76,8 @@ def _chunk_target(value):
 def _readable_chunk_name(name, frame):
     """mlib内部の定型のチャンク名を、操作と対象が分かる表示名にする。
 
-    ``mlibTransformSetTranslate`` のような名前を、呼び出したメソッド名と対象から
-    ``mlib setTranslate L_arm_CTRL``・``mlib set L_elbow_JNT.rotateX`` の形へ置き換える。
+    ``mlibTransformSetTranslation`` のような名前を、呼び出したメソッド名と対象から
+    ``mlib setTranslation L_arm_CTRL``・``mlib set L_elbow_JNT.rotateX`` の形へ置き換える。
     with文・デコレーター・``_`` で始まる内部のメソッドのフレームは飛ばして、公開の
     メソッドを探す。定型でない名前と、mlibの外(利用者のコード)で開いたチャンクの名前はそのまま返す。
 
@@ -320,7 +320,7 @@ def _edit_context(name, fast, *, transaction=False):
 
     Args:
         name (str): 通常経路のUndoチャンク名(``mlib<Class><Method>``)。Mayaに表示する名前は
-            呼び出したメソッドと対象から ``mlib setTranslate L_arm_CTRL`` の形で作る。
+            呼び出したメソッドと対象から ``mlib setTranslation L_arm_CTRL`` の形で作る。
         fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
         transaction (bool): Trueなら通常経路に ``undoTransaction`` を使う
             (Undo無効時に拒否する必要がある構築処理用)。既定は ``undoChunk``。
@@ -340,7 +340,7 @@ def _edit_context(name, fast, *, transaction=False):
 def _transform_argument_hints(method):
     """位置・回転・マトリクスのメソッドへ、よくある引数の誤りの案内を付ける。
 
-    ``space=``・``ws=`` は ``worldSpace=True`` を案内するTypeErrorにし、``setTranslate(1, 2, 3)`` の
+    ``space=``・``ws=`` は ``worldSpace=True`` を案内するTypeErrorにし、``setTranslation(1, 2, 3)`` の
     ように成分を分けて渡した場合は1つの列で渡す書き方を案内するTypeErrorにする。
     どちらも書込みの前に拒否する。``space=`` の別名は追加しない。
 
@@ -386,7 +386,7 @@ def undoChunk(name=None):
     Args:
         name (str | None): Undoキューのチャンク名。省略時はMayaの既定表示。mlib内部の定型の
             名前(``mlib<Class><Method>``)は、呼び出したメソッドと対象から
-            ``mlib setTranslate L_arm_CTRL`` の形の表示名にする。
+            ``mlib setTranslation L_arm_CTRL`` の形の表示名にする。
 
     Returns:
         contextlib.ContextDecorator: withまたはデコレーターとして使うコンテキスト。

@@ -40,6 +40,12 @@ _ANGLE_UNITS = {
     "rad": "rad", "radian": "rad", "radians": "rad",
 }
 
+#: 反転する軸の番号(0=x, 1=y, 2=z)の順に並べたミラー面の名前。x を反転するミラーは YZ 面のミラー。
+_MIRROR_PLANES = ("YZ", "XZ", "XY")
+
+#: ミラーの axis に指定できる書き方の案内(例外の文言用)。
+_MIRROR_AXIS_CHOICES = "a flip axis 'x', 'y', 'z' (or 0, 1, 2) or a mirror plane 'YZ', 'XZ', 'XY'"
+
 
 class _ArgumentError(TypeError):
     """長短引数の競合・必須値の欠落を、複数形でもTypeErrorとして伝える。"""
@@ -114,33 +120,63 @@ def measure(operation, samples=30, warmup=3):
             "min_seconds": min(values), "max_seconds": max(values)}
 
 
-def mirrorArguments(axis, pivot):
-    """反転軸と有限な中心座標を検証する。
+def _mirror_axis(axis):
+    """ミラーの指定を、反転する軸の番号(0=x, 1=y, 2=z)にする。
+
+    反転する軸(``"x"``)とミラー面(``"YZ"``)のどちらの書き方も受け付ける。
+    対応は x⇔YZ、y⇔XZ、z⇔XY で、面の文字の順序(``"ZX"`` など)と大文字小文字は問わない。
+    ミラー面の名前は ``_MIRROR_PLANES[番号]`` で得られる。
 
     Args:
-        axis (str | int): 重複のないxyz文字列、または0/1/2。
+        axis (str | int): ``"x"``・``"y"``・``"z"``、``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。
+
+    Returns:
+        int: 反転する軸の番号。
+
+    Raises:
+        TypeError: axis が文字列・int 以外(bool を含む)の場合。
+        ValueError: axis が上記のどれにも当たらない場合。
+    """
+    if type(axis) is int:
+        if axis in (0, 1, 2):
+            return axis
+        raise ValueError(f"axis must be {_MIRROR_AXIS_CHOICES}: {axis!r}")
+    if not isinstance(axis, str):
+        raise TypeError(f"axis must be a str or an int, got {type(axis).__name__}")
+    letters = axis.lower()
+    if letters in ("x", "y", "z"):
+        return "xyz".index(letters)
+    if len(letters) == 2 and letters[0] != letters[1] and all(letter in "xyz" for letter in letters):
+        # ミラー面に含まれない残りの1軸が、反転する軸になる。
+        return next(index for index, letter in enumerate("xyz") if letter not in letters)
+    raise ValueError(f"axis must be {_MIRROR_AXIS_CHOICES}: {axis!r}")
+
+
+def mirrorArguments(axis, pivot):
+    """ミラーの軸と有限な中心座標を検証する。
+
+    axis は反転する軸(``"x"``)とミラー面(``"YZ"``)のどちらの書き方でもよい。
+    対応は x⇔YZ、y⇔XZ(``"ZX"`` も可)、z⇔XY で、文字の順序と大文字小文字は問わない。
+
+    Args:
+        axis (str | int): ``"x"``・``"y"``・``"z"``、``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。
         pivot (Iterable[float]): 3成分の中心座標。
 
     Returns:
-        tuple: 軸番号のtupleと中心座標のtuple。
+        tuple: 反転する軸の番号1つのtuple(例 ``(0,)``)と、中心座標のtuple。
 
     Raises:
-        ValueError: 軸や中心が不正な場合。
+        TypeError: axis が文字列・int 以外の場合。
+        ValueError: axis が未対応の値、または中心が有限の3成分でない場合。
     """
-    if type(axis) is int and axis in (0, 1, 2):
-        axis = "xyz"[axis]
-    if not isinstance(axis, str) or not axis:
-        raise ValueError("axis must contain x, y, or z")
-    axis = axis.lower()
-    if any(value not in "xyz" for value in axis) or len(set(axis)) != len(axis):
-        raise ValueError("axis must contain unique x, y, z characters")
+    flip = _mirror_axis(axis)
     try:
         center = tuple(float(value) for value in pivot)
     except (TypeError, ValueError):
         raise ValueError("pivot must contain three finite numbers") from None
     if len(center) != 3 or not all(math.isfinite(value) for value in center):
         raise ValueError("pivot must contain three finite numbers")
-    return tuple("xyz".index(value) for value in axis), center
+    return (flip,), center
 
 
 def _clean_segment(segment):

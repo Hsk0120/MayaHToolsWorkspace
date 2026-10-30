@@ -24,7 +24,7 @@ class PerformanceContractsTest(unittest.TestCase):
         """fast不正値はsafeでも更新前に拒否し、次の通常更新へ影響しない。"""
         node = mlib.createNode("transform")
         calls = (
-            lambda flag: node.setTranslate((1, 2, 3), fast=flag),
+            lambda flag: node.setTranslation((1, 2, 3), fast=flag),
             lambda flag: node.getPlug("tx").set(1, safe=True, fast=flag),
             lambda flag: mlib.createNode("network", fast=flag),
             lambda flag: node.delete(fast=flag),

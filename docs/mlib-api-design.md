@@ -113,8 +113,12 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   is省略入口は提供せず、説明・使用例・Sphinxも実際の正式名を使う。
   判定本体の引数・戻り値・フラグ、OpenMaya/外部SDKの標準名と他クラスの別APIは維持する。
 - 2026-10-09のユーザー指定により、mlibの変換APIはMayaの `translate/rotate/scale` 表記へ統一する。
-  クラスは `Translate/EulerRotate/Scale`、取得・設定は `getTranslate/setTranslate`・`getRotate/setRotate`・`getScale/setScale`、
+  クラスは `Translate/EulerRotate/Scale`、取得・設定は `getTranslation/setTranslation`・`getRotate/setRotate`・`getScale/setScale`、
   対応する独自のコンパウンドアトリビュート名・内部メソッド・ファイル・内製利用側も揃える。
+  ただし位置の取得・設定は6.0.0から `getTranslation/setTranslation`(旧 `getTranslate/setTranslate`。別名は置かない)とする。
+  既定 `at=2` は回転ピボットの位置(MayaのLocal Axis表示やコンストレイントがノードの位置とする基準)で、
+  translateチャンネルの値(`node.t.get()`)とは異なるため、チャンネル名と同じ名前にしない。
+  `getRotate` は常に `EulerRotate` を返す(6.0.0で `unit` 引数を削除。度は `getRotate().asDegrees()`)。
   移動・回転・スケールのPlugは `getPlug("translate")` 等で明示取得する。旧独自名・旧importの互換入口は残さない。
   OpenMaya標準名、Maya標準のフラグ・アトリビュート名に忠実な `useEulerRotation` 系、既存引数・単位・Undo・戻り値の意味は維持する。
   `Quaternion.asEulerRotate()` は標準の `asEulerRotation()` へ委譲する。
@@ -124,6 +128,11 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `getT/setT`・`getQ/setQ`・`getX/setX`等の短縮アクセサーは設けず、正式な長名を使う。
 - 型変換は `as` 接頭辞。コピーを返す数学操作は `inverse/normal/mirror`、自身の更新は
   `invertIt/mirrorIt` の形式とする。OpenMaya標準の `Vector.normalize()` は例外として維持する。
+- ミラーの `axis`(`Vector/EulerRotate/Quaternion/Matrix.mirror(It)`・`Transform.mirrorTransform`・`Joint.mirror`・
+  `SkinCluster.mirrorWeights`・`util.mirrorArguments`)は、反転する軸(`"x"`・`"y"`・`"z"`、0/1/2)とミラー面
+  (`"YZ"`・`"XZ"`・`"XY"`)のどちらの書き方も受ける(6.0.0)。対応は x⇔YZ、y⇔XZ、z⇔XY で、面の文字の順序と
+  大文字小文字は問わない。解釈は `util._mirror_axis` の1か所にまとめる。2文字は常にミラー面で、
+  旧来の複数軸の同時反転(`"xy"` で x・y を反転、`"xyz"`)は受けない。
 - 数学値の戻り型は継承メソッドも対応するmlib型へ統一する。数値・真偽値・生API取得入口、
   対応型のないMPoint/単位値/クラス定数は維持する。ゼロ値などの演算条件は変更しない。
 - 3.0.0で、mlib独自メソッドの短縮名の別名引数(`ws`・`idx`・`src`・`dst`・`attrs`・`f`・`r`・`scn` 等)を廃止し、
@@ -425,7 +434,7 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 | 意味 | API | safe=Trueの挙動 | 戻り値 |
 | --- | --- | --- | --- |
 | 失敗の集計 | `Plug.set`(既存) | ロック・入力接続等の失敗を例外にせず数える。コンパウンドアトリビュートは子ごとに再試行する | 失敗数(成功は0) |
-| 書ける成分だけ更新 | `Transform.setMatrix/setTranslate/setRotate/setScale/setShear/setQuaternion`(既存) | 書けないチャンネルを保持し、書けるチャンネルだけを更新する | 通常と同じ(自身) |
+| 書ける成分だけ更新 | `Transform.setMatrix/setTranslation/setRotate/setScale/setShear/setQuaternion`(既存) | 書けないチャンネルを保持し、書けるチャンネルだけを更新する | 通常と同じ(自身) |
 | 再実行の許容 | `Node.addAttr`・`Plug.connect`・`Plug.connectTo`・`Plug.setAlias`(5.0.0) | 既に同じ状態(同名のアトリビュート・同じ接続・同じ別名)なら何も変更しない | 成功時と同じ値(Plug・接続先・自身)。件数は返さない |
 
 再実行の許容は「既に目的の状態」だけを成功とみなす。状態が違う(既存のアトリビュートの型やマルチアトリビュートかどうかが違う、
@@ -466,7 +475,7 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
   `Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault`は既定で`MAngle`等の単位付きの値を返し、`unit`指定時に数値を返す。
   数学型の生成は既定rad(`EulerRotate(..., unit="deg")`・`Quaternion.fromAxisAngle(..., unit="deg")`で度)。
   内部処理はradで計算し、公開境界で一度だけ換算する(通常・fast・safeで同じ換算)。
-  `getTranslate/setTranslate`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
+  `getTranslation/setTranslation`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
 - 空間指定は`worldSpace=True/False`(3.0.0で短縮名`ws`は廃止)。使用例は`worldSpace=True`とする。
   Trueはワールド、Falseはローカル。bool以外・旧`space=`は拒否する。
@@ -556,7 +565,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 | --- | --- | --- |
 | Mayaの現在の状態・名前・アトリビュート情報を問い合わせる | メソッド | `node.getFullName()`、`node.isLocked()`、`plug.getName()` |
 | Maya上の座標など、評価済みの値を取得する | メソッド | `vertex.getPosition()`、`vertex.getPositionX()`、`mesh.getNumVertices()` |
-| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`transform.setTranslate(value)`、`node.rename(name)` |
+| Mayaの状態を変更する | 明示的なメソッド | `plug.set(value)`、`transform.setTranslation(value)`、`node.rename(name)` |
 | オブジェクトが保持している参照・番号を返す | プロパティ | `component.shape`、`component.index`、`components.indices` |
 | 数学値(`mlib.maths`)を参照する | プロパティまたはデータフィールド | `vector.x`、`matrix.translate` |
 
@@ -640,7 +649,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 このファイル名規則はmlibとすべての `mlib_*` 拡張パッケージに適用する。クラス実装に限らず内部処理のファイルも `attributeType.py` のようにする。内部用の先頭 `_` は保持する。`__init__.py` 等のPython特殊名、探索規約のある `test_*.py` とテスト用スクリプト、パッケージ名は改名対象外。Maya nodeTypeと同名のファイルは大文字を含む場合もMayaの表記を優先する。内部関数・内部メソッド・ローカル変数はsnake_caseを基本とする。nodes/plugs/componentsの公開メソッドはlowerCamelCaseとする。
 
-- 値の取得・設定を対にするAPIは `getTranslate()` / `setTranslate()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
+- 値の取得・設定を対にするAPIは `getTranslation()` / `setTranslation()` のようにする。名前や判定の照会は `getName()` / `isLocked()` など、既存の意味の明確な形式を使う。全メソッドへ機械的に `get_` を付けない。
 - 子クラスで基底メソッドと同名の別機能を公開しない。`Node.getConnections(source=True, destination=False, type=...)` は接続検索とし、`AnimCurve.getKeyInputs()` と `BlendWeighted.getInputPlugs()` は専用名を使う。
 - 同じ処理の別名を増やさない。正式な入口へ使用側も更新し、旧名の互換入口は残さない。判定も正式is名へ一本化する。
 

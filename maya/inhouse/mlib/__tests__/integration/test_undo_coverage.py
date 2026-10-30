@@ -942,7 +942,7 @@ def a_undo_transaction_nested(c, **kwargs):
     with decorator.undoTransaction("mlibUndoCoverageTransaction"):
         cmds.setAttr(c.a + ".tx", 7.0)
         with decorator.undoChunk("mlibUndoCoverageInner"):
-            c.na.setTranslate((1.0, 2.0, 3.0))
+            c.na.setTranslation((1.0, 2.0, 3.0))
             with decorator.undoTransaction():
                 c.na.rename("renamedInTransaction")
 
@@ -1044,10 +1044,10 @@ CASES = [
       lambda c, **kw: c.na.setMatrix(_matrix(4.0, 5.0, 6.0), **kw)),
     C("Transform.setMatrix", "setMatrix worldSpace", s_child,
       lambda c, **kw: c.na.setMatrix(_matrix(4.0, 5.0, 6.0), worldSpace=True, **kw)),
-    C("Transform.setTranslate", "setTranslate", s_one,
-      lambda c, **kw: c.na.setTranslate((1.0, 2.0, 3.0), **kw)),
-    C("Transform.setTranslate", "setTranslate worldSpace", s_child,
-      lambda c, **kw: c.na.setTranslate((1.0, 2.0, 3.0), worldSpace=True, **kw)),
+    C("Transform.setTranslation", "setTranslation", s_one,
+      lambda c, **kw: c.na.setTranslation((1.0, 2.0, 3.0), **kw)),
+    C("Transform.setTranslation", "setTranslation worldSpace", s_child,
+      lambda c, **kw: c.na.setTranslation((1.0, 2.0, 3.0), worldSpace=True, **kw)),
     C("Transform.setRotate", "setRotate", s_one,
       lambda c, **kw: c.na.setRotate((0.1, 0.2, 0.3), **kw)),
     C("Transform.setRotate", "setRotate worldSpace", s_child,

@@ -104,7 +104,7 @@ Plugを現在のUI単位で扱う場合は ``get(uiUnits=True)``・``set(..., ui
    from mlib.decorator import undoChunk
 
    with undoChunk("editControl"):
-       node.setTranslate((1, 2, 3))
+       node.setTranslation((1, 2, 3))
        node.getPlug("visibility").set(False)
 
 対応するAPIの ``fast=True`` はUndoなしの直接更新で、Undo設定は変更しません。

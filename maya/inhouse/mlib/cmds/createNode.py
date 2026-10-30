@@ -15,6 +15,11 @@ MayaのnodeType名を返す。
 
     node = mlib.createNode("transform", name="example")
     child = mlib.createNode("joint", n="child", p=node, ss=True)
+
+    # shape型はshapeが返り、name= はshapeに付く。transformは getTransform() で取得する。
+    selected = mlib.ls(selection=True)  # 作成したノードが選択されるため、選択は先に取る。
+    shape = mlib.createNode("locator", name="exampleShape")
+    transform = shape.getTransform()
 """
 
 from ..decorator import _edit_context, _merge_flags
@@ -33,7 +38,12 @@ def createNode(type, *, fast=False,
     長名と短名の同時指定は入力解決やUndo開始の前に拒否する。対応しないMaya版のフラグはMayaが拒否する。
     ``cmds.createNode`` に無い ``query``/``edit`` は受け付けない(他のフラグと同様にMayaがTypeErrorにする)。
 
-    親を省略したshape型はshapeを返し、``getParent()`` がMayaの自動生成したtransformになる。
+    shape型(``"mesh"``・``"nurbsCurve"``・``"locator"`` 等)を指定するとshapeが返り、``name=`` も
+    shapeの名前になる。親を省略した場合は ``getParent()``・``getTransform()`` がMayaの自動生成した
+    transformになる(transformの名前は ``rename()`` で付け直す)。
+
+    作成したノードは ``cmds.createNode`` と同じく選択される(``skipSelect=True`` を除く)。作成前の
+    選択を使う場合は、先に ``mlib.ls(selection=True)`` で取得しておく。
     ``shared=True`` で同名・同型のノードが既にある場合は作成せずそのノードを返す(cmds.createNodeが
     作成せずNoneを返す場合。cmdsはルート名前空間の名前だけ再利用し、名前空間付きの名前は連番名で作る)。
     fast=Trueは名前で既存の同型ノードを探す近似で、名前空間付きでも既存ノードを返し、同名ノードの型が

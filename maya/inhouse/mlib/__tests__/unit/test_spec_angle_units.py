@@ -185,17 +185,19 @@ class TransformRotateTest(_SpecCase):
         with self.assertRaises(ValueError):
             self.transform.setRotate((0, 0, 0), unit="grad")
 
-    def test_get_rotate_unit(self):
-        """getRotateは既定でEulerRotate、unit指定時はその単位の数値tuple。"""
+    def test_get_rotate_always_returns_euler_rotate(self):
+        """getRotateは常にEulerRotateを返し、unit引数を持たない。度はasDegrees()で得る。"""
         cmds.setAttr(self.node_name + ".r", 10, 20, 30)
         rotation = self.transform.getRotate()
         self.assertIsInstance(rotation, EulerRotate)
-        degrees = self.transform.getRotate(unit="deg")
-        self.assertIsInstance(degrees, tuple)
-        self.assertEqual([round(v, 9) for v in degrees], [10.0, 20.0, 30.0])
-        radians = self.transform.getRotate(unit="radians")
-        self.assertEqual([round(v, 12) for v in radians], [round(v, 12) for v in rotation])
-        self.transform.setRotate(self.transform.getRotate(unit="deg"))
+        self.assertIsInstance(self.transform.getRotate(worldSpace=True, order="zyx"), EulerRotate)
+        self.assertEqual([round(v, 9) for v in rotation.asDegrees()], [10.0, 20.0, 30.0])
+        for unit in ("deg", "rad", None):
+            with self.subTest(unit=unit), self.assertRaises(TypeError):
+                self.transform.getRotate(unit=unit)
+        self.transform.setRotate(self.transform.getRotate().asDegrees())
+        self.assertEqual([round(v, 9) for v in cmds.getAttr(self.node_name + ".r")[0]], [10.0, 20.0, 30.0])
+        self.transform.setRotate(self.transform.getRotate())
         self.assertEqual([round(v, 9) for v in cmds.getAttr(self.node_name + ".r")[0]], [10.0, 20.0, 30.0])
 
     def test_set_quaternion_get_unit(self):

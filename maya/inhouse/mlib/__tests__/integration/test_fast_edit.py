@@ -49,13 +49,13 @@ class FastEditTest(unittest.TestCase):
     def test_transform_and_joint(self):
         for kind in ('transform', 'joint'):
             node = mlib.getNode(cmds.createNode(kind))
-            node.setTranslate((2, 3, 4), at=4)
+            node.setTranslation((2, 3, 4), at=4)
             node.setRotate((15, 20, 30), unit='deg')
             expected = list(node.getMatrix())
-            node.setTranslate((0, 0, 0), at=4)
+            node.setTranslation((0, 0, 0), at=4)
             node.setRotate((0, 0, 0))
             with self.api_only():
-                node.setTranslate((2, 3, 4), fast=True, at=4)
+                node.setTranslation((2, 3, 4), fast=True, at=4)
                 node.setRotate((15, 20, 30), unit='deg', fast=True)
                 if kind == 'joint':
                     node.freezeRotate(fast=True)
@@ -96,7 +96,7 @@ class FastEditTest(unittest.TestCase):
         self.assertIsInstance(collection, mlib.nodes.Joints)
         with self.api_only():
             for joint in collection:
-                joint.setTranslate((1, 2, 3), fast=True, at=4)
+                joint.setTranslation((1, 2, 3), fast=True, at=4)
             node.setAttrFlags(['tx'], locked=True, keyable=False, channelBox=True, fast=True)
         self.assertTrue(cmds.getAttr(node.getFullName() + '.tx', lock=True))
         for joint in joints:

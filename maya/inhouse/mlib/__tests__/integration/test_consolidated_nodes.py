@@ -133,7 +133,7 @@ class ConsolidatedNodesTest(unittest.TestCase):
         """fastの名前・namespace変更は子Shapeを追従させ、行列を維持する。"""
         transform = mlib.createNode("transform", name="old")
         shape = mlib.createNode("mesh", name="oldShape", parent=transform)
-        transform.setTranslate((2, 3, 4))
+        transform.setTranslation((2, 3, 4))
         matrix = list(transform.getMatrix(worldSpace=True))
         with self.api_only():
             self.assertIs(transform.rename("new", fast=True), transform)

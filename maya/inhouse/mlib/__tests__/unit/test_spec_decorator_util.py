@@ -334,12 +334,16 @@ class UtilSpecTest(unittest.TestCase):
                 util.measure(lambda: None, **kwargs)
 
     def test_mirror_arguments(self):
-        """軸は重複なしのxyz文字列か0/1/2、中心は有限な3成分。戻り値は番号と中心のtuple。"""
+        """軸は反転する軸(x/y/z、0/1/2)かミラー面(YZ/XZ/XY)、中心は有限な3成分。戻り値は番号1つと中心のtuple。"""
         self.assertEqual(util.mirrorArguments("x", (0, 0, 0)), ((0,), (0.0, 0.0, 0.0)))
-        self.assertEqual(util.mirrorArguments("ZX", [1, 2, 3]), ((2, 0), (1.0, 2.0, 3.0)))
+        self.assertEqual(util.mirrorArguments("YZ", (0, 0, 0)), ((0,), (0.0, 0.0, 0.0)))
+        self.assertEqual(util.mirrorArguments("ZX", [1, 2, 3]), ((1,), (1.0, 2.0, 3.0)))
         self.assertEqual(util.mirrorArguments(1, iter((1, 2, 3))), ((1,), (1.0, 2.0, 3.0)))
-        for axis in ("", "xx", "w", 3, -1, True, None, 1.0):
+        for axis in ("", "xx", "w", "xyz", "xw", 3, -1):
             with self.assertRaises(ValueError, msg=repr(axis)):
+                util.mirrorArguments(axis, (0, 0, 0))
+        for axis in (True, None, 1.0):
+            with self.assertRaises(TypeError, msg=repr(axis)):
                 util.mirrorArguments(axis, (0, 0, 0))
         for pivot in ((0, 0), (0, 0, 0, 0), (float("nan"), 0, 0), ("a", 0, 0), 5):
             with self.assertRaises(ValueError, msg=repr(pivot)):

@@ -1053,13 +1053,15 @@ class Matrix(om2.MMatrix):
         分解できないマトリクスにも使える。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または従来の0/1/2。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             pivot (Iterable[float]): 平行移動と同じ単位・空間の中心座標。
 
         Returns:
             Matrix: 呼び出したクラスのミラー後のマトリクス。
 
         Raises:
+            TypeError: axisが文字列・int以外の場合。
             ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
         from ..util import mirrorArguments

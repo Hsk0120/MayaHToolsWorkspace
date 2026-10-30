@@ -44,8 +44,8 @@ class CanonicalGettersTest(unittest.TestCase):
     def test_queries_keep_flags_and_value_types(self):
         """内部単位と型を保ち、getの追加フラグでUI数値を選択する。"""
         import math
-        self.node.setTranslate((4, 5, 6), worldSpace=True)
-        self.assertEqual(tuple(self.node.getTranslate(worldSpace=True)), (4, 5, 6))
+        self.node.setTranslation((4, 5, 6), worldSpace=True)
+        self.assertEqual(tuple(self.node.getTranslation(worldSpace=True)), (4, 5, 6))
         angle = self.node.getPlug("rotateX")
         angle.set(90)
         self.assertIs(mlib.getPlug(angle), angle)

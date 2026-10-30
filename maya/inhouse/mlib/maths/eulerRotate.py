@@ -655,10 +655,15 @@ class EulerRotate(om2.MEulerRotation):
         """Matrixと同じ規約で向きをビヘイビアミラーした複製を返す。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
 
         Returns:
             EulerRotate: 同型の新しい回転。Eulerの回転順序は維持する。
+
+        Raises:
+            TypeError: axisが文字列・int以外の場合。
+            ValueError: axisが不正な場合。
         """
         matrix = self.asMatrix().mirror(axis)
         rotation = matrix.quaternion.asEulerRotate()

@@ -2,7 +2,7 @@
 
 対象: 位置・回転・マトリクスの ``space=``/``ws=`` と成分を分けた指定の案内、ロック・接続された成分の案内、
 DrivenKey.setKey の既存の入力の案内、getChildren(type=)、resetAttrs/setAttrFlags の Plug 指定、
-複数形の一括の書込み(Undo 1回・fast)、Undo の表示名(``mlib setTranslate <対象>``)。
+複数形の一括の書込み(Undo 1回・fast)、Undo の表示名(``mlib setTranslation <対象>``)。
 """
 
 import sys
@@ -29,7 +29,7 @@ class ArgumentHintTest(_SpecCase):
 
     def test_space_keywords_suggest_world_space(self):
         node = Node(self.make())
-        calls = (("setTranslate", ((1, 2, 3),)), ("getTranslate", ()), ("setRotate", ((1, 2, 3),)),
+        calls = (("setTranslation", ((1, 2, 3),)), ("getTranslation", ()), ("setRotate", ((1, 2, 3),)),
                  ("getRotate", ()), ("setMatrix", (node.getMatrix(),)), ("getMatrix", ()))
         for method, args in calls:
             for keyword, value in (("space", "world"), ("ws", True)):
@@ -42,7 +42,7 @@ class ArgumentHintTest(_SpecCase):
 
     def test_spread_components_suggest_a_sequence(self):
         node = Node(self.make())
-        for method in ("setTranslate", "setRotate", "setScale"):
+        for method in ("setTranslation", "setRotate", "setScale"):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(TypeError, r"pass a sequence: {0}\(\(x, y, z\)\)".format(method)):
                     getattr(node, method)(1, 2, 3)
@@ -53,8 +53,8 @@ class ArgumentHintTest(_SpecCase):
         node = Node(name)
         cmds.setAttr(name + ".ty", lock=True)
         with self.assertRaisesRegex(RuntimeError, r"{}\.translateY is locked; .*safe=True".format(name)):
-            node.setTranslate((1, 2, 3))
-        node.setTranslate((1, 2, 3), safe=True)
+            node.setTranslation((1, 2, 3))
+        node.setTranslation((1, 2, 3), safe=True)
         self.assertEqual(cmds.getAttr(name + ".t")[0], (1.0, 0.0, 3.0))
         source = self.make("plusMinusAverage", "pma")
         cmds.connectAttr(source + ".output1D", name + ".rz")
@@ -179,7 +179,7 @@ class UndoNameTest(_SpecCase):
     def test_names_show_method_and_target(self):
         name = self.make(text="L_arm_CTRL")
         node = Node(name)
-        cases = ((lambda: node.setTranslate((1, 2, 3)), "mlib setTranslate " + node.getName()),
+        cases = ((lambda: node.setTranslation((1, 2, 3)), "mlib setTranslation " + node.getName()),
                  (lambda: node.getPlug("rx").set(10), "mlib set {}.rotateX".format(node.getName())),
                  (lambda: node.setAttrFlags("tx", keyable=False), "mlib setAttrFlags " + node.getName()),
                  (lambda: mlib.createNode("transform", name=self.name("made")), "mlib createNode transform"))
@@ -191,15 +191,15 @@ class UndoNameTest(_SpecCase):
     def test_user_chunk_names_are_kept(self):
         node = Node(self.make())
         with undoChunk("mlibMyToolStep"):
-            node.setTranslate((1, 0, 0))
+            node.setTranslation((1, 0, 0))
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibMyToolStep")
         with undoChunk("my tool"):
-            node.setTranslate((2, 0, 0))
+            node.setTranslation((2, 0, 0))
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), "my tool")
 
         @undoChunk("mlibDecorated")
         def edit():
-            node.setTranslate((3, 0, 0))
+            node.setTranslation((3, 0, 0))
 
         edit()
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDecorated")

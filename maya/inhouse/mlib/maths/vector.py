@@ -733,11 +733,16 @@ class Vector(om2.MVector):
         Scale・Shearのマトリクスとしての鏡映にはMatrix.mirrorを使う。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             pivot (Iterable[float]): 値と同じ単位の中心。方向には原点を使う。
 
         Returns:
             Vector: 同型の新しい値。
+
+        Raises:
+            TypeError: axisが文字列・int以外の場合。
+            ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
         from ..util import mirrorArguments
         axes, center = mirrorArguments(axis, pivot)

@@ -16,7 +16,7 @@ from ..core.fastWrite import require_range, require_writable, set_attr
 from ..core.object import Object
 from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
-from ..util import _world_space
+from ..util import _MIRROR_PLANES, _mirror_axis, _world_space
 from .dagNode import DagNode
 from .joint import Joint
 from .node import Node, Nodes
@@ -31,7 +31,6 @@ class SkinCluster(Node):
     """
 
     _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
-    _MIRROR_PLANES = ("XY", "YZ", "XZ")
     _SURFACE_ASSOCIATIONS = ("closestPoint", "rayCast", "closestComponent")
     _INFLUENCE_ASSOCIATIONS = ("closestJoint", "closestBone", "label", "name", "oneToOne")
     mesh = None  #: 初期化時の先頭geometryの名前。クラスで宣言し、Node の代入の規則(Mayaアトリビュートへの書込み)から外す。
@@ -157,7 +156,9 @@ class SkinCluster(Node):
         1回のUndoにまとめて実行する。fast引数は持たない(OpenMayaにミラーのAPIが無いため)。
 
         Args:
-            axis (str): 鏡映面。``"XY"``・``"YZ"``・``"XZ"`` のいずれか。既定の ``"YZ"`` はX軸方向の左右反転。
+            axis (str | int): 鏡映面 ``"YZ"``・``"XZ"``・``"XY"``、または反転する軸 ``"x"``・``"y"``・``"z"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+                既定の ``"YZ"`` (``"x"`` と同じ)はX軸方向の左右反転。
             positiveToNegative (bool): Trueは面の正側(YZならX>0)から負側へ写す。Falseは負側から正側へ
                 (``mirrorInverse=True``)。
             surfaceAssociation (str): 頂点の対応。``"closestPoint"``・``"rayCast"``・``"closestComponent"``。
@@ -174,7 +175,7 @@ class SkinCluster(Node):
             ValueError: 面・対応方法の名前が不正、またはinfluenceの対応が0個・4個以上・重複の場合。
             RuntimeError: Mayaがミラーを拒否した場合。
         """
-        axis = self._require_choice(axis, "axis", self._MIRROR_PLANES)
+        axis = _MIRROR_PLANES[_mirror_axis(axis)]
         _require_bool(positiveToNegative, "positiveToNegative")
         surfaceAssociation = self._require_choice(surfaceAssociation, "surfaceAssociation",
                                                   self._SURFACE_ASSOCIATIONS)

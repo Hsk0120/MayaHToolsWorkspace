@@ -55,10 +55,10 @@ class TransformBasicsTest(unittest.TestCase):
                     cmds.setAttr(name + "." + attr, *value)
                 cmds.currentUnit(linear="m")
                 before = {attr: cmds.getAttr(name + "." + attr) for attr in offsets}
-                self.assertIs(node.setTranslate((100, -200, 300), at=1, fast=fast), node)
+                self.assertIs(node.setTranslation((100, -200, 300), at=1, fast=fast), node)
                 self.assertValuesAlmostEqual(cmds.getAttr(name + ".t")[0], (1, -2, 3))
                 self.assertEqual({attr: cmds.getAttr(name + "." + attr) for attr in offsets}, before)
-                self.assertValuesAlmostEqual(tuple(node.getTranslate(at=1)), (100, -200, 300))
+                self.assertValuesAlmostEqual(tuple(node.getTranslation(at=1)), (100, -200, 300))
                 cmds.currentUnit(linear="cm")
 
     def test_world_origin_translation_under_rotated_scaled_parent(self):
@@ -73,7 +73,7 @@ class TransformBasicsTest(unittest.TestCase):
                 cmds.setAttr(node.getFullName() + ".r", 11, 22, 33)
                 cmds.setAttr(node.getFullName() + ".rp", 1, 2, 3)
                 rotation = cmds.getAttr(node.getFullName() + ".r")
-                self.assertIs(node.setTranslate((30, -20, 10), worldSpace=True, at=4, fast=fast), node)
+                self.assertIs(node.setTranslation((30, -20, 10), worldSpace=True, at=4, fast=fast), node)
                 self.assertValuesAlmostEqual(self.matrix(node, world=True)[12:15], (30, -20, 10))
                 self.assertEqual(cmds.getAttr(node.getFullName() + ".r"), rotation)
 
@@ -158,7 +158,7 @@ class TransformBasicsTest(unittest.TestCase):
         cmds.setAttr(reference.getFullName() + ".r", 10, 20, 30)
         target = self.matrix(reference)
         cmds.flushUndo()
-        marker.setTranslate((7, 8, 9), at=1)
+        marker.setTranslation((7, 8, 9), at=1)
         entry = cmds.undoInfo(query=True, undoName=True)
         node.setMatrix(target, fast=True)
         self.assertEqual(cmds.undoInfo(query=True, undoName=True), entry)
@@ -176,7 +176,7 @@ class TransformBasicsTest(unittest.TestCase):
         cmds.setAttr(node.getFullName() + ".tx", lock=True)
         before = self.matrix(node)
         cmds.flushUndo()
-        planned = node.setTranslate((14, 29, 46), worldSpace=True, at=1, safe=True, get=True)
+        planned = node.setTranslation((14, 29, 46), worldSpace=True, at=1, safe=True, get=True)
         self.assertIsInstance(planned, list)
         self.assertValuesAlmostEqual(planned, (2, 3, 4))
         planned[0] = 999
@@ -282,7 +282,7 @@ class TransformBasicsTest(unittest.TestCase):
         """長短フラグの競合と不正なfastは、更新とUndo記録より前に拒否する。"""
         node = self.make()
         before = self.matrix(node)
-        calls = ((node.setTranslate, (1, 2, 3)), (node.setRotate, (.1, .2, .3)),
+        calls = ((node.setTranslation, (1, 2, 3)), (node.setRotate, (.1, .2, .3)),
                  (node.setScale, (2, 3, 4)), (node.setMatrix, before))
         cmds.flushUndo()
         for method, value in calls:

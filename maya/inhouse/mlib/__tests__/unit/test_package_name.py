@@ -58,7 +58,7 @@ try:
         cmds.undo()
         assert node.getPlug("tx").get() == 0
         node.getPlug("translate").set((1, 2, 3), fast=True)
-        assert tuple(node.getTranslate()) == (1, 2, 3)
+        assert tuple(node.getTranslation()) == (1, 2, 3)
         previous = core.nodes.Node
         core.reload()
         assert previous is not core.nodes.Node

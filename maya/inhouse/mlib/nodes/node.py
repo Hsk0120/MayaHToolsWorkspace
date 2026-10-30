@@ -2744,8 +2744,16 @@ class Nodes:
         Raises:
             TypeError: Transform以外を含む場合。
             ValueError: :meth:`~mlib.nodes.transform.Transform.setParent` と同じ。
-            RuntimeError: 無効なノードを含む、またはMayaが親の変更を拒否した場合。
+            RuntimeError: 無効なノードを含む、parent がいずれかの要素自身またはその子孫、
+                またはMayaが親の変更を拒否した場合。parent の検査はどの要素も変更する前に行う。
         """
+        if parent is not None:
+            target = Node._resolve_input(parent)
+            for node in self._items:
+                # Transform 以外の要素は _forward が TypeError にするため、ここでは Transform だけを調べる。
+                check = getattr(node, "_require_not_own_descendant", None)
+                if check is not None and node.isValid() and target.isValid() and target.hasFn(om2.MFn.kTransform):
+                    check(target)
         self._forward("setParent", (parent, relative, add), fast)
         return self
 

@@ -579,14 +579,14 @@ class LimbRig:
             ):
                 raise ValueError("Reset reverse-foot rolls before matching IK")
         joints = self.getJoints()[:3]
-        a, b, c = [Vector(mlib.getNode(j).getTranslate(worldSpace=True, at=4)) for j in joints]
+        a, b, c = [Vector(mlib.getNode(j).getTranslation(worldSpace=True, at=4)) for j in joints]
         axis = c - a
         if axis.length() < 1e-8:
             raise ValueError("Cannot match IK when the endpoint coincides with the root")
         projection = a + axis * (((b - a) * axis) / (axis * axis))
         offset = b - projection
         if offset.length() < 1e-8:
-            offset = Vector(mlib.getNode(self._member("pole")).getTranslate(worldSpace=True, at=4)) - b
+            offset = Vector(mlib.getNode(self._member("pole")).getTranslation(worldSpace=True, at=4)) - b
             offset -= axis * ((offset * axis) / (axis * axis))
         if offset.length() < 1e-8:
             raise ValueError("Choose a pole direction before matching a straight chain")

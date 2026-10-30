@@ -27,8 +27,8 @@ class SpaceFlagsTest(unittest.TestCase):
 
     def test_world_and_local(self):
         """既定ローカルとワールド空間を検証する。廃止した短縮名wsは受け付けない。"""
-        self.assertEqual(self.child.getTranslate(at=4).x, 2)
-        self.assertEqual(self.child.getTranslate(worldSpace=True, at=4).x, 12)
+        self.assertEqual(self.child.getTranslation(at=4).x, 2)
+        self.assertEqual(self.child.getTranslation(worldSpace=True, at=4).x, 12)
         for method in (self.child.getMatrix, self.mesh.getPoints, self.mesh.getVertices([0, 1]).getPosition):
             with self.subTest(method=method.__name__):
                 with self.assertRaises(TypeError):
@@ -36,12 +36,12 @@ class SpaceFlagsTest(unittest.TestCase):
 
     def test_setter_flags_and_undo(self):
         """更新・Undo・空間指定を検証する。"""
-        self.child.setTranslate((20, 0, 0), worldSpace=True, at=4)
+        self.child.setTranslation((20, 0, 0), worldSpace=True, at=4)
         self.assertEqual(self.child.getPlug("translateX").get(), 10)
         cmds.undo()
         self.assertEqual(self.child.getPlug("translateX").get(), 2)
-        self.assertEqual(self.child.getTranslate(worldSpace=True, at=4).x, 12)
-        self.child.setTranslate((15, 0, 0), worldSpace=True, at=4)
+        self.assertEqual(self.child.getTranslation(worldSpace=True, at=4).x, 12)
+        self.child.setTranslation((15, 0, 0), worldSpace=True, at=4)
         self.assertEqual(self.child.getPlug("translateX").get(), 5)
 
     def test_rejected_flags_do_not_edit(self):
@@ -49,7 +49,7 @@ class SpaceFlagsTest(unittest.TestCase):
         for flags, error in [({"space": 4}, TypeError), ({"ws": True}, TypeError),
                              ({"worldSpace": 1}, TypeError), ({"worldSpace": "world"}, TypeError)]:
             with self.assertRaises(error):
-                self.child.setTranslate((99, 0, 0), **flags, at=4)
+                self.child.setTranslation((99, 0, 0), **flags, at=4)
             self.assertEqual(self.child.getPlug("translateX").get(), 2)
 
     def test_curve_connection_flags(self):

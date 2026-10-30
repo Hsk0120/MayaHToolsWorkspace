@@ -99,7 +99,7 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
                 amount = driver.addAttr("amount", type="double")
                 amount.set(9)
                 driven.getPlug("tx").connect(amount)
-                driven.setTranslate((0, 7, 8), at=1, safe=True)
+                driven.setTranslation((0, 7, 8), at=1, safe=True)
                 temporary.delete()
                 raise ValueError("workflow failure")
         self.assertFalse(cmds.attributeQuery("amount", node=driver.getFullName(), exists=True))
@@ -183,7 +183,7 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
                 child.getPlug("ty").connect(driver.getPlug("ty"))
                 cmds.flushUndo()
                 child.setParent(parent, relative=True, fast=fast)
-                child.setTranslate((4, 5, 6), at=1, safe=True, fast=fast)
+                child.setTranslation((4, 5, 6), at=1, safe=True, fast=fast)
                 self.assertEqual(cmds.getAttr(child.getFullName() + ".t"), [(4, 12, 6)])
                 self.assertEqual(cmds.xform(child.getFullName(), query=True, translation=True, worldSpace=True),
                                  [14, 32, 36])
@@ -251,7 +251,7 @@ class BasicSceneWorkflowsTest(unittest.TestCase):
                 self.assertEqual(child.getPlug("tx").get(), 100)
                 self.assertAlmostEqual(cmds.xform(child.getFullName(), query=True,
                                                 worldSpace=True, translation=True)[0], expected_ui)
-                self.assertAlmostEqual(child.getTranslate(worldSpace=True, at=4).x, 300)
+                self.assertAlmostEqual(child.getTranslation(worldSpace=True, at=4).x, 300)
                 self.assertConnected(driver.getPlug("tx"), child.getPlug("tx"))
 
 

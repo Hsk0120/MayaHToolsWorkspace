@@ -102,11 +102,11 @@ class NodeApiTest(unittest.TestCase):
     def test_transform_matrix_round_trip_uses_om2_maths_values(self):
         transform = self.create_transform("mlibNodeApiMatrix")
 
-        transform.setTranslate((1.0, 2.0, 3.0), at=4)
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
         transform.setRotate((0.0, 90.0, 0.0))
         transform.setScale((2.0, 1.0, 1.0))
 
-        translate = transform.getTranslate(at=4)
+        translate = transform.getTranslation(at=4)
         self.assertIsInstance(translate, Translate)
         self.assertEqual(translate, Translate(1.0, 2.0, 3.0))
 
@@ -138,7 +138,7 @@ class NodeApiTest(unittest.TestCase):
         cmds.redo()
         self.assertEqual(transform.getPivot(), Translate(1.0, 2.0, 3.0))
 
-        transform.setTranslate((10.0, 0.0, 0.0), at=4)
+        transform.setTranslation((10.0, 0.0, 0.0), at=4)
         self.assertEqual(transform.getPivot(worldSpace=True), Translate(11.0, 2.0, 3.0))
 
         previous_unit = cmds.currentUnit(query=True, linear=True)
@@ -163,12 +163,12 @@ class NodeApiTest(unittest.TestCase):
         self.assertAlmostEqual(box.max.x, 0.5, places=5)
 
         # boundingBox() は自身の translate は含むが、親の変換はまだ無いので world と一致する。
-        transform.setTranslate((10.0, 0.0, 0.0), at=4)
+        transform.setTranslation((10.0, 0.0, 0.0), at=4)
         self.assertAlmostEqual(transform.getBoundingBox().min.x, 9.5, places=5)
         self.assertAlmostEqual(transform.getBoundingBox(worldSpace=True).min.x, 9.5, places=5)
 
         parent = self.create_transform("mlibNodeApiBoundingBoxParent")
-        parent.setTranslate((100.0, 0.0, 0.0), at=4)
+        parent.setTranslation((100.0, 0.0, 0.0), at=4)
         # relative=True で子のローカル translate を変えずに親子付けする
         # （既定はワールド位置維持のためローカル値が自動調整されてしまう）。
         cmds.parent(mesh_transform_name, parent.getName(), relative=True)
@@ -556,11 +556,11 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_make_identity_freezes_transform(self):
         transform = self.create_transform("mlibNodeApiFreeze")
-        transform.setTranslate((1.0, 2.0, 3.0), at=4)
+        transform.setTranslation((1.0, 2.0, 3.0), at=4)
 
         result = transform.makeIdentity(apply=True, translate=True)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslate(at=4), Translate(0.0, 0.0, 0.0))
+        self.assertEqual(transform.getTranslation(at=4), Translate(0.0, 0.0, 0.0))
 
 
     def test_transform_closest_axis_to_vector(self):
@@ -608,7 +608,7 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_set_matrix_round_trips_matrix_and_rejects_non_matrix(self):
         source = self.create_transform("mlibNodeApiComposeSource")
-        source.setTranslate((1.0, 2.0, 3.0), at=4)
+        source.setTranslation((1.0, 2.0, 3.0), at=4)
         source.setRotate((0.0, 45.0, 0.0))
         matrix = source.getMatrix(worldSpace=True)
 
@@ -625,7 +625,7 @@ class NodeApiTest(unittest.TestCase):
         matrix = Matrix(translate=(1.0, 2.0, 3.0))
         result = transform.setMatrix(matrix)
         self.assertIs(result, transform)
-        self.assertEqual(transform.getTranslate(at=4), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(transform.getTranslation(at=4), Translate(1.0, 2.0, 3.0))
 
         # Matrix以外の16要素入力も内部でMatrixへ変換して受け付ける。
         transform.setMatrix((
@@ -634,7 +634,7 @@ class NodeApiTest(unittest.TestCase):
             0.0, 0.0, 1.0, 0.0,
             5.0, 6.0, 7.0, 1.0,
         ))
-        self.assertEqual(transform.getTranslate(at=4), Translate(5.0, 6.0, 7.0))
+        self.assertEqual(transform.getTranslation(at=4), Translate(5.0, 6.0, 7.0))
 
         cmds.delete(transform.getName())
         with self.assertRaises(RuntimeError):
@@ -642,7 +642,7 @@ class NodeApiTest(unittest.TestCase):
 
     def test_transform_set_matrix_round_trip_preserves_world_for_every_rotate_order(self):
         # XYZ で分解した回転をノードの rotateOrder へ並べ替えて書き込むため、
-        # xyz 以外の順序でも setMatrix / setTranslate / rotate プラグの往復で姿勢が変わらない。
+        # xyz 以外の順序でも setMatrix / setTranslation / rotate プラグの往復で姿勢が変わらない。
         parent = self.create_transform("mlibNodeApiOrderParent")
         cmds.setAttr(parent.getFullName() + ".rotate", 10.0, 20.0, 30.0)
         for order in range(6):
@@ -659,7 +659,7 @@ class NodeApiTest(unittest.TestCase):
             self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
             node.setMatrix(world, worldSpace=True)
             self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
-            node.setTranslate((4.0, 5.0, 6.0), at=4)
+            node.setTranslation((4.0, 5.0, 6.0), at=4)
             self.assertTrue(node.getQuaternion(worldSpace=True).isEquivalent(world.quaternion, 1e-9), order)
 
             before = node.getMatrix()
@@ -702,7 +702,7 @@ class NodeApiTest(unittest.TestCase):
         for operation in (
             lambda: node.setMatrix(matrix),
             lambda: node.setMatrix(world, worldSpace=True),
-            lambda: node.setTranslate((0.0, 0.0, 0.0), at=4),
+            lambda: node.setTranslation((0.0, 0.0, 0.0), at=4),
             lambda: node.setScale(node.getScale()),
             lambda: node.setShear(node.getShear()),
             lambda: node.setRotate((10.0, 20.0, 30.0), unit="deg"),
@@ -772,7 +772,7 @@ class NodeApiTest(unittest.TestCase):
         name = node.getFullName()
         cmds.setAttr(name + ".rotate", 370.0, -20.0, 190.0)
         node.setMatrix(node.getMatrix())
-        node.setTranslate((1.0, 2.0, 3.0), at=4)
+        node.setTranslation((1.0, 2.0, 3.0), at=4)
         self.assert_channels(name, (370.0, -20.0, 190.0), (1.0, 1.0, 1.0))
         # 等価な別解 (180+10, 180-(-20), 180+190) を渡しても、現在値に近い解で書く。
         node.setRotate(EulerRotate.fromDegrees(190.0, 200.0, 370.0))
@@ -799,10 +799,10 @@ class NodeApiTest(unittest.TestCase):
             plug = node.getPlug("rotate")
             plug.set(plug.get(unit="deg"))
             self.assert_channels(name, (10.0, 20.0, 30.0), (1.0, 1.0, 1.0))
-            node.setRotate(node.getRotate(unit="deg"))
+            node.setRotate(node.getRotate().asDegrees())
             node.setRotate(tuple(node.getRotate(worldSpace=True)), worldSpace=True, unit="rad")
             self.assertTrue(node.getMatrix(worldSpace=True).isEquivalent(world, 1e-9), order)
-            node.setRotate(node.getRotate(worldSpace=True, unit="deg"), worldSpace=True)
+            node.setRotate(node.getRotate(worldSpace=True).asDegrees(), worldSpace=True)
             self.assertTrue(node.getMatrix().isEquivalent(local, 1e-9), order)
 
             cmds.setAttr(name + ".rotate", 0.0, 0.0, 0.0)
@@ -816,7 +816,7 @@ class NodeApiTest(unittest.TestCase):
         node = self.create_transform("mlibNodeApiOm2Values")
         transformFn = om2.MFnTransform(node.mpath())
         transformFn.setTranslation(Translate(1.0, 2.0, 3.0), om2.MSpace.kTransform)
-        self.assertEqual(node.getTranslate(at=4), Translate(1.0, 2.0, 3.0))
+        self.assertEqual(node.getTranslation(at=4), Translate(1.0, 2.0, 3.0))
 
         euler = EulerRotate(0.3, -0.2, 0.1, "zyx")
         transformFn.setRotation(euler, om2.MSpace.kTransform)
