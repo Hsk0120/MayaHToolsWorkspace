@@ -574,6 +574,17 @@ class Matrix(om2.MMatrix):
             Translate: マトリクスの平行移動成分。
         """
         ...
+    @translate.setter
+    def translate(self, value: Iterable[float]) -> None:
+        """番号12〜14へ平行移動を直接書き込む。
+
+        Args:
+            value (Iterable[float]): 新しい平行移動。3成分。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
     @property
     def scale(self) -> Scale:
         """Scale 成分を取得または設定する。
@@ -586,6 +597,17 @@ class Matrix(om2.MMatrix):
             Scale: 分解したスケール成分。
         """
         ...
+    @scale.setter
+    def scale(self, value: Iterable[float]) -> None:
+        """スケール成分を置き換えて再合成する。
+
+        Args:
+            value (Iterable[float]): 新しいスケール。3成分。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
     @property
     def shear(self) -> Shear:
         """Shear 成分(XY、XZ、YZ)を取得または設定する。
@@ -595,6 +617,17 @@ class Matrix(om2.MMatrix):
 
         Returns:
             Shear: 分解したシアー成分。
+        """
+        ...
+    @shear.setter
+    def shear(self, value: Iterable[float]) -> None:
+        """シアー成分を置き換えて再合成する。
+
+        Args:
+            value (Iterable[float]): 新しいシアー。3成分。
+
+        Returns:
+            None: 値を返さない。
         """
         ...
     @property
@@ -633,6 +666,17 @@ class Matrix(om2.MMatrix):
 
         Returns:
             EulerRotate: 分解した回転値(ラジアン)。
+        """
+        ...
+    @rotate.setter
+    def rotate(self, value: Iterable[float] | EulerRotate | Quaternion) -> None:
+        """回転成分を置き換えて再合成する。
+
+        Args:
+            value (Iterable[float] | EulerRotate | Quaternion): 新しい回転。
+
+        Returns:
+            None: 値を返さない。
         """
         ...
     def decompose(self) -> dict[str, object]:

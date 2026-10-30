@@ -5,6 +5,7 @@ import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
+from typing import TYPE_CHECKING
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
@@ -15,9 +16,11 @@ from ..core.fastWrite import set_plug
 from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError, _angle_unit
-from typing import Any, Callable, ContextManager, Iterable, Iterator, Literal
+from typing import Any, Callable, Dict, Literal, Optional, Union
+from ..nodes.node import Node
+from typing import Any, Iterable, Iterator, Literal
+from mlib._stubtypes import GeneratorContextManager
 from mlib.maths.matrix import Matrix
-from mlib.nodes.node import Node
 from mlib.plugs.multiPlug import MultiPlug
 from typing import overload
 from typing_extensions import Self
@@ -109,7 +112,11 @@ class Plug(Object):
     値の読書き・接続照会・子参照はRuntimeErrorになる。削除をUndoすれば再び有効になる。
     """
     _registry: None
-    _reader: None
+    _reader: 'Optional[Union[Callable[..., Any], Literal[False]]]' = ...
+    _node: 'Node'
+    _mplug: 'om2.MPlug'
+    _attribute: 'om2.MObject'
+    _attribute_handle: 'om2.MObjectHandle'
     def __new__(cls, node: Node, mplug: om2.MPlug) -> Self:
         """マルチアトリビュート・登録アトリビュート型・コンパウンドアトリビュートの順にラッパー型を選ぶ。
 
@@ -1479,6 +1486,26 @@ class Plug(Object):
             Plug: 実際の接続先。safeで既存の接続を見つけた場合もその接続先。
         """
         ...
+    def _source_plug(self, skipConversionNodes: bool = ...) -> Plug | None:
+        """絞込みの指定なしで :meth:`getSource` を呼び、入力元の Plug を返す内部用の窓口。
+
+        Args:
+            skipConversionNodes (bool): :meth:`getSource` へ渡す。
+
+        Returns:
+            Plug | None: 入力元の Plug。未接続ならNone。
+        """
+        ...
+    def _destination_plugs(self, skipConversionNodes: bool = ...) -> list[Plug]:
+        """絞込みの指定なしで :meth:`getDestinations` を呼び、出力先の Plug を返す内部用の窓口。
+
+        Args:
+            skipConversionNodes (bool): :meth:`getDestinations` へ渡す。
+
+        Returns:
+            list[Plug]: 出力先の Plug。未接続なら空リスト。
+        """
+        ...
     def _set_template(self, value: object, safe: bool, *, fast: bool, unit: str | None = ..., uiUnits: bool = ..., _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
         """set()の共通骨格。Undo文脈・マルチアトリビュート全体の拒否・fast未対応型の事前検査・safeの例外吸収を担う。
 
@@ -1685,7 +1712,7 @@ class Plug(Object):
             list | Plug | Node | tuple | None: 一覧、またはindexで選んだ一件。範囲外はNone。
         """
         ...
-    def _temporarily_unlocked_connection_path(self, enabled: bool, *, fast: bool = ...) -> ContextManager[None]:
+    def _temporarily_unlocked_connection_path(self, enabled: bool, *, fast: bool = ...) -> GeneratorContextManager[None]:
         """接続先と上位のロックを一時解除し、解除の逆順に再ロックを試みる。
 
         元からロックされていたPlugだけを復元対象にする。接続編集でnetworked MPlugが

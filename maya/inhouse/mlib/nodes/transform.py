@@ -2,6 +2,7 @@
 
 import math
 import numbers
+from typing import Any, Dict
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -302,7 +303,7 @@ class Transform(DagNode):
                 source = Node._resolve_input(source)
                 if not source.isValid():
                     raise RuntimeError("Constraint target is invalid")
-                if requires_transform and not source.mnode().hasFn(om2.MFn.kTransform):
+                if requires_transform and not source.hasFn(om2.MFn.kTransform):
                     raise TypeError(
                         f"{command_name} sources must be transforms (including joints and IK handles), "
                         f"not shapes, components or DG nodes: {source.__class__.__name__} {source.getName()!r}"
@@ -533,8 +534,9 @@ class Transform(DagNode):
                 return self
             coordinates = [om2.MDistance(v).asUnits(om2.MDistance.uiUnit()) for v in values]
             flag = {"rotate": "rotatePivot", "scale": "scalePivot", "both": "pivots"}[kind]
+            pivot_flags: Dict[str, Any] = {flag: coordinates}
             cmds.xform(self.getFullName(), worldSpace=ws, objectSpace=not ws,
-                       preserve=preserve, **{flag: coordinates})
+                       preserve=preserve, **pivot_flags)
             return self
 
     def centerPivot(self, *, fast=False):
@@ -712,10 +714,12 @@ class Transform(DagNode):
         if isinstance(source, Transform):
             holder = source
             shapes = source.getShapes()
-        elif isinstance(source, DagNode) and source.mnode().hasFn(om2.MFn.kShape):
+        elif isinstance(source, DagNode) and source._require_mnode().hasFn(om2.MFn.kShape):
             if source.isIntermediateObject():
                 raise ValueError("source must not be an intermediate shape")
             holder = source.getParent()
+            # DAG 上の Shape は常に親 Transform を持つ。
+            assert holder is not None
             shapes = [source]
         else:
             raise TypeError("source must be a Transform or a Shape")
@@ -907,7 +911,7 @@ class Transform(DagNode):
             if abs(effective_parent.det4x4()) <= 1e-12 * magnitude ** 3:
                 raise ValueError("Cannot mirror with a singular parent or offsetParentMatrix")
             attributes = ["rotatePivot", "scalePivot", "rotatePivotTranslate", "scalePivotTranslate"]
-            if not self.mnode().hasFn(om2.MFn.kJoint):
+            if not self._require_mnode().hasFn(om2.MFn.kJoint):
                 attributes.append("rotateAxis")
             if any(any(self.getPlug(attr).get()) for attr in attributes):
                 raise ValueError("mirrorTransform does not support nonzero pivots or transform rotateAxis")
@@ -955,7 +959,7 @@ class Transform(DagNode):
             parent = om2.MDagPath(path).pop()
             matrix = parent.inclusiveMatrix() * parent.exclusiveMatrixInverse()
         else:
-            plug = om2.MPlug(self.mnode(), _transform_attribute("matrix"))
+            plug = om2.MPlug(self._require_mnode(), _transform_attribute("matrix"))
             matrix = om2.MFnMatrixData(plug.asMObject()).matrix()
         return Matrix._wrap(matrix.inverse() if inv else matrix)
 
@@ -1161,6 +1165,8 @@ class Transform(DagNode):
         with _edit_context("mlibTransformSetRotate", fast):
             ws = _world_space(worldSpace)
             angle_unit = _angle_unit(unit)
+            # 既定値 "deg" を持つため、unit=None でも None にならない。
+            assert angle_unit is not None
             if not isinstance(value, (om2.MEulerRotation, om2.MQuaternion)):
                 self._require_valid("set")
                 x, y, z = value
@@ -1269,7 +1275,7 @@ class Transform(DagNode):
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
         ws = _world_space(worldSpace)
-        joint = self.mnode().hasFn(om2.MFn.kJoint)
+        joint = self._require_mnode().hasFn(om2.MFn.kJoint)
         if ws:
             if (ra and not (r and jo)) or (not ra and r and not jo):
                 raise ValueError("Unsupported rotation component combination")
@@ -1320,6 +1326,8 @@ class Transform(DagNode):
         """
         with _edit_context("mlibTransformSetQuaternion", fast):
             angle_unit = _angle_unit(unit)
+            # 既定値 "deg" を持つため、unit=None でも None にならない。
+            assert angle_unit is not None
             name, rotation = self._quaternion_channel_values(value, _world_space(worldSpace), ra, r, jo)
             if get:
                 return [_from_radians(component, angle_unit) for component in rotation]
@@ -1455,7 +1463,8 @@ class Transform(DagNode):
             for index, side in enumerate(value):
                 if side is None:
                     if current is None:
-                        current = cmds.transformLimits(name, query=True, **{flag: True})
+                        query_flags: Dict[str, Any] = {flag: True}
+                        current = cmds.transformLimits(name, query=True, **query_flags)
                     side = current[index]
                     if kind == "distance":
                         # 照会は移動だけcm(内部単位)で返り、設定はUI単位で受け取る。
@@ -1554,17 +1563,17 @@ class Transform(DagNode):
         if target is not None and not isinstance(target, Transform):
             raise TypeError("Parent must be a transform")
         path = self.mpath()
-        if (self.mnode().hasFn(om2.MFn.kJoint) or path.isInstanced()
+        if (self._require_mnode().hasFn(om2.MFn.kJoint) or path.isInstanced()
                 or (target is not None and target.mpath().isInstanced()) or add):
             raise NotImplementedError("fast setParent does not support joints, instances or add=True")
-        require_editable(self.mnode())
+        require_editable(self._require_mnode())
         if target is not None:
             ancestor = om2.MDagPath(target.mpath())
             while ancestor.length():
                 if ancestor.node() == self.mnode():
                     raise RuntimeError("Cannot create a DAG parenting cycle")
                 ancestor.pop()
-            require_editable(target.mnode())
+            require_editable(target._require_mnode())
         current = self.getParent()
         if (current is None and target is None) or (
                 current is not None and target is not None and current.mnode() == target.mnode()):
@@ -1583,7 +1592,8 @@ class Transform(DagNode):
         if validate_only:
             return self
         modifier = om2.MDagModifier()
-        modifier.reparentNode(self.mnode(), om2.MObject.kNullObj if target is None else target.mnode())
+        new_parent = om2.MObject.kNullObj if target is None else target._require_mnode()
+        modifier.reparentNode(self._require_mnode(), new_parent)
         modifier.doIt()
         # 自分の操作で変えたパスだけ再束縛し、無関係なインスタンスへ切り替えない。
         self._dag_path = om2.MDagPath.getAPathTo(self.mnode())
@@ -1613,7 +1623,8 @@ class Transform(DagNode):
         values = []
         for target in targets:
             reader = value_reader(target.attribute())
-            if reader is False:
+            # value_reader は読取関数か False(cmdsでの読取)を返す。
+            if not callable(reader):
                 value = self.getPlug(name).get(unit="rad")
                 return tuple(value) if plug.isCompound else value
             values.append(reader(target))
@@ -1621,7 +1632,7 @@ class Transform(DagNode):
 
     def _inverse_scale_values(self):
         """jointの有効なinverseScaleを返す。それ以外は単位スケール。"""
-        if self.mnode().hasFn(om2.MFn.kJoint) and self._static_value("segmentScaleCompensate"):
+        if self._require_mnode().hasFn(om2.MFn.kJoint) and self._static_value("segmentScaleCompensate"):
             return self._static_value("inverseScale")
         return (1.0, 1.0, 1.0)
 
@@ -1659,7 +1670,7 @@ class Transform(DagNode):
         Returns:
             om2.MQuaternion: 新しい回転値。
         """
-        if name == "jointOrient" and not self.mnode().hasFn(om2.MFn.kJoint):
+        if name == "jointOrient" and not self._require_mnode().hasFn(om2.MFn.kJoint):
             value = self.getPlug(name).get(unit="rad")
         else:
             # 組み込みの角度アトリビュートは、getPlug(name).get()と同じ読取関数でPlugを作らずに読む。
@@ -1821,7 +1832,7 @@ class Transform(DagNode):
             tuple[str, om2.MEulerRotation]: 書込み先名とrad単位の計算値。
         """
         q = om2.MQuaternion(value) if isinstance(value, om2.MQuaternion) else om2.MQuaternion(*value)
-        joint = self.mnode().hasFn(om2.MFn.kJoint)
+        joint = self._require_mnode().hasFn(om2.MFn.kJoint)
         undo_ra = undo_r = None
         if ws:
             if not jo or (not r and (ra or not joint)):
@@ -1965,6 +1976,8 @@ class Transform(DagNode):
         source = Matrix(matrix)
         inv_scale = self._inverse_scale_values()
         corrected = source * Matrix(scale=inv_scale)
+        # Matrix 同士の積は常に Matrix。
+        assert isinstance(corrected, Matrix)
         corrected.translate = source.translate
         _, q, scale, shear, reference = self._decompose_like_channels(corrected, scale_reference)
         if type(self)._channel_rotate is Transform._channel_rotate:
@@ -1980,13 +1993,14 @@ class Transform(DagNode):
         spt = self._static_value("scalePivotTranslate")
         rpt = self._static_value("rotatePivotTranslate")
         orient = rotate_axis * rotation.asQuaternion()
-        if self.mnode().hasFn(om2.MFn.kJoint):
+        if self._require_mnode().hasFn(om2.MFn.kJoint):
             orient *= self._component_quaternion("jointOrient")
         base = (Matrix(translate=tuple(-v for v in sp)) * Matrix(scale=scale, shear=shear)
                 * Matrix(translate=sp) * Matrix(translate=spt)
                 * Matrix(translate=tuple(-v for v in rp)) * Matrix(rotate=orient)
                 * Matrix(translate=rp) * Matrix(translate=rpt)
                 * Matrix(scale=tuple(1.0 / v for v in inv_scale)))
+        assert isinstance(base, Matrix)
         translate = source.translate - base.translate
         return {"translate": Translate(*translate), "rotate": EulerRotate._wrap(rotation),
                 "scale": Scale(*scale), "shear": Shear(*shear)}

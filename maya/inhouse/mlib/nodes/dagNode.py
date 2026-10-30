@@ -123,7 +123,10 @@ class DagNode(Node):
         Raises:
             RuntimeError: 保持パスが無効な場合。別インスタンスへ切り替えない。
         """
-        return self._current_dag_path()
+        dag_path = self._current_dag_path()
+        # DagNode は初期化時に必ず DAG パスを解決して保持する(None は非DAGの Node だけ)。
+        assert dag_path is not None
+        return dag_path
 
     def mfn(self):
         """保持する DAG パスに対応する function set を、呼び出すたびに新しく作って返す。
@@ -171,7 +174,7 @@ class DagNode(Node):
         """
         if not self.isValid():
             return []
-        is_shape = self.mnode().hasFn(om2.MFn.kShape)
+        is_shape = self._require_mnode().hasFn(om2.MFn.kShape)
         parent = self.getParent()
         if parent is not None:
             candidates = parent._direct_children(is_shape, False, shapes_only=is_shape)
@@ -277,7 +280,7 @@ class DagNode(Node):
             step (int): 遡る階層数。0以下、またはワールドまで遡る場合はNone。
 
         Returns:
-            Node | None: 遡ったパスの新しいラッパー。親がない場合はNone。
+            DagNode | None: 遡ったパスの新しいラッパー。親がない場合はNone。
 
         Raises:
             RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。
@@ -355,7 +358,7 @@ class DagNode(Node):
         Raises:
             RuntimeError: ノードが破棄されている場合。
         """
-        return self if self.mnode().hasFn(om2.MFn.kShape) else None
+        return self if self._require_mnode().hasFn(om2.MFn.kShape) else None
 
     def isVisible(self):
         """親階層を含むDAGの表示状態。
@@ -408,7 +411,7 @@ class DagNode(Node):
         Raises:
             RuntimeError: ノードが無効な場合。
         """
-        fn = om2.MFnDependencyNode(self._color_targets()[0].mnode())
+        fn = om2.MFnDependencyNode(self._color_targets()[0]._require_mnode())
         if not fn.findPlug("overrideEnabled", False).asBool():
             return None
         if fn.findPlug("overrideRGBColors", False).asBool():
@@ -537,7 +540,7 @@ class DagNode(Node):
         result = []
         while pending:
             node, depth = pending.popleft() if order == "breadthFirst" else pending.pop()
-            is_shape = node.mnode().hasFn(om2.MFn.kShape)
+            is_shape = node._require_mnode().hasFn(om2.MFn.kShape)
             children = node._traversal_children(shapes, intermediates, under_world) if recursive or depth == 0 else []
             selected = (include_self or depth > 0) and (shapes or not is_shape)
             if selected and (not leaves or not any(
@@ -556,6 +559,18 @@ class DagNode(Node):
         """
         self._require_valid("set the color of")
         return [self]
+
+    def _require_mnode(self):
+        """保持する MObject を返す。:meth:`mnode` と同じ値で、None にならないことを確かめる。
+
+        初期化でノードを解決できなければ例外になるため、生成済みのラッパーは常に MObject を保持する。
+
+        Returns:
+            om2.MObject: 保持している MObject(複製ではない)。
+        """
+        mobject = self.mnode()
+        assert mobject is not None
+        return mobject
 
     @staticmethod
     def _world_assemblies():
@@ -613,7 +628,7 @@ class DagNode(Node):
             under_world: TrueはShape下のアンダーワールドも探索する。
         """
         result = []
-        is_shape = self.mnode().hasFn(om2.MFn.kShape)
+        is_shape = self._require_mnode().hasFn(om2.MFn.kShape)
         if under_world and (is_shape or not shapes):
             shape = self if is_shape else self.getShape()
             if shape is not None:

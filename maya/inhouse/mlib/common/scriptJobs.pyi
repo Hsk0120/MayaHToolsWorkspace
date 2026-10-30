@@ -4,7 +4,8 @@
 from contextlib import contextmanager
 from .. import logger
 from .scriptJob import ScriptJob
-from typing import Any, ContextManager, Hashable, Iterator
+from typing import Any, Hashable, Iterator
+from mlib._stubtypes import GeneratorContextManager
 
 
 
@@ -44,7 +45,7 @@ class ScriptJobs:
             RuntimeError: 解除失敗が一つ以上ある場合。最初の原因例外を__cause__に保持する。
         """
         ...
-    def temporary(self) -> ContextManager[ScriptJobs]:
+    def temporary(self) -> GeneratorContextManager[ScriptJobs]:
         """終了時に、このグループが持つ監視を解除する。
 
         開始前からの監視も対象で、UI・シーン自体の寿命は管理しない。

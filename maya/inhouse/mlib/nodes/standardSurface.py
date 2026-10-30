@@ -1,5 +1,7 @@
 """MayaのstandardSurfaceノードを扱う。"""
 
+from typing import TYPE_CHECKING
+
 from ..core.registry import _inherited_node_types
 from .paintableShadingDependNode import PaintableShadingDependNode
 from .shadingDependNode import ShadingDependNode
@@ -10,5 +12,6 @@ _SurfaceBase = (PaintableShadingDependNode
                 else ShadingDependNode)
 
 
-class StandardSurface(_SurfaceBase):
+# 型検査では両方の候補に共通する基底として扱う。
+class StandardSurface(ShadingDependNode if TYPE_CHECKING else _SurfaceBase):
     """Mayaの継承型に対応するStandardSurface。値と接続はPlugで操作する。"""

@@ -2,6 +2,7 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
 import math
+from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace

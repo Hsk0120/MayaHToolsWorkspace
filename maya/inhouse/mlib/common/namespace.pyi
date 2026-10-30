@@ -5,7 +5,8 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..decorator import undoChunk
-from typing import Any, ContextManager, Iterator
+from typing import Any, Iterator
+from mlib._stubtypes import GeneratorContextManager
 from mlib.nodes.node import Node
 import types
 
@@ -144,7 +145,7 @@ class Namespace:
             RuntimeError: 自身が存在しない場合。
         """
         ...
-    def asCurrent(self) -> ContextManager[Namespace]:
+    def asCurrent(self) -> GeneratorContextManager[Namespace]:
         """カレントNamespaceを自身へ一時的に切り替える。
 
         終了時は例外の有無によらず復元を試みる。元の名前空間が削除済みなら復元しない。

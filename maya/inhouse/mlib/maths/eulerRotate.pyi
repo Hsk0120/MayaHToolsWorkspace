@@ -451,6 +451,20 @@ class EulerRotate(om2.MEulerRotation):
             str: 小文字の回転順序名。
         """
         ...
+    @orderName.setter
+    def orderName(self, value: str | int) -> None:
+        """回転順序を名前または番号で設定する。
+
+        Args:
+            value (str | int): 回転順序。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: 未対応の回転順序の場合。
+        """
+        ...
     def asDegrees(self) -> tuple[float, float, float]:
         """保持するXYZのEuler角を、radから度へ換算したtupleで取得する。
 

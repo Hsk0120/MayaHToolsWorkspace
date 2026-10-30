@@ -2,7 +2,7 @@
 
 import inspect
 import re
-from typing import Any
+from typing import Any, Optional
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -499,6 +499,9 @@ class Node(Object):
     """
 
     _registry = None  #: mlib.__init__ が構築後に注入する NodeRegistry。
+    _mobject: "om2.MObject"  #: 参照するノードの MObject(__init__・_resolve が設定する)。
+    _dag_path: "Optional[om2.MDagPath]"  #: DAG ノードの保持パス。非DAGはNone。
+    _handle: "om2.MObjectHandle"  #: 有効性の判定に使う MObject のハンドル。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
     def __new__(cls, node, *args, **kwargs):
@@ -566,18 +569,15 @@ class Node(Object):
             RuntimeError: ノード名を解決できない場合。
         """
         # __new__ が解決済みの結果を引き継いだ場合は、同じ入力を再び解決しない。
-        resolved = self.__dict__.pop("_pending_resolution", None)
+        resolved = vars(self).pop("_pending_resolution", None)
         if resolved is None:
-            self._mobject = None
-            self._dag_path = None
-            self._handle = None
             self._resolve(node)
             return
         # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
         # __setattr__ を通さず、解決済みの値を直接保持する(大量の参照を作る経路の負荷を抑える)。
         handle = om2.MObjectHandle(resolved[0])
-        self.__dict__.update(_mobject=resolved[0], _dag_path=resolved[1],
-                             _handle=handle, _identity_hash=handle.hashCode())
+        vars(self).update(_mobject=resolved[0], _dag_path=resolved[1],
+                          _handle=handle, _identity_hash=handle.hashCode())
 
     def __eq__(self, other):
         """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。
@@ -741,7 +741,7 @@ class Node(Object):
         """保持している Maya API 2.0 MObject を返す。
 
         Returns:
-            om2.MObject | None: ラップ対象の MObject。
+            om2.MObject: ラップ対象の MObject。
         """
         return self._mobject
 
@@ -857,7 +857,7 @@ class Node(Object):
             raise ValueError("nodeType must be a non-empty string")
         if not self.isValid():
             return False
-        return _real_node_type(nodeType) in _inherited_node_types(self.getType())
+        return _real_node_type(nodeType) in _inherited_node_types(self._alive_fn().typeName)
 
     def isLocked(self):
         """ノード自体がロックされているか判定する。
@@ -1584,6 +1584,7 @@ class Node(Object):
         channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
         _require_bool(safe, "safe")
         angle_unit = _angle_unit(unit)
+        assert angle_unit is not None  # 既定値 "deg" を使うため None にならない。
         with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
             flags = {key: value for key, value in kwargs.items()
@@ -1791,7 +1792,7 @@ class Node(Object):
         if dag_path is None:
             return self._dependency_fn().name()
         if not dag_path.isValid():
-            dag_path = self._current_dag_path()
+            self._current_dag_path()  # 保持するDAGインスタンスが消えた場合は RuntimeError にする。
         return dag_path.partialPathName()
 
     def getFullName(self):
@@ -1811,7 +1812,7 @@ class Node(Object):
         if dag_path is None:
             return self._dependency_fn().name()
         if not dag_path.isValid():
-            dag_path = self._current_dag_path()
+            self._current_dag_path()  # 保持するDAGインスタンスが消えた場合は RuntimeError にする。
         return dag_path.fullPathName()
 
     def _plugs_from(self, attributes):

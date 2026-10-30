@@ -201,7 +201,7 @@ def _deletion_error(index, message):
         RuntimeError: ``index`` 属性を持つ例外。
     """
     error = RuntimeError(message)
-    error.index = index
+    setattr(error, "index", index)  # RuntimeError の型に無い属性を追加する。
     return error
 
 

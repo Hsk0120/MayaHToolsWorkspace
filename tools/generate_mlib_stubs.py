@@ -76,13 +76,22 @@ LENIENT_MEMBERS = {
 # 置き換え先の型の定義。生成先の mlib/_stubtypes.pyi に書き出す(実行時には存在しないモジュール)。
 STUB_TYPES = '''# tools/generate_mlib_stubs.py が生成した、スタブだけで使う補助の型。実行時には存在しない。
 import contextlib
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 _F = TypeVar("_F", bound=Callable[..., Any])
+_T = TypeVar("_T")
 
 
 class ContextDecorator(contextlib.ContextDecorator, contextlib.AbstractContextManager[Any]):
     """with とデコレーターの両方に使えるコンテキスト。"""
+
+    def __call__(self, func: _F) -> _F: ...
+
+
+class GeneratorContextManager(contextlib.ContextDecorator, contextlib.AbstractContextManager[_T], Generic[_T]):
+    """contextlib.contextmanager が返す、with とデコレーターの両方に使えるコンテキスト。"""
+
+    def __enter__(self) -> _T: ...
 
     def __call__(self, func: _F) -> _F: ...
 '''
@@ -172,6 +181,18 @@ def _return_type(doc, is_property=False):
     if is_property:
         return _first_entry_type(doc.splitlines()[:1])
     return None
+
+
+def _is_accessor(node):
+    """property の setter・deleter の定義(同じ名前の2つ目の def)かを返す。
+
+    Args:
+        node (ast.FunctionDef | ast.AsyncFunctionDef): 関数の定義。
+
+    Returns:
+        bool: ``@x.setter``・``@x.deleter`` が付いていればTrue。
+    """
+    return any(ast.unparse(d).endswith((".setter", ".deleter")) for d in node.decorator_list)
 
 
 class _TypeChecker(ast.NodeVisitor):
@@ -466,9 +487,11 @@ class ModuleStub:
                 self.typing.add("Any")
                 returns = "Any"
         if is_context:
-            returns = "ContextManager[%s]" % (returns[len("Iterator["):-1] if returns and returns.startswith(
+            # contextmanager の戻り値は with にもデコレーターにも使える(ContextDecorator)。
+            returns = "GeneratorContextManager[%s]" % (returns[len("Iterator["):-1] if returns and returns.startswith(
                 "Iterator[") else "Any")
-            self.typing.update({"ContextManager", "Any"})
+            self.typing.add("Any")
+            self.extra_imports["GeneratorContextManager"] = "from mlib._stubtypes import GeneratorContextManager"
         if returns is None and node.name == "__init__":
             returns = "None"
         if in_class and node.name == "__new__":
@@ -541,7 +564,8 @@ class ModuleStub:
                      inner + "@overload", inner + "def __getitem__(self, index: slice) -> %s: ..." % node.name]
             defined.update({"__iter__", "__getitem__"})
         for stmt in node.body:
-            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name in defined:
+            if (isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name in defined
+                    and not _is_accessor(stmt)):
                 continue
             if isinstance(stmt, ast.FunctionDef) and stmt.name == "__call__" and "type" in bases:
                 # メタクラスの __call__ に戻り値の型があると、pyright は Container(...) 等の構築結果を
@@ -800,6 +824,33 @@ def _keyword_connection_variants(stub, node, single):
     return variants
 
 
+def _get_type_overloads(stub):
+    """``Node.getType`` の ``inherited`` ごとのオーバーロードを返す。
+
+    Args:
+        stub (ModuleStub): 出力中のモジュール。
+
+    Returns:
+        list[str]: オーバーロードの行。
+    """
+    stub.typing.add("Literal")
+    return ["def getType(self, inherited: Literal[True]) -> list[str]: ...",
+            "def getType(self, inherited: Literal[False] = ...) -> str: ..."]
+
+
+def _angle_unit_overloads(stub):
+    """既定値があれば None を返さないことを表す ``util._angle_unit`` のオーバーロードを返す。
+
+    Args:
+        stub (ModuleStub): 出力中のモジュール。
+
+    Returns:
+        list[str]: オーバーロードの行。
+    """
+    return ["def _angle_unit(unit: str | None, default: str = ...) -> str: ...",
+            "def _angle_unit(unit: str | None, default: None) -> str | None: ..."]
+
+
 def _create_node_overloads(stub, node):
     """``createNode`` の登録済みの型名ごとのオーバーロードを返す。
 
@@ -823,6 +874,8 @@ def _create_node_overloads(stub, node):
 
 OVERLOADS = {
     "mlib.cmds.createNode:createNode": _create_node_overloads,
+    "mlib.nodes.node:Node.getType": lambda stub, node: _get_type_overloads(stub),
+    "mlib.util:_angle_unit": lambda stub, node: _angle_unit_overloads(stub),
     "mlib.cmds.ls:ls": _ls_overloads,
     "mlib.cmds.ls:ls#return": _ls_return,
     "mlib.nodes.node:Node.getConnections": lambda stub, node: _connection_variants(

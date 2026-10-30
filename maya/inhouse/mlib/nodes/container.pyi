@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Maya containerによる計算ノードの所有管理。"""
 
+from typing import TYPE_CHECKING
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..decorator import undoTransaction
@@ -10,7 +11,7 @@ from typing import Iterable
 
 
 
-class _ContainerMixin:
+class _ContainerMixin(Node if TYPE_CHECKING else object):
     """containerBase 系のノード(:class:`Container`・:class:`~mlib.nodes.dagContainer.DagContainer`)が
     共有する所属・公開名の操作。
 

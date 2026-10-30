@@ -1,5 +1,7 @@
 """ノード・アトリビュート・コンポーネントの取得時点の選択を保持する。"""
 
+from typing import Any, List, Optional, Tuple
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 import maya.mel as mel
@@ -436,7 +438,7 @@ def _resolve_names(names, plugs=False):
         list[tuple | None]: names と同じ長さの列。対応付けた名前は
             ``(MObject, MDagPath | None, MPlug | None)`` (DG ノードの DAG パスと、ノード名の MPlug は None)。
     """
-    result = [None] * len(names)
+    result: List[Optional[Tuple[Any, ...]]] = [None] * len(names)
     selection = om2.MSelectionList()
     for start in range(0, len(names), _NAME_CHUNK):
         selection.clear()

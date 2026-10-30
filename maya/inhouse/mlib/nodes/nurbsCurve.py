@@ -1,6 +1,7 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
 import math
+from typing import Any, Dict
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -67,7 +68,7 @@ class NurbsCurve(Shape):
         elif len(values) < degree + 1:
             raise ValueError(f"An open curve of degree {degree} needs at least {degree + 1} points")
         parent_node = None if parent is None else Node._resolve_input(parent)
-        flags = {"degree": degree}
+        flags: Dict[str, Any] = {"degree": degree}
         if closed:
             count = len(values)
             values = values + values[:degree]

@@ -2,9 +2,10 @@
 """om2.MVector を継承した3成分ベクトルと基本演算。"""
 
 import math
+from typing import Any, Sequence
 import maya.api.OpenMaya as om2
 from ..util import _checked_index, _copy_state, _foreign_comparison, _instance_state, _rethrow_init_error
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterable, Iterator
 from mlib.maths.quaternion import Quaternion
 from typing_extensions import Self
 import types

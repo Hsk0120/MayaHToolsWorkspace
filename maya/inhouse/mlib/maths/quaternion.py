@@ -1,6 +1,7 @@
 """om2.MQuaternion を継承したクォータニオンと、回転の補間・分解。"""
 
 import math
+from typing import Any, Sequence
 
 import maya.api.OpenMaya as om2
 
@@ -121,9 +122,10 @@ class Quaternion(om2.MQuaternion):
             except TypeError as error:
                 _rethrow_init_error(type(self), error)
         count = len(args)
-        values = args
+        # 成分の形はom2のコンストラクタと同じく実行時に判定するため、任意の値として扱う。
+        values: Sequence[Any] = args
         if count == 1:
-            source = args[0]
+            source: Any = args[0]
             if isinstance(source, _MQuaternion):
                 self.setValue(source)
                 return

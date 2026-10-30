@@ -1,6 +1,7 @@
 """om2.MVector を継承した3成分ベクトルと基本演算。"""
 
 import math
+from typing import Any, Sequence
 
 import maya.api.OpenMaya as om2
 
@@ -269,9 +270,10 @@ class Vector(om2.MVector):
             except TypeError as error:
                 _rethrow_init_error(type(self), error)
         count = len(args)
-        values = args
+        # 成分の形はom2のコンストラクタと同じく実行時に判定するため、任意の値として扱う。
+        values: Sequence[Any] = args
         if count == 1:
-            source = args[0]
+            source: Any = args[0]
             if isinstance(source, _MVector):
                 self.x = source.x
                 self.y = source.y
