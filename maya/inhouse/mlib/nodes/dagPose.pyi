@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
+from typing import Any, Dict
 import maya.cmds as cmds
 from ..core.object import Object
 from ..decorator import undoChunk

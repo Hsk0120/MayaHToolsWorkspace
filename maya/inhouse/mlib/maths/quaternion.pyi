@@ -2,6 +2,7 @@
 """om2.MQuaternion を継承したクォータニオンと、回転の補間・分解。"""
 
 import math
+from typing import Any, Sequence
 import maya.api.OpenMaya as om2
 from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error, _to_radians
 from .vector import Vector, _reduce_value, _resolve_mvector, _zero

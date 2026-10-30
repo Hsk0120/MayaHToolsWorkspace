@@ -1,6 +1,7 @@
 """Maya の blendShape デフォーマを扱う。"""
 
 import re
+from typing import Any, Dict
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -73,7 +74,7 @@ class BlendShape(Node):
             raise ValueError("name must be a non-empty string or None")
         base_name = Node._input_name(base)
         target_names = [Node._input_name(target) for target in Object._input_names(targets, allow_plugs=False)]
-        flags = {"frontOfChain": True} if frontOfChain else {}
+        flags: Dict[str, Any] = {"frontOfChain": True} if frontOfChain else {}
         if name is not None:
             flags["name"] = name
         with undoChunk("mlibBlendShapeCreate"):

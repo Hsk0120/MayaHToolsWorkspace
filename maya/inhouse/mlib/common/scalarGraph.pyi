@@ -1,10 +1,10 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """指定の生成先へ標準scalar演算を構築する。"""
 
+from typing import Any, Callable, Optional
 from ..decorator import _edit_context
 from ..nodes.container import Container
 from ..plugs.plug import Plug
-from typing import Any, Callable
 from mlib.nodes.node import Node
 import contextlib
 
@@ -18,6 +18,8 @@ class ScalarGraph:
     直接行う(Undoなし・途中失敗の巻戻しなし)。containerを所有先にした場合は
     Container.createNodeがfastを持たないため、fast=Trueは変更前にNotImplementedErrorとする。
     """
+    container: Optional[Container]
+    _createNode: Callable[..., Any]
     def __init__(self, container: str | Container | None = ..., *, createNode: Callable | None = ...) -> None:
         """containerまたは生成関数のどちらか一方を保持する。
 
@@ -127,4 +129,3 @@ class ScalarGraph:
             None: 値を返さない。
         """
         ...
-    container: Any

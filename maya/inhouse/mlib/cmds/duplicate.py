@@ -124,6 +124,8 @@ def duplicate(node, *,
         result = cmds.duplicate(name, **kwargs)
         copied = Node(result[0])
         if suffix is not None:
+            # suffixを指定した場合は、複製前に起点を解決済み。
+            assert source is not None
             _apply_suffix(source.mnode(), copied.mnode(), suffix, "name" not in kwargs)
         return copied
 

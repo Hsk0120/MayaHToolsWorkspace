@@ -7,6 +7,7 @@ import json
 import math
 from collections.abc import Mapping
 from decimal import Decimal, localcontext, ROUND_FLOOR
+from typing import List
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
@@ -596,6 +597,13 @@ class SkinCluster(Node):
 
         Returns:
             str | None: 対応するUUID。パスまたはノードが無効ならNone。
+        """
+        ...
+    def _mesh_node(self) -> om2.MObject:
+        """初期化時の先頭geometryのMObjectを返す。
+
+        Returns:
+            om2.MObject: mesh_pathが指すノード。
         """
         ...
     def _geometry_dag_path(self, name: str) -> om2.MDagPath:
