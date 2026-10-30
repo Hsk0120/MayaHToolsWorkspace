@@ -50,6 +50,10 @@ _MEMBER_HINTS = {
     "getValue": ("get", "use get()"),
     "setValue": ("set", "use set(value)"),
     "lock": ("setLocked", "use setLocked(True)"),
+    "unlock": ("setLocked", "use setLocked(False)"),
+    "mute": ("setMuted", "use setMuted(True)"),
+    "unmute": ("setMuted", "use setMuted(False)"),
+    "getAttrName": ("getShortName", "use getName().partition('.')[2] for the attribute path, or getShortName()"),
     "connect": ("connectTo", "use connectTo(destination)"),
     "select": (None, "use mlib.select(obj)"),
     "duplicate": (None, "use mlib.duplicate(obj)"),
@@ -145,7 +149,8 @@ def _missing_member_message(obj, name, what="method"):
             message += f"; {text}"
             break
     public = sorted({member for member in dir(cls) if not member.startswith("_")})
-    close = difflib.get_close_matches(name, public, n=3, cutoff=0.6)
+    # 0.6では短い名前に無関係な候補が出る(``nope`` に ``mnode``)ため、少し厳しくする。
+    close = difflib.get_close_matches(name, public, n=3, cutoff=0.7)
     if close:
         message += ". Did you mean: " + ", ".join(close) + "?"
     return message

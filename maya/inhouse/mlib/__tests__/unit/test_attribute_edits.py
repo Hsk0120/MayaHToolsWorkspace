@@ -49,7 +49,7 @@ class AttributeEditsTest(unittest.TestCase):
         )}
         data.update(shortName=plug.getShortName(), niceName=plug.getNiceName(),
                     value=plug.get(), default=plug.getDefault(),
-                    hidden=plug.isHidden(), keyable=plug.isKeyable(),
+                    hidden=fn.hidden, channelBoxHidden=plug.isHidden(), keyable=plug.isKeyable(),
                     channelBox=plug.mplug().isChannelBox, locked=plug.isLocked())
         for flag in ("minExists", "maxExists", "softMinExists", "softMaxExists"):
             data[flag] = cmds.attributeQuery(name, node=self.node.getFullName(), **{flag: True})

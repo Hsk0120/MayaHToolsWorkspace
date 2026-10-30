@@ -86,13 +86,14 @@ class CompoundFlagsTest(_Case):
         self.assertTrue(self.flags("t")[0] or self.flags("tx")[0])
 
     def test_lock_hide_show(self):
-        """lockは自身をロックし、hide/showは子へ広げる。各1回のUndoで戻る。"""
+        """setLockedは自身をロックし、hide/showは子へ広げる。各1回のUndoで戻る。"""
         for fast in (False, True):
             with self.subTest(fast=fast):
                 plug = self.node.getPlug("sx")
-                self.assertIs(plug.lock(fast=fast), plug)
+                self.assertIs(plug.setLocked(True, fast=fast), plug)
                 self.assertTrue(plug.isLocked())
-                self.assertEqual([p.getFullName() for p in plug.unlock(fast=fast)], [plug.getFullName()])
+                self.assertIs(plug.setLocked(False, fast=fast), plug)
+                self.assertFalse(plug.isLocked())
                 rotate = self.node.getPlug("r")
                 self.assertIs(rotate.hide(fast=fast), rotate)
                 self.assertEqual([self.flags(axis)[:2] for axis in ("rx", "ry", "rz")], [(False, False)] * 3)

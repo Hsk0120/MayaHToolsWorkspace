@@ -70,7 +70,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         self.assertEqual(tuple(translation.get()), (100, 0, 300))
 
     def test_get_source_conversion_flag_and_general_query(self):
-        """省略・直結を一つのgetterで切替え、一般照会の既定は維持する。"""
+        """省略・直結を一つのgetterで切替える。一般照会(getConnections)も6.0.0から既定で変換ノードを飛ばす。"""
         source = mlib.createNode("transform").getPlug("tx")
         conversion = mlib.createNode("unitConversion")
         source.connectTo(conversion.getPlug("input"))
@@ -78,7 +78,9 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         conversion.getPlug("output").connectTo(destination)
         self.assertEqual(destination.getSource(), source)
         self.assertEqual(destination.getSource(skipConversionNodes=False).getNode(), conversion)
-        self.assertEqual(destination.getConnections(s=True, d=False), [conversion.getPlug("output")])
+        self.assertEqual(destination.getConnections(s=True, d=False), [source])
+        self.assertEqual(destination.getConnections(s=True, d=False, skipConversionNodes=False),
+                         [conversion.getPlug("output")])
         self.assertEqual(source.getDestinations(), [destination])
         self.assertEqual(source.getDestinations(skipConversionNodes=False), [conversion.getPlug("input")])
         self.assertEqual(destination.getSource(asNode=True), source.getNode())
@@ -102,7 +104,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
             destination.connect(replacement, force=True, fast=True)
             self.assertTrue(destination.isLocked())
             self.assertEqual(destination.getSource(skipConversionNodes=False), replacement)
-            destination.unlock(fast=True)
+            destination.setLocked(False, fast=True)
             destination.disconnectAll(fast=True, source=True, destination=False)
         self.assertIsNone(destination.getSource())
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))

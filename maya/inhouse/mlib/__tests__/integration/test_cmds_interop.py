@@ -1108,14 +1108,14 @@ class PlugCreationSideEffectTest(_InteropCase):
         network = self.create("network", "net")
         network.addAttr("links", attributeType="message", multi=True)
         multi_plug = network.getPlug("links")
-        first = multi_plug.getNextAvailable(start=0, asPlug=True)
+        first = multi_plug.getNextAvailable(start=0)
         self.assertEqual(first.getFullName(), network.getName() + ".links[0]")
         # message 型の要素は値を持たないため作成できず、接続するまでは同じ番号を返す。
         self.assertEqual(multi_plug.getElements(), [])
-        self.assertEqual(multi_plug.getNextAvailable(start=0, asPlug=True).getFullName(), first.getFullName())
+        self.assertEqual(multi_plug.getNextAvailable(start=0).getFullName(), first.getFullName())
         self.create("network", "src").getPlug("message").connectTo(first)
         self.assertEqual([plug.getFullName() for plug in multi_plug.getElements()], [first.getFullName()])
-        self.assertEqual(multi_plug.getNextAvailable(start=0, asPlug=True).getFullName(), network.getName() + ".links[1]")
+        self.assertEqual(multi_plug.getNextAvailable(start=0).getFullName(), network.getName() + ".links[1]")
 
 
 class PlugValidityTest(_InteropCase):

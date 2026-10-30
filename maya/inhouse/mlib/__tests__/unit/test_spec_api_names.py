@@ -27,7 +27,7 @@ REMOVED = {
                 "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"),
     Joint: ("isJoint",),
     Plug: ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
-           "isArray", "isElement", "getArray"),
+           "isArray", "isElement", "getArray", "getAttrName", "lock", "unlock", "mute", "unmute"),
     MultiPlug: ("getNextAvailableIndex", "isArray", "isElement", "getArray"),
     CompoundPlug: ("isArray", "isElement", "getArray"),
 }
@@ -88,6 +88,7 @@ class RemovedNamesTest(unittest.TestCase):
         self.assertIn("vacant", parameters)
         self.assertEqual(parameters["vacant"].kind, inspect.Parameter.KEYWORD_ONLY)
         self.assertIs(parameters["vacant"].default, False)
+        self.assertNotIn("asPlug", parameters)
 
     def test_shape_does_not_override_get_parent(self):
         """Shape.getParent の override(super 転送のみ)は削除し、DagNode の実装を継承する。"""
@@ -101,11 +102,24 @@ class RemovedNamesTest(unittest.TestCase):
                 self.assertIn(name, Plug.__dict__)
                 self.assertTrue(callable(getattr(Plug, name)))
 
-    def test_unlock_has_no_undoable_argument(self):
-        parameters = inspect.signature(Plug.unlock).parameters
-        self.assertNotIn("undoable", parameters)
-        self.assertIn("fast", parameters)
-        self.assertEqual(parameters["fast"].kind, inspect.Parameter.KEYWORD_ONLY)
+    def test_lock_and_mute_use_set_methods(self):
+        """6.0.0でlock/unlock/mute/unmuteは廃止し、setLocked/setMutedだけを残す。show/hideは残す。"""
+        for name in ("lock", "unlock", "mute", "unmute", "getAttrName"):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(Plug, name))
+        for name in ("setLocked", "setMuted", "show", "hide", "isHidden"):
+            with self.subTest(name=name):
+                self.assertIn(name, Plug.__dict__)
+        self.assertIn("fast", inspect.signature(Plug.setLocked).parameters)
+
+    def test_connections_skip_conversion_nodes_by_default(self):
+        """getConnectionsのskipConversionNodes・scnは既定True(getSource/getDestinationsと同じ)。"""
+        for function in (Node.getConnections, Plug.getConnections, Plug.getSource, Plug.getDestinations):
+            parameters = inspect.signature(function).parameters
+            with self.subTest(function=function.__qualname__):
+                self.assertIs(parameters["skipConversionNodes"].default, True)
+                if "scn" in parameters:
+                    self.assertIs(parameters["scn"].default, True)
 
     def test_connections_have_no_pcls(self):
         for cls in (Node, Plug):
@@ -240,7 +254,7 @@ class SourceTextTest(unittest.TestCase):
     Plugin/Module の getPath()、components の getMaterials() は別クラスの正式名なので対象外(nodes・plugs だけを見る)。
     """
 
-    OLD_NAMES = sorted(set(sum((list(names) for names in REMOVED.values()), [])) - {"create", "reset", "lock", "getNextAvailable"})
+    OLD_NAMES = sorted(set(sum((list(names) for names in REMOVED.values()), [])) - {"create", "reset", "lock", "mute", "getNextAvailable"})
 
     def test_no_old_definitions_in_sources(self):
         root = Path(mlib.__file__).resolve().parent

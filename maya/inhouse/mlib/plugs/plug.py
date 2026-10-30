@@ -128,8 +128,47 @@ class DeletedAttributeError(ValueError, RuntimeError):
     """
 
 
+class MissingAttributeError(AttributeError, RuntimeError):
+    """指定した名前のアトリビュートが見つからない場合の例外。
+
+    ``mlib.getPlug("node.nope")`` と ``node.getPlug("nope")`` の両方が送出する(文言は
+    ``Attribute not found: <ノード名>.<アトリビュート名>``)。前者は解決できない名前を ``RuntimeError``、
+    後者は ``AttributeError`` にしてきたため、どちらの ``except`` でも捕捉できるよう両方を継承する
+    (:class:`DeletedAttributeError` と同じ考え方)。``node.nope`` の属性参照は近い名前の候補を含む
+    ``AttributeError`` を送出し、この例外を ``__cause__`` に持つ。
+    """
+
+
 class Plug(Object):
     """所有NodeとMPlugを保持し、アトリビュートの値・接続・状態を扱う。
+
+    名前を返すメソッドの規則(``pCube1.translateX``・``wm[0]`` の例):
+
+    .. list-table::
+       :header-rows: 1
+
+       * - メソッド
+         - 内容
+         - 例
+       * - :meth:`getName`
+         - ``<ノードの最短名>.<ショート名のパス>``。論理番号を含む。表示・ログ向け
+         - ``pCube1.tx``・``pCube1.wm[0]``
+       * - :meth:`getFullName` / ``str(plug)``
+         - ``<ノードの一意名>.<ロング名のパス>``。エイリアスがあれば使う。Mayaコマンドへ渡す名前
+         - ``pCube1.translateX``・``pCube1.worldMatrix[0]``
+       * - :meth:`getShortName`
+         - アトリビュート自身のショート名。ノード名・親・論理番号を含まない
+         - ``tx``・``wm``
+       * - :meth:`getLongName`
+         - アトリビュート自身のロング名。ノード名・親・論理番号を含まない
+         - ``translateX``・``worldMatrix``
+       * - :meth:`getNiceName`
+         - UI表示用の名前
+         - ``Translate X``・``World Matrix``
+
+    ノード名を除いたパスが必要な場合は ``plug.getName().partition(".")[2]`` (ショート名)、
+    同じノードの別インスタンスへ移す場合は ``other.getPlug(plug.getName().partition(".")[2])`` とする
+    (Mayaのノード名は ``.`` を含まない)。
 
     マルチアトリビュート、登録型、コンパウンドアトリビュートの順でラッパーを選ぶ。参照取得では値を評価せず、
     generic/kAnyは基底Plugのままget時に値を解釈する。
@@ -377,9 +416,10 @@ class Plug(Object):
     def getName(self):
         """最短一意ノード名と短いアトリビュートパスを含むPlug名を取得する。
 
-        ``<Node.getName()>.<getAttrName()>`` の形式で、要素の論理番号を常に含む
-        (``tt.wm[0]``・``bs.it[0].itg[3].tw[2]``)。表示・ログ向けの短い表記で、Mayaコマンドへ渡す
-        一意な名前は :meth:`getFullName` を使う。
+        ``<Node.getName()>.<ショート名のパス>`` の形式で、要素の論理番号を常に含む
+        (``tt.wm[0]``・``bs.it[0].itg[3].tw[2]``)。エイリアスは使わない。表示・ログ向けの短い表記で、
+        Mayaコマンドへ渡す一意な名前は :meth:`getFullName` を使う。ほかの名前のメソッドとの違いは
+        :class:`Plug` の表を参照する。``node.getPlug(plug.getName().partition(".")[2])`` で同じPlugへ戻せる。
 
         Returns:
             str: プラグ名。所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合は
@@ -387,21 +427,7 @@ class Plug(Object):
         """
         if not self.isValid():
             return ""
-        return self.getNode().getName() + "." + self.getAttrName()
-
-    def getAttrName(self):
-        """ノード名と先頭ドットを除いた、短いアトリビュートパスを取得する。
-
-        ショート名と要素の論理番号を含む(``tx``・``wm[0]``・``it[0].itg[3].tw[2]``)。
-        worldSpaceのマルチアトリビュートの要素(``worldMatrix[0]``)も番号を省かない。
-        エイリアスは使わない。そのまま ``node.getPlug(plug.getAttrName())`` へ渡せる。
-
-        Returns:
-            str: ノード名を除いたアトリビュートパス。無効な場合は空文字列。
-        """
-        if not self.isValid():
-            return ""
-        return self._mplug.partialName(
+        return self.getNode().getName() + "." + self._mplug.partialName(
             includeNodeName=False,
             includeNonMandatoryIndices=True,
             includeInstancedIndices=True,
@@ -409,10 +435,16 @@ class Plug(Object):
         )
 
     def getShortName(self):
-        """要素番号や階層を含まないアトリビュートの短名。
+        """アトリビュート自身のショート名を取得する(``tx``・``wm``)。
+
+        ノード名・親のコンパウンドアトリビュート・要素の論理番号を含まない。論理番号を含むパスは
+        :meth:`getName` を使う。
 
         Returns:
             str: 要素番号や階層を含まないアトリビュートの短名。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).shortName
@@ -673,68 +705,10 @@ class Plug(Object):
         with nullcontext() if fast else undoChunk("mlibPlugSetChannelBox"):
             return self._set_flags(leaf, channelBox=val, fast=fast)
 
-    def lock(self, *, fast=False):
-        """ロックする(``setFlags(locked=True)`` と同じ)。
-
-        コンパウンドアトリビュートの子は、Mayaの規則により親のロックを継承する。
-        解除は :meth:`unlock` (上位の継承ロックも解除し、解除したPlugのlistを返す)。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            Plug: 自身。
-
-        Raises:
-            TypeError: fastがbool以外の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-        """
-        _require_bool(fast, "fast")
-        with nullcontext() if fast else undoChunk("mlibPlugLock"):
-            return self.setFlags(locked=True, fast=fast)
-
-    def unlock(self, below=False, *, fast=False):
-        """上位と必要な下位階層をアンロックする。
-
-        通常は1回のUndoで戻る。fastはOpenMayaで直接更新し、Undoに記録しない。
-
-        Args:
-            below (bool): 子階層(コンパウンドアトリビュートの子・マルチアトリビュートの既存要素)も解除する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
-
-        Returns:
-            list[Plug]: 実際に解除したPlugを上位から返す。解除するものが無ければ空のlist。
-
-        Raises:
-            TypeError: belowまたはfastがbool以外の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-        """
-        _require_bool(fast, "fast")
-        _require_bool(below, "below")
-        with nullcontext() if fast else undoChunk("mlibPlugUnlock"):
-            self._require_valid()
-            queue = [Plug(self.getNode(), mp) for mp in _ancestor_plugs(self.mplug())]
-            result = []
-            def unlock_one(plug):
-                """継承ロックが解除された後の自身のロックだけを変更する。"""
-                if plug.isLocked():
-                    plug.setFlags(locked=False, fast=fast)
-                    result.append(plug)
-            for plug in reversed(queue):
-                unlock_one(plug)
-            def visit(plug):
-                """下位階層を親から順に解除する。"""
-                for child in plug.getElements() if plug.isMulti() else plug.getChildren() if plug.isCompound() else []:
-                    unlock_one(child)
-                    visit(child)
-            if below:
-                visit(self)
-            return result
-
     def show(self, keyable=True, *, fast=False):
         """Channel Boxへ表示する(:meth:`hide` の逆)。
 
-        コンパウンドアトリビュートは子も表示する。ロックは変えない。
+        コンパウンドアトリビュートは子も表示する。ロックは変えない。表示後の :meth:`isHidden` はFalse。
 
         Args:
             keyable (bool): 既定Trueはキー設定可能として表示する。FalseはキーできないChannel Box表示
@@ -759,7 +733,7 @@ class Plug(Object):
         """Channel Boxから隠す(keyableとChannel Box表示をFalseにする)。
 
         コンパウンドアトリビュート(``t`` 等)は子(``tx`` 等)も隠す(``setFlags(keyable=False, channelBox=False,
-        children=True)`` と同じ)。ロックは変えない。
+        children=True)`` と同じ)。ロックは変えない。隠れているかは :meth:`isHidden` で確かめる。
 
         Args:
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -774,26 +748,6 @@ class Plug(Object):
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugHide"):
             return self.setFlags(keyable=False, channelBox=False, children=True, fast=fast)
-
-    def mute(self):
-        """現在値でミュートし、自身を返す。
-
-        アニメーション(入力のアニメーションカーブ)の無いチャンネルでは、Mayaが警告を出すだけで
-        何もしない(muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはしない。
-        fast引数は持たない。
-
-        Returns:
-            Plug: 自身。
-        """
-        return self.setMuted(True)
-
-    def unmute(self):
-        """ミュートを解除し、自身を返す。fast引数は持たない。
-
-        Returns:
-            Plug: 自身。
-        """
-        return self.setMuted(False)
 
     def isConnected(self, *, source=True, destination=True):
         """指定方向の直接の接続を持つか判定する。
@@ -841,16 +795,43 @@ class Plug(Object):
         return self._mplug.isDestination
 
     def isHidden(self):
-        """UI から隠されたアトリビュートか判定する。
+        """Channel Boxに出ていない(keyableでもChannel Box表示でもない)か判定する。
+
+        :meth:`hide` / :meth:`show` と対になる。コンパウンドアトリビュート(``t`` 等)はChannel Boxに
+        子(``tx`` 等)が並ぶため、子孫の末端がすべて隠れている場合にTrueを返す。
+
+        .. list-table::
+           :header-rows: 1
+
+           * - 操作
+             - keyable
+             - channelBox
+             - ``isHidden()``
+           * - ``hide()``
+             - False
+             - False
+             - True
+           * - ``show()``
+             - True
+             - False
+             - False
+           * - ``show(keyable=False)``
+             - False
+             - True
+             - False
+
+        ``addAttr(hidden=True)`` で付けるアトリビュート定義の hidden フラグ(``cmds.attributeQuery(hidden=True)``)
+        ではない。5.0.0までの ``isHidden()`` はそのフラグを返していた。
 
         Returns:
-            bool: 隠しアトリビュートの場合は ``True``。
+            bool: Channel Boxに表示されない場合は ``True``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         self._require_valid()
-        return om2.MFnAttribute(self._mplug.attribute()).hidden
+        leaves = [mplug for mplug in self._compound_descendants() if not mplug.isCompound] or [self._mplug]
+        return not any(mplug.isKeyable or mplug.isChannelBox for mplug in leaves)
 
     def isDynamic(self):
         """動的に追加されたアトリビュート(addAttr によるカスタムアトリビュート等)か判定する。
@@ -1733,8 +1714,8 @@ class Plug(Object):
         """直接の入力元を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。
-                Falseは直結したPlug。getConnectionsの既定とは異なる。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する(:meth:`getConnections` と同じ)。
+                Falseは直結したPlug。
             **kwargs: getConnectionsの型・ペア・Node化等の指定。子/要素展開は無効、indexは0に固定。
 
         Returns:
@@ -1778,10 +1759,14 @@ class Plug(Object):
                       checkElements=False)
         return self.getConnections(False, True, **kwargs)
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
-        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=True, source=True,
+        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=True,
         asPair=False, asNode=False, checkChildren=True, checkElements=True, index=None):
-        """接続参照を取得する。既定は変換ノードを省略しない。
+        """接続参照を取得する。既定はunitConversion系の変換ノードを飛ばす。
+
+        ``cmds.listConnections`` とは既定が違い、:meth:`getSource` / :meth:`getDestinations` と同じく
+        unitConversion系(unitConversion・unitToTimeConversion・timeToUnitConversion)を飛ばして
+        その先のPlugを返す。``skipConversionNodes=False`` (または ``scn=False``)で直結したPlugを返す。
 
         自身の入力・出力、次にマルチアトリビュートの既存要素または子へ再帰する。
         型で絞り、初出順で重複を統合した後にindexを適用する。
@@ -1792,13 +1777,14 @@ class Plug(Object):
             c (bool): connections/asPairとORし、ペアを返す。
             t (str | None): typeが未指定または偽のときの型条件。
             et (bool): exactTypeとORする。
-            scn (bool): skipConversionNodesとORする。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
             source (bool): 入力を含める。sとANDする。
             destination (bool): 出力を含める。dとANDする。
             connections (bool): c/asPairとORし、ペアを返す。
             type (str | None): 相手Nodeの型。tより優先する。
             exactType (bool): Trueは型名の完全一致。Falseは派生型を含む。
-            skipConversionNodes (bool): unitConversion系を省略する。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
+                Falseは直結したPlug。
             asPair (bool): (自身側Plug, 相手側)の組で返す。入力方向でも同じ順序。
             asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
             checkChildren (bool): コンパウンドアトリビュートの子も探索する。
@@ -1821,7 +1807,7 @@ class Plug(Object):
             for incoming, enabled in ((True, s and source), (False, d and destination)):
                 if not enabled:
                     continue
-                if scn or skipConversionNodes:
+                if scn and skipConversionNodes:
                     if incoming:
                         src = mp.source()
                         targets = [] if src.isNull else [src]
@@ -1953,7 +1939,7 @@ class Plug(Object):
                 target = self
                 if self.isMulti() and (nextAvailable or na):
                     # cmds.connectAttr(nextAvailable=True)と同じ規則(MultiPlug.getNextAvailableの既定)。
-                    target = self.getNextAvailable(asPlug=True)
+                    target = self.getNextAvailable()
                 current = target._source_plug(skipConversionNodes=False)
                 if current is not None and target._has_input_from(source):
                     raise RuntimeError(f"Already connected: {source.getFullName()} -> {target.getFullName()}")
@@ -2988,7 +2974,9 @@ class Plug(Object):
         Raises:
             TypeError: 対応しない型、または文字列がアトリビュートを指していない場合。
             ValueError: 空文字列、または空の MPlug の場合。
-            RuntimeError: 文字列を解決できない(存在しない、または複数の対象に一致する)場合。
+            MissingAttributeError: 文字列のアトリビュート(またはノード)が存在しない場合。
+                ``AttributeError`` と ``RuntimeError`` の両方の派生。
+            RuntimeError: 文字列が複数の対象に一致する場合。
                 MPlug の所有ノードが削除済み、またはアトリビュートが ``deleteAttr`` で削除済みの場合
                 (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
                 ノードの MPlug は検出できず、Maya が異常終了する)。
@@ -3013,7 +3001,7 @@ class Plug(Object):
             matches = cmds.ls(value, long=True) or []
             if len(matches) > 1:
                 raise RuntimeError(_not_unique_message(value, matches)) from error
-            raise RuntimeError(f"Attribute does not exist: {value}") from error
+            raise MissingAttributeError(f"Attribute not found: {value}") from error
         if selection.length() != 1:
             raise RuntimeError(_not_unique_message(value, cmds.ls(value, long=True) or [value]))
         try:

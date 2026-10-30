@@ -172,8 +172,11 @@ class MultiPlug(Plug):
         return [Plug(self._node, self._mplug.elementByLogicalIndex(index))
                 for index in self.getIndices()]
 
-    def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False):
-        """次に使えるマルチアトリビュートの要素の論理番号(またはその要素Plug)を探す。要素の作成・予約はしない。
+    def getNextAvailable(self, start=-1, checkLocked=True, checkChildren=True, *, vacant=False):
+        """次に使えるマルチアトリビュートの要素Plugを探す。要素の作成・予約はしない。
+
+        論理番号は戻り値の :meth:`~mlib.plugs.plug.Plug.getIndex` で取る
+        (``multi.getNextAvailable().getIndex()``)。5.0.0までの既定(番号を返す)と ``asPlug`` 引数は廃止した。
 
         既定(``vacant=False``)は ``cmds.connectAttr(nextAvailable=True)`` と同じ規則で、
         :meth:`Plug.connectTo` / :meth:`Plug.connect` の ``nextAvailable=True`` もこの結果へ接続する。
@@ -207,22 +210,20 @@ class MultiPlug(Plug):
 
         Args:
             start (int): 探索開始番号。負数は上記の既定開始位置。bool は受け付けない。
-            asPlug (bool): Trueは番号の代わりにその要素Plugを返す。
             checkLocked (bool): ロックされた要素(とマルチアトリビュート全体のロック)を避ける。vacantでは無視。
             checkChildren (bool): コンパウンドアトリビュートの子とそのマルチアトリビュートも調べる。vacantでは無視。
             vacant (bool): Trueは既存番号(値・接続のある要素)に無い最初の番号を探す。
 
         Returns:
-            int | Plug: 空き番号、または ``asPlug=True`` でその要素Plug。
+            Plug: 空き番号の要素の参照(未作成の要素も実体化しない)。番号は ``getIndex()`` で取る。
 
         Raises:
-            TypeError: startがboolまたは整数以外、asPlug/checkLocked/checkChildren/vacantがbool以外の場合。
+            TypeError: startがboolまたは整数以外、checkLocked/checkChildren/vacantがbool以外の場合。
             IndexError: startが上限(2147483647)を超える、または空きが無い場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または ``vacant=False`` かつ
                 ``checkLocked=True`` でマルチアトリビュート全体がロックされている場合。
         """
-        for name, flag in (("asPlug", asPlug), ("checkLocked", checkLocked),
-                           ("checkChildren", checkChildren), ("vacant", vacant)):
+        for name, flag in (("checkLocked", checkLocked), ("checkChildren", checkChildren), ("vacant", vacant)):
             _require_bool(flag, name)
         if isinstance(start, bool) or not isinstance(start, int):
             raise TypeError("start must be an integer")
@@ -235,7 +236,7 @@ class MultiPlug(Plug):
                 index += 1
             if index > MAX_LOGICAL_INDEX:
                 raise IndexError("No available logical index in the multi attribute")
-            return Plug(self._node, mp.elementByLogicalIndex(index)) if asPlug else index
+            return Plug(self._node, mp.elementByLogicalIndex(index))
         if checkLocked and mp.isLocked:
             raise RuntimeError(f"Multi attribute is locked: {self.getFullName()}")
         if start < 0:
@@ -257,7 +258,7 @@ class MultiPlug(Plug):
         while index <= MAX_LOGICAL_INDEX:
             candidate = mp.elementByLogicalIndex(index)
             if not occupied(candidate):
-                return Plug(self._node, candidate) if asPlug else index
+                return Plug(self._node, candidate)
             index += 1
         raise IndexError("No available logical index in the multi attribute")
 

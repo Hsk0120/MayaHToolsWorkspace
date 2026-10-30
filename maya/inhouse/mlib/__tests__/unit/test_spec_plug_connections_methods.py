@@ -404,7 +404,7 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertIsInstance(self.a.getPlug("tx").getDestinations(index=-1), plugs.Plug)
 
     def test_get_connections_on_compound_and_flags(self):
-        """getConnectionsは子を再帰し、変換ノードは既定で飛ばさない。方向・ペア・indexの扱い(pclsは無い)。"""
+        """getConnectionsは子を再帰し、変換ノードは既定で飛ばす(6.0.0)。方向・ペア・indexの扱い(pclsは無い)。"""
         translate = self.b.getPlug("translate")
         self.assertEqual(translate.getConnections(), [self.a.getPlug("tx")])
         self.assertEqual(translate.getConnections(checkChildren=False), [])
@@ -413,8 +413,10 @@ class ConnectionQuerySpecTest(_ConnectionSpecCase):
         self.assertTrue(all(p[1] == self.a.getPlug("tx") for p in pairs))
         self.assertEqual(translate.getConnections(d=False), translate.getConnections(destination=False))
         self.assertEqual(translate.getConnections(s=False), [])
-        self.assertEqual(self.b.getPlug("rx").getConnections()[0].getNode().getName(), self.conversion)
-        self.assertEqual(self.b.getPlug("rx").getConnections(scn=True), [self.a.getPlug("tx")])
+        self.assertEqual(self.b.getPlug("rx").getConnections(scn=False)[0].getNode().getName(), self.conversion)
+        self.assertEqual(self.b.getPlug("rx").getConnections(skipConversionNodes=False)[0].getNode().getName(),
+                         self.conversion)
+        self.assertEqual(self.b.getPlug("rx").getConnections(), [self.a.getPlug("tx")])
         self.assertIsNone(translate.getConnections(index=5))
         self.assertEqual(translate.getConnections(index=0), self.a.getPlug("tx"))
         # 戻り値の型は型登録に従う(pcls 引数は廃止)。

@@ -274,13 +274,13 @@ class NextAvailableLocationSpecTest(_ConnectionSpecCase):
         cmds.addAttr(net.getFullName(), longName="vals", attributeType="double", multi=True)
         values = net.getPlug("vals")
         self.assertIsInstance(values, plugs.MultiPlug)
-        self.assertEqual(values.getNextAvailable(), 0)
+        self.assertEqual(values.getNextAvailable().getIndex(), 0)
         element = values[0]
         self.assertFalse(hasattr(element, "getNextAvailable"))
         # Plug(node, mplug) でマルチアトリビュートを包んだ場合も MultiPlug になり、同じ入口を持つ。
         wrapped = plugs.Plug(net, values.mplug())
         self.assertIsInstance(wrapped, plugs.MultiPlug)
-        self.assertEqual(wrapped.getNextAvailable(vacant=True), 0)
+        self.assertEqual(wrapped.getNextAvailable(vacant=True).getIndex(), 0)
         self.assertIsInstance(values.mplug(), om2.MPlug)
 
 

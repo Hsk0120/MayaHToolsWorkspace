@@ -244,7 +244,8 @@ class NodeApiTest(unittest.TestCase):
 
         num_plug = transform.getPlug("mlibTestNum")
         self.assertTrue(num_plug.isDynamic())
-        self.assertTrue(num_plug.isHidden())
+        self.assertTrue(cmds.attributeQuery("mlibTestNum", node=transform.getName(), hidden=True))
+        self.assertTrue(num_plug.isHidden())  # keyableでもChannel Box表示でもない。
         self.assertTrue(num_plug.hasMin())
         self.assertTrue(num_plug.hasMax())
         self.assertEqual(num_plug.getMin(), 0.0)
@@ -252,7 +253,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertEqual(num_plug.getDefault(), 5.0)
 
         no_limit_plug = transform.getPlug("mlibTestNoLimit")
-        self.assertFalse(no_limit_plug.isHidden())
+        self.assertFalse(cmds.attributeQuery("mlibTestNoLimit", node=transform.getName(), hidden=True))
         self.assertFalse(no_limit_plug.hasMin())
         self.assertFalse(no_limit_plug.hasMax())
         self.assertIsNone(no_limit_plug.getMin())
@@ -528,11 +529,11 @@ class NodeApiTest(unittest.TestCase):
         target = self.create_transform("mlibNodeApiMultiNextAvailTarget")
         multi_plug = target.addAttr("samples", attributeType="double", multi=True)
 
-        self.assertEqual(multi_plug.getNextAvailable(vacant=True), 0)
+        self.assertEqual(multi_plug.getNextAvailable(vacant=True).getIndex(), 0)
 
         multi_plug[0].set(0)
-        self.assertEqual(multi_plug.getNextAvailable(vacant=True), 1)
-        self.assertEqual(multi_plug.getNextAvailable(start=5, vacant=True), 5)
+        self.assertEqual(multi_plug.getNextAvailable(vacant=True).getIndex(), 1)
+        self.assertEqual(multi_plug.getNextAvailable(start=5, vacant=True).getIndex(), 5)
 
         element = multi_plug[1].set(2)
         self.assertEqual(element.getLongName(), "samples")
