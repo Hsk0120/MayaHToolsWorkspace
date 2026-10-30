@@ -9,6 +9,7 @@ import os
 import re
 import sys
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -17,6 +18,11 @@ from . import logger
 from .util import _ArgumentError, _UNSET
 
 __all__ = ["nativeUnits", "preservedSelection", "preservedSkinShape", "undoChunk", "undoTransaction", "viewportOff"]
+
+if TYPE_CHECKING:
+    from typing import Any, Dict, Union
+
+    _chunk_active: "ContextVar[Union[bool, str]]"
 
 # 外側のundoChunkの状態。Falseはチャンク外、Trueは開いたチャンク内、
 # _CHUNK_SKIPPEDはUndo無効のため開閉を省いたチャンク内。
@@ -415,7 +421,7 @@ def undoTransaction(name=None):
     outermost = bool(name) and not _chunk_active.get()
     if outermost:
         recording = cmds.undoInfo(query=True, state=True)
-    kwargs = {"openChunk": True}
+    kwargs: "Dict[str, Any]" = {"openChunk": True}
     if name:
         kwargs["chunkName"] = str(_readable_chunk_name(name, sys._getframe(1)))
     cmds.undoInfo(**kwargs)

@@ -4,6 +4,7 @@
 import ast
 import importlib
 import importlib.machinery
+import importlib.util
 import os
 import pkgutil
 import re

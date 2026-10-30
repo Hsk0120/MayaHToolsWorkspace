@@ -319,7 +319,7 @@ class NodeRegistry:
         (例: Plug のアトリビュート型 dispatch)。生成クラスは登録ではないので返さない。
 
         Args:
-            key (str): 登録キー(nodeType またはアトリビュート型など)。
+            key (str | None): 登録キー(nodeType またはアトリビュート型など)。None は未登録として扱う。
 
         Returns:
             type | None: 登録済みクラス。

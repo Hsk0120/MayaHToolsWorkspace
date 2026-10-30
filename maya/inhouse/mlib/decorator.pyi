@@ -10,10 +10,12 @@ import os
 import re
 import sys
 from contextvars import ContextVar
+from typing import TYPE_CHECKING
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from . import logger
 from .util import _ArgumentError, _UNSET
+from typing import Any, Dict, Union
 from typing import Any, Callable, ContextManager, Iterable, Iterator
 from mlib._stubtypes import ContextDecorator
 from mlib.nodes.joint import Joint
@@ -21,7 +23,7 @@ from mlib.nodes.skinCluster import SkinClusters
 import types
 
 __all__ = ['nativeUnits', 'preservedSelection', 'preservedSkinShape', 'undoChunk', 'undoTransaction', 'viewportOff']
-_chunk_active: ContextVar
+_chunk_active: 'ContextVar[Union[bool, str]]'
 _CHUNK_SKIPPED: str
 _INTERNAL_CHUNK_NAME: Any
 _CHUNK_TARGET_LIMIT: int

@@ -3,7 +3,7 @@
 
 import inspect
 import re
-from typing import Any
+from typing import Any, Optional
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..core.object import Object, _missing_member_message
@@ -272,6 +272,9 @@ class Node(Object):
         RuntimeError: 取得対象が空・削除済み・存在しない・一意でない場合。
     """
     _registry: None
+    _mobject: 'om2.MObject'
+    _dag_path: 'Optional[om2.MDagPath]'
+    _handle: 'om2.MObjectHandle'
     _fn_cache: None
     def __new__(cls, node: str | Node | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug, *args: object, **kwargs: object) -> Self:
         """ノード型の登録情報に従ってラッパーを割り当てる。
@@ -430,11 +433,11 @@ class Node(Object):
             bool: MObjectHandle.isAlive() の結果。Undo キューに保持された削除済みノードも生存と判定される場合がある。
         """
         ...
-    def mnode(self) -> om2.MObject | None:
+    def mnode(self) -> om2.MObject:
         """保持している Maya API 2.0 MObject を返す。
 
         Returns:
-            om2.MObject | None: ラップ対象の MObject。
+            om2.MObject: ラップ対象の MObject。
         """
         ...
     def mfn(self) -> om2.MFnDependencyNode:

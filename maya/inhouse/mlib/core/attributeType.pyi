@@ -49,7 +49,7 @@ import re
 from functools import partial
 import maya.api.OpenMaya as om2
 from ..util import _angle_unit
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 __all__ = ['attributeType', 'is_internal_data_type', 'typed_data', 'value_reader']
 _N: Any
@@ -312,7 +312,7 @@ def _read_array(mplug: om2.MPlug, factory: type, tuples: bool = ...) -> list | N
     ...
 _ARRAY_READERS: dict
 
-def value_reader(attribute: om2.MObject) -> Callable[..., Any] | bool:
+def value_reader(attribute: om2.MObject) -> Callable[..., Any] | Literal[False]:
     """``Plug.get()`` が MPlug から直接値を読む関数を、アトリビュート定義から選ぶ。
 
     関数を選ぶだけで値は読み取らない。呼出元のPlugが読取関数を保持し、
@@ -322,7 +322,7 @@ def value_reader(attribute: om2.MObject) -> Callable[..., Any] | bool:
         attribute (om2.MObject): アトリビュートの MObject。
 
     Returns:
-        callable | bool: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
+        callable | Literal[False]: MPlug を受け取って値を返す関数。bool/int/float 系の数値アトリビュート、
             角度・距離・時間の単位アトリビュート、enum、文字列、doubleArray/Int32Array/
             stringArray/vectorArray/pointArray/matrixArrayが対象。それ以外は
             ``_CMDS_READER``。この場合は呼出元がgenericマトリクスの判定やcmdsへの読取委譲を行う。

@@ -4,6 +4,7 @@ import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
+from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -16,6 +17,11 @@ from ..core.fastWrite import set_plug
 from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
 from ..util import _ArgumentError, _angle_unit
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, Dict, Literal, Optional, Union
+
+    from ..nodes.node import Node
 
 #: マルチアトリビュート全体へのset()を拒否するときの文言。
 _MULTI_SET_MESSAGE = "Set a multi element instead of the multi attribute"
@@ -136,7 +142,12 @@ class Plug(Object):
     """
 
     _registry = None  #: ルートの初期化が構築して注入する型登録表。
-    _reader = None  #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
+    #: get() が値を読む関数。初回の get() でアトリビュート定義から選ぶ(value_reader)。
+    _reader: "Optional[Union[Callable[..., Any], Literal[False]]]" = None
+    _node: "Node"  #: プラグを所有するノードラッパー。
+    _mplug: "om2.MPlug"  #: 保持する MPlug。
+    _attribute: "om2.MObject"  #: アトリビュート定義の MObject。
+    _attribute_handle: "om2.MObjectHandle"  #: アトリビュートの有効性の判定に使うハンドル。
 
     def __new__(cls, node, mplug):
         """マルチアトリビュート・登録アトリビュート型・コンパウンドアトリビュートの順にラッパー型を選ぶ。
@@ -222,7 +233,7 @@ class Plug(Object):
         self._identity_path = "." + mplug.partialName(includeNonMandatoryIndices=True, includeInstancedIndices=True)
         self._identity_hash = hash((hash(node), self._identity_path))
         # 静的アトリビュートは削除されない(ノードが有効な間は常に存在する)ため、判定は一度だけ行う。
-        pending = self.__dict__.pop("_pending_static_attribute", None)
+        pending = vars(self).pop("_pending_static_attribute", None)
         if pending is not None:
             static, self._attribute, self._attribute_handle = pending
         else:
@@ -1298,13 +1309,13 @@ class Plug(Object):
             if name in visited:
                 return []
             visited.add(name)
-            current = current.getSource()
+            current = current._source_plug()
             if current is None:
                 return []
         axis = current.getShortName()[-1].upper()
         visited.clear()
         while True:
-            source = current.getSource()
+            source = current._source_plug()
             if source is None or source.getFullName() in visited:
                 break
             visited.add(source.getFullName())
@@ -1943,7 +1954,7 @@ class Plug(Object):
                 if self.isMulti() and (nextAvailable or na):
                     # cmds.connectAttr(nextAvailable=True)と同じ規則(MultiPlug.getNextAvailableの既定)。
                     target = self.getNextAvailable(asPlug=True)
-                current = target.getSource(skipConversionNodes=False)
+                current = target._source_plug(skipConversionNodes=False)
                 if current is not None and target._has_input_from(source):
                     raise RuntimeError(f"Already connected: {source.getFullName()} -> {target.getFullName()}")
                 keep_self = target is self and not self.mplug().isNetworked
@@ -1966,7 +1977,10 @@ class Plug(Object):
                     cmds.connectAttr(source.getFullName(), target_name, force=force)
                     if lock:
                         target.setFlags(locked=True, fast=False)
-            return self if keep_self else Plug._resolve_input(target_name)
+            if keep_self:
+                return self
+            assert target_name is not None  # 自身を返さない場合は接続前に名前を求めている。
+            return Plug._resolve_input(target_name)
 
     def disconnectInput(self, *, fast=False):
         """直接の入力だけを解除する。未接続なら何もせず自身を返す。
@@ -2037,7 +2051,7 @@ class Plug(Object):
                 return [Plug._resolve_input(name) for name in names]
             if source is None:
                 # 現在の直接入力はconnectedTo(True, False)の先頭なので、接続済みの再判定を省く。
-                source = self.getSource(skipConversionNodes=False)
+                source = self._source_plug(skipConversionNodes=False)
                 if source is None:
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
             else:
@@ -2087,7 +2101,7 @@ class Plug(Object):
             if source:
                 self.disconnectInput(fast=fast)
             if destination:
-                for target in self.getDestinations(skipConversionNodes=False):
+                for target in self._destination_plugs(skipConversionNodes=False):
                     target.disconnect(self, fast=fast)
             return self
 
@@ -2110,6 +2124,32 @@ class Plug(Object):
         """
         _require_bool(fast, "fast")
         return Plug._resolve_input(destination).connect(self, **kwargs, safe=safe, fast=fast)
+
+    def _source_plug(self, skipConversionNodes=True):
+        """絞込みの指定なしで :meth:`getSource` を呼び、入力元の Plug を返す内部用の窓口。
+
+        Args:
+            skipConversionNodes (bool): :meth:`getSource` へ渡す。
+
+        Returns:
+            Plug | None: 入力元の Plug。未接続ならNone。
+        """
+        source = self.getSource(skipConversionNodes=skipConversionNodes)
+        assert source is None or isinstance(source, Plug)  # 絞込みなしの getSource は Plug か None を返す。
+        return source
+
+    def _destination_plugs(self, skipConversionNodes=True):
+        """絞込みの指定なしで :meth:`getDestinations` を呼び、出力先の Plug を返す内部用の窓口。
+
+        Args:
+            skipConversionNodes (bool): :meth:`getDestinations` へ渡す。
+
+        Returns:
+            list[Plug]: 出力先の Plug。未接続なら空リスト。
+        """
+        targets = self.getDestinations(skipConversionNodes=skipConversionNodes)
+        assert isinstance(targets, list)  # 絞込みなしの getDestinations は list を返す。
+        return targets
 
     def _set_template(self, value, safe, *, fast, unit=None, uiUnits=False, _writer=None, **options):
         """set()の共通骨格。Undo文脈・マルチアトリビュート全体の拒否・fast未対応型の事前検査・safeの例外吸収を担う。
@@ -2188,8 +2228,11 @@ class Plug(Object):
         if not isinstance(value, (int, float, str)) and attributeType(self._mplug) is None:
             # mlib.reload()でmathsが作り直された後も現在のMatrix型を返すため、使う時点で読み込む。
             from ..maths import Matrix
-            if (isinstance(value, (om2.MMatrix, om2.MTransformationMatrix))
-                    or isinstance(value, (tuple, list)) and len(value) == 16):
+            if isinstance(value, om2.MTransformationMatrix):
+                # Matrix は MTransformationMatrix を直接受け付けないため、マトリクスへ変換してから渡す。
+                self._set_generic_matrix(Matrix(value.asMatrix()), fast)
+                return
+            if isinstance(value, om2.MMatrix) or isinstance(value, (tuple, list)) and len(value) == 16:
                 self._set_generic_matrix(Matrix(value), fast)
                 return
         if fast:
@@ -2350,7 +2393,7 @@ class Plug(Object):
                        cmds.keyTangent(query=True, g=True, outTangentType=True)[0])
         AnimCurve._tangent_type(tangent_in, incoming=True, key=True)
         AnimCurve._tangent_type(tangent_out, key=True)
-        source = self.getSource(skipConversionNodes=False)
+        source = self._source_plug(skipConversionNodes=False)
         if source is not None:
             if not source.getNode().mnode().hasFn(om2.MFn.kAnimCurve):
                 raise NotImplementedError("fast setKey requires a direct animCurve input")
@@ -2467,9 +2510,11 @@ class Plug(Object):
             if value is None:
                 if kind.startswith("Soft"):
                     raise NotImplementedError(f"{method}(None) is not supported: Maya cannot remove a soft limit")
-                cmds.addAttr(name, edit=True, **{"has" + kind + "Value": False})
+                options: "Dict[str, Any]" = {"has" + kind + "Value": False}
+                cmds.addAttr(name, edit=True, **options)
                 return self
-            cmds.addAttr(name, edit=True, **{flag: self._range_input(fn, value, angle_unit, method)})
+            options = {flag: self._range_input(fn, value, angle_unit, method)}
+            cmds.addAttr(name, edit=True, **options)
             return self
 
     def _range_input(self, fn, value, angle_unit, method):

@@ -16,7 +16,7 @@ __all__ = [
     "warning",
 ]
 
-LOGGER_NAME = __package__.split(".", 1)[0]
+LOGGER_NAME = (__package__ or __name__).split(".", 1)[0]
 _VIEWPORT_COLORS = {
     logging.WARNING: "#ffcc00",
     logging.ERROR: "#ff4d4d",
@@ -232,6 +232,9 @@ def raiseWithNotify(exceptionType, message, *args, fromException=_NO_CAUSE, **kw
     exception = exceptionType(message, *args, **kwargs)
     if fromException is _NO_CAUSE:
         raise exception
+    if fromException is not None and not isinstance(fromException, BaseException):
+        # raise ... from が送出するものと同じ TypeError(型を絞って連鎖させる)。
+        raise TypeError("exception causes must derive from BaseException")
     raise exception from fromException
 
 

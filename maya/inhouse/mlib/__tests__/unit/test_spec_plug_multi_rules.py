@@ -10,6 +10,7 @@
 import sys
 import unittest
 
+import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 import mlib
@@ -181,6 +182,19 @@ class GenericMatrixTest(_Case):
         self.flushUndo()
         plug.set(value, fast=True)
         self.assertUndoEmpty()
+
+    def test_dynamic_generic_accepts_transformation_matrix(self):
+        """matrixを受け付ける動的genericへ om2.MTransformationMatrix も通常・fastとも書ける。"""
+        cmds.addAttr(self.node.getFullName(), longName="anything", dataType=["matrix", "string"])
+        plug = self.node.getPlug("anything")
+        expected = Matrix()
+        expected.setElement(3, 1, 7.0)
+        for fast in (False, True):
+            with self.subTest(fast=fast):
+                plug.set(Matrix(), fast=fast)
+                plug.set(om2.MTransformationMatrix(expected), fast=fast)
+                self.assertEqual(plug.get(), expected)
+                self.assertEqual(cmds.getAttr(plug.getFullName())[13], 7.0)
 
     def test_choice_input_raises_type_error(self):
         """choice.inputはMayaが定数のマトリクスを保存・復元できないため、通常・fastともTypeErrorで変更しない。"""
