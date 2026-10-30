@@ -448,7 +448,9 @@ class SkinCluster(Node):
 
         Returns:
             om2.MDoubleArray: 頂点順(Noneは番号順)・各頂点内はjoints順の、頂点数×指定数の平坦な値配列。
-                無次元の独立した値で、配列の変更はシーンへ反映されない。
+                無次元の独立した値で、配列の変更はシーンへ反映されない。頂点ごとの組には分けないため、
+                i番目の頂点のj番目のinfluenceは ``weights[i * len(joints) + j]``。1頂点のウェイトを
+                influenceごとに読むなら :meth:`getVertexWeights` (influenceからウェイトへの辞書)を使う。
 
         Raises:
             TypeError: jointsに頂点・アトリビュートを渡した、または頂点の入力型が不正な場合。

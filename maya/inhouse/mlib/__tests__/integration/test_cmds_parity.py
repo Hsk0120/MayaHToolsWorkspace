@@ -75,6 +75,13 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   ``cmds.ls(flatten=True)``/``cmds.xform`` による結果(開いた/周期的、負のスケール、object/world、cm/m、
   周期の重複番号)
 
+### 6.0.0 で点の位置を Vector で返すようにした読み取りと、追加した書込み
+
+- ``Mesh.getPoints``・``NurbsCurve.getCvPositions``・``Vertices``/``CVs``/``Vertex``/``CV`` の ``getPosition``
+  (om2 の点列を ``Vector`` へ写す)と ``cmds.xform(query=True, translation=True)`` (object/world、cm/m、
+  移動・回転・負のスケールの Transform、履歴付きメッシュ)
+- ``Mesh.setPoints`` の結果と ``cmds.pointPosition`` (object/world、cm/m)、1回の ``cmds.undo`` で戻ること
+
 - ``Namespace.create`` の relativeNames 照会(``om2.MNamespace.relativeNames``)、選択・ドリブンキーの存在確認
   (``MSelectionList.add`` と ``cmds.objExists``)、``SkinCluster.deforms``/``bind`` の既スキン判定
   (``DagNode.getSkinClusters``)、``Lambert``/``StandardSurface`` の基底(``registry._inherited_node_types``):
@@ -1265,6 +1272,78 @@ class SurfaceScaleGeometryParityTest(_NewSceneCase):
                             for a, b in zip(first, second):
                                 self.assertAlmostEqual(a, b, places=6)
                         cmds.delete(transform, copy)
+        cmds.currentUnit(linear="cm")
+
+
+
+class PointPositionsParityTest(_NewSceneCase):
+    """点の位置(Vector)の読み取りと Mesh.setPoints の結果を cmds.xform/pointPosition と突き合わせる(6.0.0)。"""
+
+    def make(self):
+        """移動・回転・負のスケールを持つ履歴なし/履歴付きメッシュと、カーブを作る。"""
+        shapes = []
+        for history in (False, True):
+            transform = cmds.polyCube(constructionHistory=history, subdivisionsX=2)[0]
+            cmds.xform(transform, translation=(1, 2, 3), rotation=(10, 20, 30), scale=(1, -2, 1.5))
+            cmds.xform(transform + ".vtx[1]", translation=(0.25, 0.5, 0.75), relative=True, objectSpace=True)
+            shapes.append(cmds.listRelatives(transform, shapes=True, fullPath=True)[0])
+        curve = cmds.curve(degree=3, point=[(0, 0, 0), (1, 2, 0), (2, 0, 1), (3, 1, 2), (4, 0, 0)])
+        cmds.xform(curve, translation=(0, 1, 0), rotation=(0, 45, 0))
+        return shapes, cmds.listRelatives(curve, shapes=True, fullPath=True)[0]
+
+    def xform_points(self, names, ws):
+        """cmds.xform の照会値(UI単位)を cm へ換算して返す。"""
+        unit = om2.MDistance.uiUnit()
+        result = []
+        for name in names:
+            values = cmds.xform(name, query=True, translation=True, worldSpace=ws, objectSpace=not ws)
+            result.append([om2.MDistance(value, unit).asCentimeters() for value in values])
+        return result
+
+    def assert_points(self, actual, expected):
+        self.assertEqual(len(actual), len(expected))
+        for first, second in zip(actual, expected):
+            for a, b in zip(first, second):
+                self.assertAlmostEqual(a, b, places=5)
+
+    def test_point_reads_match_cmds_xform(self):
+        meshes, curve = self.make()
+        for unit in ("cm", "m"):
+            cmds.currentUnit(linear=unit)
+            for ws in (False, True):
+                for shape in meshes:
+                    with self.subTest(unit=unit, ws=ws, shape=shape):
+                        node = mlib.getNode(shape)
+                        names = cmds.ls(shape + ".vtx[*]", flatten=True)
+                        expected = self.xform_points(names, ws)
+                        self.assert_points(node.getPoints(worldSpace=ws), expected)
+                        self.assert_points(node.getVertices().getPosition(ws), expected)
+                        self.assert_points([node.getVertex(3).getPosition(ws)], expected[3:4])
+                with self.subTest(unit=unit, ws=ws, shape="curve"):
+                    node = mlib.getNode(curve)
+                    expected = self.xform_points(cmds.ls(curve + ".cv[*]", flatten=True), ws)
+                    self.assert_points(node.getCvPositions(worldSpace=ws), expected)
+                    self.assert_points(node.getCVs().getPosition(ws), expected)
+        cmds.currentUnit(linear="cm")
+
+    def test_set_points_matches_cmds_point_position(self):
+        meshes, _ = self.make()
+        for unit in ("cm", "m"):
+            cmds.currentUnit(linear=unit)
+            for ws in (False, True):
+                for shape in meshes:
+                    with self.subTest(unit=unit, ws=ws, shape=shape):
+                        node = mlib.getNode(shape)
+                        names = cmds.ls(shape + ".vtx[*]", flatten=True)
+                        before = self.xform_points(names, ws)
+                        target = [point * 1.5 + (0.5, -1, 2) for point in node.getPoints(worldSpace=ws)]
+                        node.setPoints(target, worldSpace=ws)
+                        ui = om2.MDistance.uiUnit()
+                        actual = [[om2.MDistance(value, ui).asCentimeters()
+                                   for value in cmds.pointPosition(name, world=ws, local=not ws)] for name in names]
+                        self.assert_points(actual, target)
+                        cmds.undo()
+                        self.assert_points(self.xform_points(names, ws), before)
         cmds.currentUnit(linear="cm")
 
 

@@ -10,7 +10,7 @@ import mlib
 
 mlib.reload()
 mlib_cmds = importlib.import_module("mlib.cmds")
-from mlib.nodes import Node, Transform
+from mlib.nodes import Node, Nodes, Transform
 from mlib.nodes.joint import Joint, Joints
 from mlib.nodes.skinCluster import SkinClusters
 
@@ -107,7 +107,7 @@ class SceneEditingCommandsTest(unittest.TestCase):
         b = self.create_transform("mlibLsTransformB")
 
         result = mlib_cmds.ls(type="transform")
-        self.assertIsInstance(result, list)
+        self.assertIsInstance(result, Nodes)
         self.assertTrue(all(isinstance(item, Node) for item in result))
         self.assertIn(a.getName(), [item.getName() for item in result])
         self.assertIn(b.getName(), [item.getName() for item in result])

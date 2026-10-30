@@ -9,7 +9,7 @@ for _name in ("_discovered_wrappers", "_discovered_exports",
               "discover_node_package", "discover_plug_package", "TYPE_CHECKING"):
     globals().pop(_name, None)
 
-from .plug import Plug
+from .plug import Plug, Plugs
 from .multiPlug import MultiPlug
 from .compoundPlug import CompoundPlug
 from .boolPlug import BoolPlug
@@ -41,6 +41,7 @@ __all__ = [
     "MessagePlug",
     "MultiPlug",
     "Plug",
+    "Plugs",
     "ShortPlug",
     "StringPlug",
     "TimePlug",

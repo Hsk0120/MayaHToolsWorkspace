@@ -25,6 +25,7 @@ from mlib.components import Vertex
 from mlib.components import Vertices
 from mlib.components.pointComponent import PointComponent
 from mlib.components.pointComponent import PointComponents
+from mlib.maths import Vector
 
 
 def _shape(transform):
@@ -140,7 +141,7 @@ class PointPositionSpecTest(_ComponentCase):
     def test_get_position_object_and_world_in_cm(self):
         """getPositionは既定でobject空間、worldSpace/wsでworld空間。UI単位によらずcm。"""
         vertex = Vertex(self.mesh, 0)
-        self.assertIsInstance(vertex.getPosition(), tuple)
+        self.assertIsInstance(vertex.getPosition(), Vector)
         self.assertPoint(vertex.getPosition(), self.om2_point(self.mesh, 0))
         self.assertPoint(vertex.getPosition(worldSpace=True), self.om2_point(self.mesh, 0, world=True))
         self.assertPoint(vertex.getPosition(True), cmds.pointPosition(vertex.getFullName(), world=True))
@@ -214,6 +215,147 @@ class PointCollectionSpecTest(_ComponentCase):
         prefix = self.curve.getFullName()
         self.assertEqual(cvs.getCompactNames(), [prefix + ".cv[0]", prefix + ".cv[1]", prefix + ".cv[2]"])
         self.assertEqual(cvs.getCompactNames(), cvs.getFullNames())
+
+
+class PointTypeSpecTest(_ComponentCase):
+    """点の位置はすべてVector(単体)またはlist[Vector]で返す(6.0.0)。UVは(U, V)のtuple。"""
+
+    def test_point_types(self):
+        """Vertex/CV・Vertices/CVs・Mesh.getPoints・NurbsCurve.getCvPositionsの型と値。"""
+        cases = [
+            ("Vertex", Vertex(self.mesh, 0).getPosition(), self.om2_point(self.mesh, 0)),
+            ("CV", CV(self.curve, 1).getPosition(), (1, 2, 3)),
+        ]
+        for name, value, expected in cases:
+            with self.subTest(name=name):
+                self.assertIs(type(value), Vector)
+                self.assertPoint(value, expected)
+        path = om2.MSelectionList().add(self.mesh.getFullName()).getDagPath(0)
+        for ws in (False, True):
+            space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
+            raw = om2.MFnMesh(path).getPoints(space)
+            collections = [
+                ("Vertices", Vertices(self.mesh, [2, 0]).getPosition(ws), [raw[2], raw[0]]),
+                ("Mesh.getPoints", self.mesh.getPoints(worldSpace=ws), list(raw)),
+            ]
+            for name, values, expected in collections:
+                with self.subTest(name=name, worldSpace=ws):
+                    self.assertIsInstance(values, list)
+                    self.assertTrue(all(type(value) is Vector for value in values))
+                    self.assertEqual(len(values), len(expected))
+                    for value, point in zip(values, expected):
+                        self.assertPoint(value, (point.x, point.y, point.z))
+        curve_points = self.curve.getCvPositions()
+        self.assertTrue(all(type(value) is Vector for value in curve_points))
+        self.assertEqual(curve_points, [(0, 0, 0), (1, 2, 3), (4, 5, 6)])
+        self.assertEqual(CVs(self.curve).getPosition(), curve_points)
+        self.assertIsInstance(UV(self.mesh, 0).getPosition(), tuple)
+
+    def test_set_points_round_trip_and_undo(self):
+        """Mesh.setPointsはgetPointsの結果・tuple列・MPointArrayを受け、1回のUndoで戻る。"""
+        before = self.mesh.getPoints()
+        moved = [point + (0, 1, 0) for point in before]
+        self.assertIs(self.mesh.setPoints(moved), self.mesh)
+        self.assertEqual(self.mesh.getPoints(), moved)
+        cmds.undo()
+        self.assertEqual(self.mesh.getPoints(), before)
+        tuples = [(p.x * 2, p.y, p.z) for p in before]
+        self.mesh.setPoints(tuples)
+        self.assertEqual(self.mesh.getPoints(), tuples)
+        cmds.undo()
+        array = om2.MPointArray([om2.MPoint(p.x, p.y + 3, p.z) for p in before])
+        self.mesh.setPoints(array)
+        self.assertEqual(self.mesh.getPoints(), [(p.x, p.y + 3, p.z) for p in before])
+        cmds.undo()
+        self.assertEqual(self.mesh.getPoints(), before)
+        # 未変更の頂点は書き込まない。部分的な変更でも結果は同じ。
+        partial = list(before)
+        partial[3] = Vector(5, 6, 7)
+        self.mesh.setPoints(partial)
+        self.assertEqual(self.mesh.getPoints(), partial)
+        cmds.undo()
+        self.assertEqual(self.mesh.getPoints(), before)
+
+    def test_set_points_world_space_and_units(self):
+        """worldSpace=TrueはTransformを含む座標。UI単位によらずcm。"""
+        world = self.mesh.getPoints(worldSpace=True)
+        cmds.currentUnit(linear="mm")
+        target = [point + (0, 0, 1) for point in world]
+        self.mesh.setPoints(target, worldSpace=True)
+        for actual, expected in zip(self.mesh.getPoints(worldSpace=True), target):
+            self.assertPoint(actual, expected)
+        for actual, expected in zip(self.mesh.getPoints(), target):
+            self.assertPoint(actual, expected - (10, 0, 0))
+        cmds.undo()
+        for actual, expected in zip(self.mesh.getPoints(worldSpace=True), world):
+            self.assertPoint(actual, expected)
+
+    def test_set_points_rejects_invalid_input(self):
+        """頂点数違いはValueError、型の誤りはTypeError、非有限はValueError。変更前に拒否する。"""
+        before = self.mesh.getPoints()
+        for points, error in [(before[:-1], ValueError), (before + [Vector()], ValueError),
+                              ([(0, 0)] * 8, ValueError), ([(0, 0, float("nan"))] * 8, ValueError),
+                              ("abc", TypeError), (Vector(), TypeError), (5, TypeError),
+                              ([("a", 0, 0)] * 8, TypeError)]:
+            with self.subTest(points=repr(points)[:40]):
+                with self.assertRaises(error):
+                    self.mesh.setPoints(points)
+        with self.assertRaises(TypeError):
+            self.mesh.setPoints(before, worldSpace=1)
+        self.assertEqual(self.mesh.getPoints(), before)
+
+
+class ComponentCollectionOperatorSpecTest(_ComponentCase):
+    """Components の ``+``・``==``・sort(6.0.0)。"""
+
+    def test_add(self):
+        """同じシェイプ・同じ種類どうしの+は左辺の型で、重複は初出を残す。"""
+        a, b = Vertices(self.mesh, [3, 1]), Vertices(self.mesh, [1, 5])
+        joined = a + b
+        self.assertIs(type(joined), Vertices)
+        self.assertEqual(joined.indices, (3, 1, 5))
+        self.assertEqual(a.indices, (3, 1))
+        self.assertEqual((a + [Vertex(self.mesh, 0)]).indices, (3, 1, 0))
+        self.assertEqual(([Vertex(self.mesh, 0)] + a).indices, (0, 3, 1))
+        self.assertEqual((CVs(self.curve, [2]) + CVs(self.curve, [0])).indices, (2, 0))
+        for other in (Edges(self.mesh, [0]), Vertices(self.history_mesh, [0]), [Edge(self.mesh, 0)],
+                      [Vertex(self.history_mesh, 0)], ["x"]):
+            with self.subTest(other=repr(other)):
+                with self.assertRaises(TypeError):
+                    a + other
+        with self.assertRaises(TypeError):
+            a + 1
+
+    def test_equality(self):
+        """同じシェイプ・種類・番号の並びなら等しい。list・tupleとは要素ごとに比べる。"""
+        a = Vertices(self.mesh, [0, 2])
+        self.assertEqual(a, Vertices(self.mesh, [0, 2]))
+        self.assertNotEqual(a, Vertices(self.mesh, [2, 0]))
+        self.assertNotEqual(a, Vertices(self.history_mesh, [0, 2]))
+        self.assertNotEqual(a, Faces(self.mesh, [0, 2]))
+        self.assertEqual(a, [Vertex(self.mesh, 0), Vertex(self.mesh, 2)])
+        self.assertEqual(a, (Vertex(self.mesh, 0), Vertex(self.mesh, 2)))
+        self.assertNotEqual(a, [Vertex(self.mesh, 0)])
+        self.assertEqual(Vertices(self.mesh, []), [])
+        with self.assertRaises(TypeError):
+            hash(a)
+
+    def test_sort(self):
+        """sortはその場で並べ替えてNoneを返す。keyは単数コンポーネントを受ける。別のコレクションは変えない。"""
+        a = Vertices(self.mesh, [5, 0, 3])
+        part = a[:]
+        self.assertIsNone(a.sort())
+        self.assertEqual(a.indices, (0, 3, 5))
+        self.assertEqual(part.indices, (5, 0, 3))
+        a.sort(reverse=True)
+        self.assertEqual(a.indices, (5, 3, 0))
+        a.sort(key=lambda vertex: vertex.getPositionX())
+        xs = [vertex.getPositionX() for vertex in a]
+        self.assertEqual(xs, sorted(xs))
+        with self.assertRaises(TypeError):
+            a.sort(key=1)
+        with self.assertRaises(TypeError):
+            a.sort(reverse=1)
 
 
 class TopologySpecTest(_ComponentCase):

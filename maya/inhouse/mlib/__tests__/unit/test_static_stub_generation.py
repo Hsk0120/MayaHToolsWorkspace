@@ -74,8 +74,9 @@ class StubGenerationTest(unittest.TestCase):
         self.assertIn('type: Literal["joint"]', ls)
         self.assertIn("-> Joints: ...", ls)
         self.assertIn('type: Literal["transform"]', ls)
-        self.assertIn("-> list[Transform]: ...", ls)
-        self.assertIn("-> list[Vertex]: ...", ls)
+        self.assertIn("-> Nodes: ...", ls)
+        self.assertIn("-> Vertices | Nodes: ...", ls)
+        self.assertIn("Plugs", ls)
         self.assertIn('Literal["transform"]', self.stub("cmds/createNode.pyi"))
         self.assertIn("-> Node:", self.stub("cmds/getNode.pyi"))
         node = self.stub("nodes/node.pyi")
@@ -86,6 +87,7 @@ class StubGenerationTest(unittest.TestCase):
         """複数形のコレクションは、要素の型で for と [] の型を返す。"""
         self.assertIn("def __iter__(self) -> Iterator[Joint]: ...", self.stub("nodes/joint.pyi"))
         self.assertIn("def __getitem__(self, index: int) -> Vertex: ...", self.stub("components/vertex.pyi"))
+        self.assertIn("def __iter__(self) -> Iterator[Plug]: ...", self.stub("plugs/plug.pyi"))
 
 
 if __name__ == "__main__":

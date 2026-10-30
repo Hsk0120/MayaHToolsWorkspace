@@ -120,6 +120,30 @@ def _vector_of(cls, value):
     return result
 
 
+def _vectors_of_points(points):
+    """om2 の MPoint の列から、XYZを写した Vector のリストを作る。
+
+    MPoint の w では割らない。引数付きコンストラクタの多重定義の解決を通さず、
+    引数なしで確保したインスタンスへ成分を代入する(:func:`_vector_of` と同じ理由)。
+
+    Args:
+        points (Iterable[om2.MPoint]): 変換元の点列(MPointArray など)。
+
+    Returns:
+        list[Vector]: 入力順の新しい Vector。
+    """
+    result = []
+    append = result.append
+    for point in points:
+        vector = _NEW(Vector)
+        _INIT(vector)
+        vector.x = point.x
+        vector.y = point.y
+        vector.z = point.z
+        append(vector)
+    return result
+
+
 def _vector_keywords(x=0.0, y=0.0, z=0.0):
     """キーワード引数付きの Vector の生成引数を (x, y, z) へまとめる。
 

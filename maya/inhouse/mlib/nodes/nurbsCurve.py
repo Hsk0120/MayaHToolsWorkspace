@@ -10,12 +10,10 @@ from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
 from ..core import geometryEdit as geometry_edit
 from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
-from ..util import _finite_vector, _world_space
+from ..maths.vector import _vectors_of_points
+from ..util import _world_space
 from .node import Node
 from .shape import Shape
-
-#: 点として受け付ける、wを持つom2の型。XYZだけを使い、wでは割らない。
-_OM2_POINTS = (om2.MPoint, om2.MFloatPoint)
 
 
 class NurbsCurve(Shape):
@@ -54,7 +52,7 @@ class NurbsCurve(Shape):
                 不足する場合(開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)。
             RuntimeError: 親が無効な場合、またはMayaが作成を拒否した場合。
         """
-        values = _point_list(points)
+        values = geometry_edit.point_list(points)
         if isinstance(degree, bool) or not isinstance(degree, int):
             raise TypeError("degree must be an int")
         if degree not in (1, 2, 3):
@@ -220,11 +218,13 @@ class NurbsCurve(Shape):
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
-            om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
+            list[Vector]: CV 順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
+                内部単位(cm)。有理カーブのウェイト(w)は含まず、wで割らないXYZを返す。
+                そのまま :meth:`setCvPositions` へ渡せる。
         """
         ws = _world_space(worldSpace)
         space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-        return self._geometry_fn().cvPositions(space)
+        return _vectors_of_points(self._geometry_fn().cvPositions(space))
 
     def setCvPositions(self, points, worldSpace=False):
         """全CVの位置を一度に書き込み、自身を返す。
@@ -249,7 +249,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
         """
         ws = _world_space(worldSpace)
-        values = _point_list(points)
+        values = geometry_edit.point_list(points)
         fn = self._geometry_fn()
         count = fn.numCVs
         independent = count
@@ -289,7 +289,8 @@ class NurbsCurve(Shape):
         ws = _world_space(worldSpace)
         if not tolerance > 0:
             raise ValueError("tolerance must be positive")
-        positions = self.getCvPositions(worldSpace=ws)
+        # 距離の計算には MPoint.distanceTo を使うため、Vector へ変換せずに om2 の点列を読む。
+        positions = self._geometry_fn().cvPositions(om2.MSpace.kWorld if ws else om2.MSpace.kObject)
         assigned = [False] * len(positions)
         groups = []
         for i in range(len(positions)):
@@ -318,32 +319,3 @@ class NurbsCurve(Shape):
         if not isinstance(fn, om2.MFnNurbsCurve):
             raise RuntimeError("nurbsCurve has no geometry data: %s" % self.getFullName())
         return fn
-
-
-def _point_list(points):
-    """点列を検証し、XYZのfloat tupleのリストへ変換する。
-
-    Args:
-        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
-
-    Returns:
-        list[tuple[float, float, float]]: 変換済みの点。
-
-    Raises:
-        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
-        ValueError: 成分数が3でない、または有限でない場合。
-    """
-    if isinstance(points, (str, bytes)) or isinstance(points, _OM2_POINTS + (om2.MVector,)):
-        raise TypeError("points must be an iterable of points")
-    try:
-        items = list(points)
-    except TypeError:
-        raise TypeError("points must be an iterable of points") from None
-    result = []
-    for item in items:
-        if isinstance(item, _OM2_POINTS):
-            item = (item.x, item.y, item.z)
-        elif isinstance(item, (str, bytes)):
-            raise TypeError("each point must be a sequence of 3 numbers")
-        result.append(_finite_vector(item, 3, "point"))
-    return result

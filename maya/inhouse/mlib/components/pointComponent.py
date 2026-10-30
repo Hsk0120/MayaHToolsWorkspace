@@ -22,7 +22,7 @@ class PointComponent(Component):
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
 
         Returns:
-            tuple[float, float, float]: 新しいXYZ値。シーン内座標への書換え可能な参照ではない。
+            Vector: 新しいXYZ値(:class:`~mlib.maths.vector.Vector`)。シーン内座標への書換え可能な参照ではない。
 
         Raises:
             TypeError: worldSpaceがbool以外の場合。
@@ -31,7 +31,7 @@ class PointComponent(Component):
         """
         ws = _world_space(worldSpace)
         self._require_valid()
-        return geometry_edit.positions(self.shape, [self.index], ws)[0]
+        return geometry_edit.vectors(self.shape, [self.index], ws)[0]
 
     def getPositionX(self, worldSpace=False):
         """X成分の現在値を取得する。
@@ -115,8 +115,8 @@ class PointComponents(Components):
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
 
         Returns:
-            list[tuple[float, float, float]]: 新しい座標値のリスト。シーンを変更する参照ではない。
-                空集合はShapeを再照会せず空リストを返す。
+            list[Vector]: 新しい座標値(:class:`~mlib.maths.vector.Vector`)のリスト。シーンを変更する
+                参照ではない。空集合はShapeを再照会せず空リストを返す。
 
         Raises:
             TypeError: worldSpaceがbool以外の場合。空集合でも検証する。
@@ -127,4 +127,4 @@ class PointComponents(Components):
         if not self._indices:
             return []
         self._require_valid()
-        return geometry_edit.positions(self._shape, self._indices, ws)
+        return geometry_edit.vectors(self._shape, self._indices, ws)

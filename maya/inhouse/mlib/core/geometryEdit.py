@@ -5,7 +5,12 @@ from collections import namedtuple
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from ..maths.vector import _vectors_of_points
+from ..util import _finite_vector
 from .fastWrite import require_writable
+
+#: 点として受け付ける、wを持つom2の型。XYZだけを使い、wでは割らない。
+_OM2_POINTS = (om2.MPoint, om2.MFloatPoint)
 
 #: :func:`geometry` の戻り値。保持DAGパス・関数セット・Meshかどうか。
 _Geometry = namedtuple("_Geometry", ("path", "fn", "is_mesh"))
@@ -53,8 +58,29 @@ def geometry(shape, indices, edit=False):
     return _Geometry(path, fn, mesh)
 
 
+def _points(shape, indices, ws=False):
+    """指定した点のom2.MPointを保持順に返す。単点では全点を取得しない。
+
+    Args:
+        shape (Shape): 有効なMeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの点番号。
+        ws (bool): Trueならワールド空間へ変換する。
+
+    Returns:
+        Iterable[om2.MPoint]: 指定順の点。距離はcm。
+    """
+    path, fn, mesh = geometry(shape, indices)
+    space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
+    if len(indices) == 1:
+        if mesh:
+            return [fn.getPoint(indices[0], space)]
+        return [fn.cvPosition(indices[0], space)]
+    all_points = fn.getPoints(space) if mesh else fn.cvPositions(space)
+    return (all_points[i] for i in indices)
+
+
 def positions(shape, indices, ws=False):
-    """指定した点を保持順・cm単位で取得する。
+    """指定した点を保持順・cm単位のtupleで取得する(内部の座標計算用)。
 
     Args:
         shape (Shape): 有効なMeshまたはNurbsCurve。
@@ -64,20 +90,21 @@ def positions(shape, indices, ws=False):
     Returns:
         list[tuple[float, float, float]]: 指定順の座標。単点では全点を取得しない。
     """
-    path, fn, mesh = geometry(shape, indices)
-    space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
-    if len(indices) == 1:
-        if mesh:
-            points = [fn.getPoint(indices[0], space)]
-        else:
-            points = [fn.cvPosition(indices[0], space)]
-    else:
-        if mesh:
-            all_points = fn.getPoints(space)
-        else:
-            all_points = fn.cvPositions(space)
-        points = (all_points[i] for i in indices)
-    return [(point.x, point.y, point.z) for point in points]
+    return [(point.x, point.y, point.z) for point in _points(shape, indices, ws)]
+
+
+def vectors(shape, indices, ws=False):
+    """指定した点を保持順・cm単位の :class:`~mlib.maths.vector.Vector` で取得する。
+
+    Args:
+        shape (Shape): 有効なMeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの点番号。
+        ws (bool): Trueならワールド空間へ変換する。
+
+    Returns:
+        list[Vector]: 指定順の新しい座標値。CVのwでは割らない。
+    """
+    return _vectors_of_points(_points(shape, indices, ws))
 
 
 def command_indices(shape, indices):
@@ -198,3 +225,32 @@ def object_positions(shape, indices, values):
     points = [om2.MPoint(row[0], row[1], row[2], weight) * inverse
               for row, weight in zip(values, weights)]
     return [(point.x, point.y, point.z) for point in points]
+
+
+def point_list(points):
+    """点列を検証し、XYZのfloat tupleのリストへ変換する。
+
+    Args:
+        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
+
+    Returns:
+        list[tuple[float, float, float]]: 変換済みの点。
+
+    Raises:
+        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
+        ValueError: 成分数が3でない、または有限でない場合。
+    """
+    if isinstance(points, (str, bytes)) or isinstance(points, _OM2_POINTS + (om2.MVector,)):
+        raise TypeError("points must be an iterable of points")
+    try:
+        items = list(points)
+    except TypeError:
+        raise TypeError("points must be an iterable of points") from None
+    result = []
+    for item in items:
+        if isinstance(item, _OM2_POINTS):
+            item = (item.x, item.y, item.z)
+        elif isinstance(item, (str, bytes)):
+            raise TypeError("each point must be a sequence of 3 numbers")
+        result.append(_finite_vector(item, 3, "point"))
+    return result
