@@ -2,6 +2,7 @@
 """シーン内の参照(reference)の列挙・作成を提供する。"""
 
 from pathlib import Path
+from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..decorator import undoChunk

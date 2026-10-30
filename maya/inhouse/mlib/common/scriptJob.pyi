@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Maya GUIのscriptJobの登録と寿命を管理する。"""
 
+from typing import Any, Dict
 import maya.cmds as cmds
 from typing import Callable
 from mlib.plugs.plug import Plug

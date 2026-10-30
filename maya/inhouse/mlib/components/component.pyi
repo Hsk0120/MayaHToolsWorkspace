@@ -2,13 +2,28 @@
 """Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)と同一シェイプの要素群。"""
 
 import operator
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
 from ..core.object import Object, _missing_member_message
+from ..nodes.shape import Shape
 from typing import Any, Iterable, Iterator, Sequence
-from mlib.nodes.shape import Shape
 from typing import overload
 
 _REPR_LIMIT: int
+
+def _count_name(owner: type | Component) -> str:
+    """要素数を返すシェイプのメソッド名(count_attribute)を取り出す。
+
+    Args:
+        owner (type | Component): count_attributeを持つ単数型またはそのインスタンス。
+
+    Returns:
+        str: シェイプのメソッド名。
+
+    Raises:
+        TypeError: 基底クラス等でcount_attributeが文字列でない場合。getattrと同じ例外型にする。
+    """
+    ...
 
 
 class Component(Object):
@@ -19,9 +34,9 @@ class Component(Object):
     番号は作成時に検証するが、トポロジー変更後も同じ要素を指し続ける保証はない。
     UVの番号範囲は現在のUVセットに従う。
     """
-    shape_type: None
-    component_type: None
-    count_attribute: None
+    shape_type: Optional[str] = ...
+    component_type: Optional[str] = ...
+    count_attribute: Optional[str] = ...
     def __init__(self, shape: Shape, index: int) -> None:
         """シェイプとコンポーネントの実番号を検証して保持する。
 
@@ -175,12 +190,12 @@ class Component(Object):
         """
         ...
     @staticmethod
-    def _validate_shape(shape: Shape, shape_type: str) -> None:
+    def _validate_shape(shape: Shape, shape_type: str | None) -> None:
         """生存と型を検査する。要素数は呼出し側で必要な時に照会する。
 
         Args:
             shape (Shape): 検査する参照。
-            shape_type (str): 必要なMayaシェイプ型。
+            shape_type (str | None): 必要なMayaシェイプ型。基底クラスのNoneはどのシェイプとも一致しない。
 
         Returns:
             None: 値を返さない。
@@ -227,6 +242,8 @@ class Components:
     @overload
     def __getitem__(self, index: slice) -> Components: ...
     component_class: Any
+    _shape: 'Shape'
+    _indices: Tuple[int, ...]
     def __init__(self, shape: Shape, indices: Iterable[int] | None = ...) -> None:
         """指定番号を検証し、初出順を維持して重複を除いて保持する。
 

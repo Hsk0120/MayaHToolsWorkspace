@@ -1,5 +1,7 @@
 """Maya GUIのscriptJobの登録と寿命を管理する。"""
 
+from typing import Any, Dict
+
 import maya.cmds as cmds
 
 
@@ -36,11 +38,11 @@ class ScriptJob:
             raise TypeError("callback must be callable")
         if cmds.about(batch=True):
             raise RuntimeError("scriptJob requires a Maya GUI session")
-        options = {"killWithScene": killWithScene, "compressUndo": compressUndo}
-        if event is not None:
+        options: Dict[str, Any] = {"killWithScene": killWithScene, "compressUndo": compressUndo}
+        # 先頭の検査により、attributeがNoneならeventが指定されている。
+        if attribute is None:
             options["event"] = [event, callback]
         else:
-
             options["attributeChange"] = [_InputPlug._resolve_input(attribute).getFullName(), callback]
         self._id = cmds.scriptJob(**options)
         self._stopped = False

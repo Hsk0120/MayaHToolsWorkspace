@@ -2,6 +2,7 @@
 """Maya の blendShape デフォーマを扱う。"""
 
 import re
+from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds

@@ -6,6 +6,7 @@ import json
 import math
 from collections.abc import Mapping
 from decimal import Decimal, localcontext, ROUND_FLOOR
+from typing import List
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -674,7 +675,7 @@ class SkinCluster(Node):
             from ..components.vertex import Vertex, Vertices
 
             if isinstance(vertices, Vertices):
-                if vertices.shape.mnode() != self.mesh_path.node():
+                if vertices.shape.mnode() != self._mesh_node():
                     raise ValueError("Vertices must belong to this skinCluster's first mesh")
                 vertices = vertices.indices
             elif isinstance(vertices, Vertex):
@@ -682,7 +683,7 @@ class SkinCluster(Node):
             vertex_indices = set()
             for vertex in vertices:
                 if isinstance(vertex, Vertex):
-                    if vertex.shape.mnode() != self.mesh_path.node():
+                    if vertex.shape.mnode() != self._mesh_node():
                         raise ValueError("Vertex must belong to this skinCluster's first mesh")
                     vertex = vertex.index
                 # 既存番号入力のint変換を維持し、新しい頂点参照だけを所有者検証する。
@@ -926,6 +927,17 @@ class SkinCluster(Node):
             return None
         return om2.MFnDependencyNode(node).uuid().asString()
 
+    def _mesh_node(self):
+        """初期化時の先頭geometryのMObjectを返す。
+
+        Returns:
+            om2.MObject: mesh_pathが指すノード。
+        """
+        path = self.mesh_path
+        # mesh_pathは__init__で必ず設定する。
+        assert path is not None
+        return path.node()
+
     def _geometry_dag_path(self, name):
         """geometry 名から shape まで展開した MDagPath を取得する。
 
@@ -1005,14 +1017,15 @@ class SkinCluster(Node):
         for name in names:
             if "." in name:
                 raise TypeError(f"Expected an influence, got a component or attribute name '{name}'; {hint}")
-        physical_indices = self._influence_indices(names, self._skin_fn.influenceObjects())
+        physical_indices: List[int] = []
         seen = set()
-        for name, index in zip(names, physical_indices):
+        for name, index in zip(names, self._influence_indices(names, self._skin_fn.influenceObjects())):
             if index is None:
                 raise ValueError(f"'{name}' is not an influence of {self.getName()}")
             if index in seen:
                 raise ValueError(f"Influence specified more than once: '{name}'")
             seen.add(index)
+            physical_indices.append(index)
         return physical_indices
 
     def _vertex_indices(self, vertices):
@@ -1035,7 +1048,7 @@ class SkinCluster(Node):
         # componentsはnodesを読み込むため、循環importを避けて使う時点で読み込む。
         from ..components.component import Component, Components
         from ..components.vertex import Vertex, Vertices
-        mesh = self.mesh_path.node()
+        mesh = self._mesh_node()
         num_vertices = om2.MFnMesh(self.mesh_path).numVertices
         result = []
 
@@ -1126,6 +1139,8 @@ class SkinCluster(Node):
         if vertex is None:
             raise TypeError("Expected a vertex, got None")
         indices = self._vertex_indices(vertex)
+        # vertexがNoneでなければ頂点番号のlistが返る。
+        assert indices is not None
         if len(indices) != 1:
             raise ValueError(f"Expected exactly one vertex, got {len(indices)}")
         return indices[0]

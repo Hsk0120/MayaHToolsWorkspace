@@ -1,6 +1,7 @@
 """シーン内の参照(reference)の列挙・作成を提供する。"""
 
 from pathlib import Path
+from typing import Any, Dict
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -82,7 +83,7 @@ def createReference(path, namespace=None):
     scene_path = Path(path).expanduser()
 
     existing = {name for name, _ in _reference_nodes()}
-    kwargs = {"reference": True}
+    kwargs: Dict[str, Any] = {"reference": True}
     if namespace is not None:
         kwargs["namespace"] = namespace
     cmds.file(str(scene_path), **kwargs)
