@@ -662,10 +662,8 @@ class PlugEnumSpecTest(_PlugSpecCase):
             with self.subTest(names=names):
                 with self.assertRaises(error):
                     plug.setEnumNames(names)
-        with self.assertRaises(NotImplementedError):
-            plug.setEnumNames(["x"], fast=True)
         with self.assertRaises(TypeError):
-            plug.setEnumNames(["x"], fast=1)
+            plug.setEnumNames(["x"], fast=True)
         self.assertEqual(cmds.attributeQuery("mode", node=self.name, listEnum=True), ["off:on"])
 
 

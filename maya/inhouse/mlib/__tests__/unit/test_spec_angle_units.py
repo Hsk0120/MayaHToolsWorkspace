@@ -321,7 +321,7 @@ class AnimCurveAngleTest(_SpecCase):
                 self.assertAlmostEqual(curve.evaluate(1, unit="rad"), math.pi / 2)
                 curve.setKey(2, math.pi, unit="rad", fast=fast)
                 self.assertAlmostEqual(curve.getKeyValues()[2], 180.0)
-                curve.shiftKeys(0, 10, fast=fast)
+                curve.shiftKeys(0, 10)
                 self.assertAlmostEqual(curve.getKeyValues()[1], 100.0)
         linear = mlib.createNode("animCurveTL", name=self.name("linear"))
         linear.setKey(0, 2.5)

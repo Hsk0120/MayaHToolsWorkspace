@@ -54,25 +54,13 @@ class ReparentChildrenTest(_SpecCase):
         cmds.undo()
         self.assertEqual(self.children(self.b), ["c", "extra"])
 
-    def test_fast_matches_normal(self):
-        """fast=True も同じ結果で、Undo に記録しない。"""
-        cmds.flushUndo()
-        self.node.reparentChildren(self.d, fast=True)
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
-        self.assertEqual(self.children(self.d), ["c"])
-        self.assertEqual(cmds.xform(self.c, query=True, worldSpace=True, translation=True), [2.0, 0.0, 0.0])
-        self.assertEqual(cmds.listConnections(self.c + ".inverseScale", source=True, plugs=True),
-                         [self.d + ".scale"])
-
     def test_errors_and_no_children(self):
-        """存在しない親はどちらも例外で何も移さない。子 joint が無ければ何もしない。fast は bool。"""
+        """存在しない親は例外で何も移さない。子 joint が無ければ何もしない。fast 引数は無い。"""
         with self.assertRaises((RuntimeError, ValueError)):
             self.node.reparentChildren(self.name("missing"))
-        with self.assertRaises(RuntimeError):
-            self.node.reparentChildren(self.name("missing"), fast=True)
         self.assertEqual(self.children(self.b), ["c", "extra"])
-        with self.assertRaisesRegex(TypeError, "fast must be a bool"):
-            self.node.reparentChildren(self.d, fast=1)
+        with self.assertRaises(TypeError):
+            self.node.reparentChildren(self.d, fast=True)
         joint = Node(self.d)
         self.assertEqual(joint.reparentChildren(self.a), joint)
         self.assertEqual(self.children(self.a), ["b"])

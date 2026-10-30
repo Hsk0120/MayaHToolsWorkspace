@@ -4,6 +4,46 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+7.0.0 (2026-10-31)
+------------------
+
+``fast=True`` にしても速くならない、または効果がほぼ無いメソッドから ``fast`` 引数を削除しました(引数ごと削除。通常経路は残ります)。
+mayapy 2027 で、実際の使い方に近い量(200〜2000件)で通常と fast の時間を比べて判断しました。
+これらに ``fast=`` を渡しているコードは ``TypeError`` になるので、引数を外してください。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - メソッド
+     - 削除した理由(fast ÷ 通常の時間)
+   * - ``ShadingEngine.assign``
+     - OpenMaya の割り当て(MFnSet)が ``cmds.sets`` より遅い(約2〜3倍の時間)
+   * - ``ObjectSet.addMembers``\ ・\ ``removeMembers``
+     - MFnSet の更新が ``cmds.sets`` より遅い(約1〜2倍の時間)
+   * - ``DisplayLayer.addMembers``\ ・\ ``removeMembers``\ ・\ ``setCurrent``
+     - 接続を OpenMaya で移す処理が cmds より遅い(約1.2〜1.5倍の時間)
+   * - ``Joint.reparentChildren``
+     - ワールド位置を保つ付け替えは ``cmds.parent`` の方が速い(約2.5〜5倍の時間)
+   * - ``AnimCurve.shiftKeys``\ ・\ ``scaleKeys``\ ・\ ``mirror``
+     - 全キーを1回で処理する cmds の方が速い(2000キーで約3〜4倍の時間)
+   * - ``Plug.setKey``
+     - キーの検証とカーブの照会が大半で、速さが変わらない。カーブへ直接打つ ``AnimCurve.setKey`` の fast は残す(約4倍速い)
+   * - ``Joint.jointOrientToRotate``\ ・\ ``freezeRotate``
+     - 値の検証と計算が大半で、速さが変わらない(約1.05倍)
+   * - ``SkinCluster.redistributeWeights``
+     - 頂点ごとの読取りと計算が大半で、速さが変わらない(約1.0倍)
+   * - ``Plug.setEnumNames``
+     - ``fast=True`` は常に ``NotImplementedError`` だった(API 2.0 が既存 enum 項目の削除を公開しないため)
+
+``Transform.setParent`` の fast は、``relative=True`` で約2.5倍速いので残しました。ワールド位置を保つ付け替え(既定)では
+fast の方が遅い(約2倍の時間)ので、速さが目的なら ``fast`` を付けずに呼んでください。
+
+.. rubric:: 修正
+
+- ``AnimCurve.shiftKeys``\ ・\ ``scaleKeys``\ ・\ ``mirror`` が、キーが1つだけのカーブを変更しなかった(Maya の
+  ``keyframe``\ ・\ ``scaleKey`` が範囲の省略時に動かさないため)。全キーを番号で指定して渡すようにした。
+
 6.1.0 (2026-10-30)
 ------------------
 

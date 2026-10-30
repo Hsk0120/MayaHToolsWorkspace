@@ -441,23 +441,23 @@ class SkinCluster(Node):
             fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
         """
         ...
-    def redistributeWeights(self, vertices: Vertex | Vertices | Iterable[int | Vertex], method: str = ..., *, fast: bool = ...) -> None:
+    def redistributeWeights(self, vertices: Vertex | Vertices | Iterable[int | Vertex], method: str = ...) -> None:
         """先頭Meshの頂点ウェイトを正規化し、イージングをかけて再正規化する。
 
         頂点番号はint()で変換し、重複を除いて昇順に処理する。各頂点で読取り・計算・書込みを行い、
         全頂点の書込み可否は先に検査しない。0のinfluenceは0のまま。linearでも合計1へ正規化する。
+        fast引数は持たない(処理の大半が頂点ごとの読取りと計算で、OpenMayaで書いても速くならないため)。
 
         Args:
             vertices (Vertex | Vertices | Iterable[int | Vertex]): 頂点または番号列。
                 Vertex/Verticesは先頭Mesh所属に限る。空列は変更しない。
             method (str): mlib.maths.easing.CURVESの曲線名。既定cubic。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             None: 値を返さない。途中失敗で先行する頂点・列の変更は自動で戻さない。
 
         Raises:
-            TypeError: methodが文字列でない、fastがbool以外、または頂点入力を変換できない型の場合。
+            TypeError: methodが文字列でない、または頂点入力を変換できない型の場合。
             ValueError: 曲線名・所属・頂点番号の変換が不正、ウェイト合計が0以下、またはイージング計算が成立しない場合。
             IndexError: 頂点番号が現在の範囲外の場合。
             RuntimeError: Mayaが読取り・書込みを拒否した場合。

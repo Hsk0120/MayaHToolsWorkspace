@@ -3,9 +3,8 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.nodeEdit import require_editable
 from ..core.object import Object
-from ..decorator import _edit_context
+from ..decorator import _edit_context, undoChunk
 from .node import Node
 from .objectSet import ObjectSet
 
@@ -82,32 +81,27 @@ class ShadingEngine(ObjectSet):
             source.connectTo(target, force=True, fast=fast)
             return self
 
-    def assign(self, targets, *, fast=False):
+    def assign(self, targets):
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
 
         例えば ``engine.assign(mlib.getNode("pCube1"))`` は形状全体、``engine.assign("pCube1.f[0:3]")``
         はフェースだけへ割り当てる(``cmds.sets(forceElement=...)`` 相当)。シェーダーの接続は
-        :meth:`setShader` で行う(クラスの説明の例を参照)。
+        :meth:`setShader` で行う(クラスの説明の例を参照)。fast引数は持たない(OpenMayaの
+        割り当ては ``cmds.sets`` より遅いため)。
 
         Args:
             targets (Node | Face | Faces | str | Iterable): 対象。選択に依存しない。
-            fast (bool): Trueは単一インスタンスのポリゴン全体をOpenMayaで排他的に割り当てる。
-                フェース単位・NURBS・子Transformを持つ階層は更新前に拒否する。
 
         Returns:
             ShadingEngine: 自身。空列では変更しない。
 
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
-            NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
-        with _edit_context("mlibShadingEngineAssign", fast):
+        with undoChunk("mlibShadingEngineAssign"):
             names = Object._input_names(targets)
             if names:
-                if fast:
-                    self._assign_meshes(names)
-                else:
-                    cmds.sets(names, edit=True, forceElement=self.getFullName())
+                cmds.sets(names, edit=True, forceElement=self.getFullName())
             return self
 
     def getMembers(self):
@@ -129,81 +123,6 @@ class ShadingEngine(ObjectSet):
             else:
                 result.append(node)
         return result
-
-    def _assign_meshes(self, names):
-        """共有パーティション内の既存割り当てを除去してポリゴン全体へ適用する。
-
-        Args:
-            names (Iterable[str]): 解決済みのポリゴンまたは末端Transform。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: 割り当て対象または既存セットを安全に更新できない場合。
-            NotImplementedError: フェース・非ポリゴン・インスタンス・階層指定の場合。
-        """
-        # nodes パッケージ内の読込み順に依存しないよう、Transform は呼出し時に取得する。
-        from .transform import Transform
-
-        target_fn = self._editable_set()
-        meshes, seen = [], set()
-        for name in names:
-            if "." in name or "," in name:
-                raise NotImplementedError("fast assign does not support members other than whole polygon meshes")
-            node = Node(name)
-            if isinstance(node, Transform):
-                if node.getChildren():
-                    raise NotImplementedError("fast assign does not support transform hierarchies")
-                shapes = node.getShapes()
-            else:
-                shapes = [node]
-            if not shapes or any(not shape.mnode().hasFn(om2.MFn.kMesh) for shape in shapes):
-                raise NotImplementedError("fast assign does not support non-polygon shapes")
-            for shape in shapes:
-                if shape.mpath().isInstanced():
-                    raise NotImplementedError("fast assign does not support instanced meshes")
-                require_editable(shape.mnode())
-                fn = shape.mfn()
-                token = om2.MObjectHandle(shape.mnode()).hashCode()
-                if token not in seen:
-                    seen.add(token)
-                    meshes.append(shape)
-
-        def partitions(fn):
-            """セットが所属するパーティションの識別子を取得する。"""
-            return {om2.MObjectHandle(plug.node()).hashCode()
-                    for plug in fn.findPlug("partition", False).connectedTo(False, True)}
-
-        target_partitions = partitions(target_fn)
-        removals = {}
-        for mesh in meshes:
-            shaders, _ = om2.MFnMesh(mesh.mpath()).getConnectedShaders(mesh.mpath().instanceNumber())
-            for shader in shaders:
-                fn = om2.MFnSet(shader)
-                if shader != self.mnode() and not (partitions(fn) & target_partitions):
-                    continue
-                require_editable(fn.object())
-                membership = fn.findPlug("dagSetMembers", False)
-                if membership.isLocked or any(
-                        membership.elementByLogicalIndex(i).isLocked
-                        for i in membership.getExistingArrayAttributeIndices()):
-                    raise RuntimeError("Shading membership is locked")
-                token = om2.MObjectHandle(shader).hashCode()
-                if token not in removals:
-                    removals[token] = (fn, om2.MSelectionList())
-                existing = fn.getMembers(False)
-                for index in range(existing.length()):
-                    path, component = existing.getComponent(index)
-                    if path == mesh.mpath():
-                        removals[token][1].add((path, component))
-        for fn, selection in removals.values():
-            if selection.length():
-                fn.removeMembers(selection)
-        assignment = om2.MSelectionList()
-        for mesh in meshes:
-            assignment.add(mesh.mpath())
-        target_fn.addMembers(assignment)
 
     @staticmethod
     def _shader_attribute(kind):

@@ -1,6 +1,5 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
-import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
@@ -8,7 +7,6 @@ from operator import methodcaller
 from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
-import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from ..core.attributeType import attributeType, is_internal_data_type, value_reader
@@ -18,7 +16,7 @@ from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
-from ..util import _ArgumentError, _angle_unit, _time_unit
+from ..util import _angle_unit, _time_unit
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Dict, Literal, Optional, Union
@@ -1299,42 +1297,35 @@ class Plug(Object):
                 cmds.aliasAttr(self.getFullName(), remove=True)
             return self
 
-    def setKey(self, *, timeUnit=None, fast=False, **kwargs):
+    def setKey(self, *, timeUnit=None, **kwargs):
         """対象アトリビュートへキーを設定する。
+
+        fast引数は持たない(キーの検証とカーブの照会が大半で、OpenMayaで書いても速くならないため。
+        カーブへ直接キーを打つ場合は :meth:`AnimCurve.setKey` の ``fast`` を使う)。
 
         Args:
             timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は
                 現在のUI時間単位のフレーム(setKeyframeと同じ)、``"sec"`` / ``"second"`` / ``"seconds"`` は秒。
                 ``"sec"`` では数値または数値の並びだけを受け付け、setKeyframeへ渡す前にフレームへ換算する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
             **kwargs: Maya setKeyframeのフラグ。値はMayaのUI単位、時間はtimeUnitの単位。
-                fastは単一のtime/t・value/v・inTangentType/itt・outTangentType/ottのみ。
-                レイヤー、範囲、コンパウンドアトリビュートの入力等は更新前に拒否する。
-                接線省略時はMayaのグローバル設定を使う。fastの入力stepはautoへ補正し、
-                入力stepnextはNotImplementedError、fixed/global/未知型はValueErrorで
-                カーブを生成・変更する前に拒否する。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: fastがbool以外、timeUnitが文字列・None以外、または ``timeUnit="sec"`` で
+            TypeError: timeUnitが文字列・None以外、または ``timeUnit="sec"`` で
                 time/tに数値・数値の並び以外(``"1:10"`` のような範囲の文字列など)を指定した場合。
             ValueError: timeUnitが未対応の単位名の場合。
         """
-        _require_bool(fast, "fast")
         time_unit = _time_unit(timeUnit)
         if time_unit == "sec":
             kwargs = dict(kwargs)
             for flag in ("time", "t"):
                 if flag in kwargs:
                     kwargs[flag] = _frames_from_seconds(kwargs[flag])
-        with nullcontext() if fast else undoChunk("mlibPlugSetKey"):
+        with undoChunk("mlibPlugSetKey"):
             self._require_valid()
-            if fast:
-                self._set_key_direct(kwargs)
-            else:
-                cmds.setKeyframe(self.getFullName(), **kwargs)
+            cmds.setKeyframe(self.getFullName(), **kwargs)
             return self
 
     def getAnimLayers(self, selected=False, exact=False):
@@ -1438,27 +1429,23 @@ class Plug(Object):
                 continue  # フィールドの無い欠番の値。
         return result
 
-    def setEnumNames(self, names, *, fast=False):
+    def setEnumNames(self, names):
         """enumアトリビュートの表示名を指定順に更新する。
+
+        fast引数は持たない(API 2.0は既存enumフィールドの削除を公開しないため)。
 
         Args:
             names (Iterable[str]): 値0から順に対応する空でない名前列。
-                API 2.0は既存enumフィールドの削除を公開しないためfast=Trueは未対応。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
 
         Returns:
             Plug: 更新した自身。
 
         Raises:
-            TypeError: enumアトリビュートでない、名前が文字列でない、またはfastがbool以外の場合。
+            TypeError: enumアトリビュートでない、または名前が文字列でない場合。
             ValueError: 空の列、空の名前、区切り文字を含む名前の場合。
             RuntimeError: アトリビュートが無効、またはMayaが変更を拒否した場合。
-            NotImplementedError: fast=Trueの場合。変更前に拒否する。
         """
-        _require_bool(fast, "fast")
-        with nullcontext() if fast else undoChunk("mlibPlugSetEnumNames"):
-            if fast:
-                raise NotImplementedError("setEnumNames does not support fast=True")
+        with undoChunk("mlibPlugSetEnumNames"):
             self._require_valid()
             self._enum_attribute("setEnumNames")
             if isinstance(names, str):
@@ -2401,82 +2388,6 @@ class Plug(Object):
         if isinstance(value, list) and len(value) == 1 and isinstance(value[0], tuple):
             return tuple(value[0])
         return value
-
-    def _set_key_direct(self, kwargs):
-        """単一時刻のキー設定だけをAPI 2.0で実行する。
-
-        Args:
-            kwargs (dict): value/timeと入出力接線型。長名とMaya短名を受け付ける。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            ValueError: 明示的なfixed・global・未知の接線型を指定した場合。
-            NotImplementedError: 範囲・レイヤー・非時間カーブ等の場合。生成前に拒否。
-                入力stepnextもMayaの版で補正が異なるため生成前に拒否する。
-        """
-        # nodes → plugs の循環importを避けるため、使う時点で読み込む。
-        from ..nodes.animCurve import AnimCurve
-        aliases = {"v": "value", "t": "time", "itt": "inTangentType",
-                   "ott": "outTangentType"}
-        options = dict(kwargs)
-        for short, long in aliases.items():
-            if short in options:
-                if long in options:
-                    raise _ArgumentError(f"Specify only one of '{long}' and '{short}'")
-                options[long] = options.pop(short)
-        if set(options) - {"value", "time", "inTangentType", "outTangentType"}:
-            raise NotImplementedError("Unsupported fast setKey flags")
-        if self.isMulti() or self.isCompound():
-            raise NotImplementedError("fast setKey requires a scalar plug")
-        if self.isLocked():
-            raise RuntimeError(f"Attribute is locked: {self.getFullName()}")
-        if not om2.MFnAttribute(self._mplug.attribute()).writable:
-            raise RuntimeError(f"Attribute is not writable: {self.getFullName()}")
-        key_time = options.get("time")
-        if isinstance(key_time, (tuple, list)):
-            if len(key_time) != 1:
-                raise NotImplementedError("fast setKey requires one time")
-            key_time = key_time[0]
-        if key_time is None:
-            seconds = oma2.MAnimControl.currentTime().asUnits(om2.MTime.kSeconds)
-        else:
-            value = float(key_time)
-            if not math.isfinite(value):
-                raise ValueError("Expected a finite time")
-            seconds = om2.MTime(value, om2.MTime.uiUnit()).asUnits(om2.MTime.kSeconds)
-        value = (_convert_units(self._mplug, options["value"], to_ui=False)
-                 if "value" in options else self.get(unit="rad", timeUnit="sec"))
-        value = float(value)
-        if not math.isfinite(value):
-            raise ValueError("Expected a finite value")
-        # MAnimControlのグローバル接線値はMFnAnimCurveの列挙値と一致しない。
-        # 省略した側だけMayaの設定名を照会し、キーの直接更新にはcmdsを使わない。
-        tangent_in, tangent_out = options.get("inTangentType"), options.get("outTangentType")
-        if tangent_in is None or tangent_out is None:
-            # 省略した側の既定値を1回の照会でまとめて読む(入力・出力の順で返る)。
-            defaults = cmds.keyTangent(query=True, g=True, inTangentType=True, outTangentType=True)
-            tangent_in = defaults[0] if tangent_in is None else tangent_in
-            tangent_out = defaults[1] if tangent_out is None else tangent_out
-        AnimCurve._tangent_type(tangent_in, incoming=True, key=True)
-        AnimCurve._tangent_type(tangent_out, key=True)
-        # 直接の入力元をMPlugのまま調べ、キーを打つたびにPlug・Nodeのラッパーを作らない。
-        source = self._mplug.source()
-        if not source.isNull:
-            if not source.node().hasFn(om2.MFn.kAnimCurve):
-                raise NotImplementedError("fast setKey requires a direct animCurve input")
-            curve = AnimCurve(source.node())
-            if not curve.isTimeInput():
-                raise NotImplementedError("fast setKey requires a time-input animCurve")
-        else:
-            fn = oma2.MFnAnimCurve()
-            kind = fn.timedAnimCurveTypeForPlug(self._mplug)
-            if kind == oma2.MFnAnimCurve.kAnimCurveUnknown:
-                raise NotImplementedError("No supported animation curve for this plug")
-            # 値・単位・接線を検証してから初めてシーンへカーブを作成する。
-            curve = AnimCurve(fn.create(self._mplug, kind))
-        curve.setKey(seconds, value, tangent_in, tangent_out, unit="rad", timeUnit="sec", fast=True)
 
     def _record_connection_value(self):
         """既存入力定数をUndoへ記録し、接続後のUndoでも元値を復元する。

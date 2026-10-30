@@ -85,41 +85,34 @@ class Joint(Transform):
                 有効性の確認にはisValidを使う。
         """
         ...
-    def jointOrientToRotate(self, *, fast: bool = ...) -> Joint:
+    def jointOrientToRotate(self) -> Joint:
         """jointOrientをrotateへ合成して0にし、現在の姿勢を保つ。
 
         XYZの数値加算ではない。rotateAxis・rotateOrder・移動・スケールを変えず、
         現在フレームだけを処理する。jointOrientがXYZとも0なら書込み検査と更新を省略する。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+        fast引数は持たない(処理の大半が値の検証・計算で、OpenMayaで書いても速くならないため)。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
         ...
-    def freezeRotate(self, *, fast: bool = ...) -> Joint:
+    def freezeRotate(self) -> Joint:
         """rotateをjointOrientへ合成し、姿勢を保ってrotateを0にする。
 
         rotateAxis・rotateOrder・移動・スケールは保持する。現在フレームだけを処理し、
         アニメーションはベイクしない。ウェイト・bindPreMatrix・バインドポーズは変更しない。
-        rotateがXYZとも0なら書込み検査と更新を省略する。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+        rotateがXYZとも0なら書込み検査と更新を省略する。fast引数は持たない(:meth:`jointOrientToRotate` と同じ理由)。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
         Note:
@@ -306,20 +299,21 @@ class Joint(Transform):
             str | None: 移送先の親 joint 名。見つからない場合は ``None``。
         """
         ...
-    def reparentChildren(self, parentJoint: str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug, *, fast: bool = ...) -> Joint:
+    def reparentChildren(self, parentJoint: str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug) -> Joint:
         """子 joint を指定した親 joint へ付け替える。
+
+        fast引数は持たない(ワールド位置を保つ付け替えはcmds.parentの方が速いため)。
 
         Args:
             parentJoint (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
                 直接の子 joint を付け替える親ノード。``Node._input_name`` と同じ規則で解決する
                 (Plug・MPlug は所有ノード)。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外、またはparentJointが対応しない型の場合。
+            TypeError: parentJointが対応しない型の場合。
             ValueError: parentJointが空文字列・無効な対象の場合。
             RuntimeError: parentJointを解決できない、またはMayaが親変更を拒否した場合。
         """
@@ -385,13 +379,12 @@ class Joint(Transform):
             RuntimeError: 無効joint、ロック、入力接続、書込み不可の場合。
         """
         ...
-    def _apply_rotate_transfer(self, values: tuple | None, to_orient: bool = ..., *, fast: bool = ...) -> None:
-        """検証済みの回転移送値を、指定した更新モードで適用する。
+    def _apply_rotate_transfer(self, values: tuple | None, to_orient: bool = ...) -> None:
+        """検証済みの回転移送値をcmdsで適用する。
 
         Args:
             values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
             to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
-            fast (bool): TrueならOpenMayaで直接更新する。
 
         Returns:
             None: 値を返さない。

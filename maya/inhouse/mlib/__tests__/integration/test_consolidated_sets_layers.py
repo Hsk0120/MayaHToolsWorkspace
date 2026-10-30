@@ -9,7 +9,7 @@ import mlib
 
 
 class ConsolidatedSetsLayersTests(unittest.TestCase):
-    """Maya標準の所属表現と通常Undo・高速編集を比較する。"""
+    """Maya標準の所属表現と通常Undoを確認する。"""
 
     def setUp(self):
         """隔離した新規シーンを用意する。"""
@@ -37,16 +37,15 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
                 self.assertEqual(node.isMember(member), expected)
                 node.getMembers()
 
-    def test_object_set_fast_and_regular_undo(self):
-        """高速セット更新はUndoなし、通常追加はUndo可能にする。"""
+    def test_object_set_regular_undo(self):
+        """セットの追加・除外はUndo可能にする。"""
         node = mlib.nodes.ObjectSet(cmds.sets(empty=True))
         cube = cmds.polyCube()[0]
         cmds.flushUndo()
-        node.addMembers(cube + ".f[0:2]", fast=True)
+        node.addMembers(cube + ".f[0:2]")
         self.assertTrue(node.isMember(cube + ".f[0:2]"))
-        node.removeMembers(cube + ".f[1]", fast=True)
+        node.removeMembers(cube + ".f[1]")
         self.assertFalse(node.isMember(cube + ".f[1]"))
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         node.addMembers(cube + ".f[1]")
         self.assertTrue(node.isMember(cube + ".f[1]"))
         cmds.undo()
@@ -61,25 +60,24 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
         expected = cmds.editDisplayLayerMembers(first.getName(), query=True, fullNames=True)
         self.assertEqual([node.getFullName() for node in first.getMembers()], expected)
         cmds.flushUndo()
-        second.addMembers(cube, fast=True)
+        second.addMembers(cube)
         self.assertEqual(first.getMembers(), [])
         self.assertEqual(set(node.getFullName() for node in second.getMembers()), set(expected))
         self.assertEqual([node.getFullName() for node in second.getMembers()],
                          cmds.editDisplayLayerMembers(second.getName(), query=True, fullNames=True))
-        second.removeMembers(cube, fast=True)
+        second.removeMembers(cube)
         self.assertEqual(second.getMembers(), [])
         default = mlib.nodes.DisplayLayer("defaultLayer")
         expected_default = cmds.editDisplayLayerMembers("defaultLayer", query=True, fullNames=True)
         self.assertEqual([node.getFullName() for node in default.getMembers()], expected_default)
-        second.setCurrent(fast=True)
+        second.setCurrent()
         self.assertEqual(cmds.editDisplayLayerGlobals(query=True, currentDisplayLayer=True), second.getName())
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         if hasattr(om2, "MFnDisplayLayer"):
             with mock.patch.object(cmds, "editDisplayLayerMembers", side_effect=AssertionError("cmds layer read used")):
                 default.getMembers()
                 second.getMembers()
 
-    def test_shading_members_and_fast_whole_mesh_assignment(self):
+    def test_shading_members_and_whole_mesh_assignment(self):
         """既存のフェース別割り当てを全体へ置換し、他のメッシュは保持する。"""
         cube = mlib.getNode(cmds.polyCube(name="shadeCube")[0])
         other = mlib.getNode(cmds.polyCube(name="shadeOther")[0])
@@ -91,23 +89,20 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
                     for name in expected]
         self.assertEqual([item.getFullName() for item in first.getMembers()], expected)
         cmds.flushUndo()
-        second.assign(cube, fast=True)
+        second.assign(cube)
         mesh = cube.getShape()
         shaders, indices = om2.MFnMesh(mesh.mpath()).getConnectedShaders(mesh.mpath().instanceNumber())
         self.assertTrue(all(shaders[index] == second.mnode() for index in indices))
         self.assertEqual([item.getFullName() for item in first.getMembers()], [other.getShape().getFullName()])
-        self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         with mock.patch.object(cmds, "sets", side_effect=AssertionError("cmds set read used")):
             second.getMembers()
 
-    def test_shading_fast_face_rejection_and_shader_connection(self):
-        """未対応のフェース指定を更新前拒否し、シェーダー接続は高速化する。"""
+    def test_shading_fast_shader_connection(self):
+        """シェーダー接続はfastでUndoに記録しない。assignはfastを持たない。"""
         cube = cmds.polyCube()[0]
         shading = mlib.nodes.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
-        before = list(shading.getMembers())
-        with self.assertRaises(NotImplementedError):
+        with self.assertRaises(TypeError):
             shading.assign(cube + ".f[0]", fast=True)
-        self.assertEqual(shading.getMembers(), before)
         material = mlib.createNode("lambert")
         cmds.flushUndo()
         shading.setShader(material, fast=True)

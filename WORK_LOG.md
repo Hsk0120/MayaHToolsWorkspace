@@ -141,6 +141,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-31): mlib 7.0.0。速くならない/効果がほぼ無いfastを引数と処理ごと削除(ShadingEngine.assign、ObjectSet/DisplayLayerのメンバー操作・setCurrent、Joint.reparentChildren/jointOrientToRotate/freezeRotate、AnimCurve.shiftKeys/scaleKeys/mirror、Plug.setKey/setEnumNames、SkinCluster.redistributeWeights)。キー1つのカーブでshift/scaleが効かない通常経路の不具合も修正。スタブ・changelog・設計文書・CLAUDE.md更新。runStatic 160件、Maya 2022〜2027全テスト、mlrig 719件、Sphinx・文書検査OK。未コミット。
+
 - Claude Code (2026-10-31): mlrig夜間タスク。角を丸められる箱(OBB)コライダーへの柔らかい押し出し BoxCollision を追加(setups/boxCollision.py。標準ノードのみ。箱の局所の位置 l、内側の箱 e = clamp(size/2 - rounding, 0, size/2)、外は最近点 k = clamp(l,-e,e) から d = |l-k| - rounding と法線 (l-k)/|l-k|、中は最も浅い面で d = max(|l|-e) - rounding。PlaneCollision と同じ指数の押し出しを法線の向きへ当て、matrix・distance・push・penetration・normal を出力)。Setup Samples 1項目、test_setup_box_collision.py 9件、文書 docs/box_collision.rst、検証デモ tools/demo_box_collision.py。隔離Maya 2027で setups 578件・standard 76件OK、Sphinx -W 成功、検証動画354フレーム判定OK。コミット・プッシュ(このコミット)。
 
 - Codex (2026-10-30): QPE視覚設計の12ファイルをdd1d1ac3でorigin/mainへプッシュし、リモートSHAとQPE内容の一致を確認。別担当の未公開mlibコミットは公開せず、ローカル履歴と既存WORK_LOG差分を保持。

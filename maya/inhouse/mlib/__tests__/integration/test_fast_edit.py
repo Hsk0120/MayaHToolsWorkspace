@@ -57,9 +57,6 @@ class FastEditTest(unittest.TestCase):
             with self.api_only():
                 node.setTranslation((2, 3, 4), fast=True, at=4)
                 node.setRotate((15, 20, 30), unit='deg', fast=True)
-                if kind == 'joint':
-                    node.freezeRotate(fast=True)
-                    node.jointOrientToRotate(fast=True)
             for a, b in zip(node.getMatrix(), expected):
                 self.assertAlmostEqual(a, b, places=7)
 

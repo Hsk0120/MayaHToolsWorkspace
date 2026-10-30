@@ -3,10 +3,8 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.nodeEdit import require_editable
 from ..core.object import Object
-from ..decorator import _edit_context
-from .dagNode import DagNode
+from ..decorator import undoChunk
 from .node import Node
 
 
@@ -37,108 +35,42 @@ class DisplayLayer(Node):
                 for plug in output.connectedTo(False, True)
                 if plug.node().hasFn(om2.MFn.kDagNode)]
 
-    def addMembers(self, *members, fast=False):
+    def addMembers(self, *members):
         """子階層を含めてメンバーを排他的にこのレイヤーへ移動する。
+
+        fast引数は持たない(OpenMayaで接続を移す処理はcmdsより遅いため)。
 
         Args:
             members (Node | str): 追加するDAGノード。
-            fast (bool): TrueはdrawInfo接続をOpenMayaで直接移動し、Undoなし。
-                コンポーネントとUFEパスは未対応。
 
         Returns:
             DisplayLayer: 自身。
         """
-        with _edit_context("mlibDisplayLayerAddMembers", fast):
+        with undoChunk("mlibDisplayLayerAddMembers"):
             if members:
-                if fast:
-                    self._move_members(members)
-                else:
-                    cmds.editDisplayLayerMembers(self.getName(), Object._input_names(members))
+                cmds.editDisplayLayerMembers(self.getName(), Object._input_names(members))
             return self
 
-    def removeMembers(self, *members, fast=False):
+    def removeMembers(self, *members):
         """子階層を含めてdefaultLayerへ移す。
 
         Args:
             members (Node | str): 除外するDAGノード。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DisplayLayer: 自身。
         """
-        with _edit_context("mlibDisplayLayerRemoveMembers", fast):
+        with undoChunk("mlibDisplayLayerRemoveMembers"):
             if members:
-                if fast:
-                    DisplayLayer("defaultLayer")._move_members(members)
-                else:
-                    cmds.editDisplayLayerMembers("defaultLayer", Object._input_names(members))
+                cmds.editDisplayLayerMembers("defaultLayer", Object._input_names(members))
             return self
 
-    def setCurrent(self, *, fast=False):
+    def setCurrent(self):
         """このレイヤーを新規作成ノードの追加先にする。
 
-        Args:
-            fast (bool): TrueはlayerManagerをOpenMayaで直接更新し、Undoなし。
-
         Returns:
             DisplayLayer: 自身。
         """
-        with _edit_context("mlibDisplayLayerSetCurrent", fast):
-            if fast:
-                Node("layerManager").getPlug("currentDisplayLayer").set(self.getPlug("identification").get(), fast=fast)
-            else:
-                cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
+        with undoChunk("mlibDisplayLayerSetCurrent"):
+            cmds.editDisplayLayerGlobals(currentDisplayLayer=self.getName())
             return self
-
-    def _move_members(self, members):
-        """標準DAGの排他レイヤー接続を事前確認して直接移動する。
-
-        Args:
-            members (Iterable): 子階層も含めて移動するノード。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: ノード・レイヤーの参照やロックにより編集できない場合。
-            NotImplementedError: コンポーネント・UFE・標準外接続の場合。
-        """
-        require_editable(self.mnode())
-        nodes, seen = [], set()
-        for name in Object._input_names(members):
-            if "." in name or "," in name:
-                raise NotImplementedError("fast addMembers/removeMembers does not support members other than whole DAG nodes")
-            node = Node(name)
-            if not isinstance(node, DagNode):
-                raise TypeError("Display-layer member must be a DAG node")
-            for child in node.getChildren(True, True, allDescendents=True, includeSelf=True):
-                token = om2.MObjectHandle(child.mnode()).hashCode()
-                if token not in seen:
-                    seen.add(token)
-                    nodes.append(child)
-        output = self.getPlug("drawInfo").mplug()
-        default = not self.getPlug("identification").get()
-        plan = []
-        for node in nodes:
-            require_editable(node.mnode())
-            fn = node.mfn()
-            target = fn.findPlug("drawOverride", False)
-            if target.isLocked or any(target.child(i).isLocked for i in range(target.numChildren())):
-                raise RuntimeError("Display override is locked")
-            sources = target.connectedTo(True, False)
-            for source in sources:
-                source_fn = om2.MFnDependencyNode(source.node())
-                if source_fn.typeName != "displayLayer" or source != source_fn.findPlug("drawInfo", False):
-                    raise NotImplementedError("Custom display-override connections are not supported")
-                require_editable(source_fn.object())
-            if (not sources and default) or (len(sources) == 1 and sources[0] == output):
-                continue
-            plan.append((target, sources))
-        modifier = om2.MDGModifier()
-        for target, sources in plan:
-            for source in sources:
-                modifier.disconnect(source, target)
-            if not default:
-                modifier.connect(output, target)
-        if plan:
-            modifier.doIt()

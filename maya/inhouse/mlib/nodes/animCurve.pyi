@@ -8,7 +8,7 @@ import maya.cmds as cmds
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units, _from_seconds, _to_seconds
 from ..core.fastWrite import require_writable
-from ..decorator import _edit_context, _require_bool
+from ..decorator import _edit_context, undoChunk
 from ..util import _angle_unit, _from_radians, _time_unit, _to_radians
 from .node import Node
 
@@ -221,15 +221,16 @@ class AnimCurve(Node):
             RuntimeError: ノードが無効、または更新先がロック・接続などで書込み不可の場合。
         """
         ...
-    def shiftKeys(self, inputOffset: float = ..., valueOffset: float = ..., *, unit: str = ..., timeUnit: str = ..., fast: bool = ...) -> AnimCurve:
+    def shiftKeys(self, inputOffset: float = ..., valueOffset: float = ..., *, unit: str = ..., timeUnit: str = ...) -> AnimCurve:
         """全キーを移動する。
+
+        fast引数は持たない(全キーを1回で処理するcmds.keyframeの方が、キーごとにOpenMayaで書くより速い)。
 
         Args:
             inputOffset (float): 横軸の移動量。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
             valueOffset (float): 縦軸の移動量。角度はunitの単位(既定は度)、距離cm、時間はtimeUnitの単位。
             unit (str): 角度出力(A型)のvalueOffsetの単位。``"deg"`` / ``"rad"``。
             timeUnit (str): T型入力のinputOffsetと、時間出力のvalueOffsetの単位。``"frame"`` / ``"sec"``。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。空カーブは変更しない。
@@ -239,8 +240,10 @@ class AnimCurve(Node):
             ValueError: 非有限値、またはunit・timeUnitが未対応の単位名の場合。
         """
         ...
-    def scaleKeys(self, inputScale: float = ..., valueScale: float = ..., inputPivot: float = ..., valuePivot: float = ..., *, unit: str = ..., timeUnit: str = ..., fast: bool = ...) -> AnimCurve:
+    def scaleKeys(self, inputScale: float = ..., valueScale: float = ..., inputPivot: float = ..., valuePivot: float = ..., *, unit: str = ..., timeUnit: str = ...) -> AnimCurve:
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
+
+        fast引数は持たない(:meth:`shiftKeys` と同じ理由)。
 
         Args:
             inputScale (float): 横軸倍率(単位なし)。0はキーが重なるためValueError。
@@ -249,7 +252,6 @@ class AnimCurve(Node):
             valuePivot (float): 縦軸の基準値。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
             timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。負の入力倍率は更新前に未対応として拒否。
 
         Returns:
             AnimCurve: 自身。
@@ -257,11 +259,10 @@ class AnimCurve(Node):
         Raises:
             TypeError: unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
             ValueError: inputScaleが0、非有限値、またはunit・timeUnitが未対応の単位名の場合。
-            NotImplementedError: fastで負の入力倍率を指定した場合。
         """
         ...
-    def mirror(self, input: bool = ..., value: bool = ..., inputPivot: float = ..., valuePivot: float = ..., *, unit: str = ..., timeUnit: str = ..., fast: bool = ...) -> AnimCurve:
-        """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
+    def mirror(self, input: bool = ..., value: bool = ..., inputPivot: float = ..., valuePivot: float = ..., *, unit: str = ..., timeUnit: str = ...) -> AnimCurve:
+        """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。fast引数は持たない(:meth:`scaleKeys` と同じ)。
 
         Args:
             input (bool): 横軸を反転するか。
@@ -270,7 +271,6 @@ class AnimCurve(Node):
             valuePivot (float): 縦軸の反転中心。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
             timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。input=Trueとの併用は未対応。
 
         Returns:
             AnimCurve: 自身。
@@ -283,19 +283,6 @@ class AnimCurve(Node):
             fn (oma2.MFnAnimCurve): 更新対象カーブ。
             index (int): キー番号。
             value (float): 内部単位の値。
-
-        Returns:
-            None: 値を返さない。
-        """
-        ...
-    def _transform_keys(self, x_scale: float, y_scale: float, x_offset: float, y_offset: float) -> None:
-        """キー順を保つ移動・拡縮をAPIで実行し固定接線を追従させる。
-
-        Args:
-            x_scale (float): 正の入力倍率。
-            y_scale (float): 出力倍率。
-            x_offset (float): 内部単位の入力オフセット。
-            y_offset (float): 内部単位の出力オフセット。
 
         Returns:
             None: 値を返さない。

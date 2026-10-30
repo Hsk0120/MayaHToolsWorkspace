@@ -144,51 +144,6 @@ class ConsolidatedAnimationTest(unittest.TestCase):
                     fast.setKey(4, 5, inTangentType=incoming, outTangentType=name, fast=True)
                 self.assert_curves(normal, fast)
 
-    def test_shift_and_positive_scale_preserve_fixed_tangent_shape(self):
-        """移動・正の入力倍率の拡縮は固定/重み付き接線まで通常と一致する。"""
-        for suffix in ("TA", "TL", "TT", "TU", "UA", "UL", "UT", "UU"):
-            for weighted in (False, True):
-                with self.subTest(suffix=suffix, weighted=weighted):
-                    normal, fast = self.create(suffix), self.create(suffix)
-                    for curve in (normal, fast):
-                        curve.setTangent(1, weightedTangents=weighted)
-                        curve.setTangent(1, lock=False, inAngle=.3, outAngle=-.6)
-                    normal.shiftKeys(.5, 1.25)
-                    with patch.object(cmds, "keyframe", side_effect=AssertionError("cmds shift")):
-                        fast.shiftKeys(.5, 1.25, fast=True)
-                    self.assert_curves(normal, fast)
-                    normal.scaleKeys(1.75, -.5, .2, 2)
-                    with patch.object(cmds, "scaleKey", side_effect=AssertionError("cmds scale")):
-                        fast.scaleKeys(1.75, -.5, .2, 2, fast=True)
-                    self.assert_curves(normal, fast)
-
-    def test_stationary_inputs_allow_value_edits_and_pivot_scaling(self):
-        """入力を保つ値編集・無変更・ピボット上のキーも通常と一致する。"""
-        for suffix in ("TA", "TL", "TT", "TU", "UA", "UL", "UT", "UU"):
-            with self.subTest(suffix=suffix):
-                normal = mlib.createNode("animCurve" + suffix)
-                fast = mlib.createNode("animCurve" + suffix, fast=True)
-                for x, y in ((0, 0), (1, 10)):
-                    normal.setKey(x, y)
-                    fast.setKey(x, y, fast=True)
-                operations = (("shiftKeys", {"inputOffset": 2}),
-                              ("scaleKeys", {"valueScale": .5}),
-                              ("shiftKeys", {"valueOffset": 1}),
-                              ("shiftKeys", {}),
-                              ("scaleKeys", {}),
-                              ("scaleKeys", {"inputScale": 2, "inputPivot": 2}),
-                              ("scaleKeys", {"inputScale": .5, "inputPivot": 2}),
-                              ("mirror", {}))
-                for method, kwargs in operations:
-                    getattr(normal, method)(**kwargs)
-                    before = cmds.undoInfo(q=True, undoName=True)
-                    with ExitStack() as stack:
-                        for command in ("keyframe", "scaleKey", "setAttr", "undoInfo"):
-                            stack.enter_context(patch.object(cmds, command, side_effect=AssertionError(command)))
-                        self.assertIs(getattr(fast, method)(fast=True, **kwargs), fast)
-                    self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
-                    self.assert_curves(normal, fast)
-
     def test_fast_tangent_restrictions_are_checked_before_updates(self):
         """不正型・未対応の入力stepnextは値・接線・ロックを変更しない。"""
         for name in ("fixed", "global", "smooth"):
@@ -221,29 +176,12 @@ class ConsolidatedAnimationTest(unittest.TestCase):
             getattr(fast, method)(*args, inTangentType="step", fast=True)
             self.assert_curves(normal, fast)
 
-    def test_plug_key_tangents_validate_before_curve_creation(self):
-        """Plugの接線既定はMayaに従い、不正指定ではカーブも接続も作らない。"""
-        for name in ("fixed", "global", "smooth", "stepnext"):
-            plug = mlib.createNode("transform").getPlug("translateX")
-            before = set(cmds.ls(type="animCurve") or [])
-            with self.assertRaises((ValueError, NotImplementedError)):
-                plug.setKey(time=1, value=2, inTangentType=name, fast=True)
-            self.assertIsNone(plug.getSource())
-            self.assertEqual(set(cmds.ls(type="animCurve") or []), before)
-        normal = mlib.createNode("transform").getPlug("translateX")
-        fast = mlib.createNode("transform").getPlug("translateX")
-        normal.setKey(time=1, value=2)
-        with patch.object(cmds, "setKeyframe", side_effect=AssertionError("cmds key")):
-            fast.setKey(time=1, value=2, fast=True)
-        self.assert_curves(normal.getSource().getNode(), fast.getSource().getNode())
-
     def test_unsupported_or_locked_fast_edit_has_no_partial_change(self):
-        """未対応の入力反転・不正値・ロックはキーを変更する前に拒否する。"""
+        """不正値・ロックはキーを変更する前に拒否する。"""
         curve = self.create("TT")
         before = (curve.getKeyInputs(), curve.getKeyValues())
-        for call in (lambda: curve.scaleKeys(-1, fast=True),
-                     lambda: curve.scaleKeys(0, fast=True),
-                     lambda: curve.shiftKeys(float("inf"), fast=True),
+        for call in (lambda: curve.scaleKeys(0),
+                     lambda: curve.shiftKeys(float("inf")),
                      lambda: curve.setTangent(1, inWeight=-1, fast=True)):
             with self.assertRaises((NotImplementedError, ValueError)):
                 call()

@@ -3,9 +3,8 @@
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..core.nodeEdit import require_editable
 from ..core.object import Object
-from ..decorator import _edit_context
+from ..decorator import _edit_context, undoChunk
 from .node import Node
 from .objectSet import ObjectSet
 from typing import Iterable
@@ -73,24 +72,22 @@ class ShadingEngine(ObjectSet):
             RuntimeError: Mayaが接続を拒否した場合。
         """
         ...
-    def assign(self, targets: Node | Face | Faces | str | Iterable, *, fast: bool = ...) -> ShadingEngine:
+    def assign(self, targets: Node | Face | Faces | str | Iterable) -> ShadingEngine:
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
 
         例えば ``engine.assign(mlib.getNode("pCube1"))`` は形状全体、``engine.assign("pCube1.f[0:3]")``
         はフェースだけへ割り当てる(``cmds.sets(forceElement=...)`` 相当)。シェーダーの接続は
-        :meth:`setShader` で行う(クラスの説明の例を参照)。
+        :meth:`setShader` で行う(クラスの説明の例を参照)。fast引数は持たない(OpenMayaの
+        割り当ては ``cmds.sets`` より遅いため)。
 
         Args:
             targets (Node | Face | Faces | str | Iterable): 対象。選択に依存しない。
-            fast (bool): Trueは単一インスタンスのポリゴン全体をOpenMayaで排他的に割り当てる。
-                フェース単位・NURBS・子Transformを持つ階層は更新前に拒否する。
 
         Returns:
             ShadingEngine: 自身。空列では変更しない。
 
         Raises:
             RuntimeError: Mayaが割り当てを拒否した場合。
-            NotImplementedError: fastでフェース・非ポリゴン・インスタンス・階層指定の場合。
         """
         ...
     def getMembers(self) -> list[Node | Face]:
@@ -98,20 +95,6 @@ class ShadingEngine(ObjectSet):
 
         Returns:
             list[Node | Face]: オブジェクトまたは単体フェース。インスタンスパスを保持する。
-        """
-        ...
-    def _assign_meshes(self, names: Iterable[str]) -> None:
-        """共有パーティション内の既存割り当てを除去してポリゴン全体へ適用する。
-
-        Args:
-            names (Iterable[str]): 解決済みのポリゴンまたは末端Transform。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: 割り当て対象または既存セットを安全に更新できない場合。
-            NotImplementedError: フェース・非ポリゴン・インスタンス・階層指定の場合。
         """
         ...
     @staticmethod

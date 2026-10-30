@@ -807,7 +807,8 @@ class Transform(DagNode):
             relative (bool): True は親変更前のローカル変換を保持する。既定 False は Maya の既定動作
                 (ワールド姿勢を保つ)。
             add (bool): True は既存の親を維持して追加の親を設定する。parent が None の場合は渡されない。
-            fast (bool): TrueはOpenMaya直接更新でUndoなし。Joint・インスタンス・親の追加は未対応
+            fast (bool): TrueはOpenMaya直接更新でUndoなし。速くなるのは ``relative=True`` だけで、
+                ワールド位置を保つ既定ではcmds.parentより遅い。Joint・インスタンス・親の追加は未対応
                 (NotImplementedError)。通常経路の Joint は cmds.parent に従い、relative=False の
                 ときだけ親 joint の scale を inverseScale へ接続する(relative=True では接続しない。
                 Maya の仕様)。

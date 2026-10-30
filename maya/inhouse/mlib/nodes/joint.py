@@ -101,53 +101,46 @@ class Joint(Transform):
         values = self._compound_values("jointOrient", angle=True)
         return EulerRotate(*(math.radians(value) for value in values))
 
-    def jointOrientToRotate(self, *, fast=False):
+    def jointOrientToRotate(self):
         """jointOrientをrotateへ合成して0にし、現在の姿勢を保つ。
 
         XYZの数値加算ではない。rotateAxis・rotateOrder・移動・スケールを変えず、
         現在フレームだけを処理する。jointOrientがXYZとも0なら書込み検査と更新を省略する。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+        fast引数は持たない(処理の大半が値の検証・計算で、OpenMayaで書いても速くならないため)。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
-        with _edit_context("mlibJointJointOrientToRotate", fast):
+        with undoChunk("mlibJointJointOrientToRotate"):
             self._require_valid("change orientation of")
-            self._apply_rotate_transfer(self._joint_rotate_transfer_values(), fast=fast)
+            self._apply_rotate_transfer(self._joint_rotate_transfer_values())
             return self
 
-    def freezeRotate(self, *, fast=False):
+    def freezeRotate(self):
         """rotateをjointOrientへ合成し、姿勢を保ってrotateを0にする。
 
         rotateAxis・rotateOrder・移動・スケールは保持する。現在フレームだけを処理し、
         アニメーションはベイクしない。ウェイト・bindPreMatrix・バインドポーズは変更しない。
-        rotateがXYZとも0なら書込み検査と更新を省略する。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+        rotateがXYZとも0なら書込み検査と更新を省略する。fast引数は持たない(:meth:`jointOrientToRotate` と同じ理由)。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
             RuntimeError: 無効joint、rotate/jointOrientのロック・入力接続・書込み不可、または編集失敗。
 
         Note:
             通常処理はUndo有効時に1回で戻せる。途中失敗で完了済みの変更は自動では戻さない。
         """
-        with _edit_context("mlibJointFreezeRotate", fast):
+        with undoChunk("mlibJointFreezeRotate"):
             self._require_valid("freeze rotation of")
-            self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True, fast=fast)
+            self._apply_rotate_transfer(self._joint_rotate_transfer_values(to_orient=True), to_orient=True)
             return self
 
     def orient(self, orientation="xyz", secondaryAxisOrient="yup", children=True, zeroScaleOrient=True):
@@ -428,35 +421,28 @@ class Joint(Transform):
             ancestor = ancestor.getParent()
         return None
 
-    def reparentChildren(self, parentJoint, *, fast=False):
+    def reparentChildren(self, parentJoint):
         """子 joint を指定した親 joint へ付け替える。
+
+        fast引数は持たない(ワールド位置を保つ付け替えはcmds.parentの方が速いため)。
 
         Args:
             parentJoint (str | Node | Plug | Component | om2.MObject | om2.MDagPath | om2.MPlug):
                 直接の子 joint を付け替える親ノード。``Node._input_name`` と同じ規則で解決する
                 (Plug・MPlug は所有ノード)。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             Joint: 自身。
 
         Raises:
-            TypeError: fastがbool以外、またはparentJointが対応しない型の場合。
+            TypeError: parentJointが対応しない型の場合。
             ValueError: parentJointが空文字列・無効な対象の場合。
             RuntimeError: parentJointを解決できない、またはMayaが親変更を拒否した場合。
         """
-        with _edit_context("mlibJointReparentChildren", fast):
+        with undoChunk("mlibJointReparentChildren"):
             parent_name = Node._input_name(parentJoint)
-            if fast:
-                # core.jointEdit は nodes を参照するため、循環importを避けて呼出し時に取得する。
-                from ..core.jointEdit import reparent, reparent_plan
-                parent = Node(parent_name)
-                plans = [reparent_plan(child, parent) for child in self.getChildren(type="joint")]
-                for plan in plans:
-                    reparent(plan)
-            else:
-                for child_joint in self.getChildren(type="joint"):
-                    cmds.parent(child_joint.getFullName(), parent_name)
+            for child_joint in self.getChildren(type="joint"):
+                cmds.parent(child_joint.getFullName(), parent_name)
             return self
 
     def getChainFromHere(self, to=None):
@@ -594,21 +580,20 @@ class Joint(Transform):
         result.reorderIt(om2.MEulerRotation.kXYZ if to_orient else self._joint_rotate_order())
         return tuple(om2.MAngle(v).asUnits(om2.MAngle.uiUnit()) for v in result)
 
-    def _apply_rotate_transfer(self, values, to_orient=False, *, fast=False):
-        """検証済みの回転移送値を、指定した更新モードで適用する。
+    def _apply_rotate_transfer(self, values, to_orient=False):
+        """検証済みの回転移送値をcmdsで適用する。
 
         Args:
             values (tuple | None): 現在のUI角度単位の3成分。Noneなら更新しない。
             to_orient (bool): TrueならjointOrientへ移しrotateを0にする。
-            fast (bool): TrueならOpenMayaで直接更新する。
 
         Returns:
             None: 値を返さない。
         """
         if values is None:
             return
-        set_attr(self.getFullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)), fast=fast)
-        set_attr(self.getFullName() + ".rotate", *((0, 0, 0) if to_orient else values), fast=fast)
+        set_attr(self.getFullName() + ".jointOrient", *(values if to_orient else (0, 0, 0)))
+        set_attr(self.getFullName() + ".rotate", *((0, 0, 0) if to_orient else values))
 
     def _rotate_quaternion(self, attribute):
         """jointOrient / rotateAxis を API quaternion へ変換する。

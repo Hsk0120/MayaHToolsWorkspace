@@ -98,9 +98,7 @@ EXCLUDED = {
 
 #: fast 引数を持つが fast=True を常に NotImplementedError で拒否する API と理由(仕様)。
 #: fast の確認では、例外になり Undo キューへ何も積まないことを確かめる。
-FAST_UNSUPPORTED = {
-    "Plug.setEnumNames": "API 2.0 が既存 enum 項目の削除を公開しないため fast=True は未対応(docstring の仕様)。",
-}
+FAST_UNSUPPORTED = {}
 
 
 class _Case(object):

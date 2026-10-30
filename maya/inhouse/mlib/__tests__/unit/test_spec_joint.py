@@ -216,7 +216,7 @@ class InvalidJointTest(_SpecCase):
         joint = Node(self.make())
         cmds.delete(str(joint))
         self.assertFalse(joint.isValid())
-        for method, flags in (("jointOrientToRotate", {}), ("freezeRotate", {}), ("jointOrientToRotate", {"fast": True})):
+        for method, flags in (("jointOrientToRotate", {}), ("freezeRotate", {})):
             with self.subTest(method=method, flags=flags):
                 with self.assertRaises(RuntimeError):
                     getattr(joint, method)(**flags)

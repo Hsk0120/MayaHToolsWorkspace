@@ -569,23 +569,20 @@ class PlugDeleteSpecTest(_StateSpecCase):
 
 
 class PlugSetKeySpecTest(_StateSpecCase):
-    """setKeyの通常経路とfastの対応範囲。"""
+    """setKeyの通常経路。fast引数は無い。"""
 
-    def test_set_key_and_fast(self):
-        """setKeyは自身を返しキーを作る。fastはUndoへ記録せず、時間・値はUI単位。"""
+    def test_set_key(self):
+        """setKeyは自身を返しキーを作る。時間・値はUI単位。"""
         cmds.currentUnit(linear="mm")
         tz = self.node.getPlug("tz")
         self.assertIs(tz.setKey(t=5, v=20), tz)
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, timeChange=True), [5.0])
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, valueChange=True), [20.0])
-        cmds.flushUndo()
-        tz.setKey(time=10, value=30, fast=True)
+        tz.setKey(time=10, value=30)
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, timeChange=True), [5.0, 10.0])
         self.assertAlmostEqual(cmds.getAttr(self.name + ".tz", time=10), 30.0)
-        self.assertUndoEmpty()
-        tx = self.node.getPlug("tx")
-        tx.setKey(t=2, v=5, fast=True)
-        self.assertAlmostEqual(cmds.getAttr(self.name + ".tx", time=2), 5.0)
+        with self.assertRaises(TypeError):
+            tz.setKey(time=12, value=1, fast=True)
 
     def test_set_key_undo(self):
         """通常のsetKeyは1回のUndoでカーブごと戻る。"""
@@ -593,26 +590,6 @@ class PlugSetKeySpecTest(_StateSpecCase):
         self.node.getPlug("ty").setKey(t=1, v=1)
         cmds.undo()
         self.assertIsNone(cmds.keyframe(self.name + ".ty", query=True, timeChange=True))
-
-    def test_fast_set_key_rejections(self):
-        """fastは未対応のフラグ・コンパウンドアトリビュート・直接animCurve以外の入力・stepnextを生成前に拒否する。"""
-        tz = self.node.getPlug("tz")
-        other = self.make("transform")
-        cmds.connectAttr(other.getName() + ".tx", self.name + ".sz")
-        cases = ((NotImplementedError, lambda: tz.setKey(t=3, v=1, breakdown=True, fast=True)),
-                 (TypeError, lambda: tz.setKey(t=3, time=3, fast=True)),
-                 (NotImplementedError, lambda: tz.setKey(t=3, v=1, itt="stepnext", fast=True)),
-                 (ValueError, lambda: tz.setKey(t=3, v=1, itt="fixed", fast=True)),
-                 (NotImplementedError, lambda: self.node.getPlug("translate").setKey(t=3, fast=True)),
-                 (NotImplementedError, lambda: self.node.getPlug("sz").setKey(t=3, fast=True)),
-                 (TypeError, lambda: tz.setKey(t=3, fast=1)))
-        for error, call in cases:
-            with self.assertRaises(error):
-                call()
-        self.assertIsNone(cmds.keyframe(self.name + ".tz", query=True, timeChange=True))
-        cmds.setAttr(self.name + ".tz", lock=True)
-        with self.assertRaises(RuntimeError):
-            tz.setKey(t=3, v=1, fast=True)
 
     def test_anim_layers_without_layers(self):
         """アニメーションレイヤーが無ければgetAnimLayersは空のlist。"""

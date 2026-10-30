@@ -229,26 +229,6 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         self.assertTrue(cmds.undoInfo(q=True, state=True))
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
-    def test_fast_key_uses_ui_time_value_and_rejects_flags_before_creation(self):
-        """キーの時刻・角度をUI単位から変換し、未対応旗は作成前に拒否する。"""
-        plug = self.node.getPlug("rx")
-        cmds.flushUndo()
-        with patch.object(cmds, "setKeyframe", side_effect=AssertionError("cmds key")):
-            self.assertIs(plug.setKey(t=24, v=90, itt="linear", ott="linear", fast=True), plug)
-            plug.setKey(time=48, value=180, fast=True)
-        curve = plug.getSource(skipConversionNodes=False).getNode()
-        self.assertEqual(curve.getKeyInputs(), [24, 48])
-        self.assertEqual(curve.getKeyInputs(timeUnit="sec"), [1, 2])
-        self.assertEqual(curve.getKeyValues(unit="rad"), [math.pi / 2, math.pi])
-        self.assertEqual(curve.getKeyValues(), [90, 180])
-        self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
-        untouched = self.node.getPlug("ty")
-        before = len(cmds.ls(type="animCurve"))
-        with self.assertRaises(NotImplementedError):
-            untouched.setKey(t=1, v=5, animLayer="Unsupported", fast=True)
-        self.assertIsNone(untouched.getSource())
-        self.assertEqual(len(cmds.ls(type="animCurve")), before)
-
     def test_multi_reference_getters_do_not_materialize_elements(self):
         """参照・既存要素取得は値を書かず、廃止した作成指定を拒否する。"""
         cmds.addAttr(str(self.node), ln="samples", at="double", multi=True)
