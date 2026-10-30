@@ -7,9 +7,9 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from ..common.units import angleToUi
-from ..core.attributeType import _convert_units
+from ..core.attributeType import _convert_units, _from_seconds, _to_seconds
 from ..decorator import _edit_context, _require_bool
-from ..util import _angle_unit, _from_radians, _to_radians
+from ..util import _angle_unit, _from_radians, _time_unit, _to_radians
 from .node import Node
 
 
@@ -35,8 +35,10 @@ _TANGENT_NAMES = {value: name for name, value in _TANGENT_TYPES.items()}
 class AnimCurve(Node):
     """animCurveノードを参照し、8種類のカーブのキー・接線・外挿を編集する。
 
-    入力T型は秒、U型は無次元。出力はA型が度(各メソッドの ``unit="rad"`` でラジアン)、
-    L型がcm、T型が秒、U型が無次元。接線の角度も既定で度。
+    入力T型は既定で現在のUI時間単位のフレーム(各メソッドの ``timeUnit="sec"`` で秒)、U型は無次元。
+    出力はA型が度(各メソッドの ``unit="rad"`` でラジアン)、L型がcm、T型がフレーム(``timeUnit="sec"`` で秒)、
+    U型が無次元。接線の角度も既定で度。T型とA型の両方を持つカーブ(animCurveTA)ではunitとtimeUnitを
+    別々に指定する。
     ドライバーPlugの単位変換はDrivenKeyが担当する。
     通常編集はUI単位へ換算してcmdsへ渡し、Undo有効時に一つのチャンクへまとめる。
     fastはUndo設定を変更せずOpenMayaで直接更新する。失敗時の自動復元は保証しない。
@@ -62,71 +64,88 @@ class AnimCurve(Node):
         """
         return self._curve_fn().numKeys
 
-    def getKeyInputs(self):
+    def getKeyInputs(self, *, timeUnit="frame"):
         """カーブのキー入力をキー番号順で取得する。
 
-        入力T型はMTimeを秒へ変換し、U型は無次元の入力値を返す。
-        現在のフレーム番号やドライバーPlugのUI表示値へは変換しない。
+        入力T型はtimeUnitの単位(既定は現在のUI時間単位のフレーム)、U型は無次元の入力値を返す。
+        U型のドライバーPlugのUI表示値へは変換しない。
+
+        Args:
+            timeUnit (str): 入力T型の単位。既定 ``"frame"`` はフレーム、``"sec"`` は秒
+                (``"frames"`` / ``"seconds"`` 等の別名も可)。U型では使わない。
 
         Returns:
             list[float]: 新しい入力値リスト。変更してもカーブへ書き戻さない。
-        """
-        fn = self._curve_fn()
-        return [self._api_number(fn.input(i)) for i in range(fn.numKeys)]
 
-    def getKeyValues(self, *, unit="deg"):
+        Raises:
+            TypeError: timeUnitが文字列以外の場合。
+            ValueError: timeUnitが未対応の単位名の場合。
+        """
+        time_unit = self._input_time_unit(timeUnit)
+        fn = self._curve_fn()
+        return [_from_seconds(self._api_number(fn.input(i)), time_unit) for i in range(fn.numKeys)]
+
+    def getKeyValues(self, *, unit="deg", timeUnit="frame"):
         """カーブのキー出力値をキー番号順で取得する。
 
-        角度はunitの単位(既定は度)、距離はcm、時間は秒、その他は無次元で返す。
+        角度はunitの単位(既定は度)、距離はcm、時間はtimeUnitの単位(既定はフレーム)、その他は無次元で返す。
         時間出力はMFnAnimCurve.value()の版差を避け、time型のキー値Plugから読む。
 
         Args:
             unit (str): 角度出力(A型)の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
                 (``"degree"`` 等の別名も可)。他の型では使わない。
+            timeUnit (str): 時間出力(TT・UT型)の単位。既定 ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。他の型では使わない。
 
         Returns:
             list[float]: 新しい出力値リスト。変更してもカーブへ書き戻さない。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
-            ValueError: unitが未対応の単位名の場合。
+            TypeError: unit・timeUnitが文字列以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名の場合。
         """
         angle_unit = self._output_angle_unit(unit)
+        time_unit = _time_unit(timeUnit)
         fn = self._curve_fn()
         if self.getType().endswith("T"):
-            return [self.getPlug("ktv")[i][1].get() for i in range(fn.numKeys)]
+            return [self.getPlug("ktv")[i][1].get(timeUnit=time_unit) for i in range(fn.numKeys)]
         return [_from_radians(fn.value(i), angle_unit) for i in range(fn.numKeys)]
 
-    def evaluate(self, input, *, unit="deg"):
+    def evaluate(self, input, *, unit="deg", timeUnit="frame"):
         """カーブ単体を指定入力で評価する。現在時刻は変更しない。
 
         接続先の合成結果ではなく、カーブの補間・外挿値を返す。
-        時間出力はMaya 2022/2023のAPI版差を補正し、秒へ揃える。
+        時間出力はMaya 2022/2023のAPI版差を補正してから、timeUnitの単位へ揃える。
 
         Args:
-            input (float): T型入力は秒、U型入力は無次元。float()で変換し有限性を検査する。
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+                float()で変換し有限性を検査する。
             unit (str): 角度出力(A型)の戻り値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+            timeUnit (str): T型入力のinputと、時間出力(TT・UT型)の戻り値の単位。既定 ``"frame"`` は
+                現在のUI時間単位のフレーム、``"sec"`` は秒。
 
         Returns:
-            float: 出力型に従う度(unit)/cm/秒、または無次元の値。
+            float: 出力型に従う度(unit)/cm/フレーム(timeUnit)、または無次元の値。
 
         Raises:
-            TypeError: float()へ変換できない型、またはunitが文字列以外。
-            ValueError: 非有限値、float()変換で受理できない値、またはunitが未対応の単位名。
+            TypeError: float()へ変換できない型、またはunit・timeUnitが文字列以外。
+            ValueError: 非有限値、float()変換で受理できない値、またはunit・timeUnitが未対応の単位名。
             RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
         """
         angle_unit = self._output_angle_unit(unit)
+        input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
         fn = self._curve_fn()
         if not fn.numKeys:
             raise RuntimeError("Cannot evaluate an empty curve")
-        result = fn.evaluate(self._api_input(self._finite(input)))
+        result = fn.evaluate(self._api_input(_to_seconds(self._finite(input), input_unit)))
         if self.getType().endswith("T") and om2.MGlobal.apiVersion() < 20240000:
             # Maya 2022/2023のPython APIは生tick数をUI単位のMTimeとして返す。
             # APIのtick周波数で秒へ戻し、正常な2024以降の返却は補正しない。
-            return result.value / om2.MTime.ticksPerSecond()
-        return _from_radians(self._api_number(result), angle_unit)
+            return _from_seconds(result.value / om2.MTime.ticksPerSecond(), output_unit)
+        return _from_seconds(_from_radians(self._api_number(result), angle_unit), output_unit)
 
-    def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, unit="deg", fast=False):
+    def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, unit="deg", timeUnit="frame",
+               fast=False):
         """キーを追加する。同じ入力位置にキーがあれば値と接線型を更新する。
 
         通常はUI単位へ換算してsetKeyframeを呼ぶ。fastの既存キーは値→入力接線型→出力接線型の
@@ -134,26 +153,30 @@ class AnimCurve(Node):
         後続の失敗で先行の変更を自動復元しない。
 
         Args:
-            input (float): T型入力は秒、U型入力は無次元。
-            value (float): 出力型に従う度(unit)/cm/秒、または無次元。inputと共に有限値へ変換する。
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+            value (float): 出力型に従う度(unit)/cm/フレーム(timeUnit)、または無次元。inputと共に有限値へ変換する。
             inTangentType (str): Mayaの入力接線型。fastのstepはautoへ補正する。
             outTangentType (str): Mayaの出力接線型。
             unit (str): 角度出力(A型)のvalueの単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
                 (``"degree"`` 等の別名も可)。他の型では使わない。
+            timeUnit (str): T型入力のinputと、時間出力(TT・UT型)のvalueの単位。既定 ``"frame"`` は
+                現在のUI時間単位のフレーム、``"sec"`` は秒(``"seconds"`` 等の別名も可)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。fixed接線の角度・ウェイト指定にはsetTangentを使う。
 
         Raises:
-            TypeError: fastがbool以外、unitが文字列以外、または数値へ変換できない型。
-            ValueError: 非有限値、不正な数値、未対応のunit、またはfastでfixed/global/未知の接線型を指定した場合。
+            TypeError: fastがbool以外、unit・timeUnitが文字列以外、または数値へ変換できない型。
+            ValueError: 非有限値、不正な数値、未対応のunit・timeUnit、またはfastでfixed/global/未知の接線型を指定した場合。
             RuntimeError: ノードが無効(削除済み)の場合。fastも通常と同じ文言で、編集前に拒否する。
             NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
         """
         with _edit_context("mlibAnimCurveSetKey", fast):
             angle_unit = self._output_angle_unit(unit)
-            input, value = self._finite(input), _to_radians(self._finite(value), angle_unit)
+            input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
+            input = _to_seconds(self._finite(input), input_unit)
+            value = _to_seconds(_to_radians(self._finite(value), angle_unit), output_unit)
             if fast:
                 fn = self._curve_fn()
                 tangent_in = self._tangent_type(inTangentType, incoming=True, key=True)
@@ -204,7 +227,8 @@ class AnimCurve(Node):
         """指定キーの入力/出力接線型、角度、ウェイトとロック状態を取得する。
 
         角度はMAngleからunitの単位(既定は度)へ変換する。接線ウェイトはgetTangentAngleWeight()の
-        返却値をそのまま使い、一律の距離単位などへ追加変換しない。
+        返却値をそのまま使い、一律の距離単位などへ追加変換しない(``keyTangent`` の照会と同じく、
+        T型入力のウェイトは現在のUI時間単位に依存する)。時間の単位の引数(timeUnit)は持たない。
         lock/weightLockはキー単位、weightedTangentsはカーブ全体の状態である。
 
         Args:
@@ -347,21 +371,28 @@ class AnimCurve(Node):
                 plug.set(value, fast=fast)
             return self
 
-    def shiftKeys(self, inputOffset=0, valueOffset=0, *, unit="deg", fast=False):
+    def shiftKeys(self, inputOffset=0, valueOffset=0, *, unit="deg", timeUnit="frame", fast=False):
         """全キーを移動する。
 
         Args:
-            inputOffset (float): 横軸の移動量。時間型は秒。
-            valueOffset (float): 縦軸の移動量。角度はunitの単位(既定は度)、距離cm、時間秒。
+            inputOffset (float): 横軸の移動量。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
+            valueOffset (float): 縦軸の移動量。角度はunitの単位(既定は度)、距離cm、時間はtimeUnitの単位。
             unit (str): 角度出力(A型)のvalueOffsetの単位。``"deg"`` / ``"rad"``。
+            timeUnit (str): T型入力のinputOffsetと、時間出力のvalueOffsetの単位。``"frame"`` / ``"sec"``。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。空カーブは変更しない。
+
+        Raises:
+            TypeError: unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            ValueError: 非有限値、またはunit・timeUnitが未対応の単位名の場合。
         """
         with _edit_context("mlibAnimCurveShiftKeys", fast):
             angle_unit = self._output_angle_unit(unit)
-            inputOffset, valueOffset = self._finite(inputOffset), _to_radians(self._finite(valueOffset), angle_unit)
+            input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
+            inputOffset = _to_seconds(self._finite(inputOffset), input_unit)
+            valueOffset = _to_seconds(_to_radians(self._finite(valueOffset), angle_unit), output_unit)
             if fast:
                 self._transform_keys(1, 1, inputOffset, valueOffset)
                 return self
@@ -373,24 +404,33 @@ class AnimCurve(Node):
                               valueChange=y, **{flag: x})
             return self
 
-    def scaleKeys(self, inputScale=1, valueScale=1, inputPivot=0, valuePivot=0, *, unit="deg", fast=False):
+    def scaleKeys(self, inputScale=1, valueScale=1, inputPivot=0, valuePivot=0, *, unit="deg", timeUnit="frame",
+                  fast=False):
         """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
 
         Args:
-            inputScale (float): 横軸倍率。0はキーが重なるためValueError。
-            valueScale (float): 縦軸倍率。
-            inputPivot (float): 横軸の基準値。
-            valuePivot (float): 縦軸の基準値。角度出力(A型)はunitの単位(既定は度)。
+            inputScale (float): 横軸倍率(単位なし)。0はキーが重なるためValueError。
+            valueScale (float): 縦軸倍率(単位なし)。
+            inputPivot (float): 横軸の基準値。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
+            valuePivot (float): 縦軸の基準値。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
+            timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。負の入力倍率は更新前に未対応として拒否。
 
         Returns:
             AnimCurve: 自身。
+
+        Raises:
+            TypeError: unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            ValueError: inputScaleが0、非有限値、またはunit・timeUnitが未対応の単位名の場合。
+            NotImplementedError: fastで負の入力倍率を指定した場合。
         """
         with _edit_context("mlibAnimCurveScaleKeys", fast):
             angle_unit = self._output_angle_unit(unit)
+            input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
             x, y, px, py = map(self._finite, (inputScale, valueScale, inputPivot, valuePivot))
-            py = _to_radians(py, angle_unit)
+            px = _to_seconds(px, input_unit)
+            py = _to_seconds(_to_radians(py, angle_unit), output_unit)
             if not x:
                 raise ValueError("Input scale cannot be zero")
             if fast:
@@ -405,22 +445,25 @@ class AnimCurve(Node):
                               **{prefix + "Scale": x, prefix + "Pivot": px})
             return self
 
-    def mirror(self, input=False, value=True, inputPivot=0, valuePivot=0, *, unit="deg", fast=False):
+    def mirror(self, input=False, value=True, inputPivot=0, valuePivot=0, *, unit="deg", timeUnit="frame",
+               fast=False):
         """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。
 
         Args:
             input (bool): 横軸を反転するか。
             value (bool): 縦軸を反転するか。
-            inputPivot (float): 横軸の反転中心。
-            valuePivot (float): 縦軸の反転中心。角度出力(A型)はunitの単位(既定は度)。
+            inputPivot (float): 横軸の反転中心。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
+            valuePivot (float): 縦軸の反転中心。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
+            timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。input=Trueとの併用は未対応。
 
         Returns:
             AnimCurve: 自身。
         """
         _require_bool(fast, "fast")
-        return self.scaleKeys(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, unit=unit, fast=fast)
+        return self.scaleKeys(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, unit=unit,
+                              timeUnit=timeUnit, fast=fast)
 
     def _set_api_value(self, fn, index, value):
         """キー値を直接更新し、時間出力の秒をMTimeで保持する。
@@ -436,7 +479,7 @@ class AnimCurve(Node):
         if self.getType().endswith("T"):
             # MFnAnimCurve.setValueは時間出力をdoubleで正しく更新できない。
             # Maya標準のtime型keyValueへ書き、既存の接線・ロックを保持する。
-            self.getPlug("ktv")[index][1].set(value, fast=True)
+            self.getPlug("ktv")[index][1].set(value, timeUnit="sec", fast=True)
         else:
             fn.setValue(index, value)
 
@@ -454,7 +497,7 @@ class AnimCurve(Node):
         """
         self._require_curve_writable()
         fn = self._curve_fn()
-        inputs, values = self.getKeyInputs(), self.getKeyValues(unit="rad")
+        inputs, values = self.getKeyInputs(timeUnit="sec"), self.getKeyValues(unit="rad", timeUnit="sec")
         targets = [x * x_scale + x_offset for x in inputs]
         outputs = [y * y_scale + y_offset for y in values]
         if not all(math.isfinite(v) for v in targets + outputs):
@@ -506,6 +549,39 @@ class AnimCurve(Node):
         # 削除済みのカーブでは、他のメソッドと同じ文言のRuntimeErrorにする。
         self._require_valid("access attributes of")
         return angle_unit if self.getType().endswith("A") else "rad"
+
+    def _input_time_unit(self, time_unit):
+        """時間の単位名を検証し、入力が時間(T型)のカーブだけ換算する単位を返す。
+
+        Args:
+            time_unit (str): 時間の単位名。
+
+        Returns:
+            str: T型入力のカーブでは ``"frame"`` / ``"sec"``、U型入力では換算しない ``"sec"``。
+
+        Raises:
+            TypeError: time_unitが文字列以外の場合。
+            ValueError: time_unitが未対応の単位名の場合。
+        """
+        time_unit = _time_unit(time_unit)
+        return time_unit if self.isTimeInput() else "sec"
+
+    def _output_time_unit(self, time_unit):
+        """時間の単位名を検証し、出力が時間(TT・UT型)のカーブだけ換算する単位を返す。
+
+        Args:
+            time_unit (str): 時間の単位名。
+
+        Returns:
+            str: 時間出力のカーブでは ``"frame"`` / ``"sec"``、それ以外は換算しない ``"sec"``。
+
+        Raises:
+            TypeError: time_unitが文字列以外の場合。
+            ValueError: time_unitが未対応の単位名の場合。
+        """
+        time_unit = _time_unit(time_unit)
+        self._require_valid("access attributes of")
+        return time_unit if self.getType().endswith("T") else "sec"
 
     def _curve_fn(self):
         """保持ノードのAPI 2.0カーブ関数セットを返す。

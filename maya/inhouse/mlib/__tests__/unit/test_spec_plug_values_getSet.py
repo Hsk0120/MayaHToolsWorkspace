@@ -176,22 +176,83 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         self.assertAlmostEqual(rx.get(), math.degrees(1.0))
         self.assertAlmostEqual(cmds.getAttr(self.name + ".rx"), 1.0)
 
-    def test_time_internal_seconds_and_ui_frames(self):
-        """時間は内部秒。uiUnits=Trueは現在のUI時間単位(film・ntsc)のフレーム。"""
+    def test_time_default_frames_and_seconds(self):
+        """時間の数値は既定で現在のUI時間単位(film・ntsc)のフレーム、timeUnit="sec"で秒。"""
         ti = self.add("ti", attributeType="time")
-        cmds.setAttr(ti.getFullName(), 48)
-        self.assertAlmostEqual(ti.get(), 2.0)
-        self.assertAlmostEqual(ti.get(uiUnits=True), 48.0)
-        ti.set(1.0)
-        self.assertAlmostEqual(cmds.getAttr(ti.getFullName()), 24.0)
-        ti.set(0.5, fast=True)
-        self.assertAlmostEqual(cmds.getAttr(ti.getFullName()), 12.0)
+        for frame, fps in (("film", 24), ("ntsc", 30)):
+            cmds.currentUnit(time=frame)
+            for fast in (False, True):
+                with self.subTest(frame=frame, fast=fast):
+                    cmds.setAttr(ti.getFullName(), 2 * fps)
+                    self.assertAlmostEqual(ti.get(), 2.0 * fps)
+                    self.assertAlmostEqual(ti.get(timeUnit="sec"), 2.0)
+                    for alias in ("seconds", "second"):
+                        self.assertAlmostEqual(ti.get(timeUnit=alias), 2.0)
+                    self.assertAlmostEqual(ti.get(timeUnit="frames"), 2.0 * fps)
+                    self.assertAlmostEqual(ti.get(uiUnits=True), 2.0 * fps)
+                    ti.set(12, fast=fast)
+                    self.assertAlmostEqual(cmds.getAttr(ti.getFullName()), 12.0)
+                    self.assertAlmostEqual(ti.mplug().asMTime().asUnits(om2.MTime.kSeconds), 12.0 / fps)
+                    ti.set(0.5, timeUnit="sec", fast=fast)
+                    self.assertAlmostEqual(cmds.getAttr(ti.getFullName()), 0.5 * fps)
+                    ti.set(15, uiUnits=True, fast=fast)
+                    self.assertAlmostEqual(ti.get(), 15.0)
+                    self.assertAlmostEqual(ti.get(timeUnit="sec"), 15.0 / fps)
+                    if not fast:
+                        # MTimeは自身の単位を持つため、timeUnitに関係なく換算しない(fastは数値のみ)。
+                        ti.set(om2.MTime(1.0, om2.MTime.kSeconds), timeUnit="frame")
+                        self.assertAlmostEqual(ti.get(), 1.0 * fps)
+        self.assertAlmostEqual(mlib.getPlug("time1.outTime").get(), cmds.currentTime(query=True))
+
+    def test_time_unit_errors(self):
+        """timeUnitの型・名前の誤り、uiUnitsとの同時指定、角度とのunit取り違えを型付きの例外にする。"""
+        ti = self.add("ti", attributeType="time")
+        rx = self.node.getPlug("rx")
+        with self.assertRaises(TypeError):
+            ti.get(timeUnit=1)
+        with self.assertRaises(ValueError):
+            ti.get(timeUnit="minute")
+        with self.assertRaises(ValueError):
+            ti.get(timeUnit="sec", uiUnits=True)
+        with self.assertRaisesRegex(ValueError, "timeUnit"):
+            ti.get(unit="sec")
+        with self.assertRaisesRegex(ValueError, "unit for angle"):
+            rx.get(timeUnit="deg")
+        with self.assertRaises(ValueError):
+            ti.set(1, timeUnit="minute")
+        self.assertEqual(ti.set(1, timeUnit="minute", safe=True), 1)
+        self.assertEqual(ti.set(1, timeUnit="sec", uiUnits=True, safe=True), 1)
+
+    def test_time_children_of_compound_and_multi(self):
+        """時間の子を持つコンパウンドアトリビュートと、時間のマルチアトリビュートも子ごとに換算する。"""
+        name = self.node.getFullName()
+        cmds.addAttr(name, longName="span", attributeType="compound", numberOfChildren=2)
+        cmds.addAttr(name, longName="spanTime", attributeType="time", parent="span")
+        cmds.addAttr(name, longName="spanAngle", attributeType="doubleAngle", parent="span")
+        cmds.addAttr(name, longName="times", attributeType="time", multi=True)
         cmds.currentUnit(time="ntsc")
-        ti.set(15, uiUnits=True)
-        self.assertAlmostEqual(ti.get(), 0.5)
-        self.assertAlmostEqual(cmds.getAttr(ti.getFullName()), 15.0)
-        ti.set(45, uiUnits=True, fast=True)
-        self.assertAlmostEqual(ti.get(), 1.5)
+        span = self.node.getPlug("span")
+        for fast in (False, True):
+            with self.subTest(fast=fast):
+                span.set((30, 90), fast=fast)
+                self.assertAlmostEqual(cmds.getAttr(name + ".spanTime"), 30.0)
+                self.assertAlmostEqual(cmds.getAttr(name + ".spanAngle"), 90.0)
+                values = span.get()
+                self.assertAlmostEqual(values[0], 30.0)
+                self.assertAlmostEqual(values[1], 90.0)
+                values = span.get(unit="rad", timeUnit="sec")
+                self.assertAlmostEqual(values[0], 1.0)
+                self.assertAlmostEqual(values[1], math.pi / 2)
+                span.set((0.5, math.pi), unit="rad", timeUnit="sec", fast=fast)
+                self.assertAlmostEqual(cmds.getAttr(name + ".spanTime"), 15.0)
+                self.assertAlmostEqual(cmds.getAttr(name + ".spanAngle"), 180.0)
+        times = self.node.getPlug("times")
+        times[0].set(30)
+        times[3].set(2, timeUnit="sec")
+        self.assertEqual(sorted(times.get()), [0, 3])
+        self.assertAlmostEqual(times.get()[0], 30.0)
+        self.assertAlmostEqual(times.get()[3], 60.0)
+        self.assertAlmostEqual(times.get(timeUnit="sec")[0], 1.0)
 
     def test_ui_units_flag_must_be_bool(self):
         """uiUnitsがbool以外ならgetはTypeError。setはsafe=Falseで例外、safe=Trueで1。"""

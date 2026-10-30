@@ -59,7 +59,7 @@ class PlugReferencesTest(unittest.TestCase):
         """参照の取得では単位を選ばず、値のgetで明示的に選ぶ。"""
         angle = self.node.getPlug("rotateX").set(90)
         distance = self.node.getPlug("translateX").set(25)
-        time = self.node.addAttr("sampleTime", attributeType="time").set(2)
+        time = self.node.addAttr("sampleTime", attributeType="time").set(2, timeUnit="sec")
         for linear, angular, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
             with self.subTest(linear=linear, angular=angular, frame=frame):
                 cmds.currentUnit(linear=linear, angle=angular, time=frame)
@@ -67,7 +67,8 @@ class PlugReferencesTest(unittest.TestCase):
                 self.assertAlmostEqual(angle.get(), 90)
                 self.assertAlmostEqual(angle.get(unit="rad"), math.pi / 2)
                 self.assertEqual(distance.get(), 25)
-                self.assertEqual(time.get(), 2)
+                self.assertAlmostEqual(time.get(timeUnit="sec"), 2)
+                self.assertAlmostEqual(time.get(), 48 if frame == "film" else 60)
                 self.assertAlmostEqual(angle.get(uiUnits=True), 90 if angular == "deg" else math.pi / 2)
                 self.assertAlmostEqual(distance.get(uiUnits=True), 25 if linear == "cm" else 0.25)
                 self.assertAlmostEqual(time.get(uiUnits=True), 48 if frame == "film" else 60)

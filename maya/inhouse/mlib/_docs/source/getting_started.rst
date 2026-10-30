@@ -85,13 +85,20 @@ mlibが送出した例外は、Script Editorでは利用者がmlibを呼んだ�
 (Undoに記録され、角度は度。``node.t = (1, 2, 3)`` も同じです)。Mayaアトリビュートの無い名前への代入は
 AttributeErrorになり、ノードへ任意のPython属性は追加できません。
 
-値の単位は距離cm・時刻秒を基本とし、角度の数値は度で扱います(5.0.0以降)。
+値の単位は距離cmを基本とし、角度の数値は度(5.0.0以降)、時間の数値は現在のUI時間単位のフレーム
+(6.0.0以降。film なら24フレームが1秒)で扱います。
 ``node.getPlug("rotateX").set(90)`` は90度、``get()`` も度を返します。ラジアンで扱う場合は
 ``get(unit="rad")``・``set(..., unit="rad")`` を指定します。``rotate`` の ``get()`` が返す
 :class:`~mlib.maths.EulerRotate` や :class:`~mlib.maths.Quaternion` などの数学型は、OpenMayaと同じく
 内部がラジアンで、値自身が単位を持つため ``set()`` へそのまま渡せます。
+``time1.outTime`` のような時間アトリビュートの ``get()`` はフレームを返し、秒で扱う場合は
+``get(timeUnit="sec")``・``set(..., timeUnit="sec")`` を指定します。アニメーションカーブのキー
+(:meth:`~mlib.nodes.animCurve.AnimCurve.setKey`・``getKeyInputs()``・``shiftKeys()`` 等)と
+:meth:`~mlib.common.drivenKey.DrivenKey.setKey` の時間も同じ規則で、``timeUnit="sec"`` で秒を指定できます。
+角度は ``unit``、時間は ``timeUnit`` と別の引数にしてあるため、animCurveTA のように両方を持つカーブでも
+それぞれを指定できます。
 Plugを現在のUI単位で扱う場合は ``get(uiUnits=True)``・``set(..., uiUnits=True)`` を使います
-(``unit`` とは同時に指定できません)。
+(``unit``・``timeUnit`` とは同時に指定できません)。
 ``maya.cmds`` へ渡すフラグ値はMayaの単位規則に従います。
 
 .. _tool-undo-chunk:
