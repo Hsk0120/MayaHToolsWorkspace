@@ -194,14 +194,14 @@ class NodeRegistry:
             type: 完全一致、生成クラス、最寄りの登録祖先型、またはフォールバックのクラス。
         """
         ...
-    def lookup(self, key: str) -> type | None:
+    def lookup(self, key: str | None) -> type | None:
         """登録済みクラスを返す。未登録なら ``None``。
 
         フォールバックを伴わずに「完全一致する登録があるか」だけを知りたい場合に使う
         (例: Plug のアトリビュート型 dispatch)。生成クラスは登録ではないので返さない。
 
         Args:
-            key (str): 登録キー(nodeType またはアトリビュート型など)。
+            key (str | None): 登録キー(nodeType またはアトリビュート型など)。None は未登録として扱う。
 
         Returns:
             type | None: 登録済みクラス。

@@ -137,6 +137,7 @@ def _module_dependencies(module, module_names):
             dependencies.add(owner)
             # `from ..maths import Matrix` のようにパッケージ経由で取り込んだ名前は、
             # 定義 module だけでなくその親パッケージ(__init__)も先に読み直す必要がある。
+            assert isinstance(owner, str)  # module_names は文字列の集まり。
             package = owner.rpartition(".")[0]
             while package and package in module_names:
                 if package != module.__name__ and not module.__name__.startswith(package + "."):
