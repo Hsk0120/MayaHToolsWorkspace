@@ -57,9 +57,9 @@ class Theme(QtCore.QObject):
         self.colors = (dict(window='#f3f3f3', base='#ffffff', alternate='#f7f8fa',
                             text='#202020', border='#d8d8d8', muted='#737373',
                             inactive='#e5edf5', folder='#667c8c', bar='#eeeeee') if self.light else
-                       dict(window='#303030', base='#2b2b2b', alternate='#333638',
-                            text='#e4e7eb', border='#484848', muted='#999999',
-                            inactive='#50565b', folder='#90b8c5', bar='#30363a'))
+                       dict(window='#303030', base='#27292b', alternate='#2b2d2f',
+                            text='#e4e7eb', border='#3e4144', muted='#abb0b5',
+                            inactive='#3b4146', folder='#90b8c5', bar='#303030'))
         if self.mode == 'finder' and not self.widget._maya:
             # Finderを参考にした不透明な近似色。macOSの材質・実測値ではない。
             self.colors.update(window='#e9e9eb', base='#ffffff', alternate='#f1f1f3',
@@ -79,6 +79,8 @@ class Theme(QtCore.QObject):
         rgb = QtGui.QColor(accent)
         # アクセントが明るくても選択文字を判読できる色を選ぶ。
         self.colors['selectedText'] = '#202020' if rgb.lightnessF() > 0.6 else '#ffffff'
+        self.colors['actionText'] = self.colors['selectedText']
+        self.colors['inspectorSurface'] = self.colors['window'] if self.widget._maya else self.colors['base']
         self.colors['selection'] = ('#d9d9d9' if self.light else '#505050') if windows_theme else accent
         if windows_theme:
             self.colors['selectedText'] = self.colors['text']
@@ -117,7 +119,7 @@ class Theme(QtCore.QObject):
         """操作アイコンだけを文字色へ着色し、拡張子のブランド色は維持する。"""
         import sys
         folder = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons'
-        for name in ('sidebar', 'back', 'forward', 'inspector'):
+        for name in ('sidebar', 'back', 'forward', 'inspector', 'locations', 'display', 'newScene', 'saveAs'):
             source = QtGui.QIcon(str(folder / (name + '.svg')))
             icon = QtGui.QIcon()
             for size in (20, 40, 60):

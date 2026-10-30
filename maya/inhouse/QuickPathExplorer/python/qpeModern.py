@@ -4,6 +4,39 @@ from pathlib import Path
 import sys
 
 
+class WrappedLabel(QtWidgets.QLabel):
+    """幅の狭い設定ペインでも折り返し行を圧縮させないラベル。"""
+
+    def __init__(self, *args):
+        """文字数や幅に依存する高さをレイアウトの下限へ反映する。"""
+        super().__init__(*args)
+        self.setWordWrap(True)
+
+    def resizeEvent(self, event):
+        """ページ全体の高さ制限より、説明文の可読性を優先する。"""
+        super().resizeEvent(event)
+        self._fitHeight()
+
+    def setText(self, text):
+        """文言を変えた場合も前の行数を残さない。"""
+        super().setText(text)
+        self._fitHeight()
+
+    def changeEvent(self, event):
+        """DPI・文字サイズ変更時も幅が同じなら高さだけ更新する。"""
+        super().changeEvent(event)
+        if event.type() in (QtCore.QEvent.FontChange, QtCore.QEvent.StyleChange):
+            self._fitHeight()
+
+    def _fitHeight(self):
+        """Qtの実フォント計測で必要な行高を設定する。"""
+        # QLabel.heightForWidthは既存のminimumHeightにも制約される。
+        # 一度解除し、幅を広げた時に以前の行数が残ることを防ぐ。
+        self.setMinimumHeight(0)
+        height = max(0, self.heightForWidth(max(1, self.width())))
+        self.setMinimumHeight(height)
+
+
 class SummaryLabel(QtWidgets.QLabel):
     """場所名が長くてもツールバーを押し広げず、件数を末尾に残す。"""
 
@@ -59,17 +92,38 @@ def style(colors, px, font_size):
         QTreeView::item:selected, QListView::item:selected { background: %(selection)s; color: %(selectedText)s; }
         QHeaderView::section { background: %(base)s; color: %(muted)s;
             border: none; border-bottom: 1px solid %(border)s; padding: %(row)spx %(inset)spx; }
-        QSplitter::handle { background: %(border)s; }
+        QSplitter::handle { background: %(window)s; }
         QSplitter::handle:hover { background: %(accent)s; }
-        QWidget#inspectorPanel { background: %(base)s; border-left: 1px solid %(border)s; }
+        QWidget#inspectorPanel, QWidget#inspectorPanel QWidget { background: %(inspectorSurface)s; }
+        QWidget#inspectorPanel { background: %(inspectorSurface)s; border-left: 1px solid %(border)s; }
+        QWidget#inspectorPanel QLineEdit, QWidget#inspectorPanel QComboBox,
+        QWidget#inspectorPanel QPlainTextEdit { background: %(base)s; }
+        QWidget#inspectorPanel QPushButton[primaryAction="true"] {
+            font-weight: 600; padding: %(gap)spx %(inset)spx; min-height: %(minimum)spx; }
+        QWidget#inspectorPanel QPushButton[primaryAction="true"]:enabled {
+            background: %(accent)s; border-color: %(accent)s; color: %(actionText)s; }
+        QWidget#inspectorPanel QPushButton[primaryAction="true"]:hover {
+            border-color: %(text)s; }
+        QPushButton[quietAction="true"] { border: none; color: %(muted)s; }
+        QToolButton[sectionToggle="true"] { text-align: left; font-weight: 600; padding-left: 0; }
         QLabel#sectionHeading, QLabel#folderSummary, QLabel#fileTitle { font-weight: 600; }
+        QLabel#fileTitle { padding-bottom: %(inset)spx; }
+        QLabel#supportingText { color: %(muted)s; }
         QLabel#readTarget, QLabel#fileFooter { color: %(muted)s; font-size: %(small)spx; }
+        QLabel#fileFooter { border: none; padding: 0 %(gap)spx; }
         QLabel#preview { border: none; background: %(base)s; border-radius: %(radius)spx; }
         QTabWidget::pane { border: none; }
         QTabBar::tab { border: none; padding: %(inset)spx; }
         QTabBar::tab:selected { background: %(base)s; border-bottom: 2px solid %(accent)s; }
+        QTabWidget#operationTabs > QTabBar::tab { color: %(muted)s; background: %(inspectorSurface)s;
+            padding: %(inset)spx %(gap)spx; }
+        QTabWidget#operationTabs > QTabBar::tab:selected { color: %(text)s; font-weight: 600;
+            background: %(inspectorSurface)s; border-bottom: 2px solid %(accent)s; }
         QGroupBox { border: 1px solid %(border)s; border-radius: %(radius)spx;
             margin-top: %(inset)spx; padding-top: %(inset)spx; }
+        QGroupBox#fbxOpenSettings { border: none; border-radius: 0; font-weight: 600;
+            margin-top: %(inset)spx; padding-top: %(inset)spx; }
+        QGroupBox#fbxOpenSettings::title { subcontrol-origin: margin; left: 0; }
         QFrame#viewOptions { background: %(window)s; border: 1px solid %(border)s;
             border-radius: %(radius)spx; }
         QToolButton[filterChip="true"] { background: %(inactive)s; padding: %(gap)spx %(inset)spx; }
@@ -187,13 +241,18 @@ class ModernLayout(QtCore.QObject):
         margins = e.layout().contentsMargins()
         available = min(e.width(), self.viewport.width()) if self.viewport is not None else e.width()
         available = max(1, available - margins.left() - margins.right())
-        secondary = [e.locationsButton, e.displayButton, e.rootButton]
+        # 表示設定・開始フォルダーはToolsに常設し、場所欄の長さを安定させる。
+        e.displayButton.hide()
+        e.rootButton.hide()
+        secondary = [e.locationsButton]
         if e._maya:
             secondary.extend([e.newSceneButton, e.saveAsButton])
         primary = [e.sidebarButton, e.backButton, e.forwardButton, e.inspectorButton]
         tool_width = e.organizer.button.fontMetrics().horizontalAdvance('Tools') + round(30 * scale)
         required = sum(max(0, button.sizeHint().width()) for button in primary + secondary)
         required += tool_width + round(180 * scale) + e.navigationBar.spacing() * (len(primary + secondary) + 1)
+        if e._maya and not e.fbxModeButton.isHidden():
+            required += e.fbxModeButton.sizeHint().width() + e.navigationBar.spacing()
         self.compactToolbar = available < required
         for button in secondary:
             button.setVisible(not self.compactToolbar and (button is not e.rootButton or bool(button.text())))
@@ -221,8 +280,6 @@ class ModernLayout(QtCore.QObject):
 
     def addNavigationMenu(self, menu):
         """省略した操作も元と同じコールバックで実行できるようにする。"""
-        if not self.compactToolbar:
-            return
         e = self.e
         # メニューを作り直す間も、PySideの一時ラッパーだけに所有を任せない。
         submenu = getattr(self, 'navigationMenu', None)
@@ -232,9 +289,10 @@ class ModernLayout(QtCore.QObject):
         else:
             submenu.clear()
         menu.addMenu(submenu)
-        submenu.addAction('Quick locations…', e._quickLocations)
+        if self.compactToolbar:
+            submenu.addAction('Quick locations…', e._quickLocations)
         submenu.addAction('Display settings…', e.appearance.show)
-        if e._maya:
+        if e._maya and self.compactToolbar:
             submenu.addAction('New Scene', e.newSceneButton.click)
             submenu.addAction('Save Scene As…', e.saveAsButton.click)
         submenu.addAction('Reset start folder' if e.browseRoot else 'Set current folder as start folder', e.rootButton.click)
