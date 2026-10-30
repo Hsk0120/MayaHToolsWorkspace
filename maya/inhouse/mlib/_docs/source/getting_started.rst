@@ -76,8 +76,8 @@ mlibが送出した例外は、Script Editorでは利用者がmlibを呼んだ�
 (mlib内部のフレームを省きます)。内部の位置まで確かめる場合は、環境変数 ``MLIB_FULL_TRACEBACK=1`` を設定します。
 存在しないメソッドの名前を使うと、近い名前やmlibでの書き方(``getAttr`` なら ``getPlug(name).get()``)を
 案内するAttributeErrorになります。
-``ls`` は通常ラッパーのリストを返し、``type="joint"``・``type="skinCluster"`` の場合は
-それぞれ ``Joints``・``SkinClusters`` を返します。
+``ls`` は結果の種類に応じた集まりを返します(ノードは ``Nodes``、``type="joint"``・``type="skinCluster"`` は
+それぞれ ``Joints``・``SkinClusters``、アトリビュートは ``Plugs``、コンポーネントは ``Vertices`` 等)。
 
 アトリビュートは :meth:`~mlib.nodes.node.Node.getPlug` で取得した
 :class:`~mlib.plugs.plug.Plug` の ``get()``・``set()`` で読み書きします。
@@ -117,7 +117,7 @@ Mayaのコマンドのフラグを受け取る入口(``mlib.ls`` 等)は、Maya�
 --------------------------
 
 ``maya.cmds.ls`` と同じように、``mlib.ls`` で名前・選択・型から対象を検索します。
-名前の文字列ではなく、対象に対応するNode・Plug・Componentを返します。
+名前の文字列ではなく、対象に対応するNode・Plug・Componentの集まりを返します。
 次の例は ``pCube1`` が存在するシーンが前提です。
 
 .. code-block:: python
@@ -133,9 +133,16 @@ Mayaのコマンドのフラグを受け取る入口(``mlib.ls`` 等)は、Maya�
    for node in nodes:
        print(node.getName())
 
-通常の戻り値はリストです。1件だけ取り出す場合も、結果があることを確認して ``nodes[0]`` のように取得します。
-一致する対象がなければ空になります。検索はノードの作成や選択変更を行いません。
-コンポーネントの範囲は単体の参照へ展開され、上の ``vertices`` には4つのVertexが入ります。
+戻り値は結果の種類に応じた集まりです。ノードだけなら :class:`~mlib.nodes.node.Nodes`
+(``type="joint"`` は :class:`~mlib.nodes.joint.Joints`、``type="skinCluster"`` は
+:class:`~mlib.nodes.skinCluster.SkinClusters`)、アトリビュートだけなら :class:`~mlib.plugs.plug.Plugs`、
+同じシェイプの同じ種類のコンポーネントだけなら :class:`~mlib.components.vertex.Vertices`・
+:class:`~mlib.components.edge.Edges`・:class:`~mlib.components.face.Faces`・:class:`~mlib.components.uv.UVs`・
+:class:`~mlib.components.cv.CVs` です。ノードとアトリビュートなど種類が混在する場合だけ list を返します。
+どの集まりも ``len``・``for``・添字・``bool``・``+``・``==``・``sort()`` に対応し、そのまま ``maya.cmds`` へ渡せます。
+1件だけ取り出す場合も、結果があることを確認して ``nodes[0]`` のように取得します。
+一致する対象がなければ空の ``Nodes`` になります。検索はノードの作成や選択変更を行いません。
+集まりは同じ対象の重複を除き、上の ``vertices`` は4つの頂点を持つ ``Vertices`` です。
 ``type="vertex"`` は頂点だけを抽出する指定で、ノードやフェースを頂点へ変換する指定ではありません。
 取得したノードのアトリビュートは ``node.getPlug("名前")`` でも参照できます。
 

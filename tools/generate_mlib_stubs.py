@@ -718,9 +718,10 @@ def _wrapper_classes():
     raise RuntimeError("_WRAPPER_CLASSES is not found in nodes/__init__.py")
 
 
-# ls(type=...) の特別な戻り値。component は単体要素のリスト、joint・skinCluster は専用コレクション。
-LS_SPECIAL = {"joint": "Joints", "skinCluster": "SkinClusters", "vertex": "list[Vertex]", "edge": "list[Edge]",
-              "face": "list[Face]", "uv": "list[UV]", "controlVertex": "list[CV]"}
+# ls(type=...) の特別な戻り値。joint・skinCluster は専用コレクション、component はその要素群
+# (0件はシェイプが決まらないため空の Nodes)。それ以外のノード型は Nodes。
+LS_SPECIAL = {"joint": "Joints", "skinCluster": "SkinClusters", "vertex": "Vertices | Nodes", "edge": "Edges | Nodes",
+              "face": "Faces | Nodes", "uv": "UVs | Nodes", "controlVertex": "CVs | Nodes"}
 
 
 def _ls_overloads(stub, node):
@@ -734,16 +735,16 @@ def _ls_overloads(stub, node):
         list[str]: ``def ls(...) -> ...: ...`` の行。
     """
     doc_types = _arg_types(ast.get_docstring(node) or "")
-    table = {name: "list[%s]" % cls for name, cls in _wrapper_classes().items()}
+    table = {name: "Nodes" for name in _wrapper_classes()}
     table.update(LS_SPECIAL)
     variants = []
     for maya_type, returns in sorted(table.items()):
         stub.annotation(returns, "ls")
         params = stub._params(node.args, doc_types, "ls", {"type": ('Literal["%s"]' % maya_type, False)})
         variants.append("def ls(%s) -> %s: ..." % (params, returns))
-    stub.annotation("list[Node]", "ls")
+    stub.annotation("Nodes", "ls")
     params = stub._params(node.args, doc_types, "ls", {"type": ("str", False)})
-    variants.append("def ls(%s) -> list[Node]: ..." % params)
+    variants.append("def ls(%s) -> Nodes: ..." % params)
     return variants
 
 
@@ -757,7 +758,8 @@ def _ls_return(stub, node):
     Returns:
         str: 戻り値の注釈。
     """
-    return stub.annotation("list[Node | Plug | Component]", "ls(return)")
+    return stub.annotation(
+        "Nodes | Plugs | Vertices | Edges | Faces | UVs | CVs | list[Node | Plug | Component]", "ls(return)")
 
 
 def _connection_variants(stub, node, qualname):
@@ -932,13 +934,13 @@ def _class_index(modules):
     return index
 
 
-COLLECTION_ROOTS = {"Nodes", "Components"}
+COLLECTION_ROOTS = {"Nodes", "Components", "Plugs"}
 
 
 def _collections(modules):
     """複数形のコレクションクラスと、その要素のクラスの対応をモジュールごとに求める。
 
-    ``Nodes``・``Components`` の派生を複数形のクラスとし、同じファイルにある単数形のクラス
+    ``Nodes``・``Components``・``Plugs`` の派生を複数形のクラスとし、同じファイルにある単数形のクラス
     (名前の先頭が最も長く一致するもの。例: Joints → Joint、Vertices → Vertex)を要素とする。
 
     Args:

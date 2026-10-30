@@ -4,6 +4,7 @@ import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
+from operator import methodcaller
 from typing import TYPE_CHECKING
 
 import maya.api.OpenMaya as om2
@@ -3200,3 +3201,176 @@ class Plug(Object):
 
         # Node(mplug.node()) と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
         return Node._wrap_resolved(*_resolve_node(mplug.node()))
+
+
+class Plugs:
+    """入力順のアトリビュート参照(Plug)を、重複を除いて保持するコレクション。
+
+    :class:`~mlib.nodes.node.Nodes` と同じく、同じアトリビュート(``Plug`` の ``==`` が等しいもの)は
+    先に現れた方だけを残し、入力順を保つ。``len``・添字(sliceはPlugs)・``for``・``bool``・``+``・
+    ``==``・:meth:`sort` に対応する。コピーやスライスはPlug参照を共有し、値は保持しない。
+    ``maya.cmds`` へ渡すとcmdsがシーケンスとして各Plugの名前へ展開する(マルチアトリビュート全体・
+    コンパウンドアトリビュートのPlugも、要素としては名前になる)。``==`` を定義するため、listと同じく
+    ハッシュ不可。
+
+    .. code-block:: python
+
+        import mlib
+
+        plugs = mlib.ls("pCube1.tx", "pCube1.ty")
+        for plug in plugs:
+            print(plug.getFullName())
+    """
+
+    __hash__ = None  # type: ignore[assignment]
+
+    def __init__(self, plugs=()):
+        """入力からPlug参照を解決し、重複を除いて保持する。
+
+        Args:
+            plugs (Plug | om2.MPlug | str | Iterable[Plug | om2.MPlug | str]): アトリビュートの参照、
+                または ``"node.attribute"`` 形式の名前。その列(入れ子も可)。単一の名前も受理する。
+
+        Raises:
+            TypeError: アトリビュートを指さない値・対応しない型を含む場合。
+            ValueError: 空文字列や空のMPlugを含む場合。
+            RuntimeError: 名前を解決できない、または無効な(削除済みの)アトリビュートを含む場合。
+        """
+        items = []
+        for value in Object._flatten_inputs(plugs):
+            plug = Plug._resolve_input(value)
+            if not plug.isValid():
+                raise RuntimeError("Cannot collect an invalid attribute")
+            items.append(plug)
+        self._items = list(dict.fromkeys(items))
+
+    def __iter__(self):
+        """保持順に要素を反復する。
+
+        Returns:
+            Iterator[Plug]: 保持しているPlugのイテレータ。
+        """
+        return iter(self._items)
+
+    def __len__(self):
+        """保持要素数。
+
+        Returns:
+            int: 保持要素数。
+        """
+        return len(self._items)
+
+    def __getitem__(self, index):
+        """保持列の位置からPlug参照、sliceから部分コレクションを取得する。
+
+        Args:
+            index (int | slice): Pythonリストの番号。負数も同じ規則で扱う。
+
+        Returns:
+            Plug | Plugs: 同じPlug参照、または参照を共有する新しいコレクション。
+        """
+        if not isinstance(index, slice):
+            return self._items[index]
+        return type(self)._from_plugs(self._items[index])
+
+    def __repr__(self):
+        """コレクション名と保持参照を表示する。
+
+        Returns:
+            str: ``Plugs([Plug('pCube1.translateX'), ...])`` のような文字列。
+        """
+        return f"{type(self).__name__}({self._items!r})"
+
+    def __eq__(self, other):
+        """同じ並びのPlug参照を持つか比較する。
+
+        Args:
+            other (Plugs | list | tuple): 比較の相手。
+
+        Returns:
+            bool: 要素数が等しく、各位置のPlugが ``==`` で等しければTrue。対応しない型はNotImplemented。
+        """
+        if not isinstance(other, (Plugs, list, tuple)):
+            return NotImplemented
+        others = other._items if isinstance(other, Plugs) else other
+        return len(self._items) == len(others) and all(a == b for a, b in zip(self._items, others))
+
+    def __add__(self, other):
+        """他のPlugs・list・tupleを後ろへ結合した、新しいコレクションを返す。
+
+        構築と同じ規則で入力を解決し、重複は先に現れた方を残す。
+
+        Args:
+            other (Plugs | list | tuple): 後ろへ結合するPlug・名前の列。
+
+        Returns:
+            Plugs: 左辺と同じ型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: 相手が対応しない型、またはアトリビュート以外を含む場合。
+            RuntimeError: 解決できない、または無効なアトリビュートを含む場合。
+        """
+        if not isinstance(other, (Plugs, list, tuple)):
+            return NotImplemented
+        return type(self)(self._items + list(other))
+
+    def __radd__(self, other):
+        """左辺がlist・tupleの結合で、新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合するPlug・名前の列。
+
+        Returns:
+            Plugs: 右辺(自身)と同じ型の新しいコレクション。
+
+        Raises:
+            TypeError: 相手が対応しない型、またはアトリビュート以外を含む場合。
+            RuntimeError: 解決できない、または無効なアトリビュートを含む場合。
+        """
+        if not isinstance(other, (list, tuple)):
+            return NotImplemented
+        return type(self)(list(other) + self._items)
+
+    def sort(self, key=None, reverse=False):
+        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はアトリビュートの完全名(:meth:`Plug.getFullName`)の順にする。
+        並べ替えるのはこのコレクションの保持列だけで、スライス・``+`` で作った別のコレクションの
+        順序は変わらない(各要素のPlug参照は共有している)。
+
+        Args:
+            key (Callable[[Plug], object] | None): 各Plugから比較用の値を返す関数。Noneは完全名。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
+        """
+        _require_bool(reverse, "reverse")
+        if key is not None and not callable(key):
+            raise TypeError("key must be callable or None")
+        self._items.sort(key=methodcaller("getFullName") if key is None else key, reverse=reverse)
+
+    def getFullNames(self):
+        """保持順の完全なアトリビュート名を返す(``maya.cmds`` へ渡す用途)。
+
+        Returns:
+            list[str]: 各Plugの :meth:`Plug.getFullName`。無効なPlugは空文字列。
+        """
+        return [plug.getFullName() for plug in self._items]
+
+    @classmethod
+    def _from_plugs(cls, plugs):
+        """解決済みのPlug列から、再解決せずに重複を除いて作る(lsの結果用)。
+
+        Args:
+            plugs (Iterable[Plug]): 解決済みで有効なPlug。
+
+        Returns:
+            Plugs: 新しいコレクション。
+        """
+        result = object.__new__(cls)
+        result._items = list(dict.fromkeys(plugs))
+        return result

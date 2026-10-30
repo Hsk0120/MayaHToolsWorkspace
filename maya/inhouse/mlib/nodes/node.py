@@ -2,6 +2,7 @@
 
 import inspect
 import re
+from operator import methodcaller
 from typing import Any, Optional
 
 import maya.api.OpenMaya as om2
@@ -2506,9 +2507,16 @@ class Nodes:
 
     同一ノード・同一DAGパスの重複だけを除外する。異なるインスタンスパスは保持する。
     コピーやスライスは参照を共有し、シーンのノードは複製しない。
+    ``len``・添字(sliceは同型)・``for``・``bool``・``+``・``==``・:meth:`sort` に対応し、
+    そのまま ``maya.cmds`` へ渡せる(cmdsがシーケンスとして各ノードの名前へ展開する)。
+    ``==`` を定義するため、listと同じくハッシュ不可(dictのキー・setの要素にできない)。
+
+    ``item_class`` は派生コレクション(:class:`~mlib.nodes.joint.Joints` 等)が受け入れる
+    ラッパー型を宣言するクラス属性。
     """
 
     item_class = Node
+    __hash__ = None  # type: ignore[assignment]
 
     def __init__(self, names=()):
         """入力からノード参照を解決し、要素型を検証して保持する。
@@ -2599,6 +2607,87 @@ class Nodes:
             str: 具象コレクション名と保持参照を表示する。
         """
         return f"{type(self).__name__}({self._items!r})"
+
+    def __eq__(self, other):
+        """同じ並びのNode参照を持つか比較する。
+
+        Args:
+            other (Nodes | list | tuple): 比較の相手。Nodesの派生型の違いは問わない。
+
+        Returns:
+            bool: 要素数が等しく、各位置のNodeが ``==`` で等しければTrue。対応しない型はNotImplemented。
+        """
+        if not isinstance(other, (Nodes, list, tuple)):
+            return NotImplemented
+        others = other._items if isinstance(other, Nodes) else other
+        return len(self._items) == len(others) and all(a == b for a, b in zip(self._items, others))
+
+    def __add__(self, other):
+        """他のNodes・list・tupleを後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
+
+        構築と同じ規則で入力を解決し、重複(同一ノード・同一DAGパス)は先に現れた方を残す。
+        要素型も構築と同じく検証する(``Joints + [transform]`` はTypeError)。相手の列は単独で
+        解決するため、``nodes + ["name"]`` のように名前の列も結合できる(相手の列の中での名前と
+        Nodeの混在は構築と同じくTypeError)。
+
+        Args:
+            other (Nodes | list | tuple): 後ろへ結合する対象列。名前・Node等の列。
+
+        Returns:
+            Nodes: 左辺と同じ具象型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: 相手が対応しない型、または要素型が合わない場合。
+            RuntimeError: 解決できない、または無効なノードを含む場合。
+        """
+        if not isinstance(other, (Nodes, list, tuple)):
+            return NotImplemented
+        return type(self)(self._items + Nodes._items_of(other))
+
+    def __radd__(self, other):
+        """``list + Nodes`` のように左辺がlist・tupleの結合で、右辺と同じ型の新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合する対象列。
+
+        Returns:
+            Nodes: 右辺(自身)と同じ具象型の新しいコレクション。
+
+        Raises:
+            TypeError: 相手が対応しない型、または要素型が合わない場合。
+            RuntimeError: 解決できない、または無効なノードを含む場合。
+        """
+        if not isinstance(other, (list, tuple)):
+            return NotImplemented
+        return type(self)(Nodes._items_of(other) + self._items)
+
+    def sort(self, key=None, reverse=False):
+        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はノードの完全名(:meth:`Node.getFullName`)の順にする。
+        Nodeは大小比較できないため、Pythonのlistと異なり要素そのものは比べない。
+        並べ替えるのはこのコレクションの保持列だけで、:meth:`copy`・スライス・``+`` で作った
+        別のコレクションの順序は変わらない(各要素のNode参照は共有している)。
+
+        Args:
+            key (Callable[[Node], object] | None): 各Nodeから比較用の値を返す関数。Noneは完全名。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
+            RuntimeError: key省略時に無効なノードを含む場合。
+        """
+        _require_bool(reverse, "reverse")
+        if key is not None and not callable(key):
+            raise TypeError("key must be callable or None")
+        if key is None:
+            for node in self._items:
+                node._require_valid("sort")
+            key = methodcaller("getFullName")
+        self._items.sort(key=key, reverse=reverse)
 
     def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
         """各ノードへ保持順に :meth:`Node.setAttrFlags` を適用する。
@@ -2803,6 +2892,20 @@ class Nodes:
         result = Object._flatten_inputs(values)
         Nodes._validate_inputs(result)
         return result
+
+    @staticmethod
+    def _items_of(values):
+        """結合の相手を単独で解決し、Node参照のlistを返す。
+
+        Args:
+            values (Nodes | list | tuple): 結合の相手。
+
+        Returns:
+            list[Node]: 相手の保持順のNode参照。Nodesはそのまま、列はNodesの構築と同じ規則で解決する。
+        """
+        if isinstance(values, Nodes):
+            return list(values._items)
+        return Nodes(values)._items
 
     @staticmethod
     def _duplicate_key(node):

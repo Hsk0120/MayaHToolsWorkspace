@@ -1,7 +1,8 @@
-"""名前や条件でMayaの対象を検索し、Node・Plug・単体Componentの参照へ変換する。
+"""名前や条件でMayaの対象を検索し、結果の種類に応じた集まり(コレクション)で返す。
 
-``type="joint"`` はJoints、``type="skinCluster"`` はSkinClustersを返し、
-それ以外はリストを返す。コンポーネント範囲は単体の参照へ展開する。
+ノードだけなら :class:`~mlib.nodes.node.Nodes` (``type="joint"`` は Joints、``type="skinCluster"`` は
+SkinClusters)、アトリビュートだけなら :class:`~mlib.plugs.plug.Plugs`、同じシェイプの同じ種類の
+コンポーネントだけなら Vertices・Edges・Faces・UVs・CVs を返す。種類が混在する場合だけ list を返す。
 型名などシーン参照以外を返すMayaフラグには対応しない。
 
 .. code-block:: python
@@ -213,8 +214,21 @@ def ls(*args,
         **kwargs (object): 今後追加される未知のMayaフラグ。そのままMayaへ渡す。
 
     Returns:
-        list[Node | Plug | Component] | Joints | SkinClusters: コンポーネント型指定時は単体要素のリスト。
-            ノード型のtypeまたはtypがjoint/skinClusterの場合は従来の専用コレクション。
+        Nodes | Joints | SkinClusters | Plugs | Vertices | Edges | Faces | UVs | CVs | list[Node | Plug | Component]:
+            結果の種類に応じた集まり。
+
+            * ノードだけ: :class:`~mlib.nodes.node.Nodes`。typeまたはtypがjointなら
+              :class:`~mlib.nodes.joint.Joints`、skinClusterなら :class:`~mlib.nodes.skinCluster.SkinClusters`
+              (0件でも同じ型)。
+            * アトリビュートだけ: :class:`~mlib.plugs.plug.Plugs`。
+            * 同じシェイプの同じ種類のコンポーネントだけ: :class:`~mlib.components.vertex.Vertices`・
+              :class:`~mlib.components.edge.Edges`・:class:`~mlib.components.face.Faces`・
+              :class:`~mlib.components.uv.UVs`・:class:`~mlib.components.cv.CVs`
+              (コンポーネント型のtype指定時も同じ)。
+            * ノードとアトリビュート、複数のシェイプ、複数の種類のコンポーネント等が混在する場合:
+              Mayaの結果の順の list。
+            * 上記以外で0件: 空の :class:`~mlib.nodes.node.Nodes` (コンポーネント型のtype指定で0件の場合も、
+              シェイプが決まらないため空のNodes)。
 
     Raises:
         TypeError: 長名・短名を同時指定した場合、または位置引数に対応しない型が含まれる場合。
@@ -222,9 +236,10 @@ def ls(*args,
         RuntimeError: 検索結果をノードとして解決できない場合。
 
     Note:
-        型名等を返すMayaフラグは非対応。検索結果が空なら空コレクションまたは空リスト。
-        結果の名前はまとめて解決するが、並び順はMayaが返した順のまま変えない。Mayaの結果に同じ名前が
-        重複して含まれる場合も統合せず、それぞれを別の参照として返す。
+        型名等を返すMayaフラグは非対応。
+        結果の名前はまとめて解決するが、並び順はMayaが返した順のまま変えない。集まりで返す場合は、
+        各集まりの構築と同じ規則で重複(同じノード・同じDAGパス、同じアトリビュート、同じ番号)を
+        先に現れた方だけ残す。list で返す混在の結果では重複を統合しない。
     """
     short_assemblies = kwargs.pop("as", _UNSET)
     _merge_flags(kwargs, (
@@ -354,5 +369,35 @@ def ls(*args,
         elif component is None:
             result.append(Plug._resolve_input(name))
     if component is not None:
-        return [item for item in result if isinstance(item, component_types[component])]
-    return result
+        result = [item for item in result if isinstance(item, component_types[component])]
+    return _collect(result)
+
+
+def _collect(items):
+    """lsの結果を、要素の種類がそろっていれば対応する集まりへまとめる。
+
+    Args:
+        items (list[Node | Plug | Component]): Mayaの結果の順に解決した参照。
+
+    Returns:
+        Nodes | Plugs | Components | list: ノードだけならNodes、アトリビュートだけならPlugs、
+            同じシェイプの同じ種類のコンポーネントだけなら対応するComponents、混在ならitemsそのもの。
+            0件は空のNodes。
+    """
+    # nodes・plugs・componentsはcmdsを参照するため、循環importを避けて関数内で読み込む。
+    from ..nodes.node import Node, Nodes
+    from ..plugs.plug import Plug, Plugs
+    from ..components import Component, CV, CVs, Edge, Edges, Face, Faces, UV, UVs, Vertex, Vertices
+
+    if not items:
+        return Nodes()
+    if all(isinstance(item, Node) for item in items):
+        return Nodes(items)
+    if all(isinstance(item, Plug) for item in items):
+        return Plugs._from_plugs(items)
+    first = items[0]
+    collections = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
+    collection = collections.get(type(first)) if isinstance(first, Component) else None
+    if collection is not None and all(type(item) is type(first) and item.shape == first.shape for item in items):
+        return collection(first.shape, [item.index for item in items])
+    return items

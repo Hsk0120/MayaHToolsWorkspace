@@ -15,10 +15,12 @@ import mlib
 mlib.reload()
 from mlib.nodes import Joints
 from mlib.nodes import Node
+from mlib.nodes import Nodes
 from mlib.nodes import SkinClusters
 from mlib.components import Vertex
 from mlib.components import Vertices
 from mlib.plugs import Plug
+from mlib.plugs import Plugs
 
 
 class _CmdsCase(unittest.TestCase):
@@ -224,7 +226,7 @@ class LsSpecTest(_CmdsCase):
         """結果の並びと名前はcmds.ls(long=True)と一致する。"""
         for kwargs in (dict(type="transform"), dict(long=True), dict(dag=True), dict(sn=True)):
             result = mlib.ls(self.ns + ":*", **kwargs)
-            self.assertIsInstance(result, list)
+            self.assertIsInstance(result, Nodes)
             expected = cmds.ls(self.ns + ":*", long=True, **{k: v for k, v in kwargs.items() if k not in ("long", "sn")})
             self.assertEqual([item.getFullName() for item in result], expected, msg=repr(kwargs))
             self.assertTrue(all(isinstance(item, Node) for item in result))
@@ -240,23 +242,121 @@ class LsSpecTest(_CmdsCase):
         self.assertEqual(len(empty), 0)
 
     def test_empty_inputs(self):
-        """Noneや空の列だけなら全ノードを検索せず空のlistを返す。"""
-        self.assertEqual(mlib.ls([]), [])
-        self.assertEqual(mlib.ls(None), [])
-        self.assertEqual(mlib.ls(self.name("missing*")), [])
+        """Noneや空の列だけなら全ノードを検索せず空のNodesを返す。コンポーネント型指定の0件も空のNodes。"""
+        for result in (mlib.ls([]), mlib.ls(None), mlib.ls(self.name("missing*")),
+                       mlib.ls(self.name("missing*"), type="transform"),
+                       mlib.ls(self.name("missing*"), type="vertex")):
+            self.assertIs(type(result), Nodes)
+            self.assertEqual(result, [])
+            self.assertFalse(result)
 
     def test_plugs_and_components(self):
-        """アトリビュート名はPlug、コンポーネント範囲は単体へ展開し、type指定で絞り込む。"""
+        """アトリビュート名はPlugs、コンポーネント範囲は同じ種類の集まりへまとめ、type指定で絞り込む。"""
         plugs = mlib.ls(self.cube + ".tx")
+        self.assertIs(type(plugs), Plugs)
         self.assertEqual(len(plugs), 1)
         self.assertIsInstance(plugs[0], Plug)
         vertices = mlib.ls(self.cube + ".vtx[0:2]")
+        self.assertIs(type(vertices), Vertices)
         self.assertEqual([item.index for item in vertices], [0, 1, 2])
         self.assertTrue(all(isinstance(item, Vertex) for item in vertices))
         cmds.select(self.cube + ".vtx[1:2]", self.cube + ".f[0]", replace=True)
         selected = mlib.ls(selection=True, type="vertex")
+        self.assertIs(type(selected), Vertices)
         self.assertEqual([item.index for item in selected], [1, 2])
+        self.assertIs(type(mlib.ls(sl=True, type="face")), mlib.components.Faces)
         self.assertEqual(len(mlib.ls(sl=True, type="face")), 1)
+
+    def test_result_collection_kinds(self):
+        """結果の種類ごとの集まり。混在(ノードとアトリビュート、複数の種類・形状のコンポーネント)だけlist。"""
+        other = cmds.polyCube(name=self.name("other"), constructionHistory=False)[0]
+        curve = cmds.curve(name=self.name("crv"), degree=1, point=[(0, 0, 0), (1, 0, 0), (2, 0, 0)])
+        cases = [
+            ("nodes", (self.joints[0], self.cube), Nodes),
+            ("plugs", (self.cube + ".tx", self.joints[0] + ".ry"), Plugs),
+            ("edges", (self.cube + ".e[0:3]",), mlib.components.Edges),
+            ("uvs", (self.cube + ".map[0:1]",), mlib.components.UVs),
+            ("cvs", (curve + ".cv[0:2]",), mlib.components.CVs),
+            ("node and plug", (self.cube, self.cube + ".tx"), list),
+            ("vertex and face", (self.cube + ".vtx[0]", self.cube + ".f[0]"), list),
+            ("two shapes", (self.cube + ".vtx[0]", other + ".vtx[0]"), list),
+            ("plug and vertex", (self.cube + ".tx", self.cube + ".vtx[0]"), list),
+        ]
+        for name, args, expected in cases:
+            with self.subTest(name=name):
+                self.assertIs(type(mlib.ls(*args)), expected)
+
+    def test_duplicates_follow_collection_rules(self):
+        """集まりで返す場合は構築と同じく重複を除き、cmds.lsの結果の初出の順を保つ。"""
+        names = [self.joints[1], self.joints[0], self.joints[1]]
+        nodes = mlib.ls(names)
+        self.assertEqual([node.getName() for node in nodes], list(dict.fromkeys(cmds.ls(names))))
+        self.assertEqual(len(nodes), 2)
+        plugs = mlib.ls(self.cube + ".tx", self.cube + ".translateX")
+        self.assertEqual(len(plugs), 1)
+
+    def test_nodes_operators(self):
+        """Nodesの+・==・sort。+は左辺の型で構築と同じ重複除外、sortはその場で並べ替えてNone。"""
+        joints = mlib.ls(self.ns + ":*", type="joint")
+        cube = mlib.getNode(self.cube)
+        joined = mlib.ls(self.joints[0]) + [self.cube] + joints
+        self.assertIs(type(joined), Nodes)
+        self.assertEqual([node.getName() for node in joined],
+                         [self.joints[0], self.cube, self.joints[1], self.joints[2]])
+        self.assertIs(type(joints + [self.joints[0]]), Joints)
+        with self.assertRaises(TypeError):
+            joints + [cube]
+        with self.assertRaises(TypeError):
+            joints + cube
+        with self.assertRaises(TypeError):
+            joints + [self.cube, cube]
+        self.assertIs(type([cube] + Nodes([self.joints[0]])), Nodes)
+        self.assertEqual(joints, [mlib.getNode(name) for name in self.joints])
+        self.assertEqual(joints, tuple(joints))
+        self.assertEqual(joints, Nodes(self.joints))
+        self.assertNotEqual(joints, joints[::-1])
+        self.assertNotEqual(joints, self.joints)  # 名前の文字列とは比べない
+        with self.assertRaises(TypeError):
+            hash(joints)
+        copy = joints.copy()
+        self.assertIsNone(joints.sort(reverse=True))
+        self.assertEqual([node.getName() for node in joints], self.joints[::-1])
+        self.assertEqual([node.getName() for node in copy], self.joints)
+        joints.sort(key=lambda node: node.getName())
+        self.assertEqual([node.getName() for node in joints], self.joints)
+        with self.assertRaises(TypeError):
+            joints.sort(key="name")
+        with self.assertRaises(TypeError):
+            joints.sort(reverse=None)
+
+    def test_plugs_collection(self):
+        """Plugsはlen・添字・for・bool・+・==・sort・reprを持ち、そのままcmdsへ渡せる。"""
+        names = [self.cube + ".tx", self.cube + ".ry", self.joints[0] + ".sz"]
+        plugs = Plugs(names)
+        self.assertEqual(len(plugs), 3)
+        self.assertTrue(plugs)
+        self.assertFalse(Plugs())
+        self.assertEqual([plug.getFullName() for plug in plugs],
+                         [mlib.getPlug(name).getFullName() for name in names])
+        self.assertIs(type(plugs[1:]), Plugs)
+        self.assertEqual(plugs[-1], mlib.getPlug(names[2]))
+        self.assertEqual(Plugs(names + names[:1]), plugs)
+        self.assertEqual(Plugs(mlib.getPlug(names[0])), [mlib.getPlug(names[0])])
+        self.assertEqual(plugs + [self.cube + ".tz"], Plugs(names + [self.cube + ".tz"]))
+        self.assertIs(type([self.cube + ".tz"] + plugs), Plugs)
+        self.assertTrue(repr(plugs).startswith("Plugs(["))
+        with self.assertRaises(TypeError):
+            plugs + mlib.getPlug(names[0])
+        with self.assertRaises(TypeError):
+            Plugs([self.cube])
+        with self.assertRaises(TypeError):
+            hash(plugs)
+        expected = sorted(plug.getFullName() for plug in plugs)
+        self.assertIsNone(plugs.sort())
+        self.assertEqual([plug.getFullName() for plug in plugs], expected)
+        cmds.select(plugs, replace=True)
+        self.assertEqual(len(cmds.ls(selection=True)), 3)
+        self.assertEqual(cmds.getAttr(Plugs([self.cube + ".t"])), [(0.0, 0.0, 0.0)])
 
     def test_wrapper_inputs_and_conflicts(self):
         """Node・コレクションを名前として渡せる。長短名の同時指定はTypeError。"""

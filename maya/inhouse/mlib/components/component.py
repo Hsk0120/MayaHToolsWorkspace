@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
 
 from ..core.object import Object, _missing_member_message
+from ..decorator import _require_bool
 
 if TYPE_CHECKING:
     from ..nodes.shape import Shape
@@ -338,9 +339,12 @@ class Components:
     Shapeラッパーを共有し、番号列は作成時に固定する。形状編集後の要素追加や削除には
     自動追従せず、トポロジー変更後の要素の同一性も保証しない。
     角括弧は保持列内の位置で、Mayaの実番号ではない。
+    ``+``(同じシェイプ・同じ種類どうし)・``==``・:meth:`sort` に対応する。``==`` を定義するため、
+    listと同じくハッシュ不可(dictのキー・setの要素にできない)。
     """
 
     component_class = Component
+    __hash__ = None  # type: ignore[assignment]
     # __init__で設定する保持値。派生クラス(別モジュール)からも参照する。
     _shape: "Shape"
     _indices: Tuple[int, ...]
@@ -459,6 +463,66 @@ class Components:
             return type(self)(self._shape, self._indices[index])
         return self.component_class(self._shape, self._indices[index])
 
+    def __eq__(self, other):
+        """同じシェイプ・同じ種類・同じ並びの番号か比較する。
+
+        list・tupleとは、各位置の単数コンポーネントを ``==`` で比べる。
+
+        Args:
+            other (Components | list | tuple): 比較の相手。
+
+        Returns:
+            bool: 等しければTrue。対応しない型はNotImplemented。
+        """
+        if isinstance(other, Components):
+            return (self.component_class.component_type == other.component_class.component_type
+                    and self._shape == other._shape and self._indices == other._indices)
+        if not isinstance(other, (list, tuple)):
+            return NotImplemented
+        if len(self._indices) != len(other):
+            return False
+        component_type = self.component_class.component_type
+        return all(isinstance(item, Component) and item.component_type == component_type
+                   and item._shape == self._shape and item._index == index
+                   for item, index in zip(other, self._indices))
+
+    def __add__(self, other):
+        """同じシェイプ・同じ種類の要素を後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
+
+        構築と同じく、初出順を保って重複した番号を除く。
+
+        Args:
+            other (Components | list | tuple): 同じシェイプ・同じ種類のコレクション、または単数
+                コンポーネントの列。
+
+        Returns:
+            Components: 左辺と同じ具象型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる要素を含む場合。
+            IndexError: 番号が現在の要素数の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        if not isinstance(other, (Components, list, tuple)):
+            return NotImplemented
+        return type(self)(self._shape, self._indices + self._matching_indices(other))
+
+    def __radd__(self, other):
+        """左辺がlist・tupleの結合で、右辺と同じ型の新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合する、同じシェイプ・同じ種類の単数コンポーネントの列。
+
+        Returns:
+            Components: 右辺(自身)と同じ具象型の新しいコレクション。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる要素を含む場合。
+        """
+        if not isinstance(other, (list, tuple)):
+            return NotImplemented
+        return type(self)(self._shape, self._matching_indices(other) + self._indices)
+
     @property
     def shape(self):
         """保持している所有シェイプの参照を返す。
@@ -477,6 +541,33 @@ class Components:
                 現在の番号範囲も再検証しない。カーブCVではOpenMayaの番号を保持する。
         """
         return self._indices
+
+    def sort(self, key=None, reverse=False):
+        """保持する番号列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はMayaの実番号の順にする。``key`` を渡した場合は、保持順の単数
+        コンポーネント(:meth:`__iter__` と同じ新しい参照)を引数に呼ぶ。並べ替えるのはこの
+        コレクションの番号列だけで、スライス・``+`` で作った別のコレクションの順序は変わらない
+        (シェイプのラッパーは共有している)。
+
+        Args:
+            key (Callable[[Component], object] | None): 各要素から比較用の値を返す関数。Noneは実番号。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
+        """
+        _require_bool(reverse, "reverse")
+        if key is not None and not callable(key):
+            raise TypeError("key must be callable or None")
+        if key is None:
+            self._indices = tuple(sorted(self._indices, reverse=reverse))
+            return
+        pairs = sorted(zip(self, self._indices), key=lambda pair: key(pair[0]), reverse=reverse)
+        self._indices = tuple(index for _, index in pairs)
 
     def getFullNames(self):
         """保持順の完全コンポーネント名を取得する。
@@ -539,6 +630,36 @@ class Components:
         except (RuntimeError, TypeError, ValueError, IndexError):
             return False
         return all(index >= 0 for index in self._indices)
+
+    def _matching_indices(self, other):
+        """結合する相手から、同じシェイプ・同じ種類であることを確かめた番号列を取り出す。
+
+        Args:
+            other (Components | list | tuple): 結合の相手。
+
+        Returns:
+            tuple[int, ...]: 相手の番号を保持順に並べた列。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる場合。
+        """
+        name = type(self).__name__
+        component_type = self.component_class.component_type
+        if isinstance(other, Components):
+            if other.component_class.component_type != component_type:
+                raise TypeError(f"Cannot add {type(other).__name__} to {name}: different component type")
+            if other._shape != self._shape:
+                raise TypeError(f"Cannot add {type(other).__name__} to {name}: different shape")
+            return other._indices
+        indices = []
+        for item in other:
+            if not isinstance(item, Component) or item.component_type != component_type:
+                raise TypeError(f"Cannot add {type(item).__name__} to {name}: "
+                                f"expected {self.component_class.__name__} items")
+            if item._shape != self._shape:
+                raise TypeError(f"Cannot add {type(item).__name__} to {name}: different shape")
+            indices.append(item._index)
+        return tuple(indices)
 
     def _has_standard_component(self, component_class=None):
         """単数の構築・検査・番号取得が標準の具体型か判定する。
