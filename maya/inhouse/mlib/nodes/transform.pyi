@@ -3,6 +3,7 @@
 
 import math
 import numbers
+from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
@@ -17,7 +18,7 @@ from ..util import _angle_unit, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
-from typing import Any, Iterable, Sequence
+from typing import Iterable, Sequence
 from mlib.components.component import Component
 from mlib.components.component import Components
 from mlib.nodes.constraint import Constraint
