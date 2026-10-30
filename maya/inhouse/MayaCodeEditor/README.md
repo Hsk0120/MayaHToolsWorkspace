@@ -171,18 +171,20 @@ Edit → Preferences → Spell check (English)で英語のスペル波線を切�
 
 0.2.10から、専用の非表示Maya reporterが整形した表示文書の追記だけを取得します。通常のPython/MELのprintはそのまま、情報通知は`// `、Pythonの警告・例外は`# Warning:`／`# Error:`など、標準Script Editorと同じ記号・改行になります。複数行の通知や空行にもMaya側の書式を適用し、独自の末尾` //`は追加しません。
 
-MayaのMCommandMessageが通知する種別を保持して描画します。行頭の文字列だけでは判定しないため、複数行の警告・エラーでも種別に応じた色を維持し、続く通常出力に色が残りません。
+Mayaの通知種別を保持しつつ、表示行の`# Error:` / `// Error:`、`# Warning:` / `// Warning:`、`# Result:` / `// Result:`も着色します。複数行の通知は見出しを着色し、続きの行は通常色です。着色だけでは通知種別を変えず、Errors only等の絞り込みは実際の種別を使います。
 
 | 種別 | 色 |
 | --- | --- |
-| Warning | 黄 `#ffff00` |
-| Error（エラー通知に含まれるトレースバックも含む） | 赤 `#ff0000` |
-| Result（Mayaが結果として通知した値） | 緑 `#b5cea8` |
-| Info | 水色 `#9cdcfe` |
-| History | グレー `#a0a0a0` |
+| Warning見出し | 黄 `#dfe527` |
+| Error見出し | 赤 `#f42828` |
+| Result見出し | 緑 `#2ab422` |
+| Info | 通常色（追加色をオンにすると水色 `#9cdcfe`） |
+| History | 通常色（追加色をオンにするとグレー `#a0a0a0`） |
 | Display・通常のprint | 明るいグレー `#d4d4d4` |
 
-`print("Error: ...")`や`print(result)`の文字列からエラー・成功を推測することはしません。独自ロガーが通常出力として送った警告も通常色になります。Maya標準エディタの内容や色、Echo All設定は変更しません。
+通常の`print("# Error: ...")`も赤くなりますが、エラー通知として再分類はしません。行中や字下げ後の接頭辞は対象外です。情報・履歴の追加色はPreferencesの **Color output info and command history** で切り替えます（初期オフ）。Maya標準エディターや他ツールの表示は変更しません。
+
+Outputは枠なし・余白4px、選択色は明るい青と白文字です。Output専用文字サイズは8〜40px（標準12px）で、Ctrl+ホイール・右クリック・View > Output font sizeから変更とリセットができます。コード欄とは別に保存します。旧設定はコード欄-2pxを引き継ぎます。
 
 ## 補完の仕組み
 

@@ -127,9 +127,9 @@ def main(output_dir, finished):
             wait_events(100)
             if 'color_plain_after_error' in visual_output.toPlainText():
                 break
-        for marker, expected in (('color_info', '#9cdcfe'), ('color_warning_first', '#ffff00'),
-                                 ('color_warning_second', '#ffff00'), ('color_error_first', '#ff0000'),
-                                 ('color_error_second', '#ff0000'), ('color_plain_after_error', '#d4d4d4')):
+        for marker, expected in (('color_info', '#d4d4d4'), ('color_warning_first', '#dfe527'),
+                                 ('color_warning_second', '#d4d4d4'), ('color_error_first', '#f42828'),
+                                 ('color_error_second', '#d4d4d4'), ('color_plain_after_error', '#d4d4d4')):
             position = visual_output.toPlainText().index(marker)
             cursor = visual_output.textCursor()
             cursor.setPosition(position)

@@ -799,11 +799,24 @@ bool preferencesPasses() {
         legacy.sync();
     }
     mce::EditorPreferences first(json);
-    if (first.option(mce::option::kSpellCheck) || first.fontPixels() != 18 || !QFile::exists(json)) {
+    if (first.option(mce::option::kSpellCheck) || first.fontPixels() != 18 || first.outputFontPixels() != 16 || !QFile::exists(json)) {
         qWarning() << "preferences migration"; return false;
     }
     // 別のMayaが別の項目を変えても、1項目ずつ書き換えるので互いの変更を消さない。
     mce::EditorPreferences second(json);
+    first.setFontPixels(20);
+    if (mce::EditorPreferences(json).outputFontPixels() != 16) {
+        qWarning() << "output font migration must survive code zoom"; return false;
+    }
+    second.setOutputFontPixels(23);
+    first.setFontPixels(21);
+    if (mce::EditorPreferences(json).outputFontPixels() != 23 || mce::EditorPreferences(json).fontPixels() != 21) {
+        QJsonObject stored;
+        mce::readJsonFile(json, &stored);
+        qWarning() << "independent output font persistence" << stored
+                   << mce::EditorPreferences(json).outputFontPixels() << mce::EditorPreferences(json).fontPixels();
+        return false;
+    }
     first.setOption(mce::option::kWhitespace, true);
     second.setOption(mce::option::kOutputWrap, true);
     QJsonObject saved;
@@ -825,7 +838,8 @@ bool preferencesPasses() {
     // 初期値に戻すとMaya Code Editorの項目を消し、知らない項目は残す。
     mce::updateJsonFile(json, "futureOption", 1);
     if (!first.resetToDefaults() || !mce::readJsonFile(json, &saved) || saved.contains("whitespace")
-        || !saved.contains("futureOption") || !first.option(mce::option::kSpellCheck)) {
+        || !saved.contains("futureOption") || !first.option(mce::option::kSpellCheck)
+        || saved.contains("outputFontPixels") || first.outputFontPixels() != 12) {
         qWarning() << "preferences reset" << saved; return false;
     }
     return true;
@@ -1297,10 +1311,10 @@ bool outputPanelPasses() {
     if (!panel.view()->toPlainText().endsWith("flood 5999\nafter\n") || panel.view()->blockCount() > 5001) {
         qWarning() << "output append"; return false;
     }
-    // エラーの色(最後の行の手前)が付いている。
+    // 大量の複数行通知の続きは通常色へ戻し、次の通常出力にもエラー色を残さない。
     QTextCursor cursor(panel.view()->document()->findBlockByNumber(panel.view()->blockCount() - 3));
     cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
-    if (cursor.charFormat().foreground().color() != QColor("#ff0000")) {
+    if (cursor.charFormat().foreground().color() != QColor("#d4d4d4")) {
         qWarning() << "output color" << cursor.charFormat().foreground().color().name(); return false;
     }
     return true;
@@ -2507,7 +2521,7 @@ int main(int argc, char** argv) {
         }
         poll->stop();
         auto output=window->findChild<QPlainTextEdit*>("output");
-        for (const auto& pair: QList<QPair<QString,QString>>{{"result_marker","#b5cea8"},{"history_marker","#a0a0a0"},{"normal_marker","#d4d4d4"}}) {
+        for (const auto& pair: QList<QPair<QString,QString>>{{"result_marker","#2ab422"},{"history_marker","#d4d4d4"},{"normal_marker","#d4d4d4"}}) {
             int position=output->toPlainText().indexOf(pair.first); if (position<0) { app.exit(9); return; }
             auto cursor=output->textCursor(); cursor.setPosition(position); cursor.movePosition(QTextCursor::Right,QTextCursor::KeepAnchor);
             if (cursor.charFormat().foreground().color().name()!=pair.second) { app.exit(10); return; }

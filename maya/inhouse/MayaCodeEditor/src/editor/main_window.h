@@ -259,8 +259,15 @@ private:
     void showPanels(bool output, bool input);
     /** @brief ステータスバーに行番号の入力欄を出し、Enterでその行へ移動する(Ctrl+G)。 */
     void showGoToLine();
-    /** @brief コード欄と出力欄の文字サイズを変えて保存する。 @param pixels 100%時のピクセル数。 */
+    /** @brief コード欄の文字サイズを変えて保存する。 @param pixels 100%時のピクセル数。 */
     void setZoom(int pixels);
+    /** @brief 出力欄だけの文字サイズを保存する。 @param pixels 100%時のピクセル数。 */
+    void setOutputZoom(int pixels);
+    /** @brief フォーカスがある欄のズームを変更する。Output以外ではコード欄が対象。
+     * @param delta サイズの増減。
+     * @param reset trueで対象の欄だけを初期サイズへ戻す。
+     */
+    void zoomFocusedPanel(int delta, bool reset = false);
     /** @brief 保存済みの文字サイズを、コード欄と出力欄の表示に反映する。 */
     void applyZoom();
     /** @brief ステータスバーに文字を出す。 @param text 文字。 @param timeout 表示するミリ秒。0なら消えない。 */

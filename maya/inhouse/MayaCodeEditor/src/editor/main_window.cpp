@@ -349,6 +349,9 @@ void MainWindow::buildLayout() {
 
     // ---- 出力欄 ----
     output_ = new OutputPanel(services_.takeOutput);
+    output_->setDetailColors(preferences_.option(option::kOutputDetailColors));
+    output_->view()->zoomRequested = [this](int steps) { setOutputZoom(preferences_.outputFontPixels() + steps); };
+    output_->view()->zoomResetRequested = [this] { setOutputZoom(EditorPreferences::kDefaultOutputFontPixels); };
     output_->view()->setLineNumbersVisible(preferences_.option(option::kOutputLineNumbers));
     output_->setWrap(preferences_.option(option::kOutputWrap));
 
@@ -1058,6 +1061,22 @@ void MainWindow::showGoToLine() {
 void MainWindow::setZoom(int pixels) {
     preferences_.setFontPixels(pixels);
     applyZoom();
+    showStatus(QString("Code font size: %1 px").arg(preferences_.fontPixels()), 2000);
+}
+
+void MainWindow::setOutputZoom(int pixels) {
+    preferences_.setOutputFontPixels(pixels);
+    applyZoom();
+    showStatus(QString("Output font size: %1 px").arg(preferences_.outputFontPixels()), 2000);
+}
+
+void MainWindow::zoomFocusedPanel(int delta, bool reset) {
+    QWidget* focus = focusWidget();
+    if (focus && (focus == output_->view() || output_->view()->isAncestorOf(focus))) {
+        setOutputZoom(reset ? EditorPreferences::kDefaultOutputFontPixels : preferences_.outputFontPixels() + delta);
+    } else {
+        setZoom(reset ? EditorPreferences::kDefaultFontPixels : preferences_.fontPixels() + delta);
+    }
 }
 
 void MainWindow::applyZoom() {
@@ -1065,17 +1084,19 @@ void MainWindow::applyZoom() {
     // 保存する値は100%時のピクセル数。表示するときに拡大率を掛けるので、4Kでも同じ見た目の大きさになる。
     setStyleSheet(QString("QPlainTextEdit#codeEditor,QPlainTextEdit#output{background:%1;color:%2;"
                           "font-family:'Consolas';selection-background-color:%3;selection-color:%2;}"
-                          "QPlainTextEdit#codeEditor{font-size:%4px;} QPlainTextEdit#output{font-size:%5px;}")
+                          "QPlainTextEdit#codeEditor{font-size:%4px;} QPlainTextEdit#output{font-size:%5px;"
+                          "border:0;selection-background-color:%6;selection-color:%7;}")
                       .arg(QString(theme::kBackground))
                       .arg(QString(theme::kText))
                       .arg(QString(theme::kSelection))
                       .arg(scaled(size))
-                      .arg(scaled(size - 2)));
+                      .arg(scaled(preferences_.outputFontPixels()))
+                      .arg(QString(theme::kOutputSelection))
+                      .arg(QString(theme::kOutputSelectedText)));
     // 検索バーの入力欄も、エディターと同じフォントと大きさにする(VS Codeと違い、文字サイズの変更に追従する)。
     QFont font("Consolas");
     font.setPixelSize(scaled(size));
     findBar_->setEditorFont(font);
-    showStatus(QString("Font size: %1 px").arg(size), 2000);
 }
 
 void MainWindow::showStatus(const QString& text, int timeout) {
@@ -1368,6 +1389,8 @@ void MainWindow::onOptionToggled(const QString& key, bool enabled) {
         output_->view()->setLineNumbersVisible(enabled);
     } else if (key == option::kOutputWrap) {
         output_->setWrap(enabled);
+    } else if (key == option::kOutputDetailColors) {
+        output_->setDetailColors(enabled);
     } else if (key == option::kExactOutput && services_.setExactOutput) {
         services_.setExactOutput(enabled);
     } else if (key == option::kSpellCheck) {

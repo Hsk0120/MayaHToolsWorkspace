@@ -24,6 +24,7 @@ const QList<OptionDefinition>& optionDefinitions() {
         {option::kStaticAnalysis, "Static analysis (syntax / warnings)", false},
         {option::kOutputLineNumbers, "Show output line numbers", false},
         {option::kOutputWrap, "Wrap output lines", false},
+        {option::kOutputDetailColors, "Color output info and command history", false},
         {option::kExactOutput, "Exact Script Editor output format (slower)", false},
         {option::kSpellCheck, "Spell check (English)", true},
         {option::kSmartIndent, "Smart indentation", true, true},
@@ -41,6 +42,7 @@ namespace {
 
 /// 文字サイズの保存名。
 constexpr const char* kFontPixelsKey = "fontPixels";
+constexpr const char* kOutputFontPixelsKey = "outputFontPixels"; ///< 出力専用サイズの保存名。
 
 /// 最近開いたファイルの保存名と、残す件数。
 constexpr const char* kRecentFilesKey = "recentFiles";
@@ -85,6 +87,8 @@ EditorPreferences::EditorPreferences(const QString& path) : path_(path) {
         values_.insert(definition.key, saved.value(definition.key).toBool(definition.defaultValue));
     }
     fontPixels_ = qBound(10, saved.value(kFontPixelsKey).toInt(kDefaultFontPixels), 28);
+    // 旧版ではコード欄-2pxだった。初回だけ旧サイズを継承し、以後はコード欄の変更と独立させる。
+    outputFontPixels_ = qBound(8, saved.value(kOutputFontPixelsKey).toInt(fontPixels_ - 2), 40);
     for (const QJsonValue& value : saved.value(kRecentFilesKey).toArray()) {
         if (value.isString() && !recentFiles_.contains(value.toString())) {
             recentFiles_.append(value.toString());
@@ -141,6 +145,7 @@ bool EditorPreferences::resetToDefaults() {
         values_[definition.key] = definition.defaultValue;
     }
     fontPixels_ = kDefaultFontPixels;
+    outputFontPixels_ = kDefaultOutputFontPixels;
     if (path_.isEmpty()) {
         return true;
     }
@@ -151,13 +156,26 @@ bool EditorPreferences::resetToDefaults() {
         saved.remove(definition.key);
     }
     saved.remove(kFontPixelsKey);
+    saved.remove(kOutputFontPixelsKey);
     return writeJsonFile(path_, saved);
 }
 
 void EditorPreferences::setFontPixels(int pixels) {
     fontPixels_ = qBound(10, pixels, 28);
     if (!path_.isEmpty()) {
+        // 未移行なら現在の出力サイズを先に確定する。既存キーは別Mayaの値も上書きしない。
+        QJsonObject saved;
+        if ((readJsonFile(path_, &saved) || !QFileInfo::exists(path_)) && !saved.contains(kOutputFontPixelsKey)) {
+            updateJsonFile(path_, kOutputFontPixelsKey, outputFontPixels_);
+        }
         updateJsonFile(path_, kFontPixelsKey, fontPixels_);
+    }
+}
+
+void EditorPreferences::setOutputFontPixels(int pixels) {
+    outputFontPixels_ = qBound(8, pixels, 40);
+    if (!path_.isEmpty()) {
+        updateJsonFile(path_, kOutputFontPixelsKey, outputFontPixels_);
     }
 }
 

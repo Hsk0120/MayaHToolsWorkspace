@@ -12,14 +12,20 @@
 
 class QComboBox;
 class QShowEvent;
+class QWheelEvent;
 
 namespace mce {
+
+class OutputHighlighter;
 
 /** @brief 選択・コピーができる読み取り専用のテキスト欄(objectNameは``output``)。 */
 class OutputView : public NumberedTextEdit {
 public:
     /** @brief 読み取り専用で、マウスとキーボードで選択できる欄を作る。行番号は初期状態で隠す。 */
     OutputView();
+
+    std::function<void(int)> zoomRequested;  ///< Ctrl+ホイールから親へ段階数を通知する。保存は親が担当。
+    std::function<void()> zoomResetRequested; ///< 右クリックから出力専用ズームを初期化する。
 
 protected:
     /** @brief Ctrl+C・Ctrl+Aを、Mayaのショートカットより先にこの欄で受け取る。
@@ -32,6 +38,14 @@ protected:
      * @param event キー入力。
      */
     void keyPressEvent(QKeyEvent* event) override;
+
+    /** @brief Ctrl+ホイールを出力専用ズームへ渡す。通常のスクロールは基底へ渡す。
+     * @param event ホイール入力。高分解能の途中の値も消費し、Mayaへ漏らさない。
+     */
+    void wheelEvent(QWheelEvent* event) override;
+
+private:
+    int zoomWheelDelta_ = 0; ///< 1段階(120)未満のホイール入力を蓄積する。
 };
 
 /** @brief 出力の表示モード。ツールバーの選択肢と同じ順番。 */
@@ -97,6 +111,11 @@ public:
      */
     void setWrap(bool wrap);
 
+    /** @brief 情報・実行履歴の追加色を切り替える。本文・選択・通知種別は変更しない。
+     * @param enabled trueで情報を水色、履歴をグレーにする。既定は通常文字色。
+     */
+    void setDetailColors(bool enabled);
+
 protected:
     /** @brief 表示されたら、閉じている間に貯まった出力をまとめて取り出す。 @param event 表示のイベント。 */
     void showEvent(QShowEvent* event) override;
@@ -129,6 +148,7 @@ private:
 
     std::function<QList<OutputMessage>()> takeOutput_;  ///< Mayaの出力を取り出す関数。
     OutputView* view_;                ///< テキスト欄。所有者はこの部品。
+    OutputHighlighter* highlighter_;  ///< 行頭の表示色を付ける。所有者はテキスト文書。
     QComboBox* filterSelector_;       ///< 表示モードの選択欄。
     QList<OutputMessage> history_;    ///< 表示モードの切り替え用に保持している出力。
     int historySize_ = 0;             ///< history_の文字数の合計。

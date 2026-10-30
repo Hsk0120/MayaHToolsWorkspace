@@ -28,9 +28,11 @@ constexpr const char* kSyntaxComment = "#6a9955";       ///< コメント。
 
 // ---- 出力の種類ごとの色 ----
 constexpr const char* kOutputNormal = "#d4d4d4";        ///< 通常の出力。
-constexpr const char* kOutputWarning = "#ffff00";       ///< 警告。
-constexpr const char* kOutputError = "#ff0000";         ///< エラー。
-constexpr const char* kOutputResult = "#b5cea8";        ///< コマンドの結果。
+constexpr const char* kOutputWarning = "#dfe527";       ///< 警告。
+constexpr const char* kOutputError = "#f42828";         ///< エラー。
+constexpr const char* kOutputResult = "#2ab422";        ///< コマンドの結果。
+constexpr const char* kOutputSelection = "#5285a6";    ///< 出力欄の選択範囲。
+constexpr const char* kOutputSelectedText = "#ffffff"; ///< 選択した出力の文字。
 constexpr const char* kOutputInfo = "#9cdcfe";          ///< Maya Code Editorの案内。
 constexpr const char* kOutputHistory = "#a0a0a0";       ///< 実行したコマンドの履歴。
 

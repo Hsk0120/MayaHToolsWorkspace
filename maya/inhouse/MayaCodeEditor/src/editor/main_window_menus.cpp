@@ -175,16 +175,20 @@ void MainWindow::buildMenusAndToolbar() {
     view->addAction("Fold all", this, editorAction(&CodeEditor::foldAll), QKeySequence("Ctrl+K, Ctrl+0"));
     view->addAction("Unfold all", this, editorAction(&CodeEditor::unfoldAll), QKeySequence("Ctrl+K, Ctrl+J"));
     view->addSeparator();
-    QAction* zoomIn = view->addAction("Zoom in", this, [this] { setZoom(preferences_.fontPixels() + 1); });
+    QAction* zoomIn = view->addAction("Zoom in", this, [this] { zoomFocusedPanel(1); });
     zoomIn->setObjectName("zoomIn");
     zoomIn->setShortcuts({QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")});
-    QAction* zoomOut = view->addAction("Zoom out", this, [this] { setZoom(preferences_.fontPixels() - 1); },
+    QAction* zoomOut = view->addAction("Zoom out", this, [this] { zoomFocusedPanel(-1); },
                                        QKeySequence("Ctrl+-"));
     zoomOut->setObjectName("zoomOut");
     QAction* zoomReset = view->addAction("Reset zoom", this,
-                                         [this] { setZoom(EditorPreferences::kDefaultFontPixels); },
+                                         [this] { zoomFocusedPanel(0, true); },
                                          QKeySequence("Ctrl+0"));
     zoomReset->setObjectName("zoomReset");
+    QMenu* outputFont = view->addMenu("Output font size");
+    outputFont->addAction("Increase", this, [this] { setOutputZoom(preferences_.outputFontPixels() + 1); })->setObjectName("outputZoomIn");
+    outputFont->addAction("Decrease", this, [this] { setOutputZoom(preferences_.outputFontPixels() - 1); })->setObjectName("outputZoomOut");
+    outputFont->addAction("Reset to 12 px", this, [this] { setOutputZoom(EditorPreferences::kDefaultOutputFontPixels); })->setObjectName("outputZoomReset");
     QAction* showOutputAction = view->addAction("Show output only", this, [this] { showPanels(true, false); });
     QAction* showInputAction = view->addAction("Show input only", this, [this] { showPanels(false, true); });
     QAction* showBothAction = view->addAction("Show input and output", this, [this] { showPanels(true, true); });
@@ -356,6 +360,7 @@ void MainWindow::resetPreferences() {
     }
     output_->view()->setLineNumbersVisible(preferences_.option(option::kOutputLineNumbers));
     output_->setWrap(preferences_.option(option::kOutputWrap));
+    output_->setDetailColors(preferences_.option(option::kOutputDetailColors));
     if (services_.setExactOutput) {
         services_.setExactOutput(preferences_.option(option::kExactOutput));
     }

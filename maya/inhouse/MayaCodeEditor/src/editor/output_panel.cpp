@@ -9,8 +9,11 @@
 #include <QMenu>
 #include <QScrollBar>
 #include <QShowEvent>
+#include <QSyntaxHighlighter>
+#include <QTextBlock>
 #include <QTextCursor>
 #include <QVBoxLayout>
+#include <QWheelEvent>
 
 namespace mce {
 namespace {
@@ -31,11 +34,15 @@ constexpr int kFloodRefreshInterval = 1000;
 /// この時間より間を空けずに出力が来たら、「出力が続いている」とみなす(ミリ秒)。
 constexpr int kBurstGap = 300;
 
+/// 表示用の元種別。絞り込みに使うOutputMessage.kindとは別に文書内へ保持する。
+constexpr int kOutputKindProperty = QTextFormat::UserProperty + 117;
+
 /** @brief 出力の種類に対応する文字色。
  * @param kind 出力の種類。
+ * @param details 情報・履歴へ追加色を使うか。
  * @return theme.hの色。
  */
-QColor colorFor(OutputKind kind) {
+QColor colorFor(OutputKind kind, bool details = false) {
     switch (kind) {
     case OutputKind::Warning:
         return QColor(theme::kOutputWarning);
@@ -44,9 +51,9 @@ QColor colorFor(OutputKind kind) {
     case OutputKind::Result:
         return QColor(theme::kOutputResult);
     case OutputKind::Info:
-        return QColor(theme::kOutputInfo);
+        return QColor(details ? theme::kOutputInfo : theme::kOutputNormal);
     case OutputKind::History:
-        return QColor(theme::kOutputHistory);
+        return QColor(details ? theme::kOutputHistory : theme::kOutputNormal);
     default:
         return QColor(theme::kOutputNormal);
     }
@@ -54,12 +61,53 @@ QColor colorFor(OutputKind kind) {
 
 }  // namespace
 
+/** @brief 出力の行頭を強調する。分割して届くprintも、行が伸びるたびに再判定する。
+ * @details 本文と通知種別には触れず、QSyntaxHighlighterの描画書式だけを変更する。
+ */
+class OutputHighlighter : public QSyntaxHighlighter {
+public:
+    /** @brief 文書に所有される強調器を作る。 @param document 出力欄の文書。 */
+    explicit OutputHighlighter(QTextDocument* document) : QSyntaxHighlighter(document) {}
+
+    /** @brief 保持済みの行も追加色へ反映する。 @param enabled 情報・履歴を色分けするか。 */
+    void setDetailColors(bool enabled) {
+        if (details_ != enabled) {
+            details_ = enabled;
+            rehighlight();
+        }
+    }
+
+protected:
+    /** @brief 元種別の色を復元し、明示的な行頭のError/Warning/Resultで上書きする。
+     * @param text 現在行の本文。行中や字下げ後の文字列は接頭辞とみなさない。
+     */
+    void highlightBlock(const QString& text) override {
+        const QTextBlock block = currentBlock();
+        for (auto it = block.begin(); !it.atEnd(); ++it) {
+            const QTextFragment fragment = it.fragment();
+            const auto kind = static_cast<OutputKind>(fragment.charFormat().property(kOutputKindProperty).toInt());
+            setFormat(fragment.position() - block.position(), fragment.length(), colorFor(kind, details_));
+        }
+        if (text.startsWith("# Error:") || text.startsWith("// Error:")) {
+            setFormat(0, text.size(), QColor(theme::kOutputError));
+        } else if (text.startsWith("# Warning:") || text.startsWith("// Warning:")) {
+            setFormat(0, text.size(), QColor(theme::kOutputWarning));
+        } else if (text.startsWith("# Result:") || text.startsWith("// Result:")) {
+            setFormat(0, text.size(), QColor(theme::kOutputResult));
+        }
+    }
+
+private:
+    bool details_ = false; ///< 追加色の有効状態。既定は情報・履歴も通常文字色。
+};
+
 // ---------------------------------------------------------------------------
 // OutputView
 // ---------------------------------------------------------------------------
 
 OutputView::OutputView() {
     setObjectName("output");
+    setFrameShape(QFrame::NoFrame);
     setLineNumbersVisible(false);
     setLineWrapMode(NoWrap);
     setReadOnly(true);
@@ -94,6 +142,19 @@ void OutputView::keyPressEvent(QKeyEvent* event) {
     QPlainTextEdit::keyPressEvent(event);
 }
 
+void OutputView::wheelEvent(QWheelEvent* event) {
+    if (event->modifiers() == Qt::ControlModifier && zoomRequested) {
+        zoomWheelDelta_ += event->angleDelta().y();
+        const int steps = zoomWheelDelta_ / 120;
+        zoomWheelDelta_ %= 120;
+        if (steps) zoomRequested(steps);
+        event->accept();
+        return;
+    }
+    zoomWheelDelta_ = 0;
+    QPlainTextEdit::wheelEvent(event);
+}
+
 // ---------------------------------------------------------------------------
 // OutputPanel
 // ---------------------------------------------------------------------------
@@ -104,6 +165,7 @@ OutputPanel::OutputPanel(std::function<QList<OutputMessage>()> takeOutput, QWidg
 
     // レイアウトに追加した部品は、このOutputPanelが所有する。
     view_ = new OutputView;
+    highlighter_ = new OutputHighlighter(view_->document());
     QFont font("Consolas");
     font.setPixelSize(scaled(12));
     view_->setFont(font);
@@ -235,6 +297,10 @@ void OutputPanel::setWrap(bool wrap) {
     view_->setLineWrapMode(wrap ? QPlainTextEdit::WidgetWidth : QPlainTextEdit::NoWrap);
 }
 
+void OutputPanel::setDetailColors(bool enabled) {
+    highlighter_->setDetailColors(enabled);
+}
+
 bool OutputPanel::accepts(OutputKind kind) const {
     switch (static_cast<OutputFilter>(filterSelector_->currentIndex())) {
     case OutputFilter::OutputOnly:
@@ -315,9 +381,23 @@ void OutputPanel::append(const QList<OutputMessage>& input) {
     writer.movePosition(QTextCursor::End);
     bool added = false;  // 表示モードで隠す種類だけなら、何も追加されない。
     for (const OutputMessage& message : messages) {
+        // 通知の先頭行は元種別の色を保つ。続きの行は通常色へ戻し、各行の接頭辞は強調器で判定する。
+        // 改行を挟まず届くprintの断片は同じブロックに入り、接頭辞が完成した時点で色が付く。
         QTextCharFormat format;
+        format.setProperty(kOutputKindProperty, static_cast<int>(message.kind));
         format.setForeground(colorFor(message.kind));
-        writer.insertText(message.text, format);
+        const int newline = message.text.indexOf('\n');
+        const bool status = message.kind == OutputKind::Error || message.kind == OutputKind::Warning
+                         || message.kind == OutputKind::Result;
+        if (status && newline >= 0 && newline + 1 < message.text.size()) {
+            writer.insertText(message.text.left(newline + 1), format);
+            format.setProperty(kOutputKindProperty, static_cast<int>(OutputKind::Normal));
+            format.setForeground(colorFor(OutputKind::Normal));
+            // 続きは一括挿入する。大量ログを行数分のinsertTextへ分解しない。
+            writer.insertText(message.text.mid(newline + 1), format);
+        } else {
+            writer.insertText(message.text, format);
+        }
         added = added || !message.text.isEmpty();
     }
     // 以後の追記(appendNote等)が直前の色を引き継がないよう、通常の色へ戻す。
@@ -344,6 +424,10 @@ void OutputPanel::showContextMenu(const QPoint& point) {
     menu->addSeparator();
     QAction* clearAction = menu->addAction("Clear output", this, [this] { clear(); });
     clearAction->setObjectName("clearOutputAction");
+    menu->addSeparator();
+    menu->addAction("Increase output font size", this, [this] { if (view_->zoomRequested) view_->zoomRequested(1); });
+    menu->addAction("Decrease output font size", this, [this] { if (view_->zoomRequested) view_->zoomRequested(-1); });
+    menu->addAction("Reset output font size", this, [this] { if (view_->zoomResetRequested) view_->zoomResetRequested(); });
     menu->exec(view_->mapToGlobal(point));  // メニューが閉じるまでここで待つ。
     delete menu;
 }

@@ -24,6 +24,7 @@ constexpr const char* kIncludeBuiltins = "includeBuiltins";       ///< 候補に
 constexpr const char* kStaticAnalysis = "staticAnalysis";         ///< 構文チェック。
 constexpr const char* kOutputLineNumbers = "outputLineNumbers";   ///< 出力欄の行番号。
 constexpr const char* kOutputWrap = "outputWrap";                 ///< 出力欄の折り返し。
+constexpr const char* kOutputDetailColors = "outputDetailColors"; ///< 情報・実行履歴の追加色。
 constexpr const char* kExactOutput = "exactOutput";               ///< 出力をScript Editorのreporterで整形して取り込む(遅い)。
 constexpr const char* kSpellCheck = "spellCheck";                 ///< 英語のスペルチェック。
 constexpr const char* kSmartIndent = "smartIndent";               ///< Enterでインデントを引き継ぐ。
@@ -51,6 +52,7 @@ class EditorPreferences {
 public:
     /// 文字サイズの初期値(100%時のピクセル数)。
     static constexpr int kDefaultFontPixels = 14;
+    static constexpr int kDefaultOutputFontPixels = 12; ///< 出力専用文字サイズの初期値。
 
     /** @brief 保存済みの値を読み込む。保存が無い設定は初期値になる。
      * @param path preferences.jsonの絶対パス。空なら保存せず、全て初期値のまま使う。
@@ -73,6 +75,12 @@ public:
 
     /** @brief 文字サイズを変えて保存する。 @param pixels 10〜28の範囲に丸める。 */
     void setFontPixels(int pixels);
+
+    /** @brief 出力欄専用の文字サイズ。 @return 100%時の8〜40px。 */
+    int outputFontPixels() const { return outputFontPixels_; }
+
+    /** @brief 出力文字サイズだけを保存する。 @param pixels 8〜40へ丸める。 */
+    void setOutputFontPixels(int pixels);
 
     /** @brief 最近開いたファイル(新しい順、最大20件)。 @return 絶対パスの一覧。 */
     QStringList recentFiles() const { return recentFiles_; }
@@ -104,6 +112,7 @@ private:
     QString path_;                         ///< 保存先(preferences.json)。保存しない場合は空。
     QHash<QString, bool> values_;          ///< 設定の現在の値。
     int fontPixels_ = kDefaultFontPixels;  ///< 文字サイズ。
+    int outputFontPixels_ = kDefaultOutputFontPixels; ///< コード欄と独立した出力文字サイズ。
     QStringList recentFiles_;              ///< 最近開いたファイル(新しい順)。
     QHash<QString, bool> flags_;           ///< メニューに無い表示の状態(``outlineVisible``など)。
 };

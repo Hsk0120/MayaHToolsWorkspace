@@ -9,7 +9,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
     """
     action_type = getattr(QtWidgets, 'QAction', None) or QtGui.QAction
     actions = {a.objectName()[7:]: a for a in window.findChildren(action_type) if a.objectName().startswith('option_')}
-    assert len(actions) == 16
+    assert len(actions) == 20
     original = {key: a.isChecked() for key, a in actions.items()}
     code = window.findChild(QtWidgets.QTabWidget).currentWidget()
     old_path = code.property('path')
@@ -117,7 +117,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
                     'staticAnalysis': False, 'outputLineNumbers': False, 'outputWrap': False, 'spellCheck': True,
                     'smartIndent': True, 'backspaceIndent': True, 'whitespace': False,
                     'trimWhitespace': False, 'finalNewline': False, 'autoClosing': True, 'stickyScroll': True,
-                    'exactOutput': False}
+                    'exactOutput': False, 'outputDetailColors': False, 'autoImports': False, 'semanticColors': True, 'inlayHints': False}
         assert set(defaults) == set(actions)
         reset = next(a for a in window.findChildren(action_type) if a.objectName() == 'resetPreferences')
 
@@ -146,7 +146,7 @@ def check(window, directory, QtCore, QtGui, QtWidgets, QtTest):
         assert {key: a.isChecked() for key, a in actions.items()} == defaults
         assert not (code.document().defaultTextOption().flags() & QtGui.QTextOption.ShowTabsAndSpaces)
         assert window.findChild(QtWidgets.QPlainTextEdit, 'output').lineWrapMode() == QtWidgets.QPlainTextEdit.NoWrap
-        assert not any(key in saved_preferences() for key in list(defaults) + ['fontPixels']), saved_preferences()
+        assert not any(key in saved_preferences() for key in list(defaults) + ['fontPixels', 'outputFontPixels']), saved_preferences()
         # 文字サイズは、View > Reset zoomと同じ大きさ(標準14px)に戻っている。
         reset_style = window.styleSheet()
         assert reset_style != zoomed_style

@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser.add_argument('--timeout', type=int, default=120)
     parser.add_argument('--shutdown-timeout', type=int, default=30)
     parser.add_argument('--manual-focus', action='store_true', help='検索テスト開始前に、専用画面の開始ボタンをクリックして前面化する')
-    parser.add_argument('--suite', choices=['execution_undo_smoke.py', 'search_navigation_smoke.py', 'editing_selection_smoke.py', 'language_smoke.py', 'recovery_failure_smoke.py', 'gui_smoke.py', 'completion_output_smoke.py', 'completion_scope_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py', 'vscode_features_smoke.py', 'perf_smoke.py', 'dock_resize_smoke.py', 'restore_order_smoke.py'], default='gui_smoke.py')
+    parser.add_argument('--suite', choices=['output_appearance_smoke.py', 'execution_undo_smoke.py', 'search_navigation_smoke.py', 'editing_selection_smoke.py', 'language_smoke.py', 'recovery_failure_smoke.py', 'gui_smoke.py', 'completion_output_smoke.py', 'completion_scope_smoke.py', 'formatting_spelling_smoke.py', 'output_format_smoke.py', 'output_fallback_smoke.py', 'vscode_features_smoke.py', 'perf_smoke.py', 'dock_resize_smoke.py', 'restore_order_smoke.py'], default='gui_smoke.py')
     args = parser.parse_args()
     if args.timeout <= 0 or args.shutdown_timeout <= 0:
         parser.error('timeouts must be positive')
