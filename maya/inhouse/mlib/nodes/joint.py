@@ -1,6 +1,7 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
 import math
+from typing import Any, Dict, List
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -216,7 +217,7 @@ class Joint(Transform):
         if flag is None:
             raise ValueError(f"axis must be one of {', '.join(_MIRROR_PLANES)}: {axis!r}")
         _require_bool(behavior, "behavior")
-        flags = {flag: True, "mirrorBehavior": behavior}
+        flags: Dict[str, Any] = {flag: True, "mirrorBehavior": behavior}
         if searchReplace is not None:
             if (isinstance(searchReplace, str) or not isinstance(searchReplace, (tuple, list))
                     or len(searchReplace) != 2 or not all(isinstance(item, str) for item in searchReplace)):
@@ -359,7 +360,7 @@ class Joint(Transform):
         parent = self.getParent()
         if parent is None or not parent.isValid():
             return None
-        if not parent.mnode().hasFn(om2.MFn.kJoint):
+        if not parent._require_mnode().hasFn(om2.MFn.kJoint):
             return None
         return parent.getName()
 
@@ -374,7 +375,7 @@ class Joint(Transform):
         return [
             child.getName()
             for child in self.getChildren(shapes=True, intermediates=True)
-            if child.mnode().hasFn(om2.MFn.kJoint)
+            if child._require_mnode().hasFn(om2.MFn.kJoint)
         ]
 
     def getDepth(self):
@@ -407,7 +408,9 @@ class Joint(Transform):
             if node.getUuid() in seen:
                 continue
             seen.add(node.getUuid())
-            result.append(SkinCluster(node.mnode()))
+            mobject = node.mnode()
+            assert mobject is not None
+            result.append(SkinCluster(mobject))
         return result
 
     def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=False):
@@ -508,7 +511,7 @@ class Joint(Transform):
         """
         self._require_valid("build a chain from")
         if to is None:
-            chain = [self]
+            chain: List[Joint] = [self]
             current = self
             while True:
                 children = current.getChildJointNames()
@@ -556,7 +559,9 @@ class Joint(Transform):
             if node.getUuid() in seen:
                 continue
             seen.add(node.getUuid())
-            result.append(IkHandle(node.mnode()))
+            mobject = node.mnode()
+            assert mobject is not None
+            result.append(IkHandle(mobject))
         return result
 
     def _orient(self, flags):
@@ -759,6 +764,7 @@ class Joints(Nodes):
     """Joint参照を保持するコレクション。型・重複規則はNodesに従う。"""
 
     item_class = Joint
+    _items: List[Joint]
 
     def sortedByDepth(self):
         """深い joint から順に並べた新しいコレクションを返す。

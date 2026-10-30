@@ -178,14 +178,14 @@ class DagNode(Node):
             RuntimeError: 保持するDAGパスが無効な場合。
         """
         ...
-    def getParent(self, step: int = ...) -> Node | None:
+    def getParent(self, step: int = ...) -> DagNode | None:
         """保持パスを指定階層だけ遡る。
 
         Args:
             step (int): 遡る階層数。0以下、またはワールドまで遡る場合はNone。
 
         Returns:
-            Node | None: 遡ったパスの新しいラッパー。親がない場合はNone。
+            DagNode | None: 遡ったパスの新しいラッパー。親がない場合はNone。
 
         Raises:
             RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。
@@ -386,6 +386,15 @@ class DagNode(Node):
 
         Returns:
             list[DagNode]: 表示色を設定するノード。
+        """
+        ...
+    def _require_mnode(self) -> om2.MObject:
+        """保持する MObject を返す。:meth:`mnode` と同じ値で、None にならないことを確かめる。
+
+        初期化でノードを解決できなければ例外になるため、生成済みのラッパーは常に MObject を保持する。
+
+        Returns:
+            om2.MObject: 保持している MObject(複製ではない)。
         """
         ...
     @staticmethod

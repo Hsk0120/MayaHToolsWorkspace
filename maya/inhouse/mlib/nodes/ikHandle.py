@@ -145,8 +145,9 @@ class IkHandle(Transform):
         source = self._dependency_fn().findPlug("inCurve", False).source()
         if source.isNull:
             return None
-        shape = Node(source.node())
-        parent = shape.getParent() if shape.mnode().hasFn(om2.MFn.kShape) else None
+        source_node = source.node()
+        shape = Node(source_node)
+        parent = shape.getParent() if source_node.hasFn(om2.MFn.kShape) else None
         return shape if parent is None else parent
 
     def getEndJoint(self):

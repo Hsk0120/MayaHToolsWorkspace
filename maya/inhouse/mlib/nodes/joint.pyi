@@ -2,6 +2,7 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
 import math
+from typing import Any, Dict, List
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..core.fastWrite import set_attr
@@ -512,6 +513,7 @@ class Joints(Nodes):
     @overload
     def __getitem__(self, index: slice) -> Joints: ...
     item_class: Any
+    _items: List[Joint]
     def sortedByDepth(self) -> Joints:
         """深い joint から順に並べた新しいコレクションを返す。
 
