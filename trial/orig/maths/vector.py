@@ -1,6 +1,7 @@
 """om2.MVector を継承した3成分ベクトルと基本演算。"""
 
 import math
+from typing import Any, Sequence
 
 import maya.api.OpenMaya as om2
 
@@ -48,6 +49,32 @@ def _resolve_mvector(value):
     result.y = y
     result.z = z
     return result
+
+
+def _vector_operand(value):
+    """加減算・比較の相手を om2.MVector として扱える形へそろえる。
+
+    MVector 系はそのまま返し、3個の数値(int/float。boolを除く)を持つ tuple/list は新しい
+    MVector へ変換する。MPoint などそれ以外の型は対応しないため None を返す。
+
+    Args:
+        value (object): 演算・比較の相手。
+
+    Returns:
+        om2.MVector | None: 相手の値。対応しない型は None。
+    """
+    if isinstance(value, _MVector):
+        return value
+    if type(value) in (tuple, list) and len(value) == 3:
+        x, y, z = value
+        if (isinstance(x, _NUMBER) and isinstance(y, _NUMBER) and isinstance(z, _NUMBER)
+                and not isinstance(x, bool) and not isinstance(y, bool) and not isinstance(z, bool)):
+            result = _MVector()
+            result.x = x
+            result.y = y
+            result.z = z
+            return result
+    return None
 
 
 def _zero(cls):
@@ -184,7 +211,8 @@ class Vector(om2.MVector):
     演算はOM2に従い、ベクトル結果は派生型によらず基底Vectorを返す。
     ``om2.MVector`` が左辺の ``+`` / ``-`` / ``^`` もVectorになる。
 
-    * ``+`` / ``-`` はMVector系の成分ごとの加減算。
+    * ``+`` / ``-`` はMVector系、または3個の数値のtuple/listとの成分ごとの加減算
+      (``v + (1, 1, 1)``・``(1, 1, 1) + v``・``v - [0, 1, 0]``)。結果はVector。
     * ``v * 数値`` / ``数値 * v`` / ``v / 数値`` はスカラー演算。0除算はZeroDivisionError。
     * ``v * w`` は内積(float)、``v ^ w`` は外積。
     * ``v * m`` は平行移動を含まない行ベクトルの方向変換。
@@ -195,8 +223,8 @@ class Vector(om2.MVector):
     数学値を返す継承メソッドも対応するmlib型を使う。OpenMayaの共有クラス定数は変更しない。
 
     成分・番号へ代入可能。番号は-3〜2、範囲外はIndexError。スライスは代入不可のtuple、反復はXYZ順。
-    ``==`` はMVector系の成分の完全一致で、派生型が違っても等しくなり得る。
-    それ以外はOM2型ならFalse、他は相手の比較へ委ね、未判定ならFalse。
+    ``==`` はMVector系、または3個の数値のtuple/listとの成分の完全一致で、派生型が違っても等しくなり得る。
+    MPointなどそれ以外のOM2型はFalse、他は相手の比較へ委ね、未判定ならFalse。
     OM2型が左辺の比較はOM2側でTypeErrorになり得る。
     """
 
@@ -242,9 +270,10 @@ class Vector(om2.MVector):
             except TypeError as error:
                 _rethrow_init_error(type(self), error)
         count = len(args)
-        values = args
+        # 成分の形はom2のコンストラクタと同じく実行時に判定するため、任意の値として扱う。
+        values: Sequence[Any] = args
         if count == 1:
-            source = args[0]
+            source: Any = args[0]
             if isinstance(source, _MVector):
                 self.x = source.x
                 self.y = source.y
@@ -378,12 +407,13 @@ class Vector(om2.MVector):
             other (object): 比較対象。
 
         Returns:
-            bool | types.NotImplementedType: MVector 系なら om2 と同じ成分比較の結果。
+            bool | types.NotImplementedType: MVector 系と3個の数値の tuple/list は成分比較の結果。
             その他の om2 の型は False。それ以外の型は NotImplemented(相手の比較に委ね、
             どちらも判断しなければ False になる)。
         """
-        if isinstance(other, _MVector):
-            return _MVector.__eq__(self, other)
+        operand = _vector_operand(other)
+        if operand is not None:
+            return _MVector.__eq__(self, operand)
         return _foreign_comparison(other, False)
 
     def __ne__(self, other):
@@ -393,23 +423,25 @@ class Vector(om2.MVector):
             other (object): 比較対象。
 
         Returns:
-            bool | types.NotImplementedType: MVector 系なら om2 と同じ比較の結果。
+            bool | types.NotImplementedType: MVector 系と3個の数値の tuple/list は成分比較の結果。
             その他の om2 の型は True。それ以外の型は NotImplemented。
         """
-        if isinstance(other, _MVector):
-            return _MVector.__ne__(self, other)
+        operand = _vector_operand(other)
+        if operand is not None:
+            return _MVector.__ne__(self, operand)
         return _foreign_comparison(other, True)
 
     def __add__(self, other):
         """MVector 系との成分ごとの加算を返す。
 
         Args:
-            other (object): 加算する MVector 系。
+            other (object): 加算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         result = _NEW(Vector)
         _INIT(result)
@@ -421,12 +453,13 @@ class Vector(om2.MVector):
         """左辺の MVector 系との成分ごとの加算を返す。
 
         Args:
-            other (object): 左辺の MVector 系。
+            other (object): 左辺の MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         result = _NEW(Vector)
         _INIT(result)
@@ -441,12 +474,13 @@ class Vector(om2.MVector):
         NotImplemented が代入されてしまうため、型を検査してから委譲する。
 
         Args:
-            other (object): 加算する MVector 系。
+            other (object): 加算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented(TypeError になる)。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         return _MVector.__iadd__(self, other)
 
@@ -454,12 +488,13 @@ class Vector(om2.MVector):
         """MVector 系との成分ごとの減算を返す。
 
         Args:
-            other (object): 減算する MVector 系。
+            other (object): 減算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         result = _NEW(Vector)
         _INIT(result)
@@ -471,12 +506,13 @@ class Vector(om2.MVector):
         """左辺の MVector 系から自身を引いた値を返す。
 
         Args:
-            other (object): 左辺の MVector 系。
+            other (object): 左辺の MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 新しい Vector。対応しない型は NotImplemented。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         result = _NEW(Vector)
         _INIT(result)
@@ -488,12 +524,13 @@ class Vector(om2.MVector):
         """MVector 系を自身から減算する。
 
         Args:
-            other (object): 減算する MVector 系。
+            other (object): 減算する MVector 系、または3個の数値の tuple/list。
 
         Returns:
             Vector | types.NotImplementedType: 自身。対応しない型は NotImplemented。
         """
-        if not isinstance(other, _MVector):
+        other = _vector_operand(other)
+        if other is None:
             return NotImplemented
         return _MVector.__isub__(self, other)
 

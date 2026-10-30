@@ -17,7 +17,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         self.first = mlib.createNode("joint", name="first")
         self.second = mlib.createNode("joint", name="second")
         self.skin = mlib.nodes.SkinCluster.bind(self.base, [self.first, self.second])
-        self.skin.setWeights([self.first, self.second], [0.25, 0.75])
+        self.skin.setWeights([self.first, self.second], [0.25, 0.75], broadcast=True)
 
     def tearDown(self):
         """一時シーンを破棄する。"""
@@ -51,7 +51,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
     def test_legacy_conversion_and_partial_update_are_preserved(self):
         """既存int変換と、途中のゼロ合計失敗前に完了した更新を維持する。"""
         self.skin.redistributeWeights(["0", 1.9])
-        self.skin.setWeights([self.first, self.second], [0.25, 0.75])
+        self.skin.setWeights([self.first, self.second], [0.25, 0.75], broadcast=True)
         cmds.setAttr(self.skin.getFullName() + ".weightList[1].weights[0]", 0)
         cmds.setAttr(self.skin.getFullName() + ".weightList[1].weights[1]", 0)
         before = list(self.skin.getWeights([self.first, self.second]))

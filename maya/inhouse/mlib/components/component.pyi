@@ -5,6 +5,7 @@ import operator
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
 from ..core.object import Object, _missing_member_message
+from ..decorator import _require_bool
 from ..nodes.shape import Shape
 from typing import Any, Iterable, Iterator, Sequence
 from typing import overload
@@ -235,6 +236,8 @@ class Components:
     Shapeラッパーを共有し、番号列は作成時に固定する。形状編集後の要素追加や削除には
     自動追従せず、トポロジー変更後の要素の同一性も保証しない。
     角括弧は保持列内の位置で、Mayaの実番号ではない。
+    ``+``(同じシェイプ・同じ種類どうし)・``==``・:meth:`sort` に対応する。``==`` を定義するため、
+    listと同じくハッシュ不可(dictのキー・setの要素にできない)。
     """
     def __iter__(self) -> Iterator[Component]: ...
     @overload
@@ -242,6 +245,7 @@ class Components:
     @overload
     def __getitem__(self, index: slice) -> Components: ...
     component_class: Any
+    __hash__: None
     _shape: 'Shape'
     _indices: Tuple[int, ...]
     def __init__(self, shape: Shape, indices: Iterable[int] | None = ...) -> None:
@@ -280,6 +284,49 @@ class Components:
                 ``Vertices('boxShape', count=0)``。無効なら ``<Vertices invalid>``。
         """
         ...
+    def __eq__(self, other: Components | list | tuple) -> bool:
+        """同じシェイプ・同じ種類・同じ並びの番号か比較する。
+
+        list・tupleとは、各位置の単数コンポーネントを ``==`` で比べる。
+
+        Args:
+            other (Components | list | tuple): 比較の相手。
+
+        Returns:
+            bool: 等しければTrue。対応しない型はNotImplemented。
+        """
+        ...
+    def __add__(self, other: Components | list | tuple) -> Components:
+        """同じシェイプ・同じ種類の要素を後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
+
+        構築と同じく、初出順を保って重複した番号を除く。
+
+        Args:
+            other (Components | list | tuple): 同じシェイプ・同じ種類のコレクション、または単数
+                コンポーネントの列。
+
+        Returns:
+            Components: 左辺と同じ具象型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる要素を含む場合。
+            IndexError: 番号が現在の要素数の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def __radd__(self, other: list | tuple) -> Components:
+        """左辺がlist・tupleの結合で、右辺と同じ型の新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合する、同じシェイプ・同じ種類の単数コンポーネントの列。
+
+        Returns:
+            Components: 右辺(自身)と同じ具象型の新しいコレクション。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる要素を含む場合。
+        """
+        ...
     @property
     def shape(self) -> Shape:
         """保持している所有シェイプの参照を返す。
@@ -295,6 +342,25 @@ class Components:
         Returns:
             tuple[int, ...]: 初出順で重複を除いた保持値そのもの。新しいコピーは作らず、
                 現在の番号範囲も再検証しない。カーブCVではOpenMayaの番号を保持する。
+        """
+        ...
+    def sort(self, key: Callable[[Component], object] | None = ..., reverse: bool = ...) -> None:
+        """保持する番号列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はMayaの実番号の順にする。``key`` を渡した場合は、保持順の単数
+        コンポーネント(:meth:`__iter__` と同じ新しい参照)を引数に呼ぶ。並べ替えるのはこの
+        コレクションの番号列だけで、スライス・``+`` で作った別のコレクションの順序は変わらない
+        (シェイプのラッパーは共有している)。
+
+        Args:
+            key (Callable[[Component], object] | None): 各要素から比較用の値を返す関数。Noneは実番号。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
         """
         ...
     def getFullNames(self) -> list[str]:
@@ -337,6 +403,19 @@ class Components:
         Note:
             トポロジー変更前後で同じ要素を指す保証はない。
             UVは現在のUVセットの番号範囲を使う。
+        """
+        ...
+    def _matching_indices(self, other: Components | list | tuple) -> tuple[int, ...]:
+        """結合する相手から、同じシェイプ・同じ種類であることを確かめた番号列を取り出す。
+
+        Args:
+            other (Components | list | tuple): 結合の相手。
+
+        Returns:
+            tuple[int, ...]: 相手の番号を保持順に並べた列。
+
+        Raises:
+            TypeError: シェイプまたはコンポーネントの種類が異なる場合。
         """
         ...
     def _has_standard_component(self, component_class: type | None = ...) -> bool:

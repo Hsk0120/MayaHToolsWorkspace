@@ -27,7 +27,7 @@ def listReferences(topLevelOnly: bool = ...) -> list[Reference]:
 
     Returns:
         list[Reference]: 参照ラッパーの一覧(``cmds.ls(type="reference")`` と同じ名前順)。
-            参照が無ければ空リスト。
+            参照が無ければ空リスト。名前順のため、参照を作成・読み込んだ順とは限らない。
     """
     ...
 

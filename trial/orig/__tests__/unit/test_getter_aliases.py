@@ -47,9 +47,10 @@ class CanonicalGettersTest(unittest.TestCase):
         self.node.setTranslate((4, 5, 6), worldSpace=True)
         self.assertEqual(tuple(self.node.getTranslate(worldSpace=True)), (4, 5, 6))
         angle = self.node.getPlug("rotateX")
-        angle.set(math.pi / 2)
+        angle.set(90)
         self.assertIs(mlib.getPlug(angle), angle)
-        self.assertAlmostEqual(angle.get(), math.pi / 2)
+        self.assertAlmostEqual(angle.get(), 90)
+        self.assertAlmostEqual(angle.get(unit="rad"), math.pi / 2)
         self.assertAlmostEqual(angle.get(uiUnits=True), 90)
         self.assertIsInstance(self.node.getPlug("matrix").get(), mlib.maths.Matrix)
 

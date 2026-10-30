@@ -14,6 +14,7 @@
 
 import maya.cmds as cmds
 
+from ..core.registry import _real_node_types
 from ..decorator import _merge_flags
 from ..util import _UNSET
 
@@ -106,6 +107,8 @@ def ls(*args,
         dependencyNodes (bool): 依存ノードを検索する指定。
         dep (bool): dependencyNodesの短縮名。同時指定はできない。
         exactType (str | Iterable[str]): 型との完全一致による検索条件。複数指定の扱いはMayaに従う。
+            type・excludeTypeと同じく、2026で改名された型(``multDoubleLinear``/``multDL``・
+            ``addDoubleLinear``/``addDL``)はどちらの名前でもその版の型名で検索する。
         et (str | Iterable[str]): exactTypeの短縮名。同時指定はできない。
         excludeType (str | Iterable[str]): 検索から除外するノード型。
         ext (str | Iterable[str]): excludeTypeの短縮名。同時指定はできない。
@@ -286,6 +289,10 @@ def ls(*args,
         (query, q, "query", "q"),
         (edit, e, "edit", "e"),
     ))
+    # 2026で改名された型(multDoubleLinear/multDL等)は、どちらの名前でもその版の型名で検索する。
+    for key in ("type", "exactType", "excludeType"):
+        if key in kwargs:
+            kwargs[key] = _real_node_types(kwargs[key])
     # nodes・components・common.selectionはcmdsを参照するため、循環importを避けて関数内で読み込む。
     from ..nodes.node import Nodes as _InputNodes
     from ..core.object import Object as _InputObject

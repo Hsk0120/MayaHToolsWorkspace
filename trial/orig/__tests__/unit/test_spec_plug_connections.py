@@ -105,9 +105,10 @@ class RightShiftSpecTest(_ConnectionSpecCase):
         self.assertIsNone(cmds.getAttr(net.getName() + ".vals", multiIndices=True))
         result = self.a.getPlug("ty") >> values[2]
         self.assertEqual(result.getFullName(), net.getName() + ".vals[2]")
+        # 5.0.0: cmds.connectAttr(nextAvailable=True)と同じく、接続のある最後の要素の次を選ぶ。
         chosen = self.a.getPlug("tz").connectTo(values, nextAvailable=True)
-        self.assertEqual(chosen.getIndex(), 0)
-        self.assertEqual(self.inputs(net.getName() + ".vals[0]"), [self.an + ".translateZ"])
+        self.assertEqual(chosen.getIndex(), 3)
+        self.assertEqual(self.inputs(net.getName() + ".vals[3]"), [self.an + ".translateZ"])
 
     def test_undo_once(self):
         """1回のUndoで接続が外れ、Redoで戻る。"""

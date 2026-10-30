@@ -1,5 +1,7 @@
 """指定の生成先へ標準scalar演算を構築する。"""
 
+from typing import Any, Callable, Optional
+
 from ..decorator import _edit_context
 from ..nodes.container import Container
 from ..plugs.plug import Plug
@@ -13,6 +15,10 @@ class ScalarGraph:
     直接行う(Undoなし・途中失敗の巻戻しなし)。containerを所有先にした場合は
     Container.createNodeがfastを持たないため、fast=Trueは変更前にNotImplementedErrorとする。
     """
+
+    # __init__で設定する所有先と生成関数。
+    container: Optional[Container]
+    _createNode: Callable[..., Any]
 
     def __init__(self, container=None, *, createNode=None):
         """containerまたは生成関数のどちらか一方を保持する。
@@ -29,10 +35,14 @@ class ScalarGraph:
         """
         if (container is None) == (createNode is None):
             raise ValueError("Specify exactly one of 'container' and 'createNode'")
-        if createNode is not None and not callable(createNode):
+        if container is not None:
+            self.container = Container(container)
+            self._createNode = self.container.createNode
+        elif not callable(createNode):
             raise TypeError("createNode must be callable")
-        self.container = Container(container) if container is not None else None
-        self._createNode = self.container.createNode if self.container is not None else createNode
+        else:
+            self.container = None
+            self._createNode = createNode
 
     def sum(self, role, left, right, subtract=False, *, fast=False):
         """加減算を構築する。

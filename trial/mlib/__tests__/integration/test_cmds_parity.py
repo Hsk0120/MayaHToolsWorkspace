@@ -564,7 +564,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 plugs.extend(plug.getChildren())
             for item in plugs:
                 with self.subTest(plug=item.getFullName()):
-                    checked[item.getAttrName()[1:]] = self.assert_matches_cmds(item)
+                    checked[item.getAttrName()] = self.assert_matches_cmds(item)
         # 代表的な型名(登録ラッパーのキーを含む)が cmds と同じであること。
         expected = {
             "at_double": "double", "at_long": "long", "at_bool": "bool", "at_enum": "enum",

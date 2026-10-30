@@ -56,18 +56,18 @@ class BulkPerformanceContractsTest(unittest.TestCase):
         mesh = cmds.polyCube(ch=False)[0]
         skin = mlib.getNode(cmds.skinCluster(joints, mesh, tsb=True)[0])
         cmds.skinCluster(skin.getFullName(), e=True, ri=joints[1])
-        skin.setWeights([joints[3], joints[0]], [.2, .3])
+        skin.setWeights([joints[3], joints[0]], [.2, .3], broadcast=True)
         values = list(skin.getWeights([joints[0], joints[3]]))
         self.assertAlmostEqual(values[0], .3)
         self.assertAlmostEqual(values[1], .2)
         with self.assertRaises(ValueError):
-            skin.setWeights([joints[0], cmds.ls(joints[0], long=True)[0]], [.1, .2])
+            skin.setWeights([joints[0], cmds.ls(joints[0], long=True)[0]], [.1, .2], broadcast=True)
         prefix = skin.getFullName() + ".weightList[0].weights"
         before = cmds.getAttr(prefix + "[0]")
         protected = cmds.getAttr(prefix + "[2]")
         cmds.setAttr(prefix + "[2]", lock=True)
         with self.assertRaises(RuntimeError):
-            skin.setWeights([joints[0], joints[2]], [.4, .6])
+            skin.setWeights([joints[0], joints[2]], [.4, .6], broadcast=True)
         self.assertAlmostEqual(cmds.getAttr(prefix + "[0]"), .4)
         self.assertEqual(cmds.getAttr(prefix + "[2]"), protected)
         cmds.undo()

@@ -3,7 +3,7 @@
 
 import math
 import maya.api.OpenMaya as om2
-from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit
+from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, _plain_time_unit
 from ..core.fastWrite import set_plug
 from ..decorator import _require_bool
 from ..maths import EulerRotate, Scale, Shear, Translate, Vector
@@ -16,13 +16,14 @@ from mlib.maths.quaternion import Quaternion
 class Double3Plug(CompoundPlug):
     """3成分アトリビュートを参照し、チャンネル値を読み書きする。マトリクス変換は行わない。"""
     _value_types: dict
-    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]:
+    def get(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]:
         """3成分のチャンネル値を取得する。jointOrientなどは合成しない。
 
         Args:
             unit (str | None): 角度の子の数値の単位。None(既定)は度(rotateはEulerRotate)。
                 rotateにunitを明示すると、EulerRotateではなく指定単位の数値tupleを返す。
                 ``"deg"`` / ``"rad"`` と ``"degree"`` 等の別名を受け付け、uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): Plug共通の時間の単位指定。3成分の子は時間を持たないため検証だけ行う。
             uiUnits (bool): Trueは現在のUI単位の数値tuple。既定Falseは数学値。
 
         Returns:
@@ -33,12 +34,12 @@ class Double3Plug(CompoundPlug):
                 uiUnits=Trueと、rotateへのunit指定では数値のtupleを返す。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         ...
-    def set(self, value: Iterable[float] | EulerRotate | Quaternion, safe: bool = ..., *, unit: str | None = ..., uiUnits: bool = ..., fast: bool = ...) -> Double3Plug | int:
+    def set(self, value: Iterable[float] | EulerRotate | Quaternion, safe: bool = ..., *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., fast: bool = ...) -> Double3Plug | int:
         """このアトリビュートの3成分だけを書き込む。マトリクス経由の姿勢変更は行わない。
 
         3成分の入力と書込み可否を確認してCompoundPlug.setへ渡す。
@@ -52,6 +53,7 @@ class Double3Plug(CompoundPlug):
             safe (bool): Trueは対応する書込み失敗を数える。
             unit (str | None): 角度の子(rotate・jointOrient・rotateAxis等)の数値の単位。
                 None(既定)は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。角度以外の子では使わない。
+            timeUnit (str | None): Plug共通の時間の単位指定。3成分の子は時間を持たないため検証だけ行う。
             uiUnits (bool): TrueはUI単位の数値列を指定する。数学型とunitの同時指定は受理しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
@@ -62,7 +64,7 @@ class Double3Plug(CompoundPlug):
         Raises:
             TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも抑制しない。
                 safe=Falseでは入力型が不正な場合も送出する。
-            ValueError: unitが未対応、またはunitとuiUnits=Trueの同時指定(safe=Trueでは1を返す)。
+            ValueError: unit・timeUnitが未対応、またはuiUnits=Trueとの同時指定(safe=Trueでは1を返す)。
                 safe=Falseで成分数・有限値が不正な場合。
             RuntimeError: safe=Falseで無効参照、ロック・入力接続、またはMayaの編集失敗。
             NotImplementedError: fastで未対応の型の場合。safe=Trueでも抑制しない。

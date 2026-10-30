@@ -152,7 +152,7 @@ class SkinProtectionDiagnosticsTest(unittest.TestCase):
         skins = [SimpleNamespace(getFullName=lambda: "skinA"),
                  SimpleNamespace(getFullName=lambda: "skinB")]
         collection = SimpleNamespace(getSkinClusters=lambda: skins)
-        handler = next(item for item in logger.get_logger().handlers
+        handler = next(item for item in logger.getLogger().handlers
                        if isinstance(item, logger.MayaHandler))
         formatter = handler.formatter
         handler.setFormatter(logging.Formatter("%(tool)s %(message)s"))

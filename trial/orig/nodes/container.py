@@ -1,5 +1,7 @@
 """Maya containerによる計算ノードの所有管理。"""
 
+from typing import TYPE_CHECKING
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
@@ -8,7 +10,8 @@ from ..plugs.plug import Plug
 from .node import Node, Nodes, _resolve_node
 
 
-class _ContainerMixin:
+# 実行時は Node を継承しない混ぜ込みとし、型検査では Node のメソッドを参照できるようにする。
+class _ContainerMixin(Node if TYPE_CHECKING else object):
     """containerBase 系のノード(:class:`Container`・:class:`~mlib.nodes.dagContainer.DagContainer`)が
     共有する所属・公開名の操作。
 

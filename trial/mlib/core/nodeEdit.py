@@ -97,20 +97,21 @@ def check_deletion(nodes, fast=False):
     offset = len(entries)
     for index, (obj, path) in enumerate(entries):
         fn = om2.MFnDependencyNode(obj)
-        if fn.isLocked or fn.isFromReferencedFile:
+        if fn.isFromReferencedFile:
+            raise _deletion_error(index, _referenced_message(path))
+        if fn.isLocked:
             if fast:
                 raise _deletion_error(index, f"Node is locked or referenced: {fn.name()}")
-            if fn.isLocked:
-                raise _deletion_error(index, f"Cannot delete locked node '{_display_name(path)}'.")
-            raise _deletion_error(
-                index, f"Cannot delete '{_display_name(path)}' as it has locked or read-only children.")
+            raise _deletion_error(index, f"Cannot delete locked node '{_display_name(path)}'.")
         if fn.isDefaultNode or path in blocked:
             raise _deletion_error(index, f"Non-deletable node '{_display_name(path)}' cannot be deleted.")
         child_names = names[offset:offset + len(descendants[index])]
         offset += len(descendants[index])
         for child, child_path in zip(descendants[index], child_names):
             child_fn = om2.MFnDependencyNode(child)
-            if child_fn.isLocked or child_fn.isFromReferencedFile:
+            if child_fn.isFromReferencedFile:
+                raise _deletion_error(index, _referenced_message(child_path, path))
+            if child_fn.isLocked:
                 if fast:
                     raise _deletion_error(index, f"Node is locked or referenced: {child_fn.name()}")
                 raise _deletion_error(
@@ -160,6 +161,35 @@ def delete_nodes(nodes, fast=False, checked=None):
     modifier.doIt()
 
 
+def _referenced_message(path, owner=None):
+    """参照ファイルから読み込んだノードを削除しようとしたときの文言を作る。
+
+    Args:
+        path (str): 参照されたノードの完全パスまたは名前。
+        owner (str | None): 削除しようとした対象(pathがその子孫の場合)。
+
+    Returns:
+        str: 参照ノード(``RN`` ノード)とファイルを示す文言。
+    """
+    try:
+        reference = cmds.referenceQuery(path, referenceNode=True)
+    except RuntimeError:
+        reference = None
+    try:
+        filename = cmds.referenceQuery(path, filename=True, withoutCopyNumber=True)
+    except RuntimeError:
+        filename = None
+    source = f" from reference {reference!r}" if reference else ""
+    if filename:
+        source += f" ({filename})"
+    name = _display_name(path)
+    if owner is not None:
+        return (f"Cannot delete '{_display_name(owner)}': its descendant '{name}' is a referenced node{source}; "
+                "referenced nodes can only be removed by editing or unloading the reference")
+    return (f"Cannot delete '{name}': it is a referenced node{source}; "
+            "referenced nodes can only be removed by editing or unloading the reference")
+
+
 def _deletion_error(index, message):
     """対象の番号を持つ削除の RuntimeError を作る。
 
@@ -171,7 +201,7 @@ def _deletion_error(index, message):
         RuntimeError: ``index`` 属性を持つ例外。
     """
     error = RuntimeError(message)
-    error.index = index
+    setattr(error, "index", index)  # RuntimeError の型に無い属性を追加する。
     return error
 
 

@@ -130,14 +130,14 @@ class RemovedNamesSpecTest(_ValueSpecCase):
         """旧名はAttributeError。クラス辞書にも無い。"""
         tx = self.node.getPlug("tx")
         values = self.add("vals", attributeType="double", multi=True)
-        for name in ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable",
+        for name in ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
                      "getNextAvailableIndex"):
             with self.subTest(name=name):
                 self.assertFalse(hasattr(tx, name))
                 self.assertFalse(hasattr(plugs.Plug, name))
                 with self.assertRaises(AttributeError):
                     getattr(tx, name)
-        for name in ("getNextAvailableIndex", "getDataType", "lock", "getPlugName"):
+        for name in ("getNextAvailableIndex", "getDataType", "getPlugName"):
             with self.subTest(array=name):
                 self.assertFalse(hasattr(values, name))
                 self.assertFalse(hasattr(plugs.MultiPlug, name))
@@ -190,24 +190,29 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                                cmds.attributeQuery("dist", node=self.name, maximum=True)[0])
 
     def test_angle_range_in_ui_units(self):
-        """doubleAngleの範囲・既定値はMAngle(内部radian)。uiUnits=TrueはUI単位の数値でcmds.attributeQueryと一致。
+        """doubleAngleの範囲・既定値はMAngle。uiUnits=TrueはUI単位の数値でcmds.attributeQueryと一致。
 
         cmds.addAttrのminValue/maxValue/defaultValueは内部単位(radian)の生の数値として保存される
-        (-90 は -90 radian)ので、uiUnits=True の値は度に換算した値になる。
+        (-90 は -90 radian)ので、uiUnits=True の値は度に換算した値になる。unitを指定すると数値で返す。
         """
         angle = self.add("ang", attributeType="doubleAngle", minValue=-90, maxValue=180, defaultValue=45)
         self.assertIsInstance(angle.getMin(), om2.MAngle)
         self.assertAlmostEqual(angle.getMin().asUnits(om2.MAngle.kRadians), -90.0)
+        self.assertAlmostEqual(angle.getMin(unit="rad"), -90.0)
+        self.assertAlmostEqual(angle.getMax(unit="deg"), math.degrees(180.0))
         self.assertAlmostEqual(angle.getMin(uiUnits=True), math.degrees(-90.0))
         self.assertAlmostEqual(angle.getMax(uiUnits=True), math.degrees(180.0))
         self.assertAlmostEqual(angle.getDefault(uiUnits=True), math.degrees(45.0))
+        self.assertAlmostEqual(angle.getDefault(unit="degrees"), math.degrees(45.0))
+        with self.assertRaises(ValueError):
+            angle.getMin(unit="deg", uiUnits=True)
         self.assertAlmostEqual(angle.getMin(uiUnits=True),
                                cmds.attributeQuery("ang", node=self.name, minimum=True)[0])
         self.assertAlmostEqual(angle.getDefault(uiUnits=True),
                                cmds.attributeQuery("ang", node=self.name, listDefault=True)[0])
         self.assertAlmostEqual(angle.getDefault(uiUnits=True), cmds.getAttr(angle.getFullName()))
         self.assertAlmostEqual(angle.getDefault(uiUnits=True), angle.get(uiUnits=True))
-        self.assertAlmostEqual(angle.getDefault().asUnits(om2.MAngle.kRadians), angle.get())
+        self.assertAlmostEqual(angle.getDefault().asUnits(om2.MAngle.kDegrees), angle.get())
         cmds.currentUnit(angle="rad")
         self.assertAlmostEqual(angle.getMin(uiUnits=True), -90.0)
         self.assertAlmostEqual(angle.getMin(uiUnits=True), self.expected_ui(angle.getMin(), om2.MAngle))

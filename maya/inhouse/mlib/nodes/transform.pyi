@@ -414,7 +414,8 @@ class Transform(DagNode):
 
         Raises:
             TypeError: fastがbool以外、または fast で parent が Transform 以外の場合。
-            RuntimeError: 自身が無効、または fast でロック・参照・循環により変更できない場合。
+            RuntimeError: 自身が無効、parent が自身または自身の子孫(fast も同じ)、または fast で
+                ロック・参照により変更できない場合。
             NotImplementedError: fast で Joint・インスタンス・add=True を指定した場合。
         """
         ...
@@ -452,7 +453,8 @@ class Transform(DagNode):
         ローカルのスケール・シアーが変わる場合がある。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。xはYZ平面。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             pivot (Iterable[float]): 指定空間の中心。内部距離単位cm。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -461,8 +463,8 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: fastがbool以外の場合。
-            ValueError: 入力不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
+            TypeError: fastがbool以外、またはaxisが文字列・int以外の場合。
+            ValueError: axis・pivotが不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
             RuntimeError: ロックや入力接続で更新できない場合。
 
         Note:
@@ -526,21 +528,29 @@ class Transform(DagNode):
                 ``safe=True`` を案内する)。
         """
         ...
-    def getTranslate(self, worldSpace: bool = ..., at: int = ...) -> Translate:
-        """基準位置を取得する。既定は回転ピボット位置。
+    def getTranslation(self, worldSpace: bool = ..., at: int = ...) -> Translate:
+        """基準位置を取得する。既定は回転ピボットの位置。
+
+        既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
+        位置とする基準)で、translate チャンネルの値ではない。translate チャンネルの値は
+        ``node.t.get()``(または ``node.getPlug("translate").get()``)で取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
                 getPivotのオブジェクト空間とは異なる。
-            at (int): 0以下=親原点、1=translate、2=回転ピボット、
+            at (int): 0以下=親原点、1=translate、2=回転ピボット(既定)、
                 3=スケールピボット、4以上=マトリクス原点。
 
         Returns:
             Translate: ノードと独立したcm単位の位置。既定at=2はtranslateチャンネル値ではない。
         """
         ...
-    def setTranslate(self, value: Iterable[float], worldSpace: bool = ..., at: int = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ...) -> Transform | list[float]:
+    def setTranslation(self, value: Iterable[float], worldSpace: bool = ..., at: int = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ...) -> Transform | list[float]:
         """指定基準の位置へ移動する。ピボットや回転は変更しない。
+
+        既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
+        位置とする基準)を value へ合わせるよう translate を書き換える。translate チャンネルへ
+        値をそのまま書く場合は ``node.t.set((x, y, z))`` を使う。
 
         at=0以下は位置の絶対設定ではなく、親空間へ変換した入力から現在のtranslateを
         引いた値を設定する。例えば現在2・入力5ならtranslateは3になる。
@@ -548,7 +558,7 @@ class Transform(DagNode):
         Args:
             value (Iterable[float]): cm単位の位置。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
-            at (int): getTranslateと同じ基準。既定2。
+            at (int): getTranslationと同じ基準。既定2(回転ピボット)。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まずローカルtranslateの設定予定値だけを返す。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -559,12 +569,12 @@ class Transform(DagNode):
 
         Raises:
             TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
-                案内する)、または ``setTranslate(1, 2, 3)`` のように成分を分けて渡した場合。
+                案内する)、または ``setTranslation(1, 2, 3)`` のように成分を分けて渡した場合。
             RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
                 (原因の成分と ``safe=True`` を案内する)。
         """
         ...
-    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., unit: str | None = ...) -> EulerRotate | tuple[float, float, float]:
+    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ...) -> EulerRotate:
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
         rotateAxisと、JointではjointOrientを含む回転を返す。スケール符号は現在のチャンネルを基準にする。
@@ -582,17 +592,13 @@ class Transform(DagNode):
             order (int | str | None): 戻り値の回転順序。``"xyz"`` などの名前、または om2 の番号
                 (``MEulerRotation.kXYZ`` 〜 ``kZYX``、Maya の rotateOrder と同じ 0〜5)。
                 None はノードの rotateOrder。
-            unit (str | None): None(既定)はEulerRotateを返す。``"deg"`` / ``"rad"``
-                (``"degree"`` 等の別名も可)を指定すると、その単位の数値3成分のtupleを返す。
 
         Returns:
-            EulerRotate | tuple[float, float, float]: unit=Noneでは内部がradの独立した回転値。
-                ``order`` の回転順序(省略時はノードの rotateOrder)。unit指定時は同じ回転のXYZ成分を
-                指定単位で表したtuple。
+            EulerRotate: 内部がradの独立した回転値。``order`` の回転順序(省略時はノードの
+                rotateOrder)。度の3成分は ``getRotate().asDegrees()`` で取得する。
 
         Raises:
-            TypeError: unit が文字列・None 以外の場合。
-            ValueError: worldSpace が bool 以外、order・unit が未対応、またはマトリクスを分解できない場合。
+            ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
         """
@@ -864,6 +870,19 @@ class Transform(DagNode):
         Raises:
             RuntimeError: 参照・ロック・循環・特異マトリクスにより変更できない場合。
             NotImplementedError: Joint・インスタンス・親追加の場合。
+        """
+        ...
+    def _require_not_own_descendant(self, target: Transform):
+        """親にしようとするノードが、自身または自身の子孫でないことを確かめる。
+
+        Mayaはこの場合 ``Not enough objects or values.`` などの原因が分かりにくいエラーになるため、
+        変更の前に分かる文言で拒否する。インスタンスでも判定できるよう、target の全パスの祖先を調べる。
+
+        Args:
+            target (Transform): 新しい親。
+
+        Raises:
+            RuntimeError: target が自身、または自身の子孫の場合。
         """
         ...
     def _static_value(self, name: str) -> tuple[float, ...] | object:

@@ -3,6 +3,7 @@
 import ast
 import importlib
 import importlib.machinery
+import importlib.util
 import os
 import pkgutil
 import re
@@ -22,7 +23,7 @@ for _name in ("node_wrapper", "plug_wrapper", "discover_node_package", "discover
 _states = {}
 _loading = False
 _diagnosing = False
-_package_name = __package__.rpartition(".")[0]
+_package_name = (__package__ or "").rpartition(".")[0]
 _extension_pattern = re.compile(re.escape(_package_name) + r"_[a-z][a-z0-9_]*")
 # 親のimportに失敗すると子だけsys.modulesに残るため、試行した名前も保持する。
 # extensions自体のreloadでも、次の一括解除まで追跡を失わない。

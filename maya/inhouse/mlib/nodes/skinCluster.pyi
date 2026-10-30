@@ -15,7 +15,7 @@ from ..core.fastWrite import require_range, require_writable, set_attr
 from ..core.object import Object
 from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
-from ..util import _world_space
+from ..util import _MIRROR_PLANES, _mirror_axis, _world_space
 from .dagNode import DagNode
 from .joint import Joint
 from .node import Node, Nodes
@@ -35,7 +35,6 @@ class SkinCluster(Node):
     influenceObjects()の物理順と、weights[]への書込みに使う論理番号を区別する。
     """
     _LAYER_TOKENS: tuple
-    _MIRROR_PLANES: tuple
     _SURFACE_ASSOCIATIONS: tuple
     _INFLUENCE_ASSOCIATIONS: tuple
     mesh: None
@@ -124,14 +123,16 @@ class SkinCluster(Node):
             異なる基準姿勢の補正やメッシュ削減は行わない。
         """
         ...
-    def mirrorWeights(self, axis: str = ..., positiveToNegative: bool = ..., surfaceAssociation: str = ..., influenceAssociation: str | Sequence[str] = ..., normalize: bool = ...) -> SkinCluster:
+    def mirrorWeights(self, axis: str | int = ..., positiveToNegative: bool = ..., surfaceAssociation: str = ..., influenceAssociation: str | Sequence[str] = ..., normalize: bool = ...) -> SkinCluster:
         """自身の形状の片側のウェイトを、鏡映面の反対側へ写す。
 
         ``cmds.copySkinWeights(sourceSkin=自身, destinationSkin=自身, mirrorMode=axis, ...)`` を
         1回のUndoにまとめて実行する。fast引数は持たない(OpenMayaにミラーのAPIが無いため)。
 
         Args:
-            axis (str): 鏡映面。``"XY"``・``"YZ"``・``"XZ"`` のいずれか。既定の ``"YZ"`` はX軸方向の左右反転。
+            axis (str | int): 鏡映面 ``"YZ"``・``"XZ"``・``"XY"``、または反転する軸 ``"x"``・``"y"``・``"z"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+                既定の ``"YZ"`` (``"x"`` と同じ)はX軸方向の左右反転。
             positiveToNegative (bool): Trueは面の正側(YZならX>0)から負側へ写す。Falseは負側から正側へ
                 (``mirrorInverse=True``)。
             surfaceAssociation (str): 頂点の対応。``"closestPoint"``・``"rayCast"``・``"closestComponent"``。
@@ -299,7 +300,9 @@ class SkinCluster(Node):
 
         Returns:
             om2.MDoubleArray: 頂点順(Noneは番号順)・各頂点内はjoints順の、頂点数×指定数の平坦な値配列。
-                無次元の独立した値で、配列の変更はシーンへ反映されない。
+                無次元の独立した値で、配列の変更はシーンへ反映されない。頂点ごとの組には分けないため、
+                i番目の頂点のj番目のinfluenceは ``weights[i * len(joints) + j]``。1頂点のウェイトを
+                influenceごとに読むなら :meth:`getVertexWeights` (influenceからウェイトへの辞書)を使う。
 
         Raises:
             TypeError: jointsに頂点・アトリビュートを渡した、または頂点の入力型が不正な場合。

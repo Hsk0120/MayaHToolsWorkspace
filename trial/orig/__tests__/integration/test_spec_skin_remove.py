@@ -109,7 +109,7 @@ class RemoveInfluenceTest(NamespaceCase):
         before = rig.raw()
         cmds.flushUndo()
         rig.skins[0].removeInfluence(rig.tip, transferToParent=False)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibSkinClusterRemoveInfluence")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib removeInfluence( |$)")
         cmds.undo()
         self.assertEqual(rig.raw(), before)
 

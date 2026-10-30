@@ -4,12 +4,16 @@
 from collections import namedtuple
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+from ..maths.vector import _vectors_of_points
+from ..util import _finite_vector
 from .fastWrite import require_writable
 from typing import Any, Iterable, NamedTuple, Sequence
+from mlib.maths.vector import Vector
 from mlib.nodes.mesh import Mesh
 from mlib.nodes.nurbsCurve import NurbsCurve
 from mlib.nodes.shape import Shape
 
+_OM2_POINTS: tuple
 
 class _Geometry(NamedTuple):
     path: Any
@@ -39,8 +43,21 @@ def geometry(shape: Mesh | NurbsCurve, indices: Iterable[int], edit: bool = ...)
     """
     ...
 
+def _points(shape: Shape, indices: Sequence[int], ws: bool = ...) -> Iterable[om2.MPoint]:
+    """指定した点のom2.MPointを保持順に返す。単点では全点を取得しない。
+
+    Args:
+        shape (Shape): 有効なMeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの点番号。
+        ws (bool): Trueならワールド空間へ変換する。
+
+    Returns:
+        Iterable[om2.MPoint]: 指定順の点。距離はcm。
+    """
+    ...
+
 def positions(shape: Shape, indices: Sequence[int], ws: bool = ...) -> list[tuple[float, float, float]]:
-    """指定した点を保持順・cm単位で取得する。
+    """指定した点を保持順・cm単位のtupleで取得する(内部の座標計算用)。
 
     Args:
         shape (Shape): 有効なMeshまたはNurbsCurve。
@@ -49,6 +66,19 @@ def positions(shape: Shape, indices: Sequence[int], ws: bool = ...) -> list[tupl
 
     Returns:
         list[tuple[float, float, float]]: 指定順の座標。単点では全点を取得しない。
+    """
+    ...
+
+def vectors(shape: Shape, indices: Sequence[int], ws: bool = ...) -> list[Vector]:
+    """指定した点を保持順・cm単位の :class:`~mlib.maths.vector.Vector` で取得する。
+
+    Args:
+        shape (Shape): 有効なMeshまたはNurbsCurve。
+        indices (Sequence[int]): 検証済みの点番号。
+        ws (bool): Trueならワールド空間へ変換する。
+
+    Returns:
+        list[Vector]: 指定順の新しい座標値。CVのwでは割らない。
     """
     ...
 
@@ -115,5 +145,20 @@ def object_positions(shape: Shape, indices: Sequence[int], values: Sequence[Sequ
 
     Raises:
         ValueError: ワールドマトリクスが特異な場合。
+    """
+    ...
+
+def point_list(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector]) -> list[tuple[float, float, float]]:
+    """点列を検証し、XYZのfloat tupleのリストへ変換する。
+
+    Args:
+        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
+
+    Returns:
+        list[tuple[float, float, float]]: 変換済みの点。
+
+    Raises:
+        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
+        ValueError: 成分数が3でない、または有限でない場合。
     """
     ...

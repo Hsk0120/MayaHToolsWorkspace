@@ -148,7 +148,7 @@ class JointTest(unittest.TestCase):
         cmds.setAttr(joint.getFullName() + ".jointOrientX", 90.0)
         cmds.setAttr(joint.getFullName() + ".rotateAxisY", 30.0)
 
-        joint.setRotate((0.0, math.radians(45.0), 0.0))
+        joint.setRotate((0.0, 45.0, 0.0))
 
         self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".jointOrientX"), 90.0, places=6)
         self.assertAlmostEqual(cmds.getAttr(joint.getFullName() + ".rotateAxisY"), 30.0, places=6)

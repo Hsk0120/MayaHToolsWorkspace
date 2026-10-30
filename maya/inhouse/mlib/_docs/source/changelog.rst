@@ -4,6 +4,89 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+6.0.0 (2026-10-30)
+------------------
+
+モデラー・アニメーター・リガー・周辺の TA が数十行の捨てスクリプトを書く場面を想定して mlib を使い、似たメソッドの挙動のずれと
+足りない機能を洗い出して直しました。黙って誤った結果になっていた時間の単位を揃え、位置の型・``ls`` の戻り値・
+アトリビュートの状態の書き方を一つにまとめ、重複したメソッドを減らしました。既存コードの結果が変わる変更を含みます。
+
+.. rubric:: 移行が必要な変更
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 30 40
+
+   * - 対象
+     - 5.0.0 まで
+     - 6.0.0
+   * - 時間の数値(``AnimCurve`` の T 型入力 ``setKey``・``getKeyInputs``・``evaluate``・``shiftKeys``・``scaleKeys``・``mirror``、TT/UT 型の値、``Plug.get/set`` の time 型アトリビュート、``DrivenKey.setKey``、``Node.addAttr`` と ``Plug.setMin`` 系の time の範囲と既定値)
+     - 秒
+     - **現在の UI 時間単位のフレーム**。``timeUnit="sec"``\ (``"second(s)"`` も可)で秒。例: ``curve.shiftKeys(5)`` は5フレーム(旧は5秒)、``time1.outTime.get()`` は film の12フレーム目で ``12.0``\ (旧 ``0.5``)。U 型(ドリブンキー)の入力は無次元のまま。``unit`` は角度、``timeUnit`` は時間で、取り違えると案内付きの ``ValueError``
+   * - ``Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault``\ (time 型)
+     - ``MTime``
+     - 既定は ``MTime`` のまま。``timeUnit=`` を指定すると数値
+   * - ``Transform.getTranslate`` / ``setTranslate``
+     - 同名
+     - ``getTranslation`` / ``setTranslation`` に改名(引数と既定 ``at=2``\ (回転ピボットの位置)は同じ)。translate チャンネルの値は ``node.t.get()``
+   * - ``Transform.getRotate(unit=...)``
+     - unit 指定でその単位の tuple
+     - ``unit`` 引数を削除し、常に ``EulerRotate``。度は ``getRotate().asDegrees()``
+   * - ``Joint.getParentJointName()`` / ``getChildJointNames()``
+     - 名前(str)を返す
+     - 削除。``getParent()`` / ``getChildren(type="joint")``\ (名前は ``.getName()``)
+   * - 2文字のミラー軸 ``"xy"``・``"xz"``・``"yz"``\ (``Vector``・``EulerRotate``・``Quaternion``・``Matrix`` の ``mirror``/``mirrorIt``、``util.mirrorArguments``)
+     - 2軸を同時に反転(``"xyz"`` は全反転)
+     - **ミラー面**\ として読む(``"xy"`` は z の反転)。``"xyz"`` は ``ValueError``。2軸の反転は ``v.mirror("x").mirror("y")``
+   * - ミラーの ``axis``\ (上記と ``Transform.mirrorTransform``・``Joint.mirror``・``SkinCluster.mirrorWeights``)
+     - API ごとに軸(``"x"``)か面(``"YZ"``)のどちらか
+     - どれも両方を受ける(``"x"`` ⇔ ``"YZ"``、``"y"`` ⇔ ``"XZ"``、``"z"`` ⇔ ``"XY"``、0/1/2、面の文字の順序と大文字小文字は問わない)。不正な型は ``TypeError``
+   * - 頂点・CV の位置(``Vertex/CV.getPosition``)
+     - tuple
+     - ``Vector``\ (``p.x`` が使える。tuple との比較・アンパックはそのまま)
+   * - ``Vertices/CVs.getPosition``・``Mesh.getPoints``・``NurbsCurve.getCvPositions``
+     - list[tuple] / ``om2.MPointArray``
+     - ``list[Vector]``\ (MPoint が要る場合は ``om2.MPoint(p)``)。UV の位置は tuple のまま
+   * - ``mlib.ls(...)`` の戻り値
+     - list(``type="joint"``/``"skinCluster"`` だけ ``Joints``/``SkinClusters``)
+     - 常に集まり: ノードだけは ``Nodes``\ (joint/skinCluster は従来どおり)、アトリビュートだけは新しい ``Plugs``、同じ形状・同じ種類のコンポーネントだけは ``Vertices`` 等、混在だけ list、0件は空の ``Nodes``。集まりでは重複を除く。``isinstance(r, list)`` は使えないので ``list(mlib.ls(...))`` にする
+   * - ``Nodes``・``Components``\ (``Vertices`` 等)
+     - ``+``・``==``・``sort`` 無し
+     - ``+``\ (list・tuple・名前の列も可)・``==``・``sort(key=None, reverse=False)``\ (その場で並べ替え。key 省略時は完全名・実番号の順)を追加。``==`` を持つためハッシュ不可
+   * - ``MultiPlug.getNextAvailable()``
+     - 番号(int)。``asPlug=True`` で Plug
+     - **要素の Plug**。番号は ``.getIndex()``。``asPlug`` は削除
+   * - ``mlib.getPlug`` / ``node.getPlug`` でアトリビュートが無い
+     - ``RuntimeError``\ (``Attribute does not exist``)/ ``AttributeError``\ (``Attribute not found``)
+     - どちらも ``MissingAttributeError``\ (``AttributeError`` と ``RuntimeError`` の両方の派生)、文言は ``Attribute not found: <node>.<name>``
+   * - ``Plug.getAttrName()``
+     - 論理番号つきのアトリビュートのパス
+     - 削除。``plug.getName().partition(".")[2]``\ (名前だけなら ``getShortName()``)
+   * - ``Plug.lock()`` / ``unlock()`` / ``mute()`` / ``unmute()``
+     - あり
+     - 削除。``setLocked(True/False)`` / ``setMuted(True/False)``。``unlock(below=True)`` は ``setFlags(locked=False, children=True)``、上位は ``getParent().setLocked(False)``
+   * - ``Plug.isHidden()``
+     - 定義の hidden フラグ(``hide()`` では変わらない)
+     - **チャンネルボックスに出ていない**\ (keyable でも channelBox でもない)。``p.hide().isHidden()`` は True。定義フラグは ``cmds.attributeQuery(..., hidden=True)``
+   * - ``Node.getConnections`` / ``Plug.getConnections`` の ``skipConversionNodes``・``scn``
+     - 既定 False(直結。unitConversion を返す)
+     - 既定 **True**\ (``getSource``・``getDestinations`` と同じく変換ノードを飛ばす)。直結は ``skipConversionNodes=False``
+
+.. rubric:: 追加
+
+- ``Mesh.setPoints(points, worldSpace=False)``: 全頂点の位置をまとめて書く(``NurbsCurve.setCvPositions`` と同じ形、Undo 1回)。 ``getPoints()`` の結果・tuple の列・``om2.MPointArray`` を受ける。頂点ごとに書くため、頂点数に比例して時間がかかる。
+- ``mlib.plugs.Plugs``: アトリビュートの集まり(``ls`` がアトリビュートだけを返すとき)。
+
+.. rubric:: エラー文の改善
+
+- ``addConstraint("parent", ctrl)`` のように引数の順を逆にしたとき、``addConstraint(target, type="parent")`` の順を案内する。
+- ``setParent`` で自分自身・自分の子孫を親にしたとき、原因の分かる ``RuntimeError``\ (通常・fast・``Nodes`` で同じ)。
+- 削除・改名したメソッドを呼ぶと、置き換え先を案内する ``AttributeError``。属性名の候補表示は、関係の薄い名前を出さない。
+
+.. rubric:: 文書
+
+- docstring に追記: ``createNode`` はシェイプ型ならシェイプを返し、作ったノードを選択する(選択は先に取る)、``IkHandle.getJoints`` は既定で末端を含まない、``ShadingEngine.setShader``/``assign`` によるマテリアルの割り当て、``SkinCluster.getWeights`` の平坦な配列と ``getVertexWeights`` の使い分け、``listReferences`` は名前順、Plug の名前を返すメソッドの規則、``hide``/``show``/``isHidden`` の対応。
+
 5.0.0 (2026-10-29)
 ------------------
 

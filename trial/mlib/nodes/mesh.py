@@ -58,7 +58,7 @@ class Mesh(Shape):
         if match == "uv" and (not isinstance(uvSet, str) or not uvSet):
             raise ValueError("uvSet must be a nonempty name")
         reference = Node(Node._input_name(reference))
-        if reference.mnode().hasFn(om2.MFn.kTransform):
+        if reference.hasFn(om2.MFn.kTransform):
             shapes = reference.getShapes()
             if len(shapes) != 1:
                 raise ValueError("Reference transform must have exactly one shape")

@@ -57,14 +57,15 @@ class PlugReferencesTest(unittest.TestCase):
 
     def test_reference_values_and_explicit_ui_units(self):
         """参照の取得では単位を選ばず、値のgetで明示的に選ぶ。"""
-        angle = self.node.getPlug("rotateX").set(math.pi / 2)
+        angle = self.node.getPlug("rotateX").set(90)
         distance = self.node.getPlug("translateX").set(25)
         time = self.node.addAttr("sampleTime", attributeType="time").set(2)
         for linear, angular, frame in (("cm", "deg", "film"), ("m", "rad", "ntsc")):
             with self.subTest(linear=linear, angular=angular, frame=frame):
                 cmds.currentUnit(linear=linear, angle=angular, time=frame)
                 self.assertIs(mlib.getPlug(angle), angle)
-                self.assertAlmostEqual(angle.get(), math.pi / 2)
+                self.assertAlmostEqual(angle.get(), 90)
+                self.assertAlmostEqual(angle.get(unit="rad"), math.pi / 2)
                 self.assertEqual(distance.get(), 25)
                 self.assertEqual(time.get(), 2)
                 self.assertAlmostEqual(angle.get(uiUnits=True), 90 if angular == "deg" else math.pi / 2)

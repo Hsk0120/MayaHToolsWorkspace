@@ -69,11 +69,11 @@ class FastEditTest(unittest.TestCase):
         skin = mlib.getNode(cmds.skinCluster(joints, mesh, toSelectedBones=True)[0])
         for normalize in (0, 1, 2):
             cmds.setAttr(skin.getFullName() + '.normalizeWeights', normalize)
-            skin.setWeights(joints, [.2, .3, .5])
+            skin.setWeights(joints, [.2, .3, .5], broadcast=True)
             expected = list(skin.getWeights(joints))
-            skin.setWeights(joints, [1, 0, 0])
+            skin.setWeights(joints, [1, 0, 0], broadcast=True)
             with self.api_only():
-                skin.setWeights(joints, [.2, .3, .5], fast=True)
+                skin.setWeights(joints, [.2, .3, .5], fast=True, broadcast=True)
             self.assertEqual(list(skin.getWeights(joints)), expected)
 
     def test_units_flags_and_ls_joints(self):
@@ -85,7 +85,7 @@ class FastEditTest(unittest.TestCase):
                 for linear in ('cm', 'm'):
                     cmds.currentUnit(angle=angle, linear=linear)
                     with self.api_only():
-                        node.getPlug('rx').set(.4, fast=True)
+                        node.getPlug('rx').set(.4, unit='rad', fast=True)
                         node.getPlug('tx').set(.6, fast=True)
                     self.assertAlmostEqual(node.getPlug('rx').mplug().asMAngle().asRadians(), .4)
                     self.assertAlmostEqual(node.getPlug('tx').mplug().asMDistance().asCentimeters(), .6)
@@ -112,10 +112,10 @@ class FastEditTest(unittest.TestCase):
             cmds.setAttr(skin.getFullName() + '.maxInfluences', 1)
             cmds.setAttr(skin.getFullName() + '.maintainMaxInfluences', maintain)
             cmds.setAttr(joints[2] + '.liw', True)
-            skin.setWeights(joints, [.2, .3, .5])
+            skin.setWeights(joints, [.2, .3, .5], broadcast=True)
             skin.setWeights([joints[2]], [.4, .3, .2, .1])
             expected = list(skin.getWeights(joints))
-            skin.setWeights(joints, [.2, .3, .5])
+            skin.setWeights(joints, [.2, .3, .5], broadcast=True)
             with self.api_only():
                 skin.setWeights([joints[2]], [.4, .3, .2, .1], fast=True)
             self.assertEqual(list(skin.getWeights(joints)), expected)

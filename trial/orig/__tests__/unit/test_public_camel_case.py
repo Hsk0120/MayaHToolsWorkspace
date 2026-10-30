@@ -47,8 +47,6 @@ class PublicCamelCaseTest(unittest.TestCase):
                     name = definition.name
                     if name.startswith('_'):
                         continue
-                    if path.name == 'logger.py' and name in ('get_logger', 'raise_with_notify'):
-                        continue
                     # 既存の型登録/値読出し/reloadプロトコルは配置変更で改名しない。
                     if (relative.as_posix(), getattr(node, 'name', None), name) in {
                             ('core/registry.py', 'NodeRegistry', 'wrapper_class'),

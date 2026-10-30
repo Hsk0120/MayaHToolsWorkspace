@@ -10,12 +10,13 @@ from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
+from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
 from ..decorator import _require_bool, undoTransaction
-from ..maths.vector import Vector, _vector_of
+from ..maths.vector import Vector, _vector_of, _vectors_of_points
 from ..util import _world_space
 from .shape import Shape
-from typing import Iterable
+from typing import Iterable, Sequence
 from mlib.nodes.node import Node
 from mlib.nodes.shadingEngine import ShadingEngine
 
@@ -123,14 +124,42 @@ class Mesh(Shape):
             int: メッシュのエッジ数。
         """
         ...
-    def getPoints(self, worldSpace: bool = ...) -> om2.MPointArray:
+    def getPoints(self, worldSpace: bool = ...) -> list[Vector]:
         """全頂点の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
-            om2.MPointArray: 頂点番号順の位置。距離は Maya API の内部単位。
+            list[Vector]: 頂点番号順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
+                内部単位(cm)。そのまま :meth:`setPoints` へ渡せる。
+        """
+        ...
+    def setPoints(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ...) -> Mesh:
+        """全頂点の位置を一度に書き込み、自身を返す。
+
+        :meth:`getPoints` と同じ並び・単位(内部単位cm)の点列を受け付け、``cmds.xform`` で
+        書き込んで1回のUndoにまとめる。頂点数・トポロジー・UVは変更しない。
+        :meth:`NurbsCurve.setCvPositions <mlib.nodes.nurbsCurve.NurbsCurve.setCvPositions>` と同じ形の入口。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 頂点番号順の位置。
+                :meth:`getPoints` の結果(list[Vector])・3個の数値のtupleの列・``om2.MPointArray`` を
+                そのまま受け付ける。各点は3個の有限な数値。MPointはwで割らずにXYZを使う。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、または点の型・成分が不正な場合。
+            ValueError: 点の数が頂点数と合わない、または成分が有限でない場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+
+        Note:
+            現在と同じ位置の頂点は書き込まない(``getPoints()`` の結果を一部だけ変えて戻す使い方では、
+            変えた頂点だけを書き込む)。書き込む頂点ごとに ``cmds.xform`` を呼ぶため(``setCvPositions``
+            と同じ)、多数の頂点を動かす場合は頂点数に比例して時間がかかる(目安は1頂点あたり約1ms)。
         """
         ...
     def getVertexNormals(self, worldSpace: bool = ..., angleWeighted: bool = ...) -> list[Vector]:

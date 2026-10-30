@@ -16,7 +16,23 @@ from mlib.plugs.plug import Plug
 
 
 class ShadingEngine(ObjectSet):
-    """Mayaのレンダー用セット。表面・ボリューム・変位シェーダーを保持する。"""
+    """Mayaのレンダー用セット。表面・ボリューム・変位シェーダーを保持する。
+
+    マテリアルの割り当ては、シェーダーを :meth:`setShader` で接続し、形状・フェースへ
+    :meth:`assign` で割り当てる。
+
+    .. code-block:: python
+
+        import maya.cmds as cmds
+        import mlib
+        from mlib.nodes import ShadingEngine
+
+        shader = mlib.createNode("lambert", name="red_MAT")
+        shader.getPlug("color").set((1, 0, 0))
+        engine = ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True, name="red_SG"))
+        engine.setShader(shader)        # shader.outColor -> red_SG.surfaceShader
+        engine.assign(mlib.getNode("pCube1"))  # 形状全体。フェースは Face/Faces や "pCube1.f[0:3]"
+    """
     def getShaderPlug(self, kind: str = ...) -> Plug | None:
         """シェーダー接続元を取得する。
 
@@ -40,6 +56,9 @@ class ShadingEngine(ObjectSet):
     def setShader(self, shader: Node | Plug | str, kind: str = ..., output: str | None = ..., *, fast: bool = ...) -> ShadingEngine:
         """指定シェーダーの出力へ接続を置き換える。
 
+        例えば ``engine.setShader(lambert)`` は ``lambert.outColor`` を ``surfaceShader`` へ接続する
+        (既存の接続は置き換える)。形状への割り当ては :meth:`assign` で行う(クラスの説明の例を参照)。
+
         Args:
             shader (Node | Plug | str): ノードまたは出力Plug。
             kind (str): surface/volume/displacement。
@@ -56,6 +75,10 @@ class ShadingEngine(ObjectSet):
         ...
     def assign(self, targets: Node | Face | Faces | str | Iterable, *, fast: bool = ...) -> ShadingEngine:
         """形状またはフェースへ割り当て、既存の割り当てを置き換える。
+
+        例えば ``engine.assign(mlib.getNode("pCube1"))`` は形状全体、``engine.assign("pCube1.f[0:3]")``
+        はフェースだけへ割り当てる(``cmds.sets(forceElement=...)`` 相当)。シェーダーの接続は
+        :meth:`setShader` で行う(クラスの説明の例を参照)。
 
         Args:
             targets (Node | Face | Faces | str | Iterable): 対象。選択に依存しない。

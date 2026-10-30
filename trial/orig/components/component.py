@@ -1,10 +1,36 @@
 """Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)と同一シェイプの要素群。"""
 
 import operator
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 
 import maya.api.OpenMaya as om2
 
-from ..core.object import Object
+from ..core.object import Object, _missing_member_message
+
+if TYPE_CHECKING:
+    from ..nodes.shape import Shape
+
+
+#: Components の repr に表示する、範囲へまとめた名前の最大数。
+_REPR_LIMIT = 4
+
+
+def _count_name(owner):
+    """要素数を返すシェイプのメソッド名(count_attribute)を取り出す。
+
+    Args:
+        owner (type | Component): count_attributeを持つ単数型またはそのインスタンス。
+
+    Returns:
+        str: シェイプのメソッド名。
+
+    Raises:
+        TypeError: 基底クラス等でcount_attributeが文字列でない場合。getattrと同じ例外型にする。
+    """
+    name = owner.count_attribute
+    if not isinstance(name, str):
+        raise TypeError(f"attribute name must be string, not '{type(name).__name__}'")
+    return name
 
 
 class Component(Object):
@@ -16,9 +42,10 @@ class Component(Object):
     UVの番号範囲は現在のUVセットに従う。
     """
 
-    shape_type = None
-    component_type = None
-    count_attribute = None
+    # シェイプ型・cmds用の種類名・要素数を返すシェイプのメソッド名。具体型が定義し、基底ではNone。
+    shape_type: Optional[str] = None
+    component_type: Optional[str] = None
+    count_attribute: Optional[str] = None
 
     def __init__(self, shape, index):
         """シェイプとコンポーネントの実番号を検証して保持する。
@@ -41,6 +68,20 @@ class Component(Object):
         self._index = operator.index(index)
         self._require_valid()
 
+    def __getattr__(self, name):
+        """存在しないメソッド・アトリビュートの参照を、近い名前の案内付きのAttributeErrorにする。
+
+        Args:
+            name (str): 参照した名前。
+
+        Raises:
+            AttributeError: 常に送出する。``'Vertex' has no method '<name>'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        raise AttributeError(_missing_member_message(self, name))
+
     def __eq__(self, other):
         """同じシェイプのインスタンス・種類・番号を指すか比較する。
 
@@ -55,6 +96,21 @@ class Component(Object):
     def __hash__(self):
         """保持シェイプ・種類・番号のハッシュを返す。位置の更新では変化しない。"""
         return hash((self._shape, self.component_type, self._index))
+
+    def __repr__(self):
+        """デバッグ用に、型名とシェイプの最短一意名を使ったコンポーネント名を返す。
+
+        ``__str__`` (maya.cmds へ渡す完全パス名)とは別の表示で、名前はキャッシュしない。
+
+        Returns:
+            str: ``Vertex('boxShape.vtx[5]')`` のような文字列。シェイプの削除・種類違い・
+                番号範囲外の場合は ``<Vertex invalid>``。
+        """
+        cls = type(self).__name__
+        if not self.isValid():
+            return f"<{cls} invalid>"
+        full = self.getFullName()
+        return f"{cls}({self._shape.getName() + full[full.rindex('.'):]!r})"
 
     def __str__(self):
         """コンポーネント名を返す。
@@ -148,7 +204,7 @@ class Component(Object):
         shape = Node(path)
         fn = om2.MFnSingleIndexedComponent(component)
         if fn.isComplete:
-            indices = range(getattr(shape, cls.count_attribute)())
+            indices = range(getattr(shape, _count_name(cls))())
         else:
             indices = fn.getElements()
         return [cls(shape, index) for index in indices]
@@ -225,7 +281,7 @@ class Component(Object):
         self._validate_shape(self._shape, self.shape_type)
         if self._index < 0:
             self._require_index_range(self._index, 0)
-        self._require_index_range(self._index, getattr(self._shape, self.count_attribute)())
+        self._require_index_range(self._index, getattr(self._shape, _count_name(self))())
 
     @staticmethod
     def _validate_shape(shape, shape_type):
@@ -233,7 +289,7 @@ class Component(Object):
 
         Args:
             shape (Shape): 検査する参照。
-            shape_type (str): 必要なMayaシェイプ型。
+            shape_type (str | None): 必要なMayaシェイプ型。基底クラスのNoneはどのシェイプとも一致しない。
 
         Returns:
             None: 値を返さない。
@@ -285,6 +341,13 @@ class Components:
     """
 
     component_class = Component
+    # __init__で設定する保持値。派生クラス(別モジュール)からも参照する。
+    _shape: "Shape"
+    _indices: Tuple[int, ...]
+
+    if TYPE_CHECKING:
+        # 座標の取得は派生クラス(PointComponents・UVs)が実装する。
+        getPosition: Callable[..., List[Any]]
 
     def __init__(self, shape, indices=None):
         """指定番号を検証し、初出順を維持して重複を除いて保持する。
@@ -304,7 +367,7 @@ class Components:
         """
         self._shape = shape
         Component._validate_shape(shape, self.component_class.shape_type)
-        selected = range(getattr(shape, self.component_class.count_attribute)()) if indices is None else indices
+        selected = range(getattr(shape, _count_name(self.component_class))()) if indices is None else indices
         # 一般の反復入力や独自__index__は従来どおり一件ずつ構築する。
         # これにより入力の副作用・途中例外・利用側constructor/_validateを維持する。
         if (self._has_standard_component() and self._has_standard_shape()
@@ -315,7 +378,7 @@ class Components:
                 if index < 0:
                     Component._require_index_range(index, 0)
                 if count is None:
-                    count = getattr(shape, self.component_class.count_attribute)()
+                    count = getattr(shape, _count_name(self.component_class))()
                 Component._require_index_range(index, count)
             self._indices = tuple(dict.fromkeys(selected))
         else:
@@ -340,6 +403,39 @@ class Components:
         """
         for index in self._indices:
             yield self.component_class(self._shape, index)
+
+    def __repr__(self):
+        """デバッグ用に、型名と範囲へまとめたコンポーネント名を返す。
+
+        保持順で+1ずつ連続する番号を ``[start:end]`` へまとめ、シェイプは最短一意名で表示する。
+        まとめた名前が ``_REPR_LIMIT`` 個を超える場合は先頭だけを表示し、件数を添える。
+
+        Returns:
+            str: ``CVs('curveShape.cv[0:7]')``、``Vertices('boxShape.vtx[0:2]', 'boxShape.vtx[5]')``、
+                多数なら ``Vertices('boxShape.vtx[0]', ..., count=120)``、空なら
+                ``Vertices('boxShape', count=0)``。無効なら ``<Vertices invalid>``。
+        """
+        cls = type(self).__name__
+        if not self.isValid():
+            return f"<{cls} invalid>"
+        shape = self._shape.getName()
+        if not self._indices:
+            return f"{cls}({shape!r}, count=0)"
+        prefix = f"{shape}.{self.component_class.component_type}"
+        names = []
+        start = previous = None
+        for index in self._repr_indices():
+            if previous is not None and index == previous + 1:
+                previous = index
+                continue
+            if start is not None:
+                names.append(self._range_name(prefix, start, previous))
+            start = previous = index
+        names.append(self._range_name(prefix, start, previous))
+        if len(names) > _REPR_LIMIT:
+            shown = ", ".join(repr(name) for name in names[:_REPR_LIMIT])
+            return f"{cls}({shown}, ..., count={len(self._indices)})"
+        return f"{cls}({', '.join(repr(name) for name in names)})"
 
     def __getitem__(self, index):
         """保持列のPythonの位置番号から単数参照、sliceから同型の部分コレクションを取得する。
@@ -484,7 +580,7 @@ class Components:
         if shape_class not in (Mesh, NurbsCurve):
             return False
         component_class = self.component_class if component_class is None else component_class
-        name = component_class.count_attribute
+        name = _count_name(component_class)
         reader = getattr(self._shape, name, None)
         function = getattr(reader, "__func__", None)
         return (function is not None and function is getattr(shape_class, name, None)
@@ -552,6 +648,14 @@ class Components:
         self._require_valid()
         return f"{self._shape.getFullName()}.{self.component_class.component_type}"
 
+    def _repr_indices(self):
+        """repr に表示する番号を保持順で返す。カーブCVはcmds用の番号へ写す。
+
+        Returns:
+            Sequence[int]: 表示用の番号列。
+        """
+        return self._indices
+
     def _require_valid(self):
         """シェイプと保持番号を一括検証し、名前や単数ラッパーは生成しない。
 
@@ -567,7 +671,7 @@ class Components:
             raise TypeError(f"Expected a {component_class.shape_type} shape")
         if self._indices:
             largest = max(self._indices)
-            if largest >= getattr(self._shape, component_class.count_attribute)():
+            if largest >= getattr(self._shape, _count_name(component_class))():
                 raise IndexError(f"Component index out of range: {largest}")
 
     @staticmethod

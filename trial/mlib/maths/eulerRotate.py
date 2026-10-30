@@ -5,7 +5,7 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
+from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
 from .quaternion import Quaternion
 from .vector import _reduce_value
 
@@ -114,17 +114,24 @@ class EulerRotate(om2.MEulerRotation):
 
         Args:
             *args: ``()``、``(x, y, z)``、``(x, y, z, order)``、``(values)``、
-                ``(values, order)``、または ``(MEulerRotation)``。角度はラジアン。
+                ``(values, order)``、または ``(MEulerRotation)``。角度は既定でラジアン。
             **kwargs: ``order``、または ``x`` / ``y`` / ``z`` / ``order`` のキーワード引数。
+                ``unit`` は数値成分の単位で、既定 ``"rad"`` (om2と同じ)、``"deg"`` は度
+                (``"degree"`` / ``"radians"`` 等の別名も可)。内部値は常にラジアンで保持する。
+                MEulerRotationのコピーでは ``"rad"`` 以外を指定できない。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            TypeError: 引数の数や型が不正な場合、または同じ引数を二重に指定した場合。
-            ValueError: 未対応の回転順序、または成分が数値でない場合。
+            TypeError: 引数の数や型が不正な場合、同じ引数を二重に指定した場合、またはunitが文字列以外の場合。
+            ValueError: 未対応の回転順序・単位、成分が数値でない場合、またはMEulerRotationへ度を指定した場合。
         """
-        if not kwargs:
+        unit = "rad"
+        if "unit" in kwargs:
+            kwargs = dict(kwargs)
+            unit = _angle_unit(kwargs.pop("unit"))
+        if not kwargs and unit == "rad":
             # よく使う ()、(x, y, z)、(x, y, z, order) は解析を省く。
             count = len(args)
             if count == 3 or count == 4:
@@ -153,6 +160,8 @@ class EulerRotate(om2.MEulerRotation):
                 raise TypeError(f"EulerRotate got unexpected keyword arguments: {', '.join(sorted(kwargs))}")
             count = len(args)
             if count == 1 and order is None and isinstance(args[0], _MEuler):
+                if unit != "rad":
+                    raise ValueError("unit cannot convert an existing rotation; it already holds radians")
                 self.setValue(args[0])
                 return
             if count in (1, 2) and not isinstance(args[0], _NUMBER):
@@ -176,6 +185,8 @@ class EulerRotate(om2.MEulerRotation):
             # 数値以外は om2 の変換規則に任せる(文字列などは om2 と同じ ValueError)。
             source = _MEuler(x, y, z)
             x, y, z = source.x, source.y, source.z
+        if unit == "deg":
+            x, y, z = math.radians(x), math.radians(y), math.radians(z)
         self.x = x
         self.y = y
         self.z = z

@@ -192,20 +192,21 @@ class DeletedNodeTest(_SpecCase):
     """削除後(Undo の記録に残る間)と破棄後(記録が消えた後)の振る舞い。"""
 
     def test_deleted_but_alive(self):
-        """削除直後は isValid=False・isAlive=True。名前は空、型の照会は引き続き使える。"""
+        """削除直後は isValid=False・isAlive=True。名前の取得はRuntimeError(str()は空)、型の照会は使える。"""
         name = self.make("transform", "gone")
         node = Node(name)
         cmds.delete(name)
         self.assertFalse(node.isValid())
         self.assertTrue(node.isAlive())
         self.assertEqual(str(node), "")
-        self.assertEqual(node.getName(), "")
+        with self.assertRaisesRegex(RuntimeError, r"was deleted or undone; check isValid\(\)"):
+            node.getName()
         self.assertEqual(node.getFullName(), "")
         self.assertIsNone(node.getUuid())
         self.assertEqual(repr(node), "<Transform invalid>")
         self.assertEqual(node.getType(), "transform")
-        # 削除したノードは名前空間から外れるため、葉の名前だけを比べる。
-        self.assertEqual(node.getNodeName(removeNamespace=True), "gone")
+        with self.assertRaisesRegex(RuntimeError, "was deleted or undone"):
+            node.getNodeName(removeNamespace=True)
         self.assertFalse(node.hasAttr("tx"))
         self.assertFalse(node.isType("transform"))
         # Undo の記録に残る間は生存中として同じノード扱いになる。
@@ -399,12 +400,14 @@ class NamePathTest(_SpecCase):
         target = "mlibSpecCMoveNs_" + uuid.uuid4().hex[:8]
         self.extra_namespaces.append(target)
         cmds.flushUndo()
-        self.assertEqual(node.setNamespace(target), target + ":moved")
+        self.assertIs(node.setNamespace(target), node)
+        self.assertEqual(node.getNodeName(), target + ":moved")
         self.assertTrue(cmds.namespace(exists=target))
         cmds.undo()
         self.assertFalse(cmds.namespace(exists=target))
         self.assertEqual(node.getName(), self.name("moved"))
-        self.assertEqual(node.setNamespace(Namespace(self.ns)), self.name("moved"))
+        self.assertIs(node.setNamespace(Namespace(self.ns)), node)
+        self.assertEqual(node.getNodeName(), self.name("moved"))
         for value in ("", 1, None):
             with self.subTest(value=value):
                 with self.assertRaisesRegex(ValueError, "non-empty string"):
@@ -418,21 +421,26 @@ class NamePathTest(_SpecCase):
         target = "mlibSpecCFastNs_" + uuid.uuid4().hex[:8]
         self.extra_namespaces.append(target)
         cmds.flushUndo()
-        self.assertEqual(node.setNamespace(target + ":", fast=True), target + ":fastMoved")
+        self.assertIs(node.setNamespace(target + ":", fast=True), node)
+        self.assertEqual(node.getNodeName(), target + ":fastMoved")
         self.assertTrue(cmds.namespace(exists=target))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
         node.setNamespace(self.ns, fast=True)
 
     def test_rename(self):
-        """rename は Maya が確定した名前を返し、不正文字は置換、空の名前は RuntimeError。"""
+        """rename は自身を返し(5.0.0)、不正文字は置換、空の名前は RuntimeError、``|`` は ValueError。"""
         node = Node(self.make("network", "orig"))
-        self.assertEqual(node.rename(self.name("1bad")), self.name("bad"))
+        self.assertIs(node.rename(self.name("1bad")), node)
+        self.assertEqual(node.getNodeName(), self.name("bad"))
+        with self.assertRaisesRegex(ValueError, "must not contain '\|'"):
+            node.rename("grp|child")
         with self.assertRaises(RuntimeError):
             node.rename("")
         with self.assertRaisesRegex(TypeError, "fast must be a bool"):
             node.rename(self.name("x"), fast="yes")
         cmds.flushUndo()
-        self.assertEqual(node.rename(self.name("fastName"), fast=True), self.name("fastName"))
+        self.assertIs(node.rename(self.name("fastName"), fast=True), node)
+        self.assertEqual(node.getNodeName(), self.name("fastName"))
         self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
 
     def test_rename_ignore_shape(self):
@@ -546,16 +554,17 @@ class ResetAndFlagsTest(_SpecCase):
         cmds.flushUndo()
         plugs = self.node.resetAttrs()
         names = [plug.getName() for plug in plugs]
-        # Transform の省略時は translate・rotate・scale・shear の子だけ(追加アトリビュートは対象外)。
+        # 5.0.0から Transform の省略時も Node と同じく、キー設定可能な追加アトリビュートを含めて戻す。
         self.assertIn(self.node_name + ".tx", names)
-        self.assertNotIn(self.node_name + ".extraValue", names)
+        self.assertIn(self.node_name + ".extraValue", names)
         self.assertNotIn(self.node_name + ".ty", names)
         self.assertNotIn(self.node_name + ".tz", names)
         self.assertEqual(cmds.getAttr(self.node_name + ".tx"), 0.0)
         self.assertEqual(cmds.getAttr(self.node_name + ".ty"), 4.0)
-        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 7.0)
+        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 2.0)
         cmds.undo()
         self.assertEqual(cmds.getAttr(self.node_name + ".tx"), 3.0)
+        self.assertEqual(cmds.getAttr(self.node_name + ".extraValue"), 7.0)
         # Node の既定(キー設定可能で書ける数値アトリビュート全体)は追加アトリビュートも戻す。
         cmds.flushUndo()
         names = [plug.getName() for plug in Node.resetAttrs(self.node)]

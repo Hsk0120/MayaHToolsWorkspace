@@ -230,6 +230,8 @@ class Namespace:
                 raise ValueError("root namespace cannot be renamed")
             target = Namespace(name)
             parent = self.getParent()
+            # ルートは先頭で拒否しているため、親は必ずある。
+            assert parent is not None
             target = Namespace(f"{parent.name}:{target.name.rsplit(':', 1)[-1]}")
             self._move_contents(target)
             self._name = target.name

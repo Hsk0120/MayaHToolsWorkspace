@@ -79,7 +79,7 @@ class SkinClusterInfluenceTest(unittest.TestCase):
         self.assertFalse(self.skin.hasInfluence("mlibNotAnInfluence"))
 
     def test_transfer_weight_moves_weight_between_named_influences(self):
-        self.skin.setWeights([self.root, self.mid], [0.0, 1.0])
+        self.skin.setWeights([self.root, self.mid], [0.0, 1.0], broadcast=True)
         self.assertEqual(list(self.skin.getWeights([self.root])), [0.0] * 8)
         self.assertEqual(list(self.skin.getWeights([self.mid])), [1.0] * 8)
 
@@ -131,7 +131,7 @@ class SkinClustersBatchTest(unittest.TestCase):
 
     def test_delete_joints_uses_native_hierarchy_and_weight_rules(self):
         """mlib.deleteでのJoints削除は子階層も削除し、ウェイトを標準の削除規則で処理する。"""
-        self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
+        self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0], broadcast=True)
 
         mid_joints = Joints([self.mid])
         skin_clusters = mid_joints.getSkinClusters()
@@ -148,7 +148,7 @@ class SkinClustersBatchTest(unittest.TestCase):
         self.assertEqual(list(self.skin.getWeights([self.root])), expected)
 
     def test_remove_influences_keeps_joint_node_but_drops_influence(self):
-        self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0])
+        self.skin.setWeights([self.root, self.mid, self.leaf], [0.0, 1.0, 0.0], broadcast=True)
 
         mid_joints = Joints([self.mid])
         skin_clusters = mid_joints.getSkinClusters()
@@ -187,11 +187,11 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         cmds.select(clear=True)
 
     def test_dump_then_load_round_trips_weights(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         original_weights = list(self.skin.getWeights([self.root, self.child]))
 
         self.skin.dumpWeights(self.path)
-        self.skin.setWeights([self.root, self.child], [1.0, 0.0])
+        self.skin.setWeights([self.root, self.child], [1.0, 0.0], broadcast=True)
         self.assertNotEqual(list(self.skin.getWeights([self.root, self.child])), original_weights)
 
         self.skin.loadWeights(self.path)
@@ -216,7 +216,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         joints = [self.root, self.child]
         before = list(self.skin.getWeights(joints))
         with undoChunk("weightTool"):
-            self.skin.setWeights([self.child], [0.125])
+            self.skin.setWeights([self.child], [0.125], broadcast=True)
             mlib.getNode(self.mesh_transform).getPlug("visibility").set(False)
         after = list(self.skin.getWeights(joints))
         self.assertEqual(after[0::2], before[0::2])
@@ -233,7 +233,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         cmds.skinCluster(self.skin.getName(), edit=True, addInfluence=extra, weight=0)
         cmds.skinCluster(self.skin.getName(), edit=True, removeInfluence=self.child)
         before = list(self.skin.getWeights([self.root, extra]))
-        self.skin.setWeights([extra, self.root], [0.25, 0.75])
+        self.skin.setWeights([extra, self.root], [0.25, 0.75], broadcast=True)
         self.assertEqual(list(self.skin.getWeights([self.root, extra])), [0.75, 0.25] * 8)
         cmds.undo()
         self.assertEqual(list(self.skin.getWeights([self.root, extra])), before)
@@ -243,7 +243,7 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
         before = list(self.skin.getWeights(joints))
         for values in ([0.5] * 3, [float("nan"), 1], [1, float("inf")]):
             with self.assertRaises(ValueError):
-                self.skin.setWeights(joints, values)
+                self.skin.setWeights(joints, values, broadcast=True)
             self.assertEqual(list(self.skin.getWeights(joints)), before)
 
     def test_load_raises_when_influence_missing(self):
@@ -279,7 +279,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
             cmds.delete(self.root)
 
     def test_redistribute_weights_applies_easing_and_keeps_each_vertex_normalized(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
 
         self.skin.redistributeWeights([0, 3], method="cubic")
 
@@ -301,7 +301,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
             self.assertAlmostEqual(weights[vertex * 2] + weights[vertex * 2 + 1], 1.0, places=9)
 
     def test_redistribute_weights_is_undoable(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         before = list(self.skin.getWeights([self.root, self.child]))
 
         self.skin.redistributeWeights([0], method="cubic")
@@ -314,7 +314,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
         self.assertEqual(list(self.skin.getWeights([self.root, self.child])), after)
 
     def test_redistribute_weights_empty_vertices_is_a_noop(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         before = list(self.skin.getWeights([self.root, self.child]))
 
         self.skin.redistributeWeights([], method="cubic")
@@ -324,7 +324,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
     def test_redistribute_weights_accepts_every_curve_name(self):
         for curve in easing.CURVES:
             with self.subTest(curve=curve):
-                self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+                self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
 
                 self.skin.redistributeWeights([0], method=curve)
 
@@ -337,7 +337,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
                     self.assertGreater(weights[0], 0.75)
 
     def test_redistribute_weights_rejects_old_curve_name(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         before = list(self.skin.getWeights([self.root, self.child]))
         with self.assertRaises(ValueError):
             self.skin.redistributeWeights([0], method="sinusoidal")
@@ -353,7 +353,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
             self.skin.redistributeWeights([999], method="cubic")
 
     def test_redistribute_weights_raises_type_error_for_non_string_method(self):
-        self.skin.setWeights([self.root, self.child], [0.75, 0.25])
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         before = list(self.skin.getWeights([self.root, self.child]))
 
         for method in (None, 3, ["cubic"]):
@@ -374,7 +374,7 @@ class SkinClusterRedistributeWeightsTest(unittest.TestCase):
         influences = [self.root, self.child, grandchild]
         for curve in easing.CURVES:
             with self.subTest(curve=curve):
-                self.skin.setWeights(influences, [0.75, 0.25, 0.0])
+                self.skin.setWeights(influences, [0.75, 0.25, 0.0], broadcast=True)
 
                 self.skin.redistributeWeights([0], method=curve)
 

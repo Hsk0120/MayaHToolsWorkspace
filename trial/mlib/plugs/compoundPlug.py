@@ -2,8 +2,9 @@
 
 import maya.api.OpenMaya as om2
 
-from ..core.attributeType import _convert_units, attributeType, value_reader
+from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, attributeType, value_reader
 from ..core.fastWrite import set_attr, set_plug
+from ..core.object import _missing_member_message
 from ..decorator import _require_bool
 from .plug import Plug
 
@@ -38,7 +39,7 @@ class CompoundPlug(Plug):
         try:
             return self[name]
         except (AttributeError, TypeError, RuntimeError) as error:
-            raise AttributeError(f"No plug member named {name!r}") from error
+            raise AttributeError(_missing_member_message(self, name, "method or child attribute")) from error
 
     def __getitem__(self, nameOrIndex):
         """コンパウンドアトリビュートの直接の子を、定義順の番号または子名で参照する。
@@ -83,26 +84,30 @@ class CompoundPlug(Plug):
         """
         return iter(self.getChildren())
 
-    def get(self, *, uiUnits=False):
+    def get(self, *, unit=None, uiUnits=False):
         """直接の子の値を、アトリビュート定義順のtupleで取得する。
 
         各子でget()を呼ぶため、値取得に伴うDG評価が発生し得る。
         入れ子のコンパウンドアトリビュートや配列型の値は平坦化せず、各子の返却型を保つ。
 
         Args:
-            uiUnits (bool): 各子のgetへ渡す。TrueはUI単位、既定Falseは内部単位。
+            unit (str | None): 角度の子の数値の単位。None(既定)は度、``"rad"`` はラジアン。
+                :meth:`Plug.get` と同じ名前を受け付け、uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): 各子のgetへ渡す。TrueはUI単位、既定Falseは角度が度、距離cm、時間秒。
 
         Returns:
             tuple: 子数と同じ長さの新しいtuple。値の型・単位は各子のgetに従う。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または子の値を取得できない場合。
         """
         _require_bool(uiUnits, "uiUnits")
+        angle_unit = _plain_angle_unit(unit, uiUnits)
         self._require_valid()
         if not uiUnits:
-            return tuple(self._child_values())
+            return tuple(_convert_angles(self._mplug, tuple(self._child_values()), angle_unit, to_internal=False))
         return tuple(self._child_at(index).get(uiUnits=uiUnits) for index in range(self._mplug.numChildren()))
 
     def getChildren(self):
@@ -128,7 +133,7 @@ class CompoundPlug(Plug):
         従来どおり子Plugの ``get()`` へ委譲する。
 
         Returns:
-            list: 子の値。型・単位は各子の ``get()`` と同じ(距離cm・角度rad・時間秒)。
+            list: 子の値。型は各子の ``get()`` と同じで、単位は内部単位(距離cm・角度rad・時間秒)。
         """
         mplug = self._mplug
         readers = self._child_readers
@@ -142,7 +147,7 @@ class CompoundPlug(Plug):
                     selected.append(value_reader(child.attribute()))
             readers = self._child_readers = tuple(selected)
         return [
-            reader(mplug.child(index)) if reader is not False else self._child_at(index).get()
+            reader(mplug.child(index)) if reader is not False else self._child_at(index).get(unit="rad")
             for index, reader in enumerate(readers)
         ]
 
@@ -155,6 +160,7 @@ class CompoundPlug(Plug):
         Args:
             value (Iterable[object]): 子数と同じ数の値。
             uiUnits (bool): TrueはUI単位。既定Falseは内部単位(角度rad・距離cm・時間秒)。
+                角度の数値は :meth:`Plug.set` の骨格で度からradへ換算済み。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -221,7 +227,7 @@ class CompoundPlug(Plug):
                 except (RuntimeError, TypeError, ValueError):
                     pass  # 子ごとに書き直し、従来の例外と更新順にする。
         for index, child_value in enumerate(values):
-            self._child_at(index).set(child_value, safe=False, fast=False)
+            self._child_at(index).set(child_value, safe=False, unit="rad", fast=False)
 
     def _can_set_at_once(self, values):
         """子を1回のsetAttrでまとめて書けるか判定する。シーンは変更しない。

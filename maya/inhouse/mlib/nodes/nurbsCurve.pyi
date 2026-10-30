@@ -9,12 +9,13 @@ from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
 from ..core import geometryEdit as geometry_edit
 from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
-from ..util import _finite_vector, _world_space
+from ..maths.vector import _vectors_of_points
+from ..util import _world_space
 from .node import Node
 from .shape import Shape
 from typing import Iterable, Sequence
+from mlib.maths.vector import Vector
 
-_OM2_POINTS: tuple
 
 
 class NurbsCurve(Shape):
@@ -140,14 +141,16 @@ class NurbsCurve(Shape):
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
         ...
-    def getCvPositions(self, worldSpace: bool = ...) -> om2.MPointArray:
+    def getCvPositions(self, worldSpace: bool = ...) -> list[Vector]:
         """CV の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
 
         Returns:
-            om2.MPointArray: CV 順の位置。距離は Maya API の内部単位。
+            list[Vector]: CV 順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
+                内部単位(cm)。有理カーブのウェイト(w)は含まず、wで割らないXYZを返す。
+                そのまま :meth:`setCvPositions` へ渡せる。
         """
         ...
     def setCvPositions(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ...) -> NurbsCurve:
@@ -202,18 +205,3 @@ class NurbsCurve(Shape):
             RuntimeError: 保持する DAG パスが無効、または形状データを持たない空のシェイプの場合。
         """
         ...
-
-def _point_list(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector]) -> list[tuple[float, float, float]]:
-    """点列を検証し、XYZのfloat tupleのリストへ変換する。
-
-    Args:
-        points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 点列。
-
-    Returns:
-        list[tuple[float, float, float]]: 変換済みの点。
-
-    Raises:
-        TypeError: 点列が反復できない、または点・成分の型が不正な場合。
-        ValueError: 成分数が3でない、または有限でない場合。
-    """
-    ...

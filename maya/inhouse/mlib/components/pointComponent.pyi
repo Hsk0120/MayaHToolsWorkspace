@@ -5,6 +5,7 @@ from ..core import geometryEdit as geometry_edit
 from ..util import _world_space
 from .component import Component, Components
 from typing import Iterator
+from mlib.maths.vector import Vector
 from typing import overload
 
 
@@ -16,7 +17,7 @@ class PointComponent(Component):
     既定はShapeのオブジェクト空間。ワールド空間では保持ShapeのDAGパスを使う。
     CVはAPIの制御点位置を扱い、カーブ上のパラメータ位置を取得する処理ではない。
     """
-    def getPosition(self, worldSpace: bool = ...) -> tuple[float, float, float]:
+    def getPosition(self, worldSpace: bool = ...) -> Vector:
         """頂点またはカーブCVの現在のXYZ座標をcmで取得する。
 
         Shapeと番号を検証してOpenMayaへ問い合わせる。UIの距離単位には換算しない。
@@ -25,7 +26,7 @@ class PointComponent(Component):
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
 
         Returns:
-            tuple[float, float, float]: 新しいXYZ値。シーン内座標への書換え可能な参照ではない。
+            Vector: 新しいXYZ値(:class:`~mlib.maths.vector.Vector`)。シーン内座標への書換え可能な参照ではない。
 
         Raises:
             TypeError: worldSpaceがbool以外の場合。
@@ -105,7 +106,7 @@ class PointComponents(Components):
             list[float]: 保持順の座標値。
         """
         ...
-    def getPosition(self, worldSpace: bool = ...) -> list[tuple[float, float, float]]:
+    def getPosition(self, worldSpace: bool = ...) -> list[Vector]:
         """保持番号の順に、頂点/CVの現在のXYZ座標をcmで取得する。
 
         UIの距離単位には換算せず、座標の取得に伴うMayaの評価が発生し得る。
@@ -114,8 +115,8 @@ class PointComponents(Components):
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
 
         Returns:
-            list[tuple[float, float, float]]: 新しい座標値のリスト。シーンを変更する参照ではない。
-                空集合はShapeを再照会せず空リストを返す。
+            list[Vector]: 新しい座標値(:class:`~mlib.maths.vector.Vector`)のリスト。シーンを変更する
+                参照ではない。空集合はShapeを再照会せず空リストを返す。
 
         Raises:
             TypeError: worldSpaceがbool以外の場合。空集合でも検証する。

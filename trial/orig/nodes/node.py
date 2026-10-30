@@ -2,16 +2,16 @@
 
 import inspect
 import re
-from typing import Any
+from typing import Any, Optional
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.object import Object
-from ..core.registry import _inherited_node_types, _node_type_exists
+from ..core.object import Object, _missing_member_message
+from ..core.registry import _inherited_node_types, _node_type_exists, _real_node_type
+from ..core.registry import _unknown_node_type_message
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
-from ..logger import raise_with_notify
-from ..util import _ArgumentError, _UNSET
+from ..util import _ArgumentError, _UNSET, _angle_unit
 
 #: om2の数値データ型からaddAttrの型名への対応(moveAttrOrderでの再作成に使う)。
 _MOVABLE_NUMERIC_TYPES = {
@@ -106,18 +106,14 @@ def _resolve_node(node):
         except RuntimeError as original_error:
             # MSelectionList は複数のノードに一致する名前も「存在しない」として拒否するため、
             # 利用者が原因を判別できるよう maya.cmds で一致数を確かめてからメッセージを選ぶ。
-            if node and len(cmds.ls(node) or []) > 1:
-                message = f"Name is not unique (matches multiple nodes): {node}"
-            else:
-                message = f"Node not found: {node}"
-            raise_with_notify(RuntimeError, message, from_exception=original_error)
+            matches = (cmds.ls(node, long=True) or []) if node else []
+            if len(matches) > 1:
+                raise RuntimeError(_not_unique_message(node, matches)) from original_error
+            raise RuntimeError(f"Node not found: {node}") from original_error
         if selection.length() != 1:
             # "dup.tx" のようなプラグ名・コンポーネント名は、同名ノードがあると複数の要素になる。
-            raise_with_notify(
-                RuntimeError,
-                f"Name is not unique (matches multiple objects): {node}",
-                from_exception=None,
-            )
+            matches = cmds.ls(node, long=True) or [node]
+            raise RuntimeError(_not_unique_message(node, matches)) from None
         return Node._selection_owner(selection, 0, node)
     if isinstance(node, om2.MDagPath):
         if not node.isValid() or not om2.MObjectHandle(node.node()).isValid():
@@ -163,6 +159,42 @@ def _resolve_node(node):
     raise TypeError(
         "node には名前、Node、Plug、Component、MObject、MDagPath、または MPlug を指定してください"
     )
+
+
+def _not_unique_message(name, matches):
+    """複数の対象に一致する名前の例外メッセージを作る。
+
+    一致した対象を最大3件まで完全パスで示し、完全パスか ``mlib.ls`` での指定を案内する。
+
+    Args:
+        name (str): 解決しようとした名前。
+        matches (Sequence[str]): 一致した対象の名前。
+
+    Returns:
+        str: 例外メッセージ。
+    """
+    shown = ", ".join(repr(match) for match in list(matches)[:3])
+    more = f" and {len(matches) - 3} more" if len(matches) > 3 else ""
+    return (f"Name is not unique: {name!r} matches {len(matches)} objects ({shown}{more}); "
+            f"use a full path such as {list(matches)[0]!r}, or mlib.ls({name!r}) to get all of them")
+
+
+def _require_node_name(name):
+    """作成・改名に使うノード名の、Mayaが黙って置き換える文字を拒否する。
+
+    Args:
+        name (object): ノード名。文字列以外の検査はMayaに任せる。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        ValueError: DAGパスの区切り ``|`` を含む場合。
+    """
+    if isinstance(name, str) and "|" in name:
+        raise ValueError(
+            f"Node name must not contain '|' (Maya would silently replace it): {name!r}; "
+            "pass the node name only, e.g. build it from getNodeName()")
 
 
 def _is_deleted_api_object(value):
@@ -283,6 +315,59 @@ def _dump_movable_attr(plug):
     else:
         raise TypeError(f"Unsupported attribute type for reordering: {plug.getFullName()}")
     return info
+
+
+def _require_same_attr_definition(plug, flags):
+    """addAttr(safe=True)で、既存のアトリビュートが要求した型と一致するか検証する。
+
+    Args:
+        plug (Plug): 既存のアトリビュート。
+        flags (dict): 型を解決済みのaddAttrのフラグ(attributeType/dataType・multi)。
+
+    Raises:
+        TypeError: 型、またはマルチアトリビュートかどうかが一致しない場合。
+    """
+    existing = plug.getType()
+    data_type = flags.get("dataType")
+    if isinstance(data_type, (list, tuple)):
+        matched = existing is None or existing in data_type
+        requested = "/".join(data_type)
+    else:
+        requested = flags.get("attributeType") or data_type
+        matched = existing == {"compound": "TdataCompound"}.get(requested, requested)
+    if not matched:
+        raise TypeError(f"Attribute already exists with a different type: {plug.getFullName()} "
+                        f"is {existing!r}, requested {requested!r}")
+    if bool(flags.get("multi")) != plug.isMulti():
+        raise TypeError(f"Attribute already exists with a different multi setting: {plug.getFullName()}")
+
+
+def _enum_field_value(enum_name, field):
+    """``enumName`` の定義(``"a:b:c"``・``"a=2:b=5"``)からフィールド名の値を求める。
+
+    値を省いたフィールドは直前の値+1(先頭は0)で、Mayaの ``addAttr(enumName=...)`` と同じ。
+
+    Args:
+        enum_name (str | None): ``addAttr`` へ渡すenumNameの文字列。
+        field (str): 値を求めるフィールド名(大文字・小文字を区別する完全一致)。
+
+    Returns:
+        int: フィールドの値。
+
+    Raises:
+        ValueError: enumNameが無い、またはfieldに一致するフィールドが無い場合。
+    """
+    if not isinstance(enum_name, str) or not enum_name:
+        raise ValueError(f"defaultValue {field!r} requires enumName to resolve the enum field")
+    names = []
+    value = -1
+    for item in enum_name.split(":"):
+        name, separator, number = item.partition("=")
+        value = int(number) if separator else value + 1
+        if name == field:
+            return value
+        names.append(name)
+    raise ValueError(f"No enum field named {field!r} (valid names: " + ", ".join(repr(name) for name in names) + ")")
 
 
 def _enum_definition(plug):
@@ -414,6 +499,9 @@ class Node(Object):
     """
 
     _registry = None  #: mlib.__init__ が構築後に注入する NodeRegistry。
+    _mobject: "om2.MObject"  #: 参照するノードの MObject(__init__・_resolve が設定する)。
+    _dag_path: "Optional[om2.MDagPath]"  #: DAG ノードの保持パス。非DAGはNone。
+    _handle: "om2.MObjectHandle"  #: 有効性の判定に使う MObject のハンドル。
     _fn_cache = None  #: _dependency_fn() が初回に作る MFnDependencyNode(ノードごとに1つ)。
 
     def __new__(cls, node, *args, **kwargs):
@@ -481,17 +569,15 @@ class Node(Object):
             RuntimeError: ノード名を解決できない場合。
         """
         # __new__ が解決済みの結果を引き継いだ場合は、同じ入力を再び解決しない。
-        resolved = self.__dict__.pop("_pending_resolution", None)
+        resolved = vars(self).pop("_pending_resolution", None)
         if resolved is None:
-            self._mobject = None
-            self._dag_path = None
-            self._handle = None
             self._resolve(node)
             return
-        self._mobject, self._dag_path = resolved
         # 有効性の判定は名前の取得のたびに行うため、ハンドルは一度だけ作って再利用する。
-        self._handle = om2.MObjectHandle(self._mobject)
-        self._identity_hash = self._handle.hashCode()
+        # __setattr__ を通さず、解決済みの値を直接保持する(大量の参照を作る経路の負荷を抑える)。
+        handle = om2.MObjectHandle(resolved[0])
+        vars(self).update(_mobject=resolved[0], _dag_path=resolved[1],
+                          _handle=handle, _identity_hash=handle.hashCode())
 
     def __eq__(self, other):
         """生存中の同じ対象を比較する。DAGはインスタンスのパスも区別する。
@@ -528,9 +614,15 @@ class Node(Object):
         ``cmds.select(node)`` のように渡せる。呼び出すたびに再計算するため、
         名前変更・親子付け替えに追従する。
 
+        :meth:`getName` と異なり、削除済み・Undoで無効になったノードでも例外にせず空文字列を返す
+        (maya.cmds へ渡したときにMaya側のエラーとして扱われるようにする)。
+
         Returns:
             str: 最短一意名。無効なノードでは空文字列。
         """
+        handle = self._handle
+        if handle is None or not handle.isValid():
+            return ""
         return self.getName()
 
     def __getattr__(self, name) -> Any:
@@ -547,6 +639,8 @@ class Node(Object):
 
         Raises:
             AttributeError: 非公開名または存在しない Maya アトリビュートを指定した場合。
+                文言は ``'Joint' has no method or Maya attribute 'orientJoint'`` の形で、近い名前の
+                メソッドとPyMEL・maya.cmdsの名前に対応するmlibの書き方を案内する。
                 :meth:`getPlug` が RuntimeError にする名前(``input3Dx`` のような、マルチアトリビュートの要素の
                 番号を含まないマルチアトリビュートであるコンパウンドアトリビュートの子)も、``hasattr``/``getattr(node, name, default)``
                 が使えるよう AttributeError にする(原因の RuntimeError を ``__cause__`` に持つ)。
@@ -558,7 +652,39 @@ class Node(Object):
         try:
             return self.getPlug(name)
         except (AttributeError, RuntimeError) as error:
-            raise AttributeError(f"Attribute not found: {self.getName()}.{name}") from error
+            raise AttributeError(_missing_member_message(self, name, "method or Maya attribute")) from error
+
+    def __setattr__(self, name, value):
+        """Mayaアトリビュートの名前への代入を、そのPlugの :meth:`~mlib.plugs.plug.Plug.set` にする。
+
+        ``node.tx = 5`` は ``node.getPlug("tx").set(5)`` と同じで、Undoに記録し、角度は度で
+        受け取る(``node.t = (1, 2, 3)`` も同じ)。``_`` で始まる名前と、クラスに定義された名前
+        (メソッド・プロパティ・クラス属性)は通常のPythonの代入として扱う。それ以外の名前の
+        Pythonの属性をインスタンスへ追加することはできない。
+
+        Args:
+            name (str): 代入する名前。
+            value (object): 値。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            AttributeError: Mayaアトリビュートが無い名前の場合。
+            RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合。
+            TypeError: 値の型がアトリビュートに合わない場合(Plug.setと同じ)。
+            ValueError: 値の成分数・範囲が合わない場合(Plug.setと同じ)。
+        """
+        if name[:1] == "_" or hasattr(type(self), name):
+            object.__setattr__(self, name, value)
+            return
+        self._require_valid("set attributes of")
+        try:
+            plug = self.getPlug(name)
+        except (AttributeError, RuntimeError) as error:
+            raise AttributeError(_missing_member_message(self, name, "Maya attribute")
+                                 + " (Python attributes cannot be added to mlib nodes)") from error
+        plug.set(value)
 
     def getShadingEngines(self):
         """自身から直接接続されているShadingEngineを重複なしで返す。
@@ -615,7 +741,7 @@ class Node(Object):
         """保持している Maya API 2.0 MObject を返す。
 
         Returns:
-            om2.MObject | None: ラップ対象の MObject。
+            om2.MObject: ラップ対象の MObject。
         """
         return self._mobject
 
@@ -715,7 +841,8 @@ class Node(Object):
         """自身の nodeType が指定型そのもの、またはその派生型か判定する。
 
         ``cmds.nodeType(inherited=True)`` による継承チェーンで判定するため、
-        例えば mesh ノードは ``isType("shape")`` で True になる。
+        例えば mesh ノードは ``isType("shape")`` で True になる。2026で改名された型は
+        どちらの名前でも判定できる(``isType("multDoubleLinear")`` と ``isType("multDL")``)。
 
         Args:
             nodeType (str): 判定する Maya nodeType 名。
@@ -730,7 +857,7 @@ class Node(Object):
             raise ValueError("nodeType must be a non-empty string")
         if not self.isValid():
             return False
-        return nodeType in _inherited_node_types(self.getType())
+        return _real_node_type(nodeType) in _inherited_node_types(self._alive_fn().typeName)
 
     def isLocked(self):
         """ノード自体がロックされているか判定する。
@@ -853,8 +980,9 @@ class Node(Object):
                 namespaceを含まないノード名。
 
         Raises:
-            RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
+            RuntimeError: ノードが削除済み、またはUndoで作成が取り消された(無効な)場合。
         """
+        self._require_named()
         node_name = self._alive_fn().name()
         if removeNamespace:
             node_name = node_name.rsplit(":", 1)[-1]
@@ -883,7 +1011,7 @@ class Node(Object):
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            str: Mayaが確定したnamespace付きノード名。
+            Node: 自身。namespace付きの名前は :meth:`getNodeName` で取得する。
 
         Raises:
             ValueError: namespaceが空文字列または文字列でない場合。
@@ -893,6 +1021,7 @@ class Node(Object):
         with _edit_context("mlibNodeSetNamespace", fast):
             from ..common import Namespace
 
+            self._require_valid("rename")
             if isinstance(namespace, Namespace):
                 target_namespace = namespace
             elif isinstance(namespace, str) and namespace:
@@ -950,29 +1079,36 @@ class Node(Object):
             delete_nodes([self], fast=fast)
 
     def rename(self, name, ignoreShape=False, *, fast=False):
-        """ノード名を変更し、変更後の名前を返す。
+        """ノード名を変更し、自身を返す。
+
+        Mayaが補正した最終的な名前(重複時の連番等)は戻り値の :meth:`getNodeName` で取得する。
 
         Args:
-            name (str): 新しいノード名。
+            name (str): 新しいノード名。DAGパスの区切り ``|`` は含められない
+                (Mayaは黙って別の文字へ置き換えるため拒否する)。
             ignoreShape (bool): ``True`` の場合はShapeの名前変更を抑制する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            str: Mayaが確定した変更後のノード名。
+            Node: 自身。
 
         Raises:
             TypeError: fastがbool以外の場合。
+            ValueError: nameに ``|`` を含む場合。
             RuntimeError: ノードが無効(削除済み)の場合(``Cannot rename an invalid node``。
                 fastも同じ)、保持するDAGインスタンスが削除された場合、またはMayaが
                 改名を拒否した場合。
         """
         with _edit_context("mlibNodeRename", fast):
+            _require_node_name(name)
             # cmds.renameへ空の名前を渡すと文言の無いRuntimeErrorになるため、先に判定する。
             self._require_valid("rename")
             if fast:
                 from ..core.nodeEdit import rename_node
-                return rename_node(self.mnode(), name, ignoreShape)
-            return cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
+                rename_node(self.mnode(), name, ignoreShape)
+            else:
+                cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
+            return self
 
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
         destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
@@ -1104,8 +1240,12 @@ class Node(Object):
     def resetAttrs(self, attributes=None, *, fast=False):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。
 
+        Transformも同じ規則で、省略時はtranslate・rotate・scale・shearに限らずキー設定可能な全て
+        (visibility等を含む)を戻す。
+
         Args:
-            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー設定可能な
+            attributes (str | Plug | Iterable[str | Plug] | None): アトリビュート名、または自身の
+                Plug(名前と混在できる)。Noneはキー設定可能な
                 数値・単位・enumアトリビュートを対象とし、マルチアトリビュート・ロック・入力接続・書込み禁止・
                 非対応型は除外する(通常/fastで同じ選択)。
                 明示指定したアトリビュートのエラーは除外せず送出する。
@@ -1116,7 +1256,8 @@ class Node(Object):
 
         Raises:
             AttributeError: 指定アトリビュートが存在しない場合。
-            TypeError: 明示指定したアトリビュートがリセット非対応の場合。
+            TypeError: 名前・Plug以外を指定した場合、または明示指定したアトリビュートがリセット非対応の場合。
+            ValueError: 別のノードのPlugを指定した場合。
             RuntimeError: 明示指定したアトリビュートがロック・接続済みなどで書き込みできない場合。
         """
         with _edit_context("mlibNodeResetAttrs", fast):
@@ -1129,24 +1270,25 @@ class Node(Object):
                 # 通常/fastとも、ロック・入力接続・書込み禁止をfastの書込みと同じ検査で除く。
                 plugs = [plug for plug in plugs if _writable_plug(plug)]
             else:
-                if isinstance(attributes, str):
-                    attributes = [attributes]
-                plugs = [self.getPlug(name) for name in attributes]
+                plugs = self._plugs_from(attributes)
             for plug in plugs:
                 plug.reset(fast=fast)
             return plugs
 
-    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
+    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, children=False, fast=False):
         """指定アトリビュートのロック・キー設定可否・Channel Box表示を変更する。
 
         状態の型を検査し、全アトリビュートを解決してから順に更新する。
-        途中の失敗で、先行の変更は自動では戻さない。
+        途中の失敗で、先行の変更は自動では戻さない。各Plugの :meth:`Plug.setFlags` へ委譲する。
 
         Args:
-            attributes (str | Iterable[str]): アトリビュート名。子も変更するなら子名を明示する。
+            attributes (str | Plug | Iterable[str | Plug]): アトリビュート名、または自身のPlug(名前と混在できる)。
             locked (bool | None): ロック状態。Noneは変更しない。
             keyable (bool | None): キー設定可否。Noneは変更しない。
             channelBox (bool | None): Channel Box表示。Noneは変更しない。keyable=TrueならMayaにより表示される。
+            children (bool): Trueはコンパウンドアトリビュート(``t`` 等)の子(``tx`` 等)にも同じ状態を設定する。
+                既定Falseは指定したアトリビュートだけ(Mayaの ``setAttr`` と同じく、親のkeyable・Channel Box表示は
+                子へ及ばない。ロックは親から子へ継承される)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -1154,17 +1296,18 @@ class Node(Object):
 
         Raises:
             AttributeError: 指定アトリビュートが存在しない場合。
-            TypeError: 必須引数の不足、fastや状態の型が不正な場合。
+            TypeError: 必須引数の不足、fast・childrenや状態の型が不正、または名前・Plug以外を指定した場合。
+            ValueError: 別のノードのPlugを指定した場合。
             RuntimeError: Mayaが更新を拒否した場合。
         """
         with _edit_context("mlibNodeSetAttrFlags", fast):
             flags = _validated_flags(locked, keyable, channelBox)
-            if isinstance(attributes, str):
-                attributes = [attributes]
-            plugs = [self.getPlug(name) for name in attributes]
+            _require_bool(children, "children")
+            plugs = self._plugs_from(attributes)
             if flags:
                 for plug in plugs:
-                    plug.setFlags(locked=locked, keyable=keyable, channelBox=channelBox, fast=fast)
+                    plug.setFlags(locked=locked, keyable=keyable, channelBox=channelBox, children=children,
+                                  fast=fast)
             return self
 
     def getPlugs(self, userDefined=False, includeChildren=True, **listAttrFlags):
@@ -1231,7 +1374,8 @@ class Node(Object):
         return [(alias, self.getPlug(name)) for alias, name in self._dependency_fn().getAliasList()]
 
     def addAttr(self, longName=_UNSET, type=None, subType=None, channelBox=_UNSET, childNames=None,
-        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, fast=False, attributeType=_UNSET,
+        childShortNames=None, childSuffixes=None, proxy=_UNSET, getPlug=True, *, safe=False, fast=False, unit="deg",
+        attributeType=_UNSET,
         at=_UNSET, binaryTag=_UNSET, bt=_UNSET, cachedInternally=_UNSET, ci=_UNSET, category=_UNSET, ct=_UNSET,
         dataType=_UNSET, dt=_UNSET, defaultValue=_UNSET, dv=_UNSET, disconnectBehaviour=_UNSET, dcb=_UNSET,
         edit=_UNSET, e=_UNSET, enforcingUniqueName=_UNSET, eun=_UNSET, enumName=_UNSET, en=_UNSET, exists=_UNSET,
@@ -1248,7 +1392,8 @@ class Node(Object):
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
         型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
-        単位型を直接追加する場合、既定値・制限は距離cm・角度rad・時刻秒で指定する。
+        単位型を追加する場合、数値の既定値・制限は距離cm・時刻秒、角度(doubleAngle、subType="doubleAngle"の子)は
+        unitの単位(既定は度)で指定する。om2.MAngle等の単位付きの値はそのまま使う。
         通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
 
         Args:
@@ -1261,7 +1406,14 @@ class Node(Object):
             childSuffixes (Sequence[str] | None): 親名へ付加する子の接尾辞。
             proxy (Plug | str | None): プロキシの元アトリビュート。
             getPlug (bool): 既定Trueは追加したPlug、FalseはNoneを返す。
+            safe (bool): Trueは再実行向け。同じ名前のアトリビュートが既にあれば何も変更せず、既存のPlug
+                (getPlug=FalseならNone)を返す。既存の既定値・範囲・表示などは更新しない。既存のアトリビュートの型
+                (getType()で比べる)、またはマルチアトリビュートかどうかが要求と違う場合はsafeでもTypeError。
+                既定Falseは既存の名前をMayaのエラー(RuntimeError)にする。
+                ``Plug.set(safe=True)`` (失敗数を返す)とは意味が異なる。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
+                ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -1346,8 +1498,10 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、またはfastがbool以外の場合。
-            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、またはquery/edit=True。
+            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列以外、または
+                safe=Trueで既存のアトリビュートの型・マルチアトリビュートかどうかが要求と違う場合。
+            ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
+                unitが未対応の単位名、またはenumのdefaultValueのフィールド名がenumNameに無い場合。
             NotImplementedError: fastで型や定義フラグが未対応の場合。
 
         Note:
@@ -1428,6 +1582,9 @@ class Node(Object):
         if usedAsProxy is not _UNSET:
             kwargs["usedAsProxy"] = usedAsProxy
         channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
+        _require_bool(safe, "safe")
+        angle_unit = _angle_unit(unit)
+        assert angle_unit is not None  # 既定値 "deg" を使うため None にならない。
         with _edit_context("mlibNodeAddAttr", fast):
             from ..plugs.plug import Plug
             flags = {key: value for key, value in kwargs.items()
@@ -1448,7 +1605,11 @@ class Node(Object):
                 type = proxy.getType()
                 flags["usedAsProxy"] = True
             numeric, count, deferred = self._prepare_extra_attr_definition(
-                flags, type, childNames, childShortNames, childSuffixes)
+                flags, type, childNames, childShortNames, childSuffixes, sub_type=subType, angle_unit=angle_unit)
+            if safe and self.hasAttr(name):
+                existing = self.getPlug(name)
+                _require_same_attr_definition(existing, flags)
+                return existing if getPlug else None
             prepared = self._create_extra_attr_definition(
                 name, flags, numeric, count, deferred, childNames, childShortNames, childSuffixes, subType, fast=fast)
             if not getPlug and (deferred is None or count) and not show and proxy is None:
@@ -1615,20 +1776,23 @@ class Node(Object):
         DAGノードは保持パスのpartialPathName、DGノードはノード名を返す。
         名前はキャッシュせず、呼ぶたびにMayaへ問い合わせる。
 
+        別の階層に同じ短い名前のノードがある場合は、一意にするための親を含む部分パス
+        (``grp1|ctrl`` 等)になる。新しい名前を組み立てる元(接尾辞の付け替え等)には
+        :meth:`getNodeName` を使う。
+
         Returns:
-            str: 現在の名前。ノード自体が無効なら空文字列。
+            str: 現在の名前。
 
         Raises:
-            RuntimeError: ノードは有効だが保持するDAGインスタンスが削除された場合。
+            RuntimeError: ノードが削除済み・Undoで作成が取り消された(無効な)場合、または
+                ノードは有効だが保持するDAGインスタンスが削除された場合。
         """
-        handle = self._handle
-        if handle is None or not handle.isValid():
-            return ""
+        self._require_named()
         dag_path = self._dag_path
         if dag_path is None:
             return self._dependency_fn().name()
         if not dag_path.isValid():
-            dag_path = self._current_dag_path()
+            self._current_dag_path()  # 保持するDAGインスタンスが消えた場合は RuntimeError にする。
         return dag_path.partialPathName()
 
     def getFullName(self):
@@ -1648,8 +1812,40 @@ class Node(Object):
         if dag_path is None:
             return self._dependency_fn().name()
         if not dag_path.isValid():
-            dag_path = self._current_dag_path()
+            self._current_dag_path()  # 保持するDAGインスタンスが消えた場合は RuntimeError にする。
         return dag_path.fullPathName()
+
+    def _plugs_from(self, attributes):
+        """名前と自身のPlugが混在する指定を、自身のPlugの列へ解決する。
+
+        Args:
+            attributes (str | Plug | Iterable[str | Plug]): アトリビュート名・Plug、またはその列。
+
+        Returns:
+            list[Plug]: 指定順のPlug。
+
+        Raises:
+            AttributeError: 名前のアトリビュートが存在しない場合。
+            TypeError: 名前・Plug以外の要素を含む場合。
+            ValueError: 名前が空、または別のノードのPlugを含む場合。
+        """
+        # plugsはnodesを参照するため、循環importを避けて関数内で読み込む。
+        from ..plugs.plug import Plug
+        if isinstance(attributes, (str, Plug)):
+            attributes = [attributes]
+        plugs = []
+        for item in attributes:
+            if isinstance(item, Plug):
+                if not item.getNode().sameNode(self):
+                    raise ValueError(f"Plug {item.getFullName()!r} does not belong to {self.getName()!r}")
+                plugs.append(item)
+            elif isinstance(item, str):
+                if not item:
+                    raise ValueError("attribute names must be non-empty strings")
+                plugs.append(self.getPlug(item))
+            else:
+                raise TypeError(f"attributes must be names or Plugs of this node, got {type(item).__name__}")
+        return plugs
 
     @staticmethod
     def _create_node(node_type, flags, *, fast=False):
@@ -1658,9 +1854,11 @@ class Node(Object):
         :func:`mlib.createNode` と :meth:`Container.createNode` が呼ぶ内部ヘルパーで、Undoチャンクは
         呼出し側で管理する。Mayaが認識しない型名(標準プラグインのロード後も未知の型)を拒否する。
         cmds.createNodeは未知の型でも例外にせずunknownノードを作るため、ここで止める。型名の照会で
-        認識できる名前は作成前に判定する。版の互換名(2027のaddDoubleLinear等)のように照会では
-        分からない名前は、通常経路では作成した結果がunknownノードなら削除して拒否し(Undoの記録は
-        作成と削除が対になる)、fastでは作成前に拒否する。
+        認識できる名前は作成前に判定する。2026で改名された型(``multDoubleLinear``/``multDL``・
+        ``addDoubleLinear``/``addDL``)はどちらの名前もその版の型名へ読み替える。照会では分からない
+        名前は、通常経路では作成した結果がunknownノードなら削除して拒否し(Undoの記録は
+        作成と削除が対になる)、fastでは作成前に拒否する。jointの下へ作ったjointは、``cmds.joint`` と
+        同じく親の ``scale`` を ``inverseScale`` へ接続する(通常経路は作成と同じUndoの単位)。
 
         Args:
             node_type (str): Maya nodeType名。
@@ -1673,31 +1871,37 @@ class Node(Object):
 
         Raises:
             TypeError: parentが未対応型・複数対象の場合。
-            ValueError: nodeType名が空文字列または文字列以外、またはparentが空文字列・無効な参照の場合。
-            RuntimeError: Mayaが認識しないnodeType名の場合、親名を解決できない場合、またはMayaが
+            ValueError: nodeType名が空文字列または文字列以外、nameに ``|`` を含む、またはparentが
+                空文字列・無効な参照の場合。
+            RuntimeError: Mayaが認識しないnodeType名の場合(この版に無い型は、標準で追加された版が
+                分かっていればその版を示す)、親名を解決できない場合、またはMayaが
                 プラグインのロードやノード作成を拒否した場合。
             NotImplementedError: fastで未対応のフラグを指定した場合。
         """
         if not isinstance(node_type, str) or not node_type:
             raise ValueError("type must be a non-empty string")
+        # 2026で改名された型(multDoubleLinear→multDL等)は、どの版でもその版の型名へ読み替える。
+        node_type = _real_node_type(node_type)
         # 遅延公開の__getattr__を毎回通らないよう、実装モジュールから直接取得する。
         from ..common.plugin import Plugin
         Plugin.ensureNodePlugin(node_type)
-        # Mayaの版で改名された型の旧名(2027のaddDoubleLinear→addDL等)は、型名の照会・OpenMayaでは
-        # 解決できないがcmds.createNodeは互換名として作成する。照会で分からない名前は、通常経路では
+        # 型名の照会・OpenMayaでは解決できないがcmds.createNodeが互換名として作成する名前は、通常経路では
         # 作成した結果がunknownノードかどうかで判定し、fastはOpenMayaが作成できないため作成前に拒否する。
         known = _node_type_exists(node_type)
         if not known and fast:
-            raise RuntimeError(f"Unknown Maya nodeType: {node_type}")
+            raise RuntimeError(_unknown_node_type_message(node_type))
+        _require_node_name(flags.get("name"))
         for key in ("parent", "p"):
             if flags.get(key) is not None:
                 flags[key] = Node._input_name(flags[key])
+        parent = flags.get("parent") or flags.get("p")
         if fast:
             # nodeEditはNodeを参照するため、循環importを避けて関数内で読み込む。
             from ..core.nodeEdit import create_node
             obj = create_node(node_type, flags)
             # 作成したばかりの有効なMObjectなので、Node(obj)と同じ解決・型選択を入口の再判定なしで行う。
-            return Node._wrap_resolved(*_resolve_node(obj))
+            node = Node._wrap_resolved(*_resolve_node(obj))
+            return Node._connect_joint_parent(node, parent, fast=True)
         if known:
             created = cmds.createNode(node_type, **flags)
         else:
@@ -1711,14 +1915,33 @@ class Node(Object):
                     # 未知の名前でMayaが作ったunknownノードは消し、作成前の選択へ戻してから拒否する。
                     cmds.delete(created)
                     cmds.select(selection, replace=True) if selection else cmds.select(clear=True)
-                    raise RuntimeError(f"Unknown Maya nodeType: {node_type}")
+                    raise RuntimeError(_unknown_node_type_message(node_type))
         if created is None:
             # shared=Trueで同名・同型のノードが既にある場合、cmds.createNodeは作成せずNoneを返す。
             name = flags.get("name") or flags.get("n")
             if not name:
                 raise RuntimeError(f"Maya did not create a node of type {node_type}")
             return Node(name)
-        return Node(created)
+        return Node._connect_joint_parent(Node(created), parent, fast=False)
+
+    @staticmethod
+    def _connect_joint_parent(node, parent, *, fast):
+        """jointの下へ作ったjointの inverseScale へ、親の scale を接続する(``cmds.joint`` と同じ)。
+
+        Args:
+            node (Node): 作成したノード。
+            parent (str | None): 作成時に指定した親の完全パス。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            Node: node。jointでない、または親がjointでない場合は何もしない。
+        """
+        if parent is None or not node.mnode().hasFn(om2.MFn.kJoint):
+            return node
+        parent_node = node.getParent()
+        if parent_node is not None and parent_node.mnode().hasFn(om2.MFn.kJoint):
+            node.connectInverseScale(parent_node, fast=fast)
+        return node
 
     def _has_delete_connections(self):
         """自身とDAG子孫のDG接続をOMで検査する。
@@ -2018,12 +2241,10 @@ class Node(Object):
         instance = object.__new__(resolved_class)
         if resolved_class.__init__ is Node.__init__:
             # __init__ を上書きしないクラスでは、Node.__init__ の解決済み入力の分岐と同じ属性を直接設定する。
-            instance._mobject = mobject
-            instance._dag_path = dag_path
             if handle is None:
                 handle = om2.MObjectHandle(mobject)
-            instance._handle = handle
-            instance._identity_hash = handle.hashCode()
+            instance.__dict__.update(_mobject=mobject, _dag_path=dag_path,
+                                     _handle=handle, _identity_hash=handle.hashCode())
             return instance
         instance._pending_resolution = (mobject, dag_path)
         instance.__init__(dag_path if dag_path is not None else mobject)
@@ -2048,6 +2269,19 @@ class Node(Object):
             RuntimeError: 名前を解決できない、または無効な参照の場合。
         """
         return Node._wrap_resolved(*_resolve_node(value))
+
+    def _require_named(self):
+        """名前の取得の前にノードが有効か確かめる。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: ノードが削除済み、またはUndoで作成が取り消された場合。
+        """
+        handle = self._handle
+        if handle is None or not handle.isValid():
+            raise RuntimeError(f"{type(self).__name__} was deleted or undone; check isValid() before using it")
 
     def _require_valid(self, action):
         """操作の前にノードが有効か確かめ、無効なら統一した文言で拒否する。
@@ -2089,7 +2323,8 @@ class Node(Object):
         return dag_path
 
     @staticmethod
-    def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes):
+    def _prepare_extra_attr_definition(flags, attribute_type, child_names, child_short_names, child_suffixes, *,
+                                       sub_type=None, angle_unit="rad"):
         """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
@@ -2098,6 +2333,8 @@ class Node(Object):
             child_names (Sequence[str] | None): 子のロング名。
             child_short_names (Sequence[str] | None): 子のショート名。
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
+            sub_type (str | None): 自動生成する子の共通型。doubleAngleなら子の値をradへ換算する。
+            angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
 
         Returns:
             tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。
@@ -2133,9 +2370,25 @@ class Node(Object):
             # 固定子数型へncを渡すMayaエラーを事前検出する。
             if "numberOfChildren" in flags and flags.pop("numberOfChildren") != count:
                 raise ValueError("Vector child count does not match its type")
+        if kind == "enum" and isinstance(flags.get("defaultValue"), str):
+            flags["defaultValue"] = _enum_field_value(flags.get("enumName"), flags["defaultValue"])
         deferred = None
         if count or flags.get("dataType"):
             deferred = flags.pop("defaultValue", None)
+        if count and sub_type == "doubleAngle" and angle_unit != "rad":
+            # 角度の子へ配る範囲・既定値をここで一度だけradへ換算し、子のaddAttrにはunit="rad"で渡す。
+            def to_radians(value):
+                """数値・数値列の角度をradへ換算する。単位付きの値はそのまま返す。"""
+                if isinstance(value, (tuple, list)):
+                    return type(value)(to_radians(item) for item in value)
+                if isinstance(value, (int, float)) and not isinstance(value, bool):
+                    return om2.MAngle(value, om2.MAngle.kDegrees).asRadians()
+                return value
+            for flag in ("minValue", "maxValue", "softMinValue", "softMaxValue"):
+                if flag in flags:
+                    flags[flag] = to_radians(flags[flag])
+            deferred = to_radians(deferred)
+        angle_input = om2.MAngle.kDegrees if angle_unit == "deg" else om2.MAngle.kRadians
         unit = {"doubleAngle": (om2.MAngle, om2.MAngle.kRadians),
                 "doubleLinear": (om2.MDistance, om2.MDistance.kCentimeters),
                 "time": (om2.MTime, om2.MTime.kSeconds)}.get(kind)
@@ -2144,7 +2397,8 @@ class Node(Object):
             for flag in ("defaultValue", "minValue", "maxValue", "softMinValue", "softMaxValue"):
                 if flag in flags:
                     value = flags[flag]
-                    quantity = value if isinstance(value, cls) else cls(value, internal)
+                    source = angle_input if cls is om2.MAngle else internal
+                    quantity = value if isinstance(value, cls) else cls(value, source)
                     flags[flag] = quantity.asUnits(cls.uiUnit() if cls is om2.MTime else internal)
         return numeric, count, deferred
 
@@ -2183,7 +2437,8 @@ class Node(Object):
                 flags.pop(key, None)
             cmds.addAttr(self.getFullName(), **flags)
             for child_name, child_type, child_flags in children:
-                self.addAttr(child_name, child_type, getPlug=False, fast=fast, **child_flags)
+                # 角度の子の値は_prepare_extra_attr_definitionでrad換算済み。
+                self.addAttr(child_name, child_type, getPlug=False, fast=fast, unit="rad", **child_flags)
         else:
             cmds.addAttr(self.getFullName(), **flags)
 
@@ -2345,6 +2600,155 @@ class Nodes:
         """
         return f"{type(self).__name__}({self._items!r})"
 
+    def setAttrFlags(self, attributes, locked=None, keyable=None, channelBox=None, *, fast=False):
+        """各ノードへ保持順に :meth:`Node.setAttrFlags` を適用する。
+
+        一括で書き込めるメソッドは :meth:`setAttrFlags`・:meth:`resetAttrs`・:meth:`setLocked`・
+        :meth:`setColor`・:meth:`setVisibility`・:meth:`show`・:meth:`hide`・:meth:`setParent`
+        (:class:`~mlib.nodes.joint.Joints` は ``setRadius``・``setSegmentScaleCompensate`` も)。
+        通常は全体を1回のUndoにまとめる。全要素がメソッドを持つことを書込みの前に確かめる。
+
+        Args:
+            attributes (str | Plug | Iterable[str | Plug]): :meth:`Node.setAttrFlags` と同じ。
+                Plugを渡す場合は全要素に同じ名前のアトリビュートを使うため、名前で指定する。
+            locked (bool | None): :meth:`Node.setAttrFlags` と同じ。
+            keyable (bool | None): :meth:`Node.setAttrFlags` と同じ。
+            channelBox (bool | None): :meth:`Node.setAttrFlags` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。
+
+        Raises:
+            AttributeError: :meth:`Node.setAttrFlags` と同じ。
+            TypeError: :meth:`Node.setAttrFlags` と同じ。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。先行した要素の変更は
+                自動では戻さない(通常はUndoで戻せる)。
+        """
+        self._forward("setAttrFlags", (attributes, locked, keyable, channelBox), fast)
+        return self
+
+    def resetAttrs(self, attributes=None, *, fast=False):
+        """各ノードへ保持順に :meth:`Node.resetAttrs` を適用する。
+
+        Args:
+            attributes (str | Iterable[str] | None): :meth:`Node.resetAttrs` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            list[Plug]: 全要素でリセットしたアトリビュート(要素順)。通常は1回のUndoにまとめる。
+
+        Raises:
+            AttributeError: :meth:`Node.resetAttrs` と同じ。
+            TypeError: :meth:`Node.resetAttrs` と同じ。
+            RuntimeError: 無効なノードを含む、またはアトリビュートを書き込めない場合。
+        """
+        results = self._forward("resetAttrs", (attributes,), fast)
+        return [plug for plugs in results for plug in plugs]
+
+    def setLocked(self, state=True, *, fast=False):
+        """各ノードへ保持順に :meth:`Node.setLocked` を適用する。
+
+        Args:
+            state (bool): True でロック、False で解除。既定 True。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。
+
+        Raises:
+            TypeError: state または fastがbool以外の場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setLocked", (state,), fast)
+        return self
+
+    def setColor(self, color):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setColor` を適用する。
+
+        Args:
+            color (object): :meth:`~mlib.nodes.dagNode.DagNode.setColor` と同じ。
+
+        Returns:
+            Nodes: 自身。全体を1回のUndoにまとめる。
+
+        Raises:
+            TypeError: DAGノード以外を含む、または色の指定が不正な場合。
+            ValueError: 色の指定が不正な場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setColor", (color,), None)
+        return self
+
+    def setVisibility(self, state, *, fast=False):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setVisibility` を適用する。
+
+        Args:
+            state (bool): 表示状態。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。
+
+        Raises:
+            TypeError: DAGノード以外を含む、またはstate・fastがbool以外の場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setVisibility", (state,), fast)
+        return self
+
+    def show(self, *, fast=False):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.show` を適用する。
+
+        Args:
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。
+
+        Raises:
+            TypeError: DAGノード以外を含む、またはfastがbool以外の場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("show", (), fast)
+        return self
+
+    def hide(self, *, fast=False):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.hide` を適用する。
+
+        Args:
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。
+
+        Raises:
+            TypeError: DAGノード以外を含む、またはfastがbool以外の場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("hide", (), fast)
+        return self
+
+    def setParent(self, parent=None, relative=False, add=False, *, fast=False):
+        """各Transformへ保持順に :meth:`~mlib.nodes.transform.Transform.setParent` を適用する。
+
+        Args:
+            parent (object | None): 親。Noneはワールド。
+            relative (bool): :meth:`~mlib.nodes.transform.Transform.setParent` と同じ。
+            add (bool): :meth:`~mlib.nodes.transform.Transform.setParent` と同じ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。各要素は親変更後のパスを指す。
+
+        Raises:
+            TypeError: Transform以外を含む場合。
+            ValueError: :meth:`~mlib.nodes.transform.Transform.setParent` と同じ。
+            RuntimeError: 無効なノードを含む、またはMayaが親の変更を拒否した場合。
+        """
+        self._forward("setParent", (parent, relative, add), fast)
+        return self
+
     def copy(self):
         """同じ参照を共有する、同じ具象型の独立した容器を返す。
 
@@ -2355,6 +2759,33 @@ class Nodes:
         result.__dict__.update(self.__dict__)
         result._items = list(self._items)
         return result
+
+    def _forward(self, method, args, fast):
+        """保持順の各ノードへ単数のメソッドを適用し、結果の列を返す。
+
+        全要素がメソッドを持ち有効であることを書込みの前に確かめ、通常は1回のUndoにまとめる。
+
+        Args:
+            method (str): 単数のノードのメソッド名。
+            args (tuple): 位置引数。
+            fast (bool | None): メソッドへ渡すfast。Noneはfast引数の無いメソッド。
+
+        Returns:
+            list: 要素順の戻り値。
+
+        Raises:
+            TypeError: メソッドを持たない要素を含む場合、またはfastがbool以外の場合。
+            RuntimeError: 無効な要素を含む場合。
+        """
+        missing = [node for node in self._items if not callable(getattr(type(node), method, None))]
+        if missing:
+            raise TypeError(f"{type(self).__name__}.{method}() requires every item to support {method}(); "
+                            f"{missing[0]!r} does not")
+        for node in self._items:
+            node._require_valid(method)
+        kwargs = {} if fast is None else {"fast": fast}
+        with _edit_context(f"mlib{type(self).__name__}{method[:1].upper()}{method[1:]}", bool(fast)):
+            return [getattr(node, method)(*args, **kwargs) for node in self._items]
 
     @staticmethod
     def _resolve_inputs(values):

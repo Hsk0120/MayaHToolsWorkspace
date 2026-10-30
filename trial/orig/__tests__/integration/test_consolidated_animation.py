@@ -83,14 +83,18 @@ class ConsolidatedAnimationTest(unittest.TestCase):
                     stack.enter_context(patch.object(cmds, command, side_effect=AssertionError(command)))
                 self.assertEqual(curve.getKeyCount(), 3)
                 self.assertEqual(curve.getKeyInputs(), [-1, .25, 2])
-                self.assertEqual(curve.getKeyValues(), [1, 4, 2])
+                # setKeyの角度出力の既定は度。
+                self.assertEqual([round(v, 9) for v in curve.getKeyValues()], [1, 4, 2])
                 self.assertTrue(math.isfinite(curve.evaluate(0)))
-                actual = curve.getTangent(1)
+                actual = curve.getTangent(1, unit="rad")
+                in_degrees = curve.getTangent(1)
             for key in expected:
                 if isinstance(expected[key], float):
                     self.assertAlmostEqual(actual[key], expected[key], places=6)
                 else:
                     self.assertEqual(actual[key], expected[key])
+            # 接線の角度の既定は度。
+            self.assertAlmostEqual(in_degrees["inAngle"], math.degrees(expected["inAngle"]), places=6)
 
     def test_tangent_lock_weight_and_mode_flags_match_commands(self):
         """角度・ウェイト・ロックと全体モード旗の優先順位を維持する。"""

@@ -3,6 +3,7 @@
 
 import inspect
 import re
+from operator import methodcaller
 from typing import Any, Optional
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -10,8 +11,8 @@ from ..core.object import Object, _missing_member_message
 from ..core.registry import _inherited_node_types, _node_type_exists, _real_node_type
 from ..core.registry import _unknown_node_type_message
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
-from ..util import _ArgumentError, _UNSET, _angle_unit
-from typing import Any, Iterable, Iterator, Literal, Sequence
+from ..util import _ArgumentError, _UNSET, _angle_unit, _time_unit
+from typing import Any, Callable, Iterable, Iterator, Literal, Sequence
 from mlib.common.namespace import Namespace
 from mlib.components.component import Component
 from mlib.components.component import Components
@@ -728,7 +729,12 @@ class Node(Object):
     def getConnections(self, s: bool = ..., d: bool = ..., c: Literal[False] = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: Literal[False] = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., *, asPair: Literal[False] = ..., asNode: Literal[False] = ..., index: None = ...) -> list[Plug]: ...
     @overload
     def getConnections(self, s: bool = ..., d: bool = ..., c: bool = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: bool = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., asPair: bool = ..., asNode: bool = ..., index: int | None = ...) -> list | Plug | Node | tuple | None:
-        """接続をPlug・Node・ペアとして照会する。
+        """接続をPlug・Node・ペアとして照会する。既定はunitConversion系の変換ノードを飛ばす。
+
+        ``cmds.listConnections`` とは既定が違い、:meth:`~mlib.plugs.plug.Plug.getSource` /
+        :meth:`~mlib.plugs.plug.Plug.getDestinations` と同じくunitConversion系(unitConversion・
+        unitToTimeConversion・timeToUnitConversion)を飛ばしてその先を返す。
+        ``skipConversionNodes=False`` (または ``scn=False``)で直結した相手を返す。
 
         Args:
             s (bool): 入力を含める。sourceとANDする。
@@ -736,13 +742,14 @@ class Node(Object):
             c (bool): ペア指定の短縮名。
             t (str | None): typeの短縮名。
             et (bool): exactTypeの短縮名。
-            scn (bool): skipConversionNodesの短縮名。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
             source (bool): 入力を含める。
             destination (bool): 出力を含める。
             connections (bool): 自身側と相手側のペアを返す。
             type (str | None): 接続先ノード型。
             exactType (bool): 型名の完全一致で絞る。
-            skipConversionNodes (bool): unitConversion系を飛ばす。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
+                Falseは直結した相手。
             asPair (bool): 自身側Plugと相手側のペアを返す。
             asNode (bool): 相手側をNodeで返す。
             index (int | None): 結果の一件。範囲外はNone。
@@ -852,13 +859,14 @@ class Node(Object):
             RuntimeError: ノードが無効な場合。
         """
         ...
-    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, safe: bool = ..., fast: bool = ..., unit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
+    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, safe: bool = ..., fast: bool = ..., unit: str = ..., timeUnit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> Plug | None:
         """型・既定値・フラグを指定してアトリビュートを追加する。
 
         作成専用。query/edit=Trueは拒否する。長名と対応する短名は同時指定できない。
         型はproxyの元、明示type、attributeType/dataTypeの順に使い、全て省略時はdouble。
-        単位型を追加する場合、数値の既定値・制限は距離cm・時刻秒、角度(doubleAngle、subType="doubleAngle"の子)は
-        unitの単位(既定は度)で指定する。om2.MAngle等の単位付きの値はそのまま使う。
+        単位型を追加する場合、数値の既定値・制限は距離cm、時間(time)はtimeUnitの単位(既定は現在のUI時間単位のフレーム)、
+        角度(doubleAngle、subType="doubleAngle"の子)はunitの単位(既定は度)で指定する。
+        om2.MAngle・om2.MTime等の単位付きの値はそのまま使う。
         通常はUndo有効時に記録する。fastはUndo設定を変えずOM2で追加し、未対応の型・定義フラグは追加前に拒否する。
 
         Args:
@@ -879,6 +887,9 @@ class Node(Object):
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             unit (str): 角度アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"deg"`` は度、
                 ``"rad"`` はラジアン(``"degree"`` / ``"radians"`` 等の別名も可)。Mayaのフラグではない。
+            timeUnit (str): 時間アトリビュートの数値の既定値・min/max・softMin/softMaxの単位。既定 ``"frame"`` は
+                現在のUI時間単位のフレーム、``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                Mayaのフラグではない。
             attributeType (str): MayaのattributeTypeフラグ。
             at (str): attributeTypeの別名。
             binaryTag (str): MayaのbinaryTagフラグ。
@@ -1018,7 +1029,9 @@ class Node(Object):
         Raises:
             ValueError: nameが空または文字列以外の場合。
             RuntimeError: ノードが無効、または ``input3Dx`` 等の未確定な論理番号を含む参照の場合。
-            AttributeError: パスを解決できない、または論理番号が上限を超える場合。
+            MissingAttributeError: アトリビュートが存在しない場合(文言は ``Attribute not found: <ノード名>.<name>``)。
+                ``AttributeError`` と ``RuntimeError`` の両方の派生で、``mlib.getPlug("node.name")`` と同じ例外。
+            AttributeError: 論理番号が上限を超える場合。
         """
         ...
     def hasAttr(self, name: str) -> bool:
@@ -1372,7 +1385,7 @@ class Node(Object):
         """
         ...
     @staticmethod
-    def _prepare_extra_attr_definition(flags: dict, attribute_type: str | None, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None, *, sub_type: str | None = ..., angle_unit: str = ...) -> tuple:
+    def _prepare_extra_attr_definition(flags: dict, attribute_type: str | None, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None, *, sub_type: str | None = ..., angle_unit: str = ..., time_unit: str = ...) -> tuple:
         """追加する型・子数・既定値と単位を、Mayaへの書込み前に解決する。
 
         Args:
@@ -1383,12 +1396,13 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 自動生成する子の共通型。doubleAngleなら子の値をradへ換算する。
             angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
+            time_unit (str): 時間の数値の単位(``"frame"`` / ``"sec"``)。
 
         Returns:
             tuple: 数値のコンパウンドアトリビュートの一致情報・子数・作成後に設定する既定値。
         """
         ...
-    def _create_extra_attr_definition(self, name: str, flags: dict, numeric: object, count: int, deferred: object, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None, sub_type: str | None, *, fast: bool = ...):
+    def _create_extra_attr_definition(self, name: str, flags: dict, numeric: object, count: int, deferred: object, child_names: Sequence[str] | None, child_short_names: Sequence[str] | None, child_suffixes: Sequence[str] | None, sub_type: str | None, *, fast: bool = ..., time_unit: str = ...):
         """親と子の定義を従来の順序で追加する。
 
         通常は子を公開addAttrへ順に委譲する。fastは未登録の親子定義を一括構築して追加する。
@@ -1404,6 +1418,7 @@ class Node(Object):
             child_suffixes (Sequence[str] | None): 子名の接尾辞。
             sub_type (str | None): 子の型。
             fast (bool): Trueなら定義をOpenMayaで追加する。
+            time_unit (str): 時間の子の数値の単位(``"frame"`` / ``"sec"``)。子のaddAttrへ渡す。
         """
         ...
     def _listed_attributes(self, include_children: bool = ..., keyable: bool = ..., scalar: bool = ...) -> list[om2.MObject]:
@@ -1438,6 +1453,12 @@ class Nodes:
 
     同一ノード・同一DAGパスの重複だけを除外する。異なるインスタンスパスは保持する。
     コピーやスライスは参照を共有し、シーンのノードは複製しない。
+    ``len``・添字(sliceは同型)・``for``・``bool``・``+``・``==``・:meth:`sort` に対応し、
+    そのまま ``maya.cmds`` へ渡せる(cmdsがシーケンスとして各ノードの名前へ展開する)。
+    ``==`` を定義するため、listと同じくハッシュ不可(dictのキー・setの要素にできない)。
+
+    ``item_class`` は派生コレクション(:class:`~mlib.nodes.joint.Joints` 等)が受け入れる
+    ラッパー型を宣言するクラス属性。
     """
     def __iter__(self) -> Iterator[Node]: ...
     @overload
@@ -1445,6 +1466,7 @@ class Nodes:
     @overload
     def __getitem__(self, index: slice) -> Nodes: ...
     item_class: Any
+    __hash__: None
     def __init__(self, names: object | Iterable[object] = ...) -> None:
         """入力からノード参照を解決し、要素型を検証して保持する。
 
@@ -1469,6 +1491,69 @@ class Nodes:
 
         Returns:
             str: 具象コレクション名と保持参照を表示する。
+        """
+        ...
+    def __eq__(self, other: Nodes | list | tuple) -> bool:
+        """同じ並びのNode参照を持つか比較する。
+
+        Args:
+            other (Nodes | list | tuple): 比較の相手。Nodesの派生型の違いは問わない。
+
+        Returns:
+            bool: 要素数が等しく、各位置のNodeが ``==`` で等しければTrue。対応しない型はNotImplemented。
+        """
+        ...
+    def __add__(self, other: Nodes | list | tuple) -> Nodes:
+        """他のNodes・list・tupleを後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
+
+        構築と同じ規則で入力を解決し、重複(同一ノード・同一DAGパス)は先に現れた方を残す。
+        要素型も構築と同じく検証する(``Joints + [transform]`` はTypeError)。相手の列は単独で
+        解決するため、``nodes + ["name"]`` のように名前の列も結合できる(相手の列の中での名前と
+        Nodeの混在は構築と同じくTypeError)。
+
+        Args:
+            other (Nodes | list | tuple): 後ろへ結合する対象列。名前・Node等の列。
+
+        Returns:
+            Nodes: 左辺と同じ具象型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: 相手が対応しない型、または要素型が合わない場合。
+            RuntimeError: 解決できない、または無効なノードを含む場合。
+        """
+        ...
+    def __radd__(self, other: list | tuple) -> Nodes:
+        """``list + Nodes`` のように左辺がlist・tupleの結合で、右辺と同じ型の新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合する対象列。
+
+        Returns:
+            Nodes: 右辺(自身)と同じ具象型の新しいコレクション。
+
+        Raises:
+            TypeError: 相手が対応しない型、または要素型が合わない場合。
+            RuntimeError: 解決できない、または無効なノードを含む場合。
+        """
+        ...
+    def sort(self, key: Callable[[Node], object] | None = ..., reverse: bool = ...) -> None:
+        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はノードの完全名(:meth:`Node.getFullName`)の順にする。
+        Nodeは大小比較できないため、Pythonのlistと異なり要素そのものは比べない。
+        並べ替えるのはこのコレクションの保持列だけで、:meth:`copy`・スライス・``+`` で作った
+        別のコレクションの順序は変わらない(各要素のNode参照は共有している)。
+
+        Args:
+            key (Callable[[Node], object] | None): 各Nodeから比較用の値を返す関数。Noneは完全名。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
+            RuntimeError: key省略時に無効なノードを含む場合。
         """
         ...
     def setAttrFlags(self, attributes: str | Plug | Iterable[str | Plug], locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., *, fast: bool = ...) -> Nodes:
@@ -1601,7 +1686,8 @@ class Nodes:
         Raises:
             TypeError: Transform以外を含む場合。
             ValueError: :meth:`~mlib.nodes.transform.Transform.setParent` と同じ。
-            RuntimeError: 無効なノードを含む、またはMayaが親の変更を拒否した場合。
+            RuntimeError: 無効なノードを含む、parent がいずれかの要素自身またはその子孫、
+                またはMayaが親の変更を拒否した場合。parent の検査はどの要素も変更する前に行う。
         """
         ...
     def copy(self) -> Nodes:
@@ -1641,6 +1727,17 @@ class Nodes:
 
         Raises:
             TypeError: 同じ対象列に文字列とNodeが混在している場合。
+        """
+        ...
+    @staticmethod
+    def _items_of(values: Nodes | list | tuple) -> list[Node]:
+        """結合の相手を単独で解決し、Node参照のlistを返す。
+
+        Args:
+            values (Nodes | list | tuple): 結合の相手。
+
+        Returns:
+            list[Node]: 相手の保持順のNode参照。Nodesはそのまま、列はNodesの構築と同じ規則で解決する。
         """
         ...
     @staticmethod

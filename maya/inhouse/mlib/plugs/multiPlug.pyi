@@ -5,7 +5,8 @@ import operator
 from contextlib import nullcontext
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, is_internal_data_type
+from ..core.attributeType import _convert_angles, _convert_times, _convert_units, _plain_angle_unit, _plain_time_unit
+from ..core.attributeType import is_internal_data_type
 from ..core.attributeType import value_reader
 from ..decorator import _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
@@ -68,7 +69,7 @@ class MultiPlug(Plug):
             Iterator[Plug]: 作成時に集めた要素参照の反復子。
         """
         ...
-    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> dict[int, object]:
+    def get(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> dict[int, object]:
         """既存要素の値を、論理番号をキーとするdictで取得する。
 
         getElements()の各要素でget()を呼ぶため、値取得に伴うDG評価が発生し得る。
@@ -77,15 +78,17 @@ class MultiPlug(Plug):
         Args:
             unit (str | None): 各要素のgetへ渡す角度の単位。None(既定)は度、``"rad"`` はラジアン。
                 uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは角度が度、距離cm、時間秒。
+            timeUnit (str | None): 各要素のgetへ渡す時間の単位。None(既定)は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは角度が度、距離cm、時間がフレーム。
 
         Returns:
             dict[int, object]: 新しいdict。値の型・単位は各要素のgetに従う。
                 worldSpaceアトリビュートは、DAGインスタンス番号の要素も含む。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または要素値を取得できない場合。
         """
         ...
@@ -122,8 +125,11 @@ class MultiPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         ...
-    def getNextAvailable(self, start: int = ..., asPlug: bool = ..., checkLocked: bool = ..., checkChildren: bool = ..., *, vacant: bool = ...) -> int | Plug:
-        """次に使えるマルチアトリビュートの要素の論理番号(またはその要素Plug)を探す。要素の作成・予約はしない。
+    def getNextAvailable(self, start: int = ..., checkLocked: bool = ..., checkChildren: bool = ..., *, vacant: bool = ...) -> Plug:
+        """次に使えるマルチアトリビュートの要素Plugを探す。要素の作成・予約はしない。
+
+        論理番号は戻り値の :meth:`~mlib.plugs.plug.Plug.getIndex` で取る
+        (``multi.getNextAvailable().getIndex()``)。5.0.0までの既定(番号を返す)と ``asPlug`` 引数は廃止した。
 
         既定(``vacant=False``)は ``cmds.connectAttr(nextAvailable=True)`` と同じ規則で、
         :meth:`Plug.connectTo` / :meth:`Plug.connect` の ``nextAvailable=True`` もこの結果へ接続する。
@@ -157,16 +163,15 @@ class MultiPlug(Plug):
 
         Args:
             start (int): 探索開始番号。負数は上記の既定開始位置。bool は受け付けない。
-            asPlug (bool): Trueは番号の代わりにその要素Plugを返す。
             checkLocked (bool): ロックされた要素(とマルチアトリビュート全体のロック)を避ける。vacantでは無視。
             checkChildren (bool): コンパウンドアトリビュートの子とそのマルチアトリビュートも調べる。vacantでは無視。
             vacant (bool): Trueは既存番号(値・接続のある要素)に無い最初の番号を探す。
 
         Returns:
-            int | Plug: 空き番号、または ``asPlug=True`` でその要素Plug。
+            Plug: 空き番号の要素の参照(未作成の要素も実体化しない)。番号は ``getIndex()`` で取る。
 
         Raises:
-            TypeError: startがboolまたは整数以外、asPlug/checkLocked/checkChildren/vacantがbool以外の場合。
+            TypeError: startがboolまたは整数以外、checkLocked/checkChildren/vacantがbool以外の場合。
             IndexError: startが上限(2147483647)を超える、または空きが無い場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または ``vacant=False`` かつ
                 ``checkLocked=True`` でマルチアトリビュート全体がロックされている場合。

@@ -51,7 +51,7 @@ class TextureNodesTest(_GeometryCase):
                 self.assertEqual(cmds.getAttr(node.getFullName() + ".fileTextureName"), path)
         node.setFilePath("first.png")
         node.setFilePath("second.png")
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibFileSetFilePath")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib setFilePath( |$)")
         cmds.undo()
         self.assertEqual(node.getFilePath(), "first.png")
         for bad in (None, b"x.png", 5):
@@ -72,7 +72,7 @@ class TextureNodesTest(_GeometryCase):
         target = [name for name in names if name != before][0]
         self.assertIs(node.setColorSpace(target), node)
         self.assertEqual(node.getColorSpace(), target)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibFileSetColorSpace")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib setColorSpace( |$)")
         cmds.undo()
         self.assertEqual(node.getColorSpace(), before)
         node.setColorSpace("NoSuchColorSpace_specA")
@@ -89,7 +89,7 @@ class TextureNodesTest(_GeometryCase):
         self.assertIsNone(texture.getPlacement())
         place = mlib.createNode("place2dTexture")
         self.assertIs(place.connectTexture(texture), place)
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibPlace2dTextureConnectTexture")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib connectTexture( |$)")
         names = ("coverage", "translateFrame", "rotateFrame", "mirrorU", "mirrorV", "stagger", "wrapU", "wrapV",
                  "repeatUV", "offset", "rotateUV", "noiseUV", "vertexUvOne", "vertexUvTwo", "vertexUvThree",
                  "vertexCameraOne")

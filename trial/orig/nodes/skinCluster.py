@@ -4,7 +4,9 @@
 
 import json
 import math
+from collections.abc import Mapping
 from decimal import Decimal, localcontext, ROUND_FLOOR
+from typing import List
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
@@ -29,6 +31,11 @@ class SkinCluster(Node):
     """
 
     _LAYER_TOKENS = ("ngskin", "ngst", "ngskintools", "skinlayer", "skinninglayer", "layerdata")
+    _MIRROR_PLANES = ("XY", "YZ", "XZ")
+    _SURFACE_ASSOCIATIONS = ("closestPoint", "rayCast", "closestComponent")
+    _INFLUENCE_ASSOCIATIONS = ("closestJoint", "closestBone", "label", "name", "oneToOne")
+    mesh = None  #: 初期化時の先頭geometryの名前。クラスで宣言し、Node の代入の規則(Mayaアトリビュートへの書込み)から外す。
+    mesh_path = None  #: 初期化時の先頭geometryの MDagPath。
 
     def __init__(self, skinCluster):
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
@@ -113,27 +120,141 @@ class SkinCluster(Node):
     def copyWeightsTo(self, target):
         """別skinClusterへ最近傍でウェイトを転送する。
 
+        転送先にはskinClusterのほか、形状(Shape)またはその親Transformも指定できる。形状を変形する
+        skinClusterがあればそれへ転送し、無ければ自身の全influence・同じmaxInfluencesで
+        :meth:`bind` してから転送する。バインドと転送は1回のUndoで戻る。fast引数は持たない
+        (OpenMayaにバインド・コピーのAPIが無いため)。
+
         Args:
-            target (str | SkinCluster): 別のバインド済み転送先。
+            target (str | Node): 転送先のskinCluster、または形状・その親Transform。
 
         Returns:
-            None: 値を返さない。
+            SkinCluster: ウェイトを書き込んだ転送先。新しくバインドした場合はそのskinCluster。
 
         Raises:
-            TypeError: 転送先がskinCluster以外のノードの場合。
-            ValueError: 転送先が自身の場合。
-            RuntimeError: 転送先の名前が存在しない場合、またはMayaが転送を拒否した場合。
+            TypeError: 転送先がskinClusterでも形状でもない場合(Joint・形状の無いTransform・DGノード等)。
+            ValueError: 転送先が自身(または自身が変形する形状)の場合、または形状を複数のskinClusterが変形している場合。
+            RuntimeError: 転送先の名前が存在しない場合、またはMayaがバインド・転送を拒否した場合。
 
         Note:
             closestPoint、name/closestJointによる近似転送で正規化する。
             異なる基準姿勢の補正やメッシュ削減は行わない。
         """
-        target = SkinCluster(target)
-        if target.getUuid() == self.getUuid():
+        destination = self._copy_destination(target)
+        if destination.getUuid() == self.getUuid():
             raise ValueError("Source and destination skinClusters must differ")
-        cmds.copySkinWeights(sourceSkin=self.getFullName(), destinationSkin=target.getFullName(),
+        cmds.copySkinWeights(sourceSkin=self.getFullName(), destinationSkin=destination.getFullName(),
                              noMirror=True, surfaceAssociation="closestPoint",
                              influenceAssociation=["name", "closestJoint"], normalize=True)
+        return destination
+
+    @undoChunk("mlibSkinClusterMirrorWeights")
+    def mirrorWeights(self, axis="YZ", positiveToNegative=True, surfaceAssociation="closestPoint",
+                      influenceAssociation=("closestJoint",), normalize=True):
+        """自身の形状の片側のウェイトを、鏡映面の反対側へ写す。
+
+        ``cmds.copySkinWeights(sourceSkin=自身, destinationSkin=自身, mirrorMode=axis, ...)`` を
+        1回のUndoにまとめて実行する。fast引数は持たない(OpenMayaにミラーのAPIが無いため)。
+
+        Args:
+            axis (str): 鏡映面。``"XY"``・``"YZ"``・``"XZ"`` のいずれか。既定の ``"YZ"`` はX軸方向の左右反転。
+            positiveToNegative (bool): Trueは面の正側(YZならX>0)から負側へ写す。Falseは負側から正側へ
+                (``mirrorInverse=True``)。
+            surfaceAssociation (str): 頂点の対応。``"closestPoint"``・``"rayCast"``・``"closestComponent"``。
+            influenceAssociation (str | Sequence[str]): influenceの対応を1〜3個、優先順に指定する。
+                ``"closestJoint"``・``"closestBone"``・``"label"``・``"name"``・``"oneToOne"`` から選ぶ。
+                ジョイントのラベル(side/type)を設定済みなら ``("label", "closestJoint")`` が確実。
+            normalize (bool): Trueは写した後の各頂点を正規化する(copySkinWeightsのnormalize)。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: 引数の型が不正な場合。
+            ValueError: 面・対応方法の名前が不正、またはinfluenceの対応が0個・4個以上・重複の場合。
+            RuntimeError: Mayaがミラーを拒否した場合。
+        """
+        axis = self._require_choice(axis, "axis", self._MIRROR_PLANES)
+        _require_bool(positiveToNegative, "positiveToNegative")
+        surfaceAssociation = self._require_choice(surfaceAssociation, "surfaceAssociation",
+                                                  self._SURFACE_ASSOCIATIONS)
+        if isinstance(influenceAssociation, str):
+            influenceAssociation = (influenceAssociation,)
+        try:
+            influence_association = list(influenceAssociation)
+        except TypeError:
+            raise TypeError("influenceAssociation must be a str or a sequence of str") from None
+        if not 1 <= len(influence_association) <= 3 or len(set(influence_association)) != len(influence_association):
+            raise ValueError("influenceAssociation must name 1 to 3 different association methods")
+        for method in influence_association:
+            self._require_choice(method, "influenceAssociation", self._INFLUENCE_ASSOCIATIONS)
+        _require_bool(normalize, "normalize")
+        name = self.getFullName()
+        cmds.copySkinWeights(sourceSkin=name, destinationSkin=name, mirrorMode=axis,
+                             mirrorInverse=not positiveToNegative, surfaceAssociation=surfaceAssociation,
+                             influenceAssociation=influence_association, normalize=normalize)
+        return self
+
+    def pruneWeights(self, threshold, normalize=True):
+        """先頭Meshの各頂点で、閾値未満の小さなウェイトを0にする。
+
+        ``cmds.skinPercent(skin, mesh, pruneWeights=threshold)`` と同じく、値が ``0 < w < threshold``
+        のinfluenceを0にし(閾値と等しい値は残す)、ロック以外の全てが閾値未満になる頂点は刈り込みも正規化もしない。
+        lockInfluenceWeightsが有効なinfluenceは0にせず、正規化でも値を保つ。値が変わった頂点・列だけを
+        cmds.setAttrで書き、1回のUndoで戻る。fast引数は持たない(Maya標準の刈り込みに合わせた
+        編集の補助で、OpenMayaの一括APIは未指定列を再配分するため)。
+
+        Args:
+            threshold (float): 0以上の有限な閾値。boolは不可。
+            normalize (bool): Trueは上記の頂点を除く全頂点(刈り込みの無い頂点を含む)を、ロックされていないinfluenceの
+                比率を保ったまま合計1(ロック分を除いた残り)へ戻す。ロック以外が全て0の頂点は変えない。
+                ロックが無ければskinPercentの刈り込みと同じ値になる。Falseは0にするだけで、他の値は変えない。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: thresholdが数値でない、またはnormalizeがbool以外の場合。
+            ValueError: thresholdが負・非有限、または刈り込む頂点に負値・非有限値・合計1を超えるロック値がある場合。
+            RuntimeError: ウェイトがロック・入力接続されている、またはMayaが書込みを拒否した場合。
+        """
+        with undoChunk("mlibSkinClusterPruneWeights"):
+            if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+                raise TypeError(f"threshold must be a number, got {type(threshold).__name__}")
+            threshold = float(threshold)
+            if not math.isfinite(threshold) or threshold < 0.0:
+                raise ValueError(f"threshold must be a finite non-negative number, got {threshold}")
+            _require_bool(normalize, "normalize")
+            paths = self._skin_fn.influenceObjects()
+            locked = {i for i, path in enumerate(paths) if self._influence_locked(path)}
+            free = [i for i in range(len(paths)) if i not in locked]
+            _, num_vertices = self._all_vertices()
+            vertex_indices = list(range(num_vertices))
+            rows = self._read_rows(vertex_indices, range(len(paths)))
+            edited_vertices, edited_rows, changed = [], [], set()
+            for vertex, row in zip(vertex_indices, rows):
+                pruned = [i for i in free if 0.0 < row[i] < threshold]
+                if pruned and all(row[i] == 0.0 or i in pruned for i in free):
+                    # skinPercentと同じく、全てを刈り込む頂点は刈り込みも正規化もしない。
+                    continue
+                new = list(row)
+                for i in pruned:
+                    new[i] = 0.0
+                if normalize and any(new[i] > 0.0 for i in free):
+                    # skinPercentと同じく、刈り込みの無い頂点も正規化する。ロック以外が全て0の頂点は変更しない。
+                    self._normalize_row(new, vertex, (), free, locked)
+                # 既に正規化済みの頂点を丸め誤差だけで書き直さない。
+                columns = [i for i in range(len(paths)) if abs(new[i] - row[i]) > 1e-12]
+                if columns:
+                    changed.update(columns)
+                    edited_vertices.append(vertex)
+                    edited_rows.append(new)
+            if edited_vertices:
+                columns = sorted(changed)
+                values = [row[i] for row in edited_rows for i in columns]
+                logical = [self._skin_fn.indexForInfluenceObject(paths[i]) for i in columns]
+                self._set_weight_values_cmds(values, len(columns), edited_vertices, logical)
+            return self
 
     def getInfluences(self):
         """登録influenceをAPIの物理順で参照する。
@@ -311,60 +432,157 @@ class SkinCluster(Node):
             for path in self._skin_fn.influenceObjects()
         )
 
-    def getWeights(self, joints):
-        """指定influenceの全頂点ウェイトを、先頭Meshから取得する。
+    def getWeights(self, joints, *, vertices=None):
+        """指定influenceの頂点ウェイトを、先頭Meshから取得する。
 
         APIにはinfluenceObjects()内の物理番号を渡し、疎なweights[]の論理番号は渡さない。
+        influenceは :meth:`setWeights` と同じく、空・未登録・重複を変更前に拒否する。
 
         Args:
             joints (str | Node | Iterable): 登録済みinfluence。複数は名前と参照を混在させない。
+                頂点(Vertex・"mesh.vtx[0]"等)はinfluenceではないためTypeError。
+            vertices (Vertex | Vertices | int | str | Iterable | None): 取得する頂点。Noneは全頂点。
+                Vertex/Verticesは先頭Mesh所属に限り、文字列は ``"mesh.vtx[0:3]"`` のような頂点名。
+                指定した順に返し、重複はValueError。
 
         Returns:
-            om2.MDoubleArray: 頂点番号順・各頂点内はjoints順の、頂点数×指定数の平坦な値配列。
+            om2.MDoubleArray: 頂点順(Noneは番号順)・各頂点内はjoints順の、頂点数×指定数の平坦な値配列。
                 無次元の独立した値で、配列の変更はシーンへ反映されない。
 
-        Note:
-            setWeightsの空・未登録・重複検証は行わず、入力失敗は名前解決・配列変換・APIへ委譲する。
+        Raises:
+            TypeError: jointsに頂点・アトリビュートを渡した、または頂点の入力型が不正な場合。
+            ValueError: influenceが空・未登録(例: ``'arm_R_JNT' is not an influence of skinCluster1``)・重複、
+                または頂点が重複・別の形状の場合。
+            IndexError: 頂点番号が範囲外の場合。
         """
-        vertices, _ = self._all_vertices()
-        return self._skin_fn.getWeights(self.mesh_path, vertices, self._influence_physical_indices(joints))
+        physical_indices = self._require_influences(joints)
+        vertex_indices = self._vertex_indices(vertices)
+        if vertex_indices is None:
+            component, _ = self._all_vertices()
+            return self._skin_fn.getWeights(self.mesh_path, component, om2.MIntArray(physical_indices))
+        rows = self._read_rows(vertex_indices, physical_indices)
+        return om2.MDoubleArray([value for row in rows for value in row])
 
-    def setWeights(self, joints, weights, *, fast=False):
-        """指定influenceの全頂点ウェイトを、正規化せず生の値として設定する。
+    def setWeights(self, joints, weights, *, vertices=None, normalize=False, broadcast=False, fast=False):
+        """指定influenceの頂点ウェイトを設定する。既定では正規化せず生の値として書く。
 
         共通検証後、通常はcmds.setAttrで頂点・指定列の順に書く。指定順で連続する論理番号は
         範囲指定の1回のsetAttrにまとめるが、失敗時の部分更新とエラーは要素ごとの書込みと同じ。fastは全対象Plugの
         ロック・入力接続・書込み可否とアトリビュート範囲を先に検査し、MPlug.setDoubleで順に書く。
         どちらもMFnSkinCluster.setWeightsによる未指定列の再配分は使わない。
 
+        ``normalize=True`` は書込み対象の各頂点を、``cmds.skinPercent(transformValue=..., normalize=True)``
+        に倣って合計1へ正規化する。指定influenceには指定値を書き、lockInfluenceWeightsが有効な未指定
+        influenceは値を保ち、残りの未指定influenceを比率を保ったまま ``1 - 指定値の合計 - ロック値の合計``
+        へ拡大縮小する。指定値の合計がこの残りを超える場合と、拡大縮小できる未指定influenceが無い
+        (値がすべて0)場合は、指定値を比率を保ったまま ``1 - ロック値の合計`` へ縮小・拡大し、未指定(ロック以外)を0にする。
+        値が変わった未指定influenceの列も書き込む。後者の場合、skinPercentの結果はMayaの版で異なる
+        (2022は指定値をそのまま書く)ため、mlibは版によらずこの規則で合計1にする。
+
         Args:
             joints (str | Node | Iterable): 空でない登録済みinfluence。名前またはNodeを同じ形式で指定する。
-                同一influenceの重複指定は拒否する。
-            weights (Iterable[float]): 頂点数V・指定列数Kに対しV*K個、または全頂点共通のK個。
-                V*K個の場合は頂点順で、各頂点内はjoints順。値はfloatへ変換できる有限値。
+                同一influenceの重複指定は拒否する。頂点(Vertex・"mesh.vtx[0]"等)はTypeError。
+            weights (Iterable[float]): 対象頂点数V・指定列数Kに対しV*K個(頂点順で、各頂点内はjoints順)。
+                ``broadcast=True`` の場合は全対象頂点に共通のK個。値はfloatへ変換できる有限値。
+            vertices (Vertex | Vertices | int | str | Iterable | None): 書き込む頂点。Noneは全頂点。
+                Vertex/Verticesは先頭Mesh所属に限り、文字列は ``"mesh.vtx[0:3]"`` のような頂点名。
+                weightsはこの指定順に対応する。重複はValueError、空は何もしない。
+            normalize (bool): Trueは書き込んだ頂点を上記の規則で合計1へ正規化する。既定False。
+                対象頂点に負値・非有限値があればValueError。
+            broadcast (bool): TrueはK個の値を全対象頂点へ同じく適用する。既定False。
+                5.0.0から、V>1の頂点へK個だけを渡す場合はこの指定が必要。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             None: 値を返さない。通常setterのself返却とは異なる既存仕様。
 
         Raises:
-            TypeError: 数値に変換できない型、またはfastがbool以外の場合。
-            ValueError: influenceが空・未登録・重複、件数不一致、非有限値、または数値文字列が不正な場合。
+            TypeError: 数値に変換できない型、頂点・influenceの入力型が不正、またはbool引数がbool以外の場合。
+            ValueError: influenceが空・未登録・重複、件数不一致(K個をbroadcast=Trueなしで複数頂点へ渡した場合を含む)、
+                非有限値、数値文字列が不正、頂点が重複・別の形状、または正規化できない頂点がある場合。
+            IndexError: 頂点番号が範囲外の場合。
             RuntimeError: Plugが編集不可、またはMayaが設定を拒否した場合。
 
         Note:
-            未指定列とinfluenceのロック設定は変更しないが、lockInfluenceWeightsを保護条件として
-            拒否する処理も、レイヤー検出も行わない。非負・合計1を独自には検査しない。
+            ``normalize=False`` では未指定列とinfluenceのロック設定は変更しないが、lockInfluenceWeightsを
+            保護条件として拒否する処理も、レイヤー検出も行わない。非負・合計1を独自には検査しない。
             normalizeWeights/maintainMaxInfluences設定に合わせた再正規化もしない。
             通常経路はUndoが有効なら同じチャンクへ記録する。後半の失敗時に完了済み変更は
             自動で戻さず、fastの事前検査も書込み中の失敗に対する原子性は保証しない。
         """
         with _edit_context("mlibSkinClusterSetWeights", fast):
-            values, width, num_vertices, logical_indices = self._prepare_weight_values(joints, weights)
+            _require_bool(normalize, "normalize")
+            _require_bool(broadcast, "broadcast")
+            values, width, vertex_indices, physical_indices = self._prepare_weight_values(
+                joints, weights, vertices, broadcast)
+            if normalize:
+                values, physical_indices = self._normalized_write(values, width, vertex_indices, physical_indices)
+                width = len(physical_indices)
+            influences = self._skin_fn.influenceObjects()
+            # 削除済み influence によるマルチアトリビュートの穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
+            logical_indices = [self._skin_fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
             if fast:
-                self._set_weight_values_fast(values, width, num_vertices, logical_indices)
+                self._set_weight_values_fast(values, width, vertex_indices, logical_indices)
             else:
-                self._set_weight_values_cmds(values, width, num_vertices, logical_indices)
+                self._set_weight_values_cmds(values, width, vertex_indices, logical_indices)
+
+    def getVertexWeights(self, vertex, *, nonzero=False):
+        """先頭Meshの1頂点について、全influenceのウェイトを辞書で取得する。
+
+        Args:
+            vertex (Vertex | int | str): 先頭Meshの頂点。Vertex、頂点番号、または ``"mesh.vtx[3]"``。
+            nonzero (bool): Trueは値が0でないinfluenceだけを返す。既定False。
+
+        Returns:
+            dict[Node, float]: influenceのラッパー(:meth:`getInfluences` と同じ型)からウェイトへの辞書。
+                influenceObjects()の物理順に並ぶ。そのまま :meth:`setVertexWeights` へ渡せる。
+                値は独立したコピーで、辞書の変更はシーンへ反映されない。
+
+        Raises:
+            TypeError: 頂点の入力型が不正、またはnonzeroがbool以外の場合。
+            ValueError: 頂点が1つでない、または別の形状の頂点の場合。
+            IndexError: 頂点番号が範囲外の場合。
+        """
+        _require_bool(nonzero, "nonzero")
+        index = self._single_vertex_index(vertex)
+        paths = self._skin_fn.influenceObjects()
+        row = self._read_rows([index], range(len(paths)))[0]
+        return {Node._wrap_dag_path(path): value for path, value in zip(paths, row) if not nonzero or value != 0.0}
+
+    def setVertexWeights(self, vertex, weights, normalize=True, *, fast=False):
+        """先頭Meshの1頂点に、influenceごとのウェイトを設定する。
+
+        ``setWeights(list(weights), list(weights.values()), vertices=[vertex], normalize=normalize)`` と同じ。
+        既定の ``normalize=True`` では、指定influenceに指定値を書き、指定しなかったinfluenceを
+        :meth:`setWeights` の正規化規則で拡大縮小(または0に)して合計1にする。
+        ``normalize=False`` では指定influenceだけを生の値で書き、他は変更しない。
+
+        Args:
+            vertex (Vertex | int | str): 先頭Meshの頂点。Vertex、頂点番号、または ``"mesh.vtx[3]"``。
+            weights (Mapping[str | Node, float]): 空でない、登録済みinfluenceからウェイトへの辞書。
+                キーは名前またはNodeのどちらかに揃える(:meth:`getVertexWeights` の戻り値はNode)。
+            normalize (bool): Trueは書いた頂点を合計1へ正規化する。既定True。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: weightsが辞書でない、頂点・値の型が不正、またはbool引数がbool以外の場合。
+            ValueError: weightsが空、influenceが未登録・重複、値が非有限、頂点が1つでない・別の形状、
+                または正規化できない場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: Plugが編集不可、またはMayaが設定を拒否した場合。
+        """
+        with _edit_context("mlibSkinClusterSetVertexWeights", fast):
+            if not isinstance(weights, Mapping):
+                raise TypeError(f"weights must be a mapping of influence to weight, got {type(weights).__name__}")
+            if not weights:
+                raise ValueError("weights must contain at least one influence")
+            index = self._single_vertex_index(vertex)
+            self.setWeights(list(weights.keys()), list(weights.values()), vertices=[index],
+                            normalize=normalize, fast=fast)
+            return self
 
     def dumpWeights(self, path):
         """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
@@ -457,7 +675,7 @@ class SkinCluster(Node):
             from ..components.vertex import Vertex, Vertices
 
             if isinstance(vertices, Vertices):
-                if vertices.shape.mnode() != self.mesh_path.node():
+                if vertices.shape.mnode() != self._mesh_node():
                     raise ValueError("Vertices must belong to this skinCluster's first mesh")
                 vertices = vertices.indices
             elif isinstance(vertices, Vertex):
@@ -465,7 +683,7 @@ class SkinCluster(Node):
             vertex_indices = set()
             for vertex in vertices:
                 if isinstance(vertex, Vertex):
-                    if vertex.shape.mnode() != self.mesh_path.node():
+                    if vertex.shape.mnode() != self._mesh_node():
                         raise ValueError("Vertex must belong to this skinCluster's first mesh")
                     vertex = vertex.index
                 # 既存番号入力のint変換を維持し、新しい頂点参照だけを所有者検証する。
@@ -682,6 +900,9 @@ class SkinCluster(Node):
         Returns:
             str | None: 対応する UUID。ノードが存在しない場合は None。
         """
+        # 存在しない名前でNode()がエラー通知を出さないよう、先に存在だけを確かめる。
+        if isinstance(node, str) and not cmds.objExists(node):
+            return None
         try:
             return Node(node).getUuid()
         except RuntimeError:
@@ -705,6 +926,17 @@ class SkinCluster(Node):
         if not om2.MObjectHandle(node).isValid():
             return None
         return om2.MFnDependencyNode(node).uuid().asString()
+
+    def _mesh_node(self):
+        """初期化時の先頭geometryのMObjectを返す。
+
+        Returns:
+            om2.MObject: mesh_pathが指すノード。
+        """
+        path = self.mesh_path
+        # mesh_pathは__init__で必ず設定する。
+        assert path is not None
+        return path.node()
 
     def _geometry_dag_path(self, name):
         """geometry 名から shape まで展開した MDagPath を取得する。
@@ -759,52 +991,385 @@ class SkinCluster(Node):
         component_fn.addElements(range(num_vertices))
         return vertices, num_vertices
 
-    def _influence_physical_indices(self, joints):
-        """influence参照を、指定順のAPI物理番号配列へ変換する。
+    def _require_influences(self, joints):
+        """influence指定を検証し、指定順の物理番号へ変換する。シーンは変更しない。
 
         Args:
-            joints (str | Node | Iterable): 対象skinClusterに登録されたinfluence。
+            joints (str | Node | Iterable): 指定順のinfluence参照。
 
         Returns:
-            om2.MIntArray: influenceObjects()内の物理番号。weights[]の論理番号ではない。
+            list[int]: influenceObjects()内の物理番号。weights[]の論理番号ではない。
 
-        Note:
-            未登録を除外せず、Noneが残ればMIntArray変換時に失敗する。
-            setWeightsの登録/重複検証をこの取得用補助へ集約したものではない。
+        Raises:
+            TypeError: 頂点・コンポーネントやアトリビュートを渡した場合、または入力型が不正な場合。
+            ValueError: 空・未登録・重複の場合。
         """
-        return om2.MIntArray(self._influence_indices(Object._input_names(joints), self._skin_fn.influenceObjects()))
+        # componentsはnodesを読み込むため、循環importを避けて使う時点で読み込む。
+        from ..components.component import Component, Components
+        hint = "pass vertices with vertices=, or use getVertexWeights()/setVertexWeights()"
+        items = joints if isinstance(joints, (list, tuple, set)) else (joints,)
+        for item in items:
+            if isinstance(item, (Component, Components)):
+                raise TypeError(f"Expected influences, got a component ({type(item).__name__}); {hint}")
+        names = Object._input_names(joints)
+        if not names:
+            raise ValueError("Expected at least one influence")
+        for name in names:
+            if "." in name:
+                raise TypeError(f"Expected an influence, got a component or attribute name '{name}'; {hint}")
+        physical_indices: List[int] = []
+        seen = set()
+        for name, index in zip(names, self._influence_indices(names, self._skin_fn.influenceObjects())):
+            if index is None:
+                raise ValueError(f"'{name}' is not an influence of {self.getName()}")
+            if index in seen:
+                raise ValueError(f"Influence specified more than once: '{name}'")
+            seen.add(index)
+            physical_indices.append(index)
+        return physical_indices
 
-    def _prepare_weight_values(self, joints, weights):
-        """指定influenceと平坦なウェイト入力を検証し、書込み用の論理番号へ変換する。
+    def _vertex_indices(self, vertices):
+        """頂点指定を、先頭Meshの頂点番号のリストへ変換する。シーンは変更しない。
+
+        Args:
+            vertices (Vertex | Vertices | int | str | Iterable | None): 頂点参照・番号・頂点名
+                (``"mesh.vtx[0:3]"`` の範囲も可)、またはそれらの反復可能オブジェクト。
+
+        Returns:
+            list[int] | None: 指定順の頂点番号。Noneを渡した場合はNone(全頂点)。
+
+        Raises:
+            TypeError: 入力型が頂点以外(bool・float・エッジ等)の場合。
+            ValueError: 先頭Mesh以外の頂点、または同じ頂点の重複の場合。
+            IndexError: 頂点番号が範囲外の場合。
+        """
+        if vertices is None:
+            return None
+        # componentsはnodesを読み込むため、循環importを避けて使う時点で読み込む。
+        from ..components.component import Component, Components
+        from ..components.vertex import Vertex, Vertices
+        mesh = self._mesh_node()
+        num_vertices = om2.MFnMesh(self.mesh_path).numVertices
+        result = []
+
+        def collect(value):
+            """単数・範囲・入れ子の頂点指定を番号へ展開してresultへ追加する。"""
+            if isinstance(value, Vertices):
+                if value.shape.mnode() != mesh:
+                    raise ValueError("Vertices must belong to this skinCluster's first mesh")
+                result.extend(value.indices)
+            elif isinstance(value, Vertex):
+                if value.shape.mnode() != mesh:
+                    raise ValueError("Vertex must belong to this skinCluster's first mesh")
+                result.append(value.index)
+            elif isinstance(value, (Component, Components)):
+                raise TypeError(f"Expected mesh vertices, got {type(value).__name__}")
+            elif isinstance(value, bool) or isinstance(value, float):
+                raise TypeError(f"Expected a vertex index, got {type(value).__name__}")
+            elif isinstance(value, int):
+                result.append(value)
+            elif isinstance(value, str):
+                result.extend(self._vertex_name_indices(value, mesh, num_vertices))
+            else:
+                try:
+                    iterator = iter(value)
+                except TypeError:
+                    raise TypeError(f"Expected vertices, got {type(value).__name__}") from None
+                for item in iterator:
+                    collect(item)
+
+        collect(vertices)
+        seen = set()
+        for index in result:
+            if not 0 <= index < num_vertices:
+                raise IndexError(f"Vertex index out of range: {index}")
+            if index in seen:
+                raise ValueError(f"Vertex specified more than once: {index}")
+            seen.add(index)
+        return result
+
+    @staticmethod
+    def _vertex_name_indices(name, mesh, num_vertices):
+        """``"mesh.vtx[0:3]"`` のような頂点名を、先頭Meshの頂点番号へ展開する。
+
+        Args:
+            name (str): 頂点の名前。範囲・``[*]`` を含んでよい。
+            mesh (om2.MObject): 先頭MeshのShape。
+            num_vertices (int): 先頭Meshの頂点数。complete指定の展開に使う。
+
+        Returns:
+            list[int]: Mayaが返す順の頂点番号。
+
+        Raises:
+            TypeError: 頂点以外のコンポーネント、またはノード名だけの場合。
+            ValueError: 空文字、または先頭Mesh以外の頂点の場合。
+            RuntimeError: 名前を解決できない場合。
+        """
+        if not name:
+            raise ValueError("Expected a non-empty vertex name")
+        selection = om2.MSelectionList()
+        selection.add(name)
+        indices = []
+        for item in range(selection.length()):
+            path, component = selection.getComponent(item)
+            if component.isNull() or component.apiType() != om2.MFn.kMeshVertComponent:
+                raise TypeError(f"Expected mesh vertex names such as 'mesh.vtx[0]', got '{name}'")
+            if path.node().hasFn(om2.MFn.kTransform):
+                path.extendToShape()
+            if path.node() != mesh:
+                raise ValueError(f"Vertex must belong to this skinCluster's first mesh: '{name}'")
+            component_fn = om2.MFnSingleIndexedComponent(component)
+            indices.extend(range(num_vertices) if component_fn.isComplete else component_fn.getElements())
+        return indices
+
+    def _single_vertex_index(self, vertex):
+        """1頂点の指定を頂点番号へ変換する。
+
+        Args:
+            vertex (Vertex | int | str): 先頭Meshの1頂点。
+
+        Returns:
+            int: 頂点番号。
+
+        Raises:
+            TypeError: Noneや頂点以外の型の場合。
+            ValueError: 1頂点でない、または先頭Mesh以外の頂点の場合。
+            IndexError: 頂点番号が範囲外の場合。
+        """
+        if vertex is None:
+            raise TypeError("Expected a vertex, got None")
+        indices = self._vertex_indices(vertex)
+        # vertexがNoneでなければ頂点番号のlistが返る。
+        assert indices is not None
+        if len(indices) != 1:
+            raise ValueError(f"Expected exactly one vertex, got {len(indices)}")
+        return indices[0]
+
+    def _read_rows(self, vertex_indices, physical_indices):
+        """指定頂点・指定influenceのウェイトを、頂点ごとの行として読み取る。
+
+        MFnSkinCluster.getWeightsはcomponentの番号を昇順で返すため、昇順で読んでから指定順へ並べ直す。
+
+        Args:
+            vertex_indices (Sequence[int]): 検証済みの頂点番号。重複なし。
+            physical_indices (Iterable[int]): influenceObjects()内の物理番号。
+
+        Returns:
+            list[list[float]]: vertex_indicesの順の行。各行はphysical_indicesの順。
+        """
+        physical_indices = list(physical_indices)
+        if not vertex_indices or not physical_indices:
+            return [[] for _ in vertex_indices]
+        ordered = sorted(vertex_indices)
+        component_fn = om2.MFnSingleIndexedComponent()
+        component = component_fn.create(om2.MFn.kMeshVertComponent)
+        component_fn.addElements(ordered)
+        flat = list(self._skin_fn.getWeights(self.mesh_path, component, om2.MIntArray(physical_indices)))
+        width = len(physical_indices)
+        position = {vertex: i for i, vertex in enumerate(ordered)}
+        return [flat[position[vertex] * width:(position[vertex] + 1) * width] for vertex in vertex_indices]
+
+    @staticmethod
+    def _influence_locked(path):
+        """influenceのlockInfluenceWeightsが有効か調べる。アトリビュートが無い型はFalse。
+
+        Args:
+            path (om2.MDagPath): influenceObjects()のパス。
+
+        Returns:
+            bool: ロックされている場合True。
+        """
+        fn = om2.MFnDependencyNode(path.node())
+        if not fn.hasAttribute("lockInfluenceWeights"):
+            return False
+        return fn.findPlug("lockInfluenceWeights", False).asBool()
+
+    @staticmethod
+    def _normalize_row(row, vertex, specified, free, locked):
+        """1頂点の全influence行を、指定列を優先して合計1へ正規化する(rowをその場で書き換える)。
+
+        ロック列は保ち、空き(``1 - ロック合計``)から指定列の合計を引いた残りへ自由列を比率で合わせる。
+        指定列の合計が空きを超えるか自由列がすべて0なら、指定列を空きへ比率で合わせ、自由列を0にする。
+
+        Args:
+            row (list[float]): 物理順の全influenceの値。
+            vertex (int): エラー表示用の頂点番号。
+            specified (Iterable[int]): 値を指定した物理番号。
+            free (Iterable[int]): 指定もロックもされていない物理番号。
+            locked (Iterable[int]): 値を保つ、ロックされた未指定の物理番号。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            ValueError: 負値・非有限値がある、ロック値の合計が1を超える、または合計0で正規化できない場合。
+        """
+        if not all(math.isfinite(value) and value >= 0.0 for value in row):
+            raise ValueError(f"Cannot normalize negative or non-finite weights at vertex {vertex}")
+        specified, free = list(specified), list(free)
+        budget = 1.0 - sum(row[i] for i in locked)
+        if budget < -1e-9:
+            raise ValueError(f"Locked influence weights exceed 1.0 at vertex {vertex}")
+        budget = max(budget, 0.0)
+        specified_total = sum(row[i] for i in specified)
+        free_total = sum(row[i] for i in free)
+        if free_total > 0.0 and specified_total <= budget:
+            scale = (budget - specified_total) / free_total
+            for i in free:
+                row[i] *= scale
+        elif specified_total > 0.0:
+            scale = budget / specified_total
+            for i in specified:
+                row[i] *= scale
+            for i in free:
+                row[i] = 0.0
+        elif budget > 1e-9:
+            raise ValueError(f"Cannot normalize zero-total weights at vertex {vertex}")
+
+    def _normalized_write(self, values, width, vertex_indices, physical_indices):
+        """setWeights(normalize=True)の書込み値を、対象頂点の現在値から計算する。シーンは変更しない。
+
+        Args:
+            values (list[float]): 検証済みのV*K値または共通K値。
+            width (int): 指定列数K。
+            vertex_indices (Sequence[int]): 書き込む頂点番号。
+            physical_indices (list[int]): 指定influenceの物理番号。
+
+        Returns:
+            tuple[list[float], list[int]]: 頂点順の平坦な値と、その列の物理番号。
+                指定列の後に、値が変わった未指定列を物理順で続ける。
+        """
+        paths = self._skin_fn.influenceObjects()
+        specified = set(physical_indices)
+        others = [i for i in range(len(paths)) if i not in specified]
+        locked = [i for i in others if self._influence_locked(paths[i])]
+        free = [i for i in others if i not in set(locked)]
+        rows = self._read_rows(vertex_indices, range(len(paths)))
+        shared = len(values) == width
+        results, changed = [], set()
+        for position, (vertex, row) in enumerate(zip(vertex_indices, rows)):
+            offset = 0 if shared else position * width
+            new = list(row)
+            for column, index in enumerate(physical_indices):
+                new[index] = values[offset + column]
+            self._normalize_row(new, vertex, physical_indices, free, locked)
+            changed.update(i for i in others if new[i] != row[i])
+            results.append(new)
+        columns = list(physical_indices) + [i for i in others if i in changed]
+        return [row[i] for row in results for i in columns], columns
+
+    def _copy_destination(self, target):
+        """copyWeightsToの転送先を、既存またはバインドしたSkinClusterへ解決する。
+
+        Args:
+            target (str | Node): skinCluster、または形状・その親Transform。
+
+        Returns:
+            SkinCluster: 転送先。形状にskinClusterが無ければ自身のinfluenceでバインドする。
+
+        Raises:
+            TypeError: skinClusterでも形状でもない場合。
+            ValueError: 形状を複数のskinClusterが変形している場合。
+            RuntimeError: 名前が存在しない、またはMayaがバインドを拒否した場合。
+        """
+        node = target if isinstance(target, Node) else Node(target)
+        if isinstance(node, SkinCluster):
+            return node
+        description = f"{node.getType()} '{node.getName()}'"
+        if not isinstance(node, DagNode) or node.isType("joint"):
+            raise TypeError(f"copyWeightsTo requires a skinCluster or a geometry, got {description}")
+        skins = DagNode.getSkinClusters(node)
+        if len(skins) > 1:
+            raise ValueError(f"Geometry is deformed by more than one skinCluster: {description}")
+        if skins:
+            return skins[0]
+        if not self._has_geometry(node.mpath()):
+            raise TypeError(f"copyWeightsTo requires a skinCluster or a geometry, got {description} without a shape")
+        return SkinCluster.bind(node, self.getInfluences(), maxInfluences=self.getMaxInfluences())
+
+    @staticmethod
+    def _has_geometry(path):
+        """DAGパスが形状、または直下に中間でない形状を持つTransformか調べる。
+
+        Args:
+            path (om2.MDagPath): 調べるパス。
+
+        Returns:
+            bool: 形状を持つ場合True。
+        """
+        if path.node().hasFn(om2.MFn.kShape):
+            return True
+        for index in range(path.childCount()):
+            child = path.child(index)
+            if child.hasFn(om2.MFn.kShape) and not om2.MFnDagNode(child).isIntermediateObject:
+                return True
+        return False
+
+    @staticmethod
+    def _require_choice(value, name, choices):
+        """文字列の選択肢を検証する。
+
+        Args:
+            value (str): 検証する値。
+            name (str): エラー表示用の引数名。
+            choices (Sequence[str]): 受け付ける値。
+
+        Returns:
+            str: 検証済みの値。
+
+        Raises:
+            TypeError: 文字列でない場合。
+            ValueError: 選択肢にない場合。
+        """
+        if not isinstance(value, str):
+            raise TypeError(f"{name} must be a str, got {type(value).__name__}")
+        if value not in choices:
+            raise ValueError(f"{name} must be one of {', '.join(choices)}, got '{value}'")
+        return value
+
+    def _prepare_weight_values(self, joints, weights, vertices=None, broadcast=False):
+        """指定influence・頂点と平坦なウェイト入力を検証する。
 
         値の数・有限性と、対象が空でなく登録済み/重複なしであることを検証する。
         非負・合計1・レイヤー・lockInfluenceWeightsは検査しない。シーンには書き込まない。
 
         Args:
             joints (Iterable): 指定順のinfluence参照。
-            weights (Iterable): 頂点順のV*K値、または全頂点共通のK値。
+            weights (Iterable): 頂点順のV*K値、またはbroadcast時の共通K値。
+            vertices (object): :meth:`_vertex_indices` が受け付ける頂点指定。Noneは全頂点。
+            broadcast (bool): TrueはK個の値を全対象頂点へ適用する。
 
         Returns:
-            tuple: float値リスト、指定列数K、全頂点数V、指定順の論理番号リスト。
-                物理番号はinfluenceの解決に使い、indexForInfluenceObjectで論理番号へ写す。
+            tuple: float値リスト、指定列数K、対象頂点番号の列、指定順の物理番号リスト。
+
+        Raises:
+            ValueError: 件数不一致。K個をbroadcastなしで複数頂点へ渡した場合は、broadcast=True・vertices=の
+                指定を促す。
         """
-        joints = Object._input_names(joints)
-        influences = self._skin_fn.influenceObjects()
-        physical_indices = self._influence_indices(joints, influences)
-        if not joints or None in physical_indices or len(set(physical_indices)) != len(joints):
-            raise ValueError("Influences must be non-empty, registered and unique")
+        physical_indices = self._require_influences(joints)
+        if isinstance(weights, (str, bytes)):
+            raise TypeError("weights must be an iterable of numbers, not a string")
         values = [float(value) for value in weights]
-        num_vertices = om2.MFnMesh(self.mesh_path).numVertices
-        width = len(joints)
-        if len(values) not in (width, num_vertices * width):
-            raise ValueError("Weight count must match influence count or vertex count times influence count")
+        vertex_indices = self._vertex_indices(vertices)
+        if vertex_indices is None:
+            vertex_indices = range(om2.MFnMesh(self.mesh_path).numVertices)
+        count, width = len(vertex_indices), len(physical_indices)
+        if broadcast:
+            if len(values) != width:
+                raise ValueError(f"broadcast=True requires exactly {width} weights (one per influence), "
+                                 f"got {len(values)}")
+        elif len(values) != count * width:
+            if len(values) == width:
+                raise ValueError(f"Got {width} weights for {count} vertices x {width} influences; "
+                                 "pass broadcast=True to apply them to every vertex, "
+                                 "or vertices= to choose the vertices")
+            raise ValueError(f"Weight count must be vertex count times influence count "
+                             f"({count} x {width} = {count * width}), got {len(values)}")
         if not all(math.isfinite(value) for value in values):
             raise ValueError("Weights must be finite")
-        # 削除済み influence によるマルチアトリビュートの穴を考慮し、物理番号をアトリビュートの論理番号へ変換する。
-        logical_indices = [self._skin_fn.indexForInfluenceObject(influences[i]) for i in physical_indices]
-        return values, width, num_vertices, logical_indices
+        return values, width, vertex_indices, physical_indices
 
-    def _set_weight_values_fast(self, values, width, num_vertices, logical_indices):
+    def _set_weight_values_fast(self, values, width, vertex_indices, logical_indices):
         """全対象ウェイトPlugを検査し、頂点・指定列の順にOpenMayaで生値を書き込む。
 
         writable/check_rangeを全件に適用してからsetDoubleを始める。MFnSkinCluster.setWeightsは
@@ -814,7 +1379,7 @@ class SkinCluster(Node):
         Args:
             values (list[float]): 検証済みのV*K値または共通K値。
             width (int): 指定列数K。
-            num_vertices (int): 全頂点数V。
+            vertex_indices (Sequence[int]): 書き込む頂点番号。valuesの行の順。
             logical_indices (list[int]): weights[]の論理番号。指定influence順。
 
         Returns:
@@ -827,10 +1392,10 @@ class SkinCluster(Node):
         attribute_fn = range_fn = None
         attribute_writable = has_limits = True
         edits = []
-        for vertex in range(num_vertices):
+        for position, vertex in enumerate(vertex_indices):
             row = weights_plug.elementByLogicalIndex(vertex).child(0)
             row_blocked = self._plug_chain_blocked(row)
-            offset = 0 if len(values) == width else vertex * width
+            offset = 0 if len(values) == width else position * width
             for column, index in enumerate(logical_indices):
                 plug = row.elementByLogicalIndex(index)
                 if attribute_fn is None:
@@ -874,7 +1439,7 @@ class SkinCluster(Node):
             else:
                 return False
 
-    def _set_weight_values_cmds(self, values, width, num_vertices, logical_indices):
+    def _set_weight_values_cmds(self, values, width, vertex_indices, logical_indices):
         """頂点・指定influence列の順に、cmdsで生のウェイト値を書き込む。
 
         weights[]には疎な論理番号を使う。指定順で論理番号が1ずつ増える列は
@@ -889,7 +1454,7 @@ class SkinCluster(Node):
         Args:
             values (list[float]): 検証済みのV*K値または共通K値。
             width (int): 指定列数K。
-            num_vertices (int): 全頂点数V。
+            vertex_indices (Sequence[int]): 書き込む頂点番号。valuesの行の順。
             logical_indices (list[int]): weights[]の論理番号。指定influence順。
 
         Returns:
@@ -898,8 +1463,8 @@ class SkinCluster(Node):
         name = self.getFullName()
         runs = self._consecutive_runs(logical_indices)
         shared = len(values) == width
-        for vertex in range(num_vertices):
-            offset = 0 if shared else vertex * width
+        for position, vertex in enumerate(vertex_indices):
+            offset = 0 if shared else position * width
             prefix = f"{name}.weightList[{vertex}].weights"
             for column, first, count in runs:
                 start = offset + column

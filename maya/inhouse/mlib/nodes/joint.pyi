@@ -8,6 +8,7 @@ import maya.cmds as cmds
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
+from ..util import _MIRROR_PLANES, _mirror_axis
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 from typing import Any, Iterable, Iterator
@@ -20,7 +21,6 @@ from typing import overload
 
 _ORIENTATIONS: tuple
 _SECONDARY_AXES: tuple
-_MIRROR_PLANES: dict
 
 def _orient_flags(orientation: str, secondaryAxisOrient: str, children: bool, zeroScaleOrient: bool) -> dict:
     """Joint.orientの引数を検証し、cmds.jointへ渡すフラグを返す。
@@ -152,7 +152,7 @@ class Joint(Transform):
             RuntimeError: 無効なjoint、またはロック・入力接続などでMayaが編集を拒否した場合。
         """
         ...
-    def mirror(self, axis: str = ..., behavior: bool = ..., searchReplace: tuple[str, str] | None = ...) -> Joint:
+    def mirror(self, axis: str | int = ..., behavior: bool = ..., searchReplace: tuple[str, str] | None = ...) -> Joint:
         """jointチェーンを鏡映した新しいチェーンを作成する(``cmds.mirrorJoint`` 相当)。
 
         自身と子孫のjoint(と子のikEffector等)をMaya標準の ``cmds.mirrorJoint`` で複製・鏡映する。
@@ -161,7 +161,9 @@ class Joint(Transform):
         fast引数は持たない(OpenMayaに同等機能が無い)。Undo有効時は1回で戻せる。
 
         Args:
-            axis (str): 鏡映面。``"YZ"`` (X方向の左右反転)・``"XY"``・``"XZ"``。大文字小文字は区別しない。
+            axis (str | int): 鏡映面 ``"YZ"`` (X方向の左右反転)・``"XZ"``・``"XY"``、または反転する軸
+                ``"x"``・``"y"``・``"z"`` (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、
+                または0/1/2。
             behavior (bool): Trueは ``mirrorBehavior`` (回転の向きを反転し、同じ回転値で逆向きに動く。
                 リグの左右対称で一般的)。Falseは向き(orientation)を鏡映する。
             searchReplace (tuple[str, str] | None): 新しいjoint名の置換 ``(検索, 置換)``。
@@ -172,7 +174,7 @@ class Joint(Transform):
                 や :meth:`getChainFromHere` で取得する。
 
         Raises:
-            TypeError: axisが文字列以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
+            TypeError: axisが文字列・int以外、behaviorがbool以外、searchReplaceが2つの文字列の並び・None以外の場合。
             ValueError: axisが対応しない値、またはsearchReplaceの検索文字列が空の場合。
             RuntimeError: 無効なjoint、またはMayaが鏡映を拒否した場合。
 
@@ -257,20 +259,6 @@ class Joint(Transform):
         Returns:
             Scale: inverseScaleの新しい値。無効ノードではXYZとも0。
                 実際の補償状態や有効性を判定する戻り値ではない。
-        """
-        ...
-    def getParentJointName(self) -> str | None:
-        """親 joint の名前を取得する。
-
-        Returns:
-            str | None: 親 joint 名。親が joint でない場合は ``None``。
-        """
-        ...
-    def getChildJointNames(self) -> list[str]:
-        """直接の子 joint 名を取得する。
-
-        Returns:
-            list[str]: 子 joint 名のリスト。
         """
         ...
     def getDepth(self) -> int:

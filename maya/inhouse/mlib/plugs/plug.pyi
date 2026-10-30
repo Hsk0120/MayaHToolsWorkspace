@@ -5,20 +5,21 @@ import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
+from operator import methodcaller
 from typing import TYPE_CHECKING
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.attributeType import attributeType, is_internal_data_type, value_reader
-from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit
+from ..core.attributeType import _convert_angles, _convert_times, _convert_units, _plain_angle_unit, _plain_time_unit, _time_quantity
 from ..core.fastWrite import _ancestor_plugs, require_supported_type, set_attr
 from ..core.fastWrite import set_plug
 from ..core.object import Object, _missing_member_message
 from ..decorator import _require_bool, _undo_recording, _validated_flags, undoChunk
-from ..util import _ArgumentError, _angle_unit
+from ..util import _ArgumentError, _angle_unit, _time_unit
 from typing import Any, Callable, Dict, Literal, Optional, Union
 from ..nodes.node import Node
-from typing import Any, Iterable, Iterator, Literal
+from typing import Any, Iterable, Iterator, Literal, Sequence
 from mlib._stubtypes import GeneratorContextManager
 from mlib.maths.matrix import Matrix
 from mlib.plugs.multiPlug import MultiPlug
@@ -70,6 +71,20 @@ def _attribute_class(fn: om2.MFnDependencyNode, attribute_handle: om2.MObjectHan
     """
     ...
 
+def _frames_from_seconds(value: float | Sequence[float]) -> float | tuple[float, ...] | list[float]:
+    """setKeyframeのtimeへ渡す秒の数値(または数値の並び)を、現在のUI時間単位のフレームへ換算する。
+
+    Args:
+        value (float | Sequence[float]): 秒の時刻。tuple/listは範囲などの並びとして要素ごとに換算する。
+
+    Returns:
+        float | tuple[float, ...] | list[float]: フレームの時刻。並びは入力と同じ型で返す。
+
+    Raises:
+        TypeError: 数値・数値の並び以外(範囲の文字列など)の場合。
+    """
+    ...
+
 def _multi_element_exists(mplug: om2.MPlug) -> bool:
     """プラグ(と経由するマルチアトリビュートの要素)がシーンに存在するか判定する。
 
@@ -99,8 +114,47 @@ class DeletedAttributeError(ValueError, RuntimeError):
     """
 
 
+class MissingAttributeError(AttributeError, RuntimeError):
+    """指定した名前のアトリビュートが見つからない場合の例外。
+
+    ``mlib.getPlug("node.nope")`` と ``node.getPlug("nope")`` の両方が送出する(文言は
+    ``Attribute not found: <ノード名>.<アトリビュート名>``)。前者は解決できない名前を ``RuntimeError``、
+    後者は ``AttributeError`` にしてきたため、どちらの ``except`` でも捕捉できるよう両方を継承する
+    (:class:`DeletedAttributeError` と同じ考え方)。``node.nope`` の属性参照は近い名前の候補を含む
+    ``AttributeError`` を送出し、この例外を ``__cause__`` に持つ。
+    """
+
+
 class Plug(Object):
     """所有NodeとMPlugを保持し、アトリビュートの値・接続・状態を扱う。
+
+    名前を返すメソッドの規則(``pCube1.translateX``・``wm[0]`` の例):
+
+    .. list-table::
+       :header-rows: 1
+
+       * - メソッド
+         - 内容
+         - 例
+       * - :meth:`getName`
+         - ``<ノードの最短名>.<ショート名のパス>``。論理番号を含む。表示・ログ向け
+         - ``pCube1.tx``・``pCube1.wm[0]``
+       * - :meth:`getFullName` / ``str(plug)``
+         - ``<ノードの一意名>.<ロング名のパス>``。エイリアスがあれば使う。Mayaコマンドへ渡す名前
+         - ``pCube1.translateX``・``pCube1.worldMatrix[0]``
+       * - :meth:`getShortName`
+         - アトリビュート自身のショート名。ノード名・親・論理番号を含まない
+         - ``tx``・``wm``
+       * - :meth:`getLongName`
+         - アトリビュート自身のロング名。ノード名・親・論理番号を含まない
+         - ``translateX``・``worldMatrix``
+       * - :meth:`getNiceName`
+         - UI表示用の名前
+         - ``Translate X``・``World Matrix``
+
+    ノード名を除いたパスが必要な場合は ``plug.getName().partition(".")[2]`` (ショート名)、
+    同じノードの別インスタンスへ移す場合は ``other.getPlug(plug.getName().partition(".")[2])`` とする
+    (Mayaのノード名は ``.`` を含まない)。
 
     マルチアトリビュート、登録型、コンパウンドアトリビュートの順でラッパーを選ぶ。参照取得では値を評価せず、
     generic/kAnyは基底Plugのままget時に値を解釈する。
@@ -181,8 +235,7 @@ class Plug(Object):
         """``self >> dst`` で自身から dst へ接続し、接続先を返す(:meth:`connectTo` の通常経路)。
 
         ``a >> b.x`` は ``a >> (b.x)`` と評価される(属性参照が演算子より優先する)。
-        Undo を記録する通常経路のみで、fast 経路は無い。cymel の同名演算子は None を返すが、
-        mlib では戻り値を持つ。
+        Undo を記録する通常経路のみで、fast 経路は無い。演算の結果として接続先の Plug を返す。
 
         Args:
             dst (Plug | om2.MPlug | str): 接続先。マルチアトリビュート全体は受け付けない(空き要素を選ぶには
@@ -263,31 +316,27 @@ class Plug(Object):
     def getName(self) -> str:
         """最短一意ノード名と短いアトリビュートパスを含むPlug名を取得する。
 
-        ``<Node.getName()>.<getAttrName()>`` の形式で、要素の論理番号を常に含む
-        (``tt.wm[0]``・``bs.it[0].itg[3].tw[2]``)。表示・ログ向けの短い表記で、Mayaコマンドへ渡す
-        一意な名前は :meth:`getFullName` を使う。
+        ``<Node.getName()>.<ショート名のパス>`` の形式で、要素の論理番号を常に含む
+        (``tt.wm[0]``・``bs.it[0].itg[3].tw[2]``)。エイリアスは使わない。表示・ログ向けの短い表記で、
+        Mayaコマンドへ渡す一意な名前は :meth:`getFullName` を使う。ほかの名前のメソッドとの違いは
+        :class:`Plug` の表を参照する。``node.getPlug(plug.getName().partition(".")[2])`` で同じPlugへ戻せる。
 
         Returns:
             str: プラグ名。所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合は
                 空文字列(:meth:`getFullName` と同じ)。
         """
         ...
-    def getAttrName(self) -> str:
-        """ノード名と先頭ドットを除いた、短いアトリビュートパスを取得する。
-
-        ショート名と要素の論理番号を含む(``tx``・``wm[0]``・``it[0].itg[3].tw[2]``)。
-        worldSpaceのマルチアトリビュートの要素(``worldMatrix[0]``)も番号を省かない。
-        エイリアスは使わない。そのまま ``node.getPlug(plug.getAttrName())`` へ渡せる。
-
-        Returns:
-            str: ノード名を除いたアトリビュートパス。無効な場合は空文字列。
-        """
-        ...
     def getShortName(self) -> str:
-        """要素番号や階層を含まないアトリビュートの短名。
+        """アトリビュート自身のショート名を取得する(``tx``・``wm``)。
+
+        ノード名・親のコンパウンドアトリビュート・要素の論理番号を含まない。論理番号を含むパスは
+        :meth:`getName` を使う。
 
         Returns:
             str: 要素番号や階層を含まないアトリビュートの短名。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
     def getFullName(self) -> str:
@@ -471,44 +520,10 @@ class Plug(Object):
             Plug: 自身。
         """
         ...
-    def lock(self, *, fast: bool = ...) -> Plug:
-        """ロックする(``setFlags(locked=True)`` と同じ)。
-
-        コンパウンドアトリビュートの子は、Mayaの規則により親のロックを継承する。
-        解除は :meth:`unlock` (上位の継承ロックも解除し、解除したPlugのlistを返す)。
-
-        Args:
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            Plug: 自身。
-
-        Raises:
-            TypeError: fastがbool以外の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-        """
-        ...
-    def unlock(self, below: bool = ..., *, fast: bool = ...) -> list[Plug]:
-        """上位と必要な下位階層をアンロックする。
-
-        通常は1回のUndoで戻る。fastはOpenMayaで直接更新し、Undoに記録しない。
-
-        Args:
-            below (bool): 子階層(コンパウンドアトリビュートの子・マルチアトリビュートの既存要素)も解除する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
-
-        Returns:
-            list[Plug]: 実際に解除したPlugを上位から返す。解除するものが無ければ空のlist。
-
-        Raises:
-            TypeError: belowまたはfastがbool以外の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-        """
-        ...
     def show(self, keyable: bool = ..., *, fast: bool = ...) -> Plug:
         """Channel Boxへ表示する(:meth:`hide` の逆)。
 
-        コンパウンドアトリビュートは子も表示する。ロックは変えない。
+        コンパウンドアトリビュートは子も表示する。ロックは変えない。表示後の :meth:`isHidden` はFalse。
 
         Args:
             keyable (bool): 既定Trueはキー設定可能として表示する。FalseはキーできないChannel Box表示
@@ -527,7 +542,7 @@ class Plug(Object):
         """Channel Boxから隠す(keyableとChannel Box表示をFalseにする)。
 
         コンパウンドアトリビュート(``t`` 等)は子(``tx`` 等)も隠す(``setFlags(keyable=False, channelBox=False,
-        children=True)`` と同じ)。ロックは変えない。
+        children=True)`` と同じ)。ロックは変えない。隠れているかは :meth:`isHidden` で確かめる。
 
         Args:
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -538,24 +553,6 @@ class Plug(Object):
         Raises:
             TypeError: fastがbool以外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
-        """
-        ...
-    def mute(self) -> Plug:
-        """現在値でミュートし、自身を返す。
-
-        アニメーション(入力のアニメーションカーブ)の無いチャンネルでは、Mayaが警告を出すだけで
-        何もしない(muteノードを作らず、 :meth:`isMuted` はFalseのまま)。例外にはしない。
-        fast引数は持たない。
-
-        Returns:
-            Plug: 自身。
-        """
-        ...
-    def unmute(self) -> Plug:
-        """ミュートを解除し、自身を返す。fast引数は持たない。
-
-        Returns:
-            Plug: 自身。
         """
         ...
     def isConnected(self, *, source: bool = ..., destination: bool = ...) -> bool:
@@ -594,10 +591,36 @@ class Plug(Object):
         """
         ...
     def isHidden(self) -> bool:
-        """UI から隠されたアトリビュートか判定する。
+        """Channel Boxに出ていない(keyableでもChannel Box表示でもない)か判定する。
+
+        :meth:`hide` / :meth:`show` と対になる。コンパウンドアトリビュート(``t`` 等)はChannel Boxに
+        子(``tx`` 等)が並ぶため、子孫の末端がすべて隠れている場合にTrueを返す。
+
+        .. list-table::
+           :header-rows: 1
+
+           * - 操作
+             - keyable
+             - channelBox
+             - ``isHidden()``
+           * - ``hide()``
+             - False
+             - False
+             - True
+           * - ``show()``
+             - True
+             - False
+             - False
+           * - ``show(keyable=False)``
+             - False
+             - True
+             - False
+
+        ``addAttr(hidden=True)`` で付けるアトリビュート定義の hidden フラグ(``cmds.attributeQuery(hidden=True)``)
+        ではない。5.0.0までの ``isHidden()`` はそのフラグを返していた。
 
         Returns:
-            bool: 隠しアトリビュートの場合は ``True``。
+            bool: Channel Boxに表示されない場合は ``True``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -686,7 +709,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getMin(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getMin(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されている最小値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -697,6 +720,9 @@ class Plug(Object):
             unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
                 (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
+                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す。
                 既定Falseは内部の単位付きオブジェクトのまま返す。
 
@@ -705,34 +731,36 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def setMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ...) -> Plug:
+    def setMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ..., timeUnit: str | None = ...) -> Plug:
         """動的アトリビュートの最小値を設定する(``cmds.addAttr(edit=True, minValue=...)`` 相当)。
 
         値の単位は :meth:`Node.addAttr` の ``minValue`` と同じ(角度は ``unit`` の単位で既定は度、距離はcm、
-        時間は秒。``om2.MAngle`` 等の単位付きの値はそのまま使う)。``None`` は最小値の制限を外す。
+        時間は ``timeUnit`` の単位で既定は現在のUI時間単位のフレーム。``om2.MAngle`` 等の単位付きの値はそのまま使う)。``None`` は最小値の制限を外す。
         アトリビュートの定義を変えるため、マルチアトリビュートの要素では全要素に効く。
         Undo有効時に1回のUndoで戻る。fast引数は持たない。
 
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最小値。Noneは制限を外す。
             unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+            timeUnit (str | None): 時間の数値の単位。既定Noneは現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
 
         Returns:
             Plug: 自身。
 
         Raises:
             TypeError: 静的(ノード型に組み込みの)アトリビュート、数値・単位型以外のアトリビュート、
-                valueが数値・単位付きの値・None以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名の場合。
+                valueが数値・単位付きの値・None以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
-    def getMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getMax(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されている最大値を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -742,6 +770,9 @@ class Plug(Object):
             unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
                 (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
+                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -749,12 +780,12 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def setMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ...) -> Plug:
+    def setMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime | None, *, unit: str | None = ..., timeUnit: str | None = ...) -> Plug:
         """動的アトリビュートの最大値を設定する(``cmds.addAttr(edit=True, maxValue=...)`` 相当)。
 
         値の単位と制限は :meth:`setMin` と同じ。``None`` は最大値の制限を外す。
@@ -762,13 +793,15 @@ class Plug(Object):
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime | None): 最大値。Noneは制限を外す。
             unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+            timeUnit (str | None): 時間の数値の単位。既定Noneは現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
 
         Returns:
             Plug: 自身。
 
         Raises:
             TypeError: :meth:`setMin` と同じ。
-            ValueError: unitが未対応の単位名の場合。
+            ValueError: unit・timeUnitが未対応の単位名の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
@@ -796,7 +829,7 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def getSoftMin(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getSoftMin(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されているソフト最小値(UIスライダーの下限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -806,6 +839,9 @@ class Plug(Object):
             unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
                 (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
+                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -813,12 +849,12 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def setSoftMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ...) -> Plug:
+    def setSoftMin(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ..., timeUnit: str | None = ...) -> Plug:
         """動的アトリビュートのソフト最小値(UIスライダーの下限)を設定する。
 
         ``cmds.addAttr(edit=True, softMinValue=...)`` 相当。値の単位と制限は :meth:`setMin` と同じ。
@@ -828,18 +864,20 @@ class Plug(Object):
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime): ソフト最小値。
             unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+            timeUnit (str | None): 時間の数値の単位。既定Noneは現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
 
         Returns:
             Plug: 自身。
 
         Raises:
             TypeError: :meth:`setMin` と同じ。
-            ValueError: unitが未対応の単位名の場合。
+            ValueError: unit・timeUnitが未対応の単位名の場合。
             NotImplementedError: valueがNoneの場合。変更前に拒否する。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
-    def getSoftMax(self, *, unit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
+    def getSoftMax(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> float | om2.MAngle | om2.MDistance | om2.MTime | None:
         """設定されているソフト最大値(UIスライダーの上限)を取得する。
 
         数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
@@ -849,6 +887,9 @@ class Plug(Object):
             unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
                 (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
+                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
 
         Returns:
@@ -856,12 +897,12 @@ class Plug(Object):
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def setSoftMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ...) -> Plug:
+    def setSoftMax(self, value: float | om2.MAngle | om2.MDistance | om2.MTime, *, unit: str | None = ..., timeUnit: str | None = ...) -> Plug:
         """動的アトリビュートのソフト最大値(UIスライダーの上限)を設定する。
 
         ``cmds.addAttr(edit=True, softMaxValue=...)`` 相当。値の単位と制限は :meth:`setMin` と同じ。
@@ -871,18 +912,20 @@ class Plug(Object):
         Args:
             value (float | om2.MAngle | om2.MDistance | om2.MTime): ソフト最大値。
             unit (str | None): 角度の数値の単位。既定Noneは度、``"rad"`` はラジアン。
+            timeUnit (str | None): 時間の数値の単位。既定Noneは現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
 
         Returns:
             Plug: 自身。
 
         Raises:
             TypeError: :meth:`setMin` と同じ。
-            ValueError: unitが未対応の単位名の場合。
+            ValueError: unit・timeUnitが未対応の単位名の場合。
             NotImplementedError: valueがNoneの場合。変更前に拒否する。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
         """
         ...
-    def getDefault(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Any:
+    def getDefault(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Any:
         """アトリビュートの既定値を取得する。
 
         数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
@@ -894,6 +937,9 @@ class Plug(Object):
             unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
                 (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
+                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
+                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す
                 (コンパウンドアトリビュートは子ごとに換算したtuple)。既定Falseは内部単位のまま。
 
@@ -902,8 +948,8 @@ class Plug(Object):
                 数値以外の汎用のコンパウンドアトリビュートなど)では ``None``。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
@@ -935,12 +981,15 @@ class Plug(Object):
             RuntimeError: アトリビュートが無効、またはMayaが別名を拒否した場合。
         """
         ...
-    def setKey(self, *, fast: bool = ..., **kwargs) -> Plug:
+    def setKey(self, *, timeUnit: str | None = ..., fast: bool = ..., **kwargs) -> Plug:
         """対象アトリビュートへキーを設定する。
 
         Args:
+            timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は
+                現在のUI時間単位のフレーム(setKeyframeと同じ)、``"sec"`` / ``"second"`` / ``"seconds"`` は秒。
+                ``"sec"`` では数値または数値の並びだけを受け付け、setKeyframeへ渡す前にフレームへ換算する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。未対応操作は更新前に拒否。
-            **kwargs: Maya setKeyframeのフラグ。値・時間はMayaのUI単位。
+            **kwargs: Maya setKeyframeのフラグ。値はMayaのUI単位、時間はtimeUnitの単位。
                 fastは単一のtime/t・value/v・inTangentType/itt・outTangentType/ottのみ。
                 レイヤー、範囲、コンパウンドアトリビュートの入力等は更新前に拒否する。
                 接線省略時はMayaのグローバル設定を使う。fastの入力stepはautoへ補正し、
@@ -949,6 +998,11 @@ class Plug(Object):
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: fastがbool以外、timeUnitが文字列・None以外、または ``timeUnit="sec"`` で
+                time/tに数値・数値の並び以外(``"1:10"`` のような範囲の文字列など)を指定した場合。
+            ValueError: timeUnitが未対応の単位名の場合。
         """
         ...
     def getAnimLayers(self, selected: bool = ..., exact: bool = ...) -> list[str]:
@@ -1099,19 +1153,23 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def get(self, *, unit: str | None = ..., uiUnits: bool = ...) -> Any:
+    def get(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Any:
         """現在の評価値を取得する。値はキャッシュしない。
 
         角度アトリビュート(doubleAngle等。rotateX・jointOrientの子など)の数値は既定で度、
-        距離はcm、時間は秒で返す。角度のコンパウンドアトリビュートは子ごとに換算する。
+        距離はcm、時間アトリビュート(``time1.outTime`` 等)は既定で現在のUI時間単位のフレームで返す。
+        角度・時間のコンパウンドアトリビュートは子ごとに換算する。
         rotateのEulerRotateのように自身の単位を持つ値は換算しない(内部はrad)。
 
         Args:
             unit (str | None): 数値の角度の単位。None(既定)と ``"deg"`` / ``"degree"`` /
                 ``"degrees"`` は度、``"rad"`` / ``"radian"`` / ``"radians"`` はラジアン。
                 角度以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 数値の時間の単位。None(既定)と ``"frame"`` / ``"frames"`` は
+                現在のUI時間単位(``currentUnit -time``)のフレーム、``"sec"`` / ``"second"`` /
+                ``"seconds"`` は秒。時間以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは単位付き数値を現在のUI単位へ換算する。既定Falseは角度が度
-                (unitの指定に従う)、距離cm、時間秒。
+                (unitの指定に従う)、距離cm、時間がフレーム(timeUnitの指定に従う)。
 
         Returns:
             object: 型に応じた値。CompoundPlug.getは子の定義順tuple、MultiPlug.getは
@@ -1121,8 +1179,8 @@ class Plug(Object):
                 Matrix・数値・tuple等を返す。マトリクス・型付き配列の成分と無単位値は換算しない。
 
         Raises:
-            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
+            TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 参照が無効、または値を読み取れない場合。
 
         Note:
@@ -1131,7 +1189,7 @@ class Plug(Object):
             参照の取得だけでは要素を作らない。
         """
         ...
-    def set(self, value: object, safe: bool = ..., *, unit: str | None = ..., uiUnits: bool = ..., fast: bool = ...) -> Plug | int:
+    def set(self, value: object, safe: bool = ..., *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., fast: bool = ...) -> Plug | int:
         """値を設定する。ロック解除や接続解除、自動ロールバックは行わない。
 
         通常はcmds.setAttrで更新し、Undo有効時に記録する。
@@ -1139,14 +1197,18 @@ class Plug(Object):
         コンパウンドアトリビュートの値の失敗は子ごとに再試行する。成功した子の更新は残る。
 
         Args:
-            value (object): 設定する値。角度の数値は既定で度(unitで変更)、距離cm、時間秒。
-                EulerRotate・Quaternion・MAngleのように自身の単位を持つ値は換算しない。
+            value (object): 設定する値。角度の数値は既定で度(unitで変更)、距離cm、
+                時間は既定で現在のUI時間単位のフレーム(timeUnitで変更)。
+                EulerRotate・Quaternion・MAngle・MTimeのように自身の単位を持つ値は換算しない。
             safe (bool): Trueは対応する失敗を数える。既定Falseは例外を送出する。
             unit (str | None): 数値の角度の単位。None(既定)と ``"deg"`` / ``"degree"`` /
                 ``"degrees"`` は度、``"rad"`` / ``"radian"`` / ``"radians"`` はラジアン。
                 角度以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): 数値の時間の単位。None(既定)と ``"frame"`` / ``"frames"`` は
+                現在のUI時間単位のフレーム、``"sec"`` / ``"second"`` / ``"seconds"`` は秒。
+                時間以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
             uiUnits (bool): Trueは現在のUI単位の数値入力。既定Falseは角度が度(unitの指定に従う)、
-                距離cm、時間秒。
+                距離cm、時間がフレーム(timeUnitの指定に従う)。
             fast (bool): Trueは対応型をOpenMayaで直接更新する。Undoへ記録せず、Undo設定も変更しない。
                 入力の意味と検証は通常経路と同じ(整数型・enum・boolへの小数は四捨五入、
                 数値型への文字列や文字列型への数値はRuntimeError)。
@@ -1158,8 +1220,8 @@ class Plug(Object):
 
         Raises:
             TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
-                safe=Falseでunitが文字列・None以外、または不正な入力の場合も送出する。
-            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueの同時指定(safe=Trueでは1を返す)。
+                safe=Falseでunit・timeUnitが文字列・None以外、または不正な入力の場合も送出する。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueとの同時指定(safe=Trueでは1を返す)。
                 safe=Falseで値の変換等に失敗した場合。
             RuntimeError: safe=Falseで無効参照・ロック・入力接続等により書けない場合。
             NotImplementedError: fast未対応型(messageなど)。ロック等の書込み可否より先に検査し、
@@ -1178,7 +1240,7 @@ class Plug(Object):
 
         Args:
             value (bool | int | float | str): 比較・設定する値。数値は許容誤差なしで比較し、
-                単位は :meth:`get` / :meth:`set` の既定(角度は度、距離cm、時間秒)。
+                単位は :meth:`get` / :meth:`set` の既定(角度は度、距離cm、時間は現在のUI時間単位のフレーム)。
             unlock (bool): Trueで対象自身のロックを一時解除し、値更新の成否にかかわらず
                 再ロックを試みる。親のロックや入力接続は解除しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。内側のset/状態更新にも同じ値を渡す。
@@ -1198,7 +1260,7 @@ class Plug(Object):
     def reset(self, *, fast: bool = ...) -> Plug:
         """数値・単位・enumアトリビュートを定義上の既定値へ戻す。
 
-        単位アトリビュートの既定値を内部単位(cm/rad/秒)へ換算し、``unit="rad"`` でsetへ渡す。
+        単位アトリビュートの既定値を内部単位(cm/rad/秒)へ換算し、``unit="rad"``・``timeUnit="sec"`` でsetへ渡す。
         コンパウンドアトリビュートは定義順に子を更新し、途中で失敗したら例外を送出する。
         全子の事前検証や、成功した子の自動ロールバックは行わない。
         接続の切断やロック解除はしない。
@@ -1234,8 +1296,8 @@ class Plug(Object):
         """直接の入力元を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。
-                Falseは直結したPlug。getConnectionsの既定とは異なる。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する(:meth:`getConnections` と同じ)。
+                Falseは直結したPlug。
             **kwargs: getConnectionsの型・ペア・Node化等の指定。子/要素展開は無効、indexは0に固定。
 
         Returns:
@@ -1297,7 +1359,11 @@ class Plug(Object):
     def getConnections(self, s: bool = ..., d: bool = ..., c: Literal[False] = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: Literal[False] = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., *, asPair: Literal[False] = ..., asNode: Literal[False] = ..., checkChildren: bool = ..., checkElements: bool = ..., index: None = ...) -> list[Plug]: ...
     @overload
     def getConnections(self, s: bool = ..., d: bool = ..., c: bool = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: bool = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., asPair: bool = ..., asNode: bool = ..., checkChildren: bool = ..., checkElements: bool = ..., index: int | None = ...) -> list | Plug | Node | tuple | None:
-        """接続参照を取得する。既定は変換ノードを省略しない。
+        """接続参照を取得する。既定はunitConversion系の変換ノードを飛ばす。
+
+        ``cmds.listConnections`` とは既定が違い、:meth:`getSource` / :meth:`getDestinations` と同じく
+        unitConversion系(unitConversion・unitToTimeConversion・timeToUnitConversion)を飛ばして
+        その先のPlugを返す。``skipConversionNodes=False`` (または ``scn=False``)で直結したPlugを返す。
 
         自身の入力・出力、次にマルチアトリビュートの既存要素または子へ再帰する。
         型で絞り、初出順で重複を統合した後にindexを適用する。
@@ -1308,13 +1374,14 @@ class Plug(Object):
             c (bool): connections/asPairとORし、ペアを返す。
             t (str | None): typeが未指定または偽のときの型条件。
             et (bool): exactTypeとORする。
-            scn (bool): skipConversionNodesとORする。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
             source (bool): 入力を含める。sとANDする。
             destination (bool): 出力を含める。dとANDする。
             connections (bool): c/asPairとORし、ペアを返す。
             type (str | None): 相手Nodeの型。tより優先する。
             exactType (bool): Trueは型名の完全一致。Falseは派生型を含む。
-            skipConversionNodes (bool): unitConversion系を省略する。
+            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
+                Falseは直結したPlug。
             asPair (bool): (自身側Plug, 相手側)の組で返す。入力方向でも同じ順序。
             asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
             checkChildren (bool): コンパウンドアトリビュートの子も探索する。
@@ -1506,7 +1573,7 @@ class Plug(Object):
             list[Plug]: 出力先の Plug。未接続なら空リスト。
         """
         ...
-    def _set_template(self, value: object, safe: bool, *, fast: bool, unit: str | None = ..., uiUnits: bool = ..., _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
+    def _set_template(self, value: object, safe: bool, *, fast: bool, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., _writer: Callable[..., Any] | None = ..., **options) -> Plug | int:
         """set()の共通骨格。Undo文脈・マルチアトリビュート全体の拒否・fast未対応型の事前検査・safeの例外吸収を担う。
 
         派生クラスは値の書込み本体 :meth:`_set_value` と、safeの再試行 :meth:`_set_children_safely`
@@ -1518,7 +1585,8 @@ class Plug(Object):
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
             unit (str | None): 数値の角度の単位。Noneは度。ここで一度だけラジアンへ換算し、
                 書込み本体とsafeの再試行には内部単位の値を渡す。
-            uiUnits (bool): TrueはUI単位の数値。unitとは同時に指定できない。
+            timeUnit (str | None): 数値の時間の単位。Noneはフレーム。unitと同じくここで一度だけ秒へ換算する。
+            uiUnits (bool): TrueはUI単位の数値。unit・timeUnitとは同時に指定できない。
             _writer (callable | None): 内部専用。値の書込みに使う関数(既定は自身の ``_set_value``)。
                 Transform が Double3 の回転変換を通さずに基底の書込みを使うときに ``Plug._set_value`` を渡す。
             **options: ``_set_value`` と ``_set_children_safely`` へ渡す追加指定。
@@ -1528,8 +1596,8 @@ class Plug(Object):
 
         Raises:
             TypeError: fastがbool以外、またはマルチアトリビュート全体への設定。safe=Trueでも拒否する。
-                safe=Falseでunitが文字列・None以外の場合も送出する。
-            ValueError: safe=Falseでunitが未対応、またはunitとuiUnits=Trueを同時に指定した場合。
+                safe=Falseでunit・timeUnitが文字列・None以外の場合も送出する。
+            ValueError: safe=Falseでunit・timeUnitが未対応、またはuiUnits=Trueと同時に指定した場合。
                 safe=Trueではいずれも書込み前の失敗として1を返す。
             NotImplementedError: fast未対応型。safe=Trueでも拒否する。
         """
@@ -1570,7 +1638,7 @@ class Plug(Object):
 
         bool/int/float 系の数値アトリビュート、角度・距離・時間の単位アトリビュート、enum、
         文字列および対応する型付き配列は Maya API 2.0経由で直接読み取り、MEL コマンドの
-        往復を避ける。角度はrad、距離はcm、時間は秒で返す。message アトリビュートや mesh/カーブ等の
+        往復を避ける。角度はrad、距離はcm、時間は秒(内部単位)で返す。message アトリビュートや mesh/カーブ等の
         複雑な typed data アトリビュートのように対応する読み取り方法が無いものは
         ``cmds.getAttr`` にフォールバックする。
 
@@ -1638,19 +1706,20 @@ class Plug(Object):
             Plug | None: 同じ接続の接続先。無ければNone。
         """
         ...
-    def _set_range(self, kind: str, value: object, unit: str | None) -> Plug:
+    def _set_range(self, kind: str, value: object, unit: str | None, time_unit: str | None = ...) -> Plug:
         """setMin等の共通処理。値を ``cmds.addAttr`` の単位へ換算して定義を編集する。
 
         Args:
             kind (str): ``"Min"``・``"Max"``・``"SoftMin"``・``"SoftMax"``。
             value (object): 設定値。Noneは制限を外す。
             unit (str | None): 角度の数値の単位。
+            time_unit (str | None): 時間の数値の単位。Noneはフレーム。
 
         Returns:
             Plug: 自身。
         """
         ...
-    def _range_input(self, fn: om2.MFnNumericAttribute | om2.MFnUnitAttribute, value: object, angle_unit: str, method: str) -> float:
+    def _range_input(self, fn: om2.MFnNumericAttribute | om2.MFnUnitAttribute, value: object, angle_unit: str, method: str, time_unit: str = ...) -> float:
         """setMin等の値を ``cmds.addAttr`` が受け取る単位の数値へ換算する。
 
         ``cmds.addAttr`` は角度をrad、距離をcm、時間を現在の時間単位で受け取る(:meth:`Node.addAttr` と同じ換算)。
@@ -1660,6 +1729,7 @@ class Plug(Object):
             value (object): 数値または単位付きの値。
             angle_unit (str): 角度の数値の単位(``"deg"`` / ``"rad"``)。
             method (str): 例外メッセージに使うメソッド名。
+            time_unit (str): 時間の数値の単位(``"frame"`` / ``"sec"``)。
 
         Returns:
             float: 換算した値。
@@ -1916,7 +1986,9 @@ class Plug(Object):
         Raises:
             TypeError: 対応しない型、または文字列がアトリビュートを指していない場合。
             ValueError: 空文字列、または空の MPlug の場合。
-            RuntimeError: 文字列を解決できない(存在しない、または複数の対象に一致する)場合。
+            MissingAttributeError: 文字列のアトリビュート(またはノード)が存在しない場合。
+                ``AttributeError`` と ``RuntimeError`` の両方の派生。
+            RuntimeError: 文字列が複数の対象に一致する場合。
                 MPlug の所有ノードが削除済み、またはアトリビュートが ``deleteAttr`` で削除済みの場合
                 (``Node(...)``・``Plug(...)`` の生成と同じ。Undo の対象から外れて削除された
                 ノードの MPlug は検出できず、Maya が異常終了する)。
@@ -1986,13 +2058,14 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
-    def _range_value(self, value: object, angle_unit: str | None, ui_units: bool) -> Any:
-        """getMin等の戻り値を、uiUnits・unitの指定に従って換算する。
+    def _range_value(self, value: object, angle_unit: str | None, ui_units: bool, time_unit: str | None = ...) -> Any:
+        """getMin等の戻り値を、uiUnits・unit・timeUnitの指定に従って換算する。
 
         Args:
             value (object): 定義から読んだ値(単位付きオブジェクト・数値・tuple)。
-            angle_unit (str | None): ``"deg"`` / ``"rad"``。Noneは換算しない。
+            angle_unit (str | None): ``"deg"`` / ``"rad"``。Noneは角度を換算しない。
             ui_units (bool): Trueは現在のUI単位の数値へ換算する。
+            time_unit (str | None): ``"frame"`` / ``"sec"``。Noneは時間を換算しない。
 
         Returns:
             object: 換算した値。
@@ -2026,3 +2099,132 @@ class Plug(Object):
         ...
     def __getitem__(self, key: int | str) -> Plug: ...
     def __iter__(self) -> Iterator[Plug]: ...
+
+
+class Plugs:
+    """入力順のアトリビュート参照(Plug)を、重複を除いて保持するコレクション。
+
+    :class:`~mlib.nodes.node.Nodes` と同じく、同じアトリビュート(``Plug`` の ``==`` が等しいもの)は
+    先に現れた方だけを残し、入力順を保つ。``len``・添字(sliceはPlugs)・``for``・``bool``・``+``・
+    ``==``・:meth:`sort` に対応する。コピーやスライスはPlug参照を共有し、値は保持しない。
+    ``maya.cmds`` へ渡すとcmdsがシーケンスとして各Plugの名前へ展開する(マルチアトリビュート全体・
+    コンパウンドアトリビュートのPlugも、要素としては名前になる)。``==`` を定義するため、listと同じく
+    ハッシュ不可。
+
+    .. code-block:: python
+
+        import mlib
+
+        plugs = mlib.ls("pCube1.tx", "pCube1.ty")
+        for plug in plugs:
+            print(plug.getFullName())
+    """
+    def __iter__(self) -> Iterator[Plug]: ...
+    @overload
+    def __getitem__(self, index: int) -> Plug: ...
+    @overload
+    def __getitem__(self, index: slice) -> Plugs: ...
+    __hash__: None
+    def __init__(self, plugs: Plug | om2.MPlug | str | Iterable[Plug | om2.MPlug | str] = ...) -> None:
+        """入力からPlug参照を解決し、重複を除いて保持する。
+
+        Args:
+            plugs (Plug | om2.MPlug | str | Iterable[Plug | om2.MPlug | str]): アトリビュートの参照、
+                または ``"node.attribute"`` 形式の名前。その列(入れ子も可)。単一の名前も受理する。
+
+        Raises:
+            TypeError: アトリビュートを指さない値・対応しない型を含む場合。
+            ValueError: 空文字列や空のMPlugを含む場合。
+            RuntimeError: 名前を解決できない、または無効な(削除済みの)アトリビュートを含む場合。
+        """
+        ...
+    def __len__(self) -> int:
+        """保持要素数。
+
+        Returns:
+            int: 保持要素数。
+        """
+        ...
+    def __repr__(self) -> str:
+        """コレクション名と保持参照を表示する。
+
+        Returns:
+            str: ``Plugs([Plug('pCube1.translateX'), ...])`` のような文字列。
+        """
+        ...
+    def __eq__(self, other: Plugs | list | tuple) -> bool:
+        """同じ並びのPlug参照を持つか比較する。
+
+        Args:
+            other (Plugs | list | tuple): 比較の相手。
+
+        Returns:
+            bool: 要素数が等しく、各位置のPlugが ``==`` で等しければTrue。対応しない型はNotImplemented。
+        """
+        ...
+    def __add__(self, other: Plugs | list | tuple) -> Plugs:
+        """他のPlugs・list・tupleを後ろへ結合した、新しいコレクションを返す。
+
+        構築と同じ規則で入力を解決し、重複は先に現れた方を残す。
+
+        Args:
+            other (Plugs | list | tuple): 後ろへ結合するPlug・名前の列。
+
+        Returns:
+            Plugs: 左辺と同じ型の新しいコレクション。自身と相手は変更しない。
+
+        Raises:
+            TypeError: 相手が対応しない型、またはアトリビュート以外を含む場合。
+            RuntimeError: 解決できない、または無効なアトリビュートを含む場合。
+        """
+        ...
+    def __radd__(self, other: list | tuple) -> Plugs:
+        """左辺がlist・tupleの結合で、新しいコレクションを返す。
+
+        Args:
+            other (list | tuple): 前へ結合するPlug・名前の列。
+
+        Returns:
+            Plugs: 右辺(自身)と同じ型の新しいコレクション。
+
+        Raises:
+            TypeError: 相手が対応しない型、またはアトリビュート以外を含む場合。
+            RuntimeError: 解決できない、または無効なアトリビュートを含む場合。
+        """
+        ...
+    def sort(self, key: Callable[[Plug], object] | None = ..., reverse: bool = ...) -> None:
+        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+
+        ``key`` を省略した場合はアトリビュートの完全名(:meth:`Plug.getFullName`)の順にする。
+        並べ替えるのはこのコレクションの保持列だけで、スライス・``+`` で作った別のコレクションの
+        順序は変わらない(各要素のPlug参照は共有している)。
+
+        Args:
+            key (Callable[[Plug], object] | None): 各Plugから比較用の値を返す関数。Noneは完全名。
+            reverse (bool): Trueなら降順。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
+        """
+        ...
+    def getFullNames(self) -> list[str]:
+        """保持順の完全なアトリビュート名を返す(``maya.cmds`` へ渡す用途)。
+
+        Returns:
+            list[str]: 各Plugの :meth:`Plug.getFullName`。無効なPlugは空文字列。
+        """
+        ...
+    @classmethod
+    def _from_plugs(cls, plugs: Iterable[Plug]) -> Plugs:
+        """解決済みのPlug列から、再解決せずに重複を除いて作る(lsの結果用)。
+
+        Args:
+            plugs (Iterable[Plug]): 解決済みで有効なPlug。
+
+        Returns:
+            Plugs: 新しいコレクション。
+        """
+        ...

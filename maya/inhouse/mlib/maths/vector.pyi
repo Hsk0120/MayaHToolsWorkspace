@@ -84,6 +84,20 @@ def _vector_of(cls, value: om2.MVector | Sequence[float]) -> Vector:
     """
     ...
 
+def _vectors_of_points(points: Iterable[om2.MPoint]) -> list[Vector]:
+    """om2 の MPoint の列から、XYZを写した Vector のリストを作る。
+
+    MPoint の w では割らない。引数付きコンストラクタの多重定義の解決を通さず、
+    引数なしで確保したインスタンスへ成分を代入する(:func:`_vector_of` と同じ理由)。
+
+    Args:
+        points (Iterable[om2.MPoint]): 変換元の点列(MPointArray など)。
+
+    Returns:
+        list[Vector]: 入力順の新しい Vector。
+    """
+    ...
+
 def _vector_keywords(x: float = ..., y: float = ..., z: float = ...) -> tuple:
     """キーワード引数付きの Vector の生成引数を (x, y, z) へまとめる。
 
@@ -491,11 +505,16 @@ class Vector(om2.MVector):
         Scale・Shearのマトリクスとしての鏡映にはMatrix.mirrorを使う。
 
         Args:
-            axis (str | int): x/y/z/xy/xz/yz/xyz、または0/1/2。
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             pivot (Iterable[float]): 値と同じ単位の中心。方向には原点を使う。
 
         Returns:
             Vector: 同型の新しい値。
+
+        Raises:
+            TypeError: axisが文字列・int以外の場合。
+            ValueError: axisが不正、またはpivotが有限の3成分でない場合。
         """
         ...
     def mirrorIt(self, axis: str | int = ..., pivot: Iterable[float] = ...) -> Vector:

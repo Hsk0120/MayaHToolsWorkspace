@@ -26,7 +26,7 @@ REMOVED = {
     Transform: ("transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
                 "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"),
     Joint: ("isJoint",),
-    Plug: ("getDataType", "getPlugName", "lock", "getEnumFieldName", "getNextAvailable",
+    Plug: ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
            "isArray", "isElement", "getArray"),
     MultiPlug: ("getNextAvailableIndex", "isArray", "isElement", "getArray"),
     CompoundPlug: ("isArray", "isElement", "getArray"),
@@ -44,13 +44,16 @@ REQUIRED = {
            "isParentOf", "isAncestorOf", "getName", "getFullName", "sameNode"),
     DagNode: ("mfn", "getRoot", "getSiblings", "getBoundingBox", "isIntermediateObject", "getShape",
               "show", "hide", "getSkinClusters", "getParent", "getParents", "getChildren", "mpath"),
-    Transform: ("mfn", "resetAttrs", "setPivot", "getPivot", "makeIdentity", "setParent", "getRotate",
+    Transform: ("mfn", "setPivot", "getPivot", "makeIdentity", "setParent", "getRotate",
                 "getShear", "setShear", "getQuaternion", "getMatrix", "setMatrix"),
     Joint: ("getJointOrient", "jointOrientToRotate", "freezeRotate", "getSkinClusters"),
 }
 
 #: 複数形が独自の集約として持つ名前(単数への転送ではない)。Joints.getSkinClusters は重複を除いた SkinClusters を返す。
 PLURAL_OWN = ("getSkinClusters",)
+
+#: 5.0.0で複数形へ明示的に戻した一括の書込み(Nodes._forward で各要素へ適用する)。
+PLURAL_BULK = ("setAttrFlags", "resetAttrs", "setLocked", "setColor", "setVisibility", "show", "hide", "setParent")
 
 #: 3.0.0 で廃止した複数形の一括転送と、その基盤の名前。
 REMOVED_PLURAL = ("callEach", "getNames", "delete", "removeInfluences", "jointOrientToRotate", "freezeRotate",
@@ -160,13 +163,17 @@ class RequiredNamesTest(unittest.TestCase):
                     self.assertTrue(callable(getattr(cls, name)), "%s.%s missing" % (cls.__name__, name))
 
     def test_plural_classes_do_not_forward(self):
-        """複数形クラスは単数への一括転送を持たない。要素ごとに単数のメソッドを呼ぶ。"""
+        """複数形クラスは明示した書込み(PLURAL_BULK)以外の一括転送を持たない。要素ごとに単数のメソッドを呼ぶ。"""
         for cls, plural in PLURALS.items():
             for base, names in REQUIRED.items():
                 if not issubclass(cls, base):
                     continue
                 for name in names:
                     if name in PLURAL_OWN:
+                        continue
+                    if name in PLURAL_BULK:
+                        with self.subTest(cls=plural.__name__, bulk=name):
+                            self.assertIn(name, Nodes.__dict__)
                         continue
                     with self.subTest(cls=plural.__name__, name=name):
                         self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))

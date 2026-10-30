@@ -116,7 +116,7 @@ class NodeRegistry:
     """ノード型・アトリビュート型などの文字列キーとラッパークラスを対応付ける登録表。
 
     ``generate_classes=True`` の表は、Maya が認識する未登録の nodeType に対して
-    クラスを生成して返す(cymel の nodetypes と同じ考え方)。生成クラスの親は
+    クラスを生成して返す。生成クラスの親は
     Maya の継承チェーン(``cmds.nodeType(inherited=True)``)上で最も近い登録済み
     クラスで、登録クラスと生成対象の間にある抽象型(geometryFilter・containerBase・
     entity など)のクラスは生成しない。したがって生成クラス同士の ``isinstance`` は

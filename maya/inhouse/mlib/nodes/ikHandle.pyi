@@ -107,10 +107,13 @@ class IkHandle(Transform):
         ``endEffector`` の接続元(ikEffector)の DAG 親を辿って OpenMaya で求める
         (ikEffector は末端 joint の1つ上の joint の子に置かれる)。
 
+        既定(``includeTip=False``)は末端 joint を含まない。末端まで含めたチェーン全体は
+        ``getJoints(includeTip=True)`` で取得する。
+
         Args:
             includeTip (bool): True の場合、末端 joint(``getEndJoint()``)も
-                末尾に含める。``cmds.ikHandle(query=True, jointList=True)`` は
-                既定では末端 joint を含まない。
+                末尾に含める。既定 False は ``cmds.ikHandle(query=True, jointList=True)`` と同じく
+                末端 joint を含まない。
 
         Returns:
             list[Joint]: start joint から順に並んだ joint。startJoint・endEffector が未接続、

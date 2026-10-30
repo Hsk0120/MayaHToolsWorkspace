@@ -128,7 +128,10 @@ class DeletedDagNodeTest(_SpecCase):
             with self.subTest(method=method):
                 with self.assertRaisesRegex(RuntimeError, "no longer exists"):
                     getattr(self.node, method)()
-        self.assertEqual(self.node.getName(), "")
+        # 5.0.0から名前の取得は無効なノードでRuntimeError(str()は空文字列、getFullNameは従来どおり)。
+        with self.assertRaisesRegex(RuntimeError, "was deleted or undone"):
+            self.node.getName()
+        self.assertEqual(str(self.node), "")
         self.assertEqual(self.node.getFullName(), "")
         self.assertEqual(self.node.getChildren(), [])
         with self.assertRaises(RuntimeError):
@@ -168,7 +171,7 @@ class VisibilityTest(_SpecCase):
         cmds.flushUndo()
         self.assertIs(self.node.hide(), self.node)
         self.assertFalse(cmds.getAttr(self.child_name + ".visibility"))
-        self.assertEqual(cmds.undoInfo(query=True, undoName=True), "mlibDagNodeSetVisibility")
+        self.assertRegex(cmds.undoInfo(query=True, undoName=True), r"^mlib setVisibility( |$)")
         cmds.undo()
         self.assertTrue(cmds.getAttr(self.child_name + ".visibility"))
         self.node.setVisibility(False)

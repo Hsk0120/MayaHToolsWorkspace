@@ -1,5 +1,7 @@
 """DAG階層の保存姿勢とバインドポーズを扱う。"""
 
+from typing import Any, Dict
+
 import maya.cmds as cmds
 
 from ..core.object import Object
@@ -41,7 +43,7 @@ class DagPose(Node):
         names = cls._transform_names(members)
         if name is not None and (not isinstance(name, str) or not name):
             raise ValueError("name must be a non-empty string or None")
-        flags = {"save": True, "bindPose": bindPose, "selection": not hierarchy}
+        flags: Dict[str, Any] = {"save": True, "bindPose": bindPose, "selection": not hierarchy}
         # dagPoseのnameフラグはRedo時に名前空間を失うため、renameに任せる。
         result = cmds.dagPose(names, **flags)
         if name is not None:

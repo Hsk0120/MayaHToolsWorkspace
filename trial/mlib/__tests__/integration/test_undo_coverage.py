@@ -40,7 +40,7 @@ from mlib.common.namespace import Namespace
 from mlib.common.scalarGraph import ScalarGraph
 from mlib.common.selection import Selection
 from mlib.maths import Matrix
-from mlib.nodes import Container, DagContainer, DagPose, SkinCluster
+from mlib.nodes import BlendShape, Container, DagContainer, DagPose, IkHandle, Joints, Nodes, NurbsCurve, SkinCluster
 from support.specCase import NamespaceCase
 
 
@@ -72,6 +72,10 @@ WRITER_OPERATORS = ("__rshift__", "__lshift__", "__floordiv__")
 
 #: 網羅の番人が拾っても Undo 検査の対象にしない API と理由。
 EXCLUDED = {
+    "Plug.setMin": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setMax": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setSoftMin": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
+    "Plug.setSoftMax": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
     "Reference.load": "外部ファイルの参照の読込み(ファイル I/O)。Undo 検査の対象外。",
     "Reference.unload": "外部ファイルの参照のアンロード(ファイル I/O)。Undo 検査の対象外。",
     "Reference.remove": "外部ファイルの参照の削除(ファイル I/O)。Undo 検査の対象外。",
@@ -593,6 +597,15 @@ def s_curve(c):
     c.ncrvShape = mlib.getNode(c.crvShape)
 
 
+def s_curves(c):
+    """形状を差し替える nurbsCurve(crv)と、取得元の nurbsCurve(src。tx=2)を作る。"""
+    s_curve(c)
+    c.ncrv = mlib.getNode(c.crv)
+    c.src = cmds.ls(cmds.curve(degree=1, point=[(0, 0, 0), (0, 2, 0)], name="src"), long=True)[0]
+    cmds.setAttr(c.src + ".tx", 2.0)
+    c.nsrc = mlib.getNode(c.src)
+
+
 def s_locator(c):
     """spaceLocator を作る。"""
     c.loc = cmds.spaceLocator(name="loc")[0]
@@ -668,6 +681,27 @@ def s_skin_unnormalized(c):
     s_skin(c)
     cmds.setAttr(c.skinName + ".weightList[0].weights[0]", 0.3)
     cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.3)
+
+
+def s_skin_uneven(c):
+    """頂点 0 を j0=0.9・j1=0.1 にし、X が正の頂点を j1=1 にした左右非対称のスキンを作る。"""
+    s_skin(c)
+    count = cmds.polyEvaluate(c.mesh, vertex=True)
+    for index in range(count):
+        if cmds.pointPosition("{}.vtx[{}]".format(c.mesh, index), world=True)[0] > 0:
+            # 0 を明示した要素は copySkinWeights の Undo で要素ごと消えるため、要素を除いて 0 にする。
+            cmds.removeMultiInstance("{}.weightList[{}].weights[0]".format(c.skinName, index), b=False)
+            cmds.setAttr("{}.weightList[{}].weights[1]".format(c.skinName, index), 1.0)
+    cmds.setAttr(c.skinName + ".weightList[0].weights[0]", 0.9)
+    cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.1)
+
+
+def s_skin_copy_unbound(c):
+    """スキンと、まだバインドしていない 2 つ目のメッシュを作る。"""
+    s_skin(c)
+    c.mesh2 = cmds.ls(cmds.polyCube(name="skinMesh2", subdivisionsY=2, constructionHistory=False)[0],
+                      long=True)[0]
+    cmds.select(clear=True)
 
 
 def s_skin_posed(c):
@@ -789,6 +823,37 @@ def s_pose(c):
     c.pose = cmds.dagPose(c.j0, c.j1, c.j2, save=True, name="pose")
     cmds.setAttr(c.j1 + ".rz", 0.5)
     c.npose = mlib.getNode(c.pose)
+
+
+def s_ik_joints(c):
+    """joint 連鎖を作る。Maya が最初の IK ハンドルで作るソルバー(Undo で消えない)は先に用意する。"""
+    if not cmds.ls(type="ikRPsolver"):
+        current = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
+        cmds.namespace(set=":")
+        try:
+            cmds.select(clear=True)
+            warm = [cmds.joint(name="mlibUndoCoverageWarmIk#", position=(0, i, 1)) for i in range(2)]
+            cmds.select(clear=True)
+            cmds.delete(cmds.ikHandle(startJoint=warm[0], endEffector=warm[1])[0], warm[0])
+        finally:
+            cmds.namespace(set=current)
+    s_joints(c)
+
+
+def s_blend_meshes(c):
+    """blendShape の基準メッシュと、同じ形のターゲットメッシュ 2 つを作る。"""
+    c.base, c.target, c.target2 = (
+        cmds.ls(cmds.polyCube(name=text, constructionHistory=False)[0], long=True)[0]
+        for text in ("base", "target", "target2"))
+    cmds.setAttr(c.target + ".vtx[0]", 0.0, 1.0, 0.0)
+    cmds.setAttr(c.target2 + ".vtx[1]", 0.0, 1.0, 0.0)
+
+
+def s_blend(c):
+    """ターゲット 1 つの blendShape と、追加用のターゲットメッシュを作る。"""
+    s_blend_meshes(c)
+    c.blend = cmds.blendShape(c.target, c.base, name="blend", frontOfChain=True)[0]
+    c.nblend = mlib.getNode(c.blend)
 
 
 def s_reorder(c):
@@ -926,6 +991,7 @@ CASES = [
       fastSkip="コンポーネントの削除は fast の対象外"),
     C("cmds.duplicate", "duplicate transform", s_one, lambda c, **kw: mlib.duplicate(c.a)),
     C("cmds.duplicate", "duplicate mesh", s_cube, lambda c, **kw: mlib.duplicate(c.cube)),
+    C("cmds.duplicate", "duplicate suffix", s_joints, lambda c, **kw: mlib.duplicate(c.j0, suffix="_FK")),
     C("cmds.select", "select replace", s_two, lambda c, **kw: mlib.select([c.a, c.b])),
     C("cmds.select", "select clear", s_two_selected, lambda c, **kw: mlib.select(clear=True)),
     # Node
@@ -959,6 +1025,8 @@ CASES = [
       lambda c, **kw: c.na.setVisibility(False, **kw)),
     C("DagNode.setOutlinerVisibility", "setOutlinerVisibility", s_one,
       lambda c, **kw: c.na.setOutlinerVisibility(False, **kw)),
+    C("DagNode.setColor", "setColor index on shapes", s_curves, lambda c, **kw: c.ncrv.setColor(13)),
+    C("DagNode.setColor", "setColor rgb", s_one, lambda c, **kw: c.na.setColor((1.0, 0.5, 0.0))),
     # Transform
     C("Transform.setParent", "setParent", s_child, lambda c, **kw: c.na.setParent(c.q, **kw)),
     C("Transform.setParent", "setParent world", s_child, lambda c, **kw: c.na.setParent(None, **kw)),
@@ -1008,11 +1076,36 @@ CASES = [
       lambda c, **kw: c.nb.deleteConstraints(**kw)),
     C("Transform.deleteUnusedIntermediateShapes", "deleteUnusedIntermediateShapes", s_intermediate,
       lambda c, **kw: c.ncube.deleteUnusedIntermediateShapes(**kw)),
+    C("Transform.replaceShapes", "replaceShapes", s_curves, lambda c, **kw: c.ncrv.replaceShapes(c.nsrc)),
+    C("Transform.replaceShapes", "replaceShapes keepSource worldSpace", s_curves,
+      lambda c, **kw: c.ncrv.replaceShapes(c.nsrc, keepSource=True, worldSpace=True)),
+    C("NurbsCurve.create", "NurbsCurve.create periodic", None,
+      lambda c, **kw: NurbsCurve.create([(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], degree=3, closed=True,
+                                        name="made")),
+    C("NurbsCurve.setCvPositions", "setCvPositions worldSpace", s_curves,
+      lambda c, **kw: c.ncrvShape.setCvPositions([(0, 1, 0), (1, 1, 0), (2, 2, 0)], worldSpace=True)),
+    C("Transform.setLimits", "Transform.setLimits", s_one,
+      lambda c, **kw: c.na.setLimits(translateX=(None, 5.0), rotateZ=(-45.0, 90.0))),
     C("Transform.scaleGeometry", "Transform.scaleGeometry", s_cube,
       lambda c, **kw: c.ncube.scaleGeometry(2.0, **kw)),
-    C("Transform.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
-    C("Transform.resetAttrs", "Transform.resetAttrs named", s_two,
+    C("Node.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
+    C("Node.resetAttrs", "Transform.resetAttrs named", s_two,
       lambda c, **kw: c.nb.resetAttrs(["translateX", "scale"], **kw)),
+    # 複数形の一括の書込み(5.0.0)
+    C("Nodes.setAttrFlags", "Nodes.setAttrFlags", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setAttrFlags(["tx", "ry"], locked=True, keyable=False, **kw)),
+    C("Nodes.resetAttrs", "Nodes.resetAttrs", s_two, lambda c, **kw: Nodes([c.a, c.b]).resetAttrs(**kw)),
+    C("Nodes.setLocked", "Nodes.setLocked", s_two, lambda c, **kw: Nodes([c.a, c.b]).setLocked(True, **kw)),
+    C("Nodes.setColor", "Nodes.setColor", s_two, lambda c, **kw: Nodes([c.a, c.b]).setColor(13)),
+    C("Nodes.setVisibility", "Nodes.setVisibility", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setVisibility(False, **kw)),
+    C("Nodes.hide", "Nodes.hide", s_two, lambda c, **kw: Nodes([c.a, c.b]).hide(**kw)),
+    C("Nodes.show", "Nodes.show", s_hidden, lambda c, **kw: Nodes([c.a]).show(**kw)),
+    C("Nodes.setParent", "Nodes.setParent", s_two, lambda c, **kw: Nodes([c.b]).setParent(c.a, **kw)),
+    C("Joints.setRadius", "Joints.setRadius", s_joints,
+      lambda c, **kw: Joints([c.j0, c.jx]).setRadius(2.5, **kw)),
+    C("Joints.setSegmentScaleCompensate", "Joints.setSegmentScaleCompensate", s_joints,
+      lambda c, **kw: Joints([c.j1, c.j2]).setSegmentScaleCompensate(False, **kw)),
     # Shape
     C("Shape.scaleGeometry", "Mesh.scaleGeometry", s_cube,
       lambda c, **kw: c.nshape.scaleGeometry(2.0, **kw)),
@@ -1039,6 +1132,20 @@ CASES = [
       lambda c, **kw: c.nj1.removeInfluence(c.skin)),
     C("Joint.reparentChildren", "reparentChildren", s_joints,
       lambda c, **kw: c.nj0.reparentChildren(c.jx, **kw)),
+    C("Joint.orient", "Joint.orient", s_joints, lambda c, **kw: c.nj0.orient()),
+    C("Joint.mirror", "Joint.mirror", s_joints, lambda c, **kw: c.nj0.mirror(searchReplace=("j", "m"))),
+    # IkHandle / BlendShape
+    C("IkHandle.create", "IkHandle.create", s_ik_joints,
+      lambda c, **kw: IkHandle.create(c.j0, c.j2, name="madeIk")),
+    C("BlendShape.create", "BlendShape.create", s_blend_meshes,
+      lambda c, **kw: BlendShape.create(c.base, [c.target, c.target2], name="madeBlend")),
+    C("BlendShape.addTarget", "BlendShape.addTarget", s_blend,
+      lambda c, **kw: c.nblend.addTarget(c.target2, name="added")),
+    C("BlendShape.removeTarget", "BlendShape.removeTarget", s_blend,
+      lambda c, **kw: c.nblend.removeTarget("target"),
+      mayaQuirk="Maya標準の blendShapeDeleteTargetGroup も、実体の無かった targetVisibility[i]・"
+                "targetParentVisibility[i] を Undo で既定値の要素として作り直す",
+      ignoreAttrs=("targetVisibility", "targetParentVisibility")),
     # Constraint
     C("Constraint.setWeight", "Constraint.setWeight", s_constraint,
       lambda c, **kw: c.ncon.setWeight(0.5, **kw)),
@@ -1127,7 +1234,17 @@ CASES = [
     C("SkinCluster.removeInvalidWeights", "SkinCluster.removeInvalidWeights", s_skin_invalid,
       lambda c, **kw: c.skin.removeInvalidWeights(**kw)),
     C("SkinCluster.setWeights", "SkinCluster.setWeights", s_skin,
-      lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [0.25, 0.75], **kw)),
+      lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [0.25, 0.75], broadcast=True, **kw)),
+    C("SkinCluster.setWeights", "SkinCluster.setWeights vertices normalize", s_skin,
+      lambda c, **kw: c.skin.setWeights([c.j0], [0.25, 0.5], vertices=[0, 1], normalize=True, **kw)),
+    C("SkinCluster.setVertexWeights", "SkinCluster.setVertexWeights", s_skin,
+      lambda c, **kw: c.skin.setVertexWeights(0, {c.j0: 0.3}, **kw)),
+    C("SkinCluster.mirrorWeights", "SkinCluster.mirrorWeights", s_skin_uneven,
+      lambda c, **kw: c.skin.mirrorWeights()),
+    C("SkinCluster.pruneWeights", "SkinCluster.pruneWeights", s_skin_uneven,
+      lambda c, **kw: c.skin.pruneWeights(0.2)),
+    C("SkinCluster.copyWeightsTo", "SkinCluster.copyWeightsTo unbound mesh", s_skin_copy_unbound,
+      lambda c, **kw: c.skin.copyWeightsTo(c.mesh2)),
     C("SkinCluster.loadWeights", "SkinCluster.loadWeights", s_skin_saved,
       lambda c, **kw: c.skin.loadWeights(c.path, **kw)),
     C("SkinCluster.redistributeWeights", "SkinCluster.redistributeWeights", s_skin,
@@ -1175,6 +1292,9 @@ CASES = [
     C("Plug.setLocked", "Plug.setLocked compound leaf", s_one,
       lambda c, **kw: mlib.getPlug(c.a + ".translate").setLocked(True, leaf=True, **kw)),
     C("Plug.unlock", "Plug.unlock", s_locked, lambda c, **kw: mlib.getPlug(c.a + ".tx").unlock(**kw)),
+    C("Plug.lock", "Plug.lock", s_one, lambda c, **kw: mlib.getPlug(c.a + ".tx").lock(**kw)),
+    C("Plug.hide", "Plug.hide compound", s_one, lambda c, **kw: mlib.getPlug(c.a + ".translate").hide(**kw)),
+    C("Plug.show", "Plug.show", s_user, lambda c, **kw: mlib.getPlug(c.a + ".hiddenNum").show(**kw)),
     C("Plug.mute", "Plug.mute", s_keyed, lambda c, **kw: mlib.getPlug(c.a + ".tx").mute()),
     C("Plug.unmute", "Plug.unmute", s_muted, lambda c, **kw: mlib.getPlug(c.a + ".tx").unmute(),
       mayaQuirk="素の cmds.mute(disable=True, force=True) も Undo 後に animCurve の stippleReverse が戻らない",

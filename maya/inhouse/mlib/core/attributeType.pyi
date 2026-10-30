@@ -48,7 +48,7 @@ import math
 import re
 from functools import partial
 import maya.api.OpenMaya as om2
-from ..util import _angle_unit
+from ..util import _angle_unit, _time_unit
 from typing import Any, Callable, Literal
 
 __all__ = ['attributeType', 'is_internal_data_type', 'typed_data', 'value_reader']
@@ -173,7 +173,7 @@ def _plain_angle_unit(unit: str | None, ui_units: bool) -> str | None:
 
     Args:
         unit (str | None): 角度の単位名。Noneは度。
-        ui_units (bool): Trueは現在のUI単位を使う(unitとは同時指定できない)。
+        ui_units (bool): Trueは現在のUI単位を使う(unitとは同時に指定できない)。
 
     Returns:
         str | None: ``"deg"`` / ``"rad"``。uiUnits=TrueではNone(UI単位の換算に任せる)。
@@ -181,6 +181,58 @@ def _plain_angle_unit(unit: str | None, ui_units: bool) -> str | None:
     Raises:
         TypeError: unitが文字列・None以外の場合。
         ValueError: 未対応の単位名、またはuiUnits=Trueとunitを同時に指定した場合。
+    """
+    ...
+
+def _plain_time_unit(time_unit: str | None, ui_units: bool) -> str | None:
+    """get/setの ``timeUnit`` と ``uiUnits`` から、数値の時間の単位を決める。
+
+    Args:
+        time_unit (str | None): 時間の単位名。Noneは現在のUI時間単位のフレーム。
+        ui_units (bool): Trueは現在のUI単位を使う(timeUnitとは同時に指定できない)。
+
+    Returns:
+        str | None: ``"frame"`` / ``"sec"``。uiUnits=TrueではNone(UI単位の換算に任せる)。
+
+    Raises:
+        TypeError: timeUnitが文字列・None以外の場合。
+        ValueError: 未対応の単位名、またはuiUnits=TrueとtimeUnitを同時に指定した場合。
+    """
+    ...
+
+def _to_seconds(value: float, time_unit: str) -> float:
+    """正規化済みの時間単位の数値を秒へ変換する。
+
+    Args:
+        value (float): 時間の数値。
+        time_unit (str): ``"frame"`` (現在のUI時間単位) または ``"sec"``。
+
+    Returns:
+        float: 秒の値。secはそのまま返す。
+    """
+    ...
+
+def _from_seconds(value: float, time_unit: str) -> float:
+    """秒の数値を正規化済みの時間単位へ変換する。
+
+    Args:
+        value (float): 秒の値。
+        time_unit (str): ``"frame"`` (現在のUI時間単位) または ``"sec"``。
+
+    Returns:
+        float: 指定単位の値。secはそのまま返す。
+    """
+    ...
+
+def _time_quantity(value: float, time_unit: str) -> om2.MTime:
+    """数値の時間を指定単位の ``om2.MTime`` にする。
+
+    Args:
+        value (float): 時間の数値。
+        time_unit (str): ``"frame"`` (現在のUI時間単位) または ``"sec"``。
+
+    Returns:
+        om2.MTime: 時間の値。
     """
     ...
 
@@ -192,6 +244,37 @@ def _is_angle_attribute(attribute: om2.MObject) -> bool:
 
     Returns:
         bool: 角度の単位アトリビュートならTrue。
+    """
+    ...
+
+def _is_unit_attribute(attribute: om2.MObject, unit_type: int) -> bool:
+    """指定した種類の単位アトリビュートか判定する。
+
+    Args:
+        attribute (om2.MObject): アトリビュート定義。
+        unit_type (int): ``om2.MFnUnitAttribute.kAngle`` 等の単位の種類。
+
+    Returns:
+        bool: 指定した種類の単位アトリビュートならTrue。
+    """
+    ...
+
+def _convert_unit_numbers(plug: om2.MPlug, value: object, unit_type: int, convert: Callable[..., Any]) -> Any:
+    """指定した種類の単位アトリビュートの数値だけを換算する(角度・時間の共通処理)。
+
+    コンパウンドアトリビュートは子の定義ごとに換算し、対象外の子・型付きの値
+    (EulerRotate・Quaternion・MAngle・MTime・マトリクス等の単位を持つ値)・数値以外はそのまま返す。
+    成分数が子数と違う入力も換算せず、検証は書込み側に任せる。
+
+    Args:
+        plug (om2.MPlug): 型を判定するプラグ。
+        value (object): 換算する値。
+        unit_type (int): 換算する単位の種類(``om2.MFnUnitAttribute.kAngle`` 等)。
+        convert (callable): 数値1つを換算する関数。
+
+    Returns:
+        object: 換算した値。換算した成分を含むコンパウンドアトリビュートはtuple、
+            換算の無い値は入力そのもの。
     """
     ...
 
@@ -211,6 +294,23 @@ def _convert_angles(plug: om2.MPlug, value: object, unit: str | None, to_interna
     Returns:
         object: 換算した値。換算した成分を含むコンパウンドアトリビュートはtuple、
             換算の無い値は入力そのもの。
+    """
+    ...
+
+def _convert_times(plug: om2.MPlug, value: object, time_unit: str | None, to_internal: bool = ...) -> Any:
+    """時間アトリビュートの数値を、指定単位と秒(内部単位)の間で換算する。
+
+    コンパウンドアトリビュートは子の定義ごとに換算し、時間以外の子・``om2.MTime`` 等の
+    単位を持つ値・数値以外はそのまま返す(:func:`_convert_angles` と同じ規則)。
+
+    Args:
+        plug (om2.MPlug): 型を判定するプラグ。
+        value (object): 換算する値。
+        time_unit (str | None): ``"frame"`` / ``"sec"``。``"sec"`` とNoneは換算しない。
+        to_internal (bool): Trueは指定単位から秒、Falseは秒から指定単位。
+
+    Returns:
+        object: 換算した値。換算の無い値は入力そのもの。
     """
     ...
 

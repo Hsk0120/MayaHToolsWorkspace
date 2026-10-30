@@ -528,7 +528,8 @@ def test_equality_with_foreign_types_never_raises():
         assert (None == value) is False  # noqa: E711
         assert (value == "abc") is False
         assert (value != "abc") is True
-        assert (value == tuple(value)) is False
+        # Vector 系は3成分の tuple と成分比較する(5.0.0)。それ以外の型は tuple と等しくない。
+        assert (value == tuple(value)) is isinstance(value, Vector)
         assert value == copy.copy(value)
     # 別系統の om2 型とも例外にせず False。
     assert (Vector(1.0, 2.0, 3.0) == om2.MPoint(1.0, 2.0, 3.0)) is False
@@ -612,7 +613,7 @@ def test_copy_deepcopy_and_pickle_rebuild_through_constructor():
 def test_in_place_operators_guard_types_and_keep_subclass():
     def add_list():
         value = Vector(1.0, 2.0, 3.0)
-        value += [1.0, 2.0, 3.0]
+        value += [1.0, 2.0]
         return value
 
     def multiply_matrix_by_string():
@@ -684,7 +685,8 @@ def test_mixed_arithmetic_with_om2_types_returns_mlib_types():
     assert a * b == a.dot(b) == 1.0 * -4.0 + 2.0 * 5.5 + 3.0 * 0.25
     assert isinstance(a * b, float)
     assert a ^ b == a.cross(b)
-    _assert_raises(TypeError, lambda: a + (1.0, 2.0, 3.0))
+    assert type(a + (1.0, 2.0, 3.0)) is Vector and a + (1.0, 2.0, 3.0) == (2.0, 4.0, 6.0)
+    _assert_raises(TypeError, lambda: a + (1.0, 2.0))
     _assert_raises(TypeError, lambda: a + None)
     _assert_raises(TypeError, lambda: a * Quaternion())
 

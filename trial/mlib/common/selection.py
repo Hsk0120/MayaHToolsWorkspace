@@ -1,7 +1,10 @@
 """ノード・アトリビュート・コンポーネントの取得時点の選択を保持する。"""
 
+from typing import Any, List, Optional, Tuple
+
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+import maya.mel as mel
 
 from ..components.component import Component, Components
 from ..components.cv import CV, CVs
@@ -18,6 +21,17 @@ from ..plugs.plug import Plug
 # まとめて解決するときに1つの選択リストへ続けて追加する名前の数。MSelectionList.add は追加のたびに
 # 既存の要素との重複を照合するため、全件を1つのリストへ追加すると件数の2乗に比例して遅くなる。
 _NAME_CHUNK = 16
+
+#: repr に表示する保持参照の最大数。
+_REPR_LIMIT = 10
+
+#: Channel Boxの表示区分ごとの、選択アトリビュートと表示ノードの照会フラグ。
+_CHANNEL_BOX_SECTIONS = (
+    ("selectedMainAttributes", "mainObjectList"),
+    ("selectedShapeAttributes", "shapeObjectList"),
+    ("selectedHistoryAttributes", "historyObjectList"),
+    ("selectedOutputAttributes", "outputObjectList"),
+)
 
 
 class Selection:
@@ -125,6 +139,20 @@ class Selection:
         """
         return self._items[index]
 
+    def __repr__(self):
+        """デバッグ用に、型名と保持参照の repr を返す。
+
+        Returns:
+            str: ``Selection([Transform('a'), Vertex('boxShape.vtx[5]')])`` のような文字列。
+                ``_REPR_LIMIT`` 件を超える場合は先頭だけを表示し、``..., count=N`` を添える。
+                削除済みの参照は各型の無効表示(``<Transform invalid>`` 等)になる。
+        """
+        cls = type(self).__name__
+        shown = ", ".join(repr(item) for item in self._items[:_REPR_LIMIT])
+        if len(self._items) > _REPR_LIMIT:
+            return f"{cls}([{shown}, ...], count={len(self._items)})"
+        return f"{cls}([{shown}])"
+
     @classmethod
     def capture(cls):
         """Mayaの現在選択を保持する。Channel Boxのアトリビュート選択は含めない。
@@ -134,10 +162,56 @@ class Selection:
         """
         return cls(cls._resolve(om2.MGlobal.getActiveSelectionList()))
 
+    @classmethod
+    def getChannelBoxPlugs(cls):
+        """メインのChannel Boxで選択中のアトリビュートをPlugとして取得する。
+
+        Channel Boxの表示区分(オブジェクト・シェイプ・入力・出力)ごとに、選択中のアトリビュートと
+        その区分に表示中のノードを ``cmds.channelBox`` で照会し、ノードごと・アトリビュートの選択順に
+        並べる。:meth:`capture` はChannel Boxの選択を含めないため、こちらを使う。シーンは変更しない。
+
+        Returns:
+            list[Plug]: 選択中のアトリビュート。区分の順(オブジェクト→シェイプ→入力→出力)で、
+                同じ完全名は最初だけ残す。バッチ・mayapy・Channel Boxが無いGUI、または
+                選択が無い場合は空リスト。表示中のノードに存在しないアトリビュートは除く。
+        """
+        if cmds.about(batch=True):
+            return []
+        try:
+            # Channel Boxの名前はMayaのUIが保持するグローバル変数から取得する(既定はmainChannelBox)。
+            name = mel.eval("global string $gChannelBoxName; $mlibChannelBoxName = $gChannelBoxName;")
+        except RuntimeError:
+            name = "mainChannelBox"
+        if not name or not cmds.channelBox(name, exists=True):
+            return []
+        names = []
+        for attributes_flag, objects_flag in _CHANNEL_BOX_SECTIONS:
+            attributes = cmds.channelBox(name, query=True, **{attributes_flag: True}) or []
+            if not attributes:
+                continue
+            objects = cmds.channelBox(name, query=True, **{objects_flag: True}) or []
+            for owner in objects:
+                for attribute in attributes:
+                    plug_name = f"{owner}.{attribute}"
+                    if cmds.objExists(plug_name):
+                        names.append(plug_name)
+        if not names:
+            return []
+        return [item for item in cls(names)._items if isinstance(item, Plug)]
+
     @property
     def items(self):
         """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。
-        fullName が重複する対象は構築時に除かれている(__init__ 参照)。"""
+        fullName が重複する対象は構築時に除かれている(__init__ 参照)。:meth:`getItems` と同じ値。"""
+        return list(self._items)
+
+    def getItems(self):
+        """保持順の対象を新しいリストで取得する。:attr:`items` と同じ値。
+
+        Returns:
+            list[Node | Plug | Component]: 保持順の単数参照。削除済み参照も含む。
+                リストを変更しても自身の保持内容は変わらない。
+        """
         return list(self._items)
 
     def getNodes(self, type=None):
@@ -364,7 +438,7 @@ def _resolve_names(names, plugs=False):
         list[tuple | None]: names と同じ長さの列。対応付けた名前は
             ``(MObject, MDagPath | None, MPlug | None)`` (DG ノードの DAG パスと、ノード名の MPlug は None)。
     """
-    result = [None] * len(names)
+    result: List[Optional[Tuple[Any, ...]]] = [None] * len(names)
     selection = om2.MSelectionList()
     for start in range(0, len(names), _NAME_CHUNK):
         selection.clear()

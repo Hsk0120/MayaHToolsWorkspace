@@ -32,6 +32,9 @@ def getPlug(value: str | Plug | om2.MPlug) -> Plug:
     Raises:
         TypeError: 対応しない型を指定した場合。
         ValueError: 空の名前または空のMPlugを指定した場合。
-        RuntimeError: アトリビュートを解決できない場合。
+        MissingAttributeError: アトリビュート(またはノード)が存在しない場合(文言は ``Attribute not found: <名前>``)。
+            ``mlib.plugs.plug.MissingAttributeError`` は ``AttributeError`` と ``RuntimeError`` の両方の派生で、
+            ``node.getPlug(name)`` と同じ例外。
+        RuntimeError: 名前が複数の対象に一致する場合。
     """
     ...

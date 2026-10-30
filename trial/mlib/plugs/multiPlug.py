@@ -6,7 +6,8 @@ from contextlib import nullcontext
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.attributeType import _convert_units, is_internal_data_type, value_reader
+from ..core.attributeType import _convert_angles, _convert_units, _plain_angle_unit, is_internal_data_type
+from ..core.attributeType import value_reader
 from ..decorator import _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 
@@ -82,26 +83,30 @@ class MultiPlug(Plug):
         """
         return iter(self.getElements())
 
-    def get(self, *, uiUnits=False):
+    def get(self, *, unit=None, uiUnits=False):
         """既存要素の値を、論理番号をキーとするdictで取得する。
 
         getElements()の各要素でget()を呼ぶため、値取得に伴うDG評価が発生し得る。
         番号は詰め直さず、コンパウンドアトリビュートや配列型の要素値も平坦化しない。
 
         Args:
-            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは内部単位。
+            unit (str | None): 各要素のgetへ渡す角度の単位。None(既定)は度、``"rad"`` はラジアン。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): 各要素のgetへ渡す。TrueはUI単位、既定Falseは角度が度、距離cm、時間秒。
 
         Returns:
             dict[int, object]: 新しいdict。値の型・単位は各要素のgetに従う。
                 worldSpaceアトリビュートは、DAGインスタンス番号の要素も含む。
 
         Raises:
-            TypeError: uiUnitsがbool以外の場合。
+            TypeError: uiUnitsがbool以外、またはunitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名、またはunitとuiUnits=Trueを同時に指定した場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、または要素値を取得できない場合。
         """
         _require_bool(uiUnits, "uiUnits")
+        angle_unit = _plain_angle_unit(unit, uiUnits)
         if type(self).getElements is not MultiPlug.getElements:
-            return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in self.getElements()}
+            return {plug.mplug().logicalIndex(): plug.get(unit=unit, uiUnits=uiUnits) for plug in self.getElements()}
         indices = self.getIndices()
         if not indices:
             return {}
@@ -120,20 +125,22 @@ class MultiPlug(Plug):
                 reader = first._reader = value_reader(first._attribute)
         if not reader:
             elements = [first] + [Plug(self._node, mplug.elementByLogicalIndex(index)) for index in indices[1:]]
-            return {plug.mplug().logicalIndex(): plug.get(uiUnits=uiUnits) for plug in elements}
+            return {plug.mplug().logicalIndex(): plug.get(unit=unit, uiUnits=uiUnits) for plug in elements}
         result = {}
         for index in indices:
             element = mplug.elementByLogicalIndex(index)
             first._require_valid()
             value = reader(element)
-            result[element.logicalIndex()] = _convert_units(element, value) if uiUnits else value
+            result[element.logicalIndex()] = (_convert_units(element, value) if uiUnits
+                                              else _convert_angles(element, value, angle_unit, to_internal=False))
         return result
 
     def getElement(self, index):
-        """既存の論理番号の要素を、評価・実体化せず参照する。
+        """論理番号の要素を、評価・実体化せず参照する(``multi[index]`` と同じ)。
 
-        worldSpaceのマルチアトリビュートは評価前のDAGインスタンス番号も既存として扱う。
-        欠番の参照には ``multi[index]``、作成にはその要素のset/connectを使う。
+        まだ存在しない要素(欠番)も参照を返し、その要素へのset/connectで作成される。
+        参照の取得だけでは要素を作らない。存在する要素だけが必要なら :meth:`getElements`
+        (既存要素の一覧)または ``index in multi`` (存在の判定)を使う。
 
         Args:
             index (int): 0〜2147483647の論理番号。
@@ -143,19 +150,16 @@ class MultiPlug(Plug):
 
         Raises:
             TypeError: index未指定、boolまたは整数以外の場合。
-            IndexError: 要素が存在しない、または番号が範囲外の場合。
+            IndexError: 番号が0〜2147483647の範囲外の場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
-        self._require_valid()
-        index = self._validated_logical_index(index)
-        if index not in self.getIndices():
-            raise IndexError(f"No multi element at logical index {index} on {self.getFullName()}")
         return self[index]
 
     def getElements(self):
         """既存要素のPlugを、論理番号の昇順で取得する。
 
-        getIndices()の番号だけを参照し、欠番を埋めず、要素値も読み出さない。
+        getIndices()の番号だけを参照し、欠番を埋めず、要素値も読み出さない
+        (未作成の要素も参照する :meth:`getElement` とは異なる)。
         worldSpaceアトリビュートは、評価前でもDAGインスタンス番号の要素を含む。
 
         Returns:
@@ -171,14 +175,17 @@ class MultiPlug(Plug):
     def getNextAvailable(self, start=-1, asPlug=False, checkLocked=True, checkChildren=True, *, vacant=False):
         """次に使えるマルチアトリビュートの要素の論理番号(またはその要素Plug)を探す。要素の作成・予約はしない。
 
-        既定(``vacant=False``)は入力接続できる要素を探す。``start`` が負なら最後の接続要素の次
-        (途中の空きは飛ばす)から、入力接続と、``checkLocked`` ならロック、``checkChildren`` なら
-        子(とそのマルチアトリビュート)の入力接続・ロックも避けた最初の番号を返す。値を持つだけの既存要素や出力接続
-        だけの要素は候補になる。
+        既定(``vacant=False``)は ``cmds.connectAttr(nextAvailable=True)`` と同じ規則で、
+        :meth:`Plug.connectTo` / :meth:`Plug.connect` の ``nextAvailable=True`` もこの結果へ接続する。
+        要素は入力接続が無ければ使える(値を持つだけの要素・出力接続だけの要素も候補)。``start`` が負なら
+        接続(子の接続を含む)のある最後の要素の次から探し、途中の空きは飛ばす。``checkLocked`` ならロック、
+        ``checkChildren`` なら子(とそのマルチアトリビュート)の入力接続・ロックも避ける。
 
-        ``vacant=True`` は既存番号(``getExistingArrayAttributeIndices()``)に無い最初の番号を探す。
+        ``vacant=True`` はMayaの規則とは別の「未使用の番号」の探索で、既存番号
+        (``getExistingArrayAttributeIndices()``。値を持つ要素も含む)に無い最初の番号を探す。
         ``start`` が負なら0から。checkLocked/checkChildren は無視し、マルチアトリビュートのロックも例外にしない。
         worldSpaceのマルチアトリビュートのインスタンス番号補完(:meth:`getIndices`)も使わない。
+        値を設定する空き要素を探す用途に使う。
 
         3つの探索規則の対比:
 
@@ -272,6 +279,11 @@ class MultiPlug(Plug):
             TypeError: indexがboolまたは整数以外の場合。
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
+
+        Note:
+            デフォーマのターゲットはこの方法で除去しない。例えばblendShapeの ``weight`` の要素を
+            消しても、エイリアスと ``inputTarget[].inputTargetGroup[i]`` が残る。blendShapeのターゲットは
+            :meth:`mlib.nodes.BlendShape.removeTarget` で除去する。
         """
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibMultiPlugRemoveElement"):

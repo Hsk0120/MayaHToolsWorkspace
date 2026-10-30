@@ -26,6 +26,9 @@ _TYPE_CACHE_LIMIT: int
 _OM2_TYPES: dict
 _STATEFUL_TYPES: dict
 _ANGLE_UNITS: dict
+_MIRROR_PLANES: tuple
+_MIRROR_AXIS_CHOICES: str
+_TIME_UNITS: dict
 
 
 class _ArgumentError(TypeError):
@@ -70,18 +73,41 @@ def measure(operation: Callable[..., Any], samples: int = ..., warmup: int = ...
     """
     ...
 
-def mirrorArguments(axis: str | int, pivot: Iterable[float]) -> tuple:
-    """反転軸と有限な中心座標を検証する。
+def _mirror_axis(axis: str | int) -> int:
+    """ミラーの指定を、反転する軸の番号(0=x, 1=y, 2=z)にする。
+
+    反転する軸(``"x"``)とミラー面(``"YZ"``)のどちらの書き方も受け付ける。
+    対応は x⇔YZ、y⇔XZ、z⇔XY で、面の文字の順序(``"ZX"`` など)と大文字小文字は問わない。
+    ミラー面の名前は ``_MIRROR_PLANES[番号]`` で得られる。
 
     Args:
-        axis (str | int): 重複のないxyz文字列、または0/1/2。
+        axis (str | int): ``"x"``・``"y"``・``"z"``、``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。
+
+    Returns:
+        int: 反転する軸の番号。
+
+    Raises:
+        TypeError: axis が文字列・int 以外(bool を含む)の場合。
+        ValueError: axis が上記のどれにも当たらない場合。
+    """
+    ...
+
+def mirrorArguments(axis: str | int, pivot: Iterable[float]) -> tuple:
+    """ミラーの軸と有限な中心座標を検証する。
+
+    axis は反転する軸(``"x"``)とミラー面(``"YZ"``)のどちらの書き方でもよい。
+    対応は x⇔YZ、y⇔XZ(``"ZX"`` も可)、z⇔XY で、文字の順序と大文字小文字は問わない。
+
+    Args:
+        axis (str | int): ``"x"``・``"y"``・``"z"``、``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。
         pivot (Iterable[float]): 3成分の中心座標。
 
     Returns:
-        tuple: 軸番号のtupleと中心座標のtuple。
+        tuple: 反転する軸の番号1つのtuple(例 ``(0,)``)と、中心座標のtuple。
 
     Raises:
-        ValueError: 軸や中心が不正な場合。
+        TypeError: axis が文字列・int 以外の場合。
+        ValueError: axis が未対応の値、または中心が有限の3成分でない場合。
     """
     ...
 
@@ -210,6 +236,25 @@ def _angle_unit(unit: str | None, default: str | None = ...) -> str | None:
 
     Returns:
         str | None: ``"deg"`` または ``"rad"``。unitとdefaultがNoneならNone。
+
+    Raises:
+        TypeError: unitが文字列・None以外の場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    ...
+
+def _time_unit(unit: str | None, default: str | None = ...) -> str | None:
+    """時間の単位名を ``"frame"`` / ``"sec"`` へ正規化する。
+
+    ``"frame"`` は現在のUI時間単位(``currentUnit -time``。film なら1/24秒)の1フレームを表す。
+
+    Args:
+        unit (str | None): ``"frame"``・``"frames"``・``"sec"``・``"second"``・``"seconds"`` のいずれか。
+            Noneはdefaultを使う。
+        default (str | None): unitがNoneの場合に返す値。
+
+    Returns:
+        str | None: ``"frame"`` または ``"sec"``。unitとdefaultがNoneならNone。
 
     Raises:
         TypeError: unitが文字列・None以外の場合。
