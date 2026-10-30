@@ -12,7 +12,8 @@ import numbers
 import string
 import time
 from operator import index as _as_index
-from typing import Any, Callable, Iterable, NoReturn
+from typing import Any, Callable, Iterable, Literal, NoReturn
+from typing import overload
 import types
 
 __all__ = ['legalizeName', 'measure', 'mirrorArguments']
@@ -194,6 +195,11 @@ def _copy_state(source: object, target: object, memo: dict | None = ...) -> Any:
     """
     ...
 
+@overload
+def _angle_unit(unit: str | None, default: str = ...) -> str: ...
+@overload
+def _angle_unit(unit: str | None, default: None) -> str | None: ...
+@overload
 def _angle_unit(unit: str | None, default: str | None = ...) -> str | None:
     """角度の単位名を ``"deg"`` / ``"rad"`` へ正規化する。
 

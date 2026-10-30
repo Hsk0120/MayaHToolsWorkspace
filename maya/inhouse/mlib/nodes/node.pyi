@@ -454,6 +454,11 @@ class Node(Object):
             RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
         """
         ...
+    @overload
+    def getType(self, inherited: Literal[True]) -> list[str]: ...
+    @overload
+    def getType(self, inherited: Literal[False] = ...) -> str: ...
+    @overload
     def getType(self, inherited: bool = ...) -> str | list[str]:
         """Maya の nodeType 名、または nodeType の継承チェーンを取得する。
 

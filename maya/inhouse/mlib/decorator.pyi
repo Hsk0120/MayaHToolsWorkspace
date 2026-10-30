@@ -16,8 +16,9 @@ import maya.cmds as cmds
 from . import logger
 from .util import _ArgumentError, _UNSET
 from typing import Any, Dict, Union
-from typing import Any, Callable, ContextManager, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 from mlib._stubtypes import ContextDecorator
+from mlib._stubtypes import GeneratorContextManager
 from mlib.nodes.joint import Joint
 from mlib.nodes.skinCluster import SkinClusters
 import types
@@ -231,7 +232,7 @@ def undoChunk(name: str | None = ...) -> ContextDecorator:
     """
     ...
 
-def undoTransaction(name: str | None = ...) -> ContextManager[Any]:
+def undoTransaction(name: str | None = ...) -> GeneratorContextManager[Any]:
     """例外時にUndoを一回実行し、ブロック内の変更の巻戻しを試みる。
 
     with undoTransaction(name)と@undoTransaction(name)で使う。Undo有効時が前提で、
@@ -254,7 +255,7 @@ def undoTransaction(name: str | None = ...) -> ContextManager[Any]:
     """
     ...
 
-def nativeUnits() -> ContextManager[Any]:
+def nativeUnits() -> GeneratorContextManager[Any]:
     """距離と角度のUI単位を、ブロック内だけcm・radへ切り替える。
 
     OpenMayaのsetUIUnitで変更し、例外時も開始時の単位へ戻す。
@@ -262,7 +263,7 @@ def nativeUnits() -> ContextManager[Any]:
     """
     ...
 
-def preservedSelection() -> ContextManager[Any]:
+def preservedSelection() -> GeneratorContextManager[Any]:
     """現在の選択を保存し、ブロック終了時に復元する。
 
     コンポーネント選択を含む選択リストを保存し、終了時に存在する選択名を
@@ -271,7 +272,7 @@ def preservedSelection() -> ContextManager[Any]:
     """
     ...
 
-def preservedSkinShape(joints: Iterable[Joint | str]) -> ContextManager[SkinClusters]:
+def preservedSkinShape(joints: Iterable[Joint | str]) -> GeneratorContextManager[SkinClusters]:
     """jointに接続するskinClusterをmoveJointsModeへ切り替えて姿勢を編集する。
 
     終了時はrecacheBindMatricesで現在姿勢をバインドマトリクスへ反映し、取得できた
@@ -288,7 +289,7 @@ def preservedSkinShape(joints: Iterable[Joint | str]) -> ContextManager[SkinClus
     """
     ...
 
-def viewportOff() -> ContextManager[None]:
+def viewportOff() -> GeneratorContextManager[None]:
     """メインペインを非表示にし、終了時に以前の表示状態へ戻す。
 
     ``@viewportOff()`` と ``with viewportOff():`` の両方で使用できる。

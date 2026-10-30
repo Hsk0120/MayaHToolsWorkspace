@@ -18,7 +18,8 @@ from ..decorator import _require_bool, _undo_recording, _validated_flags, undoCh
 from ..util import _ArgumentError, _angle_unit
 from typing import Any, Callable, Dict, Literal, Optional, Union
 from ..nodes.node import Node
-from typing import Any, ContextManager, Iterable, Iterator, Literal
+from typing import Any, Iterable, Iterator, Literal
+from mlib._stubtypes import GeneratorContextManager
 from mlib.maths.matrix import Matrix
 from mlib.plugs.multiPlug import MultiPlug
 from typing import overload
@@ -1711,7 +1712,7 @@ class Plug(Object):
             list | Plug | Node | tuple | None: 一覧、またはindexで選んだ一件。範囲外はNone。
         """
         ...
-    def _temporarily_unlocked_connection_path(self, enabled: bool, *, fast: bool = ...) -> ContextManager[None]:
+    def _temporarily_unlocked_connection_path(self, enabled: bool, *, fast: bool = ...) -> GeneratorContextManager[None]:
         """接続先と上位のロックを一時解除し、解除の逆順に再ロックを試みる。
 
         元からロックされていたPlugだけを復元対象にする。接続編集でnetworked MPlugが
