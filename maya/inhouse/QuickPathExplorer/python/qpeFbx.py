@@ -5,6 +5,7 @@ import sys
 
 from qpeQt import QtCore, QtWidgets
 from qpeSettings import readSettings, writeSettings
+from qpeModern import WrappedLabel
 
 
 MODES = (
@@ -23,9 +24,16 @@ class FbxOptions(QtWidgets.QGroupBox):
 
     def __init__(self, parent=None):
         """標準のFile Contentに対応する選択肢を作る。"""
-        super().__init__('FBX', parent)
+        super().__init__('FBX · Open / double-click', parent)
         self.setObjectName('fbxOpenSettings')
+        # QGroupBoxの縦方向サイズヒントだけでは、狭い幅で説明文が圧縮される。
+        # 外側レイアウトへ幅依存の高さを伝え、折り返し行を確保する。
+        group_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Minimum)
+        group_policy.setHeightForWidth(True)
+        self.setSizePolicy(group_policy)
         layout = QtWidgets.QVBoxLayout(self)
+        layout.setContentsMargins(0, 12, 0, 0)
+        layout.setSpacing(8)
         self.mode = QtWidgets.QComboBox(self)
         self.mode.setObjectName('fbxOpenMode')
         for label, value in MODES:
@@ -35,7 +43,11 @@ class FbxOptions(QtWidgets.QGroupBox):
         self.timeline = QtWidgets.QCheckBox('Update playback range', self)
         self.timeline.setToolTip('Update the current playback range from the FBX animation range.')
         layout.addWidget(self.timeline)
-        self.description = QtWidgets.QLabel(self)
+        self.description = WrappedLabel(self)
+        self.description.setObjectName('supportingText')
+        policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Minimum)
+        policy.setHeightForWidth(True)
+        self.description.setSizePolicy(policy)
         self.description.setWordWrap(True)
         layout.addWidget(self.description)
         state = readSettings().get('fbxOpenOptions', {})

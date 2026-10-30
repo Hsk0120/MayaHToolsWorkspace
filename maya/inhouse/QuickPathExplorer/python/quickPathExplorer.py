@@ -494,7 +494,9 @@ class Explorer(QtWidgets.QWidget):
         """サイドバーとリサイズできる上下段を構築する。"""
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 8)
+        layout.setSpacing(8)
         self.navigationFrame = QtWidgets.QWidget(self)
+        self.navigationFrame.setObjectName('navigationBar')
         self.navigationFrame.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Fixed)
         bar = QtWidgets.QHBoxLayout(self.navigationFrame)
         self.navigationBar = bar
@@ -539,13 +541,17 @@ class Explorer(QtWidgets.QWidget):
         self.newSceneButton = QtWidgets.QToolButton(self)
         self.newSceneButton.setObjectName('newScene')
         self.newSceneButton.setText('New Scene')
+        self.newSceneButton.setAccessibleName('New Scene')
+        self.newSceneButton.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.newSceneButton.setToolTip('Create a new Maya scene; unsaved changes require confirmation')
         self.newSceneButton.clicked.connect(lambda: self.actionRequested.emit('new'))
         self.newSceneButton.setVisible(self._maya)
         bar.addWidget(self.newSceneButton)
         self.saveAsButton = QtWidgets.QToolButton(self)
         self.saveAsButton.setObjectName('saveSceneAs')
-        self.saveAsButton.setText('Save Scene As…')
+        self.saveAsButton.setText('Save As…')
+        self.saveAsButton.setAccessibleName('Save Scene As')
+        self.saveAsButton.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.saveAsButton.setToolTip('Choose a name and file type to save the current Maya scene')
         self.saveAsButton.clicked.connect(lambda: self.prepareSave(self.currentDirectory))
         self.saveAsButton.setVisible(self._maya)
@@ -613,6 +619,7 @@ class Explorer(QtWidgets.QWidget):
         file_panel.setMinimumHeight(210)
         file_layout = QtWidgets.QVBoxLayout(file_panel)
         file_layout.setContentsMargins(0, 0, 0, 0)
+        file_layout.setSpacing(8)
         from qpeModern import SummaryLabel
         self.folderLabel = SummaryLabel('FILES', file_panel)
         self.folderLabel.setTextFormat(QtCore.Qt.PlainText)
@@ -714,7 +721,8 @@ class Explorer(QtWidgets.QWidget):
         inspector_layout.addWidget(self.inspectorScroll)
         actions = QtWidgets.QVBoxLayout(inspector_body)
         actions.setAlignment(QtCore.Qt.AlignTop)
-        actions.setContentsMargins(6, 0, 6, 0)
+        actions.setContentsMargins(12, 12, 12, 12)
+        actions.setSpacing(12)
         self.operationTabs = QtWidgets.QTabWidget(self.actionsPanel)
         self.operationTabs.tabBar().setExpanding(False)
         self.operationTabs.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Maximum)
@@ -729,15 +737,21 @@ class Explorer(QtWidgets.QWidget):
             self.savePanel.hide()
             self.operationTabs.tabBar().hide()
         self.readLayout = QtWidgets.QVBoxLayout(self.readPanel)
+        self.readLayout.setContentsMargins(0, 12, 0, 4)
         self.readLayout.setSpacing(8)
         self.saveLayoutUi = QtWidgets.QVBoxLayout(self.savePanel)
+        self.saveLayoutUi.setContentsMargins(0, 12, 0, 4)
+        self.saveLayoutUi.setSpacing(8)
         self.readTarget = QtWidgets.QLabel('Select a file below', self.readPanel)
         self.readTarget.setObjectName('readTarget')
         self.readTarget.setTextFormat(QtCore.Qt.PlainText)
         self.readTarget.setWordWrap(True)
-        self.readTarget.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        target_policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
+        target_policy.setHeightForWidth(True)
+        self.readTarget.setSizePolicy(target_policy)
         self.readLayout.addWidget(self.readTarget)
         self.sceneTarget = QtWidgets.QLabel('Current scene: unsaved', self.savePanel)
+        self.sceneTarget.setObjectName('supportingText')
         self.sceneTarget.setTextFormat(QtCore.Qt.PlainText)
         self.sceneTarget.setWordWrap(True)
         self.saveLayoutUi.addWidget(self.sceneTarget)
@@ -754,11 +768,13 @@ class Explorer(QtWidgets.QWidget):
                 save_buttons.addWidget(button)
             button.setObjectName('action_' + key)
             self.actionButtons[key] = button
+            button.setProperty('primaryAction', key in ('open', 'import', 'reference', 'saveAs'))
             if key != 'open' and not self._maya:
                 button.hide()
                 button.setEnabled(False)
                 button.setToolTip('Available when running inside Maya')
         maya_options = self._button('Maya File Dialogs…', lambda: self.actionRequested.emit('options'), actions)
+        maya_options.setProperty('quietAction', True)
         maya_options.setVisible(self._maya)
         if self._maya:
             from qpeFbx import FbxOptions, MODES
@@ -801,6 +817,7 @@ class Explorer(QtWidgets.QWidget):
             for controls in self.readOptions.controls.values():
                 controls['mode'].currentIndexChanged.connect(lambda unused: self._operationTabChanged(self.operationTabs.currentIndex()))
         self.openHint = QtWidgets.QLabel(self.readPanel)
+        self.openHint.setObjectName('supportingText')
         self.openHint.setWordWrap(True)
         self.readLayout.addWidget(self.openHint)
         self.readLayout.addWidget(self.actionButtons['open'])
@@ -839,6 +856,7 @@ class Explorer(QtWidgets.QWidget):
         self.metadata.setSizePolicy(QtWidgets.QSizePolicy.Preferred, QtWidgets.QSizePolicy.Maximum)
         self.detailsHeading = QtWidgets.QToolButton(self.actionsPanel)
         self.detailsHeading.setText('File details')
+        self.detailsHeading.setProperty('sectionToggle', True)
         self.detailsHeading.setCheckable(True)
         self.detailsHeading.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.detailsHeading.setArrowType(QtCore.Qt.RightArrow)
@@ -852,6 +870,7 @@ class Explorer(QtWidgets.QWidget):
         actions.addStretch(1)
 
         save_line = QtWidgets.QVBoxLayout()
+        save_line.setSpacing(8)
         save_line.addWidget(QtWidgets.QLabel('File name', self))
         self.fileName = QtWidgets.QLineEdit(self)
         self.fileName.setObjectName('fileName')
@@ -867,6 +886,7 @@ class Explorer(QtWidgets.QWidget):
             save_line.itemAt(index).widget().setVisible(self._maya)
         self.saveLayoutUi.addLayout(save_line)
         self.saveDestination = QtWidgets.QLabel('', self.savePanel)
+        self.saveDestination.setObjectName('supportingText')
         self.saveDestination.setTextFormat(QtCore.Qt.PlainText)
         self.saveDestination.setWordWrap(True)
         self.saveLayoutUi.addWidget(self.saveDestination)
@@ -1011,15 +1031,21 @@ class Explorer(QtWidgets.QWidget):
         self.detailsHeading.setVisible(reading)
         for i in range(self.operationTabs.count()):
             panel = self.operationTabs.widget(i)
-            panel.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
-                                QtWidgets.QSizePolicy.Preferred if i == index else QtWidgets.QSizePolicy.Ignored)
+            policy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Ignored,
+                                          QtWidgets.QSizePolicy.Preferred if i == index else QtWidgets.QSizePolicy.Ignored)
+            policy.setHeightForWidth(i == index)
+            panel.setSizePolicy(policy)
             panel.updateGeometry()
         self.operationTabs.updateGeometry()
         panel = self.operationTabs.currentWidget()
         if panel is not None and panel.layout() is not None:
             layout = panel.layout()
-            height = layout.heightForWidth(max(200, self.operationTabs.width() - 10)) if layout.hasHeightForWidth() else layout.sizeHint().height()
-            self.operationTabs.setMaximumHeight(max(1, height) + self.operationTabs.tabBar().sizeHint().height() + 10)
+            # 外側ペインではなく実ページ幅で折り返しを計算する。
+            # フォント変更直後にも説明ラベルの最終行を切らないよう一行分を確保する。
+            width = max(1, self.operationTabs.contentsRect().width() - 4)
+            height = layout.heightForWidth(width) if layout.hasHeightForWidth() else layout.sizeHint().height()
+            self.operationTabs.setMaximumHeight(max(1, height) + self.operationTabs.tabBar().sizeHint().height()
+                                               + self.fontMetrics().height() + 12)
 
     def _button(self, title, callback, layout):
         """ボタンを作る。

@@ -15,11 +15,13 @@ class ReadOptions(QtWidgets.QTabWidget):
         for action, title in [('import', 'Import settings'), ('reference', 'Reference settings')]:
             page = QtWidgets.QWidget(self)
             layout = QtWidgets.QVBoxLayout(page)
-            layout.setContentsMargins(8, 10, 8, 10)
+            layout.setContentsMargins(0, 12, 0, 4)
+            layout.setSpacing(12)
             form = QtWidgets.QFormLayout()
             layout.addLayout(form)
             form.setFieldGrowthPolicy(QtWidgets.QFormLayout.AllNonFixedFieldsGrow)
-            form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
+            form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapAllRows)
+            form.setVerticalSpacing(8)
             mode = QtWidgets.QComboBox(page)
             mode.addItems(['Use file name', 'Specify namespace', 'Root namespace (:)'])
             name = QtWidgets.QLineEdit(page)
@@ -36,13 +38,15 @@ class ReadOptions(QtWidgets.QTabWidget):
             values = {'mode': mode, 'name': name}
             advanced_toggle = QtWidgets.QToolButton(page)
             advanced_toggle.setText('Advanced options')
+            advanced_toggle.setProperty('sectionToggle', True)
             advanced_toggle.setCheckable(True)
             advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
             advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
             advanced = QtWidgets.QWidget(page)
             advanced_form = QtWidgets.QFormLayout(advanced)
             advanced_form.setContentsMargins(0, 0, 0, 0)
-            advanced_form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapLongRows)
+            advanced_form.setRowWrapPolicy(QtWidgets.QFormLayout.WrapAllRows)
+            advanced_form.setVerticalSpacing(8)
             advanced.hide()
             advanced_toggle.toggled.connect(lambda checked, panel=advanced, button=advanced_toggle:
                                             (panel.setVisible(checked), button.setArrowType(
