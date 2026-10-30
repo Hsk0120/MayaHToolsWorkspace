@@ -66,6 +66,23 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
@@ -124,12 +141,24 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-30): QPE視覚設計の12ファイルをdd1d1ac3でorigin/mainへプッシュし、リモートSHAとQPE内容の一致を確認。別担当の未公開mlibコミットは公開せず、ローカル履歴と既存WORK_LOG差分を保持。
+
 - Claude Code (2026-10-30): mlib 6.1.0。fast 引数を Mesh.setPoints・NurbsCurve.setCvPositions・DagNode/Nodes.setColor・BoolPlug.toggle・SkinCluster.pruneWeights・DrivenKey.setKey に追加(引数だけで指定し内部へ同じ値を渡す。cmds との速度差がほぼ無い setLimits・matchTransform・Joint.orient・NurbsCurve.create・Plug.setMin 系には付けない)。周期カーブの fast 座標書込みに対応、キー編集の fast がキー数に比例して遅くなる問題を修正。全テスト中に fast=True で cmds の書込みが走らないことを記録で確認。Maya 2022〜2027 全6版で179ファイル・2200テスト、runStatic 160件、mlrig 710件、Sphinx と文書検査が合格。fast の方が cmds より遅い既存の経路(ワールド保持の setParent・reparentChildren・ShadingEngine.assign・ObjectSet/DisplayLayer のメンバー操作)は未対応で、扱いはユーザー判断待ち。
+- Codex (2026-10-30): QPEの背景・境界・文字階層・余白・主操作と線画アイコンを統一。表示設定/開始フォルダーをToolsへ常設し、FBX説明の縦切れを修正。専用Maya2022/2027のQt GUI検証、Windows Qt5/Qt6 modern、Qt6 theme、配布exe再ビルド/起動確認が合格。実OS入力・実4K/IME/ドック操作は未実施。30秒動画と画像を既存Driveへ非公開保存し読戻し確認。証跡 .maya-output/qpe-visual-system-20261030/。未プッシュ。他担当mlib変更は保持。
+
+- Codex (2026-10-30): QPEの視覚デザインを公式UI資料・画面例と比較。面・境界・文字・余白・操作の強弱に関する改善案をローカル調査資料へ記録。製品コード変更なし。
+
 - Claude Code (2026-10-30): mlib 6.0.0 を実装。時間の数値をフレーム既定(timeUnit="sec" で秒)、getTranslate/setTranslate を getTranslation/setTranslation へ改名、点の位置を Vector の list、ls を常に集まり(Plugs を追加、混在は list)、Nodes/Components に + == sort、getNextAvailable は Plug、Mesh.setPoints 追加、getRotate(unit)・Joint の名前取得・Plug の getAttrName/lock/unlock/mute/unmute を削除、isHidden を hide に対応、getConnections の既定で変換ノードを飛ばす、ミラー軸は x と YZ の両表記、エラー文の改善、mlib 内の外部ライブラリ名の記述を削除。changelog に移行表。runStatic 160件、Maya 2022〜2027 全6版で178ファイル・2189テスト、mlrig 710件、Sphinx(-W)と文書検査が合格。直下 tests/mlib_integration の6ファイルの失敗は 5.0.0 から同じ(今回は未修正)。
+- Codex (2026-10-30): QPEの見え方を専用Maya2027で調査。通常幅・900/720px・右ドックのQt/API操作で説明文の欠け、一覧幅、保存情報、タブ識別等8件を記録。19.625秒動画と画像3枚を非公開Drive保存・読戻し確認。Windows実入力は前面化失敗で未実施。個別証拠取得後Maya終了0、外側runnerは全体result欠落を報告（全スイート合格とは扱わない）。調査はdocs/research/qpe-expert-visual-review-20261030.txt、詳細.maya-output/qpe-expert-review-20261030/verification.json。製品変更・プッシュなし。
+
 - Claude Code (2026-10-30): mlib 改修の検討のみ(実装なし)。モデラー・アニメーター・リガー・TA の捨てスクリプト56本を Maya 2027 で実行し、似たメソッドのずれを横断監査。黙って誤る2件(AnimCurve の時間が秒、get/setTranslate の既定がピボット基準)ほか22件と、決めてもらう論点10件を docs/research/mlib-review-7h-2026-10-30.md に整理。足す候補は Mesh.setPoints のみ。mlib のコードは変更なし。
 - Claude Code (2026-10-30): mlib の pyright 警告を2件解消(動作の変更なし)。Matrix の rotate 引数の docstring に om2.MEulerRotation・om2.MQuaternion を明記し、_merge_flags の pairs の短名を str | None に。スタブを再生成。runStatic 160件が合格。
 - Claude Code (2026-10-30): mlib 本体の pyright 警告を動作を変えずに削減(550件→157件。残りは主に Maya の型スタブ側の誤りと、スタブと本体の二重化)。docstring の型を実装に合わせ、内部だけに型注釈を追加。Node.mnode() の型を直し、generic への MTransformationMatrix 設定の不具合を修正。スタブ生成に setter・contextmanager のデコレーター利用・getType のオーバーロードを追加。runStatic、Maya 2022/2027 の mlib 全件、mlrig 710件が合格。
 - Codex (2026-10-30): MCE Outputの行頭Error/Warning/Result着色・配色・枠線・選択色・独立ズームと設定移行を修正。専用Maya2022/2027のQt/API各34項目、出力書式各26件＋保持、C++各29件が合格。全6版ビルドと日英Sphinx成功。2022の既存静的解析速度テストは変更前5.14秒／変更後5.16秒で5秒基準超過を確認し未解決として記録。実OS入力は未実施。比較画像・14.75秒動画を非公開Driveへ保存し読戻し確認。詳細 .maya-output/mce-output-fix-20261030/verification.json。ユーザー指定でソース・テスト・文書・全6版配布物をコミット／プッシュ対象へ集約。
+
+- Codex (2026-10-30): Outputの実表示比較を追加実施。専用Maya2027のQtテストで同一ログ、文字サイズ統一、選択、スクロールバーを確認し、保存ズームのリセット前後も測定。実画面比較画像と22.5秒の動画を非公開保存・読み戻し確認。調査記録はローカルのみ。製品変更・プッシュなし。
+
+- Codex (2026-10-30): 出力表示の比較調査をローカル記録。専用Maya2027でMCEの配色・文字サイズ・着色範囲を確認し、実画面とQt/API操作の表示確認動画を非公開保存。比較先の実表示は初回ダイアログで未確認。製品変更・プッシュなし。
 
 - Codex (2026-10-30): QPEのFBX読込と操作別サイドバーをユーザー依頼でコミット・プッシュ対象へ選定。専用Maya2022/2027各70項目・単体UI10項目の結果、構文、差分を確認。共有WORK_LOGは今回QPE分のみをステージし、他担当と過去作業の未コミット記録を保持。
 
@@ -137,10 +166,15 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Codex (2026-10-30): QPEのFBXダブルクリックを現在のMayaへ変更。右サイドバーと上部メニューに通常オープン／追加／アニメーション更新等の5モードと再生範囲設定を追加し、標準FBX設定を成功・失敗時に復元。Maya2022/2027の専用GUI各31件、Qt5/6のモード切替各7件、単体UI回帰10件が合格。Windows実入力は画面取得エラーで未実施。Qt操作動画を非公開Driveへ保存・読戻し確認。詳細.maya-output/qpe-fbx-20261030/verification.txt。ユーザー指定でコミット・プッシュ対象へ集約。
 
-- Claude Code (2026-10-30): mlrig夜間タスク。楕円体コライダーへの柔らかい押し出し EllipsoidCollision を追加(setups/ellipsoidCollision.py。標準ノードのみ。中心のtransformの回転を軸とし、軸ごとの半径 radiusX/Y/Z。放射方向の半径 R = 1/|(lx/rx, ly/ry, lz/rz)| と d = |p-c| - R に SphereCollision と同じ柔らかい押し出し。出力 matrix・distance・push・penetration・directionRadius。逆回転はクォータニオンの共役で作り matrixNodes に依存しない)。Setup Samples 1項目、test_setup_ellipsoid_collision.py 9件、文書 docs/ellipsoid_collision.rst、検証デモ tools/demo_ellipsoid_collision.py。隔離Maya 2027で setups 569件・standard 76件OK、Sphinx -W 成功、検証動画294フレーム判定OK。コミット・プッシュ(このコミット)。
+- Claude Code (2026-10-30): mlrig夜間タスク。楕円体コライダーへの柔らかい押し出し EllipsoidCollision を追加(setups/ellipsoidCollision.py。標準ノードのみ。中心のtransformの回転を軸とし、軸ごとの半径 radiusX/Y/Z。放射方向の半径 R = 1/|(lx/rx, ly/ry, lz/rz)| と d = |p-c| - R に SphereCollision と同じ柔らかい押し出し。出力 matrix・distance・push・penetration・directionRadius。逆回転はクォータニオンの共役で作り matrixNodes に依存しない)。Setup Samples 1項目、test_setup_ellipsoid_collision.py 9件、文書 docs/ellipsoid_collision.rst、検証デモ tools/demo_ellipsoid_collision.py。隔離Maya 2027で setups 569件・standard 76件OK、Sphinx -W 成功、検証動画294フレーム判定OK。コミット済み(c105dff9)・未プッシュ(main に未プッシュの mlib 5.0.0 の16コミットが先行し、プッシュするとそれらも公開されるため。本コミットも mlib 5.0.0 の角度の既定に依存するため単独では送らない)。
 - Claude Code (2026-10-29): mlib 5.0.0。リギング作業の使い勝手調査で決めた36項目を実装(角度の既定を度、node.tx=5 の書き込み、joint の inverseScale、nextAvailable を Maya の規則に、型名 multDL/addDL の読み替え、エラー文と Script Editor の発生場所、再実行向け safe=True、Joint.orient/mirror・IkHandle.create・BlendShape・スキンの頂点単位/ミラー/刈り込み・カーブ作成・setColor・enum の名前設定・setLimits 等)。mlrig 等の利用側も追従、logger を lowerCamelCase に(AGENTS.md も更新)。Maya 2022〜2027 の mlib 全件、mlrig 701件、静的検査、Sphinx(-W)が合格。調査と決定はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
+- Claude Code (2026-10-29): mlib リギング使い勝手検証の3時間予定(GUI確認・通しのリグの mlib/cmds 比較・報告の再確認・文書だけのテスト・Maya 2022〜2027 の差・修正案の優先順位)を完了。mlib本体は変更なし。結果はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
+- Claude Code (2026-10-29): mlib を使ったリギング作業の使い勝手調査(腕・脚・背骨/首・補正/フェイス/ウェイト、再実行・Undo)。mlib本体は変更なし。結果はローカルの docs/research/mlib-usability-rigging-2026-10-29.md。
 - Codex (2026-10-29): MCEの補完順位・Literal/TypedDict文字列候補、番号付きスニペット、位置付き型/引数ヒント、モジュール改名/import追従、新規モジュールへの移動、最後の変更セットUndo/Redoを実装。2022/2027をビルドし単体/standalone/UI回帰、専用GUI各77項目、Sphinx警告エラー化ビルド合格。2027でWindows実入力の補完/確定/Undoも確認し動画保存。複雑なスニペット形式等の制限は文書化。2023〜2026未検証。ユーザー指定でコード・テスト・文書・2022/2027配布物をコミットとプッシュの対象へ集約。他担当範囲は変更なし。
 
+- Codex (2026-10-29): MCE 0.9.2の補完比較調査完了。22ケースのprovider/Qt採取と6組のWindows実入力を区別し、文字列内補完と候補順位の差を確認。製品コード変更なし。ローカル調査資料・非公開Drive証拠2本を保存。専用Maya/VS Code終了、元のVS Codeを保持。
+
+- Codex (2026-10-29): ls結果・for変数の補完に関する質問を受け、MCEの基本補完/型解析の区別とmlib型スタブを確認。製品コード変更・Maya実機での補完再現・プッシュなし。
 - Codex (2026-10-29): MCE 0.9.2で改行差5ケース・本文Undoのカーソル復帰と、Python/MEL実行がcmds/mlibのシーンUndoを無効化する問題を修正。mlib本体は変更なし。2022〜2027全6版ビルド・単体/standalone/offscreen、2022/2027専用GUIの編集各52・シーンUndo各14項目、日英文書-Wが合格。既存編集比較137ケースの本文/位置差0。実OS入力と全mlib APIは未網羅。非公開動画・再現手順・制限は.maya-output/mce-enter-five-20261029/verification.txt。ユーザー指定で修正・検証・6版配布物をコミットとプッシュの対象へ集約。他作業変更を保持。
 - Codex (2026-10-29): MCE 0.9.1で補完確定直後の入力保持、改行時の本文保全、字下げ・選択・行/単語操作、引用符補完、検索の入力境界を修正。Sphinx見出し警告を解消。2022〜2027の配布ビルド・単体/standalone/offscreen、専用2022/2027のGUI編集32・補完37・前面化後の検索10項目、日英文書ビルドが合格。Windows実入力は検索/置換/Undo等を別途確認。比較で残る改行5件と未実施範囲、動画は.maya-output/mce-vscode-three-hour-20261029/verification.txtに記録。完全一致は未達。他作業変更を保持。
 - Codex (2026-10-29): MCE 0.9.0に別プロセスの型解析・全文/未保存タブの補完/診断・定義/参照・リネーム・auto import・コードアクション・型色/行末ヒント、隔離コピー上の変数/関数抽出・モジュール移動・import整理を追加。取消/世代/破棄/下見/Undoを保護し、監視の不要な再解析を修正。2022〜2027ビルド・単体/standalone/offscreen合格（2022/2023の負荷時速度超過は同じ基準で再測定合格）。専用Maya 2022/2027のQt GUI各57チェック、隔離リファクタリング7件合格。撮影時のQt5一時ウィジェット参照を限定し再確認。詳細・制限・非公開動画リンクは.maya-output/mce-pylance-gap-20261029/verification.txt。ユーザー指定でコード・テスト・6版配布物をコミット対象へ集約。他ツールの変更を保持。
