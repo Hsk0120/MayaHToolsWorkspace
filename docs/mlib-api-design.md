@@ -428,7 +428,7 @@ bool以外はTypeErrorとする。両Falseでは判定はFalse、
 Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dstを返す)、`dst << src`(`dst.connect(src)`。dst自身を返す)、
 `src // dst`(`dst.disconnect(src)`。接続先dstを返す)の3つで、`connect`/`connectTo`/`disconnect`と同じ入力解決・例外・
 通常Undoを持ち、fast経路は無い。マルチアトリビュート全体への`>>`はMayaと同じRuntimeErrorで、空き要素への接続は
-`connectTo(multi, nextAvailable=True)`を使う。cymelの同名演算子はNoneを返すが、mlibでは戻り値を持つ。
+`connectTo(multi, nextAvailable=True)`を使う。演算子は接続結果のPlugを返す。
 `a >> b.x`は`a >> (b.x)`と評価される。`__len__`・`__add__`・無引数の作成・transform→shapeの暗黙のアトリビュート解決は追加しない。
 
 ### 再実行向けのsafe(5.0.0)

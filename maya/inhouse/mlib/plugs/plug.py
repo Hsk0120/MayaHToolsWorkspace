@@ -321,8 +321,7 @@ class Plug(Object):
         """``self >> dst`` で自身から dst へ接続し、接続先を返す(:meth:`connectTo` の通常経路)。
 
         ``a >> b.x`` は ``a >> (b.x)`` と評価される(属性参照が演算子より優先する)。
-        Undo を記録する通常経路のみで、fast 経路は無い。cymel の同名演算子は None を返すが、
-        mlib では戻り値を持つ。
+        Undo を記録する通常経路のみで、fast 経路は無い。演算の結果として接続先の Plug を返す。
 
         Args:
             dst (Plug | om2.MPlug | str): 接続先。マルチアトリビュート全体は受け付けない(空き要素を選ぶには

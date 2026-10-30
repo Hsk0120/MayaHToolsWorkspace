@@ -346,7 +346,7 @@ class DagNode(Node):
 
         契約: 自身が Shape なら ``index``・``intermediates`` を無視して自身を返す。Transform は
         派生クラス(Transform.getShape)が直下の Shape を ``index`` 番目(0 始まり。範囲外は None)で返す。
-        それ以外の DAG ノードは None。無効な index で IndexError にはしない(cymel の shape() と同じ)。
+        それ以外の DAG ノードは None。無効な index で IndexError にはしない。
 
         Args:
             index (int): Transform で選ぶ Shape の番号。Shape では無視する。既定 0。
