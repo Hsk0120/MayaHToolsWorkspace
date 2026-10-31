@@ -122,7 +122,7 @@ class EyelidFollow(TwistDistribution):
                 raise ValueError("follow ratios and blinkHeight must be between 0 and 1")
         if not 0 < openAngle <= 179:
             raise ValueError("openAngle must be greater than 0 and at most 179 degrees")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("EyelidFollow container already exists: " + name)
         eye, upperLid, lowerLid = (mlib.nodes.Node(node) for node in (eye, upperLid, lowerLid))
         nodes = (eye, upperLid, lowerLid)
@@ -132,7 +132,7 @@ class EyelidFollow(TwistDistribution):
             raise ValueError("Expected three different transforms for the eye and both eyelids")
         parents = [node.getParent() for node in nodes]
         if parents[0] is None or any(
-            parent is None or parent.getUuid() != parents[0].getUuid() for parent in parents
+            parent is None or parent != parents[0] for parent in parents
         ):
             raise ValueError("The eye and both eyelids must share the same parent transform")
 
@@ -144,7 +144,7 @@ class EyelidFollow(TwistDistribution):
         eye_rest = localRotation(eye)
         order = cls.rotateOrder(pitchAxis, yawAxis)
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         ratios = (

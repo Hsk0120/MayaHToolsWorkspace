@@ -26,7 +26,7 @@ class ApiProposalTest(unittest.TestCase):
     def test_members_and_constraint_weight(self):
         """リスト入力と可変長入力のメンバー追加を検証する。"""
         a, b, c = [Node(cmds.createNode('transform')) for _ in range(3)]
-        container = Container.create()
+        container = mlib.createContainer()
         container.addMembers([a, b])
         self.assertEqual({n.getUuid() for n in container.getMembers()}, {a.getUuid(), b.getUuid()})
         made = container.createNode(type='multiplyDivide')

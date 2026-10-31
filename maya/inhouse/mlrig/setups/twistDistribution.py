@@ -1,6 +1,5 @@
 """二つの参照姿勢から軸ツイストを抽出し、標準ノードで分配する。"""
 
-from maya import cmds
 
 import mlib
 
@@ -55,21 +54,18 @@ class TwistDistribution:
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
         start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
-        if start.getUuid() == end.getUuid() or any(
+        if start == end or any(
             not isinstance(n, mlib.nodes.Transform) for n in (start, end)
         ):
             raise ValueError("Expected two different transforms")
-        if cmds.objExists(name):
+        if mlib.objExists(name):
             raise ValueError("Twist container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="twistMatrix", dataType="matrix")
         owner.addAttr(longName="relativeDecompose", attributeType="message")
         relative = graph._node("multMatrix", "relative")
-        parents = [
-            mlib.getNode(value)
-            for value in (cmds.listRelatives(end.getFullName(), parent=True, fullPath=True) or [])
-        ] or []
+        parents = end.getParents()
         if [node.getUuid() for node in parents] == [start.getUuid()]:
             # 隣接骨ならワールド行列を介さず、OPMを含む実ローカル行列を使う。
             end.getPlug("matrix").connectTo(relative.getPlug("matrixIn")[0])
@@ -138,7 +134,7 @@ class TwistDistribution:
         for attr in attrs:
             blend.getPlug("target")[0][attr].set(0)
         position = self._node("multiplyDivide", name + "_position")
-        decompose = self.container.getPlug('relativeDecompose').getSource(skipConversionNodes=False).getNode()
+        decompose = self.container.getPlug('relativeDecompose').getSource().getNode()
         decompose.getPlug("outputTranslate").connectTo(position.getPlug("input1"))
         position.getPlug("input2").set((fraction, fraction, fraction))
         translate = self._node("composeMatrix", name + "_translate")

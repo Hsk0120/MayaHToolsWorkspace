@@ -189,7 +189,7 @@ class CalcFastTest(NamespaceCase):
 
     def test_scalar_graph_container_fast_not_implemented(self):
         """containerを所有先にしたScalarGraphのfast=Trueは、変更前にNotImplementedError。"""
-        owner = mlib.nodes.Container.create(name=self.name("owner"))
+        owner = mlib.createContainer(name=self.name("owner"))
         graph = ScalarGraph(owner)
         before = sorted(cmds.ls(self.ns + ":*") or ())
         for method, args in (("sum", (1.0, 2.0)), ("multiply", (1.0, 2.0)), ("condition", (1.0, 2.0, 3.0, 4.0))):

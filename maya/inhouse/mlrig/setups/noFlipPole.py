@@ -127,7 +127,7 @@ class NoFlipPole(TwistDistribution):
             distance = float(distance)
             if not math.isfinite(distance) or distance <= 0.0:
                 raise ValueError("distance must be a finite value greater than 0")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("NoFlipPole container already exists: " + name)
         start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
         control = end if control is None else mlib.nodes.Node(control)
@@ -154,7 +154,7 @@ class NoFlipPole(TwistDistribution):
             distance = (Vector(*end_point) - Vector(*start_point)).length()
 
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="kneeTwist", attributeType="doubleAngle", defaultValue=0.0, keyable=True)
         owner.addAttr(longName="offset", attributeType="doubleAngle", defaultValue=offset, keyable=True,

@@ -64,10 +64,10 @@ class Piston(TwistDistribution):
         axes = ("x", "y", "z")
         if aimAxis not in axes or upAxis not in axes or aimAxis == upAxis:
             raise ValueError("aimAxis and upAxis must be two different axes of x, y and z")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("Piston container already exists: " + name)
         base, tip = mlib.nodes.Node(base), mlib.nodes.Node(tip)
-        if base.getUuid() == tip.getUuid() or any(
+        if base == tip or any(
             not isinstance(node, mlib.nodes.Transform) for node in (base, tip)
         ):
             raise ValueError("Expected two different transforms for the base and the tip")
@@ -87,7 +87,7 @@ class Piston(TwistDistribution):
         aim_axis = [float(axis == aimAxis) for axis in axes]
         up_axis = [float(axis == upAxis) for axis in axes]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="restLength", attributeType="double", defaultValue=rest_length)
         owner.addAttr(longName="minimum", attributeType="double", defaultValue=minimum, minValue=0, keyable=True)

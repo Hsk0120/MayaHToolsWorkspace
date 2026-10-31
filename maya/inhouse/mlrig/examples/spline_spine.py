@@ -41,7 +41,6 @@ FKコントローラーに追従させる。計算はすべてMaya標準ノー�
 import math
 import re
 
-from maya import cmds
 
 import mlib
 from mlib.decorator import preservedSelection, undoTransaction
@@ -267,7 +266,7 @@ def build(name="spine", joint_count=6, length=50.0, height=100.0, stretch=True):
     Raises:
         ValueError: 名前・骨の数・長さが不正な場合。
     """
-    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name or "") or cmds.objExists(name + "_rig"):
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name or "") or mlib.objExists(name + "_rig"):
         raise ValueError("Use a new name made of letters, digits and '_': {}".format(name))
     if type(joint_count) is not int or not 4 <= joint_count <= 32:
         raise ValueError("joint_count must be 4..32")
@@ -338,7 +337,7 @@ def _build(name, count, length, height, stretch):
         parent = joint
     graph = SplineIK.create(ik, [hips, tan0, tan1, chest], setupGroup, name=name + "_splineGraph", up_axis="z")
     curve = graph.member("curve")
-    shape = mlib.getNode(cmds.listRelatives(curve.getFullName(), shapes=True, fullPath=True)[0])
+    shape = curve.getShapes(intermediates=True)[0]
 
     amount = _stretch(name, root, shape, cog, ik, length, segment) if stretch else None
 

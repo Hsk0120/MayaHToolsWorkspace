@@ -18,7 +18,7 @@ def bind_mesh(rig, mesh, helpers=True):
         str: 作成したskinCluster。
     """
     joints = rig.getJoints() if helpers else rig.getJoints()[:3]
-    return mlib.nodes.SkinCluster.bind(mesh, joints, maxInfluences=4).getFullName()
+    return mlib.bindSkin(joints, mesh, maximumInfluences=4).getFullName()
 
 
 @undoChunk("mlrig.create_skin_lod")
@@ -38,7 +38,7 @@ def create_skin_lod(rig, source, proxy, source_skin):
         closestPoint/closestJointによる近似転送。自動メッシュ削減や
         異なる姿勢のモデルの補正は行わない。基準姿勢で実行する。
     """
-    if mlib.getNode(source_skin).getType() != "skinCluster":
+    if mlib.nodes.Node(source_skin).getType() != "skinCluster":
         raise TypeError("Expected a skinCluster")
     if not mlib.nodes.SkinCluster(source_skin).deforms(source):
         raise ValueError("source_skin does not deform source")
@@ -72,7 +72,7 @@ def set_mesh_lod(high_mesh, high_skin, proxy_mesh, proxy_skin, proxy=False):
     """
     pairs = ((high_mesh, high_skin, not proxy), (proxy_mesh, proxy_skin, proxy))
     for mesh, skin, active in pairs:
-        if mlib.getNode(skin).getType() != "skinCluster":
+        if mlib.nodes.Node(skin).getType() != "skinCluster":
             raise TypeError("Expected a skinCluster")
         for attr in (mesh + ".visibility", skin + ".envelope", skin + ".nodeState"):
             if not mlib.getPlug(attr).isSettable():

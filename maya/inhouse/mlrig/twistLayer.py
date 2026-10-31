@@ -1,7 +1,6 @@
 """二関節間のツイスト補助骨を登録・再生成するレイヤー。"""
 from mlib.maths import MSpace
 
-from maya import cmds
 
 import re
 
@@ -50,18 +49,7 @@ class TwistLayer:
         selected = [groups[segment]] if segment is not None else list(groups.values())
         result = []
         for group in selected:
-            children = [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listRelatives(
-                            group.getFullName(), children=True, type="joint", fullPath=True
-                        )
-                        or []
-                    )
-                ]
-            ] or []
+            children = [item.getFullName() for item in group.getChildren(type="joint")]
             result.extend(
                 sorted(children, key=lambda node: mlib.getPlug(node + ".twistFraction").get())
             )
@@ -102,7 +90,7 @@ class TwistLayer:
             raise ValueError("Twist segment already exists")
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
-        start, end = mlib.getNode(start), mlib.getNode(end)
+        start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
         if start.getType() != "joint" or end.getType() != "joint" or start == end:
             raise ValueError("Expected two different joints")
         relative = end.getMatrix(worldSpace=True) * start.getMatrix(worldSpace=True).inverse()
@@ -116,13 +104,13 @@ class TwistLayer:
         for name in [stem + "_grp", stem + "_graph"] + [
             stem + "_{:02d}_jnt".format(i + 1) for i in range(count)
         ]:
-            if cmds.objExists(name):
+            if mlib.objExists(name):
                 raise ValueError("Twist node already exists: " + name)
         if not root.hasAttr("twistSet"):
-            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("twistSet"))).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("twistSet"), skipSelect=True).getFullName()
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            self._own([mlib.getNode(selection)])
+            self._own([mlib.nodes.Node(selection)])
             root.addAttr(longName="twistSegments", attributeType="message", multi=True)
         group = mlib.createNode("transform", name=stem + "_grp", parent=start, skipSelect=True)
         for attr, value in (("segmentId", segment), ("twistAxis", axis)):
@@ -185,48 +173,20 @@ class TwistLayer:
         if count == group.getPlug("count").get():
             return self.getJoints(segment)
         for joint in self.getJoints(segment):
-            downstream = [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listConnections(
-                            joint, source=False, destination=True, type="skinCluster"
-                        )
-                        or []
-                    )
-                ]
-            ] or []
-            other = [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (cmds.listConnections(joint, source=False, destination=True) or [])
-                ]
-            ] or []
-            if downstream or any(
-                mlib.getNode(n).getType() not in ("objectSet", "dagPose") for n in other
-            ):
+            node = mlib.nodes.Node(joint)
+            outputs = node.getConnections(source=False, asNode=True)
+            if any(item.getType() not in ("objectSet", "dagPose") for item in outputs):
                 raise ValueError("Twist joints are in use; choose the count before binding")
-            if [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listConnections(
-                            joint, source=True, destination=False, type="animCurve"
-                        )
-                        or []
-                    )
-                ]
-            ]:
+            if node.getConnections(
+                destination=False, asNode=True, type="animCurve"
+            ):
                 raise ValueError("Animated twist joints cannot be rebuilt")
-        start = group.getPlug('start').getSource(skipConversionNodes=False).getNode()
-        end = group.getPlug('end').getSource(skipConversionNodes=False).getNode()
+        start = group.getPlug('start').getSource().getNode()
+        end = group.getPlug('end').getSource().getNode()
         axis = group.getPlug("twistAxis").get()
-        graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
+        graph = group.getPlug('graph').getSource().getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
-        mlib.getNode(self.rig._member("twistSet")).removeMembers(
+        mlib.nodes.Node(self.rig._member("twistSet")).removeMembers(
             [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
         )
         mlib.delete([group, graph])
@@ -241,15 +201,15 @@ class TwistLayer:
         """LOD/Enabledに応じて出力を接続し、無効時は基準位置で始点へ追従させる。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("twist")
         for group in self.segments().values():
-            graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
+            graph = group.getPlug('graph').getSource().getNode()
             graph.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
         for name in self.getJoints():
-            joint = mlib.getNode(name)
+            joint = mlib.nodes.Node(name)
             destination = joint.getPlug("offsetParentMatrix")
-            source = destination.getSource(skipConversionNodes=False)
+            source = destination.getSource()
             if active:
-                output = joint.getPlug('twistOutput').getSource(skipConversionNodes=False).getNode().getPlug('matrixSum')
+                output = joint.getPlug('twistOutput').getSource().getNode().getPlug('matrixSum')
                 if source is None:
                     output.connectTo(destination)
             elif source is not None:

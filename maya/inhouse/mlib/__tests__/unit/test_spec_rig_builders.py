@@ -75,7 +75,7 @@ class BlendShapeCreateTest(_SpecCase):
 
     def test_create_matches_cmds(self):
         """ターゲットは指定順に 0 から並び、名前・ウェイトは cmds の照会と一致する。frontOfChain が既定。"""
-        bs = BlendShape.create(self.base, [self.smile, self.blink], name=self.name("bs"))
+        bs = mlib.createBlendShape(self.base, [self.smile, self.blink], name=self.name("bs"))
         self.assertIs(type(bs), BlendShape)
         self.assertEqual(bs.getName(), self.name("bs"))
         self.assertEqual(bs.getTargetNames(), self.aliases(bs))
@@ -90,8 +90,8 @@ class BlendShapeCreateTest(_SpecCase):
         joint = cmds.joint(name=self.name("bind"))
         cmds.select(clear=True)
         skin = cmds.skinCluster(joint, self.base, toSelectedBones=True)[0]
-        front = BlendShape.create(self.base, self.smile, name=self.name("front"))
-        last = BlendShape.create(self.base, self.blink, name=self.name("last"), frontOfChain=False)
+        front = mlib.createBlendShape(self.base, self.smile, name=self.name("front"))
+        last = mlib.createBlendShape(self.base, self.blink, name=self.name("last"), frontOfChain=False)
         history = cmds.listHistory(self.base, pruneDagObjects=True, interestLevel=1)
         self.assertLess(history.index(skin), history.index(front.getName()))
         self.assertLess(history.index(last.getName()), history.index(skin))
@@ -99,7 +99,7 @@ class BlendShapeCreateTest(_SpecCase):
     def test_empty_create_and_undo(self):
         """ターゲット省略で空の blendShape を作る。作成は Undo 1回で戻る。"""
         self.flushUndo()
-        bs = BlendShape.create(self.base, name=self.name("empty"))
+        bs = mlib.createBlendShape(self.base, name=self.name("empty"))
         name = bs.getFullName()
         self.assertEqual(bs.getTargetNames(), [])
         self.assertUndoesInOneStep(lambda: self.assertFalse(cmds.objExists(name)),
@@ -109,13 +109,13 @@ class BlendShapeCreateTest(_SpecCase):
         """不正な引数は作成前に型付きの例外になり、blendShape を残さない。"""
         before = cmds.ls(type="blendShape")
         with self.assertRaisesRegex(TypeError, "frontOfChain must be a bool"):
-            BlendShape.create(self.base, self.smile, frontOfChain=1)
+            mlib.createBlendShape(self.base, self.smile, frontOfChain=1)
         with self.assertRaises(TypeError):
-            BlendShape.create(self.base, self.smile, name=1)
+            mlib.createBlendShape(self.base, self.smile, name=1)
         with self.assertRaises(ValueError):
-            BlendShape.create(self.base, self.smile, name="")
+            mlib.createBlendShape(self.base, self.smile, name="")
         with self.assertRaises(RuntimeError):
-            BlendShape.create(self.name("missing"), self.smile)
+            mlib.createBlendShape(self.name("missing"), self.smile)
         self.assertEqual(cmds.ls(type="blendShape"), before)
 
 
@@ -128,7 +128,7 @@ class BlendShapeTargetTest(_SpecCase):
         self.smile = self.sphere("smile_L")
         self.frown = self.sphere("frown")
         self.blink = self.sphere("blink")
-        self.bs = BlendShape.create(self.base, [self.smile, self.frown], name=self.name("bs"))
+        self.bs = mlib.createBlendShape(self.base, [self.smile, self.frown], name=self.name("bs"))
         self.full = self.bs.getFullName()
 
     def test_membership_and_weight_plug(self):
@@ -236,7 +236,7 @@ class IkHandleCreateTest(_SpecCase):
 
     def test_rp_solver(self):
         """既定は ikRPsolver。エフェクターは end joint の1つ上の子で、getJoints が cmds と一致する。"""
-        handle = IkHandle.create(self.j1, self.j3, name=self.name("hdl"))
+        handle = mlib.createIkHandle(self.j1, self.j3, name=self.name("hdl"))
         self.assertIs(type(handle), IkHandle)
         self.assertEqual(handle.getName(), self.name("hdl"))
         self.assertEqual(cmds.ikHandle(handle.getFullName(), query=True, solver=True), "ikRPsolver")
@@ -252,13 +252,13 @@ class IkHandleCreateTest(_SpecCase):
 
     def test_sc_and_extra_flags(self):
         """ikSCsolver と、Maya の他のフラグ(priority)をそのまま渡せる。"""
-        handle = IkHandle.create(self.j1, self.j3, solver="ikSCsolver", priority=3)
+        handle = mlib.createIkHandle(self.j1, self.j3, solver="ikSCsolver", priority=3)
         self.assertEqual(cmds.ikHandle(handle.getFullName(), query=True, solver=True), "ikSCsolver")
         self.assertEqual(cmds.ikHandle(handle.getFullName(), query=True, priority=True), 3)
 
     def test_spline_auto_curve(self):
         """ikSplineSolver で curve を省略すると Maya がカーブを作り、getCurve で取得できる。"""
-        handle = IkHandle.create(self.j1, self.j3, solver="ikSplineSolver")
+        handle = mlib.createIkHandle(self.j1, self.j3, solver="ikSplineSolver")
         curve = handle.getCurve()
         self.assertIsNotNone(curve)
         self.assertTrue(curve.getShape().isType("nurbsCurve"))
@@ -270,7 +270,7 @@ class IkHandleCreateTest(_SpecCase):
         curve = cmds.curve(name=self.name("crv"), degree=3,
                            point=[(0, 0, 0), (1, 0, 0), (3, 0, 0), (4, 0, 0)])
         before = set(cmds.ls(type="nurbsCurve", long=True))
-        handle = IkHandle.create(self.j1, self.j3, solver="ikSplineSolver", curve=curve)
+        handle = mlib.createIkHandle(self.j1, self.j3, solver="ikSplineSolver", curve=curve)
         self.assertEqual(set(cmds.ls(type="nurbsCurve", long=True)), before)
         self.assertEqual(handle.getCurve(), Node(curve))
 
@@ -278,13 +278,13 @@ class IkHandleCreateTest(_SpecCase):
         """作成(ハンドル・エフェクター・Maya が設定する preferredAngle)は Undo 1回で戻る。"""
         # シーンで最初の IK ハンドルが作るソルバーは Undo で消えない(cmds.ikHandle と同じ)ので先に作る。
         warm = self.chain(("w0", (0, 0, 5)), ("w1", (1, 0, 5)))
-        IkHandle.create(warm[0], warm[1], solver="ikSCsolver")
+        mlib.createIkHandle(warm[0], warm[1], solver="ikSCsolver")
         cmds.delete(warm[0])
         # まっすぐな連鎖では Maya が中間 joint の preferredAngle を設定する。
         straight = self.chain(("s0", (0, 0, 0)), ("s1", (0, 1, 0)), ("s2", (0, 2, 0)))
         self.flushUndo()
         before = cmds.getAttr(straight[1] + ".preferredAngle")[0]
-        IkHandle.create(straight[0], straight[2], name=self.name("hdl"))
+        mlib.createIkHandle(straight[0], straight[2], name=self.name("hdl"))
 
         def unchanged():
             self.assertEqual(cmds.ls(type=("ikHandle", "ikEffector")), [])
@@ -314,7 +314,7 @@ class IkHandleCreateTest(_SpecCase):
         for error, flags in cases:
             with self.subTest(flags=flags):
                 with self.assertRaises(error):
-                    IkHandle.create(**flags)
+                    mlib.createIkHandle(**flags)
         self.assertEqual(cmds.ls(type=("ikHandle", "ikEffector")), [])
 
     def test_get_effector_on_unconnected_handle(self):

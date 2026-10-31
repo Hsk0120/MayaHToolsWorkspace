@@ -205,21 +205,39 @@ class AnimCurve(Node):
                             outTangentType=outTangentType, **{flag: position})
             return self
 
-    def removeKey(self, index, *, fast=False):
-        """指定番号のキーを削除する。キークリップボードは変更しない。
+    def removeKey(self, index=None, *, time=None, timeUnit="frame", fast=False):
+        """指定番号、または入力の範囲にあるキーを削除する。キークリップボードは変更しない。
+
+        index と time はどちらか一方を指定する。アトリビュートへ接続されたカーブの全キーを通常経路で削除すると、
+        ``cmds.cutKey`` と同じくMayaがカーブ自体を削除する(fastでは空のカーブが残る)。
 
         Args:
-            index (int): 0始まりのキー番号。
+            index (int | None): 0始まりのキー番号。
+            time (float | Sequence[float] | None): 削除する入力の時刻、または両端を含む範囲 ``(start, end)``。
+                T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。範囲内にキーが無ければ何もしない。
+            timeUnit (str): T型入力のtimeの単位。``"frame"`` / ``"sec"``。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。
+
+        Raises:
+            TypeError: indexとtimeの両方・どちらも指定しない場合、timeが数値・2つの数値の並び以外、
+                またはfastがbool以外の場合。
+            ValueError: timeが有限でない、範囲の開始が終了より大きい、またはtimeUnitが未対応の単位名の場合。
+            IndexError: indexが範囲外の場合。
         """
+        if (index is None) == (time is None):
+            raise TypeError("Specify exactly one of index and time")
         with _edit_context("mlibAnimCurveRemoveKey", fast):
-            span = self._index(index)
+            span = self._index(index) if time is None else self._time_span(time, timeUnit)
+            if span is None:
+                return self
             if fast:
                 self._require_curve_writable()
-                self._curve_fn().remove(span[0])
+                fn = self._curve_fn()
+                for key in range(span[1], span[0] - 1, -1):
+                    fn.remove(key)
             else:
                 cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
             return self
@@ -633,6 +651,33 @@ class AnimCurve(Node):
         if not math.isfinite(value):
             raise ValueError("Expected a finite value")
         return value
+
+    def _time_span(self, time, time_unit):
+        """入力の時刻・範囲を、その中にあるキーの番号の範囲へ変換する。
+
+        Args:
+            time (float | Sequence[float]): 時刻、または両端を含む範囲。
+            time_unit (str): T型入力のtimeの単位。
+
+        Returns:
+            tuple[int, int] | None: 最初と最後のキー番号。範囲内にキーが無ければNone。
+
+        Raises:
+            TypeError: timeが数値・2つの数値の並び以外の場合。
+            ValueError: 有限でない、開始が終了より大きい、またはtime_unitが未対応の単位名の場合。
+        """
+        unit = self._input_time_unit(time_unit)
+        values = tuple(time) if isinstance(time, (tuple, list)) else (time, time)
+        if len(values) != 2:
+            raise TypeError("time must be a number or a (start, end) pair")
+        start, end = (_to_seconds(self._finite(value), unit) for value in values)
+        if start > end:
+            raise ValueError(f"time range start must not be greater than end: {values}")
+        # 浮動小数の誤差でちょうど端のキーを落とさないよう、わずかに広げて比べる。
+        tolerance = 1e-9 * max(1.0, abs(start), abs(end))
+        inside = [key for key, value in enumerate(self.getKeyInputs(timeUnit="sec"))
+                  if start - tolerance <= value <= end + tolerance]
+        return (inside[0], inside[-1]) if inside else None
 
     def _index(self, index):
         """0始まりの既存キー番号を検証し、cmdsの単一キー範囲へ変換する。

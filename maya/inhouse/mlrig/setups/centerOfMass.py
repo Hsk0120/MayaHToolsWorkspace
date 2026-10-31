@@ -86,7 +86,7 @@ class CenterOfMass(TwistDistribution):
                 raise ValueError("mass must be zero or more: " + str(item.get("mass")))
             if not math.isfinite(ratio) or not 0.0 <= ratio <= 1.0:
                 raise ValueError("ratio must be from 0 to 1: " + str(item.get("ratio")))
-            if end is not None and end.getUuid() == start.getUuid():
+            if end is not None and end == start:
                 raise ValueError("start and end must be different transforms")
             parsed.append((start, end, mass, ratio))
         if sum(mass for _, _, mass, _ in parsed) <= 0.0:
@@ -95,9 +95,9 @@ class CenterOfMass(TwistDistribution):
         groundHeight = float(groundHeight)
         if not math.isfinite(groundHeight):
             raise ValueError("groundHeight must be finite")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("CenterOfMass container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         graph._build(parsed, supports, groundHeight)
         return graph
 
@@ -114,7 +114,7 @@ class CenterOfMass(TwistDistribution):
         Raises:
             ValueError: 既存のtransformでない場合。
         """
-        node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+        node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
         if not isinstance(node, mlib.nodes.Transform):
             raise ValueError("Expected an existing transform: " + str(item))
         return node

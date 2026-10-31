@@ -109,7 +109,7 @@ class CapsuleCollision(SphereCollision):
             raise ValueError("startRadius, endRadius and softness must be finite")
         if min(startRadius, endRadius, softness) < 0.0:
             raise ValueError("startRadius, endRadius and softness must not be negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("CapsuleCollision container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in (target, start, end)]
         for node in nodes:
@@ -119,7 +119,7 @@ class CapsuleCollision(SphereCollision):
             raise ValueError("target, start and end must be different nodes")
         target, start, end = nodes
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for longName, value in (("startRadius", startRadius), ("endRadius", endRadius), ("softness", softness)):
             owner.addAttr(longName=longName, attributeType="double", defaultValue=value, keyable=True,

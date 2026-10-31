@@ -106,7 +106,7 @@ class EllipsoidCollision(SphereCollision):
             raise ValueError("radiusX, radiusY and radiusZ must be at least {}".format(_MIN_RADIUS))
         if softness < 0.0:
             raise ValueError("softness must not be negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("EllipsoidCollision container already exists: " + name)
         target = mlib.nodes.Node(target)
         ellipsoid = mlib.nodes.Node(ellipsoid)
@@ -116,7 +116,7 @@ class EllipsoidCollision(SphereCollision):
         if target.getFullName() == ellipsoid.getFullName():
             raise ValueError("target and ellipsoid must be different nodes")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for longName, value in (("radiusX", radiusX), ("radiusY", radiusY), ("radiusZ", radiusZ)):
             owner.addAttr(longName=longName, attributeType="double", defaultValue=value, keyable=True,

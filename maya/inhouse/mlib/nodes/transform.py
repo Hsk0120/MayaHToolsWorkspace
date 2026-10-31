@@ -132,7 +132,7 @@ def _unwritable_channel_message(plug):
         if target.isLocked():
             reason = "is locked"
         elif target.isDestination():
-            source = target.getSource()
+            source = target.getSource(skipConversionNodes=True)
             reason = f"is connected from {source.getFullName()}" if source is not None else "has an input connection"
         else:
             continue
@@ -671,6 +671,32 @@ class Transform(DagNode):
                             for source in plug.connectedTo(True, False):
                                 cmds.disconnectAttr(source.name(), plug.name())
                     cmds.delete([shape.getFullName() for shape in shapes])
+        return self
+
+    def addShape(self, shape, *, fast=False):
+        """シェイプをこのTransformの下へ移す(:meth:`~mlib.nodes.shape.Shape.setParent` を受け側から行う)。
+
+        シェイプは常にローカルの形を保って移る。元のTransformは削除しない。
+
+        Args:
+            shape (Shape | str): 移すシェイプ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: shapeがシェイプでない、またはfastがbool以外の場合。
+            RuntimeError: 自身・シェイプが無効、シェイプがインスタンス化されている、またはMayaが親の変更を拒否した場合。
+            NotImplementedError: fastで、自身に同じ名前の子がある場合。
+        """
+        # shape は transform を参照するため、循環importを避けて関数内で読み込む。
+        from .shape import Shape
+
+        node = shape if isinstance(shape, Node) else Node._resolve_input(shape)
+        if not isinstance(node, Shape):
+            raise TypeError(f"addShape expects a shape, got {type(node).__name__}")
+        node.setParent(self, fast=fast)
         return self
 
     def getShapes(self, intermediates=False):

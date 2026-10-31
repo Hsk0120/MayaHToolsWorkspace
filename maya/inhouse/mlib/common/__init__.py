@@ -30,6 +30,7 @@ _exports = {
     "ScriptJob": ("scriptJob", "ScriptJob"),
     "ScriptJobs": ("scriptJobs", "ScriptJobs"),
     "Selection": ("selection", "Selection"),
+    "Time": ("sceneTime", "Time"),
     "Version": ("version", "Version"),
     "progressBar": ("progress", "progressBar"),
     "units": ("units", None),
@@ -52,6 +53,7 @@ if TYPE_CHECKING:
     from .plugin import Plugin
     from .pluginPackage import LOAD_FAILED, LOADED, MISSING, OUTDATED, SKIPPED, PluginPackage
     from .scalarGraph import ScalarGraph
+    from .sceneTime import Time
     from .scriptJob import ScriptJob
     from .scriptJobs import ScriptJobs
     from .selection import Selection

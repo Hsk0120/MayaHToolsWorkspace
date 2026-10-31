@@ -64,7 +64,7 @@ class BowString(TwistDistribution):
         axes = ("x", "y", "z")
         if aimAxis not in axes or upAxis not in axes or aimAxis == upAxis:
             raise ValueError("aimAxis and upAxis must be two different axes of x, y and z")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("BowString container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in (top, bottom, nock)]
         if len({node.getUuid() for node in nodes}) != 3 or any(
@@ -88,7 +88,7 @@ class BowString(TwistDistribution):
         aim_axis = [float(axis == aimAxis) for axis in axes]
         up_axis = [float(axis == upAxis) for axis in axes]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="restDraw", attributeType="double", defaultValue=rest_draw)
         owner.addAttr(longName="maxDraw", attributeType="double", defaultValue=maxDraw, minValue=1e-6,

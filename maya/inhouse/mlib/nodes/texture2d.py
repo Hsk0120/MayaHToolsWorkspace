@@ -12,5 +12,5 @@ class Texture2d(ShadingDependNode):
         Returns:
             Node | None: uvCoordへの入力元ノード。通常はPlace2dTexture。
         """
-        source = self.getPlug("uvCoord").getSource(skipConversionNodes=False)
+        source = self.getPlug("uvCoord").getSource()
         return None if source is None else source.getNode()

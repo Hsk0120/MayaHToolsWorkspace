@@ -78,7 +78,7 @@ class PumpUp(TwistDistribution):
                                            for value in values):
                 raise ValueError(role + "s must have three finite values for each helper")
             offsets[role] = values
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("PumpUp container already exists: " + name)
         helpers = [mlib.nodes.Node(helper) for helper in helpers]
         if any(not isinstance(helper, mlib.nodes.Transform) for helper in helpers):
@@ -92,7 +92,7 @@ class PumpUp(TwistDistribution):
             except (TypeError, ValueError):
                 raise ValueError("driver must be a numeric plug: " + str(driver))
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         owner.addAttr(longName="pump", attributeType="double", defaultValue=0.0, keyable=True)

@@ -223,8 +223,6 @@ class SetupSamples:
         """肩・肘・手首の腕(ikRPsolver)と、肘の位置の極ベクトルの操作子・手首の位置の目標。pin=1 なので
         操作子を動かすと肘がその位置へ留まり、目標を動かすと前腕の長さが変わる。containerの pin を0へ
         下げると元の長さへ戻り、slide で上腕と前腕の長さの比が変わる。"""
-        from maya import cmds
-
         from .setups import LimbPin
         from .setups.hingeIK import createRotatePlaneHandle, storePreferredAngles
 
@@ -237,10 +235,10 @@ class SetupSamples:
         storePreferredAngles([shoulder, elbow, wrist])
         handle, _, pole = createRotatePlaneHandle(shoulder, wrist, name)
         # 極ベクトルの操作子を肘の位置へ移す(同じ平面の上なので腕は動かない)。
-        pole = _longName(cmds.parent(pole, root)[0])
+        pole = mlib.nodes.Node(pole).setParent(root).getFullName()
         _set(pole, "translate", (4 * math.cos(bend), 8, -4 * math.sin(bend)))
         target = _locator(name + "_target", root, translate=(8 * math.cos(bend), 8, 0))
-        handle = _longName(cmds.parent(handle, target)[0])
+        handle = mlib.nodes.Node(handle).setParent(target).getFullName()
         _set(handle, "translate", (0, 0, 0))
         _set(handle, "visibility", False)
         setup = LimbPin.create(shoulder, elbow, wrist, pole, target, name=name, pin=1.0)
@@ -261,8 +259,8 @@ class SetupSamples:
                                                  ("ankle", (0, 0.5, 0.3))))
         control = _locator(name + "_footCtrl", root, translate=(0, 0.5, 0.3))
         handle, _, pole = createRotatePlaneHandle(hip, ankle, name)
-        mlib.getNode(handle).setParent(control)
-        pole = mlib.getNode(pole)
+        mlib.nodes.Node(handle).setParent(control)
+        pole = mlib.nodes.Node(pole)
         pole.setParent(root)
         setup = NoFlipPole.create(hip, control, mid=knee, name=name, distance=6.0)
         pole.getPlug("translate").set((0, 0, 0))
@@ -616,7 +614,7 @@ class SetupSamples:
             _output("{}_ribbon{}Out".format(name, index), root, "{}.matrix{}".format(setup.container, index),
                     ((0.8, 0, 0), (0, 0.8, 0)))
         # 帯のカーブとサーフェスもサンプルのまとめの下へ置く(inheritsTransformを切ってあるので形は変わらない)。
-        mlib.getNode(setup.group).setParent(root)
+        mlib.nodes.Node(setup.group).setParent(root)
         return setup, controls[2]
 
     @classmethod
@@ -654,7 +652,7 @@ class SetupSamples:
         for parent, child in zip(arm, arm[1:]):
             # jointツールで作る骨と同じく、親のscaleを inverseScale へ繋いで segmentScaleCompensate を効かせる
             # (mlib.createNode でjointの下へ作った場合は接続済みで、同じ接続なら変更しない)。
-            mlib.getNode(child).connectInverseScale(parent)
+            mlib.nodes.Node(child).connectInverseScale(parent)
         _set(arm[1], "scale", (0.8, 1.6, 1.6))
         export = _transform(name + "_export", root)
         setup = LeafJoints.create(arm, name=name, parent=export)
@@ -1094,9 +1092,9 @@ class SetupSamples:
             joint = _joint("{}_{}R".format(name, role), parent)
             _set(joint, "radius", 0.6)
             _color(joint)
-            world = LiveMirror.mirror(mlib.getNode(source).getPlug("worldMatrix")[0].get(),
-                                      mlib.getNode(center).getPlug("worldMatrix")[0].get())
-            mlib.getNode(joint).setMatrix(world, worldSpace=True)
+            world = LiveMirror.mirror(mlib.nodes.Node(source).getPlug("worldMatrix")[0].get(),
+                                      mlib.nodes.Node(center).getPlug("worldMatrix")[0].get())
+            mlib.nodes.Node(joint).setMatrix(world, worldSpace=True)
             targets.append(_longName(joint))
             parent = targets[-1]
         _color(_tip(targets[-1], name + "_handRTip", (-1.5, 0, 0)))
@@ -1306,7 +1304,7 @@ class SetupSamples:
         top = _joint(name + "_top", root, translate=(0, 4, 0))
         bottom = _joint(name + "_bottom", top, translate=(0, -4, 0))
         _tip(bottom, name + "_bottomTip", (0, -4, 0))
-        mlib.nodes.SkinCluster.bind(surface, [top, bottom])
+        mlib.bindSkin([top, bottom], surface)
         control = _transform(name + "_ctrl", root, translate=(1.0, -2.0, 0.3))
         circle = [(0.5 * x, 0.5 * y, 0) for x, y in ((0, 1), (1, 0), (0, -1), (-1, 0), (0, 1))]
         ControlShape.replaceCurves(control, circle, [0, 1, 2, 3, 4], degree=1, name=name + "_ctrl")
@@ -1447,12 +1445,12 @@ class SetupSamples:
 
 def _longName(node):
     """ノードのフルパス。"""
-    return mlib.getNode(str(node)).getFullName()
+    return mlib.nodes.Node(str(node)).getFullName()
 
 
 def _set(node, attribute, value):
     """アトリビュートへUI単位(cm・度)の値を書き込む。"""
-    mlib.getNode(node).getPlug(attribute).set(value, uiUnits=True)
+    mlib.nodes.Node(node).getPlug(attribute).set(value, uiUnits=True)
 
 
 def _connect(source, destination):
@@ -1502,7 +1500,7 @@ def _chain(name, parent, items):
     joints, current = [], parent
     for role, position in items:
         joint = _joint(name + "_" + role, current)
-        mlib.getNode(joint).setTranslation(position, worldSpace=True)
+        mlib.nodes.Node(joint).setTranslation(position, worldSpace=True)
         joints.append(joint)
         current = joint
     return [_longName(joint) for joint in joints]

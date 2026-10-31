@@ -21,7 +21,7 @@ class ControlRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = mlib.getNode(root)
+        self.root = mlib.nodes.Node(root)
         if not self.root.hasAttr("mlrigControlDefinition"):
             raise ValueError("Not a control module")
 
@@ -57,7 +57,7 @@ class ControlRig:
             root.addAttr(longName=role + "Group", attributeType="message")
             node.getPlug("message").connectTo(root.getPlug(role + "Group"))
         root.addAttr(longName="graph", attributeType="message")
-        mlib.nodes.Container.create(name=name + "_graph").getPlug("message").connectTo(
+        mlib.createContainer(name=name + "_graph").getPlug("message").connectTo(
             root.getPlug("graph")
         )
         return cls(root)
@@ -79,7 +79,7 @@ class ControlRig:
         Returns:
             Node: グループ。
         """
-        return self.root.getPlug(role + 'Group').getSource(skipConversionNodes=False).getNode()
+        return self.root.getPlug(role + 'Group').getSource().getNode()
 
     def register(self, attr, node):
         """マルチアトリビュートの末尾へ参照を保存する。
@@ -107,7 +107,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        mlib.nodes.Container(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode()).addMembers(node)
+        mlib.nodes.Container(self.root.getPlug('graph').getSource().getNode()).addMembers(node)
 
     def getJoints(self):
         """変形骨とTweak骨を取得する。
@@ -178,7 +178,7 @@ class ControlRig:
                     else source.getPlug("constraintRotate" + axis)
                 )
                 destination = target.getPlug("rotate" + axis)
-                previous = destination.getSource(skipConversionNodes=False)
+                previous = destination.getSource()
                 if active and previous is None:
                     output.connectTo(destination)
                 elif not active and previous is not None:
@@ -227,13 +227,13 @@ class ControlRig:
         if names:
             rig = cls(names[0])
             active = rig.lod() == 1 and rig.layer_enabled(rig.kind())
-            if any((bool(n.getPlug('rotateX').getSource(skipConversionNodes=False)) != active for n in rig.getMembers('targets'))):
+            if any((bool(n.getPlug('rotateX').getSource()) != active for n in rig.getMembers('targets'))):
                 rig.update()
 
     @undoTransaction("mlrig.ControlRig.delete")
     def delete(self):
         """スキン未使用のモジュールを所有DGとともに削除する。"""
-        if any(mlib.getNode(j).getConnections(type="skinCluster") for j in self.getJoints()):
+        if any(mlib.nodes.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in self.getJoints()):
             raise ValueError("Unbind before deleting")
-        mlib.delete(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode())
+        mlib.delete(self.root.getPlug('graph').getSource().getNode())
         mlib.delete(self.root)

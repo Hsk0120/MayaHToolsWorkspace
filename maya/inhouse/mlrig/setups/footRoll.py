@@ -105,7 +105,7 @@ class FootRoll(TwistDistribution):
         breakAngle = float(breakAngle)
         if not math.isfinite(breakAngle) or breakAngle < 0:
             raise ValueError("breakAngle must be a finite angle of 0 or more degrees")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("FootRoll container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in (control, ankle, ball, toe, heel, inner, outer)]
         if len({node.getUuid() for node in nodes}) != len(nodes) or any(
@@ -131,7 +131,7 @@ class FootRoll(TwistDistribution):
         # swivelとtoeTapは母指球を中心に回す。
         pivots["swivel"] = pivots["toeTap"] = pivots["ball"]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="roll", attributeType="double", keyable=True)
         owner.addAttr(longName="bank", attributeType="double", keyable=True)

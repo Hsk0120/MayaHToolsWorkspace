@@ -50,7 +50,7 @@ class LimbPin(TwistDistribution):
             作成時の符号を掛けた U・L を入れる。付け根の回転には依存しない(IKとの循環が無い)。
             UI単位がmmでも自動の単位変換が入らないよう、長さの受け渡しは係数1の unitConversion で行う。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("LimbPin container already exists: " + name)
         if axis not in _AXES:
             raise ValueError("Expected 'x', 'y' or 'z' for the axis")
@@ -68,7 +68,7 @@ class LimbPin(TwistDistribution):
             raise ValueError("The start, the mid and the end must be different joints")
         for child, parent in ((mid, start), (end, mid)):
             above = child.getParent()
-            if above is None or above.getUuid() != parent.getUuid():
+            if above is None or above != parent:
                 raise ValueError("Expected the chain start > mid > end: " + child.getName())
         controls = []
         for node in (pole, target):
@@ -85,7 +85,7 @@ class LimbPin(TwistDistribution):
             raise ValueError("The mid and the end must be apart from their parents along the axis")
         signs = [1.0 if value > 0.0 else -1.0 for value in rest]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="slide", attributeType="double", minValue=-1.0, maxValue=1.0,
                       defaultValue=slide, keyable=True)

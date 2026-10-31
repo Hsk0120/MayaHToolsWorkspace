@@ -28,21 +28,48 @@ nodes.Node._registry, plugs.Plug._registry = _node_registry, _plug_registry
 del _node_registry, _plug_registry
 
 from .cmds import (
+    bindSkin,
+    createBlendShape,
+    createCircle,
+    createContainer,
+    createCurve,
+    createDagContainer,
+    createDagPose,
+    createIkHandle,
+    createLocator,
     createNode,
+    createPolyCube,
+    createPolyCylinder,
+    createPolyPlane,
+    createPolySphere,
     delete,
     duplicate,
     getNode,
     getPlug,
     ls,
+    objExists,
     select,
 )
 
 __all__ = [
+    "bindSkin",
     "cmds",
     "common",
     "components",
     "core",
+    "createBlendShape",
+    "createCircle",
+    "createContainer",
+    "createCurve",
+    "createDagContainer",
+    "createDagPose",
+    "createIkHandle",
+    "createLocator",
     "createNode",
+    "createPolyCube",
+    "createPolyCylinder",
+    "createPolyPlane",
+    "createPolySphere",
     "decorator",
     "delete",
     "duplicate",
@@ -52,6 +79,7 @@ __all__ = [
     "ls",
     "maths",
     "nodes",
+    "objExists",
     "plugs",
     "reload",
     "select",
@@ -59,7 +87,7 @@ __all__ = [
 ]
 
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "7.0.0"
+__version__ = "8.0.0"
 
 
 def reload():

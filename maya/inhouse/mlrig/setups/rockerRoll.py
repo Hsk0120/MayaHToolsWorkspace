@@ -87,13 +87,13 @@ class RockerRoll(TwistDistribution):
         contact = [float(value) for value in contact]
         if len(contact) != 3 or not all(math.isfinite(value) for value in contact):
             raise ValueError("contact must be a finite 3D point")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("RockerRoll container already exists: " + name)
         target = mlib.nodes.Node(target)
         if not isinstance(target, mlib.nodes.Transform):
             raise ValueError("Expected a transform for the target")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="roll", attributeType="doubleAngle", defaultValue=0.0, keyable=True)
         owner.addAttr(longName="radius", attributeType="doubleLinear", defaultValue=radius, minValue=1e-6,

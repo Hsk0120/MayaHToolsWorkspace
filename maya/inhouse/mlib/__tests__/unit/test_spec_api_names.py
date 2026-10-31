@@ -112,14 +112,14 @@ class RemovedNamesTest(unittest.TestCase):
                 self.assertIn(name, Plug.__dict__)
         self.assertIn("fast", inspect.signature(Plug.setLocked).parameters)
 
-    def test_connections_skip_conversion_nodes_by_default(self):
-        """getConnectionsのskipConversionNodes・scnは既定True(getSource/getDestinationsと同じ)。"""
+    def test_connections_do_not_skip_conversion_nodes_by_default(self):
+        """8.0.0から接続照会のskipConversionNodes・scnは既定False(cmds.listConnectionsと同じ直結)。"""
         for function in (Node.getConnections, Plug.getConnections, Plug.getSource, Plug.getDestinations):
             parameters = inspect.signature(function).parameters
             with self.subTest(function=function.__qualname__):
-                self.assertIs(parameters["skipConversionNodes"].default, True)
+                self.assertIs(parameters["skipConversionNodes"].default, False)
                 if "scn" in parameters:
-                    self.assertIs(parameters["scn"].default, True)
+                    self.assertIs(parameters["scn"].default, False)
 
     def test_connections_have_no_pcls(self):
         for cls in (Node, Plug):
@@ -285,7 +285,6 @@ class RenamedArgumentsTest(unittest.TestCase):
             ("Joint.removeInfluence", Joint.removeInfluence, "skin_cluster", "skinCluster"),
             ("Joint.reparentChildren", Joint.reparentChildren, "parent_joint", "parentJoint"),
             ("SkinCluster.__init__", SkinCluster.__init__, "skin_cluster", "skinCluster"),
-            ("SkinCluster.bind", SkinCluster.bind, "max_influences", "maxInfluences"),
             ("SkinCluster.removeInfluence", SkinCluster.removeInfluence, "transfer_to_parent", "transferToParent"),
             ("SkinCluster.transferWeights", SkinCluster.transferWeights, "source_target_pairs", "sourceTargetPairs"),
             ("DagPose.fromSkinCluster", DagPose.fromSkinCluster, "skin_cluster", "skinCluster"),

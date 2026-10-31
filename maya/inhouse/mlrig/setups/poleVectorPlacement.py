@@ -69,7 +69,7 @@ class PoleVectorPlacement(TwistDistribution):
             一直線(|d|<0.0001cm)では向きが決まらないため、poleは中間関節の位置になる
             (ほぼ一直線の付近では、曲がる向きのわずかな変化でpoleが大きく動く)。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("PoleVectorPlacement container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in (start, mid, end)]
         if len({node.getUuid() for node in nodes}) != 3 or any(
@@ -87,7 +87,7 @@ class PoleVectorPlacement(TwistDistribution):
         distance = float(distance)
         if not math.isfinite(distance) or distance < 0:
             raise ValueError("distance must be a finite value of 0 or more")
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="distance", attributeType="double", defaultValue=distance, minValue=0, keyable=True)
         owner.addAttr(longName="position", attributeType="double3")

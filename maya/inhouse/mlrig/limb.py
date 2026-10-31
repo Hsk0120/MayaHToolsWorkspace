@@ -20,7 +20,7 @@ def _lock_group(node):
     Args:
         node (str | Node): TRSとシアーをロックするノード。
     """
-    mlib.getNode(node).setAttrFlags(
+    mlib.nodes.Node(node).setAttrFlags(
         ("tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz", "shearXY", "shearXZ", "shearYZ"),
         locked=True,
         keyable=False,
@@ -39,7 +39,7 @@ def _set_world_matrix(node, matrix):
         xform(worldSpace=True)のRedo時の親空間再変換を避けるため、
         計算済みTRSを標準setAttrで保存する。ピボット編集は対象外。
     """
-    mlib.getNode(node).setMatrix(matrix, worldSpace=True)
+    mlib.nodes.Node(node).setMatrix(matrix, worldSpace=True)
 
 
 class LimbRig:
@@ -57,7 +57,7 @@ class LimbRig:
         Args:
             root (str | Node): mlrigDefinition属性を持つルート。
         """
-        self.root = mlib.getNode(root)
+        self.root = mlib.nodes.Node(root)
         if not self.root.hasAttr("mlrigDefinition"):
             raise ValueError("Not an mlrig root")
 
@@ -71,7 +71,7 @@ class LimbRig:
         Returns:
             str: メンバーの完全名。
         """
-        source = self.root.getPlug(role).getSource(skipConversionNodes=False) if self.root.hasAttr(role) else None
+        source = self.root.getPlug(role).getSource() if self.root.hasAttr(role) else None
         if source is None:
             raise RuntimeError("Missing rig member: " + role)
         return source.getNode().getFullName()
@@ -84,8 +84,8 @@ class LimbRig:
             node (str | Node): 参照するノード。
         """
         root = self.root.getFullName()
-        mlib.getNode(root).addAttr(longName=role, attributeType="message")
-        mlib.getNode(node).getPlug("message").connectTo(root + "." + role)
+        mlib.nodes.Node(root).addAttr(longName=role, attributeType="message")
+        mlib.nodes.Node(node).getPlug("message").connectTo(root + "." + role)
 
     def controls(self):
         """コントローラーの現在名を取得する。
@@ -154,8 +154,8 @@ class LimbRig:
             role (str): セットの参照識別子。
             nodes (Sequence[str]): 追加するノード名。
         """
-        if mlib.getNode(self.root.getFullName()).hasAttr(role):
-            mlib.getNode(self._member(role)).addMembers(*nodes)
+        if mlib.nodes.Node(self.root.getFullName()).hasAttr(role):
+            mlib.nodes.Node(self._member(role)).addMembers(*nodes)
 
     def _local_matrix(self, role):
         """オフセットを含む親コントローラー空間の行列プラグ名を取得する。
@@ -169,7 +169,7 @@ class LimbRig:
         """
         member = "targetMatrix" if role == "target" else "fkMatrix" + role[2:]
         if role.startswith("fk") or role == "target":
-            if mlib.getNode(self.root.getFullName()).hasAttr(member):
+            if mlib.nodes.Node(self.root.getFullName()).hasAttr(member):
                 return self._member(member) + ".matrixSum"
         return self._member(role) + ".matrix"
 
@@ -384,14 +384,14 @@ class LimbRig:
         if old_owner == root:
             raise RuntimeError("Invalid Soft IK ownership: rig root cannot be replaced")
         length = mlib.getPlug(root + ".mlrigLength").get()
-        source = mlib.getPlug(old + '.distance').getSource(skipConversionNodes=False)
+        source = mlib.getPlug(old + '.distance').getSource()
         graph, owner = create_soft_ik(self.getNodeName("soft"), length, backend)
         if owner != graph:
             from mlib.nodes import Node
 
             reference = Node(graph)
-            parent = self._member("softSetup") if mlib.getNode(root).hasAttr("softSetup") else root
-            owner = mlib.getNode(owner).setParent(parent).getFullName()
+            parent = self._member("softSetup") if mlib.nodes.Node(root).hasAttr("softSetup") else root
+            owner = mlib.nodes.Node(owner).setParent(parent).getFullName()
             graph = reference.getFullName()
             mlib.getPlug(graph + ".visibility").set(False)
         source.connectTo(graph + ".distance")
@@ -402,7 +402,7 @@ class LimbRig:
             )
         mlib.getPlug(graph + ".message").connectTo(root + ".softGraph", force=True)
         mlib.getPlug(owner + ".message").connectTo(root + ".softOwner", force=True)
-        mlib.getNode(root).getPlug("mlrigOwned").appendMessage(owner)
+        mlib.nodes.Node(root).getPlug("mlrigOwned").appendMessage(owner)
         self._layer_members("softSet", [owner, graph])
         mlib.getPlug(root + ".mlrigBackend").set(backend)
         self._update_evaluation()
@@ -411,24 +411,15 @@ class LimbRig:
     @undoChunk("mlrig.LimbRig.delete")
     def delete(self):
         """所有する生成物を削除する。外部スキンやアニメーションの保護は呼出側で行う。"""
-        root = self.root.getFullName()
-        owned = [
-            item.getFullName()
-            for item in [
-                mlib.getNode(value)
-                for value in (
-                    cmds.listConnections(
-                        root + ".mlrigOwned", source=True, destination=False, shapes=True
-                    )
-                    or []
-                )
-            ]
-        ] or []
+        root = self.root
+        owned = root.getPlug("mlrigOwned").getConnections(
+            destination=False, asNode=True
+        )
         # DAGを一括で削除すると子の重複指定があり得るため、存在確認して順に消す。
         for node in owned:
-            if cmds.objExists(node):
+            if node.isValid():
                 mlib.delete(node)
-        if cmds.objExists(root):
+        if root.isValid():
             mlib.delete(root)
 
     @undoChunk("mlrig.LimbRig.set_mode")
@@ -460,7 +451,7 @@ class LimbRig:
         """
         attr = "mlrigEnabled_" + layer
         root = self.root.getFullName()
-        return bool(mlib.getPlug(root + "." + attr).get()) if mlib.getNode(root).hasAttr(attr) else True
+        return bool(mlib.getPlug(root + "." + attr).get()) if mlib.nodes.Node(root).hasAttr(attr) else True
 
     @undoChunk("mlrig.LimbRig.set_layer_enabled")
     def set_layer_enabled(self, layer, enabled):
@@ -474,8 +465,8 @@ class LimbRig:
             raise ValueError("Unknown optional layer: " + layer)
         root = self.root.getFullName()
         attr = "mlrigEnabled_" + layer
-        if not mlib.getNode(root).hasAttr(attr):
-            mlib.getNode(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
+        if not mlib.nodes.Node(root).hasAttr(attr):
+            mlib.nodes.Node(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
         mlib.getPlug(root + "." + attr).set(bool(enabled))
         self._update_evaluation()
 
@@ -500,9 +491,9 @@ class LimbRig:
         root = self.root.getFullName()
         target = self._member("target")
         soft = detailed and self.layer_enabled("soft")
-        foot = detailed and self.layer_enabled("foot") and mlib.getNode(root).hasAttr("footMatrix")
+        foot = detailed and self.layer_enabled("foot") and mlib.nodes.Node(root).hasAttr("footMatrix")
         position = target + ".translate"
-        if mlib.getNode(root).hasAttr("targetDecompose"):
+        if mlib.nodes.Node(root).hasAttr("targetDecompose"):
             position = self._member("targetDecompose") + ".outputTranslate"
         position = self._member("footDecompose") + ".outputTranslate" if foot else position
         matrix = self._member("footMatrix") + ".matrixSum" if foot else self._local_matrix("target")
@@ -560,7 +551,7 @@ class LimbRig:
     @undoChunk("mlrig.LimbRig.match_fk")
     def match_fk(self):
         """現在の変形姿勢をFKへ合わせる。モード切替やキー設定は行わない。"""
-        matrices = [mlib.getNode(j).getMatrix(worldSpace=True) for j in self.getJoints()[:3]]
+        matrices = [mlib.nodes.Node(j).getMatrix(worldSpace=True) for j in self.getJoints()[:3]]
         for index, matrix in enumerate(matrices):
             _set_world_matrix(self._member("fk" + str(index)), matrix)
 
@@ -574,19 +565,19 @@ class LimbRig:
             ("heelRoll", "toeRoll", "ballRoll") if self.lod() and self.layer_enabled("foot") else ()
         ):
             if (
-                mlib.getNode(target).hasAttr(attr)
+                mlib.nodes.Node(target).hasAttr(attr)
                 and abs(mlib.getPlug(target + "." + attr).get()) > 1e-8
             ):
                 raise ValueError("Reset reverse-foot rolls before matching IK")
         joints = self.getJoints()[:3]
-        a, b, c = [Vector(mlib.getNode(j).getTranslation(worldSpace=True, at=4)) for j in joints]
+        a, b, c = [Vector(mlib.nodes.Node(j).getTranslation(worldSpace=True, at=4)) for j in joints]
         axis = c - a
         if axis.length() < 1e-8:
             raise ValueError("Cannot match IK when the endpoint coincides with the root")
         projection = a + axis * (((b - a) * axis) / (axis * axis))
         offset = b - projection
         if offset.length() < 1e-8:
-            offset = Vector(mlib.getNode(self._member("pole")).getTranslation(worldSpace=True, at=4)) - b
+            offset = Vector(mlib.nodes.Node(self._member("pole")).getTranslation(worldSpace=True, at=4)) - b
             offset -= axis * ((offset * axis) / (axis * axis))
         if offset.length() < 1e-8:
             raise ValueError("Choose a pole direction before matching a straight chain")
@@ -614,11 +605,11 @@ class LimbRig:
         pole = self._member("pole")
         local_position = Vector(local_end).normal() * desired
         world_position = inverse.inverse().transformPoint(local_position)
-        matrix = list(mlib.getNode(joints[-1]).getMatrix(worldSpace=True))
+        matrix = list(mlib.nodes.Node(joints[-1]).getMatrix(worldSpace=True))
         matrix[12:15] = tuple(world_position)[:3]
         _set_world_matrix(target, matrix)
         # PoleがFoot空間の場合はIK目標の移動後の親空間へ変換する。
-        pole_local = Matrix(mlib.getNode(pole).getPlug("parentInverseMatrix")[0].get()).transformPoint(
+        pole_local = Matrix(mlib.nodes.Node(pole).getPlug("parentInverseMatrix")[0].get()).transformPoint(
             pole_position
         )
         for axis, value in zip("XYZ", tuple(pole_local)[:3]):
@@ -653,13 +644,13 @@ def build_limb(definition=None, backend="standard"):
     legacy_layers = tuple(layer for layer in supported_layers if layer.kind != "space")
     if definition.layers not in (supported_layers, legacy_layers):
         raise ValueError("This builder supports the default FK/IK/Soft IK/helper/space layers only")
-    if cmds.objExists(definition.name):
+    if mlib.objExists(definition.name):
         raise ValueError("Rig root already exists: " + definition.name)
     names = limb_names(definition)
     if len(set(names.values())) != len(names):
         raise ValueError("Joint identifiers conflict with reserved rig names")
     for name in names.values():
-        if cmds.objExists(name):
+        if mlib.objExists(name):
             raise ValueError("Rig node already exists: " + name)
     if int(cmds.about(apiVersion=True)) < 20250000:
         raise RuntimeError("mlrig requires Maya 2025 or newer")
@@ -693,13 +684,13 @@ def build_limb(definition=None, backend="standard"):
         root = mlib.createNode("transform", name=definition.name, skipSelect=True).getFullName()
         created.append(root)
         for attr in ("mlrigDefinition", "mlrigMode", "mlrigBackend"):
-            mlib.getNode(root).addAttr(longName=attr, dataType="string")
+            mlib.nodes.Node(root).addAttr(longName=attr, dataType="string")
         mlib.getPlug(root + ".mlrigDefinition").set(json.dumps(definition.to_data()))
         mlib.getPlug(root + ".mlrigBackend").set(backend)
         rig = LimbRig(root)
-        mlib.getNode(root).addAttr(longName="mlrigLod", attributeType="long", defaultValue=1)
+        mlib.nodes.Node(root).addAttr(longName="mlrigLod", attributeType="long", defaultValue=1)
         length = ordered[1].translation[0] + ordered[2].translation[0]
-        mlib.getNode(root).addAttr(
+        mlib.nodes.Node(root).addAttr(
             longName="mlrigLength", attributeType="double", defaultValue=length
         )
         for role in ("geometryGroup", "jointGroup", "controlGroup", "setupGroup"):
@@ -722,11 +713,11 @@ def build_limb(definition=None, backend="standard"):
             _lock_group(node)
             rig._bind(role, node)
         for role in ("moduleSet", "fkSet", "ikSet", "softSet", "helperSet"):
-            node = mlib.getNode(cmds.sets(empty=True, name=names[role])).getFullName()
+            node = mlib.createNode("objectSet", name=names[role], skipSelect=True).getFullName()
             created.append(node)
             rig._bind(role, node)
             if role != "moduleSet":
-                mlib.getNode(rig._member("moduleSet")).addMembers(node)
+                mlib.nodes.Node(rig._member("moduleSet")).addMembers(node)
         for chain in ("fk", "ik", "joint"):
             parent = rig._member(
                 {"fk": "fkControls", "ik": "ikSetup", "joint": "moduleJoints"}[chain]
@@ -744,8 +735,8 @@ def build_limb(definition=None, backend="standard"):
                 if chain == "fk":
                     matrix = create("multMatrix", "fkMatrix" + str(index))
                     rig._bind("fkMatrix" + str(index), matrix)
-                    mlib.getPlug(node + ".matrix").connectTo(mlib.getNode(matrix).getPlug("matrixIn")[0])
-                    mlib.getPlug(offset + ".matrix").connectTo(mlib.getNode(matrix).getPlug("matrixIn")[1])
+                    mlib.getPlug(node + ".matrix").connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[0])
+                    mlib.getPlug(offset + ".matrix").connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[1])
                 if chain != "fk":
                     mlib.getPlug(node + ".segmentScaleCompensate").set(False)
                 if chain == "ik":
@@ -762,14 +753,14 @@ def build_limb(definition=None, backend="standard"):
         target, pole = rig._member("target"), rig._member("pole")
         matrix = create("multMatrix", "targetMatrix")
         rig._bind("targetMatrix", matrix)
-        mlib.getPlug(target + ".matrix").connectTo(mlib.getNode(matrix).getPlug("matrixIn")[0])
-        mlib.getPlug(rig._member("targetOffset") + ".matrix").connectTo(mlib.getNode(matrix).getPlug("matrixIn")[1])
+        mlib.getPlug(target + ".matrix").connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[0])
+        mlib.getPlug(rig._member("targetOffset") + ".matrix").connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[1])
         target_decompose = create("decomposeMatrix", "targetDecompose")
         rig._bind("targetDecompose", target_decompose)
         mlib.getPlug(matrix + ".matrixSum").connectTo(target_decompose + ".inputMatrix")
         target_rotation = create("transform", "targetRotation", rig._member("ikSetup"))
         rig._bind("targetRotation", target_rotation)
-        mlib.getNode(target).addAttr(
+        mlib.nodes.Node(target).addAttr(
             longName="softness",
             attributeType="double",
             minValue=0,
@@ -779,24 +770,20 @@ def build_limb(definition=None, backend="standard"):
         )
         # preferredAngleで伸び切った初期チェーンの曲げ平面を定義する。
         mlib.getPlug(rig._member("ik1") + ".preferredAngleZ").set(-10)
-        handle, effector = cmds.ikHandle(
-            startJoint=rig._member("ik0"),
-            endEffector=rig._member("ik2"),
-            solver="ikRPsolver",
-            name=names["handle"],
+        handle = mlib.createIkHandle(
+            rig._member("ik0"), rig._member("ik2"), solver="ikRPsolver", name=names["handle"]
         )
-        handle = mlib.getNode(handle)
-        effector = mlib.getNode(effector).rename(names["effector"])
+        effector = handle.getEffector().rename(names["effector"])
         created.extend((handle, effector))
-        handle = mlib.getNode(handle).setParent(rig._member("ikSetup")).getFullName()
+        handle = mlib.nodes.Node(handle).setParent(rig._member("ikSetup")).getFullName()
         rig._bind("handle", handle)
         constraints = [
-            mlib.getNode(handle).addConstraint(
+            mlib.nodes.Node(handle).addConstraint(
                 pole, type="poleVector", name=names["handle"] + "_poleVectorConstraint"
             )
         ]
         constraints.append(
-            mlib.getNode(rig._member("ik2")).addConstraint(
+            mlib.nodes.Node(rig._member("ik2")).addConstraint(
                 target_rotation,
                 type="orient",
                 maintainOffset=False,
@@ -804,7 +791,7 @@ def build_limb(definition=None, backend="standard"):
             )
         )
         created.extend(constraints)
-        rig._layer_members("ikSet", constraints + [mlib.getNode(effector)])
+        rig._layer_members("ikSet", constraints + [mlib.nodes.Node(effector)])
         mlib.getPlug(handle + ".visibility").set(False)
         graph, graph_parent = create_soft_ik(names["soft"], length, backend)
         created.append(graph_parent)
@@ -812,7 +799,7 @@ def build_limb(definition=None, backend="standard"):
             from mlib.nodes import Node
 
             graph_ref = Node(graph)
-            graph_parent = mlib.getNode(graph_parent).setParent(rig._member("softSetup")).getFullName()
+            graph_parent = mlib.nodes.Node(graph_parent).setParent(rig._member("softSetup")).getFullName()
             created[-1] = graph_parent
             graph = graph_ref.getFullName()
             mlib.getPlug(graph + ".visibility").set(False)
@@ -877,10 +864,10 @@ def build_limb(definition=None, backend="standard"):
             ],
         }.items():
             rig._layer_members(role, list(set(rig._member(member) for member in members)))
-        mlib.getNode(root).addAttr(longName="mlrigOwned", attributeType="message", multi=True)
+        mlib.nodes.Node(root).addAttr(longName="mlrigOwned", attributeType="message", multi=True)
         for index, node in enumerate(created):
-            if node != root and cmds.objExists(node):
-                mlib.getNode(node).getPlug("message").connectTo(mlib.getNode(root).getPlug("mlrigOwned")[index])
+            if node != root and mlib.objExists(node):
+                mlib.nodes.Node(node).getPlug("message").connectTo(mlib.nodes.Node(root).getPlug("mlrigOwned")[index])
         from .spaceLayer import SpaceLayer
 
         SpaceLayer(rig).attach()
@@ -891,7 +878,7 @@ def build_limb(definition=None, backend="standard"):
         return rig
     except Exception:
         for node in reversed(created):
-            if cmds.objExists(node):
+            if mlib.objExists(node):
                 mlib.delete(node)
         raise
     finally:

@@ -22,7 +22,7 @@ class RigFoundationsTest(unittest.TestCase):
 
     def test_container_and_scalar_graph(self):
         """演算評価、動的ラッパー、改名と所有削除を確認する。"""
-        owner = mlib.nodes.Container.create("owned")
+        owner = mlib.createContainer("owned")
         self.assertIsInstance(mlib.getNode(owner.getFullName()), mlib.nodes.Container)
         source = mlib.createNode("transform", name="external")
         source.addAttr(longName="value", attributeType="double", defaultValue=3)
@@ -114,8 +114,8 @@ class RigFoundationsTest(unittest.TestCase):
         joint = mlib.createNode("joint", name="bone")
         source = cmds.polyCube(name="source", constructionHistory=False)[0]
         target = cmds.polyCube(name="target", constructionHistory=False)[0]
-        skin = mlib.nodes.SkinCluster.bind(source, [joint])
-        copied = mlib.nodes.SkinCluster.bind(target, [joint])
+        skin = mlib.bindSkin([joint], source)
+        copied = mlib.bindSkin([joint], target)
         self.assertTrue(skin.deforms(source))
         self.assertFalse(skin.deforms(target))
         skin.copyWeightsTo(copied)
@@ -126,7 +126,7 @@ class RigFoundationsTest(unittest.TestCase):
             1,
         )
         with self.assertRaises(ValueError):
-            mlib.nodes.SkinCluster.bind(source, [joint])
+            mlib.bindSkin([joint], source)
         with self.assertRaises(ValueError):
             skin.copyWeightsTo(skin)
 
@@ -156,30 +156,16 @@ class RigFoundationsTest(unittest.TestCase):
         self.assertFalse(node.getPlug("tx").isSettable())
 
     def test_maya_command_boundary_in_mlrig(self):
-        """標準照会と利用箇所を限定した生成・UI処理だけcmds直接使用を許可する。"""
+        """mlibに入口が無い環境照会・UI・並び順・シェーダー作成だけcmds直接使用を許可する。"""
         import ast
         from pathlib import Path
 
         root = Path(__file__).resolve().parents[2] / "mlrig"
         # 廃止したコマンドラッパーの代替は、実際の使用ファイルに限定する。
         direct_commands = {
+            # DAGの並び順(reorder)と、シェーダー・シェーディンググループの作成は mlib に入口が無い。
             "channel_controls.py": {"reorder"},
-            "bendLayer.py": {"sets"},
-            "drivenLayer.py": {"sets"},
-            "limb.py": {"sets", "ikHandle"},
-            "reverse_foot.py": {"sets"},
-            "spaceLayer.py": {"sets"},
-            "twistLayer.py": {"sets"},
-            "examples/humanoid.py": {
-                "polyCube", "polySphere", "polyCylinder", "mirrorJoint", "shadingNode", "sets",
-            },
-            "examples/limb_demo.py": {"polyCube", "makeIdentity"},
-            "setups/coneReader.py": {"curve"},
-            "setups/controlShape.py": {"circle", "curve"},
-            "setups/splineIK.py": {"curve", "ikHandle"},
-            # Rotate Plane IK・自由度・優先角度・ポールベクター・回転の受け渡しは mlib に入口が無い Maya 標準の操作。
-            "setups/hingeIK.py": {"ikHandle", "joint", "spaceLocator", "poleVectorConstraint"},
-            "setups/planarIK.py": {"joint", "orientConstraint"},
+            "examples/humanoid.py": {"shadingNode", "sets"},
         }
         violations = []
         for path in root.rglob("*.py"):
@@ -213,20 +199,10 @@ class RigFoundationsTest(unittest.TestCase):
                     and item.func.value.id == "cmds"
                     and item.func.attr
                     not in {
-                        "parent",
                         "menu",
                         "about",
-                        "listHistory",
-                        "objExists",
                         "deleteUI",
                         "menuItem",
-                        "keyframe",
-                        "playbackOptions",
-                        "listConnections",
-                        "setKeyframe",
-                        "currentTime",
-                        "cutKey",
-                        "listRelatives",
                     } | direct_commands.get(path.relative_to(root).as_posix(), set())
                 ):
                     violations.append(str(path) + ":" + item.func.attr)

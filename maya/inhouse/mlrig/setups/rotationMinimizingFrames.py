@@ -132,7 +132,7 @@ class RotationMinimizingFrames(TwistDistribution):
         """
         if upAxis not in ("x", "y", "z"):
             raise ValueError("upAxis must be x, y or z")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("RotationMinimizingFrames container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in nodes]
         if len(nodes) < 3 or len({node.getUuid() for node in nodes}) != len(nodes) or any(
@@ -144,7 +144,7 @@ class RotationMinimizingFrames(TwistDistribution):
         for a, b in zip(points, points[1:]):
             if _dot(_sub(b, a), _sub(b, a)) < 1e-8:
                 raise ValueError("Neighboring transforms must be at different positions")
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for index in range(len(nodes)):
             owner.addAttr(longName="matrix" + str(index), dataType="matrix")
@@ -207,7 +207,7 @@ class RotationMinimizingFrames(TwistDistribution):
         up_values = [float(value) for value in upVector]
         if len(up_values) != 3 or not all(math.isfinite(v) for v in up_values) or _dot(up_values, up_values) < 1e-12:
             raise ValueError("upVector must be a non-zero finite vector")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("RotationMinimizingFrames container already exists: " + name)
         shape = mlib.nodes.Node(curve)
         if shape.getType() != "nurbsCurve":
@@ -220,7 +220,7 @@ class RotationMinimizingFrames(TwistDistribution):
             upNode = mlib.nodes.Node(upNode)
             if not isinstance(upNode, mlib.nodes.Transform):
                 raise ValueError("upNode must be a transform")
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for index in range(count):
             owner.addAttr(longName="matrix" + str(index), dataType="matrix")

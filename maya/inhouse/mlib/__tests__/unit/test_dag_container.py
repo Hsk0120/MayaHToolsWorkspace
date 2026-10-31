@@ -4,6 +4,8 @@ import unittest
 
 import maya.cmds as cmds
 
+import mlib
+
 from mlib.nodes import Container, DagContainer, Node, Transform
 
 
@@ -15,7 +17,7 @@ class DagContainerTest(unittest.TestCase):
         self.previous = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
         self.ns = cmds.namespace(add="dagContainerApiTest")
         cmds.namespace(set=self.ns)
-        self.owner = DagContainer.create()
+        self.owner = mlib.createDagContainer()
 
     def tearDown(self):
         """公開済みの箱を先に削除してからnamespaceを片付ける。"""

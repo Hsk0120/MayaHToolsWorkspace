@@ -76,14 +76,14 @@ class UiSlider(TwistDistribution):
             ranges.append(values)
         if ranges[0] == (0.0, 0.0) and ranges[1] == (0.0, 0.0):
             raise ValueError("At least one of rangeX and rangeY must allow movement")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("UiSlider container already exists: " + name)
         control = mlib.nodes.Node(control)
         if not isinstance(control, mlib.nodes.Transform):
             raise ValueError("Expected a transform for the control: " + str(control))
         rest = tuple(control.getPlug("translate").get())
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="size", attributeType="double", defaultValue=size)
         for label, values in zip(("rangeX", "rangeY"), ranges):

@@ -78,17 +78,17 @@ class WaveChain(TwistDistribution):
             raise ValueError("wavelength must be at least 0.1 joints")
         if not (0 <= rootWeight <= 1 and 0 <= tipWeight <= 1):
             raise ValueError("rootWeight and tipWeight must be between 0 and 1")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("WaveChain container already exists: " + name)
         joints = [mlib.nodes.Node(joint) for joint in joints]
         if len(joints) < 2 or any(not isinstance(joint, mlib.nodes.Transform) for joint in joints):
             raise ValueError("Expected two or more transforms")
         for parent, child in zip(joints, joints[1:]):
             actual = child.getParent()
-            if actual is None or actual.getUuid() != parent.getUuid():
+            if actual is None or actual != parent:
                 raise ValueError("Each joint must be the direct child of the previous one")
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         owner.addAttr(longName="phase", attributeType="double", defaultValue=0.0, keyable=True)

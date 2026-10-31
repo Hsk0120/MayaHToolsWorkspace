@@ -235,27 +235,27 @@ class GetConnectionsSpecTest(_ConnectionSpecCase):
         cmds.connectAttr(self.an + ".tx", self.bn + ".tx")
         cmds.connectAttr(self.an + ".ry", self.bn + ".rx")
         tx = self.b.getPlug("tx")
-        result = tx.getConnections(s=True, d=False)
+        result = tx.getConnections(s=True, d=False, skipConversionNodes=True)
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], plugs.DoubleLinearPlug)
         self.assertEqual(result[0].getFullName(), self.an + ".translateX")
-        pairs = self.b.getPlug("rx").getConnections(s=True, d=False, asPair=True)
+        pairs = self.b.getPlug("rx").getConnections(s=True, d=False, asPair=True, skipConversionNodes=True)
         self.assertEqual([(p[0].getFullName(), p[1].getFullName()) for p in pairs],
                          [(self.bn + ".rotateX", self.an + ".rotateY")])
         self.assertIsInstance(pairs[0][1], plugs.DoubleAnglePlug)
-        nodes = tx.getConnections(s=True, d=False, asNode=True)
+        nodes = tx.getConnections(s=True, d=False, asNode=True, skipConversionNodes=True)
         self.assertEqual(nodes, [self.a])
-        self.assertEqual([str(p) for p in tx.getConnections(s=True, d=False)],
+        self.assertEqual([str(p) for p in tx.getConnections(s=True, d=False, skipConversionNodes=True)],
                          cmds.listConnections(self.bn + ".tx", source=True, destination=False, plugs=True))
 
     def test_pcls_is_removed(self):
         """pclsは位置・キーワードのどちらでも受け付けない。"""
         tx = self.b.getPlug("tx")
         with self.assertRaises(TypeError):
-            tx.getConnections(pcls=plugs.Plug)
+            tx.getConnections(pcls=plugs.Plug, skipConversionNodes=True)
         with self.assertRaises(TypeError):
             tx.getConnections(True, True, False, None, False, False, True, True, False, None, False, False,
-                              False, False, True, True, None, plugs.Plug)
+                              False, False, True, True, None, plugs.Plug, skipConversionNodes=True)
 
 
 class NextAvailableLocationSpecTest(_ConnectionSpecCase):

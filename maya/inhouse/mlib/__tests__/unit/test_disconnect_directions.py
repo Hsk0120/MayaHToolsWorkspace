@@ -43,8 +43,8 @@ class DisconnectReferenceTest(unittest.TestCase):
                     result = center.disconnect(value)
                 self.assertIsInstance(result, mlib.plugs.Plug)
                 self.assertEqual(result, source)
-                self.assertIsNone(center.getSource())
-                self.assertCountEqual(center.getDestinations(), destinations)
+                self.assertIsNone(center.getSource(skipConversionNodes=True))
+                self.assertCountEqual(center.getDestinations(skipConversionNodes=True), destinations)
                 with self.assertRaises(RuntimeError):
                     center.disconnect()
 
@@ -57,12 +57,12 @@ class DisconnectReferenceTest(unittest.TestCase):
             with self.subTest(flags=flags):
                 with self.assertRaises(TypeError):
                     center.disconnect(**flags)
-                self.assertEqual(center.getSource(), source)
-                self.assertCountEqual(center.getDestinations(), destinations)
+                self.assertEqual(center.getSource(skipConversionNodes=True), source)
+                self.assertCountEqual(center.getDestinations(skipConversionNodes=True), destinations)
         for value in (True, False, 1, [], object()):
             with self.assertRaises(TypeError):
                 center.disconnect(value)
-        self.assertEqual(center.getSource(), source)
+        self.assertEqual(center.getSource(skipConversionNodes=True), source)
 
     def test_direction_release_uses_disconnect_all_and_returns_self(self):
         """方向解除を独立した既存APIで行い、通常の一回Undoを保つ。"""
@@ -70,12 +70,12 @@ class DisconnectReferenceTest(unittest.TestCase):
             source, center, destinations = self._chain("directions" + str(src) + str(dst))
             cmds.flushUndo()
             self.assertIs(center.disconnectAll(source=src, destination=dst), center)
-            self.assertEqual(center.getSource(), None if src else source)
-            self.assertCountEqual(center.getDestinations(), [] if dst else destinations)
+            self.assertEqual(center.getSource(skipConversionNodes=True), None if src else source)
+            self.assertCountEqual(center.getDestinations(skipConversionNodes=True), [] if dst else destinations)
             if src or dst:
                 cmds.undo()
-                self.assertEqual(center.getSource(), source)
-                self.assertCountEqual(center.getDestinations(), destinations)
+                self.assertEqual(center.getSource(skipConversionNodes=True), source)
+                self.assertCountEqual(center.getDestinations(skipConversionNodes=True), destinations)
             else:
                 self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
@@ -91,13 +91,13 @@ class DisconnectReferenceTest(unittest.TestCase):
         output.connect(first)
         cmds.flushUndo()
         self.assertCountEqual(array.disconnect(source=source, nextAvailable=True), [first, second])
-        self.assertEqual(independent.getSource(), other)
-        self.assertEqual(output.getSource(), first)
+        self.assertEqual(independent.getSource(skipConversionNodes=True), other)
+        self.assertEqual(output.getSource(skipConversionNodes=True), first)
         with self.assertRaises(RuntimeError):
             array.disconnect(source, na=True)
         cmds.undo()
-        self.assertEqual(first.getSource(), source)
-        self.assertEqual(second.getSource(), source)
+        self.assertEqual(first.getSource(skipConversionNodes=True), source)
+        self.assertEqual(second.getSource(skipConversionNodes=True), source)
 
     def test_conversion_nodes_are_direct_endpoints(self):
         """変換を飛ばした遠端を切らず、直結した変換出力を返す。"""
@@ -108,7 +108,7 @@ class DisconnectReferenceTest(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             destination.disconnect(source)
         self.assertEqual(destination.disconnect(), conversion.getPlug("output"))
-        self.assertEqual(conversion.getPlug("input").getSource(skipConversionNodes=False), source)
+        self.assertEqual(conversion.getPlug("input").getSource(), source)
 
     def test_parent_disconnect_does_not_recurse_into_children(self):
         """親の入力だけを切り、独立した子の接続と親の出力を残す。"""
@@ -119,8 +119,8 @@ class DisconnectReferenceTest(unittest.TestCase):
         child_output = mlib.createNode("transform").getPlug("translateX")
         child_output.connect(b.getPlug("translateX"))
         self.assertEqual(parent.disconnect(), a.getPlug("translate"))
-        self.assertEqual(c.getPlug("translate").getSource(), parent)
-        self.assertEqual(child_output.getSource(), b.getPlug("translateX"))
+        self.assertEqual(c.getPlug("translate").getSource(skipConversionNodes=True), parent)
+        self.assertEqual(child_output.getSource(skipConversionNodes=True), b.getPlug("translateX"))
 
     def test_force_restores_parent_lock_and_keeps_one_undo(self):
         """入力切断のforce/fを維持し、上位ロックを復元する。"""
@@ -134,13 +134,13 @@ class DisconnectReferenceTest(unittest.TestCase):
         cmds.flushUndo()
         self.assertEqual(destination.disconnect(source, force=False, f=True), source)
         self.assertTrue(parent.isLocked())
-        self.assertIsNone(destination.getSource())
+        self.assertIsNone(destination.getSource(skipConversionNodes=True))
         cmds.undo()
         self.assertTrue(parent.isLocked())
-        self.assertEqual(destination.getSource(), source)
+        self.assertEqual(destination.getSource(skipConversionNodes=True), source)
         cmds.redo()
         self.assertTrue(parent.isLocked())
-        self.assertIsNone(destination.getSource())
+        self.assertIsNone(destination.getSource(skipConversionNodes=True))
 
     def test_fast_disconnect_uses_api_and_preserves_undo_queue(self):
         """fastは同じ直結をAPIで切り、Undoキューを増やさない。"""
@@ -149,8 +149,8 @@ class DisconnectReferenceTest(unittest.TestCase):
         with patch.object(cmds, "disconnectAttr", side_effect=AssertionError("cmds disconnect")):
             self.assertEqual(center.disconnect(source, fast=True), source)
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
-        self.assertIsNone(center.getSource())
-        self.assertCountEqual(center.getDestinations(), destinations)
+        self.assertIsNone(center.getSource(skipConversionNodes=True))
+        self.assertCountEqual(center.getDestinations(skipConversionNodes=True), destinations)
 
     def test_fast_multi_force_restores_locks_and_keeps_other_connections(self):
         """fastのマルチアトリビュートの検索もf/naを保ち、上位と要素のロックを復元する。"""
@@ -167,9 +167,9 @@ class DisconnectReferenceTest(unittest.TestCase):
             self.assertCountEqual(array.disconnect(source, f=True, na=True, fast=True), [first, second])
         self.assertTrue(array.isLocked())
         self.assertTrue(first.mplug().isLocked)
-        self.assertIsNone(first.getSource())
-        self.assertIsNone(second.getSource())
-        self.assertEqual(independent.getSource(), other)
+        self.assertIsNone(first.getSource(skipConversionNodes=True))
+        self.assertIsNone(second.getSource(skipConversionNodes=True))
+        self.assertEqual(independent.getSource(skipConversionNodes=True), other)
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
     def test_deleted_source_or_destination_fails_before_maya_disconnect(self):

@@ -1,6 +1,5 @@
 """階層を組まずに並べたコントロールを、標準の行列ノードで仮想のFK階層として動かす。"""
 
-from maya import cmds
 
 import mlib
 from mlib.decorator import undoTransaction
@@ -41,7 +40,7 @@ class VirtualChain(TwistDistribution):
         """
         nodes = []
         for item in controls:
-            node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+            node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
             if not isinstance(node, mlib.nodes.Transform):
                 raise ValueError("control must be an existing transform: " + str(item))
             nodes.append(node)
@@ -50,18 +49,18 @@ class VirtualChain(TwistDistribution):
         paths = [node.getFullName() for node in nodes]
         if len(set(paths)) != len(paths):
             raise ValueError("controls must be unique")
-        for path in paths:
-            if len(cmds.listRelatives(path, allParents=True) or []) > 1:
+        for node, path in zip(nodes, paths):
+            if len(node.getParents()) > 1:
                 raise ValueError("instanced controls are not supported: " + path)
             for other in paths:
                 if other != path and other.startswith(path + "|"):
                     raise ValueError("controls must not be ancestors of each other: " + path)
         for node in nodes[1:]:
-            if cmds.listConnections(node.getFullName() + ".offsetParentMatrix", source=True, destination=False):
+            if node.getPlug("offsetParentMatrix").getSource() is not None:
                 raise ValueError("offsetParentMatrix is already connected: " + node.getFullName())
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("VirtualChain container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         graph._build(nodes)
         return graph
 
@@ -104,8 +103,8 @@ class VirtualChain(TwistDistribution):
         Returns:
             list[Node]: コントロール。
         """
-        pairs = cmds.listConnections(self.container.getFullName() + ".controls", source=True, destination=False,
-                                     connections=True, fullNodeName=True) or []
-        # (受け側の "container.controls[i]", 送り側のノード) の組を、論理番号の順に並べる。
-        items = sorted((int(plug.rsplit("[", 1)[1].rstrip("]")), node) for plug, node in zip(pairs[::2], pairs[1::2]))
-        return [mlib.getNode(node) for _, node in items]
+        pairs = self.container.getPlug("controls").getConnections(
+            destination=False, asPair=True, asNode=True
+        )
+        # (受け側の要素Plug, 送り側のノード) の組を、論理番号の順に並べる。
+        return [node for _, node in sorted(pairs, key=lambda pair: pair[0].getIndex())]

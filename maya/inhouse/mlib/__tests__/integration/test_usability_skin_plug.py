@@ -16,7 +16,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
         self.base = mlib.getNode(cmds.polyCube(ch=False)[0])
         self.first = mlib.createNode("joint", name="first")
         self.second = mlib.createNode("joint", name="second")
-        self.skin = mlib.nodes.SkinCluster.bind(self.base, [self.first, self.second])
+        self.skin = mlib.bindSkin([self.first, self.second], self.base)
         self.skin.setWeights([self.first, self.second], [0.25, 0.75], broadcast=True)
 
     def tearDown(self):
@@ -88,7 +88,7 @@ class SkinPlugWorkflowTest(unittest.TestCase):
     def test_collect_preserves_first_seen_order_and_does_not_recurse_groups(self):
         """別skinの保持順と直下shape検索の既存境界を保つ。"""
         mesh = mlib.getNode(cmds.polyCube(ch=False)[0])
-        other = mlib.nodes.SkinCluster.bind(mesh, [self.first, self.second])
+        other = mlib.bindSkin([self.first, self.second], mesh)
         group = mlib.createNode("transform", name="group")
         mesh.setParent(group)
         self.assertEqual(len(group.getSkinClusters()), 0)

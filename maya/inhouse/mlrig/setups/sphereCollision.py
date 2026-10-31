@@ -73,7 +73,7 @@ class SphereCollision(TwistDistribution):
             raise ValueError("radius and softness must be finite")
         if softness < 0.0 or radius < 0.0:
             raise ValueError("radius and softness must not be negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("SphereCollision container already exists: " + name)
         target = mlib.nodes.Node(target)
         sphere = mlib.nodes.Node(sphere)
@@ -83,7 +83,7 @@ class SphereCollision(TwistDistribution):
         if target.getFullName() == sphere.getFullName():
             raise ValueError("target and sphere must be different nodes")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="radius", attributeType="double", defaultValue=radius, keyable=True,
                       minValue=0)

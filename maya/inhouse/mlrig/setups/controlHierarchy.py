@@ -27,7 +27,7 @@ class ControlHierarchy:
 
         通常は一回のUndoで戻せる。途中の失敗は自動で巻き戻さない。
         """
-        target = target if isinstance(target, mlib.nodes.Node) else mlib.getNode(target)
+        target = target if isinstance(target, mlib.nodes.Node) else mlib.nodes.Node(target)
         if not isinstance(target, mlib.nodes.Transform):
             raise TypeError("target must be a transform")
         if type(fast) is not bool:
@@ -68,7 +68,7 @@ class ControlHierarchy:
 
         通常は一回のUndoで戻せる。接続を保持する処理ではないため明示的に呼び出す。
         """
-        target = target if isinstance(target, mlib.nodes.Node) else mlib.getNode(target)
+        target = target if isinstance(target, mlib.nodes.Node) else mlib.nodes.Node(target)
         if not isinstance(target, mlib.nodes.Transform):
             raise TypeError("target must be a transform")
         if type(fast) is not bool:

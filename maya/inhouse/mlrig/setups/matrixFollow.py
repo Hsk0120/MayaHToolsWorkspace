@@ -28,29 +28,25 @@ class MatrixFollow:
         """
         pending, visited = [source, target.getParent()], set()
         # target自体のインスタンスも確認する。親のインスタンスは探索で検出する。
-        if len(cmds.listRelatives(target.getFullName(), allParents=True) or []) > 1:
+        if len(target.getParents()) > 1:
             raise ValueError("Instanced targets are not supported")
         while pending:
             item = pending.pop()
             if item is None or item.getUuid() in visited:
                 continue
             visited.add(item.getUuid())
-            if item.getUuid() == target.getUuid():
+            if item == target:
                 raise ValueError("Source or parent depends on target")
             if isinstance(item, (mlib.nodes.Transform, mlib.nodes.Shape)):
-                parents = cmds.listRelatives(item.getFullName(), allParents=True, fullPath=True) or []
+                parents = item.getParents()
                 if len(parents) > 1:
                     raise ValueError("Instanced hierarchy is not supported")
-                pending.extend(mlib.getNode(parent) for parent in parents)
-            pairs = (
-                cmds.listConnections(
-                    item.getFullName(), source=True, destination=False, plugs=True, connections=True
-                )
-                or []
-            )
-            for destination, upstream in zip(pairs[::2], pairs[1::2]):
-                if mlib.getPlug(destination).getType() != "message":
-                    pending.append(mlib.getPlug(upstream).getNode())
+                pending.extend(parents)
+            for destination, upstream in item.getConnections(
+                destination=False, asPair=True
+            ):
+                if destination.getType() != "message":
+                    pending.append(upstream.getNode())
 
     @staticmethod
     @undoTransaction("mlrig.MatrixFollow.create")
@@ -73,10 +69,10 @@ class MatrixFollow:
         """
         if backend not in ("standard", "cpp", "bifrost"):
             raise ValueError("Unknown matrix backend: " + backend)
-        source, target = mlib.getNode(source), mlib.getNode(target)
+        source, target = mlib.nodes.Node(source), mlib.nodes.Node(target)
         if source.getType() != "transform" or target.getType() != "transform":
             raise ValueError("MatrixFollow requires transform buffers, not joints")
-        if source.getUuid() == target.getUuid() or target.isAncestorOf(source):
+        if source == target or target.isAncestorOf(source):
             raise ValueError("Source must not depend on the target hierarchy")
         MatrixFollow._validate_dependencies(source, target)
         identity = Matrix()
@@ -98,15 +94,15 @@ class MatrixFollow:
             expected = (1, 1, 1) if attr == "scale" else (0, 0, 0)
             if any(abs(a - b) > 1e-9 for a, b in zip(plug.get(), expected)):
                 raise ValueError("Target channels/pivots must be at their defaults")
-            if plug.getSource(skipConversionNodes=False) is not None or any((child.getSource(skipConversionNodes=False) is not None for child in plug.getChildren())):
+            if plug.getSource() is not None or any((child.getSource() is not None for child in plug.getChildren())):
                 raise ValueError("Target channels must have no incoming connections")
-        if target.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None:
+        if target.getPlug('offsetParentMatrix').getSource() is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
         if target.isLocked() or target.getPlug("offsetParentMatrix").isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
         if (
             not target.getPlug("inheritsTransform").get()
-            or target.getPlug('inheritsTransform').getSource(skipConversionNodes=False) is not None
+            or target.getPlug('inheritsTransform').getSource() is not None
         ):
             raise ValueError("Target must inherit its parent transform")
         parent = target.getParent()

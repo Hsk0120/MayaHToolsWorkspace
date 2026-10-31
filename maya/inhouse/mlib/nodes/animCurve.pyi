@@ -11,6 +11,7 @@ from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, undoChunk
 from ..util import _angle_unit, _from_radians, _time_unit, _to_radians
 from .node import Node
+from typing import Sequence
 
 _TANGENT_TYPES: dict
 _TANGENT_NAMES: dict
@@ -132,15 +133,27 @@ class AnimCurve(Node):
             NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
         """
         ...
-    def removeKey(self, index: int, *, fast: bool = ...) -> AnimCurve:
-        """指定番号のキーを削除する。キークリップボードは変更しない。
+    def removeKey(self, index: int | None = ..., *, time: float | Sequence[float] | None = ..., timeUnit: str = ..., fast: bool = ...) -> AnimCurve:
+        """指定番号、または入力の範囲にあるキーを削除する。キークリップボードは変更しない。
+
+        index と time はどちらか一方を指定する。アトリビュートへ接続されたカーブの全キーを通常経路で削除すると、
+        ``cmds.cutKey`` と同じくMayaがカーブ自体を削除する(fastでは空のカーブが残る)。
 
         Args:
-            index (int): 0始まりのキー番号。
+            index (int | None): 0始まりのキー番号。
+            time (float | Sequence[float] | None): 削除する入力の時刻、または両端を含む範囲 ``(start, end)``。
+                T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。範囲内にキーが無ければ何もしない。
+            timeUnit (str): T型入力のtimeの単位。``"frame"`` / ``"sec"``。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             AnimCurve: 自身。
+
+        Raises:
+            TypeError: indexとtimeの両方・どちらも指定しない場合、timeが数値・2つの数値の並び以外、
+                またはfastがbool以外の場合。
+            ValueError: timeが有限でない、範囲の開始が終了より大きい、またはtimeUnitが未対応の単位名の場合。
+            IndexError: indexが範囲外の場合。
         """
         ...
     def getTangent(self, index: int, *, unit: str = ...) -> dict:
@@ -401,6 +414,21 @@ class AnimCurve(Node):
         Raises:
             TypeError: float()が受理しない型の場合。
             ValueError: 変換できない文字列など、またはNaN/正負の無限大の場合。
+        """
+        ...
+    def _time_span(self, time: float | Sequence[float], time_unit: str) -> tuple[int, int] | None:
+        """入力の時刻・範囲を、その中にあるキーの番号の範囲へ変換する。
+
+        Args:
+            time (float | Sequence[float]): 時刻、または両端を含む範囲。
+            time_unit (str): T型入力のtimeの単位。
+
+        Returns:
+            tuple[int, int] | None: 最初と最後のキー番号。範囲内にキーが無ければNone。
+
+        Raises:
+            TypeError: timeが数値・2つの数値の並び以外の場合。
+            ValueError: 有限でない、開始が終了より大きい、またはtime_unitが未対応の単位名の場合。
         """
         ...
     def _index(self, index: int) -> tuple[int, int]:

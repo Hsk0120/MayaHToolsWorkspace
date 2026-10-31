@@ -121,7 +121,7 @@ class OverShoulderCamera(TwistDistribution):
         heads = []
         for item in (focus, partner):
             node = item if isinstance(item, mlib.nodes.Node) else (
-                mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+                mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
             if not isinstance(node, mlib.nodes.Transform):
                 raise ValueError("Expected an existing transform: " + str(item))
             heads.append(node)
@@ -151,13 +151,13 @@ class OverShoulderCamera(TwistDistribution):
         if connect:
             for attr in ("translate", "rotate"):
                 for axis in ("", "X", "Y", "Z"):
-                    if transform.getPlug(attr + axis).getSource() is not None:
+                    if transform.getPlug(attr + axis).getSource(skipConversionNodes=True) is not None:
                         raise ValueError("The camera {} is already connected: {}".format(attr, transform))
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("OverShoulderCamera container already exists: " + name)
         rest = Matrix(transform.getPlug("worldMatrix")[0].get())
         with nativeUnits():
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(transform, shape, heads, rest, float(distance), dict(values))
             if connect:
                 graph._connect(transform)
@@ -176,7 +176,7 @@ class OverShoulderCamera(TwistDistribution):
         Raises:
             ValueError: cameraでない場合。
         """
-        node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+        node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
         if node is None:
             raise ValueError("Expected an existing camera: " + str(item))
         if node.getType() == "camera":

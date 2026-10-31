@@ -38,9 +38,9 @@ class SplineIKTest(unittest.TestCase):
             0.1,
         )
         graph.set_enabled(False)
-        self.assertIsNone(graph.member('handle').getPlug('inCurve').getSource(skipConversionNodes=False))
+        self.assertIsNone(graph.member('handle').getPlug('inCurve').getSource())
         graph.set_enabled(True)
-        self.assertIsNotNone(graph.member('handle').getPlug('inCurve').getSource(skipConversionNodes=False))
+        self.assertIsNotNone(graph.member('handle').getPlug('inCurve').getSource())
         mlib.delete(graph.container)
         self.assertTrue(all(cmds.objExists(n.getFullName()) for n in self.joints + self.controls))
         self.assertFalse(cmds.ls("splineGraph*"))

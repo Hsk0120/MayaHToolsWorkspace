@@ -84,13 +84,13 @@ class MuscleBulge(TwistDistribution):
             raise ValueError("position must be between 0 and 1")
         if not 0.0 <= startAngle < fullAngle <= 180.0:
             raise ValueError("Expected 0 <= startAngle < fullAngle <= 180")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("MuscleBulge container already exists: " + name)
         parent, joint = mlib.nodes.Node(parent), mlib.nodes.Node(joint)
         if any(not isinstance(node, mlib.nodes.Transform) for node in (parent, joint)):
             raise ValueError("Expected transforms for the parent and the joint")
         joint_parent = joint.getParent()
-        if joint_parent is None or joint_parent.getUuid() != parent.getUuid():
+        if joint_parent is None or joint_parent != parent:
             raise ValueError("Expected a direct parent-child pair")
         unit = [float(value == axis) for value in axes]
         relative_rest = Matrix(joint.getPlug("matrix").get()) * Matrix(
@@ -102,7 +102,7 @@ class MuscleBulge(TwistDistribution):
         sign = -1.0 if pushAxis.startswith("-") else 1.0
         push_vector = [sign * float(value == pushAxis[-1]) for value in axes]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         for attr, value, bounds in (

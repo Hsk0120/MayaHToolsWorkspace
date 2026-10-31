@@ -109,7 +109,7 @@ class PlugSimplificationTest(unittest.TestCase):
         # messageの便利操作も同じ安全な参照経路を使い、接続だけで実体化する。
         for fast in (False, True):
             index = array.appendMessage(source, fast=fast)
-            self.assertEqual(array[index].getSource(), source.getPlug("message"))
+            self.assertEqual(array[index].getSource(skipConversionNodes=True), source.getPlug("message"))
             if not fast:
                 cmds.undo()
                 self.assertEqual(array.getElements(), [])

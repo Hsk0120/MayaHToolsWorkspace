@@ -2,15 +2,13 @@
 """Maya の blendShape デフォーマを扱う。"""
 
 import re
-from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 import maya.mel as mel
-from ..core.object import Object
-from ..decorator import _require_bool, undoChunk
+from ..decorator import undoChunk
 from .node import Node
-from typing import Any, Iterable
+from typing import Any
 from mlib.plugs.plug import Plug
 
 _WEIGHT_ALIAS: Any
@@ -39,31 +37,6 @@ class BlendShape(Node):
         Raises:
             TypeError: nameが文字列以外の場合。
             RuntimeError: ノードが無効な場合。
-        """
-        ...
-    @classmethod
-    def create(cls, base: str | Node, targets: str | Node | Iterable[str | Node] = ..., name: str | None = ..., frontOfChain: bool = ...) -> BlendShape:
-        """形状にblendShapeを作成し、ターゲットを登録する(``cmds.blendShape`` 相当)。
-
-        ``cmds.blendShape`` 専用の特化ビルダー。ターゲットは指定順に論理番号0から登録し、
-        ターゲット名はMayaの規則どおりターゲットのtransform名(名前空間を含む短い名前)になる。
-        ターゲット形状との接続はMayaの既定どおり残す。Undo有効時は1回で戻せる。
-
-        Args:
-            base (str | Node): 変形するメッシュ等の形状またはtransform。
-            targets (str | Node | Iterable[str | Node]): ターゲットの形状またはtransform。
-                省略時はターゲットの無いblendShapeを作る(後から :meth:`addTarget` で追加する)。
-            name (str | None): 作成名。NoneならMayaの自動命名。
-            frontOfChain (bool): Trueは既存デフォーマ(skinCluster等)より前、つまり変形の最初に
-                置く(リグで一般的な「ブレンドシェイプ → スキン」の順)。Falseは最後に置く。
-
-        Returns:
-            BlendShape: 作成したblendShape。
-
-        Raises:
-            TypeError: frontOfChainがbool以外、nameが文字列・None以外、または対象が対応しない型の場合。
-            ValueError: nameが空文字列、または対象が空・無効な場合。
-            RuntimeError: 名前を解決できない、またはMayaが作成を拒否した場合。
         """
         ...
     def getTargetNames(self) -> list[str]:

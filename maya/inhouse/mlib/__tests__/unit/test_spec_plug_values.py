@@ -149,7 +149,7 @@ class RemovedNamesSpecTest(_ValueSpecCase):
         """getConnections(pcls=)は受け付けない。"""
         tx = self.node.getPlug("tx")
         with self.assertRaises(TypeError):
-            tx.getConnections(pcls=plugs.Plug)
+            tx.getConnections(pcls=plugs.Plug, skipConversionNodes=True)
 
 
 class RangeUnitsSpecTest(_ValueSpecCase):

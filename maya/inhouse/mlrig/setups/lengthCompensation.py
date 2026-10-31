@@ -1,6 +1,5 @@
 """長さの変化から伸縮率と横方向の体積補正を標準DGで求める。"""
 
-from maya import cmds
 
 import math
 import mlib
@@ -51,9 +50,9 @@ class LengthCompensation:
             volumeScaleはlengthScaleの逆平方根をvolumeで線形ブレンドする。
             体積維持は棒状断面の近似で、メッシュ体積の厳密な保証ではない。
         """
-        if not math.isfinite(rest_length) or rest_length <= 0 or cmds.objExists(name):
+        if not math.isfinite(rest_length) or rest_length <= 0 or mlib.objExists(name):
             raise ValueError("Use a positive rest length and a unique name")
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attr, value, low, high in (
             ("restLength", rest_length, 1e-8, None),

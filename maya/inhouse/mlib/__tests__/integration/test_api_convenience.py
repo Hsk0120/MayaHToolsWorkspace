@@ -40,7 +40,7 @@ class ConvenienceTests(unittest.TestCase):
         message = node.addAttr('links', at='message', multi=True)
         other = mlib.createNode('transform')
         cmds.connectAttr(str(other.message), str(message[4]))
-        self.assertEqual(message[4].getSource().getNode(), other)
+        self.assertEqual(message[4].getSource(skipConversionNodes=True).getNode(), other)
 
     def test_matrix_interop(self):
         matrix = Matrix(translate=(2,3,4), scale=(2,3,4))
@@ -134,7 +134,7 @@ class ConvenienceTests(unittest.TestCase):
         cmds.mute(str(node.tx))
         self.assertEqual(node.tx.getAnimLayers(), [layer, base])
         cmds.mute(str(node.tx), disable=True, force=True)
-        source = node.tx.getSource(skipConversionNodes=False)
+        source = node.tx.getSource()
         blend = mlib.createNode('pairBlend')
         cmds.disconnectAttr(str(source), str(node.tx))
         cmds.connectAttr(str(source), str(blend.inTranslateX1))

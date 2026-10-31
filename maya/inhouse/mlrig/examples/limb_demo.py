@@ -1,7 +1,5 @@
 """操作用カーブと高低メッシュを持つ最小リグのデモ。"""
 
-from maya import cmds
-
 import mlib
 
 from mlib.decorator import undoTransaction
@@ -28,7 +26,7 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
     prefix = "" if name == "rig" else name + "_"
     high_name, proxy_name = prefix + "body_geo", prefix + "body_proxy_geo"
     for node in (name, high_name, proxy_name):
-        if cmds.objExists(node):
+        if mlib.objExists(node):
             raise ValueError("Demo node already exists: " + node)
     rig = build_limb(limb_definition(name), backend=backend)
     if bend_helpers:
@@ -51,31 +49,13 @@ def build_demo(name="rig", backend="standard", twist_count=3, bend_helpers=True)
 
     for role, control in rig.controls().items():
         ControlShape.circle(control, radius=0.45, color=17 if role.startswith("fk") else 6)
-    high = mlib.getNode(cmds.polyCube(
-        name=high_name,
-        width=10,
-        height=1,
-        depth=1,
-        subdivisionsX=16,
-        constructionHistory=False,
-    )[0])
-    proxy = mlib.getNode(cmds.polyCube(
-        name=proxy_name,
-        width=10,
-        height=1,
-        depth=1,
-        subdivisionsX=4,
-        constructionHistory=False,
-    )[0])
+    ui = mlib.common.units.distanceFromUi
+    high = mlib.createPolyCube(width=ui(10), height=ui(1), depth=ui(1), subdivisions=(16, 1, 1), name=high_name).getParent()
+    proxy = mlib.createPolyCube(width=ui(10), height=ui(1), depth=ui(1), subdivisions=(4, 1, 1), name=proxy_name).getParent()
     for mesh in (high, proxy):
         mesh.getPlug("translateX").set(5)
-        cmds.makeIdentity(mesh.getFullName(), apply=True, translate=True)
-    high = [mlib.getNode(value) for value in (cmds.parent(high, rig._member("moduleGeometry")) or [])][
-        0
-    ]
-    proxy = [
-        mlib.getNode(value) for value in (cmds.parent(proxy, rig._member("moduleGeometry")) or [])
-    ][0]
+        mesh.makeIdentity(apply=True, translate=True)
+        mesh.setParent(rig._member("moduleGeometry"))
     # デモの公開戻り値は従来通り名前。構築中は型付き参照で扱う。
     high, proxy = high.getFullName(), proxy.getFullName()
     high_skin = bind_mesh(rig, high)

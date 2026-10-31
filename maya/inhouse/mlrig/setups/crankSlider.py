@@ -81,7 +81,7 @@ class CrankSlider(TwistDistribution):
             どちらもワールド行列なので、ワールド直下のtransformの offsetParentMatrix へ接続する。
             ロッドが軸に届かない(L が軸からピンまでの距離より短い)場合、ピストンは軸の上の最も近い点に止まる。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("CrankSlider container already exists: " + name)
         nodes = []
         for label, value in (("pin", pin), ("piston", piston), ("rod", rod)):
@@ -134,7 +134,7 @@ class CrankSlider(TwistDistribution):
         aim_local = (aim * rod_inverse).normal()
         plane_local = (plane * rod_inverse).normal()
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="rodLength", attributeType="doubleLinear", defaultValue=length, minValue=0.0,
                       keyable=True)

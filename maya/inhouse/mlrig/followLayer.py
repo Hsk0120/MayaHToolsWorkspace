@@ -1,6 +1,5 @@
 """Twist/Swing/割合回転を追従する補助骨レイヤー。"""
 
-from maya import cmds
 
 import re
 
@@ -46,7 +45,7 @@ class FollowLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple((group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getFullName() for group in selected))
+        return tuple((group.getPlug('joint').getSource().getNode().getFullName() for group in selected))
 
     @undoTransaction("mlrig.FollowLayer.add")
     def add(self, identifier, joint, mode="full", axis="x", ratio=0.5):
@@ -68,23 +67,12 @@ class FollowLayer:
             raise ValueError("Invalid follow identifier")
         if identifier in self.groups():
             raise ValueError("Follow identifier already exists")
-        joint = mlib.getNode(joint)
+        joint = mlib.nodes.Node(joint)
         if joint.getType() != "joint" or not joint.getFullName().startswith(
             self.rig.root.getFullName() + "|"
         ):
             raise ValueError("Expected a joint inside the module")
-        parent = (
-            [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listRelatives(joint.getFullName(), parent=True, fullPath=True) or []
-                    )
-                ]
-            ]
-            or [None]
-        )[0]
+        parent = joint.getParent()
         stem = self.rig.root.getName() + "_follow_" + identifier
         if [item.getName() for item in mlib.ls(stem + "_*")]:
             raise ValueError("Follow names already exist")
@@ -150,9 +138,9 @@ class FollowLayer:
         """Enabled/LODに応じて出力を切断し、基準姿勢へ戻す。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("follow")
         for group in self.groups().values():
-            graph = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
-            target = group.getPlug('joint').getSource(skipConversionNodes=False).getNode().getPlug('offsetParentMatrix')
-            source = target.getSource(skipConversionNodes=False)
+            graph = group.getPlug('graph').getSource().getNode()
+            target = group.getPlug('joint').getSource().getNode().getPlug('offsetParentMatrix')
+            source = target.getSource()
             output = graph.getPlug("matrix")
             if source is not None and source.mplug() != output.mplug():
                 raise ValueError("Follow output was replaced")

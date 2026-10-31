@@ -39,7 +39,7 @@ class SkinCluster(Node):
     def __init__(self, skinCluster):
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
 
-        取得専用で、新規バインドは :meth:`bind` を使う。先頭 geometry のみを保持する。
+        取得専用で、新規バインドは :func:`mlib.bindSkin <mlib.cmds.bindSkin.bindSkin>` を使う。先頭 geometry のみを保持する。
         頂点ウェイト操作ではその geometry が mesh であることを前提とする。
 
         Args:
@@ -57,29 +57,6 @@ class SkinCluster(Node):
         self.mesh_path = self._geometry_dag_path(self.mesh)
         # 内部の照会で使い回す。公開の取得口は毎回新しく作る mfn()。
         self._skin_fn = oma2.MFnSkinCluster(self.mnode())
-
-    @classmethod
-    @undoChunk("mlibSkinClusterBind")
-    def bind(cls, mesh, influences, maxInfluences=4):
-        """未スキニングの形状を指定influenceへバインドする。
-
-        Args:
-            mesh (str | Node): Mayaがバインド可能な形状またはtransform。
-            influences (Sequence[str | Node]): バインドする骨等のtransform。
-            maxInfluences (int): 1頂点に割り当てる最大数。正の整数。
-
-        Returns:
-            SkinCluster: 作成したskinCluster。
-        """
-        mesh = Node(mesh)
-        influences = [Node(n) for n in Nodes._resolve_inputs(influences)]
-        if not influences or type(maxInfluences) is not int or maxInfluences < 1:
-            raise ValueError("Expected influences and a positive maximum influence count")
-        if SkinCluster._geometry_skin_uuids(mesh):
-            raise ValueError("Geometry already has a skinCluster")
-        return cls(cmds.skinCluster([n.getFullName() for n in influences], mesh.getFullName(),
-                                   toSelectedBones=True, maximumInfluences=maxInfluences,
-                                   normalizeWeights=1)[0])
 
     def mfn(self):
         """このskinClusterのMFnSkinClusterを、呼び出すたびに新しく作って返す。
@@ -121,7 +98,7 @@ class SkinCluster(Node):
 
         転送先にはskinClusterのほか、形状(Shape)またはその親Transformも指定できる。形状を変形する
         skinClusterがあればそれへ転送し、無ければ自身の全influence・同じmaxInfluencesで
-        :meth:`bind` してから転送する。バインドと転送は1回のUndoで戻る。fast引数は持たない
+        :func:`mlib.bindSkin <mlib.cmds.bindSkin.bindSkin>` でバインドしてから転送する。バインドと転送は1回のUndoで戻る。fast引数は持たない
         (OpenMayaにバインド・コピーのAPIが無いため)。
 
         Args:
@@ -1293,7 +1270,10 @@ class SkinCluster(Node):
             return skins[0]
         if not self._has_geometry(node.mpath()):
             raise TypeError(f"copyWeightsTo requires a skinCluster or a geometry, got {description} without a shape")
-        return SkinCluster.bind(node, self.getInfluences(), maxInfluences=self.getMaxInfluences())
+        # cmds は nodes を参照するため、循環importを避けて関数内で読み込む。
+        from ..cmds.bindSkin import bindSkin
+
+        return bindSkin(self.getInfluences(), node, maximumInfluences=self.getMaxInfluences())
 
     @staticmethod
     def _has_geometry(path):

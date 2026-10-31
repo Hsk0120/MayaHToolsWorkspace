@@ -1,6 +1,5 @@
 """肘・膝の回転補間骨と内外の補正骨を管理する。"""
 
-from maya import cmds
 
 import re
 
@@ -46,7 +45,7 @@ class BendLayer:
         """
         groups = self.groups()
         selected = [groups[identifier]] if identifier is not None else groups.values()
-        return tuple((group.getPlug(role).getSource(skipConversionNodes=False).getNode().getFullName() for group in selected for role in ('half', 'inner', 'outer')))
+        return tuple((group.getPlug(role).getSource().getNode().getFullName() for group in selected for role in ('half', 'inner', 'outer')))
 
     @undoTransaction("mlrig.BendLayer.add")
     def add(self, identifier, joint, bend_axis="z", push_axis="y"):
@@ -78,33 +77,24 @@ class BendLayer:
             or bend_axis == push_axis
         ):
             raise ValueError("Choose two different axes from x, y, z")
-        joint = mlib.getNode(joint)
-        parents = [
-            item.getFullName()
-            for item in [
-                mlib.getNode(value)
-                for value in (
-                    cmds.listRelatives(joint.getFullName(), parent=True, fullPath=True) or []
-                )
-            ]
-        ] or []
-        if joint.getType() != "joint" or not parents or mlib.getNode(parents[0]).getType() != "joint":
+        joint = mlib.nodes.Node(joint)
+        parent = joint.getParent()
+        if joint.getType() != "joint" or parent is None or parent.getType() != "joint":
             raise ValueError("Expected a joint with a parent joint")
-        parent = mlib.getNode(parents[0])
         stem = self.rig.getNodeName("bendSet").removesuffix("_set") + "_" + identifier
         names = [
             stem + suffix for suffix in ("_grp", "_graph", "_half_jnt", "_inner_jnt", "_outer_jnt")
         ]
-        if any(cmds.objExists(name) for name in names):
+        if any(mlib.objExists(name) for name in names):
             raise ValueError("Bend node names already exist")
         root = self.rig.root
         owned = []
         if not root.hasAttr("bendSet"):
-            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("bendSet"))).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("bendSet"), skipSelect=True).getFullName()
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.addAttr(longName="bendGroups", attributeType="message", multi=True)
-            owned.append(mlib.getNode(selection))
+            owned.append(mlib.nodes.Node(selection))
         group = mlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
         group.addAttr(longName="bendId", dataType="string").set(identifier)
         group.addAttr(longName="pushAxis", dataType="string").set(push_axis)
@@ -165,18 +155,18 @@ class BendLayer:
         """無効時に出力を切断して基準姿勢へ戻し、親だけを継承する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("bend")
         for group in self.groups().values():
-            owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
+            owner = group.getPlug('graph').getSource().getNode()
             owner.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
             for role in ("half", "inner", "outer"):
-                bone = group.getPlug(role).getSource(skipConversionNodes=False).getNode()
+                bone = group.getPlug(role).getSource().getNode()
                 attr = (
                     "offsetParentMatrix"
                     if role == "half"
                     else "translate" + group.getPlug("pushAxis").get().upper()
                 )
                 destination = bone.getPlug(attr)
-                source = destination.getSource(skipConversionNodes=False)
+                source = destination.getSource()
                 if active and source is None:
                     owner.getPlug("matrix" if role == "half" else role).connectTo(destination)
                 elif not active:

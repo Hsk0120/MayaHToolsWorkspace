@@ -1,6 +1,5 @@
 """Gaussian RBFの係数を解き、Maya標準DGでポーズを評価する。"""
 
-from maya import cmds
 
 import json
 import math
@@ -103,7 +102,7 @@ class PoseRbf:
         """
         coefficients = cls.coefficients(poses, values, scales)
         drivers = [to_plug(p) for p in drivers]
-        if len(drivers) != len(scales) or cmds.objExists(name):
+        if len(drivers) != len(scales) or mlib.objExists(name):
             raise ValueError("Driver count mismatch or name exists")
         for plug in drivers:
             kind = plug.getType()
@@ -112,7 +111,7 @@ class PoseRbf:
                 or plug.isMulti()
             ):
                 raise ValueError("Use scalar numeric/angle drivers")
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attr in ("inputs", "outputs", "coefficients"):
             owner.addAttr(longName=attr, attributeType="double", multi=True)
@@ -225,7 +224,7 @@ class PoseRbf:
         # 入力の角度変換ノードは残し、安定したcontainer入出力を保つ。
         keep = set()
         for i in range(len(scales)):
-            source = self.container.getPlug('inputs')[i].getSource(skipConversionNodes=False)
+            source = self.container.getPlug('inputs')[i].getSource()
             if source is not None:
                 keep.add(source.getNode().getUuid())
         owned = self.container.getMembers()

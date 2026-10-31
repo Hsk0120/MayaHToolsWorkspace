@@ -37,7 +37,7 @@ class ExtraAttributesTest(unittest.TestCase):
         message = self.node.addAttr("link", attributeType="message")
         self.assertIsInstance(message, mlib.plugs.MessagePlug)
         self.node.getPlug("message").connectTo(message)
-        self.assertEqual(message.getSource(skipConversionNodes=False), self.node.getPlug('message'))
+        self.assertEqual(message.getSource(), self.node.getPlug('message'))
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), len(cases) + 3)
         self.assertNotIn(self.node.getPlug("translate"), self.node.getPlugs(userDefined=True, includeChildren=False))
 

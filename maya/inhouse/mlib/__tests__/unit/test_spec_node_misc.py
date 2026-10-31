@@ -99,7 +99,7 @@ class ContainerPublishTest(_SpecCase):
 
     def setUp(self):
         super().setUp()
-        self.container = Container.create(self.name("box"))
+        self.container = mlib.createContainer(self.name("box"))
         self.member = Node(cmds.createNode("multiplyDivide", name=self.name("md"), skipSelect=True))
         self.outside = Node(cmds.createNode("transform", name=self.name("outside"), skipSelect=True))
         self.container.addMembers(self.member)

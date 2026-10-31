@@ -49,7 +49,7 @@ class StickyControl(TwistDistribution):
             生成時の出力から求める定数)とメッシュの現在のworldMatrixを掛ける。
             コントロールの親の ``worldInverseMatrix`` は接続するので、親を動かしても貼り付いた位置は保たれる。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("StickyControl container already exists: " + name)
         mesh = mlib.nodes.Node(mesh)
         control = mlib.nodes.Node(control)
@@ -57,7 +57,7 @@ class StickyControl(TwistDistribution):
             raise ValueError("Expected a transform for the mesh: " + str(mesh))
         if not isinstance(control, mlib.nodes.Transform):
             raise ValueError("Expected a transform for the control: " + str(control))
-        if mesh.getUuid() == control.getUuid():
+        if mesh == control:
             raise ValueError("The mesh and the control must be different nodes")
         shapes = [shape for shape in mesh.getShapes(intermediates=True) if shape.getType() == "mesh"]
         deformed = [shape for shape in shapes if not shape.getPlug("intermediateObject").get()]
@@ -85,7 +85,7 @@ class StickyControl(TwistDistribution):
             if original.getType() != "mesh":
                 raise ValueError("Expected a mesh for the original: " + str(original))
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attribute in ("matrix", "offsetParentMatrix"):
             owner.addAttr(longName=attribute, dataType="matrix")

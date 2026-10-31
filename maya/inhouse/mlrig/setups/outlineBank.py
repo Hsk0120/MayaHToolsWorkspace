@@ -91,7 +91,7 @@ class OutlineBank(TwistDistribution):
         """
         if upAxis not in AXES:
             raise ValueError("upAxis must be x, y or z")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("OutlineBank container already exists: " + name)
         control = mlib.nodes.Node(control)
         if not isinstance(control, mlib.nodes.Transform) or isinstance(control, mlib.nodes.Joint):
@@ -112,7 +112,7 @@ class OutlineBank(TwistDistribution):
 
         # 接続時に自動で入る unitConversion の係数がUI単位(m・度など)に依らず1になるよう、内部単位で組む。
         with nativeUnits():
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(control, shape, upAxis, reach)
         return graph
 

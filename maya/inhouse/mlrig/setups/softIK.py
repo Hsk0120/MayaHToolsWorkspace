@@ -26,7 +26,7 @@ class SoftIK:
         """
         if not math.isfinite(length) or length <= 0:
             raise ValueError("length must be positive and finite")
-        owner = mlib.nodes.Container.create(name).getFullName()
+        owner = mlib.createContainer(name).getFullName()
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):
@@ -105,7 +105,7 @@ class SoftIK:
             output = builder.condition(role, left, right, yes, no)
         node = output.getNode()
         for attr in ("firstTerm", "secondTerm", "colorIfTrueR", "colorIfFalseR"):
-            source = node.getPlug(attr).getSource(skipConversionNodes=False)
+            source = node.getPlug(attr).getSource()
             if source is not None and source.getNode().getType() == "unitConversion":
                 builder.container.addMembers(source.getNode())
         return output
@@ -128,7 +128,7 @@ class SoftIK:
             if isinstance(value, (str, mlib.plugs.Plug)):
                 source = to_plug(value)
                 source.connectTo(destination)
-                immediate = destination.getSource(skipConversionNodes=False)
+                immediate = destination.getSource()
                 if immediate is not None and immediate.getNode() != source.getNode():
                     conversion = immediate.getNode()
                     if conversion.getType() == "unitConversion":

@@ -2,7 +2,6 @@
 
 import math
 
-from maya import cmds
 
 import mlib
 from mlib.decorator import undoTransaction
@@ -58,7 +57,7 @@ class Ribbon(TwistDistribution):
         width = float(width)
         if not math.isfinite(width) or width <= 0:
             raise ValueError("width must be a positive finite value")
-        if cmds.objExists(name) or cmds.objExists(name + "_grp"):
+        if any(mlib.objExists(name) for name in [name, name + "_grp"]):
             raise ValueError("Ribbon container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in controls]
         if len(nodes) < 2 or len({node.getUuid() for node in nodes}) != len(nodes) or any(
@@ -67,7 +66,7 @@ class Ribbon(TwistDistribution):
             raise ValueError("Expected two or more different transforms for the controls")
         side = Vector([float(axis == sideAxis) for axis in axes])
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="width", attributeType="double", defaultValue=width, minValue=1e-6,
                       keyable=True)
@@ -114,7 +113,7 @@ class Ribbon(TwistDistribution):
             curve_name = "{}_section{}".format(name, index)
             curve = mlib.createNode("transform", name=curve_name, parent=group, skipSelect=True)
             ControlShape.replaceCurves(curve, points, [0.0, 1.0], degree=1, name=curve_name)
-            shape = mlib.getNode((cmds.listRelatives(curve.getFullName(), shapes=True, fullPath=True) or [])[0])
+            shape = curve.getShapes()[0]
             curve.getPlug("visibility").set(False)
             owner.addMembers(curve, shape)
             for cv, (role, _, offset) in enumerate(offsets):

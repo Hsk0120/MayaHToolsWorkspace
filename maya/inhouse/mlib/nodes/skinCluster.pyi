@@ -42,7 +42,7 @@ class SkinCluster(Node):
     def __init__(self, skinCluster: str | om2.MObject | om2.MDagPath) -> None:
         """skinCluster 名または Maya オブジェクトからラッパーを初期化する。
 
-        取得専用で、新規バインドは :meth:`bind` を使う。先頭 geometry のみを保持する。
+        取得専用で、新規バインドは :func:`mlib.bindSkin <mlib.cmds.bindSkin.bindSkin>` を使う。先頭 geometry のみを保持する。
         頂点ウェイト操作ではその geometry が mesh であることを前提とする。
 
         Args:
@@ -54,19 +54,6 @@ class SkinCluster(Node):
         Raises:
             IndexError: 対象 geometry がない場合。
             RuntimeError: geometry を解決できない場合。
-        """
-        ...
-    @classmethod
-    def bind(cls, mesh: str | Node, influences: Sequence[str | Node], maxInfluences: int = ...) -> SkinCluster:
-        """未スキニングの形状を指定influenceへバインドする。
-
-        Args:
-            mesh (str | Node): Mayaがバインド可能な形状またはtransform。
-            influences (Sequence[str | Node]): バインドする骨等のtransform。
-            maxInfluences (int): 1頂点に割り当てる最大数。正の整数。
-
-        Returns:
-            SkinCluster: 作成したskinCluster。
         """
         ...
     def mfn(self) -> oma2.MFnSkinCluster:
@@ -104,7 +91,7 @@ class SkinCluster(Node):
 
         転送先にはskinClusterのほか、形状(Shape)またはその親Transformも指定できる。形状を変形する
         skinClusterがあればそれへ転送し、無ければ自身の全influence・同じmaxInfluencesで
-        :meth:`bind` してから転送する。バインドと転送は1回のUndoで戻る。fast引数は持たない
+        :func:`mlib.bindSkin <mlib.cmds.bindSkin.bindSkin>` でバインドしてから転送する。バインドと転送は1回のUndoで戻る。fast引数は持たない
         (OpenMayaにバインド・コピーのAPIが無いため)。
 
         Args:

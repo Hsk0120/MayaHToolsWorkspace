@@ -95,7 +95,7 @@ class LiveMirror(TwistDistribution):
         weight = float(weight)
         if not 0.0 <= weight <= 1.0:
             raise ValueError("weight must be from 0 to 1: " + str(weight))
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("LiveMirror container already exists: " + name)
         source, target = mlib.nodes.Node(source), mlib.nodes.Node(target)
         plane = None if plane is None else mlib.nodes.Node(plane)
@@ -103,10 +103,10 @@ class LiveMirror(TwistDistribution):
             if not isinstance(node, mlib.nodes.Transform):
                 raise ValueError("Expected transforms or joints: " + str(node))
         for node in (source,) + (() if plane is None else (plane,)):
-            if node.getUuid() == target.getUuid() or target.isAncestorOf(node):
+            if node == target or target.isAncestorOf(node):
                 raise ValueError("The source and the plane must not be the target or its children")
         opm = target.getPlug("offsetParentMatrix")
-        if opm.getSource(skipConversionNodes=False) is not None:
+        if opm.getSource() is not None:
             raise ValueError("Target offsetParentMatrix is already connected")
         if opm.isLocked():
             raise ValueError("Target offsetParentMatrix must be writable")
@@ -122,7 +122,7 @@ class LiveMirror(TwistDistribution):
             if maintainOffset:
                 offset = mirrored.inverse() * Matrix(target.getPlug("worldMatrix")[0].get())
 
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             owner = graph.container
             owner.addAttr(longName="weight", attributeType="double", defaultValue=weight, minValue=0.0,
                           maxValue=1.0, keyable=True)

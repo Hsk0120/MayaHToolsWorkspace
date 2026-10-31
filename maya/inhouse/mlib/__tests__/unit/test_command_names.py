@@ -11,8 +11,11 @@ class CommandNamesTest(unittest.TestCase):
     """生成の旧名は除去し、取得の省略入口とオブジェクト側の編集を確認する。"""
 
     def test_exports_and_files(self):
-        """基礎7コマンドだけを、同名のファイルとルートから公開する。"""
-        expected = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"}
+        """基礎コマンドと作成関数だけを、同名のファイルとルートから公開する。"""
+        expected = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select", "objExists", "bindSkin",
+                    "createContainer", "createDagContainer", "createDagPose", "createIkHandle", "createBlendShape",
+                    "createCurve", "createCircle", "createLocator", "createPolyCube", "createPolySphere",
+                    "createPolyCylinder", "createPolyPlane"}
         mlib.reload()
         self.assertEqual(set(mlib.cmds.__all__), expected)
         folder = Path(mlib.__file__).parent / "cmds"

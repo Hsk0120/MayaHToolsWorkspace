@@ -99,18 +99,18 @@ class CameraAngleReader(TwistDistribution):
             raise ValueError("pitchRange must be greater than 0 and at most 90")
         if not 0.0 < backFade <= 180.0:
             raise ValueError("backFade must be greater than 0 and at most 180")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("CameraAngleReader container already exists: " + name)
         head, camera = mlib.nodes.Node(head), mlib.nodes.Node(camera)
         if any(not isinstance(node, mlib.nodes.Transform) for node in (head, camera)):
             raise ValueError("Expected transforms for the head and the camera")
-        if head.getUuid() == camera.getUuid():
+        if head == camera:
             raise ValueError("The head and the camera must be different nodes")
         forward = cls._axis(forwardAxis)
         up = cls._axis(upAxis)
         side = up ^ forward
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         for attr, value, maximum in (

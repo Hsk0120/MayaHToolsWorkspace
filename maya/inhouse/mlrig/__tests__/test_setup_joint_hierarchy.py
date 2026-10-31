@@ -207,7 +207,7 @@ class JointHierarchyFastTest(unittest.TestCase):
         child, ctrl = mlib.getNode("leaf"), mlib.getNode("control")
         self.assertEqual(child.getParent(), parent)
         self.assertEqual(ctrl.getParent(), parent)
-        self.assertEqual(child.getPlug("inverseScale").getSource(skipConversionNodes=False), parent.getPlug("scale"))
+        self.assertEqual(child.getPlug("inverseScale").getSource(), parent.getPlug("scale"))
         for node, matrix in zip((child, ctrl), matrices):
             self.assertMatrixEqual(node.getMatrix(worldSpace=True), matrix)
         for actual, expected in zip(child.getPlug("jointOrient").get(), expected_orient):

@@ -2,7 +2,6 @@
 
 import math
 
-import maya.cmds as cmds
 import mlib
 from mlib.decorator import undoTransaction
 
@@ -78,7 +77,7 @@ class ConeReader:
             ``<name>_cone`` を回して、weight を1にしたい向きへコーンを向ける。
             角度は向きだけで比べ、位置や距離は使わない。
         """
-        if cmds.objExists(name) or cmds.objExists(name+"_driver_GRP") or cmds.objExists(name+"_cone_GRP"):
+        if any(mlib.objExists(name) for name in [name, name + "_driver_GRP", name + "_cone_GRP"]):
             raise ValueError("Name already exists: " + name)
         if driverAxis not in _AXES:
             raise ValueError("driverAxis must be one of " + ", ".join(_AXES))
@@ -89,7 +88,7 @@ class ConeReader:
         if falloff not in ("linear", "smooth"):
             raise ValueError("falloff must be linear or smooth")
         for joint in (driverJoint, coneJoint):
-            if joint is not None and not cmds.objExists(joint):
+            if joint is not None and not mlib.objExists(joint):
                 raise ValueError("Node not found: " + str(joint))
 
         # 矢印。GRP をドライバーのジョイントへ重ね、中の transform で軸を選ぶ。
@@ -115,7 +114,7 @@ class ConeReader:
         cls._setMatrix(cone, driver.getMatrix(worldSpace=True))
         cone.getPlug("scale").set((1, 1, 1))
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="coneAngle", attributeType="double", defaultValue=coneAngle,
                       minValue=0.01, maxValue=180, keyable=True)
@@ -206,12 +205,14 @@ class ConeReader:
     @property
     def driver(self):
         """ドライバーの矢印transform名。"""
-        return (cmds.listConnections(self.container.getFullName()+".driver", source=True) or [None])[0]
+        source = self.container.getPlug("driver").getSource()
+        return None if source is None else source.getNode().getName()
 
     @property
     def cone(self):
         """コーンのtransform名。"""
-        return (cmds.listConnections(self.container.getFullName()+".cone", source=True) or [None])[0]
+        source = self.container.getPlug("cone").getSource()
+        return None if source is None else source.getNode().getName()
 
     def _node(self, kind, suffix):
         """内部ノードを所有containerへ登録する。
@@ -232,12 +233,11 @@ class ConeReader:
     @staticmethod
     def _curve(parent, name, points, color):
         """一次カーブのシェイプを parent へ追加する。"""
-        temporary = mlib.getNode(cmds.curve(degree=1, point=points, name=name+"__tmp"))
-        # Shapeの親変更はMaya標準コマンドを使い、変更後のパスで参照を作り直す。
-        shape = mlib.getNode(cmds.parent(
-            temporary.getShape().getFullName(), parent.getFullName(),
-            shape=True, relative=True,
-        )[0])
+        # 点は現在の距離単位で決めているため、作成関数の内部単位(cm)へ換算して渡す。
+        ui = mlib.common.units.distanceFromUi
+        shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=1, name=name+"__tmp")
+        temporary = shape.getParent()
+        shape.setParent(parent)
         temporary.delete()
         shape.rename(name)
         shape.getPlug("lineWidth").set(2)
@@ -281,6 +281,6 @@ class ConeReader:
     @staticmethod
     def _attach(group, joint):
         """GRP をジョイントへ重ねてから、位置と回転をコンストレイントする。"""
-        ConeReader._setMatrix(group, mlib.getNode(joint).getMatrix(worldSpace=True))
+        ConeReader._setMatrix(group, mlib.nodes.Node(joint).getMatrix(worldSpace=True))
         group.getPlug("scale").set((1, 1, 1))
         group.addConstraint(joint, maintainOffset=True)

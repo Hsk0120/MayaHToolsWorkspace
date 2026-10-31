@@ -90,7 +90,7 @@ class FourBarLinkage(TwistDistribution):
             C が作れない(d > b + c または d < |b - c|)場合、C は B から D への線の上の最も近い点に止まり、
             excess にその距離の不足・超過を出す。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("FourBarLinkage container already exists: " + name)
         nodes = []
         for label, value in (("pin", pin), ("rocker", rocker), ("end", end), ("coupler", coupler)):
@@ -141,7 +141,7 @@ class FourBarLinkage(TwistDistribution):
         coupler_inverse = coupler_rest.inverse()
         rocker_inverse = rocker_rest.inverse()
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="couplerLength", attributeType="doubleLinear", defaultValue=coupler_length,
                       minValue=0.0, keyable=True)

@@ -17,7 +17,7 @@ class ContainerTest(unittest.TestCase):
         self.previous = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
         self.ns = cmds.namespace(add="containerApiTest")
         cmds.namespace(set=self.ns)
-        self.owner = Container.create()
+        self.owner = mlib.createContainer()
 
     def tearDown(self):
         """テストノードを削除する。"""
@@ -78,7 +78,7 @@ class ContainerTest(unittest.TestCase):
 
     def test_nested_remove(self):
         """ネストからの解除は親へ移り、forceでは全所属を外す。"""
-        inner = Container.create(name="inner")
+        inner = mlib.createContainer(name="inner")
         self.owner.addMembers(inner)
         node = inner.createNode("multiplyDivide")
         inner.removeMembers(node)

@@ -57,7 +57,7 @@ class ComponentReprTest(_Case):
                                      f"'{name}.vtx[6:7]', ..., count=6)")
 
     def test_curve_cvs(self):
-        curve = NurbsCurve.create([(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], degree=3, closed=True,
+        curve = mlib.createCurve([(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)], degree=3, closed=True,
                                   name=self.name("crv"))
         name = curve.getName()
         self.assertEqual(repr(CV(curve, 2)), f"CV('{name}.cv[2]')")

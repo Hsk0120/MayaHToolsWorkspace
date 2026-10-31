@@ -71,7 +71,7 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
     args = {"longName": name, "attributeType": kind, "defaultValue": default}
     if enum:
         args["enumName"] = enum
-    reference = mlib.getNode(node)
+    reference = mlib.nodes.Node(node)
     reference.addAttr(**args)
     reference.setAttrFlags([name], keyable=False, channelBox=True, locked=readonly)
 
@@ -87,7 +87,7 @@ def _exists(rig):
         bool: 表示用モジュールの参照があればTrue。
     """
     return (
-        rig.root.hasAttr("channelModule") and rig.root.getPlug('channelModule').getSource(skipConversionNodes=False) is not None
+        rig.root.hasAttr("channelModule") and rig.root.getPlug('channelModule').getSource() is not None
     )
 
 
@@ -111,7 +111,7 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and mlib.getNode(rig.root.getFullName()).hasAttr("footMatrix"),
+        and mlib.nodes.Node(rig.root.getFullName()).hasAttr("footMatrix"),
     }
     if rig.root.hasAttr("targetSpace"):
         states["space"] = True
@@ -182,7 +182,7 @@ def attach(rig):
         else root.rsplit("|", 1)[-1] + "_modules_grp"
     )
     names = [group_name, stem] + [stem + "_" + LABELS[layer] + "_layer" for layer in LAYERS]
-    if any(cmds.objExists(name) for name in names):
+    if any(mlib.objExists(name) for name in names):
         raise ValueError("Module display names already exist")
     nodes = []
     group = mlib.createNode("transform", name=group_name, parent=root, skipSelect=True).getFullName()
@@ -190,7 +190,7 @@ def attach(rig):
     module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
-    mlib.getNode(module).addAttr(longName="mlrigChannelRoot", attributeType="message")
+    mlib.nodes.Node(module).addAttr(longName="mlrigChannelRoot", attributeType="message")
     mlib.getPlug(root + ".message").connectTo(module + ".mlrigChannelRoot")
     _attribute(module, "mode", "enum", int(rig.mode() == "ik"), "FK:IK")
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
@@ -201,18 +201,18 @@ def attach(rig):
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "mlrigEnabled_" + layer
-            if not mlib.getNode(root).hasAttr(attr):
-                mlib.getNode(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
+            if not mlib.nodes.Node(root).hasAttr(attr):
+                mlib.nodes.Node(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
             _attribute(node, "enabled", default=rig.layer_enabled(layer))
         _attribute(node, "active", readonly=True)
         mlib.getPlug(node + ".useOutlinerColor").set(True)
     for node in nodes:
         _lock_group(node)
-        mlib.getNode(node).setAttrFlags(
+        mlib.nodes.Node(node).setAttrFlags(
             ["visibility"], keyable=False, channelBox=False, locked=True
         )
     for node in nodes:
-        mlib.getNode(root).getPlug("mlrigOwned").appendMessage(node)
+        mlib.nodes.Node(root).getPlug("mlrigOwned").appendMessage(node)
     sync_display(rig)
     install()
     return module
@@ -304,7 +304,7 @@ def refresh_jobs():
             del _jobs[key]
     for plug in [item.getFullName() for item in mlib.ls("*.mlrigChannelRoot", recursive=True)] or []:
         module = plug.rsplit(".", 1)[0]
-        source = mlib.getPlug(plug).getSource(skipConversionNodes=False)
+        source = mlib.getPlug(plug).getSource()
         if source is None:
             continue
         root = source.getNode()

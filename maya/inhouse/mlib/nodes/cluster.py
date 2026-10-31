@@ -14,7 +14,7 @@ class Cluster(Node):
         Returns:
             Node | None: cluster ハンドルの transform。見つからない場合は ``None``。
         """
-        source = self.getPlug("matrix").getSource(skipConversionNodes=False)
+        source = self.getPlug("matrix").getSource()
         return None if source is None else source.getNode()
 
     def getGeometry(self):

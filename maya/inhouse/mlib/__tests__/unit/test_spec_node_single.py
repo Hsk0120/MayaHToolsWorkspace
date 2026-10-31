@@ -223,7 +223,7 @@ class DeletedNodeTest(_SpecCase):
             with self.subTest(method=method):
                 with self.assertRaises(RuntimeError):
                     getattr(node, method)(*args)
-        self.assertEqual(node.getConnections(), [])
+        self.assertEqual(node.getConnections(skipConversionNodes=True), [])
         with self.assertRaisesRegex(RuntimeError, r"Cannot delete an invalid \w+"):
             node.delete()
 
@@ -638,17 +638,17 @@ class ConnectionHistoryTest(_SpecCase):
 
     def test_index(self):
         """index は Python の添字と同じで、範囲外は None。idx との同時指定は TypeError。"""
-        plugs = self.node.getConnections()
+        plugs = self.node.getConnections(skipConversionNodes=True)
         self.assertEqual(len(plugs), 2)
-        self.assertEqual(self.node.getConnections(index=0), plugs[0])
-        self.assertEqual(self.node.getConnections(index=-1), plugs[-1])
-        self.assertIsNone(self.node.getConnections(index=5))
+        self.assertEqual(self.node.getConnections(index=0, skipConversionNodes=True), plugs[0])
+        self.assertEqual(self.node.getConnections(index=-1, skipConversionNodes=True), plugs[-1])
+        self.assertIsNone(self.node.getConnections(index=5, skipConversionNodes=True))
 
     def test_type_and_as_node(self):
         """type で相手の型を絞り、asNode は相手のノードを返す。"""
-        self.assertEqual(self.node.getConnections(type="multiplyDivide", asNode=True), [Node(self.md)])
-        self.assertEqual(self.node.getConnections(type="transform"), [])
-        pairs = self.node.getConnections(asPair=True)
+        self.assertEqual(self.node.getConnections(type="multiplyDivide", asNode=True, skipConversionNodes=True), [Node(self.md)])
+        self.assertEqual(self.node.getConnections(type="transform", skipConversionNodes=True), [])
+        pairs = self.node.getConnections(asPair=True, skipConversionNodes=True)
         self.assertEqual(sorted(local.getName() for local, _ in pairs),
                          [self.target + ".tx", self.target + ".ty"])
 

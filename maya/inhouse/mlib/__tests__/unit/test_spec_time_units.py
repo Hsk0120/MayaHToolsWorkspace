@@ -52,7 +52,7 @@ class PlugSetKeyTimeTest(_SpecCase):
                 plug = mlib.getNode(self.make("transform", "key#")).getPlug("tx")
                 plug.setKey(time=10, value=1)
                 plug.setKey(t=2.0, v=2, timeUnit="sec")
-                curve = plug.getSource(skipConversionNodes=False).getNode()
+                curve = plug.getSource().getNode()
                 self.assertEqual(cmds.keyframe(curve.getFullName(), query=True, timeChange=True),
                                  [10.0, 2.0 * fps])
                 self.assertEqual(curve.getKeyInputs(), [10.0, 2.0 * fps])
@@ -64,9 +64,9 @@ class PlugSetKeyTimeTest(_SpecCase):
             plug.setKey(time="1:10", timeUnit="sec")
         with self.assertRaises(ValueError):
             plug.setKey(time=1, timeUnit="minute")
-        self.assertIsNone(plug.getSource())
+        self.assertIsNone(plug.getSource(skipConversionNodes=True))
         plug.setKey(time=0.5, value=3, timeUnit="sec").setKey(time=1.0, value=4, timeUnit="sec")
-        curve = plug.getSource(skipConversionNodes=False).getNode()
+        curve = plug.getSource().getNode()
         self.assertEqual(curve.getKeyInputs(timeUnit="sec"), [0.5, 1.0])
 
 

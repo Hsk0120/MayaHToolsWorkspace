@@ -119,7 +119,7 @@ class BoxCollision(TwistDistribution):
             raise ValueError("sizeX, sizeY and sizeZ must be at least {}".format(_MIN_SIZE))
         if rounding < 0.0 or softness < 0.0:
             raise ValueError("rounding and softness must not be negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("BoxCollision container already exists: " + name)
         target = mlib.nodes.Node(target)
         box = mlib.nodes.Node(box)
@@ -129,7 +129,7 @@ class BoxCollision(TwistDistribution):
         if target.getFullName() == box.getFullName():
             raise ValueError("target and box must be different nodes")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for longName, value in (("sizeX", sizeX), ("sizeY", sizeY), ("sizeZ", sizeZ)):
             owner.addAttr(longName=longName, attributeType="double", defaultValue=value, keyable=True,

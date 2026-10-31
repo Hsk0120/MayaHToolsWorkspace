@@ -65,10 +65,10 @@ class FkIkChain(TwistDistribution):
             raise ValueError("blend must be between 0 and 1")
         if space not in _SPACES:
             raise ValueError("space must be 'local' or 'world'")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("FkIkChain container already exists: " + name)
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="blend", attributeType="double", defaultValue=blend, keyable=True,
                       minValue=0, maxValue=1)
@@ -130,7 +130,7 @@ class FkIkChain(TwistDistribution):
         if role not in ("fk", "ik"):
             raise ValueError("role must be 'fk' or 'ik'")
         plug = self.container.getPlug(role + "Chain")
-        return [plug[index].getSource().getNode() for index in plug.getIndices()]
+        return [plug[index].getSource(skipConversionNodes=True).getNode() for index in plug.getIndices()]
 
     @undoTransaction("mlrig.FkIkChain.matchFkToIk")
     def matchFkToIk(self):

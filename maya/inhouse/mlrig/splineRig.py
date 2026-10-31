@@ -27,7 +27,7 @@ class SplineRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = mlib.getNode(root)
+        self.root = mlib.nodes.Node(root)
         if not self.root.hasAttr("mlrigSplineDefinition"):
             raise ValueError("Not an mlrig spline module")
 
@@ -48,7 +48,7 @@ class SplineRig:
         """
         if (
             not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)
-            or cmds.objExists(name)
+            or mlib.objExists(name)
             or [item.getName() for item in mlib.ls(name + "_*")]
         ):
             raise ValueError("Use a unique unnamespaced module name")
@@ -200,7 +200,7 @@ class SplineRig:
         Returns:
             SplineIK: 保存済みグラフ。
         """
-        return SplineIK(self.root.getPlug('graph').getSource(skipConversionNodes=False).getNode())
+        return SplineIK(self.root.getPlug('graph').getSource().getNode())
 
     def mode(self):
         """選択モードを取得する。
@@ -324,18 +324,7 @@ class SplineRig:
             0, -math.pi / 2 if axis == "z" else 0, math.pi / 2 if axis == "y" else 0
         ).asMatrix()
         for i, (control, point) in enumerate(zip(controls, cvs)):
-            parent = mlib.getNode(
-                [
-                    item.getFullName()
-                    for item in [
-                        mlib.getNode(value)
-                        for value in (
-                            cmds.listRelatives(control.getFullName(), parent=True, fullPath=True)
-                            or []
-                        )
-                    ]
-                ][0]
-            )
+            parent = control.getParent()
             parent_inverse = Matrix(parent.getMatrix(worldSpace=True)).inverse()
             local = parent_inverse.transformPoint(point)
             for a, value in zip("XYZ", (local.x, local.y, local.z)):
@@ -400,11 +389,11 @@ class SplineRig:
         for source, joint in zip(sources, self.getMembers("deform")):
             for attr in ("translate", "rotate"):
                 target = joint.getPlug(attr)
-                if target.getSource(skipConversionNodes=False) is not None:
-                    target.disconnect(target.getSource(skipConversionNodes=False))
+                if target.getSource() is not None:
+                    target.disconnect(target.getSource())
                 source.getPlug(attr).connectTo(target)
-        self.root.getPlug('fkGroup').getSource(skipConversionNodes=False).getNode().getPlug('visibility').set(not active)
-        self.root.getPlug('controlGroup').getSource(skipConversionNodes=False).getNode().getPlug('visibility').set(active)
+        self.root.getPlug('fkGroup').getSource().getNode().getPlug('visibility').set(not active)
+        self.root.getPlug('controlGroup').getSource().getNode().getPlug('visibility').set(active)
         from .splineStretchLayer import SplineStretchLayer
 
         SplineStretchLayer(self).update()
@@ -456,7 +445,7 @@ class SplineRig:
         try:
             rig = cls(roots[0])
             expected = rig.getMembers("ik" if rig.active() else "fk")[0].getPlug("rotate")
-            actual = rig.getMembers('deform')[0].getPlug('rotate').getSource(skipConversionNodes=False)
+            actual = rig.getMembers('deform')[0].getPlug('rotate').getSource()
             from .splineStretchLayer import SplineStretchLayer
 
             if (
@@ -471,12 +460,12 @@ class SplineRig:
     @undoTransaction("mlrig.SplineRig.delete")
     def delete(self):
         """スキン未使用なら所有グラフと階層を削除する。"""
-        if any(mlib.getNode(joint).getConnections(type="skinCluster") for joint in self.getJoints()):
+        if any(mlib.nodes.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True) for joint in self.getJoints()):
             raise ValueError("Unbind the spline before deleting its module")
         from .splineStretchLayer import SplineStretchLayer
 
         settings = SplineStretchLayer(self).settings()
         if settings is not None:
-            mlib.delete(settings.getPlug('graph').getSource(skipConversionNodes=False).getNode())
+            mlib.delete(settings.getPlug('graph').getSource().getNode())
         mlib.delete(self.graph().container)
         mlib.delete(self.root)

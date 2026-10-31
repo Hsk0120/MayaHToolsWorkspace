@@ -10,7 +10,7 @@ import maya.cmds as cmds
 from ..core.object import Object, _missing_member_message
 from ..core.registry import _inherited_node_types, _node_type_exists, _real_node_type
 from ..core.registry import _unknown_node_type_message
-from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoTransaction
+from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoChunk, undoTransaction
 from ..util import _ArgumentError, _UNSET, _angle_unit, _time_unit
 from typing import Any, Callable, Iterable, Iterator, Literal, Sequence
 from mlib.common.namespace import Namespace
@@ -244,6 +244,21 @@ def _create_movable_attr(node: Node, info: dict) -> Plug:
 
     Returns:
         Plug: 再作成したアトリビュートプラグ。
+    """
+    ...
+
+def _attribute_names(attributes: str | Iterable[str] | None) -> list[str] | None:
+    """キー操作のアトリビュート名を、cmdsへ渡す名前のリストへ変換する。
+
+    Args:
+        attributes (str | Iterable[str] | None): アトリビュート名。
+
+    Returns:
+        list[str] | None: 名前のリスト。Noneは指定なし(Mayaの既定)。
+
+    Raises:
+        TypeError: 文字列・文字列の列・None以外の場合。
+        ValueError: 空の列、または空文字列を含む場合。
     """
     ...
 
@@ -729,12 +744,11 @@ class Node(Object):
     def getConnections(self, s: bool = ..., d: bool = ..., c: Literal[False] = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: Literal[False] = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., *, asPair: Literal[False] = ..., asNode: Literal[False] = ..., index: None = ...) -> list[Plug]: ...
     @overload
     def getConnections(self, s: bool = ..., d: bool = ..., c: bool = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: bool = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., asPair: bool = ..., asNode: bool = ..., index: int | None = ...) -> list | Plug | Node | tuple | None:
-        """接続をPlug・Node・ペアとして照会する。既定はunitConversion系の変換ノードを飛ばす。
+        """接続をPlug・Node・ペアとして照会する。既定は直結した相手を返す(``cmds.listConnections`` と同じ)。
 
-        ``cmds.listConnections`` とは既定が違い、:meth:`~mlib.plugs.plug.Plug.getSource` /
+        ``skipConversionNodes=True`` (または ``scn=True``)は、:meth:`~mlib.plugs.plug.Plug.getSource` /
         :meth:`~mlib.plugs.plug.Plug.getDestinations` と同じくunitConversion系(unitConversion・
         unitToTimeConversion・timeToUnitConversion)を飛ばしてその先を返す。
-        ``skipConversionNodes=False`` (または ``scn=False``)で直結した相手を返す。
 
         Args:
             s (bool): 入力を含める。sourceとANDする。
@@ -742,20 +756,65 @@ class Node(Object):
             c (bool): ペア指定の短縮名。
             t (str | None): typeの短縮名。
             et (bool): exactTypeの短縮名。
-            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとORし、どちらかがTrueなら変換を飛ばす。
             source (bool): 入力を含める。
             destination (bool): 出力を含める。
             connections (bool): 自身側と相手側のペアを返す。
             type (str | None): 接続先ノード型。
             exactType (bool): 型名の完全一致で絞る。
-            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
-                Falseは直結した相手。
+            skipConversionNodes (bool): 既定Falseは直結した相手(``cmds.listConnections`` と同じ)。
+                TrueはunitConversion系を飛ばす。
             asPair (bool): 自身側Plugと相手側のペアを返す。
             asNode (bool): 相手側をNodeで返す。
             index (int | None): 結果の一件。範囲外はNone。
 
         Returns:
             list | Plug | Node | tuple | None: 条件に合う結果。
+        """
+        ...
+    def setKey(self, attributes: str | Iterable[str] | None = ..., *, timeUnit: str | None = ..., **kwargs) -> Node:
+        """複数のアトリビュートへ1回でキーを設定する(``cmds.setKeyframe(node, attribute=[...])`` 相当)。
+
+        fast引数は持たない(:meth:`~mlib.plugs.plug.Plug.setKey` と同じく、OpenMayaで打っても速くならないため)。
+
+        Args:
+            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー可能な全アトリビュート
+                (``cmds.setKeyframe(node)`` と同じ)。
+            timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(数値または数値の並びだけ受け付ける)。
+            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。値はMayaのUI単位。
+                ``attribute`` / ``at`` は引数attributesで指定する。
+
+        Returns:
+            Node: 自身。
+
+        Raises:
+            TypeError: attributesが文字列・文字列の列・None以外、``attribute`` / ``at`` をkwargsに渡した、
+                timeUnitが文字列・None以外、または ``timeUnit="sec"`` で time に数値以外を指定した場合。
+            ValueError: attributesが空の列、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効、またはMayaがキーの設定を拒否した場合。
+        """
+        ...
+    def removeKey(self, attributes: str | Iterable[str] | None = ..., *, time: float | Sequence[float] | None = ..., timeUnit: str | None = ...) -> Node:
+        """複数のアトリビュートのキーを削除する(``cmds.cutKey(node, attribute=[...], clear=True)`` 相当)。
+
+        キークリップボードは変更しない。全キーを削除すると、Mayaと同じく空になったカーブは削除される。
+        fast引数は持たない(OpenMayaでキーを1つずつ消す方がcmds.cutKeyより遅いため)。
+
+        Args:
+            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキーのある全アトリビュート。
+            time (float | Sequence[float] | None): 削除する時刻、または両端を含む範囲 ``(start, end)``。Noneは全キー。
+            timeUnit (str | None): timeの単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、``"sec"`` は秒。
+
+        Returns:
+            Node: 自身。キーが無ければ何もしない。
+
+        Raises:
+            TypeError: attributesが文字列・文字列の列・None以外、timeが数値・2つの数値の並び・None以外、
+                またはtimeUnitが文字列・None以外の場合。
+            ValueError: attributesが空の列、timeが有限でない、範囲の開始が終了より大きい、
+                またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効、またはMayaが削除を拒否した場合。
         """
         ...
     def getHistory(self, type: str | None = ..., future: bool = ...) -> list[Node]:

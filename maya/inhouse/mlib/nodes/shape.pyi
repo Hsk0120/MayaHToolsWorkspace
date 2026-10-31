@@ -18,6 +18,41 @@ from typing import Iterable
 
 class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
+    def setParent(self, parent: Transform | str, *, fast: bool = ...) -> Shape:
+        """このシェイプを別のTransformの下へ移す(``cmds.parent(shape, transform, shape=True, relative=True)``)。
+
+        シェイプは常にローカルの形を保って移る(ワールドの位置は新しい親に従う)。元のTransformは
+        シェイプが無くなっても削除しない。:meth:`~mlib.nodes.transform.Transform.addShape` は同じ操作を
+        受け側から行う。
+
+        Args:
+            parent (Transform | str): 新しい親のTransform(Jointを含む)。
+            fast (bool): TrueはUndoなしのOpenMaya更新(MDagModifier.reparentNode)。既定False。
+
+        Returns:
+            Shape: 自身。移した後のパスを指す。
+
+        Raises:
+            TypeError: parentがTransformでない、またはfastがbool以外の場合。
+            RuntimeError: 自身・親が無効、シェイプがインスタンス化されている、fastでロック・参照された
+                ノードを含む、またはMayaが親の変更を拒否した場合。
+            NotImplementedError: fastで、移す先に同じ名前の子がある場合(Mayaの改名の規則を再現しないため)。
+        """
+        ...
+    def _set_parent_fast(self, target: Transform) -> None:
+        """変更前に編集できるか確かめ、MDagModifierでシェイプの親を変える。
+
+        Args:
+            target (Transform): 新しい親。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: シェイプ・元の親・新しい親がロック・参照されている場合。
+            NotImplementedError: 新しい親に同じ名前の子がある場合。
+        """
+        ...
     def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ...) -> Shape:
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 

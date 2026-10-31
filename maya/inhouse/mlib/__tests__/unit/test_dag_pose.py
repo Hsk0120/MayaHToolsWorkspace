@@ -23,7 +23,7 @@ class DagPoseTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def pose(self, **kwargs):
-        return mlib.nodes.DagPose.create(self.root, name=self.ns + ":pose", **kwargs)
+        return mlib.createDagPose(self.root, name=self.ns + ":pose", **kwargs)
 
     @staticmethod
     def at_pose(pose):
@@ -111,9 +111,9 @@ class DagPoseTest(unittest.TestCase):
 
     def test_create_validation(self):
         with self.assertRaises(ValueError):
-            mlib.nodes.DagPose.create([])
+            mlib.createDagPose([])
         with self.assertRaises(ValueError):
-            mlib.nodes.DagPose.create(self.root, name="")
+            mlib.createDagPose(self.root, name="")
 
 
 if __name__ == "__main__":

@@ -82,7 +82,7 @@ class GearTrain(TwistDistribution):
         links = ["mesh"] * len(gears) if links is None else list(links)
         if len(links) != len(gears) or any(link not in LINKS for link in links):
             raise ValueError("links must have mesh or shaft for each gear")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("GearTrain container already exists: " + name)
         driver = mlib.nodes.Node(driver)
         gears = [mlib.nodes.Node(gear) for gear in gears]
@@ -94,10 +94,10 @@ class GearTrain(TwistDistribution):
         channel = "rotate" + axis.upper()
         if connect:
             for gear in gears:
-                if gear.getPlug(channel).getSource() is not None:
+                if gear.getPlug(channel).getSource(skipConversionNodes=True) is not None:
                     raise ValueError("The rotation of the gear is already connected: " + gear.getFullName())
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         for index, value in enumerate(teeth):

@@ -89,13 +89,13 @@ class SlidingFk(TwistDistribution):
         falloff = 1.5 / (len(joints) - 1) if falloff is None else float(falloff)
         if not _MIN_FALLOFF <= falloff < float("inf"):
             raise ValueError("falloff must be positive and finite")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("SlidingFk container already exists: " + name)
 
         worlds = [Matrix(node.getPlug("worldMatrix")[0].get()) for node in joints]
         params = cls.parameters([(world[12], world[13], world[14]) for world in worlds])
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for index, value in enumerate(positions):
             owner.addAttr(longName="position" + str(index), attributeType="double", defaultValue=value,
@@ -163,6 +163,6 @@ class SlidingFk(TwistDistribution):
         # 確認用に、節ごと・コントロールごとの正規化した重みを weight<j>[k] へ出す。
         for joint in range(len(joints) - 1):
             for index in range(len(controls)):
-                source = mlib.getNode("{}_weight{}_{}".format(name, joint, index)).getPlug("outputX")
+                source = mlib.nodes.Node("{}_weight{}_{}".format(name, joint, index)).getPlug("outputX")
                 source.connectTo(owner.getPlug("weight" + str(joint))[index])
         return graph

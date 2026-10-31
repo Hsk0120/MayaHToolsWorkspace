@@ -92,7 +92,7 @@ class SkirtLegOffset(TwistDistribution):
             raise ValueError("maxAngle must be between 0 and 180")
         if not 0.0 < spread <= 90.0:
             raise ValueError("spread must be greater than 0 and at most 90")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("SkirtLegOffset container already exists: " + name)
         skirts = list(skirts)
         legs = [tuple(leg) for leg in legs]
@@ -108,7 +108,7 @@ class SkirtLegOffset(TwistDistribution):
             raise ValueError("Expected transforms for the parent, the skirts and the legs")
         if len({node.getUuid() for node in [parent] + skirts}) != len(skirts) + 1:
             raise ValueError("The parent and the skirts must be different nodes")
-        if any(start.getUuid() == end.getUuid() for start, end in legs):
+        if any(start == end for start, end in legs):
             raise ValueError("The start and the end of a leg must be different nodes")
 
         to_parent = Matrix(parent.getPlug("worldMatrix")[0].get()).inverse()
@@ -139,15 +139,15 @@ class SkirtLegOffset(TwistDistribution):
         if connect:
             for skirt in skirts:
                 above = skirt.getParent()
-                if above is None or above.getUuid() != parent.getUuid():
+                if above is None or above != parent:
                     raise ValueError("connect requires the skirts to be direct children of the parent: "
                                      + skirt.getFullName())
                 plug = skirt.getPlug("offsetParentMatrix")
-                if plug.getSource() is not None or not Matrix(plug.get()).isEquivalent(Matrix(), 1e-9):
+                if plug.getSource(skipConversionNodes=True) is not None or not Matrix(plug.get()).isEquivalent(Matrix(), 1e-9):
                     raise ValueError("The offsetParentMatrix of the skirt must be identity and unconnected: "
                                      + skirt.getFullName())
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         owner.addAttr(longName="clearance", attributeType="double", defaultValue=clearance, keyable=True)

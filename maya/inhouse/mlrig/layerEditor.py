@@ -391,7 +391,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for role, label in self.LABELS.items():
                     if not rig.root.hasAttr("channel_" + role):
                         continue
-                    node = mlib.getNode(rig._member("channel_" + role))
+                    node = mlib.nodes.Node(rig._member("channel_" + role))
                     item = self._row(
                         root_item,
                         label,
@@ -462,7 +462,7 @@ class LayerEditor(QtWidgets.QDialog):
             root_item (QTreeWidgetItem): モジュール行。
         """
         uuid = rig.root.getUuid()
-        fk = self._row(root_item, 'FK骨列', {'root': uuid, 'role': 'fk', 'target': rig.root.getPlug('fkGroup').getSource(skipConversionNodes=False).getNode().getUuid()}, not rig.active())
+        fk = self._row(root_item, 'FK骨列', {'root': uuid, 'role': 'fk', 'target': rig.root.getPlug('fkGroup').getSource().getNode().getUuid()}, not rig.active())
         for i, bone in enumerate(rig.getMembers("fk")):
             self._row(
                 fk,
@@ -483,7 +483,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "カーブ {:02d}".format(i + 1),
                 {"root": uuid, "role": "spline:" + str(i), "target": control.getUuid()},
             )
-        group = rig.root.getPlug('deformGroup').getSource(skipConversionNodes=False).getNode()
+        group = rig.root.getPlug('deformGroup').getSource().getNode()
         self._row(
             root_item,
             "変形骨（{}本）".format(len(rig.getJoints())),
@@ -537,7 +537,7 @@ class LayerEditor(QtWidgets.QDialog):
                 "ドライバー {:02d}".format(index + 1),
                 {"root": uuid, "role": "driver:" + str(index), "target": chain[0].getUuid()},
             )
-        group = rig.root.getPlug('followerGroup').getSource(skipConversionNodes=False).getNode()
+        group = rig.root.getPlug('followerGroup').getSource().getNode()
         self._row(
             root_item,
             "変形骨（{}列）".format(len(rig.chains())),
@@ -569,7 +569,7 @@ class LayerEditor(QtWidgets.QDialog):
             members = {
                 i: g
                 for i, g in groups.items()
-                if kind == "spring" or g.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None
+                if kind == "spring" or g.getPlug('poseGraph').getSource() is not None
             }
             active = rig.layer_enabled(kind) and rig.lod() == 1 and bool(members)
             if kind == "spring":
@@ -617,7 +617,7 @@ class LayerEditor(QtWidgets.QDialog):
             row.setCheckState(
                 0, QtCore.Qt.Checked if group.getPlug("enabled").get() else QtCore.Qt.Unchecked
             )
-            self._row(row, '操作コントロール', dict(root=rig.root.getUuid(), role='tweakControl:' + identifier, target=group.getPlug('control').getSource(skipConversionNodes=False).getNode().getUuid()))
+            self._row(row, '操作コントロール', dict(root=rig.root.getUuid(), role='tweakControl:' + identifier, target=group.getPlug('control').getSource().getNode().getUuid()))
             self._attributes.add(
                 group.getUuid(),
                 attribute=group.getPlug("enabled"),
@@ -733,7 +733,7 @@ class LayerEditor(QtWidgets.QDialog):
         enabled = item.checkState(0) == QtCore.Qt.Checked
         roots = [item.getFullName() for item in mlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = mlib.getNode([item.getFullName() for item in mlib.ls(data["target"], long=True)][0])
+            group = mlib.nodes.Node([item.getFullName() for item in mlib.ls(data["target"], long=True)][0])
             with undoTransaction("mlrig.Tweak.enabled"):
                 group.getPlug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
@@ -895,12 +895,12 @@ class LayerEditor(QtWidgets.QDialog):
     def open_curve(self):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
         _, data = self.getCurrent()
-        node = mlib.getNode(
+        node = mlib.nodes.Node(
             ([item.getFullName() for item in mlib.ls(data["target"], long=True)] or [""])[0]
         )
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
-        mlib.select(node.getPlug('curve').getSource(skipConversionNodes=False).getNode(), replace=True)
+        mlib.select(node.getPlug('curve').getSource().getNode(), replace=True)
         if cmds.about(batch=True):
             raise RuntimeError("GraphEditor requires Maya GUI")
         mel.eval("GraphEditor;")

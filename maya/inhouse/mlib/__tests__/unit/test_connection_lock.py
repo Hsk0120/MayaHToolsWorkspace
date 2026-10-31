@@ -21,14 +21,14 @@ class ConnectionLockTest(unittest.TestCase):
             destination.setFlags(locked=True)
             with self.assertRaises(RuntimeError):
                 replacement.getPlug("outputX").connectTo(destination, force=True, unlock=False)
-            self.assertEqual(destination.getSource(skipConversionNodes=False), output)
+            self.assertEqual(destination.getSource(), output)
             self.assertTrue(destination.isLocked())
             # 既定値は従来どおり一時解除して接続し、ロックを戻す。
             replacement.getPlug("outputX").connectTo(destination, force=True)
-            self.assertEqual(destination.getSource(skipConversionNodes=False), replacement.getPlug('outputX'))
+            self.assertEqual(destination.getSource(), replacement.getPlug('outputX'))
             self.assertTrue(destination.isLocked())
             cmds.undo()
-            self.assertEqual(destination.getSource(skipConversionNodes=False), output)
+            self.assertEqual(destination.getSource(), output)
             self.assertTrue(destination.isLocked())
         finally:
             cmds.delete([node.getFullName() for node in nodes if node.isValid()])

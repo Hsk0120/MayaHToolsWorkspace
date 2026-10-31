@@ -1,6 +1,5 @@
 """ジョイントの基準ローカル回転をSwingとTwistへ分解する。"""
 
-from maya import cmds
 
 import math
 
@@ -34,18 +33,15 @@ class SwingTwist(TwistDistribution):
             最短回転を扱い、180度境界・多回転は連続ではない。
         """
         joint = mlib.nodes.Node(joint)
-        parents = [
-            mlib.getNode(value)
-            for value in (cmds.listRelatives(joint.getFullName(), parent=True, fullPath=True) or [])
-        ] or []
+        parents = joint.getParents()
         if joint.getType() != "joint" or not parents:
             raise ValueError("Expected a joint with a parent transform")
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         base = TwistDistribution.create(parents[0], joint, name=name, axis=axis)
         graph = cls(base.container)
         owner = graph.container
-        decomposition = owner.getPlug('relativeDecompose').getSource(skipConversionNodes=False).getNode()
-        source = decomposition.getPlug('inputMatrix').getSource(skipConversionNodes=False)
+        decomposition = owner.getPlug('relativeDecompose').getSource().getNode()
+        source = decomposition.getPlug('inputMatrix').getSource()
         if rest:
             delta = graph._node("multMatrix", "restDelta")
             delta.getPlug("matrixIn")[1].set(Matrix(source.get()).inverse())

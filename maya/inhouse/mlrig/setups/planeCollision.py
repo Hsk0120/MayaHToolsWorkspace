@@ -132,7 +132,7 @@ class PlaneCollision(TwistDistribution):
             raise ValueError("softness and radius must be finite")
         if softness < 0.0:
             raise ValueError("softness must not be negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("PlaneCollision container already exists: " + name)
         target = mlib.nodes.Node(target)
         plane = mlib.nodes.Node(plane)
@@ -142,7 +142,7 @@ class PlaneCollision(TwistDistribution):
         if target.getFullName() == plane.getFullName():
             raise ValueError("target and plane must be different nodes")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="softness", attributeType="double", defaultValue=softness, keyable=True,
                       minValue=0)

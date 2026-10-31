@@ -4,6 +4,82 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+8.0.0 (2026-10-31)
+------------------
+
+mlrig を mlib で書き直す中で足りなかった入口を足し、ノード型の ``create`` クラスメソッドを関数へ移しました。
+接続照会の既定も ``cmds.listConnections`` と同じ「直結」へ変えたので、移行表を確認してください。
+
+.. rubric:: 追加
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - 入口
+     - 内容
+   * - ``mlib.objExists(target)``
+     - ``cmds.objExists`` と同じ。名前・``"node.attr"``・コンポーネントと、Node・Plug・Component(``isValid()``)を受け付ける
+   * - ``mlib.createCurve``\ ・\ ``createCircle``\ ・\ ``createLocator``\ ・\ ``createPolyCube``\ ・\ ``createPolySphere``\ ・\ ``createPolyCylinder``\ ・\ ``createPolyPlane``
+     - 形状を作り、シェイプを返す。大きさは cm(UI単位に依存しない)。構築履歴なし。選択は変えない。
+       ``createCurve`` は ``knots`` も指定できる。ポリゴンの分割数はタプル1つ(``subdivisions``)、
+       ``createLocator`` は ``localPosition``\ ・\ ``localScale`` を指定できる
+   * - ``mlib.createContainer``\ ・\ ``createDagContainer``\ ・\ ``createDagPose``\ ・\ ``createIkHandle``\ ・\ ``createBlendShape``\ ・\ ``bindSkin``
+     - 既存のクラスメソッドから移した作成関数(下の移行表)
+   * - ``mlib.common.Time``
+     - 静的メソッドだけのクラス。 ``getCurrent``\ ・\ ``setCurrent``\ ・\ ``getPlaybackRange``\ ・\ ``setPlaybackRange``\ ・
+       ``getAnimationRange``\ ・\ ``setAnimationRange``\ ・\ ``preserved()``\ (with を抜けると元の時刻へ戻す)
+   * - ``Node.setKey(attributes=None, ...)``\ ・\ ``Node.removeKey(attributes=None, time=...)``\ ・\ ``Plug.removeKey(time=...)``
+     - 複数アトリビュートへ1回でキー、範囲のキー削除(``cmds.setKeyframe``\ ・\ ``cmds.cutKey(clear=True)`` 相当)。
+       追加は ``setKey``、削除は ``removeKey`` にそろえた
+   * - ``AnimCurve.removeKey(time=...)``
+     - 番号に加えて入力の範囲 ``time=(start, end)`` で削除できる。fast も使える
+   * - ``Shape.setParent(parent, fast=False)``\ ・\ ``Transform.addShape(shape, fast=False)``
+     - シェイプを別の Transform の下へ移す(``cmds.parent -shape -relative``)。fast は約2.4倍速い
+   * - ``Joint.setPreferredAngle(value=None)``
+     - 省略時は今の rotate を preferredAngle にする(``joint -e -spa``)
+
+.. rubric:: 削除と移行
+
+存在しないインスタンスを作ってから create する形をやめ、ノード型の作成は関数にしました。
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - 削除したもの
+     - 移行先
+   * - ``Container.create`` / ``DagContainer.create``
+     - ``mlib.createContainer(name, members)`` / ``mlib.createDagContainer(name, members)``
+   * - ``DagPose.create``
+     - ``mlib.createDagPose(members, name=None, bindPose=False, hierarchy=True)``
+   * - ``IkHandle.create``
+     - ``mlib.createIkHandle(startJoint, endJoint, solver=..., name=None, curve=None, **kwargs)``
+   * - ``BlendShape.create``
+     - ``mlib.createBlendShape(base, targets=(), name=None, frontOfChain=True)``
+   * - ``NurbsCurve.create``
+     - ``mlib.createCurve(points, degree=1, closed=False, knots=None, name=None, parent=None)``
+   * - ``SkinCluster.bind(mesh, influences, maxInfluences=4)``
+     - ``mlib.bindSkin(influences, mesh, maximumInfluences=4, **kwargs)``(引数の順と名前が ``cmds.skinCluster`` に合わせて変わる)
+
+common の作成(``Namespace.create`` 等)と、既存ノードへの操作(``Container.createNode``\ ・\ ``Joint.mirror``\ ・
+``Transform.addConstraint``)は残しています。
+
+.. rubric:: 接続照会の既定の変更
+
+``Plug.getSource``\ ・\ ``getDestinations``\ ・\ ``getConnections`` と ``Node.getConnections`` の ``skipConversionNodes`` の既定を
+``False`` にしました(``cmds.listConnections`` と同じく unitConversion を飛ばさない)。これまでの既定に頼っていた呼出しは、
+``skipConversionNodes=True``(または ``scn=True``)を指定してください。``scn`` と ``skipConversionNodes`` はどちらかが True なら飛ばします。
+
+.. rubric:: fast を付けなかったもの
+
+``createLocator``(OpenMaya で作っても約1.2倍)、``Plug.removeKey``\ ・\ ``Node.removeKey``(OpenMaya で1つずつ消す方が遅い)、
+``Node.setKey``(``Plug.setKey`` と同じく速くならない)、ポリゴンの作成(同じ UV・法線のメッシュを OpenMaya で組み立て直す必要がある)。
+
+.. rubric:: 文書の注記
+
+接続されたカーブの全キーを通常経路で消すと、``cmds.cutKey`` と同じく Maya がカーブ自体を削除します(``AnimCurve.removeKey`` の fast では空のカーブが残る)。
+
 7.0.0 (2026-10-31)
 ------------------
 

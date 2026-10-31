@@ -8,10 +8,10 @@ import maya.cmds as cmds
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
-from ..util import _MIRROR_PLANES, _mirror_axis
+from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
-from typing import Any, Iterable, Iterator
+from typing import Any, Iterable, Iterator, Sequence
 from mlib.components.component import Component
 from mlib.nodes.ikHandle import IkHandle
 from mlib.nodes.skinCluster import SkinCluster
@@ -242,6 +242,25 @@ class Joint(Transform):
             TypeError: valueが数値でない、またはfastがbool以外の場合。
             ValueError: valueが負数・非有限値の場合。
             RuntimeError: Mayaが編集を拒否した場合。
+        """
+        ...
+    def setPreferredAngle(self, value: Sequence[float] | None = ..., *, unit: str = ...) -> Joint:
+        """IKが曲げる向きの基準になる preferredAngle を設定する。
+
+        省略時は今の rotate を preferredAngle にする(Skeleton > Set Preferred Angle、
+        ``cmds.joint(edit=True, setPreferredAngles=True)`` と同じ)。子孫のjointには適用しない。
+
+        Args:
+            value (Sequence[float] | None): XYZの角度。Noneは今のrotate。
+            unit (str): valueの角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: valueが3つの数値の列・None以外、またはunitが文字列以外の場合。
+            ValueError: valueの成分数が3でない・有限でない、またはunitが未対応の単位名の場合。
+            RuntimeError: jointが無効、またはpreferredAngleがロック・入力接続で書き込めない場合。
         """
         ...
     def getInverseScale(self) -> Scale:

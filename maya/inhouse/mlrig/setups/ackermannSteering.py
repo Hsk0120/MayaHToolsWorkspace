@@ -87,7 +87,7 @@ class AckermannSteering(TwistDistribution):
             raise ValueError("wheelBase and trackWidth must be greater than 0")
         if not 0.0 <= ackermann <= 1.0:
             raise ValueError("ackermann must be between 0 and 1")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("AckermannSteering container already exists: " + name)
         wheels = [mlib.nodes.Node(left), mlib.nodes.Node(right)]
         if any(not isinstance(wheel, mlib.nodes.Transform) for wheel in wheels):
@@ -106,10 +106,10 @@ class AckermannSteering(TwistDistribution):
         channel = "rotate" + axis.upper()
         if connect:
             for wheel in wheels:
-                if wheel.getPlug(channel).getSource() is not None:
+                if wheel.getPlug(channel).getSource(skipConversionNodes=True) is not None:
                     raise ValueError("The rotation of the wheel is already connected: " + wheel.getFullName())
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         owner.addAttr(longName="steer", attributeType="doubleAngle", defaultValue=0.0, keyable=True)

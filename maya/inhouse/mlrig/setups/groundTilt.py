@@ -52,7 +52,7 @@ class GroundTilt(TwistDistribution):
         if not all(math.isfinite(value) for value in values):
             raise ValueError("tilt and height must be finite")
         tilt, height = values
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("GroundTilt container already exists: " + name)
         nodes = [mlib.nodes.Node(node) for node in (body, frontLeft, frontRight, backLeft, backRight)]
         if any(not isinstance(node, mlib.nodes.Transform) for node in nodes) or len(
@@ -69,7 +69,7 @@ class GroundTilt(TwistDistribution):
         if (forward.normal() ^ side.normal()).length() < 1e-3:
             raise ValueError("The front/back and left/right directions must not be parallel")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
         owner.addAttr(longName="tilt", attributeType="double", defaultValue=tilt, minValue=0, maxValue=1,

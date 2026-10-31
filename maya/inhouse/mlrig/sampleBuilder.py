@@ -1,6 +1,5 @@
 """レイヤーエディター用のサンプル構成を生成する。"""
 
-from maya import cmds
 
 import mlib
 from mlib.decorator import undoTransaction
@@ -116,9 +115,7 @@ class SampleBuilder:
 
             identifier = SampleBuilder.next_id(DrivenLayer(rig).graphs(), "sdk")
             group_name = rig.getNodeName("drivenSet").removesuffix("_set") + "_" + identifier + "_grp"
-            if cmds.objExists(group_name) or cmds.objExists(
-                group_name.removesuffix("_grp") + "_jnt"
-            ):
+            if any(mlib.objExists(name) for name in [group_name, group_name.removesuffix("_grp") + "_jnt"]):
                 raise ValueError("SDK sample names already exist")
             group = mlib.createNode(
                 "transform", name=group_name, parent=rig.getJoints()[0], skipSelect=True

@@ -234,7 +234,7 @@ class RemovedNamesTest(_SpecCase):
         """getConnections に pcls は無い。"""
         node = Node(self.make("transform", "conn"))
         with self.assertRaises(TypeError):
-            node.getConnections(pcls=Plug)
+            node.getConnections(pcls=Plug, skipConversionNodes=True)
         self.assertNotIn("pcls", Node.getConnections.__code__.co_varnames)
 
 

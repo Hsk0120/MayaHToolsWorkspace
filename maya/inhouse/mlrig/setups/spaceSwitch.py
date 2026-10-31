@@ -1,6 +1,5 @@
 """標準行列ノードによる、姿勢を保持した参照空間の切替。"""
 
-from maya import cmds
 
 import json
 import re
@@ -42,7 +41,7 @@ class SpaceSwitch:
         buffer = mlib.nodes.Node(buffer)
         if buffer.getType() != "transform" or buffer.hasAttr("spaceChoice"):
             raise ValueError("Expected an unused transform")
-        if buffer.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None:
+        if buffer.getPlug('offsetParentMatrix').getSource() is not None:
             raise ValueError("offsetParentMatrix is already connected")
         identity = Matrix()
         if any(abs(a - b) > 1e-8 for a, b in zip(buffer.getPlug("matrix").get(), identity)):
@@ -60,7 +59,7 @@ class SpaceSwitch:
         Returns:
             Node: choiceノード。
         """
-        return self.buffer.getPlug('spaceChoice').getSource(skipConversionNodes=False).getNode()
+        return self.buffer.getPlug('spaceChoice').getSource().getNode()
 
     def labels(self):
         """登録された空間名を順序付きで取得する。
@@ -85,7 +84,7 @@ class SpaceSwitch:
             tuple[Node]: buffer、choice、空間ごとのmultMatrix。
         """
         choice = self._choice()
-        return (self.buffer, choice) + tuple((choice.getPlug('input')[i].getSource(skipConversionNodes=False).getNode() for i in range(len(self.labels()))))
+        return (self.buffer, choice) + tuple((choice.getPlug('input')[i].getSource().getNode() for i in range(len(self.labels()))))
 
     def _validate_target(self, target):
         """自己・子孫・計算依存先への追従による循環を拒否する。
@@ -109,28 +108,11 @@ class SpaceSwitch:
                 raise ValueError("Space target depends on the driven buffer")
             # DAG親子とDG入力の両方を辿る。所有参照のmessage接続は計算依存ではない。
             if isinstance(item, (mlib.nodes.Transform, mlib.nodes.Shape)):
-                parents = [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listRelatives(item.getFullName(), parent=True, fullPath=True) or []
-                    )
-                ] or []
-                pending.extend(mlib.nodes.Node(parent) for parent in parents)
-            pairs = [
-                mlib.getPlug(value)
-                for value in (
-                    cmds.listConnections(
-                        item.getFullName(),
-                        source=True,
-                        destination=False,
-                        plugs=True,
-                        connections=True,
-                    )
-                    or []
-                )
-            ] or []
-            for destination, source in zip(pairs[::2], pairs[1::2]):
-                if mlib.getPlug(destination).getType() != "message":
+                pending.extend(item.getParents())
+            for destination, source in item.getConnections(
+                destination=False, asPair=True
+            ):
+                if destination.getType() != "message":
                     pending.append(source.getNode())
 
     @staticmethod
@@ -179,14 +161,9 @@ class SpaceSwitch:
         else:
             matrix.getPlug("matrixIn")[1].set(Matrix())
         # buffer.parentInverseMatrixは自身のOPMを含むので使わず、実親を参照する。
-        parent = [
-            mlib.getNode(value)
-            for value in (
-                cmds.listRelatives(self.buffer.getFullName(), parent=True, fullPath=True) or []
-            )
-        ] or []
-        if parent:
-            mlib.nodes.Node(parent[0]).getPlug("worldInverseMatrix")[0].connectTo(
+        parent = self.buffer.getParent()
+        if parent is not None:
+            parent.getPlug("worldInverseMatrix")[0].connectTo(
                 matrix.getPlug("matrixIn")[2]
             )
         else:
@@ -209,8 +186,8 @@ class SpaceSwitch:
         choice = self._choice()
         if choice.getPlug("selector").get() == index:
             return
-        matrix = choice.getPlug('input')[index].getSource(skipConversionNodes=False).getNode()
-        source = matrix.getPlug('matrixIn')[1].getSource(skipConversionNodes=False)
+        matrix = choice.getPlug('input')[index].getSource().getNode()
+        source = matrix.getPlug('matrixIn')[1].getSource()
         if source is not None:
             self._validate_target(source.getNode())
         reference = Matrix(matrix.getPlug("matrixIn")[1].get())

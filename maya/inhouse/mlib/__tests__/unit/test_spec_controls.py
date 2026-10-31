@@ -37,7 +37,7 @@ class _Case(NamespaceCase):
     def curve(self, points=SQUARE, **kwargs):
         """名前空間内にカーブを作成して返す。"""
         kwargs.setdefault("name", self.name("crv#"))
-        return NurbsCurve.create(points, **kwargs)
+        return mlib.createCurve(points, **kwargs)
 
     def assertPointsAlmostEqual(self, actual, expected, places=9):
         actual, expected = list(actual), list(expected)
@@ -79,7 +79,7 @@ class NurbsCurveCreateTest(_Case):
         parent = self.make("transform", "parent")
         cmds.setAttr(parent + ".translate", 5, 0, 0)
         cmds.currentUnit(linear="mm")
-        shape = NurbsCurve.create([(0, 0, 0), (2, 0, 0)], name=self.name("ctl"), parent=parent)
+        shape = mlib.createCurve([(0, 0, 0), (2, 0, 0)], name=self.name("ctl"), parent=parent)
         transform = shape.getTransform()
         self.assertEqual(transform.getName().rsplit(":", 1)[-1], "ctl")
         self.assertEqual(shape.getName().rsplit("|", 1)[-1].rsplit(":", 1)[-1], "ctlShape")
@@ -124,7 +124,7 @@ class NurbsCurveCreateTest(_Case):
         for error, kwargs in cases:
             with self.subTest(kwargs=kwargs):
                 with self.assertRaises(error):
-                    NurbsCurve.create(**kwargs)
+                    mlib.createCurve(**kwargs)
         self.assertEqual(set(cmds.ls(type="nurbsCurve")), before)
 
 
@@ -223,7 +223,7 @@ class ReplaceShapesTest(_Case):
         control = self.make("transform", "grp")
         first = self.curve(name=self.name("src"))
         holder = first.getTransform()
-        second = NurbsCurve.create([(0, 0, 0), (1, 1, 1)])
+        second = mlib.createCurve([(0, 0, 0), (1, 1, 1)])
         temporary = second.getTransform().getFullName()
         cmds.parent(second.getFullName(), holder.getFullName(), shape=True, relative=True)
         cmds.delete(temporary)
@@ -317,7 +317,7 @@ class SetColorTest(_Case):
     def test_locked_attribute_rolls_back(self):
         shape = self.curve()
         transform = shape.getTransform()
-        second = NurbsCurve.create([(0, 0, 0), (1, 1, 1)])
+        second = mlib.createCurve([(0, 0, 0), (1, 1, 1)])
         temporary = second.getTransform().getFullName()
         cmds.parent(second.getFullName(), transform.getFullName(), shape=True, relative=True)
         cmds.delete(temporary)

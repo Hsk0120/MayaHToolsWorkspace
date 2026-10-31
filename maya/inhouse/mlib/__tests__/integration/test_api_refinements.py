@@ -36,7 +36,7 @@ class ApiRefinementsTest(unittest.TestCase):
         joints = [self.create("joint") for _ in range(3)]
         cmds.parent(joints[1], joints[0])
         mesh = cmds.polyCube(name=self.ns + ":mesh", constructionHistory=False)[0]
-        skin = mlib.nodes.SkinCluster.bind(mesh, joints)
+        skin = mlib.bindSkin(joints, mesh)
         pose = skin.getBindPose()
         if pose:
             pose.rename(self.ns + ":pose")

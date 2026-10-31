@@ -47,7 +47,7 @@ class LeafJoints(TwistDistribution):
             枝のワールド行列は N_i、葉のワールド行列は W_i(shear=Falseで剪断が無い場合)になり、
             枝は scale 1 のまま、ある節の scale は葉にしか現れない。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("LeafJoints container already exists: " + name)
         if sources is None or isinstance(sources, str):
             raise ValueError("Expected a list of transforms for the sources")
@@ -74,7 +74,7 @@ class LeafJoints(TwistDistribution):
                 ancestor = ancestor.getParent()
             parents.append(found)
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         flat = []
         for index, node in enumerate(nodes):
@@ -142,7 +142,7 @@ class LeafJoints(TwistDistribution):
         branches, leaves = [], []
         index = 0
         while self.container.hasAttr("branch" + str(index)):
-            branches.append(self.container.getPlug("branch" + str(index)).getSource().getNode())
-            leaves.append(self.container.getPlug("leaf" + str(index)).getSource().getNode())
+            branches.append(self.container.getPlug("branch" + str(index)).getSource(skipConversionNodes=True).getNode())
+            leaves.append(self.container.getPlug("leaf" + str(index)).getSource(skipConversionNodes=True).getNode())
             index += 1
         return branches, leaves

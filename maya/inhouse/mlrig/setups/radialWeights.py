@@ -1,6 +1,5 @@
 """円周上の方向を隣接する二方向へ分配する。"""
 
-from maya import cmds
 
 import math
 
@@ -91,9 +90,9 @@ class RadialWeights:
             RadialWeights: weightA/weightB/restWeightを持つ計算。
         """
         indices, values = cls.directions(angle, count)
-        if cmds.objExists(name):
+        if mlib.objExists(name):
             raise ValueError("Container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attr, value in zip(("directionA", "directionB"), indices):
             owner.addAttr(longName=attr, attributeType="long", defaultValue=value)

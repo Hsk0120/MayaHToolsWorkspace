@@ -453,30 +453,30 @@ class RemovedCreationPathsTest(_CreateCase):
 
 
 class ContainerBuilderTest(_CreateCase):
-    """Container.create / DagContainer.create は name の位置引数と members を受ける特化ビルダー。"""
+    """mlib.createContainer / createDagContainer は name の位置引数と members を受ける作成関数。"""
 
     def test_create_signature(self):
         """name は位置・キーワードのどちらでも指定でき、members は作成後に所属する。"""
         member_a, member_b = Node(self.make("network", "a")), Node(self.make("network", "b"))
-        for wrapper in (Container, DagContainer):
+        for wrapper, create in ((Container, mlib.createContainer), (DagContainer, mlib.createDagContainer)):
             with self.subTest(wrapper=wrapper.__name__):
                 prefix = wrapper.__name__
-                positional = wrapper.create(self.name(prefix + "Pos"))
+                positional = create(self.name(prefix + "Pos"))
                 self.assertIs(type(positional), wrapper)
                 self.assertEqual(positional.getNodeName(), self.name(prefix + "Pos"))
                 self.assertEqual(positional.getMembers(), [])
-                keyword = wrapper.create(name=self.name(prefix + "Kw"), members=[member_a, member_b])
+                keyword = create(name=self.name(prefix + "Kw"), members=[member_a, member_b])
                 self.assertEqual(keyword.getNodeName(), self.name(prefix + "Kw"))
                 self.assertEqual(set(keyword.getMembers()), {member_a, member_b})
                 self.assertEqual(cmds.container(query=True, findContainer=[member_a.getName()]), keyword.getName())
                 keyword.removeMembers(member_a, member_b)
-                single = wrapper.create(self.name(prefix + "Single"), member_a)
+                single = create(self.name(prefix + "Single"), member_a)
                 self.assertEqual(single.getMembers(), [member_a])
                 single.removeMembers(member_a)
 
     def test_container_create_node_uses_real_type(self):
         """Container.createNode は実際の型のラッパーを返して所属させ、未知型は拒否する。"""
-        owner = Container.create(self.name("owner"))
+        owner = mlib.createContainer(self.name("owner"))
         node = owner.createNode("multiplyDivide")
         self.assertEqual(node.getType(), "multiplyDivide")
         self.assertEqual(node.getNodeName(), self.name("owner") + "_multiplyDivide")

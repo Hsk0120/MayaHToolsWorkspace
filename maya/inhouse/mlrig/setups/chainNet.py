@@ -49,7 +49,7 @@ class ChainNet(TwistDistribution):
             親の差を加えた後に、子自身の手付けの差 S * S0^-1 が重なる。生成時は D が単位行列なので跳ねない。
             節の数は子チェーンごとに違ってよい。親の節の位置の移動・scale も補間して受け渡す。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("ChainNet container already exists: " + name)
         masters = [cls._chain(masterA, "masterA")]
         if masterB is not None:
@@ -72,11 +72,11 @@ class ChainNet(TwistDistribution):
         if connect:
             for chain in slaves:
                 for node in chain:
-                    if node.getPlug("offsetParentMatrix").getSource() is not None:
+                    if node.getPlug("offsetParentMatrix").getSource(skipConversionNodes=True) is not None:
                         raise ValueError("The offsetParentMatrix of the slave must be unconnected: "
                                          + node.getFullName())
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         deltas = []
         for role, chain in zip(("masterA", "masterB"), masters):

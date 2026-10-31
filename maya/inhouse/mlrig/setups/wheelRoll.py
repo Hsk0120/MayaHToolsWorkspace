@@ -68,17 +68,17 @@ class WheelRoll(TwistDistribution):
             raise ValueError("direction must be 1 or -1")
         if not math.isfinite(radius) or radius <= 0:
             raise ValueError("radius must be a finite value greater than 0")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("WheelRoll container already exists: " + name)
         vehicle, wheel = mlib.nodes.Node(vehicle), mlib.nodes.Node(wheel)
-        if vehicle.getUuid() == wheel.getUuid() or any(
+        if vehicle == wheel or any(
             not isinstance(node, mlib.nodes.Transform) for node in (vehicle, wheel)
         ):
             raise ValueError("Expected two different transforms for the vehicle and the wheel")
         rest = Matrix(vehicle.getPlug("matrix").get()) * Matrix(vehicle.getPlug("offsetParentMatrix").get())
         rest_position = [rest[12], rest[13], rest[14]]
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         owner.addAttr(longName="radius", attributeType="double", defaultValue=radius, minValue=1e-4, keyable=True)

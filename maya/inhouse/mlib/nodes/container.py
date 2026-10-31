@@ -27,31 +27,6 @@ class _ContainerMixin(Node if TYPE_CHECKING else object):
     createNodeの内部ノード生成にも通常のUndo可能な編集を使う。
     """
 
-    #: create が ``cmds.container`` へ渡す型の指定。派生クラスが上書きする(container は指定なし)。
-    _CONTAINER_FLAGS = {}
-
-    @classmethod
-    def create(cls, name="container", members=()):
-        """containerを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
-
-        ``cmds.container`` 専用の特化ビルダーで、現在のcontainer文脈への自動所属などcmdsの規則に従う。
-        Container は ``cmds.container(name=...)``、DagContainer は ``type="dagContainer"`` で作る。
-        空のcontainerだけが必要なら ``mlib.createNode("container", name=...)`` でも作れる。
-        fast引数は持たない(cmds.containerにOpenMayaの同等機能が無い)。
-
-        Args:
-            name (str): 希望名。衝突時はMayaが一意名にする。位置引数でも指定できる。
-            members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
-
-        Returns:
-            Container: 呼び出したクラスの新しい所有ノード(DagContainer.create は DagContainer)。
-        """
-        with undoTransaction("mlib" + cls.__name__ + "Create"):
-            container = cls(cmds.container(name=name, **cls._CONTAINER_FLAGS))
-            if members:
-                container.addMembers(members)
-            return container
-
     def getMembers(self):
         """Maya containerへ直接所属するノード参照を取得する。
 

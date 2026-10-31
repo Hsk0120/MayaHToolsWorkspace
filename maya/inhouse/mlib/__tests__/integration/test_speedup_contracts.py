@@ -1202,9 +1202,9 @@ class ConnectionHistoryAttrListTest(unittest.TestCase):
                                      self._key(self._reference_connections(node, **dict(flags))))
         node = mlib.getNode(self.ns + ":loc")
         # 短縮名とペア指定の別名も同じ結果になる。
-        self.assertEqual(self._key(node.getConnections(c=True)), self._key(node.getConnections(asPair=True)))
-        self.assertEqual(self._key(node.getConnections(t="joint", et=True)),
-                         self._key(node.getConnections(type="joint", exactType=True)))
+        self.assertEqual(self._key(node.getConnections(c=True, skipConversionNodes=True)), self._key(node.getConnections(asPair=True, skipConversionNodes=True)))
+        self.assertEqual(self._key(node.getConnections(t="joint", et=True, skipConversionNodes=True)),
+                         self._key(node.getConnections(type="joint", exactType=True, skipConversionNodes=True)))
 
     def test_overriding_plug_subclass_is_still_called(self):
         import gc

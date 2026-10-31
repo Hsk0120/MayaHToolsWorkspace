@@ -26,24 +26,6 @@ class _ContainerMixin(Node if TYPE_CHECKING else object):
     復旧処理自体の失敗まで保証するものではない。fast引数は提供しない。
     createNodeの内部ノード生成にも通常のUndo可能な編集を使う。
     """
-    _CONTAINER_FLAGS: dict
-    @classmethod
-    def create(cls, name: str = ..., members: str | Node | Iterable[Node | str] = ...) -> Container:
-        """containerを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
-
-        ``cmds.container`` 専用の特化ビルダーで、現在のcontainer文脈への自動所属などcmdsの規則に従う。
-        Container は ``cmds.container(name=...)``、DagContainer は ``type="dagContainer"`` で作る。
-        空のcontainerだけが必要なら ``mlib.createNode("container", name=...)`` でも作れる。
-        fast引数は持たない(cmds.containerにOpenMayaの同等機能が無い)。
-
-        Args:
-            name (str): 希望名。衝突時はMayaが一意名にする。位置引数でも指定できる。
-            members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
-
-        Returns:
-            Container: 呼び出したクラスの新しい所有ノード(DagContainer.create は DagContainer)。
-        """
-        ...
     def getMembers(self) -> list[Node]:
         """Maya containerへ直接所属するノード参照を取得する。
 

@@ -25,7 +25,7 @@ class SkirtRig:
         Args:
             root (str | Node): スカートルート。
         """
-        self.root = mlib.getNode(root)
+        self.root = mlib.nodes.Node(root)
         if not self.root.hasAttr("mlrigSkirtDefinition"):
             raise ValueError("Not an mlrig skirt module")
 
@@ -58,7 +58,7 @@ class SkirtRig:
         """
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
             raise ValueError("Use an unnamespaced Maya identifier")
-        if cmds.objExists(name) or [item.getName() for item in mlib.ls(name + "_*")]:
+        if mlib.objExists(name) or mlib.ls(name + "_*"):
             raise ValueError("Module name or prefix already exists: " + name)
         if (
             isinstance(driver_count, bool)
@@ -408,11 +408,11 @@ class SkirtRig:
         """無効時は出力を切断し、変形骨を作成時の姿勢へ戻す。"""
         active = self.layer_enabled() and self.lod() == 1
         for constraint in self._members("constraints"):
-            joint = constraint.getPlug('mlrigDriven').getSource(skipConversionNodes=False).getNode()
+            joint = constraint.getPlug('mlrigDriven').getSource().getNode()
             for axis in "XYZ":
                 source = constraint.getPlug("constraintRotate" + axis)
                 target = joint.getPlug("rotate" + axis)
-                connected = target.getSource(skipConversionNodes=False)
+                connected = target.getSource()
                 if connected is not None and connected.mplug() != source.mplug():
                     raise ValueError("Skirt output was replaced: " + target.getName())
                 if active and connected is None:
@@ -481,8 +481,8 @@ class SkirtRig:
             # 新しい編集として記録するとRedo履歴を失うため、問い合わせだけで終える。
             active = rig.layer_enabled() and rig.lod() == 1
             for constraint in rig._members("constraints"):
-                joint = constraint.getPlug('mlrigDriven').getSource(skipConversionNodes=False).getNode()
-                if constraint.getPlug("nodeState").get() != (0 if active else 2) or any(((joint.getPlug('rotate' + axis).getSource(skipConversionNodes=False) is not None) != active for axis in 'XYZ')):
+                joint = constraint.getPlug('mlrigDriven').getSource().getNode()
+                if constraint.getPlug("nodeState").get() != (0 if active else 2) or any(((joint.getPlug('rotate' + axis).getSource() is not None) != active for axis in 'XYZ')):
                     rig.update()
                     break
             else:
@@ -490,8 +490,8 @@ class SkirtRig:
 
                 active = rig.layer_enabled("follow") and rig.lod() == 1
                 for group in FollowLayer(rig).groups().values():
-                    bone = group.getPlug('joint').getSource(skipConversionNodes=False).getNode()
-                    if (bone.getPlug('offsetParentMatrix').getSource(skipConversionNodes=False) is not None) != active:
+                    bone = group.getPlug('joint').getSource().getNode()
+                    if (bone.getPlug('offsetParentMatrix').getSource() is not None) != active:
                         rig.update()
                         break
                 from .secondaryLayer import SecondaryLayer
@@ -505,12 +505,12 @@ class SkirtRig:
     def delete(self):
         """所有DGと階層を削除する。スキン使用中なら拒否する。"""
         for joint in self.getJoints():
-            if mlib.getNode(joint).getConnections(type="skinCluster"):
+            if mlib.nodes.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True):
                 raise ValueError("Unbind the skirt before deleting its module")
         for graph in self._members("graphs"):
             mlib.delete(graph)
         if self.root.hasAttr("mlrigOwned"):
             for node in self._members("mlrigOwned"):
-                if cmds.objExists(node.getFullName()):
+                if node.isValid():
                     mlib.delete(node)
         mlib.delete(self.root)

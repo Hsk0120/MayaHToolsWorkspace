@@ -46,7 +46,7 @@ class NeckHeadSplit(TwistDistribution):
         """
         nodes = []
         for item in [chest, control] + list(joints):
-            node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+            node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
             if not isinstance(node, mlib.nodes.Transform):
                 raise ValueError("Expected an existing transform: " + str(item))
             nodes.append(node)
@@ -61,9 +61,9 @@ class NeckHeadSplit(TwistDistribution):
         weights = [float(value) for value in weights]
         if len(weights) != count or any(not math.isfinite(value) or not 0.0 <= value <= 1.0 for value in weights):
             raise ValueError("weights must be one value from 0 to 1 for each neck joint")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("NeckHeadSplit container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         graph._build(chest, joints, control, weights)
         return graph
 

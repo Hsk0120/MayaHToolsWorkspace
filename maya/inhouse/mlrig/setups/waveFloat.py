@@ -97,14 +97,14 @@ class WaveFloat(TwistDistribution):
         tilt, drift = values
         if isinstance(count, bool) or not isinstance(count, int) or not 1 <= count <= 8:
             raise ValueError("count must be an integer between 1 and 8")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("WaveFloat container already exists: " + name)
         control = mlib.nodes.Node(control)
         if not isinstance(control, mlib.nodes.Transform):
             raise ValueError("Expected a transform")
 
         conversions = {node.getUuid() for node in mlib.ls(type=_CONVERSIONS)}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         owner.addAttr(longName="time", attributeType="double", defaultValue=0.0, keyable=True)

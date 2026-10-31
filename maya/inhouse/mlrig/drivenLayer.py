@@ -1,6 +1,5 @@
 """Swing/Twist成分と単一属性のSDKを部位の所有レイヤーへ登録する。"""
 
-from maya import cmds
 
 import math
 import re
@@ -70,45 +69,20 @@ class DrivenLayer:
             or not all(math.isfinite(v) for p in pairs for v in p)
         ):
             raise ValueError("Provide at least two unique finite driver keys")
-        joint, driven = mlib.getNode(joint), mlib.getPlug(driven)
+        joint, driven = mlib.nodes.Node(joint), mlib.getPlug(driven)
         kind = driven.getType()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
-            or driven.getSource(skipConversionNodes=False)
+            or driven.getSource()
             or driven.isLocked()
         ):
             raise ValueError("Driven must be an unlocked, unconnected numeric scalar")
-        upstream = set(
-            [
-                item.getFullName()
-                for item in mlib.ls(
-                    [
-                        item.getFullName()
-                        for item in [
-                            mlib.getNode(value)
-                            for value in (cmds.listHistory(joint.getFullName()) or [])
-                        ]
-                    ]
-                    or [],
-                    long=True,
-                )
-            ]
-            or []
-        )
+        upstream = {item.getFullName() for item in joint.getHistory()}
         upstream.add(joint.getFullName())
-        cursor = joint.getFullName()
-        while True:
-            parents = [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (cmds.listRelatives(cursor, parent=True, fullPath=True) or [])
-                ]
-            ] or []
-            if not parents:
-                break
-            cursor = parents[0]
-            upstream.add(cursor)
+        cursor = joint.getParent()
+        while cursor is not None:
+            upstream.add(cursor.getFullName())
+            cursor = cursor.getParent()
         # IK内部の暗黙依存を含む部位の主制御を駆動先にしない。
         upstream.update(self.rig.controls().values())
         upstream.update(self.rig.getJoints()[:3])
@@ -127,7 +101,7 @@ class DrivenLayer:
                 y = mlib.common.units.distanceFromUi(y)
             relation.setKey(x, y)
         curve = relation.getCurves()[0]
-        output = driven.getSource(skipConversionNodes=False)
+        output = driven.getSource()
         driven.disconnect(output)
         owner.addAttr(longName="drivenOutput", attributeType=kind)
         output.connectTo(owner.getPlug("drivenOutput"))
@@ -148,10 +122,10 @@ class DrivenLayer:
         root = self.rig.root
         owned = [owner]
         if not root.hasAttr("drivenSet"):
-            selection = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("drivenSet"))).getFullName()
+            selection = mlib.createNode("objectSet", name=self.rig.getNodeName("drivenSet"), skipSelect=True).getFullName()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            owned.append(mlib.getNode(selection))
+            owned.append(mlib.nodes.Node(selection))
             root.addAttr(longName="drivenGraphs", attributeType="message", multi=True)
         root.getPlug("drivenGraphs").appendMessage(owner)
         for node in owned:
@@ -167,11 +141,11 @@ class DrivenLayer:
         """無効時は駆動先を基準値へ戻して計算需要を切断する。"""
         active = self.rig.lod() == 1 and self.rig.layer_enabled("driven")
         for owner in self.graphs().values():
-            reference = owner.getPlug('drivenNode').getSource(skipConversionNodes=False)
+            reference = owner.getPlug('drivenNode').getSource()
             if reference is None:
                 continue
             destination = reference.getNode().getPlug(owner.getPlug("drivenAttribute").get())
-            source = destination.getSource(skipConversionNodes=False)
+            source = destination.getSource()
             output = owner.getPlug("drivenOutput")
             if source is not None and source.mplug() != output.mplug():
                 raise RuntimeError("Driven connection was replaced externally")

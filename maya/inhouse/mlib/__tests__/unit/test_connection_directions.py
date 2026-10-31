@@ -49,17 +49,17 @@ class ConnectionDirectionsTest(unittest.TestCase):
         """方向指定に型・ペア・ノード・単一結果・明示Plug型を併用できる。"""
         source, center, destinations = self._chain("filters")
 
-        self.assertEqual(center.getConnections(source=True, destination=False, index=0), source)
-        self.assertIsNone(center.getConnections(source=False, destination=False, index=0))
-        self.assertIsNone(center.getConnections(source=True, destination=False, index=99))
-        self.assertEqual(center.getConnections(source=True, destination=False, asPair=True), [(center, source)])
-        self.assertCountEqual(center.getConnections(source=False, destination=True, asNode=True),
+        self.assertEqual(center.getConnections(source=True, destination=False, index=0, skipConversionNodes=True), source)
+        self.assertIsNone(center.getConnections(source=False, destination=False, index=0, skipConversionNodes=True))
+        self.assertIsNone(center.getConnections(source=True, destination=False, index=99, skipConversionNodes=True))
+        self.assertEqual(center.getConnections(source=True, destination=False, asPair=True, skipConversionNodes=True), [(center, source)])
+        self.assertCountEqual(center.getConnections(source=False, destination=True, asNode=True, skipConversionNodes=True),
                               [plug.getNode() for plug in destinations])
-        self.assertEqual(center.getConnections(source=True, destination=False, type="network", exactType=True),
+        self.assertEqual(center.getConnections(source=True, destination=False, type="network", exactType=True, skipConversionNodes=True),
                          [source])
-        self.assertEqual(center.getConnections(source=True, destination=True, t="transform", et=True), [])
+        self.assertEqual(center.getConnections(source=True, destination=True, t="transform", et=True, skipConversionNodes=True), [])
         # pcls は廃止。ペアの両側は型登録に従う Plug で、位置はそのまま。
-        pair = center.getConnections(source=True, destination=False, asPair=True, index=0)
+        pair = center.getConnections(source=True, destination=False, asPair=True, index=0, skipConversionNodes=True)
         self.assertIsInstance(pair[0], mlib.plugs.Plug)
         self.assertIsInstance(pair[1], mlib.plugs.Plug)
         self.assertEqual(pair, (center, source))
@@ -69,9 +69,9 @@ class ConnectionDirectionsTest(unittest.TestCase):
         names = ("self", "s", "d", "c", "t", "et", "scn", "source", "destination",
                  "connections", "type", "exactType", "skipConversionNodes", "asPair",
                  "asNode", "checkChildren", "checkElements", "index")
-        # 6.0.0からscn・skipConversionNodesの既定はTrue(getSource/getDestinationsと同じ)。
-        defaults = (True, True, False, None, False, True, True, True, False, None,
-                    False, True, False, False, True, True, None)
+        # 8.0.0からscn・skipConversionNodesの既定はFalse(cmds.listConnectionsと同じ直結)。
+        defaults = (True, True, False, None, False, False, True, True, False, None,
+                    False, False, False, False, True, True, None)
         signature = inspect.signature(mlib.plugs.Plug.getConnections)
         self.assertEqual(tuple(signature.parameters), names)
         self.assertEqual(tuple(parameter.default for parameter in
@@ -82,7 +82,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertEqual(center.getConnections(True, False, False, None, False, False,
                                               True, True, False, None, False, False,
                                               False, False, True, True, 0), source)
-        self.assertCountEqual(center.getConnections(False, True), destinations)
+        self.assertCountEqual(center.getConnections(False, True, skipConversionNodes=True), destinations)
         self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.plugs.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.plugs.Plug.getConnections).parameters.values())[1:]))
 
     def test_query_child_and_multi_expansion_does_not_change_direct_operations(self):
@@ -104,11 +104,11 @@ class ConnectionDirectionsTest(unittest.TestCase):
         for target, local, output in ((parent, child, destination),
                                       (array, element, multi_destination)):
             with self.subTest(target=str(target)):
-                self.assertEqual(target.getConnections(source=True, destination=False, asPair=True),
+                self.assertEqual(target.getConnections(source=True, destination=False, asPair=True, skipConversionNodes=True),
                                  [(local, source)])
-                self.assertEqual(target.getConnections(source=False, destination=True), [output])
+                self.assertEqual(target.getConnections(source=False, destination=True, skipConversionNodes=True), [output])
                 self.assertEqual(target.getConnections(source=True, destination=True,
-                                                      checkChildren=False, checkElements=False), [])
+                                                      checkChildren=False, checkElements=False, skipConversionNodes=True), [])
                 self.assertEqual(target.isConnected(), target.mplug().isConnected)
                 self.assertEqual(target.isConnected(source=True, destination=False), target.mplug().isDestination)
                 self.assertEqual(target.isConnected(source=False, destination=True), target.mplug().isSource)
@@ -199,10 +199,10 @@ class ConnectionDirectionsTest(unittest.TestCase):
         center.connect(conversion_output)
         output.connect(center)
         # 6.0.0から既定は変換ノードを飛ばす。scn=False・skipConversionNodes=Falseは直結。
-        self.assertEqual(center.getConnections(source=True, destination=False), [source])
+        self.assertEqual(center.getConnections(source=True, destination=False, skipConversionNodes=True), [source])
         self.assertEqual(center.getConnections(source=True, destination=False, scn=False), [conversion_output])
-        self.assertEqual(source.getConnections(source=False, destination=True), [center])
-        self.assertEqual(source.getConnections(source=False, destination=True, skipConversionNodes=False),
+        self.assertEqual(source.getConnections(source=False, destination=True, skipConversionNodes=True), [center])
+        self.assertEqual(source.getConnections(source=False, destination=True),
                          [conversion_input])
         self.assertTrue(center.isConnectedTo(conversion_output, source=True, destination=False))
         self.assertFalse(center.isConnectedTo(source, source=True, destination=False))
@@ -239,12 +239,12 @@ class ConnectionDirectionsTest(unittest.TestCase):
         source, center, destinations = self._chain("noop")
         empty = self._value("noopEmpty")
         cmds.flushUndo()
-        self.assertEqual(center.getConnections(source=False, destination=False), [])
+        self.assertEqual(center.getConnections(source=False, destination=False, skipConversionNodes=True), [])
         self.assertFalse(center.isConnected(source=False, destination=False))
         self.assertFalse(center.isConnectedTo(source, source=False, destination=False))
         self.assertIs(center.disconnectAll(source=False, destination=False), center)
         self.assertIs(empty.disconnectAll(), empty)
-        self.assertEqual(empty.getConnections(source=True, destination=True), [])
+        self.assertEqual(empty.getConnections(source=True, destination=True, skipConversionNodes=True), [])
         self.assertFalse(empty.isConnected())
         self.assertFalse(empty.isConnectedTo(source))
         self._assert_chain(source, center, destinations)

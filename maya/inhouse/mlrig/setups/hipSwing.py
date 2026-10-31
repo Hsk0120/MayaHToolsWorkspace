@@ -21,7 +21,7 @@ def _number(value, label, low=None, high=None):
 
 def _transform(item, label):
     """既存の transform・joint の Node に解決する。"""
-    node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+    node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
     if not isinstance(node, mlib.nodes.Transform):
         raise ValueError("{} must be an existing transform: {}".format(label, item))
     return node
@@ -112,10 +112,10 @@ class HipSwing(TwistDistribution):
                                 _transform(control, "control"))
         if len({node.getUuid() for node in (hips, spine, control)}) != 3:
             raise ValueError("hips, spine and control must be different nodes")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("HipSwing container already exists: " + name)
         with nativeUnits():
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(hips, spine, control, swing, stabilize)
         return graph
 

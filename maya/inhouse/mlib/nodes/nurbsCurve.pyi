@@ -2,16 +2,13 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
 import math
-from typing import Any, Dict
 import maya.api.OpenMaya as om2
-import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context, _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..decorator import _edit_context, _require_bool
 from ..maths.vector import _vectors_of_points
 from ..util import _world_space
-from .node import Node
 from .shape import Shape
 from typing import Iterable, Sequence
 from mlib.maths.vector import Vector
@@ -21,39 +18,9 @@ from mlib.maths.vector import Vector
 class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。
 
-    点列からの作成は :meth:`create`、CV位置の一括書込みは :meth:`setCvPositions` を使う。
+    点列からの作成は :func:`mlib.createCurve <mlib.cmds.createCurve.createCurve>`、CV位置の一括書込みは :meth:`setCvPositions` を使う。
     CV(:class:`~mlib.components.cv.CV`)の参照は読み取り専用。
     """
-    @classmethod
-    def create(cls, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], degree: int = ..., closed: bool = ..., name: str | None = ..., parent: Node | str | None = ...) -> NurbsCurve:
-        """点列からNURBSカーブを作成し、そのシェイプを返す(``cmds.curve`` の特化ビルダー)。
-
-        点をそのままCVにする(通過点の補間ではない)。開いたカーブは ``cmds.curve`` の既定ノット、
-        ``closed=True`` は先頭 ``degree`` 個のCVを末尾へ重ねた周期カーブ(``getForm()`` が
-        ``om2.MFnNurbsCurve.kPeriodic``)にする。形状のライブラリは持たない。作成・親子付けを1回のUndoにまとめ、現在の選択は変更しない。
-
-        Args:
-            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CVの位置。各点は3個の
-                有限な数値(boolを除く)。MPointはwで割らずにXYZを使う。距離はMaya APIの内部単位(cm)で、
-                現在のUI単位に依存しない。カーブのTransform(作成時は単位マトリクス)のローカル座標。
-            degree (int): 次数。1・2・3のいずれか。既定1。
-            closed (bool): Trueなら閉じたカーブにする。既定False。
-            name (str | None): Transformの希望名。シェイプは ``<名前>Shape``。Noneは
-                Mayaの既定名(``curve1`` 等)。衝突時はMayaが一意名にする。
-            parent (Node | str | None): Transformの親。Noneはワールド直下。親のローカル空間に
-                単位マトリクスで置くため、点は親の空間の座標になる。
-
-        Returns:
-            NurbsCurve: 作成したカーブのシェイプ。Transformは ``getTransform()`` で取得する
-                (``mlib.createNode("nurbsCurve")`` と同じくシェイプを返す)。
-
-        Raises:
-            TypeError: points・degree・closed・nameの型が不正、または点の成分が数値でない場合。
-            ValueError: degreeが1〜3でない、点の成分数が3でない・有限でない、または点の数が
-                不足する場合(開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)。
-            RuntimeError: 親が無効な場合、またはMayaが作成を拒否した場合。
-        """
-        ...
     def getCV(self, index: int) -> CV:
         """CV 番号から単体ラッパーを取得する。
 

@@ -67,14 +67,14 @@ class ScissorLift(TwistDistribution):
             height = armLength * stages * 0.5
         if not math.isfinite(float(height)) or height < 0.0:
             raise ValueError("height must be 0 or more")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("ScissorLift container already exists: " + name)
         if base is not None:
             base = mlib.nodes.Node(base)
             if not isinstance(base, mlib.nodes.Transform):
                 raise ValueError("base must be a transform")
         with nativeUnits():
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(base, float(armLength), stages, float(height))
         return graph
 

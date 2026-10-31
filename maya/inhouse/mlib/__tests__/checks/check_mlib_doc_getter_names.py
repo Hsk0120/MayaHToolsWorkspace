@@ -1,4 +1,4 @@
-"""Sphinxの正式get/is定義と基礎7コマンドの掲載をMaya不要で検査する。"""
+"""Sphinxの正式get/is定義と基礎コマンドの掲載をMaya不要で検査する。"""
 
 import argparse
 import ast
@@ -9,7 +9,22 @@ import re
 import sys
 
 _PACKAGE_ROOT = Path(__file__).resolve().parents[2]
-_COMMAND_NAMES = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"}
+
+
+def _command_names():
+    """mlib.cmds の ``__all__`` をimportせずに読み、公開コマンド名を返す。
+
+    Returns:
+        set[str]: 公開コマンド名。
+    """
+    tree = ast.parse((_PACKAGE_ROOT / "cmds" / "__init__.py").read_text(encoding="utf-8"))
+    for item in tree.body:
+        if isinstance(item, ast.Assign) and any(getattr(t, "id", None) == "__all__" for t in item.targets):
+            return set(ast.literal_eval(item.value))
+    raise RuntimeError("mlib/cmds/__init__.py has no __all__")
+
+
+_COMMAND_NAMES = _command_names()
 
 
 class _SignatureParser(HTMLParser):

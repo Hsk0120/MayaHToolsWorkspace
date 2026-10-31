@@ -1,5 +1,6 @@
 """Maya API 2.0 の MPlug をアトリビュートラッパーとして扱う。"""
 
+import math
 import re
 from contextlib import contextmanager, nullcontext
 from functools import partial
@@ -96,6 +97,35 @@ def _attribute_class(fn, attribute_handle, attribute):
     if not attribute_handle.isValid():
         return _INVALID_ATTRIBUTE
     return fn.attributeClass(attribute)
+
+
+def _cut_key_flags(time, time_unit):
+    """キーの削除範囲を ``cmds.cutKey`` のフラグへ変換する。
+
+    Args:
+        time (float | Sequence[float] | None): 時刻、または両端を含む範囲。Noneは全キー。
+        time_unit (str | None): timeの単位。Noneと ``"frame"`` は現在のUI時間単位のフレーム、``"sec"`` は秒。
+
+    Returns:
+        dict: ``{"time": (start, end)}`` (UI時間単位のフレーム)。Noneなら空の辞書。
+
+    Raises:
+        TypeError: timeが数値・2つの数値の並び・None以外の場合。
+        ValueError: 有限でない、または開始が終了より大きい場合。
+    """
+    unit = _time_unit(time_unit)
+    if time is None:
+        return {}
+    values = tuple(time) if isinstance(time, (tuple, list)) else (time, time)
+    if len(values) != 2 or any(isinstance(v, bool) or not isinstance(v, (int, float)) for v in values):
+        raise TypeError(f"time must be a number or a (start, end) pair of numbers: {time!r}")
+    if not all(math.isfinite(v) for v in values):
+        raise ValueError("time must be finite")
+    if values[0] > values[1]:
+        raise ValueError(f"time range start must not be greater than end: {values}")
+    if unit == "sec":
+        values = _frames_from_seconds(values)
+    return {"time": (float(values[0]), float(values[1]))}
 
 
 def _frames_from_seconds(value):
@@ -1328,6 +1358,33 @@ class Plug(Object):
             cmds.setKeyframe(self.getFullName(), **kwargs)
             return self
 
+    def removeKey(self, *, time=None, timeUnit=None):
+        """このアトリビュートのキーを削除する(``cmds.cutKey(plug, time=..., clear=True)`` 相当)。
+
+        キークリップボードは変更しない。全キーを削除すると、Mayaと同じく空になったカーブは削除される
+        (アトリビュートは最後の値のまま)。カーブへ直接の操作は :meth:`AnimCurve.removeKey` を使う。
+        fast引数は持たない(OpenMayaでキーを1つずつ消す方がcmds.cutKeyより遅いため)。
+
+        Args:
+            time (float | Sequence[float] | None): 削除する時刻、または両端を含む範囲 ``(start, end)``。
+                Noneは全キー。
+            timeUnit (str | None): timeの単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
+
+        Returns:
+            Plug: 自身。キーが無ければ何もしない。
+
+        Raises:
+            TypeError: timeが数値・2つの数値の並び・None以外、またはtimeUnitが文字列・None以外の場合。
+            ValueError: timeが有限でない、範囲の開始が終了より大きい、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが削除を拒否した場合。
+        """
+        flags = _cut_key_flags(time, timeUnit)
+        with undoChunk("mlibPlugRemoveKey"):
+            self._require_valid()
+            cmds.cutKey(self.getFullName(), clear=True, **flags)
+            return self
+
     def getAnimLayers(self, selected=False, exact=False):
         """入力チェーンのアニメーションレイヤー名を上位から取得する。
 
@@ -1773,12 +1830,12 @@ class Plug(Object):
             self.set(value, unit="rad", timeUnit="sec", fast=fast)
             return self
 
-    def getSource(self, *, skipConversionNodes=True, **kwargs):
+    def getSource(self, *, skipConversionNodes=False, **kwargs):
         """直接の入力元を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する(:meth:`getConnections` と同じ)。
-                Falseは直結したPlug。
+            skipConversionNodes (bool): 既定Falseは直結したPlug(``cmds.listConnections`` と同じ)。
+                TrueはunitConversion系を飛ばしてその先のPlug(:meth:`getConnections` と同じ)。
             **kwargs: getConnectionsの型・ペア・Node化等の指定。子/要素展開は無効、indexは0に固定。
 
         Returns:
@@ -1798,11 +1855,12 @@ class Plug(Object):
                       checkElements=False, index=0)
         return self.getConnections(True, False, **kwargs)
 
-    def getDestinations(self, *, skipConversionNodes=True, **kwargs):
+    def getDestinations(self, *, skipConversionNodes=False, **kwargs):
         """直接の出力先を取得する。子・マルチアトリビュートの要素の独立接続は展開しない。
 
         Args:
-            skipConversionNodes (bool): 既定TrueはunitConversion系を省略する。Falseは直結したPlug。
+            skipConversionNodes (bool): 既定Falseは直結したPlug(``cmds.listConnections`` と同じ)。
+                TrueはunitConversion系を飛ばしてその先のPlug。
             **kwargs: getConnectionsの型・ペア・Node化・index等の指定。子/要素展開は無効。
 
         Returns:
@@ -1822,14 +1880,14 @@ class Plug(Object):
                       checkElements=False)
         return self.getConnections(False, True, **kwargs)
 
-    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=True, source=True,
-        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=True,
+    def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
+        destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
         asPair=False, asNode=False, checkChildren=True, checkElements=True, index=None):
-        """接続参照を取得する。既定はunitConversion系の変換ノードを飛ばす。
+        """接続参照を取得する。既定は直結したPlugを返す(``cmds.listConnections`` と同じ)。
 
-        ``cmds.listConnections`` とは既定が違い、:meth:`getSource` / :meth:`getDestinations` と同じく
+        ``skipConversionNodes=True`` (または ``scn=True``)は、:meth:`getSource` / :meth:`getDestinations` と同じく
         unitConversion系(unitConversion・unitToTimeConversion・timeToUnitConversion)を飛ばして
-        その先のPlugを返す。``skipConversionNodes=False`` (または ``scn=False``)で直結したPlugを返す。
+        その先のPlugを返す。
 
         自身の入力・出力、次にマルチアトリビュートの既存要素または子へ再帰する。
         型で絞り、初出順で重複を統合した後にindexを適用する。
@@ -1840,14 +1898,14 @@ class Plug(Object):
             c (bool): connections/asPairとORし、ペアを返す。
             t (str | None): typeが未指定または偽のときの型条件。
             et (bool): exactTypeとORする。
-            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとANDし、どちらかがFalseなら直結を返す。
+            scn (bool): skipConversionNodesの短縮名。skipConversionNodesとORし、どちらかがTrueなら変換を飛ばす。
             source (bool): 入力を含める。sとANDする。
             destination (bool): 出力を含める。dとANDする。
             connections (bool): c/asPairとORし、ペアを返す。
             type (str | None): 相手Nodeの型。tより優先する。
             exactType (bool): Trueは型名の完全一致。Falseは派生型を含む。
-            skipConversionNodes (bool): 既定TrueはunitConversion系を飛ばす(``cmds.listConnections`` の既定とは異なる)。
-                Falseは直結したPlug。
+            skipConversionNodes (bool): 既定Falseは直結したPlug(``cmds.listConnections`` と同じ)。
+                TrueはunitConversion系を飛ばす。
             asPair (bool): (自身側Plug, 相手側)の組で返す。入力方向でも同じ順序。
             asNode (bool): 相手側をNodeにする。ペアの自身側はPlugのまま。
             checkChildren (bool): コンパウンドアトリビュートの子も探索する。
@@ -1870,7 +1928,7 @@ class Plug(Object):
             for incoming, enabled in ((True, s and source), (False, d and destination)):
                 if not enabled:
                     continue
-                if scn and skipConversionNodes:
+                if scn or skipConversionNodes:
                     if incoming:
                         src = mp.source()
                         targets = [] if src.isNull else [src]
@@ -2048,7 +2106,7 @@ class Plug(Object):
         """
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibPlugDisconnectInput"):
-            source = self.getSource(skipConversionNodes=False)
+            source = self.getSource()
             if source is not None:
                 self.disconnect(source, fast=fast)
             return self
@@ -2091,7 +2149,7 @@ class Plug(Object):
             if source is not None:
                 source = Plug._resolve_input(source)
             if self.isMulti() and (nextAvailable or na) and source is not None:
-                targets = [p for p in self.getElements() if p.getSource(skipConversionNodes=False) == source]
+                targets = [p for p in self.getElements() if p.getSource() == source]
                 if not targets:
                     raise RuntimeError(f"Input connection not found: {self.getFullName()}")
                 names = [target.getFullName() for target in targets]

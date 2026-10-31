@@ -25,7 +25,7 @@ def _number(value, label):
 
 def _transform(item, label):
     """既存の transform・joint の Node に解決する(cameraのシェイプなら親の transform)。"""
-    node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+    node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
     if node is not None and not isinstance(node, mlib.nodes.Transform) and node.getType() == "camera":
         node = node.getParent()
     if not isinstance(node, mlib.nodes.Transform):
@@ -179,11 +179,11 @@ class EyeHighlight(TwistDistribution):
             if highlight.isAncestorOf(node):
                 raise ValueError("The eye, camera and light must not be children of the highlight: " + str(node))
         opm = highlight.getPlug("offsetParentMatrix")
-        if opm.getSource(skipConversionNodes=False) is not None:
+        if opm.getSource() is not None:
             raise ValueError("Highlight offsetParentMatrix is already connected")
         if opm.isLocked():
             raise ValueError("Highlight offsetParentMatrix must be writable")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("EyeHighlight container already exists: " + name)
 
         with nativeUnits():
@@ -205,7 +205,7 @@ class EyeHighlight(TwistDistribution):
                 raise ValueError("Highlight local matrix must be invertible")
             rest = Matrix(opm.get())
 
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(sources, highlight, local, rest, radius, follow, weight, aimAxis, upAxis)
             if connect:
                 graph.container.getPlug("matrix").connectTo(opm)

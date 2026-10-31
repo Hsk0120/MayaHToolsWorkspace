@@ -44,7 +44,7 @@ class MetaSpread(TwistDistribution):
             出力はTRSが単位の受け側jointのoffsetParentMatrixへつなぐ(間のjoint自体のローカル行列の代わり)。
             両端の位置の移動・scaleは分配しない。両端の差が互いに180度に近いと補間の向きが不定になる。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("MetaSpread container already exists: " + name)
         middles = list(middles)
         nodes = [mlib.nodes.Node(node) for node in [first, last] + middles]
@@ -63,7 +63,7 @@ class MetaSpread(TwistDistribution):
             raise ValueError("weights must be one value from 0 to 1 for each middle")
         first, last = nodes[0], nodes[1]
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for index, value in enumerate(weights):
             owner.addAttr(longName="weight" + str(index), attributeType="double", defaultValue=value,

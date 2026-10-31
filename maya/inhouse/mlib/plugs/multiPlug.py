@@ -317,7 +317,7 @@ class MultiPlug(Plug):
         """
         result = {}
         for element in self.getElements():
-            source = element.getSource(skipConversionNodes=False)
+            source = element.getSource()
             if source is not None:
                 result[element.mplug().logicalIndex()] = source.getNode()
         return result

@@ -27,7 +27,7 @@ def _number(value, label):
 
 def _transform(item, label):
     """既存の transform・joint の Node に解決する。"""
-    node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+    node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
     if not isinstance(node, mlib.nodes.Transform):
         raise ValueError("{} must be an existing transform: {}".format(label, item))
     return node
@@ -175,7 +175,7 @@ class UnevenGround(TwistDistribution):
             raise ValueError("hips, leftFoot and rightFoot must be different nodes")
         if {node.getUuid() for node in grounds} & {node.getUuid() for node in bodies}:
             raise ValueError("The grounds must be different from the hips and the feet")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("UnevenGround container already exists: " + name)
         with nativeUnits():
             for ground in grounds:
@@ -187,7 +187,7 @@ class UnevenGround(TwistDistribution):
                 forward = Vector(*AXES[forwardAxis]) * Matrix(foot.getPlug("worldMatrix")[0].get())
                 if (forward - normal * (forward * normal)).length() < 1e-4:
                     raise ValueError("The foot forward axis must not be vertical: " + str(foot))
-            graph = cls(mlib.nodes.Container.create(name=name))
+            graph = cls(mlib.createContainer(name=name))
             graph._build(hips, (leftFoot, rightFoot), grounds, floorHeight, height, align, hipsWeight,
                          groundAxis, forwardAxis)
         return graph

@@ -18,6 +18,44 @@ from .transform import Transform
 class Shape(DagNode):
     """Maya DAG shape ノードの共通ラッパー。"""
 
+    def setParent(self, parent, *, fast=False):
+        """このシェイプを別のTransformの下へ移す(``cmds.parent(shape, transform, shape=True, relative=True)``)。
+
+        シェイプは常にローカルの形を保って移る(ワールドの位置は新しい親に従う)。元のTransformは
+        シェイプが無くなっても削除しない。:meth:`~mlib.nodes.transform.Transform.addShape` は同じ操作を
+        受け側から行う。
+
+        Args:
+            parent (Transform | str): 新しい親のTransform(Jointを含む)。
+            fast (bool): TrueはUndoなしのOpenMaya更新(MDagModifier.reparentNode)。既定False。
+
+        Returns:
+            Shape: 自身。移した後のパスを指す。
+
+        Raises:
+            TypeError: parentがTransformでない、またはfastがbool以外の場合。
+            RuntimeError: 自身・親が無効、シェイプがインスタンス化されている、fastでロック・参照された
+                ノードを含む、またはMayaが親の変更を拒否した場合。
+            NotImplementedError: fastで、移す先に同じ名前の子がある場合(Mayaの改名の規則を再現しないため)。
+        """
+        with _edit_context("mlibShapeSetParent", fast):
+            self._require_valid("parent")
+            target = parent if isinstance(parent, DagNode) else DagNode._resolve_input(parent)
+            if not target.isValid():
+                raise RuntimeError("parent is not a valid node")
+            if not isinstance(target, Transform):
+                raise TypeError(f"parent must be a transform: {target.getFullName()}")
+            if self.mpath().isInstanced():
+                raise RuntimeError(f"Cannot move an instanced shape: {self.getFullName()}")
+            current = self.getParent()
+            if current is not None and current.mpath().fullPathName() == target.mpath().fullPathName():
+                return self
+            if fast:
+                self._set_parent_fast(target)
+            else:
+                cmds.parent(self.getFullName(), target.getFullName(), shape=True, relative=True)
+            return self
+
     def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
@@ -151,3 +189,31 @@ class Shape(DagNode):
             Transform | None: 親Transform。存在しない場合は ``None``。
         """
         return self.getParent()
+
+    def _set_parent_fast(self, target):
+        """変更前に編集できるか確かめ、MDagModifierでシェイプの親を変える。
+
+        Args:
+            target (Transform): 新しい親。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: シェイプ・元の親・新しい親がロック・参照されている場合。
+            NotImplementedError: 新しい親に同じ名前の子がある場合。
+        """
+        # core は nodes を参照するため、循環importを避けて関数内で読み込む。
+        from ..core.nodeEdit import require_editable
+
+        current = self.getParent()
+        for node in (self, current, target):
+            if node is not None:
+                require_editable(node.mnode())
+        name = om2.MFnDagNode(self.mnode()).name()
+        parent_fn = om2.MFnDagNode(target.mpath())
+        if any(om2.MFnDagNode(parent_fn.child(i)).name() == name for i in range(parent_fn.childCount())):
+            raise NotImplementedError(f"fast setParent does not rename shapes: {target.getFullName()} has a child named {name}")
+        modifier = om2.MDagModifier()
+        modifier.reparentNode(self.mnode(), target.mnode())
+        modifier.doIt()

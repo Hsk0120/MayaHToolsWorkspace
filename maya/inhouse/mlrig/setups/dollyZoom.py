@@ -99,24 +99,24 @@ class DollyZoom(TwistDistribution):
         """
         transform, shape = cls._camera(camera)
         target = subject if isinstance(subject, mlib.nodes.Node) else (
-            mlib.getNode(str(subject)) if mlib.ls(str(subject)) else None)
+            mlib.nodes.Node(str(subject)) if mlib.objExists(str(subject)) else None)
         if not isinstance(target, mlib.nodes.Transform):
             raise ValueError("Expected an existing transform: " + str(subject))
-        if target.getUuid() == transform.getUuid():
+        if target == transform:
             raise ValueError("subject must be different from the camera")
         weight = float(weight)
         if not math.isfinite(weight) or not 0.0 <= weight <= 1.0:
             raise ValueError("weight must be from 0 to 1: " + str(weight))
         focal = shape.getPlug("focalLength")
-        if connect and focal.getSource() is not None:
+        if connect and focal.getSource(skipConversionNodes=True) is not None:
             raise ValueError("The camera focalLength is already connected: " + str(focal))
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("DollyZoom container already exists: " + name)
         restFocal = float(focal.get())
         if not FOCAL_RANGE[0] <= restFocal <= FOCAL_RANGE[1]:
             raise ValueError("The camera focalLength is out of range: " + str(restFocal))
         aperture = float(shape.getPlug("horizontalFilmAperture").get())
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         depth = graph._buildDepth(transform, target)
         restDepth = float(graph.container.getPlug("depth").get())
         if restDepth <= _EPSILON:
@@ -141,7 +141,7 @@ class DollyZoom(TwistDistribution):
         Raises:
             ValueError: cameraでない場合。
         """
-        node = item if isinstance(item, mlib.nodes.Node) else (mlib.getNode(str(item)) if mlib.ls(str(item)) else None)
+        node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
         if node is None:
             raise ValueError("Expected an existing camera: " + str(item))
         if node.getType() == "camera":

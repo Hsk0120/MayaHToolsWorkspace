@@ -72,7 +72,7 @@ class TreadBelt(TwistDistribution):
         if len(normal) != 3 or not all(math.isfinite(value) for value in normal) or \
                 math.sqrt(sum(value * value for value in normal)) < 1e-8:
             raise ValueError("normal must be a finite non-zero 3D vector")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("TreadBelt container already exists: " + name)
         shape = mlib.nodes.Node(curve)
         if shape.getType() != "nurbsCurve":
@@ -88,7 +88,7 @@ class TreadBelt(TwistDistribution):
             if driver.getType() != "doubleLinear":
                 raise ValueError("driver must be a linear (distance) plug")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="distance", attributeType="doubleLinear", defaultValue=0.0, keyable=True)
         owner.addAttr(longName="phase", attributeType="double", defaultValue=0.0, keyable=True)

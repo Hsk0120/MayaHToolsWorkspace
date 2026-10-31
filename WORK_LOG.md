@@ -19,6 +19,15 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Codex (2026-10-31 09:41〜10:41 JST): QPEの1時間操作デバッグ。専用Maya2027の実操作、使いづらさ・再現条件・動画を記録。対象QPEと専用テストのみ、mlib/mlrig変更を保持、自動プッシュなし。進捗 .maya-output/qpe-one-hour-20261031/progress.json。
+
+
+
+
+
+
+
+
 
 
 
@@ -141,9 +150,21 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-31): mlib 8.0.0。objExists・作成関数(createContainer/DagContainer/DagPose/IkHandle/BlendShape/Curve/Circle/Locator/PolyCube/Sphere/Cylinder/Plane・bindSkin)をcmdsとルートへ追加し、ノード型のcreateクラスメソッドとSkinCluster.bindを削除。common.Time、Node.setKey/removeKey・Plug.removeKey・AnimCurve.removeKey(time=)、Shape.setParent/Transform.addShape(fast約2.4倍)、Joint.setPreferredAngleを追加。接続照会のskipConversionNodes既定をFalse(直結)へ変更し、利用側の旧既定依存はTrueを明示。mlrigを新APIへ置換(本体のcmdsはabout・UI・reorder・シェーダー作成だけ)。仕様はdocs/research/mlib-8.0.0-spec-2026-10-31.md。runStatic 160件、Maya 2022〜2027全テスト、mlrig 2027/2025 719件、Sphinx・文書検査OK。未コミット。
+
 - Codex (2026-10-31): QPE今回UI変更を専用Maya2027のWindows実入力で検証。カラム主体表示、876px狭幅の詳細折返し、固定対象の右クリック、新規タブ、Ctrl+Tab/Ctrl+Shift+Tab、60フォルダーの縦スクロール、Mayaビューポートの入力境界、左右サイドバー、New Scene後の未選択MAダブルクリックを確認。追加不具合なし、Maya正常終了0。録画2本・画像をDriveへ非公開保存し読戻し確認。ドックは前回Qt検証、物理4K/IME/Maya2023〜2026は未実施。詳細 .maya-output/qpe-maya-input-20261031/report.txt。QPE範囲だけコミット、mlib/mlrig変更は保持。
 
 - Codex (2026-10-31): QPEのカラム主体レイアウト/行間切替、現在地の強調と祖先列の幅配分、右クリックの機能別分類、新規タブ入口、Ctrl+Shift+Tab、狭幅詳細の高さを修正。Qt5/6とMaya2022/2027で新規6項目、既存の操作/タブ/サイドバー/ナビゲーション/P0自動回帰を確認。Maya2027のドック表示も確認。Windows exeを再ビルドしOS入力を録画、Driveへ非公開保存。物理4K/IMEなどは未実施、P0受入は未完了のまま。詳細 .maya-output/qpe-columns-improve-20261031/report.txt。今回のQPEコミットへ収録。
+
+- Codex (2026-10-31): QPEの追加GUI調査を完了。カラム移動・長名・空状態・独立スクロール・タブ・詳細領域を実操作し、ローカル調査記録と非公開の動画・画像を保存。製品コード変更なし。Mayaホスト・DPI別・速度測定は未実施。詳細はdocs/research/qpe-files-20261031/round2.txt、証拠は.maya-output/qpe-files-20261031/round2。
+
+- Codex (2026-10-31): ユーザー実行のセッション移行は終了0、console/Activeと実入力成功を確認。初期GUI比較を完了し、未実施項目と提案をローカル調査資料へ記録。証拠を保存・確認。製品コード変更・pushなし。
+
+- Codex (2026-10-31): デスクトップへQPE_ReturnToDesktop.cmdを作成。ダブルクリックでUACを要求し、ユーザー許可後に実行プロセス自身のセッションIDをtscon /dest:consoleへ渡す。PowerShell構文検査のみ合格、移行は未実行。結果ログは .maya-output/qpe-files-20261031/return-to-desktop.log。製品コードとWindows設定変更なし。
+
+- Claude Code (2026-10-31): mlrig本体・setups・examplesの直接cmds(listRelatives・listConnections・listHistory・objExists・sets・ikHandle・parent・コンストレイント・curve・mirrorJoint・makeIdentity・animCurveのキー操作等)をmlibへ置換し、本体の直接cmds呼出しを167→60件に削減。cmds直接使用の境界テストの許可リストを縮小。mlibに入口の無い時間・一括キー・about・Shapeの親変更・locator/circle作成・reorder等は残し、課題をdocs/research/mlrig-mlib-gaps-2026-10-31.mdへ記録。mlrig回帰 2027/2025 で719件OK。未コミット。
+
+- Codex (2026-10-31): QPE Windows単体exeを既存build_qpe_standalone.pyで再生成。配布exeの隔離smoke検証がQt6.12.0/frozen=True・終了0で合格（画面・アイコン・設定保存）。証跡 .maya-output/qpe-exe-20261031/、配布先 .maya-output/qpe-standalone-build/dist/QuickPathExplorer/。実OS操作・新規動画は未実施。製品ソース変更なし。
 
 - Claude Code (2026-10-31): mlib 7.0.0。速くならない/効果がほぼ無いfastを引数と処理ごと削除(ShadingEngine.assign、ObjectSet/DisplayLayerのメンバー操作・setCurrent、Joint.reparentChildren/jointOrientToRotate/freezeRotate、AnimCurve.shiftKeys/scaleKeys/mirror、Plug.setKey/setEnumNames、SkinCluster.redistributeWeights)。キー1つのカーブでshift/scaleが効かない通常経路の不具合も修正。スタブ・changelog・設計文書・CLAUDE.md更新。runStatic 160件、Maya 2022〜2027全テスト、mlrig 719件、Sphinx・文書検査OK。未コミット。
 

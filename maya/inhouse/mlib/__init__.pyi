@@ -5,14 +5,14 @@ from . import logger
 from . import util, core, common, decorator, cmds, nodes, plugs, components, maths
 from .core.registry import NodeRegistry as _NodeRegistry
 from .core.reload import reload_package as _reload_package
-from .cmds import createNode, delete, duplicate, getNode, getPlug, ls, select
+from .cmds import bindSkin, createBlendShape, createCircle, createContainer, createCurve, createDagContainer, createDagPose, createIkHandle, createLocator, createNode, createPolyCube, createPolyCylinder, createPolyPlane, createPolySphere, delete, duplicate, getNode, getPlug, ls, objExists, select
 from .core import extensions as _extensions
 from typing import Any
 from types import ModuleType
 
 _node_registry: Any
 _plug_registry: Any
-__all__ = ['cmds', 'common', 'components', 'core', 'createNode', 'decorator', 'delete', 'duplicate', 'getNode', 'getPlug', 'logger', 'ls', 'maths', 'nodes', 'plugs', 'reload', 'select', 'util']
+__all__ = ['bindSkin', 'cmds', 'common', 'components', 'core', 'createBlendShape', 'createCircle', 'createContainer', 'createCurve', 'createDagContainer', 'createDagPose', 'createIkHandle', 'createLocator', 'createNode', 'createPolyCube', 'createPolyCylinder', 'createPolyPlane', 'createPolySphere', 'decorator', 'delete', 'duplicate', 'getNode', 'getPlug', 'logger', 'ls', 'maths', 'nodes', 'objExists', 'plugs', 'reload', 'select', 'util']
 __version__: str
 
 def reload() -> tuple[ModuleType]:

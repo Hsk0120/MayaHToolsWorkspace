@@ -115,12 +115,12 @@ class DuplicateShortNameTest(_InteropCase):
         source.getPlug("tx").connectTo(dup1.getPlug("tx"))
         source.getPlug("tx").connectTo(dup2.getPlug("tx"))
         # 以前は MPlug.name() による重複判定で2件目が失われていた。
-        self.assertEqual(sorted((plug.getFullName() for plug in source.getConnections(False, True))), sorted([dup1.getName() + '.translateX', dup2.getName() + '.translateX']))
+        self.assertEqual(sorted((plug.getFullName() for plug in source.getConnections(False, True, skipConversionNodes=True))), sorted([dup1.getName() + '.translateX', dup2.getName() + '.translateX']))
         self.assertTrue(cmds.isConnected(source.getPlug("tx"), dup2.getPlug("tx")))
         self.assertTrue(dup1.getPlug("tx").isConnectedTo(source.getPlug("tx")))
         dup2.getPlug("tx").disconnectAll()
         self.assertFalse(cmds.isConnected(str(source.getPlug("tx")), str(dup2.getPlug("tx"))))
-        self.assertEqual(dup1.getPlug('tx').getSource(skipConversionNodes=False).getFullName(), source.getName() + '.translateX')
+        self.assertEqual(dup1.getPlug('tx').getSource().getFullName(), source.getName() + '.translateX')
         # 接続先に MPlug や一意なアトリビュート名も指定できる。
         source.getPlug("ty").connectTo(dup2.getPlug("ty").mplug())
         source.getPlug("tz").connectTo(dup2.getPlug("tz").getFullName())
@@ -994,7 +994,7 @@ class PlugCreationSideEffectTest(_InteropCase):
 
         cmds.setAttr(source.getPlug("tx"), 5.0)
         before = count()
-        destinations = middle.getPlug('rx').getDestinations(skipConversionNodes=False)
+        destinations = middle.getPlug('rx').getDestinations()
         element = choice.getPlug("input[0]")
         self.assertEqual(count(), before)
         self.assertIs(type(element), Plug)

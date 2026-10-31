@@ -1,6 +1,5 @@
 """Spline IKへ曲線長による伸縮と断面の体積補正を追加する。"""
 
-from maya import cmds
 
 import json
 
@@ -28,7 +27,7 @@ class SplineStretchLayer:
             Node | None: 未追加ならNone。
         """
         root = self.rig.root
-        source = root.getPlug('stretchGroup').getSource(skipConversionNodes=False) if root.hasAttr("stretchGroup") else None
+        source = root.getPlug('stretchGroup').getSource() if root.hasAttr("stretchGroup") else None
         return source.getNode() if source is not None else None
 
     @staticmethod
@@ -58,7 +57,7 @@ class SplineStretchLayer:
         if self.settings() is not None:
             return self.settings()
         rig, root = self.rig, self.rig.root
-        if any(mlib.getNode(j).getConnections(type="skinCluster") for j in rig.getJoints()):
+        if any(mlib.nodes.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in rig.getJoints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
             j.getPlug("translateX").get()
@@ -100,17 +99,7 @@ class SplineStretchLayer:
             )
             group.getPlug(attr).connectTo(owner.getPlug(attr))
         curve = rig.graph().member("curve")
-        shape = mlib.getNode(
-            [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listRelatives(curve.getFullName(), shapes=True, fullPath=True) or []
-                    )
-                ]
-            ][0]
-        )
+        shape = curve.getShapes()[0]
         measure = self._node(owner, "curveInfo", "localLength")
         # localカーブならモジュールの正の均等scaleは長さ比へ混入しない。
         shape.getPlug("local").connectTo(measure.getPlug("inputCurve"))
@@ -158,33 +147,23 @@ class SplineStretchLayer:
         if group is None:
             return
         active = self.active()
-        owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
-        measure = group.getPlug('measurement').getSource(skipConversionNodes=False).getNode()
+        owner = group.getPlug('graph').getSource().getNode()
+        measure = group.getPlug('measurement').getSource().getNode()
         curve = self.rig.graph().member("curve")
         target = measure.getPlug("inputCurve")
-        if active and target.getSource(skipConversionNodes=False) is None:
-            shape = mlib.getNode(
-                [
-                    item.getFullName()
-                    for item in [
-                        mlib.getNode(value)
-                        for value in (
-                            cmds.listRelatives(curve.getFullName(), shapes=True, fullPath=True) or []
-                        )
-                    ]
-                ][0]
-            )
+        if active and target.getSource() is None:
+            shape = curve.getShapes()[0]
             shape.getPlug("local").connectTo(target)
-        elif not active and target.getSource(skipConversionNodes=False) is not None:
-            target.disconnect(target.getSource(skipConversionNodes=False))
+        elif not active and target.getSource() is not None:
+            target.disconnect(target.getSource())
         measure.getPlug("nodeState").set(0 if active else 2)
         lengths = json.loads(group.getPlug("restLengths").get())
         for i, (joint, length) in enumerate(zip(self.rig.getMembers("ik")[1:], lengths)):
             target = joint.getPlug("translateX")
-            if target.getSource(skipConversionNodes=False) is not None:
-                target.disconnect(target.getSource(skipConversionNodes=False))
+            if target.getSource() is not None:
+                target.disconnect(target.getSource())
             if active:
-                group.getPlug('outputs')[i].getSource(skipConversionNodes=False).getNode().getPlug('output').connectTo(target)
+                group.getPlug('outputs')[i].getSource().getNode().getPlug('output').connectTo(target)
             else:
                 target.set(length)
         for source, joint in zip(
@@ -192,8 +171,8 @@ class SplineStretchLayer:
         ):
             for axis in "XYZ":
                 target = joint.getPlug("scale" + axis)
-                if target.getSource(skipConversionNodes=False) is not None:
-                    target.disconnect(target.getSource(skipConversionNodes=False))
+                if target.getSource() is not None:
+                    target.disconnect(target.getSource())
                 output = (
                     owner.getPlug("volumeScale")
                     if active and axis != "X"
@@ -210,5 +189,5 @@ class SplineStretchLayer:
         group = self.settings()
         return (
             group is not None
-            and (self.rig.getMembers('ik')[1].getPlug('translateX').getSource(skipConversionNodes=False) is not None) != self.active()
+            and (self.rig.getMembers('ik')[1].getPlug('translateX').getSource() is not None) != self.active()
         )

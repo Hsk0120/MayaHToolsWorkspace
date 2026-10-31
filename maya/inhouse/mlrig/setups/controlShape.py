@@ -1,7 +1,5 @@
 """既存transformへ非破壊で操作用シェイプを追加する。"""
 
-from maya import cmds
-
 import math
 import mlib
 from mlib.decorator import undoTransaction
@@ -41,25 +39,14 @@ class ControlShape:
             or sum(v * v for v in normal) <= 0
         ):
             raise ValueError("Expected nonzero finite normal")
-        temporary = mlib.getNode(cmds.circle(
-            normal=normal, radius=radius, constructionHistory=False
-        )[0])
+        # 半径は現在の距離単位なので、作成関数の内部単位(cm)へ換算して渡す。
+        shape = mlib.createCircle(radius=mlib.common.units.distanceFromUi(radius), normal=normal)
+        temporary = shape.getParent()
         shapes = []
         try:
-            for shape in [
-                mlib.getNode(value)
-                for value in (cmds.listRelatives(temporary, shapes=True, fullPath=True) or [])
-            ] or []:
-                shape = mlib.nodes.Node(
-                    [
-                        mlib.getNode(value)
-                        for value in (
-                            cmds.parent(shape, target.getFullName(), shape=True, relative=True) or []
-                        )
-                    ][0]
-                )
-                shape.rename(name or target.getName() + "Shape")
-                shapes.append(shape)
+            shape.setParent(target)
+            shape.rename(name or target.getName() + "Shape")
+            shapes.append(shape)
         finally:
             mlib.delete(temporary)
         target.getPlug("overrideEnabled").set(True)
@@ -82,17 +69,13 @@ class ControlShape:
             Transform: 形状を差し替えた既存transform。他種のシェイプは保持する。
         """
         target = mlib.nodes.Transform(target)
-        old_shapes = [mlib.nodes.Node(shape) for shape in
-                      (cmds.listRelatives(target.getFullName(), shapes=True, fullPath=True) or [])]
-        old_shapes = [shape for shape in old_shapes if shape.getType() == "nurbsCurve"]
-        temporary = mlib.getNode(cmds.curve(
-            degree=degree, point=points, knot=knots, name=name + "__tmp"
-        ))
-        new_shapes = [mlib.nodes.Node(shape) for shape in
-                      (cmds.listRelatives(temporary.getFullName(), shapes=True, fullPath=True) or [])]
-        for shape in old_shapes:
-            shape.delete()
-        for shape in new_shapes:
-            cmds.parent(shape.getFullName(), target.getFullName(), shape=True, relative=True)
+        old_shapes = [shape for shape in target.getShapes(intermediates=True) if shape.getType() == "nurbsCurve"]
+        ui = mlib.common.units.distanceFromUi
+        shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=degree, knots=knots,
+                                 name=name + "__tmp")
+        temporary = shape.getParent()
+        for old in old_shapes:
+            old.delete()
+        shape.setParent(target)
         temporary.delete()
         return target

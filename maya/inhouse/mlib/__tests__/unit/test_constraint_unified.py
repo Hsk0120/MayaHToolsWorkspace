@@ -30,7 +30,7 @@ class UnifiedConstraintTest(unittest.TestCase):
     def test_aim_flags_queries_edit_and_undo(self):
         result = mlib.getNode(self.target).addConstraint(self.source, typ="aim", aim=(0, 0, 1), u=(0, 1, 0), wut="object", wuo=self.up)
         self.assertEqual(result.getType(), "aimConstraint")
-        self.assertEqual(result.getPlug('worldUpMatrix').getSource(skipConversionNodes=False).getNode().getUuid(), self.up.getUuid())
+        self.assertEqual(result.getPlug('worldUpMatrix').getSource().getNode().getUuid(), self.up.getUuid())
         self.assertEqual(
             result.getTargets()[0].getUuid(), self.source.getUuid()
         )

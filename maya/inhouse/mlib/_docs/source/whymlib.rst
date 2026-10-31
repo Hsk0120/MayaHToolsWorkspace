@@ -55,7 +55,7 @@ mlibはMaya標準のコマンド・OpenMayaと併用する基礎ライブラリ�
      - Selection・Namespace・Plugin・ScriptJobs
      - 選択・参照関係・プラグイン・イベントと既存の共通計算を扱う
    * - ``cmds``
-     - getNode・getPlug・createNode・lsなどの基礎7関数
+     - getNode・getPlug・createNode・ls・objExistsなどの基礎8関数と、createCurve・bindSkin等の作成関数
      - 対象の取得・作成の入口。検索には ``mlib.ls()``、作成には ``mlib.createNode()`` を使う
 
 ``nodes`` に手書きクラスが無いnodeTypeのノードも ``Node`` 固定にはならず、Mayaの継承チェーン上で

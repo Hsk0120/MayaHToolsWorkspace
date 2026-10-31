@@ -90,14 +90,14 @@ class LipZip(TwistDistribution):
             raise ValueError("positions, zipLeft, zipRight and meetHeight must be between 0 and 1")
         if not 0.01 <= falloff <= 1.0:
             raise ValueError("falloff must be between 0.01 and 1")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("LipZip container already exists: " + name)
         upper = [mlib.nodes.Node(node) for node in upper]
         lower = [mlib.nodes.Node(node) for node in lower]
         if any(not isinstance(node, mlib.nodes.Transform) for node in upper + lower):
             raise ValueError("Expected transforms for the lip points")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attr, value, bounds in (
             ("zipLeft", zipLeft, {"minValue": 0, "maxValue": 1}),

@@ -17,22 +17,3 @@ class DagContainer(Transform, Container):
     Maya の継承チェーン上の抽象祖先(entity・containerBase)に対応するクラスは無く、``isinstance`` は
     Maya の継承を表さない。継承の判定は ``isType()`` を使う。
     """
-
-    #: create が ``cmds.container`` へ渡す型の指定。
-    _CONTAINER_FLAGS = {"type": "dagContainer"}
-
-    @classmethod
-    def create(cls, name="dagContainer", members=()):
-        """DAGコンテナを作成し、指定ノードを所属させる(作成 + :meth:`addMembers`)。
-
-        ``cmds.container(type="dagContainer")`` 専用の特化ビルダー。既定名だけを変え、処理は
-        :meth:`~mlib.nodes.container._ContainerMixin.create` と共有する。fast引数は持たない。
-
-        Args:
-            name (str): 希望名。衝突時はMayaが一意名にする。位置引数でも指定できる。
-            members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
-
-        Returns:
-            DagContainer: 作成したコンテナ。
-        """
-        return super().create(name, members)

@@ -121,12 +121,12 @@ class ComboWeight(TwistDistribution):
         for driver, source in drivers.items():
             if source is not None:
                 text = str(source)
-                if not mlib.ls(text):
+                if not mlib.objExists(text):
                     raise ValueError("driver source does not exist: " + text)
                 sources[driver] = text
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("ComboWeight container already exists: " + name)
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         graph._build(list(drivers), sources, combos, inbetweens, method)
         return graph
 

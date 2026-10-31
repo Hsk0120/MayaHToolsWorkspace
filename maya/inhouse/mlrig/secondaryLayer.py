@@ -1,12 +1,11 @@
 """スカートの手付けドライバーへ、揺れとポーズ補正を重ねる。"""
 
-from maya import cmds
-
 import json
 import math
 
 import mlib
 
+from mlib.common import Time
 from mlib.common.dampedSpring import DampedSpring
 from mlrig.setups.poseRbf import PoseRbf
 from mlib.decorator import undoTransaction
@@ -81,17 +80,9 @@ class SecondaryLayer:
         stem = root.getName() + "_secondary{:02d}".format(driver_index + 1)
         if [item.getName() for item in mlib.ls(stem + "_*")]:
             raise ValueError("Secondary names already exist")
-        parent = [
-            item.getFullName()
-            for item in [
-                mlib.getNode(value)
-                for value in (
-                    cmds.listRelatives(sources[0].getFullName(), parent=True, fullPath=True) or []
-                )
-            ]
-        ][0]
+        parent = sources[0].getParent()
         group = mlib.createNode("transform", name=stem + "_grp", parent=parent, skipSelect=True)
-        owner = mlib.nodes.Container.create(name=stem + "_graph")
+        owner = mlib.createContainer(name=stem + "_graph")
         group.addAttr(longName="graph", attributeType="message")
         owner.getPlug("message").connectTo(group.getPlug("graph"))
         group.addAttr(longName="baked", attributeType="bool", defaultValue=False)
@@ -191,8 +182,9 @@ class SecondaryLayer:
             元のアニメーションは変更しない。設定・入力を変えたら再ベイクする。
             ローカルEuler各成分の小振幅ばね。親移動による慣性と衝突は未対応。
         """
-        start = cmds.playbackOptions(query=True, minTime=True) if start is None else start
-        end = cmds.playbackOptions(query=True, maxTime=True) if end is None else end
+        playback = Time.getPlaybackRange()
+        start = playback[0] if start is None else start
+        end = playback[1] if end is None else end
         if (
             not all(math.isfinite(v) and v == int(v) for v in (start, end))
             or not 1 <= end - start <= 20000
@@ -201,11 +193,11 @@ class SecondaryLayer:
         group = self.add(driver_index)
         sources = self._members(group, "sources")
         frames = list(range(int(start), int(end) + 1))
-        original = cmds.currentTime(query=True)
+        original = Time.getCurrent()
         rows = []
         try:
             for frame in frames:
-                cmds.currentTime(frame, update=True)
+                Time.setCurrent(frame)
                 row = [
                     mlib.common.units.angleFromUi(v)
                     for source in sources
@@ -226,18 +218,13 @@ class SecondaryLayer:
             for column, curve in enumerate(self._members(group, "curves")):
                 # 全キーを先に消すとMayaが空のanimCurve自体を削除することがある。
                 # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
-                old_times = set(cmds.keyframe(curve.getFullName(), query=True, timeChange=True) or [])
+                kept = set(frames)
                 for frame, row in zip(frames, solved):
-                    value = mlib.common.units.angleToUi(row[column])
-                    cmds.setKeyframe(
-                        curve.getFullName(),
-                        time=frame,
-                        value=value,
-                        inTangentType="linear",
-                        outTangentType="linear",
-                    )
-                for time in old_times - set(frames):
-                    cmds.cutKey(curve.getFullName(), time=(time, time), clear=True)
+                    curve.setKey(frame, row[column], "linear", "linear")
+                # 後ろから消し、残りのキー番号をずらさない。
+                for index, time in reversed(list(enumerate(curve.getKeyInputs()))):
+                    if time not in kept:
+                        curve.removeKey(index)
             group.getPlug("baked").set(True)
             group.getPlug("bakeInfo").set(
                 json.dumps(
@@ -246,7 +233,7 @@ class SecondaryLayer:
             )
             self.update()
         finally:
-            cmds.currentTime(original, update=True)
+            Time.setCurrent(original)
         return group
 
     @undoTransaction("mlrig.SecondaryLayer.add_pose")
@@ -264,7 +251,7 @@ class SecondaryLayer:
             PoseRbf: 出力値を編集できる計算オブジェクト。
         """
         group = self.add(driver_index)
-        if group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None:
+        if group.getPlug('poseGraph').getSource() is not None:
             raise ValueError("Pose graph already exists; edit its set_values instead")
         count = len(self._members(group, "sources")) * 3
         if not values or any(len(row) != count for row in values):
@@ -279,7 +266,7 @@ class SecondaryLayer:
         graph.container.getPlug("message").connectTo(group.getPlug("poseGraph"))
         root = self.rig.root
         root.getPlug("mlrigOwned").appendMessage(graph.container)
-        owner = group.getPlug('graph').getSource(skipConversionNodes=False).getNode()
+        owner = group.getPlug('graph').getSource().getNode()
         for index in range(count):
             weight = self._node(owner, "multDoubleLinear", "poseWeight{}".format(index))
             graph.container.getPlug("outputs")[index].connectTo(weight.getPlug("input1"))
@@ -304,20 +291,9 @@ class SecondaryLayer:
             for old, new in zip(sources if active else targets, targets if active else sources)
         }
         for constraint in self.rig._members("constraints"):
-            connections = [
-                mlib.getPlug(value)
-                for value in (
-                    cmds.listConnections(
-                        constraint.getFullName(),
-                        source=True,
-                        destination=False,
-                        plugs=True,
-                        connections=True,
-                    )
-                    or []
-                )
-            ] or []
-            for destination, source in zip(connections[::2], connections[1::2]):
+            for destination, source in constraint.getConnections(
+                destination=False, asPair=True
+            ):
                 if source.getNode().getUuid() in mapping:
                     destination.disconnect(source)
                     # getName()はノード名とショート名のパス(wm[0]等)。ノード名は「.」を含まない。
@@ -335,21 +311,21 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None
+                and group.getPlug('poseGraph').getSource() is not None
             )
             curves = self._members(group, "curves")
             for index, blend in enumerate(self._members(group, "blends")):
                 weight = blend.getPlug("weight")
-                if weight.getSource(skipConversionNodes=False) is not None:
-                    weight.disconnect(weight.getSource(skipConversionNodes=False))
+                if weight.getSource() is not None:
+                    weight.disconnect(weight.getSource())
                 if spring:
                     group.getPlug("intensity").connectTo(weight)
                 else:
                     weight.set(0)
                 for axis_index, axis in enumerate("XYZ"):
                     target = blend.getPlug("inRotate" + axis + "2")
-                    if target.getSource(skipConversionNodes=False) is not None:
-                        target.disconnect(target.getSource(skipConversionNodes=False))
+                    if target.getSource() is not None:
+                        target.disconnect(target.getSource())
                     curve = curves[index * 3 + axis_index]
                     curve.getPlug("nodeState").set(0 if spring else 2)
                     if spring:
@@ -358,8 +334,8 @@ class SecondaryLayer:
             for index, compose in enumerate(self._members(group, "poses")):
                 for axis_index, axis in enumerate("XYZ"):
                     target = compose.getPlug("inputRotate" + axis)
-                    if target.getSource(skipConversionNodes=False) is not None:
-                        target.disconnect(target.getSource(skipConversionNodes=False))
+                    if target.getSource() is not None:
+                        target.disconnect(target.getSource())
                     if pose:
                         weights[index * 3 + axis_index].getPlug("output").connectTo(target)
                     else:
@@ -382,13 +358,13 @@ class SecondaryLayer:
             pose = (
                 self.rig.lod() == 1
                 and self.rig.layer_enabled("pose")
-                and group.getPlug('poseGraph').getSource(skipConversionNodes=False) is not None
+                and group.getPlug('poseGraph').getSource() is not None
             )
-            if (self._members(group, 'blends')[0].getPlug('weight').getSource(skipConversionNodes=False) is not None) != bool(
+            if (self._members(group, 'blends')[0].getPlug('weight').getSource() is not None) != bool(
                 spring
             ):
                 return True
-            if (self._members(group, 'poses')[0].getPlug('inputRotateX').getSource(skipConversionNodes=False) is not None) != bool(
+            if (self._members(group, 'poses')[0].getPlug('inputRotateX').getSource() is not None) != bool(
                 pose
             ):
                 return True

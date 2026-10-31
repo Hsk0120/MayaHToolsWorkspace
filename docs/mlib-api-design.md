@@ -60,10 +60,13 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `Node.create` クラスメソッド・`Transform.create` 等の型付きcreate・`Node(name, create=True)` 経路は廃止し、
   単数Nodeクラスのconstructor `Node(node)` は既存ノードの取得専用とする(`create` 引数は持たない)。
   getNode等の取得関数・複数形・Object入口も作成を兼ねない。2026-10-09の `create=False` 規則はこの指定で置き換える。
-  createNode以上の処理をする特化ビルダーだけを残す: `Container.create(name="container", members=())`(作成+addMembers。
-  位置引数の name と互換)、`Container.createNode(type, name=None)`、`DagPose.create(...)`、`SkinCluster.bind(...)`、
-  `BlendShape.create(base, targets, name=None, frontOfChain=True)`、`IkHandle.create(startJoint, endJoint, solver="ikRPsolver", name=None, curve=None, **kwargs)`(5.0.0)、
-  拡張の `Graph.create(name)`(mlib_bifrost)。単なるcreateNodeの言い換えは追加しない。
+  2026-10-31のユーザー指定(8.0.0)により、createNode以上の処理をするノード型の作成も、クラスメソッドではなく
+  `mlib.cmds` の関数にする(存在しないインスタンスを作ってから create する形をやめる)。
+  `createContainer`・`createDagContainer`・`createDagPose`・`createIkHandle`・`createBlendShape`・`createCurve`・
+  `createCircle`・`createLocator`・`createPolyCube/Sphere/Cylinder/Plane`・`bindSkin`(Maya の cmds.skinCluster と同じ引数の順)。
+  形状の作成関数はShapeを返し、大きさはcm(UI単位に依存しない)。既存ノードへの操作(`Container.createNode`・`Joint.mirror`・
+  `Transform.addConstraint`)、common の作成(`Namespace.create` 等)、拡張の `Graph.create(name)`(mlib_bifrost)は残す。
+  単なるcreateNodeの言い換えは追加しない。
   `fast=True` はOpenMayaで直接作成しUndoを記録しない。入力検証・例外・戻り値の意味は通常経路と同じで、
   `shared=True` と `name` 指定で同名ノードが既にある場合は同じnodeTypeのときだけそれを返し、型が違えばRuntimeErrorとする。
   未知の型名はどちらの経路でもRuntimeErrorとし、unknownノードを残さない。`query/edit` フラグは `cmds.createNode` に無いので受け付けない。
@@ -417,9 +420,9 @@ bool以外はTypeErrorとする。両Falseでは判定はFalse、
 
 接続元・接続先は`getSource/getDestinations(skipConversionNodes=...)`、
 方向付き照会は`getConnections`へ集約する。
-6.0.0で`Node.getConnections`・`Plug.getConnections`の`skipConversionNodes`(短縮名`scn`)の既定をTrueにし、
-`getSource/getDestinations`と揃えた。`cmds.listConnections`とは既定が違い、unitConversion系を飛ばしてその先を返す。
-`scn`と`skipConversionNodes`はANDで、どちらかをFalseにすると直結を返す。mlib内部で直結を前提にする呼び出しは`skipConversionNodes=False`を明示する。
+2026-10-31のユーザー指定(8.0.0)により、`getSource`・`getDestinations`・`Node/Plug.getConnections`の`skipConversionNodes`(短縮名`scn`)の既定を
+Falseにした(`cmds.listConnections`と同じく直結を返す。リグ構築では変換ノードを飛ばさない呼び出しが多かったため)。
+`scn`と`skipConversionNodes`はORで、どちらかをTrueにするとunitConversion系を飛ばしてその先を返す。変換を飛ばす前提の呼び出しは`skipConversionNodes=True`を明示する。
 `isSource/isDestination/disconnectInput/getSourceNodes`に方向boolは追加しない。
 `connect(source)`と`connectTo(destination)`は接続相手を受け取る。
 
@@ -691,7 +694,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ## cmdsの範囲
 
-`getNode/getPlug/createNode/ls/delete/duplicate/select`の7入口だけを公開する。
+`getNode/getPlug/createNode/ls/delete/duplicate/select/objExists`の基礎8入口と、8.0.0で足した作成関数(上の「確定したコーディングルール」)だけを公開する。
 関数とファイルは同名。Mayaの長短フラグ・入力解決・Undo・戻り型の既存契約を維持する。
 ノードの作成は `createNode` だけが担い、クラス側の `Node.create`・`X(name, create=True)` は無い(「確定したコーディングルール」の2026-10-26指定)。
 その他のMayaコマンドは利用側で直接使い、必要な結果をgetNode/getPlugで包む。

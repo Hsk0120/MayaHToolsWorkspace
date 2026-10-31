@@ -341,6 +341,24 @@ class Transform(DagNode):
             RuntimeError: 無効なTransform、または削除失敗。
         """
         ...
+    def addShape(self, shape: Shape | str, *, fast: bool = ...) -> Transform:
+        """シェイプをこのTransformの下へ移す(:meth:`~mlib.nodes.shape.Shape.setParent` を受け側から行う)。
+
+        シェイプは常にローカルの形を保って移る。元のTransformは削除しない。
+
+        Args:
+            shape (Shape | str): 移すシェイプ。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: shapeがシェイプでない、またはfastがbool以外の場合。
+            RuntimeError: 自身・シェイプが無効、シェイプがインスタンス化されている、またはMayaが親の変更を拒否した場合。
+            NotImplementedError: fastで、自身に同じ名前の子がある場合。
+        """
+        ...
     def getShapes(self, intermediates: bool = ...) -> list[Shape]:
         """このTransform直下のShapeを取得する。
 

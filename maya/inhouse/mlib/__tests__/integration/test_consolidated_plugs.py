@@ -76,14 +76,14 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         source.connectTo(conversion.getPlug("input"))
         destination = self.node.getPlug("tx")
         conversion.getPlug("output").connectTo(destination)
-        self.assertEqual(destination.getSource(), source)
-        self.assertEqual(destination.getSource(skipConversionNodes=False).getNode(), conversion)
-        self.assertEqual(destination.getConnections(s=True, d=False), [source])
-        self.assertEqual(destination.getConnections(s=True, d=False, skipConversionNodes=False),
+        self.assertEqual(destination.getSource(skipConversionNodes=True), source)
+        self.assertEqual(destination.getSource().getNode(), conversion)
+        self.assertEqual(destination.getConnections(s=True, d=False, skipConversionNodes=True), [source])
+        self.assertEqual(destination.getConnections(s=True, d=False),
                          [conversion.getPlug("output")])
-        self.assertEqual(source.getDestinations(), [destination])
-        self.assertEqual(source.getDestinations(skipConversionNodes=False), [conversion.getPlug("input")])
-        self.assertEqual(destination.getSource(asNode=True), source.getNode())
+        self.assertEqual(source.getDestinations(skipConversionNodes=True), [destination])
+        self.assertEqual(source.getDestinations(), [conversion.getPlug("input")])
+        self.assertEqual(destination.getSource(asNode=True, skipConversionNodes=True), source.getNode())
         self.assertFalse(hasattr(type(destination), "getSourceWithConversion"))
         self.assertFalse(hasattr(type(destination), "getInputs"))
 
@@ -97,16 +97,16 @@ class ConsolidatedPlugsTest(unittest.TestCase):
                 patch.object(cmds, "disconnectAttr", side_effect=AssertionError("cmds disconnect")), \
                 patch.object(cmds, "setAttr", side_effect=AssertionError("cmds set")):
             self.assertEqual(source.connectTo(destination, fast=True), destination)
-            self.assertEqual(destination.getSource(skipConversionNodes=False), source)
+            self.assertEqual(destination.getSource(), source)
             destination.setLocked(True, fast=True)
             replacement = self.node.getPlug("ty")
             replacement.set(33, fast=True)
             destination.connect(replacement, force=True, fast=True)
             self.assertTrue(destination.isLocked())
-            self.assertEqual(destination.getSource(skipConversionNodes=False), replacement)
+            self.assertEqual(destination.getSource(), replacement)
             destination.setLocked(False, fast=True)
             destination.disconnectAll(fast=True, source=True, destination=False)
-        self.assertIsNone(destination.getSource())
+        self.assertIsNone(destination.getSource(skipConversionNodes=True))
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 
     def test_normal_connection_undo_restores_existing_multi_constant(self):
@@ -120,7 +120,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         target.connect(source)
         self.assertEqual(target.get(), 21)
         cmds.undo()
-        self.assertIsNone(target.getSource())
+        self.assertIsNone(target.getSource(skipConversionNodes=True))
         self.assertEqual(target.get(), 7)
         cmds.redo()
         self.assertEqual(target.get(), 21)
@@ -255,7 +255,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
         matrix = mlib.createNode("distanceBetween").getPlug("inMatrix1")
         source = self.node.getPlug("worldMatrix")[0]
         self.assertEqual(matrix.connect(source), matrix)
-        self.assertEqual(matrix.getSource(skipConversionNodes=False), source)
+        self.assertEqual(matrix.getSource(), source)
 
     def test_fast_alias_and_mute_query(self):
         """別名をAPIで編集し、muteの状態照会もAPIで読む。"""

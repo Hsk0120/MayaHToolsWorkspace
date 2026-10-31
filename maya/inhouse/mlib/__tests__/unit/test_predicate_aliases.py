@@ -93,7 +93,7 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertTrue(src.isConnectedTo(dst, source=False, destination=True))
         self.assertFalse(dst.isConnectedTo(src, source=False, destination=True))
         self.assertFalse(dst.isConnected(source=False, destination=False))
-        self.assertEqual(dst.getSource(), src)
+        self.assertEqual(dst.getSource(skipConversionNodes=True), src)
         self.assertTrue(src.isSource())
         self.assertTrue(dst.isDestination())
         with self.assertRaises(TypeError):

@@ -22,13 +22,13 @@ class ResponsibilityTest(unittest.TestCase):
         a, b, c = [mlib.createNode('transform') for _ in range(3)]
         a.getPlug('tx').connectTo(b.getPlug('rx'))
         b.getPlug('rx').connectTo(c.getPlug('rx'))
-        source = b.getPlug('rx').getSource(skipConversionNodes=False)
+        source = b.getPlug('rx').getSource()
         self.assertIs(b.getPlug('rx').disconnectInput().getNode(), b)
-        self.assertIsNone(b.getPlug('rx').getSource(skipConversionNodes=False))
+        self.assertIsNone(b.getPlug('rx').getSource())
         self.assertTrue(b.getPlug('rx').isConnectedTo(c.getPlug('rx')))
         self.assertTrue(source.getNode().isValid())
         cmds.undo()
-        self.assertEqual(b.getPlug('rx').getSource(skipConversionNodes=False), source)
+        self.assertEqual(b.getPlug('rx').getSource(), source)
         cmds.redo()
         before = cmds.undoInfo(query=True, undoName=True)
         b.getPlug('rx').disconnectInput()
@@ -40,10 +40,10 @@ class ResponsibilityTest(unittest.TestCase):
         a.getPlug('translate').connectTo(b.getPlug('translate'))
         b.getPlug('tx').connectTo(c.getPlug('tx'))
         b.getPlug('translate').disconnectInput()
-        self.assertIsNone(b.getPlug('translate').getSource(skipConversionNodes=False))
+        self.assertIsNone(b.getPlug('translate').getSource())
         self.assertTrue(b.getPlug('tx').isConnectedTo(c.getPlug('tx')))
         cmds.undo()
-        self.assertEqual(b.getPlug('translate').getSource(skipConversionNodes=False), a.getPlug('translate'))
+        self.assertEqual(b.getPlug('translate').getSource(), a.getPlug('translate'))
 
     def test_multi_failed_edit_does_not_create_elements(self):
         """不正値・入力元・ロックの失敗前にマルチアトリビュートの穴を実体化しない。"""

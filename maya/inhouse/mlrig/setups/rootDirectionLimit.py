@@ -2,7 +2,6 @@
 
 import math
 
-from maya import cmds
 
 import mlib
 from mlib.common.scalarGraph import ScalarGraph
@@ -25,7 +24,7 @@ class RootDirectionLimit(ScalarGraph):
                 Noneの場合は保存したmessage接続から取得する。
         """
         super().__init__(container)
-        self.output = output if output is not None else self.container.getPlug('output').getSource(skipConversionNodes=False).getNode()
+        self.output = output if output is not None else self.container.getPlug('output').getSource().getNode()
 
     @staticmethod
     def _axis(axis):
@@ -83,8 +82,8 @@ class RootDirectionLimit(ScalarGraph):
             raise ValueError("angleは1〜89度の有限値を指定してください。")
         if not math.isfinite(softness) or not 0 <= softness <= 0.2:
             raise ValueError("softnessは0〜0.2の有限値を指定してください。")
-        source = mlib.getNode(source)
-        guides = [mlib.getNode(node) for node in guides]
+        source = mlib.nodes.Node(source)
+        guides = [mlib.nodes.Node(node) for node in guides]
         nodes = [source] + guides
         if len(guides) < 2 or len({n.getUuid() for n in nodes}) != len(nodes):
             raise ValueError("独立したsourceと2個以上の異なるguideを指定してください。")
@@ -98,10 +97,10 @@ class RootDirectionLimit(ScalarGraph):
         positions = [n.getTranslation(worldSpace=True) for n in guides]
         if any((a - b).length() < 1e-3 for a, b in zip(positions, positions[1:])):
             raise ValueError("初期guideの隣接位置は1e-3cm以上離してください。")
-        if cmds.objExists(name) or cmds.objExists(name + "_output"):
+        if any(mlib.objExists(name) for name in [name, name + "_output"]):
             raise ValueError("生成先の名前が既に存在します: " + name)
         with nativeUnits():
-            owner = mlib.nodes.Container.create(name=name)
+            owner = mlib.createContainer(name=name)
             output = owner.createNode("transform", name=name + "_output")
             graph = cls(owner, output)
             graph._build(source, guides, aim, up, body_up, body_side, angle, softness)

@@ -55,14 +55,14 @@ class ControlHierarchyTests(unittest.TestCase):
             self.assertIs(result, target)
             self.assertFalse(target.getPlug("translate").isLocked())
             self.assertFalse(target.getPlug("rotateY").isLocked())
-            self.assertIsNone(target.getPlug("translateX").getSource())
+            self.assertIsNone(target.getPlug("translateX").getSource(skipConversionNodes=True))
             if fast:
                 self.assertTrue(cmds.undoInfo(query=True, undoQueueEmpty=True))
             else:
                 cmds.undo()
                 self.assertTrue(target.getPlug("translate").isLocked())
                 self.assertTrue(target.getPlug("rotateY").isLocked())
-                self.assertIsNotNone(target.getPlug("translateX").getSource())
+                self.assertIsNotNone(target.getPlug("translateX").getSource(skipConversionNodes=True))
 
 
 if __name__ == "__main__":

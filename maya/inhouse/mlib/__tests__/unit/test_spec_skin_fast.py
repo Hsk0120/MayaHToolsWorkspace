@@ -94,10 +94,10 @@ class SkinQueryTest(_SkinCase):
         mesh, _ = self.skin()
         with patch.object(cmds, "listHistory", side_effect=AssertionError("listHistory")):
             with self.assertRaisesRegex(ValueError, "already has a skinCluster"):
-                SkinCluster.bind(mesh, [self.root, self.mid])
+                mlib.bindSkin([self.root, self.mid], mesh)
         fresh = cmds.polyCube(name=self.name("fresh"))[0]
         with patch.object(cmds, "listHistory", side_effect=AssertionError("listHistory")):
-            bound = SkinCluster.bind(fresh, [self.root, self.mid], maxInfluences=2)
+            bound = mlib.bindSkin([self.root, self.mid], fresh, maximumInfluences=2)
         self.assertTrue(bound.deforms(fresh))
 
 

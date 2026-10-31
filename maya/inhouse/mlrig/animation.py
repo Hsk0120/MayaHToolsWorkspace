@@ -1,12 +1,11 @@
 """対応済み3関節チェーンからmlrigコントローラーへベイクする。"""
 from mlib.maths import MSpace
 
-from maya import cmds
-
 import json
 import math
 import mlib
 
+from mlib.common import Time
 from mlib.maths import Matrix, Vector
 from mlib.decorator import undoTransaction
 
@@ -35,17 +34,17 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [mlib.getNode(node).getFullName() for node in source_joints]
+    sources = [mlib.nodes.Node(node).getFullName() for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
     root = rig.root.getFullName()
     for source in sources:
-        if mlib.getNode(source).getType() != "joint" or source.startswith(root + "|"):
+        if mlib.nodes.Node(source).getType() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")
     frames = [start + i * step for i in range(int(math.floor((end - start) / step)) + 1)]
     if frames[-1] < end - 1e-8:
         frames.append(end)
-    previous_time = cmds.currentTime(query=True)
+    previous_time = Time.getCurrent()
     controls = rig.controls()
     attributes = ("tx", "ty", "tz", "rx", "ry", "rz")
     keyed = [controls["fk" + str(i)] for i in range(3)]
@@ -55,17 +54,8 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         for attr in attributes:
             if mlib.getPlug(node + "." + attr).isLocked():
                 raise ValueError("Locked control channel: " + node + "." + attr)
-            sources_in = [
-                item.getFullName()
-                for item in [
-                    mlib.getNode(value)
-                    for value in (
-                        cmds.listConnections(node + "." + attr, source=True, destination=False)
-                        or []
-                    )
-                ]
-            ] or []
-            if any(not mlib.getNode(item).getType().startswith("animCurve") for item in sources_in):
+            source = mlib.getPlug(node + "." + attr).getSource()
+            if source is not None and not source.getNode().getType().startswith("animCurve"):
                 raise ValueError("Control channel is driven by a non-animation node")
     try:
         samples = []
@@ -76,10 +66,10 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
             joint.translation[0] for joint in RigDefinition.from_data(definition).joint_order()[1:]
         ]
         for frame in frames:
-            cmds.currentTime(frame)
-            matrices = [list(mlib.getNode(node).getMatrix(worldSpace=True)) for node in sources]
+            Time.setCurrent(frame)
+            matrices = [list(mlib.nodes.Node(node).getMatrix(worldSpace=True)) for node in sources]
             if mode == "ik":
-                inverse = Matrix(mlib.getNode(root).getPlug("worldInverseMatrix")[0].get())
+                inverse = Matrix(mlib.nodes.Node(root).getPlug("worldInverseMatrix")[0].get())
                 points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]
                 if Vector(points[0]).length() > 1e-4:
                     raise ValueError(
@@ -90,21 +80,21 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
                         raise ValueError("IK source bone lengths must match the rig")
             samples.append(matrices)
         for node in keyed:
-            cmds.cutKey(node, attribute=list(attributes), time=(start, end), clear=True)
+            mlib.nodes.Node(node).removeKey(list(attributes), time=(start, end))
         rig.set_mode("fk")
         for frame, matrices in zip(frames, samples):
-            cmds.currentTime(frame)
+            Time.setCurrent(frame)
             for index, matrix in enumerate(matrices):
                 node = controls["fk" + str(index)]
                 from .limb import _set_world_matrix
 
                 _set_world_matrix(node, matrix)
-                cmds.setKeyframe(node, attribute=list(attributes), time=frame)
+                mlib.nodes.Node(node).setKey(list(attributes), time=frame)
             if mode == "ik":
                 rig.match_ik()
                 for node in (controls["target"], controls["pole"]):
-                    cmds.setKeyframe(node, attribute=list(attributes), time=frame)
+                    mlib.nodes.Node(node).setKey(list(attributes), time=frame)
         rig.set_mode(mode)
     finally:
-        cmds.currentTime(previous_time)
+        Time.setCurrent(previous_time)
     return tuple(frames)

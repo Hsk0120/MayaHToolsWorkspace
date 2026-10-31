@@ -19,11 +19,11 @@ class AimConstraint(Constraint):
             list[tuple[Plug, Plug]]: 接続元と接続先。コンパウンドアトリビュートの接続は親のペアのみ。
         """
         root = self.getPlug("constraintRotate")
-        destinations = root.getDestinations(skipConversionNodes=False)
+        destinations = root.getDestinations()
         result = [(root, destination) for destination in destinations]
         for axis in "XYZ":
             source = self.getPlug("constraintRotate" + axis)
-            for destination in source.getDestinations(skipConversionNodes=False):
+            for destination in source.getDestinations():
                 if destination.isChild() and destination.getParent() in destinations:
                     continue
                 result.append((source, destination))
@@ -137,7 +137,7 @@ class AimConstraint(Constraint):
             parent = self.getPlug(attribute)
             children = [self.getPlug(attribute + axis) for axis in "XYZ"]
             require_editable(self.mnode())
-            if any(plug.isLocked() or plug.getSource(skipConversionNodes=False) is not None
+            if any(plug.isLocked() or plug.getSource() is not None
                    for plug in [parent] + children):
                 raise RuntimeError(f"Attribute is locked or connected: {parent.getFullName()}")
             for plug, component in zip(children, values):

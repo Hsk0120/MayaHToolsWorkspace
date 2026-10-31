@@ -1,7 +1,5 @@
 """膝(中間のjoint)をヒンジ軸の1軸だけで曲げるRotate Plane IK。"""
 
-from maya import cmds
-
 import mlib
 from mlib.decorator import undoTransaction
 from mlib.maths import Matrix, Vector
@@ -16,7 +14,7 @@ def worldPosition(node):
     Returns:
         Vector: 位置(シーンの長さの単位)。
     """
-    translate = mlib.getNode(node).getTranslation(worldSpace=True, at=4)
+    translate = mlib.nodes.Node(node).getTranslation(worldSpace=True, at=4)
     return Vector(*(mlib.common.units.distanceToUi(value) for value in translate))
 
 
@@ -29,7 +27,7 @@ def worldMatrix(node):
     Returns:
         Matrix: 行列(移動はシーンの長さの単位)。
     """
-    matrix = Matrix(mlib.getNode(node).getMatrix(worldSpace=True))
+    matrix = Matrix(mlib.nodes.Node(node).getMatrix(worldSpace=True))
     for column in range(3):
         matrix.setElement(3, column, mlib.common.units.distanceToUi(matrix.getElement(3, column)))
     return matrix
@@ -90,9 +88,8 @@ def setJointWorldOrientation(joint, matrix):
         joint (str | Node): 対象のjoint。
         matrix (Matrix): 目標のワールド行列(回転だけを使う)。
     """
-    joint = mlib.getNode(joint)
-    children = [mlib.getNode(child) for child in
-                cmds.listRelatives(joint.getFullName(), children=True, type="transform", fullPath=True) or []]
+    joint = mlib.nodes.Node(joint)
+    children = joint.getChildren(type="transform")
     saved = [(child, child.getMatrix(worldSpace=True)) for child in children]
     parent = Matrix(joint.getPlug("parentMatrix")[0].get())
     rotation = Matrix(Matrix(matrix) * parent.inverse()).euler
@@ -113,7 +110,7 @@ def storePreferredAngles(joints):
         joints (Iterable[str | Node]): 対象のjoint。
     """
     for joint in joints:
-        cmds.joint(str(joint), edit=True, setPreferredAngles=True)
+        mlib.nodes.Node(joint).setPreferredAngle()
 
 
 def createRotatePlaneHandle(root, end, name, poleDistance=None):
@@ -130,23 +127,19 @@ def createRotatePlaneHandle(root, end, name, poleDistance=None):
     Returns:
         tuple[str, str, str]: (ikHandle, effector, ポールベクターのlocator)。
     """
-    handle, effector = cmds.ikHandle(startJoint=str(root), endEffector=str(end), solver="ikRPsolver",
-                                     name=name + "_ikHandle")
-    effector = mlib.getNode(effector)
-    effector.rename(name + "_effector")
-    effector = effector.getFullName()
-    handleNode = mlib.getNode(handle)
+    handleNode = mlib.createIkHandle(root, end, solver="ikRPsolver", name=name + "_ikHandle")
+    effector = handleNode.getEffector().rename(name + "_effector").getFullName()
     # poleVector はikHandleの親の空間の向き(作った直後のikHandleはワールド直下なので、ワールドの向き)。
     parent = Matrix(handleNode.getPlug("parentMatrix")[0].get())
     direction = (Vector(*handleNode.getPlug("poleVector").get()) * parent).normal()
     if poleDistance is None:
-        joints = cmds.ikHandle(handle, query=True, jointList=True) + [str(end)]
+        joints = handleNode.getJoints(includeTip=True)
         poleDistance = sum((worldPosition(b) - worldPosition(a)).length() for a, b in zip(joints, joints[1:]))
     position = worldPosition(root) + direction * poleDistance
-    pole = mlib.getNode(cmds.spaceLocator(name=name + "_pole")[0])
+    pole = mlib.createLocator(name=name + "_pole").getParent()
     # locatorはワールド直下なので、translateがそのままワールド位置になる。
     pole.getPlug("translate").set(tuple(mlib.common.units.distanceFromUi(value) for value in position))
-    cmds.poleVectorConstraint(pole.getFullName(), handleNode.getFullName(), name=name + "_poleVectorConstraint")
+    handleNode.addConstraint(pole, type="poleVector", name=name + "_poleVectorConstraint")
     return handleNode.getFullName(), effector, pole.getFullName()
 
 
@@ -161,7 +154,7 @@ def groupUnderWorld(name, *nodes):
         tuple[str, list[str]]: (transformのフルパス, 子にしたノードのフルパス)。
     """
     group = mlib.createNode("transform", name=name, skipSelect=True).getFullName()
-    children = [mlib.getNode(cmds.parent(node, group)[0]).getFullName() for node in nodes]
+    children = [mlib.nodes.Node(node).setParent(group).getFullName() for node in nodes]
     return group, children
 
 
@@ -228,7 +221,7 @@ class HingeIK:
         if axis not in ("y", "z"):
             raise ValueError("axis must be y or z (the bone points along local X)")
         for joint in (root, mid, end):
-            if not cmds.objExists(joint) or mlib.getNode(joint).getType() != "joint":
+            if not mlib.objExists(joint) or mlib.nodes.Node(joint).getType() != "joint":
                 raise ValueError("Joint not found: {}".format(joint))
         if _parent(mid) != _longName(root) or _parent(end) != _longName(mid):
             raise ValueError("Expected a chain root -> mid -> end of direct children.")
@@ -237,10 +230,12 @@ class HingeIK:
             if hinge is None:
                 raise ValueError("The chain is straight. Bend the knee slightly or pass the hinge axis.")
         hinge = Vector(*hinge).normal()
-        owner = mlib.nodes.Container.create(name).getFullName()
+        owner = mlib.createContainer(name).getFullName()
         setJointWorldOrientation(mid, orientationMatrix(worldPosition(mid), worldPosition(end) - worldPosition(mid),
                                                         hinge, axis))
-        cmds.joint(mid, edit=True, degreeOfFreedom=axis)
+        mid_joint = mlib.nodes.Node(mid)
+        for letter in "xyz":
+            mid_joint.getPlug("jointType" + letter.upper()).set(letter in axis)
         storePreferredAngles((root, mid, end))
         handle, effector, pole = createRotatePlaneHandle(root, end, name, poleDistance)
         group, (handle, pole) = groupUnderWorld(name + "_GRP", handle, pole)
@@ -250,10 +245,10 @@ class HingeIK:
 
 def _longName(node):
     """フルパス名を返す。"""
-    return mlib.getNode(node).getFullName()
+    return mlib.nodes.Node(node).getFullName()
 
 
 def _parent(node):
     """親のフルパス名を返す(無ければNone)。"""
-    parents = cmds.listRelatives(node, parent=True, fullPath=True)
-    return parents[0] if parents else None
+    parent = mlib.nodes.Node(node).getParent()
+    return None if parent is None else parent.getFullName()

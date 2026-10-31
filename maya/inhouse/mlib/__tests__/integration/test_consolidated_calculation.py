@@ -84,10 +84,10 @@ class ConsolidatedCalculationTests(unittest.TestCase):
         self.assertAlmostEqual(node.getPlug("output1D").get(), -3)
         source = mlib.createNode("network").addAttr("amount", defaultValue=11)
         source.connectTo(inputs.getElement(3))
-        self.assertEqual(inputs.getElement(3).getSource(skipConversionNodes=False), source)
+        self.assertEqual(inputs.getElement(3).getSource(), source)
         self.assertAlmostEqual(node.getPlug("output1D").get(), 6)
         cmds.undo()
-        self.assertIsNone(inputs.getElement(3).getSource(skipConversionNodes=False))
+        self.assertIsNone(inputs.getElement(3).getSource())
         self.assertAlmostEqual(node.getPlug("output1D").get(), -3)
 
     def test_enum_and_numeric_compounds_use_native_attribute_values(self):

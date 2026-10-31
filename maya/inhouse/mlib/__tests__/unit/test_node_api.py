@@ -87,17 +87,17 @@ class NodeApiTest(unittest.TestCase):
         self.assertIsNone(child.getParent())
 
         source.getPlug("translateX").connectTo(target.getPlug("translateX"))
-        self.assertEqual([plug.getFullName() for plug in target.getConnections(True, False)], [source.getPlug('translateX').getFullName()])
-        self.assertEqual([plug.getFullName() for plug in source.getConnections(False, True)], [target.getPlug('translateX').getFullName()])
-        self.assertEqual(len(source.getConnections()), 1)
+        self.assertEqual([plug.getFullName() for plug in target.getConnections(True, False, skipConversionNodes=True)], [source.getPlug('translateX').getFullName()])
+        self.assertEqual([plug.getFullName() for plug in source.getConnections(False, True, skipConversionNodes=True)], [target.getPlug('translateX').getFullName()])
+        self.assertEqual(len(source.getConnections(skipConversionNodes=True)), 1)
 
         def names(plugs):
             return [plug.getFullName() for plug in plugs]
 
-        self.assertEqual(names(target.getConnections(True, False, type='transform')), names(target.getConnections(True, False)))
-        self.assertEqual(target.getConnections(True, False, type='mesh'), [])
-        self.assertEqual(names(source.getConnections(False, True, type='transform')), names(source.getConnections(False, True)))
-        self.assertEqual(source.getConnections(type="mesh"), [])
+        self.assertEqual(names(target.getConnections(True, False, type='transform', skipConversionNodes=True)), names(target.getConnections(True, False, skipConversionNodes=True)))
+        self.assertEqual(target.getConnections(True, False, type='mesh', skipConversionNodes=True), [])
+        self.assertEqual(names(source.getConnections(False, True, type='transform', skipConversionNodes=True)), names(source.getConnections(False, True, skipConversionNodes=True)))
+        self.assertEqual(source.getConnections(type="mesh", skipConversionNodes=True), [])
 
     def test_transform_matrix_round_trip_uses_om2_maths_values(self):
         transform = self.create_transform("mlibNodeApiMatrix")
@@ -884,14 +884,14 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(targetPlug.isDestination())
         self.assertFalse(targetPlug.isSource())
 
-        destinations = source_plug.getDestinations(skipConversionNodes=False)
+        destinations = source_plug.getDestinations()
         self.assertEqual([plug.getFullName() for plug in destinations], [targetPlug.getFullName()])
 
         result = source_plug.disconnectAll()
         self.assertIs(result, source_plug)
         self.assertFalse(source_plug.isConnected())
         self.assertFalse(targetPlug.isConnected())
-        self.assertEqual(source_plug.getDestinations(skipConversionNodes=False), [])
+        self.assertEqual(source_plug.getDestinations(), [])
 
     def test_multi_plug_elements_returns_all_existing(self):
         target = self.create_transform("mlibNodeApiMultiElements")
@@ -946,7 +946,7 @@ class NodeApiTest(unittest.TestCase):
         self.assertTrue(node.getPlug("attrB").isLocked())
         # attrC は接続で駆動されているため、再作成後も接続元の値がそのまま反映される。
         self.assertEqual(node.getPlug("attrC").get(), 7.0)
-        reconnected_source = node.getPlug('attrC').getSource(skipConversionNodes=False)
+        reconnected_source = node.getPlug('attrC').getSource()
         self.assertIsNotNone(reconnected_source)
         self.assertEqual(reconnected_source.getFullName(), source.getPlug("translateX").getFullName())
 

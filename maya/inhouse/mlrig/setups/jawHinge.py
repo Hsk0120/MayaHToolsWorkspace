@@ -78,7 +78,7 @@ class JawHinge(TwistDistribution):
         slide = tuple(float(value) for value in slide)
         if len(slide) != 3 or not all(math.isfinite(value) for value in slide):
             raise ValueError("slide must be three finite values")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("JawHinge container already exists: " + name)
         jaw = mlib.nodes.Node(jaw)
         if not isinstance(jaw, mlib.nodes.Transform) or jaw.getParent() is None:
@@ -87,7 +87,7 @@ class JawHinge(TwistDistribution):
         rest_rotation = local.quaternion.asMatrix()
         order = EyelidFollow.rotateOrder(pitchAxis, yawAxis)
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         scalar = ScalarGraph(owner)
         owner.addAttr(longName="softness", attributeType="double", defaultValue=softness,

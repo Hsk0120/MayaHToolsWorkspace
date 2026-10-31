@@ -139,17 +139,17 @@ class BodyProportion(TwistDistribution):
                 またはnameが既に存在する場合。
         """
         joints, table = cls._parse(parameters)
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("BodyProportion container already exists: " + name)
         if connect:
             for joint in joints:
                 for channel in ("translate", "scale"):
                     plugs = [joint.getPlug(channel)] + [joint.getPlug(channel + axis) for axis in "XYZ"]
-                    if any(plug.getSource() is not None for plug in plugs):
+                    if any(plug.getSource(skipConversionNodes=True) is not None for plug in plugs):
                         raise ValueError("The {} of the joint is already connected: {}".format(
                             channel, joint.getFullName()))
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="parameterNames", dataType="string")
         owner.getPlug("parameterNames").set(" ".join(entry[0] for entry in table))
@@ -239,7 +239,7 @@ class BodyProportion(TwistDistribution):
         joints = []
         index = 0
         while self.container.hasAttr("joint" + str(index)):
-            joints.append(self.container.getPlug("joint" + str(index)).getSource().getNode())
+            joints.append(self.container.getPlug("joint" + str(index)).getSource(skipConversionNodes=True).getNode())
             index += 1
         return joints
 

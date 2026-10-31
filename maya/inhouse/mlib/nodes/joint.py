@@ -9,7 +9,7 @@ import maya.cmds as cmds
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale
-from ..util import _MIRROR_PLANES, _mirror_axis
+from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 
@@ -263,7 +263,7 @@ class Joint(Transform):
                 raise ValueError("inverseScale cannot use the joint itself as its source")
             origin = source.getPlug("scale")
             target = self.getPlug("inverseScale")
-            if target.getSource(skipConversionNodes=False) != origin:
+            if target.getSource() != origin:
                 origin.connectTo(target, force=force, fast=fast)
             return self
 
@@ -289,7 +289,7 @@ class Joint(Transform):
         with _edit_context("mlibJointDisconnectInverseScale", fast):
             for name in ("inverseScale", "inverseScaleX", "inverseScaleY", "inverseScaleZ"):
                 target = self.getPlug(name)
-                origin = target.getSource(skipConversionNodes=False)
+                origin = target.getSource()
                 if origin is not None:
                     target.disconnect(origin, fast=fast)
             return self
@@ -325,6 +325,33 @@ class Joint(Transform):
             if not math.isfinite(value) or value < 0:
                 raise ValueError("radius must be finite and non-negative")
             self.getPlug("radius").set(value, fast=fast)
+            return self
+
+    def setPreferredAngle(self, value=None, *, unit="deg"):
+        """IKが曲げる向きの基準になる preferredAngle を設定する。
+
+        省略時は今の rotate を preferredAngle にする(Skeleton > Set Preferred Angle、
+        ``cmds.joint(edit=True, setPreferredAngles=True)`` と同じ)。子孫のjointには適用しない。
+
+        Args:
+            value (Sequence[float] | None): XYZの角度。Noneは今のrotate。
+            unit (str): valueの角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: valueが3つの数値の列・None以外、またはunitが文字列以外の場合。
+            ValueError: valueの成分数が3でない・有限でない、またはunitが未対応の単位名の場合。
+            RuntimeError: jointが無効、またはpreferredAngleがロック・入力接続で書き込めない場合。
+        """
+        with undoChunk("mlibJointSetPreferredAngle"):
+            self._require_valid("set the preferred angle of")
+            if value is None:
+                value, unit = tuple(self.getPlug("rotate").get(unit="rad")), "rad"
+            else:
+                value = _finite_vector(value, 3, "value")
+            self.getPlug("preferredAngle").set(value, unit=unit)
             return self
 
     def getInverseScale(self):
@@ -363,7 +390,7 @@ class Joint(Transform):
             return []
         seen = set()
         result = []
-        for plug in self.getConnections(type="skinCluster", skipConversionNodes=False):
+        for plug in self.getConnections(type="skinCluster"):
             node = plug.getNode()
             if node.getUuid() in seen:
                 continue
@@ -507,7 +534,7 @@ class Joint(Transform):
             return []
         seen = set()
         result = []
-        for plug in self.getConnections(type="ikHandle", skipConversionNodes=False):
+        for plug in self.getConnections(type="ikHandle"):
             node = plug.getNode()
             if node.getUuid() in seen:
                 continue

@@ -89,7 +89,7 @@ class CableSag(TwistDistribution):
             1.2倍で約0.5%、1.4倍で約1.1%、2倍で約2.3%短い)。
             弦が重力と平行(真上・真下に並ぶ)の場合は垂れる向きと枠が決まらない。
         """
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("CableSag container already exists: " + name)
         nodes = []
         for label, value in (("start", start), ("end", end)):
@@ -115,7 +115,7 @@ class CableSag(TwistDistribution):
         if not math.isfinite(length) or length < 0.0:
             raise ValueError("length must be zero or positive")
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         owner.addAttr(longName="length", attributeType="doubleLinear", defaultValue=length, minValue=0.0,
                       keyable=True)

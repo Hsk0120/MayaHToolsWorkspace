@@ -2,7 +2,6 @@
 
 from contextlib import nullcontext
 
-import maya.cmds as cmds
 import mlib
 from mlib.decorator import undoChunk
 
@@ -68,10 +67,8 @@ class JointHierarchy:
                             reparent(reparent_plan(child, parent))
                         elif fast:
                             child.setParent(parent, fast=True)
-                        elif parent is None:
-                            cmds.parent(child.getFullName(), world=True)
                         else:
-                            cmds.parent(child.getFullName(), parent.getFullName())
+                            child.setParent(parent)
                     stage = "delete joint"
                     joint.delete(fast=fast)
                 except Exception as exc:

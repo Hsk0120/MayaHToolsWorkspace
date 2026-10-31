@@ -77,10 +77,10 @@ class SpaceBlend(TwistDistribution):
             raise ValueError("weights must have one value per space")
         if any(not weight >= 0.0 or weight == float("inf") for weight in weights):
             raise ValueError("weights must be finite and not negative")
-        if mlib.ls(name):
+        if mlib.objExists(name):
             raise ValueError("SpaceBlend container already exists: " + name)
 
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for index, weight in enumerate(weights):
             owner.addAttr(longName="weight" + str(index), attributeType="double", defaultValue=weight,

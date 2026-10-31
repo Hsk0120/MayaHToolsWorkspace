@@ -1,6 +1,5 @@
 """基準姿勢からの曲げを、補間姿勢と二つの補正距離へ変換する。"""
 
-from maya import cmds
 
 import math
 
@@ -59,17 +58,12 @@ class BendCorrection:
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
         parent, joint = mlib.nodes.Node(parent), mlib.nodes.Node(joint)
-        if [
-            node.getUuid()
-            for node in [
-                mlib.getNode(value) for value in (cmds.listRelatives(joint, parent=True) or [])
-            ]
-        ] != [parent.getUuid()]:
+        if [node.getUuid() for node in joint.getParents()] != [parent.getUuid()]:
             raise ValueError("Expected a direct parent-child pair")
-        if cmds.objExists(name):
+        if mlib.objExists(name):
             raise ValueError("Bend container already exists: " + name)
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
-        graph = cls(mlib.nodes.Container.create(name=name))
+        graph = cls(mlib.createContainer(name=name))
         owner = graph.container
         for attr, value, bounds in (
             ("rotationRatio", 0.5, {"minValue": 0, "maxValue": 1}),
@@ -126,7 +120,7 @@ class BendCorrection:
             rotation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[0])
             translation.getPlug("outputMatrix").connectTo(result.getPlug("matrixIn")[1])
             result.getPlug("matrixSum").connectTo(owner.getPlug("matrix"))
-        if owner.getPlug('matrix').getSource(skipConversionNodes=False) is None:
+        if owner.getPlug('matrix').getSource() is None:
             blend.getPlug("outputMatrix").connectTo(owner.getPlug("matrix"))
         delta = graph._node("multMatrix", "delta")
         relative.getPlug("matrixSum").connectTo(delta.getPlug("matrixIn")[0])

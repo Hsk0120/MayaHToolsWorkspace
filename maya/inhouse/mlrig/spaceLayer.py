@@ -1,6 +1,5 @@
 """IKとポールの参照空間を管理する、LODから独立した操作レイヤー。"""
 
-from maya import cmds
 
 import mlib
 
@@ -52,7 +51,7 @@ class SpaceLayer:
         """
         root = self.rig.root.getFullName()
         for node in nodes:
-            mlib.getNode(root).getPlug("mlrigOwned").appendMessage(node)
+            mlib.nodes.Node(root).getPlug("mlrigOwned").appendMessage(node)
         members = [
             node.getFullName() for node in nodes if node.getFullName() != self.rig._member("spaceSet")
         ]
@@ -64,12 +63,12 @@ class SpaceLayer:
         """IK Local/World、Pole Local/World/Footの空間切替を追加する。"""
         if self.rig.root.hasAttr("targetSpace"):
             return
-        layer_set = mlib.getNode(cmds.sets(empty=True, name=self.rig.getNodeName("spaceSet"))).getFullName()
+        layer_set = mlib.createNode("objectSet", name=self.rig.getNodeName("spaceSet"), skipSelect=True).getFullName()
         self.rig._bind("spaceSet", layer_set)
         self.rig._layer_members("moduleSet", [layer_set])
-        self._own([mlib.getNode(layer_set)])
+        self._own([mlib.nodes.Node(layer_set)])
         for role in ("target", "pole"):
-            offset = mlib.getNode(self.rig._member(role + "Offset"))
+            offset = mlib.nodes.Node(self.rig._member(role + "Offset"))
             parent = offset.getParent()
             buffer = mlib.createNode(
                 "transform", name=self.rig.getNodeName(role + "Space"), parent=parent, skipSelect=True
@@ -82,7 +81,7 @@ class SpaceLayer:
                 switch.add("foot", self.rig._member("target"))
             self.rig._bind(role + "Space", buffer.getFullName())
             self._own(switch.getNodes())
-            control = mlib.getNode(self.rig._member(role))
+            control = mlib.nodes.Node(self.rig._member(role))
             control.addAttr(
                 longName="space", attributeType="enum", enumName=":".join(switch.labels())
             )
@@ -107,7 +106,7 @@ class SpaceLayer:
         """
         switch = self.switcher(control)
         if target is not None:
-            path = mlib.getNode(target).getFullName()
+            path = mlib.nodes.Node(target).getFullName()
             # IKソルバーの内部依存は通常のDG入力列挙だけでは検出できない。
             # この部位の変形結果と計算用階層を、操作空間の入力には使わない。
             for role in ("moduleJoints", "moduleSetup"):
@@ -127,8 +126,8 @@ class SpaceLayer:
             control (str): ikまたはpole。
             label (str): 登録済み空間名。
         """
-        node = mlib.getNode(self.rig._member(self._role(control)))
-        if node.getPlug('space').getSource(skipConversionNodes=False) is not None:
+        node = mlib.nodes.Node(self.rig._member(self._role(control)))
+        if node.getPlug('space').getSource() is not None:
             raise ValueError("Space is a configuration attribute; remove keys or connections")
         switch = self.switcher(control)
         switch.switch(label)
