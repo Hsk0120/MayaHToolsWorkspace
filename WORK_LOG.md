@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-- Codex (2026-10-31): QPE操作調査のBUG-01/02・UX-01〜13を修正、専用Qt/Mayaで回帰・動画確認後に対象変更のみpush。対象QuickPathExplorerと専用検証、mlib/mlrigの既存変更を保持。
 
 
 
@@ -150,6 +149,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-31): QPEの操作課題15件を修正。履歴保存失敗時の復旧・再送防止、列再生成時のフォーカス、検索・タブ・狭幅詳細・保存形式・Maya読込結果・フロート復帰・横位置を改善。Maya2022/2027各13、Qt5/6各10、右クリック8、キー入力8、履歴故障注入2テスト合格。Maya実OS入力と動画も確認。実IME/物理4K/全共有タブ条件は未網羅。証跡 .maya-output/qpe-review-fixes-20261031/。
 
 - Codex (2026-10-31): QPEの1時間操作調査を完了。専用Maya2027の実OS入力と独立した失敗注入・Qt検証を区別し、不具合2件・UX課題13件を記録。録画6本を非公開保存・権限とURLを読戻し確認。ドック初期配置はMayaコマンド、縮小・フロート・再表示は実操作。専用Mayaは終了手順で終了、自動化qpe-1を停止。終了コード1はcompleted_with_issuesに対するランナーの明示値。製品変更・pushなし。詳細docs/research/qpe-one-hour-20261031/issues.txt、.maya-output/qpe-one-hour-20261031/report.txt。
 

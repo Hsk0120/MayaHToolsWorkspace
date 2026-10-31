@@ -538,6 +538,7 @@ class Explorer(QtWidgets.QWidget):
         self.address.setObjectName('address')
         self.address.setPlaceholderText('Folder path')
         self.address.returnPressed.connect(lambda: self.navigate(self.address.text()))
+        self.address.installEventFilter(self)
         bar.addWidget(self.address, 1)
         self.locationsButton = QtWidgets.QToolButton(self)
         self.locationsButton.setText('★')
@@ -616,6 +617,16 @@ class Explorer(QtWidgets.QWidget):
         self.columns.setResizeGripsVisible(False)
         self.columns.aboutToNavigate.connect(self._rememberColumns)
         self.columns.setObjectName('folderColumns')
+        self._browserFocusTarget = None
+        self._browserFocusTimer = QtCore.QTimer(self)
+        self._browserFocusTimer.setSingleShot(True)
+        self._browserFocusTimer.timeout.connect(self._restoreBrowserFocus)
+        self._lastHorizontal = 0
+        self._resumeHorizontal = None
+        self._resumeTimer = QtCore.QTimer(self)
+        self._resumeTimer.setSingleShot(True)
+        self._resumeTimer.timeout.connect(self._restoreVisibleColumns)
+        self.columns.horizontalScrollBar().valueChanged.connect(self._trackHorizontal)
         self.columns.setMinimumHeight(110)
         self.columns.setModel(self.folderModel)
         self.folderModel.directoryLoaded.connect(self.columns.folderLoaded)
@@ -756,7 +767,7 @@ class Explorer(QtWidgets.QWidget):
         self.saveLayoutUi = QtWidgets.QVBoxLayout(self.savePanel)
         self.saveLayoutUi.setContentsMargins(0, 12, 0, 4)
         self.saveLayoutUi.setSpacing(8)
-        self.readTarget = QtWidgets.QLabel('Select a file below', self.readPanel)
+        self.readTarget = SummaryLabel('Select a file below', self.readPanel)
         self.readTarget.setObjectName('readTarget')
         self.readTarget.setTextFormat(QtCore.Qt.PlainText)
         self.readTarget.setWordWrap(True)
@@ -910,6 +921,8 @@ class Explorer(QtWidgets.QWidget):
         self.saveLayoutUi.addLayout(save_buttons)
         self.fileName.textChanged.connect(self._updateSaveTarget)
         self.saveType.currentIndexChanged.connect(self._updateSaveTarget)
+        self.saveType.currentIndexChanged.connect(self._syncSaveExtension)
+        self.fileName.editingFinished.connect(self._syncSaveExtension)
         self.footer = QtWidgets.QLabel('0 items', self)
         self.footer.setObjectName('fileFooter')
         layout.addWidget(self.footer)
@@ -947,6 +960,17 @@ class Explorer(QtWidgets.QWidget):
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         self.files.setColumnHidden(2, False)
+        self._fitFileColumns()
+
+    def _fitFileColumns(self):
+        """狭い一覧では補助列を段階的に省き、名前に実用的な幅を残す。"""
+        if self.files.header().count() < 4:
+            return
+        scale = getattr(self.columns, 'columnScale', 1.0)
+        width = self.files.viewport().width()
+        self.files.setColumnHidden(3, width < round(650 * scale))
+        self.files.setColumnHidden(1, width < round(420 * scale))
+        self.files.setColumnHidden(2, width < round(280 * scale))
 
     def setInspectorVisible(self, visible):
         """右側全高の情報・操作パネルを切り替え、一覧の幅を確保する。
@@ -960,6 +984,9 @@ class Explorer(QtWidgets.QWidget):
 
     def setSidebarVisible(self, visible):
         """左サイドバーの開閉では右ペインの幅を維持する。"""
+        if visible and hasattr(self, 'modern') and self.modern.inspectorPage:
+            self.inspectorButton.setChecked(False)
+            self.modern.fitNavigation()
         self._setSidePanelVisible(self.places, visible)
 
     def _setSidePanelVisible(self, panel, visible):
@@ -994,6 +1021,8 @@ class Explorer(QtWidgets.QWidget):
             self.columns.parentWidget().layout().activate()
         finally:
             self._sideLayoutTimer.start(0)
+        if hasattr(self, 'modern'):
+            self.modern.toolbarTimer.start(0)
 
     def _finishSideLayout(self):
         """Qtの配置確定後に横位置を決め、途中状態を描画せず一度に表示する。"""
@@ -1101,9 +1130,41 @@ class Explorer(QtWidgets.QWidget):
         self.address.setFocus()
         self.address.selectAll()
 
+    def retainBrowserFocus(self, target='columns'):
+        """明示した一覧操作だけを対象に、列再生成後のフォーカス復元を予約する。"""
+        self._browserFocusTarget = target
+        self._browserFocusTimer.start(60)
+
+    def _restoreBrowserFocus(self, navigation=False):
+        """列再生成で脱落したフォーカスを、入力対象の変更を尊重して可視一覧へ戻す。
+
+        Args:
+            navigation (bool): 同期的な一覧移動中だけQtの自動退避先からも戻す。
+        """
+        target = self._browserFocusTarget
+        if not navigation:
+            self._browserFocusTarget = None
+        if self._suspended or not self.isVisible() or not target:
+            return
+        focus = QtWidgets.QApplication.focusWidget()
+        views = self.columns.findChildren(QtWidgets.QListView)
+        allowed = [self.columns, self, getattr(self, '_dockViewport', None), self.files, self.files.viewport()]
+        allowed.extend(part for view in views for part in (view, view.viewport()))
+        # 入力欄・メニュー・別Mayaビューへ移ったユーザーの意図を優先する。
+        if (focus is None or (focus not in allowed and not navigation)
+                or QtWidgets.QApplication.activePopupWidget()):
+            return
+        if target == 'files':
+            self.files.setFocus(QtCore.Qt.OtherFocusReason)
+        else:
+            visible = [view for view in views if view.isVisible()
+                       and view.rootIndex() == self.columns.currentIndex().parent()]
+            if visible:
+                visible[-1].setFocus(QtCore.Qt.OtherFocusReason)
+
     def _rememberColumns(self):
         """移動前の横位置・列幅・各階層の縦位置をフォルダー別に保持する。"""
-        if self._syncing or not self.currentDirectory:
+        if self._syncing or not self.currentDirectory or not self.columns.isVisible():
             return
         positions = {}
         for view in self.columns.findChildren(QtWidgets.QListView):
@@ -1293,6 +1354,8 @@ class Explorer(QtWidgets.QWidget):
         if not os.path.isdir(path):
             self.status.setText('Folder not found or unavailable: ' + path)
             self.status.show()
+            self.address.setToolTip('Folder not found. Press Escape to restore: ' + self.currentDirectory)
+            self.address.setStyleSheet('QLineEdit { border: 1px solid #c95757; }')
             return False
         tabs = getattr(self, 'folderTabs', None)
         if record and tabs and tabs.active >= 0 and path != self.currentDirectory and (tabs.states[tabs.active] or {}).get('locked'):
@@ -1306,6 +1369,17 @@ class Explorer(QtWidgets.QWidget):
             if normalized != root_path and not normalized.startswith(root_path + '/'):
                 self.browseRoot = ''
         changed = path != self.currentDirectory
+        focus = QtWidgets.QApplication.focusWidget()
+        restore_navigation_focus = bool(self._browserFocusTarget and focus in
+                                        (self, self.sidebarButton, getattr(self, '_dockViewport', None)))
+        if focus in (self.files, self.files.viewport()):
+            self.retainBrowserFocus('files')
+            restore_navigation_focus = True
+        elif focus is self.columns or any(focus in (view, view.viewport())
+                                         for view in self.columns.findChildren(QtWidgets.QListView)):
+            self.retainBrowserFocus()
+            restore_navigation_focus = True
+        self._resumeHorizontal = None
         if not self._fromColumn:
             self._rememberColumns()
         state = self._columnStates.get(os.path.normcase(path))
@@ -1327,6 +1401,8 @@ class Explorer(QtWidgets.QWidget):
             self.fileModel.activate([path])
             self.columns.setToolTip(path)
             self.address.setText(path)
+            self.address.setToolTip(path)
+            self.address.setStyleSheet('')
             root = self.folderModel.setRootPath(anchor)
             if self.folderModel.index(path) == root and self.columns.currentIndex() != root:
                 # 起点自身は表示行に存在せず、Qtの選択変更だけでは古い子列が残る。
@@ -1364,6 +1440,10 @@ class Explorer(QtWidgets.QWidget):
             self._updateFileSummary()
         finally:
             self._syncing = False
+        # 一覧操作の同期的な列再生成中はQtの次ウィジェットへの自動退避を戻す。
+        # 遅延した復元ではこの例外を使わず、入力欄や他ツールへの移動を尊重する。
+        if restore_navigation_focus:
+            self._restoreBrowserFocus(navigation=True)
         if state and not self._fromColumn:
             self._restoreColumns(state, serial)
             QtCore.QTimer.singleShot(0, lambda: self._restoreColumns(state, serial))
@@ -1437,6 +1517,16 @@ class Explorer(QtWidgets.QWidget):
         """
         if hasattr(self, 'emptyFiles') and watched is self.files.viewport() and event.type() == QtCore.QEvent.Resize:
             self.emptyFiles.setGeometry(watched.rect().adjusted(16, 8, -16, -8))
+            self._fitFileColumns()
+        if (hasattr(self, 'address') and watched is self.address
+                and event.type() in (QtCore.QEvent.ShortcutOverride, QtCore.QEvent.KeyPress)
+                and event.key() == QtCore.Qt.Key_Escape):
+            if event.type() == QtCore.QEvent.KeyPress:
+                self.address.setText(self.currentDirectory)
+                self.address.setToolTip(self.currentDirectory)
+                self.address.setStyleSheet('')
+            event.accept()
+            return True
         return super().eventFilter(watched, event)
 
     def _folderChanged(self, index, previous):
@@ -1868,6 +1958,13 @@ class Explorer(QtWidgets.QWidget):
         name = os.path.splitext(name)[0] + extension
         return os.path.join(self.currentDirectory, name).replace('\\', '/') if self.currentDirectory else ''
 
+    def _syncSaveExtension(self, *unused):
+        """明示した形式と入力欄の拡張子を揃え、実保存先との食い違いを避ける。"""
+        name = self.fileName.text().strip()
+        if name:
+            suffix = '.ma' if self.saveType.currentData() == 'mayaAscii' else '.mb'
+            self.fileName.setText(os.path.splitext(name)[0] + suffix)
+
     def _updateSaveTarget(self, *unused):
         """保存先を表示する。
 
@@ -1907,7 +2004,7 @@ class Explorer(QtWidgets.QWidget):
         if not directory:
             return
         name, ok = QtWidgets.QInputDialog.getText(self, 'New Folder' if folder else 'New Text File',
-            'Folder name' if folder else 'Text file name (.txt)',
+            ('Folder name' if folder else 'Text file name (.txt)') + '\nCreate in: ' + directory,
             QtWidgets.QLineEdit.Normal, 'New Folder' if folder else 'New File.txt')
         if not ok:
             return
@@ -2195,6 +2292,7 @@ class Explorer(QtWidgets.QWidget):
         Args:
             event (QHideEvent): Qtイベント。
         """
+        self._resumeHorizontal = self._lastHorizontal
         self.saveLayout()
         self._suspended = True
         self.folderModel.suspend()
@@ -2227,11 +2325,33 @@ class Explorer(QtWidgets.QWidget):
         """
         super().showEvent(event)
         self._suspended = False
+        if hasattr(self, '_resumeTimer') and self._resumeHorizontal is not None:
+            self._resumeTimer.start(50)
         if hasattr(self, 'folderModel') and self.currentDirectory:
             self.folderModel.activate(list(self.folderModel._active))
             self.fileModel.activate([self.currentDirectory])
         if hasattr(self, 'files') and self.selectedPath():
             self._fileChanged(self.files.currentIndex(), QtCore.QModelIndex())
+
+    def _trackHorizontal(self, value):
+        """非表示や再配置中の一時的なゼロ位置を再表示状態へ保存しない。"""
+        if (self.columns.isVisible() and self._resumeHorizontal is None
+                and not getattr(self.columns, '_fittingColumns', False)):
+            self._lastHorizontal = value
+
+    def _restoreVisibleColumns(self):
+        """再表示のモデル読込と列配置が完了してから一度だけ横位置を戻す。"""
+        if self._suspended or self._resumeHorizontal is None:
+            return
+        if any(self.folderModel.states.get(path, ('loading', ''))[0] == 'loading'
+               for path in self.folderModel._active):
+            self._resumeTimer.start(50)
+            return
+        self.columns.finishColumns()
+        self.columns.fitColumns()
+        self.columns.horizontalScrollBar().setValue(self._resumeHorizontal)
+        self._lastHorizontal = self.columns.horizontalScrollBar().value()
+        self._resumeHorizontal = None
 
     def trace(self, operation, **values):
         """明示的に接続した検証先だけへ状態を通知する。

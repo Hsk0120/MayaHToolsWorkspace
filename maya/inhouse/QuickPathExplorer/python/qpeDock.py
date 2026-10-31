@@ -11,6 +11,7 @@ _open = False
 _started = False
 _quitJob = None
 _closeGeneration = 0
+_screenReferences = []
 
 
 def _control_widget(name):
@@ -118,6 +119,7 @@ class DockWatcher(QtCore.QObject):
         self.control = _control_widget(CONTROL)
         self.targets = []
         self.active = True
+        self.wasFloating = cmds.workspaceControl(CONTROL, query=True, floating=True)
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(350)
@@ -180,8 +182,13 @@ class DockWatcher(QtCore.QObject):
         return False
 
     def flush(self):
-        """現在の画面の状態だけを保存し、レイアウトは変更しない。"""
+        """単独フロートへの遷移時だけ寸法を復元し、QPEの現在状態を保存する。"""
         if self.isCurrent():
+            floating = cmds.workspaceControl(CONTROL, query=True, floating=True)
+            if floating and not self.wasFloating:
+                # ドック寸法で前回のフロート寸法を上書きする前に復元する。
+                _fit_floating(self.widget, use_saved_size=True)
+            self.wasFloating = floating
             saveState()
 
     def restorePlacement(self):
@@ -200,6 +207,35 @@ def releaseWatcher():
     if previous is not None and shiboken.isValid(previous):
         previous.stop()
         previous.deleteLater()
+
+
+def _fit_floating(widget, use_saved_size=False):
+    """QPE単独のフロートだけを利用可能画面内へ収め、共有ウィンドウは変更しない。"""
+    parent = widget.parentWidget()
+    while parent is not None:
+        if isinstance(parent, QtWidgets.QTabWidget) and parent.count() > 1:
+            return
+        parent = _parent_widget(parent)
+    window = widget.window()
+    rect = window.geometry()
+    geometry = savedState().get('geometry')
+    if use_saved_size and isinstance(geometry, list) and len(geometry) == 4:
+        rect.setSize(QtCore.QSize(max(240, geometry[2]), max(160, geometry[3])))
+    # Mayaの再親化後はQWidget.screen()が無効なラッパーを返すことがある。
+    # アプリケーションの生存画面から現在位置を解決し、借用ラッパーを保持する。
+    screens = [screen for screen in QtWidgets.QApplication.screens() if shiboken.isValid(screen)]
+    for screen in screens:
+        if not any(previous is screen for previous in _screenReferences):
+            _screenReferences.append(screen)
+    if not screens:
+        return
+    screen = next((screen for screen in screens if screen.geometry().contains(rect.center())), screens[0])
+    available = screen.availableGeometry().adjusted(8, 32, -8, -8)
+    rect.setWidth(min(rect.width(), available.width()))
+    rect.setHeight(min(rect.height(), available.height()))
+    rect.moveLeft(max(available.left(), min(rect.left(), available.right() - rect.width() + 1)))
+    rect.moveTop(max(available.top(), min(rect.top(), available.bottom() - rect.height() + 1)))
+    window.setGeometry(rect)
 
 
 def saveState():
@@ -316,6 +352,7 @@ def restoreState(widget):
             if not any(screen.availableGeometry().intersects(rect) for screen in screens):
                 rect.moveTopLeft(screens[0].availableGeometry().topLeft() + QtCore.QPoint(40, 40))
             widget.window().setGeometry(rect)
+            _fit_floating(widget)
     cmds.workspaceControl(CONTROL, edit=True, restore=True)
 
 

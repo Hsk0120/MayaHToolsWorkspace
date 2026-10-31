@@ -64,6 +64,16 @@ class TabGlyphButton(QtWidgets.QAbstractButton):
 class FolderTabBar(QtWidgets.QTabBar):
     """標準幅から均等に縮み、下限以降は横送りするタブ。"""
 
+    def mouseReleaseEvent(self, event):
+        """中ボタンで対象タブを閉じる。固定タブの保護は既存のcloseへ委ねる。"""
+        if event.button() == QtCore.Qt.MiddleButton:
+            index = self.tabAt(event.pos())
+            if index >= 0:
+                self.tabCloseRequested.emit(index)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
     def tabInserted(self, index):
         """Qt標準の四角い閉じるボタンを置き換える。"""
         super().tabInserted(index)

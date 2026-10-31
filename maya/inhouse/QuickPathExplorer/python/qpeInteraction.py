@@ -91,6 +91,9 @@ class Interaction(QtCore.QObject):
         kind = event.type()
         if view is None:
             return False
+        if (view is not owner.files and kind == QtCore.QEvent.MouseButtonPress
+                and event.button() == QtCore.Qt.LeftButton):
+            owner.retainBrowserFocus()
         if kind == QtCore.QEvent.Leave and view is not owner.files and view.property('qpeEdgeHovered'):
             view.setProperty('qpeEdgeHovered', False)
             self.updateFocus()

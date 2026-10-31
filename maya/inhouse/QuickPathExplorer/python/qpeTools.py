@@ -71,6 +71,8 @@ class ResultsDialog(QtWidgets.QDialog):
         self.resize(840, 530)
         layout = QtWidgets.QVBoxLayout(self)
         form = QtWidgets.QFormLayout()
+        advanced = QtWidgets.QWidget(self)
+        advanced_form = QtWidgets.QFormLayout(advanced)
         self.root = QtWidgets.QLineEdit(tools.explorer.currentDirectory)
         self.query = QtWidgets.QLineEdit()
         self.types = QtWidgets.QLineEdit()
@@ -96,17 +98,28 @@ class ResultsDialog(QtWidgets.QDialog):
         self.tagMode.addItems(['All', 'Any'])
         self.live = QtWidgets.QCheckBox('Refresh every 10 seconds while visible')
         self.root.setToolTip('Multiple scope folders: separate with ;')
-        for label, control in [('Scope folder', self.root), ('Name / wildcard', self.query),
-                               ('File types', self.types), ('Containing text', self.content), ('Modified within', self.days), ('Search using', self.backend)]:
+        for label, control in [('Name / wildcard', self.query), ('Scope folder', self.root)]:
             form.addRow(label, control)
-        for label, control in [('Items', self.kind), ('Minimum size', self.minimum), ('Maximum size (0 = any)', self.maximum),
+        for label, control in [('File types', self.types), ('Containing text', self.content), ('Modified within', self.days),
+                               ('Search using', self.backend), ('Items', self.kind), ('Minimum size', self.minimum), ('Maximum size (0 = any)', self.maximum),
                                ('Exclude folders (;)', self.exclude), ('Tags (,)', self.tags), ('Match tags', self.tagMode), ('', self.live)]:
-            form.addRow(label, control)
+            advanced_form.addRow(label, control)
         layout.addLayout(form)
+        self.advancedToggle = QtWidgets.QToolButton(self)
+        self.advancedToggle.setText('More search options')
+        self.advancedToggle.setCheckable(True)
+        self.advancedToggle.toggled.connect(advanced.setVisible)
+        layout.addWidget(self.advancedToggle)
+        layout.addWidget(advanced)
+        advanced.hide()
         row = QtWidgets.QHBoxLayout()
         for title, callback in [('Search', self.search), ('Stop', self.stop), ('Save search…', self.saveQuery)]:
             button = QtWidgets.QPushButton(title)
             button.clicked.connect(callback)
+            button.setAutoDefault(False)
+            if title == 'Search':
+                self.searchButton = button
+                button.setDefault(True)
             row.addWidget(button)
         layout.addLayout(row)
         self.results = QtWidgets.QTreeWidget()
@@ -114,6 +127,9 @@ class ResultsDialog(QtWidgets.QDialog):
         self.results.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.results.setAlternatingRowColors(True)
         self.results.setColumnWidth(0, 250)
+        self.results.setColumnWidth(1, 320)
+        self.results.setMinimumHeight(160)
+        self.results.setTextElideMode(QtCore.Qt.ElideMiddle)
         self.results.itemDoubleClicked.connect(self.locate)
         self.results.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.results.customContextMenuRequested.connect(self.menu)
@@ -126,6 +142,25 @@ class ResultsDialog(QtWidgets.QDialog):
         self.liveTimer.setInterval(10000)
         self.liveTimer.timeout.connect(self.liveRefresh)
         self.liveTimer.start()
+        self.setTabOrder(self.query, self.root)
+        self.query.setFocus()
+
+    def resultItem(self, path):
+        """表示場所は検索起点からの相対パス、実操作には絶対パスを保持する。"""
+        parent = Path(path).parent
+        location = str(parent)
+        for root in self.root.text().split(';'):
+            try:
+                relative = parent.relative_to(Path(root.strip()))
+                location = str(relative) if len(self.root.text().split(';')) == 1 else Path(root.strip()).name + '/' + str(relative)
+                break
+            except ValueError:
+                continue
+        item = QtWidgets.QTreeWidgetItem([Path(path).name, location])
+        item.setData(0, QtCore.Qt.UserRole, path)
+        item.setToolTip(0, path)
+        item.setToolTip(1, str(parent))
+        return item
 
     def liveRefresh(self):
         """表示中だけ定期再評価し、要求を重ねない。"""
@@ -147,8 +182,7 @@ class ResultsDialog(QtWidgets.QDialog):
         if serial != self.serial:
             return
         for path in paths:
-            item = QtWidgets.QTreeWidgetItem([Path(path).name, str(Path(path).parent)])
-            item.setData(0, QtCore.Qt.UserRole, path)
+            item = self.resultItem(path)
             self.results.addTopLevelItem(item)
         self.status.setText('{} results — searching…'.format(self.results.topLevelItemCount()))
 
@@ -217,8 +251,7 @@ class ResultsDialog(QtWidgets.QDialog):
         """結果を文字列として表示し、絶対パスを保持する。"""
         self.results.clear()
         for path in paths:
-            item = QtWidgets.QTreeWidgetItem([Path(path).name, str(Path(path).parent)])
-            item.setData(0, QtCore.Qt.UserRole, path)
+            item = self.resultItem(path)
             self.results.addTopLevelItem(item)
 
     def locate(self, item, column=0):
@@ -294,6 +327,7 @@ class Organizer(QtCore.QObject):
         explorer.places.viewport().installEventFilter(self)
         explorer.folderTabs.bar.setAcceptDrops(True)
         explorer.folderTabs.bar.installEventFilter(self)
+        self.attachView(explorer.columns)
         for view in explorer.columns.findChildren(QtWidgets.QListView):
             self.attachView(view)
         self.second = None
@@ -387,6 +421,10 @@ class Organizer(QtCore.QObject):
                         ' — cancelled' if result['cancelled'] else ''))
                     if result['errors']:
                         self.showText('\n'.join(result['errors']))
+                    if result.get('warnings'):
+                        record['state'] = 'Completed / history warning'
+                        self.report(title + ': files completed — Undo history needs recovery. Do not repeat the transfer.')
+                        self.showText('\n'.join(result['warnings']))
                     if title == 'Move' and self.engine.history:
                         entries = self.engine.history[-1]['entries']
                         self.remapRecords([(entry['source'], entry['target']) for entry in entries if entry.get('moved')])
@@ -660,6 +698,7 @@ class Organizer(QtCore.QObject):
             dialog.days.setValue(conditions.get('days', 0))
             dialog.restoreAdvanced(conditions)
         dialog.show()
+        dialog.query.setFocus()
         if isinstance(conditions, dict):
             dialog.search()
         return dialog
@@ -958,11 +997,13 @@ class Organizer(QtCore.QObject):
                         actions[key]()
                     return True
             if modifiers == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and key in (
-                    QtCore.Qt.Key_T, QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab):
+                    QtCore.Qt.Key_T, QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab, QtCore.Qt.Key_N):
                 if kind == QtCore.QEvent.ShortcutOverride:
                     event.accept()
                 else:
-                    if key == QtCore.Qt.Key_T:
+                    if key == QtCore.Qt.Key_N:
+                        e.newFolder()
+                    elif key == QtCore.Qt.Key_T:
                         e.folderTabs.reopen()
                     else:
                         e.folderTabs.bar.setCurrentIndex((e.folderTabs.active - 1) % e.folderTabs.bar.count())

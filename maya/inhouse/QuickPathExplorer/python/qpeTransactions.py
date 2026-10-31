@@ -151,11 +151,18 @@ class FileTransactions:
         self._lease = None
         self.history = []
         try:
-            self.history = json.loads(self.journal.read_text(encoding='utf8'))
+            self.history = json.loads(self.historyPath().read_text(encoding='utf8'))
             if not isinstance(self.history, list):
                 self.history = []
         except (OSError, ValueError):
             pass
+
+    def historyPath(self):
+        """確定履歴と未反映の復旧用コピーのうち最新のものを読む。"""
+        candidates = list(self.directory.glob('journal-recovery-*.json'))
+        if self.journal.exists():
+            candidates.append(self.journal)
+        return max(candidates, key=lambda p: p.stat().st_mtime_ns) if candidates else self.journal
 
     def acquire(self):
         """別ウィンドウ・別Mayaプロセスの操作と履歴更新を排他する。"""
@@ -176,10 +183,14 @@ class FileTransactions:
             else:
                 import fcntl
                 fcntl.flock(self._lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            if self.journal.exists():
-                self.history = json.loads(self.journal.read_text(encoding='utf8'))
+            latest = self.historyPath()
+            if latest.exists():
+                self.history = json.loads(latest.read_text(encoding='utf8'))
                 if not isinstance(self.history, list):
                     raise ValueError('Invalid Undo history')
+            # 確定済み操作の保存失敗を次の操作で上書きしない。
+            if latest != self.journal:
+                self.save()
             self._owner, self._depth = threading.get_ident(), 1
         except Exception:
             if self._lease:
@@ -209,10 +220,33 @@ class FileTransactions:
             self.release()
 
     def save(self):
-        """履歴を原子的に保存する。"""
-        temporary = self.journal.with_suffix('.tmp')
-        temporary.write_text(json.dumps(self.history, ensure_ascii=False, indent=2), encoding='utf8')
-        os.replace(str(temporary), str(self.journal))
+        """一時ロックを有限回再試行し、失敗時にも確定履歴の復旧用コピーを残す。"""
+        temporary = self.directory / ('journal-recovery-' + uuid.uuid4().hex + '.json')
+        with temporary.open('x', encoding='utf8') as stream:
+            json.dump(self.history, stream, ensure_ascii=False, indent=2)
+            stream.flush()
+            os.fsync(stream.fileno())
+        for attempt in range(6):
+            try:
+                os.replace(str(temporary), str(self.journal))
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise
+                time.sleep(.03 * (2 ** attempt))
+        for previous in self.directory.glob('journal-recovery-*.json'):
+            try:
+                previous.unlink()
+            except OSError:
+                # 古いコピーの掃除の失敗は、確定した新しい履歴の失敗ではない。
+                pass
+
+    def saveResult(self, result):
+        """ファイルの完了と履歴永続化の警告を分離し、再転送対象にしない。"""
+        try:
+            self.save()
+        except OSError as error:
+            result.setdefault('warnings', []).append('Files were changed. Undo history needs recovery; do not repeat the transfer. ' + str(error))
 
     def run(self, action, paths, destination='', conflict='rename', cancel=None, progress=None, choices=None, transactionId=None):
         """コピー・移動・複製・ごみ箱を項目単位で実行する。
@@ -233,15 +267,16 @@ class FileTransactions:
         if conflict == 'merge' and action != 'copy':
             raise ValueError('Folder merge supports Copy only; originals are retained.')
         self.acquire()
-        result = dict(completed=[], errors=[], skipped=[], cancelled=False, retry=[])
+        result = dict(completed=[], errors=[], skipped=[], cancelled=False, retry=[], warnings=[])
         transaction = dict(id=transactionId or uuid.uuid4().hex, action=action, entries=[], time=time.time(), conflict=conflict, choices=choices or {})
-        self.clearRedo()
-        self.history.append(transaction)
         try:
+            self.clearRedo()
+            self.history.append(transaction)
             originals = list(dict.fromkeys(paths))
             sources = [Path(p).absolute() for p in originals]
             for original, source in zip(originals, sources):
                 backup = None
+                entry = None
                 try:
                     checkCancel(cancel)
                     if source.parent == source or source == self.directory or self.directory in source.parents or source in self.directory.parents:
@@ -325,8 +360,8 @@ class FileTransactions:
                                 removeEntry(temporary)
                     if entry not in transaction['entries']:
                         transaction['entries'].append(entry)
-                    self.save()
                     result['completed'].append(str(source if action == 'trash' else target))
+                    self.saveResult(result)
                 except Cancelled:
                     result['cancelled'] = True
                     result['retry'].extend(str(p) for p in sources[sources.index(source):])
@@ -334,7 +369,11 @@ class FileTransactions:
                 except (OSError, ValueError) as error:
                     from qpeProductivityIO import errorAdvice
                     result['errors'].append('{}: {}\n{}'.format(source, error, errorAdvice(error)))
-                    result['retry'].append(str(source))
+                    # 元の退避前に失敗したMoveはコピーが既に存在する。自動再試行しない。
+                    if entry is not None and entry in transaction['entries']:
+                        result['errors'].append('Review the completed destination and use File Undo before retrying: ' + entry['target'])
+                    else:
+                        result['retry'].append(str(source))
                 finally:
                     if backup and backup.exists() and not any(e['backup'] == str(backup) for e in transaction['entries']):
                         # 未採用の自分の作業コピーだけを削除する。
@@ -343,7 +382,7 @@ class FileTransactions:
                             removeEntry(backup)
             if not transaction['entries']:
                 self.history.remove(transaction)
-            self.save()
+            self.saveResult(result)
             return result
         finally:
             self.release()

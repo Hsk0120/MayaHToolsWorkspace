@@ -155,6 +155,8 @@ class ModernLayout(QtCore.QObject):
         self.viewport = None
         self.compactToolbar = False
         self.compactFiles = False
+        self.inspectorPage = False
+        self.pageHorizontal = 0
         self.filePanel = explorer.search.parentWidget()
         self.filePanel.installEventFilter(self)
         self.toolbarTimer = QtCore.QTimer(self)
@@ -286,6 +288,27 @@ class ModernLayout(QtCore.QObject):
         margins = e.layout().contentsMargins()
         available = min(e.width(), self.viewport.width()) if self.viewport is not None else e.width()
         available = max(1, available - margins.left() - margins.right())
+        # 極端に狭い幅は詳細を一枚のページとして表示し、画面全体の横送りを避ける。
+        page = available < round(720 * scale) and e.inspectorButton.isChecked()
+        if page != self.inspectorPage:
+            self.inspectorPage = page
+            if page:
+                self.pageHorizontal = e.columns.horizontalScrollBar().value()
+                e.vertical.hide()
+                e.places.hide()
+                e.inspectorButton.setToolTip('Back to files (details use the full width in a narrow window)')
+            else:
+                e.vertical.show()
+                e.places.setVisible(e.sidebarButton.isChecked())
+                e.inspectorButton.setToolTip('Toggle details sidebar')
+                left = e._sidebarWidth if e.sidebarButton.isChecked() else 0
+                right = e._inspectorWidth if e.inspectorButton.isChecked() else 0
+                handles = int(bool(left)) + int(bool(right))
+                total = e.outer.contentsRect().width() - handles * e.outer.handleWidth()
+                e.outer.setSizes([left, max(1, total - left - right), right])
+                e._resumeHorizontal = self.pageHorizontal
+                e._resumeTimer.start(50)
+            e._fitFileColumns()
         # 表示設定・開始フォルダーはToolsに常設し、場所欄の長さを安定させる。
         e.displayButton.hide()
         e.rootButton.hide()

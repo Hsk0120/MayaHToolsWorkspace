@@ -133,10 +133,13 @@ def refresh(widget, follow_scene=False):
     if follow_scene and scene:
         directory = str(Path(scene).parent)
         if os.path.isdir(directory):
-            widget.navigate(directory)
+            if os.path.normcase(os.path.normpath(directory)) != os.path.normcase(os.path.normpath(widget.currentDirectory)):
+                widget.navigate(directory)
+            widget._selectWhenReady(scene)
     widget.sceneTarget.setText('Current scene: ' + (scene or '(unsaved)'))
     if scene and not widget.fileName.text():
         widget.fileName.setText(Path(scene).name)
+        widget._syncSaveExtension()
     widget.actionButtons['save'].setToolTip('Save updates current scene: ' + (scene or '(unsaved scene; use Save As)'))
 
 
@@ -228,6 +231,9 @@ def perform(widget, action):
         widget (Explorer): 操作元。
         action (str): 操作名。
     """
+    if getattr(widget, '_mayaActionRunning', False):
+        return
+    widget._mayaActionRunning = True
     try:
         paths = widget.operationPaths()
         path = paths[0] if paths else ''
@@ -285,15 +291,18 @@ def perform(widget, action):
             elif action == 'import':
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
                 for path, options in zip(paths, arguments):
+                    widget.organizer.report('Importing: ' + Path(path).name)
                     readFile(path, action, options)
                     widget.recordSuccessfulFiles([path])
             else:
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
                 for path, options in zip(paths, arguments):
+                    widget.organizer.report('Creating reference: ' + Path(path).name)
                     readFile(path, action, options)
                     widget.recordSuccessfulFiles([path])
         elif action == 'save':
             if not cmds.file(query=True, sceneName=True):
+                widget._mayaActionRunning = False
                 perform(widget, 'saveAs')
                 return
             cmds.file(save=True)
@@ -321,6 +330,14 @@ def perform(widget, action):
         refresh(widget)
         widget.status.setText('Completed: ' + {'new': 'New Scene', 'save': 'Save Scene', 'saveAs': 'Save Scene As',
                                                'export': 'Export Selection', 'reference': 'Create Reference'}.get(action, action.title()))
+        if action in ('import', 'reference'):
+            widget.status.setText('Completed: ' + action.title() + ' — ' + '; '.join(
+                Path(value).name + ' [namespace: ' + options['namespace'] + ']'
+                for value, options in zip(paths, arguments)))
+        widget.status.show()
     except (RuntimeError, OSError, ValueError) as error:
         widget.status.setText(str(error))
+        widget.status.show()
         QtWidgets.QMessageBox.warning(widget, 'QuickPathExplorer', str(error))
+    finally:
+        widget._mayaActionRunning = False

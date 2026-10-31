@@ -159,8 +159,8 @@ def executeJob(engine, path, cancel, progress):
                 writeJob(path, value)
                 sub = engine.run(value['action'], [source], value['destination'], value['conflict'],
                                  cancel, progress, value['choices'], transactionId=item['transaction'])
-                for key in ('completed', 'skipped', 'errors', 'retry'):
-                    result[key].extend(sub[key])
+                for key in ('completed', 'skipped', 'errors', 'retry', 'warnings'):
+                    result.setdefault(key, []).extend(sub.get(key, []))
                 result['cancelled'] = sub['cancelled']
                 committed = committedEntry(engine, item)
                 if committed:
@@ -178,8 +178,11 @@ def executeJob(engine, path, cancel, progress):
             result['errors'].append(str(error) + '\n' + errorAdvice(error))
             value['state'] = 'Review required'
         finally:
-            groupHistory(engine, value)
-            result['retry'] = [i['source'] for i in value['items'] if i['state'] != 'Completed'] or ([] if value['prepared'] else value['paths'])
+            try:
+                groupHistory(engine, value)
+            except OSError as error:
+                result.setdefault('warnings', []).append('Files were changed; Undo history needs recovery: ' + str(error))
+            result['retry'] = [i['source'] for i in value['items'] if i['state'] == 'Pending'] or ([] if value['prepared'] else value['paths'])
             value['lastResult'] = result
             writeJob(path, value)
     return result
