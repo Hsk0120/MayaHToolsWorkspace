@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 SUITES = ['open', 'audit', 'navigation', 'context', 'p0', 'finder', 'shortcuts', 'ux',
@@ -53,9 +54,10 @@ def main():
                     (out/'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf8')
                     print(name, outcome['status'], flush=True)
                     continue
-                process = subprocess.run([args.python, str(root/'tools'/('qpe_ui_'+name+'.py')),
-                                          str(target)], cwd=str(root), stdout=log,
-                                         stderr=subprocess.STDOUT, timeout=180)
+                with tempfile.TemporaryDirectory(prefix='working-', dir=str(target)) as working:
+                    process = subprocess.run([args.python, str(root/'tools'/('qpe_ui_'+name+'.py')),
+                                              str(target)], cwd=working, stdout=log,
+                                             stderr=subprocess.STDOUT, timeout=180)
                 result_file = target/'result.json'
                 result = json.loads(result_file.read_text(encoding='utf8')) if result_file.exists() else {}
                 summary[name] = dict(exitCode=process.returncode, result=result)

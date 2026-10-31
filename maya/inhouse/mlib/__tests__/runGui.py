@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 import traceback
 
@@ -92,6 +93,8 @@ def worker(version, directory, suite_path=None):
 
 def run_version(version, directory, install_root, timeout, shutdown_timeout=120,
                 suite_path=None, environment=None):
+    directory = Path(directory).resolve()
+    suite_path = Path(suite_path).resolve() if suite_path else None
     directory.mkdir(parents=True)
     executable = maya_executable(version, install_root).with_name("maya.exe")
     if not executable.is_file():
@@ -114,8 +117,10 @@ def run_version(version, directory, install_root, timeout, shutdown_timeout=120,
     if version == "2022":
         args += ["-pythonver", "3"]
     start = time.monotonic()
-    with (directory / "launch.log").open("wb") as log:
-        process = subprocess.Popen(args, cwd=str(ROOT), env=env, stdout=log, stderr=subprocess.STDOUT)
+    # 相対書込を実ソースへ出さない。所有する一時cwdだけを、Maya終了後に削除する。
+    with tempfile.TemporaryDirectory(prefix="working-", dir=str(directory)) as working, (directory / "launch.log").open("wb") as log:
+        write_json(directory / "working-directory.json", {"path": working})
+        process = subprocess.Popen(args, cwd=working, env=env, stdout=log, stderr=subprocess.STDOUT)
         write_json(directory / "launch.json", {"pid": process.pid, "version": version, "executable": str(executable)})
         try:
             monitoring = monitor_process(process, directory, timeout, shutdown_timeout)

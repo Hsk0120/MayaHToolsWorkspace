@@ -3,18 +3,19 @@ import json
 import os
 from pathlib import Path
 import sys
+import tempfile
 import traceback
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'maya/inhouse/QuickPathExplorer/python'))
 
 
-def main(output_dir, finished):
+def _run(output_dir, finished):
     """専用シーンへ書込失敗を注入し、名前・内容・再試行を照合する。"""
     from maya import cmds
     from qpeQt import QtWidgets
     import qpeHost
-    out = Path(output_dir)
+    out = Path(output_dir).resolve()
     os.environ['QPE_SETTINGS_FILE'] = str(out / 'settings.json')
     checks = []
     try:
@@ -48,7 +49,9 @@ def main(output_dir, finished):
             assert 'Could not save scene to:' in e.status.text()
             assert target.as_posix() in e.status.text().replace('\\', '/')
             checks.append('Save As failure preserves name/content/modified flag: ' + str(named))
-            qpeHost.perform(e, 'saveAs')
+            # Windows形式の入力を渡し、API境界で区切りが保持されることも確認する。
+            with patch.object(e, 'targetPath', return_value=str(target)):
+                qpeHost.perform(e, 'saveAs')
             assert target.is_file() and Path(cmds.file(query=True, sceneName=True)) == target
             checks.append('Save As retry succeeds: ' + str(named))
             cmds.setAttr('QPE_UnsavedPayload.tx', 51)
@@ -78,8 +81,47 @@ def main(output_dir, finished):
             cmds.file(target.as_posix(), open=True, force=True)
             assert cmds.getAttr('QPE_UnsavedPayload.tx') == 222
             checks.append('Unicode/space path, type, recent, Undo/Redo and reopen: ' + extension)
+        for invalid in ('relative-save.mb', 'C:drive-relative.mb'):
+            with patch.object(e, 'targetPath', return_value=invalid), patch.object(qpeHost.OpenMayaLegacy.MFileIO, 'saveAs') as save, patch.object(QtWidgets.QMessageBox, 'warning'):
+                qpeHost.perform(e, 'saveAs')
+                save.assert_not_called()
+        checks.append('Relative and drive-relative Save As rejected before Maya API')
+        target = out / 'not-written.mb'
+        with patch.object(e, 'targetPath', return_value=str(target)), patch.object(qpeHost.OpenMayaLegacy.MFileIO, 'saveAs'), patch.object(QtWidgets.QMessageBox, 'warning'):
+            qpeHost.perform(e, 'saveAs')
+        assert not target.exists()
+        assert 'Maya did not save to the requested destination' in e.status.text()
+        checks.append('API return without expected file is not reported as success')
         result = {'status': 'passed', 'checks': checks, 'input': 'Maya GUI API with controlled write failure'}
     except Exception:
         result = {'status': 'failed', 'checks': checks, 'error': traceback.format_exc()}
+    cmds.file(new=True, force=True)
+    if 'e' in locals():
+        e.close()
+    (out / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
+    finished(result)
+
+
+def main(output_dir, finished):
+    """保存テストは.maya-output配下の使い捨てデータだけを操作する。"""
+    out = Path(output_dir).resolve()
+    allowed = Path(__file__).resolve().parents[1] / '.maya-output'
+    if allowed.resolve() not in out.parents:
+        raise ValueError('Save regression output must be below .maya-output')
+    out.mkdir(parents=True, exist_ok=True)
+    results = []
+    before = set(Path.cwd().iterdir())
+    with tempfile.TemporaryDirectory(prefix='save-fixture-', dir=str(out)) as fixture:
+        try:
+            _run(fixture, results.append)
+        finally:
+            # Maya終了時の遅延設定保存で、削除済みfixtureを再作成させない。
+            os.environ['QPE_SETTINGS_FILE'] = str(out / 'settings.json')
+    result = results[0]
+    if set(Path.cwd().iterdir()) != before:
+        result['status'] = 'failed'
+        result['cwd_pollution'] = 'Unexpected entries in process working directory'
+    result['fixtures_removed'] = not Path(fixture).exists()
+    result['working_directory'] = str(Path.cwd())
     (out / 'result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding='utf-8')
     finished(result)

@@ -93,6 +93,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
@@ -150,6 +153,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-31): QPE旧保存診断の区切り欠落と成功誤判定を特定・廃止。QPE保存先の絶対パス/実ファイル/シーン名検証、GUI/単体検証ランナーの一時cwdと終了後削除、保存fixtureの隔離/後始末を追加。Maya2022/2027各10項目、単体UI8項目、Python3テスト成功。trial直接作成元は検索範囲内で未特定。ユーザーのpush指示に基づき、差分・既存検証結果を確認して7ファイルをコミット対象に確定。調査記録・生成物は除外。
 
 - Claude Code (2026-10-31): ユーザー指示で trial フォルダー4か所(直下・maya/inhouse・mlib・mlib/__tests__。mlibの写しで、mlibの静的検査とテスト2ファイルを失敗させていた)を削除。mlib静的検査・test_predicate_aliases/test_public_camel_case(2027)OK。
 

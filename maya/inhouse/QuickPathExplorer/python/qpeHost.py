@@ -334,8 +334,9 @@ def perform(widget, action):
             recordRecentScene()
         elif action in ('saveAs', 'export'):
             target = widget.targetPath()
-            if not target or not os.path.isdir(str(Path(target).parent)):
+            if not target or not Path(target).is_absolute() or not os.path.isdir(str(Path(target).parent)):
                 raise ValueError('Enter a file name and select a valid destination folder.')
+            target = Path(target).as_posix()
             if action == 'export' and not cmds.ls(selection=True):
                 raise ValueError('Select objects in Maya before exporting.')
             if not _allowOverwrite(widget, target):
@@ -347,7 +348,10 @@ def perform(widget, action):
                 # APIのSave Asは書込失敗時に現在名を維持する。先行renameは名前なしへ戻せない。
                 # API 1.0はWindowsの逆スラッシュを解釈するため、区切りを正規化する。
                 try:
-                    OpenMayaLegacy.MFileIO.saveAs(Path(target).as_posix(), file_type, True)
+                    OpenMayaLegacy.MFileIO.saveAs(target, file_type, True)
+                    if (not Path(target).is_file()
+                            or Path(cmds.file(query=True, sceneName=True)).resolve() != Path(target).resolve()):
+                        raise RuntimeError('Maya did not save to the requested destination.')
                 except RuntimeError as error:
                     raise RuntimeError('Could not save scene to:\n{}\n\n{}'.format(target, error)) from error
                 recordRecentScene()

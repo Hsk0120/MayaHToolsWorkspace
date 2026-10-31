@@ -1,6 +1,7 @@
 """GUI監査の失敗を正常終了として報告しないことをMayaなしで検証する。"""
 import contextlib
 import io
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -13,6 +14,27 @@ import qpe_audit_runner
 
 class AuditRunnerTests(unittest.TestCase):
     """専用GUIランナーの結果と監査CLIの終了コードを照合する。"""
+
+    def test_standalone_relative_writes_are_removed(self):
+        """単体版でも相対コピーの残骸をソース外へ隔離して後始末する。"""
+        with tempfile.TemporaryDirectory() as directory:
+            created = []
+
+            def run(args, cwd, **kwargs):
+                """起動先の書込だけを模擬し、実ソースをコピーしない。"""
+                working = Path(cwd)
+                self.assertIn(Path(directory).resolve(), working.parents)
+                created.append(working)
+                (working / "trial/mlib").mkdir(parents=True)
+                (working / "trial/orig").mkdir()
+                (Path(args[-1]) / "result.json").write_text(json.dumps({"status": "passed"}), encoding="utf-8")
+                return types.SimpleNamespace(returncode=0)
+
+            argv = ["qpe_audit_runner.py", directory, "--suites", "context"]
+            with patch.object(qpe_audit_runner.subprocess, "run", run), patch.object(sys, "argv", argv):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(qpe_audit_runner.main(), 0)
+            self.assertFalse(created[0].exists())
 
     def test_gui_failure_exit_status_and_import_bootstrap(self):
         """成功・失敗・タイムアウトを区別し、補助importを隔離環境でも解決する。"""
