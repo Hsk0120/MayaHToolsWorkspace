@@ -9,6 +9,12 @@
 - ``pushPull``: 前後のキーを結ぶ直線から離す(正)・近づける(負)。
 - ``easeInOut``: 選んだ範囲の両端を保ち、間をイーズの曲線に沿わせる(正はイーズイン、負はイーズアウト)。
 - ``noise``: 乱数で揺らす(量は揺れ幅)。
+- ``scaleFromLeft``・``scaleFromRight``: 選んだキーの前(後ろ)の選んでいないキーの値を中心に、値の幅を
+  ``1 + 量`` 倍にする(前後のキーが無ければ、選んだ最初・最後のキーの値を中心にする)。
+- ``scaleFromAverage``: 選んだキーの値の平均を中心に、値の幅を ``1 + 量`` 倍にする。
+- ``scaleFromDefault``: アトリビュートの既定値を中心に、値の幅を ``1 + 量`` 倍にする。
+
+中心はカーブごとに決める。
 
 スライダーをドラッグする間は、開始時の値を基準に計算し直す(:class:`KeySession`)。
 """
@@ -30,7 +36,14 @@ MODES = (
     ("pushPull", "Push"),
     ("easeInOut", "Ease"),
     ("noise", "Noise"),
+    ("scaleFromLeft", "Scale L"),
+    ("scaleFromRight", "Scale R"),
+    ("scaleFromAverage", "Scale Avg"),
+    ("scaleFromDefault", "Scale Def"),
 )
+
+#: 値の幅を変える(中心から拡大・縮小する)モード。
+SCALE_MODES = ("scaleFromLeft", "scaleFromRight", "scaleFromAverage", "scaleFromDefault")
 
 #: blendToFrame で使う左右の時刻。None は未記録。
 _frames = {"left": None, "right": None}
@@ -115,6 +128,9 @@ class KeySession:
         """
         curve, inputs, values = target.curve, target.curve.getKeyInputs(), target.curve.getKeyValues()
         chosen = set(target.indices)
+        if self.mode in SCALE_MODES:
+            pivot = self._pivot(target, values, chosen)
+            return [pivot] * len(target.indices)
         goals = []
         for index in target.indices:
             previous = index - 1
@@ -146,6 +162,32 @@ class KeySession:
                 goals.append(None)
         return goals
 
+    def _pivot(self, target, values, chosen):
+        """値の幅を変えるモードの中心を、カーブごとに求める。
+
+        Args:
+            target (Target): 対象。
+            values (list[float]): カーブの全キーの値。
+            chosen (set[int]): 選んだキーの番号。
+
+        Returns:
+            float: 中心の値。
+        """
+        indices = target.indices
+        if self.mode == "scaleFromLeft":
+            previous = min(indices) - 1
+            while previous in chosen:
+                previous -= 1
+            return values[previous] if previous >= 0 else values[min(indices)]
+        if self.mode == "scaleFromRight":
+            following = max(indices) + 1
+            while following in chosen:
+                following += 1
+            return values[following] if following < len(values) else values[max(indices)]
+        if self.mode == "scaleFromAverage":
+            return sum(values[index] for index in indices) / float(len(indices))
+        return keys.defaultValue(target.plug)
+
     def _value(self, value, goal, amount, noise, position, values, times):
         """1つのキーの新しい値を求める。
 
@@ -168,6 +210,8 @@ class KeySession:
             return None if goal is None else value + (goal - value) * amount
         if self.mode == "pushPull":
             return None if goal is None else value + (value - goal) * amount
+        if self.mode in SCALE_MODES:
+            return goal + (value - goal) * (1.0 + amount)
         if self.mode == "noise":
             spread = max(values) - min(values) if len(values) > 1 else 0.0
             return value + noise * amount * (spread if spread > 1e-9 else 1.0)

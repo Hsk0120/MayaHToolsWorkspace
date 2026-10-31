@@ -5,6 +5,8 @@
 中心のコントロール(反対側の名前が無いもの)が ``translateX``・``rotateY``・``rotateZ``。:func:`setInvertRules` で変えられ、
 ノードに ``animBarMirrorInvert`` (カンマ区切りの文字列)を足すと、そのノードだけ反転するアトリビュートを変えられる。
 中心のコントロールは反転するアトリビュートの符号だけを変える。
+
+:func:`mirrorPose` は現在時刻のポーズ、:func:`mirrorAnimation` は範囲のキー(接線・インフィニティごと)を写す。
 """
 
 import re
@@ -131,9 +133,120 @@ def mirroredValue(plug, time=None):
     if not other.hasAttr(name):
         return None
     source = other.getPlug(name)
-    curve = source.getAnimCurve()
-    value = curve.evaluate(Time.getCurrent() if time is None else time) if curve is not None else source.get()
+    if time is None or keys.animCurveOf(source) is None:
+        value = source.get()
+    else:
+        # レイヤーを重ねたアトリビュートでもその時刻の最終的な値を読むため、カーブではなくアトリビュートを評価する。
+        with Time.preserved():
+            Time.setCurrent(time)
+            value = source.get()
     return -value if name in invertedAttributes(node) else value
+
+
+def selectOpposite(nodes=None, add=False):
+    """選んだコントロールの反対側を選ぶ。
+
+    Args:
+        nodes (Iterable[Node] | None): 対象。Noneは選択。
+        add (bool): Trueは今の選択に足す(両側を選ぶ)。Falseは反対側だけを選ぶ(反対側の無い中心のものは残す)。
+
+    Returns:
+        list[Node]: 選んだノード。
+    """
+    nodes = keys.selectedNodes() if nodes is None else list(nodes)
+    chosen = list(nodes) if add else []
+    for node in nodes:
+        other = oppositeNode(node) or node
+        if other not in chosen:
+            chosen.append(other)
+    mlib.select(chosen, replace=True)
+    return chosen
+
+
+def _pairs(nodes, mode):
+    """写す元と先の組を返す。
+
+    Args:
+        nodes (list[Node]): 選んだノード。
+        mode (str): ``"mirror"``・``"flip"``・``"self"``。
+
+    Returns:
+        list[tuple[Node, Node]]: (元, 先)の組。重なりは除く。
+    """
+    pairs = []
+    for node in nodes:
+        other = oppositeNode(node) or node
+        if mode == "mirror":
+            candidates = [(node, other)]
+        elif mode == "self":
+            candidates = [(other, node)]
+        else:
+            candidates = [(node, other), (other, node)]
+        for pair in candidates:
+            if pair not in pairs:
+                pairs.append(pair)
+    return pairs
+
+
+def _check_mode(mode):
+    """モードの名前を確かめる。"""
+    if mode not in ("mirror", "flip", "self"):
+        raise ValueError("mode must be 'mirror', 'flip' or 'self'")
+
+
+@undoChunk("animBarMirrorAnimation")
+def mirrorAnimation(nodes=None, mode="mirror", timeRange=None):
+    """選んだコントロールのアニメーションを反対側へ写す・入れ替える。
+
+    範囲は timeRange、無ければタイムスライダーで選んだ範囲、Graph Editor で選んだキーの範囲の順に決め、
+    どれも無ければ全キーを写す(先の全キーを置き換える)。範囲を写すときは、先の範囲の外のキーは残す。
+
+    Args:
+        nodes (Iterable[Node] | None): 対象。Noneは選択。
+        mode (str): :func:`mirrorPose` と同じ。
+        timeRange (tuple[float, float] | None): 写す範囲(両端を含むフレーム)。
+
+    Returns:
+        int: 写したカーブの数。
+    """
+    _check_mode(mode)
+    nodes = keys.selectedNodes() if nodes is None else list(nodes)
+    if timeRange is None:
+        timeRange = keys.timelineRange()
+    if timeRange is None:
+        times = keys.keyTimesOf([], selectedOnly=True)
+        timeRange = (times[0], times[-1]) if times else None
+    # 入れ替えでは先に書くと元が変わるため、書く前に全部の元を読む。
+    writes = []
+    for source, target in _pairs(nodes, mode):
+        inverted = invertedAttributes(target)
+        for plug in keys.animatedPlugs(source, channelBox=False):
+            name = plug.getLongName()
+            if source == target and name not in inverted:
+                continue
+            if not target.hasAttr(name):
+                continue
+            snapshot = keys.curveSnapshot(keys.animCurveOf(plug), timeRange)
+            if snapshot["keys"]:
+                writes.append((target.getPlug(name), snapshot, name in inverted))
+    count = 0
+    for plug, snapshot, invert in writes:
+        if not keys.isEditable(plug):
+            continue
+        curve = keys.animCurveOf(plug)
+        if curve is None:
+            first = snapshot["keys"][0]
+            plug.setKey(time=first[0], value=-first[1] if invert else first[1])
+            curve = keys.animCurveOf(plug)
+        keys.applySnapshot(curve, snapshot, transform=_negate if invert else None,
+                           replace="all" if timeRange is None else "range")
+        count += 1
+    return count
+
+
+def _negate(value):
+    """値の符号を反転する(applySnapshot へ渡す)。"""
+    return -value
 
 
 @undoChunk("animBarMirrorPose")
@@ -149,37 +262,27 @@ def mirrorPose(nodes=None, mode="mirror", key=None):
     Returns:
         int: 値を書いたアトリビュートの数。
     """
-    if mode not in ("mirror", "flip", "self"):
-        raise ValueError("mode must be 'mirror', 'flip' or 'self'")
+    _check_mode(mode)
     nodes = keys.selectedNodes() if nodes is None else list(nodes)
     writes = []
-    done = set()
-    for node in nodes:
-        other = oppositeNode(node)
-        pairs = [(node, other or node)] if mode != "flip" else [(node, other or node), (other or node, node)]
-        if mode == "self":
-            pairs = [(other or node, node)]
-        for source, target in pairs:
-            if (source, target) in done:
+    for source, target in _pairs(nodes, mode):
+        for plug in keys.keyablePlugs(source, channelBox=False):
+            name = plug.getLongName()
+            if not target.hasAttr(name):
                 continue
-            done.add((source, target))
-            for plug in keys.keyablePlugs(source, channelBox=False):
-                name = plug.getLongName()
-                if not target.hasAttr(name):
-                    continue
-                value = plug.get()
-                if not isinstance(value, (int, float)) or isinstance(value, bool):
-                    continue
-                if name in invertedAttributes(target):
-                    value = -value
-                writes.append((target.getPlug(name), value))
+            value = plug.get()
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                continue
+            if name in invertedAttributes(target):
+                value = -value
+            writes.append((target.getPlug(name), value))
     count = 0
     now = Time.getCurrent()
     for plug, value in writes:
-        if plug.isLocked() or (plug.getSource() is not None and plug.getAnimCurve() is None):
+        if not keys.isEditable(plug):
             continue
         plug.set(value)
-        if key or (key is None and plug.getAnimCurve() is not None):
+        if key or (key is None and keys.animCurveOf(plug) is not None):
             plug.setKey(time=now)
         count += 1
     return count

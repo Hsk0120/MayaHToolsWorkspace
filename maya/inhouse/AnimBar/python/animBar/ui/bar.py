@@ -281,7 +281,8 @@ class AnimBar(QtWidgets.QWidget):
         self.mode.setToolTip("Key transform mode")
         section.widget(self.mode)
         slider = UndoSlider(-100, 100, 0, snapBack=0)
-        slider.setToolTip("Drag to transform the selected keys toward the mode's goal")
+        slider.setToolTip("Drag to transform the selected keys toward the mode's goal\n"
+                          "Hold Shift to scale from the average, Ctrl to blend to the default")
         slider.onPress = self._start_session
         slider.onDrag = lambda value: self.session.apply(value / 100.0) if self.session else None
         section.widget(slider)
@@ -299,8 +300,17 @@ class AnimBar(QtWidgets.QWidget):
         return section
 
     def _start_session(self):
-        """スライダーを押したときに、選んだキーの開始時の値を覚える。"""
-        self.session = keyTransform.KeySession(self.mode.currentData(), seed=int(Time.getCurrent() * 1000))
+        """スライダーを押したときに、選んだキーの開始時の値を覚える(修飾キーでモードを一時的に替える)。"""
+        self.session = keyTransform.KeySession(self._session_mode(), seed=int(Time.getCurrent() * 1000))
+
+    def _session_mode(self):
+        """押した修飾キーに合わせたモードを返す(Shift は平均から拡大・縮小、Ctrl は既定値へ近づける)。"""
+        modifiers = QtWidgets.QApplication.keyboardModifiers()
+        if modifiers & QtCore.Qt.ShiftModifier:
+            return "scaleFromAverage"
+        if modifiers & QtCore.Qt.ControlModifier:
+            return "blendToDefault"
+        return self.mode.currentData()
 
     def _frame_menu(self, menu):
         """blendToFrame の左右の時刻。"""
@@ -319,9 +329,13 @@ class AnimBar(QtWidgets.QWidget):
         return section
 
     def _tangent_menu(self, kind, menu):
-        """接線の入力側・出力側だけの設定。"""
+        """接線の入力側・出力側だけの設定と、対象のキーの選び方。"""
         _action(menu, "In tangent only", functools.partial(tangents.setTangent, kind, "in"))
         _action(menu, "Out tangent only", functools.partial(tangents.setTangent, kind, "out"))
+        menu.addSeparator()
+        _action(menu, "First key of each curve", functools.partial(tangents.setTangent, kind, scope="first"))
+        _action(menu, "Last key of each curve", functools.partial(tangents.setTangent, kind, scope="last"))
+        _action(menu, "Every key (or the highlighted range)", functools.partial(tangents.setTangent, kind, scope="all"))
 
     def _time(self):
         """キーの時間・再生範囲・プレイブラスト。"""
@@ -380,10 +394,36 @@ class AnimBar(QtWidgets.QWidget):
         menu.addSeparator()
         _action(menu, "Play last playblast", timeline.playLastPlayblast)
         _action(menu, "Duplicate selected camera (baked)", timeline.duplicateCamera)
+        menu.addSeparator()
+        settings = timeline.playblastSettings()
+        options = menu.addMenu("Settings")
+        _action(options, "Include sound", lambda: timeline.setPlayblastSettings(sound=not settings["sound"]),
+                checked=settings["sound"])
+        _action(options, "Show HUD and ornaments",
+                lambda: timeline.setPlayblastSettings(showOrnaments=not settings["showOrnaments"]),
+                checked=settings["showOrnaments"])
+        _action(options, "Use the highlighted range",
+                lambda: timeline.setPlayblastSettings(useRange=not settings["useRange"]), checked=settings["useRange"])
+        overscan = options.addMenu("Overscan")
+        for value in (None, 1.1, 1.2, 1.3):
+            _action(overscan, "Keep camera setting" if value is None else "{:g}".format(value),
+                    functools.partial(timeline.setPlayblastSettings, overscan=value),
+                    checked=settings["overscan"] == value)
+        size = options.addMenu("Size")
+        for percent in (50, 75, 100):
+            _action(size, "{}%".format(percent), functools.partial(timeline.setPlayblastSettings, percent=percent),
+                    checked=settings["percent"] == percent)
+        _action(options, "Load default settings", timeline.resetPlayblastSettings)
 
     def _mirror_menu(self, menu):
         """ミラーの右クリックメニュー(反対側から写す・反転するアトリビュートの規則)。"""
         _action(menu, "Copy the opposite side onto the selection", lambda: mirror.mirrorPose(mode="self"))
+        menu.addSeparator()
+        _action(menu, "Mirror animation (highlighted range or selected keys)",
+                lambda: mirror.mirrorAnimation(mode="mirror"))
+        _action(menu, "Swap animation of both sides", lambda: mirror.mirrorAnimation(mode="flip"))
+        _action(menu, "Select the opposite side", mirror.selectOpposite)
+        _action(menu, "Add the opposite side to the selection", lambda: mirror.selectOpposite(add=True))
         menu.addSeparator()
         rules = mirror.setInvertRules()
         for side, label in (("side", "Invert on side controls"), ("center", "Invert on center controls")):
@@ -411,12 +451,41 @@ class AnimBar(QtWidgets.QWidget):
         section.button("mirror", "Mirror the pose to the opposite side", lambda: mirror.mirrorPose(mode="mirror"),
                        menu=self._mirror_menu)
         section.button("flip", "Swap the poses of both sides", lambda: mirror.mirrorPose(mode="flip"))
-        section.button("transformAll", "Apply the change at this frame to every key", timing.transformAll)
+        self.transformAll = section.button(
+            "transformAll", "Transform all: press, change the pose, then press again to apply the change to every key",
+            None, menu=self._transform_all_menu, checkable=True)
+        self.transformAll.clicked.disconnect()
+        self.transformAll.toggled.connect(self._toggle_transform_all)
         section.button("copy", "Copy animation", animCopy.copyAnimation,
                        menu=lambda menu: _action(menu, "Copy the playback range only",
                                                  lambda: animCopy.copyAnimation(timeRange=Time.getPlaybackRange())))
         section.button("paste", "Paste animation onto the selection", animCopy.pasteAnimation, menu=self._paste_menu)
         return section
+
+    def _toggle_transform_all(self, state):
+        """transformAll のトグル。押して始め、もう一度押して反映する。"""
+        if state:
+            if not run(timing.startTransformAll):
+                self._set_checked(self.transformAll, False)
+                _warn("Select animated controls for transform all")
+            return
+        if timing.isTransformAllActive() and run(timing.finishTransformAll) is None and timing.isTransformAllActive():
+            # 反映できなかった(時刻が違う等)ときは押した状態に戻し、やり直せるようにする。
+            self._set_checked(self.transformAll, True)
+
+    def _transform_all_menu(self, menu):
+        """transformAll のすぐに反映する操作とやめる操作。"""
+        _action(menu, "Apply the change at this frame now", timing.transformAll)
+        if timing.isTransformAllActive():
+            _action(menu, "Cancel transform all",
+                    lambda: (timing.cancelTransformAll(), self._set_checked(self.transformAll, False)))
+
+    @staticmethod
+    def _set_checked(button, state):
+        """シグナルを出さずにボタンの押した状態を変える。"""
+        button.blockSignals(True)
+        button.setChecked(state)
+        button.blockSignals(False)
 
     def _reset_menu(self, menu):
         """リセットするアトリビュートの組。"""
@@ -486,6 +555,8 @@ class AnimBar(QtWidgets.QWidget):
         tumble.toggled.connect(lambda state: run(viewTools.setTumbleOnObjects, state))
         recovery = section.button("recovery", "Animation backup", None, menu=self._recovery_menu, checkable=True)
         recovery.clicked.disconnect()
+        # 起動時に前回の状態で有効にしていれば、押した状態で表示する。
+        recovery.setChecked(crashRecovery.isEnabled())
         recovery.toggled.connect(lambda state: run(crashRecovery.setEnabled, state))
         return section
 

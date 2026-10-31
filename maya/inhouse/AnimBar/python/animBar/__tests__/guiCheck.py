@@ -125,13 +125,56 @@ def main(output_dir=None, finished=None):
             movie = timeline.playblast(play=False, folder=playblast_folder)
             checks["playblast_file"] = bool(movie) and any(Path(playblast_folder).iterdir())
             checks["jump_follow"] = timeline.setJumpToSelectedKey(True) and not timeline.setJumpToSelectedKey(False)
+            # プレイブラストの設定: 大きさ・音声なし・オーバースキャンで撮り、カメラのオーバースキャンを元へ戻す。
+            camera = cmds.modelPanel(cmds.getPanel(type="modelPanel")[0], query=True, camera=True)
+            shape = (cmds.listRelatives(camera, shapes=True) or [camera])[0]
+            overscan = cmds.getAttr(shape + ".overscan")
+            timeline.setPlayblastSettings(sound=False, overscan=1.3, percent=50, showOrnaments=False)
+            try:
+                movie = timeline.playblast(play=False, folder=playblast_folder)
+            finally:
+                timeline.resetPlayblastSettings()
+            checks["playblast_settings"] = bool(movie) and abs(cmds.getAttr(shape + ".overscan") - overscan) < 1e-9
+            checks["timeline_range_none"] = keys.timelineRange() is None
+            # 退避を有効にすると、シーンを開いたときに確かめる scriptJob も作る。
+            crashRecovery.setEnabled(True, remember=False)
+            jobs = " ".join(cmds.scriptJob(listJobs=True))
+            checks["recovery_open_job"] = "SceneOpened" in jobs and crashRecovery.checkOnOpen(ask=lambda path: "keep")                 in (None, "keep")
+            crashRecovery.setEnabled(False, remember=False)
+            # transformAll のトグルのボタン: 押して値を変え、もう一度押すと全キーへ差を足す。
+            from animBar.core import timing
+            moved = cmds.createNode("transform", name="guiTransformAll", skipSelect=True)
+            cmds.setKeyframe(moved, attribute="ty", time=1, value=0)
+            cmds.setKeyframe(moved, attribute="ty", time=5, value=2)
+            cmds.select(moved)
+            cmds.currentTime(5)
+            widget = bar._bar["widget"]
+            widget.transformAll.setChecked(True)
+            started = timing.isTransformAllActive()
+            cmds.setAttr(moved + ".ty", 3)
+            widget.transformAll.setChecked(False)
+            checks["transform_all_toggle"] = started and not timing.isTransformAllActive() and                 cmds.keyframe(moved + ".ty", query=True, valueChange=True) == [1.0, 3.0]
+            checks["session_mode_default"] = widget._session_mode() == widget.mode.currentData()
+            # 右クリックのメニューが今の状態で作れること。
+            menus = {}
+            for name, build in (("playblast", widget._playblast_menu), ("mirror", widget._mirror_menu),
+                                ("tangent", lambda menu: widget._tangent_menu("flat", menu)),
+                                ("transformAll", widget._transform_all_menu)):
+                menu = QtWidgets.QMenu(widget)
+                build(menu)
+                menus[name] = len(menu.actions())
+                menu.deleteLater()
+            checks["menus"] = menus
+            cmds.delete(moved)
             animBar.toggle()
             checks["startup_respects_hidden"] = startup.install() is False
             checks["startup_shows"] = (cmds.optionVar(intValue=(bar.VISIBLE_OPTION, 1)) or True) and startup.install()
             expected = {"control_exists": True, "runtime_commands": True, "startup_respects_hidden": True,
                         "startup_shows": True, "widget_built": True, "docked": True, "above_time_slider": True,
                         "toggle_hides": True, "toggle_shows": True, "micro_rebaseline_jobs": True,
-                        "micro_stopped": True, "jump_follow": True,
+                        "micro_stopped": True, "jump_follow": True, "playblast_settings": True,
+                        "timeline_range_none": True, "recovery_open_job": True, "transform_all_toggle": True,
+                        "session_mode_default": True,
                         "recovery_toggle": True, "tumble_toggle": True, "playblast_file": True,
                         "closed_editor_ignores_keys": True, "open_editor_uses_keys": True}
             failed = [name for name, value in expected.items() if checks.get(name) != value]
@@ -139,6 +182,8 @@ def main(output_dir=None, finished=None):
                 failed.append("tween_slider_value")
             if checks["bars_in_control"] != 1:
                 failed.append("bars_in_control")
+            if not all(checks["menus"].values()):
+                failed.append("menus")
             if checks["set_buttons"] != ["Gui"]:
                 failed.append("set_buttons")
             result["failed"] = failed

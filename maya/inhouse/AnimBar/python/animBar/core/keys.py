@@ -3,17 +3,22 @@
 対象の選び方は次の順に決める。
 
 1. Graph Editor でキーを選んでいれば、そのカーブと選んだキー。
-2. Channel Box でアトリビュートを選んでいれば、選んだノードのそのアトリビュート。
-3. それ以外は、選んだノードのキー可能なアトリビュート。
+2. タイムスライダーで範囲を選んでいれば(Shift+ドラッグの赤い範囲)、選んだノードのその範囲のキー。
+3. Channel Box でアトリビュートを選んでいれば、選んだノードのそのアトリビュート。
+4. それ以外は、選んだノードのキー可能なアトリビュート。
 
 カーブは :class:`mlib.nodes.AnimCurve`、アトリビュートは :class:`mlib.plugs.Plug` で扱う。
+アニメーションレイヤー・pairBlend(コンストレイントとキーの切替)を介したアトリビュートは、
+:func:`animCurveOf` で今編集するカーブ(Mayaの setKeyframe が打つレイヤーのカーブ)を探す。
 """
 
 import math
 from collections import namedtuple
 
 import maya.cmds as cmds
+import maya.mel as mel
 
+import mlib
 from mlib.common import Selection, Time
 
 #: キーの比較で同じ時刻とみなす差(フレーム)。
@@ -52,11 +57,62 @@ def keyablePlugs(node, channelBox=True):
         chosen = [plug for plug in _channel_box_plugs() if plug.getNode() == node]
         if chosen:
             return chosen
-    return node.getPlugs(keyable=True, scalar=True, writable=True)
+    # writable=True はレイヤー・pairBlend の先のアトリビュートを除くため、編集できるかを自分で判定する。
+    return [plug for plug in node.getPlugs(keyable=True, scalar=True) if isEditable(plug)]
+
+
+def animCurveOf(plug):
+    """アトリビュートの、今編集するアニメーションカーブを返す。
+
+    animCurve が直接つながっていればそれ。アニメーションレイヤー・pairBlend を介している場合は、
+    Mayaの setKeyframe が打つカーブ(選んだ・優先するレイヤーのカーブ)を返す。
+
+    Args:
+        plug (Plug): アトリビュート。
+
+    Returns:
+        AnimCurve | None: カーブ。アニメーションが無ければNone。
+    """
+    curve = plug.getAnimCurve()
+    if curve is not None or plug.getSource() is None:
+        return curve
+    # mlib にはアニメーションレイヤーの照会の入口が無いため、レイヤーを選んでカーブを返す cmds.keyframe を使う。
+    names = cmds.keyframe(str(plug), query=True, name=True) or []
+    return mlib.getNode(names[0]) if names else None
+
+
+def isEditable(plug):
+    """アトリビュートの値を書き換え・キーを打てるかを返す(ロックされておらず、入力がアニメーションだけ)。
+
+    Args:
+        plug (Plug): アトリビュート。
+
+    Returns:
+        bool: 書き換えられればTrue。
+    """
+    return not plug.isLocked() and (plug.getSource() is None or animCurveOf(plug) is not None)
+
+
+def timelineRange():
+    """タイムスライダーで選んだ範囲(Shift+ドラッグの赤い範囲)を返す。
+
+    Returns:
+        tuple[float, float] | None: (開始, 終了)のフレーム(終了は範囲の最後のフレーム)。選んでいない・
+        GUIが無ければNone。
+    """
+    if cmds.about(batch=True):
+        return None
+    # mlib にはタイムスライダーの選択範囲の入口が無いため、Mayaのコマンドを使う。
+    slider = mel.eval("$animBarTmp = $gPlayBackSlider")
+    if not cmds.timeControl(slider, query=True, rangeVisible=True):
+        return None
+    start, end = cmds.timeControl(slider, query=True, rangeArray=True)
+    # rangeArray の終わりは範囲の次のフレームを指す。
+    return float(start), float(end) - 1.0
 
 
 def animatedPlugs(node, channelBox=True):
-    """ノードの、animCurveが直接つながったキー可能なアトリビュートを返す。
+    """ノードの、アニメーションのあるキー可能なアトリビュートを返す(レイヤー・pairBlend の先を含む)。
 
     Args:
         node (Node): 対象ノード。
@@ -65,7 +121,7 @@ def animatedPlugs(node, channelBox=True):
     Returns:
         list[Plug]: アニメーションのあるアトリビュート。
     """
-    return [plug for plug in keyablePlugs(node, channelBox) if plug.getAnimCurve() is not None]
+    return [plug for plug in keyablePlugs(node, channelBox) if animCurveOf(plug) is not None]
 
 
 def graphEditorKeys():
@@ -135,7 +191,8 @@ def neighborKeys(curve, time):
 def targets(create=False):
     """編集対象のカーブとキーを返す。
 
-    Graph Editor でキーを選んでいればそれを使う。選んでいなければ、選んだノードの
+    Graph Editor でキーを選んでいればそれを使う。タイムスライダーで範囲を選んでいれば、選んだノードの
+    その範囲のキーを使う(create は無視する)。どちらでもなければ、選んだノードの
     アトリビュートのうち現在時刻にキーがあるものを使う。create=True なら、現在時刻に
     キーが無いアトリビュートにもキーを打ってから対象にする(アニメーションの無いものにも打つ)。
     create="animated" なら、アニメーションのあるアトリビュートだけに、カーブの形を変えずに
@@ -151,20 +208,44 @@ def targets(create=False):
     selected = graphEditorKeys()
     if selected:
         return [Target(curve, indices, drivenPlug(curve)) for curve, indices in selected.items()]
+    span = timelineRange()
+    if span is not None:
+        return rangeTargets(selectedNodes(), span)
     now = Time.getCurrent()
     result = []
     for node in selectedNodes():
         plugs = keyablePlugs(node) if create is True else animatedPlugs(node)
         for plug in plugs:
-            curve = plug.getAnimCurve()
+            curve = animCurveOf(plug)
             if curve is None or keyIndexAt(curve, now) is None:
                 if not create:
                     continue
                 plug.setKey(time=now, insert=curve is not None)
-                curve = plug.getAnimCurve()
+                curve = animCurveOf(plug)
             index = keyIndexAt(curve, now)
             if index is not None:
                 result.append(Target(curve, [index], plug))
+    return result
+
+
+def rangeTargets(nodes, span):
+    """ノードのアニメーションのうち、範囲の中のキーを対象として返す。
+
+    Args:
+        nodes (Iterable[Node]): 対象ノード。
+        span (tuple[float, float]): (開始, 終了)のフレーム(両端を含む)。
+
+    Returns:
+        list[Target]: 範囲にキーのあるカーブの対象。
+    """
+    result = []
+    for node in nodes:
+        for plug in animatedPlugs(node):
+            curve = animCurveOf(plug)
+            indices = [index for index, time in enumerate(curve.getKeyInputs())
+                       if span[0] - TIME_EPSILON <= time <= span[1] + TIME_EPSILON]
+            if indices:
+                result.append(Target(curve, indices, plug))
     return result
 
 
@@ -186,7 +267,7 @@ def keyTimesOf(nodes, selectedOnly=False):
     else:
         for node in nodes:
             for plug in animatedPlugs(node, channelBox=False):
-                times.update(plug.getAnimCurve().getKeyInputs())
+                times.update(animCurveOf(plug).getKeyInputs())
     return sorted(_unique(times))
 
 
@@ -347,14 +428,48 @@ def defaultValue(plug):
 def drivenPlug(curve):
     """カーブが駆動するアトリビュートを返す。
 
+    アニメーションレイヤー(animBlendNode)・pairBlend を介していれば、その先のアトリビュートをたどる。
+
     Args:
         curve (AnimCurve): カーブ。
 
     Returns:
-        Plug | None: 出力の接続先。無ければNone。
+        Plug | None: 駆動するアトリビュート。無ければNone。
     """
     destinations = curve.getDrivenPlugs()
-    return destinations[0] if destinations else None
+    plug = destinations[0] if destinations else None
+    # レイヤーを重ねるとブレンドのノードが連なるため、ブレンドでないノードに着くまでたどる(循環に備えて回数を限る)。
+    for _ in range(64):
+        if plug is None:
+            return None
+        output = _blend_output(plug)
+        if output is None:
+            return plug
+        following = output.getDestinations(skipConversionNodes=True)
+        plug = following[0] if following else None
+    return plug
+
+
+def _blend_output(plug):
+    """ブレンドのノード(animBlendNode・pairBlend)の入力のアトリビュートから、対応する出力を返す。
+
+    Args:
+        plug (Plug): ブレンドのノードの入力のアトリビュート。
+
+    Returns:
+        Plug | None: 出力のアトリビュート。ブレンドのノードでなければNone。
+    """
+    node = plug.getNode()
+    name = plug.getLongName()
+    if node.isType("animBlendNodeBase"):
+        # 回転・移動の3軸をまとめたブレンド(inputAX → outputX)と、1つの値のブレンド(inputA → output)がある。
+        axis = name[-1] if name[-1] in "XYZ" and name.startswith("input") else ""
+        return node.getPlug("output" + axis) if node.hasAttr("output" + axis) else None
+    if node.isType("pairBlend") and name.startswith("in"):
+        # inTranslateX1・inRotateZ2 → outTranslateX・outRotateZ
+        output = "out" + name[2:].rstrip("12")
+        return node.getPlug(output) if node.hasAttr(output) else None
+    return None
 
 
 def _channel_box_plugs():

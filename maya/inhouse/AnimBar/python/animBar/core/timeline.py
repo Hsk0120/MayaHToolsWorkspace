@@ -1,6 +1,6 @@
 """再生範囲の保存・切替、選んだキーへの移動、プレイブラスト。
 
-保存した範囲は、Mayaのユーザー設定(optionVar ``animBarTimelineRanges``)へ JSON で残す。
+保存した範囲とプレイブラストの設定は、Mayaのユーザー設定(optionVar)へ JSON で残す。
 """
 
 import json
@@ -8,6 +8,7 @@ import os
 import tempfile
 
 import maya.cmds as cmds
+import maya.mel as mel
 
 import mlib
 from mlib.common import ScriptJob, Selection, Time
@@ -20,6 +21,14 @@ RANGES_OPTION = "animBarTimelineRanges"
 
 #: 直前のプレイブラストのファイル名を置くoptionVarの名前。
 LAST_PLAYBLAST_OPTION = "animBarLastPlayblast"
+
+#: プレイブラストの設定を置くoptionVarの名前。
+PLAYBLAST_OPTION = "animBarPlayblastSettings"
+
+#: プレイブラストの設定の既定。sound はタイムスライダーの音声を入れるか、overscan は撮る間のカメラの
+#: オーバースキャン(Noneは変えない)、percent は大きさ(%)、showOrnaments はHUD等を映すか、
+#: useRange はタイムスライダーで選んだ範囲があればそこだけ撮るか。
+PLAYBLAST_DEFAULTS = {"sound": True, "overscan": None, "percent": 100, "showOrnaments": True, "useRange": True}
 
 
 def savedRanges():
@@ -171,8 +180,63 @@ def _jump_if_keys():
         jumpToKey(0)
 
 
+def playblastSettings():
+    """プレイブラストの設定を返す。
+
+    Returns:
+        dict: :data:`PLAYBLAST_DEFAULTS` と同じ鍵の辞書。
+    """
+    settings = dict(PLAYBLAST_DEFAULTS)
+    if cmds.optionVar(exists=PLAYBLAST_OPTION):
+        try:
+            stored = json.loads(cmds.optionVar(query=PLAYBLAST_OPTION))
+        except ValueError:
+            stored = {}
+        settings.update({key: value for key, value in stored.items() if key in PLAYBLAST_DEFAULTS})
+    return settings
+
+
+def setPlayblastSettings(**settings):
+    """プレイブラストの設定を変えて覚える。
+
+    Args:
+        **settings: :data:`PLAYBLAST_DEFAULTS` の鍵と値。
+
+    Returns:
+        dict: 変えた後の設定。
+
+    Raises:
+        KeyError: 知らない鍵を渡した場合。
+        ValueError: percent が 1〜200 でない、overscan が 1 未満の場合。
+    """
+    unknown = set(settings) - set(PLAYBLAST_DEFAULTS)
+    if unknown:
+        raise KeyError("Unknown playblast settings: " + ", ".join(sorted(unknown)))
+    if "percent" in settings and not 1 <= int(settings["percent"]) <= 200:
+        raise ValueError("percent must be between 1 and 200")
+    if settings.get("overscan") is not None and float(settings["overscan"]) < 1.0:
+        raise ValueError("overscan must be 1.0 or more")
+    current = playblastSettings()
+    current.update(settings)
+    cmds.optionVar(stringValue=(PLAYBLAST_OPTION, json.dumps(current)))
+    return current
+
+
+def resetPlayblastSettings():
+    """プレイブラストの設定を既定へ戻す。
+
+    Returns:
+        dict: 既定の設定。
+    """
+    if cmds.optionVar(exists=PLAYBLAST_OPTION):
+        cmds.optionVar(remove=PLAYBLAST_OPTION)
+    return playblastSettings()
+
+
 def playblast(camera=None, play=True, folder=None):
-    """今の再生範囲をプレイブラストする。
+    """今の再生範囲(タイムスライダーで範囲を選んでいればその範囲)をプレイブラストする。
+
+    音声・オーバースキャン・大きさ等は :func:`playblastSettings` に従う。
 
     Args:
         camera (str | Node | None): 撮るカメラ。Noneは今のビューポート。
@@ -182,6 +246,7 @@ def playblast(camera=None, play=True, folder=None):
     Returns:
         str: 保存したファイルのパス。
     """
+    settings = playblastSettings()
     # mlib にはビューポートとプレイブラストの入口が無いため、Mayaのコマンドを使う。
     panel = cmds.getPanel(withFocus=True)
     if not panel or cmds.getPanel(typeOf=panel) != "modelPanel":
@@ -191,16 +256,48 @@ def playblast(camera=None, play=True, folder=None):
     if camera is not None and panel:
         previous = cmds.modelPanel(panel, query=True, camera=True)
         cmds.modelPanel(panel, edit=True, camera=mlib.nodes.Node(camera).getFullName())
+    overscan = None
+    if settings["overscan"] is not None and panel:
+        shape = mlib.nodes.Node(cmds.modelPanel(panel, query=True, camera=True))
+        shape = shape.getShape() if isinstance(shape, mlib.nodes.Transform) else shape
+        if shape is not None and shape.hasAttr("overscan") and keys.isEditable(shape.getPlug("overscan")):
+            overscan = (shape.getPlug("overscan"), shape.getPlug("overscan").get())
+            overscan[0].set(float(settings["overscan"]))
     try:
         start, end = Time.getPlaybackRange()
+        span = keys.timelineRange() if settings["useRange"] else None
+        if span is not None:
+            start, end = span
+        flags = {}
+        sound = _timeline_sound() if settings["sound"] else None
+        if sound:
+            flags["sound"] = sound
         path = os.path.join(folder or tempfile.gettempdir(), "animBar_playblast")
         result = cmds.playblast(filename=path, startTime=start, endTime=end, forceOverwrite=True,
-                                viewer=play, showOrnaments=True, percent=100, offScreen=True)
+                                viewer=play, showOrnaments=bool(settings["showOrnaments"]),
+                                percent=int(settings["percent"]), offScreen=True, **flags)
     finally:
+        if overscan is not None:
+            overscan[0].set(overscan[1])
         if previous is not None:
             cmds.modelPanel(panel, edit=True, camera=previous)
     cmds.optionVar(stringValue=(LAST_PLAYBLAST_OPTION, result or ""))
     return result
+
+
+def _timeline_sound():
+    """タイムスライダーで鳴らしている音声のノード名を返す。
+
+    Returns:
+        str | None: 音声のノード名。無い・GUIが無ければNone。
+    """
+    if cmds.about(batch=True):
+        return None
+    # mlib にはタイムスライダーの音声の入口が無いため、Mayaのコマンドを使う。
+    slider = mel.eval("$animBarTmp = $gPlayBackSlider")
+    if not cmds.timeControl(slider, query=True, displaySound=True):
+        return None
+    return cmds.timeControl(slider, query=True, sound=True) or None
 
 
 def playLastPlayblast():

@@ -3,6 +3,10 @@
 - Mayaの接線型(auto・spline・linear・flat・step・clamped・plateau)はそのまま設定する。
 - ``flow``: 前後のキーを結ぶ向きの接線(キーを通る滑らかな流れ)。両端のキーは flat。
 - ``bounce``: 山・谷(前後より大きい・小さい)のキーは flat、それ以外は flow。
+
+対象のキーは scope で選ぶ。``"selected"`` は選んだキー(:func:`keys.targets` の順。タイムスライダーの範囲も含む)、
+``"first"``・``"last"`` は選んだノードの各カーブの最初・最後のキー(範囲を選んでいればその中の最初・最後)、
+``"all"`` は全キー(範囲を選んでいればその中の全キー)。
 """
 
 import math
@@ -19,14 +23,18 @@ MAYA_TYPES = ("auto", "spline", "linear", "flat", "step", "clamped", "plateau")
 #: 計算して決める接線。
 COMPUTED_TYPES = ("flow", "bounce")
 
+#: 対象のキーの選び方。
+SCOPES = ("selected", "first", "last", "all")
+
 
 @undoChunk("animBarSetTangent")
-def setTangent(kind, side="both"):
+def setTangent(kind, side="both", scope="selected"):
     """選んだキー(無ければ現在時刻のキー)の接線を設定する。
 
     Args:
         kind (str): :data:`MAYA_TYPES` または :data:`COMPUTED_TYPES` の名前。
         side (str): ``"both"``・``"in"``・``"out"``。stepは出力側だけに効く。
+        scope (str): :data:`SCOPES` の名前(対象のキーの選び方)。
 
     Returns:
         int: 設定したキーの数。
@@ -35,8 +43,10 @@ def setTangent(kind, side="both"):
         raise ValueError("Unknown tangent type: " + str(kind))
     if side not in ("both", "in", "out"):
         raise ValueError("side must be 'both', 'in' or 'out'")
+    if scope not in SCOPES:
+        raise ValueError("scope must be one of " + ", ".join(SCOPES))
     count = 0
-    for target in keys.targets():
+    for target in _scoped_targets(scope):
         for index in target.indices:
             if kind in MAYA_TYPES:
                 _set_type(target.curve, index, kind, side)
@@ -44,6 +54,34 @@ def setTangent(kind, side="both"):
                 _set_computed(target.curve, index, kind, side)
             count += 1
     return count
+
+
+def _scoped_targets(scope):
+    """scope に合わせて対象のカーブとキーを返す。
+
+    Args:
+        scope (str): :data:`SCOPES` の名前。
+
+    Returns:
+        list[Target]: 対象。
+    """
+    if scope == "selected":
+        return keys.targets()
+    span = keys.timelineRange()
+    result = []
+    for node in keys.selectedNodes():
+        for plug in keys.animatedPlugs(node):
+            curve = keys.animCurveOf(plug)
+            indices = [index for index, time in enumerate(curve.getKeyInputs())
+                       if span is None or span[0] - keys.TIME_EPSILON <= time <= span[1] + keys.TIME_EPSILON]
+            if not indices:
+                continue
+            if scope == "first":
+                indices = indices[:1]
+            elif scope == "last":
+                indices = indices[-1:]
+            result.append(keys.Target(curve, indices, plug))
+    return result
 
 
 def flowAngle(curve, index):

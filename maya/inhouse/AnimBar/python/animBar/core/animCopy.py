@@ -22,18 +22,21 @@ def copyAnimation(nodes=None, timeRange=None):
 
     Args:
         nodes (Iterable[Node] | None): 対象。Noneは選択。
-        timeRange (tuple[float, float] | None): コピーする範囲。Noneは全キー。
+        timeRange (tuple[float, float] | None): コピーする範囲。Noneはタイムスライダーで選んだ範囲、
+            選んでいなければ全キー。
 
     Returns:
         int: コピーしたカーブの数。
     """
     nodes = keys.selectedNodes() if nodes is None else list(nodes)
+    if timeRange is None:
+        timeRange = keys.timelineRange()
     order, data, count, times = [], {}, 0, []
     for node in nodes:
         name = node.getNodeName(removeNamespace=True)
         curves = {}
         for plug in keys.animatedPlugs(node, channelBox=False):
-            snapshot = keys.curveSnapshot(plug.getAnimCurve(), timeRange)
+            snapshot = keys.curveSnapshot(keys.animCurveOf(plug), timeRange)
             if snapshot["keys"]:
                 curves[plug.getLongName()] = snapshot
                 times.extend(entry[0] for entry in snapshot["keys"])
@@ -101,15 +104,15 @@ def pasteAnimation(nodes=None, mode="selected", inPlace=False, namespace=None, i
             if not node.hasAttr(attribute):
                 continue
             plug = node.getPlug(attribute)
-            if plug.isLocked() or (plug.getSource() is not None and plug.getAnimCurve() is None):
+            if not keys.isEditable(plug):
                 continue
             if invertCycle:
                 snapshot = _half_cycle(snapshot)
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             if curve is None:
                 first = snapshot["keys"][0]
                 plug.setKey(time=first[0] + offset, value=first[1])
-                curve = plug.getAnimCurve()
+                curve = keys.animCurveOf(plug)
             transform = (lambda value: -value) if attribute in inverted else None
             keys.applySnapshot(curve, snapshot, offset=offset, transform=transform)
             count += 1

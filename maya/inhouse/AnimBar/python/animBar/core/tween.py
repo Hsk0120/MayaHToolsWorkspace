@@ -47,7 +47,7 @@ def tween(ratio):
     now = Time.getCurrent()
     for node in keys.selectedNodes():
         for plug in keys.animatedPlugs(node):
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             previous, following = keys.neighborKeys(curve, now)
             if previous is None or following is None:
                 continue
@@ -128,7 +128,7 @@ def tweenLinear(direction):
     count = 0
     for node in keys.selectedNodes():
         for plug in keys.animatedPlugs(node):
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             inputs, values = curve.getKeyInputs(), curve.getKeyValues()
             if direction < 0:
                 around = [index for index, time in enumerate(inputs) if time < now - keys.TIME_EPSILON][-2:]

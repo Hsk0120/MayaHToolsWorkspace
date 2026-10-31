@@ -38,7 +38,7 @@ def nudgeKeys(frames, everything=False):
         # 選んだキーは一緒に動かす。
         curve.moveKey(indices, timeOffset=frames)
         count += len(indices)
-    if count and not everything and not keys.graphEditorKeys():
+    if count and not everything and not keys.graphEditorKeys() and keys.timelineRange() is None:
         Time.setCurrent(Time.getCurrent() + frames)
     return count
 
@@ -86,7 +86,7 @@ def insertFrames(frames, nodes=None):
     curves = []
     for node in nodes:
         for plug in keys.animatedPlugs(node, channelBox=False):
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             inputs = curve.getKeyInputs()
             after = [value for value in inputs if value > now + keys.TIME_EPSILON]
             if not after:
@@ -118,7 +118,7 @@ def shareKeys(nodes=None, selectedOnly=False):
     for node in nodes:
         plugs = keys.animatedPlugs(node, channelBox=False)
         for plug in plugs:
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             existing = curve.getKeyInputs()
             for time in times:
                 if all(abs(time - value) > keys.TIME_EPSILON for value in existing):
@@ -166,7 +166,7 @@ def resetValues(nodes=None, attributes=None, key=None):
                      (plug.getParent() is not None and plug.getParent().getLongName() in wanted)]
         for plug in plugs:
             plug.reset()
-            if key or (key is None and plug.getAnimCurve() is not None):
+            if key or (key is None and keys.animCurveOf(plug) is not None):
                 plug.setKey(time=now)
             count += 1
     return count
@@ -189,7 +189,7 @@ def transformAll(nodes=None):
     count = 0
     for node in nodes:
         for plug in keys.animatedPlugs(node):
-            curve = plug.getAnimCurve()
+            curve = keys.animCurveOf(plug)
             value = plug.get()
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 continue
@@ -197,4 +197,93 @@ def transformAll(nodes=None):
             if abs(delta) > 1e-9:
                 curve.moveKey(valueOffset=delta)
                 count += 1
+    return count
+
+
+
+#: transformAll のトグルで覚えた値。{"time": 時刻, "values": [(Plug, 値, カーブの値), ...]}。
+_transform_all = {"time": None, "values": []}
+
+
+def startTransformAll(nodes=None):
+    """transformAll のトグルを始め、今の値を覚える(この後にポーズを変え、:func:`finishTransformAll` で反映する)。
+
+    自動キーで現在時刻にキーが打たれても、覚えた値との差を全キーへ足せる。
+
+    Args:
+        nodes (Iterable[Node] | None): 対象。Noneは選択。
+
+    Returns:
+        int: 値を覚えたアトリビュートの数。
+    """
+    nodes = keys.selectedNodes() if nodes is None else list(nodes)
+    now = Time.getCurrent()
+    values = []
+    for node in nodes:
+        for plug in keys.animatedPlugs(node):
+            value = plug.get()
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                values.append((plug, float(value), keys.animCurveOf(plug).evaluate(now)))
+    _transform_all.update(time=now, values=values)
+    return len(values)
+
+
+def isTransformAllActive():
+    """transformAll のトグルの途中かを返す。
+
+    Returns:
+        bool: 値を覚えていればTrue。
+    """
+    return _transform_all["time"] is not None
+
+
+def cancelTransformAll():
+    """transformAll のトグルをやめる(何も変えない)。
+
+    Returns:
+        None: 値を返さない。
+    """
+    _transform_all.update(time=None, values=[])
+
+
+@undoChunk("animBarTransformAll")
+def finishTransformAll():
+    """覚えた値と今の値の差を、そのアトリビュートの全キーへ足し、トグルを終える。
+
+    覚えた時刻のキーが既に変わっていれば(自動キー・手で打った場合)、そのキーには足さない。
+
+    Returns:
+        int: 動かしたカーブの数。
+
+    Raises:
+        RuntimeError: :func:`startTransformAll` を呼んでいない場合。
+        ValueError: 現在時刻が始めたときと違う場合(何も変えず、トグルも続ける)。
+    """
+    if not isTransformAllActive():
+        raise RuntimeError("Transform all has not been started")
+    time, values = _transform_all["time"], _transform_all["values"]
+    if abs(Time.getCurrent() - time) > keys.TIME_EPSILON:
+        # 時刻を動かすとキーを打っていない変更が消えるため、始めた時刻で反映する。
+        raise ValueError("Go back to frame {:g} to apply transform all".format(time))
+    cancelTransformAll()
+    count = 0
+    for plug, before, curve_before in values:
+        if not plug.isValid():
+            continue
+        curve = keys.animCurveOf(plug)
+        if curve is None:
+            continue
+        indices = list(range(curve.getKeyCount()))
+        index = keys.keyIndexAt(curve, time)
+        keyed = abs(curve.evaluate(time) - curve_before) > 1e-9
+        # 覚えた時刻でカーブが変わっていればキーを打った後なので、カーブの変化を差にし、そのキーには足さない
+        # (足すと二重になる)。変わっていなければ、キーを打たずに変えた値との差を使う。
+        delta = curve.evaluate(time) - curve_before if keyed else plug.get() - before
+        if abs(delta) <= 1e-9:
+            continue
+        if keyed and index is not None:
+            indices.remove(index)
+        if indices:
+            curve.moveKey(indices, valueOffset=delta)
+            count += 1
     return count

@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-31): AnimBarにaToolsとの未対応の差を実装。アニメーションレイヤー・pairBlendの先のカーブ(Mayaがキーを打つレイヤー)と駆動先のたどり、タイムスライダーの範囲を対象に、キー変形のscaleFrom系4モードとShift/Ctrlの一時切替、接線の最初/最後/全キー、アニメーションのミラー・入替えと反対側の選択、transformAllのトグル(自動キー後も二重に足さない)、プレイブラストの設定(音声・HUD・範囲・オーバースキャン・大きさ)、退避の状態の保存と起動時/シーンを開いたときの確認。test_parity.py 22件(計57件、2022/2025/2027)・GUI確認(2022/2027)・HTools文書(警告0)OK。mlibの全テスト2022〜2027 OK。
+
 - Codex (2026-10-31): QPE旧保存診断の区切り欠落と成功誤判定を特定・廃止。QPE保存先の絶対パス/実ファイル/シーン名検証、GUI/単体検証ランナーの一時cwdと終了後削除、保存fixtureの隔離/後始末を追加。Maya2022/2027各10項目、単体UI8項目、Python3テスト成功。trial直接作成元は検索範囲内で未特定。ユーザーのpush指示に基づき、差分・既存検証結果を確認して7ファイルをコミット対象に確定。調査記録・生成物は除外。
 
 - Claude Code (2026-10-31): ユーザー指示で trial フォルダー4か所(直下・maya/inhouse・mlib・mlib/__tests__。mlibの写しで、mlibの静的検査とテスト2ファイルを失敗させていた)を削除。mlib静的検査・test_predicate_aliases/test_public_camel_case(2027)OK。

@@ -54,7 +54,7 @@ def _key_transform(node, time, translate=True, rotate=True):
     names = ([axis for axis in ("tx", "ty", "tz")] if translate else []) + \
             ([axis for axis in ("rx", "ry", "rz")] if rotate else [])
     writable = [name for name in names if not node.getPlug(name).isLocked() and
-                (node.getPlug(name).getSource() is None or node.getPlug(name).getAnimCurve() is not None)]
+                (node.getPlug(name).getSource() is None or keys.animCurveOf(node.getPlug(name)) is not None)]
     if writable:
         node.setKey(writable, time=time)
 
@@ -71,7 +71,7 @@ def _filter_rotation(nodes):
     curves = []
     for node in nodes:
         for name in ("rx", "ry", "rz"):
-            curve = node.getPlug(name).getAnimCurve()
+            curve = keys.animCurveOf(node.getPlug(name))
             if curve is not None and curve.getKeyCount() > 1:
                 curves.append(curve.getFullName())
     if curves:
@@ -108,7 +108,7 @@ def align(slaves=None, master=None, translate=True, rotate=True, rangeMode="curr
             Time.setCurrent(time)
             for slave in slaves:
                 slave.matchTransform(master, position=translate, rotation=rotate, scale=False)
-                if rangeMode != "current" or any(slave.getPlug(n).getAnimCurve() is not None
+                if rangeMode != "current" or any(keys.animCurveOf(slave.getPlug(n)) is not None
                                                  for n in ("tx", "ty", "tz", "rx", "ry", "rz")):
                     _key_transform(slave, time, translate, rotate)
                 count += 1
@@ -143,7 +143,7 @@ def switchSpace(node, attribute, value, rangeMode="current"):
         for time, matrix in zip(frames, matrices):
             Time.setCurrent(time)
             plug.set(value)
-            if plug.getAnimCurve() is not None or rangeMode != "current":
+            if keys.animCurveOf(plug) is not None or rangeMode != "current":
                 plug.setKey(time=time)
             node.setMatrix(matrix, worldSpace=True, safe=True)
             _key_transform(node, time)
