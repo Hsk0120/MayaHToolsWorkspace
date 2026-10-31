@@ -153,7 +153,7 @@ class RemovedNamesSpecTest(_ValueSpecCase):
 
 
 class RangeUnitsSpecTest(_ValueSpecCase):
-    """getMin/getMax/getSoftMin/getSoftMax/getDefaultのuiUnits。既定は内部単位のオブジェクト。"""
+    """getMin/getMax/getSoftMin/getSoftMaxのuiUnits(既定は内部単位のオブジェクト)と、get()と同じ数値を返すgetDefault。"""
 
     def expected_ui(self, value, unit_class):
         """内部単位の単位付きオブジェクトを、現在のUI単位の数値へ変換した期待値。"""
@@ -163,8 +163,11 @@ class RangeUnitsSpecTest(_ValueSpecCase):
         """doubleLinearの範囲はMDistance。uiUnits=TrueはUI単位(cm→m切替に追従)の数値。"""
         plug = self.add("dist", attributeType="doubleLinear", minValue=-10, maxValue=20,
                         softMinValue=-5, softMaxValue=15, defaultValue=2.5)
-        getters = (("getMin", -10.0), ("getMax", 20.0), ("getSoftMin", -5.0), ("getSoftMax", 15.0),
-                   ("getDefault", 2.5))
+        getters = (("getMin", -10.0), ("getMax", 20.0), ("getSoftMin", -5.0), ("getSoftMax", 15.0))
+        # getDefaultはget()と同じくcmの数値(UI単位によらない)、uiUnits=TrueはUI単位の数値。
+        self.assertIsInstance(plug.getDefault(), float)
+        self.assertAlmostEqual(plug.getDefault(), 2.5)
+        self.assertAlmostEqual(plug.getDefault(uiUnits=True), 2.5)
         for name, cm_value in getters:
             with self.subTest(getter=name, unit="cm"):
                 internal = getattr(plug, name)()
@@ -174,6 +177,8 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                 self.assertIsInstance(ui, float)
                 self.assertAlmostEqual(ui, cm_value)
         cmds.currentUnit(linear="m")
+        self.assertAlmostEqual(plug.getDefault(), 2.5)
+        self.assertAlmostEqual(plug.getDefault(uiUnits=True), 0.025)
         for name, cm_value in getters:
             with self.subTest(getter=name, unit="m"):
                 internal = getattr(plug, name)()
@@ -208,7 +213,9 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                                cmds.attributeQuery("ang", node=self.name, listDefault=True)[0])
         self.assertAlmostEqual(angle.getDefault(uiUnits=True), cmds.getAttr(angle.getFullName()))
         self.assertAlmostEqual(angle.getDefault(uiUnits=True), angle.get(uiUnits=True))
-        self.assertAlmostEqual(angle.getDefault().asUnits(om2.MAngle.kDegrees), angle.get())
+        self.assertIsInstance(angle.getDefault(), float)
+        self.assertAlmostEqual(angle.getDefault(), angle.get())
+        self.assertAlmostEqual(angle.getDefault(unit="rad"), 45.0)
         cmds.currentUnit(angle="rad")
         self.assertAlmostEqual(angle.getMin(uiUnits=True), -90.0)
         self.assertAlmostEqual(angle.getMin(uiUnits=True), self.expected_ui(angle.getMin(), om2.MAngle))
@@ -226,7 +233,10 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                 self.assertAlmostEqual(time.getMax(uiUnits=True), self.expected_ui(time.getMax(), om2.MTime))
                 self.assertAlmostEqual(time.getMax(uiUnits=True),
                                        cmds.attributeQuery("tm", node=self.name, maximum=True)[0])
-                self.assertAlmostEqual(time.getDefault(uiUnits=True), self.expected_ui(time.getDefault(), om2.MTime))
+                self.assertIsInstance(time.getDefault(), float)
+                self.assertAlmostEqual(time.getDefault(), time.get())
+                self.assertAlmostEqual(time.getDefault(uiUnits=True), time.getDefault())
+                self.assertAlmostEqual(time.getDefault(timeUnit="sec"), time.get(timeUnit="sec"))
                 self.assertAlmostEqual(time.getDefault(uiUnits=True),
                                        cmds.attributeQuery("tm", node=self.name, listDefault=True)[0])
 

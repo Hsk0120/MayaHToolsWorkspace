@@ -286,3 +286,6 @@ maya/inhouse/*/docs/locale/**/*.mo
 
 # pip packages installed by maya/install_packages.bat (per Maya version)
 /maya/site-packages/
+
+# Anim Bar の GUI 確認の結果(画像・JSON)
+maya/inhouse/AnimBar/python/animBar/__tests__/_output/

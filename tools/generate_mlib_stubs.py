@@ -737,7 +737,9 @@ def _ls_overloads(stub, node):
     doc_types = _arg_types(ast.get_docstring(node) or "")
     table = {name: "Nodes" for name in _wrapper_classes()}
     table.update(LS_SPECIAL)
-    variants = []
+    stub.annotation("Keyframes", "ls")
+    params = stub._params(node.args, doc_types, "ls", {"selectedKeyframes": ("Literal[True]", False)})
+    variants = ["def ls(%s) -> Keyframes: ..." % params]
     for maya_type, returns in sorted(table.items()):
         stub.annotation(returns, "ls")
         params = stub._params(node.args, doc_types, "ls", {"type": ('Literal["%s"]' % maya_type, False)})
@@ -759,7 +761,8 @@ def _ls_return(stub, node):
         str: 戻り値の注釈。
     """
     return stub.annotation(
-        "Nodes | Plugs | Vertices | Edges | Faces | UVs | CVs | list[Node | Plug | Component]", "ls(return)")
+        "Nodes | Plugs | Vertices | Edges | Faces | UVs | CVs | Keyframes | list[Node | Plug | Component]",
+        "ls(return)")
 
 
 def _connection_variants(stub, node, qualname):

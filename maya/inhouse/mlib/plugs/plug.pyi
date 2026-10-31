@@ -70,6 +70,56 @@ def _attribute_class(fn: om2.MFnDependencyNode, attribute_handle: om2.MObjectHan
     """
     ...
 
+def _key_flags_to_ui(mplug: om2.MPlug, kwargs: dict, unit: str | None, time_unit: str | None, ui_units: bool) -> dict:
+    """setKeyframe のフラグの時刻と値を、Mayaが受け取るUIの単位へ換算する。
+
+    Args:
+        mplug (om2.MPlug): キーを打つアトリビュート。
+        kwargs (dict): setKeyframe のフラグ。
+        unit (str | None): 角度の値の単位。
+        time_unit (str | None): 時刻と時間の値の単位。
+        ui_units (bool): Trueは値をUI単位のまま渡す。
+
+    Returns:
+        dict: 換算したフラグ(新しい辞書)。
+
+    Raises:
+        TypeError: 単位の型が不正、または秒の時刻に数値以外を指定した場合。
+        ValueError: 単位名が不正、またはuiUnitsと単位の同時指定の場合。
+    """
+    ...
+
+def _move_key_flags(plug: Plug, time: float | Sequence[float] | None, time_offset: float, value_offset: float, unit: str | None, time_unit: str | None) -> dict:
+    """キーを動かす ``cmds.keyframe`` のフラグを作る(時刻の範囲・UI単位の移動量)。
+
+    Args:
+        plug (Plug): キーを動かすアトリビュート。
+        time (float | Sequence[float] | None): 時刻、または両端を含む範囲。Noneは全キー。
+        time_offset (float): 時刻の移動量。
+        value_offset (float): 値の移動量(角度は度・距離はcm)。
+        unit (str | None): 角度の単位。
+        time_unit (str | None): 時刻の単位。
+
+    Returns:
+        dict: ``time``(指定時)・``timeChange``・``valueChange`` のフラグ。
+
+    Raises:
+        TypeError: 型が不正な場合。
+        ValueError: 非有限値、または単位名が未対応の場合。
+    """
+    ...
+
+def _move_plug_keys(name: str, flags: dict):
+    """1つのアトリビュートのキーを相対移動する。
+
+    範囲を省くと、キーが1つだけのカーブをMayaが動かさないため、全キーは番号で指定する。
+
+    Args:
+        name (str): アトリビュートの完全名。
+        flags (dict): :func:`_move_key_flags` のフラグ。
+    """
+    ...
+
 def _cut_key_flags(time: float | Sequence[float] | None, time_unit: str | None) -> dict:
     """キーの削除範囲を ``cmds.cutKey`` のフラグへ変換する。
 
@@ -941,22 +991,21 @@ class Plug(Object):
         """
         ...
     def getDefault(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Any:
-        """アトリビュートの既定値を取得する。
+        """アトリビュートの既定値を、:meth:`get` と同じ規則の数値で取得する。
 
-        数値アトリビュートは ``float``/``bool``/``int``、角度・距離・時間アトリビュートは対応する Maya API 2.0
-        の単位付きオブジェクト、enum アトリビュートは ``int`` をそのまま返す。
+        角度は度(``unit="rad"`` でラジアン)、距離はcm、時間は現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)、
+        数値は ``float``/``bool``/``int``、enum は ``int`` を返す。
         scale・double3・float3のような数値のコンパウンドアトリビュートは、子の既定値の ``tuple``
         (例 ``(1.0, 1.0, 1.0)``)を返す。
 
         Args:
-            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
-                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+            unit (str | None): 角度の単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
-            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
-                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
-                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す
-                (コンパウンドアトリビュートは子ごとに換算したtuple)。既定Falseは内部単位のまま。
+            timeUnit (str | None): 時間の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。時間以外では使わない。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位(UIの角度・距離の単位)の数値で返す
+                (コンパウンドアトリビュートは子ごとに換算したtuple)。
 
         Returns:
             object | None: 既定値。対応しないアトリビュート型(文字列・message・マトリクス・
@@ -996,25 +1045,29 @@ class Plug(Object):
             RuntimeError: アトリビュートが無効、またはMayaが別名を拒否した場合。
         """
         ...
-    def setKey(self, *, timeUnit: str | None = ..., **kwargs) -> Plug:
+    def setKey(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., **kwargs) -> Plug:
         """対象アトリビュートへキーを設定する。
 
+        ``value`` / ``v`` は :meth:`get` と同じ規則の数値(角度は度、距離はcm、時間はフレーム)で受け取る。
         fast引数は持たない(キーの検証とカーブの照会が大半で、OpenMayaで書いても速くならないため。
         カーブへ直接キーを打つ場合は :meth:`AnimCurve.setKey` の ``fast`` を使う)。
 
         Args:
-            timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は
+            unit (str | None): 角度のvalueの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
+                角度以外のアトリビュートでは使わない。uiUnits=Trueとは同時に指定できない。
+            timeUnit (str | None): ``time`` / ``t`` と、時間のアトリビュートのvalueの単位。None(既定)と ``"frame"`` は
                 現在のUI時間単位のフレーム(setKeyframeと同じ)、``"sec"`` / ``"second"`` / ``"seconds"`` は秒。
-                ``"sec"`` では数値または数値の並びだけを受け付け、setKeyframeへ渡す前にフレームへ換算する。
-            **kwargs: Maya setKeyframeのフラグ。値はMayaのUI単位、時間はtimeUnitの単位。
+                ``"sec"`` では time に数値または数値の並びだけを受け付け、setKeyframeへ渡す前にフレームへ換算する。
+            uiUnits (bool): Trueは value を現在のUI単位(UIの角度・距離の単位)の数値で受け取る(8.0.0以前の挙動)。
+            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。
 
         Returns:
             Plug: 自身。
 
         Raises:
-            TypeError: timeUnitが文字列・None以外、または ``timeUnit="sec"`` で
+            TypeError: unit・timeUnitが文字列・None以外、uiUnitsがbool以外、または ``timeUnit="sec"`` で
                 time/tに数値・数値の並び以外(``"1:10"`` のような範囲の文字列など)を指定した場合。
-            ValueError: timeUnitが未対応の単位名の場合。
+            ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
         """
         ...
     def removeKey(self, *, time: float | Sequence[float] | None = ..., timeUnit: str | None = ...) -> Plug:
@@ -1037,6 +1090,30 @@ class Plug(Object):
             TypeError: timeが数値・2つの数値の並び・None以外、またはtimeUnitが文字列・None以外の場合。
             ValueError: timeが有限でない、範囲の開始が終了より大きい、またはtimeUnitが未対応の単位名の場合。
             RuntimeError: アトリビュートが無効、またはMayaが削除を拒否した場合。
+        """
+        ...
+    def moveKey(self, *, time: float | Sequence[float] | None = ..., timeOffset: float = ..., valueOffset: float = ..., unit: str | None = ..., timeUnit: str | None = ...) -> Plug:
+        """このアトリビュートのキーの時刻と値をずらす(``cmds.keyframe(plug, edit=True, relative=True)`` 相当)。
+
+        Mayaと同じく、時刻をずらしたキーは対象でない隣のキーを越えない。カーブへ直接の操作は
+        :meth:`AnimCurve.moveKey <mlib.nodes.animCurve.AnimCurve.moveKey>` を使う。fast引数は持たない。
+
+        Args:
+            time (float | Sequence[float] | None): 動かすキーの時刻、または両端を含む範囲 ``(start, end)``。
+                Noneは全キー。
+            timeOffset (float): 時刻の移動量。
+            valueOffset (float): 値の移動量。:meth:`get` と同じ規則の数値(角度は度、距離はcm)。
+            unit (str | None): 角度のvalueOffsetの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
+            timeUnit (str | None): time・timeOffsetの単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒。
+
+        Returns:
+            Plug: 自身。キーが無ければ何もしない。
+
+        Raises:
+            TypeError: timeが数値・2つの数値の並び・None以外、オフセットが数値以外、または単位の型が不正な場合。
+            ValueError: 非有限値、範囲の開始が終了より大きい、または単位名が未対応の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが移動を拒否した場合。
         """
         ...
     def getAnimLayers(self, selected: bool = ..., exact: bool = ...) -> list[str]:
@@ -1585,6 +1662,16 @@ class Plug(Object):
 
         Returns:
             Plug: 実際の接続先。safeで既存の接続を見つけた場合もその接続先。
+        """
+        ...
+    def _raw_default(self) -> Any:
+        """アトリビュートの定義の既定値を、単位付きのom2の値のまま返す(属性の複製・リセット用)。
+
+        Returns:
+            object | None: 既定値(MAngle・MDistance・MTime・数値・tuple・enumのint)。対応しない型はNone。
+
+        Raises:
+            RuntimeError: 所有ノードが無効、またはアトリビュートが削除済みの場合。
         """
         ...
     def _source_plug(self, skipConversionNodes: bool = ...) -> Plug | None:

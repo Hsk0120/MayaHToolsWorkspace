@@ -33,6 +33,7 @@ _MULTI_COMPONENT_NUMERIC_TYPES = frozenset(
 #: Node.getPlugs() が ``cmds.listAttr`` を使わず OpenMaya で列挙するフラグ(値は True のときだけ)。
 _OM2_LIST_ATTR_FLAGS = frozenset(("keyable", "scalar"))
 
+
 #: ラッパー型の選択で型名だけを読むために使い回す関数セット。setObject() で対象を差し替えるため、
 #: ノードごとに MFnDependencyNode を作るより速い。値や名前を保持せず、呼出しのたびに対象を設定し直す。
 _TYPE_NAME_FN = om2.MFnDependencyNode()
@@ -306,11 +307,11 @@ def _dump_movable_attr(plug):
             info["softMin"] = plug.getSoftMin()
         if plug.hasSoftMax():
             info["softMax"] = plug.getSoftMax()
-        info["defaultValue"] = plug.getDefault()
+        info["defaultValue"] = plug._raw_default()
     elif attr.hasFn(om2.MFn.kEnumAttribute):
         info["attributeType"] = "enum"
         info["enumName"] = _enum_definition(plug)
-        info["defaultValue"] = plug.getDefault()
+        info["defaultValue"] = plug._raw_default()
     elif attr.hasFn(om2.MFn.kTypedAttribute) and om2.MFnTypedAttribute(attr).attrType() == om2.MFnData.kString:
         info["dataType"] = "string"
     else:
@@ -472,6 +473,34 @@ def _create_movable_attr(node, info):
         plug.set(info["value"])
     plug.setFlags(keyable=info["keyable"], channelBox=info["channelBox"])
     return plug
+
+
+def _is_writable(mplug):
+    """アトリビュートへ今書き込めるか(ロック・animCurve以外の入力接続が無いか)を返す。
+
+    Args:
+        mplug (om2.MPlug): 調べるアトリビュート。
+
+    Returns:
+        bool: 自身・親(コンパウンドアトリビュート)・マルチアトリビュートの全体のどれもロックされておらず、
+            自身と親の入力がanimCurveだけ(または無い)ならTrue。
+    """
+    current = mplug
+    while True:
+        if current.isLocked:
+            return False
+        source = current.source()
+        if not source.isNull and not source.node().hasFn(om2.MFn.kAnimCurve):
+            return False
+        if current.isChild:
+            current = current.parent()
+        elif current.isElement:
+            current = current.array()
+            if current.isLocked:
+                return False
+            return True
+        else:
+            return True
 
 
 def _attribute_names(attributes):
@@ -1216,17 +1245,21 @@ class Node(Object):
         return Plug._connection_results(pairs, type or t, exactType or et,
                                        as_pair, asNode, index)
 
-    def setKey(self, attributes=None, *, timeUnit=None, **kwargs):
+    def setKey(self, attributes=None, *, unit=None, timeUnit=None, uiUnits=False, **kwargs):
         """複数のアトリビュートへ1回でキーを設定する(``cmds.setKeyframe(node, attribute=[...])`` 相当)。
 
-        fast引数は持たない(:meth:`~mlib.plugs.plug.Plug.setKey` と同じく、OpenMayaで打っても速くならないため)。
+        ``value`` / ``v`` は :meth:`~mlib.plugs.plug.Plug.get` と同じ規則の数値(角度は度、距離はcm)で受け取り、
+        アトリビュートごとに換算する。fast引数は持たない(:meth:`~mlib.plugs.plug.Plug.setKey` と同じく、
+        OpenMayaで打っても速くならないため)。
 
         Args:
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー可能な全アトリビュート
                 (``cmds.setKeyframe(node)`` と同じ)。
+            unit (str | None): 角度のvalueの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
             timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
                 ``"sec"`` は秒(数値または数値の並びだけ受け付ける)。
-            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。値はMayaのUI単位。
+            uiUnits (bool): Trueは value を現在のUI単位の数値で受け取る(8.0.0以前の挙動)。
+            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。
                 ``attribute`` / ``at`` は引数attributesで指定する。
 
         Returns:
@@ -1234,26 +1267,32 @@ class Node(Object):
 
         Raises:
             TypeError: attributesが文字列・文字列の列・None以外、``attribute`` / ``at`` をkwargsに渡した、
-                timeUnitが文字列・None以外、または ``timeUnit="sec"`` で time に数値以外を指定した場合。
-            ValueError: attributesが空の列、またはtimeUnitが未対応の単位名の場合。
+                単位の型が不正、または ``timeUnit="sec"`` で time に数値以外を指定した場合。
+            ValueError: attributesが空の列、単位名が不正、またはuiUnits=Trueと単位を同時に指定した場合。
             RuntimeError: ノードが無効、またはMayaがキーの設定を拒否した場合。
         """
         # plugs は nodes を参照するため、循環importを避けて関数内で読み込む。
-        from ..plugs.plug import _frames_from_seconds
+        from ..plugs.plug import _key_flags_to_ui
 
         if "attribute" in kwargs or "at" in kwargs:
             raise TypeError("Pass attribute names as the attributes argument")
         names = _attribute_names(attributes)
-        if _time_unit(timeUnit) == "sec":
-            kwargs = dict(kwargs)
-            for flag in ("time", "t"):
-                if flag in kwargs:
-                    kwargs[flag] = _frames_from_seconds(kwargs[flag])
+        # 値を含まないフラグで単位の引数だけを先に検査する(不正な指定でシーンを変えない)。
+        _key_flags_to_ui(None, {}, unit, timeUnit, uiUnits)
         with undoChunk("mlibNodeSetKey"):
             self._require_valid("set keys on")
+            has_value = "value" in kwargs or "v" in kwargs
+            if has_value and not uiUnits:
+                # 値の換算はアトリビュートの種類(角度・距離)ごとに違うため、アトリビュートごとに打つ。
+                plugs = [self.getPlug(name) for name in names] if names is not None else                     self.getPlugs(keyable=True, scalar=True)
+                for plug in plugs:
+                    cmds.setKeyframe(plug.getFullName(),
+                                     **_key_flags_to_ui(plug.mplug(), kwargs, unit, timeUnit, uiUnits))
+                return self
+            flags = _key_flags_to_ui(None, kwargs, None, timeUnit, True)
             if names is not None:
-                kwargs["attribute"] = names
-            cmds.setKeyframe(self.getFullName(), **kwargs)
+                flags["attribute"] = names
+            cmds.setKeyframe(self.getFullName(), **flags)
             return self
 
     def removeKey(self, attributes=None, *, time=None, timeUnit=None):
@@ -1287,6 +1326,42 @@ class Node(Object):
             if names is not None:
                 flags["attribute"] = names
             cmds.cutKey(self.getFullName(), clear=True, **flags)
+            return self
+
+    def moveKey(self, attributes=None, *, time=None, timeOffset=0, valueOffset=0, unit=None, timeUnit=None):
+        """複数のアトリビュートのキーの時刻と値をずらす(1回のUndo)。
+
+        値の換算はアトリビュートの種類(角度・距離)ごとに違うため、アトリビュートごとに
+        :meth:`Plug.moveKey <mlib.plugs.plug.Plug.moveKey>` と同じ処理を行う。fast引数は持たない。
+
+        Args:
+            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー可能なスカラーのアトリビュートの
+                うちキーのあるもの。
+            time (float | Sequence[float] | None): 動かすキーの時刻、または両端を含む範囲。Noneは全キー。
+            timeOffset (float): 時刻の移動量。
+            valueOffset (float): 値の移動量(角度は度、距離はcm)。
+            unit (str | None): 角度のvalueOffsetの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
+            timeUnit (str | None): time・timeOffsetの単位。None(既定)と ``"frame"`` はフレーム、``"sec"`` は秒。
+
+        Returns:
+            Node: 自身。
+
+        Raises:
+            TypeError: attributesが文字列・文字列の列・None以外、または型が不正な場合。
+            ValueError: attributesが空の列、非有限値、または単位名が未対応の場合。
+            RuntimeError: ノードが無効、またはMayaが移動を拒否した場合。
+        """
+        # plugs は nodes を参照するため、循環importを避けて関数内で読み込む。
+        from ..plugs.plug import _move_key_flags, _move_plug_keys
+
+        names = _attribute_names(attributes)
+        with undoChunk("mlibNodeMoveKey"):
+            self._require_valid("move keys of")
+            plugs = [self.getPlug(name) for name in names] if names is not None else \
+                self.getPlugs(keyable=True, scalar=True)
+            flags = [(plug, _move_key_flags(plug, time, timeOffset, valueOffset, unit, timeUnit)) for plug in plugs]
+            for plug, plug_flags in flags:
+                _move_plug_keys(plug.getFullName(), plug_flags)
             return self
 
     def getHistory(self, type=None, future=False):
@@ -1416,7 +1491,7 @@ class Node(Object):
                                   fast=fast)
             return self
 
-    def getPlugs(self, userDefined=False, includeChildren=True, **listAttrFlags):
+    def getPlugs(self, userDefined=False, includeChildren=True, *, writable=False, **listAttrFlags):
         """アトリビュートをPlug参照として列挙する。
 
         ``userDefined=True`` はユーザー追加(動的)アトリビュートだけを、Mayaの定義から追加順に
@@ -1428,6 +1503,8 @@ class Node(Object):
         Args:
             userDefined (bool): Trueはユーザー定義アトリビュートだけを返す。listAttrのフラグとは併用できない。
             includeChildren (bool): Trueはコンパウンドアトリビュートの子も含める。Falseはトップレベルだけ。
+            writable (bool): Trueは今書き込めるもの(ロックされておらず、animCurve以外からの入力接続が無いもの。
+                親・子のロックと入力も見る)だけに絞る。animCurveが直接つながったものは含める。
             **listAttrFlags: ``userDefined=False`` のときに ``cmds.listAttr`` へ渡すフラグ。
 
         Returns:
@@ -1435,34 +1512,17 @@ class Node(Object):
                 該当なしなら空。名前が必要なら ``[plug.getLongName() for plug in ...]`` を使う。
 
         Raises:
-            TypeError: userDefined・includeChildrenがboolでない、またはuserDefined=TrueにlistAttrのフラグを併用した場合。
+            TypeError: userDefined・includeChildren・writableがboolでない、またはuserDefined=TrueにlistAttrのフラグを併用した場合。
             RuntimeError: ノードが無効、listAttrが失敗、またはuserDefined=TrueかつincludeChildren=Trueで
                 番号を指定しないマルチアトリビュートであるコンパウンドアトリビュートの子が含まれる場合。
         """
         _require_bool(userDefined, "userDefined")
         _require_bool(includeChildren, "includeChildren")
+        _require_bool(writable, "writable")
         self._require_valid("list attributes on")
-        if userDefined:
-            if listAttrFlags:
-                raise TypeError("userDefined=True cannot be combined with listAttr flags: "
-                                + ", ".join(sorted(listAttrFlags)))
-            # 名前へ変換して再検索せず、定義から型付きPlugを作る。マルチアトリビュートの要素は展開しない。
-            from ..plugs.plug import Plug
-            return [Plug(self, om2.MPlug(self._mobject, attribute))
-                    for attribute in self._user_attributes(includeChildren)]
-        if all(name in _OM2_LIST_ATTR_FLAGS and value is True for name, value in listAttrFlags.items()):
-            from ..plugs.plug import Plug
-            return [Plug(self, om2.MPlug(self._mobject, attribute))
-                    for attribute in self._listed_attributes(includeChildren, **listAttrFlags)]
-        names = cmds.listAttr(self.getFullName(), **listAttrFlags) or []
-        plugs = []
-        for name in names:
-            try:
-                plug = self.getPlug(name)
-            except (AttributeError, RuntimeError, ValueError):
-                continue
-            if includeChildren or not plug.mplug().isChild:
-                plugs.append(plug)
+        plugs = self._list_plugs(userDefined, includeChildren, listAttrFlags)
+        if writable:
+            plugs = [plug for plug in plugs if _is_writable(plug.mplug())]
         return plugs
 
     def getAliases(self):
@@ -1930,6 +1990,31 @@ class Node(Object):
         if not dag_path.isValid():
             self._current_dag_path()  # 保持するDAGインスタンスが消えた場合は RuntimeError にする。
         return dag_path.fullPathName()
+
+    def _list_plugs(self, userDefined, includeChildren, listAttrFlags):
+        """:meth:`getPlugs` の列挙の本体(writableで絞る前)。"""
+        if userDefined:
+            if listAttrFlags:
+                raise TypeError("userDefined=True cannot be combined with listAttr flags: "
+                                + ", ".join(sorted(listAttrFlags)))
+            # 名前へ変換して再検索せず、定義から型付きPlugを作る。マルチアトリビュートの要素は展開しない。
+            from ..plugs.plug import Plug
+            return [Plug(self, om2.MPlug(self._mobject, attribute))
+                    for attribute in self._user_attributes(includeChildren)]
+        if all(name in _OM2_LIST_ATTR_FLAGS and value is True for name, value in listAttrFlags.items()):
+            from ..plugs.plug import Plug
+            return [Plug(self, om2.MPlug(self._mobject, attribute))
+                    for attribute in self._listed_attributes(includeChildren, **listAttrFlags)]
+        names = cmds.listAttr(self.getFullName(), **listAttrFlags) or []
+        plugs = []
+        for name in names:
+            try:
+                plug = self.getPlug(name)
+            except (AttributeError, RuntimeError, ValueError):
+                continue
+            if includeChildren or not plug.mplug().isChild:
+                plugs.append(plug)
+        return plugs
 
     def _plugs_from(self, attributes):
         """名前と自身のPlugが混在する指定を、自身のPlugの列へ解決する。

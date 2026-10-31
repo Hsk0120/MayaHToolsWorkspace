@@ -216,15 +216,8 @@ class SecondaryLayer:
                 rows, interval, settings["frequency"], settings["damping"], settings["angleLimit"]
             )
             for column, curve in enumerate(self._members(group, "curves")):
-                # 全キーを先に消すとMayaが空のanimCurve自体を削除することがある。
-                # 新しい範囲を上書きしてから、不要になった旧キーだけを消す。
-                kept = set(frames)
-                for frame, row in zip(frames, solved):
-                    curve.setKey(frame, row[column], "linear", "linear")
-                # 後ろから消し、残りのキー番号をずらさない。
-                for index, time in reversed(list(enumerate(curve.getKeyInputs()))):
-                    if time not in kept:
-                        curve.removeKey(index)
+                # カーブと接続を残したまま、焼いた範囲のキーへ置き換える。
+                curve.replaceKeys([(frame, row[column], "linear", "linear") for frame, row in zip(frames, solved)])
             group.getPlug("baked").set(True)
             group.getPlug("bakeInfo").set(
                 json.dumps(

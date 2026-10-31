@@ -19,6 +19,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Claude Code (2026-10-31 13:20〜): AnimBarをaToolsと比べたデバッグ・テスト追加(2時間程度)。対象 maya/inhouse/AnimBar。mlibは不具合が出たときだけ。QPEは対象外。
 
 
 
@@ -149,6 +150,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-10-31): mlib 9.0.0。Keyframe/Keyframes(選択キーは Selection.getKeyframes・mlib.ls(selectedKeyframes=True))、AnimCurve.moveKey/scaleKey(shiftKeys/scaleKeysを改名、index・timeで絞る)・replaceKeys・removeKey(keepCurve=True既定)・getDrivenPlugs・getKeyframe(s)、Plug/Node.moveKey、getPlugs(writable=True)、undoChunkのopen/close、setKeyの接線の既定をMayaと同じに、getDefault・Plug/Node.setKeyのvalueをget()と同じ単位に。mlrig・AnimBarを新APIへ。fast削除のMaya異常終了を修正。mlib 2022〜2027・mlrig 2027/2025(719件)・AnimBar・Sphinx(警告0)OK。mlib/trial・__tests__/trial(Git未登録のmlibの写し、作成元不明)が静的検査を失敗させるため未コミットのまま残した。
+
+- Claude Code (2026-10-31): aTools相当のアニメーションバー Anim Bar を maya/inhouse/AnimBar に自作(処理はmlib、画面はPySide、アイコンはQPainterで自作)。ツイーン・キー変形7モード・接線・キーの時間・範囲・プレイブラスト・ミラー・コピー・位置合わせ・スペース切替・仮のピボット/コンストレイント・モーショントレイル・細かい移動・タンブル・退避・選択セット・runTimeCommand。AnimBar.modを有効にし、起動時にタイムスライダーの上へドック。HToolsの入口と説明ページを追加。処理のテスト10件(mayapy 2027/2022)、使い捨てGUIの確認(2022/2025/2027)OK。元のaToolsはPython 2専用でMaya 2022以降では読めないため.modは無効のまま。mlibの課題はdocs/research/animbar-mlib-gaps-2026-10-31.md。未コミット。
 
 - Codex (2026-10-31): QPEの操作課題15件を修正。履歴保存失敗時の復旧・再送防止、列再生成時のフォーカス、検索・タブ・狭幅詳細・保存形式・Maya読込結果・フロート復帰・横位置を改善。Maya2022/2027各13、Qt5/6各10、右クリック8、キー入力8、履歴故障注入2テスト合格。Maya実OS入力と動画も確認。実IME/物理4K/全共有タブ条件は未網羅。証跡 .maya-output/qpe-review-fixes-20261031/。
 

@@ -4,6 +4,73 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+9.0.0 (2026-10-31)
+------------------
+
+アニメーション作業用のツール(Anim Bar)を mlib で書いて足りなかった入口を足し、キーの移動・拡縮の名前と、
+キー・既定値の単位を ``get()`` の規則へそろえました。既定の変更を含むので、移行表を確認してください。
+
+.. rubric:: 追加
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - 入口
+     - 内容
+   * - ``mlib.common.Keyframe``\ ・\ ``Keyframes``
+     - キーを「カーブ + 番号」の参照で扱う(頂点の ``Vertex``\ ・\ ``Vertices`` と同じく作成時の番号を保つ)。
+       ``getCurve``\ ・\ ``getIndex``\ ・\ ``getTime``\ ・\ ``getValue``\ ・\ ``setValue``\ (接線型を保つ)・\ ``getTangent``\ ・
+       ``setTangent``\ ・\ ``move``\ ・\ ``remove``\ ・\ ``select``。``Keyframes`` は複数のカーブにまたがってよく、
+       ``getCurves``\ ・\ ``iterCurves``\ ・\ ``getIndices`` を持ち、編集は全体で1回の Undo。ドリブンキーのカーブも扱う
+   * - ``AnimCurve.getKeyframe(index)``\ ・\ ``getKeyframes(indices=None)``
+     - カーブのキーの参照
+   * - ``Selection.getKeyframes()``\ ・\ ``mlib.ls(selectedKeyframes=True)``
+     - Graph Editor・Dope Sheet で選んでいるキー(``cmds.keyframe(query=True, selected=True)``)
+   * - ``AnimCurve.replaceKeys(keys)``
+     - カーブと接続を残したまま全キーを置き換える(1回の Undo)
+   * - ``AnimCurve.removeKey(..., keepCurve=True)``
+     - 全キーを消してもカーブを残す(既定)。``index`` はキー番号の並びも受け付ける
+   * - ``Plug.moveKey(time=None, timeOffset=0, valueOffset=0)``\ ・\ ``Node.moveKey(attributes=None, ...)``
+     - アトリビュートのキーの時刻・値をずらす(``setKey``\ ・\ ``removeKey`` と同じ並び)
+   * - ``AnimCurve.getDrivenPlugs()``
+     - カーブが動かしているアトリビュート(unitConversion を飛ばした先)
+   * - ``Node.getPlugs(..., writable=True)``
+     - ロックされたもの・animCurve 以外の入力接続があるものを除く
+   * - ``undoChunk(name).open()``\ ・\ ``close()``
+     - スライダーを押す・離すのように、開閉が別々の呼出しになる Undo のまとまり。二重の open・開かずの close は何もしない
+
+.. rubric:: 改名と移行
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - 8.0.0
+     - 9.0.0
+   * - ``AnimCurve.shiftKeys(inputOffset, valueOffset)``
+     - ``AnimCurve.moveKey(index=None, *, time=None, timeOffset=0, valueOffset=0)``\ (index・time で対象を絞れる)
+   * - ``AnimCurve.scaleKeys(...)``
+     - ``AnimCurve.scaleKey(..., index=None, time=None)``。``mirror`` も ``index``\ ・\ ``time`` を受け付ける
+   * - ``AnimCurve.setKey`` の接線型の既定 ``"linear"``
+     - 既定は None。既存のキーは接線型を保ち、新しいキーは Maya の設定(Default tangent)に従う(``cmds.setKeyframe`` と同じ)。
+       これまでの結果が必要なら ``"linear", "linear"`` を渡す(``DrivenKey.setKey`` の既定は linear のまま)
+   * - ``AnimCurve.removeKey`` で全キーを消すと空のカーブも消えた
+     - 既定でカーブを残す。消すには ``keepCurve=False``\ (``Plug.removeKey``\ ・\ ``Node.removeKey`` は Maya と同じく消す)
+   * - ``Plug.getDefault()`` が ``MAngle``\ ・\ ``MDistance``\ ・\ ``MTime`` を返した
+     - ``get()`` と同じ規則の数値(角度は度・距離は cm・時間はフレーム。``unit``\ ・\ ``timeUnit``\ ・\ ``uiUnits``)
+   * - ``Plug.setKey``\ ・\ ``Node.setKey`` の ``value`` が UI 単位だった
+     - ``get()`` と同じ度・cm。``unit="rad"`` でラジアン、``uiUnits=True`` でこれまでの UI 単位
+   * - ``undoChunk`` の開閉に ``cmds.undoInfo(openChunk=True)`` を直接使っていた
+     - ``chunk = undoChunk(name); chunk.open(); ...; chunk.close()``
+
+``getMin``\ ・\ ``getMax``\ ・\ ``getSoftMin``\ ・\ ``getSoftMax`` は、これまでどおり単位付きの値を返します。
+
+.. rubric:: 足さなかったもの
+
+Channel Box の選択のバッチでの扱い、左右の名前の対応(``L_``\ ⇔\ ``R_``)、モーショントレイルの作成は足していません。
+``moveKey``\ ・\ ``scaleKey``\ ・\ ``replaceKeys`` には fast を付けていません(範囲を1回で処理する cmds の方が速い)。
+
 8.0.0 (2026-10-31)
 ------------------
 

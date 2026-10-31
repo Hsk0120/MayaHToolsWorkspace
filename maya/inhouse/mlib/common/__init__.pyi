@@ -12,6 +12,7 @@ from .curveFit import CurveFit
 from .dampedSpring import DampedSpring
 from .deferred import Deferred
 from .drivenKey import DrivenKey
+from .keyframe import Keyframe, Keyframes
 from .module import Module
 from .namespace import Namespace
 from .plugin import Plugin
@@ -26,7 +27,7 @@ from .progress import ProgressCancelled, progressBar
 from typing import Any
 
 _exports: dict
-__all__ = ['CurveFit', 'DampedSpring', 'Deferred', 'DrivenKey', 'LOADED', 'LOAD_FAILED', 'MISSING', 'Module', 'Namespace', 'OUTDATED', 'Plugin', 'PluginPackage', 'ProgressCancelled', 'SKIPPED', 'ScalarGraph', 'ScriptJob', 'ScriptJobs', 'Selection', 'Time', 'Version', 'progressBar', 'units']
+__all__ = ['CurveFit', 'DampedSpring', 'Deferred', 'DrivenKey', 'Keyframe', 'Keyframes', 'LOADED', 'LOAD_FAILED', 'MISSING', 'Module', 'Namespace', 'OUTDATED', 'Plugin', 'PluginPackage', 'ProgressCancelled', 'SKIPPED', 'ScalarGraph', 'ScriptJob', 'ScriptJobs', 'Selection', 'Time', 'Version', 'progressBar', 'units']
 
 def __getattr__(name: str) -> Any:
     """公開名を現在の実装モジュールから取得する。

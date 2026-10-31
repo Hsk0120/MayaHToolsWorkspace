@@ -134,8 +134,8 @@ class TreadBelt(TwistDistribution):
 
             # frac(x): 0→0・1→1 の直線を前後に cycle で繰り返す。
             wrap = graph._node("animCurveUU", "wrap" + suffix)
-            wrap.setKey(0.0, 0.0)
-            wrap.setKey(1.0, 1.0)
+            wrap.setKey(0.0, 0.0, "linear", "linear")
+            wrap.setKey(1.0, 1.0, "linear", "linear")
             wrap.setInfinity(pre="cycle", post="cycle")
             total.getPlug("output1D").connectTo(wrap.getPlug("input"))
             wrap.getPlug("output").connectTo(owner.getPlug("fraction" + suffix))

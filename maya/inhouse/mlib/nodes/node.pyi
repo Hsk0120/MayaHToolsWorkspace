@@ -247,6 +247,18 @@ def _create_movable_attr(node: Node, info: dict) -> Plug:
     """
     ...
 
+def _is_writable(mplug: om2.MPlug) -> bool:
+    """アトリビュートへ今書き込めるか(ロック・animCurve以外の入力接続が無いか)を返す。
+
+    Args:
+        mplug (om2.MPlug): 調べるアトリビュート。
+
+    Returns:
+        bool: 自身・親(コンパウンドアトリビュート)・マルチアトリビュートの全体のどれもロックされておらず、
+            自身と親の入力がanimCurveだけ(または無い)ならTrue。
+    """
+    ...
+
 def _attribute_names(attributes: str | Iterable[str] | None) -> list[str] | None:
     """キー操作のアトリビュート名を、cmdsへ渡す名前のリストへ変換する。
 
@@ -772,17 +784,21 @@ class Node(Object):
             list | Plug | Node | tuple | None: 条件に合う結果。
         """
         ...
-    def setKey(self, attributes: str | Iterable[str] | None = ..., *, timeUnit: str | None = ..., **kwargs) -> Node:
+    def setKey(self, attributes: str | Iterable[str] | None = ..., *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., **kwargs) -> Node:
         """複数のアトリビュートへ1回でキーを設定する(``cmds.setKeyframe(node, attribute=[...])`` 相当)。
 
-        fast引数は持たない(:meth:`~mlib.plugs.plug.Plug.setKey` と同じく、OpenMayaで打っても速くならないため)。
+        ``value`` / ``v`` は :meth:`~mlib.plugs.plug.Plug.get` と同じ規則の数値(角度は度、距離はcm)で受け取り、
+        アトリビュートごとに換算する。fast引数は持たない(:meth:`~mlib.plugs.plug.Plug.setKey` と同じく、
+        OpenMayaで打っても速くならないため)。
 
         Args:
             attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー可能な全アトリビュート
                 (``cmds.setKeyframe(node)`` と同じ)。
+            unit (str | None): 角度のvalueの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
             timeUnit (str | None): ``time`` / ``t`` の数値の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
                 ``"sec"`` は秒(数値または数値の並びだけ受け付ける)。
-            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。値はMayaのUI単位。
+            uiUnits (bool): Trueは value を現在のUI単位の数値で受け取る(8.0.0以前の挙動)。
+            **kwargs: Maya setKeyframeのフラグ(``time``・``value``・``inTangentType`` 等)。
                 ``attribute`` / ``at`` は引数attributesで指定する。
 
         Returns:
@@ -790,8 +806,8 @@ class Node(Object):
 
         Raises:
             TypeError: attributesが文字列・文字列の列・None以外、``attribute`` / ``at`` をkwargsに渡した、
-                timeUnitが文字列・None以外、または ``timeUnit="sec"`` で time に数値以外を指定した場合。
-            ValueError: attributesが空の列、またはtimeUnitが未対応の単位名の場合。
+                単位の型が不正、または ``timeUnit="sec"`` で time に数値以外を指定した場合。
+            ValueError: attributesが空の列、単位名が不正、またはuiUnits=Trueと単位を同時に指定した場合。
             RuntimeError: ノードが無効、またはMayaがキーの設定を拒否した場合。
         """
         ...
@@ -815,6 +831,30 @@ class Node(Object):
             ValueError: attributesが空の列、timeが有限でない、範囲の開始が終了より大きい、
                 またはtimeUnitが未対応の単位名の場合。
             RuntimeError: ノードが無効、またはMayaが削除を拒否した場合。
+        """
+        ...
+    def moveKey(self, attributes: str | Iterable[str] | None = ..., *, time: float | Sequence[float] | None = ..., timeOffset: float = ..., valueOffset: float = ..., unit: str | None = ..., timeUnit: str | None = ...) -> Node:
+        """複数のアトリビュートのキーの時刻と値をずらす(1回のUndo)。
+
+        値の換算はアトリビュートの種類(角度・距離)ごとに違うため、アトリビュートごとに
+        :meth:`Plug.moveKey <mlib.plugs.plug.Plug.moveKey>` と同じ処理を行う。fast引数は持たない。
+
+        Args:
+            attributes (str | Iterable[str] | None): アトリビュート名。Noneはキー可能なスカラーのアトリビュートの
+                うちキーのあるもの。
+            time (float | Sequence[float] | None): 動かすキーの時刻、または両端を含む範囲。Noneは全キー。
+            timeOffset (float): 時刻の移動量。
+            valueOffset (float): 値の移動量(角度は度、距離はcm)。
+            unit (str | None): 角度のvalueOffsetの単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン。
+            timeUnit (str | None): time・timeOffsetの単位。None(既定)と ``"frame"`` はフレーム、``"sec"`` は秒。
+
+        Returns:
+            Node: 自身。
+
+        Raises:
+            TypeError: attributesが文字列・文字列の列・None以外、または型が不正な場合。
+            ValueError: attributesが空の列、非有限値、または単位名が未対応の場合。
+            RuntimeError: ノードが無効、またはMayaが移動を拒否した場合。
         """
         ...
     def getHistory(self, type: str | None = ..., future: bool = ...) -> list[Node]:
@@ -883,7 +923,7 @@ class Node(Object):
             RuntimeError: Mayaが更新を拒否した場合。
         """
         ...
-    def getPlugs(self, userDefined: bool = ..., includeChildren: bool = ..., **listAttrFlags) -> list[Plug]:
+    def getPlugs(self, userDefined: bool = ..., includeChildren: bool = ..., *, writable: bool = ..., **listAttrFlags) -> list[Plug]:
         """アトリビュートをPlug参照として列挙する。
 
         ``userDefined=True`` はユーザー追加(動的)アトリビュートだけを、Mayaの定義から追加順に
@@ -895,6 +935,8 @@ class Node(Object):
         Args:
             userDefined (bool): Trueはユーザー定義アトリビュートだけを返す。listAttrのフラグとは併用できない。
             includeChildren (bool): Trueはコンパウンドアトリビュートの子も含める。Falseはトップレベルだけ。
+            writable (bool): Trueは今書き込めるもの(ロックされておらず、animCurve以外からの入力接続が無いもの。
+                親・子のロックと入力も見る)だけに絞る。animCurveが直接つながったものは含める。
             **listAttrFlags: ``userDefined=False`` のときに ``cmds.listAttr`` へ渡すフラグ。
 
         Returns:
@@ -902,7 +944,7 @@ class Node(Object):
                 該当なしなら空。名前が必要なら ``[plug.getLongName() for plug in ...]`` を使う。
 
         Raises:
-            TypeError: userDefined・includeChildrenがboolでない、またはuserDefined=TrueにlistAttrのフラグを併用した場合。
+            TypeError: userDefined・includeChildren・writableがboolでない、またはuserDefined=TrueにlistAttrのフラグを併用した場合。
             RuntimeError: ノードが無効、listAttrが失敗、またはuserDefined=TrueかつincludeChildren=Trueで
                 番号を指定しないマルチアトリビュートであるコンパウンドアトリビュートの子が含まれる場合。
         """
@@ -1138,6 +1180,9 @@ class Node(Object):
         Raises:
             RuntimeError: ノードは有効だが保持するDAGインスタンスが削除された場合。
         """
+        ...
+    def _list_plugs(self, userDefined, includeChildren, listAttrFlags):
+        """:meth:`getPlugs` の列挙の本体(writableで絞る前)。"""
         ...
     def _plugs_from(self, attributes: str | Plug | Iterable[str | Plug]) -> list[Plug]:
         """名前と自身のPlugが混在する指定を、自身のPlugの列へ解決する。

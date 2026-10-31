@@ -93,7 +93,7 @@ AttributeErrorになり、ノードへ任意のPython属性は追加できませ
 内部がラジアンで、値自身が単位を持つため ``set()`` へそのまま渡せます。
 ``time1.outTime`` のような時間アトリビュートの ``get()`` はフレームを返し、秒で扱う場合は
 ``get(timeUnit="sec")``・``set(..., timeUnit="sec")`` を指定します。アニメーションカーブのキー
-(:meth:`~mlib.nodes.animCurve.AnimCurve.setKey`・``getKeyInputs()``・``shiftKeys()`` 等)と
+(:meth:`~mlib.nodes.animCurve.AnimCurve.setKey`・``getKeyInputs()``・``moveKey()`` 等)と
 :meth:`~mlib.common.drivenKey.DrivenKey.setKey` の時間も同じ規則で、``timeUnit="sec"`` で秒を指定できます。
 角度は ``unit``、時間は ``timeUnit`` と別の引数にしてあるため、animCurveTA のように両方を持つカーブでも
 それぞれを指定できます。

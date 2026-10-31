@@ -100,6 +100,7 @@ maya/
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
 │  ├ mlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)
 │  ├ MayaCommandPorts/  HTools/mlibから独立したcommandPort初期化モジュール
+│  ├ AnimBar/       タイムスライダーの上にドックするアニメーション作業用のツールバー(aTools相当を自作。処理はmlib、画面はPySide、起動時に表示)。詳細は同フォルダのREADME
 │  ├ integrations/   外部サービス連携(Slack, mGearガイド操作)
 │  ├ FramePlayer/    コマ送り確認用の動画プレイヤー(C++のexeをパッケージ直下に置く)と、Mayaのタイムスライダーと双方向に連携するPythonパッケージ(`python/frameplayer`)。mlibに依存しない単体パッケージで、将来は別リポジトリでの公開も検討中。詳細は同フォルダのREADME
 │  └ MayaCinematicCameraHUD/  C++プラグイン(別リポジトリのsubmodule。このワークスペースで編集・ビルドする)
@@ -207,7 +208,7 @@ tools/
 - 選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行は`mlib.common`へ置く。参照列挙は`mlib.common.references.listReferences()`、参照ノードは`mlib.nodes.Reference`で扱う。汎用UI・シーン/プロジェクト操作は利用側のMaya標準APIを使い、本体へ旧パッケージを再追加しない。
 - `mlib/decorator.py`: `undoChunk`、`undoTransaction`、`nativeUnits`、`preservedSelection`、`preservedSkinShape`、`viewportOff`の既存6入口を公開する。fast/safeの状態管理・内部wrapper・フラグ正規化も同ファイルへ集約する。インスタンス固有のcontextは各クラスに残し、既存の装飾順序・Undo/fast/safeの意味を維持する。
 - `mlib/util.py`: クラスに属さない`legalizeName`・`measure`・`mirrorArguments`の3関数を公開する。数学値と空間指定の内部helperは先頭`_`で区別し、標準ライブラリだけをimportする。ログは`mlib.logger`、進捗表示は`mlib.common.progressBar`が担当する。
-- `mlib/__init__.py`は`core`・`util`等のモジュール、`reload()`、明示した基礎7コマンドを公開し、版番号`__version__`(現行`8.0.0`)を持つ。`__version__`は`__all__`に入れず、`maya/modules/mlib.mod`の6行と`_docs/source/changelog.rst`の先頭見出しと同じ値にする(`__tests__/unit/test_static_version.py`が三者の一致を検査する)。`Object`の正式入口は`mlib.core.object.Object`、拡張管理は`mlib.core.extensions`とし、ルートへクラス/関数を展開しない。旧`mlib._core`や移動前のcommon小モジュールの互換入口は残さない。再読み込みは廃止済みモジュール参照も除去する。
+- `mlib/__init__.py`は`core`・`util`等のモジュール、`reload()`、明示した基礎7コマンドを公開し、版番号`__version__`(現行`9.0.0`)を持つ。`__version__`は`__all__`に入れず、`maya/modules/mlib.mod`の6行と`_docs/source/changelog.rst`の先頭見出しと同じ値にする(`__tests__/unit/test_static_version.py`が三者の一致を検査する)。`Object`の正式入口は`mlib.core.object.Object`、拡張管理は`mlib.core.extensions`とし、ルートへクラス/関数を展開しない。旧`mlib._core`や移動前のcommon小モジュールの互換入口は残さない。再読み込みは廃止済みモジュール参照も除去する。
 
 ### MayaCommandPorts
 

@@ -64,6 +64,7 @@ def ls(*args,
         renderResolutions=_UNSET, rr=_UNSET,
         renderSetups=_UNSET, rs=_UNSET,
         selection=_UNSET, sl=_UNSET,
+        selectedKeyframes=_UNSET,
         sets=_UNSET, set=_UNSET,
         shapes=_UNSET, s=_UNSET,
         shortNames=_UNSET, sn=_UNSET,
@@ -177,6 +178,9 @@ def ls(*args,
         rs (bool): renderSetupsの短縮名。同時指定はできない。
         selection (bool): 現在の選択を検索する指定。
         sl (bool): selectionの短縮名。同時指定はできない。
+        selectedKeyframes (bool): mlib独自の指定。TrueはGraph Editor・Dope Sheetで選んでいるキーを
+            :class:`~mlib.common.keyframe.Keyframes` で返す(:meth:`Selection.getKeyframes
+            <mlib.common.selection.Selection.getKeyframes>` と同じ)。他の位置引数・フラグとは併用できない。
         sets (bool): セットを検索する指定。
         set (bool): setsの短縮名。同時指定はできない。
         shapes (bool): Shapeを検索する指定。
@@ -214,8 +218,8 @@ def ls(*args,
         **kwargs (object): 今後追加される未知のMayaフラグ。そのままMayaへ渡す。
 
     Returns:
-        Nodes | Joints | SkinClusters | Plugs | Vertices | Edges | Faces | UVs | CVs | list[Node | Plug | Component]:
-            結果の種類に応じた集まり。
+        Nodes | Joints | SkinClusters | Plugs | Vertices | Edges | Faces | UVs | CVs | Keyframes | list[Node | Plug | Component]:
+            結果の種類に応じた集まり。selectedKeyframes=Trueは :class:`~mlib.common.keyframe.Keyframes`。
 
             * ノードだけ: :class:`~mlib.nodes.node.Nodes`。typeまたはtypがjointなら
               :class:`~mlib.nodes.joint.Joints`、skinClusterなら :class:`~mlib.nodes.skinCluster.SkinClusters`
@@ -231,7 +235,8 @@ def ls(*args,
               シェイプが決まらないため空のNodes)。
 
     Raises:
-        TypeError: 長名・短名を同時指定した場合、または位置引数に対応しない型が含まれる場合。
+        TypeError: 長名・短名を同時指定した場合、位置引数に対応しない型が含まれる場合、
+            またはselectedKeyframes=Trueに他の位置引数・フラグを併用した場合。
         ValueError: 位置引数に削除済みの対象が含まれる場合。
         RuntimeError: 検索結果をノードとして解決できない場合。
 
@@ -241,6 +246,19 @@ def ls(*args,
         各集まりの構築と同じ規則で重複(同じノード・同じDAGパス、同じアトリビュート、同じ番号)を
         先に現れた方だけ残す。list で返す混在の結果では重複を統合しない。
     """
+    if selectedKeyframes is not _UNSET:
+        if not isinstance(selectedKeyframes, bool):
+            raise TypeError("selectedKeyframes must be a bool")
+        if selectedKeyframes:
+            flags = dict(locals())
+            others = [name for name, value in flags.items()
+                      if name not in ("args", "kwargs", "selectedKeyframes") and value is not _UNSET]
+            if args or kwargs or others:
+                raise TypeError("selectedKeyframes=True cannot be combined with other arguments")
+            # common.selectionはcmdsを参照するため、循環importを避けて関数内で読み込む。
+            from ..common.selection import Selection
+
+            return Selection.getKeyframes()
     short_assemblies = kwargs.pop("as", _UNSET)
     _merge_flags(kwargs, (
         (absoluteName, an, "absoluteName", "an"),

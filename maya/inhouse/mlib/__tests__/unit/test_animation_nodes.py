@@ -26,9 +26,9 @@ class AnimationNodesTest(unittest.TestCase):
                 curve = self.create("animCurve" + suffix)
                 self.assertIsInstance(curve, getattr(mlib.nodes, "AnimCurve" + suffix))
                 self.assertIsInstance(curve, mlib.nodes.AnimCurve)
-                for obsolete in ("getDriverPlug", "getOutputPlug", "getDrivenPlugs"):
+                for obsolete in ("getDriverPlug", "getOutputPlug", "shiftKeys", "scaleKeys"):
                     self.assertFalse(hasattr(type(curve), obsolete), obsolete)
-                curve.setKey(0, 0).setKey(10, 20)
+                curve.setKey(0, 0, "linear", "linear").setKey(10, 20, "linear", "linear")
                 self.assertEqual(curve.getKeyInputs(), [0, 10])
                 self.assertAlmostEqual(curve.getKeyValues()[1], 20)
                 self.assertAlmostEqual(curve.evaluate(5), 10)
@@ -43,7 +43,7 @@ class AnimationNodesTest(unittest.TestCase):
                 self.assertEqual(curve.getKeyCount(), 2)
 
     def test_tangents_infinity_and_invalid_input(self):
-        curve = self.create("animCurveUU").setKey(0, 0).setKey(1, 1)
+        curve = self.create("animCurveUU").setKey(0, 0, "linear", "linear").setKey(1, 1, "linear", "linear")
         curve.setTangent(0, outTangentType="flat")
         self.assertEqual(curve.getTangent(0)["outTangentType"], "flat")
         cmds.undo()
@@ -134,7 +134,7 @@ class AnimationNodesTest(unittest.TestCase):
             self.assertEqual(curve.getKeyInputs(), [-2, 4])
             cmds.redo()
             self.assertEqual(curve.getKeyInputs(), [-4, 2])
-            curve.shiftKeys(1, 2)
+            curve.moveKey(timeOffset=1, valueOffset=2)
             self.assertEqual(curve.getKeyInputs(), [-3, 3])
             self.assertAlmostEqual(curve.evaluate(0), -4)
             cmds.selectKey(clear=True)

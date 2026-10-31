@@ -80,8 +80,8 @@ class AnimCurveTimeTest(_SpecCase):
             for fast in (False, True):
                 with self.subTest(frame=frame, fast=fast):
                     curve = mlib.createNode("animCurveTL", name=self.name("curve#"))
-                    curve.setKey(0, 0, fast=fast).setKey(fps, 10, fast=fast)
-                    curve.setKey(3.0, 30, timeUnit="seconds", fast=fast)
+                    curve.setKey(0, 0, "linear", "linear", fast=fast).setKey(fps, 10, "linear", "linear", fast=fast)
+                    curve.setKey(3.0, 30, "linear", "linear", timeUnit="seconds", fast=fast)
                     name = curve.getFullName()
                     self.assertEqual(curve.getKeyInputs(), [0.0, float(fps), 3.0 * fps])
                     self.assertEqual(cmds.keyframe(name, query=True, timeChange=True), [0.0, float(fps), 3.0 * fps])
@@ -91,21 +91,21 @@ class AnimCurveTimeTest(_SpecCase):
                     self.assertAlmostEqual(cmds.getAttr(name + ".output", time=fps / 2), 5.0)
 
     def test_shift_scale_and_mirror_use_frames(self):
-        """shiftKeysの移動量、scaleKeys/mirrorの基準値は既定でフレーム(cmdsのtimeChange・timePivotと同じ)。"""
+        """moveKeyの移動量、scaleKey/mirrorの基準値は既定でフレーム(cmdsのtimeChange・timePivotと同じ)。"""
         for frame, fps in _FRAME_RATES:
             cmds.currentUnit(time=frame)
             with self.subTest(frame=frame):
                 curve = mlib.createNode("animCurveTU", name=self.name("shift#"))
                 curve.setKey(0, 0).setKey(10, 1)
-                curve.shiftKeys(5)
+                curve.moveKey(timeOffset=5)
                 self.assertSequenceAlmostEqual(curve.getKeyInputs(), [5, 15], places=4)
-                curve.shiftKeys(1, timeUnit="sec")
+                curve.moveKey(timeOffset=1, timeUnit="sec")
                 self.assertSequenceAlmostEqual(curve.getKeyInputs(), [5 + fps, 15 + fps], places=4)
-                curve.scaleKeys(2, 1, 5 + fps)
+                curve.scaleKey(2, 1, 5 + fps)
                 self.assertSequenceAlmostEqual(curve.getKeyInputs(), [5 + fps, 25 + fps], places=4)
                 curve.mirror(input=True, value=False, inputPivot=5 + fps)
                 self.assertSequenceAlmostEqual(curve.getKeyInputs(), [-15 + fps, 5 + fps], places=4)
-                curve.scaleKeys(1, 1, 0, 0, timeUnit="sec")
+                curve.scaleKey(1, 1, 0, 0, timeUnit="sec")
                 self.assertSequenceAlmostEqual(curve.getKeyInputs(timeUnit="sec"),
                                                [v / fps for v in curve.getKeyInputs()], places=6)
 
@@ -121,7 +121,7 @@ class AnimCurveTimeTest(_SpecCase):
                 self.assertSequenceAlmostEqual(curve.getKeyValues(timeUnit="sec"), [0, 2])
                 self.assertAlmostEqual(curve.evaluate(15), 30.0)
                 self.assertAlmostEqual(curve.evaluate(0.5, timeUnit="sec"), 1.0)
-                curve.shiftKeys(0, 30)
+                curve.moveKey(timeOffset=0, valueOffset=30)
                 self.assertSequenceAlmostEqual(curve.getKeyValues(), [30, 90])
             with self.subTest(kind="UT", fast=fast):
                 curve = mlib.createNode("animCurveUT", name=self.name("ut#"))
@@ -135,7 +135,7 @@ class AnimCurveTimeTest(_SpecCase):
     def test_unitless_input_is_not_converted(self):
         """U型入力(ドリブンキー用)はtimeUnitに関係なく無次元。"""
         curve = mlib.createNode("animCurveUL", name=self.name("ul"))
-        curve.setKey(2, 1, timeUnit="sec", fast=True).shiftKeys(3, timeUnit="sec")
+        curve.setKey(2, 1, timeUnit="sec", fast=True).moveKey(timeOffset=3, timeUnit="sec")
         self.assertEqual(curve.getKeyInputs(), [5.0])
         self.assertAlmostEqual(curve.evaluate(5, timeUnit="sec"), 1.0)
 

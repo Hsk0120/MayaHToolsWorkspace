@@ -480,16 +480,16 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
   `EulerRotate`・`Quaternion`は内部rad(om2互換)で値自身が単位を持つため、`unit`に関係なく換算しない。
   `rotate`の`get()`は従来どおり`EulerRotate`を返し、`unit`を明示した場合だけ数値tupleを返す
   (`tuple(rotate.get())`はradの数値になるので、度の数値列が必要なら`get(unit="deg")`を使う)。
-  `Plug.getMin/getMax/getSoftMin/getSoftMax/getDefault`は既定で`MAngle`等の単位付きの値を返し、`unit`指定時に数値を返す。
+  `Plug.getMin/getMax/getSoftMin/getSoftMax`は既定で`MAngle`等の単位付きの値を返し、`unit`指定時に数値を返す。`getDefault`は9.0.0から`get()`と同じ規則の数値(度・cm・フレーム)を返す。`Plug.setKey`・`Node.setKey`の`value`も9.0.0から度・cm(`uiUnits=True`でUI単位)。
 - 時間の数値を受け渡す公開API(`Plug.get/set`の時間アトリビュートと、時間の子を持つコンパウンド・マルチアトリビュート、
   `Plug.setKey`の`time`、`AnimCurve`のT型入力・時間出力(`setKey`・`getKeyInputs`・`getKeyValues`・`evaluate`・
-  `shiftKeys`・`scaleKeys`/`mirror`のpivot)、`DrivenKey.setKey`、`Node.addAttr`の時間の既定値・範囲、
+  `moveKey`・`scaleKey`/`mirror`のpivot)、`DrivenKey.setKey`、`Node.addAttr`の時間の既定値・範囲、
   `Plug.setMin`等)は`timeUnit="frame"|"sec"`(別名`frames`・`second(s)`)を受け、既定は現在のUI時間単位のフレームとする。
   角度の`unit`と別の引数にする(animCurveTAのように角度と時間を同時に持つ値でも、それぞれを指定できるため)。
   単位名を逆の引数へ渡した場合(`unit="sec"`等)は、正しい引数名を示すValueErrorにする。
   `uiUnits=True`はフレームと同じ値になるが、`timeUnit`とは同時に指定できない(ValueError)。
   `MTime`は値自身が単位を持つため換算しない。`getMin`等は`timeUnit`指定時だけ`MTime`を数値で返す。
-  U型(ドリブンキー等の無次元入力)のカーブ入力・`scaleKeys`の倍率は無次元のまま。接線のウェイトは`keyTangent`と同じ値で、
+  U型(ドリブンキー等の無次元入力)のカーブ入力・`scaleKey`の倍率は無次元のまま。接線のウェイトは`keyTangent`と同じ値で、
   `timeUnit`を持たない。
   数学型の生成は既定rad(`EulerRotate(..., unit="deg")`・`Quaternion.fromAxisAngle(..., unit="deg")`で度)。
   内部処理はradで計算し、公開境界で一度だけ換算する(通常・fast・safeで同じ換算)。
@@ -622,7 +622,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 2026-10-26の指定により、書き込み系の公開メソッドは原則 `fast=False` 引数を持ち、定型(`_require_bool(fast, "fast")` → `with _edit_context("mlib<Class><Method>", fast):`(`nullcontext() if fast else undoChunk(...)`) → 検証・対象解決はwith内に通常/fast共通で1回 → 書込み直前の `if fast:` 分岐 → 内側へ `fast=fast` を明示 → 未対応は変更前にNotImplementedError)で実装する。fastでも入力検証・例外型・単位・戻り値は同じ。複数のom2操作は1つのmodifierに積んで `doIt` を1回にし、DAG削除とDG操作を同じmodifierに混在させない。
 - `fast` を持たない書き込みはom2に同等機能が無いものに限り、docstringに「fast引数は持たない」と理由を書く: `Transform.addConstraint`(コンストレイント作成APIなし)、`makeIdentity`(形状へのベイク)、`SkinCluster.bind/copyWeightsTo/addInfluences/restoreBindPose/mirrorWeights`(バインド・コピー・ミラーAPIなし)、`BlendShape.create/addTarget/removeTarget`・`IkHandle.create`・`Joint.orient/mirror`(cmds.blendShape・ikHandle・joint・mirrorJointの同等機能なし)、`DagPose.create/restore`(Mayaの階層補完・復元規則)、`Container/DagContainer` の作成・所属・publish系(MFnContainerNodeは照会専用)、`Reference.load/unload/remove`・`createReference`(ファイル操作)、`Plugin.load/unload`(環境操作)、`moveAttrOrder`。`setEnumNames` は引数を持つが `fast=True` をNotImplementedErrorで拒否する。
 - 2026-10-30のユーザー指定により、fast は通常経路より速くなるものに付ける(デコレーター・コンテキストでは切り替えず、引数だけで指定し、内部の処理へ `fast=fast` で渡す)。6.1.0 で `Mesh.setPoints`・`NurbsCurve.setCvPositions`(全点を `MFnMesh.setPoints`・`MFnNurbsCurve.setCVPositions` で1回に書く)、`DagNode.setColor`・`Nodes.setColor`、`BoolPlug.toggle`、`SkinCluster.pruneWeights`(`setWeights` と同じPlug直接書込み)、`DrivenKey.setKey`(この組のカーブが無ければ setDrivenKeyframe と同じ型・名前のカーブを作って接続する。別ドライバーが既にある駆動先は blendWeighted の挿入が必要なので NotImplementedError)に fast を足した。周期カーブの fast 座標編集(`setCvPositions`・`scaleGeometry`)は末尾の重複CVを先頭の独立CVに揃えて書く。mayapy 2027 で cmds と om2 の1回あたりの時間を測り、差がほぼ無いものは fast を付けない: `Transform.setLimits`(transformLimits 1回とPlug 8本の書込みが同程度)、`matchTransform`(同程度)、`Joint.orient`(joint -e 1回が約30µs)、`NurbsCurve.create`(約1.4倍)、`Plug.setMin/setMax/setSoftMin/setSoftMax`(addAttr -e 1回が約10µs)。1回の cmds で全体を処理するもの(`copyWeightsTo`・`mirrorWeights`・`bind`・`makeIdentity` 等)も om2 にしても速くならない。
-- 2026-10-31のユーザー指定により、fast にしても速くならないもの・効果がほぼ無いもの(実際の使い方に近い量で約1.1倍以下)は、fast 引数と OpenMaya の経路を削除する。7.0.0 で削除: `ShadingEngine.assign`・`ObjectSet.addMembers/removeMembers`(MFnSet が cmds.sets より遅い)、`DisplayLayer.addMembers/removeMembers/setCurrent`(同じく遅い)、`Joint.reparentChildren`(ワールド位置を保つ付け替えは cmds.parent が速い)、`AnimCurve.shiftKeys/scaleKeys/mirror`(全キーを1回で処理する cmds が速い)、`Plug.setKey`(検証と照会が大半。`AnimCurve.setKey` の fast は残す)、`Joint.jointOrientToRotate/freezeRotate`・`SkinCluster.redistributeWeights`(検証・計算が大半で約1.0倍)、`Plug.setEnumNames`(fast=True が常に未対応だった)。`Transform.setParent` の fast は `relative=True` で約2.5倍速いため残す(ワールド位置を保つ既定では fast の方が遅い)。削除した fast は docstring に「fast引数は持たない(理由)」と書く。
+- 2026-10-31のユーザー指定により、fast にしても速くならないもの・効果がほぼ無いもの(実際の使い方に近い量で約1.1倍以下)は、fast 引数と OpenMaya の経路を削除する。7.0.0 で削除: `ShadingEngine.assign`・`ObjectSet.addMembers/removeMembers`(MFnSet が cmds.sets より遅い)、`DisplayLayer.addMembers/removeMembers/setCurrent`(同じく遅い)、`Joint.reparentChildren`(ワールド位置を保つ付け替えは cmds.parent が速い)、`AnimCurve.shiftKeys/scaleKeys/mirror`(全キーを1回で処理する cmds が速い。9.0.0で`moveKey`・`scaleKey`へ改名)、`Plug.setKey`(検証と照会が大半。`AnimCurve.setKey` の fast は残す)、`Joint.jointOrientToRotate/freezeRotate`・`SkinCluster.redistributeWeights`(検証・計算が大半で約1.0倍)、`Plug.setEnumNames`(fast=True が常に未対応だった)。`Transform.setParent` の fast は `relative=True` で約2.5倍速いため残す(ワールド位置を保つ既定では fast の方が遅い)。削除した fast は docstring に「fast引数は持たない(理由)」と書く。
 - 3.0.0 で次の書き込みから `fast` を外した。利用がほぼ無く、cmds と同じ結果を保つ補正が保守の負担になるため 3.0.0 で外した: `mlib.duplicate`(`MFnDagNode.duplicate` の名前・ロック・セット所属・inverseScale の補正)、`mlib.select`・`Selection.select`(`MGlobal.setActiveSelectionList` でのコンポーネントのまとめ方の再現)、`Namespace.create/setCurrent/rename/move/remove`(`om2.MNamespace` の作成名の特定・ASCII以外の拒否)、`Plug.setMuted/mute/unmute`(`MDGModifier` での mute ノードの命名・接続の再現)、`Transform.matchTransform`(position・pivots だけの再現)、`SkinCluster.removeInfluence/removeUnusedInfluences`・`Joint.removeInfluence`(`cmds.skinCluster -removeInfluence` の再配分・距離配分の再現)。いずれも通常経路(cmds、Undo 1 回)だけを持つ。
 - cmds→om2の読み取り置換は `__tests__/integration/test_cmds_parity.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。
@@ -736,6 +736,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - マルチアトリビュートの `getElement` は既存要素のみ。`multi[index]` は未作成の非実体化参照も返し、作成はset/connectで行う。
 - `PluginPackage.tryLoad` は状態文字列を返し、`Plugin.ensureLoaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
 - `getVisibility/setVisibility` は自身のvisibilityアトリビュートだけを扱い、階層や表示レイヤーを含む最終可視性と区別する。
+- 2026-10-31のユーザー指定(9.0.0)により、キーは `mlib.common.Keyframe`/`Keyframes`(Mayaの setKeyframe・keyframe に合わせた名前)で「カーブ + キーの番号」を作成時に固定した参照として扱う。頂点と同じくキーの追加・削除の後の同一性は保証しない。ドリブンキーのカーブも同じクラスで、時刻はカーブの入力値を指す。編集は AnimCurve の処理を呼び、`Keyframes` の編集は全体で1回のUndo。選択キーは `Selection.getKeyframes()` と `mlib.ls(selectedKeyframes=True)`(他の引数と併用しない)。キーの範囲操作は AnimCurve(`moveKey`・`scaleKey`・`removeKey`・`replaceKeys`)、Plug・Node(`setKey`・`removeKey`・`moveKey`)の両方に置き、`index`(番号・番号の並び)・`time`(時刻・範囲)で絞る。`AnimCurve.removeKey` は既定でカーブを残し(`keepCurve=True`、Mayaの cutKey はロック中のノードを消さないためその間だけロックする)、Plug・Node の removeKey は Maya と同じく空のカーブを消す。`AnimCurve.setKey` の接線型の省略は `cmds.setKeyframe` と同じ(既存は保ち、新規は Default tangent)。
 
 ## 参照と入力の固定規則
 

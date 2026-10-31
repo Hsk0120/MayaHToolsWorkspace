@@ -15,6 +15,7 @@ from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
+from .keyframe import Keyframe, Keyframes
 from typing import Iterator, Sequence
 
 _NAME_CHUNK: int
@@ -104,6 +105,14 @@ class Selection:
             list[Plug]: 選択中のアトリビュート。区分の順(オブジェクト→シェイプ→入力→出力)で、
                 同じ完全名は最初だけ残す。バッチ・mayapy・Channel Boxが無いGUI、または
                 選択が無い場合は空リスト。表示中のノードに存在しないアトリビュートは除く。
+        """
+        ...
+    @classmethod
+    def getKeyframes(cls) -> Keyframes:
+        """Graph Editor・Dope Sheet で選んでいるキーを取得する。シーンは変更しない。
+
+        Returns:
+            Keyframes: 選んでいるキー(Mayaが返すカーブの順、カーブ内は番号の昇順)。選んでいなければ空。
         """
         ...
     @property

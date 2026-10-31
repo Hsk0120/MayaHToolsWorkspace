@@ -16,6 +16,8 @@ _exports = {
     "DampedSpring": ("dampedSpring", "DampedSpring"),
     "Deferred": ("deferred", "Deferred"),
     "DrivenKey": ("drivenKey", "DrivenKey"),
+    "Keyframe": ("keyframe", "Keyframe"),
+    "Keyframes": ("keyframe", "Keyframes"),
     "LOAD_FAILED": ("pluginPackage", "LOAD_FAILED"),
     "LOADED": ("pluginPackage", "LOADED"),
     "MISSING": ("pluginPackage", "MISSING"),
@@ -48,6 +50,7 @@ if TYPE_CHECKING:
     from .dampedSpring import DampedSpring
     from .deferred import Deferred
     from .drivenKey import DrivenKey
+    from .keyframe import Keyframe, Keyframes
     from .module import Module
     from .namespace import Namespace
     from .plugin import Plugin

@@ -843,14 +843,14 @@ class PlugResetDefaultSpecTest(_PlugSpecCase):
     """getDefaultの戻り値の型とresetのUndo・失敗時の扱い。"""
 
     def test_default_value_types(self):
-        """数値はfloat・bool・int、単位付きはMAngle・MDistance・MTime、数値のコンパウンドアトリビュートはtuple。"""
+        """数値はfloat・bool・int、単位付きもget()と同じ規則のfloat(度・cm・フレーム)、数値のコンパウンドアトリビュートはtuple。"""
         self.assertEqual(self.node.getPlug("sx").getDefault(), 1.0)
         self.assertIs(self.node.getPlug("visibility").getDefault(), True)
         self.assertEqual(self.node.getPlug("rotateOrder").getDefault(), 0)
-        self.assertIsInstance(self.node.getPlug("rx").getDefault(), om2.MAngle)
-        self.assertIsInstance(self.add("lin", attributeType="doubleLinear", defaultValue=2).getDefault(),
-                              om2.MDistance)
-        self.assertIsInstance(self.add("ti", attributeType="time").getDefault(), om2.MTime)
+        self.assertEqual(self.node.getPlug("rx").getDefault(), 0.0)
+        self.assertIsInstance(self.node.getPlug("rx").getDefault(), float)
+        self.assertAlmostEqual(self.add("lin", attributeType="doubleLinear", defaultValue=2).getDefault(), 2.0)
+        self.assertIsInstance(self.add("ti", attributeType="time").getDefault(), float)
         self.assertEqual(self.node.getPlug("scale").getDefault(), (1.0, 1.0, 1.0))
 
     def test_reset_unit_attribute_independent_of_ui_units(self):

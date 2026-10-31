@@ -1,15 +1,18 @@
 """アニメーションカーブの共通操作。通常編集はUndo、fastはAPI直接更新。"""
 
 import math
+from contextlib import contextmanager
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
+from ..common.keyframe import Keyframe, Keyframes
 from ..common.units import angleToUi
 from ..core.attributeType import _convert_units, _from_seconds, _to_seconds
 from ..core.fastWrite import require_writable
-from ..decorator import _edit_context, undoChunk
+from ..core.nodeEdit import delete_nodes
+from ..decorator import _edit_context, _require_bool, undoChunk
 from ..util import _angle_unit, _from_radians, _time_unit, _to_radians
 from .node import Node
 
@@ -31,6 +34,22 @@ _TANGENT_TYPES = {
 }
 #: APIの接線定数からコマンドの接線名への逆引き。
 _TANGENT_NAMES = {value: name for name, value in _TANGENT_TYPES.items()}
+
+
+def _default_tangents():
+    """Mayaの設定の既定の接線型(``keyTangent -q -g``)を、fastで使えるAPIの定数で返す。
+
+    Returns:
+        tuple[int, int]: 入力・出力の接線型。fastで使えない型(fixed・入力のstep/stepnext等)はautoにする。
+    """
+    names = cmds.keyTangent(query=True, g=True, inTangentType=True, outTangentType=True) or ["auto", "auto"]
+    result = []
+    for incoming, name in zip((True, False), names):
+        name = str(name).lower()
+        if name == "fixed" or name not in _TANGENT_TYPES or (incoming and name in ("step", "stepnext")):
+            name = "auto"
+        result.append(_TANGENT_TYPES[name])
+    return tuple(result)
 
 
 class AnimCurve(Node):
@@ -145,10 +164,12 @@ class AnimCurve(Node):
             return _from_seconds(result.value / om2.MTime.ticksPerSecond(), output_unit)
         return _from_seconds(_from_radians(self._api_number(result), angle_unit), output_unit)
 
-    def setKey(self, input, value, inTangentType="linear", outTangentType="linear", *, unit="deg", timeUnit="frame",
+    def setKey(self, input, value, inTangentType=None, outTangentType=None, *, unit="deg", timeUnit="frame",
                fast=False):
-        """キーを追加する。同じ入力位置にキーがあれば値と接線型を更新する。
+        """キーを追加する。同じ入力位置にキーがあれば値と、指定した接線型を更新する。
 
+        接線型を省略すると ``cmds.setKeyframe`` と同じく、既存のキーは接線型を保ち、新しいキーは
+        Mayaの設定(Preferences > Animation の Default tangent、``keyTangent -q -g``)に従う。
         通常はUI単位へ換算してsetKeyframeを呼ぶ。fastの既存キーは値→入力接線型→出力接線型の
         順に更新する。新規キーは両接線型を指定し、時間出力の値は追加後に設定する。
         後続の失敗で先行の変更を自動復元しない。
@@ -156,8 +177,8 @@ class AnimCurve(Node):
         Args:
             input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
             value (float): 出力型に従う度(unit)/cm/フレーム(timeUnit)、または無次元。inputと共に有限値へ変換する。
-            inTangentType (str): Mayaの入力接線型。fastのstepはautoへ補正する。
-            outTangentType (str): Mayaの出力接線型。
+            inTangentType (str | None): Mayaの入力接線型。Noneは上記の既定。fastのstepはautoへ補正する。
+            outTangentType (str | None): Mayaの出力接線型。Noneは上記の既定。
             unit (str): 角度出力(A型)のvalueの単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
                 (``"degree"`` 等の別名も可)。他の型では使わない。
             timeUnit (str): T型入力のinputと、時間出力(TT・UT型)のvalueの単位。既定 ``"frame"`` は
@@ -180,16 +201,22 @@ class AnimCurve(Node):
             value = _to_seconds(_to_radians(self._finite(value), angle_unit), output_unit)
             if fast:
                 fn = self._curve_fn()
-                tangent_in = self._tangent_type(inTangentType, incoming=True, key=True)
-                tangent_out = self._tangent_type(outTangentType, key=True)
+                tangent_in = None if inTangentType is None else \
+                    self._tangent_type(inTangentType, incoming=True, key=True)
+                tangent_out = None if outTangentType is None else self._tangent_type(outTangentType, key=True)
                 at = self._api_input(input)
                 self._require_curve_writable()
                 index = fn.find(at)
                 if index is not None:
                     self._set_api_value(fn, index, value)
-                    fn.setInTangentType(index, tangent_in)
-                    fn.setOutTangentType(index, tangent_out)
+                    if tangent_in is not None:
+                        fn.setInTangentType(index, tangent_in)
+                    if tangent_out is not None:
+                        fn.setOutTangentType(index, tangent_out)
                 else:
+                    default_in, default_out = _default_tangents()
+                    tangent_in = default_in if tangent_in is None else tangent_in
+                    tangent_out = default_out if tangent_out is None else tangent_out
                     if self.getType().endswith("T"):
                         # 旧Python APIの時間出力addKeyはMTimeの値を生tick扱いする。
                         # 0でキーを確保してtime型Plugへ秒を設定し、版差を避ける。
@@ -200,46 +227,107 @@ class AnimCurve(Node):
                 return self
             position = self._unit_value(input)
             value = self._unit_value(value, output=True)
-            flag = "time" if self.isTimeInput() else "float"
-            cmds.setKeyframe(self.getFullName(), value=value, inTangentType=inTangentType,
-                            outTangentType=outTangentType, **{flag: position})
+            flags = {"time" if self.isTimeInput() else "float": position}
+            if inTangentType is not None:
+                flags["inTangentType"] = inTangentType
+            if outTangentType is not None:
+                flags["outTangentType"] = outTangentType
+            cmds.setKeyframe(self.getFullName(), value=value, **flags)
             return self
 
-    def removeKey(self, index=None, *, time=None, timeUnit="frame", fast=False):
+    def removeKey(self, index=None, *, time=None, timeUnit="frame", keepCurve=True, fast=False):
         """指定番号、または入力の範囲にあるキーを削除する。キークリップボードは変更しない。
 
-        index と time はどちらか一方を指定する。アトリビュートへ接続されたカーブの全キーを通常経路で削除すると、
-        ``cmds.cutKey`` と同じくMayaがカーブ自体を削除する(fastでは空のカーブが残る)。
+        index と time はどちらか一方を指定する。既定(keepCurve=True)では全キーを削除してもカーブを残す
+        (:meth:`Plug.removeKey <mlib.plugs.plug.Plug.removeKey>`・``cmds.cutKey`` は空になったカーブを削除する)。
 
         Args:
-            index (int | None): 0始まりのキー番号。
+            index (int | Sequence[int] | None): 0始まりのキー番号、またはその並び。
             time (float | Sequence[float] | None): 削除する入力の時刻、または両端を含む範囲 ``(start, end)``。
                 T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。範囲内にキーが無ければ何もしない。
             timeUnit (str): T型入力のtimeの単位。``"frame"`` / ``"sec"``。
+            keepCurve (bool): Trueは全キーを消してもカーブを残す。FalseはMayaと同じく空のカーブを削除する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
-            AnimCurve: 自身。
+            AnimCurve: 自身。keepCurve=Falseでカーブを削除した場合、この参照は無効になる。
 
         Raises:
             TypeError: indexとtimeの両方・どちらも指定しない場合、timeが数値・2つの数値の並び以外、
-                またはfastがbool以外の場合。
+                またはkeepCurve・fastがbool以外の場合。
             ValueError: timeが有限でない、範囲の開始が終了より大きい、またはtimeUnitが未対応の単位名の場合。
             IndexError: indexが範囲外の場合。
         """
         if (index is None) == (time is None):
             raise TypeError("Specify exactly one of index and time")
+        _require_bool(keepCurve, "keepCurve")
         with _edit_context("mlibAnimCurveRemoveKey", fast):
-            span = self._index(index) if time is None else self._time_span(time, timeUnit)
-            if span is None:
+            ranges = self._key_ranges(index, time, timeUnit)
+            if not ranges:
                 return self
+            emptied = sum(end - start + 1 for start, end in ranges) == self.getKeyCount()
             if fast:
                 self._require_curve_writable()
                 fn = self._curve_fn()
-                for key in range(span[1], span[0] - 1, -1):
-                    fn.remove(key)
+                for start, end in reversed(ranges):
+                    for key in range(end, start - 1, -1):
+                        fn.remove(key)
+                if emptied and not keepCurve:
+                    # 同じ呼出しの中で MDGModifier を直接使って消すと、後の keyTangent 等でMayaが異常終了するため、
+                    # mlib.delete(fast=True) と同じ削除の処理に任せる。
+                    del fn
+                    delete_nodes([self], fast=True)
+            elif keepCurve and emptied:
+                with self._kept_curve():
+                    cmds.cutKey(self.getFullName(), index=ranges, clear=True, animation="objects")
             else:
-                cmds.cutKey(self.getFullName(), index=span, clear=True, animation="objects")
+                cmds.cutKey(self.getFullName(), index=ranges, clear=True, animation="objects")
+            return self
+
+    def replaceKeys(self, keys, *, unit="deg", timeUnit="frame"):
+        """カーブを残したまま、全キーを指定したキーへ置き換える(1回のUndo)。
+
+        ``keys`` の各要素は ``(入力, 値)`` または ``(入力, 値, 入力接線型, 出力接線型)``。接線型の省略・None・
+        空文字列(:meth:`getTangent` が未登録の型に返す値)はMayaの設定(Default tangent)に従う。同じ入力が重なった場合は後の要素で上書きする。空の並びは
+        全キーを消して空のカーブを残す。全要素を検査してからカーブを変える。fast引数は持たない。
+
+        Args:
+            keys (Iterable[Sequence]): 新しいキーの並び。入力・値の単位は :meth:`setKey` と同じ。
+            unit (str): 角度出力(A型)の値の単位。``"deg"`` / ``"rad"``。
+            timeUnit (str): T型入力と、時間出力の値の単位。``"frame"`` / ``"sec"``。
+
+        Returns:
+            AnimCurve: 自身。
+
+        Raises:
+            TypeError: 要素が2つ・4つの並びでない、または数値へ変換できない型の場合。
+            ValueError: 非有限値、未知の接線型・fixed(角度・ウェイトは :meth:`setTangent` で書く)、
+                またはunit・timeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        _angle_unit(unit)
+        _time_unit(timeUnit)
+        entries = []
+        for key in keys:
+            if not isinstance(key, (list, tuple)) or len(key) not in (2, 4):
+                raise TypeError("Each key must be (input, value) or (input, value, inTangentType, outTangentType)")
+            # getTangent が未登録の型に返す空文字列は、省略(Mayaの設定)と同じに扱う。
+            tangents = tuple(name or None for name in key[2:]) if len(key) == 4 else (None, None)
+            for name in tangents:
+                if name is not None:
+                    # cmds.setKeyframe も fixed を受け付けない(角度・ウェイトは setTangent で書く)。
+                    self._tangent_type(name, key=True)
+            entries.append((self._finite(key[0]), self._finite(key[1])) + tangents)
+        with undoChunk("mlibAnimCurveReplaceKeys"):
+            self._require_valid("set keys on")
+            count = self.getKeyCount()
+            if count:
+                with self._kept_curve():
+                    cmds.cutKey(self.getFullName(), index=(0, count - 1), clear=True, animation="objects")
+            for input, value, tangent_in, tangent_out in entries:
+                self.setKey(input, value, tangent_in, tangent_out, unit=unit, timeUnit=timeUnit)
+            # カーブ名へ直接キーを打つと、Mayaは出力先を再評価しないことがあるため、出力を更新し直させる。
+            cmds.dgdirty(self.getFullName())
             return self
 
     def getTangent(self, index, *, unit="deg"):
@@ -390,60 +478,75 @@ class AnimCurve(Node):
                 plug.set(value, fast=fast)
             return self
 
-    def shiftKeys(self, inputOffset=0, valueOffset=0, *, unit="deg", timeUnit="frame"):
-        """全キーを移動する。
+    def moveKey(self, index=None, *, time=None, timeOffset=0, valueOffset=0, unit="deg", timeUnit="frame"):
+        """キーの入力(時刻)と値をずらす。index・timeを両方省略すると全キーを動かす。
 
-        fast引数は持たない(全キーを1回で処理するcmds.keyframeの方が、キーごとにOpenMayaで書くより速い)。
+        Mayaの ``keyframe -edit -relative`` と同じく、入力をずらしたキーは対象でない隣のキーを越えない
+        (越える量は隣のキーの直前で止まる)。fast引数は持たない(範囲を1回で処理するcmds.keyframeの方が、
+        キーごとにOpenMayaで書くより速い)。
 
         Args:
-            inputOffset (float): 横軸の移動量。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
-            valueOffset (float): 縦軸の移動量。角度はunitの単位(既定は度)、距離cm、時間はtimeUnitの単位。
+            index (int | Sequence[int] | None): 0始まりのキー番号、またはその並び。
+            time (float | Sequence[float] | None): 動かすキーの入力の時刻、または両端を含む範囲
+                ``(start, end)``。T型入力はtimeUnitの単位、U型入力は無次元。indexとは同時に指定できない。
+            timeOffset (float): 入力の移動量。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
+            valueOffset (float): 値の移動量。角度はunitの単位(既定は度)、距離cm、時間はtimeUnitの単位。
             unit (str): 角度出力(A型)のvalueOffsetの単位。``"deg"`` / ``"rad"``。
-            timeUnit (str): T型入力のinputOffsetと、時間出力のvalueOffsetの単位。``"frame"`` / ``"sec"``。
+            timeUnit (str): T型入力のtime・timeOffsetと、時間出力のvalueOffsetの単位。``"frame"`` / ``"sec"``。
 
         Returns:
-            AnimCurve: 自身。空カーブは変更しない。
+            AnimCurve: 自身。対象のキーが無ければ変更しない。
 
         Raises:
-            TypeError: unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
-            ValueError: 非有限値、またはunit・timeUnitが未対応の単位名の場合。
+            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            ValueError: 非有限値、範囲の開始が終了より大きい、またはunit・timeUnitが未対応の単位名の場合。
+            IndexError: indexが範囲外の場合。
         """
-        with undoChunk("mlibAnimCurveShiftKeys"):
+        if index is not None and time is not None:
+            raise TypeError("Specify at most one of index and time")
+        with undoChunk("mlibAnimCurveMoveKey"):
             angle_unit = self._output_angle_unit(unit)
             input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
-            inputOffset = _to_seconds(self._finite(inputOffset), input_unit)
+            timeOffset = _to_seconds(self._finite(timeOffset), input_unit)
             valueOffset = _to_seconds(_to_radians(self._finite(valueOffset), angle_unit), output_unit)
-            x = self._unit_value(inputOffset)
+            x = self._unit_value(timeOffset)
             y = self._unit_value(valueOffset, output=True)
-            count = self.getKeyCount()
-            if count:
+            ranges = self._key_ranges(index, time, timeUnit)
+            if ranges:
                 flag = "timeChange" if self.isTimeInput() else "floatChange"
-                # 範囲を省くと、キーが1つだけのカーブをMayaが動かさないため、全キーを番号で指定する。
+                # 範囲を省くと、キーが1つだけのカーブをMayaが動かさないため、キーを番号で指定する。
                 cmds.keyframe(self.getFullName(), edit=True, relative=True, animation="objects",
-                              index=(0, count - 1), valueChange=y, **{flag: x})
+                              index=ranges, valueChange=y, **{flag: x})
             return self
 
-    def scaleKeys(self, inputScale=1, valueScale=1, inputPivot=0, valuePivot=0, *, unit="deg", timeUnit="frame"):
-        """全キーを基準値のまわりで拡縮する。接線処理はMayaのscaleKeyに従う。
+    def scaleKey(self, inputScale=1, valueScale=1, inputPivot=0, valuePivot=0, *, index=None, time=None,
+                 unit="deg", timeUnit="frame"):
+        """キーを基準値のまわりで拡縮する。index・timeを両方省略すると全キー。接線処理はMayaのscaleKeyに従う。
 
-        fast引数は持たない(:meth:`shiftKeys` と同じ理由)。
+        fast引数は持たない(:meth:`moveKey` と同じ理由)。
 
         Args:
             inputScale (float): 横軸倍率(単位なし)。0はキーが重なるためValueError。
             valueScale (float): 縦軸倍率(単位なし)。
             inputPivot (float): 横軸の基準値。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
             valuePivot (float): 縦軸の基準値。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
+            index (int | Sequence[int] | None): 0始まりのキー番号、またはその並び。
+            time (float | Sequence[float] | None): 拡縮するキーの入力の時刻、または両端を含む範囲。
+                indexとは同時に指定できない。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
-            timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
+            timeUnit (str): T型入力のtime・inputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
 
         Returns:
             AnimCurve: 自身。
 
         Raises:
-            TypeError: unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
             ValueError: inputScaleが0、非有限値、またはunit・timeUnitが未対応の単位名の場合。
+            IndexError: indexが範囲外の場合。
         """
-        with undoChunk("mlibAnimCurveScaleKeys"):
+        if index is not None and time is not None:
+            raise TypeError("Specify at most one of index and time")
+        with undoChunk("mlibAnimCurveScaleKey"):
             angle_unit = self._output_angle_unit(unit)
             input_unit, output_unit = self._input_time_unit(timeUnit), self._output_time_unit(timeUnit)
             x, y, px, py = map(self._finite, (inputScale, valueScale, inputPivot, valuePivot))
@@ -452,30 +555,131 @@ class AnimCurve(Node):
             if not x:
                 raise ValueError("Input scale cannot be zero")
             px, py = self._unit_value(px), self._unit_value(py, output=True)
-            count = self.getKeyCount()
-            if count:
+            ranges = self._key_ranges(index, time, timeUnit)
+            if ranges:
                 prefix = "time" if self.isTimeInput() else "float"
-                # shiftKeys と同じく、キーが1つだけのカーブも拡縮するよう全キーを番号で指定する。
-                cmds.scaleKey(self.getFullName(), animation="objects", index=(0, count - 1), valueScale=y,
+                # moveKey と同じく、キーが1つだけのカーブも拡縮するようキーを番号で指定する。
+                cmds.scaleKey(self.getFullName(), animation="objects", index=ranges, valueScale=y,
                               valuePivot=py, **{prefix + "Scale": x, prefix + "Pivot": px})
             return self
 
-    def mirror(self, input=False, value=True, inputPivot=0, valuePivot=0, *, unit="deg", timeUnit="frame"):
-        """入力軸・出力軸を反転する。内部のscaleKeysでUndoをまとめる。fast引数は持たない(:meth:`scaleKeys` と同じ)。
+    def mirror(self, input=False, value=True, inputPivot=0, valuePivot=0, *, index=None, time=None, unit="deg",
+               timeUnit="frame"):
+        """入力軸・出力軸を反転する。内部のscaleKeyでUndoをまとめる。fast引数は持たない(:meth:`scaleKey` と同じ)。
 
         Args:
             input (bool): 横軸を反転するか。
             value (bool): 縦軸を反転するか。
             inputPivot (float): 横軸の反転中心。T型入力はtimeUnitの単位(既定はフレーム)、U型は無次元。
             valuePivot (float): 縦軸の反転中心。角度出力(A型)はunitの単位(既定は度)、時間出力はtimeUnitの単位。
+            index (int | Sequence[int] | None): 反転するキーの番号。index・timeの両方の省略は全キー。
+            time (float | Sequence[float] | None): 反転するキーの入力の時刻、または両端を含む範囲。
             unit (str): 角度出力のvaluePivotの単位。``"deg"`` / ``"rad"``。
             timeUnit (str): T型入力のinputPivotと、時間出力のvaluePivotの単位。``"frame"`` / ``"sec"``。
 
         Returns:
             AnimCurve: 自身。
         """
-        return self.scaleKeys(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, unit=unit,
-                              timeUnit=timeUnit)
+        return self.scaleKey(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, index=index,
+                             time=time, unit=unit, timeUnit=timeUnit)
+
+    def getDrivenPlugs(self):
+        """このカーブが動かしているアトリビュート(unitConversion等の変換ノードを飛ばした先)を返す。
+
+        Returns:
+            list[Plug]: ``output`` の出力先。つながっていなければ空リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access attributes of")
+        return list(self.getPlug("output").getDestinations(skipConversionNodes=True))
+
+    def getKeyframe(self, index):
+        """指定番号のキーの参照を返す。
+
+        Args:
+            index (int): 0始まりの既存キー番号。
+
+        Returns:
+            Keyframe: このカーブと番号を保つ参照。
+
+        Raises:
+            IndexError: bool、非int、負値、またはキー数以上の番号の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access attributes of")
+        self._index(index)
+        return Keyframe(self, index)
+
+    def getKeyframes(self, indices=None):
+        """キーの参照の集まりを返す。
+
+        Args:
+            indices (Iterable[int] | None): 0始まりのキー番号の並び。Noneは全キー。
+
+        Returns:
+            Keyframes: このカーブのキーの集まり(番号の昇順、重複なし)。
+
+        Raises:
+            IndexError: 範囲外の番号を含む場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access attributes of")
+        if indices is None:
+            indices = range(self.getKeyCount())
+        indices = list(indices)
+        for index in indices:
+            self._index(index)
+        return Keyframes([Keyframe(self, index) for index in indices])
+
+    def _set_key_values(self, indices, value, *, unit="deg", timeUnit="frame", fast=False):
+        """指定番号のキーの値を、接線型を保ったまま変える(:class:`~mlib.common.keyframe.Keyframe` の入口)。
+
+        Args:
+            indices (int | Sequence[int]): 0始まりのキー番号。
+            value (float): 新しい値。単位は :meth:`setKey` と同じ。
+            unit (str): 角度出力(A型)の値の単位。
+            timeUnit (str): 時間出力の値の単位。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            AnimCurve: 自身。
+        """
+        with _edit_context("mlibAnimCurveSetKeyValue", fast):
+            angle_unit = self._output_angle_unit(unit)
+            output_unit = self._output_time_unit(timeUnit)
+            value = _to_seconds(_to_radians(self._finite(value), angle_unit), output_unit)
+            ranges = self._key_ranges(indices, None, timeUnit)
+            if not ranges:
+                return self
+            if fast:
+                self._require_curve_writable()
+                fn = self._curve_fn()
+                for start, end in ranges:
+                    for key in range(start, end + 1):
+                        self._set_api_value(fn, key, value)
+                return self
+            cmds.keyframe(self.getFullName(), edit=True, absolute=True, animation="objects", index=ranges,
+                          valueChange=self._unit_value(value, output=True))
+            return self
+
+    @contextmanager
+    def _kept_curve(self):
+        """全キーの削除でMayaがカーブを消さないよう、その間だけノードをロックする。
+
+        ``cmds.cutKey`` は空になったカーブ(つながっていないものも)を削除するが、ロックしたノードは
+        削除しない。ロックの変更もUndoへ記録され、呼び出し側のチャンクにまとまる。
+        """
+        name = self.getFullName()
+        locked = cmds.lockNode(name, query=True, lock=True)[0]
+        if not locked:
+            cmds.lockNode(name, lock=True)
+        try:
+            yield
+        finally:
+            if not locked:
+                cmds.lockNode(name, lock=False)
 
     def _set_api_value(self, fn, index, value):
         """キー値を直接更新し、時間出力の秒をMTimeで保持する。
@@ -678,6 +882,37 @@ class AnimCurve(Node):
         inside = [key for key, value in enumerate(self.getKeyInputs(timeUnit="sec"))
                   if start - tolerance <= value <= end + tolerance]
         return (inside[0], inside[-1]) if inside else None
+
+    def _key_ranges(self, index, time, time_unit):
+        """index・timeの指定を、``cmds.keyframe`` の ``index`` フラグに渡す番号の範囲の並びへ変換する。
+
+        Args:
+            index (int | Iterable[int] | None): キー番号、またはその並び。
+            time (float | Sequence[float] | None): 入力の時刻、または両端を含む範囲。
+            time_unit (str): T型入力のtimeの単位。
+
+        Returns:
+            list[tuple[int, int]]: 昇順で重ならない ``(最初, 最後)`` の並び。両方Noneは全キー、該当なしは空。
+
+        Raises:
+            IndexError: 範囲外の番号を含む場合。
+        """
+        if time is not None:
+            span = self._time_span(time, time_unit)
+            return [span] if span is not None else []
+        if index is None:
+            count = self.getKeyCount()
+            return [(0, count - 1)] if count else []
+        numbers = list(index) if isinstance(index, (list, tuple, range)) else [index]
+        for number in numbers:
+            self._index(number)
+        ranges = []
+        for number in sorted(set(numbers)):
+            if ranges and ranges[-1][1] + 1 == number:
+                ranges[-1] = (ranges[-1][0], number)
+            else:
+                ranges.append((number, number))
+        return ranges
 
     def _index(self, index):
         """0始まりの既存キー番号を検証し、cmdsの単一キー範囲へ変換する。

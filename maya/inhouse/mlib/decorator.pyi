@@ -90,6 +90,22 @@ class _UndoChunk(contextlib.ContextDecorator):
             bool: 常にFalse。
         """
         ...
+    def open(self) -> _UndoChunk:
+        """チャンクを開く。別々のイベント(スライダーを押す・離す等)で開閉する場合に使う。
+
+        開いている間に再び呼んでも何もしない(二重に開かない)。:meth:`close` で閉じる。
+
+        Returns:
+            _UndoChunk: 自身。
+        """
+        ...
+    def close(self) -> None:
+        """:meth:`open` で開いたチャンクを閉じる。開いていなければ何もしない。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
     def _recreate_cm(self):
         """デコレーター呼出しごとに独立したインスタンスを返す。"""
         ...
@@ -226,9 +242,13 @@ def undoChunk(name: str | None = ...) -> ContextDecorator:
             名前(``mlib<Class><Method>``)は、呼び出したメソッドと対象から
             ``mlib setTranslation L_arm_CTRL`` の形の表示名にする。
 
+    押してから離すまでのように、開く処理と閉じる処理が別々の呼出しになる場合は、戻り値の
+    ``open()``・``close()`` を使う(``chunk = undoChunk("drag"); chunk.open(); ...; chunk.close()``)。
+    二重に開く・開かずに閉じる呼出しは何もしない。
+
     Returns:
         contextlib.ContextDecorator: withまたはデコレーターとして使うコンテキスト。
-            withの ``as`` で受け取る値はNone。
+            withの ``as`` で受け取る値はNone。``open()``・``close()`` も持つ。
     """
     ...
 

@@ -16,6 +16,7 @@ from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
+from .keyframe import Keyframe, Keyframes
 
 
 # まとめて解決するときに1つの選択リストへ続けて追加する名前の数。MSelectionList.add は追加のたびに
@@ -198,6 +199,20 @@ class Selection:
         if not names:
             return []
         return [item for item in cls(names)._items if isinstance(item, Plug)]
+
+    @classmethod
+    def getKeyframes(cls):
+        """Graph Editor・Dope Sheet で選んでいるキーを取得する。シーンは変更しない。
+
+        Returns:
+            Keyframes: 選んでいるキー(Mayaが返すカーブの順、カーブ内は番号の昇順)。選んでいなければ空。
+        """
+        keyframes = []
+        for name in cmds.keyframe(query=True, selected=True, name=True) or []:
+            curve = Node(name)
+            for index in cmds.keyframe(name, query=True, selected=True, indexValue=True) or []:
+                keyframes.append(Keyframe(curve, int(index)))
+        return Keyframes(keyframes)
 
     @property
     def items(self):

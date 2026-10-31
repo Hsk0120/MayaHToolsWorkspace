@@ -180,8 +180,8 @@ class ConsolidatedAnimationTest(unittest.TestCase):
         """不正値・ロックはキーを変更する前に拒否する。"""
         curve = self.create("TT")
         before = (curve.getKeyInputs(), curve.getKeyValues())
-        for call in (lambda: curve.scaleKeys(0),
-                     lambda: curve.shiftKeys(float("inf")),
+        for call in (lambda: curve.scaleKey(0),
+                     lambda: curve.moveKey(timeOffset=float("inf")),
                      lambda: curve.setTangent(1, inWeight=-1, fast=True)):
             with self.assertRaises((NotImplementedError, ValueError)):
                 call()

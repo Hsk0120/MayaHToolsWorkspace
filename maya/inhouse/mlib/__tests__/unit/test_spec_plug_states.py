@@ -572,13 +572,24 @@ class PlugSetKeySpecTest(_StateSpecCase):
     """setKeyの通常経路。fast引数は無い。"""
 
     def test_set_key(self):
-        """setKeyは自身を返しキーを作る。時間・値はUI単位。"""
+        """setKeyは自身を返しキーを作る。時間はUI単位のフレーム、値はget()と同じcm(uiUnits=TrueはUI単位)。"""
         cmds.currentUnit(linear="mm")
         tz = self.node.getPlug("tz")
-        self.assertIs(tz.setKey(t=5, v=20), tz)
+        self.assertIs(tz.setKey(t=5, v=2), tz)
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, timeChange=True), [5.0])
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, valueChange=True), [20.0])
-        tz.setKey(time=10, value=30)
+        tz.setKey(t=5, v=20, uiUnits=True)
+        self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, valueChange=True), [20.0])
+        with self.assertRaises(ValueError):
+            tz.setKey(t=5, v=1, unit="rad", uiUnits=True)
+        cmds.currentUnit(linear="cm")
+        rx = self.node.getPlug("rx")
+        rx.setKey(t=1, v=90)
+        self.assertAlmostEqual(cmds.keyframe(self.name + ".rx", query=True, valueChange=True)[0], 90.0)
+        rx.setKey(t=2, v=1.0, unit="rad")
+        self.assertAlmostEqual(cmds.getAttr(self.name + ".rx", time=2), 57.29577951308232)
+        cmds.currentUnit(linear="mm")
+        tz.setKey(time=10, value=3)
         self.assertEqual(cmds.keyframe(self.name + ".tz", query=True, timeChange=True), [5.0, 10.0])
         self.assertAlmostEqual(cmds.getAttr(self.name + ".tz", time=10), 30.0)
         with self.assertRaises(TypeError):
