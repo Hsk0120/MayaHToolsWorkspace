@@ -64,6 +64,7 @@ class SetupSamples:
         ("outlineBank", "OutlineBank - box tilting on its base outline"),
         ("crankSlider", "CrankSlider - engine crank and piston"),
         ("fourBarLinkage", "FourBarLinkage - crank, coupler and rocker"),
+        ("crossedKneeLinkage", "CrossedKneeLinkage - knee with crossed ligaments"),
         ("scissorLift", "ScissorLift - three-stage scissor lift"),
         ("cableSag", "CableSag - hanging cable between two posts"),
         ("rotationMinimizingFrames", "RotationMinimizingFrames - points"),
@@ -465,6 +466,28 @@ class SetupSamples:
         _output(name + "_rockerOut", root, str(setup.container) + ".rockerMatrix",
                 ((joint[0] - ground, joint[1], 0.0),))
         return setup, crank
+
+    @classmethod
+    def _crossedKneeLinkage(cls, name, root):
+        """交差する2本の靭帯の膝(X が前)。containerの ``flexion`` を変えると、脛(緑)が前の靭帯(緑、後ろ上から
+        前下)と後ろの靭帯(緑、前上から後ろ下)に吊られたまま、転がりながら後ろへ滑る。小さな緑のjointが
+        瞬間回転中心(2本の靭帯の線の交点)。"""
+        from .setups import CrossedKneeLinkage
+
+        points = (("aclFemur", (-1.0, 0.5, 0.0)), ("aclTibia", (1.2, -2.5, 0.0)), ("pclFemur", (0.8, 0.8, 0.0)),
+                  ("pclTibia", (-1.5, -2.8, 0.0)))
+        femur = _joint(name + "_femur", root, translate=(0.0, 10.0, 0.0))
+        _tip(femur, name + "_femurTop", (0.0, 8.0, 0.0))
+        attachments = [_transform("{}_{}".format(name, role), femur, translate=value) for role, value in points]
+        tibia = _joint(name + "_tibia", root, translate=(0.2, 7.4, 0.0))
+        _tip(tibia, name + "_tibiaEnd", (0.0, -8.0, 0.0))
+        setup = CrossedKneeLinkage.create(femur, tibia, *attachments, name=name)
+        owner = str(setup.container)
+        _output(name + "_tibiaOut", root, owner + ".tibiaMatrix", ((0.0, -8.0, 0.0),))
+        for role, length in (("acl", 3.72), ("pcl", 4.27)):
+            _output("{}_{}Out".format(name, role), root, "{}.{}Matrix".format(owner, role), ((length, 0.0, 0.0),))
+        _output(name + "_centerOut", root, owner + ".instantCenterMatrix")
+        return setup, setup.container
 
     @classmethod
     def _scissorLift(cls, name, root):

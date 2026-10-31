@@ -77,6 +77,9 @@
    * - FourBarLinkage - crank, coupler and rocker
      - クランクのjoint
      - ``rotateZ`` で回すと、長さ5のカプラー(緑)がクランクのピンに付いたまま関節へ向き、長さ4のロッカー(緑)が右の支点を中心に往復する。containerの ``couplerLength`` ・ ``rockerLength`` で棒の長さ、 ``transmissionAngle`` で伝達角、 ``excess`` で届かない量を見られる。
+   * - CrossedKneeLinkage - knee with crossed ligaments
+     - container
+     - containerの ``flexion`` を変えると、脛(緑)が交差する2本の靭帯(緑)に吊られたまま、転がりながら後ろへ滑る。小さな緑のjointが瞬間回転中心(2本の靭帯の線の交点)で、曲げるほど後ろ・上へ移る。 ``aclLength`` ・ ``pclLength`` で靭帯の長さ、 ``excess`` で届かない量を見られる。
    * - ScissorLift - three-stage scissor lift
      - container
      - containerの ``height`` を変えると、3段のX字の腕(緑、先の子jointが腕の反対の端)が真ん中で交わったまま開閉し、台(緑、上)が上下し、右の滑る足(緑)が左右へ動く。

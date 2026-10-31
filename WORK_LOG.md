@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-01): mlrig夜間。交差した十字靭帯の四節リンクで膝の転がりと滑りを作る `setups/CrossedKneeLinkage`(flexion入力、tibia/acl/pcl/instantCenterMatrix・excess出力、標準ノードのみ)を追加し、FourBarLinkageの2円の交点を `_intersectionGraph`/`_excessGraph` に切り出して共有。テスト8件、Setup Samples1項目、文書、検証デモ `tools/demo_crossed_knee_linkage.py`。隔離Maya 2027で setups 586件・standard 76件OK、Sphinx -W 成功、検証動画408フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
+
 - Codex (2026-10-31): ユーザーのpush指示に基づきQPEのタイトルバー統合・Windowsテーマ追従・文字サイズUI/ショートカット・Very Small・ビルド配置の12ファイルを公開対象に確定。既存のWindows/Maya2022/2027検証ログと差分を照合。exe/runtime・調査資料・動画はGit対象外。
 
 - Codex (2026-10-31): QPE表示プリセットへVery Small（10px基準/UI100%）を追加。数値入力やCtrl -から10pxへ変更した際のプリセット表示も同期。Windows単体/Maya2027で各7検証群成功、Qt操作動画を非公開Driveへ保存。exeビルド・隔離起動成功、ユーザーの終了確認後に直下exe更新とハッシュ一致確認。証拠.maya-output/qpe-very-small-20261031、未push。

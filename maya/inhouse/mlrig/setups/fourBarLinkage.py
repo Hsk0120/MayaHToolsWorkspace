@@ -59,6 +59,150 @@ class FourBarLinkage(TwistDistribution):
         excess = max(distance - (coupler + rocker), abs(coupler - rocker) - distance, 0.0)
         return point, excess
 
+    def _intersectionGraph(self, point, toward, b, c, plane, branch):
+        """2円の交点 C = P + x u + h normalize(n × u) の標準ノードを作る。
+
+        Args:
+            point (Plug): 中心 P(半径 b の円)の3Dの出力。
+            toward (Plug): もう一方の中心までのベクトル w の3Dの出力。
+            b (Plug): P を中心とする円の半径(数値の出力)。
+            c (Plug): もう一方の円の半径(数値の出力)。
+            plane (Vector): 機構の面の単位法線 n。
+            branch (float): 枝の向き s。+1 または -1。
+
+        Returns:
+            tuple[Node, Plug, Node]: 交点を output3D に持つ plusMinusAverage、距離 d、
+            b^2・c^2・(b - c)^2 を outputX・Y・Z に持つ multiplyDivide。
+        """
+        # d = sqrt(w・w)(0除算を避けて1e-6以上)、u = w / d。
+        square = self._node("vectorProduct", "distanceSquared")
+        square.getPlug("operation").set(1)
+        toward.connectTo(square.getPlug("input1"))
+        toward.connectTo(square.getPlug("input2"))
+        root = self._node("multiplyDivide", "distanceRoot")
+        root.getPlug("operation").set(3)
+        square.getPlug("outputX").connectTo(root.getPlug("input1X"))
+        root.getPlug("input2X").set(0.5)
+        safe = self._node("clamp", "distance")
+        safe.getPlug("minR").set(1e-6)
+        safe.getPlug("maxR").set(1e30)
+        root.getPlug("outputX").connectTo(safe.getPlug("inputR"))
+        distance = safe.getPlug("outputR")
+        unit = self._node("multiplyDivide", "direction")
+        unit.getPlug("operation").set(2)
+        toward.connectTo(unit.getPlug("input1"))
+        for letter in "XYZ":
+            distance.connectTo(unit.getPlug("input2" + letter))
+
+        difference = self._node("plusMinusAverage", "lengthDifference")
+        difference.getPlug("operation").set(2)
+        b.connectTo(difference.getPlug("input1D")[0])
+        c.connectTo(difference.getPlug("input1D")[1])
+        squares = self._node("multiplyDivide", "lengthSquares")
+        for letter, value in (("X", b), ("Y", c), ("Z", difference.getPlug("output1D"))):
+            value.connectTo(squares.getPlug("input1" + letter))
+            value.connectTo(squares.getPlug("input2" + letter))
+
+        # x = (d^2 + b^2 - c^2) / (2d) を [-b, b] に制限する。
+        numerator = self._node("plusMinusAverage", "alongNumerator")
+        numerator.getPlug("operation").set(2)
+        square.getPlug("outputX").connectTo(numerator.getPlug("input1D")[0])
+        squares.getPlug("outputY").connectTo(numerator.getPlug("input1D")[1])
+        negative = self._node("multiplyDivide", "negatives")
+        squares.getPlug("outputX").connectTo(negative.getPlug("input1X"))
+        negative.getPlug("input2X").set(-1.0)
+        b.connectTo(negative.getPlug("input1Y"))
+        negative.getPlug("input2Y").set(-1.0)
+        negative.getPlug("outputX").connectTo(numerator.getPlug("input1D")[2])
+        along = self._node("multiplyDivide", "along")
+        along.getPlug("operation").set(2)
+        numerator.getPlug("output1D").connectTo(along.getPlug("input1X"))
+        twice = self._node("multiplyDivide", "twiceDistance")
+        distance.connectTo(twice.getPlug("input1X"))
+        twice.getPlug("input2X").set(2.0)
+        twice.getPlug("outputX").connectTo(along.getPlug("input2X"))
+        limit = self._node("clamp", "alongLimit")
+        along.getPlug("outputX").connectTo(limit.getPlug("inputR"))
+        negative.getPlug("outputY").connectTo(limit.getPlug("minR"))
+        b.connectTo(limit.getPlug("maxR"))
+        x = limit.getPlug("outputR")
+
+        # h = s * sqrt(max(b^2 - x^2, 0))。
+        alongSquared = self._node("multiplyDivide", "alongSquared")
+        x.connectTo(alongSquared.getPlug("input1X"))
+        x.connectTo(alongSquared.getPlug("input2X"))
+        heightSquared = self._node("plusMinusAverage", "heightSquared")
+        heightSquared.getPlug("operation").set(2)
+        squares.getPlug("outputX").connectTo(heightSquared.getPlug("input1D")[0])
+        alongSquared.getPlug("outputX").connectTo(heightSquared.getPlug("input1D")[1])
+        floor = self._node("clamp", "heightFloor")
+        floor.getPlug("maxR").set(1e30)
+        heightSquared.getPlug("output1D").connectTo(floor.getPlug("inputR"))
+        height = self._node("multiplyDivide", "height")
+        height.getPlug("operation").set(3)
+        floor.getPlug("outputR").connectTo(height.getPlug("input1X"))
+        height.getPlug("input2X").set(0.5)
+        signed = self._node("multiplyDivide", "branchHeight")
+        height.getPlug("outputX").connectTo(signed.getPlug("input1X"))
+        signed.getPlug("input2X").set(branch)
+
+        # C = P + x u + h normalize(n × u)。
+        side = self._node("vectorProduct", "side")
+        side.getPlug("operation").set(2)
+        side.getPlug("normalizeOutput").set(True)
+        side.getPlug("input1").set(tuple(plane))
+        unit.getPlug("output").connectTo(side.getPlug("input2"))
+        offsets = []
+        for suffix, vector, scale in (("alongOffset", unit.getPlug("output"), x),
+                                      ("sideOffset", side.getPlug("output"), signed.getPlug("outputX"))):
+            offset = self._node("multiplyDivide", suffix)
+            vector.connectTo(offset.getPlug("input1"))
+            for letter in "XYZ":
+                scale.connectTo(offset.getPlug("input2" + letter))
+            offsets.append(offset.getPlug("output"))
+        joint = self._node("plusMinusAverage", "joint")
+        point.connectTo(joint.getPlug("input3D")[0])
+        offsets[0].connectTo(joint.getPlug("input3D")[1])
+        offsets[1].connectTo(joint.getPlug("input3D")[2])
+        return joint, distance, squares
+
+    def _excessGraph(self, distance, b, c, squares):
+        """届かない量 max(d - (b + c), |b - c| - d, 0) の標準ノードを作る。
+
+        Args:
+            distance (Plug): 2つの中心の距離 d。
+            b (Plug): 一方の円の半径。
+            c (Plug): もう一方の円の半径。
+            squares (Node): ``_intersectionGraph`` が返した multiplyDivide。
+
+        Returns:
+            Plug: 0以上の届かない量(数値)。
+        """
+        # excess = max(d - (b + c), |b - c| - d, 0)。
+        overReach = self._node("plusMinusAverage", "overReach")
+        overReach.getPlug("operation").set(2)
+        distance.connectTo(overReach.getPlug("input1D")[0])
+        b.connectTo(overReach.getPlug("input1D")[1])
+        c.connectTo(overReach.getPlug("input1D")[2])
+        gap = self._node("multiplyDivide", "lengthGap")
+        gap.getPlug("operation").set(3)
+        squares.getPlug("outputZ").connectTo(gap.getPlug("input1X"))
+        gap.getPlug("input2X").set(0.5)
+        underReach = self._node("plusMinusAverage", "underReach")
+        underReach.getPlug("operation").set(2)
+        gap.getPlug("outputX").connectTo(underReach.getPlug("input1D")[0])
+        distance.connectTo(underReach.getPlug("input1D")[1])
+        larger = self._node("condition", "largerExcess")
+        larger.getPlug("operation").set(2)
+        overReach.getPlug("output1D").connectTo(larger.getPlug("firstTerm"))
+        underReach.getPlug("output1D").connectTo(larger.getPlug("secondTerm"))
+        overReach.getPlug("output1D").connectTo(larger.getPlug("colorIfTrueR"))
+        underReach.getPlug("output1D").connectTo(larger.getPlug("colorIfFalseR"))
+        positive = self._node("clamp", "excessFloor")
+        positive.getPlug("maxR").set(1e30)
+        larger.getPlug("outColorR").connectTo(positive.getPlug("inputR"))
+        return positive.getPlug("outputR")
+
     @classmethod
     @undoTransaction("mlrig.FourBarLinkage.create")
     def create(cls, pin, rocker, end, name="fourBarLinkage", coupler=None, normal=None):
@@ -167,27 +311,7 @@ class FourBarLinkage(TwistDistribution):
         toward.getPlug("input3D")[0].set(tuple(pivot))
         point.getPlug("output").connectTo(toward.getPlug("input3D")[1])
 
-        # d = sqrt(w・w)(0除算を避けて1e-6以上)、u = w / d。
-        square = graph._node("vectorProduct", "distanceSquared")
-        square.getPlug("operation").set(1)
-        toward.getPlug("output3D").connectTo(square.getPlug("input1"))
-        toward.getPlug("output3D").connectTo(square.getPlug("input2"))
-        root = graph._node("multiplyDivide", "distanceRoot")
-        root.getPlug("operation").set(3)
-        square.getPlug("outputX").connectTo(root.getPlug("input1X"))
-        root.getPlug("input2X").set(0.5)
-        safe = graph._node("clamp", "distance")
-        safe.getPlug("minR").set(1e-6)
-        safe.getPlug("maxR").set(1e30)
-        root.getPlug("outputX").connectTo(safe.getPlug("inputR"))
-        distance = safe.getPlug("outputR")
-        unit = graph._node("multiplyDivide", "direction")
-        unit.getPlug("operation").set(2)
-        toward.getPlug("output3D").connectTo(unit.getPlug("input1"))
-        for letter in "XYZ":
-            distance.connectTo(unit.getPlug("input2" + letter))
-
-        # 棒の長さ b・c は係数1の unitConversion で数値にし、b^2・c^2・(b - c)^2 を作る。
+        # 棒の長さ b・c は係数1の unitConversion で数値にする。
         lengths = []
         for attribute in ("couplerLength", "rockerLength"):
             plain = graph._node("unitConversion", attribute + "Number")
@@ -195,76 +319,8 @@ class FourBarLinkage(TwistDistribution):
             owner.getPlug(attribute).connectTo(plain.getPlug("input"))
             lengths.append(plain.getPlug("output"))
         b, c = lengths
-        difference = graph._node("plusMinusAverage", "lengthDifference")
-        difference.getPlug("operation").set(2)
-        b.connectTo(difference.getPlug("input1D")[0])
-        c.connectTo(difference.getPlug("input1D")[1])
-        squares = graph._node("multiplyDivide", "lengthSquares")
-        for letter, value in (("X", b), ("Y", c), ("Z", difference.getPlug("output1D"))):
-            value.connectTo(squares.getPlug("input1" + letter))
-            value.connectTo(squares.getPlug("input2" + letter))
-
-        # x = (d^2 + b^2 - c^2) / (2d) を [-b, b] に制限する。
-        numerator = graph._node("plusMinusAverage", "alongNumerator")
-        numerator.getPlug("operation").set(2)
-        square.getPlug("outputX").connectTo(numerator.getPlug("input1D")[0])
-        squares.getPlug("outputY").connectTo(numerator.getPlug("input1D")[1])
-        negative = graph._node("multiplyDivide", "negatives")
-        squares.getPlug("outputX").connectTo(negative.getPlug("input1X"))
-        negative.getPlug("input2X").set(-1.0)
-        b.connectTo(negative.getPlug("input1Y"))
-        negative.getPlug("input2Y").set(-1.0)
-        negative.getPlug("outputX").connectTo(numerator.getPlug("input1D")[2])
-        along = graph._node("multiplyDivide", "along")
-        along.getPlug("operation").set(2)
-        numerator.getPlug("output1D").connectTo(along.getPlug("input1X"))
-        twice = graph._node("multiplyDivide", "twiceDistance")
-        distance.connectTo(twice.getPlug("input1X"))
-        twice.getPlug("input2X").set(2.0)
-        twice.getPlug("outputX").connectTo(along.getPlug("input2X"))
-        limit = graph._node("clamp", "alongLimit")
-        along.getPlug("outputX").connectTo(limit.getPlug("inputR"))
-        negative.getPlug("outputY").connectTo(limit.getPlug("minR"))
-        b.connectTo(limit.getPlug("maxR"))
-        x = limit.getPlug("outputR")
-
-        # h = s * sqrt(max(b^2 - x^2, 0))。
-        alongSquared = graph._node("multiplyDivide", "alongSquared")
-        x.connectTo(alongSquared.getPlug("input1X"))
-        x.connectTo(alongSquared.getPlug("input2X"))
-        heightSquared = graph._node("plusMinusAverage", "heightSquared")
-        heightSquared.getPlug("operation").set(2)
-        squares.getPlug("outputX").connectTo(heightSquared.getPlug("input1D")[0])
-        alongSquared.getPlug("outputX").connectTo(heightSquared.getPlug("input1D")[1])
-        floor = graph._node("clamp", "heightFloor")
-        floor.getPlug("maxR").set(1e30)
-        heightSquared.getPlug("output1D").connectTo(floor.getPlug("inputR"))
-        height = graph._node("multiplyDivide", "height")
-        height.getPlug("operation").set(3)
-        floor.getPlug("outputR").connectTo(height.getPlug("input1X"))
-        height.getPlug("input2X").set(0.5)
-        signed = graph._node("multiplyDivide", "branchHeight")
-        height.getPlug("outputX").connectTo(signed.getPlug("input1X"))
-        signed.getPlug("input2X").set(branch)
-
-        # C = P + x u + h normalize(n × u)。
-        side = graph._node("vectorProduct", "side")
-        side.getPlug("operation").set(2)
-        side.getPlug("normalizeOutput").set(True)
-        side.getPlug("input1").set(tuple(plane))
-        unit.getPlug("output").connectTo(side.getPlug("input2"))
-        offsets = []
-        for suffix, vector, scale in (("alongOffset", unit.getPlug("output"), x),
-                                      ("sideOffset", side.getPlug("output"), signed.getPlug("outputX"))):
-            offset = graph._node("multiplyDivide", suffix)
-            vector.connectTo(offset.getPlug("input1"))
-            for letter in "XYZ":
-                scale.connectTo(offset.getPlug("input2" + letter))
-            offsets.append(offset.getPlug("output"))
-        joint = graph._node("plusMinusAverage", "joint")
-        point.getPlug("output").connectTo(joint.getPlug("input3D")[0])
-        offsets[0].connectTo(joint.getPlug("input3D")[1])
-        offsets[1].connectTo(joint.getPlug("input3D")[2])
+        joint, distance, squares = graph._intersectionGraph(point.getPlug("output"), toward.getPlug("output3D"),
+                                                            b, c, plane, branch)
 
         # jointMatrix = T(C) * S。fourByFourMatrix は単位なしの数値なので単位変換が入らない。
         carryJoint = graph._node("fourByFourMatrix", "jointTranslate")
@@ -276,32 +332,9 @@ class FourBarLinkage(TwistDistribution):
             parent.getPlug("worldMatrix")[0].connectTo(jointChain.getPlug("matrixIn")[1])
         jointChain.getPlug("matrixSum").connectTo(owner.getPlug("jointMatrix"))
 
-        # excess = max(d - (b + c), |b - c| - d, 0)。
-        overReach = graph._node("plusMinusAverage", "overReach")
-        overReach.getPlug("operation").set(2)
-        distance.connectTo(overReach.getPlug("input1D")[0])
-        b.connectTo(overReach.getPlug("input1D")[1])
-        c.connectTo(overReach.getPlug("input1D")[2])
-        gap = graph._node("multiplyDivide", "lengthGap")
-        gap.getPlug("operation").set(3)
-        squares.getPlug("outputZ").connectTo(gap.getPlug("input1X"))
-        gap.getPlug("input2X").set(0.5)
-        underReach = graph._node("plusMinusAverage", "underReach")
-        underReach.getPlug("operation").set(2)
-        gap.getPlug("outputX").connectTo(underReach.getPlug("input1D")[0])
-        distance.connectTo(underReach.getPlug("input1D")[1])
-        larger = graph._node("condition", "largerExcess")
-        larger.getPlug("operation").set(2)
-        overReach.getPlug("output1D").connectTo(larger.getPlug("firstTerm"))
-        underReach.getPlug("output1D").connectTo(larger.getPlug("secondTerm"))
-        overReach.getPlug("output1D").connectTo(larger.getPlug("colorIfTrueR"))
-        underReach.getPlug("output1D").connectTo(larger.getPlug("colorIfFalseR"))
-        positive = graph._node("clamp", "excessFloor")
-        positive.getPlug("maxR").set(1e30)
-        larger.getPlug("outColorR").connectTo(positive.getPlug("inputR"))
         excess = graph._node("unitConversion", "excessLength")
         excess.getPlug("conversionFactor").set(1.0)
-        positive.getPlug("outputR").connectTo(excess.getPlug("input"))
+        graph._excessGraph(distance, b, c, squares).connectTo(excess.getPlug("input"))
         excess.getPlug("output").connectTo(owner.getPlug("excess"))
 
         # 伝達角 μ = angle(B - C, D - C)。

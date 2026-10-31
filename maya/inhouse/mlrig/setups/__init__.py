@@ -22,6 +22,7 @@ from .boxRoll import BoxRoll
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
+from .crossedKneeLinkage import CrossedKneeLinkage
 from .chainNet import ChainNet
 from .stickyControl import StickyControl
 from .groundTilt import GroundTilt
@@ -100,6 +101,7 @@ __all__ = [
     "OutlineBank",
     "CrankSlider",
     "FourBarLinkage",
+    "CrossedKneeLinkage",
     "ChainNet",
     "CableSag",
     "LeafJoints",

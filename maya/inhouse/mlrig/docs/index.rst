@@ -90,6 +90,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    outline_bank
    crank_slider
    four_bar_linkage
+   crossed_knee_linkage
    scissor_lift
    chain_net
    cable_sag
