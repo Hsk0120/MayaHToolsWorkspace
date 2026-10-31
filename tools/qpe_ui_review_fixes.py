@@ -66,21 +66,50 @@ def main(output_dir, finished=None):
             assert create.call_count == 1, (create.call_count, QtWidgets.QApplication.focusWidget())
         checks.append('UX04: CtrlShiftN is handled once within columns')
         e.folderTabs.add()
+        e.folderTabs.add()
         pause(200)
         from qpe_ui_maya import clickFolder
         clickFolder(e, root / 'Library')
         pause(120)
-        for unused in range(4):
+        events = []
+
+        class KeyTrace(QtCore.QObject):
+            """連続タブ操作のキー配送だけを観測し、処理は変更しない。"""
+
+            def eventFilter(self, watched, event):
+                """送信先と実際のフォーカスが一致しているか記録する。"""
+                if event.type() in (QtCore.QEvent.KeyPress, QtCore.QEvent.ShortcutOverride):
+                    focus = QtWidgets.QApplication.focusWidget()
+                    events.append(dict(target=repr(watched), focus=repr(focus),
+                                       key=event.key(), kind=str(event.type()),
+                                       modifiers=str(event.modifiers()), count=e.folderTabs.bar.count(),
+                                       mapped=repr(e.organizer.views.get(watched)),
+                                       registered=watched in e.organizer.views, active=e.folderTabs.active))
+                return False
+
+        trace = KeyTrace(e)
+        e.folderTabs.bar.currentChanged.connect(lambda value: events.append(dict(changed=value)))
+        QtWidgets.QApplication.instance().installEventFilter(trace)
+        for key, modifiers, offset in (
+                (QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier, 1),
+                (QtCore.Qt.Key_Backtab, QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier, -1),
+                (QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier, 1),
+                (QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier, -1)):
             before = e.folderTabs.active
             focus = QtWidgets.QApplication.focusWidget()
-            QtTest.QTest.keyClick(focus, QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier)
+            QtTest.QTest.keyClick(focus, key, modifiers)
             pause(120)
-            assert e.folderTabs.active != before, (before, QtWidgets.QApplication.focusWidget())
+            (out / 'tab-key-trace.json').write_text(json.dumps(events, indent=2), encoding='utf8')
+            assert e.folderTabs.active == (before + offset) % 3, (before, offset, e.folderTabs.active, QtWidgets.QApplication.focusWidget())
+        QtWidgets.QApplication.instance().removeEventFilter(trace)
         checks.append('BUG02: four consecutive tab switches retain browser keyboard ownership')
         e.retainBrowserFocus()
         e.address.setFocus()
         pause(120)
         assert QtWidgets.QApplication.focusWidget() is e.address
+        before = e.folderTabs.active
+        QtTest.QTest.keyClick(e.address, QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier)
+        assert e.folderTabs.active == before
         outside = QtWidgets.QLineEdit()
         outside.show()
         outside.activateWindow()
@@ -89,11 +118,14 @@ def main(output_dir, finished=None):
         e.retainBrowserFocus()
         pause(120)
         assert QtWidgets.QApplication.focusWidget() is outside
+        QtTest.QTest.keyClick(outside, QtCore.Qt.Key_Tab, QtCore.Qt.ControlModifier)
+        assert e.folderTabs.active == before
         outside.close()
         outside.deleteLater()
         e.window().activateWindow()
         QtWidgets.QApplication.setActiveWindow(e.window())
         checks.append('Focus boundary: pending restoration preserves address and external editor input')
+        QtTest.QTest.mouseClick(e.folderTabs.bar, QtCore.Qt.MiddleButton, QtCore.Qt.NoModifier, e.folderTabs.bar.tabRect(2).center())
         QtTest.QTest.mouseClick(e.folderTabs.bar, QtCore.Qt.MiddleButton, QtCore.Qt.NoModifier, e.folderTabs.bar.tabRect(1).center())
         assert e.folderTabs.bar.count() == 1
         e.navigate(str(leaf))
@@ -113,16 +145,20 @@ def main(output_dir, finished=None):
         selectFile(e, file)
         assert e.readTarget.toolTip() and 'SummaryLabel' in type(e.readTarget).__name__
         checks.append('UX06/07: name priority, middle elision and full target tooltip')
+        inspector_width = e._inspectorWidth
         e.window().resize(600, 820)
         pause(350)
         assert e.modern.inspectorPage and e.vertical.isHidden() and not e.actionsPanel.isHidden()
+        assert e.modern.backToFiles.isVisible()
         horizontal = e.modern.pageHorizontal
-        e.inspectorButton.setChecked(False)
+        QtTest.QTest.mouseClick(e.modern.backToFiles, QtCore.Qt.LeftButton)
         pause(200)
         assert not e.vertical.isHidden()
+        assert not e.modern.backToFiles.isVisible()
         waitFor(lambda: e._resumeHorizontal is None and abs(e.columns.horizontalScrollBar().value() - min(horizontal, e.columns.horizontalScrollBar().maximum())) <= 2)
         assert abs(e.columns.horizontalScrollBar().value() - min(horizontal, e.columns.horizontalScrollBar().maximum())) <= 2, (horizontal, e.columns.horizontalScrollBar().value(), e.columns.horizontalScrollBar().maximum(), e._resumeHorizontal)
         assert abs(e.places.width() - e._sidebarWidth) <= 2
+        assert e._inspectorWidth == inspector_width, (inspector_width, e._inspectorWidth)
         checks.append('UX08: narrow details page toggles back to browser')
         e.window().resize(850, 820)
         pause(250)
@@ -183,6 +219,9 @@ def main(output_dir, finished=None):
         result = dict(status='passed', checks=checks)
     except Exception:
         result = dict(status='error', checks=checks, error=traceback.format_exc())
+    finally:
+        if 'trace' in locals():
+            QtWidgets.QApplication.instance().removeEventFilter(trace)
     e.grab().save(str(out / 'final.png'))
     (out / 'result.json').write_text(json.dumps(result, indent=2), encoding='utf8')
     if finished:

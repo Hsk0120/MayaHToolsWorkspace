@@ -383,6 +383,10 @@ class FolderColumns(QtWidgets.QColumnView):
             event (QResizeEvent): サイズ変更通知。
         """
         anchor = self.horizontalAnchor()
+        if self.isVisible() and getattr(self, '_pageHorizontalSnapshot', None) is None:
+            # Mayaは詳細ページの切替通知より先に列を縮める。変更前の位置を一度だけ退避する。
+            bar = self.horizontalScrollBar()
+            self._pageHorizontalSnapshot = -1 if bar.value() == bar.maximum() else bar.value()
         super().resizeEvent(event)
         self.fitColumns()
         self.restoreHorizontalAnchor(anchor)
@@ -1001,7 +1005,13 @@ class Explorer(QtWidgets.QWidget):
         sizes = self.outer.sizes()
         if not self.places.isHidden() and sizes[0] > 0:
             self._sidebarWidth = sizes[0]
-        if not self.actionsPanel.isHidden() and sizes[2] > 0:
+        # 狭幅の全画面詳細は一時的な配置で、通常ペインの希望幅ではない。
+        inspector_page = hasattr(self, 'modern') and self.modern.inspectorPage
+        if panel is self.actionsPanel and visible and not inspector_page:
+            # 子列の可視化処理で横位置が変わるより先に、手動位置を詳細ページへ渡す。
+            bar = self.columns.horizontalScrollBar()
+            self.columns._pageHorizontalSnapshot = -1 if bar.value() == bar.maximum() else bar.value()
+        if not inspector_page and not self.actionsPanel.isHidden() and sizes[2] > 0:
             self._inspectorWidth = sizes[2]
         if not hasattr(self, '_sideLayoutTimer'):
             self._sideLayoutTimer = QtCore.QTimer(self)
@@ -2349,7 +2359,9 @@ class Explorer(QtWidgets.QWidget):
             return
         self.columns.finishColumns()
         self.columns.fitColumns()
-        self.columns.horizontalScrollBar().setValue(self._resumeHorizontal)
+        bar = self.columns.horizontalScrollBar()
+        # -1は詳細ページへ移る直前に末端が見えていた場合の復帰指定。
+        bar.setValue(bar.maximum() if self._resumeHorizontal == -1 else self._resumeHorizontal)
         self._lastHorizontal = self.columns.horizontalScrollBar().value()
         self._resumeHorizontal = None
 

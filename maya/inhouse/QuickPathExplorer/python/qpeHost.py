@@ -3,6 +3,7 @@ import os
 import json
 from pathlib import Path
 from maya import cmds, mel, OpenMayaUI
+from maya import OpenMaya as OpenMayaLegacy
 from maya.api import OpenMaya
 from qpeQt import QtCore, QtGui, QtWidgets, QAction, shiboken
 from quickPathExplorer import Explorer, ICON
@@ -186,6 +187,9 @@ def readFile(path, action, options):
         action (str): importまたはreference。
         options (dict): 検証済みfile引数。
 
+    Returns:
+        str | None: 実際の読込先ネームスペース。照会できない場合はNone。
+
     Raises:
         ValueError: 現在のシーン自身をリファレンスしようとした場合。
     """
@@ -203,7 +207,26 @@ def readFile(path, action, options):
         if not cmds.namespace(exists=child):
             cmds.namespace(addNamespace=part, parent=parent)
         parent = child
+    # 衝突時の採番はMayaへ任せる。対象の親直下だけを比較し、シーン全体の
+    # ノード列挙やreturnNewNodesによる大きな返却配列を避ける。
+    before = None
+    try:
+        before = set(cmds.namespaceInfo(parent, listOnlyNamespaces=True, absoluteName=True) or [])
+    except RuntimeError:
+        pass  # 補助情報の取得失敗だけで読込を拒否しない。
     cmds.file(path, **dict(options, **{'i' if action == 'import' else 'reference': True}))
+    try:
+        if options['namespace'] == ':':
+            return ':'
+        if options.get('mergeNamespacesOnClash') and cmds.namespace(exists=options['namespace']):
+            return options['namespace']
+        if before is not None:
+            created = set(cmds.namespaceInfo(parent, listOnlyNamespaces=True, absoluteName=True) or []) - before
+            if len(created) == 1:
+                return created.pop()
+    except RuntimeError:
+        pass  # 完了済みの読込を表示用の照会失敗で失敗扱いにしない。
+    return None
 
 
 def recordRecentScene():
@@ -290,15 +313,17 @@ def perform(widget, action):
                 recordRecentScene()
             elif action == 'import':
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
+                namespaces = []
                 for path, options in zip(paths, arguments):
                     widget.organizer.report('Importing: ' + Path(path).name)
-                    readFile(path, action, options)
+                    namespaces.append(readFile(path, action, options))
                     widget.recordSuccessfulFiles([path])
             else:
                 arguments = [widget.readOptions.fileArguments(action, path) for path in paths]
+                namespaces = []
                 for path, options in zip(paths, arguments):
                     widget.organizer.report('Creating reference: ' + Path(path).name)
-                    readFile(path, action, options)
+                    namespaces.append(readFile(path, action, options))
                     widget.recordSuccessfulFiles([path])
         elif action == 'save':
             if not cmds.file(query=True, sceneName=True):
@@ -319,21 +344,21 @@ def perform(widget, action):
             if action == 'export':
                 cmds.file(target, exportSelected=True, type=file_type, force=True)
             else:
-                previous = cmds.file(query=True, sceneName=True)
-                cmds.file(rename=target)
+                # APIのSave Asは書込失敗時に現在名を維持する。先行renameは名前なしへ戻せない。
+                # API 1.0はWindowsの逆スラッシュを解釈するため、区切りを正規化する。
                 try:
-                    cmds.file(save=True, type=file_type, force=True)
-                except RuntimeError:
-                    cmds.file(rename=previous or 'untitled')
-                    raise
+                    OpenMayaLegacy.MFileIO.saveAs(Path(target).as_posix(), file_type, True)
+                except RuntimeError as error:
+                    raise RuntimeError('Could not save scene to:\n{}\n\n{}'.format(target, error)) from error
                 recordRecentScene()
         refresh(widget)
         widget.status.setText('Completed: ' + {'new': 'New Scene', 'save': 'Save Scene', 'saveAs': 'Save Scene As',
                                                'export': 'Export Selection', 'reference': 'Create Reference'}.get(action, action.title()))
         if action in ('import', 'reference'):
             widget.status.setText('Completed: ' + action.title() + ' — ' + '; '.join(
-                Path(value).name + ' [namespace: ' + options['namespace'] + ']'
-                for value, options in zip(paths, arguments)))
+                Path(value).name + (' [namespace: ' + namespace + ']' if namespace is not None else
+                                   ' [requested namespace: ' + options['namespace'] + '; actual namespace unavailable]')
+                for value, options, namespace in zip(paths, arguments, namespaces)))
         widget.status.show()
     except (RuntimeError, OSError, ValueError) as error:
         widget.status.setText(str(error))

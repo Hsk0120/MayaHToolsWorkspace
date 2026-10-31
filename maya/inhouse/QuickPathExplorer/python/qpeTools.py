@@ -7,7 +7,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
-from qpeQt import QtCore, QtGui, QtWidgets, shiboken
+from qpeQt import QAction, QtCore, QtGui, QtWidgets, shiboken
 from qpeSettings import readSettings, writeSettings, settingsPath
 from qpeTransactions import FileTransactions, Cancelled
 from qpeSearch import searchFiles, duplicateFiles, hashFile, compareFolders, createZip, extractZip, sceneInfo, everythingSearch
@@ -350,7 +350,21 @@ class Organizer(QtCore.QObject):
         view.installEventFilter(self)
         self.views[view.viewport()] = view
         self.views[view] = view
+        # MayaはCtrl+TabのKeyPressを標準ビュー切替へ使うため、Qtの
+        # ショートカット配送で先に処理する。この一覧自身にフォーカスがある時だけ有効。
+        for sequence, step in (('Ctrl+Tab', 1), ('Ctrl+Shift+Tab', -1)):
+            action = QAction(view)
+            action.setShortcut(QtGui.QKeySequence(sequence))
+            action.setShortcutContext(QtCore.Qt.WidgetShortcut)
+            action.triggered.connect(lambda checked=False, offset=step: self.cycleTab(offset))
+            view.addAction(action)
         view.destroyed.connect(lambda: self._forgetView(view))
+
+    def cycleTab(self, offset):
+        """フォーカスされた一覧のタブを指定方向へ一度だけ切り替える。"""
+        tabs = self.explorer.folderTabs
+        if tabs.bar.count():
+            tabs.bar.setCurrentIndex((tabs.active + offset) % tabs.bar.count())
 
     def _forgetView(self, view):
         """破棄済みカラムを保持しない。"""
@@ -986,7 +1000,6 @@ class Organizer(QtCore.QObject):
                            QtCore.Qt.Key_V: lambda: self.paste(e.currentDirectory),
                            QtCore.Qt.Key_Z: self.undo, QtCore.Qt.Key_F: self.search,
                            QtCore.Qt.Key_T: e.folderTabs.add,
-                           QtCore.Qt.Key_Tab: lambda: e.folderTabs.bar.setCurrentIndex((e.folderTabs.active + 1) % e.folderTabs.bar.count()),
                            QtCore.Qt.Key_W: lambda: e.folderTabs.close(e.folderTabs.active)}
                 if key in actions:
                     # ホストのQActionより先に、この一覧が扱うキーだけを予約する。
@@ -997,7 +1010,7 @@ class Organizer(QtCore.QObject):
                         actions[key]()
                     return True
             if modifiers == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and key in (
-                    QtCore.Qt.Key_T, QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab, QtCore.Qt.Key_N):
+                    QtCore.Qt.Key_T, QtCore.Qt.Key_N):
                 if kind == QtCore.QEvent.ShortcutOverride:
                     event.accept()
                 else:
@@ -1005,8 +1018,6 @@ class Organizer(QtCore.QObject):
                         e.newFolder()
                     elif key == QtCore.Qt.Key_T:
                         e.folderTabs.reopen()
-                    else:
-                        e.folderTabs.bar.setCurrentIndex((e.folderTabs.active - 1) % e.folderTabs.bar.count())
                 return True
             if key == QtCore.Qt.Key_Delete and modifiers == QtCore.Qt.NoModifier:
                 if kind == QtCore.QEvent.ShortcutOverride:

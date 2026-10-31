@@ -157,6 +157,15 @@ class ModernLayout(QtCore.QObject):
         self.compactFiles = False
         self.inspectorPage = False
         self.pageHorizontal = 0
+        self.backToFiles = QtWidgets.QToolButton(explorer.actionsPanel)
+        self.backToFiles.setText('Back to files')
+        self.backToFiles.setIcon(explorer.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack))
+        self.backToFiles.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
+        self.backToFiles.setAutoRaise(True)
+        self.backToFiles.setAccessibleName('Back to files')
+        self.backToFiles.clicked.connect(lambda: explorer.inspectorButton.setChecked(False))
+        explorer.actionsPanel.layout().insertWidget(0, self.backToFiles)
+        self.backToFiles.hide()
         self.filePanel = explorer.search.parentWidget()
         self.filePanel.installEventFilter(self)
         self.toolbarTimer = QtCore.QTimer(self)
@@ -292,8 +301,12 @@ class ModernLayout(QtCore.QObject):
         page = available < round(720 * scale) and e.inspectorButton.isChecked()
         if page != self.inspectorPage:
             self.inspectorPage = page
+            self.backToFiles.setVisible(page)
             if page:
-                self.pageHorizontal = e.columns.horizontalScrollBar().value()
+                bar = e.columns.horizontalScrollBar()
+                snapshot = getattr(e.columns, '_pageHorizontalSnapshot', None)
+                self.pageHorizontal = snapshot if snapshot is not None else (
+                    -1 if bar.value() == bar.maximum() else bar.value())
                 e.vertical.hide()
                 e.places.hide()
                 e.inspectorButton.setToolTip('Back to files (details use the full width in a narrow window)')
@@ -309,6 +322,7 @@ class ModernLayout(QtCore.QObject):
                 e._resumeHorizontal = self.pageHorizontal
                 e._resumeTimer.start(50)
             e._fitFileColumns()
+        e.columns._pageHorizontalSnapshot = None
         # 表示設定・開始フォルダーはToolsに常設し、場所欄の長さを安定させる。
         e.displayButton.hide()
         e.rootButton.hide()
@@ -327,7 +341,16 @@ class ModernLayout(QtCore.QObject):
         e.organizer.button.setAccessibleName('Tools')
         e.organizer.button.setText('…' if self.compactToolbar else 'Tools')
         e.organizer.button.setMinimumWidth(0 if self.compactToolbar else tool_width)
-        e.address.setMinimumWidth(round(100 * scale))
+        # 最小ドックでは100pxの下限がレイアウトの割当幅を超え、隣の詳細
+        # ボタンまで描画される。表示中の操作部品を先に確保して残りを使う。
+        visible = [e.navigationBar.itemAt(index).widget() for index in range(e.navigationBar.count())]
+        visible = [item for item in visible if item is not None and not item.isHidden()]
+        bar_margins = e.navigationBar.contentsMargins()
+        fixed_width = sum(max(item.minimumWidth(), item.sizeHint().width())
+                          for item in visible if item is not e.address)
+        address_width = (available - fixed_width - max(0, len(visible) - 1) * e.navigationBar.spacing()
+                         - bar_margins.left() - bar_margins.right())
+        e.address.setMinimumWidth(min(round(100 * scale), max(1, address_width)))
         if e.navigationFrame.maximumWidth() != available:
             e.navigationFrame.setMaximumWidth(available)
         self.fitFileToolbar()

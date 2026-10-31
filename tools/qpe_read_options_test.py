@@ -30,19 +30,19 @@ def main(output_dir=None, finished=None):
             fields['mode'].setCurrentIndex(1)
             fields['name'].setText('shot:characterA')
             options = panel.fileArguments(action, path)
-            readFile(path, action, options)
+            assert readFile(path, action, options) == ':shot:characterA'
             assert cmds.objExists('shot:characterA:hero'), (action, options, cmds.ls(type='transform'))
-            readFile(path, action, options)
+            assert readFile(path, action, options) == ':shot:characterA1'
             assert cmds.objExists('shot:characterA1:hero')
             fields['mergeNamespacesOnClash'].setChecked(True)
             options.update(panel.fileArguments(action, path))
-            readFile(path, action, options)
+            assert readFile(path, action, options) == ':shot:characterA'
             assert cmds.objExists('shot:characterA:hero1')
             checks.append(action + ': custom nested namespace / unique clash / reuse')
             cmds.file(new=True, force=True)
             fields['mode'].setCurrentIndex(2)
             options.update(panel.fileArguments(action, path))
-            readFile(path, action, options)
+            assert readFile(path, action, options) == ':'
             assert cmds.objExists('hero')
             checks.append(action + ': root namespace')
             fields['mode'].setCurrentIndex(1)
@@ -56,11 +56,14 @@ def main(output_dir=None, finished=None):
         fields = panel.controls['reference']
         fields['mode'].setCurrentIndex(0)
         fields['deferReference'].setChecked(True)
-        cmds.file(path, reference=True, **panel.fileArguments('reference', path))
+        fields['mergeNamespacesOnClash'].setChecked(False)
+        assert readFile(path, 'reference', panel.fileArguments('reference', path)) == ':asset'
         assert not cmds.objExists('asset:hero')
         refs = [node for node in cmds.ls(type='reference') if node != 'sharedReferenceNode']
         assert refs and not cmds.referenceQuery(refs[0], isLoaded=True)
         checks.append('deferred reference creates reference without loading nodes')
+        assert readFile(path, 'reference', panel.fileArguments('reference', path)) == ':asset1'
+        checks.append('deferred reference reports actual allocated namespace after collision')
         cmds.file(new=True, force=True)
     result = {'status': 'passed', 'maya': cmds.about(version=True), 'checks': checks}
     print(json.dumps(result), flush=True)

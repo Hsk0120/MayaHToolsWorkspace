@@ -19,7 +19,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+
 - Claude Code (2026-10-31 13:20〜): AnimBarをaToolsと比べたデバッグ・テスト追加(2時間程度)。対象 maya/inhouse/AnimBar。mlibは不具合が出たときだけ。QPEは対象外。
+
 
 
 
@@ -151,7 +153,11 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-31): ユーザー依頼によりQPE追加2時間検証の修正8件と専用回帰テストを公開対象として確定。検証済みソース一致・構文・差分確認済み。他担当の変更とローカル調査資料は対象外。
+
 - Claude Code (2026-10-31): mlib 9.0.0。Keyframe/Keyframes(選択キーは Selection.getKeyframes・mlib.ls(selectedKeyframes=True))、AnimCurve.moveKey/scaleKey(shiftKeys/scaleKeysを改名、index・timeで絞る)・replaceKeys・removeKey(keepCurve=True既定)・getDrivenPlugs・getKeyframe(s)、Plug/Node.moveKey、getPlugs(writable=True)、undoChunkのopen/close、setKeyの接線の既定をMayaと同じに、getDefault・Plug/Node.setKeyのvalueをget()と同じ単位に。mlrig・AnimBarを新APIへ。fast削除のMaya異常終了を修正。mlib 2022〜2027・mlrig 2027/2025(719件)・AnimBar・Sphinx(警告0)OK。mlib/trial・__tests__/trial(Git未登録のmlibの写し、作成元不明)が静的検査を失敗させるため未コミットのまま残した。
+
+- Codex (2026-10-31 11:16〜13:16 JST): QPE追加2時間テスト・デバッグ完了。右ペイン幅/詳細からの復帰/横位置/狭幅ボタン重なり/CtrlTab/namespace表示/SaveAs失敗保全・文脈の8件修正。Maya2022/2027のQt/API回帰と実OS操作を区別して記録。狭幅件数/検索EscapeはUX候補、診断終了timeout2件は未解明。IME変換・物理4K等は未実施。所有検証終了、動画を非公開保存、automation qpe-1停止。記録: .maya-output/qpe-two-hour-20261031/。他担当変更保持、自動コミット/pushなし。
 
 - Claude Code (2026-10-31): aTools相当のアニメーションバー Anim Bar を maya/inhouse/AnimBar に自作(処理はmlib、画面はPySide、アイコンはQPainterで自作)。ツイーン・キー変形7モード・接線・キーの時間・範囲・プレイブラスト・ミラー・コピー・位置合わせ・スペース切替・仮のピボット/コンストレイント・モーショントレイル・細かい移動・タンブル・退避・選択セット・runTimeCommand。AnimBar.modを有効にし、起動時にタイムスライダーの上へドック。HToolsの入口と説明ページを追加。処理のテスト10件(mayapy 2027/2022)、使い捨てGUIの確認(2022/2025/2027)OK。元のaToolsはPython 2専用でMaya 2022以降では読めないため.modは無効のまま。mlibの課題はdocs/research/animbar-mlib-gaps-2026-10-31.md。未コミット。
 
