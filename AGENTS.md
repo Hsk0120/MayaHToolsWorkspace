@@ -146,6 +146,7 @@ Pythonコードは `PYTHONPATH` / `MAYA_MODULE_PATH` などを介してロード
 
 ## 検証
 
+- 検証用・一時スクリプトにも`copy.py`・`imp.py`・`json.py`等のPython標準モジュール名を使わない。スクリプトの親フォルダーは標準ライブラリより先に検索されるため、importだけで別スクリプトが動く。外部のscratchpad等からmayapyを起動する前は、`python tools/check_probe_imports.py <スクリプトの親フォルダー> --stdlib "<対象Maya>/Python/Lib"`で衝突を検査する（Maya2022は`Python37/Lib`）。ファイル複製・削除をimport時に実行せず、明示的なmain入口に置く。検証用の複製は`.maya-output`内の専用一時領域へ限定し、終了時に後始末する。
 - 共通のpytest/CIコマンドを前提にせず、変更対象の既存テストと実行方法を確認する。
 - 数学型の変更は `maya/inhouse/mlib/__tests__/unit/test_datatypes.py` で検証する。標準の実行経路は上記のMaya送信タスク。
 - `test_maya_standalone.py` や `test_slack_postMessage.py` は手動スクリプト。名前だけで安全な一括テストと判断せず、実行前に副作用を確認する。

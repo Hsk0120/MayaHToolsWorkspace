@@ -35,6 +35,7 @@ SUITES = {
     "visual": ("support/visualGui.py", {}),
 }
 from support.mayaProcess import monitor_process, stop_owned_process
+from support.importSafety import require_safe_imports
 
 
 def worker(version, directory, suite_path=None):
@@ -99,6 +100,9 @@ def run_version(version, directory, install_root, timeout, shutdown_timeout=120,
     executable = maya_executable(version, install_root).with_name("maya.exe")
     if not executable.is_file():
         return {"requested_version": version, "status": "missing", "executable": str(executable)}
+    if suite_path:
+        install = executable.parent.parent
+        require_safe_imports(suite_path.parent, (install / "Python/Lib", install / "Python37/Lib"))
     env = isolated_environment(executable, directory)
     env.update(environment or {})
     prefs = directory / "maya_app" / version / "prefs"
