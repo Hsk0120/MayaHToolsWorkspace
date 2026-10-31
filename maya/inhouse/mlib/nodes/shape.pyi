@@ -39,20 +39,6 @@ class Shape(DagNode):
             NotImplementedError: fastで、移す先に同じ名前の子がある場合(Mayaの改名の規則を再現しないため)。
         """
         ...
-    def _set_parent_fast(self, target: Transform) -> None:
-        """変更前に編集できるか確かめ、MDagModifierでシェイプの親を変える。
-
-        Args:
-            target (Transform): 新しい親。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: シェイプ・元の親・新しい親がロック・参照されている場合。
-            NotImplementedError: 新しい親に同じ名前の子がある場合。
-        """
-        ...
     def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ...) -> Shape:
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
@@ -84,5 +70,19 @@ class Shape(DagNode):
 
         Returns:
             Transform | None: 親Transform。存在しない場合は ``None``。
+        """
+        ...
+    def _set_parent_fast(self, target: Transform) -> None:
+        """変更前に編集できるか確かめ、MDagModifierでシェイプの親を変える。
+
+        Args:
+            target (Transform): 新しい親。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: シェイプ・元の親・新しい親がロック・参照されている場合。
+            NotImplementedError: 新しい親に同じ名前の子がある場合。
         """
         ...

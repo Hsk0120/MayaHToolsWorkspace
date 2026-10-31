@@ -19,7 +19,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-- Codex (2026-10-31 09:41〜10:41 JST): QPEの1時間操作デバッグ。専用Maya2027の実操作、使いづらさ・再現条件・動画を記録。対象QPEと専用テストのみ、mlib/mlrig変更を保持、自動プッシュなし。進捗 .maya-output/qpe-one-hour-20261031/progress.json。
+- Codex (2026-10-31): QPE操作調査のBUG-01/02・UX-01〜13を修正、専用Qt/Mayaで回帰・動画確認後に対象変更のみpush。対象QuickPathExplorerと専用検証、mlib/mlrigの既存変更を保持。
+
 
 
 
@@ -149,6 +150,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-10-31): QPEの1時間操作調査を完了。専用Maya2027の実OS入力と独立した失敗注入・Qt検証を区別し、不具合2件・UX課題13件を記録。録画6本を非公開保存・権限とURLを読戻し確認。ドック初期配置はMayaコマンド、縮小・フロート・再表示は実操作。専用Mayaは終了手順で終了、自動化qpe-1を停止。終了コード1はcompleted_with_issuesに対するランナーの明示値。製品変更・pushなし。詳細docs/research/qpe-one-hour-20261031/issues.txt、.maya-output/qpe-one-hour-20261031/report.txt。
+
+- Claude Code (2026-10-31): mlibのテストを追加(数学型のom2突き合わせ・Transform/Jointの乱数階層でのcmds突き合わせ・Plugの型×UI単位×fast・照会系・連続Undo/Redo、5ファイル)。mlib本体の不具合は見つからず、8.0.0で古いまま入ったnodes/shape.pyiを再生成。NaNをPlug.setが受け付ける点は課題として報告。runStatic 160件、Maya 2022〜2027全テストOK。未コミット。
 
 - Claude Code (2026-10-31): mlib 8.0.0。objExists・作成関数(createContainer/DagContainer/DagPose/IkHandle/BlendShape/Curve/Circle/Locator/PolyCube/Sphere/Cylinder/Plane・bindSkin)をcmdsとルートへ追加し、ノード型のcreateクラスメソッドとSkinCluster.bindを削除。common.Time、Node.setKey/removeKey・Plug.removeKey・AnimCurve.removeKey(time=)、Shape.setParent/Transform.addShape(fast約2.4倍)、Joint.setPreferredAngleを追加。接続照会のskipConversionNodes既定をFalse(直結)へ変更し、利用側の旧既定依存はTrueを明示。mlrigを新APIへ置換(本体のcmdsはabout・UI・reorder・シェーダー作成だけ)。仕様はdocs/research/mlib-8.0.0-spec-2026-10-31.md。runStatic 160件、Maya 2022〜2027全テスト、mlrig 2027/2025 719件、Sphinx・文書検査OK。未コミット。
 
