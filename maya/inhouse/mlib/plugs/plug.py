@@ -50,6 +50,44 @@ _LENGTH_PREFIXED_ARRAY_TYPES = frozenset((
     "componentList",
 ))
 
+
+def _require_finite_value(value):
+    """set() へ渡した値に、有限でない数値(NaN・無限大)が無いかを確かめる。
+
+    数値、数値の並び(入れ子も含む)、om2 のベクトル・点・オイラー回転・クォータニオン・マトリクスと
+    単位付きの値を調べる。文字列・整数・bool・その他の値は調べない。
+
+    Args:
+        value (object): 書き込む値。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        ValueError: 有限でない数値がある場合(文言にアトリビュート名は含めない)。
+    """
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"value must be finite, got {value!r}")
+        return
+    if isinstance(value, (om2.MAngle, om2.MDistance, om2.MTime)):
+        _require_finite_value(float(value.value))
+        return
+    if isinstance(value, om2.MTransformationMatrix):
+        value = value.asMatrix()
+    if isinstance(value, (om2.MMatrix, om2.MFloatMatrix)):
+        items = [value.getElement(row, column) for row in range(4) for column in range(4)]
+    elif isinstance(value, (om2.MVector, om2.MFloatVector, om2.MEulerRotation)):
+        items = (value.x, value.y, value.z)
+    elif isinstance(value, (om2.MPoint, om2.MFloatPoint, om2.MQuaternion)):
+        items = (value.x, value.y, value.z, value.w)
+    elif isinstance(value, (tuple, list)):
+        items = value
+    else:
+        return
+    for item in items:
+        _require_finite_value(item)
+
 #: ``MFnDependencyNode.attributeClass()`` が、ノードに無いアトリビュート(削除済みの動的アトリビュートなど)に返す値。
 _INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
 
@@ -1080,24 +1118,21 @@ class Plug(Object):
         return fn.hasMax() if fn is not None else False
 
     def getMin(self, *, unit=None, timeUnit=None, uiUnits=False):
-        """設定されている最小値を取得する。
+        """設定されている最小値を、:meth:`get` と同じ規則の数値で取得する。
 
-        数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクト(``MAngle``/``MDistance``/``MTime``)をそのまま返す。
-        既定(``uiUnits=False``)では単位の換算を行わない。
+        角度は度(``unit="rad"`` でラジアン)、距離はcm、時間は現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)、
+        数値は ``float`` を返す(10.0.0 から。以前は角度・距離・時間を ``MAngle``/``MDistance``/``MTime`` のまま返した)。
 
         Args:
-            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
-                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+            unit (str | None): 角度の単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
-            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
-                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
-                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位(度・cm等)の数値で返す。
-                既定Falseは内部の単位付きオブジェクトのまま返す。
+            timeUnit (str | None): 時間の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。時間以外では使わない。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位(UIの角度・距離の単位)の数値で返す。
 
         Returns:
-            float | om2.MAngle | om2.MDistance | om2.MTime | None: 最小値。
+            float | tuple[float, ...] | None: 最小値。数値のコンパウンドアトリビュートは子ごとのtuple。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
@@ -1105,14 +1140,7 @@ class Plug(Object):
             ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        _require_bool(uiUnits, "uiUnits")
-        angle_unit = _plain_angle_unit(unit, uiUnits) if unit is not None or uiUnits else None
-        time_unit = _plain_time_unit(timeUnit, uiUnits) if timeUnit is not None or uiUnits else None
-        fn = self._range_attribute_fn()
-        if fn is None or not fn.hasMin():
-            return None
-        value = fn.getMin()
-        return self._range_value(value, angle_unit, uiUnits, time_unit)
+        return self._limit_value("hasMin", "getMin", unit, timeUnit, uiUnits)
 
     def setMin(self, value, *, unit=None, timeUnit=None):
         """動的アトリビュートの最小値を設定する(``cmds.addAttr(edit=True, minValue=...)`` 相当)。
@@ -1140,22 +1168,21 @@ class Plug(Object):
         return self._set_range("Min", value, unit, timeUnit)
 
     def getMax(self, *, unit=None, timeUnit=None, uiUnits=False):
-        """設定されている最大値を取得する。
+        """設定されている最大値を、:meth:`get` と同じ規則の数値で取得する。
 
-        数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクト(``MAngle``/``MDistance``/``MTime``)をそのまま返す。
+        角度は度(``unit="rad"`` でラジアン)、距離はcm、時間は現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)、
+        数値は ``float`` を返す(10.0.0 から。以前は角度・距離・時間を ``MAngle``/``MDistance``/``MTime`` のまま返した)。
 
         Args:
-            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
-                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+            unit (str | None): 角度の単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
-            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
-                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
-                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
+            timeUnit (str | None): 時間の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。時間以外では使わない。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位(UIの角度・距離の単位)の数値で返す。
 
         Returns:
-            float | om2.MAngle | om2.MDistance | om2.MTime | None: 最大値。
+            float | tuple[float, ...] | None: 最大値。数値のコンパウンドアトリビュートは子ごとのtuple。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
@@ -1163,14 +1190,7 @@ class Plug(Object):
             ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        _require_bool(uiUnits, "uiUnits")
-        angle_unit = _plain_angle_unit(unit, uiUnits) if unit is not None or uiUnits else None
-        time_unit = _plain_time_unit(timeUnit, uiUnits) if timeUnit is not None or uiUnits else None
-        fn = self._range_attribute_fn()
-        if fn is None or not fn.hasMax():
-            return None
-        value = fn.getMax()
-        return self._range_value(value, angle_unit, uiUnits, time_unit)
+        return self._limit_value("hasMax", "getMax", unit, timeUnit, uiUnits)
 
     def setMax(self, value, *, unit=None, timeUnit=None):
         """動的アトリビュートの最大値を設定する(``cmds.addAttr(edit=True, maxValue=...)`` 相当)。
@@ -1222,22 +1242,22 @@ class Plug(Object):
         return fn.hasSoftMax() if fn is not None else False
 
     def getSoftMin(self, *, unit=None, timeUnit=None, uiUnits=False):
-        """設定されているソフト最小値(UIスライダーの下限)を取得する。
+        """設定されているソフト最小値(UIスライダーの下限)を、:meth:`get` と同じ規則の数値で取得する。
 
-        数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
+        角度は度(``unit="rad"`` でラジアン)、距離はcm、時間は現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)、
+        数値は ``float`` を返す(10.0.0 から。以前は角度・距離・時間を ``MAngle``/``MDistance``/``MTime`` のまま返した)。
+        min/max とは異なり値の入力自体は制限しない。
 
         Args:
-            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
-                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+            unit (str | None): 角度の単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
-            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
-                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
-                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
+            timeUnit (str | None): 時間の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。時間以外では使わない。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位(UIの角度・距離の単位)の数値で返す。
 
         Returns:
-            float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最小値。
+            float | tuple[float, ...] | None: ソフト最小値(UIスライダーの下限)。数値のコンパウンドアトリビュートは子ごとのtuple。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
@@ -1245,14 +1265,7 @@ class Plug(Object):
             ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        _require_bool(uiUnits, "uiUnits")
-        angle_unit = _plain_angle_unit(unit, uiUnits) if unit is not None or uiUnits else None
-        time_unit = _plain_time_unit(timeUnit, uiUnits) if timeUnit is not None or uiUnits else None
-        fn = self._range_attribute_fn()
-        if fn is None or not fn.hasSoftMin():
-            return None
-        value = fn.getSoftMin()
-        return self._range_value(value, angle_unit, uiUnits, time_unit)
+        return self._limit_value("hasSoftMin", "getSoftMin", unit, timeUnit, uiUnits)
 
     def setSoftMin(self, value, *, unit=None, timeUnit=None):
         """動的アトリビュートのソフト最小値(UIスライダーの下限)を設定する。
@@ -1279,22 +1292,22 @@ class Plug(Object):
         return self._set_range("SoftMin", value, unit, timeUnit)
 
     def getSoftMax(self, *, unit=None, timeUnit=None, uiUnits=False):
-        """設定されているソフト最大値(UIスライダーの上限)を取得する。
+        """設定されているソフト最大値(UIスライダーの上限)を、:meth:`get` と同じ規則の数値で取得する。
 
-        数値アトリビュートは ``float``、角度・距離・時間アトリビュートは対応する Maya API 2.0 の
-        単位付きオブジェクトをそのまま返す。min/max とは異なり値の入力自体は制限しない。
+        角度は度(``unit="rad"`` でラジアン)、距離はcm、時間は現在のUI時間単位のフレーム(``timeUnit="sec"`` で秒)、
+        数値は ``float`` を返す(10.0.0 から。以前は角度・距離・時間を ``MAngle``/``MDistance``/``MTime`` のまま返した)。
+        min/max とは異なり値の入力自体は制限しない。
 
         Args:
-            unit (str | None): 指定すると角度の値(MAngle)を ``"deg"`` / ``"rad"`` の数値で返す
-                (``"degree"`` 等の別名も可)。既定Noneは単位付きオブジェクトのまま。
+            unit (str | None): 角度の単位。None(既定)と ``"deg"`` は度、``"rad"`` はラジアン(``"degree"`` 等の別名も可)。
                 角度以外では使わない。uiUnits=Trueとは同時に指定できない。
-            timeUnit (str | None): 指定すると時間の値(MTime)を ``"frame"`` (現在のUI時間単位) /
-                ``"sec"`` (秒) の数値で返す(``"frames"`` / ``"seconds"`` 等の別名も可)。
-                既定Noneは単位付きオブジェクトのまま。時間以外では使わない。uiUnits=Trueとは同時に指定できない。
-            uiUnits (bool): Trueは :meth:`get` と同じく現在のUI単位の数値で返す。既定Falseは内部単位のまま。
+            timeUnit (str | None): 時間の単位。None(既定)と ``"frame"`` は現在のUI時間単位のフレーム、
+                ``"sec"`` は秒(``"frames"`` / ``"seconds"`` 等の別名も可)。時間以外では使わない。
+                uiUnits=Trueとは同時に指定できない。
+            uiUnits (bool): Trueは現在のUI単位(UIの角度・距離の単位)の数値で返す。
 
         Returns:
-            float | om2.MAngle | om2.MDistance | om2.MTime | None: ソフト最大値。
+            float | tuple[float, ...] | None: ソフト最大値(UIスライダーの上限)。数値のコンパウンドアトリビュートは子ごとのtuple。
                 制限が無い、または対応しないアトリビュート型では ``None``。
 
         Raises:
@@ -1302,14 +1315,7 @@ class Plug(Object):
             ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
-        _require_bool(uiUnits, "uiUnits")
-        angle_unit = _plain_angle_unit(unit, uiUnits) if unit is not None or uiUnits else None
-        time_unit = _plain_time_unit(timeUnit, uiUnits) if timeUnit is not None or uiUnits else None
-        fn = self._range_attribute_fn()
-        if fn is None or not fn.hasSoftMax():
-            return None
-        value = fn.getSoftMax()
-        return self._range_value(value, angle_unit, uiUnits, time_unit)
+        return self._limit_value("hasSoftMax", "getSoftMax", unit, timeUnit, uiUnits)
 
     def setSoftMax(self, value, *, unit=None, timeUnit=None):
         """動的アトリビュートのソフト最大値(UIスライダーの上限)を設定する。
@@ -1367,17 +1373,7 @@ class Plug(Object):
         value = self._raw_default()
         if value is None or isinstance(value, int) and self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
             return value
-        if uiUnits:
-            return self._range_value(value, angle_unit, uiUnits, time_unit)
-
-        def convert(item):
-            """単位付きの値1つを、get() と同じ規則の数値へ換算する。"""
-            if isinstance(item, om2.MDistance):
-                return item.asCentimeters()
-            return item
-
-        value = self._range_value(value, angle_unit, False, time_unit)
-        return tuple(convert(item) for item in value) if isinstance(value, tuple) else convert(value)
+        return self._plain_range_value(value, angle_unit, uiUnits, time_unit)
 
     def getAlias(self):
         """このプラグに設定されているエイリアス名を取得する。
@@ -2453,6 +2449,13 @@ class Plug(Object):
                 value = _convert_angles(self._mplug, value, angle_unit)
                 value = _convert_times(self._mplug, value, time_unit)
             try:
+                # NaN・無限大はMayaが受け取っても値が壊れるため、書き込む前に拒否する(10.0.0)。
+                _require_finite_value(value)
+            except ValueError as error:
+                if not safe:
+                    raise ValueError(f"{error}: {self.getFullName() if self.isValid() else '<invalid plug>'}") from None
+                return 1
+            try:
                 writer = self._set_value if _writer is None else partial(_writer, self)
                 writer(value, fast=fast, **options)
             except NotImplementedError:
@@ -3341,6 +3344,51 @@ class Plug(Object):
         if isinstance(value, tuple):
             return tuple(convert(item) for item in value)
         return convert(value)
+
+    def _limit_value(self, has, getter, unit, time_unit, ui_units):
+        """getMin・getMax・getSoftMin・getSoftMaxの共通処理。定義の制限を get() と同じ規則の数値で返す。
+
+        Args:
+            has (str): Function Setの有無の照会メソッド名(``"hasMin"`` 等)。
+            getter (str): Function Setの値の照会メソッド名(``"getMin"`` 等)。
+            unit (str | None): 角度の単位。Noneは度。
+            time_unit (str | None): 時間の単位。Noneはフレーム。
+            ui_units (bool): Trueは現在のUI単位の数値。
+
+        Returns:
+            float | tuple[float, ...] | None: 制限の値。制限が無い・対応しない型はNone。
+        """
+        _require_bool(ui_units, "uiUnits")
+        angle_unit = _plain_angle_unit(unit, ui_units) if unit is not None or ui_units else "deg"
+        time_unit = _plain_time_unit(time_unit, ui_units) if time_unit is not None or ui_units else "frame"
+        fn = self._range_attribute_fn()
+        if fn is None or not getattr(fn, has)():
+            return None
+        return self._plain_range_value(getattr(fn, getter)(), angle_unit, ui_units, time_unit)
+
+    def _plain_range_value(self, value, angle_unit, ui_units, time_unit):
+        """定義から読んだ値を、get() と同じ規則の数値(角度・時間は指定の単位、距離はcm)へ換算する。
+
+        Args:
+            value (object): 定義から読んだ値(単位付きオブジェクト・数値・tuple)。
+            angle_unit (str): ``"deg"`` / ``"rad"``。
+            ui_units (bool): Trueは現在のUI単位の数値へ換算する。
+            time_unit (str): ``"frame"`` / ``"sec"``。
+
+        Returns:
+            object: 換算した値。
+        """
+        if ui_units:
+            return self._range_value(value, angle_unit, True, time_unit)
+
+        def convert(item):
+            """単位付きの値1つを、get() と同じ規則の数値へ換算する。"""
+            if isinstance(item, om2.MDistance):
+                return item.asCentimeters()
+            return item
+
+        value = self._range_value(value, angle_unit, False, time_unit)
+        return tuple(convert(item) for item in value) if isinstance(value, tuple) else convert(value)
 
     def _range_attribute_fn(self):
         """寿命を検証し、範囲照会に対応する型のFunction Setを返す。

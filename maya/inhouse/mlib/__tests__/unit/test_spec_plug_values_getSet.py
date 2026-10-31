@@ -425,13 +425,44 @@ class PlugScalarValueSpecTest(_PlugSpecCase):
         self.assertEqual(long_plug.set(None, safe=True), 1)
         self.assertEqual(long_plug.get(), 0)
 
-    def test_non_finite_values_are_accepted_by_scalars(self):
-        """スカラーのdoubleはnan・infを拒否せず、そのまま書く(通常・fast)。"""
+    def test_non_finite_values_are_rejected(self):
+        """nan・infは書く前にValueError(通常・fast)、safe=Trueは1で、値を変えない(10.0.0)。"""
         tx = self.node.getPlug("tx")
-        tx.set(float("nan"))
-        self.assertTrue(math.isnan(tx.get()))
-        tx.set(float("inf"), fast=True)
-        self.assertEqual(tx.get(), float("inf"))
+        tx.set(2.0)
+        for fast in (False, True):
+            for value in (float("nan"), float("inf"), -float("inf")):
+                with self.subTest(fast=fast, value=value):
+                    with self.assertRaisesRegex(ValueError, r"value must be finite.*translateX"):
+                        tx.set(value, fast=fast)
+                    self.assertEqual(tx.set(value, safe=True, fast=fast), 1)
+                    self.assertEqual(tx.get(), 2.0)
+
+    def test_non_finite_components_are_rejected(self):
+        """並び・数学型・単位付きの値・マトリクスの中のnanも拒否し、どの成分も書かない。"""
+        nan = float("nan")
+        translate = self.node.getPlug("translate")
+        rotate = self.node.getPlug("rotate")
+        translate.set((1.0, 2.0, 3.0))
+        cases = [
+            (translate, (1.0, nan, 3.0)),
+            (translate, [0.0, 0.0, float("inf")]),
+            (translate, om2.MVector(0.0, nan, 0.0)),
+            (rotate, om2.MEulerRotation(nan, 0.0, 0.0)),
+            (rotate, om2.MQuaternion(0.0, 0.0, 0.0, nan)),
+            (self.node.getPlug("tx"), om2.MDistance(nan)),
+            (self.node.getPlug("rx"), om2.MAngle(nan)),
+        ]
+        for plug, value in cases:
+            with self.subTest(plug=plug.getLongName(), value=repr(value)):
+                with self.assertRaises(ValueError):
+                    plug.set(value)
+        matrix = self.add("mtx", dataType="matrix")
+        values = [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, nan, 0.0, 0.0, 1.0]
+        with self.assertRaises(ValueError):
+            matrix.set(om2.MMatrix(values))
+        with self.assertRaises(ValueError):
+            matrix.set(values)
+        self.assertEqual(tuple(translate.get()), (1.0, 2.0, 3.0))
 
     def test_locked_parent_locked_and_connected_are_rejected(self):
         """自身・親のロック、入力接続は通常・fastともRuntimeErrorで、safeは1。"""

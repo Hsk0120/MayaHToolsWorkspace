@@ -4,6 +4,31 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+10.0.0 (2026-10-31)
+-------------------
+
+``Plug.set`` が有限でない数値を書かないようにし、範囲の照会(``getMin`` 等)の戻り値を ``get()`` と同じ規則の
+数値へそろえました。どちらも戻り値・例外が変わるため、移行表を確認してください。
+
+.. rubric:: 破壊的変更と移行
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - 9.0.0
+     - 10.0.0
+   * - ``Plug.set`` は NaN・無限大をそのまま書いた(Maya の値が壊れたように見えた)
+     - 書く前に ``ValueError``\ (``value must be finite, got nan: <アトリビュート>``)。``safe=True`` は 1 を返し、何も書かない。
+       数値・数値の並び・``Vector``\ ・\ ``EulerRotate``\ ・\ ``Quaternion``\ ・\ ``Matrix`` 等の om2 の数学型・
+       ``MAngle``\ ・\ ``MDistance``\ ・\ ``MTime`` の中も調べる(``fast=True`` でも同じ。``Transform.setTranslation`` 等の
+       Plug を通す書込みも含む)
+   * - ``Plug.getMin``\ ・\ ``getMax``\ ・\ ``getSoftMin``\ ・\ ``getSoftMax`` は角度・距離・時間を
+       ``MAngle``\ ・\ ``MDistance``\ ・\ ``MTime`` のまま返した
+     - ``get()``\ ・\ ``getDefault()`` と同じ数値で返す(角度は度、距離はcm、時間は現在のUI時間単位のフレーム)。
+       ``unit="rad"``\ ・\ ``timeUnit="sec"``\ ・\ ``uiUnits=True`` はこれまでどおり。単位付きの値が必要なら
+       ``om2.MAngle(plug.getMin(unit="rad"))`` のように作る
+
 9.0.0 (2026-10-31)
 ------------------
 

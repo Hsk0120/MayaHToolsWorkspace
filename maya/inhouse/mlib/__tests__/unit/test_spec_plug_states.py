@@ -3,6 +3,7 @@
 期待値はmaya.cmdsとOpenMayaで独立に求めた値と比べる。
 """
 
+import math
 import unittest
 import uuid
 
@@ -368,17 +369,38 @@ class PlugDefinitionQuerySpecTest(_StateSpecCase):
         self.assertEqual((tx.hasMin(), tx.getMin(), tx.hasSoftMin(), tx.getSoftMin()), (False, None, False, None))
         self.assertEqual(self.node.getPlug("visibility").getMin(), 0.0)
 
-    def test_unit_ranges_return_api_objects(self):
-        """角度・距離の範囲はMAngle・MDistanceをそのまま返し、換算しない。"""
+    def test_unit_ranges_return_numbers(self):
+        """角度・距離・時間の範囲は get() と同じ規則の数値で返す(角度は度・距離はcm・時間はフレーム。10.0.0)。"""
         cmds.addAttr(self.name, longName="angleLimit", attributeType="doubleAngle", minValue=-1, maxValue=1)
         cmds.addAttr(self.name, longName="lengthLimit", attributeType="doubleLinear", minValue=-2, maxValue=3)
         angle, length = self.node.getPlug("angleLimit"), self.node.getPlug("lengthLimit")
-        self.assertIsInstance(angle.getMin(), om2.MAngle)
-        self.assertAlmostEqual(angle.getMin().asRadians(), -1.0)
-        self.assertAlmostEqual(angle.getMax().asRadians(), 1.0)
-        self.assertIsInstance(length.getMax(), om2.MDistance)
-        self.assertAlmostEqual(length.getMin().asCentimeters(), -2.0)
-        self.assertAlmostEqual(length.getMax().asCentimeters(), 3.0)
+        for value in (angle.getMin(), angle.getMax(), length.getMin(), length.getMax()):
+            self.assertIsInstance(value, float)
+        self.assertAlmostEqual(angle.getMin(), math.degrees(-1.0))
+        self.assertAlmostEqual(angle.getMax(unit="rad"), 1.0)
+        self.assertAlmostEqual(length.getMin(), -2.0)
+        self.assertAlmostEqual(length.getMax(), 3.0)
+        previous = cmds.currentUnit(query=True, linear=True)
+        try:
+            # cm 以外の UI 単位でも、既定は get() と同じ cm、uiUnits=True は UI 単位。
+            cmds.currentUnit(linear="mm")
+            self.assertAlmostEqual(length.getMax(), 3.0)
+            self.assertAlmostEqual(length.getMax(uiUnits=True), 30.0)
+        finally:
+            cmds.currentUnit(linear=previous)
+
+    def test_time_ranges_return_frames(self):
+        """時間の範囲は現在のUI時間単位のフレーム、timeUnit="sec" は秒。"""
+        previous = cmds.currentUnit(query=True, time=True)
+        try:
+            cmds.currentUnit(time="film")
+            cmds.addAttr(self.name, longName="timeLimit", attributeType="time", minValue=0, maxValue=48)
+            plug = self.node.getPlug("timeLimit")
+            self.assertAlmostEqual(plug.getMax(), 48.0)
+            self.assertAlmostEqual(plug.getMax(timeUnit="sec"), 2.0)
+            self.assertIsInstance(plug.getMin(), float)
+        finally:
+            cmds.currentUnit(time=previous)
 
     def test_ranges_of_non_numeric_types(self):
         """文字列・マトリクス・messageには範囲が無い。"""

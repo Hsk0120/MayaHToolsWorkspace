@@ -153,14 +153,10 @@ class RemovedNamesSpecTest(_ValueSpecCase):
 
 
 class RangeUnitsSpecTest(_ValueSpecCase):
-    """getMin/getMax/getSoftMin/getSoftMaxのuiUnits(既定は内部単位のオブジェクト)と、get()と同じ数値を返すgetDefault。"""
-
-    def expected_ui(self, value, unit_class):
-        """内部単位の単位付きオブジェクトを、現在のUI単位の数値へ変換した期待値。"""
-        return value.asUnits(unit_class.uiUnit())
+    """getMin/getMax/getSoftMin/getSoftMax・getDefaultは get() と同じ数値(10.0.0)、uiUnits=TrueはUI単位の数値。"""
 
     def test_distance_range_in_ui_units(self):
-        """doubleLinearの範囲はMDistance。uiUnits=TrueはUI単位(cm→m切替に追従)の数値。"""
+        """doubleLinearの範囲はcmの数値。uiUnits=TrueはUI単位(cm→m切替に追従)の数値。"""
         plug = self.add("dist", attributeType="doubleLinear", minValue=-10, maxValue=20,
                         softMinValue=-5, softMaxValue=15, defaultValue=2.5)
         getters = (("getMin", -10.0), ("getMax", 20.0), ("getSoftMin", -5.0), ("getSoftMax", 15.0))
@@ -171,8 +167,8 @@ class RangeUnitsSpecTest(_ValueSpecCase):
         for name, cm_value in getters:
             with self.subTest(getter=name, unit="cm"):
                 internal = getattr(plug, name)()
-                self.assertIsInstance(internal, om2.MDistance)
-                self.assertAlmostEqual(internal.asUnits(om2.MDistance.kCentimeters), cm_value)
+                self.assertIsInstance(internal, float)
+                self.assertAlmostEqual(internal, cm_value)
                 ui = getattr(plug, name)(uiUnits=True)
                 self.assertIsInstance(ui, float)
                 self.assertAlmostEqual(ui, cm_value)
@@ -181,9 +177,9 @@ class RangeUnitsSpecTest(_ValueSpecCase):
         self.assertAlmostEqual(plug.getDefault(uiUnits=True), 0.025)
         for name, cm_value in getters:
             with self.subTest(getter=name, unit="m"):
-                internal = getattr(plug, name)()
                 self.assertAlmostEqual(getattr(plug, name)(uiUnits=True), cm_value / 100.0)
-                self.assertAlmostEqual(getattr(plug, name)(uiUnits=True), self.expected_ui(internal, om2.MDistance))
+                # 既定は get() と同じく UI 単位によらない cm。
+                self.assertAlmostEqual(getattr(plug, name)(), cm_value)
         # cmds.attributeQuery の範囲も UI 単位で返るので突き合わせる。
         self.assertAlmostEqual(plug.getMin(uiUnits=True),
                                cmds.attributeQuery("dist", node=self.name, minimum=True)[0])
@@ -191,14 +187,14 @@ class RangeUnitsSpecTest(_ValueSpecCase):
                                cmds.attributeQuery("dist", node=self.name, maximum=True)[0])
 
     def test_angle_range_in_ui_units(self):
-        """doubleAngleの範囲・既定値はMAngle。uiUnits=TrueはUI単位の数値でcmds.attributeQueryと一致。
+        """doubleAngleの範囲・既定値は度の数値。uiUnits=TrueはUI単位の数値でcmds.attributeQueryと一致。
 
         cmds.addAttrのminValue/maxValue/defaultValueは内部単位(radian)の生の数値として保存される
         (-90 は -90 radian)ので、uiUnits=True の値は度に換算した値になる。unitを指定すると数値で返す。
         """
         angle = self.add("ang", attributeType="doubleAngle", minValue=-90, maxValue=180, defaultValue=45)
-        self.assertIsInstance(angle.getMin(), om2.MAngle)
-        self.assertAlmostEqual(angle.getMin().asUnits(om2.MAngle.kRadians), -90.0)
+        self.assertIsInstance(angle.getMin(), float)
+        self.assertAlmostEqual(angle.getMin(), math.degrees(-90.0))
         self.assertAlmostEqual(angle.getMin(unit="rad"), -90.0)
         self.assertAlmostEqual(angle.getMax(unit="deg"), math.degrees(180.0))
         self.assertAlmostEqual(angle.getMin(uiUnits=True), math.degrees(-90.0))
@@ -218,19 +214,20 @@ class RangeUnitsSpecTest(_ValueSpecCase):
         self.assertAlmostEqual(angle.getDefault(unit="rad"), 45.0)
         cmds.currentUnit(angle="rad")
         self.assertAlmostEqual(angle.getMin(uiUnits=True), -90.0)
-        self.assertAlmostEqual(angle.getMin(uiUnits=True), self.expected_ui(angle.getMin(), om2.MAngle))
+        self.assertAlmostEqual(angle.getMin(uiUnits=True), angle.getMin(unit="rad"))
+        self.assertAlmostEqual(angle.getMin(), math.degrees(-90.0))
         self.assertAlmostEqual(angle.getMin(uiUnits=True),
                                cmds.attributeQuery("ang", node=self.name, minimum=True)[0])
 
     def test_time_range_in_ui_units(self):
-        """timeの範囲・既定値はMTime。uiUnits=Trueは現在のUI時間単位の数値でcmds.attributeQueryと一致。"""
+        """timeの範囲は現在のUI時間単位のフレームの数値で、uiUnits=True・cmds.attributeQueryと一致。"""
         time = self.add("tm", attributeType="time", minValue=0, maxValue=48, defaultValue=24)
         for unit in ("film", "ntsc"):
             with self.subTest(unit=unit):
                 cmds.currentUnit(time=unit)
-                self.assertIsInstance(time.getMax(), om2.MTime)
+                self.assertIsInstance(time.getMax(), float)
                 self.assertIsInstance(time.getMax(uiUnits=True), float)
-                self.assertAlmostEqual(time.getMax(uiUnits=True), self.expected_ui(time.getMax(), om2.MTime))
+                self.assertAlmostEqual(time.getMax(uiUnits=True), time.getMax())
                 self.assertAlmostEqual(time.getMax(uiUnits=True),
                                        cmds.attributeQuery("tm", node=self.name, maximum=True)[0])
                 self.assertIsInstance(time.getDefault(), float)

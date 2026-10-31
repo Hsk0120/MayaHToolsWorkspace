@@ -79,7 +79,7 @@ class MaintenanceDelegationTest(unittest.TestCase):
 
 
     def test_range_queries_preserve_native_values_and_unit_types(self):
-        """数値・単位型はネイティブAPIの値、型、対応しない照会の例外を維持する。"""
+        """数値型はネイティブAPIの値、単位型は get() と同じ規則の数値(度・cm・UI時間単位のフレーム)を返す(10.0.0)。"""
         node = mlib.createNode("network")
         for kind in ("double", "doubleAngle", "doubleLinear", "time"):
             cmds.addAttr(node.getFullName(), longName=kind, attributeType=kind, minValue=-2, maxValue=5)
@@ -105,14 +105,17 @@ class MaintenanceDelegationTest(unittest.TestCase):
                     expected = getattr(fn, get_name)() if present else None
                     self.assertEqual(getattr(plug, has_name)(), present)
                     actual = getattr(plug, get_name)()
-                    self.assertIs(type(actual), type(expected))
                     if isinstance(expected, om2.MAngle):
-                        self.assertEqual(actual.asRadians(), expected.asRadians())
+                        self.assertIsInstance(actual, float)
+                        self.assertAlmostEqual(actual, expected.asDegrees())
                     elif isinstance(expected, om2.MDistance):
-                        self.assertEqual(actual.asCentimeters(), expected.asCentimeters())
+                        self.assertIsInstance(actual, float)
+                        self.assertAlmostEqual(actual, expected.asCentimeters())
                     elif isinstance(expected, om2.MTime):
-                        self.assertEqual(actual.asUnits(om2.MTime.kSeconds), expected.asUnits(om2.MTime.kSeconds))
+                        self.assertIsInstance(actual, float)
+                        self.assertAlmostEqual(actual, expected.asUnits(om2.MTime.uiUnit()))
                     else:
+                        self.assertIs(type(actual), type(expected))
                         self.assertEqual(actual, expected)
         self.assertTrue(cmds.undoInfo(q=True, undoQueueEmpty=True))
 

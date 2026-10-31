@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-10-31): mlib 10.0.0。Plug.setで有限でない数値(NaN・無限大。並び・om2の数学型・単位付きの値の中も)を書く前にValueError(safe=Trueは1、fastも同じ)。getMin/getMax/getSoftMin/getSoftMaxをget()・getDefaultと同じ数値(度・cm・UI時間単位のフレーム)に。changelogの移行表・スタブ・CLAUDE.mdの版を更新。mlib 2022〜2027・静的検査・Sphinx(警告0)・文書の検査・mlrig 2027(719件)・AnimBar OK。
+
 - Codex (2026-10-31): trial再生成の直接原因を確定。一時検証用copy.pyが標準copyを隠し、Maya初期化中のimportでcwdへmlib/origを複製していた。copy.pyと同種のimp.pyをimport不可の証拠ファイルへ退避。標準モジュール名の事前検査CLI/GUIランナーの起動前拒否とAGENTS規則を追加。安全な副作用記録で再現、専用mayapy2022/2027で正常起動・標準copy・trial未生成、3環境で新規3回帰と既存3回帰成功。Qt実OS操作は対象外。ユーザー指示で差分・検証結果を確認し、再発防止の6ファイルをコミット対象に確定。
 
 - Claude Code (2026-10-31): AnimBarにaToolsとの未対応の差を実装。アニメーションレイヤー・pairBlendの先のカーブ(Mayaがキーを打つレイヤー)と駆動先のたどり、タイムスライダーの範囲を対象に、キー変形のscaleFrom系4モードとShift/Ctrlの一時切替、接線の最初/最後/全キー、アニメーションのミラー・入替えと反対側の選択、transformAllのトグル(自動キー後も二重に足さない)、プレイブラストの設定(音声・HUD・範囲・オーバースキャン・大きさ)、退避の状態の保存と起動時/シーンを開いたときの確認。test_parity.py 22件(計57件、2022/2025/2027)・GUI確認(2022/2027)・HTools文書(警告0)OK。mlibの全テスト2022〜2027 OK。
