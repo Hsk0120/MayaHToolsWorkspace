@@ -20,8 +20,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 ## 進行中
 
 
-- Claude Code (2026-10-31 13:20〜): AnimBarをaToolsと比べたデバッグ・テスト追加(2時間程度)。対象 maya/inhouse/AnimBar。mlibは不具合が出たときだけ。QPEは対象外。
-
 
 
 
@@ -152,6 +150,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-10-31): AnimBarをaToolsと比べてデバッグ(コードは流用せず挙動だけ参照)。flowの接線の傾きがGraph Editorの目盛りとずれていた・Namespaceの名前の取得・duplicateの戻り値の誤りを修正。キーをそろえるときの値の維持、貼付けを範囲だけ置き換え・接線(fixedの角度/ウェイト/ロック)とインフィニティの保存、繰り返しの反転の半周期ずらし、連続キーのツイーンと前のキーの接線型、easeの時刻比、nudgeの衝突、細かい移動の基準の取り直し、範囲操作のオイラーフィルタ、Graph Editorを閉じているときの選択キー、キー変形のキー作成、選んだキーのリセット、平均時刻へのジャンプと自動追従、ミラーの左右/中心の反転規則、ツイーンの直線延長、カメラ複製の独立化、退避ファイル名の衝突。テスト test_fixes.py 25件(計35件、2022/2025/2027)とGUI確認(2022/2027)OK。未対応の差はAnimBar/README.md。mlibはtest_spec_keyframeの現在時刻の復元とスタブの更新のみ。
 
 - Codex (2026-10-31): ユーザー依頼によりQPE追加2時間検証の修正8件と専用回帰テストを公開対象として確定。検証済みソース一致・構文・差分確認済み。他担当の変更とローカル調査資料は対象外。
 

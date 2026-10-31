@@ -111,6 +111,43 @@ def _new_key_tangents(curve, previous):
     return ("auto" if name in ("step", "stepnext") else name), name
 
 
+@undoChunk("animBarTweenLinear")
+def tweenLinear(direction):
+    """現在時刻の値を、前(direction=-1)または後ろ(1)の2つのキーを結ぶ直線の延長にする。
+
+    動きの勢いをそのまま続けた(または逆にさかのぼった)値でキーを打つ。現在時刻にキーが無ければ作る。
+    2つのキーが無いアトリビュートは変えない。
+
+    Args:
+        direction (int): -1は前の2キー、1は後ろの2キー。
+
+    Returns:
+        int: 値を書いたアトリビュートの数。
+    """
+    now = Time.getCurrent()
+    count = 0
+    for node in keys.selectedNodes():
+        for plug in keys.animatedPlugs(node):
+            curve = plug.getAnimCurve()
+            inputs, values = curve.getKeyInputs(), curve.getKeyValues()
+            if direction < 0:
+                around = [index for index, time in enumerate(inputs) if time < now - keys.TIME_EPSILON][-2:]
+            else:
+                around = [index for index, time in enumerate(inputs) if time > now + keys.TIME_EPSILON][:2]
+            if len(around) < 2:
+                continue
+            first, second = around
+            span = inputs[second] - inputs[first]
+            value = values[first] + (values[second] - values[first]) * (now - inputs[first]) / span
+            index = keys.keyIndexAt(curve, now)
+            if index is None:
+                curve.setKey(now, value, *_new_key_tangents(curve, around[-1] if direction < 0 else around[0]))
+            else:
+                keys.setKeyValue(curve, index, value)
+            count += 1
+    return count
+
+
 @undoChunk("animBarCopyNeighborKey")
 def copyNeighborKey(direction):
     """現在時刻のキーを、前(direction=-1)または後ろ(1)のキーと同じ値にする。

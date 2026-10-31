@@ -1,9 +1,10 @@
 """名前の左右の対応から反対側のコントロールを探し、ポーズを左右反転・入れ替えする。
 
 対応は既定で ``L_``/``R_``・``_L``/``_R``・``Left``/``Right``・``left``/``right``・``lf``/``rt`` の組を試す。
-反転するアトリビュートは既定で ``translateX``・``rotateY``・``rotateZ``(YZ面で左右対称に作った一般的なリグ)。
+反転するアトリビュートの既定は、左右のコントロールが ``translateX`` だけ(左右の軸を鏡写しに作ったリグ)、
+中心のコントロール(反対側の名前が無いもの)が ``translateX``・``rotateY``・``rotateZ``。:func:`setInvertRules` で変えられ、
 ノードに ``animBarMirrorInvert`` (カンマ区切りの文字列)を足すと、そのノードだけ反転するアトリビュートを変えられる。
-中心のコントロール(反対側の名前が無いもの)は反転するアトリビュートの符号だけを変える。
+中心のコントロールは反転するアトリビュートの符号だけを変える。
 """
 
 import re
@@ -17,8 +18,14 @@ from . import keys
 #: 試す左右の名前の組(左, 右)。
 NAME_PAIRS = (("L_", "R_"), ("_L", "_R"), ("Left", "Right"), ("left", "right"), ("lf", "rt"), ("_l", "_r"), ("l_", "r_"))
 
-#: 既定で符号を反転するアトリビュート。
-DEFAULT_INVERT = ("translateX", "rotateY", "rotateZ")
+#: 既定で符号を反転するアトリビュート(左右のコントロール)。
+DEFAULT_INVERT_SIDE = ("translateX",)
+
+#: 既定で符号を反転するアトリビュート(中心のコントロール)。
+DEFAULT_INVERT_CENTER = ("translateX", "rotateY", "rotateZ")
+
+#: 今の反転の規則。
+_rules = {"side": DEFAULT_INVERT_SIDE, "center": DEFAULT_INVERT_CENTER}
 
 #: ノードごとに反転するアトリビュートを指定するアトリビュート名。
 INVERT_ATTRIBUTE = "animBarMirrorInvert"
@@ -65,6 +72,32 @@ def oppositeNode(node):
     return matches[0] if len(matches) == 1 else None
 
 
+def setInvertRules(side=None, center=None):
+    """左右・中心のコントロールで符号を反転するアトリビュートを変える。
+
+    Args:
+        side (Iterable[str] | None): 左右のコントロールのロング名。Noneは変えない。
+        center (Iterable[str] | None): 中心のコントロールのロング名。Noneは変えない。
+
+    Returns:
+        dict: 変えた後の規則 ``{"side": (...), "center": (...)}``。
+    """
+    if side is not None:
+        _rules["side"] = tuple(side)
+    if center is not None:
+        _rules["center"] = tuple(center)
+    return dict(_rules)
+
+
+def resetInvertRules():
+    """反転の規則を既定へ戻す。
+
+    Returns:
+        dict: 既定の規則。
+    """
+    return setInvertRules(DEFAULT_INVERT_SIDE, DEFAULT_INVERT_CENTER)
+
+
 def invertedAttributes(node):
     """ノードで符号を反転するアトリビュートのロング名を返す。
 
@@ -77,7 +110,7 @@ def invertedAttributes(node):
     if node.hasAttr(INVERT_ATTRIBUTE):
         text = node.getPlug(INVERT_ATTRIBUTE).get() or ""
         return tuple(item.strip() for item in text.split(",") if item.strip())
-    return DEFAULT_INVERT
+    return _rules["center"] if oppositeNode(node) is None else _rules["side"]
 
 
 def mirroredValue(plug, time=None):

@@ -198,8 +198,15 @@ class MirrorTest(_Case):
         cmds.setAttr(left + ".translate", 1, 2, 3)
         cmds.setAttr(left + ".rotate", 10, 20, 30)
         mirror.mirrorPose([mlib.getNode(left)], mode="mirror")
+        # 左右のコントロールは既定で translateX だけを反転する(aTools と同じ)。
         self.assert_values(cmds.getAttr(right + ".translate")[0], (-1, 2, 3))
-        self.assert_values(cmds.getAttr(right + ".rotate")[0], (10, -20, -30))
+        self.assert_values(cmds.getAttr(right + ".rotate")[0], (10, 20, 30))
+        mirror.setInvertRules(side=("translateX", "rotateY", "rotateZ"))
+        try:
+            mirror.mirrorPose([mlib.getNode(left)], mode="mirror")
+            self.assert_values(cmds.getAttr(right + ".rotate")[0], (10, -20, -30))
+        finally:
+            mirror.resetInvertRules()
         cmds.setAttr(right + ".tx", 5)
         mirror.mirrorPose([mlib.getNode(left)], mode="flip")
         self.assertEqual(cmds.getAttr(left + ".tx"), -5)

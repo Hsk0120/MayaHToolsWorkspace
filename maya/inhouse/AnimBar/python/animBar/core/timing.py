@@ -32,12 +32,38 @@ def nudgeKeys(frames, everything=False):
         moves = [(target.curve, target.indices) for target in keys.targets()]
     count = 0
     for curve, indices in moves:
-        # 選んだキーは一緒に動かす(選んでいない隣のキーは越えない)。
+        if _collides(curve, indices, frames):
+            # 隣のキーにぶつかる量は、そのカーブを動かさない(Mayaは直前の端数の時刻で止めてしまうため)。
+            continue
+        # 選んだキーは一緒に動かす。
         curve.moveKey(indices, timeOffset=frames)
         count += len(indices)
     if count and not everything and not keys.graphEditorKeys():
         Time.setCurrent(Time.getCurrent() + frames)
     return count
+
+
+def _collides(curve, indices, frames):
+    """選んだキーを動かすと、選んでいない隣のキーと同じ時刻か、それを越えるかを返す。
+
+    Args:
+        curve (AnimCurve): カーブ。
+        indices (Iterable[int]): 動かすキーの番号。
+        frames (float): 動かすフレーム数。
+
+    Returns:
+        bool: ぶつかるならTrue。
+    """
+    inputs = curve.getKeyInputs()
+    chosen = set(indices)
+    for index in chosen:
+        neighbor = index + 1 if frames > 0 else index - 1
+        if neighbor in chosen or not 0 <= neighbor < len(inputs):
+            continue
+        moved = inputs[index] + frames
+        if (frames > 0 and moved >= inputs[neighbor] - keys.TIME_EPSILON) or                 (frames < 0 and moved <= inputs[neighbor] + keys.TIME_EPSILON):
+            return True
+    return False
 
 
 @undoChunk("animBarInsertFrames")
@@ -106,6 +132,9 @@ def shareKeys(nodes=None, selectedOnly=False):
 def resetValues(nodes=None, attributes=None, key=None):
     """選んだノードのアトリビュートを既定値へ戻す。
 
+    nodes・attributes を省き、Graph Editor でキーを選んでいれば、選んだキーの値を既定値にする
+    (接線型は保つ)。
+
     Args:
         nodes (Iterable[Node] | None): 対象。Noneは選択。
         attributes (Iterable[str] | None): 戻すアトリビュート名(``"translate"`` 等の親も可)。Noneはキー可能な全部
@@ -113,8 +142,19 @@ def resetValues(nodes=None, attributes=None, key=None):
         key (bool | None): Trueは戻した値にキーを打つ。Noneはアニメーションのあるアトリビュートだけ打つ。
 
     Returns:
-        int: 戻したアトリビュートの数。
+        int: 戻したアトリビュートの数(選んだキーを戻した場合はキーの数)。
     """
+    if nodes is None and attributes is None:
+        selected = keys.graphEditorKeys()
+        if selected:
+            count = 0
+            for curve, indices in selected.items():
+                plug = keys.drivenPlug(curve)
+                if plug is None:
+                    continue
+                curve.getKeyframes(indices).setValue(keys.defaultValue(plug))
+                count += len(indices)
+            return count
     nodes = keys.selectedNodes() if nodes is None else list(nodes)
     now = Time.getCurrent()
     count = 0

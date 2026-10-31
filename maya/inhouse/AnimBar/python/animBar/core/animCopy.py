@@ -84,7 +84,7 @@ def pasteAnimation(nodes=None, mode="selected", inPlace=False, namespace=None, i
             pairs = [(_clipboard["order"][0], node) for node in nodes]
     elif mode == "name":
         if namespace is None:
-            namespace = nodes[0].getNamespace().getName() if nodes else ""
+            namespace = nodes[0].getNamespace().name if nodes else ""
         prefix = namespace.strip(":") + ":" if namespace and namespace != ":" else ""
         for name in _clipboard["order"]:
             if mlib.objExists(prefix + name):

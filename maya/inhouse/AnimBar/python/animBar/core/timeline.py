@@ -10,7 +10,7 @@ import tempfile
 import maya.cmds as cmds
 
 import mlib
-from mlib.common import Time
+from mlib.common import ScriptJob, Selection, Time
 from mlib.decorator import undoChunk
 
 from . import keys
@@ -102,18 +102,25 @@ def frameSelectedKeys(nodes=None):
 
 
 def jumpToKey(direction=0):
-    """現在時刻を、選んだキーの最初(direction=0)、または前後のキー(-1・1)へ動かす。
+    """現在時刻を、選んだキーの平均の時刻(direction=0)、または前後のキー(-1・1)へ動かす。
+
+    direction=0 で Graph Editor のキーを選んでいなければ、選んだノードの最初のキーへ移る。
 
     Args:
-        direction (int): 0は選んだキーの最初、-1は前のキー、1は後ろのキー。
+        direction (int): 0は選んだキーの平均の時刻、-1は前のキー、1は後ろのキー。
 
     Returns:
         float | None: 移った時刻。キーが無ければNone。
     """
     now = Time.getCurrent()
-    times = keys.keyTimesOf([], selectedOnly=True) if direction == 0 else []
-    if not times:
-        times = keys.keyTimesOf(keys.selectedNodes())
+    if direction == 0:
+        selected = keys.graphEditorKeys()
+        chosen = [time for curve, indices in selected.items()
+                  for time in curve.getKeyframes(indices).getTimes()]
+        if chosen:
+            # 複数のカーブで選んだキーの真ん中あたりを見られるよう、平均の時刻へ移る(aTools と同じ)。
+            return Time.setCurrent(sum(chosen) / len(chosen))
+    times = keys.keyTimesOf(keys.selectedNodes())
     if not times:
         return None
     if direction < 0:
@@ -125,6 +132,43 @@ def jumpToKey(direction=0):
     else:
         time = times[0]
     return Time.setCurrent(time)
+
+
+#: 選んだキーへ自動で移る scriptJob。
+_jump = {"job": None}
+
+
+def setJumpToSelectedKey(enabled):
+    """選択が変わるたびに、選んだキーの平均の時刻へ移るかを切り替える(GUI のみ)。
+
+    Args:
+        enabled (bool): Trueは有効にする。
+
+    Returns:
+        bool: 有効ならTrue。
+    """
+    if _jump["job"] is not None:
+        _jump["job"].stop()
+        _jump["job"] = None
+    if enabled:
+        _jump["job"] = ScriptJob(event="SelectionChanged", callback=_jump_if_keys, killWithScene=False)
+        _jump_if_keys()
+    return isJumpToSelectedKey()
+
+
+def isJumpToSelectedKey():
+    """選んだキーへ自動で移る設定かを返す。
+
+    Returns:
+        bool: 有効ならTrue。
+    """
+    return _jump["job"] is not None and _jump["job"].exists()
+
+
+def _jump_if_keys():
+    """キーを選んでいるときだけ、その平均の時刻へ移る(scriptJob から呼ぶ)。"""
+    if len(Selection.getKeyframes()):
+        jumpToKey(0)
 
 
 def playblast(camera=None, play=True, folder=None):
@@ -176,6 +220,10 @@ def playLastPlayblast():
 def duplicateCamera(camera=None):
     """カメラを、アニメーションを焼いた独立したカメラとして複製する(レイアウト確認用)。
 
+    複製した子のコンストレイント等は消し、移動・回転・拡大のロックと入力接続を外してから、
+    再生範囲の各フレームでワールドのマトリクスを焼く(終わりにオイラーフィルタ)。焦点距離など
+    カメラのシェイプのアニメーションのあるアトリビュートも同じフレームで焼く。
+
     Args:
         camera (str | Node | None): 元のカメラ(Transform)。Noneは選択の最初。
 
@@ -183,13 +231,39 @@ def duplicateCamera(camera=None):
         Node: 複製したカメラのTransform。
     """
     source = mlib.nodes.Node(camera) if camera is not None else keys.selectedNodes()[0]
-    copy = mlib.duplicate(source, name=source.getNodeName(removeNamespace=True) + "_copy")[0]
+    copy = mlib.duplicate(source, name=source.getNodeName(removeNamespace=True) + "_copy")
+    extras = [child for child in copy.getChildren()]
+    if extras:
+        mlib.delete(extras)
     if copy.getParent() is not None:
         copy.setParent(None)
+    channels = [copy.getPlug(name) for name in ("tx", "ty", "tz", "rx", "ry", "rz", "sx", "sy", "sz")]
+    for plug in channels:
+        plug.setLocked(False)
+        if plug.getSource() is not None:
+            plug.disconnect()
+    shape, copy_shape = source.getShape(), copy.getShape()
+    animated = []
+    if shape is not None and copy_shape is not None:
+        for plug in shape.getPlugs(keyable=True, scalar=True):
+            if plug.getSource() is not None and copy_shape.hasAttr(plug.getLongName()):
+                target = copy_shape.getPlug(plug.getLongName())
+                target.setLocked(False)
+                if target.getSource() is not None:
+                    target.disconnect()
+                animated.append((plug, target))
     start, end = Time.getPlaybackRange()
     with Time.preserved():
         for frame in range(int(start), int(end) + 1):
             Time.setCurrent(frame)
             copy.setMatrix(source.getMatrix(worldSpace=True), worldSpace=True)
             copy.setKey(["translate", "rotate"], time=frame)
+            for plug, target in animated:
+                target.set(plug.get())
+                target.setKey(time=frame)
+    curves = [curve.getFullName() for curve in (copy.getPlug(name).getAnimCurve() for name in ("rx", "ry", "rz"))
+              if curve is not None]
+    if curves:
+        # mlib にはオイラーフィルタの入口が無いため、Mayaのコマンドを使う。
+        cmds.filterCurve(curves, filter="euler")
     return copy

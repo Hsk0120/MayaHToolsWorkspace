@@ -138,26 +138,29 @@ def targets(create=False):
     Graph Editor でキーを選んでいればそれを使う。選んでいなければ、選んだノードの
     アトリビュートのうち現在時刻にキーがあるものを使う。create=True なら、現在時刻に
     キーが無いアトリビュートにもキーを打ってから対象にする(アニメーションの無いものにも打つ)。
+    create="animated" なら、アニメーションのあるアトリビュートだけに、カーブの形を変えずに
+    (その時刻のカーブの値で)キーを足す。
 
     Args:
-        create (bool): Trueは現在時刻にキーを作ってから返す。
+        create (bool | str): Trueは現在時刻にキーを作ってから返す。``"animated"`` はアニメーションの
+            あるアトリビュートだけに作る。
 
     Returns:
         list[Target]: 対象。何も無ければ空。
     """
     selected = graphEditorKeys()
     if selected:
-        return [Target(curve, indices, _driven_plug(curve)) for curve, indices in selected.items()]
+        return [Target(curve, indices, drivenPlug(curve)) for curve, indices in selected.items()]
     now = Time.getCurrent()
     result = []
     for node in selectedNodes():
-        plugs = keyablePlugs(node) if create else animatedPlugs(node)
+        plugs = keyablePlugs(node) if create is True else animatedPlugs(node)
         for plug in plugs:
             curve = plug.getAnimCurve()
             if curve is None or keyIndexAt(curve, now) is None:
                 if not create:
                     continue
-                plug.setKey(time=now)
+                plug.setKey(time=now, insert=curve is not None)
                 curve = plug.getAnimCurve()
             index = keyIndexAt(curve, now)
             if index is not None:
@@ -341,7 +344,7 @@ def defaultValue(plug):
     return 0.0
 
 
-def _driven_plug(curve):
+def drivenPlug(curve):
     """カーブが駆動するアトリビュートを返す。
 
     Args:

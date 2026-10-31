@@ -268,6 +268,9 @@ class AnimBar(QtWidgets.QWidget):
         """ツイーンの決まった比率。"""
         for percent in (-30, -10, 10, 25, 33, 50, 66, 75, 90, 110, 130):
             _action(menu, "Tween {}%".format(percent), functools.partial(tween.tween, percent / 100.0))
+        menu.addSeparator()
+        _action(menu, "Extend the line of the previous two keys", lambda: tween.tweenLinear(-1))
+        _action(menu, "Extend the line of the next two keys", lambda: tween.tweenLinear(1))
 
     def _keyTransform(self):
         """キーの変形のスライダー・モード・細かい足し引き。"""
@@ -332,7 +335,12 @@ class AnimBar(QtWidgets.QWidget):
         section.button("share", "Share keys between the selected objects", timing.shareKeys,
                        menu=lambda menu: _action(menu, "Share only the selected keys",
                                                  lambda: timing.shareKeys(selectedOnly=True)))
-        section.button("jumpPrevious", "Jump to the previous key", lambda: timeline.jumpToKey(-1))
+        section.button("jumpPrevious", "Jump to the previous key", lambda: timeline.jumpToKey(-1),
+                       menu=lambda menu: (
+                           _action(menu, "Jump to the selected keys", lambda: timeline.jumpToKey(0)),
+                           _action(menu, "Follow the selected keys",
+                                   lambda: timeline.setJumpToSelectedKey(not timeline.isJumpToSelectedKey()),
+                                   checked=timeline.isJumpToSelectedKey())))
         section.button("jumpNext", "Jump to the next key", lambda: timeline.jumpToKey(1))
         section.button("range", "Fit the playback range to the selected keys", timeline.frameSelectedKeys,
                        menu=self._range_menu)
@@ -373,14 +381,35 @@ class AnimBar(QtWidgets.QWidget):
         _action(menu, "Play last playblast", timeline.playLastPlayblast)
         _action(menu, "Duplicate selected camera (baked)", timeline.duplicateCamera)
 
+    def _mirror_menu(self, menu):
+        """ミラーの右クリックメニュー(反対側から写す・反転するアトリビュートの規則)。"""
+        _action(menu, "Copy the opposite side onto the selection", lambda: mirror.mirrorPose(mode="self"))
+        menu.addSeparator()
+        rules = mirror.setInvertRules()
+        for side, label in (("side", "Invert on side controls"), ("center", "Invert on center controls")):
+            submenu = menu.addMenu(label)
+            for name in ("translateX", "translateY", "translateZ", "rotateX", "rotateY", "rotateZ"):
+                _action(submenu, name, functools.partial(self._toggle_invert, side, name),
+                        checked=name in rules[side])
+        _action(menu, "Load default invert rules", mirror.resetInvertRules)
+
+    @staticmethod
+    def _toggle_invert(side, name):
+        """反転の規則のアトリビュートを1つ入れ替える。"""
+        current = list(mirror.setInvertRules()[side])
+        if name in current:
+            current.remove(name)
+        else:
+            current.append(name)
+        mirror.setInvertRules(**{side: current})
+
     def _pose(self):
         """ポーズ・アニメーションのコピー。"""
         section = Section("Pose")
         section.button("reset", "Reset the selected channels to defaults", timing.resetValues,
                        menu=self._reset_menu)
         section.button("mirror", "Mirror the pose to the opposite side", lambda: mirror.mirrorPose(mode="mirror"),
-                       menu=lambda menu: _action(menu, "Copy the opposite side onto the selection",
-                                                 lambda: mirror.mirrorPose(mode="self")))
+                       menu=self._mirror_menu)
         section.button("flip", "Swap the poses of both sides", lambda: mirror.mirrorPose(mode="flip"))
         section.button("transformAll", "Apply the change at this frame to every key", timing.transformAll)
         section.button("copy", "Copy animation", animCopy.copyAnimation,

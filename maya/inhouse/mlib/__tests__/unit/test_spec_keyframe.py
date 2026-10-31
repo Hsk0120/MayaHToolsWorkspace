@@ -29,6 +29,7 @@ class _KeyCase(NamespaceCase):
         super().setUp()
         self.units = (cmds.currentUnit(query=True, linear=True), cmds.currentUnit(query=True, angle=True))
         self.tangents = cmds.keyTangent(query=True, g=True, inTangentType=True, outTangentType=True)
+        self.time = (cmds.currentUnit(query=True, time=True), cmds.currentTime(query=True))
         self.node = mlib.getNode(self.make("transform", "node"))
         self.name_ = self.node.getFullName()
         for time, value in ((1, 0.0), (5, 2.0), (10, 4.0)):
@@ -42,6 +43,8 @@ class _KeyCase(NamespaceCase):
     def tearDown(self):
         cmds.currentUnit(linear=self.units[0], angle=self.units[1])
         cmds.keyTangent(g=True, inTangentType=self.tangents[0], outTangentType=self.tangents[1])
+        cmds.currentUnit(time=self.time[0])
+        cmds.currentTime(self.time[1])
         super().tearDown()
 
     def times(self, curve=None):

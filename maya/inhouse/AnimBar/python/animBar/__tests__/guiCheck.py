@@ -100,13 +100,40 @@ def main(output_dir=None, finished=None):
             checks["micro_rebaseline_jobs"] = all(event in jobs for event in ("timeChanged", "Undo", "Redo"))
             viewTools.setMicroTransform(False)
             checks["micro_stopped"] = not viewTools.isMicroTransform()
+            from animBar.core import crashRecovery, keys, timeline
+            keyed = cmds.createNode("transform", name="guiKeyed", skipSelect=True)
+            cmds.setKeyframe(keyed, attribute="tx", time=1, value=0)
+            cmds.setKeyframe(keyed, attribute="tx", time=5, value=1)
+            cmds.selectKey(keyed + ".tx", time=(5, 5))
+            checks["closed_editor_ignores_keys"] = keys.graphEditorKeys() == {}
+            cmds.GraphEditor()
+            maya.utils.processIdleEvents()
+            checks["open_editor_uses_keys"] = [len(value) for value in keys.graphEditorKeys().values()] == [1]
+            for window in cmds.lsUI(windows=True) or []:
+                if window.startswith("graphEditor"):
+                    cmds.deleteUI(window)
+            cmds.delete(keyed)
+            checks["recovery_toggle"] = crashRecovery.setEnabled(True) and crashRecovery.isEnabled() and                 not crashRecovery.setEnabled(False) and not crashRecovery.isEnabled()
+            tumble = viewTools.isTumbleOnObjects()
+            viewTools.setTumbleOnObjects(not tumble)
+            checks["tumble_toggle"] = viewTools.isTumbleOnObjects() == (not tumble)
+            viewTools.setTumbleOnObjects(tumble)
+            playblast_folder = str(Path(output) / "playblast")
+            os.makedirs(playblast_folder, exist_ok=True)
+            from mlib.common import Time
+            Time.setPlaybackRange(1, 3)
+            movie = timeline.playblast(play=False, folder=playblast_folder)
+            checks["playblast_file"] = bool(movie) and any(Path(playblast_folder).iterdir())
+            checks["jump_follow"] = timeline.setJumpToSelectedKey(True) and not timeline.setJumpToSelectedKey(False)
             animBar.toggle()
             checks["startup_respects_hidden"] = startup.install() is False
             checks["startup_shows"] = (cmds.optionVar(intValue=(bar.VISIBLE_OPTION, 1)) or True) and startup.install()
             expected = {"control_exists": True, "runtime_commands": True, "startup_respects_hidden": True,
                         "startup_shows": True, "widget_built": True, "docked": True, "above_time_slider": True,
                         "toggle_hides": True, "toggle_shows": True, "micro_rebaseline_jobs": True,
-                        "micro_stopped": True}
+                        "micro_stopped": True, "jump_follow": True,
+                        "recovery_toggle": True, "tumble_toggle": True, "playblast_file": True,
+                        "closed_editor_ignores_keys": True, "open_editor_uses_keys": True}
             failed = [name for name, value in expected.items() if checks.get(name) != value]
             if checks["tween_slider_value"] != [7.5]:
                 failed.append("tween_slider_value")

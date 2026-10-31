@@ -16,7 +16,8 @@ import maya.cmds as cmds
 import mlib
 from mlib.common import Time
 
-from animBar.core import animCopy, crashRecovery, keyTransform, spaceTools, timing, tween, viewTools
+from animBar.core import (animCopy, crashRecovery, keyTransform, mirror, selectSets, spaceTools, tangents,
+                          timeline, timing, tween, viewTools)
 
 
 def _keyed(name, keysByAttribute):
@@ -151,6 +152,17 @@ class TweenFixTest(_Case):
         values = [value for _, value in _values(node, "tx")]
         self.assertEqual(values, [0, 4, 6, 7, 8])
 
+    def test_linear_from_previous_and_next_keys(self):
+        """前・後ろの2キーを結ぶ直線を延ばした値にし、2キーが無ければ変えない。"""
+        node = _keyed("ctrl", {"tx": [(1, 0), (3, 2), (9, 10), (11, 14)], "ty": [(1, 5)]})
+        cmds.select(node)
+        Time.setCurrent(6)
+        self.assertEqual(tween.tweenLinear(-1), 1)
+        self.assertAlmostEqual(dict(_values(node, "tx"))[6], 5)
+        self.assertEqual(tween.tweenLinear(1), 1)
+        self.assertAlmostEqual(dict(_values(node, "tx"))[6], 4)
+        self.assertEqual(_values(node, "ty"), [(1, 5)])
+
     def test_new_key_follows_previous_tangent(self):
         """step のブロッキング中に打つキーは step のまま(入力側は auto)。"""
         node = _keyed("ctrl", {"tx": [(1, 0), (11, 10)]})
@@ -176,6 +188,47 @@ class NudgeEaseTest(_Case):
         self.assertEqual(timing.nudgeKeys(2), 1)
         self.assertEqual(Time.getCurrent(), 6)
         self.assertEqual([time for time, _ in _values(keyed, "tx")], [6, 9])
+
+    def test_nudge_does_not_collide(self):
+        """隣のキーにぶつかる量は動かさず、端数の時刻を作らない。"""
+        node = _keyed("ctrl", {"tx": [(1, 0), (5, 1), (6, 2)], "ty": [(5, 0), (9, 1)]})
+        cmds.selectKey(node + ".tx", time=(5, 5))
+        cmds.selectKey(node + ".ty", time=(5, 5), add=True)
+        self.assertEqual(timing.nudgeKeys(2), 1)
+        self.assertEqual([time for time, _ in _values(node, "tx")], [1, 5, 6])
+        self.assertEqual([time for time, _ in _values(node, "ty")], [7, 9])
+        cmds.selectKey(node + ".tx", time=(5, 6))
+        self.assertEqual(timing.nudgeKeys(2), 2)
+        self.assertEqual([time for time, _ in _values(node, "tx")], [1, 7, 8])
+
+    def test_key_transform_creates_key_at_current_time(self):
+        """現在時刻にキーが無いアニメーションは、その時刻のカーブの値でキーを足してから変える。"""
+        node = _keyed("ctrl", {"tx": [(1, 2), (9, 2)]})
+        still = cmds.createNode("transform", name="still", skipSelect=True)
+        cmds.select(node, still)
+        Time.setCurrent(5)
+        self.assertEqual(keyTransform.applyKeyTransform("blendToDefault", 0.5), 1)
+        self.assertEqual(_values(node, "tx"), [(1, 2), (5, 1), (9, 2)])
+        self.assertFalse(cmds.keyframe(still, query=True))
+
+    def test_reset_selected_keys(self):
+        """Graph Editor で選んだキーは既定値にし、選んでいないキーは変えない。"""
+        node = _keyed("ctrl", {"sx": [(1, 3), (5, 4), (9, 5)], "tx": [(1, 7)]})
+        cmds.selectKey(node + ".sx", time=(5, 9))
+        self.assertEqual(timing.resetValues(), 2)
+        self.assertEqual(_values(node, "sx"), [(1, 3), (5, 1), (9, 1)])
+        self.assertEqual(_values(node, "tx"), [(1, 7)])
+
+    def test_jump_to_selected_keys_average(self):
+        """選んだキーの平均の時刻へ移り、選んでいなければ選んだノードの最初のキーへ移る。"""
+        node = _keyed("ctrl", {"tx": [(2, 0), (6, 1), (12, 2)], "ty": [(8, 0)]})
+        cmds.selectKey(node + ".tx", time=(2, 6))
+        cmds.selectKey(node + ".ty", time=(8, 8), add=True)
+        self.assertAlmostEqual(timeline.jumpToKey(0), (2 + 6 + 8) / 3.0)
+        cmds.selectKey(node + ".tx", clear=True)
+        cmds.selectKey(node + ".ty", clear=True)
+        cmds.select(node)
+        self.assertEqual(timeline.jumpToKey(0), 2)
 
     def test_ease_uses_time_ratio(self):
         """キーの間隔が不均等でも、時刻の比率でイーズの曲線に沿わせる。"""
@@ -239,6 +292,105 @@ class SpaceRangeTest(_Case):
         # 5フレームでマスターは4、スレーブは10なので、相対は+6。
         self.assertAlmostEqual(cmds.getAttr(slave + ".tx", time=1), 6, places=4)
         self.assertAlmostEqual(cmds.getAttr(slave + ".tx", time=9), 14, places=4)
+
+
+
+class FlowTangentTest(_Case):
+
+    def test_flow_slope_follows_neighbors(self):
+        """flow の接線の傾きは、前後のキーを結ぶ直線の傾き(UI単位の値 / フレーム)と同じになる。"""
+        for unit in ("film", "ntsc"):
+            cmds.currentUnit(time=unit)
+            for attribute in ("tx", "ry"):
+                with self.subTest(unit=unit, attribute=attribute):
+                    node = _keyed("flow#", {attribute: [(1, 0), (5, 40), (9, 100)]})
+                    cmds.selectKey(node + "." + attribute, time=(5, 5))
+                    tangents.setTangent("flow")
+                    step = 1e-3
+                    slope = (cmds.getAttr(node + "." + attribute, time=5 + step) -
+                             cmds.getAttr(node + "." + attribute, time=5 - step)) / (2 * step)
+                    self.assertAlmostEqual(slope, 100 / 8.0, places=2)
+                    cmds.selectKey(node + "." + attribute, clear=True)
+
+
+
+class DuplicateCameraTest(_Case):
+
+    def test_duplicate_is_independent_and_bakes_shape(self):
+        """複製はコンストレイントを持たず、ロックしたチャンネルも焼き、焦点距離のアニメーションも写す。"""
+        camera, shape = cmds.camera(name="shotCam")
+        driver = _keyed("driver", {"tx": [(1, 0), (5, 8)]})
+        cmds.parentConstraint(driver, camera)
+        cmds.setKeyframe(shape, attribute="focalLength", time=1, value=35)
+        cmds.setKeyframe(shape, attribute="focalLength", time=5, value=50)
+        cmds.setAttr(camera + ".sx", lock=True)
+        Time.setPlaybackRange(1, 5)
+        copy = timeline.duplicateCamera(camera)
+        name = copy.getFullName()
+        self.assertFalse(cmds.listRelatives(name, type="constraint"))
+        for frame in (1, 3, 5):
+            self.assertAlmostEqual(cmds.getAttr(name + ".tx", time=frame),
+                                   cmds.getAttr(camera + ".tx", time=frame), places=4)
+        copy_shape = cmds.listRelatives(name, shapes=True, fullPath=True)[0]
+        self.assertAlmostEqual(cmds.getAttr(copy_shape + ".focalLength", time=5), 50, places=4)
+        cmds.delete(driver)
+        self.assertAlmostEqual(cmds.getAttr(name + ".tx", time=5), 8, places=4)
+
+
+
+class UntestedPathsTest(_Case):
+    """これまでテストの無かった経路。"""
+
+    def test_copy_time_range_and_paste_by_name(self):
+        """範囲を絞ったコピーと、名前空間で探す名前での貼付け。"""
+        cmds.namespace(add="charA")
+        cmds.namespace(add="charB")
+        source = _keyed("charA:hand_ctrl", {"tx": [(1, 0), (5, 5), (9, 9)]})
+        target = cmds.createNode("transform", name="charB:hand_ctrl", skipSelect=True)
+        animCopy.copyAnimation([mlib.getNode(source)], timeRange=(4, 10))
+        self.assertEqual(animCopy.pasteAnimation([mlib.getNode(target)], mode="name"), 1)
+        self.assertEqual(_values(target, "tx"), [(5, 5), (9, 9)])
+        with self.assertRaises(ValueError):
+            animCopy.pasteAnimation([mlib.getNode(target)], mode="nearest")
+
+    def test_mirror_keys_only_animated_by_default(self):
+        """key=None はアニメーションのあるアトリビュートだけにキーを打ち、ロックした先は飛ばす。"""
+        left = _keyed("L_arm_ctrl", {"tx": [(1, 1)]})
+        right = _keyed("R_arm_ctrl", {"tx": [(1, 0)]})
+        cmds.setAttr(left + ".ty", 3)
+        cmds.setAttr(right + ".tz", lock=True)
+        cmds.setAttr(left + ".tz", 4)
+        Time.setCurrent(1)
+        cmds.setAttr(left + ".tx", 2)
+        mirror.mirrorPose([mlib.getNode(left)])
+        self.assertEqual(_values(right, "tx"), [(1, -2)])
+        self.assertEqual(cmds.getAttr(right + ".ty"), 3)
+        self.assertFalse(cmds.keyframe(right + ".ty", query=True))
+        self.assertEqual(cmds.getAttr(right + ".tz"), 0)
+
+    def test_select_sets_namespace_import(self):
+        """書き出した選択セットを、別の名前空間のメンバーで読み込む。"""
+        cmds.namespace(add="rig1")
+        cmds.namespace(add="rig2")
+        a = cmds.createNode("transform", name="rig1:hand", skipSelect=True)
+        cmds.createNode("transform", name="rig2:hand", skipSelect=True)
+        created = selectSets.createSet("Hands", [mlib.getNode(a)], colorIndex=2)
+        path = os.path.join(tempfile.mkdtemp(), "sets.json")
+        selectSets.exportSets(path)
+        selectSets.deleteSet(created)
+        imported = selectSets.importSets(path, namespace="rig2")
+        self.assertEqual(len(imported), 1)
+        selectSets.selectSet(imported[0])
+        self.assertEqual(cmds.ls(selection=True), ["rig2:hand"])
+
+    def test_motion_trails_create_and_clear(self):
+        """モーショントレイルを作って目印で全部消す。"""
+        node = _keyed("ctrl", {"tx": [(1, 0), (9, 8)]})
+        Time.setPlaybackRange(1, 9)
+        trails = viewTools.createMotionTrails([mlib.getNode(node)])
+        self.assertEqual(len(trails), 1)
+        self.assertGreaterEqual(viewTools.clearMotionTrails(), 1)
+        self.assertFalse([name for name in cmds.ls(type="motionTrail")])
 
 
 if __name__ == "__main__":

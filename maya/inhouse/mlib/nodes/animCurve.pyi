@@ -189,7 +189,8 @@ class AnimCurve(Node):
 
         Raises:
             TypeError: 要素が2つ・4つの並びでない、または数値へ変換できない型の場合。
-            ValueError: 非有限値、未知の接線型、またはunit・timeUnitが未対応の単位名の場合。
+            ValueError: 非有限値、未知の接線型・fixed(角度・ウェイトは :meth:`setTangent` で書く)、
+                またはunit・timeUnitが未対応の単位名の場合。
             RuntimeError: ノードが無効(削除済み)の場合。
         """
         ...

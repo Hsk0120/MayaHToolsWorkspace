@@ -76,7 +76,8 @@ class KeySession:
         if mode not in dict(MODES):
             raise ValueError("Unknown key transform mode: " + str(mode))
         self.mode = mode
-        self.targets = keys.targets()
+        # 現在時刻にキーが無いアニメーションには、カーブの形を変えずにキーを足してから変える(aTools と同じ)。
+        self.targets = keys.targets(create="animated")
         self.original = [(target, [keys.keyValue(target.curve, index) for index in target.indices])
                          for target in self.targets]
         rng = random.Random(seed)
