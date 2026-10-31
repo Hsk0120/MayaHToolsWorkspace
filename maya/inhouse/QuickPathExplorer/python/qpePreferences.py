@@ -13,7 +13,7 @@ def validateKeys(keys):
     if any(not isinstance(value, str) for value in keys.values()):
         raise ValueError('Invalid key bindings')
     assigned = [QtGui.QKeySequence(value).toString() for value in keys.values() if value]
-    reserved = {'Ctrl+C', 'Ctrl+X', 'Ctrl+V', 'Ctrl+Z', 'Ctrl+Y', 'Ctrl+F', 'Ctrl+T', 'Ctrl+W', 'Ctrl+Tab', 'Ctrl+Shift+T'}
+    reserved = {'Ctrl+C', 'Ctrl+X', 'Ctrl+V', 'Ctrl+Z', 'Ctrl+Y', 'Ctrl+F', 'Ctrl+T', 'Ctrl+W', 'Ctrl+Tab', 'Ctrl+Shift+Tab', 'Ctrl+Shift+T'}
     if len(assigned) != len(set(assigned)) or any(key in reserved or not key.startswith(('Ctrl+', 'Alt+')) for key in assigned):
         raise ValueError('Use unique Ctrl/Alt bindings. Standard file-operation keys are reserved.')
 

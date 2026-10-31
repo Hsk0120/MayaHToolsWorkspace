@@ -60,17 +60,21 @@ class Interaction(QtCore.QObject):
         owner = self.explorer
         if not shiboken.isValid(owner):
             return
-        focus = QtWidgets.QApplication.focusWidget()
         for view in owner.columns.findChildren(QtWidgets.QListView):
-            active = (focus is view or view.isAncestorOf(focus)) if focus is not None else False
             colors = owner.appearance.theme.colors
-            active = active and owner.window().isActiveWindow()
-            color = colors['selection'] if active else colors['inactive']
-            text = colors['selectedText'] if active else colors['text']
-            if view.property('qpeSelectionColor') != color or view.property('qpeSelectionText') != text:
+            # ファイル一覧・メニューへフォーカスが移っても、現在の階層を見失わない。
+            current = owner.columns.currentIndex()
+            active = current.isValid() and view.rootIndex() == current.parent()
+            color = colors['accent'] if active else colors['inactive']
+            text = colors['actionText'] if active else colors['text']
+            border = colors['accent'] if view.property('qpeEdgeHovered') else ('#d0d4d8' if owner.appearance.theme.light else '#4a4d50')
+            if (view.property('qpeSelectionColor') != color or view.property('qpeSelectionText') != text
+                    or view.property('qpeColumnBorder') != border):
                 view.setProperty('qpeSelectionColor', color)
                 view.setProperty('qpeSelectionText', text)
-                view.setStyleSheet('QListView::item:selected { background: %s; color: %s; }' % (color, text))
+                view.setProperty('qpeColumnBorder', border)
+                view.setStyleSheet('QListView { border-right: 1px solid %s; } '
+                                  'QListView::item:selected { background: %s; color: %s; }' % (border, color, text))
 
     def eventFilter(self, watched, event):
         """右クリック・ホイール・境界操作を一覧内で処理する。
@@ -87,6 +91,9 @@ class Interaction(QtCore.QObject):
         kind = event.type()
         if view is None:
             return False
+        if kind == QtCore.QEvent.Leave and view is not owner.files and view.property('qpeEdgeHovered'):
+            view.setProperty('qpeEdgeHovered', False)
+            self.updateFocus()
         if view is owner.files and kind == QtCore.QEvent.MouseButtonDblClick and event.button() == QtCore.Qt.LeftButton:
             owner.openFileIndex(view.indexAt(event.pos()))
             # QtのdoubleClickedによる再実行を防ぎ、最初の選択状態によらず一度だけ開く。
@@ -153,6 +160,9 @@ class Interaction(QtCore.QObject):
                     owner.columns.setManualWidth(QtCore.QModelIndex(index), width + event.globalPos().x() - start)
                     return True
                 watched.setCursor(QtCore.Qt.SplitHCursor if edge else QtCore.Qt.ArrowCursor)
+                if bool(view.property('qpeEdgeHovered')) != edge:
+                    view.setProperty('qpeEdgeHovered', edge)
+                    self.updateFocus()
             if kind == QtCore.QEvent.MouseButtonRelease and self.drag:
                 index, start, width = self.drag
                 # Qt5でmove通知がまとめられた場合も、最後のポインター位置を反映する。

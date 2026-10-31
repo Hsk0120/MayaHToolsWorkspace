@@ -70,8 +70,12 @@ def main(output_dir, finished=None):
             assert not windowsIcon(sample.replace('\\', '/')).isNull()
             assert fileType(sample.replace('\\', '/')) == fileType(os.path.normpath(sample))
         assert all(label in e.metadata.text() for label in ('Type', 'Size', 'Location', 'Date modified'))
-        assert e.details.geometry().top() < e.metadata.geometry().top() < e.operationTabs.geometry().top()
-        checks.append('native icon and preview-details-actions layout')
+        e.detailsHeading.setChecked(True)
+        pause(100)
+        body = e.inspectorScroll.widget()
+        assert e.operationTabs.mapTo(body, QtCore.QPoint()).y() < e.details.mapTo(body, QtCore.QPoint()).y()
+        assert e.metadata.height() >= e.metadata.heightForWidth(e.metadata.width())
+        checks.append('native icon; operation area before expandable details with unclipped metadata')
         bar = e.folderTabs.bar
         strip = e.folderTabs.strip
         assert bar.tabRect(0).width() == 240

@@ -237,8 +237,11 @@ def main(output_dir, finished=None):
         checks.append('content widths, boundary drag and double click reset')
         widget.files.setFocus()
         widget.interaction.updateFocus()
-        assert all(v.property('qpeSelectionColor') == widget.appearance.theme.colors['inactive'] for v in columns(widget))
-        checks.append('ancestor highlights are muted when the file pane has focus')
+        for column in columns(widget):
+            current = column.rootIndex() == widget.columns.currentIndex().parent()
+            expected_color = widget.appearance.theme.colors['accent' if current else 'inactive']
+            assert column.property('qpeSelectionColor') == expected_color
+        checks.append('current location remains accented while ancestors stay muted with file pane focus')
 
         step('05  横に戻した位置を読込完了で引き戻さない')
         # Mayaの子ウィジェットだけをresizeしても親レイアウトが元へ戻す。

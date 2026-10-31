@@ -153,7 +153,7 @@ def main(output_dir, finished=None):
                     outlines = view.viewport().findChildren(QtWidgets.QFrame, 'contextTargetOutline')
                     assert sum(outline.isVisible() for outline in outlines) == 1
                 if execute:
-                    next(a for a in menu.actions() if 'Information' in a.text()).trigger()
+                    next(a for a in menu.actions() if a.text() == 'Show paths…').trigger()
                 if outside:
                     # Qtポップアップが受け取る、メニュー外の一覧行の座標。
                     outside_point = QtCore.QPoint(-25, -25)

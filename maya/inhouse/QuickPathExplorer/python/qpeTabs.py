@@ -320,6 +320,20 @@ class FolderTabs(QtCore.QObject):
                 e._restoreColumns(saved, serial)
         QtCore.QTimer.singleShot(0, restore)
 
+    def openPath(self, path):
+        """メニュー開始時のフォルダーを新しいタブで開く。
+
+        Args:
+            path (str): 固定されたフォルダーのパス。
+        """
+        state = self.snapshot()
+        state.update(path=path, selected=[], columns={}, history=[path], index=0,
+                     search='', filter=0, vertical=0, pinned=False, locked=False)
+        self.states.append(state)
+        index = self.bar.addTab('Folder')
+        self.strip.refresh()
+        self.bar.setCurrentIndex(index)
+
     def close(self, index):
         """最後の一枚を残し、閉じたタブの状態だけを破棄する。"""
         if len(self.states) == 1 or (self.states[index] or {}).get('pinned'):

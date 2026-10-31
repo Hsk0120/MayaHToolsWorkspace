@@ -12,6 +12,7 @@ from qpeInteraction import Interaction
 from qpeContextMenu import ContextMenu
 from qpeDirectoryModel import DirectoryModel
 from qpeFileIcons import FileIcons, fileType
+from qpeModern import WrappedLabel
 
 ICON = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons/quickPathExplorer.png'
 
@@ -171,7 +172,7 @@ class FolderColumns(QtWidgets.QColumnView):
         if not index.isValid():
             return
         scale = getattr(self, 'columnScale', 1.0)
-        minimum = round(80 * scale)
+        minimum = round((120 if self.widthMode == 'fit' else 80) * scale)
         roots = []
         current = self.currentIndex()
         while current.isValid():
@@ -180,6 +181,13 @@ class FolderColumns(QtWidgets.QColumnView):
                 break
             current = current.parent()
         widths = [self.contentWidth(root) for root in roots]
+        if self.widthMode == 'fit':
+            # 長い非選択の兄弟だけで祖先列を占有しない。選択した経路名は保持する。
+            for i, root in enumerate(roots[:-1]):
+                padding = self.contentPadding()
+                selected_width = self.fontMetrics().horizontalAdvance(str(roots[i + 1].data() or '')) + padding
+                widths[i] = max(minimum, selected_width, min(widths[i], round(220 * scale)))
+            widths[-1] = max(minimum, widths[-1])
         empty = self.emptyChild(roots[-1])
         if empty:
             widths[-1] = 0
@@ -189,7 +197,8 @@ class FolderColumns(QtWidgets.QColumnView):
         # 現在地に近い4列は名前幅を保持し、古い祖先だけを縮める。
         # 保持した名前幅が収まらない場合は、省略せず横スクロールを使う。
         for i in range(max(0, visible_count - 4) if self.widthMode == 'fit' else 0):
-            limit = minimum
+            selected_width = self.fontMetrics().horizontalAdvance(str(roots[i + 1].data() or '')) + self.contentPadding()
+            limit = max(minimum, min(selected_width, round(220 * scale)))
             reduction = min(excess, max(0, widths[i] - limit))
             widths[i] -= reduction
             excess -= reduction
@@ -270,10 +279,14 @@ class FolderColumns(QtWidgets.QColumnView):
             width = max(width, metrics.horizontalAdvance(str(self.model().index(row, 0, root).data() or '')))
         # 子ビューの縦バーは非同期読込や高さ変更で出入りするため常に予約する。
         # delegateが消費する矢印・アイコン・余白と同じ寸法を使う。
-        padding = (max(12, metrics.height()) + self.iconSize().width() + 12
-                   + self.verticalScrollBar().sizeHint().width() + 2 * self.frameWidth() + 4)
+        padding = self.contentPadding()
         return max(round(80 * scale), width + padding,
                    round(self._manualWidths.get(path, 0) * scale))
+
+    def contentPadding(self):
+        """名前以外のアイコン・矢印・スクロールバーに必要な幅を返す。"""
+        return (max(12, self.fontMetrics().height()) + self.iconSize().width() + 12
+                + self.verticalScrollBar().sizeHint().width() + 2 * self.frameWidth() + 4)
 
     def setWidthMode(self, mode):
         """列幅方針を変更し保存する。
@@ -720,6 +733,7 @@ class Explorer(QtWidgets.QWidget):
         self.inspectorScroll.setWidget(inspector_body)
         inspector_layout.addWidget(self.inspectorScroll)
         actions = QtWidgets.QVBoxLayout(inspector_body)
+        actions.setSizeConstraint(QtWidgets.QLayout.SetMinimumSize)
         actions.setAlignment(QtCore.Qt.AlignTop)
         actions.setContentsMargins(12, 12, 12, 12)
         actions.setSpacing(12)
@@ -848,7 +862,7 @@ class Explorer(QtWidgets.QWidget):
         self.previewText.setToolTip('Text preview (first 16 KiB)')
         self.previewText.hide()
         detail_layout.addWidget(self.previewText, 1)
-        self.metadata = QtWidgets.QLabel('Name / type / size / modified / path', self.details)
+        self.metadata = WrappedLabel('Name / type / size / modified / path', self.details)
         self.metadata.setObjectName('metadata')
         self.metadata.setTextFormat(QtCore.Qt.RichText)
         self.metadata.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
@@ -1147,6 +1161,8 @@ class Explorer(QtWidgets.QWidget):
             QMenu: 実行前のメニュー。
         """
         menu = ContextMenu(self)
+        if hasattr(self, 'folderTabs'):
+            menu.addAction('Open in new tab', lambda: self.folderTabs.openPath(target))
         menu.addAction('This Folder Information' if background else 'Information', lambda: self.showTargetInfo([target]))
         if not background:
             menu.addAction('Rename…', lambda: self.renamePath(target)).setEnabled(bool(target) and Path(target).parent != Path(target))
@@ -1169,6 +1185,7 @@ class Explorer(QtWidgets.QWidget):
         menu.addAction('Display Settings…', lambda: self.appearance.show())
         if hasattr(self, 'organizer'):
             self.organizer.addMenu(menu, [] if background else [target], target)
+        menu.organize()
         return menu
 
     def _execContext(self, menu, position, view=None, index=QtCore.QModelIndex()):
@@ -1379,6 +1396,9 @@ class Explorer(QtWidgets.QWidget):
         loaded = os.path.normcase(self.currentDirectory) in self._loadedFileFolders
         filtered = bool(self.search.text() or self.fileFilter.currentIndex())
         suffix = '{} files{}'.format(count, ' · filtered' if filtered else '') if loaded or count else 'Loading…'
+        folder_index = self.folderModel.index(self.currentDirectory)
+        if self.folderModel.states.get(self.currentDirectory, ('loading', ''))[0] == 'ready':
+            suffix = '{} folders · {}'.format(self.folderModel.rowCount(folder_index), suffix)
         self.folderLabel.setText('{}  ·  {}'.format(Path(self.currentDirectory).name or self.currentDirectory, suffix))
         self.folderLabel.setToolTip(self.currentDirectory)
         self.emptyFiles.setText('No matching files — clear the filters above.' if filtered else
@@ -1813,6 +1833,7 @@ class Explorer(QtWidgets.QWidget):
             hint = 'Select a file to open.'
         self.openHint.setText(hint)
         self.actionButtons['open'].setText(label)
+        self.actionButtons['open'].setVisible(bool(self.selectedPaths()))
 
     def _updateActions(self):
         """選択に応じて読込系ボタンを有効化する。"""
@@ -2116,6 +2137,7 @@ class Explorer(QtWidgets.QWidget):
         menu.addAction('Display Settings…', lambda: self.appearance.show())
         if hasattr(self, 'organizer'):
             self.organizer.addMenu(menu, paths, directory)
+        menu.organize()
         return menu
 
     def saveLayout(self):
@@ -2125,11 +2147,15 @@ class Explorer(QtWidgets.QWidget):
         if hasattr(self, 'readOptions'):
             writeSettings({'readOptions': self.readOptions.snapshot()})
         writeSettings({self._settingsKey: {'outer': self.outer.sizes(), 'vertical': self.vertical.sizes(),
-            'lower': self.lower.sizes(), 'version': 4, 'size': [self.width(), self.height()]}})
+            'lower': self.lower.sizes(), 'version': 4, 'size': [self.width(), self.height()],
+            'browserMode': self._browserMode}})
 
     def _restoreLayout(self):
         """保存した分割幅を復元する。"""
         value = readSettings().get(self._settingsKey, {})
+        self._browserMode = value.get('browserMode', 'custom')
+        if self._browserMode not in ('columns', 'balanced', 'files', 'custom'):
+            self._browserMode = 'custom'
         if value.get('version') not in (2, 3, 4):
             return
         for key, splitter in [('outer', self.outer), ('vertical', self.vertical), ('lower', self.lower)]:

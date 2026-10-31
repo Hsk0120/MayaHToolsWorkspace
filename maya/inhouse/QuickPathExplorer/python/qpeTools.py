@@ -957,11 +957,15 @@ class Organizer(QtCore.QObject):
                     else:
                         actions[key]()
                     return True
-            if modifiers == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and key == QtCore.Qt.Key_T:
+            if modifiers == (QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier) and key in (
+                    QtCore.Qt.Key_T, QtCore.Qt.Key_Tab, QtCore.Qt.Key_Backtab):
                 if kind == QtCore.QEvent.ShortcutOverride:
                     event.accept()
                 else:
-                    e.folderTabs.reopen()
+                    if key == QtCore.Qt.Key_T:
+                        e.folderTabs.reopen()
+                    else:
+                        e.folderTabs.bar.setCurrentIndex((e.folderTabs.active - 1) % e.folderTabs.bar.count())
                 return True
             if key == QtCore.Qt.Key_Delete and modifiers == QtCore.Qt.NoModifier:
                 if kind == QtCore.QEvent.ShortcutOverride:

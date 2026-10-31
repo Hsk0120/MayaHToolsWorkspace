@@ -141,6 +141,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-31): QPE今回UI変更を専用Maya2027のWindows実入力で検証。カラム主体表示、876px狭幅の詳細折返し、固定対象の右クリック、新規タブ、Ctrl+Tab/Ctrl+Shift+Tab、60フォルダーの縦スクロール、Mayaビューポートの入力境界、左右サイドバー、New Scene後の未選択MAダブルクリックを確認。追加不具合なし、Maya正常終了0。録画2本・画像をDriveへ非公開保存し読戻し確認。ドックは前回Qt検証、物理4K/IME/Maya2023〜2026は未実施。詳細 .maya-output/qpe-maya-input-20261031/report.txt。QPE範囲だけコミット、mlib/mlrig変更は保持。
+
+- Codex (2026-10-31): QPEのカラム主体レイアウト/行間切替、現在地の強調と祖先列の幅配分、右クリックの機能別分類、新規タブ入口、Ctrl+Shift+Tab、狭幅詳細の高さを修正。Qt5/6とMaya2022/2027で新規6項目、既存の操作/タブ/サイドバー/ナビゲーション/P0自動回帰を確認。Maya2027のドック表示も確認。Windows exeを再ビルドしOS入力を録画、Driveへ非公開保存。物理4K/IMEなどは未実施、P0受入は未完了のまま。詳細 .maya-output/qpe-columns-improve-20261031/report.txt。今回のQPEコミットへ収録。
+
 - Claude Code (2026-10-31): mlib 7.0.0。速くならない/効果がほぼ無いfastを引数と処理ごと削除(ShadingEngine.assign、ObjectSet/DisplayLayerのメンバー操作・setCurrent、Joint.reparentChildren/jointOrientToRotate/freezeRotate、AnimCurve.shiftKeys/scaleKeys/mirror、Plug.setKey/setEnumNames、SkinCluster.redistributeWeights)。キー1つのカーブでshift/scaleが効かない通常経路の不具合も修正。スタブ・changelog・設計文書・CLAUDE.md更新。runStatic 160件、Maya 2022〜2027全テスト、mlrig 719件、Sphinx・文書検査OK。未コミット。
 
 - Claude Code (2026-10-31): mlrig夜間タスク。角を丸められる箱(OBB)コライダーへの柔らかい押し出し BoxCollision を追加(setups/boxCollision.py。標準ノードのみ。箱の局所の位置 l、内側の箱 e = clamp(size/2 - rounding, 0, size/2)、外は最近点 k = clamp(l,-e,e) から d = |l-k| - rounding と法線 (l-k)/|l-k|、中は最も浅い面で d = max(|l|-e) - rounding。PlaneCollision と同じ指数の押し出しを法線の向きへ当て、matrix・distance・push・penetration・normal を出力)。Setup Samples 1項目、test_setup_box_collision.py 9件、文書 docs/box_collision.rst、検証デモ tools/demo_box_collision.py。隔離Maya 2027で setups 578件・standard 76件OK、Sphinx -W 成功、検証動画354フレーム判定OK。コミット・プッシュ(このコミット)。

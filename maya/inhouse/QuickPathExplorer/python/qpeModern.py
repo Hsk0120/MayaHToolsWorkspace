@@ -22,6 +22,10 @@ class WrappedLabel(QtWidgets.QLabel):
         super().setText(text)
         self._fitHeight()
 
+    def clear(self):
+        """選択解除時に、前の長い情報から来た最小高さを残さない。"""
+        self.setText('')
+
     def changeEvent(self, event):
         """DPI・文字サイズ変更時も幅が同じなら高さだけ更新する。"""
         super().changeEvent(event)
@@ -175,6 +179,21 @@ class ModernLayout(QtCore.QObject):
                               ('Details', columns_button)]:
             row.removeWidget(widget)
             form.addRow(label, widget)
+        self.areaMode = QtWidgets.QComboBox(self.popup)
+        self.areaMode.setObjectName('browserAreaMode')
+        for label, value in [('Columns first', 'columns'), ('Balanced', 'balanced'),
+                             ('Files first', 'files'), ('Custom', 'custom')]:
+            self.areaMode.addItem(label, value)
+        self.areaMode.setCurrentIndex(self.areaMode.findData(explorer._browserMode))
+        self.areaMode.currentIndexChanged.connect(self.setBrowserLayout)
+        form.insertRow(0, 'Browser area', self.areaMode)
+        self.rowSpacing = QtWidgets.QComboBox(self.popup)
+        self.rowSpacing.setObjectName('browserRowSpacing')
+        self.rowSpacing.addItems(['Compact', 'Comfortable'])
+        self.rowSpacing.setCurrentIndex(int(explorer.appearance.density == 'comfortable'))
+        self.rowSpacing.currentIndexChanged.connect(explorer.appearance.setDensity)
+        form.addRow('Row spacing', self.rowSpacing)
+        explorer.vertical.splitterMoved.connect(self.customBrowserLayout)
         self.chips = []
         panel_layout = self.w.bar.parentWidget().layout()
         bar_index = panel_layout.indexOf(self.w.bar)
@@ -219,6 +238,32 @@ class ModernLayout(QtCore.QObject):
         if not isinstance(self.w.tree.itemDelegate(), BrowserItemDelegate):
             self.w.tree.setItemDelegate(BrowserItemDelegate(self.w.tree))
         self.w.tree.doItemsLayout()
+        self.rowSpacing.blockSignals(True)
+        self.rowSpacing.setCurrentIndex(int(self.e.appearance.density == 'comfortable'))
+        self.rowSpacing.blockSignals(False)
+
+    def setBrowserLayout(self, index):
+        """明示選択した時だけ上下比率を変える。階層移動では跳ねさせない。
+
+        Args:
+            index (int): 表示プリセットの選択番号。
+        """
+        mode = self.areaMode.itemData(index)
+        self.e._browserMode = mode
+        ratio = {'columns': 0.75, 'balanced': 0.45, 'files': 0.25}.get(mode)
+        if ratio is not None:
+            total = max(1, sum(self.e.vertical.sizes()))
+            upper = round(total * ratio)
+            self.e.vertical.setSizes([upper, total - upper])
+        self.e.saveLayout()
+
+    def customBrowserLayout(self, *unused):
+        """手動調整をプリセットで上書きせず、現在の比率を保存する。"""
+        self.e._browserMode = 'custom'
+        self.areaMode.blockSignals(True)
+        self.areaMode.setCurrentIndex(self.areaMode.findData('custom'))
+        self.areaMode.blockSignals(False)
+        self.e.saveLayout()
 
     def watchViewport(self, viewport):
         """自分のスクロール領域だけを監視し、Mayaの他パネルには触れない。"""

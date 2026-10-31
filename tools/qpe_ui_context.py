@@ -18,7 +18,15 @@ def triggerMenu(menu, title):
         menu (QMenu): メニュー。
         title (str): 操作名。
     """
-    action = next(a for a in menu.actions() if a.text() == title)
+    pending = list(menu.actions())
+    while pending:
+        action = pending.pop(0)
+        if action.text() == title:
+            break
+        if action.menu():
+            pending.extend(action.menu().actions())
+    else:
+        raise AssertionError('Menu action missing: ' + title)
     assert action.isEnabled(), title
     action.trigger()
     if title == 'Rename…':
@@ -173,6 +181,8 @@ def main(output_dir, finished=None):
 
         stage = 'rename active ancestor remaps history and favorites'
         widget.navigate(str(root / 'Parent/Child'))
+        # 同じ場所へのnavigateも子列を遅延接続するため、編集開始と競合させない。
+        pause(250)
         widget.addFavorite()
         answerInput('RenamedParent')
         triggerMenu(widget.createFolderMenu(str(root / 'Parent')), 'Rename…')
@@ -205,7 +215,7 @@ def main(output_dir, finished=None):
         assert readSettings()[appearance.key] == {'fontSize': 16, 'uiPercent': 150, 'density': 'compact'}
         widget.grab().save(str(output_dir / 'display-large.png'))
         appearance._reset()
-        assert widget.font().pixelSize() == round(13 * appearance.dpiScale)
+        assert widget.font().pixelSize() == round(12 * appearance.dpiScale)
         appearance.dialog.hide()
         checks.append(stage)
 
@@ -216,7 +226,7 @@ def main(output_dir, finished=None):
         scaled.show()
         scaled.navigate(str(root))
         pause(150)
-        assert scaled.font().pixelSize() == 26
+        assert scaled.font().pixelSize() == 24
         assert scaled.sidebarButton.iconSize().width() == 32
         assert scaled.places.minimumWidth() == 2 * widget.places.minimumWidth()
         assert min(width for width in scaled.columns.columnWidths() if width) >= 160
