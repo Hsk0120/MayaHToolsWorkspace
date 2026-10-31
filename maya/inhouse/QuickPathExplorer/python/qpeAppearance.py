@@ -4,6 +4,42 @@ from qpeSettings import readSettings, writeSettings
 from qpeTheme import Theme
 
 
+class TextSizeKeys(QtCore.QObject):
+    """一覧自身がフォーカスを持つときだけ文字倍率キーを予約する。"""
+
+    def __init__(self, appearance):
+        """QPEが所有する部品に限定し、アプリ全体へフィルターを置かない。"""
+        super().__init__(appearance.widget)
+        self.appearance = appearance
+
+    def attach(self, widget):
+        """新しいフォルダーカラムにも同じ入力境界を適用する。"""
+        widget.installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        """編集欄・ダイアログ・他のMayaビューに届いたキーを処理しない。"""
+        if event.type() not in (QtCore.QEvent.ShortcutOverride, QtCore.QEvent.KeyPress):
+            return False
+        if QtWidgets.QApplication.focusWidget() is not watched:
+            return False
+        modifiers = event.modifiers() & ~QtCore.Qt.KeypadModifier
+        key = event.key()
+        step = None
+        if modifiers in (QtCore.Qt.ControlModifier, QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier):
+            if key in (QtCore.Qt.Key_Plus, QtCore.Qt.Key_Equal):
+                step = 1
+            elif modifiers == QtCore.Qt.ControlModifier and key == QtCore.Qt.Key_Minus:
+                step = -1
+            elif modifiers == QtCore.Qt.ControlModifier and key == QtCore.Qt.Key_0:
+                step = 0
+        if step is None:
+            return False
+        event.accept()
+        if event.type() == QtCore.QEvent.KeyPress:
+            self.appearance.changeTextSize(step)
+        return True
+
+
 class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
     """フォルダー・ファイル・サイドバーで共通の行高を使用する。"""
 
@@ -87,6 +123,9 @@ class Appearance:
         self.dpiScale = dpi_scale
         self.key = 'mayaAppearance' if widget._maya else 'standaloneAppearance'
         self.dialog = None
+        self.textSizeKeys = TextSizeKeys(self)
+        for view in (widget, widget.files, widget.places):
+            self.textSizeKeys.attach(view)
         # QLineEditの消去ボタンなど、Qt内部が生成した部品の寸法はQtに任せる。
         # 再生成を繰り返すと内部部品のラッパーがisValidでもminimumSizeで落ちる
         # Maya Qt6環境があるため、QPEがPythonで作った部品だけを直接操作する。
@@ -193,10 +232,14 @@ class Appearance:
             self.widget.modern.applyMetrics()
         if self.dialog is not None:
             self.dialog.setFont(font)
-            presets = {(12, 100): 0, (13, 125): 1, (13, 150): 2}
+            presets = {(10, 100): -2, (11, 100): -1, (12, 100): 0, (13, 125): 1, (13, 150): 2}
             self.presetCombo.blockSignals(True)
-            self.presetCombo.setCurrentIndex(presets.get((self.fontSize, self.uiPercent), 3))
+            self.presetCombo.setCurrentIndex(self.presetCombo.findData(presets.get((self.fontSize, self.uiPercent), 3)))
             self.presetCombo.blockSignals(False)
+            for control, value in ((self.fontSpin, self.fontSize), (self.scaleSpin, self.uiPercent)):
+                control.blockSignals(True)
+                control.setValue(value)
+                control.blockSignals(False)
             self.densityCombo.blockSignals(True)
             self.densityCombo.setCurrentIndex(int(self.density == 'comfortable'))
             self.densityCombo.blockSignals(False)
@@ -256,8 +299,18 @@ class Appearance:
                                       if self.widget._maya else 'DPI: Windows / Qt automatic', dialog))
         self.presetCombo = QtWidgets.QComboBox(dialog)
         self.presetCombo.setObjectName('displayPreset')
-        self.presetCombo.addItems(['Standard', 'Larger', 'Largest', 'Custom'])
+        for label, value in [('Very Small', -2), ('Smaller', -1), ('Standard', 0), ('Larger', 1), ('Largest', 2), ('Custom', 3)]:
+            self.presetCombo.addItem(label, value)
         layout.addRow('Size', self.presetCombo)
+        self.fontSpin = QtWidgets.QSpinBox(dialog)
+        self.fontSpin.setObjectName('displayFontSize')
+        self.fontSpin.setRange(10, 24)
+        self.fontSpin.setValue(self.fontSize)
+        self.fontSpin.setToolTip('Text size before host DPI and UI scaling. Ctrl + / Ctrl - in a file or folder list.')
+        layout.addRow('Font size', self.fontSpin)
+        hint = QtWidgets.QLabel('In lists: Ctrl + / Ctrl -\nCtrl 0: reset text size', dialog)
+        hint.setWordWrap(True)
+        layout.addRow(hint)
         density = QtWidgets.QComboBox(dialog)
         self.densityCombo = density
         density.addItems(['Compact', 'Comfortable'])
@@ -279,11 +332,6 @@ class Appearance:
         layout.addRow(advancedButton)
         advanced = QtWidgets.QWidget(dialog)
         advanced_layout = QtWidgets.QFormLayout(advanced)
-        self.fontSpin = QtWidgets.QSpinBox(advanced)
-        self.fontSpin.setObjectName('displayFontSize')
-        self.fontSpin.setRange(10, 24)
-        self.fontSpin.setValue(self.fontSize)
-        advanced_layout.addRow('Font size (before scaling)', self.fontSpin)
         self.scaleSpin = QtWidgets.QSpinBox(advanced)
         self.scaleSpin.setObjectName('displayUiScale')
         self.scaleSpin.setRange(75, 200)
@@ -301,7 +349,7 @@ class Appearance:
         buttons.button(QtWidgets.QDialogButtonBox.RestoreDefaults).clicked.connect(self._reset)
         buttons.rejected.connect(dialog.hide)
         layout.addRow(buttons)
-        self.presetCombo.activated.connect(self.setPreset)
+        self.presetCombo.activated.connect(lambda index: self.setPreset(self.presetCombo.itemData(index)))
         self.apply(self.fontSize, self.uiPercent, save=False)
         dialog.show()
 
@@ -311,20 +359,24 @@ class Appearance:
         self.apply(self.fontSize, self.uiPercent)
 
     def setPreset(self, index):
-        """用途が分かる三段階の表示サイズを設定する。
+        """小さめから特大までの表示サイズを設定する。
 
         Args:
-            index (int): 標準・大きめ・特大の選択。
+            index (int): -2は最小、-1は小さめ、0は標準、1は大きめ、2は特大、3は数値編集。
         """
-        if index not in (0, 1, 2):
+        if index == 3:
+            self.fontSpin.setFocus()
+            self.fontSpin.selectAll()
             return
-        self.fontSpin.blockSignals(True)
-        self.scaleSpin.blockSignals(True)
-        self.fontSpin.setValue(12 if index == 0 else 13)
-        self.scaleSpin.setValue((100, 125, 150)[index])
-        self.fontSpin.blockSignals(False)
-        self.scaleSpin.blockSignals(False)
-        self.apply(self.fontSpin.value(), (100, 125, 150)[index])
+        sizes = {-2: (10, 100), -1: (11, 100), 0: (12, 100), 1: (13, 125), 2: (13, 150)}
+        if index in sizes:
+            self.apply(*sizes[index])
+
+    def changeTextSize(self, step):
+        """文字を1pxずつ変更し、UI倍率・行間・ホストDPIは保持する。"""
+        value = 12 if step == 0 else max(10, min(24, self.fontSize + step))
+        if value != self.fontSize:
+            self.apply(value, self.uiPercent)
 
     def _changed(self, value):
         """操作した値を直ちに反映する。

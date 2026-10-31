@@ -482,6 +482,19 @@ class Explorer(QtWidgets.QWidget):
         self.organizer = Organizer(self)
         from qpeModern import ModernLayout
         self.modern = ModernLayout(self)
+        for view in (self.folderTabs.bar, self.organizer.workspace.grid, self.organizer.workspace.tree):
+            self.appearance.textSizeKeys.attach(view)
+        from qpeWindowChrome import WindowChrome
+        self.windowChrome = WindowChrome(self) if WindowChrome.supported(self) else None
+
+    def nativeEvent(self, event_type, message):
+        """Windows単体版の枠処理だけを委譲し、MayaのネイティブUIを保持する。"""
+        chrome = getattr(self, 'windowChrome', None)
+        if chrome is not None:
+            handled, result = chrome.nativeEvent(message)
+            if handled:
+                return handled, result
+        return super().nativeEvent(event_type, message)
 
     def _connectDirectoryModels(self):
         """世代管理モデルの通知と表示位置保持を接続する。"""

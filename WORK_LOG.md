@@ -154,7 +154,17 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-10-31): ユーザーのpush指示に基づきQPEのタイトルバー統合・Windowsテーマ追従・文字サイズUI/ショートカット・Very Small・ビルド配置の12ファイルを公開対象に確定。既存のWindows/Maya2022/2027検証ログと差分を照合。exe/runtime・調査資料・動画はGit対象外。
+
+- Codex (2026-10-31): QPE表示プリセットへVery Small（10px基準/UI100%）を追加。数値入力やCtrl -から10pxへ変更した際のプリセット表示も同期。Windows単体/Maya2027で各7検証群成功、Qt操作動画を非公開Driveへ保存。exeビルド・隔離起動成功、ユーザーの終了確認後に直下exe更新とハッシュ一致確認。証拠.maya-output/qpe-very-small-20261031、未push。
+
+- Codex (2026-10-31): QPEのSmallerプリセット(11px)と常時表示のFont sizeを追加。Ctrl +/-（等号/テンキー含む）で文字サイズ変更、Ctrl 0で標準文字サイズへ復帰。一覧に限定したキー処理で編集欄・他Qt入力を保護し、設定UI・保存値を同期。Windows単体/Maya2022/2027で各6検証群成功、既存context8群とshortcuts直接mainの回帰成功。Qt操作動画・画像を非公開Driveへ保存し読み戻し確認。直下exe再ビルド/起動試験成功。物理IME/4Kは未確認、証拠.maya-output/qpe-text-size-20261031、未push。
+
+- Codex (2026-10-31): QPE Windows単体版のタイトル段をタブと統合。専用HWNDの枠処理と最小化/最大化・復元/閉じるを追加、既定テーマをWindows追従へ変更（明示設定維持）。単体7検証群・既存タブ8/配色3検証群成功、専用Maya2022/2027各2検証群と正常終了確認。実OS入力でタブ追加/移動/最大化復元/リサイズ/最小化/閉じるを確認。プロジェクト直下exe再ビルド・起動試験成功。混在DPI・Snap未確認、最大化ホバーのSnap Layoutは未対応。証拠は.maya-output/qpe-chrome-20261031、未push。
+
 - Claude Code (2026-10-31): mlib 10.0.0。Plug.setで有限でない数値(NaN・無限大。並び・om2の数学型・単位付きの値の中も)を書く前にValueError(safe=Trueは1、fastも同じ)。getMin/getMax/getSoftMin/getSoftMaxをget()・getDefaultと同じ数値(度・cm・UI時間単位のフレーム)に。changelogの移行表・スタブ・CLAUDE.mdの版を更新。mlib 2022〜2027・静的検査・Sphinx(警告0)・文書の検査・mlrig 2027(719件)・AnimBar OK。
+
+- Codex (2026-10-31): 最新QPEをPyInstallerでビルドし、maya/inhouse/QuickPathExplorer直下へQuickPathExplorer.exeと_internalを配置。build_qpe_standalone.pyに--install-projectを追加しREADMEと生成物除外を整備。配置先exeの隔離smoke-test成功(exit0/Qt6.12.0)、画面・アイコン表示確認。生成物はGit対象外。未push。
 
 - Codex (2026-10-31): trial再生成の直接原因を確定。一時検証用copy.pyが標準copyを隠し、Maya初期化中のimportでcwdへmlib/origを複製していた。copy.pyと同種のimp.pyをimport不可の証拠ファイルへ退避。標準モジュール名の事前検査CLI/GUIランナーの起動前拒否とAGENTS規則を追加。安全な副作用記録で再現、専用mayapy2022/2027で正常起動・標準copy・trial未生成、3環境で新規3回帰と既存3回帰成功。Qt実OS操作は対象外。ユーザー指示で差分・検証結果を確認し、再発防止の6ファイルをコミット対象に確定。
 

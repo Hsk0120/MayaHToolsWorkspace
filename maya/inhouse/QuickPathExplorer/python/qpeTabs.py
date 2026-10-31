@@ -205,7 +205,9 @@ class FolderTabStrip(QtWidgets.QWidget):
         self.setFixedHeight(height)
         button_width = round(36 * self.scale)
         gap = round(4 * self.scale)
-        width = min(self.bar.count() * round(240 * self.scale), max(1, self.width() - button_width - gap))
+        chrome = getattr(self, 'chrome', None)
+        reserved = chrome.reservedWidth() if chrome else 0
+        width = min(self.bar.count() * round(240 * self.scale), max(1, self.width() - button_width - gap - reserved))
         self.bar.setGeometry(0, 0, width, height)
         # 幅が同じでも枚数・倍率が変わった場合はQtの寸法キャッシュを更新する。
         self.bar.setIconSize(QtCore.QSize(round(16 * self.scale), round(16 * self.scale)))
@@ -216,6 +218,8 @@ class FolderTabStrip(QtWidgets.QWidget):
             if button:
                 button.setFixedSize(button.sizeHint())
         self.addButton.setGeometry(width + gap, 0, button_width, height)
+        if chrome:
+            chrome.layoutButtons()
 
     def resizeEvent(self, event):
         """ウィンドウの拡縮に追従して各タブを再配分する。"""

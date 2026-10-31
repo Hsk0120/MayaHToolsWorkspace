@@ -350,6 +350,7 @@ class Organizer(QtCore.QObject):
         view.installEventFilter(self)
         self.views[view.viewport()] = view
         self.views[view] = view
+        self.explorer.appearance.textSizeKeys.attach(view)
         # MayaはCtrl+TabのKeyPressを標準ビュー切替へ使うため、Qtの
         # ショートカット配送で先に処理する。この一覧自身にフォーカスがある時だけ有効。
         for sequence, step in (('Ctrl+Tab', 1), ('Ctrl+Shift+Tab', -1)):

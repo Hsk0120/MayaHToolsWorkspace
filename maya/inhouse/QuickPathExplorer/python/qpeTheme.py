@@ -34,7 +34,7 @@ class Theme(QtCore.QObject):
         """
         super().__init__(widget)
         self.widget = widget
-        self.mode = readSettings().get('standaloneTheme', 'light')
+        self.mode = readSettings().get('standaloneTheme', 'system')
         if self.mode not in ('system', 'light', 'dark', 'finder'):
             self.mode = 'system'
         self.signature = None

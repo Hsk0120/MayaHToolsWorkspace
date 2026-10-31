@@ -9,7 +9,8 @@ Windows単体とMaya内で同じ画面を使用します。
 - Mayaでは上部のSave As…ボタンから、右ペインの保存フォームを開けます。名前・保存先・形式を確認してフォーム内のボタンを押すまで保存しません。新しく開いたQPEの保存形式はMaya Binary (.mb)です。Maya ASCII (.ma)も明示的に選べます。Save Sceneは既存シーンの形式を変更しません。
 - QPEでMayaシーンを開く／保存する操作が成功すると、Maya標準のRecent Filesにも登録します。キャンセル・失敗・外部アプリで開いたファイル・Import／Referenceでは標準のシーン履歴を追加しません。
 
-- 配色: Windows単体の新規設定はWindows Lightです。Windows標準Explorerの撮影を基準に、一覧と詳細欄は白、プレビューは薄いグレー、選択行はグレーで表示します。Windows Darkは暗い一覧・詳細欄と少し明るいプレビューで構成します。Display settings → Colorで選択でき、既存の色設定は維持します。Windows themeではWindowsのアプリモード（ライト／ダーク）とアクセント色へ追従します。Tools → Navigation / scene → Display settings→ColorでClassic Light / Windows theme / Windows Light / Windows Darkを選べ、OSの設定を変えずに白背景へ固定できます。Maya内はダーク配色を維持し、ホスト全体のパレットは変更しません。
+- Windows単体のウィンドウ: 独立したタイトル段を省き、タブ段の右端に最小化・最大化／復元・閉じるを配置します。空白部分をドラッグすると移動、ダブルクリックで最大化／復元、端をドラッグするとリサイズできます。Maya内のドック／フロート枠は変更しません。
+- 配色: Windows単体の新規設定はWindows themeです。Windowsのアプリモード（ライト／ダーク）とアクセント色へ自動追従します。Windows標準Explorerの撮影を基準に、一覧と詳細欄は白、プレビューは薄いグレー、選択行はグレーで表示します。Windows Darkは暗い一覧・詳細欄と少し明るいプレビューで構成します。Display settings → Colorで選択でき、既存の色設定は維持します。Windows themeではWindowsのアプリモード（ライト／ダーク）とアクセント色へ追従します。Tools → Navigation / scene → Display settings→ColorでClassic Light / Windows theme / Windows Light / Windows Darkを選べ、OSの設定を変えずに白背景へ固定できます。Maya内はダーク配色を維持し、ホスト全体のパレットは変更しません。
 
 - 左サイドバー: 初期状態は非表示。左上のアイコンで切り替え、Favorites・Recent items・Drivesを表示。両方でフォルダー・ファイルをアイコン付きで扱います。ファイルは単クリックで選択・プレビュー、ダブルクリックで開きます。ファイルの右クリックからAdd to Favoritesで登録できます。Recent itemsは移動先フォルダーと成功したOpen/Import/Referenceのファイルを最大10件保持します。
 - 上段: フォルダー専用のカラムビュー。フォルダー名の左側にアイコンを表示します。読込完了した空の末尾カラムは非表示にし、起点の一覧・読込中・エラーの表示は保持します。
@@ -24,7 +25,7 @@ Windows単体とMaya内で同じ画面を使用します。
 - 選択フォルダーと下段の見出しを同系色で強調し、フォルダー名・ファイル件数・検索中の状態を表示。子フォルダーなし／ファイルなし／検索一致なしを区別します。
 - カラムの右クリックから移動・新規フォルダー・お気に入り追加・パスコピー等を実行。Ctrl+Lでパス入力、Alt+左右で履歴移動、Alt+上で親へ移動。
 - 最上段にサイドバー切替・戻る・進むのアイコンと、編集可能なフォルダーパス欄を表示。「★」からお気に入り・現在のプロジェクト・シーンの場所へ移動できます。
-- 右上のTools → Navigation / scene → Display settingsからStandard / Larger / Largestの表示プリセットを選択。Advanced settingsに文字サイズ（10〜24）・UI倍率（75〜200%）があり、実際の文字サイズも表示します。設定は即時反映・保存されます。
+- 右上のTools → Navigation / scene → Display settingsからVery Small / Smaller / Standard / Larger / Largestの表示プリセットを選択。Very Smallは10px・Smallerは11px（ホストDPI適用前、UI倍率100%）です。常時表示のFont sizeで文字サイズ（10〜24）を直接変更できます。Advanced settingsにはUI倍率（75〜200%）があり、実際の文字サイズも表示します。QPEのファイル・フォルダー一覧、サイドバー、タブにフォーカスがあるときはCtrl＋＋／Ctrl＋－で文字サイズを1段ずつ変更し、Ctrl＋0で文字サイズを12へ戻します（Ctrl＋＝、テンキーの＋／－も可）。UI倍率は保持し、検索・パス・リネーム等の入力中や他のMayaビューでは処理しません。設定は即時反映・保存されます。
 - フォルダー／ファイルの右クリックRename、F2、Returnで一覧内リネーム。ファイルは拡張子を除いた名前を最初に選択し、Enterまたはフォーカス移動で確定、Escapeで中止します。既存項目は上書きせず、不正なWindows名を拒否します。
 - New Text Fileは空の.txtファイルを作成（拡張子省略時は自動追加）。Mayaシーンを作る場合はSave Scene Asから保存フォームを開き、保存先を確認して実行します。メニューを選んだだけでは保存しません。フォルダー改名時は子孫の履歴・お気に入り・探索起点も更新します。
 - 右クリックでは元の選択・プレビューを保ち、メニュー対象を輪郭表示。Escで閉じても選択を変えません。空白用メニューにはOpen／Rename／Import／Referenceを出しません。
@@ -104,6 +105,11 @@ FBXを選択すると右サイドバーのOpenタブに **FBX / File Content** �
 `tools/qpe_fbx_test.py`は専用Maya GUIランナーから実行します。実FBXのキー更新・ノード追加有無・シーン切替・未保存キャンセル・FBX設定の復元と、読込失敗の注入を検証し、実ウィジェットを録画します。作業中のMayaへ送信しないでください。
 
 ## Windows単体で起動
+
+このフォルダーへビルド済みの`QuickPathExplorer.exe`と`_internal`を配置した場合は、exeを直接起動できます。
+リポジトリ直下で`python tools/build_qpe_standalone.py --install-project`を実行すると、
+隔離フォルダーでビルドしてからこのフォルダー直下へ配置します。`_internal`はexeと同じ場所に必要です。
+生成したexeと`_internal`はGitへ登録しません。
 
 `launch_python.bat`を実行します。第1引数に開始フォルダーを指定できます。
 このランチャーは単体exe、指定Python、PySide6導入済みPython、Maya2027〜2022のmayapyを順に探します。Maya GUIは起動しません。

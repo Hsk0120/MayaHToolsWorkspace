@@ -1,0 +1,3 @@
+# Windows単体版のローカルビルド配置（ソースと分離して再生成できる）
+/QuickPathExplorer.exe
+/_internal/
