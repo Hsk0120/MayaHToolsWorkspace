@@ -24,6 +24,8 @@ def main(output_dir, finished=None):
         e = Explorer(maya=bool(finished))
         e.resize(1240, 820)
         e.show()
+        e.inspectorButton.setChecked(True)
+        e.detailsHeading.setChecked(True)
         e.navigate(str(folders[0]))
         waitFor(lambda: e.fileProxy.rowCount(e.files.rootIndex()) == 2)
         selectFile(e, folders[0] / 'notes.txt')

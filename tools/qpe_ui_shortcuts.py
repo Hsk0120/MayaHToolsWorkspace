@@ -94,9 +94,15 @@ def main(output_dir, finished=None):
             checks.append(f"mode {mode}: Undo / Open / Rename stay inside the focused list")
         e.search.setText("text edit")
         e.search.setFocus()
+        waitFor(lambda: QtWidgets.QApplication.focusWidget() is e.search)
         e.search.selectAll()
         QtTest.QTest.keyClick(e.search, QtCore.Qt.Key_C, QtCore.Qt.ControlModifier)
-        assert QtWidgets.QApplication.clipboard().text() == "text edit"
+        # Windowsのクリップボード配送完了を待つ。入力自体は再送しない。
+        waitFor(lambda: QtWidgets.QApplication.clipboard().text() == "text edit")
+        assert QtWidgets.QApplication.clipboard().text() == "text edit", {
+            "clipboard": QtWidgets.QApplication.clipboard().text(),
+            "selected": e.search.selectedText(), "text": e.search.text(),
+            "host_calls": calls, "focus": str(QtWidgets.QApplication.focusWidget())}
         assert not calls, calls
         checks.append("search field retains native text Copy")
         # QPEの子でも一覧外ではホスト側の操作を奪わない。

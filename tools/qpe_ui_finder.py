@@ -143,10 +143,12 @@ def main(output_dir, finished=None):
         if recording:
             timer.start()
         step('01  右クリックしても元の選択とプレビューを保持')
+        widget.inspectorButton.setChecked(True)
+        widget.detailsHeading.setChecked(True)
         selectFile(widget, root / 'note_000.txt')
         waitFor(lambda: widget.previewText.toPlainText() == 'Preview file 000')
         original = widget.selectedPath()
-        target = widget.fileProxy.mapFromSource(widget.fileModel.index(str(root / 'note_001.txt')))
+        target = widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(root / 'note_001.txt')))
         point = widget.files.visualRect(target).center()
         QtTest.QTest.mousePress(widget.files.viewport(), QtCore.Qt.RightButton, QtCore.Qt.NoModifier, point)
         QtTest.QTest.mouseRelease(widget.files.viewport(), QtCore.Qt.RightButton, QtCore.Qt.NoModifier, point)

@@ -67,7 +67,7 @@ def main(output_dir, finished=None):
             pause(300)
             counts.update(summary=0, hints=0)
             e.navigate(str(folders))
-            waitFor(lambda: e.folderModel.rowCount(e.folderModel.index(str(folders))) == 200)
+            waitFor(lambda: e.folderModel.rowCount(e.folderModel.pathIndex(str(folders))) == 200)
             pause(100)
             assert counts['hints'] < 100, counts
             checks.append('200 folder insertions coalesce column decoration without hiding children')
@@ -82,8 +82,15 @@ def main(output_dir, finished=None):
             with patch.object(qpeFileIcons, 'windowsIcon', wraps=qpeFileIcons.windowsIcon) as native:
                 workspace.mode.setCurrentIndex(1)
                 waitFor(lambda: workspace.grid.count() == 1000 and not workspace.restoring)
+                # mll版もサムネイル用のShell取得をGUIスレッドで繰り返さない。
                 assert native.call_count == 0, native.call_count
-            checks.append('thumbnail mode reuses all 1000 native file icons without new Shell queries')
+                assert all(not workspace.grid.item(i).icon().isNull() for i in range(1000))
+                workspace.mode.setCurrentIndex(0)
+                native.reset_mock()
+                workspace.mode.setCurrentIndex(1)
+                waitFor(lambda: workspace.grid.count() == 1000 and not workspace.restoring)
+                assert native.call_count == 0, native.call_count
+            checks.append('thumbnail icons remain complete; repeated thumbnail visits reuse cache')
             e.grab().save(str(out / 'overview.png'))
         result = dict(status='passed', checks=checks, updates=counts)
     except Exception:

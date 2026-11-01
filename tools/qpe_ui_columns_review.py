@@ -70,7 +70,7 @@ def main(output_dir, finished=None):
         e.navigate(str(leaf))
         pause(250)
         columns = [v for v in e.columns.findChildren(QtWidgets.QListView) if v.isVisible()]
-        root_view = next(v for v in columns if v.rootIndex() == e.folderModel.index(str(root)))
+        root_view = next(v for v in columns if v.rootIndex() == e.folderModel.pathIndex(str(root)))
         assert 120 <= root_view.width() <= 221, root_view.width()
         current = e.columns.currentIndex()
         current_view = next(v for v in columns if v.rootIndex() == current.parent())

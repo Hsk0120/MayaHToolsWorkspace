@@ -22,6 +22,8 @@ class PreviewJob(QtCore.QRunnable):
         self.serial = serial
         self.path = path
         self.signals = PreviewSignals()
+        from qpeNative import prepareImageReader
+        prepareImageReader()
 
     def run(self):
         """画像/テキストを読み、失敗も結果として配送する。"""
@@ -34,23 +36,31 @@ class PreviewJob(QtCore.QRunnable):
             thumbnail = Path(self.path).with_suffix(suffix + '.qpe.png')
             if suffix in ('.ma', '.mb') and thumbnail.is_file():
                 requireLocal(str(thumbnail))
-                reader = QtGui.QImageReader(str(thumbnail))
-                reader.setScaledSize(reader.size().scaled(720, 480, QtCore.Qt.KeepAspectRatio))
-                image = reader.read()
-                text = '' if not image.isNull() else reader.errorString()
+                from qpeNative import available, readImage
+                if available():
+                    image, size, text = readImage(str(thumbnail))
+                else:
+                    reader = QtGui.QImageReader(str(thumbnail))
+                    reader.setScaledSize(reader.size().scaled(720, 480, QtCore.Qt.KeepAspectRatio))
+                    image = reader.read()
+                    text = '' if not image.isNull() else reader.errorString()
             elif suffix in ('.mp4', '.mov', '.avi', '.mkv', '.webm', '.exr', '.hdr'):
                 from qpeMedia import mediaImage
                 image, text = mediaImage(self.path)
             elif suffix in ('.png', '.jpg', '.jpeg', '.bmp', '.gif', '.tif', '.tiff', '.webp'):
-                reader = QtGui.QImageReader(self.path)
-                size = reader.size()
-                if size.isValid() and size.width() * size.height() <= 64000000:
-                    reader.setAutoTransform(True)
-                    reader.setScaledSize(size.scaled(720, 480, QtCore.Qt.KeepAspectRatio))
-                    image = reader.read()
-                    text = reader.errorString() if image.isNull() else ''
+                from qpeNative import available, readImage
+                if available():
+                    image, size, text = readImage(self.path)
                 else:
-                    text = 'Preview skipped: image is too large or unsupported'
+                    reader = QtGui.QImageReader(self.path)
+                    size = reader.size()
+                    if size.isValid() and size.width() * size.height() <= 64000000:
+                        reader.setAutoTransform(True)
+                        reader.setScaledSize(size.scaled(720, 480, QtCore.Qt.KeepAspectRatio))
+                        image = reader.read()
+                        text = reader.errorString() if image.isNull() else ''
+                    else:
+                        text = 'Preview skipped: image is too large or unsupported'
             elif suffix in ('.ma', '.txt', '.py', '.mel', '.json', '.md', '.csv'):
                 with open(self.path, 'rb') as stream:
                     text = 'TEXT\n' + stream.read(16384).decode('utf-8', errors='replace')

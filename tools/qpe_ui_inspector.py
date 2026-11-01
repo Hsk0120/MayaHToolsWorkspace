@@ -40,7 +40,7 @@ def main(output_dir, finished=None):
         checks.append('details hidden by default')
         events = []
         widget.actionRequested.connect(lambda action: events.append((action, widget.operationPaths())))
-        indices = [widget.fileProxy.mapFromSource(widget.fileModel.index(str(p))) for p in paths]
+        indices = [widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(p))) for p in paths]
         for previous in ('none', 'other', 'multiple'):
             widget.files.clearSelection()
             if previous != 'none':
@@ -76,7 +76,7 @@ def main(output_dir, finished=None):
         assert views and all(v.alternatingRowColors() for v in views) and widget.files.alternatingRowColors()
         checks.append('alternating folder and file rows')
         widget.files.setCurrentIndex(indices[2])
-        waitFor(lambda: widget.previewText.toPlainText() == 'Review notes')
+        assert widget._previewPending and not widget.previewText.toPlainText()
         from unittest.mock import patch
         with patch.object(widget, 'requestFiles') as request:
             widget.openSelectedFile()
@@ -84,7 +84,12 @@ def main(output_dir, finished=None):
             assert request.call_args[0][0] == 'open'
             assert [Path(v) for v in request.call_args[0][1]] == [paths[2]]
         checks.append('Open dispatch works while sidebar is hidden')
+        widget.inspectorButton.setChecked(True)
+        widget.detailsHeading.setChecked(True)
+        waitFor(lambda: widget.previewText.toPlainText() == 'Review notes')
+        checks.append('expanding file details loads the current text preview')
         widget.addFavoritePath(str(paths[2]))
+        widget.sidebarButton.setChecked(True)
         favorite = widget.places.topLevelItem(0).child(0)
         assert not favorite.icon(0).isNull()
         widget._placeClicked(favorite, 0)

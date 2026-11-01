@@ -104,7 +104,7 @@ def inspectFolder(widget, folder, require_visible=True):
               for v in widget.columns.findChildren(QtWidgets.QListView)], flush=True)
         raise
     assert Path(widget.address.text()) == folder
-    active = widget.folderModel.index(str(folder))
+    active = widget.folderModel.pathIndex(str(folder))
     assert widget.columns.currentIndex() == active
     # アクティブ階層以外の古いカラムが表示されたままになっていないか。
     ancestors = set([folder] + list(folder.parents))
@@ -127,7 +127,7 @@ def click(widget, folder, double=False):
         folder (Path): 選択する項目。
         double (bool): ダブルクリックか。
     """
-    index = widget.folderModel.index(str(folder))
+    index = widget.folderModel.pathIndex(str(folder))
     waitFor(lambda: any(v.rootIndex() == index.parent() for v in columns(widget)))
     view = [v for v in columns(widget) if v.rootIndex() == index.parent()][-1]
     view.scrollTo(index)
@@ -179,7 +179,7 @@ def main(output_dir, finished=None):
             click(widget, root / 'Characters' / name)
         checks.append(stage)
         stage = 'keyboard sibling selection updates children'
-        parent_index = widget.folderModel.index(str(root / 'Characters'))
+        parent_index = widget.folderModel.pathIndex(str(root / 'Characters'))
         view = [v for v in columns(widget) if v.rootIndex() == parent_index][-1]
         view.setFocus()
         QtTest.QTest.keyClick(view, QtCore.Qt.Key_Down)
@@ -251,7 +251,7 @@ def main(output_dir, finished=None):
         widget.columns.horizontalScrollBar().setValue(0)
         widget.navigate(str(root))
         widget.navigate(str(many))
-        widget.columns.scrollTo(widget.folderModel.index(str(many)))
+        widget.columns.scrollTo(widget.folderModel.pathIndex(str(many)))
         click(widget, many / 'item_099')
         checks.append(stage)
         stage = 'forward history truncation after new branch'

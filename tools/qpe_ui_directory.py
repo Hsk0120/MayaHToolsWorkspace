@@ -67,7 +67,7 @@ def verify(widget, root, pause):
             label (str): 許される項目名。
         """
         for model in models:
-            index = model.index(str(path))
+            index = model.pathIndex(str(path))
             names = [model.index(row, 0, index).data() for row in range(model.rowCount(index))]
             assert names == [label], (model.objectName(), names, label)
             assert model.states[str(path).replace('\\', '/')][0] == 'ready'
@@ -76,8 +76,8 @@ def verify(widget, root, pause):
         assert views and visibleWidth(widget, views[-1]) > 0, ('missing visible child column', path,
             [(widget.folderModel.filePath(v.rootIndex()), v.isVisible(), v.geometry().getRect())
              for v in widget.columns.findChildren(QtWidgets.QListView)], widget.folderModel.filePath(widget.columns.currentIndex()))
-        parent = next(v for v in columns(widget) if v.rootIndex() == widget.folderModel.index(str(path.parent)))
-        assert parent.selectionModel().isSelected(widget.folderModel.index(str(path))), 'stale ancestor selection'
+        parent = next(v for v in columns(widget) if v.rootIndex() == widget.folderModel.pathIndex(str(path.parent)))
+        assert parent.selectionModel().isSelected(widget.folderModel.pathIndex(str(path))), 'stale ancestor selection'
         ancestors = [path] + list(path.parents)
         assert all(Path(widget.folderModel.filePath(v.rootIndex())) in ancestors for v in columns(widget)), 'stale visible column'
 
@@ -103,7 +103,7 @@ def verify(widget, root, pause):
         complete(failed, 'must-not-display', 'current read denied')
         for model in models:
             assert model.states[str(root / 'A').replace('\\', '/')] == ('error', 'current read denied')
-            assert model.rowCount(model.index(str(root / 'A'))) == 0
+            assert model.rowCount(model.pathIndex(str(root / 'A'))) == 0
         recovered = navigate(root / 'A')
         complete(recovered, 'recovered')
         assertRows(root / 'A', 'recovered')

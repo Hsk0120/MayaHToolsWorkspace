@@ -47,7 +47,7 @@ def main(output_dir, finished):
         widget.setInspectorVisible(cycle % 2 == 0)
         pause(250)
         waitFor(lambda: QtCore.QThreadPool.globalInstance().activeThreadCount() == 0)
-        folder_index = widget.folderModel.index(str(fixtures))
+        folder_index = widget.folderModel.pathIndex(str(fixtures))
         # ワーカー終了直後でもqueued signalの反映はまだの場合がある。
         # 実際に項目を描画した後の参照を検査し、読込中だけの合格を防ぐ。
         waitFor(lambda: widget.folderModel.rowCount(folder_index) == 3)

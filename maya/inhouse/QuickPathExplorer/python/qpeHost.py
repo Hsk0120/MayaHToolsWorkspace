@@ -98,10 +98,7 @@ def show(path=None, _restoring=False):
     widget.destroyed.connect(lambda *unused: OpenMaya.MMessage.removeCallback(callback))
     refresh(widget)
     widget.show()
-    location = path or readSettings().get('lastPath') or cmds.workspace(query=True, rootDirectory=True)
-    widget.navigate(location if os.path.isdir(location) else str(Path.home()))
-    if not path:
-        widget.folderTabs.restoreSession()
+    widget.restoreStartup(path, cmds.workspace(query=True, rootDirectory=True))
     if created:
         restoreState(widget)
     opened(widget, restoring=_restoring)

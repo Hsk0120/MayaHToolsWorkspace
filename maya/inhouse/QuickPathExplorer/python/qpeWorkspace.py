@@ -9,6 +9,7 @@ from qpeQt import QtCore, QtGui, QtWidgets, shiboken
 from qpeSettings import readSettings, writeSettings
 from qpeAdvancedIO import searchAdvanced, summarize
 from qpePreview import PreviewJob
+import qpeNative
 
 
 class WorkspaceFeatures(QtCore.QObject):
@@ -66,6 +67,13 @@ class WorkspaceFeatures(QtCore.QObject):
         self.tree.setColumnWidth(0, 260)
         self.tree.setColumnWidth(1, 90)
         self.tree.setColumnWidth(4, 110)
+        for view in (self.tree, self.grid):
+            view.setProperty('qpeIconPathRole', int(QtCore.Qt.UserRole))
+            if qpeNative.available():
+                view._nativeIcons = qpeNative.create('icons', view, QtCore.QObject)
+            else:
+                from qpeFileIcons import VisibleFileIcons
+                view._visibleIcons = VisibleFileIcons(view)
         self.stack.addWidget(self.grid)
         self.stack.addWidget(self.tree)
         layout.insertWidget(index, self.stack, 1)
@@ -113,7 +121,6 @@ class WorkspaceFeatures(QtCore.QObject):
     def selectionChanged(self):
         """プレビューと操作対象を同じ選択へ揃える。"""
         self.e._selectionChanged()
-        self.e._updateFooter()
 
     def current(self):
         """現在項目が選択内なら優先し、選択外なら選択集合へ戻る。"""
@@ -236,7 +243,7 @@ class WorkspaceFeatures(QtCore.QObject):
             selection = self.e.files.selectionModel()
             selection.clearSelection()
             for path in self.selectedBefore:
-                index = self.e.fileProxy.mapFromSource(self.e.fileModel.index(path))
+                index = self.e.fileProxy.mapFromSource(self.e.fileModel.pathIndex(path))
                 if index.isValid():
                     selection.select(index, QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows)
         self.saveView()
@@ -326,7 +333,11 @@ class WorkspaceFeatures(QtCore.QObject):
             item.setData(0, QtCore.Qt.UserRole, path)
             item.setData(1, QtCore.Qt.UserRole, info.st_size)
             item.setToolTip(0, path)
-            icon = self.e._placeIcons.icon(path)
+            # Shellはメッセージを再入させるため、項目再構築の途中では呼ばない。
+            # mll版は可視項目のアイコンをC++ワーカーで取得する。
+            icon = self.e.fileModel._placeholderIcon
+            icon_key = '{}\n{}'.format(info.st_size, round(info.st_mtime * 1000))
+            item.setData(0, QtCore.Qt.UserRole + 101, icon_key)
             item.setIcon(0, icon)
             if metadata.get('tags'):
                 item.setForeground(4, QtGui.QBrush(QtGui.QColor('#669ecc')))
@@ -345,6 +356,7 @@ class WorkspaceFeatures(QtCore.QObject):
             grid_item = QtWidgets.QListWidgetItem(icon, name)
             grid_item.setSizeHint(self.grid.gridSize())
             grid_item.setData(QtCore.Qt.UserRole, path)
+            grid_item.setData(QtCore.Qt.UserRole + 101, icon_key)
             grid_item.setToolTip(path + '\n' + state + '\n' + values[4] + ' ' + values[5])
             self.grid.addItem(grid_item)
             item.setSelected(path in selected)
@@ -363,11 +375,17 @@ class WorkspaceFeatures(QtCore.QObject):
                     self.tree.blockSignals(False)
                     self.grid.blockSignals(False)
                     self.restoring = False
+                    # 遅延レイアウトをUIAのセル照会まで持ち越さない。
+                    # 照会中の並べ替えでQtがセルの参照を破棄することを防ぐ。
+                    self.tree.doItemsLayout()
+                    self.grid.doItemsLayout()
                     self.stack.currentWidget().verticalScrollBar().setValue(scroll)
                     self.selectionChanged()
                     self.scheduleImages()
                     self.loadDimensions(serial)
                     return
+            self.tree.doItemsLayout()
+            self.grid.doItemsLayout()
             QtCore.QTimer.singleShot(0, appendChunk)
         appendChunk()
 
@@ -376,6 +394,8 @@ class WorkspaceFeatures(QtCore.QObject):
         if self.stack.currentWidget() is not self.tree or self.tree.isColumnHidden(7):
             return
         from qpeTools import launchTask
+        from qpeNative import available, prepareImageReader, readImage
+        prepareImageReader()
         paths = list(self.items)
         def read(cancel, progress):
             """画像形式の寸法だけを読み、本体を展開しない。"""
@@ -387,7 +407,7 @@ class WorkspaceFeatures(QtCore.QObject):
                 if availability(path)[1]:
                     continue
                 if Path(path).suffix.lower() in ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.bmp', '.webp'):
-                    size = QtGui.QImageReader(path).size()
+                    size = readImage(path, pixels=False)[1] if available() else QtGui.QImageReader(path).size()
                     if size.isValid():
                         sizes[path] = '{} × {}'.format(size.width(), size.height())
             return sizes
@@ -400,6 +420,7 @@ class WorkspaceFeatures(QtCore.QObject):
                 item = iterator.value()
                 item.setText(7, result.get(item.data(0, QtCore.Qt.UserRole), ''))
                 iterator += 1
+            self.tree.doItemsLayout()
         launchTask(read, done)
 
     def scheduleImages(self, *unused):
@@ -418,6 +439,7 @@ class WorkspaceFeatures(QtCore.QObject):
             if key in self.cache:
                 image = self.cache[key]
                 if not image.isNull():
+                    item.setData(QtCore.Qt.UserRole + 102, True)
                     item.setIcon(QtGui.QIcon(QtGui.QPixmap.fromImage(image)))
                 self.cache.move_to_end(key)
                 continue
@@ -437,7 +459,8 @@ class WorkspaceFeatures(QtCore.QObject):
         job = self.previewJobs.pop(serial, None)
         if not job or self.e._suspended:
             return
-        self.cache[job.cacheKey] = image.scaled(160, 110, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+        self.cache[job.cacheKey] = (image if image.isNull() else
+                                   image.scaled(160, 110, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation))
         while len(self.cache) > 256:
             self.cache.popitem(last=False)
         self.scheduleImages()
@@ -822,7 +845,7 @@ class WorkspaceFeatures(QtCore.QObject):
             stamp = datetime.datetime.fromtimestamp(record.get('time', 0)).isoformat(' ', 'seconds') if record.get('time') else 'Earlier history'
             listing.addTopLevelItem(QtWidgets.QTreeWidgetItem([stamp, self.tools.operationLabel(record['action']), str(len(record['entries'])),
                 '\n'.join(e['target'] or e['source'] for e in record['entries'])]))
-        layout.addWidget(QtWidgets.QLabel('Undo / Redo verifies contents and refuses externally changed files.\nHistory backups use disk space. Cleanup is explicit, never automatic.'))
+        layout.addWidget(QtWidgets.QLabel('Undo / Redo refuses conflicts and detected external changes.\nDelete uses Windows Recycle Bin; emptying it removes restore data.\nOther history backups use disk space. QPE cleanup does not empty Recycle Bin.'))
         row = QtWidgets.QHBoxLayout()
         layout.addLayout(row)
         for title, callback in [('Undo latest', self.tools.undo), ('Redo latest undo', self.redo),

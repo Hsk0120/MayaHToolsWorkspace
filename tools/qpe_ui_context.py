@@ -135,7 +135,7 @@ def main(output_dir, finished=None):
 
         stage = 'right click and background preserve selection with independent targets'
         selectFile(widget, root / 'occupied.txt')
-        index = widget.fileProxy.mapFromSource(widget.fileModel.index(str(root / 'renamed.txt')))
+        index = widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(root / 'renamed.txt')))
         widget.files.scrollTo(index)
         pause(60)
         observations = []
@@ -161,7 +161,7 @@ def main(output_dir, finished=None):
         stage = 'folder context event targets clicked item rather than current directory'
         widget.navigate(str(root / 'Parent/Child'))
         pause(100)
-        parent_index = widget.folderModel.index(str(root / 'Parent'))
+        parent_index = widget.folderModel.pathIndex(str(root / 'Parent'))
         view = next(v for v in widget.columns.findChildren(QtWidgets.QListView)
                     if v.isVisible() and v.rootIndex() == parent_index.parent())
         view.scrollTo(parent_index)
@@ -192,7 +192,7 @@ def main(output_dir, finished=None):
         widget.navigate(str(root / 'other'))
         widget.backButton.click()
         assert Path(widget.currentDirectory) == root / 'RenamedParent/Child'
-        watched_index = widget.folderModel.index(str(root / 'RenamedParent/Child'))
+        watched_index = widget.folderModel.pathIndex(str(root / 'RenamedParent/Child'))
         waitFor(lambda: widget.folderModel.rowCount(watched_index) == 0)
         new_child = root / 'RenamedParent/Child/AfterRename'
         new_child.mkdir()

@@ -369,6 +369,8 @@ def startup():
 
 def restorePrevious():
     """標準復元済みならタブの選択や折り畳みを変更せず内容を補う。"""
+    if _quitting:
+        return
     from qpeHost import show, restore
     if cmds.workspaceControl(CONTROL, exists=True):
         restore()

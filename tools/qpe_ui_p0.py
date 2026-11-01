@@ -104,6 +104,8 @@ def main(output_dir, finished=None):
         click(widget, root / 'B')
         widget.navigate(str(root))
         inspectFolder(widget, root)
+        widget.inspectorButton.setChecked(True)
+        widget.detailsHeading.setChecked(True)
         selectFile(widget, root / 'File00.txt')
         waitFor(lambda: widget.previewText.toPlainText() == 'text-00')
     check('AT01', at01)
@@ -123,15 +125,15 @@ def main(output_dir, finished=None):
         pause(100)
         if folder_item:
             view = next(v for v in columns(widget) if Path(widget.folderModel.filePath(v.rootIndex())) == root)
-            index = widget.folderModel.index(str(root / 'B'))
+            index = widget.folderModel.pathIndex(str(root / 'B'))
         else:
             selectFile(widget, root / 'File00.txt')
             view = widget.files
-            index = widget.fileProxy.mapFromSource(widget.fileModel.index(str(root / 'File01.txt')))
+            index = widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(root / 'File01.txt')))
             if multiple:
                 view.selectionModel().select(index, QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows)
                 if unselected:
-                    index = widget.fileProxy.mapFromSource(widget.fileModel.index(str(root / 'File02.txt')))
+                    index = widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(root / 'File02.txt')))
         old_paths = widget.selectedPaths()
         old_dir = widget.currentDirectory
         point = view.visualRect(index).center()
@@ -306,6 +308,8 @@ def main(output_dir, finished=None):
         disposed = Explorer()
         disposed.show()
         disposed.navigate(str(root))
+        disposed.inspectorButton.setChecked(True)
+        disposed.detailsHeading.setChecked(True)
         selectFile(disposed, root / 'File00.txt')
         job = pending[-1]
         disposed.deleteLater()

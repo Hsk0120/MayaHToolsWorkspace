@@ -108,7 +108,11 @@ def main(output_dir, finished=None):
         triggerMenu(widget.createFolderMenu(str(root)), 'Set as start folder')
         inspectFolder(widget, root)
         assert Path(widget.folderModel.filePath(widget.columns.rootIndex())) == root
-        assert widget.rootButton.isVisible()
+        # 起点解除はToolsのNavigation / sceneメニューへ移動済み。
+        menu = QtWidgets.QMenu(widget)
+        widget.modern.addNavigationMenu(menu)
+        assert any(action.text() == 'Reset start folder' and action.isEnabled()
+                   for action in widget.modern.navigationMenu.actions())
         assert len(columns(widget)) == 1
         screenshot('01-project-root.png')
         checks.append('project root hides irrelevant ancestors')
@@ -118,8 +122,13 @@ def main(output_dir, finished=None):
             click(widget, path)
             assert Path(widget.browseRoot) == root
             pause(350 if recording else 30)
+        inspectFolder(widget, hero / 'Rig/Work')
         for view in columns(widget)[-4:]:
-            assert view.width() >= widget.columns.contentWidth(view.rootIndex())
+            # Fit windowは非選択の長い兄弟名を省略できるが、現在の経路は読める必要がある。
+            selected = view.currentIndex()
+            assert selected.isValid()
+            needed = view.fontMetrics().horizontalAdvance(str(selected.data())) + widget.columns.contentPadding()
+            assert view.width() >= needed, (selected.data(), view.width(), needed)
         assert not any(widget.columns.emptyChild(view.rootIndex()) for view in columns(widget))
         waitFor(lambda: 'No files' in widget.emptyFiles.text())
         assert 'Work' in widget.folderLabel.text() and '0 files' in widget.folderLabel.text()
@@ -144,7 +153,7 @@ def main(output_dir, finished=None):
         pause(650 if recording else 50)
         widget.search.clear()
         waitFor(lambda: '2 files' in widget.folderLabel.text())
-        long_index = widget.folderModel.index(str(root / 'Assets/VeryLongEnvironmentFolderNameForTooltip'))
+        long_index = widget.folderModel.pathIndex(str(root / 'Assets/VeryLongEnvironmentFolderNameForTooltip'))
         assert 'VeryLongEnvironmentFolderNameForTooltip' in str(long_index.data(QtCore.Qt.ToolTipRole))
         checks.append('file counts filtering and full name tooltip')
 
@@ -222,7 +231,9 @@ def main(output_dir, finished=None):
             checks.append('save preparation is non-destructive and save action uses shown destination')
 
         step('10  起点を解除して全体の階層へ戻る')
-        widget.rootButton.click()
+        menu = QtWidgets.QMenu(widget)
+        widget.modern.addNavigationMenu(menu)
+        triggerMenu(widget.modern.navigationMenu, 'Reset start folder')
         assert not widget.browseRoot and widget.rootButton.text() == 'Set start folder'
         assert len(columns(widget)) > 3
         inspectFolder(widget, Path(widget.currentDirectory))

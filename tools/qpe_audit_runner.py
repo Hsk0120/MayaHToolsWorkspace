@@ -17,8 +17,11 @@ def main():
     parser.add_argument('output')
     parser.add_argument('--python', default=sys.executable)
     parser.add_argument('--maya', choices=['2022', '2027'])
+    parser.add_argument('--native-bridge', type=Path, help='Maya不要のC++部品統合テスト用DLL')
     parser.add_argument('--suites', nargs='+', default=SUITES)
     args = parser.parse_args()
+    if args.maya and args.native_bridge:
+        parser.error('--native-bridge is standalone only; use qpe_native_runner.py for Maya')
     root = Path(__file__).resolve().parents[1]
     out = Path(args.output).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -55,8 +58,11 @@ def main():
                     print(name, outcome['status'], flush=True)
                     continue
                 with tempfile.TemporaryDirectory(prefix='working-', dir=str(target)) as working:
-                    process = subprocess.run([args.python, str(root/'tools'/('qpe_ui_'+name+'.py')),
-                                              str(target)], cwd=working, stdout=log,
+                    command = [args.python, str(root/'tools'/('qpe_ui_'+name+'.py')), str(target)]
+                    if args.native_bridge:
+                        command = [args.python, str(root/'tools/qpe_native_standalone.py'),
+                                   str(args.native_bridge.resolve()), command[1], str(target), '--embedded']
+                    process = subprocess.run(command, cwd=working, stdout=log,
                                              stderr=subprocess.STDOUT, timeout=180)
                 result_file = target/'result.json'
                 result = json.loads(result_file.read_text(encoding='utf8')) if result_file.exists() else {}

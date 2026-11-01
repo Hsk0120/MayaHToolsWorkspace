@@ -41,8 +41,8 @@ def selectFile(widget, path):
         widget (Explorer): 対象画面。
         path (Path): ファイル。
     """
-    waitFor(lambda: widget.fileProxy.mapFromSource(widget.fileModel.index(str(path))).isValid())
-    index = widget.fileProxy.mapFromSource(widget.fileModel.index(str(path)))
+    waitFor(lambda: widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(path))).isValid())
+    index = widget.fileProxy.mapFromSource(widget.fileModel.pathIndex(str(path)))
     widget.files.setCurrentIndex(index)
     assert Path(widget.selectedPath()) == path
 
@@ -54,7 +54,7 @@ def clickFolder(widget, path):
         widget (Explorer): 対象画面。
         path (Path): 選択先。
     """
-    index = widget.folderModel.index(str(path))
+    index = widget.folderModel.pathIndex(str(path))
     views = [v for v in widget.columns.findChildren(QtWidgets.QListView)
              if v.isVisible() and v.rootIndex() == index.parent()]
     assert views, str(path)
@@ -147,6 +147,9 @@ def main(output_dir, finished=None):
         widget._forward()
         assert Path(widget.currentDirectory) == folder.parent
         widget.navigate(str(folder))
+        # 詳細は表示された時だけ取得する。実際に閲覧できる状態で検証する。
+        widget.inspectorButton.setChecked(True)
+        widget.detailsHeading.setChecked(True)
         selectFile(widget, folder / 'notes.txt')
         waitFor(lambda: widget.previewText.toPlainText() == 'QuickPathExplorer preview')
         selectFile(widget, folder / 'hero_color.png')
@@ -167,7 +170,7 @@ def main(output_dir, finished=None):
         widget.address.returnPressed.emit()
         pause(350)
         assert widget.columns.horizontalScrollBar().value() == 0, (widget.columns.horizontalScrollBar().value(), widget.currentDirectory, widget._columnStates.get(os.path.normcase(widget.currentDirectory)))
-        widget.columns.setCurrentIndex(widget.folderModel.index(str(folder.parent)))
+        widget.columns.setCurrentIndex(widget.folderModel.pathIndex(str(folder.parent)))
         assert Path(widget.currentDirectory) == folder.parent
         widget.navigate(str(folder))
         pause(350)
@@ -194,7 +197,7 @@ def main(output_dir, finished=None):
         pause(100)
         clickFolder(widget, deep)
         pause(350)
-        child_index = widget.folderModel.index(str(deep))
+        child_index = widget.folderModel.pathIndex(str(deep))
         assert any(v.isVisible() and v.rootIndex() == child_index
                    and widget.columns.viewport().rect().intersects(QtCore.QRect(
                        v.mapTo(widget.columns.viewport(), QtCore.QPoint()), v.size()))

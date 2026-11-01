@@ -97,7 +97,7 @@ def main(output_dir, finished):
         Args:
             path (Path): 選択対象。
         """
-        index = widget.folderModel.index(str(path))
+        index = widget.folderModel.pathIndex(str(path))
         view = [v for v in columns(widget) if v.rootIndex() == index.parent()][-1]
         view.scrollTo(index)
         point = view.viewport().mapTo(widget, view.visualRect(index).center())

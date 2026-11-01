@@ -238,6 +238,8 @@ class FolderTabs(QtCore.QObject):
         self.closed = []
         self.active = 0
         self.pendingSerial = None
+        explorer.files.installEventFilter(self)
+        explorer.files.viewport().installEventFilter(self)
         self.strip = FolderTabStrip(explorer)
         self.bar = self.strip.bar
         self.bar.addTab('Folder')
@@ -297,6 +299,18 @@ class FolderTabs(QtCore.QObject):
         self.active = index
         state = self.states[index]
         e = self.explorer
+        # 他タブで削除/移動された場所は、残っている親へ戻す。
+        # navigateの失敗だけで終えると、前タブの列が新タブに残ってしまう。
+        location = Path(state['path'])
+        if not location.is_dir():
+            while location.parent != location and not location.is_dir():
+                location = location.parent
+            if location.is_dir():
+                state['path'] = str(location).replace('\\', '/')
+                state['selected'] = []
+                state['vertical'] = 0
+        if state['root'] and not os.path.isdir(state['root']):
+            state['root'] = ''
         e.browseRoot = state['root']
         e._columnStates = copy.deepcopy(state['columns'])
         e._history = list(state['history'])
@@ -315,15 +329,16 @@ class FolderTabs(QtCore.QObject):
 
         def restore():
             """古いタブの遅延復元を破棄し、読込完了後に選択を戻す。"""
-            if e._suspended or serial != e._navigationSerial:
+            if e._suspended or serial != e._navigationSerial or self.pendingSerial != serial:
                 return
             attempts[0] += 1
-            if e.fileModel.states.get(e.currentDirectory, ('loading', ''))[0] == 'loading' and attempts[0] < 100:
+            if (e.fileModel.states.get(e.currentDirectory, ('loading', ''))[0] == 'loading'
+                    and not e.fileModel.hasCompleteSnapshot(e.currentDirectory) and attempts[0] < 100):
                 QtCore.QTimer.singleShot(30, restore)
                 return
             selection = e.files.selectionModel()
             for path in state['selected']:
-                item = e.fileProxy.mapFromSource(e.fileModel.index(path))
+                item = e.fileProxy.mapFromSource(e.fileModel.pathIndex(path))
                 if item.isValid():
                     selection.select(item, QtCore.QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows)
                     selection.setCurrentIndex(item, QtCore.QItemSelectionModel.NoUpdate)
@@ -333,6 +348,13 @@ class FolderTabs(QtCore.QObject):
             if saved:
                 e._restoreColumns(saved, serial)
         QtCore.QTimer.singleShot(0, restore)
+
+    def eventFilter(self, watched, event):
+        """読込中の明示入力を優先し、保存済み選択/スクロールの遅延復元を止める。"""
+        if (self.pendingSerial is not None
+                and event.type() in (QtCore.QEvent.MouseButtonPress, QtCore.QEvent.KeyPress, QtCore.QEvent.Wheel)):
+            self.pendingSerial = None
+        return False
 
     def openPath(self, path):
         """メニュー開始時のフォルダーを新しいタブで開く。

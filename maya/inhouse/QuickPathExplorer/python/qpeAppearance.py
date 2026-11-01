@@ -2,6 +2,7 @@
 from qpeQt import QtCore, QtGui, QtWidgets, shiboken
 from qpeSettings import readSettings, writeSettings
 from qpeTheme import Theme
+from qpeDrives import DRIVE_ROLE, driveHeight, paintDrive
 
 
 class TextSizeKeys(QtCore.QObject):
@@ -69,6 +70,29 @@ class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
         view = self.parent()
         # QWidget.style()はPySide側にQStyleSheetStyleへの参照を残す。
         # 共有スタイルのDLL終了順による再無効化を避け、Qt内部で描画させる。
+        if index.data(DRIVE_ROLE) is not None:
+            background = QtWidgets.QStyleOptionViewItem(option)
+            # フォントとパレットだけ標準設定を取り込み、専用行を描く。
+            self.initStyleOption(background, index)
+            # 現在ドライブはファイル一覧へフォーカスが移っても強調を維持する。
+            path = index.data(QtCore.Qt.UserRole) or ''
+            active = path.rstrip('/\\').casefold() == view.property('qpeCurrentDrive')
+            if active:
+                background.state |= QtWidgets.QStyle.State_Selected
+            else:
+                background.state &= ~QtWidgets.QStyle.State_Selected
+            # QStyleSheetStyleへのPython所有参照を作らず、選択/ホバーを描く。
+            painter.save()
+            selected = active
+            if selected:
+                painter.fillRect(option.rect, option.palette.highlight())
+            elif option.state & QtWidgets.QStyle.State_MouseOver:
+                hover = QtGui.QColor(option.palette.text().color())
+                hover.setAlpha(18)
+                painter.fillRect(option.rect, hover)
+            painter.restore()
+            paintDrive(painter, background, index, view)
+            return
         super().paint(painter, option, index)
         if isinstance(view, QtWidgets.QListView):
             arrow_space = max(12, option.fontMetrics.height())
@@ -102,9 +126,22 @@ class BrowserItemDelegate(QtWidgets.QStyledItemDelegate):
         Returns:
             QSize: 文字が欠けず、各一覧で揃う行高。
         """
-        size = super().sizeHint(option, index)
+        # QStyledItemDelegate.sizeHintはDecorationRoleも照会し、Shellアイコン取得を
+        # 初回の全行レイアウトへ持ち込む。寸法は文字と既知のアイコン枠だけで求める。
+        explicit = index.data(QtCore.Qt.SizeHintRole)
+        if isinstance(explicit, QtCore.QSize) and explicit.isValid():
+            return explicit
+        text = str(index.data(QtCore.Qt.DisplayRole) or '')
+        view = self.parent()
+        icon_width = max(16, view.iconSize().width()) if index.column() == 0 else 0
+        width = max((option.fontMetrics.horizontalAdvance(line) for line in text.split('\n')), default=0)
+        size = QtCore.QSize(width + icon_width + 16, 0)
+        if index.data(DRIVE_ROLE) is not None:
+            size.setHeight(driveHeight(option))
+            return size
         height = self.parent().property('qpeRowHeight') or 22
-        size.setHeight(max(height, option.fontMetrics.height() + 4))
+        lines = text.count('\n') + 1
+        size.setHeight(max(height, option.fontMetrics.height() * lines + 4))
         return size
 
 
@@ -135,7 +172,9 @@ class Appearance:
         self.layouts = [(layout, layout.contentsMargins(), layout.spacing())
                         for layout in widget.findChildren(QtWidgets.QLayout)
                         if shiboken.isValid(layout) and shiboken.createdByPython(layout)]
-        self.baseFont = QtGui.QFont('Segoe UI')
+        # ホストが選んだUIフォントには、その環境の言語用グリフがある。
+        # 英字用フォントを固定して初回日本語表示で別フォント探索を発生させない。
+        self.baseFont = QtGui.QFont(widget.font())
         self.baseFont.setWeight(QtGui.QFont.Normal)
         value = readSettings().get(self.key, {})
         value = value if isinstance(value, dict) else {}
@@ -198,7 +237,8 @@ class Appearance:
         for view in (self.widget.columns, self.widget.files, self.widget.places):
             view.setIconSize(QtCore.QSize(px(16), px(16)))
             view.setProperty('qpeRowHeight', max(px(28 if self.density == 'comfortable' else 24), QtGui.QFontMetrics(font).height() + px(6)))
-            if view is not self.widget.columns and not isinstance(view.itemDelegate(), BrowserItemDelegate):
+            if (view is not self.widget.columns and not isinstance(view.itemDelegate(), BrowserItemDelegate)
+                    and not view.itemDelegate().property('qpeNativeDelegate')):
                 view.setItemDelegate(BrowserItemDelegate(view))
         self.widget.places.setIndentation(px(16))
         for control in (self.widget.address, self.widget.search, self.widget.fileFilter,
@@ -257,7 +297,7 @@ class Appearance:
         # ホスト全体に影響させず、QPE内だけ細いトラックとホバー強調を使う。
         from qpeModern import style
         self.widget.setStyleSheet(self.theme.style() + '''
-            QWidget { font-family: "Segoe UI"; font-size: %dpx; font-weight: normal; }
+            QWidget { font-size: %dpx; font-weight: normal; }
             QLineEdit, QComboBox, QPushButton { padding: %dpx %dpx; }
             QHeaderView::section { padding: %dpx %dpx; font-weight: normal; }
             QTabBar::tab { padding: %dpx %dpx; }

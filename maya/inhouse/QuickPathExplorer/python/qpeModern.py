@@ -67,7 +67,8 @@ def style(colors, px, font_size):
         str: QPEだけに適用するQtスタイル。
     """
     values = dict(colors)
-    folder = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons'
+    from qpeResources import iconDirectory
+    folder = iconDirectory()
     values['chevron'] = (folder / ('chevron-dark.svg' if QtGui.QColor(colors['base']).lightness() > 128 else 'chevron-light.svg')).as_posix()
     values.update(radius=px(5), gap=px(4), inset=px(8), row=px(4),
                   small=max(px(11), font_size - px(1)), scroll=px(12), rail=px(3),

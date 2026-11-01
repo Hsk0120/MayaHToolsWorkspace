@@ -412,6 +412,9 @@ class Organizer(QtCore.QObject):
             record['bytes'] = total[0]
             if shiboken.isValid(dialog):
                 elapsed = max(0.1, time.monotonic() - record['started'])
+                if path.startswith('Moving to Recycle Bin: '):
+                    dialog.setLabelText(path + '\nRestore with File Undo or Windows Recycle Bin.')
+                    return
                 if record.get('total'):
                     dialog.setValue(min(1000, int(total[0] * 1000 / record['total'])))
                 dialog.setLabelText('{}\n{}\n{} — {}/s'.format(title, path,
@@ -447,14 +450,16 @@ class Organizer(QtCore.QObject):
                     self.report(title + ': completed')
                 if callback:
                     callback(result)
-            for model in (self.explorer.folderModel, self.explorer.fileModel):
-                for path in list(model._active):
-                    model.request(path)
             location = Path(self.explorer.currentDirectory)
             if not location.is_dir():
                 while location.parent != location and not location.is_dir():
                     location = location.parent
-                self.explorer.navigate(str(location))
+                # 削除した経路の保護と要求を解除してから、親の一覧を再取得する。
+                # ロック済みタブでも新規タブを増やさず、同じタブを親へ戻す。
+                self.explorer.navigate(str(location), record=False)
+            for model in (self.explorer.folderModel, self.explorer.fileModel):
+                for path in list(model._active):
+                    model.request(path)
             self.workspace.refresh()
             QtCore.QTimer.singleShot(0, self.nextJob)
         self.task = launchTask(function, completed, progress)
@@ -486,7 +491,7 @@ class Organizer(QtCore.QObject):
         destination = destination or self.explorer.currentDirectory
         if action == 'trash':
             if QtWidgets.QMessageBox.question(self.explorer, 'Delete',
-                    'Move {} item(s) to Recycle Bin?\n{}'.format(len(paths), '\n'.join(paths)),
+                    'Move {} item(s) to Recycle Bin?\n{}\n\nRestore with File Undo or Windows Recycle Bin.\nEmptying Recycle Bin makes this deletion permanent.'.format(len(paths), '\n'.join(paths)),
                     QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.Cancel, QtWidgets.QMessageBox.Cancel) != QtWidgets.QMessageBox.Yes:
                 return
         elif conflict is None and any((Path(destination) / Path(path).name).exists() for path in paths):

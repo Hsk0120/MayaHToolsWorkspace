@@ -154,6 +154,36 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-01): ユーザーのpush指示に基づき、QPE単一mll化・削除/ドライブ表示・操作応答/初回描画の検証済み変更、Maya2022〜2027配布物、回帰テストを公開対象へ確定。差分/既存検証結果を確認。MCE変更、ローカルexe/runtime、調査資料・動画は対象外。
+
+- Codex (2026-11-01): QPEのUIフォントをホスト標準へ統一し、日本語初回描画の代替フォント探索を削減。Windows日本語1000件、新規プロセス各3回中央値で構築開始から先頭Paint 822→437ms、全件反映920→533ms（import/exe起動は含まない）。サイズ/DPIを保持。Windows検索/列幅7項目、Maya2022/2027各初回表示・検索7・段階読込9項目PASS/正常終了。Maya起動処理の重複を記録し、同等の短縮は主張しない。全6版mll/exe更新・配置smoke PASS、Qt操作動画の非公開Drive保存と読戻し完了。証拠 `.maya-output/qpe-first-display-20261101/report.txt`。実OS入力/ネットワーク/4K未検証、既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPEサイズ欄の毎回Python変換を更新時の保持値へ変更。生の数値/日時/名前を専用内部roleでソート・合計・アイコン判定に使用。上段走査のファイルstatを省き、完成キャッシュのタブ選択/スクロールを再列挙前に復元。Windows5000件の完了時間は初回810→643ms、進む146→66ms、タブ350→62ms（再訪3回中央値、初回各1回）。戻るとタブ初期描画はほぼ同等。Windows9条件/検索7/走査4/応答33+6/P0自動範囲、Maya2022/2027各9/検索7/native smoke PASS。全6版mll/exe更新・配置smoke PASS。Qt操作動画を非公開Driveへ保存・読戻し。証拠 `.maya-output/qpe-main-latency-20261101/report.txt`。ネットワーク/実OS入力未検証、既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPE大量一覧のGUI反映を世代付き小分け処理へ変更。Qt行索引とパス索引を分離し、重複設定commitを抑制。読込中クリックがタブ遅延復元で上書きされる問題も再現・修正。Windows5000件の初期描画539→81ms、戻る46→35ms、タブ98→41ms（初回は各1回、再訪3回中央値）。全件完了545→563ms、1000件初回/タブ等は改善未確認として記録。Windows新規7/移動7/性能4/タブ8/P0自動範囲、Maya2027新規7/移動5/主要操作計測、2022新規7/タブ8 PASS。Qt5テスト接続のTypeErrorを直して再検証。全6版mll/exe更新、配置smoke PASS。Qt操作動画を非公開Driveへ保存・読戻し。証拠 `.maya-output/qpe-progressive-20261101/report.txt`。ネットワーク列挙・実入力未検証、既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPE検索解除の全行Python data/子照会を削減、サイズの数値順を維持。左右ペインの途中カラム再計算と横幅変更時の補助列再計算を抑制。Windows2000件3回中央値で検索解除163→48ms、左表示27→15ms、右表示24→12ms。新規6項目をWindows/Maya2022/2027でPASS、応答/サイドバー/タブ/P0自動範囲もPASS（実入力未実施を維持）。全6版mll/Windows exe更新・配置smoke PASS。Qt操作動画を非公開Driveへ保存・権限読戻し。証拠 `.maya-output/qpe-search-panels-20261101/report.txt`。既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPEの全選択/選択集計を重複展開・ディスク再照会なしへ変更。非表示詳細の読込を表示時へ延期し、Python/C++可視アイコン監視を待機時休止。新規行の3列通知も挿入前設定へ集約。Windows2000件3回中央値で全選択486→48ms、単一選択6→2.3ms。ペイン/検索解除は改善未確認。Windows33操作+6検証、Maya2022同33+6/2027同33+4、2027シーン10群、既存回帰/自動P0範囲PASS（手動未実施は維持）。Maya2027の終了後一時フォルダー削除失敗はexit0/空を確認して後始末。Windows実OS入力を録画し非公開Drive読戻し。全6版mll/Windows exe更新、配置smoke PASS。証拠 `.maya-output/qpe-ui-response-20261101/report.txt`。既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPE移動時の全件Shell取得をWindows版でも可視行非同期へ変更。列自動幅を可視行に限定し、ルート変更時の全件再ソートを局所更新へ変更。高速化で顕在化したMaya Open後の遅延選択による上書きを修正。Windows同条件3回中央値で戻る1000件416→77ms、タブ5000件836→164ms（全アイコン取得完了は除外）。Windows新規7/タブ8/性能4群、Maya2022/2027各5、Maya2027既存10群、P0自動範囲PASS。実OS入力/実IME/ネットワーク性能未検証。全6版mll・Windows exe更新。証拠 `.maya-output/qpe-navigation-20261101/report.txt`、Qt操作動画を非公開Driveへ保存・読戻し。既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPEのWindows exeへ既存QPE ICOを埋込み、単体QApplicationの名前/アイコンを設定。7解像度のPEリソースとICOのバイト一致、配置exe smoke/実起動・正常終了、Explorer一覧/詳細の実OS表示を確認。旧タスクバーピンのキャッシュは残存し再登録手順をREADMEへ追加、再ピン留めは未実施。全6版mll再ビルド成功（今回Maya内再検証なし）。証拠 `.maya-output/qpe-app-icon-20261101/`。既存変更保持、pushなし。
+
+- Codex (2026-11-01): QPE現在ドライブ強調を移動・戻る/進む・タブ切替へ追従。非表示サイドバー構築、容量更新時全行配置、寸法計算時アイコン取得、起動時重複移動を削減。同設定コピー3回ずつの初回イベント処理中央値1.14→0.84秒（初回Paint0.63→0.73秒で改善未確認）。Windows/2022同Qt各11件、Maya2027内10件+単一mll3件、既存操作26件/サイドバー5件PASS。実OS入力・exe冷起動速度は未検証。全6版mll/Windows exe更新・配置smoke PASS。証拠 `.maya-output/qpe-startup-20261101/report.txt`。比較用複製の後始末は実行ポリシー拒否のため専用beforeフォルダーに残存。pushなし。
+
+- Codex (2026-11-01): QPEドライブ表示をShell名（ボリューム名/レター）・使用量バー・空き/総容量の別行へ変更。10%未満赤/通常青、白/暗テーマ、フォント倍率と中間省略に対応。Windows/2022同Qt埋込各7件、専用Maya2027 GUI内6件PASS（Qtプログラム操作）。全6版mllとWindows exe更新、配置exe smoke PASS。実OS入力は未実施。証拠 `.maya-output/qpe-drive-design-20261101/report.txt`。pushなし。
+
+- Codex (2026-11-01): QPE左サイドバーDrivesに空き/総容量を2行表示。非同期取得・30秒キャッシュ/再取得・取得不可表示・文字サイズ追従を追加。Windows単体/2022・2027同Qt埋込/専用Maya2027 GUIで各5チェックPASS(プログラム操作)。Windows exe配置/起動確認・Maya2022〜2027全6版mll更新。実OS入力は未実施。証拠 `.maya-output/qpe-drive-capacity-20261101/report.txt`。pushなし。
+
+- Codex (2026-11-01): QPE削除後にカラム行/子階層が残る不具合を再現して修正。保護行のキャッシュを経路離脱時に失効し、削除後の親移動→再列挙の順序と別タブの消失パス復元を修正。Windows/2022/2027同Qt埋込GUI各6チェックPASS、全6版mll/Windows exe更新、配置exe起動確認。P0自動20判定は通過したが終了時COM/アクセス違反ログが残る(再検証の終了コード0)ため診断事項として記録。Mayaホスト/実OS入力は今回未実施。証拠 `.maya-output/qpe-delete-view-20261101/report.txt`。pushなし。
+
+- Codex (2026-11-01): QPE削除前の全量hash/UndoコピーをWindowsごみ箱への直接移動へ変更。Shell項目IDによる永続Undo/Redo、完全削除拒否、旧履歴互換、Python世代間のvolume ID差を対応。削除14件×3環境・既存46件・Windows/2022/2027同Qt埋込GUI各4ケースPASS。256MiB専用データの削除中央値1.08s→0.071s。Windows exe配置/起動確認、全6版mll再ビルド。実データ削除とMaya GUIホストの今回実操作は未実施。詳細 `.maya-output/qpe-delete-20261101/report.txt`。pushなし。
+
+- Codex (2026-10-31): QPEをMaya2022〜2027別の単一mllへ実装（既存Python UI/アイコン内蔵、一覧/可視Shellアイコン/画像読込はC++）。UIAutomation再入時の遅延レイアウト破棄と、画像ワーカー/QObject破棄のGIL・Qtロック競合を修正。MCE同様の固定releaseパスへmod/検証runnerを統一。全6版ビルド、2022/2027各9群のMaya回帰と解除再ロード・画像1000読込中の解除再ロードが成功。実OS入力の移動/戻る/タブ/検索Copy・Paste/左右ペイン/ホイールを録画し非公開Drive3本を読戻し。Maya2027旧Python比で戻る1000件935→262ms、タブ5000件2861→459ms（3回中央値、全アイコン到着を除く）。Explorer同期計測・2023〜2026実機・実IME等は未実施。証拠 .maya-output/qpe-native-hour-20261031/report.txt。Windows exe更新/自動pushなし。既存MCE変更保持。
+
+| Codex | 2026-10-31 | QuickPathExplorer 性能調査・専用比較試作 | Windows単体/隔離Maya2027で各56操作と戻る/タブ16操作を計測、Maya正常終了。初回全件Shellアイコン・Pythonモデル/寸法計算の負荷を特定。固定行高試作で5000件タブ中央値1.89→0.90秒、再適用省略単独は改善なし。Qt標準モデルとの参考比較、Windows Explorer実OS入力/動画確認、非公開Drive2本の読戻し。ユーザー指定により最終配布は外部.py/別QPE DLL不要のMaya版別単一.mllとし、MCEの内蔵方式を調査、C++共通コア静的リンクと配布検証条件をGit対象外researchへ保存。本体変更/ビルド/プッシュなし、既存MCE変更保持。 |
+
 - Claude Code (2026-11-01): GitHub Actions「Publish mlib documentation」が10.0.0以降失敗していた原因(plug.pyの_require_finite_valueを定数の前に置いたレイアウト違反L004/L010)を修正。関数を定数の後ろへ移しスタブを更新。runStatic(終了コード0)OK。
 
 - Claude Code (2026-11-01): mlrig夜間。交差した十字靭帯の四節リンクで膝の転がりと滑りを作る `setups/CrossedKneeLinkage`(flexion入力、tibia/acl/pcl/instantCenterMatrix・excess出力、標準ノードのみ)を追加し、FourBarLinkageの2円の交点を `_intersectionGraph`/`_excessGraph` に切り出して共有。テスト8件、Setup Samples1項目、文書、検証デモ `tools/demo_crossed_knee_linkage.py`。隔離Maya 2027で setups 586件・standard 76件OK、Sphinx -W 成功、検証動画408フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。

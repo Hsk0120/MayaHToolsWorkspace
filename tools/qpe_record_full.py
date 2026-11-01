@@ -378,7 +378,7 @@ def main(output_dir, finished):
             assert cmds.getAttr(cube+'.translateX')==4; r.hold()
             r.step('M04', 'ファイルを開く・選択外からのダブルクリックでもOpen')
             cmds.file(modified=False); e.files.clearSelection()
-            index=e.fileProxy.mapFromSource(e.fileModel.index(str(scene)))
+            index=e.fileProxy.mapFromSource(e.fileModel.pathIndex(str(scene)))
             QtTest.QTest.mouseDClick(e.files.viewport(), QtCore.Qt.LeftButton, pos=e.files.visualRect(index).center())
             assert cmds.getAttr(cube+'.translateX')==2; r.hold()
             r.step('M05', 'Import：名前空間を指定して読込み')

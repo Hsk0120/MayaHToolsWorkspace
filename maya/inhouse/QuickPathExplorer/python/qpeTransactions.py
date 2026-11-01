@@ -1,5 +1,4 @@
 """Qtに依存しないファイル操作と、変更検出付きの永続Undo履歴。"""
-import ctypes
 import hashlib
 import json
 import os
@@ -12,6 +11,7 @@ import copy
 from contextlib import contextmanager
 from pathlib import Path
 from qpeFileOperations import validateName
+from qpeRecycle import recycle, restore as restoreRecycled, validateReceipt
 
 
 class Cancelled(Exception):
@@ -103,29 +103,18 @@ def overlayEntry(source, target, choices, cancel=None, progress=None, relative='
     copyEntry(source, target, cancel, progress)
 
 
-def recycle(path):
-    """Windows標準のごみ箱へ送る。失敗時に完全削除へ代替しない。"""
-    if os.name != 'nt':
-        raise OSError('Recycle Bin is supported on Windows only.')
-    from ctypes import wintypes
-
-    class FileOperation(ctypes.Structure):
-        """SHFileOperationWのABIを保持する。"""
-        _fields_ = [('hwnd', wintypes.HWND), ('wFunc', wintypes.UINT),
-                    ('pFrom', wintypes.LPCWSTR), ('pTo', wintypes.LPCWSTR),
-                    ('fFlags', ctypes.c_ushort), ('fAnyOperationsAborted', wintypes.BOOL),
-                    ('hNameMappings', ctypes.c_void_p), ('lpszProgressTitle', wintypes.LPCWSTR)]
-    source = ctypes.create_unicode_buffer(os.path.abspath(path) + '\0\0')
-    operation = FileOperation()
-    operation.wFunc = 3
-    operation.pFrom = ctypes.cast(source, wintypes.LPCWSTR)
-    operation.fFlags = 0x40 | 0x10 | 0x4 | 0x400
-    function = ctypes.windll.shell32.SHFileOperationW
-    function.argtypes = [ctypes.POINTER(FileOperation)]
-    function.restype = ctypes.c_int
-    result = function(ctypes.byref(operation))
-    if result or operation.fAnyOperationsAborted or os.path.exists(path):
-        raise OSError('Recycle Bin failed or was cancelled ({})'.format(result))
+def metadataFingerprint(path):
+    """ごみ箱Undo後のRedoでは内容を読まず、ID・サイズ・更新時刻を検証する。"""
+    path = Path(path)
+    info = path.lstat()
+    digest = hashlib.sha256()
+    digest.update(repr((info.st_dev & 0xffffffff, info.st_ino, info.st_mode, info.st_size,
+                        info.st_mtime_ns, info.st_ctime_ns)).encode('ascii'))
+    if path.is_dir() and not isLink(path):
+        for child in sorted(path.iterdir(), key=lambda p: p.name):
+            digest.update(child.name.encode('utf8'))
+            digest.update(metadataFingerprint(child).encode('ascii'))
+    return digest.hexdigest()
 
 
 class FileTransactions:
@@ -287,16 +276,13 @@ class FileTransactions:
                     # resolve前のリンクも明示的に拒否する。
                     if isLink(original):
                         raise ValueError('Links and junctions are not modified')
-                    stamp = fingerprint(source, cancel)
-                    backup = self.directory / uuid.uuid4().hex
                     if action == 'trash':
-                        copyEntry(source, backup, cancel, progress)
-                        if fingerprint(backup, cancel) != stamp or fingerprint(source, cancel) != stamp:
-                            raise OSError('Source changed while preparing Recycle Bin backup')
                         checkCancel(cancel)
-                        recycle(str(source))
-                        entry = dict(source=str(source), target='', backup=str(backup), backupStamp=stamp, stamp=stamp)
+                        receipt = recycle(str(source), cancel, progress)
+                        entry = dict(source=str(source), target='', backup='', stamp='', recycle=receipt)
                     else:
+                        stamp = fingerprint(source, cancel)
+                        backup = self.directory / uuid.uuid4().hex
                         folder = source.parent if action == 'duplicate' else Path(destination).resolve()
                         if not folder.is_dir() or folder == source or source in folder.parents:
                             raise ValueError('Choose an existing destination outside the source')
@@ -372,6 +358,8 @@ class FileTransactions:
                     # 元の退避前に失敗したMoveはコピーが既に存在する。自動再試行しない。
                     if entry is not None and entry in transaction['entries']:
                         result['errors'].append('Review the completed destination and use File Undo before retrying: ' + entry['target'])
+                    elif action == 'trash' and not os.path.lexists(str(source)):
+                        result['warnings'].append('Check Windows Recycle Bin to restore this item; do not repeat Delete: ' + str(source))
                     else:
                         result['retry'].append(str(source))
                 finally:
@@ -435,6 +423,8 @@ class FileTransactions:
                 same_name = bool(target) and os.path.normcase(str(source)) == os.path.normcase(target)
                 if restores and source.exists() and not (action == 'rename' and same_name):
                     raise FileExistsError('Undo destination already exists: ' + str(source))
+                if entry.get('recycle'):
+                    validateReceipt(entry['recycle'])
                 if entry['backup'] and not Path(entry['backup']).exists():
                     raise FileNotFoundError('Undo backup is missing: ' + entry['backup'])
                 if entry.get('backupStamp') and fingerprint(entry['backup']) != entry['backupStamp']:
@@ -451,7 +441,11 @@ class FileTransactions:
             for entry in list(reversed(transaction['entries'])):
                 source, target, backup = entry['source'], entry['target'], entry['backup']
                 if action == 'trash':
-                    shutil.move(backup, source)
+                    if entry.get('recycle'):
+                        restoreRecycled(entry['recycle'], source)
+                    else:
+                        # 更新前の全内容バックアップ履歴も復元できる。
+                        shutil.move(backup, source)
                 elif action == 'move' and entry.get('sourceBackup'):
                     os.rename(entry['sourceBackup'], source)
                     removeEntry(target)
@@ -467,7 +461,11 @@ class FileTransactions:
             self.history.pop()
             self.save()
             watched = {e[k] for e in redo['entries'] for k in ('source', 'target') if e[k]}
-            redo['expected'] = {p: fingerprint(p) if Path(p).exists() else None for p in watched}
+            inspect = fingerprint
+            if action == 'trash' and all(e.get('recycle') for e in redo['entries']):
+                redo['expectedKind'] = 'metadata'
+                inspect = metadataFingerprint
+            redo['expected'] = {p: inspect(p) if Path(p).exists() else None for p in watched}
             self.redoJournal.write_text(json.dumps(redo, ensure_ascii=False), encoding='utf8')
             return restored
 
@@ -483,8 +481,9 @@ class FileTransactions:
         """最後に取り消した操作を、対象の外部変更を検証して再実行する。"""
         with self.exclusive():
             record = json.loads(self.redoJournal.read_text(encoding='utf8'))
+            inspect = metadataFingerprint if record.get('expectedKind') == 'metadata' else fingerprint
             for path, stamp in record['expected'].items():
-                actual = fingerprint(path) if Path(path).exists() else None
+                actual = inspect(path) if Path(path).exists() else None
                 if actual != stamp:
                     raise ValueError('Redo refused: item was changed: ' + path)
             # 新規作成だけは元ファイルがないため、保存した内容を直接復元する。

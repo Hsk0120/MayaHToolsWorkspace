@@ -30,6 +30,7 @@ def main():
     env['PATH'] = os.pathsep.join((str(environment / 'Scripts'), str(windows / 'System32'), str(windows)))
     subprocess.run([str(python), '-m', 'PyInstaller', '--clean', '--noconfirm', '--windowed', '--onedir',
                     '--name', 'QuickPathExplorer', '--distpath', str(build / 'dist'),
+                    '--icon', str(project / 'icons/quickPathExplorer.ico'),
                     '--workpath', str(build / 'work'), '--specpath', str(build),
                     '--paths', str(project / 'python'), '--add-data', str(project / 'icons') + os.pathsep + 'icons',
                     '--collect-all', 'imageio_ffmpeg', str(project / 'python/quickPathExplorer.py')],

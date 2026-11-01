@@ -10,15 +10,22 @@ from qpeAppearance import Appearance, BrowserItemDelegate
 from qpeInlineRename import InlineRename
 from qpeInteraction import Interaction
 from qpeContextMenu import ContextMenu
-from qpeDirectoryModel import DirectoryModel
+from qpeDirectoryModel import DirectoryModel, SORT_VALUE
 from qpeFileIcons import FileIcons, fileType
 from qpeModern import WrappedLabel
+from qpeDrives import DriveCapacities, capacityText, DRIVE_ROLE
+import qpeNative
+from qpeResources import iconDirectory
 
-ICON = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[1]) / 'icons/quickPathExplorer.png'
+ICON = iconDirectory() / 'quickPathExplorer.png'
 
 
 class FolderModel(DirectoryModel):
     """省略された長い名前をホバーで全文確認できるモデル。"""
+
+    def hasChildren(self, parent=QtCore.QModelIndex()):
+        """空でも子カラムを用意する。ファイル一覧はQt標準の子判定を使う。"""
+        return self.isDir(parent) if parent.isValid() else super().hasChildren(parent)
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
         """ツールチップにはフォルダーのフルパスを返す。
@@ -38,20 +45,6 @@ class FolderModel(DirectoryModel):
 class FileFilter(QtCore.QSortFilterProxyModel):
     """検索中もルートの祖先フォルダーを保持する。"""
 
-    def lessThan(self, left, right):
-        """サイズ列は単位付き表示に関係なく実バイト数で比較する。
-
-        Args:
-            left (QModelIndex): 比較元。
-            right (QModelIndex): 比較先。
-
-        Returns:
-            bool: 左を先に並べるか。
-        """
-        if left.column() == 1:
-            return (left.data(QtCore.Qt.EditRole) or 0) < (right.data(QtCore.Qt.EditRole) or 0)
-        return super().lessThan(left, right)
-
     def filterAcceptsRow(self, row, parent):
         """フォルダーの祖先と検索に一致するファイルを通す。
 
@@ -64,11 +57,11 @@ class FileFilter(QtCore.QSortFilterProxyModel):
         """
         index = self.sourceModel().index(row, 0, parent)
         if self.sourceModel().isDir(index):
-            # QFileSystemModelは以前rootPathにしたディレクトリをFiles指定でも保持する。
-            # 現在のルートまでの祖先だけを通し、訪問済みの子フォルダーは一覧へ出さない。
+            # ビューのルート直下のフォルダーだけを除外する。別フォルダーの
+            # 祖先索引を隠さずに保持し、再訪時の全件再ソートを避ける。
             root = getattr(self, 'directoryRoot', '')
-            path = os.path.normcase(self.sourceModel().filePath(index)).replace('\\', '/').rstrip('/')
-            return not root or root == path or root.startswith(path + '/')
+            parent_path = os.path.normcase(self.sourceModel().filePath(parent)).replace('\\', '/').rstrip('/')
+            return not root or parent_path != root
         return super().filterAcceptsRow(row, parent)
 
 
@@ -166,7 +159,7 @@ class FolderColumns(QtWidgets.QColumnView):
 
     def fitColumns(self):
         """階層数に応じて列を縮め、読める最小幅を保つ。"""
-        if getattr(self, '_fittingColumns', False):
+        if getattr(self, '_fittingColumns', False) or getattr(self, '_deferColumnFit', False):
             return
         index = self.currentIndex()
         if not index.isValid():
@@ -607,6 +600,8 @@ class Explorer(QtWidgets.QWidget):
         self._placeIcons = FileIcons()
         self._placeFolderIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Folder)
         self._placeDriveIcon = QtWidgets.QFileIconProvider().icon(QtWidgets.QFileIconProvider.Drive)
+        self._driveCapacities = DriveCapacities(self.places)
+        self._driveCapacities.changed.connect(self._updateDriveCapacity)
         self._placeRefreshTimer = QtCore.QTimer(self)
         self._placeRefreshTimer.setSingleShot(True)
         self._placeRefreshTimer.timeout.connect(self._loadPlaces)
@@ -689,13 +684,17 @@ class Explorer(QtWidgets.QWidget):
         self.fileModel.setReadOnly(True)
         self.fileModel.setFilter(QtCore.QDir.Files | QtCore.QDir.NoDotAndDotDot)
         self.fileModel.setNameFilterDisables(False)
-        self.fileProxy = FileFilter(self)
+        self.fileProxy = (qpeNative.create('proxy', self, QtCore.QSortFilterProxyModel)
+                          if qpeNative.available() else FileFilter(self))
         self.fileProxy.setSourceModel(self.fileModel)
+        # 表示用の単位文字列ではなく数値・日時をQt標準の比較でソートする。
+        self.fileProxy.setSortRole(SORT_VALUE)
         self.fileProxy.setFilterKeyColumn(0)
         self.fileProxy.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.files = QtWidgets.QTreeView(file_panel)
         self.files.setObjectName('fileList')
         self.files.setModel(self.fileProxy)
+        qpeNative.installView(self.files)
         self.files.setRootIsDecorated(False)
         self.files.setItemsExpandable(False)
         self.files.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
@@ -709,6 +708,8 @@ class Explorer(QtWidgets.QWidget):
         self.files.header().setStretchLastSection(False)
         self.files.header().setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         self.files.header().setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
+        # 画面外1000行までの寸法計算を移動のたびに繰り返さず、可視行だけを測る。
+        self.files.header().setResizeContentsPrecision(0)
         self.files.header().setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
         self.files.header().setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
         self.files.selectionModel().currentChanged.connect(self._fileChanged)
@@ -730,6 +731,8 @@ class Explorer(QtWidgets.QWidget):
         self._fileHeaderTimer = QtCore.QTimer(self)
         self._fileHeaderTimer.setSingleShot(True)
         self._fileHeaderTimer.timeout.connect(self._configureFileHeader)
+        self.files.verticalScrollBar().valueChanged.connect(lambda *unused: self._fileHeaderTimer.start(0))
+        self.fileProxy.dataChanged.connect(self._fileHeaderDataChanged)
         self._fileSummaryTimer = QtCore.QTimer(self)
         self._fileSummaryTimer.setSingleShot(True)
         self._fileSummaryTimer.timeout.connect(self._updateFileSummary)
@@ -960,6 +963,12 @@ class Explorer(QtWidgets.QWidget):
         """ファイル情報は必要な時だけ開き、操作設定と競合させない。"""
         self.details.setVisible(visible)
         self.detailsHeading.setArrowType(QtCore.Qt.DownArrow if visible else QtCore.Qt.RightArrow)
+        self._loadPendingDetails()
+
+    def _loadPendingDetails(self):
+        """折り畳み/右ペインを開いた時だけ、最新の選択の詳細を読み込む。"""
+        if getattr(self, '_previewPending', False) and self.details.isVisible():
+            self._fileChanged(self.files.currentIndex(), QtCore.QModelIndex())
 
     def _configureFileHeader(self, *unused):
         """非同期モデルの再構築後もファイル名へ余白を配分する。
@@ -973,11 +982,23 @@ class Explorer(QtWidgets.QWidget):
         header.setStretchLastSection(False)
         header.setMinimumSectionSize(70)
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-        header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QtWidgets.QHeaderView.ResizeToContents)
-        self.files.setColumnHidden(2, False)
+        for column in (1, 2, 3):
+            header.setSectionResizeMode(column, QtWidgets.QHeaderView.Fixed)
         self._fitFileColumns()
+        # 補助列は内容/フォント/可視行が変わった時だけ測る。横幅だけの変更では
+        # 名前列へ余白を配分し、3列の全可視行を何度も計算し直さない。
+        for column in (1, 2, 3):
+            if not self.files.isColumnHidden(column):
+                width = max(header.minimumSectionSize(), header.sectionSizeHint(column),
+                            self.files.sizeHintForColumn(column))
+                if header.sectionSize(column) != width:
+                    header.resizeSection(column, width)
+
+    def _fileHeaderDataChanged(self, first, last, roles):
+        """アイコン到着では幅を測らず、表示値の変更だけをまとめる。"""
+        if (first.parent() == self.files.rootIndex()
+                and (not roles or QtCore.Qt.DisplayRole in roles or QtCore.Qt.EditRole in roles)):
+            self._fileHeaderTimer.start(0)
 
     def _fitFileColumns(self):
         """狭い一覧では補助列を段階的に省き、名前に実用的な幅を残す。"""
@@ -985,9 +1006,13 @@ class Explorer(QtWidgets.QWidget):
             return
         scale = getattr(self.columns, 'columnScale', 1.0)
         width = self.files.viewport().width()
+        before = tuple(self.files.isColumnHidden(i) for i in (1, 2, 3))
         self.files.setColumnHidden(3, width < round(650 * scale))
         self.files.setColumnHidden(1, width < round(420 * scale))
         self.files.setColumnHidden(2, width < round(280 * scale))
+        if before != tuple(self.files.isColumnHidden(i) for i in (1, 2, 3)):
+            if hasattr(self, '_fileHeaderTimer'):
+                self._fileHeaderTimer.start(0)
 
     def setInspectorVisible(self, visible):
         """右側全高の情報・操作パネルを切り替え、一覧の幅を確保する。
@@ -998,6 +1023,7 @@ class Explorer(QtWidgets.QWidget):
         self._setSidePanelVisible(self.actionsPanel, visible)
         if visible:
             self._operationTabChanged(self.operationTabs.currentIndex())
+            self._loadPendingDetails()
 
     def setSidebarVisible(self, visible):
         """左サイドバーの開閉では右ペインの幅を維持する。"""
@@ -1005,6 +1031,8 @@ class Explorer(QtWidgets.QWidget):
             self.inspectorButton.setChecked(False)
             self.modern.fitNavigation()
         self._setSidePanelVisible(self.places, visible)
+        if visible:
+            self._loadPlaces()
 
     def _setSidePanelVisible(self, panel, visible):
         """左右の実幅を保持し、開閉で増減した幅は中央だけへ配分する。
@@ -1033,6 +1061,9 @@ class Explorer(QtWidgets.QWidget):
         if not self._sideLayoutTimer.isActive():
             self._sideUpdatesEnabled = self.outer.updatesEnabled()
         self._sideRevealChild = visible
+        # show/hideとsplitter幅の確定途中に来る複数のresize通知では列を再配置しない。
+        # 次のイベントで最終幅へ一度だけ合わせ、途中状態の寸法計算も省く。
+        self.columns._deferColumnFit = True
         self.outer.setUpdatesEnabled(False)
         try:
             panel.setVisible(visible)
@@ -1050,6 +1081,7 @@ class Explorer(QtWidgets.QWidget):
     def _finishSideLayout(self):
         """Qtの配置確定後に横位置を決め、途中状態を描画せず一度に表示する。"""
         try:
+            self.columns._deferColumnFit = False
             self.columns.fitColumns()
             if self._sideRevealChild:
                 # 階層移動用scrollToは選択とアニメーションにも作用する。
@@ -1112,6 +1144,7 @@ class Explorer(QtWidgets.QWidget):
             height = layout.heightForWidth(width) if layout.hasHeightForWidth() else layout.sizeHint().height()
             self.operationTabs.setMaximumHeight(max(1, height) + self.operationTabs.tabBar().sizeHint().height()
                                                + self.fontMetrics().height() + 12)
+        self._loadPendingDetails()
 
     def _button(self, title, callback, layout):
         """ボタンを作る。
@@ -1413,6 +1446,7 @@ class Explorer(QtWidgets.QWidget):
         self._syncing = True
         try:
             self.currentDirectory = path
+            self._syncDriveHighlight()
             anchor = self.browseRoot or Path(path).anchor.replace('\\', '/')
             chain = [path]
             while chain[-1] != anchor:
@@ -1427,16 +1461,19 @@ class Explorer(QtWidgets.QWidget):
             self.address.setToolTip(path)
             self.address.setStyleSheet('')
             root = self.folderModel.setRootPath(anchor)
-            if self.folderModel.index(path) == root and self.columns.currentIndex() != root:
+            if self.folderModel.pathIndex(path) == root and self.columns.currentIndex() != root:
                 # 起点自身は表示行に存在せず、Qtの選択変更だけでは古い子列が残る。
                 # 列の起点をいったん外し、起点の一覧だけを再構築する。
                 self.columns.setRootIndex(QtCore.QModelIndex())
             if self.columns.rootIndex() != root:
                 self.columns.setRootIndex(root)
-            self.columns.setCurrentIndex(self.folderModel.index(path))
-            self.columns.scrollTo(self.folderModel.index(path))
+            self.columns.setCurrentIndex(self.folderModel.pathIndex(path))
+            self.columns.scrollTo(self.folderModel.pathIndex(path))
+            previous_root = getattr(self.fileProxy, 'directoryRoot', '')
             self.fileProxy.directoryRoot = os.path.normcase(path).replace('\\', '/').rstrip('/')
-            self.fileProxy.invalidateFilter()
+            self.fileProxy.setProperty('directoryRoot', self.fileProxy.directoryRoot)
+            # 対象が変わるディレクトリ行だけ再評価する。ファイルの並べ替えは維持。
+            self.fileModel.refreshDirectoryVisibility(previous_root, self.fileProxy.directoryRoot)
             file_root = self.fileModel.setRootPath(path)
             self.files.setRootIndex(self.fileProxy.mapFromSource(file_root))
             self.files.clearSelection()
@@ -1498,15 +1535,17 @@ class Explorer(QtWidgets.QWidget):
         count = self.fileProxy.rowCount(self.files.rootIndex())
         loaded = os.path.normcase(self.currentDirectory) in self._loadedFileFolders
         filtered = bool(self.search.text() or self.fileFilter.currentIndex())
+        state, error = self.fileModel.states.get(self.currentDirectory, ('loading', ''))
         suffix = '{} files{}'.format(count, ' · filtered' if filtered else '') if loaded or count else 'Loading…'
-        folder_index = self.folderModel.index(self.currentDirectory)
+        if state == 'loading' and count:
+            suffix += ' · Loading…'
+        folder_index = self.folderModel.pathIndex(self.currentDirectory)
         if self.folderModel.states.get(self.currentDirectory, ('loading', ''))[0] == 'ready':
             suffix = '{} folders · {}'.format(self.folderModel.rowCount(folder_index), suffix)
         self.folderLabel.setText('{}  ·  {}'.format(Path(self.currentDirectory).name or self.currentDirectory, suffix))
         self.folderLabel.setToolTip(self.currentDirectory)
         self.emptyFiles.setText('No matching files — clear the filters above.' if filtered else
                                 ('No files in this folder. Subfolders are shown above.' if loaded else 'Loading files…'))
-        state, error = self.fileModel.states.get(self.currentDirectory, ('loading', ''))
         if state == 'error':
             self.emptyFiles.setText(error)
         self.emptyFiles.setVisible(count == 0)
@@ -1514,17 +1553,26 @@ class Explorer(QtWidgets.QWidget):
         self._updateFooter()
         self.columns.refreshHints()
 
-    def _updateFooter(self):
+    def _updateFooter(self, paths=None):
         """一覧件数・選択件数・選択サイズをフッターへ表示する。"""
         if not hasattr(self, 'footer'):
             return
         count = self.fileProxy.rowCount(self.files.rootIndex())
-        paths = self.selectedPaths()
+        paths = self.selectedPaths() if paths is None else paths
         if hasattr(self, 'organizer') and self.organizer.workspace.active():
             count = len(self.organizer.workspace.items)
         text = '{} items'.format(count)
         if paths:
-            size = sum(QtCore.QFileInfo(path).size() for path in paths)
+            # 列挙済みのサイズを使う。選択/スクロール中にディスクへ全件再照会しない。
+            workspace = getattr(getattr(self, 'organizer', None), 'workspace', None)
+            if workspace is not None and workspace.active():
+                size = sum(workspace.items[path][2] for path in paths if path in workspace.items)
+            else:
+                size = 0
+                for path in paths:
+                    item = self.fileModel._items.get(path)
+                    if item is not None:
+                        size += item.parent().child(item.row(), 1).data(SORT_VALUE) or 0
             text += '  |  {} selected  ·  {}'.format(len(paths), QtCore.QLocale.system().formattedDataSize(size))
         self.footer.setText(text)
 
@@ -1541,6 +1589,8 @@ class Explorer(QtWidgets.QWidget):
         if hasattr(self, 'emptyFiles') and watched is self.files.viewport() and event.type() == QtCore.QEvent.Resize:
             self.emptyFiles.setGeometry(watched.rect().adjusted(16, 8, -16, -8))
             self._fitFileColumns()
+            if event.oldSize().height() != event.size().height() and hasattr(self, '_fileHeaderTimer'):
+                self._fileHeaderTimer.start(0)
         if (hasattr(self, 'address') and watched is self.address
                 and event.type() in (QtCore.QEvent.ShortcutOverride, QtCore.QEvent.KeyPress)
                 and event.key() == QtCore.Qt.Key_Escape):
@@ -1578,6 +1628,13 @@ class Explorer(QtWidgets.QWidget):
             self._historyIndex += 1
             self.navigate(self._history[self._historyIndex], record=False)
 
+    def restoreStartup(self, path=None, fallback=None):
+        """保存タブが有効ならその現在地へ一度だけ移動して起動する。"""
+        if not path and self.folderTabs.restoreSession():
+            return
+        path = path or readSettings().get('lastPath') or fallback or str(Path.home())
+        self.navigate(path if os.path.isdir(path) else str(Path.home()))
+
     def _up(self):
         """現在フォルダーの親へ移動する。"""
         if self.currentDirectory:
@@ -1585,6 +1642,10 @@ class Explorer(QtWidgets.QWidget):
 
     def _loadPlaces(self):
         """ファイルとフォルダーのお気に入り・最近の場所を更新する。"""
+        # 非表示のサイドバーで履歴先のディスク/ネットワークへ問い合わせない。
+        # 表示時はsetSidebarVisibleから必ず最新の内容を構築する。
+        if self.places.isHidden():
+            return
         # 単クリックで移動しても、二回目のクリックまで対象行を動かさない。
         if self._placeRefreshTimer.isActive():
             return
@@ -1608,6 +1669,8 @@ class Explorer(QtWidgets.QWidget):
                 item.setIcon(0, self._placeDriveIcon
                              if title == 'Drives' else self._placeFolderIcon if os.path.isdir(path)
                              else self._placeIcons.icon(path))
+                if title == 'Drives':
+                    self._setDriveCapacity(item, path)
             group.setExpanded(expanded.get(title, True))
             if title == 'Favorites':
                 for name in settings.get('savedSearches', {}):
@@ -1615,6 +1678,37 @@ class Explorer(QtWidgets.QWidget):
                     item.setData(0, QtCore.Qt.UserRole, 'qpe-search:' + name)
                     item.setIcon(0, QtWidgets.QApplication.style().standardIcon(QtWidgets.QStyle.SP_FileDialogContentsView))
         self.places.verticalScrollBar().setValue(scroll)
+        if not self.places.isHidden():
+            self._driveCapacities.request(groups[-1][1])
+
+    def _syncDriveHighlight(self):
+        """クリック選択/フォーカスを動かさず、現在地のドライブだけ強調する。"""
+        drive = os.path.splitdrive(self.currentDirectory)[0].casefold()
+        if self.places.property('qpeCurrentDrive') != drive:
+            self.places.setProperty('qpeCurrentDrive', drive)
+            self.places.viewport().update()
+
+    def _setDriveCapacity(self, item, path):
+        """ドライブ名の下に空き/総容量を置き、パスの操作用データは保持する。"""
+        if path in self._driveCapacities.values:
+            text, tip = capacityText(self._driveCapacities.values[path])
+        else:
+            text, tip = 'Checking capacity…', 'Checking capacity…'
+        name = self._driveCapacities.names.get(path, path.rstrip('/\\'))
+        item.setData(0, DRIVE_ROLE, dict(name=name, summary=text, value=self._driveCapacities.values.get(path)))
+        item.setText(0, name + '\n' + text)
+        item.setToolTip(0, name + '\n' + path + '\n' + tip)
+
+    def _updateDriveCapacity(self, path, value):
+        """再構築された現在のドライブ行だけへ、取得結果を反映する。"""
+        for index in range(self.places.topLevelItemCount()):
+            group = self.places.topLevelItem(index)
+            if group.text(0) == 'Drives':
+                for row in range(group.childCount()):
+                    item = group.child(row)
+                    if item.data(0, QtCore.Qt.UserRole) == path:
+                        self._setDriveCapacity(item, path)
+        # 容量行は固定構成。setDataのdataChangedだけで更新し、全行を再配置しない。
 
     def _placeClicked(self, item, column):
         """左ペインの場所へ移動する。
@@ -1724,8 +1818,14 @@ class Explorer(QtWidgets.QWidget):
             return self.organizer.workspace.current()
         current = self.files.currentIndex()
         if not self.files.selectionModel().isSelected(current):
-            selected = self.files.selectionModel().selectedRows(0)
-            current = selected[0] if selected else QtCore.QModelIndex()
+            # 全選択でも先頭一件の取得のために全列・全行を展開しない。
+            selected = self.files.selectionModel().selection()
+            last_column = self.fileProxy.columnCount(self.files.rootIndex()) - 1
+            if all(r.left() == 0 and r.right() == last_column for r in selected):
+                current = selected[0].topLeft() if selected else QtCore.QModelIndex()
+            else:
+                rows = self.files.selectionModel().selectedRows(0)
+                current = rows[0] if rows else QtCore.QModelIndex()
         index = self.fileProxy.mapToSource(current)
         return self.fileModel.filePath(index) if index.isValid() else ''
 
@@ -1737,8 +1837,18 @@ class Explorer(QtWidgets.QWidget):
         """
         if hasattr(self, 'organizer') and self.organizer.workspace.active():
             return self.organizer.workspace.selected()
-        indexes = sorted(self.files.selectionModel().selectedRows(0), key=lambda index: index.row())
-        return [self.fileModel.filePath(self.fileProxy.mapToSource(index)) for index in indexes]
+        selection = self.files.selectionModel()
+        ranges = selection.selection()
+        root = self.files.rootIndex()
+        last_column = self.fileProxy.columnCount(root) - 1
+        if all(r.parent() == root and r.left() == 0 and r.right() == last_column for r in ranges):
+            # 通常の行選択は範囲から一度だけ展開する。selectedRowsの全列検査は不要。
+            rows = sorted({row for r in ranges for row in range(r.top(), r.bottom() + 1)})
+            indexes = [self.fileProxy.index(row, 0, root) for row in rows]
+        else:
+            # 部分セル選択や別ルートはQt標準の「全列が選択済み」の規則を維持する。
+            indexes = sorted(selection.selectedRows(0), key=lambda index: index.row())
+        return [index.data(QtCore.Qt.UserRole + 1) for index in indexes]
 
     def operationPaths(self):
         """メニュー操作中だけ明示対象を使い、通常は選択集合を返す。
@@ -1815,10 +1925,18 @@ class Explorer(QtWidgets.QWidget):
             previous (QModelIndex): 以前の選択。
         """
         path = self.selectedPath()
-        if path and path == self._previewPath:
+        if path and path == self._previewPath and (not getattr(self, '_previewPending', False)
+                                                  or not self.details.isVisible()):
             self._updateActions()
             return
         self._clearDetails()
+        if path and not self.details.isVisible():
+            # 非表示の情報欄のために画像・動画・ネットワーク上の内容を取得しない。
+            # 操作対象は即時に更新し、表示時にその時点の選択だけを読み込む。
+            self._previewPath = path
+            self._previewPending = True
+            self._updateActions()
+            return
         if not path or not os.path.isfile(path):
             self._updateActions()
             return
@@ -1852,11 +1970,13 @@ class Explorer(QtWidgets.QWidget):
         """
         if self.selectedPath() != self._previewPath:
             self._fileChanged(self.files.currentIndex(), QtCore.QModelIndex())
-        self._updateActions()
+        else:
+            self._updateActions()
 
     def _clearDetails(self):
         """古い非同期プレビューを無効化する。"""
         self._previewSerial += 1
+        self._previewPending = False
         self._previewPath = ''
         self._image = QtGui.QImage()
         self.preview.clear()
@@ -1929,9 +2049,11 @@ class Explorer(QtWidgets.QWidget):
         if hasattr(self, 'details'):
             self._operationTabChanged(self.operationTabs.currentIndex())
 
-    def _updateOpenAction(self):
+    def _updateOpenAction(self, paths=None, path=None):
         """読込結果を実行ボタンに明記し、更新をシーン切替と取り違えないようにする。"""
-        suffix = Path(self.selectedPath()).suffix.lower()
+        paths = self.selectedPaths() if paths is None else paths
+        path = self.selectedPath() if path is None else path
+        suffix = Path(path).suffix.lower()
         label = 'Open'
         hint = 'Open with the associated application.'
         if self._maya and suffix in ('.ma', '.mb', '.fbx'):
@@ -1942,27 +2064,28 @@ class Explorer(QtWidgets.QWidget):
             label = {'open': 'Open Scene', 'add': 'Add FBX', 'merge': 'Add / Update Animation',
                      'exmerge': 'Update Animation', 'exmergekeyedxforms': 'Update Animation'}[mode]
             hint = 'Double-click uses this FBX mode.'
-        if not self.selectedPaths():
+        if not paths:
             hint = 'Select a file to open.'
         self.openHint.setText(hint)
         self.actionButtons['open'].setText(label)
-        self.actionButtons['open'].setVisible(bool(self.selectedPaths()))
+        self.actionButtons['open'].setVisible(bool(paths))
 
     def _updateActions(self):
         """選択に応じて読込系ボタンを有効化する。"""
-        self._updateFooter()
         paths = self.selectedPaths()
+        path = self.selectedPath()
+        self._updateFooter(paths)
         if hasattr(self, 'fbxOptions'):
             fbx = len(paths) == 1 and Path(paths[0]).suffix.lower() == '.fbx'
             self.fbxOptions.setVisible(fbx)
             self.fbxModeButton.setVisible(fbx)
         selected = bool(paths)
-        self._updateOpenAction()
+        self._updateOpenAction(paths, path)
         if hasattr(self, 'readTarget'):
-            self.readTarget.setText(Path(self.selectedPath()).name if selected else 'Select a file in the list')
+            self.readTarget.setText(Path(path).name if selected else 'Select a file in the list')
             if len(paths) > 1:
                 self.readTarget.setText('{} files selected'.format(len(paths)))
-            self.readTarget.setToolTip(self.selectedPath())
+            self.readTarget.setToolTip(path)
             if hasattr(self, 'saveDestination'):
                 self._operationTabChanged(self.operationTabs.currentIndex())
         for key in ('open', 'import', 'reference'):
@@ -2125,13 +2248,13 @@ class Explorer(QtWidgets.QWidget):
             path (str): 編集対象。
         """
         if os.path.isdir(path):
-            index = self.folderModel.index(path)
+            index = self.folderModel.pathIndex(path)
             views = [v for v in self.columns.findChildren(QtWidgets.QListView)
                      if v.isVisible() and v.rootIndex() == index.parent()]
             if not views:
                 self.browseRoot = ''
                 self.navigate(str(Path(path).parent))
-                index = self.folderModel.index(path)
+                index = self.folderModel.pathIndex(path)
                 views = [v for v in self.columns.findChildren(QtWidgets.QListView)
                          if v.isVisible() and v.rootIndex() == index.parent()]
             if not views:
@@ -2139,7 +2262,7 @@ class Explorer(QtWidgets.QWidget):
             view = views[-1]
         else:
             view = self.files
-            index = self.fileProxy.mapFromSource(self.fileModel.index(path))
+            index = self.fileProxy.mapFromSource(self.fileModel.pathIndex(path))
         if not index.isValid():
             return
         view.scrollTo(index)
@@ -2195,13 +2318,24 @@ class Explorer(QtWidgets.QWidget):
             path (str): 選択先。
         """
         serial = self._navigationSerial
+        self._selectionRequestSerial = getattr(self, '_selectionRequestSerial', 0) + 1
+        request = self._selectionRequestSerial
+        initial_current = QtCore.QPersistentModelIndex(self.files.currentIndex())
+        initial_selection = self.selectedPaths()
         timer = QtCore.QTimer(self)
         attempts = [0]
 
         def select():
             """現在フォルダーに残っている間だけ有限回試行する。"""
             attempts[0] += 1
-            index = self.fileProxy.mapFromSource(self.fileModel.index(path))
+            interrupted = (serial != self._navigationSerial or request != self._selectionRequestSerial
+                           or self.files.currentIndex() != initial_current
+                           or self.selectedPaths() != initial_selection)
+            if interrupted:
+                timer.stop()
+                timer.deleteLater()
+                return
+            index = self.fileProxy.mapFromSource(self.fileModel.pathIndex(path))
             if serial != self._navigationSerial or attempts[0] >= 40 or index.isValid():
                 timer.stop()
                 timer.deleteLater()
@@ -2210,6 +2344,8 @@ class Explorer(QtWidgets.QWidget):
                     self.files.scrollTo(index)
         timer.timeout.connect(select)
         timer.start(50)
+        # 既に表示可能なファイルを後回しにして、次のユーザー選択を上書きしない。
+        select()
 
     def _fileMenu(self, position):
         """一覧の補助メニューを表示する。
@@ -2434,6 +2570,10 @@ def main():
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling)
         QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps)
     app = QtWidgets.QApplication(sys.argv)
+    # 単体版だけに適用し、Maya本体の名前・タスクバーアイコンは変更しない。
+    app.setApplicationName('QuickPathExplorer')
+    app.setApplicationDisplayName('QuickPathExplorer')
+    app.setWindowIcon(QtGui.QIcon(str(ICON.with_suffix('.ico'))))
     window = Explorer()
     def openFile(action):
         """OSへ正常に引き渡せた項目だけを履歴へ登録する。"""
@@ -2442,10 +2582,7 @@ def main():
             window.openAssociatedFile(paths[0])
     window.actionRequested.connect(openFile)
     window.show()
-    path = arguments.path or readSettings().get('lastPath', str(Path.home()))
-    window.navigate(path if os.path.isdir(path) else str(Path.home()))
-    if not arguments.path:
-        window.folderTabs.restoreSession()
+    window.restoreStartup(arguments.path)
     if arguments.smoke_test:
         def finishSmoke():
             """配布exeそのものの画面・アイコン・設定保存を検査する。"""
@@ -2453,11 +2590,12 @@ def main():
             window.organizer.populateTools()
             image_ok = window.grab().save(str(output / 'standalone.png'))
             window.saveLayout()
-            passed = bool(image_ok and ICON.is_file() and not window.windowIcon().isNull()
+            passed = bool(image_ok and QtCore.QFile.exists(str(ICON)) and not window.windowIcon().isNull()
+                          and not app.windowIcon().isNull()
                           and window.currentDirectory and len(window.organizer.toolsMenu.actions()) > 5)
             (output / 'result.json').write_text(json.dumps(dict(status='passed' if passed else 'error',
                 qt=QtCore.qVersion(), frozen=bool(getattr(sys, 'frozen', False)), directory=window.currentDirectory,
-                fileOpening='OS associations')), encoding='utf8')
+                fileOpening='OS associations', applicationIconSizes=[size.width() for size in app.windowIcon().availableSizes()])), encoding='utf8')
             window.close()
             app.exit(0 if passed else 1)
         QtCore.QTimer.singleShot(2500, finishSmoke)

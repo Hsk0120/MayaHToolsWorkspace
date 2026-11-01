@@ -51,6 +51,10 @@ def writeSettings(changes):
         bool: 保存に成功したか。
     """
     value = readSettings()
+    # タブ復元/レイアウト通知で同じ値を再保存し、GUIをディスクcommit待ちにしない。
+    # 毎回最新ファイルを読むので、別ウィンドウの異なるキーは引き続き保持する。
+    if all(key in value and value[key] == item for key, item in changes.items()):
+        return True
     value.update(changes)
     path = settingsPath()
     try:
