@@ -23,6 +23,7 @@ from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
 from .crossedKneeLinkage import CrossedKneeLinkage
+from .patellaFollow import PatellaFollow
 from .chainNet import ChainNet
 from .stickyControl import StickyControl
 from .groundTilt import GroundTilt
@@ -102,6 +103,7 @@ __all__ = [
     "CrankSlider",
     "FourBarLinkage",
     "CrossedKneeLinkage",
+    "PatellaFollow",
     "ChainNet",
     "CableSag",
     "LeafJoints",

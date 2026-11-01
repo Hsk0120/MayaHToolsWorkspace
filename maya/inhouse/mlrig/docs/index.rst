@@ -91,6 +91,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    crank_slider
    four_bar_linkage
    crossed_knee_linkage
+   patella_follow
    scissor_lift
    chain_net
    cable_sag

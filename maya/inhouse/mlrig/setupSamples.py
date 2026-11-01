@@ -65,6 +65,7 @@ class SetupSamples:
         ("crankSlider", "CrankSlider - engine crank and piston"),
         ("fourBarLinkage", "FourBarLinkage - crank, coupler and rocker"),
         ("crossedKneeLinkage", "CrossedKneeLinkage - knee with crossed ligaments"),
+        ("patellaFollow", "PatellaFollow - kneecap pulled by the patellar tendon"),
         ("scissorLift", "ScissorLift - three-stage scissor lift"),
         ("cableSag", "CableSag - hanging cable between two posts"),
         ("rotationMinimizingFrames", "RotationMinimizingFrames - points"),
@@ -488,6 +489,26 @@ class SetupSamples:
             _output("{}_{}Out".format(name, role), root, "{}.{}Matrix".format(owner, role), ((length, 0.0, 0.0),))
         _output(name + "_centerOut", root, owner + ".instantCenterMatrix")
         return setup, setup.container
+
+    @classmethod
+    def _patellaFollow(cls, name, root):
+        """膝蓋骨(X が前)。脛の ``rotateZ`` をマイナスへ回して膝を曲げると、膝蓋骨(緑)が長さ一定の膝蓋腱(緑、
+        膝蓋骨から脛の上の脛骨粗面へ)に引かれ、大腿骨の溝の円弧に沿って下・後ろへ滑る。"""
+        from .setups import PatellaFollow
+
+        femur = _joint(name + "_femur", root, translate=(0.0, 10.0, 0.0))
+        _tip(femur, name + "_femurTop", (0.0, 8.0, 0.0))
+        groove = _transform(name + "_groove", femur, translate=(0.0, 0.3, 0.0))
+        patella = _joint(name + "_patella", femur, translate=(1.6, 0.6, 0.0))
+        _tip(patella, name + "_patellaTip", (0.0, 1.0, 0.0))
+        tibia = _joint(name + "_tibia", femur)
+        _tip(tibia, name + "_tibiaEnd", (0.0, -8.0, 0.0))
+        tuberosity = _transform(name + "_tuberosity", tibia, translate=(0.9, -3.0, 0.0))
+        setup = PatellaFollow.create(femur, tibia, groove, patella, tuberosity, name=name)
+        owner = str(setup.container)
+        _output(name + "_patellaOut", root, owner + ".patellaMatrix", ((0.0, 1.0, 0.0),))
+        _output(name + "_tendonOut", root, owner + ".tendonMatrix", ((3.67, 0.0, 0.0),))
+        return setup, tibia
 
     @classmethod
     def _scissorLift(cls, name, root):

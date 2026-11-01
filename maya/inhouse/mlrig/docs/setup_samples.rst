@@ -80,6 +80,9 @@
    * - CrossedKneeLinkage - knee with crossed ligaments
      - container
      - containerの ``flexion`` を変えると、脛(緑)が交差する2本の靭帯(緑)に吊られたまま、転がりながら後ろへ滑る。小さな緑のjointが瞬間回転中心(2本の靭帯の線の交点)で、曲げるほど後ろ・上へ移る。 ``aclLength`` ・ ``pclLength`` で靭帯の長さ、 ``excess`` で届かない量を見られる。
+   * - PatellaFollow - kneecap pulled by the patellar tendon
+     - 脛のjoint
+     - ``rotateZ`` をマイナスへ回して膝を曲げると、膝蓋骨(緑)が長さ一定の膝蓋腱(緑、膝蓋骨から脛骨粗面へ)に引かれ、大腿骨の溝の円弧に沿って下・後ろへ滑る。containerの ``grooveAngle`` で溝の上の角度、 ``grooveRadius`` ・ ``tendonLength`` で溝の半径・膝蓋腱の長さ、 ``excess`` で届かない量を見られる。
    * - ScissorLift - three-stage scissor lift
      - container
      - containerの ``height`` を変えると、3段のX字の腕(緑、先の子jointが腕の反対の端)が真ん中で交わったまま開閉し、台(緑、上)が上下し、右の滑る足(緑)が左右へ動く。
