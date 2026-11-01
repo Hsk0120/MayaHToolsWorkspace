@@ -26,10 +26,10 @@ def main():
     collect(root)
     source = destination / "QuickPathExplorer"
     # 製品コードと再ビルド素材だけを明示する。過去キットを入れ子に取り込まない。
-    for folder in ("native", "maya-native", "icons", "src/core", "src/browser", "src/standalone", "src/maya", "third_party", "tests/media"):
+    for folder in ("native", "maya-native", "icons", "scripts", "src/core", "src/browser", "src/standalone", "src/maya", "third_party", "tests/media"):
         shutil.copytree(root / folder, source / folder, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
     files = ("src/native_browser.cpp", "src/native_browser.h", "src/product.h", "tests/cpp_migration_test.cpp",
-             "tests/native_maya_smoke.py", "tests/native_maya_restart.py", "tests/native_maya_gui.py", "tests/verify_static_relink.py", "BUILDING.md", "LICENSE", ".vsconfig",
+             "tests/native_maya_smoke.py", "tests/native_maya_restart.py", "tests/native_maya_gui.py", "tests/test_startup.py", "tests/verify_static_relink.py", "BUILDING.md", "LICENSE", ".vsconfig",
              "CMakeLists.txt", "build_windows.cmd", "build_maya.cmd", "generate_projects.cmd", "check_environment.cmd", "QuickPathExplorer.mod",
              "README.md", "ORGANIZER_GUIDE.md", "VERIFICATION.md", "P0_MANUAL_TESTS.txt", "launch_cpp.bat", ".gitignore", ".gitattributes",
              "tools/build_static_qt.py", "tools/build_native_media.py", "tools/build_cpp_windows.py",

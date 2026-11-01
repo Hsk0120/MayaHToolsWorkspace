@@ -1,6 +1,6 @@
 # QuickPathExplorerの開発・再ビルド
 
-この文書のコマンドはQuickPathExplorer直下で実行します。親リポジトリやmlibは不要です。Windows版は静的Qtの単一exe、Maya版はMaya付属Qtへリンクした年別の単一mllです。Pythonは開発・検証用で、製品の実行には使用しません。
+この文書のコマンドはQuickPathExplorer直下で実行します。親リポジトリやmlibは不要です。Windows版は静的Qtの単一exe、Maya版はMaya付属Qtへリンクした年別の単一mllです。アプリ本体はPythonを使用しません。開発・検証と、Maya同梱Pythonでプラグインを自動ロードする最小の`scripts/userSetup.py`にのみ使用します。
 
 ## 開発環境
 

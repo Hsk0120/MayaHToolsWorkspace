@@ -14,7 +14,11 @@ Windowsでは直下の`QuickPathExplorer.exe`を起動します。フォルダ�
 
 Mayaでは`release/plug-ins/windows/<Maya年>/quickPathExplorer.mll`をPlug-in Managerでロードし、**Window → QuickPathExplorer**またはMELの`quickPathExplorer;`で開きます。初回のSecurity確認は利用者が判断します。対応する年のmllを使用してください。
 
-`QuickPathExplorer.mod`は年別パスを登録する任意のファイルです。MayaのmodulesフォルダーへQPEを配置するか、Mayaのモジュール検索先へ登録して使います。自動ロードはPlug-in Managerで設定します。前回開いていたQPEは保存済みのドック／浮動状態を使って表示し、明示的に閉じた場合は閉じた状態を維持します。
+`QuickPathExplorer.mod`は年別のプラグインパスと`scripts`のPythonパスを登録します。このワークスペースでは`maya/modules/QuickPathExplorer.mod`を使用します。単独配置ではQPEフォルダーを`MAYA_MODULE_PATH`へ追加し、同梱の`QuickPathExplorer.mod`を読み込ませます。
+
+Maya Code Editorと同様に、`scripts/userSetup.py`がGUI起動後に未ロードのプラグインをロードします。**Window → QuickPathExplorer**へのアイコン付き登録と画面復元は既存のC++プラグインが行い、Python側にはUI処理を置きません。バッチ起動ではロードせず、Plug-in ManagerのAuto loadとの二重ロードも避けます。初回のSecurity確認は通常どおり表示され、信頼設定を変更しません。前回開いていたQPEは保存済みのドック／浮動状態を使って表示し、明示的に閉じた場合は閉じた状態を維持します。
+
+自動起動を使用しない場合は`.mod`をモジュール検索先から外し、年別mllをPlug-in Managerから明示ロードできます。アプリ本体はC++のままで、`userSetup.py`はMaya同梱Pythonを使う起動用ファイルです。
 
 更新時はWindows版QPEを終了します。Maya版は処理を完了してからアンロードするかMayaを終了します。ファイル操作やワーカーが残る間はアンロードを拒否します。他ツールのUIやQt設定は変更しません。
 
