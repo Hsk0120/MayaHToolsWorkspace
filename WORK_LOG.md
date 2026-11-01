@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-01): GitHub Actions「Publish mlib documentation」が10.0.0以降失敗していた原因(plug.pyの_require_finite_valueを定数の前に置いたレイアウト違反L004/L010)を修正。関数を定数の後ろへ移しスタブを更新。runStatic(終了コード0)OK。
+
 - Claude Code (2026-11-01): mlrig夜間。交差した十字靭帯の四節リンクで膝の転がりと滑りを作る `setups/CrossedKneeLinkage`(flexion入力、tibia/acl/pcl/instantCenterMatrix・excess出力、標準ノードのみ)を追加し、FourBarLinkageの2円の交点を `_intersectionGraph`/`_excessGraph` に切り出して共有。テスト8件、Setup Samples1項目、文書、検証デモ `tools/demo_crossed_knee_linkage.py`。隔離Maya 2027で setups 586件・standard 76件OK、Sphinx -W 成功、検証動画408フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
 
 - Codex (2026-10-31): ユーザーのpush指示に基づきQPEのタイトルバー統合・Windowsテーマ追従・文字サイズUI/ショートカット・Very Small・ビルド配置の12ファイルを公開対象に確定。既存のWindows/Maya2022/2027検証ログと差分を照合。exe/runtime・調査資料・動画はGit対象外。

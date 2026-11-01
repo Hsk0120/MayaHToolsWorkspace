@@ -32,6 +32,8 @@ _PLUG_PATH_INDEX: Any
 MAX_LOGICAL_INDEX: int
 _SCALAR_ARRAY_TYPES: frozenset
 _LENGTH_PREFIXED_ARRAY_TYPES: frozenset
+_INVALID_ATTRIBUTE: Any
+_NORMAL_ATTRIBUTE: Any
 
 def _require_finite_value(value: object) -> None:
     """set() へ渡した値に、有限でない数値(NaN・無限大)が無いかを確かめる。
@@ -49,8 +51,6 @@ def _require_finite_value(value: object) -> None:
         ValueError: 有限でない数値がある場合(文言にアトリビュート名は含めない)。
     """
     ...
-_INVALID_ATTRIBUTE: Any
-_NORMAL_ATTRIBUTE: Any
 
 def _instance_count(multi: om2.MPlug) -> int:
     """ワールド空間アトリビュートがマルチアトリビュートなら、所有 DAG ノードのインスタンス数を返す。

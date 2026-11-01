@@ -50,6 +50,12 @@ _LENGTH_PREFIXED_ARRAY_TYPES = frozenset((
     "componentList",
 ))
 
+#: ``MFnDependencyNode.attributeClass()`` が、ノードに無いアトリビュート(削除済みの動的アトリビュートなど)に返す値。
+_INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
+
+#: ``MFnDependencyNode.attributeClass()`` が、ノード型に組み込みの(静的な)アトリビュートに返す値。
+_NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
+
 
 def _require_finite_value(value):
     """set() へ渡した値に、有限でない数値(NaN・無限大)が無いかを確かめる。
@@ -87,12 +93,6 @@ def _require_finite_value(value):
         return
     for item in items:
         _require_finite_value(item)
-
-#: ``MFnDependencyNode.attributeClass()`` が、ノードに無いアトリビュート(削除済みの動的アトリビュートなど)に返す値。
-_INVALID_ATTRIBUTE = om2.MFnDependencyNode.kInvalidAttr
-
-#: ``MFnDependencyNode.attributeClass()`` が、ノード型に組み込みの(静的な)アトリビュートに返す値。
-_NORMAL_ATTRIBUTE = om2.MFnDependencyNode.kNormalAttr
 
 
 def _instance_count(multi):
