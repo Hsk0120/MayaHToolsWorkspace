@@ -1,0 +1,52 @@
+{
+  "qtVersion": "6.8.3",
+  "sourceSha256": {
+    "qtbase": "56001b905601bb9023d399f3ba780d7fa940f3e4861e496a7c490331f49e0b80",
+    "qtsvg": "35eb516460f00f264eb504baa253432384351cf23fb9980a5857190e8deef438"
+  },
+  "commands": [
+    [
+      "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe",
+      "-S",
+      "C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\sources\\qtbase-everywhere-src-6.8.3",
+      "-B",
+      "C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\build\\qtbase",
+      "-G",
+      "Ninja",
+      "-DCMAKE_MAKE_PROGRAM=C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja\\ninja.exe",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_INSTALL_PREFIX=C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\install",
+      "-DCMAKE_PREFIX_PATH=C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\install",
+      "-DBUILD_SHARED_LIBS=OFF",
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+      "-DQT_BUILD_EXAMPLES=OFF",
+      "-DQT_BUILD_TESTS=OFF",
+      "-DFEATURE_static_runtime=ON",
+      "-DINPUT_opengl=no",
+      "-DFEATURE_dbus=OFF",
+      "-DFEATURE_sql=OFF",
+      "-DFEATURE_network=OFF"
+    ],
+    [
+      "C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\CMake\\bin\\cmake.exe",
+      "-S",
+      "C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\sources\\qtsvg-everywhere-src-6.8.3",
+      "-B",
+      "C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\build\\qtsvg",
+      "-G",
+      "Ninja",
+      "-DCMAKE_MAKE_PROGRAM=C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\Common7\\IDE\\CommonExtensions\\Microsoft\\CMake\\Ninja\\ninja.exe",
+      "-DCMAKE_BUILD_TYPE=Release",
+      "-DCMAKE_INSTALL_PREFIX=C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\install",
+      "-DCMAKE_PREFIX_PATH=C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\install",
+      "-DBUILD_SHARED_LIBS=OFF",
+      "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
+      "-DQT_BUILD_EXAMPLES=OFF",
+      "-DQT_BUILD_TESTS=OFF"
+    ]
+  ],
+  "compiler": "14.44.35207",
+  "windowsSdk": "10.0.26100.0\\",
+  "prefix": "C:\\MayaHToolsWorkspace\\maya\\inhouse\\QuickPathExplorer\\.maya-output\\static-qt\\6.8.3\\install",
+  "complete": true
+}

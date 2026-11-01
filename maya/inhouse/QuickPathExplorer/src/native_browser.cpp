@@ -14,6 +14,7 @@
 #include <QPointer>
 #include <QRegularExpression>
 #include <QSortFilterProxyModel>
+#include <QJsonObject>
 #include <QScrollBar>
 #include <QStandardItemModel>
 #include <QStyledItemDelegate>
@@ -106,6 +107,12 @@ protected:
         auto item = parent.isValid() ? model->itemFromIndex(parent) : model->invisibleRootItem();
         auto child = item ? item->child(row) : nullptr;
         if (!child) return false;
+        if (property("qpeNativePresentation").toBool()) {
+              if (property("tagFilterActive").toBool() && !property("tagPaths").toJsonObject().contains(QDir::fromNativeSeparators(child->data(PathRole).toString()).toLower())) return false;
+            if (child->data(DirectoryRole).toBool() && !property("includeFolders").toBool()) return false;
+            const auto extensions = property("extensions").toStringList();
+            if (!extensions.isEmpty() && !child->data(DirectoryRole).toBool() && !extensions.contains(QFileInfo(child->data(PathRole).toString()).suffix().toLower())) return false;
+        }
         if (child->data(DirectoryRole).toBool()) {
             auto root = property("directoryRoot").toString();
             auto path = QDir::fromNativeSeparators(item->data(PathRole).toString()).toLower();
@@ -123,7 +130,7 @@ protected:
      */
     bool lessThan(const QModelIndex& left, const QModelIndex& right) const override {
         auto a = stored(left, SortValueRole), b = stored(right, SortValueRole);
-        if (left.column() == 1) return a.toLongLong() < b.toLongLong();
+        if (left.column() == 1 || left.column() == 5 || left.column() == 7) return a.toLongLong() < b.toLongLong();
         if (left.column() == 3) return a.toDateTime() < b.toDateTime();
         return QString::compare(a.toString(), b.toString(), sortCaseSensitivity()) < 0;
     }
@@ -145,13 +152,13 @@ public:
 };
 
 /** @brief HICONをGUI依存のない画像へ移す。
- * @param path ファイル名。 @param smallIcon 小さいアイコンか。 @return RGBA画像。
+ * @param path ファイル名。 @param smallIcon 小さいアイコンか。 @param genericFolder 実在照会を省くか。 @return RGBA画像。
  */
-QImage shellImage(const QString& path, bool smallIcon) {
+QImage shellImage(const QString& path, bool smallIcon, bool genericFolder = false) {
     SHFILEINFOW info{};
     const auto nativePath = QDir::toNativeSeparators(path);
-    if (!SHGetFileInfoW(reinterpret_cast<LPCWSTR>(nativePath.utf16()), 0, &info, sizeof(info),
-                       SHGFI_ICON | (smallIcon ? SHGFI_SMALLICON : SHGFI_LARGEICON))) return {};
+    if (!SHGetFileInfoW(reinterpret_cast<LPCWSTR>(nativePath.utf16()), genericFolder ? FILE_ATTRIBUTE_DIRECTORY : 0, &info, sizeof(info),
+                       (genericFolder ? SHGFI_USEFILEATTRIBUTES : 0) | SHGFI_ICON | (smallIcon ? SHGFI_SMALLICON : SHGFI_LARGEICON))) return {};
     const int size = smallIcon ? 16 : 32;
     BITMAPINFO bitmap{};
     bitmap.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
@@ -256,7 +263,9 @@ private:
             cache.insert(request.key, new QIcon(icon));
             setProperty("completed", property("completed").toInt() + 1);
             setProperty("lastImageValid", !icon.isNull());
-            if (request.index.isValid() && key(request.index) == request.key) {
+            // キャッシュされた旧タブの索引は有効でも、現在ビューのモデルとは限らない。
+            // 別モデルへsetDataすると警告や無関係な行の更新を起こすため、所有モデルも照合する。
+            if (request.index.isValid() && request.index.model() == view->model() && key(request.index) == request.key) {
                 if (!icon.isNull() && !request.index.data(Qt::UserRole + 102).toBool())
                     view->model()->setData(request.index, icon, Qt::DecorationRole);
                 applied.insert(request.index, request.key);
@@ -303,6 +312,7 @@ private:
 };
 }
 
+QIcon nativeFolderIcon() { static const QIcon icon(QPixmap::fromImage(shellImage("folder", false, true))); return icon; }
 QObject* createNative(const QString& kind, QWidget* parent) {
     QObject* object = nullptr;
     if (kind == "proxy") object = new FileProxy(parent);

@@ -6,30 +6,16 @@ QuickPathExplorer P0 実機確認手順
 各項目をWindows単体、使用するMayaのフローティング／ドックで確認します。
 
 準備
-1. 変更を反映するため、Mayaは通常の手順で保存・終了して起動し直してください。
-   import済みモジュールへの無理なリロードは不要です。
-2. Maya Script EditorのPython欄で実行します。シーンを新規作成・保存・破棄する処理は含みません。
-
-import sys
-sys.path.insert(0, r'C:/MayaHToolsWorkspace/tools')
-import qpe_manual_p0
-qpe_manual_widget = qpe_manual_p0.show()
-
-   専用フォルダーに65項目ずつの一覧を作ります。一覧読込は検証用に800ms遅延します。
-   テスト完了後はQPEを閉じてください。遅延は設定ファイルへ保存しません。
-   新しく通常メニューから開いたQPEには遅延を持ち越しません。
-3. Windows単体はPowerShellで以下を実行し、出力されたパスをQPEに入力します。
-
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' C:/MayaHToolsWorkspace/tools/qpe_manual_p0.py
-& C:/MayaHToolsWorkspace/maya/inhouse/QuickPathExplorer/launch_python.bat
-
-   この単体手順では800ms遅延は付けません。
-4. Windowsのバージョン、Mayaのバージョン、表示倍率、表示形態、入力機器、IME名をメモします。
-   最初は100%または通常倍率で行い、その後普段の4K／拡大率でも繰り返してください。
-5. 録画は画面全体またはQPEとMayaビューポートが同時に見える範囲で行います。
-   使用中の録画アプリで30fps以上・ポインター込みを推奨します。
-   ケースごとに20〜40秒に分け、操作前後に1秒静止してください。
-   QPEの外へメニューが出る場合も録画枠へ収めてください。
+1. 専用のフォルダーA/Bを作り、Aには65個以上の子フォルダー、各子に65項目以上の検証用ファイルを用意します。
+   作業ファイルを複製して使用せず、空のテキストなど安全な専用データを使用してください。
+2. WindowsではQuickPathExplorer.exeを起動し、パス欄へAの絶対パスを入力します。
+   Mayaでは対象年のquickPathExplorer.mllをロードし、Window → QuickPathExplorerで開きます。
+   本番シーンを使用せず、別の専用Mayaで試してください。
+3. 旧Python版のqpe_manual_p0.pyやlaunch_python.batは使用しません。
+   世代の順序逆転・模擬遅延はC++回帰テストで別途検証し、実機操作の合格と混同しません。
+4. OS、Maya年版、表示倍率、ドック／浮動、入力機器、IME名を記録します。
+5. QPEと背後のMayaが同時に見える範囲で録画します。各操作の前後に1秒静止し、
+   メニューやダイアログも録画枠に収めてください。
 
 AT14: スクロールの境界（約1分）
 前提: Aを開き、左にFolder-xx、右にChild-xxが並ぶ2本のカラムを表示。
@@ -43,7 +29,7 @@ AT14: スクロールの境界（約1分）
 記録: ホイール式マウスで必ず確認。トラックパッドがあれば別結果として記録。
 
 AT19: Maya側のフォーカスを奪わない（約1分）
-前提: 遅延付き検証画面。QPEとMayaのScript Editor／ビューポートを同時に見えるようにする。
+前提: 読込に時間がかかる専用データの検証画面。QPEとMayaのScript Editor／ビューポートを同時に見えるようにする。
 操作:
   ・QPEでA→Bを選び、読込中にScript Editorの入力欄をクリックする。
   ・文字を入力し、左右矢印・Space・Enterを操作する。コマンドは実行しない。
@@ -65,7 +51,7 @@ AT20: 実際の日本語IME（約2分）
   ・一覧へクリックで戻り、上下キーが再び項目移動になることを確認する。
 合格:
   IME変換中のEnterでリネームが終了しない。Escapeの変換取消でファイル操作を起こさない。
-  SpaceでQuick Lookが開かず、矢印で別フォルダーへ移動しない。
+  Spaceで関連付けアプリやシーンが開かず、矢印で別フォルダーへ移動しない。
   確定後は通常の入力操作へ戻る。パス欄で変換確定後にもう一度Enterを押すと通常のパス移動になる。
 注意: リネームは専用データだけを使用する。検索文字は最後に空へ戻す。
 

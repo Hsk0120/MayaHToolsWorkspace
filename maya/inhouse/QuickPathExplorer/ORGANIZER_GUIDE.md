@@ -4,7 +4,7 @@
 
 Toolsは **Search / organize、View、Transfers / history、Tabs / tab sets、Maya、Settings / diagnostics** に分類しています。以下でToolsから直接選ぶと記載した操作も、現在は該当する分類内にあります。**Find command…（Ctrl+Shift+P）** なら操作名で検索できます。選択数や保存状態に合わない操作は無効表示になります。
 
-下段の表示条件（Details / Thumbnails / Extended details、Include subfolders、グループ化、タグ、File list columns）は一覧右上の **View** から変更します。適用中の絞り込みは一覧上のラベルの×で個別解除できます。右ペインは **Open / Import / Reference / Save** の操作別タブです。Import／Referenceのネームスペースは各タブで直接編集し、追加設定は **Advanced options** で展開します。ファイル情報とプレビューは **File details** にまとめています。折り畳みやタブ切替で設定値は変更しません。
+下段の表示条件（Details / Thumbnails / Extended details、Include subfolders、グループ化、タグ、File list columns）は一覧右上の **View** から変更します。適用中の絞り込みは一覧上のラベルの×で個別解除できます。右ペイン上部で **Open / Import / Reference / Save** を選びます。Import／Referenceのネームスペースは各操作画面で直接編集し、追加設定は **Advanced options** で展開します。ファイル情報とプレビューは **File details** にまとめています。折り畳みや操作画面の切替で設定値は変更しません。
 
 ## コピー・移動・取り消し
 
@@ -12,9 +12,9 @@ Toolsは **Search / organize、View、Transfers / history、Tabs / tab sets、Ma
 
 同名の行先がある場合は、Keep both（別名）、Skip existing、Replace（Undo用に元を退避）を選択します。フォルダーのReplaceは結合ではなく置換です。コピーではMerge foldersも選べます。バックグラウンドで処理し、完了・スキップ・失敗・中止を別に表示します。失敗の詳細はコピー可能な結果ウィンドウに出ます。中止は現在のコピー中またはファイル境界で反映します。OSのブロック中のI/Oを即座に中断する保証はありません。
 
-Undo file operation／一覧上のCtrl+Zは、QPEのファイル操作履歴を戻します。MayaシーンのUndoには接続しません。コピー、移動、複製、ごみ箱、改名、新規作成、ZIP作成／展開を対象とします。再起動後も履歴を保持し、対象またはバックアップが外部で変更されていれば停止します。ごみ箱からのUndoはQPEのバックアップを使うため、Windowsのごみ箱には元の項目が残る場合があります。外部アプリで実行したファイル操作はQPEのUndo対象外です。
+Undo file operation／一覧上のCtrl+Zは、QPEのファイル操作履歴を戻します。MayaシーンのUndoには接続しません。コピー、移動、複製、ごみ箱、改名、新規作成、ZIP作成／展開を対象とします。再起動後も履歴を保持し、対象またはバックアップが外部で変更されていれば停止します。ごみ箱からのUndoは保存したWindowsのごみ箱項目を照合して復元します。旧版でバックアップを保持していた履歴も読み込みます。外部アプリで実行したファイル操作はQPEのUndo対象外です。
 
-Undo用データは設定ファイルの隣の`undo`へ保存します。移動時の原本は元のフォルダーに`.qpe-undo-…`という名前で退避します。**履歴を保持する間はディスク容量を使います。** 不要になったらTools → Discard Undo historyで確認後に解放できます。外部で変更された退避物は自動削除しません。Undo中のOSエラーでは途中まで復元される場合があり、残った履歴とバックアップを保持します。停電・強制終了を含む完全なトランザクション保証はありません。
+Undo用データは設定ファイルの隣の専用履歴フォルダーへ保存します。移動時の原本は元のフォルダーに`.qpe-undo-…`という名前で退避します。**履歴を保持する間はディスク容量を使います。** 不要になったらTools → Discard Undo historyで確認後に解放できます。外部で変更された退避物は自動削除しません。Undo中のOSエラーでは途中まで復元される場合があり、残った履歴とバックアップを保持します。停電・強制終了を含む完全なトランザクション保証はありません。
 
 ドライブのルート、リンク／ジャンクション、QPEのUndo保存先への操作は拒否します。ネットワークのごみ箱対応はOS側にも依存します。
 
@@ -49,9 +49,9 @@ Tools → Search subfolders、または一覧上のCtrl+Fで検索画面を開�
 
 ## プレビューとMaya情報
 
-動画・EXR／HDRのサムネイルはFFmpegを使用します。単体配布版には`imageio-ffmpeg`を同梱します。Maya環境では`QPE_FFMPEG`に実行ファイルを指定するか、利用するPython環境に`imageio-ffmpeg`を導入します。未導入時は必要な設定を画面に表示します。EXR表示は確認用で、レンダリング用の色管理とは一致しません。
+動画・EXR／HDRのサムネイルはFFmpegを使用します。C++版ではLGPL構成のデコーダーをexe／mllへ格納し、必要時にユーザーキャッシュへ展開します。変更版は`QPE_FFMPEG`またはToolsのExternal applicationsから指定できます。Python環境は不要です。EXR表示は確認用で、レンダリング用の色管理とは一致しません。
 
-Open・ダブルクリック・SpaceはOSの関連付けアプリへファイルを渡します。Maya内の.ma／.mbだけは現在のMayaへ読み込みます。Import／Referenceは明示操作です。QPE独自の文書・画像・動画ビューアーはありません。選択時の情報欄・静止サムネイルは引き続き利用できます。
+Open・ダブルクリック・SpaceはOSの関連付けアプリへファイルを渡します。Maya内の.ma／.mb／.fbxは現在のMayaへ読み込みます。FBXは右ペインのOpen設定で通常読込とアニメーション更新を切り替えます。Import／Referenceは明示操作です。QPE独自の文書・画像・動画ビューアーはありません。選択時の情報欄・静止サムネイルは引き続き利用できます。
 
 Scene information / dependenciesは`.ma`の先頭8MiBの宣言からMayaバージョンや参照パスを読取ります。完全な依存グラフ解析ではありません。相対パスはプロジェクト解決が必要と明示し、UDIM等のパターンは単一ファイルの欠損と混同しません。`.mb`は直接解析せず、付随情報を使用します。
 
@@ -61,16 +61,11 @@ Save read settings preset／Load read settings presetでImport／Reference設定
 
 ## Maya不要の配布
 
-`python tools/build_qpe_standalone.py`で専用venvを作り、`.maya-output/qpe-standalone-build/dist/QuickPathExplorer/`へ生成します。**フォルダー全体**をコピーして`QuickPathExplorer.exe`を実行してください。exe単体だけでは動きません。更新はアプリを閉じて配布フォルダーを置き換えます。ユーザー設定は配布先と分離されています。インストーラー、自動更新、Windows標準Explorerの置換登録は行いません。
-
-ソース用`launch_python.bat`は隣のexe、`QPE_PYTHON`、PySide6導入済みPython、Maya2027〜2022の順で実行環境を探します。第1引数は初期フォルダーです。
+`build_windows.cmd`は静的QtのC++版を検証後に直下の`QuickPathExplorer.exe`へ配置します。実行時はexe単体で動作し、Python／PySide／`_internal`は不要です。対応ソース・ライセンス・再リンク資料も同じ配布先から提供してください。ユーザー設定は配布先と分離されています。インストーラー、自動更新、Windows標準Explorerの置換登録は行いません。詳細は[BUILDING.md](BUILDING.md)を参照してください。
 
 ## 検証と手動確認
 
-- `python tools/test_qpe_organizer.py`: 実ファイル、競合、中止、Undo、ZIP、検索、比較。専用一時ファイルを実際のごみ箱へ送るWindowsテストを含みます。
-- `tools/qpe_ui_organizer.py <出力先>`: Qt操作、検索世代、編集欄の保護、タブ、ドロップ、リネーム。Mayaでは既存の隔離GUIランナーから実行します。作業中のMayaへ送信しないでください。
-- `tools/qpe_media_smoke.py <出力先>`: FFmpegが利用可能な独立Pythonで生成動画とEXRの静止サムネイルのデコードを確認。
-- 配布exeの`--smoke-test <出力先>`は専用設定で起動、PNGとJSONを保存して終了します。
+C++回帰は`tools/build_cpp_windows.py --product --test`、Maya GUIは専用prefsで`tests/native_maya_smoke.py`を使用します。旧Python版の検証スクリプトはC++製品の動作確認には使用しません。検証範囲と実機手順は[VERIFICATION.md](VERIFICATION.md)を参照してください。
 
 実デバイス／接続に依存する確認は、専用コピーを使って次の順に行ってください。
 
@@ -103,10 +98,8 @@ Find command（既定Ctrl+Shift+P）はTools内のコマンドを検索します
 
 設定のExport/Importは形式名`qpe.preferences`・バージョン1のJSONです。既定では表示設定・キー・読込プリセット・保持条件だけを書出します。ローカルパスを含めるチェックでFavorites、タグ、場所別表示等も追加できます。Undoデータや実行中ジョブは含めません。異なるPCで存在しないパスを自動変換しません。
 
-追加検証は`tools/test_qpe_advanced.py`と`tools/qpe_ui_advanced.py <出力先>`を使用します。実入力・ネットワーク・非常に大きなフォルダーの応答時間は別途実機確認が必要です。
 
-
-`tools/qpe_ui_scale.py`のローカル32×32 PNG 1000枚では、列挙約4.2秒、サムネイル切替約2.2秒、切替中のイベント間隔最大約0.19秒でした。キャッシュ21枚・画像読込同時数2以下を確認しています。巨大EXRやネットワーク環境の性能保証ではありません。結果は`.maya-output/verification/qpe-advanced-scale-r2/result.json`です。
+C++版の性能は専用ローカルフォルダーで初回列挙、再訪、戻る、タブ切替を分けて測定します。旧Python版の計測値を現行製品の結果として扱いません。巨大EXRやネットワーク環境の性能保証ではありません。
 
 最新の検証範囲と未実施項目は[操作検証ガイド](VERIFICATION.md)を参照してください。
 
@@ -144,11 +137,12 @@ Diagnose file usage / availabilityは属性と利用状況を確認する読取�
 
 ### 追加項目の検証と手動確認
 
-`tools/test_qpe_productivity.py`は本文検索、ZIP抽出、クラウド属性、保存転送、外部変更拒否、中断後の確定照合、停止中の中止を専用一時データで検証します。`tools/qpe_ui_productivity.py`はOpen要求、3表示のEnter、パス補完、タブ固定／ロック、検索、ZIP、キュー操作、状態表示を確認します。Mayaでは隔離GUIランナーを使用します。
-
 実プロバイダーのクラウド同期エラー、実ネットワーク切断、物理IME、混在DPIは自動テストの合格に含めません。
 
 1. OneDrive等の専用サンプルをオンラインのみ／ローカル保持に切り替え、Availabilityの変化と、選択だけでは取得が始まらないことを確認する。同期エラー詳細はプロバイダー画面と照合する。
 2. 専用の大きいファイルを共有フォルダーへコピーし、停止・再開・中止を試す。接続を戻した後にResume unfinished transfersで再開し、元ファイルと結果を照合する。途中ファイルが最初から転送されることを確認する。
 3. PowerToysを導入した環境で、専用ファイルをアプリが使用している状態のDiagnoseを実行する。対象プロセスが表示され、終了されないことを確認する。
 4. 日本語変換中のパス欄・改名欄とMayaの別ビューで、QPEのショートカットが割り込まないことを確認する。4K／通常DPI間では候補ポップアップやプレビューの配置を確認する。
+
+
+C++版の再実行手順と実機確認項目は[VERIFICATION.md](VERIFICATION.md)を参照してください。狭い幅では右詳細を全幅へ切り替え、閉じると一覧を戻します。左サイドバーの表示指定はこの切替でも保持します。

@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-02): QPEの9時間C++/Qt移行・製品置換を終了。カラム/タブ/整理/検索/転送/Undo/ZIP/メディア/設定移行/Maya連携を移植し、Python不要の静的Qt exeと2022〜2027ホストQt mllを配備。UIA再入クラッシュ、JSON寿命/破損設定abort、改名・選択・Paste・クリップボード・Properties親ウィンドウ・タブクリック焦点を再現修正。最終C++回帰/ASAN/独立ソースキット各85件成功、全6年mllビルド、全6年GUI回帰（最終焦点差分は2022/2027再確認）、2022/2027別PID復元を検証。対応Qt/FFmpegソース・ライセンス・SBOM・CMake/VS・改変Qt再リンク資料を同梱。旧製品はハッシュ照合し専用領域へ退避。実OS動画を非公開Driveへ保存・読戻し。Maya2027標準UIでも再現するドック解除描画ずれは未解決。最終焦点のMaya実OS入力/2022 FBX/物理IME/混在DPI等は未実施、全条件網羅ではない。記録 `.maya-output/qpe-cpp-nine-hour-20261101/FINAL_RESULTS.txt`。他担当変更を除外してコミット・push対象を確定。
+
 - Claude Code (2026-11-02): mlrig夜間。長さ一定の膝蓋腱に引かれて大腿骨の溝の円弧に沿って滑る膝蓋骨 `setups/PatellaFollow`(脛骨のワールド行列を入力、patellaMatrix・tendonMatrix・grooveAngle・excess出力、grooveRadius・tendonLength、標準ノードのみ)を追加し、FourBarLinkageの2円の交点グラフを再利用。テスト8件、Setup Samples1項目、文書、検証デモ `tools/demo_patella_follow.py`。隔離Maya 2027で setups 594件・standard 76件OK、Sphinx -W 成功、検証動画408フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
 
 - Codex (2026-11-01): ユーザーのpush指示に基づき、QPE単一mll化・削除/ドライブ表示・操作応答/初回描画の検証済み変更、Maya2022〜2027配布物、回帰テストを公開対象へ確定。差分/既存検証結果を確認。MCE変更、ローカルexe/runtime、調査資料・動画は対象外。
