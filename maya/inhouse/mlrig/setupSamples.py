@@ -89,6 +89,7 @@ class SetupSamples:
         ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
         ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
         ("boxCollision", "BoxCollision - soft rounded table edge"),
+        ("torusCollision", "TorusCollision - soft hoop collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
         ("cameraAngleReader", "CameraAngleReader - face and camera"),
         ("dollyZoom", "DollyZoom - camera keeps the subject size"),
@@ -1023,6 +1024,19 @@ class SetupSamples:
         control = _locator(name + "_handCtrl", root, translate=(2, 9, 1))
         setup = BoxCollision.create(control, table, name=name, sizeX=10.0, sizeY=2.0, sizeZ=6.0, rounding=0.5,
                                     softness=1.0)
+        _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
+        return setup, control
+
+    @classmethod
+    def _torusCollision(cls, name, root):
+        """スカートの骨組みの輪(フープ)を表すトーラスのコライダー(locator、局所Yが軸)と手のコントロール(locator)。
+        コントロールを輪へ近づけると、管の表面から softness の距離で出力(緑)が柔らかく止まり始め、管の中へは入らない。
+        輪の内側(穴)は通り抜けられる。"""
+        from .setups import TorusCollision
+
+        hoop = _locator(name + "_hoop", root, translate=(0, 6, 0))
+        control = _locator(name + "_handCtrl", root, translate=(7, 7.5, 0))
+        setup = TorusCollision.create(control, hoop, name=name, majorRadius=4.0, minorRadius=0.8, softness=1.0)
         _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
 

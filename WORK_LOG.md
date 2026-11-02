@@ -174,6 +174,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 - Claude Code (2026-11-02): 文書公開ワークフロー `.github/workflows/mlib-docs.yml` の失敗を修正。`ubuntu-latest` がUbuntu 26.04になりPlaywright 1.58がchromiumを導入できなくなったため、3ジョブの実行環境を `ubuntu-24.04` に固定。
 
+- Claude Code (2026-11-03): mlrig夜間。輪(トーラス)の管へ入らないよう芯の円上の最近点から柔らかく押し出す `setups/TorusCollision`(局所Yが軸、majorRadius・minorRadius・softness、matrix・distance・push・penetration・height・axisDistance出力、標準ノードのみ。SphereCollisionの押し出しグラフを共有)を追加。テスト9件、Setup Samples1項目、文書、検証デモ `tools/demo_torus_collision.py`。隔離Maya 2027で setups 603件・standard 76件OK、Sphinx -W 成功、検証動画384フレーム判定OK(Driveは同期フォルダーへ保存)。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-11-02): mlrig夜間。長さ一定の膝蓋腱に引かれて大腿骨の溝の円弧に沿って滑る膝蓋骨 `setups/PatellaFollow`(脛骨のワールド行列を入力、patellaMatrix・tendonMatrix・grooveAngle・excess出力、grooveRadius・tendonLength、標準ノードのみ)を追加し、FourBarLinkageの2円の交点グラフを再利用。テスト8件、Setup Samples1項目、文書、検証デモ `tools/demo_patella_follow.py`。隔離Maya 2027で setups 594件・standard 76件OK、Sphinx -W 成功、検証動画408フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
 
 - Codex (2026-11-01): ユーザーのpush指示に基づき、QPE単一mll化・削除/ドライブ表示・操作応答/初回描画の検証済み変更、Maya2022〜2027配布物、回帰テストを公開対象へ確定。差分/既存検証結果を確認。MCE変更、ローカルexe/runtime、調査資料・動画は対象外。

@@ -152,6 +152,9 @@
    * - BoxCollision - soft rounded table edge
      - 手のコントロールのlocator
      - ``translateY`` を下げて机の天板の箱(locator、幅10cm・厚さ2cm・奥行6cm、角の丸め0.5cm、Yに20度回したもの)へ近づけると、出力(緑)が上の面から ``softness`` (1cm)の距離で柔らかく止まり始め、箱の中へは入らない。面の上を横へ動かしても面に垂直に止まって滑らず、縁の外へ出すと丸めた角に沿って側面へ回り込む。containerの ``normal`` は今押し出している向き。
+   * - TorusCollision - soft hoop collider
+     - 手のコントロールのlocator
+     - ``translateX`` を下げてスカートの骨組みの輪(locator、芯の円の半径4cm・管の半径0.8cm、局所Yが軸)へ近づけると、出力(緑)が管の表面から ``softness`` (1cm)の距離で柔らかく止まり始め、管の中へは入らない。上下へ動かすと管の断面の円に沿って回り込み、輪の内側(穴)は通り抜けられる。containerの ``height`` は輪の平面からの高さ、 ``axisDistance`` は軸からの距離。
    * - SpaceBlend - world, chest and hand
      - 手の空間のlocator
      - 動かすと、worldと手の空間に半分ずつ追従する出力(緑)が、手の動きの半分だけ付いてくる。containerの ``weight0`` (world)・ ``weight1`` (胸)・ ``weight2`` (手)を変えると、割合に応じて追従先が混ざる(作成時の位置からは跳ねない)。

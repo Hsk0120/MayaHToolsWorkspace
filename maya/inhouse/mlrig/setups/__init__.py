@@ -47,6 +47,7 @@ from .sphereCollision import SphereCollision
 from .capsuleCollision import CapsuleCollision
 from .ellipsoidCollision import EllipsoidCollision
 from .boxCollision import BoxCollision
+from .torusCollision import TorusCollision
 from .poleVectorPlacement import PoleVectorPlacement
 from .poseRbf import PoseRbf
 from .radialWeights import RadialWeights
@@ -128,6 +129,7 @@ __all__ = [
     "CapsuleCollision",
     "EllipsoidCollision",
     "BoxCollision",
+    "TorusCollision",
     "PoleVectorPlacement",
     "PoseRbf",
     "RadialWeights",
