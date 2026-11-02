@@ -24,6 +24,8 @@
 #include <QPointer>
 #include <QScreen>
 #include <QScrollArea>
+#include <QSplitter>
+#include <QTabWidget>
 #include <QTimer>
 #include <stdexcept>
 namespace {
@@ -39,10 +41,67 @@ int closeGeneration = 0;
 QPointer<QObject> lifetime;
 QPointer<QTimer> dockTimer;
 QJsonObject lastDock;
+/** @brief 内容の最小寸法をMayaの分割境界へ伝播させない、自分専用のスクロール領域。 */
+class DockViewport final : public QScrollArea {
+public:
+    /** @brief 表示しきれない内容はスクロールで扱い、ドック自体は縮小可能にする。 */
+    DockViewport() { setMinimumSize(0, 0); setWidgetResizable(true); }
+    /** @brief Mayaが求める最小寸法。 @return 内容やスクロールバーに依存しないゼロ寸法。 */
+    QSize minimumSizeHint() const override { return {0, 0}; }
+};
 /** @brief UTF-8を保持する。 @param text 値。 @return Maya文字列。 */
 MString ms(const QString& text) { MString result; result.setUTF8(text.toUtf8().constData()); return result; }
 /** @brief workspaceの有無。 @return 存在するか。 */
 bool exists() { int result = 0; MGlobal::executeCommand(MString("workspaceControl -exists ") + control, result); return result != 0; }
+/** @brief Mayaの固定行より下に単独配置され、境界で高さを変更できない状態かを読む。
+ * @return 対象のときtrue。左右ドック、共有タブ、可変の隣接ドックは対象外。
+ * @note 親Qt部品はMaya所有なので属性や最小寸法を変更せず、その時点の構造だけを調べる。
+ */
+bool belowFixedRows() {
+    QWidget* item = MQtUtil::findControl(control);
+    while (item) {
+        if (auto* tabs = qobject_cast<QTabWidget*>(item)) {
+            if (tabs->count() > 1) return false;  // 他ツールとの共有配置を勝手に解除しない。
+        }
+        if (qobject_cast<QSplitter*>(item->parentWidget())) break;
+        item = item->parentWidget();
+    }
+    auto* slider = MQtUtil::findControl("TimeSlider");
+    auto* main = MQtUtil::findControl("MainPane");
+    if (!item || !slider || !slider->isVisible()) return false;
+    auto* splitter = qobject_cast<QSplitter*>(item->parentWidget());
+    if (!splitter || splitter->orientation() != Qt::Vertical) return false;
+    const int index = splitter->indexOf(item);
+    int sliderIndex = -1;
+    for (int i = 0; i < splitter->count(); ++i) {
+        auto* row = splitter->widget(i);
+        if ((row == slider || row->isAncestorOf(slider)) && !(main && row->isAncestorOf(main))) sliderIndex = i;
+    }
+    if (sliderIndex < 0 || index <= sliderIndex) return false;
+    const char* fixedRows[] = {"TimeSlider", "RangeSlider", "CommandLine", "HelpLine"};
+    for (int i = sliderIndex + 1; i < splitter->count(); ++i) {
+        auto* other = splitter->widget(i);
+        if (i == index || !other->isVisible()) continue;
+        bool fixed = false;
+        for (const auto* name : fixedRows) {
+            auto* widget = MQtUtil::findControl(name);
+            fixed = fixed || (widget && (other == widget || other->isAncestorOf(widget)));
+        }
+        if (!fixed) return false;
+    }
+    return true;
+}
+/** @brief MCEと同様に、固定行の下へ入った自分のドックだけをタイムスライダーの上へ戻す。
+ * @note uiScriptやドラッグ途中へ再入しないよう、既存の遅延保存タイマーから呼ぶ。
+ */
+void repairBottomDock() {
+    if (quitting || removing || building || !browser || !exists() || QApplication::mouseButtons() != Qt::NoButton) return;
+    int floating = 1; MGlobal::executeCommand(MString("workspaceControl -q -floating ") + control, floating);
+    if (floating || !belowFixedRows()) return;
+    try {
+        qpe::mayaCommand(QString("workspaceControl -e -dockToControl TimeSlider top ") + control);
+    } catch (const std::exception& e) { MGlobal::displayWarning(ms("QPE dock placement: " + QString::fromUtf8(e.what()))); }
+}
 /** @brief 版ごとの保存キー。旧Pythonの設定を直接引き継ぐ。 @return 設定名。 */
 QString dockKey() { return "mayaDock" + QString::fromUtf8(MGlobal::mayaVersion().asUTF8()).left(4); }
 /** @brief 明示開閉と浮動位置を保存し、ドックの入れ子はMaya自身に任せる。 */
@@ -103,8 +162,8 @@ void show(bool restore = false) {
         if (!parent) throw std::runtime_error("Maya workspaceControl is unavailable");
         if (!browser || !parent->isAncestorOf(browser)) {
             if (viewport) delete viewport.data();
-            viewport = new QScrollArea; viewport->setObjectName("qpeNativeDockViewport"); viewport->setWidgetResizable(true);
-            viewport->setMinimumSize(240, 160); viewport->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            viewport = new DockViewport; viewport->setObjectName("qpeNativeDockViewport");
+            viewport->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
             browser = new qpe::BrowserWindow(viewport, qpe::mayaServices());
             browser->setMinimumSize(360, 260); viewport->setWidget(browser);
             MQtUtil::addWidgetToMayaLayout(viewport, parent);
@@ -114,7 +173,7 @@ void show(bool restore = false) {
         userOpened = true;
         ++closeGeneration;
         qpe::mayaCommand(QString("workspaceControl -e -closeCommand ") + qpe::melQuote(QString("if (`exists " QPE_COMMAND "`) " QPE_COMMAND " -closed %1;").arg(closeGeneration)) + " -uiScript " + qpe::melQuote(script) + ' ' + control);
-        if (!dockTimer) { dockTimer = new QTimer(lifetime); dockTimer->setInterval(750); QObject::connect(dockTimer.data(), &QTimer::timeout, dockTimer.data(), [] { saveDock(); }); }
+        if (!dockTimer) { dockTimer = new QTimer(lifetime); dockTimer->setInterval(750); QObject::connect(dockTimer.data(), &QTimer::timeout, dockTimer.data(), [] { repairBottomDock(); saveDock(); }); }
         dockTimer->start();
         if (!existed) QTimer::singleShot(0, browser, [previous] { restoreGeometry(previous); saveDock(); });
         building = false;

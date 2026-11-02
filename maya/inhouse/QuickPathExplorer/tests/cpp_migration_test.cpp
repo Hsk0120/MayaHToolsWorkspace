@@ -63,6 +63,8 @@
 #include "../src/core/media_decoder.h"
 #include "../third_party/miniz/miniz.h"
 #include <QImage>
+#include <QStyleOptionFrame>
+#include <QStandardPaths>
 #include <QImageReader>
 #define NOMINMAX
 #include <windows.h>
@@ -193,6 +195,38 @@ private slots:
         QTRY_VERIFY(column->viewport()->width() >= column->fontMetrics().horizontalAdvance("Folder_00") + 52);
         window.close();
     }
+    /** @brief UNCの親検査は共有内を保持し、サーバー自体をファイルとして検査しない。 */
+    void uncOperationBoundary() {
+        QCOMPARE(qpe::detail::operationAncestors("//qpe-test-server/share/folder/file.txt"),
+                 QStringList({"//qpe-test-server/share/folder/file.txt", "//qpe-test-server/share/folder", "//qpe-test-server/share"}));
+        QCOMPARE(qpe::detail::operationAncestors("//qpe-test-server/share/"), QStringList({"//qpe-test-server/share"}));
+        QCOMPARE(qpe::detail::operationAncestors("Z:/folder/file.txt"), QStringList({"Z:/folder/file.txt", "Z:/folder", "Z:/"}));
+        QCOMPARE(qpe::detail::operationAncestors("//qpe-test-server/share/folder/../file.txt"),
+                 QStringList({"//qpe-test-server/share/file.txt", "//qpe-test-server/share"}));
+        QVERIFY_EXCEPTION_THROWN(qpe::detail::operationAncestors("relative/file.txt"), std::invalid_argument);
+    }
+    /** @brief 狭い行と通常入力欄の余白が共存しても改名の字形領域を確保する。 */
+    void inlineRenameTextGeometry() {
+        for (const int pixels : {10, 12, 20}) {
+            QTreeView view; QStandardItemModel model;
+            auto* item = new QStandardItem(QString::fromUtf8("長いファイル名_original_scene.mb"));
+            const QString target = path("長いファイル名_original_scene.mb");
+            item->setData(target, Qt::UserRole + 1); model.appendRow(item); view.setModel(&model);
+            QFont font = view.font(); font.setPixelSize(pixels); view.setFont(font);
+            view.setStyleSheet("QLineEdit { padding:6px; } QTreeView::item { padding:0px; }");
+            view.resize(520, 180); view.setColumnWidth(0, 150); view.show(); QTest::qWait(30);
+            QVERIFY(qpe::inlineRename(&view, target, {}));
+            auto* edit = view.findChild<QLineEdit*>("inlineRename"); QVERIFY(edit);
+            QStyleOptionFrame option; option.initFrom(edit); option.rect = edit->rect();
+            const auto contents = edit->style()->subElementRect(QStyle::SE_LineEditContents, &option, edit);
+            QVERIFY2(contents.height() >= edit->fontMetrics().height(), "Rename glyphs must fit without vertical clipping");
+            QVERIFY(edit->width() >= edit->fontMetrics().horizontalAdvance(edit->text()) + 12);
+            QVERIFY(view.viewport()->rect().contains(edit->geometry()));
+            QCOMPARE(edit->selectedText(), QString::fromUtf8("長いファイル名_original_scene"));
+            QTest::keyClick(edit, Qt::Key_Escape);
+            QTRY_VERIFY(!view.findChild<QLineEdit*>("inlineRename"));
+        }
+    }
     /** @brief 3表示とカラムで一覧内改名を行い、拡張子選択・中止・IME境界を確認する。 */
     void inlineRenameViews() {
         QVERIFY(QDir().mkpath(path("inline-folder/child"))); QVERIFY(file("inline-folder/original.txt"));
@@ -309,6 +343,37 @@ private slots:
             seen = seen && !menu->isVisible();
         });
         window.findChild<QToolButton*>("toolsButton")->click(); QVERIFY(seen); window.close();
+    }
+    /** @brief 標準フォルダーはRecent直下で登録先を指し、移動後も選択を維持する。 */
+    void userFoldersSidebar() {
+        qpe::BrowserWindow window; window.navigate(path("A")); window.show();
+        auto* places = window.findChild<QTreeWidget*>("places"); QVERIFY(places);
+        QCOMPARE(places->topLevelItem(1)->text(0), QString("Recent"));
+        auto* desktop = places->topLevelItem(2); QCOMPARE(desktop->text(0), QString("Desktop"));
+        QCOMPARE(places->topLevelItem(8)->text(0), QString("Drives"));
+        QCOMPARE(desktop->data(0, Qt::UserRole + 1).toString(), QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DesktopLocation)));
+        auto* documents = places->topLevelItem(3); QCOMPARE(documents->text(0), QString("Documents"));
+        QCOMPARE(documents->data(0, Qt::UserRole + 1).toString(), QDir::cleanPath(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)));
+        for (int row = 2; row < 8; ++row) {
+            QVERIFY(places->topLevelItem(row)->data(0, Qt::UserRole + 2).toBool());
+            QVERIFY(!places->topLevelItem(row)->icon(0).isNull());
+            QCOMPARE(places->topLevelItem(row)->childCount(), 0);
+        }
+        const auto desktopIcon = desktop->icon(0).cacheKey();
+        auto* toggle = window.findChild<QToolButton*>("navigationPaneButton"); toggle->click();
+        QTRY_VERIFY_WITH_TIMEOUT(desktop->icon(0).cacheKey() != desktopIcon, 10000);
+        for (int cycle = 0; cycle < 20; ++cycle) {
+            toggle->click(); QTest::qWait(20);
+            toggle->click(); QTest::qWait(20);
+            QVERIFY(places->isVisible());
+            QVERIFY(!places->visualItemRect(desktop).isEmpty());
+        }
+        // 実ユーザーのDocumentsは列挙せず、移動操作は専用データへ差し替えて調べる。
+        documents->setData(0, Qt::UserRole + 1, qpe::DirectoryStore::normalized(path("B")));
+        emit places->itemClicked(documents, 0);
+        QTRY_COMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("B")));
+        QCOMPARE(places->currentItem(), documents);
+        window.close();
     }
     /** @brief サイドバーのファイル・フォルダーも可視範囲のShellアイコンを非同期で取得する。 */
     void sidebarNativeIcons() {
@@ -1683,9 +1748,16 @@ private slots:
     void addressCompletion() {
         qpe::BrowserWindow window; window.navigate(path("A")); window.show(); window.activateWindow();
         auto* address = window.findChild<QLineEdit*>("address"); QVERIFY(address && address->completer());
-        address->setFocus(); address->setText(path("A/") ); emit address->textEdited(address->text());
+        QCOMPARE(address->text(), QDir::toNativeSeparators(window.currentPath()));
+        address->setFocus(); address->setText(QDir::toNativeSeparators(path("A/"))); emit address->textEdited(address->text());
         QTRY_VERIFY_WITH_TIMEOUT(address->completer()->model()->rowCount() > 0, 5000);
+        QVERIFY(!address->completer()->model()->index(0, 0).data().toString().contains('/'));
         QVERIFY(address->hasFocus());
+        address->completer()->popup()->hide();
+        address->setText(QDir::toNativeSeparators(path("B"))); QTest::keyClick(address, Qt::Key_Return);
+        QTRY_COMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("B")));
+        QCOMPARE(address->text(), QDir::toNativeSeparators(window.currentPath()));
+        address->setFocus();
         address->setText(path("B/no-matching-name")); emit address->textEdited(address->text());
         QTRY_COMPARE_WITH_TIMEOUT(address->completer()->model()->rowCount(), 0, 5000);
     }

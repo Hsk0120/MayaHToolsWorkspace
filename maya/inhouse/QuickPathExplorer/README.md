@@ -8,6 +8,8 @@ Windows版は静的Qtを含む`QuickPathExplorer.exe`、Maya版は年別の`quic
 
 Windowsでは直下の`QuickPathExplorer.exe`を起動します。ビルド済みexeをGitにも含めているため、別PCではリポジトリを取得してそのまま起動でき、Maya・Python・Qt開発環境のインストールや再ビルドは不要です。対象はWindows x64です。フォルダーを引数に渡すと、その場所を開きます。
 
+Windows 11ではOS標準の角丸ウィンドウを使用します。最大化・スナップ時の角の形状はWindowsに従います。未対応のWindowsでは通常の四角いウィンドウとして起動します。
+
 ```powershell
 .\QuickPathExplorer.exe 'D:/Projects'
 ```
@@ -22,13 +24,17 @@ Maya Code Editorと同様に、`scripts/userSetup.py`がGUI起動後に未ロー
 
 更新時はWindows版QPEを終了します。Maya版は処理を完了してからアンロードするかMayaを終了します。ファイル操作やワーカーが残る間はアンロードを拒否します。他ツールのUIやQt設定は変更しません。
 
+Mayaの下部ドックは境界を下へドラッグして縮められます。表示しきれない内容はQPE内でスクロールします。単独のQPEがタイムライン等の固定行より下へ配置された場合は、タイムライン上へ戻して境界を操作できるようにします。他ツールとの共有タブや左右ドックはこの配置補正の対象外です。
+
 ## 基本操作
 
 - 上段のフォルダーをクリックして子階層へ進みます。戻る／進む、Alt+Left／Right、Alt+Up、パス入力も利用できます。
+- 上部のパス欄・入力候補・親/履歴メニューはWindowsの区切り（`C:\Projects\scenes`、`\\server\share\folder`）で表示します。貼り付けたWindows形式と`/`形式のどちらでも移動できます。
 - タブの追加（Ctrl+T）、順方向の切替（Ctrl+Tab）、逆方向の切替（Ctrl+Shift+Tab）、閉じる（Ctrl+W）、閉じたタブの再表示（Ctrl+Shift+T）に対応します。固定、場所ロック、名前付きTab setも利用できます。
 - カラムの幅はDisplay Settingsで調整します。名前に合わせる設定、ウィンドウ幅へ寄せる設定、境界の手動リサイズを用意しています。
 - Tools → View → Browser layoutでColumns first／Balanced／Files firstを選びます。境界をドラッグするとCustomになり、タブごとに比率を保存します。
 - 左右のサイドバーは上部ボタンで表示／非表示を切り替えます。現在のドライブを選択表示し、ドライブ名・レター・使用量・空き容量を表示します。
+- 左サイドバーはFavorites → Recent → Desktop・Documents・Downloads・Pictures・Music・Videos → Drivesの順です。標準フォルダーはRecentの下に直接表示し、OneDriveや別ドライブへ移動済みの場合もWindowsに登録されている現在の場所を使います。
 - 文字サイズは上部のAa（Display Settings）から変更します。10px相当のVery Smallを含みます。入力欄以外ではCtrl+Plus／Minus／0でも拡大・縮小・標準化できます。MayaのDPI倍率を反映します。
 - Windowsの既定テーマはOSに追従し、明示的なライト／ダークにも切り替えられます。Mayaはダークを既定とし、ホスト全体のパレットを変更しません。
 - ファイル一覧のViewからDetails／Thumbnails／Extended details、子階層を含む表示、グループ、タグ、列を変更します。名前・拡張子等の絞り込みは条件ラベルの×でも解除できます。
@@ -36,6 +42,8 @@ Maya Code Editorと同様に、`scripts/userSetup.py`がGUI起動後に未ロー
 ファイルをダブルクリックすると開きます。Windows版は関連付けアプリを起動します。Maya版ではma／mb／fbxを現在のMayaで扱い、他のファイルは関連付けアプリへ渡します。EnterまたはF2で改名し、文字編集やIME変換中は編集欄の操作を優先します。
 
 右クリックの対象はメニューを開いた時点で固定します。選択外を右クリックしても既存選択・プレビューを変更しません。Copy／Cut／Paste、Duplicate、Rename、New Folder／New Text File、Delete、Properties、Open with等を利用できます。
+
+一覧内のRenameでは編集欄に文字が収まる高さを確保し、長い名前は表示領域内で欄を広げます。欄より長い名前もカーソル移動で横スクロールして編集できます。Enterで確定、Escapeで中止します。
 
 ## Mayaの操作
 
@@ -57,6 +65,8 @@ QPEのファイルUndo／RedoはMayaシーンのUndoとは別です。現在のM
 詳細と制限は[ファイル整理ガイド](ORGANIZER_GUIDE.md)を参照してください。Find command（Ctrl+Shift+P）から操作名でも探せます。
 
 削除はWindowsのごみ箱への移動です。OSが処理中の間は完了扱いにしません。完了後は親・子カラムと別タブの一覧を更新します。外部アプリで変更された復元先やUndoバックアップを検出した場合は復元を停止します。
+
+共有フォルダーはWindowsの現在のログオンの接続・認証を使用します。Explorerと同じユーザー・同じ権限レベルで起動してください。UNCパスの親検査は共有ルートで止め、サーバー名自体をフォルダーとして検査しません。参照できても、書き込み・改名・上書き・Undo用退避に必要な権限がない場合は操作に失敗します。QPEから共有やNTFSの権限を変更することはありません。失敗時は対象パスとOS/Qtの理由を確認してください。
 
 転送再開は項目単位です。途中のファイルは先頭からコピーし直します。実ネットワーク切断や停電を含む完全なトランザクション保証はありません。ZIPは20GiB／10万項目を上限とし、パス逸脱・リンク・重複名を拒否します。
 

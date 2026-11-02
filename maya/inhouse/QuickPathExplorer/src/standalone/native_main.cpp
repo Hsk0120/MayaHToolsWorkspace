@@ -19,6 +19,18 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <shobjidl.h>
+#include <dwmapi.h>
+
+/** @brief 自分の単体ウィンドウにWindows標準の角丸を要求する。
+ * @param window HWNDを生成済みの単体画面。 @return OSが要求を受理したか。
+ * @note Windows 11では最大化やスナップ時の形状をDWMが管理する。
+ * 未対応OSでは通常の四角い枠を維持し、Mayaの枠やQtのマスクは変更しない。
+ */
+bool applyRoundedCorners(QWidget& window) {
+    const auto handle = reinterpret_cast<HWND>(window.winId());
+    const DWM_WINDOW_CORNER_PREFERENCE preference = DWMWCP_ROUND;
+    return SUCCEEDED(DwmSetWindowAttribute(handle, DWMWA_WINDOW_CORNER_PREFERENCE, &preference, sizeof(preference)));
+}
 
 /** @brief Qtのイベントループを所有し、検証時だけ自動終了する。
  * @param argc 引数数。
@@ -44,6 +56,7 @@ int main(int argc, char** argv) {
         const auto initial = args.size() > 1 && !args[1].startsWith("--") ? args[1] : QString();
         window.restoreSession(initial, initial.isEmpty());
         window.show();
+        const bool roundedCornersRequested = applyRoundedCorners(window);
         const int smoke = args.indexOf("--smoke");
         QTimer poll;
         if (smoke >= 0 && smoke + 1 < args.size()) {
@@ -54,6 +67,7 @@ int main(int argc, char** argv) {
                 if (!output.open(QIODevice::WriteOnly)) { app.exit(3); return; }
                 output.write(QJsonDocument(QJsonObject{{"passed", ok}, {"qt", qVersion()},
                     {"pythonRuntime", false}, {"staticQt", true}, {"path", window.currentPath()},
+                    {"nativeRoundedCornersRequested", roundedCornersRequested},
                     {"readyMilliseconds", double(elapsed.elapsed())}}).toJson());
                 window.grab().save(args[smoke + 1] + ".png");
                 app.exit(ok ? 0 : 2);

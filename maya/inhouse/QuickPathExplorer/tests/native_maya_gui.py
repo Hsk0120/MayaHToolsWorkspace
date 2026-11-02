@@ -69,6 +69,136 @@ def main(out, request):
         if cmds.workspaceControl(control, query=True, floating=True):
             floating_surface(window).grab().save(str(out / "surface.png"))
         return dict(result, status="inspected")
+    if request.get("phase") == "bottomDock":
+        from maya import OpenMayaUI
+        try:
+            from shiboken6 import isValid, wrapInstance
+        except ImportError:
+            from shiboken2 import isValid, wrapInstance
+
+        def control_widget(name):
+            """Mayaが作り直したQt親をその時点で取得する。"""
+            pointer = OpenMayaUI.MQtUtil.findControl(name)
+            return wrapInstance(int(pointer), QtWidgets.QWidget) if pointer else None
+
+        def dock_geometry():
+            """ドックと固定行の位置、共有splitterを読み取る。"""
+            item = control_widget(control)
+            slider = control_widget("TimeSlider")
+            rows = []
+            splitters = []
+            current = item
+            while current and current.objectName() != "MayaWindow":
+                rows.append(geometry(current))
+                if isinstance(current, QtWidgets.QSplitter):
+                    splitters.append({"orientation": str(current.orientation()), "sizes": current.sizes(),
+                                      "rows": [{"name": current.widget(i).objectName(), "minimum": current.widget(i).minimumSizeHint().height(),
+                                                "maximum": current.widget(i).maximumHeight(), "size": current.widget(i).height(),
+                                                "handle": [current.handle(i).mapToGlobal(QtCore.QPoint()).x(), current.handle(i).mapToGlobal(QtCore.QPoint()).y(), current.handle(i).width(), current.handle(i).height()],
+                                                "enabled": current.handle(i).isEnabled()} for i in range(current.count())]})
+                current = current.parentWidget()
+            return {"dock": geometry(item), "parents": rows, "splitters": splitters,
+                    "dockTop": item.mapToGlobal(QtCore.QPoint()).y(),
+                    "dockBottom": item.mapToGlobal(QtCore.QPoint(0, item.height())).y(),
+                    "sliderTop": slider.mapToGlobal(QtCore.QPoint()).y()}
+
+        def resize_dock(height):
+            """Mayaの境界をQtで動かす。最小寸法や伸縮方針は変更しない。"""
+            item = control_widget(control)
+            # Qt5では再ドック後のparentWidget()が破棄済みラッパーを返す場合がある。
+            # 生存するsplitterの子から現在の配置を照合し、古い親ラッパーをたどらない。
+            matches = []
+            for candidate in app.allWidgets():
+                if not isValid(candidate) or not isinstance(candidate, QtWidgets.QSplitter):
+                    continue
+                if candidate.orientation() != QtCore.Qt.Vertical:
+                    continue
+                for index in range(candidate.count()):
+                    row = candidate.widget(index)
+                    if isValid(row) and (row == item or row.isAncestorOf(item)):
+                        matches.append((candidate, row, index))
+            assert matches
+            splitter, row, index = min(matches, key=lambda value: value[0].width() * value[0].height())
+            assert index > 0
+            sizes = splitter.sizes()
+            target = height + row.height() - item.height()
+            sizes[index - 1] += sizes[index] - target
+            sizes[index] = target
+            splitter.setSizes(sizes)
+            settle(1000)
+
+        cmds.workspaceControl(control, edit=True, floating=True)
+        settle()
+        cmds.workspaceControl(control, edit=True, dockToMainWindow=("bottom", False))
+        settle(1600)
+        result["bottomDock"] = dock_geometry()
+        (out / "bottom-dock.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        control_widget(control).grab().save(str(out / "bottom-dock.png"))
+        assert result["bottomDock"]["dockBottom"] <= result["bottomDock"]["sliderTop"], result["bottomDock"]
+        resize_dock(100)
+        result["compact"] = dock_geometry()
+        (out / "bottom-compact.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        assert result["compact"]["dock"]["size"][1] <= 130, result["compact"]
+        result["checks"].append("bottom docking repaired above fixed rows and reduced to <=130px")
+        palette = app.palette().cacheKey()
+        scene = cmds.file(query=True, sceneName=True)
+        panels = sorted(cmds.getPanel(type="modelPanel"))
+        result["cycles"] = []
+        for operation in ("sidebars", "close", "delete", "float"):
+            resize_dock(400)
+            assert control_widget(control).height() >= 300
+            if operation == "sidebars":
+                current = next(w for w in app.allWidgets() if w.objectName() == "qpeNativeWindow")
+                for name in ("navigationPaneButton", "detailsPaneButton"):
+                    button = current.findChild(QtWidgets.QToolButton, name)
+                    button.click()
+                    settle()
+                    button.click()
+            elif operation == "close":
+                cmds.workspaceControl(control, edit=True, close=True)
+                cmds.quickPathExplorer()
+            elif operation == "delete":
+                cmds.deleteUI(control)
+                cmds.quickPathExplorer()
+            else:
+                cmds.workspaceControl(control, edit=True, floating=True)
+            settle()
+            cmds.workspaceControl(control, edit=True, dockToMainWindow=("bottom", False))
+            settle(1600)
+            resize_dock(100)
+            value = dock_geometry()
+            result["cycles"].append({"operation": operation, "geometry": value})
+            assert value["dockBottom"] <= value["sliderTop"] and value["dock"]["size"][1] <= 130, value
+            assert app.palette().cacheKey() == palette
+            assert cmds.file(query=True, sceneName=True) == scene
+            assert sorted(cmds.getPanel(type="modelPanel")) == panels
+        result["checks"].append("expand/compact after sidebars, close, delete/recreate, float/redock; scene/panels/palette preserved")
+        sibling = "QPEBottomSiblingControl"
+        if cmds.workspaceControl(sibling, exists=True):
+            raise RuntimeError("Previous bottom sibling probe still exists")
+        cmds.workspaceControl(sibling, label="QPE bottom sibling", retain=False,
+                              dockToMainWindow=("bottom", False))
+        layout = cmds.columnLayout(parent=sibling)
+        field = cmds.textField(parent=layout, text="Keep bottom sibling")
+        try:
+            cmds.workspaceControl(control, edit=True, tabToControl=(sibling, -1))
+            settle(1800)
+            item = control_widget(control)
+            sibling_item = control_widget(sibling)
+            shared = [widget for widget in app.allWidgets() if isValid(widget)
+                      and isinstance(widget, QtWidgets.QTabWidget) and widget.count() >= 2
+                      and widget.isAncestorOf(item) and widget.isAncestorOf(sibling_item)]
+            assert shared, "QPE was detached from the bottom sibling tab"
+            assert cmds.textField(field, query=True, text=True) == "Keep bottom sibling"
+            result["checks"].append("bottom shared tab preserved across repair timer; sibling input unchanged")
+        finally:
+            cmds.workspaceControl(control, edit=True, floating=True)
+            cmds.deleteUI(sibling)
+        cmds.workspaceControl(control, edit=True, dockToMainWindow=("bottom", False))
+        settle(1600)
+        resize_dock(100)
+        (out / "bottom-final.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
+        return dict(result, status="passed")
     if request.get("phase") == "sharedTabs":
         other_control = "QPEDedicatedSiblingControl"
         if cmds.workspaceControl(other_control, exists=True):

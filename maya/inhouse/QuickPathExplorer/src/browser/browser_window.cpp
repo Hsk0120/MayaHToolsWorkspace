@@ -75,6 +75,8 @@
 #define NOMINMAX
 #include <windows.h>
 #include <windowsx.h>
+#include <shlobj.h>
+#include <knownfolders.h>
 
 namespace qpe {
 namespace {
@@ -1361,7 +1363,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         const auto* snapshot = addressStore->snapshot(parent); if (!snapshot || !snapshot->error.isEmpty()) return;
         const auto prefix = address_->property("completionPrefix").toString(); QStringList matches;
         for (const auto& entry : snapshot->entries) if (entry.directory && entry.name.startsWith(prefix, Qt::CaseInsensitive)) {
-            matches.append(QDir(parent).filePath(entry.name)); if (matches.size() >= 150) break;
+            matches.append(QDir::toNativeSeparators(QDir(parent).filePath(entry.name))); if (matches.size() >= 150) break;
         }
         addressModel->setStringList(matches); if (!matches.isEmpty()) completer->complete(); else completer->popup()->hide();
     };
@@ -1380,10 +1382,10 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         std::unique_ptr<QMenu> menu(address_->createStandardContextMenu()); auto* ancestors = menu->addMenu("Parent folders");
         QString path = currentPath();
         while (true) { const auto parent = QFileInfo(path).absolutePath(); if (parent == path || parent.isEmpty()) break;
-            ancestors->addAction(parent, this, [this, parent] { navigate(parent); }); path = parent;
+            ancestors->addAction(QDir::toNativeSeparators(parent), this, [this, parent] { navigate(parent); }); path = parent;
         }
         auto* recent = menu->addMenu("Recent folders");
-        for (const auto& path : pathHistory_) if (!path.isEmpty()) recent->addAction(path, this, [this, path] { navigate(path); });
+        for (const auto& path : pathHistory_) if (!path.isEmpty()) recent->addAction(QDir::toNativeSeparators(path), this, [this, path] { navigate(path); });
         recent->setEnabled(!recent->actions().isEmpty());
         menu->exec(address_->mapToGlobal(position));
     });
@@ -1409,9 +1411,9 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     connect(horizontal_, &QSplitter::splitterMoved, this, &BrowserWindow::scheduleSave);
     connect(sidebar_, &QTreeWidget::itemClicked, this, [this](QTreeWidgetItem* item) {
         const auto search = item->data(0, Qt::UserRole + 101).toString(); if (!search.isEmpty()) { perform("savedSearch:" + search); return; }
-        const auto path = item->data(0, PathRole).toString(); if (path.isEmpty()) return; if (QFileInfo(path).isDir()) navigate(path); else showDetails(path);
+        const auto path = item->data(0, PathRole).toString(); if (path.isEmpty()) return; if (item->data(0, DirectoryRole).toBool() || QFileInfo(path).isDir()) navigate(path); else showDetails(path);
     });
-    connect(sidebar_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item) { const auto path = item->data(0, PathRole).toString(); if (!path.isEmpty() && !QFileInfo(path).isDir()) openPath(path); });
+    connect(sidebar_, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item) { const auto path = item->data(0, PathRole).toString(); if (!path.isEmpty() && !item->data(0, DirectoryRole).toBool() && !QFileInfo(path).isDir()) openPath(path); });
     sidebar_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(sidebar_, &QWidget::customContextMenuRequested, this, [this](const QPoint& p) {
         auto* item = sidebar_->itemAt(p); if (!item) return;
@@ -1424,8 +1426,9 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
             }); menu.exec(sidebar_->viewport()->mapToGlobal(p)); return;
         }
         if (item->data(0, PathRole).toString().isEmpty()) return; const auto path = item->data(0, PathRole).toString(); QMenu menu;
-        menu.addAction("Open", this, [this, path] { openPath(path); }); menu.addAction("Open in new tab", this, [this, path] { addTab(QFileInfo(path).isDir() ? path : QFileInfo(path).absolutePath()); });
-        menu.addAction("Remove from Favorites", this, [this, path] { favorites_.removeAll(path); try { writeSettings({{"favorites", QJsonArray::fromStringList(favorites_)}}); updatePlaces(); } catch (const std::exception& e) { status_->setText(e.what()); } }); menu.exec(sidebar_->viewport()->mapToGlobal(p));
+        const bool directory = item->data(0, DirectoryRole).toBool();
+        menu.addAction("Open", this, [this, path, directory] { if (directory) navigate(path); else openPath(path); }); menu.addAction("Open in new tab", this, [this, path, directory] { addTab(directory || QFileInfo(path).isDir() ? path : QFileInfo(path).absolutePath()); });
+        if (favorites_.contains(path)) menu.addAction("Remove from Favorites", this, [this, path] { favorites_.removeAll(path); try { writeSettings({{"favorites", QJsonArray::fromStringList(favorites_)}}); updatePlaces(); } catch (const std::exception& e) { status_->setText(e.what()); } }); menu.exec(sidebar_->viewport()->mapToGlobal(p));
     });
     connect(size, &QToolButton::clicked, this, &BrowserWindow::appearanceDialog);
     connect(tools, &QToolButton::clicked, this, [this, tools] {
@@ -1593,6 +1596,22 @@ void BrowserWindow::updatePlaces() {
         }
     };
     group("Favorites", favorites_); group("Recent", recents_);
+    const struct { const KNOWNFOLDERID* id; const char* label; } folders[] = {
+        {&FOLDERID_Desktop, "Desktop"}, {&FOLDERID_Documents, "Documents"}, {&FOLDERID_Downloads, "Downloads"},
+        {&FOLDERID_Pictures, "Pictures"}, {&FOLDERID_Music, "Music"}, {&FOLDERID_Videos, "Videos"}
+    };
+    // 現在の登録先を使う。DONT_VERIFYにより、移動先のNAS等を起動時に同期照会しない。
+    // フォルダーを作成するフラグは指定せず、Shellアイコンは既存ワーカーへ任せる。
+    for (const auto& folder : folders) {
+        PWSTR registered = nullptr;
+        const auto result = SHGetKnownFolderPath(*folder.id, KF_FLAG_DONT_VERIFY, nullptr, &registered);
+        const auto path = SUCCEEDED(result) && registered ? QDir::cleanPath(QDir::fromNativeSeparators(QString::fromWCharArray(registered))) : QString();
+        CoTaskMemFree(registered);
+        if (path.isEmpty()) continue;
+        auto* item = new QTreeWidgetItem(sidebar_, {QString::fromLatin1(folder.label)});
+        item->setData(0, PathRole, path); item->setData(0, DirectoryRole, true);
+        item->setToolTip(0, QDir::toNativeSeparators(path)); item->setIcon(0, nativeFolderIcon());
+    }
     const auto searches = readSettings()["savedSearches"].toObject();
     for (const auto& name : searches.keys()) { auto* item = new QTreeWidgetItem(sidebar_->topLevelItem(0), {name}); item->setData(0, Qt::UserRole + 101, name); item->setIcon(0, QIcon(":/qpe/icons/search.svg")); item->setToolTip(0, "Saved search: " + name); }
     QStringList drives; const DWORD mask = GetLogicalDrives();
@@ -1990,17 +2009,21 @@ void BrowserWindow::navigate(const QString& path) { if (page()) page()->navigate
 QString BrowserWindow::currentPath() const { return page() ? page()->path() : QString(); }
 bool BrowserWindow::ready() const { return page() && page()->ready(); }
 void BrowserWindow::updateCurrent() {
-    address_->setText(currentPath());
+    // 表示はWindows形式にし、列挙・履歴の内部パスは従来の正規化値を保持する。
+    address_->setText(QDir::toNativeSeparators(currentPath()));
     if (!currentPath().isEmpty()) { pathHistory_.removeAll(currentPath()); pathHistory_.prepend(currentPath()); pathHistory_ = pathHistory_.mid(0, 30); }
     back_->setEnabled(page() && page()->canHistory(-1));
     forward_->setEnabled(page() && page()->canHistory(1));
     // タブ切替では選択モデルは変わらずselectedシグナルも来ないため、保持された対象を読み直す。
     showDetails(page() ? page()->detailPath() : QString()); details_->setDirectory(currentPath());
     sidebar_->setProperty("currentDrive", currentPath().size() > 2 && currentPath()[1] == ':' ? currentPath().left(3) : QString()); sidebar_->viewport()->update();
+    QTreeWidgetItem* currentPlace = nullptr;
     for (QTreeWidgetItemIterator it(sidebar_); *it; ++it) {
         const auto path = (*it)->data(0, PathRole).toString();
-        if (path.size() == 3 && currentPath().startsWith(path, Qt::CaseInsensitive)) { QSignalBlocker block(sidebar_); sidebar_->setCurrentItem(*it); }
+        if (!currentPlace && path.size() == 3 && currentPath().startsWith(path, Qt::CaseInsensitive)) currentPlace = *it;
+        if ((*it)->data(0, DirectoryRole).toBool() && path.compare(currentPath(), Qt::CaseInsensitive) == 0) currentPlace = *it;
     }
+    if (currentPlace) { QSignalBlocker block(sidebar_); sidebar_->setCurrentItem(currentPlace); }
     scheduleSave();
 }
 void BrowserWindow::showDetails(const QString& path) {

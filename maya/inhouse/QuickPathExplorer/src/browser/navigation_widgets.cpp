@@ -117,8 +117,15 @@ bool inlineRename(QAbstractItemView* view, const QString& path, std::function<vo
     view->scrollTo(index); const auto rect = view->visualRect(index); if (!rect.isValid()) return false;
     auto* edit = new RenameEdit(view->viewport()); edit->submit = std::move(submit);
     edit->setFont(view->font()); edit->setText(QFileInfo(path).fileName());
+    // 通常入力欄の大きなpaddingを継承すると、コンパクト行の字形が上下で欠ける。
+    // 編集欄だけを不透明にし、背後の元の名前と重ならないようにする。
+    edit->setStyleSheet("QLineEdit#inlineRename { padding:1px 3px; border:1px solid palette(highlight); border-radius:2px; background:palette(base); color:palette(text); }");
+    edit->ensurePolished();
     QRect area = rect.adjusted(view->iconSize().width() + 5, 0, -3, 0);
-    area.setWidth(qMin(qMax(80, area.width()), view->viewport()->width() - area.left()));
+    const int height = qMax(edit->sizeHint().height(), edit->fontMetrics().height() + 6);
+    area.setTop(rect.center().y() - height / 2); area.setHeight(height);
+    area.setWidth(qMin(qMax(qMax(80, area.width()), edit->fontMetrics().horizontalAdvance(edit->text()) + 16), view->viewport()->width() - area.left()));
+    area.moveTop(qBound(0, area.top(), qMax(0, view->viewport()->height() - height)));
     edit->setGeometry(area); edit->show(); edit->setFocus(Qt::OtherFocusReason);
     const QFileInfo info(path); const auto name = info.fileName(); const auto dot = name.lastIndexOf('.');
     edit->setSelection(0, !info.isDir() && dot > 0 ? dot : name.size()); return true;

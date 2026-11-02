@@ -35,6 +35,22 @@ QThreadPool* filePool = nullptr;
 thread_local CancelFlag threadPause;
 /** @brief 利用者向けエラーを投げる。 @param text 説明。 */
 [[noreturn]] void fail(const QString& text) { throw std::runtime_error(text.toStdString()); }
+/** @brief Windowsの失敗理由と対象を保持する。 @param action 操作。 @param path 対象。 @param code OSエラー。 @return 説明。 */
+QString windowsFailure(const QString& action, const QString& path, DWORD code) {
+    wchar_t* buffer = nullptr;
+    FormatMessageW(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                   nullptr, code, 0, reinterpret_cast<LPWSTR>(&buffer), 0, nullptr);
+    const auto reason = buffer ? QString::fromWCharArray(buffer).trimmed() : QString("Windows error");
+    if (buffer) LocalFree(buffer);
+    return QString("%1: %2\nWindows %3: %4").arg(action, path).arg(code).arg(reason);
+}
+/** @brief 作成失敗をパスとOSの理由付きで通知する。 @param path 未作成フォルダー。 */
+void makeDirectory(const QString& path) {
+    if (!CreateDirectoryW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(path).utf16()), nullptr)) {
+        const auto error = GetLastError();
+        fail(windowsFailure("Cannot create folder", path, error));
+    }
+}
 /** @brief 中断の専用型。 */
 struct Cancelled : std::runtime_error { /** @brief 中断理由を作る。 */ Cancelled() : std::runtime_error("Cancelled") {} };
 /** @brief コミット前の取消し点。 @param cancel 共有フラグ。 */
@@ -46,13 +62,16 @@ bool within(const QString& path, const QString& root) { return path.compare(root
 /** @brief リパースポイントとクラウドの暗黙ダウンロードを拒否する。 @param path 対象。 */
 void ordinary(const QString& path) {
     const DWORD flags = GetFileAttributesW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(path).utf16()));
-    if (flags == INVALID_FILE_ATTRIBUTES) fail("Unavailable: " + path);
+    if (flags == INVALID_FILE_ATTRIBUTES) {
+        const auto error = GetLastError();
+        fail(windowsFailure("Cannot inspect path", path, error));
+    }
     if (flags & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_OFFLINE | 0x40000 | 0x400000))
         fail("Links, junctions and online-only items are not modified: " + path);
 }
 /** @brief ソースからルートまで親リンクも検証する。 @param path 対象。 */
 void ordinaryParents(QString path) {
-    while (!path.isEmpty()) { ordinary(path); const auto parent = normalized(QFileInfo(path).absolutePath()); if (parent == path) break; path = parent; }
+    for (const auto& ancestor : detail::operationAncestors(path)) ordinary(ancestor);
 }
 /** @brief リンクを辿らない順序付き子一覧。 @param path 親。 @return 子。 */
 QFileInfoList children(const QString& path) { return checkedChildren(path); }
@@ -61,11 +80,12 @@ void copyEntry(const QString& from, const QString& to, const CancelFlag& cancel,
     check(cancel); ordinary(from);
     if (QFileInfo::exists(to)) fail("Destination exists: " + to);
     if (QFileInfo(from).isDir()) {
-        if (!QDir().mkdir(to)) fail("Cannot create: " + to);
+        makeDirectory(to);
         for (const auto& child : children(from)) copyEntry(child.absoluteFilePath(), QDir(to).filePath(child.fileName()), cancel, progress);
     } else {
         QFile input(from), output(to);
-        if (!input.open(QIODevice::ReadOnly) || !output.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail("Cannot copy: " + from);
+        if (!input.open(QIODevice::ReadOnly)) fail("Cannot read: " + from + "\n" + input.errorString());
+        if (!output.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail("Cannot write: " + to + "\n" + output.errorString());
         qint64 size = 0;
         while (!input.atEnd()) {
             check(cancel); const auto bytes = input.read(1024 * 1024);
@@ -98,7 +118,7 @@ void renameExact(const QString& from, const QString& to) {
             (from.compare(to, Qt::CaseInsensitive) && QFileInfo::exists(to))) break;
         QThread::msleep(qMin(200, 20 << attempt));
     }
-    fail(QString("Rename failed (%1): %2 → %3").arg(error).arg(from, to));
+    fail(windowsFailure("Cannot rename", from + " → " + to, error));
 }
 /** @brief 旧版の別ドライブ退避も、検証済みコピー確定後にだけ移す。
  * @param from 元。 @param to 未作成先。 @param cancel 取消し。 @param progress 進捗。
@@ -187,6 +207,26 @@ void hashEntry(const QString& path, QCryptographicHash& hash, const CancelFlag& 
         hash.addData("F", 1); QFile file(path); if (!file.open(QIODevice::ReadOnly)) fail(file.errorString());
         while (!file.atEnd()) { check(cancel); const auto data = file.read(1024 * 1024); if (data.isEmpty() && file.error() != QFileDevice::NoError) fail(file.errorString()); hash.addData(data); }
     }
+}
+}
+namespace detail {
+/** @brief UNCは共有ルートで止め、ファイルシステムではないサーバー名へ問い合わせない。
+ * @param input 絶対パス。 @return 対象からドライブまたは共有ルートまでの検査対象。
+ * @note 共有内の親のリンク検証は維持し、Windowsの認証・ACLは変更しない。
+ */
+QStringList operationAncestors(const QString& input) {
+    if (input.trimmed().isEmpty() || !QFileInfo(input).isAbsolute()) throw std::invalid_argument("Absolute path required");
+    static const QRegularExpression shareRoot("^//[^/?]+/[^/]+/?$");
+    QStringList result;
+    auto path = normalized(input);
+    while (!path.isEmpty()) {
+        result.append(path);
+        if (shareRoot.match(path).hasMatch()) break;
+        const auto parent = normalized(QFileInfo(path).absolutePath());
+        if (parent == path) break;
+        path = parent;
+    }
+    return result;
 }
 }
 void validateFileName(const QString& name) {
@@ -524,7 +564,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             for (const auto& value : redo) if (!request.id.isEmpty() && value.toObject()["job"].toString() == request.id) fail("Transfer was undone; inspect history before resuming");
             if (committed) continue;
             if (prepared.contains(raw) && fileFingerprint(raw, cancel) != prepared[raw].toString()) fail("Prepared source changed; resume refused");
-            if (info.isRoot() || within(source, directory_) || within(directory_, source)) fail("Root and QPE history directories are protected");
+            const bool shareRoot = source.startsWith("//") && detail::operationAncestors(source).size() == 1;
+            if (info.isRoot() || shareRoot || within(source, directory_) || within(directory_, source)) fail("Root and QPE history directories are protected");
             bool nested = false; for (const auto& other : paths) if (normalized(other) != source && within(source, normalized(other))) nested = true;
             if (nested) continue;
             if (request.action.startsWith("new")) ordinaryParents(info.absolutePath()); else ordinaryParents(source);
@@ -539,8 +580,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             } else if (request.action.startsWith("new")) {
                 validateFileName(info.fileName()); if (info.exists()) fail("Destination already exists");
                 entry["target"] = source; intent(entry);
-                if (request.action == "newFolder") { if (!QDir().mkdir(source)) fail("Cannot create folder"); }
-                else { QFile file(source); if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail(file.errorString()); }
+                if (request.action == "newFolder") makeDirectory(source);
+                else { QFile file(source); if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail("Cannot create file: " + source + "\n" + file.errorString()); }
                 entry["stamp"] = fileFingerprint(source);
             } else {
                 const QString destination = request.action == "duplicate" ? info.absolutePath() : normalized(request.destination);

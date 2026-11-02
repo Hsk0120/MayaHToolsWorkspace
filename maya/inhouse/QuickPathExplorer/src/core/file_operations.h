@@ -9,6 +9,10 @@
 #include <functional>
 #include <memory>
 namespace qpe {
+namespace detail {
+/** @brief ファイル操作の親検査境界。 @param path 絶対パス。 @return 対象からドライブ/UNC共有ルートまで。 */
+QStringList operationAncestors(const QString& path);
+}
 /** @brief 実行時に固定される要求。実パス以外の表示文字列を使用しない。 */
 struct FileRequest {
     QString action;

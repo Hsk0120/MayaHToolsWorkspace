@@ -51,7 +51,7 @@ qt_add_executable(QuickPathExplorerNative WIN32 "${ROOT}/src/standalone/native_m
 if(QPE_PRODUCT_BUILD)
     set_target_properties(QuickPathExplorerNative PROPERTIES OUTPUT_NAME QuickPathExplorer)
 endif()
-target_link_libraries(QuickPathExplorerNative PRIVATE qpe_cpp_browser)
+target_link_libraries(QuickPathExplorerNative PRIVATE qpe_cpp_browser dwmapi)
 file(GLOB icons CONFIGURE_DEPENDS "${ROOT}/icons/*")
 qt_add_resources(QuickPathExplorerNative "qpe_icons" PREFIX "/qpe/icons" BASE "${ROOT}/icons" FILES ${icons})
 qt_add_resources(QuickPathExplorerNative "qpe_licenses" PREFIX "/qpe/licenses" BASE "${ROOT}/third_party"

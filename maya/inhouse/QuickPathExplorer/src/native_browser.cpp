@@ -292,7 +292,8 @@ private:
         for (; i.isValid() && budget-- > 0; i = tree ? tree->indexBelow(i) : view->model()->index(i.row() + 1, 0, view->rootIndex())) {
             const auto k = key(i);
             const int pathRole = view->property("qpeIconPathRole").isValid() ? view->property("qpeIconPathRole").toInt() : PathRole;
-            if (i.data(pathRole).toString().isEmpty() || i.data(DirectoryRole).toBool()
+            // 上段カラムは共通フォルダーアイコン、サイドバーは標準フォルダー固有のShellアイコンを使う。
+            if (i.data(pathRole).toString().isEmpty() || (i.data(DirectoryRole).toBool() && !view->property("qpeIconPathRole").isValid())
                 || i.data(Qt::UserRole + 102).toBool() || applied.value(i) == k) continue;
             if (auto icon = cache.object(k)) {
                 if (!icon->isNull()) view->model()->setData(i, *icon, Qt::DecorationRole);
