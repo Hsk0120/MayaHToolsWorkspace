@@ -94,4 +94,4 @@ py -3.12 tools/build_cpp_windows.py --product --qt-prefix D:/QtModified/install 
 
 C++回帰は`build_windows.cmd`または`build_cpp_windows.py --product --test`で実行します。`tests/native_maya_smoke.py`と`tests/native_maya_restart.py`は専用prefs・専用データのMayaだけで使用します。シーンを変更するため、利用者の作業中Mayaへ送信しないでください。Qtプログラム操作、OS入力、実プロセス再起動は証拠を区別します。
 
-保持するものはソース、CMake、cmd、icons、tests、tools、third_party、文書、年別mllです。`.maya-output`、build、dist、`.vs`、キャッシュ、PDB/オブジェクトはGit対象外です。Windows exeも現在はローカル生成物としてGit対象外です。別リポジトリの作成や公開はこのビルドでは行いません。
+保持するものはソース、CMake、cmd、icons、tests、tools、third_party、文書、年別mllと直下のWindows配布用`QuickPathExplorer.exe`です。ビルド済みexeを対応ソースと同じGitで管理し、別PCでも再ビルドなしで起動できます。更新時は検証済みexeと対応ソースを一緒にコミットしてください。`.maya-output`、build、dist、`.vs`、キャッシュ、PDB/オブジェクトはGit対象外です。別リポジトリの作成や公開はこのビルドでは行いません。

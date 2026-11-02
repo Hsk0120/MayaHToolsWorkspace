@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-02): QPE Windows配布exeを通常のGitファイルとして追加。QPEのignoreを明示例外へ変更しbinary属性を追加、README/BUILDINGへ別PCで再ビルド不要の手順を記載。40,422,400 bytes、SHA256 b187024f6c6b962a6ce777c41bde20c60d2395a6e4977d51a8072f6f4264218eが既存85項目回帰済み製品25の記録と一致。本体変更/再ビルドなし、別PC実機は未検証。対応ソース/ライセンス/再リンク資料は同じGitに保持。他担当変更を除外してpush。
+
 - Codex (2026-11-02): QPEへMCE同様のscripts/userSetup.pyを追加し、GUI起動後に未ロードの年別mllを自動ロード。Windowメニュー/アイコン/復元は既存C++へ委譲。ワークスペース用と単独配布用modの2022〜2027へPYTHONPATH scriptsを登録し、ソースキットにも同梱。単体7件成功。専用prefsのMaya2022/2027で検証側loadPluginなしの自然自動ロード、正しい年別パス、メニュー1件、反復起動の重複防止、実OSメニュークリックから画面表示、正常終了を確認。2023〜2026の今回実機起動は未実施。動画は非公開Driveへ保存・権限読戻し。記録 `.maya-output/qpe-startup-20261102/`。本体mllの変更/再ビルドなし。他担当MCE変更を除外してpush。
 
 - Codex (2026-11-02): QPEの9時間C++/Qt移行・製品置換を終了。カラム/タブ/整理/検索/転送/Undo/ZIP/メディア/設定移行/Maya連携を移植し、Python不要の静的Qt exeと2022〜2027ホストQt mllを配備。UIA再入クラッシュ、JSON寿命/破損設定abort、改名・選択・Paste・クリップボード・Properties親ウィンドウ・タブクリック焦点を再現修正。最終C++回帰/ASAN/独立ソースキット各85件成功、全6年mllビルド、全6年GUI回帰（最終焦点差分は2022/2027再確認）、2022/2027別PID復元を検証。対応Qt/FFmpegソース・ライセンス・SBOM・CMake/VS・改変Qt再リンク資料を同梱。旧製品はハッシュ照合し専用領域へ退避。実OS動画を非公開Driveへ保存・読戻し。Maya2027標準UIでも再現するドック解除描画ずれは未解決。最終焦点のMaya実OS入力/2022 FBX/物理IME/混在DPI等は未実施、全条件網羅ではない。記録 `.maya-output/qpe-cpp-nine-hour-20261101/FINAL_RESULTS.txt`。他担当変更を除外してコミット・push対象を確定。

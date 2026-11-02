@@ -6,7 +6,7 @@ Windows版は静的Qtを含む`QuickPathExplorer.exe`、Maya版は年別の`quic
 
 ## 起動
 
-Windowsでは直下の`QuickPathExplorer.exe`を起動します。フォルダーを引数に渡すと、その場所を開きます。
+Windowsでは直下の`QuickPathExplorer.exe`を起動します。ビルド済みexeをGitにも含めているため、別PCではリポジトリを取得してそのまま起動でき、Maya・Python・Qt開発環境のインストールや再ビルドは不要です。対象はWindows x64です。フォルダーを引数に渡すと、その場所を開きます。
 
 ```powershell
 .\QuickPathExplorer.exe 'D:/Projects'

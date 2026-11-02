@@ -1,5 +1,5 @@
-# Windows単体版のローカルビルド配置（ソースと分離して再生成できる）
-/QuickPathExplorer.exe
+# 配布用exeは対応ソースとともに管理し、中間生成物だけを除外する。
+!/QuickPathExplorer.exe
 /_internal/
 /dist/
 /.maya-output/
