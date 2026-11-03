@@ -18,7 +18,7 @@ def main(output_dir, request):
         検査値・環境・合否を持つ辞書。失敗はAssertionErrorで中断する。
     """
     phase = request.get("phase", "cycle")
-    if phase not in ("show", "cycle", "multiFilePrompt", "smoke", "bottomDock", "sharedTabs", "resize", "diagnoseDock", "prepareInput", "inputSnapshot", "dpi"):
+    if phase not in ("show", "cycle", "multiFilePrompt", "smoke", "bottomDock", "sharedTabs", "resize", "diagnoseDock", "prepareInput", "inputSnapshot", "dpi", "menus", "menuOS"):
         raise ValueError("Unsupported language validation phase")
     from maya import cmds, OpenMayaUI
     try:
@@ -100,6 +100,8 @@ def main(output_dir, request):
                 "floating": cmds.workspaceControl(control, query=True, floating=True)}
     if not cmds.pluginInfo("quickPathExplorer", query=True, loaded=True):
         cmds.loadPlugin(plugin.as_posix(), quiet=True)
+        if not cmds.pluginInfo("quickPathExplorer", query=True, loaded=True):
+            raise RuntimeError("QPE load has not completed; inspect the dedicated Maya security confirmation before retrying")
     cmds.quickPathExplorer("-path", fixture.as_posix())
     # シーンやユーザー設定は専用環境だけ。絞り込み入力の検証後でも次のケースを開始できる。
     # C++専用クラスのPySide親ラッパーを、子への呼び出しが終わるまで保持する。
@@ -107,6 +109,137 @@ def main(output_dir, request):
     current = browser()
     current.findChild(QtWidgets.QLineEdit, "fileFilter").clear()
     wait_ready()
+    if phase in ("menus", "menuOS"):
+        cmds.workspaceControl(control, edit=True, floating=True, resizeWidth=1100, resizeHeight=760)
+        settle(700)
+        current = browser()
+        surface = current.window()
+        surface.move(app.primaryScreen().availableGeometry().topLeft() + QtCore.QPoint(40, 80))
+        settle(150)
+        # C++所有のQClipboardラッパーも、QMimeDataの利用中は保持する。
+        clipboard = app.clipboard()
+        if phase == "menuOS":
+            files = current.findChild(QtWidgets.QTreeView, "files")
+            index = next(files.model().index(row, 0) for row in range(files.model().rowCount()) if files.model().index(row, 0).data() == "Open.txt")
+            original = clipboard.mimeData()
+            retained = QtCore.QMimeData()
+            for mime in original.formats():
+                retained.setData(mime, original.data(mime))
+            timed_out = []
+
+            def timeout_menu():
+                """操作が届かない場合でも検証用メニューだけを閉じる。"""
+                popup = app.activePopupWidget()
+                if isinstance(popup, QtWidgets.QMenu) and popup.objectName() == "fileContextMenu":
+                    timed_out.append(True)
+                    popup.close()
+
+            timer = QtCore.QTimer()
+            timer.setSingleShot(True)
+            timer.timeout.connect(timeout_menu)
+            timer.start(60000)
+            try:
+                files.customContextMenuRequested.emit(files.visualRect(index).center())
+                settle(200)
+                actual = [url.toLocalFile().replace("\\", "/") for url in clipboard.mimeData().urls()]
+                return {"passed": actual == [(fixture / "Open.txt").as_posix()] and not timed_out, "actual_urls": actual,
+                        "evidence": "Qt menu setup; OS key input must be recorded separately", "timed_out": bool(timed_out)}
+            finally:
+                timer.stop()
+                clipboard.setMimeData(retained)
+        import traceback
+        try:
+            from PySide6.QtTest import QTest
+        except ImportError:
+            from PySide2.QtTest import QTest
+        records = []
+        scene = cmds.file(query=True, sceneName=True)
+        palette = app.palette().cacheKey()
+        for language in ("en", "ja"):
+            cmds.workspaceControl(control, edit=True, close=True)
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+            settings["uiLanguage"] = language
+            settings_path.write_text(json.dumps(settings, ensure_ascii=False), encoding="utf-8")
+            cmds.quickPathExplorer()
+            wait_ready()
+            current = browser()
+            files = current.findChild(QtWidgets.QTreeView, "files")
+            errors, labels = [], []
+
+            def inspect_menu():
+                """QPE自身のポップアップだけを検査して閉じる。"""
+                menu = app.activePopupWidget()
+                try:
+                    assert isinstance(menu, QtWidgets.QMenu) and menu.objectName() == "fileContextMenu"
+                    labels.extend(action.text() for action in menu.actions() if not action.isSeparator())
+                    assert menu.findChild(QtWidgets.QMenu, "contextMore") is not None
+                    assert menu.findChild(QtWidgets.QMenu, "contextNew") is None
+                    assert menu.findChild(QtCore.QObject, "context_refresh") is None
+                    assert len(labels) <= 11
+                    menu.grab().save(str(out / ("context-" + language + ".png")))
+                    # メニュー上のCtrl+CをQt入力で通し、固定した右クリック対象の実URLを照合する。
+                    original = clipboard.mimeData()
+                    retained = QtCore.QMimeData()
+                    for mime in original.formats():
+                        retained.setData(mime, original.data(mime))
+                    try:
+                        QTest.keyClick(menu, QtCore.Qt.Key_C, QtCore.Qt.ControlModifier)
+                        expected = [(fixture / "Open.txt").as_posix()]
+                        limit = time.monotonic() + 3
+                        while [url.toLocalFile().replace("\\", "/") for url in clipboard.mimeData().urls()] != expected and time.monotonic() < limit:
+                            settle(50)
+                        actual = [url.toLocalFile().replace("\\", "/") for url in clipboard.mimeData().urls()]
+                        focus = app.focusWidget()
+                        assert actual == expected, {"urls": actual, "menu_has_focus": menu.hasFocus(), "focus": focus.objectName() if focus else None, "active": app.activeWindow().objectName() if app.activeWindow() else None}
+                    finally:
+                        clipboard.setMimeData(retained)
+                except BaseException:
+                    errors.append(traceback.format_exc())
+                finally:
+                    if isinstance(menu, QtWidgets.QMenu) and menu.objectName() == "fileContextMenu":
+                        menu.close()
+
+            index = next(files.model().index(row, 0) for row in range(files.model().rowCount()) if files.model().index(row, 0).data() == "Open.txt")
+            QtCore.QTimer.singleShot(100, inspect_menu)
+            files.customContextMenuRequested.emit(files.visualRect(index).center())
+            assert not errors, errors
+            assert labels
+            original_font = current.font()
+
+            def inspect_settings():
+                """設定の各ページと表示プレビューのCancelを検証する。"""
+                dialog = current.findChild(QtWidgets.QDialog, "qpePreferences")
+                try:
+                    assert dialog is not None
+                    tabs = dialog.findChild(QtWidgets.QTabWidget, "settingsTabs")
+                    assert tabs.count() == 5 and tabs.currentIndex() == 1
+                    assert "QTabWidget#settingsTabs::pane" in dialog.styleSheet()
+                    original_width = json.loads(settings_path.read_text(encoding="utf-8")).get("columnWidthMode", "fit")
+                    for tab in range(tabs.count()):
+                        tabs.setCurrentIndex(tab)
+                        settle(50)
+                        assert tabs.currentWidget().isVisible()
+                        dialog.grab().save(str(out / ("settings-" + language + "-" + str(tab) + ".png")))
+                    tabs.setCurrentIndex(1)
+                    dialog.findChild(QtWidgets.QSpinBox, "displayFontSize").setValue(18)
+                    assert current.font() != original_font
+                    width = dialog.findChild(QtWidgets.QComboBox, "columnWidthMode")
+                    width.setCurrentIndex(1 if original_width == "fit" else 0)
+                    assert json.loads(settings_path.read_text(encoding="utf-8")).get("columnWidthMode", "fit") == original_width
+                except BaseException:
+                    errors.append(traceback.format_exc())
+                finally:
+                    if dialog is not None:
+                        dialog.reject()
+
+            QtCore.QTimer.singleShot(100, inspect_settings)
+            current.findChild(QtWidgets.QToolButton, "displaySettingsButton").click()
+            assert not errors, errors
+            assert current.font() == original_font
+            assert cmds.file(query=True, sceneName=True) == scene
+            assert app.palette().cacheKey() == palette
+            records.append({"language": language, "menu": labels, "settings_pages": 5, "cancel_restored_preview": True})
+        return {"passed": True, "maya": year, "records": records, "evidence": "Maya GUI Qt programmatic menu/settings actions, not OS input"}
     if request.get("phase") == "show":
         return {"passed": True, "maya": year, "pid": os.getpid(), "phase": "show"}
     if request.get("phase") == "prepareInput":

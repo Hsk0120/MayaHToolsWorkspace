@@ -57,6 +57,7 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSettings>
+#include <QKeyEvent>
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <QSortFilterProxyModel>
@@ -84,6 +85,37 @@ namespace {
 constexpr int PathRole = Qt::UserRole + 1;
 constexpr int DirectoryRole = Qt::UserRole + 2;
 constexpr int SortRole = Qt::UserRole + 3;
+/** @brief 表示中のファイルメニューだけでキーを処理し、Mayaのショートカットへ漏らさない。 */
+class FileContextMenu final : public QMenu {
+public:
+    /** @brief メニューの親と固定コマンドの所有者を指定する。 @param parent Qt所有者。 @param root 最上位メニュー。省略時は自分。 */
+    explicit FileContextMenu(QWidget* parent, FileContextMenu* root = nullptr) : QMenu(parent), root_(root ? root : this) { setAttribute(Qt::WA_NoMouseReplay); }
+    /** @brief 同じ固定対象へキーを配送する子メニューを作る。 @param title 表示名。 @return 自分が所有する子。 */
+    FileContextMenu* branch(const QString& title) { auto* child = new FileContextMenu(this, root_); child->setTitle(title); QMenu::addMenu(child); return child; }
+protected:
+    /** @brief メニューに記載したキーだけを受け付け、編集欄やホストの処理へ伝播させない。 @param event 入力。 @return 処理したか。 */
+    bool event(QEvent* event) override {
+        if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
+            if (auto* action = shortcutAction(static_cast<QKeyEvent*>(event))) {
+                event->accept();
+                if (event->type() == QEvent::KeyPress) { root_->close(); action->trigger(); }
+                return true;
+            }
+        }
+        return QMenu::event(event);
+    }
+private:
+    /** @brief 現在のポップアップに属する有効なキーだけを探す。 @param event キー。 @return 一致する操作、またはnullptr。 */
+    QAction* shortcutAction(const QKeyEvent* event) const {
+        // Enterと矢印・Escapeは標準のメニュー選択を維持する。
+        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && event->modifiers() == Qt::NoModifier) return nullptr;
+        const QKeySequence key(int(event->modifiers()) | event->key());
+        for (auto* action : root_->findChildren<QAction*>())
+            if (action->isEnabled() && !action->shortcut().isEmpty() && action->shortcut().matches(key) == QKeySequence::ExactMatch) return action;
+        return nullptr;
+    }
+    FileContextMenu* root_;
+};
 /** @brief 表示方式によらず、選択された名前列だけを取得する。
  * @param view 借用ビュー。
  * @return 実パスのある0列目の選択インデックス。
@@ -1461,27 +1493,18 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     });
     connect(size, &QToolButton::clicked, this, &BrowserWindow::appearanceDialog);
     connect(tools, &QToolButton::clicked, this, [this, tools] {
-        QMenu menu(tools); menu.setObjectName("toolsMenu"); menu.addAction(uiText("Find command…"), this, [this] { perform("palette"); });
-        auto* search = menu.addMenu(uiText("Search / organize")); search->setObjectName("toolsSearch");
+        QMenu menu(tools); menu.setObjectName("toolsMenu");
         auto* view = menu.addMenu(uiText("View")); view->setObjectName("toolsView");
-        auto* transfers = menu.addMenu(uiText("Transfers / history")); transfers->setObjectName("toolsTransfers");
-        auto* sets = menu.addMenu(uiText("Tabs / tab sets")); sets->setObjectName("toolsTabs");
-        auto* settings = menu.addMenu(uiText("Settings / diagnostics")); settings->setObjectName("toolsSettings");
-        view->addAction(uiText("Display settings…"), this, [this] { perform("appearance"); });
-        settings->addAction(uiText("QPE settings / keyboard shortcuts…"), this, [this] { perform("settings"); }); organizerMenu(&menu);
-        auto* theme = view->addMenu(uiText("Theme"));
-        for (const QString mode : {QString("system"), QString("light"), QString("dark")})
-            theme->addAction(uiText(mode), this, [this, mode] { theme_ = mode; applyAppearance(); });
+        auto* search = menu.addMenu(uiText("Search and organize")); search->setObjectName("toolsSearch");
+        auto* transfers = menu.addMenu(uiText("File operations")); transfers->setObjectName("toolsTransfers");
+        auto* sets = menu.addMenu(uiText("Tabs")); sets->setObjectName("toolsTabs");
+        organizerMenu(&menu);
         for (const auto& pair : QList<QPair<QString, QString>>{{"Search subfolders…", "search"}, {"Find duplicate files…", "duplicates"}, {"Compare folders…", "compare"}, {"Calculate size / count…", "size"}, {"SHA-256", "hash"}, {"Diagnose availability…", "diagnose"}})
             search->addAction(uiText(pair.first), this, [this, action = pair.second] { try { query(action); } catch (const std::exception& e) { UiMessageBox::warning(this, uiText("Search"), uiText(QString::fromUtf8(e.what()))); } });
         search->addAction(uiText("Tags / rating / collection…"), this, [this] { perform("tag", selectedPaths()); });
         sets->addAction(uiText("Save tab set…"), this, [this] { perform("saveTabs"); });
         sets->addAction(uiText("Open tab set…"), this, [this] { perform("loadTabs"); });
         sets->addAction(uiText("Delete tab set…"), this, [this] { perform("deleteTabs"); });
-        settings->addAction(uiText("Export QPE settings…"), this, [this] { perform("exportSettings"); });
-        settings->addAction(uiText("Import QPE settings…"), this, [this] { perform("importSettings"); });
-        search->addAction(uiText("New Folder…"), this, [this] { perform("newFolder", {}, currentPath()); });
-        search->addAction(uiText("New Text File…"), this, [this] { perform("newFile", {}, currentPath()); });
         transfers->addAction(uiText("Undo file operation"), this, [this] { perform("undo"); });
         transfers->addAction(uiText("Redo file operation"), this, [this] { perform("redo"); });
         transfers->addAction(uiText("Cancel file operations"), jobs_, &FileJobs::cancel)->setEnabled(jobs_->busy());
@@ -1489,7 +1512,14 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         connect(hidden, &QAction::toggled, this, [this](bool value) { hidden_ = value; for (int i = 0; i < pages_->count(); ++i) qobject_cast<BrowserPage*>(pages_->widget(i))->setHiddenFiles(value); scheduleSave(); });
         search->addAction(uiText("Add current folder to Favorites"), this, [this] { perform("favorite", {currentPath()}); });
         sets->addAction(uiText("Reopen closed tab"), this, [this] { reopenTab(); })->setEnabled(!closedTabs_.isEmpty());
-        settings->addAction(uiText("Licenses and source"), this, [this] {
+        menu.addSeparator();
+        auto* options = menu.addAction(uiText("Options…"), this, [this] { perform("settings"); }); options->setObjectName("optionsAction");
+        auto* more = menu.addMenu(uiText("More tools")); more->setObjectName("toolsMore");
+        more->addAction(uiText("Find command…"), this, [this] { perform("palette"); });
+        auto* backup = more->addMenu(uiText("Settings backup")); backup->setObjectName("toolsSettingsBackup");
+        backup->addAction(uiText("Export QPE settings…"), this, [this] { perform("exportSettings"); });
+        backup->addAction(uiText("Import QPE settings…"), this, [this] { perform("importSettings"); });
+        more->addAction(uiText("Licenses and source"), this, [this] {
             // DLL解除時に所有する別ウィンドウも破棄し、ホストへ残さない。
             auto* viewer = new QTextEdit(this);
             viewer->setWindowFlags(Qt::Window);
@@ -1706,7 +1736,11 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
             streamingSearch(request); return;
         }
         if (action.startsWith("area:")) { if (page()) page()->setAreaMode(action.mid(5)); return; }
-        if (action.startsWith("columnWidth:")) { const auto mode = action.mid(12); writeSettings({{"columnWidthMode", mode}}); for (auto* item : findChildren<BrowserPage*>()) item->setColumnWidthMode(mode); return; }
+        if (action.startsWith("columnWidth:") || action.startsWith("columnWidthPreview:")) {
+            const auto mode = action.section(':', 1);
+            if (action.startsWith("columnWidth:")) writeSettings({{"columnWidthMode", mode}});
+            for (auto* item : findChildren<BrowserPage*>()) item->setColumnWidthMode(mode); return;
+        }
         if (action == "settings") { preferencesDialog(); return; }
         if (extendedAction(action, paths, directory)) return;
         if (action == "prepareSave") { details_->setDirectory(directory.isEmpty() ? currentPath() : directory); details_->showAction("saveAs"); details_->show(); updateResponsiveLayout(); if (page()) page()->revealCurrent(); return; }
@@ -1886,35 +1920,61 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
 }
 void BrowserWindow::contextMenu(QAbstractItemView* view, const QPoint& point, const QString& directory) {
     const auto index = view->indexAt(point).siblingAtColumn(0); const QString clicked = index.data(PathRole).toString(); QStringList paths;
-    if (index.isValid()) {
-        if (view->selectionModel()->isSelected(index)) for (const auto& row : selectedPathIndexes(view)) paths.append(row.data(PathRole).toString());
-        else paths.append(clicked);
-    }
-    QMenu menu(view); menu.setAttribute(Qt::WA_NoMouseReplay);
-    const QString destination = paths.size() == 1 && index.data(DirectoryRole).toBool() ? clicked : directory;
-    const auto add = [&](QMenu* parent, const QString& label, const QString& action, bool enabled = true) {
-        const auto targetDirectory = action == "paste" || action == "newFolder" || action == "newFile" ? destination : directory;
-        parent->addAction(uiText(label), this, [this, action, paths, targetDirectory] { perform(action, paths, targetDirectory); })->setEnabled(enabled);
+    // 通常一覧では取得済みの種別を使い、多数選択や共有フォルダーで再statしない。
+    const auto directoryItem = [](const QModelIndex& row) {
+        const auto kind = row.data(DirectoryRole); return kind.isValid() ? kind.toBool() : QFileInfo(row.data(PathRole).toString()).isDir();
     };
-    if (!paths.isEmpty()) {
-        add(&menu, "Open", "open", paths.size() == 1); add(&menu, "Open with…", "openWith", paths.size() == 1 && !QFileInfo(clicked).isDir());
-        if (QFileInfo(clicked).isDir()) menu.addAction(uiText("Open in new tab"), this, [this, clicked] { addTab(clicked); });
-        if (host_.maya && !QFileInfo(clicked).isDir()) { add(&menu, "Import", "import"); add(&menu, "Reference", "reference"); }
-        menu.addSeparator(); add(&menu, "Cut", "cut"); add(&menu, "Copy", "copy"); add(&menu, "Rename…", "rename", paths.size() == 1); add(&menu, "Delete", "trash"); add(&menu, "Copy Path", "copyPath");
+    bool filesOnly = true;
+    if (index.isValid()) {
+        if (view->selectionModel()->isSelected(index)) for (const auto& row : selectedPathIndexes(view)) {
+            paths.append(row.data(PathRole).toString()); if (host_.maya && filesOnly) filesOnly = !directoryItem(row);
+        }
+        else { paths.append(clicked); if (host_.maya) filesOnly = !directoryItem(index); }
     }
-    add(&menu, "Paste", "paste", QApplication::clipboard()->mimeData()->hasUrls());
-    auto* create = menu.addMenu(uiText("New")); add(create, "New Folder…", "newFolder"); add(create, "New Text File…", "newFile");
-    auto* organize = menu.addMenu(uiText("Organize")); add(organize, "Add to Favorites", "favorite", !paths.isEmpty()); add(organize, "Create Copy", "duplicate", !paths.isEmpty()); add(organize, "Undo file operation", "undo"); add(organize, "Redo file operation", "redo");
-    add(organize, "Tags / rating / collection…", "tag", !paths.isEmpty());
-    add(organize, "Batch Rename…", "batchRename", !paths.isEmpty());
-    if (!paths.isEmpty()) {
-        auto* archive = menu.addMenu(uiText("ZIP")); add(archive, "Create ZIP…", "createZip");
-        if (paths.size() == 1 && QFileInfo(clicked).suffix().compare("zip", Qt::CaseInsensitive) == 0) { add(archive, "Browse ZIP…", "browseZip"); add(archive, "Extract ZIP…", "extractZip"); }
-        add(&menu, "Properties", "properties", paths.size() == 1);
-        if (QFileInfo(clicked).isDir()) add(organize, "Set as start folder", "startFolder");
+    FileContextMenu menu(view); menu.setObjectName("fileContextMenu");
+    const bool single = paths.size() == 1, folder = single && directoryItem(index);
+    const QString destination = folder ? clicked : directory;
+    const auto add = [&](QMenu* parent, const QString& label, const QString& action, bool enabled = true, const QString& key = QString()) {
+        const auto targetDirectory = action == "paste" || action == "newFolder" || action == "newFile" ? destination : directory;
+        auto* item = parent->addAction(uiText(label), this, [this, action, paths, targetDirectory] { perform(action, paths, targetDirectory); });
+        item->setObjectName("context_" + action); item->setEnabled(enabled);
+        if (!key.isEmpty()) { item->setShortcut(QKeySequence(key)); item->setShortcutContext(Qt::WidgetShortcut); }
+        return item;
+    };
+    const bool paste = QApplication::clipboard()->mimeData()->hasUrls();
+    if (paths.isEmpty()) {
+        // 背景の操作は現在フォルダーだけを対象にする。非選択項目の操作を並べない。
+        menu.addAction(uiText("Refresh"), this, &BrowserWindow::refresh)->setObjectName("context_refresh");
+        menu.addSeparator(); add(&menu, "Undo file operation", "undo"); add(&menu, "Redo file operation", "redo");
+        menu.addSeparator(); add(&menu, "Paste", "paste", paste, "Ctrl+V");
+        auto* create = menu.branch(uiText("New")); create->setObjectName("contextNew");
+        add(create, "Folder", "newFolder"); add(create, "Text Document", "newFile");
+        menu.addSeparator(); add(&menu, "Open terminal here", "terminal"); add(&menu, "Properties", "properties");
+    } else {
+        if (single) {
+            menu.setDefaultAction(add(&menu, "Open", "open", true, "Return"));
+            if (folder) menu.addAction(uiText("Open in new tab"), this, [this, clicked] { addTab(clicked); });
+            else add(&menu, "Open with…", "openWith");
+        }
+        if (host_.maya && filesOnly) {
+            auto* maya = menu.branch(uiText("Maya")); maya->setObjectName("contextMaya");
+            add(maya, "Import", "import"); add(maya, "Reference", "reference");
+        }
+        menu.addSeparator(); add(&menu, "Cut", "cut", true, "Ctrl+X"); add(&menu, "Copy", "copy", true, "Ctrl+C");
+        if (folder) add(&menu, "Paste", "paste", paste, "Ctrl+V");
+        add(&menu, "Rename…", single ? "rename" : "batchRename", true, single ? "F2" : QString());
+        add(&menu, "Delete", "trash", true, "Del"); add(&menu, "Copy Path", "copyPath", true, "Ctrl+Shift+C");
+        menu.addSeparator();
+        auto* more = menu.branch(uiText("Show more options")); more->setObjectName("contextMore");
+        add(more, "Add to Favorites", "favorite"); add(more, "Create Copy", "duplicate");
+        if (single) add(more, "Batch Rename…", "batchRename");
+        add(more, "Tags / rating / collection…", "tag");
+        auto* archive = more->branch(uiText("ZIP")); add(archive, "Create ZIP…", "createZip");
+        if (single && QFileInfo(clicked).suffix().compare("zip", Qt::CaseInsensitive) == 0) { add(archive, "Browse ZIP…", "browseZip"); add(archive, "Extract ZIP…", "extractZip"); }
+        more->addSeparator(); add(more, "Show in Windows Explorer", "explorer");
+        if (folder) { add(more, "Open terminal here", "terminal"); add(more, "Set as start folder", "startFolder"); }
+        if (single) { menu.addSeparator(); add(&menu, "Properties", "properties", true, "Alt+Return"); }
     }
-    add(organize, "Show in Windows Explorer", "explorer"); add(organize, "Open terminal here", "terminal");
-    menu.addAction(uiText("Refresh"), this, &BrowserWindow::refresh);
     menu.exec(view->viewport()->mapToGlobal(point));
 }
 void BrowserWindow::prepareHostShutdown() {
@@ -2062,6 +2122,11 @@ void BrowserWindow::showDetails(const QString& path) {
     selected_ = path; details_->setPath(path);
 }
 void BrowserWindow::applyAppearance() {
+    // 設定自身のQSSも一度外す。palette(base)がOSの旧配色をキャッシュすると、
+    // 明示ライトでコンボの黒地と黒文字が残る。再適用は子の配色更新後に行う。
+    auto* options = findChild<QDialog*>("qpePreferences");
+    const auto optionsStyle = options ? options->styleSheet() : QString();
+    if (options) options->setStyleSheet(QString());
     // 旧stylesheetのパレットキャッシュを先に解除する。保持したままsetPaletteすると
     // 再polish時に以前の文字色が復活するため、明示テーマ切替で白地に白文字になる。
     setStyleSheet(QString());
@@ -2118,6 +2183,10 @@ void BrowserWindow::applyAppearance() {
     // stylesheet再適用時に保持される子の旧パレットも更新する。
     // ホストや他ツールのパレットは変更せず、自分の所有するウィジェットだけに配布する。
     for (auto* child : findChildren<QWidget*>()) child->setPalette(colors);
+    if (options) {
+        const auto style = options->property("qpePreferencesStyle").toString();
+        options->setStyleSheet(style.isEmpty() ? optionsStyle : style.arg(base, text, colors.color(QPalette::Mid).name(), alternate, window));
+    }
     for (auto* button : findChildren<QToolButton*>()) {
         const auto source = button->property("qpeSourceIcon").toString();
         if (source.isEmpty()) continue;

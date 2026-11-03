@@ -153,6 +153,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+| Codex | 2026-11-03 | QPE 右クリック・設定UI整理 | 基本操作/背景/その他/Mayaを分離し、設定を5カテゴリとキー検索へ統合。重複入口、メニュー内キー配送、ライト設定の暗色残りを修正。静的Qt98件成功、Maya2022/2027でJP EN各5ページ・選択保護/コピー/CancelをQt GUI確認、Windowsと2027の実OS入力も記録。exe/全6年mll更新、2023〜2026はビルドのみ。ユーザー指示でQPE関連のみコミット・push。他担当の変更は保持。詳細 .maya-output/qpe-menu-20261103/results.json。 |
 - Claude Code (2026-11-03): 質問形式で決めた追加を mlib 10.2.0 として実装。Environment・Callbacks・未知のプラグイン・Time.getSelectedRange、Vector.fromAxis・Matrix.fromAim/fromAxes/blend、bakeResults・eulerFilter・createJointChain・insertJoints・getPolePosition、NurbsCurve/Mesh の問い合わせ・UVセット・頂点カラー・縁・面への変換、SkinCluster.unlockedInfluences/invertShape、GeometryFilter のウェイトのファイル/コピー、deleteHistory・表示の上書き・findCycles・オフセット親マトリクス(再追加)、MultiPlug.compact・RampPlug・プロキシの照会・getAnimCurve(layer=)。mlrig・AnimBar・SkinWeightKit を新APIへ移行。mlib全テスト(2027/2022)・Undo網羅267件・静的検査・Sphinx・利用側回帰744件(2027)・AnimBar 57件・SkinWeightKit 87件とGUI確認成功。2022 の mlrig setups は boxRoll(floorノード)・hipSwing(blendMatrix の translateWeight)が 2022 に無い機能のため20件失敗(今回未変更のファイル)。 コミット・プッシュ(2026-11-03)。
 
 - Claude Code (2026-11-03): mlibへ足す候補を調査(利用側の直接cmds/om2使用・cymel/paya/AL_omx/pymelとの比較)。コード変更なし。結果はローカルの docs/research/mlib-gap-survey-2026-11-03.md。

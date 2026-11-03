@@ -47,7 +47,6 @@ void BrowserWindow::organizerMenu(QMenu* menu) {
     auto* view = menu->findChild<QMenu*>("toolsView");
     auto* sets = menu->findChild<QMenu*>("toolsTabs");
     auto* transfer = menu->findChild<QMenu*>("toolsTransfers");
-    auto* settings = menu->findChild<QMenu*>("toolsSettings");
     auto* saved = searchMenu->addMenu(uiText("Saved searches"));
     const auto searches = readSettings()["savedSearches"].toObject();
     for (const auto& name : searches.keys()) saved->addAction(name, this, [this, name] { perform("savedSearch:" + name); });
@@ -61,12 +60,8 @@ void BrowserWindow::organizerMenu(QMenu* menu) {
     for (const auto& pair : QList<QPair<QString, QString>>{{"Create ZIP…", "createZip"}, {"Browse ZIP…", "browseZip"}, {"Extract ZIP…", "extractZip"}})
         archives->addAction(uiText(pair.first), this, [this, action = pair.second] { perform(action, selectedPaths(), currentPath()); });
     transfer->addAction(uiText("File jobs / retry…"), this, [this] { perform("jobs"); });
-    transfer->addAction(uiText("Resume unfinished transfers…"), this, [this] { perform("jobs"); });
     transfer->addAction(uiText("File operation history…"), this, [this] { perform("history"); });
     searchMenu->addAction(uiText("Browse tags / collections…"), this, [this] { perform("browseLabels"); });
-    auto* configuration = settings->addMenu(uiText("External applications"));
-    for (const auto& pair : QList<QPair<QString, QString>>{{"FFmpeg…", "ffmpegExecutable"}, {"Everything CLI…", "everythingExecutable"}, {"File Locksmith CLI…", "fileLocksmithExecutable"}})
-        configuration->addAction(uiText(pair.first), this, [this, key = pair.second] { const auto path = QFileDialog::getOpenFileName(this, uiText("Choose executable"), {}, "Application (*.exe)"); if (!path.isEmpty()) { try { writeSettings({{key, path}}); } catch (const std::exception& e) { UiMessageBox::warning(this, uiText("Settings"), uiText(QString::fromUtf8(e.what()))); } } });
     if (host_.maya) {
         auto* maya = menu->addMenu(uiText("Maya"));
         for (const auto& pair : QList<QPair<QString, QString>>{{"New Scene", "new"}, {"Save Scene", "save"}, {"Save Scene As…", "saveAs"}, {"Export Selection…", "export"}, {"Current scene folder", "sceneFolder"}, {"Current project", "project"}, {"Save scene information and thumbnail", "sidecar"}, {"Maya standard options…", "options"}})

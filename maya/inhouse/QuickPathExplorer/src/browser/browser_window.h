@@ -96,6 +96,8 @@ private:
     void updateResponsiveLayout();
     /** @brief ホスト別の文字・UI倍率・行間を即時反映する。 */
     void appearanceDialog();
+    /** @brief 設定内の表示ページを作り、変更をプレビューする。 @param parent 所有者。 @return 親所有のページ。 */
+    QWidget* appearancePanel(QWidget* parent);
     /** @brief 結合の競合を非同期に集計し、個別選択を固定する。 @param request Copy要求。 @return 確定したか。 */
     bool confirmMerge(FileRequest& request);
     /** @brief 世代を分離した検索結果を100件ずつ表示する。 @param request 固定した検索条件。 */
@@ -104,8 +106,8 @@ private:
     void installCommandKeys();
     /** @brief 名前でコマンドを検索して実行する。 */
     void commandPalette();
-    /** @brief キー割当と履歴保持設定を検証して保存する。 */
-    void preferencesDialog();
+    /** @brief 設定をカテゴリ別に表示し、保存またはプレビューを取り消す。 @param initialPage 最初に表示する安定ID。 */
+    void preferencesDialog(const QString& initialPage = "general");
     /** @brief 整理機能のメニューを構築する。 @param menu 所有メニュー。 */
     void organizerMenu(QMenu* menu);
     /** @brief 最近閉じたタブを表示状態ごと復元する。 */

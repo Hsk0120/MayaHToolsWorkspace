@@ -44,6 +44,7 @@
 #include <QPushButton>
 #include <QLabel>
 #include <QShortcut>
+#include <QKeySequenceEdit>
 #include <QDialog>
 #include <QInputDialog>
 #include <QMenu>
@@ -332,9 +333,9 @@ private slots:
         bool seen = false;
         QTimer::singleShot(50, &window, [&] {
             auto* menu = window.findChild<QMenu*>("toolsMenu"); if (!menu) return;
-            seen = menu->actions().size() == 7 && menu->findChild<QMenu*>("toolsView") && menu->findChild<QMenu*>("toolsSettings") && menu->findChild<QMenu*>("toolsTabs");
+            seen = menu->actions().size() <= 9 && menu->findChild<QMenu*>("toolsView") && menu->findChild<QAction*>("optionsAction") && menu->findChild<QMenu*>("toolsTabs");
             QStringList names; for (auto* child : menu->findChildren<QMenu*>()) for (auto* action : child->actions()) names.append(action->text());
-            seen = seen && names.contains("Display settings…") && names.contains("New Scene") && names.contains("Saved searches") && names.contains("Undo file operation");
+            seen = seen && !names.contains("Theme") && !names.contains("External applications") && names.contains("New Scene") && names.contains("Saved searches") && names.contains("Undo file operation");
             // 項目の存在だけでは、実際にサブメニューへ進めない不具合を検出できない。
             auto* search = menu->findChild<QMenu*>("toolsSearch");
             QTest::mouseClick(menu, Qt::LeftButton, {}, menu->actionGeometry(search->menuAction()).center());
@@ -395,13 +396,14 @@ private slots:
         {
             qpe::BrowserWindow window; window.restoreSession(path("A")); window.show(); QTRY_VERIFY(window.ready());
             QTimer::singleShot(0, &window, [&] {
-                auto* dialog = window.findChild<QDialog*>("displaySettings"); QVERIFY(dialog);
+                auto* dialog = window.findChild<QDialog*>("qpePreferences"); QVERIFY(dialog);
                 auto* pixels = dialog->findChild<QSpinBox*>("displayFontSize"); auto* scale = dialog->findChild<QSpinBox*>("displayUiScale"); auto* density = dialog->findChild<QComboBox*>("displayDensity");
                 QVERIFY(pixels && scale && density); pixels->setValue(10); scale->setValue(125); density->setCurrentIndex(1);
                 QCOMPARE(window.font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->property("qpeRowHeight").toInt(), 35);
-                auto* widths = dialog->findChild<QComboBox*>("columnWidthMode"); widths->setCurrentIndex(1); QCOMPARE(qpe::readSettings()["columnWidthMode"].toString(), QString("names")); dialog->accept();
+                auto* widths = dialog->findChild<QComboBox*>("columnWidthMode"); widths->setCurrentIndex(1);
+                dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
             });
-            window.perform("appearance"); window.close();
+            window.perform("appearance"); QCOMPARE(qpe::readSettings()["columnWidthMode"].toString(), QString("names")); window.close();
         }
         { qpe::BrowserWindow next; next.restoreSession(path("A")); QCOMPARE(next.font().pixelSize(), 13); next.close(); }
         qpe::writeSettings({{"nativeAppearance", QJsonObject{{"textSize", 12}, {"uiPercent", 100}, {"density", "compact"}}}, {"columnWidthMode", "fit"}});
@@ -1184,9 +1186,88 @@ private slots:
             menu->close();
         });
         window.contextMenu(column, column->visualRect(column->model()->index(0, 0)).center(), path("menu-jp"));
-        for (const auto& label : {"名前の変更…", "パスのコピー", "コピーの作成", "名前の一括変更…", "開始フォルダーに設定"}) QVERIFY2(labels.contains(label), label);
+        for (const auto& label : {"名前の変更…", "パスとしてコピー", "コピーの作成", "名前の一括変更…", "開始フォルダーに設定"}) QVERIFY2(labels.contains(label), label);
         QVERIFY(QFileInfo::exists(path("menu-jp/child")));
         window.close(); qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
+    }
+    /** @brief ファイルと背景を区別し、別項目への右クリックで選択と固定対象を取り違えない。 */
+    void focusedContextMenu() {
+        QVERIFY(QDir().mkpath(path("menu-focused"))); QVERIFY(file("menu-focused/first.txt", 4)); QVERIFY(file("menu-focused/second.txt", 5));
+        qpe::BrowserWindow window; window.navigate(path("menu-focused")); window.show(); QTRY_VERIFY(window.ready());
+        auto* files = window.findChild<QTreeView*>("files"); auto* model = files->model(); QCOMPARE(model->rowCount(), 2);
+        const auto first = model->index(0, 0), second = model->index(1, 0); const auto expected = first.data(Qt::UserRole + 1).toString();
+        files->selectionModel()->setCurrentIndex(second, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+        bool selectedMenu = false;
+        QTimer::singleShot(20, &window, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); if (!menu) return;
+            selectedMenu = menu->actions().size() <= 15 && menu->findChild<QMenu*>("contextMore") && !menu->findChild<QMenu*>("contextNew")
+                && !menu->findChild<QAction*>("context_refresh") && !menu->findChild<QAction*>("context_undo")
+                && menu->defaultAction() && menu->defaultAction()->objectName() == "context_open" && files->selectionModel()->selectedRows().first() == second;
+            // 固定された対象は選択変更で置き換えられない。コピー結果の実URLまで照合する。
+            files->selectionModel()->setCurrentIndex(second, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+            QTest::keyClick(menu, Qt::Key_C, Qt::ControlModifier);
+            menu->close();
+        });
+        window.contextMenu(files, files->visualRect(first).center(), path("menu-focused")); QVERIFY(selectedMenu);
+        QTRY_VERIFY(QApplication::clipboard()->mimeData()->hasUrls()); QCOMPARE(QApplication::clipboard()->mimeData()->urls().first().toLocalFile(), expected);
+        bool background = false;
+        QTimer::singleShot(20, &window, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); if (!menu) return;
+            background = menu->findChild<QMenu*>("contextNew") && menu->findChild<QAction*>("context_refresh") && !menu->findChild<QAction*>("context_trash") && !menu->findChild<QAction*>("context_copy"); menu->close();
+        });
+        window.contextMenu(files, QPoint(-10, -10), path("menu-focused")); QVERIFY(background);
+        QCOMPARE(files->selectionModel()->selectedRows().first(), second); window.close();
+    }
+    /** @brief 用途別の設定を検索し、Cancelでプレビューを復元し、Saveで全ページの編集を保存する。 */
+    void organizedPreferences() {
+        const auto before = qpe::readSettings(); qpe::BrowserWindow window; window.navigate(path("A")); window.show();
+        const auto font = window.font(); const auto width = qpe::readSettings()["columnWidthMode"].toString("fit"); bool inspected = false;
+        QTimer::singleShot(0, &window, [&] {
+            auto* dialog = window.findChild<QDialog*>("qpePreferences"); if (!dialog) return;
+            auto* tabs = dialog->findChild<QTabWidget*>("settingsTabs");
+            inspected = tabs && tabs->count() == 5 && tabs->currentIndex() == 0;
+            tabs->setCurrentIndex(1); dialog->findChild<QSpinBox*>("displayFontSize")->setValue(18); inspected &= window.font() != font;
+            dialog->findChild<QComboBox*>("columnWidthMode")->setCurrentIndex(width == "fit" ? 1 : 0);
+            tabs->setCurrentIndex(3); dialog->findChild<QLineEdit*>("shortcutFilter")->setText("Ctrl+Shift+J");
+            auto* tree = dialog->findChild<QTreeWidget*>("shortcutCommands"); int visible = 0; for (int i = 0; i < tree->topLevelItemCount(); ++i) visible += !tree->topLevelItem(i)->isHidden(); inspected &= visible == 1;
+            tabs->setCurrentIndex(4); dialog->findChild<QLineEdit*>("everythingExecutable")->setText("not-saved.exe"); dialog->reject();
+        });
+        window.perform("settings"); QVERIFY(inspected); QCOMPARE(window.font(), font); QCOMPARE(qpe::readSettings()["columnWidthMode"].toString("fit"), width);
+        QCOMPARE(qpe::readSettings().value("everythingExecutable"), before.value("everythingExecutable"));
+        QTimer::singleShot(0, &window, [&] {
+            auto* dialog = window.findChild<QDialog*>("qpePreferences"); if (!dialog) return;
+            dialog->findChild<QSpinBox*>("undoDays")->setValue(42); dialog->findChild<QLineEdit*>("everythingExecutable")->setText("selected.exe");
+            dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+        });
+        window.perform("settings"); QCOMPARE(qpe::readSettings()["preferences"].toObject()["undoDays"].toInt(), 42);
+        QCOMPARE(qpe::readSettings()["everythingExecutable"].toString(), QString("selected.exe"));
+        window.close(); qpe::saveJson(qpe::settingsPath(), before);
+    }
+    /** @brief ホストがダークでも設定の明示ライトを保ち、表示プレビューでコントラストが壊れない。 */
+    void preferencesThemeContrast() {
+        const auto before = qpe::readSettings(); const auto appPalette = QApplication::palette();
+        auto dark = appPalette; dark.setColor(QPalette::Base, QColor("#202020")); dark.setColor(QPalette::Text, Qt::white); dark.setColor(QPalette::Window, QColor("#202020"));
+        QApplication::setPalette(dark);
+        qpe::writeSettings({{"nativeAppearance", QJsonObject{{"theme", "light"}}}});
+        qpe::BrowserWindow window; window.restoreSession(path("A"), false); window.show(); bool contrast = true;
+        QTimer::singleShot(0, &window, [&] {
+            auto* dialog = window.findChild<QDialog*>("qpePreferences"); auto* tabs = dialog->findChild<QTabWidget*>("settingsTabs");
+            auto* language = dialog->findChild<QComboBox*>("uiLanguage");
+            const auto check = [&] {
+                language->ensurePolished(); const auto image = language->grab().toImage();
+                const auto background = image.pixelColor(qRound(image.width() * .75), image.height() / 2);
+                const bool light = window.palette().color(QPalette::Base).lightness() > 128;
+                contrast &= (background.lightness() > 128) == light;
+                contrast &= (language->palette().color(QPalette::Text).lightness() < 128) == light;
+            };
+            check(); tabs->setCurrentIndex(1);
+            for (auto* combo : dialog->findChildren<QComboBox*>()) if (combo->findData("light") >= 0) {
+                combo->setCurrentIndex(combo->findData("dark")); tabs->setCurrentIndex(0); check();
+                tabs->setCurrentIndex(1); combo->setCurrentIndex(combo->findData("light")); tabs->setCurrentIndex(0); check(); break;
+            }
+            dialog->reject();
+        });
+        window.perform("settings"); window.close(); QApplication::setPalette(appPalette); qpe::saveJson(qpe::settingsPath(), before); QVERIFY(contrast);
     }
     /** @brief 設定のキー保存、破損保護、ロック競合を検証する。 */
     void persistentSettings() {
