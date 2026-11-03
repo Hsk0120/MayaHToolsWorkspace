@@ -44,6 +44,7 @@ CHANGES = {
     "eyelidFollow": (_set(".rotateX", 20.0), "_upperLidOut"),
     "jawHinge": (_set(".rotateX", 20.0), "_jawOut"),
     "piston": (_set(".rotateZ", 60.0), "_rodOut"),
+    "coilSpring": (_add(".translateY", -4.0), "_coil8Out"),
     "bowString": (_set(".translateZ", 4.0), "_topStringOut"),
     "waveChain": (_set(".phase", 90.0), "_tail3Out"),
     "waveFloat": (_add(".translateX", 3.0), "_boatOut"),
@@ -145,6 +146,7 @@ CHANGES = {
 #: 作成直後にハイライトが動かないこと・式との一致は test_setup_eye_highlight で確認する)。
 #: UnevenGroundのサンプルは凹凸のある地面で作るため、作成直後から足・腰の出力が入力と異なり、対象外(地面が
 #: 床の高さで水平なら作成直後に出力が入力と同じことは test_setup_uneven_ground で確認する)。
+#: CoilSpringの出力はらせん上の点で、対応する入力のノードが無いため対象外(式との一致は test_setup_coil_spring で確認する)。
 REST_MATCH = {
     "hipSwing": ("_hipsOut", "_hips"),
     "boxRoll": ("_boxOut", "_box"),

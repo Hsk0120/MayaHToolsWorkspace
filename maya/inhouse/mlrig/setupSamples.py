@@ -53,6 +53,7 @@ class SetupSamples:
         ("eyelidFollow", "EyelidFollow - eye and lids"),
         ("jawHinge", "JawHinge - jaw"),
         ("piston", "Piston - cylinder and rod"),
+        ("coilSpring", "CoilSpring - suspension spring"),
         ("bowString", "BowString - bow and nock"),
         ("waveChain", "WaveChain - tail wave"),
         ("waveFloat", "WaveFloat - boat on waves"),
@@ -318,6 +319,20 @@ class SetupSamples:
         _output(name + "_cylinderOut", frame, str(setup.container) + ".baseMatrix", ((5, 0, 0),))
         _output(name + "_rodOut", arm, str(setup.container) + ".tipMatrix", ((4, 0, 0),))
         return setup, arm
+
+    @classmethod
+    def _coilSpring(cls, name, root):
+        """サスペンションのばね。上のlocatorを下げると、巻き(緑の点)の半径を保ったまま間隔だけが縮み、
+        巻き同士が接する長さ(密着長)より下げると、ばねはそこで止まり containerの coilBind が増える。"""
+        from .setups import CoilSpring
+
+        base = _locator(name + "_seat", root, translate=(0, 2, 0))
+        control = _locator(name + "_topCtrl", root, translate=(0, 10, 0))
+        setup = CoilSpring.create(base, control, name=name, count=17, turns=5.0, radius=1.2,
+                                  wireDiameter=0.3, aimAxis="y", upAxis="x")
+        for index in range(17):
+            _output("{}_coil{}Out".format(name, index), root, "{}.matrix{}".format(setup.container, index))
+        return setup, control
 
     @classmethod
     def _bowString(cls, name, root):

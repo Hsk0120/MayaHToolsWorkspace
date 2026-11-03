@@ -154,6 +154,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Claude Code (2026-11-04): mlrig夜間。両端の間に張るコイルばね `setups/CoilSpring`(aimMatrixでbase→tipの座標系、巻きの半径・線の太さを保ちピッチだけ変える、密着長 turns*wireDiameter より縮まず不足分を coilBind に出力、matrix0〜N-1・length・solidLength・effectiveLength・pitch・gap・coilBind、keyableな turns・radius・wireDiameter、標準ノードのみ)を追加。テスト9件、Setup Samples1項目、文書、検証デモ `tools/demo_coil_spring.py`。隔離Maya 2027で setups 612件・standard 76件OK、Sphinx -W 成功、検証動画234フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
+
 - Codex (2026-11-03): ユーザーのクリーン化指示に基づき、残っていたMCE 0.9.4の検索パス更新・設定探索・状態表示・限定再試行・Escape取消と全6年mll、runtimeのignoreをコミット対象へ確定。Maya2022/2027で各単体44件・session2件・宣言照合・UI29項目・standaloneロード/解除が全て成功。以前の大規模本文/性能閾値失敗も今回は成功、元の失敗記録は保持。日本語/英語Sphinx -W成功。今回実GUI/OS入力は未実施、既存の専用GUI24項目/版の証拠を確認。既存の作業記録はHEAD内容と未登録履歴を統合し、重複・空行差分を除去。MCE実装と作業記録を分けてコミット・origin/mainへpush。詳細 .maya-output/repo-cleanup-20261103/results.json。
 
 | Codex | 2026-11-03 | QPE 日本語UIの残検証・デバッグ・push | 日本語既定/JP EN切替、タブ区別/自然順とソート矢印、翻訳漏れとInspector横溢れを修正。静的Qt95件合格、Maya2022〜2027各16回の配置別言語切替・各4件の複数Import/Reference確認・主要ファイル操作をQt GUIで確認。Windows/2027実IME、2027マウス下部463→33→313px、2022/2027実4画面DPIを確認。Windows/2022通常終了成功。2023/2025〜2027はMASHチェックサム確認待ち（2027未ロード対照でも再現）、2024はホスト終了時QDialog待ちで未合格。専用PIDだけ収束、他変更保持。exe/全6年mll含むQPEのみa137727cをorigin/mainへpush。詳細 .maya-output/qpe-jp-final-20261103/results.json。 |

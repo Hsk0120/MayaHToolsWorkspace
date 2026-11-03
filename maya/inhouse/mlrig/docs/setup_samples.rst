@@ -44,6 +44,9 @@
    * - Piston - cylinder and rod
      - アームのtransform
      - 回すと、シリンダーとロッド(緑)が互いを向く。containerの ``overStroke`` で範囲外を確認する。
+   * - CoilSpring - suspension spring
+     - 上のlocator
+     - ``translateY`` を下げると、巻き(緑の点)の半径を保ったまま間隔だけが縮む。巻き同士が接する長さ(密着長、5巻×0.3cm=1.5cm)より下げると、ばねはそこで止まり、containerの ``coilBind`` に押し込んだ量が出る。
    * - BowString - bow and nock
      - ノックのlocator
      - +Z方向へ引くと、弦(緑)がノックへ向かって伸び、containerの ``drawWeight`` が0から1へ増える。
