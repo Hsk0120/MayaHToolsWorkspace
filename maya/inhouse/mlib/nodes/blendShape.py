@@ -8,13 +8,14 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 from ..decorator import undoChunk
+from .geometryFilter import GeometryFilter
 from .node import Node
 
 #: エイリアスの対象 ``weight[<番号>]`` から論理番号を取り出す。
 _WEIGHT_ALIAS = re.compile(r"^(?:weight|w)\[(\d+)\]$")
 
 
-class BlendShape(Node):
+class BlendShape(GeometryFilter):
     """blendShapeデフォーマの参照と、ターゲットの名前による照会・追加・除去を提供する。
 
     ターゲット名はウェイト(``weight[i]``)のエイリアスで、Shape Editorやチャンネルボックスに

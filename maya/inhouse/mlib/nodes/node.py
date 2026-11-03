@@ -541,7 +541,8 @@ class Node(Object):
 
     取得専用のクラスで、ノードの作成は :func:`mlib.createNode` で行う(``Node.create`` や
     ``Node(name, create=True)`` の作成経路は無い)。``isinstance`` の階層は手書きクラスの継承に
-    従い、Mayaの抽象祖先型(``geometryFilter``・``containerBase``・``entity`` 等)のクラスは含まない。
+    従い、Mayaの抽象祖先型(``weightGeometryFilter``・``containerBase``・``entity`` 等)のクラスは含まない。
+
     Mayaの継承チェーンによる判定は :meth:`isType` または :meth:`getType` の ``inherited=True`` を使う。
 
     Args:

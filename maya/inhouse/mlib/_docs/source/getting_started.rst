@@ -271,25 +271,27 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
    same = mlib.nodes.PointLight("mlibLightShape")   # 具象クラスを明示した取得も可能
 
 基底はMayaの継承チェーン(``cmds.nodeType(inherited=True)``)上で最も近い登録クラスで、
-``pointLight`` なら ``Shape``、``wrap`` なら ``Node``、``symmetryConstraint`` なら
-``Constraint`` です。登録クラスと生成対象の間にある抽象型(``geometryFilter``・
+``pointLight`` なら ``Shape``、``wrap``\ ・\ ``deltaMush`` なら ``GeometryFilter``\ (10.1.0から。
+デフォーマーの共通の基底として手書きで登録)、``symmetryConstraint`` なら
+``Constraint`` です。登録クラスと生成対象の間にある抽象型(``weightGeometryFilter``\ ・
 ``containerBase``・``entity`` など)のクラスは作られず、生成クラス同士が親子になることも
 ありません。生成クラスについて保証するのは「最寄りの登録クラスの派生である」ことだけです。
 
-手書きクラスも同様で、``SkinCluster`` は ``Node`` の直接の派生、``Transform`` は
-``DagNode`` の直接の派生です。したがって ``isinstance`` はMayaの抽象祖先を含む継承関係を
+手書きクラスも同様で、``SkinCluster`` は ``GeometryFilter`` の直接の派生、``Container`` は
+``Node`` の直接の派生です。したがって ``isinstance`` はMayaの抽象祖先を含む継承関係を
 表しません。Mayaの継承に基づく判定は ``isType()`` か ``getType(inherited=True)``\ (基底型から
 自身への順の ``list[str]``)で行います。``type(node) is mlib.nodes.Node`` のような厳密な型比較も、
 未登録型が生成クラスになるため ``isinstance`` か ``isType()`` に置き換えてください。
 
 .. code-block:: python
 
-   skin = mlib.ls(type="skinCluster")[0]
-   print(skin.isType("geometryFilter"))                      # True
-   print("geometryFilter" in skin.getType(inherited=True))   # True
-   print(isinstance(skin, mlib.nodes.GeometryFilter))        # False。手書きクラスは抽象祖先を継承しない
+   container = mlib.ls(type="container")[0]
+   print(container.isType("containerBase"))                  # True
+   print("containerBase" in container.getType(inherited=True))  # True
+   print(isinstance(container, mlib.nodes.ContainerBase))    # False。手書きクラスは抽象祖先を継承しない
 
-``mlib.nodes.GeometryFilter`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
+``mlib.nodes.ContainerBase`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
+
 対応するインスタンスが無いため ``isinstance`` には使えません。Mayaが認識しない型名
 (プラグイン未ロードを含む)は ``AttributeError``、``mlib.nodes.pointLight`` のような
 先頭小文字の綴りも ``AttributeError`` です。生成クラスは ``mlib.nodes.__all__`` と

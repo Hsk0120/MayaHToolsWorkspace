@@ -15,7 +15,7 @@ from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _require_bool, undoTransaction
 from ..maths.vector import Vector, _vector_of, _vectors_of_points
-from ..util import _world_space
+from ..util import _PointGrid, _checked_tolerance, _mirror_axis, _world_space
 from .shape import Shape
 
 
@@ -310,6 +310,121 @@ class Mesh(Shape):
             adjacency[second].append((first, length))
         return adjacency
 
+    def getShells(self):
+        """辺でつながった頂点のまとまり(シェル)を取得する。
+
+        Returns:
+            list[Vertices]: シェルごとの頂点(番号の昇順)。シェルは最小の頂点番号の順に並ぶ。
+                孤立した頂点は1頂点のシェルになる。
+        """
+        fn = self._geometry_fn()
+        neighbors = [[] for _ in range(fn.numVertices)]
+        for edge in range(fn.numEdges):
+            first, second = fn.getEdgeVertices(edge)
+            neighbors[first].append(second)
+            neighbors[second].append(first)
+        seen = [False] * len(neighbors)
+        shells = []
+        for start in range(len(neighbors)):
+            if seen[start]:
+                continue
+            seen[start] = True
+            shell = []
+            stack = [start]
+            # 再帰を使わず、大きなシェルでも深さの上限に当たらないようにする。
+            while stack:
+                vertex = stack.pop()
+                shell.append(vertex)
+                for neighbor in neighbors[vertex]:
+                    if not seen[neighbor]:
+                        seen[neighbor] = True
+                        stack.append(neighbor)
+            shells.append(Vertices(self, sorted(shell)))
+        return shells
+
+    def getTriangles(self):
+        """Maya の三角形分割で、ポリゴンを三角形に分けた頂点の組を取得する。
+
+        Returns:
+            list[tuple[int, int, int]]: 三角形ごとの頂点番号。フェース番号の順で、各フェース内は Maya の分割順。
+        """
+        _counts, vertices = self._geometry_fn().getTriangles()
+        return [(vertices[index], vertices[index + 1], vertices[index + 2]) for index in range(0, len(vertices), 3)]
+
+    def getMirrorVertexMap(self, axis="x", tolerance=0.01, worldSpace=False):
+        """頂点ごとに、位置を軸で反転した反対側の頂点を取得する。
+
+        反転した位置から ``tolerance`` 以内で最も近い頂点を反対側とする。トポロジーは見ない。
+
+        Args:
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、ミラー面 ``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。既定 ``"x"``。
+            tolerance (float): 反転した位置と頂点の距離の許容量(cm)。正の有限値。既定0.01。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            dict[int, int]: {頂点番号: 反対側の頂点番号}。反対側が見つからない頂点は含めない。
+                軸の上の頂点は自身へ対応する(キーと値が同じ)。
+
+        Raises:
+            TypeError: axisが文字列・int以外、toleranceが実数以外、またはworldSpaceがbool以外の場合。
+            ValueError: axisが不正、またはtoleranceが正の有限値でない場合。
+        """
+        component = _mirror_axis(axis)
+        limit = _checked_tolerance(tolerance, positive=True)
+        points = [(point.x, point.y, point.z) for point in self._raw_points(worldSpace)]
+        if not points:
+            return {}
+        grid = _PointGrid(points)
+        result = {}
+        for index, point in enumerate(points):
+            mirrored = list(point)
+            mirrored[component] = -mirrored[component]
+            found, _ = grid.nearest(mirrored, maxDistance=limit)
+            if found is not None:
+                result[index] = found
+        return result
+
+    def getClosestVertex(self, point, worldSpace=False):
+        """指定した位置に最も近い頂点を取得する。
+
+        頂点の位置だけで比べる(面の上の最近点ではない)。多数の点を調べるなら :meth:`getClosestVertices` を使う。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            Vertex: 最も近い頂点。
+
+        Raises:
+            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、またはメッシュに頂点が無い場合。
+        """
+        return Vertex(self, self.getClosestVertices([point], worldSpace=worldSpace)[0])
+
+    def getClosestVertices(self, points, worldSpace=False):
+        """点ごとに、最も近い頂点の番号を取得する。
+
+        頂点の位置に一様な格子を作って探す(面の上の最近点ではない)。
+
+        Args:
+            points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 位置(cm)の並び。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            list[int]: 点の順の、最も近い頂点の番号。
+
+        Raises:
+            TypeError: 点列・点の型・成分が不正、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、またはメッシュに頂点が無い場合。
+        """
+        values = geometry_edit.point_list(points)
+        vertices = [(point.x, point.y, point.z) for point in self._raw_points(worldSpace)]
+        if not vertices:
+            raise ValueError(f"Mesh has no vertices: {self.getFullName()}")
+        grid = _PointGrid(vertices)
+        return [grid.nearest(value)[0] for value in values]
+
     def getEdge(self, index):
         """番号から Edge を取得する。
 
@@ -383,6 +498,18 @@ class Mesh(Shape):
             int: UV 数。
         """
         return self._geometry_fn().numUVs()
+
+    def _raw_points(self, worldSpace):
+        """全頂点の位置を om2 の点列で返す(Vector へ変換しない照会用)。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            om2.MPointArray: 頂点番号順の位置。
+        """
+        ws = _world_space(worldSpace)
+        return self._geometry_fn().getPoints(om2.MSpace.kWorld if ws else om2.MSpace.kObject)
 
     @staticmethod
     def _position_vertex_mapping(source, target, tolerance, world_space):

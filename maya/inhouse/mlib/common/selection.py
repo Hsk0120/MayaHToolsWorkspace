@@ -214,6 +214,41 @@ class Selection:
                 keyframes.append(Keyframe(curve, int(index)))
         return Keyframes(keyframes)
 
+    @classmethod
+    def getSoftSelection(cls):
+        """ソフト選択(リッチ選択)の頂点ごとの重みを、メッシュごとに取得する。シーンは変更しない。
+
+        ソフト選択が有効なら、Mayaが計算した減衰を含む重み(0〜1)を返す。エッジ・フェースの選択も、
+        ソフト選択が有効なときはMayaが頂点の重みにして返す。ソフト選択が無効なら、選んでいる頂点を重み1で返す。
+        同じ頂点が複数回現れた場合は大きい方の重みを使う。
+
+        Returns:
+            dict[Mesh, dict[int, float]]: {メッシュ: {頂点番号: 重み}}。メッシュは最初に現れた順。
+                頂点の選択が無ければ空の辞書。
+        """
+        try:
+            selection = om2.MGlobal.getRichSelection().getSelection()
+        except RuntimeError:
+            # 選択が無い等でリッチ選択を作れないときは、通常の選択を使う。
+            selection = om2.MGlobal.getActiveSelectionList()
+        iterator = om2.MItSelectionList(selection, om2.MFn.kMeshVertComponent)
+        result = {}
+        while not iterator.isDone():
+            path, component = iterator.getComponent()
+            if not component.isNull():
+                if path.apiType() == om2.MFn.kTransform:
+                    path.extendToShape()
+                mesh = Node._wrap_dag_path(path)
+                weights = result.setdefault(mesh, {})
+                indexed = om2.MFnSingleIndexedComponent(component)
+                has_weights = indexed.hasWeights
+                for element in range(indexed.elementCount):
+                    index = indexed.element(element)
+                    weight = indexed.weight(element).influence if has_weights else 1.0
+                    weights[index] = max(weights.get(index, 0.0), weight)
+            iterator.next()
+        return {mesh: weights for mesh, weights in result.items() if weights}
+
     @property
     def items(self):
         """list[Node | Plug | Component]: 保持順の対象。削除済み参照も保持する。

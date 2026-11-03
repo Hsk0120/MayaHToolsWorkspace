@@ -374,9 +374,10 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 
 - 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
 - クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
-- 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`geometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(Node)`、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.nodes.GeometryFilter`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
+- 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`weightGeometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(GeometryFilter)`(10.1.0でデフォーマー共通の `geometryFilter` を手書きの `GeometryFilter` として登録)、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.nodes.ContainerBase`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
 - 生成クラスは `__slots__ = ()` で `__init__` を定義せず、`_generated_node_type`(型名)と `_generated = True` を持つ。`mlib.nodes.AirField("airField1")` の明示構築もでき、型が合わなければ登録クラスと同じ `Node.__new__` のTypeError(「参照と入力の固定規則」)。
-- isinstanceの約束: 生成クラスは「最寄りの登録クラスの派生である」ことだけを保証する。手書きクラスの `isinstance` 階層はPythonの継承で決まり、Mayaの抽象祖先を含まない(`SkinCluster(Node)` なので `isinstance(skin, mlib.nodes.GeometryFilter)` はFalse。`Container(Node)`・`Transform(DagNode)` も同様)。Mayaの継承に基づく型判定は `node.isType("geometryFilter")`、Maya型名の取得は `getType()`(`getType(inherited=True)` で基底→自身の順)を使う。手書きクラスの基底はMayaの親に揃える(`PoleVectorConstraint(PointConstraint)`)。`DagContainer(Transform, Container)` はMayaの全祖先を含んだ上位集合として据え置く(mixin化は次版)。
+- isinstanceの約束: 生成クラスは「最寄りの登録クラスの派生である」ことだけを保証する。手書きクラスの `isinstance` 階層はPythonの継承で決まり、Mayaの抽象祖先を含まない(`Container(Node)` なので `isinstance(container, mlib.nodes.ContainerBase)` はFalse。`Transform(DagNode)` も同様。10.1.0から `SkinCluster`・`Cluster`・`BlendShape` は手書きの `GeometryFilter` の派生)。
+Mayaの継承に基づく型判定は `node.isType("geometryFilter")`、Maya型名の取得は `getType()`(`getType(inherited=True)` で基底→自身の順)を使う。手書きクラスの基底はMayaの親に揃える(`PoleVectorConstraint(PointConstraint)`)。`DagContainer(Transform, Container)` はMayaの全祖先を含んだ上位集合として据え置く(mixin化は次版)。
 - 登録表には `"constraint"` を `Constraint` として明示登録し、未登録のコンストレイント型の生成クラスを `Constraint` 派生にする。`"node"` は登録しない(`cmds.nodeType("node", isTypeName=True, inherited=True)` は継承チェーンに現れないため、チェーンが尽きたときのフォールバック `Node` で足りる)。拡張(mlib_*)の明示登録は生成より常に優先する。
 - 生成クラスは `__all__` やモジュール属性に追加せず(Sphinxにも載せない)、登録表(`NodeRegistry`)の登録辞書とは別のキャッシュに置く。無効化の契機は3つ: (a) 登録表の作り直し(`replace`・`clear`・`mlib.reload()`)、(b) `register`(基底の候補が変わる)、(c) `Plugin.load/unload` 後の型継承キャッシュの消去。いずれも生成済みクラスを廃棄し、次の照会で作り直す。無効化前に保持していた生成クラスの参照は新しいラッパーに対して `isinstance` が偽になるので、reload後のNode/Plugと同じく `mlib.nodes.<TypeName>` を取り直す。テストの期待値は `type(node).__name__`・`issubclass` で書き、クラスの同一性に依存しない。`cmds.loadPlugin` 直接呼び出し・Plug-in Managerからのロードには追従しない。
 
@@ -694,7 +695,8 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ## cmdsの範囲
 
-`getNode/getPlug/createNode/ls/delete/duplicate/select/objExists`の基礎8入口と、8.0.0で足した作成関数(上の「確定したコーディングルール」)だけを公開する。
+`getNode/getPlug/createNode/ls/delete/duplicate/select/objExists`の基礎8入口と、8.0.0で足した作成関数(上の「確定したコーディングルール」)、10.1.0で足した `bakeDeformer`(デフォーマーの変形をスキンへ焼き込み skinCluster を返す)だけを公開する。
+
 関数とファイルは同名。Mayaの長短フラグ・入力解決・Undo・戻り型の既存契約を維持する。
 ノードの作成は `createNode` だけが担い、クラス側の `Node.create`・`X(name, create=True)` は無い(「確定したコーディングルール」の2026-10-26指定)。
 その他のMayaコマンドは利用側で直接使い、必要な結果をgetNode/getPlugで包む。

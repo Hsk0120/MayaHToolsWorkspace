@@ -4,6 +4,36 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+10.1.0 (2026-11-03)
+-------------------
+
+スキンのウェイト編集ツールで使う照会・編集を追加しました。既存の呼び出し方はそのまま使えます。
+``SkinCluster``\ ・\ ``Cluster``\ ・\ ``BlendShape`` の基底が新しい ``GeometryFilter`` になり、
+``isinstance(skin, mlib.nodes.GeometryFilter)`` は ``True`` になります(10.0.0 までは生成クラスで ``False``)。
+
+.. rubric:: 追加
+
+- ``mlib.nodes.GeometryFilter``: デフォーマー(``geometryFilter``)の共通の基底。``getDeformerWeights(geometryIndex=0)``\ ・
+  ``setDeformerWeights(weights, *, vertices=None, geometryIndex=0, fast=False)`` で頂点ごとの効き具合
+  (``weightList[i].weights``。値の無い頂点は 1.0)を読み書きする。skinCluster・weightList の無い型は ``TypeError``。
+  ``deltaMush``\ ・\ ``wrap`` 等の生成クラスもこの派生になる。
+- ``SkinCluster.getLockedInfluences()``\ ・\ ``setInfluencesLocked(joints, state=True)``\ 、
+  ``Joint.isInfluenceLocked()``\ ・\ ``setInfluenceLocked(state=True)``: インフルエンスのロック(lockInfluenceWeights)。
+- ``SkinCluster.getWeights(..., rows=True)``\ ・\ ``setWeights(..., rows=True)``: 頂点ごとの行(``list[list[float]]``)での読み書き。
+- ``SkinCluster.removeInfluences(joints, transferToParent=True, *, force=False)``: 複数のインフルエンスを深い順に外し、
+  ウェイトを外さずに残る最も近い祖先へ集める(残る祖先が無いものがあれば変更前に ``ValueError``)。
+- ``SkinCluster.dumpWeights(path, *, positions=False)``\ ・\ ``loadWeights(path, *, method="index", addMissing=False, fast=False)``:
+  頂点の位置の書き出しと、位置(最も近い記録の頂点)での読み込み、足りないインフルエンスの追加。
+- ``SkinCluster.getSkinningMethod()``\ ・\ ``setSkinningMethod(method)``\ ・\ ``getNormalizeMode()``\ ・\ ``setNormalizeMode(mode)``\ ・
+  ``isMaintainingMaxInfluences()``: skinCluster の設定を名前(``"dualQuaternion"``\ ・\ ``"interactive"`` 等)で扱う。
+- ``Joint.getBoneSegments(worldSpace=True)``: 自身から子の joint までの線分。
+- ``Mesh.getShells()``\ ・\ ``getTriangles()``\ ・\ ``getMirrorVertexMap(axis="x", tolerance=0.01, worldSpace=False)``\ ・
+  ``getClosestVertex(point, worldSpace=False)``\ ・\ ``getClosestVertices(points, worldSpace=False)``\ 。
+- ``Vertices.grow()``\ ・\ ``shrink()``\ 、\ ``Edge``/``Edges.getLoop()``\ ・\ ``getRing()``: 選択を変えずに新しい集まりを返す。
+- ``Selection.getSoftSelection()``: ソフト選択の重みを ``{Mesh: {頂点番号: 重み}}`` で返す。
+- ``mlib.bakeDeformer(source, skeleton, destination=None, destinationSkeleton=None, maxInfluences=4, **kwargs)``:
+  ``cmds.bakeDeformer`` でデフォーマーの変形をスキンのウェイトへ焼き込み、skinCluster を返す。
+
 10.0.0 (2026-10-31)
 -------------------
 

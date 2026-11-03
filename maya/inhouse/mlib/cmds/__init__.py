@@ -8,6 +8,7 @@ for _name in tuple(globals()):
         globals().pop(_name, None)
 globals().pop("_prepare_reload", None)
 
+from .bakeDeformer import bakeDeformer
 from .bindSkin import bindSkin
 from .createBlendShape import createBlendShape
 from .createCircle import createCircle
@@ -31,7 +32,9 @@ from .objExists import objExists
 from .select import select
 
 __all__ = [
+    "bakeDeformer",
     "bindSkin",
+
     "createBlendShape",
     "createCircle",
     "createContainer",

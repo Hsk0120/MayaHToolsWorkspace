@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Mesh の頂点と頂点コレクション。"""
 
+import maya.api.OpenMaya as om2
 from .pointComponent import PointComponent, PointComponents
 from typing import Any, Iterator
 from typing import overload
@@ -22,3 +23,32 @@ class Vertices(PointComponents):
     @overload
     def __getitem__(self, index: slice) -> Vertices: ...
     component_class: Any
+    def grow(self) -> Vertices:
+        """辺でつながった隣の頂点を加えた頂点群を取得する。選択は変えない。
+
+        Returns:
+            Vertices: 保持順の頂点のあとに、加えた頂点を番号の昇順で続けた新しい頂点群。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def shrink(self) -> Vertices:
+        """保持していない頂点と辺でつながる頂点(縁)を除いた頂点群を取得する。選択は変えない。
+
+        Returns:
+            Vertices: 保持順を保った新しい頂点群。全てが縁なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def _neighbor_indices(self) -> dict[int, list[int]]:
+        """保持している頂点ごとに、辺でつながった頂点番号を返す。
+
+        Returns:
+            dict[int, list[int]]: {頂点番号: 隣の頂点番号}。
+        """
+        ...

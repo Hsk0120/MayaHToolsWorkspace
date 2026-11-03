@@ -735,6 +735,24 @@ def s_skin_saved(c):
     cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.8)
 
 
+def s_skin_mush(c):
+    """スキンに deltaMush を重ね、焼き込み先の複製メッシュを用意する。"""
+    s_skin(c)
+    c.mesh2 = cmds.ls(cmds.duplicate(c.mesh, name="bakeMesh")[0], long=True)[0]
+    cmds.deltaMush(c.mesh, name="mush")
+    cmds.select(clear=True)
+
+
+def s_cluster(c):
+    """cube に cluster を掛ける。"""
+    s_cube(c)
+    cmds.cluster(c.cube)
+    # cluster は現在の名前空間へ作らない場合があるため、履歴から探す。
+    c.clusterName = cmds.ls(cmds.listHistory(c.cube), type="cluster", long=True)[0]
+    c.ncluster = mlib.getNode(c.clusterName)
+    cmds.select(clear=True)
+
+
 def s_constraint(c):
     """b を a へ parentConstraint で拘束する。"""
     s_two(c)
@@ -974,6 +992,9 @@ _TANGENT_ATTRS = ("keyTanInX", "keyTanOutX", "keyTanInY", "keyTanOutY")
 
 #: container を所有先にした ScalarGraph の fast は NotImplementedError(仕様)。
 _CONTAINER_FAST = "container を所有先にした fast は NotImplementedError(仕様)"
+
+#: Maya 2022 では素の cmds.bakeDeformer でも、Redo 後のウェイトが焼き込みの結果と一致しない(2027 は一致)。
+_BAKE_REDO = "Maya 2022 は素の cmds.bakeDeformer でも Redo 後のウェイトが焼き込みの結果と一致しない"
 
 C = _Case
 CASES = [
@@ -1296,6 +1317,23 @@ CASES = [
       lambda c, **kw: c.skin.setMaxInfluences(1, **kw)),
     C("SkinCluster.setMaxInfluences", "SkinCluster.setMaxInfluences prune", s_skin,
       lambda c, **kw: c.skin.setMaxInfluences(1, prune=True, **kw)),
+    C("SkinCluster.setWeights", "SkinCluster.setWeights rows", s_skin,
+      lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [[0.25, 0.75], [0.5, 0.5]], vertices=[0, 1], rows=True, **kw)),
+    C("SkinCluster.setInfluencesLocked", "SkinCluster.setInfluencesLocked", s_skin,
+      lambda c, **kw: c.skin.setInfluencesLocked([c.j0, c.j1])),
+    C("Joint.setInfluenceLocked", "Joint.setInfluenceLocked", s_skin,
+      lambda c, **kw: c.nj1.setInfluenceLocked(True)),
+    C("SkinCluster.removeInfluences", "SkinCluster.removeInfluences", s_skin,
+      lambda c, **kw: c.skin.removeInfluences([c.j1])),
+    C("SkinCluster.setSkinningMethod", "SkinCluster.setSkinningMethod", s_skin,
+      lambda c, **kw: c.skin.setSkinningMethod("dualQuaternion")),
+    C("SkinCluster.setNormalizeMode", "SkinCluster.setNormalizeMode", s_skin,
+      lambda c, **kw: c.skin.setNormalizeMode("post")),
+    C("cmds.bakeDeformer", "bakeDeformer", s_skin_mush,
+      lambda c, **kw: mlib.bakeDeformer(c.mesh, c.j0, c.mesh2, maxInfluences=2),
+      mayaQuirk=_BAKE_REDO if cmds.about(apiVersion=True) < 20230000 else None, ignoreAttrs=("weights",)),
+    C("GeometryFilter.setDeformerWeights", "GeometryFilter.setDeformerWeights", s_cluster,
+      lambda c, **kw: c.ncluster.setDeformerWeights([0.25, 0.5], vertices=[0, 3], **kw)),
     # Plug
     C("Plug.set", "Plug.set double", s_one,
       lambda c, **kw: mlib.getPlug(c.a + ".tx").set(4.0, **kw)),

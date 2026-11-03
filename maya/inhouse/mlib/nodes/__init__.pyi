@@ -9,7 +9,9 @@ nodeType 名との対応を明示する。登録の無い Maya の nodeType は�
 Maya が認識しない型名(プラグイン未ロード等)は ``AttributeError`` になる。
 
 生成クラスは ``__all__`` に入れず、Sphinx にも載らない。登録クラスと生成対象の間にある
-抽象型(geometryFilter・containerBase・entity など)のクラスは生成しないため、
+抽象型(weightGeometryFilter・containerBase・entity など。デフォーマー共通の geometryFilter は
+手書きの GeometryFilter として登録する)のクラスは生成しないため、
+
 ``isinstance`` は Maya の継承を表さない。継承の判定は ``Node.isType()`` を使う。
 生成クラスは登録表の変更・プラグインのロード/アンロード(``mlib.common.Plugin`` 経由)・
 ``mlib.reload()`` で作り直されるため、保持したクラス参照は取り直す。
@@ -46,6 +48,7 @@ from .dagPose import DagPose
 from .displayLayer import DisplayLayer
 from .file import File
 from .geometryConstraint import GeometryConstraint
+from .geometryFilter import GeometryFilter
 from .ikHandle import IkHandle
 from .joint import Joint, Joints
 from .lambert import Lambert
@@ -83,7 +86,7 @@ from .tangentConstraint import TangentConstraint
 from .texture2d import Texture2d
 from .unitConversion import UnitConversion
 
-__all__ = ['AddDL', 'AddDoubleLinear', 'AimConstraint', 'AnimCurve', 'AnimCurveTA', 'AnimCurveTL', 'AnimCurveTT', 'AnimCurveTU', 'AnimCurveUA', 'AnimCurveUL', 'AnimCurveUT', 'AnimCurveUU', 'BlendColors', 'BlendShape', 'BlendWeighted', 'Blinn', 'Camera', 'Clamp', 'Cluster', 'Condition', 'Constraint', 'Container', 'DagContainer', 'DagNode', 'DagPose', 'DisplayLayer', 'File', 'GeometryConstraint', 'IkHandle', 'Joint', 'Joints', 'Lambert', 'Locator', 'Mesh', 'MultDL', 'MultDoubleLinear', 'MultiplyDivide', 'Node', 'Nodes', 'NormalConstraint', 'NurbsCurve', 'NurbsSurface', 'ObjectSet', 'OrientConstraint', 'PaintableShadingDependNode', 'ParentConstraint', 'Phong', 'PhongE', 'Place2dTexture', 'Place3dTexture', 'PlusMinusAverage', 'PointConstraint', 'PointOnPolyConstraint', 'PoleVectorConstraint', 'Reference', 'Reflect', 'RemapValue', 'Reverse', 'ScaleConstraint', 'SetRange', 'ShadingDependNode', 'ShadingEngine', 'Shape', 'SkinCluster', 'SkinClusters', 'StandardSurface', 'SurfaceShader', 'TangentConstraint', 'Texture2d', 'Transform', 'UnitConversion']
+__all__ = ['AddDL', 'AddDoubleLinear', 'AimConstraint', 'AnimCurve', 'AnimCurveTA', 'AnimCurveTL', 'AnimCurveTT', 'AnimCurveTU', 'AnimCurveUA', 'AnimCurveUL', 'AnimCurveUT', 'AnimCurveUU', 'BlendColors', 'BlendShape', 'BlendWeighted', 'Blinn', 'Camera', 'Clamp', 'Cluster', 'Condition', 'Constraint', 'Container', 'DagContainer', 'DagNode', 'DagPose', 'DisplayLayer', 'File', 'GeometryConstraint', 'GeometryFilter', 'IkHandle', 'Joint', 'Joints', 'Lambert', 'Locator', 'Mesh', 'MultDL', 'MultDoubleLinear', 'MultiplyDivide', 'Node', 'Nodes', 'NormalConstraint', 'NurbsCurve', 'NurbsSurface', 'ObjectSet', 'OrientConstraint', 'PaintableShadingDependNode', 'ParentConstraint', 'Phong', 'PhongE', 'Place2dTexture', 'Place3dTexture', 'PlusMinusAverage', 'PointConstraint', 'PointOnPolyConstraint', 'PoleVectorConstraint', 'Reference', 'Reflect', 'RemapValue', 'Reverse', 'ScaleConstraint', 'SetRange', 'ShadingDependNode', 'ShadingEngine', 'Shape', 'SkinCluster', 'SkinClusters', 'StandardSurface', 'SurfaceShader', 'TangentConstraint', 'Texture2d', 'Transform', 'UnitConversion']
 _WRAPPER_CLASSES: dict
 
 def __getattr__(name: str) -> type:

@@ -8,8 +8,8 @@ import maya.cmds as cmds
 
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
-from ..maths import EulerRotate, Matrix, Scale
-from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis
+from ..maths import EulerRotate, Matrix, Scale, Vector
+from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis, _world_space
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 
@@ -431,6 +431,62 @@ class Joint(Transform):
             for skin in skins:
                 skin.removeInfluence(self, transferToParent=transferToParent, force=force)
             return self
+
+    def isInfluenceLocked(self):
+        """スキンのウェイトをロック(lockInfluenceWeights)しているかを判定する。
+
+        lockInfluenceWeights は skinCluster へバインドしたときに追加されるアトリビュート。
+
+        Returns:
+            bool: ロックしていればTrue。アトリビュートが無い(どの skinCluster のinfluenceにもなっていない)場合はFalse。
+        """
+        return self.hasAttr("lockInfluenceWeights") and bool(self.getPlug("lockInfluenceWeights").get())
+
+    def setInfluenceLocked(self, state=True):
+        """スキンのウェイトのロック(lockInfluenceWeights)を設定する。
+
+        全ての skinCluster で同じ値になる(lockInfluenceWeights は joint 側のアトリビュート)。
+        複数をまとめて設定するなら :meth:`SkinCluster.setInfluencesLocked
+        <mlib.nodes.skinCluster.SkinCluster.setInfluencesLocked>` を使う。fast引数は持たない。
+
+        Args:
+            state (bool): Trueはロック、Falseはロックの解除。既定True。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: stateがbool以外の場合。
+            RuntimeError: lockInfluenceWeights が無い(influenceになっていない)、またはロック・入力接続されている場合。
+        """
+        with undoChunk("mlibJointSetInfluenceLocked"):
+            _require_bool(state, "state")
+            if not self.hasAttr("lockInfluenceWeights"):
+                raise RuntimeError(f"Joint is not an influence of any skinCluster: {self.getFullName()}")
+            self.getPlug("lockInfluenceWeights").set(state)
+            return self
+
+    def getBoneSegments(self, worldSpace=True):
+        """自身から子の joint までのボーンの線分を取得する。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間(親側の空間)。既定True。
+
+        Returns:
+            list[tuple[Vector, Vector]]: 子の joint ごとの (始点, 終点)。始点は自身の位置(回転ピボット)。
+                子の joint が無い場合は始点と同じ点を終点にした1組だけを返す。位置は cm。
+        """
+        ws = _world_space(worldSpace)
+        children = self.getChildren(type="joint")
+        if ws:
+            ends = [child.getTranslation(worldSpace=True) for child in children]
+        else:
+            # 子の位置は自身の空間で表されるため、自身のマトリクスで親側の空間へ写す。
+            matrix = self.getMatrix()
+            ends = [matrix.transformPoint(child.getTranslation()) for child in children]
+        start = self.getTranslation(worldSpace=ws)
+        segments = [(Vector(start.x, start.y, start.z), Vector(end.x, end.y, end.z)) for end in ends]
+        return segments or [(Vector(start.x, start.y, start.z), Vector(start.x, start.y, start.z))]
 
     def getTransferTarget(self, skin):
         """ウェイト移送先となる最も近い親 influence を探索する。

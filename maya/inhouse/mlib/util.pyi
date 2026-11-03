@@ -12,7 +12,7 @@ import numbers
 import string
 import time
 from operator import index as _as_index
-from typing import Any, Callable, Iterable, Literal, NoReturn
+from typing import Any, Callable, Iterable, Literal, NoReturn, Sequence
 from typing import overload
 import types
 
@@ -378,3 +378,34 @@ def _rethrow_init_error(cls, error: TypeError) -> NoReturn:
         TypeError: 書き換えたメッセージの例外。元の例外は連鎖しない。
     """
     ...
+
+
+class _PointGrid:
+    """最も近い点を探すための一様な格子(標準ライブラリだけで計算する)。
+
+    点の範囲の対角線と点の数から格子の大きさを決め、問い合わせ点の格子から外側へ広げて探す。
+    見つかった点より近い点が外側の格子に無いと分かった時点で探索を終える。
+
+    Args:
+        points (Sequence[Sequence[float]]): 3成分の点の並び。空でないこと。
+    """
+    def __init__(self, points) -> None: ...
+    def nearest(self, point: Sequence[float], maxDistance: float | None = ...) -> tuple[int | None, float]:
+        """最も近い点の番号と距離を返す。
+
+        Args:
+            point (Sequence[float]): 3成分の問い合わせ点。
+            maxDistance (float | None): これより遠い点は探さない。Noneは制限なし。
+
+        Returns:
+            tuple[int | None, float]: 点の番号と距離。maxDistance内に無ければ ``(None, inf)``。
+        """
+        ...
+    def _cell(self, point):
+        """座標を格子の番号にする。"""
+        ...
+    points: Any
+    size: Any
+    cells: Any
+    lows: Any
+    highs: Any

@@ -877,8 +877,29 @@ def _create_node_overloads(stub, node):
     return variants
 
 
+def _skin_get_weights_overloads(stub, node):
+    """``SkinCluster.getWeights`` の ``rows`` ごとのオーバーロードを返す。
+
+    Args:
+        stub (ModuleStub): 出力中のモジュール。
+        node (ast.FunctionDef): ``getWeights`` の定義。
+
+    Returns:
+        list[str]: オーバーロードの行。
+    """
+    stub.typing.add("Literal")
+    doc_types = _arg_types(ast.get_docstring(node) or "")
+    qualname = "SkinCluster.getWeights"
+    rows = stub._params(node.args, doc_types, qualname, {"rows": ("Literal[True]", False)})
+    flat = stub._params(node.args, doc_types, qualname, {"rows": ("Literal[False]", True)})
+    return ["def getWeights(%s) -> list[list[float]]: ..." % rows,
+            "def getWeights(%s) -> om2.MDoubleArray: ..." % flat]
+
+
 OVERLOADS = {
     "mlib.cmds.createNode:createNode": _create_node_overloads,
+    "mlib.nodes.skinCluster:SkinCluster.getWeights": _skin_get_weights_overloads,
+
     "mlib.nodes.node:Node.getType": lambda stub, node: _get_type_overloads(stub),
     "mlib.util:_angle_unit": lambda stub, node: _angle_unit_overloads(stub),
     "mlib.cmds.ls:ls": _ls_overloads,

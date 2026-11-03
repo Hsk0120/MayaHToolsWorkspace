@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """公開するMayaコマンドラッパーを明示する。"""
 
+from .bakeDeformer import bakeDeformer
 from .bindSkin import bindSkin
 from .createBlendShape import createBlendShape
 from .createCircle import createCircle
@@ -23,4 +24,4 @@ from .ls import ls
 from .objExists import objExists
 from .select import select
 
-__all__ = ['bindSkin', 'createBlendShape', 'createCircle', 'createContainer', 'createCurve', 'createDagContainer', 'createDagPose', 'createIkHandle', 'createLocator', 'createNode', 'createPolyCube', 'createPolyCylinder', 'createPolyPlane', 'createPolySphere', 'delete', 'duplicate', 'getNode', 'getPlug', 'ls', 'objExists', 'select']
+__all__ = ['bakeDeformer', 'bindSkin', 'createBlendShape', 'createCircle', 'createContainer', 'createCurve', 'createDagContainer', 'createDagPose', 'createIkHandle', 'createLocator', 'createNode', 'createPolyCube', 'createPolyCylinder', 'createPolyPlane', 'createPolySphere', 'delete', 'duplicate', 'getNode', 'getPlug', 'ls', 'objExists', 'select']

@@ -8,7 +8,9 @@ nodeType 名との対応を明示する。登録の無い Maya の nodeType は�
 Maya が認識しない型名(プラグイン未ロード等)は ``AttributeError`` になる。
 
 生成クラスは ``__all__`` に入れず、Sphinx にも載らない。登録クラスと生成対象の間にある
-抽象型(geometryFilter・containerBase・entity など)のクラスは生成しないため、
+抽象型(weightGeometryFilter・containerBase・entity など。デフォーマー共通の geometryFilter は
+手書きの GeometryFilter として登録する)のクラスは生成しないため、
+
 ``isinstance`` は Maya の継承を表さない。継承の判定は ``Node.isType()`` を使う。
 生成クラスは登録表の変更・プラグインのロード/アンロード(``mlib.common.Plugin`` 経由)・
 ``mlib.reload()`` で作り直されるため、保持したクラス参照は取り直す。
@@ -54,6 +56,7 @@ from .dagPose import DagPose
 from .displayLayer import DisplayLayer
 from .file import File
 from .geometryConstraint import GeometryConstraint
+from .geometryFilter import GeometryFilter
 from .ikHandle import IkHandle
 from .joint import Joint, Joints
 from .lambert import Lambert
@@ -121,6 +124,7 @@ __all__ = [
     "DisplayLayer",
     "File",
     "GeometryConstraint",
+    "GeometryFilter",
     "IkHandle",
     "Joint",
     "Joints",
@@ -196,6 +200,8 @@ _WRAPPER_CLASSES = {
     "displayLayer": DisplayLayer,
     "file": File,
     "geometryConstraint": GeometryConstraint,
+    "geometryFilter": GeometryFilter,
+
     "ikHandle": IkHandle,
     "joint": Joint,
     "lambert": Lambert,

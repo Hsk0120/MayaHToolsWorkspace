@@ -53,6 +53,7 @@ from mlib.nodes.dagPose import DagPose
 from mlib.nodes.displayLayer import DisplayLayer
 from mlib.nodes.file import File
 from mlib.nodes.geometryConstraint import GeometryConstraint
+from mlib.nodes.geometryFilter import GeometryFilter
 from mlib.nodes.ikHandle import IkHandle
 from mlib.nodes.joint import Joint
 from mlib.nodes.lambert import Lambert
@@ -151,6 +152,8 @@ def createNode(type: Literal["displayLayer"], *, fast: bool = ..., name: str = .
 def createNode(type: Literal["file"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> File: ...
 @overload
 def createNode(type: Literal["geometryConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> GeometryConstraint: ...
+@overload
+def createNode(type: Literal["geometryFilter"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> GeometryFilter: ...
 @overload
 def createNode(type: Literal["ikHandle"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> IkHandle: ...
 @overload

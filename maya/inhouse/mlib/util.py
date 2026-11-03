@@ -577,3 +577,66 @@ def _rethrow_init_error(cls, error):
         TypeError: 書き換えたメッセージの例外。元の例外は連鎖しない。
     """
     raise TypeError(f"{cls.__name__}() {str(error).split('() ', 1)[-1]}") from None
+
+
+class _PointGrid:
+    """最も近い点を探すための一様な格子(標準ライブラリだけで計算する)。
+
+    点の範囲の対角線と点の数から格子の大きさを決め、問い合わせ点の格子から外側へ広げて探す。
+    見つかった点より近い点が外側の格子に無いと分かった時点で探索を終える。
+
+    Args:
+        points (Sequence[Sequence[float]]): 3成分の点の並び。空でないこと。
+    """
+
+    def __init__(self, points):
+        self.points = [tuple(float(value) for value in point) for point in points]
+        if not self.points:
+            raise ValueError("points must not be empty")
+        lows = [min(point[axis] for point in self.points) for axis in range(3)]
+        highs = [max(point[axis] for point in self.points) for axis in range(3)]
+        diagonal = math.sqrt(sum((high - low) ** 2 for low, high in zip(lows, highs))) or 1.0
+        # 1つの格子に数点が入る大きさにする。
+        self.size = max(diagonal / max(1.0, len(self.points) ** (1.0 / 3.0)), 1e-6)
+        self.cells = {}
+        for index, point in enumerate(self.points):
+            self.cells.setdefault(self._cell(point), []).append(index)
+        self.lows = [math.floor(low / self.size) for low in lows]
+        self.highs = [math.floor(high / self.size) for high in highs]
+
+    def nearest(self, point, maxDistance=None):
+        """最も近い点の番号と距離を返す。
+
+        Args:
+            point (Sequence[float]): 3成分の問い合わせ点。
+            maxDistance (float | None): これより遠い点は探さない。Noneは制限なし。
+
+        Returns:
+            tuple[int | None, float]: 点の番号と距離。maxDistance内に無ければ ``(None, inf)``。
+        """
+        point = tuple(float(value) for value in point)
+        base = self._cell(point)
+        # 問い合わせ点から、全ての点を含む範囲の格子まで届く輪の数。
+        reach = max(max(abs(base[axis] - self.lows[axis]), abs(base[axis] - self.highs[axis])) for axis in range(3))
+        if maxDistance is not None:
+            reach = min(reach, int(math.ceil(maxDistance / self.size)))
+        best, best_distance = None, math.inf
+        limit = math.inf if maxDistance is None else maxDistance * maxDistance
+        for radius in range(reach + 1):
+            for dx in range(-radius, radius + 1):
+                for dy in range(-radius, radius + 1):
+                    for dz in range(-radius, radius + 1):
+                        if max(abs(dx), abs(dy), abs(dz)) != radius:
+                            continue
+                        for index in self.cells.get((base[0] + dx, base[1] + dy, base[2] + dz), ()):
+                            distance = sum((a - b) ** 2 for a, b in zip(self.points[index], point))
+                            if distance < best_distance and distance <= limit:
+                                best, best_distance = index, distance
+            # 見つかった点より近い点は、次の輪より外には無い。
+            if best is not None and math.sqrt(best_distance) <= radius * self.size:
+                break
+        return best, math.sqrt(best_distance)
+
+    def _cell(self, point):
+        """座標を格子の番号にする。"""
+        return tuple(int(math.floor(value / self.size)) for value in point)

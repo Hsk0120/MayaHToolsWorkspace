@@ -7,6 +7,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 import maya.mel as mel
 from ..decorator import undoChunk
+from .geometryFilter import GeometryFilter
 from .node import Node
 from typing import Any
 from mlib.plugs.plug import Plug
@@ -14,7 +15,7 @@ from mlib.plugs.plug import Plug
 _WEIGHT_ALIAS: Any
 
 
-class BlendShape(Node):
+class BlendShape(GeometryFilter):
     """blendShapeデフォーマの参照と、ターゲットの名前による照会・追加・除去を提供する。
 
     ターゲット名はウェイト(``weight[i]``)のエイリアスで、Shape Editorやチャンネルボックスに

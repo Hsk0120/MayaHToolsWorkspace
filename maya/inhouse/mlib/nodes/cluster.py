@@ -2,10 +2,11 @@
 
 import maya.api.OpenMayaAnim as oma2
 
+from .geometryFilter import GeometryFilter
 from .node import Node
 
 
-class Cluster(Node):
+class Cluster(GeometryFilter):
     """Maya の cluster デフォーマラッパー。"""
 
     def getWeightedNode(self):

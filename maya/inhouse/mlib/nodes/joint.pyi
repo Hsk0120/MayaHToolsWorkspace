@@ -7,8 +7,8 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..core.fastWrite import set_attr
 from ..decorator import _edit_context, _require_bool, undoChunk
-from ..maths import EulerRotate, Matrix, Scale
-from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis
+from ..maths import EulerRotate, Matrix, Scale, Vector
+from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis, _world_space
 from .node import Node, Nodes
 from .transform import Transform, _closest_euler
 from typing import Any, Iterable, Iterator, Sequence
@@ -306,6 +306,44 @@ class Joint(Transform):
             TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceを解除する場合。
             RuntimeError: 無効joint、レイヤー・ロック、または編集失敗。
+        """
+        ...
+    def isInfluenceLocked(self) -> bool:
+        """スキンのウェイトをロック(lockInfluenceWeights)しているかを判定する。
+
+        lockInfluenceWeights は skinCluster へバインドしたときに追加されるアトリビュート。
+
+        Returns:
+            bool: ロックしていればTrue。アトリビュートが無い(どの skinCluster のinfluenceにもなっていない)場合はFalse。
+        """
+        ...
+    def setInfluenceLocked(self, state: bool = ...) -> Joint:
+        """スキンのウェイトのロック(lockInfluenceWeights)を設定する。
+
+        全ての skinCluster で同じ値になる(lockInfluenceWeights は joint 側のアトリビュート)。
+        複数をまとめて設定するなら :meth:`SkinCluster.setInfluencesLocked
+        <mlib.nodes.skinCluster.SkinCluster.setInfluencesLocked>` を使う。fast引数は持たない。
+
+        Args:
+            state (bool): Trueはロック、Falseはロックの解除。既定True。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: stateがbool以外の場合。
+            RuntimeError: lockInfluenceWeights が無い(influenceになっていない)、またはロック・入力接続されている場合。
+        """
+        ...
+    def getBoneSegments(self, worldSpace: bool = ...) -> list[tuple[Vector, Vector]]:
+        """自身から子の joint までのボーンの線分を取得する。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間(親側の空間)。既定True。
+
+        Returns:
+            list[tuple[Vector, Vector]]: 子の joint ごとの (始点, 終点)。始点は自身の位置(回転ピボット)。
+                子の joint が無い場合は始点と同じ点を終点にした1組だけを返す。位置は cm。
         """
         ...
     def getTransferTarget(self, skin: SkinCluster) -> str | None:

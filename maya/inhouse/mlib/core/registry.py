@@ -199,7 +199,8 @@ class NodeRegistry:
     ``generate_classes=True`` の表は、Maya が認識する未登録の nodeType に対して
     クラスを生成して返す。生成クラスの親は
     Maya の継承チェーン(``cmds.nodeType(inherited=True)``)上で最も近い登録済み
-    クラスで、登録クラスと生成対象の間にある抽象型(geometryFilter・containerBase・
+    クラスで、登録クラスと生成対象の間にある抽象型(weightGeometryFilter・containerBase・
+
     entity など)のクラスは生成しない。したがって生成クラス同士の ``isinstance`` は
     Maya の継承を表さず、継承の判定には ``Node.isType()`` を使う。
     """
