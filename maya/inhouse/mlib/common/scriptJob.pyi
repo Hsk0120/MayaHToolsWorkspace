@@ -3,6 +3,7 @@
 
 from typing import Any, Dict
 import maya.cmds as cmds
+from .environment import Environment
 from typing import Callable
 from mlib.plugs.plug import Plug
 import maya.api.OpenMaya as om2

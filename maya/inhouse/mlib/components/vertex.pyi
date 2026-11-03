@@ -4,6 +4,7 @@
 import maya.api.OpenMaya as om2
 from .pointComponent import PointComponent, PointComponents
 from typing import Any, Iterator
+from mlib.components.face import Faces
 from typing import overload
 
 
@@ -13,6 +14,15 @@ class Vertex(PointComponent):
     shape_type: str
     component_type: str
     count_attribute: str
+    def getFaces(self) -> Faces:
+        """この頂点に触れている面を取得する。
+
+        :meth:`Vertices.getFaces` と同じ規則。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。
+        """
+        ...
 
 
 class Vertices(PointComponents):
@@ -39,6 +49,19 @@ class Vertices(PointComponents):
 
         Returns:
             Vertices: 保持順を保った新しい頂点群。全てが縁なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def getFaces(self) -> Faces:
+        """保持している頂点のどれかに触れている面を取得する。選択は変えない。
+
+        ``cmds.polyListComponentConversion(toFace=True)`` と同じ面になる。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。頂点が空なら空。
 
         Raises:
             IndexError: トポロジーの変更で保持番号が範囲外になった場合。

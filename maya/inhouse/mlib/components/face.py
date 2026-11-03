@@ -1,5 +1,7 @@
 """Mesh の Face とコレクション。"""
 
+import maya.api.OpenMaya as om2
+
 from .component import Component, Components
 from .vertex import Vertices
 
@@ -37,6 +39,16 @@ class Face(Component):
         """
         self._require_valid()
         return Vertices(self.shape, self.shape._geometry_fn().getPolygonVertices(self.index))
+
+    def getEdges(self):
+        """この面のエッジを取得する。
+
+        :meth:`Faces.getEdges` と同じ規則。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。
+        """
+        return Faces(self.shape, [self.index]).getEdges()
 
 
 _FACE_GET_VERTICES = Face.getVertices
@@ -86,3 +98,25 @@ class Faces(Components):
             return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
         indices = self._mesh_vertex_indices("numPolygons", "getPolygonVertices")
         return Vertices(self.shape, indices)
+
+    def getEdges(self):
+        """保持している面のエッジを取得する。選択は変えない。
+
+        ``cmds.polyListComponentConversion(toEdge=True)`` と同じエッジになる。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。面が空なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        # edge.py が face.py を import するため、循環を避けて呼出し時に読む。
+        from .edge import Edges
+        self._require_valid()
+        iterator = om2.MItMeshPolygon(self.shape.mpath())
+        found = set()
+        for index in self._indices:
+            iterator.setIndex(index)
+            found.update(iterator.getEdges())
+        return Edges(self.shape, sorted(found))

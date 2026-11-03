@@ -15,6 +15,7 @@ from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
+from .environment import Environment
 from .keyframe import Keyframe, Keyframes
 from typing import Iterator, Sequence
 from mlib.nodes.mesh import Mesh

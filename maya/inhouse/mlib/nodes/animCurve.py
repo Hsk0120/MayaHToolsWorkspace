@@ -583,6 +583,28 @@ class AnimCurve(Node):
         return self.scaleKey(-1 if input else 1, -1 if value else 1, inputPivot, valuePivot, index=index,
                              time=time, unit=unit, timeUnit=timeUnit)
 
+    def eulerFilter(self):
+        """回転のカーブへEulerフィルターをかけ、360度の飛びを除いて自身を返す。
+
+        ``cmds.filterCurve(filter="euler")`` をこのカーブ1本に実行する。X/Y/Zの3本をまとめて整える場合は
+        :meth:`Transform.eulerFilter <mlib.nodes.Transform.eulerFilter>` を使う。fast引数は持たない。
+        Undo有効時は1回で戻せる。
+
+        Returns:
+            AnimCurve: 自身。
+
+        Raises:
+            TypeError: 時間入力・角度出力のカーブ(animCurveTA)でない場合。
+            RuntimeError: ノードが無効(削除済み)、またはMayaがフィルターを拒否した場合。
+        """
+        self._require_valid("filter")
+        if self.getType() != "animCurveTA":
+            raise TypeError(f"eulerFilter requires an animCurveTA (rotation) curve, got {self.getType()}: "
+                            f"{self.getName()}")
+        with undoChunk("mlibAnimCurveEulerFilter"):
+            cmds.filterCurve(self.getFullName(), filter="euler")
+        return self
+
     def getDrivenPlugs(self):
         """このカーブが動かしているアトリビュート(unitConversion等の変換ノードを飛ばした先)を返す。
 

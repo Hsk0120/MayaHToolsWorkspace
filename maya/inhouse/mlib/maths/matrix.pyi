@@ -3,13 +3,13 @@
 
 from operator import index as _as_index
 import maya.api.OpenMaya as om2
-from ..util import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _finite, _finite_vector, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
 from .shear import Shear
 from .translate import Translate
-from .vector import Vector, _reduce_value, _vector_of, _zero
+from .vector import Vector, _axis_name, _reduce_value, _vector_of, _zero
 from typing import Any, Iterable, Iterator, Sequence
 from typing_extensions import Self
 import types
@@ -34,6 +34,7 @@ _CELL_INDEX: dict
 _POINT_TYPES: tuple
 _MATRIX_SOURCES: tuple
 _MATRIX_ERROR: str
+_PARALLEL_TOLERANCE: float
 
 def _reinit_is_safe() -> bool:
     """om2 の ``MMatrix.__init__`` を確保済みのインスタンスへ再適用してよい版か判定する。
@@ -72,6 +73,35 @@ def _xyz(value: om2.MVector | om2.MPoint | Iterable[float]) -> tuple:
 
     Raises:
         ValueError: 反復可能オブジェクトの要素数が3でない場合。
+    """
+    ...
+
+def _finite_xyz(value: om2.MVector | om2.MPoint | Iterable[float], name: str) -> tuple[float, float, float]:
+    """3成分の有限な数値を (x, y, z) の float の tuple として取り出す。
+
+    Args:
+        value (om2.MVector | om2.MPoint | Iterable[float]): 取り出し元。MPoint の w は無視する。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[float, float, float]: (x, y, z)。
+
+    Raises:
+        TypeError: 数値の列でない場合(boolを含む)。
+        ValueError: 成分数が3でない、または有限でない成分がある場合。
+    """
+    ...
+
+def _lerp3(start: Sequence[float], end: Sequence[float], weight: float) -> tuple[float, float, float]:
+    """3成分の線形補間 ``start + (end - start) * weight`` を返す。
+
+    Args:
+        start (Sequence[float]): 補間元。
+        end (Sequence[float]): 補間先。
+        weight (float): 補間係数。
+
+    Returns:
+        tuple[float, float, float]: 補間した値。
     """
     ...
 
@@ -539,6 +569,54 @@ class Matrix(om2.MMatrix):
             Matrix: 呼び出したクラスの新しいマトリクス。
         """
         ...
+    @classmethod
+    def fromAxes(cls, x: om2.MVector | om2.MPoint | Iterable[float], y: om2.MVector | om2.MPoint | Iterable[float], z: om2.MVector | om2.MPoint | Iterable[float], position: om2.MVector | om2.MPoint | Iterable[float] = ...) -> Matrix:
+        """3軸のベクトルと位置を、そのまま各行へ入れたマトリクスを生成する。
+
+        x・y・zを番号0〜2・4〜6・8〜10の行へ、positionを番号12〜14へ書き込み、
+        4列目は (0, 0, 0, 1) とする(Mayaの行ベクトル規約)。軸の正規化・直交化・
+        右手系への補正は行わないため、渡した長さ・傾きがそのままスケール・シアーになる。
+        正規直交の向きが必要なら :meth:`fromAim` を使う。
+
+        Args:
+            x (om2.MVector | om2.MPoint | Iterable[float]): X軸の行。MPointのwは無視する。
+            y (om2.MVector | om2.MPoint | Iterable[float]): Y軸の行。
+            z (om2.MVector | om2.MPoint | Iterable[float]): Z軸の行。
+            position (om2.MVector | om2.MPoint | Iterable[float]): 平行移動(cm)。既定は原点。
+
+        Returns:
+            Matrix: 呼び出したクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: 3成分の数値でない場合(boolを含む)。
+            ValueError: 成分数が3でない、または有限でない成分がある場合。
+        """
+        ...
+    @classmethod
+    def fromAim(cls, aim: om2.MVector | om2.MPoint | Iterable[float], up: om2.MVector | om2.MPoint | Iterable[float], *, aimAxis: str = ..., upAxis: str = ..., position: om2.MVector | om2.MPoint | Iterable[float] = ...) -> Matrix:
+        """向ける方向とアップ方向から、正規直交の向きのマトリクスを生成する。
+
+        aimConstraint(``worldUpType="vector"``)と同じ決め方をする。aimAxisの軸をaimの方向へ向け、
+        upAxisの軸をupからaim方向の成分を除いた方向へ向け、残りの軸は右手系になるよう外積で決める。
+        aim・upは方向だけを使い(長さは無視する)、スケール1・シアーなしの回転と平行移動だけを持つ。
+        ``aimAxis="-y"`` のように負の軸を指定すると、その軸の逆向きをaimへ向ける。
+
+        Args:
+            aim (om2.MVector | om2.MPoint | Iterable[float]): 向ける方向(ワールドなど親の空間)。
+            up (om2.MVector | om2.MPoint | Iterable[float]): アップ方向。aimと平行でないこと。
+            aimAxis (str): aimへ向ける軸。``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"``。既定 ``"x"``。
+            upAxis (str): upへ向ける軸。aimAxisと別の軸。既定 ``"y"``。
+            position (om2.MVector | om2.MPoint | Iterable[float]): 平行移動(cm)。既定は原点。
+
+        Returns:
+            Matrix: 呼び出したクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: aim・up・positionが3成分の数値でない、またはaimAxis・upAxisが文字列でない場合。
+            ValueError: 成分が有限でない、軸の名前が不正、aimAxisとupAxisが同じ軸(符号違いを含む)、
+                aim・upの長さが0、またはaimとupが平行な場合。
+        """
+        ...
     @property
     def values(self) -> tuple[float, ...]:
         """マトリクスの16成分を行優先順の独立したtupleとして取得する。
@@ -728,6 +806,35 @@ class Matrix(om2.MMatrix):
 
         Returns:
             Matrix: 自身と同じクラスの転置マトリクス。
+        """
+        ...
+    def blend(self, other: om2.MMatrix | Iterable[float], weight: float) -> Matrix:
+        """別のマトリクスとの間を成分ごとに補間した新しいマトリクスを返す。
+
+        両方をMTransformationMatrixの規約で分解し、平行移動・スケール・シアーは線形補間、
+        回転はクォータニオンの球面線形補間(最短経路)で補間して再合成する。
+        weightが0なら自身、1ならotherの値をそのまま複製する(分解・再合成の誤差を含まない)。
+        自身とotherは変更しない。
+
+        結果は、blendMatrixノードに自身を ``inputMatrix``、otherを1つ目の ``targetMatrix`` として
+        ``weight`` を指定した出力と一致する(行列式が負のマトリクスを含む)。blendMatrixの ``envelope``・
+        複数のターゲット・成分別の重み(translateWeight等)に当たる指定は無い。
+        負の行列式はZスケールの負と180度の補償回転として分解するため、正と負の行列式のマトリクスの間では
+        Zスケールが0を通り、途中の重みで特異なマトリクスになることがある(blendMatrixも同じ)。
+        pairBlendはEuler(既定)またはクォータニオンでチャンネル値を補間するノードで、
+        マトリクスの分解は行わないため、スケール・シアーを含む場合は結果が異なる。
+
+        Args:
+            other (om2.MMatrix | Iterable[float]): 補間先。16要素や4行4列も受け付ける。
+            weight (float): 補間係数。0以上1以下の有限な数値(外挿は行わない)。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: weightが数値でない(boolを含む)、またはotherをマトリクスとして解釈できない場合。
+            ValueError: weightが有限でない・0〜1の範囲外、otherの要素が不正、
+                または自身・otherを分解できない(いずれかのスケール軸がゼロなど)場合。
         """
         ...
     def transformPoint(self, value: om2.MVector | om2.MPoint | Iterable[float]) -> Translate:

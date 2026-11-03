@@ -9,7 +9,7 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from ..core.attributeType import value_reader
-from ..core.fastWrite import require_writable
+from ..core.fastWrite import require_writable, writable_compound
 from ..core.nodeEdit import require_editable
 from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool, _transform_argument_hints,
                          nativeUnits, undoChunk, undoTransaction)
@@ -1421,6 +1421,117 @@ class Transform(DagNode):
             self._require_valid("freeze transform of")
             cmds.makeIdentity(self.getFullName(), **kwargs)
             return self
+
+    def getOffsetParentMatrix(self):
+        """``offsetParentMatrix`` アトリビュートの値を取得する。
+
+        ワールドマトリクスは ``matrix(ローカル) * offsetParentMatrix * 親のワールドマトリクス``。
+
+        Returns:
+            Matrix: 呼出し時点の値の独立した複製。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        self._require_valid("get the offset parent matrix of")
+        plug = self._dependency_fn().findPlug("offsetParentMatrix", False)
+        return Matrix._wrap(om2.MFnMatrixData(plug.asMObject()).matrix())
+
+    def setOffsetParentMatrix(self, matrix, *, fast=False):
+        """``offsetParentMatrix`` アトリビュートへマトリクスを設定し、自身を返す。
+
+        translate・rotate等のチャンネルは変更しないため、ワールドの位置は変わる(位置を保って移すには
+        :meth:`freezeToOffsetParent`)。
+
+        Args:
+            matrix (Matrix | om2.MMatrix | Sequence[float]): 設定するマトリクス(16個の数値でも可)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: matrixをマトリクスへ変換できない場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        with _edit_context("mlibTransformSetOffsetParentMatrix", fast):
+            value = matrix if isinstance(matrix, Matrix) else Matrix(matrix)
+            self._require_valid("set the offset parent matrix of")
+            self.getPlug("offsetParentMatrix").set(value, fast=fast)
+            return self
+
+    def freezeToOffsetParent(self):
+        """現在のローカル変換を ``offsetParentMatrix`` へ移し、変換のチャンネルを初期値にして自身を返す。
+
+        translate・rotate・shearを0、scaleを1にし(Jointは ``jointOrient`` も0にする)、ワールドの位置・
+        向き・大きさが変わらないよう ``offsetParentMatrix`` を ``(初期化後のmatrix)^-1 * 初期化前のmatrix *
+        初期化前のoffsetParentMatrix`` にする。ピボット・``rotateAxis``・``rotateOrder`` は変えず、その分も
+        ``offsetParentMatrix`` で補う(初期化後に回転させると、ピボットとrotateAxisは従来どおり効く)。
+        Jointの ``segmentScaleCompensate`` の補正(inverseScale)は親のスケールに追従する値のため0にせず、
+        呼出し時点のワールドを保つように補う。書込みの前に全対象の書込み可否を確かめ、ロック・入力接続
+        (アニメーションのキーを含む)があれば何も変えずにRuntimeErrorにする。fast引数は持たない。
+        Undo有効時は1回で戻せ、途中で失敗した場合は巻き戻す。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: 初期化後のローカルのマトリクスが反転不能な場合(inverseScaleが0のJoint等)。
+            RuntimeError: ノードが無効、または対象のチャンネル・offsetParentMatrixがロック・入力接続
+                されている場合。
+        """
+        self._require_valid("freeze to the offset parent of")
+        fn = self._dependency_fn()
+        resets = [("translate", (0.0, 0.0, 0.0)), ("rotate", (0.0, 0.0, 0.0)), ("scale", (1.0, 1.0, 1.0)),
+                  ("shear", (0.0, 0.0, 0.0))]
+        if self._require_mnode().hasFn(om2.MFn.kJoint):
+            resets.append(("jointOrient", (0.0, 0.0, 0.0)))
+        for attribute in [name for name, _ in resets] + ["offsetParentMatrix"]:
+            mplug = fn.findPlug(attribute, False)
+            try:
+                writable_compound(mplug)
+            except RuntimeError as error:
+                raise RuntimeError(f"Cannot freeze to the offset parent matrix: {error}") from error
+        before = self.getMatrix()
+        offset = self.getOffsetParentMatrix()
+        name = self.getFullName()
+        with undoTransaction("mlibTransformFreezeToOffsetParent"):
+            for attribute, value in resets:
+                cmds.setAttr(name + "." + attribute, *value)
+            after = self.getMatrix()
+            if after.isSingular():
+                raise ValueError(f"Cannot freeze to the offset parent matrix of {name}: "
+                                 "the reset local matrix is singular")
+            new_offset = Matrix._wrap(after.inverse() * before * offset)
+            cmds.setAttr(name + ".offsetParentMatrix", *tuple(new_offset), type="matrix")
+        return self
+
+    def eulerFilter(self):
+        """rotateX/Y/Zの時間のアニメーションカーブ(animCurveTA)へEulerフィルターをかけ、自身を返す。
+
+        3本を1回の ``cmds.filterCurve(filter="euler")`` にまとめて渡す(Mayaのグラフエディターの
+        Euler Filterと同じ)。入力に直接(単位変換ノードを飛ばして)つながる animCurveTA だけを対象にし、
+        キーが無ければ何もしない。fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、またはMayaがフィルターを拒否した場合。
+        """
+        self._require_valid("filter the rotation of")
+        name = self.getFullName()
+        curves = []
+        for axis in "XYZ":
+            for curve in cmds.listConnections(name + ".rotate" + axis, source=True, destination=False,
+                                              type="animCurveTA", skipConversionNodes=True) or []:
+                if curve not in curves:
+                    curves.append(curve)
+        if curves:
+            with undoChunk("mlibTransformEulerFilter"):
+                cmds.filterCurve(curves, filter="euler")
+        return self
 
     def getClosestAxisToVector(self, refVector, includeNegative=True):
         """自身のローカル軸のうち、ワールド空間の方向ベクトルに最も近いものを求める。

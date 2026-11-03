@@ -1,9 +1,11 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Mesh の Face とコレクション。"""
 
+import maya.api.OpenMaya as om2
 from .component import Component, Components
 from .vertex import Vertices
 from typing import Any, Iterator
+from mlib.components.edge import Edges
 from mlib.nodes.node import Node
 from mlib.nodes.shadingEngine import ShadingEngine
 from typing import overload
@@ -36,6 +38,15 @@ class Face(Component):
             Vertices: Maya の接続順の頂点群。
         """
         ...
+    def getEdges(self) -> Edges:
+        """この面のエッジを取得する。
+
+        :meth:`Faces.getEdges` と同じ規則。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。
+        """
+        ...
 _FACE_GET_VERTICES: Any
 
 
@@ -66,5 +77,18 @@ class Faces(Components):
 
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
+        """
+        ...
+    def getEdges(self) -> Edges:
+        """保持している面のエッジを取得する。選択は変えない。
+
+        ``cmds.polyListComponentConversion(toEdge=True)`` と同じエッジになる。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。面が空なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
         """
         ...

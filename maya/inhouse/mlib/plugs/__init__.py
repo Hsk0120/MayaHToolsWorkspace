@@ -11,6 +11,7 @@ for _name in ("_discovered_wrappers", "_discovered_exports",
 
 from .plug import Plug, Plugs
 from .multiPlug import MultiPlug
+from .rampPlug import RampPlug
 from .compoundPlug import CompoundPlug
 from .boolPlug import BoolPlug
 from .double3Plug import Double3Plug
@@ -42,6 +43,7 @@ __all__ = [
     "MultiPlug",
     "Plug",
     "Plugs",
+    "RampPlug",
     "ShortPlug",
     "StringPlug",
     "TimePlug",

@@ -4,7 +4,7 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison
+from ..util import _checked_index, _copy_state, _finite, _finite_vector, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
@@ -12,6 +12,7 @@ from .shear import Shear
 from .translate import Translate
 from .vector import (
     Vector,
+    _axis_name,
     _reduce_value,
     _vector_of,
     _zero,
@@ -44,6 +45,8 @@ _CELL_INDEX = {(row, column): (row % 4) * 4 + column % 4 for row in range(-4, 4)
 _POINT_TYPES = (_MVector, om2.MPoint, om2.MFloatVector, om2.MFloatPoint)
 _MATRIX_SOURCES = (_MMatrix, om2.MFloatMatrix)
 _MATRIX_ERROR = "Matrix expects an MMatrix, 4x4 rows, or 16 values"
+#: fromAim で aim と up を平行とみなす、単位ベクトルの外積の長さ(sin)の上限。
+_PARALLEL_TOLERANCE = 1e-10
 
 
 def _reinit_is_safe():
@@ -106,6 +109,41 @@ def _xyz(value):
         return value.x, value.y, value.z
     x, y, z = value
     return x, y, z
+
+
+def _finite_xyz(value, name):
+    """3成分の有限な数値を (x, y, z) の float の tuple として取り出す。
+
+    Args:
+        value (om2.MVector | om2.MPoint | Iterable[float]): 取り出し元。MPoint の w は無視する。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[float, float, float]: (x, y, z)。
+
+    Raises:
+        TypeError: 数値の列でない場合(boolを含む)。
+        ValueError: 成分数が3でない、または有限でない成分がある場合。
+    """
+    if isinstance(value, _POINT_TYPES):
+        value = (value.x, value.y, value.z)
+    elif isinstance(value, (str, bytes, bytearray)):
+        raise TypeError(f"{name} must be a sequence of 3 numbers")
+    return _finite_vector(value, 3, name)
+
+
+def _lerp3(start, end, weight):
+    """3成分の線形補間 ``start + (end - start) * weight`` を返す。
+
+    Args:
+        start (Sequence[float]): 補間元。
+        end (Sequence[float]): 補間先。
+        weight (float): 補間係数。
+
+    Returns:
+        tuple[float, float, float]: 補間した値。
+    """
+    return tuple(a + (b - a) * weight for a, b in zip(start, end))
 
 
 def _new(cls):
@@ -767,6 +805,92 @@ class Matrix(om2.MMatrix):
         """
         return cls._wrap(transformation.asMatrix())
 
+    @classmethod
+    def fromAxes(cls, x, y, z, position=(0.0, 0.0, 0.0)):
+        """3軸のベクトルと位置を、そのまま各行へ入れたマトリクスを生成する。
+
+        x・y・zを番号0〜2・4〜6・8〜10の行へ、positionを番号12〜14へ書き込み、
+        4列目は (0, 0, 0, 1) とする(Mayaの行ベクトル規約)。軸の正規化・直交化・
+        右手系への補正は行わないため、渡した長さ・傾きがそのままスケール・シアーになる。
+        正規直交の向きが必要なら :meth:`fromAim` を使う。
+
+        Args:
+            x (om2.MVector | om2.MPoint | Iterable[float]): X軸の行。MPointのwは無視する。
+            y (om2.MVector | om2.MPoint | Iterable[float]): Y軸の行。
+            z (om2.MVector | om2.MPoint | Iterable[float]): Z軸の行。
+            position (om2.MVector | om2.MPoint | Iterable[float]): 平行移動(cm)。既定は原点。
+
+        Returns:
+            Matrix: 呼び出したクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: 3成分の数値でない場合(boolを含む)。
+            ValueError: 成分数が3でない、または有限でない成分がある場合。
+        """
+        rows = (_finite_xyz(x, "x"), _finite_xyz(y, "y"), _finite_xyz(z, "z"), _finite_xyz(position, "position"))
+        result = _new(cls)
+        for row, values in enumerate(rows):
+            for column, value in enumerate(values):
+                _SET(result, row * 4 + column, value)
+        return result
+
+    @classmethod
+    def fromAim(cls, aim, up, *, aimAxis="x", upAxis="y", position=(0.0, 0.0, 0.0)):
+        """向ける方向とアップ方向から、正規直交の向きのマトリクスを生成する。
+
+        aimConstraint(``worldUpType="vector"``)と同じ決め方をする。aimAxisの軸をaimの方向へ向け、
+        upAxisの軸をupからaim方向の成分を除いた方向へ向け、残りの軸は右手系になるよう外積で決める。
+        aim・upは方向だけを使い(長さは無視する)、スケール1・シアーなしの回転と平行移動だけを持つ。
+        ``aimAxis="-y"`` のように負の軸を指定すると、その軸の逆向きをaimへ向ける。
+
+        Args:
+            aim (om2.MVector | om2.MPoint | Iterable[float]): 向ける方向(ワールドなど親の空間)。
+            up (om2.MVector | om2.MPoint | Iterable[float]): アップ方向。aimと平行でないこと。
+            aimAxis (str): aimへ向ける軸。``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"``。既定 ``"x"``。
+            upAxis (str): upへ向ける軸。aimAxisと別の軸。既定 ``"y"``。
+            position (om2.MVector | om2.MPoint | Iterable[float]): 平行移動(cm)。既定は原点。
+
+        Returns:
+            Matrix: 呼び出したクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: aim・up・positionが3成分の数値でない、またはaimAxis・upAxisが文字列でない場合。
+            ValueError: 成分が有限でない、軸の名前が不正、aimAxisとupAxisが同じ軸(符号違いを含む)、
+                aim・upの長さが0、またはaimとupが平行な場合。
+        """
+        aim_index, aim_sign = _axis_name(aimAxis, "aimAxis")
+        up_index, up_sign = _axis_name(upAxis, "upAxis")
+        if aim_index == up_index:
+            raise ValueError("aimAxis and upAxis must be different axes")
+        aim = _MVector(_finite_xyz(aim, "aim"))
+        up = _MVector(_finite_xyz(up, "up"))
+        aim_length = aim.length()
+        up_length = up.length()
+        if aim_length == 0.0:
+            raise ValueError("aim must not be a zero vector")
+        if up_length == 0.0:
+            raise ValueError("up must not be a zero vector")
+        aim /= aim_length
+        up /= up_length
+        side = aim ^ up
+        if side.length() <= _PARALLEL_TOLERANCE:
+            raise ValueError("aim and up must not be parallel")
+        # upからaim方向の成分を除いた方向(aimに直交する単位ベクトル)。
+        up = (side ^ aim).normal()
+        rows = [None, None, None]
+        rows[aim_index] = aim * aim_sign
+        rows[up_index] = up * up_sign
+        # 残りの軸は x = y ^ z、y = z ^ x、z = x ^ y で右手系にする。
+        other = 3 - aim_index - up_index
+        rows[other] = rows[(other + 1) % 3] ^ rows[(other + 2) % 3]
+        rows.append(_MVector(_finite_xyz(position, "position")))
+        result = _new(cls)
+        for row, vector in enumerate(rows):
+            _SET(result, row * 4, vector.x)
+            _SET(result, row * 4 + 1, vector.y)
+            _SET(result, row * 4 + 2, vector.z)
+        return result
+
     @property
     def values(self):
         """マトリクスの16成分を行優先順の独立したtupleとして取得する。
@@ -989,6 +1113,52 @@ class Matrix(om2.MMatrix):
             Matrix: 自身と同じクラスの転置マトリクス。
         """
         return type(self)._wrap(_MMatrix.transpose(self))
+
+    def blend(self, other, weight):
+        """別のマトリクスとの間を成分ごとに補間した新しいマトリクスを返す。
+
+        両方をMTransformationMatrixの規約で分解し、平行移動・スケール・シアーは線形補間、
+        回転はクォータニオンの球面線形補間(最短経路)で補間して再合成する。
+        weightが0なら自身、1ならotherの値をそのまま複製する(分解・再合成の誤差を含まない)。
+        自身とotherは変更しない。
+
+        結果は、blendMatrixノードに自身を ``inputMatrix``、otherを1つ目の ``targetMatrix`` として
+        ``weight`` を指定した出力と一致する(行列式が負のマトリクスを含む)。blendMatrixの ``envelope``・
+        複数のターゲット・成分別の重み(translateWeight等)に当たる指定は無い。
+        負の行列式はZスケールの負と180度の補償回転として分解するため、正と負の行列式のマトリクスの間では
+        Zスケールが0を通り、途中の重みで特異なマトリクスになることがある(blendMatrixも同じ)。
+        pairBlendはEuler(既定)またはクォータニオンでチャンネル値を補間するノードで、
+        マトリクスの分解は行わないため、スケール・シアーを含む場合は結果が異なる。
+
+        Args:
+            other (om2.MMatrix | Iterable[float]): 補間先。16要素や4行4列も受け付ける。
+            weight (float): 補間係数。0以上1以下の有限な数値(外挿は行わない)。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。
+
+        Raises:
+            TypeError: weightが数値でない(boolを含む)、またはotherをマトリクスとして解釈できない場合。
+            ValueError: weightが有限でない・0〜1の範囲外、otherの要素が不正、
+                または自身・otherを分解できない(いずれかのスケール軸がゼロなど)場合。
+        """
+        weight = _finite(weight, "weight")
+        if not 0.0 <= weight <= 1.0:
+            raise ValueError("weight must be between 0 and 1")
+        if not isinstance(other, _MMatrix):
+            other = Matrix(other)
+        start = self._checked_transformation()
+        end = Matrix._checked_transformation(other)
+        if weight == 0.0:
+            return type(self)._wrap(self)
+        if weight == 1.0:
+            return type(self)._wrap(other)
+        translate = _lerp3((_GET(self, 12), _GET(self, 13), _GET(self, 14)),
+                           (_GET(other, 12), _GET(other, 13), _GET(other, 14)), weight)
+        scale = _lerp3(start.scale(_K_TRANSFORM), end.scale(_K_TRANSFORM), weight)
+        shear = _lerp3(start.shear(_K_TRANSFORM), end.shear(_K_TRANSFORM), weight)
+        rotation = _MQuaternion.slerp(start.rotation(asQuaternion=True), end.rotation(asQuaternion=True), weight)
+        return _compose_into(_new(type(self)), translate, _rotate_matrix(rotation), scale, shear)
 
     def transformPoint(self, value):
         """行ベクトル規約でXYZ位置を変換し、平行移動を含む独立したTranslateを返す。

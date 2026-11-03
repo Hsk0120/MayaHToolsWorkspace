@@ -1,6 +1,7 @@
 """Maya の NURBS カーブシェイプを扱う。"""
 
 import math
+import numbers
 
 import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
@@ -8,9 +9,171 @@ from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
 from ..core import geometryEdit as geometry_edit
 from ..decorator import _edit_context, _require_bool
-from ..maths.vector import _vectors_of_points
-from ..util import _world_space
+from ..maths.matrix import Matrix
+from ..maths.vector import Vector, _vectors_of_points
+from ..util import _finite, _world_space
 from .shape import Shape
+
+#: aimAxis・upAxis の名前と (軸番号, 符号)。
+_AXES = {"x": (0, 1.0), "y": (1, 1.0), "z": (2, 1.0), "-x": (0, -1.0), "-y": (1, -1.0), "-z": (2, -1.0)}
+#: 方向を定義できないとみなすベクトルの長さ。
+_DEGENERATE = 1e-10
+#: 平行移動で向きを運ぶときの、全長あたりの最少の分割数。
+_TRANSPORT_STEPS = 128
+
+
+class _OwnedCurve(om2.MFnNurbsCurve):
+    """メモリ内の形状データ(``data``)を保持する ``om2.MFnNurbsCurve``。"""
+
+
+def _require_count(value):
+    """点の数を検証する。
+
+    Args:
+        value (int): 点の数。boolは受け付けない。
+
+    Returns:
+        int: 検証済みの点の数。
+
+    Raises:
+        TypeError: int以外(boolを含む)の場合。
+        ValueError: 1未満の場合。
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Integral):
+        raise TypeError("count must be an int")
+    value = int(value)
+    if value < 1:
+        raise ValueError(f"count must be positive: {value}")
+    return value
+
+
+def _require_axis(value, name):
+    """軸の名前を検証する。
+
+    Args:
+        value (str): "x"・"y"・"z"・"-x"・"-y"・"-z" のいずれか。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[int, float]: 軸番号(0〜2)と符号。
+
+    Raises:
+        TypeError: str以外の場合。
+        ValueError: 未対応の名前の場合。
+    """
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a str")
+    try:
+        return _AXES[value]
+    except KeyError:
+        raise ValueError(f"{name} must be one of x, y, z, -x, -y, -z: {value!r}") from None
+
+
+def _perpendicular(vector, aim):
+    """vector から aim 方向の成分を除いて正規化する。
+
+    Args:
+        vector (om2.MVector): 元の方向。
+        aim (om2.MVector): 正規化済みの基準方向。
+
+    Returns:
+        om2.MVector | None: aim に直交する単位ベクトル。平行で定義できない場合は None。
+    """
+    result = vector - aim * (vector * aim)
+    length = result.length()
+    if length < _DEGENERATE:
+        return None
+    return result / length
+
+
+def _initial_up(aim):
+    """平行移動の最初の上方向を、aim に最も直交する主軸から作る。
+
+    Args:
+        aim (om2.MVector): 正規化済みの最初の接線。
+
+    Returns:
+        om2.MVector: aim に直交する単位ベクトル。同程度なら Y→Z→X の順に選ぶ。
+    """
+    candidates = (om2.MVector(0, 1, 0), om2.MVector(0, 0, 1), om2.MVector(1, 0, 0))
+    best = min(candidates, key=lambda axis: abs(axis * aim))
+    return _perpendicular(best, aim)
+
+
+def _transport(up, start, end, start_aim, end_aim):
+    """二重反射法(rotation minimizing frame)で上方向を次の点へ運ぶ。
+
+    Args:
+        up (om2.MVector): start での上方向(start_aim に直交する単位ベクトル)。
+        start (om2.MPoint): 現在の点。
+        end (om2.MPoint): 次の点。
+        start_aim (om2.MVector): 現在の点の単位接線。
+        end_aim (om2.MVector): 次の点の単位接線。
+
+    Returns:
+        om2.MVector: end_aim に直交する単位ベクトル。
+    """
+    step = om2.MVector(end - start)
+    squared = step * step
+    reflected_up = up
+    reflected_aim = start_aim
+    if squared > _DEGENERATE:
+        reflected_up = up - step * (2.0 / squared * (step * up))
+        reflected_aim = start_aim - step * (2.0 / squared * (step * start_aim))
+    second = end_aim - reflected_aim
+    squared = second * second
+    if squared > _DEGENERATE:
+        reflected_up = reflected_up - second * (2.0 / squared * (second * reflected_up))
+    result = _perpendicular(reflected_up, end_aim)
+    if result is None:
+        return _initial_up(end_aim)
+    return result
+
+
+def _fill_missing(values):
+    """None の要素を直前の値(先頭は最初の有効な値)で埋める。
+
+    Args:
+        values (list[object | None]): 埋める並び。
+
+    Returns:
+        list[object] | None: 埋めた新しい並び。有効な値が1つも無い場合は None。
+    """
+    valid = [value for value in values if value is not None]
+    if not valid:
+        return None
+    previous = valid[0]
+    result = []
+    for value in values:
+        if value is not None:
+            previous = value
+        result.append(previous)
+    return result
+
+
+def _frame_matrix(position, aim, up, aim_axis, up_axis):
+    """位置と直交する2方向からマトリクスを組む。
+
+    Args:
+        position (om2.MPoint): 平行移動。
+        aim (om2.MVector): aim_axis へ向ける単位ベクトル。
+        up (om2.MVector): up_axis へ向ける、aim に直交する単位ベクトル。
+        aim_axis (tuple[int, float]): aim の軸番号と符号。
+        up_axis (tuple[int, float]): up の軸番号と符号。
+
+    Returns:
+        Matrix: 行ベクトルの規約(各行が軸、4行目が位置)の右手系マトリクス。
+    """
+    axes = [None, None, None]
+    axes[aim_axis[0]] = aim * aim_axis[1]
+    axes[up_axis[0]] = up * up_axis[1]
+    other = 3 - aim_axis[0] - up_axis[0]
+    axes[other] = axes[(other + 1) % 3] ^ axes[(other + 2) % 3]
+    values = []
+    for axis in axes:
+        values.extend((axis.x, axis.y, axis.z, 0.0))
+    values.extend((position.x, position.y, position.z, 1.0))
+    return Matrix(values)
 
 
 class NurbsCurve(Shape):
@@ -127,19 +290,7 @@ class NurbsCurve(Shape):
         tolerance = float(tolerance)
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("tolerance must be positive and finite")
-        _require_bool(ws, "worldSpace")
-        if not ws:
-            return self._geometry_fn().length(tolerance) * factor
-        # lengthはオブジェクト空間で計算するため、メモリ内のコピーだけを
-        # ワールド座標へ変換する。元のCV・履歴・Undoキューは変更しない。
-        # copyにより次数・ノット・有理カーブのウェイトも維持する。
-        source = self._geometry_fn()
-        data = om2.MFnNurbsCurveData().create()
-        copied = om2.MFnNurbsCurve().copy(source.object(), data)
-        curve = om2.MFnNurbsCurve(copied)
-        curve.setCVPositions(source.cvPositions(om2.MSpace.kWorld))
-        curve.updateCurve()
-        return curve.length(tolerance) * factor
+        return self._space_curve(ws).length(tolerance) * factor
 
     def getCvPositions(self, worldSpace=False):
         """CV の位置を取得する。
@@ -239,6 +390,420 @@ class NurbsCurve(Shape):
                 assigned[i] = True
                 groups.append(group)
         return groups
+
+    def getParamRange(self):
+        """パラメーターの範囲(``MFnNurbsCurve.knotDomain``)を取得する。
+
+        Returns:
+            tuple[float, float]: 最小と最大のパラメーター。``minValue``・``maxValue`` アトリビュートと同じ値。
+
+        Raises:
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        start, end = self._geometry_fn().knotDomain
+        return start, end
+
+    def getClosestPoint(self, point, worldSpace=False):
+        """指定した位置に最も近いカーブ上の点とそのパラメーターを取得する。
+
+        ``nearestPointOnCurve`` ノードの ``result.position``・``result.parameter`` に相当する。
+        シーンに計算ノードを作成しない。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。worldSpaceと同じ空間で指定する。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            tuple[Vector, float]: 最も近い点(cm)とパラメーター。
+
+        Raises:
+            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        x, y, z = geometry_edit.point_list([point])[0]
+        curve = self._space_curve(worldSpace)
+        found, param = curve.closestPoint(om2.MPoint(x, y, z), tolerance=1e-7)
+        return _vectors_of_points([found])[0], param
+
+    def getPointAtParam(self, param, worldSpace=False):
+        """パラメーターの位置を取得する。
+
+        Args:
+            param (float): :meth:`getParamRange` の範囲内のパラメーター。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            Vector: 位置(cm)。``pointOnCurveInfo`` の ``position`` と同じ。
+
+        Raises:
+            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            ValueError: paramが有限でない、または範囲外の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        curve = self._space_curve(worldSpace)
+        return _vectors_of_points([curve.getPointAtParam(self._require_param(curve, param))])[0]
+
+    def getTangentAtParam(self, param, worldSpace=False):
+        """パラメーターの位置の、正規化した接線を取得する。
+
+        Args:
+            param (float): :meth:`getParamRange` の範囲内のパラメーター。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            Vector: パラメーターの増える向きの単位ベクトル。``pointOnCurveInfo`` の ``normalizedTangent`` と同じ。
+
+        Raises:
+            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            ValueError: paramが有限でない・範囲外、または重なったCVで接線が0になる位置の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        curve = self._space_curve(worldSpace)
+        tangent = self._tangent(curve, self._require_param(curve, param))
+        if tangent is None:
+            raise ValueError(f"Tangent is undefined at param {param}: {self.getFullName()}")
+        return Vector(tangent)
+
+    def getNormalAtParam(self, param, worldSpace=False):
+        """パラメーターの位置の、正規化した法線(``MFnNurbsCurve.normal``)を取得する。
+
+        次数2以上は曲率の向き(主法線)、次数1はCVの平均の平面内で接線に直交する向き。
+        ``pointOnCurveInfo`` の ``normalizedNormal`` と同じ。
+
+        Args:
+            param (float): :meth:`getParamRange` の範囲内のパラメーター。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            Vector: 単位ベクトル。
+
+        Raises:
+            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            ValueError: paramが有限でない・範囲外、または法線を定義できない場合(次数2以上で
+                曲率が0の位置(直線部分・変曲点)、次数1でCVがすべて一直線上にある場合)。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        curve = self._space_curve(worldSpace)
+        value = self._require_param(curve, param)
+        if curve.degree == 1:
+            # 次数1の直線にもMayaは任意の直交方向を返すため、CVの一直線を先に拒否する。
+            points = curve.cvPositions()
+            first = om2.MVector(points[0])
+            span = max((om2.MVector(item) - first for item in points), key=lambda item: item.length())
+            if span.length() < _DEGENERATE or all(
+                    (span ^ (om2.MVector(item) - first)).length() <= 1e-9 * span.length() ** 2 for item in points):
+                raise ValueError(f"Normal is undefined on a straight curve: {self.getFullName()}")
+        try:
+            normal = curve.normal(value)
+        except RuntimeError:
+            # 曲率が0の位置ではMayaがkInvalidParameterで拒否する。
+            normal = om2.MVector()
+        length = normal.length()
+        if length < _DEGENERATE:
+            raise ValueError(f"Normal is undefined at param {param}: {self.getFullName()}")
+        return Vector(normal / length)
+
+    def getLengthAtParam(self, param, worldSpace=False, *, unit="cm"):
+        """カーブの始点からパラメーターまでの弧長を取得する。
+
+        ``arcLengthDimension`` の ``arcLength`` に相当する。シーンに計算ノードを作成しない。
+
+        Args:
+            param (float): :meth:`getParamRange` の範囲内のパラメーター。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            unit (str | None): 出力単位。既定はcm。Noneは現在の距離UI単位。:meth:`getLength` と同じ指定。
+
+        Returns:
+            float: 指定単位での弧長。
+
+        Raises:
+            TypeError: paramが数値でない、worldSpaceがbool以外、または単位の型が不正な場合。
+            ValueError: paramが有限でない・範囲外、または単位名が未対応の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        curve = self._space_curve(worldSpace)
+        factor = self._unit_factor(unit)
+        value = self._require_param(curve, param)
+        if value <= curve.knotDomain[0]:
+            return 0.0
+        return curve.findLengthFromParam(value) * factor
+
+    def getParamAtLength(self, length, worldSpace=False, *, unit="cm"):
+        """カーブの始点からの弧長に対応するパラメーターを取得する。
+
+        Args:
+            length (float): 0から全長(:meth:`getLength`)までの弧長。単位はunit。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+                ワールド空間の弧長は親の非均等スケールを含む。
+            unit (str | None): lengthの単位。既定はcm。Noneは現在の距離UI単位。:meth:`getLength` と同じ指定。
+
+        Returns:
+            float: パラメーター。0は始点、全長は終点のパラメーター。
+
+        Raises:
+            TypeError: lengthが数値でない、worldSpaceがbool以外、または単位の型が不正な場合。
+            ValueError: lengthが有限でない・0未満・全長を超える、または単位名が未対応の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        curve = self._space_curve(worldSpace)
+        factor = self._unit_factor(unit)
+        value = _finite(length, "length") / factor
+        return self._param_at_length(curve, value, curve.length(1e-6))
+
+    def getParamsAlong(self, count, worldSpace=False):
+        """弧長で等間隔に並ぶパラメーターを取得する。
+
+        開いたカーブ(``getForm()`` が kOpen)は両端を含み、間隔は全長/(count-1)。
+        閉じたカーブ・周期カーブ(kClosed・kPeriodic)は終点が始点と重なるため終点を含めず、
+        始点から全長/count の間隔で count 個の異なる点を返す。count=1 は始点だけ。
+
+        Args:
+            count (int): 点の数。1以上。
+            worldSpace (bool): Trueはワールド空間の弧長、Falseはローカル(オブジェクト)空間の弧長で等分する。
+
+        Returns:
+            list[float]: 始点から順のパラメーター。
+
+        Raises:
+            TypeError: countがint以外(boolを含む)、またはworldSpaceがbool以外の場合。
+            ValueError: countが1未満の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        count = _require_count(count)
+        curve = self._space_curve(worldSpace)
+        return self._params_along(curve, count)
+
+    def getMatricesAlong(self, count, up=None, *, aimAxis="x", upAxis="y", worldSpace=False):
+        """弧長で等間隔の各点に、接線を aimAxis へ向けたマトリクスを取得する。
+
+        点の並びは :meth:`getParamsAlong` と同じ。各マトリクスは正規直交の右手系(スケール1)で、
+        平行移動はカーブ上の位置(cm)。
+
+        - ``up`` を指定すると、各点で up から接線方向の成分を除いた向きを upAxis へ向ける。
+          接線と平行で向きを決められない点は直前の点の向き(先頭なら最初に決められた点の向き)を使う。
+        - ``None`` は平行移動(二重反射法による rotation minimizing frame)で、最初の点の向きを
+          ねじれを加えずに運ぶ。最初の点の upAxis は、最初の接線に最も直交する主軸(同程度なら
+          Y→Z→X)を接線に直交させた向き。点の間を細かく分けて運ぶため、count が少なくても向きは同じ。
+          閉じたカーブでは、一周後の向きが最初と一致するとは限らない(ねじれを均す処理はしない)。
+        - 重なったCVで接線が0になる点は、直前(先頭なら次)の点の接線を使う。
+
+        Args:
+            count (int): 点の数。1以上。
+            up (Sequence[float] | om2.MVector | None): upAxis へ向ける方向。worldSpaceと同じ空間で指定する。
+            aimAxis (str): 接線へ向ける軸。"x"・"y"・"z"・"-x"・"-y"・"-z"。
+            upAxis (str): up へ向ける軸。aimAxis と別の軸。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+
+        Returns:
+            list[Matrix]: 始点から順のマトリクス。
+
+        Raises:
+            TypeError: countがint以外(boolを含む)、upの型・成分、aimAxis・upAxisがstr以外、
+                またはworldSpaceがbool以外の場合。
+            ValueError: countが1未満、upの成分が有限でない・長さ0、軸名が未対応・aimAxisとupAxisが同じ軸、
+                upがすべての点で接線と平行、またはすべての点で接線が0の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        count = _require_count(count)
+        aim_axis = _require_axis(aimAxis, "aimAxis")
+        up_axis = _require_axis(upAxis, "upAxis")
+        if aim_axis[0] == up_axis[0]:
+            raise ValueError(f"aimAxis and upAxis must be different axes: {aimAxis!r}, {upAxis!r}")
+        up_vector = None
+        if up is not None:
+            x, y, z = geometry_edit.point_list([up])[0]
+            up_vector = om2.MVector(x, y, z)
+            if up_vector.length() < _DEGENERATE:
+                raise ValueError("up must not be a zero vector")
+            up_vector.normalize()
+        curve = self._space_curve(worldSpace)
+        params = self._params_along(curve, count)
+        aims = _fill_missing([self._tangent(curve, param) for param in params])
+        if aims is None:
+            raise ValueError(f"Tangent is undefined along the curve: {self.getFullName()}")
+        positions = [curve.getPointAtParam(param) for param in params]
+        if up_vector is not None:
+            ups = _fill_missing([_perpendicular(up_vector, aim) for aim in aims])
+            if ups is None:
+                raise ValueError("up is parallel to the curve tangent at every point")
+        else:
+            ups = self._transported_ups(curve, params, aims)
+        return [_frame_matrix(position, aim, value, aim_axis, up_axis)
+                for position, aim, value in zip(positions, aims, ups)]
+
+    def _space_curve(self, worldSpace):
+        """指定空間の形状をオブジェクト空間で照会できる ``om2.MFnNurbsCurve`` を返す。
+
+        ワールド空間はメモリ内のコピーのCVだけをワールド座標へ変換する。弧長などオブジェクト空間でしか
+        計算できない照会や、非均等スケール下の法線も、変換後の形状として一貫して求められる。
+        元のCV・履歴・Undoキューは変更しない。copyにより次数・ノット・有理カーブのウェイトも維持する。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+
+        Returns:
+            om2.MFnNurbsCurve: kObject で照会する function set。
+
+        Raises:
+            TypeError: worldSpaceがbool以外の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        ws = _world_space(worldSpace)
+        source = self._geometry_fn()
+        if not ws:
+            return source
+        data = om2.MFnNurbsCurveData().create()
+        curve = _OwnedCurve(om2.MFnNurbsCurve().copy(source.object(), data))
+        # 形状データのMObjectが解放されるとfunction setが無効になるため、照会を終えるまで保持する。
+        curve.data = data
+        curve.setCVPositions(source.cvPositions(om2.MSpace.kWorld))
+        curve.updateCurve()
+        return curve
+
+    @staticmethod
+    def _unit_factor(unit):
+        """cmから指定した距離単位への係数を返す。
+
+        Args:
+            unit (str | None): 距離単位。Noneは現在の距離UI単位。
+
+        Returns:
+            float: 1cmを指定単位で表した値。
+
+        Raises:
+            TypeError: 単位の型が不正な場合。
+            ValueError: 単位名が未対応の場合。
+        """
+        # 循環importを避けるため、単位の照会時に読み込む。
+        from ..common import units
+        return units.convertDistance(1.0, fromUnit="cm", toUnit=unit)
+
+    @staticmethod
+    def _require_param(curve, param):
+        """パラメーターを検証し、範囲の端へ丸め込んだfloatを返す。
+
+        Args:
+            curve (om2.MFnNurbsCurve): 照会するカーブ。
+            param (float): パラメーター。範囲外は端からの相対1e-9までを許す。
+
+        Returns:
+            float: 検証済みのパラメーター。
+
+        Raises:
+            TypeError: 数値でない場合。
+            ValueError: 有限でない、または範囲外の場合。
+        """
+        value = _finite(param, "param")
+        start, end = curve.knotDomain
+        margin = 1e-9 * max(1.0, end - start)
+        if value < start - margin or value > end + margin:
+            raise ValueError(f"param {value} is outside the curve range [{start}, {end}]")
+        return min(max(value, start), end)
+
+    @staticmethod
+    def _tangent(curve, param):
+        """正規化した接線を返す。
+
+        Args:
+            curve (om2.MFnNurbsCurve): 照会するカーブ。
+            param (float): 検証済みのパラメーター。
+
+        Returns:
+            om2.MVector | None: 単位ベクトル。接線が0の位置は None。
+        """
+        # MFnNurbsCurve.tangentは文書と異なり正規化しない微分ベクトルを返す。
+        tangent = curve.tangent(param)
+        length = tangent.length()
+        if length < _DEGENERATE:
+            return None
+        return tangent / length
+
+    @staticmethod
+    def _param_at_length(curve, length, total):
+        """弧長を検証し、対応するパラメーターを返す。
+
+        Args:
+            curve (om2.MFnNurbsCurve): 照会するカーブ。
+            length (float): cmの弧長。
+            total (float): カーブの全長(cm)。
+
+        Returns:
+            float: パラメーター。
+
+        Raises:
+            ValueError: 0未満、または全長を超える場合(相対1e-6までは端へ丸める)。
+        """
+        margin = 1e-6 * max(1.0, total)
+        if length < -margin or length > total + margin:
+            raise ValueError(f"length {length} is outside the curve length [0, {total}]")
+        start, end = curve.knotDomain
+        if length <= 0.0:
+            return start
+        if length >= total:
+            return end
+        return min(max(curve.findParamFromLength(length), start), end)
+
+    def _params_along(self, curve, count):
+        """弧長で等間隔のパラメーターを返す(:meth:`getParamsAlong` の本体)。
+
+        Args:
+            curve (om2.MFnNurbsCurve): 照会するカーブ。
+            count (int): 検証済みの点の数。
+
+        Returns:
+            list[float]: 始点から順のパラメーター。
+        """
+        start, end = curve.knotDomain
+        if count == 1:
+            return [start]
+        total = curve.length(1e-6)
+        closed = curve.form != om2.MFnNurbsCurve.kOpen
+        intervals = count if closed else count - 1
+        params = [start]
+        for index in range(1, count):
+            params.append(self._param_at_length(curve, total * index / intervals, total))
+        if not closed:
+            params[-1] = end
+        return params
+
+    def _transported_ups(self, curve, params, aims):
+        """平行移動で運んだ各点の上方向を返す。
+
+        Args:
+            curve (om2.MFnNurbsCurve): 照会するカーブ。
+            params (list[float]): 出力する点のパラメーター。
+            aims (list[om2.MVector]): 各点の単位接線。
+
+        Returns:
+            list[om2.MVector]: 各点の、接線に直交する単位ベクトル。
+        """
+        up = _initial_up(aims[0])
+        ups = [up]
+        if len(params) == 1:
+            return ups
+        total_length = curve.length(1e-6)
+        steps = max(1, -(-_TRANSPORT_STEPS // (len(params) - 1)))
+        point = curve.getPointAtParam(params[0])
+        aim = aims[0]
+        for index in range(1, len(params)):
+            begin = curve.findLengthFromParam(params[index - 1]) if params[index - 1] > params[0] else 0.0
+            finish = curve.findLengthFromParam(params[index])
+            for step in range(1, steps + 1):
+                if step == steps:
+                    param = params[index]
+                    next_aim = aims[index]
+                else:
+                    length = begin + (finish - begin) * step / steps
+                    param = self._param_at_length(curve, length, total_length)
+                    tangent = self._tangent(curve, param)
+                    next_aim = aim if tangent is None else tangent
+                next_point = curve.getPointAtParam(param)
+                up = _transport(up, point, next_point, aim, next_aim)
+                point = next_point
+                aim = next_aim
+            ups.append(up)
+        return ups
 
     def _geometry_fn(self):
         """形状データを要する照会用に ``om2.MFnNurbsCurve`` を返す。

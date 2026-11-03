@@ -393,6 +393,47 @@ class Joint(Transform):
             RuntimeError: 自身が無効な場合。
         """
         ...
+    def insertJoints(self, count: int) -> list[Joint]:
+        """自身と唯一の子jointの間に、count 個のjointを等間隔に挿入する。
+
+        新しいjointは自身から子へ向かう順に親子につなぎ、元の子jointを最後の新しいjointの子へ付け替える
+        (子のワールドの位置・向きは保つ)。新しいjointのワールドの向きは自身と同じにする
+        (jointOrient・rotate は0、rotateOrder・radius・segmentScaleCompensate は自身の値を写す)。
+        inverseScale は親jointの scale へ接続する。名前は ``<自身の名前>_insert#``(``#`` はMayaの連番)。
+        fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Args:
+            count (int): 挿入する数。1以上。
+
+        Returns:
+            list[Joint]: 挿入したjoint。自身に近い順。
+
+        Raises:
+            TypeError: count が int でない場合。
+            ValueError: count が1未満、または子jointが無い・2つ以上ある場合。
+            RuntimeError: 自身が無効、またはMayaが作成・親の変更を拒否した場合。
+        """
+        ...
+    def getPolePosition(self, distance: float | None = ...) -> Vector:
+        """自身・子・孫のjointの3点の平面上で、チェーンが曲がる側へ離したワールドの位置を返す。
+
+        自身から孫への線分へ子の位置から下ろした垂線の向き(曲がる側)へ、子の位置から distance 離した点。
+        IKの poleVector のコントローラを置く位置に使う。シーンは変更しない。
+
+        Args:
+            distance (float | None): 子の位置から離す距離(cm)。正の有限な数。
+                Noneはチェーンの長さ(自身→子と子→孫の長さの和)。
+
+        Returns:
+            Vector: ワールド空間の位置(cm)。
+
+        Raises:
+            TypeError: distance が数値・None以外の場合。
+            ValueError: distance が正の有限な数でない、子・孫のjointがちょうど1つずつでない、
+                または3点がほぼ一直線(曲がる向きが決まらない)の場合。
+            RuntimeError: 自身が無効な場合。
+        """
+        ...
     def getIkHandles(self) -> list[IkHandle]:
         """自身を start joint とする IK ハンドルを取得する。
 

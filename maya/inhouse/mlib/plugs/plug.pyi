@@ -66,6 +66,20 @@ def _instance_count(multi: om2.MPlug) -> int:
     """
     ...
 
+def _is_ramp(mplug: om2.MPlug) -> bool:
+    """マルチアトリビュートが、MRampAttribute で扱えるランプのアトリビュートかを判定する。
+
+    ランプは位置・値・補間の3つの子を持つコンパウンドアトリビュートのマルチアトリビュートなので、
+    その形のものだけを ``om2.MRampAttribute`` で確かめる(他のマルチアトリビュートで例外の処理を走らせない)。
+
+    Args:
+        mplug (om2.MPlug): マルチアトリビュート全体のプラグ。
+
+    Returns:
+        bool: ランプのアトリビュートなら True。
+    """
+    ...
+
 def _attribute_class(fn: om2.MFnDependencyNode, attribute_handle: om2.MObjectHandle, attribute: om2.MObject) -> int:
     """アトリビュートが所有ノードに存在するかと、静的なアトリビュートかを判定する。
 
@@ -713,6 +727,29 @@ class Plug(Object):
 
         Returns:
             bool: 動的アトリビュートの場合は ``True``。静的(ノード型に組み込み)のアトリビュートは ``False``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def isProxy(self) -> bool:
+        """プロキシアトリビュート(``addAttr(proxy=...)`` で作った別ノードのアトリビュートの代理)か判定する。
+
+        Returns:
+            bool: プロキシアトリビュートの場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def getProxyMaster(self) -> Plug | None:
+        """プロキシアトリビュートの元(``addAttr(proxy=...)`` で指定したアトリビュート)を取得する。
+
+        Mayaはプロキシを元からの入力接続として保持するため、その接続元を返す。プロキシのプロキシは
+        直接の元(1段上のプロキシ)を返し、最後の元まではたどらない(繰り返し呼ぶと最後の元に着く)。
+
+        Returns:
+            Plug | None: 元のアトリビュートのPlug。プロキシでない、または元との接続が切れている場合は ``None``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -1521,17 +1558,25 @@ class Plug(Object):
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         ...
-    def getAnimCurve(self) -> Node | None:
-        """このプラグに直接接続された animCurve ノードを取得する。
+    def getAnimCurve(self, layer: Node | str | None = ...) -> Node | None:
+        """このプラグのアニメーションカーブ(animCurve ノード)を取得する。
 
-        pairBlend やアニメーションレイヤーを介した間接的な animCurve は解決しない
-        (直接の入力接続だけを対象とする)。
+        ``layer`` 未指定は直接接続された animCurve だけを対象とし、pairBlend やアニメーションレイヤーを
+        介した間接的な animCurve は解決しない。``layer`` を指定すると、そのアニメーションレイヤーで
+        このプラグの値を持つカーブを ``cmds.animLayer(layer, q=True, findCurveForPlug=...)`` で取得する。
+        ベースレイヤー(``cmds.animLayer(q=True, root=True)``)を指定し、プラグがどのレイヤーにも
+        属さない場合は、直接接続された animCurve を返す。
+
+        Args:
+            layer (Node | str | None): アニメーションレイヤー(animLayer ノード)またはその名前。既定 None。
 
         Returns:
-            Node | None: 接続されている animCurve ノード。無ければ ``None``。
+            Node | None: animCurve ノード。無ければ ``None``。
 
         Raises:
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            TypeError: layer が animLayer ノード・名前・None 以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または layer の名前を
+                解決できない場合。
         """
         ...
     def isConnectedTo(self, other: Plug | om2.MPlug | str, *, source: bool = ..., destination: bool = ...) -> bool:
@@ -1685,6 +1730,20 @@ class Plug(Object):
 
         Raises:
             RuntimeError: 所有ノードが無効、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def _layer_anim_curve(self, layer: Node | str) -> Node | None:
+        """アニメーションレイヤーで、このプラグの値を持つ animCurve を取得する(getAnimCurve の layer 指定)。
+
+        Args:
+            layer (Node | str): animLayer ノードまたはその名前。
+
+        Returns:
+            Node | None: animCurve ノード。無ければ None。
+
+        Raises:
+            TypeError: layer が animLayer ノード・名前以外の場合。
+            RuntimeError: layer の名前を解決できない場合。
         """
         ...
     def _source_plug(self, skipConversionNodes: bool = ...) -> Plug | None:

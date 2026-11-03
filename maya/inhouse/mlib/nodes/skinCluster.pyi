@@ -6,6 +6,7 @@
 import json
 import math
 from collections.abc import Mapping
+from contextlib import contextmanager
 from decimal import Decimal, localcontext, ROUND_FLOOR
 from typing import List
 import maya.api.OpenMaya as om2
@@ -21,9 +22,11 @@ from .geometryFilter import GeometryFilter
 from .joint import Joint
 from .node import Node, Nodes
 from typing import Any, Iterable, Iterator, Literal, Sequence
+from mlib._stubtypes import GeneratorContextManager
 from mlib.components.vertex import Vertex
 from mlib.components.vertex import Vertices
 from mlib.nodes.dagPose import DagPose
+from mlib.nodes.mesh import Mesh
 from typing import overload
 
 
@@ -326,6 +329,40 @@ class SkinCluster(GeometryFilter):
             RuntimeError: lockInfluenceWeightsがロック・入力接続されている場合。
         """
         ...
+    def unlockedInfluences(self, joints: str | Node | Iterable | None = ...) -> GeneratorContextManager[SkinCluster]:
+        """指定したinfluenceのウェイトのロックを一時的に外し、抜けるときに元へ戻す。
+
+        入るときにロックしていたinfluenceだけを解除し(:meth:`setInfluencesLocked` と同じ
+        lockInfluenceWeights)、抜けるとき(例外でも)にそれらをロックへ戻す。入るときにロックして
+        いなかったinfluenceは、with の中で変えても戻さない。with の中で削除された・influenceで
+        なくなったjointは戻さない。fast引数は持たない。
+
+        Undo有効時は、ロックの解除・with の中の操作・ロックの復元を1つのUndoチャンクにまとめる。
+        抜けた後の1回のUndoで with に入る前の状態(ロックしたまま、ウェイトも元の値)へ戻る。
+        with の中では ``cmds.undo()`` を呼ばないこと。開いているチャンクの中の Undo は、Mayaが記録した
+        最後の1項目だけを戻すため、:meth:`setWeights` 等の1回の操作の途中までしか戻らず、操作が無ければ
+        ロックの解除を戻す(ロックした状態になる)。抜けるときの復元は、その時点の状態によらず元の
+        ロックを設定する。with の中の操作を取り消すなら、抜けてから Undo する。
+
+        Args:
+            joints (str | Node | Iterable | None): 対象の登録済みinfluence。Noneは全influence。
+                複数は名前と参照を混在させない(:meth:`setInfluencesLocked` と同じ)。
+
+        Yields:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: influenceの入力型が不正な場合。
+            ValueError: influenceが空・未登録・重複の場合。
+            RuntimeError: lockInfluenceWeightsがロック・入力接続されている場合。
+
+        Examples:
+            .. code-block:: python
+
+                with skin.unlockedInfluences():
+                    skin.setWeights(["spine_JNT"], [1.0], vertices=[0], normalize=True)
+        """
+        ...
     @overload
     def getWeights(self, joints: str | Node | Iterable, *, vertices: Vertex | Vertices | int | str | Iterable | None = ..., rows: Literal[True]) -> list[list[float]]: ...
     @overload
@@ -502,6 +539,41 @@ class SkinCluster(GeometryFilter):
             ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
             完了済みの直接更新は自動で戻さない。addMissing で加えた influence の登録は、
             ``fast=True`` でも通常の(Undo可能な)操作で行う。
+        """
+        ...
+    def invertShape(self, sculpted: str | Node, name: str | None = ...) -> Mesh:
+        """現在のポーズで形を整えたメッシュから、スキンの変形を逆にかけた補正形状を作る。
+
+        各頂点で、スキンが使うマトリクス(``geomMatrix``・``bindPreMatrix``・``matrix``)をウェイトで
+        重み付けした和(classicLinear の変形)を求め、その逆マトリクスを sculpted の頂点に掛けて、
+        skinCluster に入る前の空間の形状を求める(cvShapeInverter と同じ考え方)。envelope も考慮する。
+        結果は skinCluster が変形する先頭のメッシュを複製し(同じ親の下)、頂点を置き換えて作る。
+        結果をこのメッシュの blendShape のターゲットとして(skinCluster より前に)足すと、
+        現在のポーズで sculpted と同じ形になる。複製と頂点の書込みは1回のUndoで戻せる。fast引数は持たない。
+
+        Args:
+            sculpted (str | Node): 現在のポーズで形を整えたメッシュ(transformまたはmeshのshape)。
+                頂点の番号と数が先頭のメッシュと同じであること。位置はオブジェクト空間の座標を使うため、
+                横へ移動した複製でもよい。
+            name (str | None): 作るメッシュのtransformの名前。Noneは ``<sculptedの名前>_inverted``。
+
+        Returns:
+            Mesh: 作ったメッシュのshape。
+
+        Raises:
+            TypeError: sculpted がメッシュでない、または name が文字列・None以外の場合。
+            ValueError: 頂点数が先頭のメッシュと違う、または name が空文字列の場合。
+            RuntimeError: 名前を解決できない、またはMayaが複製・書込みを拒否した場合。
+
+        Note:
+            skinCluster より前に別のデフォーマーがある場合は、その出力(skinCluster の入力)と元の形状
+            (Orig)の差を足し戻すので、blendShape のように位置を足すだけのデフォーマーは現在の値のまま
+            正しく扱える(ターゲットの形状を削除して差分だけになった blendShape。ターゲットの形状を
+            つないだままの blendShape は入力に対する絶対位置として働くため、その分ずれる)。回転・拡大を伴うデフォーマー(cluster・nonLinear 等)の効果は逆にしないため、
+            その分ずれる。skinningMethod が dualQuaternion・weightBlended の場合も線形の変形として
+            逆にするので、近似になる。スキンのマトリクスの和が特異な(ウェイトがほぼ0の)頂点は、
+            skinCluster の入力の位置をそのまま使う。頂点の書込みは :meth:`Mesh.setPoints
+            <mlib.nodes.mesh.Mesh.setPoints>` を使い、頂点数に比例して時間がかかる。
         """
         ...
     def redistributeWeights(self, vertices: Vertex | Vertices | Iterable[int | Vertex], method: str = ...) -> None:
@@ -696,6 +768,27 @@ class SkinCluster(GeometryFilter):
 
         Returns:
             list[float]: 現在の頂点番号順・各頂点内はファイルのinfluence順の値。
+        """
+        ...
+    def _inverted_points(self, sculpted_points: om2.MPointArray) -> list[tuple[float, float, float]]:
+        """:meth:`invertShape` の頂点の位置(Origの空間)を計算する。シーンは変更しない。
+
+        Args:
+            sculpted_points (om2.MPointArray): 現在のポーズで整えた形のオブジェクト空間の頂点。
+
+        Returns:
+            list[tuple[float, float, float]]: 頂点番号順の補正形状の位置(cm)。
+        """
+        ...
+    @staticmethod
+    def _plug_matrix(plug: om2.MPlug) -> om2.MMatrix:
+        """matrix 型のアトリビュートの値を読む。値の無い要素は単位マトリクスにする。
+
+        Args:
+            plug (om2.MPlug): matrix 型のアトリビュートの Plug。
+
+        Returns:
+            om2.MMatrix: 値。
         """
         ...
     @staticmethod

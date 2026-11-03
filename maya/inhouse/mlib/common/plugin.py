@@ -103,6 +103,70 @@ class Plugin:
         """
         return [cls(name) for name in (cmds.pluginInfo(query=True, listPlugins=True) or [])]
 
+    @classmethod
+    def listUnknown(cls):
+        """シーンが必要とするが見つからない未知のプラグイン名を取得する(``cmds.unknownPlugin(query=True, list=True)``)。
+
+        読み込んだファイルの ``requires`` に書かれ、Mayaが見つけられなかったプラグインが対象。
+
+        Returns:
+            list[str]: 未知のプラグイン名。無ければ空リスト。
+        """
+        return list(cmds.unknownPlugin(query=True, list=True) or [])
+
+    @classmethod
+    def removeUnknown(cls, names=None):
+        """未知のプラグインの記録をシーンから外す(``cmds.unknownPlugin(name, remove=True)``)。
+
+        外した記録は保存するファイルの ``requires`` に書かれなくなる。未知のノード
+        (:meth:`listUnknownNodes`)は残るので、必要なら別に削除する。
+        ``cmds.unknownPlugin`` はUndoに記録されないため、この操作はUndoできない。
+
+        Args:
+            names (str | list[str] | None): 外すプラグイン名。Noneは未知のプラグインすべて。
+
+        Returns:
+            list[str]: 外したプラグイン名(指定順)。
+
+        Raises:
+            TypeError: namesが文字列・文字列のリスト/タプル・None以外の場合。
+            ValueError: 未知のプラグインに無い名前を含む場合(何も外さない)。
+        """
+        unknown = cls.listUnknown()
+        if names is None:
+            targets = unknown
+        elif isinstance(names, str):
+            targets = [names]
+        elif isinstance(names, (list, tuple)) and all(isinstance(name, str) for name in names):
+            targets = list(names)
+        else:
+            raise TypeError("names must be a str, a list of str or None")
+        missing = [name for name in targets if name not in unknown]
+        if missing:
+            raise ValueError(f"Not unknown plug-ins: {', '.join(missing)}")
+        removed = []
+        for name in targets:
+            if name in removed:
+                continue
+            cmds.unknownPlugin(name, remove=True)
+            removed.append(name)
+        return removed
+
+    @classmethod
+    def listUnknownNodes(cls):
+        """型が分からない未知のノード(``unknown``・``unknownDag``・``unknownTransform``)を取得する。
+
+        プラグインが見つからないファイルを読み込んだときに、Mayaが元の型の代わりに作るノード。
+
+        Returns:
+            list[Node]: 未知のノード。``cmds.ls`` の順。無ければ空リスト。
+        """
+        # commonの初期化時にnodesを読み込まないよう、使用時にNodeを読み込む。
+        from ..nodes.node import Node
+
+        names = cmds.ls(type=["unknown", "unknownDag", "unknownTransform"], long=True) or []
+        return [Node(name) for name in names]
+
     @property
     def name(self):
         """保持しているプラグイン名を取得する。

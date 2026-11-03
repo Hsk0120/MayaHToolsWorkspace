@@ -57,12 +57,12 @@ class OffsetParentMatrixTest(unittest.TestCase):
         self.assertTrue(self.target.getMatrix(worldSpace=True).isEquivalent(world, 1e-8))
 
     def test_plug_route_and_multiple_nodes(self):
-        """offsetParentMatrix は getPlug("offsetParentMatrix") の get/set で扱う(Transform の専用入口は無い)。"""
+        """offsetParentMatrix は getPlug("offsetParentMatrix") の get/set でも扱え、10.2.0 で再追加した専用入口と一致する。"""
         from mlib.decorator import undoChunk
         nodes = [self.source, self.target]
         value = Matrix(translate=(4, 5, 6))
         for name in ("getOffsetParentMatrix", "setOffsetParentMatrix"):
-            self.assertFalse(hasattr(self.target, name))
+            self.assertTrue(hasattr(self.target, name))
         plug = self.target.getPlug("offsetParentMatrix")
         self.assertIs(plug.set(value), plug)
         self.assertTrue(plug.get().isEquivalent(value))

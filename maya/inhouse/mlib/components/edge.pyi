@@ -3,6 +3,7 @@
 
 import maya.api.OpenMaya as om2
 from .component import Component, Components
+from .face import Faces
 from .vertex import Vertices
 from typing import Any, Iterator
 from typing import overload
@@ -19,6 +20,15 @@ class Edge(Component):
 
         Returns:
             Vertices: Maya の接続順の頂点群。
+        """
+        ...
+    def getFaces(self) -> Faces:
+        """このエッジに接する面を取得する。
+
+        :meth:`Edges.getFaces` と同じ規則。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。
         """
         ...
     def getLoop(self) -> Edges:
@@ -55,6 +65,19 @@ class Edges(Components):
 
         Returns:
             Vertices: 保持順に集め、重複を除いた頂点群。
+        """
+        ...
+    def getFaces(self) -> Faces:
+        """保持しているエッジのどれかに接する面を取得する。選択は変えない。
+
+        ``cmds.polyListComponentConversion(toFace=True)`` と同じ面になる。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。エッジが空なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
         """
         ...
     def getLoop(self) -> Edges:

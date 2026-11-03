@@ -12,10 +12,12 @@ for _name in globals().get("__all__", ()):
     globals().pop(_name, None)
 
 _exports = {
+    "Callbacks": ("callbacks", "Callbacks"),
     "CurveFit": ("curveFit", "CurveFit"),
     "DampedSpring": ("dampedSpring", "DampedSpring"),
     "Deferred": ("deferred", "Deferred"),
     "DrivenKey": ("drivenKey", "DrivenKey"),
+    "Environment": ("environment", "Environment"),
     "Keyframe": ("keyframe", "Keyframe"),
     "Keyframes": ("keyframe", "Keyframes"),
     "LOAD_FAILED": ("pluginPackage", "LOAD_FAILED"),
@@ -46,10 +48,12 @@ for _name in __all__ + ["legalizeName", "legalize_name", "progress_bar"]:
 
 if TYPE_CHECKING:
     from . import units
+    from .callbacks import Callbacks
     from .curveFit import CurveFit
     from .dampedSpring import DampedSpring
     from .deferred import Deferred
     from .drivenKey import DrivenKey
+    from .environment import Environment
     from .keyframe import Keyframe, Keyframes
     from .module import Module
     from .namespace import Namespace

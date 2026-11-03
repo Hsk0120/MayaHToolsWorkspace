@@ -16,6 +16,7 @@ from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node
 from ..plugs.plug import Plug
+from .environment import Environment
 from .keyframe import Keyframe, Keyframes
 
 
@@ -176,7 +177,7 @@ class Selection:
                 同じ完全名は最初だけ残す。バッチ・mayapy・Channel Boxが無いGUI、または
                 選択が無い場合は空リスト。表示中のノードに存在しないアトリビュートは除く。
         """
-        if cmds.about(batch=True):
+        if Environment.isBatch():
             return []
         try:
             # Channel Boxの名前はMayaのUIが保持するグローバル変数から取得する(既定はmainChannelBox)。

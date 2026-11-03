@@ -8,11 +8,35 @@ import maya.cmds as cmds
 from ..core.attributeType import _convert_angles, _convert_times, _convert_units, _plain_angle_unit, _plain_time_unit
 from ..core.attributeType import is_internal_data_type
 from ..core.attributeType import value_reader
-from ..decorator import _require_bool, undoChunk
+from ..decorator import _edit_context, _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
 from typing import Iterator
 from mlib.nodes.node import Node
 
+
+def _descendants(mplug: om2.MPlug, steps: tuple[tuple[str, int], ...] = ...) -> Iterator[tuple[tuple[tuple[str, int], ...], om2.MPlug]]:
+    """プラグ自身と、コンパウンドアトリビュートの子・マルチアトリビュートの既存要素を深さ優先で列挙する。
+
+    Args:
+        mplug (om2.MPlug): 起点のプラグ。
+        steps (tuple[tuple[str, int], ...]): 起点までのたどり方(``("child", 番号)``・``("element", 論理番号)``)。
+
+    Yields:
+        tuple[tuple[tuple[str, int], ...], om2.MPlug]: 起点からのたどり方とプラグ。
+    """
+    ...
+
+def _follow(mplug: om2.MPlug, steps: tuple[tuple[str, int], ...]) -> om2.MPlug:
+    """_descendants のたどり方に従い、別の要素から同じ位置のプラグを取得する(要素は作らない)。
+
+    Args:
+        mplug (om2.MPlug): 起点のプラグ。
+        steps (tuple[tuple[str, int], ...]): たどり方。
+
+    Returns:
+        om2.MPlug: たどった先のプラグ。
+    """
+    ...
 
 
 class MultiPlug(Plug):
@@ -177,29 +201,54 @@ class MultiPlug(Plug):
                 ``checkLocked=True`` でマルチアトリビュート全体がロックされている場合。
         """
         ...
-    def removeElement(self, index: int, *, fast: bool = ...) -> MultiPlug:
+    def removeElement(self, index: int, shift: bool = ..., *, fast: bool = ...) -> MultiPlug:
         """実体のあるマルチアトリビュートの要素を、接続を切断して削除する。
 
         OpenMayaの既存要素番号を対象とし、getIndices()によるworldSpaceの補完だけでは
         削除対象にしない。通常はcmds.removeMultiInstanceを使い、Undoが有効なら記録する。
         fastはMDGModifierで削除し、Undo設定を変更しない。
+        ``shift=True`` は削除した番号より後ろの既存要素を1つずつ前の番号へ移す
+        (値と入力・出力の接続を移す。移し方は :meth:`compact` と同じ)。
 
         Args:
             index (int): 削除する論理番号。
+            shift (bool): Trueは後ろの要素を1つずつ前へ詰める。既定False。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             MultiPlug: 自身。
 
         Raises:
-            TypeError: indexがboolまたは整数以外の場合。
+            TypeError: indexがboolまたは整数以外、shift・fastがbool以外の場合。
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
+                ``shift=True`` で、マルチアトリビュートか移す要素がロックされている、または参照ノードの場合。
+            NotImplementedError: ``fast=True`` と ``shift=True`` を同時に指定した場合。
 
         Note:
             デフォーマのターゲットはこの方法で除去しない。例えばblendShapeの ``weight`` の要素を
             消しても、エイリアスと ``inputTarget[].inputTargetGroup[i]`` が残る。blendShapeのターゲットは
             :meth:`mlib.nodes.BlendShape.removeTarget` で除去する。
+        """
+        ...
+    def compact(self) -> MultiPlug:
+        """空き番号を詰め、既存要素の論理番号を0から連続する番号に並べ直す。
+
+        既存要素を論理番号の昇順に0, 1, 2…へ移す。各要素の値(コンパウンドアトリビュートの子・
+        入れ子のマルチアトリビュートの要素を含む)と、入力・出力の接続を移す。
+        既に連続している場合は何も変更しない。cmdsで編集し、Undo 1回で戻る。
+
+        Returns:
+            MultiPlug: 自身。
+
+        Raises:
+            RuntimeError: 所有ノードまたはアトリビュートが無効、マルチアトリビュートか移す要素(子を含む)が
+                ロックされている、または参照ノードの場合。
+
+        Note:
+            値はmlibの :meth:`~mlib.plugs.plug.Plug.get` / :meth:`~mlib.plugs.plug.Plug.set` で移す。
+            書込みできない・保存されない子と、接続の無いmessageの要素は移せない(移した先に作られない)。
+            同じマルチアトリビュートの要素どうしの接続は想定しない。
         """
         ...
     def getSourceNodes(self) -> dict[int, Node]:
@@ -232,6 +281,46 @@ class MultiPlug(Plug):
 
         Raises:
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        ...
+    def _require_movable(self, indices: list[int]) -> None:
+        """要素を別の番号へ移せるかを、シーンを変更せずに確かめる(compact・removeElementのshift用)。
+
+        Args:
+            indices (list[int]): 移す要素の論理番号。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: マルチアトリビュートか移す要素(子孫を含む)がロックされている、または参照ノードの場合。
+        """
+        ...
+    def _move_elements(self, moves: list[tuple[int, int]]) -> None:
+        """既存要素の値と入力・出力の接続を、別の番号の要素へcmdsで移す。
+
+        先に全要素の値と接続を集めてから移す元をすべて削除し、移す先へ値を設定して接続し直す。
+        移す先は、移す元の削除後に空いている番号であること(compact・shiftの順序で満たす)。
+
+        Args:
+            moves (list[tuple[int, int]]): (移す元の論理番号, 移す先の論理番号)の並び。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _capture_element(self, index: int) -> tuple[list, list, list]:
+        """要素の値と入力・出力の接続を、要素からのたどり方と組にして集める。
+
+        入力接続のあるプラグの値も集める(接続する前に設定して移す先の要素を作り、Undoで要素ごと戻すため。
+        接続しただけで作られた要素はUndoで消えない)。messageと、書込みできない・保存されないプラグの値は集めない。
+
+        Args:
+            index (int): 既存要素の論理番号。
+
+        Returns:
+            tuple[list, list, list]: (値の(たどり方, 値)、入力の(たどり方, 接続元Plug)、
+                出力の(たどり方, list[接続先Plug]))。
         """
         ...
     @staticmethod

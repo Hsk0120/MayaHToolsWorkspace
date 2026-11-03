@@ -4,6 +4,8 @@ from typing import Any, Dict
 
 import maya.cmds as cmds
 
+from .environment import Environment
+
 
 class ScriptJob:
     """Maya GUIへ登録したscriptJobのIDと停止状態を保持する。
@@ -36,7 +38,7 @@ class ScriptJob:
             raise ValueError("Specify exactly one of event or attribute")
         if not callable(callback):
             raise TypeError("callback must be callable")
-        if cmds.about(batch=True):
+        if Environment.isBatch():
             raise RuntimeError("scriptJob requires a Maya GUI session")
         options: Dict[str, Any] = {"killWithScene": killWithScene, "compressUndo": compressUndo}
         # 先頭の検査により、attributeがNoneならeventが指定されている。

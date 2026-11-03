@@ -25,7 +25,7 @@ TOLERANCE = 1e-9
 #: Transform から取り除いた入口。別名も残さない(DESIGN §2.3・§3)。
 REMOVED_NAMES = (
     "transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
-    "getOffsetParentMatrix", "setOffsetParentMatrix", "getShearing", "setShearing",
+    "getShearing", "setShearing",
 )
 
 

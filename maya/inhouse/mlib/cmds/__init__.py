@@ -9,6 +9,7 @@ for _name in tuple(globals()):
 globals().pop("_prepare_reload", None)
 
 from .bakeDeformer import bakeDeformer
+from .bakeResults import bakeResults
 from .bindSkin import bindSkin
 from .createBlendShape import createBlendShape
 from .createCircle import createCircle
@@ -17,6 +18,7 @@ from .createCurve import createCurve
 from .createDagContainer import createDagContainer
 from .createDagPose import createDagPose
 from .createIkHandle import createIkHandle
+from .createJointChain import createJointChain
 from .createLocator import createLocator
 from .createNode import createNode
 from .createPolyCube import createPolyCube
@@ -33,6 +35,7 @@ from .select import select
 
 __all__ = [
     "bakeDeformer",
+    "bakeResults",
     "bindSkin",
 
     "createBlendShape",
@@ -42,6 +45,7 @@ __all__ = [
     "createDagContainer",
     "createDagPose",
     "createIkHandle",
+    "createJointChain",
     "createLocator",
     "createNode",
     "createPolyCube",

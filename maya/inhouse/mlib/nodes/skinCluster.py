@@ -5,6 +5,7 @@
 import json
 import math
 from collections.abc import Mapping
+from contextlib import contextmanager
 from decimal import Decimal, localcontext, ROUND_FLOOR
 from typing import List
 
@@ -497,6 +498,57 @@ class SkinCluster(GeometryFilter):
                 Node._wrap_dag_path(paths[index]).getPlug("lockInfluenceWeights").set(state)
             return self
 
+    @contextmanager
+    def unlockedInfluences(self, joints=None):
+        """指定したinfluenceのウェイトのロックを一時的に外し、抜けるときに元へ戻す。
+
+        入るときにロックしていたinfluenceだけを解除し(:meth:`setInfluencesLocked` と同じ
+        lockInfluenceWeights)、抜けるとき(例外でも)にそれらをロックへ戻す。入るときにロックして
+        いなかったinfluenceは、with の中で変えても戻さない。with の中で削除された・influenceで
+        なくなったjointは戻さない。fast引数は持たない。
+
+        Undo有効時は、ロックの解除・with の中の操作・ロックの復元を1つのUndoチャンクにまとめる。
+        抜けた後の1回のUndoで with に入る前の状態(ロックしたまま、ウェイトも元の値)へ戻る。
+        with の中では ``cmds.undo()`` を呼ばないこと。開いているチャンクの中の Undo は、Mayaが記録した
+        最後の1項目だけを戻すため、:meth:`setWeights` 等の1回の操作の途中までしか戻らず、操作が無ければ
+        ロックの解除を戻す(ロックした状態になる)。抜けるときの復元は、その時点の状態によらず元の
+        ロックを設定する。with の中の操作を取り消すなら、抜けてから Undo する。
+
+        Args:
+            joints (str | Node | Iterable | None): 対象の登録済みinfluence。Noneは全influence。
+                複数は名前と参照を混在させない(:meth:`setInfluencesLocked` と同じ)。
+
+        Yields:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: influenceの入力型が不正な場合。
+            ValueError: influenceが空・未登録・重複の場合。
+            RuntimeError: lockInfluenceWeightsがロック・入力接続されている場合。
+
+        Examples:
+            .. code-block:: python
+
+                with skin.unlockedInfluences():
+                    skin.setWeights(["spine_JNT"], [1.0], vertices=[0], normalize=True)
+        """
+        if joints is None:
+            targets = self.getInfluences()
+        else:
+            paths = self._skin_fn.influenceObjects()
+            targets = [Node._wrap_dag_path(paths[index]) for index in self._require_influences(joints)]
+        locked = [node for node in targets
+                  if node.hasAttr("lockInfluenceWeights") and node.getPlug("lockInfluenceWeights").get()]
+        with undoChunk("mlibSkinClusterUnlockedInfluences"):
+            for node in locked:
+                node.getPlug("lockInfluenceWeights").set(False)
+            try:
+                yield self
+            finally:
+                for node in locked:
+                    if node.isValid() and node.hasAttr("lockInfluenceWeights"):
+                        node.getPlug("lockInfluenceWeights").set(True)
+
     def getWeights(self, joints, *, vertices=None, rows=False):
         """指定influenceの頂点ウェイトを、先頭Meshから取得する。
 
@@ -758,6 +810,74 @@ class SkinCluster(GeometryFilter):
             if method == "position":
                 values = self._weights_by_position(payload, len(influences))
             self.setWeights(influences, values, fast=fast)
+
+    def invertShape(self, sculpted, name=None):
+        """現在のポーズで形を整えたメッシュから、スキンの変形を逆にかけた補正形状を作る。
+
+        各頂点で、スキンが使うマトリクス(``geomMatrix``・``bindPreMatrix``・``matrix``)をウェイトで
+        重み付けした和(classicLinear の変形)を求め、その逆マトリクスを sculpted の頂点に掛けて、
+        skinCluster に入る前の空間の形状を求める(cvShapeInverter と同じ考え方)。envelope も考慮する。
+        結果は skinCluster が変形する先頭のメッシュを複製し(同じ親の下)、頂点を置き換えて作る。
+        結果をこのメッシュの blendShape のターゲットとして(skinCluster より前に)足すと、
+        現在のポーズで sculpted と同じ形になる。複製と頂点の書込みは1回のUndoで戻せる。fast引数は持たない。
+
+        Args:
+            sculpted (str | Node): 現在のポーズで形を整えたメッシュ(transformまたはmeshのshape)。
+                頂点の番号と数が先頭のメッシュと同じであること。位置はオブジェクト空間の座標を使うため、
+                横へ移動した複製でもよい。
+            name (str | None): 作るメッシュのtransformの名前。Noneは ``<sculptedの名前>_inverted``。
+
+        Returns:
+            Mesh: 作ったメッシュのshape。
+
+        Raises:
+            TypeError: sculpted がメッシュでない、または name が文字列・None以外の場合。
+            ValueError: 頂点数が先頭のメッシュと違う、または name が空文字列の場合。
+            RuntimeError: 名前を解決できない、またはMayaが複製・書込みを拒否した場合。
+
+        Note:
+            skinCluster より前に別のデフォーマーがある場合は、その出力(skinCluster の入力)と元の形状
+            (Orig)の差を足し戻すので、blendShape のように位置を足すだけのデフォーマーは現在の値のまま
+            正しく扱える(ターゲットの形状を削除して差分だけになった blendShape。ターゲットの形状を
+            つないだままの blendShape は入力に対する絶対位置として働くため、その分ずれる)。回転・拡大を伴うデフォーマー(cluster・nonLinear 等)の効果は逆にしないため、
+            その分ずれる。skinningMethod が dualQuaternion・weightBlended の場合も線形の変形として
+            逆にするので、近似になる。スキンのマトリクスの和が特異な(ウェイトがほぼ0の)頂点は、
+            skinCluster の入力の位置をそのまま使う。頂点の書込みは :meth:`Mesh.setPoints
+            <mlib.nodes.mesh.Mesh.setPoints>` を使い、頂点数に比例して時間がかかる。
+        """
+        from .mesh import Mesh
+
+        if name is not None and not isinstance(name, str):
+            raise TypeError("name must be a string or None")
+        if name == "":
+            raise ValueError("name must be a non-empty string or None")
+        target = Node(Object._input_name(sculpted))
+        if isinstance(target, DagNode):
+            target = target.getShape()
+        if not isinstance(target, Mesh):
+            raise TypeError(f"sculpted must be a mesh: {Object._input_name(sculpted)}")
+        sculpted_points = om2.MFnMesh(target.mpath()).getPoints(om2.MSpace.kObject)
+        count = om2.MFnMesh(self.mesh_path).numVertices
+        if len(sculpted_points) != count:
+            raise ValueError(f"sculpted has {len(sculpted_points)} vertices, expected {count}")
+        points = self._inverted_points(sculpted_points)
+        if name is None:
+            name = target.getParent().getName().split("|")[-1] + "_inverted"
+        with undoChunk("mlibSkinClusterInvertShape"):
+            transform = om2.MFnDagNode(self.mesh_path.transform()).fullPathName()
+            duplicate = cmds.duplicate(transform, name=name, returnRootsOnly=True)[0]
+            duplicate_path = cmds.ls(duplicate, long=True)[0]
+            shapes = cmds.listRelatives(duplicate_path, shapes=True, fullPath=True) or []
+            intermediate = [shape for shape in shapes if cmds.getAttr(shape + ".intermediateObject")]
+            if intermediate:
+                cmds.delete(intermediate)
+            children = [child for child in cmds.listRelatives(duplicate_path, children=True, fullPath=True) or []
+                        if child not in shapes]
+            if children:
+                cmds.delete(children)
+            shape = Node(cmds.listRelatives(duplicate_path, shapes=True, fullPath=True)[0])
+            shape.setPoints(points)
+            return shape
 
     def redistributeWeights(self, vertices, method="cubic"):
         """先頭Meshの頂点ウェイトを正規化し、イージングをかけて再正規化する。
@@ -1074,6 +1194,72 @@ class SkinCluster(GeometryFilter):
             index, _ = grid.nearest((point.x, point.y, point.z))
             values.extend(stored[index * width:(index + 1) * width])
         return values
+
+    def _inverted_points(self, sculpted_points):
+        """:meth:`invertShape` の頂点の位置(Origの空間)を計算する。シーンは変更しない。
+
+        Args:
+            sculpted_points (om2.MPointArray): 現在のポーズで整えた形のオブジェクト空間の頂点。
+
+        Returns:
+            list[tuple[float, float, float]]: 頂点番号順の補正形状の位置(cm)。
+        """
+        dependency = self._dependency_fn()
+        geometry_index = oma2.MFnGeometryFilter(self.mnode()).indexForOutputShape(self.mesh_path.node())
+        input_plug = dependency.findPlug("input", False).elementByLogicalIndex(geometry_index)
+        input_plug = input_plug.child(dependency.attribute("inputGeometry"))
+        input_points = om2.MFnMesh(input_plug.asMObject()).getPoints()
+        original = cmds.deformableShape(self.mesh_path.fullPathName(), originalGeometry=True) or []
+        original = original[0].split(".")[0] if original and original[0] else ""
+        if original:
+            selection = om2.MSelectionList()
+            selection.add(original)
+            original_points = om2.MFnMesh(selection.getDagPath(0)).getPoints(om2.MSpace.kObject)
+        else:
+            original_points = input_points
+        geometry = self._plug_matrix(dependency.findPlug("geomMatrix", False))
+        geometry_inverse = geometry.inverse()
+        envelope = dependency.findPlug("envelope", False).asFloat()
+        matrices = dependency.findPlug("matrix", False)
+        bind_pre = dependency.findPlug("bindPreMatrix", False)
+        logical = [self._skin_fn.indexForInfluenceObject(path) for path in self._skin_fn.influenceObjects()]
+        skin_matrices = [self._plug_matrix(bind_pre.elementByLogicalIndex(index))
+                         * self._plug_matrix(matrices.elementByLogicalIndex(index)) for index in logical]
+        components, count = self._all_vertices()
+        weights, width = self._skin_fn.getWeights(self.mesh_path, components)
+        weights = list(weights)
+        identity = om2.MMatrix()
+        result = []
+        for vertex in range(count):
+            row = weights[vertex * width:(vertex + 1) * width]
+            total = om2.MMatrix([0.0] * 16)
+            for weight, matrix in zip(row, skin_matrices):
+                if weight:
+                    total += matrix * weight
+            # skinCluster は geomMatrix の空間で変形し、出力を元の空間へ戻す。
+            deform = geometry * total * geometry_inverse
+            deform = identity * (1.0 - envelope) + deform * envelope
+            source = input_points[vertex]
+            if abs(deform.det4x4()) > 1e-12:
+                source = om2.MPoint(sculpted_points[vertex]) * deform.inverse()
+            point = original_points[vertex] + (source - input_points[vertex])
+            result.append((point.x, point.y, point.z))
+        return result
+
+    @staticmethod
+    def _plug_matrix(plug):
+        """matrix 型のアトリビュートの値を読む。値の無い要素は単位マトリクスにする。
+
+        Args:
+            plug (om2.MPlug): matrix 型のアトリビュートの Plug。
+
+        Returns:
+            om2.MMatrix: 値。
+        """
+        try:
+            return om2.MFnMatrixData(plug.asMObject()).matrix()
+        except RuntimeError:
+            return om2.MMatrix()
 
     @staticmethod
     def _geometry_skin_uuids(node):

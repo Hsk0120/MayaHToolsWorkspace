@@ -8,7 +8,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
-from ..core.fastWrite import require_writable
+from ..core.fastWrite import require_writable, writable_compound
 from ..core.nodeEdit import require_editable
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _transform_argument_hints, nativeUnits, undoChunk, undoTransaction
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
@@ -793,6 +793,72 @@ class Transform(DagNode):
         Raises:
             TypeError: 長短フラグを同時指定した場合。
             RuntimeError: ノードが無効、または Maya が拒否した場合。
+        """
+        ...
+    def getOffsetParentMatrix(self) -> Matrix:
+        """``offsetParentMatrix`` アトリビュートの値を取得する。
+
+        ワールドマトリクスは ``matrix(ローカル) * offsetParentMatrix * 親のワールドマトリクス``。
+
+        Returns:
+            Matrix: 呼出し時点の値の独立した複製。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setOffsetParentMatrix(self, matrix: Matrix | om2.MMatrix | Sequence[float], *, fast: bool = ...) -> Transform:
+        """``offsetParentMatrix`` アトリビュートへマトリクスを設定し、自身を返す。
+
+        translate・rotate等のチャンネルは変更しないため、ワールドの位置は変わる(位置を保って移すには
+        :meth:`freezeToOffsetParent`)。
+
+        Args:
+            matrix (Matrix | om2.MMatrix | Sequence[float]): 設定するマトリクス(16個の数値でも可)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: fastがbool以外の場合。
+            ValueError: matrixをマトリクスへ変換できない場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        ...
+    def freezeToOffsetParent(self) -> Transform:
+        """現在のローカル変換を ``offsetParentMatrix`` へ移し、変換のチャンネルを初期値にして自身を返す。
+
+        translate・rotate・shearを0、scaleを1にし(Jointは ``jointOrient`` も0にする)、ワールドの位置・
+        向き・大きさが変わらないよう ``offsetParentMatrix`` を ``(初期化後のmatrix)^-1 * 初期化前のmatrix *
+        初期化前のoffsetParentMatrix`` にする。ピボット・``rotateAxis``・``rotateOrder`` は変えず、その分も
+        ``offsetParentMatrix`` で補う(初期化後に回転させると、ピボットとrotateAxisは従来どおり効く)。
+        Jointの ``segmentScaleCompensate`` の補正(inverseScale)は親のスケールに追従する値のため0にせず、
+        呼出し時点のワールドを保つように補う。書込みの前に全対象の書込み可否を確かめ、ロック・入力接続
+        (アニメーションのキーを含む)があれば何も変えずにRuntimeErrorにする。fast引数は持たない。
+        Undo有効時は1回で戻せ、途中で失敗した場合は巻き戻す。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: 初期化後のローカルのマトリクスが反転不能な場合(inverseScaleが0のJoint等)。
+            RuntimeError: ノードが無効、または対象のチャンネル・offsetParentMatrixがロック・入力接続
+                されている場合。
+        """
+        ...
+    def eulerFilter(self) -> Transform:
+        """rotateX/Y/Zの時間のアニメーションカーブ(animCurveTA)へEulerフィルターをかけ、自身を返す。
+
+        3本を1回の ``cmds.filterCurve(filter="euler")`` にまとめて渡す(Mayaのグラフエディターの
+        Euler Filterと同じ)。入力に直接(単位変換ノードを飛ばして)つながる animCurveTA だけを対象にし、
+        キーが無ければ何もしない。fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、またはMayaがフィルターを拒否した場合。
         """
         ...
     def getClosestAxisToVector(self, refVector: Vector | Iterable[float], includeNegative: bool = ...) -> str:

@@ -574,6 +574,100 @@ class Joint(Transform):
             current = next_joint
         return chain
 
+    def insertJoints(self, count):
+        """自身と唯一の子jointの間に、count 個のjointを等間隔に挿入する。
+
+        新しいjointは自身から子へ向かう順に親子につなぎ、元の子jointを最後の新しいjointの子へ付け替える
+        (子のワールドの位置・向きは保つ)。新しいjointのワールドの向きは自身と同じにする
+        (jointOrient・rotate は0、rotateOrder・radius・segmentScaleCompensate は自身の値を写す)。
+        inverseScale は親jointの scale へ接続する。名前は ``<自身の名前>_insert#``(``#`` はMayaの連番)。
+        fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Args:
+            count (int): 挿入する数。1以上。
+
+        Returns:
+            list[Joint]: 挿入したjoint。自身に近い順。
+
+        Raises:
+            TypeError: count が int でない場合。
+            ValueError: count が1未満、または子jointが無い・2つ以上ある場合。
+            RuntimeError: 自身が無効、またはMayaが作成・親の変更を拒否した場合。
+        """
+        if isinstance(count, bool) or not isinstance(count, int):
+            raise TypeError(f"count must be an int, got {type(count).__name__}")
+        if count < 1:
+            raise ValueError(f"count must be 1 or more, got {count}")
+        self._require_valid("insert joints under")
+        children = self.getChildren(type="joint")
+        if len(children) != 1:
+            raise ValueError(f"Joint must have exactly one child joint, got {len(children)}: {self.getFullName()}")
+        child = children[0]
+        start = self.getTranslation(worldSpace=True)
+        end = child.getTranslation(worldSpace=True)
+        base = self.getName().split("|")[-1] + "_insert#"
+        name = self.getFullName()
+        unit = om2.MDistance.uiUnit()
+        with undoChunk("mlibJointInsertJoints"):
+            created = []
+            parent = name
+            for number in range(1, count + 1):
+                joint = cmds.createNode("joint", name=base, parent=parent, skipSelect=True)
+                joint = cmds.ls(joint, long=True)[0]
+                for attribute in ("rotateOrder", "radius", "segmentScaleCompensate"):
+                    cmds.setAttr(joint + "." + attribute, cmds.getAttr(name + "." + attribute))
+                cmds.connectAttr(parent + ".scale", joint + ".inverseScale")
+                ratio = number / (count + 1.0)
+                position = [om2.MDistance(a + (b - a) * ratio).asUnits(unit) for a, b in zip(start, end)]
+                cmds.xform(joint, worldSpace=True, translation=position)
+                created.append(joint)
+                parent = joint
+            cmds.parent(child.getFullName(), parent)
+            return [Joint(joint) for joint in created]
+
+    def getPolePosition(self, distance=None):
+        """自身・子・孫のjointの3点の平面上で、チェーンが曲がる側へ離したワールドの位置を返す。
+
+        自身から孫への線分へ子の位置から下ろした垂線の向き(曲がる側)へ、子の位置から distance 離した点。
+        IKの poleVector のコントローラを置く位置に使う。シーンは変更しない。
+
+        Args:
+            distance (float | None): 子の位置から離す距離(cm)。正の有限な数。
+                Noneはチェーンの長さ(自身→子と子→孫の長さの和)。
+
+        Returns:
+            Vector: ワールド空間の位置(cm)。
+
+        Raises:
+            TypeError: distance が数値・None以外の場合。
+            ValueError: distance が正の有限な数でない、子・孫のjointがちょうど1つずつでない、
+                または3点がほぼ一直線(曲がる向きが決まらない)の場合。
+            RuntimeError: 自身が無効な場合。
+        """
+        if distance is not None:
+            if isinstance(distance, bool) or not isinstance(distance, (int, float)):
+                raise TypeError(f"distance must be a number or None, got {type(distance).__name__}")
+            if not math.isfinite(distance) or distance <= 0:
+                raise ValueError(f"distance must be positive and finite, got {distance}")
+        self._require_valid("get the pole position of")
+        chain = [self]
+        for _ in range(2):
+            children = chain[-1].getChildren(type="joint")
+            if len(children) != 1:
+                raise ValueError(f"Joint must have exactly one child joint, got {len(children)}: {chain[-1].getFullName()}")
+            chain.append(children[0])
+        start, middle, end = (om2.MVector(joint.getTranslation(worldSpace=True)) for joint in chain)
+        length = (middle - start).length() + (end - middle).length()
+        line = end - start
+        if line.length() <= 1e-9 * max(length, 1.0):
+            raise ValueError("The three joints are collinear")
+        foot = start + line * (((middle - start) * line) / (line * line))
+        bend = middle - foot
+        if bend.length() <= 1e-6 * max(length, 1e-9):
+            raise ValueError("The three joints are collinear")
+        result = middle + bend.normal() * (length if distance is None else float(distance))
+        return Vector(result.x, result.y, result.z)
+
     def getIkHandles(self):
         """自身を start joint とする IK ハンドルを取得する。
 

@@ -98,6 +98,11 @@ EXCLUDED = {
     "Time.setCurrent": "現在時刻の変更。Maya の currentTime は Undo キューへ記録しない。",
     "Time.setPlaybackRange": "再生範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
     "Time.setAnimationRange": "アニメーション範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
+    "Callbacks.addSceneCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
+    "Callbacks.addEventCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
+    "Callbacks.addAttributeChangedCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
+    "Callbacks.remove": "MMessage のコールバックの解除。シーンを変更せず Maya の Undo 対象外。",
+    "Plugin.removeUnknown": "未知のプラグインの要求の削除。unknownPlugin は Maya の Undo 対象外。",
 }
 
 
@@ -753,6 +758,83 @@ def s_cluster(c):
     cmds.select(clear=True)
 
 
+def s_cluster_saved(c):
+    """cluster のウェイトをファイルへ書き出してから頂点 0・3 の値を書き換える。"""
+    s_cluster(c)
+    c.path = str(c.tmp / (c.ns.replace(":", "_") + "_deformer.json"))
+    c.ncluster.dumpDeformerWeights(c.path)
+    cmds.setAttr(c.clusterName + ".weightList[0].weights[0]", 0.2)
+    cmds.setAttr(c.clusterName + ".weightList[0].weights[3]", 0.7)
+
+
+def s_cluster_pair(c):
+    """頂点 0 の値を変えた cluster と、同じ形の別の cube の cluster を作る。"""
+    s_cluster(c)
+    cmds.setAttr(c.clusterName + ".weightList[0].weights[0]", 0.3)
+    cube2 = cmds.polyCube(name="cube2", constructionHistory=False)[0]
+    cmds.cluster(cube2)
+    c.ncluster2 = mlib.getNode(cmds.ls(cmds.listHistory(cube2), type="cluster", long=True)[0])
+    cmds.select(clear=True)
+
+
+def s_history_cube(c):
+    """構築ヒストリ(polyCube)と cluster を持つ cube を作る。"""
+    c.cube = cmds.ls(cmds.polyCube(name="histCube")[0], long=True)[0]
+    cmds.cluster(c.cube)
+    c.ncube = mlib.getNode(c.cube)
+    cmds.select(clear=True)
+
+
+def s_uv_sets(c):
+    """UV セット map1 と uv2 を持つ cube を作る。"""
+    s_cube(c)
+    cmds.polyUVSet(c.shape, create=True, uvSet="uv2")
+    cmds.select(clear=True)
+
+
+def s_remap(c):
+    """値のランプを持つ remapValue を作る。"""
+    c.remap = _node("remapValue", "remap")
+    c.nremap = mlib.getNode(c.remap)
+
+
+def s_sparse_multi(c):
+    """input1D の論理番号 0・3・7 に値と接続を持つ plusMinusAverage を作る。"""
+    s_two(c)
+    c.pma = _node("plusMinusAverage", "pma")
+    cmds.setAttr(c.pma + ".input1D[0]", 1.0)
+    cmds.setAttr(c.pma + ".input1D[3]", 2.0)
+    cmds.connectAttr(c.a + ".tx", c.pma + ".input1D[7]")
+
+
+def s_rotate_keys(c):
+    """rotateX に 170→-170 度の反転を含むキーを打った transform a を作る。"""
+    s_one(c)
+    for time, value in ((1, 0.0), (5, 170.0), (10, -170.0)):
+        cmds.setKeyframe(c.a, attribute="rotateX", time=time, value=value)
+    c.ncurve = mlib.getNode(cmds.listConnections(c.a + ".rx", type="animCurve")[0])
+
+
+def s_skin_sculpted(c):
+    """j1 を回したスキンと、形を変えた複製(sculpted)を作る。"""
+    s_skin_posed(c)
+    c.sculpted = cmds.ls(cmds.duplicate(c.mesh, name="sculpted")[0], long=True)[0]
+    cmds.move(0.2, 0.0, 0.0, c.sculpted + ".vtx[0]", relative=True, objectSpace=True)
+    cmds.select(clear=True)
+
+
+def s_skin_locked(c):
+    """j0 のインフルエンスをロックしたスキンを作る。"""
+    s_skin(c)
+    cmds.setAttr(c.j0 + ".liw", True)
+
+
+def _unlocked_set_weights(c):
+    """ロックを外した中でウェイトを書く。"""
+    with c.skin.unlockedInfluences():
+        c.skin.setVertexWeights(0, {c.j0: 0.4, c.j1: 0.6})
+
+
 def s_constraint(c):
     """b を a へ parentConstraint で拘束する。"""
     s_two(c)
@@ -995,6 +1077,9 @@ _CONTAINER_FAST = "container を所有先にした fast は NotImplementedError(
 
 #: Maya 2022 では素の cmds.bakeDeformer でも、Redo 後のウェイトが焼き込みの結果と一致しない(2027 は一致)。
 _BAKE_REDO = "Maya 2022 は素の cmds.bakeDeformer でも Redo 後のウェイトが焼き込みの結果と一致しない"
+
+#: Maya 2022 では素の cmds.filterCurve でも、Undo 後に表示用の出力 outStippleRange が元へ戻らない(2027 は戻る)。
+_STIPPLE_UNDO = "Maya 2022 は素の cmds.filterCurve でも Undo 後に animCurve の outStippleRange が戻らない"
 
 C = _Case
 CASES = [
@@ -1334,6 +1419,50 @@ CASES = [
       mayaQuirk=_BAKE_REDO if cmds.about(apiVersion=True) < 20230000 else None, ignoreAttrs=("weights",)),
     C("GeometryFilter.setDeformerWeights", "GeometryFilter.setDeformerWeights", s_cluster,
       lambda c, **kw: c.ncluster.setDeformerWeights([0.25, 0.5], vertices=[0, 3], **kw)),
+    C("GeometryFilter.loadDeformerWeights", "GeometryFilter.loadDeformerWeights", s_cluster_saved,
+      lambda c, **kw: c.ncluster.loadDeformerWeights(c.path, **kw)),
+    C("GeometryFilter.copyDeformerWeightsTo", "GeometryFilter.copyDeformerWeightsTo", s_cluster_pair,
+      lambda c, **kw: c.ncluster.copyDeformerWeightsTo(c.ncluster2, **kw)),
+    C("SkinCluster.unlockedInfluences", "SkinCluster.unlockedInfluences", s_skin_locked,
+      lambda c, **kw: _unlocked_set_weights(c)),
+    C("SkinCluster.invertShape", "SkinCluster.invertShape", s_skin_sculpted,
+      lambda c, **kw: c.skin.invertShape(c.sculpted, name="inverted")),
+    C("Joint.insertJoints", "Joint.insertJoints", s_joints,
+      lambda c, **kw: c.nj0.insertJoints(2)),
+    C("cmds.createJointChain", "createJointChain", None,
+      lambda c, **kw: mlib.createJointChain([(0, 0, 0), (0, 2, 1), (0, 4, 0)], names=["c0", "c1", "c2"])),
+    C("cmds.bakeResults", "bakeResults", s_connected,
+      lambda c, **kw: mlib.bakeResults(c.b, attributes=["ty"], time=(1, 4))),
+    C("AnimCurve.eulerFilter", "AnimCurve.eulerFilter", s_rotate_keys,
+      lambda c, **kw: c.ncurve.eulerFilter(),
+      mayaQuirk=_STIPPLE_UNDO if cmds.about(apiVersion=True) < 20230000 else None, ignoreAttrs=("outStippleRange",)),
+    C("Transform.eulerFilter", "Transform.eulerFilter", s_rotate_keys,
+      lambda c, **kw: c.na.eulerFilter(),
+      mayaQuirk=_STIPPLE_UNDO if cmds.about(apiVersion=True) < 20230000 else None, ignoreAttrs=("outStippleRange",)),
+    C("DagNode.deleteHistory", "DagNode.deleteHistory keepDeformers", s_history_cube,
+      lambda c, **kw: c.ncube.deleteHistory()),
+    C("DagNode.deleteHistory", "DagNode.deleteHistory all", s_history_cube,
+      lambda c, **kw: c.ncube.deleteHistory(keepDeformers=False)),
+    C("DagNode.setDisplayType", "DagNode.setDisplayType", s_one,
+      lambda c, **kw: c.na.setDisplayType("template", **kw)),
+    C("DagNode.setShadingOverride", "DagNode.setShadingOverride", s_one,
+      lambda c, **kw: c.na.setShadingOverride(True, **kw)),
+    C("Transform.setOffsetParentMatrix", "Transform.setOffsetParentMatrix", s_one,
+      lambda c, **kw: c.na.setOffsetParentMatrix(mlib.maths.Matrix.compose(translate=(1, 2, 3)), **kw)),
+    C("Transform.freezeToOffsetParent", "Transform.freezeToOffsetParent", s_child,
+      lambda c, **kw: c.na.freezeToOffsetParent()),
+    C("Mesh.setVertexColors", "Mesh.setVertexColors", s_cube,
+      lambda c, **kw: c.nshape.setVertexColors([(1, 0, 0), (0, 1, 0)], vertices=[0, 1], **kw)),
+    C("Mesh.createUVSet", "Mesh.createUVSet", s_cube,
+      lambda c, **kw: c.nshape.createUVSet("uvNew")),
+    C("Mesh.copyUVSet", "Mesh.copyUVSet", s_uv_sets,
+      lambda c, **kw: c.nshape.copyUVSet("map1", "uvCopy")),
+    C("Mesh.renameUVSet", "Mesh.renameUVSet", s_uv_sets,
+      lambda c, **kw: c.nshape.renameUVSet("uv2", "uvRenamed")),
+    C("Mesh.setCurrentUVSet", "Mesh.setCurrentUVSet", s_uv_sets,
+      lambda c, **kw: c.nshape.setCurrentUVSet("uv2")),
+    C("Mesh.deleteUVSet", "Mesh.deleteUVSet", s_uv_sets,
+      lambda c, **kw: c.nshape.deleteUVSet("uv2")),
     # Plug
     C("Plug.set", "Plug.set double", s_one,
       lambda c, **kw: mlib.getPlug(c.a + ".tx").set(4.0, **kw)),
@@ -1437,6 +1566,13 @@ CASES = [
       lambda c, **kw: mlib.getPlug(c.a + ".visibility").toggle(**kw)),
     C("MultiPlug.removeElement", "MultiPlug.removeElement", s_user,
       lambda c, **kw: mlib.getPlug(c.a + ".arr").removeElement(1, **kw)),
+    C("MultiPlug.compact", "MultiPlug.compact", s_sparse_multi,
+      lambda c, **kw: mlib.getPlug(c.pma + ".input1D").compact()),
+    C("MultiPlug.removeElement", "MultiPlug.removeElement shift", s_sparse_multi,
+      lambda c, **kw: mlib.getPlug(c.pma + ".input1D").removeElement(0, shift=True, **kw),
+      fastSkip="fast と shift の同時指定は NotImplementedError(仕様)"),
+    C("RampPlug.setEntries", "RampPlug.setEntries", s_remap,
+      lambda c, **kw: mlib.getPlug(c.remap + ".value").setEntries([(0.0, 0.2, "linear"), (1.0, 0.9, "smooth")])),
     C("MultiPlug.appendMessage", "MultiPlug.appendMessage", s_user,
       lambda c, **kw: mlib.getPlug(c.a + ".links").appendMessage(c.b, **kw)),
     # common

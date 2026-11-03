@@ -3,6 +3,7 @@
 
 from .plug import Plug, Plugs
 from .multiPlug import MultiPlug
+from .rampPlug import RampPlug
 from .compoundPlug import CompoundPlug
 from .boolPlug import BoolPlug
 from .double3Plug import Double3Plug
@@ -18,5 +19,5 @@ from .shortPlug import ShortPlug
 from .stringPlug import StringPlug
 from .timePlug import TimePlug
 
-__all__ = ['BoolPlug', 'CompoundPlug', 'Double3Plug', 'DoubleAnglePlug', 'DoubleLinearPlug', 'DoublePlug', 'EnumPlug', 'FloatPlug', 'LongPlug', 'MatrixPlug', 'MessagePlug', 'MultiPlug', 'Plug', 'Plugs', 'ShortPlug', 'StringPlug', 'TimePlug']
+__all__ = ['BoolPlug', 'CompoundPlug', 'Double3Plug', 'DoubleAnglePlug', 'DoubleLinearPlug', 'DoublePlug', 'EnumPlug', 'FloatPlug', 'LongPlug', 'MatrixPlug', 'MessagePlug', 'MultiPlug', 'Plug', 'Plugs', 'RampPlug', 'ShortPlug', 'StringPlug', 'TimePlug']
 _WRAPPER_CLASSES: dict

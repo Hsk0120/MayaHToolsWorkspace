@@ -4,6 +4,48 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+10.2.0 (2026-11-03)
+-------------------
+
+利用側(mlrig・AnimBar・SkinWeightKit・HTools 等)が Maya のコマンドを直接使っていた処理と、外部のラッパーライブラリとの
+比較から足りなかった照会・編集を追加しました。既存の呼び出し方はそのまま使えます。2.0.0 で廃止した
+``Transform.getOffsetParentMatrix()``\ ・\ ``setOffsetParentMatrix()`` を再び追加しました(``getPlug("offsetParentMatrix")`` も引き続き使えます)。
+
+.. rubric:: 追加
+
+- ``mlib.common.Environment``: ``isBatch()``\ ・\ ``isInteractive()``\ ・\ ``getMayaVersion()``\ (``Version``)・\ ``getApiVersion()``\ (int)。
+- ``mlib.common.Callbacks``: OpenMaya の MMessage のコールバックを所有者単位でまとめる(``addSceneCallback``\ ・\ ``addEventCallback``\ ・
+  ``addAttributeChangedCallback``\ ・\ ``remove``\ 、``with`` で抜けるときに解除)。``ScriptJobs`` と違いバッチでも使える。GC 時には解除しない。
+- ``Plugin.listUnknown()``\ ・\ ``removeUnknown(names=None)``\ (Undo できない)・\ ``listUnknownNodes()``\ 。
+- ``Time.getSelectedRange(*, timeUnit="frame")``: タイムスライダーで選んだ範囲(最後のフレームを含む)。選んでいない・バッチは ``None``。
+- ``Vector.fromAxis("-y")``\ 、\ ``Matrix.fromAim(aim, up, *, aimAxis="x", upAxis="y", position=...)``\ (aimConstraint と同じ向き)・
+  ``Matrix.fromAxes(x, y, z, position=...)``\ (正規化しない)・\ ``Matrix.blend(other, weight)``\ (blendMatrix と同じ結果。weight は 0〜1)。
+- ``mlib.bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs)``\ ・\ ``AnimCurve.eulerFilter()``\ ・\ ``Transform.eulerFilter()``\ 。
+- ``mlib.createJointChain(points, *, aimAxis="x", upAxis="y", up=(0, 1, 0), names=None, parent=None)``\ 、
+  ``Joint.insertJoints(count)``\ ・\ ``getPolePosition(distance=None)``\ 。
+- ``NurbsCurve``: ``getClosestPoint``\ ・\ ``getPointAtParam``\ ・\ ``getTangentAtParam``\ ・\ ``getNormalAtParam``\ ・\ ``getParamAtLength``\ ・
+  ``getLengthAtParam``\ ・\ ``getParamRange``\ ・\ ``getParamsAlong(count)``\ ・\ ``getMatricesAlong(count, up=None, ...)``\ (``up=None`` は平行移動で向きを保つ)。
+- ``Mesh``: ``getClosestPoint``\ ・\ ``getClosestNormal``\ (補間した法線)・\ ``intersect``\ (両面、近い順)・\ ``getUVAtPoint``\ ・\ ``getPointAtUV``\ ・
+  ``getVertexColors``\ ・\ ``setVertexColors``\ 、UV セット(``getUVSetNames``\ ・\ ``getCurrentUVSet``\ ・\ ``setCurrentUVSet``\ ・\ ``createUVSet``\ ・
+  ``copyUVSet``\ ・\ ``renameUVSet``\ ・\ ``deleteUVSet``)、``getBorderEdges``\ ・\ ``getBorderVertices``\ 。
+- ``Vertex``/``Vertices.getFaces()``\ ・\ ``Edge``/``Edges.getFaces()``\ ・\ ``Face``/``Faces.getEdges()``\ 。
+- ``SkinCluster.unlockedInfluences(joints=None)``\ (with の間だけロックを外す。with 全体が Undo 1回)・\ ``invertShape(sculpted, name=None)``\ 。
+- ``GeometryFilter.dumpDeformerWeights``\ ・\ ``loadDeformerWeights``\ ・\ ``copyDeformerWeightsTo``\ 。
+- ``DagNode.deleteHistory(keepDeformers=True)``\ ・\ ``getDisplayType``\ ・\ ``setDisplayType``\ ・\ ``isShadingOverridden``\ ・\ ``setShadingOverride``\ 、
+  ``Node.findCycles()``\ 、\ ``Transform.getOffsetParentMatrix``\ ・\ ``setOffsetParentMatrix``\ ・\ ``freezeToOffsetParent``\ 。
+- ``MultiPlug.compact()``\ ・\ ``removeElement(index, shift=False)``\ 、``mlib.plugs.RampPlug``\ (``getEntries``\ ・\ ``setEntries``\ ・
+  ``getValueAt``\ ・\ ``isColorRamp``)、``Plug.isProxy()``\ ・\ ``getProxyMaster()``\ ・\ ``getAnimCurve(layer=None)``\ 。
+
+.. rubric:: 注意
+
+- ``invertShape`` は線形のスキン(classicLinear)として逆にする。dualQuaternion や、回転・拡大を伴う前段のデフォーマーでは近似になる。
+  頂点は1つずつ書くので、頂点数に比例して時間がかかる。
+- ``RampPlug`` になるのは ``remapValue`` の ``value``\ ・\ ``color`` のように MRampAttribute を作れるアトリビュートだけで、
+  ``ramp`` テクスチャの ``colorEntryList`` は ``MultiPlug`` のまま。
+- ``setShadingOverride(True)`` はシェーディングを切ってワイヤー表示にする(Maya の ``overrideShading`` とは真偽が逆)。
+- ``Node.findCycles()`` は DG の接続の循環だけを返し、DAG の暗黙の循環は含まない(``cmds.cycleCheck`` も報告しない)。
+- ``mlib.common`` の内部で ``cmds.about(batch=True)`` を直接呼んでいた箇所は ``Environment.isBatch()`` を使う。
+
 10.1.0 (2026-11-03)
 -------------------
 
@@ -936,7 +978,7 @@ Python から扱いやすい形を目標に、重なっていたメソッドの�
      - 改名
      - ``node.setShear((0.1, 0, 0))``
    * - ``Transform.getOffsetParentMatrix()`` / ``setOffsetParentMatrix()``
-     - ``getPlug("offsetParentMatrix").get()`` / ``.set(value, fast=)``
+     - ``getPlug("offsetParentMatrix").get()`` / ``.set(value, fast=)``\ (10.2.0 で再追加)
      - 廃止
      - ``node.getPlug("offsetParentMatrix").set(matrix)``
    * - ``Joint.isJoint()``、``Joints.isJoint``

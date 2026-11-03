@@ -4,6 +4,7 @@
 import maya.cmds as cmds
 from ..core.registry import _clear_type_hierarchy_cache
 from .version import Version
+from mlib.nodes.node import Node
 import types
 
 
@@ -77,6 +78,45 @@ class Plugin:
 
         Returns:
             list[Plugin]: Mayaが返す順序のプラグイン一覧。
+        """
+        ...
+    @classmethod
+    def listUnknown(cls) -> list[str]:
+        """シーンが必要とするが見つからない未知のプラグイン名を取得する(``cmds.unknownPlugin(query=True, list=True)``)。
+
+        読み込んだファイルの ``requires`` に書かれ、Mayaが見つけられなかったプラグインが対象。
+
+        Returns:
+            list[str]: 未知のプラグイン名。無ければ空リスト。
+        """
+        ...
+    @classmethod
+    def removeUnknown(cls, names: str | list[str] | None = ...) -> list[str]:
+        """未知のプラグインの記録をシーンから外す(``cmds.unknownPlugin(name, remove=True)``)。
+
+        外した記録は保存するファイルの ``requires`` に書かれなくなる。未知のノード
+        (:meth:`listUnknownNodes`)は残るので、必要なら別に削除する。
+        ``cmds.unknownPlugin`` はUndoに記録されないため、この操作はUndoできない。
+
+        Args:
+            names (str | list[str] | None): 外すプラグイン名。Noneは未知のプラグインすべて。
+
+        Returns:
+            list[str]: 外したプラグイン名(指定順)。
+
+        Raises:
+            TypeError: namesが文字列・文字列のリスト/タプル・None以外の場合。
+            ValueError: 未知のプラグインに無い名前を含む場合(何も外さない)。
+        """
+        ...
+    @classmethod
+    def listUnknownNodes(cls) -> list[Node]:
+        """型が分からない未知のノード(``unknown``・``unknownDag``・``unknownTransform``)を取得する。
+
+        プラグインが見つからないファイルを読み込んだときに、Mayaが元の型の代わりに作るノード。
+
+        Returns:
+            list[Node]: 未知のノード。``cmds.ls`` の順。無ければ空リスト。
         """
         ...
     @property

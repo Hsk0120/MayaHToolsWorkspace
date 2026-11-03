@@ -12,14 +12,20 @@ from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
-from ..decorator import _edit_context, _require_bool, undoTransaction
+from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
 from ..maths.vector import Vector, _vector_of, _vectors_of_points
-from ..util import _PointGrid, _checked_tolerance, _mirror_axis, _world_space
+from ..util import _PointGrid, _checked_tolerance, _finite_vector, _mirror_axis, _world_space
 from .shape import Shape
-from typing import Iterable, Sequence
+from typing import Any, Iterable, Sequence
+from mlib.components.component import Component
+from mlib.components.component import Components
 from mlib.nodes.node import Node
 from mlib.nodes.shadingEngine import ShadingEngine
 
+_NO_DISTANCE_LIMIT: float
+_INTERSECT_MERGE: float
+_UNSET_COLOR_VALUES: tuple
+_UNSET_COLOR: Any
 
 
 class Mesh(Shape):
@@ -325,6 +331,280 @@ class Mesh(Shape):
             int: UV 数。
         """
         ...
+    def getClosestPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> tuple[Vector, int]:
+        """指定した位置に最も近い、メッシュの面の上の点を取得する。
+
+        ``MFnMesh.getClosestPoint`` を使う。頂点だけを比べる :meth:`getClosestVertex` と違い、
+        面の内部・エッジの上の点も返す。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+
+        Returns:
+            tuple[Vector, int]: 面の上の最も近い点(cm)と、その点を含む面の番号。
+
+        Raises:
+            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、またはメッシュに面が無い場合。
+        """
+        ...
+    def getClosestNormal(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> Vector:
+        """指定した位置に最も近い面の上の点で、補間した法線を取得する。
+
+        最も近い点を含む三角形の3つの面頂点法線(ハード/ソフトエッジを反映した、表示に使う法線)を、
+        その点の重心座標で補間して長さ1にする。``MFnMesh.getClosestNormal`` が返す面法線ではない。
+        ハードエッジだけのメッシュ(立方体等)では面法線と同じ向きになる。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+
+        Returns:
+            Vector: 長さ1の法線。ワールド空間ではオブジェクト空間の法線をマトリクスの逆転置で変換する。
+
+        Raises:
+            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、またはメッシュに面が無い場合。
+
+        Note:
+            最も近い点はオブジェクト空間で探す(``MMeshIntersector``)。非一様なスケールを持つ
+            メッシュのワールド空間では、:meth:`getClosestPoint` と違う面の点になることがある。
+        """
+        ...
+    def intersect(self, origin: Sequence[float] | om2.MPoint | om2.MVector, direction: Sequence[float] | om2.MVector, *, maxDistance: float | None = ..., worldSpace: bool = ...) -> list[tuple[Vector, int, float]]:
+        """半直線とメッシュの交点を、近い順に取得する。
+
+        ``MFnMesh.allIntersections`` を使い、``origin`` から ``direction`` の向きへだけ調べる(逆向きは調べない)。
+        面の向き(法線)に関係なく、表からでも裏からでも当たる(両面)。
+
+        Args:
+            origin (Sequence[float] | om2.MPoint | om2.MVector): 半直線の始点(cm)。
+            direction (Sequence[float] | om2.MVector): 向き。長さは問わない(内部で長さ1にする)。
+            maxDistance (float | None): 始点からの最大距離(cm)。正の有限値。Noneは制限なし。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+
+        Returns:
+            list[tuple[Vector, int, float]]: (交点、面の番号、始点からの距離cm)の距離の昇順。
+                当たらなければ空。同じ面を三角形の境目で2回当てた結果は1つにまとめる。
+                面と面の境目のエッジに当たった場合は、それぞれの面を別の要素で返す。
+
+        Raises:
+            TypeError: 点・向きの型・成分が不正、maxDistanceが数値・None以外、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、directionの長さが0、またはmaxDistanceが正の有限値でない場合。
+
+        Note:
+            Mayaの交差判定は単精度(float)で計算するため、交点と距離は1e-5程度の誤差を含む。
+        """
+        ...
+    def getUVAtPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, uvSet: str | None = ..., worldSpace: bool = ...) -> tuple[float, float]:
+        """指定した位置に最も近い面の上の点の UV を取得する。
+
+        位置が面の上に無ければ、最も近い面の上の点の UV になる。最も近い点を含む三角形の3つの面頂点UVを、
+        その点の重心座標で補間する(``closestPointOnMesh`` ノードの ``parameterU/V`` と同じ値)。
+        ``MFnMesh.getUVAtPoint`` は面の境目の近くで隣の面のUVを返すことがあるため使わない。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
+            uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            tuple[float, float]: (u, v)。
+
+        Raises:
+            TypeError: 点の型・成分が不正、uvSetが文字列・None以外、またはworldSpaceがbool以外の場合。
+            ValueError: 成分が有限でない、UVセットが無い、またはメッシュに面が無い場合。
+            RuntimeError: 最も近い面にUVが割り当てられていない場合。
+
+        Note:
+            最も近い点は :meth:`getClosestNormal` と同じくオブジェクト空間で探す。
+        """
+        ...
+    def getPointAtUV(self, u: float, v: float, uvSet: str | None = ..., worldSpace: bool = ...) -> Vector | None:
+        """UV の位置に対応する、面の上の点を取得する。
+
+        面番号の順に、UVの範囲に (u, v) を含む面を ``MFnMesh.getPointAtUV`` で調べ、最初に見つかった面の点を返す。
+        UVが重なっていて複数の面に当たる場合も、番号の最も小さい面の点になる。
+
+        Args:
+            u (float): U座標。
+            v (float): V座標。
+            uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
+            worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+
+        Returns:
+            Vector | None: 面の上の点(cm)。どの面のUVにも含まれない位置ならNone。
+
+        Raises:
+            TypeError: u・vが数値以外、uvSetが文字列・None以外、またはworldSpaceがbool以外の場合。
+            ValueError: u・vが有限でない、またはUVセットが無い場合。
+        """
+        ...
+    def getVertexColors(self, colorSet: str | None = ...) -> list[tuple[float, float, float, float] | None]:
+        """頂点ごとの色を取得する。
+
+        ``MFnMesh.getVertexColors`` を使う。面ごとに違う色を持つ頂点(面頂点の色)は、その平均になる。
+
+        Args:
+            colorSet (str | None): カラーセットの名前。Noneは現在のカラーセット。
+
+        Returns:
+            list[tuple[float, float, float, float] | None]: 頂点番号順の(R, G, B, A)。
+                色の無い頂点はNone。Noneを指定してカラーセットが1つも無い場合は全てNone。
+
+        Raises:
+            TypeError: colorSetが文字列・None以外の場合。
+            ValueError: 指定した名前のカラーセットが無い場合。
+        """
+        ...
+    def setVertexColors(self, colors: Iterable[Sequence[float] | om2.MColor], vertices: Component | Components | Iterable[int] | None = ..., *, colorSet: str | None = ..., fast: bool = ...) -> Mesh:
+        """頂点ごとの色を設定し、自身を返す。
+
+        通常は ``cmds.polyColorPerVertex`` で、同じ色の頂点をまとめて1回ずつ書き、1回のUndoにまとめる。
+        色の数が多いと時間がかかる(目安は1色あたり約1ms)。``fast=True`` は ``MFnMesh.setVertexColors`` で
+        1回で書き、Undoに記録しない。頂点のすべての面頂点の色を同じ色にする。
+
+        Args:
+            colors (Iterable[Sequence[float] | om2.MColor]): 頂点の色。各色は (R, G, B) または (R, G, B, A) の
+                有限な数値(Aを省略すると1.0)。vertices と同じ数(None なら頂点数)。
+            vertices (Component | Components | Iterable[int] | None): 書き込む頂点の番号。None は全頂点。
+                重複は不可。指定した順に colors と対応する。
+            colorSet (str | None): カラーセットの名前。Noneは現在のカラーセット(無ければMayaが
+                ``colorSet1`` を作る)。名前を指定した場合は既にある必要があり、現在のカラーセットは変えない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: fastがbool以外、colorSetが文字列・None以外、または色・頂点の型が不正な場合。
+            ValueError: 色の数が頂点の数と合わない、成分の数が3・4以外か有限でない、頂点が重複している、
+                別のメッシュの頂点を渡した、またはカラーセットが無い場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: シェイプのロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
+
+        Note:
+            通常経路は、コンストラクションヒストリのあるメッシュでは ``polyColorPerVertex`` ノードを履歴へ足す。
+        """
+        ...
+    def getUVSetNames(self) -> list[str]:
+        """UVセットの名前を取得する。
+
+        Returns:
+            list[str]: Mayaの並び順のUVセットの名前。先頭が既定のUVセット(``uvSet[0]``)。
+        """
+        ...
+    def getCurrentUVSet(self) -> str:
+        """現在のUVセットの名前を取得する。
+
+        Returns:
+            str: 現在のUVセットの名前。
+        """
+        ...
+    def setCurrentUVSet(self, name: str) -> Mesh:
+        """現在のUVセットを設定し、自身を返す。
+
+        ``cmds.polyUVSet(currentUVSet=True)`` で設定し、1回のUndoで戻る。
+
+        Args:
+            name (str): 既にあるUVセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、またはそのUVセットが無い場合。
+        """
+        ...
+    def createUVSet(self, name: str) -> Mesh:
+        """空のUVセットを作り、自身を返す。
+
+        ``cmds.polyUVSet(create=True)`` で作り、1回のUndoで戻る。現在のUVセットは変えない。
+        コンストラクションヒストリのあるメッシュでは ``createUVSet`` ノードを履歴へ足す。
+
+        Args:
+            name (str): 新しいUVセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、または同じ名前のUVセットが既にある場合。
+        """
+        ...
+    def copyUVSet(self, source: str, target: str) -> Mesh:
+        """UVセットを新しい名前へ複製し、自身を返す。
+
+        ``cmds.polyUVSet(copy=True)`` で複製し、1回のUndoで戻る。現在のUVセットは変えない。
+
+        Args:
+            source (str): 複製元のUVセットの名前。
+            target (str): 新しいUVセットの名前。既にある名前は不可(上書きしない)。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: source・targetが文字列以外の場合。
+            ValueError: 名前が空、sourceが無い、またはtargetが既にある場合。
+        """
+        ...
+    def renameUVSet(self, name: str, newName: str) -> Mesh:
+        """UVセットの名前を変え、自身を返す。
+
+        ``cmds.polyUVSet(rename=True)`` で変え、1回のUndoで戻る。現在のUVセットの名前を変えた場合は、
+        新しい名前が現在のUVセットになる。
+
+        Args:
+            name (str): 既にあるUVセットの名前。
+            newName (str): 新しい名前。既にある名前は不可。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: name・newNameが文字列以外の場合。
+            ValueError: 名前が空、nameが無い、またはnewNameが既にある場合。
+        """
+        ...
+    def deleteUVSet(self, name: str) -> Mesh:
+        """UVセットを削除し、自身を返す。
+
+        ``cmds.polyUVSet(delete=True)`` で削除し、1回のUndoで戻る。現在のUVセットを削除すると、
+        Mayaは既定のUVセット(:meth:`getUVSetNames` の先頭)を現在のUVセットにする。
+
+        Args:
+            name (str): 既にあるUVセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、そのUVセットが無い、または既定のUVセット(``uvSet[0]``。通常 ``map1``)の場合。
+                Mayaは既定のUVセットを削除できない(名前が ``map1`` でなくても同じ)。
+        """
+        ...
+    def getBorderEdges(self) -> Edges:
+        """メッシュの縁(接する面が1つだけ)のエッジを取得する。
+
+        3つ以上の面が接する非多様体のエッジと、面の無いエッジは含めない。
+
+        Returns:
+            Edges: 番号の昇順のエッジ。縁が無ければ空。
+        """
+        ...
+    def getBorderVertices(self) -> Vertices:
+        """メッシュの縁のエッジ(:meth:`getBorderEdges`)の端の頂点を取得する。
+
+        Returns:
+            Vertices: 番号の昇順の頂点。縁が無ければ空。
+        """
+        ...
     def _raw_points(self, worldSpace: bool) -> om2.MPointArray:
         """全頂点の位置を om2 の点列で返す(Vector へ変換しない照会用)。
 
@@ -357,6 +637,165 @@ class Mesh(Shape):
     @staticmethod
     def _copy_reorder_details(fn, rebuilt, counts, remapped, mapping):
         """一時メッシュへ全UVセット・エッジの硬軟・固定法線を移す。"""
+        ...
+    @staticmethod
+    def _resolve_query_point(point: Sequence[float] | om2.MPoint | om2.MVector, name: str = ...) -> om2.MPoint:
+        """照会に使う位置を検証し、``om2.MPoint`` にする。
+
+        Args:
+            point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
+            name (str): 例外メッセージに使う引数名。
+
+        Returns:
+            om2.MPoint: XYZを写した点(wは1)。
+
+        Raises:
+            TypeError: 点の型・成分が不正な場合。
+            ValueError: 成分の数が3でない、または有限でない場合。
+        """
+        ...
+    def _require_faces(self) -> om2.MFnMesh:
+        """面のあるメッシュの ``om2.MFnMesh`` を返す。
+
+        Returns:
+            om2.MFnMesh: この mesh の function set。
+
+        Raises:
+            ValueError: メッシュに面が無い場合。
+        """
+        ...
+    def _closest_triangle(self, point: om2.MPoint, worldSpace: bool) -> tuple[om2.MFnMesh, int, list[tuple[int, float]]]:
+        """最も近い面の上の点を含む三角形と、その点の重心座標を返す。
+
+        ``MMeshIntersector`` でオブジェクト空間の最近点を探す。
+
+        Args:
+            point (om2.MPoint): 位置(cm)。
+            worldSpace (bool): Trueは point をワールド空間とみなし、オブジェクト空間へ変換して探す。
+
+        Returns:
+            tuple[om2.MFnMesh, int, list[tuple[int, float]]]: function set・面の番号・三角形の
+                (頂点番号, 重心座標のウェイト)の3組。
+
+        Raises:
+            ValueError: メッシュに面が無い場合。
+        """
+        ...
+    def _resolve_uv_set(self, uvSet: str | None) -> str:
+        """UVセットの指定を、実在する名前にする。
+
+        Args:
+            uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
+
+        Returns:
+            str: UVセットの名前。
+
+        Raises:
+            TypeError: uvSetが文字列・None以外の場合。
+            ValueError: 名前が空、そのUVセットが無い、またはメッシュにUVセットが無い場合。
+        """
+        ...
+    def _require_uv_set(self, name: str, label: str, *, exists: bool) -> None:
+        """UVセットの名前の型と、その有無を検証する。
+
+        Args:
+            name (str): UVセットの名前。
+            label (str): 例外メッセージに使う引数名。
+            exists (bool): Trueは既にあること、Falseはまだ無いことを求める。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、または有無が求める状態と違う場合。
+        """
+        ...
+    def _default_uv_set(self) -> str:
+        """既定のUVセット(``uvSet[0]``)の名前を返す。
+
+        Returns:
+            str: 既定のUVセットの名前。
+        """
+        ...
+    def _resolve_color_set(self, colorSet: str | None, fn: om2.MFnMesh) -> str | None:
+        """カラーセットの指定を、実在する名前にする。
+
+        Args:
+            colorSet (str | None): カラーセットの名前。Noneは現在のカラーセット。
+            fn (om2.MFnMesh): この mesh の function set。
+
+        Returns:
+            str | None: カラーセットの名前。Noneを指定してカラーセットが無ければNone。
+
+        Raises:
+            TypeError: colorSetが文字列・None以外の場合。
+            ValueError: 名前が空、またはそのカラーセットが無い場合。
+        """
+        ...
+    def _resolve_vertex_indices(self, vertices: Component | Components | Iterable[int], count: int) -> list[int]:
+        """頂点の指定を、範囲内で重複の無い番号の list にする。
+
+        Args:
+            vertices (Component | Components | Iterable[int]): 頂点の参照または番号。
+            count (int): 頂点の数。
+
+        Returns:
+            list[int]: 指定順の番号。
+
+        Raises:
+            TypeError: 番号に変換できない型の場合。
+            ValueError: 番号が重複している、または別のメッシュの頂点の場合。
+            IndexError: 番号が範囲外の場合。
+        """
+        ...
+    @staticmethod
+    def _resolve_colors(colors: Iterable[Sequence[float] | om2.MColor], count: int) -> list[tuple[float, float, float, float]]:
+        """色の列を検証し、(R, G, B, A) の float tuple の list にする。
+
+        Args:
+            colors (Iterable[Sequence[float] | om2.MColor]): 色の列。
+            count (int): 必要な数。
+
+        Returns:
+            list[tuple[float, float, float, float]]: 色。Aを省略した色は1.0を補う。
+
+        Raises:
+            TypeError: 色の列・色・成分の型が不正な場合。
+            ValueError: 数が合わない、成分の数が3・4以外、または有限でない場合。
+        """
+        ...
+    def _set_vertex_colors_cmds(self, color_set: str | None, indices: list[int], values: list[tuple[float, float, float, float]]) -> None:
+        """同じ色の頂点をまとめて ``cmds.polyColorPerVertex`` で書く。
+
+        カラーセットを指定した場合は、書く間だけ現在のカラーセットを切り替えて戻す
+        (``polyColorPerVertex`` は現在のカラーセットへ書くため)。
+
+        Args:
+            color_set (str | None): 書き込むカラーセット。Noneは現在のカラーセット。
+            indices (list[int]): 頂点番号。
+            values (list[tuple[float, float, float, float]]): indices と同じ順の色。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _set_vertex_colors_fast(self, fn: om2.MFnMesh, color_set: str | None, indices: list[int], values: list[tuple[float, float, float, float]]) -> None:
+        """``MFnMesh.setVertexColors`` で色をまとめて書く。Undoに記録しない。
+
+        Args:
+            fn (om2.MFnMesh): この mesh の function set。
+            color_set (str | None): 書き込むカラーセット。Noneは現在のカラーセット(無ければ ``colorSet1`` を作る)。
+            indices (list[int]): 頂点番号。
+            values (list[tuple[float, float, float, float]]): indices と同じ順の色。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: シェイプがロックされている場合。
+            NotImplementedError: inMeshへの入力(コンストラクションヒストリ)がある場合。
+        """
         ...
     def _geometry_fn(self) -> om2.MFnMesh:
         """形状データを要する照会用に ``om2.MFnMesh`` を返す。

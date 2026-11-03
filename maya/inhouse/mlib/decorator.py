@@ -15,6 +15,7 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from . import logger
+from .common.environment import Environment
 from .util import _ArgumentError, _UNSET
 
 __all__ = ["nativeUnits", "preservedSelection", "preservedSkinShape", "undoChunk", "undoTransaction", "viewportOff"]
@@ -586,7 +587,7 @@ def viewportOff():
     Raises:
         RuntimeError: GUIのメインペインを取得・編集できない場合。
     """
-    if cmds.about(batch=True):
+    if Environment.isBatch():
         yield
         return
     import maya.mel as mel

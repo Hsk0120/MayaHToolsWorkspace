@@ -695,7 +695,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ## cmdsの範囲
 
-`getNode/getPlug/createNode/ls/delete/duplicate/select/objExists`の基礎8入口と、8.0.0で足した作成関数(上の「確定したコーディングルール」)、10.1.0で足した `bakeDeformer`(デフォーマーの変形をスキンへ焼き込み skinCluster を返す)だけを公開する。
+`getNode/getPlug/createNode/ls/delete/duplicate/select/objExists`の基礎8入口と、8.0.0で足した作成関数(上の「確定したコーディングルール」)、10.1.0で足した `bakeDeformer`(デフォーマーの変形をスキンへ焼き込み skinCluster を返す)、10.2.0で足した `bakeResults`(cmds.bakeResults 相当)・`createJointChain`(点からジョイントの連鎖を作る)だけを公開する。
 
 関数とファイルは同名。Mayaの長短フラグ・入力解決・Undo・戻り型の既存契約を維持する。
 ノードの作成は `createNode` だけが担い、クラス側の `Node.create`・`X(name, create=True)` は無い(「確定したコーディングルール」の2026-10-26指定)。

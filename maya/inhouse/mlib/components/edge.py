@@ -3,6 +3,7 @@
 import maya.api.OpenMaya as om2
 
 from .component import Component, Components
+from .face import Faces
 from .vertex import Vertices
 
 
@@ -21,6 +22,16 @@ class Edge(Component):
         """
         self._require_valid()
         return Vertices(self.shape, self.shape._geometry_fn().getEdgeVertices(self.index))
+
+    def getFaces(self):
+        """このエッジに接する面を取得する。
+
+        :meth:`Edges.getFaces` と同じ規則。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。
+        """
+        return Edges(self.shape, [self.index]).getFaces()
 
     def getLoop(self):
         """このエッジを通るエッジのループを取得する。
@@ -62,6 +73,25 @@ class Edges(Components):
             return Vertices(self.shape, (v.index for item in self for v in item.getVertices()))
         indices = self._mesh_vertex_indices("numEdges", "getEdgeVertices")
         return Vertices(self.shape, indices)
+
+    def getFaces(self):
+        """保持しているエッジのどれかに接する面を取得する。選択は変えない。
+
+        ``cmds.polyListComponentConversion(toFace=True)`` と同じ面になる。
+
+        Returns:
+            Faces: 番号の昇順の面(重複なし)。エッジが空なら空。
+
+        Raises:
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        self._require_valid()
+        topology = _Topology(self.shape)
+        found = set()
+        for edge in self._indices:
+            found.update(topology.edge_faces(edge))
+        return Faces(self.shape, sorted(found))
 
     def getLoop(self):
         """保持しているエッジを通るエッジのループを取得する。選択は変えない。

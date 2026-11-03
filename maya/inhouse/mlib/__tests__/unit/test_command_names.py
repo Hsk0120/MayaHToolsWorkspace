@@ -13,7 +13,7 @@ class CommandNamesTest(unittest.TestCase):
     def test_exports_and_files(self):
         """基礎コマンドと作成関数だけを、同名のファイルとルートから公開する。"""
         expected = {"getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select", "objExists", "bindSkin",
-                    "bakeDeformer",
+                    "bakeDeformer", "bakeResults", "createJointChain",
                     "createContainer", "createDagContainer", "createDagPose", "createIkHandle", "createBlendShape",
                     "createCurve", "createCircle", "createLocator", "createPolyCube", "createPolySphere",
                     "createPolyCylinder", "createPolyPlane"}

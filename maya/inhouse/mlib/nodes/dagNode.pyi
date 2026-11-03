@@ -6,7 +6,7 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
-from ..decorator import _edit_context, _require_bool, undoTransaction
+from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
 from ..util import _finite_vector, _world_space
 from .node import Node
 from typing import Iterable, Sequence
@@ -14,6 +14,7 @@ from mlib.nodes.dagPose import DagPose
 from mlib.nodes.skinCluster import SkinCluster
 
 _MAX_COLOR_INDEX: int
+_DISPLAY_TYPES: tuple
 
 def _type_filter(value: str | Iterable[str] | None) -> tuple[str, ...]:
     """getChildren(type=) の指定を型名のtupleへ正規化する。
@@ -368,6 +369,97 @@ class DagNode(Node):
             フィルターや非表示ノード表示設定にも依存する。
         """
         ...
+    def getDisplayType(self) -> str:
+        """描画のオーバーライドの表示の種類を取得する。
+
+        自身の ``overrideEnabled``・``overrideDisplayType`` を読む(Transformでも直下のShapeは読まない。
+        :meth:`setDisplayType` と同じ対象)。表示レイヤーの設定は含めない。
+
+        Returns:
+            str: ``"normal"``・``"template"``・``"reference"``。``overrideEnabled`` が無効なら ``"normal"``。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setDisplayType(self, kind: str, *, fast: bool = ...) -> DagNode:
+        """描画のオーバーライドで表示の種類(通常・テンプレート・リファレンス)を設定し、自身を返す。
+
+        ``"template"``・``"reference"`` は ``overrideEnabled`` を有効にして ``overrideDisplayType`` を設定する。
+        ``"normal"`` は ``overrideDisplayType`` を0へ戻すだけで、``overrideEnabled`` は変えない(表示色等の
+        ほかのオーバーライドを保つため)。:meth:`setColor` と違い、Transformでも直下のShapeではなく自身へ
+        設定する(Mayaの描画のオーバーライドと同じく、Transformの設定は子の階層全体へ及ぶ)。
+        通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で失敗した場合は巻き戻す。``fast=True`` は
+        全対象アトリビュートの書込み可否を先に調べてからOpenMayaで書き込み、Undoに記録しない。
+
+        Args:
+            kind (str): ``"normal"``・``"template"``・``"reference"``。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: kindが文字列以外、またはfastがbool以外の場合。
+            ValueError: kindが未対応の名前の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        ...
+    def isShadingOverridden(self) -> bool:
+        """描画のオーバーライドでシェーディングを切り、ワイヤーフレーム表示にしているかを返す。
+
+        Mayaの ``overrideShading`` は「Trueでシェーディングあり(既定)、Falseでワイヤーフレーム」の意味で、
+        このメソッドはその逆向き(シェーディングを上書きして消しているか)を返す。自身のアトリビュートを読む
+        (:meth:`setShadingOverride` と同じ対象)。
+
+        Returns:
+            bool: ``overrideEnabled`` が有効で ``overrideShading`` がFalseならTrue。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setShadingOverride(self, enabled: bool, *, fast: bool = ...) -> DagNode:
+        """描画のオーバーライドでシェーディングを切ってワイヤーフレーム表示にするかを設定し、自身を返す。
+
+        ``enabled=True`` は ``overrideEnabled`` を有効にして ``overrideShading`` をFalse(ワイヤーフレーム)、
+        ``enabled=False`` は ``overrideShading`` をTrue(Mayaの既定のシェーディングあり)へ戻すだけで、
+        ``overrideEnabled`` は変えない。boolの向きはMayaの ``overrideShading`` と逆で、
+        :meth:`isShadingOverridden` の戻り値と同じ向き。対象・Undo・fastは :meth:`setDisplayType` と同じ。
+
+        Args:
+            enabled (bool): Trueでシェーディングを切る(ワイヤーフレーム表示)、Falseで戻す。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: enabledまたはfastがbool以外の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        ...
+    def deleteHistory(self, keepDeformers: bool = ...) -> DagNode:
+        """構築履歴を削除し、自身を返す。
+
+        ``keepDeformers=True`` は ``cmds.bakePartialHistory(prePostDeformers=True)`` で、デフォーマー
+        (skinCluster・blendShape・cluster等)を残し、それ以外の履歴(polySmooth等のモデリングの履歴)だけを
+        形状へ焼き込んで消す。``False`` は ``cmds.delete(constructionHistory=True)`` で、デフォーマーを含む
+        すべての履歴を消す(現在の変形結果の形状が残る)。Mayaのコマンドと同じく、Transformに呼ぶと直下の
+        Shapeの履歴が対象になる。Shapeを持たないTransform(グループ等)で ``keepDeformers=True`` の場合は
+        消す履歴が無いため何もしない。fast引数は持たない(OpenMayaに同等機能が無い)。Undo有効時は1回で戻せる。
+
+        Args:
+            keepDeformers (bool): Trueはデフォーマーを残す。既定True。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: keepDeformersがbool以外の場合。
+            RuntimeError: ノードが無効、またはMayaが削除を拒否した場合。
+        """
+        ...
     def _collect_children(self, shapes: bool, intermediates: bool, all_descendents: bool, order: str, leaves: bool, include_self: bool, under_world: bool) -> list[DagNode]:
         """検証済みの条件で子・子孫を探索する(:meth:`getChildren` の本体)。
 
@@ -393,6 +485,21 @@ class DagNode(Node):
         Args:
             index (int | None): カラーインデックス。RGB指定ではNone。
             rgb (tuple[float, float, float] | None): RGB。インデックス指定ではNone。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
+        """
+        ...
+    def _set_override_values(self, values: list[tuple[str, object]], chunk: str, fast: bool) -> None:
+        """自身の描画のオーバーライドのアトリビュートへ値を書き込む(:meth:`setDisplayType` 等の本体)。
+
+        Args:
+            values (list[tuple[str, object]]): アトリビュート名と値を書き込む順に並べたもの。
+            chunk (str): 通常経路のUndoチャンク名。
+            fast (bool): 検証済みのfast。TrueはUndoなしのOpenMaya更新。
 
         Returns:
             None: 値を返さない。

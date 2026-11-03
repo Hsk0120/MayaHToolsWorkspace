@@ -4,9 +4,11 @@ import contextlib
 import math
 
 import maya.cmds as cmds
+import maya.mel as mel
 
 from ..core.attributeType import _from_seconds, _to_seconds
 from ..util import _time_unit
+from .environment import Environment
 
 
 class Time:
@@ -127,6 +129,40 @@ class Time:
             ValueError: 有限でない、startがendより大きい、またはtimeUnitが未対応の単位名の場合。
         """
         return _set_range("animationStartTime", "animationEndTime", start, end, _time_unit(timeUnit))
+
+    @staticmethod
+    def getSelectedRange(*, timeUnit="frame"):
+        """タイムスライダーで選んだ範囲(Shift+ドラッグの赤い範囲)を取得する。
+
+        ``cmds.timeControl($gPlayBackSlider, query=True, rangeVisible=True)`` と ``rangeArray`` を使う。
+        Mayaの ``rangeArray`` の終わりは範囲の次のフレームを指すため、1フレーム引いて
+        選んだ最後のフレームを返す(1〜10を選べば ``(1.0, 10.0)``。クリックで1フレームだけ
+        選んだ場合は開始と終了が同じ)。
+
+        Args:
+            timeUnit (str): 戻り値の単位。``"frame"`` (現在のUI時間単位)または ``"sec"``。
+
+        Returns:
+            tuple[float, float] | None: (開始, 選んだ最後のフレーム)。範囲を選んでいない、
+                バッチ(mayapy)、またはタイムスライダーが無い場合はNone。
+
+        Raises:
+            ValueError: timeUnitが未対応の単位名の場合。
+        """
+        unit = _time_unit(timeUnit)
+        if Environment.isBatch():
+            return None
+        try:
+            # タイムスライダーの名前はMayaのUIが保持するグローバル変数から取得する。
+            slider = mel.eval("global string $gPlayBackSlider; $mlibPlayBackSlider = $gPlayBackSlider;")
+        except RuntimeError:
+            return None
+        if not slider or not cmds.timeControl(slider, exists=True):
+            return None
+        if not cmds.timeControl(slider, query=True, rangeVisible=True):
+            return None
+        start, end = cmds.timeControl(slider, query=True, rangeArray=True)
+        return _from_ui(start, unit), _from_ui(float(end) - 1.0, unit)
 
     @staticmethod
     @contextlib.contextmanager

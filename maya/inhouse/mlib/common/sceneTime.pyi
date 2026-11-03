@@ -4,8 +4,10 @@
 import contextlib
 import math
 import maya.cmds as cmds
+import maya.mel as mel
 from ..core.attributeType import _from_seconds, _to_seconds
 from ..util import _time_unit
+from .environment import Environment
 from typing import Any, Iterator
 from mlib._stubtypes import GeneratorContextManager
 from typing_extensions import Self
@@ -117,6 +119,26 @@ class Time:
         Raises:
             TypeError: start・endが数値でない場合。
             ValueError: 有限でない、startがendより大きい、またはtimeUnitが未対応の単位名の場合。
+        """
+        ...
+    @staticmethod
+    def getSelectedRange(*, timeUnit: str = ...) -> tuple[float, float] | None:
+        """タイムスライダーで選んだ範囲(Shift+ドラッグの赤い範囲)を取得する。
+
+        ``cmds.timeControl($gPlayBackSlider, query=True, rangeVisible=True)`` と ``rangeArray`` を使う。
+        Mayaの ``rangeArray`` の終わりは範囲の次のフレームを指すため、1フレーム引いて
+        選んだ最後のフレームを返す(1〜10を選べば ``(1.0, 10.0)``。クリックで1フレームだけ
+        選んだ場合は開始と終了が同じ)。
+
+        Args:
+            timeUnit (str): 戻り値の単位。``"frame"`` (現在のUI時間単位)または ``"sec"``。
+
+        Returns:
+            tuple[float, float] | None: (開始, 選んだ最後のフレーム)。範囲を選んでいない、
+                バッチ(mayapy)、またはタイムスライダーが無い場合はNone。
+
+        Raises:
+            ValueError: timeUnitが未対応の単位名の場合。
         """
         ...
     @staticmethod

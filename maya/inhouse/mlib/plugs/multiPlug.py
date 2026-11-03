@@ -9,8 +9,42 @@ import maya.cmds as cmds
 from ..core.attributeType import _convert_angles, _convert_times, _convert_units, _plain_angle_unit, _plain_time_unit
 from ..core.attributeType import is_internal_data_type
 from ..core.attributeType import value_reader
-from ..decorator import _require_bool, undoChunk
+from ..decorator import _edit_context, _require_bool, undoChunk
 from .plug import MAX_LOGICAL_INDEX, Plug, _instance_count
+
+
+def _descendants(mplug, steps=()):
+    """プラグ自身と、コンパウンドアトリビュートの子・マルチアトリビュートの既存要素を深さ優先で列挙する。
+
+    Args:
+        mplug (om2.MPlug): 起点のプラグ。
+        steps (tuple[tuple[str, int], ...]): 起点までのたどり方(``("child", 番号)``・``("element", 論理番号)``)。
+
+    Yields:
+        tuple[tuple[tuple[str, int], ...], om2.MPlug]: 起点からのたどり方とプラグ。
+    """
+    yield steps, mplug
+    if mplug.isArray:
+        for index in mplug.getExistingArrayAttributeIndices():
+            yield from _descendants(mplug.elementByLogicalIndex(index), steps + (("element", index),))
+    elif mplug.isCompound:
+        for index in range(mplug.numChildren()):
+            yield from _descendants(mplug.child(index), steps + (("child", index),))
+
+
+def _follow(mplug, steps):
+    """_descendants のたどり方に従い、別の要素から同じ位置のプラグを取得する(要素は作らない)。
+
+    Args:
+        mplug (om2.MPlug): 起点のプラグ。
+        steps (tuple[tuple[str, int], ...]): たどり方。
+
+    Returns:
+        om2.MPlug: たどった先のプラグ。
+    """
+    for kind, index in steps:
+        mplug = mplug.child(index) if kind == "child" else mplug.elementByLogicalIndex(index)
+    return mplug
 
 
 class MultiPlug(Plug):
@@ -271,42 +305,84 @@ class MultiPlug(Plug):
             index += 1
         raise IndexError("No available logical index in the multi attribute")
 
-    def removeElement(self, index, *, fast=False):
+    def removeElement(self, index, shift=False, *, fast=False):
         """実体のあるマルチアトリビュートの要素を、接続を切断して削除する。
 
         OpenMayaの既存要素番号を対象とし、getIndices()によるworldSpaceの補完だけでは
         削除対象にしない。通常はcmds.removeMultiInstanceを使い、Undoが有効なら記録する。
         fastはMDGModifierで削除し、Undo設定を変更しない。
+        ``shift=True`` は削除した番号より後ろの既存要素を1つずつ前の番号へ移す
+        (値と入力・出力の接続を移す。移し方は :meth:`compact` と同じ)。
 
         Args:
             index (int): 削除する論理番号。
+            shift (bool): Trueは後ろの要素を1つずつ前へ詰める。既定False。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             MultiPlug: 自身。
 
         Raises:
-            TypeError: indexがboolまたは整数以外の場合。
+            TypeError: indexがboolまたは整数以外、shift・fastがbool以外の場合。
             IndexError: 論理番号が範囲外、または実体のある要素が存在しない場合。
             RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが削除を拒否した場合。
+                ``shift=True`` で、マルチアトリビュートか移す要素がロックされている、または参照ノードの場合。
+            NotImplementedError: ``fast=True`` と ``shift=True`` を同時に指定した場合。
 
         Note:
             デフォーマのターゲットはこの方法で除去しない。例えばblendShapeの ``weight`` の要素を
             消しても、エイリアスと ``inputTarget[].inputTargetGroup[i]`` が残る。blendShapeのターゲットは
             :meth:`mlib.nodes.BlendShape.removeTarget` で除去する。
         """
+        _require_bool(shift, "shift")
         _require_bool(fast, "fast")
-        with nullcontext() if fast else undoChunk("mlibMultiPlugRemoveElement"):
+        if fast and shift:
+            raise NotImplementedError("fast removeElement does not support shift=True")
+        with _edit_context("mlibMultiPlugRemoveElement", fast):
             self._require_valid()
             index = self._validated_logical_index(index)
-            if index not in self._mplug.getExistingArrayAttributeIndices():
+            existing = sorted(self._mplug.getExistingArrayAttributeIndices())
+            if index not in existing:
                 raise IndexError(f"No multi element at logical index {index} on {self.getFullName()}")
+            moves = [(source, source - 1) for source in existing if source > index] if shift else []
+            if shift:
+                self._require_movable([index] + [source for source, _ in moves])
             if fast:
                 modifier = om2.MDGModifier()
                 modifier.removeMultiInstance(self._mplug.elementByLogicalIndex(index), True)
                 modifier.doIt()
             else:
                 cmds.removeMultiInstance(self._element_at(index).getFullName(), b=True)
+                if moves:
+                    self._move_elements(moves)
+            return self
+
+    def compact(self):
+        """空き番号を詰め、既存要素の論理番号を0から連続する番号に並べ直す。
+
+        既存要素を論理番号の昇順に0, 1, 2…へ移す。各要素の値(コンパウンドアトリビュートの子・
+        入れ子のマルチアトリビュートの要素を含む)と、入力・出力の接続を移す。
+        既に連続している場合は何も変更しない。cmdsで編集し、Undo 1回で戻る。
+
+        Returns:
+            MultiPlug: 自身。
+
+        Raises:
+            RuntimeError: 所有ノードまたはアトリビュートが無効、マルチアトリビュートか移す要素(子を含む)が
+                ロックされている、または参照ノードの場合。
+
+        Note:
+            値はmlibの :meth:`~mlib.plugs.plug.Plug.get` / :meth:`~mlib.plugs.plug.Plug.set` で移す。
+            書込みできない・保存されない子と、接続の無いmessageの要素は移せない(移した先に作られない)。
+            同じマルチアトリビュートの要素どうしの接続は想定しない。
+        """
+        with undoChunk("mlibMultiPlugCompact"):
+            self._require_valid()
+            existing = sorted(self._mplug.getExistingArrayAttributeIndices())
+            moves = [(source, target) for target, source in enumerate(existing) if source != target]
+            if moves:
+                self._require_movable([source for source, _ in moves])
+                self._move_elements(moves)
             return self
 
     def getSourceNodes(self):
@@ -364,6 +440,87 @@ class MultiPlug(Plug):
         if count:
             indices = sorted(set(indices).union(range(count)))
         return indices
+
+    def _require_movable(self, indices):
+        """要素を別の番号へ移せるかを、シーンを変更せずに確かめる(compact・removeElementのshift用)。
+
+        Args:
+            indices (list[int]): 移す要素の論理番号。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: マルチアトリビュートか移す要素(子孫を含む)がロックされている、または参照ノードの場合。
+        """
+        name = self.getFullName()
+        if self._node._dependency_fn().isFromReferencedFile:
+            raise RuntimeError(f"Multi attribute is referenced: {name}")
+        if self._mplug.isLocked:
+            raise RuntimeError(f"Multi attribute is locked: {name}")
+        for index in indices:
+            for _, mplug in _descendants(self._mplug.elementByLogicalIndex(index)):
+                if mplug.isLocked:
+                    raise RuntimeError(f"Multi element is locked: {name}[{index}]")
+
+    def _move_elements(self, moves):
+        """既存要素の値と入力・出力の接続を、別の番号の要素へcmdsで移す。
+
+        先に全要素の値と接続を集めてから移す元をすべて削除し、移す先へ値を設定して接続し直す。
+        移す先は、移す元の削除後に空いている番号であること(compact・shiftの順序で満たす)。
+
+        Args:
+            moves (list[tuple[int, int]]): (移す元の論理番号, 移す先の論理番号)の並び。
+
+        Returns:
+            None: 値を返さない。
+        """
+        captured = [(target, self._capture_element(source)) for source, target in moves]
+        name = self.getFullName()
+        for source, _ in moves:
+            cmds.removeMultiInstance(f"{name}[{source}]", b=True)
+        for target, (values, inputs, outputs) in captured:
+            element = self._mplug.elementByLogicalIndex(target)
+            for steps, value in values:
+                Plug(self._node, _follow(element, steps)).set(value)
+            for steps, source in inputs:
+                cmds.connectAttr(source.getFullName(), Plug(self._node, _follow(element, steps)).getFullName())
+            for steps, destinations in outputs:
+                plug_name = Plug(self._node, _follow(element, steps)).getFullName()
+                for destination in destinations:
+                    cmds.connectAttr(plug_name, destination.getFullName())
+
+    def _capture_element(self, index):
+        """要素の値と入力・出力の接続を、要素からのたどり方と組にして集める。
+
+        入力接続のあるプラグの値も集める(接続する前に設定して移す先の要素を作り、Undoで要素ごと戻すため。
+        接続しただけで作られた要素はUndoで消えない)。messageと、書込みできない・保存されないプラグの値は集めない。
+
+        Args:
+            index (int): 既存要素の論理番号。
+
+        Returns:
+            tuple[list, list, list]: (値の(たどり方, 値)、入力の(たどり方, 接続元Plug)、
+                出力の(たどり方, list[接続先Plug]))。
+        """
+        values, inputs, outputs = [], [], []
+        for steps, mplug in _descendants(self._mplug.elementByLogicalIndex(index)):
+            sources = mplug.connectedTo(True, False)
+            if sources:
+                inputs.append((steps, Plug(self._node_from_mplug(sources[0]), sources[0])))
+            destinations = mplug.connectedTo(False, True)
+            if destinations:
+                outputs.append((steps, [Plug(self._node_from_mplug(plug), plug) for plug in destinations]))
+            if mplug.isArray or mplug.isCompound:
+                continue
+            attribute = mplug.attribute()
+            fn = om2.MFnAttribute(attribute)
+            if attribute.hasFn(om2.MFn.kMessageAttribute) or not (fn.writable and fn.storable):
+                continue
+            value = Plug(self._node, mplug).get()
+            if value is not None:
+                values.append((steps, value))
+        return values, inputs, outputs
 
     @staticmethod
     def _validated_logical_index(index):

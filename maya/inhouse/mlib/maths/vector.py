@@ -20,6 +20,12 @@ _SET = _MVector.__setitem__
 _NUMBER = (int, float)
 #: MVector のコンストラクタへそのまま渡せる om2 の3成分型。
 _OM2_POINT_TYPES = (_MPoint, om2.MFloatVector, om2.MFloatPoint)
+#: 軸の名前(小文字)から (成分の番号, 向き) への表。
+_AXIS_NAMES = {
+    "x": (0, 1.0), "+x": (0, 1.0), "-x": (0, -1.0),
+    "y": (1, 1.0), "+y": (1, 1.0), "-y": (1, -1.0),
+    "z": (2, 1.0), "+z": (2, 1.0), "-z": (2, -1.0),
+}
 
 
 def _resolve_mvector(value):
@@ -224,6 +230,28 @@ def _reduce_value(value, values):
     if state:
         return (_rebuild, (type(value), values), state)
     return (_rebuild, (type(value), values))
+
+
+def _axis_name(axis, name):
+    """軸の名前を (成分の番号, 向き) へ変換する。
+
+    Args:
+        axis (str): ``"x"``・``"-y"``・``"+Z"`` などの軸の名前。大文字小文字は問わない。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[int, float]: 成分の番号(0〜2)と向き(1.0 または -1.0)。
+
+    Raises:
+        TypeError: axisが文字列でない場合。
+        ValueError: axisが軸の名前でない場合。
+    """
+    if not isinstance(axis, str):
+        raise TypeError(f"{name} must be a str such as 'x' or '-y'")
+    result = _AXIS_NAMES.get(axis.lower())
+    if result is None:
+        raise ValueError(f"{name} must be one of 'x', 'y', 'z', '-x', '-y', '-z' (got {axis!r})")
+    return result
 
 
 class Vector(om2.MVector):
@@ -748,6 +776,29 @@ class Vector(om2.MVector):
         values = tuple(values)
         if len(values) != 3:
             raise ValueError(f"{cls.__name__} expects 3 values")
+        return cls(values[0], values[1], values[2])
+
+    @classmethod
+    def fromAxis(cls, axis):
+        """軸の名前から長さ1の軸方向のベクトルを生成する。
+
+        ``"x"``・``"y"``・``"z"`` は正の向き、``"-x"``・``"-y"``・``"-z"`` は負の向き。
+        ``"+x"`` のような明示的な正の符号と、大文字(``"X"``・``"-Y"``)も受け付ける。
+        前後の空白は受け付けない。
+
+        Args:
+            axis (str): 軸の名前。
+
+        Returns:
+            Vector: 呼び出したクラスの新しいインスタンス(``Translate.fromAxis("y")`` はTranslate)。
+
+        Raises:
+            TypeError: axisが文字列でない場合。
+            ValueError: axisが軸の名前でない場合。
+        """
+        index, sign = _axis_name(axis, "axis")
+        values = [0.0, 0.0, 0.0]
+        values[index] = sign
         return cls(values[0], values[1], values[2])
 
     def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):

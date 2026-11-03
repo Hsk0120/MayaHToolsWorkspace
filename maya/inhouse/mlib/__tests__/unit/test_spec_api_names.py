@@ -24,7 +24,7 @@ REMOVED = {
            "getMaterials", "getExtraAttrs"),
     DagNode: ("dagFn", "getParentPath", "getFullPath", "getPartialPath", "collectSkinClusters"),
     Transform: ("transformFn", "reset", "resetPivot", "freeze", "getEuler", "getJointOrientQuaternion",
-                "getShearing", "setShearing", "getOffsetParentMatrix", "setOffsetParentMatrix"),
+                "getShearing", "setShearing"),
     Joint: ("isJoint",),
     Plug: ("getDataType", "getPlugName", "getEnumFieldName", "getNextAvailable",
            "isArray", "isElement", "getArray", "getAttrName", "lock", "unlock", "mute", "unmute"),

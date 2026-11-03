@@ -29,6 +29,7 @@ del _node_registry, _plug_registry
 
 from .cmds import (
     bakeDeformer,
+    bakeResults,
     bindSkin,
     createBlendShape,
     createCircle,
@@ -37,6 +38,7 @@ from .cmds import (
     createDagContainer,
     createDagPose,
     createIkHandle,
+    createJointChain,
     createLocator,
     createNode,
     createPolyCube,
@@ -54,6 +56,7 @@ from .cmds import (
 
 __all__ = [
     "bakeDeformer",
+    "bakeResults",
     "bindSkin",
 
     "cmds",
@@ -67,6 +70,7 @@ __all__ = [
     "createDagContainer",
     "createDagPose",
     "createIkHandle",
+    "createJointChain",
     "createLocator",
     "createNode",
     "createPolyCube",
@@ -90,7 +94,7 @@ __all__ = [
 ]
 
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "10.1.0"
+__version__ = "10.2.0"
 
 
 def reload():

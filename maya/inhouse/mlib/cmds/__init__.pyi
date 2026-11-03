@@ -2,6 +2,7 @@
 """公開するMayaコマンドラッパーを明示する。"""
 
 from .bakeDeformer import bakeDeformer
+from .bakeResults import bakeResults
 from .bindSkin import bindSkin
 from .createBlendShape import createBlendShape
 from .createCircle import createCircle
@@ -10,6 +11,7 @@ from .createCurve import createCurve
 from .createDagContainer import createDagContainer
 from .createDagPose import createDagPose
 from .createIkHandle import createIkHandle
+from .createJointChain import createJointChain
 from .createLocator import createLocator
 from .createNode import createNode
 from .createPolyCube import createPolyCube
@@ -24,4 +26,4 @@ from .ls import ls
 from .objExists import objExists
 from .select import select
 
-__all__ = ['bakeDeformer', 'bindSkin', 'createBlendShape', 'createCircle', 'createContainer', 'createCurve', 'createDagContainer', 'createDagPose', 'createIkHandle', 'createLocator', 'createNode', 'createPolyCube', 'createPolyCylinder', 'createPolyPlane', 'createPolySphere', 'delete', 'duplicate', 'getNode', 'getPlug', 'ls', 'objExists', 'select']
+__all__ = ['bakeDeformer', 'bakeResults', 'bindSkin', 'createBlendShape', 'createCircle', 'createContainer', 'createCurve', 'createDagContainer', 'createDagPose', 'createIkHandle', 'createJointChain', 'createLocator', 'createNode', 'createPolyCube', 'createPolyCylinder', 'createPolyPlane', 'createPolySphere', 'delete', 'duplicate', 'getNode', 'getPlug', 'ls', 'objExists', 'select']

@@ -247,6 +247,17 @@ def _create_movable_attr(node: Node, info: dict) -> Plug:
     """
     ...
 
+def _plug_key(mplug: om2.MPlug) -> tuple[int, str]:
+    """循環の探索で同じアトリビュートを同一視するキーを返す。
+
+    Args:
+        mplug (om2.MPlug): アトリビュート。
+
+    Returns:
+        tuple[int, str]: 所有ノードのハッシュと、論理番号を含むロング名のパス。
+    """
+    ...
+
 def _is_writable(mplug: om2.MPlug) -> bool:
     """アトリビュートへ今書き込めるか(ロック・animCurve以外の入力接続が無いか)を返す。
 
@@ -872,6 +883,24 @@ class Node(Object):
 
         Raises:
             RuntimeError: 無効な(削除済みの)ノードの場合。
+        """
+        ...
+    def findCycles(self) -> list[list[Plug]]:
+        """このノードを通るDGの循環(cycle)を、アトリビュートの並びで返す。
+
+        ``cmds.cycleCheck(node, list=True)`` が返す循環上のアトリビュート(このノードを含む強連結の部分を
+        まとめた順不同の列)から、接続(出力→入力)と同じノード内の入力→出力の辺をたどり、このノードを
+        通る単純な循環を1つずつ取り出す。各循環はこのノードの入力アトリビュートから始まり、
+        ``[自身の入力, 自身の出力, 次のノードの入力, 次のノードの出力, ...]`` の流れの順に並ぶ
+        (最後の要素の次は先頭へ戻る)。``cycleCheck`` と同じく接続による循環だけを調べ、DAGの親子による
+        暗黙の依存(子のworldMatrixで親を動かす等)は ``cycleCheck`` が報告しないため含まれない。
+        シーンは変更しない。
+
+        Returns:
+            list[list[Plug]]: 循環ごとのアトリビュートの並び。循環が無ければ空リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
         """
         ...
     def resetAttrs(self, attributes: str | Plug | Iterable[str | Plug] | None = ..., *, fast: bool = ...) -> list[Plug]:

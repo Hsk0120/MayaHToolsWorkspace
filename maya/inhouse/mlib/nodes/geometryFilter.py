@@ -1,13 +1,19 @@
 """Maya のデフォーマー(geometryFilter)の共通部分を扱う。"""
 
+import json
 import math
+from pathlib import Path
 
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 
 from ..core.fastWrite import require_range, require_writable, set_attr
+from ..core.object import Object
 from ..decorator import _edit_context, _require_bool
 from .node import Node
+
+#: :meth:`GeometryFilter.dumpDeformerWeights` が書くファイルの形式の版。
+_DEFORMER_WEIGHTS_VERSION = 1
 
 
 class GeometryFilter(Node):
@@ -71,6 +77,125 @@ class GeometryFilter(Node):
             else:
                 self._set_deformer_weights_cmds(geometryIndex, indices, values)
             return self
+
+    def dumpDeformerWeights(self, path, geometryIndex=None):
+        """頂点ごとのデフォーマーのウェイトを JSON ファイルへ書き出す。
+
+        :meth:`SkinCluster.dumpWeights <mlib.nodes.skinCluster.SkinCluster.dumpWeights>` と同じく単純な JSON
+        (UTF-8)で、``version``(形式の版、現在1)・``deformer``(ノード名)・``geometries``(形状ごとの
+        ``index``・``numVertices``・``weights``)を書く。値の無い頂点は :meth:`getDeformerWeights` と同じく1.0で書く。
+
+        Args:
+            path (str | Path): 書き出し先のファイルパス。
+            geometryIndex (int | None): 書き出す形状の番号。Noneは変形する全形状(番号順)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: geometryIndex が int・None 以外、またはデフォーマーのウェイトを持たない型の場合。
+            IndexError: geometryIndex の形状が無い場合。
+        """
+        indices = self._geometry_indices() if geometryIndex is None else [geometryIndex]
+        geometries = []
+        for index in indices:
+            values = self.getDeformerWeights(geometryIndex=index)
+            geometries.append({"index": index, "numVertices": len(values), "weights": values})
+        payload = {"version": _DEFORMER_WEIGHTS_VERSION, "deformer": self.getName(), "geometries": geometries}
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
+
+    def loadDeformerWeights(self, path, *, fast=False):
+        """:meth:`dumpDeformerWeights` が書き出した JSON ファイルからデフォーマーのウェイトを設定する。
+
+        ファイルの各形状を、形状の番号(``weightList`` の論理番号)と頂点数で照合して書き込む。
+        デフォーマー名は照合しない(別のデフォーマーへも読み込める)。全形状を書込みの前に照合し、
+        合わなければ何も変更せず ValueError にする。通常は全形状を1回のUndoにまとめる。
+
+        Args:
+            path (str | Path): 読み込むファイルパス。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: fastがbool以外、ファイルの値が数値でない、またはデフォーマーのウェイトを持たない型の場合。
+            ValueError: ファイルの形式・版が違う、形状の番号がこのデフォーマーに無い、または頂点数が違う場合。
+            RuntimeError: アトリビュートがロック・入力接続されている、または Maya が書込みを拒否した場合。
+        """
+        with _edit_context("mlibGeometryFilterLoadDeformerWeights", fast):
+            self._geometry_indices()
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            if not isinstance(payload, dict) or payload.get("version") != _DEFORMER_WEIGHTS_VERSION:
+                raise ValueError(f"Unsupported deformer weights file: {path}")
+            geometries = payload.get("geometries")
+            if not isinstance(geometries, list):
+                raise ValueError(f"Deformer weights file has no geometries: {path}")
+            plans = []
+            for entry in geometries:
+                index = entry.get("index") if isinstance(entry, dict) else None
+                if isinstance(index, bool) or not isinstance(index, int):
+                    raise ValueError(f"Invalid geometry entry in {path}")
+                try:
+                    _, count = self._deformer_weight_plug(index)
+                except IndexError:
+                    raise ValueError(f"No geometry at index {index}: {self.getFullName()}") from None
+                values = entry.get("weights")
+                if entry.get("numVertices") != count or not isinstance(values, list) or len(values) != count:
+                    raise ValueError(
+                        f"Stored vertex count ({entry.get('numVertices')}) does not match "
+                        f"geometry {index} vertex count ({count})"
+                    )
+                plans.append((index, self._resolve_weight_values(values, count)))
+            for index, values in plans:
+                self.setDeformerWeights(values, geometryIndex=index, fast=fast)
+
+    def copyDeformerWeightsTo(self, other, *, geometryIndex=0, otherGeometryIndex=0, fast=False):
+        """デフォーマーのウェイトを、頂点数が同じ別のデフォーマー(または同じデフォーマーの別の形状)へ写す。
+
+        頂点番号で対応させ、位置での照合はしない。通常は1回のUndoで戻せる。
+
+        Args:
+            other (GeometryFilter | str): 写す先のデフォーマー。
+            geometryIndex (int): 写す元(自身)の形状の番号。既定0。
+            otherGeometryIndex (int): 写す先の形状の番号。既定0。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            GeometryFilter: 写す先のデフォーマー。
+
+        Raises:
+            TypeError: fastがbool以外、other がデフォーマーでない、geometryIndex が int でない、
+                またはどちらかがデフォーマーのウェイトを持たない型(skinCluster 等)の場合。
+            ValueError: 頂点数が違う場合。
+            IndexError: 形状の番号の形状が無い場合。
+            RuntimeError: other の名前が存在しない、アトリビュートがロック・入力接続されている、
+                または Maya が書込みを拒否した場合。
+        """
+        with _edit_context("mlibGeometryFilterCopyDeformerWeightsTo", fast):
+            target = other if isinstance(other, GeometryFilter) else Node(Object._input_name(other))
+            if not isinstance(target, GeometryFilter):
+                raise TypeError(f"other must be a deformer, got {target.getType()}: {target.getFullName()}")
+            values = self.getDeformerWeights(geometryIndex=geometryIndex)
+            _, count = target._deformer_weight_plug(otherGeometryIndex)
+            if count != len(values):
+                raise ValueError(f"Vertex counts differ: {len(values)} and {count}")
+            target.setDeformerWeights(values, geometryIndex=otherGeometryIndex, fast=fast)
+            return target
+
+    def _geometry_indices(self):
+        """変形する形状の番号(``input``・``weightList`` の論理番号)を昇順で返す。
+
+        Returns:
+            list[int]: 番号。
+
+        Raises:
+            TypeError: デフォーマーのウェイトを持たない型の場合。
+        """
+        if self.isType("skinCluster") or not self.hasAttr("weightList"):
+            raise TypeError(f"{self.getType()} has no deformer weights: {self.getFullName()}")
+        fn = oma2.MFnGeometryFilter(self.mnode())
+        return sorted(fn.indexForOutputShape(shape) for shape in fn.getOutputGeometry())
 
     def _deformer_weight_plug(self, geometry_index):
         """``weightList[geometry_index].weights`` の Plug と、形状の点の数を返す。

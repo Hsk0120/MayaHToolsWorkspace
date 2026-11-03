@@ -475,6 +475,19 @@ def _create_movable_attr(node, info):
     return plug
 
 
+def _plug_key(mplug):
+    """循環の探索で同じアトリビュートを同一視するキーを返す。
+
+    Args:
+        mplug (om2.MPlug): アトリビュート。
+
+    Returns:
+        tuple[int, str]: 所有ノードのハッシュと、論理番号を含むロング名のパス。
+    """
+    return (om2.MObjectHandle(mplug.node()).hashCode(),
+            mplug.partialName(includeNonMandatoryIndices=True, useLongNames=True, useFullAttributePath=True))
+
+
 def _is_writable(mplug):
     """アトリビュートへ今書き込めるか(ロック・animCurve以外の入力接続が無いか)を返す。
 
@@ -1418,6 +1431,68 @@ class Node(Object):
                 if type is None or node.isType(type):
                     result.append(node)
         return result
+
+    def findCycles(self):
+        """このノードを通るDGの循環(cycle)を、アトリビュートの並びで返す。
+
+        ``cmds.cycleCheck(node, list=True)`` が返す循環上のアトリビュート(このノードを含む強連結の部分を
+        まとめた順不同の列)から、接続(出力→入力)と同じノード内の入力→出力の辺をたどり、このノードを
+        通る単純な循環を1つずつ取り出す。各循環はこのノードの入力アトリビュートから始まり、
+        ``[自身の入力, 自身の出力, 次のノードの入力, 次のノードの出力, ...]`` の流れの順に並ぶ
+        (最後の要素の次は先頭へ戻る)。``cycleCheck`` と同じく接続による循環だけを調べ、DAGの親子による
+        暗黙の依存(子のworldMatrixで親を動かす等)は ``cycleCheck`` が報告しないため含まれない。
+        シーンは変更しない。
+
+        Returns:
+            list[list[Plug]]: 循環ごとのアトリビュートの並び。循環が無ければ空リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        # nodes/plugsの相互依存を避けるため遅延importする。
+        from ..plugs.plug import Plug
+        self._require_valid("find the cycles of")
+        names = cmds.cycleCheck(self.getFullName(), list=True) or []
+        own = om2.MObjectHandle(self._mobject)
+        plugs = {}
+        for name in names:
+            selection = om2.MSelectionList()
+            selection.add(name)
+            mplug = selection.getPlug(0)
+            plugs[_plug_key(mplug)] = mplug
+        edges = {key: [] for key in plugs}
+        for key, mplug in plugs.items():
+            edges[key].extend(target for target in map(_plug_key, mplug.destinations()) if target in plugs)
+            if mplug.isDestination:
+                # 同じノードの出力(循環上で入力接続を持たないもの)へ、入力から依存の辺を張る。
+                edges[key].extend(other for other, candidate in plugs.items()
+                                  if other[0] == key[0] and other != key and not candidate.isDestination)
+        starts = [key for key, mplug in plugs.items()
+                  if mplug.isDestination and om2.MObjectHandle(mplug.node()) == own]
+        cycles = []
+        seen = set()
+        for start in starts:
+            stack = [(start, [start])]
+            while stack:
+                key, path = stack.pop()
+                for following in edges[key]:
+                    if following == start and frozenset(path) not in seen:
+                        seen.add(frozenset(path))
+                        cycles.append(path)
+                    elif following != start and following not in path:
+                        stack.append((following, path + [following]))
+        owners = {}
+
+        def owner(mplug):
+            """MPlugの所有ノードのラッパー。自身は自身を使い、同じノードは使い回す。"""
+            handle = om2.MObjectHandle(mplug.node())
+            if handle == own:
+                return self
+            if handle.hashCode() not in owners:
+                owners[handle.hashCode()] = Node._wrap_resolved(*_resolve_node(mplug.node()))
+            return owners[handle.hashCode()]
+
+        return [[Plug(owner(plugs[key]), plugs[key]) for key in path] for path in cycles]
 
     def resetAttrs(self, attributes=None, *, fast=False):
         """指定アトリビュート、または書き込み可能なキー設定対象アトリビュートを既定値へ戻す。

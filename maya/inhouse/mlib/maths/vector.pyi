@@ -21,6 +21,7 @@ _GET: Any
 _SET: Any
 _NUMBER: tuple
 _OM2_POINT_TYPES: tuple
+_AXIS_NAMES: dict
 
 def _resolve_mvector(value: om2.MVector | om2.MPoint | Iterable[float]) -> om2.MVector:
     """値を om2.MVector として扱える形へ変換する。
@@ -147,6 +148,22 @@ def _reduce_value(value: object, values: tuple) -> tuple:
 
     Returns:
         tuple: ``(_rebuild, (type(value), values))``、または state を加えた3要素の tuple。
+    """
+    ...
+
+def _axis_name(axis: str, name: str) -> tuple[int, float]:
+    """軸の名前を (成分の番号, 向き) へ変換する。
+
+    Args:
+        axis (str): ``"x"``・``"-y"``・``"+Z"`` などの軸の名前。大文字小文字は問わない。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        tuple[int, float]: 成分の番号(0〜2)と向き(1.0 または -1.0)。
+
+    Raises:
+        TypeError: axisが文字列でない場合。
+        ValueError: axisが軸の名前でない場合。
     """
     ...
 
@@ -496,6 +513,25 @@ class Vector(om2.MVector):
 
         Raises:
             ValueError: 要素数が3でない場合。
+        """
+        ...
+    @classmethod
+    def fromAxis(cls, axis: str) -> Vector:
+        """軸の名前から長さ1の軸方向のベクトルを生成する。
+
+        ``"x"``・``"y"``・``"z"`` は正の向き、``"-x"``・``"-y"``・``"-z"`` は負の向き。
+        ``"+x"`` のような明示的な正の符号と、大文字(``"X"``・``"-Y"``)も受け付ける。
+        前後の空白は受け付けない。
+
+        Args:
+            axis (str): 軸の名前。
+
+        Returns:
+            Vector: 呼び出したクラスの新しいインスタンス(``Translate.fromAxis("y")`` はTranslate)。
+
+        Raises:
+            TypeError: axisが文字列でない場合。
+            ValueError: axisが軸の名前でない場合。
         """
         ...
     def mirror(self, axis: str | int = ..., pivot: Iterable[float] = ...) -> Vector:
