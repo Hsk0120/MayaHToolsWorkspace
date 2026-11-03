@@ -96,6 +96,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
@@ -153,6 +154,26 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-11-03): ユーザーのクリーン化指示に基づき、残っていたMCE 0.9.4の検索パス更新・設定探索・状態表示・限定再試行・Escape取消と全6年mll、runtimeのignoreをコミット対象へ確定。Maya2022/2027で各単体44件・session2件・宣言照合・UI29項目・standaloneロード/解除が全て成功。以前の大規模本文/性能閾値失敗も今回は成功、元の失敗記録は保持。日本語/英語Sphinx -W成功。今回実GUI/OS入力は未実施、既存の専用GUI24項目/版の証拠を確認。既存の作業記録はHEAD内容と未登録履歴を統合し、重複・空行差分を除去。MCE実装と作業記録を分けてコミット・origin/mainへpush。詳細 .maya-output/repo-cleanup-20261103/results.json。
+
+| Codex | 2026-11-03 | QPE 日本語UIの残検証・デバッグ・push | 日本語既定/JP EN切替、タブ区別/自然順とソート矢印、翻訳漏れとInspector横溢れを修正。静的Qt95件合格、Maya2022〜2027各16回の配置別言語切替・各4件の複数Import/Reference確認・主要ファイル操作をQt GUIで確認。Windows/2027実IME、2027マウス下部463→33→313px、2022/2027実4画面DPIを確認。Windows/2022通常終了成功。2023/2025〜2027はMASHチェックサム確認待ち（2027未ロード対照でも再現）、2024はホスト終了時QDialog待ちで未合格。専用PIDだけ収束、他変更保持。exe/全6年mll含むQPEのみa137727cをorigin/mainへpush。詳細 .maya-output/qpe-jp-final-20261103/results.json。 |
+
+| Codex | 2026-11-02 | QPE 日本語UI・1時間検証 | 日本語既定/JP EN保存と再表示、表示専用辞書をexe/mllへ内蔵。内部ID/ユーザー文字と他Qtロケールを保持。狭いInspectorの日本語長文による57px横溢れ、右クリックの表記差による翻訳漏れを修正。専用日本語5テスト追加、最終Qt94件合格。Maya2022/2027で各7確認・各6ファイル操作をGUI内Qt操作、計12回の言語再表示を確認。実OS入力の設定展開/スクロール/メニューを動画記録。exe/全6年mll更新。2023〜2026 GUI/ドック言語切替/実IMEは未実施。2027終了後の背景PID残留は原因未特定として結果へ記録、所有PIDのみ終了。他変更保持、自動pushなし。詳細: .maya-output/qpe-japanese-20261102/results.txt。 |
+
+| Codex | 2026-11-02 | QPEのソート矢印を昇順=上/降順=下へ統一し、太さ・寸法・配色を改善。サイズ/更新日時の初回降順、番号付き名前の自然順、順序ツールチップを追加。白/暗の実描画と実順序を含むQt回帰89件合格、Explorer比較と製品exeの実OS入力・録画を確認。exe/2022〜2027 mll更新、Maya内GUIは今回未実施。他担当変更を保持、未プッシュ。 |
+
+| Codex | 2026-11-02 | QPE タブ識別性を改善。選択面・輪郭・太字と非選択間の区切り、控えめなホバー、透明な閉じるボタンを実装。白/暗の描画検査を含むQt回帰88件合格。製品exeの実OS入力で切替・追加・狭幅・閉じるを確認し録画。exeと2022〜2027 mllを再ビルド、Maya内GUIは今回未実施。 |
+
+- 2026-11-02 (Codex): QPEのドック・リネーム・UNC検査・Windowsパス表記・角丸・標準フォルダーと配布exe/年別mllを401cf64fへコミットしorigin/mainへpush。他担当のステージ済み6項目と未コミット変更は専用indexで保持。最終C++回帰88件と年別ビルド成功を確認し、各変更の実機/未実施範囲は同日のQPE完了行に記載。
+
+- Codex (2026-11-01): QPEの独立ビルド構成とC++移行基盤を追加。Qt6.8.3静的リンクの別exe、世代管理付き列挙/カラム/履歴/タブ/一覧を実装し、Qt6ケース（init/cleanup込み8件）、実OS入力、exe単独起動、改変Qtとの再リンク、出力ソースキットからの再ビルドが合格。対応Qtソース/ライセンス/SBOM/再リンク手順をZIPなしの内部キットへ出力。完全な既存機能移植・Maya連携・配布利用許諾の確定は未完了。現行exe/mll/PythonとMCE変更を保持し、pushなし。証拠は`.maya-output/qpe-cpp-static-20261101/`、残件はローカル`docs/research/qpe-cpp-static-20261101/status.txt`。
+
+- Codex (2026-11-01): QPE単体で再ビルドできるtools/3本、VS2026 .vsconfig、環境確認/VS生成/Maya/Windowsビルドcmd、相対mod、BUILDINGとignoreを追加。隔離コピーのみから2022/2027のVS生成・mllビルド、Windows再ビルド/smoke PASS。旧C++テストのtyped sort fixture不足を修正し両Qt版の5000件/検索/非同期/破棄検証PASS。ユーザーのZIP不要・別repo想定に合わせ、旧packager2本を削除、前回生成物を証拠領域へ退避。新規repo作成/公開、Python全体のC++移植、単一exe化は未実施。証拠 `.maya-output/qpe-repository-20261101/report.txt`。MCE変更保持、pushなし。
+
+- Codex (2026-11-01): QPEの実行成果物だけをdistへ収めるpackage_qpe.pyを追加。Windows exe/_internalと年別mll/mod、利用者説明、SHA256 manifest、ZIPを新規生成。開発資材・個人設定を含めず、欠品/既存先/改変/余分ファイルを検出。5単体テスト、配布exeの起動/終了、全6mll/exeの元成果物とのハッシュ一致、ZIP CRCがPASS。開発ソースは維持。Pythonキャッシュ削除は自動承認レビューにblocked by policyとして拒否され未実施（配布へは混入なし）。Mayaの別コピーからのロードは今回未実施。証拠 `.maya-output/qpe-package-20261101/report.txt`。MCE変更保持、pushなし。
+
+- Codex (2026-10-31): MCE 0.9.3/0.9.4。未実行mlib.ls(type="joint")の補完欠落を調査し、通常起動MayaからLOCALAPPDATAの解析環境が見えないことを確認。モジュール内runtimeへの設定探索を追加し、現在のMayaでも共有設定指定後Ctrl+Spaceの実OS入力でgetSkinClusters等を確認。Refresh completionの検索パス更新・状態表示・サーバー取消の限定再試行・Escape取消を修正。Maya2022/2027各24項目の専用Qt GUIテスト成功、設定探索の単体テスト両版成功、共有設定の2027再検証24項目成功。ただし再検証ランナーは終了後の一時フォルダー削除に失敗（専用Maya PID終了確認）。全6版ビルド・Sphinx警告エラー化ビルド成功。広域回帰は2022全成功、2027は巨大本文解析とcorePerformanceの性能閾値2件未解決。証拠.maya-output/mce-ls-20261031、専用動画を非公開Drive保存。ユーザー本文・シーンを保持。未push。
+
 | Codex | 2026-11-03 | QPE 右クリック・設定UI整理 | 基本操作/背景/その他/Mayaを分離し、設定を5カテゴリとキー検索へ統合。重複入口、メニュー内キー配送、ライト設定の暗色残りを修正。静的Qt98件成功、Maya2022/2027でJP EN各5ページ・選択保護/コピー/CancelをQt GUI確認、Windowsと2027の実OS入力も記録。exe/全6年mll更新、2023〜2026はビルドのみ。ユーザー指示でQPE関連のみコミット・push。他担当の変更は保持。詳細 .maya-output/qpe-menu-20261103/results.json。 |
 - Claude Code (2026-11-03): 質問形式で決めた追加を mlib 10.2.0 として実装。Environment・Callbacks・未知のプラグイン・Time.getSelectedRange、Vector.fromAxis・Matrix.fromAim/fromAxes/blend、bakeResults・eulerFilter・createJointChain・insertJoints・getPolePosition、NurbsCurve/Mesh の問い合わせ・UVセット・頂点カラー・縁・面への変換、SkinCluster.unlockedInfluences/invertShape、GeometryFilter のウェイトのファイル/コピー、deleteHistory・表示の上書き・findCycles・オフセット親マトリクス(再追加)、MultiPlug.compact・RampPlug・プロキシの照会・getAnimCurve(layer=)。mlrig・AnimBar・SkinWeightKit を新APIへ移行。mlib全テスト(2027/2022)・Undo網羅267件・静的検査・Sphinx・利用側回帰744件(2027)・AnimBar 57件・SkinWeightKit 87件とGUI確認成功。2022 の mlrig setups は boxRoll(floorノード)・hipSwing(blendMatrix の translateWeight)が 2022 に無い機能のため20件失敗(今回未変更のファイル)。 コミット・プッシュ(2026-11-03)。
 
