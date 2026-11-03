@@ -1,6 +1,7 @@
 /** @file native_plugin.cpp @brief Pythonを内蔵しないMayaプラグインの寿命境界。 */
 #include "maya_host.h"
 #include "../browser/browser_window.h"
+#include "../browser/ui_language.h"
 #include "../core/directory_store.h"
 #include "../core/file_operations.h"
 #include "../core/settings_store.h"
@@ -144,6 +145,11 @@ void show(bool restore = false) {
     if (building) return;
     building = true;
     try {
+        if (!restore && browser && browser->property("uiLanguage").toString() != qpe::savedUiLanguage()) {
+            if (browser->busy()) throw std::runtime_error(qpe::uiText("Wait for file operations to finish before changing the language.").toStdString());
+            // 自分の中身だけを作り直す。workspaceControl本体とドッキング位置は維持する。
+            browser->prepareHostShutdown(); if (viewport) delete viewport.data();
+        }
         const auto previous = qpe::readSettings()[dockKey()].toObject();
         if (restore && !previous["open"].toBool(true)) {
             QTimer::singleShot(0, lifetime, [] { try { if (!userOpened && exists()) qpe::mayaCommand(QString("workspaceControl -e -visible false ") + control); } catch (const std::exception& e) { MGlobal::displayWarning(e.what()); } });

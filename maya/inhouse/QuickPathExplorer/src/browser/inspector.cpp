@@ -1,4 +1,7 @@
 /** @file inspector.cpp @brief 詳細は常に見せ、専門設定は操作別タブに分ける。 */
+#include "ui_language.h"
+#include <QStyleOptionButton>
+#include <QPainter>
 #include "inspector.h"
 #include "../core/settings_store.h"
 #include "../core/file_operations.h"
@@ -29,6 +32,37 @@
 #include <QStyle>
 #include <stdexcept>
 namespace qpe {
+/** @brief 日本語の長い項目を折り返し、狭い詳細ペインへ最小幅を強制しない。 */
+class ReadOptionCheck final : public QCheckBox {
+public:
+    /** @brief チェック状態とキーボード入力は標準QCheckBoxへ任せる。 @param text 項目名。 */
+    explicit ReadOptionCheck(const QString& text) : QCheckBox(text) {
+        auto policy = sizePolicy(); policy.setHorizontalPolicy(QSizePolicy::Expanding); policy.setHeightForWidth(true); setSizePolicy(policy);
+    }
+    /** @brief 折り返しの高さを有効にする。 @return 常にtrue。 */
+    bool hasHeightForWidth() const override { return true; }
+    /** @brief 字形とインジケーターから必要な高さを求める。 @param width 使用可能幅。 @return 必要高。 */
+    int heightForWidth(int width) const override {
+        QStyleOptionButton option; initStyleOption(&option); option.rect = QRect(0, 0, qMax(1, width), 1000);
+        const auto content = style()->subElementRect(QStyle::SE_CheckBoxContents, &option, this);
+        return qMax(style()->pixelMetric(QStyle::PM_IndicatorHeight, &option, this), fontMetrics().boundingRect(QRect(0, 0, qMax(1, content.width()), 1000), Qt::TextWordWrap, text()).height()) + 6;
+    }
+    /** @brief 通常ペイン内の幅を提案する。 @return 折り返した推奨寸法。 */
+    QSize sizeHint() const override { return {240, heightForWidth(240)}; }
+    /** @brief ラベルの長さによる横方向の固定を避ける。 @return 最小寸法。 */
+    QSize minimumSizeHint() const override { return {0, fontMetrics().height() + 6}; }
+protected:
+    /** @brief 標準のチェックと、折り返したラベルを描く。 @param event 描画要求。 */
+    void paintEvent(QPaintEvent*) override {
+        QStyleOptionButton option; initStyleOption(&option); const auto label = option.text; option.text.clear();
+        QPainter painter(this); style()->drawControl(QStyle::CE_CheckBox, &option, &painter, this);
+        painter.setFont(font());
+        painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
+        painter.drawText(style()->subElementRect(QStyle::SE_CheckBoxContents, &option, this), Qt::AlignVCenter | Qt::TextWordWrap, label);
+    }
+    /** @brief 折り返したラベル上でもクリックして切り替えられる。 @param pos 入力位置。 @return 自分の領域内か。 */
+    bool hitButton(const QPoint& pos) const override { return rect().contains(pos); }
+};
 /** @brief ドック幅を広げず、選択肢を画面内で全文表示するコンボボックス。 */
 class ReadOptionCombo final : public QComboBox {
 public:
@@ -49,106 +83,106 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
     auto* outer = new QVBoxLayout(this); outer->setContentsMargins(0, 0, 0, 0);
     auto* scroll = new QScrollArea(this); scroll->setObjectName("inspectorScroll"); scroll->setWidgetResizable(true); scroll->setFrameShape(QFrame::NoFrame); outer->addWidget(scroll);
     auto* content = new QWidget; auto* layout = new QVBoxLayout(content); scroll->setWidget(content);
-    title_ = new QLabel("Select a file below"); title_->setObjectName("fileTitle"); title_->setTextFormat(Qt::PlainText);
+    title_ = new QLabel(uiText("Select a file below")); title_->setObjectName("fileTitle"); title_->setTextFormat(Qt::PlainText);
     title_->setWordWrap(true); title_->setMinimumWidth(0); title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); layout->addWidget(title_);
-    information_ = new QLabel("Select a file"); information_->setTextFormat(Qt::PlainText); information_->setWordWrap(true); information_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    information_ = new QLabel(uiText("Select a file")); information_->setTextFormat(Qt::PlainText); information_->setWordWrap(true); information_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     information_->setMinimumWidth(0); information_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     const auto button = [this](QVBoxLayout* box, const QString& label, const QString& action) {
-        auto* value = new QPushButton(label); value->setObjectName(action); box->addWidget(value);
+        auto* value = new QPushButton(uiText(label)); value->setObjectName(action); box->addWidget(value);
         connect(value, &QPushButton::clicked, this, [this, action] { emit requested(action); });
     };
     tabs_ = new QTabWidget; tabs_->setObjectName("readOptions"); tabs_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum); tabs_->tabBar()->setExpanding(false); layout->addWidget(tabs_);
-    auto* openPage = new QWidget; auto* openBox = new QVBoxLayout(openPage); tabs_->addTab(openPage, "Open");
-    auto* hint = new QLabel(maya ? "Open Maya scenes in this session. Other file types use their associated application." : "Open using the associated application."); hint->setWordWrap(true); openBox->addWidget(hint);
-    button(openBox, "Open", "open");
+    auto* openPage = new QWidget; auto* openBox = new QVBoxLayout(openPage); tabs_->addTab(openPage, uiText("Open"));
+    auto* hint = new QLabel(maya ? uiText("Open Maya scenes in this session. Other file types use their associated application.") : uiText("Open using the associated application.")); hint->setWordWrap(true); openBox->addWidget(hint);
+    button(openBox, uiText("Open"), "open");
     if (maya) {
         auto* savePage = new QWidget; auto* saveBox = new QVBoxLayout(savePage);
-        button(saveBox, "Save Scene", "save");
-        saveBox->addWidget(new QLabel("File name"));
-        name_ = new QLineEdit; name_->setPlaceholderText("Scene name.mb"); name_->setObjectName("saveName"); saveBox->addWidget(name_);
-        type_ = new QComboBox; type_->setObjectName("saveType"); type_->addItem("Maya Binary (.mb)", "mayaBinary"); type_->addItem("Maya ASCII (.ma)", "mayaAscii"); saveBox->addWidget(type_);
+        button(saveBox, uiText("Save Scene"), "save");
+        saveBox->addWidget(new QLabel(uiText("File name")));
+        name_ = new QLineEdit; name_->setPlaceholderText(uiText("Scene name.mb")); name_->setObjectName("saveName"); saveBox->addWidget(name_);
+        type_ = new QComboBox; type_->setObjectName("saveType"); type_->addItem(uiText("Maya Binary (.mb)"), "mayaBinary"); type_->addItem(uiText("Maya ASCII (.ma)"), "mayaAscii"); saveBox->addWidget(type_);
         connect(name_, &QLineEdit::textChanged, this, &Inspector::changed); connect(type_, qOverload<int>(&QComboBox::currentIndexChanged), this, &Inspector::changed);
-        button(saveBox, "Save Scene As…", "saveAs"); button(saveBox, "Export Selection…", "export");
-        button(saveBox, "New Scene", "new");
+        button(saveBox, uiText("Save Scene As…"), "saveAs"); button(saveBox, uiText("Export Selection…"), "export");
+        button(saveBox, uiText("New Scene"), "new");
         for (const QString action : {QString("import"), QString("reference"), QString("fbx")}) {
             auto* page = new QWidget; auto* box = new QVBoxLayout(page); auto* form = new QFormLayout; form->setRowWrapPolicy(QFormLayout::WrapAllRows); box->addLayout(form);
             auto* advanced = new QWidget; auto* advancedForm = new QFormLayout(advanced); advancedForm->setRowWrapPolicy(QFormLayout::WrapAllRows);
             if (action == "fbx") { fbx_ = page; openBox->insertWidget(0, page); page->hide(); }
-            else tabs_->addTab(page, action == "import" ? "Import" : "Reference");
+            else tabs_->addTab(page, action == "import" ? uiText("Import") : uiText("Reference"));
             const auto combo = [&](const QString& key, const QString& label, const QStringList& labels, const QStringList& values) {
-                auto* control = new ReadOptionCombo; for (int i = 0; i < labels.size(); ++i) control->addItem(labels[i], values.value(i));
+                auto* control = new ReadOptionCombo; for (int i = 0; i < labels.size(); ++i) control->addItem(uiText(labels[i]), values.value(i));
                 control->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon); control->setMinimumContentsLength(8);
                 control->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-                control->setObjectName(action + "_" + key); controls_[action + "/" + key] = control; (key == "loadReferenceDepth" || key == "importTimeRange" ? advancedForm : form)->addRow(label, control);
+                control->setObjectName(action + "_" + key); controls_[action + "/" + key] = control; (key == "loadReferenceDepth" || key == "importTimeRange" ? advancedForm : form)->addRow(uiText(label), control);
                 control->setToolTip(control->currentText());
                 connect(control, &QComboBox::currentTextChanged, control, &QWidget::setToolTip);
                 connect(control, qOverload<int>(&QComboBox::currentIndexChanged), this, &Inspector::changed); return control;
             };
             const auto toggle = [&](const QString& key, const QString& label, bool initial) {
-                auto* control = new QCheckBox(label); control->setChecked(initial); control->setObjectName(action + "_" + key);
+                auto* control = new ReadOptionCheck(uiText(label)); control->setChecked(initial); control->setObjectName(action + "_" + key);
                 controls_[action + "/" + key] = control;
                 (key == "mergeNamespacesOnClash" || key == "deferReference" || action == "fbx" ? form : advancedForm)->addRow(control);
                 connect(control, &QCheckBox::toggled, this, &Inspector::changed); return control;
             };
             if (action == "fbx") {
-                combo("mode", "File Content", {"Open as scene", "Add", "Add and update animation", "Update animation only", "Update animation (keyed transforms)"}, {"open", "add", "merge", "exmerge", "exmergekeyedxforms"});
-                toggle("timeline", "Update playback range", false);
-                auto* help = new QLabel("Applies to Open and double-click. Open as scene replaces the current scene; the other modes update it."); help->setWordWrap(true); box->addWidget(help);
+                combo("mode", uiText("File Content"), {uiText("Open as scene"), uiText("Add"), uiText("Add and update animation"), uiText("Update animation only"), uiText("Update animation (keyed transforms)")}, {"open", "add", "merge", "exmerge", "exmergekeyedxforms"});
+                toggle("timeline", uiText("Update playback range"), false);
+                auto* help = new QLabel(uiText("Applies to Open and double-click. Open as scene replaces the current scene; the other modes update it.")); help->setWordWrap(true); box->addWidget(help);
             } else {
-                auto* mode = combo("mode", "Namespace", {"File name", "Custom", "Root"}, {"file", "custom", "root"});
-                auto* name = new QLineEdit; name->setObjectName(action + "_name"); name->setPlaceholderText("characterA or shot:characterA"); name->setEnabled(false); form->addRow("Namespace name", name); controls_[action + "/name"] = name;
+                auto* mode = combo("mode", uiText("Namespace"), {uiText("File name"), uiText("Custom"), uiText("Root")}, {"file", "custom", "root"});
+                auto* name = new QLineEdit; name->setObjectName(action + "_name"); name->setPlaceholderText(uiText("characterA or shot:characterA")); name->setEnabled(false); form->addRow(uiText("Namespace name"), name); controls_[action + "/name"] = name;
                 auto* nameLabel = form->labelForField(name); name->hide(); nameLabel->hide();
                 connect(mode, qOverload<int>(&QComboBox::currentIndexChanged), name, [name, nameLabel](int i) { name->setEnabled(i == 1); name->setVisible(i == 1); nameLabel->setVisible(i == 1); });
                 connect(name, &QLineEdit::textChanged, this, &Inspector::changed);
-                auto* chooseNamespace = new QPushButton("Choose existing namespace…"); form->addRow(chooseNamespace);
+                auto* chooseNamespace = new QPushButton(uiText("Choose existing namespace…")); form->addRow(chooseNamespace);
                 connect(chooseNamespace, &QPushButton::clicked, this, [this, action] { emit namespaceRequested(action); });
-                toggle("mergeNamespacesOnClash", "Reuse existing namespace", false);
-                toggle("groupReference", "Group objects", false); toggle("executeScriptNodes", "Execute script nodes", true);
+                toggle("mergeNamespacesOnClash", uiText("Reuse existing namespace"), false);
+                toggle("groupReference", uiText("Group objects"), false); toggle("executeScriptNodes", uiText("Execute script nodes"), true);
                 if (action == "import") {
-                    toggle("preserveReferences", "Preserve references", true); toggle("removeDuplicateNetworks", "Remove duplicate shading networks", false);
-                    toggle("mergeBaseAnimLayer", "Merge base animation layer", false); toggle("renameAll", "Rename all nodes", false);
-                    toggle("importFrameRate", "Import frame rate", false); toggle("ignoreVersion", "Ignore version", false);
-                    combo("importTimeRange", "Playback range", {"Keep current", "Override", "Combine"}, {"keep", "override", "combine"});
-                } else { toggle("deferReference", "Defer loading", false); toggle("lockReference", "Lock reference", false); }
-                combo("loadReferenceDepth", "Load references", {"As saved", "All", "Top level only", "None"}, {"", "all", "topOnly", "none"});
-                auto* expand = new QToolButton; expand->setText("Advanced options"); expand->setCheckable(true); expand->setArrowType(Qt::RightArrow); expand->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+                    toggle("preserveReferences", uiText("Preserve references"), true); toggle("removeDuplicateNetworks", uiText("Remove duplicate shading networks"), false);
+                    toggle("mergeBaseAnimLayer", uiText("Merge base animation layer"), false); toggle("renameAll", uiText("Rename all nodes"), false);
+                    toggle("importFrameRate", uiText("Import frame rate"), false); toggle("ignoreVersion", uiText("Ignore version"), false);
+                    combo("importTimeRange", uiText("Playback range"), {uiText("Keep current"), uiText("Override"), uiText("Combine")}, {"keep", "override", "combine"});
+                } else { toggle("deferReference", uiText("Defer loading"), false); toggle("lockReference", uiText("Lock reference"), false); }
+                combo("loadReferenceDepth", uiText("Load references"), {uiText("As saved"), uiText("All"), uiText("Top level only"), uiText("None")}, {"", "all", "topOnly", "none"});
+                auto* expand = new QToolButton; expand->setText(uiText("Advanced options")); expand->setCheckable(true); expand->setArrowType(Qt::RightArrow); expand->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
                 box->addWidget(expand); box->addWidget(advanced); advanced->hide();
                 connect(expand, &QToolButton::toggled, advanced, [advanced, expand](bool visible) { advanced->setVisible(visible); expand->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); });
-                button(box, action == "import" ? "Import" : "Create Reference", action);
+                button(box, action == "import" ? uiText("Import") : uiText("Create Reference"), action);
             }
             if (action == "fbx") delete advanced;
-            auto* presetToggle = new QToolButton; presetToggle->setText("Presets"); presetToggle->setCheckable(true); presetToggle->setArrowType(Qt::RightArrow); presetToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); box->addWidget(presetToggle);
+            auto* presetToggle = new QToolButton; presetToggle->setText(uiText("Presets")); presetToggle->setCheckable(true); presetToggle->setArrowType(Qt::RightArrow); presetToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); box->addWidget(presetToggle);
             auto* presetPage = new QWidget; auto* presets = new QVBoxLayout(presetPage); presets->setContentsMargins(0, 0, 0, 0); box->addWidget(presetPage); presetPage->hide();
             connect(presetToggle, &QToolButton::toggled, presetPage, [presetPage, presetToggle](bool visible) { presetPage->setVisible(visible); presetToggle->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); });
             for (const auto& command : QStringList{"Save preset", "Load preset", "Delete preset"}) {
-                auto* value = new QPushButton(command); presets->addWidget(value);
+                auto* value = new QPushButton(uiText(command)); presets->addWidget(value);
                 connect(value, &QPushButton::clicked, this, [this, action, command] {
                     try {
                         const auto state = readSettings(); auto all = state["nativeReadPresets"].toObject();
                         auto entries = readPresetsFromSettings(state, action); bool ok = false;
-                        const auto name = command == "Save preset" ? QInputDialog::getText(this, command, "Preset name", QLineEdit::Normal, {}, &ok)
-                            : QInputDialog::getItem(this, command, "Preset", entries.keys(), 0, false, &ok);
+                        const auto name = command == "Save preset" ? UiInputDialog::getText(this, uiText(command), uiText("Preset name"), QLineEdit::Normal, {}, &ok)
+                            : UiInputDialog::getItem(this, uiText(command), uiText("Preset"), entries.keys(), 0, false, &ok);
                         if (!ok || name.trimmed().isEmpty()) return;
                         if (command == "Save preset") {
-                            if (entries.contains(name) && QMessageBox::question(this, "Replace preset", name,
+                            if (entries.contains(name) && UiMessageBox::question(this, uiText("Replace preset"), name,
                                 QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
                             entries[name] = options()[action];
                         }
                         else if (command == "Load preset") { restore(QJsonObject{{action, entries[name]}}); return; }
                         else entries.remove(name);
                         all[action] = entries; writeSettings({{"nativeReadPresets", all}});
-                    } catch (const std::exception& e) { QMessageBox::warning(this, "Read presets", QString::fromUtf8(e.what())); }
+                    } catch (const std::exception& e) { UiMessageBox::warning(this, uiText("Read presets"), uiText(QString::fromUtf8(e.what()))); }
                 });
             }
         }
-        tabs_->addTab(savePage, "Save");
-        operation_ = new QComboBox; operation_->setObjectName("inspectorOperation"); operation_->setAccessibleName("Maya operation");
+        tabs_->addTab(savePage, uiText("Save"));
+        operation_ = new QComboBox; operation_->setObjectName("inspectorOperation"); operation_->setAccessibleName(uiText("Maya operation"));
         for (int i = 0; i < tabs_->count(); ++i) operation_->addItem(tabs_->tabText(i));
         layout->insertWidget(layout->indexOf(tabs_), operation_); operation_->hide();
         connect(operation_, qOverload<int>(&QComboBox::currentIndexChanged), tabs_, &QTabWidget::setCurrentIndex);
         connect(tabs_, &QTabWidget::currentChanged, operation_, &QComboBox::setCurrentIndex);
     } else { tabs_->tabBar()->hide(); }
-    auto* details = new QToolButton; details->setObjectName("fileDetailsToggle"); details->setText("File details"); details->setCheckable(true); details->setArrowType(Qt::RightArrow); details->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); layout->addWidget(details);
+    auto* details = new QToolButton; details->setObjectName("fileDetailsToggle"); details->setText(uiText("File details")); details->setCheckable(true); details->setArrowType(Qt::RightArrow); details->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); layout->addWidget(details);
     detailsBody_ = new QWidget; auto* detailsLayout = new QVBoxLayout(detailsBody_); detailsLayout->setContentsMargins(0, 0, 0, 0);
     detailsLayout->addWidget(information_); preview_ = new QLabel; preview_->setObjectName("filePreview"); preview_->setAlignment(Qt::AlignCenter); preview_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); detailsLayout->addWidget(preview_);
     layout->addWidget(detailsBody_); detailsBody_->hide();
@@ -157,20 +191,20 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
         const auto result = fileResultFromJson(raw); const auto data = result.extra;
         if (result.cancelled || data["path"].toString() != path_ || data["token"].toString() != token_) return;
         if (!result.errors.isEmpty()) { information_->setText(result.errors.join("\n")); return; }
-        QString info = "Type\n" + QFileInfo(path_).suffix() + "\n\nSize\n" + QLocale().formattedDataSize(qint64(data["size"].toDouble()))
-            + "\n\nDate modified\n" + data["modified"].toString() + "\n\nAvailability\n" + data["availability"].toString() + "\n\nLocation\n" + QFileInfo(path_).absolutePath();
-        if (data.contains("width")) info += QString("\n\nDimensions\n%1 × %2").arg(data["width"].toInt()).arg(data["height"].toInt());
-        if (data.contains("mayaVersion")) info += "\n\nMaya version\n" + data["mayaVersion"].toString();
+        QString info = uiText("Type") + "\n" + QFileInfo(path_).suffix() + "\n\n" + uiText("Size") + "\n" + uiLocale().formattedDataSize(qint64(data["size"].toDouble()))
+            + "\n\n" + uiText("Date modified") + "\n" + data["modified"].toString() + "\n\n" + uiText("Availability") + "\n" + data["availability"].toString() + "\n\n" + uiText("Location") + "\n" + QFileInfo(path_).absolutePath();
+        if (data.contains("width")) info += QString("\n\n" + uiText("Dimensions") + "\n%1 × %2").arg(data["width"].toInt()).arg(data["height"].toInt());
+        if (data.contains("mayaVersion")) info += "\n\n" + uiText("Maya version") + "\n" + data["mayaVersion"].toString();
         for (const auto& raw : data["dependencies"].toArray()) { const auto row = raw.toObject(); info += "\n" + row["state"].toString() + ": " + row["path"].toString(); }
-        if (data.contains("scene")) info += "\n\nScene information\n" + QString::fromUtf8(QJsonDocument(data["scene"].toObject()).toJson());
-        if (data.contains("text")) info += "\n\nText preview (first 16 KiB)\n" + data["text"].toString();
+        if (data.contains("scene")) info += "\n\n" + uiText("Scene information") + "\n" + QString::fromUtf8(QJsonDocument(data["scene"].toObject()).toJson());
+        if (data.contains("text")) info += "\n\n" + uiText("Text preview (first 16 KiB)") + "\n" + data["text"].toString();
         if (data.contains("note")) info += "\n\n" + data["note"].toString();
         information_->setText(info);
         QPixmap image; if (image.loadFromData(QByteArray::fromBase64(data["png"].toString().toLatin1()), "PNG")) preview_->setPixmap(image.scaled(220, 180, Qt::KeepAspectRatio, Qt::SmoothTransformation));
     });
     connect(details, &QToolButton::toggled, detailsBody_, [this, details](bool visible) { detailsBody_->setVisible(visible); details->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); if (visible) requestDetails(); else { token_ = QUuid::createUuid().toString(); media_->cancel(); } });
     if (maya) {
-        button(layout, "Maya File Dialogs…", "options");
+        button(layout, uiText("Maya File Dialogs…"), "options");
     }
     layout->addStretch();
     connect(tabs_, &QTabWidget::currentChanged, this, [this](int active) {
@@ -191,9 +225,9 @@ void Inspector::setPath(const QString& path) {
     if (path_ == path) return;
     path_ = path; token_ = QUuid::createUuid().toString(); media_->cancel(); preview_->clear();
     const QFileInfo info(path);
-    title_->setText(path.isEmpty() ? "Select a file below" : info.fileName()); title_->setToolTip(path);
+    title_->setText(path.isEmpty() ? uiText("Select a file below") : info.fileName()); title_->setToolTip(path);
     if (fbx_) fbx_->setVisible(info.suffix().compare("fbx", Qt::CaseInsensitive) == 0);
-    information_->setText(path.isEmpty() ? "Select a file" : "Loading details…");
+    information_->setText(path.isEmpty() ? uiText("Select a file") : uiText("Loading details…"));
     if (!detailsBody_->isHidden()) requestDetails();
 }
 void Inspector::requestDetails() {

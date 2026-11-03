@@ -127,7 +127,9 @@ def main(output_dir, finished=None):
         assert cmds.file(query=True, modified=True)
         assert cmds.file(query=True, sceneName=True) == protected_scene
         assert (fixture / "scene.mb").read_bytes() == protected_bytes
-    assert cancelled_dialogs == ["Unsaved scene", "Unsaved scene", "Overwrite file"]
+    # 既定の日本語/明示した英語の両方で、同じCancel経路を照合する。
+    expected_titles = ["未保存のシーン", "未保存のシーン", "ファイルの上書き"] if window.property("uiLanguage") == "ja" else ["Unsaved scene", "Unsaved scene", "Overwrite file"]
+    assert cancelled_dialogs == expected_titles
     cmds.file(new=True, force=True)
     invoke("open", (fixture / "scene.mb").as_posix())
     checks.append("New/Open/Save As Cancel preserves unsaved scene, scene name and existing disk bytes")

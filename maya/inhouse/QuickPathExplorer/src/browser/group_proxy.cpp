@@ -1,5 +1,6 @@
 /** @file group_proxy.cpp @brief グループ化のためにファイルを再列挙しない表示アダプター。 */
 #include "group_proxy.h"
+#include "ui_language.h"
 #include <QFileInfo>
 #include <QDir>
 #include <QFont>
@@ -32,10 +33,10 @@ void GroupProxy::rebuild() {
     if (sourceModel()) for (int row = 0; row < sourceModel()->rowCount(); ++row) {
         const auto index = sourceModel()->index(row, 0); const auto path = index.data(Qt::UserRole + 1).toString(); if (path.isEmpty()) continue;
         const QFileInfo file(path); QString name;
-        if (mode_ == 1) name = file.suffix().isEmpty() ? "No extension" : '.' + file.suffix().toLower();
+        if (mode_ == 1) name = file.suffix().isEmpty() ? uiText("No extension") : '.' + file.suffix().toLower();
         else if (mode_ == 2) name = sourceModel()->index(row, 3).data(Qt::UserRole + 3).toDateTime().date().toString(Qt::ISODate);
         else if (mode_ == 3) name = file.absolutePath();
-        else { QStringList tags; for (const auto& tag : labels_[QDir::toNativeSeparators(path).toLower()].toObject()["tags"].toArray()) tags.append(tag.toString()); tags.sort(Qt::CaseInsensitive); name = tags.isEmpty() ? "No tags" : tags.join(", "); }
+        else { QStringList tags; for (const auto& tag : labels_[QDir::toNativeSeparators(path).toLower()].toObject()["tags"].toArray()) tags.append(tag.toString()); tags.sort(Qt::CaseInsensitive); name = tags.isEmpty() ? uiText("No tags") : tags.join(", "); }
         values[name].append(index);
     }
     beginResetModel(); groups_.clear(); for (auto it = values.begin(); it != values.end(); ++it) groups_.append({it.key(), it.value()}); endResetModel();

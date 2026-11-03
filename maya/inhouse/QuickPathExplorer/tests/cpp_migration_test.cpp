@@ -14,6 +14,8 @@
 #include "../src/browser/inspector.h"
 #include "../src/browser/group_proxy.h"
 #include "../src/browser/navigation_widgets.h"
+#include "../src/browser/ui_language.h"
+#include "../src/browser/inspector.h"
 #include <QAbstractItemModelTester>
 #include <QStandardItemModel>
 #include "../src/native_browser.h"
@@ -43,6 +45,7 @@
 #include <QLabel>
 #include <QShortcut>
 #include <QDialog>
+#include <QInputDialog>
 #include <QMenu>
 #include <QDialogButtonBox>
 #include <QTreeWidget>
@@ -415,10 +418,21 @@ private slots:
             auto* footer = window.findChild<QLabel*>("footer");
             auto* types = window.findChild<QComboBox*>("fileTypes");
             for (QWidget* widget : QList<QWidget*>{tabs, columns->widget(), footer, types}) {
-                QVERIFY2((widget->palette().color(QPalette::Window).lightness() > 128) == light, qPrintable(widget->objectName()));
+                QVERIFY2((widget->palette().color(QPalette::Window).lightness() > 128) == light,
+                         qPrintable(theme + " " + widget->objectName() + " " + widget->palette().color(QPalette::Window).name()));
                 QVERIFY2((widget->palette().color(QPalette::WindowText).lightness() < 128) == light, qPrintable(widget->objectName()));
             }
             window.addTab(path("B")); QTRY_VERIFY(window.ready());
+            window.addTab(path("A")); QTRY_VERIFY(window.ready()); tabs->setCurrentIndex(1);
+            QTest::mouseMove(&window, QPoint(100, window.height() - 30)); QTest::qWait(30);
+            const auto tabImage = tabs->grab().toImage(); const auto dpr = tabImage.devicePixelRatio();
+            const auto pixel = [&](const QPoint& point) { return tabImage.pixelColor(qRound(point.x() * dpr), qRound(point.y() * dpr)); };
+            const auto activeColor = pixel(tabs->tabRect(1).topLeft() + QPoint(45, 5));
+            const auto inactiveColor = pixel(tabs->tabRect(0).topLeft() + QPoint(45, 5));
+            QVERIFY2(qAbs(activeColor.lightness() - inactiveColor.lightness()) >= 12, "Active tab surface must be distinct in both themes");
+            auto* close = tabs->tabButton(1, QTabBar::RightSide); QVERIFY(close);
+            const auto closeCorner = pixel(close->geometry().topLeft() + QPoint(1, 1));
+            QVERIFY2(qAbs(closeCorner.lightness() - activeColor.lightness()) <= 4, "Close button must not cover the selected surface with an opaque box");
             for (auto* label : window.findChildren<QLabel*>("footer"))
                 QVERIFY((label->palette().color(QPalette::WindowText).lightness() < 128) == light);
             const auto placeholder = window.findChild<QLineEdit*>("fileFilter")->palette().color(QPalette::PlaceholderText);
@@ -434,6 +448,66 @@ private slots:
             QVERIFY(visibleLine);
             QCOMPARE(QApplication::palette(), original); window.close();
         }
+    }
+    /** @brief Explorerと同じ初期順・数値入り名前・昇降順の矢印を、白/暗の実描画で確認する。 */
+    void explorerSortingPresentation() {
+        const auto before = qpe::readSettings();
+        QVERIFY(QDir().mkpath(path("sort-ui")));
+        const QStringList names{"alpha.ma", "beta.txt", "file2.txt", "file10.txt", "gamma.mb"};
+        const QList<int> sizes{2000, 500, 30, 40, 1000};
+        for (int i = 0; i < names.size(); ++i) {
+            QVERIFY(file("sort-ui/" + names[i], sizes[i]));
+            QFile item(path("sort-ui/" + names[i])); QVERIFY(item.open(QIODevice::ReadWrite));
+            QVERIFY(item.setFileTime(QDateTime(QDate(2026, 10, i + 1), QTime(12, 0), Qt::UTC), QFileDevice::FileModificationTime));
+        }
+        for (const auto& theme : {QString("light"), QString("dark")}) {
+            qpe::writeSettings({{"nativeAppearance", QJsonObject{{"theme", theme}}}, {"folderViews", QJsonObject{}}});
+            qpe::BrowserWindow window; window.restoreSession(path("sort-ui"), false); window.show(); QTRY_VERIFY(window.ready());
+            auto* files = window.findChild<QTreeView*>("files"); auto* header = files->header();
+            QCOMPARE(header->defaultAlignment(), Qt::Alignment(Qt::AlignLeft | Qt::AlignVCenter));
+            QTRY_COMPARE(files->model()->rowCount(), names.size());
+            for (int row = 0; row < names.size(); ++row) QCOMPARE(files->model()->index(row, 0).data().toString(), names[row]);
+            const auto click = [&](int column) {
+                QTest::mouseClick(header->viewport(), Qt::LeftButton, Qt::NoModifier, QPoint(header->sectionViewportPosition(column) + 12, header->height() / 2));
+            };
+            for (const int column : {1, 3, 2, 0}) {
+                click(column);
+                QCOMPARE(header->sortIndicatorSection(), column);
+                const auto first = column == 1 || column == 3 ? Qt::DescendingOrder : Qt::AscendingOrder;
+                QCOMPARE(header->sortIndicatorOrder(), first);
+                for (int pass = 0; pass < 2; ++pass) {
+                    const bool ascending = header->sortIndicatorOrder() == Qt::AscendingOrder;
+                    for (int row = 1; row < files->model()->rowCount(); ++row) {
+                        const auto a = files->model()->index(row - 1, column).data(Qt::UserRole + 3);
+                        const auto b = files->model()->index(row, column).data(Qt::UserRole + 3);
+                        if (column == 1) QVERIFY(ascending ? a.toLongLong() <= b.toLongLong() : a.toLongLong() >= b.toLongLong());
+                        else if (column == 3) QVERIFY(ascending ? a.toDateTime() <= b.toDateTime() : a.toDateTime() >= b.toDateTime());
+                        else if (column == 2) QVERIFY(ascending ? a.toString() <= b.toString() : a.toString() >= b.toString());
+                    }
+                    if (column == 0) for (int row = 0; row < names.size(); ++row)
+                        QCOMPARE(files->model()->index(row, 0).data().toString(), names[ascending ? row : names.size() - row - 1]);
+                    QVERIFY(files->model()->headerData(column, Qt::Horizontal, Qt::ToolTipRole).toString().contains(ascending ? "Ascending" : "Descending"));
+                    QTest::mouseMove(&window, QPoint(100, window.height() - 30));
+                    // 上中央の12×8px領域を読み、実際の頂点方向とテーマ上のコントラストを検査する。
+                    const QRect arrow(header->sectionViewportPosition(column) + (header->sectionSize(column) - 1) / 2 - 6, 1, 12, 8);
+                    const auto image = header->viewport()->grab().toImage(); const auto dpr = image.devicePixelRatio();
+                    const auto background = header->palette().color(QPalette::Base);
+                    int centerY = 0, centerCount = 0, edgeY = 0, edgeCount = 0;
+                    for (int y = 0; y < arrow.height(); ++y) for (int x = 0; x < arrow.width(); ++x) {
+                        const auto ink = image.pixelColor(qRound((arrow.x() + x) * dpr), qRound((arrow.y() + y) * dpr));
+                        if (qAbs(ink.lightness() - background.lightness()) < 60) continue;
+                        if (x >= arrow.width() / 3 && x < arrow.width() * 2 / 3) { centerY += y; ++centerCount; }
+                        else { edgeY += y; ++edgeCount; }
+                    }
+                    QVERIFY2(centerCount > 0 && edgeCount > 0, "Sort chevron must have visible contrast in both themes");
+                    const double delta = double(centerY) / centerCount - double(edgeY) / edgeCount;
+                    QVERIFY2(ascending ? delta < -.5 : delta > .5, "Sort chevron must point up for ascending and down for descending");
+                    click(column);
+                }
+            }
+            window.close();
+        }
+        qpe::saveJson(qpe::settingsPath(), before);
     }
     /** @brief 明示パス起動でも表示設定を読み、旧タブを開かず編集入力を保護する。 */
     void explicitPathAppearanceAndKeys() {
@@ -952,6 +1026,7 @@ private slots:
     void initTestCase() {
         QVERIFY(data_.isValid());
         qputenv("QPE_SETTINGS_FILE", path("settings.json").toUtf8());
+        qpe::writeSettings({{"uiLanguage", "en"}}); qpe::setUiLanguage("en");
         QVERIFY(QDir().mkpath(path("A/子フォルダー/empty")));
         QVERIFY(QDir().mkpath(path("B")));
         QVERIFY(file("A/小さい.mb", 20));
@@ -960,6 +1035,158 @@ private slots:
         QVERIFY(file("B/別のファイル.txt"));
         QVERIFY(QDir().mkpath(path("many")));
         for (int i = 0; i < 5000; ++i) QVERIFY(file(QString("many/日本語_%1.txt").arg(i, 5, 10, QChar('0'))));
+    }
+    /** @brief 既存の英語UI検査は言語を明示し、日本語ケースでは各ケース内で既定値を検査する。 */
+    void init() { qpe::writeSettings({{"uiLanguage", "en"}}); qpe::setUiLanguage("en"); }
+    /** @brief 日本語既定と英語の再表示でも、名前・フィルターID・Mayaオプションを翻訳しない。 */
+    void japaneseUiAndStableValues() {
+        const auto before = qpe::readSettings(); auto defaults = before; defaults.remove("uiLanguage");
+        QVERIFY(QDir().mkpath(path("i18n"))); QVERIFY(file("i18n/Name.ma")); QVERIFY(file("i18n/Open.txt")); QVERIFY(file("i18n/Name"));
+        defaults["favorites"] = QJsonArray{path("i18n/Name")}; qpe::saveJson(qpe::settingsPath(), defaults);
+        QCOMPARE(qpe::savedUiLanguage(), QString("ja")); const auto globalPalette = QApplication::palette(); const auto locale = QLocale().name();
+        QLabel unrelated("Open");
+        {
+            qpe::BrowserWindow window; window.restoreSession(path("i18n"), false); window.show(); QTRY_VERIFY(window.ready());
+            QCOMPARE(window.property("uiLanguage").toString(), QString("ja"));
+            auto* files = window.findChild<QTreeView*>("files"); QCOMPARE(files->model()->headerData(0, Qt::Horizontal).toString(), QString::fromUtf8("名前"));
+            auto* types = window.findChild<QComboBox*>("fileTypes"); QCOMPARE(types->itemText(0), QString::fromUtf8("すべてのファイル")); QCOMPARE(types->itemData(0).toString(), QString("All files"));
+            types->setCurrentIndex(1); QTRY_COMPARE(files->model()->rowCount(), 1); QCOMPARE(types->currentData().toString(), QString("Maya scenes"));
+            auto* places = window.findChild<QTreeWidget*>("places"); QCOMPARE(places->topLevelItem(0)->text(0), QString::fromUtf8("お気に入り")); QCOMPARE(places->topLevelItem(0)->child(0)->text(0), QString("Name"));
+            qpe::Inspector inspector(true, &window);
+            QCOMPARE(inspector.findChild<QComboBox*>("import_mode")->itemText(0), QString::fromUtf8("ファイル名"));
+            inspector.restore({{"reference", QJsonObject{{"mode", "custom"}, {"name", "Open"}}}, {"fbx", QJsonObject{{"mode", "exmerge"}}}});
+            QCOMPARE(inspector.findChild<QLineEdit*>("reference_name")->text(), QString("Open"));
+            QCOMPARE(inspector.options()["reference"].toObject()["mode"].toString(), QString("custom"));
+            QCOMPARE(inspector.findChild<QComboBox*>("fbx_mode")->currentText(), QString::fromUtf8("アニメーションのみを更新"));
+            bool settingsSeen = false;
+            QTimer::singleShot(0, &window, [&] {
+                auto* dialog = window.findChild<QDialog*>("qpePreferences"); QVERIFY(dialog);
+                auto* language = dialog->findChild<QComboBox*>("uiLanguage"); QVERIFY(language);
+                QCOMPARE(language->currentData().toString(), QString("ja")); auto* buttons = dialog->findChild<QDialogButtonBox*>(); QVERIFY(buttons);
+                QCOMPARE(buttons->button(QDialogButtonBox::Save)->text(), QString::fromUtf8("保存"));
+                language->setCurrentIndex(1); settingsSeen = true; buttons->button(QDialogButtonBox::Save)->click();
+            });
+            window.perform("settings"); QVERIFY(settingsSeen); QCOMPARE(qpe::savedUiLanguage(), QString("en"));
+            QCOMPARE(window.property("uiLanguage").toString(), QString("ja")); window.close();
+        }
+        const auto states = qpe::readSettings()["nativeWorkspace"].toObject()["states"].toArray(); QVERIFY(!states.isEmpty());
+        QCOMPARE(states.first().toObject()["filterKind"].toString(), QString("Maya scenes"));
+        {
+            qpe::BrowserWindow window; window.restoreSession(); window.show(); QTRY_VERIFY(window.ready());
+            QCOMPARE(window.property("uiLanguage").toString(), QString("en"));
+            QCOMPARE(window.findChild<QTreeView*>("files")->model()->headerData(0, Qt::Horizontal).toString(), QString("Name"));
+            QCOMPARE(window.findChild<QComboBox*>("fileTypes")->currentData().toString(), QString("Maya scenes")); window.close();
+        }
+        QCOMPARE(unrelated.text(), QString("Open")); QCOMPARE(QApplication::palette(), globalPalette); QCOMPARE(QLocale().name(), locale);
+        qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
+    }
+    /** @brief ダイアログ本文・入力と設定の転送で、ユーザーの英語名を翻訳しない。 */
+    void languageDialogsAndSettingsValidation() {
+        const auto before = qpe::readSettings(); qpe::writeSettings({{"uiLanguage", "ja"}}); qpe::setUiLanguage("ja");
+        QWidget parent;
+        QTimer::singleShot(0, &parent, [&] {
+            auto* dialog = parent.findChild<QMessageBox*>(); QVERIFY(dialog); QCOMPARE(dialog->text(), QString("Open"));
+            QCOMPARE(dialog->button(QMessageBox::Cancel)->text(), QString::fromUtf8("キャンセル")); dialog->button(QMessageBox::Cancel)->click();
+        });
+        QCOMPARE(qpe::UiMessageBox::question(&parent, qpe::uiText("Delete"), "Open", QMessageBox::Yes | QMessageBox::Cancel), QMessageBox::Cancel);
+        bool accepted = false;
+        QTimer::singleShot(0, &parent, [&] {
+            auto* dialog = parent.findChild<QInputDialog*>(); QVERIFY(dialog); QCOMPARE(dialog->textValue(), QString("Name"));
+            QCOMPARE(dialog->cancelButtonText(), QString::fromUtf8("キャンセル")); dialog->accept();
+        });
+        QCOMPARE(qpe::UiInputDialog::getText(&parent, qpe::uiText("Rename"), qpe::uiText("Name"), QLineEdit::Normal, "Name", &accepted), QString("Name")); QVERIFY(accepted);
+        qpe::exportPreferences(path("language-settings.json"));
+        QCOMPARE(qpe::loadJson(path("language-settings.json"))["settings"].toObject()["uiLanguage"].toString(), QString("ja"));
+        qpe::writeSettings({{"uiLanguage", "en"}}); qpe::importPreferences(path("language-settings.json")); QCOMPARE(qpe::savedUiLanguage(), QString("ja"));
+        qpe::saveJson(path("bad-language.json"), {{"format", "qpe.preferences"}, {"version", 1}, {"settings", QJsonObject{{"uiLanguage", "JP"}}}});
+        QVERIFY_EXCEPTION_THROWN(qpe::importPreferences(path("bad-language.json")), std::invalid_argument);
+        QCOMPARE(qpe::savedUiLanguage(), QString("ja")); QVERIFY_EXCEPTION_THROWN(qpe::setUiLanguage("JP"), std::invalid_argument);
+        qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
+    }
+    /** @brief 日本語の詳細チェック項目を大きめの文字・狭いペインでも横スクロールなしで読める。 */
+    void japaneseInspectorNarrow() {
+        qpe::setUiLanguage("ja");
+        qpe::Inspector inspector(true, nullptr); QFont font = inspector.font(); font.setPixelSize(15); inspector.setFont(font); inspector.resize(280, 650); inspector.show();
+        inspector.showAction("import");
+        for (auto* button : inspector.findChildren<QToolButton*>()) if (button->text() == qpe::uiText("Advanced options")) button->setChecked(true);
+        QTest::qWait(30); auto* scroll = inspector.findChild<QScrollArea*>("inspectorScroll"); QVERIFY(scroll);
+        QCOMPARE(scroll->horizontalScrollBar()->maximum(), 0);
+        inspector.close(); qpe::setUiLanguage("en");
+    }
+    /** @brief 日本語で保存した検索種別と一致条件を英語UIで読み戻し、検索名も変更しない。 */
+    void japaneseSearchStoredIds() {
+        const auto before = qpe::readSettings(); qpe::writeSettings({{"uiLanguage", "ja"}, {"savedSearches", QJsonObject{}}});
+        {
+            qpe::BrowserWindow window; window.restoreSession(path("B"), false); window.show(); QTRY_VERIFY(window.ready());
+            QTimer::singleShot(0, &window, [&] {
+                auto* dialog = window.findChild<QDialog*>("qpeSearchOptions"); QVERIFY(dialog);
+                auto* kind = dialog->findChild<QComboBox*>("searchKind"); auto* tags = dialog->findChild<QComboBox*>("searchTagMode"); QVERIFY(kind && tags);
+                QCOMPARE(kind->itemText(2), QString::fromUtf8("ファイルとフォルダー")); kind->setCurrentIndex(2); tags->setCurrentIndex(1);
+                QPushButton* save = nullptr; for (auto* button : dialog->findChildren<QPushButton*>()) if (button->text() == qpe::uiText("Save search…")) save = button; QVERIFY(save);
+                QTimer::singleShot(0, dialog, [&] { auto* prompt = window.findChild<QInputDialog*>(); QVERIFY(prompt); prompt->setTextValue("Open"); prompt->accept(); });
+                save->click(); dialog->reject();
+            });
+            window.perform("search"); window.close();
+        }
+        const auto saved = qpe::readSettings()["savedSearches"].toObject(); QVERIFY(saved.contains("Open"));
+        QCOMPARE(saved["Open"].toObject()["kind"].toString(), QString("Both")); QCOMPARE(saved["Open"].toObject()["tagMode"].toString(), QString("Any"));
+        qpe::writeSettings({{"uiLanguage", "en"}});
+        {
+            qpe::BrowserWindow window; window.restoreSession(path("B"), false); window.show(); QTRY_VERIFY(window.ready()); bool checked = false;
+            QTimer::singleShot(0, &window, [&] {
+                auto* dialog = window.findChild<QDialog*>("qpeSearchOptions"); QVERIFY(dialog);
+                QComboBox* presets = nullptr; for (auto* combo : dialog->findChildren<QComboBox*>()) if (combo->findText("Open") >= 0) presets = combo; QVERIFY(presets);
+                presets->setCurrentIndex(presets->findText("Open"));
+                QCOMPARE(dialog->findChild<QComboBox*>("searchKind")->currentData().toString(), QString("Both"));
+                QCOMPARE(dialog->findChild<QComboBox*>("searchTagMode")->currentData().toString(), QString("Any")); checked = true; dialog->reject();
+            });
+            window.perform("search"); QVERIFY(checked); window.close();
+        }
+        qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
+    }
+    /** @brief 日本語の同名確認でスキップ/置き換えを正しく実行し、元に戻せる。 */
+    void japaneseConflictPolicies() {
+        const auto before = qpe::readSettings(); qpe::writeSettings({{"uiLanguage", "ja"}});
+        qpe::setUiLanguage("ja");
+        for (const auto& caption : {"Rename…", "Copy Path", "Create Copy", "Batch Rename…", "Use regular expression"}) QVERIFY(qpe::uiText(caption) != caption);
+        QVERIFY(QDir().mkpath(path("jp-copy/source"))); QVERIFY(QDir().mkpath(path("jp-copy/target")));
+        QVERIFY(file("jp-copy/source/Name.txt", 8)); QVERIFY(file("jp-copy/target/Name.txt", 15));
+        qpe::BrowserWindow window; window.restoreSession(path("jp-copy/source"), false); window.show(); QTRY_VERIFY(window.ready());
+        for (const int choice : {1, 2}) {
+            QTimer::singleShot(0, &window, [&] {
+                auto* prompt = window.findChild<QInputDialog*>(); QVERIFY(prompt); auto* items = prompt->findChild<QComboBox*>(); QVERIFY(items);
+                QCOMPARE(items->itemText(choice), qpe::uiText(choice == 1 ? "Skip" : "Replace (keep Undo backup)")); items->setCurrentIndex(choice);
+                QCOMPARE(prompt->textValue(), items->currentText()); prompt->accept();
+            });
+            window.perform("copyTo", {path("jp-copy/source/Name.txt")}, path("jp-copy/target")); QTRY_VERIFY_WITH_TIMEOUT(!window.busy(), 10000);
+            QCOMPARE(QFileInfo(path("jp-copy/target/Name.txt")).size(), qint64(choice == 1 ? 15 : 8));
+            // 置き換えでは同じボリュームへUndo用の隠しバックアップを残す。
+            if (choice == 1) QCOMPARE(QDir(path("jp-copy/target")).entryList(QDir::Files).size(), 1);
+        }
+        window.perform("undo"); QTRY_VERIFY_WITH_TIMEOUT(!window.busy(), 10000); QCOMPARE(QFileInfo(path("jp-copy/target/Name.txt")).size(), qint64(15));
+        window.close(); qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
+    }
+    /** @brief 右クリックのヘルパー経由でも日本語の操作名が表示される。 */
+    void japaneseContextMenu() {
+        const auto before = qpe::readSettings(); qpe::writeSettings({{"uiLanguage", "ja"}});
+        QVERIFY(QDir().mkpath(path("menu-jp/child")));
+        qpe::BrowserWindow window; window.navigate(path("menu-jp")); window.show(); QTRY_VERIFY(window.ready());
+        QListView* column = nullptr;
+        for (auto* candidate : window.findChildren<QListView*>("folderColumn"))
+            if (candidate->property("path").toString() == path("menu-jp")) column = candidate;
+        QVERIFY(column); QTRY_COMPARE(column->model()->rowCount(), 1);
+        QStringList labels;
+        QTimer::singleShot(50, &window, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            if (!menu) return;
+            for (auto* action : menu->actions()) labels.append(action->text());
+            for (auto* child : menu->findChildren<QMenu*>()) for (auto* action : child->actions()) labels.append(action->text());
+            menu->close();
+        });
+        window.contextMenu(column, column->visualRect(column->model()->index(0, 0)).center(), path("menu-jp"));
+        for (const auto& label : {"名前の変更…", "パスのコピー", "コピーの作成", "名前の一括変更…", "開始フォルダーに設定"}) QVERIFY2(labels.contains(label), label);
+        QVERIFY(QFileInfo::exists(path("menu-jp/child")));
+        window.close(); qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
     }
     /** @brief 設定のキー保存、破損保護、ロック競合を検証する。 */
     void persistentSettings() {

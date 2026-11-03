@@ -4,6 +4,7 @@
 #include "native_browser.h"
 #include <QApplication>
 #include <QCache>
+#include <QCollator>
 #include <QDateTime>
 #include <QDir>
 #include <QEvent>
@@ -91,7 +92,7 @@ QVariant stored(const QModelIndex& index, int role = Qt::DisplayRole) {
 class FileProxy final : public QSortFilterProxyModel {
 public:
     /** @brief 親に所有させる。 @param parent 所有者。 */
-    explicit FileProxy(QObject* parent) : QSortFilterProxyModel(parent) {}
+    explicit FileProxy(QObject* parent) : QSortFilterProxyModel(parent) { nameCollator_.setNumericMode(true); }
     /** @brief 更新時に整形済みの値を描画し、再描画での単位変換を避ける。
      * @param index 表示索引。 @param role 役割。 @return 表示値。
      */
@@ -132,8 +133,15 @@ protected:
         auto a = stored(left, SortValueRole), b = stored(right, SortValueRole);
         if (left.column() == 1 || left.column() == 5 || left.column() == 7) return a.toLongLong() < b.toLongLong();
         if (left.column() == 3) return a.toDateTime() < b.toDateTime();
+        if (left.column() == 0) {
+            // Explorerの番号付き名前に合わせ、file2をfile10より先にする。比較器を毎行作らない。
+            if (nameCollator_.caseSensitivity() != sortCaseSensitivity()) nameCollator_.setCaseSensitivity(sortCaseSensitivity());
+            return nameCollator_.compare(a.toString(), b.toString()) < 0;
+        }
         return QString::compare(a.toString(), b.toString(), sortCaseSensitivity()) < 0;
     }
+private:
+    mutable QCollator nameCollator_;
 };
 
 /** @brief 既存配色を維持した行高だけの高速デリゲート。 */

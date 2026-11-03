@@ -1,4 +1,5 @@
 /** @file maya_host.cpp @brief GUIスレッドのMayaコマンドと設定復元。Pythonを実行しない。 */
+#include "../browser/ui_language.h"
 #include "maya_host.h"
 #include "../core/settings_store.h"
 #include "../core/file_operations.h"
@@ -40,21 +41,21 @@ void recordRecent() {
 /** @brief 未保存シーンの選択を要求する。 @return 切替可能か。 */
 bool allowSceneChange() {
     if (!boolQuery("file -q -modified")) return true;
-    const auto answer = QMessageBox::question(QApplication::activeWindow(), "Unsaved scene", "Save changes before switching scenes?",
+    const auto answer = UiMessageBox::question(QApplication::activeWindow(), uiText("Unsaved scene"), uiText("Save changes before switching scenes?"),
         QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel);
     if (answer == QMessageBox::Save) { mayaCommand("SaveScene"); return !boolQuery("file -q -modified"); }
     return answer == QMessageBox::Discard;
 }
 /** @brief 存在する保存先への上書きを確認。 @param path 保存先。 @return 継続可否。 */
-bool allowOverwrite(const QString& path) { return !QFileInfo::exists(path) || QMessageBox::question(QApplication::activeWindow(), "Overwrite file", "Replace this file?\n" + path, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) == QMessageBox::Yes; }
+bool allowOverwrite(const QString& path) { return !QFileInfo::exists(path) || UiMessageBox::question(QApplication::activeWindow(), uiText("Overwrite file"), uiText("Replace this file?\n") + path, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) == QMessageBox::Yes; }
 /** @brief 保存済みで未変更の現在シーンだけに確認用情報を付ける。 @return 保存したか。 */
 bool saveSidecar() {
     const auto scene = stringQuery("file -q -sceneName");
     if (scene.isEmpty() || !QFileInfo(scene).isFile()) throw std::invalid_argument("Save the scene first");
     if (boolQuery("file -q -modified")) throw std::invalid_argument("Save scene changes before saving its information and thumbnail");
     const auto metadata = scene + ".qpe.json", thumbnail = scene + ".qpe.png";
-    if ((QFileInfo::exists(metadata) || QFileInfo::exists(thumbnail)) && QMessageBox::question(QApplication::activeWindow(), "Update scene information and thumbnail",
-        "Replace QPE information for\n" + scene, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return false;
+    if ((QFileInfo::exists(metadata) || QFileInfo::exists(thumbnail)) && UiMessageBox::question(QApplication::activeWindow(), uiText("Update scene information and thumbnail"),
+        uiText("Replace QPE information for\n") + scene, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return false;
     MStringArray refs, nodes, visible;
     if (!MGlobal::executeCommand("file -q -reference", refs, false, false) || !MGlobal::executeCommand("ls -type file", nodes, false, false)) throw std::runtime_error("Could not query scene dependencies");
     QJsonArray references, textures;
@@ -138,7 +139,7 @@ bool mayaPerform(const QString& action, const QStringList& paths, const QJsonObj
     if (action == "new") { if (!allowSceneChange()) return false; mayaCommand("file -new -force"); return true; }
     if (action == "options") {
         QMenu menu; for (const auto& pair : QList<QPair<QString, QString>>{{"Open", "OpenSceneOptions"}, {"Import", "ImportOptions"}, {"Reference", "CreateReferenceOptions"}, {"Save As", "SaveSceneAsOptions"}, {"Export Selection", "ExportSelectionOptions"}, {"Set Project", "SetProject"}})
-            menu.addAction(pair.first, [pair] { try { mayaCommand(pair.second); } catch (const std::exception& e) { MGlobal::displayWarning(e.what()); } });
+            menu.addAction(uiText(pair.first), [pair] { try { mayaCommand(pair.second); } catch (const std::exception& e) { MGlobal::displayWarning(e.what()); } });
         menu.exec(QCursor::pos()); return true;
     }
     if (action == "save" && !stringQuery("file -q -sceneName").isEmpty()) { mayaCommand("file -save"); recordRecent(); return true; }
@@ -146,7 +147,7 @@ bool mayaPerform(const QString& action, const QStringList& paths, const QJsonObj
         const QString type = options["fileType"].toString("mayaBinary");
         if (type != "mayaBinary" && type != "mayaAscii") throw std::invalid_argument("Invalid Maya file type");
         QString name = options["fileName"].toString().trimmed(); QString path;
-        if (name.isEmpty()) path = QFileDialog::getSaveFileName(QApplication::activeWindow(), action == "export" ? "Export Selection" : "Save Scene As", options["directory"].toString(), type == "mayaBinary" ? "Maya Binary (*.mb)" : "Maya ASCII (*.ma)");
+        if (name.isEmpty()) path = QFileDialog::getSaveFileName(QApplication::activeWindow(), action == "export" ? uiText("Export Selection") : uiText("Save Scene As"), options["directory"].toString(), type == "mayaBinary" ? "Maya Binary (*.mb)" : "Maya ASCII (*.ma)");
         else { validateFileName(name); path = QDir(options["directory"].toString()).absoluteFilePath(name); }
         if (path.isEmpty()) return false;
         const QString ext = type == "mayaBinary" ? ".mb" : ".ma";
@@ -171,7 +172,8 @@ bool mayaPerform(const QString& action, const QStringList& paths, const QJsonObj
         if (action != "open") namespaceFor(path, read);
         if (action == "reference" && QFileInfo(path).canonicalFilePath().compare(QFileInfo(stringQuery("file -q -sceneName")).canonicalFilePath(), Qt::CaseInsensitive) == 0) throw std::invalid_argument("Cannot reference the current scene into itself");
     }
-    if (paths.size() > 1 && QMessageBox::question(QApplication::activeWindow(), "QuickPathExplorer", action + QString(" %1 files?").arg(paths.size()), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return false;
+    const auto multiPrompt = uiText(action == "import" ? "Import %1 files?" : "Reference %1 files?").arg(paths.size());
+    if (paths.size() > 1 && UiMessageBox::question(QApplication::activeWindow(), uiText("QuickPathExplorer"), multiPrompt, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return false;
     for (QString path : paths) {
         path = QDir::fromNativeSeparators(path);
         if (action == "open") {

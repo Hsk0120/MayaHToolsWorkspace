@@ -16,7 +16,7 @@
 namespace qpe {
 namespace {
 /** @brief 環境非依存の移植対象キー。 @return キー一覧。 */
-QStringList portableKeys() { return {"preferences", "commandKeys", "readPresets", "mayaAppearance", "standaloneAppearance", "standaloneTheme", "nativeReadOptions", "nativeReadPresets", "nativeMayaAppearance", "nativeAppearance"}; }
+QStringList portableKeys() { return {"uiLanguage", "preferences", "commandKeys", "readPresets", "mayaAppearance", "standaloneAppearance", "standaloneTheme", "nativeReadOptions", "nativeReadPresets", "nativeMayaAppearance", "nativeAppearance"}; }
 /** @brief 明示選択時だけ含めるコンピューター固有設定。 @return キー一覧。 */
 QStringList localKeys() { return {"favorites", "savedSearches", "fileLabels", "folderViews", "previewExecutable", "everythingExecutable", "tabSets", "nativeTabSets", "fileLocksmith", "fileLocksmithExecutable", "ffmpegExecutable", "pathHistory"}; }
 /** @brief JSON整数を暗黙変換せず検証する。 @param value 入力。 @param low 最小。 @param high 最大。 @return 範囲内整数か。 */
@@ -45,6 +45,7 @@ void exportPreferences(const QString& path, bool includeLocal) {
     saveJson(path, {{"format", "qpe.preferences"}, {"version", 1}, {"settings", values}});
 }
 void importPreferences(const QString& path) {
+    // 表示言語は保存IDとして扱い、翻訳したラベルや任意の言語名は取り込まない。
     if (!QFileInfo(path).isFile() || QFileInfo(path).size() > 8 * 1024 * 1024) throw std::invalid_argument("Settings file is missing or exceeds 8 MiB");
     const auto document = loadJson(path);
     if (document["format"].toString() != "qpe.preferences" || !integerIn(document["version"], 1, 1) || !document["settings"].isObject()) throw std::invalid_argument("Unsupported settings format / version");
@@ -52,7 +53,10 @@ void importPreferences(const QString& path) {
     const auto allowed = portableKeys() + localKeys();
     for (auto it = values.begin(); it != values.end(); ++it) {
         if (!allowed.contains(it.key())) throw std::invalid_argument(("Unknown setting: " + it.key()).toStdString());
-        if (QStringList{"favorites", "pathHistory"}.contains(it.key())) checkStrings(it.value());
+        if (it.key() == "uiLanguage") {
+            if (!it.value().isString() || !QStringList{"ja", "en"}.contains(it.value().toString())) throw std::invalid_argument("Invalid UI language");
+        }
+        else if (QStringList{"favorites", "pathHistory"}.contains(it.key())) checkStrings(it.value());
         else if (it.key().endsWith("Executable") || QStringList{"standaloneTheme", "fileLocksmith"}.contains(it.key())) { if (!it.value().isString()) throw std::invalid_argument("Expected string setting"); }
         else if (!it.value().isObject()) throw std::invalid_argument(("Expected object setting: " + it.key()).toStdString());
     }

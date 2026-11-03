@@ -1,4 +1,5 @@
 /** @file command_ui.cpp @brief 旧版のコマンドIDと設定形式を保つ検索・キー割当画面。 */
+#include "ui_language.h"
 #include "browser_window.h"
 #include "../core/settings_store.h"
 #include <QApplication>
@@ -72,32 +73,37 @@ void BrowserWindow::installCommandKeys() {
     }
 }
 void BrowserWindow::commandPalette() {
-    QDialog dialog(this); dialog.setObjectName("qpeCommandPalette"); dialog.setWindowTitle("Find command"); dialog.resize(540, 480);
-    auto* layout = new QVBoxLayout(&dialog); auto* query = new QLineEdit; query->setPlaceholderText("Search commands…"); auto* list = new QListWidget;
+    QDialog dialog(this); dialog.setObjectName("qpeCommandPalette"); dialog.setWindowTitle(uiText("Find command")); dialog.resize(540, 480);
+    auto* layout = new QVBoxLayout(&dialog); auto* query = new QLineEdit; query->setPlaceholderText(uiText("Search commands…")); auto* list = new QListWidget;
     layout->addWidget(query); layout->addWidget(list); QString selected;
-    const auto fill = [this, query, list] { list->clear(); for (const auto& command : commands(host_.maya)) if (command.id != "palette" && command.title.contains(query->text(), Qt::CaseInsensitive)) { auto* item = new QListWidgetItem(command.title, list); item->setData(Qt::UserRole, command.action); } if (list->count()) list->setCurrentRow(0); };
+    const auto fill = [this, query, list] { list->clear(); for (const auto& command : commands(host_.maya)) if (command.id != "palette" && uiText(command.title).contains(query->text(), Qt::CaseInsensitive)) { auto* item = new QListWidgetItem(uiText(command.title), list); item->setData(Qt::UserRole, command.action); } if (list->count()) list->setCurrentRow(0); };
     const auto accept = [&dialog, list, &selected] { if (list->currentItem()) { selected = list->currentItem()->data(Qt::UserRole).toString(); dialog.accept(); } };
     connect(query, &QLineEdit::textChanged, &dialog, fill); connect(query, &QLineEdit::returnPressed, &dialog, accept); connect(list, &QListWidget::itemActivated, &dialog, accept);
     fill(); query->setFocus(); if (dialog.exec() == QDialog::Accepted && !selected.isEmpty()) perform(selected, selectedPaths(), currentPath());
 }
 void BrowserWindow::preferencesDialog() {
     const auto state = readSettings(); auto preferences = state["preferences"].toObject();
-    QDialog dialog(this); dialog.setWindowTitle("QPE settings / keyboard shortcuts"); dialog.setObjectName("qpePreferences"); dialog.resize(680, 560);
+    QDialog dialog(this); dialog.setWindowTitle(uiText("QPE settings / keyboard shortcuts")); dialog.setObjectName("qpePreferences"); dialog.resize(680, 560);
     auto* layout = new QVBoxLayout(&dialog); auto* form = new QFormLayout; layout->addLayout(form);
-    auto* days = new QSpinBox; days->setRange(1, 3650); days->setValue(preferences["undoDays"].toInt(30)); form->addRow("Undo retention (days, manual cleanup)", days);
-    auto* budget = new QSpinBox; budget->setRange(1, 1048576); budget->setValue(preferences["undoMiB"].toInt(1024)); form->addRow("Undo backup budget (MiB, manual cleanup)", budget);
-    auto* everything = new QLineEdit(state["everythingExecutable"].toString()); form->addRow("Everything CLI executable", everything);
-    auto* info = new QLabel("Custom shortcuts apply only inside QPE. Editing fields and other Maya views are protected. Standard file-operation keys are reserved."); info->setWordWrap(true); layout->addWidget(info);
-    auto* tree = new QTreeWidget; tree->setHeaderLabels({"Command", "Shortcut"}); tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents); layout->addWidget(tree);
+    auto* language = new QComboBox; language->setObjectName("uiLanguage"); language->addItem("日本語 (JP)", "ja"); language->addItem("English (EN)", "en");
+    language->setCurrentIndex(savedUiLanguage() == "en" ? 1 : 0); form->addRow(uiText("Language / 言語"), language);
+    auto* languageHint = new QLabel(uiText("Reopen QPE to apply the language change. In Maya, close QPE and open it from the Window menu.")); languageHint->setWordWrap(true); form->addRow(languageHint);
+    auto* days = new QSpinBox; days->setRange(1, 3650); days->setValue(preferences["undoDays"].toInt(30)); form->addRow(uiText("Undo retention (days, manual cleanup)"), days);
+    auto* budget = new QSpinBox; budget->setRange(1, 1048576); budget->setValue(preferences["undoMiB"].toInt(1024)); form->addRow(uiText("Undo backup budget (MiB, manual cleanup)"), budget);
+    auto* everything = new QLineEdit(state["everythingExecutable"].toString()); form->addRow(uiText("Everything CLI executable"), everything);
+    auto* info = new QLabel(uiText("Custom shortcuts apply only inside QPE. Editing fields and other Maya views are protected. Standard file-operation keys are reserved.")); info->setWordWrap(true); layout->addWidget(info);
+    auto* tree = new QTreeWidget; tree->setHeaderLabels({uiText("Command"), uiText("Shortcut")}); tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents); layout->addWidget(tree);
     auto keys = QJsonObject{{"palette", "Ctrl+Shift+P"}, {"jobs", "Ctrl+Shift+J"}, {"history", "Ctrl+Shift+H"}}; const auto custom = state["commandKeys"].toObject(); for (auto it = custom.begin(); it != custom.end(); ++it) keys[it.key()] = it.value();
     QMap<QString, QKeySequenceEdit*> edits;
-    for (const auto& command : commands(host_.maya)) { auto* row = new QTreeWidgetItem(tree, {command.title}); auto* edit = new QKeySequenceEdit(QKeySequence(keys[command.id].toString()), tree); tree->setItemWidget(row, 1, edit); edits.insert(command.id, edit); }
+    for (const auto& command : commands(host_.maya)) { auto* row = new QTreeWidgetItem(tree, {uiText(command.title)}); auto* edit = new QKeySequenceEdit(QKeySequence(keys[command.id].toString()), tree); tree->setItemWidget(row, 1, edit); edits.insert(command.id, edit); }
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Save | QDialogButtonBox::Cancel); layout->addWidget(buttons);
+    uiButtons(buttons);
     connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, [&] {
         try { QJsonObject next = custom; for (auto it = edits.begin(); it != edits.end(); ++it) next[it.key()] = it.value()->keySequence().toString(QKeySequence::PortableText); validateCommandKeys(next);
-            preferences["undoDays"] = days->value(); preferences["undoMiB"] = budget->value(); writeSettings({{"preferences", preferences}, {"commandKeys", next}, {"everythingExecutable", everything->text()}}); dialog.accept();
-        } catch (const std::exception& e) { QMessageBox::warning(&dialog, "Settings", QString::fromUtf8(e.what())); }
+            if (busy() && language->currentData().toString() != savedUiLanguage()) throw std::runtime_error(uiText("Wait for file operations to finish before changing the language.").toStdString());
+            preferences["undoDays"] = days->value(); preferences["undoMiB"] = budget->value(); writeSettings({{"preferences", preferences}, {"commandKeys", next}, {"everythingExecutable", everything->text()}, {"uiLanguage", language->currentData().toString()}}); dialog.accept();
+        } catch (const std::exception& e) { UiMessageBox::warning(&dialog, uiText("Settings"), uiText(QString::fromUtf8(e.what()))); }
     });
     if (dialog.exec() == QDialog::Accepted) installCommandKeys();
 }

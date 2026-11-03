@@ -2,6 +2,7 @@
 #pragma once
 #include <QTabBar>
 #include <QTreeWidget>
+#include <QHeaderView>
 #include "settled_tree.h"
 #include <functional>
 namespace qpe {
@@ -12,6 +13,17 @@ namespace qpe {
  * @return 対象がこのビューに存在したか。
  */
 bool inlineRename(QAbstractItemView* view, const QString& path, std::function<void(const QString&)> submit);
+/** @brief Qtのテーマ別矢印に依存せず、昇順は上、降順は下へ描くファイル見出し。 */
+class FileSortHeader final : public QHeaderView {
+public:
+    /** @brief 入力・リサイズ・状態保存は標準ヘッダーへ任せる。 @param parent 所有するファイルビュー。 */
+    explicit FileSortHeader(QWidget* parent);
+protected:
+    /** @brief 標準の背景とラベルへ、現在の順序に対応する太めの山形を重ねる。
+     * @param painter 借用する描画先。 @param rect 見出しの領域。 @param logicalIndex 論理列。
+     */
+    void paintSection(QPainter* painter, const QRect& rect, int logicalIndex) const override;
+};
 /** @brief 240pxから100pxまで均等に縮み、その後は横送りするタブ。 */
 class NavigationTabs final : public QTabBar {
 public:

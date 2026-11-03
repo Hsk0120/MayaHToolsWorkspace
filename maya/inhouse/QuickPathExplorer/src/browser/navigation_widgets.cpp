@@ -1,4 +1,5 @@
 /** @file navigation_widgets.cpp @brief タブの見た目とファイル転送の明示境界。 */
+#include "ui_language.h"
 #include "navigation_widgets.h"
 #include <QAbstractButton>
 #include <QCursor>
@@ -76,7 +77,7 @@ public:
         const QRect bar(left, option.rect.top() + line + 7, width, 5);
         painter->fillRect(bar, option.palette.color(QPalette::Mid));
         if (capacity > 0) { auto used = bar; used.setWidth(qRound(width * qBound(0.0, 1.0 - free / capacity, 1.0))); painter->fillRect(used, free / capacity < .1 ? QColor("#c42b1c") : QColor("#0078d4")); }
-        const auto info = capacity > 0 ? QLocale().formattedDataSize(qint64(free), 1, QLocale::DataSizeTraditionalFormat) + " free / " + QLocale().formattedDataSize(qint64(capacity), 1, QLocale::DataSizeTraditionalFormat) : QString("Capacity unavailable");
+        const auto info = capacity > 0 ? uiText("%1 free / %2").arg(uiLocale().formattedDataSize(qint64(free), 1, QLocale::DataSizeTraditionalFormat), uiLocale().formattedDataSize(qint64(capacity), 1, QLocale::DataSizeTraditionalFormat)) : uiText("Capacity unavailable");
         painter->drawText(QRect(left, bar.bottom() + 3, width, line), Qt::AlignVCenter, option.fontMetrics.elidedText(info, Qt::ElideRight, width)); painter->restore();
     }
     /** @brief 字形寸法に合わせて2行分を予約する。 @param option フォント。 @param index 項目。 @return 必要な高さ。 */
@@ -99,7 +100,7 @@ QStringList paths(const QMimeData* data) { QStringList result; for (const auto& 
 class CloseGlyph final : public QAbstractButton {
 public:
     /** @brief タブ所有のボタンを作る。 @param parent 所有者。 */
-    explicit CloseGlyph(QWidget* parent) : QAbstractButton(parent) { setAccessibleName("Close tab"); setToolTip("Close tab"); setFocusPolicy(Qt::NoFocus); }
+    explicit CloseGlyph(QWidget* parent) : QAbstractButton(parent) { setObjectName("tabCloseButton"); setAccessibleName(uiText("Close tab")); setToolTip(uiText("Close tab")); setFocusPolicy(Qt::NoFocus); }
 protected:
     /** @brief ホバー面と細線を描く。 @param event 描画要求。 */
     void paintEvent(QPaintEvent*) override {
@@ -130,6 +131,25 @@ bool inlineRename(QAbstractItemView* view, const QString& path, std::function<vo
     const QFileInfo info(path); const auto name = info.fileName(); const auto dot = name.lastIndexOf('.');
     edit->setSelection(0, !info.isDir() && dot > 0 ? dot : name.size()); return true;
 }
+FileSortHeader::FileSortHeader(QWidget* parent) : QHeaderView(Qt::Horizontal, parent) {
+    setObjectName("fileSortHeader"); setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    setSectionsMovable(true); setFirstSectionMovable(false); setHighlightSections(true);
+}
+void FileSortHeader::paintSection(QPainter* painter, const QRect& rect, int logicalIndex) const {
+    QHeaderView::paintSection(painter, rect, logicalIndex);
+    if (!isSortIndicatorShown() || logicalIndex != sortIndicatorSection()) return;
+    const auto value = property("qpeSortScale"); const qreal scale = value.isValid() ? value.toReal() : 1.;
+    // 実際のソート方向を直接使う。Qt5/Qt6やホストの標準スタイルの上下解釈を共有しない。
+    const bool ascending = sortIndicatorOrder() == Qt::AscendingOrder;
+    const qreal x = rect.center().x(), y = rect.top() + scale;
+    painter->save(); painter->setClipRect(rect); painter->setRenderHint(QPainter::Antialiasing);
+    painter->setPen(QPen(palette().color(QPalette::Text), 1.6 * scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    QPolygonF arrow;
+    arrow << QPointF(x - 4 * scale, y + (ascending ? 6 : 2) * scale)
+          << QPointF(x, y + (ascending ? 2 : 6) * scale)
+          << QPointF(x + 4 * scale, y + (ascending ? 6 : 2) * scale);
+    painter->drawPolyline(arrow); painter->restore();
+}
 NavigationTabs::NavigationTabs(QWidget* parent) : QTabBar(parent) {
     // Qt標準のTabFocusではクリックしてもMaya側の入力フォーカスが残る。明示クリックだけでQPEへ移す。
     setFocusPolicy(Qt::StrongFocus);
@@ -150,13 +170,30 @@ void NavigationTabs::tabInserted(int index) {
 void NavigationTabs::tabRemoved(int index) { QTabBar::tabRemoved(index); refreshSizes(); }
 void NavigationTabs::resizeEvent(QResizeEvent* event) { QTabBar::resizeEvent(event); refreshSizes(); }
 void NavigationTabs::paintEvent(QPaintEvent*) {
-    QPainter p(this); p.setRenderHint(QPainter::Antialiasing); p.fillRect(rect(), palette().color(QPalette::Window));
+    const auto window = palette().color(QPalette::Window), foreground = palette().color(QPalette::Text);
+    const bool light = window.lightness() > 128;
+    const auto strip = light ? window.darker(108) : window;
+    const auto selected = window.lighter(light ? 110 : 155);
+    const auto hovered = light ? strip.darker(104) : window.lighter(125);
+    auto outline = foreground; outline.setAlpha(light ? 45 : 60);
+    auto separator = foreground; separator.setAlpha(light ? 65 : 85);
+    QPainter p(this); p.setRenderHint(QPainter::Antialiasing); p.fillRect(rect(), strip);
     const int hover = underMouse() ? tabAt(mapFromGlobal(QCursor::pos())) : -1;
     for (int i = 0; i < count(); ++i) { const QRectF area(tabRect(i)); if (!area.intersects(rect())) continue;
-        if (i == currentIndex() || i == hover) { p.setPen(Qt::NoPen); p.setBrush(palette().color(i == currentIndex() ? QPalette::Base : QPalette::AlternateBase)); p.drawRoundedRect(area.adjusted(1, 1, -1, -1), 6 * scale_, 6 * scale_); }
-        else if (i + 1 != currentIndex()) { auto line = palette().color(QPalette::Text); line.setAlpha(40); p.setPen(line); p.drawLine(QPointF(area.right(), area.top() + 9 * scale_), QPointF(area.right(), area.bottom() - 9 * scale_)); }
+        const bool active = i == currentIndex();
+        // 選択中は明確な面と輪郭、非選択同士は短い区切り線で所属を示す。
+        // タブの幅や閉じる領域は変えず、ホバーは選択面より控えめにする。
+        if (active || i == hover) {
+            p.setPen(active ? QPen(outline, 1) : QPen(Qt::NoPen)); p.setBrush(active ? selected : hovered);
+            p.drawRoundedRect(area.adjusted(1.5, 2, -1.5, -1), 6 * scale_, 6 * scale_);
+        }
+        if (!active && i + 1 != currentIndex()) {
+            p.setPen(QPen(separator, 1));
+            p.drawLine(QPointF(area.right() - .5, area.top() + 8 * scale_), QPointF(area.right() - .5, area.bottom() - 8 * scale_));
+        }
         tabIcon(i).paint(&p, QRect(qRound(area.left() + 12 * scale_), qRound(area.center().y() - 8 * scale_), qRound(16 * scale_), qRound(16 * scale_)));
-        const auto text = area.adjusted(36 * scale_, 0, -32 * scale_, 0); p.setPen(palette().color(QPalette::Text)); p.drawText(text, Qt::AlignLeft | Qt::AlignVCenter, fontMetrics().elidedText(tabText(i), Qt::ElideRight, qMax(0, int(text.width()))));
+        auto labelFont = font(); if (active) labelFont.setWeight(QFont::DemiBold); p.setFont(labelFont);
+        const auto text = area.adjusted(36 * scale_, 0, -32 * scale_, 0); p.setPen(foreground); p.drawText(text, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics(labelFont).elidedText(tabText(i), Qt::ElideRight, qMax(0, int(text.width()))));
     }
 }
 void NavigationTabs::mouseReleaseEvent(QMouseEvent* event) { if (event->button() == Qt::MiddleButton) { const int i = tabAt(event->pos()); if (i >= 0) emit tabCloseRequested(i); event->accept(); return; } QTabBar::mouseReleaseEvent(event); }
