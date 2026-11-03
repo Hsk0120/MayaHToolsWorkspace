@@ -44,7 +44,7 @@ def main(output_dir=None, finished=None):
         """表示の後、イベントを処理してから確かめる。"""
         try:
             from animBar.ui import bar
-            from animBar.ui.qt import QtWidgets
+            from animBar.ui.qt import QtCore, QtWidgets
             import animBar
 
             import maya.OpenMayaUI as omui
@@ -60,6 +60,13 @@ def main(output_dir=None, finished=None):
             checks["bars_in_control"] = len(control.findChildren(bar.AnimBar))
             checks["buttons"] = len(widget.findChildren(QtWidgets.QToolButton))
             checks["height"] = widget.height()
+            # どの部品にも、見出しと使い方の2行以上のツールチップがあること。
+            parts = widget.findChildren(QtWidgets.QToolButton) + widget.findChildren(bar.UndoSlider) + \
+                widget.findChildren(QtWidgets.QComboBox) + widget.findChildren(QtWidgets.QDoubleSpinBox)
+            checks["tooltips_missing"] = [part.objectName() or type(part).__name__ for part in parts
+                                          if len(part.toolTip().splitlines()) < 2]
+            checks["mode_item_tooltips"] = all(widget.mode.itemData(index, QtCore.Qt.ToolTipRole)
+                                               for index in range(widget.mode.count()))
             # 画面の上でのバーとタイムスライダーの位置(バーがタイムスライダーより上にあるか)。
             slider = wrapInstance(int(omui.MQtUtil.findControl("TimeSlider")), QtWidgets.QWidget)
             checks["above_time_slider"] = widget.mapToGlobal(widget.rect().topLeft()).y() < \
@@ -87,6 +94,19 @@ def main(output_dir=None, finished=None):
             whole = output / "animBar_window.png"
             window.grab().save(str(whole))
             result["screenshots"].append(str(whole))
+            # 目視の確認用に、ツールチップを出した状態の画像を残す。
+            for index, name in enumerate(("transformAll", "align")):
+                button = getattr(widget, name, None) or next(
+                    part for part in widget.findChildren(QtWidgets.QToolButton) if part.toolTip().startswith("Align"))
+                QtWidgets.QToolTip.showText(button.mapToGlobal(button.rect().bottomLeft()), button.toolTip(), button)
+                QtWidgets.QApplication.processEvents()
+                labels = [top for top in QtWidgets.QApplication.topLevelWidgets()
+                          if top.inherits("QTipLabel") and top.isVisible()]
+                if labels:
+                    tip = output / "animBar_tooltip_{}.png".format(index + 1)
+                    labels[0].grab().save(str(tip))
+                    result["screenshots"].append(str(tip))
+                QtWidgets.QToolTip.hideText()
             animBar.toggle()
             checks["toggle_hides"] = not cmds.workspaceControl(bar.CONTROL, exists=True)
             animBar.toggle()
@@ -157,14 +177,46 @@ def main(output_dir=None, finished=None):
             checks["session_mode_default"] = widget._session_mode() == widget.mode.currentData()
             # 右クリックのメニューが今の状態で作れること。
             menus = {}
+            untipped = []
+
+            def collect_untipped(menu, path):
+                """説明の無い項目を、サブメニューもたどって集める。"""
+                for action in menu.actions():
+                    if action.isSeparator():
+                        continue
+                    if not action.toolTip() or action.toolTip() == action.text().replace("&", ""):
+                        untipped.append(path + "/" + action.text())
+                    if action.menu() is not None:
+                        collect_untipped(action.menu(), path + "/" + action.text())
+
+            from animBar.core import timeline as timeline_module
+            timeline_module.saveRange("guiCheckRange")
             for name, build in (("playblast", widget._playblast_menu), ("mirror", widget._mirror_menu),
                                 ("tangent", lambda menu: widget._tangent_menu("flat", menu)),
-                                ("transformAll", widget._transform_all_menu)):
+                                ("transformAll", widget._transform_all_menu), ("tween", widget._tween_menu),
+                                ("frame", widget._frame_menu), ("nudge", lambda menu: widget._nudge_menu(1, menu)),
+                                ("range", widget._range_menu), ("reset", widget._reset_menu),
+                                ("paste", widget._paste_menu), ("align", widget._align_menu),
+                                ("micro", widget._micro_menu), ("recovery", widget._recovery_menu),
+                                ("sets", widget._sets_menu)):
                 menu = QtWidgets.QMenu(widget)
                 build(menu)
                 menus[name] = len(menu.actions())
+                collect_untipped(menu, name)
                 menu.deleteLater()
+            timeline_module.removeRange("guiCheckRange")
+            # ボタンに直接書いた右クリックのメニュー(Share・Jump・Copy・Pivot・Follow・Trail)も含め、全ボタンのメニュー。
+            for button in widget.findChildren(QtWidgets.QToolButton):
+                build = getattr(button, "menuBuilder", None)
+                if build is None:
+                    continue
+                menu = QtWidgets.QMenu(widget)
+                build(menu)
+                collect_untipped(menu, button.toolTip().splitlines()[0])
+                menu.deleteLater()
+                checks["button_menus"] = checks.get("button_menus", 0) + 1
             checks["menus"] = menus
+            checks["menu_items_without_tips"] = untipped
             cmds.delete(moved)
             animBar.toggle()
             checks["startup_respects_hidden"] = startup.install() is False
@@ -174,7 +226,8 @@ def main(output_dir=None, finished=None):
                         "toggle_hides": True, "toggle_shows": True, "micro_rebaseline_jobs": True,
                         "micro_stopped": True, "jump_follow": True, "playblast_settings": True,
                         "timeline_range_none": True, "recovery_open_job": True, "transform_all_toggle": True,
-                        "session_mode_default": True,
+                        "session_mode_default": True, "tooltips_missing": [], "mode_item_tooltips": True,
+                        "menu_items_without_tips": [],
                         "recovery_toggle": True, "tumble_toggle": True, "playblast_file": True,
                         "closed_editor_ignores_keys": True, "open_editor_uses_keys": True}
             failed = [name for name, value in expected.items() if checks.get(name) != value]

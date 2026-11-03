@@ -42,6 +42,41 @@ QComboBox, QDoubleSpinBox {{ background: {background}; color: {text}; border: 1p
 
 _bar = {"widget": None}
 
+#: キーを対象にするボタンの共通の説明。
+_KEY_TARGETS = ("Works on the keys selected in the Graph Editor / Dope Sheet, the range selected\n"
+                "in the Time Slider (Shift+drag), or else the selected objects' keys at the current frame.")
+
+#: メニューの項目向けの短い共通の説明。
+_KEY_TARGETS_SHORT = "Works on the selected keys, or the keys at the current frame."
+
+#: キー変形のモードごとの説明(コンボボックスの項目のツールチップ)。
+_MODE_TIPS = {
+    "blendToNeighbors": "Right: toward the next key. Left: toward the previous key.",
+    "blendToDefault": "Right: toward the attribute's default value. Left: push away from it.",
+    "blendToFrame": "Toward the values at the Left/Right frames set with the frame button.",
+    "blendToMirror": "Toward the opposite side control's value at the same frame.",
+    "pushPull": "Right: exaggerate away from the line between the neighbor keys. Left: flatten toward it.",
+    "easeInOut": "Keep both ends of the selection and reshape the keys between. Right: ease in. Left: ease out.",
+    "noise": "Add random noise. The slider sets the strength.",
+    "scaleFromLeft": "Scale the value range around the unselected key before the selection.",
+    "scaleFromRight": "Scale the value range around the unselected key after the selection.",
+    "scaleFromAverage": "Scale the value range around the average of the selected keys.",
+    "scaleFromDefault": "Scale the value range around the attribute's default value.",
+}
+
+#: 接線の種類ごとの説明。
+_TANGENT_TIPS = {
+    "auto": "Maya's Auto tangent: smooth, without overshooting the key values.",
+    "spline": "Maya's Spline tangent: smooth curve through the keys.",
+    "linear": "Maya's Linear tangent: straight lines between the keys.",
+    "flat": "Maya's Flat tangent: horizontal tangents (the motion stops at the key).",
+    "step": "Maya's Stepped tangent: hold the value until the next key (for blocking).",
+    "clamped": "Maya's Clamped tangent: spline, but flat when neighbor values are equal.",
+    "plateau": "Maya's Plateau tangent: spline, but flat at peaks, valleys and the first/last keys.",
+    "flow": "Tangent along the line between the previous and next keys (flat at the first/last keys).",
+    "bounce": "Flat at peaks and valleys, flow everywhere else (good for bounces and impacts).",
+}
+
 
 def _warn(error):
     """失敗をMayaの警告として表示する。
@@ -119,11 +154,16 @@ class Section(QtWidgets.QFrame):
         button = QtWidgets.QToolButton(self)
         button.setIcon(icons.icon(iconName))
         button.setIconSize(QtCore.QSize(22, 22))
-        button.setToolTip(tip + ("\nRight click for options" if menu and callback else ""))
+        # 右クリックの説明を書いていないボタンにだけ、右クリックで選べることを添える。
+        hint = menu is not None and callback is not None and "Right click" not in tip
+        button.setToolTip(tip + ("\n\nRight click for more options" if hint else ""))
         button.setCheckable(checkable)
         if callback is not None:
             button.clicked.connect(lambda *_: run(callback))
         if menu is not None:
+            # 確認用のスクリプト(guiCheck)がメニューを組み立てて調べられるように、作る関数を持たせる。
+            button.menuBuilder = menu
+
             def popup(position, owner=button, build=menu):
                 """右クリックのメニューを、その時点の状態で作って出す。"""
                 popup_menu = QtWidgets.QMenu(owner)
@@ -149,7 +189,7 @@ class Section(QtWidgets.QFrame):
         return widget
 
 
-def _action(menu, label, callback, checked=None):
+def _action(menu, label, callback, checked=None, tip=None):
     """メニューの項目を足す。
 
     Args:
@@ -157,6 +197,7 @@ def _action(menu, label, callback, checked=None):
         label (str): 表示名。
         callback (Callable): 選んだときの処理。
         checked (bool | None): チェック付きの項目にするなら状態。
+        tip (str | None): 項目にマウスを乗せたときの説明。
 
     Returns:
         QtWidgets.QAction: 足した項目。
@@ -165,8 +206,29 @@ def _action(menu, label, callback, checked=None):
     if checked is not None:
         action.setCheckable(True)
         action.setChecked(checked)
+    if tip:
+        # QMenu は既定で項目のツールチップを出さないため、説明を付けるメニューでは表示を有効にする。
+        menu.setToolTipsVisible(True)
+        action.setToolTip(tip)
     action.triggered.connect(lambda *_: run(callback))
     return action
+
+
+def _submenu(menu, label, tip):
+    """説明付きのサブメニューを足す。
+
+    Args:
+        menu (QtWidgets.QMenu): 親のメニュー。
+        label (str): 表示名。
+        tip (str): サブメニューの項目にマウスを乗せたときの説明。
+
+    Returns:
+        QtWidgets.QMenu: 足したサブメニュー。
+    """
+    submenu = menu.addMenu(label)
+    menu.setToolTipsVisible(True)
+    submenu.menuAction().setToolTip(tip)
+    return submenu
 
 
 class UndoSlider(QtWidgets.QSlider):
@@ -255,22 +317,44 @@ class AnimBar(QtWidgets.QWidget):
     def _tween(self):
         """ツイーンのスライダーと決まった比率のボタン。"""
         section = Section("Tween")
-        section.button("keyPrevious", "Copy the previous key", lambda: tween.copyNeighborKey(-1))
+        section.button("keyPrevious", "Copy Previous Key\n"
+                       "Set the keys at the current frame to the values of the previous key.\n"
+                       "Uses the selected Graph Editor keys, or else the selected objects.",
+                       lambda: tween.copyNeighborKey(-1))
         slider = UndoSlider(-50, 150, 50)
-        slider.setToolTip("Tween between the previous and next keys (drag past the ends to overshoot)")
+        slider.setToolTip("Tween\n"
+                          "Drag to set the selected objects at the current frame between the previous key (left)\n"
+                          "and the next key (right). The middle is 50%. Drag past the ends to overshoot.\n"
+                          "Creates keys where needed. Attributes without both neighbor keys are left unchanged.\n"
+                          "One drag is one undo.")
         slider.onDrag = lambda value: tween.tween(value / 100.0)
         section.widget(slider)
-        section.button("keyNext", "Copy the next key", lambda: tween.copyNeighborKey(1))
-        section.button("tween", "Tween presets", menu=self._tween_menu)
+        section.button("keyNext", "Copy Next Key\n"
+                       "Set the keys at the current frame to the values of the next key.\n"
+                       "Uses the selected Graph Editor keys, or else the selected objects.",
+                       lambda: tween.copyNeighborKey(1))
+        section.button("tween", "Tween Presets\n"
+                       "Click to choose a fixed tween ratio (-30% to 130%), or extend the motion line\n"
+                       "of the previous/next two keys into the current frame.", menu=self._tween_menu)
         return section
 
     def _tween_menu(self, menu):
         """ツイーンの決まった比率。"""
         for percent in (-30, -10, 10, 25, 33, 50, 66, 75, 90, 110, 130):
-            _action(menu, "Tween {}%".format(percent), functools.partial(tween.tween, percent / 100.0))
+            if percent < 0 or percent > 100:
+                detail = "Overshoot past the {} key.".format("previous" if percent < 0 else "next")
+            else:
+                detail = "0% is the previous key, 100% is the next key."
+            _action(menu, "Tween {}%".format(percent), functools.partial(tween.tween, percent / 100.0),
+                    tip="Set the current frame {}% of the way from the previous key to the next key.\n{}"
+                    .format(percent, detail))
         menu.addSeparator()
-        _action(menu, "Extend the line of the previous two keys", lambda: tween.tweenLinear(-1))
-        _action(menu, "Extend the line of the next two keys", lambda: tween.tweenLinear(1))
+        _action(menu, "Extend the line of the previous two keys", lambda: tween.tweenLinear(-1),
+                tip="Continue the motion of the two keys before the current frame in a straight line\n"
+                    "and key the result at the current frame.")
+        _action(menu, "Extend the line of the next two keys", lambda: tween.tweenLinear(1),
+                tip="Trace the motion of the two keys after the current frame back in a straight line\n"
+                    "and key the result at the current frame.")
 
     def _keyTransform(self):
         """キーの変形のスライダー・モード・細かい足し引き。"""
@@ -278,25 +362,36 @@ class AnimBar(QtWidgets.QWidget):
         self.mode = QtWidgets.QComboBox()
         for name, label in keyTransform.MODES:
             self.mode.addItem(label, name)
-        self.mode.setToolTip("Key transform mode")
+            self.mode.setItemData(self.mode.count() - 1, _MODE_TIPS.get(name, ""), QtCore.Qt.ToolTipRole)
+        self.mode.setToolTip("Key Transform Mode\n"
+                             "Choose what the slider next to it does. Hover over each item for details.")
         section.widget(self.mode)
         slider = UndoSlider(-100, 100, 0, snapBack=0)
-        slider.setToolTip("Drag to transform the selected keys toward the mode's goal\n"
-                          "Hold Shift to scale from the average, Ctrl to blend to the default")
+        slider.setToolTip("Key Transform\n"
+                          "Drag left or right to change the keys by the chosen mode. The slider returns to\n"
+                          "the center when released, and one drag is one undo.\n"
+                          + _KEY_TARGETS + "\n"
+                          "Hold Shift when pressing to scale from the average, Ctrl to blend to the default.")
         slider.onPress = self._start_session
         slider.onDrag = lambda value: self.session.apply(value / 100.0) if self.session else None
         section.widget(slider)
-        section.button("range", "Blend frames (left/right)", menu=self._frame_menu)
-        section.button("minus", "Subtract the step from the selected keys",
+        section.button("range", "Blend Frames\n"
+                       "Click to store the current frame as the Left or Right frame used by the Frame mode.",
+                       menu=self._frame_menu)
+        section.button("minus", "Subtract Step\n"
+                       "Subtract the step value from the keys.\n" + _KEY_TARGETS,
                        lambda: keyTransform.nudgeValue(-self.step.value()))
         self.step = QtWidgets.QDoubleSpinBox()
         self.step.setRange(0.001, 1000)
         self.step.setDecimals(3)
         self.step.setValue(1.0)
         self.step.setFixedWidth(64)
-        self.step.setToolTip("Step for precise value changes")
+        self.step.setToolTip("Step\n"
+                             "The amount the - and + buttons subtract or add. Angles are in degrees, distances in cm.")
         section.widget(self.step)
-        section.button("add", "Add the step to the selected keys", lambda: keyTransform.nudgeValue(self.step.value()))
+        section.button("add", "Add Step\n"
+                       "Add the step value to the keys.\n" + _KEY_TARGETS,
+                       lambda: keyTransform.nudgeValue(self.step.value()))
         return section
 
     def _start_session(self):
@@ -317,69 +412,112 @@ class AnimBar(QtWidgets.QWidget):
         for side in ("left", "right"):
             frame = keyTransform.getBlendFrame(side)
             label = "Set {} frame to current ({})".format(side.title(), "unset" if frame is None else "{:g}".format(frame))
-            _action(menu, label, functools.partial(keyTransform.setBlendFrame, side))
+            _action(menu, label, functools.partial(keyTransform.setBlendFrame, side),
+                    tip="Store the current frame as the {} frame. In the Frame mode, dragging the slider {}\n"
+                        "blends the keys toward the values at this frame.".format(side, side))
 
     def _tangents(self):
         """接線のボタン。"""
         section = Section("Tangents")
         for kind in tangents.MAYA_TYPES + tangents.COMPUTED_TYPES:
-            section.button("tangent_" + kind, "{} tangent".format(kind.title()),
+            section.button("tangent_" + kind, "{} Tangent\n{}\n{}".format(kind.title(), _TANGENT_TIPS.get(kind, ""),
+                                                                          _KEY_TARGETS),
                            functools.partial(tangents.setTangent, kind),
                            menu=functools.partial(self._tangent_menu, kind))
         return section
 
     def _tangent_menu(self, kind, menu):
         """接線の入力側・出力側だけの設定と、対象のキーの選び方。"""
-        _action(menu, "In tangent only", functools.partial(tangents.setTangent, kind, "in"))
-        _action(menu, "Out tangent only", functools.partial(tangents.setTangent, kind, "out"))
+        _action(menu, "In tangent only", functools.partial(tangents.setTangent, kind, "in"),
+                tip="Change only the tangent coming into the keys (left side). " + _KEY_TARGETS_SHORT)
+        _action(menu, "Out tangent only", functools.partial(tangents.setTangent, kind, "out"),
+                tip="Change only the tangent leaving the keys (right side). " + _KEY_TARGETS_SHORT)
         menu.addSeparator()
-        _action(menu, "First key of each curve", functools.partial(tangents.setTangent, kind, scope="first"))
-        _action(menu, "Last key of each curve", functools.partial(tangents.setTangent, kind, scope="last"))
-        _action(menu, "Every key (or the highlighted range)", functools.partial(tangents.setTangent, kind, scope="all"))
+        _action(menu, "First key of each curve", functools.partial(tangents.setTangent, kind, scope="first"),
+                tip="Change the first key of every animated attribute of the selected objects\n"
+                    "(the first key inside the range selected in the Time Slider, if any).")
+        _action(menu, "Last key of each curve", functools.partial(tangents.setTangent, kind, scope="last"),
+                tip="Change the last key of every animated attribute of the selected objects\n"
+                    "(the last key inside the range selected in the Time Slider, if any).")
+        _action(menu, "Every key (or the highlighted range)", functools.partial(tangents.setTangent, kind, scope="all"),
+                tip="Change every key of the selected objects, or only the keys inside the range\n"
+                    "selected in the Time Slider.")
 
     def _time(self):
         """キーの時間・再生範囲・プレイブラスト。"""
         section = Section("Time")
-        section.button("nudgeLeft", "Move keys one frame earlier", lambda: timing.nudgeKeys(-1),
-                       menu=functools.partial(self._nudge_menu, -1))
-        section.button("nudgeRight", "Move keys one frame later", lambda: timing.nudgeKeys(1),
-                       menu=functools.partial(self._nudge_menu, 1))
-        section.button("insert", "Insert a frame after the current time", lambda: timing.insertFrames(1))
-        section.button("remove", "Remove a frame after the current time", lambda: timing.insertFrames(-1))
-        section.button("share", "Share keys between the selected objects", timing.shareKeys,
+        nudge = ("\n" + _KEY_TARGETS + "\n"
+                 "Keys that would hit an unselected neighbor key are not moved. When moving the keys at the\n"
+                 "current frame, the current frame follows them.")
+        section.button("nudgeLeft", "Nudge Keys Earlier\nMove the keys one frame earlier." + nudge,
+                       lambda: timing.nudgeKeys(-1), menu=functools.partial(self._nudge_menu, -1))
+        section.button("nudgeRight", "Nudge Keys Later\nMove the keys one frame later." + nudge,
+                       lambda: timing.nudgeKeys(1), menu=functools.partial(self._nudge_menu, 1))
+        section.button("insert", "Insert Frame\n"
+                       "Move every key of the selected objects after the current frame one frame later\n"
+                       "to make room.", lambda: timing.insertFrames(1))
+        section.button("remove", "Remove Frame\n"
+                       "Move every key of the selected objects after the current frame one frame earlier.\n"
+                       "Nothing changes if a key would overlap a key at or before the current frame.",
+                       lambda: timing.insertFrames(-1))
+        section.button("share", "Share Keys\n"
+                       "Key every animated attribute of the selected objects at every frame where any of them\n"
+                       "has a key. The new keys keep the curve shapes (values do not change).", timing.shareKeys,
                        menu=lambda menu: _action(menu, "Share only the selected keys",
-                                                 lambda: timing.shareKeys(selectedOnly=True)))
-        section.button("jumpPrevious", "Jump to the previous key", lambda: timeline.jumpToKey(-1),
+                                                 lambda: timing.shareKeys(selectedOnly=True),
+                                                 tip="Use only the frames of the keys selected in the Graph Editor\n"
+                                                     "and key every selected object at those frames."))
+        section.button("jumpPrevious", "Jump to Previous Key\n"
+                       "Move the current frame to the previous key of the selected objects.",
+                       lambda: timeline.jumpToKey(-1),
                        menu=lambda menu: (
-                           _action(menu, "Jump to the selected keys", lambda: timeline.jumpToKey(0)),
+                           _action(menu, "Jump to the selected keys", lambda: timeline.jumpToKey(0),
+                                   tip="Move the current frame to the average frame of the keys selected in the\n"
+                                       "Graph Editor, or else to the first key of the selected objects."),
                            _action(menu, "Follow the selected keys",
                                    lambda: timeline.setJumpToSelectedKey(not timeline.isJumpToSelectedKey()),
-                                   checked=timeline.isJumpToSelectedKey())))
-        section.button("jumpNext", "Jump to the next key", lambda: timeline.jumpToKey(1))
-        section.button("range", "Fit the playback range to the selected keys", timeline.frameSelectedKeys,
-                       menu=self._range_menu)
-        section.button("playblast", "Playblast the viewport", timeline.playblast, menu=self._playblast_menu)
+                                   checked=timeline.isJumpToSelectedKey(),
+                                   tip="While checked, the current frame moves to the selected keys every time\n"
+                                       "the key selection changes.")))
+        section.button("jumpNext", "Jump to Next Key\n"
+                       "Move the current frame to the next key of the selected objects.",
+                       lambda: timeline.jumpToKey(1))
+        section.button("range", "Fit Playback Range\n"
+                       "Set the playback range to the selected Graph Editor keys, or else to all keys\n"
+                       "of the selected objects. Right click to save and reuse named ranges.",
+                       timeline.frameSelectedKeys, menu=self._range_menu)
+        section.button("playblast", "Playblast\n"
+                       "Playblast the playback range, or the range selected in the Time Slider.\n"
+                       "Right click to choose a camera, play the last playblast or change the settings\n"
+                       "(sound, HUD, overscan, size).", timeline.playblast, menu=self._playblast_menu)
         return section
 
     def _nudge_menu(self, direction, menu):
         """キーを動かす量と、シーン全体を動かす操作。"""
         for frames in (2, 5, 10):
-            _action(menu, "Move {} frames".format(frames * direction), functools.partial(timing.nudgeKeys, frames * direction))
+            _action(menu, "Move {} frames".format(frames * direction), functools.partial(timing.nudgeKeys, frames * direction),
+                    tip="Move the keys {} frames {}. {}".format(frames, "later" if direction > 0 else "earlier",
+                                                                 _KEY_TARGETS_SHORT))
         _action(menu, "Move every key at the current time in the scene",
-                functools.partial(timing.nudgeKeys, direction, True))
+                functools.partial(timing.nudgeKeys, direction, True),
+                tip="Move the keys at the current frame on every animation curve in the scene one frame {},\n"
+                    "regardless of the selection.".format("later" if direction > 0 else "earlier"))
 
     def _range_menu(self, menu):
         """保存した再生範囲。"""
-        _action(menu, "Save current range...", self._save_range)
+        _action(menu, "Save current range...", self._save_range,
+                tip="Save the current playback range under a name, to switch back to it later from this menu.")
         ranges = timeline.savedRanges()
         if ranges:
             menu.addSeparator()
             for name, (start, end) in sorted(ranges.items()):
-                _action(menu, "{}  ({:g}-{:g})".format(name, start, end), functools.partial(timeline.useRange, name))
-            remove = menu.addMenu("Remove")
+                _action(menu, "{}  ({:g}-{:g})".format(name, start, end), functools.partial(timeline.useRange, name),
+                        tip="Set the playback range to frames {:g}-{:g}.".format(start, end))
+            remove = _submenu(menu, "Remove", "Delete saved ranges.")
             for name in sorted(ranges):
-                _action(remove, name, functools.partial(timeline.removeRange, name))
-            _action(remove, "Remove all", timeline.removeRange)
+                _action(remove, name, functools.partial(timeline.removeRange, name),
+                        tip="Delete the saved range '{}'.".format(name))
+            _action(remove, "Remove all", timeline.removeRange, tip="Delete every saved range.")
 
     def _save_range(self):
         """名前を聞いて再生範囲を保存する。"""
@@ -390,48 +528,68 @@ class AnimBar(QtWidgets.QWidget):
     def _playblast_menu(self, menu):
         """カメラを選んでのプレイブラスト・直前の再生・カメラの複製。"""
         for camera in cmds.listCameras(perspective=True) or []:
-            _action(menu, "Playblast " + camera, functools.partial(timeline.playblast, camera))
+            _action(menu, "Playblast " + camera, functools.partial(timeline.playblast, camera),
+                    tip="Playblast through the camera '{}' instead of the active viewport's camera.".format(camera))
         menu.addSeparator()
-        _action(menu, "Play last playblast", timeline.playLastPlayblast)
-        _action(menu, "Duplicate selected camera (baked)", timeline.duplicateCamera)
+        _action(menu, "Play last playblast", timeline.playLastPlayblast,
+                tip="Play the movie made by the last playblast again.")
+        _action(menu, "Duplicate selected camera (baked)", timeline.duplicateCamera,
+                tip="Duplicate the selected camera as an independent camera with its animation baked on every\n"
+                    "frame of the playback range (constraints and parents removed). Useful for layout checks.")
         menu.addSeparator()
         settings = timeline.playblastSettings()
-        options = menu.addMenu("Settings")
+        options = _submenu(menu, "Settings", "Options used by every playblast from this button (remembered).")
         _action(options, "Include sound", lambda: timeline.setPlayblastSettings(sound=not settings["sound"]),
-                checked=settings["sound"])
+                checked=settings["sound"], tip="Include the Time Slider's sound in the movie.")
         _action(options, "Show HUD and ornaments",
                 lambda: timeline.setPlayblastSettings(showOrnaments=not settings["showOrnaments"]),
-                checked=settings["showOrnaments"])
+                checked=settings["showOrnaments"], tip="Include the heads-up display and other viewport ornaments.")
         _action(options, "Use the highlighted range",
-                lambda: timeline.setPlayblastSettings(useRange=not settings["useRange"]), checked=settings["useRange"])
-        overscan = options.addMenu("Overscan")
+                lambda: timeline.setPlayblastSettings(useRange=not settings["useRange"]), checked=settings["useRange"],
+                tip="When a range is selected in the Time Slider (Shift+drag), playblast only that range.")
+        overscan = _submenu(options, "Overscan", "Show more of the scene around the camera frame while playblasting.")
         for value in (None, 1.1, 1.2, 1.3):
             _action(overscan, "Keep camera setting" if value is None else "{:g}".format(value),
                     functools.partial(timeline.setPlayblastSettings, overscan=value),
-                    checked=settings["overscan"] == value)
-        size = options.addMenu("Size")
+                    checked=settings["overscan"] == value,
+                    tip="Use the camera's own overscan." if value is None else
+                    "Set the camera's overscan to {:g} during the playblast and restore it afterwards.".format(value))
+        size = _submenu(options, "Size", "Movie size relative to the viewport size.")
         for percent in (50, 75, 100):
             _action(size, "{}%".format(percent), functools.partial(timeline.setPlayblastSettings, percent=percent),
-                    checked=settings["percent"] == percent)
-        _action(options, "Load default settings", timeline.resetPlayblastSettings)
+                    checked=settings["percent"] == percent,
+                    tip="Make the movie {}% of the viewport size.".format(percent))
+        _action(options, "Load default settings", timeline.resetPlayblastSettings,
+                tip="Return every playblast setting to its default.")
 
     def _mirror_menu(self, menu):
         """ミラーの右クリックメニュー(反対側から写す・反転するアトリビュートの規則)。"""
-        _action(menu, "Copy the opposite side onto the selection", lambda: mirror.mirrorPose(mode="self"))
+        _action(menu, "Copy the opposite side onto the selection", lambda: mirror.mirrorPose(mode="self"),
+                tip="The reverse of Mirror Pose: copy the pose of the opposite side controls onto the selected ones.")
         menu.addSeparator()
         _action(menu, "Mirror animation (highlighted range or selected keys)",
-                lambda: mirror.mirrorAnimation(mode="mirror"))
-        _action(menu, "Swap animation of both sides", lambda: mirror.mirrorAnimation(mode="flip"))
-        _action(menu, "Select the opposite side", mirror.selectOpposite)
-        _action(menu, "Add the opposite side to the selection", lambda: mirror.selectOpposite(add=True))
+                lambda: mirror.mirrorAnimation(mode="mirror"),
+                tip="Copy the animation of the selected controls onto the opposite side. Uses the range selected\n"
+                    "in the Time Slider, or else the range of the selected Graph Editor keys, or else all keys.\n"
+                    "Keys of the opposite side outside the range are kept.")
+        _action(menu, "Swap animation of both sides", lambda: mirror.mirrorAnimation(mode="flip"),
+                tip="Exchange the animation of the selected controls and their opposite side controls\n"
+                    "(same range rules as Mirror animation).")
+        _action(menu, "Select the opposite side", mirror.selectOpposite,
+                tip="Replace the selection with the opposite side controls.")
+        _action(menu, "Add the opposite side to the selection", lambda: mirror.selectOpposite(add=True),
+                tip="Keep the selection and also select the opposite side controls.")
         menu.addSeparator()
         rules = mirror.setInvertRules()
-        for side, label in (("side", "Invert on side controls"), ("center", "Invert on center controls")):
-            submenu = menu.addMenu(label)
+        for side, label, owner in (("side", "Invert on side controls", "left/right controls"),
+                                   ("center", "Invert on center controls", "center controls (no opposite side)")):
+            submenu = _submenu(menu, label, "Choose which attributes change sign when mirroring {}.".format(owner))
             for name in ("translateX", "translateY", "translateZ", "rotateX", "rotateY", "rotateZ"):
                 _action(submenu, name, functools.partial(self._toggle_invert, side, name),
-                        checked=name in rules[side])
-        _action(menu, "Load default invert rules", mirror.resetInvertRules)
+                        checked=name in rules[side],
+                        tip="Checked: {} is negated when mirrored onto {}.".format(name, owner))
+        _action(menu, "Load default invert rules", mirror.resetInvertRules,
+                tip="Return the inverted attributes of side and center controls to the defaults.")
 
     @staticmethod
     def _toggle_invert(side, name):
@@ -446,20 +604,41 @@ class AnimBar(QtWidgets.QWidget):
     def _pose(self):
         """ポーズ・アニメーションのコピー。"""
         section = Section("Pose")
-        section.button("reset", "Reset the selected channels to defaults", timing.resetValues,
+        section.button("reset", "Reset to Default\n"
+                       "Reset the selected objects' attributes to their default values (only the attributes\n"
+                       "selected in the Channel Box, if any). With keys selected in the Graph Editor,\n"
+                       "set those keys to the default values instead.", timing.resetValues,
                        menu=self._reset_menu)
-        section.button("mirror", "Mirror the pose to the opposite side", lambda: mirror.mirrorPose(mode="mirror"),
+        section.button("mirror", "Mirror Pose\n"
+                       "Copy the pose of the selected controls onto the opposite side controls\n"
+                       "(found by names such as L_/R_, _L/_R, Left/Right).\n"
+                       "Right click to mirror animation, select the opposite side or change which attributes\n"
+                       "are inverted.", lambda: mirror.mirrorPose(mode="mirror"),
                        menu=self._mirror_menu)
-        section.button("flip", "Swap the poses of both sides", lambda: mirror.mirrorPose(mode="flip"))
+        section.button("flip", "Flip Pose\n"
+                       "Swap the poses of the selected controls and their opposite side controls.",
+                       lambda: mirror.mirrorPose(mode="flip"))
         self.transformAll = section.button(
-            "transformAll", "Transform all: press, change the pose, then press again to apply the change to every key",
+            "transformAll", "Transform All\n"
+            "1. Press this button (it stays on).\n"
+            "2. Change the pose of the selected animated controls at the current frame.\n"
+            "3. Press it again to add the same change to every key of those attributes.\n"
+            "Right click to apply the change now or cancel.",
             None, menu=self._transform_all_menu, checkable=True)
         self.transformAll.clicked.disconnect()
         self.transformAll.toggled.connect(self._toggle_transform_all)
-        section.button("copy", "Copy animation", animCopy.copyAnimation,
+        section.button("copy", "Copy Animation\n"
+                       "Copy the animation of the selected objects (only the range selected in the Time Slider,\n"
+                       "if any). Paste it with the button next to it.", animCopy.copyAnimation,
                        menu=lambda menu: _action(menu, "Copy the playback range only",
-                                                 lambda: animCopy.copyAnimation(timeRange=Time.getPlaybackRange())))
-        section.button("paste", "Paste animation onto the selection", animCopy.pasteAnimation, menu=self._paste_menu)
+                                                 lambda: animCopy.copyAnimation(timeRange=Time.getPlaybackRange()),
+                                                 tip="Copy only the keys inside the current playback range."))
+        section.button("paste", "Paste Animation\n"
+                       "Paste the copied animation onto the selected objects in the order they were copied\n"
+                       "(one copied object can be pasted onto many). Keys inside the pasted range are replaced,\n"
+                       "keys outside it are kept. Right click to paste at the current frame, by name onto\n"
+                       "another character, or mirrored as an offset cycle.",
+                       animCopy.pasteAnimation, menu=self._paste_menu)
         return section
 
     def _toggle_transform_all(self, state):
@@ -475,10 +654,13 @@ class AnimBar(QtWidgets.QWidget):
 
     def _transform_all_menu(self, menu):
         """transformAll のすぐに反映する操作とやめる操作。"""
-        _action(menu, "Apply the change at this frame now", timing.transformAll)
+        _action(menu, "Apply the change at this frame now", timing.transformAll,
+                tip="Without using the toggle: after changing the pose at the current frame (before keying it),\n"
+                    "add the difference from the curve to every key of the changed attributes.")
         if timing.isTransformAllActive():
             _action(menu, "Cancel transform all",
-                    lambda: (timing.cancelTransformAll(), self._set_checked(self.transformAll, False)))
+                    lambda: (timing.cancelTransformAll(), self._set_checked(self.transformAll, False)),
+                    tip="Stop Transform All without changing any keys.")
 
     @staticmethod
     def _set_checked(button, state):
@@ -491,34 +673,60 @@ class AnimBar(QtWidgets.QWidget):
         """リセットするアトリビュートの組。"""
         for label, names in (("Translate", ["translate"]), ("Rotate", ["rotate"]), ("Scale", ["scale"]),
                              ("Translate, Rotate and Scale", ["translate", "rotate", "scale"])):
-            _action(menu, "Reset " + label, functools.partial(timing.resetValues, None, names))
+            _action(menu, "Reset " + label, functools.partial(timing.resetValues, None, names),
+                    tip="Reset only the {} of the selected objects to the default values.".format(label.lower()))
 
     def _paste_menu(self, menu):
         """貼付けのしかた。"""
-        _action(menu, "Paste in place (start at the current frame)", lambda: animCopy.pasteAnimation(inPlace=True))
-        _action(menu, "Paste to another character (match names)", lambda: animCopy.pasteAnimation(mode="name"))
-        _action(menu, "Paste mirrored (invert cycle)", lambda: animCopy.pasteAnimation(invertCycle=True))
+        _action(menu, "Paste in place (start at the current frame)", lambda: animCopy.pasteAnimation(inPlace=True),
+                tip="Paste onto the selected objects, shifted so that the first copied key lands on the current frame.")
+        _action(menu, "Paste to another character (match names)", lambda: animCopy.pasteAnimation(mode="name"),
+                tip="Select any control of the other character and paste. Each copied object is pasted onto the\n"
+                    "object with the same name in that control's namespace (missing ones are skipped).")
+        _action(menu, "Paste mirrored (invert cycle)", lambda: animCopy.pasteAnimation(invertCycle=True),
+                tip="Paste onto the opposite side controls with mirrored values, offset by half of the copied range\n"
+                    "(keys past the end wrap to the start). Makes the other half of a cycle such as a walk.")
 
     def _space(self):
         """位置合わせ・スペース切替・仮のピボット・仮のコンストレイント。"""
         section = Section("Space")
-        section.button("align", "Align the selection to the last selected object", spaceTools.align,
+        section.button("align", "Align\n"
+                       "Select the objects to move, then the target last, and click to match their position\n"
+                       "and rotation to the target. Right click for position/rotation only, or to align on\n"
+                       "the target's keys or over the playback range.", spaceTools.align,
                        menu=self._align_menu)
-        section.button("space", "Switch space keeping the world position", self._switch_space)
-        section.button("pivot", "Create a temporary pivot", spaceTools.createTempPivot,
-                       menu=lambda menu: _action(menu, "Clear temporary pivots", spaceTools.clearTempPivots))
-        section.button("follow", "Make the selection follow the last selected object (baked)",
+        section.button("space", "Switch Space\n"
+                       "Select a control with a space switch (enum) attribute and click. Choose the attribute,\n"
+                       "the new space and the frames; the control keeps its world position and rotation.",
+                       self._switch_space)
+        section.button("pivot", "Temporary Pivot\n"
+                       "Create a locator at the selection that the selected objects follow. Move or rotate\n"
+                       "the locator to pose them around a new pivot, then right click > Clear temporary pivots\n"
+                       "to key the result and remove the locator.", spaceTools.createTempPivot,
+                       menu=lambda menu: _action(menu, "Clear temporary pivots", spaceTools.clearTempPivots,
+                                                 tip="Key the objects at their current pose and remove every\n"
+                                                     "temporary pivot locator."))
+        section.button("follow", "Fake Constraint\n"
+                       "Select the followers, then the master last, and click. The followers are keyed on every\n"
+                       "frame of the playback range to keep their current offset to the master (no constraint\n"
+                       "is created). Right click to key only on the master's keys.",
                        spaceTools.fakeConstraint,
                        menu=lambda menu: _action(menu, "Follow on the master's keys only",
-                                                 lambda: spaceTools.fakeConstraint(rangeMode="keys")))
+                                                 lambda: spaceTools.fakeConstraint(rangeMode="keys"),
+                                                 tip="Key the followers only at the frames where the master\n"
+                                                     "has keys, instead of every frame."))
         return section
 
     def _align_menu(self, menu):
         """位置合わせの内容と範囲。"""
-        _action(menu, "Align position only", lambda: spaceTools.align(rotate=False))
-        _action(menu, "Align rotation only", lambda: spaceTools.align(translate=False))
-        _action(menu, "Align on the target's keys", lambda: spaceTools.align(rangeMode="keys"))
-        _action(menu, "Align over the playback range", lambda: spaceTools.align(rangeMode="range"))
+        _action(menu, "Align position only", lambda: spaceTools.align(rotate=False),
+                tip="Match only the position to the last selected object, keeping the rotation.")
+        _action(menu, "Align rotation only", lambda: spaceTools.align(translate=False),
+                tip="Match only the rotation to the last selected object, keeping the position.")
+        _action(menu, "Align on the target's keys", lambda: spaceTools.align(rangeMode="keys"),
+                tip="Align and key at every frame where the last selected object has keys.")
+        _action(menu, "Align over the playback range", lambda: spaceTools.align(rangeMode="range"),
+                tip="Align and key on every frame of the playback range.")
 
     def _switch_space(self):
         """スペース切替のアトリビュートと値を聞いて切り替える。"""
@@ -544,16 +752,30 @@ class AnimBar(QtWidgets.QWidget):
     def _view(self):
         """モーショントレイル・細かい移動・タンブル・退避。"""
         section = Section("View")
-        section.button("trail", "Create motion trails", viewTools.createMotionTrails,
-                       menu=lambda menu: _action(menu, "Clear motion trails", viewTools.clearMotionTrails))
-        micro = section.button("micro", "Micro transform (smaller manipulator steps)", None,
+        section.button("trail", "Motion Trail\n"
+                       "Create motion trails of the selected objects over the playback range.\n"
+                       "Right click to remove the trails made by this button.", viewTools.createMotionTrails,
+                       menu=lambda menu: _action(menu, "Clear motion trails", viewTools.clearMotionTrails,
+                                                 tip="Delete every motion trail made by this button."))
+        micro = section.button("micro", "Micro Transform\n"
+                               "While on, moving or rotating the selected objects with the manipulator changes\n"
+                               "them by a fraction of the drag, for fine adjustments.\n"
+                               "Right click to choose the fraction (x0.5 to x0.05).", None,
                                menu=self._micro_menu, checkable=True)
         micro.clicked.disconnect()
         micro.toggled.connect(lambda state: run(viewTools.setMicroTransform, state))
-        tumble = section.button("tumble", "Tumble around the selection", checkable=True)
+        tumble = section.button("tumble", "Tumble on Objects\n"
+                                "While on, the camera tumbles around the selected objects instead of its center\n"
+                                "of interest.", checkable=True)
         tumble.setChecked(run(viewTools.isTumbleOnObjects) or False)
         tumble.toggled.connect(lambda state: run(viewTools.setTumbleOnObjects, state))
-        recovery = section.button("recovery", "Animation backup", None, menu=self._recovery_menu, checkable=True)
+        recovery = section.button("recovery", "Animation Backup\n"
+                                  "While on, the keys of the scene are backed up every {:g} minutes while Maya\n"
+                                  "is idle, and the backup is deleted when the scene is saved. If Maya crashes,\n"
+                                  "you are asked to restore the newer backup when the scene is opened again.\n"
+                                  "Right click to back up now, restore or discard the backup."
+                                  .format(crashRecovery.INTERVAL / 60.0),
+                                  None, menu=self._recovery_menu, checkable=True)
         recovery.clicked.disconnect()
         # 起動時に前回の状態で有効にしていれば、押した状態で表示する。
         recovery.setChecked(crashRecovery.isEnabled())
@@ -563,14 +785,18 @@ class AnimBar(QtWidgets.QWidget):
     def _micro_menu(self, menu):
         """細かい移動の倍率。"""
         for factor in viewTools.MICRO_FACTORS:
-            _action(menu, "Step x{:g}".format(factor), functools.partial(viewTools.setMicroFactor, factor))
+            _action(menu, "Step x{:g}".format(factor), functools.partial(viewTools.setMicroFactor, factor),
+                    tip="While Micro Transform is on, a manipulator drag changes the value by {:g}% of the drag."
+                    .format(factor * 100))
 
     def _recovery_menu(self, menu):
         """退避の操作。"""
-        _action(menu, "Back up now", lambda: _message("Backed up {} curves".format(crashRecovery.backup())))
+        _action(menu, "Back up now", lambda: _message("Backed up {} curves".format(crashRecovery.backup())),
+                tip="Write the keys of the scene to the backup file now (works even while the backup is off).")
         if crashRecovery.hasBackup():
-            _action(menu, "Restore the backup", crashRecovery.restore)
-            _action(menu, "Discard the backup", crashRecovery.discard)
+            _action(menu, "Restore the backup", crashRecovery.restore,
+                    tip="Replace the animation of the attributes with the same names by the backed up keys.")
+            _action(menu, "Discard the backup", crashRecovery.discard, tip="Delete the backup file of this scene.")
 
     # --- 選択セット -----------------------------------------------------------------
 
@@ -587,13 +813,19 @@ class AnimBar(QtWidgets.QWidget):
             button.setText(selectSets.label(node))
             color = icons.SET_COLORS[selectSets.color(node) % len(icons.SET_COLORS)]
             button.setStyleSheet("QToolButton#AnimBarSet {{ background: {}; }}".format(color))
-            button.setToolTip("Click to select, Shift to add, Ctrl to remove\nRight click for options")
+            button.setToolTip("Select Set: {}\n"
+                              "Click to select the members, Shift+click to add them to the selection,\n"
+                              "Ctrl+click to remove them from it.\n\n"
+                              "Right click to add or remove the selection, rename, recolor or delete the set."
+                              .format(selectSets.label(node)))
             button.clicked.connect(lambda *_, target=node: self._select_set(target))
             button.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             button.customContextMenuRequested.connect(
                 lambda position, target=node, owner=button: self._set_menu(target, owner, position))
             layout.addWidget(button)
-        add = self.sets.button("add", "Create a select set from the selection", self._create_set,
+        add = self.sets.button("add", "New Select Set\n"
+                               "Create a select set button from the current selection (you are asked for a name).\n"
+                               "Right click to refresh, export or import the sets.", self._create_set,
                                menu=self._sets_menu)
         return add
 
@@ -614,16 +846,19 @@ class AnimBar(QtWidgets.QWidget):
     def _set_menu(self, node, owner, position):
         """選択セットの編集メニュー。"""
         menu = QtWidgets.QMenu(owner)
-        _action(menu, "Add selection", lambda: selectSets.editSet(node, add=keys.selectedNodes()))
-        _action(menu, "Remove selection", lambda: selectSets.editSet(node, remove=keys.selectedNodes()))
-        _action(menu, "Rename...", lambda: self._rename_set(node))
-        colors = menu.addMenu("Color")
+        _action(menu, "Add selection", lambda: selectSets.editSet(node, add=keys.selectedNodes()),
+                tip="Add the selected objects to this set.")
+        _action(menu, "Remove selection", lambda: selectSets.editSet(node, remove=keys.selectedNodes()),
+                tip="Remove the selected objects from this set.")
+        _action(menu, "Rename...", lambda: self._rename_set(node), tip="Change the name shown on the button.")
+        colors = _submenu(menu, "Color", "Change the color of the button.")
         for index in range(len(icons.SET_COLORS)):
             action = _action(colors, "Color {}".format(index + 1),
-                             functools.partial(self._recolor_set, node, index))
+                             functools.partial(self._recolor_set, node, index), tip="Use this color for the button.")
             action.setIcon(self._swatch(icons.SET_COLORS[index]))
         menu.addSeparator()
-        _action(menu, "Delete", lambda: (selectSets.deleteSet(node), self.refreshSets()))
+        _action(menu, "Delete", lambda: (selectSets.deleteSet(node), self.refreshSets()),
+                tip="Delete this select set. The member objects are not deleted.")
         menu.exec_(owner.mapToGlobal(position))
 
     def _rename_set(self, node):
@@ -647,9 +882,13 @@ class AnimBar(QtWidgets.QWidget):
 
     def _sets_menu(self, menu):
         """選択セット全体の操作。"""
-        _action(menu, "Refresh", self.refreshSets)
-        _action(menu, "Export select sets...", self._export_sets)
-        _action(menu, "Import select sets...", self._import_sets)
+        _action(menu, "Refresh", self.refreshSets,
+                tip="Rebuild the set buttons from the select sets in the scene.")
+        _action(menu, "Export select sets...", self._export_sets,
+                tip="Save every select set to a JSON file. Members are written without namespaces.")
+        _action(menu, "Import select sets...", self._import_sets,
+                tip="Load select sets from a JSON file. Enter a namespace to apply them to a referenced character;\n"
+                    "members that are not found are skipped.")
 
     def _export_sets(self):
         """書き出し先を聞いて書き出す。"""
