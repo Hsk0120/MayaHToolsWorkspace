@@ -289,3 +289,6 @@ maya/inhouse/*/docs/locale/**/*.mo
 
 # Anim Bar の GUI 確認の結果(画像・JSON)
 maya/inhouse/AnimBar/python/animBar/__tests__/_output/
+
+# Skin Weight Kit の GUI 確認の結果(画像・JSON・隔離Mayaの設定)
+maya/inhouse/SkinWeightKit/python/skinWeightKit/__tests__/_output/

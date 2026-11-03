@@ -34,6 +34,7 @@ HToolsメニューの ``rigging`` にあるツールです。
    selectSkinningJoints
    setScaleFromSelection
    simpleCollisionFromSelection
+   skinWeightKit
    tailAvoidanceSamples
    transferUvchannelToMap
    ueCollisionGuide
