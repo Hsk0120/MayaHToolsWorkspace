@@ -1,13 +1,11 @@
 """GUIの準備後にチャンネルボックス操作の監視を登録する。"""
 
-from maya import cmds
-
 
 def initialize():
     """Maya 2025以降のGUIだけでmlrigの操作監視を起動する。"""
     import mlib
 
-    if cmds.about(batch=True) or int(cmds.about(apiVersion=True)) < 20250000:
+    if mlib.common.Environment.isBatch() or mlib.common.Environment.getApiVersion() < 20250000:
         return
     mlib.common.Deferred.call(_install)
 

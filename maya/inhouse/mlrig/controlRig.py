@@ -1,7 +1,5 @@
 """指・Aimの小規模モジュールに共通の所有と評価管理。"""
 
-from maya import cmds
-
 from functools import partial
 import json
 import re
@@ -192,7 +190,7 @@ class ControlRig:
     @classmethod
     def refresh_jobs(cls):
         """保存読込とUndo後に属性監視を復元する。"""
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():

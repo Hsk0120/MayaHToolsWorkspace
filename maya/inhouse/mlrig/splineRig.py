@@ -1,8 +1,6 @@
 """背骨・尻尾のFK骨列へ、標準Spline IKを重ねるモジュール。"""
 from mlib.maths import MSpace
 
-from maya import cmds
-
 from functools import partial
 import json
 import math
@@ -404,7 +402,7 @@ class SplineRig:
     @classmethod
     def refresh_jobs(cls):
         """GUIの属性監視を復元する。バッチでは明示APIを使う。"""
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():

@@ -1,7 +1,5 @@
 """既存の変形骨へ局所操作用の補助骨を追加する。"""
 
-from maya import cmds
-
 from functools import partial
 import re
 import mlib
@@ -103,7 +101,7 @@ class TweakLayer:
     @classmethod
     def refresh_jobs(cls):
         """全モジュールのTweak使用設定をGUIで監視する。"""
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             return
         from .moduleRegistry import ModuleRegistry
 

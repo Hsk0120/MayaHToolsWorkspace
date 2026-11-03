@@ -128,8 +128,7 @@ class CrankSlider(TwistDistribution):
             rod_rest = Matrix(rod.getPlug("worldMatrix")[0].get()) * inverse
         else:
             up = plane ^ aim
-            rod_rest = Matrix([aim[0], aim[1], aim[2], 0, up[0], up[1], up[2], 0,
-                               plane[0], plane[1], plane[2], 0, pin_rest[0], pin_rest[1], pin_rest[2], 1])
+            rod_rest = Matrix.fromAxes(aim, up, plane, position=pin_rest)
         rod_inverse = rod_rest.inverse()
         aim_local = (aim * rod_inverse).normal()
         plane_local = (plane * rod_inverse).normal()

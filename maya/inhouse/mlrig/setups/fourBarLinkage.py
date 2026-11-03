@@ -280,8 +280,7 @@ class FourBarLinkage(TwistDistribution):
             coupler_rest = Matrix(coupler.getPlug("worldMatrix")[0].get()) * inverse
         else:
             up = plane ^ coupler_aim
-            coupler_rest = Matrix([coupler_aim[0], coupler_aim[1], coupler_aim[2], 0, up[0], up[1], up[2], 0,
-                                   plane[0], plane[1], plane[2], 0, pin_rest[0], pin_rest[1], pin_rest[2], 1])
+            coupler_rest = Matrix.fromAxes(coupler_aim, up, plane, position=pin_rest)
         coupler_inverse = coupler_rest.inverse()
         rocker_inverse = rocker_rest.inverse()
 

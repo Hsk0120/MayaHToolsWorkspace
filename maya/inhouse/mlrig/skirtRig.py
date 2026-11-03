@@ -1,7 +1,6 @@
 """少数の放射状ドライバーで、多数のスカート骨を制御する。"""
 
 import json
-from maya import cmds
 
 from functools import partial
 import math
@@ -436,7 +435,7 @@ class SkirtRig:
     @classmethod
     def refresh_jobs(cls):
         """GUIシーンの属性監視を復元する。バッチは明示APIで更新する。"""
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():

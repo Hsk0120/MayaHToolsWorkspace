@@ -1,7 +1,5 @@
 """Soft IKバックエンドの選択。独自プラグインは明示選択時だけロードする。"""
 
-from maya import cmds
-
 from pathlib import Path
 import mlib
 
@@ -29,9 +27,10 @@ def create_soft_ik(name, length, backend="standard"):
         return graph.getName(), graph.getParent().getFullName()
     if backend != "cpp":
         raise ValueError("Unknown backend: " + backend)
-    version = str(cmds.about(version=True)).split()[0]
-    if int(version) < 2025:
+    major = mlib.common.Environment.getMayaVersion().major
+    if major < 2025:
         raise RuntimeError("mlrig requires Maya 2025 or newer")
+    version = str(major)
     plugin = Path(__file__).parent / "release" / "plug-ins" / "windows" / version / "mlrigNodes.mll"
     if not mlib.common.Plugin("mlrigNodes").isLoaded():
         if not plugin.is_file():

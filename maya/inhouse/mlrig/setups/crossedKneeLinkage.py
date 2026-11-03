@@ -17,8 +17,7 @@ def _frame(origin, aim, normal):
     x = aim.normal()
     z = normal.normal()
     y = z ^ x
-    return Matrix([x[0], x[1], x[2], 0, y[0], y[1], y[2], 0, z[0], z[1], z[2], 0,
-                   origin[0], origin[1], origin[2], 1])
+    return Matrix.fromAxes(x, y, z, position=origin)
 
 
 def _rotation(normal, degrees):

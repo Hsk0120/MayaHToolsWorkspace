@@ -18,7 +18,7 @@ class Menu:
         Returns:
             str | None: メニュー名。バッチではNone。
         """
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             return None
         if cmds.menu(cls.NAME, exists=True):
             return cls.NAME
@@ -154,5 +154,5 @@ class Menu:
     @classmethod
     def remove(cls):
         """自身のメニューだけを削除する。"""
-        if not cmds.about(batch=True) and cmds.menu(cls.NAME, exists=True):
+        if not mlib.common.Environment.isBatch() and cmds.menu(cls.NAME, exists=True):
             cmds.deleteUI(cls.NAME, menu=True)

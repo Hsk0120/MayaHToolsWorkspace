@@ -294,7 +294,7 @@ def _changed(root_uuid):
 
 def refresh_jobs():
     """シーン読込・Undo/Redo後に、生存するリグだけを監視する。"""
-    if cmds.about(batch=True):
+    if mlib.common.Environment.isBatch():
         return
     from .limb import LimbRig
 
@@ -350,7 +350,7 @@ def refresh_jobs():
 
 def install():
     """GUIで監視を開始する。多重登録せず、シーンへ実行スクリプトを埋め込まない。"""
-    if cmds.about(batch=True):
+    if mlib.common.Environment.isBatch():
         return
     for event in ("PostSceneRead", "NewSceneOpened", "Undo", "Redo"):
         _events.add(event, event=event, callback=refresh_jobs)

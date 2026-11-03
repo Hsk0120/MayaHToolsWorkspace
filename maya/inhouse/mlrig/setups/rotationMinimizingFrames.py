@@ -260,8 +260,7 @@ def _axisVector(world, axis):
 def _frameMatrix(t, r, position):
     """行がX=t、Y=r、Z=t×r、位置positionのMatrix。"""
     b = _cross(t, r)
-    return Matrix([t[0], t[1], t[2], 0.0, r[0], r[1], r[2], 0.0, b[0], b[1], b[2], 0.0,
-                   position[0], position[1], position[2], 1.0])
+    return Matrix.fromAxes(t, r, b, position=position)
 
 
 class _Operators:

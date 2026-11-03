@@ -11,7 +11,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 
 import mlib
-from mlib.common import ScriptJob, Selection, Time
+from mlib.common import Environment, ScriptJob, Selection, Time
 from mlib.decorator import undoChunk
 
 from . import keys
@@ -291,7 +291,7 @@ def _timeline_sound():
     Returns:
         str | None: 音声のノード名。無い・GUIが無ければNone。
     """
-    if cmds.about(batch=True):
+    if Environment.isBatch():
         return None
     # mlib にはタイムスライダーの音声の入口が無いため、Mayaのコマンドを使う。
     slider = mel.eval("$animBarTmp = $gPlayBackSlider")
@@ -358,9 +358,5 @@ def duplicateCamera(camera=None):
             for plug, target in animated:
                 target.set(plug.get())
                 target.setKey(time=frame)
-    curves = [curve.getFullName() for curve in (copy.getPlug(name).getAnimCurve() for name in ("rx", "ry", "rz"))
-              if curve is not None]
-    if curves:
-        # mlib にはオイラーフィルタの入口が無いため、Mayaのコマンドを使う。
-        cmds.filterCurve(curves, filter="euler")
+    copy.eulerFilter()
     return copy

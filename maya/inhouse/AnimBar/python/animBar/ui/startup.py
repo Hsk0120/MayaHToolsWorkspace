@@ -1,6 +1,6 @@
 """Maya の起動時に Anim Bar を準備する(userSetup から遅延して呼ぶ)。"""
 
-import maya.cmds as cmds
+from mlib.common import Environment
 
 from ..core import commands, crashRecovery
 from . import bar
@@ -13,7 +13,7 @@ def install():
     Returns:
         bool: バーを表示したらTrue。
     """
-    if cmds.about(batch=True):
+    if Environment.isBatch():
         return False
     commands.register()
     if crashRecovery.wasEnabled():

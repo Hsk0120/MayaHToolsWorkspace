@@ -1,6 +1,5 @@
 """専用Transformバッファを単一入力の行列へ追従させる。"""
 
-from maya import cmds
 from pathlib import Path
 
 import mlib
@@ -147,7 +146,7 @@ class MatrixFollow:
         else:
             inputs, output = ("offset", "sourceWorld", "parentInverse"), "outputMatrix"
             if backend == "cpp":
-                version = str(cmds.about(version=True)).split()[0]
+                version = str(mlib.common.Environment.getMayaVersion().major)
                 plugin = (
                     Path(__file__).parents[1]
                     / "release/plug-ins/windows"

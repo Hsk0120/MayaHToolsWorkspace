@@ -153,6 +153,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Claude Code (2026-11-03): 質問形式で決めた追加を mlib 10.2.0 として実装。Environment・Callbacks・未知のプラグイン・Time.getSelectedRange、Vector.fromAxis・Matrix.fromAim/fromAxes/blend、bakeResults・eulerFilter・createJointChain・insertJoints・getPolePosition、NurbsCurve/Mesh の問い合わせ・UVセット・頂点カラー・縁・面への変換、SkinCluster.unlockedInfluences/invertShape、GeometryFilter のウェイトのファイル/コピー、deleteHistory・表示の上書き・findCycles・オフセット親マトリクス(再追加)、MultiPlug.compact・RampPlug・プロキシの照会・getAnimCurve(layer=)。mlrig・AnimBar・SkinWeightKit を新APIへ移行。mlib全テスト(2027/2022)・Undo網羅267件・静的検査・Sphinx・利用側回帰744件(2027)・AnimBar 57件・SkinWeightKit 87件とGUI確認成功。2022 の mlrig setups は boxRoll(floorノード)・hipSwing(blendMatrix の translateWeight)が 2022 に無い機能のため20件失敗(今回未変更のファイル)。 コミット・プッシュ(2026-11-03)。
+
+- Claude Code (2026-11-03): mlibへ足す候補を調査(利用側の直接cmds/om2使用・cymel/paya/AL_omx/pymelとの比較)。コード変更なし。結果はローカルの docs/research/mlib-gap-survey-2026-11-03.md。
+
 - Claude Code (2026-11-02): スキニングツール10件(brSmoothWeights・skinningtools・transferSkinCluster・max-skinning-weight-tool・HRBF-Skinning-Maya-Tool・weights_editor・MayaTransferInpaintWeights・flottitools・yg_weightTool・smartDeformer)をsubmoduleとして追加。既存の外部ツールは変更なし。コミット・プッシュ(2026-11-03)。
 
 - Claude Code (2026-11-03): SkinWeightKitから見たmlib追加を質問形式で決め、mlib 10.1.0として実装。GeometryFilter基底（getDeformerWeights/setDeformerWeights、Cluster・SkinCluster・BlendShapeの基底）、SkinClusterのロック・rows=True・removeInfluences・位置付きdump/load・設定の名前、Jointのロック・getBoneSegments、Meshのシェル・三角形・左右の頂点・最近傍、Vertices.grow/shrink、Edges.getLoop/getRing、Selection.getSoftSelection、mlib.bakeDeformer。スタブ・changelog・版・設計文書を更新、SkinWeightKitを新APIへ切替え_om2.pyを削除。Maya2022/2027の全テスト・静的検査・Sphinx・利用側回帰(744件)・SkinWeightKit 87件・GUI確認成功。2022のbakeDeformerのRedoはMaya側の挙動として注記。 コミット・プッシュ(2026-11-03)。

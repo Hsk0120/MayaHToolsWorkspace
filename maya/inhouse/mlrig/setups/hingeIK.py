@@ -76,7 +76,7 @@ def orientationMatrix(position, aim, hinge, hingeAxis):
     else:
         y, z = hinge, x ^ hinge
     position = Vector(*position)
-    return Matrix([x.x, x.y, x.z, 0, y.x, y.y, y.z, 0, z.x, z.y, z.z, 0, position.x, position.y, position.z, 1])
+    return Matrix.fromAxes(x, y, z, position=position)
 
 
 def setJointWorldOrientation(joint, matrix):

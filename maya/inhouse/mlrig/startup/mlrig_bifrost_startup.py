@@ -11,8 +11,6 @@ Bifrostを起動時に読み込みたい利用側だけが :func:`initialize` �
     MLRIG_BIFROST_MIN_VERSION: 必要な最小の版を ``3.0.0`` のように上書きする(動作確認用)。
 """
 
-from maya import cmds
-
 import os
 
 import mlib
@@ -90,7 +88,7 @@ def initialize():
     Maya 2025 未満では :func:`run` が何もしない。
     """
     global _scheduled
-    if _scheduled or os.environ.get("MLRIG_SKIP_BIFROST") == "1" or cmds.about(batch=True):
+    if _scheduled or os.environ.get("MLRIG_SKIP_BIFROST") == "1" or mlib.common.Environment.isBatch():
         return
     _scheduled = True
     try:

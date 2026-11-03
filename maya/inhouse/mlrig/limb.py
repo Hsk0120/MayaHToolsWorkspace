@@ -1,8 +1,6 @@
 """3関節のFK/IKとSoft IKの最小実装。切替は明示メソッドで行う。"""
 from mlib.maths import MSpace
 
-from maya import cmds
-
 import json
 import math
 import mlib
@@ -652,7 +650,7 @@ def build_limb(definition=None, backend="standard"):
     for name in names.values():
         if mlib.objExists(name):
             raise ValueError("Rig node already exists: " + name)
-    if int(cmds.about(apiVersion=True)) < 20250000:
+    if mlib.common.Environment.getApiVersion() < 20250000:
         raise RuntimeError("mlrig requires Maya 2025 or newer")
     if backend not in ("standard", "bifrost", "cpp"):
         raise ValueError("Unknown backend: " + backend)

@@ -2,7 +2,6 @@
 
 import math
 
-import maya.cmds as cmds
 import mlib
 from mlib import getPlug as to_plug
 from mlib.common.scalarGraph import ScalarGraph
@@ -151,7 +150,7 @@ class SoftIK:
             Plug: double精度の出力。公開するdistance/softness/ratioの型は変えない。
         """
         container = mlib.nodes.Container(owner)
-        legacy = cmds.about(apiVersion=True) < 20240000
+        legacy = mlib.common.Environment.getApiVersion() < 20240000
         if legacy:
             # 新しい算術型がない旧版でunknownノードを作らない。
             # 旧型のPlug名と演算モードをこの境界だけで選択する。

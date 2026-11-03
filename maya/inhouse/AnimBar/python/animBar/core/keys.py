@@ -16,10 +16,9 @@ import math
 from collections import namedtuple
 
 import maya.cmds as cmds
-import maya.mel as mel
 
 import mlib
-from mlib.common import Selection, Time
+from mlib.common import Environment, Selection, Time
 
 #: キーの比較で同じ時刻とみなす差(フレーム)。
 TIME_EPSILON = 1e-4
@@ -76,7 +75,8 @@ def animCurveOf(plug):
     curve = plug.getAnimCurve()
     if curve is not None or plug.getSource() is None:
         return curve
-    # mlib にはアニメーションレイヤーの照会の入口が無いため、レイヤーを選んでカーブを返す cmds.keyframe を使う。
+    # Plug.getAnimCurve(layer=...) はレイヤーを指定する必要があり、pairBlend の先のカーブも返さないため、
+    # 選んだ・優先するレイヤー(pairBlend の先を含む)のカーブを返す cmds.keyframe を使う。
     names = cmds.keyframe(str(plug), query=True, name=True) or []
     return mlib.getNode(names[0]) if names else None
 
@@ -100,15 +100,7 @@ def timelineRange():
         tuple[float, float] | None: (開始, 終了)のフレーム(終了は範囲の最後のフレーム)。選んでいない・
         GUIが無ければNone。
     """
-    if cmds.about(batch=True):
-        return None
-    # mlib にはタイムスライダーの選択範囲の入口が無いため、Mayaのコマンドを使う。
-    slider = mel.eval("$animBarTmp = $gPlayBackSlider")
-    if not cmds.timeControl(slider, query=True, rangeVisible=True):
-        return None
-    start, end = cmds.timeControl(slider, query=True, rangeArray=True)
-    # rangeArray の終わりは範囲の次のフレームを指す。
-    return float(start), float(end) - 1.0
+    return Time.getSelectedRange()
 
 
 def animatedPlugs(node, channelBox=True):
@@ -145,7 +137,7 @@ def _key_editor_visible():
     Returns:
         bool: 開いていれば(またはバッチなら)True。
     """
-    if cmds.about(batch=True):
+    if Environment.isBatch():
         return True
     for panel in cmds.getPanel(visiblePanels=True) or []:
         if cmds.getPanel(typeOf=panel) == "scriptedPanel" and                 cmds.scriptedPanel(panel, query=True, type=True) in ("graphEditor", "dopeSheetPanel"):

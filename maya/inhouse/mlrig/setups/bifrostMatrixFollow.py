@@ -1,8 +1,8 @@
 """Bifrostで単一入力の親空間追従をカプセル化する。"""
 
-from maya import cmds
 from mlib_bifrost.nodes.graph import Graph
 from mlib_bifrost.common.mathBuilder import MathBuilder
+from mlib.common import Environment
 from mlib.common.undo import isEnabled
 
 
@@ -19,7 +19,7 @@ class BifrostMatrixFollow:
         Returns:
             Graph: 入出力がMayaのmatrix属性として公開されたグラフ。
         """
-        if isEnabled() or not cmds.about(batch=True):
+        if isEnabled() or not Environment.isBatch():
             raise RuntimeError(
                 "Bifrost matrix graph is experimental; use an isolated process with Undo disabled"
             )

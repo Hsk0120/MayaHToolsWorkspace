@@ -147,7 +147,7 @@ class NoFlipPole(TwistDistribution):
 
         start_point = list(world(start))[12:15]
         end_point = list(world(end))[12:15]
-        forward = Vector(*_AXES[forwardAxis]) * world(control)
+        forward = Vector.fromAxis(forwardAxis) * world(control)
         cls._frame(start_point, end_point, forward)
         offset = 0.0 if mid is None else cls.restAngle(start_point, list(world(mid))[12:15], end_point, forward)
         if distance is None:

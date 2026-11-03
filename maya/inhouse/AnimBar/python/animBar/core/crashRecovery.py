@@ -16,7 +16,7 @@ import time
 import maya.cmds as cmds
 
 import mlib
-from mlib.common import ScriptJob
+from mlib.common import Environment, ScriptJob
 from mlib.decorator import undoChunk
 
 from . import keys
@@ -158,7 +158,7 @@ def checkOnOpen(ask=None):
         return None
     path = backupPath()
     if ask is None:
-        if cmds.about(batch=True):
+        if Environment.isBatch():
             return "keep"
         button = cmds.confirmDialog(title="Anim Bar", button=["Restore", "Discard", "Later"],
                                     message="An animation backup newer than this scene was found.\n"

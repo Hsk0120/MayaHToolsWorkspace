@@ -91,11 +91,11 @@ class UnevenGround(TwistDistribution):
             foot, ground = Matrix(foot), Matrix(ground)
             point = Vector(foot[12], foot[13], foot[14])
             origin = Vector(ground[12], ground[13], ground[14])
-            normal = (Vector(*AXES[groundAxis]) * ground).normal()
+            normal = (Vector.fromAxis(groundAxis) * ground).normal()
             surface = point.y + ((origin - point) * normal) / max(normal.y, _MIN_UP)
             lift = height * (surface - floorHeight)
             offsets.append(lift)
-            forward = Vector(*AXES[forwardAxis]) * foot
+            forward = Vector.fromAxis(forwardAxis) * foot
             rest = UnevenGround._levelFrame(Vector(0.0, 1.0, 0.0), forward)
             tilted = UnevenGround._levelFrame(normal, forward)
             delta = rest.inverse() * tilted
@@ -119,7 +119,7 @@ class UnevenGround(TwistDistribution):
             raise ValueError("The foot forward axis must not be parallel to the ground normal")
         side = side.normal()
         x = up ^ side
-        return Matrix([x.x, x.y, x.z, 0.0, up.x, up.y, up.z, 0.0, side.x, side.y, side.z, 0.0, 0.0, 0.0, 0.0, 1.0])
+        return Matrix.fromAxes(x, up, side)
 
     @staticmethod
     def _axes(groundAxis, forwardAxis):
@@ -179,12 +179,12 @@ class UnevenGround(TwistDistribution):
             raise ValueError("UnevenGround container already exists: " + name)
         with nativeUnits():
             for ground in grounds:
-                normal = (Vector(*AXES[groundAxis]) * Matrix(ground.getPlug("worldMatrix")[0].get())).normal()
+                normal = (Vector.fromAxis(groundAxis) * Matrix(ground.getPlug("worldMatrix")[0].get())).normal()
                 if normal.y < _MIN_UP:
                     raise ValueError("The ground normal must point upward: " + str(ground))
             for foot in (leftFoot, rightFoot):
                 normal = Vector(0.0, 1.0, 0.0)
-                forward = Vector(*AXES[forwardAxis]) * Matrix(foot.getPlug("worldMatrix")[0].get())
+                forward = Vector.fromAxis(forwardAxis) * Matrix(foot.getPlug("worldMatrix")[0].get())
                 if (forward - normal * (forward * normal)).length() < 1e-4:
                     raise ValueError("The foot forward axis must not be vertical: " + str(foot))
             graph = cls(mlib.createContainer(name=name))

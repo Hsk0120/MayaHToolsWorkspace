@@ -2,7 +2,7 @@
 
 from functools import partial
 
-from maya import cmds, mel
+from maya import mel
 
 import mlib
 
@@ -274,7 +274,7 @@ class LayerEditor(QtWidgets.QDialog):
         """
         if cls._instance is None or not isValid(cls._instance):
             # Qtの親取得はUI実装側で行い、基礎ライブラリmlibへ依存を持ち込まない。
-            name = None if cmds.about(batch=True) else mel.eval("$mlrigMainWindow = $gMainWindow")
+            name = None if mlib.common.Environment.isBatch() else mel.eval("$mlrigMainWindow = $gMainWindow")
             parent = next((window for window in QtWidgets.QApplication.topLevelWidgets()
                            if window.objectName() == name), None)
             cls._instance = cls(parent)
@@ -888,7 +888,7 @@ class LayerEditor(QtWidgets.QDialog):
     def open_graph(self):
         """設定ノードを選択し、標準ノードエディターを開く。"""
         self.select_node()
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             raise RuntimeError("NodeEditor requires Maya GUI")
         mel.eval("NodeEditorWindow;")
 
@@ -901,7 +901,7 @@ class LayerEditor(QtWidgets.QDialog):
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         mlib.select(node.getPlug('curve').getSource().getNode(), replace=True)
-        if cmds.about(batch=True):
+        if mlib.common.Environment.isBatch():
             raise RuntimeError("GraphEditor requires Maya GUI")
         mel.eval("GraphEditor;")
 

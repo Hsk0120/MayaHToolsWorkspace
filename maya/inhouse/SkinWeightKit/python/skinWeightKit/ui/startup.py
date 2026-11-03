@@ -1,6 +1,6 @@
 """Maya の起動時に Skin Weight Kit を準備する(userSetup から遅延して呼ぶ)。"""
 
-import maya.cmds as cmds
+from mlib.common import Environment
 
 from . import commands, panel
 
@@ -11,7 +11,7 @@ def install():
     Returns:
         bool: パネルを表示したらTrue。
     """
-    if cmds.about(batch=True):
+    if Environment.isBatch():
         return False
     commands.register()
     if panel.wasVisible():
