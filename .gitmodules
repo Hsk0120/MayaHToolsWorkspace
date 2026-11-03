@@ -529,3 +529,33 @@
 	url = https://github.com/EpicGames/UnrealEngine.git
 	branch = release
 	shallow = true
+[submodule "maya/external/brSmoothWeights"]
+	path = maya/external/brSmoothWeights
+	url = https://github.com/IngoClemens/brSmoothWeights.git
+[submodule "maya/external/skinningtools"]
+	path = maya/external/skinningtools
+	url = https://github.com/peerke88/skinningtools.git
+[submodule "maya/external/transferSkinCluster"]
+	path = maya/external/transferSkinCluster
+	url = https://github.com/IngoClemens/transferSkinCluster.git
+[submodule "maya/external/max-skinning-weight-tool"]
+	path = maya/external/max-skinning-weight-tool
+	url = https://github.com/pgpreeth/max-skinning-weight-tool.git
+[submodule "maya/external/HRBF-Skinning-Maya-Tool"]
+	path = maya/external/HRBF-Skinning-Maya-Tool
+	url = https://github.com/Ding-Jia-Layla/HRBF-Skinning-Maya-Tool.git
+[submodule "maya/external/weights_editor"]
+	path = maya/external/weights_editor
+	url = https://github.com/theRussetPotato/weights_editor.git
+[submodule "maya/external/MayaTransferInpaintWeights"]
+	path = maya/external/MayaTransferInpaintWeights
+	url = https://github.com/yamahigashi/MayaTransferInpaintWeights.git
+[submodule "maya/external/flottitools"]
+	path = maya/external/flottitools
+	url = https://github.com/scott-techart/flottitools.git
+[submodule "maya/external/yg_weightTool"]
+	path = maya/external/yg_weightTool
+	url = https://github.com/YannGenty/yg_weightTool.git
+[submodule "maya/external/smartDeformer"]
+	path = maya/external/smartDeformer
+	url = https://github.com/subins-toolkits/smartDeformer.git
