@@ -111,6 +111,8 @@ public:
     void hideCompletions();
     /** @brief 候補の一覧を出しているか。 @return 出していればtrue。 */
     bool isCompletionVisible() const;
+    /** @brief Escapeで候補を拒否した世代。非同期応答で候補が再表示されるのを防ぐ。 @return 取消世代。 */
+    quint64 completionDismissal() const { return completionDismissal_; }
     /** @brief 一覧を出したまま、入力した名前で候補を絞り込み直す(入力のたびに閉じて開き直さない)。
      * @param keepWhenEmpty trueなら、絞り込んで候補が無くなっても閉じない(呼出側がすぐ候補を求め直して入れ替える場合)。
      * @return 一覧が開いたままならtrue。補完中の名前の外へ出た・候補が無くなった場合は閉じてfalse。
@@ -319,6 +321,7 @@ protected:
     void gutterPressed(const QPoint& position) override;
 
 private:
+    quint64 completionDismissal_ = 0;  ///< Escapeで増やす。本文のUndoとは独立した入力状態。
     QVector<SnippetStop> snippetStops_;  ///< 文書変更に追従する入力箇所。
     int snippetIndex_ = -1;  ///< 選択中。-1は終了。
     /** @brief Tab移動を適用する。@param direction 次は1、前は-1。@return 操作を消費したか。 */

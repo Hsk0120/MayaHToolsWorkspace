@@ -20,7 +20,25 @@ Maya本体のsite-packagesは変更しません。セットアップ時だけネ
 basedpyright配布物は固定版SHA-512を照合します。各依存のLICENSE/dist-info/licensesを保持します。
 ``server.json`` が起動設定です。``MCE_LANGUAGE_SERVER_CONFIG`` で別の設定を指定できます。
 セットアップ後は **Command → Refresh completion** を実行します。
+Maya起動後に ``sys.path`` へライブラリの場所を追加した場合も、この操作で型解析へ反映します。
+開いている解析ルート・未保存本文・表示設定は保持します。
 C++プラグインの更新時はMayaを再起動してください。
+
+通常起動のMayaからユーザーキャッシュを参照できない場合は、共通の配置先を使えます。
+
+.. code-block:: powershell
+
+   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tools/setup_language_server.py --node 'C:/path/to/node.exe' --destination 'C:/MayaHToolsWorkspace/maya/inhouse/MayaCodeEditor/runtime/language-server'
+
+0.9.4以降は明示した環境変数、ユーザーキャッシュ、Mayaモジュール内の
+``runtime/language-server/server.json`` の順で探します。依存ファイルはGitへ登録しません。
+明示設定が不正な場合は別設定へ自動で切り替えません。
+
+例えば ``import mlib`` に続けて ``joint = mlib.ls(sl=True, type="joint")`` と書くと、
+型解析はmlibの型スタブから戻り値を判別し、``joint.`` で ``getSkinClusters`` 等を表示します。
+コードを実行する必要はありません。右下に ``Type analysis ready`` と表示されていることを確認してください。
+``Basic completion (language server setup required)`` の場合は上記セットアップが必要です。
+基本補完だけでは関数の戻り値・Literal引数による型の絞り込みには対応していません。
 
 解析対象
 --------
@@ -86,6 +104,7 @@ Escape、Undo／Redo、入力範囲外の編集でスニペット操作を終了
 --------
 
 ``tests/language_smoke.py`` は専用Maya GUIで補完、Enter確定、スタブ、診断、未保存タブ、リネーム下見/Undo、抽出を確認します。
+``tests/mlib_completion_smoke.py`` は検索パスの後追加とRefresh、mlibの戻り値・for要素・添字の補完、Enter／Escapeを確認します。
 ``tests/test_refactor_worker.py`` は元データ保持、Unicode位置、抽出/移動/import整理を確認します。
 ``tests/ui_smoke.cpp`` はUTF-16範囲、同一位置のimport挿入、重複拒否とUndoを確認します。
 専用の模擬サーバーで、要求取消・逆順応答・破損フレーム・再起動・破棄後のコールバック抑止も検査します。

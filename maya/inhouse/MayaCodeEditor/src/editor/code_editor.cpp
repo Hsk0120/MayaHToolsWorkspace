@@ -752,6 +752,7 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     // 0. 名前の説明・定義をその場で見る表示を出している間のキー入力: Escは閉じるだけ、
     //    それ以外は閉じてから通常どおり処理する。
     const bool escape = event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier;
+    if (escape) ++completionDismissal_;
     const bool popupOpen = (hover_ && hover_->isVisible()) || (peek_ && peek_->isVisible())
                            || (problemPopup_ && problemPopup_->isVisible());
     if (popupOpen) {

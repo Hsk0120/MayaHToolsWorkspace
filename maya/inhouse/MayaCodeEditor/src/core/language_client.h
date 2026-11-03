@@ -11,6 +11,8 @@
 #include <functional>
 
 namespace mce {
+/// サーバーによる一時取消。明示的なcancel()は応答自体を破棄するのでここへ来ない。
+constexpr const char* kLanguageRequestCancelled = "Language request cancelled";
 /** @brief 1画面が所有するLSP接続。応答待ちでGUIを停止せず、破棄時に子プロセスを回収する。 */
 class LanguageClient : public QObject {
 public:

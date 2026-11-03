@@ -64,6 +64,8 @@ public:
 
     /** @brief 補完の情報を取り直す(Command → Refresh completion)。 */
     void refreshCompletion();
+    /** @brief 基本補完の更新後も、型解析の状態と案内をステータスへ維持する。 */
+    void restoreCompletionStatus();
 
     /** @brief 入力が止まってから構文チェックするよう予約する。設定がオフなら一覧を隠す。
      * @param keepResults trueなら、待つ間も前回の結果を一覧に残す(入力中。入力のたびに「確認中」へ戻さない)。

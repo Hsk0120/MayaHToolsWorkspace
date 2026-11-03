@@ -2089,6 +2089,23 @@ bool languageClientPasses() {
         ok = ok && editor.textCursor().selectedText() == "second";
         editor.undo();
         ok = ok && editor.toPlainText() == "# example\nca";
+        // サーバーが取り消した要求を再送する前にEscapeされた場合は再表示しない。
+        editor.hideCompletions();
+        assist.complete(&editor);
+        QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+        QApplication::sendEvent(&editor, &escape);
+        wait(400);
+        ok = ok && !editor.isCompletionVisible();
+        assist.complete(&editor);
+        timer.restart();
+        while (!editor.isCompletionVisible() && timer.elapsed() < 3000) wait(20);
+        ok = ok && editor.isCompletionVisible();
+        // 新しい本文へ古い候補を入れず、再要求は新しい世代で行う。
+        editor.hideCompletions();
+        assist.complete(&editor);
+        editor.insertPlainText("changed");
+        wait(400);
+        ok = ok && !editor.isCompletionVisible();
     }
     if (oldConfig.isEmpty()) qunsetenv("MCE_LANGUAGE_SERVER_CONFIG"); else qputenv("MCE_LANGUAGE_SERVER_CONFIG", oldConfig);
     if (!ok || afterDestroy) qWarning() << "language client" << cancelled << order << afterDestroy;

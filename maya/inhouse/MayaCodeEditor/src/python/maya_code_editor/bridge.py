@@ -16,6 +16,31 @@ import sys
 import types
 
 
+def _language_server_config():
+    """明示設定、ユーザー環境、Mayaモジュール内の順に設定を探す。
+
+    Returns:
+        str: 設定ファイルのパス。明示設定の不備は他の設定で隠さない。
+    """
+    explicit = os.environ.get("MCE_LANGUAGE_SERVER_CONFIG")
+    if explicit:
+        return explicit
+    local = Path(os.environ.get("LOCALAPPDATA", "")) / "MayaCodeEditor/language-server/server.json"
+    if local.is_file():
+        return str(local)
+    # Maya外の単体テストでも使えるよう、ロード済みホストだけを問い合わせる。
+    cmds = sys.modules.get("maya.cmds")
+    if cmds is not None:
+        try:
+            module = cmds.moduleInfo(moduleName="MayaCodeEditor", path=True)
+            shared = Path(module) / "runtime/language-server/server.json"
+            if shared.is_file():
+                return str(shared)
+        except (RuntimeError, TypeError, ValueError):
+            pass
+    return str(local)
+
+
 def language_configuration():
     """型解析用の環境だけを返す。ユーザーコードは実行しない。
 
@@ -28,7 +53,7 @@ def language_configuration():
             root = parent
             break
     executable = Path(sys.executable).parent / "mayapy.exe"
-    return json.dumps({"root": str(root), "python": {"pythonPath": str(executable)},
+    return json.dumps({"root": str(root), "serverConfig": _language_server_config(), "python": {"pythonPath": str(executable)},
                        "basedpyright": {"analysis": {
                            "pythonVersion": "{}.{}".format(*sys.version_info[:2]),
                            "extraPaths": [str(root)] + [str(Path(path).resolve()) for path in sys.path if path and Path(path).is_dir()],

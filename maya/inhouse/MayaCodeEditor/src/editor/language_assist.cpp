@@ -136,7 +136,7 @@ void LanguageAssist::refactor(CodeEditor* editor, const QString& action) {
     if (refactorProcess_.state() != QProcess::NotRunning) { context_.status("A refactoring is already running"); return; }
     sync();
     QJsonObject config;
-    const QString configPath = qEnvironmentVariable("MCE_LANGUAGE_SERVER_CONFIG", qEnvironmentVariable("LOCALAPPDATA") + "/MayaCodeEditor/language-server/server.json");
+    const QString configPath = qEnvironmentVariable("MCE_LANGUAGE_SERVER_CONFIG", config_.value("serverConfig").toString(qEnvironmentVariable("LOCALAPPDATA") + "/MayaCodeEditor/language-server/server.json"));
     if (!readJsonFile(configPath, &config) || !QFileInfo::exists(config.value("refactorHelper").toString())) {
         context_.status("Run tools/setup_language_server.py to install refactoring support"); return;
     }
@@ -206,6 +206,30 @@ void LanguageAssist::refactor(CodeEditor* editor, const QString& action) {
     refactorProcess_.start();
     refactorTimeout_.start(30000);
     context_.status("Preparing refactoring preview…");
+}
+
+bool LanguageAssist::refreshEnvironment(const QJsonObject& environment) {
+    const auto previous = config_;
+    config_.insert("python", environment.value("python"));
+    config_.insert("serverConfig", environment.value("serverConfig"));
+    auto based = config_.value("basedpyright").toObject();
+    auto analysis = based.value("analysis").toObject();
+    const auto current = environment.value("basedpyright").toObject().value("analysis").toObject();
+    // 設定の正本はMayaの現在のsys.path。取り除いた検索先も残さない。
+    for (const QString& key : {QString("extraPaths"), QString("pythonVersion"), QString("stubPath"), QString("autoSearchPaths")}) {
+        if (current.contains(key)) analysis.insert(key, current.value(key));
+        else analysis.remove(key);
+    }
+    // File > Open folderで選んだ解析ルートを、プロセスの作業フォルダーで上書きしない。
+    const QString root = config_.value("root").toString();
+    auto paths = analysis.value("extraPaths").toArray();
+    if (!root.isEmpty() && !paths.contains(root)) paths.prepend(root);
+    analysis.insert("extraPaths", paths);
+    if (QFileInfo(QDir(root).filePath("typings")).isDir()) analysis.insert("stubPath", QDir(root).filePath("typings"));
+    based.insert("analysis", analysis);
+    config_.insert("basedpyright", based);
+    refresh();
+    return config_ != previous;
 }
 
 void LanguageAssist::refresh() {
@@ -332,18 +356,31 @@ QJsonObject LanguageAssist::params(CodeEditor* editor, int at) const {
     return {{"textDocument", QJsonObject{{"uri", uri(editor)}}}, {"position", position(editor->document(), at)}};
 }
 
-void LanguageAssist::request(CodeEditor* editor, const QString& method, QJsonObject arguments, bool caret, LanguageClient::Reply reply) {
+void LanguageAssist::request(CodeEditor* editor, const QString& method, QJsonObject arguments, bool caret, LanguageClient::Reply reply, int retries) {
     const auto key = QString::number(quintptr(editor)) + method;
     client_.cancel(requests_.value(key));
     const QPointer<CodeEditor> guard(editor);
     const quint64 epoch = epoch_;
     const QString text = editor->toPlainText();
     const int at = editor->textCursor().position();
-    requests_[key] = client_.request(method, arguments, [this, guard, epoch, text, at, caret, reply](const QJsonValue& value, const QString& error) {
+    const quint64 dismissal = editor->completionDismissal();
+    requests_[key] = client_.request(method, arguments, [this, guard, epoch, text, at, caret, reply, method, arguments, key, retries, dismissal](const QJsonValue& value, const QString& error) {
         if (!guard) return;
         if (epoch != epoch_ || guard->toPlainText() != text) { guard->setProperty("languageDiscard", "document changed"); return; }
         if (caret && (guard != context_.current() || !guard->hasFocus() || guard->textCursor().position() != at)) {
             guard->setProperty("languageDiscard", QString("focus=%1 current=%2 caret=%3/%4").arg(guard->hasFocus()).arg(guard == context_.current()).arg(guard->textCursor().position()).arg(at));
+            return;
+        }
+        if (method == "textDocument/completion" && guard->completionDismissal() != dismissal) return;
+        if (error == kLanguageRequestCancelled && method == "textDocument/completion" && retries > 0) {
+            const int previousRequest = requests_.value(key);
+            // 設定再読込による取消だけを1回再送。入力/取消/破棄/新しい要求があれば再送しない。
+            QTimer::singleShot(100, this, [this, guard, epoch, text, at, caret, reply, method, arguments, key, previousRequest, retries, dismissal] {
+                if (!guard || epoch != epoch_ || requests_.value(key) != previousRequest || guard->toPlainText() != text
+                    || guard->completionDismissal() != dismissal || guard != context_.current() || !guard->hasFocus()
+                    || guard->textCursor().position() != at) return;
+                request(guard, method, arguments, caret, reply, retries - 1);
+            });
             return;
         }
         if (!error.isEmpty()) { context_.status(error); return; }

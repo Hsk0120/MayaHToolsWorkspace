@@ -40,6 +40,11 @@ public:
     bool ready() const { return client_.ready(); }
     /** @brief 設定を反映し解析表示を更新する。 */
     void refresh();
+    /** @brief Mayaで増減した検索パスを再取得する。開いた解析ルートと表示設定は保持する。
+     * @param environment 現在のPython環境。ユーザーコードは実行しない。
+     * @return 設定変更を通知したか。trueなら別途のサーバー再解析要求は不要。
+     */
+    bool refreshEnvironment(const QJsonObject& environment);
     /** @brief 補完を非同期要求する。 @param editor 対象。 @return 受付したか。 */
     bool complete(CodeEditor* editor);
     /** @brief 現在の候補の型と説明を非同期で表示する。 @param editor 対象。 */
@@ -82,8 +87,8 @@ private:
     struct Document { QPointer<CodeEditor> editor; QString uri; QString text; int version = 0; };
     /** @brief 文書要求と位置を作る。 @param editor 対象。 @param at Qt位置。 @return 引数。 */
     QJsonObject params(CodeEditor* editor, int at) const;
-    /** @brief 取消可能な要求を送る。 @param editor 対象。 @param method メソッド。 @param arguments 引数。 @param caret カーソル一致も要求するか。 @param reply 最新応答への処理。 */
-    void request(CodeEditor* editor, const QString& method, QJsonObject arguments, bool caret, LanguageClient::Reply reply);
+    /** @brief 取消可能な要求を送る。 @param editor 対象。 @param method メソッド。 @param arguments 引数。 @param caret カーソル一致も要求するか。 @param reply 最新応答への処理。 @param retries サーバーによる補完取消に対する残り再試行回数。 */
+    void request(CodeEditor* editor, const QString& method, QJsonObject arguments, bool caret, LanguageClient::Reply reply, int retries = 1);
     /** @brief サーバーの通知を現在の文書へ適用する。 @param method メソッド。 @param arguments 引数。 */
     void notification(const QString& method, const QJsonObject& arguments);
     /** @brief 色とヒントを更新する。 */

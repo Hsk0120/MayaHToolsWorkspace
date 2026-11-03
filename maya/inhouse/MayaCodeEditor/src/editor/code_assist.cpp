@@ -286,12 +286,24 @@ void CodeAssist::onCurrentChanged() {
 }
 
 void CodeAssist::refreshCompletion() {
-    if (language_) { language_->refresh(); language_->restart(); }
+    if (language_) {
+        const bool changed = services_.languageConfiguration && language_->refreshEnvironment(services_.languageConfiguration());
+        if (!services_.languageConfiguration) language_->refresh();
+        // 設定変更通知だけで再解析される。重ねてrestartすると初期化と補完要求が競合する。
+        if (!changed || !language_->ready()) language_->restart();
+    }
     if (services_.refreshCompletion) {
         services_.refreshCompletion();
     }
     hoverCache_ = HoverCache();
-    completionStatus_->setText(kReady);
+    restoreCompletionStatus();
+}
+
+void CodeAssist::restoreCompletionStatus() {
+    const QString status = completionStatus_->property("languageStatus").toString();
+    // 基本補完が成功しても、型解析が未導入/停止中という情報を消さない。
+    completionStatus_->setText(status.isEmpty() ? kReady : completionStatus_->fontMetrics().elidedText(status, Qt::ElideRight, 300));
+    completionStatus_->setToolTip(status);
 }
 
 void CodeAssist::showCompletionError(const QString& error) {
@@ -357,8 +369,7 @@ void CodeAssist::requestCompletion(bool force) {
         }
         items.append(item);
     }
-    completionStatus_->setText(kReady);
-    completionStatus_->setToolTip(QString());
+    restoreCompletionStatus();
     editor->showCompletions(items);
     // import文の候補を別スレッドで集めている途中なら、少し後に問い合わせ直す(追加の入力は不要)。
     if (items.isEmpty() && result.pending) {

@@ -1,5 +1,6 @@
 // LSPの取消、逆順応答、破損フレームを再現する専用サーバー。ユーザーコードは読まない。
 let buffer = Buffer.alloc(0);
+let completions = 0;
 function send(message) {
     const body = Buffer.from(JSON.stringify(message));
     process.stdout.write(`Content-Length: ${body.length}\r\n\r\n`);
@@ -15,7 +16,9 @@ process.stdin.on('data', data => {
         const item = JSON.parse(buffer.subarray(end + 4, end + 4 + length));
         buffer = buffer.subarray(end + 4 + length);
         if (item.method === 'initialize') send({jsonrpc: '2.0', id: item.id, result: {capabilities: {}}});
-        if (item.method === 'textDocument/completion') send({jsonrpc: '2.0', id: item.id, result: [{
+        if (item.method === 'textDocument/completion' && ++completions % 2 === 1) {
+            send({jsonrpc: '2.0', id: item.id, error: {code: -32801, message: 'configuration changed'}});
+        } else if (item.method === 'textDocument/completion') send({jsonrpc: '2.0', id: item.id, result: [{
             label: 'call', insertTextFormat: 2, insertText: 'call(${1:first}, ${2:second})$0',
             additionalTextEdits: [{range: {start: {line: 0, character: 0}, end: {line: 0, character: 0}}, newText: 'import helper\n'}]
         }]});

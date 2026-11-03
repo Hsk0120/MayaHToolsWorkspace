@@ -287,6 +287,9 @@ maya/inhouse/*/docs/locale/**/*.mo
 # pip packages installed by maya/install_packages.bat (per Maya version)
 /maya/site-packages/
 
+# Maya Code Editor のローカル型解析ランタイム
+/maya/inhouse/MayaCodeEditor/runtime/
+
 # Anim Bar の GUI 確認の結果(画像・JSON)
 maya/inhouse/AnimBar/python/animBar/__tests__/_output/
 

@@ -54,7 +54,7 @@ LanguageClient::~LanguageClient() {
 bool LanguageClient::start(const QJsonObject& configuration) {
     if (process_.state() != QProcess::NotRunning) return true;
     const QString path = qEnvironmentVariable("MCE_LANGUAGE_SERVER_CONFIG",
-        qEnvironmentVariable("LOCALAPPDATA") + "/MayaCodeEditor/language-server/server.json");
+        configuration.value("serverConfig").toString(qEnvironmentVariable("LOCALAPPDATA") + "/MayaCodeEditor/language-server/server.json"));
     QJsonObject config;
     if (!readJsonFile(path, &config) || !QFileInfo::exists(config.value("node").toString())
         || !QFileInfo::exists(config.value("server").toString())) {
@@ -184,7 +184,10 @@ void LanguageClient::dispatch(const QJsonObject& object) {
         const int id = object.value("id").toInt();
         if (!pending_.contains(id)) return;
         const auto pending = pending_.take(id);
-        if (pending.reply) pending.reply(object.value("result"), object.value("error").toObject().value("message").toString());
+        const auto failure = object.value("error").toObject();
+        const int code = failure.value("code").toInt();
+        const QString error = code == -32800 || code == -32801 ? QString(kLanguageRequestCancelled) : failure.value("message").toString();
+        if (pending.reply) pending.reply(object.value("result"), error);
     } else if (onNotification) {
         onNotification(method, object.value("params").toObject());
     }

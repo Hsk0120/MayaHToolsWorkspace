@@ -43,6 +43,24 @@ class CompletionTests(unittest.TestCase):
     """``mayaCodeEditorTest -complete`` による補完と、``maya_code_editor.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
+    def test_language_server_config_shared_fallback(self):
+        """ユーザー領域が見えない起動でもモジュール内設定へ到達する。"""
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            module = root / "module"
+            shared = module / "runtime/language-server/server.json"
+            shared.parent.mkdir(parents=True)
+            shared.write_text("{}", encoding="utf-8")
+            local = root / "local/MayaCodeEditor/language-server/server.json"
+            with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(root / "local")}, clear=True), mock.patch.object(cmds, "moduleInfo", return_value=str(module)):
+                self.assertEqual(Path(bridge._language_server_config()), shared)
+                self.assertEqual(Path(json.loads(bridge.language_configuration())["serverConfig"]), shared)
+                local.parent.mkdir(parents=True)
+                local.write_text("{}", encoding="utf-8")
+                self.assertEqual(Path(bridge._language_server_config()), local)
+                os.environ["MCE_LANGUAGE_SERVER_CONFIG"] = str(root / "explicit-missing.json")
+                self.assertEqual(Path(bridge._language_server_config()), root / "explicit-missing.json")
+
     def test_keyword_method_binding(self):
         """静的・クラス・未束縛メソッドで、実際に指定する引数を残す。"""
         source = ("class Builder:\n"
