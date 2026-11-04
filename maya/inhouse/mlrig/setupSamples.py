@@ -89,6 +89,7 @@ class SetupSamples:
         ("sphereCollision", "SphereCollision - soft head collider"),
         ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
         ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
+        ("scapulaGlide", "ScapulaGlide - shoulder blade on ribcage"),
         ("boxCollision", "BoxCollision - soft rounded table edge"),
         ("torusCollision", "TorusCollision - soft hoop collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
@@ -1025,6 +1026,20 @@ class SetupSamples:
         setup = EllipsoidCollision.create(control, chest, name=name, radiusX=4.0, radiusY=5.0, radiusZ=2.5,
                                           softness=1.0)
         _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
+        return setup, control
+
+    @classmethod
+    def _scapulaGlide(cls, name, root):
+        """胸郭を表す楕円体(横長・前後に薄いlocator)と肩甲骨のコントロール(locator)。
+        コントロールを動かすと、出力(緑)は胸郭の表面に吸い付いたまま背中の上を滑り、
+        出力のZ軸は表面の外向きの法線を向く。offset で肩甲骨の厚みだけ浮かせる。"""
+        from .setups import ScapulaGlide
+
+        ribcage = _locator(name + "_ribcage", root, translate=(0, 8, 0))
+        control = _locator(name + "_scapulaCtrl", root, translate=(2.5, 10, -4))
+        setup = ScapulaGlide.create(control, ribcage, name=name, radiusX=4.0, radiusY=5.0, radiusZ=3.0,
+                                    offset=0.3, normalAxis="z", upAxis="y")
+        _output(name + "_scapulaOut", root, str(setup.container) + ".matrix", ((0, 0, 1.5), (0, 1.5, 0)))
         return setup, control
 
     @classmethod

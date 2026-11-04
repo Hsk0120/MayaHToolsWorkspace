@@ -62,6 +62,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    sphere_collision
    capsule_collision
    ellipsoid_collision
+   scapula_glide
    box_collision
    torus_collision
    space_blend

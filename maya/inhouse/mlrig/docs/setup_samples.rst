@@ -152,6 +152,9 @@
    * - EllipsoidCollision - soft chest collider
      - 手のコントロールのlocator
      - ``translateZ`` を下げて胸の楕円体(locator、横4cm・縦5cm・前後2.5cm、Zに15度傾けたもの)へ近づけると、出力(緑)が表面から ``softness`` (1cm)の距離で柔らかく止まり始め、楕円体の中へは入らない。中で上下・左右へ動かすと、向きごとに違う半径の表面に沿う。胸のlocatorを回転させると軸の向きが付いてくる。containerの ``directionRadius`` は今の向きでの楕円体の半径。
+   * - ScapulaGlide - shoulder blade on ribcage
+     - 肩甲骨のコントロールのlocator
+     - コントロールを動かすと、出力(緑)は胸郭の楕円体(locator、横4cm・縦5cm・前後3cm)の表面へ放射方向に吸い付いたまま背中の上を滑り、表面から ``offset`` (0.3cm)だけ浮く。出力のZ軸(子joint)は表面の外向きの法線、Y軸はコントロールのY軸へ揃う。containerの ``distance`` はコントロールが表面から離れている距離(放射方向)、 ``normal`` は外向きの法線。
    * - BoxCollision - soft rounded table edge
      - 手のコントロールのlocator
      - ``translateY`` を下げて机の天板の箱(locator、幅10cm・厚さ2cm・奥行6cm、角の丸め0.5cm、Yに20度回したもの)へ近づけると、出力(緑)が上の面から ``softness`` (1cm)の距離で柔らかく止まり始め、箱の中へは入らない。面の上を横へ動かしても面に垂直に止まって滑らず、縁の外へ出すと丸めた角に沿って側面へ回り込む。containerの ``normal`` は今押し出している向き。

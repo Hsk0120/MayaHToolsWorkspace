@@ -47,6 +47,7 @@ from .planeCollision import PlaneCollision
 from .sphereCollision import SphereCollision
 from .capsuleCollision import CapsuleCollision
 from .ellipsoidCollision import EllipsoidCollision
+from .scapulaGlide import ScapulaGlide
 from .boxCollision import BoxCollision
 from .torusCollision import TorusCollision
 from .poleVectorPlacement import PoleVectorPlacement
@@ -130,6 +131,7 @@ __all__ = [
     "SphereCollision",
     "CapsuleCollision",
     "EllipsoidCollision",
+    "ScapulaGlide",
     "BoxCollision",
     "TorusCollision",
     "PoleVectorPlacement",
