@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-| Codex | 2026-11-04 | QPE Sphinx文書・GitHub Pages公開 | QPE独立docs・配色・README導線を追加し、既存Actionsに統合。ローカル文書/ブラウザー検証後に公開とリンクを確認。 |
 
 
 
@@ -156,6 +155,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-11-04): QPEの独立Sphinxガイド9ページ(導入/カラムとタブ/ファイル操作/Maya/設定/キー/開発/制限)を追加。QPEのダーク面と公式アイコンの青緑・淡黄色、構成模式図と全ページ目次を用意。root/QPE READMEから公開先へリンクし、既存Pages Actionsへ統合、対応ソースキットにもdocsを同梱。Sphinx -W成功、相対リンク/アンカー11HTML、PC1440・タブレット834・スマホ390幅の27ページ検査と検索/移動成功。390pxの長いパスの横溢れを修正。0721a845をpushしActions41770756695のbuild/deploy/verify-publication全成功、公開側27件・SHA一致とREADME先HTTP200を確認。https://hsk0120.github.io/MayaHToolsWorkspace/quick-path-explorer/ 。製品exe/mll変更とMaya実行なし、iPad実機は未確認。証拠 .maya-output/qpe-docs-20261104/results.json。
+
 - Claude Code (2026-11-04): mlrig夜間。両端の間に張るコイルばね `setups/CoilSpring`(aimMatrixでbase→tipの座標系、巻きの半径・線の太さを保ちピッチだけ変える、密着長 turns*wireDiameter より縮まず不足分を coilBind に出力、matrix0〜N-1・length・solidLength・effectiveLength・pitch・gap・coilBind、keyableな turns・radius・wireDiameter、標準ノードのみ)を追加。テスト9件、Setup Samples1項目、文書、検証デモ `tools/demo_coil_spring.py`。隔離Maya 2027で setups 612件・standard 76件OK、Sphinx -W 成功、検証動画234フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
 
 - Codex (2026-11-03): ユーザーのクリーン化指示に基づき、残っていたMCE 0.9.4の検索パス更新・設定探索・状態表示・限定再試行・Escape取消と全6年mll、runtimeのignoreをコミット対象へ確定。Maya2022/2027で各単体44件・session2件・宣言照合・UI29項目・standaloneロード/解除が全て成功。以前の大規模本文/性能閾値失敗も今回は成功、元の失敗記録は保持。日本語/英語Sphinx -W成功。今回実GUI/OS入力は未実施、既存の専用GUI24項目/版の証拠を確認。既存の作業記録はHEAD内容と未登録履歴を統合し、重複・空行差分を除去。MCE実装と作業記録を分けてコミット・origin/mainへpush。詳細 .maya-output/repo-cleanup-20261103/results.json。
