@@ -4,10 +4,15 @@ QuickPathExplorer
 深いフォルダーをカラムでたどり、WindowsとMayaで同じ操作を使うファイルブラウザーです。
 上段でフォルダーを選び、下段でファイルを操作します。左右のサイドバーは必要なときに開けます。
 
-.. figure:: _static/layout.svg
-   :alt: タブとパス、フォルダーカラム、ファイル一覧、左右のサイドバーの配置
+.. figure:: _static/qpe-columns.gif
+   :alt: カラムからRobotのRigを開き、途中の列でHeroやShotsへ切り替える操作
+   :target: _static/qpe-columns.gif
 
-   画面構成の模式図。実際の配色・表示内容はホストと設定によって変わります。
+   フォルダーを掘る → 途中の列から別の枝へ → ショット作業へ。
+   Windows版UIと撮影用サンプルを使った短いループGIFです。クリックすると原寸で開きます。
+
+戻るボタンを何度も押さず、祖先のフォルダーを見渡したまま移動できます。
+ワイドな全体画面と手順は :doc:`browsing` を参照してください。
 
 .. list-table::
    :widths: 25 75

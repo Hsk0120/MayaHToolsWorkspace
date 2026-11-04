@@ -26,7 +26,7 @@
     --hd-selection: #225860;
 }
 
-body { font-family: "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; }
+body { max-width: 1560px; font-family: "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; }
 div.body { line-height: 1.8; }
 div.body h1 { color: var(--hd-text-bright); }
 div.sphinxsidebar p.logo img { width: 64px; height: 64px; }

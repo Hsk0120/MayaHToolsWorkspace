@@ -19,6 +19,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+| Codex | 2026-11-04 | QPEガイドのワイド実画面・カラムGIF | 専用サンプルと設定で広い実UIを撮影し、カラムの枝切替GIFを作成。文書へ掲載してブラウザー/公開を確認する。 |
+
 
 
 

@@ -87,6 +87,14 @@ def check_browser(base_url, output, sha, channel):
                     accent = page.evaluate("getComputedStyle(document.documentElement).getPropertyValue('--hd-accent').trim()")
                     if accent != "#42bdc7":
                         raise ValueError(f"QPEの配色が読み込まれていません: {page.url}")
+                    if document in ("index", "browsing"):
+                        asset = "qpe-columns.gif" if document == "index" else "qpe-wide.png"
+                        media = page.locator(f'div.body img[src*="{asset}"]')
+                        media.wait_for()
+                        if not media.evaluate("image => image.complete && image.naturalWidth >= 1400"):
+                            raise ValueError(f"ワイドな実画面の画像を読み込めません: {page.url}")
+                        if not page.locator(f'div.body a[href*="{asset}"]').count():
+                            raise ValueError(f"原寸画像へのリンクがありません: {page.url}")
                     records.append({"viewport": name, "page": document, "status": response.status})
                     if output and document in ("index", "preferences"):
                         page.screenshot(path=str(output / f"{name}-{document}.png"), full_page=True)
