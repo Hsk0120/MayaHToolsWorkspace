@@ -1,5 +1,7 @@
 # QuickPathExplorerの開発・再ビルド
 
+利用ガイドは[GitHub Pages](https://hsk0120.github.io/MayaHToolsWorkspace/quick-path-explorer/)で公開します。Sphinx文書自体のビルド・ブラウザー確認は[docs/README.md](docs/README.md)を参照してください。
+
 この文書のコマンドはQuickPathExplorer直下で実行します。親リポジトリやmlibは不要です。Windows版は静的Qtの単一exe、Maya版はMaya付属Qtへリンクした年別の単一mllです。アプリ本体はPythonを使用しません。開発・検証と、Maya同梱Pythonでプラグインを自動ロードする最小の`scripts/userSetup.py`にのみ使用します。
 
 ## 開発環境

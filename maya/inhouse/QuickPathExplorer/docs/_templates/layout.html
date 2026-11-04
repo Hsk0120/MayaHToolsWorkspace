@@ -1,0 +1,6 @@
+{# 公開後に、同じコミットのQPEガイドが配信されたことを照合する。 #}
+{%- extends "!layout.html" %}
+{%- block extrahead %}
+{{ super() }}
+<meta name="qpe-build-revision" content="{{ build_revision }}">
+{%- endblock %}

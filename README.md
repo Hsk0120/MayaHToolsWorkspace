@@ -14,6 +14,10 @@ mlibの概要・使用例・APIリファレンスを閲覧できます。
 
 Maya Code Editor の使い方と Preferences 各項目の説明を閲覧できます。
 
+[QuickPathExplorer Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/quick-path-explorer/)
+
+Windows／Mayaでの導入、カラムとタブ、ファイル操作、名前空間・FBX、表示設定とショートカットを説明します。
+
 [mlrig Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/mlrig/)
 
 mlrigの機能仕様・テスト方法・テストシーン・計測結果を掲載します（本変更の公開後に利用可能）。

@@ -1,5 +1,10 @@
 # QuickPathExplorer
 
+[使い方・設定ガイド（Sphinx／GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/quick-path-explorer/)
+
+導入、カラムとタブ、ファイル整理、Mayaの名前空間・FBX設定、文字サイズ・キー操作をまとめています。
+文書を手元で生成する場合は[文書ビルド手順](docs/README.md)を参照してください。
+
 WindowsとMayaで共通の操作を使える、C++／Qtのファイルブラウザーです。上段のフォルダーカラムで階層をたどり、下段でファイルを選択します。左にFavorites・Recent・Drives、右にファイル情報とMaya操作のサイドバーを備えています。
 
 Windows版は静的Qtを含む`QuickPathExplorer.exe`、Maya版は年別の`quickPathExplorer.mll`です。製品のUI・ファイル操作・設定・Maya連携はC++で実装し、実行用のPython/PySideや`_internal`は不要です。Windows版のQtをMayaへ持ち込まず、Maya版はホスト付属Qtを使います。

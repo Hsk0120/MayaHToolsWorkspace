@@ -19,6 +19,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+| Codex | 2026-11-04 | QPE Sphinx文書・GitHub Pages公開 | QPE独立docs・配色・README導線を追加し、既存Actionsに統合。ローカル文書/ブラウザー検証後に公開とリンクを確認。 |
+
 
 
 

@@ -1,0 +1,44 @@
+/* QPEのダーク面と、公式アイコンの青緑・淡い黄色を使う。 */
+:root {
+    color-scheme: dark;
+    --hd-canvas: #161616;
+    --hd-surface: #222222;
+    --hd-code: #191919;
+    --hd-raised: #2b2b2b;
+    --hd-band: #303638;
+    --hd-text: #e1e4e5;
+    --hd-text-soft: #a6afb2;
+    --hd-text-bright: #f2f2f2;
+    --hd-heading: #e1e4e5;
+    --hd-accent: #42bdc7;
+    --hd-accent-dim: #2d7e85;
+    --hd-literal: #fff1bf;
+    --hd-type: #b9f4ee;
+    --hd-permalink: #42bdc7;
+    --hd-link: #7edce3;
+    --hd-link-hover: #b9f4ee;
+    --hd-link-visited: #a5cdd0;
+    --hd-rule: #383838;
+    --hd-rule-strong: #555555;
+    --hd-alert-rule: #8d6143;
+    --hd-alert-band: #593f2e;
+    --hd-target: #514a2c;
+    --hd-selection: #225860;
+}
+
+body { font-family: "Segoe UI", "Yu Gothic UI", Meiryo, sans-serif; }
+div.body { line-height: 1.8; }
+div.body h1 { color: var(--hd-text-bright); }
+div.sphinxsidebar p.logo img { width: 64px; height: 64px; }
+div.body figure { margin: 24px 0; }
+div.body figure img { display: block; width: 100%; height: auto; border: 1px solid var(--hd-rule); border-radius: 8px; }
+div.body figcaption { color: var(--hd-text-soft); font-size: .9em; }
+table.docutils :is(td, th) { vertical-align: top; }
+div.body :is(a, button, input):focus-visible,
+div.sphinxsidebar :is(a, input):focus-visible { outline: 2px solid var(--hd-accent); outline-offset: 3px; }
+div.body kbd { background: var(--hd-code); border: 1px solid var(--hd-rule-strong); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+
+@media screen and (max-width: 960px) {
+    /* Sphinxのinline codeは通常折り返さないため、長いmllパスだけで横溢れする。 */
+    div.body code.literal span.pre { white-space: normal; overflow-wrap: anywhere; }
+}

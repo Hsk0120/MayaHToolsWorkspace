@@ -26,8 +26,8 @@ def main():
     collect(root)
     source = destination / "QuickPathExplorer"
     # 製品コードと再ビルド素材だけを明示する。過去キットを入れ子に取り込まない。
-    for folder in ("native", "maya-native", "icons", "scripts", "src/core", "src/browser", "src/standalone", "src/maya", "third_party", "tests/media"):
-        shutil.copytree(root / folder, source / folder, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for folder in ("native", "maya-native", "icons", "scripts", "docs", "src/core", "src/browser", "src/standalone", "src/maya", "third_party", "tests/media"):
+        shutil.copytree(root / folder, source / folder, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", ".venv", "_build"))
     files = ("src/native_browser.cpp", "src/native_browser.h", "src/product.h", "tests/cpp_migration_test.cpp",
              "tests/native_maya_smoke.py", "tests/native_maya_restart.py", "tests/native_maya_gui.py", "tests/test_startup.py", "tests/verify_static_relink.py", "BUILDING.md", "LICENSE", ".vsconfig",
              "CMakeLists.txt", "build_windows.cmd", "build_maya.cmd", "generate_projects.cmd", "check_environment.cmd", "QuickPathExplorer.mod",
