@@ -19,7 +19,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
-| Codex | 2026-11-04 | QPEガイドのワイド実画面・カラムGIF | 専用サンプルと設定で広い実UIを撮影し、カラムの枝切替GIFを作成。文書へ掲載してブラウザー/公開を確認する。 |
 
 
 
@@ -157,6 +156,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-11-04): QPEガイドを横1756pxの製品UI画像と14秒/1500px/約360KiBのカラム操作GIFへ更新。専用サンプルと設定でBrowserWindowをQt入力し、10段階の階層移動を確認。説明とクリック位置を追加、文書幅を1560pxへ拡張し原寸リンクを用意。Sphinx -W警告なし、公開前後の27ページ/画面幅・画像読込・検索/移動チェック成功。d3588d77をpush、Actions41773646925のbuild/deploy/verify-publication全成功、公開PNG/GIFのバイト一致と配信SHAを確認。製品exe/mll変更なし。実OS入力/速度比較/Maya実行/iPad実機検証とは区別。証拠 .maya-output/qpe-doc-media-20261104/。
+
 - Codex (2026-11-04): QPEの独立Sphinxガイド9ページ(導入/カラムとタブ/ファイル操作/Maya/設定/キー/開発/制限)を追加。QPEのダーク面と公式アイコンの青緑・淡黄色、構成模式図と全ページ目次を用意。root/QPE READMEから公開先へリンクし、既存Pages Actionsへ統合、対応ソースキットにもdocsを同梱。Sphinx -W成功、相対リンク/アンカー11HTML、PC1440・タブレット834・スマホ390幅の27ページ検査と検索/移動成功。390pxの長いパスの横溢れを修正。0721a845をpushしActions41770756695のbuild/deploy/verify-publication全成功、公開側27件・SHA一致とREADME先HTTP200を確認。https://hsk0120.github.io/MayaHToolsWorkspace/quick-path-explorer/ 。製品exe/mll変更とMaya実行なし、iPad実機は未確認。証拠 .maya-output/qpe-docs-20261104/results.json。
 
 - Claude Code (2026-11-04): mlrig夜間。両端の間に張るコイルばね `setups/CoilSpring`(aimMatrixでbase→tipの座標系、巻きの半径・線の太さを保ちピッチだけ変える、密着長 turns*wireDiameter より縮まず不足分を coilBind に出力、matrix0〜N-1・length・solidLength・effectiveLength・pitch・gap・coilBind、keyableな turns・radius・wireDiameter、標準ノードのみ)を追加。テスト9件、Setup Samples1項目、文書、検証デモ `tools/demo_coil_spring.py`。隔離Maya 2027で setups 612件・standard 76件OK、Sphinx -W 成功、検証動画234フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
