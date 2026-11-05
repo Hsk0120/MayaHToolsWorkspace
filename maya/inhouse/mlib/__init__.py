@@ -94,7 +94,7 @@ __all__ = [
 ]
 
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "10.2.0"
+__version__ = "10.3.0"
 
 
 def reload():

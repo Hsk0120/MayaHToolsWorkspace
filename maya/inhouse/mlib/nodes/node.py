@@ -3,7 +3,7 @@
 import inspect
 import re
 from operator import methodcaller
-from typing import Any, Optional
+from typing import Optional
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
@@ -696,11 +696,12 @@ class Node(Object):
             return ""
         return self.getName()
 
-    def __getattr__(self, name) -> Any:
+    def __getattr__(self, name):
         """通常アトリビュートにない名前を Maya Plug として動的に解決する。
 
-        静的解析では、具象クラス(SkinCluster 等)のメソッドを基底の Node 型で呼んだ場合に
-        Plug 型と誤判定しないよう、戻り値の注釈は Any としている。
+        型スタブでも戻り値は Plug になる。``mlib.getNode()`` が返す基底の Node 型で派生クラス(Joint 等)の
+        メソッドを呼ぶと、静的解析では Plug として扱われ警告になる。派生クラスのメソッドを補完で使う場合は
+        ``Joint("joint1")`` のように取得するか、``isinstance`` で型を絞る。
 
         Args:
             name (str): 取得しようとした Python アトリビュート名。

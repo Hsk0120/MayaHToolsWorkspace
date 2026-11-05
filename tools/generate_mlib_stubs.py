@@ -60,13 +60,12 @@ ALIASES = {"module": "ModuleType", "callable": "Callable[..., Any]", "function":
 GENERIC_ALIASES = {"iterable": "Iterable", "sequence": "Sequence"}
 # docstring の型を置き換える型。ContextDecorator は with に使える型として扱われない。
 REPLACEMENTS = {"contextlib.ContextDecorator": "ContextDecorator"}
-# 基底クラスへスタブだけで足すメンバー。mlib.getNode() 等は実際の型の派生クラス(Joint等)を返すが
-# 型は基底の Node になるため、派生クラスのメソッドを使うと「属性が無い」と警告される。
+# 基底クラスへスタブだけで足すメンバー(ソースで定義済みの名前は足さない)。
 # 未定義の属性を Any とみなし、基底クラスのメソッドの補完は残したまま、その警告を出さない。
+# Node はソースの __getattr__ (docstring の戻り値は Plug)を使うため、ここには置かない。
 LENIENT_GETATTR = "def __getattr__(self, name: str) -> Any: ..."
 LENIENT_MEMBERS = {
     "Object": {"__getattr__": LENIENT_GETATTR},
-    "Node": {"__getattr__": LENIENT_GETATTR},
     "Component": {"__getattr__": LENIENT_GETATTR},
     # getPlug() はマルチ・コンパウンドアトリビュートでも Plug 型になるため、[] と for も受け付ける。
     "Plug": {"__getattr__": LENIENT_GETATTR,

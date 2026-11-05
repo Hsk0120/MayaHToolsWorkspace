@@ -349,6 +349,32 @@ def _checked_tolerance(value: numbers.Real, *, positive: bool = ...) -> float:
     """
     ...
 
+def _checked_digits(ndigits: int | None) -> int | None:
+    """丸めの桁数を検証する。
+
+    Args:
+        ndigits (int | None): 小数点以下の桁数。負の値は整数部を丸める。Noneは整数へ丸める。
+
+    Returns:
+        int | None: 検証済みの桁数。
+
+    Raises:
+        TypeError: int・None以外(boolを含む)の場合。
+    """
+    ...
+
+def _round_float(value: float, ndigits: int | None) -> float:
+    """組み込みの ``round`` で丸め、-0.0 を 0.0 にそろえたfloatを返す。
+
+    Args:
+        value (float): 丸める値。
+        ndigits (int | None): :func:`_checked_digits` で検証済みの桁数。
+
+    Returns:
+        float: 丸めた値。
+    """
+    ...
+
 def _unique_ordered(items: Iterable[object], key: Callable[..., Any] | None = ...) -> list:
     """最初の出現順を保ったまま重複を除く。
 

@@ -4,6 +4,33 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+10.3.0 (2026-11-05)
+-------------------
+
+数学型の値を表示・比較・保存の前にそろえる丸めを追加し、VS Code の補完で型が途切れる箇所を直しました。既存の呼び出し方はそのまま使えます。
+
+.. rubric:: 追加
+
+- ``Vector``\ (``Translate``\ ・\ ``Scale``\ ・\ ``Shear`` を含む)の ``round(ndigits=None)``\ (同型の複製)・\ ``roundIt(ndigits=None)``\ (自身を更新)。
+  組み込みの ``round(value, 3)`` でも同じ結果になる。
+- ``EulerRotate.round(ndigits=None, *, unit="deg")``\ ・\ ``roundIt``\ 。既定は度で丸めてラジアンへ戻す(``unit="rad"`` でラジアンのまま丸める)。
+  組み込みの ``round`` は度で丸める。
+
+.. rubric:: 変更(型スタブ・補完)
+
+実行時の動作は変わりません。VS Code(Pylance)の補完と警告だけが変わります。
+
+- ``Node`` の動的アトリビュート(``node.tx`` 等)の型を ``Any`` から ``Plug`` にした。``Any`` から先は補完が出なかったため。
+  ``mlib.getNode()`` の戻り値(基底の ``Node`` 型)で派生クラスのメソッドを呼ぶと、
+  ``Plug`` として扱われ警告になる。``Joint("joint1")`` のように型を指定して取得するか、``isinstance`` で絞る。
+- ``DagNode.getParent()``\ ・\ ``getParents()``\ ・\ ``getRoot()`` の戻り値の型を ``Transform`` にした(DAG の親は Transform 系)。
+
+.. rubric:: 注意
+
+- 丸めは組み込みの ``round`` と同じで、端数がちょうど半分なら偶数側へ丸める。丸めた結果の -0.0 は 0.0 にそろえる。
+- ``EulerRotate`` の内部値はラジアンなので、度で丸めた後の ``asDegrees()`` には浮動小数点のわずかな誤差が残ることがある。
+- ``Quaternion``\ ・\ ``Matrix`` には追加していない。
+
 10.2.0 (2026-11-03)
 -------------------
 

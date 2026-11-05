@@ -5,7 +5,15 @@ from typing import Any, Sequence
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _foreign_comparison, _instance_state, _rethrow_init_error
+from ..util import (
+    _checked_digits,
+    _checked_index,
+    _copy_state,
+    _foreign_comparison,
+    _instance_state,
+    _rethrow_init_error,
+    _round_float,
+)
 
 _MVector = om2.MVector
 _MPoint = om2.MPoint
@@ -760,6 +768,17 @@ class Vector(om2.MVector):
         _MVector.__imul__(result, -1.0)
         return result
 
+    def __round__(self, ndigits=None):
+        """組み込みの ``round`` から :meth:`round` を呼ぶ。
+
+        Args:
+            ndigits (int | None): roundと同じ桁数。
+
+        Returns:
+            Vector: 同型の新しい値。
+        """
+        return self.round(ndigits)
+
     @classmethod
     def fromIterable(cls, values):
         """3要素の反復可能オブジェクトから生成する。
@@ -837,6 +856,40 @@ class Vector(om2.MVector):
             Vector: 更新した自身。
         """
         self.x, self.y, self.z = self.mirror(axis, pivot)
+        return self
+
+    def round(self, ndigits=None):
+        """各成分を小数点以下ndigits桁へ丸めた同型の複製を返す。
+
+        各成分に組み込みの ``round`` を使う(端数がちょうど半分なら偶数側へ丸める)。
+        丸めた結果の -0.0 は 0.0 にそろえる。組み込みの ``round(value, ndigits)`` でも同じ結果になる。
+
+        Args:
+            ndigits (int | None): 小数点以下の桁数。負の値は整数部を丸める。Noneは整数値へ丸める
+                (成分はfloatのまま)。
+
+        Returns:
+            Vector: 同型の新しい値。
+
+        Raises:
+            TypeError: ndigitsがint・None以外(boolを含む)の場合。
+        """
+        ndigits = _checked_digits(ndigits)
+        return type(self)([_round_float(value, ndigits) for value in self])
+
+    def roundIt(self, ndigits=None):
+        """自身の3成分を丸める。
+
+        Args:
+            ndigits (int | None): roundと同じ桁数。
+
+        Returns:
+            Vector: 更新した自身。
+
+        Raises:
+            TypeError: ndigitsがint・None以外(boolを含む)の場合。自身は変更しない。
+        """
+        self.x, self.y, self.z = self.round(ndigits)
         return self
 
     def dot(self, other):

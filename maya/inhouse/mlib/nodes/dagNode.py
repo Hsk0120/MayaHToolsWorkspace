@@ -152,7 +152,7 @@ class DagNode(Node):
         自身がワールド直下ならその自身を返す。
 
         Returns:
-            DagNode: ワールド直下の祖先、または自身。
+            Transform: ワールド直下の祖先、または自身(ワールド直下に置けるのは Transform 系だけ)。
 
         Raises:
             RuntimeError: 保持する DAG パスが無効な場合。
@@ -261,7 +261,8 @@ class DagNode(Node):
                 TrueはgetInstances順に各パスの親を返し、親のインスタンス化による別パスも含む。
 
         Returns:
-            list[DagNode]: 重複統合しない親の参照。保持パスがワールド直下なら空リスト。
+            list[Transform]: 重複統合しない親の参照。DAG の親は Transform 系(Joint 等)。
+                保持パスがワールド直下なら空リスト。
 
         Raises:
             RuntimeError: 保持するDAGパスが無効な場合。
@@ -284,7 +285,8 @@ class DagNode(Node):
             step (int): 遡る階層数。0以下、またはワールドまで遡る場合はNone。
 
         Returns:
-            DagNode | None: 遡ったパスの新しいラッパー。親がない場合はNone。
+            Transform | None: 遡ったパスの新しいラッパー。DAG の親は Transform 系(Joint 等)。
+                親がない場合はNone。
 
         Raises:
             RuntimeError: 正のstepで取得する際、保持するDAGパスが無効な場合。

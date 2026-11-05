@@ -5,7 +5,17 @@ import operator
 
 import maya.api.OpenMaya as om2
 
-from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error
+from ..util import (
+    _angle_unit,
+    _checked_digits,
+    _checked_index,
+    _copy_state,
+    _foreign_comparison,
+    _from_radians,
+    _rethrow_init_error,
+    _round_float,
+    _to_radians,
+)
 from .quaternion import Quaternion
 from .vector import _reduce_value
 
@@ -495,6 +505,17 @@ class EulerRotate(om2.MEulerRotation):
         """
         return EulerRotate._wrap(_MEuler.__neg__(self))
 
+    def __round__(self, ndigits=None):
+        """組み込みの ``round`` から度で丸める :meth:`round` を呼ぶ。
+
+        Args:
+            ndigits (int | None): roundと同じ桁数。
+
+        Returns:
+            EulerRotate: 同型の新しい回転。
+        """
+        return self.round(ndigits)
+
     @classmethod
     def fromIterable(cls, values, order="xyz"):
         """3要素の反復可能オブジェクトから生成する。
@@ -681,6 +702,49 @@ class EulerRotate(om2.MEulerRotation):
             EulerRotate: 更新した自身。
         """
         self.setValue(self.mirror(axis))
+        return self
+
+    def round(self, ndigits=None, *, unit="deg"):
+        """XYZの角度をunitの単位で小数点以下ndigits桁へ丸めた同型の複製を返す。
+
+        既定では度へ換算して丸め、ラジアンへ戻して保持する(``89.99999`` 度は ``90`` 度になる)。
+        内部値はラジアンなので、丸めた後の :meth:`asDegrees` には浮動小数点のわずかな誤差が残ることがある。
+        各成分に組み込みの ``round`` を使い(端数がちょうど半分なら偶数側)、-0.0 は 0.0 にそろえる。
+        回転順序は維持し、等価な別解への変換や角度範囲の正規化は行わない。
+        組み込みの ``round(value, ndigits)`` は度で丸める。
+
+        Args:
+            ndigits (int | None): 小数点以下の桁数。負の値は整数部を丸める。Noneは整数へ丸める。
+            unit (str): 丸める単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+                (``"degree"`` / ``"radians"`` 等の別名も可)。
+
+        Returns:
+            EulerRotate: 同型の新しい回転。
+
+        Raises:
+            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列以外の場合。
+            ValueError: unitが未対応の場合。
+        """
+        ndigits = _checked_digits(ndigits)
+        unit = _angle_unit(unit)
+        values = [_to_radians(_round_float(_from_radians(value, unit), ndigits), unit) for value in self]
+        return type(self)(values[0], values[1], values[2], self.order)
+
+    def roundIt(self, ndigits=None, *, unit="deg"):
+        """自身のXYZの角度を丸める。
+
+        Args:
+            ndigits (int | None): roundと同じ桁数。
+            unit (str): roundと同じ丸める単位。
+
+        Returns:
+            EulerRotate: 更新した自身。
+
+        Raises:
+            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列以外の場合。自身は変更しない。
+            ValueError: unitが未対応の場合。自身は変更しない。
+        """
+        self.setValue(self.round(ndigits, unit=unit))
         return self
 
     def asMatrix(self):

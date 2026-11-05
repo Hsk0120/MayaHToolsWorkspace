@@ -65,7 +65,7 @@ mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`
   - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。
   - `getConnections`・`getSource`・`getDestinations`は`asNode`・`asPair`・`index`の指定で`list[Plug]`・`list[Node]`・`Node | None`等。`c`・`connections`でのペア指定は全候補の合併型になります。
   - `Joints`・`Vertices`等の複数形のコレクションは、`for`と`[番号]`で要素の型（`Joint`・`Vertex`等）を返します。
-- **スタブだけで緩めている点**: `mlib.getNode()`は実際には`Joint`等の派生クラスを返しますが、型は`Node`になります。派生クラスのメソッドを使っても警告にならないよう、`Node`・`Plug`・`Component`の未定義の属性は`Any`扱いにしています（基底クラスのメソッドは補完に出ます。属性名の打ち間違いは検出されません）。派生クラスの補完を出したいときは`joint = mlib.ls("joint1", type="joint")[0]`のように型が決まる書き方にするか、`isinstance`で絞ります。`Plug`は`[]`と`for`も受け付けます（`getPlug()`がマルチアトリビュートでも`Plug`型になるため）。docstringで`object`と書いた戻り値（`Plug.get()`等）は`Any`にしています。
+- **派生クラスの型**: `mlib.getNode()`は実際には`Joint`等の派生クラスを返しますが、型は`Node`になります。`Node`の未定義の属性は、実行時と同じく`Plug`（`node.tx`等の動的アトリビュート）として扱います。そのため`Node`型のまま派生クラスのメソッド（`getParent`等）を呼ぶと警告になり、その先は`Plug`の補完になります。派生クラスの補完を出したいときは`Joint("joint1")`・`Transform("pCube1")`のようにクラスで取得するか（型が違えば例外）、`joint = mlib.ls("joint1", type="joint")[0]`のように型が決まる書き方にするか、`isinstance`で絞ります。`DagNode.getParent()`・`getParents()`・`getRoot()`は`Transform`型を返します（DAGの親はTransform系）。`Plug`・`Component`の未定義の属性は`Any`扱いにしています（基底クラスのメソッドは補完に出ます。属性名の打ち間違いは検出されません）。`Plug`は`[]`と`for`も受け付けます（`getPlug()`がマルチアトリビュートでも`Plug`型になるため）。docstringで`object`と書いた戻り値（`Plug.get()`等）は`Any`にしています。
 
 設定はリポジトリ直下の`pyrightconfig.json`に集約しています（Pylanceが読み込みます）。解析対象、`extraPaths`（`maya/inhouse`・cymel・mgear等）、スタブの場所（`typings`）、ルールの重大度を定義しています。ユーザー設定の`python.analysis.extraPaths`は、この設定ファイルの`extraPaths`が優先されます。
 

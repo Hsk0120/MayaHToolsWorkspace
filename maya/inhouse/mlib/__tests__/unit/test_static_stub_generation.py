@@ -83,6 +83,16 @@ class StubGenerationTest(unittest.TestCase):
         self.assertIn("-> list[Node]: ...", node)
         self.assertIn("-> list[Plug]: ...", node)
 
+    def test_completion_types_of_nodes(self):
+        """Node の動的アトリビュートは Plug、DAG の親は Transform として補完できる。"""
+        node = self.stub("nodes/node.pyi")
+        self.assertIn("def __getattr__(self, name: str) -> Plug:", node)
+        self.assertNotIn("def __getattr__(self, name: str) -> Any", node)
+        dag = self.stub("nodes/dagNode.pyi")
+        self.assertIn("def getParent(self, step: int = ...) -> Transform | None:", dag)
+        self.assertIn("def getParents(self, indirect: bool = ...) -> list[Transform]:", dag)
+        self.assertIn("def getRoot(self) -> Transform:", dag)
+
     def test_collections_iterate_their_element_type(self):
         """複数形のコレクションは、要素の型で for と [] の型を返す。"""
         self.assertIn("def __iter__(self) -> Iterator[Joint]: ...", self.stub("nodes/joint.pyi"))

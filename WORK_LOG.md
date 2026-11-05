@@ -156,6 +156,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Claude Code (2026-11-05): mlib 10.3.0の補完改善。Node.__getattr__のスタブの型をAny→Plug、DagNode.getParent/getParents/getRootの型をTransformへ(実行時の動作は不変)。tools/generate_mlib_stubs.py・docs/vscode.md・changelog・静的テスト。アンダーワールドのノードのgetParent()がRuntimeErrorになる既存の不具合を確認(未修正)。
+- Claude Code (2026-11-05): mlib 10.3.0。Vector系(Translate/Scale/Shear含む)・EulerRotateへround/roundIt/__round__を追加(EulerRotateは既定で度で丸める、-0.0は0.0)。スタブ・changelog・test_spec_v103_maths.py。Maya2022/2027で数学型のテスト成功。
 - Claude Code (2026-11-05): mlrig夜間。胸郭の楕円体の表面へ肩甲骨を放射方向に投影し、陰関数の勾配の外向きの法線へ向ける `setups/ScapulaGlide`(R = 1/|(lx/rx, ly/ry, lz/rz)|、s = l*R、n = normalize(s/r^2)、位置 = c + rotate(s) + normal*offset、aimMatrixで normalAxis を法線へ・upAxis を対象の同じ軸へ揃える、matrix・normal・distance・directionRadius出力、keyableな radiusX/Y/Z・offset、標準ノードのみ)を追加。テスト10件、Setup Samples1項目、文書、検証デモ `tools/demo_scapula_glide.py`。隔離Maya 2027で setups 622件・standard 76件OK、Sphinx -W 成功、検証動画264フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。
 - Codex (2026-11-04): QPEガイドを横1756pxの製品UI画像と14秒/1500px/約360KiBのカラム操作GIFへ更新。専用サンプルと設定でBrowserWindowをQt入力し、10段階の階層移動を確認。説明とクリック位置を追加、文書幅を1560pxへ拡張し原寸リンクを用意。Sphinx -W警告なし、公開前後の27ページ/画面幅・画像読込・検索/移動チェック成功。d3588d77をpush、Actions41773646925のbuild/deploy/verify-publication全成功、公開PNG/GIFのバイト一致と配信SHAを確認。製品exe/mll変更なし。実OS入力/速度比較/Maya実行/iPad実機検証とは区別。証拠 .maya-output/qpe-doc-media-20261104/。
 
