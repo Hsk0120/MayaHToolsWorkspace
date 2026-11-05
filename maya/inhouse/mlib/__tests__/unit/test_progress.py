@@ -397,7 +397,7 @@ class ProgressBarGuiTest(unittest.TestCase):
 
     def test_cancel_raises_progress_cancelled(self):
         self.assertTrue(issubclass(ProgressCancelled, KeyboardInterrupt))
-        self.assertIs(mlib.common.ProgressCancelled, ProgressCancelled)
+        self.assertIs(mlib.ProgressCancelled, ProgressCancelled)
         processed = []
         original = cmds.progressBar
 

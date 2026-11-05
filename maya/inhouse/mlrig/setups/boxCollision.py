@@ -121,10 +121,10 @@ class BoxCollision(TwistDistribution):
             raise ValueError("rounding and softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("BoxCollision container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        box = mlib.nodes.Node(box)
+        target = mlib.Node(target)
+        box = mlib.Node(box)
         for node in (target, box):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the box")
         if target.getFullName() == box.getFullName():
             raise ValueError("target and box must be different nodes")

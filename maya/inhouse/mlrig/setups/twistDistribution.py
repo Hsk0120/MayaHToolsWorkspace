@@ -15,7 +15,7 @@ class TwistDistribution:
         Args:
             container (str | Node): createで生成したノード。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     def _node(self, kind, suffix):
         """演算ノードを生成してcontainerへ登録する。
@@ -53,9 +53,9 @@ class TwistDistribution:
         """
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
-        start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
+        start, end = mlib.Node(start), mlib.Node(end)
         if start == end or any(
-            not isinstance(n, mlib.nodes.Transform) for n in (start, end)
+            not isinstance(n, mlib.Transform) for n in (start, end)
         ):
             raise ValueError("Expected two different transforms")
         if mlib.objExists(name):

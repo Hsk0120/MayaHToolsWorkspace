@@ -27,7 +27,7 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
         other = cmds.createNode("transform", name="setOther")
         name = cmds.sets(empty=True, name="querySet")
         cmds.sets(cube + ".vtx[0:2]", cube + ".vtx[5:6]", other, add=name)
-        node = mlib.nodes.ObjectSet(name)
+        node = mlib.ObjectSet(name)
         expected = cmds.sets(name, query=True)
         actual = [item if isinstance(item, str) else item.getName() for item in node.getMembers()]
         self.assertEqual(actual, expected)
@@ -39,7 +39,7 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
 
     def test_object_set_regular_undo(self):
         """セットの追加・除外はUndo可能にする。"""
-        node = mlib.nodes.ObjectSet(cmds.sets(empty=True))
+        node = mlib.ObjectSet(cmds.sets(empty=True))
         cube = cmds.polyCube()[0]
         cmds.flushUndo()
         node.addMembers(cube + ".f[0:2]")
@@ -54,8 +54,8 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
     def test_display_layer_exclusion_recursion_default_and_current(self):
         """子Shapeを含む排他移動とdefaultLayer・カレント設定を確認する。"""
         cube = mlib.getNode(cmds.polyCube(name="layerCube")[0])
-        first = mlib.nodes.DisplayLayer(cmds.createDisplayLayer(empty=True))
-        second = mlib.nodes.DisplayLayer(cmds.createDisplayLayer(empty=True))
+        first = mlib.DisplayLayer(cmds.createDisplayLayer(empty=True))
+        second = mlib.DisplayLayer(cmds.createDisplayLayer(empty=True))
         first.addMembers(cube)
         expected = cmds.editDisplayLayerMembers(first.getName(), query=True, fullNames=True)
         self.assertEqual([node.getFullName() for node in first.getMembers()], expected)
@@ -67,7 +67,7 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
                          cmds.editDisplayLayerMembers(second.getName(), query=True, fullNames=True))
         second.removeMembers(cube)
         self.assertEqual(second.getMembers(), [])
-        default = mlib.nodes.DisplayLayer("defaultLayer")
+        default = mlib.DisplayLayer("defaultLayer")
         expected_default = cmds.editDisplayLayerMembers("defaultLayer", query=True, fullNames=True)
         self.assertEqual([node.getFullName() for node in default.getMembers()], expected_default)
         second.setCurrent()
@@ -81,8 +81,8 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
         """既存のフェース別割り当てを全体へ置換し、他のメッシュは保持する。"""
         cube = mlib.getNode(cmds.polyCube(name="shadeCube")[0])
         other = mlib.getNode(cmds.polyCube(name="shadeOther")[0])
-        first = mlib.nodes.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
-        second = mlib.nodes.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        first = mlib.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        second = mlib.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
         first.assign([cube.getName() + ".f[0:2]", other.getName()])
         expected = cmds.ls(cmds.sets(first.getName(), query=True), long=True, flatten=True)
         expected = [name.replace(cube.getFullName() + ".f[", cube.getShape().getFullName() + ".f[")
@@ -100,7 +100,7 @@ class ConsolidatedSetsLayersTests(unittest.TestCase):
     def test_shading_fast_shader_connection(self):
         """シェーダー接続はfastでUndoに記録しない。assignはfastを持たない。"""
         cube = cmds.polyCube()[0]
-        shading = mlib.nodes.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
+        shading = mlib.ShadingEngine(cmds.sets(renderable=True, noSurfaceShader=True, empty=True))
         with self.assertRaises(TypeError):
             shading.assign(cube + ".f[0]", fast=True)
         material = mlib.createNode("lambert")

@@ -11,7 +11,7 @@ class ScriptJobContextsTest(unittest.TestCase):
         first, second, external = Mock(), Mock(), Mock()
         first.exists.return_value = second.exists.return_value = True
         with patch("mlib.common.scriptJobs.ScriptJob", side_effect=[first, second]):
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             jobs.add("before", event="SelectionChanged", callback=lambda: None)
             with jobs.temporary() as active:
                 self.assertIs(active, jobs)
@@ -28,7 +28,7 @@ class ScriptJobContextsTest(unittest.TestCase):
         body_error = ValueError("body failed")
         with patch("mlib.common.scriptJobs.ScriptJob", side_effect=[failed, other]), \
                 patch("mlib.logger.warning") as warning:
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             try:
                 with jobs.temporary():
                     jobs.add("failed", event="SelectionChanged", callback=lambda: None)
@@ -51,7 +51,7 @@ class ScriptJobContextsTest(unittest.TestCase):
         job = Mock()
         job.stop.side_effect = RuntimeError("cannot kill")
         with patch("mlib.common.scriptJobs.ScriptJob", return_value=job), patch("mlib.logger.warning"):
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             with self.assertRaisesRegex(RuntimeError, "Failed to stop scriptJobs"):
                 with jobs.temporary():
                     jobs.add("failed", event="SelectionChanged", callback=lambda: None)
@@ -64,7 +64,7 @@ class ScriptJobContextsTest(unittest.TestCase):
         """内側の入場拒否で外側監視を解除しない。"""
         job = Mock()
         with patch("mlib.common.scriptJobs.ScriptJob", return_value=job):
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             with jobs.temporary():
                 jobs.add("outer", event="SelectionChanged", callback=lambda: None)
                 with self.assertRaisesRegex(RuntimeError, "cannot be nested"):
@@ -78,9 +78,9 @@ class ScriptJobContextsTest(unittest.TestCase):
         """異なるグループの一時監視は独立して解除する。"""
         outer, inner = Mock(), Mock()
         with patch("mlib.common.scriptJobs.ScriptJob", side_effect=[outer, inner]):
-            with mlib.common.ScriptJobs().temporary() as jobs:
+            with mlib.ScriptJobs().temporary() as jobs:
                 jobs.add("outer", event="SelectionChanged", callback=lambda: None)
-                with mlib.common.ScriptJobs().temporary() as other:
+                with mlib.ScriptJobs().temporary() as other:
                     other.add("inner", event="SelectionChanged", callback=lambda: None)
                 inner.stop.assert_called_once_with()
                 outer.stop.assert_not_called()

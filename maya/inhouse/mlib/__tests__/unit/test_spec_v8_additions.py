@@ -112,14 +112,14 @@ class CreateNodeFunctionsTest(_SpecCase):
         j0 = cmds.joint(name=self.name("j0"), position=(0, 0, 0))
         j1 = cmds.joint(name=self.name("j1"), position=(5, 0, 1))
         j2 = cmds.joint(name=self.name("j2"), position=(10, 0, 0))
-        self.assertIsInstance(mlib.createContainer(self.name("own")), mlib.nodes.Container)
-        self.assertIsInstance(mlib.createDagContainer(self.name("dag")), mlib.nodes.DagContainer)
+        self.assertIsInstance(mlib.createContainer(self.name("own")), mlib.Container)
+        self.assertIsInstance(mlib.createDagContainer(self.name("dag")), mlib.DagContainer)
         handle = mlib.createIkHandle(j0, j2, name=self.name("ikh"))
-        self.assertIsInstance(handle, mlib.nodes.IkHandle)
-        self.assertIsInstance(mlib.createDagPose(j0, name=self.name("pose")), mlib.nodes.DagPose)
+        self.assertIsInstance(handle, mlib.IkHandle)
+        self.assertIsInstance(mlib.createDagPose(j0, name=self.name("pose")), mlib.DagPose)
         mesh = mlib.createPolyCube(name=self.name("skinned")).getParent()
         skin = mlib.bindSkin([j0, j1], mesh, maximumInfluences=2)
-        self.assertIsInstance(skin, mlib.nodes.SkinCluster)
+        self.assertIsInstance(skin, mlib.SkinCluster)
         self.assertEqual(skin.getMaxInfluences(), 2)
         with self.assertRaises(ValueError):
             mlib.bindSkin([j0], mesh)
@@ -128,11 +128,11 @@ class CreateNodeFunctionsTest(_SpecCase):
         base = mlib.createPolyCube(name=self.name("base")).getParent()
         target = mlib.createPolyCube(name=self.name("target")).getParent()
         self.assertEqual(mlib.createBlendShape(base, [target]).getTargetNames(), [target.getNodeName(removeNamespace=True)])
-        for wrapper in (mlib.nodes.Container, mlib.nodes.DagContainer, mlib.nodes.DagPose, mlib.nodes.IkHandle,
-                        mlib.nodes.BlendShape, mlib.nodes.NurbsCurve):
+        for wrapper in (mlib.Container, mlib.DagContainer, mlib.DagPose, mlib.IkHandle,
+                        mlib.BlendShape, mlib.NurbsCurve):
             with self.subTest(wrapper=wrapper.__name__):
                 self.assertNotIn("create", vars(wrapper))
-        self.assertFalse(hasattr(mlib.nodes.SkinCluster, "bind"))
+        self.assertFalse(hasattr(mlib.SkinCluster, "bind"))
 
 
 class ObjExistsTest(_SpecCase):

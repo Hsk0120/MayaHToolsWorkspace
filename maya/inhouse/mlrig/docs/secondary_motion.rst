@@ -1,7 +1,7 @@
 揺れ計算とポーズ補間
 ====================
 
-``mlib.common.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。
+``mlib.DampedSpring`` は等間隔の数値列を減衰ばねで処理します。
 Mayaノードを生成せず、Python標準ライブラリだけで計算します。
 
 .. code-block:: python

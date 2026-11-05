@@ -56,7 +56,7 @@ class ResponsibilityTest(unittest.TestCase):
         inputs.setFlags(locked=True)
         for fast in (False, True):
             with self.assertRaises(RuntimeError):
-                inputs[7].set(mlib.maths.Matrix(), fast=fast)
+                inputs[7].set(mlib.Matrix(), fast=fast)
         self.assertEqual(list(inputs.mplug().getExistingArrayAttributeIndices()), [])
         for index in (True, 1.5):
             with self.assertRaises(TypeError):

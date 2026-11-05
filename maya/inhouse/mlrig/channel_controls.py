@@ -17,7 +17,7 @@ for _owner in globals().get("_jobs", {}).values():
 if globals().get("_events") is not None:
     _events.stop()
 _jobs = {}
-_events = mlib.common.ScriptJobs()
+_events = mlib.ScriptJobs()
 _busy = False
 LAYERS = (
     "fk",
@@ -71,7 +71,7 @@ def _attribute(node, name, kind="bool", default=0, enum=None, readonly=False):
     args = {"longName": name, "attributeType": kind, "defaultValue": default}
     if enum:
         args["enumName"] = enum
-    reference = mlib.nodes.Node(node)
+    reference = mlib.Node(node)
     reference.addAttr(**args)
     reference.setAttrFlags([name], keyable=False, channelBox=True, locked=readonly)
 
@@ -111,7 +111,7 @@ def _states(rig):
         "foot": ik
         and detail
         and rig.layer_enabled("foot")
-        and mlib.nodes.Node(rig.root.getFullName()).hasAttr("footMatrix"),
+        and mlib.Node(rig.root.getFullName()).hasAttr("footMatrix"),
     }
     if rig.root.hasAttr("targetSpace"):
         states["space"] = True
@@ -190,7 +190,7 @@ def attach(rig):
     module = mlib.createNode("transform", name=stem, parent=group, skipSelect=True).getFullName()
     nodes.extend((group, module))
     rig._bind("channelModule", module)
-    mlib.nodes.Node(module).addAttr(longName="mlrigChannelRoot", attributeType="message")
+    mlib.Node(module).addAttr(longName="mlrigChannelRoot", attributeType="message")
     mlib.getPlug(root + ".message").connectTo(module + ".mlrigChannelRoot")
     _attribute(module, "mode", "enum", int(rig.mode() == "ik"), "FK:IK")
     _attribute(module, "lod", "enum", rig.lod(), "Low:Full")
@@ -201,18 +201,18 @@ def attach(rig):
         rig._bind("channel_" + layer, node)
         if layer in ("soft", "helper", "foot", "twist", "bend", "driven", "follow", "stretch"):
             attr = "mlrigEnabled_" + layer
-            if not mlib.nodes.Node(root).hasAttr(attr):
-                mlib.nodes.Node(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
+            if not mlib.Node(root).hasAttr(attr):
+                mlib.Node(root).addAttr(longName=attr, attributeType="bool", defaultValue=True)
             _attribute(node, "enabled", default=rig.layer_enabled(layer))
         _attribute(node, "active", readonly=True)
         mlib.getPlug(node + ".useOutlinerColor").set(True)
     for node in nodes:
         _lock_group(node)
-        mlib.nodes.Node(node).setAttrFlags(
+        mlib.Node(node).setAttrFlags(
             ["visibility"], keyable=False, channelBox=False, locked=True
         )
     for node in nodes:
-        mlib.nodes.Node(root).getPlug("mlrigOwned").appendMessage(node)
+        mlib.Node(root).getPlug("mlrigOwned").appendMessage(node)
     sync_display(rig)
     install()
     return module
@@ -294,7 +294,7 @@ def _changed(root_uuid):
 
 def refresh_jobs():
     """シーン読込・Undo/Redo後に、生存するリグだけを監視する。"""
-    if mlib.common.Environment.isBatch():
+    if mlib.Environment.isBatch():
         return
     from .limb import LimbRig
 
@@ -320,7 +320,7 @@ def refresh_jobs():
         ]
         if rig.root.hasAttr("targetSpace"):
             attrs += [rig._member(role) + ".space" for role in ("target", "pole")]
-        jobs = mlib.common.ScriptJobs()
+        jobs = mlib.ScriptJobs()
         try:
             for attr in attrs:
                 jobs.add(
@@ -350,7 +350,7 @@ def refresh_jobs():
 
 def install():
     """GUIで監視を開始する。多重登録せず、シーンへ実行スクリプトを埋め込まない。"""
-    if mlib.common.Environment.isBatch():
+    if mlib.Environment.isBatch():
         return
     for event in ("PostSceneRead", "NewSceneOpened", "Undo", "Redo"):
         _events.add(event, event=event, callback=refresh_jobs)

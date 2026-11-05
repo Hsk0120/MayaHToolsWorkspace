@@ -42,7 +42,7 @@ class BulkPerformanceContractsTest(unittest.TestCase):
                 cmds.setAttr(node.getFullName() + ".jointOrient", 11, 23, 7)
             for linear, angle in (("cm", "deg"), ("m", "rad")):
                 cmds.currentUnit(linear=linear, angle=angle)
-                target = mlib.maths.Matrix(translate=(2, 3, 4))
+                target = mlib.Matrix(translate=(2, 3, 4))
                 node.setMatrix(target)
                 expected = list(node.getMatrix())
                 node.setTranslation((0, 0, 0), at=4)

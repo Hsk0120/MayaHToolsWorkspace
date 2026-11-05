@@ -59,9 +59,9 @@ class Ribbon(TwistDistribution):
             raise ValueError("width must be a positive finite value")
         if any(mlib.objExists(name) for name in [name, name + "_grp"]):
             raise ValueError("Ribbon container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in controls]
+        nodes = [mlib.Node(node) for node in controls]
         if len(nodes) < 2 or len({node.getUuid() for node in nodes}) != len(nodes) or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected two or more different transforms for the controls")
         side = Vector([float(axis == sideAxis) for axis in axes])

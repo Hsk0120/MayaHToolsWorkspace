@@ -27,15 +27,15 @@ class ExtraAttributesTest(unittest.TestCase):
             plug.set(value)
             self.assertAlmostEqual(plug.get(), value)
         string = self.node.addAttr("textValue", dataType="string")
-        self.assertIsInstance(string, mlib.plugs.StringPlug)
+        self.assertIsInstance(string, mlib.StringPlug)
         string.set("日本語")
         self.assertEqual(string.get(), "日本語")
         enum = self.node.addAttr("mode", attributeType="enum", enumName="off:on", defaultValue=1)
-        self.assertIsInstance(enum, mlib.plugs.EnumPlug)
+        self.assertIsInstance(enum, mlib.EnumPlug)
         self.assertEqual(enum.getEnumName(), "on")
         self.assertEqual(enum.getEnumValue("off"), 0)
         message = self.node.addAttr("link", attributeType="message")
-        self.assertIsInstance(message, mlib.plugs.MessagePlug)
+        self.assertIsInstance(message, mlib.MessagePlug)
         self.node.getPlug("message").connectTo(message)
         self.assertEqual(message.getSource(), self.node.getPlug('message'))
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), len(cases) + 3)
@@ -43,12 +43,12 @@ class ExtraAttributesTest(unittest.TestCase):
 
     def test_compound_multi_and_undo(self):
         compound = self.node.addAttr("vectorValue", attributeType="double3")
-        self.assertIsInstance(compound, mlib.plugs.Double3Plug)
+        self.assertIsInstance(compound, mlib.Double3Plug)
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=False)), 1)
         self.assertEqual(len(self.node.getPlugs(userDefined=True, includeChildren=True)), 4)
         array = self.node.addAttr("weights", attributeType="double", multi=True)
-        self.assertIsInstance(array, mlib.plugs.MultiPlug)
-        self.assertIsInstance(array[0], mlib.plugs.DoublePlug)
+        self.assertIsInstance(array, mlib.MultiPlug)
+        self.assertIsInstance(array[0], mlib.DoublePlug)
         self.node.addAttr("undoValue", attributeType="long")
         cmds.undo()
         self.assertFalse(self.node.hasAttr("undoValue"))
@@ -86,7 +86,7 @@ class ExtraAttributesTest(unittest.TestCase):
         with contextlib.nullcontext():
             self.assertEqual([p.getLongName() for p in self.node.getPlugs(userDefined=True, includeChildren=False)], ['items', 'empty'])
             roots = self.node.getPlugs(userDefined=True, includeChildren=False)
-            self.assertTrue(all(isinstance(p, mlib.plugs.MultiPlug) for p in roots))
+            self.assertTrue(all(isinstance(p, mlib.MultiPlug) for p in roots))
             # 番号なしのマルチアトリビュートであるコンパウンドアトリビュートの子は、通常のNode.plugと同じく公開Plugにできない。
             with self.assertRaises(RuntimeError):
                 self.node.getPlugs(userDefined=True, includeChildren=True)

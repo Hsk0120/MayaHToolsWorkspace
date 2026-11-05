@@ -60,8 +60,8 @@ class ConnectionDirectionsTest(unittest.TestCase):
         self.assertEqual(center.getConnections(source=True, destination=True, t="transform", et=True, skipConversionNodes=True), [])
         # pcls は廃止。ペアの両側は型登録に従う Plug で、位置はそのまま。
         pair = center.getConnections(source=True, destination=False, asPair=True, index=0, skipConversionNodes=True)
-        self.assertIsInstance(pair[0], mlib.plugs.Plug)
-        self.assertIsInstance(pair[1], mlib.plugs.Plug)
+        self.assertIsInstance(pair[0], mlib.Plug)
+        self.assertIsInstance(pair[1], mlib.Plug)
         self.assertEqual(pair, (center, source))
 
     def test_query_original_positional_signature_is_preserved(self):
@@ -72,7 +72,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
         # 8.0.0からscn・skipConversionNodesの既定はFalse(cmds.listConnectionsと同じ直結)。
         defaults = (True, True, False, None, False, False, True, True, False, None,
                     False, False, False, False, True, True, None)
-        signature = inspect.signature(mlib.plugs.Plug.getConnections)
+        signature = inspect.signature(mlib.Plug.getConnections)
         self.assertEqual(tuple(signature.parameters), names)
         self.assertEqual(tuple(parameter.default for parameter in
                                list(signature.parameters.values())[1:len(names)]), defaults)
@@ -83,7 +83,7 @@ class ConnectionDirectionsTest(unittest.TestCase):
                                               True, True, False, None, False, False,
                                               False, False, True, True, 0), source)
         self.assertCountEqual(center.getConnections(False, True, skipConversionNodes=True), destinations)
-        self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.plugs.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.plugs.Plug.getConnections).parameters.values())[1:]))
+        self.assertEqual(inspect.signature(center.getConnections), inspect.signature(mlib.Plug.getConnections).replace(parameters=list(inspect.signature(mlib.Plug.getConnections).parameters.values())[1:]))
 
     def test_query_child_and_multi_expansion_does_not_change_direct_operations(self):
         """照会は子・マルチアトリビュートを展開し、接続判定と全切断は元のMPlugの範囲を保つ。"""

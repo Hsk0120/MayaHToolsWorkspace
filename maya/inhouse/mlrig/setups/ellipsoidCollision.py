@@ -108,10 +108,10 @@ class EllipsoidCollision(SphereCollision):
             raise ValueError("softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("EllipsoidCollision container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        ellipsoid = mlib.nodes.Node(ellipsoid)
+        target = mlib.Node(target)
+        ellipsoid = mlib.Node(ellipsoid)
         for node in (target, ellipsoid):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the ellipsoid")
         if target.getFullName() == ellipsoid.getFullName():
             raise ValueError("target and ellipsoid must be different nodes")

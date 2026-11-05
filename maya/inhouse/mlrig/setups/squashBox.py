@@ -73,8 +73,8 @@ class SquashBox(TwistDistribution):
             raise ValueError("volume must be between 0 and 1")
         if mlib.objExists(name):
             raise ValueError("SquashBox container already exists: " + name)
-        root = mlib.nodes.Node(root)
-        if not isinstance(root, mlib.nodes.Transform):
+        root = mlib.Node(root)
+        if not isinstance(root, mlib.Transform):
             raise ValueError("Expected a transform for the root")
 
         graph = cls(mlib.createContainer(name=name))

@@ -66,9 +66,9 @@ class Piston(TwistDistribution):
             raise ValueError("aimAxis and upAxis must be two different axes of x, y and z")
         if mlib.objExists(name):
             raise ValueError("Piston container already exists: " + name)
-        base, tip = mlib.nodes.Node(base), mlib.nodes.Node(tip)
+        base, tip = mlib.Node(base), mlib.Node(tip)
         if base == tip or any(
-            not isinstance(node, mlib.nodes.Transform) for node in (base, tip)
+            not isinstance(node, mlib.Transform) for node in (base, tip)
         ):
             raise ValueError("Expected two different transforms for the base and the tip")
         base_world = Matrix(base.getPlug("worldMatrix")[0].get())

@@ -16,7 +16,7 @@ class SplineIK:
         Args:
             container (str | Node): 所有container。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     def member(self, name):
         """messageから構成ノードを取得する。
@@ -49,9 +49,9 @@ class SplineIK:
             入力骨・control・parentは所有しない。回転接続やキーのない骨を渡す。
         """
         joints, controls, parent = (
-            [mlib.nodes.Node(n) for n in joints],
-            [mlib.nodes.Node(n) for n in controls],
-            mlib.nodes.Node(parent),
+            [mlib.Node(n) for n in joints],
+            [mlib.Node(n) for n in controls],
+            mlib.Node(parent),
         )
         if len(joints) < 3 or not 4 <= len(controls) <= 32 or up_axis not in ("y", "z"):
             raise ValueError("Use 3+ joints, 4..32 controls and up_axis y/z")

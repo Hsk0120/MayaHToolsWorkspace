@@ -29,7 +29,7 @@ class SoftIK:
         builder = ScalarGraph(owner)
         try:
             for attr, value in (("distance", 0.0), ("softness", 0.0), ("ratio", 1.0)):
-                mlib.nodes.Node(owner).addAttr(
+                mlib.Node(owner).addAttr(
                     longName=attr, attributeType="double", defaultValue=value
                 )
             distance = cls._condition(builder, "distance", owner + ".distance", 0, owner + ".distance", 0)
@@ -124,14 +124,14 @@ class SoftIK:
         """
         destination = to_plug(destination)
         with nativeUnits():
-            if isinstance(value, (str, mlib.plugs.Plug)):
+            if isinstance(value, (str, mlib.Plug)):
                 source = to_plug(value)
                 source.connectTo(destination)
                 immediate = destination.getSource()
                 if immediate is not None and immediate.getNode() != source.getNode():
                     conversion = immediate.getNode()
                     if conversion.getType() == "unitConversion":
-                        mlib.nodes.Container(owner).addMembers(conversion)
+                        mlib.Container(owner).addMembers(conversion)
             else:
                 destination.set(value)
 
@@ -149,8 +149,8 @@ class SoftIK:
         Returns:
             Plug: double精度の出力。公開するdistance/softness/ratioの型は変えない。
         """
-        container = mlib.nodes.Container(owner)
-        legacy = mlib.common.Environment.getApiVersion() < 20240000
+        container = mlib.Container(owner)
+        legacy = mlib.Environment.getApiVersion() < 20240000
         if legacy:
             # 新しい算術型がない旧版でunknownノードを作らない。
             # 旧型のPlug名と演算モードをこの境界だけで選択する。

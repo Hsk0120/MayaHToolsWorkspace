@@ -32,8 +32,8 @@ def sets():
     """
     if not mlib.objExists(ROOT_SET):
         return []
-    root = mlib.nodes.Node(ROOT_SET)
-    return [member for member in root.getMembers() if isinstance(member, mlib.nodes.ObjectSet)]
+    root = mlib.Node(ROOT_SET)
+    return [member for member in root.getMembers() if isinstance(member, mlib.ObjectSet)]
 
 
 def label(node):
@@ -191,7 +191,7 @@ def _root():
         ObjectSet: 親のセット。
     """
     if mlib.objExists(ROOT_SET):
-        return mlib.nodes.Node(ROOT_SET)
+        return mlib.Node(ROOT_SET)
     return mlib.createNode("objectSet", name=ROOT_SET, skipSelect=True)
 
 

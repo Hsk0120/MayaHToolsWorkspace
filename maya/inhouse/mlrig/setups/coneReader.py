@@ -30,7 +30,7 @@ class ConeReader:
         Args:
             container (str | Node): createで生成したcontainer。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     @staticmethod
     def weight(angle, coneAngle, falloff="linear"):
@@ -281,6 +281,6 @@ class ConeReader:
     @staticmethod
     def _attach(group, joint):
         """GRP をジョイントへ重ねてから、位置と回転をコンストレイントする。"""
-        ConeReader._setMatrix(group, mlib.nodes.Node(joint).getMatrix(worldSpace=True))
+        ConeReader._setMatrix(group, mlib.Node(joint).getMatrix(worldSpace=True))
         group.getPlug("scale").set((1, 1, 1))
         group.addConstraint(joint, maintainOffset=True)

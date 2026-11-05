@@ -93,8 +93,8 @@ class CableSag(TwistDistribution):
             raise ValueError("CableSag container already exists: " + name)
         nodes = []
         for label, value in (("start", start), ("end", end)):
-            node = mlib.nodes.Node(value)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = mlib.Node(value)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected a transform for the " + label)
             nodes.append(node)
         start, end = nodes

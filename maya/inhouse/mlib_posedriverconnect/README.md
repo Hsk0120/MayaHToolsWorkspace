@@ -28,7 +28,7 @@ print(extensions.status())
 
 # 対応プラグインとシーン内のソルバーがある場合
 for solver in mlib.ls(type="UERBFSolverNode"):
-    print(solver.drivers())       # list[mlib.nodes.Node]
+    print(solver.drivers())       # list[mlib.Node]
     print(solver.num_poses())
     print(solver.radius())
     solver.setRadius(45.0)      # Undo可能

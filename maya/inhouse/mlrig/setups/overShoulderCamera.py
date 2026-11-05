@@ -120,9 +120,9 @@ class OverShoulderCamera(TwistDistribution):
         transform, shape = cls._camera(camera)
         heads = []
         for item in (focus, partner):
-            node = item if isinstance(item, mlib.nodes.Node) else (
-                mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = item if isinstance(item, mlib.Node) else (
+                mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected an existing transform: " + str(item))
             heads.append(node)
         if len({node.getUuid() for node in heads + [transform]}) != 3:
@@ -176,12 +176,12 @@ class OverShoulderCamera(TwistDistribution):
         Raises:
             ValueError: cameraでない場合。
         """
-        node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
+        node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
         if node is None:
             raise ValueError("Expected an existing camera: " + str(item))
         if node.getType() == "camera":
             return node.getParent(), node
-        if isinstance(node, mlib.nodes.Transform):
+        if isinstance(node, mlib.Transform):
             shapes = [child for child in node.getShapes() if child.getType() == "camera"]
             if len(shapes) == 1:
                 return node, shapes[0]

@@ -97,10 +97,10 @@ class LiveMirror(TwistDistribution):
             raise ValueError("weight must be from 0 to 1: " + str(weight))
         if mlib.objExists(name):
             raise ValueError("LiveMirror container already exists: " + name)
-        source, target = mlib.nodes.Node(source), mlib.nodes.Node(target)
-        plane = None if plane is None else mlib.nodes.Node(plane)
+        source, target = mlib.Node(source), mlib.Node(target)
+        plane = None if plane is None else mlib.Node(plane)
         for node in (source, target) + (() if plane is None else (plane,)):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms or joints: " + str(node))
         for node in (source,) + (() if plane is None else (plane,)):
             if node == target or target.isAncestorOf(node):

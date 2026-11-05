@@ -124,10 +124,10 @@ class EyelidFollow(TwistDistribution):
             raise ValueError("openAngle must be greater than 0 and at most 179 degrees")
         if mlib.objExists(name):
             raise ValueError("EyelidFollow container already exists: " + name)
-        eye, upperLid, lowerLid = (mlib.nodes.Node(node) for node in (eye, upperLid, lowerLid))
+        eye, upperLid, lowerLid = (mlib.Node(node) for node in (eye, upperLid, lowerLid))
         nodes = (eye, upperLid, lowerLid)
         if len({node.getUuid() for node in nodes}) != 3 or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected three different transforms for the eye and both eyelids")
         parents = [node.getParent() for node in nodes]

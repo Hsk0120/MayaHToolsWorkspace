@@ -27,13 +27,13 @@ class ControlHierarchy:
 
         通常は一回のUndoで戻せる。途中の失敗は自動で巻き戻さない。
         """
-        target = target if isinstance(target, mlib.nodes.Node) else mlib.nodes.Node(target)
-        if not isinstance(target, mlib.nodes.Transform):
+        target = target if isinstance(target, mlib.Node) else mlib.Node(target)
+        if not isinstance(target, mlib.Transform):
             raise TypeError("target must be a transform")
         if type(fast) is not bool:
             raise TypeError("fast must be a bool")
         parent = target.getParent()
-        if fast and (isinstance(target, mlib.nodes.Joint) or len(target.getInstances()) > 1
+        if fast and (isinstance(target, mlib.Joint) or len(target.getInstances()) > 1
                      or (parent is not None and len(parent.getInstances()) > 1)):
             raise NotImplementedError("fast offset groups do not support joints or instances")
         if not names:
@@ -68,8 +68,8 @@ class ControlHierarchy:
 
         通常は一回のUndoで戻せる。接続を保持する処理ではないため明示的に呼び出す。
         """
-        target = target if isinstance(target, mlib.nodes.Node) else mlib.nodes.Node(target)
-        if not isinstance(target, mlib.nodes.Transform):
+        target = target if isinstance(target, mlib.Node) else mlib.Node(target)
+        if not isinstance(target, mlib.Transform):
             raise TypeError("target must be a transform")
         if type(fast) is not bool:
             raise TypeError("fast must be a bool")

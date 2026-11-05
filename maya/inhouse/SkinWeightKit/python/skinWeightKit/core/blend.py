@@ -44,7 +44,7 @@ class SlideSession(object):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): 増減するインフルエンス。
+        influence (mlib.Node | str): 増減するインフルエンス。
         falloff (dict[int, float] | None): {頂点番号: 重み}。Noneは選んだ頂点をすべて1にする。
 
     Raises:
@@ -119,7 +119,7 @@ def slide(target, influence, amount, falloff=None):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): 増減するインフルエンス。
+        influence (mlib.Node | str): 増減するインフルエンス。
         amount (float): 加える量(-1〜1)。
         falloff (dict[int, float] | None): {頂点番号: 重み}。Noneは選んだ頂点をすべて1にする。
 
@@ -137,7 +137,7 @@ def fromSoftSelection(influence, current=None, falloff=None):
     """ソフト選択の重みを、そのままインフルエンスの値にする(他のインフルエンスで合計を1にする)。
 
     Args:
-        influence (mlib.nodes.Node | str): 値を設定するインフルエンス。
+        influence (mlib.Node | str): 値を設定するインフルエンス。
         current (Target | None): 対象。Noneはソフト選択から決める。
         falloff (dict[int, float] | None): {頂点番号: 重み}。Noneはソフト選択から決める。
 
@@ -180,8 +180,8 @@ def ramp(target, start, end, easing="linear"):
 
     Args:
         target (Target): 対象。
-        start (mlib.nodes.Node | str): 始点側のインフルエンス(transform)。
-        end (mlib.nodes.Node | str): 終点側のインフルエンス(transform)。
+        start (mlib.Node | str): 始点側のインフルエンス(transform)。
+        end (mlib.Node | str): 終点側のインフルエンス(transform)。
         easing (str): :data:`EASINGS` の名前。
 
     Returns:

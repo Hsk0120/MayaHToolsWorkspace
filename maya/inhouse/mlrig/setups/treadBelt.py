@@ -74,9 +74,9 @@ class TreadBelt(TwistDistribution):
             raise ValueError("normal must be a finite non-zero 3D vector")
         if mlib.objExists(name):
             raise ValueError("TreadBelt container already exists: " + name)
-        shape = mlib.nodes.Node(curve)
+        shape = mlib.Node(curve)
         if shape.getType() != "nurbsCurve":
-            shapes = [s for s in (shape.getShapes() if isinstance(shape, mlib.nodes.Transform) else [])
+            shapes = [s for s in (shape.getShapes() if isinstance(shape, mlib.Transform) else [])
                       if s.getType() == "nurbsCurve"]
             if not shapes:
                 raise ValueError("Expected a NURBS curve transform or shape")

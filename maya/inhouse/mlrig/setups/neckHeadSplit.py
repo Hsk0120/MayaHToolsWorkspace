@@ -46,8 +46,8 @@ class NeckHeadSplit(TwistDistribution):
         """
         nodes = []
         for item in [chest, control] + list(joints):
-            node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected an existing transform: " + str(item))
             nodes.append(node)
         chest, control, joints = nodes[0], nodes[1], nodes[2:]

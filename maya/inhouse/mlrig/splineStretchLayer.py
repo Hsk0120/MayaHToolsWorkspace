@@ -42,7 +42,7 @@ class SplineStretchLayer:
         Returns:
             Node: 生成ノード。
         """
-        return mlib.nodes.Container(owner).createNode(kind, name=owner.getName() + "_" + role)
+        return mlib.Container(owner).createNode(kind, name=owner.getName() + "_" + role)
 
     @undoTransaction("mlrig.SplineStretchLayer.add")
     def add(self):
@@ -57,7 +57,7 @@ class SplineStretchLayer:
         if self.settings() is not None:
             return self.settings()
         rig, root = self.rig, self.rig.root
-        if any(mlib.nodes.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in rig.getJoints()):
+        if any(mlib.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in rig.getJoints()):
             raise ValueError("Add stretch before binding the spline")
         lengths = [
             j.getPlug("translateX").get()

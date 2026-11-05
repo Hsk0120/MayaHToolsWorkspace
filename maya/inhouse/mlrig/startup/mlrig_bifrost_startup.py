@@ -1,6 +1,6 @@
 """明示呼び出し時にBifrost 3.0.0以降のプラグインをロードする任意ヘルパー。
 
-確認とロードの本体は ``mlib.common.PluginPackage``で、
+確認とロードの本体は ``mlib.PluginPackage``で、
 このモジュールは Bifrost 用の設定と起動のタイミングだけを持つ。mlrig パッケージ
 (``mlrig/__init__.py``)は import しない。``maya/modules/mlrig_startup.mod`` が
 ``mlrig/startup`` を ``PYTHONPATH`` へ追加し、標準の ``userSetup.py`` はこのヘルパーを呼ばない。
@@ -41,7 +41,7 @@ def package():
     """Bifrost の導入確認とロードを行う PluginPackage を作る。
 
     Returns:
-        mlib.common.PluginPackage: Bifrost の定義。
+        mlib.PluginPackage: Bifrost の定義。
     """
     from mlib.common import PluginPackage
 
@@ -88,10 +88,10 @@ def initialize():
     Maya 2025 未満では :func:`run` が何もしない。
     """
     global _scheduled
-    if _scheduled or os.environ.get("MLRIG_SKIP_BIFROST") == "1" or mlib.common.Environment.isBatch():
+    if _scheduled or os.environ.get("MLRIG_SKIP_BIFROST") == "1" or mlib.Environment.isBatch():
         return
     _scheduled = True
     try:
-        mlib.common.Deferred.call(_run_deferred)
+        mlib.Deferred.call(_run_deferred)
     except Exception:
         _scheduled = False

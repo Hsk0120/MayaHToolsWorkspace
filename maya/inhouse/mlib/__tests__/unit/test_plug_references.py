@@ -38,11 +38,11 @@ class PlugReferencesTest(unittest.TestCase):
         samples[3].set(4.0)
         label = self.node.addAttr("label", dataType="string").set("sample")
         cases = (
-            (self.node.getPlug("translateX"), mlib.plugs.DoubleLinearPlug),
-            (self.node.getPlug("rotateX"), mlib.plugs.DoubleAnglePlug),
-            (self.node.getPlug("translate"), mlib.plugs.Double3Plug),
-            (self.node.getPlug("worldMatrix[0]"), mlib.plugs.MatrixPlug),
-            (samples, mlib.plugs.MultiPlug), (label, mlib.plugs.StringPlug),
+            (self.node.getPlug("translateX"), mlib.DoubleLinearPlug),
+            (self.node.getPlug("rotateX"), mlib.DoubleAnglePlug),
+            (self.node.getPlug("translate"), mlib.Double3Plug),
+            (self.node.getPlug("worldMatrix[0]"), mlib.MatrixPlug),
+            (samples, mlib.MultiPlug), (label, mlib.StringPlug),
         )
         for plug, expected in cases:
             with self.subTest(type=expected.__name__):
@@ -52,8 +52,8 @@ class PlugReferencesTest(unittest.TestCase):
                 self.assertEqual(entry(plug.mplug()), plug)
         self.assertEqual(entry(samples).get(), {3: 4.0})
         self.assertEqual(entry(label).get(), "sample")
-        self.assertIsInstance(entry(self.node.getPlug("translate")).get(), mlib.maths.Vector)
-        self.assertIsInstance(entry(self.node.getPlug("worldMatrix[0]")).get(), mlib.maths.Matrix)
+        self.assertIsInstance(entry(self.node.getPlug("translate")).get(), mlib.Vector)
+        self.assertIsInstance(entry(self.node.getPlug("worldMatrix[0]")).get(), mlib.Matrix)
 
     def test_reference_values_and_explicit_ui_units(self):
         """参照の取得では単位を選ばず、値のgetで明示的に選ぶ。"""

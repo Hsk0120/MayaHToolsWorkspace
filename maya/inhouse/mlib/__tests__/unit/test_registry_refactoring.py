@@ -130,14 +130,14 @@ class ExtensionStageRecoveryTest(unittest.TestCase):
                 declaration.write_text('MLIB_EXTENSION_API = 1\ndef is_available(): return True\n', encoding="utf-8")
                 mlib.reload()
                 self.assertEqual(mlib.core.extensions.status()[name]["state"], "error")
-                self.assertIsNone(mlib.nodes.Node._registry.lookup("fixtureStageRecovery"))
+                self.assertIsNone(mlib.Node._registry.lookup("fixtureStageRecovery"))
                 (folder / "plugs" / "__init__.py").write_text(
                     'from mlib.plugs import Plug\nclass StagePlug(Plug): pass\n'
                     '_WRAPPER_CLASSES = {"fixtureStageData": StagePlug}\n', encoding="utf-8")
                 mlib.reload()
                 self.assertEqual(mlib.core.extensions.status()[name]["state"], "loaded")
-                self.assertIsNotNone(mlib.nodes.Node._registry.lookup("fixtureStageRecovery"))
-                self.assertIsNotNone(mlib.plugs.Plug._registry.lookup("fixtureStageData"))
+                self.assertIsNotNone(mlib.Node._registry.lookup("fixtureStageRecovery"))
+                self.assertIsNotNone(mlib.Plug._registry.lookup("fixtureStageData"))
             finally:
                 sys.path.remove(directory)
                 mlib.reload()

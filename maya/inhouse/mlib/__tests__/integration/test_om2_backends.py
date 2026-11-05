@@ -82,17 +82,17 @@ class Om2BackendsTest(unittest.TestCase):
         """fastの新規マルチアトリビュートの要素はgetAttrやsetAttrを使わず値を書き込む。"""
         node = mlib.createNode('multMatrix')
         plug = node.getPlug('matrixIn')[37]
-        matrix = mlib.maths.Matrix(translate=(1, 2, 3))
+        matrix = mlib.Matrix(translate=(1, 2, 3))
         before = cmds.undoInfo(q=True, undoName=True)
         with self.forbidden('getAttr', 'setAttr', 'undoInfo'):
             plug.set(matrix, fast=True)
         self.assertEqual(cmds.undoInfo(q=True, undoName=True), before)
         self.assertEqual(list(plug.get()), list(matrix))
-        plug.set(mlib.maths.Matrix())
+        plug.set(mlib.Matrix())
         cmds.undo()
         self.assertEqual(list(plug.get()), list(matrix))
         cmds.redo()
-        self.assertEqual(list(plug.get()), list(mlib.maths.Matrix()))
+        self.assertEqual(list(plug.get()), list(mlib.Matrix()))
         plug.setFlags(locked=True)
         with self.assertRaises(RuntimeError):
             plug.set(matrix, fast=True)

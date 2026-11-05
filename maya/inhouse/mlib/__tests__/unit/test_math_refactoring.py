@@ -61,7 +61,7 @@ class MathRefactoringTest(unittest.TestCase):
             self.assertIs(module._copy_state, current._copy_state)
             self.assertIs(module._checked_index, current._checked_index)
             self.assertIs(module._foreign_comparison, current._foreign_comparison)
-        value = mlib.maths.Vector(1, 2, 3)
+        value = mlib.Vector(1, 2, 3)
         self.assertEqual(tuple(copy.deepcopy(value)), (1.0, 2.0, 3.0))
         self.assertEqual(tuple(pickle.loads(pickle.dumps(value))), (1.0, 2.0, 3.0))
 

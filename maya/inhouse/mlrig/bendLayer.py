@@ -77,7 +77,7 @@ class BendLayer:
             or bend_axis == push_axis
         ):
             raise ValueError("Choose two different axes from x, y, z")
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         parent = joint.getParent()
         if joint.getType() != "joint" or parent is None or parent.getType() != "joint":
             raise ValueError("Expected a joint with a parent joint")
@@ -94,7 +94,7 @@ class BendLayer:
             self.rig._bind("bendSet", selection)
             self.rig._layer_members("moduleSet", [selection])
             root.addAttr(longName="bendGroups", attributeType="message", multi=True)
-            owned.append(mlib.nodes.Node(selection))
+            owned.append(mlib.Node(selection))
         group = mlib.createNode("transform", name=names[0], parent=parent, skipSelect=True)
         group.addAttr(longName="bendId", dataType="string").set(identifier)
         group.addAttr(longName="pushAxis", dataType="string").set(push_axis)

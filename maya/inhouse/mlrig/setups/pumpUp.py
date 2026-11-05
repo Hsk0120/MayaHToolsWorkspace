@@ -80,8 +80,8 @@ class PumpUp(TwistDistribution):
             offsets[role] = values
         if mlib.objExists(name):
             raise ValueError("PumpUp container already exists: " + name)
-        helpers = [mlib.nodes.Node(helper) for helper in helpers]
-        if any(not isinstance(helper, mlib.nodes.Transform) for helper in helpers):
+        helpers = [mlib.Node(helper) for helper in helpers]
+        if any(not isinstance(helper, mlib.Transform) for helper in helpers):
             raise ValueError("Expected transforms for the helpers")
         if len({helper.getUuid() for helper in helpers}) != count:
             raise ValueError("The helpers must be different nodes")

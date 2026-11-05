@@ -51,16 +51,16 @@ class LeafJoints(TwistDistribution):
             raise ValueError("LeafJoints container already exists: " + name)
         if sources is None or isinstance(sources, str):
             raise ValueError("Expected a list of transforms for the sources")
-        nodes = [mlib.nodes.Node(node) for node in sources]
-        if not nodes or any(not isinstance(node, mlib.nodes.Transform) for node in nodes):
+        nodes = [mlib.Node(node) for node in sources]
+        if not nodes or any(not isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected one or more transforms for the sources")
         uuids = [node.getUuid() for node in nodes]
         if len(set(uuids)) != len(uuids):
             raise ValueError("The sources have the same transform more than once")
         root = None
         if parent is not None:
-            root = mlib.nodes.Node(parent)
-            if not isinstance(root, mlib.nodes.Transform):
+            root = mlib.Node(parent)
+            if not isinstance(root, mlib.Transform):
                 raise ValueError("Expected a transform for the parent")
             if root.getUuid() in uuids:
                 raise ValueError("The parent must not be one of the sources")

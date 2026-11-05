@@ -480,7 +480,7 @@ class MlibCommandInputTest(_InteropCase):
 
         driver = self.create("transform", "driver")
         driven = self.create("transform", "driven")
-        relation = mlib.common.DrivenKey(driver.getPlug("tx").mplug(), driven.getPlug("ty"))
+        relation = mlib.DrivenKey(driver.getPlug("tx").mplug(), driven.getPlug("ty"))
         relation.setKey(0.0, 0.0)
         relation.setKey(1.0, 2.0)
         self.assertTrue(relation.exists())
@@ -894,7 +894,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         weight = _InputPlug._resolve_input(blend.getName() + ".weight[5]")
         self.assertEqual(type(weight).__name__, "FloatPlug")
         blend.getPlug("weight[7]")
-        mlib.common.DrivenKey(self.create("transform", "driver").getPlug("tx"), blend.getName() + ".weight[0]")
+        mlib.DrivenKey(self.create("transform", "driver").getPlug("tx"), blend.getName() + ".weight[0]")
         Selection([blend.getName() + ".weight[6]"])
         self.assertEqual({name: self.existing(blend.getPlug(name)) for name in arrays}, before)
 
@@ -1003,7 +1003,7 @@ class PlugCreationSideEffectTest(_InteropCase):
         output = choice.getPlug("output")
         self.assertIs(type(output), Plug)
         self.assertEqual(count(), before)
-        self.assertIsInstance(output.get(), mlib.maths.Matrix)
+        self.assertIsInstance(output.get(), mlib.Matrix)
         # 読み取りできない generic アトリビュート(transform 系ノード共通の geometry)は値を読まない。
         # field は geometry の評価で falloffCurve[0] などの要素を作るため、読むとシーンが変わる。
         field = Node(cmds.createNode("dragField", name="drag", skipSelect=True))
@@ -1057,7 +1057,7 @@ class PlugCreationSideEffectTest(_InteropCase):
                 value = element.get()
                 self.assertGreater(count(), before)
                 if expected is None:
-                    self.assertIsInstance(value, mlib.maths.Matrix)
+                    self.assertIsInstance(value, mlib.Matrix)
 
     def test_reference_creation_does_not_have_value_evaluation_side_effects(self):
         # generic参照の構築は値を読まない。cmds型照会による評価副作用とは区別する。
@@ -1541,25 +1541,25 @@ class CommandEdgeCaseTest(_InteropCase):
         weight = blend.getPlug("weight")[0]
         self.assertEqual(str(weight), self.ns("bs.tgt"))
         driver = self.create("transform", "driver")
-        relation = mlib.common.DrivenKey(driver.getPlug("tx"), str(weight))
+        relation = mlib.DrivenKey(driver.getPlug("tx"), str(weight))
         relation.setKey(0.0, 0.0)
         relation.setKey(1.0, 1.0)
         self.assertEqual(relation.getDrivenPlug().getFullName(), weight.getFullName())
-        found = mlib.common.DrivenKey.find(str(weight))
+        found = mlib.DrivenKey.find(str(weight))
         self.assertEqual(len(found), 1)
-        self.assertEqual(len(mlib.common.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
+        self.assertEqual(len(mlib.DrivenKey.find(self.ns("bs.weight[0]"))), 1)
         network = self.create("network", "net")
         network.addAttr("vals", attributeType="double", multi=True)
         network.getPlug("vals")[2].set(0)
         dup1, dup2 = self.duplicates()
         for driven in (self.ns("net.vals[2]"), str(dup2.getPlug("ty")), self.ns("bs.weight[0]")):
             with self.subTest(driven=driven):
-                relation = mlib.common.DrivenKey(dup1.getPlug("tx"), driven)
+                relation = mlib.DrivenKey(dup1.getPlug("tx"), driven)
                 self.assertEqual(relation.getDrivenPlug().getFullName(), _InputPlug._resolve_input(driven).getFullName())
         with self.assertRaises(RuntimeError):
-            mlib.common.DrivenKey(dup1.getNodeName() + ".tx", dup2.getPlug("tz"))  # 2つの dup に一致する
+            mlib.DrivenKey(dup1.getNodeName() + ".tx", dup2.getPlug("tz"))  # 2つの dup に一致する
         with self.assertRaises(TypeError):
-            mlib.common.DrivenKey(driver.getName(), dup2.getPlug("tz"))
+            mlib.DrivenKey(driver.getName(), dup2.getPlug("tz"))
 
 
 class LargeComponentCollectionTest(_InteropCase):

@@ -186,9 +186,9 @@ class ApiRefinementsTest(unittest.TestCase):
 
     def test_stored_properties_do_not_query_maya(self):
         """保持値をMayaへ再照会せず、Selectionの保持リストを直接公開しない。"""
-        plugin = mlib.common.Plugin("example")
-        module = mlib.common.Module("example")
-        selection = mlib.common.Selection([self.create("transform")])
+        plugin = mlib.Plugin("example")
+        module = mlib.Module("example")
+        selection = mlib.Selection([self.create("transform")])
         with patch.object(cmds, "pluginInfo", side_effect=AssertionError("Unexpected query")):
             self.assertEqual(plugin.name, "example")
             self.assertEqual(module.name, "example")

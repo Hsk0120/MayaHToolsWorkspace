@@ -140,7 +140,7 @@ class MultiRenameTest(unittest.TestCase):
                 self.assertFalse(hasattr(module, "ArrayPlug"))
                 self.assertNotIn("ArrayPlug", getattr(module, "__all__", ()))
         self.assertIn("MultiPlug", mlib.plugs.__all__)
-        self.assertIs(mlib.plugs.MultiPlug, MultiPlug)
+        self.assertIs(mlib.MultiPlug, MultiPlug)
         self.assertEqual(MultiPlug.__module__, "mlib.plugs.multiPlug")
         self.assertTrue(issubclass(MultiPlug, Plug))
 

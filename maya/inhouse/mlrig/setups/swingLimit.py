@@ -162,7 +162,7 @@ class SwingLimit(SwingTwist):
         Returns:
             SwingLimit: 生成したグラフ。
         """
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         rest = Matrix(joint.getPlug("matrix").get()) * Matrix(joint.getPlug("offsetParentMatrix").get())
         rest_rotation = rest.quaternion.asMatrix()
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
@@ -259,5 +259,5 @@ class SwingLimit(SwingTwist):
         owner.setAttrFlags(list(outputs), keyable=False, channelBox=True)
         extra = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if extra:
-            mlib.nodes.Container(owner).addMembers(*extra)
+            mlib.Container(owner).addMembers(*extra)
         return graph

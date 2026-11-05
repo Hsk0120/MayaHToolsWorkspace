@@ -43,13 +43,13 @@ class ConsolidatedCalculationTests(unittest.TestCase):
                 node = mlib.createNode(node_type)
                 # MayaはaddDoubleLinear等を新しい派生nodeTypeへ正規化する版がある。
                 actual_type = cmds.nodeType(node.getFullName())
-                registered = mlib.nodes.Node._registry.lookup(actual_type)
+                registered = mlib.Node._registry.lookup(actual_type)
                 self.assertIsNotNone(registered)
                 expected = registered
                 self.assertIs(type(node), expected)
                 self.assertIs(type(mlib.getNode(node.getFullName())), expected)
                 self.assertIs(mlib.nodes._WRAPPER_CLASSES[node_type], cls)
-                self.assertTrue(issubclass(cls, mlib.nodes.Node))
+                self.assertTrue(issubclass(cls, mlib.Node))
                 self.assertFalse(_REMOVED_METHODS.intersection(cls.__dict__))
                 self.assertIs(node.getPlug("message").getNode(), node)
 

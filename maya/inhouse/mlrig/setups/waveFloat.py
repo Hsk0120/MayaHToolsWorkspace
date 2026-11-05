@@ -99,8 +99,8 @@ class WaveFloat(TwistDistribution):
             raise ValueError("count must be an integer between 1 and 8")
         if mlib.objExists(name):
             raise ValueError("WaveFloat container already exists: " + name)
-        control = mlib.nodes.Node(control)
-        if not isinstance(control, mlib.nodes.Transform):
+        control = mlib.Node(control)
+        if not isinstance(control, mlib.Transform):
             raise ValueError("Expected a transform")
 
         conversions = {node.getUuid() for node in mlib.ls(type=_CONVERSIONS)}
@@ -243,7 +243,7 @@ class WaveFloat(TwistDistribution):
         result.getPlug("matrixSum").connectTo(owner.getPlug("matrix"))
         owner.setAttrFlags(["heave", "normal"], keyable=False, channelBox=True)
         if connectTime:
-            mlib.nodes.Node("time1").getPlug("outTime").connectTo(owner.getPlug("time"))
+            mlib.Node("time1").getPlug("outTime").connectTo(owner.getPlug("time"))
         added = [node for node in mlib.ls(type=_CONVERSIONS) if node.getUuid() not in conversions]
         if added:
             owner.addMembers(*added)

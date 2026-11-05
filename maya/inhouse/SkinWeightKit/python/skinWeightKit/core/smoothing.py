@@ -69,7 +69,7 @@ def neighborWeights(mesh, method="uniform", radius=0.0):
     """頂点ごとの隣の頂点と、合計1の重みを返す。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
         method (str): :data:`METHODS` の名前。
         radius (float): 0より大きければ、辺でつながっていなくても半径内(cm、ワールド空間)の頂点も含める。
 

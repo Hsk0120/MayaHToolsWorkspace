@@ -36,7 +36,7 @@ class VersionConsistencyTest(unittest.TestCase):
         self.assertIsNotNone(self.version, "__version__ が mlib/__init__.py にない")
 
     def test_version_is_a_release_number(self):
-        """__version__ は数字3桁の版で、mlib.common.Version として構築できる。"""
+        """__version__ は数字3桁の版で、mlib.Version として構築できる。"""
         self.assertRegex(self.version, r"^\d+\.\d+\.\d+$")
         Version = _load_version_class()
         self.assertEqual(Version(self.version), Version(self.version.split(".")))

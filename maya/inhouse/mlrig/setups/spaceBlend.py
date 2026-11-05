@@ -58,12 +58,12 @@ class SpaceBlend(TwistDistribution):
             ratio_i = w_i / (w_0 + … + w_i) なので、位置は Σ w_i · p_i / Σ w_i になる。
             重みが全て0のときは先頭の空間に追従する。出力はワールド行列で、followerそのものは変更しない。
         """
-        spaces = [mlib.nodes.Node(space) for space in spaces]
+        spaces = [mlib.Node(space) for space in spaces]
         if len(spaces) < 2:
             raise ValueError("SpaceBlend needs at least two spaces")
-        follower = mlib.nodes.Node(follower)
+        follower = mlib.Node(follower)
         for node in [follower] + spaces:
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the follower and the spaces")
         names = [space.getFullName() for space in spaces]
         if len(set(names)) != len(names):

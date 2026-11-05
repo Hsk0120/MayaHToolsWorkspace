@@ -66,9 +66,9 @@ class BowString(TwistDistribution):
             raise ValueError("aimAxis and upAxis must be two different axes of x, y and z")
         if mlib.objExists(name):
             raise ValueError("BowString container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in (top, bottom, nock)]
+        nodes = [mlib.Node(node) for node in (top, bottom, nock)]
         if len({node.getUuid() for node in nodes}) != 3 or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected three different transforms for the top, the bottom and the nock")
         top, bottom, nock = nodes

@@ -75,10 +75,10 @@ class SphereCollision(TwistDistribution):
             raise ValueError("radius and softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("SphereCollision container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        sphere = mlib.nodes.Node(sphere)
+        target = mlib.Node(target)
+        sphere = mlib.Node(sphere)
         for node in (target, sphere):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the sphere")
         if target.getFullName() == sphere.getFullName():
             raise ValueError("target and sphere must be different nodes")

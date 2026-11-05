@@ -77,8 +77,8 @@ class LayerEditor(QtWidgets.QDialog):
         self._busy = False
         self._pending = False
         self._closed = False
-        self._jobs = mlib.common.ScriptJobs()
-        self._attributes = mlib.common.ScriptJobs()
+        self._jobs = mlib.ScriptJobs()
+        self._attributes = mlib.ScriptJobs()
         self.setStyleSheet("""
             QDialog { background:#24262c; color:#e3e5ed; }
             QLabel { color:#d5d8e2; } QGroupBox { color:#aeb5c8; border:1px solid #424650;
@@ -274,7 +274,7 @@ class LayerEditor(QtWidgets.QDialog):
         """
         if cls._instance is None or not isValid(cls._instance):
             # Qtの親取得はUI実装側で行い、基礎ライブラリmlibへ依存を持ち込まない。
-            name = None if mlib.common.Environment.isBatch() else mel.eval("$mlrigMainWindow = $gMainWindow")
+            name = None if mlib.Environment.isBatch() else mel.eval("$mlrigMainWindow = $gMainWindow")
             parent = next((window for window in QtWidgets.QApplication.topLevelWidgets()
                            if window.objectName() == name), None)
             cls._instance = cls(parent)
@@ -391,7 +391,7 @@ class LayerEditor(QtWidgets.QDialog):
                 for role, label in self.LABELS.items():
                     if not rig.root.hasAttr("channel_" + role):
                         continue
-                    node = mlib.nodes.Node(rig._member("channel_" + role))
+                    node = mlib.Node(rig._member("channel_" + role))
                     item = self._row(
                         root_item,
                         label,
@@ -733,7 +733,7 @@ class LayerEditor(QtWidgets.QDialog):
         enabled = item.checkState(0) == QtCore.Qt.Checked
         roots = [item.getFullName() for item in mlib.ls(data["root"], long=True)] or []
         if roots and data["role"].startswith("tweak:"):
-            group = mlib.nodes.Node([item.getFullName() for item in mlib.ls(data["target"], long=True)][0])
+            group = mlib.Node([item.getFullName() for item in mlib.ls(data["target"], long=True)][0])
             with undoTransaction("mlrig.Tweak.enabled"):
                 group.getPlug("enabled").set(enabled)
                 TweakLayer(ModuleRegistry.get(roots[0])).update()
@@ -888,20 +888,20 @@ class LayerEditor(QtWidgets.QDialog):
     def open_graph(self):
         """設定ノードを選択し、標準ノードエディターを開く。"""
         self.select_node()
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             raise RuntimeError("NodeEditor requires Maya GUI")
         mel.eval("NodeEditorWindow;")
 
     def open_curve(self):
         """SDKの詳細行を選択して、標準グラフエディターでカーブを編集する。"""
         _, data = self.getCurrent()
-        node = mlib.nodes.Node(
+        node = mlib.Node(
             ([item.getFullName() for item in mlib.ls(data["target"], long=True)] or [""])[0]
         )
         if not node.hasAttr("curve"):
             raise ValueError("Driven Keyの子行（sdk1など）を選択してください")
         mlib.select(node.getPlug('curve').getSource().getNode(), replace=True)
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             raise RuntimeError("GraphEditor requires Maya GUI")
         mel.eval("GraphEditor;")
 

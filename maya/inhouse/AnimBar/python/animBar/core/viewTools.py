@@ -36,7 +36,7 @@ def createMotionTrails(nodes=None, increment=1.0):
         # mlib にはモーショントレイルの作成の入口が無いため、Mayaのコマンドを使う。
         result = cmds.snapshot(node.getFullName(), motionTrail=True, startTime=start, endTime=end,
                                increment=increment, name=node.getNodeName(removeNamespace=True) + "_animBarTrail")
-        trail = mlib.nodes.Node(result[0])
+        trail = mlib.Node(result[0])
         trail.addAttr(longName=TRAIL_ATTRIBUTE, attributeType="bool", defaultValue=True)
         created.append(trail)
     return created
@@ -119,7 +119,7 @@ def _snapshot_micro():
     """
     values = {}
     for node in keys.selectedNodes():
-        if isinstance(node, mlib.nodes.Transform):
+        if isinstance(node, mlib.Transform):
             values[node] = (tuple(node.getPlug("translate").get()), tuple(node.getPlug("rotate").get()))
     _micro["values"] = values
 
@@ -135,7 +135,7 @@ def _scale_micro():
         # 再生中の値の変化は縮めない。
         _snapshot_micro()
         return
-    selected = set(node for node in keys.selectedNodes() if isinstance(node, mlib.nodes.Transform))
+    selected = set(node for node in keys.selectedNodes() if isinstance(node, mlib.Transform))
     if selected != set(_micro["values"]):
         _snapshot_micro()
         return

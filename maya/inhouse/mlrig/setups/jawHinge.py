@@ -80,8 +80,8 @@ class JawHinge(TwistDistribution):
             raise ValueError("slide must be three finite values")
         if mlib.objExists(name):
             raise ValueError("JawHinge container already exists: " + name)
-        jaw = mlib.nodes.Node(jaw)
-        if not isinstance(jaw, mlib.nodes.Transform) or jaw.getParent() is None:
+        jaw = mlib.Node(jaw)
+        if not isinstance(jaw, mlib.Transform) or jaw.getParent() is None:
             raise ValueError("Expected a jaw transform with a parent transform")
         local = Matrix(jaw.getPlug("matrix").get()) * Matrix(jaw.getPlug("offsetParentMatrix").get())
         rest_rotation = local.quaternion.asMatrix()

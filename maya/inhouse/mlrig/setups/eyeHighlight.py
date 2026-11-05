@@ -25,10 +25,10 @@ def _number(value, label):
 
 def _transform(item, label):
     """既存の transform・joint の Node に解決する(cameraのシェイプなら親の transform)。"""
-    node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
-    if node is not None and not isinstance(node, mlib.nodes.Transform) and node.getType() == "camera":
+    node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
+    if node is not None and not isinstance(node, mlib.Transform) and node.getType() == "camera":
         node = node.getParent()
-    if not isinstance(node, mlib.nodes.Transform):
+    if not isinstance(node, mlib.Transform):
         raise ValueError("{} must be an existing transform: {}".format(label, item))
     return node
 

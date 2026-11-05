@@ -24,9 +24,9 @@ class ObjectTest(unittest.TestCase):
         node = mlib.core.object.Object(self.name)
         plug = mlib.core.object.Object(self.name + '.tx')
         vertex = mlib.core.object.Object(self.name + '.vtx[0]')
-        self.assertIsInstance(node, mlib.nodes.Transform)
-        self.assertIsInstance(plug, mlib.plugs.Plug)
-        self.assertIsInstance(vertex, mlib.components.Vertex)
+        self.assertIsInstance(node, mlib.Transform)
+        self.assertIsInstance(plug, mlib.Plug)
+        self.assertIsInstance(vertex, mlib.Vertex)
         for item in (node, plug, vertex):
             with self.subTest(item=type(item).__name__):
                 self.assertIsInstance(item, mlib.core.object.Object)
@@ -34,8 +34,8 @@ class ObjectTest(unittest.TestCase):
                 resolved = mlib.core.object.Object(item.getFullName())
                 self.assertEqual(resolved, item)
                 self.assertEqual(hash(resolved), hash(item))
-        self.assertNotIsInstance(mlib.nodes.Nodes([node]), mlib.core.object.Object)
-        self.assertNotIsInstance(mlib.maths.Matrix(), mlib.core.object.Object)
+        self.assertNotIsInstance(mlib.Nodes([node]), mlib.core.object.Object)
+        self.assertNotIsInstance(mlib.Matrix(), mlib.core.object.Object)
 
     def test_api_inputs(self):
         """Maya APIの参照から同じ対象へ解決する。"""
@@ -65,7 +65,7 @@ class ObjectTest(unittest.TestCase):
         from mlib.common import Selection
         self.assertEqual(len(Selection(self.name + '.vtx[*]').items), 8)
         with self.assertRaises(TypeError):
-            mlib.nodes.Nodes([self.name, mlib.core.object.Object(self.name)])
+            mlib.Nodes([self.name, mlib.core.object.Object(self.name)])
 
 
 if __name__ == '__main__':

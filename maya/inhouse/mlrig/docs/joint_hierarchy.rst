@@ -2,7 +2,7 @@
 ====================
 
 ``mlrig.setups.JointHierarchy.delete`` は、ウェイト移送と子の保持を伴う
-ジョイント削除です。Maya標準の削除を行う ``mlib.nodes.Joint.delete`` /
+ジョイント削除です。Maya標準の削除を行う ``mlib.Joint.delete`` /
 ``mlib.delete`` とは入口を分けています。
 
 使い方

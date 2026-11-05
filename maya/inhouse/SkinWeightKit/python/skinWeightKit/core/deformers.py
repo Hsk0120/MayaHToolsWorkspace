@@ -19,13 +19,13 @@ def listDeformers(mesh):
     """メッシュに掛かっている、ウェイトを持つデフォーマーを返す。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
 
     Returns:
-        list[mlib.nodes.Node]: デフォーマー(履歴の順)。
+        list[mlib.Node]: デフォーマー(履歴の順)。
     """
     return [node for node in mesh.getHistory(type="geometryFilter")
-            if isinstance(node, mlib.nodes.GeometryFilter) and node.getType() not in EXCLUDED_TYPES
+            if isinstance(node, mlib.GeometryFilter) and node.getType() not in EXCLUDED_TYPES
             and node.hasAttr("weightList")]
 
 
@@ -33,7 +33,7 @@ def deformerWeights(deformer, count):
     """デフォーマーの頂点ごとのウェイトを返す。
 
     Args:
-        deformer (mlib.nodes.Node): デフォーマー。
+        deformer (mlib.Node): デフォーマー。
         count (int): メッシュの頂点の数。
 
     Returns:
@@ -51,8 +51,8 @@ def toInfluence(target, deformer, influence, threshold=0.0):
 
     Args:
         target (Target): 対象。
-        deformer (mlib.nodes.Node | str): ウェイトを読むデフォーマー。
-        influence (mlib.nodes.Node | str): 値を設定するインフルエンス。
+        deformer (mlib.Node | str): ウェイトを読むデフォーマー。
+        influence (mlib.Node | str): 値を設定するインフルエンス。
         threshold (float): これ以下の値の頂点は変えない。
 
     Returns:

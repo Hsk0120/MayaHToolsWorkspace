@@ -152,7 +152,7 @@ class SkinClustersBatchTest(unittest.TestCase):
 
         mid_joints = Joints([self.mid])
         skin_clusters = mid_joints.getSkinClusters()
-        self.assertIsInstance(skin_clusters, mlib.nodes.SkinClusters)
+        self.assertIsInstance(skin_clusters, mlib.SkinClusters)
         for skin in skin_clusters:
             for joint in mid_joints:
                 skin.removeInfluence(joint)

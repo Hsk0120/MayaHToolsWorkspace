@@ -30,7 +30,7 @@ _REJECTED_FLAGS = frozenset(("query", "q", "edit", "e"))
 def bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs):
     """ノードのアトリビュートの評価結果をキーへ焼き込み、焼き込んだアニメーションカーブを返す。
 
-    選択状態は参照しない。time を省略すると再生範囲(``mlib.common.Time.getPlaybackRange()``)を焼き込む。
+    選択状態は参照しない。time を省略すると再生範囲(``mlib.Time.getPlaybackRange()``)を焼き込む。
     attributes を省略するとMayaの既定(各ノードのキー設定可能なアトリビュート)を対象にする。
     Mayaの既定(``simulation=False``)では入力を持たない静的なアトリビュートにはキーを作らない。すべての
     フレームを順に評価する必要がある場合(ダイナミクス等)は ``simulation=True`` を渡す。

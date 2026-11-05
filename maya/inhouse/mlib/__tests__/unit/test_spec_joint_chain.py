@@ -87,7 +87,7 @@ class JointsOrderTest(_SpecCase):
         group = cmds.createNode("transform", name=self.name("group"), parent=root, skipSelect=True)
         child = cmds.createNode("joint", name=self.name("child"), parent=group, skipSelect=True)
         self.assertEqual(Node(child).getDepth(), 0)
-        self.assertNotIsInstance(Node(child).getParent(), mlib.nodes.Joint)
+        self.assertNotIsInstance(Node(child).getParent(), mlib.Joint)
 
 
 class InverseScaleTest(_SpecCase):

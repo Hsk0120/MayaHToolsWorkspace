@@ -5,9 +5,9 @@ def initialize():
     """Maya 2025以降のGUIだけでmlrigの操作監視を起動する。"""
     import mlib
 
-    if mlib.common.Environment.isBatch() or mlib.common.Environment.getApiVersion() < 20250000:
+    if mlib.Environment.isBatch() or mlib.Environment.getApiVersion() < 20250000:
         return
-    mlib.common.Deferred.call(_install)
+    mlib.Deferred.call(_install)
 
 
 def _install():

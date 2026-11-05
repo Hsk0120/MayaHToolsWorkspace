@@ -19,7 +19,7 @@ class PoseRbf:
         Args:
             container (str | Node): createで生成したcontainer。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     @staticmethod
     def coefficients(poses, values, scales):
@@ -228,7 +228,7 @@ class PoseRbf:
             if source is not None:
                 keep.add(source.getNode().getUuid())
         owned = self.container.getMembers()
-        remove = [n for n in owned if mlib.nodes.Node(n).getUuid() not in keep]
+        remove = [n for n in owned if mlib.Node(n).getUuid() not in keep]
         if remove:
             mlib.delete(remove)
         self._build(poses, values, scales, coefficients)

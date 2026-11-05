@@ -87,8 +87,8 @@ class PatellaFollow(FourBarLinkage):
         nodes = []
         for label, value in (("femur", femur), ("tibia", tibia), ("groove", groove), ("patella", patella),
                              ("tuberosity", tuberosity)):
-            node = mlib.nodes.Node(value)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = mlib.Node(value)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected a transform for the " + label)
             nodes.append(node)
         femur, tibia, groove, patella, tuberosity = nodes

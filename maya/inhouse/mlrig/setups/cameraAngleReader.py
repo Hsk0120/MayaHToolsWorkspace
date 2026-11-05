@@ -101,8 +101,8 @@ class CameraAngleReader(TwistDistribution):
             raise ValueError("backFade must be greater than 0 and at most 180")
         if mlib.objExists(name):
             raise ValueError("CameraAngleReader container already exists: " + name)
-        head, camera = mlib.nodes.Node(head), mlib.nodes.Node(camera)
-        if any(not isinstance(node, mlib.nodes.Transform) for node in (head, camera)):
+        head, camera = mlib.Node(head), mlib.Node(camera)
+        if any(not isinstance(node, mlib.Transform) for node in (head, camera)):
             raise ValueError("Expected transforms for the head and the camera")
         if head == camera:
             raise ValueError("The head and the camera must be different nodes")

@@ -13,7 +13,7 @@ Maya が認識しない型名(プラグイン未ロード等)は ``AttributeErro
 手書きの GeometryFilter として登録する)のクラスは生成しないため、
 
 ``isinstance`` は Maya の継承を表さない。継承の判定は ``Node.isType()`` を使う。
-生成クラスは登録表の変更・プラグインのロード/アンロード(``mlib.common.Plugin`` 経由)・
+生成クラスは登録表の変更・プラグインのロード/アンロード(``mlib.Plugin`` 経由)・
 ``mlib.reload()`` で作り直されるため、保持したクラス参照は取り直す。
 """
 

@@ -47,9 +47,9 @@ class MetaSpread(TwistDistribution):
         if mlib.objExists(name):
             raise ValueError("MetaSpread container already exists: " + name)
         middles = list(middles)
-        nodes = [mlib.nodes.Node(node) for node in [first, last] + middles]
+        nodes = [mlib.Node(node) for node in [first, last] + middles]
         if not middles or len({node.getUuid() for node in nodes}) != len(nodes) or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected different transforms for the first, the last and one or more middles")
         parents = {(node.getParent().getUuid() if node.getParent() is not None else None) for node in nodes}

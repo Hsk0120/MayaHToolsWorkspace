@@ -254,7 +254,7 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 ``mlib.ls``・``mlib.getNode``・``mlib.createNode`` の結果は ``Node`` 固定ではなく、
 そのnodeTypeに対応するクラスのインスタンスになります。クラスは最初に要求されたときに
 型名の先頭を大文字にした名前(``pointLight`` なら ``PointLight``)で自動生成され、
-``mlib.nodes.PointLight`` のように ``mlib.nodes.<TypeName>`` でも取得できます。
+``mlib.PointLight`` のように ``mlib.nodes.<TypeName>`` でも取得できます。
 ``getType()`` はラッパーのクラス名ではなくMayaのnodeType名をそのまま返します。
 
 .. code-block:: python
@@ -263,12 +263,12 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 
    light = mlib.createNode("pointLight", name="mlibLightShape")
    print(type(light).__name__)                      # PointLight
-   print(isinstance(light, mlib.nodes.PointLight))  # True
-   print(isinstance(light, mlib.nodes.Shape))       # True。基底は最寄りの登録クラス
+   print(isinstance(light, mlib.PointLight))  # True
+   print(isinstance(light, mlib.Shape))       # True。基底は最寄りの登録クラス
    print(light.getType())                           # pointLight
    print(light.isType("light"))                     # True。Mayaの継承チェーンで判定
 
-   same = mlib.nodes.PointLight("mlibLightShape")   # 具象クラスを明示した取得も可能
+   same = mlib.PointLight("mlibLightShape")   # 具象クラスを明示した取得も可能
 
 基底はMayaの継承チェーン(``cmds.nodeType(inherited=True)``)上で最も近い登録クラスで、
 ``pointLight`` なら ``Shape``、``wrap``\ ・\ ``deltaMush`` なら ``GeometryFilter``\ (10.1.0から。
@@ -280,7 +280,7 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 手書きクラスも同様で、``SkinCluster`` は ``GeometryFilter`` の直接の派生、``Container`` は
 ``Node`` の直接の派生です。したがって ``isinstance`` はMayaの抽象祖先を含む継承関係を
 表しません。Mayaの継承に基づく判定は ``isType()`` か ``getType(inherited=True)``\ (基底型から
-自身への順の ``list[str]``)で行います。``type(node) is mlib.nodes.Node`` のような厳密な型比較も、
+自身への順の ``list[str]``)で行います。``type(node) is mlib.Node`` のような厳密な型比較も、
 未登録型が生成クラスになるため ``isinstance`` か ``isType()`` に置き換えてください。
 
 .. code-block:: python
@@ -288,9 +288,9 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
    container = mlib.ls(type="container")[0]
    print(container.isType("containerBase"))                  # True
    print("containerBase" in container.getType(inherited=True))  # True
-   print(isinstance(container, mlib.nodes.ContainerBase))    # False。手書きクラスは抽象祖先を継承しない
+   print(isinstance(container, mlib.ContainerBase))    # False。手書きクラスは抽象祖先を継承しない
 
-``mlib.nodes.ContainerBase`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
+``mlib.ContainerBase`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
 
 対応するインスタンスが無いため ``isinstance`` には使えません。Mayaが認識しない型名
 (プラグイン未ロードを含む)は ``AttributeError``、``mlib.nodes.pointLight`` のような

@@ -75,8 +75,8 @@ class AutoClavicle(SwingTwist):
             raise ValueError("weight must be between 0 and 1")
         if not 0 < maximum <= 90:
             raise ValueError("maximum must be greater than 0 and at most 90 degrees")
-        clavicle = mlib.nodes.Node(clavicle)
-        upperarm = mlib.nodes.Node(upperarm)
+        clavicle = mlib.Node(clavicle)
+        upperarm = mlib.Node(upperarm)
         parent = upperarm.getParent() if upperarm.getType() == "joint" else None
         if clavicle.getType() != "joint" or parent is None or parent.getFullName() != clavicle.getFullName():
             raise ValueError("Expected a clavicle joint that is the direct parent of the upperarm joint")
@@ -182,5 +182,5 @@ class AutoClavicle(SwingTwist):
         owner.setAttrFlags(list(outputs), keyable=False, channelBox=True)
         added = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if added:
-            mlib.nodes.Container(owner).addMembers(*added)
+            mlib.Container(owner).addMembers(*added)
         return graph

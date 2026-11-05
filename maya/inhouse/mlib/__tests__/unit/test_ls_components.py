@@ -25,21 +25,21 @@ class LsComponentsTest(unittest.TestCase):
         cmds.select([self.joint, self.mesh + ".vtx[1:3]", self.other + ".vtx[0]"], r=True)
         items = mlib.ls(sl=True)
         self.assertEqual(len(items), 5)
-        self.assertIsInstance(items[0], mlib.nodes.Joint)
+        self.assertIsInstance(items[0], mlib.Joint)
         vertices = mlib.ls(sl=True, type="vertex")
         self.assertEqual([v.index for v in vertices], [1, 2, 3, 0])
-        self.assertTrue(all(isinstance(v, mlib.components.Vertex) for v in vertices))
+        self.assertTrue(all(isinstance(v, mlib.Vertex) for v in vertices))
         self.assertEqual(len({v.shape.getFullName() for v in vertices}), 2)
         self.assertEqual(mlib.ls(sl=True, type="face"), [])
 
     def test_component_names_ranges_and_no_conversion(self):
         curve = cmds.curve(name=self.ns + ":curve", d=1, p=[(0, 0, 0), (1, 0, 0)])
         for name, path, kind in (
-            ("vertex", self.mesh + ".vtx[0:1]", mlib.components.Vertex),
-            ("edge", self.mesh + ".e[0:1]", mlib.components.Edge),
-            ("face", self.mesh + ".f[0:1]", mlib.components.Face),
-            ("uv", self.mesh + ".map[0:1]", mlib.components.UV),
-            ("controlVertex", curve + ".cv[0:1]", mlib.components.CV),
+            ("vertex", self.mesh + ".vtx[0:1]", mlib.Vertex),
+            ("edge", self.mesh + ".e[0:1]", mlib.Edge),
+            ("face", self.mesh + ".f[0:1]", mlib.Face),
+            ("uv", self.mesh + ".map[0:1]", mlib.UV),
+            ("controlVertex", curve + ".cv[0:1]", mlib.CV),
         ):
             for flatten in (False, True):
                 result = mlib.ls(path, type=name, fl=flatten)
@@ -53,11 +53,11 @@ class LsComponentsTest(unittest.TestCase):
         self.assertEqual(len(mlib.ls(sl=True, typ="vertex")), 1)
         for value in (None, []):
             self.assertEqual(mlib.ls(value, type="vertex"), [])
-        self.assertIsInstance(mlib.ls(self.joint, typ="joint"), mlib.nodes.Joints)
-        self.assertIsInstance(mlib.ls(type="skinCluster"), mlib.nodes.SkinClusters)
-        self.assertIsInstance(mlib.ls(self.mesh + ".translateX")[0], mlib.plugs.Plug)
+        self.assertIsInstance(mlib.ls(self.joint, typ="joint"), mlib.Joints)
+        self.assertIsInstance(mlib.ls(type="skinCluster"), mlib.SkinClusters)
+        self.assertIsInstance(mlib.ls(self.mesh + ".translateX")[0], mlib.Plug)
         cmds.addAttr(self.joint, ln="values", at="double", multi=True)
-        self.assertIsInstance(mlib.ls(self.joint + ".values")[0], mlib.plugs.MultiPlug)
+        self.assertIsInstance(mlib.ls(self.joint + ".values")[0], mlib.MultiPlug)
         with self.assertRaises(TypeError):
             mlib.ls(sl=True, selection=True, type="vertex")
 

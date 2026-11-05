@@ -138,7 +138,7 @@ def benchmark_skirt(cmds, args):
     import mlib
     from mlrig.skirtRig import SkirtRig
 
-    original = mlib.nodes.Transform.addConstraint
+    original = mlib.Transform.addConstraint
     results = []
     for mode in args.modes:
         reference = None
@@ -156,7 +156,7 @@ def benchmark_skirt(cmds, args):
                     kwargs["skipTranslate"] = ["x", "y", "z"]
                 return original(target, sources, **kwargs)
 
-            with patch.object(mlib.nodes.Transform, "addConstraint", new=create):
+            with patch.object(mlib.Transform, "addConstraint", new=create):
                 rig = SkirtRig.create(driver_count=8, chain_count=max(8, args.count // 3))
             for column, chain in enumerate(rig.driver_chains()):
                 for depth, driver in enumerate(chain):

@@ -229,7 +229,7 @@ class AttributeEditsTest(unittest.TestCase):
                         self.node.addAttr(name, kind, defaultValue=value, fast=fast)
                     self.assertFalse(self.node.hasAttr(name))
         plug = self.node.addAttr("valid", "string", defaultValue="value")
-        self.assertIsInstance(plug, mlib.plugs.StringPlug)
+        self.assertIsInstance(plug, mlib.StringPlug)
         self.assertEqual(plug.get(), "value")
         self.assertIsNone(self.node.addAttr("noReturn", getPlug=False))
 

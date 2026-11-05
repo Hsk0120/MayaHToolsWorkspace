@@ -53,7 +53,7 @@ class PoseDriverConnectTest(unittest.TestCase):
             self.assertEqual(set(cmds.pluginInfo(query=True, listPlugins=True) or []), before_plugins)
             state = mlib.core.extensions.status()['mlib_posedriverconnect']
             self.assertEqual(state['state'], 'loaded', state['reason'])
-            self.assertIsNotNone(mlib.nodes.Node._registry.lookup('UERBFSolverNode'))
+            self.assertIsNotNone(mlib.Node._registry.lookup('UERBFSolverNode'))
             binary = EXTERNAL / 'plug-ins/windows' / str(cmds.about(version=True)).split('.')[0] / 'MayaUERBFPlugin.mll'
             if not binary.exists():
                 self.skipTest('Wrapper registration passed; matching Maya plugin binary not installed')
@@ -81,7 +81,7 @@ class PoseDriverConnectTest(unittest.TestCase):
             name = solver.getFullName()
             mlib.reload()
             solver = mlib.getNode(name)
-            self.assertTrue(isinstance(solver, mlib.nodes.Node))
+            self.assertTrue(isinstance(solver, mlib.Node))
             self.assertAlmostEqual(solver.radius(), before + 10)
         finally:
             for name in created:

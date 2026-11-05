@@ -108,10 +108,10 @@ class ScapulaGlide(TwistDistribution):
             raise ValueError("normalAxis and upAxis must be two different axes of x, y and z")
         if mlib.objExists(name):
             raise ValueError("ScapulaGlide container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        ribcage = mlib.nodes.Node(ribcage)
+        target = mlib.Node(target)
+        ribcage = mlib.Node(ribcage)
         for node in (target, ribcage):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the ribcage")
         if target.getFullName() == ribcage.getFullName():
             raise ValueError("target and ribcage must be different nodes")

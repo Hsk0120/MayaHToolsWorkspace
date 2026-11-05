@@ -37,7 +37,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   存在しない要素は同じアトリビュートの既存要素と同じ型名になり要素が作られないことを確かめる。
   値によって型が変わる generic アトリビュート(``choice`` の ``input``/``output``、``unitConversion``)は、
   参照は基底 ``Plug`` のまま保持し、行列を保持する場合だけ ``get()`` の戻り値が
-  ``mlib.maths.Matrix`` になることと、現在値がcmdsと一致することを確かめる。
+  ``mlib.Matrix`` になることと、現在値がcmdsと一致することを確かめる。
 - コンポーネント名としても解釈されるアトリビュート名(``pnts[i]``・``controlPoints[i]``)を
   om2 でアトリビュートパスを辿って解決した ``to_plug`` と、``cmds.connectAttr`` が接続するプラグ
 - ワールド空間アトリビュートのインスタンス番号の要素(``instanceCount(True)``)と
@@ -45,7 +45,7 @@ test_*.py にそのまま残してよい。このファイルは「cmds との�
   ``cmds.xform(query=True, matrix=True, worldSpace=True)``
 - ``Transform.getMatrix`` (ローカルはMPlug、ワールドは対象インスタンスのDAGパスから取得)
   と ``cmds.getAttr``/``cmds.xform(query=True, matrix=True)``、
-  ``mlib.maths.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
+  ``mlib.Matrix`` の分解(行列式が負の場合を含む)と ``cmds.xform(matrix=...)`` で
   書き込まれるチャンネル値・decomposeMatrix ノードの出力、``Transform.getRotate``/
   ``setRotate`` の3成分と ``cmds.xform(rotation=...)`` (全回転順序)
 
@@ -302,7 +302,7 @@ class TransformMatrixParityTest(unittest.TestCase):
     """Transform の行列取得と mlib.maths の分解が cmds / decomposeMatrix と一致し続けることを検証する。
 
     ``Transform.getMatrix`` はローカルをMPlug、ワールドをDAGパスから取得する。
-    ``mlib.maths.Matrix`` は om2.MMatrix を継承し、om2.MTransformationMatrix と同じ規約
+    ``mlib.Matrix`` は om2.MMatrix を継承し、om2.MTransformationMatrix と同じ規約
     (行列式が負なら Z スケールを負にして 180 度を補う)で分解する。その規約が
     ``cmds.xform(matrix=...)`` によるチャンネル値と decomposeMatrix ノードの出力に
     一致することを突き合わせる。``Transform.getRotate`` / ``setRotate`` の3成分が
@@ -681,7 +681,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                     checked.add(expected)
                     self.assertIs(type(plug), Plug)
                     if expected == "matrix":
-                        self.assertIsInstance(plug.get(), mlib.maths.Matrix)
+                        self.assertIsInstance(plug.get(), mlib.Matrix)
                         for value, reference in zip(plug.get(), cmds.getAttr(name)):
                             self.assertAlmostEqual(value, reference)
                     else:
@@ -710,7 +710,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
                 value = plug.get()
                 reference = cmds.getAttr(name)
                 if expected == "matrix":
-                    self.assertIsInstance(value, mlib.maths.Matrix)
+                    self.assertIsInstance(value, mlib.Matrix)
                     for actual, raw in zip(value, reference):
                         self.assertAlmostEqual(actual, raw)
                 else:
@@ -729,7 +729,7 @@ class PlugAttributeTypeParityTest(unittest.TestCase):
             reference = cmds.getAttr(output.getFullName())
             self.assertIs(type(output), Plug)
             if selector == 0:
-                self.assertIsInstance(value, mlib.maths.Matrix)
+                self.assertIsInstance(value, mlib.Matrix)
                 for actual, raw in zip(value, reference):
                     self.assertAlmostEqual(actual, raw)
             else:

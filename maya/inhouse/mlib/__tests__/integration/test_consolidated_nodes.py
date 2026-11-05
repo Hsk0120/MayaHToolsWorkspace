@@ -111,10 +111,10 @@ class ConsolidatedNodesTest(unittest.TestCase):
         with self.api_only():
             numbers = node.addAttr("validNumbers", "doubleArray", defaultValue=[1, 2, 3], fast=True)
             text = node.addAttr("validText", "string", defaultValue="value", fast=True)
-            matrix = node.addAttr("validMatrix", "matrix", defaultValue=mlib.maths.Matrix(), fast=True)
+            matrix = node.addAttr("validMatrix", "matrix", defaultValue=mlib.Matrix(), fast=True)
         self.assertEqual(list(numbers.get()), [1, 2, 3])
         self.assertEqual(text.get(), "value")
-        self.assertMatrixEqual(matrix.get(), mlib.maths.Matrix())
+        self.assertMatrixEqual(matrix.get(), mlib.Matrix())
 
     def test_fast_delete_keeps_parent_and_component_rejects_before_edit(self):
         """modifier既定の親削除を抑え、cmds.deleteの対象範囲を保つ。"""

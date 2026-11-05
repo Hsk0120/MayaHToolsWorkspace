@@ -68,7 +68,7 @@ def mirrorMap(mesh, vertices, axis="x", tolerance=0.01):
     """頂点ごとの反対側の頂点を返す。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
         vertices (Iterable[int]): 調べる頂点。
         axis (str): ミラーの軸(``"x"``・``"y"``・``"z"``)。
         tolerance (float): 反転した位置と頂点の距離の許容量(cm、オブジェクト空間)。

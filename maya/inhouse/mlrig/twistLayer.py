@@ -90,7 +90,7 @@ class TwistLayer:
             raise ValueError("Twist segment already exists")
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
-        start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
+        start, end = mlib.Node(start), mlib.Node(end)
         if start.getType() != "joint" or end.getType() != "joint" or start == end:
             raise ValueError("Expected two different joints")
         relative = end.getMatrix(worldSpace=True) * start.getMatrix(worldSpace=True).inverse()
@@ -110,7 +110,7 @@ class TwistLayer:
             selection = mlib.createNode("objectSet", name=self.rig.getNodeName("twistSet"), skipSelect=True).getFullName()
             self.rig._bind("twistSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            self._own([mlib.nodes.Node(selection)])
+            self._own([mlib.Node(selection)])
             root.addAttr(longName="twistSegments", attributeType="message", multi=True)
         group = mlib.createNode("transform", name=stem + "_grp", parent=start, skipSelect=True)
         for attr, value in (("segmentId", segment), ("twistAxis", axis)):
@@ -173,7 +173,7 @@ class TwistLayer:
         if count == group.getPlug("count").get():
             return self.getJoints(segment)
         for joint in self.getJoints(segment):
-            node = mlib.nodes.Node(joint)
+            node = mlib.Node(joint)
             outputs = node.getConnections(source=False, asNode=True)
             if any(item.getType() not in ("objectSet", "dagPose") for item in outputs):
                 raise ValueError("Twist joints are in use; choose the count before binding")
@@ -186,7 +186,7 @@ class TwistLayer:
         axis = group.getPlug("twistAxis").get()
         graph = group.getPlug('graph').getSource().getNode()
         # container削除が空になった関連セットまで削除しないよう、先に所属を外す。
-        mlib.nodes.Node(self.rig._member("twistSet")).removeMembers(
+        mlib.Node(self.rig._member("twistSet")).removeMembers(
             [group.getFullName(), graph.getFullName()] + list(self.getJoints(segment))
         )
         mlib.delete([group, graph])
@@ -205,7 +205,7 @@ class TwistLayer:
             graph.getPlug("nodeState").set(0 if active else 2)
             group.getPlug("visibility").set(active)
         for name in self.getJoints():
-            joint = mlib.nodes.Node(name)
+            joint = mlib.Node(name)
             destination = joint.getPlug("offsetParentMatrix")
             source = destination.getSource()
             if active:

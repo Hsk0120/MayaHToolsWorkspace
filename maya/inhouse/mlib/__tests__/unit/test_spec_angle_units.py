@@ -121,7 +121,7 @@ class CompoundAnglePlugTest(_SpecCase):
         plug.set((10, 20, 30))
         self.assertEqual([round(v, 9) for v in cmds.getAttr(joint.getFullName() + ".jo")[0]], [10.0, 20.0, 30.0])
         value = plug.get()
-        self.assertIsInstance(value, mlib.maths.Vector)
+        self.assertIsInstance(value, mlib.Vector)
         self.assertEqual([round(v, 9) for v in value], [10.0, 20.0, 30.0])
         self.assertEqual([round(v, 9) for v in plug.get(unit="rad")],
                          [round(math.radians(v), 9) for v in (10, 20, 30)])

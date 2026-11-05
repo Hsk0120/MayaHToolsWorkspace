@@ -14,7 +14,7 @@ def worldPosition(node):
     Returns:
         Vector: 位置(シーンの長さの単位)。
     """
-    translate = mlib.nodes.Node(node).getTranslation(worldSpace=True, at=4)
+    translate = mlib.Node(node).getTranslation(worldSpace=True, at=4)
     return Vector(*(mlib.common.units.distanceToUi(value) for value in translate))
 
 
@@ -27,7 +27,7 @@ def worldMatrix(node):
     Returns:
         Matrix: 行列(移動はシーンの長さの単位)。
     """
-    matrix = Matrix(mlib.nodes.Node(node).getMatrix(worldSpace=True))
+    matrix = Matrix(mlib.Node(node).getMatrix(worldSpace=True))
     for column in range(3):
         matrix.setElement(3, column, mlib.common.units.distanceToUi(matrix.getElement(3, column)))
     return matrix
@@ -88,7 +88,7 @@ def setJointWorldOrientation(joint, matrix):
         joint (str | Node): 対象のjoint。
         matrix (Matrix): 目標のワールド行列(回転だけを使う)。
     """
-    joint = mlib.nodes.Node(joint)
+    joint = mlib.Node(joint)
     children = joint.getChildren(type="transform")
     saved = [(child, child.getMatrix(worldSpace=True)) for child in children]
     parent = Matrix(joint.getPlug("parentMatrix")[0].get())
@@ -110,7 +110,7 @@ def storePreferredAngles(joints):
         joints (Iterable[str | Node]): 対象のjoint。
     """
     for joint in joints:
-        mlib.nodes.Node(joint).setPreferredAngle()
+        mlib.Node(joint).setPreferredAngle()
 
 
 def createRotatePlaneHandle(root, end, name, poleDistance=None):
@@ -154,7 +154,7 @@ def groupUnderWorld(name, *nodes):
         tuple[str, list[str]]: (transformのフルパス, 子にしたノードのフルパス)。
     """
     group = mlib.createNode("transform", name=name, skipSelect=True).getFullName()
-    children = [mlib.nodes.Node(node).setParent(group).getFullName() for node in nodes]
+    children = [mlib.Node(node).setParent(group).getFullName() for node in nodes]
     return group, children
 
 
@@ -221,7 +221,7 @@ class HingeIK:
         if axis not in ("y", "z"):
             raise ValueError("axis must be y or z (the bone points along local X)")
         for joint in (root, mid, end):
-            if not mlib.objExists(joint) or mlib.nodes.Node(joint).getType() != "joint":
+            if not mlib.objExists(joint) or mlib.Node(joint).getType() != "joint":
                 raise ValueError("Joint not found: {}".format(joint))
         if _parent(mid) != _longName(root) or _parent(end) != _longName(mid):
             raise ValueError("Expected a chain root -> mid -> end of direct children.")
@@ -233,22 +233,22 @@ class HingeIK:
         owner = mlib.createContainer(name).getFullName()
         setJointWorldOrientation(mid, orientationMatrix(worldPosition(mid), worldPosition(end) - worldPosition(mid),
                                                         hinge, axis))
-        mid_joint = mlib.nodes.Node(mid)
+        mid_joint = mlib.Node(mid)
         for letter in "xyz":
             mid_joint.getPlug("jointType" + letter.upper()).set(letter in axis)
         storePreferredAngles((root, mid, end))
         handle, effector, pole = createRotatePlaneHandle(root, end, name, poleDistance)
         group, (handle, pole) = groupUnderWorld(name + "_GRP", handle, pole)
-        mlib.nodes.Container(owner).addMembers(group, handle, pole)
+        mlib.Container(owner).addMembers(group, handle, pole)
         return cls(owner, handle, pole, (root, mid, end), hinge, axis)
 
 
 def _longName(node):
     """フルパス名を返す。"""
-    return mlib.nodes.Node(node).getFullName()
+    return mlib.Node(node).getFullName()
 
 
 def _parent(node):
     """親のフルパス名を返す(無ければNone)。"""
-    parent = mlib.nodes.Node(node).getParent()
+    parent = mlib.Node(node).getParent()
     return None if parent is None else parent.getFullName()

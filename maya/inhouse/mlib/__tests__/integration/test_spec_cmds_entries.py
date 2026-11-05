@@ -264,7 +264,7 @@ class LsSpecTest(_CmdsCase):
         selected = mlib.ls(selection=True, type="vertex")
         self.assertIs(type(selected), Vertices)
         self.assertEqual([item.index for item in selected], [1, 2])
-        self.assertIs(type(mlib.ls(sl=True, type="face")), mlib.components.Faces)
+        self.assertIs(type(mlib.ls(sl=True, type="face")), mlib.Faces)
         self.assertEqual(len(mlib.ls(sl=True, type="face")), 1)
 
     def test_result_collection_kinds(self):
@@ -274,9 +274,9 @@ class LsSpecTest(_CmdsCase):
         cases = [
             ("nodes", (self.joints[0], self.cube), Nodes),
             ("plugs", (self.cube + ".tx", self.joints[0] + ".ry"), Plugs),
-            ("edges", (self.cube + ".e[0:3]",), mlib.components.Edges),
-            ("uvs", (self.cube + ".map[0:1]",), mlib.components.UVs),
-            ("cvs", (curve + ".cv[0:2]",), mlib.components.CVs),
+            ("edges", (self.cube + ".e[0:3]",), mlib.Edges),
+            ("uvs", (self.cube + ".map[0:1]",), mlib.UVs),
+            ("cvs", (curve + ".cv[0:2]",), mlib.CVs),
             ("node and plug", (self.cube, self.cube + ".tx"), list),
             ("vertex and face", (self.cube + ".vtx[0]", self.cube + ".f[0]"), list),
             ("two shapes", (self.cube + ".vtx[0]", other + ".vtx[0]"), list),

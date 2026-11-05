@@ -17,7 +17,7 @@ class NodeCollectionsTest(unittest.TestCase):
         self.ns = 'mlibCollections_' + uuid.uuid4().hex
         cmds.namespace(add=self.ns)
         self.names = [cmds.createNode('joint', name=self.ns + ':j' + str(i)) for i in range(2)]
-        self.joints = mlib.nodes.Joints(self.names)
+        self.joints = mlib.Joints(self.names)
 
     def tearDown(self):
         """検証用名前空間を片付ける。"""
@@ -87,7 +87,7 @@ class NodeCollectionsTest(unittest.TestCase):
         cmds.parent(joint, b, addObject=True)
         paths = cmds.ls(joint, long=True, allPaths=True)
         self.assertEqual(len(paths), 2)
-        mlib.delete(mlib.nodes.Joints(paths))
+        mlib.delete(mlib.Joints(paths))
         self.assertFalse(cmds.objExists(joint))
         cmds.undo()
         self.assertTrue(cmds.objExists(joint))

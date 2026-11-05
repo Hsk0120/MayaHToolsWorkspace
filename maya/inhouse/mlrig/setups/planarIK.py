@@ -69,7 +69,7 @@ class PlanarIK:
             IK用のjointは元の付け根の親の子として作るので、骨盤などの親の動きに付いていく。
         """
         for joint in (root, mid, end):
-            if not mlib.objExists(joint) or mlib.nodes.Node(joint).getType() != "joint":
+            if not mlib.objExists(joint) or mlib.Node(joint).getType() != "joint":
                 raise ValueError("Joint not found: {}".format(joint))
         if not _isAncestor(root, mid) or not _isAncestor(mid, end):
             raise ValueError("Expected root -> ... -> mid -> ... -> end in one hierarchy.")
@@ -78,7 +78,7 @@ class PlanarIK:
             raise ValueError("The chain is straight. Bend the knee slightly before creating the IK.")
         owner = mlib.createContainer(name).getFullName()
         positions = [worldPosition(node) for node in (root, mid, end)]
-        parent = mlib.nodes.Node(root).getParent()
+        parent = mlib.Node(root).getParent()
         drivers = []
         for label, position in zip(("root", "mid", "end"), positions):
             # ワールド直下に作って位置を入れ、ワールドの位置を保って親子付けする(cmds.joint と同じ結果)。
@@ -92,20 +92,20 @@ class PlanarIK:
         for index, joint in enumerate(drivers):
             aim = positions[min(index + 1, 2)] - positions[min(index, 1)]
             setJointWorldOrientation(joint, orientationMatrix(positions[index], aim, normal, "z"))
-        mid_driver = mlib.nodes.Node(drivers[1])
+        mid_driver = mlib.Node(drivers[1])
         for letter in "XYZ":
             mid_driver.getPlug("jointType" + letter).set(letter == "Z")
         storePreferredAngles(drivers)
         handle, effector, pole = createRotatePlaneHandle(drivers[0], drivers[2], name, poleDistance)
         group, (handle, pole) = groupUnderWorld(name + "_GRP", handle, pole)
-        constraints = [mlib.nodes.Node(joint).addConstraint(driver, type="orient", maintainOffset=True,
+        constraints = [mlib.Node(joint).addConstraint(driver, type="orient", maintainOffset=True,
                                                          name="{}_{}OrientConstraint".format(name, label)).getFullName()
                        for driver, joint, label in zip(drivers[:2], (root, mid), ("root", "mid"))]
-        mlib.nodes.Node(drivers[0]).getPlug("visibility").set(showDrivers)
-        mlib.nodes.Container(owner).addMembers(group, handle, pole, *(drivers + constraints))
+        mlib.Node(drivers[0]).getPlug("visibility").set(showDrivers)
+        mlib.Container(owner).addMembers(group, handle, pole, *(drivers + constraints))
         return cls(owner, handle, pole, tuple(drivers), (root, mid, end), normal)
 
 
 def _isAncestor(ancestor, node):
     """``ancestor`` が ``node`` の祖先か(同じノードは含まない)。"""
-    return mlib.nodes.Node(node).getFullName().startswith(mlib.nodes.Node(ancestor).getFullName() + "|")
+    return mlib.Node(node).getFullName().startswith(mlib.Node(ancestor).getFullName() + "|")

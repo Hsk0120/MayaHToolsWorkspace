@@ -51,8 +51,8 @@ def main(output_dir=None, finished=None):
         """各操作後にGUIのidleへ制御を返す。"""
         check(not cmds.about(batch=True), 'Maya GUI')
         import mlib
-        common_owner = mlib.common.ScriptJobs()
-        external_owner = mlib.common.ScriptJobs()
+        common_owner = mlib.ScriptJobs()
+        external_owner = mlib.ScriptJobs()
         probe = mlib.createNode('transform', name='eventProbe', skipSelect=True)
         probe.addAttr('setting', attributeType='long', defaultValue=0)
         observed = []

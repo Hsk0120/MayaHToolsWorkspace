@@ -59,8 +59,8 @@ class LimbPin(TwistDistribution):
             raise ValueError("Expected -1 to 1 for the slide and 0 to 1 for the pin")
         joints = []
         for node in (start, mid, end):
-            joint = mlib.nodes.Node(node)
-            if not isinstance(joint, mlib.nodes.Joint):
+            joint = mlib.Node(node)
+            if not isinstance(joint, mlib.Joint):
                 raise ValueError("Expected joints for the start, the mid and the end")
             joints.append(joint)
         start, mid, end = joints
@@ -72,8 +72,8 @@ class LimbPin(TwistDistribution):
                 raise ValueError("Expected the chain start > mid > end: " + child.getName())
         controls = []
         for node in (pole, target):
-            control = mlib.nodes.Node(node)
-            if not isinstance(control, mlib.nodes.Transform):
+            control = mlib.Node(node)
+            if not isinstance(control, mlib.Transform):
                 raise ValueError("Expected transforms for the pole and the target")
             if control.getUuid() in {joint.getUuid() for joint in joints}:
                 raise ValueError("The pole and the target must not be joints of the chain")

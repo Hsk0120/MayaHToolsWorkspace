@@ -24,8 +24,8 @@ def readRows(skin, influences, vertices):
     """頂点ごとのウェイトの行を読む。
 
     Args:
-        skin (mlib.nodes.SkinCluster): skinCluster。
-        influences (list[mlib.nodes.Node]): 列にするインフルエンス。
+        skin (mlib.SkinCluster): skinCluster。
+        influences (list[mlib.Node]): 列にするインフルエンス。
         vertices (list[int]): 頂点の番号。
 
     Returns:
@@ -40,8 +40,8 @@ def writeRows(skin, influences, vertices, rows, fast=False):
     """頂点ごとのウェイトの行を書く(正規化はしない。値はそのまま書く)。
 
     Args:
-        skin (mlib.nodes.SkinCluster): skinCluster。
-        influences (list[mlib.nodes.Node]): 列のインフルエンス。
+        skin (mlib.SkinCluster): skinCluster。
+        influences (list[mlib.Node]): 列のインフルエンス。
         vertices (list[int]): 頂点の番号。
         rows (list[list[float]]): 頂点の順の行。
         fast (bool): TrueはUndoなしで書く(ドラッグ中の表示用)。
@@ -146,7 +146,7 @@ def setValue(target, influence, value, mode="set"):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): 変えるインフルエンス。
+        influence (mlib.Node | str): 変えるインフルエンス。
         value (float): 指定値・加算量(負は減算)・倍率。
         mode (str): ``"set"``・``"add"``・``"scale"``。
 
@@ -182,14 +182,14 @@ def boneSegments(influences):
     """インフルエンスごとのボーンの線分(自身の位置から、子のジョイントの位置まで)を返す。
 
     Args:
-        influences (list[mlib.nodes.Node]): インフルエンス。
+        influences (list[mlib.Node]): インフルエンス。
 
     Returns:
         list[list[tuple[tuple, tuple]]]: インフルエンスごとの (始点, 終点) の組(子が無ければ始点と同じ点)。
     """
     result = []
     for node in influences:
-        if isinstance(node, mlib.nodes.Joint):
+        if isinstance(node, mlib.Joint):
             segments = node.getBoneSegments()
         else:
             # ジョイント以外のインフルエンス(transform 等)は、位置だけの点として扱う。
@@ -242,7 +242,7 @@ def flood(target, influence, value):
 
     Args:
         target (Target): 対象(メッシュを選んでいれば全頂点)。
-        influence (mlib.nodes.Node | str): 変えるインフルエンス。
+        influence (mlib.Node | str): 変えるインフルエンス。
         value (float): 新しい値。
 
     Returns:
@@ -260,7 +260,7 @@ def setVertexValues(target, vertices, influence, value):
     Args:
         target (Target): skinCluster を決める対象。
         vertices (Iterable[int]): 頂点の番号。
-        influence (mlib.nodes.Node | str): 変えるインフルエンス。
+        influence (mlib.Node | str): 変えるインフルエンス。
         value (float): 新しい値(0〜1に収める)。
 
     Returns:
@@ -398,8 +398,8 @@ def moveWeights(target, source, destination):
 
     Args:
         target (Target): 対象。
-        source (mlib.nodes.Node | str): 移す元。
-        destination (mlib.nodes.Node | str): 移す先。
+        source (mlib.Node | str): 移す元。
+        destination (mlib.Node | str): 移す先。
 
     Returns:
         int: 対象にした頂点の数。

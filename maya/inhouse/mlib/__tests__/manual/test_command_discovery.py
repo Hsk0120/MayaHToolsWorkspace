@@ -30,13 +30,13 @@ maya.standalone.initialize(name="python")
 import mlib
 from importlib import reload
 # 登録表を空にした直接root reloadでも、標準型の明示対応表から再構築する。
-mlib.nodes.Node._registry.clear()
-mlib.plugs.Plug._registry.clear()
+mlib.Node._registry.clear()
+mlib.Plug._registry.clear()
 mlib._core = mlib.core
 sys.modules["mlib._core"] = mlib.core
 reload(mlib)
-assert isinstance(mlib.getNode("persp"), mlib.nodes.Transform)
-assert isinstance(mlib.getPlug("persp.tx"), mlib.plugs.DoubleLinearPlug)
+assert isinstance(mlib.getNode("persp"), mlib.Transform)
+assert isinstance(mlib.getPlug("persp.tx"), mlib.DoubleLinearPlug)
 mlib.reload()
 assert not hasattr(mlib, "_core")
 assert "mlib._core" not in sys.modules
@@ -66,15 +66,15 @@ def publish(path, statement, name):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 # 旧版を読み込み済みのセッションから移行しても再公開名を残さない。
-mlib.Node = mlib.nodes.Node
+mlib.Node = mlib.Node
 mlib.createNode = mlib.cmds.createNode
 mlib.__all__ += ["Node", "createNode"]
 mlib.reload()
 assert not hasattr(mlib, "Node")
 assert mlib.createNode is mlib.cmds.createNode
 assert not hasattr(mlib, "NODE_REGISTRY")
-assert mlib.nodes.Node._registry is not None
-assert mlib.plugs.Plug._registry is not None
+assert mlib.Node._registry is not None
+assert mlib.Plug._registry is not None
 for name in ("getNode", "getPlug", "createNode", "ls", "delete", "duplicate", "select"):
     assert callable(getattr(mlib.cmds, name))
 

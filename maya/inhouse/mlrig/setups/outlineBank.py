@@ -93,11 +93,11 @@ class OutlineBank(TwistDistribution):
             raise ValueError("upAxis must be x, y or z")
         if mlib.objExists(name):
             raise ValueError("OutlineBank container already exists: " + name)
-        control = mlib.nodes.Node(control)
-        if not isinstance(control, mlib.nodes.Transform) or isinstance(control, mlib.nodes.Joint):
+        control = mlib.Node(control)
+        if not isinstance(control, mlib.Transform) or isinstance(control, mlib.Joint):
             raise ValueError("Expected a transform (not a joint) for the control")
-        shape = mlib.nodes.Node(outline)
-        if isinstance(shape, mlib.nodes.Transform):
+        shape = mlib.Node(outline)
+        if isinstance(shape, mlib.Transform):
             shapes = [child for child in shape.getShapes() if child.getType() == "nurbsCurve"]
             shape = shapes[0] if shapes else shape
         if shape.getType() != "nurbsCurve":

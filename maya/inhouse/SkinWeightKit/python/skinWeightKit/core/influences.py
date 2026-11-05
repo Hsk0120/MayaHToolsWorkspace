@@ -18,7 +18,7 @@ class InfluenceInfo(object):
     """一覧に出す1つのインフルエンスの情報。
 
     Args:
-        node (mlib.nodes.Node): インフルエンス。
+        node (mlib.Node): インフルエンス。
         locked (bool): ロックしているか。
         value (float | None): 選んだ頂点での平均のウェイト。頂点を選んでいなければNone。
     """
@@ -34,11 +34,11 @@ def find(skin, influence):
     """skinCluster のインフルエンスを、名前または Node から返す。
 
     Args:
-        skin (mlib.nodes.SkinCluster): skinCluster。
-        influence (mlib.nodes.Node | str): インフルエンス。
+        skin (mlib.SkinCluster): skinCluster。
+        influence (mlib.Node | str): インフルエンス。
 
     Returns:
-        mlib.nodes.Node: インフルエンス。
+        mlib.Node: インフルエンス。
 
     Raises:
         ValueError: skinCluster のインフルエンスでない場合。
@@ -53,12 +53,12 @@ def isLocked(node):
     """インフルエンスがロックされているかを返す。
 
     Args:
-        node (mlib.nodes.Node): インフルエンス。
+        node (mlib.Node): インフルエンス。
 
     Returns:
         bool: ロックされていればTrue。
     """
-    if isinstance(node, mlib.nodes.Joint):
+    if isinstance(node, mlib.Joint):
         return node.isInfluenceLocked()
     return node.hasAttr(LOCK_ATTRIBUTE) and bool(node.getPlug(LOCK_ATTRIBUTE).get())
 
@@ -68,7 +68,7 @@ def setLocked(nodes, state):
     """インフルエンスのロックを変える。
 
     Args:
-        nodes (Iterable[mlib.nodes.Node]): インフルエンス。
+        nodes (Iterable[mlib.Node]): インフルエンス。
         state (bool): Trueはロック、Falseは解除。
 
     Returns:
@@ -78,7 +78,7 @@ def setLocked(nodes, state):
     for node in nodes:
         if not node.hasAttr(LOCK_ATTRIBUTE):
             continue
-        if isinstance(node, mlib.nodes.Joint):
+        if isinstance(node, mlib.Joint):
             node.setInfluenceLocked(bool(state))
         else:
             node.getPlug(LOCK_ATTRIBUTE).set(bool(state))
@@ -92,7 +92,7 @@ def lockOthers(target, keep):
 
     Args:
         target (Target): 対象。
-        keep (Iterable[mlib.nodes.Node]): ロックしないインフルエンス。
+        keep (Iterable[mlib.Node]): ロックしないインフルエンス。
 
     Returns:
         int: ロックした数。
@@ -130,7 +130,7 @@ def affectedVertices(target, influence, threshold=THRESHOLD):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): インフルエンス。
+        influence (mlib.Node | str): インフルエンス。
         threshold (float): これより大きいウェイトを影響とみなす。
 
     Returns:
@@ -147,7 +147,7 @@ def verticesInRange(target, influence, minimum, maximum):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): インフルエンス。
+        influence (mlib.Node | str): インフルエンス。
         minimum (float): 値の下限。
         maximum (float): 値の上限。
 
@@ -170,7 +170,7 @@ def selectInRange(target, influence, minimum, maximum):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): インフルエンス。
+        influence (mlib.Node | str): インフルエンス。
         minimum (float): 値の下限。
         maximum (float): 値の上限。
 
@@ -185,7 +185,7 @@ def selectAffected(target, influence, threshold=THRESHOLD):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): インフルエンス。
+        influence (mlib.Node | str): インフルエンス。
         threshold (float): これより大きいウェイトを影響とみなす。
 
     Returns:
@@ -200,7 +200,7 @@ def addInfluences(target, joints):
 
     Args:
         target (Target): 対象。
-        joints (Iterable[mlib.nodes.Joint]): 足すジョイント(既にあるものは飛ばす)。
+        joints (Iterable[mlib.Joint]): 足すジョイント(既にあるものは飛ばす)。
 
     Returns:
         int: 足した数。
@@ -231,7 +231,7 @@ def removeJoints(joints):
     親にインフルエンスが無いジョイントのウェイトは、Maya の標準の再配分に任せる。ジョイントのノードは消さない。
 
     Args:
-        joints (Iterable[mlib.nodes.Joint]): 外すジョイント。
+        joints (Iterable[mlib.Joint]): 外すジョイント。
 
     Returns:
         list[tuple[str, str, str | None]]: 外した (ジョイント, skinCluster, 移した先の親) の組。
@@ -263,7 +263,7 @@ def matchingInfluences(target, patterns):
         patterns (str | Iterable[str]): パターン。文字列ならカンマか空白で区切った複数のパターン。
 
     Returns:
-        list[mlib.nodes.Node]: 合ったインフルエンス(skinCluster の順)。
+        list[mlib.Node]: 合ったインフルエンス(skinCluster の順)。
     """
     if isinstance(patterns, str):
         patterns = [part for part in patterns.replace(",", " ").split() if part]
@@ -286,7 +286,7 @@ def removeMatching(target, patterns):
     Raises:
         ValueError: 合うジョイントが無い場合。
     """
-    found = [node for node in matchingInfluences(target, patterns) if isinstance(node, mlib.nodes.Joint)]
+    found = [node for node in matchingInfluences(target, patterns) if isinstance(node, mlib.Joint)]
     if not found:
         raise ValueError("No joint influence matches the pattern")
     return _remove_from(target.requireSkin(), found)
@@ -296,8 +296,8 @@ def _remove_from(skin, joints):
     """skinCluster のインフルエンスになっているジョイントを、深い順に外して親へウェイトを移す。
 
     Args:
-        skin (mlib.nodes.SkinCluster): skinCluster。
-        joints (Iterable[mlib.nodes.Joint]): 外すジョイント(インフルエンスでないものは飛ばす)。
+        skin (mlib.SkinCluster): skinCluster。
+        joints (Iterable[mlib.Joint]): 外すジョイント(インフルエンスでないものは飛ばす)。
 
     Returns:
         list[tuple[str, str, str | None]]: 外した (ジョイント, skinCluster, 移した先の親) の組。
@@ -323,7 +323,7 @@ def removeInfluence(target, influence):
 
     Args:
         target (Target): 対象。
-        influence (mlib.nodes.Node | str): 外すインフルエンス。
+        influence (mlib.Node | str): 外すインフルエンス。
 
     Returns:
         None: 値を返さない。

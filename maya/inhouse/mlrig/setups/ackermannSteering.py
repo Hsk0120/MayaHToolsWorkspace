@@ -89,8 +89,8 @@ class AckermannSteering(TwistDistribution):
             raise ValueError("ackermann must be between 0 and 1")
         if mlib.objExists(name):
             raise ValueError("AckermannSteering container already exists: " + name)
-        wheels = [mlib.nodes.Node(left), mlib.nodes.Node(right)]
-        if any(not isinstance(wheel, mlib.nodes.Transform) for wheel in wheels):
+        wheels = [mlib.Node(left), mlib.Node(right)]
+        if any(not isinstance(wheel, mlib.Transform) for wheel in wheels):
             raise ValueError("Expected transforms for the wheels")
         if wheels[0].getFullName() == wheels[1].getFullName():
             raise ValueError("The left and right wheels must be different nodes")

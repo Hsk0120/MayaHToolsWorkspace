@@ -70,9 +70,9 @@ class WheelRoll(TwistDistribution):
             raise ValueError("radius must be a finite value greater than 0")
         if mlib.objExists(name):
             raise ValueError("WheelRoll container already exists: " + name)
-        vehicle, wheel = mlib.nodes.Node(vehicle), mlib.nodes.Node(wheel)
+        vehicle, wheel = mlib.Node(vehicle), mlib.Node(wheel)
         if vehicle == wheel or any(
-            not isinstance(node, mlib.nodes.Transform) for node in (vehicle, wheel)
+            not isinstance(node, mlib.Transform) for node in (vehicle, wheel)
         ):
             raise ValueError("Expected two different transforms for the vehicle and the wheel")
         rest = Matrix(vehicle.getPlug("matrix").get()) * Matrix(vehicle.getPlug("offsetParentMatrix").get())

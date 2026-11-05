@@ -86,8 +86,8 @@ class MuscleBulge(TwistDistribution):
             raise ValueError("Expected 0 <= startAngle < fullAngle <= 180")
         if mlib.objExists(name):
             raise ValueError("MuscleBulge container already exists: " + name)
-        parent, joint = mlib.nodes.Node(parent), mlib.nodes.Node(joint)
-        if any(not isinstance(node, mlib.nodes.Transform) for node in (parent, joint)):
+        parent, joint = mlib.Node(parent), mlib.Node(joint)
+        if any(not isinstance(node, mlib.Transform) for node in (parent, joint)):
             raise ValueError("Expected transforms for the parent and the joint")
         joint_parent = joint.getParent()
         if joint_parent is None or joint_parent != parent:

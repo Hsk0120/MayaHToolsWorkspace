@@ -28,11 +28,11 @@ class PlugSimplificationTest(unittest.TestCase):
         choice.getPlug("input")[1].connect(number)
         choice.getPlug("input")[2].connect(source.getPlug("translate"))
         output = choice.getPlug("output")
-        self.assertIs(type(output), mlib.plugs.Plug)
+        self.assertIs(type(output), mlib.Plug)
         self.assertIsNone(output.getType())
         with patch.object(cmds, "getAttr", side_effect=AssertionError("matrix value used cmds")):
             first = output.get()
-        self.assertIsInstance(first, mlib.maths.Matrix)
+        self.assertIsInstance(first, mlib.Matrix)
         self.assertEqual(tuple(first.translate), (2, 3, 4))
         choice.getPlug("selector").set(1)
         self.assertEqual(output.get(), 7)
@@ -40,8 +40,8 @@ class PlugSimplificationTest(unittest.TestCase):
         self.assertIs(type(output.get()), tuple)
         self.assertEqual(output.get(), (2, 3, 4))
         choice.getPlug("selector").set(0)
-        self.assertIsInstance(output.get(uiUnits=True), mlib.maths.Matrix)
-        self.assertIs(type(output), mlib.plugs.Plug)
+        self.assertIsInstance(output.get(uiUnits=True), mlib.Matrix)
+        self.assertIs(type(output), mlib.Plug)
 
     def test_reference_and_existing_element_getters_do_not_create(self):
         """不存在参照・既存要素取得・拒否した旧引数は実体もUndoも増やさない。"""
@@ -70,7 +70,7 @@ class PlugSimplificationTest(unittest.TestCase):
         attribute_fn.addNumericType(om2.MFnNumericData.kDouble)
         om2.MFnDependencyNode(owner.mnode()).addAttribute(attribute)
         reference = owner.getPlug("value")
-        matrix = mlib.maths.Matrix()
+        matrix = mlib.Matrix()
         matrix.translate = (2, 3, 4)
         cmds.currentUnit(linear="m", angle="rad")
         try:
@@ -78,7 +78,7 @@ class PlugSimplificationTest(unittest.TestCase):
                 with self.subTest(uiUnits=ui_units):
                     self.assertIs(reference.set(matrix, uiUnits=ui_units), reference)
                     value = reference.get(uiUnits=ui_units)
-                    self.assertIsInstance(value, mlib.maths.Matrix)
+                    self.assertIsInstance(value, mlib.Matrix)
                     self.assertEqual(tuple(value.translate), (2, 3, 4))
                     for actual, raw in zip(value, cmds.getAttr(reference.getFullName())):
                         self.assertAlmostEqual(actual, raw)
@@ -86,11 +86,11 @@ class PlugSimplificationTest(unittest.TestCase):
                     self.assertIs(reference.set(7.5, uiUnits=ui_units), reference)
                     self.assertEqual(reference.get(), 7.5)
                     cmds.undo()
-                    self.assertIsInstance(reference.get(), mlib.maths.Matrix)
+                    self.assertIsInstance(reference.get(), mlib.Matrix)
                     self.assertEqual(tuple(reference.get().translate), (2, 3, 4))
                     cmds.redo()
                     self.assertEqual(reference.get(), 7.5)
-                    self.assertIs(type(reference), mlib.plugs.Plug)
+                    self.assertIs(type(reference), mlib.Plug)
         finally:
             cmds.currentUnit(linear="cm", angle="deg")
 

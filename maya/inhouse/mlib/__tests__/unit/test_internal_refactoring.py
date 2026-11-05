@@ -81,17 +81,17 @@ class InternalRefactoringTest(unittest.TestCase):
     def test_reload_rebuilds_registry_and_caches(self):
         """新しい基底・型登録・型情報で再取得でき、独自登録を残さない。"""
         from mlib.core import registry as registry_module
-        old_registry = mlib.nodes.Node._registry
-        old_registry.register("temporaryRefactorType", mlib.nodes.Node)
+        old_registry = mlib.Node._registry
+        old_registry.register("temporaryRefactorType", mlib.Node)
         registry_module._INHERITED_TYPES_CACHE["temporaryRefactorType"] = ("temporaryRefactorType",)
         name = cmds.createNode("transform")
         for _ in range(2):
             mlib.reload()
             node = mlib.getNode(name)
-            self.assertIs(type(node), mlib.nodes.Transform)
-            self.assertIs(type(node.getPlug("tx")), mlib.plugs.DoubleLinearPlug)
-            self.assertIsNot(mlib.nodes.Node._registry, old_registry)
-            self.assertIsNone(mlib.nodes.Node._registry.lookup("temporaryRefactorType"))
+            self.assertIs(type(node), mlib.Transform)
+            self.assertIs(type(node.getPlug("tx")), mlib.DoubleLinearPlug)
+            self.assertIsNot(mlib.Node._registry, old_registry)
+            self.assertIsNone(mlib.Node._registry.lookup("temporaryRefactorType"))
             from mlib.core import registry as registry_module
             self.assertNotIn("temporaryRefactorType", registry_module._INHERITED_TYPES_CACHE)
             node.getPlug("tx").set(9, fast=True)

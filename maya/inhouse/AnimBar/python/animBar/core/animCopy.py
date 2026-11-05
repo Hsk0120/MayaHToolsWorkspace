@@ -91,7 +91,7 @@ def pasteAnimation(nodes=None, mode="selected", inPlace=False, namespace=None, i
         prefix = namespace.strip(":") + ":" if namespace and namespace != ":" else ""
         for name in _clipboard["order"]:
             if mlib.objExists(prefix + name):
-                pairs.append((name, mlib.nodes.Node(prefix + name)))
+                pairs.append((name, mlib.Node(prefix + name)))
     else:
         raise ValueError("mode must be 'selected' or 'name'")
     count = 0

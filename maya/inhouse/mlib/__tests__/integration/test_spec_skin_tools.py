@@ -62,7 +62,7 @@ class GeometryFilterTest(_SkinCase):
         for node in (skin, cluster, mush):
             with self.subTest(node=node.getType()):
                 self.assertIsInstance(node, GeometryFilter)
-        self.assertIs(type(cluster), mlib.nodes.Cluster)
+        self.assertIs(type(cluster), mlib.Cluster)
 
     def test_deformer_weights_default_and_write(self):
         """値の無い頂点は1、書いた値を読み戻し、通常は Undo 1 回で戻る。"""

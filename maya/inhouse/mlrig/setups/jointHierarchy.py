@@ -38,14 +38,14 @@ class JointHierarchy:
         with nullcontext() if fast else undoChunk("mlrigJointHierarchyDelete"):
             if type(safe) is not bool:
                 raise TypeError("safe must be bool")
-            if isinstance(joints, (str, mlib.nodes.Node)):
+            if isinstance(joints, (str, mlib.Node)):
                 joints = [joints]
-            targets = mlib.nodes.Joints(joints)
+            targets = mlib.Joints(joints)
             for joint in targets:
                 if not joint.isType("joint"):
                     raise RuntimeError("Cannot delete an invalid joint")
             if safe:
-                targets = mlib.nodes.Joints([joint for joint in targets if not joint._has_delete_connections()])
+                targets = mlib.Joints([joint for joint in targets if not joint._has_delete_connections()])
             plans = JointHierarchy._prepare(targets, fast=fast)
             for joint, transfers in plans:
                 name = joint.getFullName()

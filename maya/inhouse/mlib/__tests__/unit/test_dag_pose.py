@@ -35,7 +35,7 @@ class DagPoseTest(unittest.TestCase):
 
     def test_discovery(self):
         pose = self.pose()
-        self.assertIsInstance(mlib.getNode(pose.getFullName()), mlib.nodes.DagPose)
+        self.assertIsInstance(mlib.getNode(pose.getFullName()), mlib.DagPose)
         self.assertFalse(cmds.getAttr(pose.getFullName() + ".bindPose"))
         self.assertEqual(len(self.members(pose)), 2)
 
@@ -58,11 +58,11 @@ class DagPoseTest(unittest.TestCase):
         pose_name = cmds.listConnections(skin + ".bindPose", source=True, destination=False)[0]
         cmds.rename(pose_name, self.ns + ":bindPose")
         pose = mlib.getNode(self.ns + ":bindPose")
-        self.assertEqual(mlib.nodes.DagPose.fromSkinCluster(skin).getFullName(), pose.getFullName())
+        self.assertEqual(mlib.DagPose.fromSkinCluster(skin).getFullName(), pose.getFullName())
         cmds.disconnectAttr(pose.getFullName() + ".message", skin + ".bindPose")
-        self.assertIsNone(mlib.nodes.DagPose.fromSkinCluster(skin))
+        self.assertIsNone(mlib.DagPose.fromSkinCluster(skin))
         with self.assertRaises(ValueError):
-            mlib.nodes.DagPose.fromSkinCluster(self.root)
+            mlib.DagPose.fromSkinCluster(self.root)
 
     def make_skin(self):
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
@@ -74,7 +74,7 @@ class DagPoseTest(unittest.TestCase):
     def test_skin_restore(self):
         skin = self.make_skin()
         pose = skin.getBindPose()
-        self.assertIsInstance(pose, mlib.nodes.DagPose)
+        self.assertIsInstance(pose, mlib.DagPose)
         cmds.setAttr(self.child + ".ty", 4)
         self.assertIs(skin.restoreBindPose(), skin)
         self.assertAlmostEqual(cmds.getAttr(self.child + ".ty"), 0)

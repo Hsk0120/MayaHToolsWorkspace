@@ -32,7 +32,7 @@ class SwingTwist(TwistDistribution):
             swingX/Y/Zは分解後SwingのXYZ Euler角。全出力角は常に度。
             最短回転を扱い、180度境界・多回転は連続ではない。
         """
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         parents = joint.getParents()
         if joint.getType() != "joint" or not parents:
             raise ValueError("Expected a joint with a parent transform")
@@ -102,5 +102,5 @@ class SwingTwist(TwistDistribution):
             owner.setAttrFlags([attr], keyable=False, channelBox=True)
         extra = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if extra:
-            mlib.nodes.Container(owner).addMembers(*extra)
+            mlib.Container(owner).addMembers(*extra)
         return graph

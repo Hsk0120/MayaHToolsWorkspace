@@ -71,9 +71,9 @@ class PoleVectorPlacement(TwistDistribution):
         """
         if mlib.objExists(name):
             raise ValueError("PoleVectorPlacement container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in (start, mid, end)]
+        nodes = [mlib.Node(node) for node in (start, mid, end)]
         if len({node.getUuid() for node in nodes}) != 3 or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected three different transforms for start, mid and end")
         positions = []

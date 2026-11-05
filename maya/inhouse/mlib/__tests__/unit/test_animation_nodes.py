@@ -25,7 +25,7 @@ class AnimationNodesTest(unittest.TestCase):
             with self.subTest(suffix=suffix):
                 curve = self.create("animCurve" + suffix)
                 self.assertIsInstance(curve, getattr(mlib.nodes, "AnimCurve" + suffix))
-                self.assertIsInstance(curve, mlib.nodes.AnimCurve)
+                self.assertIsInstance(curve, mlib.AnimCurve)
                 for obsolete in ("getDriverPlug", "getOutputPlug", "shiftKeys", "scaleKeys"):
                     self.assertFalse(hasattr(type(curve), obsolete), obsolete)
                 curve.setKey(0, 0, "linear", "linear").setKey(10, 20, "linear", "linear")

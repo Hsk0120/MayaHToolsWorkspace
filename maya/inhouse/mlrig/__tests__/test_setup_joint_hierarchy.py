@@ -42,7 +42,7 @@ class JointDeleteTest(unittest.TestCase):
         for node in (root, child):
             JointHierarchy.delete(node, safe=True)
             self.assertTrue(node.isValid())
-        for target in (root, mlib.nodes.Joints([root])):
+        for target in (root, mlib.Joints([root])):
             with self.assertRaises(TypeError):
                 JointHierarchy.delete(target, safe=1)
 

@@ -30,11 +30,11 @@ class FlagAliasesTest(unittest.TestCase):
         joint = mlib.createNode("joint", n="joint")
         mlib.select(joint, r=True)
         for function in (mlib.ls, mlib.cmds.ls):
-            self.assertIsInstance(function(sl=True, typ="joint"), mlib.nodes.Joints)
+            self.assertIsInstance(function(sl=True, typ="joint"), mlib.Joints)
             self.assertEqual(len(function(selection=True, type="joint")), 1)
-            self.assertIsInstance(function(typ="skinCluster"), mlib.nodes.SkinClusters)
+            self.assertIsInstance(function(typ="skinCluster"), mlib.SkinClusters)
         mlib.reload()
-        self.assertIsInstance(mlib.ls(sl=True, typ="joint"), mlib.nodes.Joints)
+        self.assertIsInstance(mlib.ls(sl=True, typ="joint"), mlib.Joints)
 
     def test_duplicate_flags_fail_before_edit(self):
         count = len(cmds.ls())

@@ -23,7 +23,7 @@ class RigFoundationsTest(unittest.TestCase):
     def test_container_and_scalar_graph(self):
         """演算評価、動的ラッパー、改名と所有削除を確認する。"""
         owner = mlib.createContainer("owned")
-        self.assertIsInstance(mlib.getNode(owner.getFullName()), mlib.nodes.Container)
+        self.assertIsInstance(mlib.getNode(owner.getFullName()), mlib.Container)
         source = mlib.createNode("transform", name="external")
         source.addAttr(longName="value", attributeType="double", defaultValue=3)
         graph = ScalarGraph(owner)
@@ -138,7 +138,7 @@ class RigFoundationsTest(unittest.TestCase):
         cmds.setAttr(node.getFullName() + ".tx", 200)
         cmds.setAttr(node.getFullName() + ".rz", 90)
         rotation = mlib.getPlug(node.getFullName() + ".rz")
-        self.assertIsInstance(rotation, mlib.plugs.Plug)
+        self.assertIsInstance(rotation, mlib.Plug)
         self.assertAlmostEqual(rotation.get(uiUnits=True), 90)
         self.assertAlmostEqual(rotation.get(), 90)
         self.assertAlmostEqual(rotation.get(unit="rad"), math.pi / 2)
@@ -234,14 +234,14 @@ class RigFoundationsTest(unittest.TestCase):
     def test_typed_commands_and_rename(self):
         """生成・検索・接続・属性の戻り値を型付き参照で保持し、改名へ追従する。"""
         polygon = mlib.getNode(cmds.polyCube(name="typedMesh")[0]).getShape()
-        self.assertIsInstance(polygon, mlib.nodes.Mesh)
+        self.assertIsInstance(polygon, mlib.Mesh)
         mesh = polygon.getTransform()
         history = next(
             node
             for node in [mlib.getNode(value) for value in (cmds.listHistory(polygon) or [])]
             if node.getType() == "polyCube"
         )
-        self.assertIsInstance(mesh, mlib.nodes.Transform)
+        self.assertIsInstance(mesh, mlib.Transform)
         self.assertEqual(history.getType(), "polyCube")
         shape = [
             mlib.getNode(value)
@@ -249,18 +249,18 @@ class RigFoundationsTest(unittest.TestCase):
         ][0]
         self.assertEqual(shape.getType(), "mesh")
         marker = mesh.addAttr(longName="marker", attributeType="double", defaultValue=2)
-        self.assertIsInstance(marker, mlib.plugs.Plug)
+        self.assertIsInstance(marker, mlib.Plug)
         self.assertEqual(mlib.getPlug(marker).get(uiUnits=True), 2)
-        self.assertIsInstance(mlib.getPlug(mesh.getPlug("translate")).get(), mlib.maths.Vector)
-        self.assertIsInstance(mlib.getPlug(mesh.getPlug("worldMatrix[0]")).get(), mlib.maths.Matrix)
+        self.assertIsInstance(mlib.getPlug(mesh.getPlug("translate")).get(), mlib.Vector)
+        self.assertIsInstance(mlib.getPlug(mesh.getPlug("worldMatrix[0]")).get(), mlib.Matrix)
         owner = mlib.getNode(cmds.sets(mesh.getFullName(), name="typedSet"))
-        self.assertIsInstance(owner, mlib.nodes.ObjectSet)
+        self.assertIsInstance(owner, mlib.ObjectSet)
         self.assertEqual(owner.getMembers()[0].getUuid(), mesh.getUuid())
         target = mlib.createNode("transform", name="typedTarget")
         constraint = target.addConstraint(mesh, maintainOffset=True)
-        self.assertIsInstance(constraint, mlib.nodes.ParentConstraint)
+        self.assertIsInstance(constraint, mlib.ParentConstraint)
         weight = constraint.getWeightPlugs()[0]
-        self.assertIsInstance(weight, mlib.plugs.Plug)
+        self.assertIsInstance(weight, mlib.Plug)
         self.assertEqual(constraint.getTargets()[0].getUuid(), mesh.getUuid())
         pairs = [
             mlib.getPlug(value)
@@ -269,7 +269,7 @@ class RigFoundationsTest(unittest.TestCase):
             )
         ]
         self.assertEqual(len(pairs), 2)
-        self.assertTrue(all(isinstance(p, mlib.plugs.Plug) for p in pairs))
+        self.assertTrue(all(isinstance(p, mlib.Plug) for p in pairs))
         mesh.rename("renamedTypedMesh")
         self.assertEqual(marker.getNode().getName(), "renamedTypedMesh")
         self.assertEqual(
@@ -279,22 +279,22 @@ class RigFoundationsTest(unittest.TestCase):
             mesh.getUuid(),
         )
         with self.assertRaises(TypeError):
-            mlib.common.Deferred.call("print('not accepted')")
+            mlib.Deferred.call("print('not accepted')")
 
     def test_standard_curve_commands(self):
         """円・カーブを型付き参照で生成し、短縮フラグ・照会・Undoを検証する。"""
         shape = mlib.getNode(cmds.circle(n="typedCircle", r=2.5, ch=True)[0]).getShape()
-        self.assertIsInstance(shape, mlib.nodes.NurbsCurve)
+        self.assertIsInstance(shape, mlib.NurbsCurve)
         transform = shape.getTransform()
         history = next(
             node
             for node in [mlib.getNode(value) for value in (cmds.listHistory(shape) or [])]
             if node.getType() == "makeNurbCircle"
         )
-        self.assertIsInstance(transform, mlib.nodes.Transform)
+        self.assertIsInstance(transform, mlib.Transform)
         self.assertAlmostEqual(history.getPlug("radius").get(), 2.5)
         curve = mlib.getNode(cmds.curve(d=1, p=[(0, 0, 0), (2, 0, 0)], n="typedCurve"))
-        self.assertIsInstance(curve, mlib.nodes.Transform)
+        self.assertIsInstance(curve, mlib.Transform)
         name = curve.getFullName()
         cmds.undo()
         self.assertFalse(cmds.objExists(name))

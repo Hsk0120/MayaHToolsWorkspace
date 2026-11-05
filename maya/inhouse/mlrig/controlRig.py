@@ -19,7 +19,7 @@ class ControlRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = mlib.nodes.Node(root)
+        self.root = mlib.Node(root)
         if not self.root.hasAttr("mlrigControlDefinition"):
             raise ValueError("Not a control module")
 
@@ -105,7 +105,7 @@ class ControlRig:
         Args:
             node (Node): 所有ノード。
         """
-        mlib.nodes.Container(self.root.getPlug('graph').getSource().getNode()).addMembers(node)
+        mlib.Container(self.root.getPlug('graph').getSource().getNode()).addMembers(node)
 
     def getJoints(self):
         """変形骨とTweak骨を取得する。
@@ -190,7 +190,7 @@ class ControlRig:
     @classmethod
     def refresh_jobs(cls):
         """保存読込とUndo後に属性監視を復元する。"""
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():
@@ -203,7 +203,7 @@ class ControlRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             for name in ("lod", "enabled"):
                 jobs.add(
                     name,
@@ -231,7 +231,7 @@ class ControlRig:
     @undoTransaction("mlrig.ControlRig.delete")
     def delete(self):
         """スキン未使用のモジュールを所有DGとともに削除する。"""
-        if any(mlib.nodes.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in self.getJoints()):
+        if any(mlib.Node(j).getConnections(type="skinCluster", skipConversionNodes=True) for j in self.getJoints()):
             raise ValueError("Unbind before deleting")
         mlib.delete(self.root.getPlug('graph').getSource().getNode())
         mlib.delete(self.root)

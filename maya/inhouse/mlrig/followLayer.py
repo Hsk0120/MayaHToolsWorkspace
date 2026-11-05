@@ -67,7 +67,7 @@ class FollowLayer:
             raise ValueError("Invalid follow identifier")
         if identifier in self.groups():
             raise ValueError("Follow identifier already exists")
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         if joint.getType() != "joint" or not joint.getFullName().startswith(
             self.rig.root.getFullName() + "|"
         ):

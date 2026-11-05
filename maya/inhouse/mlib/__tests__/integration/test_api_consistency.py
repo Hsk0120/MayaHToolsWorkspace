@@ -89,7 +89,7 @@ class ValueReturnTest(unittest.TestCase):
 
     def test_retired_names(self):
         """廃止した別名を残さず、正式名だけを公開する。"""
-        for cls, names in [(mlib.nodes.Transform, ('getT','setT','getQ','setQ','getS','setS','getSh','setSh','getM','setM','getX','setX')),
+        for cls, names in [(mlib.Transform, ('getT','setT','getQ','setQ','getS','setS','getSh','setSh','getM','setM','getX','setX')),
                            (Vector, ('normalized','mirrored')),
                            (Quaternion, ('toMatrix','toEuler','toAxisAngle','toSwingTwist','normalized','mirrored')),
                            (EulerRotate, ('toMatrix','toQuaternion','mirrored')),
@@ -120,7 +120,7 @@ class ArgumentAliasTest(unittest.TestCase):
         self.assertEqual(node.getPlug('tx').get(), 4)
         node.resetAttrs(attributes=['tx'])
         array = calc.getPlug('matrixIn')
-        array[0].set(mlib.maths.Matrix())
+        array[0].set(mlib.Matrix())
         self.assertEqual(array.getElement(index=0), array.getElement(index=0))
 
 

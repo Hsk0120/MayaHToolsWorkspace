@@ -54,11 +54,11 @@ class ApiNamingTest(unittest.TestCase):
         node.rename('renamed')
         self.assertNotEqual(node.getFullName(), before)
         self.assertTrue(plug.getFullName().startswith(node.getName() + '.'))
-        self.assertEqual([joint.getUuid() for joint in mlib.nodes.Joints([node])], [node.getUuid()])
+        self.assertEqual([joint.getUuid() for joint in mlib.Joints([node])], [node.getUuid()])
 
     def test_public_collection_has_no_deletion_workflow(self):
         for name in ('gather', 'apply', 'finalize'):
-            self.assertFalse(hasattr(mlib.nodes.SkinClusters, name))
+            self.assertFalse(hasattr(mlib.SkinClusters, name))
         joint = mlib.createNode('joint')
         child = mlib.createNode('joint', parent=joint.getFullName())
         self.assertEqual(child.getParent(), joint)
@@ -67,8 +67,8 @@ class ApiNamingTest(unittest.TestCase):
     def test_math_type_names(self):
         """数学型の正式名と値を保ち、旧名を再公開しない。"""
         from mlib.maths import Translate, EulerRotate
-        self.assertIs(mlib.maths.Translate, Translate)
-        self.assertIs(mlib.maths.EulerRotate, EulerRotate)
+        self.assertIs(mlib.Translate, Translate)
+        self.assertIs(mlib.EulerRotate, EulerRotate)
         for old in ("Translation", "EulerRotation", "Rotate"):
             self.assertFalse(hasattr(mlib.maths, old))
         self.assertEqual(tuple(Translate(1, 2, 3)), (1, 2, 3))
@@ -104,8 +104,8 @@ class ApiNamingTest(unittest.TestCase):
         self.assertFalse(hasattr(mlib.maths, 'Rotate'))
         self.assertFalse(hasattr(mlib.maths, 'Translation'))
         self.assertFalse(hasattr(mlib.maths, 'EulerRotation'))
-        self.assertEqual(tuple(mlib.maths.Translate(1, 2, 3)), (1, 2, 3))
-        self.assertEqual(tuple(mlib.maths.EulerRotate(1, 2, 3)), (1, 2, 3))
+        self.assertEqual(tuple(mlib.Translate(1, 2, 3)), (1, 2, 3))
+        self.assertEqual(tuple(mlib.EulerRotate(1, 2, 3)), (1, 2, 3))
 
 
 if __name__ == '__main__':

@@ -40,7 +40,7 @@ def set_layer_enabled(self, layer, enabled):
 
 ## 共通処理の配置
 
-- 所有DGは`mlib.nodes.Container`の`create`・`createNode`・`addMembers`・`getMembers`を使う。
+- 所有DGは`mlib.Container`の`create`・`createNode`・`addMembers`・`getMembers`を使う。
   レイヤー固有のノード名、所有グラフの選択と有効状態判断はmlrigで決める。
   所属だけの解除は`removeMembers`、メンバーを残す箱の解除は`removeContainer`を使う。
   公開名の操作は`publishName`・`bindAttribute`・`publishAndBind`・`getPublishedAttrs`を使う。
@@ -49,7 +49,7 @@ def set_layer_enabled(self, layer, enabled):
   前者は接続のある論理番号とノードの辞書、後者は既存最大番号の次へ追記する。
 - 操作シェイプは`mlrig.setups.ControlShape`、単位境界は`mlib.common.units`を使う。
   Plugと数学型の距離はcm、角度はrad、時間は秒。UI単位のビルダー入力は境界で変換する。
-  空間指定は`mlib.maths.MSpace`の定数を使う。
+  空間指定は`mlib.MSpace`の定数を使う。
   型名が必要な場合は`Plug.getType()`を使用する（Mayaのアトリビュート型名を返す。Pythonクラスは`type(plug)`）。
 - バインドと最近傍ウェイト転送は`SkinCluster.bind`・`copyWeightsTo`を使う。
   どの骨をLODへ含めるか、どのメッシュを表示するかはmlrigの責務とする。
@@ -73,8 +73,8 @@ def set_layer_enabled(self, layer, enabled):
   バッチ判定を行い、mlibへ汎用UIラッパーを再追加しない。
 - アトリビュート内の通常JSON文字列はPython標準の`json.dumps/loads`を使う。
   同じ引数・文字列形式を維持し、独自の外枠や型タグを追加しない。
-- Pythonの遅延呼出しは`mlib.common.Deferred.call(callback, *args, **kwargs)`を使う。
-  シーンの選択は`mlib.common.Selection`、作業環境・ユーザー設定は利用側のMaya標準APIで扱う。
+- Pythonの遅延呼出しは`mlib.Deferred.call(callback, *args, **kwargs)`を使う。
+  シーンの選択は`mlib.Selection`、作業環境・ユーザー設定は利用側のMaya標準APIで扱う。
   汎用設定ストア・型付き保存フレームワークは再追加しない。
 
 ## リグセットアップの境界

@@ -71,19 +71,19 @@ class SkinPlugWorkflowTest(unittest.TestCase):
             for skin in node.getSkinClusters():
                 if skin not in seen:
                     seen.append(skin)
-        return mlib.nodes.SkinClusters(seen)
+        return mlib.SkinClusters(seen)
 
     def test_collect_skins_is_typed_deduplicated_and_preserves_getters(self):
         """Shape/Transform/Joint の getSkinClusters() を SkinClusters に集約し、nested/Joint 返却は変えない。"""
         nodes = [self.base, self.base.getShape(), self.first]
-        self.assertIsInstance(mlib.nodes.SkinClusters(self.base.getSkinClusters()), mlib.nodes.SkinClusters)
+        self.assertIsInstance(mlib.SkinClusters(self.base.getSkinClusters()), mlib.SkinClusters)
         self.assertEqual(list(self.collect(nodes)), [self.skin])
         self.assertTrue(all(isinstance(node.getSkinClusters(), list) for node in nodes))
-        joints = mlib.nodes.Joints([self.first, self.second])
-        self.assertIsInstance(joints.getSkinClusters(), mlib.nodes.SkinClusters)
+        joints = mlib.Joints([self.first, self.second])
+        self.assertIsInstance(joints.getSkinClusters(), mlib.SkinClusters)
         self.assertEqual(list(joints.getSkinClusters()), [self.skin])
         self.assertEqual(len(self.collect([])), 0)
-        self.assertEqual(len(mlib.nodes.Joints().getSkinClusters()), 0)
+        self.assertEqual(len(mlib.Joints().getSkinClusters()), 0)
 
     def test_collect_preserves_first_seen_order_and_does_not_recurse_groups(self):
         """別skinの保持順と直下shape検索の既存境界を保つ。"""

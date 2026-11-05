@@ -18,7 +18,7 @@ class BendCorrection:
         Args:
             container (str | Node): 計算ノードの所有者。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     def _node(self, kind, suffix):
         """所有する演算ノードを作成する。
@@ -57,7 +57,7 @@ class BendCorrection:
         """
         if axis not in ("x", "y", "z"):
             raise ValueError("axis must be x, y or z")
-        parent, joint = mlib.nodes.Node(parent), mlib.nodes.Node(joint)
+        parent, joint = mlib.Node(parent), mlib.Node(joint)
         if [node.getUuid() for node in joint.getParents()] != [parent.getUuid()]:
             raise ValueError("Expected a direct parent-child pair")
         if mlib.objExists(name):
@@ -172,5 +172,5 @@ class BendCorrection:
             offset.getPlug("output1D").connectTo(owner.getPlug(side))
         extra = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if extra:
-            mlib.nodes.Container(owner).addMembers(*extra)
+            mlib.Container(owner).addMembers(*extra)
         return graph

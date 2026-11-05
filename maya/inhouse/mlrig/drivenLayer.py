@@ -69,7 +69,7 @@ class DrivenLayer:
             or not all(math.isfinite(v) for p in pairs for v in p)
         ):
             raise ValueError("Provide at least two unique finite driver keys")
-        joint, driven = mlib.nodes.Node(joint), mlib.getPlug(driven)
+        joint, driven = mlib.Node(joint), mlib.getPlug(driven)
         kind = driven.getType()
         if (
             kind not in ("double", "float", "doubleAngle", "doubleLinear", "long")
@@ -115,17 +115,17 @@ class DrivenLayer:
         for attr, node in (("drivenNode", driven.getNode()), ("curve", curve)):
             owner.addAttr(longName=attr, attributeType="message")
             node.getPlug("message").connectTo(owner.getPlug(attr))
-        members = {n.getName() for n in mlib.nodes.Container(owner).getMembers()}
+        members = {n.getName() for n in mlib.Container(owner).getMembers()}
         extra = set([item.getName() for item in mlib.ls()]) - before - members - {owner.getName()}
         if extra:
-            mlib.nodes.Container(owner).addMembers(*extra)
+            mlib.Container(owner).addMembers(*extra)
         root = self.rig.root
         owned = [owner]
         if not root.hasAttr("drivenSet"):
             selection = mlib.createNode("objectSet", name=self.rig.getNodeName("drivenSet"), skipSelect=True).getFullName()
             self.rig._bind("drivenSet", selection)
             self.rig._layer_members("moduleSet", [selection])
-            owned.append(mlib.nodes.Node(selection))
+            owned.append(mlib.Node(selection))
             root.addAttr(longName="drivenGraphs", attributeType="message", multi=True)
         root.getPlug("drivenGraphs").appendMessage(owner)
         for node in owned:

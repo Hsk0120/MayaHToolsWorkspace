@@ -80,8 +80,8 @@ class WaveChain(TwistDistribution):
             raise ValueError("rootWeight and tipWeight must be between 0 and 1")
         if mlib.objExists(name):
             raise ValueError("WaveChain container already exists: " + name)
-        joints = [mlib.nodes.Node(joint) for joint in joints]
-        if len(joints) < 2 or any(not isinstance(joint, mlib.nodes.Transform) for joint in joints):
+        joints = [mlib.Node(joint) for joint in joints]
+        if len(joints) < 2 or any(not isinstance(joint, mlib.Transform) for joint in joints):
             raise ValueError("Expected two or more transforms")
         for parent, child in zip(joints, joints[1:]):
             actual = child.getParent()

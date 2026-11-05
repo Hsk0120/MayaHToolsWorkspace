@@ -21,7 +21,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
         source, target, parent = self._locked_pair()
         events = []
         error = RuntimeError("Injected connect failure")
-        with mock.patch.object(mlib.plugs.Plug, "setFlags", autospec=True,
+        with mock.patch.object(mlib.Plug, "setFlags", autospec=True,
                                side_effect=self._record_flags(events)):
             with mock.patch("maya.cmds.connectAttr", side_effect=error):
                 with self.assertRaises(RuntimeError) as caught:
@@ -38,7 +38,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
         source, target, parent = self._locked_pair(connected=True)
         events = []
         error = RuntimeError("Injected disconnect failure")
-        with mock.patch.object(mlib.plugs.Plug, "setFlags", autospec=True,
+        with mock.patch.object(mlib.Plug, "setFlags", autospec=True,
                                side_effect=self._record_flags(events)):
             with mock.patch("maya.cmds.disconnectAttr", side_effect=error):
                 with self.assertRaises(RuntimeError) as caught:
@@ -65,7 +65,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
                         raise error
 
                 command = "disconnectAttr" if disconnect else "connectAttr"
-                with mock.patch.object(mlib.plugs.Plug, "setFlags", autospec=True,
+                with mock.patch.object(mlib.Plug, "setFlags", autospec=True,
                                        side_effect=self._record_flags(events, fail_child)):
                     with mock.patch("maya.cmds." + command) as edit:
                         with self.assertRaises(RuntimeError) as caught:
@@ -96,7 +96,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
                         raise restore_error
 
                 command = "disconnectAttr" if disconnect else "connectAttr"
-                with mock.patch.object(mlib.plugs.Plug, "setFlags", autospec=True,
+                with mock.patch.object(mlib.Plug, "setFlags", autospec=True,
                                        side_effect=self._record_flags(events, fail_restore)):
                     with mock.patch("maya.cmds." + command, side_effect=edit_error):
                         with self.assertRaises(RuntimeError) as caught:
@@ -115,7 +115,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
         """成功したforce接続の返却とロックを保ち、一回のUndo/Redoで接続を戻す。"""
         source, target, parent = self._locked_pair()
         events = []
-        with mock.patch.object(mlib.plugs.Plug, "setFlags", autospec=True,
+        with mock.patch.object(mlib.Plug, "setFlags", autospec=True,
                                side_effect=self._record_flags(events)):
             result = target.connect(source, f=True)
         self.assertIs(result, target)
@@ -142,8 +142,8 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
         Returns:
             tuple: 入力元、接続先の子、接続先の親。
         """
-        source = mlib.nodes.Node(cmds.createNode("network")).addAttr("value")
-        owner = mlib.nodes.Node(cmds.createNode("network"))
+        source = mlib.Node(cmds.createNode("network")).addAttr("value")
+        owner = mlib.Node(cmds.createNode("network"))
         cmds.addAttr(str(owner), longName="payload", attributeType="compound", numberOfChildren=1)
         cmds.addAttr(str(owner), longName="value", attributeType="double", parent="payload")
         target = owner.getPlug("value")
@@ -165,7 +165,7 @@ class ConnectionLockRefactoringTest(unittest.TestCase):
         Returns:
             callable: setFlagsへ渡すside_effect。
         """
-        original = mlib.plugs.Plug.setFlags
+        original = mlib.Plug.setFlags
 
         def record(plug, **flags):
             """フラグ変更の試行を記録して元のsetterへ委譲する。"""

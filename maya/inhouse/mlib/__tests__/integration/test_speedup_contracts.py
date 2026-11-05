@@ -113,10 +113,10 @@ class CompoundDirectReadTest(unittest.TestCase):
 
     def test_get_returns_math_types_and_current_values(self):
         translate = self.wrapper.getPlug("translate")
-        self.assertIsInstance(translate.get(), mlib.maths.Translate)
-        self.assertIsInstance(self.wrapper.getPlug("shear").get(), mlib.maths.Shear)
-        self.assertIsInstance(self.wrapper.getPlug("vecD").get(), mlib.maths.Vector)
-        self.assertIsInstance(self.wrapper.getPlug("rotate").get(), mlib.maths.EulerRotate)
+        self.assertIsInstance(translate.get(), mlib.Translate)
+        self.assertIsInstance(self.wrapper.getPlug("shear").get(), mlib.Shear)
+        self.assertIsInstance(self.wrapper.getPlug("vecD").get(), mlib.Vector)
+        self.assertIsInstance(self.wrapper.getPlug("rotate").get(), mlib.EulerRotate)
         self.assertEqual(tuple(translate.get()), tuple(cmds.getAttr(self.node + ".t")[0]))
         cmds.setAttr(self.node + ".t", 4, 5, 6)
         self.assertEqual(tuple(translate.get()), (4.0, 5.0, 6.0))
@@ -233,7 +233,7 @@ class ChildWrapperAndBulkTest(unittest.TestCase):
             self.assertIs(type(child), type(mlib.getNode(child.mpath())))
             self.assertEqual(child, mlib.getNode(child.mpath()))
             self.assertTrue(child.isValid())
-        self.assertIsInstance(root.getChildren()[0], mlib.nodes.Joint)
+        self.assertIsInstance(root.getChildren()[0], mlib.Joint)
 
 
 class CompoundBulkSetTest(unittest.TestCase):
@@ -565,7 +565,7 @@ class LookupWrapperTest(unittest.TestCase):
 
     def _describe(self, item):
         path = item.mpath().fullPathName() if hasattr(item, "mpath") else None
-        if isinstance(item, mlib.plugs.Plug):
+        if isinstance(item, mlib.Plug):
             node = item.getNode()
             path = node.mpath().fullPathName() if hasattr(node, "mpath") else None
         return type(item), item.getFullName(), path
@@ -585,7 +585,7 @@ class LookupWrapperTest(unittest.TestCase):
                 expected.append(Node(name))
                 continue
             items = Selection(name).items
-            expected.extend(items if isinstance(items[0], mlib.components.Component) else [Plug._resolve_input(name)])
+            expected.extend(items if isinstance(items[0], mlib.Component) else [Plug._resolve_input(name)])
         result = mlib.ls(names)
         self.assertEqual([self._describe(item) for item in result], [self._describe(item) for item in expected])
         self.assertEqual(result, expected)
@@ -603,10 +603,10 @@ class LookupWrapperTest(unittest.TestCase):
                 mlib.getNode(name)
             self.assertEqual(str(actual.exception), str(expected.exception))
             with self.assertRaises(RuntimeError) as bulk:
-                mlib.nodes.Nodes([ns + "box", name])
+                mlib.Nodes([ns + "box", name])
             self.assertEqual(str(bulk.exception), str(expected.exception))
         names = [ns + "box", ns + "md", ns + "box", "|" + ns + "g2|" + ns + "box1", ns + "boxShape"]
-        self.assertEqual([self._describe(item) for item in mlib.nodes.Nodes(names)],
+        self.assertEqual([self._describe(item) for item in mlib.Nodes(names)],
                          [self._describe(Node(name)) for name in names[:2] + names[3:]])  # 同じノードは最初だけ
         for name, owner in [(ns + "box.tx", "|" + ns + "box"), (ns + "md.myAlias", None),
                             ("|" + ns + "g2|" + ns + "box1|" + ns + "boxShape.castsShadows",

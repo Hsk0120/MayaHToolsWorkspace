@@ -38,9 +38,9 @@ def create_skin_lod(rig, source, proxy, source_skin):
         closestPoint/closestJointによる近似転送。自動メッシュ削減や
         異なる姿勢のモデルの補正は行わない。基準姿勢で実行する。
     """
-    if mlib.nodes.Node(source_skin).getType() != "skinCluster":
+    if mlib.Node(source_skin).getType() != "skinCluster":
         raise TypeError("Expected a skinCluster")
-    if not mlib.nodes.SkinCluster(source_skin).deforms(source):
+    if not mlib.SkinCluster(source_skin).deforms(source):
         raise ValueError("source_skin does not deform source")
     if [item.getFullName() for item in mlib.ls(source, long=True)] == [
         item.getFullName() for item in mlib.ls(proxy, long=True)
@@ -48,7 +48,7 @@ def create_skin_lod(rig, source, proxy, source_skin):
         raise ValueError("Source and proxy must be different")
     target_skin = bind_mesh(rig, proxy, helpers=False)
     try:
-        mlib.nodes.SkinCluster(source_skin).copyWeightsTo(target_skin)
+        mlib.SkinCluster(source_skin).copyWeightsTo(target_skin)
     except Exception:
         mlib.delete(target_skin)
         raise
@@ -72,7 +72,7 @@ def set_mesh_lod(high_mesh, high_skin, proxy_mesh, proxy_skin, proxy=False):
     """
     pairs = ((high_mesh, high_skin, not proxy), (proxy_mesh, proxy_skin, proxy))
     for mesh, skin, active in pairs:
-        if mlib.nodes.Node(skin).getType() != "skinCluster":
+        if mlib.Node(skin).getType() != "skinCluster":
             raise TypeError("Expected a skinCluster")
         for attr in (mesh + ".visibility", skin + ".envelope", skin + ".nodeState"):
             if not mlib.getPlug(attr).isSettable():

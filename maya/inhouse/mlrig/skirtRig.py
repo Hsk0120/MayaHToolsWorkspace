@@ -24,7 +24,7 @@ class SkirtRig:
         Args:
             root (str | Node): スカートルート。
         """
-        self.root = mlib.nodes.Node(root)
+        self.root = mlib.Node(root)
         if not self.root.hasAttr("mlrigSkirtDefinition"):
             raise ValueError("Not an mlrig skirt module")
 
@@ -435,7 +435,7 @@ class SkirtRig:
     @classmethod
     def refresh_jobs(cls):
         """GUIシーンの属性監視を復元する。バッチは明示APIで更新する。"""
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():
@@ -448,7 +448,7 @@ class SkirtRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             attrs = ["enabled", "lod"]
             for kind in ("follow", "spring", "pose"):
                 if rig.root.hasAttr("mlrigEnabled_" + kind):
@@ -504,7 +504,7 @@ class SkirtRig:
     def delete(self):
         """所有DGと階層を削除する。スキン使用中なら拒否する。"""
         for joint in self.getJoints():
-            if mlib.nodes.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True):
+            if mlib.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True):
                 raise ValueError("Unbind the skirt before deleting its module")
         for graph in self._members("graphs"):
             mlib.delete(graph)

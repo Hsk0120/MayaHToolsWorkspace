@@ -44,18 +44,18 @@ class TransformNamingTest(unittest.TestCase):
     def test_node_api_renames_remove_former_method_names(self):
         """正式getter/setterを公開し、旧名とget省略メソッドを残さない。"""
         groups = (
-            (mlib.nodes.Transform,
+            (mlib.Transform,
              (("getTranslate", "getTranslation"), ("setTranslate", "setTranslation"),
               ("translation", "getTranslation"), ("translate", "getTranslation"),
               ("getRotation", "getRotate"), ("setRotation", "setRotate"), ("rotation", "getRotate"),
               ("getScaling", "getScale"), ("setScaling", "setScale"), ("scaling", "getScale"))),
-            (mlib.nodes.AimConstraint,
+            (mlib.AimConstraint,
              (("getRotationConnections", "getRotateConnections"),
               ("rotationConnections", "getRotateConnections"),
               ("getRestRotation", "getRestRotate"), ("setRestRotation", "setRestRotate"),
               ("restRotation", "getRestRotate"), ("getOutputRotation", "getOutputRotate"),
               ("outputRotation", "getOutputRotate"))),
-            (mlib.nodes.Joint, (("freezeRotation", "freezeRotate"),
+            (mlib.Joint, (("freezeRotation", "freezeRotate"),
                                 ("getParentJointName", "getParent"),
                                 ("getChildJointNames", "getChildren"))),
         )
@@ -74,13 +74,13 @@ class TransformNamingTest(unittest.TestCase):
         self.assertIs(node.setRotate((10, 20, 30), unit="deg"), node)
         self.assertIs(node.setScale((2, 3, 4)), node)
         for attr, getter, value_type in (
-                ("translate", "getTranslation", mlib.maths.Translate),
-                ("rotate", "getRotate", mlib.maths.EulerRotate),
-                ("scale", "getScale", mlib.maths.Scale)):
+                ("translate", "getTranslation", mlib.Translate),
+                ("rotate", "getRotate", mlib.EulerRotate),
+                ("scale", "getScale", mlib.Scale)):
             with self.subTest(attr=attr):
                 self.assertFalse(callable(getattr(node, attr)))
                 plug = node.getPlug(attr)
-                self.assertIsInstance(plug, mlib.plugs.Double3Plug)
+                self.assertIsInstance(plug, mlib.Double3Plug)
                 self.assertIsInstance(plug.get(), value_type)
                 options = {"at": 1} if attr == "translate" else {}
                 self.assertIsInstance(getattr(node, getter)(**options), value_type)
@@ -100,8 +100,8 @@ class TransformNamingTest(unittest.TestCase):
         self.assertEqual([tuple(node.getTranslation(at=1)) for node in nodes], [(1, 2, 3)] * 2)
         for getter_name, short in (("getTranslation", "translate"), ("getRotate", "rotate"),
                                    ("getScale", "scale")):
-            self.assertTrue(callable(getattr(mlib.nodes.Transform, getter_name)))
-            self.assertFalse(hasattr(mlib.nodes.Transform, short))
+            self.assertTrue(callable(getattr(mlib.Transform, getter_name)))
+            self.assertFalse(hasattr(mlib.Transform, short))
         for node in nodes:
             self.assertEqual(node.setTranslation((4, 5, 6), False, 1, False, True), [4, 5, 6])
         self.assertEqual([tuple(node.getTranslation(at=1)) for node in nodes], [(1, 2, 3)] * 2)
@@ -124,11 +124,11 @@ class TransformNamingTest(unittest.TestCase):
 
     def test_native_conversion_returns_math_types(self):
         """標準変換名と追加変換名は数学値を返し、元値を変えない。"""
-        quaternion = mlib.maths.EulerRotate(0.1, 0.2, 0.3, "zyx").asQuaternion()
+        quaternion = mlib.EulerRotate(0.1, 0.2, 0.3, "zyx").asQuaternion()
         before = tuple(quaternion)
         for method in (quaternion.asEulerRotation, quaternion.asEulerRotate):
             result = method()
-            self.assertIsInstance(result, mlib.maths.EulerRotate)
+            self.assertIsInstance(result, mlib.EulerRotate)
             self.assertTrue(result.asQuaternion().isEquivalent(quaternion, 1e-12))
         self.assertEqual(tuple(quaternion), before)
 

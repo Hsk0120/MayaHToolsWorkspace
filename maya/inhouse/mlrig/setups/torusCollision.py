@@ -135,10 +135,10 @@ class TorusCollision(SphereCollision):
             raise ValueError("majorRadius, minorRadius and softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("TorusCollision container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        torus = mlib.nodes.Node(torus)
+        target = mlib.Node(target)
+        torus = mlib.Node(torus)
         for node in (target, torus):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the torus")
         if target.getFullName() == torus.getFullName():
             raise ValueError("target and torus must be different nodes")

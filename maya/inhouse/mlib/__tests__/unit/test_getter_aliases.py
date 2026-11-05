@@ -52,14 +52,14 @@ class CanonicalGettersTest(unittest.TestCase):
         self.assertAlmostEqual(angle.get(), 90)
         self.assertAlmostEqual(angle.get(unit="rad"), math.pi / 2)
         self.assertAlmostEqual(angle.get(uiUnits=True), 90)
-        self.assertIsInstance(self.node.getPlug("matrix").get(), mlib.maths.Matrix)
+        self.assertIsInstance(self.node.getPlug("matrix").get(), mlib.Matrix)
 
     def test_getter_removal_frees_attribute_names(self):
         """省略名がMayaのアトリビュートを隠さず明示getも使える。"""
-        self.assertNotIn("matrix", mlib.nodes.Transform.__dict__)
-        self.assertIsInstance(self.node.matrix, mlib.plugs.MatrixPlug)
+        self.assertNotIn("matrix", mlib.Transform.__dict__)
+        self.assertIsInstance(self.node.matrix, mlib.MatrixPlug)
         self.assertEqual(self.node.getPlug("matrix"), self.node.matrix)
-        self.assertIsInstance(self.node.getMatrix(), mlib.maths.Matrix)
+        self.assertIsInstance(self.node.getMatrix(), mlib.Matrix)
 
     def test_stored_properties_and_native_methods_remain(self):
         """保持プロパティとOpenMaya継承APIは取得統合の対象外にする。"""
@@ -67,8 +67,8 @@ class CanonicalGettersTest(unittest.TestCase):
         vertices = shape.getVertices([0, 2])
         self.assertEqual(vertices.indices, (0, 2))
         self.assertIsInstance(inspect.getattr_static(type(vertices), "indices"), property)
-        matrix = mlib.maths.Matrix(translate=(4, 5, 6))
-        self.assertIs(inspect.getattr_static(mlib.maths.Matrix, "getElement"),
+        matrix = mlib.Matrix(translate=(4, 5, 6))
+        self.assertIs(inspect.getattr_static(mlib.Matrix, "getElement"),
                       inspect.getattr_static(om2.MMatrix, "getElement"))
         self.assertEqual(matrix.getElement(3, 0), 4)
 

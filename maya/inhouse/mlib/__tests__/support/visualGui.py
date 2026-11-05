@@ -32,7 +32,7 @@ def main(output_dir=None, finished=None):
         raise RuntimeError("Enable Undo before running GUI tests")
     output = Path(output_dir) if output_dir else TESTS_DIR / "_output/gui-visual" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     output.mkdir(parents=True, exist_ok=True)
-    selection = mlib.common.Selection.capture()
+    selection = mlib.Selection.capture()
     original_time = cmds.currentTime(query=True)
     original_focus = cmds.getPanel(withFocus=True)
     original_scene = cmds.file(query=True, sceneName=True)
@@ -132,7 +132,7 @@ def main(output_dir=None, finished=None):
             def test_component_selection(self):
                 """Component選択を保持し、明示的なSelection参照から復元する。"""
                 cmds.select(curves[0].getFullName() + ".cv[0:2]", replace=True)
-                saved = mlib.common.Selection.capture()
+                saved = mlib.Selection.capture()
                 before = cmds.ls(selection=True, flatten=True, long=True)
                 cmds.select(clear=True)
                 saved.select()

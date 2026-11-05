@@ -34,12 +34,12 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         raise ValueError("mode must be fk or ik")
     if not all(math.isfinite(v) for v in (start, end, step)) or step <= 0 or end < start:
         raise ValueError("Invalid frame range")
-    sources = [mlib.nodes.Node(node).getFullName() for node in source_joints]
+    sources = [mlib.Node(node).getFullName() for node in source_joints]
     if len(sources) != 3 or len(set(sources)) != 3:
         raise ValueError("Expected three different source joints")
     root = rig.root.getFullName()
     for source in sources:
-        if mlib.nodes.Node(source).getType() != "joint" or source.startswith(root + "|"):
+        if mlib.Node(source).getType() != "joint" or source.startswith(root + "|"):
             raise ValueError("Source must be an external joint")
     frames = [start + i * step for i in range(int(math.floor((end - start) / step)) + 1)]
     if frames[-1] < end - 1e-8:
@@ -67,9 +67,9 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
         ]
         for frame in frames:
             Time.setCurrent(frame)
-            matrices = [list(mlib.nodes.Node(node).getMatrix(worldSpace=True)) for node in sources]
+            matrices = [list(mlib.Node(node).getMatrix(worldSpace=True)) for node in sources]
             if mode == "ik":
-                inverse = Matrix(mlib.nodes.Node(root).getPlug("worldInverseMatrix")[0].get())
+                inverse = Matrix(mlib.Node(root).getPlug("worldInverseMatrix")[0].get())
                 points = [inverse.transformPoint(matrix[12:15]) for matrix in matrices]
                 if Vector(points[0]).length() > 1e-4:
                     raise ValueError(
@@ -80,7 +80,7 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
                         raise ValueError("IK source bone lengths must match the rig")
             samples.append(matrices)
         for node in keyed:
-            mlib.nodes.Node(node).removeKey(list(attributes), time=(start, end))
+            mlib.Node(node).removeKey(list(attributes), time=(start, end))
         rig.set_mode("fk")
         for frame, matrices in zip(frames, samples):
             Time.setCurrent(frame)
@@ -89,11 +89,11 @@ def bake_source(rig, source_joints, start, end, step=1.0, mode="fk"):
                 from .limb import _set_world_matrix
 
                 _set_world_matrix(node, matrix)
-                mlib.nodes.Node(node).setKey(list(attributes), time=frame)
+                mlib.Node(node).setKey(list(attributes), time=frame)
             if mode == "ik":
                 rig.match_ik()
                 for node in (controls["target"], controls["pole"]):
-                    mlib.nodes.Node(node).setKey(list(attributes), time=frame)
+                    mlib.Node(node).setKey(list(attributes), time=frame)
         rig.set_mode(mode)
     finally:
         Time.setCurrent(previous_time)

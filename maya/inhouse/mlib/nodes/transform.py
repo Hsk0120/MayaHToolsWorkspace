@@ -879,7 +879,7 @@ class Transform(DagNode):
 
         Args:
             target (Transform | str | om2.MObject | om2.MDagPath): 合わせ先のTransformまたはjoint。
-                mlib.nodes.Node._resolve_input が受け付ける型(Plug は所有ノード)を指定できる。
+                mlib.Node._resolve_input が受け付ける型(Plug は所有ノード)を指定できる。
             position (bool): 位置を合わせる。
             rotation (bool): 回転を合わせる。
             scale (bool): スケールを合わせる。

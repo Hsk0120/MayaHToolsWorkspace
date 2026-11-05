@@ -36,8 +36,8 @@ class RenamedTypeTest(_SpecCase):
     def test_alias_classes_are_the_same_object(self):
         self.assertIs(MultDL, MultDoubleLinear)
         self.assertIs(AddDL, AddDoubleLinear)
-        self.assertIs(mlib.nodes.Node._registry.wrapper_class("multDL"), MultDoubleLinear)
-        self.assertIs(mlib.nodes.Node._registry.wrapper_class("addDoubleLinear"), AddDoubleLinear)
+        self.assertIs(mlib.Node._registry.wrapper_class("multDL"), MultDoubleLinear)
+        self.assertIs(mlib.Node._registry.wrapper_class("addDoubleLinear"), AddDoubleLinear)
 
     def test_create_with_either_name_on_this_version(self):
         for legacy, modern, cls in RENAMED:

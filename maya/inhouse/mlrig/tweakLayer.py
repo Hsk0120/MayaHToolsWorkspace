@@ -54,7 +54,7 @@ class TweakLayer:
         """
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", identifier) or identifier in self.groups():
             raise ValueError("Use a unique tweak identifier")
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         root = self.rig.root
         if joint.getType() != "joint" or not joint.getFullName().startswith(root.getFullName() + "|"):
             raise ValueError("Select a joint inside the module")
@@ -95,13 +95,13 @@ class TweakLayer:
                 control.getPlug("matrix").connectTo(destination)
             elif not active and previous is not None:
                 destination.disconnect(previous)
-                destination.set(mlib.maths.Matrix())
+                destination.set(mlib.Matrix())
             control.getPlug("visibility").setIfChanged(active)
 
     @classmethod
     def refresh_jobs(cls):
         """全モジュールのTweak使用設定をGUIで監視する。"""
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             return
         from .moduleRegistry import ModuleRegistry
 
@@ -115,7 +115,7 @@ class TweakLayer:
                 key = group.getUuid()
                 if key in cls._jobs:
                     continue
-                jobs = mlib.common.ScriptJobs()
+                jobs = mlib.ScriptJobs()
                 for plug in (
                     group.getPlug("enabled"),
                     rig.root.getPlug("mlrigLod" if rig.root.hasAttr("mlrigLod") else "lod"),

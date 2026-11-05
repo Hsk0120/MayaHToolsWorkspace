@@ -84,8 +84,8 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_camera_shape_wrapper_and_focal_length(self):
         _camera_transform, camera_shape_name = cmds.camera()
-        camera = mlib.nodes.Node(camera_shape_name)
-        self.assertIsInstance(camera, mlib.nodes.Camera)
+        camera = mlib.Node(camera_shape_name)
+        self.assertIsInstance(camera, mlib.Camera)
 
         cmds.setAttr(camera_shape_name + '.focalLength', 50.0)
         self.assertAlmostEqual(camera.getFocalLength(), 50.0)
@@ -94,17 +94,17 @@ class ShapesConstraintsTest(unittest.TestCase):
         self.assertIsInstance(camera.mfn(), om2.MFnCamera)
 
     def test_mesh_and_curve_geometry(self):
-        cube = mlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
+        cube = mlib.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.getShape()
-        self.assertIsInstance(mesh, mlib.nodes.Mesh)
+        self.assertIsInstance(mesh, mlib.Mesh)
         self.assertEqual((mesh.getNumVertices(), mesh.getNumEdges(), mesh.getNumPolygons()), (8, 12, 6))
         local_x = mesh.getPoints()[0].x
         cmds.setAttr(cube.getFullName() + '.translateX', 5)
         self.assertAlmostEqual(mesh.getPoints(worldSpace=True)[0].x, local_x + 5)
 
-        curve = mlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
+        curve = mlib.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0), (3, 4, 0)]))
         shape = curve.getShape()
-        self.assertIsInstance(shape, mlib.nodes.NurbsCurve)
+        self.assertIsInstance(shape, mlib.NurbsCurve)
         self.assertEqual((shape.getNumCVs(), shape.getNumSpans(), shape.getDegree()), (3, 2, 1))
         self.assertAlmostEqual(shape.getLength(), 7)
         cmds.setAttr(curve.getFullName() + '.scaleX', 2)
@@ -116,7 +116,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             shape.getLength(0)
 
     def test_mesh_normals_object_and_world_space(self):
-        cube = mlib.nodes.Node(cmds.polyCube(constructionHistory=False)[0])
+        cube = mlib.Node(cmds.polyCube(constructionHistory=False)[0])
         mesh = cube.getShape()
 
         local_normals = mesh.getVertexNormals()
@@ -145,7 +145,7 @@ class ShapesConstraintsTest(unittest.TestCase):
                 result = driven.addConstraint([source, second], kind, maintainOffset=True)
                 expected = getattr(mlib.nodes, kind.title() + 'Constraint')
                 self.assertIsInstance(result, expected)
-                self.assertIsInstance(mlib.nodes.Node(result.getFullName()), expected)
+                self.assertIsInstance(mlib.Node(result.getFullName()), expected)
                 self.assertEqual([node.getUuid() for node in result.getTargets()], [source.getUuid(), second.getUuid()])
                 self.assertEqual(result.getWeights(), [1.0, 1.0])
                 self.assertEqual(len(result.getWeightAliases()), 2)
@@ -173,17 +173,17 @@ class ShapesConstraintsTest(unittest.TestCase):
 
 
     def test_specialized_constraints(self):
-        mesh = mlib.nodes.Node(cmds.polyPlane(constructionHistory=False)[0])
-        for kind, expected in [('geometry', mlib.nodes.GeometryConstraint), ('normal', mlib.nodes.NormalConstraint),
-                               ('pointOnPoly', mlib.nodes.PointOnPolyConstraint)]:
+        mesh = mlib.Node(cmds.polyPlane(constructionHistory=False)[0])
+        for kind, expected in [('geometry', mlib.GeometryConstraint), ('normal', mlib.NormalConstraint),
+                               ('pointOnPoly', mlib.PointOnPolyConstraint)]:
             with self.subTest(kind=kind):
                 result = self.getTransform().addConstraint(mesh, kind)
                 self.assertIsInstance(result, expected)
                 self.assertEqual(len(result.getTargets()), 1)
                 self.assertEqual(result.getWeights(), [1.0])
-        curve = mlib.nodes.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0)]))
+        curve = mlib.Node(cmds.curve(degree=1, point=[(0, 0, 0), (3, 0, 0)]))
         result = self.getTransform().addConstraint(curve, 'tangent')
-        self.assertIsInstance(result, mlib.nodes.TangentConstraint)
+        self.assertIsInstance(result, mlib.TangentConstraint)
         self.assertEqual(len(result.getTargets()), 1)
         self.assertEqual(result.getWeights(), [1.0])
 
@@ -191,19 +191,19 @@ class ShapesConstraintsTest(unittest.TestCase):
         start = cmds.joint(position=(0, 0, 0))
         cmds.joint(position=(2, 1, 0))
         end = cmds.joint(position=(4, 0, 0))
-        handle = mlib.nodes.Node(cmds.ikHandle(startJoint=start, endEffector=end, solver='ikRPsolver')[0])
-        self.assertIsInstance(handle, mlib.nodes.IkHandle)
+        handle = mlib.Node(cmds.ikHandle(startJoint=start, endEffector=end, solver='ikRPsolver')[0])
+        self.assertIsInstance(handle, mlib.IkHandle)
         result = handle.addConstraint(self.getTransform(), 'poleVector')
-        self.assertIsInstance(result, mlib.nodes.PoleVectorConstraint)
+        self.assertIsInstance(result, mlib.PoleVectorConstraint)
         self.assertEqual(len(result.getTargets()), 1)
         self.assertEqual(result.getWeights(), [1.0])
 
     def test_joint_chain_from_here_and_ik_handle_queries(self):
         cmds.select(clear=True)
-        j1 = mlib.nodes.Joint(cmds.joint(position=(0, 0, 0)))
-        j2 = mlib.nodes.Joint(cmds.joint(position=(2, 0, 0)))
-        j3 = mlib.nodes.Joint(cmds.joint(position=(4, 0, 0)))
-        branch = mlib.nodes.Joint(cmds.joint(position=(4, 2, 0)))
+        j1 = mlib.Joint(cmds.joint(position=(0, 0, 0)))
+        j2 = mlib.Joint(cmds.joint(position=(2, 0, 0)))
+        j3 = mlib.Joint(cmds.joint(position=(4, 0, 0)))
+        branch = mlib.Joint(cmds.joint(position=(4, 2, 0)))
         j3.setParent(j2)
         branch.setParent(j2)
 
@@ -217,15 +217,15 @@ class ShapesConstraintsTest(unittest.TestCase):
         )
 
         cmds.select(clear=True)
-        unrelated = mlib.nodes.Joint(cmds.joint(position=(0, 5, 0)))
+        unrelated = mlib.Joint(cmds.joint(position=(0, 5, 0)))
         with self.assertRaises(ValueError):
             j1.getChainFromHere(unrelated)
 
         self.assertEqual(j1.getIkHandles(), [])
-        handle = mlib.nodes.Node(
+        handle = mlib.Node(
             cmds.ikHandle(startJoint=j1.getFullName(), endEffector=j3.getFullName(), solver='ikRPsolver')[0]
         )
-        self.assertIsInstance(handle, mlib.nodes.IkHandle)
+        self.assertIsInstance(handle, mlib.IkHandle)
 
         found_handles = j1.getIkHandles()
         self.assertEqual(len(found_handles), 1)
@@ -250,7 +250,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         cmds.undo()
         self.assertFalse(cmds.objExists(name))
         cmds.redo()
-        self.assertIsInstance(mlib.nodes.Node(name), mlib.nodes.PointConstraint)
+        self.assertIsInstance(mlib.Node(name), mlib.PointConstraint)
 
     def test_point_evaluation_and_parent_offset(self):
         source, driven = self.getTransform(), self.getTransform()
@@ -282,8 +282,8 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def mirror_shapes(self):
         """非対称カーブと履歴付きメッシュを変換済みの親の下へ作成する。"""
-        cube = mlib.nodes.Node(cmds.polyCube()[0])
-        curve = mlib.nodes.Node(cmds.curve(degree=1, point=[(1, 2, 3), (4, 1, -2), (2, 5, 1)]))
+        cube = mlib.Node(cmds.polyCube()[0])
+        curve = mlib.Node(cmds.curve(degree=1, point=[(1, 2, 3), (4, 1, -2), (2, 5, 1)]))
         parent = self.getTransform()
         cmds.setAttr(parent.getFullName() + '.translate', 4, -2, 3)
         cmds.setAttr(parent.getFullName() + '.rotate', 23, 41, -17)
@@ -293,7 +293,7 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def positions(self, shape, ws=False):
         """API の内部距離単位で形状の全位置を返す。"""
-        points = shape.getPoints(ws) if isinstance(shape, mlib.nodes.Mesh) else shape.getCvPositions(ws)
+        points = shape.getPoints(ws) if isinstance(shape, mlib.Mesh) else shape.getCvPositions(ws)
         return [tuple(point)[:3] for point in points]
 
     def assert_positions(self, actual, expected):
@@ -305,7 +305,7 @@ class ShapesConstraintsTest(unittest.TestCase):
                 self.assertAlmostEqual(component, value, delta=max(1e-5, abs(value) * 1e-6))
 
     def test_nurbs_curve_get_collocated_cv_groups(self):
-        curve = mlib.nodes.Node(
+        curve = mlib.Node(
             cmds.curve(degree=1, point=[(0, 0, 0), (1, 0, 0), (2, 0, 0), (3, 0, 0)])
         )
         shape = curve.getShape()
@@ -322,9 +322,9 @@ class ShapesConstraintsTest(unittest.TestCase):
 
     def test_component_collections_and_live_positions(self):
         for shape in self.mirror_shapes():
-            is_mesh = isinstance(shape, mlib.nodes.Mesh)
-            component_type = mlib.components.Vertex if is_mesh else mlib.components.CV
-            collection_type = mlib.components.Vertices if is_mesh else mlib.components.CVs
+            is_mesh = isinstance(shape, mlib.Mesh)
+            component_type = mlib.Vertex if is_mesh else mlib.CV
+            collection_type = mlib.Vertices if is_mesh else mlib.CVs
             collection = shape.getVertices([2, 0, 2]) if is_mesh else shape.getCVs([2, 0, 2])
             self.assertIsInstance(collection, collection_type)
             self.assertEqual(collection.indices, (2, 0))
@@ -342,7 +342,7 @@ class ShapesConstraintsTest(unittest.TestCase):
             shape.rename('renamedMirrorShape')
             self.assertNotEqual(single.getFullName(), old_name)
             self.assertTrue(cmds.objExists(single.getFullName()))
-            other_type = mlib.components.CVs if is_mesh else mlib.components.Vertices
+            other_type = mlib.CVs if is_mesh else mlib.Vertices
             with self.assertRaises(TypeError):
                 other_type(shape, [])
             cmds.delete(shape.getFullName())
@@ -367,7 +367,7 @@ class ShapesConstraintsTest(unittest.TestCase):
         uv = mesh.getUV(0)
         self.assertEqual(uv.getPosition(), (uv.getU(), uv.getV()))
         self.assertEqual(mesh.getUVs([0]).getPosition(), [uv.getPosition()])
-        for collection in (mlib.components.Edges, mlib.components.Faces, mlib.components.UVs):
+        for collection in (mlib.Edges, mlib.Faces, mlib.UVs):
             with self.assertRaises(TypeError):
                 collection(curve)
 

@@ -37,7 +37,7 @@ class RotationFollow(SwingTwist):
             raise ValueError("mode must be full, twist or swing")
         if not math.isfinite(ratio) or not 0 <= ratio <= 1:
             raise ValueError("ratio must be between 0 and 1")
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         rest = Matrix(joint.getPlug("matrix").get()) * Matrix(joint.getPlug("offsetParentMatrix").get())
         rest_rotation = rest.quaternion.asMatrix()
         base = SwingTwist.create(joint, name=name, axis=axis)

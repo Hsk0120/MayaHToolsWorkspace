@@ -30,15 +30,15 @@ class EditRefactoringTest(unittest.TestCase):
         """子作成でも公開addAttrのoverrideとgetPlug=False指定を保つ。"""
         calls = []
 
-        original = mlib.nodes.Node.addAttr
+        original = mlib.Node.addAttr
 
         def record_add_attr(node, *args, **kwargs):
             """呼出時に差し替えた公開入口でも子作成の入力を受け取る。"""
             calls.append((args, dict(kwargs)))
             return original(node, *args, **kwargs)
 
-        node = mlib.nodes.Transform(self.names[0])
-        with patch.object(mlib.nodes.Node, "addAttr", record_add_attr):
+        node = mlib.Transform(self.names[0])
+        with patch.object(mlib.Node, "addAttr", record_add_attr):
             plug = node.addAttr("customVector", "double3", childNames=["redValue", "greenValue", "blueValue"],
                                 childShortNames=["rv", "gv", "bv"], defaultValue=(1, 2, 3), keyable=True)
         self.assertEqual([row[0][0] for row in calls],

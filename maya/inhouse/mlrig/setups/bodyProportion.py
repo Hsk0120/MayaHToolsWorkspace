@@ -87,8 +87,8 @@ class BodyProportion(TwistDistribution):
                 raise ValueError("targets must be a non-empty dict of joint: amounts: " + name)
             amounts = {}
             for joint, values in targets.items():
-                node = mlib.nodes.Node(str(joint))
-                if not isinstance(node, mlib.nodes.Transform):
+                node = mlib.Node(str(joint))
+                if not isinstance(node, mlib.Transform):
                     raise ValueError("Expected a transform or joint: " + str(joint))
                 key = node.getUuid()
                 if key not in keys:

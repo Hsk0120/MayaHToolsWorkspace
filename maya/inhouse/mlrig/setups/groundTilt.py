@@ -54,8 +54,8 @@ class GroundTilt(TwistDistribution):
         tilt, height = values
         if mlib.objExists(name):
             raise ValueError("GroundTilt container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in (body, frontLeft, frontRight, backLeft, backRight)]
-        if any(not isinstance(node, mlib.nodes.Transform) for node in nodes) or len(
+        nodes = [mlib.Node(node) for node in (body, frontLeft, frontRight, backLeft, backRight)]
+        if any(not isinstance(node, mlib.Transform) for node in nodes) or len(
             {node.getUuid() for node in nodes}
         ) != len(nodes):
             raise ValueError("Expected five different transforms")

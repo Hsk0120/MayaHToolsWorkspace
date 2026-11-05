@@ -15,13 +15,13 @@ class ExtensionDiagnosticsIntegrationTest(unittest.TestCase):
         previous = extensions.status()
         plugins = cmds.pluginInfo(query=True, listPlugins=True) or []
         nodes = cmds.ls(long=True) or []
-        registry = mlib.nodes.Node._registry._snapshot()
+        registry = mlib.Node._registry._snapshot()
         with patch.object(cmds, "loadPlugin", side_effect=AssertionError("Unexpected plugin load")):
             result = extensions.getDiagnostics()
         self.assertEqual(extensions.status(), previous)
         self.assertEqual(cmds.pluginInfo(query=True, listPlugins=True) or [], plugins)
         self.assertEqual(cmds.ls(long=True) or [], nodes)
-        self.assertEqual(mlib.nodes.Node._registry._snapshot(), registry)
+        self.assertEqual(mlib.Node._registry._snapshot(), registry)
         self.assertIn("mlib_bifrost", result)
 
 if __name__ == "__main__":

@@ -90,7 +90,7 @@ class FastEditTest(unittest.TestCase):
             cmds.currentUnit(angle=old_angle, linear=old_linear)
         joints = [cmds.createNode('joint') for _ in range(2)]
         collection = mlib.ls(joints, type='joint')
-        self.assertIsInstance(collection, mlib.nodes.Joints)
+        self.assertIsInstance(collection, mlib.Joints)
         with self.api_only():
             for joint in collection:
                 joint.setTranslation((1, 2, 3), fast=True, at=4)

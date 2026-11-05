@@ -70,8 +70,8 @@ class ScissorLift(TwistDistribution):
         if mlib.objExists(name):
             raise ValueError("ScissorLift container already exists: " + name)
         if base is not None:
-            base = mlib.nodes.Node(base)
-            if not isinstance(base, mlib.nodes.Transform):
+            base = mlib.Node(base)
+            if not isinstance(base, mlib.Transform):
                 raise ValueError("base must be a transform")
         with nativeUnits():
             graph = cls(mlib.createContainer(name=name))

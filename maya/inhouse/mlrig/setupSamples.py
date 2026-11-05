@@ -240,10 +240,10 @@ class SetupSamples:
         storePreferredAngles([shoulder, elbow, wrist])
         handle, _, pole = createRotatePlaneHandle(shoulder, wrist, name)
         # 極ベクトルの操作子を肘の位置へ移す(同じ平面の上なので腕は動かない)。
-        pole = mlib.nodes.Node(pole).setParent(root).getFullName()
+        pole = mlib.Node(pole).setParent(root).getFullName()
         _set(pole, "translate", (4 * math.cos(bend), 8, -4 * math.sin(bend)))
         target = _locator(name + "_target", root, translate=(8 * math.cos(bend), 8, 0))
-        handle = mlib.nodes.Node(handle).setParent(target).getFullName()
+        handle = mlib.Node(handle).setParent(target).getFullName()
         _set(handle, "translate", (0, 0, 0))
         _set(handle, "visibility", False)
         setup = LimbPin.create(shoulder, elbow, wrist, pole, target, name=name, pin=1.0)
@@ -264,8 +264,8 @@ class SetupSamples:
                                                  ("ankle", (0, 0.5, 0.3))))
         control = _locator(name + "_footCtrl", root, translate=(0, 0.5, 0.3))
         handle, _, pole = createRotatePlaneHandle(hip, ankle, name)
-        mlib.nodes.Node(handle).setParent(control)
-        pole = mlib.nodes.Node(pole)
+        mlib.Node(handle).setParent(control)
+        pole = mlib.Node(pole)
         pole.setParent(root)
         setup = NoFlipPole.create(hip, control, mid=knee, name=name, distance=6.0)
         pole.getPlug("translate").set((0, 0, 0))
@@ -675,7 +675,7 @@ class SetupSamples:
             _output("{}_ribbon{}Out".format(name, index), root, "{}.matrix{}".format(setup.container, index),
                     ((0.8, 0, 0), (0, 0.8, 0)))
         # 帯のカーブとサーフェスもサンプルのまとめの下へ置く(inheritsTransformを切ってあるので形は変わらない)。
-        mlib.nodes.Node(setup.group).setParent(root)
+        mlib.Node(setup.group).setParent(root)
         return setup, controls[2]
 
     @classmethod
@@ -713,7 +713,7 @@ class SetupSamples:
         for parent, child in zip(arm, arm[1:]):
             # jointツールで作る骨と同じく、親のscaleを inverseScale へ繋いで segmentScaleCompensate を効かせる
             # (mlib.createNode でjointの下へ作った場合は接続済みで、同じ接続なら変更しない)。
-            mlib.nodes.Node(child).connectInverseScale(parent)
+            mlib.Node(child).connectInverseScale(parent)
         _set(arm[1], "scale", (0.8, 1.6, 1.6))
         export = _transform(name + "_export", root)
         setup = LeafJoints.create(arm, name=name, parent=export)
@@ -1180,9 +1180,9 @@ class SetupSamples:
             joint = _joint("{}_{}R".format(name, role), parent)
             _set(joint, "radius", 0.6)
             _color(joint)
-            world = LiveMirror.mirror(mlib.nodes.Node(source).getPlug("worldMatrix")[0].get(),
-                                      mlib.nodes.Node(center).getPlug("worldMatrix")[0].get())
-            mlib.nodes.Node(joint).setMatrix(world, worldSpace=True)
+            world = LiveMirror.mirror(mlib.Node(source).getPlug("worldMatrix")[0].get(),
+                                      mlib.Node(center).getPlug("worldMatrix")[0].get())
+            mlib.Node(joint).setMatrix(world, worldSpace=True)
             targets.append(_longName(joint))
             parent = targets[-1]
         _color(_tip(targets[-1], name + "_handRTip", (-1.5, 0, 0)))
@@ -1388,7 +1388,7 @@ class SetupSamples:
         shape = mlib.createNode("mesh", name=name + "_skinShape", parent=surface, skipSelect=True)
         plane.getPlug("output").connectTo(shape.getPlug("inMesh"))
         # 材質の無いメッシュは画面で緑一色になるため、既定の材質(initialShadingGroup)へ入れる。
-        mlib.nodes.Node("initialShadingGroup").addMembers(shape)
+        mlib.Node("initialShadingGroup").addMembers(shape)
         top = _joint(name + "_top", root, translate=(0, 4, 0))
         bottom = _joint(name + "_bottom", top, translate=(0, -4, 0))
         _tip(bottom, name + "_bottomTip", (0, -4, 0))
@@ -1533,12 +1533,12 @@ class SetupSamples:
 
 def _longName(node):
     """ノードのフルパス。"""
-    return mlib.nodes.Node(str(node)).getFullName()
+    return mlib.Node(str(node)).getFullName()
 
 
 def _set(node, attribute, value):
     """アトリビュートへUI単位(cm・度)の値を書き込む。"""
-    mlib.nodes.Node(node).getPlug(attribute).set(value, uiUnits=True)
+    mlib.Node(node).getPlug(attribute).set(value, uiUnits=True)
 
 
 def _connect(source, destination):
@@ -1588,7 +1588,7 @@ def _chain(name, parent, items):
     joints, current = [], parent
     for role, position in items:
         joint = _joint(name + "_" + role, current)
-        mlib.nodes.Node(joint).setTranslation(position, worldSpace=True)
+        mlib.Node(joint).setTranslation(position, worldSpace=True)
         joints.append(joint)
         current = joint
     return [_longName(joint) for joint in joints]

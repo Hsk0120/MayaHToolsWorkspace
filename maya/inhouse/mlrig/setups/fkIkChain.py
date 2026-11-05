@@ -48,14 +48,14 @@ class FkIkChain(TwistDistribution):
             出力はワールド行列(原点の親の下のjointの ``offsetParentMatrix`` などで受ける)。
             入力の節そのものは変更しない。作成時にFKとIKが同じ姿勢なら、blendに関係なく跳ねない。
         """
-        fkChain = [mlib.nodes.Node(node) for node in fkChain]
-        ikChain = [mlib.nodes.Node(node) for node in ikChain]
+        fkChain = [mlib.Node(node) for node in fkChain]
+        ikChain = [mlib.Node(node) for node in ikChain]
         if len(fkChain) < 2:
             raise ValueError("FkIkChain needs at least two nodes per chain")
         if len(fkChain) != len(ikChain):
             raise ValueError("fkChain and ikChain must have the same number of nodes")
         for node in fkChain + ikChain:
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the chains")
         names = [node.getFullName() for node in fkChain + ikChain]
         if len(set(names)) != len(names):

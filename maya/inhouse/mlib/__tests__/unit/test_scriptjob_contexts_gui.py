@@ -9,8 +9,8 @@ import mlib
 class NativeScriptJobContextsTest(unittest.TestCase):
     def setUp(self):
         self.node = mlib.createNode("transform", skipSelect=True)
-        self.jobs = mlib.common.ScriptJobs()
-        self.external = mlib.common.ScriptJob(event="SelectionChanged", callback=lambda: None)
+        self.jobs = mlib.ScriptJobs()
+        self.external = mlib.ScriptJob(event="SelectionChanged", callback=lambda: None)
 
     def tearDown(self):
         self.jobs.stop()

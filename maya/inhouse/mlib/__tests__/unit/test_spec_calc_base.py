@@ -76,8 +76,8 @@ class CalculationTypeTest(unittest.TestCase):
             with self.subTest(kind=kind):
                 cls = type(mlib.createNode(kind))
                 self.assertEqual(cls.__name__, kind[0].upper() + kind[1:])
-                self.assertIs(cls.__mro__[1], mlib.nodes.Texture2d)
-                self.assertTrue(issubclass(cls, mlib.nodes.Texture2d))
+                self.assertIs(cls.__mro__[1], mlib.Texture2d)
+                self.assertTrue(issubclass(cls, mlib.Texture2d))
 
     def test_unregistered_calculation_types_are_generated(self):
         """専用クラスの無い計算ノードは公開名・登録表に無く、Node派生の生成クラスで返る。"""
@@ -89,7 +89,7 @@ class CalculationTypeTest(unittest.TestCase):
                 node = mlib.createNode(kind)
                 cls = type(node)
                 self.assertEqual(cls.__name__, name)
-                self.assertTrue(issubclass(cls, mlib.nodes.Node))
+                self.assertTrue(issubclass(cls, mlib.Node))
                 self.assertIs(mlib.nodes.__getattr__(name), cls)
                 self.assertEqual(node.getType(), kind)
                 self.assertTrue(node.hasAttr("message"))

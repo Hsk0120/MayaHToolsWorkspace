@@ -92,9 +92,9 @@ class LipZip(TwistDistribution):
             raise ValueError("falloff must be between 0.01 and 1")
         if mlib.objExists(name):
             raise ValueError("LipZip container already exists: " + name)
-        upper = [mlib.nodes.Node(node) for node in upper]
-        lower = [mlib.nodes.Node(node) for node in lower]
-        if any(not isinstance(node, mlib.nodes.Transform) for node in upper + lower):
+        upper = [mlib.Node(node) for node in upper]
+        lower = [mlib.Node(node) for node in lower]
+        if any(not isinstance(node, mlib.Transform) for node in upper + lower):
             raise ValueError("Expected transforms for the lip points")
 
         graph = cls(mlib.createContainer(name=name))

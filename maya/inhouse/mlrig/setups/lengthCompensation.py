@@ -16,7 +16,7 @@ class LengthCompensation:
         Args:
             container (str | Node): 保存済みグラフ。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     def _node(self, kind, role):
         """計算ノードを生成し所有する。

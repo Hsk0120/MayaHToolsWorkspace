@@ -29,11 +29,11 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     if any(len(point) != 3 or not all(math.isfinite(v) for v in point) for point in pivots):
         raise ValueError("Expected finite three-component pivots")
     root = rig.root.getFullName()
-    if mlib.nodes.Node(root).hasAttr("footMatrix"):
+    if mlib.Node(root).hasAttr("footMatrix"):
         raise ValueError("A reverse-foot layer already exists")
     target = rig.controls()["target"]
     for attr in ("heelRoll", "toeRoll", "ballRoll"):
-        if mlib.nodes.Node(target).hasAttr(attr):
+        if mlib.Node(target).hasAttr(attr):
             raise ValueError("Target attribute already exists: " + attr)
     group = mlib.createNode(
         "transform", name=rig.getNodeName("footGroup"), parent=target, skipSelect=True
@@ -52,7 +52,7 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
         created.append(node)
         result[role] = node
         mlib.getPlug(node + ".rotatePivot").set((*pivot,))
-        mlib.nodes.Node(target).addAttr(
+        mlib.Node(target).addAttr(
             longName=role + "Roll", attributeType="doubleAngle", keyable=True
         )
         mlib.getPlug(target + "." + role + "Roll").connectTo(node + ".rotateZ")
@@ -65,8 +65,8 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     ).getFullName()
     created.extend((matrix, decompose))
     for index, node in enumerate((result["ball"], result["toe"], result["heel"])):
-        mlib.getPlug(node + ".matrix").connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[index])
-    mlib.getPlug(rig._local_matrix("target")).connectTo(mlib.nodes.Node(matrix).getPlug("matrixIn")[3])
+        mlib.getPlug(node + ".matrix").connectTo(mlib.Node(matrix).getPlug("matrixIn")[index])
+    mlib.getPlug(rig._local_matrix("target")).connectTo(mlib.Node(matrix).getPlug("matrixIn")[3])
     mlib.getPlug(matrix + ".matrixSum").connectTo(decompose + ".inputMatrix")
     rig._bind("footMatrix", matrix)
     rig._bind("footDecompose", decompose)
@@ -75,11 +75,11 @@ def add_reverse_foot(rig, heel=(-1, 0, 0), toe=(2, 0, 0), ball=(1, 0, 0)):
     created.append(layer)
     rig._bind("footSet", layer)
     rig._layer_members("moduleSet", [layer])
-    mlib.nodes.Node(root).addAttr(longName="mlrigFootSettings", dataType="string")
+    mlib.Node(root).addAttr(longName="mlrigFootSettings", dataType="string")
     mlib.getPlug(root + ".mlrigFootSettings").set(
         json.dumps(dict(zip(("heel", "toe", "ball"), pivots)))
     )
     for node in created:
-        mlib.nodes.Node(root).getPlug("mlrigOwned").appendMessage(node)
+        mlib.Node(root).getPlug("mlrigOwned").appendMessage(node)
     rig._update_evaluation()
     return result

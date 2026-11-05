@@ -375,9 +375,9 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 
 - 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>`・`mlib.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`。ルートの `__getattr__` は公開クラスに無い名前をこれへ渡す)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
 - クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
-- 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`weightGeometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(GeometryFilter)`(10.1.0でデフォーマー共通の `geometryFilter` を手書きの `GeometryFilter` として登録)、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.nodes.ContainerBase`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
-- 生成クラスは `__slots__ = ()` で `__init__` を定義せず、`_generated_node_type`(型名)と `_generated = True` を持つ。`mlib.nodes.AirField("airField1")` の明示構築もでき、型が合わなければ登録クラスと同じ `Node.__new__` のTypeError(「参照と入力の固定規則」)。
-- isinstanceの約束: 生成クラスは「最寄りの登録クラスの派生である」ことだけを保証する。手書きクラスの `isinstance` 階層はPythonの継承で決まり、Mayaの抽象祖先を含まない(`Container(Node)` なので `isinstance(container, mlib.nodes.ContainerBase)` はFalse。`Transform(DagNode)` も同様。10.1.0から `SkinCluster`・`Cluster`・`BlendShape` は手書きの `GeometryFilter` の派生)。
+- 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`weightGeometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(GeometryFilter)`(10.1.0でデフォーマー共通の `geometryFilter` を手書きの `GeometryFilter` として登録)、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.ContainerBase`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
+- 生成クラスは `__slots__ = ()` で `__init__` を定義せず、`_generated_node_type`(型名)と `_generated = True` を持つ。`mlib.AirField("airField1")` の明示構築もでき、型が合わなければ登録クラスと同じ `Node.__new__` のTypeError(「参照と入力の固定規則」)。
+- isinstanceの約束: 生成クラスは「最寄りの登録クラスの派生である」ことだけを保証する。手書きクラスの `isinstance` 階層はPythonの継承で決まり、Mayaの抽象祖先を含まない(`Container(Node)` なので `isinstance(container, mlib.ContainerBase)` はFalse。`Transform(DagNode)` も同様。10.1.0から `SkinCluster`・`Cluster`・`BlendShape` は手書きの `GeometryFilter` の派生)。
 Mayaの継承に基づく型判定は `node.isType("geometryFilter")`、Maya型名の取得は `getType()`(`getType(inherited=True)` で基底→自身の順)を使う。手書きクラスの基底はMayaの親に揃える(`PoleVectorConstraint(PointConstraint)`)。`DagContainer(Transform, Container)` はMayaの全祖先を含んだ上位集合として据え置く(mixin化は次版)。
 - 登録表には `"constraint"` を `Constraint` として明示登録し、未登録のコンストレイント型の生成クラスを `Constraint` 派生にする。`"node"` は登録しない(`cmds.nodeType("node", isTypeName=True, inherited=True)` は継承チェーンに現れないため、チェーンが尽きたときのフォールバック `Node` で足りる)。拡張(mlib_*)の明示登録は生成より常に優先する。
 - 生成クラスは `__all__` やモジュール属性に追加せず(Sphinxにも載せない)、登録表(`NodeRegistry`)の登録辞書とは別のキャッシュに置く。無効化の契機は3つ: (a) 登録表の作り直し(`replace`・`clear`・`mlib.reload()`)、(b) `register`(基底の候補が変わる)、(c) `Plugin.load/unload` 後の型継承キャッシュの消去。いずれも生成済みクラスを廃棄し、次の照会で作り直す。無効化前に保持していた生成クラスの参照は新しいラッパーに対して `isinstance` が偽になるので、reload後のNode/Plugと同じく `mlib.nodes.<TypeName>` を取り直す。テストの期待値は `type(node).__name__`・`issubclass` で書き、クラスの同一性に依存しない。`cmds.loadPlugin` 直接呼び出し・Plug-in Managerからのロードには追従しない。
@@ -533,7 +533,7 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 - `Transform.getShear(worldSpace=False)` / `setShear(value, worldSpace=False, safe=False, get=False, *, fast=False)`(旧 `getShearing/setShearing`)。
 - `Transform.setParent(parent=None, relative=False, add=False, *, fast=False)`(3.0.0で短縮名 `r` は廃止)。
   JointのinverseScaleは `cmds.parent` と同じく `relative=False` のときだけ接続される(Mayaの仕様)。fastはJoint未対応で、変更前にNotImplementedErrorとする。
-- `Joint.isJoint()` は廃止し、`isinstance(x, mlib.nodes.Joint)` または `x.isType("joint")` を使う。
+- `Joint.isJoint()` は廃止し、`isinstance(x, mlib.Joint)` または `x.isType("joint")` を使う。
 - `Node.setLocked(state=True, *, fast=False)` はノード自体のロックで自身を返す(通常は `cmds.lockNode` でUndo1回、fastは `MFnDependencyNode.isLocked` のsetter)。
   アトリビュートのロックは `Plug.setLocked()`。`Node.mfn()` は毎回新規のfunction setを返す(Mesh/Camera/NurbsCurve/ReferenceはMFnMesh等を返すoverride)。
 - 6.0.0で `Plug.lock()`・`unlock(below=)`・`mute()`・`unmute()` を廃止した。ロックは `setLocked(state, leaf=False, *, fast=False)`・
@@ -712,7 +712,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - メンバーの操作は `addMembers` / `removeMembers`、個数の照会は `getNumVertices` / `getNumCVs` 等のget付き正式名にする。
 - `Plug.get/set` は対象アトリビュートを扱い、マトリクスアトリビュートから所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.getMatrix/setMatrix` を使用する。
 - 単数形と複数形の座標取得はともに `getPosition`。コンポーネントは座標の照会だけを提供し、書込みは `cmds.xform` 等を使う。
-- 点の位置(XYZ)は、単体なら `mlib.maths.Vector`、複数なら `list[Vector]` で返す(6.0.0。`Vertex`/`CV`・`Vertices`/`CVs` の `getPosition`、`Mesh.getPoints`、`NurbsCurve.getCvPositions`)。om2の `MPointArray`・tupleは返さず、wでは割らない。成分だけの `getPositionX/Y/Z` は float。UVの位置は2成分のため `(U, V)` のtupleのまま。全点の一括書込みは `Mesh.setPoints`・`NurbsCurve.setCvPositions` で、どちらも `get` の結果・tupleの列・MPointArrayを受け、点数の違いはValueError、1回のUndoにまとめる。
+- 点の位置(XYZ)は、単体なら `mlib.Vector`、複数なら `list[Vector]` で返す(6.0.0。`Vertex`/`CV`・`Vertices`/`CVs` の `getPosition`、`Mesh.getPoints`、`NurbsCurve.getCvPositions`)。om2の `MPointArray`・tupleは返さず、wでは割らない。成分だけの `getPositionX/Y/Z` は float。UVの位置は2成分のため `(U, V)` のtupleのまま。全点の一括書込みは `Mesh.setPoints`・`NurbsCurve.setCvPositions` で、どちらも `get` の結果・tupleの列・MPointArrayを受け、点数の違いはValueError、1回のUndoにまとめる。
 - 戻り値の型・単位・更新対象・破壊性が違う操作は、名前が似ていても安易にフラグ統合しない。
 
 - Plug系の空間指定は廃止し、アトリビュート値とTransformの姿勢を区別する。Double3Plugのrotateは回転順序・単位変換だけを行い、jointOrientや他のチャンネルを合成しない。
@@ -739,13 +739,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - マルチアトリビュートの `getElement` は既存要素のみ。`multi[index]` は未作成の非実体化参照も返し、作成はset/connectで行う。
 - `PluginPackage.tryLoad` は状態文字列を返し、`Plugin.ensureLoaded` は失敗時に例外を送出する。成功保証の違いを隠さない。
 - `getVisibility/setVisibility` は自身のvisibilityアトリビュートだけを扱い、階層や表示レイヤーを含む最終可視性と区別する。
-- 2026-10-31のユーザー指定(9.0.0)により、キーは `mlib.common.Keyframe`/`Keyframes`(Mayaの setKeyframe・keyframe に合わせた名前)で「カーブ + キーの番号」を作成時に固定した参照として扱う。頂点と同じくキーの追加・削除の後の同一性は保証しない。ドリブンキーのカーブも同じクラスで、時刻はカーブの入力値を指す。編集は AnimCurve の処理を呼び、`Keyframes` の編集は全体で1回のUndo。選択キーは `Selection.getKeyframes()` と `mlib.ls(selectedKeyframes=True)`(他の引数と併用しない)。キーの範囲操作は AnimCurve(`moveKey`・`scaleKey`・`removeKey`・`replaceKeys`)、Plug・Node(`setKey`・`removeKey`・`moveKey`)の両方に置き、`index`(番号・番号の並び)・`time`(時刻・範囲)で絞る。`AnimCurve.removeKey` は既定でカーブを残し(`keepCurve=True`、Mayaの cutKey はロック中のノードを消さないためその間だけロックする)、Plug・Node の removeKey は Maya と同じく空のカーブを消す。`AnimCurve.setKey` の接線型の省略は `cmds.setKeyframe` と同じ(既存は保ち、新規は Default tangent)。
+- 2026-10-31のユーザー指定(9.0.0)により、キーは `mlib.Keyframe`/`Keyframes`(Mayaの setKeyframe・keyframe に合わせた名前)で「カーブ + キーの番号」を作成時に固定した参照として扱う。頂点と同じくキーの追加・削除の後の同一性は保証しない。ドリブンキーのカーブも同じクラスで、時刻はカーブの入力値を指す。編集は AnimCurve の処理を呼び、`Keyframes` の編集は全体で1回のUndo。選択キーは `Selection.getKeyframes()` と `mlib.ls(selectedKeyframes=True)`(他の引数と併用しない)。キーの範囲操作は AnimCurve(`moveKey`・`scaleKey`・`removeKey`・`replaceKeys`)、Plug・Node(`setKey`・`removeKey`・`moveKey`)の両方に置き、`index`(番号・番号の並び)・`time`(時刻・範囲)で絞る。`AnimCurve.removeKey` は既定でカーブを残し(`keepCurve=True`、Mayaの cutKey はロック中のノードを消さないためその間だけロックする)、Plug・Node の removeKey は Maya と同じく空のカーブを消す。`AnimCurve.setKey` の接線型の省略は `cmds.setKeyframe` と同じ(既存は保ち、新規は Default tangent)。
 
 ## 参照と入力の固定規則
 
 - Nodeの等価比較(`==`)は生存中のMaya対象、DAGではインスタンスパスも含む。JointだけのUUID比較は廃止。`sameNode` はパスに関係なく同じMayaノードかを比較する。旧 `sameInstance` は `==` と同じなので廃止した。
 - Nodeのhashは生成時のMObjectHandle.hashCodeを保持。Plugは所有ノードのhashと生成時のアトリビュートパスを保持する。改名・削除でhashを変えず、永続IDとして保存しない。完全破棄後は他参照と等価にしない。可変数学型はhash不可を維持。
-- getNode/Nodeは動的に型解決するが、具体クラスの構築はその型または派生に適合しなければTypeError。Nodeと同一のノードを別の具体型へ無理にラップしない。動的クラスが選ばれる型でも同じ(`mlib.nodes.Joint("pointLight1")` はTypeError、`mlib.nodes.PointLight("pointLight1")` は可)。
+- getNode/Nodeは動的に型解決するが、具体クラスの構築はその型または派生に適合しなければTypeError。Nodeと同一のノードを別の具体型へ無理にラップしない。動的クラスが選ばれる型でも同じ(`mlib.Joint("pointLight1")` はTypeError、`mlib.PointLight("pointLight1")` は可)。
 - 保持DAGパスの消失を別インスタンスへの自動切替で補わない。ノードの有効性とパスの有効性を区別する。
 - ノード対象列では文字列とNodeの混在を変更前にTypeErrorにする。名前列/Node列は両方許可し、派生型はNode形式として扱う。空入力や操作対象型の制限は各操作の仕様を維持する。
 - reload後の旧インスタンスは取得し直す。動的に生成したクラスの参照も同じで、reload・登録表の変更・`Plugin.load/unload` の後は `mlib.nodes.<TypeName>` を取り直す。新旧クラスの相互比較/自動移行を保証しない。

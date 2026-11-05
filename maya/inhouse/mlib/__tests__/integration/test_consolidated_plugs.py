@@ -33,7 +33,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
             self.assertAlmostEqual(self.node.getPlug("rx").get(uiUnits=True), 90)
             translation = self.node.getPlug("translate")
             translation.set((1, 2, 3), uiUnits=True, fast=fast)
-            self.assertIsInstance(translation.get(), mlib.maths.Translate)
+            self.assertIsInstance(translation.get(), mlib.Translate)
             self.assertEqual(tuple(translation.get()), (100, 200, 300))
             self.assertEqual(translation.get(uiUnits=True), (1, 2, 3))
         cmds.addAttr(str(self.node), ln="angles", at="doubleAngle", multi=True)
@@ -50,7 +50,7 @@ class ConsolidatedPlugsTest(unittest.TestCase):
     def test_typed_math_ui_input_is_rejected_without_writing(self):
         """数学型の内部単位と回転順序をUI数値への変換で失わない。"""
         rotate = self.node.getPlug("rotate")
-        rotation = mlib.maths.EulerRotate(.2, .3, .4, order=om2.MEulerRotation.kZYX)
+        rotation = mlib.EulerRotate(.2, .3, .4, order=om2.MEulerRotation.kZYX)
         before = tuple(rotate.get())
         for value in (rotation, rotation.asQuaternion()):
             with self.assertRaises(TypeError):

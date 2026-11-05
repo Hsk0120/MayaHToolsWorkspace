@@ -134,9 +134,9 @@ class RotationMinimizingFrames(TwistDistribution):
             raise ValueError("upAxis must be x, y or z")
         if mlib.objExists(name):
             raise ValueError("RotationMinimizingFrames container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in nodes]
+        nodes = [mlib.Node(node) for node in nodes]
         if len(nodes) < 3 or len({node.getUuid() for node in nodes}) != len(nodes) or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected three or more different transforms")
         worlds = [Matrix(node.getPlug("worldMatrix")[0].get()) for node in nodes]
@@ -209,16 +209,16 @@ class RotationMinimizingFrames(TwistDistribution):
             raise ValueError("upVector must be a non-zero finite vector")
         if mlib.objExists(name):
             raise ValueError("RotationMinimizingFrames container already exists: " + name)
-        shape = mlib.nodes.Node(curve)
+        shape = mlib.Node(curve)
         if shape.getType() != "nurbsCurve":
-            shapes = [s for s in (shape.getShapes() if isinstance(shape, mlib.nodes.Transform) else [])
+            shapes = [s for s in (shape.getShapes() if isinstance(shape, mlib.Transform) else [])
                       if s.getType() == "nurbsCurve"]
             if not shapes:
                 raise ValueError("Expected a NURBS curve transform or shape")
             shape = shapes[0]
         if upNode is not None:
-            upNode = mlib.nodes.Node(upNode)
-            if not isinstance(upNode, mlib.nodes.Transform):
+            upNode = mlib.Node(upNode)
+            if not isinstance(upNode, mlib.Transform):
                 raise ValueError("upNode must be a transform")
         graph = cls(mlib.createContainer(name=name))
         owner = graph.container

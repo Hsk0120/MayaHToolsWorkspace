@@ -82,12 +82,12 @@ class RootDirectionLimit(ScalarGraph):
             raise ValueError("angleは1〜89度の有限値を指定してください。")
         if not math.isfinite(softness) or not 0 <= softness <= 0.2:
             raise ValueError("softnessは0〜0.2の有限値を指定してください。")
-        source = mlib.nodes.Node(source)
-        guides = [mlib.nodes.Node(node) for node in guides]
+        source = mlib.Node(source)
+        guides = [mlib.Node(node) for node in guides]
         nodes = [source] + guides
         if len(guides) < 2 or len({n.getUuid() for n in nodes}) != len(nodes):
             raise ValueError("独立したsourceと2個以上の異なるguideを指定してください。")
-        if not all(isinstance(n, mlib.nodes.Transform) for n in nodes):
+        if not all(isinstance(n, mlib.Transform) for n in nodes):
             raise ValueError("入力はTransformまたはJointにしてください。")
         for node in nodes:
             scale = tuple(node.getScale(worldSpace=True))

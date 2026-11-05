@@ -102,7 +102,7 @@ def main(output_dir=None, finished=None):
             name = solver.getFullName()
             mlib.reload()
             solver = mlib.getNode(name)
-            check(isinstance(solver, mlib.nodes.Node) and hasattr(solver, 'radius'), 'Reload restores extension registration')
+            check(isinstance(solver, mlib.Node) and hasattr(solver, 'radius'), 'Reload restores extension registration')
             result['plugin'] = cmds.pluginInfo('MayaUERBFPlugin', query=True, path=True)
         else:
             result['skipped'].append('Matching external plugin binary is not installed; node tests skipped')

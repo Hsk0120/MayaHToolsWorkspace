@@ -78,8 +78,8 @@ class UiSlider(TwistDistribution):
             raise ValueError("At least one of rangeX and rangeY must allow movement")
         if mlib.objExists(name):
             raise ValueError("UiSlider container already exists: " + name)
-        control = mlib.nodes.Node(control)
-        if not isinstance(control, mlib.nodes.Transform):
+        control = mlib.Node(control)
+        if not isinstance(control, mlib.Transform):
             raise ValueError("Expected a transform for the control: " + str(control))
         rest = tuple(control.getPlug("translate").get())
 

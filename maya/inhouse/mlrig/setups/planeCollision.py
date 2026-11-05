@@ -134,10 +134,10 @@ class PlaneCollision(TwistDistribution):
             raise ValueError("softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("PlaneCollision container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        plane = mlib.nodes.Node(plane)
+        target = mlib.Node(target)
+        plane = mlib.Node(plane)
         for node in (target, plane):
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target and the plane")
         if target.getFullName() == plane.getFullName():
             raise ValueError("target and plane must be different nodes")

@@ -102,7 +102,6 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
-| Claude Code | 2026-11-05 | maya/inhouse/mlib/__init__.py(.pyi)・tools/generate_mlib_stubs.py・mlib checks/tests・docs、のちにリポジトリ全体の mlib.nodes.X 等の参照 | mlib 10.4.0: mlib.<クラス名>でnodes/plugs/components/maths/commonのクラスを取得するルートの__getattr__と補完。 |
 
 
 
@@ -157,6 +156,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Claude Code (2026-11-05): mlib 10.4.0。nodes/plugs/components/maths/commonの公開クラス(別名・例外を含む、定数・関数・Objectは除く)を`mlib.Joint`のようにルートの`__getattr__`で毎回所属パッケージから取得(優先順位ルート→nodes→plugs→components→maths→common→生成クラス)。`__all__ = _names + sorted(_classes)`・`__dir__`・`__init__.pyi`の再公開を自動生成、check_mlib_exports・テスト・CLAUDE.md・設計文書を更新。リポジトリ全体の`mlib.<pkg>.<Class>`を`mlib.<Class>`へ書き換え(206ファイル。Sphinxの参照先・changelog・WORK_LOG・パッケージの仕組みのテストは対象外。MayaCodeEditorは補完エンジンが`mlib.Joints(...)`の代入の型をたどれないため対象外)。runStatic 161件・Maya2027/2022全体・rig 763件・Sphinx -W 成功。tests/mlib_integrationの7件の失敗は古いAPI(ws=・Node.create・Transformation等)による既存の失敗で今回と無関係。
 - Claude Code (2026-11-05): mlib 10.3.0の補完改善。Node.__getattr__のスタブの型をAny→Plug、DagNode.getParent/getParents/getRootの型をTransformへ(実行時の動作は不変)。tools/generate_mlib_stubs.py・docs/vscode.md・changelog・静的テスト。アンダーワールドのノードのgetParent()がRuntimeErrorになる既存の不具合を確認(未修正)。
 - Claude Code (2026-11-05): mlib 10.3.0。Vector系(Translate/Scale/Shear含む)・EulerRotateへround/roundIt/__round__を追加(EulerRotateは既定で度で丸める、-0.0は0.0)。スタブ・changelog・test_spec_v103_maths.py。Maya2022/2027で数学型のテスト成功。
 - Claude Code (2026-11-05): mlrig夜間。胸郭の楕円体の表面へ肩甲骨を放射方向に投影し、陰関数の勾配の外向きの法線へ向ける `setups/ScapulaGlide`(R = 1/|(lx/rx, ly/ry, lz/rz)|、s = l*R、n = normalize(s/r^2)、位置 = c + rotate(s) + normal*offset、aimMatrixで normalAxis を法線へ・upAxis を対象の同じ軸へ揃える、matrix・normal・distance・directionRadius出力、keyableな radiusX/Y/Z・offset、標準ノードのみ)を追加。テスト10件、Setup Samples1項目、文書、検証デモ `tools/demo_scapula_glide.py`。隔離Maya 2027で setups 622件・standard 76件OK、Sphinx -W 成功、検証動画264フレーム判定OK(Driveは同期フォルダーへ保存、リンク共有は未設定)。コミット・プッシュ(このコミット)。

@@ -73,7 +73,7 @@ class PredicateAliasesTest(unittest.TestCase):
             self.assertIs(plug.isConnected(source=False, destination=True), marker)
             predicate.assert_called_once_with(source=False, destination=True)
 
-        class DerivedTransform(mlib.nodes.Transform):
+        class DerivedTransform(mlib.Transform):
             """正式判定を通常のdefで追加する検証用派生型。"""
 
             def isLocked(self, *args, **kwargs):
@@ -128,9 +128,9 @@ class PredicateAliasesTest(unittest.TestCase):
     def test_math_predicates_keep_tolerance_and_native_names(self):
         """数学値の正式等価判定は戻り値と許容誤差を維持する。"""
         pairs = (
-            (mlib.maths.Vector(1, 2, 3), mlib.maths.Vector(1 + 1e-8, 2, 3), om2.MVector),
-            (mlib.maths.Matrix(), mlib.maths.Matrix(), om2.MMatrix),
-            (mlib.maths.EulerRotate(), mlib.maths.EulerRotate(), om2.MEulerRotation),
+            (mlib.Vector(1, 2, 3), mlib.Vector(1 + 1e-8, 2, 3), om2.MVector),
+            (mlib.Matrix(), mlib.Matrix(), om2.MMatrix),
+            (mlib.EulerRotate(), mlib.EulerRotate(), om2.MEulerRotation),
         )
         for value, other, native_type in pairs:
             with self.subTest(value=type(value).__name__):
@@ -150,8 +150,8 @@ class PredicateAliasesTest(unittest.TestCase):
         self.assertTrue(self.first.isType("dagNode"))
         self.assertTrue(self.first.isRoot())
         self.assertEqual(self.first.getRoot(), self.first)
-        self.assertIsInstance(mlib.common.Plugin.loaded(), list)
-        self.assertTrue(callable(mlib.nodes.Reference.getRoot))
+        self.assertIsInstance(mlib.Plugin.loaded(), list)
+        self.assertTrue(callable(mlib.Reference.getRoot))
         attribute = self.first.addAttr("valid", attributeType="bool")
         self.assertEqual(self.first.valid, attribute)
         self.assertTrue(self.first.isValid())

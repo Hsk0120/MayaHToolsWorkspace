@@ -100,11 +100,11 @@ class SkirtLegOffset(TwistDistribution):
             raise ValueError("Expected at least one skirt transform")
         if not legs or any(len(leg) != 2 for leg in legs):
             raise ValueError("legs must be one or more (start, end) pairs")
-        parent = mlib.nodes.Node(parent)
-        skirts = [mlib.nodes.Node(skirt) for skirt in skirts]
-        legs = [tuple(mlib.nodes.Node(node) for node in leg) for leg in legs]
+        parent = mlib.Node(parent)
+        skirts = [mlib.Node(skirt) for skirt in skirts]
+        legs = [tuple(mlib.Node(node) for node in leg) for leg in legs]
         nodes = [parent] + skirts + [node for leg in legs for node in leg]
-        if any(not isinstance(node, mlib.nodes.Transform) for node in nodes):
+        if any(not isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the parent, the skirts and the legs")
         if len({node.getUuid() for node in [parent] + skirts}) != len(skirts) + 1:
             raise ValueError("The parent and the skirts must be different nodes")
@@ -117,7 +117,7 @@ class SkirtLegOffset(TwistDistribution):
             rest = Matrix(skirt.getPlug("worldMatrix")[0].get()) * to_parent
             position = Vector(rest.translate)
             if skirtAxis is None:
-                children = [child for child in skirt.getChildren() if isinstance(child, mlib.nodes.Transform)]
+                children = [child for child in skirt.getChildren() if isinstance(child, mlib.Transform)]
                 if not children:
                     raise ValueError("The skirt has no child to give its direction: " + skirt.getFullName())
                 tip = Matrix(children[0].getPlug("worldMatrix")[0].get()) * to_parent

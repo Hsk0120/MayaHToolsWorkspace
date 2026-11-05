@@ -1448,7 +1448,7 @@ CASES = [
     C("DagNode.setShadingOverride", "DagNode.setShadingOverride", s_one,
       lambda c, **kw: c.na.setShadingOverride(True, **kw)),
     C("Transform.setOffsetParentMatrix", "Transform.setOffsetParentMatrix", s_one,
-      lambda c, **kw: c.na.setOffsetParentMatrix(mlib.maths.Matrix.compose(translate=(1, 2, 3)), **kw)),
+      lambda c, **kw: c.na.setOffsetParentMatrix(mlib.Matrix.compose(translate=(1, 2, 3)), **kw)),
     C("Transform.freezeToOffsetParent", "Transform.freezeToOffsetParent", s_child,
       lambda c, **kw: c.na.freezeToOffsetParent()),
     C("Mesh.setVertexColors", "Mesh.setVertexColors", s_cube,

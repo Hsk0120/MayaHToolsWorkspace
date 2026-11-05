@@ -58,8 +58,8 @@ class ReloadDependenciesTest(unittest.TestCase):
         cmds.file(new=True, force=True)
         name = cmds.createNode("transform")
         for full in (False, True):
-            mlib.nodes.Node._registry.clear()
-            mlib.plugs.Plug._registry.clear()
+            mlib.Node._registry.clear()
+            mlib.Plug._registry.clear()
             with patch.object(importlib, "reload", wraps=importlib.reload) as reload_module:
                 mlib.reload() if full else importlib.reload(mlib)
             bootstraps = [call[0][0].__name__ for call in reload_module.call_args_list
@@ -67,19 +67,19 @@ class ReloadDependenciesTest(unittest.TestCase):
             self.assertEqual(bootstraps, [])
             self.assertNotIn("mlib.core.bootstrap", sys.modules)
             node = mlib.getNode(name)
-            self.assertIsInstance(node, mlib.nodes.Transform)
-            self.assertIsInstance(node.getPlug("translateX"), mlib.plugs.DoubleLinearPlug)
+            self.assertIsInstance(node, mlib.Transform)
+            self.assertIsInstance(node.getPlug("translateX"), mlib.DoubleLinearPlug)
             self.assertFalse(hasattr(mlib, "getAttr"))
 
     def test_invalid_standard_registration_keeps_both_current_registries(self):
         """後半のPlug宣言が不正でも、Node側だけ新しい表へ切り替えない。"""
-        previous = mlib.nodes.Node._registry, mlib.plugs.Plug._registry
+        previous = mlib.Node._registry, mlib.Plug._registry
         try:
             with patch.dict(mlib.plugs._WRAPPER_CLASSES, {"invalidFixture": object()}):
                 with self.assertRaises(TypeError):
                     importlib.reload(mlib)
-            self.assertIs(mlib.nodes.Node._registry, previous[0])
-            self.assertIs(mlib.plugs.Plug._registry, previous[1])
+            self.assertIs(mlib.Node._registry, previous[0])
+            self.assertIs(mlib.Plug._registry, previous[1])
         finally:
             importlib.reload(mlib)
 

@@ -17,7 +17,7 @@ def shellsOf(mesh, vertices=None):
     """メッシュのシェル(辺でつながった頂点のまとまり)を返す。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
         vertices (Iterable[int] | None): この頂点を含むシェルだけを返す。Noneは全部。
 
     Returns:

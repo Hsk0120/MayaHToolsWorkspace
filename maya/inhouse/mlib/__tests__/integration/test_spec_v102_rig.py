@@ -365,7 +365,7 @@ class PolePositionTest(_RigCase):
         length = 2 * math.sqrt(10)
         self.assertSequenceAlmostEqual(Joint(a).getPolePosition(), (3, 0, -1 - length), places=6)
         self.assertSequenceAlmostEqual(Joint(a).getPolePosition(distance=2), (3, 0, -3), places=6)
-        self.assertIsInstance(Joint(a).getPolePosition(), mlib.maths.Vector)
+        self.assertIsInstance(Joint(a).getPolePosition(), mlib.Vector)
         self.assertEqual(cmds.xform(b, query=True, translation=True, worldSpace=True), [3, 0, -1])
 
     def test_errors(self):

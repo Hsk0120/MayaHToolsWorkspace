@@ -98,9 +98,9 @@ class DollyZoom(TwistDistribution):
             焦点距離が変わる。
         """
         transform, shape = cls._camera(camera)
-        target = subject if isinstance(subject, mlib.nodes.Node) else (
-            mlib.nodes.Node(str(subject)) if mlib.objExists(str(subject)) else None)
-        if not isinstance(target, mlib.nodes.Transform):
+        target = subject if isinstance(subject, mlib.Node) else (
+            mlib.Node(str(subject)) if mlib.objExists(str(subject)) else None)
+        if not isinstance(target, mlib.Transform):
             raise ValueError("Expected an existing transform: " + str(subject))
         if target == transform:
             raise ValueError("subject must be different from the camera")
@@ -141,12 +141,12 @@ class DollyZoom(TwistDistribution):
         Raises:
             ValueError: cameraでない場合。
         """
-        node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
+        node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
         if node is None:
             raise ValueError("Expected an existing camera: " + str(item))
         if node.getType() == "camera":
             return node.getParent(), node
-        if isinstance(node, mlib.nodes.Transform):
+        if isinstance(node, mlib.Transform):
             shapes = [child for child in node.getShapes() if child.getType() == "camera"]
             if len(shapes) == 1:
                 return node, shapes[0]

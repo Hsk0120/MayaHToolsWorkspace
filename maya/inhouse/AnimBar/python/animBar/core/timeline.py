@@ -255,11 +255,11 @@ def playblast(camera=None, play=True, folder=None):
     previous = None
     if camera is not None and panel:
         previous = cmds.modelPanel(panel, query=True, camera=True)
-        cmds.modelPanel(panel, edit=True, camera=mlib.nodes.Node(camera).getFullName())
+        cmds.modelPanel(panel, edit=True, camera=mlib.Node(camera).getFullName())
     overscan = None
     if settings["overscan"] is not None and panel:
-        shape = mlib.nodes.Node(cmds.modelPanel(panel, query=True, camera=True))
-        shape = shape.getShape() if isinstance(shape, mlib.nodes.Transform) else shape
+        shape = mlib.Node(cmds.modelPanel(panel, query=True, camera=True))
+        shape = shape.getShape() if isinstance(shape, mlib.Transform) else shape
         if shape is not None and shape.hasAttr("overscan") and keys.isEditable(shape.getPlug("overscan")):
             overscan = (shape.getPlug("overscan"), shape.getPlug("overscan").get())
             overscan[0].set(float(settings["overscan"]))
@@ -327,7 +327,7 @@ def duplicateCamera(camera=None):
     Returns:
         Node: 複製したカメラのTransform。
     """
-    source = mlib.nodes.Node(camera) if camera is not None else keys.selectedNodes()[0]
+    source = mlib.Node(camera) if camera is not None else keys.selectedNodes()[0]
     copy = mlib.duplicate(source, name=source.getNodeName(removeNamespace=True) + "_copy")
     extras = [child for child in copy.getChildren()]
     if extras:

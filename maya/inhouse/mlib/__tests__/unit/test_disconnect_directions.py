@@ -41,7 +41,7 @@ class DisconnectReferenceTest(unittest.TestCase):
                 else:
                     value = source.mplug() if mode == "mplug" else source.getFullName() if mode == "string" else source
                     result = center.disconnect(value)
-                self.assertIsInstance(result, mlib.plugs.Plug)
+                self.assertIsInstance(result, mlib.Plug)
                 self.assertEqual(result, source)
                 self.assertIsNone(center.getSource(skipConversionNodes=True))
                 self.assertCountEqual(center.getDestinations(skipConversionNodes=True), destinations)

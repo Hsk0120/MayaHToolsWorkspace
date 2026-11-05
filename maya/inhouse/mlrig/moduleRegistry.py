@@ -20,7 +20,7 @@ class ModuleRegistry:
         from .skirtRig import SkirtRig
         from .splineRig import SplineRig
 
-        node = mlib.nodes.Node(root)
+        node = mlib.Node(root)
         if node.hasAttr("mlrigControlDefinition"):
             from .controlRig import ControlRig
             from .fingerRig import FingerRig

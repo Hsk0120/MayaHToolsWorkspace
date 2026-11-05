@@ -89,8 +89,8 @@ class NodeDeleteTest(unittest.TestCase):
     def test_joint_command_uses_standard_delete(self):
         joint = mlib.createNode('joint', skipSelect=True)
         child = mlib.createNode('joint', parent=joint, skipSelect=True)
-        original = mlib.nodes.Joint.delete
-        with patch.object(mlib.nodes.Joint, 'delete', autospec=True, side_effect=original) as method:
+        original = mlib.Joint.delete
+        with patch.object(mlib.Joint, 'delete', autospec=True, side_effect=original) as method:
             mlib.delete(joint.getFullName())
             self.assertEqual(method.call_count, 1)
         self.assertFalse(joint.isValid())

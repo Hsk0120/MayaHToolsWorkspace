@@ -40,8 +40,8 @@ class VirtualChain(TwistDistribution):
         """
         nodes = []
         for item in controls:
-            node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("control must be an existing transform: " + str(item))
             nodes.append(node)
         if len(nodes) < 2:

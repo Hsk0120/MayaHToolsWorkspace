@@ -103,7 +103,7 @@ class TextureNodesTest(_GeometryCase):
         connections = cmds.listConnections(place.getFullName(), source=False, destination=True, connections=True)
         self.assertEqual(len(connections) // 2, len(expected))
         placement = texture.getPlacement()
-        self.assertIsInstance(placement, mlib.nodes.Place2dTexture)
+        self.assertIsInstance(placement, mlib.Place2dTexture)
         self.assertTrue(placement.sameNode(place))
         # 接続済みの再実行は何も変えず、Undoの記録も残さない。
         undo_name = cmds.undoInfo(query=True, undoName=True)
@@ -118,7 +118,7 @@ class TextureNodesTest(_GeometryCase):
     def test_place2d_force_and_errors(self):
         """別の配置ノードの接続はforce/fでだけ置き換える。Texture2d以外はTypeError。"""
         texture = mlib.createNode("checker")
-        self.assertIsInstance(texture, mlib.nodes.Texture2d)
+        self.assertIsInstance(texture, mlib.Texture2d)
         first = mlib.createNode("place2dTexture").connectTexture(texture)
         second = mlib.createNode("place2dTexture")
         with self.assertRaises(RuntimeError):
@@ -144,7 +144,7 @@ class TextureNodesTest(_GeometryCase):
         cmds.addAttr(other, longName="uvSpecAV", attributeType="float", parent="uvSpecA")
         cmds.connectAttr(other + ".uvSpecA", texture.getFullName() + ".uvCoord")
         placement = texture.getPlacement()
-        self.assertIsInstance(placement, mlib.nodes.Transform)
+        self.assertIsInstance(placement, mlib.Transform)
         self.assertEqual(placement.getName(), other)
 
 

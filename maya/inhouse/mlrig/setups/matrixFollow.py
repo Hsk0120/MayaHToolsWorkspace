@@ -36,7 +36,7 @@ class MatrixFollow:
             visited.add(item.getUuid())
             if item == target:
                 raise ValueError("Source or parent depends on target")
-            if isinstance(item, (mlib.nodes.Transform, mlib.nodes.Shape)):
+            if isinstance(item, (mlib.Transform, mlib.Shape)):
                 parents = item.getParents()
                 if len(parents) > 1:
                     raise ValueError("Instanced hierarchy is not supported")
@@ -68,7 +68,7 @@ class MatrixFollow:
         """
         if backend not in ("standard", "cpp", "bifrost"):
             raise ValueError("Unknown matrix backend: " + backend)
-        source, target = mlib.nodes.Node(source), mlib.nodes.Node(target)
+        source, target = mlib.Node(source), mlib.Node(target)
         if source.getType() != "transform" or target.getType() != "transform":
             raise ValueError("MatrixFollow requires transform buffers, not joints")
         if source == target or target.isAncestorOf(source):
@@ -146,14 +146,14 @@ class MatrixFollow:
         else:
             inputs, output = ("offset", "sourceWorld", "parentInverse"), "outputMatrix"
             if backend == "cpp":
-                version = str(mlib.common.Environment.getMayaVersion().major)
+                version = str(mlib.Environment.getMayaVersion().major)
                 plugin = (
                     Path(__file__).parents[1]
                     / "release/plug-ins/windows"
                     / version
                     / "mlrigNodes.mll"
                 )
-                mlib.common.Plugin(str(plugin)).ensureLoaded()
+                mlib.Plugin(str(plugin)).ensureLoaded()
                 graph = mlib.createNode("mlrigMatrixFollow", name=name, skipSelect=True)
             else:
                 from .bifrostMatrixFollow import BifrostMatrixFollow

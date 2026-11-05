@@ -23,8 +23,8 @@ class ControlShape:
         Returns:
             tuple[Node]: 追加したNURBSシェイプ。
         """
-        target = mlib.nodes.Node(target)
-        if not isinstance(target, mlib.nodes.Transform):
+        target = mlib.Node(target)
+        if not isinstance(target, mlib.Transform):
             raise TypeError("Expected a transform")
         if (
             not math.isfinite(radius)
@@ -68,7 +68,7 @@ class ControlShape:
         Returns:
             Transform: 形状を差し替えた既存transform。他種のシェイプは保持する。
         """
-        target = mlib.nodes.Transform(target)
+        target = mlib.Transform(target)
         old_shapes = [shape for shape in target.getShapes(intermediates=True) if shape.getType() == "nurbsCurve"]
         ui = mlib.common.units.distanceFromUi
         shape = mlib.createCurve([tuple(ui(v) for v in point) for point in points], degree=degree, knots=knots,

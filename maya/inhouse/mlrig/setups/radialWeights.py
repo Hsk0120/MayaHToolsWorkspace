@@ -17,7 +17,7 @@ class RadialWeights:
         Args:
             container (str | Node): createで生成したcontainer。
         """
-        self.container = mlib.nodes.Container(container)
+        self.container = mlib.Container(container)
 
     @staticmethod
     def directions(angle, count):

@@ -122,22 +122,22 @@ class ExplicitRegistrationsTest(unittest.TestCase):
 
     def test_node_table_matches_initialized_registry(self):
         """Nodeの型対応表に書いたクラスを既存の取得入口で選択する。"""
-        registry = mlib.nodes.Node._registry
+        registry = mlib.Node._registry
         for node_type, wrapper in mlib.nodes._WRAPPER_CLASSES.items():
             self.assertIs(registry.lookup(node_type), wrapper)
-        self.assertIs(registry.wrapper_class("joint"), mlib.nodes.Joint)
-        self.assertIs(registry.wrapper_class("mesh"), mlib.nodes.Mesh)
+        self.assertIs(registry.wrapper_class("joint"), mlib.Joint)
+        self.assertIs(registry.wrapper_class("mesh"), mlib.Mesh)
 
     def test_plug_table_matches_initialized_registry(self):
         """Plugの型対応表が公開クラスの登録漏れなく初期化される。"""
-        registry = mlib.plugs.Plug._registry
+        registry = mlib.Plug._registry
         for attr_type, wrapper in mlib.plugs._WRAPPER_CLASSES.items():
             self.assertIs(registry.lookup(attr_type), wrapper)
-        self.assertIs(registry.lookup("double"), mlib.plugs.DoublePlug)
+        self.assertIs(registry.lookup("double"), mlib.DoublePlug)
 
     def test_publication_does_not_require_metadata_decorators(self):
         """公開・登録済みクラスへ旧自動検出用メタデータを要求しない。"""
-        for wrapper in (mlib.nodes.Joint, mlib.nodes.Joints, mlib.plugs.DoublePlug):
+        for wrapper in (mlib.Joint, mlib.Joints, mlib.DoublePlug):
             for name in ("__mlib_node_type__", "__mlib_plug_type__", "__mlib_public__", "__mlib_collection__"):
                 self.assertNotIn(name, wrapper.__dict__)
 

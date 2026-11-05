@@ -129,14 +129,14 @@ class NoFlipPole(TwistDistribution):
                 raise ValueError("distance must be a finite value greater than 0")
         if mlib.objExists(name):
             raise ValueError("NoFlipPole container already exists: " + name)
-        start, end = mlib.nodes.Node(start), mlib.nodes.Node(end)
-        control = end if control is None else mlib.nodes.Node(control)
+        start, end = mlib.Node(start), mlib.Node(end)
+        control = end if control is None else mlib.Node(control)
         nodes = [start, end, control]
         if mid is not None:
-            mid = mlib.nodes.Node(mid)
+            mid = mlib.Node(mid)
             nodes.append(mid)
         for node in nodes:
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for start, end, control and mid")
         if start.getFullName() == end.getFullName() or (
                 mid is not None and mid.getFullName() in (start.getFullName(), end.getFullName())):

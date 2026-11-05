@@ -332,7 +332,7 @@ Pythonの書式・日本語Google形式docstringはmlibに合わせます。
 詳細は [mlrig実装ルール](../../../docs/mlrig-development.md) を参照してください。
 
 ノード生成・属性・接続・行列の操作にはmlibの公開APIを使用します。
-GUI監視は `mlib.common.ScriptJobs`、変更があるときだけ行う状態表示の更新は
+GUI監視は `mlib.ScriptJobs`、変更があるときだけ行う状態表示の更新は
 `Plug.setIfChanged()` を使用します。FK/IKやLODの判断、リグの再探索はmlrig側の責務です。
 IKハンドル構築、スキン作成・ウェイト転送、プリミティブ作成などにはMaya専用コマンドを使用します。
 
@@ -426,7 +426,7 @@ Undo/Redo・シーン読込・Mode/LOD/Enabled変更を表示へ反映します�
 ## Swing / Twistドリブンキーレイヤー
 
 ジョイントのローカル回転をSwingとTwistへ分解し、その1成分から単一属性をSDKで駆動します。
-分解は`mlrig.setups.SwingTwist`、SDK生成は既存の`mlib.common.DrivenKey`を使用します。
+分解は`mlrig.setups.SwingTwist`、SDK生成は既存の`mlib.DrivenKey`を使用します。
 
 ```python
 import mlib
@@ -790,11 +790,11 @@ mlrigは構成・命名・レイヤー有効状態・LOD・リグの姿勢合わ
 
 | 処理 | 実装先 |
 | --- | --- |
-| 計算ノードの所有・追加・列挙 | `mlib.nodes.Container` |
-| 保存用messageのマルチアトリビュート | `mlib.plugs.MultiPlug.sourceNodes / appendMessage` |
+| 計算ノードの所有・追加・列挙 | `mlib.Container` |
+| 保存用messageのマルチアトリビュート | `mlib.MultiPlug.sourceNodes / appendMessage` |
 | 操作カーブ | `mlrig.setups.ControlShape` |
 | 表示単位変換 | `mlib.common.units` |
-| スキンのバインド・最近傍ウェイト転送 | `mlib.nodes.SkinCluster` |
+| スキンのバインド・最近傍ウェイト転送 | `mlib.SkinCluster` |
 | 標準演算とSoft IK | `mlib.common.scalarGraph.ScalarGraph / SoftIK` |
 | Bifrost基本演算とSoft IK | `mlib_bifrost.common.MathBuilder` / `mlrig.setups.bifrostSoftIK.SoftIK` |
 

@@ -41,7 +41,7 @@ class LimbStretchLayer:
         Returns:
             Node: 新規ノード。
         """
-        return mlib.nodes.Container(owner).createNode(kind, name=owner.getName() + "_" + role)
+        return mlib.Container(owner).createNode(kind, name=owner.getName() + "_" + role)
 
     @undoTransaction("mlrig.LimbStretchLayer.add")
     def add(self):
@@ -59,7 +59,7 @@ class LimbStretchLayer:
         ]
         owner = LengthCompensation.create(sum(lengths), root.getName() + "_stretchGraph").container
         if root.hasAttr("channel_stretch"):
-            group = mlib.nodes.Node(rig._member("channel_stretch"))
+            group = mlib.Node(rig._member("channel_stretch"))
         else:
             parent = (
                 rig._member("channelModule") if root.hasAttr("channelModule") else root.getFullName()

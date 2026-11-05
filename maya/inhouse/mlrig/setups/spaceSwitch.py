@@ -23,7 +23,7 @@ class SpaceSwitch:
         Args:
             buffer (str | Node): createで初期化したtransform。
         """
-        self.buffer = mlib.nodes.Node(buffer)
+        self.buffer = mlib.Node(buffer)
         if not self.buffer.hasAttr("spaceChoice"):
             raise ValueError("Not a space-switch buffer")
 
@@ -38,7 +38,7 @@ class SpaceSwitch:
         Returns:
             SpaceSwitch: 空間登録前の切替オブジェクト。
         """
-        buffer = mlib.nodes.Node(buffer)
+        buffer = mlib.Node(buffer)
         if buffer.getType() != "transform" or buffer.hasAttr("spaceChoice"):
             raise ValueError("Expected an unused transform")
         if buffer.getPlug('offsetParentMatrix').getSource() is not None:
@@ -92,7 +92,7 @@ class SpaceSwitch:
         Args:
             target (Node): 参照するtransform。
         """
-        if not isinstance(target, mlib.nodes.Transform):
+        if not isinstance(target, mlib.Transform):
             raise ValueError("Space target must have a world matrix")
         path = target.getFullName()
         if path == self.buffer.getFullName() or path.startswith(self.buffer.getFullName() + "|"):
@@ -107,7 +107,7 @@ class SpaceSwitch:
             if item.mnode() == self.buffer.mnode():
                 raise ValueError("Space target depends on the driven buffer")
             # DAG親子とDG入力の両方を辿る。所有参照のmessage接続は計算依存ではない。
-            if isinstance(item, (mlib.nodes.Transform, mlib.nodes.Shape)):
+            if isinstance(item, (mlib.Transform, mlib.Shape)):
                 pending.extend(item.getParents())
             for destination, source in item.getConnections(
                 destination=False, asPair=True
@@ -145,7 +145,7 @@ class SpaceSwitch:
         labels = self.labels()
         if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", label) or label in labels:
             raise ValueError("Invalid or duplicate space label")
-        target = mlib.nodes.Node(target) if target is not None else None
+        target = mlib.Node(target) if target is not None else None
         if target is not None:
             self._validate_target(target)
         world = self.buffer.getPlug("worldMatrix")[0].get()

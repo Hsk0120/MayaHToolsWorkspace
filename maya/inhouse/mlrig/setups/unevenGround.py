@@ -27,8 +27,8 @@ def _number(value, label):
 
 def _transform(item, label):
     """既存の transform・joint の Node に解決する。"""
-    node = item if isinstance(item, mlib.nodes.Node) else (mlib.nodes.Node(str(item)) if mlib.objExists(str(item)) else None)
-    if not isinstance(node, mlib.nodes.Transform):
+    node = item if isinstance(item, mlib.Node) else (mlib.Node(str(item)) if mlib.objExists(str(item)) else None)
+    if not isinstance(node, mlib.Transform):
         raise ValueError("{} must be an existing transform: {}".format(label, item))
     return node
 

@@ -13,8 +13,8 @@ class Target(object):
     """作業の対象。
 
     Args:
-        mesh (mlib.nodes.Mesh): 対象のメッシュのシェイプ。
-        skin (mlib.nodes.SkinCluster | None): メッシュを変形している skinCluster。無ければNone。
+        mesh (mlib.Mesh): 対象のメッシュのシェイプ。
+        skin (mlib.SkinCluster | None): メッシュを変形している skinCluster。無ければNone。
         vertices (list[int] | None): 選んだ頂点の番号(重複なし)。オブジェクトの選択はNone。
     """
 
@@ -35,7 +35,7 @@ class Target(object):
         """skinCluster を返す。無ければ例外にする。
 
         Returns:
-            mlib.nodes.SkinCluster: 対象の skinCluster。
+            mlib.SkinCluster: 対象の skinCluster。
 
         Raises:
             ValueError: メッシュがバインドされていない場合。
@@ -84,15 +84,15 @@ def _meshes_of(node):
     """ノードからメッシュのシェイプを返す(transform なら中間でないシェイプ)。
 
     Args:
-        node (mlib.nodes.Node): 選んだノード。
+        node (mlib.Node): 選んだノード。
 
     Returns:
-        list[mlib.nodes.Mesh]: メッシュ。
+        list[mlib.Mesh]: メッシュ。
     """
-    if isinstance(node, mlib.nodes.Mesh):
+    if isinstance(node, mlib.Mesh):
         return [node]
-    if isinstance(node, mlib.nodes.Transform):
-        return [shape for shape in node.getShapes() if isinstance(shape, mlib.nodes.Mesh)]
+    if isinstance(node, mlib.Transform):
+        return [shape for shape in node.getShapes() if isinstance(shape, mlib.Mesh)]
     return []
 
 
@@ -100,10 +100,10 @@ def _skin_of(mesh):
     """メッシュを変形している最初の skinCluster を返す。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
 
     Returns:
-        mlib.nodes.SkinCluster | None: skinCluster。無ければNone。
+        mlib.SkinCluster | None: skinCluster。無ければNone。
     """
     skins = mesh.getSkinClusters()
     return skins[0] if skins else None
@@ -122,7 +122,7 @@ def resolve(selection=None):
     for components in selection.getComponents():
         if isinstance(components, (Edges, Faces)):
             components = components.getVertices()
-        if not isinstance(components, Vertices) or not isinstance(components.shape, mlib.nodes.Mesh):
+        if not isinstance(components, Vertices) or not isinstance(components.shape, mlib.Mesh):
             continue
         mesh = components.shape
         indices = []
@@ -166,7 +166,7 @@ def selectVertices(mesh, indices):
     """メッシュの頂点を選ぶ。
 
     Args:
-        mesh (mlib.nodes.Mesh): メッシュ。
+        mesh (mlib.Mesh): メッシュ。
         indices (Iterable[int]): 頂点の番号。空なら選択を空にする。
 
     Returns:

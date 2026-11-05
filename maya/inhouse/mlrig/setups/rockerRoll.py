@@ -89,8 +89,8 @@ class RockerRoll(TwistDistribution):
             raise ValueError("contact must be a finite 3D point")
         if mlib.objExists(name):
             raise ValueError("RockerRoll container already exists: " + name)
-        target = mlib.nodes.Node(target)
-        if not isinstance(target, mlib.nodes.Transform):
+        target = mlib.Node(target)
+        if not isinstance(target, mlib.Transform):
             raise ValueError("Expected a transform for the target")
 
         graph = cls(mlib.createContainer(name=name))

@@ -78,7 +78,7 @@ class ModuleTest(unittest.TestCase):
 
     def test_equality_hash_and_repr(self):
         # 他のテストが mlib.reload() を呼んでも古いクラスを掴まないよう、都度 mlib.common から取得する。
-        module_class = mlib.common.Module
+        module_class = mlib.Module
         self.assertEqual(module_class("a"), module_class("a"))
         self.assertNotEqual(module_class("a"), module_class("b"))
         self.assertNotEqual(module_class("a"), "a")

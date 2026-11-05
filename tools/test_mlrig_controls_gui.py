@@ -60,7 +60,7 @@ def main(output_dir=None, finished=None):
         import mlib
 
         called = []
-        mlib.common.Deferred.call(lambda value: called.append(value), "deferred")
+        mlib.Deferred.call(lambda value: called.append(value), "deferred")
         yield
         check(called == ["deferred"], "Deferred callback via mlib")
         from maya import mel

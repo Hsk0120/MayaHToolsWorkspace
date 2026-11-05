@@ -27,9 +27,9 @@ class MethodContractTest(unittest.TestCase):
         """Transform上の行列アトリビュートでもTRSを変えず、Undoでアトリビュート値を戻す。"""
         self.node.setTranslation((2, 3, 4), at=4)
         plug = self.node.addAttr(longName='storedMatrix', dataType='matrix')
-        identity = mlib.maths.Matrix()
+        identity = mlib.Matrix()
         plug.set(identity)
-        value = mlib.maths.Matrix(translate=(8, 9, 10))
+        value = mlib.Matrix(translate=(8, 9, 10))
         before = self.node.getMatrix()
         plug.set(value)
         self.assertTrue(plug.get().isEquivalent(value))

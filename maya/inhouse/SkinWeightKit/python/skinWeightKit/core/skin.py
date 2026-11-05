@@ -20,10 +20,10 @@ def selectedJoints(selection=None):
         selection (Selection | None): 使う選択。Noneは今の選択。
 
     Returns:
-        list[mlib.nodes.Joint]: ジョイント。
+        list[mlib.Joint]: ジョイント。
     """
     selection = Selection.capture() if selection is None else selection
-    return [node for node in selection.getNodes() if isinstance(node, mlib.nodes.Joint)]
+    return [node for node in selection.getNodes() if isinstance(node, mlib.Joint)]
 
 
 def selectedMeshes(selection=None):
@@ -33,7 +33,7 @@ def selectedMeshes(selection=None):
         selection (Selection | None): 使う選択。Noneは今の選択。
 
     Returns:
-        list[mlib.nodes.Mesh]: メッシュ。
+        list[mlib.Mesh]: メッシュ。
     """
     selection = Selection.capture() if selection is None else selection
     meshes = []
@@ -48,7 +48,7 @@ def skinnedMeshes():
     """シーンにある、バインドされたメッシュ(中間オブジェクトでないもの)を返す。
 
     Returns:
-        list[mlib.nodes.Mesh]: メッシュ。
+        list[mlib.Mesh]: メッシュ。
     """
     return [mesh for mesh in mlib.ls(type="mesh", noIntermediate=True) if mesh.getSkinClusters()]
 
@@ -58,13 +58,13 @@ def bind(joints, meshes, maxInfluences=4, method="closest"):
     """メッシュをジョイントへバインドする(既にバインドされたメッシュは飛ばす)。
 
     Args:
-        joints (list[mlib.nodes.Joint]): インフルエンスにするジョイント。
-        meshes (list[mlib.nodes.Mesh]): バインドするメッシュ。
+        joints (list[mlib.Joint]): インフルエンスにするジョイント。
+        meshes (list[mlib.Mesh]): バインドするメッシュ。
         maxInfluences (int): 1頂点の最大数。
         method (str): :data:`BIND_METHODS` の名前。
 
     Returns:
-        list[mlib.nodes.SkinCluster]: 作った skinCluster。
+        list[mlib.SkinCluster]: 作った skinCluster。
 
     Raises:
         ValueError: ジョイント・メッシュが無い、または method が不正な場合。
@@ -119,7 +119,7 @@ def copySkin(source, meshes):
 
     Args:
         source (Target): コピー元。
-        meshes (Iterable[mlib.nodes.Mesh]): コピー先(コピー元と同じものは飛ばす)。
+        meshes (Iterable[mlib.Mesh]): コピー先(コピー元と同じものは飛ばす)。
 
     Returns:
         int: コピーしたメッシュの数。
@@ -242,7 +242,7 @@ class MoveJointsSession(object):
     """スキンの形を保ったまま、ジョイントを動かせる状態にする(始めてから終えるまで)。
 
     Args:
-        joints (list[mlib.nodes.Joint]): 動かすジョイント。
+        joints (list[mlib.Joint]): 動かすジョイント。
     """
 
     def __init__(self, joints):

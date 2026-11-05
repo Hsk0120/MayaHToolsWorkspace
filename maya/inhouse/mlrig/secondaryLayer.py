@@ -58,7 +58,7 @@ class SecondaryLayer:
         Returns:
             Node: 生成ノード。
         """
-        return mlib.nodes.Container(owner).createNode(kind, name=owner.getName() + "_" + suffix)
+        return mlib.Container(owner).createNode(kind, name=owner.getName() + "_" + suffix)
 
     @undoTransaction("mlrig.SecondaryLayer.add")
     def add(self, driver_index=0):

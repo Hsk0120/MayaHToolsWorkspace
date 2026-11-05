@@ -111,9 +111,9 @@ class CapsuleCollision(SphereCollision):
             raise ValueError("startRadius, endRadius and softness must not be negative")
         if mlib.objExists(name):
             raise ValueError("CapsuleCollision container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in (target, start, end)]
+        nodes = [mlib.Node(node) for node in (target, start, end)]
         for node in nodes:
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the target, the start and the end")
         if len({node.getFullName() for node in nodes}) != 3:
             raise ValueError("target, start and end must be different nodes")

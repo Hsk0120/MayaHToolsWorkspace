@@ -135,7 +135,7 @@ def _addProxy(joint, name, child, material_group):
     if spec is None:
         return None
     shape, size = spec
-    length = mlib.nodes.Node(child).getPlug("translateX").get(uiUnits=True) if child else 0.0
+    length = mlib.Node(child).getPlug("translateX").get(uiUnits=True) if child else 0.0
     mesh_name = joint.split("|")[-1]+"_proxy"
     offset = length/2.0
     # 大きさは現在の距離単位で決めているため、作成関数の内部単位(cm)へ換算して渡す。
@@ -159,7 +159,7 @@ def _addProxy(joint, name, child, material_group):
         return None
     mesh.setParent(joint, relative=True)
     mesh.getPlug("translateX").set(offset, uiUnits=True)
-    mlib.nodes.Node(material_group).assign(mesh)
+    mlib.Node(material_group).assign(mesh)
     proxy_shape = mesh.getShape()
     proxy_shape.getPlug("overrideEnabled").set(True)
     proxy_shape.getPlug("overrideDisplayType").set(2)
@@ -180,7 +180,7 @@ def _orientChain(root, secondary):
     Raises:
         ValueError: 子の方向と上方向が平行で、基準を決められない場合。
     """
-    nodes = mlib.nodes.Node(root).getChildren(allDescendents=True, order="breadthFirst", includeSelf=True)
+    nodes = mlib.Node(root).getChildren(allDescendents=True, order="breadthFirst", includeSelf=True)
     positions = {node.getUuid(): Vector(node.getMatrix(worldSpace=True).translate) for node in nodes}
     up = Vector(0, 1, 0) if secondary == "yup" else Vector(0, 0, 1)
     for node in nodes:
@@ -252,7 +252,7 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
         """末端の関節は向きを親にそろえる(子がなく X 軸の向きが決まらないため)。"""
         for name in joints:
             if not any(parent_of.get(child) == name for child in joints):
-                mlib.nodes.Node(joints[name]).getPlug("jointOrient").set((0, 0, 0))
+                mlib.Node(joints[name]).getPlug("jointOrient").set((0, 0, 0))
 
     # 体幹と手足。手は指を付ける前に向きを決め、前腕と同じ向き(X が腕の先)にする。
     create(TORSO+_leftSpecs(False, pose))
@@ -268,7 +268,7 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
 
     # 右半身は左の鏡像。mirrorBehavior で左右の回転が対称に動く。
     for name in ("clavicle_l", "thigh_l"):
-        mirrored = mlib.nodes.Node(joints[name]).mirror("YZ", behavior=True, searchReplace=("_l", "_r"))
+        mirrored = mlib.Node(joints[name]).mirror("YZ", behavior=True, searchReplace=("_l", "_r"))
         for joint in mirrored.getChildren(allDescendents=True, includeSelf=True):
             if not isinstance(joint, Joint):
                 continue
@@ -284,21 +284,21 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
     for name in list(joints):
         if name.endswith("_l"):
             right = name[:-2]+"_r"
-            joints[right] = mlib.nodes.Node(temporary+right).getName()
+            joints[right] = mlib.Node(temporary+right).getName()
             parent = parent_of[name]
             parent_of[right] = parent[:-2]+"_r" if parent.endswith("_l") else parent
     # 正式な名前へ付け直す。親から順に付け直しても子の名前は変わらない。
     for name in names:
-        mlib.nodes.Node(temporary+name).rename(prefix+name)
+        mlib.Node(temporary+name).rename(prefix+name)
     for name in names:
-        joints[name] = mlib.nodes.Node(prefix+name).getName()
+        joints[name] = mlib.Node(prefix+name).getName()
 
     meshes, proxy_set = [], None
     if proxy:
-        material = mlib.nodes.Node(cmds.shadingNode("lambert", asShader=True, name=prefix+"humanProxy_mat"))
+        material = mlib.Node(cmds.shadingNode("lambert", asShader=True, name=prefix+"humanProxy_mat"))
         material.getPlug("color").set((0.55, 0.6, 0.68))
         material.getPlug("transparency").set((0.45, 0.45, 0.45))
-        material_group = mlib.nodes.Node(cmds.sets(
+        material_group = mlib.Node(cmds.sets(
             renderable=True, noSurfaceShader=True, empty=True, name=prefix+"humanProxy_SG"
         ))
         material_group.setShader(material)

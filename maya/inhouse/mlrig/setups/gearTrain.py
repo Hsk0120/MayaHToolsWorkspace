@@ -84,10 +84,10 @@ class GearTrain(TwistDistribution):
             raise ValueError("links must have mesh or shaft for each gear")
         if mlib.objExists(name):
             raise ValueError("GearTrain container already exists: " + name)
-        driver = mlib.nodes.Node(driver)
-        gears = [mlib.nodes.Node(gear) for gear in gears]
+        driver = mlib.Node(driver)
+        gears = [mlib.Node(gear) for gear in gears]
         nodes = [driver] + gears
-        if any(not isinstance(node, mlib.nodes.Transform) for node in nodes):
+        if any(not isinstance(node, mlib.Transform) for node in nodes):
             raise ValueError("Expected transforms for the driver and the gears")
         if len({node.getFullName() for node in nodes}) != len(nodes):
             raise ValueError("The driver and the gears must be different nodes")

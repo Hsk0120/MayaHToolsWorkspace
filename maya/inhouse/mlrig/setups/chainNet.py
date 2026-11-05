@@ -136,8 +136,8 @@ class ChainNet(TwistDistribution):
         """
         if nodes is None or isinstance(nodes, str):
             raise ValueError("Expected a list of transforms for the " + role)
-        chain = [mlib.nodes.Node(node) for node in nodes]
-        if not chain or any(not isinstance(node, mlib.nodes.Transform) for node in chain):
+        chain = [mlib.Node(node) for node in nodes]
+        if not chain or any(not isinstance(node, mlib.Transform) for node in chain):
             raise ValueError("Expected one or more transforms for the " + role)
         if len({node.getUuid() for node in chain}) != len(chain):
             raise ValueError("The " + role + " has the same transform more than once")

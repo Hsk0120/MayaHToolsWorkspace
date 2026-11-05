@@ -26,8 +26,8 @@ class PaintSession(object):
     Args:
         target (Target): 塗るメッシュ(頂点の選択は使わない)。
         mode (str): :data:`MODES` の名前。
-        influence (mlib.nodes.Node | str | None): アクティブなインフルエンス(remove・add・transfer で使う)。
-        source (mlib.nodes.Node | str | None): transfer で移す元のインフルエンス。
+        influence (mlib.Node | str | None): アクティブなインフルエンス(remove・add・transfer で使う)。
+        source (mlib.Node | str | None): transfer で移す元のインフルエンス。
         method (str): スムーズの重みの付け方(:data:`skinWeightKit.core.smoothing.METHODS`)。
         radius (float): スムーズで、辺でつながっていない半径内の頂点も含める(cm)。0は含めない。
         keepMax (bool): Trueは skinCluster の最大インフルエンス数を超えないようにする。

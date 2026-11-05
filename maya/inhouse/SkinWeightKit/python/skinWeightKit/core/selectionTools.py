@@ -14,7 +14,7 @@ def selectedEdges(selection=None):
         selection (Selection | None): 使う選択。Noneは今の選択。
 
     Returns:
-        tuple[mlib.nodes.Mesh, list[int]]: メッシュとエッジの番号。
+        tuple[mlib.Mesh, list[int]]: メッシュとエッジの番号。
 
     Raises:
         ValueError: メッシュのエッジを選んでいない場合。
@@ -23,7 +23,7 @@ def selectedEdges(selection=None):
     mesh = None
     edges = []
     for components in selection.getComponents():
-        if isinstance(components, Edges) and isinstance(components.shape, mlib.nodes.Mesh):
+        if isinstance(components, Edges) and isinstance(components.shape, mlib.Mesh):
             if mesh is None:
                 mesh = components.shape
             if components.shape == mesh:

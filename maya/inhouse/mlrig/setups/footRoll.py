@@ -107,9 +107,9 @@ class FootRoll(TwistDistribution):
             raise ValueError("breakAngle must be a finite angle of 0 or more degrees")
         if mlib.objExists(name):
             raise ValueError("FootRoll container already exists: " + name)
-        nodes = [mlib.nodes.Node(node) for node in (control, ankle, ball, toe, heel, inner, outer)]
+        nodes = [mlib.Node(node) for node in (control, ankle, ball, toe, heel, inner, outer)]
         if len({node.getUuid() for node in nodes}) != len(nodes) or any(
-            not isinstance(node, mlib.nodes.Transform) for node in nodes
+            not isinstance(node, mlib.Transform) for node in nodes
         ):
             raise ValueError("Expected seven different transforms for the foot")
         control, ankle, ball = nodes[:3]

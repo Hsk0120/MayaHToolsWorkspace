@@ -123,7 +123,7 @@ def _is_deleted_api_object(value: object) -> bool:
 def _resolve_input_or_none(other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> Node | None:
     """判定メソッド(``isParentOf`` など)の対象をノードへ解決する。
 
-    ``mlib.nodes.Node._resolve_input`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
+    ``mlib.Node._resolve_input`` と同じ規則で解決し、削除済みの対象(削除済みの Node、
     所有ノードが削除済みの Plug・Component、アトリビュートが ``deleteAttr`` で削除済みの Plug・MPlug、
     削除済みのノードを指す om2 オブジェクト)は例外にせず None を返す(判定は False)。
 

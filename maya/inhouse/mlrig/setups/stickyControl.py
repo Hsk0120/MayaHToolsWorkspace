@@ -51,11 +51,11 @@ class StickyControl(TwistDistribution):
         """
         if mlib.objExists(name):
             raise ValueError("StickyControl container already exists: " + name)
-        mesh = mlib.nodes.Node(mesh)
-        control = mlib.nodes.Node(control)
-        if not isinstance(mesh, mlib.nodes.Transform):
+        mesh = mlib.Node(mesh)
+        control = mlib.Node(control)
+        if not isinstance(mesh, mlib.Transform):
             raise ValueError("Expected a transform for the mesh: " + str(mesh))
-        if not isinstance(control, mlib.nodes.Transform):
+        if not isinstance(control, mlib.Transform):
             raise ValueError("Expected a transform for the control: " + str(control))
         if mesh == control:
             raise ValueError("The mesh and the control must be different nodes")
@@ -76,8 +76,8 @@ class StickyControl(TwistDistribution):
                 raise ValueError("No intermediate (original) mesh shape under {}; pass original".format(mesh))
             original = rests[0]
         else:
-            original = mlib.nodes.Node(original)
-            if isinstance(original, mlib.nodes.Transform):
+            original = mlib.Node(original)
+            if isinstance(original, mlib.Transform):
                 found = [shape for shape in original.getShapes(intermediates=True) if shape.getType() == "mesh"]
                 if not found:
                     raise ValueError("No mesh shape under the original: " + str(original))

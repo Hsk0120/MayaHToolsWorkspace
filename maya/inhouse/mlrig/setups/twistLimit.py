@@ -91,7 +91,7 @@ class TwistLimit(SwingTwist):
             raise ValueError("limits must satisfy -179 <= minimum < maximum <= 179 degrees")
         if not 0 <= softness <= 1:
             raise ValueError("softness must be between 0 and 1")
-        joint = mlib.nodes.Node(joint)
+        joint = mlib.Node(joint)
         rest = Matrix(joint.getPlug("matrix").get()) * Matrix(joint.getPlug("offsetParentMatrix").get())
         rest_rotation = rest.quaternion.asMatrix()
         conversions = {node.getUuid() for node in mlib.ls(type="unitConversion")}
@@ -163,5 +163,5 @@ class TwistLimit(SwingTwist):
         owner.setAttrFlags(list(outputs), keyable=False, channelBox=True)
         extra = [node for node in mlib.ls(type="unitConversion") if node.getUuid() not in conversions]
         if extra:
-            mlib.nodes.Container(owner).addMembers(*extra)
+            mlib.Container(owner).addMembers(*extra)
         return graph

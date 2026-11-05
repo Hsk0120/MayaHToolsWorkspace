@@ -25,7 +25,7 @@ class SplineRig:
         Args:
             root (str | Node): モジュールルート。
         """
-        self.root = mlib.nodes.Node(root)
+        self.root = mlib.Node(root)
         if not self.root.hasAttr("mlrigSplineDefinition"):
             raise ValueError("Not an mlrig spline module")
 
@@ -402,7 +402,7 @@ class SplineRig:
     @classmethod
     def refresh_jobs(cls):
         """GUIの属性監視を復元する。バッチでは明示APIを使う。"""
-        if mlib.common.Environment.isBatch():
+        if mlib.Environment.isBatch():
             return
         for key, jobs in list(cls._jobs.items()):
             if not [item.getName() for item in mlib.ls(key)] or not jobs.exists():
@@ -415,7 +415,7 @@ class SplineRig:
             key = rig.root.getUuid()
             if key in cls._jobs:
                 continue
-            jobs = mlib.common.ScriptJobs()
+            jobs = mlib.ScriptJobs()
             attrs = ["mode", "lod", "enabled"]
             if rig.root.hasAttr("mlrigEnabled_stretch"):
                 attrs.append("mlrigEnabled_stretch")
@@ -458,7 +458,7 @@ class SplineRig:
     @undoTransaction("mlrig.SplineRig.delete")
     def delete(self):
         """スキン未使用なら所有グラフと階層を削除する。"""
-        if any(mlib.nodes.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True) for joint in self.getJoints()):
+        if any(mlib.Node(joint).getConnections(type="skinCluster", skipConversionNodes=True) for joint in self.getJoints()):
             raise ValueError("Unbind the spline before deleting its module")
         from .splineStretchLayer import SplineStretchLayer
 

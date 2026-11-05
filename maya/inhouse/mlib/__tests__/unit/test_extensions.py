@@ -66,18 +66,18 @@ class ExtensionsTest(unittest.TestCase):
         self.wrappers(path, 'plugs', 'from mlib.plugs import Plug\nclass SamplePlug(Plug): pass\n', type_name='fixtureData', class_name='SamplePlug')
         mlib.reload()
         self.assertEqual(mlib.core.extensions.status()['mlib_fixture_valid']['state'], 'loaded')
-        old = mlib.nodes.Node._registry.lookup('fixtureNode')
-        self.assertTrue(issubclass(old, mlib.nodes.Node))
-        self.assertIsNotNone(mlib.plugs.Plug._registry.lookup('fixtureData'))
+        old = mlib.Node._registry.lookup('fixtureNode')
+        self.assertTrue(issubclass(old, mlib.Node))
+        self.assertIsNotNone(mlib.Plug._registry.lookup('fixtureData'))
         mlib.reload()
-        new = mlib.nodes.Node._registry.lookup('fixtureNode')
+        new = mlib.Node._registry.lookup('fixtureNode')
         self.assertIsNot(old, new)
-        self.assertTrue(issubclass(new, mlib.nodes.Node))
+        self.assertTrue(issubclass(new, mlib.Node))
         (path / 'nodes' / 'sample.py').unlink()
         (path / 'nodes' / '__init__.py').write_text(
             '__all__ = []\n_WRAPPER_CLASSES = {}\n', encoding='utf-8')
         mlib.reload()
-        self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureNode'))
+        self.assertIsNone(mlib.Node._registry.lookup('fixtureNode'))
 
     def test_unavailable_and_unmarked(self):
         self.package('mlib_fixture_unavailable', 'MLIB_EXTENSION_API = 1\ndef is_available(): return False\n')
@@ -96,7 +96,7 @@ class ExtensionsTest(unittest.TestCase):
         mlib.reload()
         self.assertEqual(mlib.core.extensions.status()['mlib_fixture_achild']['state'], 'error')
         self.assertNotIn('mlib_fixture_achild.nodes', sys.modules)
-        self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureChild'))
+        self.assertIsNone(mlib.Node._registry.lookup('fixtureChild'))
         self.assertEqual(mlib.core.extensions.status()['mlib_fixture_zbase']['state'], 'loaded')
 
     def test_failed_import_recovers_on_first_reload(self):
@@ -176,9 +176,9 @@ class ExtensionsTest(unittest.TestCase):
         mlib.reload()
         states = mlib.core.extensions.status()
         self.assertEqual(states['mlib_fixture_conflict']['state'], 'error')
-        self.assertIsNone(mlib.nodes.Node._registry.lookup('fixturePartial'))
+        self.assertIsNone(mlib.Node._registry.lookup('fixturePartial'))
         self.assertEqual(states['mlib_fixture_broken']['reason'], 'SDK broken')
-        self.assertIsNotNone(mlib.nodes.Node._registry.lookup('transform'))
+        self.assertIsNotNone(mlib.Node._registry.lookup('transform'))
 
     def test_registration_failure_restores_both_registries(self):
         """登録途中の障害で先に登録したnodesの型対応も戻す。"""
@@ -186,7 +186,7 @@ class ExtensionsTest(unittest.TestCase):
         path = self.package('mlib_fixture_atomic', 'MLIB_EXTENSION_API = 1\ndef is_available(): return True\n')
         self.wrappers(path, 'nodes', 'from mlib.nodes import Node\nclass AtomicNode(Node): pass\n', type_name='fixtureAtomicNode', class_name='AtomicNode')
         self.wrappers(path, 'plugs', 'from mlib.plugs import Plug\nclass AtomicPlug(Plug): pass\n', type_name='fixtureAtomicPlug', class_name='AtomicPlug')
-        registry = mlib.plugs.Plug._registry
+        registry = mlib.Plug._registry
         original = registry.register
 
         def reject(key, cls):
@@ -197,12 +197,12 @@ class ExtensionsTest(unittest.TestCase):
 
         with mock.patch.object(registry, 'register', side_effect=reject):
             mlib.core.extensions._initialize()
-        self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureAtomicNode'))
+        self.assertIsNone(mlib.Node._registry.lookup('fixtureAtomicNode'))
         self.assertIsNone(registry.lookup('fixtureAtomicPlug'))
         # 明示importでの公開は型登録と独立し、登録失敗で名前を書き換えない。
         self.assertTrue(hasattr(sys.modules['mlib_fixture_atomic.nodes'], 'AtomicNode'))
         self.assertEqual(mlib.core.extensions.status()['mlib_fixture_atomic']['state'], 'error')
-        self.assertIsNotNone(mlib.nodes.Node._registry.lookup('transform'))
+        self.assertIsNotNone(mlib.Node._registry.lookup('transform'))
 
     def test_unlisted_wrapper_is_not_imported_or_registered(self):
         """実装ファイルを置くだけでは公開・型登録されない。"""
@@ -228,7 +228,7 @@ class ExtensionsTest(unittest.TestCase):
         (folder / '__init__.py').write_text('_WRAPPER_CLASSES = {"invalid": object()}\n', encoding='utf-8')
         mlib.reload()
         self.assertEqual(mlib.core.extensions.status()[name]['state'], 'error')
-        self.assertIsNone(mlib.nodes.Node._registry.lookup('fixtureInvalidMapNode'))
+        self.assertIsNone(mlib.Node._registry.lookup('fixtureInvalidMapNode'))
 
 
 if __name__ == '__main__':

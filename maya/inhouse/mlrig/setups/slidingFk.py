@@ -69,14 +69,14 @@ class SlidingFk(TwistDistribution):
             出力はワールド行列。matrix<-1> には先頭の節の親のworldMatrixを接続する(親が無ければ単位行列)。
             末尾の節は回転を受けず、1つ前の節に付いていく。入力の節そのものは変更しない。
         """
-        joints = [mlib.nodes.Node(node) for node in joints]
-        controls = [mlib.nodes.Node(node) for node in controls]
+        joints = [mlib.Node(node) for node in joints]
+        controls = [mlib.Node(node) for node in controls]
         if len(joints) < 3:
             raise ValueError("SlidingFk needs at least three joints")
         if not controls:
             raise ValueError("SlidingFk needs at least one control")
         for node in joints + controls:
-            if not isinstance(node, mlib.nodes.Transform):
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected transforms for the joints and the controls")
         names = [node.getFullName() for node in joints + controls]
         if len(set(names)) != len(names):
@@ -163,6 +163,6 @@ class SlidingFk(TwistDistribution):
         # 確認用に、節ごと・コントロールごとの正規化した重みを weight<j>[k] へ出す。
         for joint in range(len(joints) - 1):
             for index in range(len(controls)):
-                source = mlib.nodes.Node("{}_weight{}_{}".format(name, joint, index)).getPlug("outputX")
+                source = mlib.Node("{}_weight{}_{}".format(name, joint, index)).getPlug("outputX")
                 source.connectTo(owner.getPlug("weight" + str(joint))[index])
         return graph

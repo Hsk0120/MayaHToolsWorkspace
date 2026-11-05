@@ -60,7 +60,7 @@ class DisconnectReturnTest(unittest.TestCase):
                     result = node_b.getPlug("tx").disconnect(value, fast=fast)
                     if mode == "plug":
                         self.assertIs(result, source)
-                    self.assertIsInstance(result, mlib.plugs.Plug)
+                    self.assertIsInstance(result, mlib.Plug)
                     self.assertEqual(result, source)
                     self.assertFalse(cmds.isConnected(self.a + ".tx", self.b + ".tx"))
 
@@ -73,7 +73,7 @@ class DisconnectReturnTest(unittest.TestCase):
                 cmds.connectAttr(self.a + ".ty", self.bs + ".weight[2]")
                 result = node_b.getPlug("r").disconnect(fast=fast)
                 self.assertEqual(result.getFullName(), mlib.getNode(self.a).getPlug("r").getFullName())
-                self.assertIsInstance(result, mlib.plugs.CompoundPlug)
+                self.assertIsInstance(result, mlib.CompoundPlug)
                 element = node_bs.getPlug("weight[2]").disconnect(fast=fast)
                 self.assertEqual(element.getFullName(), mlib.getNode(self.a).getPlug("ty").getFullName())
                 self.assertTrue(element.isValid())

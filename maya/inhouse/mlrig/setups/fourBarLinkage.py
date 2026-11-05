@@ -241,8 +241,8 @@ class FourBarLinkage(TwistDistribution):
             if value is None:
                 nodes.append(None)
                 continue
-            node = mlib.nodes.Node(value)
-            if not isinstance(node, mlib.nodes.Transform):
+            node = mlib.Node(value)
+            if not isinstance(node, mlib.Transform):
                 raise ValueError("Expected a transform for the " + label)
             nodes.append(node)
         pin, rocker, end, coupler = nodes
