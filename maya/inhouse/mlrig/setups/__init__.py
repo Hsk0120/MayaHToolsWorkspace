@@ -13,6 +13,7 @@ from .eyelidFollow import EyelidFollow
 from .fkIkChain import FkIkChain
 from .footRoll import FootRoll
 from .gearTrain import GearTrain
+from .universalJoint import UniversalJoint
 from .skirtLegOffset import SkirtLegOffset
 from .pumpUp import PumpUp
 from .uiSlider import UiSlider
@@ -96,6 +97,7 @@ __all__ = [
     "FkIkChain",
     "FootRoll",
     "GearTrain",
+    "UniversalJoint",
     "SkirtLegOffset",
     "PumpUp",
     "UiSlider",

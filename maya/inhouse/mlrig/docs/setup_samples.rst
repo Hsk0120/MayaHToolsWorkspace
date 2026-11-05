@@ -62,6 +62,9 @@
    * - GearTrain - four gears
      - 駆動側の歯車のjoint
      - ``rotateZ`` で回すと、歯数の比(24:12、同じ軸、20:10)で緑の歯車が逆向き・同じ向きに回る(十字の先が歯車の半径)。containerの ``teeth0`` 〜 ``teeth3`` で歯数、 ``phase1`` 〜 ``phase3`` で歯の合わせを変えられる。
+   * - UniversalJoint - bent drive shaft
+     - 入力軸のjoint
+     - ``rotateX`` で回すと、十字軸(ユニバーサルジョイント)で斜め上へ曲げた出力軸(緑)が回る。十字の先が入力ヨークのピン、緑の短い先が出力ヨークのピン。曲げ角が約30度なので、1回転のうちに出力軸が入力より速い・遅い区間がある。先の点(locator)を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角、 ``speedRatio`` は角速度の比。
    * - AckermannSteering - car front wheels
      - ハンドルのjoint
      - ``rotateZ`` で回すと(比 -1/8)、緑の左右の前輪がアッカーマンの幾何で内輪を外輪より大きく切る(十字の先が車輪の半径、短い先が車軸の向き)。containerの ``ackermann`` を0にすると左右が同じ角度になる。

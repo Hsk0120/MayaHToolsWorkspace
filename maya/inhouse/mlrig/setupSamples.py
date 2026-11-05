@@ -59,6 +59,7 @@ class SetupSamples:
         ("waveFloat", "WaveFloat - boat on waves"),
         ("wheelRoll", "WheelRoll - wheel"),
         ("gearTrain", "GearTrain - four gears"),
+        ("universalJoint", "UniversalJoint - bent drive shaft"),
         ("ackermannSteering", "AckermannSteering - car front wheels"),
         ("treadBelt", "TreadBelt - tank tread"),
         ("rockerRoll", "RockerRoll - rocking chair runner"),
@@ -606,6 +607,21 @@ class SetupSamples:
         setup = GearTrain.create(gears[0], gears[1:], (24, 12, 20, 10), name=name, axis="z",
                                  links=("mesh", "shaft", "mesh"))
         return setup, gears[0]
+
+    @classmethod
+    def _universalJoint(cls, name, root):
+        """入力軸(joint、十字の先が入力ヨークのピン)と、斜め上の出力軸の先の点(locator)。出力軸は緑。
+        入力軸を ``rotateX`` で回すと、十字軸で曲げた出力軸(緑)が回り、1回転のうちに速さが揺れる。
+        先の点を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角、 ``speedRatio`` は角速度の比。"""
+        from .setups import UniversalJoint
+
+        shaft = _joint(name + "_inputShaft", root, translate=(0, 10, 0))
+        for index, tip in enumerate(((-3, 0, 0), (0, 1, 0), (0, -1, 0))):
+            _tip(shaft, "{}_inputShaftTip{}".format(name, index), tip)
+        target = _locator(name + "_outputTarget", root, translate=(4, 12.3, 0))
+        setup = UniversalJoint.create(shaft, target, name=name, axis="x", pinAxis="y")
+        _output(name + "_outputOut", root, str(setup.container) + ".matrix", ((3, 0, 0), (0, 0, 1), (0, 0, -1)))
+        return setup, shaft
 
     @classmethod
     def _ackermannSteering(cls, name, root):

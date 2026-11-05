@@ -50,6 +50,7 @@ CHANGES = {
     "waveFloat": (_add(".translateX", 3.0), "_boatOut"),
     "wheelRoll": (_set(".translateZ", 3.0), "_wheelOut"),
     "gearTrain": (_set(".rotateZ", 45.0), "_gear3"),
+    "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "ackermannSteering": (_set(".rotateZ", -240.0), "_frontLeft"),
     "treadBelt": (_add(".translateZ", 2.0), "_plate0Out"),
     "rockerRoll": (_set(".roll", 20.0), "_rockerOut"),
@@ -150,6 +151,8 @@ CHANGES = {
 #: CoilSpringの出力はらせん上の点で、対応する入力のノードが無いため対象外(式との一致は test_setup_coil_spring で確認する)。
 #: ScapulaGlideの出力は胸郭の表面へ投影した位置で、入力と同じワールド行列にはならないため対象外(式との一致は
 #: test_setup_scapula_glide で確認する)。
+#: UniversalJointのサンプルは出力軸を曲げて作るため、出力が入力軸と同じ向きにならず対象外(まっすぐなら入力と
+#: 同じ向きになることは test_setup_universal_joint で確認する)。
 REST_MATCH = {
     "hipSwing": ("_hipsOut", "_hips"),
     "boxRoll": ("_boxOut", "_box"),

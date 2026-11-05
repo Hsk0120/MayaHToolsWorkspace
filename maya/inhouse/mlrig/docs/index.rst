@@ -71,6 +71,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    sliding_fk
    no_flip_pole
    gear_train
+   universal_joint
    ackermann_steering
    skirt_leg_offset
    pump_up
