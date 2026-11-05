@@ -43,11 +43,12 @@ class VersionConsistencyTest(unittest.TestCase):
         self.assertEqual(Version(self.version).suffix, "")
 
     def test_version_is_not_exported(self):
-        """__version__ は __all__ に入れない。"""
+        """__version__ は __all__(明示した _names とクラス名)に入れない。"""
         text = (_MLIB_ROOT / "__init__.py").read_text(encoding="utf-8")
-        match = re.search(r"^__all__\s*=\s*\[(.*?)\]", text, re.S | re.M)
+        match = re.search(r"^_names\s*=\s*\[(.*?)\]", text, re.S | re.M)
         self.assertIsNotNone(match)
         self.assertNotIn("__version__", match.group(1))
+        self.assertRegex(text, r"(?m)^__all__ = _names \+ sorted\(_classes\)$")
 
     def test_module_file_matches(self):
         """mlib.mod の対応する全Mayaバージョンの行が同じ版番号を持つ。"""

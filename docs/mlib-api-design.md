@@ -362,6 +362,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 ## 公開名・型対応の宣言
 
 - 公開名は所属パッケージの `__init__.py` へ明示する。`nodes`・`plugs`・`components`・`maths`・`cmds` とルート関数は通常のimportと `__all__` を使う。`common` は初期化順とreloadに合わせ、遅延公開の `_exports` と静的解析用の `if TYPE_CHECKING:` を維持する。
+- ルートからのクラス取得(10.4.0): `nodes`・`plugs`・`components`・`maths`・`common` の `__all__` にあるクラス(別名・例外クラスを含む)は、ルートのモジュール `__getattr__` で `mlib.Joint` のように取得でき、文書・例ではこの書き方を推奨する。値はルートへimportして保持せず、毎回所属パッケージから取得する(reload後も現在のクラスを返す)。対象はルートの `_CLASS_PACKAGES`・`_EXCLUDED_CLASSES`(`Object`)と各パッケージの `__all__` から `_class_sources()` が求め、ルートの `__all__` は `_names + sorted(_classes)` とする。名前が重なる場合はルートの名前→`nodes`→`plugs`→`components`→`maths`→`common`→生成クラスの順に優先する。`common` は遅延公開のためimportせず、大文字だけの名前(定数)を除く(`check_mlib_exports.py` がクラス名と定数名の規則を検査する)。定数・関数・`Object` は対象にしない。補完用の再公開(`from .nodes import Joint as Joint`)は `tools/generate_mlib_stubs.py` が `mlib/__init__.pyi` へ書き出す。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書に宣言する。公開するクラス名とは分けて管理する。手書きクラスの明示登録は維持し、動的クラス(下記「動的ノードクラス」)はその補完に限る。
 - 外部拡張の検出は `extensions` が担当する。拡張側も `nodes`・`plugs` の明示import・`__all__`・`_WRAPPER_CLASSES` を用い、実行時のクラス注入や登録デコレーターは使わない。
 - 追加・削除後はリポジトリルートで `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
@@ -372,7 +373,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 `Node` へのフォールバックはMayaが認識しない型名だけに残す。手書きクラスの明示登録は維持し、生成はその補完に限る。
 移行例は `maya/inhouse/mlib/_docs/source/changelog.rst` を参照する。
 
-- 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
+- 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>`・`mlib.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`。ルートの `__getattr__` は公開クラスに無い名前をこれへ渡す)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
 - クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
 - 生成クラスの基底は、Mayaの継承チェーン(`cmds.nodeType(inherited=True)`)を自身の直前から辿って最初に見つかる登録クラス。チェーンに登録が無ければ `Node`。登録クラスと生成対象の間にある抽象型(`weightGeometryFilter`・`containerBase`・`entity`・`geometryShape` 等)のクラスは生成せず、生成クラス同士を親子にしない。例: `wrap` → `Wrap(GeometryFilter)`(10.1.0でデフォーマー共通の `geometryFilter` を手書きの `GeometryFilter` として登録)、`symmetryConstraint` → `SymmetryConstraint(Constraint)`、`airField` → `AirField(DagNode)`、`unknownDag` → `UnknownDag(DagNode)`。抽象型そのもの(`mlib.nodes.ContainerBase`)も同じ規則で生成するが、インスタンスを持たないので `isinstance` には使えない。
 - 生成クラスは `__slots__ = ()` で `__init__` を定義せず、`_generated_node_type`(型名)と `_generated = True` を持つ。`mlib.nodes.AirField("airField1")` の明示構築もでき、型が合わなければ登録クラスと同じ `Node.__new__` のTypeError(「参照と入力の固定規則」)。

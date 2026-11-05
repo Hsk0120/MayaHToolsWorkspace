@@ -1,8 +1,9 @@
 """Mayaを起動せず、mlibの明示的な公開入口と追加漏れを検査する。
 
 各パッケージの通常importと__all__を公開仕様として読む。commonだけは
-遅延import用の_exportsとTYPE_CHECKING宣言を照合する。実行時の公開処理や
-公開対象の別マニフェストを生成・更新するツールではない。
+遅延import用の_exportsとTYPE_CHECKING宣言を照合する。ルートの__all__は
+明示した_namesと、_CLASS_PACKAGESの各パッケージの公開クラス(__getattr__で取得)からなる。
+実行時の公開処理や公開対象の別マニフェストを生成・更新するツールではない。
 """
 
 from __future__ import annotations
@@ -101,6 +102,7 @@ class ExportChecker:
         self.sources = {}
         self.entries = {}
         self.issues = []
+        self.root_class_names = set()
 
     def issue(self, source, line, code, message):
         """診断を記録する。"""
@@ -136,12 +138,76 @@ class ExportChecker:
             result[name] = (target, line)
         return result
 
+    def literal(self, source, name):
+        """トップレベルで代入したリテラル(frozenset({...})を含む)の値を返す。"""
+        node = source.definitions.get(name)
+        if node is None:
+            return None
+        value = node.value
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Name) and value.func.id in {"frozenset", "set", "tuple"} and len(value.args) == 1:
+            value = value.args[0]
+        try:
+            return ast.literal_eval(value)
+        except (ValueError, TypeError):
+            return None
+
+    def root_classes(self, source, names):
+        """ルートの__getattr__で取得できるクラス名を、実行時と同じ優先順位で求める。"""
+        packages = self.literal(source, "_CLASS_PACKAGES")
+        excluded = self.literal(source, "_EXCLUDED_CLASSES")
+        if tuple(packages or ()) != CLASS_PACKAGES or not isinstance(excluded, (set, frozenset, list, tuple)):
+            self.issue(source, 1, "E020", "_CLASS_PACKAGESは{}、_EXCLUDED_CLASSESは文字列の集合で明示する".format(CLASS_PACKAGES))
+            return []
+        result = []
+        for folder in CLASS_PACKAGES:
+            module = self.package + "." + folder
+            package_names, bindings = self.entries.get(module, ([], {}))
+            package_source = self.load(module)
+            for name in package_names:
+                if name in names or name in result or name in excluded or not name[:1].isupper():
+                    continue
+                target = self.resolve(bindings[name][0]) if name in bindings else None
+                definition = self.load(target.module) if target is not None and target.name else None
+                node = definition.definitions.get(target.name) if definition is not None else None
+                # クラスの別名(AddDL = AddDoubleLinear 等)もクラスとして扱う。
+                if isinstance(node, ast.Assign) and isinstance(node.value, ast.Name):
+                    node = definition.classes.get(node.value.id)
+                # OpenMaya等の外部の公開名(maths.MSpace)はソースが無いため、実行時の判定(test_spec_v104_root_classes.py)に任せる。
+                external = target is not None and not target.module.startswith(self.package + ".")
+                is_class = external or isinstance(node, ast.ClassDef)
+                line = bindings[name][1] if name in bindings else 1
+                # 実行時はcommonをimportせず大文字だけの名前を定数として除き、ほかは先頭が大文字の名前をクラスとみなす。
+                if folder == "common" and is_class == name.isupper():
+                    self.issue(package_source, line, "E020",
+                               "commonの{}は、クラスなら大文字だけの名前にせず、定数なら大文字だけの名前にする".format(name))
+                elif folder != "common" and not is_class:
+                    self.issue(package_source, line, "E020",
+                               "{}/__init__.pyの先頭が大文字の公開名{}はクラスかその別名にする".format(folder, name))
+                if is_class:
+                    result.append(name)
+        return result
+
     def all_names(self, source, lazy):
         """明示__all__またはcommonの_exportsから公開名を取得する。"""
         node = source.definitions.get("__all__")
         if node is None:
             self.issue(source, 1, "E004", "公開入口に__all__がない")
             return []
+        value = node.value
+        if (source.module == self.package and isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add)
+                and isinstance(value.left, ast.Name) and value.left.id == "_names"
+                and isinstance(value.right, ast.Call) and isinstance(value.right.func, ast.Name)
+                and value.right.func.id == "sorted" and len(value.right.args) == 1
+                and isinstance(value.right.args[0], ast.Name) and value.right.args[0].id == "_classes"):
+            # ルートは明示した_namesに、各パッケージの公開クラスを加える。
+            names = self.literal(source, "_names")
+            if not isinstance(names, list) or any(not isinstance(name, str) for name in names):
+                self.issue(source, node.lineno, "E004", "_namesは文字列のリストで明示する")
+                return []
+            if len(names) != len(set(names)):
+                self.issue(source, node.lineno, "E005", "__all__の公開名が重複している")
+            self.root_class_names = set(self.root_classes(source, names))
+            return names + sorted(self.root_class_names)
         if "_exports" in source.definitions and isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Name) and node.value.func.id == "sorted" and len(node.value.args) == 1 and isinstance(node.value.args[0], ast.Name) and node.value.args[0].id == "_exports":
             return list(lazy)
         try:
@@ -232,7 +298,7 @@ class ExportChecker:
                 target, line = bindings[name]
                 if self.resolve(target) is None:
                     self.issue(source, line, "E009", "{} の公開先 {} に対象がない".format(name, target))
-            elif name not in source.definitions:
+            elif name not in source.definitions and not (module == self.package and name in self.root_class_names):
                 self.issue(source, 1, "E009", "{} が__all__にあるがimportまたは定義されていない".format(name))
         for name, (target, line) in bindings.items():
             if name not in names and not name.startswith("_") and target.module.startswith(self.package + "."):

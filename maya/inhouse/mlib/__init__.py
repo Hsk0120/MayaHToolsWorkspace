@@ -54,7 +54,12 @@ from .cmds import (
     select,
 )
 
-__all__ = [
+#: mlib.<クラス名>で取得するクラスを探すパッケージ。名前が重なるときは先にあるものを優先する。
+_CLASS_PACKAGES = ("nodes", "plugs", "components", "maths", "common")
+#: ルートから取得させないクラス。Objectは各型の共通基底で、mlib.core.object から取得する。
+_EXCLUDED_CLASSES = frozenset({"Object"})
+
+_names = [
     "bakeDeformer",
     "bakeResults",
     "bindSkin",
@@ -93,8 +98,35 @@ __all__ = [
     "util",
 ]
 
+
+def _class_sources():
+    """ルートから取得できるクラス名と、その所属パッケージの対応を作る。
+
+    各パッケージの ``__all__`` のうちクラスだけを対象にし、ルートの名前と ``_CLASS_PACKAGES`` の
+    先にあるパッケージを優先する。commonは遅延公開のためimportせず、大文字だけの名前(定数)を除く。
+
+    Returns:
+        dict[str, str]: クラス名から所属パッケージ名への対応。
+    """
+    sources = {}
+    for package_name in _CLASS_PACKAGES:
+        package = globals()[package_name]
+        for name in package.__all__:
+            if name in sources or name in _names or name in _EXCLUDED_CLASSES or not name[:1].isupper():
+                continue
+            if package_name == "common" and name.isupper():
+                continue
+            if package_name != "common" and not isinstance(getattr(package, name), type):
+                continue
+            sources[name] = package_name
+    return sources
+
+
+_classes = _class_sources()
+__all__ = _names + sorted(_classes)
+
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "10.3.0"
+__version__ = "10.4.0"
 
 
 def reload():
@@ -112,6 +144,42 @@ def reload():
     """
     _extensions._prepare_reload()
     return _reload_package(__name__)
+
+
+def __getattr__(name):
+    """各パッケージのクラスを ``mlib.<クラス名>`` で取得する。
+
+    ``mlib.Joint`` は ``mlib.nodes.Joint`` と同じクラスを返す。値は保持せず毎回所属パッケージから
+    取得するため、再読み込み後も現在のクラスを返す。どのパッケージにも無い先頭が大文字の名前は、
+    ``mlib.nodes`` と同じく登録の無いMayaのnodeTypeの生成クラスとして解決する(例: ``mlib.PointLight``)。
+
+    Args:
+        name (str): クラス名。
+
+    Returns:
+        type: 所属パッケージのクラス、または生成クラス。
+
+    Raises:
+        AttributeError: 対象のクラスが無い場合。
+    """
+    package_name = _classes.get(name)
+    if package_name is not None:
+        return getattr(globals()[package_name], name)
+    if name[:1].isupper() and name not in _EXCLUDED_CLASSES:
+        try:
+            return nodes.__getattr__(name)
+        except AttributeError:
+            pass
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__():
+    """モジュール内の名前と、ルートから取得できるクラス名を列挙する。
+
+    Returns:
+        list[str]: 補完・探索に使用する名前の一覧。
+    """
+    return sorted(set(globals()) | set(__all__))
 
 
 from .core import extensions as _extensions

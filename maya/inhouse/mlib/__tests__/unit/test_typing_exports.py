@@ -37,7 +37,8 @@ def direct_names(relative):
 
 class TypingExportsTest(unittest.TestCase):
     def test_root_commands(self):
-        self.assertTrue(set(mlib.__all__).issubset(direct_names("__init__.py")))
+        # クラス名はルートの__getattr__で所属パッケージから取得する(test_spec_v104_root_classes.py)。
+        self.assertTrue((set(mlib.__all__) - set(mlib._classes)).issubset(direct_names("__init__.py")))
         self.assertEqual(typing_names("__init__.py"), set())
         tree = ast.parse((PACKAGE / "__init__.py").read_text(encoding="utf-8-sig"))
         root_functions = {node.name for node in tree.body

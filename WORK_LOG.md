@@ -102,6 +102,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 | ツール | 開始日時 | 対象範囲 | 内容 |
 
 | --- | --- | --- | --- |
+| Claude Code | 2026-11-05 | maya/inhouse/mlib/__init__.py(.pyi)・tools/generate_mlib_stubs.py・mlib checks/tests・docs、のちにリポジトリ全体の mlib.nodes.X 等の参照 | mlib 10.4.0: mlib.<クラス名>でnodes/plugs/components/maths/commonのクラスを取得するルートの__getattr__と補完。 |
 
 
 

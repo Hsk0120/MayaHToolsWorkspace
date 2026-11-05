@@ -15,6 +15,9 @@ import した場合も補完が効く。
 - 引数で戻り値の型が変わる ``ls``・``createNode``・``getConnections`` 等は、引数ごとの戻り値を
   ``@overload`` で補う。
   ``ls(type=...)`` の型名とクラスの対応は ``nodes/__init__.py`` の ``_WRAPPER_CLASSES`` から読む。
+- ルートの ``__getattr__`` で取得する ``mlib.Joint`` 等のクラスは、``mlib/__init__.pyi`` に
+  ``from .nodes import Joint as Joint`` の形で書き出す。対象と優先順位はルートの ``_CLASS_PACKAGES``・
+  ``_EXCLUDED_CLASSES`` と各パッケージの ``__all__`` から、実行時と同じ規則で求める。
 - docstring の型がPythonの型の式として読めない、または名前を解決できない場合は、その注釈を省く
   (エディター上は型不明になる)。``--report`` で一覧を表示する。
 
@@ -240,7 +243,7 @@ class ModuleStub:
         overloads (dict[str, Callable]): ``Class.method`` 等の修飾名からオーバーロードの生成関数。
     """
 
-    def __init__(self, name, path, index, overloads, collections=None):
+    def __init__(self, name, path, index, overloads, collections=None, root_classes=None):
         self.name = name
         self.path = path
         self.source = path.read_text(encoding="utf-8")
@@ -248,6 +251,7 @@ class ModuleStub:
         self.index = index
         self.overloads = overloads
         self.collections = collections or {}
+        self.root_classes = root_classes or {}
         self.bound = set()
         self.variables = set()
         self.imports = []
@@ -637,6 +641,11 @@ class ModuleStub:
         Returns:
             list[str] | None: 公開名。求められなければNone。
         """
+        if (isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add) and isinstance(value.left, ast.Name)
+                and self.root_classes):
+            # ルートの ``_names + sorted(_classes)`` は、明示した名前に __getattr__ で取得するクラスを加える。
+            names = _literal(self.tree, value.left.id)
+            return list(names) + sorted(self.root_classes) if names is not None else None
         if isinstance(value, (ast.List, ast.Tuple)):
             names = [item.value for item in value.elts if isinstance(item, ast.Constant)]
             return names if len(names) == len(value.elts) else None
@@ -693,6 +702,11 @@ class ModuleStub:
                         body.append("%s: %s" % (target.id, self._value_type(stmt.value)))
         head = [HEADER.rstrip("\n")] + self._docstring(self.tree, "")
         imports = list(dict.fromkeys(self.imports))
+        packages = {}
+        for cls, package in self.root_classes.items():
+            packages.setdefault(package, []).append("%s as %s" % (cls, cls))
+        # スタブでは ``X as X`` の形のimportを公開の再エクスポートとして扱う。
+        imports += ["from .%s import %s" % (package, ", ".join(names)) for package, names in packages.items()]
         if self.typing:
             imports.append("from typing import " + ", ".join(sorted(self.typing)))
         imports += sorted(set(self.extra_imports.values()) - set(imports))
@@ -915,6 +929,77 @@ OVERLOADS = {
 # --- 全体 -------------------------------------------------------------------------
 
 
+def _literal(tree, name):
+    """モジュール直下で ``name`` に代入したリテラルの値を返す。
+
+    ``frozenset({...})`` のように集合を作る呼び出しは、引数のリテラルを読む。
+
+    Args:
+        tree (ast.Module): モジュールの構文木。
+        name (str): 変数名。
+
+    Returns:
+        object: 値。リテラルとして読めなければNone。
+    """
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in stmt.targets):
+            value = stmt.value
+            if (isinstance(value, ast.Call) and isinstance(value.func, ast.Name)
+                    and value.func.id in ("frozenset", "set", "tuple") and len(value.args) == 1):
+                value = value.args[0]
+            try:
+                return ast.literal_eval(value)
+            except (ValueError, TypeError):
+                return None
+    return None
+
+
+def _package_names(path):
+    """パッケージの ``__init__.py`` の ``__all__`` を読む(``sorted(_exports)`` は辞書のキー)。
+
+    Args:
+        path (Path): ``__init__.py`` のパス。
+
+    Returns:
+        list[str]: 公開名。
+    """
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "__all__" for t in stmt.targets):
+            if isinstance(stmt.value, ast.Call) and stmt.value.args and isinstance(stmt.value.args[0], ast.Name):
+                exports = stmt.value.args[0].id
+                for other in tree.body:
+                    if (isinstance(other, ast.Assign) and isinstance(other.value, ast.Dict)
+                            and any(isinstance(t, ast.Name) and t.id == exports for t in other.targets)):
+                        return sorted(str(key.value) for key in other.value.keys if isinstance(key, ast.Constant))
+            return list(ast.literal_eval(stmt.value))
+    raise RuntimeError("__all__ is not found in %s" % path)
+
+
+def _root_classes():
+    """ルートの ``__getattr__`` で取得するクラス名と、その所属パッケージの対応を求める。
+
+    ルートの ``_class_sources()`` と同じく、``_CLASS_PACKAGES`` の先にあるパッケージを優先し、ルートの
+    ``_names`` と ``_EXCLUDED_CLASSES`` を除く。
+
+    Returns:
+        dict[str, str]: クラス名から所属パッケージ名への対応。
+    """
+    tree = ast.parse((SOURCE / "__init__.py").read_text(encoding="utf-8"))
+    names = set(_literal(tree, "_names") or ())
+    excluded = set(_literal(tree, "_EXCLUDED_CLASSES") or ())
+    result = {}
+    for package in _literal(tree, "_CLASS_PACKAGES") or ():
+        for name in _package_names(SOURCE / package / "__init__.py"):
+            if name in result or name in names or name in excluded or not name[:1].isupper():
+                continue
+            # commonは遅延公開のため、実行時と同じく大文字だけの名前(定数)を除く。ほかのパッケージの
+            # 先頭が大文字の公開名はクラスとその別名(AddDL 等)だけ(check_mlib_exports.py が検査する)。
+            if package != "common" or not name.isupper():
+                result[name] = package
+    return result
+
+
 def _modules(source):
     """スタブを作る ``.py`` と、そのモジュールの完全名を返す。
 
@@ -1017,9 +1102,11 @@ def generate(dest):
     modules = _modules(SOURCE)
     index = _class_index(modules)
     collections = _collections(modules)
+    root_classes = _root_classes()
     unresolved = []
     for name, path in modules:
-        stub = ModuleStub(name, path, index, OVERLOADS, collections.get(name))
+        stub = ModuleStub(name, path, index, OVERLOADS, collections.get(name),
+                          root_classes if name == PACKAGE else None)
         text = stub.render()
         target = dest / path.relative_to(SOURCE).with_suffix(".pyi")
         target.parent.mkdir(parents=True, exist_ok=True)
