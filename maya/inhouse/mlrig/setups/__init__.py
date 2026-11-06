@@ -14,6 +14,7 @@ from .fkIkChain import FkIkChain
 from .footRoll import FootRoll
 from .gearTrain import GearTrain
 from .universalJoint import UniversalJoint
+from .constantVelocityJoint import ConstantVelocityJoint
 from .skirtLegOffset import SkirtLegOffset
 from .pumpUp import PumpUp
 from .uiSlider import UiSlider
@@ -98,6 +99,7 @@ __all__ = [
     "FootRoll",
     "GearTrain",
     "UniversalJoint",
+    "ConstantVelocityJoint",
     "SkirtLegOffset",
     "PumpUp",
     "UiSlider",

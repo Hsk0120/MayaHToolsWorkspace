@@ -65,6 +65,9 @@
    * - UniversalJoint - bent drive shaft
      - 入力軸のjoint
      - ``rotateX`` で回すと、十字軸(ユニバーサルジョイント)で斜め上へ曲げた出力軸(緑)が回る。十字の先が入力ヨークのピン、緑の短い先が出力ヨークのピン。曲げ角が約30度なので、1回転のうちに出力軸が入力より速い・遅い区間がある。先の点(locator)を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角、 ``speedRatio`` は角速度の比。
+   * - ConstantVelocityJoint - bent drive shaft
+     - 入力軸のjoint
+     - ``rotateX`` で回すと、等速ジョイントで斜め上へ曲げた出力軸(緑)が入力と同じ角度だけ回る(UniversalJointのような揺れが無い)。十字の先は軸に垂直な目印。ボールの並ぶケージ(緑の4本の先)は曲げ角の半分だけ傾く。先の点(locator)を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角。
    * - AckermannSteering - car front wheels
      - ハンドルのjoint
      - ``rotateZ`` で回すと(比 -1/8)、緑の左右の前輪がアッカーマンの幾何で内輪を外輪より大きく切る(十字の先が車輪の半径、短い先が車軸の向き)。containerの ``ackermann`` を0にすると左右が同じ角度になる。

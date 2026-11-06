@@ -60,6 +60,7 @@ class SetupSamples:
         ("wheelRoll", "WheelRoll - wheel"),
         ("gearTrain", "GearTrain - four gears"),
         ("universalJoint", "UniversalJoint - bent drive shaft"),
+        ("constantVelocityJoint", "ConstantVelocityJoint - bent drive shaft"),
         ("ackermannSteering", "AckermannSteering - car front wheels"),
         ("treadBelt", "TreadBelt - tank tread"),
         ("rockerRoll", "RockerRoll - rocking chair runner"),
@@ -621,6 +622,23 @@ class SetupSamples:
         target = _locator(name + "_outputTarget", root, translate=(4, 12.3, 0))
         setup = UniversalJoint.create(shaft, target, name=name, axis="x", pinAxis="y")
         _output(name + "_outputOut", root, str(setup.container) + ".matrix", ((3, 0, 0), (0, 0, 1), (0, 0, -1)))
+        return setup, shaft
+
+    @classmethod
+    def _constantVelocityJoint(cls, name, root):
+        """入力軸(joint、十字の先は軸に垂直な目印)と、斜め上の出力軸の先の点(locator)。出力軸とケージは緑。
+        入力軸を ``rotateX`` で回すと、等速ジョイントで斜め上へ曲げた出力軸(緑)が入力と同じ角度だけ回る。
+        ケージ(ボールの並ぶ面)は曲げ角の半分だけ傾く。先の点を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角。"""
+        from .setups import ConstantVelocityJoint
+
+        shaft = _joint(name + "_inputShaft", root, translate=(0, 10, 0))
+        for index, tip in enumerate(((-3, 0, 0), (0, 1, 0), (0, -1, 0))):
+            _tip(shaft, "{}_inputShaftTip{}".format(name, index), tip)
+        target = _locator(name + "_outputTarget", root, translate=(4, 12.3, 0))
+        setup = ConstantVelocityJoint.create(shaft, target, name=name, axis="x")
+        _output(name + "_outputOut", root, str(setup.container) + ".matrix", ((3, 0, 0), (0, 1, 0), (0, -1, 0)))
+        _output(name + "_cageOut", root, str(setup.container) + ".cageMatrix", ((0, 1.2, 0), (0, 0, 1.2), (0, -1.2, 0),
+                                                                              (0, 0, -1.2)))
         return setup, shaft
 
     @classmethod
