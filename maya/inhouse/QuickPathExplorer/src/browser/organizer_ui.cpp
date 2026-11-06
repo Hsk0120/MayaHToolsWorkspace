@@ -97,7 +97,26 @@ bool BrowserWindow::extendedAction(const QString& action, const QStringList& pat
         }
         if (action == "browseZip" || !request.destination.isEmpty()) jobs_->enqueue(request); return true;
     }
-    if (action == "properties" || action == "openWith" || action == "explorer" || action == "terminal") {
+    if (action == "terminal") {
+        const auto folder = QDir::toNativeSeparators(directory.isEmpty() ? currentPath() : directory);
+        wchar_t systemDirectory[MAX_PATH];
+        const auto length = GetSystemDirectoryW(systemDirectory, MAX_PATH);
+        if (!length || length >= MAX_PATH) throw std::runtime_error("Could not open a terminal in this folder");
+
+        QProcess terminal;
+        terminal.setProgram(QString::fromWCharArray(systemDirectory, length) + "/WindowsPowerShell/v1.0/powershell.exe");
+        terminal.setArguments({"-NoExit"});
+        terminal.setWorkingDirectory(folder);
+        // コンソールを持たないQPE/Mayaからでも、対話に使えるコンソールを作る。
+        terminal.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
+            args->flags = (args->flags & ~CREATE_NO_WINDOW) | CREATE_NEW_CONSOLE;
+            args->startupInfo->dwFlags &= ~STARTF_USESTDHANDLES;
+            args->inheritHandles = false;
+        });
+        if (!terminal.startDetached()) throw std::runtime_error("Could not open a terminal in this folder");
+        return true;
+    }
+    if (action == "properties" || action == "openWith" || action == "explorer") {
         const auto path = paths.value(0, directory.isEmpty() ? currentPath() : directory); if (path.isEmpty()) return true;
         const auto native = QDir::toNativeSeparators(path);
         if (action == "properties") {
@@ -106,8 +125,11 @@ bool BrowserWindow::extendedAction(const QString& action, const QStringList& pat
         } else if (action == "openWith") {
             OPENASINFO info{}; info.pcszFile = reinterpret_cast<LPCWSTR>(native.utf16()); info.oaifInFlags = OAIF_EXEC;
             const auto code = SHOpenWithDialog(reinterpret_cast<HWND>(shellDialogOwner(this)), &info); if (FAILED(code) && code != HRESULT_FROM_WIN32(ERROR_CANCELLED)) throw std::runtime_error("Could not open app chooser");
-        } else if (action == "explorer") QProcess::startDetached("explorer.exe", QFileInfo(path).isDir() ? QStringList{native} : QStringList{"/select,", native});
-        else QProcess::startDetached("powershell.exe", {"-NoExit"}, QFileInfo(path).isDir() ? path : QFileInfo(path).absolutePath());
+        } else {
+            const QFileInfo target(path);
+            if (!target.exists() || !QProcess::startDetached("explorer.exe", target.isDir() ? QStringList{native} : QStringList{"/select,", native}))
+                throw std::runtime_error("Could not open Windows Explorer");
+        }
         return true;
     }
     if (action == "browseLabels") {

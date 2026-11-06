@@ -1398,7 +1398,16 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         status_->setText(QString(uiText("%1 completed%2%3")).arg(result.completed.size())
             .arg(result.cancelled ? uiText(" · cancelled") : "")
             .arg(result.errors.isEmpty() && result.warnings.isEmpty() ? "" : uiText(" · see file operation details")));
-        if (!result.errors.isEmpty() || !result.warnings.isEmpty()) UiMessageBox::warning(this, uiText("File operation"), (result.errors + result.warnings).join('\n'));
+        if (result.extra["historyReviewRequired"].toBool()) {
+            QMessageBox review(QMessageBox::Warning, uiText("File operation"),
+                uiText("A previous file operation was interrupted. Check its source, destination and any retained backups in File Operation History before continuing."),
+                QMessageBox::NoButton, this);
+            auto* openHistory = review.addButton(uiText("Open file operation history"), QMessageBox::ActionRole);
+            auto* close = review.addButton(uiText("Close"), QMessageBox::RejectRole);
+            review.setDefaultButton(close);
+            review.exec();
+            if (review.clickedButton() == openHistory) perform("history");
+        } else if (!result.errors.isEmpty() || !result.warnings.isEmpty()) UiMessageBox::warning(this, uiText("File operation"), (result.errors + result.warnings).join('\n'));
     });
     connect(add, &QToolButton::clicked, this, [this] { addTab(currentPath().isEmpty() ? QDir::homePath() : currentPath()); });
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) { pages_->setCurrentIndex(index); updateCurrent(); });
@@ -1935,7 +1944,7 @@ void BrowserWindow::contextMenu(QAbstractItemView* view, const QPoint& point, co
     const bool single = paths.size() == 1, folder = single && directoryItem(index);
     const QString destination = folder ? clicked : directory;
     const auto add = [&](QMenu* parent, const QString& label, const QString& action, bool enabled = true, const QString& key = QString()) {
-        const auto targetDirectory = action == "paste" || action == "newFolder" || action == "newFile" ? destination : directory;
+        const auto targetDirectory = action == "paste" || action == "newFolder" || action == "newFile" || action == "terminal" ? destination : directory;
         auto* item = parent->addAction(uiText(label), this, [this, action, paths, targetDirectory] { perform(action, paths, targetDirectory); });
         item->setObjectName("context_" + action); item->setEnabled(enabled);
         if (!key.isEmpty()) { item->setShortcut(QKeySequence(key)); item->setShortcutContext(Qt::WidgetShortcut); }
@@ -1949,12 +1958,13 @@ void BrowserWindow::contextMenu(QAbstractItemView* view, const QPoint& point, co
         menu.addSeparator(); add(&menu, "Paste", "paste", paste, "Ctrl+V");
         auto* create = menu.branch(uiText("New")); create->setObjectName("contextNew");
         add(create, "Folder", "newFolder"); add(create, "Text Document", "newFile");
-        menu.addSeparator(); add(&menu, "Open terminal here", "terminal"); add(&menu, "Properties", "properties");
+        menu.addSeparator(); add(&menu, "Open in Windows Explorer", "explorer"); add(&menu, "Open terminal here", "terminal"); add(&menu, "Properties", "properties");
     } else {
         if (single) {
             menu.setDefaultAction(add(&menu, "Open", "open", true, "Return"));
             if (folder) menu.addAction(uiText("Open in new tab"), this, [this, clicked] { addTab(clicked); });
             else add(&menu, "Open with…", "openWith");
+            add(&menu, folder ? "Open in Windows Explorer" : "Show in Windows Explorer", "explorer");
         }
         if (host_.maya && filesOnly) {
             auto* maya = menu.branch(uiText("Maya")); maya->setObjectName("contextMaya");
@@ -1971,8 +1981,8 @@ void BrowserWindow::contextMenu(QAbstractItemView* view, const QPoint& point, co
         add(more, "Tags / rating / collection…", "tag");
         auto* archive = more->branch(uiText("ZIP")); add(archive, "Create ZIP…", "createZip");
         if (single && QFileInfo(clicked).suffix().compare("zip", Qt::CaseInsensitive) == 0) { add(archive, "Browse ZIP…", "browseZip"); add(archive, "Extract ZIP…", "extractZip"); }
-        more->addSeparator(); add(more, "Show in Windows Explorer", "explorer");
-        if (folder) { add(more, "Open terminal here", "terminal"); add(more, "Set as start folder", "startFolder"); }
+        if (!single) { more->addSeparator(); add(more, "Show in Windows Explorer", "explorer"); }
+        if (folder) { more->addSeparator(); add(more, "Open terminal here", "terminal"); add(more, "Set as start folder", "startFolder"); }
         if (single) { menu.addSeparator(); add(&menu, "Properties", "properties", true, "Alt+Return"); }
     }
     menu.exec(view->viewport()->mapToGlobal(point));

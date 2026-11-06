@@ -1070,10 +1070,20 @@ private slots:
         QFile changed(entry["backup"].toString()); QVERIFY(changed.open(QIODevice::Append)); changed.write("external"); changed.close();
         QVERIFY_EXCEPTION_THROWN(engine.run({"historyCleanup", {}, {}, "rename", {{"days", 30}, {"budget", 1048576}}}), std::runtime_error); QVERIFY(QFileInfo::exists(entry["backup"].toString()));
         journal["pending"] = entry; qpe::saveJson(location + "/journal.json", journal);
+        const auto newFolder = path("maintenance/to/new folder");
+        const auto blocked = engine.run({"newFolder", {}, newFolder});
+        QVERIFY(blocked.extra["historyReviewRequired"].toBool());
+        QVERIFY(!blocked.errors.isEmpty());
+        QVERIFY(!QFileInfo::exists(newFolder));
+        QCOMPARE(qpe::loadJson(location + "/journal.json"), journal);
         QVERIFY_EXCEPTION_THROWN(engine.run({"historyReview", {}, {}, "rename", {{"acknowledge", true}, {"journalDigest", "stale"}}}), std::runtime_error);
         const auto digest = QString::fromLatin1(QCryptographicHash::hash(QJsonDocument(journal).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
         engine.run({"historyReview", {}, {}, "rename", {{"acknowledge", true}, {"journalDigest", digest}}});
         journal = qpe::loadJson(location + "/journal.json"); QVERIFY(journal["pending"].toObject().isEmpty()); QVERIFY(journal["undo"].toArray().isEmpty()); QVERIFY(!journal["reviewed"].toArray().isEmpty()); QVERIFY(QFileInfo::exists(entry["backup"].toString()));
+        const auto created = engine.run({"newFolder", {}, newFolder});
+        QVERIFY2(created.errors.isEmpty(), qPrintable(created.errors.join('\n')));
+        QVERIFY(QFileInfo(newFolder).isDir());
+        QVERIFY(QFileInfo::exists(entry["backup"].toString()));
     }
     /** @brief カスタムキーがビュー内だけで有効になり、編集欄や他ツールを奪わない。 */
     void commandInputBoundary() {
@@ -1306,6 +1316,7 @@ private slots:
             auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); if (!menu) return;
             selectedMenu = menu->actions().size() <= 15 && menu->findChild<QMenu*>("contextMore") && !menu->findChild<QMenu*>("contextNew")
                 && !menu->findChild<QAction*>("context_refresh") && !menu->findChild<QAction*>("context_undo")
+                && menu->actions().contains(menu->findChild<QAction*>("context_explorer"))
                 && menu->defaultAction() && menu->defaultAction()->objectName() == "context_open" && files->selectionModel()->selectedRows().first() == second;
             // 固定された対象は選択変更で置き換えられない。コピー結果の実URLまで照合する。
             files->selectionModel()->setCurrentIndex(second, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
@@ -1317,7 +1328,8 @@ private slots:
         bool background = false;
         QTimer::singleShot(20, &window, [&] {
             auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); if (!menu) return;
-            background = menu->findChild<QMenu*>("contextNew") && menu->findChild<QAction*>("context_refresh") && !menu->findChild<QAction*>("context_trash") && !menu->findChild<QAction*>("context_copy"); menu->close();
+            background = menu->findChild<QMenu*>("contextNew") && menu->findChild<QAction*>("context_refresh") && !menu->findChild<QAction*>("context_trash") && !menu->findChild<QAction*>("context_copy")
+                && menu->actions().contains(menu->findChild<QAction*>("context_explorer")); menu->close();
         });
         window.contextMenu(files, QPoint(-10, -10), path("menu-focused")); QVERIFY(background);
         QCOMPARE(files->selectionModel()->selectedRows().first(), second); window.close();

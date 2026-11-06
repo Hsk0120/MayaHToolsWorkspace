@@ -156,6 +156,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-11-06): QPEの右クリックからPowerShell用の新しいコンソールを起動し、エクスプローラーをメニュー直下へ追加。中断記録による停止を日本語で案内し、警告から履歴を開けるようにした。Windows実操作でターミナル表示と行／背景の作業パス、列の親を開く操作とファイルの選択表示、中断時の警告と履歴遷移を確認。Qt回帰98件成功。Maya2022〜2027はビルド成功、Maya内操作は未実施。Windows exeと全6年mllをバックアップの上で更新。証拠 .maya-output/qpe-terminal-20261106/。
 - Codex (2026-11-06): QPEのコピー・切り取り貼り付けで、明示したフォルダーリンクの実パスを解決。Undo/Redoを元の実パスに固定し、リンク先変更時のジョブ再開を拒否。リンク先の結合・専用ジャンクションでの実転送とQtクリップボード、実利用先の読取を確認。別件のメニュー変更を分離した公開用ソースでWindows回帰100件合格・権限不足による新規symlink作成1件スキップ、exe起動成功。実利用先への書込・Maya内操作は未実施。証拠 .maya-output/qpe-linked-transfer-20261106/ と .maya-output/qpe-push-20261106/。
 - Codex (2026-11-06): MCEの簡易補完でtyping/typing_extensionsのSelfを呼び出し元のクラスに解決。必須文字列Literalに一致するオーバーロードを選び、mlib 10.5.0のls(type='joint').sort()でJoints固有候補を復元。Qt5/6の回帰各29件、型サーバー無効のMaya 2022/2027で未読込・読込済みのJoints/Plugs/Verticesを含む各25件成功。2022の初回速度計測は1件で閾値超過、再実行は全件成功。全6年mllをビルド・通常配置へ反映。証拠 .maya-output/mce-self-20261106/。
 - Codex (2026-11-06): Maya Code Editorの下部ドックを縮小可能な表示領域へ変更。修正前のMaya 2027では260px、修正後の専用Maya 2022/2027で72pxまで縮小し312pxへ復元。開き直し時の本文・共有タブ・他ドック・フロートをQt入力で確認。2027再起動で右ドックと本文の復元、閉じた状態とアンロードを確認。全6年mllをビルド・通常配置へ反映。証拠 .maya-output/mce-bottom-dock-20261106/。

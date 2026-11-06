@@ -383,7 +383,11 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         for (const auto& key : {"undo", "redo"}) { QJsonArray safe; for (const auto& value : journal[key].toArray()) { const auto item = value.toObject(); if (item["source"] == pending["source"] && item["target"] == pending["target"] && item["action"] == pending["action"]) reviewed.append(item); else safe.append(item); } journal[key] = safe; }
         journal["reviewed"] = reviewed; journal.remove("pending"); saveJson(journalPath, journal); result.extra["historyUpdated"] = true; return result;
     }
-    if (!journal.value("pending").toObject().isEmpty()) fail("An interrupted file operation needs inspection. Originals/backups are retained in: " + directory_);
+    if (!journal.value("pending").toObject().isEmpty()) {
+        result.errors.append("An interrupted file operation needs inspection. Originals/backups are retained in: " + directory_);
+        result.extra["historyReviewRequired"] = true;
+        return result;
+    }
     if (request.action == "historyCleanup") {
         const int days = request.options["days"].toInt(30); const qint64 budget = qint64(request.options["budget"].toDouble(1024.0 * 1024 * 1024));
         if (days < 1 || days > 3650 || budget < 1024 * 1024) fail("Invalid history retention settings");
