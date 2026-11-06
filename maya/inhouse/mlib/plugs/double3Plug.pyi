@@ -15,7 +15,6 @@ from mlib.maths.quaternion import Quaternion
 
 class Double3Plug(CompoundPlug):
     """3成分アトリビュートを参照し、チャンネル値を読み書きする。マトリクス変換は行わない。"""
-    _value_types: dict
     def get(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Vector | Translate | EulerRotate | Scale | Shear | tuple[float, float, float]:
         """3成分のチャンネル値を取得する。jointOrientなどは合成しない。
 

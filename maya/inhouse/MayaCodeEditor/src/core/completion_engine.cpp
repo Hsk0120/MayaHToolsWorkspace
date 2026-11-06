@@ -207,8 +207,10 @@ bool hasParameterAnnotation(QStringView line, QStringView name) {
     return false;
 }
 
-/** @brief inferredTypeExpressionの本体(本文の一部をコピーせずに受け取る)。 @param text 本文。 @param name 変数名。 @return 式。 */
-QString inferExpression(QStringView text, const QString& name) {
+/** @brief inferredTypeExpressionの本体。
+ * @param text 本文。 @param name 変数名。 @param called 呼出しの結果ならtrueを返す。 @return 型名か呼出し名。
+ */
+QString inferExpression(QStringView text, const QString& name, bool* called = nullptr) {
     if (text.isEmpty() || !isIdentifier(name)) {
         return QString();
     }
@@ -255,6 +257,7 @@ QString inferExpression(QStringView text, const QString& name) {
                         }
                         const QString after = closing >= 0 ? rest.mid(closing + 1).trimmed() : QString();
                         if (closing < 0 || after.isEmpty() || after.startsWith('#')) {
+                            if (called) *called = true;
                             return match.captured(1);
                         }
                         return QString();  // x = A().b など。最後の代入が推論できない形なら、それより前は見ない。
@@ -291,6 +294,82 @@ QString trailingName(QStringView source) {
         }
     }
     return QString();
+}
+
+/** @brief ``a().b().prefix`` の受け手を、呼出しと属性名の列にする。
+ * @param line カーソルまでの行。 @param token 末尾の名前。 @return 呼出しを含む受け手。該当しなければ空。
+ */
+QStringList callReceiver(QStringView line, const QString& token) {
+    const qsizetype dot = line.size() - token.size() - 1;
+    if (dot < 1 || line[dot] != '.' || !line.left(dot).trimmed().endsWith(QLatin1Char(')'))) return {};
+
+    const auto words = tokenizeLine(line.left(dot), ScriptLanguage::Python, kLexerNormal, nullptr);
+    const auto symbolAt = [&](int index, QChar c) {
+        return index >= 0 && words[index].type == TokenType::Operator && words[index].length == 1
+               && line[words[index].start] == c;
+    };
+    QStringList parts;
+    int index = int(words.size()) - 1;
+    int calls = 0;
+    while (index >= 0) {
+        const bool call = symbolAt(index, ')');
+        if (call) {
+            if (++calls > kMaximumInferDepth) return {};
+            int depth = 1;
+            for (--index; index >= 0 && depth; --index) {
+                if (symbolAt(index, ')')) ++depth;
+                else if (symbolAt(index, '(')) --depth;
+            }
+        }
+        if (index < 0 || words[index].type != TokenType::Name) return {};
+        const auto& word = words[index--];
+        QString name = line.mid(word.start, word.length).toString();
+        if (!isIdentifier(name) || isKeyword(QStringView(name), ScriptLanguage::Python)) return {};
+        if (call) name += "()";
+        parts.prepend(name);
+        if (!symbolAt(index, '.')) break;
+        --index;
+    }
+    if (calls == 0 || parts.isEmpty()) return {};
+    if (!token.isEmpty()) parts.append(token.split('.'));
+    else parts.append(QString());
+    return parts;
+}
+
+/** @brief 戻り値の注釈から候補の型名を取り出す。
+ * @param annotation 注釈。 @param depth 入れ子の深さ。 @return Noneを除いて型が1種類なら、その名前。
+ */
+QString returnTypeName(QString annotation, int depth = 0) {
+    if (depth >= kMaximumInferDepth) return {};
+    annotation = annotation.trimmed();
+    if (annotation.size() >= 2 && (annotation.front() == '\'' || annotation.front() == '"')
+        && annotation.back() == annotation.front()) annotation = annotation.mid(1, annotation.size() - 2).trimmed();
+
+    static const QRegularExpression dotted("^[A-Za-z_]\\w*(?:\\.[A-Za-z_]\\w*)*$");
+    if (dotted.match(annotation).hasMatch()) return annotation == "None" ? QString() : annotation;
+    const int bracket = annotation.indexOf('[');
+    const QString container = bracket < 0 ? QString() : annotation.left(bracket).trimmed().section('.', -1);
+    if (container == "Optional" && annotation.endsWith(']')) {
+        return returnTypeName(annotation.mid(bracket + 1, annotation.size() - bracket - 2), depth + 1);
+    }
+    if ((container == "list" || container == "List") && annotation.endsWith(']')) {
+        // リストそのものには要素の属性を出さない。単一要素型のリストを標準listとして補完する。
+        const auto element = annotation.mid(bracket + 1, annotation.size() - bracket - 2).trimmed();
+        if (element != "None" && dotted.match(element).hasMatch()) return QStringLiteral("builtins.list");
+        return {};
+    }
+    const bool unionType = container == "Union" && annotation.endsWith(']');
+    if (unionType) annotation = annotation.mid(bracket + 1, annotation.size() - bracket - 2);
+    else if (!annotation.contains('|')) return {};
+    const auto alternatives = annotation.split(unionType ? ',' : '|');
+    QString result;
+    for (const auto& alternative : alternatives) {
+        if (alternative.trimmed() == "None") continue;
+        const auto name = returnTypeName(alternative, depth + 1);
+        if (name.isEmpty() || (!result.isEmpty() && name != result)) return {};
+        result = name;
+    }
+    return result;
 }
 
 /** @brief 本文の最後の行が、宣言を含み得る行か(含み得なければ、最後の行を除いた本文と宣言は同じ)。
@@ -533,7 +612,7 @@ QList<CompletionEngine::ModuleLocation> CompletionEngine::locateModule(Request& 
     }
     const QString relative = parts.join('/');
     const QString moduleFileKey = keys.last() + ".py";
-    const QString initKey = folderKey(QStringLiteral("__init__.py"));
+    const QString moduleStubKey = keys.last() + ".pyi";
     for (const QString& root : searchPaths(request)) {
         // フォルダーを直接調べる代わりに、親のフォルダーの一覧で、途中のフォルダー(a.b.cのa・b)から順に確かめる。
         QString folder = root;
@@ -552,12 +631,15 @@ QList<CompletionEngine::ModuleLocation> CompletionEngine::locateModule(Request& 
         if (entries.value(keys.last()).directory) {
             // パッケージ。__init__.pyの無いフォルダー(名前空間パッケージ)なら、次の場所も探す。
             location.packageFolder = base;
-            if (folderEntries(base).value(initKey).file) {
-                location.file = QDir(base).filePath("__init__.py");
+            const auto contents = folderEntries(base);
+            if (contents.value("__init__.py").file) location.sourceFile = QDir(base).filePath("__init__.py");
+            location.file = contents.value("__init__.pyi").file ? QDir(base).filePath("__init__.pyi") : location.sourceFile;
+            if (!location.file.isEmpty()) {
                 location.moduleName = name + ".__init__";
             }
-        } else if (entries.value(moduleFileKey).file) {
-            location.file = base + ".py";
+        } else if (entries.value(moduleFileKey).file || entries.value(moduleStubKey).file) {
+            if (entries.value(moduleFileKey).file) location.sourceFile = base + ".py";
+            location.file = entries.value(moduleStubKey).file ? base + ".pyi" : location.sourceFile;
             location.moduleName = name;
         } else {
             continue;
@@ -581,18 +663,22 @@ SymbolTable CompletionEngine::moduleMembers(Request& request, const QString& nam
     if (source_.loadedModule && source_.loadedModule(name, &loaded)) {
         result = loaded.members;
         if (loaded.file.endsWith(".py")) {
-            const QString moduleName = QFileInfo(loaded.file).fileName() == "__init__.py" ? name + ".__init__" : name;
-            const SymbolTable declared = fileDeclarations(loaded.file, moduleName);
+            const QFileInfo source(loaded.file);
+            const QString fileName = source.fileName();
+            const bool hasStub = folderEntries(source.absolutePath()).value(folderKey(fileName + "i")).file;
+            const QString file = hasStub ? loaded.file + "i" : loaded.file;
+            const QString moduleName = fileName == "__init__.py" ? name + ".__init__" : name;
+            const SymbolTable declared = fileDeclarations(file, moduleName);
             // 公開名(maya_code_editor.bridgeは変わっていなければ同じ表を返す)とファイルの宣言が前回と同じ表なら、重ねた結果を使い回す。
             // maya.cmdsのような数千件の表を、問い合わせのたびにコピーして重ねないため。
             const auto merged = merged_.constFind(name);
             if (merged != merged_.constEnd() && merged->members.isSharedWith(loaded.members)
-                && merged->declared.isSharedWith(declared) && merged->file == loaded.file) {
+                && merged->declared.isSharedWith(declared) && merged->file == file) {
                 result = merged->result;
             } else {
                 for (auto it = declared.begin(); it != declared.end(); ++it) {
                     const auto existing = result.find(it.key());
-                    if (existing != result.end() && existing->members && it.value().members) {
+                    if (!hasStub && existing != result.end() && existing->members && it.value().members) {
                         // クラス: Pythonから受け取った中身(親クラスから受け継いだ名前を含む)に、
                         // ファイルの宣言(引数・docstring)を重ねる。
                         Symbol combined = it.value();
@@ -609,7 +695,7 @@ SymbolTable CompletionEngine::moduleMembers(Request& request, const QString& nam
                 if (merged_.size() >= kMaximumMergedModules) {
                     merged_.clear();
                 }
-                merged_.insert(name, {loaded.members, loaded.file, declared, result});
+                merged_.insert(name, {loaded.members, file, declared, result});
             }
         }
         request.modules.insert(name, result);
@@ -620,8 +706,9 @@ SymbolTable CompletionEngine::moduleMembers(Request& request, const QString& nam
         if (!location.packageFolder.isEmpty()) {
             // パッケージ: 中のモジュールとサブパッケージも候補にする。
             for (const PackageEntry& entry : packageEntries(location.packageFolder)) {
-                const bool python = entry.name.endsWith(".py");
-                const QString stem = python ? entry.name.left(entry.name.size() - 3) : entry.name;
+                const bool stub = entry.name.endsWith(".pyi");
+                const bool python = stub || entry.name.endsWith(".py");
+                const QString stem = python ? entry.name.left(entry.name.size() - (stub ? 4 : 3)) : entry.name;
                 if (isIdentifier(stem) && !stem.startsWith('_') && (entry.directory || python) && !result.contains(stem)) {
                     result.insert(stem, Symbol::module(name + "." + stem));
                 }
@@ -676,8 +763,9 @@ QString CompletionEngine::moduleDocstring(Request& request, const QString& name,
         if (location.file.isEmpty()) {
             continue;  // 名前空間パッケージにはdocstringが無い。
         }
-        fileDeclarations(location.file, location.moduleName);
-        const auto cached = files_.constFind(location.file);
+        const auto& file = location.sourceFile.isEmpty() ? location.file : location.sourceFile;
+        fileDeclarations(file, location.moduleName);
+        const auto cached = files_.constFind(file);
         return cached != files_.constEnd() ? cached->docstring : QString();
     }
     return QString();
@@ -713,9 +801,12 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     }
     // 変数なら、代入・型ヒントからクラスを推論する(インスタンスはクラスの中身で補完する)。本文が空なら推論しない。
     if (depth < kMaximumInferDepth && !text.isEmpty()) {
-        const QString expression = inferExpression(text, name);
+        bool called = false;
+        const QString expression = inferExpression(text, name, &called);
         if (!expression.isEmpty() && expression != name) {
-            const Located type = walk(request, scope, text, expression.split('.'), depth + 1, allowImplicitModule);
+            QStringList parts = expression.split('.');
+            if (called) parts.last() += "()";
+            const Located type = walk(request, scope, text, parts, depth + 1, allowImplicitModule);
             if (type.found && type.item.type == SymbolType::Class) {
                 return type;
             }
@@ -736,28 +827,57 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     return located;
 }
 
+CompletionEngine::Located CompletionEngine::callResult(Request& request, Located callee, const SymbolTable& scope, int depth) {
+    if (callee.item.type == SymbolType::Class) return callee;
+    if (depth <= kMaximumInferDepth && callee.item.type == SymbolType::Function && !callee.item.returnAnnotation.isEmpty()) {
+        const QString name = returnTypeName(callee.item.returnAnnotation);
+        if (!name.isEmpty()) {
+            const QString& module = callee.item.returnModule;
+            const SymbolTable home = module.isEmpty() ? scope : moduleMembers(request, module);
+            Located type = walk(request, home, QStringView(), name.split('.'), depth + 1);
+            if (!type.found && name.contains('.')) {
+                // 完全修飾名でも、読み込み済みのパッケージのvars()に子モジュールがまだ無い場合がある。
+                type = walk(request, home, QStringView(), {name.section('.', 0, -2), name.section('.', -1)}, depth + 1);
+            }
+            if (type.found && type.item.type == SymbolType::Class) {
+                if (type.module.isEmpty()) type.module = module;
+                return type;
+            }
+        }
+    }
+    callee.found = false;
+    return callee;
+}
+
 CompletionEngine::Located CompletionEngine::walk(Request& request, const SymbolTable& scope, QStringView text,
                                                 const QStringList& parts, int depth, bool allowImplicitModule) {
-    Located located = resolveName(request, scope, text, parts.first(), depth, allowImplicitModule);
+    const bool firstCalled = parts.first().endsWith("()");
+    const QString first = firstCalled ? parts.first().chopped(2) : parts.first();
+    Located located = resolveName(request, scope, text, first, depth, allowImplicitModule);
     if (!located.found) {
         return located;
     }
     followImports(request, &located.item, &located.module, &located.path);
+    if (firstCalled) located = callResult(request, located, scope, depth);
     for (int i = 1; i < parts.size(); ++i) {
+        if (!located.found) break;
+        const bool called = parts[i].endsWith("()");
+        const QString name = called ? parts[i].chopped(2) : parts[i];
         const SymbolTable members = membersOf(request, located, scope, depth);
-        const auto found = members.find(parts[i]);
+        const auto found = members.find(name);
         if (found == members.end()) {
             located.found = false;
             return located;
         }
         if (located.item.type == SymbolType::Module) {
             located.module = located.item.target;
-            located.path = QStringList{parts[i]};
+            located.path = QStringList{name};
         } else {
-            located.path.append(parts[i]);
+            located.path.append(name);
         }
         located.item = found.value();
         followImports(request, &located.item, &located.module, &located.path);
+        if (called) located = callResult(request, located, scope, depth);
     }
     return located;
 }
@@ -871,7 +991,7 @@ HoverInfo CompletionEngine::describe(const QString& text, int end) {
 QString CompletionEngine::moduleFile(Request& request, const QString& name) {
     for (const ModuleLocation& location : locateModule(request, name)) {
         if (!location.file.isEmpty()) {
-            return location.file;
+            return location.sourceFile.isEmpty() ? location.file : location.sourceFile;
         }
     }
     LoadedModule loaded;
@@ -1029,13 +1149,14 @@ CompletionResult CompletionEngine::complete(const QString& source) {
     static const QRegularExpression fromImport("^\\s*from\\s+([\\w.]+)\\s+import\\s+(\\w*)$",
                                                QRegularExpression::UseUnicodePropertiesOption);
     const QRegularExpressionMatch fromMatch = fromImport.match(line);
+    const QStringList receiver = callReceiver(line, token);
     if (fromMatch.hasMatch()) {
         // from maya import cm → mayaの中の名前。
         symbols = moduleMembers(request, fromMatch.captured(1));
         prefix = fromMatch.captured(2);
-    } else if (token.contains('.')) {
+    } else if (token.contains('.') || !receiver.isEmpty()) {
         // a.b.c → aの中のbの中の、cで始まる名前。変数(x = pkg.A() / x: pkg.A)はクラスを推論する。
-        const QStringList parts = token.split('.');
+        const QStringList parts = receiver.isEmpty() ? token.split('.') : receiver;
         // 本文で使える名前だけを起点にする。Mayaがロード済みでも、未importの外部名は混ぜない。
         const Located located = walk(request, locals, source, parts.mid(0, parts.size() - 1), 0, false);
         if (located.found) {

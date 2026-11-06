@@ -243,6 +243,14 @@ class ModuleStub:
         overloads (dict[str, Callable]): ``Class.method`` 等の修飾名からオーバーロードの生成関数。
     """
 
+    # 型検査で、宣言元のクラス外(派生クラスを含む)から参照する内部属性。
+    _SHARED_ATTRIBUTES = {
+        "Components": {"_shape", "_indices"},
+        "Joints": {"_items"},
+        "Node": {"_registry", "_mobject", "_dag_path", "_handle", "_fn_cache"},
+        "Plug": {"_registry", "_reader", "_node", "_mplug", "_attribute"},
+    }
+
     def __init__(self, name, path, index, overloads, collections=None, root_classes=None):
         self.name = name
         self.path = path
@@ -556,6 +564,12 @@ class ModuleStub:
         inner = indent + "    "
         body = self._docstring(node, inner)
         defined = set()
+        shared = self._SHARED_ATTRIBUTES.get(qualname, ())
+
+        def include_attribute(name):
+            """公開・dunder・型検査で共有する属性を残す。"""
+            return not name.startswith("_") or name.startswith("__") or name in shared
+
         item = self.collections.get(node.name)
         if item:
             # コレクションの要素の型を補う(docstring は Node・Component 等の基底型で書かれている)。
@@ -580,13 +594,14 @@ class ModuleStub:
             elif isinstance(stmt, ast.ClassDef):
                 body += self._class(stmt, inner, qualname + ".")
                 defined.add(stmt.name)
-            elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+            elif (isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name)
+                  and include_attribute(stmt.target.id)):
                 body.append(inner + "%s: %s" % (stmt.target.id, ast.unparse(stmt.annotation))
                             + (" = ..." if stmt.value is not None else ""))
                 defined.add(stmt.target.id)
             elif isinstance(stmt, ast.Assign):
                 for target in stmt.targets:
-                    if isinstance(target, ast.Name) and target.id not in defined:
+                    if isinstance(target, ast.Name) and target.id not in defined and include_attribute(target.id):
                         body.append(inner + "%s: %s" % (target.id, self._value_type(stmt.value)))
                         defined.add(target.id)
         # __init__ で設定する公開の属性も補完に出す。

@@ -17,8 +17,6 @@ class Version:
     Mayaへの問い合わせやプラグインの更新は行わない。
     """
     __slots__: tuple
-    _parts: tuple
-    _suffix: str
     def __init__(self, value: Version | str | int | tuple | list) -> None:
         """文字列・整数・整数列から版番号を作る。
 

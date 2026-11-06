@@ -266,7 +266,6 @@ class Plug(Object):
     _node: 'Node'
     _mplug: 'om2.MPlug'
     _attribute: 'om2.MObject'
-    _attribute_handle: 'om2.MObjectHandle'
     def __new__(cls, node: Node, mplug: om2.MPlug) -> Self:
         """マルチアトリビュート・登録アトリビュート型・コンパウンドアトリビュートの順にラッパー型を選ぶ。
 

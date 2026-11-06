@@ -99,6 +99,15 @@ class StubGenerationTest(unittest.TestCase):
         self.assertIn("def __getitem__(self, index: int) -> Vertex: ...", self.stub("components/vertex.pyi"))
         self.assertIn("def __iter__(self) -> Iterator[Plug]: ...", self.stub("plugs/plug.pyi"))
 
+    def test_private_attributes_only_remain_for_cross_class_types(self):
+        """内部だけの属性を除き、派生クラスが使う型とdunderは残す。"""
+        self.assertNotIn("    _attribute_handle:", self.stub("plugs/plug.pyi"))
+        self.assertNotIn("    _value_types:", self.stub("plugs/double3Plug.pyi"))
+        self.assertNotIn("    _LAYER_TOKENS:", self.stub("nodes/skinCluster.pyi"))
+        self.assertIn("    _mplug:", self.stub("plugs/plug.pyi"))
+        self.assertIn("    _dag_path:", self.stub("nodes/node.pyi"))
+        self.assertIn("    def __getattr__(", self.stub("nodes/node.pyi"))
+
 
 if __name__ == "__main__":
     unittest.main()

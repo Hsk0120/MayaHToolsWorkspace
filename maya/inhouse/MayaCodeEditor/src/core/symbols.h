@@ -3,14 +3,14 @@
  * @details 1つの名前(Symbol)の種類はtype(SymbolType)で表す。種類ごとに使う欄:
  * | type | 使う欄 |
  * |---|---|
- * | Function | detail(``name(arg1, arg2)``)・signature・doc |
+ * | Function | detail(``name(arg1, arg2)``)・signature・doc・returnAnnotation・returnModule |
  * | Class | members(クラスの中の名前の表)・bases(親クラスの式)・detail(``class Name``)・signature・doc |
  * | Module(``import a.b``など) | target(モジュール名) |
  * | Import(``from X import Y``) | fromModule(X)・fromName(Y) |
  * | Builtin・Keyword | なし(組み込みの名前・予約語。Preferencesでの絞り込みに使う) |
  * | Value(変数など) | なし |
  * 種類を作るときは、Symbol::module()などの関数を使う(欄の組合せの誤りを防ぐため)。
- * signatureとdocはマウスを重ねたときの説明(ホバー)用で、JSON(symbolTableToJson)には出さない
+ * signature・docと推論用の戻り値情報は、JSON(symbolTableToJson)には出さない
  * (以前のPythonの結果との突き合わせを変えないため)。typeもJSONには出さず、読むときは欄から決める。
  */
 #pragma once
@@ -50,6 +50,9 @@ struct Symbol {
     std::shared_ptr<SymbolTable> members;  ///< Class: クラスの中の名前。それ以外はnullptr。
     QStringList bases;                     ///< Class: 親クラスの式(``class B(pkg.A)``なら``pkg.A``)。ソースから読んだときだけ。
     QString signature;                     ///< ホバーに出す定義(``def name(a, b=1) -> int``)。無ければ空。
+    QString returnAnnotation;              ///< 関数の戻り値の注釈。注釈が無ければ空。
+    QString returnModule;                  ///< 注釈の定義元。編集中の本文なら空。
+    bool overload = false;                 ///< @overloadの定義ならtrue。同名候補は最初を使う。
     QString doc;                           ///< docstring(字下げを整えたもの)。無ければ空。
 
     /** @brief モジュールを指す名前を作る。 @param name モジュール名。 @return Moduleの名前。 */

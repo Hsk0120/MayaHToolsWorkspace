@@ -18,8 +18,6 @@ class CompoundPlug(Plug):
     番号はMultiPlugの論理番号とは異なる。基底のget()は子の値を定義順tupleで返す。
     maya.cmdsへは ``str(plug)`` で渡す。mlib.selectにはそのまま渡せる。
     """
-    _child_readers: None
-    _bulk_children: None
     def __getattr__(self, name: str) -> Plug:
         """子を Python アトリビュート形式で取得する。
 

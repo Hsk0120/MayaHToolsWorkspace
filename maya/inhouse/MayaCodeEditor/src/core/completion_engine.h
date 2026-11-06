@@ -4,7 +4,7 @@
  * 1. カーソルの行から、何を補完するかを決める(``cmds.l``なら``cmds``の中の``l``で始まる名前)。
  * 2. 編集中の本文の宣言は、core/python_declarations.cppで取り出す(Pythonを呼ばない)。
  * 3. ``cmds``のようなモジュールの中身は、読み込み済みならPythonに公開名を問い合わせ(ModuleSource)、
- *    まだ読み込まれていなければsys.pathからファイルを探して宣言を取り出す(実行はしない)。
+ *    ファイルの宣言で補う。まだ読み込まれていなければsys.pathから探す。.pyiが隣にあれば優先する(実行はしない)。
  * Pythonに問い合わせる部分はModuleSourceの関数として外から渡すので、Maya無しでもテストできる。
  */
 #pragma once
@@ -128,6 +128,12 @@ private:
     Located resolveName(Request& request, const SymbolTable& scope, QStringView text, const QString& name, int depth,
                         bool allowImplicitModule);
 
+    /** @brief 呼出しの結果をクラスとして解決する。
+     * @param request 今の問い合わせ。 @param callee 呼出し先。 @param scope 編集中のスコープ。
+     * @param depth 型をたどる深さ。 @return コンストラクターまたは戻り値のクラス。
+     */
+    Located callResult(Request& request, Located callee, const SymbolTable& scope, int depth);
+
     /** @brief ``a.b.c``をたどる(補完とホバーで共通)。 @param request 今の問い合わせ。 @param scope 最初の名前を探す表。
      * @param text 型を推論する本文。 @param parts 名前を点で分けたもの。 @param depth 推論の深さ。
      * @param allowImplicitModule 未宣言モジュールを解決するか。外部クラスの基底など既知の完全名の解決はtrue。
@@ -153,7 +159,8 @@ private:
     /** @brief sys.pathの中で見つかったモジュールの場所。 */
     struct ModuleLocation {
         QString packageFolder;  ///< パッケージ(フォルダー)なら、そのフォルダー。
-        QString file;           ///< 読む.py(パッケージなら__init__.py)。名前空間パッケージなら空。
+        QString file;           ///< 宣言ファイル。隣に.pyiがあれば優先し、名前空間パッケージなら空。
+        QString sourceFile;     ///< 定義ジャンプ・モジュールの説明用の.py(無ければ空)。
         QString moduleName;     ///< 相対importの基準(``__init__.py``なら``name.__init__``)。
     };
 

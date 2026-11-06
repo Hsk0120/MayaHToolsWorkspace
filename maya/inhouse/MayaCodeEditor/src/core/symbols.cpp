@@ -57,7 +57,8 @@ QString Symbol::categoryName() const {
 
 bool Symbol::operator==(const Symbol& other) const {
     if (type != other.type || binding != other.binding || detail != other.detail || target != other.target || fromModule != other.fromModule
-        || fromName != other.fromName || signature != other.signature || doc != other.doc || bases != other.bases) {
+        || fromName != other.fromName || signature != other.signature || doc != other.doc || bases != other.bases
+        || returnAnnotation != other.returnAnnotation || returnModule != other.returnModule || overload != other.overload) {
         return false;
     }
     if (!members || !other.members) {

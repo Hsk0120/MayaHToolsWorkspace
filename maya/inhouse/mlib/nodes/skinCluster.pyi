@@ -38,11 +38,6 @@ class SkinCluster(GeometryFilter):
     頂点操作はそのgeometryがMeshであることを前提とし、複数geometryの一括編集は行わない。
     influenceObjects()の物理順と、weights[]への書込みに使う論理番号を区別する。
     """
-    _LAYER_TOKENS: tuple
-    _SURFACE_ASSOCIATIONS: tuple
-    _INFLUENCE_ASSOCIATIONS: tuple
-    _SKINNING_METHODS: tuple
-    _NORMALIZE_MODES: tuple
     mesh: None
     mesh_path: None
     def __init__(self, skinCluster: str | om2.MObject | om2.MDagPath) -> None:

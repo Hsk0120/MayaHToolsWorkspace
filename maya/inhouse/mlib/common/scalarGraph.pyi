@@ -19,7 +19,6 @@ class ScalarGraph:
     Container.createNodeがfastを持たないため、fast=Trueは変更前にNotImplementedErrorとする。
     """
     container: Optional[Container]
-    _createNode: Callable[..., Any]
     def __init__(self, container: str | Container | None = ..., *, createNode: Callable | None = ...) -> None:
         """containerまたは生成関数のどちらか一方を保持する。
 

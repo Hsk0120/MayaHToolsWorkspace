@@ -533,10 +533,42 @@ bool completionEnginePasses(const QByteArray& config) {
     write("package/nodes/joint.py", "class Joint:\n    def get_matrix(self): pass\n");
     write("docsample.py", "\"\"\"Sample module.\"\"\"\ndef make(name):\n    \"\"\"Make a thing.\"\"\"\n\n"
                           "class Thing:\n    \"\"\"A thing.\"\"\"\n    def run(self):\n        \"\"\"Run it.\"\"\"\n");
+    if (!write("plain.py", "class Plain:\n    def plainMethod(self): pass\n"
+                           "def make() -> Plain: pass\n")
+        || !write("stubpkg/__init__.py", "runtime_member = 1\n")
+        || !write("stubpkg/__init__.pyi", "from .api import Joint as Joint, getPlug as getPlug\n")
+        || !write("stubpkg/api.py", "def getPlug(): pass\n")
+        || !write("stubpkg/api.pyi", "from .nodes import Joint as Joint\nfrom .plugs import Plug\n"
+                                    "from typing import overload\n@overload\ndef getPlug(s: str) -> 'Plug': ...\n"
+                                    "@overload\ndef getPlug(n: int) -> Joint: ...\n")
+        || !write("stubpkg/plugs.pyi", "class Plug:\n    def setValue(self): ...\n")
+        || !write("stubpkg/nodes.pyi", "from .parent import Parent\n"
+                                      "class Joint(Parent):\n    def orient(self): ...\n")
+        || !write("stubpkg/parent.pyi", "import stubpkg.plugs\nfrom typing import Optional, Union\n"
+                                       "class Parent:\n    def matrix(self): ...\n"
+                                       "    def getParent(self) -> Parent | None: ...\n"
+                                       "    def getPlug(self) -> Optional[stubpkg.plugs.Plug]: ...\n"
+                                       "    def getMaybePlug(self) -> Union[None, 'stubpkg.plugs.Plug']: ...\n"
+                                       "    def getAmbiguous(self) -> Union[Parent, stubpkg.plugs.Plug]: ...\n"
+                                       "    def getPlugs(self) -> list[stubpkg.plugs.Plug]: ...\n")) return false;
 
     mce::ModuleSource source;
     source.searchPaths = [&] { return QStringList{root.path()}; };
-    source.loadedModule = [](const QString& name, mce::LoadedModule* module) {
+    bool loadedStub = false;
+    source.loadedModule = [&](const QString& name, mce::LoadedModule* module) {
+        if (name == "builtins") {
+            mce::Symbol list;
+            list.type = mce::SymbolType::Class;
+            list.members = std::make_shared<mce::SymbolTable>();
+            list.members->insert("append", mce::Symbol());
+            module->members.insert("list", list);
+            return true;
+        }
+        if (loadedStub && name == "stubpkg") {
+            module->file = root.filePath("stubpkg/__init__.py");
+            module->members.insert("runtime_member", mce::Symbol());
+            return true;
+        }
         if (name != "maya.cmds") return false;
         module->members.insert("ls", mce::Symbol());
         module->members.insert("createNode", mce::Symbol());
@@ -573,6 +605,33 @@ bool completionEnginePasses(const QByteArray& config) {
         for (const auto& item : engine.complete(text).items) result.append(item.name);
         return result;
     };
+    const QList<QPair<QString, QString>> stubProbes{
+        {"import stubpkg\nstubpkg.Jo", "Joint"},
+        {"import stubpkg\np = stubpkg.getPlug('x.tx')\np.", "setValue"},
+        {"from stubpkg import getPlug as plug\nplug('x.tx').setV", "setValue"},
+        {"import stubpkg as m\nm.Joint('x').getParent().mat", "matrix"},
+        {"from stubpkg import Joint\nj = Joint('x')\np = j.getParent()\np.", "matrix"},
+        {"from stubpkg import Joint\nj = Joint('x')\nj.getPlug().", "setValue"},
+        {"from stubpkg import Joint\nJoint('x').getMaybePlug().", "setValue"},
+        {"from stubpkg import Joint\nJoint('x').getPlugs().", "append"},
+        {"import plain\nvalue = plain.make()\nvalue.", "plainMethod"},
+    };
+    for (const bool loaded : {false, true}) {
+        loadedStub = loaded;
+        for (const auto& probe : stubProbes) {
+            const auto found = names(probe.first);
+            if (!found.contains(probe.second)) {
+                qWarning() << "stub completion" << loaded << probe.first << found;
+                return false;
+            }
+        }
+    }
+    if (!names("import stubpkg\nstubpkg.runt").contains("runtime_member")
+        || !names("from stubpkg import Joint\nJoint().getAmbiguous().").isEmpty()
+        || names("from stubpkg import Joint\nJoint().getPlugs().").contains("setValue")) {
+        qWarning() << "stub completion fallback";
+        return false;
+    }
     const auto signature = engine.complete("import sample as s\ns.cre").items;
     if (signature.size() != 1 || signature[0].name != "create_node" || signature[0].detail != "create_node(name, **kwargs)") {
         qWarning() << "signature" << names("import sample as s\ns.cre"); return false;

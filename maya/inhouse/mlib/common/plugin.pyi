@@ -11,7 +11,6 @@ import types
 
 class Plugin:
     """名前で参照する Maya プラグイン(.mll/.py/.so)。生成時に存在確認しない。"""
-    _HIK_NODE_TYPES: frozenset
     def __init__(self, name: str) -> None:
         """プラグイン名を保持する。
 

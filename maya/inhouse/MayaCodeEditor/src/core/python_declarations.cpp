@@ -185,7 +185,7 @@ public:
                 }
                 Symbol symbol;
                 symbol.type = klass ? SymbolType::Class : SymbolType::Function;
-                if (function) symbol.binding = methodBinding(lineIndex, line.indent);
+                if (function) readFunctionTypes(words.mid(0, colon), lineIndex, line.indent, &symbol);
                 QString name = text(words[1]);
                 symbol.detail = klass ? "class " + name : functionDetail(words.mid(1), &name);
                 symbol.signature = joinWords(words.mid(0, colon));
@@ -195,7 +195,9 @@ public:
                     symbol.bases = classBases(words.mid(0, colon));
                     symbol.members = std::make_shared<SymbolTable>(readBody(words.mid(colon + 1), &bodyIndex, line.indent));
                 }
-                scopes.last().names.insert(name, symbol);
+                auto& names = scopes.last().names;
+                const auto previous = names.constFind(name);
+                if (!function || previous == names.constEnd() || !previous->overload) names.insert(name, symbol);
                 Scope scope{line.indent, klass, {}};
                 if (function) {
                     // functionDetailは既定値と型を除いた引数名だけを返す。
@@ -781,18 +783,28 @@ private:
         return body;
     }
 
-    /** @brief 定義の直前にある標準メソッドデコレーターを読む。
-     * @param index 定義行。 @param indent 定義の字下げ。 @return 束縛方式。
+    /** @brief 関数の戻り値と、束縛方式・オーバーロードのデコレーターを読む。
+     * @param header コロンより前の字句。 @param index 定義行。 @param indent 定義の字下げ。
+     * @param symbol 関数の宣言。
      */
-    Symbol::MethodBinding methodBinding(int index, int indent) const {
-        Symbol::MethodBinding binding = Symbol::Normal;
+    void readFunctionTypes(Words header, int index, int indent, Symbol* symbol) const {
         while (--index >= 0 && lines_[index].indent == indent) {
             const Words words = lineWords(lines_[index]);
             if (words.isEmpty() || !isOperator(words[0], "@")) break;
-            if (words.size() == 2 && isName(words[1], "staticmethod")) binding = Symbol::StaticMethod;
-            else if (words.size() == 2 && isName(words[1], "classmethod")) binding = Symbol::ClassMethod;
+            if (words.size() == 2 && isName(words[1], "staticmethod")) symbol->binding = Symbol::StaticMethod;
+            else if (words.size() == 2 && isName(words[1], "classmethod")) symbol->binding = Symbol::ClassMethod;
+            else if ((words.size() == 2 && isName(words[1], "overload"))
+                     || (words.size() == 4 && isOperator(words[2], ".") && isName(words[3], "overload"))) symbol->overload = true;
         }
-        return binding;
+        int depth = 0;
+        for (int i = 0; i < header.size(); ++i) {
+            if (depth == 0 && isOperator(header[i], "->")) {
+                symbol->returnAnnotation = joinWords(header.mid(i + 1));
+                symbol->returnModule = moduleName_.endsWith(".__init__") ? moduleName_.section('.', 0, -2) : moduleName_;
+                break;
+            }
+            depth += bracketDelta(header[i]);
+        }
     }
 
     /** @brief 同じインデントの論理行を順に読む。
@@ -817,11 +829,12 @@ private:
             if (isName(first, "def") || asyncDef) {
                 QString name;
                 const QString detail = functionDetail(words.mid(asyncDef ? 2 : 1), &name);
-                if (!name.isEmpty()) {
+                const auto previous = table.constFind(name);
+                if (!name.isEmpty() && (previous == table.constEnd() || !previous->overload)) {
                     const int colon = headerColon(words);
                     Symbol symbol;
                     symbol.type = SymbolType::Function;
-                    symbol.binding = methodBinding(*index - 1, indent);
+                    readFunctionTypes(colon >= 0 ? words.mid(0, colon) : words, *index - 1, indent, &symbol);
                     symbol.detail = detail;
                     symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
                     symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), *index, indent);
