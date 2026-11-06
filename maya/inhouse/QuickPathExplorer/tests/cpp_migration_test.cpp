@@ -209,6 +209,110 @@ private slots:
                  QStringList({"//qpe-test-server/share/file.txt", "//qpe-test-server/share"}));
         QVERIFY_EXCEPTION_THROWN(qpe::detail::operationAncestors("relative/file.txt"), std::invalid_argument);
     }
+    /** @brief 権限が必要なシンボリックリンクと、通常権限で作れるジャンクションを別々に検証する。 */
+    void linkedFolderTransfers_data() {
+        QTest::addColumn<bool>("junction");
+        QTest::newRow("symlink") << false;
+        QTest::newRow("junction") << true;
+    }
+    /** @brief リンク先への貼り付けと移動、実パスでのUndo/Redo、リンク先変更時の再開拒否を検証する。 */
+    void linkedFolderTransfers() {
+        QFETCH(bool, junction);
+        const auto root = junction ? QString("transfer-junction/") : QString("transfer-symlink/");
+        const auto from = path(root + "source"), to = path(root + "実際のコピー先"), other = path(root + "other");
+        const auto alias = path(root + "Projects"), fromAlias = path(root + "shortcut");
+        QVERIFY(QDir().mkpath(from + "/nested"));
+        QVERIFY(QDir().mkpath(to));
+        QVERIFY(QDir().mkpath(other));
+        const auto link = [&](const QString& name, const QString& target) {
+            const auto nativeName = QDir::toNativeSeparators(name), nativeTarget = QDir::toNativeSeparators(target);
+            if (junction) return QProcess::execute("cmd.exe", {"/d", "/c", "mklink", "/J", nativeName, nativeTarget}) == 0;
+            const auto* linkName = reinterpret_cast<LPCWSTR>(nativeName.utf16());
+            const auto* targetName = reinterpret_cast<LPCWSTR>(nativeTarget.utf16());
+            return CreateSymbolicLinkW(linkName, targetName, SYMBOLIC_LINK_FLAG_DIRECTORY | 0x2)
+                || CreateSymbolicLinkW(linkName, targetName, SYMBOLIC_LINK_FLAG_DIRECTORY);
+        };
+        if (!link(alias, to)) {
+            if (!junction) QSKIP("Windows symlink creation is unavailable");
+            QFAIL("Could not create the test junction");
+        }
+        QVERIFY(link(fromAlias, from));
+        QVERIFY(file(root + "source/nested/scene.mb"));
+        const auto history = path(root + "history");
+        qpe::FileOperations engine(history);
+        auto result = engine.run({"copy", {fromAlias + "/nested/scene.mb", from + "/nested/scene.mb"}, alias, "rename", {}, "copy-1"});
+        QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join('\n')));
+        QCOMPARE(result.completed, QStringList{alias + "/scene.mb"});
+        QCOMPARE(qpe::fileFingerprint(to + "/scene.mb"), qpe::fileFingerprint(from + "/nested/scene.mb"));
+        QVERIFY(engine.run({"undo"}).errors.isEmpty());
+        QVERIFY(!QFileInfo::exists(to + "/scene.mb"));
+        QVERIFY(engine.run({"redo"}).errors.isEmpty());
+
+        result = engine.run({"move", {fromAlias + "/nested/scene.mb"}, alias, "rename", {}, "move-1"});
+        QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join('\n')));
+        QCOMPARE(result.completed, QStringList{alias + "/scene (2).mb"});
+        QCOMPARE(result.extra["pathChanges"].toArray().first().toObject()["from"].toString(), fromAlias + "/nested/scene.mb");
+        QVERIFY(!QFileInfo::exists(from + "/nested/scene.mb"));
+        QVERIFY(QFileInfo::exists(to + "/scene (2).mb"));
+        QVERIFY(engine.run({"move", {fromAlias + "/nested/scene.mb"}, alias, "rename", {}, "move-1"}).errors.isEmpty());
+
+        // RemoveDirectoryWはリンクだけを外す。リンク先を差し替えてもUndoとRedoは元の実パスで動く。
+        const auto nativeAlias = QDir::toNativeSeparators(alias);
+        QVERIFY(RemoveDirectoryW(reinterpret_cast<LPCWSTR>(nativeAlias.utf16())));
+        QVERIFY(link(alias, other));
+        QVERIFY_EXCEPTION_THROWN(engine.run({"move", {fromAlias + "/nested/scene.mb"}, alias, "rename", {}, "move-1"}), std::runtime_error);
+        QVERIFY(engine.run({"undo"}).errors.isEmpty());
+        QVERIFY(QFileInfo::exists(from + "/nested/scene.mb"));
+        QVERIFY(!QFileInfo::exists(to + "/scene (2).mb"));
+        QVERIFY(engine.run({"redo"}).errors.isEmpty());
+        QVERIFY(QFileInfo::exists(to + "/scene (2).mb"));
+        QVERIFY(QDir(other).isEmpty());
+
+        const auto denied = engine.run({"copy", {fromAlias}, alias});
+        QVERIFY(!denied.errors.isEmpty());
+        QVERIFY(QDir(other).isEmpty());
+        const auto recursive = engine.run({"copy", {from + "/nested"}, fromAlias + "/nested"});
+        QVERIFY(!recursive.errors.isEmpty());
+        QVERIFY(!QFileInfo::exists(from + "/nested/nested"));
+        QVERIFY(qpe::loadJson(history + "/journal.json")["pending"].toObject().isEmpty());
+
+        QVERIFY(QDir().mkpath(from + "/merge"));
+        QVERIFY(QDir().mkpath(other + "/merge"));
+        QVERIFY(file(root + "source/merge/conflict.txt", 20));
+        QVERIFY(file(root + "source/merge/new.txt"));
+        QVERIFY(file(root + "other/merge/conflict.txt", 9));
+        const auto shownMerge = fromAlias + "/merge";
+        const auto reviewed = engine.run({"mergeConflicts", {shownMerge}, alias}).extra["rows"].toArray();
+        QCOMPARE(reviewed.size(), 1);
+        const QJsonObject choices{{"_requireReviewed", true}, {shownMerge + "/conflict.txt", "skip"}};
+        const qpe::FileRequest merge{"copy", {shownMerge}, alias, "merge", {{"mergeReviewed", reviewed}, {"choices", choices}}};
+        result = engine.run(merge);
+        QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join('\n')));
+        QCOMPARE(QFileInfo(other + "/merge/conflict.txt").size(), 9LL);
+        QVERIFY(QFileInfo::exists(other + "/merge/new.txt"));
+
+        QVERIFY(file(root + "clipboard.txt"));
+        qpe::BrowserWindow window; window.navigate(alias); window.show(); QTRY_VERIFY(window.ready());
+        const auto clipboardSource = path(root + "clipboard.txt");
+        window.perform("copy", {clipboardSource});
+        QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls(), QList<QUrl>{QUrl::fromLocalFile(clipboardSource)});
+        window.perform("paste", {}, alias);
+        QTRY_VERIFY(QFileInfo::exists(other + "/clipboard.txt"));
+        QTRY_VERIFY(!window.busy());
+        QVERIFY(!QFileInfo::exists(to + "/clipboard.txt"));
+    }
+    /** @brief 任意の既存リンク先は競合プレビューの経路で読み取りだけを確認する。 */
+    void inspectExistingTransferDestination() {
+        const auto destination = qEnvironmentVariable("QPE_TEST_READONLY_TRANSFER_DESTINATION");
+        if (destination.isEmpty()) QSKIP("No read-only destination was supplied");
+        const auto probe = QString("qpe-probe-%1.txt").arg(QFileInfo(data_.path()).fileName());
+        QVERIFY(file(probe));
+        QVERIFY(!QFileInfo::exists(QDir(destination).filePath(probe)));
+        const auto result = qpe::FileOperations(path("probe-history")).run({"mergeConflicts", {path(probe)}, destination});
+        QVERIFY(result.errors.isEmpty());
+        QVERIFY(result.extra["rows"].toArray().isEmpty());
+        QVERIFY(!QFileInfo::exists(QDir(destination).filePath(probe)));
+    }
     /** @brief 狭い行と通常入力欄の余白が共存しても改名の字形領域を確保する。 */
     void inlineRenameTextGeometry() {
         for (const int pixels : {10, 12, 20}) {

@@ -156,6 +156,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+- Codex (2026-11-06): QPEのコピー・切り取り貼り付けで、明示したフォルダーリンクの実パスを解決。Undo/Redoを元の実パスに固定し、リンク先変更時のジョブ再開を拒否。リンク先の結合・専用ジャンクションでの実転送とQtクリップボード、実利用先の読取を確認。別件のメニュー変更を分離した公開用ソースでWindows回帰100件合格・権限不足による新規symlink作成1件スキップ、exe起動成功。実利用先への書込・Maya内操作は未実施。証拠 .maya-output/qpe-linked-transfer-20261106/ と .maya-output/qpe-push-20261106/。
 - Codex (2026-11-06): MCEの簡易補完でtyping/typing_extensionsのSelfを呼び出し元のクラスに解決。必須文字列Literalに一致するオーバーロードを選び、mlib 10.5.0のls(type='joint').sort()でJoints固有候補を復元。Qt5/6の回帰各29件、型サーバー無効のMaya 2022/2027で未読込・読込済みのJoints/Plugs/Verticesを含む各25件成功。2022の初回速度計測は1件で閾値超過、再実行は全件成功。全6年mllをビルド・通常配置へ反映。証拠 .maya-output/mce-self-20261106/。
 - Codex (2026-11-06): Maya Code Editorの下部ドックを縮小可能な表示領域へ変更。修正前のMaya 2027では260px、修正後の専用Maya 2022/2027で72pxまで縮小し312pxへ復元。開き直し時の本文・共有タブ・他ドック・フロートをQt入力で確認。2027再起動で右ドックと本文の復元、閉じた状態とアンロードを確認。全6年mllをビルド・通常配置へ反映。証拠 .maya-output/mce-bottom-dock-20261106/。
 - Claude Code (2026-11-06): mlib 10.5.0。`Nodes`・`Plugs`・`Components`の`sort`がその場で並べ替えたうえで自身を返す(従来None)。generate_mlib_stubs.pyに`_self_return`を足し、3つのsortのスタブの戻り値を`Self`にした(`Joints.sort()`も`Joints`として補完)。同梱basedpyrightで`mlib.ls(type='joint').sort().`等の候補を確認。runStatic 162件、Maya 2027/2022でtest_spec_components・test_spec_cmds_entries成功。MCEの簡易補完は`Self`を解決しない。コミット・プッシュ(このコミット)。

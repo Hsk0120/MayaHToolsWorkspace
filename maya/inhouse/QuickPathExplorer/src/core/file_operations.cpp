@@ -26,6 +26,7 @@
 #include <QUuid>
 #include <stdexcept>
 #include <algorithm>
+#include <iterator>
 #define NOMINMAX
 #include <windows.h>
 namespace qpe {
@@ -59,19 +60,99 @@ void check(const CancelFlag& cancel) { while (threadPause && threadPause->load()
 QString normalized(const QString& path) { return QDir::cleanPath(QFileInfo(path).absoluteFilePath()); }
 /** @brief 大小文字を無視した同一/配下判定。 @param path 対象。 @param root 境界。 @return 配下か。 */
 bool within(const QString& path, const QString& root) { return path.compare(root, Qt::CaseInsensitive) == 0 || path.startsWith(root.endsWith('/') ? root : root + '/', Qt::CaseInsensitive); }
-/** @brief リパースポイントとクラウドの暗黙ダウンロードを拒否する。 @param path 対象。 */
-void ordinary(const QString& path) {
+/** @brief Windowsの属性を読み、取得失敗の理由を保持する。 @param path 対象。 @return 属性。 */
+DWORD pathAttributes(const QString& path) {
     const DWORD flags = GetFileAttributesW(reinterpret_cast<LPCWSTR>(QDir::toNativeSeparators(path).utf16()));
     if (flags == INVALID_FILE_ATTRIBUTES) {
         const auto error = GetLastError();
         fail(windowsFailure("Cannot inspect path", path, error));
     }
-    if (flags & (FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_OFFLINE | 0x40000 | 0x400000))
-        fail("Links, junctions and online-only items are not modified: " + path);
+    return flags;
+}
+constexpr DWORD offlineAttributes = FILE_ATTRIBUTE_OFFLINE | 0x40000 | 0x400000;
+/** @brief リンクそのものと未取得のクラウド項目を転送から保護する。 @param path 対象。 */
+[[noreturn]] void refuseLink(const QString& path) {
+    fail("Links, junctions and online-only items are not modified: " + path);
+}
+/** @brief リパースポイントとクラウドの暗黙ダウンロードを拒否する。 @param path 対象。 */
+void ordinary(const QString& path) {
+    if (pathAttributes(path) & (FILE_ATTRIBUTE_REPARSE_POINT | offlineAttributes)) refuseLink(path);
 }
 /** @brief ソースからルートまで親リンクも検証する。 @param path 対象。 */
 void ordinaryParents(QString path) {
     for (const auto& ancestor : detail::operationAncestors(path)) ordinary(ancestor);
+}
+/** @brief 明示した転送先または転送元の親を実パスへ固定する。
+ * @param path 既存フォルダーの表示パス。 @return 転送・履歴に使う実パス。
+ * @note フォルダーのシンボリックリンクとジャンクションだけを辿る。列挙中のリンクは対象外。
+ */
+QString transferDirectory(const QString& path) {
+    const auto ancestors = detail::operationAncestors(path);
+    QString resolved;
+    for (auto it = ancestors.crbegin(); it != ancestors.crend(); ++it) {
+        resolved = resolved.isEmpty() ? *it : QDir(resolved).filePath(QFileInfo(*it).fileName());
+        const auto flags = pathAttributes(resolved);
+        if (flags & offlineAttributes) refuseLink(resolved);
+        if (!(flags & FILE_ATTRIBUTE_DIRECTORY)) fail("Choose an existing destination outside the source");
+        if (!(flags & FILE_ATTRIBUTE_REPARSE_POINT)) continue;
+
+        const auto native = QDir::toNativeSeparators(resolved);
+        const auto* name = reinterpret_cast<LPCWSTR>(native.utf16());
+        WIN32_FIND_DATAW data{};
+        const auto found = FindFirstFileW(name, &data);
+        if (found == INVALID_HANDLE_VALUE) {
+            const auto error = GetLastError();
+            fail(windowsFailure("Cannot inspect folder link", resolved, error));
+        }
+        FindClose(found);
+        if (data.dwReserved0 != IO_REPARSE_TAG_SYMLINK && data.dwReserved0 != IO_REPARSE_TAG_MOUNT_POINT)
+            refuseLink(resolved);
+
+        const auto handle = CreateFileW(name, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                        nullptr, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        if (handle == INVALID_HANDLE_VALUE) {
+            const auto error = GetLastError();
+            fail(windowsFailure("Cannot open folder link", resolved, error));
+        }
+        wchar_t buffer[32768];
+        const auto length = GetFinalPathNameByHandleW(handle, buffer, DWORD(std::size(buffer)), FILE_NAME_NORMALIZED);
+        const auto error = GetLastError();
+        CloseHandle(handle);
+        if (!length) fail(windowsFailure("Cannot resolve folder link", resolved, error));
+        if (length >= std::size(buffer)) fail("Folder link target path is too long: " + resolved);
+        auto target = QString::fromWCharArray(buffer, int(length)).replace(QChar(0x5c), '/');
+        if (target.startsWith("//?/UNC/", Qt::CaseInsensitive)) target = "//" + target.mid(8);
+        else if (target.startsWith("//?/") && target.size() >= 7 && target.mid(5, 2) == ":/") target = target.mid(4);
+        else fail("Unsupported folder link target: " + resolved);
+        resolved = normalized(target);
+        ordinaryParents(resolved);
+        if (!QFileInfo(resolved).isDir()) fail("Folder link target is not a folder: " + target);
+    }
+    return resolved;
+}
+/** @brief 転送項目の親だけを解決し、リンク本体は操作対象にしない。 @param path 表示パス。 @return 実パス。 */
+QString transferSource(const QString& path) {
+    const QFileInfo info(path);
+    if (info.isRoot() || (path.startsWith("//") && detail::operationAncestors(path).size() == 1))
+        return path;
+    return QDir(transferDirectory(info.absolutePath())).filePath(info.fileName());
+}
+/** @brief リンク先が同じ間だけ、画面内のパス更新に表示パスを使う。
+ * @param physical 履歴に固定した実パス。 @param shown 操作時の表示パス。 @return 現在有効なパス。
+ */
+QString currentDisplayPath(const QString& physical, const QString& shown) {
+    if (shown.isEmpty()) return physical;
+    try { if (transferSource(shown).compare(physical, Qt::CaseInsensitive) == 0) return shown; }
+    catch (const std::exception&) { /* 操作自体は確定済み。画面には実パスを返す。 */ }
+    return physical;
+}
+/** @brief 移動や改名を画面へ反映する。 @param result 完了結果。 @param entry 履歴。 @param undo 逆方向か。 */
+void addPathChange(FileResult& result, const QJsonObject& entry, bool undo) {
+    const auto source = currentDisplayPath(entry["source"].toString(), entry["shownSource"].toString());
+    const auto target = currentDisplayPath(entry["target"].toString(), entry["shownTarget"].toString());
+    auto changes = result.extra["pathChanges"].toArray();
+    changes.append(QJsonObject{{"from", undo ? target : source}, {"to", undo ? source : target}});
+    result.extra["pathChanges"] = changes;
 }
 /** @brief リンクを辿らない順序付き子一覧。 @param path 親。 @return 子。 */
 QFileInfoList children(const QString& path) { return checkedChildren(path); }
@@ -174,19 +255,23 @@ QString available(QString path) {
 /** @brief 未公開の作業コピーへ重ね、行先にだけある項目を保持する。
  * @param source 元項目。 @param target 作業コピー。 @param choices 個別の衝突選択。
  * @param cancel 中断。 @param progress コピー進捗。 @param relative ルートからの相対名。
+ * @param reviewSource 衝突確認に表示したパス。
  */
 void overlayEntry(const QString& source, const QString& target, const QJsonObject& choices,
-                  const CancelFlag& cancel, const FileProgress& progress, const QString& relative = {}) {
+                  const CancelFlag& cancel, const FileProgress& progress, const QString& relative = {},
+                  const QString& reviewSource = {}) {
     check(cancel); ordinary(source);
     if (QFileInfo::exists(target)) {
         ordinary(target);
         if (QFileInfo(source).isDir() && QFileInfo(target).isDir()) {
             for (const auto& child : children(source)) overlayEntry(child.absoluteFilePath(), QDir(target).filePath(child.fileName()), choices,
-                cancel, progress, relative.isEmpty() ? child.fileName() : relative + '/' + child.fileName());
+                cancel, progress, relative.isEmpty() ? child.fileName() : relative + '/' + child.fileName(),
+                reviewSource.isEmpty() ? QString() : QDir(reviewSource).filePath(child.fileName()));
             return;
         }
-        if (choices["_requireReviewed"].toBool() && !choices.contains(source)) fail("A new merge conflict appeared; review the destination again: " + source);
-        const auto decision = choices.value(source).toString(choices.value(relative).toString("replace"));
+        const auto& choicePath = reviewSource.isEmpty() ? source : reviewSource;
+        if (choices["_requireReviewed"].toBool() && !choices.contains(choicePath)) fail("A new merge conflict appeared; review the destination again: " + choicePath);
+        const auto decision = choices.value(choicePath).toString(choices.value(relative).toString("replace"));
         if (!QStringList{"replace", "rename", "skip"}.contains(decision)) fail("Invalid per-item conflict choice: " + relative);
         if (decision == "skip") return;
         if (decision == "rename") { copyEntry(source, available(target), cancel, progress); return; }
@@ -249,17 +334,27 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         FileResult result; QJsonArray rows;
         if (request.paths.isEmpty() || request.destination.isEmpty() || !QFileInfo(request.destination).isAbsolute()) throw std::invalid_argument("Merge preview requires absolute source and destination paths");
         for (const auto& raw : request.paths) if (raw.isEmpty() || !QFileInfo(raw).isAbsolute()) throw std::invalid_argument("Merge source must be absolute");
-        std::function<void(const QString&, const QString&, const QString&)> inspect;
-        inspect = [&](const QString& source, const QString& target, const QString& relative) {
-            check(cancel); ordinaryParents(source); if (!QFileInfo::exists(target)) return; ordinaryParents(target);
-            if (QFileInfo(source).isDir() && QFileInfo(target).isDir()) { for (const auto& child : children(source)) inspect(child.absoluteFilePath(), QDir(target).filePath(child.fileName()), relative + '/' + child.fileName()); return; }
+        const auto destination = transferDirectory(request.destination);
+        std::function<void(const QString&, const QString&, const QString&, const QString&, const QString&)> inspect;
+        inspect = [&](const QString& source, const QString& target, const QString& shownSource, const QString& shownTarget, const QString& relative) {
+            check(cancel); ordinary(source); if (!QFileInfo::exists(target)) return; ordinary(target);
+            if (QFileInfo(source).isDir() && QFileInfo(target).isDir()) {
+                for (const auto& child : children(source)) inspect(child.absoluteFilePath(), QDir(target).filePath(child.fileName()),
+                    QDir(shownSource).filePath(child.fileName()), QDir(shownTarget).filePath(child.fileName()), relative + '/' + child.fileName());
+                return;
+            }
             if (rows.size() >= 10000) fail("Too many merge conflicts. Select fewer folders before merging.");
             const QFileInfo from(source), to(target);
-            rows.append(QJsonObject{{"source", source}, {"target", target}, {"relative", relative}, {"sourceSize", double(from.size())}, {"targetSize", double(to.size())},
+            rows.append(QJsonObject{{"source", shownSource}, {"target", shownTarget}, {"resolvedSource", source}, {"resolvedTarget", target},
+                {"relative", relative}, {"sourceSize", double(from.size())}, {"targetSize", double(to.size())},
                 {"sourceModified", from.lastModified().toString(Qt::ISODate)}, {"targetModified", to.lastModified().toString(Qt::ISODate)},
                 {"sourceFolder", from.isDir()}, {"targetFolder", to.isDir()}, {"sourceState", legacyMetadataFingerprint(source, cancel)}, {"targetState", legacyMetadataFingerprint(target, cancel)}});
         };
-        for (const auto& raw : request.paths) { const auto source = normalized(raw); inspect(source, QDir(request.destination).filePath(QFileInfo(source).fileName()), QFileInfo(source).fileName()); }
+        for (const auto& raw : request.paths) {
+            const auto source = normalized(raw), name = QFileInfo(source).fileName();
+            inspect(transferSource(source), QDir(destination).filePath(name), source,
+                    QDir(normalized(request.destination)).filePath(name), name);
+        }
         result.extra = {{"query", "mergeConflicts"}, {"rows", rows}}; return result;
     }
     if (request.action == "media") return queryMedia(request, cancel);
@@ -398,6 +493,10 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         for (int i = stack.size() - 1; i >= 0; --i) {
             const auto entry = stack[i].toObject(); if (i != stack.size() - 1 && (batch.isEmpty() || entry["batch"].toString() != batch)) break;
             const auto action = entry["action"].toString(), source = entry["source"].toString(), target = entry["target"].toString();
+            if ((action == "copy" || action == "move") && (entry.contains("shownSource") || entry.contains("shownTarget"))) {
+                ordinaryParents(QFileInfo(source).absolutePath());
+                ordinaryParents(QFileInfo(target).absolutePath());
+            }
             if (action == "legacyTrash") {
                 if (restoring ? QFileInfo::exists(source) || fileFingerprint(entry["backup"].toString(), cancel) != entry["backupStamp"].toString() : QFileInfo::exists(entry["backup"].toString()) || fileFingerprint(source, cancel) != entry["backupStamp"].toString()) fail("Legacy trash restore conflict");
                 continue;
@@ -459,8 +558,9 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             }
         }
         stack.removeLast(); (undo ? redo : history).append(entry); journal.remove("pending"); save();
-        result.completed.append(undo ? source : target);
-        if (action == "rename" || action == "move" || action == "legacyMove") { auto changes = result.extra["pathChanges"].toArray(); changes.append(QJsonObject{{"from", undo ? target : source}, {"to", undo ? source : target}}); result.extra["pathChanges"] = changes; }
+        result.completed.append(undo ? currentDisplayPath(source, entry["shownSource"].toString())
+                                     : currentDisplayPath(target, entry["shownTarget"].toString()));
+        if (action == "rename" || action == "move" || action == "legacyMove") addPathChange(result, entry, undo);
         } while (!batch.isEmpty() && !stack.isEmpty() && stack.last().toObject()["batch"].toString() == batch);
         return result;
     }
@@ -482,12 +582,12 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
     if (!QStringList{"copy", "move", "duplicate", "trash", "rename", "batchRename", "newFolder", "newFile"}.contains(request.action)) fail("Unknown file operation");
     if (!QStringList{"rename", "skip", "replace", "merge"}.contains(request.conflict)) fail("Unknown conflict policy");
     if (request.conflict == "merge" && request.action != "copy") fail("Folder merge is available for Copy only");
-    for (const auto& raw : request.options["mergeReviewed"].toArray()) {
-        const auto row = raw.toObject();
-        if (legacyMetadataFingerprint(row["source"].toString(), cancel) != row["sourceState"].toString() || legacyMetadataFingerprint(row["target"].toString(), cancel) != row["targetState"].toString()) fail("Merge source/destination changed after preview. Review the conflicts again.");
-    }
     for (const auto& path : request.paths) if (path.trimmed().isEmpty() || !QFileInfo(path).isAbsolute()) fail("File operations require non-empty absolute paths");
-    if (QStringList{"copy", "move", "newFile", "newFolder"}.contains(request.action) && (request.destination.isEmpty() || !QFileInfo(request.destination).isAbsolute())) fail("Destination must be an absolute path");
+    const bool transfer = request.action == "copy" || request.action == "move";
+    if ((transfer || request.action.startsWith("new")) && (request.destination.isEmpty() || !QFileInfo(request.destination).isAbsolute())) fail("Destination must be an absolute path");
+    const auto shownDestination = transfer ? normalized(request.destination) : QString();
+    const auto resolvedDestination = transfer ? transferDirectory(shownDestination) : QString();
+    if (transfer && within(resolvedDestination, directory_)) fail("Root and QPE history directories are protected");
     QStringList paths = request.paths; paths.removeDuplicates();
     const auto batch = request.id.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : request.id;
     if (request.options["legacyTransfer"].isObject()) {
@@ -499,7 +599,10 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             paths.clear();
             for (const auto& raw : legacy["items"].toArray()) {
                 const auto item = raw.toObject(); const auto source = normalized(item["source"].toString());
-                bool nativeDone = false; for (const auto& value : history) if (value.toObject()["job"] == request.id && value.toObject()["source"] == source) nativeDone = true;
+                bool nativeDone = false; for (const auto& value : history) {
+                    const auto entry = value.toObject();
+                    if (entry["job"] == request.id && entry["shownSource"].toString(entry["source"].toString()) == source) nativeDone = true;
+                }
                 if (nativeDone) { paths.append(source); continue; }
                 const auto state = item["state"].toString();
                 if (state == "Completed") {
@@ -536,26 +639,84 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         }
     }
     if (request.action.startsWith("new")) paths = QStringList{request.destination};
+    QJsonObject resolvedSources;
+    QHash<QString, QString> sourceErrors;
+    if (transfer) {
+        QSet<QString> seen;
+        QStringList unique;
+        for (const auto& raw : paths) {
+            try {
+                check(cancel);
+                const auto source = transferSource(normalized(raw));
+                resolvedSources[raw] = source;
+                const auto key = source.toCaseFolded();
+                if (seen.contains(key)) continue;
+                seen.insert(key);
+            } catch (const Cancelled&) { result.cancelled = true; return result; }
+            catch (const std::exception& error) {
+                if (!request.id.isEmpty()) throw;
+                sourceErrors.insert(raw, QString::fromUtf8(error.what()));
+            }
+            unique.append(raw);
+        }
+        paths = unique;
+    }
+    for (const auto& raw : request.options["mergeReviewed"].toArray()) {
+        const auto row = raw.toObject();
+        const auto shownSource = row["source"].toString(), shownTarget = row["target"].toString();
+        const auto shownRoot = std::find_if(paths.cbegin(), paths.cend(), [&](const QString& path) {
+            return resolvedSources.contains(path) && within(shownSource, normalized(path));
+        });
+        if (shownRoot == paths.cend() || !within(shownTarget, shownDestination))
+            fail("Merge source/destination changed after preview. Review the conflicts again.");
+        // 同じ解決済みルートから検査とコピーを行い、確認中のリンク差し替えで別の項目を上書きしない。
+        const auto root = normalized(*shownRoot);
+        const auto source = resolvedSources.value(*shownRoot).toString() + shownSource.mid(root.size());
+        const auto target = QDir(resolvedDestination).filePath(QDir(shownDestination).relativeFilePath(shownTarget));
+        if (source.compare(row["resolvedSource"].toString(source), Qt::CaseInsensitive)
+            || target.compare(row["resolvedTarget"].toString(target), Qt::CaseInsensitive)
+            || legacyMetadataFingerprint(source, cancel) != row["sourceState"].toString()
+            || legacyMetadataFingerprint(target, cancel) != row["targetState"].toString())
+            fail("Merge source/destination changed after preview. Review the conflicts again.");
+    }
     QJsonObject prepared;
     QString recordPath;
     if (!request.id.isEmpty() && QStringList{"copy", "move", "duplicate"}.contains(request.action)) {
         recordPath = directory_ + "/jobs/" + request.id + ".json";
         auto record = loadJson(recordPath); prepared = record["prepared"].toObject();
+        if (transfer) {
+            const auto recorded = record["resolvedSources"].toObject();
+            if (resolvedDestination.compare(record["resolvedDestination"].toString(resolvedDestination), Qt::CaseInsensitive))
+                fail("The destination folder link changed; start a new transfer: " + shownDestination);
+            for (auto it = resolvedSources.constBegin(); it != resolvedSources.constEnd(); ++it)
+                if (recorded.contains(it.key()) && it.value().toString().compare(recorded[it.key()].toString(), Qt::CaseInsensitive))
+                    fail("A source folder link changed; start a new transfer: " + it.key());
+            record["resolvedDestination"] = resolvedDestination;
+            record["resolvedSources"] = resolvedSources;
+        }
         for (const auto& raw : paths) {
+            const auto shownSource = normalized(raw);
+            const auto source = resolvedSources.value(raw).toString(shownSource);
             bool committed = false;
-            for (const auto& value : history) if (value.toObject()["job"].toString() == request.id && value.toObject()["source"].toString() == normalized(raw)) committed = true;
-            if (!committed && !prepared.contains(raw)) prepared[raw] = fileFingerprint(raw, cancel);
+            for (const auto& value : history) {
+                const auto entry = value.toObject();
+                if (entry["job"].toString() == request.id && entry["shownSource"].toString(entry["source"].toString()) == shownSource) committed = true;
+            }
+            if (!committed && !prepared.contains(raw)) prepared[raw] = fileFingerprint(source, cancel);
         }
         record["prepared"] = prepared; record["state"] = "running"; saveJson(recordPath, record);
     }
     for (const QString& raw : paths) {
         try {
             check(cancel);
-            const QString source = normalized(raw); const QFileInfo info(source);
+            if (sourceErrors.contains(raw)) fail(sourceErrors[raw]);
+            const auto shownSource = normalized(raw), source = resolvedSources.value(raw).toString(shownSource);
+            const QFileInfo info(source);
             bool committed = false;
             for (const auto& value : history) {
                 const auto done = value.toObject();
-                if (!request.id.isEmpty() && done["job"].toString() == request.id && done["source"].toString() == source) {
+                if (!request.id.isEmpty() && done["job"].toString() == request.id && done["shownSource"].toString(done["source"].toString()) == shownSource) {
+                    if (done["source"].toString().compare(source, Qt::CaseInsensitive)) fail("A source folder link changed; start a new transfer: " + shownSource);
                     if (fileFingerprint(done["target"].toString(), cancel) != done["stamp"].toString()) fail("Completed transfer changed; resume refused");
                     if (request.action == "move" && (QFileInfo::exists(source) || fileFingerprint(done["sourceBackup"].toString(), cancel) != done["sourceStamp"].toString())) fail("Move original changed; resume refused");
                     committed = true;
@@ -566,7 +727,11 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             if (prepared.contains(raw) && fileFingerprint(raw, cancel) != prepared[raw].toString()) fail("Prepared source changed; resume refused");
             const bool shareRoot = source.startsWith("//") && detail::operationAncestors(source).size() == 1;
             if (info.isRoot() || shareRoot || within(source, directory_) || within(directory_, source)) fail("Root and QPE history directories are protected");
-            bool nested = false; for (const auto& other : paths) if (normalized(other) != source && within(source, normalized(other))) nested = true;
+            bool nested = false;
+            for (const auto& other : paths) {
+                const auto parent = resolvedSources.value(other).toString(normalized(other));
+                if (source.compare(parent, Qt::CaseInsensitive) && within(source, parent)) nested = true;
+            }
             if (nested) continue;
             if (request.action.startsWith("new")) ordinaryParents(info.absolutePath()); else ordinaryParents(source);
             QJsonObject entry{{"action", request.action == "batchRename" ? "rename" : request.action}, {"source", source}, {"batch", batch}, {"job", request.id}, {"time", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}};
@@ -584,18 +749,18 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 else { QFile file(source); if (!file.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail("Cannot create file: " + source + "\n" + file.errorString()); }
                 entry["stamp"] = fileFingerprint(source);
             } else {
-                const QString destination = request.action == "duplicate" ? info.absolutePath() : normalized(request.destination);
+                const QString destination = transfer ? resolvedDestination : info.absolutePath();
                 ordinaryParents(destination);
                 if (!QFileInfo(destination).isDir() || within(destination, source)) fail("Choose an existing destination outside the source");
                 QString target = QDir(destination).filePath(info.fileName());
                 bool merge = false;
                 if (request.action == "move" && target.compare(source, Qt::CaseInsensitive) == 0) continue;
-                if (QFileInfo::exists(target)) {
+                if (QFileInfo::exists(target) || QFileInfo(target).isSymLink()) {
                     auto policy = request.conflict;
                     if (policy == "merge" && !(info.isDir() && QFileInfo(target).isDir())) {
                         const auto choices = request.options["choices"].toObject();
-                        if (choices["_requireReviewed"].toBool() && !choices.contains(source)) fail("A new merge conflict appeared; review the destination again: " + source);
-                        policy = choices[source].toString("replace");
+                        if (choices["_requireReviewed"].toBool() && !choices.contains(shownSource)) fail("A new merge conflict appeared; review the destination again: " + shownSource);
+                        policy = choices[shownSource].toString("replace");
                     }
                     if (!QStringList{"skip", "rename", "replace", "merge"}.contains(policy)) fail("Invalid conflict policy");
                     if (policy == "skip") continue;
@@ -606,16 +771,22 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                     }
                 }
                 entry["target"] = target; entry["stamp"] = fileFingerprint(source, cancel); entry["sourceStamp"] = entry.value("stamp");
+                if (transfer && source != shownSource) entry["shownSource"] = shownSource;
+                if (transfer && destination != shownDestination) entry["shownTarget"] = QDir(shownDestination).filePath(QFileInfo(target).fileName());
                 const QString temporary = QDir(destination).filePath(".qpe-copy-" + QUuid::createUuid().toString(QUuid::WithoutBraces));
                 try {
                     if (merge) {
                         copyEntry(target, temporary, cancel, progress);
-                        overlayEntry(source, temporary, request.options["choices"].toObject(), cancel, progress);
+                        overlayEntry(source, temporary, request.options["choices"].toObject(), cancel, progress, {}, shownSource);
                         entry["stamp"] = fileFingerprint(temporary, cancel);
                     } else copyEntry(source, temporary, cancel, progress);
                     if (fileFingerprint(temporary, cancel) != entry["stamp"].toString() || fileFingerprint(source, cancel) != entry["sourceStamp"].toString()) fail("Source changed during copy");
                     if (entry.contains("backup") && fileFingerprint(target, cancel) != entry["backupStamp"].toString()) fail("Destination changed during copy");
                     if (request.action == "move") entry["sourceBackup"] = holding(info.absolutePath());
+                    if (entry.contains("shownSource") || entry.contains("shownTarget")) {
+                        ordinaryParents(source);
+                        ordinaryParents(destination);
+                    }
                     check(cancel); intent(entry);
                     if (entry.contains("backup")) renameExact(target, entry["backup"].toString());
                     renameExact(temporary, target);
@@ -627,8 +798,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             }
             // 古いRedoの原本は削除せず記録を保全。自動pruneは行わない。
             if (!redo.isEmpty()) { auto retained = journal["retained"].toArray(); for (const auto& value : redo) retained.append(value); journal["retained"] = retained; redo = {}; }
-            commit(entry); result.completed.append(entry.value("target").toString(source));
-            if (entry["action"] == "rename" || entry["action"] == "move") { auto changes = result.extra["pathChanges"].toArray(); changes.append(QJsonObject{{"from", source}, {"to", entry["target"]}}); result.extra["pathChanges"] = changes; }
+            commit(entry); result.completed.append(entry["shownTarget"].toString(entry["target"].toString(source)));
+            if (entry["action"] == "rename" || entry["action"] == "move") addPathChange(result, entry, false);
         } catch (const Cancelled&) { result.cancelled = true; break; }
           catch (const std::exception& error) { result.errors.append(QString::fromUtf8(error.what())); if (!journal["pending"].toObject().isEmpty()) { result.warnings.append("Interrupted operation recorded; inspect retained originals before retrying."); break; } }
     }
