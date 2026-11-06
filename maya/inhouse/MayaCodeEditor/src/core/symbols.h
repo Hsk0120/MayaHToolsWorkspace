@@ -15,6 +15,7 @@
  */
 #pragma once
 #include <QByteArray>
+#include <QHash>
 #include <QJsonObject>
 #include <QMap>
 #include <QString>
@@ -52,7 +53,8 @@ struct Symbol {
     QString signature;                     ///< ホバーに出す定義(``def name(a, b=1) -> int``)。無ければ空。
     QString returnAnnotation;              ///< 関数の戻り値の注釈。注釈が無ければ空。
     QString returnModule;                  ///< 注釈の定義元。編集中の本文なら空。
-    bool overload = false;                 ///< @overloadの定義ならtrue。同名候補は最初を使う。
+    QHash<QString, QString> literalReturns; ///< 文字列Literalの引数名と値から、対応する戻り値注釈を引く。
+    bool overload = false;                 ///< @overloadの定義ならtrue。一致する型情報がなければ最初の定義を使う。
     QString doc;                           ///< docstring(字下げを整えたもの)。無ければ空。
 
     /** @brief モジュールを指す名前を作る。 @param name モジュール名。 @return Moduleの名前。 */

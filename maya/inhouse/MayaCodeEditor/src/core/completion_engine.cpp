@@ -208,9 +208,10 @@ bool hasParameterAnnotation(QStringView line, QStringView name) {
 }
 
 /** @brief inferredTypeExpressionの本体。
- * @param text 本文。 @param name 変数名。 @param called 呼出しの結果ならtrueを返す。 @return 型名か呼出し名。
+ * @param text 本文。 @param name 変数名。 @param arguments 呼出しなら括弧を含む引数を返す。
+ * @return 型名か呼出し名。
  */
-QString inferExpression(QStringView text, const QString& name, bool* called = nullptr) {
+QString inferExpression(QStringView text, const QString& name, QString* arguments = nullptr) {
     if (text.isEmpty() || !isIdentifier(name)) {
         return QString();
     }
@@ -257,7 +258,7 @@ QString inferExpression(QStringView text, const QString& name, bool* called = nu
                         }
                         const QString after = closing >= 0 ? rest.mid(closing + 1).trimmed() : QString();
                         if (closing < 0 || after.isEmpty() || after.startsWith('#')) {
-                            if (called) *called = true;
+                            if (arguments) *arguments = closing < 0 ? QStringLiteral("()") : rest.left(closing + 1);
                             return match.captured(1);
                         }
                         return QString();  // x = A().b など。最後の代入が推論できない形なら、それより前は見ない。
@@ -313,19 +314,24 @@ QStringList callReceiver(QStringView line, const QString& token) {
     int calls = 0;
     while (index >= 0) {
         const bool call = symbolAt(index, ')');
+        QStringView arguments;
         if (call) {
             if (++calls > kMaximumInferDepth) return {};
+            const auto end = words[index].start + words[index].length;
             int depth = 1;
             for (--index; index >= 0 && depth; --index) {
                 if (symbolAt(index, ')')) ++depth;
                 else if (symbolAt(index, '(')) --depth;
             }
+            if (depth) return {};
+            const auto start = words[index + 1].start;
+            arguments = line.mid(start, end - start);
         }
         if (index < 0 || words[index].type != TokenType::Name) return {};
         const auto& word = words[index--];
         QString name = line.mid(word.start, word.length).toString();
         if (!isIdentifier(name) || isKeyword(QStringView(name), ScriptLanguage::Python)) return {};
-        if (call) name += "()";
+        if (call) name += arguments;
         parts.prepend(name);
         if (!symbolAt(index, '.')) break;
         --index;
@@ -370,6 +376,58 @@ QString returnTypeName(QString annotation, int depth = 0) {
         result = name;
     }
     return result;
+}
+
+/** @brief 既知の必須文字列Literalと一致する呼出しに限って戻り値の注釈を選ぶ。
+ * @param function 呼出し先。 @param arguments 外側の括弧を除いた引数。 @return 選んだ注釈。
+ */
+QString callReturnAnnotation(const Symbol& function, QStringView arguments) {
+    if (function.literalReturns.isEmpty() || arguments.isEmpty()) return function.returnAnnotation;
+    const auto tokens = tokenizeLine(arguments, ScriptLanguage::Python, kLexerNormal, nullptr);
+    const auto word = [&](int i) { return arguments.mid(tokens[i].start, tokens[i].length); };
+    QString annotation;
+    int begin = 0;
+    int depth = 0;
+    for (int i = 0; i <= tokens.size(); ++i) {
+        if (i == tokens.size() || (depth == 0 && tokens[i].type == TokenType::Operator && word(i) == QLatin1String(","))) {
+            if (i == begin + 3 && tokens[begin].type == TokenType::Name && word(begin + 1) == QLatin1String("=")
+                && tokens[begin + 2].type == TokenType::String) {
+                const auto literal = word(begin + 2);
+                if (literal.size() >= 2 && (literal.front() == '\'' || literal.front() == '"')
+                    && literal.back() == literal.front() && !literal.contains(QLatin1Char('\\'))) {
+                    const auto key = word(begin).toString() + '\n' + literal.mid(1, literal.size() - 2).toString();
+                    const auto found = function.literalReturns.constFind(key);
+                    if (found != function.literalReturns.constEnd()) {
+                        if (found->isEmpty() || (!annotation.isEmpty() && annotation != *found)) return function.returnAnnotation;
+                        annotation = *found;
+                    }
+                }
+            }
+            begin = i + 1;
+        } else if (tokens[i].type == TokenType::Operator && tokens[i].length == 1) {
+            const auto bracket = word(i).front();
+            if (bracket == '(' || bracket == '[' || bracket == '{') ++depth;
+            else if (bracket == ')' || bracket == ']' || bracket == '}') --depth;
+        }
+    }
+    return annotation.isEmpty() ? function.returnAnnotation : annotation;
+}
+
+/** @brief typingのSelfを普通の同名クラスと区別する。
+ * @param name 注釈の型名。 @param home 定義元の名前表。 @return 標準のSelfを指すか。
+ */
+bool isSelfAnnotation(const QString& name, const SymbolTable& home) {
+    const auto isTyping = [](const QString& module) { return module == "typing" || module == "typing_extensions"; };
+    const int dot = name.indexOf('.');
+    if (dot < 0) {
+        const auto item = home.constFind(name);
+        return item != home.constEnd() && item->type == SymbolType::Import
+            && item->fromName == "Self" && isTyping(item->fromModule);
+    }
+    if (name.mid(dot + 1) != "Self") return false;
+    const auto module = name.left(dot);
+    const auto item = home.constFind(module);
+    return item == home.constEnd() ? isTyping(module) : item->type == SymbolType::Module && isTyping(item->target);
 }
 
 /** @brief 本文の最後の行が、宣言を含み得る行か(含み得なければ、最後の行を除いた本文と宣言は同じ)。
@@ -801,11 +859,11 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     }
     // 変数なら、代入・型ヒントからクラスを推論する(インスタンスはクラスの中身で補完する)。本文が空なら推論しない。
     if (depth < kMaximumInferDepth && !text.isEmpty()) {
-        bool called = false;
-        const QString expression = inferExpression(text, name, &called);
+        QString arguments;
+        const QString expression = inferExpression(text, name, &arguments);
         if (!expression.isEmpty() && expression != name) {
             QStringList parts = expression.split('.');
-            if (called) parts.last() += "()";
+            parts.last() += arguments;
             const Located type = walk(request, scope, text, parts, depth + 1, allowImplicitModule);
             if (type.found && type.item.type == SymbolType::Class) {
                 return type;
@@ -827,13 +885,15 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     return located;
 }
 
-CompletionEngine::Located CompletionEngine::callResult(Request& request, Located callee, const SymbolTable& scope, int depth) {
+CompletionEngine::Located CompletionEngine::callResult(Request& request, Located callee, const SymbolTable& scope, int depth,
+                                                       QStringView arguments, const Located* receiver) {
     if (callee.item.type == SymbolType::Class) return callee;
-    if (depth <= kMaximumInferDepth && callee.item.type == SymbolType::Function && !callee.item.returnAnnotation.isEmpty()) {
-        const QString name = returnTypeName(callee.item.returnAnnotation);
+    if (depth <= kMaximumInferDepth && callee.item.type == SymbolType::Function) {
+        const QString name = returnTypeName(callReturnAnnotation(callee.item, arguments));
         if (!name.isEmpty()) {
             const QString& module = callee.item.returnModule;
             const SymbolTable home = module.isEmpty() ? scope : moduleMembers(request, module);
+            if (receiver && callee.item.binding != Symbol::StaticMethod && isSelfAnnotation(name, home)) return *receiver;
             Located type = walk(request, home, QStringView(), name.split('.'), depth + 1);
             if (!type.found && name.contains('.')) {
                 // 完全修飾名でも、読み込み済みのパッケージのvars()に子モジュールがまだ無い場合がある。
@@ -851,24 +911,26 @@ CompletionEngine::Located CompletionEngine::callResult(Request& request, Located
 
 CompletionEngine::Located CompletionEngine::walk(Request& request, const SymbolTable& scope, QStringView text,
                                                 const QStringList& parts, int depth, bool allowImplicitModule) {
-    const bool firstCalled = parts.first().endsWith("()");
-    const QString first = firstCalled ? parts.first().chopped(2) : parts.first();
+    const int firstCall = parts.first().indexOf('(');
+    const QString first = firstCall >= 0 ? parts.first().left(firstCall) : parts.first();
     Located located = resolveName(request, scope, text, first, depth, allowImplicitModule);
     if (!located.found) {
         return located;
     }
     followImports(request, &located.item, &located.module, &located.path);
-    if (firstCalled) located = callResult(request, located, scope, depth);
+    if (firstCall >= 0) located = callResult(request, located, scope, depth, QStringView(parts.first()).mid(firstCall + 1, parts.first().size() - firstCall - 2));
     for (int i = 1; i < parts.size(); ++i) {
         if (!located.found) break;
-        const bool called = parts[i].endsWith("()");
-        const QString name = called ? parts[i].chopped(2) : parts[i];
+        const int call = parts[i].indexOf('(');
+        const QString name = call >= 0 ? parts[i].left(call) : parts[i];
         const SymbolTable members = membersOf(request, located, scope, depth);
         const auto found = members.find(name);
         if (found == members.end()) {
             located.found = false;
             return located;
         }
+        Located receiver;
+        if (call >= 0 && located.item.type == SymbolType::Class) receiver = located;
         if (located.item.type == SymbolType::Module) {
             located.module = located.item.target;
             located.path = QStringList{name};
@@ -877,7 +939,9 @@ CompletionEngine::Located CompletionEngine::walk(Request& request, const SymbolT
         }
         located.item = found.value();
         followImports(request, &located.item, &located.module, &located.path);
-        if (called) located = callResult(request, located, scope, depth);
+        if (call >= 0) located = callResult(request, located, scope, depth,
+            QStringView(parts[i]).mid(call + 1, parts[i].size() - call - 2),
+            receiver.item.type == SymbolType::Class ? &receiver : nullptr);
     }
     return located;
 }

@@ -130,9 +130,11 @@ private:
 
     /** @brief 呼出しの結果をクラスとして解決する。
      * @param request 今の問い合わせ。 @param callee 呼出し先。 @param scope 編集中のスコープ。
-     * @param depth 型をたどる深さ。 @return コンストラクターまたは戻り値のクラス。
+     * @param depth 型をたどる深さ。 @param arguments 外側の括弧を除いた引数。
+     * @param receiver 呼出し前のクラス。 @return コンストラクターまたは戻り値のクラス。
      */
-    Located callResult(Request& request, Located callee, const SymbolTable& scope, int depth);
+    Located callResult(Request& request, Located callee, const SymbolTable& scope, int depth,
+                       QStringView arguments, const Located* receiver = nullptr);
 
     /** @brief ``a.b.c``をたどる(補完とホバーで共通)。 @param request 今の問い合わせ。 @param scope 最初の名前を探す表。
      * @param text 型を推論する本文。 @param parts 名前を点で分けたもの。 @param depth 推論の深さ。

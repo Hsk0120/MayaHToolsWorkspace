@@ -540,12 +540,19 @@ bool completionEnginePasses(const QByteArray& config) {
         || !write("stubpkg/api.py", "def getPlug(): pass\n")
         || !write("stubpkg/api.pyi", "from .nodes import Joint as Joint\nfrom .plugs import Plug\n"
                                     "from typing import overload\n@overload\ndef getPlug(s: str) -> 'Plug': ...\n"
-                                    "@overload\ndef getPlug(n: int) -> Joint: ...\n")
+                                    "@overload\ndef getPlug(n: int) -> Joint: ...\n"
+                                    "from typing import Literal\n"
+                                    "@overload\ndef find(*, type: Literal['parent']) -> Parent: ...\n"
+                                    "@overload\ndef find(*, type: Literal['joint']) -> Joint: ...\n"
+                                    "from .parent import Parent\n")
         || !write("stubpkg/plugs.pyi", "class Plug:\n    def setValue(self): ...\n")
         || !write("stubpkg/nodes.pyi", "from .parent import Parent\n"
                                       "class Joint(Parent):\n    def orient(self): ...\n")
         || !write("stubpkg/parent.pyi", "import stubpkg.plugs\nfrom typing import Optional, Union\n"
+                                       "from typing_extensions import Self\nimport typing as hint\n"
                                        "class Parent:\n    def matrix(self): ...\n"
+                                       "    def sort(self) -> Self: ...\n"
+                                       "    def copy(self) -> 'hint.Self': ...\n"
                                        "    def getParent(self) -> Parent | None: ...\n"
                                        "    def getPlug(self) -> Optional[stubpkg.plugs.Plug]: ...\n"
                                        "    def getMaybePlug(self) -> Union[None, 'stubpkg.plugs.Plug']: ...\n"
@@ -614,6 +621,15 @@ bool completionEnginePasses(const QByteArray& config) {
         {"from stubpkg import Joint\nj = Joint('x')\nj.getPlug().", "setValue"},
         {"from stubpkg import Joint\nJoint('x').getMaybePlug().", "setValue"},
         {"from stubpkg import Joint\nJoint('x').getPlugs().", "append"},
+        {"from stubpkg import Joint\nJoint('x').sort().", "orient"},
+        {"from stubpkg import Joint\nJoint('x').copy().sort().", "orient"},
+        {"from stubpkg import Joint\nj = Joint()\nsorted_joints = j.sort()\nsorted_joints.", "orient"},
+        {"import stubpkg.api as a\na.find(type=\"joint\").sort().", "orient"},
+        {"import stubpkg.api as a\nitems = a.find(type='joint')\nitems.sort().", "orient"},
+        {"from typing import Self as Own\nclass Base:\n    def sort(self) -> Own: ...\n"
+         "class Derived(Base):\n    def extra(self): ...\nDerived().sort().", "extra"},
+        {"class Self:\n    def other(self): ...\nclass Example:\n    def build(self) -> Self: ...\n"
+         "Example().build().", "other"},
         {"import plain\nvalue = plain.make()\nvalue.", "plainMethod"},
     };
     for (const bool loaded : {false, true}) {
@@ -628,7 +644,8 @@ bool completionEnginePasses(const QByteArray& config) {
     }
     if (!names("import stubpkg\nstubpkg.runt").contains("runtime_member")
         || !names("from stubpkg import Joint\nJoint().getAmbiguous().").isEmpty()
-        || names("from stubpkg import Joint\nJoint().getPlugs().").contains("setValue")) {
+        || names("from stubpkg import Joint\nJoint().getPlugs().").contains("setValue")
+        || names("import stubpkg.api as a\na.find(type='parent').sort().").contains("orient")) {
         qWarning() << "stub completion fallback";
         return false;
     }

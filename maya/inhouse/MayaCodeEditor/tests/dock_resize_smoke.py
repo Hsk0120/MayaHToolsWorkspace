@@ -1,8 +1,8 @@
 """画面の下へドックしたMaya Code Editorの高さを、境界のドラッグで変えられることを専用GUIで検証する。
 
 画面の一番下(``workspaceControl -dockToMainWindow bottom``。コマンドラインの下)は、高さが固定の行としか
-隣り合わないため、Mayaは高さを変えられない(Maya標準の部品でも同じ)。0.7.1から、初めてドックするときは
-タイムスライダーの上に入れ、一番下に残ったドックは開いたときに移す。ドラッグは本物のカーソルを動かさず、
+隣り合わないため、Mayaは高さを変えられない(Maya標準の部品でも同じ)。単独ドックはタイムスライダーの上へ
+移し、内容の最小寸法に阻まれず小さくできることを確認する。ドラッグは本物のカーソルを動かさず、
 分割の取っ手へマウスのイベントを送って行う。
 """
 import json
@@ -62,17 +62,17 @@ def main(output_dir, finished):
             if rect.right() < control.left() or rect.left() > control.right():
                 continue
             # タブの見出しの分だけ、ドックの部品の上端は取っ手から離れる。
-            distance = abs(control.top() - rect.bottom())
-            if distance <= 40 and (best is None or distance < best[0]):
+            distance = control.top() - rect.bottom()
+            if 0 <= distance <= 40 and (best is None or distance < best[0]):
                 best = (distance, widget)
         assert best is not None, 'border handle not found'
         return best[1]
 
-    def send(target, kind, position, buttons):
+    def send(target, kind, global_position, buttons):
         types = {'move': QtCore.QEvent.MouseMove, 'press': QtCore.QEvent.MouseButtonPress,
                  'release': QtCore.QEvent.MouseButtonRelease}
         button = QtCore.Qt.NoButton if kind == 'move' else QtCore.Qt.LeftButton
-        event = QtGui.QMouseEvent(types[kind], QtCore.QPointF(position), QtCore.QPointF(target.mapToGlobal(position)),
+        event = QtGui.QMouseEvent(types[kind], QtCore.QPointF(target.mapFromGlobal(global_position)), QtCore.QPointF(global_position),
                                   button, buttons, QtCore.Qt.NoModifier)
         QtWidgets.QApplication.sendEvent(target, event)
 
@@ -80,7 +80,7 @@ def main(output_dir, finished):
         """ドックの上の境界を縦に ``delta`` px ドラッグし、(前の高さ, 後の高さ) を返す。"""
         handle = border_handle()
         before = widget_of(host.CONTROL).height()
-        center = handle.rect().center()
+        center = handle.mapToGlobal(handle.rect().center())
         send(handle, 'press', center, QtCore.Qt.LeftButton)
         for step in range(1, 11):
             send(handle, 'move', center + QtCore.QPoint(0, delta * step // 10), QtCore.Qt.LeftButton)
@@ -95,8 +95,17 @@ def main(output_dir, finished):
         result['drags'].append({'label': label, 'shrink': shrink, 'grow': grow})
         assert shrink[1] < shrink[0] and grow[1] > grow[0], (label, shrink, grow)
 
+    def assert_compact(label):
+        """内容の最小寸法より小さく縮め、同じ境界で拡大できる。"""
+        shrink = drag_border(max(0, widget_of(host.CONTROL).height() - 72))
+        widget_of(host.CONTROL).window().grab().save(str(Path(output_dir) / (label + '_compact.png')))
+        grow = drag_border(-240)
+        result['drags'].append({'label': label, 'compact': shrink, 'expand': grow})
+        assert shrink[1] <= 130 and grow[1] >= grow[0] + 60, (label, shrink, grow)
+
     try:
         cmds.loadPlugin('mayaCodeEditor', quiet=True)
+        result['plugin'] = cmds.pluginInfo('mayaCodeEditor', query=True, path=True)
 
         # 1. ドックが無い状態から、ドッキングして開く。タイムスライダーの上に入り、高さを変えられる。
         cmds.mayaCodeEditor(show=True, floating=False)
@@ -104,27 +113,31 @@ def main(output_dir, finished):
         assert not cmds.workspaceControl(host.CONTROL, query=True, floating=True)
         assert not below_time_slider(), 'new docked control is below the time slider'
         assert_resizable('new_docked')
+        assert_compact('new_docked')
         result['checks'].append('new_dock_above_time_slider_resizable')
 
-        # 2. 0.7.0までの位置(画面の一番下)に入ったドック。開き直すと、本文を保ったままタイムスライダーの上へ移る。
+        # 2. 開いたまま画面の一番下に再ドックしても、本文を保ったままタイムスライダーの上へ移る。
         window = host.editor()
         window.findChild(QtWidgets.QTabWidget).currentWidget().setPlainText('dock_resize_probe = 1')
         address = host.pointer(window)
         cmds.workspaceControl(host.CONTROL, edit=True, dockToMainWindow=('bottom', False))
-        wait(500)
-        assert below_time_slider()
-        before, after = drag_border(-100)
-        assert before == after, 'precondition: Maya resized the bottom dock ({} -> {})'.format(before, after)
-        cmds.workspaceControl(host.CONTROL, edit=True, close=True)
-        wait(300)
-        cmds.mayaCodeEditor(show=True)
         wait(1200)
         assert not below_time_slider(), 'bottom dock was not moved'
         window = host.editor()
         assert host.pointer(window) == address and host.docked_editor() is not None
         assert window.findChild(QtWidgets.QTabWidget).currentWidget().toPlainText() == 'dock_resize_probe = 1'
         assert_resizable('moved')
+        assert_compact('moved')
         result['checks'].append('bottom_dock_moved_and_resizable')
+
+        cmds.workspaceControl(host.CONTROL, edit=True, close=True)
+        wait(300)
+        cmds.mayaCodeEditor(show=True)
+        wait(800)
+        assert host.pointer(host.editor()) == address and host.docked_editor() is not None
+        assert host.editor().findChild(QtWidgets.QTabWidget).currentWidget().toPlainText() == 'dock_resize_probe = 1'
+        assert_compact('reopened')
+        result['checks'].append('reopen_preserves_text_and_resize')
 
         # 3. 一番下に高さを変えられる別のドックが並んでいれば、その境界で変えられるので移さない。
         cmds.workspaceControl(OTHER_DOCK, label=OTHER_DOCK, retain=False, floating=True, initialHeight=200)
@@ -137,8 +150,16 @@ def main(output_dir, finished):
         cmds.mayaCodeEditor(show=True)
         wait(1200)
         assert below_time_slider(), 'moved although another resizable dock is next to it'
+        cmds.workspaceControl(host.CONTROL, edit=True, tabToControl=(OTHER_DOCK, -1))
+        wait(1200)
+        control = widget_of(host.CONTROL)
+        other = widget_of(OTHER_DOCK)
+        assert below_time_slider() and any(
+            tabs.isAncestorOf(control) and tabs.isAncestorOf(other)
+            for tabs in QtWidgets.QApplication.allWidgets() if isinstance(tabs, QtWidgets.QTabWidget)
+        ), 'shared bottom tabs were separated'
         cmds.deleteUI(OTHER_DOCK)
-        result['checks'].append('not_moved_next_to_resizable_dock')
+        result['checks'].append('not_moved_next_to_resizable_dock_or_in_shared_tabs')
 
         # 4. 浮動のドックはそのまま。
         cmds.workspaceControl(host.CONTROL, edit=True, floating=True)

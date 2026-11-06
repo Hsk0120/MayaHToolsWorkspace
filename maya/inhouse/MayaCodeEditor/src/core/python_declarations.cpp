@@ -807,6 +807,32 @@ private:
         }
     }
 
+    /** @brief オーバーロードの単一の必須文字列Literal引数を識別する。
+     * @param header 関数見出しの字句。 @return 引数名と引用符を除いた値。複数・複合条件なら空。
+     */
+    QString literalOverloadKey(Words header) const {
+        QString key;
+        int depth = 0;
+        for (int i = 0; i < header.size(); ++i) {
+            if (depth == 0 && isOperator(header[i], "->")) break;
+            if (depth == 1 && isName(header[i], "Literal") && i + 4 < header.size()
+                && isOperator(header[i + 1], "[")) {
+                int name = i - 2;
+                if (i >= 4 && isOperator(header[i - 1], ".")
+                    && (isName(header[i - 2], "typing") || isName(header[i - 2], "typing_extensions"))) name -= 2;
+                if (!key.isEmpty() || name < 1 || !isPlainName(header[name]) || !isOperator(header[name + 1], ":")
+                    || header[i + 2].type != TokenType::String || !isOperator(header[i + 3], "]")
+                    || !(isOperator(header[i + 4], ",") || isOperator(header[i + 4], ")"))) return {};
+                const auto literal = text(header[i + 2]);
+                if (literal.size() < 2 || (literal.front() != '\'' && literal.front() != '"')
+                    || literal.back() != literal.front() || literal.contains(QLatin1Char('\\'))) return {};
+                key = text(header[name]) + '\n' + literal.mid(1, literal.size() - 2);
+            }
+            depth += bracketDelta(header[i]);
+        }
+        return key;
+    }
+
     /** @brief 同じインデントの論理行を順に読む。
      * @param index 読み始める論理行。読み終えた次の位置に進める。
      * @param indent このブロックのインデント。これより浅い行でブロックは終わる。
@@ -829,17 +855,27 @@ private:
             if (isName(first, "def") || asyncDef) {
                 QString name;
                 const QString detail = functionDetail(words.mid(asyncDef ? 2 : 1), &name);
-                const auto previous = table.constFind(name);
-                if (!name.isEmpty() && (previous == table.constEnd() || !previous->overload)) {
-                    const int colon = headerColon(words);
-                    Symbol symbol;
-                    symbol.type = SymbolType::Function;
-                    readFunctionTypes(colon >= 0 ? words.mid(0, colon) : words, *index - 1, indent, &symbol);
-                    symbol.detail = detail;
-                    symbol.signature = joinWords(colon >= 0 ? words.mid(0, colon) : words);
-                    symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), *index, indent);
-                    table.insert(name, symbol);
+                if (name.isEmpty()) continue;
+                const int colon = headerColon(words);
+                const Words header = colon >= 0 ? words.mid(0, colon) : words;
+                Symbol symbol;
+                symbol.type = SymbolType::Function;
+                readFunctionTypes(header, *index - 1, indent, &symbol);
+                const auto key = symbol.overload ? literalOverloadKey(header) : QString();
+                auto previous = table.find(name);
+                if (previous != table.end() && previous->overload) {
+                    if (!key.isEmpty()) {
+                        auto found = previous->literalReturns.find(key);
+                        if (found == previous->literalReturns.end()) previous->literalReturns.insert(key, symbol.returnAnnotation);
+                        else if (*found != symbol.returnAnnotation) found->clear();
+                    }
+                    continue;
                 }
+                if (!key.isEmpty()) symbol.literalReturns.insert(key, symbol.returnAnnotation);
+                symbol.detail = detail;
+                symbol.signature = joinWords(header);
+                symbol.doc = bodyDocstring(colon >= 0 ? words.mid(colon + 1) : Words(), *index, indent);
+                table.insert(name, symbol);
                 continue;  // 関数の中身は、次からの深い行として読み飛ばされる。
             }
             if (isName(first, "class")) {

@@ -11,6 +11,7 @@
 #include "plugin/user_paths.h"
 #include "version.h"
 #include <maya/MQtUtil.h>
+#include <QApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -19,15 +20,33 @@
 #include <QMainWindow>
 #include <QPointer>
 #include <QEvent>
+#include <QScrollArea>
 #include <QSplitter>
+#include <QTabWidget>
 #include <QTimer>
 
 namespace mce {
 namespace dock {
 namespace {
 
+/** @brief 編集画面の最小寸法をMayaのドックへ伝えないスクロール領域。 */
+class DockViewport final : public QScrollArea {
+public:
+    /** @brief 編集画面を表示領域に追従させ、収まらない場合はスクロール可能にする。 */
+    DockViewport() {
+        setObjectName("mceDockViewport");
+        setFrameShape(QFrame::NoFrame);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        setWidgetResizable(true);
+    }
+
+    /** @brief ドックへ伝える最小寸法。 @return 内容に依存しないゼロ寸法。 */
+    QSize minimumSizeHint() const override { return {0, 0}; }
+};
+
 /** @brief ドックの状態。プラグインで1つだけ持つ。 */
 struct DockState {
+    QPointer<DockViewport> viewport;  ///< Mayaのレイアウトが所有し、編集画面を内包する。
     QPointer<QObject> lifetime;   ///< 遅延実行の文脈。アンロード時に破棄して、未実行の処理を取り消す。
     QPointer<QTimer> saveTimer;   ///< ドックの変化から少し待ってui.jsonを保存するタイマー(1回だけ動く)。所有者は編集画面。
     QPointer<QObject> watcher;    ///< ドックの変化(付け替え・表示・非表示)を受け取る監視役。所有者は編集画面。
@@ -115,11 +134,22 @@ bool attach(QMainWindow* editor, QWidget* parent) {
     if (parent->isAncestorOf(editor)) {
         return true;
     }
-    // 独立したウィンドウのままではレイアウトへ入らないので、部品(Widget)にする。
+    // Mayaが取り付け先を作り直した場合も、編集画面の所有権を古い領域から先に外す。
+    if (state.viewport && state.viewport->widget() == editor) state.viewport->takeWidget();
+    delete state.viewport.data();
+
     editor->setWindowFlags(Qt::Widget);
+    state.viewport = new DockViewport;
+    state.viewport->setWidget(editor);
     // 戻り値の型はMayaの版で違う(MString等)ので使わず、Qtの親子関係で確かめる。
-    MQtUtil::addWidgetToMayaLayout(editor, parent);
-    return parent->isAncestorOf(editor);
+    MQtUtil::addWidgetToMayaLayout(state.viewport.data(), parent);
+    if (!state.viewport || !parent->isAncestorOf(state.viewport.data())) {
+        if (state.viewport) state.viewport->takeWidget();
+        delete state.viewport.data();
+        return false;
+    }
+    state.viewport->show();
+    return true;
 }
 
 /** @brief Mayaのドックの部品(UI名)がQtの部品として表示されているか。
@@ -157,12 +187,14 @@ void dockAtBottom() {
  */
 bool dockedBelowFixedRows() {
     QWidget* item = controlWidget();
-    while (item && !qobject_cast<QSplitter*>(item->parentWidget())) {
+    while (item) {
+        if (const auto* tabs = qobject_cast<QTabWidget*>(item); tabs && tabs->count() > 1) return false;
+        if (qobject_cast<QSplitter*>(item->parentWidget())) break;
         item = item->parentWidget();
     }
     QWidget* timeSlider = MQtUtil::findControl("TimeSlider");
     QWidget* mainPane = MQtUtil::findControl("MainPane");
-    if (!item || !timeSlider) {
+    if (!item || !timeSlider || !timeSlider->isVisible()) {
         return false;
     }
     auto splitter = static_cast<QSplitter*>(item->parentWidget());
@@ -174,7 +206,8 @@ bool dockedBelowFixedRows() {
     for (int i = 0; i < splitter->count(); ++i) {
         QWidget* row = splitter->widget(i);
         // タイムスライダーだけの行に限る(ビューポートも含む大きな領域は、行ではない)。
-        if (row->isAncestorOf(timeSlider) && !(mainPane && row->isAncestorOf(mainPane))) {
+        if ((row == timeSlider || row->isAncestorOf(timeSlider))
+            && !(mainPane && (row == mainPane || row->isAncestorOf(mainPane)))) {
             timeSliderIndex = i;
         }
     }
@@ -190,7 +223,7 @@ bool dockedBelowFixedRows() {
         bool fixed = false;
         for (const char* row : fixedRows) {
             QWidget* widget = MQtUtil::findControl(row);
-            fixed = fixed || (widget && other->isAncestorOf(widget));
+            fixed = fixed || (widget && (other == widget || other->isAncestorOf(widget)));
         }
         if (!fixed) {
             return false;  // 高さを変えられる別のドックが隣にある。
@@ -205,11 +238,25 @@ bool dockedBelowFixedRows() {
  * 行わないよう、呼び出し側で遅らせて呼ぶ。
  */
 void moveOutOfFixedRows() {
-    if (!controlExists() || melBool("workspaceControl -q -floating " + quotedControl()) || !dockedBelowFixedRows()) {
+    const auto* control = controlWidget();
+    if (!control || !control->isVisible() || !dockedBelowFixedRows()
+        || melBool("workspaceControl -q -floating " + quotedControl())) {
         return;
     }
     dockAtBottom();
     MGlobal::displayInfo("Maya Code Editor: moved the dock above the time slider so that its height can be changed.");
+}
+
+/** @brief ドック操作が落ち着いてから配置を補正し、開閉状態を保存する。 */
+void settleDock() {
+    if (state.quitting || !state.userOpened) return;
+    if (state.showing || QApplication::mouseButtons() != Qt::NoButton) {
+        // MayaがドラッグやuiScriptを処理している間はレイアウトに再入しない。
+        if (state.saveTimer) state.saveTimer->start();
+        return;
+    }
+    moveOutOfFixedRows();
+    saveState();
 }
 
 /** @brief ui.jsonを読む。 @param saved 読み取った内容を入れる。 @return 読めた場合true。 */
@@ -227,7 +274,7 @@ public:
     explicit DockWatcher(QObject* parent) : QObject(parent) {}
 
 protected:
-    /** @brief 付け替え・表示・非表示のイベントで保存を予約する。イベントは止めない。
+    /** @brief 付け替え・位置や寸法・表示の変化で配置の確認と保存を予約する。
      * @param watched 監視している部品。
      * @param event イベント。
      * @return 常にfalse(イベントはそのまま部品へ届ける)。
@@ -238,6 +285,8 @@ protected:
         case QEvent::Show:
         case QEvent::Hide:
         case QEvent::WindowStateChange:
+        case QEvent::Move:
+        case QEvent::Resize:
             if (state.saveTimer) {
                 state.saveTimer->start();  // 続けて起きても、最後の変化の後に1回だけ保存する。
             }
@@ -278,7 +327,7 @@ void afterOpened() {
         state.saveTimer->setSingleShot(true);
         state.saveTimer->setInterval(500);
         // 接続の持ち主をタイマー自身にし、タイマーの破棄と同時に接続を外す。
-        QObject::connect(state.saveTimer.data(), &QTimer::timeout, state.saveTimer.data(), [] { saveState(); });
+        QObject::connect(state.saveTimer.data(), &QTimer::timeout, state.saveTimer.data(), settleDock);
     }
     if (!state.watcher && editor) {
         state.watcher = new DockWatcher(editor);
@@ -292,9 +341,8 @@ void afterOpened() {
             }
         }
     }
-    // 画面の一番下で高さを変えられなくなったドックを移す。uiScript(restore)の途中でドックを付け替えないよう、
-    // イベントループへ戻ってから行う。文脈をlifetimeにするので、アンロードで未実行の分は取り消される。
-    QTimer::singleShot(0, state.lifetime.data(), [] { moveOutOfFixedRows(); });
+    // 開き直しに加え、その後のドッキング操作も同じタイマーで確認する。
+    if (state.saveTimer) state.saveTimer->start();
     if (state.quitJob < 0) {
         state.quitJob = melInt("scriptJob -runOnce true -event \"quitApplication\" \"mayaCodeEditor -quitting\"");
     }
@@ -518,6 +566,8 @@ void release() {
         mel("workspaceControl -e -closeCommand \"\" " + quotedControl());
         mel("deleteUI " + quotedControl());
     }
+    // Mayaがドックをすでに作り直していた場合も、DLL内の部品を残さない。
+    delete state.viewport.data();
     // 未実行の遅延処理(mayaCodeEditor.mll内のラムダ)を、アンロード前に取り消す。
     delete state.lifetime.data();
     state.lifetime = nullptr;
