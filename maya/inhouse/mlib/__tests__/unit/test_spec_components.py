@@ -341,10 +341,10 @@ class ComponentCollectionOperatorSpecTest(_ComponentCase):
             hash(a)
 
     def test_sort(self):
-        """sortはその場で並べ替えてNoneを返す。keyは単数コンポーネントを受ける。別のコレクションは変えない。"""
+        """sortはその場で並べ替えて自身を返す。keyは単数コンポーネントを受ける。別のコレクションは変えない。"""
         a = Vertices(self.mesh, [5, 0, 3])
         part = a[:]
-        self.assertIsNone(a.sort())
+        self.assertIs(a.sort(), a)
         self.assertEqual(a.indices, (0, 3, 5))
         self.assertEqual(part.indices, (5, 0, 3))
         a.sort(reverse=True)

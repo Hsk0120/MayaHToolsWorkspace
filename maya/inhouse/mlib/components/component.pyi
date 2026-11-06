@@ -9,6 +9,7 @@ from ..decorator import _require_bool
 from ..nodes.shape import Shape
 from typing import Any, Iterable, Iterator, Sequence
 from typing import overload
+from typing_extensions import Self
 
 _REPR_LIMIT: int
 
@@ -344,8 +345,8 @@ class Components:
                 現在の番号範囲も再検証しない。カーブCVではOpenMayaの番号を保持する。
         """
         ...
-    def sort(self, key: Callable[[Component], object] | None = ..., reverse: bool = ...) -> None:
-        """保持する番号列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+    def sort(self, key: Callable[[Component], object] | None = ..., reverse: bool = ...) -> Self:
+        """保持する番号列をその場で並べ替え、並べ替えた自身を返す。
 
         ``key`` を省略した場合はMayaの実番号の順にする。``key`` を渡した場合は、保持順の単数
         コンポーネント(:meth:`__iter__` と同じ新しい参照)を引数に呼ぶ。並べ替えるのはこの
@@ -357,7 +358,7 @@ class Components:
             reverse (bool): Trueなら降順。
 
         Returns:
-            None: 値を返さない。
+            Components: 並べ替えた自身(新しいコレクションは作らない)。派生クラスでは自身の型。
 
         Raises:
             TypeError: keyが呼び出せない、またはreverseがbool以外の場合。

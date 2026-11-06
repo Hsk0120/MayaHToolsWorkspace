@@ -2396,8 +2396,8 @@ class Plugs:
             RuntimeError: 解決できない、または無効なアトリビュートを含む場合。
         """
         ...
-    def sort(self, key: Callable[[Plug], object] | None = ..., reverse: bool = ...) -> None:
-        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+    def sort(self, key: Callable[[Plug], object] | None = ..., reverse: bool = ...) -> Self:
+        """保持列をその場で並べ替え、並べ替えた自身を返す。
 
         ``key`` を省略した場合はアトリビュートの完全名(:meth:`Plug.getFullName`)の順にする。
         並べ替えるのはこのコレクションの保持列だけで、スライス・``+`` で作った別のコレクションの
@@ -2408,7 +2408,7 @@ class Plugs:
             reverse (bool): Trueなら降順。
 
         Returns:
-            None: 値を返さない。
+            Plugs: 並べ替えた自身(新しいコレクションは作らない)。
 
         Raises:
             TypeError: keyが呼び出せない、またはreverseがbool以外の場合。

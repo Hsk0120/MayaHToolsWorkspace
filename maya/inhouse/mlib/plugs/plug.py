@@ -3669,7 +3669,7 @@ class Plugs:
         return type(self)(list(other) + self._items)
 
     def sort(self, key=None, reverse=False):
-        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+        """保持列をその場で並べ替え、並べ替えた自身を返す。
 
         ``key`` を省略した場合はアトリビュートの完全名(:meth:`Plug.getFullName`)の順にする。
         並べ替えるのはこのコレクションの保持列だけで、スライス・``+`` で作った別のコレクションの
@@ -3680,7 +3680,7 @@ class Plugs:
             reverse (bool): Trueなら降順。
 
         Returns:
-            None: 値を返さない。
+            Plugs: 並べ替えた自身(新しいコレクションは作らない)。
 
         Raises:
             TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
@@ -3689,6 +3689,7 @@ class Plugs:
         if key is not None and not callable(key):
             raise TypeError("key must be callable or None")
         self._items.sort(key=methodcaller("getFullName") if key is None else key, reverse=reverse)
+        return self
 
     def getFullNames(self):
         """保持順の完全なアトリビュート名を返す(``maya.cmds`` へ渡す用途)。

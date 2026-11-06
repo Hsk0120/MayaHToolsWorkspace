@@ -543,7 +543,7 @@ class Components:
         return self._indices
 
     def sort(self, key=None, reverse=False):
-        """保持する番号列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+        """保持する番号列をその場で並べ替え、並べ替えた自身を返す。
 
         ``key`` を省略した場合はMayaの実番号の順にする。``key`` を渡した場合は、保持順の単数
         コンポーネント(:meth:`__iter__` と同じ新しい参照)を引数に呼ぶ。並べ替えるのはこの
@@ -555,7 +555,7 @@ class Components:
             reverse (bool): Trueなら降順。
 
         Returns:
-            None: 値を返さない。
+            Components: 並べ替えた自身(新しいコレクションは作らない)。派生クラスでは自身の型。
 
         Raises:
             TypeError: keyが呼び出せない、またはreverseがbool以外の場合。
@@ -565,9 +565,10 @@ class Components:
             raise TypeError("key must be callable or None")
         if key is None:
             self._indices = tuple(sorted(self._indices, reverse=reverse))
-            return
+            return self
         pairs = sorted(zip(self, self._indices), key=lambda pair: key(pair[0]), reverse=reverse)
         self._indices = tuple(index for _, index in pairs)
+        return self
 
     def getFullNames(self):
         """保持順の完全コンポーネント名を取得する。

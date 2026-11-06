@@ -1671,8 +1671,8 @@ class Nodes:
             RuntimeError: 解決できない、または無効なノードを含む場合。
         """
         ...
-    def sort(self, key: Callable[[Node], object] | None = ..., reverse: bool = ...) -> None:
-        """保持列をその場で並べ替える(listの ``sort`` と同じくNoneを返す)。
+    def sort(self, key: Callable[[Node], object] | None = ..., reverse: bool = ...) -> Self:
+        """保持列をその場で並べ替え、並べ替えた自身を返す。
 
         ``key`` を省略した場合はノードの完全名(:meth:`Node.getFullName`)の順にする。
         Nodeは大小比較できないため、Pythonのlistと異なり要素そのものは比べない。
@@ -1684,7 +1684,7 @@ class Nodes:
             reverse (bool): Trueなら降順。
 
         Returns:
-            None: 値を返さない。
+            Nodes: 並べ替えた自身(新しいコレクションは作らない)。
 
         Raises:
             TypeError: keyが呼び出せない、またはreverseがbool以外の場合。

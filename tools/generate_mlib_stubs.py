@@ -924,6 +924,20 @@ def _skin_get_weights_overloads(stub, node):
             "def getWeights(%s) -> om2.MDoubleArray: ..." % flat]
 
 
+def _self_return(stub, node):
+    """自身を返すメソッドの戻り値を ``Self`` にする(``Joints.sort()`` が ``Joints`` のままになるように)。
+
+    Args:
+        stub (ModuleStub): 出力中のモジュール。
+        node (ast.FunctionDef): メソッドの定義。
+
+    Returns:
+        str: 戻り値の型。
+    """
+    stub.extra_imports["Self"] = "from typing_extensions import Self"
+    return "Self"
+
+
 OVERLOADS = {
     "mlib.cmds.createNode:createNode": _create_node_overloads,
     "mlib.nodes.skinCluster:SkinCluster.getWeights": _skin_get_weights_overloads,
@@ -932,6 +946,9 @@ OVERLOADS = {
     "mlib.util:_angle_unit": lambda stub, node: _angle_unit_overloads(stub),
     "mlib.cmds.ls:ls": _ls_overloads,
     "mlib.cmds.ls:ls#return": _ls_return,
+    "mlib.nodes.node:Nodes.sort#return": _self_return,
+    "mlib.plugs.plug:Plugs.sort#return": _self_return,
+    "mlib.components.component:Components.sort#return": _self_return,
     "mlib.nodes.node:Node.getConnections": lambda stub, node: _connection_variants(
         stub, node, "Node.getConnections"),
     "mlib.plugs.plug:Plug.getConnections": lambda stub, node: _connection_variants(
