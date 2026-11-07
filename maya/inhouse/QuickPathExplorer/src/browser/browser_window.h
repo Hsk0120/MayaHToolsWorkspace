@@ -70,6 +70,8 @@ public:
     /** @brief 未完了処理の有無。 @return ファイル変更実行中か。 */
     bool busy() const;
 protected:
+    /** @brief モニターが変わったとき、最小サイズの画面倍率を更新する。 @param event Qtイベント。 @return 処理したか。 */
+    bool event(QEvent* event) override;
     /** @brief 自分の単体HWNDだけにタイトル統合とリサイズを適用する。
      * @param type OSイベント種別。
      * @param message MSGへの借用ポインター。
@@ -94,6 +96,8 @@ private:
     void writeClipboard(const QString& action, const QStringList& paths, quint64 generation, quint32 sequence, int attempt = 0);
     /** @brief 狭い幅では詳細を全幅にし、利用者が指定した左欄状態は保持する。 */
     void updateResponsiveLayout();
+    /** @brief DPI・基準サイズ・追加倍率を合成する。 @return Qtの論理ピクセルで使う倍率。 */
+    qreal appearanceScale() const;
     /** @brief ホスト別の文字・UI倍率・行間を即時反映する。 */
     void appearanceDialog();
     /** @brief 設定内の表示ページを作り、変更をプレビューする。 @param parent 所有者。 @return 親所有のページ。 */

@@ -94,7 +94,10 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
     tabs_ = new QTabWidget; tabs_->setObjectName("readOptions"); tabs_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum); tabs_->tabBar()->setExpanding(false); layout->addWidget(tabs_);
     auto* openPage = new QWidget; auto* openBox = new QVBoxLayout(openPage); tabs_->addTab(openPage, uiText("Open"));
     auto* hint = new QLabel(maya ? uiText("Open Maya scenes in this session. Other file types use their associated application.") : uiText("Open using the associated application.")); hint->setWordWrap(true); openBox->addWidget(hint);
+    hint->setObjectName("openHint");
     button(openBox, uiText("Open"), "open");
+    // Mayaの読込設定タブに合わせて領域が広がっても、案内と開くボタンは上にまとめる。
+    openBox->setAlignment(Qt::AlignTop);
     if (maya) {
         auto* savePage = new QWidget; auto* saveBox = new QVBoxLayout(savePage);
         button(saveBox, uiText("Save Scene"), "save");

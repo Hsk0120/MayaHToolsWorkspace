@@ -56,6 +56,7 @@
 #include <QMouseEvent>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QScreen>
 #include <QSettings>
 #include <QKeyEvent>
 #include <QShortcut>
@@ -89,7 +90,10 @@ constexpr int SortRole = Qt::UserRole + 3;
 class FileContextMenu final : public QMenu {
 public:
     /** @brief メニューの親と固定コマンドの所有者を指定する。 @param parent Qt所有者。 @param root 最上位メニュー。省略時は自分。 */
-    explicit FileContextMenu(QWidget* parent, FileContextMenu* root = nullptr) : QMenu(parent), root_(root ? root : this) { setAttribute(Qt::WA_NoMouseReplay); }
+    explicit FileContextMenu(QWidget* parent, FileContextMenu* root = nullptr) : QMenu(parent), root_(root ? root : this) {
+        setAttribute(Qt::WA_NoMouseReplay);
+        setProperty("qpeFileContextMenu", true);
+    }
     /** @brief 同じ固定対象へキーを配送する子メニューを作る。 @param title 表示名。 @return 自分が所有する子。 */
     FileContextMenu* branch(const QString& title) { auto* child = new FileContextMenu(this, root_); child->setTitle(title); QMenu::addMenu(child); return child; }
 protected:
@@ -271,14 +275,15 @@ public:
      * @param index 対象。
      */
     void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+        const qreal scale = parent()->property("qpeUiScale").toReal();
         auto content = option;
-        content.rect.adjust(0, 0, -16, 0);
+        content.rect.adjust(0, 0, -qRound(16 * scale), 0);
         QStyledItemDelegate::paint(painter, content, index);
         painter->save();
         painter->setPen(option.palette.text().color());
-        const QPoint center(option.rect.right() - 8, option.rect.center().y());
-        painter->drawLine(center + QPoint(-2, -4), center + QPoint(2, 0));
-        painter->drawLine(center + QPoint(2, 0), center + QPoint(-2, 4));
+        const QPointF center(option.rect.right() - 8 * scale, option.rect.center().y());
+        painter->drawLine(center + QPointF(-2, -4) * scale, center + QPointF(2, 0) * scale);
+        painter->drawLine(center + QPointF(2, 0) * scale, center + QPointF(-2, 4) * scale);
         painter->restore();
     }
     /** @brief フォントに応じた行高を返す。
@@ -288,7 +293,7 @@ public:
      */
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
         auto size = QStyledItemDelegate::sizeHint(option, index);
-        size.setHeight(qMax(parent()->property("qpeRowHeight").toInt(), option.fontMetrics.height() + 8));
+        size.setHeight(parent()->property("qpeRowHeight").toInt());
         return size;
     }
 };
@@ -409,6 +414,7 @@ public:
         auto* lower = new QVBoxLayout(bottom);
         lower->setContentsMargins(0, 0, 0, 0);
         auto* filterRow = new QHBoxLayout;
+        filterRow->setObjectName("fileFilterRow");
         summary_ = new QLabel;
         filterRow->addWidget(summary_);
         filter_ = new QLineEdit;
@@ -508,7 +514,7 @@ public:
         presentations_ = new QStackedWidget; lower->addWidget(presentations_, 1); presentations_->addWidget(files_);
         thumbnails_ = new FolderList(presentations_); thumbnails_->setObjectName("thumbnails"); thumbnails_->setViewMode(QListView::IconMode);
         thumbnails_->setItemDelegate(new QStyledItemDelegate(thumbnails_)); thumbnails_->setResizeMode(QListView::Adjust); thumbnails_->setMovement(QListView::Static);
-        thumbnails_->setIconSize(QSize(144, 96)); thumbnails_->setGridSize(QSize(180, 136)); thumbnails_->setWordWrap(true); thumbnails_->setUniformItemSizes(true);
+        thumbnails_->setWordWrap(true); thumbnails_->setUniformItemSizes(true);
         thumbnails_->setSelectionMode(QAbstractItemView::ExtendedSelection); thumbnails_->setModel(proxy_); thumbnails_->setSelectionModel(files_->selectionModel());
         thumbnails_->transfer = files_->transfer; thumbnails_->middleOpen = files_->middleOpen; presentations_->addWidget(thumbnails_);
         installViewKeys(thumbnails_); thumbnails_->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -551,6 +557,7 @@ public:
         footer_->setObjectName("footer");
         layout->addWidget(footer_);
         vertical->setSizes({360, 420});
+        applyMetrics();
         connect(filter_, &QLineEdit::textChanged, this, [this](const QString& text) { proxy_->setFilterFixedString(text); updateConditions(); });
         connect(files_, &QTreeView::doubleClicked, this, [this](const QModelIndex& index) { open(index.data(PathRole).toString()); });
         connect(files_->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { emit selected(detailPath()); });
@@ -606,7 +613,9 @@ public:
             const QString columnPath = chain[i];
             view->setProperty("path", columnPath);
             view->setProperty("qpeRowHeight", owner_->property("qpeRowHeight"));
-            const auto scale = owner_->property("qpeUiScale").toDouble(); view->setIconSize(QSize(qRound(16 * scale), qRound(16 * scale)));
+            const auto scale = owner_->property("qpeUiScale").toReal();
+            view->setProperty("qpeUiScale", scale);
+            view->setIconSize(QSize(qRound(16 * scale), qRound(16 * scale)));
             view->enableResize([this, columnPath](int width) {
                 if (width) manualWidths_[columnPath] = qBound(100, width, 1000); else manualWidths_.remove(columnPath);
                 columnWidthMode_ = "names"; fitColumns();
@@ -703,6 +712,18 @@ public:
     bool canHistory(int delta) const { return historyIndex_ + delta >= 0 && historyIndex_ + delta < history_.size(); }
     /** @brief サイドバー開閉時だけ末尾を可視化する。非同期反映では追従しない。 */
     void revealCurrent() { reveal_ = true; fitColumns(); }
+    /** @brief タブごとの余白・サムネイル寸法・カラムの自動幅を現在の表示倍率へ合わせる。 */
+    void applyMetrics() {
+        const qreal scale = owner_->property("qpeUiScale").toReal();
+        layout()->setSpacing(qRound(4 * scale));
+        findChild<QHBoxLayout*>("fileFilterRow")->setSpacing(qRound(6 * scale));
+        conditionBar_->setFixedHeight(qRound(48 * scale));
+        conditionBar_->widget()->layout()->setSpacing(qRound(4 * scale));
+        files_->header()->setProperty("qpeSortScale", scale);
+        thumbnails_->setIconSize(QSize(qRound(144 * scale), qRound(96 * scale)));
+        thumbnails_->setGridSize(QSize(qRound(180 * scale), qRound(136 * scale)));
+        fitColumns();
+    }
     /** @brief 検索等の明示操作で指定ファイルを選び、読込中ならこの場所でだけ待つ。 @param path 対象絶対パス。 */
     void revealFile(const QString& path) {
         const auto parent = DirectoryStore::normalized(QFileInfo(path).absolutePath());
@@ -1074,24 +1095,26 @@ private:
     /** @brief 非同期更新で横位置を変えず、直近4列に幅を優先配分する。 */
     void fitColumns() {
         int available = scroll_->viewport()->width();
+        const qreal scale = owner_->property("qpeUiScale").toReal();
+        const QString fontKey = font().toString() + '/' + QString::number(scale);
         QVector<int> widths;
         for (const auto& column : columns_) {
             int width = column.view->property("contentWidth").toInt();
-            if (column.view->property("widthFont").toString() != font().toString()) {
-                width = 100;
+            if (column.view->property("widthFont").toString() != fontKey) {
+                width = qRound(100 * scale);
                 // 縦スクロールバーが出ても文字が省略されないよう、その予約幅も含める。
-                const int chrome = 52 + column.view->style()->pixelMetric(QStyle::PM_ScrollBarExtent)
+                const int chrome = qRound(52 * scale) + column.view->style()->pixelMetric(QStyle::PM_ScrollBarExtent)
                     + 2 * column.view->frameWidth();
                 for (int row = 0; row < column.model->rowCount(); ++row)
                     width = qMax(width, column.view->fontMetrics().horizontalAdvance(column.model->item(row)->text()) + chrome);
-                column.view->setProperty("widthFont", font().toString()); column.view->setProperty("contentWidth", width);
+                column.view->setProperty("widthFont", fontKey); column.view->setProperty("contentWidth", width);
             }
             const int desired = columnWidthMode_ == "names" ? manualWidths_.value(column.path, qMin(width, 1000)) : qMin(width, 320);
             widths.append(column.view->isHidden() ? 0 : desired);
             available -= widths.last();
         }
         for (int i = 0; columnWidthMode_ == "fit" && i < widths.size() && available < 0; ++i) {
-            const int minimum = i < widths.size() - 4 ? 80 : 120;
+            const int minimum = qRound((i < widths.size() - 4 ? 80 : 120) * scale);
             const int shrink = qMin(-available, qMax(0, widths[i] - minimum));
             widths[i] -= shrink;
             available += shrink;
@@ -1287,6 +1310,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     }
     root->addWidget(strip_);
     auto* toolbar = new QHBoxLayout;
+    toolbar->setObjectName("navigationToolbar");
     auto* left = tool(toolbar, uiText("Navigation pane"), "sidebar.svg");
     left->setObjectName("navigationPaneButton");
     back_ = tool(toolbar, uiText("Back"), "back.svg");
@@ -2131,6 +2155,15 @@ void BrowserWindow::updateCurrent() {
 void BrowserWindow::showDetails(const QString& path) {
     selected_ = path; details_->setPath(path);
 }
+qreal BrowserWindow::appearanceScale() const {
+    qreal dpi = host_.dpi;
+    if (host_.maya && textSize_ == 10) {
+        const auto* monitor = screen();
+        // 最小サイズはWindows版と同じ画面倍率を使う。MayaでQtのDPRが1に固定される場合は画面DPIを補う。
+        dpi = monitor && qFuzzyCompare(monitor->devicePixelRatio(), qreal(1)) ? monitor->logicalDotsPerInchX() / 96. : 1.;
+    }
+    return dpi * uiPercent_ / 100. * textSize_ / 12.;
+}
 void BrowserWindow::applyAppearance() {
     // 設定自身のQSSも一度外す。palette(base)がOSの旧配色をキャッシュすると、
     // 明示ライトでコンボの黒地と黒文字が残る。再適用は子の配色更新後に行う。
@@ -2145,15 +2178,21 @@ void BrowserWindow::applyAppearance() {
     const QString window = light ? "#f9f9f9" : "#222222", base = light ? "#ffffff" : "#191919";
     const QString text = light ? "#1a1a1a" : "#f2f2f2", border = light ? "#e5e5e5" : "#383838";
     const QString selection = light ? "#d9d9d9" : "#505050", alternate = light ? "#fafafa" : "#1d1d1d";
+    const QString menuHighlight = light ? "#ededed" : "#353535", menuDisabled = light ? "#757575" : "#999999";
     QFont font = QApplication::font();
-    const qreal scale = host_.dpi * uiPercent_ / 100.;
-    font.setPixelSize(qRound(textSize_ * scale));
+    // 12pxを標準として、文字と操作部品へ同じ倍率を適用する。
+    const qreal scale = appearanceScale();
+    const auto px = [scale](int value) { return qRound(value * scale); };
+    font.setPixelSize(px(12));
     setFont(font);
     static_cast<NavigationTabs*>(tabs_)->setScale(scale);
     const int rowHeight = qMax(qRound((density_ == "comfortable" ? 28 : 24) * scale), QFontMetrics(font).height() + qRound(6 * scale));
     setProperty("qpeUiScale", scale); setProperty("qpeRowHeight", rowHeight);
-    for (auto* view : findChildren<QAbstractItemView*>()) { view->setProperty("qpeRowHeight", rowHeight); if (view->objectName() != "thumbnails") view->setIconSize(QSize(qRound(16 * scale), qRound(16 * scale))); view->doItemsLayout(); }
-    for (auto* header : findChildren<QHeaderView*>("fileSortHeader")) header->setProperty("qpeSortScale", scale);
+    for (auto* view : findChildren<QAbstractItemView*>()) {
+        view->setProperty("qpeRowHeight", rowHeight);
+        view->setProperty("qpeUiScale", scale);
+        if (view->objectName() != "thumbnails") view->setIconSize(QSize(px(16), px(16)));
+    }
     auto colors = palette();
     colors.setColor(QPalette::Window, QColor(window)); colors.setColor(QPalette::WindowText, QColor(text));
     colors.setColor(QPalette::Base, QColor(base)); colors.setColor(QPalette::Text, QColor(text));
@@ -2170,29 +2209,48 @@ void BrowserWindow::applyAppearance() {
         "QWidget { font-size:%7px; color:%3; background:%1; }"
         "QAbstractButton#tabCloseButton { background:transparent; border:0; }"
         "QWidget#columnContainer { background:%2; }"
-        "QLineEdit, QTextEdit { background:%2; color:%3; border:1px solid %4; border-radius:5px; padding:6px; }"
-        "QToolButton { background:transparent; color:%3; border:0; padding:7px; border-radius:4px; }"
+        "QLineEdit, QTextEdit { background:%2; color:%3; border:1px solid %4; border-radius:5px; }"
+        "QToolButton { background:transparent; color:%3; border:0; border-radius:4px; }"
         "QToolButton:hover { background:%5; } QToolButton:disabled { color:#808080; }"
+        "QMenu[qpeFileContextMenu=\"true\"]::item { margin:0 4px; padding:3px 24px 3px 8px; }"
+        "QMenu[qpeFileContextMenu=\"true\"]::item:selected:enabled { background:%8; color:%3; border-radius:4px; }"
+        "QMenu[qpeFileContextMenu=\"true\"]::item:disabled { color:%9; }"
         "QTreeView, QListView { background:%2; alternate-background-color:%6; color:%3; border:0; }"
         "QListView#folderColumn { border-right:1px solid %4; }"
         "QTreeView::item:selected, QListView::item:selected { background:%5; color:%3; }"
-        "QHeaderView::section { background:%2; color:%3; border:0; border-bottom:1px solid %4; padding:6px; }"
+        "QHeaderView::section { background:%2; color:%3; border:0; border-bottom:1px solid %4; }"
         "QTabBar#folderTabs::tab { background:transparent; color:%3; padding:8px; border-right:1px solid %4; }"
         "QTabBar#folderTabs::tab:selected { background:%2; border-top-left-radius:6px; border-top-right-radius:6px; }"
-        "QScrollArea { border:0; } QScrollBar:vertical { background:transparent; width:8px; }"
-        "QScrollBar:horizontal { background:transparent; height:8px; }"
-        "QScrollBar::handle { background:#808080; border-radius:3px; min-height:24px; min-width:24px; }"
+        "QScrollArea { border:0; } QScrollBar { background:transparent; }"
+        "QScrollBar::handle { background:#808080; border-radius:3px; }"
         "QScrollBar::add-line, QScrollBar::sub-line { width:0; height:0; }"
         "QScrollBar::add-page, QScrollBar::sub-page { background:transparent; }"
         "QSplitter::handle { background:%1; } QLabel#migrationNotice { color:#808080; }"
-    ).arg(window, base, text, border, selection, alternate, QString::number(font.pixelSize()))
+    ).arg(window, base, text, border, selection, alternate, QString::number(font.pixelSize()), menuHighlight, menuDisabled)
         // ファイル見出しの矢印だけ独自描画し、他ツールやQPEのダイアログへスタイルを広げない。
-        + QString("QHeaderView#fileSortHeader::section { padding-top:%1px; }"
-                  "QHeaderView#fileSortHeader::up-arrow, QHeaderView#fileSortHeader::down-arrow { image:none; width:0px; height:0px; }")
-            .arg(qRound(10 * scale)));
+        + QString("QLineEdit, QTextEdit, QHeaderView::section { padding:%1px; }"
+                  "QHeaderView#fileSortHeader::section { padding-top:%2px; }"
+                  "QHeaderView#fileSortHeader::up-arrow, QHeaderView#fileSortHeader::down-arrow { image:none; width:0px; height:0px; }"
+                  "QToolButton { padding:%3px; }"
+                  "QWidget#inspector QPushButton { padding:%4px %1px; }"
+                  "QScrollBar:vertical { width:%5px; } QScrollBar:horizontal { height:%5px; }"
+                  "QScrollBar::handle { min-height:%6px; min-width:%6px; }")
+            .arg(px(6)).arg(px(10)).arg(px(7)).arg(px(3)).arg(qMax(6, px(8))).arg(px(24)));
     // stylesheet再適用時に保持される子の旧パレットも更新する。
     // ホストや他ツールのパレットは変更せず、自分の所有するウィジェットだけに配布する。
     for (auto* child : findChildren<QWidget*>()) child->setPalette(colors);
+    layout()->setContentsMargins(px(8), px(4), px(8), px(6));
+    layout()->setSpacing(px(6));
+    strip_->layout()->setSpacing(px(6));
+    findChild<QHBoxLayout*>("navigationToolbar")->setSpacing(px(6));
+    sidebar_->setIndentation(px(12));
+    if (auto* scroll = details_->findChild<QScrollArea*>("inspectorScroll")) {
+        auto* content = scroll->widget()->layout();
+        content->setContentsMargins(px(8), px(8), px(8), px(8));
+        content->setSpacing(px(6));
+    }
+    for (auto* browserPage : findChildren<BrowserPage*>()) browserPage->applyMetrics();
+    for (auto* view : findChildren<QAbstractItemView*>()) view->doItemsLayout();
     if (options) {
         const auto style = options->property("qpePreferencesStyle").toString();
         options->setStyleSheet(style.isEmpty() ? optionsStyle : style.arg(base, text, colors.color(QPalette::Mid).name(), alternate, window));
@@ -2215,6 +2273,16 @@ void BrowserWindow::applyAppearance() {
     }
     updateResponsiveLayout();
     scheduleSave();
+}
+bool BrowserWindow::event(QEvent* event) {
+    const bool handled = QWidget::event(event);
+    if (host_.maya && textSize_ == 10 && (event->type() == QEvent::Show || event->type() == QEvent::ScreenChangeInternal)) {
+        // 親ウィンドウからの画面変更通知が子へ行き渡ってから寸法を更新する。
+        QTimer::singleShot(0, this, [this] {
+            if (isVisible() && !qFuzzyCompare(property("qpeUiScale").toReal(), appearanceScale())) applyAppearance();
+        });
+    }
+    return handled;
 }
 void BrowserWindow::resizeEvent(QResizeEvent* event) {
     QWidget::resizeEvent(event);

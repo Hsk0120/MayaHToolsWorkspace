@@ -46,7 +46,7 @@ Mayaの下部ドックは境界を下へドラッグして縮められます。�
 - Tools → View → Browser layoutでColumns first／Balanced／Files firstを選びます。境界をドラッグするとCustomになり、タブごとに比率を保存します。
 - 左右のサイドバーは上部ボタンで表示／非表示を切り替えます。現在のドライブを選択表示し、ドライブ名・レター・使用量・空き容量を表示します。
 - 左サイドバーはFavorites → Recent → Desktop・Documents・Downloads・Pictures・Music・Videos → Drivesの順です。標準フォルダーはRecentの下に直接表示し、OneDriveや別ドライブへ移動済みの場合もWindowsに登録されている現在の場所を使います。
-- 文字サイズは上部のAa（Display Settings）から変更します。10px相当のVery Smallを含みます。入力欄以外ではCtrl+Plus／Minus／0でも拡大・縮小・標準化できます。MayaのDPI倍率を反映します。
+- 表示サイズは上部のAaから変更します。「とても小さい」は文字10px相当で、MayaでもWindows版と同じ画面DPIを基準にします。タブ・行・ボタンも連動し、入力欄以外ではCtrl+Plus／Minus／0でも拡大・縮小・標準化できます。
 - Windowsの既定テーマはOSに追従し、明示的なライト／ダークにも切り替えられます。Mayaはダークを既定とし、ホスト全体のパレットを変更しません。
 - ファイル一覧のViewからDetails／Thumbnails／Extended details、子階層を含む表示、グループ、タグ、列を変更します。名前・拡張子等の絞り込みは条件ラベルの×でも解除できます。
 

@@ -68,21 +68,29 @@ public:
         const auto* style = option.widget ? option.widget->style() : QApplication::style();
         style->drawControl(QStyle::CE_ItemViewItem, &background, painter, option.widget);
         painter->save(); painter->setClipRect(option.rect); painter->setFont(option.font);
-        const int margin = 4, iconSize = qMax(18, option.fontMetrics.height() + 4), line = option.fontMetrics.height();
+        const auto storedScale = parent()->property("qpeUiScale");
+        const qreal scale = storedScale.isValid() ? storedScale.toReal() : 1.;
+        const int margin = qRound(4 * scale), line = option.fontMetrics.height();
+        const int iconSize = qMax(qRound(18 * scale), line + margin);
         icon.paint(painter, QRect(option.rect.left() + margin, option.rect.center().y() - iconSize / 2, iconSize, iconSize));
         const int left = option.rect.left() + iconSize + margin * 2, width = qMax(0, option.rect.right() - left - margin);
         painter->setPen(option.palette.color(background.state & QStyle::State_Selected ? QPalette::HighlightedText : QPalette::Text));
         painter->drawText(QRect(left, option.rect.top() + margin, width, line), Qt::AlignVCenter, option.fontMetrics.elidedText(index.data().toString(), Qt::ElideRight, width));
         const double capacity = drive["total"].toDouble(-1), free = drive["free"].toDouble(-1);
-        const QRect bar(left, option.rect.top() + line + 7, width, 5);
+        const QRect bar(left, option.rect.top() + line + qRound(7 * scale), width, qRound(5 * scale));
         painter->fillRect(bar, option.palette.color(QPalette::Mid));
         if (capacity > 0) { auto used = bar; used.setWidth(qRound(width * qBound(0.0, 1.0 - free / capacity, 1.0))); painter->fillRect(used, free / capacity < .1 ? QColor("#c42b1c") : QColor("#0078d4")); }
         const auto info = capacity > 0 ? uiText("%1 free / %2").arg(uiLocale().formattedDataSize(qint64(free), 1, QLocale::DataSizeTraditionalFormat), uiLocale().formattedDataSize(qint64(capacity), 1, QLocale::DataSizeTraditionalFormat)) : uiText("Capacity unavailable");
-        painter->drawText(QRect(left, bar.bottom() + 3, width, line), Qt::AlignVCenter, option.fontMetrics.elidedText(info, Qt::ElideRight, width)); painter->restore();
+        painter->drawText(QRect(left, bar.bottom() + qRound(3 * scale), width, line), Qt::AlignVCenter, option.fontMetrics.elidedText(info, Qt::ElideRight, width)); painter->restore();
     }
     /** @brief 字形寸法に合わせて2行分を予約する。 @param option フォント。 @param index 項目。 @return 必要な高さ。 */
     QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-        auto size = QStyledItemDelegate::sizeHint(option, index); if (!index.data(Qt::UserRole + 30).toJsonObject().isEmpty()) size.setHeight(option.fontMetrics.height() * 2 + 20); return size;
+        auto size = QStyledItemDelegate::sizeHint(option, index);
+        if (!index.data(Qt::UserRole + 30).toJsonObject().isEmpty()) {
+            const auto scale = parent()->property("qpeUiScale");
+            size.setHeight(option.fontMetrics.height() * 2 + qRound(20 * (scale.isValid() ? scale.toReal() : 1.)));
+        }
+        return size;
     }
 };
 /** @brief グループ行も含むモデルから固定パスを探す。 @param model モデル。 @param path パス。 @param parent 探索起点。 @return 一致項目。 */

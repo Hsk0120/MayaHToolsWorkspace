@@ -25,6 +25,7 @@
 #include <QFile>
 #include <QTemporaryDir>
 #include <QSignalSpy>
+#include <QScopeGuard>
 #include <QTabBar>
 #include <QTabWidget>
 #include <QStackedWidget>
@@ -503,7 +504,7 @@ private slots:
                 auto* dialog = window.findChild<QDialog*>("qpePreferences"); QVERIFY(dialog);
                 auto* pixels = dialog->findChild<QSpinBox*>("displayFontSize"); auto* scale = dialog->findChild<QSpinBox*>("displayUiScale"); auto* density = dialog->findChild<QComboBox*>("displayDensity");
                 QVERIFY(pixels && scale && density); pixels->setValue(10); scale->setValue(125); density->setCurrentIndex(1);
-                QCOMPARE(window.font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->property("qpeRowHeight").toInt(), 35);
+                QCOMPARE(window.font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->font().pixelSize(), 13); QCOMPARE(window.findChild<QTreeView*>("files")->property("qpeRowHeight").toInt(), 29);
                 auto* widths = dialog->findChild<QComboBox*>("columnWidthMode"); widths->setCurrentIndex(1);
                 dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
             });
@@ -511,6 +512,68 @@ private slots:
         }
         { qpe::BrowserWindow next; next.restoreSession(path("A")); QCOMPARE(next.font().pixelSize(), 13); next.close(); }
         qpe::writeSettings({{"nativeAppearance", QJsonObject{{"textSize", 12}, {"uiPercent", 100}, {"density", "compact"}}}, {"columnWidthMode", "fit"}});
+    }
+    /** @brief 標準はMaya倍率を維持し、最小の実際の行や操作部品はWindows版へ揃える。 */
+    void linkedDisplaySize() {
+        const auto saved = qpe::readSettings();
+        const auto restore = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), saved); });
+        QList<int> windowsSmallest;
+        for (const bool maya : {false, true}) {
+            qpe::writeSettings({{maya ? "nativeMayaAppearance" : "nativeAppearance", QJsonObject{{"textSize", 12}, {"uiPercent", 100}, {"theme", "dark"}, {"density", "compact"}}}, {"columnWidthMode", "names"}});
+            qpe::HostServices host; host.maya = maya; host.dpi = maya ? 1.25 : 1.;
+            qpe::BrowserWindow window(nullptr, host); window.resize(1120, 570); window.restoreSession(path("A"), false); window.show(); window.activateWindow();
+            QTRY_VERIFY(window.ready());
+            auto* tabs = window.findChild<QTabBar*>("folderTabs");
+            auto* address = window.findChild<QLineEdit*>("address");
+            auto* toolbar = window.findChild<QToolButton*>("navigationPaneButton");
+            auto* files = window.findChild<QTreeView*>("files");
+            auto* inspector = window.findChild<QWidget*>("inspector");
+            auto* details = window.findChild<QToolButton*>("detailsPaneButton");
+            if (inspector->isHidden()) details->click();
+            auto* action = inspector->findChild<QPushButton*>("open");
+            QVERIFY(action);
+            auto* thumbnails = window.findChild<QListView*>("thumbnails");
+            QListView* column = nullptr;
+            for (auto* view : window.findChildren<QListView*>("folderColumn"))
+                if (view->property("path").toString() == window.currentPath()) column = view;
+            QVERIFY(column);
+            QTRY_VERIFY(column->model()->rowCount() > 0);
+            const auto metrics = [&] {
+                return QList<int>{tabs->tabRect(0).height(), address->height(), toolbar->iconSize().width(), files->header()->height(),
+                    files->visualRect(files->model()->index(0, 0)).height(), column->visualRect(column->model()->index(0, 0)).height(),
+                    column->width(), action->sizeHint().height(), thumbnails->gridSize().height()};
+            };
+            const QString evidence = qEnvironmentVariable("QPE_SIZE_EVIDENCE");
+            const auto capture = [&](const QString& size) {
+                if (!evidence.isEmpty()) QVERIFY(window.grab().save(QDir(evidence).filePath((maya ? "maya-" : "windows-") + size + ".png")));
+            };
+            QCoreApplication::processEvents();
+            const auto standard = metrics();
+            QCOMPARE(window.font().pixelSize(), maya ? 15 : 12);
+            capture("standard");
+            QTimer::singleShot(0, &window, [&] {
+                auto* dialog = window.findChild<QDialog*>("qpePreferences"); QVERIFY(dialog);
+                const auto close = qScopeGuard([dialog] { if (dialog->isVisible()) dialog->reject(); });
+                auto* preset = dialog->findChild<QComboBox*>("displayPreset"); QVERIFY(preset);
+                preset->setCurrentIndex(0); emit preset->activated(0);
+                dialog->findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Save)->click();
+            });
+            window.perform("appearance"); QCoreApplication::processEvents();
+            QCOMPARE(window.font().pixelSize(), 10);
+            const auto smallest = metrics();
+            if (maya) QCOMPARE(smallest, windowsSmallest);
+            else windowsSmallest = smallest;
+            qInfo() << (maya ? "Maya DPI 125%" : "Windows DPI 100%") << standard << "->" << smallest;
+            for (int i = 0; i < standard.size(); ++i)
+                QVERIFY2(smallest[i] > 0 && smallest[i] < standard[i], qPrintable(QString("metric %1: %2 -> %3").arg(i).arg(standard[i]).arg(smallest[i])));
+            capture("very-small");
+            files->setFocus(); QTRY_VERIFY(files->hasFocus());
+            QTest::keyClick(files, Qt::Key_Plus, Qt::ControlModifier | Qt::ShiftModifier);
+            QTRY_VERIFY(tabs->tabRect(0).height() > smallest[0]);
+            QTest::keyClick(files, Qt::Key_0, Qt::ControlModifier);
+            QTRY_COMPARE(metrics(), standard);
+            window.close();
+        }
     }
     /** @brief OSの配色と逆の明示テーマでも、子の文字・空白領域・独自描画タブが同じ配色になる。 */
     void explicitThemeChildren() {
@@ -1334,6 +1397,79 @@ private slots:
         window.contextMenu(files, QPoint(-10, -10), path("menu-focused")); QVERIFY(background);
         QCOMPARE(files->selectionModel()->selectedRows().first(), second); window.close();
     }
+    /** @brief ライト・ダークの両方でホバーとキー選択の描画を検証する。 */
+    void contextMenuHighlight_data() {
+        QTest::addColumn<QString>("theme");
+        QTest::newRow("light") << QString("light");
+        QTest::newRow("dark") << QString("dark");
+    }
+    /** @brief 描画された色で、項目間の移動・無効項目・サブメニューを検証する。 */
+    void contextMenuHighlight() {
+        QFETCH(QString, theme);
+        const auto before = qpe::readSettings();
+        const auto restore = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::writeSettings({{"nativeAppearance", QJsonObject{{"theme", theme}}}});
+        qpe::BrowserWindow window;
+        window.restoreSession(path("A"), false); window.show(); QTRY_VERIFY(window.ready());
+        auto* files = window.findChild<QTreeView*>("files");
+        QVERIFY(files && files->model()->rowCount() > 0);
+        bool completed = false;
+        QTimer::singleShot(20, &window, [&] {
+            auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget());
+            QVERIFY(menu);
+            const auto close = qScopeGuard([&] { menu->close(); });
+            auto* first = menu->findChild<QAction*>("context_openWith");
+            auto* second = menu->findChild<QAction*>("context_explorer");
+            auto* more = menu->findChild<QMenu*>("contextMore");
+            QVERIFY(first && second && more);
+            const auto fill = [](QMenu* popup, QAction* item) {
+                const auto rect = popup->actionGeometry(item);
+                const auto pixmap = popup->grab();
+                const auto scale = pixmap.devicePixelRatio();
+                return pixmap.toImage().pixelColor(qRound((rect.right() - 16) * scale), qRound(rect.center().y() * scale));
+            };
+            const auto hover = [](QMenu* popup, QAction* item) {
+                const auto pos = popup->actionGeometry(item).center();
+                // 物理カーソルの位置に依存せず、Qtのポップアップへ移動イベントを渡す。
+                for (const auto point : {pos - QPoint(6, 0), pos - QPoint(3, 0), pos}) {
+                    QMouseEvent move(QEvent::MouseMove, QPointF(point), QPointF(popup->mapToGlobal(point)),
+                                     Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+                    QApplication::sendEvent(popup, &move);
+                }
+            };
+            menu->setActiveAction(nullptr);
+            const auto firstBackground = fill(menu, first), secondBackground = fill(menu, second);
+            hover(menu, first); QTRY_COMPARE(menu->activeAction(), first);
+            const auto highlight = fill(menu, first);
+            QVERIFY2(qAbs(highlight.lightness() - firstBackground.lightness()) >= 8, "Hover changed the action but not its visible background");
+            const auto evidence = qEnvironmentVariable("QPE_HOVER_EVIDENCE");
+            if (!evidence.isEmpty()) menu->grab().save(QDir(evidence).filePath(theme + "-menu.png"));
+            hover(menu, second); QTRY_COMPARE(menu->activeAction(), second);
+            QCOMPARE(fill(menu, first), firstBackground);
+            QCOMPARE(fill(menu, second), highlight);
+            second->setEnabled(false);
+            hover(menu, second);
+            QCOMPARE(fill(menu, second), secondBackground);
+            menu->setActiveAction(first);
+            QTest::keyClick(menu, Qt::Key_Down);
+            QCOMPARE(fill(menu, first), firstBackground);
+            QVERIFY(menu->activeAction() && menu->activeAction()->isEnabled());
+            // 開くタイマーと物理カーソルの位置に依存せず、サブメニューの描画を検証する。
+            menu->setActiveAction(more->menuAction());
+            QTest::keyClick(menu, Qt::Key_Right); QTRY_VERIFY(more->isVisible());
+            auto* child = more->findChild<QAction*>("context_duplicate");
+            QVERIFY(child);
+            more->setActiveAction(nullptr);
+            const auto childBackground = fill(more, child);
+            hover(more, child); QTRY_COMPARE(more->activeAction(), child);
+            QVERIFY2(qAbs(fill(more, child).lightness() - childBackground.lightness()) >= 8, "Submenu did not paint the hover highlight");
+            if (!evidence.isEmpty()) more->grab().save(QDir(evidence).filePath(theme + "-submenu.png"));
+            completed = true;
+        });
+        window.contextMenu(files, files->visualRect(files->model()->index(0, 0)).center(), path("A"));
+        QVERIFY(completed);
+        window.close();
+    }
     /** @brief 用途別の設定を検索し、Cancelでプレビューを復元し、Saveで全ページの編集を保存する。 */
     void organizedPreferences() {
         const auto before = qpe::readSettings(); qpe::BrowserWindow window; window.navigate(path("A")); window.show();
@@ -1535,6 +1671,12 @@ private slots:
         QCOMPARE(tabs->count(), 4);
         QCOMPARE(tabs->tabText(0), QString("Open")); QCOMPARE(tabs->tabText(3), QString("Save"));
         auto* scroll = inspector->findChild<QScrollArea*>("inspectorScroll"); QVERIFY(scroll);
+        auto* hint = tabs->widget(0)->findChild<QLabel*>("openHint");
+        auto* open = tabs->widget(0)->findChild<QPushButton*>("open");
+        QVERIFY(hint && open);
+        QTRY_VERIFY(open->isVisible());
+        QVERIFY(hint->y() <= 24);
+        QVERIFY(open->y() - hint->geometry().bottom() <= 16);
         for (int index = 0; index < tabs->count(); ++index) {
             tabs->setCurrentIndex(index);
             QTRY_COMPARE(scroll->horizontalScrollBar()->maximum(), 0);
