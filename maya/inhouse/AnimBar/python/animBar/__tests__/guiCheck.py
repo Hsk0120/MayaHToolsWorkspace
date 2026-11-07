@@ -15,6 +15,111 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PYTHON = os.path.dirname(os.path.dirname(HERE))
 
 
+def dock_and_settings(bar, preferences, settingsDialog, startup, QtCore, QtGui, QtWidgets, wrapInstance, omui,
+                      output, result):
+    """つまみでのドックの付け外し・Windows メニュー・設定の画面を確かめる。
+
+    Returns:
+        dict: 確認の結果。
+    """
+    import maya.cmds as cmds
+
+    checks = {}
+
+    def settle():
+        """遅延実行(evalDeferred)とイベントを処理する。"""
+        for _ in range(3):
+            # processIdleEvents は evalDeferred の処理を進めないため、Mayaの暇なときの処理を流す。
+            cmds.flushIdleQueue()
+            QtWidgets.QApplication.processEvents()
+
+    def mouse(widget, kind, point, buttons=QtCore.Qt.LeftButton):
+        """部品へマウスのイベントを送る(point は部品の中の座標)。"""
+        local = QtCore.QPointF(point)
+        event = QtGui.QMouseEvent(kind, local, QtCore.QPointF(widget.mapToGlobal(point)), QtCore.Qt.LeftButton,
+                                  buttons, QtCore.Qt.NoModifier)
+        QtWidgets.QApplication.sendEvent(widget, event)
+
+    def tabs():
+        """バーが入っているタブの部品。"""
+        control = wrapInstance(int(omui.MQtUtil.findControl(bar.CONTROL)), QtWidgets.QWidget)
+        return control.parentWidget().parentWidget()
+
+    widget = bar._bar["widget"]
+    checks["grip_and_settings_button"] = bool(widget.findChildren(bar.DockGrip)) and \
+        bool([button for button in widget.findChildren(QtWidgets.QToolButton)
+              if button.objectName() == "AnimBarSettings"])
+    # Windows メニュー: Maya の項目が作られたうえで、末尾に1つだけ足されていること。
+    startup.addWindowMenu()
+    items = cmds.menu(startup.WINDOW_MENU, query=True, itemArray=True) or []
+    checks["window_menu"] = len(items) > 5 and items[-1] == startup.WINDOW_MENU_ITEM
+    checks["window_menu_once"] = items.count(startup.WINDOW_MENU_ITEM) == 1
+    action_type = getattr(QtGui, "QAction", None) or QtWidgets.QAction
+    pointer = omui.MQtUtil.findMenuItem(startup.WINDOW_MENU + "|" + startup.WINDOW_MENU_ITEM)
+    action = wrapInstance(int(pointer), action_type) if pointer else None
+    checks["window_menu_icon"] = action is not None and not action.icon().isNull() and action.isIconVisibleInMenu()
+    if checks["window_menu_icon"]:
+        preview = output / "animBar_menu_icon.png"
+        action.icon().pixmap(32, 32).save(str(preview))
+        result["screenshots"].append(str(preview))
+    # 表示中に show を呼んでも作り直さない(Windows メニューから選んだとき)。
+    bar.show()
+    settle()
+    checks["show_keeps_bar"] = bar._bar["widget"] is widget
+    # つまみをドラッグすると浮動の窓になり、マウスに付いて動く。
+    grip = widget.findChildren(bar.DockGrip)[0]
+    center = QtCore.QPoint(grip.width() // 2, grip.height() // 2)
+    mouse(grip, QtCore.QEvent.MouseButtonPress, center)
+    mouse(grip, QtCore.QEvent.MouseMove, center + QtCore.QPoint(0, -40))
+    settle()
+    checks["drag_floats"] = bar.isFloating()
+    window = grip.window()
+    before = window.pos()
+    mouse(grip, QtCore.QEvent.MouseMove, center + QtCore.QPoint(30, -60))
+    QtWidgets.QApplication.processEvents()
+    checks["drag_moves_window"] = window.pos() != before
+    mouse(grip, QtCore.QEvent.MouseButtonRelease, center + QtCore.QPoint(30, -60), QtCore.Qt.NoButton)
+    settle()
+    window.grab().save(str(output / "animBar_floating.png"))
+    result["screenshots"].append(str(output / "animBar_floating.png"))
+    # ダブルクリックでタイムスライダーの上へ戻り、タブの行が隠れる。
+    mouse(grip, QtCore.QEvent.MouseButtonDblClick, center)
+    settle()
+    slider = wrapInstance(int(omui.MQtUtil.findControl("TimeSlider")), QtWidgets.QWidget)
+    checks["double_click_docks"] = not bar.isFloating() and \
+        widget.mapToGlobal(QtCore.QPoint(0, 0)).y() < slider.mapToGlobal(QtCore.QPoint(0, 0)).y()
+    docked = tabs()
+    checks["redocked_tab_bar"] = [docked.tabBar().isVisible(), docked.height()]
+    checks["docked_tab_hidden"] = not docked.tabBar().isVisible() and docked.height() <= preferences.barHeight() + 6
+    widget.window().grab().save(str(output / "animBar_redocked.png"))
+    result["screenshots"].append(str(output / "animBar_redocked.png"))
+    # 設定の画面: 区切りを隠す・大きさを変えて作り直す・既定へ戻す。
+    dialog = settingsDialog.showDialog()
+    settle()
+    dialog.grab().save(str(output / "animBar_settings.png"))
+    result["screenshots"].append(str(output / "animBar_settings.png"))
+    dialog.sectionBoxes["Tangents"].setChecked(False)
+    checks["settings_hide_section"] = not widget.sections["Tangents"].isVisible() and \
+        preferences.hiddenSections() == ["Tangents"]
+    dialog.size.setCurrentIndex(dialog.size.findData("large"))
+    settle()
+    rebuilt = bar._bar["widget"]
+    large = [button.iconSize().width() for button in rebuilt.findChildren(QtWidgets.QToolButton)
+             if button.objectName() != "AnimBarSet"]
+    checks["settings_size_rebuild"] = rebuilt is not widget and set(large) == {28} and \
+        not rebuilt.sections["Tangents"].isVisible()
+    preferences.resetAll()
+    dialog.refresh()
+    bar.rebuild()
+    settle()
+    widget = bar._bar["widget"]
+    checks["settings_reset"] = preferences.size() == "medium" and preferences.hiddenSections() == [] and \
+        widget.sections["Tangents"].isVisible() and dialog.sectionBoxes["Tangents"].isChecked() and \
+        dialog.size.currentData() == "medium"
+    dialog.close()
+    return checks
+
+
 def main(output_dir=None, finished=None):
     """バーを表示し、確認の結果を ``result.json`` に書いて finished を呼ぶ。
 
@@ -43,8 +148,8 @@ def main(output_dir=None, finished=None):
     def check():
         """表示の後、イベントを処理してから確かめる。"""
         try:
-            from animBar.ui import bar
-            from animBar.ui.qt import QtCore, QtWidgets
+            from animBar.ui import bar, preferences, settingsDialog
+            from animBar.ui.qt import QtCore, QtGui, QtWidgets
             import animBar
 
             import maya.OpenMayaUI as omui
@@ -58,6 +163,10 @@ def main(output_dir=None, finished=None):
             checks["sections"] = len(sections)
             control = wrapInstance(int(omui.MQtUtil.findControl(bar.CONTROL)), QtWidgets.QWidget)
             checks["bars_in_control"] = len(control.findChildren(bar.AnimBar))
+            # 見出しのタブの行が隠れ、ドック全体の高さがバーの高さ(とタブの枠)に収まること。
+            tabs = control.parentWidget().parentWidget()
+            checks["tab_bar_hidden"] = not tabs.tabBar().isVisible()
+            checks["dock_height"] = tabs.height()
             checks["buttons"] = len(widget.findChildren(QtWidgets.QToolButton))
             checks["height"] = widget.height()
             # どの部品にも、見出しと使い方の2行以上のツールチップがあること。
@@ -218,23 +327,33 @@ def main(output_dir=None, finished=None):
             checks["menus"] = menus
             checks["menu_items_without_tips"] = untipped
             cmds.delete(moved)
+            checks.update(dock_and_settings(bar, preferences, settingsDialog, startup, QtCore, QtGui, QtWidgets,
+                                            wrapInstance, omui, output, result))
             animBar.toggle()
             checks["startup_respects_hidden"] = startup.install() is False
             checks["startup_shows"] = (cmds.optionVar(intValue=(bar.VISIBLE_OPTION, 1)) or True) and startup.install()
             expected = {"control_exists": True, "runtime_commands": True, "startup_respects_hidden": True,
                         "startup_shows": True, "widget_built": True, "docked": True, "above_time_slider": True,
+                        "tab_bar_hidden": True,
                         "toggle_hides": True, "toggle_shows": True, "micro_rebaseline_jobs": True,
                         "micro_stopped": True, "jump_follow": True, "playblast_settings": True,
                         "timeline_range_none": True, "recovery_open_job": True, "transform_all_toggle": True,
                         "session_mode_default": True, "tooltips_missing": [], "mode_item_tooltips": True,
                         "menu_items_without_tips": [],
                         "recovery_toggle": True, "tumble_toggle": True, "playblast_file": True,
-                        "closed_editor_ignores_keys": True, "open_editor_uses_keys": True}
+                        "closed_editor_ignores_keys": True, "open_editor_uses_keys": True,
+                        "grip_and_settings_button": True, "window_menu": True, "window_menu_once": True,
+                        "window_menu_icon": True,
+                        "show_keeps_bar": True, "drag_floats": True, "drag_moves_window": True,
+                        "double_click_docks": True, "docked_tab_hidden": True, "settings_hide_section": True,
+                        "settings_size_rebuild": True, "settings_reset": True}
             failed = [name for name, value in expected.items() if checks.get(name) != value]
             if checks["tween_slider_value"] != [7.5]:
                 failed.append("tween_slider_value")
             if checks["bars_in_control"] != 1:
                 failed.append("bars_in_control")
+            if checks["dock_height"] > preferences.barHeight() + 6:
+                failed.append("dock_height")
             if not all(checks["menus"].values()):
                 failed.append("menus")
             if checks["set_buttons"] != ["Gui"]:

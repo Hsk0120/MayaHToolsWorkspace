@@ -14,7 +14,7 @@ from mlib.decorator import undoChunk
 
 from ..core import (animCopy, crashRecovery, keys, keyTransform, mirror, selectSets, spaceTools, tangents,
                     timeline, timing, tween, viewTools)
-from . import icons
+from . import icons, preferences
 from .qt import QtCore, QtGui, QtWidgets, wrapInstance
 
 #: workspaceControl の名前。
@@ -22,9 +22,6 @@ CONTROL = "AnimBarWorkspaceControl"
 
 #: 表示状態を覚える optionVar の名前。
 VISIBLE_OPTION = "animBarVisible"
-
-#: バーの高さ(px)。
-HEIGHT = 34
 
 _STYLE = """
 QWidget#AnimBar {{ background: {background}; }}
@@ -131,6 +128,7 @@ class Section(QtWidgets.QFrame):
     def __init__(self, title, parent=None):
         super().__init__(parent)
         self.setObjectName("AnimBarSection")
+        self.title = title
         self.layout_ = QtWidgets.QHBoxLayout(self)
         self.layout_.setContentsMargins(3, 1, 3, 1)
         self.layout_.setSpacing(1)
@@ -152,8 +150,9 @@ class Section(QtWidgets.QFrame):
             QtWidgets.QToolButton: 足したボタン。
         """
         button = QtWidgets.QToolButton(self)
-        button.setIcon(icons.icon(iconName))
-        button.setIconSize(QtCore.QSize(22, 22))
+        size = preferences.iconSize()
+        button.setIcon(icons.icon(iconName, size))
+        button.setIconSize(QtCore.QSize(size, size))
         # 右クリックの説明を書いていないボタンにだけ、右クリックで選べることを添える。
         hint = menu is not None and callback is not None and "Right click" not in tip
         button.setToolTip(tip + ("\n\nRight click for more options" if hint else ""))
@@ -287,6 +286,106 @@ class UndoSlider(QtWidgets.QSlider):
                 run(self.onDrag, value)
 
 
+def _global_pos(event):
+    """マウスのイベントの画面上の座標を返す(PySide6 と PySide2 の違いを吸収する)。
+
+    Args:
+        event (QtGui.QMouseEvent): マウスのイベント。
+
+    Returns:
+        QtCore.QPoint: 画面上の座標。
+    """
+    if hasattr(event, "globalPosition"):
+        return event.globalPosition().toPoint()
+    return event.globalPos()
+
+
+class DockGrip(QtWidgets.QWidget):
+    """左端のつまみ。ドラッグでバーをドックから外して動かし、ダブルクリックで浮動とドックを切り替える。
+
+    見出しのタブの行を隠しているので、タイムスライダー等と同じ点線のつまみをドックから外す入口にする。
+    外した後の浮動の窓は、Mayaの窓と同じくタブをドラッグしてほかの場所へドックできる。
+
+    Args:
+        parent (QtWidgets.QWidget | None): 親。
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("AnimBarGrip")
+        self.setFixedWidth(10)
+        self.setCursor(QtCore.Qt.SizeAllCursor)
+        self.setToolTip("Move Anim Bar\n"
+                        "Drag to undock the bar and move it as a floating window.\n"
+                        "Double-click to float it, or to dock it above the Time Slider again.\n\n"
+                        "Right click for more options")
+        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._popup)
+        # 押した位置(画面上)と、ドラッグ中の浮動の窓の左上から見たつかんだ点。
+        self._press = None
+        self._offset = None
+
+    def paintEvent(self, event):
+        """2列の点を描く。"""
+        painter = QtGui.QPainter(self)
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(icons.color("muted"))
+        for x in (3, 7):
+            for y in range(5, self.height() - 4, 4):
+                painter.drawRect(QtCore.QRectF(x - 0.75, y, 1.5, 1.5))
+        painter.end()
+
+    def mousePressEvent(self, event):
+        """左ボタンを押した位置を覚える。"""
+        if event.button() == QtCore.Qt.LeftButton:
+            self._press = _global_pos(event)
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        """少し動かしたらドックから外し、その後は浮動の窓をマウスに付いて動かす。"""
+        position = _global_pos(event)
+        if self._offset is not None:
+            self.window().move(position - self._offset)
+            return
+        if self._press is None or \
+                (position - self._press).manhattanLength() < QtWidgets.QApplication.startDragDistance():
+            return
+        self._press = None
+        if not isFloating():
+            run(setFloating, True)
+        window = self.window()
+        # つかんだ点がマウスの下に来るように窓を寄せ、窓が替わってもマウスを受け取り続けるようにつかむ。
+        self._offset = self.mapTo(window, QtCore.QPoint(self.width() // 2, self.height() // 2))
+        window.move(position - self._offset)
+        self.grabMouse()
+
+    def mouseReleaseEvent(self, event):
+        """ドラッグを終える。"""
+        if self._offset is not None:
+            self._offset = None
+            self.releaseMouse()
+        self._press = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event):
+        """浮動とドックを切り替える。"""
+        if event.button() == QtCore.Qt.LeftButton:
+            run(setFloating, not isFloating())
+
+    def _popup(self, position):
+        """右クリックのメニュー。"""
+        menu = QtWidgets.QMenu(self)
+        if isFloating():
+            _action(menu, "Dock above the Time Slider", lambda: setFloating(False),
+                    tip="Put the bar back above the Time Slider.")
+        else:
+            _action(menu, "Float", lambda: setFloating(True), tip="Undock the bar into a floating window.")
+        _action(menu, "Settings...", openSettings, tip="Open the Anim Bar settings.")
+        menu.addSeparator()
+        _action(menu, "Close", hide, tip="Hide the Anim Bar. Show it again from Windows > Anim Bar.")
+        menu.exec_(self.mapToGlobal(position))
+
+
 class AnimBar(QtWidgets.QWidget):
     """Anim Bar の本体。
 
@@ -300,17 +399,51 @@ class AnimBar(QtWidgets.QWidget):
         self.setStyleSheet(_STYLE)
         self.setAttribute(QtCore.Qt.WA_StyledBackground, True)
         layout = QtWidgets.QHBoxLayout(self)
-        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setContentsMargins(0, 2, 4, 2)
         layout.setSpacing(4)
         self.session = None
+        layout.addWidget(DockGrip(self))
+        layout.addWidget(self._settings_button())
+        #: 見出しから区切りへの辞書(設定の画面で表示・非表示を切り替える)。
+        self.sections = {}
         for build in (self._tween, self._keyTransform, self._tangents, self._time, self._pose, self._space,
                       self._view):
-            layout.addWidget(build())
+            section = build()
+            self.sections[section.title] = section
+            layout.addWidget(section)
         self.sets = Section("Sets")
+        self.sections["Sets"] = self.sets
         layout.addWidget(self.sets)
         layout.addStretch(1)
         self.refreshSets()
+        self.applyPreferences()
         self._job = cmds.scriptJob(event=("SceneOpened", self.refreshSets), protected=True)
+
+    def _settings_button(self):
+        """設定の画面を開く歯車のボタン。"""
+        button = QtWidgets.QToolButton(self)
+        button.setObjectName("AnimBarSettings")
+        size = preferences.iconSize()
+        button.setIcon(icons.icon("settings", size))
+        button.setIconSize(QtCore.QSize(size, size))
+        button.setToolTip("Anim Bar Settings\n"
+                          "Choose which sections to show, the button size, the playblast options,\n"
+                          "the animation backup and the micro transform step, or reset them to the defaults.")
+        button.clicked.connect(lambda *_: run(openSettings))
+        return button
+
+    def applyPreferences(self):
+        """覚えた設定のうち、作り直さずに変えられるもの(区切りの表示・退避のボタン)を反映する。
+
+        Returns:
+            None: 値を返さない。
+        """
+        hidden = preferences.hiddenSections()
+        for title, section in self.sections.items():
+            section.setVisible(title not in hidden)
+        self.recovery.blockSignals(True)
+        self.recovery.setChecked(crashRecovery.isEnabled())
+        self.recovery.blockSignals(False)
 
     # --- セクション -----------------------------------------------------------------
 
@@ -780,12 +913,14 @@ class AnimBar(QtWidgets.QWidget):
         # 起動時に前回の状態で有効にしていれば、押した状態で表示する。
         recovery.setChecked(crashRecovery.isEnabled())
         recovery.toggled.connect(lambda state: run(crashRecovery.setEnabled, state))
+        self.recovery = recovery
         return section
 
     def _micro_menu(self, menu):
         """細かい移動の倍率。"""
         for factor in viewTools.MICRO_FACTORS:
             _action(menu, "Step x{:g}".format(factor), functools.partial(viewTools.setMicroFactor, factor),
+                    checked=viewTools.getMicroFactor() == factor,
                     tip="While Micro Transform is on, a manipulator drag changes the value by {:g}% of the drag."
                     .format(factor * 100))
 
@@ -922,6 +1057,8 @@ def _build():
     if pointer is None:
         return None
     parent = wrapInstance(int(pointer), QtWidgets.QWidget)
+    # 作成の途中はドック先が決まっていないので、組み立てが終わってからタブの行を隠す。
+    cmds.evalDeferred(_hide_tab_bar, lowestPriority=True)
     existing = parent.findChildren(AnimBar)
     if existing:
         # workspaceControl の作成時に uiScript が組み立て済みなら、二重に作らない。
@@ -933,8 +1070,92 @@ def _build():
     layout.setContentsMargins(0, 0, 0, 0)
     widget = AnimBar(parent)
     layout.addWidget(widget)
+    # ドックし直す(親が替わる)たびに、新しいドック先でもタブの行を隠す。
+    parent.installEventFilter(_DockWatcher(widget))
     _bar["widget"] = widget
     return widget
+
+
+class _DockWatcher(QtCore.QObject):
+    """workspaceControl の親が替わったら、タブの行を隠す処理をやり直す。"""
+
+    def eventFilter(self, watched, event):
+        """親が替わったら、配置が落ち着いてからタブの行を隠す。"""
+        if event.type() == QtCore.QEvent.ParentChange:
+            cmds.evalDeferred(_hide_tab_bar, lowestPriority=True)
+        return False
+
+
+class _TabBarHider(QtCore.QObject):
+    """ドック先のタブの行(見出しの「Anim Bar」)を、タブが1つのときだけ隠し続ける。
+
+    Mayaはパネルの開閉などで配置を組み直すたびに、タブの行を表示し、その高さを含めてドックの高さを決め直す。
+    そのためタブの行の表示・非表示を見張り、表示されたら隠して、空いた高さを隣の一番大きい場所へ返す。
+    同じ場所へ別のパネルをタブで重ねたときは、切り替えのためにタブの行を残す。
+
+    Args:
+        tabs (QtWidgets.QTabWidget): workspaceControl が入っているタブの部品。
+    """
+
+    def __init__(self, tabs):
+        super().__init__(tabs)
+        # Mayaは部品のPython側の参照を無効にすることがあるので、タブの部品は保持せず親から毎回取り直す。
+        # 表示の処理が終わってから直すため、イベントの後へ遅らせる(部品と一緒に破棄される)。
+        self._timer = QtCore.QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.apply)
+        tabs.setTabBarAutoHide(True)
+        tabs.tabBar().installEventFilter(self)
+
+    def eventFilter(self, watched, event):
+        """タブの行が表示・非表示になったら、隠し直しと高さの調整を予約する。"""
+        if event.type() in (QtCore.QEvent.Show, QtCore.QEvent.Hide):
+            self._timer.start(0)
+        return False
+
+    def apply(self):
+        """タブが1つならタブの行を隠し、ドックの高さを中身の高さへ詰める。
+
+        Returns:
+            None: 値を返さない。
+        """
+        tabs = self.parent()
+        # 浮動の窓では、タブの行が窓を動かす取っ手になるので残す。
+        if not isinstance(tabs, QtWidgets.QTabWidget) or tabs.count() > 1 or isFloating():
+            return
+        tabs.tabBar().hide()
+        splitter = tabs.parentWidget()
+        if not isinstance(splitter, QtWidgets.QSplitter) or splitter.orientation() != QtCore.Qt.Vertical:
+            return
+        index = splitter.indexOf(tabs)
+        sizes = splitter.sizes()
+        extra = sizes[index] - tabs.sizeHint().height()
+        others = [position for position in range(len(sizes)) if position != index]
+        if extra <= 0 or not others:
+            return
+        largest = max(others, key=lambda position: sizes[position])
+        sizes[index] -= extra
+        sizes[largest] += extra
+        splitter.setSizes(sizes)
+
+
+def _hide_tab_bar():
+    """ドック先のタブの部品に :class:`_TabBarHider` を付ける(付いていれば調整だけする)。
+
+    Returns:
+        None: 値を返さない。
+    """
+    pointer = omui.MQtUtil.findControl(CONTROL)
+    if pointer is None:
+        return
+    # workspaceControl → QStackedWidget → QTabWidget の順に入っている。浮動中など、ほかの構成なら何もしない。
+    stack = wrapInstance(int(pointer), QtWidgets.QWidget).parentWidget()
+    tabs = stack.parentWidget() if stack is not None else None
+    if not isinstance(tabs, QtWidgets.QTabWidget):
+        return
+    hiders = tabs.findChildren(_TabBarHider)
+    hider = hiders[0] if hiders else _TabBarHider(tabs)
+    hider.apply()
 
 
 def show():
@@ -944,14 +1165,75 @@ def show():
         str: workspaceControl の名前。
     """
     if cmds.workspaceControl(CONTROL, exists=True):
+        if cmds.workspaceControl(CONTROL, query=True, visible=True):
+            # 表示中なら、浮動の位置やドック先を変えずにそのまま出す。
+            cmds.workspaceControl(CONTROL, edit=True, restore=True)
+            return CONTROL
         cmds.deleteUI(CONTROL)
     cmds.workspaceControl(CONTROL, label="Anim Bar", retain=False, floating=False,
-                          dockToControl=("TimeSlider", "top"), initialHeight=HEIGHT, heightProperty="fixed",
+                          dockToControl=("TimeSlider", "top"), initialHeight=preferences.barHeight(),
+                          heightProperty="fixed",
                           uiScript="import animBar.ui.bar as _bar; _bar._build()",
                           visibleChangeCommand=_remember_visibility)
     _build()
     cmds.optionVar(intValue=(VISIBLE_OPTION, 1))
     return CONTROL
+
+
+def rebuild():
+    """バーを作り直す(ボタンの大きさを変えたとき)。浮動中なら、作り直した後も浮動にする。
+
+    Returns:
+        str: workspaceControl の名前。
+    """
+    floating = isFloating()
+    if cmds.workspaceControl(CONTROL, exists=True):
+        cmds.deleteUI(CONTROL)
+    _bar["widget"] = None
+    show()
+    if floating:
+        setFloating(True)
+    return CONTROL
+
+
+def isFloating():
+    """バーが浮動の窓になっているかを返す。
+
+    Returns:
+        bool: 浮動ならTrue。表示していなければFalse。
+    """
+    return bool(cmds.workspaceControl(CONTROL, exists=True) and
+                cmds.workspaceControl(CONTROL, query=True, floating=True))
+
+
+def setFloating(floating):
+    """バーを浮動の窓にする、またはタイムスライダーの上へドックし直す。
+
+    Args:
+        floating (bool): Trueは浮動にする。Falseはタイムスライダーの上へドックする。
+
+    Returns:
+        bool: 変えた後に浮動ならTrue。表示していなければFalse。
+    """
+    if not cmds.workspaceControl(CONTROL, exists=True):
+        return False
+    if floating:
+        cmds.workspaceControl(CONTROL, edit=True, floating=True)
+    else:
+        cmds.workspaceControl(CONTROL, edit=True, dockToControl=("TimeSlider", "top"))
+        cmds.evalDeferred(_hide_tab_bar, lowestPriority=True)
+    return isFloating()
+
+
+def openSettings():
+    """設定の画面を開く。
+
+    Returns:
+        QtWidgets.QDialog: 設定の画面。
+    """
+    # 設定の画面はバーを作り直す処理を呼ぶため、循環しないよう呼出し時に読み込む。
+    from . import settingsDialog
+    return settingsDialog.showDialog()
 
 
 def hide():

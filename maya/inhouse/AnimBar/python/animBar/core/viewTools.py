@@ -14,8 +14,14 @@ TRAIL_ATTRIBUTE = "animBarMotionTrail"
 #: 細かい移動の倍率(1回の操作の変化をこの倍率にする)。
 MICRO_FACTORS = (0.5, 0.25, 0.1, 0.05)
 
-#: 細かい移動の状態。
-_micro = {"job": None, "factor": 0.1, "values": {}, "resetJobs": []}
+#: 細かい移動の倍率の既定。
+DEFAULT_MICRO_FACTOR = 0.1
+
+#: 細かい移動の倍率を覚えるoptionVarの名前。
+MICRO_FACTOR_OPTION = "animBarMicroFactor"
+
+#: 細かい移動の状態(倍率は getMicroFactor で読む)。
+_micro = {"job": None, "factor": None, "values": {}, "resetJobs": []}
 
 
 @undoChunk("animBarCreateMotionTrail")
@@ -78,7 +84,33 @@ def setMicroFactor(factor):
     if not 0 < factor <= 1:
         raise ValueError("Micro transform factor must be in (0, 1]")
     _micro["factor"] = factor
+    # mlib には設定の保存先が無いため、Mayaの optionVar を使う。
+    cmds.optionVar(floatValue=(MICRO_FACTOR_OPTION, factor))
     return factor
+
+
+def getMicroFactor():
+    """細かい移動の倍率を返す(覚えた値が無ければ既定)。
+
+    Returns:
+        float: 倍率。
+    """
+    if _micro["factor"] is None:
+        stored = cmds.optionVar(query=MICRO_FACTOR_OPTION) if cmds.optionVar(exists=MICRO_FACTOR_OPTION) else None
+        _micro["factor"] = stored if isinstance(stored, float) and 0 < stored <= 1 else DEFAULT_MICRO_FACTOR
+    return _micro["factor"]
+
+
+def resetMicroFactor():
+    """細かい移動の倍率を既定へ戻し、覚えた値を消す。
+
+    Returns:
+        float: 既定の倍率。
+    """
+    if cmds.optionVar(exists=MICRO_FACTOR_OPTION):
+        cmds.optionVar(remove=MICRO_FACTOR_OPTION)
+    _micro["factor"] = DEFAULT_MICRO_FACTOR
+    return DEFAULT_MICRO_FACTOR
 
 
 def setMicroTransform(enabled):
@@ -130,7 +162,7 @@ def _scale_micro():
     Returns:
         None: 値を返さない。
     """
-    factor = _micro["factor"]
+    factor = getMicroFactor()
     if cmds.play(query=True, state=True):
         # 再生中の値の変化は縮めない。
         _snapshot_micro()

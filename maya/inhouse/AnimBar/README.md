@@ -7,7 +7,10 @@
 ## 起動
 
 - `maya/modules/AnimBar.mod` が有効なら、Maya GUI の起動後に自動でバーを表示します(前回閉じていれば表示しません)。
-- HTools > animation > animBar、またはスクリプトの `import animBar; animBar.toggle()` で表示・非表示を切り替えます。
+- ドック先にタブが1つだけのときは、見出しのタブの行(「Anim Bar」)を隠して高さを詰めます。同じ場所へ別のパネルをタブで重ねると、切り替えのためにタブの行が出ます。
+- 左端の点線のつまみをドラッグすると、ドックから外して浮動の窓にできます。浮動の窓はタブをドラッグしてほかの場所へドックできます。つまみのダブルクリックで浮動とタイムスライダーの上を切り替え、右クリックで Float / Dock above the Time Slider / Settings / Close を選べます。
+- Windows メニューの末尾の Anim Bar で表示します(表示中ならそのまま)。HTools > animation > animBar、またはスクリプトの `import animBar; animBar.toggle()` で表示・非表示を切り替えます。
+- つまみの右の歯車で設定の画面を開きます。区切りの表示・非表示、ボタンの大きさ(Small 30px・Medium 34px・Large 40px。変えるとバーを作り直します)、プレイブラストの設定、アニメーションの退避、細かい移動の倍率を変えられ、Reset to Defaults で既定へ戻せます(保存した再生範囲・選択セット・退避のファイルは残します)。設定は Maya のユーザー設定(optionVar の `animBar*`)に保存します。
 - 主な操作は runTimeCommand(カテゴリ `Custom Scripts.Anim Bar`)として登録するので、Hotkey Editor でキーを割り当てられます。
 
 ## 機能

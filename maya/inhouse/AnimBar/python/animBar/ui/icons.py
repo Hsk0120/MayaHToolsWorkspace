@@ -136,6 +136,14 @@ def _draw_tween(painter):
     _keys(painter, [12], [12], "teal")
 
 
+def _draw_anim_bar(painter):
+    """Anim Barを表す、キーフレームをつないだアニメーションカーブを描く。"""
+    _fill(painter, "teal")
+    painter.drawRoundedRect(QtCore.QRectF(1, 1, 22, 22), 4, 4)
+    _curve(painter, [(6, 16), (12, 8), (18, 12)], "background", 2)
+    _keys(painter, [6, 12, 18], [16, 8, 12], "background")
+
+
 def _draw_key_previous(painter):
     """前のキーを写す。"""
     _keys(painter, [6, 18], [12, 12], "muted")
@@ -344,8 +352,23 @@ def _draw_menu(painter):
         painter.drawEllipse(QtCore.QPointF(12, y), 1.8, 1.8)
 
 
+def _draw_settings(painter):
+    """設定(歯車)。"""
+    _pen(painter, "muted", 3.0)
+    for step in range(8):
+        painter.save()
+        painter.translate(12, 12)
+        painter.rotate(step * 45)
+        painter.drawLine(QtCore.QPointF(0, -6.5), QtCore.QPointF(0, -9))
+        painter.restore()
+    _pen(painter, "muted", 2.2)
+    painter.drawEllipse(QtCore.QPointF(12, 12), 5.5, 5.5)
+    painter.drawEllipse(QtCore.QPointF(12, 12), 1.8, 1.8)
+
+
 #: アイコンの名前と描く関数。
 _DRAW = {
+    "animBar": _draw_anim_bar,
     "tween": _draw_tween, "keyPrevious": _draw_key_previous, "keyNext": _draw_key_next,
     "nudgeLeft": _draw_nudge_left, "nudgeRight": _draw_nudge_right, "insert": _draw_insert,
     "remove": _draw_remove, "share": _draw_share, "reset": _draw_reset, "mirror": _draw_mirror,
@@ -354,6 +377,7 @@ _DRAW = {
     "trail": _draw_trail, "micro": _draw_micro, "tumble": _draw_tumble, "recovery": _draw_recovery,
     "range": _draw_range, "jumpPrevious": _draw_jump_previous, "jumpNext": _draw_jump_next,
     "playblast": _draw_playblast, "add": _draw_add, "minus": _draw_minus, "menu": _draw_menu,
+    "settings": _draw_settings,
 }
 for _shape in ("auto", "spline", "linear", "flat", "step", "clamped", "plateau", "flow", "bounce"):
     _DRAW["tangent_" + _shape] = functools.partial(_tangent, shape=_shape)

@@ -111,11 +111,65 @@ mGear との違い・制限
 * 接線と上方向が平行になる姿勢、骨の軸を大きく超えるねじれ(多回転)は、:doc:`spline_ik` と同じく扱えない。
 * 左右の概念は無い(体の中心の部位用)。
 
+コンストレイントで組む簡易版
+----------------------------
+
+``mlrig.examples.spline_spine_simple`` は、同じ背骨をノードの構成が追いやすい形で組み直した簡易版です。
+
+.. code-block:: python
+
+   from mlrig.examples import spline_spine_simple
+
+   spine = spline_spine_simple.build(name="spine", joint_count=6, length=50.0, height=100.0)
+
+通常版との違いは次の3点です。コントローラーの階層・名前・アトリビュートの意味・動きは通常版と同じで、
+同じ姿勢を付けたときの変形用の骨のワールドマトリクスは一致します。
+
+* コンテナを使いません。カーブとIKハンドルは ``spine_setup_grp`` の下に直接作ります(:doc:`spline_ik` を使わない)。
+* マトリクスのノード(``multMatrix``・``decomposeMatrix``・``pickMatrix``・``blendMatrix``)を使わず、追従はコンストレイントで行います。
+
+  * CV: ``spine_cv0``〜``cv3`` を腰・接線・胸へ pointConstraint し、その ``translate`` をカーブの CV へつなぐ。
+  * 向きの固定: ``spine_hipsLock``・``spine_chestLock`` の位置はIKの骨への pointConstraint、向きは
+    IKの骨と腰・胸のコントローラーの2つへの parentConstraint(``maintainOffset``、translate はスキップ)で決める。
+    ウェイトは ``lockOri*`` と ``1 - lockOri*``。parentConstraint のオフセットはターゲットごとに別なので、
+    コントローラーと骨の軸の違い(コントローラーは Y が上、骨は X が上)を吸収できる
+    (orientConstraint の ``maintainOffset`` はターゲット全体で1つのオフセットになり、ウェイトを変えるとずれる)。
+  * FK: 一つ下の段の子にした ``spine_fk02_local`` 等をその段へ parentConstraint し、その ``translate``\ ・
+    ``rotate`` を FK のオフセット(npo)へつなぐ。FK の親を回すと上の段も一緒に回る。
+  * 変形用の骨: FK コントローラーへ parentConstraint する。
+
+* 接線の倍率(``tangentHips``・``tangentChest``)を作りません。接線のコントローラーは残します。
+
+FKコントローラーなし
+~~~~~~~~~~~~~~~~~~~~
+
+``fk=False`` を渡すと、FKコントローラー(``spine_fk_grp`` 以下)と向きの固定の割合(``lockOri*``)を作りません。
+最下段・最上段の骨の向きは、常に腰・胸のコントローラーに合わせます(``lockOri* = 1`` と同じ)。
+
+* 最下段: 腰のコントローラーへ parentConstraint(``maintainOffset``)。IKの根元は常にカーブの始点(腰の位置)にあるので、位置も腰から取れる。
+* 最上段: 位置はIKの骨への pointConstraint、向きは胸のコントローラーへの orientConstraint(``maintainOffset``)。
+  伸縮の上限や ``stretch=False`` で骨が胸に届かないことがあるので、位置は胸から取らない。
+* 中間: IKの骨へ parentConstraint。
+
+ターゲットが1つなので、コントローラーと骨の軸の違いは ``maintainOffset`` のオフセットで吸収できます。
+``spine_hipsLock``・``spine_chestLock`` と reverse ノードも作りません。FKを回さず ``lockOri* = 1`` のときのFKあり版と
+同じ動きです。``spine.fk`` は空のリストになります。
+
+.. code-block:: python
+
+   noFk = spline_spine_simple.build(name="noFkSpine", fk=False)
+
+``stretch=False`` も通常版と同じに使えます。ねじれはスプラインIKのハンドルの ``dWorldUpMatrix``\ ・
+``dWorldUpMatrixEnd`` へ腰・胸の ``worldMatrix`` をつないで取ります(ハンドルの入力で、マトリクスのノードではない)。
+
 テスト
 ------
 
 ``mlrig/__tests__/test_example_spline_spine.py``\ (``setups`` スイート)で、基準姿勢・伸縮と上限下限・体積・
 ねじれの配分・向きの固定・FK・接線の倍率・Undo を、実際の行列で確かめています。
+簡易版は ``mlrig/__tests__/test_example_spline_spine_simple.py`` で、同じ内容(接線の倍率を除く)と、
+コンテナ・マトリクスのノードを作らないこと・腰側の向きの固定・リグ全体の拡大と、
+``fk=False`` でFKのノードを作らずFKあり版と同じ姿勢になることを確かめています。
 
 検証動画
 --------
