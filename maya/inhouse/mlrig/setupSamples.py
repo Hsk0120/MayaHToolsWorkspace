@@ -61,6 +61,7 @@ class SetupSamples:
         ("gearTrain", "GearTrain - four gears"),
         ("universalJoint", "UniversalJoint - bent drive shaft"),
         ("constantVelocityJoint", "ConstantVelocityJoint - bent drive shaft"),
+        ("tripodJoint", "TripodJoint - plunging inner joint"),
         ("ackermannSteering", "AckermannSteering - car front wheels"),
         ("treadBelt", "TreadBelt - tank tread"),
         ("rockerRoll", "RockerRoll - rocking chair runner"),
@@ -640,6 +641,22 @@ class SetupSamples:
         _output(name + "_cageOut", root, str(setup.container) + ".cageMatrix", ((0, 1.2, 0), (0, 0, 1.2), (0, -1.2, 0),
                                                                               (0, 0, -1.2)))
         return setup, shaft
+
+    @classmethod
+    def _tripodJoint(cls, name, root):
+        """ハウジング(joint、十字の先は軸に垂直な目印)と、斜め下の外側の継手(locator)。スパイダーとシャフトは緑。
+        外側の継手を上下に動かすと、シャフトの長さを保ったままスパイダー(緑)がハウジングの軸に沿って滑る。
+        containerの ``plunge`` は滑った量、範囲(``minPlunge``・``maxPlunge``)を超えると ``overPlunge`` と ``stretch`` が出る。"""
+        from .setups import TripodJoint
+
+        housing = _joint(name + "_housing", root, translate=(0, 10, 0))
+        for index, tip in enumerate(((-3, 0, 0), (0, 1, 0), (0, -1, 0))):
+            _tip(housing, "{}_housingTip{}".format(name, index), tip)
+        outer = _locator(name + "_outerJoint", root, translate=(5, 8, 0))
+        setup = TripodJoint.create(housing, outer, name=name, axis="x")
+        _output(name + "_spiderOut", root, str(setup.container) + ".matrix", ((5.385, 0, 0), (0, 1, 0), (0, 0, 1),
+                                                                            (0, -1, 0), (0, 0, -1)))
+        return setup, outer
 
     @classmethod
     def _ackermannSteering(cls, name, root):

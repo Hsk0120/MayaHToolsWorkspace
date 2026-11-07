@@ -68,6 +68,9 @@
    * - ConstantVelocityJoint - bent drive shaft
      - 入力軸のjoint
      - ``rotateX`` で回すと、等速ジョイントで斜め上へ曲げた出力軸(緑)が入力と同じ角度だけ回る(UniversalJointのような揺れが無い)。十字の先は軸に垂直な目印。ボールの並ぶケージ(緑の4本の先)は曲げ角の半分だけ傾く。先の点(locator)を動かすと曲げ角が変わる。containerの ``bendAngle`` は曲げ角。
+   * - TripodJoint - plunging inner joint
+     - 外側の継手のlocator
+     - 上下に動かすと、シャフトの長さを保ったまま緑のスパイダーがハウジングの軸に沿って滑る(長い緑の先がシャフト、先端が外側の継手の位置)。containerの ``plunge`` は滑った量で、 ``minPlunge`` ・ ``maxPlunge`` の範囲を超えると ``overPlunge`` と ``stretch`` (シャフトの伸び縮み)が出る。
    * - AckermannSteering - car front wheels
      - ハンドルのjoint
      - ``rotateZ`` で回すと(比 -1/8)、緑の左右の前輪がアッカーマンの幾何で内輪を外輪より大きく切る(十字の先が車輪の半径、短い先が車軸の向き)。containerの ``ackermann`` を0にすると左右が同じ角度になる。

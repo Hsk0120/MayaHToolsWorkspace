@@ -52,6 +52,7 @@ CHANGES = {
     "gearTrain": (_set(".rotateZ", 45.0), "_gear3"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
+    "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),
     "ackermannSteering": (_set(".rotateZ", -240.0), "_frontLeft"),
     "treadBelt": (_add(".translateZ", 2.0), "_plate0Out"),
     "rockerRoll": (_set(".roll", 20.0), "_rockerOut"),
@@ -154,6 +155,8 @@ CHANGES = {
 #: test_setup_scapula_glide で確認する)。
 #: UniversalJointのサンプルは出力軸を曲げて作るため、出力が入力軸と同じ向きにならず対象外(まっすぐなら入力と
 #: 同じ向きになることは test_setup_universal_joint で確認する)。ConstantVelocityJointも同じ理由で対象外。
+#: TripodJointのサンプルもシャフトを斜めに曲げて作るため対象外(まっすぐなら入力と同じ向き・プランジ0になることは
+#: test_setup_tripod_joint で確認する)。
 REST_MATCH = {
     "hipSwing": ("_hipsOut", "_hips"),
     "boxRoll": ("_boxOut", "_box"),
