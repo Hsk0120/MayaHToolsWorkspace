@@ -25,7 +25,6 @@ SET MAYA_EXE="C:\Program Files\Autodesk\Maya%MAYA_VERSION%\bin\maya.exe"
 SET PATH_BAT=%~DP0
 SET MAYA_DISABLE_CIP=1
 SET MAYA_FORCE_PANEL_FOCUS=0
-SET MAYA_SHOW_OUTPUT_WINDOW=1
 
 ::----------------------------------------------------------------
 ::Set Maya.env directory
@@ -118,10 +117,12 @@ IF NOT {%MAYA_EXE:mayapy.exe=%} == {%MAYA_EXE%} (
 ::----------------------------------------------------------------
 ::Run Maya
 ::----------------------------------------------------------------
-if "%OPEN_FILE%" == "" ( 
-    START "" %MAYA_EXE% -hideConsole
-) else (ff
-    START "" %MAYA_EXE% -hideConsole -file %OPEN_FILE%
+::Hide the Output Window again after Maya restores its saved UI state.
+SET "MAYA_STARTUP_COMMAND=outputWindow -show off; evalDeferred -lowestPriority \"outputWindow -show off\""
+IF NOT DEFINED OPEN_FILE (
+    START "" %MAYA_EXE% -hideConsole -command "%MAYA_STARTUP_COMMAND%"
+) ELSE (
+    START "" %MAYA_EXE% -hideConsole -file %OPEN_FILE% -command "%MAYA_STARTUP_COMMAND%"
 )
 EXIT
 
