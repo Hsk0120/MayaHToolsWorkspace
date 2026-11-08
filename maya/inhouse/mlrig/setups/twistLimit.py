@@ -56,6 +56,40 @@ class TwistLimit(SwingTwist):
         return angle
 
     @classmethod
+    def _softLimitGraph(cls, scalar, angle, minimum, maximum, softness):
+        """角度のプラグをsoftTwistと同じ式で制限するノード列を作る。
+
+        Args:
+            scalar (ScalarGraph): 演算ノードの生成先。
+            angle (Plug): 制限前の角度(度)。
+            minimum (Plug): 下限角(度)。
+            maximum (Plug): 上限角(度)。
+            softness (Plug): 可動域の半分に対する柔らかい区間の割合。
+
+        Returns:
+            Plug: 制限後の角度(度)。
+        """
+        span = scalar.sum("span", maximum, minimum, subtract=True)
+        raw_width = scalar.multiply("softWidthRaw", scalar.multiply("halfSpan", span, 0.5), softness)
+        width = scalar.condition("softWidth", raw_width, cls.MINIMUM_SOFT_WIDTH, raw_width, cls.MINIMUM_SOFT_WIDTH)
+        upper = scalar.sum("upperStart", maximum, width, subtract=True)
+        lower = scalar.sum("lowerStart", minimum, width)
+
+        def falloff(role, excess):
+            """開始角からの超過量 e を w*(1-exp(-e/w)) へ変換する。"""
+            positive = scalar.condition(role + "Positive", excess, 0, excess, 0)
+            exponent = scalar.multiply(role + "Exponent", positive, width, operation=2)
+            decay = scalar.multiply(role + "Decay", math.exp(-1), exponent, operation=3)
+            return scalar.multiply(role + "Range", width, scalar.sum(role + "Falloff", 1, decay, subtract=True))
+
+        upper_excess = scalar.sum("upperExcess", angle, upper, subtract=True)
+        lower_excess = scalar.sum("lowerExcess", lower, angle, subtract=True)
+        upper_soft = scalar.sum("upperSoft", upper, falloff("upper", upper_excess))
+        lower_soft = scalar.sum("lowerSoft", lower, falloff("lower", lower_excess), subtract=True)
+        inner = scalar.condition("lowerLimited", lower_excess, 0, lower_soft, angle)
+        return scalar.condition("limited", upper_excess, 0, upper_soft, inner)
+
+    @classmethod
     @undoTransaction("mlrig.TwistLimit.create")
     def create(cls, joint, name="twistLimit", axis="x", minimum=-45.0, maximum=45.0, softness=0.2):
         """親空間でTwistを制限した行列を生成する。
@@ -110,27 +144,10 @@ class TwistLimit(SwingTwist):
         for attr in ("matrix", "restMatrix", "limitedTwistMatrix"):
             owner.addAttr(longName=attr, dataType="matrix")
 
-        # 可動域の半分×softnessを柔らかい区間の幅とし、上下の開始角を求める。
+        # 可動域の半分×softnessを柔らかい区間の幅とする非対称の制限。
         twist = owner.getPlug("twist")
-        span = scalar.sum("span", owner.getPlug("maximum"), owner.getPlug("minimum"), subtract=True)
-        raw_width = scalar.multiply("softWidthRaw", scalar.multiply("halfSpan", span, 0.5), owner.getPlug("softness"))
-        width = scalar.condition("softWidth", raw_width, cls.MINIMUM_SOFT_WIDTH, raw_width, cls.MINIMUM_SOFT_WIDTH)
-        upper = scalar.sum("upperStart", owner.getPlug("maximum"), width, subtract=True)
-        lower = scalar.sum("lowerStart", owner.getPlug("minimum"), width)
-
-        def falloff(role, excess):
-            """開始角からの超過量 e を w*(1-exp(-e/w)) へ変換する。"""
-            positive = scalar.condition(role + "Positive", excess, 0, excess, 0)
-            exponent = scalar.multiply(role + "Exponent", positive, width, operation=2)
-            decay = scalar.multiply(role + "Decay", math.exp(-1), exponent, operation=3)
-            return scalar.multiply(role + "Range", width, scalar.sum(role + "Falloff", 1, decay, subtract=True))
-
-        upper_excess = scalar.sum("upperExcess", twist, upper, subtract=True)
-        lower_excess = scalar.sum("lowerExcess", lower, twist, subtract=True)
-        upper_soft = scalar.sum("upperSoft", upper, falloff("upper", upper_excess))
-        lower_soft = scalar.sum("lowerSoft", lower, falloff("lower", lower_excess), subtract=True)
-        inner = scalar.condition("lowerLimited", lower_excess, 0, lower_soft, twist)
-        limited = scalar.condition("limited", upper_excess, 0, upper_soft, inner)
+        limited = cls._softLimitGraph(scalar, twist, owner.getPlug("minimum"), owner.getPlug("maximum"),
+                                      owner.getPlug("softness"))
         limited.connectTo(owner.getPlug("limitedTwist"))
         scalar.sum("excess", twist, limited, subtract=True).connectTo(owner.getPlug("excessTwist"))
 

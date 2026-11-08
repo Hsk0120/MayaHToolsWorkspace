@@ -16,6 +16,7 @@ from .gearTrain import GearTrain
 from .universalJoint import UniversalJoint
 from .constantVelocityJoint import ConstantVelocityJoint
 from .tripodJoint import TripodJoint
+from .forearmPronation import ForearmPronation
 from .skirtLegOffset import SkirtLegOffset
 from .pumpUp import PumpUp
 from .uiSlider import UiSlider
@@ -102,6 +103,7 @@ __all__ = [
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",
+    "ForearmPronation",
     "SkirtLegOffset",
     "PumpUp",
     "UiSlider",

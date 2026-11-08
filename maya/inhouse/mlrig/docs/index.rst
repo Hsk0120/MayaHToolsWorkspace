@@ -74,6 +74,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    universal_joint
    constant_velocity_joint
    tripod_joint
+   forearm_pronation
    ackermann_steering
    skirt_leg_offset
    pump_up

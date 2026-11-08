@@ -93,6 +93,7 @@ class SetupSamples:
         ("capsuleCollision", "CapsuleCollision - soft thigh collider"),
         ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
         ("scapulaGlide", "ScapulaGlide - shoulder blade on ribcage"),
+        ("forearmPronation", "ForearmPronation - radius around the ulna"),
         ("boxCollision", "BoxCollision - soft rounded table edge"),
         ("torusCollision", "TorusCollision - soft hoop collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
@@ -1078,6 +1079,23 @@ class SetupSamples:
                                           softness=1.0)
         _output(name + "_handOut", root, str(setup.container) + ".matrix", ((0, 0, 0),))
         return setup, control
+
+    @classmethod
+    def _forearmPronation(cls, name, root):
+        """尺骨(joint)の子に、尺骨の頭・橈骨の頭・橈骨の先の目印と手のjoint。橈骨の出力は緑。
+        手を ``rotateX`` で回すと、橈骨(緑)が尺骨の周りを回る。containerの ``pronation`` は回内の角度、
+        ``pronationLimit`` ・ ``supinationLimit`` を超えると ``excessPronation`` が増え、緑は止まる。"""
+        from .setups import ForearmPronation
+
+        ulna = _joint(name + "_ulna", root, translate=(-4, 10, 0))
+        ulna_tip = _joint(name + "_ulnaTip", ulna, translate=(8, 0, 0))
+        radius = _joint(name + "_radius", ulna, translate=(0.2, 0, 0.9))
+        radius_tip = _tip(radius, name + "_radiusTip", (7.8, 0, 0.1))
+        hand = _joint(name + "_hand", ulna, translate=(8.5, 0, 0))
+        _tip(hand, name + "_handTip", (2, 0, 0))
+        setup = ForearmPronation.create(ulna, ulna_tip, radius, radius_tip, hand, name=name)
+        _output(name + "_radiusOut", root, str(setup.container) + ".matrix", ((7.8, 0, 0.1), ))
+        return setup, hand
 
     @classmethod
     def _scapulaGlide(cls, name, root):

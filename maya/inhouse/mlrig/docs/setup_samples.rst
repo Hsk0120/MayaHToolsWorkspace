@@ -71,6 +71,9 @@
    * - TripodJoint - plunging inner joint
      - 外側の継手のlocator
      - 上下に動かすと、シャフトの長さを保ったまま緑のスパイダーがハウジングの軸に沿って滑る(長い緑の先がシャフト、先端が外側の継手の位置)。containerの ``plunge`` は滑った量で、 ``minPlunge`` ・ ``maxPlunge`` の範囲を超えると ``overPlunge`` と ``stretch`` (シャフトの伸び縮み)が出る。
+   * - ForearmPronation - radius around the ulna
+     - 手のjoint
+     - ``rotateX`` で回すと、緑の橈骨が尺骨の周りを回る(回内・回外)。containerの ``pronation`` は回内の角度で、 ``pronationLimit`` ・ ``supinationLimit`` を超えると ``excessPronation`` が増え、緑は柔らかく止まる。
    * - AckermannSteering - car front wheels
      - ハンドルのjoint
      - ``rotateZ`` で回すと(比 -1/8)、緑の左右の前輪がアッカーマンの幾何で内輪を外輪より大きく切る(十字の先が車輪の半径、短い先が車軸の向き)。containerの ``ackermann`` を0にすると左右が同じ角度になる。
