@@ -17,6 +17,7 @@ from .universalJoint import UniversalJoint
 from .constantVelocityJoint import ConstantVelocityJoint
 from .tripodJoint import TripodJoint
 from .forearmPronation import ForearmPronation
+from .ribBreathing import RibBreathing
 from .skirtLegOffset import SkirtLegOffset
 from .pumpUp import PumpUp
 from .uiSlider import UiSlider
@@ -104,6 +105,7 @@ __all__ = [
     "ConstantVelocityJoint",
     "TripodJoint",
     "ForearmPronation",
+    "RibBreathing",
     "SkirtLegOffset",
     "PumpUp",
     "UiSlider",

@@ -94,6 +94,7 @@ class SetupSamples:
         ("ellipsoidCollision", "EllipsoidCollision - soft chest collider"),
         ("scapulaGlide", "ScapulaGlide - shoulder blade on ribcage"),
         ("forearmPronation", "ForearmPronation - radius around the ulna"),
+        ("ribBreathing", "RibBreathing - ribs and sternum from one breath value"),
         ("boxCollision", "BoxCollision - soft rounded table edge"),
         ("torusCollision", "TorusCollision - soft hoop collider"),
         ("spaceBlend", "SpaceBlend - world, chest and hand"),
@@ -1096,6 +1097,35 @@ class SetupSamples:
         setup = ForearmPronation.create(ulna, ulna_tip, radius, radius_tip, hand, name=name)
         _output(name + "_radiusOut", root, str(setup.container) + ".matrix", ((7.8, 0, 0.1), ))
         return setup, hand
+
+    @classmethod
+    def _ribBreathing(cls, name, root):
+        """胸椎(joint)の子に左右3段の肋骨(根元・中央・胸骨側の端)と胸骨。肋骨と胸骨の出力は緑。
+        ``breath`` の子のjointを ``translateY`` で上げ下げすると吸う・吐くになり、緑の肋骨が2つの軸で回って胸骨が付いて動く。
+        containerの ``effectiveBreath`` は制限後の呼吸の値、 ``minBreath`` ・ ``maxBreath`` を超えると ``excessBreath`` が増える。"""
+        from .setups import RibBreathing
+
+        spine = _joint(name + "_spine", root, translate=(0, 12, 0))
+        ribs = []
+        offsets = []
+        for level, height in enumerate((4.0, 1.0, -2.0)):
+            for side in (1, -1):
+                head = _joint("{}_rib{}".format(name, len(ribs)), spine, translate=(side, height, 0))
+                middle = (side * (5.0 + level), -1.5, 4.0)
+                tip = (side * 0.5, -3.5, 8.0)
+                ribs.append((head, _tip(head, "{}_rib{}Mid".format(name, len(ribs)), middle),
+                             _tip(head, "{}_rib{}Tip".format(name, len(ribs)), tip)))
+                offsets.append((middle, tip))
+        sternum = _joint(name + "_sternum", spine, translate=(0, -2, 8.5))
+        offset = _joint(name + "_breathOffset", root, translate=(-9, 14, 0))
+        control = _joint(name + "_breath", offset)
+        setup = RibBreathing.create(spine, ribs, name=name, sternum=sternum, pumpAngle=15.0, bucketAngle=15.0)
+        owner = str(setup.container)
+        _connect(control + ".translateY", owner + ".breath")
+        for index, tips in enumerate(offsets):
+            _output("{}_rib{}Out".format(name, index), root, "{}.ribMatrix[{}]".format(owner, index), tips)
+        _output(name + "_sternumOut", root, owner + ".sternumMatrix", ((0, -3, 0),))
+        return setup, control
 
     @classmethod
     def _scapulaGlide(cls, name, root):

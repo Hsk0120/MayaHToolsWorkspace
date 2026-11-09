@@ -74,6 +74,9 @@
    * - ForearmPronation - radius around the ulna
      - 手のjoint
      - ``rotateX`` で回すと、緑の橈骨が尺骨の周りを回る(回内・回外)。containerの ``pronation`` は回内の角度で、 ``pronationLimit`` ・ ``supinationLimit`` を超えると ``excessPronation`` が増え、緑は柔らかく止まる。
+   * - RibBreathing - ribs and sternum from one breath value
+     - ``breath`` のjoint
+     - ``translateY`` を上げると吸い、下げると吐く。緑の肋骨が2つの軸で回り、胸骨が付いて動く。containerの ``effectiveBreath`` は制限後の呼吸の値で、 ``minBreath`` ・ ``maxBreath`` を超えると ``excessBreath`` が増え、緑は柔らかく止まる。
    * - AckermannSteering - car front wheels
      - ハンドルのjoint
      - ``rotateZ`` で回すと(比 -1/8)、緑の左右の前輪がアッカーマンの幾何で内輪を外輪より大きく切る(十字の先が車輪の半径、短い先が車軸の向き)。containerの ``ackermann`` を0にすると左右が同じ角度になる。
