@@ -3,7 +3,6 @@
 
 """
 
-import json
 import math
 from collections.abc import Mapping
 from contextlib import contextmanager
@@ -506,55 +505,6 @@ class SkinCluster(GeometryFilter):
             RuntimeError: Plugが編集不可、またはMayaが設定を拒否した場合。
         """
         ...
-    def dumpWeights(self, path: str, *, positions: bool = ...) -> None:
-        """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
-
-        シーン間でのバックアップ・復元・転送を想定した単純な JSON 形式で書き出す。
-        influence の並びは getInfluences() と一致する。``positions=True`` は頂点の位置
-        (オブジェクト空間、cm)を ``"positions"`` に加え、頂点数が違うメッシュへも
-        :meth:`loadWeights` の ``method="position"`` で読み込めるようにする。
-
-        Args:
-            path (str): 書き出し先のファイルパス。
-            positions (bool): Trueは頂点の位置も書き出す。既定False(10.0.0までと同じ内容)。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: positionsがbool以外の場合。
-        """
-        ...
-    def loadWeights(self, path: str, *, method: str = ..., addMissing: bool = ..., fast: bool = ...) -> None:
-        """dumpWeights() が書き出した JSON ファイルからウェイトを読み込み設定する。
-
-        ``method="index"`` は頂点番号で対応させ、頂点数が現在の mesh と一致することを要求する。
-        ``method="position"`` は ``dumpWeights(positions=True)`` で書いた位置を使い、現在の各頂点に
-        最も近い記録の頂点(オブジェクト空間)のウェイトを写す。頂点数・番号が違うメッシュにも使える。
-        条件を満たさない場合はウェイトを変更せず例外を送出する。
-
-        Args:
-            path (str): 読み込むファイルパス。
-            method (str): ``"index"`` (既定)または ``"position"``。
-            addMissing (bool): Trueはファイルのinfluenceのうちこの skinCluster に無いものを、シーンに
-                あれば :meth:`addInfluences` で加えてから読み込む。既定Falseは拒否する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: addMissing・fastがbool以外の場合。
-            ValueError: methodが不正、index で頂点数が現在の mesh と一致しない、position でファイルに
-                位置が無い、またはファイルに記録された influence の一部がこの skinCluster
-                (addMissing=True ではシーン)に存在しない場合。
-
-        Note:
-            ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
-            完了済みの直接更新は自動で戻さない。addMissing で加えた influence の登録は、
-            ``fast=True`` でも通常の(Undo可能な)操作で行う。
-        """
-        ...
     def getWeightsData(self) -> dict:
         """全頂点のウェイトとスキニングの設定を、``mlib.skinWeights`` 形式の辞書で取得する。
 
@@ -897,17 +847,6 @@ class SkinCluster(GeometryFilter):
             TypeError: modeが文字列でない場合。
             ValueError: modeが上の名前のどれでもない場合。
             RuntimeError: アトリビュートがロック・入力接続されている場合。
-        """
-        ...
-    def _weights_by_position(self, payload: dict[str, Any], width: int) -> list[float]:
-        """現在の各頂点に最も近い記録の頂点の行を並べた、平坦なウェイトを返す。
-
-        Args:
-            payload (dict[str, Any]): :meth:`dumpWeights` の内容。``positions`` を持つ。
-            width (int): influenceの数。
-
-        Returns:
-            list[float]: 現在の頂点番号順・各頂点内はファイルのinfluence順の値。
         """
         ...
     def _prepare_weights_data(self, data: dict, mapping: NameMapping, method: str) -> tuple[dict, list[Node | None], ValidationReport]:

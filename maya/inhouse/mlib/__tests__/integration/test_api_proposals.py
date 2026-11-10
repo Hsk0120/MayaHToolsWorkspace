@@ -58,7 +58,7 @@ class ApiProposalTest(unittest.TestCase):
         self.assertFalse(transform.getVisibility())
 
     def test_influences_and_json_roundtrip(self):
-        """influenceはNodeを返すが保存ファイルの名前は文字列のまま。"""
+        """influenceはNodeを返し、保存ファイルの influence は名前(文字列)を持つ参照になる。"""
         cmds.select(clear=True)
         joint = cmds.joint()
         mesh = cmds.polyCube(constructionHistory=False)[0]
@@ -66,11 +66,11 @@ class ApiProposalTest(unittest.TestCase):
         self.assertTrue(all(isinstance(n, Node) for n in skin.getInfluences()))
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory)/'weights.json')
-            skin.dumpWeights(path)
-            payload = json.loads(Path(path).read_text())
-            self.assertTrue(all(isinstance(n,str) for n in payload['influences']))
+            skin.exportWeights(path)
+            payload = json.loads(Path(path).read_text(encoding="utf-8"))
+            self.assertTrue(all(isinstance(n["name"], str) for n in payload["data"]["influences"]))
             before = list(skin.getWeights(skin.getInfluences()))
-            skin.loadWeights(path)
+            skin.importWeights(path)
             self.assertEqual(list(skin.getWeights(skin.getInfluences())), before)
 
 

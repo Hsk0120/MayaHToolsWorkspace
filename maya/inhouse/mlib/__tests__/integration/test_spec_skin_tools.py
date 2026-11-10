@@ -7,10 +7,7 @@
 - Selection.getSoftSelection、mlib.bakeDeformer。
 """
 
-import json
 import math
-import os
-import tempfile
 import unittest
 
 import maya.cmds as cmds
@@ -213,64 +210,6 @@ class SkinRemoveInfluencesTest(_SkinCase):
         skin = self.skinned()
         skin.removeInfluences([self.root], transferToParent=False)
         self.assertEqual(len(skin.getInfluences()), 2)
-
-
-class SkinFileTest(_SkinCase):
-
-    def setUp(self):
-        super().setUp()
-        self.directory = tempfile.mkdtemp(prefix="mlibSkinTools")
-        self.path = os.path.join(self.directory, "weights.json")
-
-    def tearDown(self):
-        if os.path.exists(self.path):
-            os.remove(self.path)
-        os.rmdir(self.directory)
-        super().tearDown()
-
-    def test_positions_written_only_when_asked(self):
-        """positions=False は 10.0.0 と同じキー、True は頂点の位置を加える。"""
-        skin = self.skinned()
-        skin.dumpWeights(self.path)
-        with open(self.path, encoding="utf-8") as file:
-            self.assertEqual(sorted(json.load(file)), ["influences", "numVertices", "weights"])
-        skin.dumpWeights(self.path, positions=True)
-        with open(self.path, encoding="utf-8") as file:
-            payload = json.load(file)
-        self.assertEqual(len(payload["positions"]), payload["numVertices"])
-        self.assertRaises(TypeError, skin.dumpWeights, self.path, positions=1)
-
-    def test_load_by_position_to_other_topology(self):
-        """頂点数の違うメッシュへ、位置で読み込める。index では ValueError。"""
-        skin = self.skinned()
-        skin.setWeights([self.root, self.mid, self.tip], [1.0, 0.0, 0.0], vertices=list(range(10)), broadcast=True)
-        skin.dumpWeights(self.path, positions=True)
-        other = cmds.polyCylinder(name=self.name("dense"), height=4, subdivisionsHeight=16)[0]
-        dense = SkinCluster(cmds.skinCluster([self.root, self.mid, self.tip], other, toSelectedBones=True)[0])
-        self.assertRaises(ValueError, dense.loadWeights, self.path)
-        dense.loadWeights(self.path, method="position")
-        rows = dense.getWeights([self.root, self.mid, self.tip], rows=True)
-        source = skin.getWeights([self.root, self.mid, self.tip], rows=True)
-        points = mlib.getNode(other).getShape().getPoints()
-        closest = mlib.getNode(self.mesh).getShape().getClosestVertices(points)
-        for row, index in zip(rows, closest):
-            for value, expected in zip(row, source[index]):
-                self.assertAlmostEqual(value, expected, places=5)
-
-    def test_load_errors_and_add_missing(self):
-        """位置の無いファイルの position、未登録の influence は ValueError。addMissing で追加できる。"""
-        skin = self.skinned()
-        skin.dumpWeights(self.path)
-        self.assertRaises(ValueError, skin.loadWeights, self.path, method="position")
-        self.assertRaises(ValueError, skin.loadWeights, self.path, method="nearest")
-        cmds.select(clear=True)
-        extra = cmds.joint(name=self.name("extra"), position=(1, 0, 0))
-        mesh = cmds.polyCylinder(name=self.name("geo2"), height=4, subdivisionsHeight=8)[0]
-        other = SkinCluster(cmds.skinCluster([self.root, extra], mesh, toSelectedBones=True)[0])
-        self.assertRaises(ValueError, other.loadWeights, self.path)
-        other.loadWeights(self.path, addMissing=True)
-        self.assertEqual(len(other.getInfluences()), 4)
-        self.assertEqual(self.raw(other), self.raw(skin))
 
 
 class SkinSettingsTest(_SkinCase):

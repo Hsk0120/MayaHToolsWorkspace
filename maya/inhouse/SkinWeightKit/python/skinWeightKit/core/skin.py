@@ -137,7 +137,7 @@ def copySkin(source, meshes):
 
 
 def exportWeights(target, path):
-    """ウェイトを JSON へ書き出す。
+    """ウェイトを mlib の ``mlib.skinWeights`` 形式の JSON へ書き出す。
 
     Args:
         target (Target): 対象。
@@ -146,12 +146,14 @@ def exportWeights(target, path):
     Returns:
         None: 値を返さない。
     """
-    target.requireSkin().dumpWeights(path)
+    target.requireSkin().exportWeights(path)
 
 
 @undoChunk("skinWeightKitImport")
 def importWeights(target, path):
-    """JSON のウェイトを読み込む(頂点数とインフルエンスの名前が一致すること)。
+    """``mlib.skinWeights`` 形式の JSON のウェイトを読み込む(頂点数が一致すること)。
+
+    シーンにあるがスキンに無いインフルエンスは足し、シーンに無いインフルエンスは飛ばして警告する。
 
     Args:
         target (Target): 対象。
@@ -160,7 +162,7 @@ def importWeights(target, path):
     Returns:
         None: 値を返さない。
     """
-    target.requireSkin().loadWeights(path)
+    target.requireSkin().importWeights(path)
 
 
 @undoChunk("skinWeightKitRemoveUnused")

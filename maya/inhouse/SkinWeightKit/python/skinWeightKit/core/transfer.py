@@ -6,7 +6,7 @@
      "influences": ["root", "spine"], "positions": [[x, y, z], ...],
      "weights": [[[列, 値], ...], ...]}
 
-位置はオブジェクト空間(cm)。mlib の ``SkinCluster.dumpWeights`` の JSON(位置なし)も、番号での読込みに使える。
+位置はオブジェクト空間(cm)。mlib の ``SkinCluster.exportWeights`` の JSON(``mlib.skinWeights`` 形式)も読める。
 読込みは、頂点を選んでいればその頂点だけに書く。インフルエンスは名前(名前空間を除いた短い名前)で対応させる。
 """
 
@@ -64,7 +64,7 @@ def readFile(path):
     """書き出したファイルを読み、共通の形にする。
 
     Args:
-        path (str): 読み込むファイル(この形式か、mlib の ``dumpWeights`` の形式)。
+        path (str): 読み込むファイル(この形式か、mlib の ``mlib.skinWeights`` 形式)。
 
     Returns:
         dict: ``influences``(list[str])・``rows``(list[dict[int, float]])・``positions``(list | None)。
@@ -77,12 +77,12 @@ def readFile(path):
     if data.get("format") == FORMAT:
         return {"influences": data["influences"], "positions": data.get("positions"),
                 "rows": [{int(column): float(value) for column, value in row} for row in data["weights"]]}
-    if "influences" in data and "numVertices" in data and "weights" in data:
-        width = len(data["influences"])
-        flat = data["weights"]
-        rows = [{column: float(flat[vertex * width + column]) for column in range(width)
-                 if flat[vertex * width + column] > 0.0} for vertex in range(int(data["numVertices"]))]
-        return {"influences": data["influences"], "positions": None, "rows": rows}
+    if isinstance(data.get("header"), dict) and data["header"].get("format") == "mlib.skinWeights":
+        body = data["data"]
+        rows = [{int(column): float(value) for column, value in zip(columns, values)}
+                for columns, values in zip(body["weights"]["indices"], body["weights"]["values"])]
+        return {"influences": [reference["name"] for reference in body["influences"]],
+                "positions": body.get("positions"), "rows": rows}
     raise ValueError("Unknown weight file format: {}".format(path))
 
 

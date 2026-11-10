@@ -677,13 +677,20 @@ class TransferTest(_Case):
         transfer.importWeights(target.require(), path, "index", addMissing=True)
         self.assertIn(extra, cmds.skinCluster(other_skin, query=True, influence=True))
 
-    def test_reads_mlib_dump_format(self):
+    def test_reads_mlib_skin_weights_format(self):
         cmds.select(self.geo)
         path = os.path.join(tempfile.mkdtemp(), "mlib.json")
         skin.exportWeights(target.require(), path)
         data = transfer.readFile(path)
-        self.assertIsNone(data["positions"])
-        self.assertEqual(len(data["rows"]), cmds.polyEvaluate(self.geo, vertex=True))
+        count = cmds.polyEvaluate(self.geo, vertex=True)
+        self.assertEqual(len(data["positions"]), count)
+        self.assertEqual(len(data["rows"]), count)
+        self.assertEqual(sorted(data["influences"]), sorted(self.joints))
+        before = _weights(self.skin, 20)
+        weights.setValue(self.select_vertices(20), self.joints[2], 1.0)
+        transfer.importWeights(self.select_vertices(20), path, "position")
+        for name, value in before.items():
+            self.assertAlmostEqual(_weights(self.skin, 20)[name], value, places=5)
 
 
 class LoopRingTest(_Case):

@@ -95,7 +95,6 @@ EXCLUDED = {
     "Nodes.copy": "Python のコレクションの複製で、シーンを変更しない。",
     "util.mirrorArguments": "ミラー用の引数を計算するだけで、シーンを変更しない。",
     "Version.replace": "版番号の値を作り直すだけで、シーンを変更しない。",
-    "SkinCluster.importWeights": "ファイルを読んで setWeightsData を呼ぶだけ(ファイル I/O)。書込みは SkinCluster.setWeightsData のケースで確認する。",
     "BlendShape.resetTargetVertices": "デルタ(pointArray・componentList)はスナップショットの対象外。Undo 1 回と fast は test_spec_blendshape_targets で確認する。",
     "BlendShape.reduceTargetDeltas": "デルタ(pointArray・componentList)はスナップショットの対象外。Undo 1 回と fast は test_spec_blendshape_targets で確認する。",
     "Time.setCurrent": "現在時刻の変更。Maya の currentTime は Undo キューへ記録しない。",
@@ -738,7 +737,7 @@ def s_skin_saved(c):
     """ウェイトをファイルへ書き出してから頂点 0 のウェイトを書き換えたスキンを作る。"""
     s_skin(c)
     c.path = str(c.tmp / (c.ns.replace(":", "_") + "_weights.json"))
-    c.skin.dumpWeights(c.path)
+    c.skin.exportWeights(c.path)
     cmds.setAttr(c.skinName + ".weightList[0].weights[0]", 0.2)
     cmds.setAttr(c.skinName + ".weightList[0].weights[1]", 0.8)
 
@@ -1455,8 +1454,8 @@ CASES = [
       lambda c, **kw: c.skin.pruneWeights(0.2, **kw)),
     C("SkinCluster.copyWeightsTo", "SkinCluster.copyWeightsTo unbound mesh", s_skin_copy_unbound,
       lambda c, **kw: c.skin.copyWeightsTo(c.mesh2)),
-    C("SkinCluster.loadWeights", "SkinCluster.loadWeights", s_skin_saved,
-      lambda c, **kw: c.skin.loadWeights(c.path, **kw)),
+    C("SkinCluster.importWeights", "SkinCluster.importWeights", s_skin_saved,
+      lambda c, **kw: c.skin.importWeights(c.path, **kw)),
     C("SkinCluster.redistributeWeights", "SkinCluster.redistributeWeights", s_skin,
       lambda c, **kw: c.skin.redistributeWeights([0, 1, 2, 3, 4, 5], **kw)),
     C("SkinCluster.transferWeights", "SkinCluster.transferWeights", s_skin,

@@ -159,6 +159,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-11): mlib 12.0.0。ユーザー指示で旧形式の `SkinCluster.dumpWeights`/`loadWeights`(と専用の内部関数)を削除し、利用側のSkinWeightKitを `exportWeights`/`importWeights` へ移行(`transfer.readFile` は旧形式の代わりに `mlib.skinWeights` 形式を読む)。旧メソッドのテストは新APIへ置換・削除、changelogに移行表。SkinWeightKitテスト87件(2027/2022)・静的162件・Sphinx/文書検査が通過。
+
 - Claude Code (2026-11-11): mlib 11.1.0。ユーザーと質問形式で設計した `mlib.json`(codec・file・NodeRef/PlugRef/ComponentRef・NameMapping・Snapshot基底とValidationReport、Pose/Animation(アニメレイヤー含む)/Attributes/DrivenKeys/SelectionSnapshot)を追加し、SkinCluster(export/importWeights・bindSkin(weights=))・Transform(export/importCurveShapes)・BlendShape(export/importTargets)へ保存・復元を直接実装。3.0.0で外したBlendShapeのターゲット操作(ミラー・フリップ・インビトゥイーン・頂点マスク・デルタ・複製・差し替え・編集モード)を戻した。CLAUDE.md/AGENTS.md/copilot-instructionsの実行フォルダへjsonを追加し保存禁止ルールを変更、設計書docs/mlib-json-design.md、mlib-api-design.mdに「JSON保存・復元」節、changelog・スタブ(os/pathlibの型に対応)・Sphinx目次を更新。Maya 2022/2026/2027の全テスト・静的162件・mlrig等843件(2027)・Sphinx(334ページ)・文書検査が通過。ngSkinTools2のレイヤーは2022で確認(2027は未導入でskip)。GUIでの表示・Shape Editorの見た目は未確認。未コミット。
 
 - Claude Code (2026-11-11): mlrig夜間で、入れ子の筒が伸びる多段シリンダー TelescopicCylinder(setups/telescopicCylinder.py)を追加。全体の伸び E = D - closedLength を clamp(E, 0, Σs) に止め、外側の段から順(sequence=1)・行程の比で均等(sequence=0)・その補間で各段へ分ける。matrix[](バレル+各段)・tipMatrix・stageExtension[]・length・extension・overExtension・bendAngleを出力。向きは R × Q(u→v)。標準ノードのみ。テスト9件、Setup Samples 1項目、文書 telescopic_cylinder.rst、検証デモ tools/demo_telescopic_cylinder.py。隔離Maya 2027で setups 702件・standard 76件OK、Sphinx -W 成功、検証動画344フレームの判定OK。コミット・プッシュ(このコミット)。

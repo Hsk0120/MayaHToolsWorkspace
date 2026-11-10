@@ -4,6 +4,25 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+12.0.0 (2026-11-11)
+-------------------
+
+11.1.0 で追加した ``exportWeights``\ ・\ ``importWeights`` と役割が重なる、旧形式のスキンウェイトの保存・読込みを削除しました。
+別名は残しません。旧形式で書き出したファイルは読めないため、必要なら 11.1.0 以前の mlib で読み込んでから書き出し直してください。
+
+.. rubric:: 削除
+
+.. list-table::
+   :header-rows: 1
+
+   * - 削除したもの
+     - 代わりの書き方
+   * - ``SkinCluster.dumpWeights(path, *, positions=False)``
+     - ``SkinCluster.exportWeights(path)``\ (頂点の位置は常に書く)
+   * - ``SkinCluster.loadWeights(path, *, method="index", addMissing=False, fast=False)``
+     - ``SkinCluster.importWeights(path, *, method="index", fast=False)``\ 。シーンにあってスキンに無いインフルエンスは
+       常に足す(旧 ``addMissing=True`` と同じ)。シーンに無いインフルエンスはエラーではなく、飛ばして警告する
+
 11.1.0 (2026-11-11)
 -------------------
 

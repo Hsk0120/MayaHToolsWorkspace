@@ -164,8 +164,8 @@ class SkinClustersBatchTest(unittest.TestCase):
         self.assertEqual(cmds.listRelatives(self.leaf, parent=True), [self.mid])
 
 
-class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
-    """dumpWeights/loadWeights によるウェイトのバックアップ・復元を検証する。"""
+class SkinClusterExportImportWeightsTest(unittest.TestCase):
+    """exportWeights/importWeights によるウェイトのバックアップ・復元と、setWeights の Undo を検証する。"""
 
     def setUp(self):
         self.root = cmds.createNode("joint", name="mlibSkinDumpRoot")
@@ -186,15 +186,15 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
             os.remove(self.path)
         cmds.select(clear=True)
 
-    def test_dump_then_load_round_trips_weights(self):
+    def test_export_then_import_round_trips_weights(self):
         self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
         original_weights = list(self.skin.getWeights([self.root, self.child]))
 
-        self.skin.dumpWeights(self.path)
+        self.skin.exportWeights(self.path)
         self.skin.setWeights([self.root, self.child], [1.0, 0.0], broadcast=True)
         self.assertNotEqual(list(self.skin.getWeights([self.root, self.child])), original_weights)
 
-        self.skin.loadWeights(self.path)
+        self.skin.importWeights(self.path)
         self.assertEqual(list(self.skin.getWeights([self.root, self.child])), original_weights)
         cmds.undo()
         self.assertEqual(list(self.skin.getWeights([self.root, self.child])), [1.0, 0.0] * 8)
@@ -246,19 +246,25 @@ class SkinClusterDumpLoadWeightsTest(unittest.TestCase):
                 self.skin.setWeights(joints, values, broadcast=True)
             self.assertEqual(list(self.skin.getWeights(joints)), before)
 
-    def test_load_raises_when_influence_missing(self):
-        self.skin.dumpWeights(self.path)
+    def test_import_adds_removed_influence_back(self):
+        self.skin.setWeights([self.root, self.child], [0.75, 0.25], broadcast=True)
+        self.skin.exportWeights(self.path)
         cmds.skinCluster(self.skin.getName(), edit=True, removeInfluence=self.child)
 
-        with self.assertRaises(ValueError):
-            self.skin.loadWeights(self.path)
+        self.skin.importWeights(self.path)
+        self.assertTrue(self.skin.hasInfluence(self.child))
+        self.assertEqual(list(self.skin.getWeights([self.root, self.child])), [0.75, 0.25] * 8)
 
-    def test_load_raises_when_vertex_count_mismatch(self):
-        self.skin.dumpWeights(self.path)
+    def test_import_raises_when_vertex_count_mismatch(self):
+        self.skin.exportWeights(self.path)
         cmds.polyExtrudeFacet(self.mesh_transform + ".f[0]")
 
         with self.assertRaises(ValueError):
-            self.skin.loadWeights(self.path)
+            self.skin.importWeights(self.path)
+
+    def test_old_format_methods_are_removed(self):
+        self.assertFalse(hasattr(SkinCluster, "dumpWeights"))
+        self.assertFalse(hasattr(SkinCluster, "loadWeights"))
 
 
 class SkinClusterRedistributeWeightsTest(unittest.TestCase):

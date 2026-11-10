@@ -2,7 +2,6 @@
 
 """
 
-import json
 import math
 from collections.abc import Mapping
 from contextlib import contextmanager
@@ -727,95 +726,6 @@ class SkinCluster(GeometryFilter):
                             normalize=normalize, fast=fast)
             return self
 
-    def dumpWeights(self, path, *, positions=False):
-        """全 influence の頂点ウェイトを JSON ファイルへ書き出す。
-
-        シーン間でのバックアップ・復元・転送を想定した単純な JSON 形式で書き出す。
-        influence の並びは getInfluences() と一致する。``positions=True`` は頂点の位置
-        (オブジェクト空間、cm)を ``"positions"`` に加え、頂点数が違うメッシュへも
-        :meth:`loadWeights` の ``method="position"`` で読み込めるようにする。
-
-        Args:
-            path (str): 書き出し先のファイルパス。
-            positions (bool): Trueは頂点の位置も書き出す。既定False(10.0.0までと同じ内容)。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: positionsがbool以外の場合。
-        """
-        _require_bool(positions, "positions")
-        influences = [node.getName() for node in self.getInfluences()]
-        _, num_vertices = self._all_vertices()
-        payload = {
-            "influences": influences,
-            "numVertices": num_vertices,
-            "weights": list(self.getWeights(influences)),
-        }
-        if positions:
-            points = om2.MFnMesh(self.mesh_path).getPoints(om2.MSpace.kObject)
-            payload["positions"] = [[point.x, point.y, point.z] for point in points]
-        with open(path, "w", encoding="utf-8") as file:
-            json.dump(payload, file)
-
-    def loadWeights(self, path, *, method="index", addMissing=False, fast=False):
-        """dumpWeights() が書き出した JSON ファイルからウェイトを読み込み設定する。
-
-        ``method="index"`` は頂点番号で対応させ、頂点数が現在の mesh と一致することを要求する。
-        ``method="position"`` は ``dumpWeights(positions=True)`` で書いた位置を使い、現在の各頂点に
-        最も近い記録の頂点(オブジェクト空間)のウェイトを写す。頂点数・番号が違うメッシュにも使える。
-        条件を満たさない場合はウェイトを変更せず例外を送出する。
-
-        Args:
-            path (str): 読み込むファイルパス。
-            method (str): ``"index"`` (既定)または ``"position"``。
-            addMissing (bool): Trueはファイルのinfluenceのうちこの skinCluster に無いものを、シーンに
-                あれば :meth:`addInfluences` で加えてから読み込む。既定Falseは拒否する。
-            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            TypeError: addMissing・fastがbool以外の場合。
-            ValueError: methodが不正、index で頂点数が現在の mesh と一致しない、position でファイルに
-                位置が無い、またはファイルに記録された influence の一部がこの skinCluster
-                (addMissing=True ではシーン)に存在しない場合。
-
-        Note:
-            ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
-            完了済みの直接更新は自動で戻さない。addMissing で加えた influence の登録は、
-            ``fast=True`` でも通常の(Undo可能な)操作で行う。
-        """
-        with _edit_context("mlibSkinClusterLoadWeights", fast):
-            self._require_choice(method, "method", ("index", "position"))
-            _require_bool(addMissing, "addMissing")
-            with open(path, "r", encoding="utf-8") as file:
-                payload = json.load(file)
-            _, num_vertices = self._all_vertices()
-            if method == "index" and payload["numVertices"] != num_vertices:
-                raise ValueError(
-                    f"Stored vertex count ({payload['numVertices']}) does not match "
-                    f"the current mesh vertex count ({num_vertices})"
-                )
-            if method == "position" and not payload.get("positions"):
-                raise ValueError("The file has no vertex positions; write it with dumpWeights(positions=True)")
-            influences = payload["influences"]
-            current_influences = {node.getName() for node in self.getInfluences()}
-            missing = [name for name in influences if name not in current_influences]
-            if missing and addMissing:
-                absent = [name for name in missing if not cmds.objExists(name)]
-                if absent:
-                    raise ValueError(f"Influences missing from the scene: {absent}")
-                self.addInfluences(missing)
-            elif missing:
-                raise ValueError(f"Influences missing from this skinCluster: {missing}")
-            values = payload["weights"]
-            if method == "position":
-                values = self._weights_by_position(payload, len(influences))
-            self.setWeights(influences, values, fast=fast)
-
     def getWeightsData(self):
         """全頂点のウェイトとスキニングの設定を、``mlib.skinWeights`` 形式の辞書で取得する。
 
@@ -1345,24 +1255,6 @@ class SkinCluster(GeometryFilter):
             self._require_choice(mode, "mode", self._NORMALIZE_MODES)
             self.getPlug("normalizeWeights").set(self._NORMALIZE_MODES.index(mode))
             return self
-
-    def _weights_by_position(self, payload, width):
-        """現在の各頂点に最も近い記録の頂点の行を並べた、平坦なウェイトを返す。
-
-        Args:
-            payload (dict[str, Any]): :meth:`dumpWeights` の内容。``positions`` を持つ。
-            width (int): influenceの数。
-
-        Returns:
-            list[float]: 現在の頂点番号順・各頂点内はファイルのinfluence順の値。
-        """
-        grid = _PointGrid(payload["positions"])
-        stored = payload["weights"]
-        values = []
-        for point in om2.MFnMesh(self.mesh_path).getPoints(om2.MSpace.kObject):
-            index, _ = grid.nearest((point.x, point.y, point.z))
-            values.extend(stored[index * width:(index + 1) * width])
-        return values
 
     def _prepare_weights_data(self, data, mapping, method):
         """:meth:`setWeightsData` の検査を行い、適用に使う値を返す。シーンは変更しない。

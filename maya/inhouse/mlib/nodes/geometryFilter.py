@@ -81,8 +81,7 @@ class GeometryFilter(Node):
     def dumpDeformerWeights(self, path, geometryIndex=None):
         """頂点ごとのデフォーマーのウェイトを JSON ファイルへ書き出す。
 
-        :meth:`SkinCluster.dumpWeights <mlib.nodes.skinCluster.SkinCluster.dumpWeights>` と同じく単純な JSON
-        (UTF-8)で、``version``(形式の版、現在1)・``deformer``(ノード名)・``geometries``(形状ごとの
+        単純な JSON(UTF-8)で、``version``(形式の版、現在1)・``deformer``(ノード名)・``geometries``(形状ごとの
         ``index``・``numVertices``・``weights``)を書く。値の無い頂点は :meth:`getDeformerWeights` と同じく1.0で書く。
 
         Args:

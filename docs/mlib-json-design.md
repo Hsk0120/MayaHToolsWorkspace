@@ -203,7 +203,7 @@ CLAUDE.md の次の2か所を変更する。
   キーの無いカーブは保存しない。ドリブンキーの置き換えはドライバーと駆動先の組の単位。
 - スキンウェイト: 位置での対応付けは skinCluster に入る前の形状(`input[i].inputGeometry`)で比べる。見つからないインフルエンスの
   ウェイトは除き、残りを頂点ごとの元の合計へ比率を保って拡大する。`mlib.bindSkin(weights=...)` は `maximumInfluences` の既定を
-  None(ファイルの値、無ければ4)にした。旧来の `dumpWeights` / `loadWeights` は残している。
+  None(ファイルの値、無ければ4)にした。旧来の `dumpWeights` / `loadWeights` は 12.0.0 で削除した。
 - カーブ形状: Shape は保存した短い名前に読み込み先 Transform の名前空間を付けて作る。形状は MEL の
   `setAttr ".cached" -type nurbsCurve` で設定する(Python の cmds.setAttr では渡せず、cmds.curve は closed を作れないため)。
 - BlendShape: `mirrorTarget` の向きは `positiveToNegative=True`(`SkinCluster.mirrorWeights` に合わせた)。接続中のターゲットへの
