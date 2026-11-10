@@ -44,6 +44,9 @@
    * - Piston - cylinder and rod
      - アームのtransform
      - 回すと、シリンダーとロッド(緑)が互いを向く。containerの ``overStroke`` で範囲外を確認する。
+   * - TelescopicCylinder - three-stage dump cylinder
+     - 先端のlocator
+     - 持ち上げると、緑のバレルと3つの段が先端を向き、外側の段から順に伸びる。containerの ``sequence`` を0にすると全段が均等に伸びる。行程の合計を超えると ``overExtension`` が増え、緑の ``tipOut`` が先端に届かなくなる。
    * - CoilSpring - suspension spring
      - 上のlocator
      - ``translateY`` を下げると、巻き(緑の点)の半径を保ったまま間隔だけが縮む。巻き同士が接する長さ(密着長、5巻×0.3cm=1.5cm)より下げると、ばねはそこで止まり、containerの ``coilBind`` に押し込んだ量が出る。

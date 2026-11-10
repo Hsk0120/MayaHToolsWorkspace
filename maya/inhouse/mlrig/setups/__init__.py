@@ -46,6 +46,7 @@ from .metaSpread import MetaSpread
 from .muscleBulge import MuscleBulge
 from .noFlipPole import NoFlipPole
 from .piston import Piston
+from .telescopicCylinder import TelescopicCylinder
 from .coilSpring import CoilSpring
 from .planarIK import PlanarIK
 from .planeCollision import PlaneCollision
@@ -135,6 +136,7 @@ __all__ = [
     "MuscleBulge",
     "NoFlipPole",
     "Piston",
+    "TelescopicCylinder",
     "CoilSpring",
     "PlanarIK",
     "PlaneCollision",

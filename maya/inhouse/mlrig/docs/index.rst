@@ -44,6 +44,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    eyelid_follow
    jaw_hinge
    piston
+   telescopic_cylinder
    coil_spring
    wave_chain
    wave_float

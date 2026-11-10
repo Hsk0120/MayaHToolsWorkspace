@@ -159,6 +159,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-11): mlrig夜間で、入れ子の筒が伸びる多段シリンダー TelescopicCylinder(setups/telescopicCylinder.py)を追加。全体の伸び E = D - closedLength を clamp(E, 0, Σs) に止め、外側の段から順(sequence=1)・行程の比で均等(sequence=0)・その補間で各段へ分ける。matrix[](バレル+各段)・tipMatrix・stageExtension[]・length・extension・overExtension・bendAngleを出力。向きは R × Q(u→v)。標準ノードのみ。テスト9件、Setup Samples 1項目、文書 telescopic_cylinder.rst、検証デモ tools/demo_telescopic_cylinder.py。隔離Maya 2027で setups 702件・standard 76件OK、Sphinx -W 成功、検証動画344フレームの判定OK。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-11-10): mlib 10.6.0の追補。influence解除を一括化(親子の連鎖を最終の移送先へ1回で書き込み、0にした列の登録をまとめて解除)し、ngSkinTools2のレイヤーへ対応(`core/ngSkinLayers.py`)。実物のngSkinTools2 2.4.0でMaya2022/2026を確認、2027は同梱プラグインが無く未確認。未コミット。
 
 - Claude Code (2026-11-10): mlib 10.6.0の追補。influence解除の全入口でウェイトのロックを一時解除して戻し、スキニングレイヤーでは拒否しない(レイヤーのデータは更新しない。実物のngSkinToolsでは未確認)。`Joint(s).delete`にfastを実装。未コミット。

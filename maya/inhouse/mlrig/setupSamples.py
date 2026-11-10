@@ -53,6 +53,7 @@ class SetupSamples:
         ("eyelidFollow", "EyelidFollow - eye and lids"),
         ("jawHinge", "JawHinge - jaw"),
         ("piston", "Piston - cylinder and rod"),
+        ("telescopicCylinder", "TelescopicCylinder - three-stage dump cylinder"),
         ("coilSpring", "CoilSpring - suspension spring"),
         ("bowString", "BowString - bow and nock"),
         ("waveChain", "WaveChain - tail wave"),
@@ -325,6 +326,26 @@ class SetupSamples:
         _output(name + "_cylinderOut", frame, str(setup.container) + ".baseMatrix", ((5, 0, 0),))
         _output(name + "_rodOut", arm, str(setup.container) + ".tipMatrix", ((4, 0, 0),))
         return setup, arm
+
+    @classmethod
+    def _telescopicCylinder(cls, name, root):
+        """斜めに立つ3段のシリンダー。取り付け(joint)から先端(locator)へ、バレルと各段(緑)が向く。
+        先端を持ち上げると、外側の段から順に伸びる。containerの ``sequence`` を0にすると全段が均等に伸び、
+        行程の合計を超えると ``overExtension`` が増えて先端(緑の ``tipOut``)が届かなくなる。"""
+        from .setups import TelescopicCylinder
+
+        heading = math.radians(60.0)
+        base = _joint(name + "_base", root, translate=(0, 1, 0), rotate=(0, 0, 60))
+        _tip(base, name + "_baseTip", (6, 0, 0))
+        tip = _locator(name + "_tip", root, translate=(6 * math.cos(heading), 1 + 6 * math.sin(heading), 0))
+        setup = TelescopicCylinder.create(base, tip, name=name, stages=3, axis="x", stroke=5.0)
+        owner = str(setup.container)
+        _output(name + "_barrelOut", root, owner + ".matrix[0]", ((6, 0, 0),))
+        for index in range(1, 4):
+            _output("{}_stage{}Out".format(name, index), root, "{}.matrix[{}]".format(owner, index),
+                    ((6 - index * 0.5, 0, 0),))
+        _output(name + "_tipOut", root, owner + ".tipMatrix")
+        return setup, tip
 
     @classmethod
     def _coilSpring(cls, name, root):
