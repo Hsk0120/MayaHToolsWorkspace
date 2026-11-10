@@ -45,7 +45,7 @@ class JointStandardDeleteTest(unittest.TestCase):
         self.assertFalse(sentinel.isValid())
 
     def test_skin_deletion_uses_native_redistribution(self):
-        """祖先への独自移送を行わず、ネイティブ削除と同じウェイトになる。"""
+        """removeInfluence=Falseは祖先へ移送せず、ネイティブ削除と同じウェイトになる。"""
         for fast in (False, True):
             cmds.file(new=True, force=True)
             root = mlib.createNode("joint")
@@ -58,7 +58,7 @@ class JointStandardDeleteTest(unittest.TestCase):
             cmds.delete(middle.getFullName())
             expected = list(skin.getWeights([root, other]))
             cmds.undo()
-            middle.delete(fast=fast)
+            middle.delete(fast=fast, removeInfluence=False)
             self.assertEqual(list(skin.getWeights([root, other])), expected)
 
     def test_safe_preserves_connected_joint_and_descendants(self):

@@ -70,7 +70,7 @@ class JointHierarchy:
                         else:
                             child.setParent(parent)
                     stage = "delete joint"
-                    joint.delete(fast=fast)
+                    joint.delete(fast=fast, removeInfluence=False)
                 except Exception as exc:
                     raise RuntimeError(f"Failed to {stage} for {name}: {exc}") from exc
 

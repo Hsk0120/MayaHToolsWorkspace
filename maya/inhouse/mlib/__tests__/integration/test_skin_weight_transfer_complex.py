@@ -418,17 +418,17 @@ class ChainTransferTest(_SkinTransferCase):
         self.assertWeights(_snapshot(skin), before, "transaction rollback")
         self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
 
-    def test_rejections_leave_weights_unchanged(self):
-        """移送で使うskinClusterのロック・レイヤー・最後のinfluenceを、変更前に拒否する。"""
+    def test_locks_and_layers_do_not_change_the_transfer(self):
+        """ウェイトのロックとレイヤーがあっても同じ移送になり、ロックは元へ戻る。"""
         for locked in ("d", "e", "side"):
             with self.subTest(locked=locked):
                 cmds.file(new=True, force=True)
                 j, skin = self.setup_chain(seed=13)
                 cmds.setAttr(j[locked] + ".lockInfluenceWeights", True)
                 before = _snapshot(skin)
-                with self.assertRaises(RuntimeError):
-                    mlib.getNode(skin).removeInfluence(j["e"])
-                self.assertWeights(_snapshot(skin), before)
+                mlib.getNode(skin).removeInfluence(j["e"])
+                self.assertWeights(_snapshot(skin), _expected_removal(before, [j["e"]], 1))
+                self.assertTrue(cmds.getAttr(j[locked] + ".lockInfluenceWeights"))
         with self.subTest(case="layer"):
             cmds.file(new=True, force=True)
             j, skin = self.setup_chain(seed=13)
@@ -436,9 +436,11 @@ class ChainTransferTest(_SkinTransferCase):
             cmds.addAttr(skin, longName="layerLink", attributeType="message")
             cmds.connectAttr(layer + ".message", skin + ".layerLink")
             before = _snapshot(skin)
-            with self.assertRaises(RuntimeError):
-                mlib.Joint(j["e"]).removeInfluence()
-            self.assertWeights(_snapshot(skin), before)
+            mlib.Joint(j["e"]).removeInfluence()
+            self.assertWeights(_snapshot(skin), _expected_removal(before, [j["e"]], 1))
+
+    def test_last_influence_is_rejected(self):
+        """最後のinfluenceは変更前に拒否する。"""
         with self.subTest(case="last"):
             cmds.file(new=True, force=True)
             j = self.chain()
@@ -446,6 +448,117 @@ class ChainTransferTest(_SkinTransferCase):
             with self.assertRaises(ValueError):
                 mlib.Joint(j["e"]).removeInfluence()
             self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
+
+    def _set_vertex_column(self, skin, vertex, joint, value):
+        """1頂点の1列へ、正規化せずに値を書く(準備用)。"""
+        cmds.setAttr(self._weight_plug(skin, vertex, joint), value)
+
+    @staticmethod
+    def _weight_plug(skin, vertex, joint):
+        """1頂点の1列のアトリビュート名を返す。"""
+        selection = om2.MSelectionList()
+        selection.add(joint)
+        index = _skin_fn(skin).indexForInfluenceObject(selection.getDagPath(0))
+        return "{}.weightList[{}].weights[{}]".format(skin, vertex, index)
+
+    def test_only_written_elements_are_checked(self):
+        """移送で書き込まない要素のロック・入力接続では拒否せず、書き込む要素では何も変えない。"""
+        for case in ("lock", "connect"):
+            with self.subTest(case=case, element="unrelated column"):
+                j, skin = self.setup_chain(seed=13)
+                self._set_vertex_column(skin, 0, j["e"], 0.25)
+                self._block(self._weight_plug(skin, 0, j["side"]), case)
+                before = _snapshot(skin)
+                mlib.getNode(skin).removeInfluence(j["e"])
+                expected = _expected_removal(before, [j["e"]], 1)
+                self.assertWeights(_snapshot(skin), expected)
+            with self.subTest(case=case, element="vertex without source weight"):
+                cmds.file(new=True, force=True)
+                j, skin = self.setup_chain(seed=13)
+                self._set_vertex_column(skin, 0, j["e"], 0.0)
+                self._block(self._weight_plug(skin, 0, j["d"]), case)
+                before = _snapshot(skin)
+                mlib.getNode(skin).removeInfluence(j["e"])
+                self.assertWeights(_snapshot(skin), _expected_removal(before, [j["e"]], 1))
+            for name in ("e", "d"):
+                with self.subTest(case=case, element=name):
+                    cmds.file(new=True, force=True)
+                    j, skin = self.setup_chain(seed=13)
+                    self._set_vertex_column(skin, 0, j["e"], 0.25)
+                    self._block(self._weight_plug(skin, 0, j[name]), case)
+                    before = _snapshot(skin)
+                    with self.assertRaises(RuntimeError):
+                        mlib.getNode(skin).removeInfluence(j["e"])
+                    self.assertWeights(_snapshot(skin), before)
+                    self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
+            cmds.file(new=True, force=True)
+
+    @staticmethod
+    def _block(plug, case):
+        """アトリビュートをロックするか、入力接続を付ける。"""
+        if case == "lock":
+            cmds.setAttr(plug, lock=True)
+        else:
+            # 接続で値が変わると移送の対象頂点も変わるため、今の値を入力へ入れておく。
+            driver = cmds.createNode("addDoubleLinear")
+            cmds.setAttr(driver + ".input1", cmds.getAttr(plug))
+            cmds.connectAttr(driver + ".output", plug)
+
+    def test_parent_child_removal_checks_columns_written_through_the_chain(self):
+        """親子の同時解除は、子のウェイトだけがある頂点で親の親が編集不可でも、変更前に拒否する。"""
+        j, skin = self.setup_chain(seed=13)
+        self._set_vertex_column(skin, 0, j["e"], 0.25)
+        self._set_vertex_column(skin, 0, j["d"], 0.0)
+        self._block(self._weight_plug(skin, 0, j["b"]), "lock")
+        before = _snapshot(skin)
+        with self.assertRaises(RuntimeError):
+            mlib.getNode(skin).removeInfluences([j["e"], j["d"]])
+        self.assertWeights(_snapshot(skin), before)
+        self.assertTrue(mlib.getNode(skin).hasInfluence(j["e"]))
+
+    def test_vertices_without_source_weight_are_not_written(self):
+        """移送元にウェイトがない頂点は書き込まず、値も要素も増やさない。"""
+        j, skin = self.setup_chain(seed=13)
+        wrapper = mlib.getNode(skin)
+        names = [j["e"], j["d"]]
+        weights = list(wrapper.getWeights(names))
+        expected = sum(1 for vertex in range(len(weights) // 2) if weights[vertex * 2] != 0.0)
+        self.assertLess(expected, len(weights) // 2)
+        written = []
+        original = mlib.nodes.SkinCluster._write_weight_entries
+
+        def spy(instance, entries, *, fast=False):
+            written.extend(entries)
+            return original(instance, entries, fast=fast)
+
+        mlib.nodes.SkinCluster._write_weight_entries = spy
+        try:
+            wrapper.removeInfluence(j["e"])
+        finally:
+            mlib.nodes.SkinCluster._write_weight_entries = original
+        self.assertEqual(len(written), expected * 2)
+        self.assertEqual(len({vertex for (vertex, _), _ in written}), expected)
+
+    def test_chain_writes_each_element_once(self):
+        """親子を同時に外しても、同じ要素を書き直さない。"""
+        j, skin = self.setup_chain(seed=13)
+        written = []
+        original = mlib.nodes.SkinCluster._write_weight_entries
+
+        def spy(instance, entries, *, fast=False):
+            written.append(entries)
+            return original(instance, entries, fast=fast)
+
+        before = _snapshot(skin)
+        mlib.nodes.SkinCluster._write_weight_entries = spy
+        try:
+            mlib.getNode(skin).removeInfluences([j["e"], j["d"]])
+        finally:
+            mlib.nodes.SkinCluster._write_weight_entries = original
+        self.assertEqual(len(written), 1)
+        keys = [key for key, _ in written[0]]
+        self.assertEqual(len(keys), len(set(keys)))
+        self.assertWeights(_snapshot(skin), _expected_removal(before, [j["e"], j["d"]], 1))
 
 
 class BranchTransferTest(_SkinTransferCase):
@@ -583,10 +696,10 @@ class MultipleSkinTest(_SkinTransferCase):
             with self.subTest(entry=label):
                 cmds.file(new=True, force=True)
                 j, skins = self.setup_skins()
-                # skin2にだけ登録したjointをロックし、先に処理されるskinClusterも変えないことを確かめる。
+                # skin2にだけ登録したjointの要素をロックし、先に処理されるskinClusterも変えないことを確かめる。
                 extra = self.joint("extra", j["leaf"])
                 cmds.skinCluster(skins[1], edit=True, addInfluence=extra, weight=0.0)
-                cmds.setAttr(extra + ".lockInfluenceWeights", True)
+                cmds.setAttr(skins[1] + ".weightList", lock=True)
                 before = {skin: _snapshot(skin) for skin in skins}
                 with self.assertRaises(RuntimeError):
                     call(j, skins)
@@ -788,12 +901,12 @@ class LargeMeshTransferTest(_SkinTransferCase):
 
 
 class SkinnedJointDeleteTest(_SkinTransferCase):
-    """スキンされたjointの削除はMaya標準の削除と同じ結果になる(独自の移送はしない)。"""
+    """influenceを解除しない削除はMaya標準の削除と同じ結果になる(独自の移送はしない)。"""
 
     def test_delete_matches_native(self):
         """親子・兄弟・別の枝を同時に、複数skinClusterから削除しても標準の削除と一致する。"""
         entries = (
-            ("Joint.delete", lambda nodes, fast: [node.delete(fast=fast) for node in nodes]),
+            ("Joint.delete", lambda nodes, fast: [node.delete(fast=fast, removeInfluence=False) for node in nodes]),
             ("mlib.delete", lambda nodes, fast: mlib.delete(nodes, fast=fast)),
         )
         targets = ("f1L", "handL", "f2R", "head", "clavR")

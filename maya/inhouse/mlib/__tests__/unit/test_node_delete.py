@@ -92,7 +92,7 @@ class NodeDeleteTest(unittest.TestCase):
         original = mlib.Joint.delete
         with patch.object(mlib.Joint, 'delete', autospec=True, side_effect=original) as method:
             mlib.delete(joint.getFullName())
-            self.assertEqual(method.call_count, 1)
+            self.assertEqual(method.call_count, 0)
         self.assertFalse(joint.isValid())
         self.assertFalse(child.isValid())
         cmds.undo()

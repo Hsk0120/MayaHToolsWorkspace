@@ -4,6 +4,52 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+10.6.0 (2026-11-10)
+-------------------
+
+``Joint.delete`` がインフルエンスを解除してから削除するようにし、\ ``Joints.delete``\ ・\ ``Joints.removeInfluence`` を追加しました。
+
+.. rubric:: 追加
+
+- ``Joints.removeInfluence`` は、全ジョイントのインフルエンス登録を深いものから順に外す。
+- ``Joints.delete`` は、全ジョイントと子孫のインフルエンスを解除してから1回で削除する。
+
+.. rubric:: 変更
+
+- ``Joint.delete`` は、自身と子孫のインフルエンスを各skinClusterから外し、ウェイトを残る最も近い祖先インフルエンスへ移してから削除する。
+  全インフルエンスが消えるskinClusterは解除しない。
+
+- ``SkinCluster.removeInfluence``\ ・\ ``SkinCluster.removeInfluences``\ ・\ ``Joint.removeInfluence``\ ・\ ``Joint.delete`` は、ウェイトのロック
+  (\ ``lockInfluenceWeights``\ )を一時的に外して処理し、元の状態へ戻す。これまではロックがあると ``RuntimeError`` だった。
+- 同じ処理は、スキニングレイヤーを検出しても ``RuntimeError`` にせず実行する。ngSkinTools2のレイヤーはレイヤーごとにウェイトを移送する。
+- 複数のインフルエンスの解除を一括処理にした。親子の連鎖は最終の移送先へ1回で書き込み、0にした列の登録をまとめて解除する。
+
+.. rubric:: 注意
+
+- ロックしたインフルエンスも、処理中はロックしていないものとして再配分の対象になる。
+- ngSkinTools2のプラグインを読み込んでいない場合のレイヤーは、skinClusterのウェイトだけを書き換える。
+- ``Joint.delete(fast=True)``\ ・\ ``Joints.delete(fast=True)`` もインフルエンスを解除する。ウェイトの書込みと削除はOpenMayaで行い、OpenMayaに無い登録解除だけをUndoへ記録しないcmdsで行う。
+- Maya標準で削除するには ``removeInfluence=False`` を指定する。\ ``mlib.delete`` はMaya標準の削除のままで、インフルエンスを解除しない。
+
+10.5.1 (2026-11-10)
+-------------------
+
+インフルエンスの解除で祖先へウェイトを移すときの処理を、実際に書き込む範囲に絞って速くしました。4万頂点・60インフルエンスの
+検証用メッシュでは、1本の解除が約1.3秒から約0.2秒になります。移送後のウェイトは変わりません。
+
+.. rubric:: 変更
+
+- ``SkinCluster.removeInfluence``\ ・\ ``SkinCluster.removeInfluences``\ ・\ ``Joint.removeInfluence`` は、移送元にウェイトがある
+  頂点の移送元・移送先の2列だけを書き込む。これまでは全頂点へ書いていた。
+- 変更前の検査も移送で使う列に絞った。負値・非有限値は移送元・移送先の列だけを調べ、ウェイト要素のロック・入力接続は書き込む要素だけを
+  拒否する。\ ``lockInfluenceWeights``\ ・レイヤー・最後のインフルエンスの拒否と、\ ``force=True`` の全要素の検査は変えていない。
+- ``removeInfluences``\ ・\ ``Joint.removeInfluence`` は検査を最初の1回にまとめた。親子を同時に外す場合は、子のウェイトが経由する親の列も
+  変更前に検査する。
+
+.. rubric:: 注意
+
+- 移送と無関係な列、または移送元にウェイトがない頂点の要素がロック・入力接続されていても、\ ``RuntimeError`` にせず解除するようになった。
+
 10.5.0 (2026-11-06)
 -------------------
 

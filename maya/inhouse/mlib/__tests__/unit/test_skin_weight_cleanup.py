@@ -238,7 +238,7 @@ class SkinWeightCleanupTest(unittest.TestCase):
         self.assertNotIn(77, self._indices(skin=skin))
 
     def test_locks_and_input_connections_reject_cleanup_and_force_without_unlocking(self):
-        """liw・親のマルチアトリビュート・leafロック・入力接続はforceでも解除しない。"""
+        """親のマルチアトリビュート・leafロック・入力接続はforceでも解除しない。liwはクリーンアップだけが拒否する。"""
         self._inject(77, 0.5)
         paths = (str(self.other) + ".lockInfluenceWeights", str(self.skin) + ".weightList",
                  self._row().elementByLogicalIndex(self._index(self.parent)).name())
@@ -246,7 +246,10 @@ class SkinWeightCleanupTest(unittest.TestCase):
             is_liw = path.endswith(".lockInfluenceWeights")
             cmds.setAttr(path, True) if is_liw else cmds.setAttr(path, lock=True)
             try:
-                for action in (self.skin.removeInvalidWeights, lambda: self.skin.removeInfluence(self.child, force=True)):
+                actions = [self.skin.removeInvalidWeights]
+                if not is_liw:
+                    actions.append(lambda: self.skin.removeInfluence(self.child, force=True))
+                for action in actions:
                     with self.assertRaises(RuntimeError):
                         action()
                     self.assertIn(77, self._indices())
@@ -264,16 +267,39 @@ class SkinWeightCleanupTest(unittest.TestCase):
         self.assertIn(77, self._indices())
         self.assertTrue(cmds.isConnected(driver + ".output", weight))
 
+    def test_force_removal_repairs_under_weight_lock(self):
+        """influence解除のforceはウェイトのロックを一時的に外して修復し、ロックを戻す。"""
+        self._inject(77, 0.5)
+        lock = str(self.other) + ".lockInfluenceWeights"
+        cmds.setAttr(lock, True)
+        try:
+            self.skin.removeInfluence(self.child, force=True)
+            self.assertNotIn(77, self._indices())
+            self.assertFalse(self.skin.hasInfluence(str(self.child)))
+            self.assertTrue(cmds.getAttr(lock))
+        finally:
+            cmds.setAttr(lock, False)
+
+    def test_force_removal_repairs_with_layers(self):
+        """influence解除のforceはレイヤー関連接続を拒否せず、接続も変えない。"""
+        self._inject(77, 0.5)
+        layer = mlib.createNode("network", name="cleanup_ngSkinLayerData")
+        socket = self.skin.addAttr("cleanupLayer", attributeType="message")
+        socket.connect(layer.getPlug("message"))
+        self.skin.removeInfluence(self.child, force=True)
+        self.assertNotIn(77, self._indices())
+        self.assertFalse(self.skin.hasInfluence(str(self.child)))
+        self.assertTrue(socket.isConnected())
+
     def test_layer_and_invalid_leaf_output_connections_are_not_bypassed(self):
-        """レイヤー関連接続と不正leafの出力を自動切断しない。"""
+        """単独のクリーンアップはレイヤーを拒否し、レイヤー関連接続と不正leafの出力を自動切断しない。"""
         invalid = self._inject(77, 0.5)
         layer = mlib.createNode("network", name="cleanup_ngSkinLayerData")
         socket = self.skin.addAttr("cleanupLayer", attributeType="message")
         socket.connect(layer.getPlug("message"))
-        for action in (self.skin.removeInvalidWeights, lambda: self.skin.removeInfluence(self.child, force=True)):
-            with self.assertRaises(RuntimeError):
-                action()
-            self.assertIn(77, self._indices())
+        with self.assertRaises(RuntimeError):
+            self.skin.removeInvalidWeights()
+        self.assertIn(77, self._indices())
         socket.disconnect()
         sink = mlib.createNode("network", name="cleanupSink").addAttr("value", attributeType="double")
         cmds.connectAttr(invalid.name(), str(sink))

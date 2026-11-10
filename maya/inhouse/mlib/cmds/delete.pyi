@@ -64,7 +64,8 @@ def delete(nodes: Node | Component | Components | Selection | str | om2.MObject 
         fastはノードの直接削除に限る。コンポーネントのトポロジー削除には
         対応せず、入力に含まれる場合は何も削除せずNotImplementedErrorにする。
         専用のdeleteを上書きした派生クラスのノードを含む場合だけ、従来どおり各ノードの
-        deleteを順に呼ぶ(親の削除で既に消えた対象は飛ばす)。
+        deleteを順に呼ぶ(親の削除で既に消えた対象は飛ばす)。Jointはこの対象に含めず、
+        :meth:`Joint.delete <mlib.nodes.joint.Joint.delete>` のinfluence解除を行わずにMaya標準で削除する。
         コンポーネントは、ノードの検査の後、ノードより先に別の1回の ``cmds.delete`` で削除する。
     """
     ...

@@ -124,7 +124,7 @@ class SkinWeightEditingTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 self.skin.setMaxInfluences(count)
         self.assertEqual(self.weights(), before)
-        with patch.object(type(self.skin), "setWeights", side_effect=RuntimeError("transfer failed")):
+        with patch.object(type(self.skin), "_write_weight_entries", side_effect=RuntimeError("transfer failed")):
             with self.assertRaisesRegex(RuntimeError, "transfer failed"):
                 mlib.getNode(self.child).removeInfluence()
         self.assertTrue(self.skin.hasInfluence(self.child))

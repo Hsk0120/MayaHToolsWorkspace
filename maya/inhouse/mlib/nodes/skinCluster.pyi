@@ -5,6 +5,7 @@
 
 import json
 import math
+from itertools import groupby
 from collections.abc import Mapping
 from contextlib import contextmanager
 from decimal import Decimal, localcontext, ROUND_FLOOR
@@ -13,13 +14,14 @@ import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.fastWrite import require_range, require_writable, set_attr
+from ..core.ngSkinLayers import _move_layer_weights
 from ..core.object import Object
 from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
 from ..util import _MIRROR_PLANES, _PointGrid, _mirror_axis, _world_space
 from .dagNode import DagNode
 from .geometryFilter import GeometryFilter
-from .joint import Joint
+from .joint import Joint, _unlocked_influences
 from .node import Node, Nodes
 from typing import Any, Iterable, Iterator, Literal, Sequence
 from mlib._stubtypes import GeneratorContextManager
@@ -194,13 +196,14 @@ class SkinCluster(GeometryFilter):
 
         親子のjointを同時に渡しても、深いjointから :meth:`removeInfluence` と同じ処理で外すため、
         ウェイトは外さずに残る最も近い祖先influenceへ集まる。全対象の登録と移送先を先に検査する。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
         Undo有効時は一つのチャンクへ記録する。fast引数は持たない。後続の失敗で完了済み変更は戻さない。
 
         Args:
             joints (str | Node | Iterable): 外す登録済みinfluence。名前またはNodeを同じ形式で指定する。
             transferToParent (bool): Trueは外さずに残る最も近い祖先influenceへ加算する。
                 Falseは標準の再配分に任せる。
-            force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
+            force (bool): 不正ウェイトを修復してから処理する。修復時に正規化は行わない。
 
         Returns:
             SkinCluster: 自身。
@@ -209,7 +212,7 @@ class SkinCluster(GeometryFilter):
             TypeError: transferToParent・forceがbool以外、またはinfluenceの入力型が不正な場合。
             ValueError: influenceが空・未登録・重複、すべてのinfluenceを外す場合、または
                 transferToParent=Trueで残る祖先influenceが無いinfluenceがある場合。
-            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            RuntimeError: ウェイト要素のロック・入力接続、またはMayaの編集失敗。
         """
         ...
     def getBindPose(self) -> DagPose | None:
@@ -620,14 +623,17 @@ class SkinCluster(GeometryFilter):
         """祖先influenceへ加算してから登録を外す。ノード自体は削除しない。
 
         移送先は同じskinClusterの最も近い祖先influence。生ウェイトを加算してsourceを0にし、登録を外す。
+        書き込むのはsourceにウェイトがある頂点の2列だけで、ロック・入力接続もその要素だけを拒否する。
         登録の解除と残りの再配分は ``cmds.skinCluster(edit=True, removeInfluence=...)`` に任せる。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
+        ngSkinTools2を使えない場合のレイヤーは拒否せず、skinClusterのウェイトだけを書き換える。
         最後の登録は外せない。Undo有効時は一つのチャンクへ記録する。fast引数は持たない。
         修復・移送・解除は順次行い、後続失敗で完了済み変更は戻さない。
 
         Args:
             joint (Joint | str): 解除対象のinfluence。
             transferToParent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
-            force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
+            force (bool): 不正ウェイトを修復してから処理する。修復時に正規化は行わない。
 
         Returns:
             None: 値を返さない。
@@ -635,7 +641,7 @@ class SkinCluster(GeometryFilter):
         Raises:
             TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceの場合。
-            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            RuntimeError: ウェイト要素のロック・入力接続、またはMayaの編集失敗。
         """
         ...
     def normalizeWeights(self, decimals: int | None = ..., *, fast: bool = ...) -> SkinCluster:
@@ -1166,23 +1172,136 @@ class SkinCluster(GeometryFilter):
             force: 不正ウェイトの除去を許可するか。検証中は変更しない。
         """
         ...
+    def _influence_removal_plans(self, nodes: list[Node], transfer_to_parent: bool = ..., *, force: bool = ...) -> tuple[list[tuple[Node, str | None]], tuple[list[int], list[float]] | None]:
+        """複数のinfluenceの解除を変更前に検査し、深いものから順の解除計画を返す。シーンは変更しない。
+
+        Args:
+            nodes (list[Node]): 解除するinfluence。
+            transfer_to_parent (bool): 祖先influenceへウェイトを移すか。
+            force (bool): 不正ウェイトの修復を許可するか。検証中は変更しない。
+
+        Returns:
+            tuple[list[tuple[Node, str | None]], tuple[list[int], list[float]] | None]: 深い順の、解除する
+                influenceと移送先のinfluence名の列と、検査で読んだ列と値(未読ならNone)。
+        """
+        ...
+    def _apply_influence_removals(self, plans: list[tuple[Node, str | None]], snapshot: tuple[list[int], list[float]] | None, *, force: bool = ..., fast: bool = ..., deleting: bool = ...) -> None:
+        """検査済みのinfluenceのウェイトを1回の読み書きで移送し、登録をまとめて解除する。
+
+        親子を同時に外す場合も、途中の列を経由せず最終の移送先へ直接加算する。ngSkinTools2のレイヤーが
+        使えるときはレイヤーごとに移送し、skinClusterのウェイトはレイヤーの再計算に任せる。
+
+        Args:
+            plans (list[tuple[Node, str | None]]): 深い順の、解除するinfluenceと移送先のinfluence名。
+            snapshot (tuple[list[int], list[float]] | None): 検査時に読んだ列と値。Noneは読み直す。
+            force (bool): 不正ウェイトを修復してから処理する。
+            fast (bool): Trueはウェイトの書込みをOpenMayaで行い、登録解除もUndoへ記録しない。
+            deleting (bool): Trueは直後にノードを削除する。0にした列の登録はMayaの削除処理が解除する。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _without_undo(self, enabled: bool) -> GeneratorContextManager[None]:
+        """enabledのとき、処理をUndoへ記録しない。キューは消さない。
+
+        Args:
+            enabled (bool): TrueはUndoの記録を止める。Falseは何もしない。
+
+        Yields:
+            None: 値を渡さない。
+        """
+        ...
+    def _move_weights(self, moves: dict[int, int], logical: list[int], snapshot: tuple[list[int], list[float]] | None, *, fast: bool = ...) -> None:
+        """移送元の値を移送先へ加算し、変わった要素だけを書き込む。
+
+        保存値を明示的に加算する(skinPercentの移送は正規化設定に依存するため)。
+
+        Args:
+            moves (dict[int, int]): 移送元と最終の移送先の物理番号。
+            logical (list[int]): 物理番号から論理番号への対応。
+            snapshot (tuple[list[int], list[float]] | None): 読み済みの列と値。Noneは読む。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _write_weight_entries(self, entries: list[tuple[tuple[int, int], float]], *, fast: bool = ...) -> None:
+        """頂点と論理番号で指定した要素へ、生のウェイト値を書き込む。
+
+        Args:
+            entries (list[tuple[tuple[int, int], float]]): 頂点と論理番号の順に並べた ((頂点, 論理番号), 値) の列。
+            fast (bool): Trueは全要素を検査してからOpenMayaで書き込み、Undoへ記録しない。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 要素がロック・入力接続されている、またはMayaが設定を拒否した場合。
+        """
+        ...
+    def _remove_weight_elements(self, elements: list[om2.MPlug], *, fast: bool = ...) -> None:
+        """検査済みのウェイト要素を除去する。
+
+        Args:
+            elements (list[om2.MPlug]): 除去する要素。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _require_transferable(self, pairs: list[tuple[Node, str]]) -> tuple[list[int], list[float]]:
+        """祖先移送で読み書きする列を、変更前に検査する。シーンは変更しない。
+
+        値は読み書きする列の全頂点を調べ、ロック・入力接続は移送元のいずれかにウェイトがある頂点の
+        各列だけを調べる。親子を同時に外すと子のウェイトが親の列を経由するため、頂点は全移送元の和で扱う。
+
+        Args:
+            pairs (list[tuple[Node, str]]): 移送元のinfluenceと移送先のinfluence名の組。
+
+        Returns:
+            tuple[list[int], list[float]]: 読んだ列の物理番号と、頂点順の値。移送で読み直さずに使う。
+
+        Raises:
+            ValueError: 対象の列に負値・非有限値がある場合。
+            RuntimeError: 書き込む要素のロック・入力接続がある場合。
+        """
+        ...
     def _editable_weights(self):
         """先頭meshの全influence値を取得し、ロック・接続・レイヤーを拒否する。"""
         ...
-    def _editable_weight_list(self) -> tuple[list[str], om2.MPlug]:
+    def _editable_weight_list(self, *, check_layers: bool = ...) -> tuple[list[str], om2.MPlug]:
         """正規化・整理用に全ウェイトの編集条件を検査し、名前列とweightList参照を返す。
 
         登録influenceが空、lockInfluenceWeightsが有効、既存weightList配下にロック/入力接続、
         またはレイヤー推定の接続があれば拒否する。値の有限性や符号はここでは検査しない。
         この厳密な編集条件は、setWeightsの直接書込みには適用しない。
 
+        Args:
+            check_layers (bool): Falseはレイヤー推定の接続を拒否しない。
+
         Returns:
             tuple[list[str], om2.MPlug]: 物理順のinfluence名と、シーン内weightListへの参照。
                 Plugはコピーした値ではない。ロックの一時解除や設定変更は行わない。
         """
         ...
-    def _weight_cleanup_plan(self) -> tuple[list[om2.MPlug], set[int]]:
+    def _require_unlocked_influences(self) -> list[Node]:
+        """lockInfluenceWeightsが有効なinfluenceを拒否する。
+
+        Returns:
+            list[Node]: 物理順のinfluence。
+
+        Raises:
+            RuntimeError: ロックされたinfluenceがある場合。
+        """
+        ...
+    def _weight_cleanup_plan(self, *, check_layers: bool = ...) -> tuple[list[om2.MPlug], set[int]]:
         """既存の疎な要素から不正ウェイトの除去計画を作る。シーンは変更しない。
+
+        Args:
+            check_layers (bool): Falseはレイヤー推定の接続を拒否しない。
 
         Returns:
             tuple[list[om2.MPlug], set[int]]: 除去対象と、修復後も正値を持つ

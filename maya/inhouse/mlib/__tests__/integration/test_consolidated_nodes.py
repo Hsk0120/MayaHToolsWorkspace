@@ -179,7 +179,7 @@ class ConsolidatedNodesTest(unittest.TestCase):
             expected_weights = list(skin.getWeights([targets[-1].getFullName()])) if expected_exists else None
             cmds.undo()
             with self.api_only():
-                mlib.getNode(name).delete(fast=True)
+                mlib.getNode(name).delete(fast=True, removeInfluence=False)
             self.assertEqual(skin.isValid(), expected_exists)
             if expected_exists:
                 self.assertEqual(list(skin.getWeights([targets[-1].getFullName()])), expected_weights)

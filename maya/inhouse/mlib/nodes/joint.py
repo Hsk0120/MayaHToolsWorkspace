@@ -1,12 +1,14 @@
 """joint ラッパーと joint コレクションを提供する。"""
 
 import math
+from contextlib import contextmanager
 from typing import Any, Dict, List
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.fastWrite import set_attr
+from ..core.nodeEdit import check_deletion, delete_nodes
 from ..decorator import _edit_context, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale, Vector
 from ..util import _MIRROR_PLANES, _finite_vector, _mirror_axis, _world_space
@@ -47,6 +49,116 @@ def _orient_flags(orientation, secondaryAxisOrient, children, zeroScaleOrient):
     _require_bool(zeroScaleOrient, "zeroScaleOrient")
     return {"edit": True, "orientJoint": orientation, "secondaryAxisOrient": secondaryAxisOrient,
             "children": children, "zeroScaleOrient": zeroScaleOrient}
+
+
+@contextmanager
+def _unlocked_influences(skins, fast=False):
+    """skinClusterのウェイトのロックを一時的に外し、抜けるときに元へ戻す。
+
+    Args:
+        skins (Iterable[SkinCluster]): ロックを外すskinCluster。
+        fast (bool): Trueはロックの切替えをUndoへ記録しない。
+
+    Yields:
+        None: 値を渡さない。
+
+    Raises:
+        RuntimeError: lockInfluenceWeightsがロック・入力接続されていて切り替えられない場合。何も変更しない。
+    """
+    locked = {}
+    for skin in skins:
+        for node in skin.getLockedInfluences():
+            locked[node.getUuid()] = node
+    for node in locked.values():
+        node.getPlug("lockInfluenceWeights")._require_writable()
+    for node in locked.values():
+        node.getPlug("lockInfluenceWeights").set(False, fast=fast)
+    try:
+        yield
+    finally:
+        for node in locked.values():
+            # 削除やinfluenceの解除で消えたアトリビュートは戻さない。
+            if node.isValid() and node.hasAttr("lockInfluenceWeights"):
+                node.getPlug("lockInfluenceWeights").set(True, fast=fast)
+
+
+def _influences_by_skin(joints):
+    """jointを、登録先のskinClusterごとにまとめる。
+
+    Args:
+        joints (Iterable[Joint]): 調べるjoint。
+
+    Returns:
+        list[tuple[SkinCluster, list[Joint]]]: skinClusterと、そこへ登録されたjoint。
+    """
+    groups = {}
+    for joint in joints:
+        for skin in joint.getSkinClusters():
+            if skin.hasInfluence(joint.getFullName()):
+                groups.setdefault(skin.getUuid(), (skin, []))[1].append(joint)
+    return list(groups.values())
+
+
+def _remove_influences(groups, transfer_to_parent, force, fast=False, deleting=False):
+    """ウェイトのロックを一時的に外し、全skinClusterを検査してから深いinfluenceから順に解除する。
+
+    Args:
+        groups (list[tuple[SkinCluster, list[Joint]]]): skinClusterと解除するjoint。
+        transfer_to_parent (bool): 祖先influenceへウェイトを移すか。
+        force (bool): 不正ウェイトを修復してから解除するか。
+        fast (bool): Trueはウェイトの書込みをOpenMayaで行い、Undoへ記録しない。
+        deleting (bool): Trueは直後にjointを削除する。
+
+    Returns:
+        None: 値を返さない。
+    """
+    with _unlocked_influences([skin for skin, _ in groups], fast=fast):
+        checked = [(skin, skin._influence_removal_plans(joints, transfer_to_parent, force=force))
+                   for skin, joints in groups]
+        for skin, (plans, snapshot) in checked:
+            skin._apply_influence_removals(plans, snapshot, force=force, fast=fast, deleting=deleting)
+
+
+def _delete_joints(joints, safe, fast, remove_influence, transfer_to_parent, force):
+    """jointを、消える階層のinfluenceを解除してから一括で削除する。
+
+    Args:
+        joints (Sequence[Joint]): 削除するjoint。
+        safe (bool): Trueは自身またはDAG子孫にDG接続があるjointを削除しない。
+        fast (bool): TrueはUndoなしのOpenMaya更新。
+        remove_influence (bool): 削除の前にinfluenceを解除するか。
+        transfer_to_parent (bool): 解除するウェイトを残る祖先influenceへ移すか。
+        force (bool): 不正ウェイトを修復してから解除するか。
+
+    Returns:
+        None: 値を返さない。
+
+    Raises:
+        TypeError: safe・remove_influence・transfer_to_parent・forceがbool以外の場合。
+        RuntimeError: 対象が無効、削除できない、またはinfluenceを解除できない場合。
+    """
+    _require_bool(safe, "safe")
+    _require_bool(remove_influence, "removeInfluence")
+    _require_bool(transfer_to_parent, "transferToParent")
+    _require_bool(force, "force")
+    for joint in joints:
+        joint._require_valid("delete")
+    if safe:
+        joints = [joint for joint in joints if not joint._has_delete_connections()]
+    if not joints:
+        return
+    checked = check_deletion(joints, fast=fast)
+    if remove_influence:
+        # 親と一緒に消える子孫も解除しないと、消えたjointの列にウェイトが残る。
+        doomed = {}
+        for joint in joints:
+            for node in [joint] + list(joint.getChildren(allDescendents=True, type="joint")):
+                doomed[node.getUuid()] = node
+        # 全influenceが消えるskinClusterは解除の移送先も再配分先も無いため、Maya標準の削除に任せる。
+        groups = [(skin, nodes) for skin, nodes in _influences_by_skin(doomed.values())
+                  if len(nodes) < len(skin.getInfluences())]
+        _remove_influences(groups, transfer_to_parent, force, fast=fast, deleting=True)
+    delete_nodes(joints, fast=fast, checked=checked)
 
 
 class Joint(Transform):
@@ -403,14 +515,15 @@ class Joint(Transform):
     def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=False):
         """指定skinClusterから自身のinfluence登録を外す。jointノードは残す。
 
-        全対象の登録・移送条件を先に検査し、取得順にSkinCluster.removeInfluenceへ委譲する。
+        全対象の登録・移送条件を先に検査し、取得順にSkinCluster.removeInfluenceと同じ処理で解除する。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
         Undo有効時は一つのチャンクへ記録する。fast引数は持たない。後続の失敗で先行処理は戻さない。
 
         Args:
             skinCluster (SkinCluster | str | None): 対象。Noneは接続する全skinCluster。
             transferToParent (bool): Trueは最も近い祖先influenceへ加算する。
                 False、または移送先がなければ標準の再配分に任せる。
-            force (bool): 不正ウェイトを修復してから解除する。修復時に正規化・ロック解除・レイヤー回避は行わない。
+            force (bool): 不正ウェイトを修復してから解除する。修復時に正規化は行わない。
 
         Returns:
             Joint: 自身。対象省略で未スキニングなら変更しない。
@@ -418,7 +531,7 @@ class Joint(Transform):
         Raises:
             TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceを解除する場合。
-            RuntimeError: 無効joint、レイヤー・ロック、または編集失敗。
+            RuntimeError: 無効joint、ウェイト要素のロック・入力接続、または編集失敗。
         """
         with undoChunk("mlibJointRemoveInfluence"):
             from .skinCluster import SkinCluster
@@ -426,11 +539,38 @@ class Joint(Transform):
             _require_bool(transferToParent, "transferToParent")
             _require_bool(force, "force")
             skins = self.getSkinClusters() if skinCluster is None else [skinCluster if isinstance(skinCluster, SkinCluster) else SkinCluster(skinCluster)]
-            for skin in skins:
-                skin._influence_removal_target(self, transfer_to_parent=transferToParent, force=force)
-            for skin in skins:
-                skin.removeInfluence(self, transferToParent=transferToParent, force=force)
+            _remove_influences([(skin, [self]) for skin in skins], transferToParent, force)
             return self
+
+    def delete(self, *, safe=False, fast=False, removeInfluence=True, transferToParent=True, force=False):
+        """influenceの登録を解除してから、自身と子孫を削除する。
+
+        Maya標準の削除では、消えたjointの列にウェイトが残る。このメソッドは自身とDAG子孫のjointを
+        :meth:`removeInfluence` と同じ処理で各skinClusterから外し、ウェイトを残る最も近い祖先influenceへ
+        移してから削除する。残る祖先が無ければ標準の再配分に任せ、全influenceが消えるskinClusterは解除せず
+        Maya標準の削除に任せる。ウェイトのロックは一時的に外して解除し、元の状態へ戻す。全対象を変更前に検査し、
+        Undo有効時は1回で戻せる。ngSkinTools2のレイヤーはレイヤーごとに移送する。ngSkinTools2を使えない場合の
+        レイヤーは拒否せず、skinClusterのウェイトだけを書き換える。``mlib.delete`` はこの解除を行わず、Maya標準の削除のまま。
+
+        Args:
+            safe (bool): Trueなら自身またはDAG子孫にDG接続がある場合は何もしない(skinClusterの接続も含む)。
+            fast (bool): TrueはUndoなしの更新。既定False。ウェイトの書込みと削除はOpenMayaで行い、
+                OpenMayaに無いinfluenceの登録解除だけをUndoへ記録しないcmdsで行う。結果は通常と同じ。
+            removeInfluence (bool): Falseは解除せずMaya標準の削除だけを行う。
+            transferToParent (bool): Falseはウェイトを祖先へ移さず標準の再配分に任せる。
+            force (bool): 不正ウェイトを修復してから解除する。修復時に正規化は行わない。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: safe・fast・removeInfluence・transferToParent・forceがbool以外の場合。
+            ValueError: 移送するウェイトに負値・非有限値がある場合(何も変更しない)。
+            RuntimeError: 対象が無効、ロック・参照のノードを含む(何も変更しない)、ウェイト要素の
+                ロック・入力接続がある、またはMayaが編集を拒否した場合。
+        """
+        with _edit_context("mlibJointDelete", fast):
+            _delete_joints([self], safe, fast, removeInfluence, transferToParent, force)
 
     def isInfluenceLocked(self):
         """スキンのウェイトをロック(lockInfluenceWeights)しているかを判定する。
@@ -929,6 +1069,70 @@ class Joints(Nodes):
             for joint in self._items:
                 joint._orient(flags)
             return self
+
+    def removeInfluence(self, skinCluster=None, *, transferToParent=True, force=False):
+        """全jointのinfluence登録を外す。jointノードは残す。
+
+        :meth:`Joint.removeInfluence` と同じ規則で、深いjointから順に解除する。親子を同時に外すと、ウェイトは
+        外さずに残る最も近い祖先influenceへ集まる。ウェイトは最終の移送先へ1回で書き込み、登録もまとめて解除する。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
+        全対象を変更前に検査し、Undo有効時は1回で戻せる。
+
+        Args:
+            skinCluster (SkinCluster | str | None): 対象。Noneは各jointが登録された全skinCluster。
+            transferToParent (bool): :meth:`Joint.removeInfluence` と同じ。
+            force (bool): :meth:`Joint.removeInfluence` と同じ。
+
+        Returns:
+            Joints: 自身。対象省略で未スキニングのjointは変更しない。
+
+        Raises:
+            TypeError: transferToParent・forceがbool以外の場合。
+            ValueError: 未登録のjointを含む、またはskinClusterの全influenceを外す場合(何も変更しない)。
+            RuntimeError: 無効なjointを含む、ウェイト要素のロック・入力接続、またはMayaの編集失敗。
+        """
+        from .skinCluster import SkinCluster  # skinClusterがjointをimportするため循環を避ける
+
+        with undoChunk("mlibJointsRemoveInfluence"):
+            _require_bool(transferToParent, "transferToParent")
+            _require_bool(force, "force")
+            for joint in self._items:
+                joint._require_valid("remove")
+            if skinCluster is None:
+                groups = _influences_by_skin(self._items)
+            else:
+                groups = [(skinCluster if isinstance(skinCluster, SkinCluster) else SkinCluster(skinCluster),
+                           list(self._items))]
+            for skin, joints in groups:
+                if joints and len(joints) >= len(skin.getInfluences()):
+                    raise ValueError("Cannot remove every influence")
+            _remove_influences(groups, transferToParent, force)
+            return self
+
+    def delete(self, *, safe=False, fast=False, removeInfluence=True, transferToParent=True, force=False):
+        """全jointのinfluenceを解除してから、全jointと子孫を1回で削除する。
+
+        解除の規則は :meth:`Joint.delete` と同じ。一緒に消える親子をまとめて解除するため、ウェイトは残る最も近い
+        祖先influenceへ集まる。全対象を変更前に検査し、Undo有効時は1回で戻せる。
+        ノードの種類を問わない一括削除で解除が要らないときは ``mlib.delete`` を使う。
+
+        Args:
+            safe (bool): Trueなら自身またはDAG子孫にDG接続があるjointだけを除いて削除する。
+            fast (bool): :meth:`Joint.delete` と同じ。
+            removeInfluence (bool): :meth:`Joint.delete` と同じ。
+            transferToParent (bool): :meth:`Joint.delete` と同じ。
+            force (bool): :meth:`Joint.delete` と同じ。
+
+        Returns:
+            None: 値を返さない。空のコレクションは何もしない。
+
+        Raises:
+            TypeError: :meth:`Joint.delete` と同じ。
+            ValueError: :meth:`Joint.delete` と同じ。
+            RuntimeError: :meth:`Joint.delete` と同じ。
+        """
+        with _edit_context("mlibJointsDelete", fast):
+            _delete_joints(list(self._items), safe, fast, removeInfluence, transferToParent, force)
 
     def setRadius(self, value, *, fast=False):
         """各jointへ保持順に :meth:`Joint.setRadius` を適用する。

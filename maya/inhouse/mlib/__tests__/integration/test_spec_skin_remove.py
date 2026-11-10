@@ -1,6 +1,6 @@
 """influence 解除(cmds.skinCluster -removeInfluence)の通常経路の契約を固定する。
 
-- 祖先移送でロックがあれば RuntimeError で何も変えない。
+- ウェイトのロックは一時的に外して解除し、元へ戻す。
 - Closest in hierarchy の連続解除も処理でき、Undo 1 回でウェイトと登録が戻る。
 - 3.0.0 で fast 引数は外した(``docs/mlib-api-design.md`` の「fast を持たない書き込み」)。
 """
@@ -87,13 +87,17 @@ class RemoveInfluenceTest(NamespaceCase):
             cmds.select(clear=True)
         super().tearDown()
 
-    def test_locked_transfer_rejected(self):
-        """祖先移送でロックがあれば、RuntimeError で何も変えない。"""
+    def test_locked_influence_is_restored(self):
+        """ウェイトのロックがあっても解除でき、ロックは元へ戻り、Undo 1 回で全て戻る。"""
         rig = _Rig(self, "n").configure(locked=True)
         before = rig.raw()
-        with self.assertRaises(RuntimeError):
-            rig.skins[0].removeInfluence(rig.tip, transferToParent=True)
+        cmds.flushUndo()
+        rig.skins[0].removeInfluence(rig.tip, transferToParent=True)
+        self.assertFalse(rig.skins[0].hasInfluence(rig.tip))
+        self.assertTrue(cmds.getAttr(rig.other + ".liw"))
+        cmds.undo()
         self.assertEqual(rig.raw(), before)
+        self.assertTrue(cmds.getAttr(rig.other + ".liw"))
 
     def test_closest_in_hierarchy_consecutive(self):
         """Closest in hierarchy の連続解除も処理できる。"""

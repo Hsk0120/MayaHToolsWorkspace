@@ -4,6 +4,7 @@
 
 import json
 import math
+from itertools import groupby
 from collections.abc import Mapping
 from contextlib import contextmanager
 from decimal import Decimal, localcontext, ROUND_FLOOR
@@ -14,13 +15,14 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 
 from ..core.fastWrite import require_range, require_writable, set_attr
+from ..core.ngSkinLayers import _move_layer_weights
 from ..core.object import Object
 from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
 from ..util import _MIRROR_PLANES, _PointGrid, _mirror_axis, _world_space
 from .dagNode import DagNode
 from .geometryFilter import GeometryFilter
-from .joint import Joint
+from .joint import Joint, _unlocked_influences
 from .node import Node, Nodes
 
 
@@ -289,13 +291,14 @@ class SkinCluster(GeometryFilter):
 
         親子のjointを同時に渡しても、深いjointから :meth:`removeInfluence` と同じ処理で外すため、
         ウェイトは外さずに残る最も近い祖先influenceへ集まる。全対象の登録と移送先を先に検査する。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
         Undo有効時は一つのチャンクへ記録する。fast引数は持たない。後続の失敗で完了済み変更は戻さない。
 
         Args:
             joints (str | Node | Iterable): 外す登録済みinfluence。名前またはNodeを同じ形式で指定する。
             transferToParent (bool): Trueは外さずに残る最も近い祖先influenceへ加算する。
                 Falseは標準の再配分に任せる。
-            force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
+            force (bool): 不正ウェイトを修復してから処理する。修復時に正規化は行わない。
 
         Returns:
             SkinCluster: 自身。
@@ -304,7 +307,7 @@ class SkinCluster(GeometryFilter):
             TypeError: transferToParent・forceがbool以外、またはinfluenceの入力型が不正な場合。
             ValueError: influenceが空・未登録・重複、すべてのinfluenceを外す場合、または
                 transferToParent=Trueで残る祖先influenceが無いinfluenceがある場合。
-            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            RuntimeError: ウェイト要素のロック・入力接続、またはMayaの編集失敗。
         """
         with undoChunk("mlibSkinClusterRemoveInfluences"):
             _require_bool(transferToParent, "transferToParent")
@@ -322,11 +325,9 @@ class SkinCluster(GeometryFilter):
                         ancestor = ancestor.getParent()
                     if not isinstance(ancestor, Joint):
                         raise ValueError(f"No remaining ancestor influence receives the weights: {node.getFullName()}")
-            for node in targets:
-                self._influence_removal_target(node, transferToParent, force=force)
-            depth = {node.getUuid(): node.getDepth() if isinstance(node, Joint) else 0 for node in targets}
-            for node in sorted(targets, key=lambda item: depth[item.getUuid()], reverse=True):
-                self.removeInfluence(node, transferToParent=transferToParent, force=force)
+            with _unlocked_influences([self]):
+                plans, snapshot = self._influence_removal_plans(targets, transferToParent, force=force)
+                self._apply_influence_removals(plans, snapshot, force=force)
             return self
 
     def getBindPose(self):
@@ -434,17 +435,7 @@ class SkinCluster(GeometryFilter):
             全要素を変更前に検証する。実行途中のMayaエラーは自動では戻さない。
         """
         with _edit_context("mlibSkinClusterRemoveInvalidWeights", fast):
-            elements, _ = self._weight_cleanup_plan()
-            if fast:
-                modifier = om2.MDGModifier()
-                for plug in elements:
-                    modifier.removeMultiInstance(plug, False)
-                if elements:
-                    modifier.doIt()
-            else:
-                names = [plug.name() for plug in elements]
-                for name in names:
-                    cmds.removeMultiInstance(name, b=False)
+            self._remove_weight_elements(self._weight_cleanup_plan()[0], fast=fast)
             return self
 
     def hasInfluence(self, joint):
@@ -999,14 +990,17 @@ class SkinCluster(GeometryFilter):
         """祖先influenceへ加算してから登録を外す。ノード自体は削除しない。
 
         移送先は同じskinClusterの最も近い祖先influence。生ウェイトを加算してsourceを0にし、登録を外す。
+        書き込むのはsourceにウェイトがある頂点の2列だけで、ロック・入力接続もその要素だけを拒否する。
         登録の解除と残りの再配分は ``cmds.skinCluster(edit=True, removeInfluence=...)`` に任せる。
+        ウェイトのロックは一時的に外して解除し、元の状態へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送する。
+        ngSkinTools2を使えない場合のレイヤーは拒否せず、skinClusterのウェイトだけを書き換える。
         最後の登録は外せない。Undo有効時は一つのチャンクへ記録する。fast引数は持たない。
         修復・移送・解除は順次行い、後続失敗で完了済み変更は戻さない。
 
         Args:
             joint (Joint | str): 解除対象のinfluence。
             transferToParent (bool): 祖先へ移送するか。False、または祖先がなければ標準の再配分。
-            force (bool): 不正ウェイトを修復してから処理する。修復自体は正規化・ロック解除・レイヤー回避を行わない。
+            force (bool): 不正ウェイトを修復してから処理する。修復時に正規化は行わない。
 
         Returns:
             None: 値を返さない。
@@ -1014,20 +1008,12 @@ class SkinCluster(GeometryFilter):
         Raises:
             TypeError: transferToParent・forceがbool以外の場合。
             ValueError: 未登録、または最後のinfluenceの場合。
-            RuntimeError: レイヤー・ロック・接続、またはMayaの編集失敗。
+            RuntimeError: ウェイト要素のロック・入力接続、またはMayaの編集失敗。
         """
         with undoChunk("mlibSkinClusterRemoveInfluence"):
-            source, target = self._influence_removal_target(joint, transferToParent, force=force)
-            if force:
-                self.removeInvalidWeights()
-            if target is not None:
-                # skinPercentの移送は正規化設定に依存するため、保存値を明示的に加算する。
-                weights = list(self.getWeights([source.getFullName(), target]))
-                summed = []
-                for i in range(0, len(weights), 2):
-                    summed.extend((0.0, weights[i] + weights[i + 1]))
-                self.setWeights([source.getFullName(), target], summed)
-            cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
+            with _unlocked_influences([self]):
+                plans, snapshot = self._influence_removal_plans([joint], transferToParent, force=force)
+                self._apply_influence_removals(plans, snapshot, force=force)
 
     def normalizeWeights(self, decimals=None, *, fast=False):
         """先頭Meshの各頂点について、全登録influenceのウェイトを合計1へ正規化する。
@@ -1976,7 +1962,6 @@ class SkinCluster(GeometryFilter):
         """
         _require_bool(transfer_to_parent, "transferToParent")
         _require_bool(force, "force")
-        self._raise_if_layers()
         source = joint if isinstance(joint, Node) else Node(joint)
         if not source.isValid() or not self.hasInfluence(source.getFullName()):
             raise ValueError("Joint is not an influence of this skinCluster")
@@ -1987,10 +1972,223 @@ class SkinCluster(GeometryFilter):
             if target is not None:
                 # 既存の祖先移送は先頭mesh専用。未対応形状の拒否を修復より前に行う。
                 om2.MFnMesh(self.mesh_path)
-            self._weight_cleanup_plan()
-        elif target is not None:
-            self._editable_weights()
+            self._weight_cleanup_plan(check_layers=False)
         return source, target
+
+    def _influence_removal_plans(self, nodes, transfer_to_parent=True, *, force=False):
+        """複数のinfluenceの解除を変更前に検査し、深いものから順の解除計画を返す。シーンは変更しない。
+
+        Args:
+            nodes (list[Node]): 解除するinfluence。
+            transfer_to_parent (bool): 祖先influenceへウェイトを移すか。
+            force (bool): 不正ウェイトの修復を許可するか。検証中は変更しない。
+
+        Returns:
+            tuple[list[tuple[Node, str | None]], tuple[list[int], list[float]] | None]: 深い順の、解除する
+                influenceと移送先のinfluence名の列と、検査で読んだ列と値(未読ならNone)。
+        """
+        plans = [self._influence_removal_target(node, transfer_to_parent, force=force) for node in nodes]
+        pairs = [plan for plan in plans if plan[1] is not None]
+        snapshot = self._require_transferable(pairs) if pairs and not force else None
+        depth = {plan[0].getUuid(): plan[0].getDepth() if isinstance(plan[0], Joint) else 0 for plan in plans}
+        return sorted(plans, key=lambda plan: depth[plan[0].getUuid()], reverse=True), snapshot
+
+    def _apply_influence_removals(self, plans, snapshot, *, force=False, fast=False, deleting=False):
+        """検査済みのinfluenceのウェイトを1回の読み書きで移送し、登録をまとめて解除する。
+
+        親子を同時に外す場合も、途中の列を経由せず最終の移送先へ直接加算する。ngSkinTools2のレイヤーが
+        使えるときはレイヤーごとに移送し、skinClusterのウェイトはレイヤーの再計算に任せる。
+
+        Args:
+            plans (list[tuple[Node, str | None]]): 深い順の、解除するinfluenceと移送先のinfluence名。
+            snapshot (tuple[list[int], list[float]] | None): 検査時に読んだ列と値。Noneは読み直す。
+            force (bool): 不正ウェイトを修復してから処理する。
+            fast (bool): Trueはウェイトの書込みをOpenMayaで行い、登録解除もUndoへ記録しない。
+            deleting (bool): Trueは直後にノードを削除する。0にした列の登録はMayaの削除処理が解除する。
+
+        Returns:
+            None: 値を返さない。
+        """
+        if force:
+            self._remove_weight_elements(self._weight_cleanup_plan(check_layers=False)[0], fast=fast)
+            snapshot = None
+        paths = self._skin_fn.influenceObjects()
+        physical = {self._path_uuid(path): index for index, path in enumerate(paths)}
+        logical = [self._skin_fn.indexForInfluenceObject(path) for path in paths]
+        follow = {physical[source.getUuid()]: None if target is None else physical[self._uuid_or_none(target)]
+                  for source, target in plans}
+        moves = {}
+        for source, target in follow.items():
+            while follow.get(target) is not None:
+                target = follow[target]
+            if target is not None:
+                moves[source] = target
+        with self._without_undo(fast):
+            layered = _move_layer_weights(
+                self.getName(),
+                {logical[source]: logical[target] for source, target in moves.items()},
+                [logical[source] for source, target in follow.items() if target is None],
+                [logical[index] for index in range(len(paths)) if index not in follow],
+                self._all_vertices()[1],
+                fast=fast)
+            if moves and not layered:
+                self._move_weights(moves, logical, snapshot, fast=fast)
+            # 値が残る列を一括で外すと再配分の結果が変わるため、0にした列だけをまとめる。
+            emptied = [source.getFullName() for source, target in plans if target is not None]
+            if emptied and not deleting:
+                cmds.skinCluster(self.getName(), edit=True, removeInfluence=emptied)
+            for source, target in plans:
+                if target is None:
+                    cmds.skinCluster(self.getName(), edit=True, removeInfluence=source.getFullName())
+
+    @contextmanager
+    def _without_undo(self, enabled):
+        """enabledのとき、処理をUndoへ記録しない。キューは消さない。
+
+        Args:
+            enabled (bool): TrueはUndoの記録を止める。Falseは何もしない。
+
+        Yields:
+            None: 値を渡さない。
+        """
+        if not enabled:
+            yield
+            return
+        state = cmds.undoInfo(query=True, state=True)
+        cmds.undoInfo(stateWithoutFlush=False)
+        try:
+            yield
+        finally:
+            cmds.undoInfo(stateWithoutFlush=state)
+
+    def _move_weights(self, moves, logical, snapshot, *, fast=False):
+        """移送元の値を移送先へ加算し、変わった要素だけを書き込む。
+
+        保存値を明示的に加算する(skinPercentの移送は正規化設定に依存するため)。
+
+        Args:
+            moves (dict[int, int]): 移送元と最終の移送先の物理番号。
+            logical (list[int]): 物理番号から論理番号への対応。
+            snapshot (tuple[list[int], list[float]] | None): 読み済みの列と値。Noneは読む。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        if snapshot is None:
+            columns = sorted(set(moves).union(moves.values()))
+            values = list(self._skin_fn.getWeights(self.mesh_path, self._all_vertices()[0], om2.MIntArray(columns)))
+        else:
+            columns, values = snapshot
+        width = len(columns)
+        position = {index: offset for offset, index in enumerate(columns)}
+        entries = {}
+        for source, target in moves.items():
+            offset = position[target]
+            for vertex, value in enumerate(values[position[source]::width]):
+                if value != 0.0:
+                    entries[(vertex, logical[source])] = 0.0
+                    values[vertex * width + offset] += value
+                    entries[(vertex, logical[target])] = values[vertex * width + offset]
+        self._write_weight_entries(sorted(entries.items()), fast=fast)
+
+    def _write_weight_entries(self, entries, *, fast=False):
+        """頂点と論理番号で指定した要素へ、生のウェイト値を書き込む。
+
+        Args:
+            entries (list[tuple[tuple[int, int], float]]): 頂点と論理番号の順に並べた ((頂点, 論理番号), 値) の列。
+            fast (bool): Trueは全要素を検査してからOpenMayaで書き込み、Undoへ記録しない。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            RuntimeError: 要素がロック・入力接続されている、またはMayaが設定を拒否した場合。
+        """
+        if not fast:
+            for vertex, items in groupby(entries, key=lambda entry: entry[0][0]):
+                items = list(items)
+                self._set_weight_values_cmds([value for _, value in items], len(items), [vertex],
+                                             [key[1] for key, _ in items])
+            return
+        weight_list = self._dependency_fn().findPlug("weightList", False)
+        attribute_fn = None
+        edits = []
+        for vertex, items in groupby(entries, key=lambda entry: entry[0][0]):
+            row = weight_list.elementByLogicalIndex(vertex).child(0)
+            row_blocked = self._plug_chain_blocked(row)
+            for (_, index), value in items:
+                plug = row.elementByLogicalIndex(index)
+                if attribute_fn is None:
+                    attribute_fn = om2.MFnAttribute(plug.attribute())
+                if row_blocked or plug.isLocked or plug.isDestination:
+                    require_writable(plug, attribute_fn)
+                edits.append((plug, value))
+        for plug, value in edits:
+            plug.setDouble(value)
+
+    def _remove_weight_elements(self, elements, *, fast=False):
+        """検査済みのウェイト要素を除去する。
+
+        Args:
+            elements (list[om2.MPlug]): 除去する要素。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        if fast:
+            modifier = om2.MDGModifier()
+            for plug in elements:
+                modifier.removeMultiInstance(plug, False)
+            if elements:
+                modifier.doIt()
+            return
+        names = [plug.name() for plug in elements]
+        for name in names:
+            cmds.removeMultiInstance(name, b=False)
+
+    def _require_transferable(self, pairs):
+        """祖先移送で読み書きする列を、変更前に検査する。シーンは変更しない。
+
+        値は読み書きする列の全頂点を調べ、ロック・入力接続は移送元のいずれかにウェイトがある頂点の
+        各列だけを調べる。親子を同時に外すと子のウェイトが親の列を経由するため、頂点は全移送元の和で扱う。
+
+        Args:
+            pairs (list[tuple[Node, str]]): 移送元のinfluenceと移送先のinfluence名の組。
+
+        Returns:
+            tuple[list[int], list[float]]: 読んだ列の物理番号と、頂点順の値。移送で読み直さずに使う。
+
+        Raises:
+            ValueError: 対象の列に負値・非有限値がある場合。
+            RuntimeError: 書き込む要素のロック・入力接続がある場合。
+        """
+        sources = {self._require_influences(source.getFullName())[0] for source, _ in pairs}
+        columns = sorted(sources.union(self._require_influences(target)[0] for _, target in pairs))
+        component, count = self._all_vertices()
+        values = list(self._skin_fn.getWeights(self.mesh_path, component, om2.MIntArray(columns)))
+        # 非有限値は総和へ伝わるため、全要素を個別に調べず総和と最小値で判定する。
+        if not math.isfinite(sum(values)) or (values and min(values) < 0):
+            raise ValueError("Weights must be finite and non-negative")
+        weight_list = self.getPlug("weightList").mplug()
+        if weight_list.isLocked or weight_list.isDestination:
+            raise RuntimeError("Weights are locked or connected")
+        influences = self._skin_fn.influenceObjects()
+        logical = [self._skin_fn.indexForInfluenceObject(influences[index]) for index in columns]
+        width = len(columns)
+        touched = set()
+        for position, index in enumerate(columns):
+            if index in sources:
+                touched.update(vertex for vertex, value in enumerate(values[position::width]) if value != 0.0)
+        for vertex in touched:
+            element = weight_list.elementByLogicalIndex(vertex)
+            row = element.child(0)
+            existing = set(row.getExistingArrayAttributeIndices())
+            for plug in [element, row] + [row.elementByLogicalIndex(index) for index in logical if index in existing]:
+                if plug.isLocked or plug.isDestination:
+                    raise RuntimeError(f"Weight multi element is locked or connected: {plug.name()}")
+        return columns, values
 
     def _editable_weights(self):
         """先頭meshの全influence値を取得し、ロック・接続・レイヤーを拒否する。"""
@@ -2000,25 +2198,25 @@ class SkinCluster(GeometryFilter):
             raise ValueError("Weights must be finite and non-negative")
         return names, weights
 
-    def _editable_weight_list(self):
+    def _editable_weight_list(self, *, check_layers=True):
         """正規化・整理用に全ウェイトの編集条件を検査し、名前列とweightList参照を返す。
 
         登録influenceが空、lockInfluenceWeightsが有効、既存weightList配下にロック/入力接続、
         またはレイヤー推定の接続があれば拒否する。値の有限性や符号はここでは検査しない。
         この厳密な編集条件は、setWeightsの直接書込みには適用しない。
 
+        Args:
+            check_layers (bool): Falseはレイヤー推定の接続を拒否しない。
+
         Returns:
             tuple[list[str], om2.MPlug]: 物理順のinfluence名と、シーン内weightListへの参照。
                 Plugはコピーした値ではない。ロックの一時解除や設定変更は行わない。
         """
-        self._raise_if_layers()
-        influences = self.getInfluences()
-        names = [node.getName() for node in influences]
+        if check_layers:
+            self._raise_if_layers()
+        names = [node.getName() for node in self._require_unlocked_influences()]
         if not names:
             raise ValueError("No influences")
-        for node in influences:
-            if node.hasAttr("lockInfluenceWeights") and node.getPlug("lockInfluenceWeights").get():
-                raise RuntimeError(f"Influence is locked: {node.getName()}")
         path = self.getFullName() + ".weightList"
         weight_list = self.getPlug("weightList").mplug()
         if weight_list.isLocked or weight_list.isDestination:
@@ -2026,8 +2224,26 @@ class SkinCluster(GeometryFilter):
         self._validate_weight_locks(weight_list)
         return names, weight_list
 
-    def _weight_cleanup_plan(self):
+    def _require_unlocked_influences(self):
+        """lockInfluenceWeightsが有効なinfluenceを拒否する。
+
+        Returns:
+            list[Node]: 物理順のinfluence。
+
+        Raises:
+            RuntimeError: ロックされたinfluenceがある場合。
+        """
+        influences = self.getInfluences()
+        for node in influences:
+            if node.hasAttr("lockInfluenceWeights") and node.getPlug("lockInfluenceWeights").get():
+                raise RuntimeError(f"Influence is locked: {node.getName()}")
+        return influences
+
+    def _weight_cleanup_plan(self, *, check_layers=True):
         """既存の疎な要素から不正ウェイトの除去計画を作る。シーンは変更しない。
+
+        Args:
+            check_layers (bool): Falseはレイヤー推定の接続を拒否しない。
 
         Returns:
             tuple[list[om2.MPlug], set[int]]: 除去対象と、修復後も正値を持つ
@@ -2036,7 +2252,7 @@ class SkinCluster(GeometryFilter):
         Raises:
             RuntimeError: ウェイトが編集不可、または除去対象に出力接続がある場合。
         """
-        _, weight_list = self._editable_weight_list()
+        _, weight_list = self._editable_weight_list(check_layers=check_layers)
         registered = {self._skin_fn.indexForInfluenceObject(path) for path in self._skin_fn.influenceObjects()}
         elements, used = [], set()
         for vertex in weight_list.getExistingArrayAttributeIndices():

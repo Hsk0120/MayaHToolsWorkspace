@@ -722,13 +722,13 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 ### 複数形ノードの基底クラス
 
 - ノードコレクションは `Nodes` を基底にし、`Joints`・`SkinClusters` は `Nodes` の派生とする。`Nodes` 自体は `Node` を継承しない。3.0.0で `DagNodes`・`Transforms`、単数メソッドへの一括転送(`_bulk_entries`・`callEach`)は利用が無いため廃止した。各要素の操作は単数のメソッドを `for` で呼ぶ。
-- 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`、6.0.0で `+`・`==`・`sort`)と入力検証(`_resolve_inputs`・`_validate_inputs`)、一括の書込み(5.0.0)に加え、`Joints.sortedByDepth()`・`Joints.getSkinClusters()`(重複を除いた `SkinClusters`)だけとする。`+` は左辺の型で構築と同じ重複除外・型検証を行い、`==` は同じ並びのコレクション・list・tupleと比べる(このためハッシュ不可)。`sort(key=None, reverse=False)` はその場で並べ替えてNoneを返し、keyの省略時は完全名(コンポーネントは実番号)の順にする。
+- 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`、6.0.0で `+`・`==`・`sort`)と入力検証(`_resolve_inputs`・`_validate_inputs`)、一括の書込み(5.0.0)に加え、`Joints.sortedByDepth()`・`Joints.getSkinClusters()`(重複を除いた `SkinClusters`)・`Joints.removeInfluence()`・`Joints.delete()`(10.6.0)だけとする。`+` は左辺の型で構築と同じ重複除外・型検証を行い、`==` は同じ並びのコレクション・list・tupleと比べる(このためハッシュ不可)。`sort(key=None, reverse=False)` はその場で並べ替えてNoneを返し、keyの省略時は完全名(コンポーネントは実番号)の順にする。
 - `mlib.ls` は常に集まりで返す(6.0.0): ノードだけなら `Nodes`(`type="joint"` は `Joints`、`type="skinCluster"` は `SkinClusters`)、アトリビュートだけなら `Plugs`(`plugs/plug.py`)、同じシェイプの同じ種類のコンポーネントだけなら `Vertices`/`Edges`/`Faces`/`UVs`/`CVs`。種類が混在する場合だけlist、それ以外の0件は空の `Nodes`(コンポーネント型指定の0件はシェイプが決まらないため空の `Nodes`)。集まりは構築と同じく重複を除く。
 - `Plugs` は `Nodes` と同じ入力順・重複除外の規則で `len`・添字(sliceはPlugs)・`for`・`bool`・`+`・`==`・`sort`・`repr` だけを持つ。`maya.cmds` へ渡すとcmdsが各Plugの名前へ展開する。Componentsの `+` は同じシェイプ・同じ種類どうしだけで、それ以外はTypeError。
 - `item_class` で受け入れるラッパー型を宣言する。入力は各基底クラスの共通処理で解決し、型の不一致を黙って除外せず例外にする。登録済みの外部拡張の派生ラッパーを基底型へ置き換えない。
 - 重複は同一ノードかつ同一DAGパスで判定する。異なるインスタンスパスをUUIDだけでまとめない。構築後の参照の削除によってコレクション長を暗黙に変えない。
 - 整数アクセスは保持中の参照、スライス/copyは同じ具象コレクションで同じシーン対象を参照する。ノード複製とは別。
-- `Joint.delete`・`mlib.delete(joints)` はMaya標準削除とし、ウェイト移送と子保持を行わない。これらを伴う階層整理は`mlrig.setups.JointHierarchy.delete(joints, *, safe=False, fast=False)`へ分ける。一般にUndo対応は失敗時の自動ロールバックを意味しない。`ls`の返却規則は維持する。
+- 2026-11-10のユーザー指定(10.6.0)により、`Joint.delete`・`Joints.delete` は自身と子孫のinfluenceを解除し、ウェイトを残る祖先influenceへ移してから削除する(`removeInfluence=False`でMaya標準の削除。fastはウェイトの書込みと削除をOpenMayaで行い、OpenMayaに無い登録解除だけをUndoへ記録しないcmdsで行う)。この解除と`SkinCluster.removeInfluence(s)`・`Joint(s).removeInfluence`は、ウェイトのロックを一時的に外して元へ戻す。ngSkinTools2のレイヤーはレイヤーごとに移送し(`core/ngSkinLayers.py`。ngSkinTools2は任意依存で、自動ロードしない)、使えない場合のレイヤーは拒否せずskinClusterのウェイトだけを書き換える。複数の解除は親子の連鎖を最終の移送先へ1回で書き、0にした列の登録をまとめて解除する(値が残る列を一括で外すとMayaの再配分の結果が変わるため、移送先の無いものは1本ずつ外す)。`mlib.delete(joints)` はMaya標準削除のまま。子を残す階層整理は`mlrig.setups.JointHierarchy.delete(joints, *, safe=False, fast=False)`へ分ける。一般にUndo対応は失敗時の自動ロールバックを意味しない。`ls`の返却規則は維持する。
 
 
 ### 参照対象と取得契約

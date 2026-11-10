@@ -52,6 +52,9 @@ REQUIRED = {
 #: 複数形が独自の集約として持つ名前(単数への転送ではない)。Joints.getSkinClusters は重複を除いた SkinClusters を返す。
 PLURAL_OWN = ("getSkinClusters",)
 
+#: Joints だけが持つ、REMOVED_PLURAL と同じ名前(10.6.0。influence解除付きの一括削除)。
+JOINTS_OWN = ("delete",)
+
 #: 5.0.0で複数形へ明示的に戻した一括の書込み(Nodes._forward で各要素へ適用する)。
 PLURAL_BULK = ("setAttrFlags", "resetAttrs", "setLocked", "setColor", "setVisibility", "show", "hide", "setParent")
 
@@ -196,6 +199,8 @@ class RequiredNamesTest(unittest.TestCase):
                     if plural is Joints:
                         self.assertIn(name, Joints.__dict__)
             for name in REMOVED_PLURAL:
+                if plural is Joints and name in JOINTS_OWN:
+                    continue
                 with self.subTest(cls=plural.__name__, name=name):
                     self.assertFalse(hasattr(plural, name), "%s.%s remains" % (plural.__name__, name))
         self.assertFalse(hasattr(mlib.nodes, "DagNodes"))

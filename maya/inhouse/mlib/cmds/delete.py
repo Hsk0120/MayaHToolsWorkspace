@@ -59,12 +59,14 @@ def delete(nodes, *, fast=False):
         fastはノードの直接削除に限る。コンポーネントのトポロジー削除には
         対応せず、入力に含まれる場合は何も削除せずNotImplementedErrorにする。
         専用のdeleteを上書きした派生クラスのノードを含む場合だけ、従来どおり各ノードの
-        deleteを順に呼ぶ(親の削除で既に消えた対象は飛ばす)。
+        deleteを順に呼ぶ(親の削除で既に消えた対象は飛ばす)。Jointはこの対象に含めず、
+        :meth:`Joint.delete <mlib.nodes.joint.Joint.delete>` のinfluence解除を行わずにMaya標準で削除する。
         コンポーネントは、ノードの検査の後、ノードより先に別の1回の ``cmds.delete`` で削除する。
     """
     with _edit_context("mlibDelete", fast):
         from ..core.nodeEdit import check_deletion, delete_nodes
         from ..core.object import Object as _InputObject
+        from ..nodes.joint import Joint
         from ..nodes.node import Node
 
         names = _InputObject._input_names(nodes, allow_plugs=False)
@@ -91,7 +93,9 @@ def delete(nodes, *, fast=False):
                 resolved = [name]
             # 名前は Node(value) と同じ解決・型選択を、生成の入口の再判定なしで行う。
             nodes.extend(Node._from_name(value) for value in (resolved or [name]))
-        batch = all(type(node).delete is Node.delete for node in nodes)
+        # Joint.deleteの解除はメソッドの呼出しだけの動作で、ここではMaya標準の削除として扱う。
+        standard = (Node.delete, Joint.delete)
+        batch = all(type(node).delete in standard for node in nodes)
         checked = None
         if nodes and (batch or fast):
             # コンポーネントを削除する前に検査し、拒否する場合は何も削除しない。
@@ -109,7 +113,7 @@ def delete(nodes, *, fast=False):
         for node in nodes:
             # 親・所有コンテナの削除や重複指定で既に消えた対象は再削除しない。
             if node.isValid():
-                node.delete(fast=fast)
+                (Node.delete if type(node).delete in standard else type(node).delete)(node, fast=fast)
 
 
 def _resolves_to_plug(name):

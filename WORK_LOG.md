@@ -158,6 +158,14 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-11-10): mlib 10.6.0の追補。influence解除を一括化(親子の連鎖を最終の移送先へ1回で書き込み、0にした列の登録をまとめて解除)し、ngSkinTools2のレイヤーへ対応(`core/ngSkinLayers.py`)。実物のngSkinTools2 2.4.0でMaya2022/2026を確認、2027は同梱プラグインが無く未確認。未コミット。
+
+- Claude Code (2026-11-10): mlib 10.6.0の追補。influence解除の全入口でウェイトのロックを一時解除して戻し、スキニングレイヤーでは拒否しない(レイヤーのデータは更新しない。実物のngSkinToolsでは未確認)。`Joint(s).delete`にfastを実装。未コミット。
+
+- Claude Code (2026-11-10): mlib 10.6.0。`Joint.delete`を自身と子孫のinfluence解除付きにし(`removeInfluence=False`で標準削除、解除が必要なfastはNotImplementedError)、`Joints.delete`・`Joints.removeInfluence`を追加。`mlib.delete`は標準削除のまま。Maya2022/2027の全2,439件、静的検査162件、`test_rig_packages --suite all`834件、Sphinxビルドは成功。未コミット。
+
+- Claude Code (2026-11-10): mlib 10.5.1。`removeInfluence(s)`・`Joint.removeInfluence`の祖先移送を、移送元にウェイトがある頂点の2列の書込みと、その範囲だけの検査に絞った(4万頂点・60インフルエンスのmayapy計測で1.34秒→0.23秒)。Maya2022/2027の全196ファイル2,422件、静的検査162件、`test_rig_packages --suite all`、Sphinxビルドは成功。GUIのMayaでの実測は未実施。未コミット。
 - Claude Code (2026-11-10): mlrig夜間で、呼吸の値から肋骨をポンプハンドル・バケットハンドルの2軸で回し、胸骨を追従させる RibBreathing(setups/ribBreathing.py)を追加。標準ノードのみ。テスト16件、Setup Samples、文書、検証デモ。隔離Maya 2027で setups 693件・standard 76件OK、Sphinx -W成功、検証動画464フレームOK。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-09): mlrig夜間で、前腕の回内・回外 ForearmPronation(setups/forearmPronation.py)を追加。尺骨から見た手の回転の軸(橈骨の頭→尺骨の頭)まわりのTwistを取り出し、回内80度・回外85度へ柔らかく制限して橈骨を軸のまわりに回す。handTwist・rawPronation・pronation・excessPronation・pronationWeight・supinationWeight・interosseousDistance・matrix・tipMatrixを出力。標準ノードのみ。TwistLimitの柔らかい制限を`_softLimitGraph`へ切り出して共有。テスト13件、Setup Samplesに1項目、文書forearm_pronation.rst、検証デモtools/demo_forearm_pronation.py。隔離Maya 2027で setups 677件・standard 76件 OK、mlrig Sphinx -W 成功、検証動画384フレームの判定OK。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-08): mlrig夜間で、シャフトの長さを保ってハウジングの軸に沿って滑るトリポード継手 TripodJoint(setups/tripodJoint.py)を追加。スパイダーの中心は直線と球の交点 p = a - √max(L² - b², 0) を minPlunge〜maxPlunge で制限し、向きは R × Q(u→v)。plunge・overPlunge・shaftLength・stretch・bendAngle・matrix・tipMatrix を出力。標準ノードのみ、UIの長さ単位によらずcm。テスト9件、Setup Samples 1項目、文書 tripod_joint.rst、検証デモ tools/demo_tripod_joint.py。隔離 Maya 2027 で setups 664件・standard 76件 OK、Sphinx -W 成功、検証動画344フレームの判定 OK(Driveへ保存・リンク共有)。コミット・プッシュ(このコミット)。
