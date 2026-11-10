@@ -6,6 +6,7 @@ import numbers
 from typing import Any, Dict
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+import maya.mel as mel
 from maya.api.OpenMaya import MSpace
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable, writable_compound
@@ -14,7 +15,7 @@ from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool,
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _from_radians, _to_radians, _world_space
+from ..util import _angle_unit, _color_value, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -24,11 +25,17 @@ from mlib.components.component import Components
 from mlib.nodes.constraint import Constraint
 from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.nodes.shape import Shape
+import os
+import pathlib
 
 _TRANSFORM_SOURCE_CONSTRAINTS: frozenset
 _LIMIT_FLAGS: dict
 _TRANSFORM_ATTRIBUTES: dict
 _NEAR_ZERO_AXIS: float
+_CURVE_SHAPES_FORMAT: str
+_CURVE_SHAPES_VERSION: int
+_CURVE_FORM_NAMES: dict
+_CURVE_FORM_NUMBERS: dict
 
 def _transform_attribute(name: str) -> om2.MObject:
     """transform ノード型のアトリビュートの MObject を取得する(初回だけ問い合わせて保持する)。
@@ -86,6 +93,51 @@ def _unwritable_channel_message(plug: Plug) -> str | None:
 
     Returns:
         str | None: 例外の文言。書込みを妨げる子(または自身)が見つからなければNone。
+    """
+    ...
+
+def _curve_number(value: object, label: str) -> float:
+    """カーブ形状のデータの数値を検証する。
+
+    Args:
+        value (object): 検証する値。
+        label (str): 例外の文言に使う名前。
+
+    Returns:
+        float: 有限な数値。
+
+    Raises:
+        ValueError: bool・数値以外、またはNaN・無限大の場合。
+    """
+    ...
+
+def _curve_color(value: object, label: str) -> int | tuple[float, float, float] | None:
+    """カーブ形状のデータの表示色を検証する。
+
+    Args:
+        value (object): カラーインデックス、(r, g, b)、またはNone。
+        label (str): 例外の文言に使う名前。
+
+    Returns:
+        int | tuple[float, float, float] | None: :meth:`DagNode.setOverrideColor` へ渡せる値。
+
+    Raises:
+        ValueError: 表示色として不正な場合。
+    """
+    ...
+
+def _checked_curve_shapes(data: dict) -> tuple[object, list[dict]]:
+    """カーブ形状のデータを検証し、適用に使う形へ揃える。シーンは変更しない。
+
+    Args:
+        data (dict): :meth:`Transform.getCurveShapesData` の形の辞書。
+
+    Returns:
+        tuple[object, list[dict]]: Transformの表示色と、検証済みのShapeごとの辞書のリスト。
+
+    Raises:
+        TypeError: dataが辞書でない場合。
+        ValueError: キーが無い、または値が不正な場合。
     """
     ...
 
@@ -395,6 +447,79 @@ class Transform(DagNode):
             RuntimeError: 自身・sourceが無効、またはロック・参照等でMayaが変更を拒否した場合。
         """
         ...
+    def getCurveShapesData(self) -> dict:
+        """直下のカーブ形状(中間でないnurbsCurveのShape)を、JSONで書ける辞書で取得する。
+
+        Shapeごとに名前(名前空間を除いた短い名前)・次数・フォーム・ノット・オブジェクト空間のCV位置(cm。
+        UIの長さ単位によらない)・描画のオーバーライドの表示色・lineWidthを、DAGの子の順に記録する。
+        自身の表示色も記録する。bezierCurve等のほかの種類のShapeと中間Shapeは含めない。シーンは変更しない。
+
+        Returns:
+            dict: ``{"color": 表示色, "shapes": [{"name", "degree", "form", "knots", "points", "color",
+            "lineWidth"}, ...]}``。``form`` は ``"open"``・``"closed"``・``"periodic"``、``points`` は
+            ``[x, y, z]`` のリスト、表示色は :meth:`~mlib.nodes.dagNode.DagNode.getOverrideColor` と同じ
+            (カラーインデックス・(r, g, b)・None)。
+
+        Raises:
+            RuntimeError: 自身が無効な場合。
+        """
+        ...
+    def setCurveShapesData(self, data: dict) -> Transform:
+        """:meth:`getCurveShapesData` の形のデータで、直下のカーブ形状を作り直して自身を返す。
+
+        直下の中間でないnurbsCurveのShapeを削除し、データのShapeを順に作成する(本数は違ってよい)。
+        ほかの種類のShape・中間Shape・子Transformは残す。CV位置はオブジェクト空間なので、自身の位置・
+        回転・スケールに対する形を保つ。新しいShapeの名前は保存した名前に自身の名前空間を付けたもので、
+        同じ名前が既にあればMayaが番号を付けて重複を避ける。各Shapeと自身の表示色(Noneは
+        ``overrideEnabled`` を無効にする)とlineWidthも戻す。削除したShapeの接続・履歴は戻らない。
+        データは変更の前に全て検証する。全体を1回のUndoにまとめ、途中で失敗した場合は巻き戻す。
+
+        Args:
+            data (dict): :meth:`getCurveShapesData` の形の辞書。``lineWidth`` を省略したShapeは-1(既定の太さ)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: dataが辞書でない場合。
+            ValueError: データのキーが無い、または値が不正な場合(シーンは変更しない)。
+            RuntimeError: 自身が無効、またはロック・参照等でMayaが変更を拒否した場合。
+        """
+        ...
+    def exportCurveShapes(self, path: str | os.PathLike) -> pathlib.Path:
+        """直下のカーブ形状を、ヘッダー付きのJSONファイルへ書き出す。
+
+        内容は :meth:`getCurveShapesData` と同じで、形式名は ``"mlib.curveShapes"`` (版1)。
+        同じフォルダの一時ファイルへ書いてから置き換える。フォルダは作らない。
+
+        Args:
+            path (str | os.PathLike): 書き出し先。
+
+        Returns:
+            pathlib.Path: 書き出したファイルの絶対パス。
+
+        Raises:
+            RuntimeError: 自身が無効な場合。
+            OSError: 書き出しに失敗した場合。
+        """
+        ...
+    def importCurveShapes(self, path: str | os.PathLike) -> Transform:
+        """:meth:`exportCurveShapes` のファイルを読み込み、直下のカーブ形状を作り直して自身を返す。
+
+        適用は :meth:`setCurveShapesData` と同じ。
+
+        Args:
+            path (str | os.PathLike): 読み込むファイル。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: JSONとして読めない、形式名・版が違う、またはデータが不正な場合(シーンは変更しない)。
+            RuntimeError: 自身が無効、またはMayaが変更を拒否した場合。
+            OSError: 読み込みに失敗した場合。
+        """
+        ...
     def getShape(self, index: int = ..., intermediates: bool = ...) -> Shape | None:
         """指定位置のShapeを取得する。
 
@@ -552,7 +677,7 @@ class Transform(DagNode):
 
         既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
         位置とする基準)で、translate チャンネルの値ではない。translate チャンネルの値は
-        ``node.t.get()``(または ``node.getPlug("translate").get()``)で取得する。
+        ``node.t.get()`` (または ``node.getPlug("translate").get()``)で取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
@@ -830,7 +955,7 @@ class Transform(DagNode):
         """現在のローカル変換を ``offsetParentMatrix`` へ移し、変換のチャンネルを初期値にして自身を返す。
 
         translate・rotate・shearを0、scaleを1にし(Jointは ``jointOrient`` も0にする)、ワールドの位置・
-        向き・大きさが変わらないよう ``offsetParentMatrix`` を ``(初期化後のmatrix)^-1 * 初期化前のmatrix *
+        向き・大きさが変わらないよう ``offsetParentMatrix`` を `` (初期化後のmatrix)^-1 * 初期化前のmatrix *
         初期化前のoffsetParentMatrix`` にする。ピボット・``rotateAxis``・``rotateOrder`` は変えず、その分も
         ``offsetParentMatrix`` で補う(初期化後に回転させると、ピボットとrotateAxisは従来どおり効く)。
         Jointの ``segmentScaleCompensate`` の補正(inverseScale)は親のスケールに追従する値のため0にせず、
@@ -884,7 +1009,7 @@ class Transform(DagNode):
         """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。
 
         ``setLimits(translateX=(0, 10), rotateZ=(-45, 90), scaleY=(None, 2))`` のように、チャンネル名
-        (``translateX``〜``scaleZ`` のロング名)へ ``(最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
+        (``translateX``〜``scaleZ`` のロング名)へ `` (最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
         無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
         距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
         全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
@@ -904,11 +1029,21 @@ class Transform(DagNode):
             RuntimeError: ノードが無効、またはMayaが設定を拒否した場合(最小が最大より大きい等)。
         """
         ...
-    def _color_targets(self) -> list[DagNode]:
-        """:meth:`setColor`・:meth:`getColor` の対象を返す。
+    def _color_targets(self, shape: bool) -> list[DagNode]:
+        """表示色を読み書きするノードを返す。
+
+        Args:
+            shape (bool): 検証済みのshape。
 
         Returns:
-            list[DagNode]: 直下の中間でないShape。Shapeが無ければ自身。
+            list[DagNode]: shapeがTrueなら直下の中間でないShape(無ければ自身)、Falseなら自身。
+        """
+        ...
+    def _curve_shapes(self) -> list[Shape]:
+        """直下の中間でないnurbsCurveのShapeを返す(bezierCurve等の派生型は含めない)。
+
+        Returns:
+            list[Shape]: DAGの子順のShape。
         """
         ...
     def _local_matrix(self, matrix: Matrix | Sequence[Any], ws: bool) -> Matrix:

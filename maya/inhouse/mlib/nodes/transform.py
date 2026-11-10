@@ -6,6 +6,7 @@ from typing import Any, Dict
 
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
+import maya.mel as mel
 from maya.api.OpenMaya import MSpace
 
 from ..core.attributeType import value_reader
@@ -16,7 +17,7 @@ from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _from_radians, _to_radians, _world_space
+from ..util import _angle_unit, _color_value, _from_radians, _to_radians, _world_space
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -40,6 +41,15 @@ _TRANSFORM_ATTRIBUTES = {}
 
 #: getRotateでゼロとみなすスケール軸の長さ。Mayaは scale 0 を 1e-12 として評価する。
 _NEAR_ZERO_AXIS = 1e-10
+
+#: カーブ形状のJSONファイルの形式名と版。
+_CURVE_SHAPES_FORMAT = "mlib.curveShapes"
+_CURVE_SHAPES_VERSION = 1
+
+#: om2.MFnNurbsCurveのフォームと、保存する名前・``setAttr -type nurbsCurve`` のフォーム番号。
+_CURVE_FORM_NAMES = {om2.MFnNurbsCurve.kOpen: "open", om2.MFnNurbsCurve.kClosed: "closed",
+                     om2.MFnNurbsCurve.kPeriodic: "periodic"}
+_CURVE_FORM_NUMBERS = {"open": 0, "closed": 1, "periodic": 2}
 
 
 def _transform_attribute(name):
@@ -139,6 +149,101 @@ def _unwritable_channel_message(plug):
         return (f"Cannot set {plug.getFullName()}: {target.getFullName()} {reason}; "
                 "unlock/disconnect it, or pass safe=True to skip channels that cannot be written")
     return None
+
+
+def _curve_number(value, label):
+    """カーブ形状のデータの数値を検証する。
+
+    Args:
+        value (object): 検証する値。
+        label (str): 例外の文言に使う名前。
+
+    Returns:
+        float: 有限な数値。
+
+    Raises:
+        ValueError: bool・数値以外、またはNaN・無限大の場合。
+    """
+    if isinstance(value, bool) or not isinstance(value, numbers.Real) or not math.isfinite(value):
+        raise ValueError(f"{label} must be a finite number, got {value!r}")
+    return float(value)
+
+
+def _curve_color(value, label):
+    """カーブ形状のデータの表示色を検証する。
+
+    Args:
+        value (object): カラーインデックス、(r, g, b)、またはNone。
+        label (str): 例外の文言に使う名前。
+
+    Returns:
+        int | tuple[float, float, float] | None: :meth:`DagNode.setOverrideColor` へ渡せる値。
+
+    Raises:
+        ValueError: 表示色として不正な場合。
+    """
+    try:
+        index, rgb = _color_value(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"{label}: {error}") from error
+    return rgb if index is None else index
+
+
+def _checked_curve_shapes(data):
+    """カーブ形状のデータを検証し、適用に使う形へ揃える。シーンは変更しない。
+
+    Args:
+        data (dict): :meth:`Transform.getCurveShapesData` の形の辞書。
+
+    Returns:
+        tuple[object, list[dict]]: Transformの表示色と、検証済みのShapeごとの辞書のリスト。
+
+    Raises:
+        TypeError: dataが辞書でない場合。
+        ValueError: キーが無い、または値が不正な場合。
+    """
+    if not isinstance(data, dict):
+        raise TypeError(f"curve shapes data must be a dict, got {type(data).__name__}")
+    if "shapes" not in data or not isinstance(data["shapes"], list):
+        raise ValueError("curve shapes data must have a 'shapes' list")
+    color = _curve_color(data.get("color"), "color")
+    entries = []
+    for position, entry in enumerate(data["shapes"]):
+        label = f"shapes[{position}]"
+        if not isinstance(entry, dict):
+            raise ValueError(f"{label} must be a dict")
+        missing = [key for key in ("name", "degree", "form", "knots", "points") if key not in entry]
+        if missing:
+            raise ValueError(f"{label} is missing {', '.join(missing)}")
+        name = entry["name"]
+        if not isinstance(name, str) or not name or "|" in name or ":" in name:
+            raise ValueError(f"{label}.name must be a non-empty name without '|' or ':', got {name!r}")
+        degree = entry["degree"]
+        if isinstance(degree, bool) or not isinstance(degree, int) or degree < 1:
+            raise ValueError(f"{label}.degree must be an int of 1 or greater, got {degree!r}")
+        form = entry["form"]
+        if form not in _CURVE_FORM_NUMBERS:
+            raise ValueError(f"{label}.form must be 'open', 'closed' or 'periodic', got {form!r}")
+        points = entry["points"]
+        if not isinstance(points, list) or len(points) < degree + 1:
+            raise ValueError(f"{label}.points must be a list of at least degree + 1 points")
+        checked_points = []
+        for index, point in enumerate(points):
+            if not isinstance(point, (list, tuple)) or len(point) != 3:
+                raise ValueError(f"{label}.points[{index}] must be 3 numbers")
+            checked_points.append(tuple(_curve_number(value, f"{label}.points[{index}]") for value in point))
+        knots = entry["knots"]
+        if not isinstance(knots, list) or len(knots) != len(points) + degree - 1:
+            raise ValueError(f"{label}.knots must be a list of len(points) + degree - 1 "
+                             f"({len(points) + degree - 1}) numbers")
+        checked_knots = [_curve_number(value, f"{label}.knots") for value in knots]
+        if any(later < earlier for earlier, later in zip(checked_knots, checked_knots[1:])):
+            raise ValueError(f"{label}.knots must not decrease")
+        line_width = _curve_number(entry.get("lineWidth", -1.0), f"{label}.lineWidth")
+        entries.append({"name": name, "degree": degree, "form": form, "knots": checked_knots,
+                        "points": checked_points, "color": _curve_color(entry.get("color"), f"{label}.color"),
+                        "lineWidth": line_width})
+    return color, entries
 
 
 class Transform(DagNode):
@@ -800,6 +905,129 @@ class Transform(DagNode):
                 cmds.rename(shape.getFullName(), leaf + ("Shape" if position == 0 else "Shape#"))
         return self
 
+    def getCurveShapesData(self):
+        """直下のカーブ形状(中間でないnurbsCurveのShape)を、JSONで書ける辞書で取得する。
+
+        Shapeごとに名前(名前空間を除いた短い名前)・次数・フォーム・ノット・オブジェクト空間のCV位置(cm。
+        UIの長さ単位によらない)・描画のオーバーライドの表示色・lineWidthを、DAGの子の順に記録する。
+        自身の表示色も記録する。bezierCurve等のほかの種類のShapeと中間Shapeは含めない。シーンは変更しない。
+
+        Returns:
+            dict: ``{"color": 表示色, "shapes": [{"name", "degree", "form", "knots", "points", "color",
+            "lineWidth"}, ...]}``。``form`` は ``"open"``・``"closed"``・``"periodic"``、``points`` は
+            ``[x, y, z]`` のリスト、表示色は :meth:`~mlib.nodes.dagNode.DagNode.getOverrideColor` と同じ
+            (カラーインデックス・(r, g, b)・None)。
+
+        Raises:
+            RuntimeError: 自身が無効な場合。
+        """
+        self._require_valid("read the curve shapes of")
+        shapes = []
+        for shape in self._curve_shapes():
+            fn = om2.MFnNurbsCurve(shape.mpath())
+            leaf = shape.getFullName().rsplit("|", 1)[-1]
+            shapes.append({
+                "name": leaf.rsplit(":", 1)[-1],
+                "degree": fn.degree,
+                "form": _CURVE_FORM_NAMES[fn.form],
+                "knots": list(fn.knots()),
+                "points": [[point.x, point.y, point.z] for point in fn.cvPositions(MSpace.kObject)],
+                "color": shape.getOverrideColor(),
+                "lineWidth": fn.findPlug("lineWidth", False).asDouble(),
+            })
+        return {"color": self.getOverrideColor(), "shapes": shapes}
+
+    def setCurveShapesData(self, data):
+        """:meth:`getCurveShapesData` の形のデータで、直下のカーブ形状を作り直して自身を返す。
+
+        直下の中間でないnurbsCurveのShapeを削除し、データのShapeを順に作成する(本数は違ってよい)。
+        ほかの種類のShape・中間Shape・子Transformは残す。CV位置はオブジェクト空間なので、自身の位置・
+        回転・スケールに対する形を保つ。新しいShapeの名前は保存した名前に自身の名前空間を付けたもので、
+        同じ名前が既にあればMayaが番号を付けて重複を避ける。各Shapeと自身の表示色(Noneは
+        ``overrideEnabled`` を無効にする)とlineWidthも戻す。削除したShapeの接続・履歴は戻らない。
+        データは変更の前に全て検証する。全体を1回のUndoにまとめ、途中で失敗した場合は巻き戻す。
+
+        Args:
+            data (dict): :meth:`getCurveShapesData` の形の辞書。``lineWidth`` を省略したShapeは-1(既定の太さ)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: dataが辞書でない場合。
+            ValueError: データのキーが無い、または値が不正な場合(シーンは変更しない)。
+            RuntimeError: 自身が無効、またはロック・参照等でMayaが変更を拒否した場合。
+        """
+        color, entries = _checked_curve_shapes(data)
+        self._require_valid("set the curve shapes of")
+        with _edit_context("mlibTransformSetCurveShapesData", False, transaction=True):
+            old = [shape.getFullName() for shape in self._curve_shapes()]
+            if old:
+                cmds.delete(old)
+            target = self.getFullName()
+            namespace = target.rsplit("|", 1)[-1].rpartition(":")[0]
+            prefix = namespace + ":" if namespace else ""
+            for entry in entries:
+                created = cmds.createNode("nurbsCurve", name=prefix + entry["name"], parent=target, skipSelect=True)
+                # 短い名前が重複する場合があるため、自身の直下のパスに絞る。
+                path = [name for name in cmds.ls(created, long=True) if name.rsplit("|", 1)[0] == target][0]
+                degree = entry["degree"]
+                words = [degree, len(entry["points"]) - degree, _CURVE_FORM_NUMBERS[entry["form"]], "no", 3,
+                         len(entry["knots"])]
+                words.extend(repr(value) for value in entry["knots"])
+                words.append(len(entry["points"]))
+                words.extend(repr(value) for point in entry["points"] for value in point)
+                # フォームを指定してCVとノットをそのまま設定できるのは、MELの setAttr -type nurbsCurve だけ。
+                # CV位置は現在のUI単位で解釈されるため、内部単位(cm)へ切り替えて渡す。
+                with nativeUnits():
+                    mel.eval(f'setAttr "{path}.cached" -type "nurbsCurve" {" ".join(str(word) for word in words)};')
+                cmds.setAttr(path + ".lineWidth", entry["lineWidth"])
+                if entry["color"] is not None:
+                    Node(path).setOverrideColor(entry["color"])
+            self.setOverrideColor(color)
+        return self
+
+    def exportCurveShapes(self, path):
+        """直下のカーブ形状を、ヘッダー付きのJSONファイルへ書き出す。
+
+        内容は :meth:`getCurveShapesData` と同じで、形式名は ``"mlib.curveShapes"`` (版1)。
+        同じフォルダの一時ファイルへ書いてから置き換える。フォルダは作らない。
+
+        Args:
+            path (str | os.PathLike): 書き出し先。
+
+        Returns:
+            pathlib.Path: 書き出したファイルの絶対パス。
+
+        Raises:
+            RuntimeError: 自身が無効な場合。
+            OSError: 書き出しに失敗した場合。
+        """
+        # 循環参照の回避: mlib.json はノードのクラスより後に読み込まれる。
+        from ..json.file import dump
+        return dump(self.getCurveShapesData(), path, _CURVE_SHAPES_FORMAT, _CURVE_SHAPES_VERSION)
+
+    def importCurveShapes(self, path):
+        """:meth:`exportCurveShapes` のファイルを読み込み、直下のカーブ形状を作り直して自身を返す。
+
+        適用は :meth:`setCurveShapesData` と同じ。
+
+        Args:
+            path (str | os.PathLike): 読み込むファイル。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            ValueError: JSONとして読めない、形式名・版が違う、またはデータが不正な場合(シーンは変更しない)。
+            RuntimeError: 自身が無効、またはMayaが変更を拒否した場合。
+            OSError: 読み込みに失敗した場合。
+        """
+        # 循環参照の回避: mlib.json はノードのクラスより後に読み込まれる。
+        from ..json.file import load
+        _header, data = load(path, _CURVE_SHAPES_FORMAT, _CURVE_SHAPES_VERSION)
+        return self.setCurveShapesData(data)
+
     def getShape(self, index=0, intermediates=False):
         """指定位置のShapeを取得する。
 
@@ -1048,7 +1276,7 @@ class Transform(DagNode):
 
         既定の ``at=2`` は回転ピボットの位置(Maya の Local Axis 表示やコンストレイントがノードの
         位置とする基準)で、translate チャンネルの値ではない。translate チャンネルの値は
-        ``node.t.get()``(または ``node.getPlug("translate").get()``)で取得する。
+        ``node.t.get()`` (または ``node.getPlug("translate").get()``)で取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親側の空間で表す位置。
@@ -1465,7 +1693,7 @@ class Transform(DagNode):
         """現在のローカル変換を ``offsetParentMatrix`` へ移し、変換のチャンネルを初期値にして自身を返す。
 
         translate・rotate・shearを0、scaleを1にし(Jointは ``jointOrient`` も0にする)、ワールドの位置・
-        向き・大きさが変わらないよう ``offsetParentMatrix`` を ``(初期化後のmatrix)^-1 * 初期化前のmatrix *
+        向き・大きさが変わらないよう ``offsetParentMatrix`` を `` (初期化後のmatrix)^-1 * 初期化前のmatrix *
         初期化前のoffsetParentMatrix`` にする。ピボット・``rotateAxis``・``rotateOrder`` は変えず、その分も
         ``offsetParentMatrix`` で補う(初期化後に回転させると、ピボットとrotateAxisは従来どおり効く)。
         Jointの ``segmentScaleCompensate`` の補正(inverseScale)は親のスケールに追従する値のため0にせず、
@@ -1573,7 +1801,7 @@ class Transform(DagNode):
         """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。
 
         ``setLimits(translateX=(0, 10), rotateZ=(-45, 90), scaleY=(None, 2))`` のように、チャンネル名
-        (``translateX``〜``scaleZ`` のロング名)へ ``(最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
+        (``translateX``〜``scaleZ`` のロング名)へ `` (最小, 最大)`` を渡す。片側の ``None`` はその側の制限を
         無効にし(値は変えない)、値全体の ``None`` は両側を無効にする。指定しないチャンネルは変更しない。
         距離はcm、角度は ``unit`` の単位(既定は度)で、Mayaの現在のUI単位へ換算して渡す。
         全指定を検証してから1回の ``cmds.transformLimits`` で設定し、Undo有効時に1回のUndoで戻る。
@@ -1634,14 +1862,25 @@ class Transform(DagNode):
                 cmds.transformLimits(name, **flags)
         return self
 
-    def _color_targets(self):
-        """:meth:`setColor`・:meth:`getColor` の対象を返す。
+    def _color_targets(self, shape):
+        """表示色を読み書きするノードを返す。
+
+        Args:
+            shape (bool): 検証済みのshape。
 
         Returns:
-            list[DagNode]: 直下の中間でないShape。Shapeが無ければ自身。
+            list[DagNode]: shapeがTrueなら直下の中間でないShape(無ければ自身)、Falseなら自身。
         """
-        self._require_valid("set the color of")
-        return self.getShapes() or [self]
+        self._require_valid("access the display attributes of")
+        return (self.getShapes() or [self]) if shape else [self]
+
+    def _curve_shapes(self):
+        """直下の中間でないnurbsCurveのShapeを返す(bezierCurve等の派生型は含めない)。
+
+        Returns:
+            list[Shape]: DAGの子順のShape。
+        """
+        return [shape for shape in self.getShapes() if shape.mnode().apiType() == om2.MFn.kNurbsCurve]
 
     def _local_matrix(self, matrix, ws):
         """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。

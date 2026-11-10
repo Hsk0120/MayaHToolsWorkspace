@@ -1,7 +1,7 @@
 """6.1.0 で fast を足した書込みメソッドの約束を固定する。
 
 対象は ``Mesh.setPoints``・``NurbsCurve.setCvPositions``(周期カーブを含む)・``Shape.scaleGeometry`` の
-周期カーブ・``DagNode.setColor``・``Nodes.setColor``・``BoolPlug.toggle``・``SkinCluster.pruneWeights``・
+周期カーブ・``DagNode.setOverrideColor``・``Nodes.setOverrideColor``・``BoolPlug.toggle``・``SkinCluster.pruneWeights``・
 ``DrivenKey.setKey``。各メソッドで、fast=True が通常経路と同じ結果になること、Undo キューへ何も
 記録しないこと、fast が bool 以外なら TypeError、未対応・書込み不可は変更前に拒否することを確かめる。
 """
@@ -109,7 +109,7 @@ class NurbsCurveSetCvPositionsFastTest(_SpecCase):
 
 
 class DagNodeSetColorFastTest(_SpecCase):
-    """DagNode.setColor・Nodes.setColorのfastは通常と同じアトリビュートを書く。"""
+    """DagNode.setOverrideColor・Nodes.setColorのfastは通常と同じアトリビュートを書く。"""
 
     ATTRIBUTES = ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB")
 
@@ -118,30 +118,29 @@ class DagNodeSetColorFastTest(_SpecCase):
         return [cmds.getAttr(shape + "." + name) for name in self.ATTRIBUTES]
 
     def test_matches_normal(self):
-        """インデックス・RGBの両方で、Transform配下のShapeと、Shapeの無いTransformが通常と一致する。"""
+        """インデックス・RGBの両方で、Shapeを持つTransform自身と、Shapeの無いTransformが通常と一致する。"""
         for color in (13, (1.0, 0.5, 0.0)):
             with self.subTest(color=color):
                 normal = mlib.getNode(cmds.circle(name=self.ns + ":normal", constructionHistory=False)[0])
                 fast = mlib.getNode(cmds.circle(name=self.ns + ":fast", constructionHistory=False)[0])
                 group = mlib.getNode(cmds.createNode("transform", name=self.ns + ":group"))
-                normal.setColor(color)
-                self.assert_no_undo(lambda: fast.setColor(color, fast=True))
-                self.assertEqual(self.colors(fast.getShape().getFullName()),
-                                 self.colors(normal.getShape().getFullName()))
-                self.assert_no_undo(lambda: Nodes([group]).setColor(color, fast=True))
+                normal.setOverrideColor(color)
+                self.assert_no_undo(lambda: fast.setOverrideColor(color, fast=True))
+                self.assertEqual(self.colors(fast.getFullName()), self.colors(normal.getFullName()))
+                self.assert_no_undo(lambda: Nodes([group]).setOverrideColor(color, fast=True))
                 self.assertTrue(cmds.getAttr(group.getFullName() + ".overrideEnabled"))
                 cmds.delete(normal.getFullName(), fast.getFullName(), group.getFullName())
 
     def test_locked_attribute_rejects_before_change(self):
         """ロックされたアトリビュートがあれば、他のアトリビュートも書かずにRuntimeError。"""
         node = mlib.getNode(cmds.circle(name=self.ns + ":locked", constructionHistory=False)[0])
-        shape = node.getShape().getFullName()
-        cmds.setAttr(shape + ".overrideColor", lock=True)
+        name = node.getFullName()
+        cmds.setAttr(name + ".overrideColor", lock=True)
         with self.assertRaises(RuntimeError):
-            node.setColor(13, fast=True)
-        self.assertFalse(cmds.getAttr(shape + ".overrideEnabled"))
+            node.setOverrideColor(13, fast=True)
+        self.assertFalse(cmds.getAttr(name + ".overrideEnabled"))
         with self.assertRaises(TypeError):
-            node.setColor(13, fast="yes")
+            node.setOverrideColor(13, fast="yes")
 
 
 class BoolPlugToggleFastTest(_SpecCase):

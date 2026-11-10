@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - mlibの公開関数・メソッド・プロパティはlowerCamelCase、クラスはPascalCase。例外・引数・保存形式の扱いは `docs/mlib-api-design.md` の「確定したコーディングルール」を正とする。
 
-- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストア・保存フレームワークは本体へ追加しない。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
+- mlibの実行フォルダは `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core`・`json` とする。選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行と既存の汎用計算の型は `common` 直下へ置き、領域別のサブフォルダは増やさない。汎用UI・設定ストアは本体へ追加しない。2026-11-11のユーザー指定により、シーンのデータのJSON保存・復元は `json`(数学型の変換・ヘッダー付きファイル・ノード/Plug/コンポーネントの参照と名前の対応付け・`Snapshot`基底)に置き、1つのノードが持つデータ(スキンウェイト・カーブ形状・BlendShape)はそのノードクラスのメソッドに直接書き、複数ノードのデータ(ポーズ・アニメーション・アトリビュート・ドリブンキー・選択)は `mlib.json` の `Snapshot` クラスで提供する(設計は`docs/mlib-json-design.md`)。横断的に使う通知は直下の `logger.py`、デコレーター・コンテキストマネージャーとfast/safe・フラグ正規化の内部補助は直下の `decorator.py`、クラスに属さない小さな汎用関数と中立な値処理の補助は直下の `util.py`、共通基底・型判定/登録・編集基盤は `core`、文書は `_docs` に置く。`util.__all__`は`legalizeName`・`measure`・`mirrorArguments`の3件。`mlib_*` もこの責務の分類に合わせる。
 
 - 2026-10-23のユーザー指示により、`_core`は`core`へ改名し、実行フォルダ名で公開/非公開を区分しない。正式なAPIは通常の明示import・`__all__`・文書で示し、集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持する。`core`内の全関数を正式APIへ拡大せず、既存の`NodeRegistry`・`reload_package`と登録用プロトコルの名前・意味を維持する。旧`mlib._core`や移動前のcommon小モジュールの互換ファイル・別名は残さない。`_docs`・`__tests__`は実行APIと別の文書・検証素材なので配置名を維持する。
 
@@ -210,7 +210,7 @@ tools/
 - 選択・名前空間・参照関係、単位、プラグイン導入状態、イベント・遅延実行は`mlib.common`へ置く。参照列挙は`mlib.common.references.listReferences()`、参照ノードは`mlib.nodes.Reference`で扱う。汎用UI・シーン/プロジェクト操作は利用側のMaya標準APIを使い、本体へ旧パッケージを再追加しない。
 - `mlib/decorator.py`: `undoChunk`、`undoTransaction`、`nativeUnits`、`preservedSelection`、`preservedSkinShape`、`viewportOff`の既存6入口を公開する。fast/safeの状態管理・内部wrapper・フラグ正規化も同ファイルへ集約する。インスタンス固有のcontextは各クラスに残し、既存の装飾順序・Undo/fast/safeの意味を維持する。
 - `mlib/util.py`: クラスに属さない`legalizeName`・`measure`・`mirrorArguments`の3関数を公開する。数学値と空間指定の内部helperは先頭`_`で区別し、標準ライブラリだけをimportする。ログは`mlib.logger`、進捗表示は`mlib.common.progressBar`が担当する。
-- `mlib/__init__.py`は`core`・`util`等のモジュール、`reload()`、明示したコマンドと各パッケージのクラス(`__getattr__`経由)を公開し、版番号`__version__`(現行`10.6.0`)を持つ。`__version__`は`__all__`に入れず、`maya/modules/mlib.mod`の6行と`_docs/source/changelog.rst`の先頭見出しと同じ値にする(`__tests__/unit/test_static_version.py`が三者の一致を検査する)。`Object`の正式入口は`mlib.core.object.Object`、拡張管理は`mlib.core.extensions`とし、ルートから取得できるクラスは上記の`__getattr__`の対象に限る。旧`mlib._core`や移動前のcommon小モジュールの互換入口は残さない。再読み込みは廃止済みモジュール参照も除去する。
+- `mlib/__init__.py`は`core`・`util`等のモジュール、`reload()`、明示したコマンドと各パッケージのクラス(`__getattr__`経由)を公開し、版番号`__version__`(現行`11.1.0`)を持つ。`__version__`は`__all__`に入れず、`maya/modules/mlib.mod`の6行と`_docs/source/changelog.rst`の先頭見出しと同じ値にする(`__tests__/unit/test_static_version.py`が三者の一致を検査する)。`Object`の正式入口は`mlib.core.object.Object`、拡張管理は`mlib.core.extensions`とし、ルートから取得できるクラスは上記の`__getattr__`の対象に限る。旧`mlib._core`や移動前のcommon小モジュールの互換入口は残さない。再読み込みは廃止済みモジュール参照も除去する。
 
 ### MayaCommandPorts
 

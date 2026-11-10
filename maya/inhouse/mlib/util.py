@@ -517,6 +517,40 @@ def _finite_vector(value, size, name):
     return tuple(_finite(item, name) for item in items)
 
 
+#: カラーインデックスの上限(0〜31)。
+_MAX_COLOR_INDEX = 31
+
+
+def _color_value(color):
+    """表示色の指定を検証する。
+
+    Args:
+        color (int | Sequence[float] | None): カラーインデックス、(r, g, b)、または無効にするNone。
+
+    Returns:
+        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
+            RGB指定なら (None, (r, g, b))、Noneなら (None, None)。
+
+    Raises:
+        TypeError: 型が不正な場合。
+        ValueError: 範囲・成分数が不正な場合。
+    """
+    if color is None:
+        return None, None
+    if isinstance(color, bool):
+        raise TypeError("color must be an int index, an (r, g, b) sequence or None, not bool")
+    if isinstance(color, int):
+        if not 0 <= color <= _MAX_COLOR_INDEX:
+            raise ValueError(f"color index must be between 0 and {_MAX_COLOR_INDEX}, got {color}")
+        return color, None
+    if isinstance(color, (str, bytes)) or not hasattr(color, "__iter__"):
+        raise TypeError("color must be an int index, an (r, g, b) sequence or None")
+    rgb = _finite_vector(color, 3, "color")
+    if not all(0.0 <= value <= 1.0 for value in rgb):
+        raise ValueError("color RGB components must be between 0 and 1")
+    return None, rgb
+
+
 def _checked_tolerance(value, *, positive=False):
     """許容誤差を検証し、floatへ変換する。
 

@@ -56,7 +56,7 @@ PLURAL_OWN = ("getSkinClusters",)
 JOINTS_OWN = ("delete",)
 
 #: 5.0.0で複数形へ明示的に戻した一括の書込み(Nodes._forward で各要素へ適用する)。
-PLURAL_BULK = ("setAttrFlags", "resetAttrs", "setLocked", "setColor", "setVisibility", "show", "hide", "setParent")
+PLURAL_BULK = ("setAttrFlags", "resetAttrs", "setLocked", "setOverrideColor", "setOutlinerColor", "setVisibility", "show", "hide", "setParent")
 
 #: 3.0.0 で廃止した複数形の一括転送と、その基盤の名前。
 REMOVED_PLURAL = ("callEach", "getNames", "delete", "removeInfluences", "jointOrientToRotate", "freezeRotate",

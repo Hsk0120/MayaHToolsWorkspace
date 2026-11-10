@@ -56,6 +56,7 @@ TYPING_NAMES = {"Any", "Callable", "ContextManager", "Dict", "Generator", "Itera
 # モジュール名を付けずに書かれた標準ライブラリの型と、型の式で使うモジュールのimport。
 QUALIFIED = {"NotImplementedType": "types.NotImplementedType", "Match": "re.Match"}
 MODULE_IMPORTS = {"types": "import types", "re": "import re", "contextlib": "import contextlib",
+                  "os": "import os", "pathlib": "import pathlib",
                   "om2": "import maya.api.OpenMaya as om2"}
 # docstring で使われる、型名ではない慣用の呼び方の読み替え。
 ALIASES = {"module": "ModuleType", "callable": "Callable[..., Any]", "function": "Callable[..., Any]",

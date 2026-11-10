@@ -142,13 +142,18 @@ class BlendShapeTargetTest(_SpecCase):
         self.assertAlmostEqual(cmds.getAttr(self.full + ".frown"), 0.25)
 
     def test_lookup_errors(self):
-        """存在しない名前は ValueError、文字列以外は TypeError。"""
+        """存在しない名前・番号は ValueError、名前・番号・Plug 以外(bool を含む)は TypeError。"""
         with self.assertRaisesRegex(ValueError, "No blendShape target named 'missing'"):
             self.bs.getTargetIndex("missing")
         with self.assertRaises(ValueError):
             self.bs.getWeightPlug("missing")
+        self.assertEqual(self.bs.getTargetIndex(0), 0)
+        with self.assertRaises(ValueError):
+            self.bs.getTargetIndex(99)
         with self.assertRaises(TypeError):
-            self.bs.getTargetIndex(0)
+            self.bs.getTargetIndex(True)
+        with self.assertRaises(TypeError):
+            self.bs.getTargetIndex(0.0)
         with self.assertRaises(TypeError):
             0 in self.bs
 

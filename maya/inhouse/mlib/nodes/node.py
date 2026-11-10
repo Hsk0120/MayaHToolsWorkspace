@@ -12,7 +12,7 @@ from ..core.object import Object, _missing_member_message
 from ..core.registry import _inherited_node_types, _node_type_exists, _real_node_type
 from ..core.registry import _unknown_node_type_message
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoChunk, undoTransaction
-from ..util import _ArgumentError, _UNSET, _angle_unit, _time_unit
+from ..util import _ArgumentError, _UNSET, _angle_unit, _color_value, _time_unit
 
 #: om2の数値データ型からaddAttrの型名への対応(moveAttrOrderでの再作成に使う)。
 _MOVABLE_NUMERIC_TYPES = {
@@ -2976,7 +2976,7 @@ class Nodes:
         """各ノードへ保持順に :meth:`Node.setAttrFlags` を適用する。
 
         一括で書き込めるメソッドは :meth:`setAttrFlags`・:meth:`resetAttrs`・:meth:`setLocked`・
-        :meth:`setColor`・:meth:`setVisibility`・:meth:`show`・:meth:`hide`・:meth:`setParent`
+        :meth:`setOverrideColor`・:meth:`setOutlinerColor`・:meth:`setVisibility`・:meth:`show`・:meth:`hide`・:meth:`setParent`
         (:class:`~mlib.nodes.joint.Joints` は ``setRadius``・``setSegmentScaleCompensate`` も)。
         通常は全体を1回のUndoにまとめる。全要素がメソッドを持つことを書込みの前に確かめる。
 
@@ -3035,11 +3035,28 @@ class Nodes:
         self._forward("setLocked", (state,), fast)
         return self
 
-    def setColor(self, color, *, fast=False):
-        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setColor` を適用する。
+    def getOverrideColor(self, *, shape=False):
+        """各DAGノードの :meth:`~mlib.nodes.dagNode.DagNode.getOverrideColor` を保持順に返す。
 
         Args:
-            color (object): :meth:`~mlib.nodes.dagNode.DagNode.setColor` と同じ。
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.getOverrideColor` と同じ。既定False。
+
+        Returns:
+            list[int | tuple[float, float, float] | None]: 各ノードの描画のオーバーライドの表示色。
+
+        Raises:
+            TypeError: DAGノード以外を含む場合。
+            RuntimeError: 無効なノードを含む場合。
+        """
+        self._require_method("getOverrideColor")
+        return [node.getOverrideColor(shape=shape) for node in self._items]
+
+    def setOverrideColor(self, color, *, shape=False, fast=False):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setOverrideColor` を適用する。
+
+        Args:
+            color (object): :meth:`~mlib.nodes.dagNode.DagNode.setOverrideColor` と同じ。
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.setOverrideColor` と同じ。既定False。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -3050,7 +3067,80 @@ class Nodes:
             ValueError: 色の指定が不正な場合。
             RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
         """
-        self._forward("setColor", (color,), fast)
+        self._forward("setOverrideColor", (color,), fast, shape=shape)
+        return self
+
+    def setOverrideColors(self, colors, *, shape=False, fast=False):
+        """保持順に一色ずつ :meth:`~mlib.nodes.dagNode.DagNode.setOverrideColor` を適用する。
+
+        Args:
+            colors (Iterable[object]): ノードと同数の色の指定。書き込む前に全ての色を検証する。
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.setOverrideColor` と同じ。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。通常は全体を1回のUndoにまとめる。
+
+        Raises:
+            TypeError: DAGノード以外を含む、色の指定が不正、またはfastがbool以外の場合。
+            ValueError: 色の数がノードの数と違う、または色の指定が不正な場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._set_each_color("setOverrideColor", colors, shape, fast)
+        return self
+
+    def getOutlinerColor(self, *, shape=False):
+        """各DAGノードの :meth:`~mlib.nodes.dagNode.DagNode.getOutlinerColor` を保持順に返す。
+
+        Args:
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.getOutlinerColor` と同じ。既定False。
+
+        Returns:
+            list[tuple[float, float, float] | None]: 各ノードのアウトライナーの文字色。
+
+        Raises:
+            TypeError: DAGノード以外を含む場合。
+            RuntimeError: 無効なノードを含む場合。
+        """
+        self._require_method("getOutlinerColor")
+        return [node.getOutlinerColor(shape=shape) for node in self._items]
+
+    def setOutlinerColor(self, color, *, shape=False, fast=False):
+        """各DAGノードへ保持順に :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerColor` を適用する。
+
+        Args:
+            color (object): :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerColor` と同じ。
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerColor` と同じ。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。通常は全体を1回のUndoにまとめる。
+
+        Raises:
+            TypeError: DAGノード以外を含む、色の指定が不正、またはfastがbool以外の場合。
+            ValueError: 色の指定が不正な場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._forward("setOutlinerColor", (color,), fast, shape=shape)
+        return self
+
+    def setOutlinerColors(self, colors, *, shape=False, fast=False):
+        """保持順に一色ずつ :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerColor` を適用する。
+
+        Args:
+            colors (Iterable[object]): ノードと同数の色の指定。書き込む前に全ての色を検証する。
+            shape (bool): :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerColor` と同じ。既定False。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Nodes: 自身。通常は全体を1回のUndoにまとめる。
+
+        Raises:
+            TypeError: DAGノード以外を含む、色の指定が不正、またはfastがbool以外の場合。
+            ValueError: 色の数がノードの数と違う、または色の指定が不正な場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        self._set_each_color("setOutlinerColor", colors, shape, fast)
         return self
 
     def setVisibility(self, state, *, fast=False):
@@ -3141,7 +3231,7 @@ class Nodes:
         result._items = list(self._items)
         return result
 
-    def _forward(self, method, args, fast):
+    def _forward(self, method, args, fast, **kwargs):
         """保持順の各ノードへ単数のメソッドを適用し、結果の列を返す。
 
         全要素がメソッドを持ち有効であることを書込みの前に確かめ、通常は1回のUndoにまとめる。
@@ -3150,6 +3240,7 @@ class Nodes:
             method (str): 単数のノードのメソッド名。
             args (tuple): 位置引数。
             fast (bool | None): メソッドへ渡すfast。Noneはfast引数の無いメソッド。
+            **kwargs (object): メソッドへそのまま渡すキーワード引数。
 
         Returns:
             list: 要素順の戻り値。
@@ -3158,15 +3249,61 @@ class Nodes:
             TypeError: メソッドを持たない要素を含む場合、またはfastがbool以外の場合。
             RuntimeError: 無効な要素を含む場合。
         """
+        self._require_method(method)
+        for node in self._items:
+            node._require_valid(method)
+        if fast is not None:
+            kwargs["fast"] = fast
+        with _edit_context(f"mlib{type(self).__name__}{method[:1].upper()}{method[1:]}", bool(fast)):
+            return [getattr(node, method)(*args, **kwargs) for node in self._items]
+
+    def _require_method(self, method):
+        """全要素が単数のメソッドを持つことを確かめる。
+
+        Args:
+            method (str): 単数のノードのメソッド名。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: メソッドを持たない要素を含む場合。
+        """
         missing = [node for node in self._items if not callable(getattr(type(node), method, None))]
         if missing:
             raise TypeError(f"{type(self).__name__}.{method}() requires every item to support {method}(); "
                             f"{missing[0]!r} does not")
+
+    def _set_each_color(self, method, colors, shape, fast):
+        """保持順の各ノードへ、対応する色で単数のメソッドを適用する。
+
+        Args:
+            method (str): 単数のノードのメソッド名。
+            colors (Iterable[object]): ノードと同数の色の指定。
+            shape (bool): メソッドへ渡すshape。
+            fast (bool): メソッドへ渡すfast。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: DAGノード以外を含む、色の指定が不正、またはfastがbool以外の場合。
+            ValueError: 色の数がノードの数と違う、または色の指定が不正な場合。
+            RuntimeError: 無効なノードを含む、またはMayaが更新を拒否した場合。
+        """
+        _require_bool(shape, "shape")
+        _require_bool(fast, "fast")
+        colors = list(colors)
+        if len(colors) != len(self._items):
+            raise ValueError(f"{type(self).__name__}.{method}s() requires {len(self._items)} colors, got {len(colors)}")
+        for color in colors:
+            _color_value(color)
+        self._require_method(method)
         for node in self._items:
             node._require_valid(method)
-        kwargs = {} if fast is None else {"fast": fast}
-        with _edit_context(f"mlib{type(self).__name__}{method[:1].upper()}{method[1:]}", bool(fast)):
-            return [getattr(node, method)(*args, **kwargs) for node in self._items]
+        with _edit_context(f"mlib{type(self).__name__}{method[:1].upper()}{method[1:]}s", fast):
+            for node, color in zip(self._items, colors):
+                getattr(node, method)(color, shape=shape, fast=fast)
 
     @staticmethod
     def _resolve_inputs(values):

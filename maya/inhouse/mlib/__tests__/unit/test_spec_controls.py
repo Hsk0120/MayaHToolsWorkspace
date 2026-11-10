@@ -1,4 +1,4 @@
-"""コントローラー作成の補助(NurbsCurve.create・setCvPositions・Transform.replaceShapes・DagNode.setColor)の仕様テスト。
+"""コントローラー作成の補助(NurbsCurve.create・setCvPositions・Transform.replaceShapes・DagNode.setOverrideColor)の仕様テスト。
 
 cmdsで独立に照会した値と比べ、Undo 1回で戻ること・不正入力の例外型・現在のUI単位に依存しないことを確かめる。
 """
@@ -268,65 +268,63 @@ class ReplaceShapesTest(_Case):
 class SetColorTest(_Case):
     """描画のオーバーライド色。"""
 
-    def test_index_and_rgb_on_shapes(self):
+    def test_index_and_rgb_on_node_itself(self):
         shape = self.curve()
         transform = shape.getTransform()
-        name = shape.getFullName()
-        self.assertIsNone(transform.getColor())
-        self.assertIs(transform.setColor(13), transform)
+        name = transform.getFullName()
+        self.assertIsNone(transform.getOverrideColor())
+        self.assertIs(transform.setOverrideColor(13), transform)
         self.assertTrue(cmds.getAttr(name + ".overrideEnabled"))
         self.assertFalse(cmds.getAttr(name + ".overrideRGBColors"))
         self.assertEqual(cmds.getAttr(name + ".overrideColor"), 13)
-        self.assertFalse(cmds.getAttr(transform.getFullName() + ".overrideEnabled"))
-        self.assertEqual(transform.getColor(), 13)
-        self.assertEqual(shape.getColor(), 13)
-        transform.setColor((1.0, 0.5, 0.25))
+        self.assertFalse(cmds.getAttr(shape.getFullName() + ".overrideEnabled"))
+        self.assertEqual(transform.getOverrideColor(), 13)
+        self.assertIsNone(shape.getOverrideColor())
+        transform.setOverrideColor((1.0, 0.5, 0.25))
         self.assertTrue(cmds.getAttr(name + ".overrideRGBColors"))
         self.assertSequenceAlmostEqual(cmds.getAttr(name + ".overrideColorRGB")[0], (1.0, 0.5, 0.25), places=6)
-        self.assertSequenceAlmostEqual(transform.getColor(), (1.0, 0.5, 0.25), places=6)
-        transform.setColor(4)
+        self.assertSequenceAlmostEqual(transform.getOverrideColor(), (1.0, 0.5, 0.25), places=6)
+        transform.setOverrideColor(4)
         self.assertFalse(cmds.getAttr(name + ".overrideRGBColors"))
-        self.assertEqual(transform.getColor(), 4)
+        self.assertEqual(transform.getOverrideColor(), 4)
+        shape.setOverrideColor(9)
+        self.assertEqual(cmds.getAttr(shape.getFullName() + ".overrideColor"), 9)
+        self.assertEqual(transform.getOverrideColor(), 4)
 
     def test_transform_without_shapes_and_joint(self):
         group = mlib.getNode(self.make("transform", "grp"))
-        group.setColor(6)
+        group.setOverrideColor(6)
         self.assertEqual(cmds.getAttr(group.getFullName() + ".overrideColor"), 6)
         joint = mlib.getNode(self.make("joint", "jnt"))
-        joint.setColor([0, 1, 0])
-        self.assertSequenceAlmostEqual(joint.getColor(), (0, 1, 0))
+        joint.setOverrideColor([0, 1, 0])
+        self.assertSequenceAlmostEqual(joint.getOverrideColor(), (0, 1, 0))
 
     def test_undo_once(self):
         shape = self.curve()
         transform = shape.getTransform()
         self.flushUndo()
-        transform.setColor((0.2, 0.4, 0.6))
-        self.assertUndoesInOneStep(lambda: self.assertIsNone(transform.getColor()),
-                                   lambda: self.assertIsNotNone(transform.getColor()))
+        transform.setOverrideColor((0.2, 0.4, 0.6))
+        self.assertUndoesInOneStep(lambda: self.assertIsNone(transform.getOverrideColor()),
+                                   lambda: self.assertIsNotNone(transform.getOverrideColor()))
 
     def test_invalid_inputs(self):
         shape = self.curve()
-        for error, value in ((TypeError, True), (TypeError, "red"), (TypeError, None), (TypeError, 1.5),
+        for error, value in ((TypeError, True), (TypeError, "red"), (TypeError, 1.5),
                              (ValueError, -1), (ValueError, 32), (ValueError, (1, 0)), (ValueError, (1, 0, 2)),
                              (TypeError, (1, "0", 0)), (ValueError, (0, float("nan"), 0))):
             with self.subTest(value=value):
                 with self.assertRaises(error):
-                    shape.setColor(value)
-        self.assertIsNone(shape.getColor())
+                    shape.setOverrideColor(value)
+        self.assertIsNone(shape.getOverrideColor())
 
     def test_locked_attribute_rolls_back(self):
-        shape = self.curve()
-        transform = shape.getTransform()
-        second = mlib.createCurve([(0, 0, 0), (1, 1, 1)])
-        temporary = second.getTransform().getFullName()
-        cmds.parent(second.getFullName(), transform.getFullName(), shape=True, relative=True)
-        cmds.delete(temporary)
-        second_name = transform.getShapes()[1].getFullName()
-        cmds.setAttr(second_name + ".overrideColor", lock=True)
+        transform = self.curve().getTransform()
+        name = transform.getFullName()
+        cmds.setAttr(name + ".overrideColor", lock=True)
         with self.assertRaises(RuntimeError):
-            transform.setColor(9)
-        self.assertFalse(cmds.getAttr(shape.getFullName() + ".overrideEnabled"))
-        cmds.setAttr(second_name + ".overrideColor", lock=False)
+            transform.setOverrideColor(9)
+        self.assertFalse(cmds.getAttr(name + ".overrideEnabled"))
+        cmds.setAttr(name + ".overrideColor", lock=False)
 
 
 if __name__ == "__main__":

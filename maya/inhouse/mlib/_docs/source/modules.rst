@@ -45,6 +45,17 @@ Vector・Matrix・Quaternionなど、OpenMayaを基盤とした可変の数学�
 
    autoapi/mlib/maths/index
 
+JSON Save and Restore
+---------------------
+
+ポーズ・アニメーション・スキンウェイト等のデータをJSONへ保存し、名前の対応付けを当てて復元します。
+1つのノードが持つデータ(スキンウェイト・カーブ形状・BlendShape)は各ノードのクラスのメソッドから保存します。
+
+.. toctree::
+   :maxdepth: 1
+
+   autoapi/mlib/json/index
+
 Common Features
 ---------------
 

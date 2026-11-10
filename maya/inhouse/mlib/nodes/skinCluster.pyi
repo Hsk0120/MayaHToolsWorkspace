@@ -5,16 +5,16 @@
 
 import json
 import math
-from itertools import groupby
 from collections.abc import Mapping
 from contextlib import contextmanager
 from decimal import Decimal, localcontext, ROUND_FLOOR
+from itertools import groupby
 from typing import List
 import maya.api.OpenMaya as om2
 import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.fastWrite import require_range, require_writable, set_attr
-from ..core.ngSkinLayers import _move_layer_weights
+from ..core.ngSkinLayers import _layer_api, _move_layer_weights
 from ..core.object import Object
 from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
@@ -27,10 +27,26 @@ from typing import Any, Iterable, Iterator, Literal, Sequence
 from mlib._stubtypes import GeneratorContextManager
 from mlib.components.vertex import Vertex
 from mlib.components.vertex import Vertices
+from mlib.json.nameMapping import NameMapping
+from mlib.json.snapshot import ValidationReport
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.mesh import Mesh
+from types import ModuleType
 from typing import overload
+import os
+import pathlib
 
+
+def _finite_number(value: object) -> bool:
+    """boolを除く有限の数値か判定する。
+
+    Args:
+        value (object): 判定する値。
+
+    Returns:
+        bool: int・floatの有限値ならTrue。
+    """
+    ...
 
 
 class SkinCluster(GeometryFilter):
@@ -519,7 +535,7 @@ class SkinCluster(GeometryFilter):
 
         Args:
             path (str): 読み込むファイルパス。
-            method (str): ``"index"``(既定)または ``"position"``。
+            method (str): ``"index"`` (既定)または ``"position"``。
             addMissing (bool): Trueはファイルのinfluenceのうちこの skinCluster に無いものを、シーンに
                 あれば :meth:`addInfluences` で加えてから読み込む。既定Falseは拒否する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -537,6 +553,129 @@ class SkinCluster(GeometryFilter):
             ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
             完了済みの直接更新は自動で戻さない。addMissing で加えた influence の登録は、
             ``fast=True`` でも通常の(Undo可能な)操作で行う。
+        """
+        ...
+    def getWeightsData(self) -> dict:
+        """全頂点のウェイトとスキニングの設定を、``mlib.skinWeights`` 形式の辞書で取得する。
+
+        :meth:`exportWeights` が書き出すデータそのもので、:meth:`setWeightsData` へ渡せる。
+        値は丸めない。シーンは変更しない。
+
+        データの形(版1):
+
+        - ``geometry``: 先頭geometry(Shape)の参照(:class:`mlib.json.NodeRef` の辞書)。
+        - ``vertexCount``: 頂点数。
+        - ``influences``: influenceの参照の list。influenceObjects()の物理順で、以下の番号はこの位置。
+        - ``influenceLocks``: influenceごとのウェイトのロック(lockInfluenceWeights)。``influences`` と同じ順。
+        - ``weights``: 0でない値だけの疎な形。``{"indices": [[...], ...], "values": [[...], ...]}`` で、
+          頂点ごとにinfluenceの位置と値を並べる(i番目の頂点は ``indices[i]`` と ``values[i]``)。
+        - ``blendWeights``: 頂点ごとのDQブレンドウェイト(blendWeights)。
+        - ``positions``: 頂点ごとの位置 ``[x, y, z]``。skinClusterに入る前の形状のオブジェクト空間(cm)。
+          ``method="position"`` の対応付けに使う。
+        - ``settings``: ``skinningMethod``・``normalizeWeights`` (名前)、``maxInfluences`` (int)、
+          ``maintainMaxInfluences`` (bool)。
+        - ``ngSkinLayers``: ngSkinTools2のレイヤーの list。レイヤーが無い、またはngSkinTools2を使えない場合はNone。
+          各レイヤーは ``name``・``enabled``・``opacity``・``parent`` (親レイヤーのlist内の位置、またはNone)・
+          ``index`` (親の中の順番)・``weights`` (``[[influenceの位置, 頂点ごとの値], ...]``)・
+          ``mask``・``dq`` (頂点ごとの値、またはNone)を持つ。
+
+        Returns:
+            dict: 上の形の辞書。数値・文字列・list・辞書だけを含み、JSONへそのまま書ける。
+
+        Raises:
+            RuntimeError: skinClusterまたはgeometryが無効な場合。
+
+        Examples:
+            .. code-block:: python
+
+                data = skin.getWeightsData()
+                other.setWeightsData(data, namespaceMap={"chrA": "chrB"})
+        """
+        ...
+    def setWeightsData(self, data: dict, *, nameMap: dict[str, str] | None = ..., replace: Iterable[tuple[str, str]] | None = ..., namespaceMap: dict[str, str] | None = ..., method: str = ..., fast: bool = ...) -> ValidationReport:
+        """:meth:`getWeightsData` の辞書から、ウェイトとスキニングの設定をこのskinClusterへ書き戻す。
+
+        保存したinfluenceは名前の対応付け(``nameMap``・``replace``・``namespaceMap``。規則は
+        :class:`mlib.json.NameMapping`)でシーンのノードへ対応させる。
+
+        - シーンにあるがこのskinClusterのinfluenceでないノードは、ウェイト0で追加してから書く。
+        - シーンに無いinfluenceは報告の ``missing`` に記録して警告し、その値を除いた残りを、頂点ごとの
+          元の合計へ比率を保って拡大する。残りがすべて0の頂点は書き換えず、``skipped`` に記録する。
+        - 保存に無いinfluence(このskinClusterだけのinfluence)の値は0にする。
+        - DQブレンドウェイト・スキニングの設定(方法・最大インフルエンス数・その維持・正規化)を書き、
+          ウェイトのロックは保存した状態にする(保存に無いinfluenceのロックは変えない)。
+          ロック・入力接続されている設定は書かずに ``skipped`` に記録する。
+        - ``ngSkinLayers`` があり、ngSkinTools2を使える場合は、既存のレイヤーを消して保存したレイヤーを
+          作り直す(合成結果のウェイトはngSkinTools2が書く)。使えない場合は ``skipped`` に記録して、
+          合成結果のウェイトだけを書く。保存にレイヤーが無く、このskinClusterにレイヤーがある場合は
+          レイヤーを変えず ``skipped`` に記録する。
+
+        ``method="index"`` は頂点番号で対応させ、頂点数が違えば何も変えずにValueErrorにする。
+        ``method="position"`` は各頂点に、保存した位置(skinClusterに入る前の形状のオブジェクト空間)で最も近い
+        保存頂点の値(ウェイト・DQブレンドウェイト・レイヤーの値)を使う。頂点数が違うメッシュにも使える。
+
+        Args:
+            data (dict): :meth:`getWeightsData` の形の辞書。
+            nameMap (dict[str, str] | None): 名前空間を除いた名前の対応表。
+            replace (Iterable[tuple[str, str]] | None): 順に当てる文字列置換。
+            namespaceMap (dict[str, str] | None): 名前空間の対応。
+            method (str): ``"index"`` (既定)または ``"position"``。
+            fast (bool): TrueはUndoなしのOpenMaya更新(``MFnSkinCluster.setWeights``)。既定False。
+
+        Returns:
+            ValidationReport: 見つからなかったinfluence(missing)と書かなかったもの(skipped)。
+
+        Raises:
+            TypeError: 引数の型が不正な場合。
+            ValueError: データの形が不正、methodが不正、``method="index"`` で頂点数が違う、または
+                保存したinfluenceが1つもシーンに無い場合。いずれもシーンを変えない。
+            RuntimeError: ウェイトが編集不可、またはMayaが設定を拒否した場合。通常経路は巻き戻す。
+
+        Note:
+            通常経路は全体を1回のUndoにまとめ(cmds.setAttr)、途中の失敗は巻き戻す。``fast=True`` はUndoへ
+            記録しない。ただしinfluenceの追加(``cmds.skinCluster``)と、ngSkinTools2のレイヤーの作成は
+            ``fast=True`` でもMayaのコマンドで行う。
+        """
+        ...
+    def exportWeights(self, path: str | os.PathLike) -> pathlib.Path:
+        """:meth:`getWeightsData` のデータを、ヘッダー付きのJSONファイル(``mlib.skinWeights`` 版1)へ書き出す。
+
+        Args:
+            path (str | os.PathLike): 書き出し先。フォルダは作らない。
+
+        Returns:
+            pathlib.Path: 書き出したファイルの絶対パス。
+
+        Raises:
+            OSError: 書き出しに失敗した場合。
+
+        Examples:
+            .. code-block:: python
+
+                skin.exportWeights("body_weights.json")
+                skin.importWeights("body_weights.json", method="position")
+        """
+        ...
+    def importWeights(self, path: str | os.PathLike, *, nameMap: dict[str, str] | None = ..., replace: Iterable[tuple[str, str]] | None = ..., namespaceMap: dict[str, str] | None = ..., method: str = ..., fast: bool = ...) -> ValidationReport:
+        """:meth:`exportWeights` のファイルを読み込み、:meth:`setWeightsData` と同じ規則で書き戻す。
+
+        Args:
+            path (str | os.PathLike): ``mlib.skinWeights`` 版1のファイル。
+            nameMap (dict[str, str] | None): 名前空間を除いた名前の対応表。
+            replace (Iterable[tuple[str, str]] | None): 順に当てる文字列置換。
+            namespaceMap (dict[str, str] | None): 名前空間の対応。
+            method (str): ``"index"`` (既定)または ``"position"``。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            ValidationReport: 見つからなかったinfluenceと書かなかったもの。
+
+        Raises:
+            TypeError: 引数の型が不正な場合。
+            ValueError: 形式名・版・データの形が不正、methodが不正、``method="index"`` で頂点数が違う、
+                または保存したinfluenceが1つもシーンに無い場合。
+            OSError: 読み込みに失敗した場合。
+            RuntimeError: ウェイトが編集不可、またはMayaが設定を拒否した場合。
         """
         ...
     def invertShape(self, sculpted: str | Node, name: str | None = ...) -> Mesh:
@@ -769,6 +908,178 @@ class SkinCluster(GeometryFilter):
 
         Returns:
             list[float]: 現在の頂点番号順・各頂点内はファイルのinfluence順の値。
+        """
+        ...
+    def _prepare_weights_data(self, data: dict, mapping: NameMapping, method: str) -> tuple[dict, list[Node | None], ValidationReport]:
+        """:meth:`setWeightsData` の検査を行い、適用に使う値を返す。シーンは変更しない。
+
+        Args:
+            data (dict): :meth:`getWeightsData` の形の辞書。
+            mapping (NameMapping): 名前の対応付け。
+            method (str): ``"index"`` または ``"position"``。
+
+        Returns:
+            tuple[dict, list[Node | None], ValidationReport]: 検査済みのデータ、保存した
+                influenceごとのシーンのノード(見つからなければNone)、missingを記録した報告。
+
+        Raises:
+            ValueError: データの形が不正、``method="index"`` で頂点数が違う、位置が無い、または
+                保存したinfluenceが1つもシーンに無い場合。
+        """
+        ...
+    def _apply_weights_data(self, saved: dict, nodes: list[Node | None], method: str, report: ValidationReport, fast: bool) -> None:
+        """検査済みのデータを書き戻す(:meth:`setWeightsData` の本体)。Undoの文脈は呼出し側が持つ。
+
+        Args:
+            saved (dict): :meth:`_parse_weights_data` の戻り値。
+            nodes (list[Node | None]): 保存したinfluenceごとのシーンのノード。
+            method (str): ``"index"`` または ``"position"``。
+            report (ValidationReport): 書かなかったものの記録先。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _weight_sources(self, saved: dict, method: str) -> Sequence[int]:
+        """現在の各頂点が値を使う、保存した頂点の番号を返す。
+
+        Args:
+            saved (dict): 検査済みのデータ。
+            method (str): ``"index"`` は同じ番号、``"position"`` は最も近い保存位置の頂点。
+
+        Returns:
+            Sequence[int]: 現在の頂点番号順の、保存した頂点の番号。
+        """
+        ...
+    def _weight_rows(self, saved: dict, columns: list[int | None], width: int, sources: Sequence[int], report: ValidationReport) -> tuple[list[int], list[float]]:
+        """現在の頂点ごとに、全influence(物理順)のウェイトの行を作る。シーンは変更しない。
+
+        見つからないinfluenceの値は除き、残りを元の合計へ比率を保って拡大する。残りがすべて0の頂点は
+        書かずにreportへ記録する。
+
+        Args:
+            saved (dict): 検査済みのデータ。
+            columns (list[int | None]): 保存したinfluenceごとの、現在の物理番号。見つからなければNone。
+            width (int): 現在のinfluenceの数。
+            sources (Sequence[int]): 現在の頂点ごとの、保存した頂点の番号。
+            report (ValidationReport): 書かない頂点の記録先。
+
+        Returns:
+            tuple[list[int], list[float]]: 書き込む頂点番号(昇順)と、頂点順・物理順の平坦な値。
+        """
+        ...
+    def _write_blend_weights(self, blend: list[float] | None, sources: Sequence[int], fast: bool) -> None:
+        """DQブレンドウェイトを、現在の値と違う場合だけ全頂点へ書く。
+
+        Args:
+            blend (list[float] | None): 保存した頂点ごとの値。Noneは書かない。
+            sources (Sequence[int]): 現在の頂点ごとの、保存した頂点の番号。
+            fast (bool): TrueはMFnSkinCluster.setBlendWeights、Falseは範囲指定の1回のsetAttr。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _apply_weight_settings(self, settings: dict, report: ValidationReport, fast: bool) -> None:
+        """スキニングの設定を、現在の値と違うものだけ書く。書けない設定はreportへ記録する。
+
+        Args:
+            settings (dict): 検査済みの ``settings``。
+            report (ValidationReport): 書かなかった設定の記録先。
+            fast (bool): TrueはUndoなしのOpenMaya更新。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    def _capture_ngskin_layers(self, paths: om2.MDagPathArray) -> list[dict] | None:
+        """ngSkinTools2のレイヤーを、:meth:`getWeightsData` の ``ngSkinLayers`` の形で取得する。
+
+        Args:
+            paths (om2.MDagPathArray): influenceObjects()。レイヤーの論理番号を保存の位置へ変換する。
+
+        Returns:
+            list[dict] | None: レイヤーごとの辞書。ngSkinTools2を使えない、またはレイヤーが無ければNone。
+        """
+        ...
+    def _apply_ngskin_layers(self, saved_layers: list[dict] | None, columns: list[int | None], logical: list[int], sources: Sequence[int], report: ValidationReport, fast: bool) -> None:
+        """保存したngSkinTools2のレイヤーで、このskinClusterのレイヤーを作り直す。
+
+        Args:
+            saved_layers (list[dict] | None): 検査済みの ``ngSkinLayers``。
+            columns (list[int | None]): 保存したinfluenceごとの、現在の物理番号。
+            logical (list[int]): 現在の物理番号ごとのweights[]の論理番号(ngSkinTools2のinfluence番号)。
+            sources (Sequence[int]): 現在の頂点ごとの、保存した頂点の番号。
+            report (ValidationReport): 書かなかったものの記録先。
+            fast (bool): TrueはレイヤーのウェイトのUndoを記録しない。
+
+        Returns:
+            None: 値を返さない。
+        """
+        ...
+    @staticmethod
+    def _ngskin_api() -> ModuleType | None:
+        """読み込み済みのngSkinTools2のAPIを返す。
+
+        Returns:
+            module | None: ``ngSkinTools2.api``。プラグイン未ロード・APIなしはNone。
+        """
+        ...
+    def _input_points(self) -> om2.MPointArray:
+        """skinClusterに入る前の形状の頂点位置(オブジェクト空間、cm)を返す。
+
+        入力の形状を読めない場合は、出力のMeshの位置を返す。
+
+        Returns:
+            om2.MPointArray: 頂点番号順の位置。
+        """
+        ...
+    @classmethod
+    def _parse_weights_data(cls, data: dict) -> dict:
+        """:meth:`getWeightsData` の辞書の形を確かめ、適用に使う形へ変える。シーンは変更しない。
+
+        Args:
+            data (dict): 確かめる辞書。
+
+        Returns:
+            dict: ``vertexCount``・``influences`` (NodeRefのlist)・``influenceLocks``・
+                ``weights`` (indicesとvaluesの組)・``blendWeights``・``positions``・``settings``・
+                ``ngSkinLayers`` を持つ辞書。
+
+        Raises:
+            TypeError: dataが辞書でない場合。
+            ValueError: 形が不正な場合。
+        """
+        ...
+    @classmethod
+    def _parse_weight_settings(cls, settings: dict | None) -> dict:
+        """``settings`` の形を確かめる。
+
+        Args:
+            settings (dict | None): 保存した設定。Noneは設定を書かない。
+
+        Returns:
+            dict: 4つの設定。保存に無い設定はNone。
+
+        Raises:
+            ValueError: 形または値が不正な場合。
+        """
+        ...
+    @staticmethod
+    def _parse_ngskin_layers(layers: list[dict] | None, width: int, count: int) -> list[dict] | None:
+        """``ngSkinLayers`` の形と、親の対応(循環が無いこと)を確かめる。
+
+        Args:
+            layers (list[dict] | None): 保存したレイヤー。
+            width (int): 保存したinfluenceの数。
+            count (int): 保存した頂点数。
+
+        Returns:
+            list[dict] | None: 確かめたレイヤー。無ければNone。
+
+        Raises:
+            ValueError: 形が不正、または親が循環する場合。
         """
         ...
     def _inverted_points(self, sculpted_points: om2.MPointArray) -> list[tuple[float, float, float]]:

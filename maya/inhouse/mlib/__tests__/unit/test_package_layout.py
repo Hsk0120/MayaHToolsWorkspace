@@ -47,7 +47,9 @@ class PackageLayoutTest(unittest.TestCase):
             self.assertIs(getattr(mlib, name), getattr(mlib.cmds, name))
         self.assertIs(mlib.core.object.Object, importlib.import_module("mlib.core.object").Object)
         self.assertIs(mlib.core.extensions, importlib.import_module("mlib.core.extensions"))
-        for name in ("Object", "extensions", "json"):
+        self.assertIs(mlib.json, importlib.import_module("mlib.json"))
+        self.assertIn("json", mlib.__all__)
+        for name in ("Object", "extensions"):
             self.assertFalse(hasattr(mlib, name))
             self.assertNotIn(name, mlib.__all__)
         for cls in (mlib.nodes.Node, mlib.plugs.Plug, mlib.components.Component):
@@ -59,7 +61,7 @@ class PackageLayoutTest(unittest.TestCase):
         # 旧版を読み込んでいたセッションの残存モジュール参照を再現する。
         obsolete = ("_core", "scenes", "session", "context", "files", "editors", "general",
                     "namespaces", "plugins", "animation", "scene", "environment",
-                    "ui", "events", "utils", "decorators", "object", "extensions", "json")
+                    "ui", "events", "utils", "decorators", "object", "extensions")
         obsolete_modules = ["mlib." + name for name in obsolete]
         obsolete_modules += ["mlib.scene.selection", "mlib.environment.plugin",
                              "mlib.ui.viewport", "mlib.events.scriptJob",
@@ -113,7 +115,7 @@ class PackageLayoutTest(unittest.TestCase):
                     if path.is_dir() and (path / "__init__.py").exists()
                     and not path.name.startswith("_")}
         self.assertEqual(packages, {"cmds", "nodes", "plugs", "maths",
-                                   "common", "components", "core"})
+                                   "common", "components", "core", "json"})
         for name in ("decorator.py", "logger.py", "util.py", "core/object.py", "core/extensions.py"):
             self.assertTrue((root / name).is_file(), name)
         self.assertEqual(set(mlib.util.__all__), {"legalizeName", "measure", "mirrorArguments"})

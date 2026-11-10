@@ -7,11 +7,44 @@ import maya.cmds as cmds
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
-from ..util import _finite_vector, _world_space
+from ..util import _color_value, _world_space
 from .node import Node
 
-#: 描画のオーバーライドで指定できるカラーインデックスの上限(0〜31)。
-_MAX_COLOR_INDEX = 31
+#: GUIのないMayaで使う、Maya標準のカラーインデックスのRGB。
+_DEFAULT_COLOR_PALETTE = (
+    (0.4699999988079071, 0.4699999988079071, 0.4699999988079071),
+    (0.0, 0.0, 0.0),
+    (0.25, 0.25, 0.25),
+    (0.6000000238418579, 0.6000000238418579, 0.6000000238418579),
+    (0.6079999804496765, 0.0, 0.15700000524520874),
+    (0.0, 0.01600000075995922, 0.37599998712539673),
+    (0.0, 0.0, 1.0),
+    (0.0, 0.2750000059604645, 0.09799999743700027),
+    (0.14900000393390656, 0.0, 0.2630000114440918),
+    (0.7839999794960022, 0.0, 0.7839999794960022),
+    (0.5410000085830688, 0.28200000524520874, 0.20000000298023224),
+    (0.24699999392032623, 0.13699999451637268, 0.12200000137090683),
+    (0.6000000238418579, 0.14900000393390656, 0.0),
+    (1.0, 0.0, 0.0),
+    (0.0, 1.0, 0.0),
+    (0.0, 0.2549999952316284, 0.6000000238418579),
+    (1.0, 1.0, 1.0),
+    (1.0, 1.0, 0.0),
+    (0.3919999897480011, 0.8629999756813049, 1.0),
+    (0.2630000114440918, 1.0, 0.6389999985694885),
+    (1.0, 0.6899999976158142, 0.6899999976158142),
+    (0.8939999938011169, 0.675000011920929, 0.4749999940395355),
+    (1.0, 1.0, 0.3880000114440918),
+    (0.0, 0.6000000238418579, 0.32899999618530273),
+    (0.8549000024795532, 0.5686299800872803, 0.4274500012397766),
+    (0.8784300088882446, 0.784309983253479, 0.30588001012802124),
+    (0.6352900266647339, 0.8117600083351135, 0.2784300148487091),
+    (0.2313700020313263, 0.7568600177764893, 0.5803899765014648),
+    (0.2549000084400177, 0.8196099996566772, 0.7254899740219116),
+    (0.22744999825954437, 0.6156899929046631, 0.8078399896621704),
+    (0.6117600202560425, 0.41960999369621277, 0.8078399896621704),
+    (0.8078399896621704, 0.34902000427246094, 0.6549000144004822),
+)
 
 #: overrideDisplayType の値(番号順)と、setDisplayType で指定する名前。
 _DISPLAY_TYPES = ("normal", "template", "reference")
@@ -405,19 +438,24 @@ class DagNode(Node):
         """
         return self.setVisibility(False, fast=fast)
 
-    def getColor(self):
+    def getOverrideColor(self, *, shape=False):
         """描画のオーバーライドの表示色を取得する。
 
-        Transformは直下の最初の中間でないShape、Shapeが無ければ自身を読む(:meth:`setColor` と同じ対象)。
+        既定ではTransformでも直下のShapeは読まず、自身のアトリビュートを読む。
+
+        Args:
+            shape (bool): Trueは直下の最初の中間でないShapeを読む(Shapeが無ければ自身)。既定Falseは自身。
 
         Returns:
             int | tuple[float, float, float] | None: ``overrideEnabled`` が無効ならNone。
                 ``overrideRGBColors`` が有効なら (r, g, b)、それ以外はカラーインデックス(0は既定色)。
 
         Raises:
+            TypeError: shapeがbool以外の場合。
             RuntimeError: ノードが無効な場合。
         """
-        fn = om2.MFnDependencyNode(self._color_targets()[0]._require_mnode())
+        _require_bool(shape, "shape")
+        fn = self._color_targets(shape)[0]._dependency_fn()
         if not fn.findPlug("overrideEnabled", False).asBool():
             return None
         if fn.findPlug("overrideRGBColors", False).asBool():
@@ -425,44 +463,92 @@ class DagNode(Node):
             return tuple(plug.child(index).asFloat() for index in range(3))
         return fn.findPlug("overrideColor", False).asInt()
 
-    def setColor(self, color, *, fast=False):
+    def setOverrideColor(self, color, *, shape=False, fast=False):
         """描画のオーバーライドで表示色を設定し、自身を返す。
 
         ``overrideEnabled`` を有効にし、インデックス指定は ``overrideRGBColors`` を無効にして
         ``overrideColor``、RGB指定は ``overrideRGBColors`` を有効にして ``overrideColorRGB`` を設定する。
-        Transformは直下の中間でないShapeへ設定し、Shapeが無いTransform(グループ・Joint等)は自身へ
-        設定する(:meth:`getColor` も同じ対象を読む)。通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で
-        失敗した場合は巻き戻す。``fast=True`` は全対象アトリビュートの書込み可否を先に調べてから
+        ``None`` は ``overrideEnabled`` を無効にする(表示タイプ等のほかのオーバーライドも効かなくなる)。
+        TransformやJointでも直下のShapeではなく自身へ設定する(Mayaの描画のオーバーライドと同じく、Transformの
+        設定は子の階層全体へ及ぶ)。``shape=True`` は直下の中間でないShape全てへ設定する(Shapeが無ければ自身)。
+        通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で失敗した場合は巻き戻す。``fast=True`` は全対象アトリビュートの書込み可否を先に調べてから
         OpenMayaで書き込み、Undoに記録しない。
 
         Args:
-            color (int | Sequence[float]): カラーインデックス(0〜31。0は既定色)、または
-                0〜1の有限な数値3個の (r, g, b)。RGBは表示色の値で、色空間の変換は行わない。
+            color (int | Sequence[float] | None): カラーインデックス(0〜31。0は既定色)、
+                0〜1の有限な数値3個の (r, g, b)、または無効にするNone。RGBは表示色の値で、色空間の変換は行わない。
+            shape (bool): Trueは直下の中間でないShapeへ設定する(Shapeが無ければ自身)。既定Falseは自身。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
         Raises:
-            TypeError: colorがint・3個の数値の列以外(boolを含む)、またはfastがbool以外の場合。
+            TypeError: colorがint・3個の数値の列・None以外(boolを含む)、またはshape・fastがbool以外の場合。
             ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
             RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
         """
+        _require_bool(shape, "shape")
         _require_bool(fast, "fast")
         index, rgb = _color_value(color)
-        if fast:
-            self._set_color_fast(index, rgb)
-            return self
-        targets = [target.getFullName() for target in self._color_targets()]
-        with undoTransaction("mlibDagNodeSetColor"):
-            for name in targets:
-                cmds.setAttr(name + ".overrideEnabled", True)
-                if rgb is None:
-                    cmds.setAttr(name + ".overrideRGBColors", False)
-                    cmds.setAttr(name + ".overrideColor", index)
-                else:
-                    cmds.setAttr(name + ".overrideRGBColors", True)
-                    cmds.setAttr(name + ".overrideColorRGB", *rgb)
+        if index is None and rgb is None:
+            values = [("overrideEnabled", False)]
+        elif rgb is None:
+            values = [("overrideEnabled", True), ("overrideRGBColors", False), ("overrideColor", index)]
+        else:
+            values = [("overrideEnabled", True), ("overrideRGBColors", True), ("overrideColorRGB", rgb)]
+        self._set_display_values(values, "mlibDagNodeSetOverrideColor", fast, shape)
+        return self
+
+    def getOutlinerColor(self, *, shape=False):
+        """アウトライナーの文字色を取得する。
+
+        Args:
+            shape (bool): Trueは直下の最初の中間でないShapeを読む(Shapeが無ければ自身)。既定Falseは自身。
+
+        Returns:
+            tuple[float, float, float] | None: (r, g, b)。``useOutlinerColor`` が無効ならNone。
+
+        Raises:
+            TypeError: shapeがbool以外の場合。
+            RuntimeError: ノードが無効な場合。
+        """
+        _require_bool(shape, "shape")
+        fn = self._color_targets(shape)[0]._dependency_fn()
+        if not fn.findPlug("useOutlinerColor", False).asBool():
+            return None
+        plug = fn.findPlug("outlinerColor", False)
+        return tuple(plug.child(index).asFloat() for index in range(3))
+
+    def setOutlinerColor(self, color, *, shape=False, fast=False):
+        """アウトライナーの文字色を設定し、自身を返す。
+
+        ``useOutlinerColor`` を有効にして ``outlinerColor`` を設定する。``None`` は ``useOutlinerColor`` を
+        無効にする。既定ではTransformやJointでも直下のShapeではなく自身へ設定する。
+        カラーインデックスは指定した時点のRGBへ変換して保持する(``outlinerColor`` はRGBだけを持つため)。
+        GUIのないMayaでは現在のパレットを読めないため、Maya標準のパレットを使う。
+
+        Args:
+            color (int | Sequence[float] | None): カラーインデックス(0〜31)、0〜1の有限な数値3個の (r, g, b)、
+                または無効にするNone。
+            shape (bool): Trueは直下の中間でないShapeへ設定する(Shapeが無ければ自身)。既定Falseは自身。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: colorがint・3個の数値の列・None以外(boolを含む)、またはshape・fastがbool以外の場合。
+            ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        _require_bool(shape, "shape")
+        _require_bool(fast, "fast")
+        index, rgb = _color_value(color)
+        if index is not None:
+            rgb = _palette_color(index)
+        values = [("useOutlinerColor", False)] if rgb is None else [("useOutlinerColor", True), ("outlinerColor", rgb)]
+        self._set_display_values(values, "mlibDagNodeSetOutlinerColor", fast, shape)
         return self
 
     def getVisibility(self):
@@ -554,7 +640,7 @@ class DagNode(Node):
 
         ``"template"``・``"reference"`` は ``overrideEnabled`` を有効にして ``overrideDisplayType`` を設定する。
         ``"normal"`` は ``overrideDisplayType`` を0へ戻すだけで、``overrideEnabled`` は変えない(表示色等の
-        ほかのオーバーライドを保つため)。:meth:`setColor` と違い、Transformでも直下のShapeではなく自身へ
+        ほかのオーバーライドを保つため)。Transformでも直下のShapeではなく自身へ
         設定する(Mayaの描画のオーバーライドと同じく、Transformの設定は子の階層全体へ及ぶ)。
         通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で失敗した場合は巻き戻す。``fast=True`` は
         全対象アトリビュートの書込み可否を先に調べてからOpenMayaで書き込み、Undoに記録しない。
@@ -579,7 +665,7 @@ class DagNode(Node):
         index = _DISPLAY_TYPES.index(kind)
         values = [("overrideDisplayType", index)] if index == 0 else [
             ("overrideEnabled", True), ("overrideDisplayType", index)]
-        self._set_override_values(values, "mlibDagNodeSetDisplayType", fast)
+        self._set_display_values(values, "mlibDagNodeSetDisplayType", fast)
         return self
 
     def isShadingOverridden(self):
@@ -622,7 +708,7 @@ class DagNode(Node):
         _require_bool(enabled, "enabled")
         values = [("overrideEnabled", True), ("overrideShading", False)] if enabled else [
             ("overrideShading", True)]
-        self._set_override_values(values, "mlibDagNodeSetShadingOverride", fast)
+        self._set_display_values(values, "mlibDagNodeSetShadingOverride", fast)
         return self
 
     def deleteHistory(self, keepDeformers=True):
@@ -695,44 +781,17 @@ class DagNode(Node):
                 pending.extend(rows if order == "breadthFirst" else reversed(rows))
         return result
 
-    def _set_color_fast(self, index, rgb):
-        """:meth:`setColor` の値をOpenMayaで書き込む。Undoには記録しない。
+    def _set_display_values(self, values, chunk, fast, shape=False):
+        """表示のアトリビュートへ値を書き込む(:meth:`setOverrideColor`・:meth:`setDisplayType` 等の本体)。
 
-        一部の対象だけ色が変わるのを避けるため、全アトリビュート(コンパウンドアトリビュートは子も)の
-        書込み可否を先に調べてから書き込む。
-
-        Args:
-            index (int | None): カラーインデックス。RGB指定ではNone。
-            rgb (tuple[float, float, float] | None): RGB。インデックス指定ではNone。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
-        """
-        writes = []
-        for target in self._color_targets():
-            # Plugラッパーを作らず、組み込みアトリビュートのMPlugを直接取る。
-            fn = target._dependency_fn()
-            plugs = {name: fn.findPlug(name, False) for name in
-                     ("overrideEnabled", "overrideRGBColors", "overrideColor", "overrideColorRGB")}
-            writes += [(plugs["overrideEnabled"], True), (plugs["overrideRGBColors"], rgb is not None)]
-            writes.append((plugs["overrideColor"], index) if rgb is None else (plugs["overrideColorRGB"], rgb))
-        for plug, _ in writes:
-            require_writable(plug)
-            for child in range(plug.numChildren() if plug.isCompound else 0):
-                require_writable(plug.child(child))
-        for plug, value in writes:
-            set_plug(plug, value, _writable_checked=True)
-
-    def _set_override_values(self, values, chunk, fast):
-        """自身の描画のオーバーライドのアトリビュートへ値を書き込む(:meth:`setDisplayType` 等の本体)。
+        fastは一部のアトリビュートだけ変わるのを避けるため、全アトリビュート(コンパウンドアトリビュートは
+        子も)の書込み可否を先に調べてから書き込む。
 
         Args:
             values (list[tuple[str, object]]): アトリビュート名と値を書き込む順に並べたもの。
             chunk (str): 通常経路のUndoチャンク名。
             fast (bool): 検証済みのfast。TrueはUndoなしのOpenMaya更新。
+            shape (bool): 検証済みのshape。Trueは直下のShapeへ書き込む。
 
         Returns:
             None: 値を返さない。
@@ -740,27 +799,39 @@ class DagNode(Node):
         Raises:
             RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
         """
-        self._require_valid("set the drawing override of")
+        targets = self._color_targets(shape)
         if fast:
-            fn = self._dependency_fn()
-            writes = [(fn.findPlug(attribute, False), value) for attribute, value in values]
+            writes = []
+            for target in targets:
+                # Plugラッパーを作らず、組み込みアトリビュートのMPlugを直接取る。
+                fn = target._dependency_fn()
+                writes += [(fn.findPlug(attribute, False), value) for attribute, value in values]
             for plug, _ in writes:
                 require_writable(plug)
+                for child in range(plug.numChildren() if plug.isCompound else 0):
+                    require_writable(plug.child(child))
             for plug, value in writes:
                 set_plug(plug, value, _writable_checked=True)
             return
-        name = self.getFullName()
+        names = [target.getFullName() for target in targets]
         with undoTransaction(chunk):
-            for attribute, value in values:
-                cmds.setAttr(name + "." + attribute, value)
+            for name in names:
+                for attribute, value in values:
+                    if isinstance(value, tuple):
+                        cmds.setAttr(name + "." + attribute, *value)
+                    else:
+                        cmds.setAttr(name + "." + attribute, value)
 
-    def _color_targets(self):
-        """:meth:`setColor`・:meth:`getColor` の対象を返す。DagNodeは自身。
+    def _color_targets(self, shape):
+        """表示色を読み書きするノードを返す。DagNodeは ``shape`` によらず自身。
+
+        Args:
+            shape (bool): 検証済みのshape。
 
         Returns:
-            list[DagNode]: 表示色を設定するノード。
+            list[DagNode]: 対象のノード。
         """
-        self._require_valid("set the color of")
+        self._require_valid("access the display attributes of")
         return [self]
 
     def _require_mnode(self):
@@ -852,29 +923,16 @@ class DagNode(Node):
         return result
 
 
-def _color_value(color):
-    """setColorの色指定を検証する。
+def _palette_color(index):
+    """カラーインデックスのRGBを返す。
 
     Args:
-        color (int | Sequence[float]): カラーインデックス、または (r, g, b)。
+        index (int): 0〜31のカラーインデックス。
 
     Returns:
-        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
-            RGB指定なら (None, (r, g, b))。
-
-    Raises:
-        TypeError: 型が不正な場合。
-        ValueError: 範囲・成分数が不正な場合。
+        tuple[float, float, float]: RGB。
     """
-    if isinstance(color, bool):
-        raise TypeError("color must be an int index or an (r, g, b) sequence, not bool")
-    if isinstance(color, int):
-        if not 0 <= color <= _MAX_COLOR_INDEX:
-            raise ValueError(f"color index must be between 0 and {_MAX_COLOR_INDEX}, got {color}")
-        return color, None
-    if isinstance(color, (str, bytes)) or not hasattr(color, "__iter__"):
-        raise TypeError("color must be an int index or an (r, g, b) sequence")
-    rgb = _finite_vector(color, 3, "color")
-    if not all(0.0 <= value <= 1.0 for value in rgb):
-        raise ValueError("color RGB components must be between 0 and 1")
-    return None, rgb
+    # 0は既定色で照会できず、GUIのないMayaはcolorIndexがNoneを返すため標準のパレットを使う。
+    if index == 0 or cmds.about(batch=True):
+        return _DEFAULT_COLOR_PALETTE[index]
+    return tuple(cmds.colorIndex(index, query=True))

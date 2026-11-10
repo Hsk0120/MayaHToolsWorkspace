@@ -234,7 +234,7 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
 詳細は :func:`~mlib.cmds.createNode.createNode` を参照してください。
 
 複数形(``Joints``・``SkinClusters`` 等)は、重複を除いたノード参照を保持順に持つ容器です。
-よく使う書込み(``setAttrFlags``・``resetAttrs``・``setLocked``・``setColor``・``setVisibility``・
+よく使う書込み(``setAttrFlags``・``resetAttrs``・``setLocked``・``setOverrideColor``・``setOutlinerColor``・``setVisibility``・
 ``show``・``hide``・``setParent``、``Joints`` では ``setRadius``・``setSegmentScaleCompensate`` も)は
 容器から全要素へまとめて適用でき、1回のUndoで戻ります。それ以外の操作は単数のメソッドを ``for`` で呼びます。
 

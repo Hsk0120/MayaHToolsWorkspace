@@ -129,7 +129,7 @@ class BulkWriteTest(_SpecCase):
             (lambda: nodes.setLocked(True), lambda name: cmds.lockNode(name, query=True, lock=True)[0]),
             (lambda: nodes.setVisibility(False), lambda name: not cmds.getAttr(name + ".v")),
             (lambda: nodes.hide(), lambda name: not cmds.getAttr(name + ".v")),
-            (lambda: nodes.setColor(17), lambda name: cmds.getAttr(name + ".overrideColor") == 17),
+            (lambda: nodes.setOverrideColor(17), lambda name: cmds.getAttr(name + ".overrideColor") == 17),
         )
         for action, check in cases:
             with self.subTest(action=action):

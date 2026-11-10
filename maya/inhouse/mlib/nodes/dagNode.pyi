@@ -7,14 +7,14 @@ import maya.cmds as cmds
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
-from ..util import _finite_vector, _world_space
+from ..util import _color_value, _world_space
 from .node import Node
 from typing import Iterable, Sequence
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.skinCluster import SkinCluster
 from mlib.nodes.transform import Transform
 
-_MAX_COLOR_INDEX: int
+_DEFAULT_COLOR_PALETTE: tuple
 _DISPLAY_TYPES: tuple
 
 def _type_filter(value: str | Iterable[str] | None) -> tuple[str, ...]:
@@ -279,39 +279,82 @@ class DagNode(Node):
             TypeError: fastがbool以外の場合。
         """
         ...
-    def getColor(self) -> int | tuple[float, float, float] | None:
+    def getOverrideColor(self, *, shape: bool = ...) -> int | tuple[float, float, float] | None:
         """描画のオーバーライドの表示色を取得する。
 
-        Transformは直下の最初の中間でないShape、Shapeが無ければ自身を読む(:meth:`setColor` と同じ対象)。
+        既定ではTransformでも直下のShapeは読まず、自身のアトリビュートを読む。
+
+        Args:
+            shape (bool): Trueは直下の最初の中間でないShapeを読む(Shapeが無ければ自身)。既定Falseは自身。
 
         Returns:
             int | tuple[float, float, float] | None: ``overrideEnabled`` が無効ならNone。
                 ``overrideRGBColors`` が有効なら (r, g, b)、それ以外はカラーインデックス(0は既定色)。
 
         Raises:
+            TypeError: shapeがbool以外の場合。
             RuntimeError: ノードが無効な場合。
         """
         ...
-    def setColor(self, color: int | Sequence[float], *, fast: bool = ...) -> DagNode:
+    def setOverrideColor(self, color: int | Sequence[float] | None, *, shape: bool = ..., fast: bool = ...) -> DagNode:
         """描画のオーバーライドで表示色を設定し、自身を返す。
 
         ``overrideEnabled`` を有効にし、インデックス指定は ``overrideRGBColors`` を無効にして
         ``overrideColor``、RGB指定は ``overrideRGBColors`` を有効にして ``overrideColorRGB`` を設定する。
-        Transformは直下の中間でないShapeへ設定し、Shapeが無いTransform(グループ・Joint等)は自身へ
-        設定する(:meth:`getColor` も同じ対象を読む)。通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で
-        失敗した場合は巻き戻す。``fast=True`` は全対象アトリビュートの書込み可否を先に調べてから
+        ``None`` は ``overrideEnabled`` を無効にする(表示タイプ等のほかのオーバーライドも効かなくなる)。
+        TransformやJointでも直下のShapeではなく自身へ設定する(Mayaの描画のオーバーライドと同じく、Transformの
+        設定は子の階層全体へ及ぶ)。``shape=True`` は直下の中間でないShape全てへ設定する(Shapeが無ければ自身)。
+        通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で失敗した場合は巻き戻す。``fast=True`` は全対象アトリビュートの書込み可否を先に調べてから
         OpenMayaで書き込み、Undoに記録しない。
 
         Args:
-            color (int | Sequence[float]): カラーインデックス(0〜31。0は既定色)、または
-                0〜1の有限な数値3個の (r, g, b)。RGBは表示色の値で、色空間の変換は行わない。
+            color (int | Sequence[float] | None): カラーインデックス(0〜31。0は既定色)、
+                0〜1の有限な数値3個の (r, g, b)、または無効にするNone。RGBは表示色の値で、色空間の変換は行わない。
+            shape (bool): Trueは直下の中間でないShapeへ設定する(Shapeが無ければ自身)。既定Falseは自身。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
             DagNode: 自身。
 
         Raises:
-            TypeError: colorがint・3個の数値の列以外(boolを含む)、またはfastがbool以外の場合。
+            TypeError: colorがint・3個の数値の列・None以外(boolを含む)、またはshape・fastがbool以外の場合。
+            ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
+            RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
+        """
+        ...
+    def getOutlinerColor(self, *, shape: bool = ...) -> tuple[float, float, float] | None:
+        """アウトライナーの文字色を取得する。
+
+        Args:
+            shape (bool): Trueは直下の最初の中間でないShapeを読む(Shapeが無ければ自身)。既定Falseは自身。
+
+        Returns:
+            tuple[float, float, float] | None: (r, g, b)。``useOutlinerColor`` が無効ならNone。
+
+        Raises:
+            TypeError: shapeがbool以外の場合。
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setOutlinerColor(self, color: int | Sequence[float] | None, *, shape: bool = ..., fast: bool = ...) -> DagNode:
+        """アウトライナーの文字色を設定し、自身を返す。
+
+        ``useOutlinerColor`` を有効にして ``outlinerColor`` を設定する。``None`` は ``useOutlinerColor`` を
+        無効にする。既定ではTransformやJointでも直下のShapeではなく自身へ設定する。
+        カラーインデックスは指定した時点のRGBへ変換して保持する(``outlinerColor`` はRGBだけを持つため)。
+        GUIのないMayaでは現在のパレットを読めないため、Maya標準のパレットを使う。
+
+        Args:
+            color (int | Sequence[float] | None): カラーインデックス(0〜31)、0〜1の有限な数値3個の (r, g, b)、
+                または無効にするNone。
+            shape (bool): Trueは直下の中間でないShapeへ設定する(Shapeが無ければ自身)。既定Falseは自身。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            DagNode: 自身。
+
+        Raises:
+            TypeError: colorがint・3個の数値の列・None以外(boolを含む)、またはshape・fastがbool以外の場合。
             ValueError: インデックスが0〜31の範囲外、またはRGBの成分数が3でない・0〜1の範囲外の場合。
             RuntimeError: ノードが無効、またはロック・入力接続でMayaが設定を拒否した場合。
         """
@@ -390,7 +433,7 @@ class DagNode(Node):
 
         ``"template"``・``"reference"`` は ``overrideEnabled`` を有効にして ``overrideDisplayType`` を設定する。
         ``"normal"`` は ``overrideDisplayType`` を0へ戻すだけで、``overrideEnabled`` は変えない(表示色等の
-        ほかのオーバーライドを保つため)。:meth:`setColor` と違い、Transformでも直下のShapeではなく自身へ
+        ほかのオーバーライドを保つため)。Transformでも直下のShapeではなく自身へ
         設定する(Mayaの描画のオーバーライドと同じく、Transformの設定は子の階層全体へ及ぶ)。
         通常は ``cmds.setAttr`` で1回のUndoにまとめ、途中で失敗した場合は巻き戻す。``fast=True`` は
         全対象アトリビュートの書込み可否を先に調べてからOpenMayaで書き込み、Undoに記録しない。
@@ -479,30 +522,17 @@ class DagNode(Node):
             list[DagNode]: 探索順の参照。
         """
         ...
-    def _set_color_fast(self, index: int | None, rgb: tuple[float, float, float] | None) -> None:
-        """:meth:`setColor` の値をOpenMayaで書き込む。Undoには記録しない。
+    def _set_display_values(self, values: list[tuple[str, object]], chunk: str, fast: bool, shape: bool = ...) -> None:
+        """表示のアトリビュートへ値を書き込む(:meth:`setOverrideColor`・:meth:`setDisplayType` 等の本体)。
 
-        一部の対象だけ色が変わるのを避けるため、全アトリビュート(コンパウンドアトリビュートは子も)の
-        書込み可否を先に調べてから書き込む。
-
-        Args:
-            index (int | None): カラーインデックス。RGB指定ではNone。
-            rgb (tuple[float, float, float] | None): RGB。インデックス指定ではNone。
-
-        Returns:
-            None: 値を返さない。
-
-        Raises:
-            RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
-        """
-        ...
-    def _set_override_values(self, values: list[tuple[str, object]], chunk: str, fast: bool) -> None:
-        """自身の描画のオーバーライドのアトリビュートへ値を書き込む(:meth:`setDisplayType` 等の本体)。
+        fastは一部のアトリビュートだけ変わるのを避けるため、全アトリビュート(コンパウンドアトリビュートは
+        子も)の書込み可否を先に調べてから書き込む。
 
         Args:
             values (list[tuple[str, object]]): アトリビュート名と値を書き込む順に並べたもの。
             chunk (str): 通常経路のUndoチャンク名。
             fast (bool): 検証済みのfast。TrueはUndoなしのOpenMaya更新。
+            shape (bool): 検証済みのshape。Trueは直下のShapeへ書き込む。
 
         Returns:
             None: 値を返さない。
@@ -511,11 +541,14 @@ class DagNode(Node):
             RuntimeError: ノードが無効、またはロック・入力接続で書き込めない場合。
         """
         ...
-    def _color_targets(self) -> list[DagNode]:
-        """:meth:`setColor`・:meth:`getColor` の対象を返す。DagNodeは自身。
+    def _color_targets(self, shape: bool) -> list[DagNode]:
+        """表示色を読み書きするノードを返す。DagNodeは ``shape`` によらず自身。
+
+        Args:
+            shape (bool): 検証済みのshape。
 
         Returns:
-            list[DagNode]: 表示色を設定するノード。
+            list[DagNode]: 対象のノード。
         """
         ...
     def _require_mnode(self) -> om2.MObject:
@@ -557,18 +590,13 @@ class DagNode(Node):
         """
         ...
 
-def _color_value(color: int | Sequence[float]) -> tuple[int | None, tuple[float, float, float] | None]:
-    """setColorの色指定を検証する。
+def _palette_color(index: int) -> tuple[float, float, float]:
+    """カラーインデックスのRGBを返す。
 
     Args:
-        color (int | Sequence[float]): カラーインデックス、または (r, g, b)。
+        index (int): 0〜31のカラーインデックス。
 
     Returns:
-        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
-            RGB指定なら (None, (r, g, b))。
-
-    Raises:
-        TypeError: 型が不正な場合。
-        ValueError: 範囲・成分数が不正な場合。
+        tuple[float, float, float]: RGB。
     """
     ...

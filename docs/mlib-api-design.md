@@ -21,9 +21,10 @@
 ## 提供する機能の範囲
 
 2026-10-23の指定により、mlibはNode/Plug/Component/数学型と隣接基盤へ絞る。
-汎用UI、OptionVar/Preferences、型付きJSON・Snapshot、専用Color、Scene/Workspace/FBX、
+汎用UI、OptionVar/Preferences、専用Color、Scene/Workspace/FBX、
 mlib版OBBは提供しない。旧import・互換別名・旧保存形式readerは残さない。
-通常JSON文字列は標準`json`、標準UIは利用側のcmds/mel、表示色はPlugで扱う。
+通常JSON文字列は標準`json`、標準UIは利用側のcmds/melで扱う(表示色は下記の2026-11-10の指定で専用メソッドへ戻した)。
+型付きJSON・Snapshotは2026-11-11の指定で、旧形式と互換の無い新しい`mlib.json`として戻した(下記「JSON保存・復元」)。
 `mlib.cmds`とルート関数は`getNode/getPlug/createNode/ls/delete/duplicate/select`に限定する。
 複数形・reload・拡張自動探索・数学所有権・単位・通常Undo/fastと、保持APIの引数/返却は維持する。
 Mesh.reorderVerticesと小さな便利メソッドは残す。
@@ -34,6 +35,26 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 専用の検証・enum名・コンパウンドアトリビュートの編集・戻り型変換は提供しない。
 判定は正式is名へ統一し、is省略入口と省略名へのSphinx投影は提供しない。
 `undo.enabled`も廃止し`undo.isEnabled`を使用する。保持APIの仕様と拡張機構は維持する。
+
+## JSON保存・復元
+
+2026-11-11のユーザー指定(11.1.0)。設計の経緯と各形式の中身は`docs/mlib-json-design.md`を参照する。
+
+- 置き場所は`mlib/json`。下の層は`codec`(数学型を`{"type": ..., "value": [...]}`で書く。EulerRotateは度と回転順の名前)、
+  `file`(`{"header", "data"}`のファイル。ヘッダーは形式名・版・mlib/Mayaの版・単位(cm・度・保存時UIのフレームとfps))、
+  `NodeRef`・`PlugRef`・`ComponentRef`(名前・完全パス・型で記録)、`NameMapping`。中の層は`Snapshot`基底と`ValidationReport`。
+- 形式名・版が期待と違うファイルは`ValueError`で読まない。版の変換は持たない。書き出しは一時ファイル経由で、失敗しても既存のファイルを壊さない。
+- 名前の対応付けは`nameMap`(名前空間を除いた名前で引き、該当すれば最優先)→`replace`(順に文字列置換)→`namespaceMap`の順に当てる。
+  見つからないノードは飛ばし、最後にまとめて警告する(常に部分適用)。型が違うノード・1つに絞れない名前は対応させない。
+- 1つのノードが持つデータはノードクラスに直接書く(`SkinCluster.exportWeights`・`Transform.exportCurveShapes`・
+  `BlendShape.exportTargets`と、それぞれの`get…Data`・`set…Data`・`import…`)。名前は中身が分かる名前にし、`exportData`のような汎用名にしない。
+  json側に中間の内部クラスは置かず、nodesからはメソッド内で`mlib.json`をimportする(循環参照の回避)。
+- 複数ノードのデータは`mlib.json`の`PoseSnapshot`・`AnimationSnapshot`・`AttributesSnapshot`・`DrivenKeysSnapshot`・
+  `SelectionSnapshot`で、`capture`→`save`/`load`→`validate`/`apply`の流れにする。各種類は`apply`の引数を明示して書き、
+  本体は基底の`_run_apply`(検査→errorsがあれば何も変えずにValueError→1回のUndoで適用・失敗時は巻き戻し→警告)に渡す。
+- 時間は保存時のフレームで書き、読み込み時に`timing="frame"`(既定。フレーム番号を保つ)か`"second"`(秒を保つ)を選ぶ。
+- `fast`は他のAPIと同じく、実測で速くなるものだけに付ける(11.1.0では`SkinCluster.setWeightsData`/`importWeights`と
+  `AnimationSnapshot.apply`、BlendShapeの頂点マスク・デルタの書込み)。
 
 ## 確定したコーディングルール
 
@@ -757,7 +778,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 標準UIの作成・参照・エディター起動は利用側のcmds/mel、Qt変換は利用側のUIパッケージへ置く。
 - シーン/プロジェクト/FBX操作とユーザー設定は利用側でMaya標準APIを明示使用する。
 - 通常JSON文字列は標準jsonで扱う。型codec・汎用Snapshot・参照保存の本体機能は持たない。
-- 表示色はMaya標準アトリビュートのPlugで扱い、色値型や専用一括操作を追加しない。
+- 2026-11-10のユーザー指定により、表示色は何の色かが名前で分かる`getOverrideColor`/`setOverrideColor`と`getOutlinerColor`/`setOutlinerColor`を`DagNode`・`Nodes`に置き、`Nodes`には一色ずつの`setOverrideColors`/`setOutlinerColors`も置く。色は番号・(r, g, b)・無効のNoneで指定し、色値型は追加しない。どちらも既定はTransform・Jointでも呼び出したノード自身へ設定し、`shape=True`で直下の中間でないShape全てへ設定する(Shapeが無ければ自身)。
 - ConstraintはTransform派生。Nodesは全DGノード共通の参照・アトリビュート・接続処理を扱う。
 - mlibはQtをimportしない。横断的な通知はlogger、表示停止と復帰はdecorator.viewportOffを使う。
 

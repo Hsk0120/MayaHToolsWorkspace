@@ -122,8 +122,7 @@ JointならJointの操作、SkinClusterならウェイト関連の操作を、�
 
    source.setTranslation((1, 2, 3))
    source.setScale((2, 2, 2))
-   source.getPlug("useOutlinerColor").set(True)
-   source.getPlug("outlinerColor").set((0.3, 0.7, 1.0))
+   source.setOutlinerColor((0.3, 0.7, 1.0))
    target.setMatrix(source.getMatrix(worldSpace=True), worldSpace=True)
 
 .. list-table:: 便利な操作の例

@@ -332,6 +332,23 @@ def _finite_vector(value: Iterable[numbers.Real], size: int, name: str) -> tuple
         ValueError: 成分数が異なる、または無限大・NaNの成分がある場合。
     """
     ...
+_MAX_COLOR_INDEX: int
+
+def _color_value(color: int | Sequence[float] | None) -> tuple[int | None, tuple[float, float, float] | None]:
+    """表示色の指定を検証する。
+
+    Args:
+        color (int | Sequence[float] | None): カラーインデックス、(r, g, b)、または無効にするNone。
+
+    Returns:
+        tuple[int | None, tuple[float, float, float] | None]: インデックス指定なら (番号, None)、
+            RGB指定なら (None, (r, g, b))、Noneなら (None, None)。
+
+    Raises:
+        TypeError: 型が不正な場合。
+        ValueError: 範囲・成分数が不正な場合。
+    """
+    ...
 
 def _checked_tolerance(value: numbers.Real, *, positive: bool = ...) -> float:
     """許容誤差を検証し、floatへ変換する。

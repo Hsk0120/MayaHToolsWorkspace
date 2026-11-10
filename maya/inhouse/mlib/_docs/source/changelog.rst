@@ -4,6 +4,58 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+11.1.0 (2026-11-11)
+-------------------
+
+シーンのデータを JSON へ保存・復元する ``mlib.json`` を追加し、3.0.0 で外した ``BlendShape`` のターゲット操作を戻しました。
+旧版(2026-10-23 まで)の ``mlib.json``\ ・\ ``dumpTargets``\ ・\ ``loadTargets`` とはファイルの形式に互換がありません。
+
+.. rubric:: 追加
+
+- ``mlib.json``: ヘッダー付き JSON の ``dump``\ ・\ ``load``\ ・\ ``Header``\ 、数学型の ``encode``\ ・\ ``decode``\ 、
+  ノード・Plug・コンポーネントの参照 ``NodeRef``\ ・\ ``PlugRef``\ ・\ ``ComponentRef``\ 、名前の対応付け ``NameMapping``\ 、
+  ``Snapshot`` 基底と ``ValidationReport``\ 。形式名・版が違うファイルは ``ValueError`` で読まない。
+- 複数ノードのスナップショット ``PoseSnapshot``\ ・\ ``AnimationSnapshot``\ (アニメレイヤーを含む)・\ ``AttributesSnapshot``\ ・
+  ``DrivenKeysSnapshot``\ ・\ ``SelectionSnapshot``\ 。``capture`` → ``save`` / ``load`` → ``validate`` / ``apply`` の流れで使い、
+  ``apply`` は ``nameMap``\ ・\ ``replace``\ ・\ ``namespaceMap`` で別のキャラへ当てはめる。見つからないノードは飛ばして警告する。
+- ``SkinCluster.getWeightsData``\ ・\ ``setWeightsData``\ ・\ ``exportWeights``\ ・\ ``importWeights``\ (``method="position"`` で
+  頂点数の違うメッシュへ転送、ngSkinTools2 のレイヤー、``fast``)。``mlib.bindSkin`` は ``weights=`` でファイルから作成できる。
+- ``Transform.getCurveShapesData``\ ・\ ``setCurveShapesData``\ ・\ ``exportCurveShapes``\ ・\ ``importCurveShapes``\ (配下のカーブ Shape と表示色)。
+- ``BlendShape.getTargetsData``\ ・\ ``setTargetsData``\ ・\ ``exportTargets``\ ・\ ``importTargets``\ (Shape Editor のフォルダを含む)。
+- ``BlendShape`` のターゲット操作: ``mirrorTarget``\ ・\ ``flipTarget``\ 、``addInBetween``\ ・\ ``removeInBetween``\ ・\ ``getInBetweenWeights``\ 、
+  ``getTargetWeights``\ ・\ ``setTargetWeights``\ ・\ ``getTargetDeltas``\ ・\ ``setTargetDeltas``\ ・\ ``getTargetVertices``\ ・
+  ``resetTargetVertices``\ ・\ ``reduceTargetDeltas``\ 、``duplicateTarget``\ ・\ ``replaceTarget``\ ・\ ``targetEdit``\ 。
+
+.. rubric:: 変更
+
+- ``BlendShape.getTargetIndex``\ ・\ ``getWeightPlug``\ ・\ ``removeTarget`` は、ターゲット名に加えて論理番号と ``weight`` 要素の Plug も受け付ける。
+- ``mlib.bindSkin`` の ``maximumInfluences`` の既定を ``None`` にした(ファイルを渡さなければ従来どおり 4)。
+
+11.0.0 (2026-11-10)
+-------------------
+
+表示色のメソッドを、何の色かが名前で分かる形へ戻しました。
+
+.. rubric:: 変更
+
+.. list-table::
+   :header-rows: 1
+
+   * - 変更前
+     - 変更後
+   * - ``DagNode.getColor``
+     - ``DagNode.getOverrideColor``
+   * - ``DagNode.setColor``\ ・\ ``Nodes.setColor``
+     - ``DagNode.setOverrideColor``\ ・\ ``Nodes.setOverrideColor``
+
+旧名の別名は残しません。TransformやJointでも、これまでの直下のShapeではなくノード自身へ設定します。Shapeへ設定するには ``shape=True`` を指定します(直下の中間でないShape全てへ設定し、Shapeが無ければ自身へ設定します)。
+
+.. rubric:: 追加
+
+- ``DagNode.getOutlinerColor``\ ・\ ``setOutlinerColor`` は、アウトライナーの文字色を読み書きする。色番号はRGBへ変換して設定する。
+- ``setOverrideColor``\ ・\ ``setOutlinerColor`` は ``None`` で色を無効にする。取得・設定とも ``shape`` フラグで直下のShapeを対象にできる。
+- ``Nodes.getOverrideColor``\ ・\ ``getOutlinerColor``\ ・\ ``setOutlinerColor`` と、一色ずつ設定する ``Nodes.setOverrideColors``\ ・\ ``setOutlinerColors``\ 。
+
 10.6.0 (2026-11-10)
 -------------------
 

@@ -95,6 +95,9 @@ EXCLUDED = {
     "Nodes.copy": "Python のコレクションの複製で、シーンを変更しない。",
     "util.mirrorArguments": "ミラー用の引数を計算するだけで、シーンを変更しない。",
     "Version.replace": "版番号の値を作り直すだけで、シーンを変更しない。",
+    "SkinCluster.importWeights": "ファイルを読んで setWeightsData を呼ぶだけ(ファイル I/O)。書込みは SkinCluster.setWeightsData のケースで確認する。",
+    "BlendShape.resetTargetVertices": "デルタ(pointArray・componentList)はスナップショットの対象外。Undo 1 回と fast は test_spec_blendshape_targets で確認する。",
+    "BlendShape.reduceTargetDeltas": "デルタ(pointArray・componentList)はスナップショットの対象外。Undo 1 回と fast は test_spec_blendshape_targets で確認する。",
     "Time.setCurrent": "現在時刻の変更。Maya の currentTime は Undo キューへ記録しない。",
     "Time.setPlaybackRange": "再生範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
     "Time.setAnimationRange": "アニメーション範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
@@ -959,6 +962,29 @@ def s_blend(c):
     c.nblend = mlib.getNode(c.blend)
 
 
+
+def s_blend_inbetween(c):
+    """s_blend に、2 つ目のメッシュを in-between(0.5)として足す。"""
+    s_blend(c)
+    cmds.blendShape(c.blend, edit=True, inBetween=True, target=(c.base, 0, c.target2, 0.5))
+
+
+def s_blend_baked(c):
+    """s_blend のターゲット形状の接続を切り、デルタだけにする。"""
+    s_blend(c)
+    plug = c.blend + ".inputTarget[0].inputTargetGroup[0].inputTargetItem[6000].inputGeomTarget"
+    cmds.disconnectAttr(cmds.listConnections(plug, source=True, plugs=True)[0], plug)
+    c.nblend.setTargetDeltas(0, {0: (0.0, 1.0, 0.0), 1: (0.0, 0.1, 0.0), 2: (0.0, 0.0, 2.0)})
+
+
+def s_blend_data(c):
+    """s_blend のターゲット一式のデータと、別の立方体のターゲットの無い blendShape を作る。"""
+    s_blend(c)
+    c.data = c.nblend.getTargetsData()
+    c.base2 = cmds.ls(cmds.polyCube(name="base2", constructionHistory=False)[0], long=True)[0]
+    c.nblend2 = mlib.getNode(cmds.blendShape(c.base2, name="blend2")[0])
+
+
 def s_reorder(c):
     """基準の 4 頂点の平面と、頂点番号だけを入れ替えた同形の平面を作る。"""
     c.ref = cmds.ls(cmds.polyPlane(name="ref", subdivisionsX=1, subdivisionsY=1,
@@ -1134,8 +1160,12 @@ CASES = [
       lambda c, **kw: c.na.setVisibility(False, **kw)),
     C("DagNode.setOutlinerVisibility", "setOutlinerVisibility", s_one,
       lambda c, **kw: c.na.setOutlinerVisibility(False, **kw)),
-    C("DagNode.setColor", "setColor index on shapes", s_curves, lambda c, **kw: c.ncrv.setColor(13, **kw)),
-    C("DagNode.setColor", "setColor rgb", s_one, lambda c, **kw: c.na.setColor((1.0, 0.5, 0.0), **kw)),
+    C("DagNode.setOverrideColor", "setOverrideColor index", s_curves, lambda c, **kw: c.ncrv.setOverrideColor(13, **kw)),
+    C("DagNode.setOverrideColor", "setOverrideColor rgb", s_one, lambda c, **kw: c.na.setOverrideColor((1.0, 0.5, 0.0), **kw)),
+    C("DagNode.setOverrideColor", "setOverrideColor shape", s_curves,
+      lambda c, **kw: c.ncrv.setOverrideColor(13, shape=True, **kw)),
+    C("DagNode.setOutlinerColor", "setOutlinerColor rgb", s_one,
+      lambda c, **kw: c.na.setOutlinerColor((1.0, 0.5, 0.0), **kw)),
     # Transform
     C("Transform.setParent", "setParent", s_child, lambda c, **kw: c.na.setParent(c.q, **kw)),
     C("Transform.setParent", "setParent world", s_child, lambda c, **kw: c.na.setParent(None, **kw)),
@@ -1209,7 +1239,13 @@ CASES = [
       lambda c, **kw: Nodes([c.a, c.b]).setAttrFlags(["tx", "ry"], locked=True, keyable=False, **kw)),
     C("Nodes.resetAttrs", "Nodes.resetAttrs", s_two, lambda c, **kw: Nodes([c.a, c.b]).resetAttrs(**kw)),
     C("Nodes.setLocked", "Nodes.setLocked", s_two, lambda c, **kw: Nodes([c.a, c.b]).setLocked(True, **kw)),
-    C("Nodes.setColor", "Nodes.setColor", s_two, lambda c, **kw: Nodes([c.a, c.b]).setColor(13, **kw)),
+    C("Nodes.setOverrideColor", "Nodes.setOverrideColor", s_two, lambda c, **kw: Nodes([c.a, c.b]).setOverrideColor(13, **kw)),
+    C("Nodes.setOverrideColors", "Nodes.setOverrideColors", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setOverrideColors([13, (1.0, 0.5, 0.0)], **kw)),
+    C("Nodes.setOutlinerColor", "Nodes.setOutlinerColor", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setOutlinerColor((1.0, 0.5, 0.0), **kw)),
+    C("Nodes.setOutlinerColors", "Nodes.setOutlinerColors", s_two,
+      lambda c, **kw: Nodes([c.a, c.b]).setOutlinerColors([(1.0, 0.5, 0.0), (0.0, 1.0, 0.0)], **kw)),
     C("Nodes.setVisibility", "Nodes.setVisibility", s_two,
       lambda c, **kw: Nodes([c.a, c.b]).setVisibility(False, **kw)),
     C("Nodes.hide", "Nodes.hide", s_two, lambda c, **kw: Nodes([c.a, c.b]).hide(**kw)),
@@ -1267,6 +1303,25 @@ CASES = [
                 "targetParentVisibility[i] を Undo で既定値の要素として作り直す",
       ignoreAttrs=("targetVisibility", "targetParentVisibility")),
     # Constraint
+    C("BlendShape.setTargetDeltas", "BlendShape.setTargetDeltas", s_blend,
+      lambda c, **kw: c.nblend.setTargetDeltas(0, {0: (0.0, 2.0, 0.0)}, disconnect=True, **kw)),
+    C("BlendShape.setTargetWeights", "BlendShape.setTargetWeights", s_blend,
+      lambda c, **kw: c.nblend.setTargetWeights(0, {1: 0.5, 2: 0.25}, **kw)),
+    C("BlendShape.addInBetween", "BlendShape.addInBetween", s_blend,
+      lambda c, **kw: c.nblend.addInBetween(0, c.target2, 0.5)),
+    C("BlendShape.removeInBetween", "BlendShape.removeInBetween", s_blend_inbetween,
+      lambda c, **kw: c.nblend.removeInBetween(0, 0.5)),
+    C("BlendShape.mirrorTarget", "BlendShape.mirrorTarget", s_blend_baked,
+      lambda c, **kw: c.nblend.mirrorTarget(0)),
+    C("BlendShape.duplicateTarget", "BlendShape.duplicateTarget", s_blend,
+      lambda c, **kw: c.nblend.duplicateTarget(0, name="copied")),
+    C("BlendShape.replaceTarget", "BlendShape.replaceTarget", s_blend_baked,
+      lambda c, **kw: c.nblend.replaceTarget(0, c.target2)),
+    C("BlendShape.setTargetsData", "BlendShape.setTargetsData", s_blend_data,
+      lambda c, **kw: c.nblend2.setTargetsData(c.data, mode="empty"),
+      mayaQuirk="Maya標準の blendShape -target も、空の blendShape へ足した targetDirectory[0] を Undo で消さない",
+      ignoreAttrs=("directoryName", "directoryVisibility", "directoryWeight", "childIndices",
+                   "parentIndex")),
     C("Constraint.setWeight", "Constraint.setWeight", s_constraint,
       lambda c, **kw: c.ncon.setWeight(0.5, **kw)),
     C("AimConstraint.setRestRotate", "AimConstraint.setRestRotate", s_aim,
@@ -1383,6 +1438,11 @@ CASES = [
       lambda c, **kw: c.skin.removeUnusedInfluences()),
     C("SkinCluster.removeInvalidWeights", "SkinCluster.removeInvalidWeights", s_skin_invalid,
       lambda c, **kw: c.skin.removeInvalidWeights(**kw)),
+    C("SkinCluster.setWeightsData", "SkinCluster.setWeightsData", s_skin,
+      lambda c, **kw: c.skin.setWeightsData(
+          dict(c.skin.getWeightsData(), weights={"indices": [[1]] * 12, "values": [[1.0]] * 12}), **kw)),
+    C("Transform.setCurveShapesData", "Transform.setCurveShapesData", s_curves,
+      lambda c, **kw: c.ncrv.setCurveShapesData(c.nsrc.getCurveShapesData())),
     C("SkinCluster.setWeights", "SkinCluster.setWeights", s_skin,
       lambda c, **kw: c.skin.setWeights([c.j0, c.j1], [0.25, 0.75], broadcast=True, **kw)),
     C("SkinCluster.setWeights", "SkinCluster.setWeights vertices normalize", s_skin,
