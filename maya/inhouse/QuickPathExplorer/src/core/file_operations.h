@@ -112,6 +112,7 @@ private:
     FileRequest active_;
     QElapsedTimer elapsed_;
     qint64 transferred_ = 0;
+    qint64 totalBytes_ = -1;
     QString progressPath_;
     bool queuePaused_ = false;
     bool running_ = false;

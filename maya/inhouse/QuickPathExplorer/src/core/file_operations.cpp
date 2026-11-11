@@ -279,19 +279,25 @@ void overlayEntry(const QString& source, const QString& target, const QJsonObjec
     }
     copyEntry(source, target, cancel, progress);
 }
-/** @brief ハッシュへ構造と内容を流す。 @param path 元。 @param hash 集約。 @param cancel 取消し。 */
-void hashEntry(const QString& path, QCryptographicHash& hash, const CancelFlag& cancel) {
+/** @brief ハッシュへ構造と内容を流す。 @param path 元。 @param hash 集約。 @param cancel 取消し。 @param bytes 読んだバイト数の加算先。 */
+void hashEntry(const QString& path, QCryptographicHash& hash, const CancelFlag& cancel, qint64* bytes = nullptr) {
     check(cancel); ordinary(path);
     if (QFileInfo(path).isDir()) {
         hash.addData("D", 1);
         for (const auto& child : children(path)) {
             const QByteArray name = child.fileName().toUtf8(); hash.addData(QByteArray::number(name.size()) + ":" + name);
-            hashEntry(child.absoluteFilePath(), hash, cancel);
+            hashEntry(child.absoluteFilePath(), hash, cancel, bytes);
         }
     } else {
         hash.addData("F", 1); QFile file(path); if (!file.open(QIODevice::ReadOnly)) fail(file.errorString());
-        while (!file.atEnd()) { check(cancel); const auto data = file.read(1024 * 1024); if (data.isEmpty() && file.error() != QFileDevice::NoError) fail(file.errorString()); hash.addData(data); }
+        while (!file.atEnd()) { check(cancel); const auto data = file.read(1024 * 1024); if (data.isEmpty() && file.error() != QFileDevice::NoError) fail(file.errorString()); hash.addData(data); if (bytes) *bytes += data.size(); }
     }
+}
+/** @brief 指紋と転送予定量を同じ読み込みで計算する。 @param path 対象。 @param cancel 中断。 @param bytes 読んだバイト数。 @return SHA256。 */
+QString fingerprintWithSize(const QString& path, const CancelFlag& cancel, qint64* bytes = nullptr) {
+    QCryptographicHash hash(QCryptographicHash::Sha256);
+    hashEntry(path, hash, cancel, bytes);
+    return QString::fromLatin1(hash.result().toHex());
 }
 }
 namespace detail {
@@ -319,7 +325,7 @@ void validateFileName(const QString& name) {
     if (name.isEmpty() || name == "." || name == ".." || name.endsWith(' ') || name.endsWith('.') || name.contains(QRegularExpression("[<>:\"/\\\\|?*\\x00-\\x1f]")) || reserved.match(name).hasMatch())
         throw std::invalid_argument("Enter a valid Windows file name (without a path)");
 }
-QString fileFingerprint(const QString& path, const CancelFlag& cancel) { QCryptographicHash hash(QCryptographicHash::Sha256); hashEntry(path, hash, cancel); return QString::fromLatin1(hash.result().toHex()); }
+QString fileFingerprint(const QString& path, const CancelFlag& cancel) { return fingerprintWithSize(path, cancel); }
 QString operationsDirectory() { return QFileInfo(settingsPath()).absolutePath() + "/native-file-history"; }
 FileOperations::FileOperations(QString directory) : directory_(normalized(directory)) {}
 FileResult FileOperations::run(const FileRequest& request, const CancelFlag& cancel, const FileProgress& progress, const FilePartial& partial) try {
@@ -685,9 +691,19 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
     }
     QJsonObject prepared;
     QString recordPath;
+    QSet<QString> sourceKeys;
+    for (const auto& raw : paths) sourceKeys.insert(resolvedSources.value(raw).toString(normalized(raw)).toCaseFolded());
+    const auto coveredBySource = [&](const QString& source) {
+        const auto ancestors = detail::operationAncestors(source);
+        return std::any_of(ancestors.cbegin() + 1, ancestors.cend(), [&](const QString& parent) {
+            return sourceKeys.contains(parent.toCaseFolded());
+        });
+    };
     if (!request.id.isEmpty() && QStringList{"copy", "move", "duplicate"}.contains(request.action)) {
         recordPath = directory_ + "/jobs/" + request.id + ".json";
         auto record = loadJson(recordPath); prepared = record["prepared"].toObject();
+        const bool knownTotal = partial && prepared.isEmpty() && (request.conflict == "rename" || request.conflict == "replace");
+        qint64 plannedBytes = 0;
         if (transfer) {
             const auto recorded = record["resolvedSources"].toObject();
             if (resolvedDestination.compare(record["resolvedDestination"].toString(resolvedDestination), Qt::CaseInsensitive))
@@ -706,9 +722,14 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 const auto entry = value.toObject();
                 if (entry["job"].toString() == request.id && entry["shownSource"].toString(entry["source"].toString()) == shownSource) committed = true;
             }
-            if (!committed && !prepared.contains(raw)) prepared[raw] = fileFingerprint(source, cancel);
+            if (!committed && !prepared.contains(raw)) {
+                const bool stationaryMove = request.action == "move" && QFileInfo(source).absolutePath().compare(resolvedDestination, Qt::CaseInsensitive) == 0;
+                const bool count = knownTotal && !stationaryMove && !coveredBySource(source);
+                prepared[raw] = fingerprintWithSize(source, cancel, count ? &plannedBytes : nullptr);
+            }
         }
         record["prepared"] = prepared; record["state"] = "running"; saveJson(recordPath, record);
+        if (knownTotal) partial({{"transferTotalBytes", double(plannedBytes)}});
     }
     for (const QString& raw : paths) {
         try {
@@ -731,12 +752,7 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             if (prepared.contains(raw) && fileFingerprint(raw, cancel) != prepared[raw].toString()) fail("Prepared source changed; resume refused");
             const bool shareRoot = source.startsWith("//") && detail::operationAncestors(source).size() == 1;
             if (info.isRoot() || shareRoot || within(source, directory_) || within(directory_, source)) fail("Root and QPE history directories are protected");
-            bool nested = false;
-            for (const auto& other : paths) {
-                const auto parent = resolvedSources.value(other).toString(normalized(other));
-                if (source.compare(parent, Qt::CaseInsensitive) && within(source, parent)) nested = true;
-            }
-            if (nested) continue;
+            if (coveredBySource(source)) continue;
             if (request.action.startsWith("new")) ordinaryParents(info.absolutePath()); else ordinaryParents(source);
             QJsonObject entry{{"action", request.action == "batchRename" ? "rename" : request.action}, {"source", source}, {"batch", batch}, {"job", request.id}, {"time", QDateTime::currentDateTimeUtc().toString(Qt::ISODate)}};
             if (request.action == "trash") {
@@ -768,6 +784,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                     }
                     if (!QStringList{"skip", "rename", "replace", "merge"}.contains(policy)) fail("Invalid conflict policy");
                     if (policy == "skip") continue;
+                    if (policy == "replace" && request.options["replaceFilesOnly"].toBool() && (info.isDir() || QFileInfo(target).isDir()))
+                        fail("A folder already exists at the destination. Review the conflict before replacing it.");
                     if (policy == "rename" || target.compare(source, Qt::CaseInsensitive) == 0) target = available(target);
                     else {
                         merge = policy == "merge" && info.isDir() && QFileInfo(target).isDir();
@@ -808,6 +826,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
           catch (const std::exception& error) { result.errors.append(QString::fromUtf8(error.what())); if (!journal["pending"].toObject().isEmpty()) { result.warnings.append("Interrupted operation recorded; inspect retained originals before retrying."); break; } }
     }
     return result;
+} catch (const Cancelled&) {
+    FileResult result; result.cancelled = true; return result;
 } catch (const std::exception& error) { qWarning().noquote() << "QPE file operation" << request.action << request.destination << QString::fromUtf8(error.what()); throw; }
 namespace {
 /** @brief 自己破棄のワーカー。UIへはqueued signalのみ。 */
@@ -889,7 +909,7 @@ void FileJobs::pauseQueue(bool value) { queuePaused_ = value; if (!value) next()
 void FileJobs::moveQueued(int index, int delta) { const int next = index + delta; if (index >= 0 && index < queue_.size() && next >= 0 && next < queue_.size()) queue_.swapItemsAt(index, next); }
 QJsonArray FileJobs::records() const {
     QJsonArray rows;
-    if (running_) rows.append(QJsonObject{{"action", active_.action}, {"id", active_.id}, {"state", pause_ && pause_->load() ? "paused" : "running"}, {"destination", active_.destination}, {"bytes", double(transferred_)}, {"bytesPerSecond", elapsed_.isValid() ? transferred_ * 1000. / qMax(qint64(1), elapsed_.elapsed()) : 0.}, {"path", progressPath_}});
+    if (running_) rows.append(QJsonObject{{"action", active_.action}, {"id", active_.id}, {"state", pause_ && pause_->load() ? "paused" : "running"}, {"destination", active_.destination}, {"bytes", double(transferred_)}, {"totalBytes", double(totalBytes_)}, {"bytesPerSecond", elapsed_.isValid() ? transferred_ * 1000. / qMax(qint64(1), elapsed_.elapsed()) : 0.}, {"path", progressPath_}});
     for (int i = 0; i < queue_.size(); ++i) { const auto& v = queue_[i]; rows.append(QJsonObject{{"action", v.action}, {"id", v.id}, {"state", "queued"}, {"index", i}, {"destination", v.destination}}); }
     return rows;
 }
@@ -939,9 +959,12 @@ bool FileJobs::releaseWorkers(bool wait) {
 void FileJobs::next() {
     if (running_ || queue_.isEmpty() || queuePaused_) return;
     running_ = true; cancel_ = std::make_shared<std::atomic_bool>(false); pause_ = std::make_shared<std::atomic_bool>(false);
-    const auto request = queue_.dequeue(); active_ = request; transferred_ = 0; progressPath_.clear(); elapsed_.start(); auto* job = new FileJob(request, cancel_, pause_);
+    const auto request = queue_.dequeue(); active_ = request; transferred_ = 0; totalBytes_ = -1; progressPath_.clear(); elapsed_.start(); auto* job = new FileJob(request, cancel_, pause_);
     connect(job, &FileJob::progress, this, [this](const QString& path, qint64 bytes) { transferred_ = bytes; progressPath_ = path; emit progress(path, bytes); }, Qt::QueuedConnection);
-    connect(job, &FileJob::partial, this, &FileJobs::partial, Qt::QueuedConnection);
+    connect(job, &FileJob::partial, this, [this](const QJsonObject& value) {
+        if (value.contains("transferTotalBytes")) totalBytes_ = qint64(value["transferTotalBytes"].toDouble());
+        else emit partial(value);
+    }, Qt::QueuedConnection);
     connect(job, &FileJob::completed, this, [this](const QJsonObject& result) { running_ = false; emit finished(result); next(); }, Qt::QueuedConnection);
     emit started(request.action); if (!filePool) filePool = new QThreadPool; filePool->start(job);
 }

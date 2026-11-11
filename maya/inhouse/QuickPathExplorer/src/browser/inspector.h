@@ -3,6 +3,7 @@
 #include <QWidget>
 #include <QJsonObject>
 #include <QHash>
+#include <QPixmap>
 class QLabel;
 class QLineEdit;
 class QComboBox;
@@ -40,12 +41,15 @@ signals:
 private:
     /** @brief 4操作すべてへ到達できる表示形式を幅から選ぶ。 */
     void updateActionSelector();
+    /** @brief 詳細の画像をスクロール領域の有効幅に合わせる。 */
+    void fitPreview();
     QLabel* information_;
     QLabel* title_ = nullptr;
     QTabWidget* tabs_ = nullptr;
     QComboBox* operation_ = nullptr;
     QWidget* fbx_ = nullptr;
     QLabel* preview_ = nullptr;
+    QPixmap previewSource_;
     QWidget* detailsBody_ = nullptr;
     FileJobs* media_ = nullptr;
     QString path_;

@@ -11,6 +11,7 @@
 #include <QTimer>
 #include <QThreadPool>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QElapsedTimer>
@@ -65,9 +66,14 @@ int main(int argc, char** argv) {
                 const bool ok = window.ready();
                 QFile output(args[smoke + 1]);
                 if (!output.open(QIODevice::WriteOnly)) { app.exit(3); return; }
+                const auto handle = reinterpret_cast<HWND>(window.winId());
+                RECT frame{};
+                GetWindowRect(handle, &frame);
                 output.write(QJsonDocument(QJsonObject{{"passed", ok}, {"qt", qVersion()},
                     {"pythonRuntime", false}, {"staticQt", true}, {"path", window.currentPath()},
                     {"nativeRoundedCornersRequested", roundedCornersRequested},
+                    {"frame", QJsonArray{int(frame.left), int(frame.top), int(frame.right), int(frame.bottom)}},
+                    {"maximized", IsZoomed(handle) != FALSE},
                     {"readyMilliseconds", double(elapsed.elapsed())}}).toJson());
                 window.grab().save(args[smoke + 1] + ".png");
                 app.exit(ok ? 0 : 2);

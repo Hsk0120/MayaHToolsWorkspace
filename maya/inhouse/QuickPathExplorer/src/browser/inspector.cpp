@@ -203,7 +203,7 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
         if (data.contains("text")) info += "\n\n" + uiText("Text preview (first 16 KiB)") + "\n" + data["text"].toString();
         if (data.contains("note")) info += "\n\n" + data["note"].toString();
         information_->setText(info);
-        QPixmap image; if (image.loadFromData(QByteArray::fromBase64(data["png"].toString().toLatin1()), "PNG")) preview_->setPixmap(image.scaled(220, 180, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+        if (previewSource_.loadFromData(QByteArray::fromBase64(data["png"].toString().toLatin1()), "PNG")) fitPreview();
     });
     connect(details, &QToolButton::toggled, detailsBody_, [this, details](bool visible) { detailsBody_->setVisible(visible); details->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); if (visible) requestDetails(); else { token_ = QUuid::createUuid().toString(); media_->cancel(); } });
     if (maya) {
@@ -222,11 +222,25 @@ void Inspector::updateActionSelector() {
     int needed = 32; for (int i = 0; i < tabs_->count(); ++i) needed += fontMetrics().horizontalAdvance(tabs_->tabText(i)) + 28;
     const bool compact = width() < needed; operation_->setVisible(compact); tabs_->tabBar()->setVisible(!compact);
 }
-void Inspector::resizeEvent(QResizeEvent* event) { QWidget::resizeEvent(event); updateActionSelector(); }
-void Inspector::changeEvent(QEvent* event) { QWidget::changeEvent(event); if (event->type() == QEvent::FontChange) updateActionSelector(); }
+void Inspector::fitPreview() {
+    if (previewSource_.isNull()) return;
+    const auto* scroll = findChild<QScrollArea*>("inspectorScroll");
+    const auto margins = scroll->widget()->layout()->contentsMargins();
+    const int available = width() - margins.left() - margins.right() - scroll->style()->pixelMetric(QStyle::PM_ScrollBarExtent);
+    preview_->setPixmap(previewSource_.scaled(qBound(1, available, 220), 180, Qt::KeepAspectRatio, Qt::SmoothTransformation));
+}
+void Inspector::resizeEvent(QResizeEvent* event) {
+    QWidget::resizeEvent(event);
+    updateActionSelector();
+    if (event->oldSize().width() != event->size().width()) fitPreview();
+}
+void Inspector::changeEvent(QEvent* event) {
+    QWidget::changeEvent(event);
+    if (event->type() == QEvent::FontChange) { updateActionSelector(); fitPreview(); }
+}
 void Inspector::setPath(const QString& path) {
     if (path_ == path) return;
-    path_ = path; token_ = QUuid::createUuid().toString(); media_->cancel(); preview_->clear();
+    path_ = path; token_ = QUuid::createUuid().toString(); media_->cancel(); previewSource_ = QPixmap(); preview_->clear();
     const QFileInfo info(path);
     title_->setText(path.isEmpty() ? uiText("Select a file below") : info.fileName()); title_->setToolTip(path);
     if (fbx_) fbx_->setVisible(info.suffix().compare("fbx", Qt::CaseInsensitive) == 0);

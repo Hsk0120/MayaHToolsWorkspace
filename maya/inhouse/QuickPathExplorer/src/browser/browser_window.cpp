@@ -86,6 +86,129 @@ namespace {
 constexpr int PathRole = Qt::UserRole + 1;
 constexpr int DirectoryRole = Qt::UserRole + 2;
 constexpr int SortRole = Qt::UserRole + 3;
+/** @brief 転送中だけ開き、既存キューからバイト数と操作状態を表示する。 */
+class TransferProgressDialog final : public QDialog {
+public:
+    /** @brief ブラウザーの転送キューに追従する。 @param jobs 親が所有するキュー。 @param parent ブラウザー。 */
+    TransferProgressDialog(FileJobs* jobs, QWidget* parent) : QDialog(parent), jobs_(jobs) {
+        setObjectName("transferProgress");
+        setWindowTitle(uiText("File transfer"));
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+        resize(470, 200);
+        auto* layout = new QVBoxLayout(this);
+        heading_ = new QLabel; layout->addWidget(heading_);
+        destination_ = new QLabel; destination_->setWordWrap(true); destination_->setTextFormat(Qt::PlainText);
+        layout->addWidget(destination_);
+        progress_ = new QProgressBar; progress_->setObjectName("transferProgressBar"); layout->addWidget(progress_);
+        info_ = new QLabel; info_->setWordWrap(true); info_->setTextFormat(Qt::PlainText); layout->addWidget(info_);
+        auto* buttons = new QDialogButtonBox;
+        pause_ = buttons->addButton(uiText("Pause"), QDialogButtonBox::ActionRole);
+        pause_->setObjectName("pauseTransfer");
+        cancel_ = buttons->addButton(uiText("Cancel"), QDialogButtonBox::RejectRole);
+        cancel_->setObjectName("cancelTransfer");
+        layout->addWidget(buttons);
+        connect(pause_, &QPushButton::clicked, this, [this] { jobs_->pauseActive(!jobs_->activePaused()); refresh(); });
+        const auto cancel = [this] { cancelling_ = true; jobs_->cancelActive(); refresh(); };
+        connect(cancel_, &QPushButton::clicked, this, cancel);
+        connect(this, &QDialog::rejected, this, cancel);
+        timer_.setInterval(100);
+        connect(&timer_, &QTimer::timeout, this, [this] {
+            refresh();
+            if (delay_.elapsed() >= 300 && !shown_) { shown_ = true; show(); }
+        });
+        connect(jobs_, &FileJobs::started, this, [this](const QString& action) {
+            if (action != "copy" && action != "move" && action != "duplicate" && action != "syncFile") return;
+            cancelling_ = false; shown_ = false; delay_.start();
+            heading_->setText(action == "move" ? uiText("Moving items…") : uiText("Copying items…"));
+            refresh(); timer_.start();
+        });
+        connect(jobs_, &FileJobs::finished, this, [this] { timer_.stop(); hide(); });
+    }
+private:
+    /** @brief 最新の転送だけを描画し、検証が完了するまで100%にしない。 */
+    void refresh() {
+        const auto records = jobs_->records();
+        if (records.isEmpty()) return;
+        const auto active = records.first().toObject();
+        const bool paused = jobs_->activePaused();
+        const auto total = active["totalBytes"].toDouble(-1);
+        const auto bytes = active["bytes"].toDouble();
+        progress_->setRange(0, total > 0 ? 100 : 0);
+        if (total > 0) progress_->setValue(qBound(0, int(qMin(99., 100. * bytes / total)), 99));
+        const auto destination = active["destination"].toString();
+        destination_->setText(destination.isEmpty() ? QString() : uiText("Destination: %1").arg(QDir::toNativeSeparators(destination)));
+        destination_->setVisible(!destination.isEmpty());
+        QString info;
+        if (cancelling_) info = uiText("Cancelling transfer…");
+        else if (paused) info = uiText("Transfer paused");
+        else if (total > 0 && bytes >= total) info = uiText("Verifying transferred files…");
+        else if (bytes <= 0) info = uiText("Preparing transfer…");
+        else info = uiText("%1 transferred · %2/s average").arg(uiLocale().formattedDataSize(qint64(bytes)),
+            uiLocale().formattedDataSize(qint64(active["bytesPerSecond"].toDouble())));
+        const auto path = active["path"].toString();
+        if (!path.isEmpty()) info += '\n' + QFileInfo(path).fileName();
+        info_->setText(info);
+        pause_->setText(paused ? uiText("Resume") : uiText("Pause"));
+        pause_->setEnabled(!cancelling_); cancel_->setEnabled(!cancelling_);
+    }
+    FileJobs* jobs_;
+    QLabel* heading_;
+    QLabel* destination_;
+    QLabel* info_;
+    QProgressBar* progress_;
+    QPushButton* pause_;
+    QPushButton* cancel_;
+    QTimer timer_;
+    QElapsedTimer delay_;
+    bool shown_ = false;
+    bool cancelling_ = false;
+};
+/** @brief 同名貼り付けの既定を上書きにし、フォルダー競合は別の選択を受け付ける。
+ * @param owner ダイアログの親。 @param request 確定前の要求。 @param paste 貼り付け操作か。
+ * @return 転送を続けるか。
+ */
+bool chooseTransferConflict(QWidget* owner, FileRequest& request, bool paste) {
+    QStringList conflicts;
+    bool folderConflict = false;
+    for (const auto& path : request.paths) {
+        const QFileInfo source(path);
+        const QFileInfo target(QDir(request.destination).filePath(source.fileName()));
+        if (!target.exists() && !target.isSymLink()) continue;
+        if (source.absoluteFilePath().compare(target.absoluteFilePath(), Qt::CaseInsensitive) == 0) continue;
+        conflicts.append(source.fileName());
+        folderConflict |= source.isDir() || target.isDir();
+    }
+    if (conflicts.isEmpty()) return true;
+    if (paste && !folderConflict) {
+        QMessageBox dialog(QMessageBox::Question, uiText("Replace or skip files"), {}, QMessageBox::NoButton, owner);
+        dialog.setObjectName("pasteConflict");
+        dialog.setTextFormat(Qt::PlainText);
+        dialog.setText(conflicts.size() == 1 ? uiText("The destination already has a file named %1.").arg(conflicts.first())
+                                          : uiText("The destination already has %1 files with the same names.").arg(conflicts.size()));
+        auto* replace = dialog.addButton(uiText("Replace the files in the destination"), QMessageBox::AcceptRole);
+        auto* skip = dialog.addButton(uiText("Skip these files"), QMessageBox::ActionRole);
+        auto* keep = dialog.addButton(uiText("Keep both"), QMessageBox::ActionRole);
+        auto* cancel = dialog.addButton(uiText("Cancel"), QMessageBox::RejectRole);
+        dialog.setDefaultButton(replace);
+        dialog.setEscapeButton(cancel);
+        dialog.exec();
+        const auto* clicked = dialog.clickedButton();
+        if (clicked == replace) { request.conflict = "replace"; request.options["replaceFilesOnly"] = true; }
+        else if (clicked == skip) request.conflict = "skip";
+        else if (clicked != keep) return false;
+        return true;
+    }
+    QStringList choices{"Keep both", "Skip", "Replace (keep Undo backup)"};
+    if (request.action == "copy") choices.append("Merge folders (replace matching files; keep Undo backup)");
+    bool accepted = false;
+    const auto labels = uiTexts(choices);
+    const auto chosen = UiInputDialog::getItem(owner, uiText("Existing items"), uiText("Conflict handling"), labels, 0, false, &accepted);
+    if (!accepted) return false;
+    const auto mode = choices.value(labels.indexOf(chosen));
+    request.conflict = mode == "Skip" ? "skip" : mode.startsWith("Replace") ? "replace" : mode.startsWith("Merge") ? "merge" : "rename";
+    return true;
+}
 /** @brief 表示中のファイルメニューだけでキーを処理し、Mayaのショートカットへ漏らさない。 */
 class FileContextMenu final : public QMenu {
 public:
@@ -410,6 +533,13 @@ public:
         columnLayout_->setSpacing(0);
         columnLayout_->addStretch(1);
         scroll_->setWidget(columns);
+        auto* horizontal = scroll_->horizontalScrollBar();
+        connect(horizontal, &QScrollBar::actionTriggered, this, [this, horizontal] {
+            followEnd_ = horizontal->sliderPosition() == horizontal->maximum();
+        });
+        connect(horizontal, &QScrollBar::rangeChanged, this, [this, horizontal](int, int maximum) {
+            if (followEnd_) horizontal->setValue(maximum);
+        });
         auto* bottom = new QWidget(vertical);
         auto* lower = new QVBoxLayout(bottom);
         lower->setContentsMargins(0, 0, 0, 0);
@@ -548,13 +678,14 @@ public:
             const bool sorting = files_->isSortingEnabled(); files_->setSortingEnabled(false);
             files_->updateModel([&] { applyRows(model_, path_, snapshot, false); }); files_->setSortingEnabled(sorting);
             model_->setProperty("snapshotGeneration", QVariant());
-            ready_ = result.errors.isEmpty(); summary_->setText(QFileInfo(path_).fileName() + QString(uiText(" · %1 files (recursive)")).arg(model_->rowCount()));
+            ready_ = result.errors.isEmpty(); setSummary(QFileInfo(path_).fileName() + QString(uiText(" · %1 files (recursive)")).arg(model_->rowCount()));
             footer_->setText(result.errors.isEmpty() ? QString(uiText("%1 items")).arg(model_->rowCount()) : result.errors.join("\n"));
             restorePosition(); setMode(mode_); scheduleThumbnails();
         });
         layout->addWidget(vertical, 1);
         footer_ = new QLabel;
         footer_->setObjectName("footer");
+        footer_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
         layout->addWidget(footer_);
         vertical->setSizes({360, 420});
         applyMetrics();
@@ -579,6 +710,7 @@ public:
         const QString destination = DirectoryStore::normalized(input);
         if (property("locationLocked").toBool() && !path_.isEmpty() && destination != path_) { owner_->addTab(destination); return; }
         savePosition(); saveFolderView();
+        followEnd_ = true;
         QScopedValueRollback<bool> viewGuard(viewRestoring_, true);
         if (record && (history_.isEmpty() || path_ != destination)) {
             history_ = history_.mid(0, historyIndex_ + 1);
@@ -677,9 +809,8 @@ public:
         }
         restoreFolderView();
         for (const QString& p : chain) apply(p);
-        if (!store_.snapshot(path_)) summary_->setText(QFileInfo(path_).fileName() + uiText(" · Loading…"));
+        if (!store_.snapshot(path_)) setSummary(QFileInfo(path_).fileName() + uiText(" · Loading…"));
         filter_->setText(positions_.value(path_).filter);
-        reveal_ = !positions_.contains(path_);
         restorePosition();
         fitColumns();
         emit locationChanged();
@@ -710,8 +841,8 @@ public:
      * @return 移動可能か。
      */
     bool canHistory(int delta) const { return historyIndex_ + delta >= 0 && historyIndex_ + delta < history_.size(); }
-    /** @brief サイドバー開閉時だけ末尾を可視化する。非同期反映では追従しない。 */
-    void revealCurrent() { reveal_ = true; fitColumns(); }
+    /** @brief 現在フォルダー側へ戻し、列挙で幅が変わっても末尾へ追従する。 */
+    void revealCurrent() { followEnd_ = true; fitColumns(); }
     /** @brief タブごとの余白・サムネイル寸法・カラムの自動幅を現在の表示倍率へ合わせる。 */
     void applyMetrics() {
         const qreal scale = owner_->property("qpeUiScale").toReal();
@@ -742,7 +873,7 @@ public:
         savePosition(); saveFolderView(); flushFolderViews(); QJsonObject positions;
         for (auto it = positions_.begin(); it != positions_.end(); ++it) {
             QJsonObject columns; for (auto col = it->columns.begin(); col != it->columns.end(); ++col) columns[col.key()] = col.value();
-            positions[it.key()] = QJsonObject{{"horizontal", it->horizontal}, {"vertical", it->files}, {"search", it->filter},
+            positions[it.key()] = QJsonObject{{"vertical", it->files}, {"search", it->filter},
                 {"selected", QJsonArray::fromStringList(it->selected)}, {"columns", columns}};
         }
         return {{"path", path_}, {"history", QJsonArray::fromStringList(history_)}, {"index", historyIndex_}, {"positions", positions},
@@ -798,7 +929,7 @@ public:
             const auto oldColumns = state["columns"].toObject();
             for (auto old = oldColumns.begin(); old != oldColumns.end(); ++old) {
                 const auto value = old.value().toObject(); if (!value["vertical"].isObject()) continue;
-                positions[DirectoryStore::normalized(old.key())] = QJsonObject{{"horizontal", value["horizontal"]}, {"columns", value["vertical"]}};
+                positions[DirectoryStore::normalized(old.key())] = QJsonObject{{"columns", value["vertical"]}};
             }
             const auto currentKey = DirectoryStore::normalized(target); auto current = positions[currentKey].toObject();
             for (const auto& key : {"vertical", "search", "selected"}) current[key] = state[key];
@@ -806,7 +937,7 @@ public:
         }
         for (auto it = positions.begin(); it != positions.end(); ++it) {
             const auto saved = it.value().toObject(); auto& value = positions_[DirectoryStore::normalized(it.key())];
-            value.horizontal = qMax(0, saved["horizontal"].toInt()); value.files = qMax(0, saved["vertical"].toInt()); value.filter = saved["search"].toString();
+            value.files = qMax(0, saved["vertical"].toInt()); value.filter = saved["search"].toString();
             for (const auto& item : saved["selected"].toArray()) if (item.isString()) value.selected.append(item.toString());
             const auto columns = saved["columns"].toObject();
             for (auto col = columns.begin(); col != columns.end(); ++col) if (col.value().isDouble()) value.columns[DirectoryStore::normalized(col.key())] = qMax(0, col.value().toInt());
@@ -1067,7 +1198,7 @@ private:
                 model_->setProperty("snapshotGeneration", QVariant::fromValue(revision));
             }
             ready_ = snapshot->complete && snapshot->error.isEmpty();
-            summary_->setText((QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName())
+            setSummary((QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName())
                              + QString(uiText(" · %1 files")).arg(model_->rowCount()) + (snapshot->complete ? QString() : uiText(" · Loading…")));
             footer_->setText(snapshot->error.isEmpty() ? QString(uiText("%1 items")).arg(model_->rowCount()) : snapshot->error);
             if (restorePending_) { restorePosition(); restorePending_ = !snapshot->complete; }
@@ -1092,9 +1223,12 @@ private:
         }
         if (ready_) pendingReveal_.clear();
     }
-    /** @brief 非同期更新で横位置を変えず、直近4列に幅を優先配分する。 */
+    /** @brief 直近4列に幅を優先配分し、右端の列をビューポート幅に収める。 */
     void fitColumns() {
-        int available = scroll_->viewport()->width();
+        const int viewportWidth = scroll_->viewport()->width();
+        if (viewportWidth <= 0) return;
+        int available = viewportWidth;
+        int last = -1;
         const qreal scale = owner_->property("qpeUiScale").toReal();
         const QString fontKey = font().toString() + '/' + QString::number(scale);
         QVector<int> widths;
@@ -1111,7 +1245,12 @@ private:
             }
             const int desired = columnWidthMode_ == "names" ? manualWidths_.value(column.path, qMin(width, 1000)) : qMin(width, 320);
             widths.append(column.view->isHidden() ? 0 : desired);
+            if (widths.last()) last = widths.size() - 1;
             available -= widths.last();
+        }
+        if (last >= 0 && widths[last] > viewportWidth) {
+            available += widths[last] - viewportWidth;
+            widths[last] = viewportWidth;
         }
         for (int i = 0; columnWidthMode_ == "fit" && i < widths.size() && available < 0; ++i) {
             const int minimum = qRound((i < widths.size() - 4 ? 80 : 120) * scale);
@@ -1120,16 +1259,13 @@ private:
             available += shrink;
         }
         for (int i = 0; i < columns_.size(); ++i) if (widths[i]) columns_[i].view->setFixedWidth(widths[i]);
-        if (reveal_) {
-            reveal_ = false;
-            QTimer::singleShot(0, this, [this] { scroll_->horizontalScrollBar()->setValue(scroll_->horizontalScrollBar()->maximum()); });
-        }
+        auto* horizontal = scroll_->horizontalScrollBar();
+        if (followEnd_) horizontal->setValue(horizontal->maximum());
     }
     /** @brief 移動前の選択・縦横位置をパスごとに保持する。 */
     void savePosition() {
         if (path_.isEmpty()) return;
         auto& value = positions_[path_];
-        value.horizontal = scroll_->horizontalScrollBar()->value();
         value.files = files_->verticalScrollBar()->value();
         value.filter = filter_->text();
         // 列挙を待つ復元対象は、まだ空のビューや古いキャッシュの選択で上書きしない。
@@ -1147,7 +1283,6 @@ private:
         QScopedValueRollback<bool> guard(applying_, true);
         const auto value = positions_[path_];
         for (const auto& col : columns_) col.view->verticalScrollBar()->setValue(value.columns.value(col.path));
-        scroll_->horizontalScrollBar()->setValue(value.horizontal);
         for (int row = 0; !value.selected.isEmpty() && row < proxy_->rowCount(); ++row) {
             const auto index = proxy_->index(row, 0);
             if (value.selected.contains(index.data(PathRole).toString())) {
@@ -1164,10 +1299,22 @@ private:
         // 非同期列挙後に採用した選択を、詳細ペインへ一度明示的に通知する。
         emit selected(detailPath());
     }
+    /** @brief フォルダー名の長さで一覧や詳細欄を押し広げない。 @param text 省略前の要約。 */
+    void setSummary(const QString& text) {
+        summary_->setToolTip(text);
+        summary_->setText(summary_->fontMetrics().elidedText(text, Qt::ElideMiddle, width() / 3));
+    }
     /** @brief ビュー領域の変更時に列幅だけを再計算する。
      * @param event サイズ変更。
      */
-    void resizeEvent(QResizeEvent* event) override { QWidget::resizeEvent(event); fitColumns(); fitFileName(); }
+    void resizeEvent(QResizeEvent* event) override {
+        QWidget::resizeEvent(event);
+        if (event->oldSize().width() != event->size().width()) {
+            setSummary(summary_->toolTip());
+            revealCurrent();
+        }
+        fitFileName();
+    }
     /** @brief 起動やペイン切替で子ビューの配置が確定した後に名前欄を合わせる。
      * @param watched 対象のビューポート。
      * @param event サイズ等の通知。入力は奪わない。
@@ -1211,7 +1358,7 @@ private:
         recursiveJobs_->enqueue({"listRecursive", {path_}, {}, "rename", {{"hidden", hiddenFiles_}, {"token", recursiveToken_}}});
     }
     struct Column { QString path; FolderList* view; QStandardItemModel* model; QString revealPath; };
-    struct Position { int horizontal = 0; int files = 0; QString filter; QStringList selected; QHash<QString, int> columns; };
+    struct Position { int files = 0; QString filter; QStringList selected; QHash<QString, int> columns; };
     DirectoryStore store_;
     BrowserWindow* owner_;
     QVector<Column> columns_;
@@ -1261,7 +1408,7 @@ private:
     bool viewRestoring_ = false;
     bool applying_ = false;
     bool ready_ = false;
-    bool reveal_ = false;
+    bool followEnd_ = true;
     bool restorePending_ = false;
     QString pendingReveal_;
     bool groupRestorePending_ = false;
@@ -1363,9 +1510,11 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     notice->setText(uiText("C++ migration · validation build"));
 #endif
     notice->setObjectName("migrationNotice");
+    notice->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
     root->addWidget(notice);
     status_ = notice;
     jobs_ = new FileJobs(this);
+    new TransferProgressDialog(jobs_, this);
     driveJobs_ = new FileJobs(this);
     connect(driveJobs_, &FileJobs::finished, this, [this](const QJsonObject& value) {
         const auto result = fileResultFromJson(value);
@@ -1434,7 +1583,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         } else if (!result.errors.isEmpty() || !result.warnings.isEmpty()) UiMessageBox::warning(this, uiText("File operation"), (result.errors + result.warnings).join('\n'));
     });
     connect(add, &QToolButton::clicked, this, [this] { addTab(currentPath().isEmpty() ? QDir::homePath() : currentPath()); });
-    connect(tabs_, &QTabBar::currentChanged, this, [this](int index) { pages_->setCurrentIndex(index); updateCurrent(); });
+    connect(tabs_, &QTabBar::currentChanged, this, [this](int index) { pages_->setCurrentIndex(index); if (page()) page()->revealCurrent(); updateCurrent(); });
     connect(tabs_, &QTabBar::tabMoved, this, [this](int from, int to) { auto* item = pages_->widget(from); pages_->removeWidget(item); pages_->insertWidget(to, item); pages_->setCurrentIndex(tabs_->currentIndex()); scheduleSave(); });
     connect(tabs_, &QTabBar::tabCloseRequested, this, [this](int index) {
         if (tabs_->count() <= 1 || index < 0 || pages_->widget(index)->property("pinned").toBool()) return;
@@ -1497,7 +1646,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     connect(back_, &QToolButton::clicked, this, [this] { if (page()) page()->history(-1); });
     connect(forward_, &QToolButton::clicked, this, [this] { if (page()) page()->history(1); });
     connect(left, &QToolButton::clicked, this, [this] {
-        if (detailsFullWidth_) { details_->hide(); sidebarRequested_ = true; }
+        if (detailsStacked_) { details_->hide(); sidebarRequested_ = true; }
         else sidebarRequested_ = !sidebarRequested_;
         updateResponsiveLayout(); if (page()) page()->revealCurrent(); scheduleSave();
     });
@@ -1606,6 +1755,26 @@ QStringList BrowserWindow::selectedPaths() const {
 }
 bool BrowserWindow::busy() const { return jobs_->busy(); }
 void BrowserWindow::scheduleSave() { if (!restoring_ && saveTimer_) saveTimer_->start(); }
+QJsonObject BrowserWindow::standalonePlacement() const {
+    WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
+    if (!internalWinId() || !GetWindowPlacement(reinterpret_cast<HWND>(internalWinId()), &placement)) return {};
+    const auto rect = placement.rcNormalPosition;
+    return {{"rect", QJsonArray{int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)}},
+            {"maximized", placement.showCmd == SW_SHOWMAXIMIZED || isMaximized()}};
+}
+void BrowserWindow::restoreStandalonePlacement(const QJsonObject& saved) {
+    const auto rect = saved["rect"].toArray();
+    if (rect.size() != 4 || rect[2].toInt() <= rect[0].toInt() || rect[3].toInt() <= rect[1].toInt()) return;
+    // Qtの初期表示で枠が確定した後、同じWindows作業領域座標で戻す。
+    QTimer::singleShot(0, this, [this, rect, maximized = saved["maximized"].toBool()] {
+        const auto handle = reinterpret_cast<HWND>(internalWinId());
+        WINDOWPLACEMENT placement{sizeof(WINDOWPLACEMENT)};
+        if (!handle || !isVisible() || !GetWindowPlacement(handle, &placement)) return;
+        placement.rcNormalPosition = {rect[0].toInt(), rect[1].toInt(), rect[2].toInt(), rect[3].toInt()};
+        placement.showCmd = maximized ? SW_SHOWMAXIMIZED : SW_SHOWNORMAL;
+        SetWindowPlacement(handle, &placement);
+    });
+}
 void BrowserWindow::saveSession() {
     if (restoring_ || !pages_->count()) return;
     QJsonArray paths, flags, states; for (int i = 0; i < pages_->count(); ++i) {
@@ -1613,7 +1782,11 @@ void BrowserWindow::saveSession() {
         flags.append(QJsonObject{{"pinned", item->property("pinned").toBool()}, {"locked", item->property("locationLocked").toBool()}});
     }
     QJsonObject workspace{{"closed", closedTabs_}, {"paths", paths}, {"current", tabs_->currentIndex()}, {"geometry", QString::fromLatin1(saveGeometry().toBase64())},
-        {"splitter", QString::fromLatin1((detailsFullWidth_ ? horizontal_->property("wideState").toByteArray() : horizontal_->saveState()).toBase64())}, {"flags", flags}, {"states", states}, {"left", sidebarRequested_}, {"right", !details_->isHidden()}};
+        {"splitter", QString::fromLatin1((detailsStacked_ ? horizontal_->property("wideState").toByteArray() : horizontal_->saveState()).toBase64())}, {"flags", flags}, {"states", states}, {"left", sidebarRequested_}, {"right", !details_->isHidden()}};
+    if (!host_.maya && !parentWidget()) {
+        const auto placement = standalonePlacement();
+        if (!placement.isEmpty()) workspace["windowPlacement"] = placement;
+    }
     if (secondPane_) {
         workspace["secondVisible"] = !secondPane_->isHidden() || secondPane_->property("responsiveHidden").toBool();
         if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) workspace["secondState"] = second->state();
@@ -1659,6 +1832,7 @@ void BrowserWindow::restoreSession(const QString& fallback, bool restoreTabs) {
         else if (!host_.maya && legacyLayout["size"].toArray().size() == 2) {
             const auto size = legacyLayout["size"].toArray(); resize(qBound(320, size[0].toInt(1200), 3000), qBound(240, size[1].toInt(800), 2000));
         }
+        if (!host_.maya && !parentWidget()) restoreStandalonePlacement(workspace["windowPlacement"].toObject());
         if (workspace.contains("secondState")) {
             if (!secondPane_) perform("secondPane");
             if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) second->restoreState(workspace["secondState"].toObject());
@@ -1942,10 +2116,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
             if (!ok) return; validateFileName(name);
             if (action == "rename") request.options["name"] = name; else request.destination = QDir(request.destination).filePath(name);
         }
-        if (request.action == "copy" || request.action == "move") {
-            bool conflicts = false; for (const auto& path : request.paths) if (QFileInfo::exists(QDir(request.destination).filePath(QFileInfo(path).fileName()))) conflicts = true;
-            if (conflicts) { bool ok = false; QStringList choices{"Keep both", "Skip", "Replace (keep Undo backup)"}; if (request.action == "copy") choices.append("Merge folders (replace matching files; keep Undo backup)"); const QString chosen = UiInputDialog::getItem(this, uiText("Existing items"), uiText("Conflict handling"), uiTexts(choices), 0, false, &ok); const QString mode = choices.value(uiTexts(choices).indexOf(chosen)); if (!ok) return; request.conflict = mode == "Skip" ? "skip" : mode.startsWith("Replace") ? "replace" : mode.startsWith("Merge") ? "merge" : "rename"; }
-        }
+        if ((request.action == "copy" || request.action == "move") && !chooseTransferConflict(this, request, action == "paste")) return;
         if (request.conflict == "merge" && !confirmMerge(request)) return;
         if (action == "trash" && (paths.isEmpty() || UiMessageBox::question(this, uiText("Delete"), uiText("Move to Recycle Bin?\n") + paths.join('\n'), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes)) return;
         jobs_->enqueue(request);
@@ -2297,22 +2468,25 @@ void BrowserWindow::updateResponsiveLayout() {
         if (auto* button = findChild<QToolButton*>(name)) button->setVisible(!compact);
     if (auto* button = findChild<QToolButton*>("toolsButton")) button->setText(compact ? QString("…") : QString(uiText("Tools")));
     address_->setMinimumWidth(qRound(100 * scale));
-    const bool full = width() < qRound(720 * scale) && !details_->isHidden();
-    if (full != detailsFullWidth_) {
-        // 全幅表示中のゼロ幅を通常レイアウトの比率として保存しない。
-        if (full) horizontal_->setProperty("wideState", horizontal_->saveState());
-        pages_->setVisible(!full); detailsFullWidth_ = full;
-        if (!full && horizontal_->property("wideState").isValid()) {
+    const bool stacked = width() < qRound(560 * scale) && !details_->isHidden();
+    const bool changed = stacked != detailsStacked_;
+    if (changed) {
+        if (stacked) horizontal_->setProperty("wideState", horizontal_->saveState());
+        detailsStacked_ = stacked;
+        horizontal_->setOrientation(stacked ? Qt::Vertical : Qt::Horizontal);
+        if (!stacked && horizontal_->property("wideState").isValid()) {
             const bool detailsVisible = !details_->isHidden();
             horizontal_->restoreState(horizontal_->property("wideState").toByteArray());
             details_->setVisible(detailsVisible);
         }
     }
-    sidebar_->setVisible(sidebarRequested_ && !full);
+    sidebar_->setVisible(sidebarRequested_ && !stacked);
     if (secondPane_) {
-        if (full && !secondPane_->isHidden()) { secondPane_->setProperty("responsiveHidden", true); secondPane_->hide(); }
-        else if (!full && secondPane_->property("responsiveHidden").toBool()) { secondPane_->setProperty("responsiveHidden", false); secondPane_->show(); }
+        if (stacked && !secondPane_->isHidden()) { secondPane_->setProperty("responsiveHidden", true); secondPane_->hide(); }
+        else if (!stacked && secondPane_->property("responsiveHidden").toBool()) { secondPane_->setProperty("responsiveHidden", false); secondPane_->show(); }
     }
+    details_->setMinimumWidth(stacked ? 140 : qRound(225 * scale));
+    if (changed && stacked) horizontal_->setSizes({0, height() * 3 / 5, height() * 2 / 5, 0});
 }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 bool BrowserWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {

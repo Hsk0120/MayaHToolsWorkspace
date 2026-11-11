@@ -94,7 +94,7 @@ private:
      * @param attempt 試行回数。新しい外部コピーは上書きしない。
      */
     void writeClipboard(const QString& action, const QStringList& paths, quint64 generation, quint32 sequence, int attempt = 0);
-    /** @brief 狭い幅では詳細を全幅にし、利用者が指定した左欄状態は保持する。 */
+    /** @brief 狭い幅ではブラウザーと詳細を上下に並べる。 */
     void updateResponsiveLayout();
     /** @brief DPI・基準サイズ・追加倍率を合成する。 @return Qtの論理ピクセルで使う倍率。 */
     qreal appearanceScale() const;
@@ -132,6 +132,10 @@ private:
     void showDetails(const QString& path);
     /** @brief 変更したQPE設定だけを保存する。 */
     void saveSession();
+    /** @brief 単体版のWindows上の位置と最大化状態を保存する。 @return 作業領域座標の配置。 */
+    QJsonObject standalonePlacement() const;
+    /** @brief Qtによる初期表示後に単体版の配置を戻す。 @param saved 保存済みのWindows配置。 */
+    void restoreStandalonePlacement(const QJsonObject& saved);
     /** @brief Drives/Favorites/Recentを再構築する。 */
     void updatePlaces();
     /** @brief 設定書込みをまとめる。 */
@@ -168,7 +172,7 @@ private:
     bool hidden_ = false;
     bool mayaActionRunning_ = false;
     bool sidebarRequested_ = false;
-    bool detailsFullWidth_ = false;
+    bool detailsStacked_ = false;
     quint64 clipboardGeneration_ = 0;
     bool clipboardPending_ = false;
     FileJobs* driveJobs_ = nullptr;

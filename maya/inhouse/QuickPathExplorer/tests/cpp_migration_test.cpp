@@ -43,6 +43,7 @@
 #include <QSpinBox>
 #include <QToolButton>
 #include <QPushButton>
+#include <QProgressBar>
 #include <QLabel>
 #include <QShortcut>
 #include <QKeySequenceEdit>
@@ -425,10 +426,12 @@ private slots:
         left->click(); QVERIFY(places->isVisible()); parent.resize(360, 600);
         QTRY_VERIFY(!window->findChild<QToolButton*>("newSceneButton")->isVisible());
         QVERIFY(window->findChild<QLineEdit*>("address")->width() >= 100);
-        right->click(); QTRY_VERIFY(inspector->isVisible()); QVERIFY(!files->isVisible()); QVERIFY(!places->isVisible());
+        right->click(); QTRY_VERIFY(inspector->isVisible()); QVERIFY(files->isVisible()); QVERIFY(!places->isVisible());
         QTRY_VERIFY(inspector->width() >= window->width() - 30);
+        QTRY_COMPARE(inspector->findChild<QScrollArea*>("inspectorScroll")->horizontalScrollBar()->maximum(), 0);
         parent.resize(1100, 650); QTRY_VERIFY(files->isVisible()); QVERIFY(places->isVisible()); QVERIFY(inspector->isVisible());
-        parent.resize(360, 600); QTRY_VERIFY(!files->isVisible()); right->click(); QTRY_VERIFY(files->isVisible()); QVERIFY(places->isVisible());
+        parent.resize(360, 600); QTRY_VERIFY(inspector->width() >= window->width() - 30); QVERIFY(files->isVisible());
+        right->click(); QTRY_VERIFY(!inspector->isVisible()); QVERIFY(files->isVisible()); QVERIFY(places->isVisible());
         QCOMPARE(window->currentPath(), qpe::DirectoryStore::normalized(path("A"))); QCOMPARE(QApplication::palette(), palette);
         parent.close(); window->close(); qpe::saveJson(qpe::settingsPath(), before);
     }
@@ -745,8 +748,52 @@ private slots:
     void transferByteProgress() {
         QVERIFY(QDir().mkpath(path("progress-to"))); QVERIFY(file("progress-one.txt", 1200)); QVERIFY(file("progress-two.txt", 3400));
         qpe::FileJobs jobs; QSignalSpy progress(&jobs, &qpe::FileJobs::progress), done(&jobs, &qpe::FileJobs::finished);
+        qint64 total = -1;
+        connect(&jobs, &qpe::FileJobs::progress, &jobs, [&] { total = qint64(jobs.records().first().toObject()["totalBytes"].toDouble()); });
         jobs.enqueue({"copy", {path("progress-one.txt"), path("progress-two.txt")}, path("progress-to")}); QTRY_COMPARE_WITH_TIMEOUT(done.count(), 1, 5000);
         QVERIFY(!progress.isEmpty()); QCOMPARE(progress.last()[1].toLongLong(), 4600ll); QCOMPARE(done[0][0].toJsonObject()["extra"].toObject()["transferredBytes"].toDouble(), 4600.);
+        QCOMPARE(total, 4600ll);
+    }
+    /** @brief 貼り付けで置き換えが既定となり、置き換え前の内容をUndoで戻せる。 */
+    void pasteDefaultsToReplace() {
+        QVERIFY(QDir().mkpath(path("paste-replace/from"))); QVERIFY(QDir().mkpath(path("paste-replace/to")));
+        QVERIFY(file("paste-replace/from/same.txt", 60)); QVERIFY(file("paste-replace/to/same.txt", 35));
+        qpe::BrowserWindow window; window.navigate(path("paste-replace/to")); window.show(); QTRY_VERIFY(window.ready());
+        window.perform("copy", {path("paste-replace/from/same.txt")});
+        QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls(), QList<QUrl>{QUrl::fromLocalFile(path("paste-replace/from/same.txt"))});
+        bool defaultReplace = false;
+        QTimer::singleShot(0, &window, [&] {
+            auto* dialog = window.findChild<QMessageBox*>("pasteConflict");
+            if (!dialog) return;
+            defaultReplace = dialog->defaultButton()->text() == "Replace the files in the destination";
+            QTest::keyClick(dialog, Qt::Key_Return);
+        });
+        window.perform("paste");
+        QVERIFY(defaultReplace);
+        QTRY_VERIFY(!window.busy()); QCOMPARE(QFileInfo(path("paste-replace/to/same.txt")).size(), 60ll);
+        window.perform("undo"); QTRY_VERIFY(!window.busy()); QCOMPARE(QFileInfo(path("paste-replace/to/same.txt")).size(), 35ll);
+        window.close();
+    }
+    /** @brief 300msを超えるコピーで進捗を表示し、取消し後も待機中の転送を実行する。 */
+    void transferProgressControls() {
+        QVERIFY(QDir().mkpath(path("dialog-transfer")));
+        QVERIFY(file("dialog-cancel.txt", 128)); QVERIFY(file("dialog-next.txt", 256));
+        qpe::BrowserWindow window; window.navigate(path("dialog-transfer")); window.show(); QTRY_VERIFY(window.ready());
+        auto* jobs = window.findChildren<qpe::FileJobs*>(QString(), Qt::FindDirectChildrenOnly).first();
+        bool first = true;
+        connect(jobs, &qpe::FileJobs::started, &window, [&](const QString&) { if (first) { first = false; jobs->pauseActive(true); } });
+        window.perform("copyTo", {path("dialog-cancel.txt")});
+        window.perform("copyTo", {path("dialog-next.txt")});
+        auto* dialog = window.findChild<QDialog*>("transferProgress"); QVERIFY(dialog);
+        QTRY_VERIFY(dialog->isVisible());
+        QCOMPARE(dialog->findChild<QPushButton*>("pauseTransfer")->text(), QString("Resume"));
+        const auto evidence = qEnvironmentVariable("QPE_EXPLORER_PARITY_EVIDENCE");
+        if (!evidence.isEmpty()) QVERIFY(dialog->grab().save(QDir(evidence).filePath("qpe-transfer-paused.png")));
+        dialog->findChild<QPushButton*>("cancelTransfer")->click();
+        QTRY_VERIFY(!window.busy()); QVERIFY(!dialog->isVisible());
+        QVERIFY(!QFileInfo::exists(path("dialog-transfer/dialog-cancel.txt")));
+        QCOMPARE(QFileInfo(path("dialog-transfer/dialog-next.txt")).size(), 256ll);
+        window.close();
     }
     /** @brief タブの均等縮小、中央クリック、URL転送の固定対象を確認する。 */
     void nativeNavigationControls() {
@@ -2177,7 +2224,7 @@ private slots:
         auto* horizontal = window.findChild<QScrollArea*>("folderColumns")->horizontalScrollBar();
         QTest::qWait(200); QTRY_COMPARE(horizontal->value(), horizontal->maximum());
         column->verticalScrollBar()->setValue(0);
-        horizontal->setValue(0);
+        horizontal->triggerAction(QAbstractSlider::SliderToMinimum);
         window.refresh(); QTest::qWait(400);
         QCOMPARE(column->verticalScrollBar()->value(), 0);
         QCOMPARE(horizontal->value(), 0);
@@ -2185,7 +2232,92 @@ private slots:
         QToolButton* back = nullptr;
         for (auto* button : window.findChildren<QToolButton*>()) if (button->accessibleName() == "Back") back = button;
         QVERIFY(back); back->click(); QTRY_VERIFY(window.ready()); QTest::qWait(100);
-        QCOMPARE(column->verticalScrollBar()->value(), 0); QCOMPARE(horizontal->value(), 0);
+        QCOMPARE(column->verticalScrollBar()->value(), 0); QCOMPARE(horizontal->value(), horizontal->maximum());
+    }
+    /** @brief 読み込み後の幅変更、詳細ペイン、タブ切替でも最終列全体を表示する。 */
+    void lastColumnFollowsLayout() {
+        const auto before = qpe::readSettings();
+        const auto restore = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::writeSettings({{"columnWidthMode", "names"}, {"nativeAppearance", QJsonObject{{"textSize", 12}}}});
+        const auto current = path("end/a/b/c/d/e/f/g");
+        QVERIFY(QDir().mkpath(current + "/short"));
+        qpe::BrowserWindow window; window.navigate(current); window.resize(760, 640); window.show(); QTRY_VERIFY(window.ready());
+        auto* scroll = window.findChild<QScrollArea*>("folderColumns");
+        auto* horizontal = scroll->horizontalScrollBar();
+        QListView* last = nullptr;
+        for (auto* view : scroll->findChildren<QListView*>("folderColumn")) if (view->property("path").toString() == current) last = view;
+        QVERIFY(last);
+        const auto visible = [&] {
+            if (!last->isVisible()) return false;
+            const auto edge = last->mapTo(scroll->viewport(), QPoint());
+            return edge.x() >= 0 && edge.x() + last->width() <= scroll->viewport()->width();
+        };
+        QTRY_VERIFY(visible());
+        const int original = last->width();
+        QVERIFY(QDir().mkpath(current + '/' + QString(90, 'W')));
+        window.refresh();
+        QTRY_VERIFY(last->width() > original);
+        QTRY_VERIFY(visible());
+        window.findChild<QToolButton*>("detailsPaneButton")->click();
+        QTRY_VERIFY(visible());
+        window.resize(365, 640);
+        QTRY_VERIFY(visible());
+        QTRY_VERIFY(window.findChild<qpe::Inspector*>()->isVisible());
+        const int narrowWidth = window.width();
+        auto* jobs = window.findChildren<qpe::FileJobs*>(QString(), Qt::FindDirectChildrenOnly).first();
+        emit jobs->progress(current + '/' + QString(180, 'W'), 1024);
+        QCoreApplication::processEvents();
+        QCOMPARE(window.width(), narrowWidth);
+        QTRY_VERIFY(visible());
+        horizontal->triggerAction(QAbstractSlider::SliderToMinimum);
+        QCOMPARE(horizontal->value(), 0);
+        auto* tabs = window.findChild<QTabBar*>("folderTabs");
+        window.addTab(path("B")); QTRY_VERIFY(window.ready());
+        tabs->setCurrentIndex(0); QTRY_VERIFY(visible());
+        QCOMPARE(horizontal->value(), horizontal->maximum());
+        const auto evidence = qEnvironmentVariable("QPE_EXPLORER_PARITY_EVIDENCE");
+        if (!evidence.isEmpty()) QVERIFY(window.grab().save(QDir(evidence).filePath("qpe-last-column-and-details.png")));
+        const auto longFolder = current + '/' + QString(90, 'W');
+        const int widthBeforeNavigation = window.width();
+        window.navigate(longFolder); QTRY_VERIFY(window.ready());
+        QCOMPARE(window.width(), widthBeforeNavigation);
+        QVERIFY(window.findChild<qpe::Inspector*>()->isVisible());
+        window.close();
+    }
+    /** @brief 枠なしの単体画面を右上で閉じ、通常位置と最大化を繰り返し復元する。 */
+    void standalonePlacementRoundTrip() {
+        const auto before = qpe::readSettings();
+        const auto restore = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::writeSettings({{"nativeWorkspace", QJsonObject{}}});
+        QRect original;
+        const auto rectangle = [](HWND handle) {
+            RECT rect{}; GetWindowRect(handle, &rect);
+            return QRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+        };
+        for (int run = 0; run < 5; ++run) {
+            qpe::BrowserWindow window; window.restoreSession(path("A"), false); window.show(); QTRY_VERIFY(window.ready());
+            const auto handle = reinterpret_cast<HWND>(window.winId());
+            if (run == 0) {
+                MONITORINFO monitor{sizeof(MONITORINFO)};
+                QVERIFY(GetMonitorInfoW(MonitorFromWindow(handle, MONITOR_DEFAULTTONEAREST), &monitor));
+                QVERIFY(SetWindowPos(handle, nullptr, monitor.rcWork.right - 620, monitor.rcWork.top, 620, 500, SWP_NOZORDER));
+                original = rectangle(handle);
+            } else if (run == 3) {
+                QTRY_VERIFY(IsZoomed(handle)); window.showNormal();
+            }
+            QTRY_COMPARE(rectangle(handle), original);
+            if (run == 2) { window.showMaximized(); QTRY_VERIFY(IsZoomed(handle)); }
+            QVERIFY(window.close());
+            const auto workspace = qpe::readSettings()["nativeWorkspace"].toObject();
+            const auto placement = workspace["windowPlacement"].toObject();
+            QCOMPARE(placement["maximized"].toBool(), run == 2);
+            const auto evidence = qEnvironmentVariable("QPE_EXPLORER_PARITY_EVIDENCE");
+            if (!evidence.isEmpty() && (run == 1 || run == 2)) {
+                const auto name = run == 1 ? "normal" : "maximized";
+                const QJsonArray frame{original.left(), original.top(), original.left() + original.width(), original.top() + original.height()};
+                qpe::saveJson(QDir(evidence).filePath(QString("placement-%1.json").arg(name)), {{"nativeWorkspace", workspace}, {"expectedNormalFrame", frame}});
+            }
+        }
     }
     /** @brief 新規タブは探索起点と表示比率を引き継ぎ、選択・履歴・ロックは独立させる。 */
     void newTabViewInheritance() {
