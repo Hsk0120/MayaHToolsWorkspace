@@ -97,7 +97,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
   既存の登録プロトコル(`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
   5.0.0でログの公開関数もlowerCamelCaseへ改名した(`logger.getLogger`・`logger.raiseWithNotify`。旧名の別名は残さない)。
-  公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。対応表は `maya/inhouse/mlib/_docs/source/changelog.rst` の2.1.0に置く。
+  公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
   判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
@@ -109,7 +109,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   `getShapes` は独立して維持する。オフセットグループ生成とリグ向けチャンネル初期化は
   `mlrig.setups.ControlHierarchy` が担当する。
 - 2026-10-26のユーザー指定により、名前の重なる接続・階層・型照会のメソッドは次へ集約する。旧名の互換入口は残さず、
-  対応表と移行例は `maya/inhouse/mlib/_docs/source/changelog.rst` に置く。
+  旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
   名前・パスは `getName()`(最短一意名)/`getFullName()`(完全パス)に集約し、`getPath(full)`・`getFullPath()`・`getPartialPath()` は廃止する。
   親のDAGパスは `getParent().mpath()`(`getParentPath()` 廃止)。
   階層判定は `isParentOf(other)`・`isAncestorOf(other)` で、`isChildOf` は `other.isParentOf(self)` に置き換えて廃止する。
@@ -221,7 +221,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 
 #### fastの定型
 
-- 署名は `*, fast=False` をkeyword-onlyの先頭に置く(型注釈なしの既定値は `fast=False`)。既存の位置が違うものは公開署名の順序変更になるので一度に動かさず、changelogに載せる変更として扱う。
+- 署名は `*, fast=False` をkeyword-onlyの先頭に置く(型注釈なしの既定値は `fast=False`)。既存の位置が違うものは公開署名の順序変更になるので一度に動かさず、破壊的変更としてコミットメッセージに明記する。
 - 本体の冒頭で `_require_bool(fast, "fast")`(`decorator.py`)を呼ぶ。委譲型(show/hide・ScalarGraph等)も省かない。
 - Undo文脈は `with _edit_context("mlib<Class><Method>", fast):`(`decorator.py`。`nullcontext() if fast else undoChunk(name)` の1行化)で包む。`undoTransaction` はUndo無効時に拒否する必要がある構築処理(reorderVertices・container系)だけに使い、`transaction=True` と理由コメントを付ける。
 - 対象解決・値検証はwithの内側に1回だけ書く(fast=Trueではnullcontextなので挙動は変わらない)。書込み直前に `if fast:` で `_<method>_fast` / `_<method>_cmds` へ分岐し、内側の更新先へ `fast=fast` を明示的に渡す。未対応は変更前にNotImplementedErrorで拒否する。
@@ -237,7 +237,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 | シーンの状態 | `RuntimeError` | ロック、接続済み、参照、削除済み・無効ノード、不在 |
 | 実装上の未対応 | `NotImplementedError` | fast経路で扱えない操作・フラグ(変更前に拒否) |
 
-- `must be a non-empty string` 系は非strをTypeError、空文字をValueErrorに分ける。公開例外型の変更はchangelogの「破壊的変更」に載せる。
+- `must be a non-empty string` 系は非strをTypeError、空文字をValueErrorに分ける。公開例外型の変更は破壊的変更としてコミットメッセージに明記する。
 - 文言は英語でf-stringを使い(`"..." + name` の連結は不可)、対象名は末尾に `: <getFullName() または plug.name()>` で付ける。
   - 型違い: `<arg> must be <型>`(`_require_bool` は `fast must be a bool`)
   - 別名競合: `Specify only one of '<long>' and '<short>'`(長→短の順)
@@ -395,7 +395,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 
 2026-10-26のユーザー指定により、`_WRAPPER_CLASSES` に無いMayaのnodeTypeは要求時にクラスを自動生成して返し(動的クラス)、
 `Node` へのフォールバックはMayaが認識しない型名だけに残す。手書きクラスの明示登録は維持し、生成はその補完に限る。
-移行例は `maya/inhouse/mlib/_docs/source/changelog.rst` を参照する。
+移行の経緯は git の履歴(各版のコミットメッセージ)を参照する。
 
 - 生成の契機は2つ。`NodeRegistry.wrapper_class(node_type)` による型選択(`Node(node)`・`mlib.getNode`・`mlib.ls`・`mlib.createNode` の戻り値)と、`mlib.nodes.<TypeName>`・`mlib.<TypeName>` の属性アクセス(`nodes/__init__.py` のモジュール `__getattr__`。ルートの `__getattr__` は公開クラスに無い名前をこれへ渡す)。生成するのは `NodeRegistry(generate_classes=True)` の表(ルートが作るNode登録表)だけで、Plug登録表と汎用の `NodeRegistry` は従来どおり「完全一致 → 登録済み祖先(`resolve_inherited_types=True` の表) → フォールバック」で解決する。
 - クラス名は型名の先頭を大文字にしたもの(`pointLight` → `PointLight`)。先頭が既に大文字の型(`AISEnvFacade`・`HIK*`)はそのまま。`mlib.nodes.<TypeName>` は先頭が大文字の名前だけを受け付け(`mlib.nodes.pointLight` はAttributeError)、Mayaが認識しない型名(未ロードのプラグイン型を含む)もAttributeErrorとし、AttributeError以外の例外を送出しない(`hasattr` と `mlib.reload()` から呼ばれる)。
@@ -542,8 +542,8 @@ Mayaコマンドにも単位解釈の例外がある。全コマンドへUI単�
 
 ### 2026-10-26の統合で確定したメソッド契約
 
-名前の重なるメソッドの統合・改名で確定した契約。旧名の互換入口は残さず、対応表と移行例は
-`maya/inhouse/mlib/_docs/source/changelog.rst` に置く。
+名前の重なるメソッドの統合・改名で確定した契約。旧名の互換入口は残さず、旧名との対応は
+git の履歴(各版のコミットメッセージ)で追う。
 
 - `Node.resetAttrs(attributes=None, *, fast=False)` はリセットしたPlugの `list[Plug]` を返す(3.0.0で別名 `attrs` は廃止)。
   `Transform.resetAttrs` は省略時の既定だけをoverrideし、translate/rotate/scale/shearを対象にする。

@@ -1,4 +1,4 @@
-"""Maya不要で、mlibの版番号が3か所で一致し、Versionとして読めることを検証する。"""
+"""Maya不要で、mlibの版番号が__init__.pyとmlib.modで一致し、Versionとして読めることを検証する。"""
 
 import importlib.util
 from pathlib import Path
@@ -8,7 +8,6 @@ import unittest
 _MLIB_ROOT = Path(__file__).resolve().parents[2]
 _WORKSPACE_ROOT = _MLIB_ROOT.parents[2]
 _MODULE_FILE = _WORKSPACE_ROOT / "maya" / "modules" / "mlib.mod"
-_CHANGELOG = _MLIB_ROOT / "_docs" / "source" / "changelog.rst"
 _MAYA_VERSIONS = ("2022", "2023", "2024", "2025", "2026", "2027")
 
 
@@ -29,7 +28,7 @@ def _load_version_class():
 
 
 class VersionConsistencyTest(unittest.TestCase):
-    """__init__.py・mlib.mod・changelog.rstの版番号を突き合わせる。"""
+    """__init__.py・mlib.modの版番号を突き合わせる。"""
 
     def setUp(self):
         self.version = _read_version()
@@ -60,18 +59,6 @@ class VersionConsistencyTest(unittest.TestCase):
                 entries[match.group(1)] = match.group(2)
         self.assertEqual(tuple(sorted(entries)), _MAYA_VERSIONS)
         self.assertEqual(set(entries.values()), {self.version}, entries)
-
-    def test_changelog_heading_matches(self):
-        """changelog.rst の最初の版の見出しが __version__ と同じで、日付を持つ。"""
-        text = _CHANGELOG.read_text(encoding="utf-8")
-        headings = re.findall(r"^(\d+\.\d+\.\d+)(?: \((\d{4}-\d{2}-\d{2})\))?\n-+\n", text, re.M)
-        self.assertTrue(headings, "changelog.rst に版の見出しがない")
-        latest, date = headings[0]
-        self.assertEqual(latest, self.version)
-        self.assertTrue(date, "最新版の見出しに日付 (YYYY-MM-DD) がない")
-        Version = _load_version_class()
-        versions = [Version(item[0]) for item in headings]
-        self.assertEqual(versions, sorted(versions, reverse=True), "版の見出しは新しい順に並べる")
 
 
 if __name__ == "__main__":

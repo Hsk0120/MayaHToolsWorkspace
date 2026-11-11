@@ -136,7 +136,7 @@ def _class_sources():
 _classes = _class_sources()
 __all__ = _names + sorted(_classes)
 
-#: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
+#: mlibの版番号。maya/modules/mlib.modと同じ値にする。
 __version__ = "12.4.0"
 
 
