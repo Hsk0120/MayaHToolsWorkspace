@@ -18,6 +18,7 @@ import types
 
 __all__ = ['legalizeName', 'measure', 'mirrorArguments']
 _UNSET: ellipsis
+_MAX_COLOR_INDEX: int
 _SEPARATOR: str
 _FILLER: str
 _PERMITTED: frozenset
@@ -332,7 +333,6 @@ def _finite_vector(value: Iterable[numbers.Real], size: int, name: str) -> tuple
         ValueError: 成分数が異なる、または無限大・NaNの成分がある場合。
     """
     ...
-_MAX_COLOR_INDEX: int
 
 def _color_value(color: int | Sequence[float] | None) -> tuple[int | None, tuple[float, float, float] | None]:
     """表示色の指定を検証する。

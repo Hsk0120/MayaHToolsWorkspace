@@ -8,6 +8,7 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
+from ..components.pointComponent import _mirror_plan, _write_points
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core import geometryEdit as geometry_edit
@@ -170,6 +171,34 @@ class Mesh(Shape):
             変えた頂点だけを書き込む)。書き込む頂点ごとに ``cmds.xform`` を呼ぶため(``setCvPositions``
             と同じ)、多数の頂点を動かす場合は頂点数に比例して時間がかかる(目安は1頂点あたり約1ms)。
             ``fast=True`` は全頂点をまとめて書くため、頂点数が多いほど差が大きい。
+        """
+        ...
+    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ...) -> Mesh:
+        """頂点座標を、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
+
+        Transform・トポロジー(頂点番号・面の接続と頂点順)は変更しない。共有Shapeの全インスタンスへ影響する。
+        複製・結合・片側からの対称化・法線の反転は行わない(奇数軸の反転で面の向きが裏返る)。
+        入力をすべて検証してから書き込み、通常は ``cmds.xform`` を頂点ごとに呼んで1回のUndoにまとめる
+        (目安は1頂点あたり約0.2ms)。``fast=True`` は ``MFnMesh.setPoints`` で全頂点を1回で書く。
+        :meth:`Vertices.mirror <mlib.components.pointComponent.PointComponents.mirror>` と同じ処理。
+
+        Args:
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
+            indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
+            IndexError: 頂点番号が負または範囲外の場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
         """
         ...
     def getVertexNormals(self, worldSpace: bool = ..., angleWeighted: bool = ...) -> list[Vector]:
@@ -795,6 +824,23 @@ class Mesh(Shape):
         Raises:
             RuntimeError: シェイプがロックされている場合。
             NotImplementedError: inMeshへの入力(コンストラクションヒストリ)がある場合。
+        """
+        ...
+    def _mirror_plan(self, axis: str | int, ws: bool, pivot: Iterable[float], indices: Iterable[int] | None, fast: bool) -> tuple | None:
+        """頂点を反転した座標を求め、書込みの計画を返す。シーンは変更しない。
+
+        :meth:`Transform.mirrorGeometry <mlib.nodes.transform.Transform.mirrorGeometry>` が
+        全Shapeを検証してから書き込むために使う。
+
+        Args:
+            axis (str | int): 反転する軸またはミラー面。
+            ws (bool): Trueならワールド空間。検証済み。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。
+            indices (Iterable[int] | None): 頂点番号。Noneは全頂点。
+            fast (bool): TrueならOpenMayaで直接書けるかも確かめる。
+
+        Returns:
+            tuple | None: ``(shape, indices, rows, ws)``。対象が無ければNone。
         """
         ...
     def _geometry_fn(self) -> om2.MFnMesh:

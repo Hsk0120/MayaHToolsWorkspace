@@ -7,6 +7,7 @@ import maya.api.OpenMaya as om2
 from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
+from ..components.pointComponent import _mirror_plan, _write_points
 from ..core import geometryEdit as geometry_edit
 from ..decorator import _edit_context, _require_bool
 from ..maths.matrix import Matrix
@@ -180,7 +181,7 @@ class NurbsCurve(Shape):
     """NURBS カーブの形状情報を提供するシェイプラッパー。
 
     点列からの作成は :func:`mlib.createCurve <mlib.cmds.createCurve.createCurve>`、CV位置の一括書込みは :meth:`setCvPositions` を使う。
-    CV(:class:`~mlib.components.cv.CV`)の参照は読み取り専用。
+    CV(:class:`~mlib.components.cv.CV`)の参照からも座標を照会・編集できる。反転は :meth:`mirror`。
     """
 
     def getCV(self, index):
@@ -351,6 +352,38 @@ class NurbsCurve(Shape):
             raise ValueError(f"Expected {count} points, got {len(values)}")
         with _edit_context("mlibNurbsCurveSetCvPositions", fast, transaction=True):
             geometry_edit.set_positions(self, list(range(independent)), values, ws, fast=fast)
+        return self
+
+    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+        """CV座標を、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
+
+        Transform・次数・ノット・CVの順序とウェイト(w)は変更しない。共有Shapeの全インスタンスへ影響し、
+        複製やパラメータ方向の反転は行わない。全CVの座標を先に読んでから書くため、周期カーブの
+        末尾の重複CVも二重に反転しない(重複CVは先頭の独立CVと同じ位置に揃う)。
+        入力をすべて検証してから書き込み、通常は ``cmds.xform`` をCVごとに呼んで1回のUndoにまとめる。
+        ``fast=True`` は ``MFnNurbsCurve.setCVPositions`` で全CVを1回で書く。
+
+        Args:
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
+            indices (Iterable[int] | None): OpenMayaのCV番号。Noneは全CV、空列は変更なし。重複は1回だけ処理する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            NurbsCurve: 自身。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
+            IndexError: CV番号が負または範囲外の場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、createへの入力(コンストラクションヒストリ)がある場合。
+        """
+        _require_bool(fast, "fast")
+        ws = _world_space(worldSpace)
+        _write_points([self._mirror_plan(axis, ws, pivot, indices, fast)], fast, "mlibNurbsCurveMirror")
         return self
 
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=False):
@@ -804,6 +837,25 @@ class NurbsCurve(Shape):
                 aim = next_aim
             ups.append(up)
         return ups
+
+    def _mirror_plan(self, axis, ws, pivot, indices, fast):
+        """CVを反転した座標を求め、書込みの計画を返す。シーンは変更しない。
+
+        :meth:`Transform.mirrorGeometry <mlib.nodes.transform.Transform.mirrorGeometry>` が
+        全Shapeを検証してから書き込むために使う。
+
+        Args:
+            axis (str | int): 反転する軸またはミラー面。
+            ws (bool): Trueならワールド空間。検証済み。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。
+            indices (Iterable[int] | None): CV番号。Noneは全CV。
+            fast (bool): TrueならOpenMayaで直接書けるかも確かめる。
+
+        Returns:
+            tuple | None: ``(shape, indices, rows, ws)``。対象が無ければNone。
+        """
+        self._geometry_fn()
+        return _mirror_plan(self.getCVs(indices), axis, ws, pivot, fast)
 
     def _geometry_fn(self):
         """形状データを要する照会用に ``om2.MFnNurbsCurve`` を返す。

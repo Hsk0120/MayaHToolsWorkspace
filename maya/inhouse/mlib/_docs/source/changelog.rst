@@ -4,6 +4,24 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+12.1.0 (2026-11-11)
+-------------------
+
+3.0.0 で外した ``DagPose`` の操作と、形状・コンポーネントの座標の書込みを戻しました。
+
+.. rubric:: 追加
+
+- ``DagPose`` の照会 ``getMembers``\ ・\ ``getMemberIndices``\ ・\ ``getMemberIndex``\ ・\ ``getMatrix``\ ・\ ``isBindPose``\ ・
+  ``getSkinClusters``\ 、姿勢の検査 ``isAtPose``\ ・\ ``getNotAtPose``\ (Maya の ``dagPose -atPose`` と同じ判定)、
+  編集 ``addMembers``\ ・\ ``removeMembers``\ ・\ ``reset``\ ・\ ``merge``\ 。
+- ``SkinCluster.resetBindPose`` は、インフルエンスの保存姿勢を今の姿勢へ更新する(bindPreMatrix とウェイトは変えない)。
+- 形状のミラー ``Transform.mirrorGeometry``\ ・\ ``Mesh.mirror``\ ・\ ``NurbsCurve.mirror``\ (``axis``\ ・\ ``worldSpace``\ ・\ ``pivot``\ ・\ ``indices``)。
+- 頂点・CV の座標の書込み ``setPosition``\ ・\ ``setPositionX``\ ・\ ``setPositionY``\ ・\ ``setPositionZ``\ (複数形は ``setPositions`` も)と
+  ``PointComponents.mirror``\ 、UV の ``setPosition``\ ・\ ``setU``\ ・\ ``setV``\ (複数形は ``setPositions`` も)。
+  座標は ``worldSpace=False`` でオブジェクト空間、UI の単位によらず cm。コンポーネントは照会に加えて編集もできるようになった。
+- 座標の書込みとミラーは ``fast=True`` で OpenMaya を使う(Undo なし)。4万頂点の全頂点で約17秒が0.4〜0.7秒、
+  4万 UV で約50秒が0.1秒未満。通常の経路は頂点ごとに ``cmds.xform``\ ・\ ``polyEditUV`` を使うため、大量の点では遅い。
+
 12.0.0 (2026-11-11)
 -------------------
 

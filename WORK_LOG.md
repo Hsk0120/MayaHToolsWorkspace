@@ -159,6 +159,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-11): mlib 12.1.0。3.0.0で外したDagPoseの照会・isAtPose/getNotAtPose(Mayaの判定)・addMembers/removeMembers/reset/merge と SkinCluster.resetBindPose、形状のミラー(Transform.mirrorGeometry・Mesh.mirror・NurbsCurve.mirror)と頂点・CV・UVの座標の書込み(setPosition系・PointComponents.mirror。worldSpace、fastは4万頂点で約25〜46倍速いため付与)を戻した。CLAUDE.md・mlib-api-design.mdのコンポーネント読み取り専用の記述を更新。あわせて10.6.0以降GitHub Actionsのmlib文書の公開が失敗していた原因(runStatic内のレイアウト検査: skinCluster.pyのimport順、util.pyの定数位置)を修正。
+
 - Claude Code (2026-11-11): mlib 12.0.0。ユーザー指示で旧形式の `SkinCluster.dumpWeights`/`loadWeights`(と専用の内部関数)を削除し、利用側のSkinWeightKitを `exportWeights`/`importWeights` へ移行(`transfer.readFile` は旧形式の代わりに `mlib.skinWeights` 形式を読む)。旧メソッドのテストは新APIへ置換・削除、changelogに移行表。SkinWeightKitテスト87件(2027/2022)・静的162件・Sphinx/文書検査が通過。
 
 - Claude Code (2026-11-11): mlib 11.1.0。ユーザーと質問形式で設計した `mlib.json`(codec・file・NodeRef/PlugRef/ComponentRef・NameMapping・Snapshot基底とValidationReport、Pose/Animation(アニメレイヤー含む)/Attributes/DrivenKeys/SelectionSnapshot)を追加し、SkinCluster(export/importWeights・bindSkin(weights=))・Transform(export/importCurveShapes)・BlendShape(export/importTargets)へ保存・復元を直接実装。3.0.0で外したBlendShapeのターゲット操作(ミラー・フリップ・インビトゥイーン・頂点マスク・デルタ・複製・差し替え・編集モード)を戻した。CLAUDE.md/AGENTS.md/copilot-instructionsの実行フォルダへjsonを追加し保存禁止ルールを変更、設計書docs/mlib-json-design.md、mlib-api-design.mdに「JSON保存・復元」節、changelog・スタブ(os/pathlibの型に対応)・Sphinx目次を更新。Maya 2022/2026/2027の全テスト・静的162件・mlrig等843件(2027)・Sphinx(334ページ)・文書検査が通過。ngSkinTools2のレイヤーは2022で確認(2027は未導入でskip)。GUIでの表示・Shape Editorの見た目は未確認。未コミット。

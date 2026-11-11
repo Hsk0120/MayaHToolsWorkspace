@@ -240,6 +240,22 @@ class SkinCluster(GeometryFilter):
             RuntimeError: skinClusterが無効、または接続先がdagPoseでない場合。
         """
         ...
+    def resetBindPose(self) -> SkinCluster:
+        """このskinClusterのinfluenceの保存姿勢を現在の姿勢へ更新する。
+
+        接続されたバインドポーズのうちinfluenceの行だけを ``DagPose.reset`` で更新する。
+        ポーズを共有する別のskinClusterからも更新が見える。bindPreMatrixやウェイトは変更しない。
+        ポーズに無いinfluenceは自動追加せず、変更前に例外を出す。fast引数は持たない
+        (``cmds.dagPose`` の保存規則をom2で再現しないため)。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            ValueError: influenceが空、またはポーズに含まれていない場合。
+            RuntimeError: ポーズが未接続、ノードが無効、またはMayaが更新を拒否した場合。
+        """
+        ...
     def restoreBindPose(self, worldSpace: bool = ...) -> SkinCluster:
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 

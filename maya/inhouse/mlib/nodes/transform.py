@@ -9,6 +9,7 @@ import maya.cmds as cmds
 import maya.mel as mel
 from maya.api.OpenMaya import MSpace
 
+from ..components.pointComponent import _write_points
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable, writable_compound
 from ..core.nodeEdit import require_editable
@@ -17,7 +18,7 @@ from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _color_value, _from_radians, _to_radians, _world_space
+from ..util import _angle_unit, _color_value, _from_radians, _to_radians, _world_space, mirrorArguments
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -573,6 +574,49 @@ class Transform(DagNode):
             for shape in self.getShapes():
                 shape.scaleGeometry(scale, worldSpace=ws, pivot=pivot, indices=indices, fast=fast)
             return self
+
+    def mirrorGeometry(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+        """直下の非中間Shape(MeshとNurbsCurve)の頂点・CVを、指定空間の中心pivotに対して反転する。
+
+        各Shapeの :meth:`Mesh.mirror <mlib.nodes.mesh.Mesh.mirror>`・
+        :meth:`NurbsCurve.mirror <mlib.nodes.nurbsCurve.NurbsCurve.mirror>` と同じ処理を、全Shapeの入力・
+        番号範囲・fastの編集条件を検証してから1回のUndo(fastはUndoなし)でまとめて行う。
+        Transformのマトリクス・トポロジーは変更しない。負スケールによる反転ではない
+        (位置と向きの反転は :meth:`mirrorTransform`)。共有形状は全インスタンスに影響する。
+
+        Args:
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+            worldSpace (bool): Trueはワールド空間、Falseは各Shapeのオブジェクト空間。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットは使わない。
+            indices (Iterable[int] | None): 各Shapeに共通の頂点/CV番号。Noneは全要素、空列は変更なし。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Transform: 自身。Shapeが無ければ何もしない。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            ValueError: axis・pivotが不正、Mesh・NurbsCurve以外のShapeがある、またはworldSpace=Trueで
+                変換マトリクスがほぼ特異な場合。
+            IndexError: 番号がいずれかのShapeの範囲外の場合。
+            RuntimeError: Transformが無効、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、入力履歴のあるShapeがある場合。
+        """
+        _require_bool(fast, "fast")
+        ws = _world_space(worldSpace)
+        self._require_valid("mirror the geometry of")
+        # pivot・indicesに反復子を渡されても、全Shapeへ同じ値を使う。
+        _, center = mirrorArguments(axis, pivot)
+        indices = None if indices is None else tuple(indices)
+        plans = []
+        for shape in self.getShapes():
+            planner = getattr(shape, "_mirror_plan", None)
+            if planner is None:
+                raise ValueError(f"mirrorGeometry supports mesh and nurbsCurve shapes: {shape.getFullName()}")
+            plans.append(planner(axis, ws, center, indices, fast))
+        _write_points(plans, fast, "mlibTransformMirrorGeometry")
+        return self
 
     def getPivot(self, worldSpace=False, *, kind="rotate"):
         """回転またはスケールピボットの位置をcm単位で取得する。
@@ -1161,7 +1205,6 @@ class Transform(DagNode):
         """
         with _edit_context("mlibTransformMirrorTransform", fast):
             ws = _world_space(worldSpace)
-            from ..util import mirrorArguments
             _require_bool(ws, "worldSpace")
             _, center = mirrorArguments(axis, pivot)
             name = self.getFullName()

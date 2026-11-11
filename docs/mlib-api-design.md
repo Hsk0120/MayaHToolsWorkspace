@@ -732,7 +732,7 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 排他的な選択操作は `Selection.select(mode="replace")` のようなモードで指定する。
 - メンバーの操作は `addMembers` / `removeMembers`、個数の照会は `getNumVertices` / `getNumCVs` 等のget付き正式名にする。
 - `Plug.get/set` は対象アトリビュートを扱い、マトリクスアトリビュートから所有ノードのTRS更新へ暗黙に切り替えない。ノード変換は `Transform.getMatrix/setMatrix` を使用する。
-- 単数形と複数形の座標取得はともに `getPosition`。コンポーネントは座標の照会だけを提供し、書込みは `cmds.xform` 等を使う。
+- 単数形と複数形の座標取得はともに `getPosition`。書込みは 12.1.0 で戻した `setPosition` 系(複数形は `setPositions` も)と `mirror` で、`worldSpace=False`・cm・通常は `cmds.xform`/`polyEditUV`、`fast=True` は OpenMaya。
 - 点の位置(XYZ)は、単体なら `mlib.Vector`、複数なら `list[Vector]` で返す(6.0.0。`Vertex`/`CV`・`Vertices`/`CVs` の `getPosition`、`Mesh.getPoints`、`NurbsCurve.getCvPositions`)。om2の `MPointArray`・tupleは返さず、wでは割らない。成分だけの `getPositionX/Y/Z` は float。UVの位置は2成分のため `(U, V)` のtupleのまま。全点の一括書込みは `Mesh.setPoints`・`NurbsCurve.setCvPositions` で、どちらも `get` の結果・tupleの列・MPointArrayを受け、点数の違いはValueError、1回のUndoにまとめる。
 - 戻り値の型・単位・更新対象・破壊性が違う操作は、名前が似ていても安易にフラグ統合しない。
 

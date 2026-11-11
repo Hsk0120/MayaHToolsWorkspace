@@ -1,7 +1,8 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)とその要素群を公開する。
 
-コンポーネントはシェイプを構成する要素への参照。
+コンポーネントはシェイプを構成する要素への参照。頂点・CV・UVは座標の照会に加えて、
+座標の書込み(setPosition・setPositions等)と頂点・CVの反転(mirror)ができる。
 """
 
 from .component import Component, Components

@@ -184,8 +184,10 @@ class SetCvPositionsTest(_Case):
                 with self.assertRaises(error):
                     shape.setCvPositions(*args, **kwargs)
         self.assertPointsAlmostEqual(_cvs(shape.getFullName()), SQUARE)
-        cv = shape.getCV(0)
-        self.assertFalse(hasattr(cv, "setPosition"))
+        # CV単体の書込み(setPosition)も、不正な座標は形状を変えずに拒否する。
+        with self.assertRaises(TypeError):
+            shape.getCV(0).setPosition((0, 0, "a"))
+        self.assertPointsAlmostEqual(_cvs(shape.getFullName()), SQUARE)
 
 
 class ReplaceShapesTest(_Case):

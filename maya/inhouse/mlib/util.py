@@ -17,6 +17,9 @@ __all__ = ["legalizeName", "measure", "mirrorArguments"]
 # 長短のどちらを省略したかを区別する。値として渡すための定数ではない。
 _UNSET = ...
 
+#: カラーインデックスの上限(0〜31)。
+_MAX_COLOR_INDEX = 31
+
 #: 名前空間の区切り文字。区切りとして残し、区間ごとに検査する。
 _SEPARATOR = ":"
 
@@ -515,10 +518,6 @@ def _finite_vector(value, size, name):
     if len(items) != size:
         raise ValueError(f"{name} must have {size} components")
     return tuple(_finite(item, name) for item in items)
-
-
-#: カラーインデックスの上限(0〜31)。
-_MAX_COLOR_INDEX = 31
 
 
 def _color_value(color):

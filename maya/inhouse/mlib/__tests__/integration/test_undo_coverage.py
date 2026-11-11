@@ -930,6 +930,20 @@ def s_pose(c):
     c.npose = mlib.getNode(c.pose)
 
 
+def s_pose_jx(c):
+    """s_pose に加え、jx だけを保存した別の dagPose(pose2)を作る。"""
+    s_pose(c)
+    c.pose2 = cmds.dagPose(c.jx, save=True, selection=True, name="pose2")
+    c.npose2 = mlib.getNode(c.pose2)
+
+
+def s_pose_jx_conflict(c):
+    """s_pose_jx に加え、j1 を回した姿勢で j1・j2 を保存した pose3 を作る(pose と保存姿勢が競合する)。"""
+    s_pose_jx(c)
+    c.pose3 = cmds.dagPose(c.j1, c.j2, save=True, selection=True, name="pose3")
+    cmds.setAttr(c.j1 + ".rz", 0.25)
+
+
 def s_ik_joints(c):
     """joint 連鎖を作る。Maya が最初の IK ハンドルで作るソルバー(Undo で消えない)は先に用意する。"""
     if not cmds.ls(type="ikRPsolver"):
@@ -1263,6 +1277,52 @@ CASES = [
       lambda c, **kw: c.ncrvShape.scaleGeometry(2.0, **kw)),
     C("Locator.setPosition", "Locator.setPosition", s_locator,
       lambda c, **kw: c.nloc.setPosition((1.0, 2.0, 3.0), **kw)),
+    C("Mesh.mirror", "Mesh.mirror", s_cube,
+      lambda c, **kw: c.nshape.mirror("x", pivot=(0.25, 0.0, 0.0), **kw)),
+    C("Mesh.mirror", "Mesh.mirror indices worldSpace", s_cube,
+      lambda c, **kw: c.nshape.mirror("YZ", worldSpace=True, indices=[0, 2], **kw)),
+    C("NurbsCurve.mirror", "NurbsCurve.mirror", s_curve,
+      lambda c, **kw: c.ncrvShape.mirror("y", pivot=(0.0, 1.0, 0.0), **kw)),
+    C("Transform.mirrorGeometry", "Transform.mirrorGeometry", s_cube,
+      lambda c, **kw: c.ncube.mirrorGeometry("x", worldSpace=True, **kw)),
+    C("PointComponent.setPosition", "Vertex.setPosition", s_cube,
+      lambda c, **kw: c.nshape.getVertex(0).setPosition((1.0, 2.0, 3.0), **kw)),
+    C("PointComponent.setPosition", "CV.setPosition worldSpace", s_curve,
+      lambda c, **kw: c.ncrvShape.getCV(1).setPosition((1.0, 2.0, 3.0), worldSpace=True, **kw)),
+    C("PointComponent.setPositionX", "Vertex.setPositionX", s_cube,
+      lambda c, **kw: c.nshape.getVertex(1).setPositionX(2.0, **kw)),
+    C("PointComponent.setPositionY", "Vertex.setPositionY worldSpace", s_cube,
+      lambda c, **kw: c.nshape.getVertex(1).setPositionY(2.0, worldSpace=True, **kw)),
+    C("PointComponent.setPositionZ", "CV.setPositionZ", s_curve,
+      lambda c, **kw: c.ncrvShape.getCV(2).setPositionZ(2.0, **kw)),
+    C("PointComponents.setPositions", "Vertices.setPositions", s_cube,
+      lambda c, **kw: c.nshape.getVertices([0, 1]).setPositions([(1.0, 0.0, 0.0), (0.0, 1.0, 0.0)], **kw)),
+    C("PointComponents.setPositions", "CVs.setPositions worldSpace", s_curve,
+      lambda c, **kw: c.ncrvShape.getCVs().setPositions([(0, 1, 0), (1, 1, 0), (2, 2, 0)], worldSpace=True, **kw)),
+    C("PointComponents.setPosition", "Vertices.setPosition", s_cube,
+      lambda c, **kw: c.nshape.getVertices([2, 3]).setPosition((0.0, 3.0, 0.0), **kw)),
+    C("PointComponents.setPositionX", "Vertices.setPositionX", s_cube,
+      lambda c, **kw: c.nshape.getVertices([2, 3]).setPositionX([1.0, 2.0], **kw)),
+    C("PointComponents.setPositionY", "CVs.setPositionY", s_curve,
+      lambda c, **kw: c.ncrvShape.getCVs([0, 2]).setPositionY(3.0, **kw)),
+    C("PointComponents.setPositionZ", "Vertices.setPositionZ worldSpace", s_cube,
+      lambda c, **kw: c.nshape.getVertices([4, 5]).setPositionZ(-2.0, worldSpace=True, **kw)),
+    C("PointComponents.mirror", "Vertices.mirror", s_cube,
+      lambda c, **kw: c.nshape.getVertices([0, 1, 2]).mirror("z", pivot=(0.0, 0.0, 1.0), **kw)),
+    C("UV.setPosition", "UV.setPosition", s_cube,
+      lambda c, **kw: c.nshape.getUV(0).setPosition((0.9, 0.1), **kw)),
+    C("UV.setU", "UV.setU", s_cube,
+      lambda c, **kw: c.nshape.getUV(1).setU(0.9, **kw)),
+    C("UV.setV", "UV.setV", s_cube,
+      lambda c, **kw: c.nshape.getUV(1).setV(0.9, **kw)),
+    C("UVs.setPositions", "UVs.setPositions", s_cube,
+      lambda c, **kw: c.nshape.getUVs([0, 1]).setPositions([(0.1, 0.2), (0.3, 0.4)], **kw)),
+    C("UVs.setPosition", "UVs.setPosition", s_cube,
+      lambda c, **kw: c.nshape.getUVs([2, 3]).setPosition((0.5, 0.5), **kw)),
+    C("UVs.setU", "UVs.setU", s_cube,
+      lambda c, **kw: c.nshape.getUVs([2, 3]).setU([0.1, 0.9], **kw)),
+    C("UVs.setV", "UVs.setV", s_cube,
+      lambda c, **kw: c.nshape.getUVs([2, 3]).setV(0.75, **kw)),
     C("Mesh.reorderVertices", "reorderVertices position", s_reorder, a_reorder),
     # Joint
     C("Joint.setSegmentScaleCompensate", "setSegmentScaleCompensate", s_joints,
@@ -1399,6 +1459,15 @@ CASES = [
       lambda c, **kw: mlib.createDagPose([c.j0, c.j1, c.j2], name="madePose")),
     C("DagPose.restore", "DagPose.restore", s_pose, lambda c, **kw: c.npose.restore()),
     # DisplayLayer
+    C("DagPose.addMembers", "DagPose.addMembers", s_pose, lambda c, **kw: c.npose.addMembers(c.jx)),
+    C("DagPose.removeMembers", "DagPose.removeMembers", s_pose, lambda c, **kw: c.npose.removeMembers(c.j2)),
+    C("DagPose.reset", "DagPose.reset", s_pose, lambda c, **kw: c.npose.reset([c.j1])),
+    C("DagPose.reset", "DagPose.reset (all members)", s_pose, lambda c, **kw: c.npose.reset()),
+    C("DagPose.merge", "DagPose.merge", s_pose_jx, lambda c, **kw: c.npose.merge(c.npose2)),
+    C("DagPose.merge", "DagPose.merge (deleteSources=False)", s_pose_jx,
+      lambda c, **kw: c.npose.merge(c.npose2, deleteSources=False)),
+    C("DagPose.merge", "DagPose.merge (currentPose=True)", s_pose_jx_conflict,
+      lambda c, **kw: c.npose.merge([c.pose2, c.pose3], currentPose=True)),
     C("DisplayLayer.addMembers", "DisplayLayer.addMembers", s_layer,
       lambda c, **kw: c.nlayer.addMembers(c.a, **kw)),
     C("DisplayLayer.removeMembers", "DisplayLayer.removeMembers", s_layer_member,
@@ -1433,6 +1502,8 @@ CASES = [
       lambda c, **kw: c.skin.addInfluences([c.jx])),
     C("SkinCluster.restoreBindPose", "SkinCluster.restoreBindPose", s_skin_posed,
       lambda c, **kw: c.skin.restoreBindPose()),
+    C("SkinCluster.resetBindPose", "SkinCluster.resetBindPose", s_skin_posed,
+      lambda c, **kw: c.skin.resetBindPose()),
     C("SkinCluster.removeUnusedInfluences", "SkinCluster.removeUnusedInfluences", s_skin_unused,
       lambda c, **kw: c.skin.removeUnusedInfluences()),
     C("SkinCluster.removeInvalidWeights", "SkinCluster.removeInvalidWeights", s_skin_invalid,

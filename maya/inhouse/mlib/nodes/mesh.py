@@ -9,6 +9,7 @@ from maya.api.OpenMaya import MSpace
 
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
+from ..components.pointComponent import _mirror_plan, _write_points
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core import geometryEdit as geometry_edit
@@ -277,6 +278,38 @@ class Mesh(Shape):
                    if value != (point.x, point.y, point.z)]
         with _edit_context("mlibMeshSetPoints", fast, transaction=True):
             geometry_edit.set_positions(self, changed, [values[index] for index in changed], ws, fast=fast)
+        return self
+
+    def mirror(self, axis="x", worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+        """頂点座標を、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
+
+        Transform・トポロジー(頂点番号・面の接続と頂点順)は変更しない。共有Shapeの全インスタンスへ影響する。
+        複製・結合・片側からの対称化・法線の反転は行わない(奇数軸の反転で面の向きが裏返る)。
+        入力をすべて検証してから書き込み、通常は ``cmds.xform`` を頂点ごとに呼んで1回のUndoにまとめる
+        (目安は1頂点あたり約0.2ms)。``fast=True`` は ``MFnMesh.setPoints`` で全頂点を1回で書く。
+        :meth:`Vertices.mirror <mlib.components.pointComponent.PointComponents.mirror>` と同じ処理。
+
+        Args:
+            axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
+                (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
+            indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
+            IndexError: 頂点番号が負または範囲外の場合。
+            RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
+        """
+        _require_bool(fast, "fast")
+        ws = _world_space(worldSpace)
+        _write_points([self._mirror_plan(axis, ws, pivot, indices, fast)], fast, "mlibMeshMirror")
         return self
 
     def getVertexNormals(self, worldSpace=False, angleWeighted=False):
@@ -1411,6 +1444,25 @@ class Mesh(Shape):
         finally:
             if current and current != color_set:
                 fn.setCurrentColorSetName(current)
+
+    def _mirror_plan(self, axis, ws, pivot, indices, fast):
+        """頂点を反転した座標を求め、書込みの計画を返す。シーンは変更しない。
+
+        :meth:`Transform.mirrorGeometry <mlib.nodes.transform.Transform.mirrorGeometry>` が
+        全Shapeを検証してから書き込むために使う。
+
+        Args:
+            axis (str | int): 反転する軸またはミラー面。
+            ws (bool): Trueならワールド空間。検証済み。
+            pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。
+            indices (Iterable[int] | None): 頂点番号。Noneは全頂点。
+            fast (bool): TrueならOpenMayaで直接書けるかも確かめる。
+
+        Returns:
+            tuple | None: ``(shape, indices, rows, ws)``。対象が無ければNone。
+        """
+        self._geometry_fn()
+        return _mirror_plan(self.getVertices(indices), axis, ws, pivot, fast)
 
     def _geometry_fn(self):
         """形状データを要する照会用に ``om2.MFnMesh`` を返す。
