@@ -107,6 +107,7 @@ class SetupSamples:
         ("unevenGround", "UnevenGround - feet and hips on a slope and a step"),
         ("hipSwing", "HipSwing - swing the hips, keep the chest"),
         ("boxRoll", "BoxRoll - box tumbles edge over edge"),
+        ("genevaDrive", "GenevaDrive - intermittent indexing wheel"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -632,6 +633,24 @@ class SetupSamples:
         setup = GearTrain.create(gears[0], gears[1:], (24, 12, 20, 10), name=name, axis="z",
                                  links=("mesh", "shaft", "mesh"))
         return setup, gears[0]
+
+    @classmethod
+    def _genevaDrive(cls, name, root):
+        """ゼネバ機構。駆動輪(joint、先がピン)と、溝が4本の従動輪(緑、十字の先が溝の向き)。
+        駆動輪を ``rotateZ`` で回すと、ピンが溝に入っている1/4回転の間だけ従動輪が90度逆向きに送られ、
+        残りの間は止まる。containerの ``engaged`` は溝に入っている間1、 ``speedRatio`` は角速度の比。"""
+        from .setups import GenevaDrive
+
+        center = 3.0
+        wheel = _joint(name + "_wheel", root, translate=(0, 3, 0))
+        for index in range(4):
+            angle = math.pi / 4.0 + index * math.pi / 2.0
+            _tip(wheel, "{}_wheelSlot{}".format(name, index), (2.6 * math.cos(angle), 2.6 * math.sin(angle), 0))
+        _color(wheel)
+        driver = _joint(name + "_driver", root, translate=(center, 3, 0))
+        _tip(driver, name + "_driverPin", (center * math.sin(math.pi / 4.0), 0, 0))
+        setup = GenevaDrive.create(driver, wheel, 4, name=name, axis="z")
+        return setup, driver
 
     @classmethod
     def _universalJoint(cls, name, root):

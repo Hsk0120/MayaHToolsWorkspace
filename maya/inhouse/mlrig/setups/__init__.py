@@ -24,6 +24,7 @@ from .uiSlider import UiSlider
 from .treadBelt import TreadBelt
 from .rockerRoll import RockerRoll
 from .boxRoll import BoxRoll
+from .genevaDrive import GenevaDrive
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -102,6 +103,7 @@ __all__ = [
     "FkIkChain",
     "FootRoll",
     "GearTrain",
+    "GenevaDrive",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

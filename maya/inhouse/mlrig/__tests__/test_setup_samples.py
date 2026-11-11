@@ -51,6 +51,7 @@ CHANGES = {
     "waveFloat": (_add(".translateX", 3.0), "_boatOut"),
     "wheelRoll": (_set(".translateZ", 3.0), "_wheelOut"),
     "gearTrain": (_set(".rotateZ", 45.0), "_gear3"),
+    "genevaDrive": (_set(".rotateZ", 180.0), "_wheel"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),
@@ -119,8 +120,8 @@ CHANGES = {
 #: (振幅0では作成時に跳ねないことは test_setup_wave_float で確認する)。
 #: MuscleBulgeの出力は上腕の途中に置く補助骨で、入力のjointと同じ位置にはならないため対象外
 #: (作成直後に膨らまないことは test_setup_muscle_bulge で確認する)。
-#: NoFlipPoleの出力はポールの位置、GearTrainの出力は歯車そのものなので対象外(作成直後に膝・歯車が
-#: 跳ねないことは test_setup_no_flip_pole・test_setup_gear_train で確認する)。
+#: NoFlipPoleの出力はポールの位置、GearTrain・GenevaDriveの出力は歯車そのものなので対象外(作成直後に膝・歯車が
+#: 跳ねないことは test_setup_no_flip_pole・test_setup_gear_train・test_setup_geneva_drive で確認する)。
 #: TreadBeltの出力は曲線の上を巡回する板で、対応する入力のノードが無いため対象外(作成時に driver の変化量0で
 #: 板が動かないことは test_setup_tread_belt で確認する)。
 #: SkirtLegOffsetの出力はスカートの骨そのもの(offsetParentMatrixへ接続)なので対象外(作成直後に骨が
