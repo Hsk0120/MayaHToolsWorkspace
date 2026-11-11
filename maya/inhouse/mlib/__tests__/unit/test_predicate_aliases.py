@@ -18,6 +18,7 @@ _PRESERVED_NAMES = {
     ("Node", "isRoot"),
     ("Plug", "isSource"), ("Plug", "isMultiElement"),
     ("Plugin", "isLoaded"),
+    ("Matrix", "isIdentity"),
 }
 
 

@@ -4,12 +4,13 @@ import math
 import numbers
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from ..components.cv import CV, CVs
 from ..components.pointComponent import _mirror_plan, _write_points
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..decorator import _edit_context, _pick_alias, _require_bool, preservedSelection, undoChunk
 from ..maths.matrix import Matrix
 from ..maths.vector import Vector, _vectors_of_points
 from ..util import _UNSET, _finite, _world_space
@@ -21,6 +22,20 @@ _AXES = {"x": (0, 1.0), "y": (1, 1.0), "z": (2, 1.0), "-x": (0, -1.0), "-y": (1,
 _DEGENERATE = 1e-10
 #: 平行移動で向きを運ぶときの、全長あたりの最少の分割数。
 _TRANSPORT_STEPS = 128
+#: :meth:`NurbsCurve.rebuild` の keepRange と ``cmds.rebuildCurve`` の keepRange の値。
+_KEEP_RANGES = {"original": 1, "unit": 0, "spans": 2}
+#: :meth:`NurbsCurve.rebuild` で指定できる次数(``cmds.rebuildCurve`` の degree)。
+_REBUILD_DEGREES = (1, 2, 3, 5, 7)
+#: 面積の数値積分に使う5点のガウス・ルジャンドル則の (節点, 重み)。区間は [-1, 1]。
+_GAUSS_LEGENDRE = (
+    (0.0, 0.5688888888888889),
+    (-0.5384693101056831, 0.4786286704993665),
+    (0.5384693101056831, 0.4786286704993665),
+    (-0.9061798459386640, 0.2369268850561891),
+    (0.9061798459386640, 0.2369268850561891),
+)
+#: 面積の数値積分で、ノットの区間をさらに分ける数(有理カーブの精度のため)。
+_AREA_SUBDIVISIONS = 8
 
 
 class _OwnedCurve(om2.MFnNurbsCurve):
@@ -266,6 +281,31 @@ class NurbsCurve(Shape):
         """
         return self._geometry_fn().form
 
+    def getKnots(self):
+        """ノット列(``MFnNurbsCurve.knots``)を取得する。
+
+        Returns:
+            list[float]: Mayaの形式のノット列。長さは ``getNumCVs() + getDegree() - 1``
+                (端の2つを省いた形。``cmds.curve(knot=...)`` へそのまま渡せる)。
+
+        Raises:
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        return list(self._geometry_fn().knots())
+
+    def isPlanar(self):
+        """カーブが1つの平面上にあるか(``MFnNurbsCurve.isPlanar``)を取得する。
+
+        平面かどうかは変換で変わらないため、空間の指定は無い。
+
+        Returns:
+            bool: 平面上にあればTrue。
+
+        Raises:
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        return bool(self._geometry_fn().isPlanar)
+
     def getLength(self, tolerance=1e-6, *, worldSpace=_UNSET, unit="cm", ws=_UNSET):
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
@@ -294,6 +334,46 @@ class NurbsCurve(Shape):
         if not math.isfinite(tolerance) or tolerance <= 0:
             raise ValueError("tolerance must be positive and finite")
         return self._space_curve(ws).length(tolerance) * factor
+
+    def getArea(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """閉じた平面カーブが囲む面積を取得する。シーンに計算ノードを作成しない。
+
+        ``MFnNurbsCurve.area`` は値を返さない版があるため、カーブ上の線積分(``1/2 ∮ P × dP`` の長さ)を
+        ノットの区間ごとのガウス・ルジャンドル則で求める。自己交差するカーブは向きの付いた面積の和になる。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間(親のスケールを含む)、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            float: 面積(cm²)。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: カーブが閉じていない(開いた形式で始点と終点が離れている)、または平面上に無い場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        curve = self._space_curve(worldSpace)
+        start, end = curve.knotDomain
+        if curve.form == om2.MFnNurbsCurve.kOpen:
+            first = curve.getPointAtParam(start)
+            last = curve.getPointAtParam(end)
+            if first.distanceTo(last) > 1e-6 * max(1.0, curve.length(1e-6)):
+                raise ValueError(f"Curve is not closed: {self.getFullName()}")
+        if not curve.isPlanar:
+            raise ValueError(f"Curve is not planar: {self.getFullName()}")
+        breaks = sorted({knot for knot in curve.knots() if start <= knot <= end} | {start, end})
+        total = om2.MVector()
+        for low, high in zip(breaks, breaks[1:]):
+            step = (high - low) / _AREA_SUBDIVISIONS
+            for index in range(_AREA_SUBDIVISIONS):
+                center = low + step * (index + 0.5)
+                for node, weight in _GAUSS_LEGENDRE:
+                    param = center + step * 0.5 * node
+                    # tangentは正規化しない微分ベクトル(dP/dt)を返す。
+                    total += (om2.MVector(curve.getPointAtParam(param)) ^ curve.tangent(param)) * (weight * step * 0.5)
+        return total.length() * 0.5
 
     def getCvPositions(self, worldSpace=_UNSET, *, ws=_UNSET):
         """CV の位置を取得する。
@@ -395,6 +475,70 @@ class NurbsCurve(Shape):
         _require_bool(fast, "fast")
         ws = _world_space(worldSpace)
         _write_points([self._mirror_plan(axis, ws, pivot, indices, fast)], fast, "mlibNurbsCurveMirror")
+        return self
+
+    def rebuild(self, spans=None, degree=None, *, keepRange="original"):
+        """カーブを均等なスパンで作り直し、自身を返す(``cmds.rebuildCurve`` の uniform)。
+
+        ``cmds.rebuildCurve(constructionHistory=False, replaceOriginal=True)`` でこのシェイプの形状を
+        置き換え、1回のUndoで戻る。シェイプのノードと選択は変わらない。両端の位置は保つ。
+        コンストラクションヒストリのあるカーブは、上流の再評価で形状が戻ることがある。
+        スパン数・次数は ``cmds.rebuildCurve`` の結果に従う(Maya 2027 では次数1・spans=2 で4スパンになる等、
+        指定と違う場合がある)。
+
+        Args:
+            spans (int | None): 新しいスパン数。1以上。Noneは現在のスパン数。
+            degree (int | None): 新しい次数。1・2・3・5・7のいずれか。Noneは現在の次数。
+            keepRange (str): パラメーターの範囲。``"original"`` は元の範囲(既定)、``"unit"`` は0〜1、
+                ``"spans"`` は0〜スパン数。
+
+        Returns:
+            NurbsCurve: 自身。
+
+        Raises:
+            TypeError: spans・degreeがint・None以外(boolを含む)、またはkeepRangeがstr以外の場合。
+            ValueError: spansが1未満、degreeが未対応、またはkeepRangeが未対応の名前の場合。
+            RuntimeError: 形状データを持たない空のシェイプ、またはロック等でMayaが書込みを拒否した場合。
+        """
+        fn = self._geometry_fn()
+        if spans is None:
+            spans = fn.numSpans
+        elif isinstance(spans, bool) or not isinstance(spans, numbers.Integral):
+            raise TypeError("spans must be an int or None")
+        elif spans < 1:
+            raise ValueError(f"spans must be positive: {spans}")
+        if degree is None:
+            degree = fn.degree
+        elif isinstance(degree, bool) or not isinstance(degree, numbers.Integral):
+            raise TypeError("degree must be an int or None")
+        elif degree not in _REBUILD_DEGREES:
+            raise ValueError(f"degree must be one of 1, 2, 3, 5, 7: {degree}")
+        if not isinstance(keepRange, str):
+            raise TypeError("keepRange must be a str")
+        if keepRange not in _KEEP_RANGES:
+            raise ValueError(f"keepRange must be one of original, unit, spans: {keepRange!r}")
+        with undoChunk("mlibNurbsCurveRebuild"), preservedSelection():
+            cmds.rebuildCurve(self.getFullName(), spans=int(spans), degree=int(degree),
+                              keepRange=_KEEP_RANGES[keepRange], rebuildType=0, keepEndPoints=True,
+                              keepControlPoints=False, keepTangents=False, constructionHistory=False,
+                              replaceOriginal=True)
+        return self
+
+    def reverse(self):
+        """カーブの向き(パラメーターの増える向き)を反転し、自身を返す(``cmds.reverseCurve``)。
+
+        ``cmds.reverseCurve(constructionHistory=False, replaceOriginal=True)`` でこのシェイプの形状を
+        置き換え、1回のUndoで戻る。形状の位置は変わらず、CVの並びが逆になる。シェイプのノードと選択は変わらない。
+
+        Returns:
+            NurbsCurve: 自身。
+
+        Raises:
+            RuntimeError: 形状データを持たない空のシェイプ、またはロック等でMayaが書込みを拒否した場合。
+        """
+        self._geometry_fn()
+        with undoChunk("mlibNurbsCurveReverse"), preservedSelection():
+            cmds.reverseCurve(self.getFullName(), constructionHistory=False, replaceOriginal=True)
         return self
 
     def getCollocatedCVGroups(self, tolerance=1e-6, worldSpace=_UNSET, *, ws=_UNSET):

@@ -2,7 +2,8 @@
 """Mesh の Edge とコレクション。"""
 
 import maya.api.OpenMaya as om2
-from ..decorator import _pick_alias
+import maya.cmds as cmds
+from ..decorator import _pick_alias, _require_bool, preservedSelection, undoChunk
 from ..maths.vector import _vectors_of_points
 from ..util import _UNSET, _world_space
 from .component import Component, Components
@@ -85,6 +86,64 @@ class Edge(Component):
             Edges: 自身を先頭に、たどった順のエッジ。
         """
         ...
+    def getConnectedEdges(self) -> Edges:
+        """このエッジと頂点を共有するエッジ(自身を含まない)を取得する(``MItMeshEdge.getConnectedEdges``)。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        ...
+    def isOnBoundary(self) -> bool:
+        """メッシュの縁(接する面が1つだけ)のエッジか照会する。
+
+        Returns:
+            bool: 縁ならTrue。:meth:`Mesh.getBorderEdges <mlib.nodes.mesh.Mesh.getBorderEdges>` と同じ判定。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        ...
+    def isSmooth(self) -> bool:
+        """ソフトエッジ(スムーズ)か照会する(``MFnMesh.isEdgeSmooth``)。
+
+        Returns:
+            bool: ソフトエッジならTrue、ハードエッジならFalse。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        ...
+    def setSmooth(self, value: bool = ...) -> Edge:
+        """ソフトエッジ(True)・ハードエッジ(False)を設定し、自身を返す。
+
+        ``cmds.polySoftEdge`` (角度180または0)で書き込み、1回のUndoにまとめる。選択は変えない。コンストラクションヒストリの
+        あるメッシュでは ``polySoftEdge`` ノードを履歴へ足し、無いメッシュは履歴を作らずに直接書く。
+
+        Args:
+            value (bool): Trueはソフトエッジ、Falseはハードエッジ。
+
+        Returns:
+            Edge: 自身。
+
+        Raises:
+            TypeError: valueがbool以外の場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
+        """
+        ...
+    def _iterator(self) -> om2.MItMeshEdge:
+        """番号を検証し、このエッジへ移した ``om2.MItMeshEdge`` を返す。
+
+        Returns:
+            om2.MItMeshEdge: このエッジを指す反復子。
+        """
+        ...
 _EDGE_GET_VERTICES: Any
 
 
@@ -150,6 +209,18 @@ class Edges(Components):
         ...
     def getCenter(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Vector]:
         """各要素の :meth:`~mlib.components.edge.Edge.getCenter` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getConnectedEdges(self) -> list[Edges]:
+        """各要素の :meth:`~mlib.components.edge.Edge.getConnectedEdges` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isOnBoundary(self) -> list[bool]:
+        """各要素の :meth:`~mlib.components.edge.Edge.isOnBoundary` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isSmooth(self) -> list[bool]:
+        """各要素の :meth:`~mlib.components.edge.Edge.isSmooth` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setSmooth(self, value: bool = ...) -> list[Edge]:
+        """各要素の :meth:`~mlib.components.edge.Edge.setSmooth` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getFullName(self) -> list[str]:
         """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

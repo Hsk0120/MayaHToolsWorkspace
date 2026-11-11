@@ -116,6 +116,32 @@ class UV(Component):
         """
         return self._set_coordinate(1, value, fast, "setV", "mlibUVSetV")
 
+    def getVertex(self):
+        """このUVが割り当てられた頂点を取得する(現在のUVセット)。
+
+        Returns:
+            Vertex | None: 頂点。どのフェースにも割り当てられていないUVはNone。
+
+        Raises:
+            IndexError: 番号が現在のUVセットの範囲外の場合。
+            RuntimeError: Meshまたは現在のUVセットを参照できない場合。
+        """
+        # vertex.py が uv.py を import するため、循環を避けて呼出し時に読む。
+        from .vertex import Vertex
+        self._require_valid()
+        mesh_fn = self.shape._geometry_fn()
+        uv_counts, uv_ids = mesh_fn.getAssignedUVs(mesh_fn.currentUVSetName())
+        counts, vertices = mesh_fn.getVertices()
+        uv_offset = vertex_offset = 0
+        for uv_count, count in zip(uv_counts, counts):
+            # UVの無いフェースは uv_count が0で、uv_ids に項目を持たない。
+            for local in range(uv_count):
+                if uv_ids[uv_offset + local] == self._index:
+                    return Vertex(self.shape, vertices[vertex_offset + local])
+            uv_offset += uv_count
+            vertex_offset += count
+        return None
+
     def _set_coordinate(self, axis, value, fast, method, chunk):
         """1成分だけを書き換えたU/Vを書き込む。
 

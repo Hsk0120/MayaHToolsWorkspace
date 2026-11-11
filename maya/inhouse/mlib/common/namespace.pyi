@@ -4,7 +4,7 @@
 from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..decorator import undoChunk
+from ..decorator import _require_bool, undoChunk
 from typing import Any, Iterator
 from mlib._stubtypes import GeneratorContextManager
 from mlib.nodes.node import Node
@@ -116,11 +116,31 @@ class Namespace:
             Namespace | None: 名前から求めた親。ルート自身では None。親の存在は確認しない。
         """
         ...
-    def getChildren(self) -> list[Namespace]:
-        """直下の子Namespaceを取得する。
+    def getShortName(self) -> str:
+        """末端の名前(``:a:b`` なら ``b``)を返す。
 
         Returns:
-            list[Namespace]: 直下の子。自身が存在しない場合は空リスト。
+            str: 区切りの ``:`` を含まない最後の階層名。ルートでは ``":"``。
+        """
+        ...
+    def split(self) -> list[str]:
+        """階層ごとの名前のリスト(``:a:b`` なら ``["a", "b"]``)を返す。
+
+        Returns:
+            list[str]: 上位から順の階層名。ルートでは空リスト。
+        """
+        ...
+    def getChildren(self, recurse: bool = ...) -> list[Namespace]:
+        """子Namespaceを取得する。
+
+        Args:
+            recurse (bool): ``True`` の場合は孫以下の子孫も含める(親が子より先に並ぶ)。既定は直下だけ。
+
+        Returns:
+            list[Namespace]: 子(recurse=Trueは子孫)。自身が存在しない場合は空リスト。
+
+        Raises:
+            TypeError: recurse が bool 以外の場合。
         """
         ...
     def getNodes(self, recurse: bool = ...) -> list[Node]:
@@ -131,6 +151,22 @@ class Namespace:
 
         Returns:
             list[Node]: 名前空間内のノードラッパー。自身が存在しない場合は空リスト。
+        """
+        ...
+    def getNode(self, name: str) -> Node:
+        """名前空間を付けた名前でノードを取得する(``Namespace(":char").getNode("root")`` は ``char:root``)。
+
+        Args:
+            name (str): 名前空間を除いたノード名。DAGパスは各階層に名前空間が要るため、
+                ``"grp|char:child"`` のように2階層目以降は名前空間を付けて渡す。
+
+        Returns:
+            Node: 実際のノード型に対応するラッパー。
+
+        Raises:
+            TypeError: name が文字列以外の場合。
+            ValueError: name が空文字列の場合。
+            RuntimeError: ノードが存在しない、または一意でない場合。
         """
         ...
     def setCurrent(self) -> Namespace:
@@ -190,21 +226,28 @@ class Namespace:
             RuntimeError: 親が存在しない、移動先が既存、または Maya 操作が失敗した場合。
         """
         ...
-    def remove(self, destination: str | Namespace = ...) -> Namespace:
-        """内容を移動してNamespaceを削除する。
+    def remove(self, destination: str | Namespace = ..., *, deleteContents: bool = ...) -> Namespace | None:
+        """内容を移動してNamespaceを削除する。``deleteContents=True`` は内容ごと削除する。
 
         名前が衝突するノードは、移動時にMayaの規則(cmdsのforce移動)で末尾に番号を付けて改名する。
+        ``deleteContents=True`` は ``cmds.namespace(removeNamespace=..., deleteNamespaceContent=True)`` と同じで、
+        名前空間内のノードと子Namespaceを削除する(読み込んだアセットの後始末)。名前空間外の子孫も、
+        親のDAGノードと一緒に削除される。
         cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。
+                deleteContents=True では使わない。
+            deleteContents (bool): True なら内容を移動せず削除する。既定 False。
 
         Returns:
-            Namespace: 内容を受け取った移動先。自身の保持名は削除前のまま。
+            Namespace | None: 内容を受け取った移動先。deleteContents=True では ``None``。
+                自身の保持名は削除前のまま。
 
         Raises:
+            TypeError: deleteContents が bool 以外の場合。
             ValueError: ルートの削除、または destination が不正な場合。
-            RuntimeError: 移動先が存在しない、または Maya 操作が失敗した場合。
+            RuntimeError: 自身・移動先が存在しない、または Maya 操作が失敗した場合。
         """
         ...
     @classmethod

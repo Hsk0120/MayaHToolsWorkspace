@@ -12,6 +12,7 @@ from ..components.face import Face, Faces
 from ..components.pointComponent import _mirror_plan, _write_points
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
+from ..components.vertexFace import VertexFaces
 from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk, undoTransaction
@@ -155,6 +156,21 @@ class Mesh(Shape):
             Vertices: 番号順を維持し、重複を除いたコレクション。
         """
         return Vertices(self, indices)
+
+    def getVertexFaces(self, indices=None):
+        """指定した頂点フェース(``vtxFace[v][f]``)を取得する。
+
+        Args:
+            indices (Iterable[int | tuple[int, int]] | None): 平坦な番号か ``(頂点番号, フェース番号)``。
+                None は現在の全頂点フェース。
+
+        Returns:
+            VertexFaces: 番号順を維持し、重複を除いたコレクション。
+
+        Raises:
+            IndexError: 頂点がフェースに含まれない、または番号が範囲外の場合。
+        """
+        return VertexFaces(self, indices)
 
     def getShadingEngines(self):
         """このDAGインスタンスのフェースへ割り当てられたShadingEngineを取得する。
@@ -404,6 +420,30 @@ class Mesh(Shape):
                         stack.append(neighbor)
             shells.append(Vertices(self, sorted(shell)))
         return shells
+
+    def getUVShells(self, uvSet=None):
+        """UVでつながったUVのまとまり(UVシェル)を取得する(``MFnMesh.getUvShellsIds``)。
+
+        形状のシェル(:meth:`getShells`)と違い、UVの切れ目で分かれる。
+
+        Args:
+            uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
+
+        Returns:
+            list[list[int]]: シェルごとのUV番号(昇順)。シェルは最小のUV番号の順に並ぶ。UVが無ければ空。
+                番号は指定したUVセットのもの(:class:`~mlib.components.uv.UVs` は現在のUVセットを参照するため、
+                別のUVセットの番号は番号のlistで返す)。
+
+        Raises:
+            TypeError: uvSetが文字列・None以外の場合。
+            ValueError: 名前が空、そのUVセットが無い、またはメッシュにUVセットが無い場合。
+        """
+        name = self._resolve_uv_set(uvSet)
+        _count, ids = self._geometry_fn().getUvShellsIds(name)
+        shells = {}
+        for index, shell in enumerate(ids):
+            shells.setdefault(shell, []).append(index)
+        return sorted(shells.values(), key=lambda items: items[0])
 
     def getTriangles(self):
         """Maya の三角形分割で、ポリゴンを三角形に分けた頂点の組を取得する。
@@ -984,6 +1024,133 @@ class Mesh(Shape):
             cmds.polyUVSet(self.getFullName(), delete=True, uvSet=name)
         return self
 
+    def getColorSetNames(self):
+        """カラーセットの名前を取得する。
+
+        Returns:
+            list[str]: Mayaの並び順のカラーセットの名前。無ければ空。
+        """
+        return list(self._geometry_fn().getColorSetNames())
+
+    def getCurrentColorSet(self):
+        """現在のカラーセットの名前を取得する。
+
+        Returns:
+            str | None: 現在のカラーセットの名前。カラーセットが無ければNone。
+        """
+        fn = self._geometry_fn()
+        if not fn.numColorSets:
+            return None
+        return fn.currentColorSetName() or None
+
+    def setCurrentColorSet(self, name):
+        """現在のカラーセットを設定し、自身を返す。
+
+        ``cmds.polyColorSet(currentColorSet=True)`` で設定し、1回のUndoで戻る。
+
+        Args:
+            name (str): 既にあるカラーセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、またはそのカラーセットが無い場合。
+        """
+        self._require_color_set(name, "name", exists=True)
+        with undoChunk("mlibMeshSetCurrentColorSet"):
+            cmds.polyColorSet(self.getFullName(), currentColorSet=True, colorSet=name)
+        return self
+
+    def createColorSet(self, name):
+        """空のRGBAのカラーセットを作り、自身を返す。
+
+        ``cmds.polyColorSet(create=True)`` で作り、1回のUndoで戻る。:meth:`createUVSet` と違い、
+        Mayaの動作どおり作ったカラーセットが現在のカラーセットになる。
+        コンストラクションヒストリのあるメッシュでは ``createColorSet`` ノードを履歴へ足す。
+
+        Args:
+            name (str): 新しいカラーセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、または同じ名前のカラーセットが既にある場合。
+        """
+        self._require_color_set(name, "name", exists=False)
+        with undoChunk("mlibMeshCreateColorSet"):
+            cmds.polyColorSet(self.getFullName(), create=True, colorSet=name, representation="RGBA")
+        return self
+
+    def copyColorSet(self, source, target):
+        """カラーセットを新しい名前へ複製し、自身を返す。
+
+        ``cmds.polyColorSet(copy=True)`` で複製し、1回のUndoで戻る。現在のカラーセットは変えない。
+
+        Args:
+            source (str): 複製元のカラーセットの名前。
+            target (str): 新しいカラーセットの名前。既にある名前は不可(上書きしない)。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: source・targetが文字列以外の場合。
+            ValueError: 名前が空、sourceが無い、またはtargetが既にある場合。
+        """
+        self._require_color_set(source, "source", exists=True)
+        self._require_color_set(target, "target", exists=False)
+        with undoChunk("mlibMeshCopyColorSet"):
+            cmds.polyColorSet(self.getFullName(), copy=True, colorSet=source, newColorSet=target)
+        return self
+
+    def renameColorSet(self, name, newName):
+        """カラーセットの名前を変え、自身を返す。
+
+        ``cmds.polyColorSet(rename=True)`` で変え、1回のUndoで戻る。現在のカラーセットの名前を変えた場合は、
+        新しい名前が現在のカラーセットになる。
+
+        Args:
+            name (str): 既にあるカラーセットの名前。
+            newName (str): 新しい名前。既にある名前は不可。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: name・newNameが文字列以外の場合。
+            ValueError: 名前が空、nameが無い、またはnewNameが既にある場合。
+        """
+        self._require_color_set(name, "name", exists=True)
+        self._require_color_set(newName, "newName", exists=False)
+        with undoChunk("mlibMeshRenameColorSet"):
+            cmds.polyColorSet(self.getFullName(), rename=True, colorSet=name, newColorSet=newName)
+        return self
+
+    def deleteColorSet(self, name):
+        """カラーセットを削除し、自身を返す。
+
+        ``cmds.polyColorSet(delete=True)`` で削除し、1回のUndoで戻る。現在のカラーセットを削除すると、
+        Mayaは残りの先頭のカラーセットを現在のカラーセットにする(残りが無ければ現在のカラーセットは無くなる)。
+
+        Args:
+            name (str): 既にあるカラーセットの名前。
+
+        Returns:
+            Mesh: 自身。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、またはそのカラーセットが無い場合。
+        """
+        self._require_color_set(name, "name", exists=True)
+        with undoChunk("mlibMeshDeleteColorSet"):
+            cmds.polyColorSet(self.getFullName(), delete=True, colorSet=name)
+        return self
+
     def getBorderEdges(self):
         """メッシュの縁(接する面が1つだけ)のエッジを取得する。
 
@@ -1340,6 +1507,31 @@ class Mesh(Shape):
         if colorSet not in fn.getColorSetNames():
             raise ValueError(f"Color set does not exist: {colorSet}")
         return colorSet
+
+    def _require_color_set(self, name, label, *, exists):
+        """カラーセットの名前の型と、その有無を検証する。
+
+        Args:
+            name (str): カラーセットの名前。
+            label (str): 例外メッセージに使う引数名。
+            exists (bool): Trueは既にあること、Falseはまだ無いことを求める。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: nameが文字列以外の場合。
+            ValueError: nameが空、または有無が求める状態と違う場合。
+        """
+        if not isinstance(name, str):
+            raise TypeError(f"{label} must be a str")
+        if not name:
+            raise ValueError(f"{label} must be a non-empty string")
+        found = name in self._geometry_fn().getColorSetNames()
+        if exists and not found:
+            raise ValueError(f"Color set does not exist: {name}")
+        if not exists and found:
+            raise ValueError(f"Color set already exists: {name}")
 
     def _resolve_vertex_indices(self, vertices, count):
         """頂点の指定を、範囲内で重複の無い番号の list にする。

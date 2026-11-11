@@ -19,7 +19,8 @@ from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _color_value, _finite, _from_radians, _to_radians, _world_space, mirrorArguments
+from ..util import (_angle_unit, _color_value, _finite, _finite_vector, _from_radians, _to_radians, _world_space,
+                    mirrorArguments)
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -37,6 +38,12 @@ _LIMIT_FLAGS = {
 }
 _LIMIT_FLAGS.update({"rotate" + axis: ("rotation" + axis, "enableRotation" + axis, "angle") for axis in "XYZ"})
 _LIMIT_FLAGS.update({"scale" + axis: ("scale" + axis, "enableScale" + axis, "scale") for axis in "XYZ"})
+
+#: getLimitsのキーと、om2.MFnTransformの最小・最大の制限の種類の名前。
+_LIMIT_TYPES = {
+    prefix + axis: ("k{}Min{}".format(kind, axis), "k{}Max{}".format(kind, axis))
+    for prefix, kind in (("translate", "Translate"), ("rotate", "Rotate"), ("scale", "Scale")) for axis in "XYZ"
+}
 
 #: rotateOrder の番号順の名前(Maya・om2 の番号と同じ順)。
 _ROTATE_ORDER_NAMES = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
@@ -770,6 +777,56 @@ class Transform(DagNode):
             cmds.xform(self.getFullName(), centerPivots=True, preserve=True)
             return self
 
+    def zeroTransformPivots(self):
+        """回転・スケールピボットとその補償値を0にし、姿勢を保つようtranslateを書き換える。
+
+        ``cmds.xform(zeroTransformPivots=True)`` と同じ。``setPivot((0, 0, 0), kind="both")`` は補償値
+        (rotatePivotTranslate 等)で姿勢を保つのに対し、こちらは補償値も0にしてずれをtranslateへ移す。
+        書き換えるアトリビュートのロック・入力接続は更新前に検査する(xformは黙って飛ばし、姿勢が変わるため)。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、またはtranslate・ピボット・補償値の成分がロック・入力接続されている場合。
+        """
+        self._require_valid("zero the pivots of")
+        self._require_pivots_writable(("scale", "rotate"), True)
+        plug = self.getPlug("translate").mplug()
+        require_writable(plug)
+        for index in range(plug.numChildren()):
+            require_writable(plug.child(index))
+        with undoChunk("mlibTransformZeroTransformPivots"):
+            cmds.xform(self.getFullName(), zeroTransformPivots=True)
+        return self
+
+    def ungroup(self, *, world=False):
+        """子を親(またはワールド)の下へ移してグループを解く(``cmds.ungroup`` 相当)。
+
+        子はワールドの姿勢を保って移す。自身がShapeを持たなければ自身を削除し、Shapeを持つ場合は
+        子だけを移して自身を残す(Mayaと同じ)。Undo有効時に1回のUndoで戻る。
+
+        Args:
+            world (bool): Trueは子をワールド直下へ、既定Falseは自身の親の下へ移す。
+
+        Returns:
+            list[Transform]: 移した子(元の子の順)。子が無ければ空リスト。
+
+        Raises:
+            TypeError: worldがbool以外の場合。
+            RuntimeError: ノードが無効、またはMayaが処理を拒否した場合(ロックされたノード等)。
+
+        Examples:
+            >>> children = group.ungroup()
+        """
+        _require_bool(world, "world")
+        self._require_valid("ungroup")
+        children = [child.mnode() for child in self.getChildren()]
+        with undoChunk("mlibTransformUngroup"):
+            cmds.ungroup(self.getFullName(), world=world)
+        return [Node(child) for child in children]
+
     def getChildren(self, shapes=False, intermediates=False, *, allDescendents=False,
                     order="depthFirst", leaves=False, includeSelf=False, underWorld=False, type=None):
         """指定条件に合う直接の子、または子孫を取得する。
@@ -1467,6 +1524,40 @@ class Transform(DagNode):
             self._set_channel_value("translate", result, safe=safe, fast=fast)
             return self
 
+    def translateBy(self, value, worldSpace=_UNSET, *, ws=_UNSET):
+        """今の位置から相対的に移動する(``cmds.move(relative=True)`` 相当)。
+
+        ``worldSpace=False`` は親の空間の軸(translate チャンネル)に沿って value を足し、``worldSpace=True`` は
+        ワールドの軸に沿って value だけ動くよう translate を書き換える。書き込むのは translate だけで、
+        ピボット・回転は変えない。Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (Iterable[float]): cm単位の移動量のXYZ3成分。
+            worldSpace (bool): Trueはワールドの軸、既定Falseは親の空間の軸。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値の列でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: valueの成分数が3でない、または有限でない場合。
+            RuntimeError: ノードが無効、またはtranslateがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.translateBy((0, 1, 0))                 # 親の空間で上へ1cm
+            >>> node.translateBy((5, 0, 0), ws=True)        # ワールドのX方向へ5cm
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        world = _world_space(worldSpace)
+        delta = om2.MVector(_finite_vector(value, 3, "value"))
+        self._require_valid("move")
+        with undoChunk("mlibTransformTranslateBy"):
+            # at=1(translate の位置)を基準にすると、ワールド指定でも移動量だけを親の空間へ変換して足せる。
+            current = om2.MVector(self.getTranslation(worldSpace=world, at=1))
+            self.setTranslation(current + delta, worldSpace=world, at=1)
+        return self
+
     @_transform_argument_hints
     def getRotate(self, worldSpace=_UNSET, *, order=None, ws=_UNSET):
         """選択空間のマトリクスの回転を Euler 回転として取得する。
@@ -1565,6 +1656,54 @@ class Transform(DagNode):
             self._set_channel_value("rotate", rotation, safe=safe, fast=fast)
             return self
 
+    def rotateBy(self, value, worldSpace=_UNSET, *, unit="deg", ws=_UNSET):
+        """今の向きから相対的に回転する(``cmds.rotate(relative=True)`` 相当)。
+
+        ``worldSpace=False`` は自身のローカル軸(``cmds.rotate(relative=True, objectSpace=True)``)、
+        ``worldSpace=True`` はワールドの軸(``cmds.rotate(relative=True, worldSpace=True)``)で回す。
+        3成分はノードのrotateOrderで解釈する(``cmds.rotate`` と同じ)。書き込むのはrotateだけで、
+        値は :meth:`setRotate` と同じく今のチャンネル値に最も近い等価解にする(90度ずつ4回回すとrotateは360になる)。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (Iterable[float] | EulerRotate | Quaternion): 回転量。EulerRotate/Quaternionは
+                対応するOpenMaya基底型も受理し、自身の回転順序・単位(rad)で解釈する。
+            worldSpace (bool): Trueはワールドの軸、既定Falseは自身のローカル軸。
+            unit (str): 数値3成分の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値の列・回転値でない、worldSpaceがbool以外、unitが文字列・None以外、
+                またはworldSpaceとwsを同時に指定した場合。
+            ValueError: valueの成分数が3でない・有限でない、unitが未対応の単位名、またはマトリクスを
+                分解できない(スケールが0の軸がある)場合。
+            RuntimeError: ノードが無効、またはrotateがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.rotateBy((0, 90, 0))              # 自身のY軸の周りに90度
+            >>> node.rotateBy((0, 0, 45), ws=True)     # ワールドのZ軸の周りに45度
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        world = _world_space(worldSpace)
+        angle_unit = _angle_unit(unit)
+        self._require_valid("rotate")
+        if isinstance(value, om2.MQuaternion):
+            delta = om2.MQuaternion(value)
+        elif isinstance(value, om2.MEulerRotation):
+            delta = value.asQuaternion()
+        else:
+            x, y, z = (_to_radians(component, angle_unit) for component in _finite_vector(value, 3, "value"))
+            delta = om2.MEulerRotation(x, y, z, self._rotate_order()).asQuaternion()
+        current = self.getRotate(worldSpace=world).asQuaternion()
+        # om2 の積は左を先に適用する。ローカル軸の回転は自身の向きより先、ワールド軸の回転は後に掛ける。
+        target = current * delta if world else delta * current
+        with undoChunk("mlibTransformRotateBy"):
+            self.setRotate(target, worldSpace=world)
+        return self
+
     def getRotateOrder(self):
         """回転順序(``rotateOrder``)を名前で取得する。
 
@@ -1655,6 +1794,36 @@ class Transform(DagNode):
         if get:
             return values
         self._set_channel_value("scale", values, safe=safe, fast=fast)
+        return self
+
+    def scaleBy(self, value):
+        """今のscaleチャンネルへ倍率を掛ける(``cmds.scale(relative=True)`` 相当)。
+
+        書き込むのはscaleだけで、ピボットの周りに拡大する。Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (float | Iterable[float]): 無次元の倍率。1つの数値はXYZ共通、3成分は軸ごと。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値・数値の列でない(boolを含む)場合。
+            ValueError: valueの成分数が3でない、または有限でない場合。
+            RuntimeError: ノードが無効、またはscaleがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.scaleBy(2)              # XYZとも2倍
+            >>> node.scaleBy((1, 0.5, 1))    # Yだけ半分
+        """
+        if isinstance(value, numbers.Real) and not isinstance(value, bool):
+            factors = (_finite(value, "value"),) * 3
+        else:
+            factors = _finite_vector(value, 3, "value")
+        self._require_valid("scale")
+        current = self.getScale()
+        with undoChunk("mlibTransformScaleBy"):
+            self._set_channel_value("scale", [current[i] * factors[i] for i in range(3)])
         return self
 
     def getShear(self, worldSpace=_UNSET, *, ws=_UNSET):
@@ -2000,6 +2169,46 @@ class Transform(DagNode):
                 best_dot = dot
                 best_axis = name
         return best_axis
+
+    def getLimits(self, *, unit="deg"):
+        """移動・回転・スケールの制限を、:meth:`setLimits` と同じ形の辞書で取得する。
+
+        9チャンネル(``translateX``〜``scaleZ``)すべてについて ``(最小, 最大)`` を返し、無効な側は ``None`` にする。
+        ``node.setLimits(**other.getLimits())`` で別のノードへ同じ制限を写せる(無効な側の値は写さない)。
+        距離はcm、角度は ``unit`` の単位(既定は度)。UIの単位には依らない。
+
+        Args:
+            unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+
+        Returns:
+            dict[str, tuple[float | None, float | None]]: チャンネル名ごとの ``(最小, 最大)``。
+
+        Raises:
+            TypeError: unitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: ノードが無効な場合。
+
+        Examples:
+            >>> node.setLimits(rotateZ=(-45, 90))
+            >>> node.getLimits()["rotateZ"]
+            (-45.0, 90.0)
+        """
+        angle_unit = _angle_unit(unit)
+        self._require_valid("get limits of")
+        fn = self.mfn()
+        result = {}
+        for channel, kinds in _LIMIT_TYPES.items():
+            sides = []
+            for kind in kinds:
+                limit = getattr(om2.MFnTransform, kind)
+                if not fn.isLimited(limit):
+                    sides.append(None)
+                    continue
+                # limitValue は内部単位(距離cm・角度rad)の値を返す。
+                value = fn.limitValue(limit)
+                sides.append(_from_radians(value, angle_unit) if channel.startswith("rotate") else float(value))
+            result[channel] = tuple(sides)
+        return result
 
     def setLimits(self, *, unit="deg", **limits):
         """移動・回転・スケールの制限を ``cmds.transformLimits`` で設定する。

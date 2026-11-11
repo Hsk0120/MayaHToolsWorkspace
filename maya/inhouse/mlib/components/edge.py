@@ -1,8 +1,9 @@
 """Mesh の Edge とコレクション。"""
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 
-from ..decorator import _pick_alias
+from ..decorator import _pick_alias, _require_bool, preservedSelection, undoChunk
 from ..maths.vector import _vectors_of_points
 from ..util import _UNSET, _world_space
 from .component import Component, Components
@@ -99,6 +100,79 @@ class Edge(Component):
             Edges: 自身を先頭に、たどった順のエッジ。
         """
         return Edges(self.shape, [self.index]).getRing()
+
+    def getConnectedEdges(self):
+        """このエッジと頂点を共有するエッジ(自身を含まない)を取得する(``MItMeshEdge.getConnectedEdges``)。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        return Edges(self.shape, sorted(set(self._iterator().getConnectedEdges())))
+
+    def isOnBoundary(self):
+        """メッシュの縁(接する面が1つだけ)のエッジか照会する。
+
+        Returns:
+            bool: 縁ならTrue。:meth:`Mesh.getBorderEdges <mlib.nodes.mesh.Mesh.getBorderEdges>` と同じ判定。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        return self._iterator().numConnectedFaces() == 1
+
+    def isSmooth(self):
+        """ソフトエッジ(スムーズ)か照会する(``MFnMesh.isEdgeSmooth``)。
+
+        Returns:
+            bool: ソフトエッジならTrue、ハードエッジならFalse。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        self._require_valid()
+        return self.shape._geometry_fn().isEdgeSmooth(self.index)
+
+    def setSmooth(self, value=True):
+        """ソフトエッジ(True)・ハードエッジ(False)を設定し、自身を返す。
+
+        ``cmds.polySoftEdge`` (角度180または0)で書き込み、1回のUndoにまとめる。選択は変えない。コンストラクションヒストリの
+        あるメッシュでは ``polySoftEdge`` ノードを履歴へ足し、無いメッシュは履歴を作らずに直接書く。
+
+        Args:
+            value (bool): Trueはソフトエッジ、Falseはハードエッジ。
+
+        Returns:
+            Edge: 自身。
+
+        Raises:
+            TypeError: valueがbool以外の場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
+        """
+        _require_bool(value, "value")
+        self._require_valid()
+        history = om2.MFnDependencyNode(self.shape.mnode()).findPlug("inMesh", False).isDestination
+        # polySoftEdgeは対象のエッジを選択するため、選択を戻す処理も同じUndoに含める(Redoでも選択が変わらない)。
+        with undoChunk("mlibEdgeSetSmooth"), preservedSelection():
+            cmds.polySoftEdge(self.getFullName(), angle=180 if value else 0, constructionHistory=history)
+        return self
+
+    def _iterator(self):
+        """番号を検証し、このエッジへ移した ``om2.MItMeshEdge`` を返す。
+
+        Returns:
+            om2.MItMeshEdge: このエッジを指す反復子。
+        """
+        self._require_valid()
+        iterator = om2.MItMeshEdge(self.shape.mpath())
+        iterator.setIndex(self.index)
+        return iterator
 
 
 _EDGE_GET_VERTICES = Edge.getVertices

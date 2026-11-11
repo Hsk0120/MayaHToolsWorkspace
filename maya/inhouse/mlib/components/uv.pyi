@@ -8,6 +8,7 @@ from ..decorator import _edit_context, _require_bool
 from ..util import _finite, _finite_vector
 from .component import Component, Components
 from typing import Any, Iterable, Iterator
+from mlib.components.vertex import Vertex
 from mlib.nodes.mesh import Mesh
 from typing import overload
 
@@ -103,6 +104,17 @@ class UV(Component):
             IndexError: 番号が現在のUVセットの範囲外の場合。
             RuntimeError: Meshが無効・ロックされている、またはMayaが書込みを拒否した場合。
             NotImplementedError: fast=Trueで、inMeshへの入力がある場合。
+        """
+        ...
+    def getVertex(self) -> Vertex | None:
+        """このUVが割り当てられた頂点を取得する(現在のUVセット)。
+
+        Returns:
+            Vertex | None: 頂点。どのフェースにも割り当てられていないUVはNone。
+
+        Raises:
+            IndexError: 番号が現在のUVセットの範囲外の場合。
+            RuntimeError: Meshまたは現在のUVセットを参照できない場合。
         """
         ...
     def _set_coordinate(self, axis: int, value: float, fast: bool, method: str, chunk: str) -> UV:
@@ -274,6 +286,9 @@ class UVs(Components):
         Returns:
             UVs: 自身。
         """
+        ...
+    def getVertex(self) -> list[Vertex | None]:
+        """各要素の :meth:`~mlib.components.uv.UV.getVertex` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getFullName(self) -> list[str]:
         """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

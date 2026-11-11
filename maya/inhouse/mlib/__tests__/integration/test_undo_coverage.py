@@ -118,6 +118,7 @@ EXCLUDED = {
     "VectorProduct.setOperation": "計算ノードの書込み。Undo 1 回で書き込めるアトリビュートと接続が戻ることは test_spec_calc_nodes の WriterUndoTest で確認する。",
     "Node.select": "選択はスナップショットの対象外。Undo 1 回は test_spec_collection_forwarding で確認する。",
     "Nodes.select": "選択はスナップショットの対象外。Undo 1 回は test_spec_collection_forwarding で確認する。",
+    "cmds.createCluster": "素の cmds.cluster も Redo でハンドルの形状名を clusterHandleShape へ変える(Maya の挙動)。Undo 1 回で戻ることは test_spec_v124_deform で確認する。",
     "Keyframe.select": "キーの選択はスナップショットの対象外。Undo 1 回は test_spec_keyframe で確認する。",
     "Keyframes.select": "キーの選択はスナップショットの対象外。Undo 1 回は test_spec_keyframe で確認する。",
     "Plug.setMin": "アトリビュートの定義(範囲)の編集。スナップショットは定義の範囲を比べないため、Undo 1 回は test_spec_plug_editing で確認する。",
@@ -127,6 +128,8 @@ EXCLUDED = {
     "Reference.load": "外部ファイルの参照の読込み(ファイル I/O)。Undo 検査の対象外。",
     "Reference.unload": "外部ファイルの参照のアンロード(ファイル I/O)。Undo 検査の対象外。",
     "Reference.remove": "外部ファイルの参照の削除(ファイル I/O)。Undo 検査の対象外。",
+    "Reference.removeEdits": "リファレンスの Edit の削除(アンロード・再ロードを含むファイル I/O)。Undo 検査の対象外。",
+    "Reference.replaceFile": "リファレンスするファイルの置き換え(ファイル I/O)。Undo 検査の対象外。",
     "common.references.createReference": "外部ファイルの参照作成(ファイル I/O)。Undo 検査の対象外。",
     "Plugin.load": "プラグイン管理。loadPlugin は Maya の Undo 対象外。",
     "Plugin.unload": "プラグイン管理。unloadPlugin は Maya の Undo 対象外。",
@@ -146,6 +149,7 @@ EXCLUDED = {
     "Time.setCurrent": "現在時刻の変更。Maya の currentTime は Undo キューへ記録しない。",
     "Time.setPlaybackRange": "再生範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
     "Time.setAnimationRange": "アニメーション範囲の変更。Maya の playbackOptions は Undo キューへ記録しない。",
+    "Edge.setSmooth": "ソフト/ハードエッジ(メッシュのエッジのデータ)はスナップショットの対象外。Undo 1 回で戻ることは test_spec_v124_mathcomp の test_smooth_edges で確認する。",
     "Callbacks.addSceneCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
     "Callbacks.addEventCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
     "Callbacks.addAttributeChangedCallback": "MMessage のコールバックの登録。シーンを変更せず Maya の Undo 対象外。",
@@ -600,6 +604,12 @@ def s_connected(c):
     cmds.connectAttr(c.a + ".tx", c.b + ".ty")
 
 
+def s_insert(c):
+    """a.tx → b.ty の接続と、間に挟む multDoubleLinear を作る。"""
+    s_connected(c)
+    c.mdl = _node("multDoubleLinear", "inserted")
+
+
 def s_locked(c):
     """translateX をロックした transform a を作る。"""
     s_one(c)
@@ -666,6 +676,14 @@ def s_surface(c):
     """履歴なしの nurbsPlane(1x1 スパン・3次)を作る。"""
     c.srf = cmds.ls(cmds.nurbsPlane(name="srf", constructionHistory=False)[0], long=True)[0]
     c.nsrfShape = mlib.getNode(cmds.listRelatives(c.srf, shapes=True, fullPath=True)[0])
+
+
+def s_lattice(c):
+    """polyCube を変形する 2x2x2 のラティス(latticeShape)を作る。"""
+    s_cube(c)
+    lattice = cmds.lattice(c.cube, divisions=(2, 2, 2), objectCentered=True, name="ffd")[1]
+    c.nlatShape = mlib.getNode(cmds.listRelatives(lattice, shapes=True, fullPath=True)[0])
+    cmds.select(clear=True)
 
 
 def s_locator(c):
@@ -812,6 +830,12 @@ def s_cluster(c):
     cmds.select(clear=True)
 
 
+def s_wire_targets(c):
+    """cube と、wire に使う nurbsCurve を作る。"""
+    s_cube(c)
+    s_curve(c)
+
+
 def s_cluster_saved(c):
     """cluster のウェイトをファイルへ書き出してから頂点 0・3 の値を書き換える。"""
     s_cluster(c)
@@ -843,6 +867,14 @@ def s_uv_sets(c):
     """UV セット map1 と uv2 を持つ cube を作る。"""
     s_cube(c)
     cmds.polyUVSet(c.shape, create=True, uvSet="uv2")
+    cmds.select(clear=True)
+
+
+def s_color_sets(c):
+    """カラーセット col1 と col2(現在は col2)を持つ cube を作る。"""
+    s_cube(c)
+    cmds.polyColorSet(c.shape, create=True, colorSet="col1")
+    cmds.polyColorSet(c.shape, create=True, colorSet="col2")
     cmds.select(clear=True)
 
 
@@ -1017,6 +1049,24 @@ def s_ik_joints(c):
         finally:
             cmds.namespace(set=current)
     s_joints(c)
+
+
+def s_ik_handle(c):
+    """s_ik_joints の連鎖に ikRPsolver のハンドル ikh を作る。切替え先の ikSCsolver(Undo で消えない)も先に用意する。"""
+    if not cmds.ls(type="ikSCsolver"):
+        current = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
+        cmds.namespace(set=":")
+        try:
+            cmds.createNode("ikSCsolver", name="ikSCsolver")
+        finally:
+            cmds.namespace(set=current)
+    s_ik_joints(c)
+    c.ikh = cmds.ls(cmds.ikHandle(startJoint=c.j0, endEffector=c.j2, solver="ikRPsolver", name="ikh")[0],
+                    long=True)[0]
+    cmds.setAttr(c.ikh + ".snapEnable", False)
+    cmds.setAttr(c.ikh + ".t", 3.0, 3.0, 3.0)
+    cmds.select(clear=True)
+    c.nikh = mlib.getNode(c.ikh)
 
 
 def s_blend_meshes(c):
@@ -1278,6 +1328,10 @@ CASES = [
       lambda c, **kw: c.na.setPivot((1.0, 2.0, 3.0), worldSpace=True, kind="scale", **kw)),
     C("Transform.centerPivot", "centerPivot", s_offset_pivot,
       lambda c, **kw: c.ncube.centerPivot(**kw)),
+    C("Transform.zeroTransformPivots", "zeroTransformPivots", s_offset_pivot,
+      lambda c, **kw: c.ncube.zeroTransformPivots()),
+    C("Transform.ungroup", "ungroup", s_child, lambda c, **kw: mlib.getNode(c.p).ungroup()),
+    C("Transform.ungroup", "ungroup world", s_child, lambda c, **kw: mlib.getNode(c.p).ungroup(world=True)),
     C("Transform.makeIdentity", "makeIdentity apply", s_cube,
       lambda c, **kw: c.ncube.makeIdentity(apply=True, translate=True, rotate=True, scale=True)),
     C("Transform.addConstraint", "addConstraint parent", s_two,
@@ -1323,6 +1377,12 @@ CASES = [
       lambda c, **kw: c.nshape.setPoints([(i, 1, 0) for i in range(8)], worldSpace=True, **kw)),
     C("Transform.setLimits", "Transform.setLimits", s_one,
       lambda c, **kw: c.na.setLimits(translateX=(None, 5.0), rotateZ=(-45.0, 90.0))),
+    C("Transform.translateBy", "translateBy worldSpace", s_child,
+      lambda c, **kw: c.na.translateBy((1.0, 2.0, 3.0), ws=True)),
+    C("Transform.rotateBy", "rotateBy", s_one, lambda c, **kw: c.na.rotateBy((10.0, 20.0, 30.0))),
+    C("Transform.rotateBy", "rotateBy worldSpace", s_child,
+      lambda c, **kw: c.na.rotateBy((0.0, 45.0, 0.0), worldSpace=True)),
+    C("Transform.scaleBy", "scaleBy", s_one, lambda c, **kw: c.na.scaleBy((2.0, 1.0, 0.5))),
     C("Transform.scaleGeometry", "Transform.scaleGeometry", s_cube,
       lambda c, **kw: c.ncube.scaleGeometry(2.0, **kw)),
     C("Node.resetAttrs", "Transform.resetAttrs", s_two, lambda c, **kw: c.nb.resetAttrs(**kw)),
@@ -1364,6 +1424,10 @@ CASES = [
       lambda c, **kw: c.nshape.mirror("YZ", worldSpace=True, indices=[0, 2], **kw)),
     C("NurbsCurve.mirror", "NurbsCurve.mirror", s_curve,
       lambda c, **kw: c.ncrvShape.mirror("y", pivot=(0.0, 1.0, 0.0), **kw)),
+    C("NurbsCurve.rebuild", "NurbsCurve.rebuild", s_curve,
+      lambda c, **kw: c.ncrvShape.rebuild(4, 3, keepRange="unit")),
+    C("NurbsCurve.reverse", "NurbsCurve.reverse", s_curve,
+      lambda c, **kw: c.ncrvShape.reverse()),
     C("Transform.mirrorGeometry", "Transform.mirrorGeometry", s_cube,
       lambda c, **kw: c.ncube.mirrorGeometry("x", worldSpace=True, **kw)),
     C("PointComponent.setPosition", "Vertex.setPosition", s_cube,
@@ -1390,6 +1454,15 @@ CASES = [
       lambda c, **kw: c.nshape.getVertices([4, 5]).setPositionZ(-2.0, worldSpace=True, **kw)),
     C("PointComponents.mirror", "Vertices.mirror", s_cube,
       lambda c, **kw: c.nshape.getVertices([0, 1, 2]).mirror("z", pivot=(0.0, 0.0, 1.0), **kw)),
+    C("PointComponent.setPosition", "SurfaceCV.setPosition worldSpace", s_surface,
+      lambda c, **kw: mlib.SurfaceCV(c.nsrfShape, (1, 2)).setPosition((0.0, 2.0, 0.0), worldSpace=True, **kw)),
+    C("PointComponents.setPositions", "LatticePoints.setPositions", s_lattice,
+      lambda c, **kw: mlib.LatticePoints(c.nlatShape, [(0, 0, 0), (1, 1, 1)]).setPositions(
+          [(-1.0, -1.0, -1.0), (1.0, 1.0, 1.0)], **kw)),
+    C("PointComponents.mirror", "LatticePoints.mirror", s_lattice,
+      lambda c, **kw: mlib.LatticePoints(c.nlatShape, [1, 3]).mirror("x", pivot=(0.25, 0.0, 0.0), **kw)),
+    C("Vertex.setColor", "Vertex.setColor", s_cube,
+      lambda c, **kw: c.nshape.getVertex(2).setColor((0.0, 0.0, 1.0), **kw)),
     C("UV.setPosition", "UV.setPosition", s_cube,
       lambda c, **kw: c.nshape.getUV(0).setPosition((0.9, 0.1), **kw)),
     C("UV.setU", "UV.setU", s_cube,
@@ -1433,8 +1506,14 @@ CASES = [
     # IkHandle / BlendShape
     C("cmds.createIkHandle", "createIkHandle", s_ik_joints,
       lambda c, **kw: mlib.createIkHandle(c.j0, c.j2, name="madeIk")),
+    C("IkHandle.setSolver", "IkHandle.setSolver", s_ik_handle, lambda c, **kw: c.nikh.setSolver("ikSCsolver")),
+    C("IkHandle.snapToEffector", "IkHandle.snapToEffector", s_ik_handle, lambda c, **kw: c.nikh.snapToEffector()),
     C("cmds.createBlendShape", "createBlendShape", s_blend_meshes,
       lambda c, **kw: mlib.createBlendShape(c.base, [c.target, c.target2], name="madeBlend")),
+    C("cmds.createLattice", "createLattice", s_cube,
+      lambda c, **kw: mlib.createLattice(c.cube, name="madeFfd", divisions=(2, 3, 2))),
+    C("cmds.createWire", "createWire", s_wire_targets,
+      lambda c, **kw: mlib.createWire(c.cube, c.crv, name="madeWire", dropoffDistance=2.0)),
     C("BlendShape.addTarget", "BlendShape.addTarget", s_blend,
       lambda c, **kw: c.nblend.addTarget(c.target2, name="added")),
     C("BlendShape.removeTarget", "BlendShape.removeTarget", s_blend,
@@ -1482,6 +1561,8 @@ CASES = [
     C("AnimCurve.scaleKey", "AnimCurve.scaleKey", s_keyed,
       lambda c, **kw: c.ncurve.scaleKey(2.0, 2.0, **kw)),
     C("AnimCurve.mirror", "AnimCurve.mirror", s_keyed, lambda c, **kw: c.ncurve.mirror(**kw)),
+    C("AnimCurve.insertKey", "AnimCurve.insertKey", s_keyed, lambda c, **kw: c.ncurve.insertKey(4)),
+    C("AnimCurve.setBreakdown", "AnimCurve.setBreakdown", s_keyed, lambda c, **kw: c.ncurve.setBreakdown([0, 1])),
     C("AnimCurve.moveKey", "AnimCurve.moveKey index", s_keyed,
       lambda c, **kw: c.ncurve.moveKey(1, timeOffset=2, valueOffset=-1)),
     C("AnimCurve.scaleKey", "AnimCurve.scaleKey time", s_keyed,
@@ -1500,6 +1581,8 @@ CASES = [
       lambda c, **kw: c.ncurve.getKeyframe(1).setValue(7.0, **kw)),
     C("Keyframe.setTangent", "Keyframe.setTangent", s_keyed,
       lambda c, **kw: c.ncurve.getKeyframe(0).setTangent(outTangentType="flat", **kw)),
+    C("Keyframe.setBreakdown", "Keyframe.setBreakdown", s_keyed,
+      lambda c, **kw: c.ncurve.getKeyframe(1).setBreakdown()),
     C("Keyframe.move", "Keyframe.move", s_keyed,
       lambda c, **kw: c.ncurve.getKeyframe(0).move(timeOffset=1, valueOffset=1)),
     C("Keyframe.remove", "Keyframe.remove", s_keyed,
@@ -1560,6 +1643,7 @@ CASES = [
       lambda c, **kw: c.nset.addMembers(c.a, **kw)),
     C("ObjectSet.removeMembers", "ObjectSet.removeMembers", s_set_member,
       lambda c, **kw: c.nset.removeMembers(c.a, **kw)),
+    C("ObjectSet.clear", "ObjectSet.clear", s_set_member, lambda c, **kw: c.nset.clear()),
     # Shading
     C("ShadingEngine.setShader", "ShadingEngine.setShader", s_shading,
       lambda c, **kw: c.nsg.setShader(c.lambert, **kw)),
@@ -1632,6 +1716,10 @@ CASES = [
       lambda c, **kw: c.skin.setSkinningMethod("dualQuaternion")),
     C("SkinCluster.setNormalizeMode", "SkinCluster.setNormalizeMode", s_skin,
       lambda c, **kw: c.skin.setNormalizeMode("post")),
+    C("SkinCluster.setBlendWeights", "SkinCluster.setBlendWeights", s_skin,
+      lambda c, **kw: c.skin.setBlendWeights([0.25, 0.5, 1.0], vertices=[0, 1, 3], **kw)),
+    C("SkinCluster.unbind", "SkinCluster.unbind", s_skin, lambda c, **kw: c.skin.unbind()),
+    C("SkinCluster.unbind", "SkinCluster.unbind keepHistory", s_skin, lambda c, **kw: c.skin.unbind(keepHistory=True)),
     C("cmds.bakeDeformer", "bakeDeformer", s_skin_mush,
       lambda c, **kw: mlib.bakeDeformer(c.mesh, c.j0, c.mesh2, maxInfluences=2),
       mayaQuirk=_BAKE_REDO if cmds.about(apiVersion=True) < 20230000 else None, ignoreAttrs=("weights",)),
@@ -1681,6 +1769,16 @@ CASES = [
       lambda c, **kw: c.nshape.setCurrentUVSet("uv2")),
     C("Mesh.deleteUVSet", "Mesh.deleteUVSet", s_uv_sets,
       lambda c, **kw: c.nshape.deleteUVSet("uv2")),
+    C("Mesh.createColorSet", "Mesh.createColorSet", s_cube,
+      lambda c, **kw: c.nshape.createColorSet("colNew")),
+    C("Mesh.copyColorSet", "Mesh.copyColorSet", s_color_sets,
+      lambda c, **kw: c.nshape.copyColorSet("col1", "colCopy")),
+    C("Mesh.renameColorSet", "Mesh.renameColorSet", s_color_sets,
+      lambda c, **kw: c.nshape.renameColorSet("col2", "colRenamed")),
+    C("Mesh.setCurrentColorSet", "Mesh.setCurrentColorSet", s_color_sets,
+      lambda c, **kw: c.nshape.setCurrentColorSet("col1")),
+    C("Mesh.deleteColorSet", "Mesh.deleteColorSet", s_color_sets,
+      lambda c, **kw: c.nshape.deleteColorSet("col2")),
     # Plug
     C("Plug.set", "Plug.set double", s_one,
       lambda c, **kw: mlib.getPlug(c.a + ".tx").set(4.0, **kw)),
@@ -1731,6 +1829,8 @@ CASES = [
       lambda c, **kw: mlib.createCircle(radius=2.0, normal=(0, 1, 0), name="madeCircle", parent=c.a)),
     C("cmds.createLocator", "createLocator", None,
       lambda c, **kw: mlib.createLocator(name="madeLoc", localScale=(2, 2, 2))),
+    C("cmds.createGroup", "createGroup", s_two, lambda c, **kw: mlib.createGroup([c.a, c.b], name="madeGroup")),
+    C("cmds.createGroup", "createGroup empty", None, lambda c, **kw: mlib.createGroup(name="madeEmpty")),
     C("cmds.createPolyCube", "createPolyCube", None,
       lambda c, **kw: mlib.createPolyCube(width=2.0, subdivisions=(2, 1, 1), name="madeCube")),
     C("cmds.createPolySphere", "createPolySphere", None,
@@ -1739,12 +1839,19 @@ CASES = [
       lambda c, **kw: mlib.createPolyCylinder(axis=(1, 0, 0), name="madeCylinder", parent=c.a)),
     C("cmds.createPolyPlane", "createPolyPlane", None,
       lambda c, **kw: mlib.createPolyPlane(subdivisions=(2, 2), name="madePlane")),
+    C("cmds.createNurbsPlane", "createNurbsPlane", s_one,
+      lambda c, **kw: mlib.createNurbsPlane(width=4.0, lengthRatio=0.25, patchesU=4, name="madeNurbsPlane",
+                                            parent=c.a)),
     C("Shape.setParent", "Shape.setParent", s_curves,
       lambda c, **kw: c.nsrc.getShape().setParent(c.ncrv, **kw)),
     C("Transform.addShape", "Transform.addShape", s_curves,
       lambda c, **kw: c.ncrv.addShape(c.nsrc.getShape(), **kw)),
     C("Joint.setPreferredAngle", "Joint.setPreferredAngle", s_joints_rotated,
       lambda c, **kw: c.nj1.setPreferredAngle()),
+    C("Joint.assumePreferredAngles", "Joint.assumePreferredAngles", s_joints_rotated,
+      lambda c, **kw: c.nj0.assumePreferredAngles()),
+    C("Joint.setDegreesOfFreedom", "Joint.setDegreesOfFreedom", s_joints,
+      lambda c, **kw: c.nj1.setDegreesOfFreedom("xz")),
     C("Node.setKey", "Node.setKey attributes", s_one,
       lambda c, **kw: c.na.setKey(["tx", "ry"], time=5)),
     C("Node.removeKey", "Node.removeKey range", s_keyed,
@@ -1768,6 +1875,8 @@ CASES = [
       lambda c, **kw: mlib.getPlug(c.b + ".ty").connect(c.a + ".tz", force=True, **kw)),
     C("Plug.connectTo", "Plug.connectTo", s_two,
       lambda c, **kw: mlib.getPlug(c.a + ".tx").connectTo(c.b + ".ty", **kw)),
+    C("Plug.insertInput", "Plug.insertInput", s_insert,
+      lambda c, **kw: mlib.getPlug(c.b + ".ty").insertInput(c.mdl, "input1", "output")),
     C("Plug.disconnectInput", "Plug.disconnectInput", s_connected,
       lambda c, **kw: mlib.getPlug(c.b + ".ty").disconnectInput(**kw)),
     C("Plug.disconnect", "Plug.disconnect", s_connected,
@@ -1807,6 +1916,8 @@ CASES = [
     C("Namespace.move", "Namespace.move", s_ns, lambda c, **kw: Namespace(c.sub).move(c.dest)),
     C("Namespace.remove", "Namespace.remove", s_ns,
       lambda c, **kw: Namespace(c.sub).remove(":" + c.ns)),
+    C("Namespace.remove", "Namespace.remove deleteContents", s_ns,
+      lambda c, **kw: Namespace(c.sub).remove(deleteContents=True)),
     C("ScalarGraph.sum", "ScalarGraph.sum container", s_graph,
       lambda c, **kw: c.graph.sum("add", c.plug, 1.0, **kw), fastSkip=_CONTAINER_FAST),
     C("ScalarGraph.sum", "ScalarGraph.sum createNode", s_graph_factory,

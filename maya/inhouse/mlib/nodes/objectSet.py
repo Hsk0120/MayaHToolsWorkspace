@@ -102,3 +102,143 @@ class ObjectSet(Node):
             if not members.hasItem(item):
                 return False
         return True
+
+    def clear(self):
+        """objectSetの直接メンバーをすべて外す(``cmds.sets(clear=set)``)。ノード自体は削除しない。
+
+        fast引数は持たない(:meth:`addMembers` と同じ理由)。Undo有効時は1回で戻せる。
+
+        Returns:
+            ObjectSet: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)、またはMayaが処理を拒否した場合。
+        """
+        self._require_valid("clear")
+        with undoChunk("mlibObjectSetClear"):
+            cmds.sets(clear=self.getName())
+            return self
+
+    def getUnion(self, other):
+        """このセットと別のセットの、どちらかの直接メンバーであるものを取得する。
+
+        入れ子のセットは展開しない。戻り値の形は :meth:`getMembers` と同じで、コンポーネントの範囲は
+        Mayaの選択リストの規則でまとめる。シーンは変更しない。
+
+        Args:
+            other (ObjectSet | str): 比べるobjectSet。
+
+        Returns:
+            list[Node | str]: 新しいリスト。
+
+        Raises:
+            TypeError: otherがobjectSetでない場合。
+            RuntimeError: どちらかのノードが無効(削除済み)の場合。
+        """
+        members = self._member_list()
+        members.merge(self._other_member_list(other))
+        return self._member_names(members)
+
+    def getIntersection(self, other):
+        """このセットと別のセットの、両方の直接メンバーであるものを取得する。
+
+        コンポーネントは要素単位で比べる(``cube.vtx[0:3]`` と ``cube.vtx[2:5]`` の共通は ``cube.vtx[2:3]``)。
+        入れ子のセットは展開しない。シーンは変更しない。
+
+        Args:
+            other (ObjectSet | str): 比べるobjectSet。
+
+        Returns:
+            list[Node | str]: 新しいリスト。形は :meth:`getMembers` と同じ。
+
+        Raises:
+            TypeError: otherがobjectSetでない場合。
+            RuntimeError: どちらかのノードが無効(削除済み)の場合。
+        """
+        members = self._member_list()
+        only_self = om2.MSelectionList(members)
+        only_self.merge(self._other_member_list(other), om2.MSelectionList.kRemoveFromList)
+        members.merge(only_self, om2.MSelectionList.kRemoveFromList)
+        return self._member_names(members)
+
+    def getDifference(self, other):
+        """このセットの直接メンバーのうち、別のセットの直接メンバーでないものを取得する。
+
+        コンポーネントは要素単位で除く。入れ子のセットは展開しない。シーンは変更しない。
+
+        Args:
+            other (ObjectSet | str): 除くメンバーを持つobjectSet。
+
+        Returns:
+            list[Node | str]: 新しいリスト。形は :meth:`getMembers` と同じ。
+
+        Raises:
+            TypeError: otherがobjectSetでない場合。
+            RuntimeError: どちらかのノードが無効(削除済み)の場合。
+        """
+        members = self._member_list()
+        members.merge(self._other_member_list(other), om2.MSelectionList.kRemoveFromList)
+        return self._member_names(members)
+
+    def isSubSet(self, other):
+        """このセットの直接メンバーがすべて、別のセットの直接メンバーに含まれるか判定する。
+
+        空のセットはどのセットにも含まれる(True)。入れ子のセットは展開しない。
+
+        Args:
+            other (ObjectSet | str): 含む側のobjectSet。
+
+        Returns:
+            bool: すべて含まれる場合はTrue。
+
+        Raises:
+            TypeError: otherがobjectSetでない場合。
+            RuntimeError: どちらかのノードが無効(削除済み)の場合。
+        """
+        members = self._member_list()
+        members.merge(self._other_member_list(other), om2.MSelectionList.kRemoveFromList)
+        return members.isEmpty()
+
+    def _member_list(self):
+        """直接メンバーの選択リストを返す。
+
+        Returns:
+            om2.MSelectionList: 新しい選択リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access members of")
+        return om2.MFnSet(self.mnode()).getMembers(False)
+
+    @staticmethod
+    def _other_member_list(other):
+        """比べる相手のobjectSetを解決し、直接メンバーの選択リストを返す。
+
+        Args:
+            other (ObjectSet | str): 比べるobjectSet。
+
+        Returns:
+            om2.MSelectionList: 新しい選択リスト。
+
+        Raises:
+            TypeError: otherがobjectSetでない場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        node = other if isinstance(other, Node) else Node(Object._input_name(other))
+        node._require_valid("access members of")
+        if not node.isType("objectSet"):
+            raise TypeError(f"Expected an objectSet, got {node.getType()}: {node.getName()}")
+        return om2.MFnSet(node.mnode()).getMembers(False)
+
+    @staticmethod
+    def _member_names(members):
+        """選択リストを :meth:`getMembers` と同じ形のリストへ変換する。
+
+        Args:
+            members (om2.MSelectionList): 変換する選択リスト。
+
+        Returns:
+            list[Node | str]: 名前にドットがあるものは文字列、それ以外はNode。
+        """
+        return [name if "." in name else Node(name) for name in members.getSelectionStrings()]

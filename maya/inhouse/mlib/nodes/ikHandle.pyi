@@ -2,10 +2,14 @@
 """Maya の IK ハンドルを Transform として扱う。"""
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+import maya.mel as mel
+from ..decorator import undoChunk
 from .node import Node
 from .transform import Transform
 from mlib.nodes.joint import Joint
 
+_SWITCHABLE_SOLVERS: tuple
 
 
 class IkHandle(Transform):
@@ -62,5 +66,51 @@ class IkHandle(Transform):
 
         Raises:
             RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def getSolver(self) -> str | None:
+        """ハンドルが使うIKソルバーの種類(``ikSolver`` の接続元ノードの型名)を取得する。
+
+        Returns:
+            str | None: ``"ikRPsolver"``・``"ikSCsolver"``・``"ikSplineSolver"``・``"ikSpringSolver"`` 等。
+                ソルバーが未接続ならNone。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def setSolver(self, solver: str) -> IkHandle:
+        """ハンドルのIKソルバーを切り替える(``cmds.ikHandle(edit=True, solver=...)`` 相当)。
+
+        ``ikSpringSolver`` はソルバーノードが無ければMaya標準の手続きで用意する(:func:`~mlib.cmds.createIkHandle`
+        と同じ)。ikSplineSolverへの切替え・ikSplineSolverからの切替えはカーブの扱いが変わるため受け付けない。
+        Undo有効時に1回のUndoで戻る(Mayaが新しく作ったソルバーノードはUndoしても残る)。
+
+        Args:
+            solver (str): ``"ikRPsolver"``・``"ikSCsolver"``・``"ikSpringSolver"`` のいずれか。
+
+        Returns:
+            IkHandle: 自身。
+
+        Raises:
+            TypeError: solverが文字列でない場合。
+            ValueError: solverが対応外、またはハンドルがikSplineSolverを使っている場合。
+            RuntimeError: ノードが無効、またはMayaが切替えを拒否した場合。
+        """
+        ...
+    def snapToEffector(self) -> IkHandle:
+        """ハンドルをエフェクターの位置へ移す(IK Handle の Snap Handle to Effector と同じ操作)。
+
+        エフェクターの回転ピボットのワールド位置へ、ハンドルの回転ピボットが重なるようtranslateを書き換える
+        (:meth:`~mlib.nodes.transform.Transform.setTranslation` の ``worldSpace=True``)。
+        IKとFKを切り替えるときに、FKで動かしたチェーンの先端へハンドルを合わせる用途に使う。
+        ``cmds.ikHandle(edit=True, snapHandleToEffector=True)`` は ``snapEnable`` が無効のハンドルを動かさないため使わない。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Returns:
+            IkHandle: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、エフェクターが未接続、またはtranslateがロック・入力接続で書き込めない場合。
         """
         ...

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..decorator import undoChunk
+from ..decorator import _require_bool, undoChunk
 
 
 class Namespace:
@@ -135,21 +135,48 @@ class Namespace:
         parent_name = self._name.rsplit(":", 1)[0] or ":"
         return Namespace(parent_name)
 
-    def getChildren(self):
-        """直下の子Namespaceを取得する。
+    def getShortName(self):
+        """末端の名前(``:a:b`` なら ``b``)を返す。
 
         Returns:
-            list[Namespace]: 直下の子。自身が存在しない場合は空リスト。
+            str: 区切りの ``:`` を含まない最後の階層名。ルートでは ``":"``。
         """
+        if self._name == ":":
+            return ":"
+        return self._name.rsplit(":", 1)[-1]
+
+    def split(self):
+        """階層ごとの名前のリスト(``:a:b`` なら ``["a", "b"]``)を返す。
+
+        Returns:
+            list[str]: 上位から順の階層名。ルートでは空リスト。
+        """
+        if self._name == ":":
+            return []
+        return self._name[1:].split(":")
+
+    def getChildren(self, recurse=False):
+        """子Namespaceを取得する。
+
+        Args:
+            recurse (bool): ``True`` の場合は孫以下の子孫も含める(親が子より先に並ぶ)。既定は直下だけ。
+
+        Returns:
+            list[Namespace]: 子(recurse=Trueは子孫)。自身が存在しない場合は空リスト。
+
+        Raises:
+            TypeError: recurse が bool 以外の場合。
+        """
+        _require_bool(recurse, "recurse")
         if not self.exists():
             return []
-        names = om2.MNamespace.getNamespaces(self._name, False) or []
+        names = om2.MNamespace.getNamespaces(self._name, recurse) or []
         children = []
         prefix = self._name if self._name.endswith(":") else self._name + ":"
         for name in names:
             absolute_name = name if name.startswith(":") else prefix + name
             child = Namespace(absolute_name)
-            if child.getParent() == self:
+            if recurse or child.getParent() == self:
                 children.append(child)
         return children
 
@@ -171,6 +198,31 @@ class Namespace:
         mobjects = om2.MNamespace.getNamespaceObjects(self._name, recurse) or []
         # Node(mobject)と同じ解決(DAGは最初のパス)・型選択を、生成の入口の再判定なしで行う。
         return [Node._from_name(mobject) for mobject in mobjects]
+
+    def getNode(self, name):
+        """名前空間を付けた名前でノードを取得する(``Namespace(":char").getNode("root")`` は ``char:root``)。
+
+        Args:
+            name (str): 名前空間を除いたノード名。DAGパスは各階層に名前空間が要るため、
+                ``"grp|char:child"`` のように2階層目以降は名前空間を付けて渡す。
+
+        Returns:
+            Node: 実際のノード型に対応するラッパー。
+
+        Raises:
+            TypeError: name が文字列以外の場合。
+            ValueError: name が空文字列の場合。
+            RuntimeError: ノードが存在しない、または一意でない場合。
+        """
+        if not isinstance(name, str):
+            raise TypeError("name must be a str")
+        if not name:
+            raise ValueError("name must be a non-empty string")
+        # nodes.nodeもcommon.namespaceを参照するため、循環回避のためここで遅延 import する。
+        from ..nodes.node import Node
+
+        full_name = self._name.rstrip(":") + ":" + name
+        return Node._from_name(full_name)
 
     def setCurrent(self):
         """カレントNamespaceを自身へ切り替える。
@@ -264,25 +316,38 @@ class Namespace:
             self._name = target.name
             return self
 
-    def remove(self, destination=":"):
-        """内容を移動してNamespaceを削除する。
+    def remove(self, destination=":", *, deleteContents=False):
+        """内容を移動してNamespaceを削除する。``deleteContents=True`` は内容ごと削除する。
 
         名前が衝突するノードは、移動時にMayaの規則(cmdsのforce移動)で末尾に番号を付けて改名する。
+        ``deleteContents=True`` は ``cmds.namespace(removeNamespace=..., deleteNamespaceContent=True)`` と同じで、
+        名前空間内のノードと子Namespaceを削除する(読み込んだアセットの後始末)。名前空間外の子孫も、
+        親のDAGノードと一緒に削除される。
         cmdsでUndo有効時に一つのチャンクへ記録する。fast引数は持たない。
 
         Args:
             destination (str | Namespace): 内容を移動する既存の名前空間。既定はルート。
+                deleteContents=True では使わない。
+            deleteContents (bool): True なら内容を移動せず削除する。既定 False。
 
         Returns:
-            Namespace: 内容を受け取った移動先。自身の保持名は削除前のまま。
+            Namespace | None: 内容を受け取った移動先。deleteContents=True では ``None``。
+                自身の保持名は削除前のまま。
 
         Raises:
+            TypeError: deleteContents が bool 以外の場合。
             ValueError: ルートの削除、または destination が不正な場合。
-            RuntimeError: 移動先が存在しない、または Maya 操作が失敗した場合。
+            RuntimeError: 自身・移動先が存在しない、または Maya 操作が失敗した場合。
         """
+        _require_bool(deleteContents, "deleteContents")
         with undoChunk("mlibNamespaceRemove"):
             if self._name == ":":
                 raise ValueError("root namespace cannot be removed")
+            if deleteContents:
+                if not self.exists():
+                    raise RuntimeError(f"Namespace does not exist: {self._name}")
+                cmds.namespace(removeNamespace=self._name, deleteNamespaceContent=True)
+                return None
             destination_namespace = Namespace(destination)
             if not destination_namespace.exists():
                 raise RuntimeError(f"Namespace does not exist: {destination_namespace.name}")

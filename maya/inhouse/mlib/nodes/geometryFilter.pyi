@@ -35,6 +35,20 @@ class GeometryFilter(Node):
             list[Node]: 変形する形状。無ければ空リスト。
         """
         ...
+    def getInputGeometry(self) -> list[Node]:
+        """このデフォーマーへ入る変形前の形状(入力ジオメトリ)を取得する。
+
+        ``input[].inputGeometry`` の上流をたどった形状を、``input`` の番号順に返す
+        (``MFnGeometryFilter.getInputGeometry`` 相当)。変形の前段に別のデフォーマーがあっても、
+        その先の形状(``Orig`` の中間形状など)を返す。
+
+        Returns:
+            list[Node]: 入力側の形状。無ければ空リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        ...
     def getDeformerWeights(self, geometryIndex: int = ...) -> list[float]:
         """頂点ごとのデフォーマーのウェイトを取得する。
 

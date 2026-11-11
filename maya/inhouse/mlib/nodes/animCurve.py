@@ -177,6 +177,27 @@ class AnimCurve(Node):
             return _from_seconds(result.value / om2.MTime.ticksPerSecond(), output_unit)
         return _from_seconds(_from_radians(self._api_number(result), angle_unit), output_unit)
 
+    def findClosestIndex(self, input, *, timeUnit="frame"):
+        """指定した入力に最も近いキーの番号を返す(``MFnAnimCurve.findClosest``)。
+
+        Args:
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+            timeUnit (str): T型入力のinputの単位。``"frame"`` / ``"sec"``。
+
+        Returns:
+            int: 0始まりのキー番号。等距離のキーが2つある場合はMayaの判定に従う。
+
+        Raises:
+            TypeError: inputが数値へ変換できない型、またはtimeUnitが文字列・None以外の場合。
+            ValueError: inputが非有限値、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効(削除済み)、またはキーの無いカーブの場合。
+        """
+        input_unit = self._input_time_unit(timeUnit)
+        fn = self._curve_fn()
+        if not fn.numKeys:
+            raise RuntimeError("Cannot find a key on an empty curve")
+        return int(fn.findClosest(self._api_input(_to_seconds(self._finite(input), input_unit))))
+
     def setKey(self, input, value, inTangentType=None, outTangentType=None, *, unit="deg", timeUnit="frame",
                fast=False):
         """キーを追加する。同じ入力位置にキーがあれば値と、指定した接線型を更新する。
@@ -246,6 +267,33 @@ class AnimCurve(Node):
             if outTangentType is not None:
                 flags["outTangentType"] = outTangentType
             cmds.setKeyframe(self.getFullName(), value=value, **flags)
+            return self
+
+    def insertKey(self, input, *, timeUnit="frame"):
+        """カーブの形を変えずにキーを挿入する(``setKeyframe -insert``)。
+
+        値と接線はMayaがその位置のカーブから決めるため、挿入の前後で評価値は変わらない。
+        同じ入力位置に既にキーがあれば何もしない。fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Args:
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+            timeUnit (str): T型入力のinputの単位。``"frame"`` / ``"sec"``。
+
+        Returns:
+            AnimCurve: 自身。挿入したキーの番号は :meth:`findClosestIndex` で取得できる。
+
+        Raises:
+            TypeError: inputが数値へ変換できない型、またはtimeUnitが文字列・None以外の場合。
+            ValueError: inputが非有限値、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効(削除済み)、キーの無いカーブ、またはMayaが挿入を拒否した場合。
+        """
+        input_unit = self._input_time_unit(timeUnit)
+        position = _to_seconds(self._finite(input), input_unit)
+        if not self.getKeyCount():
+            raise RuntimeError("Cannot insert a key into an empty curve; use setKey")
+        with undoChunk("mlibAnimCurveInsertKey"):
+            flags = {"time" if self.isTimeInput() else "float": self._unit_value(position)}
+            cmds.setKeyframe(self.getFullName(), insert=True, **flags)
             return self
 
     def removeKey(self, index=None, *, time=None, timeUnit="frame", keepCurve=True, fast=False):
@@ -489,6 +537,50 @@ class AnimCurve(Node):
                     plug._require_writable()
             for plug, value in targets:
                 plug.set(value, fast=fast)
+            return self
+
+    def isBreakdown(self, index):
+        """指定キーがブレイクダウンキーか判定する(``keyframe -q -breakdown``)。
+
+        Args:
+            index (int): 0始まりの既存キー番号。
+
+        Returns:
+            bool: ブレイクダウンキーならTrue。
+
+        Raises:
+            IndexError: bool、非int、負値、またはキー数以上の番号の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._index(index)
+        return bool(self._curve_fn().isBreakdown(index))
+
+    def setBreakdown(self, index, state=True):
+        """指定キーをブレイクダウンキーにする、または通常のキーへ戻す(``keyframe -e -breakdown``)。
+
+        ブレイクダウンキーは前後のキーとの時間の比率を保って動く。値と入力は変更しない。
+        fast引数は持たない(キーごとの1回の編集で、OpenMayaで書いても速くならないため)。Undo有効時は1回で戻せる。
+
+        Args:
+            index (int | Sequence[int]): 0始まりのキー番号、またはその並び。
+            state (bool): Trueはブレイクダウンキー、Falseは通常のキー。既定True。
+
+        Returns:
+            AnimCurve: 自身。
+
+        Raises:
+            TypeError: stateがbool以外、またはindexがNoneの場合。
+            IndexError: indexが範囲外の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        _require_bool(state, "state")
+        if index is None:
+            raise TypeError("index must be a key index or a sequence of key indices")
+        self._require_valid("set keys on")
+        ranges = self._key_ranges(index, None, "frame")
+        with undoChunk("mlibAnimCurveSetBreakdown"):
+            if ranges:
+                cmds.keyframe(self.getFullName(), edit=True, animation="objects", index=ranges, breakdown=state)
             return self
 
     def moveKey(self, index=None, *, time=None, timeOffset=0, valueOffset=0, unit="deg", timeUnit="frame"):

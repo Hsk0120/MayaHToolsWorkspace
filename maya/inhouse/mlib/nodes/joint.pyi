@@ -6,7 +6,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, List
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..core.fastWrite import set_attr
+from ..core.fastWrite import require_writable, set_attr
 from ..core.nodeEdit import check_deletion, delete_nodes
 from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale, Vector
@@ -25,6 +25,8 @@ from mlib.nodes.constraint import Constraint
 from mlib.nodes.dagNode import DagNode
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.ikHandle import IkHandle
+from mlib.nodes.objectSet import ObjectSet
+from mlib.nodes.reference import Reference
 from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.nodes.shape import Shape
 from mlib.nodes.skinCluster import SkinCluster
@@ -352,6 +354,53 @@ class Joint(Transform):
             TypeError: valueが3つの数値の列・None以外、またはunitが文字列・None以外の場合。
             ValueError: valueの成分数が3でない・有限でない、またはunitが未対応の単位名の場合。
             RuntimeError: jointが無効、またはpreferredAngleがロック・入力接続で書き込めない場合。
+        """
+        ...
+    def assumePreferredAngles(self, children: bool = ...) -> Joint:
+        """rotateをpreferredAngleの値へ戻す。
+
+        Skeleton > Assume Preferred Angle、``cmds.joint(edit=True, assumePreferredAngles=True)`` と同じ。
+
+        Args:
+            children (bool): Trueは子孫のjointにも適用する。Falseは自身だけ。既定True。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: childrenがbool以外の場合。
+            RuntimeError: jointが無効、またはMayaが書込みを拒否した場合。
+
+        Note:
+            Undo有効時に1回のUndoで戻る。rotateがロック・入力接続されたjointの扱いはMayaに従う。
+        """
+        ...
+    def getDegreesOfFreedom(self) -> str:
+        """回転できる軸(jointTypeX/Y/Z が有効な軸)を取得する。
+
+        Returns:
+            str: ``"xyz"`` の部分列(XYZの順)。全軸が固定なら空文字列。
+
+        Raises:
+            RuntimeError: jointが無効な場合。
+        """
+        ...
+    def setDegreesOfFreedom(self, axes: str) -> Joint:
+        """回転できる軸(jointTypeX/Y/Z)を設定する。指定しない軸は固定する。
+
+        Args:
+            axes (str): ``"xyz"``・``"xz"`` 等の軸名の並び(順不同、大文字小文字を問わない)。空文字列は全軸を固定する。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: axesが文字列でない場合。
+            ValueError: x・y・z以外の文字、または同じ軸を重ねて含む場合。
+            RuntimeError: jointが無効、またはjointTypeがロック・入力接続で書き込めない場合。
+
+        Note:
+            Undo有効時に1回のUndoで戻る。fast引数は持たない。
         """
         ...
     def getInverseScale(self) -> Scale:
@@ -857,6 +906,15 @@ class Joints(Nodes[Joint]):
     def setPreferredAngle(self, value: Sequence[float] | None = ..., *, unit: str = ...) -> list[Joint]:
         """各要素の :meth:`~mlib.nodes.joint.Joint.setPreferredAngle` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def assumePreferredAngles(self, children: bool = ...) -> list[Joint]:
+        """各要素の :meth:`~mlib.nodes.joint.Joint.assumePreferredAngles` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getDegreesOfFreedom(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.joint.Joint.getDegreesOfFreedom` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setDegreesOfFreedom(self, axes: str) -> list[Joint]:
+        """各要素の :meth:`~mlib.nodes.joint.Joint.setDegreesOfFreedom` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getInverseScale(self) -> list[Scale]:
         """各要素の :meth:`~mlib.nodes.joint.Joint.getInverseScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -913,6 +971,12 @@ class Joints(Nodes[Joint]):
         ...
     def centerPivot(self, *, fast: bool = ...) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.centerPivot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def zeroTransformPivots(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.zeroTransformPivots` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def ungroup(self, *, world: bool = ...) -> list[list[Transform]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.ungroup` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[list[DagNode]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getChildren` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -971,11 +1035,17 @@ class Joints(Nodes[Joint]):
     def setTranslation(self, value: Iterable[float], worldSpace: bool = ..., at: int = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setTranslation` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def translateBy(self, value: Iterable[float], worldSpace: bool = ..., *, ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.translateBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., ws: bool = ...) -> list[EulerRotate]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def setRotate(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def rotateBy(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., *, unit: str = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.rotateBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getRotateOrder(self) -> list[str]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -988,6 +1058,9 @@ class Joints(Nodes[Joint]):
         ...
     def setScale(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def scaleBy(self, value: float | Iterable[float]) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.scaleBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getShear(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Shear]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -1019,6 +1092,9 @@ class Joints(Nodes[Joint]):
     def getClosestAxisToVector(self, refVector: Vector | Iterable[float], includeNegative: bool = ...) -> list[str]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getClosestAxisToVector` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getLimits(self, *, unit: str = ...) -> list[dict[str, tuple[float | None, float | None]]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getLimits` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setLimits` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -1031,17 +1107,29 @@ class Joints(Nodes[Joint]):
     def getRoot(self) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getRoot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getCommonAncestor(self, other: DagNode | str | om2.MObject | om2.MDagPath) -> list[DagNode | None]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getCommonAncestor` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getSiblings(self) -> list[list[DagNode]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getSiblings` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getBoundingBox(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[om2.MBoundingBox]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBoundingBox` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getBoundingBoxCorners(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[list[Vector]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBoundingBoxCorners` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def isIntermediateObject(self) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isIntermediateObject` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getInstances(self, noSelf: bool = ...) -> list[list[DagNode]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getInstances` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isInstanced(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isInstanced` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getInstanceIndex(self) -> list[int]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getInstanceIndex` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getParents(self, indirect: bool = ...) -> list[list[Transform]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getParents` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -1111,6 +1199,15 @@ class Joints(Nodes[Joint]):
         ...
     def isFromReferencedFile(self) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isFromReferencedFile` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getReference(self) -> list[Reference | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getReference` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isDefaultNode(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isDefaultNode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getSets(self, type: str | None = ...) -> list[list[ObjectSet]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getSets` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def isAncestorOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isAncestorOf` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

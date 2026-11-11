@@ -9,8 +9,11 @@ from ..components.component import Component, Components
 from ..components.cv import CV, CVs
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
+from ..components.latticePoint import LatticePoint, LatticePoints
+from ..components.surfaceCV import SurfaceCV, SurfaceCVs
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
+from ..components.vertexFace import VertexFace, VertexFaces
 from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node

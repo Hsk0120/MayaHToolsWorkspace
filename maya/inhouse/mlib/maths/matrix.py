@@ -4,7 +4,7 @@ from operator import index as _as_index
 
 import maya.api.OpenMaya as om2
 
-from ..util import _checked_index, _copy_state, _finite, _finite_vector, _foreign_comparison
+from ..util import _checked_index, _checked_tolerance, _copy_state, _finite, _finite_vector, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
@@ -1073,6 +1073,97 @@ class Matrix(om2.MMatrix):
             "shear": _vector_of(Shear, tm.shear(_K_TRANSFORM)),
         }
 
+    def getAxis(self, axis="x"):
+        """3x3部分の行(X・Y・Z軸の向きと長さ)を Vector で取得する。
+
+        Mayaの行ベクトル規約で、行0〜2がローカルのX・Y・Z軸をこのマトリクスで変換した向き(スケールを含む)。
+        ``"-y"`` のように負の軸を指定すると、その行の符号を反転した向きを返す。
+
+        Args:
+            axis (str | int): ``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"`` (:meth:`Vector.fromAxis
+                <mlib.maths.vector.Vector.fromAxis>` と同じ名前)、または行の番号 0〜2。
+
+        Returns:
+            Vector: 新しい軸のベクトル。正規化しない(長さはその軸のスケール)。
+
+        Raises:
+            TypeError: axisが文字列・int以外(boolを含む)の場合。
+            ValueError: axisが軸の名前でない、または番号が0〜2でない場合。
+        """
+        if isinstance(axis, str):
+            index, sign = _axis_name(axis, "axis")
+        elif isinstance(axis, bool) or not isinstance(axis, int):
+            raise TypeError("axis must be a str such as 'x' or '-y', or an int from 0 to 2")
+        elif 0 <= axis <= 2:
+            index, sign = axis, 1.0
+        else:
+            raise ValueError(f"axis must be 0, 1 or 2 (got {axis!r})")
+        result = _zero(Vector)
+        result.x = _GET(self, index * 4) * sign
+        result.y = _GET(self, index * 4 + 1) * sign
+        result.z = _GET(self, index * 4 + 2) * sign
+        return result
+
+    def getAxes(self):
+        """3x3部分の3行(X・Y・Z軸)を Vector で取得する。
+
+        Returns:
+            tuple[Vector, Vector, Vector]: :meth:`getAxis` の ``"x"``・``"y"``・``"z"`` と同じ新しい値。
+        """
+        return self.getAxis(0), self.getAxis(1), self.getAxis(2)
+
+    def asTranslateMatrix(self):
+        """平行移動(番号12〜14)だけを持つマトリクスを返す。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。3x3部分は単位マトリクス。
+        """
+        result = _new(type(self))
+        _SET(result, 12, _GET(self, 12))
+        _SET(result, 13, _GET(self, 13))
+        _SET(result, 14, _GET(self, 14))
+        return result
+
+    def asRotateMatrix(self):
+        """回転だけを持つマトリクスを返す(スケール・シアー・平行移動を除く)。
+
+        :attr:`quaternion` と同じMTransformationMatrixの規約で分解する(行列式が負なら、Zスケールの負と
+        180度の補償回転として分ける)。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しい正規直交のマトリクス。
+
+        Raises:
+            ValueError: 分解できない場合(いずれかのスケール軸がゼロなど)。
+        """
+        return type(self)._wrap(_MQuaternion.asMatrix(self._checked_transformation().rotation(asQuaternion=True)))
+
+    def asScaleMatrix(self):
+        """スケールとシアーだけを持つマトリクスを返す(回転・平行移動を除く)。
+
+        ``asScaleMatrix() * asRotateMatrix() * asTranslateMatrix()`` が自身(誤差の範囲)になる。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。
+
+        Raises:
+            ValueError: 分解できない場合(いずれかのスケール軸がゼロなど)。
+        """
+        tm = self._checked_transformation()
+        return _compose_into(_new(type(self)), None, None, tuple(tm.scale(_K_TRANSFORM)), tuple(tm.shear(_K_TRANSFORM)))
+
+    def as3x3(self):
+        """3x3部分(回転・スケール・シアー)だけを残し、平行移動と4列目を単位マトリクスの値にしたマトリクスを返す。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。分解は行わないため、ゼロスケールでも使える。
+        """
+        result = _new(type(self))
+        for row in range(3):
+            for column in range(3):
+                _SET(result, row * 4 + column, _GET(self, row * 4 + column))
+        return result
+
     def isEquivalent(self, other, tolerance=1e-10):
         """許容誤差付きでほぼ等しいか判定する。
 
@@ -1088,6 +1179,46 @@ class Matrix(om2.MMatrix):
         if not isinstance(other, _MMatrix):
             other = Matrix(other)
         return _MMatrix.isEquivalent(self, other, tolerance)
+
+    def isIdentity(self, tolerance=1e-10):
+        """許容誤差付きで単位マトリクスか判定する。
+
+        Args:
+            tolerance (float): 各成分の差の許容誤差。0以上。
+
+        Returns:
+            bool: 全16成分と単位マトリクスの差が tolerance 以下ならTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        limit = _checked_tolerance(tolerance)
+        return all(abs(_GET(self, index) - (1.0 if index % 5 == 0 else 0.0)) <= limit for index in range(16))
+
+    def hasNonUniformScale(self, tolerance=1e-10):
+        """XYZで違うスケール、またはシアーを含むか判定する。
+
+        MTransformationMatrixの規約で分解し、スケールの絶対値の差かシアーの成分が tolerance を超えれば
+        True。負の行列式(鏡映)はZスケールの符号になるため、絶対値で比べて一様とみなす。
+        ジョイント・コンストレイントの計算が崩れる非一様スケールの検査に使う。
+
+        Args:
+            tolerance (float): スケールの差・シアーの許容誤差。0以上。
+
+        Returns:
+            bool: 非一様スケールかシアーがあればTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない、または分解できない場合(いずれかのスケール軸がゼロなど)。
+        """
+        limit = _checked_tolerance(tolerance)
+        tm = self._checked_transformation()
+        scale = [abs(value) for value in tm.scale(_K_TRANSFORM)]
+        if any(abs(value) > limit for value in tm.shear(_K_TRANSFORM)):
+            return True
+        return max(scale) - min(scale) > limit
 
     def inverse(self):
         """OpenMayaの特異性判定を通過したマトリクスから、独立した逆マトリクスを作る。
@@ -1113,6 +1244,15 @@ class Matrix(om2.MMatrix):
             Matrix: 自身と同じクラスの転置マトリクス。
         """
         return type(self)._wrap(_MMatrix.transpose(self))
+
+    def transposeIt(self):
+        """自身を転置する。
+
+        Returns:
+            Matrix: 更新した自身。
+        """
+        _assign(self, _MMatrix.transpose(self))
+        return self
 
     def blend(self, other, weight):
         """別のマトリクスとの間を成分ごとに補間した新しいマトリクスを返す。
@@ -1273,6 +1413,30 @@ class Matrix(om2.MMatrix):
             Matrix: 演算結果を保持する新しいmlib値。
         """
         return Matrix._wrap(_MMatrix.adjoint(self, *args))
+
+    def cofactor(self, row, column):
+        """4x4マトリクスの指定位置の余因子(その行・列を除いた3x3の行列式に符号を付けた値)を返す。
+
+        :meth:`adjoint` (随伴マトリクス)は余因子を転置して並べたもので、``adjoint()[column, row]`` と等しい。
+
+        Args:
+            row (int): 行の番号(-4〜3)。
+            column (int): 列の番号(-4〜3)。
+
+        Returns:
+            float: 余因子。
+
+        Raises:
+            TypeError: 行・列が整数として扱えない場合。
+            IndexError: 行・列が範囲外の場合。
+        """
+        index = _flat_index((row, column))
+        row, column = divmod(index, 4)
+        rows = [r for r in range(4) if r != row]
+        columns = [c for c in range(4) if c != column]
+        (a, b, c), (d, e, f), (g, h, i) = ([_GET(self, r * 4 + k) for k in columns] for r in rows)
+        minor = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
+        return -minor if (row + column) % 2 else minor
 
     def homogenize(self, *args):
         """同次座標を正規化した、新しいMatrixを返す。

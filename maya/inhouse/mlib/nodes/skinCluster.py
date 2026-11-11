@@ -404,6 +404,48 @@ class SkinCluster(GeometryFilter):
             pose.restore(worldSpace=ws)
             return self
 
+    def recacheBindMatrices(self):
+        """influenceの現在の姿勢をバインド時のマトリクスとして取り込み直す(``skinCluster -e -recacheBindMatrices``)。
+
+        Mayaがキャッシュしているバインド時のマトリクスを、``bindPreMatrix`` から読み直させる。
+        ``bindPreMatrix`` を書き換えた後や、influenceの姿勢を変えてから基準を取り直すときに使う。
+        ウェイトは変更しない。fast引数は持たない(OpenMayaに同等の機能が無いため)。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)、またはMayaが処理を拒否した場合。
+        """
+        self._require_valid("recache bind matrices of")
+        with undoChunk("mlibSkinClusterRecacheBindMatrices"):
+            cmds.skinCluster(self.getFullName(), edit=True, recacheBindMatrices=True)
+            return self
+
+    def unbind(self, keepHistory=False):
+        """形状からスキンを外す(``skinCluster -e -unbind`` / ``-unbindKeepHistory``)。
+
+        Mayaの Unbind Skin と同じく、形状をバインド時の形に戻す。``keepHistory=False`` はskinClusterを
+        削除し、この参照は無効になる。``keepHistory=True`` はskinClusterとウェイト・接続を形状の履歴に残し、
+        ``nodeState`` を HasNoEffect(1)にして変形を止める(バインドポーズはどちらも削除される)。
+        fast引数は持たない(OpenMayaに同等の機能が無いため)。Undo有効時は1回で戻せる。
+
+        Args:
+            keepHistory (bool): TrueはskinClusterのノードとウェイトを履歴に残す。既定False。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keepHistoryがbool以外の場合。
+            RuntimeError: ノードが無効(削除済み)、またはMayaが処理を拒否した場合。
+        """
+        _require_bool(keepHistory, "keepHistory")
+        self._require_valid("unbind")
+        flag = "unbindKeepHistory" if keepHistory else "unbind"
+        with undoChunk("mlibSkinClusterUnbind"):
+            cmds.skinCluster(self.getFullName(), edit=True, **{flag: True})
+
     def getUnusedInfluences(self):
         """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
 
@@ -493,6 +535,52 @@ class SkinCluster(GeometryFilter):
             self._path_uuid(path) == uuid
             for path in self._skin_fn.influenceObjects()
         )
+
+    def getInfluenceVertices(self, influence, threshold=0.0):
+        """influenceがウェイトを持つ先頭Meshの頂点を取得する(Select Influence Vertices 相当)。
+
+        ``MFnSkinCluster.getPointsAffectedByInfluence`` の結果から、ウェイトが ``threshold`` より大きい
+        頂点を番号の昇順で返す。シーンと選択は変更しない。
+
+        Args:
+            influence (str | Node): 登録済みinfluence。1つだけ指定する。
+            threshold (float): 0以上の有限な閾値。この値より大きいウェイトの頂点だけを返す。既定0.0
+                (0でないウェイトの頂点すべて)。boolは不可。
+
+        Returns:
+            Vertices: 先頭Meshの頂点。該当が無ければ空。
+
+        Raises:
+            TypeError: thresholdが数値でない、またはinfluenceに頂点・アトリビュートを渡した場合。
+            ValueError: thresholdが負・非有限、またはinfluenceが未登録・1つでない場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        # componentsはnodesを読み込むため、循環importを避けて使う時点で読み込む。
+        from ..components.vertex import Vertices
+
+        self._require_valid("access")
+        if isinstance(threshold, bool) or not isinstance(threshold, (int, float)):
+            raise TypeError(f"threshold must be a number, got {type(threshold).__name__}")
+        threshold = float(threshold)
+        if not math.isfinite(threshold) or threshold < 0.0:
+            raise ValueError(f"threshold must be a finite non-negative number, got {threshold}")
+        physical = self._require_influences(influence)
+        if len(physical) != 1:
+            raise ValueError(f"Expected a single influence, got {len(physical)}")
+        path = self._skin_fn.influenceObjects()[physical[0]]
+        selection, weights = self._skin_fn.getPointsAffectedByInfluence(path)
+        mesh = self._mesh_node()
+        indices = set()
+        position = 0
+        for item in range(selection.length()):
+            dag_path, component = selection.getComponent(item)
+            elements = om2.MFnSingleIndexedComponent(component).getElements() if not component.isNull() else []
+            for element in elements:
+                # 重みの配列は全形状の要素を選択リストの順に並べたものなので、先頭Mesh以外も位置を進める。
+                if dag_path.node() == mesh and weights[position] > threshold:
+                    indices.add(element)
+                position += 1
+        return Vertices(Node._wrap_dag_path(self.mesh_path), sorted(indices))
 
     def getLockedInfluences(self):
         """ウェイトをロック(lockInfluenceWeights)しているinfluenceを取得する。
@@ -750,6 +838,99 @@ class SkinCluster(GeometryFilter):
             index = self._single_vertex_index(vertex)
             self.setWeights(list(weights.keys()), list(weights.values()), vertices=[index],
                             normalize=normalize, fast=fast)
+            return self
+
+    def getBlendWeights(self, *, vertices=None):
+        """先頭Meshの頂点ごとのDQブレンドウェイト(``blendWeights``)を取得する。
+
+        スキニングの方法が ``"weightBlended"`` のとき、頂点ごとにクラシックリニア(0)とデュアルクォータニオン(1)を
+        混ぜる割合。値が書かれていない頂点はMayaの既定どおり0.0。
+
+        Args:
+            vertices (Vertex | Vertices | int | str | Iterable | None): 取得する頂点。Noneは全頂点。
+                指定の規則は :meth:`getWeights` と同じ。
+
+        Returns:
+            list[float]: 指定順(Noneは番号順)の値。変更してもシーンへ反映されない。
+
+        Raises:
+            TypeError: 頂点の入力型が不正な場合。
+            ValueError: 頂点が重複・別の形状の場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access")
+        vertex_indices = self._vertex_indices(vertices)
+        if vertex_indices is None:
+            vertex_indices = list(range(om2.MFnMesh(self.mesh_path).numVertices))
+        if not vertex_indices:
+            return []
+        # 照会は番号の昇順の成分で行い、指定順へ並べ直す。
+        ordered = sorted(vertex_indices)
+        component_fn = om2.MFnSingleIndexedComponent()
+        component = component_fn.create(om2.MFn.kMeshVertComponent)
+        component_fn.addElements(ordered)
+        values = dict(zip(ordered, self._skin_fn.getBlendWeights(self.mesh_path, component)))
+        return [values[index] for index in vertex_indices]
+
+    def setBlendWeights(self, weights, *, vertices=None, fast=False):
+        """先頭Meshの頂点ごとのDQブレンドウェイト(``blendWeights``)を設定する。
+
+        通常は連続する頂点番号ごとに範囲指定の ``cmds.setAttr`` で書き、Undo有効時は1回で戻せる。
+        ``fast=True`` は全対象の書込み可否を先に調べてから ``MFnSkinCluster.setBlendWeights`` で書き、
+        Undoに記録しない。スキニングの方法(:meth:`setSkinningMethod`)は変更しない。
+
+        Args:
+            weights (Iterable[float]): 対象頂点と同じ数の、0以上1以下の値。verticesの指定順に対応する。
+            vertices (Vertex | Vertices | int | str | Iterable | None): 書き込む頂点。Noneは全頂点(番号順)。
+                指定の規則は :meth:`setWeights` と同じ。空は何もしない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: weightsが数値の並びでない、頂点の入力型が不正、またはfastがbool以外の場合。
+            ValueError: 値の数が頂点数と違う、値が0〜1の有限値でない、または頂点が重複・別の形状の場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: ノードが無効、blendWeightsがロック・入力接続されている、またはMayaが設定を拒否した場合。
+        """
+        with _edit_context("mlibSkinClusterSetBlendWeights", fast):
+            self._require_valid("set blend weights on")
+            vertex_indices = self._vertex_indices(vertices)
+            if vertex_indices is None:
+                vertex_indices = list(range(om2.MFnMesh(self.mesh_path).numVertices))
+            if isinstance(weights, (str, bytes)):
+                raise TypeError("weights must be a sequence of numbers, not a string")
+            try:
+                values = list(weights)
+            except TypeError:
+                raise TypeError(f"weights must be a sequence of numbers, got {type(weights).__name__}") from None
+            if len(values) != len(vertex_indices):
+                raise ValueError(f"Expected {len(vertex_indices)} blend weights, got {len(values)}")
+            for value in values:
+                if isinstance(value, bool) or not isinstance(value, (int, float)):
+                    raise TypeError(f"Blend weights must be numbers, got {type(value).__name__}")
+                if not (math.isfinite(value) and 0.0 <= value <= 1.0):
+                    raise ValueError(f"Blend weights must be finite values from 0 to 1, got {value}")
+            if not vertex_indices:
+                return self
+            if fast:
+                array = self._dependency_fn().findPlug("blendWeights", False)
+                require_writable(array)
+                for index in vertex_indices:
+                    require_writable(array.elementByLogicalIndex(index))
+                pairs = sorted(zip(vertex_indices, values))
+                component_fn = om2.MFnSingleIndexedComponent()
+                component = component_fn.create(om2.MFn.kMeshVertComponent)
+                component_fn.addElements([index for index, _ in pairs])
+                self._skin_fn.setBlendWeights(self.mesh_path, component,
+                                              om2.MDoubleArray([float(value) for _, value in pairs]))
+                return self
+            name = self.getFullName()
+            for start, first, count in self._consecutive_runs(vertex_indices):
+                set_attr(f"{name}.blendWeights[{first}:{first + count - 1}]",
+                         *(float(value) for value in values[start:start + count]))
             return self
 
     def getWeightsData(self):

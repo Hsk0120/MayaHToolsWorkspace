@@ -4,15 +4,18 @@ import math
 import numbers
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 
 from ..core import geometryEdit as geometry_edit
+from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..maths.vector import _vectors_of_points
 from ..util import _UNSET, _finite, _world_space, mirrorArguments
 from .component import Component, Components
 
 
 class PointComponent(Component):
-    """Shape参照と頂点/CV番号を保持し、現在のXYZ座標を照会・編集する。
+    """Shape参照と頂点/CV/ラティス点の番号を保持し、現在のXYZ座標を照会・編集する。
 
     座標をキャッシュせず、取得ごとにMayaへ問い合わせる。XYZの距離単位はcmで、
     既定はShapeのオブジェクト空間。ワールド空間では保持ShapeのDAGパスを使う。
@@ -41,7 +44,7 @@ class PointComponent(Component):
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         self._require_valid()
-        return geometry_edit.vectors(self.shape, [self.index], ws)[0]
+        return _vectors(self.shape, [self.index], ws)[0]
 
     def setPosition(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """頂点/CVへcm単位の絶対XYZ座標を設定する。移動量ではない。
@@ -215,7 +218,7 @@ class PointComponent(Component):
         ws = _world_space(worldSpace)
         delta = _point_value(offset)
         self._require_valid()
-        point = geometry_edit.positions(self.shape, [self.index], ws)[0]
+        point = _positions(self.shape, [self.index], ws)[0]
         moved = tuple(value + step for value, step in zip(point, delta))
         _write_points([(self.shape, [self.index], [moved], ws)], fast, "mlibPointComponentMoveBy")
         return self
@@ -237,7 +240,7 @@ class PointComponent(Component):
         ws = _world_space(worldSpace)
         number = _finite(value, "value")
         self._require_valid()
-        point = list(geometry_edit.positions(self.shape, [self.index], ws)[0])
+        point = list(_positions(self.shape, [self.index], ws)[0])
         point[axis] = number
         _write_points([(self.shape, [self.index], [tuple(point)], ws)], fast, chunk)
         return self
@@ -393,7 +396,7 @@ class PointComponents(Components):
         if not self._indices:
             return []
         self._require_valid()
-        return geometry_edit.vectors(self._shape, self._indices, ws)
+        return _vectors(self._shape, self._indices, ws)
 
     def setPosition(self, value, worldSpace=_UNSET, *, fast=False, ws=_UNSET):
         """保持する全頂点/CVを、同じcm絶対座標へ集める。移動量を加算する操作ではない。
@@ -547,7 +550,7 @@ class PointComponents(Components):
             return self
         self._require_valid()
         rows = [tuple(value + step for value, step in zip(point, delta))
-                for point in geometry_edit.positions(self._shape, self._indices, ws)]
+                for point in _positions(self._shape, self._indices, ws)]
         return self._write(rows, ws, fast, "mlibPointComponentsMoveBy")
 
     def _set_coordinates(self, axis, value, worldSpace, fast, chunk):
@@ -570,7 +573,7 @@ class PointComponents(Components):
             return self
         self._require_valid()
         rows = []
-        for point, number in zip(geometry_edit.positions(self._shape, self._indices, ws), values):
+        for point, number in zip(_positions(self._shape, self._indices, ws), values):
             row = list(point)
             row[axis] = number
             rows.append(tuple(row))
@@ -689,9 +692,9 @@ def _mirror_plan(points, axis, ws, pivot, fast):
     if ws:
         _require_invertible(shape)
     if fast:
-        geometry_edit.geometry(shape, indices, edit=True)
+        _require_editable(shape, indices)
     rows = []
-    for point in geometry_edit.positions(shape, indices, ws):
+    for point in _positions(shape, indices, ws):
         row = list(point)
         row[flip] = 2.0 * center[flip] - row[flip]
         rows.append(tuple(row))
@@ -722,6 +725,9 @@ def _write_points(plans, fast, chunk):
     # 点ごとのcmds.xformの途中でMayaが書込みを拒否した場合に、先に書いた点を戻すためundoTransactionを使う。
     with _edit_context(chunk, fast, transaction=True):
         for shape, indices, rows, ws in plans:
+            if _is_grid(shape):
+                _set_grid_positions(shape, indices, rows, ws, fast)
+                continue
             if fast and len(indices) == 1:
                 # 1点は全点の配列を読み書きせず、その点だけを書く(大きなMeshで全点の書込みより速い)。
                 _set_point_fast(shape, indices[0], rows[0], ws)
@@ -757,3 +763,153 @@ def _set_point_fast(shape, index, row, ws):
     # 周期カーブはsetCVPositionが独立CVの番号だけを受け付け、末尾の重複CVも同じ位置へ揃える。
     fn.setCVPosition(index, point)
     fn.updateCurve()
+
+
+def _is_grid(shape):
+    """NURBS曲面・ラティス(番号を複数持つ制御点)のシェイプか判定する。
+
+    Args:
+        shape (Shape): 型を検査済みのシェイプ。
+
+    Returns:
+        bool: MeshとNurbsCurve以外ならTrue。
+    """
+    node = shape.mnode()
+    return not (node.hasFn(om2.MFn.kMesh) or node.hasFn(om2.MFn.kNurbsCurve))
+
+
+def _grid_points(path, ws):
+    """NURBS曲面のCV・ラティス点の現在位置を、平坦な実番号の順に返す。
+
+    Args:
+        path (om2.MDagPath): NURBS曲面またはラティスのシェイプのパス。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        om2.MPointArray: 全制御点(cm)。曲面は ``MFnNurbsSurface.cvPositions`` と同じ並び・ウェイト(w)。
+    """
+    space = om2.MSpace.kWorld if ws else om2.MSpace.kObject
+    if path.node().hasFn(om2.MFn.kNurbsSurface):
+        return om2.MFnNurbsSurface(path).cvPositions(space)
+    return om2.MItGeometry(path).allPositions(space)
+
+
+def _positions(shape, indices, ws):
+    """指定した点を保持順・cm単位のtupleで取得する。Mesh・NurbsCurveは :mod:`geometryEdit` へ委ねる。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 平坦な実番号。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        list[tuple[float, float, float]]: 指定順の座標。
+    """
+    if not _is_grid(shape):
+        return geometry_edit.positions(shape, indices, ws)
+    points = _grid_points(shape.mpath(), ws)
+    return [(points[index].x, points[index].y, points[index].z) for index in indices]
+
+
+def _vectors(shape, indices, ws):
+    """指定した点を保持順の :class:`~mlib.maths.vector.Vector` で取得する。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 平坦な実番号。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        list[Vector]: 指定順の新しい座標値。CVのwでは割らない。
+    """
+    if not _is_grid(shape):
+        return geometry_edit.vectors(shape, indices, ws)
+    points = _grid_points(shape.mpath(), ws)
+    return _vectors_of_points([points[index] for index in indices])
+
+
+def _require_editable(shape, indices):
+    """fastでOpenMayaから直接書き込めることを検査する。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 書き込む点の平坦な実番号。
+
+    Raises:
+        RuntimeError: シェイプのロック、または制御点のアトリビュートのロック・入力接続がある場合。
+        NotImplementedError: 入力履歴(inMesh・create・latticeInputへの入力)がある場合。
+    """
+    if not _is_grid(shape):
+        geometry_edit.geometry(shape, indices, edit=True)
+        return
+    node = shape.mnode()
+    dependency = om2.MFnDependencyNode(node)
+    source = "create" if node.hasFn(om2.MFn.kNurbsSurface) else "latticeInput"
+    if dependency.findPlug(source, False).isDestination:
+        raise NotImplementedError("fast geometry edits require a shape without input history")
+    if dependency.isLocked:
+        raise RuntimeError("Shape node is locked")
+    points = dependency.findPlug("controlPoints", False)
+    for index in points.getExistingArrayAttributeIndices():
+        point = points.elementByLogicalIndex(index)
+        require_writable(point)
+        for child in range(point.numChildren()):
+            require_writable(point.child(child))
+
+
+def _set_grid_positions(shape, indices, rows, ws, fast):
+    """NURBS曲面のCV・ラティス点へ、検証済みのcm座標を書き込む。Undoの範囲は呼出元が管理する。
+
+    通常は点ごとに ``cmds.xform`` (オブジェクト空間)で書き、fastは ``MFnNurbsSurface.setCVPositions`` /
+    ``MItGeometry.setAllPositions`` で全点を1回で書く。曲面のCVのウェイト(w)は保持し、周期曲面の重複CVは
+    対応する独立CVと同じ位置に揃える(cmdsのCV名と同じ結果)。
+
+    Args:
+        shape (Shape): NURBS曲面またはラティスのシェイプ。番号は検証済み。
+        indices (Sequence[int]): 平坦な実番号。重複は後の値を優先する。
+        rows (Sequence[Sequence[float]]): 番号と同数の有限なXYZ(cm)。
+        ws (bool): Trueならワールド座標。マトリクスは検証済み。
+        fast (bool): TrueはUndoなしのOpenMaya更新。
+
+    Raises:
+        RuntimeError: Mayaが書込みを拒否した場合。
+        NotImplementedError: fastで入力履歴のあるシェイプの場合。
+    """
+    # 単数型はこのモジュールを継承するため、循環を避けて使う時点で読み込む。
+    from .latticePoint import LatticePoint
+    from .surfaceCV import SurfaceCV
+    path = shape.mpath()
+    surface = path.node().hasFn(om2.MFn.kNurbsSurface)
+    component_class = SurfaceCV if surface else LatticePoint
+    current = _grid_points(path, False)
+    inverse = path.inclusiveMatrixInverse() if ws else om2.MMatrix()
+    local = {}
+    for index, row in zip(indices, rows):
+        # 曲面のcvPositions(kWorld)はCVのwもマトリクスの積に使うため、同じwで逆変換してローカルのXYZにする。
+        weight = current[index].w
+        point = om2.MPoint(row[0], row[1], row[2], weight) * inverse
+        point.w = weight
+        local[index] = point
+    if fast:
+        _require_editable(shape, list(local))
+        if surface:
+            keys = component_class._multi_indices(shape, range(len(current)), command=True)
+            targets = {keys[index]: point for index, point in local.items()}
+            for index, key in enumerate(keys):
+                if key in targets:
+                    current[index] = targets[key]
+            fn = om2.MFnNurbsSurface(path)
+            fn.setCVPositions(current)
+            fn.updateSurface()
+            return
+        for index, point in local.items():
+            current[index] = point
+        om2.MItGeometry(path).setAllPositions(current)
+        return
+    prefix = f"{shape.getFullName()}.{component_class.component_type}"
+    numbers = component_class._multi_indices(shape, list(local), command=True)
+    unit = om2.MDistance.uiUnit()
+    for point, number in zip(local.values(), numbers):
+        coordinates = [om2.MDistance(value).asUnits(unit) for value in (point.x, point.y, point.z)]
+        name = prefix + "".join(f"[{value}]" for value in number)
+        cmds.xform(name, absolute=True, translation=coordinates, objectSpace=True)

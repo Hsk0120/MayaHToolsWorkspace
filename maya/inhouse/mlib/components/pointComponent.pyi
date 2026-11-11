@@ -4,11 +4,14 @@
 import math
 import numbers
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
 from ..core import geometryEdit as geometry_edit
+from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..maths.vector import _vectors_of_points
 from ..util import _UNSET, _finite, _world_space, mirrorArguments
 from .component import Component, Components
-from typing import Iterable, Iterator
+from typing import Iterable, Iterator, Sequence
 from mlib.maths.vector import Vector
 from mlib.nodes.shape import Shape
 from typing import overload
@@ -16,7 +19,7 @@ from typing import overload
 
 
 class PointComponent(Component):
-    """Shape参照と頂点/CV番号を保持し、現在のXYZ座標を照会・編集する。
+    """Shape参照と頂点/CV/ラティス点の番号を保持し、現在のXYZ座標を照会・編集する。
 
     座標をキャッシュせず、取得ごとにMayaへ問い合わせる。XYZの距離単位はcmで、
     既定はShapeのオブジェクト空間。ワールド空間では保持ShapeのDAGパスを使う。
@@ -594,5 +597,87 @@ def _set_point_fast(shape: Shape, index: int, row: tuple[float, float, float], w
     Raises:
         RuntimeError: ロック・入力接続・書込み禁止がある場合。
         NotImplementedError: 入力履歴のあるShapeの場合。
+    """
+    ...
+
+def _is_grid(shape: Shape) -> bool:
+    """NURBS曲面・ラティス(番号を複数持つ制御点)のシェイプか判定する。
+
+    Args:
+        shape (Shape): 型を検査済みのシェイプ。
+
+    Returns:
+        bool: MeshとNurbsCurve以外ならTrue。
+    """
+    ...
+
+def _grid_points(path: om2.MDagPath, ws: bool) -> om2.MPointArray:
+    """NURBS曲面のCV・ラティス点の現在位置を、平坦な実番号の順に返す。
+
+    Args:
+        path (om2.MDagPath): NURBS曲面またはラティスのシェイプのパス。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        om2.MPointArray: 全制御点(cm)。曲面は ``MFnNurbsSurface.cvPositions`` と同じ並び・ウェイト(w)。
+    """
+    ...
+
+def _positions(shape: Shape, indices: Sequence[int], ws: bool) -> list[tuple[float, float, float]]:
+    """指定した点を保持順・cm単位のtupleで取得する。Mesh・NurbsCurveは :mod:`geometryEdit` へ委ねる。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 平坦な実番号。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        list[tuple[float, float, float]]: 指定順の座標。
+    """
+    ...
+
+def _vectors(shape: Shape, indices: Sequence[int], ws: bool) -> list[Vector]:
+    """指定した点を保持順の :class:`~mlib.maths.vector.Vector` で取得する。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 平坦な実番号。
+        ws (bool): Trueならワールド空間。
+
+    Returns:
+        list[Vector]: 指定順の新しい座標値。CVのwでは割らない。
+    """
+    ...
+
+def _require_editable(shape: Shape, indices: Sequence[int]):
+    """fastでOpenMayaから直接書き込めることを検査する。
+
+    Args:
+        shape (Shape): 番号を検証済みのシェイプ。
+        indices (Sequence[int]): 書き込む点の平坦な実番号。
+
+    Raises:
+        RuntimeError: シェイプのロック、または制御点のアトリビュートのロック・入力接続がある場合。
+        NotImplementedError: 入力履歴(inMesh・create・latticeInputへの入力)がある場合。
+    """
+    ...
+
+def _set_grid_positions(shape: Shape, indices: Sequence[int], rows: Sequence[Sequence[float]], ws: bool, fast: bool):
+    """NURBS曲面のCV・ラティス点へ、検証済みのcm座標を書き込む。Undoの範囲は呼出元が管理する。
+
+    通常は点ごとに ``cmds.xform`` (オブジェクト空間)で書き、fastは ``MFnNurbsSurface.setCVPositions`` /
+    ``MItGeometry.setAllPositions`` で全点を1回で書く。曲面のCVのウェイト(w)は保持し、周期曲面の重複CVは
+    対応する独立CVと同じ位置に揃える(cmdsのCV名と同じ結果)。
+
+    Args:
+        shape (Shape): NURBS曲面またはラティスのシェイプ。番号は検証済み。
+        indices (Sequence[int]): 平坦な実番号。重複は後の値を優先する。
+        rows (Sequence[Sequence[float]]): 番号と同数の有限なXYZ(cm)。
+        ws (bool): Trueならワールド座標。マトリクスは検証済み。
+        fast (bool): TrueはUndoなしのOpenMaya更新。
+
+    Raises:
+        RuntimeError: Mayaが書込みを拒否した場合。
+        NotImplementedError: fastで入力履歴のあるシェイプの場合。
     """
     ...

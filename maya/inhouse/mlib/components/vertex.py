@@ -6,6 +6,7 @@ from ..decorator import _pick_alias, _require_bool
 from ..maths.vector import Vector
 from ..util import _UNSET, _world_space
 from .pointComponent import PointComponent, PointComponents
+from .uv import UVs
 
 
 class Vertex(PointComponent):
@@ -24,6 +25,128 @@ class Vertex(PointComponent):
             Faces: 番号の昇順の面(重複なし)。
         """
         return Vertices(self.shape, [self.index]).getFaces()
+
+    def getEdges(self):
+        """この頂点に集まるエッジを取得する。
+
+        ``cmds.polyListComponentConversion(toEdge=True)`` と同じエッジになる。
+
+        Returns:
+            Edges: 番号の昇順のエッジ(重複なし)。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        # edge.py が vertex.py を import するため、循環を避けて呼出し時に読む。
+        from .edge import Edges
+        iterator = self._iterator()
+        return Edges(self.shape, sorted(set(iterator.getConnectedEdges())))
+
+    def getConnectedVertices(self):
+        """エッジでつながった隣の頂点(自身を含まない)を取得する。
+
+        Returns:
+            Vertices: 番号の昇順の頂点(重複なし)。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        iterator = self._iterator()
+        return Vertices(self.shape, sorted(set(iterator.getConnectedVertices())))
+
+    def getVertexFaces(self):
+        """この頂点の頂点フェース(頂点に触れる各フェースとの組)を取得する。
+
+        Returns:
+            VertexFaces: フェース番号の昇順の頂点フェース。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        # vertexFace.py が vertex.py を import するため、循環を避けて呼出し時に読む。
+        from .vertexFace import VertexFaces
+        faces = sorted(self._iterator().getConnectedFaces())
+        return VertexFaces(self.shape, [(self.index, face) for face in faces])
+
+    def getUVs(self):
+        """この頂点に割り当てられた、現在のUVセットのUVを取得する。
+
+        UVの境界(シーム)上の頂点は複数のUVを持つ。
+
+        Returns:
+            UVs: 番号の昇順のUV(重複なし)。UVが無ければ空。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        iterator = self._iterator()
+        uv_set = self.shape._geometry_fn().currentUVSetName()
+        return UVs(self.shape, sorted(set(iterator.getUVIndices(uv_set))))
+
+    def isOnBoundary(self):
+        """メッシュの縁(接する面が1つだけのエッジ)上の頂点か照会する(``MItMeshVertex.onBoundary``)。
+
+        Returns:
+            bool: 縁の上ならTrue。:meth:`Mesh.getBorderVertices <mlib.nodes.mesh.Mesh.getBorderVertices>` に
+                含まれる頂点と同じ。
+
+        Raises:
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        return self._iterator().onBoundary()
+
+    def getColor(self, colorSet=None):
+        """頂点の色を取得する。
+
+        :meth:`Mesh.getVertexColors <mlib.nodes.mesh.Mesh.getVertexColors>` のこの頂点の値と同じ
+        (面ごとに違う色を持つ頂点は、その平均)。
+
+        Args:
+            colorSet (str | None): カラーセットの名前。Noneは現在のカラーセット。
+
+        Returns:
+            tuple[float, float, float, float] | None: (R, G, B, A)。色が無い場合はNone。
+
+        Raises:
+            TypeError: colorSetが文字列・None以外の場合。
+            ValueError: 指定した名前のカラーセットが無い場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        self._require_valid()
+        return self.shape.getVertexColors(colorSet)[self.index]
+
+    def setColor(self, color, colorSet=None, *, fast=False):
+        """頂点の色を設定し、自身を返す。
+
+        :meth:`Mesh.setVertexColors <mlib.nodes.mesh.Mesh.setVertexColors>` でこの頂点だけを書く。
+        通常は ``cmds.polyColorPerVertex`` で1回のUndoにまとめ、``fast=True`` はUndoに記録しない。
+        頂点のすべての頂点フェースの色を同じ色にする。
+
+        Args:
+            color (Sequence[float] | om2.MColor): (R, G, B) または (R, G, B, A) の有限な数値(Aの省略は1.0)。
+            colorSet (str | None): カラーセットの名前。Noneは現在のカラーセット(無ければMayaが
+                ``colorSet1`` を作る)。名前を指定した場合は既にある必要がある。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            Vertex: 自身。
+
+        Raises:
+            TypeError: fastがbool以外、colorSetが文字列・None以外、または色の型が不正な場合。
+            ValueError: 成分の数が3・4以外か有限でない、またはカラーセットが無い場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
+        """
+        self._require_valid()
+        self.shape.setVertexColors([color], [self.index], colorSet=colorSet, fast=fast)
+        return self
 
     def getNormal(self, worldSpace=_UNSET, angleWeighted=False, *, ws=_UNSET):
         """頂点の法線(``MFnMesh.getVertexNormal``。接する面の法線の平均)を、長さ1で取得する。
@@ -46,6 +169,17 @@ class Vertex(PointComponent):
         _require_bool(angleWeighted, "angleWeighted")
         self._require_valid()
         return Vector(self.shape._geometry_fn().getVertexNormal(self.index, angleWeighted, space)).normal()
+
+    def _iterator(self):
+        """番号を検証し、この頂点へ移した ``om2.MItMeshVertex`` を返す。
+
+        Returns:
+            om2.MItMeshVertex: この頂点を指す反復子。
+        """
+        self._require_valid()
+        iterator = om2.MItMeshVertex(self.shape.mpath())
+        iterator.setIndex(self.index)
+        return iterator
 
 
 class Vertices(PointComponents):

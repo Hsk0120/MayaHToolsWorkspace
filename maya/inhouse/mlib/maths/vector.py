@@ -8,7 +8,9 @@ import maya.api.OpenMaya as om2
 from ..util import (
     _checked_digits,
     _checked_index,
+    _checked_tolerance,
     _copy_state,
+    _finite,
     _foreign_comparison,
     _instance_state,
     _rethrow_init_error,
@@ -238,6 +240,27 @@ def _reduce_value(value, values):
     if state:
         return (_rebuild, (type(value), values), state)
     return (_rebuild, (type(value), values))
+
+
+def _iterable(value, name):
+    """点列の引数を list へ変換する。
+
+    Args:
+        value (Iterable): 点列。文字列・単独のベクトルは点列として受け付けない。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        list: 点のリスト。
+
+    Raises:
+        TypeError: 反復できない値、文字列、または単独のom2ベクトル・点の場合。
+    """
+    if isinstance(value, (str, bytes, _MVector, _MPoint)):
+        raise TypeError(f"{name} must be an iterable of points")
+    try:
+        return list(value)
+    except TypeError:
+        raise TypeError(f"{name} must be an iterable of points") from None
 
 
 def _axis_name(axis, name):
@@ -820,6 +843,66 @@ class Vector(om2.MVector):
         values[index] = sign
         return cls(values[0], values[1], values[2])
 
+    @classmethod
+    def getCenter(cls, points):
+        """点列の重心(位置の平均)を返す。
+
+        Args:
+            points (Iterable[om2.MVector | om2.MPoint | Iterable[float]]): 1点以上の点列。
+
+        Returns:
+            Vector: 呼び出したクラスの新しい値(``Translate.getCenter(...)`` はTranslate)。
+
+        Raises:
+            TypeError: 点列が反復できない場合。
+            ValueError: 点列が空の場合。
+        """
+        vectors = [_resolve_mvector(point) for point in _iterable(points, "points")]
+        if not vectors:
+            raise ValueError("Cannot compute the center of no points")
+        total = _MVector()
+        for vector in vectors:
+            _MVector.__iadd__(total, vector)
+        _MVector.__itruediv__(total, float(len(vectors)))
+        return cls._wrap(total)
+
+    @classmethod
+    def isPlanar(cls, points, tolerance=1e-10):
+        """点列がすべて同一平面上にあるか判定する。
+
+        一直線上にない最初の3点で平面を決め、全点の平面からの距離が tolerance 以下ならTrue。
+        3点以下、または全点が一直線上なら常にTrue。
+
+        Args:
+            points (Iterable[om2.MVector | om2.MPoint | Iterable[float]]): 点列。
+            tolerance (float): 平面からの距離の許容誤差(点と同じ単位)。0以上。
+
+        Returns:
+            bool: 同一平面上ならTrue。
+
+        Raises:
+            TypeError: 点列が反復できない、またはtoleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        limit = _checked_tolerance(tolerance)
+        vectors = [_resolve_mvector(point) for point in _iterable(points, "points")]
+        if len(vectors) <= 3:
+            return True
+        origin = vectors[0]
+        normal = None
+        for index in range(1, len(vectors)):
+            first = _MVector.__sub__(vectors[index], origin)
+            for other in vectors[index + 1:]:
+                cross = _MVector.__xor__(first, _MVector.__sub__(other, origin))
+                if cross.length() > 1e-12:
+                    normal = cross.normal()
+                    break
+            if normal is not None:
+                break
+        if normal is None:
+            return True
+        return all(abs(_MVector.__mul__(_MVector.__sub__(vector, origin), normal)) <= limit for vector in vectors)
+
     def mirror(self, axis="x", pivot=(0.0, 0.0, 0.0)):
         """指定中心から成分を反転した同型の複製を返す。
 
@@ -1137,6 +1220,183 @@ class Vector(om2.MVector):
         """
         self.x, self.y, self.z = self.orthogonal(axis)
         return self
+
+    def distanceSqTo(self, other):
+        """2点間の距離の2乗を返す。
+
+        平方根を計算しないため、距離の比較だけが目的なら :meth:`distanceTo` より速い。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 距離を測る相手。
+
+        Returns:
+            float: 距離の2乗。
+        """
+        difference = _MVector.__sub__(self, _resolve_mvector(other))
+        return _MVector.__mul__(difference, difference)
+
+    def isZero(self, tolerance=1e-10):
+        """長さが tolerance 以下(ほぼゼロベクトル)か判定する。
+
+        Args:
+            tolerance (float): 長さの許容誤差。0以上。
+
+        Returns:
+            bool: 長さが tolerance 以下ならTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        limit = _checked_tolerance(tolerance)
+        return _MVector.__mul__(self, self) <= limit * limit
+
+    def abs(self):
+        """各成分を絶対値にした同型の複製を返す。
+
+        組み込みの ``abs()`` (長さではない)と混同しないよう、``__abs__`` は定義しない。長さは :meth:`length`。
+
+        Returns:
+            Vector: 同型の新しい値。
+        """
+        return type(self)([math.fabs(value) for value in self])
+
+    def cotan(self, other):
+        """別のベクトルとの成す角のコタンジェント(``内積 / |外積|``)を返す。
+
+        メッシュのラプラシアン(コタンジェントの重み)などに使う。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 角度を測る相手。
+
+        Returns:
+            float: コタンジェント。鋭角は正、鈍角は負。
+
+        Raises:
+            ValueError: 自身または other がゼロベクトル、または2つが平行(角度が0かpi)な場合。
+        """
+        other = _resolve_mvector(other)
+        if _MVector.__mul__(self, self) == 0.0 or _MVector.__mul__(other, other) == 0.0:
+            raise ValueError("Cannot compute the cotangent with a zero vector")
+        sine = _MVector.__xor__(self, other).length()
+        if sine == 0.0:
+            raise ValueError("Cannot compute the cotangent of parallel vectors")
+        return _MVector.__mul__(self, other) / sine
+
+    def slerp(self, other, t, spin=0):
+        """別のベクトルへ向きを球面線形補間し、長さを線形補間したベクトルを返す。
+
+        2つのベクトルが張る平面の中で、自身の向きを other の向きへ角度 ``t`` の割合だけ回す
+        (回す角度は ``(成す角 + 2pi * spin) * t``)。長さは ``|自身| + (|other| - |自身|) * t``。
+        2つが平行・反平行で平面が決まらない場合は、自身に直交する軸(:meth:`orthogonal` で作る)の周りに回す。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 補間先。
+            t (float): 補間係数。0 で自身、1 で other(spin=0 の場合)。範囲外は外挿になる。
+            spin (int): 追加で回る周回数。既定 0 は最短経路、-1 は逆回り(長い経路)。
+
+        Returns:
+            Vector: 補間結果。派生クラスの型は保持しない。
+
+        Raises:
+            TypeError: tが数値でない、またはspinが整数でない場合(boolを含む)。
+            ValueError: tが有限でない、または自身・otherがゼロベクトルの場合。
+        """
+        weight = _finite(t, "t")
+        if isinstance(spin, bool) or not isinstance(spin, int):
+            raise TypeError("spin must be an int")
+        other = _resolve_mvector(other)
+        start_length = self.length()
+        end_length = other.length()
+        if start_length == 0.0 or end_length == 0.0:
+            raise ValueError("Cannot interpolate the direction of a zero vector")
+        start = _MVector.__truediv__(self, start_length)
+        end = _MVector.__truediv__(other, end_length)
+        axis = _MVector.__xor__(start, end)
+        sine = axis.length()
+        angle = math.atan2(sine, _MVector.__mul__(start, end))
+        if sine < 1e-12:
+            # 平行・反平行は回転の平面が決まらないため、自身に直交する軸を使う。
+            index = min(range(3), key=lambda number: abs(start[number]))
+            base = _MVector()
+            base[index] = 1.0
+            axis = _MVector.__xor__(start, base)
+        axis = axis.normal()
+        turn = (angle + 2.0 * math.pi * spin) * weight
+        # ロドリゲスの回転の式(axis は start に直交する単位ベクトル)。
+        direction = start * math.cos(turn) + _MVector.__xor__(axis, start) * math.sin(turn)
+        result = _zero(Vector)
+        _MVector.__iadd__(result, direction * (start_length + (end_length - start_length) * weight))
+        return result
+
+    def getClosestAxis(self, includeNegative=True):
+        """ベクトルの向きに最も近い座標軸の名前を返す。
+
+        :meth:`Transform.getClosestAxisToVector <mlib.nodes.transform.Transform.getClosestAxisToVector>` の
+        値版で、候補の軸のうち内積が最大のものを選ぶ。同じ値なら x・y・z の順で先のものを選ぶ。
+
+        Args:
+            includeNegative (bool): Trueなら負の軸(``"-x"`` 等)も候補にする。Falseは ``"x"``・``"y"``・``"z"`` だけ。
+
+        Returns:
+            str: ``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"`` のいずれか。:meth:`fromAxis` へ渡せる。
+
+        Raises:
+            TypeError: includeNegativeがbool以外の場合。
+            ValueError: ゼロベクトルの場合。
+        """
+        if type(includeNegative) is not bool:
+            raise TypeError("includeNegative must be a bool")
+        if _MVector.__mul__(self, self) == 0.0:
+            raise ValueError("Cannot find the closest axis of a zero vector")
+        best_name = None
+        best_value = None
+        for index, name in enumerate(("x", "y", "z")):
+            value = self[index]
+            candidates = [(name, value)]
+            if includeNegative:
+                candidates.append(("-" + name, -value))
+            for candidate, dot in candidates:
+                if best_value is None or dot > best_value:
+                    best_name, best_value = candidate, dot
+        return best_name
+
+    def getBarycentricWeights(self, *points):
+        """自身の位置を、2点(線分)または3点(三角形)の重心座標の重みに分解する。
+
+        重みの合計は1で、``points[0] * w0 + points[1] * w1 (+ points[2] * w2)`` が自身(線分では直線上、三角形
+        では平面上へ射影した位置)になる。範囲の外では負の重みになる。
+
+        Args:
+            *points (om2.MVector | om2.MPoint | Iterable[float]): 2点または3点。
+
+        Returns:
+            tuple[float, ...]: 点と同じ数の重み。
+
+        Raises:
+            TypeError: 点の数が2・3以外の場合。
+            ValueError: 線分の長さが0、または三角形の面積が0(3点が一直線上)の場合。
+        """
+        if len(points) not in (2, 3):
+            raise TypeError(f"getBarycentricWeights expects 2 or 3 points, got {len(points)}")
+        vectors = [_resolve_mvector(point) for point in points]
+        offset = _MVector.__sub__(self, vectors[0])
+        if len(vectors) == 2:
+            edge = _MVector.__sub__(vectors[1], vectors[0])
+            length_sq = _MVector.__mul__(edge, edge)
+            if length_sq == 0.0:
+                raise ValueError("Cannot compute weights on a zero-length segment")
+            weight = _MVector.__mul__(offset, edge) / length_sq
+            return 1.0 - weight, weight
+        first = _MVector.__sub__(vectors[1], vectors[0])
+        second = _MVector.__sub__(vectors[2], vectors[0])
+        normal = _MVector.__xor__(first, second)
+        area_sq = _MVector.__mul__(normal, normal)
+        if area_sq == 0.0:
+            raise ValueError("Cannot compute weights on a degenerate triangle")
+        weight1 = _MVector.__mul__(_MVector.__xor__(offset, second), normal) / area_sq
+        weight2 = _MVector.__mul__(_MVector.__xor__(first, offset), normal) / area_sq
+        return 1.0 - weight1 - weight2, weight1, weight2
 
     @classmethod
     def _wrap(cls, value):

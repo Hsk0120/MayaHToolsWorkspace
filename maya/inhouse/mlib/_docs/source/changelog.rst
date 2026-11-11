@@ -4,6 +4,71 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+12.4.0 (2026-11-12)
+-------------------
+
+12.3.0 に続き、cymel・pymel と比べて足りなかったメソッドの残り(調査で実用度「中」「低」としたもの)を足しました。
+既存の呼び出し方は変わりません。
+
+.. rubric:: 追加
+
+- 作成関数: ``mlib.createGroup``\ (子を入れたグループ・空のグループ。``n``\ ・\ ``w``)、``mlib.createNurbsPlane``
+  (``w``\ ・\ ``lr``\ ・\ ``u``\ ・\ ``v``\ ・\ ``ax``\ ・\ ``d``\ ・\ ``n``)、``mlib.createCluster``\ (``n``\ ・\ ``rel``)、
+  ``mlib.createLattice``\ (ffd。``n``\ ・\ ``dv``\ ・\ ``ldv``\ ・\ ``oc``)、``mlib.createWire``\ (``n``\ ・\ ``dds``)。
+  いずれも Undo 1回で戻り、選択を変えない。
+- ``Transform.translateBy``\ ・\ ``rotateBy``\ ・\ ``scaleBy``\ (今の値からの相対的な移動・回転・拡大。ローカル/ワールドの軸)、
+  ``getLimits``\ (``setLimits`` と同じ形の辞書)、``zeroTransformPivots``\ 、``ungroup``\ 。
+- ``DagNode.getCommonAncestor``\ ・\ ``getBoundingBoxCorners``\ ・\ ``isInstanced``\ ・\ ``getInstanceIndex``\ 。
+- ``Joint.assumePreferredAngles``\ ・\ ``getDegreesOfFreedom``\ ・\ ``setDegreesOfFreedom``\ 、``IkHandle.getSolver``\ ・
+  ``setSolver``\ (ikRP/ikSC/ikSpring の切替え)・\ ``snapToEffector``\ 。
+- ``NurbsSurface.getCV``\ ・\ ``getCVs``\ ・\ ``getTangentsAtParam``\ ・\ ``getMatrixAtParam``\ ・\ ``getArea``\ 。
+- ``NurbsCurve.getKnots``\ ・\ ``isPlanar``\ ・\ ``getArea``\ ・\ ``rebuild``\ ・\ ``reverse``\ (``rebuild``\ ・\ ``reverse`` は
+  シェイプのノードを保つ)。
+- ``Mesh.getUVShells``\ ・\ ``getVertexFaces`` とカラーセットの管理(``getColorSetNames``\ ・\ ``getCurrentColorSet``\ ・
+  ``setCurrentColorSet``\ ・\ ``createColorSet``\ ・\ ``copyColorSet``\ ・\ ``renameColorSet``\ ・\ ``deleteColorSet``)。
+- ``Camera.getFieldOfView``\ ・\ ``getEyePoint``\ ・\ ``getViewDirection``\ ・\ ``getUpDirection``\ ・\ ``getProjectionMatrix``\ ・
+  ``isOrtho``\ 。
+- デフォーマー: ``GeometryFilter.getInputGeometry``\ 、``SkinCluster.getInfluenceVertices``\ ・\ ``getBlendWeights``\ ・
+  ``setBlendWeights``\ (``fast``)・\ ``unbind``\ ・\ ``recacheBindMatrices``\ 。
+- ``AnimCurve.insertKey``\ ・\ ``findClosestIndex``\ ・\ ``isBreakdown``\ ・\ ``setBreakdown``\ 、``Keyframe.isBreakdown``\ ・
+  ``setBreakdown``\ 。
+- ``ObjectSet.clear``\ ・\ ``getUnion``\ ・\ ``getIntersection``\ ・\ ``getDifference``\ ・\ ``isSubSet``\ 。
+- ``Node.getSets``\ ・\ ``getReference``\ ・\ ``isDefaultNode``\ 。
+- ``Plug.getSiblings``\ ・\ ``getAllParents``\ ・\ ``isFromReferencedFile``\ ・\ ``isDefaultValue``\ ・\ ``isConnectable``\ ・
+  ``isUsedAsColor``\ ・\ ``isWorldSpace``\ ・\ ``getAffected``\ ・\ ``getAffecting``\ ・\ ``getLayeredPlug``\ ・\ ``insertInput``\ 、
+  ``MultiPlug.getConnectedIndices``\ 。
+- ``Namespace.getChildren(recurse=False)`` の ``recurse``\ 、``getShortName``\ ・\ ``split``\ ・\ ``getNode``\ 、
+  ``remove(..., deleteContents=False)``\ 。
+- ``units.convertTime``\ ・\ ``units.convertAngle``\ 。
+- ``Reference.getCopyNumber``\ ・\ ``isUsingNamespaces``\ ・\ ``isDeferred``\ ・\ ``removeEdits``\ ・\ ``replaceFile``\ ・
+  ``importContents``\ (ファイル操作のため Undo には記録されない)。
+- ``Vector.distanceSqTo``\ ・\ ``isZero``\ ・\ ``abs``\ ・\ ``cotan``\ ・\ ``slerp``\ ・\ ``getClosestAxis``\ ・
+  ``getBarycentricWeights`` とクラスメソッドの ``getCenter``\ ・\ ``isPlanar``\ 。
+- ``EulerRotate.isGimbalLocked``\ ・\ ``reverseDirection``\ ・\ ``reverseDirectionIt``\ ・\ ``fromYawPitch``\ 。
+- ``Quaternion.lengthSq``\ ・\ ``safeLog``\ ・\ ``asRollBend``\ ・\ ``fromRollBend``\ (ロール(捻り)と横・縦の曲げの角度)。
+- ``Matrix.getAxis``\ ・\ ``getAxes``\ ・\ ``asTranslateMatrix``\ ・\ ``asRotateMatrix``\ ・\ ``asScaleMatrix``\ ・\ ``as3x3``\ ・
+  ``isIdentity``\ ・\ ``hasNonUniformScale``\ ・\ ``transposeIt``\ ・\ ``cofactor``\ 。
+- コンポーネント: ``Vertex.getEdges``\ ・\ ``getConnectedVertices``\ ・\ ``getVertexFaces``\ ・\ ``getUVs``\ ・\ ``isOnBoundary``\ ・
+  ``getColor``\ ・\ ``setColor``\ 、``Edge.getConnectedEdges``\ ・\ ``isOnBoundary``\ ・\ ``isSmooth``\ ・\ ``setSmooth``\ 、
+  ``Face.getConnectedFaces``\ ・\ ``getVertexFaces``\ ・\ ``getUVs``\ ・\ ``isOnBoundary``\ ・\ ``isPlanar``\ ・\ ``isConvex``\ ・
+  ``isLamina``\ ・\ ``isHoled``\ ・\ ``isZeroArea``\ ・\ ``getTriangleCount``\ 、``UV.getVertex``\ 、``Components.isComplete``\ 。
+- 新しいコンポーネント型 ``SurfaceCV``/``SurfaceCVs``\ (``cv[u][v]``)・\ ``LatticePoint``/``LatticePoints``\ (``pt[s][t][u]``)・
+  ``VertexFace``/``VertexFaces``\ (``vtxFace[v][f]``)。曲面のCV・ラティス点は頂点・CV と同じく座標の照会・書込み・
+  ``moveBy``\ ・反転ができ、名前・選択(``mlib.ls``\ ・\ ``Selection.getComponents``)からも取得できる。
+
+.. rubric:: 追加しなかったもの
+
+- ``Transform.getRestPosition``\ : transform・joint に restPosition アトリビュートが無く、API の値もシーンに保存されないため。
+- ``SkinCluster.smoothWeights``\ : Maya のコマンドが選択した頂点に依存し、``redistributeWeights`` と役割が重なるため。
+- ``Node.savePreset``\ ・\ ``loadPreset``\ (Undo に記録されない)、``Plug.setDirty``\ ・\ ``isDirty``\ (評価方式で結果が変わる)、
+  ``Reference.setLocked``\ (``Node.setLocked`` と名前が衝突する)。
+- ``DagNode.getLeaves``\ ・\ ``Plug.getPairBlend``\ ・\ ``Mesh.getFaceNormals`` は、既存の ``getChildren(leaves=True)``\ ・
+  ``getSource(type="pairBlend", ...)``\ ・\ ``Face.getNormal`` で同じことができるため。
+
+.. rubric:: 文書・テスト
+
+- 追加した API ごとの仕様テスト ``test_spec_v124_*.py``\ (dag・shapes・deform・nodeplug・mathcomp)と Undo のテストを足した。
+
 12.3.0 (2026-11-12)
 -------------------
 

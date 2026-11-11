@@ -1,9 +1,11 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Maya の reference ノードを扱う。"""
 
+import os
+import re
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
-from ..decorator import undoChunk
+from ..decorator import _require_bool, undoChunk
 from .node import Node
 from mlib.common.namespace import Namespace
 
@@ -39,6 +41,29 @@ class Reference(Node):
 
         Returns:
             Namespace: 参照の名前空間。
+        """
+        ...
+    def getCopyNumber(self) -> int:
+        """同じファイルを複数回リファレンスした際のコピー番号を取得する。
+
+        :meth:`getFilename` の ``withCopyNumber=True`` の末尾 ``{N}`` の番号。
+
+        Returns:
+            int: コピー番号。番号の付かない最初のリファレンスでは 0。
+        """
+        ...
+    def isUsingNamespaces(self) -> bool:
+        """リファレンスの内容が名前空間で読み込まれているか(古い接頭辞の方式でないか)を判定する。
+
+        Returns:
+            bool: ``cmds.file(..., query=True, usingNamespaces=True)`` の結果。
+        """
+        ...
+    def isDeferred(self) -> bool:
+        """シーンを開いた際にロードを保留する(``cmds.file(deferReference=True)``)設定か判定する。
+
+        Returns:
+            bool: ``cmds.file(..., query=True, deferReference=True)`` の結果。
         """
         ...
     def isLoaded(self) -> bool:
@@ -143,6 +168,62 @@ class Reference(Node):
 
         Raises:
             RuntimeError: Maya がアンロードを拒否した場合。
+        """
+        ...
+    def removeEdits(self, successful: bool = ..., failed: bool = ..., editCommand: str | None = ...) -> Reference:
+        """このReferenceに対するEditを削除する(``cmds.referenceEdit(removeEdits=True)``)。
+
+        Mayaはロード中のリファレンスの適用済み(成功した)Editを削除しないため、ロード中で ``successful=True`` の
+        場合はアンロードしてから削除し、再びロードする。ファイル操作のためUndoには記録されない。
+
+        Args:
+            successful (bool): 適用済み(成功した)Editを削除するか。既定 True。
+            failed (bool): 適用に失敗したEditを削除するか。既定 True。
+            editCommand (str | None): 削除するEditのコマンド名(``"setAttr"``・``"connectAttr"``・``"parent"`` 等)。
+                Noneは全コマンド。
+
+        Returns:
+            Reference: 自身。
+
+        Raises:
+            TypeError: successful・failed が bool 以外、または editCommand が文字列・None以外の場合。
+            ValueError: editCommand が空文字列の場合。
+            RuntimeError: リファレンスノードが無効、または Maya が操作を拒否した場合。
+        """
+        ...
+    def replaceFile(self, path: str | os.PathLike) -> Reference:
+        """リファレンスするファイルを別のファイルへ置き換えて読み込む(``cmds.file(path, loadReference=ref)``)。
+
+        名前空間・Editは維持する。ファイル操作のためUndoには記録されない。
+
+        Args:
+            path (str | os.PathLike): 新しいファイルのパス。
+
+        Returns:
+            Reference: 自身。
+
+        Raises:
+            TypeError: path が文字列・PathLike 以外の場合。
+            ValueError: path が空の場合。
+            RuntimeError: リファレンスノードが無効、ファイルが無い、または Maya が読込みを拒否した場合。
+        """
+        ...
+    def importContents(self, removeNamespace: bool = ...) -> list[Node]:
+        """リファレンスの内容をシーンへ読み込み(``cmds.file(importReference=True)``)、リファレンスを解除する。
+
+        呼び出し後、このリファレンスノードはシーンに存在しなくなる。入れ子の子リファレンスは
+        リファレンスのまま残る。ファイル操作のためUndoには記録されない。
+
+        Args:
+            removeNamespace (bool): True なら読み込んだ名前空間を削除し、内容を親の名前空間へ移す
+                (名前が衝突するノードは :meth:`Namespace.remove` と同じく末尾に番号を付ける)。既定 False。
+
+        Returns:
+            list[Node]: 読み込んだノード(リファレンスノードは含まない)。
+
+        Raises:
+            TypeError: removeNamespace が bool 以外の場合。
+            RuntimeError: リファレンスノードが無効、アンロード中、または Maya が操作を拒否した場合。
         """
         ...
     def remove(self) -> None:

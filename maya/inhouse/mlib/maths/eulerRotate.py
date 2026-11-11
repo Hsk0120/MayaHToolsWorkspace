@@ -9,7 +9,9 @@ from ..util import (
     _angle_unit,
     _checked_digits,
     _checked_index,
+    _checked_tolerance,
     _copy_state,
+    _finite_vector,
     _foreign_comparison,
     _from_radians,
     _rethrow_init_error,
@@ -553,6 +555,42 @@ class EulerRotate(om2.MEulerRotation):
         """
         return cls(math.radians(x), math.radians(y), math.radians(z), order)
 
+    @classmethod
+    def fromYawPitch(cls, direction, order="xyz"):
+        """回転順序の最初の軸(基準軸)を、指定方向へ向ける2軸の回転(ピッチとヨー)を生成する。
+
+        回転順序の文字が「基準軸・ピッチの軸・ヨーの軸」を表す(``"xyz"`` はX軸を、Y軸周りのピッチの後に
+        Z軸周りのヨーで向ける)。基準軸の成分は常に0で、ロール(基準軸周りの捻り)は含まない。
+        ピッチは -90〜90 度、ヨーは -180〜180 度の範囲になる。真上・真下(ヨーの軸の方向)ではヨーを0にする。
+
+        Args:
+            direction (om2.MVector | om2.MPoint | Iterable[float]): 向ける方向。長さは問わない。
+            order (str | int): 回転順序。既定は ``"xyz"``。
+
+        Returns:
+            EulerRotate: 呼び出したクラスの新しいラジアンの回転。``asMatrix()`` の基準軸の行が direction の向きになる。
+
+        Raises:
+            TypeError: directionが3成分の数値でない場合。
+            ValueError: directionがゼロベクトルまたは有限でない場合、または未対応の回転順序の場合。
+        """
+        index = orderIndex(order)
+        if isinstance(direction, (om2.MVector, om2.MPoint, om2.MFloatVector, om2.MFloatPoint)):
+            direction = (direction.x, direction.y, direction.z)
+        vector = _finite_vector(direction, 3, "direction")
+        length = math.sqrt(sum(value * value for value in vector))
+        if length == 0.0:
+            raise ValueError("direction must not be a zero vector")
+        name = ORDER_NAMES[index]
+        base, pitch_axis, yaw_axis = ("xyz".index(letter) for letter in name)
+        # 巡回順(xyz・yzx・zxy)とそれ以外では、ピッチの軸周りに回した基準軸の向きの符号が変わる。
+        sign = 1.0 if name in ("xyz", "yzx", "zxy") else -1.0
+        along, side, up = vector[base] / length, vector[pitch_axis] / length, vector[yaw_axis] / length
+        values = [0.0, 0.0, 0.0]
+        values[pitch_axis] = math.atan2(-sign * up, math.hypot(along, side))
+        values[yaw_axis] = math.atan2(sign * side, along) if (along or side) else 0.0
+        return cls(values[0], values[1], values[2], index)
+
     @staticmethod
     def computeAlternateSolution(*args):
         """同じ向きを表す、単純な一周加算とは異なるオイラー回転を計算する。
@@ -867,6 +905,50 @@ class EulerRotate(om2.MEulerRotation):
         from .vector import Vector
 
         return Vector(_MEuler.asVector(self, *args))
+
+    def isGimbalLocked(self, tolerance=1e-10):
+        """中間の軸(回転順序の2文字目)の角度が ±90 度に近い、ジンバルロックの姿勢か判定する。
+
+        このとき最初と最後の軸の回転が同じ向きの回転になり、1軸分の自由度を失う。
+
+        Args:
+            tolerance (float): ±90 度からの差の許容誤差(ラジアン)。0以上。
+
+        Returns:
+            bool: 中間の軸の角度を -180〜180 度へ収めた絶対値と 90 度の差が tolerance 以下ならTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        limit = _checked_tolerance(tolerance)
+        middle = "xyz".index(ORDER_NAMES[self.order][1])
+        angle = math.remainder(self[middle], 2.0 * math.pi)
+        return abs(abs(angle) - math.pi / 2.0) <= limit
+
+    def reverseDirection(self):
+        """同じ姿勢を逆回りでたどる回転を返す。
+
+        絶対値が最大の成分(同じなら x・y・z の順で先)へ、符号と逆向きに360度を加える
+        (``asQuaternion()`` の符号が反転する。マトリクスは変わらない)。
+        Eulerのフィルターや、補間の回る向きの調整に使う。
+
+        Returns:
+            EulerRotate: 同型・同じ回転順序の新しい回転。
+        """
+        values = list(self)
+        index = max(range(3), key=lambda number: abs(values[number]))
+        values[index] += -2.0 * math.pi if values[index] >= 0.0 else 2.0 * math.pi
+        return type(self)(values[0], values[1], values[2], self.order)
+
+    def reverseDirectionIt(self):
+        """自身を、同じ姿勢を逆回りでたどる回転(:meth:`reverseDirection`)へ置き換える。
+
+        Returns:
+            EulerRotate: 更新した自身。
+        """
+        self.setValue(self.reverseDirection())
+        return self
 
     @classmethod
     def _wrap(cls, value):

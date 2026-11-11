@@ -1,8 +1,10 @@
 """シーン設定を書き換えずに距離・角度・時間を変換する。"""
 
+import re
+
 import maya.api.OpenMaya as om2
 
-from ..util import _angle_unit
+from ..util import _angle_unit, _time_unit
 
 
 def distanceToUi(centimeters):
@@ -132,6 +134,88 @@ def angleFromUi(value, *, unit="deg"):
         ValueError: unitが未対応の単位名の場合。
     """
     return om2.MAngle(value, om2.MAngle.uiUnit()).asUnits(_angle_constant(unit))
+
+
+def convertAngle(value, fromUnit="deg", toUnit="rad"):
+    """シーン設定を変更せず角度を変換する。
+
+    Args:
+        value (float): 変換する角度。
+        fromUnit (str | None): 入力単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
+            (``"degree"`` / ``"radians"`` 等の別名も可)。Noneは現在のUI角度単位。
+        toUnit (str | None): 出力単位。既定 ``"rad"``。指定の仕方はfromUnitと同じ。
+
+    Returns:
+        float: 出力単位での角度。
+
+    Raises:
+        TypeError: 単位が文字列・None以外の場合。
+        ValueError: 単位名が未対応の場合。
+    """
+    source = om2.MAngle.uiUnit() if fromUnit is None else _angle_constant(fromUnit)
+    target = om2.MAngle.uiUnit() if toUnit is None else _angle_constant(toUnit)
+    return om2.MAngle(value, source).asUnits(target)
+
+
+def _time_constant(unit):
+    """時間の単位名をMTimeの単位定数へ解決する。
+
+    Args:
+        unit (str | None): ``"frame"`` (現在のUI時間単位)・``"sec"`` とその別名、
+            Mayaの ``currentUnit -time`` の名前(``"film"``・``"ntsc"``・``"24fps"``・``"29.97df"`` 等)。
+            Noneは現在のUI時間単位。
+
+    Returns:
+        int: MTimeの単位定数。
+
+    Raises:
+        TypeError: 文字列またはNoneでない場合。
+        ValueError: 未対応の単位名の場合。
+    """
+    if unit is None:
+        return om2.MTime.uiUnit()
+    if not isinstance(unit, str):
+        raise TypeError("unit must be a string or None")
+    names = {
+        "hour": om2.MTime.kHours, "min": om2.MTime.kMinutes, "millisec": om2.MTime.kMilliseconds,
+        "game": om2.MTime.kGames, "film": om2.MTime.kFilm, "pal": om2.MTime.kPALFrame,
+        "ntsc": om2.MTime.kNTSCFrame, "show": om2.MTime.kShowScan, "palf": om2.MTime.kPALField,
+        "ntscf": om2.MTime.kNTSCField,
+    }
+    if unit in names:
+        return names[unit]
+    match = re.match(r"^(\d+(?:\.\d+)?)(fps|df)$", unit)
+    if match:
+        constant = getattr(om2.MTime, "k{}{}".format(match.group(1).replace(".", "_"), match.group(2).upper()), None)
+        if constant is not None:
+            return constant
+    try:
+        normalized = _time_unit(unit)
+    except ValueError:
+        raise ValueError(f"Unsupported time unit: {unit}") from None
+    return om2.MTime.uiUnit() if normalized == "frame" else om2.MTime.kSeconds
+
+
+def convertTime(value, fromUnit=None, toUnit=None):
+    """シーン設定を変更せず時間を変換する。
+
+    Args:
+        value (float): 変換する時間。
+        fromUnit (str | None): 入力単位。Noneと ``"frame"`` は現在のUI時間単位のフレーム、``"sec"`` は秒
+            (``"frames"`` / ``"seconds"`` 等の別名も可)。Mayaの時間単位の名前(``"film"``・``"ntsc"``・
+            ``"pal"``・``"game"``・``"hour"``・``"min"``・``"millisec"``・``"24fps"``・``"29.97df"`` 等)も指定できる。
+        toUnit (str | None): 出力単位。指定の仕方はfromUnitと同じ。
+
+    Returns:
+        float: 出力単位での時間。
+
+    Raises:
+        TypeError: 単位の型が不正な場合。
+        ValueError: 単位名が未対応の場合。
+    """
+    source = _time_constant(fromUnit)
+    target = _time_constant(toUnit)
+    return om2.MTime(value, source).asUnits(target)
 
 
 def secondsPerFrame():

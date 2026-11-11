@@ -405,7 +405,10 @@ def _collect(items):
     # nodes・plugs・componentsはcmdsを参照するため、循環importを避けて関数内で読み込む。
     from ..nodes.node import Node, Nodes
     from ..plugs.plug import Plug, Plugs
-    from ..components import Component, CV, CVs, Edge, Edges, Face, Faces, UV, UVs, Vertex, Vertices
+    from ..components import (
+        Component, CV, CVs, Edge, Edges, Face, Faces, LatticePoint, LatticePoints, SurfaceCV, SurfaceCVs, UV, UVs,
+        Vertex, Vertices, VertexFace, VertexFaces,
+    )
 
     if not items:
         return Nodes()
@@ -414,7 +417,10 @@ def _collect(items):
     if all(isinstance(item, Plug) for item in items):
         return Plugs._from_plugs(items)
     first = items[0]
-    collections = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
+    collections = {
+        Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs,
+        SurfaceCV: SurfaceCVs, LatticePoint: LatticePoints, VertexFace: VertexFaces,
+    }
     collection = collections.get(type(first)) if isinstance(first, Component) else None
     if collection is not None and all(type(item) is type(first) and item.shape == first.shape for item in items):
         return collection(first.shape, [item.index for item in items])

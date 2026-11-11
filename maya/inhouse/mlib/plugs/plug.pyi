@@ -545,6 +545,34 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
+    def getSiblings(self) -> list[Plug]:
+        """コンパウンドアトリビュートの子であれば、同じ親を持つ他の子を取得する(``tx`` なら ``ty``・``tz``)。
+
+        Returns:
+            list[Plug]: 自身を除く兄弟の子を定義順に並べたリスト。子プラグでない場合は空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def getAllParents(self, includeMulti: bool = ...) -> list[Plug]:
+        """上位のコンパウンドアトリビュートを、近い順にすべて取得する。
+
+        マルチアトリビュートの要素を経由して上へたどる(``bs.it[0].itg[3].tw[2]`` なら
+        ``bs.it[0].itg[3]``・``bs.it[0]``)。
+
+        Args:
+            includeMulti (bool): True なら経由するマルチアトリビュート全体のPlugも含める
+                (上の例は ``bs.it[0].itg[3].tw``・``bs.it[0].itg[3]``・``bs.it[0].itg``・``bs.it[0]``・``bs.it``)。
+
+        Returns:
+            list[Plug]: 近い順の上位のPlug。トップレベルのアトリビュートでは空リスト。
+
+        Raises:
+            TypeError: includeMulti が bool 以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
     def isKeyable(self) -> bool:
         """チャンネルボックスでキー可能なアトリビュートか判定する。
 
@@ -693,6 +721,19 @@ class Plug(Object):
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
+    def isFromReferencedFile(self) -> bool:
+        """このプラグの接続がリファレンスファイルの中で作られたものか判定する(``MPlug.isFromReferencedFile``)。
+
+        リファレンスノードのアトリビュートでも、接続が無い、または読み込んだ側のシーンで作った接続では False。
+        ノードがリファレンス由来かは :meth:`Node.isFromReferencedFile` を使う。
+
+        Returns:
+            bool: リファレンスファイルで作られた接続の一部である場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
     def isHidden(self) -> bool:
         """Channel Boxに出ていない(keyableでもChannel Box表示でもない)か判定する。
 
@@ -806,6 +847,38 @@ class Plug(Object):
 
         Returns:
             bool: 保存対象の場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def isConnectable(self) -> bool:
+        """アトリビュート定義の connectable フラグ(接続できるアトリビュートか)を取得する。
+
+        ロックや既存の入力接続を含めた現在の接続可否は判定しない。
+
+        Returns:
+            bool: 定義の connectable が有効な場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def isUsedAsColor(self) -> bool:
+        """アトリビュート定義の usedAsColor フラグ(UIで色として扱う ``addAttr(usedAsColor=True)``)を取得する。
+
+        Returns:
+            bool: 色のアトリビュートの場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def isWorldSpace(self) -> bool:
+        """アトリビュート定義の worldSpace フラグ(``worldMatrix`` のようにDAGインスタンスごとの値を持つか)を取得する。
+
+        Returns:
+            bool: ワールド空間のアトリビュートの場合は ``True``。
 
         Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
@@ -1072,6 +1145,19 @@ class Plug(Object):
         Raises:
             TypeError: uiUnitsがbool以外、またはunit・timeUnitが文字列・None以外の場合。
             ValueError: unit・timeUnitが未対応の単位名、またはuiUnits=Trueと同時に指定した場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def isDefaultValue(self) -> bool:
+        """現在値がアトリビュート定義の既定値と同じか判定する(``MPlug.isDefaultValue``)。
+
+        値を評価して比べる。入力接続があるアトリビュートは接続元から評価した値で判定する。
+        コンパウンドアトリビュートは子がすべて既定値の場合に True。
+
+        Returns:
+            bool: 既定値の場合は ``True``。
+
+        Raises:
             RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
         """
         ...
@@ -1571,6 +1657,34 @@ class Plug(Object):
             RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         ...
+    def getAffected(self) -> list[Plug]:
+        """同じノードで、このアトリビュートが影響する(値の変更で再計算される)アトリビュートを取得する。
+
+        ノード型の定義(``attributeAffects``)による依存関係で、``cmds.affects(attr, node, by=True)`` と同じ
+        アトリビュートを ``MFnDependencyNode.getAffectedAttributes`` で求める。接続先の別ノードは含まない。
+        アトリビュート単位の関係のため、要素の論理番号は区別せず、マルチアトリビュートの中の子は
+        そのマルチアトリビュート全体のPlugにまとめる。
+
+        Returns:
+            list[Plug]: 影響先のPlug。重複を除いて定義の順。無ければ空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
+    def getAffecting(self) -> list[Plug]:
+        """同じノードで、このアトリビュートへ影響する(値の計算に使われる)アトリビュートを取得する。
+
+        :meth:`getAffected` の逆向きで、``cmds.affects(attr, node)`` と同じアトリビュートを
+        ``MFnDependencyNode.getAffectingAttributes`` で求める。接続元の別ノードは含まない。
+
+        Returns:
+            list[Plug]: 影響元のPlug。重複を除いて定義の順。無ければ空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        ...
     def getAnimCurve(self, layer: Node | str | None = ...) -> Node | None:
         """このプラグのアニメーションカーブ(animCurve ノード)を取得する。
 
@@ -1585,6 +1699,28 @@ class Plug(Object):
 
         Returns:
             Node | None: animCurve ノード。無ければ ``None``。
+
+        Raises:
+            TypeError: layer が animLayer ノード・名前・None 以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または layer の名前を
+                解決できない場合。
+        """
+        ...
+    def getLayeredPlug(self, layer: Node | str | None = ...) -> Plug | None:
+        """アニメーションレイヤーで、このプラグの値を受け持つ入力のPlugを取得する。
+
+        レイヤーごとのブレンドノード(``animBlendNodeAdditive`` 等)の入力(``inputB``)で、そのレイヤーのキーの
+        animCurve が接続される(キーを打つ・カーブを調べる対象)。:meth:`getAnimLayers` と同じく、プロキシ・mute・
+        pairBlend を経由してブレンドの連鎖をたどる。
+
+        Args:
+            layer (Node | str | None): アニメーションレイヤー(animLayer ノード)またはその名前。
+                None(既定)はプラグが属する最上位のレイヤー(どのレイヤーにも属さなければ自身)。
+                ベースレイヤー(``cmds.animLayer(q=True, root=True)``)はブレンドの連鎖の最も手前の入力
+                (どのレイヤーにも属さなければ自身)。
+
+        Returns:
+            Plug | None: レイヤーの入力のPlug。指定したレイヤーにプラグが属さない場合は ``None``。
 
         Raises:
             TypeError: layer が animLayer ノード・名前・None 以外の場合。
@@ -1739,6 +1875,65 @@ class Plug(Object):
             TypeError: 接続先が未指定・未対応型、またはfast・safeがbool以外の場合(:meth:`connect` と同じ)。
             RuntimeError: 同一接続(safe=Falseのとき)・forceなしの入力置換・ロック・接続の失敗、
                 または接続元・接続先が削除済みの場合(:meth:`connect` と同じ)。
+        """
+        ...
+    def insertInput(self, node: str | Node, inputAttribute: str, outputAttribute: str) -> Plug:
+        """既存の入力接続の間にノードを挟む(``入力元 → node.inputAttribute``、``node.outputAttribute → 自身``)。
+
+        入力元は unitConversion 系を飛ばした先のPlug(:meth:`getSource` の ``skipConversionNodes=True``)で、
+        挟んだ後の変換ノードの要否はMayaが決める。入力接続が無い場合は ``node.outputAttribute → 自身`` だけを
+        接続する。自身のロックは :meth:`connect` と同じく一時的に解除して接続する。
+        cmdsで接続し、Undo 1回で戻る。
+
+        Args:
+            node (str | Node): 挟むノード。
+            inputAttribute (str): 元の入力元を接続する node のアトリビュート名。
+            outputAttribute (str): 自身へ接続する node のアトリビュート名。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: node が未対応の型、または inputAttribute・outputAttribute が文字列以外の場合。
+            ValueError: inputAttribute・outputAttribute が空文字列の場合。
+            RuntimeError: 自身・node が無効、アトリビュートが無い(``MissingAttributeError``)、
+                node の入力側に既に入力接続がある、または Maya が接続を拒否した場合。
+        """
+        ...
+    def _anim_layer_name(self, layer: Node | str) -> str:
+        """animLayer ノードまたはその名前を検証し、一意な名前を返す。
+
+        Args:
+            layer (Node | str): animLayer ノードまたはその名前。
+
+        Returns:
+            str: animLayer ノードの名前。
+
+        Raises:
+            TypeError: layer が animLayer ノード・名前以外の場合。
+            RuntimeError: layer の名前を解決できない場合。
+        """
+        ...
+    def _layer_inputs(self) -> tuple[list[tuple[str, Plug]], Plug]:
+        """アニメーションレイヤーのブレンドの連鎖を上位からたどり、各レイヤーの入力を集める。
+
+        :meth:`getAnimLayers` と同じ規則(プロキシの元・mute の input・pairBlend の使用中の入力)でたどる。
+
+        Returns:
+            tuple[list[tuple[str, Plug]], Plug]: 上位からの (レイヤー名, ブレンドノードの inputB) の組と、
+                連鎖の最も手前の入力(最後のブレンドノードの inputA。レイヤーが無ければ自身)。
+        """
+        ...
+    def _attribute_plugs(self, attributes: om2.MObjectArray) -> list[Plug]:
+        """同じノードのアトリビュート定義の並びを、重複のない Plug のリストにする(getAffected 等の共通処理)。
+
+        マルチアトリビュートの中の子(要素の番号が決まらないもの)は、最も外側のマルチアトリビュートへまとめる。
+
+        Args:
+            attributes (om2.MObjectArray): アトリビュート定義の MObject。
+
+        Returns:
+            list[Plug]: 定義の順の Plug。
         """
         ...
     def _raw_default(self) -> Any:

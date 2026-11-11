@@ -36,6 +36,22 @@ class GeometryFilter(Node):
         """
         return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
 
+    def getInputGeometry(self):
+        """このデフォーマーへ入る変形前の形状(入力ジオメトリ)を取得する。
+
+        ``input[].inputGeometry`` の上流をたどった形状を、``input`` の番号順に返す
+        (``MFnGeometryFilter.getInputGeometry`` 相当)。変形の前段に別のデフォーマーがあっても、
+        その先の形状(``Orig`` の中間形状など)を返す。
+
+        Returns:
+            list[Node]: 入力側の形状。無ければ空リスト。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        self._require_valid("access attributes of")
+        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getInputGeometry()]
+
     def getDeformerWeights(self, geometryIndex=0):
         """頂点ごとのデフォーマーのウェイトを取得する。
 

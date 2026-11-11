@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
-from ..core.fastWrite import set_attr
+from ..core.fastWrite import require_writable, set_attr
 from ..core.nodeEdit import check_deletion, delete_nodes
 from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk
 from ..maths import EulerRotate, Matrix, Scale, Vector
@@ -482,6 +482,74 @@ class Joint(Transform):
                 value = _finite_vector(value, 3, "value")
             self.getPlug("preferredAngle").set(value, unit=unit)
             return self
+
+    def assumePreferredAngles(self, children=True):
+        """rotateをpreferredAngleの値へ戻す。
+
+        Skeleton > Assume Preferred Angle、``cmds.joint(edit=True, assumePreferredAngles=True)`` と同じ。
+
+        Args:
+            children (bool): Trueは子孫のjointにも適用する。Falseは自身だけ。既定True。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: childrenがbool以外の場合。
+            RuntimeError: jointが無効、またはMayaが書込みを拒否した場合。
+
+        Note:
+            Undo有効時に1回のUndoで戻る。rotateがロック・入力接続されたjointの扱いはMayaに従う。
+        """
+        _require_bool(children, "children")
+        self._require_valid("assume the preferred angles of")
+        with undoChunk("mlibJointAssumePreferredAngles"):
+            cmds.joint(self.getFullName(), edit=True, assumePreferredAngles=True, children=children)
+        return self
+
+    def getDegreesOfFreedom(self):
+        """回転できる軸(jointTypeX/Y/Z が有効な軸)を取得する。
+
+        Returns:
+            str: ``"xyz"`` の部分列(XYZの順)。全軸が固定なら空文字列。
+
+        Raises:
+            RuntimeError: jointが無効な場合。
+        """
+        self._require_valid("get the degrees of freedom of")
+        return "".join(axis for axis in "xyz" if self.getPlug("jointType" + axis.upper()).get())
+
+    def setDegreesOfFreedom(self, axes):
+        """回転できる軸(jointTypeX/Y/Z)を設定する。指定しない軸は固定する。
+
+        Args:
+            axes (str): ``"xyz"``・``"xz"`` 等の軸名の並び(順不同、大文字小文字を問わない)。空文字列は全軸を固定する。
+
+        Returns:
+            Joint: 自身。
+
+        Raises:
+            TypeError: axesが文字列でない場合。
+            ValueError: x・y・z以外の文字、または同じ軸を重ねて含む場合。
+            RuntimeError: jointが無効、またはjointTypeがロック・入力接続で書き込めない場合。
+
+        Note:
+            Undo有効時に1回のUndoで戻る。fast引数は持たない。
+        """
+        if not isinstance(axes, str):
+            raise TypeError(f"axes must be a string such as 'xyz': {axes!r}")
+        lowered = axes.lower()
+        if set(lowered) - set("xyz") or len(set(lowered)) != len(lowered):
+            raise ValueError(f"axes must be a combination of 'x', 'y' and 'z' without repeats: {axes!r}")
+        self._require_valid("set the degrees of freedom of")
+        plugs = [self.getPlug("jointType" + axis.upper()) for axis in "XYZ"]
+        # 一部の軸だけ書き換わるのを避けるため、3軸とも書き込めるか先に確かめる。
+        for plug in plugs:
+            require_writable(plug.mplug())
+        with undoChunk("mlibJointSetDegreesOfFreedom"):
+            for axis, plug in zip("xyz", plugs):
+                plug.set(axis in lowered)
+        return self
 
     def getInverseScale(self):
         """inverseScaleの無次元XYZ値を、独立したScaleとして取得する。

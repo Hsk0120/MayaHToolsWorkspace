@@ -818,6 +818,53 @@ class Plug(Object):
             raise TypeError(f"getIndex requires a multi element: {self.getFullName()}")
         return self._mplug.logicalIndex()
 
+    def getSiblings(self):
+        """コンパウンドアトリビュートの子であれば、同じ親を持つ他の子を取得する(``tx`` なら ``ty``・``tz``)。
+
+        Returns:
+            list[Plug]: 自身を除く兄弟の子を定義順に並べたリスト。子プラグでない場合は空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        if not self._mplug.isChild:
+            return []
+        parent = self._mplug.parent()
+        siblings = (parent.child(index) for index in range(parent.numChildren()))
+        return [Plug(self._node, mplug) for mplug in siblings if mplug != self._mplug]
+
+    def getAllParents(self, includeMulti=False):
+        """上位のコンパウンドアトリビュートを、近い順にすべて取得する。
+
+        マルチアトリビュートの要素を経由して上へたどる(``bs.it[0].itg[3].tw[2]`` なら
+        ``bs.it[0].itg[3]``・``bs.it[0]``)。
+
+        Args:
+            includeMulti (bool): True なら経由するマルチアトリビュート全体のPlugも含める
+                (上の例は ``bs.it[0].itg[3].tw``・``bs.it[0].itg[3]``・``bs.it[0].itg``・``bs.it[0]``・``bs.it``)。
+
+        Returns:
+            list[Plug]: 近い順の上位のPlug。トップレベルのアトリビュートでは空リスト。
+
+        Raises:
+            TypeError: includeMulti が bool 以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        _require_bool(includeMulti, "includeMulti")
+        self._require_valid()
+        result = []
+        mplug = self._mplug
+        while mplug.isChild or mplug.isElement:
+            if mplug.isElement:
+                mplug = mplug.array()
+                if includeMulti:
+                    result.append(Plug(self._node, mplug))
+                continue
+            mplug = mplug.parent()
+            result.append(Plug(self._node, mplug))
+        return result
+
     def isKeyable(self):
         """チャンネルボックスでキー可能なアトリビュートか判定する。
 
@@ -1013,6 +1060,21 @@ class Plug(Object):
         self._require_valid()
         return self._mplug.isDestination
 
+    def isFromReferencedFile(self):
+        """このプラグの接続がリファレンスファイルの中で作られたものか判定する(``MPlug.isFromReferencedFile``)。
+
+        リファレンスノードのアトリビュートでも、接続が無い、または読み込んだ側のシーンで作った接続では False。
+        ノードがリファレンス由来かは :meth:`Node.isFromReferencedFile` を使う。
+
+        Returns:
+            bool: リファレンスファイルで作られた接続の一部である場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return self._mplug.isFromReferencedFile
+
     def isHidden(self):
         """Channel Boxに出ていない(keyableでもChannel Box表示でもない)か判定する。
 
@@ -1152,6 +1214,44 @@ class Plug(Object):
         """
         self._require_valid()
         return om2.MFnAttribute(self._mplug.attribute()).storable
+
+    def isConnectable(self):
+        """アトリビュート定義の connectable フラグ(接続できるアトリビュートか)を取得する。
+
+        ロックや既存の入力接続を含めた現在の接続可否は判定しない。
+
+        Returns:
+            bool: 定義の connectable が有効な場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return om2.MFnAttribute(self._mplug.attribute()).connectable
+
+    def isUsedAsColor(self):
+        """アトリビュート定義の usedAsColor フラグ(UIで色として扱う ``addAttr(usedAsColor=True)``)を取得する。
+
+        Returns:
+            bool: 色のアトリビュートの場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return om2.MFnAttribute(self._mplug.attribute()).usedAsColor
+
+    def isWorldSpace(self):
+        """アトリビュート定義の worldSpace フラグ(``worldMatrix`` のようにDAGインスタンスごとの値を持つか)を取得する。
+
+        Returns:
+            bool: ワールド空間のアトリビュートの場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return om2.MFnAttribute(self._mplug.attribute()).worldSpace
 
     def hasMin(self):
         """最小値制限を持つアトリビュートか判定する。
@@ -1439,6 +1539,21 @@ class Plug(Object):
         if value is None or isinstance(value, int) and self._mplug.attribute().hasFn(om2.MFn.kEnumAttribute):
             return value
         return self._plain_range_value(value, angle_unit, uiUnits, time_unit)
+
+    def isDefaultValue(self):
+        """現在値がアトリビュート定義の既定値と同じか判定する(``MPlug.isDefaultValue``)。
+
+        値を評価して比べる。入力接続があるアトリビュートは接続元から評価した値で判定する。
+        コンパウンドアトリビュートは子がすべて既定値の場合に True。
+
+        Returns:
+            bool: 既定値の場合は ``True``。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        return self._mplug.isDefaultValue()
 
     def getAlias(self):
         """このプラグに設定されているエイリアス名を取得する。
@@ -2139,6 +2254,40 @@ class Plug(Object):
         return self._connection_results(pairs, type or t, exactType or et,
                                         asPair or c or connections, asNode, index)
 
+    def getAffected(self):
+        """同じノードで、このアトリビュートが影響する(値の変更で再計算される)アトリビュートを取得する。
+
+        ノード型の定義(``attributeAffects``)による依存関係で、``cmds.affects(attr, node, by=True)`` と同じ
+        アトリビュートを ``MFnDependencyNode.getAffectedAttributes`` で求める。接続先の別ノードは含まない。
+        アトリビュート単位の関係のため、要素の論理番号は区別せず、マルチアトリビュートの中の子は
+        そのマルチアトリビュート全体のPlugにまとめる。
+
+        Returns:
+            list[Plug]: 影響先のPlug。重複を除いて定義の順。無ければ空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        fn = self._node._dependency_fn()
+        return self._attribute_plugs(fn.getAffectedAttributes(self._mplug.attribute()))
+
+    def getAffecting(self):
+        """同じノードで、このアトリビュートへ影響する(値の計算に使われる)アトリビュートを取得する。
+
+        :meth:`getAffected` の逆向きで、``cmds.affects(attr, node)`` と同じアトリビュートを
+        ``MFnDependencyNode.getAffectingAttributes`` で求める。接続元の別ノードは含まない。
+
+        Returns:
+            list[Plug]: 影響元のPlug。重複を除いて定義の順。無ければ空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+        """
+        self._require_valid()
+        fn = self._node._dependency_fn()
+        return self._attribute_plugs(fn.getAffectingAttributes(self._mplug.attribute()))
+
     def getAnimCurve(self, layer=None):
         """このプラグのアニメーションカーブ(animCurve ノード)を取得する。
 
@@ -2169,6 +2318,39 @@ class Plug(Object):
         if not source_mobject.hasFn(om2.MFn.kAnimCurve):
             return None
         return self._node_from_mplug(sources[0])
+
+    def getLayeredPlug(self, layer=None):
+        """アニメーションレイヤーで、このプラグの値を受け持つ入力のPlugを取得する。
+
+        レイヤーごとのブレンドノード(``animBlendNodeAdditive`` 等)の入力(``inputB``)で、そのレイヤーのキーの
+        animCurve が接続される(キーを打つ・カーブを調べる対象)。:meth:`getAnimLayers` と同じく、プロキシ・mute・
+        pairBlend を経由してブレンドの連鎖をたどる。
+
+        Args:
+            layer (Node | str | None): アニメーションレイヤー(animLayer ノード)またはその名前。
+                None(既定)はプラグが属する最上位のレイヤー(どのレイヤーにも属さなければ自身)。
+                ベースレイヤー(``cmds.animLayer(q=True, root=True)``)はブレンドの連鎖の最も手前の入力
+                (どのレイヤーにも属さなければ自身)。
+
+        Returns:
+            Plug | None: レイヤーの入力のPlug。指定したレイヤーにプラグが属さない場合は ``None``。
+
+        Raises:
+            TypeError: layer が animLayer ノード・名前・None 以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または layer の名前を
+                解決できない場合。
+        """
+        self._require_valid()
+        layer_name = None if layer is None else self._anim_layer_name(layer)
+        inputs, base = self._layer_inputs()
+        if layer_name is None:
+            return inputs[0][1] if inputs else self
+        if layer_name == cmds.animLayer(query=True, root=True):
+            return base
+        for name, plug in inputs:
+            if name == layer_name:
+                return plug
+        return None
 
     def isConnectedTo(self, other, *, source=True, destination=True):
         """指定したプラグと接続されているか判定する。
@@ -2443,6 +2625,147 @@ class Plug(Object):
         _require_bool(fast, "fast")
         return Plug._resolve_input(destination).connect(self, **kwargs, safe=safe, fast=fast)
 
+    def insertInput(self, node, inputAttribute, outputAttribute):
+        """既存の入力接続の間にノードを挟む(``入力元 → node.inputAttribute``、``node.outputAttribute → 自身``)。
+
+        入力元は unitConversion 系を飛ばした先のPlug(:meth:`getSource` の ``skipConversionNodes=True``)で、
+        挟んだ後の変換ノードの要否はMayaが決める。入力接続が無い場合は ``node.outputAttribute → 自身`` だけを
+        接続する。自身のロックは :meth:`connect` と同じく一時的に解除して接続する。
+        cmdsで接続し、Undo 1回で戻る。
+
+        Args:
+            node (str | Node): 挟むノード。
+            inputAttribute (str): 元の入力元を接続する node のアトリビュート名。
+            outputAttribute (str): 自身へ接続する node のアトリビュート名。
+
+        Returns:
+            Plug: 自身。
+
+        Raises:
+            TypeError: node が未対応の型、または inputAttribute・outputAttribute が文字列以外の場合。
+            ValueError: inputAttribute・outputAttribute が空文字列の場合。
+            RuntimeError: 自身・node が無効、アトリビュートが無い(``MissingAttributeError``)、
+                node の入力側に既に入力接続がある、または Maya が接続を拒否した場合。
+        """
+        for label, value in (("inputAttribute", inputAttribute), ("outputAttribute", outputAttribute)):
+            if not isinstance(value, str):
+                raise TypeError(f"{label} must be a str")
+            if not value:
+                raise ValueError(f"{label} must be a non-empty string")
+        with undoChunk("mlibPlugInsertInput"):
+            # nodes.node が ..plugs.plug を逆方向 import するため、使う時点で読み込む。
+            from ..nodes.node import Node
+            self._require_valid()
+            target = Node._resolve_input(node)
+            input_plug = target.getPlug(inputAttribute)
+            output_plug = target.getPlug(outputAttribute)
+            source = self._source_plug()
+            if source is not None and input_plug.isConnected(destination=False):
+                raise RuntimeError(f"Input attribute already has an incoming connection: {input_plug.getFullName()}")
+            self.connect(output_plug, force=True)
+            if source is not None:
+                input_plug.connect(source)
+            return self
+
+    def _anim_layer_name(self, layer):
+        """animLayer ノードまたはその名前を検証し、一意な名前を返す。
+
+        Args:
+            layer (Node | str): animLayer ノードまたはその名前。
+
+        Returns:
+            str: animLayer ノードの名前。
+
+        Raises:
+            TypeError: layer が animLayer ノード・名前以外の場合。
+            RuntimeError: layer の名前を解決できない場合。
+        """
+        # nodes.node が ..plugs.plug を逆方向 import するため、使う時点で読み込む。
+        from ..nodes.node import Node
+        if isinstance(layer, bool) or not isinstance(layer, (str, Node)):
+            raise TypeError("layer must be an animLayer node, its name or None")
+        layer_node = Node._resolve_input(layer)
+        if not layer_node.isType("animLayer"):
+            raise TypeError(f"layer must be an animLayer node: {layer_node.getFullName()}")
+        return layer_node.getFullName()
+
+    def _layer_inputs(self):
+        """アニメーションレイヤーのブレンドの連鎖を上位からたどり、各レイヤーの入力を集める。
+
+        :meth:`getAnimLayers` と同じ規則(プロキシの元・mute の input・pairBlend の使用中の入力)でたどる。
+
+        Returns:
+            tuple[list[tuple[str, Plug]], Plug]: 上位からの (レイヤー名, ブレンドノードの inputB) の組と、
+                連鎖の最も手前の入力(最後のブレンドノードの inputA。レイヤーが無ければ自身)。
+        """
+        current = self
+        visited = set()
+        while om2.MFnAttribute(current.mplug().attribute()).isProxyAttribute:
+            name = current.getFullName()
+            if name in visited:
+                return [], self
+            visited.add(name)
+            current = current._source_plug()
+            if current is None:
+                return [], self
+        axis = current.getShortName()[-1].upper()
+        visited.clear()
+        inputs = []
+        base = self
+        while True:
+            source = current._source_plug()
+            if source is None or source.getFullName() in visited:
+                break
+            visited.add(source.getFullName())
+            node = source.getNode()
+            kind = node.getType()
+            if kind == "mute":
+                current = node.getPlug("input")
+                continue
+            if kind == "pairBlend":
+                suffix = source.getShortName()[-2:]
+                mode = node.getPlug("rm" if suffix.startswith("r") else suffix + "m").get()
+                driver = mode if mode in (1, 2) else node.getPlug("currentDriver").get()
+                current = node.getPlug("i" + suffix + ("2" if driver == 2 else "1"))
+                continue
+            # listConnections(type="animLayer") と同じく、message の出力先の animLayer を接続順に集める。
+            targets = (om2.MFnDependencyNode(target.node())
+                       for target in node._dependency_fn().findPlug("message", False).destinations())
+            layers = [target.name() for target in targets if target.typeName == "animLayer"]
+            if not layers or not node.hasAttr("inputA"):
+                break
+            suffix = axis if kind == "animBlendNodeAdditiveRotation" else ""
+            inputs.append((layers[0], node.getPlug("inputB" + suffix)))
+            current = base = node.getPlug("inputA" + suffix)
+        return inputs, base
+
+    def _attribute_plugs(self, attributes):
+        """同じノードのアトリビュート定義の並びを、重複のない Plug のリストにする(getAffected 等の共通処理)。
+
+        マルチアトリビュートの中の子(要素の番号が決まらないもの)は、最も外側のマルチアトリビュートへまとめる。
+
+        Args:
+            attributes (om2.MObjectArray): アトリビュート定義の MObject。
+
+        Returns:
+            list[Plug]: 定義の順の Plug。
+        """
+        fn = self._node._dependency_fn()
+        result, seen = [], set()
+        for attribute in attributes:
+            top = attribute
+            parent = om2.MFnAttribute(attribute).parent
+            while not parent.isNull():
+                if om2.MFnAttribute(parent).array:
+                    top = parent
+                parent = om2.MFnAttribute(parent).parent
+            name = om2.MFnAttribute(top).name
+            if name in seen:
+                continue
+            seen.add(name)
+            result.append(Plug(self._node, fn.findPlug(top, False)))
+        return result
+
     def _raw_default(self):
         """アトリビュートの定義の既定値を、単位付きのom2の値のまま返す(属性の複製・リセット用)。
 
@@ -2477,12 +2800,7 @@ class Plug(Object):
         """
         # nodes.node が ..plugs.plug を逆方向 import するため、使う時点で読み込む。
         from ..nodes.node import Node
-        if isinstance(layer, bool) or not isinstance(layer, (str, Node)):
-            raise TypeError("layer must be an animLayer node, its name or None")
-        layer_node = Node._resolve_input(layer)
-        if not layer_node.isType("animLayer"):
-            raise TypeError(f"layer must be an animLayer node: {layer_node.getFullName()}")
-        name = layer_node.getFullName()
+        name = self._anim_layer_name(layer)
         curves = cmds.animLayer(name, query=True, findCurveForPlug=self.getFullName())
         if curves:
             return Node._from_name(curves[0])

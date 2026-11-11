@@ -10,8 +10,11 @@ from ..components.component import Component, Components
 from ..components.cv import CV, CVs
 from ..components.edge import Edge, Edges
 from ..components.face import Face, Faces
+from ..components.latticePoint import LatticePoint, LatticePoints
+from ..components.surfaceCV import SurfaceCV, SurfaceCVs
 from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
+from ..components.vertexFace import VertexFace, VertexFaces
 from ..core.object import _exists, _selection_component, _selection_plug
 from ..decorator import undoChunk
 from ..nodes.node import Node
@@ -295,7 +298,10 @@ class Selection:
             list[Components]: 有効な要素をshapeのDAGパス・種類ごとにまとめる。
         """
         groups = {}
-        classes = {Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs}
+        classes = {
+            Vertex: Vertices, Edge: Edges, Face: Faces, UV: UVs, CV: CVs,
+            SurfaceCV: SurfaceCVs, LatticePoint: LatticePoints, VertexFace: VertexFaces,
+        }
         for item in self._items:
             if isinstance(item, Component) and self._valid(item):
                 key = (item.shape.getFullName(), item.__class__)

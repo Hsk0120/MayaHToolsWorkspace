@@ -1,9 +1,15 @@
 """Maya の IK ハンドルを Transform として扱う。"""
 
 import maya.api.OpenMaya as om2
+import maya.cmds as cmds
+import maya.mel as mel
 
+from ..decorator import undoChunk
 from .node import Node
 from .transform import Transform
+
+#: :meth:`IkHandle.setSolver` で切り替えられるソルバー(ikSplineSolver はカーブが要るため対象外)。
+_SWITCHABLE_SOLVERS = ("ikRPsolver", "ikSCsolver", "ikSpringSolver")
 
 
 class IkHandle(Transform):
@@ -102,3 +108,71 @@ class IkHandle(Transform):
             if tip is not None:
                 joints.append(tip)
         return joints
+
+    def getSolver(self):
+        """ハンドルが使うIKソルバーの種類(``ikSolver`` の接続元ノードの型名)を取得する。
+
+        Returns:
+            str | None: ``"ikRPsolver"``・``"ikSCsolver"``・``"ikSplineSolver"``・``"ikSpringSolver"`` 等。
+                ソルバーが未接続ならNone。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        self._require_valid("query the solver of")
+        source = self._dependency_fn().findPlug("ikSolver", False).source()
+        return None if source.isNull else om2.MFnDependencyNode(source.node()).typeName
+
+    def setSolver(self, solver):
+        """ハンドルのIKソルバーを切り替える(``cmds.ikHandle(edit=True, solver=...)`` 相当)。
+
+        ``ikSpringSolver`` はソルバーノードが無ければMaya標準の手続きで用意する(:func:`~mlib.cmds.createIkHandle`
+        と同じ)。ikSplineSolverへの切替え・ikSplineSolverからの切替えはカーブの扱いが変わるため受け付けない。
+        Undo有効時に1回のUndoで戻る(Mayaが新しく作ったソルバーノードはUndoしても残る)。
+
+        Args:
+            solver (str): ``"ikRPsolver"``・``"ikSCsolver"``・``"ikSpringSolver"`` のいずれか。
+
+        Returns:
+            IkHandle: 自身。
+
+        Raises:
+            TypeError: solverが文字列でない場合。
+            ValueError: solverが対応外、またはハンドルがikSplineSolverを使っている場合。
+            RuntimeError: ノードが無効、またはMayaが切替えを拒否した場合。
+        """
+        if not isinstance(solver, str):
+            raise TypeError(f"solver must be a string: {solver!r}")
+        if solver not in _SWITCHABLE_SOLVERS:
+            raise ValueError(f"solver must be one of {', '.join(_SWITCHABLE_SOLVERS)}: {solver!r}")
+        if self.getSolver() == "ikSplineSolver":
+            raise ValueError(f"Cannot switch the solver of a spline IK handle: {self.getFullName()}")
+        with undoChunk("mlibIkHandleSetSolver"):
+            if solver == "ikSpringSolver" and not cmds.ls(type="ikSpringSolver"):
+                # ikSpringSolverはソルバーノードの登録が要るため、Maya標準の手続きで用意する。
+                mel.eval("ikSpringSolver")
+            cmds.ikHandle(self.getFullName(), edit=True, solver=solver)
+        return self
+
+    def snapToEffector(self):
+        """ハンドルをエフェクターの位置へ移す(IK Handle の Snap Handle to Effector と同じ操作)。
+
+        エフェクターの回転ピボットのワールド位置へ、ハンドルの回転ピボットが重なるようtranslateを書き換える
+        (:meth:`~mlib.nodes.transform.Transform.setTranslation` の ``worldSpace=True``)。
+        IKとFKを切り替えるときに、FKで動かしたチェーンの先端へハンドルを合わせる用途に使う。
+        ``cmds.ikHandle(edit=True, snapHandleToEffector=True)`` は ``snapEnable`` が無効のハンドルを動かさないため使わない。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Returns:
+            IkHandle: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、エフェクターが未接続、またはtranslateがロック・入力接続で書き込めない場合。
+        """
+        self._require_valid("snap")
+        effector = self.getEffector()
+        if effector is None:
+            raise RuntimeError(f"IK handle has no end effector: {self.getFullName()}")
+        with undoChunk("mlibIkHandleSnapToEffector"):
+            self.setTranslation(effector.getTranslation(worldSpace=True), worldSpace=True)
+        return self

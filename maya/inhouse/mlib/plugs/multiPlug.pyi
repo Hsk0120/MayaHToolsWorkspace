@@ -288,6 +288,19 @@ class MultiPlug(Plug):
             RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
         """
         ...
+    def getConnectedIndices(self) -> list[int]:
+        """接続のある要素の論理番号を昇順で取得する。
+
+        要素自身または子孫(コンパウンドアトリビュートの子・入れ子の要素)に入力・出力のどちらかの接続がある要素を
+        ``MPlug.numConnectedElements`` / ``connectionByPhysicalIndex`` で求める。値だけを持つ要素は含まない。
+
+        Returns:
+            list[int]: 新しい論理番号リスト。接続が無ければ空リスト。
+
+        Raises:
+            RuntimeError: 所有ノードまたはアトリビュートが無効の場合。
+        """
+        ...
     def _require_movable(self, indices: list[int]) -> None:
         """要素を別の番号へ移せるかを、シーンを変更せずに確かめる(compact・removeElementのshift用)。
 

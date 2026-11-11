@@ -7,6 +7,7 @@ import maya.cmds as cmds
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
 from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..maths import Vector
 from ..util import _UNSET, _color_value, _world_space
 from .node import Node
 
@@ -197,6 +198,51 @@ class DagNode(Node):
             parent = node.getParent()
         return node
 
+    def getCommonAncestor(self, other):
+        """保持パスどうしで、自身とotherに共通する最も近い祖先を取得する。
+
+        一方が他方の祖先(または同じパス)なら、その祖先自身を返す。インスタンスは保持パスだけで比べ、
+        別のパスでの共通の祖先は探さない。
+
+        Args:
+            other (DagNode | str | om2.MObject | om2.MDagPath): 比べるDAGノード。
+
+        Returns:
+            DagNode | None: 共通の祖先。自身が該当すれば自身、otherが該当すればotherの参照、
+                それ以外は新しいラッパー。ワールド直下の別々の階層にあればNone。
+
+        Raises:
+            TypeError: otherがDAGノードでない、または未対応の型の場合。
+            RuntimeError: 自身またはotherのノード・保持するDAGパスが無効な場合。
+
+        Examples:
+            >>> hand.getCommonAncestor(foot)    # 腰など、両方を含む最も近い親
+        """
+        other_node = Node._resolve_input(other)
+        if not isinstance(other_node, DagNode):
+            raise TypeError(f"other must be a DAG node: {other_node.getFullName()}")
+        self._require_valid("find the common ancestor of")
+        other_node._require_valid("find the common ancestor of")
+        self_path = self.mpath().fullPathName()
+        other_path = other_node.mpath().fullPathName()
+        other_ancestors = {other_path}
+        path = om2.MDagPath(other_node.mpath())
+        while path.length() > 1:
+            path.pop()
+            other_ancestors.add(path.fullPathName())
+        if self_path in other_ancestors:
+            return self
+        path = om2.MDagPath(self.mpath())
+        while path.length() > 1:
+            path.pop()
+            name = path.fullPathName()
+            if name == other_path:
+                return other_node
+            if name in other_ancestors:
+                # 有効な保持パスを遡ったパスなので、Node(path) の入力解決を省いて同じ型で包む。
+                return Node._wrap_dag_path(path)
+        return None
+
     def getSiblings(self):
         """同じ親の下にある同じ種類の兄弟を取得する(自身と自身の別インスタンスは含まない)。
 
@@ -258,6 +304,32 @@ class DagNode(Node):
                     world_box.expand(om2.MPoint(x, y, z) * parent_matrix)
         return world_box
 
+    def getBoundingBoxCorners(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """:meth:`getBoundingBox` の軸並行ボックスの8つの隅の点を取得する。
+
+        ワールド指定でもワールドの軸に沿ったボックス(``getBoundingBox(worldSpace=True)``)の隅を返す。
+        向きを持つボックスの隅ではない。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間、既定Falseは親の変換を含まない空間(:meth:`getBoundingBox` と同じ)。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            list[Vector]: cm単位の8点。X・Y・Zの順に最小・最大を組み合わせた順
+                ((minX, minY, minZ), (minX, minY, maxZ), (minX, maxY, minZ), ..., (maxX, maxY, maxZ))。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
+
+        Examples:
+            >>> corners = node.getBoundingBoxCorners(ws=True)
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        box = self.getBoundingBox(worldSpace=worldSpace)
+        return [Vector(x, y, z) for x in (box.min.x, box.max.x)
+                for y in (box.min.y, box.max.y) for z in (box.min.z, box.max.z)]
+
     def isIntermediateObject(self):
         """中間オブジェクト(履歴用の非表示 Shape)か判定する。Transform では常に False。
 
@@ -287,6 +359,32 @@ class DagNode(Node):
         return [self if path.fullPathName() == original else Node._wrap_dag_path(om2.MDagPath(path))
                 for path in om2.MDagPath.getAllPathsTo(self.mnode())
                 if not noSelf or path.fullPathName() != original]
+
+    def isInstanced(self):
+        """複数のDAGパスを持つ(インスタンス化されている)か判定する。
+
+        親のインスタンス化による間接的なインスタンスも含める(``len(getInstances()) > 1`` と同じ)。
+
+        Returns:
+            bool: パスが2つ以上ならTrue。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
+        """
+        return self.mfn().isInstanced(True)
+
+    def getInstanceIndex(self):
+        """保持パスのインスタンス番号を取得する(``MDagPath.instanceNumber``)。
+
+        インスタンス化されていないノードは0。:meth:`getInstances` の何番目かとは限らない。
+
+        Returns:
+            int: 0以上のインスタンス番号。
+
+        Raises:
+            RuntimeError: 保持する DAG パスが無効な場合。
+        """
+        return self.mpath().instanceNumber()
 
     def getParents(self, indirect=False):
         """直接の親をノード単位またはパス単位で取得する。祖先全体ではない。

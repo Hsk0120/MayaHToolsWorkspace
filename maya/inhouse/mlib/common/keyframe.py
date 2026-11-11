@@ -167,6 +167,38 @@ class Keyframe:
         self._curve.setTangent(self._index, unit=unit, fast=fast, **kwargs)
         return self
 
+    def isBreakdown(self):
+        """ブレイクダウンキーか判定する(:meth:`AnimCurve.isBreakdown <mlib.nodes.animCurve.AnimCurve.isBreakdown>`)。
+
+        Returns:
+            bool: ブレイクダウンキーならTrue。
+
+        Raises:
+            IndexError: 番号がキー数の範囲外になった場合。
+            RuntimeError: カーブが無効(削除済み)の場合。
+        """
+        self._require_valid()
+        return self._curve.isBreakdown(self._index)
+
+    def setBreakdown(self, state=True):
+        """ブレイクダウンキーにする、または通常のキーへ戻す。
+
+        :meth:`AnimCurve.setBreakdown <mlib.nodes.animCurve.AnimCurve.setBreakdown>` と同じ。
+
+        Args:
+            state (bool): Trueはブレイクダウンキー、Falseは通常のキー。既定True。
+
+        Returns:
+            Keyframe: 自身。
+
+        Raises:
+            TypeError: stateがbool以外の場合。
+            IndexError: 番号がキー数の範囲外になった場合。
+            RuntimeError: カーブが無効(削除済み)の場合。
+        """
+        self._curve.setBreakdown(self._index, state)
+        return self
+
     def move(self, *, timeOffset=0, valueOffset=0, unit="deg", timeUnit="frame"):
         """キーの入力と値をずらす(:meth:`AnimCurve.moveKey <mlib.nodes.animCurve.AnimCurve.moveKey>`)。
 

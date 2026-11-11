@@ -141,6 +141,34 @@ class Keyframe:
             Keyframe: 自身。
         """
         ...
+    def isBreakdown(self) -> bool:
+        """ブレイクダウンキーか判定する(:meth:`AnimCurve.isBreakdown <mlib.nodes.animCurve.AnimCurve.isBreakdown>`)。
+
+        Returns:
+            bool: ブレイクダウンキーならTrue。
+
+        Raises:
+            IndexError: 番号がキー数の範囲外になった場合。
+            RuntimeError: カーブが無効(削除済み)の場合。
+        """
+        ...
+    def setBreakdown(self, state: bool = ...) -> Keyframe:
+        """ブレイクダウンキーにする、または通常のキーへ戻す。
+
+        :meth:`AnimCurve.setBreakdown <mlib.nodes.animCurve.AnimCurve.setBreakdown>` と同じ。
+
+        Args:
+            state (bool): Trueはブレイクダウンキー、Falseは通常のキー。既定True。
+
+        Returns:
+            Keyframe: 自身。
+
+        Raises:
+            TypeError: stateがbool以外の場合。
+            IndexError: 番号がキー数の範囲外になった場合。
+            RuntimeError: カーブが無効(削除済み)の場合。
+        """
+        ...
     def move(self, *, timeOffset: float = ..., valueOffset: float = ..., unit: str = ..., timeUnit: str = ...) -> Keyframe:
         """キーの入力と値をずらす(:meth:`AnimCurve.moveKey <mlib.nodes.animCurve.AnimCurve.moveKey>`)。
 

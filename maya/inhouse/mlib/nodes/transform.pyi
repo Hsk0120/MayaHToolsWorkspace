@@ -17,7 +17,7 @@ from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool,
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _color_value, _finite, _from_radians, _to_radians, _world_space, mirrorArguments
+from ..util import _angle_unit, _color_value, _finite, _finite_vector, _from_radians, _to_radians, _world_space, mirrorArguments
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -32,6 +32,7 @@ import pathlib
 
 _TRANSFORM_SOURCE_CONSTRAINTS: frozenset
 _LIMIT_FLAGS: dict
+_LIMIT_TYPES: dict
 _ROTATE_ORDER_NAMES: tuple
 _TRANSFORM_ATTRIBUTES: dict
 _NEAR_ZERO_AXIS: float
@@ -412,6 +413,41 @@ class Transform(DagNode):
             TypeError: fastがbool以外、またはfastで対象がJointの場合。
             RuntimeError: 無効参照の場合、ピボットまたは補償値の成分がロック・入力接続
                 されている場合(通常・fastとも更新前に検査する)、またはMayaが更新を拒否した場合。
+        """
+        ...
+    def zeroTransformPivots(self) -> Transform:
+        """回転・スケールピボットとその補償値を0にし、姿勢を保つようtranslateを書き換える。
+
+        ``cmds.xform(zeroTransformPivots=True)`` と同じ。``setPivot((0, 0, 0), kind="both")`` は補償値
+        (rotatePivotTranslate 等)で姿勢を保つのに対し、こちらは補償値も0にしてずれをtranslateへ移す。
+        書き換えるアトリビュートのロック・入力接続は更新前に検査する(xformは黙って飛ばし、姿勢が変わるため)。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効、またはtranslate・ピボット・補償値の成分がロック・入力接続されている場合。
+        """
+        ...
+    def ungroup(self, *, world: bool = ...) -> list[Transform]:
+        """子を親(またはワールド)の下へ移してグループを解く(``cmds.ungroup`` 相当)。
+
+        子はワールドの姿勢を保って移す。自身がShapeを持たなければ自身を削除し、Shapeを持つ場合は
+        子だけを移して自身を残す(Mayaと同じ)。Undo有効時に1回のUndoで戻る。
+
+        Args:
+            world (bool): Trueは子をワールド直下へ、既定Falseは自身の親の下へ移す。
+
+        Returns:
+            list[Transform]: 移した子(元の子の順)。子が無ければ空リスト。
+
+        Raises:
+            TypeError: worldがbool以外の場合。
+            RuntimeError: ノードが無効、またはMayaが処理を拒否した場合(ロックされたノード等)。
+
+        Examples:
+            >>> children = group.ungroup()
         """
         ...
     def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[DagNode]:
@@ -804,6 +840,31 @@ class Transform(DagNode):
                 (原因の成分と ``safe=True`` を案内する)。
         """
         ...
+    def translateBy(self, value: Iterable[float], worldSpace: bool = ..., *, ws: bool = ...) -> Transform:
+        """今の位置から相対的に移動する(``cmds.move(relative=True)`` 相当)。
+
+        ``worldSpace=False`` は親の空間の軸(translate チャンネル)に沿って value を足し、``worldSpace=True`` は
+        ワールドの軸に沿って value だけ動くよう translate を書き換える。書き込むのは translate だけで、
+        ピボット・回転は変えない。Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (Iterable[float]): cm単位の移動量のXYZ3成分。
+            worldSpace (bool): Trueはワールドの軸、既定Falseは親の空間の軸。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値の列でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: valueの成分数が3でない、または有限でない場合。
+            RuntimeError: ノードが無効、またはtranslateがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.translateBy((0, 1, 0))                 # 親の空間で上へ1cm
+            >>> node.translateBy((5, 0, 0), ws=True)        # ワールドのX方向へ5cm
+        """
+        ...
     def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., ws: bool = ...) -> EulerRotate:
         """選択空間のマトリクスの回転を Euler 回転として取得する。
 
@@ -868,6 +929,37 @@ class Transform(DagNode):
                 または必要な親マトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合(ロック・入力接続された
                 成分と ``safe=True`` を案内する)。
+        """
+        ...
+    def rotateBy(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., *, unit: str = ..., ws: bool = ...) -> Transform:
+        """今の向きから相対的に回転する(``cmds.rotate(relative=True)`` 相当)。
+
+        ``worldSpace=False`` は自身のローカル軸(``cmds.rotate(relative=True, objectSpace=True)``)、
+        ``worldSpace=True`` はワールドの軸(``cmds.rotate(relative=True, worldSpace=True)``)で回す。
+        3成分はノードのrotateOrderで解釈する(``cmds.rotate`` と同じ)。書き込むのはrotateだけで、
+        値は :meth:`setRotate` と同じく今のチャンネル値に最も近い等価解にする(90度ずつ4回回すとrotateは360になる)。
+        Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (Iterable[float] | EulerRotate | Quaternion): 回転量。EulerRotate/Quaternionは
+                対応するOpenMaya基底型も受理し、自身の回転順序・単位(rad)で解釈する。
+            worldSpace (bool): Trueはワールドの軸、既定Falseは自身のローカル軸。
+            unit (str): 数値3成分の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値の列・回転値でない、worldSpaceがbool以外、unitが文字列・None以外、
+                またはworldSpaceとwsを同時に指定した場合。
+            ValueError: valueの成分数が3でない・有限でない、unitが未対応の単位名、またはマトリクスを
+                分解できない(スケールが0の軸がある)場合。
+            RuntimeError: ノードが無効、またはrotateがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.rotateBy((0, 90, 0))              # 自身のY軸の周りに90度
+            >>> node.rotateBy((0, 0, 45), ws=True)     # ワールドのZ軸の周りに45度
         """
         ...
     def getRotateOrder(self) -> str:
@@ -938,6 +1030,27 @@ class Transform(DagNode):
             ValueError: valueが3つの有限の成分でない場合。
             RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
                 (原因の成分と ``safe=True`` を案内する)。
+        """
+        ...
+    def scaleBy(self, value: float | Iterable[float]) -> Transform:
+        """今のscaleチャンネルへ倍率を掛ける(``cmds.scale(relative=True)`` 相当)。
+
+        書き込むのはscaleだけで、ピボットの周りに拡大する。Undo有効時に1回のUndoで戻る。fast引数は持たない。
+
+        Args:
+            value (float | Iterable[float]): 無次元の倍率。1つの数値はXYZ共通、3成分は軸ごと。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: valueが数値・数値の列でない(boolを含む)場合。
+            ValueError: valueの成分数が3でない、または有限でない場合。
+            RuntimeError: ノードが無効、またはscaleがロック・入力接続で書き込めない場合。
+
+        Examples:
+            >>> node.scaleBy(2)              # XYZとも2倍
+            >>> node.scaleBy((1, 0.5, 1))    # Yだけ半分
         """
         ...
     def getShear(self, worldSpace: bool = ..., *, ws: bool = ...) -> Shear:
@@ -1159,6 +1272,30 @@ class Transform(DagNode):
             ValueError: refVectorの成分の数が3でない・有限でない、または refVector・いずれかのローカル軸が
                 ワールド変換後にゼロベクトルになる場合。
             RuntimeError: ノードが無効な場合。
+        """
+        ...
+    def getLimits(self, *, unit: str = ...) -> dict[str, tuple[float | None, float | None]]:
+        """移動・回転・スケールの制限を、:meth:`setLimits` と同じ形の辞書で取得する。
+
+        9チャンネル(``translateX``〜``scaleZ``)すべてについて ``(最小, 最大)`` を返し、無効な側は ``None`` にする。
+        ``node.setLimits(**other.getLimits())`` で別のノードへ同じ制限を写せる(無効な側の値は写さない)。
+        距離はcm、角度は ``unit`` の単位(既定は度)。UIの単位には依らない。
+
+        Args:
+            unit (str): 回転の数値の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン(別名も可)。
+
+        Returns:
+            dict[str, tuple[float | None, float | None]]: チャンネル名ごとの ``(最小, 最大)``。
+
+        Raises:
+            TypeError: unitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: ノードが無効な場合。
+
+        Examples:
+            >>> node.setLimits(rotateZ=(-45, 90))
+            >>> node.getLimits()["rotateZ"]
+            (-45.0, 90.0)
         """
         ...
     def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> Transform:

@@ -4,7 +4,7 @@
 import math
 from typing import Any, Sequence
 import maya.api.OpenMaya as om2
-from ..util import _checked_digits, _checked_index, _copy_state, _foreign_comparison, _instance_state, _rethrow_init_error, _round_float
+from ..util import _checked_digits, _checked_index, _checked_tolerance, _copy_state, _finite, _foreign_comparison, _instance_state, _rethrow_init_error, _round_float
 from typing import Any, Iterable, Iterator
 from mlib.maths.quaternion import Quaternion
 from typing_extensions import Self
@@ -148,6 +148,21 @@ def _reduce_value(value: object, values: tuple) -> tuple:
 
     Returns:
         tuple: ``(_rebuild, (type(value), values))``、または state を加えた3要素の tuple。
+    """
+    ...
+
+def _iterable(value: Iterable, name: str) -> list:
+    """点列の引数を list へ変換する。
+
+    Args:
+        value (Iterable): 点列。文字列・単独のベクトルは点列として受け付けない。
+        name (str): 例外メッセージに使う引数名。
+
+    Returns:
+        list: 点のリスト。
+
+    Raises:
+        TypeError: 反復できない値、文字列、または単独のom2ベクトル・点の場合。
     """
     ...
 
@@ -544,6 +559,40 @@ class Vector(om2.MVector):
             ValueError: axisが軸の名前でない場合。
         """
         ...
+    @classmethod
+    def getCenter(cls, points: Iterable[om2.MVector | om2.MPoint | Iterable[float]]) -> Vector:
+        """点列の重心(位置の平均)を返す。
+
+        Args:
+            points (Iterable[om2.MVector | om2.MPoint | Iterable[float]]): 1点以上の点列。
+
+        Returns:
+            Vector: 呼び出したクラスの新しい値(``Translate.getCenter(...)`` はTranslate)。
+
+        Raises:
+            TypeError: 点列が反復できない場合。
+            ValueError: 点列が空の場合。
+        """
+        ...
+    @classmethod
+    def isPlanar(cls, points: Iterable[om2.MVector | om2.MPoint | Iterable[float]], tolerance: float = ...) -> bool:
+        """点列がすべて同一平面上にあるか判定する。
+
+        一直線上にない最初の3点で平面を決め、全点の平面からの距離が tolerance 以下ならTrue。
+        3点以下、または全点が一直線上なら常にTrue。
+
+        Args:
+            points (Iterable[om2.MVector | om2.MPoint | Iterable[float]]): 点列。
+            tolerance (float): 平面からの距離の許容誤差(点と同じ単位)。0以上。
+
+        Returns:
+            bool: 同一平面上ならTrue。
+
+        Raises:
+            TypeError: 点列が反復できない、またはtoleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        ...
     def mirror(self, axis: str | int = ..., pivot: Iterable[float] = ...) -> Vector:
         """指定中心から成分を反転した同型の複製を返す。
 
@@ -797,6 +846,110 @@ class Vector(om2.MVector):
 
         Raises:
             ValueError: axisがゼロベクトルの場合。自身は変更しない。
+        """
+        ...
+    def distanceSqTo(self, other: om2.MVector | om2.MPoint | Iterable[float]) -> float:
+        """2点間の距離の2乗を返す。
+
+        平方根を計算しないため、距離の比較だけが目的なら :meth:`distanceTo` より速い。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 距離を測る相手。
+
+        Returns:
+            float: 距離の2乗。
+        """
+        ...
+    def isZero(self, tolerance: float = ...) -> bool:
+        """長さが tolerance 以下(ほぼゼロベクトル)か判定する。
+
+        Args:
+            tolerance (float): 長さの許容誤差。0以上。
+
+        Returns:
+            bool: 長さが tolerance 以下ならTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        ...
+    def abs(self) -> Vector:
+        """各成分を絶対値にした同型の複製を返す。
+
+        組み込みの ``abs()`` (長さではない)と混同しないよう、``__abs__`` は定義しない。長さは :meth:`length`。
+
+        Returns:
+            Vector: 同型の新しい値。
+        """
+        ...
+    def cotan(self, other: om2.MVector | om2.MPoint | Iterable[float]) -> float:
+        """別のベクトルとの成す角のコタンジェント(``内積 / |外積|``)を返す。
+
+        メッシュのラプラシアン(コタンジェントの重み)などに使う。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 角度を測る相手。
+
+        Returns:
+            float: コタンジェント。鋭角は正、鈍角は負。
+
+        Raises:
+            ValueError: 自身または other がゼロベクトル、または2つが平行(角度が0かpi)な場合。
+        """
+        ...
+    def slerp(self, other: om2.MVector | om2.MPoint | Iterable[float], t: float, spin: int = ...) -> Vector:
+        """別のベクトルへ向きを球面線形補間し、長さを線形補間したベクトルを返す。
+
+        2つのベクトルが張る平面の中で、自身の向きを other の向きへ角度 ``t`` の割合だけ回す
+        (回す角度は ``(成す角 + 2pi * spin) * t``)。長さは ``|自身| + (|other| - |自身|) * t``。
+        2つが平行・反平行で平面が決まらない場合は、自身に直交する軸(:meth:`orthogonal` で作る)の周りに回す。
+
+        Args:
+            other (om2.MVector | om2.MPoint | Iterable[float]): 補間先。
+            t (float): 補間係数。0 で自身、1 で other(spin=0 の場合)。範囲外は外挿になる。
+            spin (int): 追加で回る周回数。既定 0 は最短経路、-1 は逆回り(長い経路)。
+
+        Returns:
+            Vector: 補間結果。派生クラスの型は保持しない。
+
+        Raises:
+            TypeError: tが数値でない、またはspinが整数でない場合(boolを含む)。
+            ValueError: tが有限でない、または自身・otherがゼロベクトルの場合。
+        """
+        ...
+    def getClosestAxis(self, includeNegative: bool = ...) -> str:
+        """ベクトルの向きに最も近い座標軸の名前を返す。
+
+        :meth:`Transform.getClosestAxisToVector <mlib.nodes.transform.Transform.getClosestAxisToVector>` の
+        値版で、候補の軸のうち内積が最大のものを選ぶ。同じ値なら x・y・z の順で先のものを選ぶ。
+
+        Args:
+            includeNegative (bool): Trueなら負の軸(``"-x"`` 等)も候補にする。Falseは ``"x"``・``"y"``・``"z"`` だけ。
+
+        Returns:
+            str: ``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"`` のいずれか。:meth:`fromAxis` へ渡せる。
+
+        Raises:
+            TypeError: includeNegativeがbool以外の場合。
+            ValueError: ゼロベクトルの場合。
+        """
+        ...
+    def getBarycentricWeights(self, *points: om2.MVector | om2.MPoint | Iterable[float]) -> tuple[float, ...]:
+        """自身の位置を、2点(線分)または3点(三角形)の重心座標の重みに分解する。
+
+        重みの合計は1で、``points[0] * w0 + points[1] * w1 (+ points[2] * w2)`` が自身(線分では直線上、三角形
+        では平面上へ射影した位置)になる。範囲の外では負の重みになる。
+
+        Args:
+            *points (om2.MVector | om2.MPoint | Iterable[float]): 2点または3点。
+
+        Returns:
+            tuple[float, ...]: 点と同じ数の重み。
+
+        Raises:
+            TypeError: 点の数が2・3以外の場合。
+            ValueError: 線分の長さが0、または三角形の面積が0(3点が一直線上)の場合。
         """
         ...
     @classmethod

@@ -1,6 +1,7 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Mayaのコンポーネント(頂点・エッジ・フェース・CV・UV)と同一シェイプの要素群。"""
 
+import functools
 import operator
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
@@ -24,6 +25,18 @@ def _count_name(owner: type | Component) -> str:
 
     Raises:
         TypeError: 基底クラス等でcount_attributeが文字列でない場合。getattrと同じ例外型にする。
+    """
+    ...
+
+def _indexed_component_fn(component: om2.MObject) -> om2.MFnSingleIndexedComponent | om2.MFnDoubleIndexedComponent | om2.MFnTripleIndexedComponent | None:
+    """コンポーネントの番号の次元に合う OpenMaya の関数セットを返す。
+
+    Args:
+        component (om2.MObject): コンポーネント。
+
+    Returns:
+        om2.MFnSingleIndexedComponent | om2.MFnDoubleIndexedComponent | om2.MFnTripleIndexedComponent | None:
+            番号を持たない種類はNone。
     """
     ...
 
@@ -130,15 +143,15 @@ class Component(Object):
         ...
     @staticmethod
     def _from_api(path: om2.MDagPath, component: om2.MObject) -> list[Component]:
-        """OpenMayaの単一番号型コンポーネントを、要素別の参照へ展開する。
+        """OpenMayaのコンポーネントを、要素別の参照へ展開する。
 
         明示番号はgetElements()の順序、complete指定は現在のShapeの全番号を使う。
         各参照は同じShapeラッパーを共有し、座標値は取得しない。
 
         Args:
             path (MDagPath): 所有Shapeのインスタンスパス。
-            component (MObject): Meshの頂点/エッジ/フェース/UV、またはNurbsCurveのCV。
-                NurbsSurfaceやLattice等の多次元コンポーネントは対象外。
+            component (MObject): Meshの頂点/エッジ/フェース/UV/頂点フェース、NurbsCurveのCV、
+                NurbsSurfaceのCV、またはLatticeの点。
 
         Returns:
             list[Component]: 新しい単数ラッパーのリスト。complete指定は0から要素数-1の順。
@@ -159,7 +172,7 @@ class Component(Object):
 
         Args:
             value (str | Component | tuple): コンポーネント名、既存参照、または
-                (MDagPath, MObject)。頂点/エッジ/フェース/UV/カーブCVを対象とする。
+                (MDagPath, MObject)。:meth:`_from_api` が展開できる種類を対象とする。
 
         Returns:
             Component: 具体型の参照。既存入力以外は新しいラッパー。
@@ -189,6 +202,17 @@ class Component(Object):
             TypeError: 対応しないシェイプ型の場合。
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    @classmethod
+    def _element_count(cls, shape: Shape) -> int:
+        """シェイプが現在持つこの種類の要素数を返す。
+
+        Args:
+            shape (Shape): 型を検査済みのシェイプ。
+
+        Returns:
+            int: 要素数。既定は ``count_attribute`` のシェイプのメソッドを呼ぶ。多次元の番号を持つ型は上書きする。
         """
         ...
     @staticmethod
@@ -424,6 +448,20 @@ class Components:
             UVは現在のUVセットの番号範囲を使う。
         """
         ...
+    def isComplete(self) -> bool:
+        """シェイプが現在持つこの種類の要素を、すべて保持しているか照会する。
+
+        保持順は問わない。``cmds.ls(..., flatten=True)`` で得る全要素(``vtx[*]`` 等)と同じ集まりかを調べる。
+
+        Returns:
+            bool: 全要素を保持していればTrue。要素が0個のシェイプで空の集まりもTrue。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: トポロジーの変更で保持番号が範囲外になった場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
     def _matching_indices(self, other: Components | list | tuple) -> tuple[int, ...]:
         """結合する相手から、同じシェイプ・同じ種類であることを確かめた番号列を取り出す。
 
@@ -542,3 +580,136 @@ class Components:
         ...
 _COMPONENTS_INIT: Any
 _COMPONENTS_ITER: Any
+
+def _flat_input(cls, shape: Shape, items: list[int | Sequence[int]]) -> list[int]:
+    """番号の指定(平坦な実番号、または多次元の番号のtuple)を、平坦な実番号のリストへ変換する。
+
+    多次元の番号はシェイプの現在の形状で変換し、範囲外ならIndexErrorにする。平坦な実番号の範囲は
+    呼出し側が検査する。
+
+    Args:
+        cls (type): ``index_size`` と ``_flat_indices`` を持つ多次元の番号の単数型。
+        shape (Shape): 型を検査済みのシェイプ。
+        items (list[int | Sequence[int]]): 番号の指定。
+
+    Returns:
+        list[int]: 指定順の平坦な実番号。
+
+    Raises:
+        TypeError: 番号が整数として扱えない、またはboolの場合。
+        ValueError: 多次元の番号の数が ``index_size`` と違う場合。
+        IndexError: 多次元の番号が範囲外の場合。
+    """
+    ...
+
+def _component_name(prefix: str, numbers: Sequence[int]) -> str:
+    """``<シェイプ>.<種類>`` と多次元の番号から ``cv[1][2]`` のようなコンポーネント名を作る。
+
+    Args:
+        prefix (str): ``<シェイプの名前>.<種類>``。
+        numbers (Sequence[int]): cmds用の番号。
+
+    Returns:
+        str: コンポーネント名。
+    """
+    ...
+
+
+class _MultiIndexComponent:
+    """複数の番号(``cv[u][v]``・``pt[s][t][u]``・``vtxFace[v][f]``)を持つ単数コンポーネントの共通処理。
+
+    :class:`Component` の具体型と組み合わせる(``class SurfaceCV(_MultiIndexComponent, PointComponent)``)。
+    保持する :attr:`~Component.index` は、要素を一列に並べた平坦な実番号で、``==``・ハッシュ・
+    :attr:`Components.indices` はこの番号を使う。多次元の番号は :meth:`getMultiIndex` で照会する。
+    具体型は ``index_size`` と、``_element_count``・``_multi_indices``・``_flat_indices`` を定義する。
+    """
+    index_size: int
+    def __init__(self, shape: Shape, index: int | Sequence[int]) -> None:
+        """シェイプと番号を検証して保持する。
+
+        Args:
+            shape (Shape): 具体型に対応するシェイプのラッパー。
+            index (int | Sequence[int]): 平坦な実番号、または多次元の番号(``(u, v)`` 等)。
+                boolと負数は拒否する。
+
+        Raises:
+            TypeError: シェイプ型が不正、または番号が整数として扱えない・boolの場合。
+            ValueError: 多次元の番号の数が違う場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def getFullName(self) -> str:
+        """現在のDAGパスと多次元の番号を使ってコンポーネント名を取得する。
+
+        Returns:
+            str: ``|plane|planeShape.cv[1][2]`` のような名前。周期曲面の重複CVは先頭の対応番号で表す。
+        """
+        ...
+    def getMultiIndex(self) -> tuple[int, ...]:
+        """保持する要素の多次元の番号を、現在の形状から照会する。
+
+        Returns:
+            tuple[int, ...]: ``(u, v)``・``(s, t, u)``・``(頂点, フェース)`` のような番号。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+
+
+class _MultiIndexComponents:
+    """複数の番号を持つコンポーネントの集まりの共通処理。
+
+    :class:`Components` の具体型と組み合わせる。番号の指定には平坦な実番号と多次元の番号を混ぜられ、
+    保持は平坦な実番号で行う。名前は範囲へまとめない。
+    """
+    def __init__(self, shape: Shape, indices: Iterable[int | Sequence[int]] | None = ...) -> None:
+        """指定番号を検証し、初出順を維持して重複を除いて保持する。
+
+        Args:
+            shape (Shape): 具体型に対応するシェイプのラッパー。
+            indices (Iterable[int | Sequence[int]] | None): 平坦な実番号または多次元の番号の列。
+                Noneは構築時の全要素を平坦な実番号の昇順で保持する。
+
+        Raises:
+            TypeError: シェイプ型または番号の型が不正な場合。
+            ValueError: 多次元の番号の数が違う場合。
+            IndexError: いずれかの番号が現在の範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def __repr__(self) -> str:
+        """デバッグ用に、型名と先頭の要素の名前を返す。
+
+        Returns:
+            str: ``SurfaceCVs('planeShape.cv[0][0]', 'planeShape.cv[0][1]')``、多数なら件数を添える。
+                空なら ``SurfaceCVs('planeShape', count=0)``、無効なら ``<SurfaceCVs invalid>``。
+        """
+        ...
+    def getFullNames(self) -> list[str]:
+        """保持順の完全コンポーネント名を取得する。
+
+        Returns:
+            list[str]: ``|plane|planeShape.cv[1][2]`` のような要素ごとの名前。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...
+    def getCompactNames(self) -> list[str]:
+        """cmds用の名前を返す。多次元の番号は範囲へまとめず、:meth:`getFullNames` と同じ名前を返す。
+
+        Returns:
+            list[str]: 保持順のコンポーネント名。
+
+        Raises:
+            TypeError: 対応しないシェイプ型の場合。
+            IndexError: いずれかの番号が範囲外の場合。
+            RuntimeError: シェイプが無効な場合。
+        """
+        ...

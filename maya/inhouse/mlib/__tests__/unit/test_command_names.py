@@ -16,7 +16,8 @@ class CommandNamesTest(unittest.TestCase):
                     "bakeDeformer", "bakeResults", "createJointChain",
                     "createContainer", "createDagContainer", "createDagPose", "createIkHandle", "createBlendShape",
                     "createCurve", "createCircle", "createLocator", "createPolyCube", "createPolySphere",
-                    "createPolyCylinder", "createPolyPlane"}
+                    "createPolyCylinder", "createPolyPlane", "createGroup", "createNurbsPlane", "createCluster",
+                    "createLattice", "createWire"}
         mlib.reload()
         self.assertEqual(set(mlib.cmds.__all__), expected)
         folder = Path(mlib.__file__).parent / "cmds"

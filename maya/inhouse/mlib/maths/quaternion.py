@@ -5,9 +5,19 @@ from typing import Any, Sequence
 
 import maya.api.OpenMaya as om2
 
-from ..util import _angle_unit, _checked_index, _copy_state, _foreign_comparison, _rethrow_init_error, _to_radians
+from ..util import (
+    _angle_unit,
+    _checked_index,
+    _copy_state,
+    _finite,
+    _foreign_comparison,
+    _from_radians,
+    _rethrow_init_error,
+    _to_radians,
+)
 from .vector import (
     Vector,
+    _axis_name,
     _reduce_value,
     _resolve_mvector,
     _zero,
@@ -57,6 +67,31 @@ def _unit_copy(value):
     result.setValue(value)
     result.normalizeIt()
     return result
+
+
+def _roll_bend_axes(aimAxis, upAxis):
+    """ロール・曲げの分解に使う、向ける軸・アップ軸・横の軸(``aim × up``)を返す。
+
+    Args:
+        aimAxis (str): ボーンの向きの軸。``"x"``・``"-y"`` 等。
+        upAxis (str): アップ軸。aimAxisと別の軸。
+
+    Returns:
+        tuple[om2.MVector, om2.MVector, om2.MVector]: (aim, up, side)。どれも長さ1。
+
+    Raises:
+        TypeError: aimAxis・upAxisが文字列でない場合。
+        ValueError: 軸の名前が不正、またはaimAxisとupAxisが同じ軸(符号違いを含む)の場合。
+    """
+    aim_index, aim_sign = _axis_name(aimAxis, "aimAxis")
+    up_index, up_sign = _axis_name(upAxis, "upAxis")
+    if aim_index == up_index:
+        raise ValueError("aimAxis and upAxis must be different axes")
+    aim = _MVector()
+    aim[aim_index] = aim_sign
+    up = _MVector()
+    up[up_index] = up_sign
+    return aim, up, aim ^ up
 
 
 class Quaternion(om2.MQuaternion):
@@ -452,6 +487,41 @@ class Quaternion(om2.MQuaternion):
         result.w = math.cos(half)
         return result
 
+    @classmethod
+    def fromRollBend(cls, roll, bendH, bendV, aimAxis="x", upAxis="y", *, unit="deg"):
+        """ロール(捻り)と横・縦の曲げの角度から、回転クォータニオンを合成する(:meth:`asRollBend` の逆)。
+
+        aimAxis周りに roll だけ捻ってから、aimAxisを曲げる回転(om2の積の順序で ``捻り * 曲げ``)を作る。
+        曲げは、upAxis周りの bendH と、横の軸(``aimAxis × upAxis``)周りの bendV の組で表し、
+        片方が0ならその軸周りの回転そのものになる。
+
+        Args:
+            roll (float): aimAxis周りの捻りの角度。
+            bendH (float): upAxis周りの曲げの角度(aimAxisを横の軸の負の側へ倒す向きが正)。
+            bendV (float): 横の軸周りの曲げの角度(aimAxisをupAxisの側へ倒す向きが正)。
+            aimAxis (str): ボーンの向きの軸。``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"``。既定 ``"x"``。
+            upAxis (str): アップ軸。aimAxisと別の軸。既定 ``"y"``。
+            unit (str): 角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            Quaternion: 呼び出したクラスの新しい単位クォータニオン。
+
+        Raises:
+            TypeError: 角度が数値でない、aimAxis・upAxisが文字列でない、またはunitが文字列・None以外の場合。
+            ValueError: 角度が有限でない、軸の名前が不正、aimAxisとupAxisが同じ軸、またはunitが未対応の場合。
+        """
+        unit = _angle_unit(unit)
+        roll = _to_radians(_finite(roll, "roll"), unit)
+        horizontal = math.tan(_to_radians(_finite(bendH, "bendH"), unit) / 2.0)
+        vertical = math.tan(_to_radians(_finite(bendV, "bendV"), unit) / 2.0)
+        aim, up, side = _roll_bend_axes(aimAxis, upAxis)
+        # 曲げの角度は半角の正接で表す(asRollBend の逆変換)。曲げた後のaimの向きを求める。
+        denominator = 1.0 + horizontal * horizontal + vertical * vertical
+        bent = (aim * (2.0 / denominator - 1.0) + up * (2.0 * vertical / denominator)
+                - side * (2.0 * horizontal / denominator))
+        result = _MQuaternion(roll, aim) * _MQuaternion(aim, bent)
+        return cls._wrap(result)
+
     @staticmethod
     def squad(*args):
         """クォータニオン空間の三次曲線上で補間したQuaternionを返す。
@@ -499,6 +569,14 @@ class Quaternion(om2.MQuaternion):
             float: 長さ。
         """
         return math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w)
+
+    def lengthSq(self):
+        """クォータニオンの長さの2乗(自身との内積)を返す。
+
+        Returns:
+            float: 長さの2乗。
+        """
+        return self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
 
     def unitIt(self):
         """ゼロ値を拒否して自身を正規化する。
@@ -689,6 +767,46 @@ class Quaternion(om2.MQuaternion):
         swing = twist.conjugate() * rotation
         return swing, twist
 
+    def asRollBend(self, aimAxis="x", upAxis="y", *, unit="deg"):
+        """ボーンの回転として、ロール(aimAxis周りの捻り)と横・縦の曲げの角度へ分解する。
+
+        自身を正規化して ``捻り * 曲げ`` (捻りを先に適用し、続けてaimAxisを最短経路で倒す曲げ)へ分け、
+        曲げを upAxis 周りの bendH と横の軸(``aimAxis × upAxis``)周りの bendV で表す。曲げの2つの角度は
+        半角の正接で組み合わせる(``tan(全体の曲げ/2)² = tan(bendH/2)² + tan(bendV/2)²``)ため、
+        片方が0ならその軸周りの回転角そのものになり、オイラー角のような回転順序の影響を受けない。
+        ツイストの抽出や、ポーズに応じたドライバーの値に使う。:meth:`fromRollBend` で元の回転へ戻る。
+
+        Args:
+            aimAxis (str): ボーンの向きの軸。``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"``。既定 ``"x"``。
+            upAxis (str): アップ軸。aimAxisと別の軸。既定 ``"y"``。
+            unit (str): 戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            tuple[float, float, float]: (roll, bendH, bendV)。roll は -180〜180 度、曲げは -180〜180 度。
+                aimAxisが真後ろへ向く180度の曲げは、曲げの向きが定まらない。
+
+        Raises:
+            TypeError: aimAxis・upAxisが文字列でない、またはunitが文字列・None以外の場合。
+            ValueError: 軸の名前が不正、aimAxisとupAxisが同じ軸(符号違いを含む)、unitが未対応、
+                または自身がゼロクォータニオンの場合。
+        """
+        unit = _angle_unit(unit)
+        aim, up, side = _roll_bend_axes(aimAxis, upAxis)
+        rotation = _unit_copy(self)
+        bent = aim.rotateBy(rotation)
+        # 捻りは、回転から最短経路の曲げを取り除いた残り(aimを動かさない回転)。
+        twist = rotation * _MQuaternion(aim, bent).conjugate()
+        twist_sine = twist.x * aim.x + twist.y * aim.y + twist.z * aim.z
+        if twist.w < 0.0:
+            twist_sine, twist_cosine = -twist_sine, -twist.w
+        else:
+            twist_cosine = twist.w
+        roll = 2.0 * math.atan2(twist_sine, twist_cosine)
+        base = 1.0 + bent * aim
+        bend_h = 2.0 * math.atan2(-(bent * side), base)
+        bend_v = 2.0 * math.atan2(bent * up, base)
+        return _from_radians(roll, unit), _from_radians(bend_h, unit), _from_radians(bend_v, unit)
+
     def asDecomposedEulerRotate(self, order="xyz"):
         """EulerRotate へ変換する。
 
@@ -795,6 +913,20 @@ class Quaternion(om2.MQuaternion):
             Quaternion: 演算結果を保持する新しいmlib値。
         """
         return Quaternion._wrap(_MQuaternion.log(self, *args))
+
+    def safeLog(self):
+        """w が負なら符号を反転してから(同じ回転のまま)、自然対数を新しいQuaternionとして返す。
+
+        単位クォータニオンでは、結果の虚部の長さ(回転角の半分)が pi/2 以下になる。
+        :meth:`log` の結果を足し合わせて回転を平均・補間するときに、二重被覆による遠回りを避ける。
+
+        Returns:
+            Quaternion: 対数。自身は変更しない。
+        """
+        value = Quaternion._wrap(self)
+        if value.w < 0.0:
+            value.negateIt()
+        return Quaternion._wrap(_MQuaternion.log(value))
 
     def asMatrix(self, *args):
         """保持する回転を、等価な回転マトリクスへ変換する。

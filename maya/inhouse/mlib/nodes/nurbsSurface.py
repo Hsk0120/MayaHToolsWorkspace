@@ -3,11 +3,13 @@
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
+from ..components.surfaceCV import SurfaceCV, SurfaceCVs
 from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
 from ..decorator import _edit_context, _pick_alias, _require_bool
 from ..maths.vector import Vector, _vectors_of_points
 from ..util import _UNSET, _finite, _world_space
+from .nurbsCurve import _DEGENERATE, _frame_matrix, _perpendicular, _require_axis
 from .shape import Shape
 
 
@@ -101,6 +103,32 @@ class NurbsSurface(Shape):
         u_start, u_end = fn.knotDomainInU
         v_start, v_end = fn.knotDomainInV
         return (u_start, u_end), (v_start, v_end)
+
+    def getCV(self, u, v):
+        """``(u, v)`` の番号から CV の単体ラッパーを取得する。
+
+        Args:
+            u (int): U方向のCV番号。
+            v (int): V方向のCV番号。
+
+        Returns:
+            SurfaceCV: シーン上の CV(``cv[u][v]``)を参照するラッパー。
+
+        Raises:
+            IndexError: CV 番号が範囲外の場合。
+        """
+        return SurfaceCV(self, (u, v))
+
+    def getCVs(self, indices=None):
+        """CV の番号列を保持するコレクションを取得する。
+
+        Args:
+            indices (Iterable[int | tuple[int, int]] | None): 平坦な番号か ``(u, v)``。None は現在の全CV。
+
+        Returns:
+            SurfaceCVs: 同じ Shape を共有し、重複を除いたコレクション。
+        """
+        return SurfaceCVs(self, indices)
 
     def getCvPositions(self, worldSpace=_UNSET, *, ws=_UNSET):
         """全CVの位置を取得する。
@@ -256,6 +284,93 @@ class NurbsSurface(Shape):
             raise ValueError(f"Normal is undefined at ({u}, {v}): {self.getFullName()}")
         return normal.normal()
 
+    def getTangentsAtParam(self, u, v, worldSpace=_UNSET, *, ws=_UNSET):
+        """パラメーター (u, v) の位置の、U方向とV方向の正規化した接線を取得する。
+
+        Args:
+            u (float): :meth:`getParamRange` の U の範囲内のパラメーター。
+            v (float): :meth:`getParamRange` の V の範囲内のパラメーター。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            tuple[Vector, Vector]: U・Vのパラメーターの増える向きの単位ベクトル。
+                ``pointOnSurfaceInfo`` の ``normalizedTangentU``・``normalizedTangentV`` と同じ向き。
+                互いに直交するとは限らない。
+
+        Raises:
+            TypeError: u・vが数値でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: u・vが有限でない・範囲外、または重なったCV等で接線が0になる位置の場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        world = _world_space(worldSpace)
+        fn = self._geometry_fn()
+        u, v = self._require_params(fn, u, v)
+        tangent_u, tangent_v = self._tangents(fn, u, v, world)
+        if tangent_u is None or tangent_v is None:
+            raise ValueError(f"Tangent is undefined at ({u}, {v}): {self.getFullName()}")
+        return Vector(tangent_u), Vector(tangent_v)
+
+    def getMatrixAtParam(self, u, v, *, aimAxis="x", upAxis="y", worldSpace=_UNSET, ws=_UNSET):
+        """パラメーター (u, v) の位置に、U方向の接線を aimAxis、法線を upAxis へ向けたマトリクスを取得する。
+
+        リボンの上にジョイント等を並べる用途に使う。マトリクスは正規直交の右手系(スケール1)で、
+        平行移動は曲面上の位置(cm)。upAxis は法線から接線方向の成分を除いた向きで、残りの軸は
+        aimAxis・upAxis から右手系で決まる(既定の x・y では z がおおむね V 方向の逆か同じ向き)。
+        :meth:`NurbsCurve.getMatricesAlong <mlib.nodes.nurbsCurve.NurbsCurve.getMatricesAlong>` と同じ軸の指定。
+
+        Args:
+            u (float): :meth:`getParamRange` の U の範囲内のパラメーター。
+            v (float): :meth:`getParamRange` の V の範囲内のパラメーター。
+            aimAxis (str): U方向の接線へ向ける軸。"x"・"y"・"z"・"-x"・"-y"・"-z"。
+            upAxis (str): 法線へ向ける軸。aimAxis と別の軸。
+            worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Matrix: 行ベクトルの規約(各行が軸、4行目が位置)のマトリクス。
+
+        Raises:
+            TypeError: u・vが数値でない、aimAxis・upAxisがstr以外、worldSpaceがbool以外、
+                またはworldSpaceとwsを同時に指定した場合。
+            ValueError: u・vが有限でない・範囲外、軸名が未対応・aimAxisとupAxisが同じ軸、
+                またはU方向の接線・法線が0か互いに平行で向きを決められない場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        world = _world_space(worldSpace)
+        aim_axis = _require_axis(aimAxis, "aimAxis")
+        up_axis = _require_axis(upAxis, "upAxis")
+        if aim_axis[0] == up_axis[0]:
+            raise ValueError(f"aimAxis and upAxis must be different axes: {aimAxis!r}, {upAxis!r}")
+        fn = self._geometry_fn()
+        u, v = self._require_params(fn, u, v)
+        space = om2.MSpace.kWorld if world else om2.MSpace.kObject
+        aim = self._tangents(fn, u, v, world)[0]
+        up = None if aim is None else _perpendicular(fn.normal(u, v, space), aim)
+        if up is None:
+            raise ValueError(f"Frame is undefined at ({u}, {v}): {self.getFullName()}")
+        return _frame_matrix(fn.getPointAtParam(u, v, space), aim, up, aim_axis, up_axis)
+
+    def getArea(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """曲面の面積(``MFnNurbsSurface.area``)を取得する。シーンに計算ノードを作成しない。
+
+        Args:
+            worldSpace (bool): Trueはワールド空間(親のスケールを含む)、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            float: 面積(cm²)。トリムされた曲面はトリム後の面積。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            RuntimeError: 形状データを持たない空のシェイプの場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        return self._geometry_fn().area(space)
+
     @staticmethod
     def _require_params(fn, u, v):
         """パラメーターを検証し、範囲の端へ丸め込んだ (u, v) を返す。
@@ -279,6 +394,32 @@ class NurbsSurface(Shape):
             if value < start - margin or value > end + margin:
                 raise ValueError(f"{name} {value} is outside the surface range [{start}, {end}]")
             result.append(min(max(value, start), end))
+        return result[0], result[1]
+
+    def _tangents(self, fn, u, v, world):
+        """U・V方向の正規化した接線を返す。
+
+        ``MFnNurbsSurface.tangents`` はローカル空間では正規化せず、ワールド空間では版により正規化して返すため、
+        ローカル空間の微分ベクトルをマトリクスで変換してから正規化する(非均等スケールでも向きが正しい)。
+
+        Args:
+            fn (om2.MFnNurbsSurface): 照会する曲面。
+            u (float): 検証済みのUのパラメーター。
+            v (float): 検証済みのVのパラメーター。
+            world (bool): Trueならワールド空間。
+
+        Returns:
+            tuple[om2.MVector | None, om2.MVector | None]: U・Vの単位接線。0になる向きは None。
+        """
+        tangents = fn.tangents(u, v, om2.MSpace.kObject)
+        matrix = self.mpath().inclusiveMatrix() if world else None
+        result = []
+        for tangent in tangents:
+            tangent = om2.MVector(tangent)
+            if matrix is not None:
+                tangent = tangent * matrix
+            length = tangent.length()
+            result.append(None if length < _DEGENERATE else tangent / length)
         return result[0], result[1]
 
     def _require_fast_editable(self):

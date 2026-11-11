@@ -981,6 +981,65 @@ class Node(Object):
         """
         return self._alive_fn().isFromReferencedFile
 
+    def getReference(self):
+        """ノードを持ち込んだリファレンスノードを取得する。
+
+        ``cmds.referenceQuery(node, referenceNode=True)`` と同じく、入れ子のリファレンスでは
+        ノードを直接持ち込んだ最も内側のリファレンスノードを返す。
+
+        Returns:
+            Reference | None: リファレンスノード。リファレンス由来でないノードは ``None``。
+
+        Raises:
+            RuntimeError: ノードが削除済み・無効な場合。
+        """
+        self._require_valid("query the reference of")
+        if not self._alive_fn().isFromReferencedFile:
+            return None
+        return Node._from_name(cmds.referenceQuery(self.getFullName(), referenceNode=True))
+
+    def isDefaultNode(self):
+        """Mayaの既定ノード(``time1``・``lambert1``・``defaultLightSet`` 等、新規シーンに常にあるノード)か判定する。
+
+        ``cmds.ls(defaultNodes=True)`` に含まれるノードで True になる。
+
+        Returns:
+            bool: 既定ノードの場合は True。
+
+        Raises:
+            RuntimeError: ノードが削除済み・無効な場合。
+        """
+        self._require_valid("query")
+        return self._alive_fn().isDefaultNode
+
+    def getSets(self, type=None):
+        """ノードが属するセット(objectSet とその派生型)を取得する。
+
+        ``cmds.listSets(object=node)`` と同じく、ノード自身がメンバーのセットを返す。Shapeでは
+        コンポーネント(``f[0]`` 等)だけがメンバーのセット(シェーディンググループ等)も含む。
+        Transformは自身のメンバーシップだけで、Shapeのセットは含まない。
+
+        Args:
+            type (str | None): 継承型を含むセットのノード型(``"shadingEngine"`` 等)。Noneは全型。
+
+        Returns:
+            list[ObjectSet]: セットのラッパー(``ShadingEngine`` 等の派生型を含む)。名前順。無ければ空リスト。
+
+        Raises:
+            TypeError: type が文字列・None以外の場合。
+            ValueError: type が空文字列の場合。
+            RuntimeError: ノードが削除済み・無効な場合。
+        """
+        if type is not None:
+            if not isinstance(type, str):
+                raise TypeError("type must be a str or None")
+            if not type:
+                raise ValueError("type must be a non-empty string")
+        self._require_valid("query the sets of")
+        names = cmds.listSets(object=self.getFullName()) or []
+        sets = [Node._from_name(name) for name in sorted(names)]
+        return [node for node in sets if type is None or node.isType(type)]
+
     def isAncestorOf(self, other):
         """保持するDAGパスで、otherが自身の子孫か判定する。
 

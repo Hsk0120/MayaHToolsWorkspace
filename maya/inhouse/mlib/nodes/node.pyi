@@ -26,6 +26,8 @@ from mlib.maths.vector import Vector
 from mlib.nodes.constraint import Constraint
 from mlib.nodes.dagNode import DagNode
 from mlib.nodes.dagPose import DagPose
+from mlib.nodes.objectSet import ObjectSet
+from mlib.nodes.reference import Reference
 from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.nodes.shape import Shape
 from mlib.nodes.skinCluster import SkinCluster
@@ -634,6 +636,50 @@ class Node(Object):
 
         Raises:
             RuntimeError: ノードが破棄されている(削除後にUndoの記録から消えた)場合。
+        """
+        ...
+    def getReference(self) -> Reference | None:
+        """ノードを持ち込んだリファレンスノードを取得する。
+
+        ``cmds.referenceQuery(node, referenceNode=True)`` と同じく、入れ子のリファレンスでは
+        ノードを直接持ち込んだ最も内側のリファレンスノードを返す。
+
+        Returns:
+            Reference | None: リファレンスノード。リファレンス由来でないノードは ``None``。
+
+        Raises:
+            RuntimeError: ノードが削除済み・無効な場合。
+        """
+        ...
+    def isDefaultNode(self) -> bool:
+        """Mayaの既定ノード(``time1``・``lambert1``・``defaultLightSet`` 等、新規シーンに常にあるノード)か判定する。
+
+        ``cmds.ls(defaultNodes=True)`` に含まれるノードで True になる。
+
+        Returns:
+            bool: 既定ノードの場合は True。
+
+        Raises:
+            RuntimeError: ノードが削除済み・無効な場合。
+        """
+        ...
+    def getSets(self, type: str | None = ...) -> list[ObjectSet]:
+        """ノードが属するセット(objectSet とその派生型)を取得する。
+
+        ``cmds.listSets(object=node)`` と同じく、ノード自身がメンバーのセットを返す。Shapeでは
+        コンポーネント(``f[0]`` 等)だけがメンバーのセット(シェーディンググループ等)も含む。
+        Transformは自身のメンバーシップだけで、Shapeのセットは含まない。
+
+        Args:
+            type (str | None): 継承型を含むセットのノード型(``"shadingEngine"`` 等)。Noneは全型。
+
+        Returns:
+            list[ObjectSet]: セットのラッパー(``ShadingEngine`` 等の派生型を含む)。名前順。無ければ空リスト。
+
+        Raises:
+            TypeError: type が文字列・None以外の場合。
+            ValueError: type が空文字列の場合。
+            RuntimeError: ノードが削除済み・無効な場合。
         """
         ...
     def isAncestorOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> bool:
@@ -2181,6 +2227,15 @@ class Nodes(Generic[_NodeT]):
     def isFromReferencedFile(self) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isFromReferencedFile` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getReference(self) -> list[Reference | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getReference` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isDefaultNode(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isDefaultNode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getSets(self, type: str | None = ...) -> list[list[ObjectSet]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getSets` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def isAncestorOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isAncestorOf` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -2268,17 +2323,29 @@ class Nodes(Generic[_NodeT]):
     def getRoot(self) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getRoot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getCommonAncestor(self, other: DagNode | str | om2.MObject | om2.MDagPath) -> list[DagNode | None]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getCommonAncestor` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getSiblings(self) -> list[list[DagNode]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getSiblings` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getBoundingBox(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[om2.MBoundingBox]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBoundingBox` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getBoundingBoxCorners(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[list[Vector]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBoundingBoxCorners` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def isIntermediateObject(self) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isIntermediateObject` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getInstances(self, noSelf: bool = ...) -> list[list[DagNode]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getInstances` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isInstanced(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isInstanced` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getInstanceIndex(self) -> list[int]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getInstanceIndex` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getParents(self, indirect: bool = ...) -> list[list[Transform]]:
         """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getParents` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -2340,6 +2407,12 @@ class Nodes(Generic[_NodeT]):
     def centerPivot(self, *, fast: bool = ...) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.centerPivot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def zeroTransformPivots(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.zeroTransformPivots` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def ungroup(self, *, world: bool = ...) -> list[list[Transform]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.ungroup` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getUnusedIntermediateShapes(self) -> list[list[Shape]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getUnusedIntermediateShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -2388,11 +2461,17 @@ class Nodes(Generic[_NodeT]):
     def setTranslation(self, value: Iterable[float], worldSpace: bool = ..., at: int = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setTranslation` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def translateBy(self, value: Iterable[float], worldSpace: bool = ..., *, ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.translateBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., ws: bool = ...) -> list[EulerRotate]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def setRotate(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def rotateBy(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., *, unit: str = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.rotateBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getRotateOrder(self) -> list[str]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -2405,6 +2484,9 @@ class Nodes(Generic[_NodeT]):
         ...
     def setScale(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def scaleBy(self, value: float | Iterable[float]) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.scaleBy` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getShear(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Shear]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -2435,6 +2517,9 @@ class Nodes(Generic[_NodeT]):
         ...
     def getClosestAxisToVector(self, refVector: Vector | Iterable[float], includeNegative: bool = ...) -> list[str]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getClosestAxisToVector` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getLimits(self, *, unit: str = ...) -> list[dict[str, tuple[float | None, float | None]]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getLimits` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setLimits` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

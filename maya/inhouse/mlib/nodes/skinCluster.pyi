@@ -33,6 +33,8 @@ from mlib.json.nameMapping import NameMapping
 from mlib.json.snapshot import ValidationReport
 from mlib.nodes.dagPose import DagPose
 from mlib.nodes.mesh import Mesh
+from mlib.nodes.objectSet import ObjectSet
+from mlib.nodes.reference import Reference
 from mlib.nodes.shadingEngine import ShadingEngine
 from mlib.plugs.plug import Plug
 from pathlib import Path
@@ -280,6 +282,39 @@ class SkinCluster(GeometryFilter):
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
         ...
+    def recacheBindMatrices(self) -> SkinCluster:
+        """influenceの現在の姿勢をバインド時のマトリクスとして取り込み直す(``skinCluster -e -recacheBindMatrices``)。
+
+        Mayaがキャッシュしているバインド時のマトリクスを、``bindPreMatrix`` から読み直させる。
+        ``bindPreMatrix`` を書き換えた後や、influenceの姿勢を変えてから基準を取り直すときに使う。
+        ウェイトは変更しない。fast引数は持たない(OpenMayaに同等の機能が無いため)。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            RuntimeError: ノードが無効(削除済み)、またはMayaが処理を拒否した場合。
+        """
+        ...
+    def unbind(self, keepHistory: bool = ...) -> None:
+        """形状からスキンを外す(``skinCluster -e -unbind`` / ``-unbindKeepHistory``)。
+
+        Mayaの Unbind Skin と同じく、形状をバインド時の形に戻す。``keepHistory=False`` はskinClusterを
+        削除し、この参照は無効になる。``keepHistory=True`` はskinClusterとウェイト・接続を形状の履歴に残し、
+        ``nodeState`` を HasNoEffect(1)にして変形を止める(バインドポーズはどちらも削除される)。
+        fast引数は持たない(OpenMayaに同等の機能が無いため)。Undo有効時は1回で戻せる。
+
+        Args:
+            keepHistory (bool): TrueはskinClusterのノードとウェイトを履歴に残す。既定False。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: keepHistoryがbool以外の場合。
+            RuntimeError: ノードが無効(削除済み)、またはMayaが処理を拒否した場合。
+        """
+        ...
     def getUnusedInfluences(self) -> list[Node]:
         """ウェイトを持たないinfluenceを検索する。シーンは変更しない。
 
@@ -338,6 +373,26 @@ class SkinCluster(GeometryFilter):
 
         Returns:
             bool: influenceに含まれる場合は ``True``。
+        """
+        ...
+    def getInfluenceVertices(self, influence: str | Node, threshold: float = ...) -> Vertices:
+        """influenceがウェイトを持つ先頭Meshの頂点を取得する(Select Influence Vertices 相当)。
+
+        ``MFnSkinCluster.getPointsAffectedByInfluence`` の結果から、ウェイトが ``threshold`` より大きい
+        頂点を番号の昇順で返す。シーンと選択は変更しない。
+
+        Args:
+            influence (str | Node): 登録済みinfluence。1つだけ指定する。
+            threshold (float): 0以上の有限な閾値。この値より大きいウェイトの頂点だけを返す。既定0.0
+                (0でないウェイトの頂点すべて)。boolは不可。
+
+        Returns:
+            Vertices: 先頭Meshの頂点。該当が無ければ空。
+
+        Raises:
+            TypeError: thresholdが数値でない、またはinfluenceに頂点・アトリビュートを渡した場合。
+            ValueError: thresholdが負・非有限、またはinfluenceが未登録・1つでない場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
         """
         ...
     def getLockedInfluences(self) -> list[Node]:
@@ -527,6 +582,49 @@ class SkinCluster(GeometryFilter):
                 または正規化できない場合。
             IndexError: 頂点番号が範囲外の場合。
             RuntimeError: Plugが編集不可、またはMayaが設定を拒否した場合。
+        """
+        ...
+    def getBlendWeights(self, *, vertices: Vertex | Vertices | int | str | Iterable | None = ...) -> list[float]:
+        """先頭Meshの頂点ごとのDQブレンドウェイト(``blendWeights``)を取得する。
+
+        スキニングの方法が ``"weightBlended"`` のとき、頂点ごとにクラシックリニア(0)とデュアルクォータニオン(1)を
+        混ぜる割合。値が書かれていない頂点はMayaの既定どおり0.0。
+
+        Args:
+            vertices (Vertex | Vertices | int | str | Iterable | None): 取得する頂点。Noneは全頂点。
+                指定の規則は :meth:`getWeights` と同じ。
+
+        Returns:
+            list[float]: 指定順(Noneは番号順)の値。変更してもシーンへ反映されない。
+
+        Raises:
+            TypeError: 頂点の入力型が不正な場合。
+            ValueError: 頂点が重複・別の形状の場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        ...
+    def setBlendWeights(self, weights: Iterable[float], *, vertices: Vertex | Vertices | int | str | Iterable | None = ..., fast: bool = ...) -> SkinCluster:
+        """先頭Meshの頂点ごとのDQブレンドウェイト(``blendWeights``)を設定する。
+
+        通常は連続する頂点番号ごとに範囲指定の ``cmds.setAttr`` で書き、Undo有効時は1回で戻せる。
+        ``fast=True`` は全対象の書込み可否を先に調べてから ``MFnSkinCluster.setBlendWeights`` で書き、
+        Undoに記録しない。スキニングの方法(:meth:`setSkinningMethod`)は変更しない。
+
+        Args:
+            weights (Iterable[float]): 対象頂点と同じ数の、0以上1以下の値。verticesの指定順に対応する。
+            vertices (Vertex | Vertices | int | str | Iterable | None): 書き込む頂点。Noneは全頂点(番号順)。
+                指定の規則は :meth:`setWeights` と同じ。空は何もしない。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            SkinCluster: 自身。
+
+        Raises:
+            TypeError: weightsが数値の並びでない、頂点の入力型が不正、またはfastがbool以外の場合。
+            ValueError: 値の数が頂点数と違う、値が0〜1の有限値でない、または頂点が重複・別の形状の場合。
+            IndexError: 頂点番号が範囲外の場合。
+            RuntimeError: ノードが無効、blendWeightsがロック・入力接続されている、またはMayaが設定を拒否した場合。
         """
         ...
     def getWeightsData(self) -> dict:
@@ -1675,6 +1773,12 @@ class SkinClusters(Nodes[SkinCluster]):
     def restoreBindPose(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[SkinCluster]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.restoreBindPose` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def recacheBindMatrices(self) -> list[SkinCluster]:
+        """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.recacheBindMatrices` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def unbind(self, keepHistory: bool = ...) -> list[None]:
+        """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.unbind` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getUnusedInfluences(self) -> list[list[Node]]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.getUnusedInfluences` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -1686,6 +1790,9 @@ class SkinClusters(Nodes[SkinCluster]):
         ...
     def hasInfluence(self, joint: str) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.hasInfluence` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getInfluenceVertices(self, influence: str | Node, threshold: float = ...) -> list[Vertices]:
+        """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.getInfluenceVertices` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getLockedInfluences(self) -> list[list[Node]]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.getLockedInfluences` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -1704,6 +1811,12 @@ class SkinClusters(Nodes[SkinCluster]):
         ...
     def setVertexWeights(self, vertex: Vertex | int | str, weights: Mapping[str | Node, float], normalize: bool = ..., *, fast: bool = ...) -> list[SkinCluster]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.setVertexWeights` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getBlendWeights(self, *, vertices: Vertex | Vertices | int | str | Iterable | None = ...) -> list[list[float]]:
+        """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.getBlendWeights` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setBlendWeights(self, weights: Iterable[float], *, vertices: Vertex | Vertices | int | str | Iterable | None = ..., fast: bool = ...) -> list[SkinCluster]:
+        """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.setBlendWeights` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getWeightsData(self) -> list[dict]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.getWeightsData` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -1755,6 +1868,9 @@ class SkinClusters(Nodes[SkinCluster]):
         ...
     def getGeometry(self) -> list[list[Node]]:
         """各要素の :meth:`~mlib.nodes.geometryFilter.GeometryFilter.getGeometry` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getInputGeometry(self) -> list[list[Node]]:
+        """各要素の :meth:`~mlib.nodes.geometryFilter.GeometryFilter.getInputGeometry` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getDeformerWeights(self, geometryIndex: int = ...) -> list[list[float]]:
         """各要素の :meth:`~mlib.nodes.geometryFilter.GeometryFilter.getDeformerWeights` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
@@ -1809,6 +1925,15 @@ class SkinClusters(Nodes[SkinCluster]):
         ...
     def isFromReferencedFile(self) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isFromReferencedFile` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getReference(self) -> list[Reference | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getReference` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isDefaultNode(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isDefaultNode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getSets(self, type: str | None = ...) -> list[list[ObjectSet]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getSets` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def isAncestorOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> list[bool]:
         """各要素の :meth:`~mlib.nodes.node.Node.isAncestorOf` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

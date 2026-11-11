@@ -33,18 +33,23 @@ from .cmds import (
     bindSkin,
     createBlendShape,
     createCircle,
+    createCluster,
     createContainer,
     createCurve,
     createDagContainer,
     createDagPose,
+    createGroup,
     createIkHandle,
     createJointChain,
+    createLattice,
     createLocator,
     createNode,
+    createNurbsPlane,
     createPolyCube,
     createPolyCylinder,
     createPolyPlane,
     createPolySphere,
+    createWire,
     delete,
     duplicate,
     getNode,
@@ -70,18 +75,23 @@ _names = [
     "core",
     "createBlendShape",
     "createCircle",
+    "createCluster",
     "createContainer",
     "createCurve",
     "createDagContainer",
     "createDagPose",
+    "createGroup",
     "createIkHandle",
     "createJointChain",
+    "createLattice",
     "createLocator",
     "createNode",
+    "createNurbsPlane",
     "createPolyCube",
     "createPolyCylinder",
     "createPolyPlane",
     "createPolySphere",
+    "createWire",
     "decorator",
     "delete",
     "duplicate",
@@ -127,7 +137,7 @@ _classes = _class_sources()
 __all__ = _names + sorted(_classes)
 
 #: mlibの版番号。maya/modules/mlib.modと_docs/source/changelog.rstの先頭見出しと同じ値にする。
-__version__ = "12.3.0"
+__version__ = "12.4.0"
 
 
 def reload():

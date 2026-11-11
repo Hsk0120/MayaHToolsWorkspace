@@ -130,6 +130,22 @@ class AnimCurve(Node):
             RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
         """
         ...
+    def findClosestIndex(self, input: float, *, timeUnit: str = ...) -> int:
+        """指定した入力に最も近いキーの番号を返す(``MFnAnimCurve.findClosest``)。
+
+        Args:
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+            timeUnit (str): T型入力のinputの単位。``"frame"`` / ``"sec"``。
+
+        Returns:
+            int: 0始まりのキー番号。等距離のキーが2つある場合はMayaの判定に従う。
+
+        Raises:
+            TypeError: inputが数値へ変換できない型、またはtimeUnitが文字列・None以外の場合。
+            ValueError: inputが非有限値、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効(削除済み)、またはキーの無いカーブの場合。
+        """
+        ...
     def setKey(self, input: float, value: float, inTangentType: str | None = ..., outTangentType: str | None = ..., *, unit: str = ..., timeUnit: str = ..., fast: bool = ...) -> AnimCurve:
         """キーを追加する。同じ入力位置にキーがあれば値と、指定した接線型を更新する。
 
@@ -158,6 +174,25 @@ class AnimCurve(Node):
             ValueError: 非有限値、不正な数値、未対応のunit・timeUnit、またはfastでfixed/global/未知の接線型を指定した場合。
             RuntimeError: ノードが無効(削除済み)の場合。fastも通常と同じ文言で、編集前に拒否する。
             NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
+        """
+        ...
+    def insertKey(self, input: float, *, timeUnit: str = ...) -> AnimCurve:
+        """カーブの形を変えずにキーを挿入する(``setKeyframe -insert``)。
+
+        値と接線はMayaがその位置のカーブから決めるため、挿入の前後で評価値は変わらない。
+        同じ入力位置に既にキーがあれば何もしない。fast引数は持たない。Undo有効時は1回で戻せる。
+
+        Args:
+            input (float): T型入力はtimeUnitの単位(既定はフレーム)、U型入力は無次元。
+            timeUnit (str): T型入力のinputの単位。``"frame"`` / ``"sec"``。
+
+        Returns:
+            AnimCurve: 自身。挿入したキーの番号は :meth:`findClosestIndex` で取得できる。
+
+        Raises:
+            TypeError: inputが数値へ変換できない型、またはtimeUnitが文字列・None以外の場合。
+            ValueError: inputが非有限値、またはtimeUnitが未対応の単位名の場合。
+            RuntimeError: ノードが無効(削除済み)、キーの無いカーブ、またはMayaが挿入を拒否した場合。
         """
         ...
     def removeKey(self, index: int | Sequence[int] | None = ..., *, time: float | Sequence[float] | None = ..., timeUnit: str = ..., keepCurve: bool = ..., fast: bool = ...) -> AnimCurve:
@@ -282,6 +317,39 @@ class AnimCurve(Node):
             TypeError: fastがbool以外の場合。
             ValueError: 指定した外挿方法が不正な場合。両側を変更前に検証する。
             RuntimeError: ノードが無効、または更新先がロック・接続などで書込み不可の場合。
+        """
+        ...
+    def isBreakdown(self, index: int) -> bool:
+        """指定キーがブレイクダウンキーか判定する(``keyframe -q -breakdown``)。
+
+        Args:
+            index (int): 0始まりの既存キー番号。
+
+        Returns:
+            bool: ブレイクダウンキーならTrue。
+
+        Raises:
+            IndexError: bool、非int、負値、またはキー数以上の番号の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
+        """
+        ...
+    def setBreakdown(self, index: int | Sequence[int], state: bool = ...) -> AnimCurve:
+        """指定キーをブレイクダウンキーにする、または通常のキーへ戻す(``keyframe -e -breakdown``)。
+
+        ブレイクダウンキーは前後のキーとの時間の比率を保って動く。値と入力は変更しない。
+        fast引数は持たない(キーごとの1回の編集で、OpenMayaで書いても速くならないため)。Undo有効時は1回で戻せる。
+
+        Args:
+            index (int | Sequence[int]): 0始まりのキー番号、またはその並び。
+            state (bool): Trueはブレイクダウンキー、Falseは通常のキー。既定True。
+
+        Returns:
+            AnimCurve: 自身。
+
+        Raises:
+            TypeError: stateがbool以外、またはindexがNoneの場合。
+            IndexError: indexが範囲外の場合。
+            RuntimeError: ノードが無効(削除済み)の場合。
         """
         ...
     def moveKey(self, index: int | Sequence[int] | None = ..., *, time: float | Sequence[float] | None = ..., timeOffset: float = ..., valueOffset: float = ..., unit: str = ..., timeUnit: str = ...) -> AnimCurve:

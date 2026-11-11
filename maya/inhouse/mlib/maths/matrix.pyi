@@ -3,7 +3,7 @@
 
 from operator import index as _as_index
 import maya.api.OpenMaya as om2
-from ..util import _checked_index, _copy_state, _finite, _finite_vector, _foreign_comparison
+from ..util import _checked_index, _checked_tolerance, _copy_state, _finite, _finite_vector, _foreign_comparison
 from .eulerRotate import EulerRotate
 from .quaternion import Quaternion
 from .scale import Scale
@@ -774,6 +774,70 @@ class Matrix(om2.MMatrix):
             ValueError: ゼロのスケール軸など、実装の分解前検査で拒否した場合。
         """
         ...
+    def getAxis(self, axis: str | int = ...) -> Vector:
+        """3x3部分の行(X・Y・Z軸の向きと長さ)を Vector で取得する。
+
+        Mayaの行ベクトル規約で、行0〜2がローカルのX・Y・Z軸をこのマトリクスで変換した向き(スケールを含む)。
+        ``"-y"`` のように負の軸を指定すると、その行の符号を反転した向きを返す。
+
+        Args:
+            axis (str | int): ``"x"``・``"y"``・``"z"``・``"-x"``・``"-y"``・``"-z"`` (:meth:`Vector.fromAxis
+                <mlib.maths.vector.Vector.fromAxis>` と同じ名前)、または行の番号 0〜2。
+
+        Returns:
+            Vector: 新しい軸のベクトル。正規化しない(長さはその軸のスケール)。
+
+        Raises:
+            TypeError: axisが文字列・int以外(boolを含む)の場合。
+            ValueError: axisが軸の名前でない、または番号が0〜2でない場合。
+        """
+        ...
+    def getAxes(self) -> tuple[Vector, Vector, Vector]:
+        """3x3部分の3行(X・Y・Z軸)を Vector で取得する。
+
+        Returns:
+            tuple[Vector, Vector, Vector]: :meth:`getAxis` の ``"x"``・``"y"``・``"z"`` と同じ新しい値。
+        """
+        ...
+    def asTranslateMatrix(self) -> Matrix:
+        """平行移動(番号12〜14)だけを持つマトリクスを返す。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。3x3部分は単位マトリクス。
+        """
+        ...
+    def asRotateMatrix(self) -> Matrix:
+        """回転だけを持つマトリクスを返す(スケール・シアー・平行移動を除く)。
+
+        :attr:`quaternion` と同じMTransformationMatrixの規約で分解する(行列式が負なら、Zスケールの負と
+        180度の補償回転として分ける)。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しい正規直交のマトリクス。
+
+        Raises:
+            ValueError: 分解できない場合(いずれかのスケール軸がゼロなど)。
+        """
+        ...
+    def asScaleMatrix(self) -> Matrix:
+        """スケールとシアーだけを持つマトリクスを返す(回転・平行移動を除く)。
+
+        ``asScaleMatrix() * asRotateMatrix() * asTranslateMatrix()`` が自身(誤差の範囲)になる。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。
+
+        Raises:
+            ValueError: 分解できない場合(いずれかのスケール軸がゼロなど)。
+        """
+        ...
+    def as3x3(self) -> Matrix:
+        """3x3部分(回転・スケール・シアー)だけを残し、平行移動と4列目を単位マトリクスの値にしたマトリクスを返す。
+
+        Returns:
+            Matrix: 自身と同じクラスの新しいマトリクス。分解は行わないため、ゼロスケールでも使える。
+        """
+        ...
     def isEquivalent(self, other: om2.MMatrix | Iterable[float], tolerance: float = ...) -> bool:
         """許容誤差付きでほぼ等しいか判定する。
 
@@ -785,6 +849,38 @@ class Matrix(om2.MMatrix):
 
         Returns:
             bool: 全16成分の差が tolerance 以内なら True。
+        """
+        ...
+    def isIdentity(self, tolerance: float = ...) -> bool:
+        """許容誤差付きで単位マトリクスか判定する。
+
+        Args:
+            tolerance (float): 各成分の差の許容誤差。0以上。
+
+        Returns:
+            bool: 全16成分と単位マトリクスの差が tolerance 以下ならTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない場合。
+        """
+        ...
+    def hasNonUniformScale(self, tolerance: float = ...) -> bool:
+        """XYZで違うスケール、またはシアーを含むか判定する。
+
+        MTransformationMatrixの規約で分解し、スケールの絶対値の差かシアーの成分が tolerance を超えれば
+        True。負の行列式(鏡映)はZスケールの符号になるため、絶対値で比べて一様とみなす。
+        ジョイント・コンストレイントの計算が崩れる非一様スケールの検査に使う。
+
+        Args:
+            tolerance (float): スケールの差・シアーの許容誤差。0以上。
+
+        Returns:
+            bool: 非一様スケールかシアーがあればTrue。
+
+        Raises:
+            TypeError: toleranceが数値でない場合。
+            ValueError: toleranceが負・有限でない、または分解できない場合(いずれかのスケール軸がゼロなど)。
         """
         ...
     def inverse(self) -> Matrix:
@@ -806,6 +902,13 @@ class Matrix(om2.MMatrix):
 
         Returns:
             Matrix: 自身と同じクラスの転置マトリクス。
+        """
+        ...
+    def transposeIt(self) -> Matrix:
+        """自身を転置する。
+
+        Returns:
+            Matrix: 更新した自身。
         """
         ...
     def blend(self, other: om2.MMatrix | Iterable[float], weight: float) -> Matrix:
@@ -910,6 +1013,23 @@ class Matrix(om2.MMatrix):
 
         Returns:
             Matrix: 演算結果を保持する新しいmlib値。
+        """
+        ...
+    def cofactor(self, row: int, column: int) -> float:
+        """4x4マトリクスの指定位置の余因子(その行・列を除いた3x3の行列式に符号を付けた値)を返す。
+
+        :meth:`adjoint` (随伴マトリクス)は余因子を転置して並べたもので、``adjoint()[column, row]`` と等しい。
+
+        Args:
+            row (int): 行の番号(-4〜3)。
+            column (int): 列の番号(-4〜3)。
+
+        Returns:
+            float: 余因子。
+
+        Raises:
+            TypeError: 行・列が整数として扱えない場合。
+            IndexError: 行・列が範囲外の場合。
         """
         ...
     def homogenize(self, *args) -> Matrix:
