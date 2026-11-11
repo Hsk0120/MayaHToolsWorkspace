@@ -4,6 +4,62 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+12.3.0 (2026-11-12)
+-------------------
+
+cymel・pymel と比べて足りなかったメソッド、Maya コマンドの短縮フラグ、docstring と実装の食い違いの修正、例外の
+経路のテストを足しました。既存の呼び出し方は、下の「変更」の3点を除き変わりません。
+
+.. rubric:: 追加
+
+- ``NurbsSurface`` の照会と編集(これまでメソッドが無かった): ``getNumCVs``\ ・\ ``getNumSpans``\ ・\ ``getDegree``\ ・
+  ``getForm``\ (U・V の組)、``getParamRange``\ 、``getCvPositions``\ ・\ ``setCvPositions``\ (``u * numCVsInV + v`` の順。
+  通常は1回の Undo、``fast``)、``getClosestPoint``\ (最近点と u・v。follicle・uvPin の配置用)、``getPointAtParam``\ ・
+  ``getNormalAtParam``\ 。いずれも ``worldSpace``/``ws`` を受ける。
+- ``GeometryFilter.getGeometry()``\ : 変形する形状。``Cluster`` にだけあったものを基底へ移し、``SkinCluster``\ ・
+  ``deltaMush`` 等すべてのデフォーマーで使える。
+- ``Transform.getRotateOrder()``\ ・\ ``setRotateOrder(order, preserve=True)``\ : ``preserve=True`` は向きを保つ
+  (``xform -rotateOrder -preserve``)。
+- ``Vector.projected(axis)``\ ・\ ``orthogonal(axis)``\ ・\ ``orthogonalIt(axis)``\ : 軸の方向の成分と、軸に直交する成分
+  (ポールベクター・アップベクターを主軸に直交させる)。
+- コンポーネント: ``Face.getCenter``\ ・\ ``getNormal``\ ・\ ``getArea``\ 、``Edge.getLength``\ ・\ ``getCenter``\ 、
+  ``Vertex.getNormal(angleWeighted=False)``\ 、``PointComponent.moveBy``\ ・\ ``PointComponents.moveBy``\ (相対移動。通常は
+  1回の Undo、``fast``)、``PointComponents.getCenter``\ (頂点・CV の位置の平均)。複数形からは 12.2.0 の転送で
+  ``Faces.getNormal()`` 等も各要素のリストで使える。
+- ``Joint.getPreferredAngle(unit="deg")``\ 、``AnimCurve.isStatic()``\ 、``Constraint.removeTarget(*targets)``\ 。
+- ``Transform.getMatrix`` の ``p``\ ・\ ``inv`` と ``getQuaternion``\ ・\ ``setQuaternion`` の ``ra``\ ・\ ``r``\ ・\ ``jo`` に、
+  長名 ``parent``\ ・\ ``inverse``\ ・\ ``rotateAxis``\ ・\ ``rotate``\ ・\ ``jointOrient``\ (keyword-only)を足した。短い名前も
+  そのまま使え、同時に指定すると TypeError。
+- ``cmds/`` の作成関数が Maya の短縮フラグを受ける(長名と同時に指定すると TypeError)。
+
+  - ``createIkHandle``\ : ``sj``\ ・\ ``ee``\ ・\ ``sol``\ ・\ ``n``\ ・\ ``c``\ 。``bindSkin``\ ・\ ``bakeDeformer``\ : ``mi``\ 。
+    ``bakeResults``\ : ``at``\ ・\ ``t``\ ・\ ``sb``\ 。
+  - ``createCurve``\ : ``d``\ ・\ ``n``\ 。``createCircle``\ : ``r``\ ・\ ``nr``\ ・\ ``s``\ ・\ ``d``\ ・\ ``n``\ 。
+    ``createPolyCube``\ : ``w``\ ・\ ``h``\ ・\ ``d``\ ・\ ``n``\ 。``createPolySphere``\ : ``r``\ ・\ ``ax``\ ・\ ``n``\ 。
+    ``createPolyCylinder``\ : ``r``\ ・\ ``h``\ ・\ ``ax``\ ・\ ``n``\ 。``createPolyPlane``\ : ``w``\ ・\ ``h``\ ・\ ``ax``\ ・\ ``n``\ 。
+  - ``createLocator``\ ・\ ``createContainer``\ ・\ ``createDagContainer``\ : ``n``\ 。``createBlendShape``\ : ``n``\ ・\ ``foc``\ 。
+    ``createDagPose``\ : ``n``\ ・\ ``bp``\ 。
+  - ``parent`` に ``p`` は付けない(curve・spaceLocator・joint では Maya の ``p`` が位置の意味のため)。受けないフラグの
+    TypeError の文言は ``<関数名> does not accept: ...`` にそろえた。
+
+.. rubric:: 変更
+
+- ``Plug.setMin``\ ・\ ``setMax`` は、設定済みの最大値より大きい最小値(逆も同じ)を ValueError にする。Maya は警告だけ
+  出して無視するため、これまでは何も変わらないまま自身を返していた。
+- ``Plug.connect`` は ``fast=True`` でも自身への接続を RuntimeError にする(通常の経路と同じ)。``ShadingEngine.setShader``
+  に同じシェーダーを再び渡すと、何もせず自身を返す(これまでは RuntimeError)。
+- ``Node.isAncestorOf``\ ・\ ``SkinCluster.getUnusedInfluences``\ ・\ ``getWeightsData`` は、削除済みのノードで値を返さず
+  RuntimeError にする。``Transform.setQuaternion``\ ・\ ``getClosestAxisToVector`` は入力を検証し、不正な型を TypeError、
+  成分の数・有限でない値を ValueError にする(これまでは om2 の ValueError)。``PlusMinusAverage`` の ``dimension`` に
+  ハッシュできない値を渡すと TypeError。
+
+.. rubric:: 文書・テスト
+
+- docstring の Raises・Args の不足と、存在しない API への参照を直した。単位の引数の ``None`` は既定の単位として受ける
+  ことを明記した。Sphinx でクラスのページをまたぐ短い参照もリンクにした。
+- docstring の Raises に書かれた例外を確かめる ``test_spec_error_paths_*.py``\ (約135件)と、追加した機能の
+  ``test_spec_v123_additions.py``\ ・\ ``test_spec_cmds_short_flags.py`` を足した。
+
 12.2.0 (2026-11-11)
 -------------------
 

@@ -106,6 +106,40 @@ REMOVED_SHORT_ALIASES = frozenset(("idx", "src", "dst", "attrs"))
 MAYA_FLAG_ENTRIES = {}
 
 
+#: ``cmds/`` の作成関数が受けるMayaコマンドの短縮名(短縮名: 長名)。pymelのMayaコマンドのフラグ一覧で確かめた名前。
+#: ``createNode``・``duplicate`` 等のフラグ群の入口は別に検査する。
+CMDS_SHORT_FLAGS = {
+    "createIkHandle": {"sj": "startJoint", "ee": "endJoint", "sol": "solver", "n": "name", "c": "curve"},
+    "bindSkin": {"mi": "maximumInfluences"},
+    "bakeResults": {"at": "attributes", "t": "time", "sb": "sampleBy"},
+    "bakeDeformer": {"mi": "maxInfluences"},
+    "createCurve": {"d": "degree", "n": "name"},
+    "createCircle": {"r": "radius", "nr": "normal", "s": "sections", "d": "degree", "n": "name"},
+    "createLocator": {"n": "name"},
+    "createPolyCube": {"w": "width", "h": "height", "d": "depth", "n": "name"},
+    "createPolySphere": {"r": "radius", "ax": "axis", "n": "name"},
+    "createPolyCylinder": {"r": "radius", "h": "height", "ax": "axis", "n": "name"},
+    "createPolyPlane": {"w": "width", "h": "height", "ax": "axis", "n": "name"},
+    "createBlendShape": {"n": "name", "foc": "frontOfChain"},
+    "createContainer": {"n": "name"},
+    "createDagContainer": {"n": "name"},
+    "createDagPose": {"n": "name", "bp": "bindPose"},
+}
+
+#: Mayaコマンドの ``p`` が parent 以外(point・position)を指すため、``p`` を持ってはいけない作成関数。
+CMDS_WITHOUT_PARENT_SHORT = ("createCurve", "createLocator", "createJointChain")
+
+
+def _cmds_function(name):
+    """``mlib/cmds/<name>.py`` の同名の公開defを返す。"""
+    path = _INHOUSE_ROOT / "mlib" / "cmds" / (name + ".py")
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    for qualified, function in _iter_public_functions(tree):
+        if qualified == name:
+            return function
+    raise AssertionError(f"{name} is not defined in {path}")
+
+
 @functools.lru_cache(maxsize=None)
 def find_short_alias_arguments():
     """許可した入口の外で、廃止した短縮名の別名を引数に持つ公開defを列挙する。
@@ -177,6 +211,29 @@ class PublicArgumentNameTest(unittest.TestCase):
         """worldSpace を受ける公開defは、短縮名 ws も受ける(12.2.0)。"""
         offenders = find_world_space_without_alias()
         self.assertEqual(list(offenders), [], "worldSpace without ws:\n" + "\n".join(offenders))
+
+    def test_cmds_creators_accept_maya_short_flags(self):
+        """cmds の作成関数は、専用引数に当たるMayaの短縮名を keyword-only で受け、docstringに載せる。"""
+        for name, pairs in sorted(CMDS_SHORT_FLAGS.items()):
+            function = _cmds_function(name)
+            keyword_only = {argument.arg for argument in function.args.kwonlyargs}
+            names = set(_parameter_names(function))
+            docstring = ast.get_docstring(function) or ""
+            source = ast.unparse(function) if hasattr(ast, "unparse") else None
+            for short, long in sorted(pairs.items()):
+                with self.subTest(function=name, short=short):
+                    self.assertIn(long, names)
+                    self.assertIn(short, keyword_only)
+                    self.assertIn("%s (" % short, docstring)
+                    self.assertIn("%sの短縮名" % long, docstring)
+                    if source is not None:
+                        self.assertIn("_pick_alias(%s, %s, '%s', '%s'" % (long, short, long, short), source)
+
+    def test_cmds_creators_do_not_alias_parent_as_p(self):
+        """Mayaの p が point・position の作成関数は、parent の短縮名 p を持たない。"""
+        for name in CMDS_WITHOUT_PARENT_SHORT:
+            with self.subTest(function=name):
+                self.assertNotIn("p", _parameter_names(_cmds_function(name)))
 
     def test_allowlist_has_no_stale_entries(self):
         """許可リストの全行が現存し、実際にsnake_caseの引数を持つ。"""

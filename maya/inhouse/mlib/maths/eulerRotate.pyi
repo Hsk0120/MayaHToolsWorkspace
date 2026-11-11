@@ -57,7 +57,7 @@ class EulerRotate(om2.MEulerRotation):
     """om2.MEulerRotationを継承した、radのXYZ成分と回転順序を持つ可変値。
 
     Vectorの派生ではなく、OpenMaya APIへそのまま渡せる。
-    生成形式は :meth:`__init__` に従い、MEulerRotation入力は順序を含めてコピーする。
+    生成形式は ``__init__`` に従い、MEulerRotation入力は順序を含めてコピーする。
     コンストラクタのorder指定は成分を並べ替えない。姿勢を保った順序変更には ``reorder()`` を使う。
     orderはMayaのrotateOrderと同じ0〜5。コンストラクタは順序名も受理し、
     :attr:`orderName` でも名前を取得・設定できる。
@@ -105,7 +105,7 @@ class EulerRotate(om2.MEulerRotation):
             None: 値を返さない。
 
         Raises:
-            TypeError: 引数の数や型が不正な場合、同じ引数を二重に指定した場合、またはunitが文字列以外の場合。
+            TypeError: 引数の数や型が不正な場合、同じ引数を二重に指定した場合、またはunitが文字列・None以外の場合。
             ValueError: 未対応の回転順序・単位、成分が数値でない場合、またはMEulerRotationへ度を指定した場合。
         """
         ...
@@ -538,7 +538,7 @@ class EulerRotate(om2.MEulerRotation):
             EulerRotate: 同型の新しい回転。
 
         Raises:
-            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列以外の場合。
+            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列・None以外の場合。
             ValueError: unitが未対応の場合。
         """
         ...
@@ -553,7 +553,7 @@ class EulerRotate(om2.MEulerRotation):
             EulerRotate: 更新した自身。
 
         Raises:
-            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列以外の場合。自身は変更しない。
+            TypeError: ndigitsがint・None以外(boolを含む)、またはunitが文字列・None以外の場合。自身は変更しない。
             ValueError: unitが未対応の場合。自身は変更しない。
         """
         ...

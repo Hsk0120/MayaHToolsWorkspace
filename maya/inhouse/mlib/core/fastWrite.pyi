@@ -156,7 +156,7 @@ def prepare_data(attribute: om2.MObject, value: object, *, name: str | None = ..
     """MPlugを必要とせず、マトリクス・typed dataの型と値を検査する。
 
     Args:
-        attribute (MObject): 登録前でもよいアトリビュート定義。
+        attribute (om2.MObject): 登録前でもよいアトリビュート定義。
         value (object): 設定予定の値。
         name (str | None): エラー表示用の名前。
 

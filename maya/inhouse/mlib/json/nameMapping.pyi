@@ -65,6 +65,9 @@ class NameMapping:
 
         Returns:
             str: 変換後のパス。先頭の ``"|"`` は保つ。
+
+        Raises:
+            TypeError: pathが文字列でない場合。
         """
         ...
     def _map_namespace(self, namespace: str) -> str:

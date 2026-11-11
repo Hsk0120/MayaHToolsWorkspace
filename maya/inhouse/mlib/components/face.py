@@ -2,6 +2,9 @@
 
 import maya.api.OpenMaya as om2
 
+from ..decorator import _pick_alias
+from ..maths.vector import Vector, _vectors_of_points
+from ..util import _UNSET, _world_space
 from .component import Component, Components
 from .vertex import Vertices
 
@@ -49,6 +52,70 @@ class Face(Component):
             Edges: 番号の昇順のエッジ(重複なし)。
         """
         return Faces(self.shape, [self.index]).getEdges()
+
+    def getCenter(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """面の中心(頂点の位置の平均。``MItMeshPolygon.center``)を取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Vector: 中心の位置(cm)。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        self._require_valid()
+        it = om2.MItMeshPolygon(self.shape.mpath())
+        it.setIndex(self.index)
+        return _vectors_of_points([it.center(space)])[0]
+
+    def getNormal(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """面の法線(``MFnMesh.getPolygonNormal``)を、長さ1で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Vector: 長さ1の法線。面の頂点の巡回順で向きが決まる。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        self._require_valid()
+        return Vector(self.shape._geometry_fn().getPolygonNormal(self.index, space)).normal()
+
+    def getArea(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """面の面積(``MItMeshPolygon.getArea``)を cm² で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            float: 面積(cm²)。ワールド空間は親のスケールを含む。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        self._require_valid()
+        it = om2.MItMeshPolygon(self.shape.mpath())
+        it.setIndex(self.index)
+        return it.getArea(space)
 
 
 _FACE_GET_VERTICES = Face.getVertices

@@ -62,7 +62,7 @@ def _unit_copy(value):
 class Quaternion(om2.MQuaternion):
     """om2.MQuaternionを継承した、可変・ハッシュ不可のXYZWクォータニオン。
 
-    OpenMaya APIへそのまま渡せる。生成形式は :meth:`__init__` に従い、入力から独立した値を作る。
+    OpenMaya APIへそのまま渡せる。生成形式は ``__init__`` に従い、入力から独立した値を作る。
     軸角の角度はrad。生成時と積の計算時に正規化しない。
 
     ``q1 * q2`` はq1、q2の順に適用する回転で、マトリクスの積の順序と同じ(Hamilton積の ``q2 ⊗ q1``)。
@@ -434,7 +434,7 @@ class Quaternion(om2.MQuaternion):
             Quaternion: axis を中心に angle だけ回転する単位クォータニオン。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             ValueError: axis がゼロベクトルの場合(om2 は単位クォータニオンを返す)、またはunitが未対応の場合。
         """
         angle = _to_radians(angle, _angle_unit(unit))

@@ -5,6 +5,7 @@ Vector 系・Quaternion・EulerRotate・Matrix は OpenMaya API 2.0
 (``maya.api.OpenMaya``)の MVector / MQuaternion / MEulerRotation / MMatrix を
 継承した可変の値型で、そのまま om2 の関数へ渡せる。演算は om2 の意味論に従う。
 easing だけは標準ライブラリの math のみを使う純粋な関数群。
+``MSpace`` は ``maya.api.OpenMaya.MSpace`` (空間の指定)をそのまま再公開したもの。
 """
 
 from maya.api.OpenMaya import MSpace

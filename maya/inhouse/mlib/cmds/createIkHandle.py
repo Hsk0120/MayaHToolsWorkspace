@@ -6,21 +6,23 @@
 
     handle = mlib.createIkHandle(shoulder, wrist, solver="ikRPsolver", name="arm_ikh")
     effector = handle.getEffector()
+
+    # cmds.ikHandle と同じ短縮名でも指定できる。
+    handle = mlib.createIkHandle(sj=shoulder, ee=wrist, sol="ikSCsolver", n="arm_sc_ikh")
 """
 
 import maya.cmds as cmds
 import maya.mel as mel
 
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 
 #: ``createIkHandle`` が受け付けるMaya標準のIKソルバー名。
 _SOLVERS = ("ikRPsolver", "ikSCsolver", "ikSplineSolver", "ikSpringSolver")
 
-#: ``createIkHandle`` が専用の引数で扱い、``**kwargs`` では受け付けないフラグ。
-_MANAGED_FLAGS = frozenset((
-    "startJoint", "sj", "endEffector", "ee", "solver", "sol", "name", "n", "curve", "c",
-    "createCurve", "ccv", "query", "q", "edit", "e",
-))
+#: ``**kwargs`` では受け付けないフラグ。``endEffector`` は ``endJoint``(短縮名 ``ee``)、
+#: ``createCurve`` は ``curve`` の有無で決め、query・editは作成専用のため受け付けない。
+_REJECTED_FLAGS = frozenset(("endEffector", "createCurve", "ccv", "query", "q", "edit", "e"))
 
 
 def _record_chain_angles(start, end):
@@ -48,7 +50,8 @@ def _record_chain_angles(start, end):
         joint = parents[0] if parents else None
 
 
-def createIkHandle(startJoint, endJoint, solver="ikRPsolver", name=None, curve=None, **kwargs):
+def createIkHandle(startJoint=_UNSET, endJoint=_UNSET, solver=_UNSET, name=_UNSET, curve=_UNSET, *,
+        sj=_UNSET, ee=_UNSET, sol=_UNSET, n=_UNSET, c=_UNSET, **kwargs):
     """start jointからend jointまでのIKハンドルとエフェクターを作成する。
 
     エフェクター(ikEffector)はMayaの規則どおりend jointの1つ上のjointの子に作られ、:meth:`~mlib.nodes.IkHandle.getEffector` で取得できる。
@@ -59,23 +62,31 @@ def createIkHandle(startJoint, endJoint, solver="ikRPsolver", name=None, curve=N
     (``cmds.ikHandle`` 単体のUndoでは戻らない)。
     fast引数は持たない(OpenMayaにIKハンドル作成の同等機能が無い)。Undo有効時は1回で戻せる。
     ``mlib.createNode("ikHandle")`` は従来どおり未接続のノードだけを作る。
+    専用引数は ``cmds.ikHandle`` と同じ短縮名でも受ける(長名と短縮名の同時指定はできない)。
 
     Args:
-        startJoint (str | Node): チェーンの開始joint。
-        endJoint (str | Node): チェーンの末端joint。startJointの子孫であること。
+        startJoint (str | Node): チェーンの開始joint。必須。
+        endJoint (str | Node): チェーンの末端joint(``cmds.ikHandle`` の ``endEffector``)。startJointの子孫であること。必須。
         solver (str): ``"ikRPsolver"``・``"ikSCsolver"``・``"ikSplineSolver"``・``"ikSpringSolver"``。
-        name (str | None): ハンドルの作成名。NoneならMayaの自動命名。
+            既定 ``"ikRPsolver"``。
+        name (str | None): ハンドルの作成名。NoneならMayaの自動命名。既定None。
         curve (str | Node | None): ikSplineSolverで使う既存カーブ(transformまたはnurbsCurve)。
-            Noneなら自動作成する。ikSplineSolver以外では指定できない。
+            Noneなら自動作成する。ikSplineSolver以外では指定できない。既定None。
+        sj (str | Node): startJointの短縮名。同時指定はできない。
+        ee (str | Node): endJointの短縮名(Mayaの ``endEffector``)。同時指定はできない。
+        sol (str): solverの短縮名。同時指定はできない。
+        n (str | None): nameの短縮名。同時指定はできない。
+        c (str | Node | None): curveの短縮名。同時指定はできない。
         **kwargs (object): ``cmds.ikHandle`` のその他のフラグ(``priority``・``numSpans``・
-            ``parentCurve`` 等)。そのままMayaへ渡す。
+            ``parentCurve`` 等)。そのままMayaへ渡す。``endEffector``(``endJoint`` で指定する)・
+            ``createCurve``(``curve`` の有無で決まる)・query・editは受け付けない。
 
     Returns:
         IkHandle: 作成したIKハンドル。
 
     Raises:
-        TypeError: 専用引数で扱うフラグを ``**kwargs`` に渡した場合、nameが文字列・None以外、
-            または対象が対応しない型の場合。
+        TypeError: 長名と短縮名を同時に指定した、startJoint・endJointを省略した、``**kwargs`` で受け付けない
+            フラグを渡した、nameが文字列・None以外、または対象が対応しない型の場合。
         ValueError: solverが対応外、ikSplineSolver以外でcurveを指定した、start/endがjointでない、
             endJointがstartJointの子孫でない、またはnameが空文字列の場合。
         RuntimeError: 名前を解決できない、またはMayaが作成を拒否した場合。
@@ -88,9 +99,14 @@ def createIkHandle(startJoint, endJoint, solver="ikRPsolver", name=None, curve=N
     from ..nodes.joint import Joint
     from ..nodes.node import Node
 
-    managed = sorted(_MANAGED_FLAGS.intersection(kwargs))
-    if managed:
-        raise TypeError(f"Use the dedicated arguments instead of: {', '.join(managed)}")
+    startJoint = _pick_alias(startJoint, sj, "startJoint", "sj")
+    endJoint = _pick_alias(endJoint, ee, "endJoint", "ee")
+    solver = _pick_alias(solver, sol, "solver", "sol", default="ikRPsolver")
+    name = _pick_alias(name, n, "name", "n", default=None)
+    curve = _pick_alias(curve, c, "curve", "c", default=None)
+    rejected = sorted(_REJECTED_FLAGS.intersection(kwargs))
+    if rejected:
+        raise TypeError(f"createIkHandle does not accept: {', '.join(rejected)}")
     if solver not in _SOLVERS:
         raise ValueError(f"solver must be one of {', '.join(_SOLVERS)}: {solver!r}")
     if name is not None and not isinstance(name, str):

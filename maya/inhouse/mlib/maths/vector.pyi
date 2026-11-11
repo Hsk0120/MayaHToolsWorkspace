@@ -171,7 +171,7 @@ def _axis_name(axis: str, name: str) -> tuple[int, float]:
 class Vector(om2.MVector):
     """om2.MVectorを継承した、可変・ハッシュ不可のXYZベクトル値。
 
-    OpenMaya APIへそのまま渡せる。生成時は成分をコピーし、引数形式は :meth:`__init__` に従う。
+    OpenMaya APIへそのまま渡せる。生成時は成分をコピーし、引数形式は ``__init__`` に従う。
     MPointからもwで割らずXYZを写す。
 
     演算はOM2に従い、ベクトル結果は派生型によらず基底Vectorを返す。
@@ -756,6 +756,47 @@ class Vector(om2.MVector):
 
         Returns:
             Vector: 補間結果。派生クラスの型は保持しない。
+        """
+        ...
+    def projected(self, axis: om2.MVector | om2.MPoint | Iterable[float]) -> Vector:
+        """指定した軸の方向の成分(軸への正射影)を返す。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): 射影する軸。長さは問わない。
+
+        Returns:
+            Vector: ``axis`` と平行な成分。派生クラスの型は保持しない。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。
+        """
+        ...
+    def orthogonal(self, axis: om2.MVector | om2.MPoint | Iterable[float]) -> Vector:
+        """指定した軸に直交する成分(軸の方向の成分を取り除いた値)を返す。
+
+        ポールベクター・アップベクターを主軸に直交させるときなどに使う(グラム・シュミットの1段)。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): 直交させる軸。長さは問わない。
+
+        Returns:
+            Vector: ``axis`` に直交する成分。派生クラスの型は保持しない。自身が軸と平行ならゼロベクトル。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。
+        """
+        ...
+    def orthogonalIt(self, axis: om2.MVector | om2.MPoint | Iterable[float]) -> Vector:
+        """自身を、指定した軸に直交する成分へ置き換える。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): :meth:`orthogonal` と同じ軸。
+
+        Returns:
+            Vector: 更新した自身。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。自身は変更しない。
         """
         ...
     @classmethod

@@ -58,6 +58,18 @@ class AnimCurve(Node):
             int: キー数。
         """
         ...
+    def isStatic(self) -> bool:
+        """すべてのキーが同じ値で、接線も平らなため、出力が入力によらず一定か判定する(``MFnAnimCurve.isStatic``)。
+
+        ベイク後に動きの無いカーブを見つけて削除するときなどに使う。キーが無い・1つのカーブも一定とみなす。
+
+        Returns:
+            bool: 出力が一定なら True。
+
+        Raises:
+            RuntimeError: animCurveが無効な場合。
+        """
+        ...
     def getKeyInputs(self, *, timeUnit: str = ...) -> list[float]:
         """カーブのキー入力をキー番号順で取得する。
 
@@ -72,7 +84,7 @@ class AnimCurve(Node):
             list[float]: 新しい入力値リスト。変更してもカーブへ書き戻さない。
 
         Raises:
-            TypeError: timeUnitが文字列以外の場合。
+            TypeError: timeUnitが文字列・None以外の場合。
             ValueError: timeUnitが未対応の単位名の場合。
         """
         ...
@@ -92,7 +104,7 @@ class AnimCurve(Node):
             list[float]: 新しい出力値リスト。変更してもカーブへ書き戻さない。
 
         Raises:
-            TypeError: unit・timeUnitが文字列以外の場合。
+            TypeError: unit・timeUnitが文字列・None以外の場合。
             ValueError: unit・timeUnitが未対応の単位名の場合。
         """
         ...
@@ -113,7 +125,7 @@ class AnimCurve(Node):
             float: 出力型に従う度(unit)/cm/フレーム(timeUnit)、または無次元の値。
 
         Raises:
-            TypeError: float()へ変換できない型、またはunit・timeUnitが文字列以外。
+            TypeError: float()へ変換できない型、またはunit・timeUnitが文字列・None以外。
             ValueError: 非有限値、float()変換で受理できない値、またはunit・timeUnitが未対応の単位名。
             RuntimeError: 空カーブ、またはMayaの評価失敗。空カーブは入力変換より先に拒否する。
         """
@@ -142,7 +154,7 @@ class AnimCurve(Node):
             AnimCurve: 自身。fixed接線の角度・ウェイト指定にはsetTangentを使う。
 
         Raises:
-            TypeError: fastがbool以外、unit・timeUnitが文字列以外、または数値へ変換できない型。
+            TypeError: fastがbool以外、unit・timeUnitが文字列・None以外、または数値へ変換できない型。
             ValueError: 非有限値、不正な数値、未対応のunit・timeUnit、またはfastでfixed/global/未知の接線型を指定した場合。
             RuntimeError: ノードが無効(削除済み)の場合。fastも通常と同じ文言で、編集前に拒否する。
             NotImplementedError: fastの入力接線にstepnextを指定した場合。編集前に拒否する。
@@ -214,7 +226,7 @@ class AnimCurve(Node):
 
         Raises:
             IndexError: bool、非int、負値、またはキー数以上の番号の場合。
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名の場合。
         """
         ...
@@ -241,7 +253,7 @@ class AnimCurve(Node):
 
         Raises:
             ValueError: フラグが空/未知、unitが未対応、またはfastで不正値やglobal/未知の接線型を指定した場合。
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             IndexError: キー番号が不正な場合。
             NotImplementedError: fastで入力接線にstepnextを指定した場合。
                 ロック・ウェイトを含む更新より前に拒否する。
@@ -292,7 +304,7 @@ class AnimCurve(Node):
             AnimCurve: 自身。対象のキーが無ければ変更しない。
 
         Raises:
-            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列・None以外、または数値へ変換できない型の場合。
             ValueError: 非有限値、範囲の開始が終了より大きい、またはunit・timeUnitが未対応の単位名の場合。
             IndexError: indexが範囲外の場合。
         """
@@ -317,7 +329,7 @@ class AnimCurve(Node):
             AnimCurve: 自身。
 
         Raises:
-            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列以外、または数値へ変換できない型の場合。
+            TypeError: indexとtimeの両方を指定した、unit・timeUnitが文字列・None以外、または数値へ変換できない型の場合。
             ValueError: inputScaleが0、非有限値、またはunit・timeUnitが未対応の単位名の場合。
             IndexError: indexが範囲外の場合。
         """
@@ -435,7 +447,7 @@ class AnimCurve(Node):
             str: A型のカーブでは ``"deg"`` / ``"rad"``、それ以外は換算しない ``"rad"``。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名の場合。
         """
         ...
@@ -449,7 +461,7 @@ class AnimCurve(Node):
             str: T型入力のカーブでは ``"frame"`` / ``"sec"``、U型入力では換算しない ``"sec"``。
 
         Raises:
-            TypeError: time_unitが文字列以外の場合。
+            TypeError: time_unitが文字列・None以外の場合。
             ValueError: time_unitが未対応の単位名の場合。
         """
         ...
@@ -463,7 +475,7 @@ class AnimCurve(Node):
             str: 時間出力のカーブでは ``"frame"`` / ``"sec"``、それ以外は換算しない ``"sec"``。
 
         Raises:
-            TypeError: time_unitが文字列以外の場合。
+            TypeError: time_unitが文字列・None以外の場合。
             ValueError: time_unitが未対応の単位名の場合。
         """
         ...

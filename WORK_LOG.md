@@ -19,6 +19,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 進行中
 
+- Codex (2026-11-11 23:50 JST): QPEの末端カラム・詳細ペイン・転送進捗と同名貼り付け・単体版の位置復元を、標準エクスプローラーと比較して修正・検証。
+
+
 
 
 
@@ -162,6 +165,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - Codex (2026-11-12): QPEの右端カラム、狭幅の詳細ペイン、転送進捗、同名貼り付けの置き換え既定、単体版の配置復元を修正。Windows Qt回帰106件合格・2件スキップ。Windows版とMaya 2022〜2027版を通常配置へ更新し、各ファイルのハッシュ一致を確認。配置後のWindows版は現在の画面構成で、通常倍率と150%の位置・最大化復元を12回確認。標準エクスプローラーの画面取得は失敗し、専用Maya 2027はプラグイン読込でタイムアウト。予定した追加検証の実行記録がないまま期限を経過したため、自動化を停止。記録 `.maya-output/qpe-explorer-parity-20261111/`。
 
 - Claude Code (2026-11-12 夜間): mlrig GenevaDrive(ゼネバ機構の間欠回転、外歯車形・ピン1本)を追加。駆動輪の rotate から k = floor(θ/2π)、α = θ - π - 2πk、α' = clamp(α, ±α0)、β = atan2(λ sin α', 1 - λ cos α')(λ = sin(π/n))で従動輪の rotate・indexAngle・engaged・speedRatio・step を標準ノードだけで出力(和は倍精度の animBlendNodeAdditive)。Setup Samples に1項目、文書 geneva_drive.rst、テスト8件(setups スイート)、検証デモ tools/demo_geneva_drive.py。隔離 Maya 2027 で setups 710件・standard 76件 OK、Sphinx -W 成功、検証動画384フレームの判定 OK(Drive 保存・リンク共有済み)。コミット・プッシュ(このコミット)。
+
+- Claude Code (2026-11-12): mlib 12.3.0(未コミット)。docstring・Sphinx の監査と修正(Raises/Args の不足、存在しないAPI参照、ws同時指定の記載80件、Sphinx の参照切れ351→0件で rebuild.bat に -n を追加)、docstring の Raises を確かめる `test_spec_error_paths_*.py` 4本と `test_spec_v123_additions.py`・`test_spec_cmds_short_flags.py` を追加、cmds/ 作成関数の Maya 短縮フラグ、Transform の短い引数名への長名、cymel/pymel 比較で不足していた NurbsSurface の照会・CV編集、GeometryFilter.getGeometry、setRotateOrder、Vector.orthogonal、Face/Edge/Vertex の幾何照会、moveBy・getCenter、getPreferredAngle・isStatic・removeTarget を追加。setMin/setMax の逆転・fast の自己接続等の不具合を修正。Maya 2022/2026/2027 全件・mlrig 843件・SkinWeightKit 87件・静的165件・Sphinx 検査を通過。
 
 - Claude Code (2026-11-11): mlib 12.2.0。`Node.duplicate`(複製した自身を同じ種類で返す)・`Node.select`/`Nodes.select`/`getNames`/`callEach` を追加。複数形(Nodes・Joints・SkinClusters・コンポーネント)から単数のメソッドを `__getattr__` で呼べるようにし(戻り値は常にリスト)、スタブへ転送メソッドを書き出し、`Nodes` をスタブで要素の型付き(`ls(type=...)[0]` が具体型)にした。`worldSpace` を受ける69メソッドに短縮名 `ws` を追加(規則を変更し静的検査を追加)。計算ノードに setInput/getResult/getOutputPlug・演算やモードの名前指定・入力の追加削除・RemapValueのランプ操作を足し、3.0.0で外した15クラスを戻した。
 

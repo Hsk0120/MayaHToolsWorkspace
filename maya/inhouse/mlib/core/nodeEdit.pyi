@@ -27,7 +27,7 @@ def require_editable(node: om2.MObject, descendants: bool = ...) -> None:
     """構造変更前に参照・ロックされたノードを拒否する。
 
     Args:
-        node (MObject): 対象ノード。
+        node (om2.MObject): 対象ノード。
         descendants (bool): DAG子孫も検査するか。
 
     Returns:
@@ -121,7 +121,7 @@ def rename_node(node: om2.MObject, name: str, ignore_shape: bool = ...) -> str:
     """ノードと、旧名の接頭辞が一致する直属Shapeを改名する。
 
     Args:
-        node (MObject): 改名対象。
+        node (om2.MObject): 改名対象。
         name (str): Mayaが補正する新しい名前。
         ignore_shape (bool): 直属Shapeの連動改名を行わないか。
 
@@ -138,7 +138,7 @@ def create_node(node_type: str, flags: dict) -> om2.MObject:
         flags (dict): 正規化済みname/parent/skipSelect/shared。
 
     Returns:
-        MObject: 作成したノード。Shapeの暗黙の親ではなくShapeを返す。
+        om2.MObject: 作成したノード。Shapeの暗黙の親ではなくShapeを返す。
             shared=Trueで同名・同型のノードが一意に存在する場合はそのノード(cmdsはルート名前空間の
             名前だけ再利用するが、ここでは名前空間付きの名前でも既存ノードを返す近似)。
 

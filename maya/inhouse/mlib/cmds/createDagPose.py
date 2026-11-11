@@ -15,29 +15,36 @@ from typing import Any, Dict
 import maya.cmds as cmds
 
 from ..core.object import Object
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 
 
 @undoChunk("mlibCreateDagPose")
-def createDagPose(members, name=None, bindPose=False, hierarchy=True):
+def createDagPose(members, name=_UNSET, bindPose=_UNSET, hierarchy=True, *, n=_UNSET, bp=_UNSET):
     """現在の姿勢を新しいポーズに保存する。
 
     対象/nameを検証して保存し、指定名は保存後の改名で適用する。改名失敗でも保存は自動で戻さない。
+    name・bindPoseは ``cmds.dagPose`` と同じ短縮名 ``n``・``bp`` でも受ける(長名と短縮名の同時指定はできない)。
 
     Args:
         members (Node | str | Iterable[Node | str]): 保存するTransformまたはJoint。
-        name (str | None): 作成名。NoneならMayaの自動命名。
-        bindPose (bool): バインドポーズとして保存するか。
+        name (str | None): 作成名。NoneならMayaの自動命名。既定None。
+        bindPose (bool): バインドポーズとして保存するか。既定False。
         hierarchy (bool): TrueならMaya標準の階層保存、Falseなら指定対象のみ。
             Mayaは復元に必要な親の情報も保存する場合がある。
+        n (str | None): nameの短縮名。同時指定はできない。
+        bp (bool): bindPoseの短縮名。同時指定はできない。
 
     Returns:
         DagPose: 作成またはMayaが再利用したポーズ。
 
     Raises:
+        TypeError: 長名と短縮名を同時に指定した場合。
         ValueError: 空対象、Transform以外、不正な名前の場合。
         RuntimeError: ノード解決・保存をMayaが拒否した場合。
     """
+    name = _pick_alias(name, n, "name", "n", default=None)
+    bindPose = _pick_alias(bindPose, bp, "bindPose", "bp", default=False)
     # nodes はcmdsを参照するため、循環importを避けて関数内で読み込む。
     from ..nodes.node import Node
 

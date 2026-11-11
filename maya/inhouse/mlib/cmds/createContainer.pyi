@@ -12,26 +12,30 @@
 """
 
 import maya.cmds as cmds
-from ..decorator import undoTransaction
+from ..decorator import _pick_alias, undoTransaction
+from ..util import _UNSET
 from typing import Iterable
 from mlib.nodes.container import Container
 from mlib.nodes.dagContainer import DagContainer
 from mlib.nodes.node import Node
 
 
-def createContainer(name: str = ..., members: str | Node | Iterable[Node | str] = ...) -> Container:
+def createContainer(name: str = ..., members: str | Node | Iterable[Node | str] = ..., *, n: str = ...) -> Container:
     """containerを作成し、指定ノードを所属させる(作成 + ``addMembers``)。
 
     fast引数は持たない(cmds.containerにOpenMayaの同等機能が無い)。Undo有効時は1回で戻せる。
+    nameは ``cmds.container`` と同じ短縮名 ``n`` でも受ける(長名と短縮名の同時指定はできない)。
 
     Args:
-        name (str): 希望名。衝突時はMayaが一意名にする。
+        name (str): 希望名。衝突時はMayaが一意名にする。既定 ``"container"``。
         members (str | Node | Iterable[Node | str]): 作成後に所属させるノード。省略時は空のまま。
+        n (str): nameの短縮名。同時指定はできない。
 
     Returns:
         Container: 作成したcontainer。
 
     Raises:
+        TypeError: nameと短縮名 ``n`` を同時に指定した場合。
         RuntimeError: Mayaが作成・所属を拒否した場合。
     """
     ...

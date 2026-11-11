@@ -1,7 +1,7 @@
 """mlib文書に固有の表示を、SphinxとAutoAPIへ登録する。
 
 本文やビルド設定はsource/conf.py、ページの配置はsource/_templatesが担当する。
-この拡張は継承図・生成時の引数表示・パッケージ名の補正をつなぐ。
+この拡張は継承図・生成時の引数表示・パッケージ名の補正・短い参照の解決をつなぐ。
 Mayaやmlibはimportせず、Pythonソースだけを調べる。
 """
 
@@ -93,6 +93,163 @@ def _ancestor_diagram(class_name):
     return ancestor_class_diagram(class_name, _CLASS_HIERARCHY)
 
 
+def _display_bases(bases):
+    """クラスページの「ベースクラス」に載せる基底の名前を返す。
+
+    - ``A if TYPE_CHECKING else B`` の形の基底(Lambert 等)は、式ではなく型検査用の A を載せる。
+      実行時の継承は変えず、表示だけを整える。
+    - 非公開の基底(先頭 ``_``、例 ``_ContainerMixin``)はページが無いため載せない。
+      受け継いだ member は :func:`_include_private_base_members` で派生クラスのページに載る。
+
+    Args:
+        bases (list[str]): AutoAPI が解析した基底の名前。
+
+    Returns:
+        list[str]: 表示する基底の名前。
+    """
+    result = []
+    for base in bases or ():
+        match = re.fullmatch(r"\s*(.+?)\s+if\s+.+\s+else\s+.+", base)
+        if match:
+            base = match.group(1)
+        if base.rpartition(".")[2].startswith("_"):
+            continue
+        result.append(base)
+    return result
+
+
+def _ancestor_names(class_name):
+    """短いクラス名から、自身と祖先の短い名前を近い順に返す(静的解析した継承情報による)。"""
+    order, queue = [], [class_name]
+    while queue:
+        name = queue.pop(0)
+        if name in order:
+            continue
+        order.append(name)
+        info = _CLASS_HIERARCHY.get(name)
+        if info:
+            queue.extend(base.rpartition(".")[2] for base in info["bases"])
+    return order
+
+
+class _ShortReferenceResolver:
+    """クラスのページをまたぐ短い参照や、パッケージ経由の名前を、登録済みの完全名へ解決する。
+
+    ``autoapi_own_page_level = "class"`` ではクラスのページに現在のモジュールの文脈が無いため、
+    ``:meth:`Joint.orient``` や ``:class:`NodeRef``` のような短い参照が解決しない。
+    また AutoAPI は定義モジュールの名前(``mlib.nodes.transform.Transform``)で登録するため、
+    ``mlib.nodes.Transform`` のようなパッケージ経由の名前も解決しない。
+    Sphinx の ``missing-reference`` で、次の順に完全名を探して解決する。
+
+    1. ``mlib.cmds.createNode.createNode`` のようにモジュールと関数が同名の重複を除いた名前。
+    2. ``Class.member`` の Class と、その祖先クラスの member(継承したメソッド)。
+    3. 名前の後ろが一致する登録名。前に付いたパッケージ(``mlib.nodes`` 等)は、
+       登録名の先頭と一致することを求める。候補が複数なら、参照元のページのクラスとその祖先、
+       参照元のモジュールの順に絞り、1つに決まらなければ解決しない(誤ったリンクを作らない)。
+    """
+
+    def __init__(self):
+        self._env_id = None
+        self._objects = {}
+        self._by_suffix = {}
+
+    def _index(self, env):
+        """Python ドメインの登録名を、後ろの部分の名前から引ける表にする(ビルドごとに作り直す)。"""
+        objects = env.get_domain("py").objects
+        if self._env_id == id(env) and len(objects) == len(self._objects):
+            return
+        self._env_id = id(env)
+        self._objects = dict(objects)
+        self._by_suffix = {}
+        for full_name in self._objects:
+            parts = full_name.split(".")
+            for start in range(1, len(parts)):
+                self._by_suffix.setdefault(".".join(parts[start:]), []).append(full_name)
+
+    @staticmethod
+    def _context(refdoc):
+        """参照元のページから、(クラスの短い名前 | None, モジュールの完全名 | None)を返す。"""
+        parts = refdoc.replace("\\", "/").split("/")
+        if len(parts) < 3 or parts[0] != "autoapi":
+            return None, None
+        parts = parts[1:]
+        if parts[-1] == "index":
+            return None, ".".join(parts[:-1])
+        return parts[-1], ".".join(parts[:-1])
+
+    def _accepts(self, full_name, objtypes):
+        """登録名の種類が、参照の役割(meth・class 等)に合うか判定する。"""
+        return objtypes is None or self._objects[full_name].objtype in objtypes
+
+    def _find(self, target, objtypes, refdoc):
+        """target に対応する登録名を1つ返す。決まらなければ None。"""
+        if target in self._objects:
+            return target if self._accepts(target, objtypes) else None
+        parts = target.split(".")
+        # 1. モジュールと関数が同名(mlib.cmds.createNode.createNode)。
+        if len(parts) >= 2 and parts[-1] == parts[-2]:
+            shorter = ".".join(parts[:-1])
+            if shorter in self._objects and self._accepts(shorter, objtypes):
+                return shorter
+        context_class, context_module = self._context(refdoc)
+        # 2. Class.member の祖先クラスを辿る。
+        if len(parts) >= 2 and parts[-2] in _CLASS_HIERARCHY:
+            for name in _ancestor_names(parts[-2]):
+                info = _CLASS_HIERARCHY.get(name)
+                full_name = f"{info['qualname']}.{parts[-1]}" if info else None
+                if full_name in self._objects and self._accepts(full_name, objtypes):
+                    return full_name
+        # 3. 後ろが一致する登録名。
+        for start in range(len(parts)):
+            prefix = ".".join(parts[:start])
+            candidates = [
+                name for name in self._by_suffix.get(".".join(parts[start:]), ())
+                if (not prefix or name.startswith(prefix + ".")) and self._accepts(name, objtypes)
+            ]
+            if not candidates:
+                continue
+            if len(candidates) == 1:
+                return candidates[0]
+            return self._narrow(candidates, context_class, context_module)
+        return None
+
+    @staticmethod
+    def _narrow(candidates, context_class, context_module):
+        """複数の候補を、参照元のクラスの祖先・参照元のモジュールの順に絞る。"""
+        if context_class:
+            for name in _ancestor_names(context_class):
+                info = _CLASS_HIERARCHY.get(name)
+                if not info:
+                    continue
+                owned = [c for c in candidates if c.rpartition(".")[0] == info["qualname"]]
+                if len(owned) == 1:
+                    return owned[0]
+        if context_module:
+            local = [c for c in candidates if c.rpartition(".")[0] == context_module]
+            if len(local) == 1:
+                return local[0]
+        return None
+
+    def __call__(self, app, env, node, contnode):
+        """Sphinx の ``missing-reference`` から呼ばれ、解決できた参照のノードを返す。"""
+        if node.get("refdomain") != "py":
+            return None
+        target = node.get("reftarget", "")
+        # 非公開の名前(先頭 ``_``)はページが無いため探さない。
+        if not target[:1].isalpha():
+            return None
+        self._index(env)
+        domain = env.get_domain("py")
+        objtypes = domain.objtypes_for_role(node.get("reftype"))
+        full_name = self._find(target, objtypes, node.get("refdoc", ""))
+        if full_name is None:
+            return None
+        return domain.resolve_xref(env, node["refdoc"], app.builder, node["reftype"], full_name, node, contnode)
+
+
+_resolve_short_reference = _ShortReferenceResolver()
+
+
 def prepare_autoapi(jinja_env):
     """AutoAPI のテンプレート環境へ、mlib 独自テンプレート用の設定を追加する。
 
@@ -104,6 +261,7 @@ def prepare_autoapi(jinja_env):
     jinja_env.globals["package_name"] = _PACKAGE_NAME
     jinja_env.globals["node_constructor_args"] = _CONSTRUCTOR_DOCS.signature
     jinja_env.globals["ancestor_class_diagram"] = _ancestor_diagram
+    jinja_env.globals["display_bases"] = _display_bases
     jinja_env.loader = ChoiceLoader([
         jinja_env.loader,
         PrefixLoader({
@@ -154,3 +312,4 @@ def setup(app):
     app.connect("source-read", _adapt_package_name)
     app.connect("include-read", _adapt_included_package_name)
     app.connect("autoapi-skip-member", _include_private_base_members)
+    app.connect("missing-reference", _resolve_short_reference)

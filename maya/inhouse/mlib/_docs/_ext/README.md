@@ -12,7 +12,7 @@
 ## 呼ばれる順序
 
 1. `source/conf.py`がこのフォルダをPythonの検索先へ追加し、`mlibDocs`をSphinx拡張として指定する。
-2. Sphinxが`mlibDocs.setup()`を呼び、配置名の反映・constructor掲載の補正を登録する。
+2. Sphinxが`mlibDocs.setup()`を呼び、配置名の反映・constructor掲載の補正・短い参照の解決を登録する。
 3. AutoAPIがmlibのPythonソースを解析する。
 4. `source/conf.py`の`autoapi_prepare_jinja_env`に指定した`prepare_autoapi()`が、テンプレート用の関数を登録する。
 5. `source/_templates/autoapi/python/class.rst`が継承図・生成時引数・docstringをページに展開する。
@@ -28,6 +28,10 @@ Mayaやmlibはimportしません。基底クラスを調べるときもPythonソ
 - 図の配色・描画後の寸法: `source/_static/js/mermaid-init.js`と`source/_static/css/mermaid.css`。
 - Node派生クラスの生成時引数: `_constructorSignatures.py`。既存検証は`maya/inhouse/mlib/__tests__/unit/test_static_constructor_docs.py`。
 - クラスページ内の掲載順: `source/_templates/autoapi/python/class.rst`。
+- 「ベースクラス」の表示(`A if TYPE_CHECKING else B`の基底をAとして載せ、非公開の基底を除く): `mlibDocs.py`の`_display_bases`。
+- `:meth:`Joint.orient``のような短い参照や`mlib.nodes.Transform`のようなパッケージ経由の名前のリンク:
+  `mlibDocs.py`の`_ShortReferenceResolver`(Sphinxの`missing-reference`で定義モジュールの完全名へ解決する)。
+  om2等のmlibの外の型と非公開の名前は、`source/conf.py`の`nitpick_ignore_regex`で参照切れの検査から外す。
 - 対象パッケージ・AutoAPIオプション・Mermaidの版: `source/conf.py`。
 
 `mlibDocs.py`の`autoapi-packaged/`という名前は、独自テンプレートからAutoAPI標準テンプレートを参照するためにあります。

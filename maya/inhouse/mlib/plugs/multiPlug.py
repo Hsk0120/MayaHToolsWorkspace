@@ -407,6 +407,11 @@ class MultiPlug(Plug):
 
         Returns:
             int: 追加した論理番号。途中の穴は再利用しない。
+
+        Raises:
+            TypeError: messageのマルチアトリビュートでない、またはfastがbool以外の場合。
+            IndexError: 論理番号が上限に達した場合。
+            RuntimeError: 所有ノード・アトリビュートが無効、nodeが存在しない、または接続に失敗した場合。
         """
         _require_bool(fast, "fast")
         with nullcontext() if fast else undoChunk("mlibMultiPlugAppendMessage"):

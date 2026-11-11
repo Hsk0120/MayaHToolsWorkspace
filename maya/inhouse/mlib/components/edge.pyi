@@ -2,10 +2,14 @@
 """Mesh の Edge とコレクション。"""
 
 import maya.api.OpenMaya as om2
+from ..decorator import _pick_alias
+from ..maths.vector import _vectors_of_points
+from ..util import _UNSET, _world_space
 from .component import Component, Components
 from .face import Faces
 from .vertex import Vertices
 from typing import Any, Iterator
+from mlib.maths.vector import Vector
 from typing import overload
 
 
@@ -29,6 +33,38 @@ class Edge(Component):
 
         Returns:
             Faces: 番号の昇順の面(重複なし)。
+        """
+        ...
+    def getLength(self, worldSpace: bool = ..., *, ws: bool = ...) -> float:
+        """エッジの長さ(``MItMeshEdge.length``)を cm で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            float: 長さ(cm)。ワールド空間は親のスケールを含む。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        ...
+    def getCenter(self, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
+        """エッジの中点(``MItMeshEdge.center``)を取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Vector: 中点の位置(cm)。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
         """
         ...
     def getLoop(self) -> Edges:
@@ -108,6 +144,12 @@ class Edges(Components):
             IndexError: トポロジーの変更で保持番号が範囲外になった場合。
             RuntimeError: シェイプが無効な場合。
         """
+        ...
+    def getLength(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[float]:
+        """各要素の :meth:`~mlib.components.edge.Edge.getLength` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getCenter(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Vector]:
+        """各要素の :meth:`~mlib.components.edge.Edge.getCenter` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getFullName(self) -> list[str]:
         """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

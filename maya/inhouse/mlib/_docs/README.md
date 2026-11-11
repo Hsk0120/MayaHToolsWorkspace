@@ -80,11 +80,12 @@ python -m venv .venv
 Sphinxを直接実行してHTMLを作り、ブラウザで開きます。
 
 ```powershell
-& .\.venv\Scripts\python.exe -m sphinx -E -a -b html -W --keep-going .\source .\_build\html
+& .\.venv\Scripts\python.exe -m sphinx -E -a -b html -n -W --keep-going .\source .\_build\html
 if ($LASTEXITCODE -eq 0) { Invoke-Item .\_build\html\index.html }
 ```
 
-`-E -a`は全ページを作り直す指定、`-b html`は出力形式、`-W`は警告も失敗として扱う指定です。
+`-E -a`は全ページを作り直す指定、`-b html`は出力形式、`-n`は解決しない参照(リンク切れ)も警告にする指定、
+`-W`は警告も失敗として扱う指定です。
 終了時の`build succeeded`と、警告・エラーの有無を確認してください。
 
 Sphinxは出力先に残った古いHTMLを削除しません。ページを削除した場合は空の出力先を指定するか、

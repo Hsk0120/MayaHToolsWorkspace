@@ -151,6 +151,7 @@ def raiseWithNotify(exceptionType: type[Exception], message: str, *args: object,
 
     Raises:
         Exception: exceptionType で指定した例外。コンストラクタが失敗した場合はその例外。
+        TypeError: fromException が例外でも None でもない場合。
     """
     ...
 

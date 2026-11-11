@@ -49,6 +49,9 @@ def collect_class_hierarchy(mlib_root):
                 continue
             bases = []
             for base in node.bases:
+                # ``A if TYPE_CHECKING else B`` の形の基底は、文書では型検査用の A として扱う。
+                if isinstance(base, ast.IfExp):
+                    base = base.body
                 try:
                     bases.append(ast.unparse(base))
                 except Exception:
@@ -73,7 +76,8 @@ def _class_links(names, hierarchy, source_page):
     """
     links = []
     for name in sorted(names):
-        if name not in hierarchy:
+        # 非公開のクラス(先頭 ``_``)はページを作らないため、リンクを付けない。
+        if name not in hierarchy or name.startswith("_"):
             continue
         qualname = hierarchy[name]["qualname"]
         target = posixpath.relpath(_class_page(qualname), posixpath.dirname(source_page) or ".")

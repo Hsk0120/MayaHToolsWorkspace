@@ -14,17 +14,17 @@ skinCluster だけの変形へ置き換える(元のデフォーマーは除か�
 import maya.cmds as cmds
 
 from ..core.object import Object
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 
-#: 引数で受けるため、``**kwargs`` では受け付けないフラグ(長名・短名)。
-_ARGUMENT_FLAGS = frozenset(("srcMeshName", "sm", "srcSkeletonName", "ss", "dstMeshName", "dm",
-                             "dstSkeletonName", "ds", "maxInfluences", "mi"))
-
-#: 照会・編集のフラグ(bakeDeformer は作成専用)。
-_REJECTED_FLAGS = frozenset(("query", "q", "edit", "e"))
+#: ``**kwargs`` では受け付けないフラグ。形状・スケルトンの指定は名前の違う専用引数(source・skeleton・
+#: destination・destinationSkeleton)で受け、query・editは作成専用のため受け付けない。
+_REJECTED_FLAGS = frozenset(("srcMeshName", "sm", "srcSkeletonName", "ss", "dstMeshName", "dm",
+                             "dstSkeletonName", "ds", "query", "q", "edit", "e"))
 
 
-def bakeDeformer(source, skeleton, destination=None, destinationSkeleton=None, maxInfluences=4, **kwargs):
+def bakeDeformer(source, skeleton, destination=None, destinationSkeleton=None, maxInfluences=_UNSET, *,
+                 mi=_UNSET, **kwargs):
     """元の形状の変形を、変形先の形状の skinCluster のウェイトへ焼き込む。
 
     選択状態は参照しない。変形先が既にバインドされていれば、その skinCluster のウェイトを書き換える。
@@ -37,15 +37,18 @@ def bakeDeformer(source, skeleton, destination=None, destinationSkeleton=None, m
             skinCluster だけの変形にする)。
         destinationSkeleton (Joint | str | None): 変形先のスケルトンのルート。None は skeleton と同じ。
         maxInfluences (int): 1頂点の最大influence数。正の整数。既定4。
+        mi (int): maxInfluencesの短縮名。同時指定はできない。
         **kwargs (object): ``cmds.bakeDeformer`` のその他のフラグ(``influences``・``pruneWeights``・
             ``smoothWeights``・``hierarchy``・``customRangeOfMotion``・``bakeRangeOfMotion``・
-            ``colorizeSkeleton``。長名・短名とも可)。
+            ``colorizeSkeleton``。長名・短名とも可)。``srcMeshName``・``srcSkeletonName``・``dstMeshName``・
+            ``dstSkeletonName`` (と短縮名。専用引数で指定する)・query・editは受け付けない。
 
     Returns:
         SkinCluster: 変形先の形状の skinCluster。
 
     Raises:
-        TypeError: 引数で受けるフラグ・query・editフラグを ``**kwargs`` に渡した場合。
+        TypeError: maxInfluencesと短縮名 ``mi`` を同時に指定した場合、または ``**kwargs`` で受け付けない
+            フラグを渡した場合。
         ValueError: maxInfluencesが正の整数でない場合。
         RuntimeError: 名前を解決できない、Mayaが焼き込みを拒否した、または変形先に skinCluster が見つからない場合。
     """
@@ -53,9 +56,7 @@ def bakeDeformer(source, skeleton, destination=None, destinationSkeleton=None, m
     from ..nodes.node import Node
     from ..nodes.skinCluster import SkinCluster
 
-    duplicated = sorted(_ARGUMENT_FLAGS.intersection(kwargs))
-    if duplicated:
-        raise TypeError(f"Pass these as arguments of bakeDeformer: {', '.join(duplicated)}")
+    maxInfluences = _pick_alias(maxInfluences, mi, "maxInfluences", "mi", default=4)
     rejected = sorted(_REJECTED_FLAGS.intersection(kwargs))
     if rejected:
         raise TypeError(f"bakeDeformer does not accept: {', '.join(rejected)}")

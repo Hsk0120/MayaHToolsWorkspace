@@ -97,6 +97,10 @@ class _ContainerMixin(Node if TYPE_CHECKING else object):
 
         Returns:
             str: 作成した公開名。
+
+        Raises:
+            ValueError: 同じ公開名が既にある場合。
+            RuntimeError: ノードが無効、またはMayaが公開名の作成を拒否した場合。
         """
         ...
     def getPublishedAttrs(self) -> dict[str, Plug | None]:
@@ -171,5 +175,5 @@ class Container(_ContainerMixin, Node):
 
     所属・公開名の操作(create・getMembers・addMembers・removeMembers・createNode・removeContainer・
     publishName・getPublishedAttrs・bindAttr・publishAndBind・unbindAttr・unpublishName)は
-    :class:`_ContainerMixin` に定義し、:class:`~mlib.nodes.dagContainer.DagContainer` と共有する。
+    非公開の ``_ContainerMixin`` に定義し、:class:`~mlib.nodes.dagContainer.DagContainer` と共有する。
     """

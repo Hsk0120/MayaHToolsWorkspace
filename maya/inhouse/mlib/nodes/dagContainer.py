@@ -7,7 +7,7 @@ from .transform import Transform
 class DagContainer(Transform, Container):
     """Transform操作とContainerの所属・公開操作を持つコンテナ。
 
-    所属・公開操作は :class:`~mlib.nodes.container._ContainerMixin` に定義したものを
+    所属・公開操作は非公開の ``_ContainerMixin`` に定義したものを
     Container と共有する。DAGの子もMaya標準の所属管理に従う。removeMembersは子を階層からも
     外し、removeContainerはメンバーを残して箱を解除する。
     解除時はローカル値が維持されるため、ワールド姿勢は変化する場合がある。

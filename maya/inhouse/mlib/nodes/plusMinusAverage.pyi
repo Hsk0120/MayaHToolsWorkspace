@@ -19,6 +19,7 @@ def _attributes(dimension: int) -> tuple[str, str]:
         tuple[str, str]: 入力のマルチアトリビュート名と出力のアトリビュート名。
 
     Raises:
+        TypeError: dimensionがハッシュできない型(list等)の場合。
         ValueError: dimensionが1・2・3以外の場合。
     """
     ...
@@ -64,7 +65,7 @@ class PlusMinusAverage(ShadingDependNode):
             int: 足した入力の論理番号。
 
         Raises:
-            TypeError: 接続元の型が不正な場合。
+            TypeError: 接続元の型が不正、またはdimensionがハッシュできない型(list等)の場合。
             ValueError: dimensionが1・2・3以外の場合。
             RuntimeError: ノードが無効な場合、またはMayaが書込み・接続を拒否した場合。
         """
@@ -80,7 +81,7 @@ class PlusMinusAverage(ShadingDependNode):
             PlusMinusAverage: 自身。
 
         Raises:
-            TypeError: indexがint以外の場合。
+            TypeError: indexがint以外、またはdimensionがハッシュできない型(list等)の場合。
             ValueError: dimensionが1・2・3以外、または index の入力が無い場合。
             RuntimeError: ノードが無効な場合、またはMayaが削除を拒否した場合。
         """
@@ -95,6 +96,7 @@ class PlusMinusAverage(ShadingDependNode):
             list[int]: 論理番号。
 
         Raises:
+            TypeError: dimensionがハッシュできない型(list等)の場合。
             ValueError: dimensionが1・2・3以外の場合。
         """
         ...
@@ -108,6 +110,7 @@ class PlusMinusAverage(ShadingDependNode):
             float | tuple: 1次元はfloat、2・3次元は成分のtuple。
 
         Raises:
+            TypeError: dimensionがハッシュできない型(list等)の場合。
             ValueError: dimensionが1・2・3以外の場合。
         """
         ...
@@ -121,6 +124,7 @@ class PlusMinusAverage(ShadingDependNode):
             Plug: ``output1D``・``output2D``・``output3D`` のいずれか。
 
         Raises:
+            TypeError: dimensionがハッシュできない型(list等)の場合。
             ValueError: dimensionが1・2・3以外の場合。
         """
         ...

@@ -68,6 +68,10 @@ def measure(operation: Callable[..., Any], samples: int = ..., warmup: int = ...
     Returns:
         dict: samples、median_seconds、min_seconds、max_seconds。
 
+    Raises:
+        TypeError: operationが呼び出せない場合。
+        ValueError: samplesが1以上のint、またはwarmupが0以上のintでない場合(int以外も含む)。
+
     Note:
         同じ値を読むだけではキャッシュの速度になる。必要なdirty化は
         呼び出し側で行う。処理の副作用や時間位置も呼び出し側が管理する。

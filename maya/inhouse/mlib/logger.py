@@ -227,6 +227,7 @@ def raiseWithNotify(exceptionType, message, *args, fromException=_NO_CAUSE, **kw
 
     Raises:
         Exception: exceptionType で指定した例外。コンストラクタが失敗した場合はその例外。
+        TypeError: fromException が例外でも None でもない場合。
     """
     error(message)
     exception = exceptionType(message, *args, **kwargs)

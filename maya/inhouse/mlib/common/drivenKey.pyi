@@ -191,7 +191,7 @@ class DrivenKey:
             DrivenKey: 自身。
 
         Raises:
-            TypeError: 数値の型がfloat()へ変換できない、unit・timeUnitが文字列以外、またはfastがbool以外の場合。
+            TypeError: 数値の型がfloat()へ変換できない、unit・timeUnitが文字列・None以外、またはfastがbool以外の場合。
             ValueError: 数値が非有限、float()で変換できない、unit・timeUnitが未対応の単位名、
                 またはfastでfixed・global等の直接設定できない接線型を指定した場合。
             RuntimeError: 対象外の入力接続、同じ組に複数のカーブがある、駆動先がロックされている、

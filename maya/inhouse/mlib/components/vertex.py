@@ -2,6 +2,9 @@
 
 import maya.api.OpenMaya as om2
 
+from ..decorator import _pick_alias, _require_bool
+from ..maths.vector import Vector
+from ..util import _UNSET, _world_space
 from .pointComponent import PointComponent, PointComponents
 
 
@@ -21,6 +24,28 @@ class Vertex(PointComponent):
             Faces: 番号の昇順の面(重複なし)。
         """
         return Vertices(self.shape, [self.index]).getFaces()
+
+    def getNormal(self, worldSpace=_UNSET, angleWeighted=False, *, ws=_UNSET):
+        """頂点の法線(``MFnMesh.getVertexNormal``。接する面の法線の平均)を、長さ1で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+            angleWeighted (bool): Trueは面の角度で重み付けした平均。既定Falseは単純平均。
+
+        Returns:
+            Vector: 長さ1の法線。ロックした法線・ハードエッジは考慮しない(面の法線から計算する)。
+
+        Raises:
+            TypeError: worldSpace・angleWeightedがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        _require_bool(angleWeighted, "angleWeighted")
+        self._require_valid()
+        return Vector(self.shape._geometry_fn().getVertexNormal(self.index, angleWeighted, space)).normal()
 
 
 class Vertices(PointComponents):

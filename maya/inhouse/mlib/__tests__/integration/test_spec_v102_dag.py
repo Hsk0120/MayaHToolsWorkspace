@@ -73,7 +73,8 @@ class BakeResultsTest(NamespaceCase):
 
     def test_errors(self):
         """引数で受けるフラグ・query・不正な time/sampleBy/attributes/nodes は例外。"""
-        for kwargs, error in (({"t": (1, 2)}, TypeError), ({"at": "tx"}, TypeError), ({"query": True}, TypeError),
+        for kwargs, error in (({"time": (1, 2), "t": (1, 2)}, TypeError), ({"attributes": "tx", "at": "tx"}, TypeError),
+                              ({"attribute": "tx"}, TypeError), ({"query": True}, TypeError),
                               ({"time": (5, 1)}, ValueError), ({"time": (1,)}, ValueError),
                               ({"time": "1:5"}, TypeError), ({"sampleBy": 0}, ValueError),
                               ({"sampleBy": "1"}, TypeError), ({"attributes": 1}, TypeError),

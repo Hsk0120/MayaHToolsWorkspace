@@ -662,6 +662,12 @@ def s_curves(c):
     c.nsrc = mlib.getNode(c.src)
 
 
+def s_surface(c):
+    """履歴なしの nurbsPlane(1x1 スパン・3次)を作る。"""
+    c.srf = cmds.ls(cmds.nurbsPlane(name="srf", constructionHistory=False)[0], long=True)[0]
+    c.nsrfShape = mlib.getNode(cmds.listRelatives(c.srf, shapes=True, fullPath=True)[0])
+
+
 def s_locator(c):
     """spaceLocator を作る。"""
     c.loc = cmds.spaceLocator(name="loc")[0]
@@ -887,6 +893,14 @@ def s_constraint(c):
     """b を a へ parentConstraint で拘束する。"""
     s_two(c)
     c.con = cmds.parentConstraint(c.a, c.b, name="pcon")[0]
+    c.ncon = mlib.getNode(c.con)
+
+
+def s_constraint_two_targets(c):
+    """c を a・b の2つのターゲットへ parentConstraint で拘束する。"""
+    s_two(c)
+    c.c = _xf("c")
+    c.con = cmds.parentConstraint(c.a, c.b, c.c, name="pcon2")[0]
     c.ncon = mlib.getNode(c.con)
 
 
@@ -1284,6 +1298,25 @@ CASES = [
                                         name="made")),
     C("NurbsCurve.setCvPositions", "setCvPositions worldSpace", s_curves,
       lambda c, **kw: c.ncrvShape.setCvPositions([(0, 1, 0), (1, 1, 0), (2, 2, 0)], worldSpace=True, **kw)),
+    C("NurbsSurface.setCvPositions", "NurbsSurface.setCvPositions", s_surface,
+      lambda c, **kw: c.nsrfShape.setCvPositions([p + (0, 1, 0) for p in c.nsrfShape.getCvPositions()], **kw)),
+    C("NurbsSurface.setCvPositions", "NurbsSurface.setCvPositions worldSpace", s_surface,
+      lambda c, **kw: c.nsrfShape.setCvPositions(c.nsrfShape.getCvPositions(worldSpace=True)[::-1], worldSpace=True,
+                                                 **kw)),
+    C("Constraint.removeTarget", "Constraint.removeTarget", s_constraint_two_targets,
+      lambda c, **kw: c.ncon.removeTarget(c.a),
+      mayaQuirk="Maya標準の parentConstraint -remove も、Undo でウェイトの動的アトリビュートを末尾へ作り直し"
+                "(並び順が変わる)、評価の途中の値の lastTargetRotate を元に戻さない",
+      ignoreAttrs=("lastTargetRotateX", "lastTargetRotateY", "lastTargetRotateZ"), unorderedFields=("userAttrs",)),
+    C("Transform.setRotateOrder", "setRotateOrder preserve", s_one, lambda c, **kw: c.na.setRotateOrder("zxy")),
+    C("Transform.setRotateOrder", "setRotateOrder no preserve", s_one,
+      lambda c, **kw: c.na.setRotateOrder(3, preserve=False)),
+    C("PointComponent.moveBy", "Vertex.moveBy", s_cube,
+      lambda c, **kw: c.nshape.getVertex(0).moveBy((1.0, 2.0, 3.0), **kw)),
+    C("PointComponent.moveBy", "CV.moveBy worldSpace", s_curve,
+      lambda c, **kw: c.ncrvShape.getCV(1).moveBy((0.0, 1.0, 0.0), worldSpace=True, **kw)),
+    C("PointComponents.moveBy", "Vertices.moveBy", s_cube,
+      lambda c, **kw: c.nshape.getVertices([0, 1, 2]).moveBy((0.0, 1.0, 0.0), **kw)),
     C("Mesh.setPoints", "Mesh.setPoints", s_cube,
       lambda c, **kw: c.nshape.setPoints([point * 2 for point in c.nshape.getPoints()], **kw)),
     C("Mesh.setPoints", "Mesh.setPoints worldSpace", s_cube,

@@ -139,6 +139,7 @@ class DagNode(Node):
                 子 Shape が無い Transform では原点のみを含む空に近いボックスになる。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: worldSpaceが bool でない場合。
             RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
         """
@@ -377,9 +378,13 @@ class DagNode(Node):
         Returns:
             DagNode: 自身。
 
+        Raises:
+            TypeError: state・fastがbool以外の場合。
+            RuntimeError: ノードが無効、またはvisibilityがロック・入力接続されていて書き込めない場合。
+
         Note:
             ``fast=True`` はOpenMaya直接更新(Undoなし)。既定の ``False`` は通常処理。
-            fastがbool以外ならTypeError。完了済みの直接更新は自動で戻さない。
+            完了済みの直接更新は自動で戻さない。
         """
         ...
     def getOutlinerVisibility(self) -> bool:
@@ -389,7 +394,6 @@ class DagNode(Node):
             bool: hiddenInOutlinerがFalseならTrue。実際の画面上の可視性ではない。
 
         Raises:
-            AttributeError: hiddenInOutlinerがないノードの場合。
             RuntimeError: ノードが無効な場合。
 
         Note:

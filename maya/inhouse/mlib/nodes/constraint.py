@@ -2,7 +2,7 @@
 
 import maya.cmds as cmds
 
-from ..decorator import _edit_context
+from ..decorator import _edit_context, undoChunk
 from .node import Node, Nodes
 from .transform import Transform
 
@@ -111,3 +111,32 @@ class Constraint(Transform):
                 if name in requested:
                     plug.set(weight, fast=fast)
             return self
+
+    def removeTarget(self, *targets):
+        """ターゲットをコンストレイントから外す(``cmds.<コンストレイント>(target, self, edit=True, remove=True)``)。
+
+        Mayaの標準コマンドと同じく、ターゲットのウェイトのアトリビュートと接続も消える。最後のターゲットを
+        外すとMayaはコンストレイント自体を削除する。Undo有効時は1回のUndoで戻る。
+
+        Args:
+            targets (Node | str): 外すターゲット。1つ以上。
+
+        Returns:
+            Constraint: 自身。
+
+        Raises:
+            TypeError: ターゲットを1つも指定しない、またはターゲットの型が不正な場合。
+            ValueError: ターゲットがこのコンストレイントに登録されていない場合(何も外さない)。
+            RuntimeError: コンストレイントが無効、またはMayaが変更を拒否した場合。
+        """
+        if not targets:
+            raise TypeError("removeTarget requires at least one target")
+        self._require_valid("remove targets from")
+        requested = [Node._resolve_input(target).getFullName() for target in Nodes._resolve_inputs(targets)]
+        registered = {node.getFullName() for node in self.getTargets()}
+        missing = sorted(set(requested) - registered)
+        if missing:
+            raise ValueError(f"Targets not found on this constraint: {missing}")
+        with undoChunk("mlibConstraintRemoveTarget"):
+            getattr(cmds, self.getType())(*(requested + [self.getFullName()]), edit=True, remove=True)
+        return self

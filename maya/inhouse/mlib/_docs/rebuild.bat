@@ -22,7 +22,8 @@ if exist "%MLIB_DOCS_OUTPUT%" (
     goto finish
 )
 
-"%MLIB_DOCS_PYTHON%" -m sphinx -E -a -b html -W --keep-going "%MLIB_DOCS_SOURCE%" "%MLIB_DOCS_OUTPUT%"
+rem -n reports cross references that do not resolve (nitpick_ignore_regex in conf.py lists the allowed ones).
+"%MLIB_DOCS_PYTHON%" -m sphinx -E -a -b html -n -W --keep-going "%MLIB_DOCS_SOURCE%" "%MLIB_DOCS_OUTPUT%"
 set "MLIB_DOCS_RESULT=%ERRORLEVEL%"
 if not "%MLIB_DOCS_RESULT%"=="0" (
     echo.

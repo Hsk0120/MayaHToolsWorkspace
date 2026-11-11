@@ -1,9 +1,8 @@
 # tools/generate_mlib_stubs.py が mlib の docstring から生成した型スタブ。直接編集しない。
 """Maya の cluster デフォーマを扱う。"""
 
-import maya.api.OpenMayaAnim as oma2
 from .geometryFilter import GeometryFilter
-from .node import Node
+from mlib.nodes.node import Node
 
 
 
@@ -14,12 +13,5 @@ class Cluster(GeometryFilter):
 
         Returns:
             Node | None: cluster ハンドルの transform。見つからない場合は ``None``。
-        """
-        ...
-    def getGeometry(self) -> list[Node]:
-        """このクラスタが変形するジオメトリ shape を取得する。
-
-        Returns:
-            list[Node]: 変形対象の shape。無ければ空リスト。
         """
         ...

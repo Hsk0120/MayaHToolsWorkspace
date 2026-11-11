@@ -311,7 +311,9 @@ class IkHandleCreateTest(_SpecCase):
             (ValueError, dict(startJoint=self.j1, endJoint=other)),
             (ValueError, dict(startJoint=self.j1, endJoint=self.j3, name="")),
             (TypeError, dict(startJoint=self.j1, endJoint=self.j3, name=1)),
-            (TypeError, dict(startJoint=self.j1, endJoint=self.j3, sol="ikSCsolver")),
+            (TypeError, dict(startJoint=self.j1, endJoint=self.j3, solver="ikSCsolver", sol="ikSCsolver")),
+            (TypeError, dict(startJoint=self.j1, endJoint=self.j3, endEffector=self.j3)),
+            (TypeError, dict(endJoint=self.j3)),
             (RuntimeError, dict(startJoint=self.name("missing"), endJoint=self.j3)),
         ]
         transform = cmds.createNode("transform", name=self.name("xform"), parent=self.j2, skipSelect=True)

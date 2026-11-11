@@ -989,12 +989,14 @@ class Node(Object):
                 対象の参照や名前。Plugは所有ノード、Componentは所有シェイプへ解決する。
 
         Returns:
-            bool: 自身を除く子孫ならTrue。非DAG・無効なノード・削除済みアトリビュートはFalse。
+            bool: 自身を除く子孫ならTrue。otherが非DAG・無効なノード・削除済みアトリビュートの場合はFalse。
 
         Raises:
             TypeError: otherが未対応型の場合。
-            RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
+            RuntimeError: 名前を解決できない、MObject・MPlugが空、または自身が削除済み・無効
+                (保持インスタンスの消失を含む)の場合。
         """
+        self._require_valid("query descendants of")
         other_node = _resolve_input_or_none(other)
         self_full = self.getFullName()
         if other_node is None or not self_full:
@@ -1183,7 +1185,7 @@ class Node(Object):
             return self
 
     def duplicate(self, name=None, *, suffix=None, **kwargs):
-        """自身を複製し、複製した自身を同じ種類のラッパーで返す。
+        """自身を複製し、複製したノードを同じ種類のラッパーで返す。
 
         :func:`mlib.duplicate` (``cmds.duplicate``)へ委ね、1回のUndoで戻せる。
         ``Joint`` なら ``Joint``、``Transform`` なら ``Transform`` のように、複製結果の
@@ -1198,7 +1200,7 @@ class Node(Object):
                 ``upstreamNodes`` 等。短縮名も可)。
 
         Returns:
-            Node: 複製した自身。
+            Node: 複製した新しいノード(最上位)。
 
         Raises:
             TypeError: フラグの長名・短名を同時に指定した場合、または suffix が文字列・None以外の場合。
@@ -1809,7 +1811,7 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列以外、または
+            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列・None以外、または
                 safe=Trueで既存のアトリビュートの型・マルチアトリビュートかどうかが要求と違う場合。
             ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
                 unitが未対応の単位名、またはenumのdefaultValueのフィールド名がenumNameに無い場合。
@@ -1839,12 +1841,7 @@ class Node(Object):
             (hidden, h, "hidden", "h"),
             (indexMatters, im, "indexMatters", "im"),
         ))
-        if e is not _UNSET:
-            if edit is not _UNSET:
-                raise _ArgumentError("Specify only one of 'edit' and 'e'")
-            edit = e
-        if edit is not _UNSET:
-            kwargs["edit"] = edit
+        _merge_flags(kwargs, ((edit, e, "edit", "e"),))
         if "is" in kwargs:
             if internalSet is not _UNSET:
                 raise _ArgumentError("Specify only one of 'internalSet' and 'is'")
@@ -1874,24 +1871,11 @@ class Node(Object):
             (worldSpace, ws, "worldSpace", "ws"),
             (writable, w, "writable", "w"),
         ))
-        if q is not _UNSET:
-            if query is not _UNSET:
-                raise _ArgumentError("Specify only one of 'query' and 'q'")
-            query = q
-        if query is not _UNSET:
-            kwargs["query"] = query
-        if sn is not _UNSET:
-            if shortName is not _UNSET:
-                raise _ArgumentError("Specify only one of 'shortName' and 'sn'")
-            shortName = sn
-        if shortName is not _UNSET:
-            kwargs["shortName"] = shortName
-        if uap is not _UNSET:
-            if usedAsProxy is not _UNSET:
-                raise _ArgumentError("Specify only one of 'usedAsProxy' and 'uap'")
-            usedAsProxy = uap
-        if usedAsProxy is not _UNSET:
-            kwargs["usedAsProxy"] = usedAsProxy
+        _merge_flags(kwargs, (
+            (query, q, "query", "q"),
+            (shortName, sn, "shortName", "sn"),
+            (usedAsProxy, uap, "usedAsProxy", "uap"),
+        ))
         channelBox = _pick_alias(channelBox, cb, "channelBox", "cb", default=False)
         _require_bool(safe, "safe")
         angle_unit = _angle_unit(unit)
@@ -1905,8 +1889,6 @@ class Node(Object):
             if flags.get("query") or flags.get("edit"):
                 raise ValueError("addAttr supports creation only")
             if longName:
-                if "longName" in flags:
-                    raise TypeError("Specify longName or ln, not both")
                 flags["longName"] = longName
             name = flags.get("longName") or flags.get("shortName")
             if not isinstance(name, str) or not name:

@@ -8,6 +8,7 @@
     import mlib
 
     curves = mlib.bakeResults(["arm_CTRL", "leg_CTRL"], time=(1, 120), simulation=True)
+    curves = mlib.bakeResults("arm_CTRL", at=["tx", "ty"], t=(1, 24), sb=2)  # cmds.bakeResults と同じ短縮名
 """
 
 import math
@@ -18,16 +19,15 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.object import Object
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 
-#: 引数で受けるため、``**kwargs`` では受け付けないフラグ(長名・短名)。
-_ARGUMENT_FLAGS = frozenset(("attribute", "at", "time", "t", "sampleBy", "sb"))
-
-#: 照会・編集のフラグ(bakeResults は焼き込み専用)。
-_REJECTED_FLAGS = frozenset(("query", "q", "edit", "e"))
+#: ``**kwargs`` では受け付けないフラグ。``attribute`` は ``attributes``(短縮名 ``at``)で指定し、
+#: query・editは焼き込み専用のため受け付けない。
+_REJECTED_FLAGS = frozenset(("attribute", "query", "q", "edit", "e"))
 
 
-def bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs):
+def bakeResults(nodes, attributes=_UNSET, time=_UNSET, sampleBy=_UNSET, *, at=_UNSET, t=_UNSET, sb=_UNSET, **kwargs):
     """ノードのアトリビュートの評価結果をキーへ焼き込み、焼き込んだアニメーションカーブを返す。
 
     選択状態は参照しない。time を省略すると再生範囲(``mlib.Time.getPlaybackRange()``)を焼き込む。
@@ -35,18 +35,22 @@ def bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs):
     Mayaの既定(``simulation=False``)では入力を持たない静的なアトリビュートにはキーを作らない。すべての
     フレームを順に評価する必要がある場合(ダイナミクス等)は ``simulation=True`` を渡す。
     焼き込みで現在時刻が動いた場合は終了後に元の時刻へ戻す。fast引数は持たない(OpenMayaに同等機能が無い)。
-    Undo有効時は1回で戻せる。
+    Undo有効時は1回で戻せる。専用引数は ``cmds.bakeResults`` と同じ短縮名でも受ける(長名と短縮名の同時指定はできない)。
 
     Args:
         nodes (Node | str | Sequence[Node | str]): 焼き込むノード、またはその列。
         attributes (str | Sequence[str] | None): 焼き込むアトリビュート名(``"translateX"``・``"tx"``・
-            コンパウンドアトリビュートの ``"translate"`` も可)。None はMayaの既定(キー設定可能なもの)。
+            コンパウンドアトリビュートの ``"translate"`` も可)。None はMayaの既定(キー設定可能なもの)。既定None。
         time (tuple[float, float] | None): 焼き込む範囲 (開始, 終了)。現在のUI時間単位のフレームで、両端を含む。
-            None は再生範囲。
+            None は再生範囲。既定None。
         sampleBy (float): キーを作る間隔(フレーム)。正の数。既定1。
+        at (str | Sequence[str] | None): attributesの短縮名(Mayaの ``attribute``)。同時指定はできない。
+        t (tuple[float, float] | None): timeの短縮名。同時指定はできない。
+        sb (float): sampleByの短縮名。同時指定はできない。
         **kwargs (object): ``cmds.bakeResults`` のその他のフラグ(``simulation``・``preserveOutsideKeys``・
             ``sparseAnimCurveBake``・``disableImplicitControl``・``minimizeRotation``・``shape``・
-            ``hierarchy`` 等。長名・短名とも可)。
+            ``hierarchy`` 等。長名・短名とも可)。``attribute``(``attributes`` で指定する)・query・editは
+            受け付けない。
 
     Returns:
         list[AnimCurve]: nodes(``shape`` が有効なら直下のShapeも)の対象アトリビュートを動かすアニメーション
@@ -54,7 +58,7 @@ def bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs):
             焼き込むものが無ければ空リスト。
 
     Raises:
-        TypeError: 引数で受けるフラグ・query・editフラグを ``**kwargs`` に渡した場合、attributesが文字列・
+        TypeError: 長名と短縮名を同時に指定した場合、``**kwargs`` で受け付けないフラグを渡した場合、attributesが文字列・
             文字列の列・None以外の場合、またはtime・sampleByが数値でない場合。
         ValueError: nodesが空、timeが2個の有限な数値でない・開始が終了より後、またはsampleByが正の有限な
             数でない場合。
@@ -65,9 +69,9 @@ def bakeResults(nodes, attributes=None, time=None, sampleBy=1, **kwargs):
     from ..nodes.animCurve import AnimCurve
     from ..nodes.node import Node
 
-    duplicated = sorted(_ARGUMENT_FLAGS.intersection(kwargs))
-    if duplicated:
-        raise TypeError(f"Pass these as arguments of bakeResults: {', '.join(duplicated)}")
+    attributes = _pick_alias(attributes, at, "attributes", "at", default=None)
+    time = _pick_alias(time, t, "time", "t", default=None)
+    sampleBy = _pick_alias(sampleBy, sb, "sampleBy", "sb", default=1)
     rejected = sorted(_REJECTED_FLAGS.intersection(kwargs))
     if rejected:
         raise TypeError(f"bakeResults does not accept: {', '.join(rejected)}")

@@ -34,8 +34,9 @@
 {% endif %}
 .. py:{{ obj.type }}:: {{ target }}{{ generics }}{{ call_args }}
 
-{% if obj.bases and "show-inheritance" in autoapi_options %}
-   ベースクラス: {{ obj.bases|map("link_objs")|join(", ") }}
+{% set bases = display_bases(obj.bases) %}
+{% if bases and "show-inheritance" in autoapi_options %}
+   ベースクラス: {{ bases|map("link_objs")|join(", ") }}
 
 {% endif %}
 {% set lineage = ancestor_class_diagram(obj.short_name) if is_own_page else None %}

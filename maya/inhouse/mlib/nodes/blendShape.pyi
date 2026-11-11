@@ -354,7 +354,7 @@ class BlendShape(GeometryFilter):
             BlendShape: 自身。
 
         Raises:
-            TypeError: 引数の型が不正、またはベースがメッシュでない場合。
+            TypeError: 引数の型が不正な場合(ベースはメッシュ以外のカーブ等でもよい)。
             ValueError: ターゲット・項目が存在しない、またはtoleranceが負・有限でない場合。
             RuntimeError: ターゲット形状が接続中でdisconnect=False、またはMayaが書込みを拒否した場合。
         """

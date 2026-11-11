@@ -10,6 +10,7 @@ import maya.mel as mel
 from maya.api.OpenMaya import MSpace
 
 from ..components.pointComponent import _write_points
+from ..core import geometryEdit as geometry_edit
 from ..core.attributeType import value_reader
 from ..core.fastWrite import require_writable, writable_compound
 from ..core.nodeEdit import require_editable
@@ -18,7 +19,7 @@ from ..decorator import (_edit_context, _merge_flags, _pick_alias, _require_bool
 from ..maths import EulerRotate, Matrix, Quaternion, Scale, Shear, Translate, Vector
 from ..maths.eulerRotate import orderIndex
 from ..plugs.plug import Plug
-from ..util import _angle_unit, _color_value, _from_radians, _to_radians, _world_space, mirrorArguments
+from ..util import _angle_unit, _color_value, _finite, _from_radians, _to_radians, _world_space, mirrorArguments
 from ..util import _ArgumentError, _UNSET
 from .dagNode import DagNode
 from .node import Node, Nodes
@@ -36,6 +37,9 @@ _LIMIT_FLAGS = {
 }
 _LIMIT_FLAGS.update({"rotate" + axis: ("rotation" + axis, "enableRotation" + axis, "angle") for axis in "XYZ"})
 _LIMIT_FLAGS.update({"scale" + axis: ("scale" + axis, "enableScale" + axis, "scale") for axis in "XYZ"})
+
+#: rotateOrder の番号順の名前(Maya・om2 の番号と同じ順)。
+_ROTATE_ORDER_NAMES = ("xyz", "yzx", "zxy", "xzy", "yxz", "zyx")
 
 #: 変換アトリビュート名の照会キャッシュ。
 _TRANSFORM_ATTRIBUTES = {}
@@ -247,6 +251,54 @@ def _checked_curve_shapes(data):
     return color, entries
 
 
+def _rotation_components(ra, r, jo, rotateAxis, rotate, jointOrient):
+    """getQuaternion・setQuaternion の回転成分の長名・短縮名を (ra, r, jo) へまとめる。
+
+    Args:
+        ra (bool): rotateAxisの短縮名の値。未指定は ``_UNSET``。
+        r (bool): rotateの短縮名の値。
+        jo (bool): jointOrientの短縮名の値。
+        rotateAxis (bool): rotateAxisの値。
+        rotate (bool): rotateの値。
+        jointOrient (bool): jointOrientの値。
+
+    Returns:
+        tuple[bool, bool, bool]: (rotateAxis, rotate, jointOrient)。既定は (False, True, True)。
+
+    Raises:
+        TypeError: 長名と短縮名を同時に指定した場合。
+    """
+    return (_pick_alias(rotateAxis, ra, "rotateAxis", "ra", default=False),
+            _pick_alias(rotate, r, "rotate", "r", default=True),
+            _pick_alias(jointOrient, jo, "jointOrient", "jo", default=True))
+
+
+def _quaternion_value(value):
+    """クォータニオンの入力を検証して ``om2.MQuaternion`` へ変換する。
+
+    Args:
+        value (om2.MQuaternion | Iterable[float]): クォータニオン、またはXYZWの4つの数値。
+
+    Returns:
+        om2.MQuaternion: 新しい値。
+
+    Raises:
+        TypeError: クォータニオン・数値の列でない場合。
+        ValueError: 成分の数が4でない、または有限でない場合。
+    """
+    if isinstance(value, om2.MQuaternion):
+        return om2.MQuaternion(value)
+    if isinstance(value, (str, bytes)):
+        raise TypeError(f"Quaternion must be a quaternion or 4 numbers: {value!r}")
+    try:
+        items = list(value)
+    except TypeError:
+        raise TypeError(f"Quaternion must be a quaternion or 4 numbers: {value!r}") from None
+    if len(items) != 4:
+        raise ValueError(f"Quaternion must have 4 components, got {len(items)}")
+    return om2.MQuaternion(*[_finite(item, "value") for item in items])
+
+
 class Transform(DagNode):
     """Transformのノード参照とDAGパスを保持し、変換値を照会・設定する。
 
@@ -357,24 +409,11 @@ class Transform(DagNode):
             (worldUpType, wut, "worldUpType", "wut"),
             (worldUpVector, wu, "worldUpVector", "wu"),
         ))
-        if e is not _UNSET:
-            if edit is not _UNSET:
-                raise _ArgumentError("Specify only one of 'edit' and 'e'")
-            edit = e
-        if edit is not _UNSET:
-            kwargs["edit"] = edit
-        if q is not _UNSET:
-            if query is not _UNSET:
-                raise _ArgumentError("Specify only one of 'query' and 'q'")
-            query = q
-        if query is not _UNSET:
-            kwargs["query"] = query
-        if wuo is not _UNSET:
-            if worldUpObject is not _UNSET:
-                raise _ArgumentError("Specify only one of 'worldUpObject' and 'wuo'")
-            worldUpObject = wuo
-        if worldUpObject is not _UNSET:
-            kwargs["worldUpObject"] = worldUpObject
+        _merge_flags(kwargs, (
+            (edit, e, "edit", "e"),
+            (query, q, "query", "q"),
+            (worldUpObject, wuo, "worldUpObject", "wuo"),
+        ))
         type = _pick_alias(type, typ, "type", "typ", default="parent")
         maintainOffset = _pick_alias(maintainOffset, mo, "maintainOffset", "mo", default=False)
         with undoChunk("mlibTransformAddConstraint"):
@@ -561,7 +600,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: fast・番号の型が不正な場合。
+            TypeError: fast・番号の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 倍率・中心・空間が不正な場合。
             IndexError: 対象番号が範囲外の場合。
             RuntimeError: Mayaが変更を拒否した場合。
@@ -599,7 +638,7 @@ class Transform(DagNode):
             Transform: 自身。Shapeが無ければ何もしない。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、番号の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axis・pivotが不正、Mesh・NurbsCurve以外のShapeがある、またはworldSpace=Trueで
                 変換マトリクスがほぼ特異な場合。
             IndexError: 番号がいずれかのShapeの範囲外の場合。
@@ -635,6 +674,7 @@ class Transform(DagNode):
             Translate: ノードと独立した新しい位置の値。UI距離単位によらずcm。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: kindがrotate/scaleでない場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
@@ -664,7 +704,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: preserveがboolでない、または対象がJointの場合。
+            TypeError: preserveがboolでない、対象がJointの場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: kind、座標の要素数・有限値が不正な場合。
             RuntimeError: ノードが無効、変更するピボットまたは補償値(preserve=True時)の
                 成分がロック・入力接続されている場合、または Maya が設定を拒否した場合。
@@ -808,6 +848,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             RuntimeError: 無効なTransform、または削除失敗。
         """
         _require_bool(fast, "fast")
@@ -892,7 +933,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: keepSource・worldSpaceがbool以外、またはsourceがTransform・Shapeでない場合。
+            TypeError: keepSource・worldSpaceがbool以外、sourceがTransform・Shapeでない場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: sourceが自身・自身のShape・中間Shapeの場合、または使えるShapeが無い場合。
             RuntimeError: 自身・sourceが無効、またはロック・参照等でMayaが変更を拒否した場合。
         """
@@ -1206,7 +1247,7 @@ class Transform(DagNode):
             Transform: 自身。
 
         Raises:
-            TypeError: fastがbool以外、またはaxisが文字列・int以外の場合。
+            TypeError: fastがbool以外、axisが文字列・int以外の場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axis・pivotが不正、特異な親マトリクス、未対応のピボット/rotateAxisの場合。
             RuntimeError: ロックや入力接続で更新できない場合。
 
@@ -1253,7 +1294,7 @@ class Transform(DagNode):
         return list(dict.fromkeys(group for shape in self.getShapes() for group in shape.getShadingEngines()))
 
     @_transform_argument_hints
-    def getMatrix(self, worldSpace=_UNSET, p=False, inv=False, *, ws=_UNSET):
+    def getMatrix(self, worldSpace=_UNSET, p=_UNSET, inv=_UNSET, *, parent=_UNSET, inverse=_UNSET, ws=_UNSET):
         """指定空間の評価済みマトリクスを取得する。
 
         p=Falseのローカル値は ``matrix`` アトリビュート、ワールド値は保持パスの
@@ -1262,17 +1303,22 @@ class Transform(DagNode):
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
-            p (bool): Trueは親側のマトリクス。worldSpace=Trueは保持パスのexclusiveMatrix、
-                Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseで求める。
-            inv (bool): Trueは選んだマトリクスの逆マトリクス。
+            p (bool): parentの短縮名。parentと同時には指定できない(TypeError)。
+            inv (bool): inverseの短縮名。inverseと同時には指定できない(TypeError)。
+            parent (bool): Trueは親側のマトリクス。worldSpace=Trueは保持パスのexclusiveMatrix、
+                Falseは親パスのinclusiveMatrix * exclusiveMatrixInverseで求める。既定False。
+            inverse (bool): Trueは選んだマトリクスの逆マトリクス。既定False。
 
         Returns:
             Matrix: 呼出し時点のマトリクスの独立した複製。
 
         Raises:
+            TypeError: 長名と短縮名(worldSpaceとws、parentとp、inverseとinv)を同時に指定した場合。
             RuntimeError: ノードまたは保持するDAGパスが無効な場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        p = _pick_alias(parent, p, "parent", "p", default=False)
+        inv = _pick_alias(inverse, inv, "inverse", "inv", default=False)
         ws = _world_space(worldSpace)
         self._require_valid("get the matrix of")
         path = self.mpath()
@@ -1298,7 +1344,7 @@ class Transform(DagNode):
         safeで書けない成分を残した結果、入力マトリクスと一致しない場合がある。
 
         Args:
-            matrix (Matrix | sequence): 適用するマトリクス。
+            matrix (Matrix | Iterable[float]): 適用するマトリクス。Matrix以外は16個の値(行優先)。
             worldSpace (bool): Trueはワールドマトリクスを保持パスのexclusiveMatrixInverseで
                 ローカルへ変換する。既定Falseは ``matrix`` アトリビュートと同じ空間。
             ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
@@ -1312,7 +1358,8 @@ class Transform(DagNode):
                 safe/fastによらず計算だけ行い、書込み可否やsafe適用後の結果は検証しない。
 
         Raises:
-            TypeError: fastがbool以外、または ``space=``・``ws=`` を指定した場合(``worldSpace=True`` を案内する)。
+            TypeError: fastがbool以外、``space=`` を指定した場合(``worldSpace=True`` を案内する)、
+                またはworldSpaceとwsを同時に指定した場合。
             ValueError: マトリクスが不正・分解不能、またはワールド指定時に親側のマトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはMayaが書込みを拒否した場合(ロック・入力接続された成分と
                 ``safe=True`` を案内する)。
@@ -1346,6 +1393,9 @@ class Transform(DagNode):
 
         Returns:
             Translate: ノードと独立したcm単位の位置。既定at=2はtranslateチャンネル値ではない。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -1395,8 +1445,9 @@ class Transform(DagNode):
                 safe指定時も書込み可否を反映した最終結果の予測ではない。
 
         Raises:
-            TypeError: worldSpaceがbool以外、``space=``・``ws=`` を指定した場合(``worldSpace=True`` を
-                案内する)、または ``setTranslation(1, 2, 3)`` のように成分を分けて渡した場合。
+            TypeError: worldSpaceがbool以外、``space=`` を指定した場合(``worldSpace=True`` を案内する)、
+                worldSpaceとwsを同時に指定した場合、または ``setTranslation(1, 2, 3)`` のように
+                成分を分けて渡した場合。
             RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
                 (原因の成分と ``safe=True`` を案内する)。
         """
@@ -1442,6 +1493,7 @@ class Transform(DagNode):
                 rotateOrder)。度の3成分は ``getRotate().asDegrees()`` で取得する。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: worldSpace が bool 以外、order が未対応、またはマトリクスを分解できない場合。
                 いずれかのスケール軸の長さが 1e-10 以下(Maya は scale 0 を 1e-12 として評価する)の
                 ときも含む。
@@ -1486,8 +1538,9 @@ class Transform(DagNode):
                 safe適用後の最終結果を予測する値ではない。
 
         Raises:
-            TypeError: fastがbool以外、unitが文字列以外、``space=``・``ws=`` を指定した場合
-                (``worldSpace=True`` を案内する)、または成分を分けて渡した場合。
+            TypeError: fastがbool以外、unitが文字列・None以外、``space=`` を指定した場合
+                (``worldSpace=True`` を案内する)、worldSpaceとwsを同時に指定した場合、
+                または成分を分けて渡した場合。
             ValueError: unitが未対応の単位名、値が3成分でない、マトリクスが分解不能、
                 または必要な親マトリクスが反転不能の場合。
             RuntimeError: ノードが無効、またはアトリビュートを書き込めない場合(ロック・入力接続された
@@ -1512,6 +1565,46 @@ class Transform(DagNode):
             self._set_channel_value("rotate", rotation, safe=safe, fast=fast)
             return self
 
+    def getRotateOrder(self):
+        """回転順序(``rotateOrder``)を名前で取得する。
+
+        Returns:
+            str: ``"xyz"``・``"yzx"``・``"zxy"``・``"xzy"``・``"yxz"``・``"zyx"`` のいずれか。
+
+        Raises:
+            RuntimeError: ノードが無効な場合。
+        """
+        return _ROTATE_ORDER_NAMES[self.getPlug("rotateOrder").get()]
+
+    def setRotateOrder(self, order, preserve=True):
+        """回転順序(``rotateOrder``)を変える。既定では見た目の向きを保つよう ``rotate`` も変える。
+
+        ``preserve=True`` は ``cmds.xform(rotateOrder=..., preserve=True)`` と同じで、新しい回転順序で同じ向きに
+        なる ``rotate`` を書き込む(アニメーションのキーは変えない)。``preserve=False`` は ``rotateOrder`` だけを
+        書き換えるので、向きが変わる。Undo有効時に1回のUndoで戻る。
+
+        Args:
+            order (str | int): ``"xyz"`` などの名前(大文字小文字を問わない)、または Maya の番号(0〜5)。
+            preserve (bool): Trueは向きを保つ。既定True。
+
+        Returns:
+            Transform: 自身。
+
+        Raises:
+            TypeError: preserveがbool以外の場合。
+            ValueError: 未対応の回転順序の場合。
+            RuntimeError: ノードが無効な場合、または ``rotateOrder``・``rotate`` のロック・入力接続でMayaが書込みを拒否した場合。
+        """
+        _require_bool(preserve, "preserve")
+        index = orderIndex(order)
+        name = self.getFullName()
+        with undoChunk("mlibTransformSetRotateOrder"):
+            if preserve:
+                cmds.xform(name, rotateOrder=_ROTATE_ORDER_NAMES[index], preserve=True)
+            else:
+                cmds.setAttr(name + ".rotateOrder", index)
+        return self
+
     def getScale(self, worldSpace=_UNSET, *, ws=_UNSET):
         """指定空間のスケール値を取得する。
 
@@ -1522,6 +1615,9 @@ class Transform(DagNode):
         Returns:
             Scale: 独立した無次元のXYZ3成分。ローカルではSSCを除くチャンネル値、
                 ワールドではAPI規約の分解値で、チャンネルの符号と一致するとは限らない。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         if _world_space(worldSpace):
@@ -1545,6 +1641,13 @@ class Transform(DagNode):
 
         Returns:
             Transform | list[float]: 自身。get=Trueは独立したローカルXYZ設定値のlist。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、``space=`` を指定した場合(``worldSpace=True`` を
+                案内する)、worldSpaceとwsを同時に指定した場合、または成分を分けて渡した場合。
+            ValueError: valueが3つの有限の成分でない場合。
+            RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
+                (原因の成分と ``safe=True`` を案内する)。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         _require_bool(fast, "fast")
@@ -1564,6 +1667,9 @@ class Transform(DagNode):
         Returns:
             Shear: 独立した無次元のXY・XZ・YZ3成分。
                 ローカルはチャンネル値、ワールドはAPI規約のマトリクス分解値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         if _world_space(worldSpace):
@@ -1586,6 +1692,12 @@ class Transform(DagNode):
 
         Returns:
             Transform | list[float]: 自身。get=Trueは独立したローカルXY・XZ・YZ設定値のlist。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: valueが3つの有限の成分でない場合。
+            RuntimeError: ノードが無効、またはロック・入力接続された成分があり書き込めない場合
+                (原因の成分と ``safe=True`` を案内する)。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         _require_bool(fast, "fast")
@@ -1595,7 +1707,8 @@ class Transform(DagNode):
         self._set_channel_value("shear", values, safe=safe, fast=fast)
         return self
 
-    def getQuaternion(self, worldSpace=_UNSET, ra=False, r=True, jo=True, *, ws=_UNSET):
+    def getQuaternion(self, worldSpace=_UNSET, ra=_UNSET, r=_UNSET, jo=_UNSET, *, rotateAxis=_UNSET, rotate=_UNSET,
+        jointOrient=_UNSET, ws=_UNSET):
         """回転成分を選んで取得する。既定ではrotateAxisを含めない。
 
         ローカル空間ではrotateAxis・rotate・JointのjointOrientの順に、選んだ回転を合成する。
@@ -1605,17 +1718,22 @@ class Transform(DagNode):
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
-            ra (bool): rotateAxisを含める。
-            r (bool): rotateを含める。
-            jo (bool): jointOrientを含める。
+            ra (bool): rotateAxisの短縮名。
+            r (bool): rotateの短縮名。
+            jo (bool): jointOrientの短縮名。
+            rotateAxis (bool): rotateAxisを含める。既定False。
+            rotate (bool): rotateを含める。既定True。
+            jointOrient (bool): jointOrientを含める。既定True。
 
         Returns:
             Quaternion: ノードと独立した、指定成分の合成回転。成分順はXYZW。
 
         Raises:
+            TypeError: 長名と短縮名(worldSpaceとws、rotateAxisとra、rotateとr、jointOrientとjo)を同時に指定した場合。
             ValueError: 回転成分と空間指定が未対応の組合せの場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        ra, r, jo = _rotation_components(ra, r, jo, rotateAxis, rotate, jointOrient)
         ws = _world_space(worldSpace)
         joint = self._require_mnode().hasFn(om2.MFn.kJoint)
         if ws:
@@ -1636,8 +1754,8 @@ class Transform(DagNode):
                     q *= self._component_quaternion(name)
         return Quaternion._wrap(q)
 
-    def setQuaternion(self, value, worldSpace=_UNSET, ra=False, r=True, jo=True, safe=False, get=False, *,
-        unit="deg", fast=False, ws=_UNSET):
+    def setQuaternion(self, value, worldSpace=_UNSET, ra=_UNSET, r=_UNSET, jo=_UNSET, safe=False, get=False, *,
+        unit="deg", fast=False, rotateAxis=_UNSET, rotate=_UNSET, jointOrient=_UNSET, ws=_UNSET):
         """回転成分の指定に従いrotate・jointOrient・rotateAxisを設定する。
 
         受理する組合せでは、r=Trueはrotate、r=FalseかつJointでjo=TrueはjointOrient、
@@ -1648,14 +1766,17 @@ class Transform(DagNode):
             value (Quaternion | om2.MQuaternion | Iterable[float]): xyzwの回転。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
             ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
-            ra (bool): 入力にrotateAxisを含む。
-            r (bool): rotateを更新する。FalseはjointOrientまたはrotateAxis。
-            jo (bool): jointOrientを含む。
+            ra (bool): rotateAxisの短縮名。
+            r (bool): rotateの短縮名。
+            jo (bool): jointOrientの短縮名。
             safe (bool): 書けない成分を無視する。
             get (bool): 書き込まず計算したEuler成分を返す。
             unit (str): get=Trueの戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン
                 (``"degree"`` 等の別名も可)。書込みと入力のクォータニオンには影響しない。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            rotateAxis (bool): 入力にrotateAxisを含む。既定False。
+            rotate (bool): rotateを更新する。FalseはjointOrientまたはrotateAxis。既定True。
+            jointOrient (bool): jointOrientを含む。既定True。
 
         Returns:
             Transform | list[float]: get=Falseでは自身。get=Trueでは書込み先のEuler3成分を
@@ -1664,10 +1785,13 @@ class Transform(DagNode):
                 rotateの設定予定値はノードのrotateOrder、他の書込み先はXYZ順序。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
-            ValueError: 回転成分と空間指定が未対応の組合せ、またはunitが未対応の単位名の場合。
+            TypeError: valueがクォータニオン・数値の列でない、unitが文字列・None以外、または長名と短縮名
+                (worldSpaceとws、rotateAxisとra、rotateとr、jointOrientとjo)を同時に指定した場合。
+            ValueError: valueの成分の数が4でない・有限でない、回転成分と空間指定が未対応の組合せ、
+                またはunitが未対応の単位名の場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        ra, r, jo = _rotation_components(ra, r, jo, rotateAxis, rotate, jointOrient)
         with _edit_context("mlibTransformSetQuaternion", fast):
             angle_unit = _angle_unit(unit)
             # 既定値 "deg" を持つため、unit=None でも None にならない。
@@ -1855,13 +1979,14 @@ class Transform(DagNode):
                 "-x"、"-y"、"-z" も返り得る)。
 
         Raises:
-            ValueError: refVector またはいずれかのローカル軸がワールド変換後にゼロベクトルになる場合。
+            TypeError: refVectorが3つの数値の列・ベクトルでない、またはincludeNegativeがbool以外の場合。
+            ValueError: refVectorの成分の数が3でない・有限でない、または refVector・いずれかのローカル軸が
+                ワールド変換後にゼロベクトルになる場合。
             RuntimeError: ノードが無効な場合。
         """
         self._require_valid("evaluate axes of")
-        if not isinstance(refVector, Vector):
-            refVector = Vector(*refVector)
-        refVector = refVector.unit()
+        _require_bool(includeNegative, "includeNegative")
+        refVector = Vector(*geometry_edit.point_list([refVector])[0]).unit()
         matrix = self.getMatrix(worldSpace=True)
         axes = {"x": Vector(1.0, 0.0, 0.0), "y": Vector(0.0, 1.0, 0.0), "z": Vector(0.0, 0.0, 1.0)}
         if includeNegative:
@@ -1895,7 +2020,7 @@ class Transform(DagNode):
 
         Raises:
             TypeError: チャンネル名が未対応、値が2要素の列・None以外、要素が数値・None以外、
-                またはunitが文字列以外の場合。
+                またはunitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名の場合。
             RuntimeError: ノードが無効、またはMayaが設定を拒否した場合(最小が最大より大きい等)。
         """
@@ -1965,7 +2090,7 @@ class Transform(DagNode):
         """setMatrixの入力を検証し、ローカル空間のマトリクスへ変換する。シーンは更新しない。
 
         Args:
-            matrix (Matrix | sequence): 適用するマトリクス。
+            matrix (Matrix | Iterable[float]): 適用するマトリクス。
             ws (bool): 検証済みのワールド空間指定。Trueは保持パスのexclusiveMatrixInverseを掛ける。
 
         Returns:
@@ -2315,7 +2440,7 @@ class Transform(DagNode):
         Returns:
             tuple[str, om2.MEulerRotation]: 書込み先名とrad単位の計算値。
         """
-        q = om2.MQuaternion(value) if isinstance(value, om2.MQuaternion) else om2.MQuaternion(*value)
+        q = _quaternion_value(value)
         joint = self._require_mnode().hasFn(om2.MFn.kJoint)
         undo_ra = undo_r = None
         if ws:

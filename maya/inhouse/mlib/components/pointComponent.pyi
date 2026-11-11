@@ -37,7 +37,7 @@ class PointComponent(Component):
             Vector: 新しいXYZ値(:class:`~mlib.maths.vector.Vector`)。シーン内座標への書換え可能な参照ではない。
 
         Raises:
-            TypeError: worldSpaceがbool以外の場合。
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             IndexError: 番号が現在の要素数の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
@@ -60,7 +60,7 @@ class PointComponent(Component):
             PointComponent: 自身。
 
         Raises:
-            TypeError: worldSpaceがbool以外、または座標の型が不正な場合。
+            TypeError: worldSpaceがbool以外、座標の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 座標が3成分の有限値でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
@@ -76,6 +76,9 @@ class PointComponent(Component):
 
         Returns:
             float: 座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionX(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
@@ -91,7 +94,7 @@ class PointComponent(Component):
             PointComponent: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、またはvalueが数値でない場合。
+            TypeError: worldSpace・fastがbool以外、valueが数値でない場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: valueが有限でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが書込みを拒否した場合。
@@ -107,6 +110,9 @@ class PointComponent(Component):
 
         Returns:
             float: 座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionY(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
@@ -122,7 +128,7 @@ class PointComponent(Component):
             PointComponent: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、またはvalueが数値でない場合。
+            TypeError: worldSpace・fastがbool以外、valueが数値でない場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: valueが有限でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが書込みを拒否した場合。
@@ -138,6 +144,9 @@ class PointComponent(Component):
 
         Returns:
             float: 座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionZ(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
@@ -153,10 +162,32 @@ class PointComponent(Component):
             PointComponent: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、またはvalueが数値でない場合。
+            TypeError: worldSpace・fastがbool以外、valueが数値でない場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: valueが有限でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
+        """
+        ...
+    def moveBy(self, offset: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
+        """頂点/CVを、現在の位置から offset だけ相対的に動かす。
+
+        指定空間で現在の位置を読み、offset を足した絶対座標を :meth:`setPosition` と同じ経路で書き込む。
+
+        Args:
+            offset (Iterable[float] | om2.MPoint | om2.MVector): 移動量の有限なXYZ(cm)。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            PointComponent: 自身。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、移動量の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 移動量が3成分の有限値でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
@@ -199,6 +230,9 @@ class PointComponents(Components):
 
         Returns:
             list[float]: 保持順の座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionX(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
@@ -214,7 +248,7 @@ class PointComponents(Components):
             PointComponents: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または値の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、値の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 値が有限でない、値列の件数が保持数と違う、またはworldSpace=Trueで
                 変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
@@ -231,6 +265,9 @@ class PointComponents(Components):
 
         Returns:
             list[float]: 保持順の座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionY(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
@@ -246,7 +283,7 @@ class PointComponents(Components):
             PointComponents: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または値の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、値の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 値が有限でない、値列の件数が保持数と違う、またはworldSpace=Trueで
                 変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
@@ -263,6 +300,9 @@ class PointComponents(Components):
 
         Returns:
             list[float]: 保持順の座標値。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def setPositionZ(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
@@ -278,7 +318,7 @@ class PointComponents(Components):
             PointComponents: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または値の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、値の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 値が有限でない、値列の件数が保持数と違う、またはworldSpace=Trueで
                 変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
@@ -300,7 +340,7 @@ class PointComponents(Components):
                 参照ではない。空集合はShapeを再照会せず空リストを返す。
 
         Raises:
-            TypeError: worldSpaceがbool以外の場合。空集合でも検証する。
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。空集合でも検証する。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
@@ -320,7 +360,7 @@ class PointComponents(Components):
             PointComponents: 自身。空集合は入力だけを検証して何もしない。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または座標の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、座標の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 座標が3成分の有限値でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが書込みを拒否した場合。
@@ -346,7 +386,7 @@ class PointComponents(Components):
                 CVのウェイト(w)は保持する。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または座標の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、座標の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 件数が保持数と違う、座標が3成分の有限値でない、またはworldSpace=Trueで
                 変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
@@ -372,10 +412,53 @@ class PointComponents(Components):
             PointComponents: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、またはaxisが文字列・int以外の場合。
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外の場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 保持番号が現在の範囲外の場合。
             RuntimeError: Shapeが無効、またはMayaが取得・書込みを拒否した場合。
+            NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
+        """
+        ...
+    def getCenter(self, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
+        """保持する頂点/CVの位置の平均(重心)を取得する。
+
+        選んだ頂点やエッジループの中心にジョイント・コントローラーを置くときに使う。外接箱の中心ではない。
+        面・エッジは ``getVertices().getCenter()`` で、構成する頂点の重心を求められる。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Vector: 平均の位置(cm)。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 空の集まりの場合。
+            IndexError: 保持番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
+        """
+        ...
+    def moveBy(self, offset: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
+        """保持する全頂点/CVを、現在の位置から同じ offset だけ相対的に動かす。
+
+        指定空間で現在の位置を読み、offset を足した絶対座標を :meth:`setPositions` と同じ経路で1回に書き込む
+        (通常は1回のUndoで戻る)。
+
+        Args:
+            offset (Iterable[float] | om2.MPoint | om2.MVector): 移動量の有限なXYZ(cm)。
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+
+        Returns:
+            PointComponents: 自身。空集合は入力だけを検証して何もしない。
+
+        Raises:
+            TypeError: worldSpace・fastがbool以外、移動量の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 移動量が3成分の有限値でない、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
+            IndexError: 保持番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効、またはロック等でMayaが書込みを拒否した場合。
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...

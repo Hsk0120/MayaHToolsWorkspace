@@ -70,7 +70,7 @@ def _angle_constant(unit: str) -> int:
         int: MAngleの単位定数。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: 未対応の単位名の場合。
     """
     ...
@@ -87,7 +87,7 @@ def angleToUi(value: float, *, unit: str = ...) -> float:
         float: 現在のUI角度単位で表した値。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: unitが未対応の単位名の場合。
     """
     ...
@@ -104,7 +104,7 @@ def angleFromUi(value: float, *, unit: str = ...) -> float:
         float: unitの単位の角度。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: unitが未対応の単位名の場合。
     """
     ...

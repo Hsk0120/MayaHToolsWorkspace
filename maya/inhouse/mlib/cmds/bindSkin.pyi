@@ -17,7 +17,8 @@ Mayaの Bind Skin と同じく ``cmds.skinCluster`` でバインドする。既�
 import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from ..core.object import Object
-from ..decorator import undoChunk, undoTransaction
+from ..decorator import _pick_alias, undoChunk, undoTransaction
+from ..util import _UNSET
 from typing import Iterable
 from mlib.nodes.node import Node
 from mlib.nodes.skinCluster import SkinCluster
@@ -27,7 +28,7 @@ _DEFAULT_FLAGS: tuple
 _REJECTED_FLAGS: frozenset
 _FILE_FLAGS: tuple
 
-def bindSkin(joints: Node | str | Iterable[Node | str] | None, geometry: Node | str, maximumInfluences: int | None = ..., *, weights: str | os.PathLike | None = ..., nameMap: dict[str, str] | None = ..., replace: Iterable[tuple[str, str]] | None = ..., namespaceMap: dict[str, str] | None = ..., method: str = ..., **kwargs: object) -> SkinCluster:
+def bindSkin(joints: Node | str | Iterable[Node | str] | None, geometry: Node | str, maximumInfluences: int | None = ..., *, mi: int | None = ..., weights: str | os.PathLike | None = ..., nameMap: dict[str, str] | None = ..., replace: Iterable[tuple[str, str]] | None = ..., namespaceMap: dict[str, str] | None = ..., method: str = ..., **kwargs: object) -> SkinCluster:
     """形状を指定したinfluenceへバインドする。
 
     選択状態は参照しない。形状が既に skinCluster で変形されている場合は何もせず拒否する。
@@ -46,7 +47,8 @@ def bindSkin(joints: Node | str | Iterable[Node | str] | None, geometry: Node | 
             Noneは ``weights`` のファイルのinfluence(``weights`` が必要)。
         geometry (Node | str): Mayaがバインドできる形状またはそのtransform。``weights`` ではMesh。
         maximumInfluences (int | None): 1頂点に割り当てる最大数。正の整数。Noneは ``weights`` の
-            ファイルの値、ファイルが無ければ4。
+            ファイルの値、ファイルが無ければ4。既定None。
+        mi (int | None): maximumInfluencesの短縮名。同時指定はできない。
         weights (str | os.PathLike | None): ``mlib.skinWeights`` 形式のファイル。Noneは読み込まない。
         nameMap (dict[str, str] | None): ファイルのinfluenceの、名前空間を除いた名前の対応表。
         replace (Iterable[tuple[str, str]] | None): ファイルのinfluenceの名前に順に当てる文字列置換。
@@ -59,8 +61,8 @@ def bindSkin(joints: Node | str | Iterable[Node | str] | None, geometry: Node | 
         SkinCluster: 作成したskinCluster。
 
     Raises:
-        TypeError: query・editフラグ、または ``maximumInfluences`` の短名 ``mi`` を渡した場合、
-            ``weights`` なしで対応付けの引数を渡した場合。
+        TypeError: maximumInfluencesと短縮名 ``mi`` を同時に指定した場合、query・editフラグを渡した場合、
+            または ``weights`` なしで対応付けの引数を渡した場合。
         ValueError: influenceが空、maximumInfluencesが正の整数でない、形状が既にスキニングされている、
             ``joints`` と ``weights`` が両方None、またはファイルの形式・頂点数・influenceが合わない場合。
         OSError: ファイルを読み込めない場合。

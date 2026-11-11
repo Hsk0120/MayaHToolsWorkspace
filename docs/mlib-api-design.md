@@ -249,7 +249,8 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 
 #### 別名引数の書き方
 
-- 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select`・`delete` のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。
+- 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select` と作成関数(`createIkHandle`・`createCurve` 等)のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。`delete` はフラグを受けない。
+- cymel 由来の短い引数名だった `Transform.getMatrix` の `p`・`inv` と `getQuaternion`/`setQuaternion` の `ra`・`r`・`jo` は、12.3.0 で長名(`parent`・`inverse`・`rotateAxis`・`rotate`・`jointOrient`、keyword-only)を足し、短い名前は既存のコードのため別名として残す。`getTranslation`/`setTranslation` の `at` は単語として扱い、長名を足さない。
 - それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`index=0` 等)。短縮名の別名・`_UNSET` による省略判定を追加しない。
 - 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/unit/test_static_public_args.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
 - 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
@@ -520,9 +521,9 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
   内部処理はradで計算し、公開境界で一度だけ換算する(通常・fast・safeで同じ換算)。
   `getTranslation/setTranslation`等はマトリクス・姿勢の操作、`getPlug("translate").get/set`は
   アトリビュートの操作として区別する。前者をMFnTransform.translationの単なる別名にはしない。
-- 空間指定は`worldSpace=True/False`(3.0.0で短縮名`ws`は廃止)。使用例は`worldSpace=True`とする。
+- 空間指定は`worldSpace=True/False`(短縮名`ws`は3.0.0で廃止し、12.2.0で全メソッドに戻した)。使用例は`worldSpace=True`とする。
   Trueはワールド、Falseはローカル。bool以外・旧`space=`は拒否する。
-  既定値は各メソッドの仕様を維持する（`SkinCluster.restoreBindPose` はTrue、`Transform.getPivot/setPivot/mirrorTransform`・
+  既定値は各メソッドの仕様を維持する（`SkinCluster.restoreBindPose`・`Joint.getBoneSegments` はTrue、`Transform.getPivot/setPivot/mirrorTransform`・
   `DagNode.getBoundingBox` はFalse）。
   OpenMaya標準APIのMSpace引数は変更しない。
 - 数学型はOpenMaya API 2.0の継承を維持する。独自の正規化・分解補助は`asUnitMatrix`・

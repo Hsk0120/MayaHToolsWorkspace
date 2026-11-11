@@ -2,7 +2,7 @@
 """Maya の標準コンストレイントに共通するターゲット・ウェイトの取得と設定を扱う。"""
 
 import maya.cmds as cmds
-from ..decorator import _edit_context
+from ..decorator import _edit_context, undoChunk
 from .node import Node, Nodes
 from .transform import Transform
 from mlib.plugs.plug import Plug
@@ -85,5 +85,23 @@ class Constraint(Transform):
         Raises:
             TypeError: fastがbool以外の場合。
             ValueError: 明示ターゲットがこのコンストレイントに登録されていない場合。
+        """
+        ...
+    def removeTarget(self, *targets: Node | str) -> Constraint:
+        """ターゲットをコンストレイントから外す(``cmds.<コンストレイント>(target, self, edit=True, remove=True)``)。
+
+        Mayaの標準コマンドと同じく、ターゲットのウェイトのアトリビュートと接続も消える。最後のターゲットを
+        外すとMayaはコンストレイント自体を削除する。Undo有効時は1回のUndoで戻る。
+
+        Args:
+            targets (Node | str): 外すターゲット。1つ以上。
+
+        Returns:
+            Constraint: 自身。
+
+        Raises:
+            TypeError: ターゲットを1つも指定しない、またはターゲットの型が不正な場合。
+            ValueError: ターゲットがこのコンストレイントに登録されていない場合(何も外さない)。
+            RuntimeError: コンストレイントが無効、またはMayaが変更を拒否した場合。
         """
         ...

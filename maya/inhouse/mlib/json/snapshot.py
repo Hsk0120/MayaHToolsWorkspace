@@ -16,7 +16,8 @@ class ValidationReport:
 
     ``missing`` は対応するノードが見つからなかったもの、``skipped`` はロック・接続等で書けずに
     飛ばしたもの、``errors`` は適用できない問題(頂点数の違い等)。``errors`` があれば
-    :meth:`Snapshot.apply` は何も変えずに例外にする。
+    各種類の ``apply`` (:meth:`PoseSnapshot.apply <mlib.json.poseSnapshot.PoseSnapshot.apply>` 等)は
+    何も変えずに例外にする。
     """
 
     def __init__(self):
@@ -153,6 +154,10 @@ class Snapshot:
     @classmethod
     def capture(cls, *args, **kwargs):
         """シーンからデータを取得する。各種類が実装する。
+
+        Args:
+            *args (object): 各種類の ``capture`` の位置引数。
+            **kwargs (object): 各種類の ``capture`` のキーワード引数。
 
         Raises:
             NotImplementedError: 基底クラスで呼んだ場合。

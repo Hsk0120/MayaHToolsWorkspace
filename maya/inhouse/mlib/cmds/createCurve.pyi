@@ -18,19 +18,22 @@ from typing import Any, Dict
 import maya.cmds as cmds
 from ..core import geometryEdit as geometry_edit
 from ..core.shapeBuild import finish_shape, require_name, resolve_parent
-from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..decorator import _pick_alias, _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..util import _UNSET
 from typing import Iterable, Sequence
 from mlib.nodes.node import Node
 from mlib.nodes.nurbsCurve import NurbsCurve
 import maya.api.OpenMaya as om2
 
 
-def createCurve(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], degree: int = ..., closed: bool = ..., knots: Sequence[float] | None = ..., name: str | None = ..., parent: Node | str | None = ...) -> NurbsCurve:
+def createCurve(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], degree: int = ..., closed: bool = ..., knots: Sequence[float] | None = ..., name: str | None = ..., parent: Node | str | None = ..., *, d: int = ..., n: str | None = ...) -> NurbsCurve:
     """点列からNURBSカーブを作成し、そのシェイプを返す。
 
     開いたカーブは ``knots`` を省略すると ``cmds.curve`` の既定ノット、``closed=True`` は先頭 ``degree`` 個の
     CVを末尾へ重ねた周期カーブ(``getForm()`` が ``om2.MFnNurbsCurve.kPeriodic``)にする。
     fast引数は持たない(OpenMayaで作っても約1.4倍で、効果がほぼ無いため)。
+    degree・nameは ``cmds.curve`` と同じ短縮名 ``d``・``n`` でも受ける(長名と短縮名の同時指定はできない)。
+    parentの短縮名は無い(``cmds.curve`` の ``p`` はpointのため)。
 
     Args:
         points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CVの位置。各点は3個の
@@ -41,14 +44,18 @@ def createCurve(points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], de
         knots (Sequence[float] | None): 開いたカーブのノット列(``cmds.curve`` の ``knot``)。
             個数は ``CV数 + degree - 1``。Noneは既定のノット。``closed=True`` とは併用できない。
         name (str | None): Transformの希望名。シェイプは ``<名前>Shape``。NoneはMayaの既定名(``curve1`` 等)。
+            既定None。
         parent (Node | str | None): Transformの親。Noneはワールド直下。親のローカル空間に
             単位マトリクスで置くため、点は親の空間の座標になる。
+        d (int): degreeの短縮名。同時指定はできない。
+        n (str | None): nameの短縮名。同時指定はできない。
 
     Returns:
         NurbsCurve: 作成したカーブのシェイプ。Transformは ``getTransform()`` で取得する。
 
     Raises:
-        TypeError: points・degree・closed・knots・name・parentの型が不正な場合。
+        TypeError: 長名と短縮名を同時に指定した場合、またはpoints・degree・closed・knots・name・parentの型が
+            不正な場合。
         ValueError: degreeが1〜3でない、点の成分数が3でない・有限でない、点の数が不足する
             (開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)、
             knotsの個数・値が不正、またはclosedとknotsを併用した場合。

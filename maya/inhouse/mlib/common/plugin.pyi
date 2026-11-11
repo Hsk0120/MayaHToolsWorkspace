@@ -196,7 +196,8 @@ class Plugin:
     def unload(self, force: bool = ...) -> Plugin:
         """プラグインをアンロードする。
 
-        正常完了後はmlibのノード型継承キャッシュを消去する。
+        正常完了後はmlibのノード型継承キャッシュを消去する。ロードされていないプラグインでは、Mayaが警告を出すだけで
+        例外にはならない。
 
         Args:
             force (bool): True の場合、使用中でも強制的にアンロードする。
@@ -205,8 +206,7 @@ class Plugin:
             Plugin: 自身。
 
         Raises:
-            TypeError: forceとfを同時に指定した場合。
-            RuntimeError: Maya がアンロードを拒否した場合。
+            RuntimeError: Maya がアンロードを拒否した場合(使用中のノードがあり force=False の場合など)。
         """
         ...
     def ensureLoaded(self) -> Plugin:

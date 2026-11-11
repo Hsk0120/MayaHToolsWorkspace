@@ -62,6 +62,15 @@ html_js_files = [
     ("js/mermaid-init.js", {"defer": "defer"}),
 ]
 
+# 参照切れの検査(-n)で、mlibの外の型と非公開の名前を対象から外す。
+# om2等はこの文書にページが無く、型の表記として文字のまま表示する。mlib内の短い参照は_ext/mlibDocs.pyが解決する。
+nitpick_ignore_regex = [
+    (r"py:.*", r"(om2|oma2|maya)\..+"),
+    (r"py:.*", r"(os|pathlib|logging|contextlib)\..+"),
+    (r"py:.*", r"Path|callable|module"),
+    (r"py:.*", r"(.+\.)?_[A-Za-z]\w*"),
+]
+
 # 5. ページとして読み込まないフォルダ・ファイル
 exclude_patterns = [
     "_templates", "_includes",

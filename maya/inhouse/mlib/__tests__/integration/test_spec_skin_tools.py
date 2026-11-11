@@ -376,7 +376,8 @@ class BakeDeformerTest(_SkinCase):
     def test_errors(self):
         """引数で受けるフラグ・query・maxInfluences の不正は例外。"""
         self.skinned()
-        self.assertRaises(TypeError, mlib.bakeDeformer, self.mesh, self.root, mi=3)
+        self.assertRaises(TypeError, mlib.bakeDeformer, self.mesh, self.root, maxInfluences=3, mi=3)
+        self.assertRaises(TypeError, mlib.bakeDeformer, self.mesh, self.root, sm=self.mesh)
         self.assertRaises(TypeError, mlib.bakeDeformer, self.mesh, self.root, query=True)
         self.assertRaises(ValueError, mlib.bakeDeformer, self.mesh, self.root, maxInfluences=0)
 

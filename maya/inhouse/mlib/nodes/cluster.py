@@ -1,9 +1,6 @@
 """Maya の cluster デフォーマを扱う。"""
 
-import maya.api.OpenMayaAnim as oma2
-
 from .geometryFilter import GeometryFilter
-from .node import Node
 
 
 class Cluster(GeometryFilter):
@@ -17,11 +14,3 @@ class Cluster(GeometryFilter):
         """
         source = self.getPlug("matrix").getSource()
         return None if source is None else source.getNode()
-
-    def getGeometry(self):
-        """このクラスタが変形するジオメトリ shape を取得する。
-
-        Returns:
-            list[Node]: 変形対象の shape。無ければ空リスト。
-        """
-        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]

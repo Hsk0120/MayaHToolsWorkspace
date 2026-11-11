@@ -93,6 +93,9 @@ class NameMapping:
 
         Returns:
             str: 変換後のパス。先頭の ``"|"`` は保つ。
+
+        Raises:
+            TypeError: pathが文字列でない場合。
         """
         if not isinstance(path, str):
             raise TypeError("path must be a string")

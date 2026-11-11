@@ -17,6 +17,12 @@ def reparent_plan(joint: Joint, parent: Transform | None) -> tuple:
 
     Returns:
         tuple: 対象、親、移動・jointOrient、新しいinverseScale入力。
+
+    Raises:
+        ValueError: 移動先のマトリクスが特異、またはSSCの補正先の親スケールが0の場合。
+        RuntimeError: Jointや移動先が編集できない、translate・jointOrientが書き込めない、
+            またはinverseScaleがロック・成分ごとに接続されている場合。
+        NotImplementedError: インスタンス、独自のinverseScale入力、または補正用のTransformが必要な場合。
     """
     ...
 

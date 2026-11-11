@@ -265,7 +265,7 @@ def _axis_name(axis, name):
 class Vector(om2.MVector):
     """om2.MVectorを継承した、可変・ハッシュ不可のXYZベクトル値。
 
-    OpenMaya APIへそのまま渡せる。生成時は成分をコピーし、引数形式は :meth:`__init__` に従う。
+    OpenMaya APIへそのまま渡せる。生成時は成分をコピーし、引数形式は ``__init__`` に従う。
     MPointからもwで割らずXYZを写す。
 
     演算はOM2に従い、ベクトル結果は派生型によらず基底Vectorを返す。
@@ -1081,6 +1081,62 @@ class Vector(om2.MVector):
         _MVector.__imul__(result, t)
         _MVector.__iadd__(result, self)
         return result
+
+    def projected(self, axis):
+        """指定した軸の方向の成分(軸への正射影)を返す。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): 射影する軸。長さは問わない。
+
+        Returns:
+            Vector: ``axis`` と平行な成分。派生クラスの型は保持しない。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。
+        """
+        axis = _resolve_mvector(axis)
+        length_sq = _MVector.__mul__(axis, axis)
+        if length_sq == 0.0:
+            raise ValueError("Cannot project onto a zero vector")
+        result = _NEW(Vector)
+        _INIT(result)
+        _MVector.__iadd__(result, axis)
+        _MVector.__imul__(result, _MVector.__mul__(self, axis) / length_sq)
+        return result
+
+    def orthogonal(self, axis):
+        """指定した軸に直交する成分(軸の方向の成分を取り除いた値)を返す。
+
+        ポールベクター・アップベクターを主軸に直交させるときなどに使う(グラム・シュミットの1段)。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): 直交させる軸。長さは問わない。
+
+        Returns:
+            Vector: ``axis`` に直交する成分。派生クラスの型は保持しない。自身が軸と平行ならゼロベクトル。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。
+        """
+        result = self.projected(axis)
+        _MVector.__imul__(result, -1.0)
+        _MVector.__iadd__(result, self)
+        return result
+
+    def orthogonalIt(self, axis):
+        """自身を、指定した軸に直交する成分へ置き換える。
+
+        Args:
+            axis (om2.MVector | om2.MPoint | Iterable[float]): :meth:`orthogonal` と同じ軸。
+
+        Returns:
+            Vector: 更新した自身。
+
+        Raises:
+            ValueError: axisがゼロベクトルの場合。自身は変更しない。
+        """
+        self.x, self.y, self.z = self.orthogonal(axis)
+        return self
 
     @classmethod
     def _wrap(cls, value):

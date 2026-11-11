@@ -39,6 +39,8 @@ class ObjectSet(Node):
             ObjectSet: 自身。
 
         Raises:
+            TypeError: 未対応型の入力、または名前とNode等の参照を混在させた場合。
+            ValueError: 名前に一致するものが無い場合。
             RuntimeError: Mayaが追加を拒否した場合。
         """
         ...

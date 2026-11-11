@@ -92,7 +92,7 @@ def _angle_constant(unit):
         int: MAngleの単位定数。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: 未対応の単位名の場合。
     """
     return om2.MAngle.kDegrees if _angle_unit(unit) == "deg" else om2.MAngle.kRadians
@@ -110,7 +110,7 @@ def angleToUi(value, *, unit="deg"):
         float: 現在のUI角度単位で表した値。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: unitが未対応の単位名の場合。
     """
     return om2.MAngle(value, _angle_constant(unit)).asUnits(om2.MAngle.uiUnit())
@@ -128,7 +128,7 @@ def angleFromUi(value, *, unit="deg"):
         float: unitの単位の角度。
 
     Raises:
-        TypeError: unitが文字列以外の場合。
+        TypeError: unitが文字列・None以外の場合。
         ValueError: unitが未対応の単位名の場合。
     """
     return om2.MAngle(value, om2.MAngle.uiUnit()).asUnits(_angle_constant(unit))

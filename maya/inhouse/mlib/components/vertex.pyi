@@ -2,6 +2,9 @@
 """Mesh の頂点と頂点コレクション。"""
 
 import maya.api.OpenMaya as om2
+from ..decorator import _pick_alias, _require_bool
+from ..maths.vector import Vector
+from ..util import _UNSET, _world_space
 from .pointComponent import PointComponent, PointComponents
 from typing import Any, Iterator
 from mlib.components.face import Faces
@@ -21,6 +24,23 @@ class Vertex(PointComponent):
 
         Returns:
             Faces: 番号の昇順の面(重複なし)。
+        """
+        ...
+    def getNormal(self, worldSpace: bool = ..., angleWeighted: bool = ..., *, ws: bool = ...) -> Vector:
+        """頂点の法線(``MFnMesh.getVertexNormal``。接する面の法線の平均)を、長さ1で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+            angleWeighted (bool): Trueは面の角度で重み付けした平均。既定Falseは単純平均。
+
+        Returns:
+            Vector: 長さ1の法線。ロックした法線・ハードエッジは考慮しない(面の法線から計算する)。
+
+        Raises:
+            TypeError: worldSpace・angleWeightedがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
         """
         ...
 
@@ -74,6 +94,9 @@ class Vertices(PointComponents):
         Returns:
             dict[int, list[int]]: {頂点番号: 隣の頂点番号}。
         """
+        ...
+    def getNormal(self, worldSpace: bool = ..., angleWeighted: bool = ..., *, ws: bool = ...) -> list[Vector]:
+        """各要素の :meth:`~mlib.components.vertex.Vertex.getNormal` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getFullName(self) -> list[str]:
         """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

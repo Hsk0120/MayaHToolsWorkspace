@@ -32,7 +32,7 @@ class AimConstraint(Constraint):
             tuple[float, float, float]: 評価済みの設定値。対象の回転ではない。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名の場合。
         """
         ...
@@ -64,7 +64,7 @@ class AimConstraint(Constraint):
             tuple[float, float, float]: 評価済みのOffset。
 
         Raises:
-            TypeError: unitが文字列以外の場合。
+            TypeError: unitが文字列・None以外の場合。
             ValueError: unitが未対応の単位名の場合。
         """
         ...

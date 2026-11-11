@@ -644,11 +644,12 @@ class Node(Object):
                 対象の参照や名前。Plugは所有ノード、Componentは所有シェイプへ解決する。
 
         Returns:
-            bool: 自身を除く子孫ならTrue。非DAG・無効なノード・削除済みアトリビュートはFalse。
+            bool: 自身を除く子孫ならTrue。otherが非DAG・無効なノード・削除済みアトリビュートの場合はFalse。
 
         Raises:
             TypeError: otherが未対応型の場合。
-            RuntimeError: 名前を解決できない、MObject・MPlugが空、または保持インスタンスが消失した場合。
+            RuntimeError: 名前を解決できない、MObject・MPlugが空、または自身が削除済み・無効
+                (保持インスタンスの消失を含む)の場合。
         """
         ...
     def isParentOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> bool:
@@ -767,7 +768,7 @@ class Node(Object):
         """
         ...
     def duplicate(self, name: str | None = ..., *, suffix: str | None = ..., **kwargs: object) -> Self:
-        """自身を複製し、複製した自身を同じ種類のラッパーで返す。
+        """自身を複製し、複製したノードを同じ種類のラッパーで返す。
 
         :func:`mlib.duplicate` (``cmds.duplicate``)へ委ね、1回のUndoで戻せる。
         ``Joint`` なら ``Joint``、``Transform`` なら ``Transform`` のように、複製結果の
@@ -782,7 +783,7 @@ class Node(Object):
                 ``upstreamNodes`` 等。短縮名も可)。
 
         Returns:
-            Node: 複製した自身。
+            Node: 複製した新しいノード(最上位)。
 
         Raises:
             TypeError: フラグの長名・短名を同時に指定した場合、または suffix が文字列・None以外の場合。
@@ -1164,7 +1165,7 @@ class Node(Object):
                 getPlug=Falseでもアトリビュートの追加・既定値等の設定は実行する。
 
         Raises:
-            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列以外、または
+            TypeError: 長短名の同時指定、fast・safeがbool以外、unitが文字列・None以外、または
                 safe=Trueで既存のアトリビュートの型・マルチアトリビュートかどうかが要求と違う場合。
             ValueError: 名前の省略、不正な型接頭辞、解決後のattributeType/dataType併用、query/edit=True、
                 unitが未対応の単位名、またはenumのdefaultValueのフィールド名がenumNameに無い場合。
@@ -2375,10 +2376,10 @@ class Nodes(Generic[_NodeT]):
     def mirrorTransform(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.mirrorTransform` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def getMatrix(self, worldSpace: bool = ..., p: bool = ..., inv: bool = ..., *, ws: bool = ...) -> list[Matrix]:
+    def getMatrix(self, worldSpace: bool = ..., p: bool = ..., inv: bool = ..., *, parent: bool = ..., inverse: bool = ..., ws: bool = ...) -> list[Matrix]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def setMatrix(self, matrix: Matrix | Sequence[Any], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | dict[str, Translate | EulerRotate | Scale | Shear]]:
+    def setMatrix(self, matrix: Matrix | Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | dict[str, Translate | EulerRotate | Scale | Shear]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getTranslation(self, worldSpace: bool = ..., at: int = ..., *, ws: bool = ...) -> list[Translate]:
@@ -2393,6 +2394,12 @@ class Nodes(Generic[_NodeT]):
     def setRotate(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getRotateOrder(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setRotateOrder(self, order: str | int, preserve: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getScale(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Scale]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -2405,10 +2412,10 @@ class Nodes(Generic[_NodeT]):
     def setShear(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def getQuaternion(self, worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., *, ws: bool = ...) -> list[Quaternion]:
+    def getQuaternion(self, worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., *, rotateAxis: bool = ..., rotate: bool = ..., jointOrient: bool = ..., ws: bool = ...) -> list[Quaternion]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., rotateAxis: bool = ..., rotate: bool = ..., jointOrient: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def makeIdentity(self, *, apply: bool = ..., a: bool = ..., jointOrient: bool = ..., jo: bool = ..., normal: int = ..., n: int = ..., preserveNormals: bool = ..., pn: bool = ..., rotate: bool = ..., r: bool = ..., scale: bool = ..., s: bool = ..., translate: bool = ..., t: bool = ..., query: bool = ..., q: bool = ..., edit: bool = ..., e: bool = ..., **kwargs: object) -> list[Transform]:

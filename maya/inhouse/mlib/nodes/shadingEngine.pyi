@@ -40,6 +40,10 @@ class ShadingEngine(ObjectSet):
 
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
+
+        Raises:
+            ValueError: kindがsurface/volume/displacement以外の場合。
+            RuntimeError: ノードが無効な場合。
         """
         ...
     def getShader(self, kind: str = ...) -> Node | None:
@@ -50,13 +54,18 @@ class ShadingEngine(ObjectSet):
 
         Returns:
             Node | None: 型付きノード。未接続ならNone。
+
+        Raises:
+            ValueError: kindがsurface/volume/displacement以外の場合。
+            RuntimeError: ノードが無効な場合。
         """
         ...
     def setShader(self, shader: Node | Plug | str, kind: str = ..., output: str | None = ..., *, fast: bool = ...) -> ShadingEngine:
         """指定シェーダーの出力へ接続を置き換える。
 
         例えば ``engine.setShader(lambert)`` は ``lambert.outColor`` を ``surfaceShader`` へ接続する
-        (既存の接続は置き換える)。形状への割り当ては :meth:`assign` で行う(クラスの説明の例を参照)。
+        (既存の接続は置き換える。同じ接続元が既に接続済みなら何も変更しない)。形状への割り当ては
+        :meth:`assign` で行う(クラスの説明の例を参照)。
 
         Args:
             shader (Node | Plug | str): ノードまたは出力Plug。
@@ -69,7 +78,8 @@ class ShadingEngine(ObjectSet):
 
         Raises:
             ValueError: 種別が不正な場合。
-            RuntimeError: Mayaが接続を拒否した場合。
+            RuntimeError: 接続元が接続先のアトリビュート自身の場合(fastの有無によらない)、
+                またはMayaが接続を拒否した場合。
         """
         ...
     def assign(self, targets: Node | Face | Faces | str | Iterable) -> ShadingEngine:

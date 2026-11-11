@@ -23,7 +23,7 @@ def getPlug(value: str | Plug | om2.MPlug) -> Plug:
     ラッパーの型はアトリビュート定義から選び、型選択のために値を評価しない。
 
     Args:
-        value (str | Plug | MPlug): アトリビュート名、mlibプラグ、またはMaya API 2.0の参照。
+        value (str | Plug | om2.MPlug): アトリビュート名、mlibプラグ、またはMaya API 2.0の参照。
 
     Returns:
         Plug: アトリビュート型に対応する参照。既存Plugは有効性を再検証せず同じインスタンスを返す。

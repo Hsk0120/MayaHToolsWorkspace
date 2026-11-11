@@ -569,6 +569,10 @@ class Plug(Object):
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: valがbool・None以外、またはfastがbool以外の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         ...
     def setFlags(self, *, locked: bool | None = ..., keyable: bool | None = ..., channelBox: bool | None = ..., children: bool = ..., fast: bool = ...) -> Plug:
@@ -613,6 +617,10 @@ class Plug(Object):
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: valがbool・None以外、またはfastがbool以外の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         ...
     def show(self, keyable: bool = ..., *, fast: bool = ...) -> Plug:
@@ -871,8 +879,9 @@ class Plug(Object):
         Raises:
             TypeError: 静的(ノード型に組み込みの)アトリビュート、数値・単位型以外のアトリビュート、
                 valueが数値・単位付きの値・None以外、またはunit・timeUnitが文字列・None以外の場合。
-            ValueError: unit・timeUnitが未対応の単位名の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
+            ValueError: unit・timeUnitが未対応の単位名、または最小値が設定済みの最大値より大きい場合
+                (Mayaは逆転した範囲を警告だけで無視するため、変更せずに送出する)。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         ...
     def getMax(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> float | tuple[float, ...] | None:
@@ -915,8 +924,8 @@ class Plug(Object):
 
         Raises:
             TypeError: :meth:`setMin` と同じ。
-            ValueError: unit・timeUnitが未対応の単位名の場合。
-            RuntimeError: 所有ノードまたはアトリビュートが無効、またはMayaが変更を拒否した場合。
+            ValueError: unit・timeUnitが未対応の単位名、または最大値が設定済みの最小値より小さい場合。
+            RuntimeError: 所有ノードまたはアトリビュートが無効な場合。
         """
         ...
     def hasSoftMin(self) -> bool:
@@ -1259,6 +1268,10 @@ class Plug(Object):
 
         Returns:
             Plug: 自身。
+
+        Raises:
+            TypeError: valがbool・None以外、またはfastがbool以外の場合。
+            RuntimeError: アトリビュートが無効、またはMayaが更新を拒否した場合。
         """
         ...
     def isMuted(self) -> bool:
@@ -1307,9 +1320,10 @@ class Plug(Object):
             None: 値を返さない。
 
         Raises:
-            RuntimeError: force=False でロックされている場合や、静的アトリビュートの
-                削除を試みた場合など、Maya が削除を拒否した場合。
-            RuntimeError: 所有ノードが無効(削除済み)、またはアトリビュートが削除済みの場合。
+            TypeError: fastがbool以外の場合。
+            RuntimeError: 所有ノードが無効(削除済み)、アトリビュートが削除済み、または
+                force=False でロックされている場合や静的アトリビュートの削除を試みた場合など、
+                Maya が削除を拒否した場合。
         """
         ...
     def get(self, *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ...) -> Any:
@@ -1632,7 +1646,7 @@ class Plug(Object):
 
         Raises:
             TypeError: 接続元が未指定・未対応型、またはfast・safeがbool以外の場合。
-            RuntimeError: 同一接続(safe=Falseのとき)・forceなしの入力置換・ロック・接続やロック復元の失敗。
+            RuntimeError: 同一接続(safe=Falseのとき)・自身への接続・forceなしの入力置換・ロック・接続やロック復元の失敗。
                 接続元・接続先の所有ノードやアトリビュートが削除済みの場合も、何も変更せずに
                 送出する(接続元は削除前のアトリビュートパスを文言に含める)。
         """
@@ -1650,6 +1664,7 @@ class Plug(Object):
             Plug: 自身。disconnectの単件返却である入力元ではない。
 
         Raises:
+            TypeError: fastがbool以外の場合。
             RuntimeError: 無効な参照、またはロック等により切断できない場合。
         """
         ...
@@ -1719,6 +1734,11 @@ class Plug(Object):
 
         Returns:
             Plug: 実際の接続先。safeで既存の接続を見つけた場合もその接続先。
+
+        Raises:
+            TypeError: 接続先が未指定・未対応型、またはfast・safeがbool以外の場合(:meth:`connect` と同じ)。
+            RuntimeError: 同一接続(safe=Falseのとき)・forceなしの入力置換・ロック・接続の失敗、
+                または接続元・接続先が削除済みの場合(:meth:`connect` と同じ)。
         """
         ...
     def _raw_default(self) -> Any:
@@ -1894,6 +1914,21 @@ class Plug(Object):
 
         Returns:
             Plug: 自身。
+        """
+        ...
+    def _require_range_order(self, fn: om2.MFnNumericAttribute | om2.MFnUnitAttribute, kind: str, number: float, angle_unit: str, method: str, time_unit: str):
+        """最小値が最大値を超えないことを検証する(Mayaは逆転する値を警告だけで無視するため)。
+
+        Args:
+            fn (om2.MFnNumericAttribute | om2.MFnUnitAttribute): 対象の定義。
+            kind (str): ``"Min"``・``"Max"``・``"SoftMin"``・``"SoftMax"``。ソフト値は検証しない。
+            number (float): ``cmds.addAttr`` の単位へ換算した設定値。
+            angle_unit (str): 角度の数値の単位。
+            method (str): 例外メッセージに使うメソッド名。
+            time_unit (str): 時間の数値の単位。
+
+        Raises:
+            ValueError: 最小値が既存の最大値より大きい、または最大値が既存の最小値より小さい場合。
         """
         ...
     def _range_input(self, fn: om2.MFnNumericAttribute | om2.MFnUnitAttribute, value: object, angle_unit: str, method: str, time_unit: str = ...) -> float:

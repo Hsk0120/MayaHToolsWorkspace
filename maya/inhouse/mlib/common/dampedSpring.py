@@ -20,6 +20,10 @@ class DampedSpring:
         Returns:
             list[tuple[float]]: 各目標へ遅れて追従する結果。
 
+        Raises:
+            ValueError: samplesが空・成分数が揃わない・有限でない、設定値が有限でない・範囲外、
+                またはsecondsPerSampleが大きすぎて内部刻みが10000を超える場合。
+
         Note:
             初期値は先頭目標、初速ゼロ。内部刻みを細分化する半陰的Euler法。
             回転に使う場合は角度のラップを呼出側で処理する。

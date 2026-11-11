@@ -54,7 +54,7 @@ class Mesh(Shape):
             Mesh: 自身。番号対応が既に同一なら再構築せず返し、再構築用の制限検査にも進まない。
 
         Raises:
-            TypeError: 入力型・fast/worldSpaceが不正な場合。
+            TypeError: 入力型・fast/worldSpaceが不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 対応が曖昧/不完全、トポロジー/面の向きが一致しない、または再構築時に
                 入出力履歴・インスタンス・参照・色セット・クリース等がある場合。
             RuntimeError: 再構築時にロック、または通常処理でUndoが無効の場合。
@@ -234,6 +234,9 @@ class Mesh(Shape):
         Returns:
             list[Vector]: 頂点番号順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
                 内部単位(cm)。そのまま :meth:`setPoints` へ渡せる。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -260,7 +263,7 @@ class Mesh(Shape):
             Mesh: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または点の型・成分が不正な場合。
+            TypeError: worldSpace・fastがbool以外、点の型・成分が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 点の数が頂点数と合わない、または成分が有限でない場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
             NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
@@ -308,7 +311,7 @@ class Mesh(Shape):
             Mesh: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、番号の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: 頂点番号が負または範囲外の場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
@@ -331,6 +334,9 @@ class Mesh(Shape):
         Returns:
             list[Vector]: 頂点番号順の平均法線。angleWeighted=False では
                 角度によるウェイト付けを行わない。MFnMesh.getVertexNormals() を使用する。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -349,6 +355,9 @@ class Mesh(Shape):
             list[list[tuple[int, float]]]: 頂点ID順の隣接リスト。
             各要素は隣接頂点IDとcm単位の距離で、エッジID順に格納する。
             孤立頂点は空リスト、重複エッジは別々に保持する。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -421,7 +430,7 @@ class Mesh(Shape):
                 軸の上の頂点は自身へ対応する(キーと値が同じ)。
 
         Raises:
-            TypeError: axisが文字列・int以外、toleranceが実数以外、またはworldSpaceがbool以外の場合。
+            TypeError: axisが文字列・int以外、toleranceが実数以外、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axisが不正、またはtoleranceが正の有限値でない場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
@@ -454,8 +463,9 @@ class Mesh(Shape):
             Vertex: 最も近い頂点。
 
         Raises:
-            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
-            ValueError: 成分が有限でない、またはメッシュに頂点が無い場合。
+            TypeError: 点の型・成分が不正、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 成分の数が3でない・有限でない、またはメッシュに頂点が無い場合。
+            RuntimeError: 形状データを持たない空のシェイプ(``mlib.createNode("mesh")`` の直後等)の場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         return Vertex(self, self.getClosestVertices([point], worldSpace=worldSpace)[0])
@@ -474,8 +484,9 @@ class Mesh(Shape):
             list[int]: 点の順の、最も近い頂点の番号。
 
         Raises:
-            TypeError: 点列・点の型・成分が不正、またはworldSpaceがbool以外の場合。
-            ValueError: 成分が有限でない、またはメッシュに頂点が無い場合。
+            TypeError: 点列・点の型・成分が不正、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 成分の数が3でない・有限でない、またはメッシュに頂点が無い場合。
+            RuntimeError: 形状データを持たない空のシェイプ(``mlib.createNode("mesh")`` の直後等)の場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         values = geometry_edit.point_list(points)
@@ -574,8 +585,9 @@ class Mesh(Shape):
             tuple[Vector, int]: 面の上の最も近い点(cm)と、その点を含む面の番号。
 
         Raises:
-            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
-            ValueError: 成分が有限でない、またはメッシュに面が無い場合。
+            TypeError: 点の型・成分が不正、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 成分の数が3でない・有限でない、またはメッシュに面が無い場合。
+            RuntimeError: 形状データを持たない空のシェイプ(``mlib.createNode("mesh")`` の直後等)の場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -600,8 +612,9 @@ class Mesh(Shape):
             Vector: 長さ1の法線。ワールド空間ではオブジェクト空間の法線をマトリクスの逆転置で変換する。
 
         Raises:
-            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
-            ValueError: 成分が有限でない、またはメッシュに面が無い場合。
+            TypeError: 点の型・成分が不正、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 成分の数が3でない・有限でない、またはメッシュに面が無い場合。
+            RuntimeError: 形状データを持たない空のシェイプ(``mlib.createNode("mesh")`` の直後等)の場合。
 
         Note:
             最も近い点はオブジェクト空間で探す(``MMeshIntersector``)。非一様なスケールを持つ
@@ -640,7 +653,7 @@ class Mesh(Shape):
                 面と面の境目のエッジに当たった場合は、それぞれの面を別の要素で返す。
 
         Raises:
-            TypeError: 点・向きの型・成分が不正、maxDistanceが数値・None以外、またはworldSpaceがbool以外の場合。
+            TypeError: 点・向きの型・成分が不正、maxDistanceが数値・None以外、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 成分が有限でない、directionの長さが0、またはmaxDistanceが正の有限値でない場合。
 
         Note:
@@ -698,7 +711,7 @@ class Mesh(Shape):
             tuple[float, float]: (u, v)。
 
         Raises:
-            TypeError: 点の型・成分が不正、uvSetが文字列・None以外、またはworldSpaceがbool以外の場合。
+            TypeError: 点の型・成分が不正、uvSetが文字列・None以外、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 成分が有限でない、UVセットが無い、またはメッシュに面が無い場合。
             RuntimeError: 最も近い面にUVが割り当てられていない場合。
 
@@ -738,7 +751,7 @@ class Mesh(Shape):
             Vector | None: 面の上の点(cm)。どの面のUVにも含まれない位置ならNone。
 
         Raises:
-            TypeError: u・vが数値以外、uvSetが文字列・None以外、またはworldSpaceがbool以外の場合。
+            TypeError: u・vが数値以外、uvSetが文字列・None以外、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: u・vが有限でない、またはUVセットが無い場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)

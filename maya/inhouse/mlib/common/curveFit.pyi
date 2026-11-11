@@ -18,6 +18,9 @@ class CurveFit:
 
         Returns:
             list[float]: CVごとのウェイト。
+
+        Raises:
+            ValueError: countが4未満、またはparameterが0〜1の範囲外の場合。
         """
         ...
     @classmethod
@@ -30,6 +33,10 @@ class CurveFit:
 
         Returns:
             list[list[float]]: 同じ空間・単位のCV座標。
+
+        Raises:
+            ValueError: countが4〜32のint(int以外も含む)でない、点が2点未満・有限の3次元点でない、
+                または折れ線の長さが0の場合。
 
         Note:
             少ないサンプルでは直線配置へ弱く正則化する。折れ角や弧長の完全一致は保証しない。

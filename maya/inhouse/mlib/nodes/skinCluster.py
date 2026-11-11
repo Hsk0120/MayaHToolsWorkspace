@@ -392,6 +392,7 @@ class SkinCluster(GeometryFilter):
             SkinCluster: 自身。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=True)
@@ -413,6 +414,7 @@ class SkinCluster(GeometryFilter):
         Raises:
             RuntimeError: skinClusterが無効、または照会に失敗した場合。
         """
+        self._require_valid("access")
         result = []
         for path in self._skin_fn.influenceObjects():
             selection, _ = self._skin_fn.getPointsAffectedByInfluence(path)
@@ -788,6 +790,7 @@ class SkinCluster(GeometryFilter):
         """
         # 循環参照の回避: mlib.json はnodesを読み込むため、使う時点で読み込む。
         from ..json.nodeRef import NodeRef
+        self._require_valid("access")
         component, count = self._all_vertices()
         paths = self._skin_fn.influenceObjects()
         width = len(paths)
@@ -880,6 +883,7 @@ class SkinCluster(GeometryFilter):
             pathlib.Path: 書き出したファイルの絶対パス。
 
         Raises:
+            RuntimeError: skinClusterまたはgeometryが無効な場合。
             OSError: 書き出しに失敗した場合。
 
         Examples:
@@ -2391,7 +2395,7 @@ class SkinCluster(GeometryFilter):
     def _plug_chain_blocked(plug):
         """Plugと、その親・マルチアトリビュート側の全段にロックまたは入力接続があるか調べる。
 
-        :func:`mlib.core.fastWrite.writable` が要素から辿る親側の判定を、同じ頂点の要素で
+        :func:`mlib.core.fastWrite.require_writable` が要素から辿る親側の判定を、同じ頂点の要素で
         共有するために使う。例外は送出せず、書込み不能アトリビュートの判定も行わない。
 
         Args:

@@ -36,6 +36,10 @@ class ShadingEngine(ObjectSet):
 
         Returns:
             Plug | None: 接続元の出力Plug。未接続ならNone。
+
+        Raises:
+            ValueError: kindがsurface/volume/displacement以外の場合。
+            RuntimeError: ノードが無効な場合。
         """
         return self.getPlug(self._shader_attribute(kind)).getSource()
 
@@ -47,6 +51,10 @@ class ShadingEngine(ObjectSet):
 
         Returns:
             Node | None: 型付きノード。未接続ならNone。
+
+        Raises:
+            ValueError: kindがsurface/volume/displacement以外の場合。
+            RuntimeError: ノードが無効な場合。
         """
         plug = self.getShaderPlug(kind)
         return None if plug is None else plug.getNode()
@@ -55,7 +63,8 @@ class ShadingEngine(ObjectSet):
         """指定シェーダーの出力へ接続を置き換える。
 
         例えば ``engine.setShader(lambert)`` は ``lambert.outColor`` を ``surfaceShader`` へ接続する
-        (既存の接続は置き換える)。形状への割り当ては :meth:`assign` で行う(クラスの説明の例を参照)。
+        (既存の接続は置き換える。同じ接続元が既に接続済みなら何も変更しない)。形状への割り当ては
+        :meth:`assign` で行う(クラスの説明の例を参照)。
 
         Args:
             shader (Node | Plug | str): ノードまたは出力Plug。
@@ -68,7 +77,8 @@ class ShadingEngine(ObjectSet):
 
         Raises:
             ValueError: 種別が不正な場合。
-            RuntimeError: Mayaが接続を拒否した場合。
+            RuntimeError: 接続元が接続先のアトリビュート自身の場合(fastの有無によらない)、
+                またはMayaが接続を拒否した場合。
         """
         with _edit_context("mlibShadingEngineSetShader", fast):
             # plugs は nodes を参照するため、循環importを避けて呼出し時に取得する。
@@ -78,7 +88,11 @@ class ShadingEngine(ObjectSet):
                 source = Plug._resolve_input(shader)
             else:
                 source = Node._resolve_input(shader).getPlug(output or ("displacement" if kind == "displacement" else "outColor"))
-            source.connectTo(target, force=True, fast=fast)
+            if source == target:
+                # fastのMDGModifierは自己接続を拒否しないため、cmdsの経路と同じく先に拒否する。
+                raise RuntimeError(f"Cannot connect attribute {target.getFullName()} to itself")
+            # 同じ割り当ての再実行は、既存の同じ接続をそのまま残して成功させる。
+            source.connectTo(target, force=True, safe=True, fast=fast)
             return self
 
     def assign(self, targets):

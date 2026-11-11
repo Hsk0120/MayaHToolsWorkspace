@@ -276,6 +276,7 @@ class SkinCluster(GeometryFilter):
             SkinCluster: 自身。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
         ...
@@ -620,6 +621,7 @@ class SkinCluster(GeometryFilter):
             pathlib.Path: 書き出したファイルの絶対パス。
 
         Raises:
+            RuntimeError: skinClusterまたはgeometryが無効な場合。
             OSError: 書き出しに失敗した場合。
 
         Examples:
@@ -1367,7 +1369,7 @@ class SkinCluster(GeometryFilter):
     def _plug_chain_blocked(plug: om2.MPlug) -> bool:
         """Plugと、その親・マルチアトリビュート側の全段にロックまたは入力接続があるか調べる。
 
-        :func:`mlib.core.fastWrite.writable` が要素から辿る親側の判定を、同じ頂点の要素で
+        :func:`mlib.core.fastWrite.require_writable` が要素から辿る親側の判定を、同じ頂点の要素で
         共有するために使う。例外は送出せず、書込み不能アトリビュートの判定も行わない。
 
         Args:
@@ -1750,6 +1752,9 @@ class SkinClusters(Nodes[SkinCluster]):
         ...
     def setNormalizeMode(self, mode: str) -> list[SkinCluster]:
         """各要素の :meth:`~mlib.nodes.skinCluster.SkinCluster.setNormalizeMode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getGeometry(self) -> list[list[Node]]:
+        """各要素の :meth:`~mlib.nodes.geometryFilter.GeometryFilter.getGeometry` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getDeformerWeights(self, geometryIndex: int = ...) -> list[list[float]]:
         """各要素の :meth:`~mlib.nodes.geometryFilter.GeometryFilter.getDeformerWeights` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""

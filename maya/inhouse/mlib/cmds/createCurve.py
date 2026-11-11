@@ -19,15 +19,18 @@ import maya.cmds as cmds
 
 from ..core import geometryEdit as geometry_edit
 from ..core.shapeBuild import finish_shape, require_name, resolve_parent
-from ..decorator import _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..decorator import _pick_alias, _require_bool, nativeUnits, preservedSelection, undoTransaction
+from ..util import _UNSET
 
 
-def createCurve(points, degree=1, closed=False, knots=None, name=None, parent=None):
+def createCurve(points, degree=_UNSET, closed=False, knots=None, name=_UNSET, parent=None, *, d=_UNSET, n=_UNSET):
     """点列からNURBSカーブを作成し、そのシェイプを返す。
 
     開いたカーブは ``knots`` を省略すると ``cmds.curve`` の既定ノット、``closed=True`` は先頭 ``degree`` 個の
     CVを末尾へ重ねた周期カーブ(``getForm()`` が ``om2.MFnNurbsCurve.kPeriodic``)にする。
     fast引数は持たない(OpenMayaで作っても約1.4倍で、効果がほぼ無いため)。
+    degree・nameは ``cmds.curve`` と同じ短縮名 ``d``・``n`` でも受ける(長名と短縮名の同時指定はできない)。
+    parentの短縮名は無い(``cmds.curve`` の ``p`` はpointのため)。
 
     Args:
         points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CVの位置。各点は3個の
@@ -38,19 +41,25 @@ def createCurve(points, degree=1, closed=False, knots=None, name=None, parent=No
         knots (Sequence[float] | None): 開いたカーブのノット列(``cmds.curve`` の ``knot``)。
             個数は ``CV数 + degree - 1``。Noneは既定のノット。``closed=True`` とは併用できない。
         name (str | None): Transformの希望名。シェイプは ``<名前>Shape``。NoneはMayaの既定名(``curve1`` 等)。
+            既定None。
         parent (Node | str | None): Transformの親。Noneはワールド直下。親のローカル空間に
             単位マトリクスで置くため、点は親の空間の座標になる。
+        d (int): degreeの短縮名。同時指定はできない。
+        n (str | None): nameの短縮名。同時指定はできない。
 
     Returns:
         NurbsCurve: 作成したカーブのシェイプ。Transformは ``getTransform()`` で取得する。
 
     Raises:
-        TypeError: points・degree・closed・knots・name・parentの型が不正な場合。
+        TypeError: 長名と短縮名を同時に指定した場合、またはpoints・degree・closed・knots・name・parentの型が
+            不正な場合。
         ValueError: degreeが1〜3でない、点の成分数が3でない・有限でない、点の数が不足する
             (開いたカーブはdegree+1点以上、閉じたカーブは3点以上かつdegree点以上)、
             knotsの個数・値が不正、またはclosedとknotsを併用した場合。
         RuntimeError: 親が無効な場合、またはMayaが作成を拒否した場合。
     """
+    degree = _pick_alias(degree, d, "degree", "d", default=1)
+    name = _pick_alias(name, n, "name", "n", default=None)
     values = geometry_edit.point_list(points)
     if isinstance(degree, bool) or not isinstance(degree, int):
         raise TypeError("degree must be an int")

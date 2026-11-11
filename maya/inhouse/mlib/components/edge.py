@@ -2,6 +2,9 @@
 
 import maya.api.OpenMaya as om2
 
+from ..decorator import _pick_alias
+from ..maths.vector import _vectors_of_points
+from ..util import _UNSET, _world_space
 from .component import Component, Components
 from .face import Faces
 from .vertex import Vertices
@@ -32,6 +35,50 @@ class Edge(Component):
             Faces: 番号の昇順の面(重複なし)。
         """
         return Edges(self.shape, [self.index]).getFaces()
+
+    def getLength(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """エッジの長さ(``MItMeshEdge.length``)を cm で取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            float: 長さ(cm)。ワールド空間は親のスケールを含む。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        self._require_valid()
+        it = om2.MItMeshEdge(self.shape.mpath())
+        it.setIndex(self.index)
+        return it.length(space)
+
+    def getCenter(self, worldSpace=_UNSET, *, ws=_UNSET):
+        """エッジの中点(``MItMeshEdge.center``)を取得する。
+
+        Args:
+            worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
+
+        Returns:
+            Vector: 中点の位置(cm)。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            IndexError: 番号が現在の範囲外の場合。
+            RuntimeError: Shapeが無効な場合。
+        """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
+        space = om2.MSpace.kWorld if _world_space(worldSpace) else om2.MSpace.kObject
+        self._require_valid()
+        it = om2.MItMeshEdge(self.shape.mpath())
+        it.setIndex(self.index)
+        return _vectors_of_points([it.center(space)])[0]
 
     def getLoop(self):
         """このエッジを通るエッジのループを取得する。

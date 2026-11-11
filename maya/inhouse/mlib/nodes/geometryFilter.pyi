@@ -25,6 +25,16 @@ class GeometryFilter(Node):
     インフルエンスのウェイトの置き場なので、:meth:`getDeformerWeights` 等は使えない
     (:meth:`SkinCluster.getWeights <mlib.nodes.skinCluster.SkinCluster.getWeights>` を使う)。
     """
+    def getGeometry(self) -> list[Node]:
+        """このデフォーマーが変形する形状(出力ジオメトリ)を取得する。
+
+        ``outputGeometry`` の接続先の形状を、``input`` の番号順に返す(``cmds.deformer(query=True, geometry=True)``
+        相当)。skinCluster・cluster・deltaMush 等、すべてのデフォーマーで使える。
+
+        Returns:
+            list[Node]: 変形する形状。無ければ空リスト。
+        """
+        ...
     def getDeformerWeights(self, geometryIndex: int = ...) -> list[float]:
         """頂点ごとのデフォーマーのウェイトを取得する。
 

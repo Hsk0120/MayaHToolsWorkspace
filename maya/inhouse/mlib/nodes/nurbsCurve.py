@@ -281,7 +281,7 @@ class NurbsCurve(Shape):
                 worldSpace=Trueは親の非均等スケール・シアーとインスタンスの変換を含む。
 
         Raises:
-            TypeError: 単位の型が不正な場合。
+            TypeError: 単位の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: toleranceが正の有限値でない、worldSpaceがboolでない、または単位名が未対応の場合。
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
@@ -306,6 +306,9 @@ class NurbsCurve(Shape):
             list[Vector]: CV 順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
                 内部単位(cm)。有理カーブのウェイト(w)は含まず、wで割らないXYZを返す。
                 そのまま :meth:`setCvPositions` へ渡せる。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
@@ -332,7 +335,7 @@ class NurbsCurve(Shape):
             NurbsCurve: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、または点の型・成分が不正な場合。
+            TypeError: worldSpace・fastがbool以外、点の型・成分が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 点の数がCV数と合わない、成分が有限でない、周期カーブの重複CVが先頭の
                 CVと一致しない、またはworldSpace=Trueで変換マトリクスが特異な場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
@@ -382,7 +385,7 @@ class NurbsCurve(Shape):
             NurbsCurve: 自身。
 
         Raises:
-            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、または番号の型が不正な場合。
+            TypeError: worldSpace・fastがbool以外、axisが文字列・int以外、番号の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: axis・pivotが不正、またはworldSpace=Trueで変換マトリクスがほぼ特異な場合。
             IndexError: CV番号が負または範囲外の場合。
             RuntimeError: 形状データが無い・無効なシェイプ、またはロック等でMayaが書込みを拒否した場合。
@@ -411,6 +414,7 @@ class NurbsCurve(Shape):
                 重なりのない単独の CV は含まない。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: tolerance が正の値でない場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
@@ -461,8 +465,8 @@ class NurbsCurve(Shape):
             tuple[Vector, float]: 最も近い点(cm)とパラメーター。
 
         Raises:
-            TypeError: 点の型・成分が不正、またはworldSpaceがbool以外の場合。
-            ValueError: 成分が有限でない場合。
+            TypeError: 点の型・成分が不正、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
+            ValueError: 成分の数が3でない、または有限でない場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
@@ -483,7 +487,7 @@ class NurbsCurve(Shape):
             Vector: 位置(cm)。``pointOnCurveInfo`` の ``position`` と同じ。
 
         Raises:
-            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            TypeError: paramが数値でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: paramが有限でない、または範囲外の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
@@ -503,7 +507,7 @@ class NurbsCurve(Shape):
             Vector: パラメーターの増える向きの単位ベクトル。``pointOnCurveInfo`` の ``normalizedTangent`` と同じ。
 
         Raises:
-            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            TypeError: paramが数値でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: paramが有限でない・範囲外、または重なったCVで接線が0になる位置の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
@@ -529,7 +533,7 @@ class NurbsCurve(Shape):
             Vector: 単位ベクトル。
 
         Raises:
-            TypeError: paramが数値でない、またはworldSpaceがbool以外の場合。
+            TypeError: paramが数値でない、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: paramが有限でない・範囲外、または法線を定義できない場合(次数2以上で
                 曲率が0の位置(直線部分・変曲点)、次数1でCVがすべて一直線上にある場合)。
             RuntimeError: 形状データを持たない空のシェイプの場合。
@@ -570,7 +574,7 @@ class NurbsCurve(Shape):
             float: 指定単位での弧長。
 
         Raises:
-            TypeError: paramが数値でない、worldSpaceがbool以外、または単位の型が不正な場合。
+            TypeError: paramが数値でない、worldSpaceがbool以外、単位の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: paramが有限でない・範囲外、または単位名が未対応の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
@@ -596,7 +600,7 @@ class NurbsCurve(Shape):
             float: パラメーター。0は始点、全長は終点のパラメーター。
 
         Raises:
-            TypeError: lengthが数値でない、worldSpaceがbool以外、または単位の型が不正な場合。
+            TypeError: lengthが数値でない、worldSpaceがbool以外、単位の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: lengthが有限でない・0未満・全長を超える、または単位名が未対応の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
@@ -622,7 +626,7 @@ class NurbsCurve(Shape):
             list[float]: 始点から順のパラメーター。
 
         Raises:
-            TypeError: countがint以外(boolを含む)、またはworldSpaceがbool以外の場合。
+            TypeError: countがint以外(boolを含む)、worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: countが1未満の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
@@ -658,7 +662,7 @@ class NurbsCurve(Shape):
 
         Raises:
             TypeError: countがint以外(boolを含む)、upの型・成分、aimAxis・upAxisがstr以外、
-                またはworldSpaceがbool以外の場合。
+                またはworldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             ValueError: countが1未満、upの成分が有限でない・長さ0、軸名が未対応・aimAxisとupAxisが同じ軸、
                 upがすべての点で接線と平行、またはすべての点で接線が0の場合。
             RuntimeError: 形状データを持たない空のシェイプの場合。

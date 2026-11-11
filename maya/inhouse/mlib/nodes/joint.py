@@ -439,6 +439,23 @@ class Joint(Transform):
             self.getPlug("radius").set(value, fast=fast)
             return self
 
+    def getPreferredAngle(self, *, unit="deg"):
+        """IKが曲げる向きの基準になる preferredAngle を取得する。
+
+        Args:
+            unit (str): 戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            list[float]: XYZの角度。
+
+        Raises:
+            TypeError: unitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: jointが無効な場合。
+        """
+        self._require_valid("get the preferred angle of")
+        return [float(value) for value in self.getPlug("preferredAngle").get(unit=unit)]
+
     def setPreferredAngle(self, value=None, *, unit="deg"):
         """IKが曲げる向きの基準になる preferredAngle を設定する。
 
@@ -453,7 +470,7 @@ class Joint(Transform):
             Joint: 自身。
 
         Raises:
-            TypeError: valueが3つの数値の列・None以外、またはunitが文字列以外の場合。
+            TypeError: valueが3つの数値の列・None以外、またはunitが文字列・None以外の場合。
             ValueError: valueの成分数が3でない・有限でない、またはunitが未対応の単位名の場合。
             RuntimeError: jointが無効、またはpreferredAngleがロック・入力接続で書き込めない場合。
         """
@@ -616,6 +633,9 @@ class Joint(Transform):
         Returns:
             list[tuple[Vector, Vector]]: 子の joint ごとの (始点, 終点)。始点は自身の位置(回転ピボット)。
                 子の joint が無い場合は始点と同じ点を終点にした1組だけを返す。位置は cm。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=True)
         ws = _world_space(worldSpace)

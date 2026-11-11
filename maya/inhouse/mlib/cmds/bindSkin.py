@@ -17,7 +17,8 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 
 from ..core.object import Object
-from ..decorator import undoChunk, undoTransaction
+from ..decorator import _pick_alias, undoChunk, undoTransaction
+from ..util import _UNSET
 
 #: bindSkin が既定値を決めるフラグ(長名, 短名, 既定値)。
 _DEFAULT_FLAGS = (
@@ -36,7 +37,7 @@ _FILE_FLAGS = (
 )
 
 
-def bindSkin(joints, geometry, maximumInfluences=None, *, weights=None, nameMap=None, replace=None,
+def bindSkin(joints, geometry, maximumInfluences=_UNSET, *, mi=_UNSET, weights=None, nameMap=None, replace=None,
              namespaceMap=None, method="index", **kwargs):
     """形状を指定したinfluenceへバインドする。
 
@@ -56,7 +57,8 @@ def bindSkin(joints, geometry, maximumInfluences=None, *, weights=None, nameMap=
             Noneは ``weights`` のファイルのinfluence(``weights`` が必要)。
         geometry (Node | str): Mayaがバインドできる形状またはそのtransform。``weights`` ではMesh。
         maximumInfluences (int | None): 1頂点に割り当てる最大数。正の整数。Noneは ``weights`` の
-            ファイルの値、ファイルが無ければ4。
+            ファイルの値、ファイルが無ければ4。既定None。
+        mi (int | None): maximumInfluencesの短縮名。同時指定はできない。
         weights (str | os.PathLike | None): ``mlib.skinWeights`` 形式のファイル。Noneは読み込まない。
         nameMap (dict[str, str] | None): ファイルのinfluenceの、名前空間を除いた名前の対応表。
         replace (Iterable[tuple[str, str]] | None): ファイルのinfluenceの名前に順に当てる文字列置換。
@@ -69,8 +71,8 @@ def bindSkin(joints, geometry, maximumInfluences=None, *, weights=None, nameMap=
         SkinCluster: 作成したskinCluster。
 
     Raises:
-        TypeError: query・editフラグ、または ``maximumInfluences`` の短名 ``mi`` を渡した場合、
-            ``weights`` なしで対応付けの引数を渡した場合。
+        TypeError: maximumInfluencesと短縮名 ``mi`` を同時に指定した場合、query・editフラグを渡した場合、
+            または ``weights`` なしで対応付けの引数を渡した場合。
         ValueError: influenceが空、maximumInfluencesが正の整数でない、形状が既にスキニングされている、
             ``joints`` と ``weights`` が両方None、またはファイルの形式・頂点数・influenceが合わない場合。
         OSError: ファイルを読み込めない場合。
@@ -87,8 +89,7 @@ def bindSkin(joints, geometry, maximumInfluences=None, *, weights=None, nameMap=
     from ..nodes.node import Node, Nodes
     from ..nodes.skinCluster import SkinCluster
 
-    if "mi" in kwargs:
-        raise TypeError("Use maximumInfluences instead of mi")
+    maximumInfluences = _pick_alias(maximumInfluences, mi, "maximumInfluences", "mi", default=None)
     rejected = sorted(_REJECTED_FLAGS.intersection(kwargs))
     if rejected:
         raise TypeError(f"bindSkin does not accept: {', '.join(rejected)}")

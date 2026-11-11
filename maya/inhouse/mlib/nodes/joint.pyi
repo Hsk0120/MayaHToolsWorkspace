@@ -320,6 +320,21 @@ class Joint(Transform):
             RuntimeError: Mayaが編集を拒否した場合。
         """
         ...
+    def getPreferredAngle(self, *, unit: str = ...) -> list[float]:
+        """IKが曲げる向きの基準になる preferredAngle を取得する。
+
+        Args:
+            unit (str): 戻り値の角度の単位。既定 ``"deg"`` は度、``"rad"`` はラジアン。
+
+        Returns:
+            list[float]: XYZの角度。
+
+        Raises:
+            TypeError: unitが文字列・None以外の場合。
+            ValueError: unitが未対応の単位名の場合。
+            RuntimeError: jointが無効な場合。
+        """
+        ...
     def setPreferredAngle(self, value: Sequence[float] | None = ..., *, unit: str = ...) -> Joint:
         """IKが曲げる向きの基準になる preferredAngle を設定する。
 
@@ -334,7 +349,7 @@ class Joint(Transform):
             Joint: 自身。
 
         Raises:
-            TypeError: valueが3つの数値の列・None以外、またはunitが文字列以外の場合。
+            TypeError: valueが3つの数値の列・None以外、またはunitが文字列・None以外の場合。
             ValueError: valueの成分数が3でない・有限でない、またはunitが未対応の単位名の場合。
             RuntimeError: jointが無効、またはpreferredAngleがロック・入力接続で書き込めない場合。
         """
@@ -450,6 +465,9 @@ class Joint(Transform):
         Returns:
             list[tuple[Vector, Vector]]: 子の joint ごとの (始点, 終点)。始点は自身の位置(回転ピボット)。
                 子の joint が無い場合は始点と同じ点を終点にした1組だけを返す。位置は cm。
+
+        Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
         """
         ...
     def getTransferTarget(self, skin: SkinCluster) -> str | None:
@@ -833,6 +851,9 @@ class Joints(Nodes[Joint]):
     def getRadius(self) -> list[float]:
         """各要素の :meth:`~mlib.nodes.joint.Joint.getRadius` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getPreferredAngle(self, *, unit: str = ...) -> list[list[float]]:
+        """各要素の :meth:`~mlib.nodes.joint.Joint.getPreferredAngle` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def setPreferredAngle(self, value: Sequence[float] | None = ..., *, unit: str = ...) -> list[Joint]:
         """各要素の :meth:`~mlib.nodes.joint.Joint.setPreferredAngle` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -938,10 +959,10 @@ class Joints(Nodes[Joint]):
     def getShadingEngines(self) -> list[list[ShadingEngine]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getShadingEngines` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def getMatrix(self, worldSpace: bool = ..., p: bool = ..., inv: bool = ..., *, ws: bool = ...) -> list[Matrix]:
+    def getMatrix(self, worldSpace: bool = ..., p: bool = ..., inv: bool = ..., *, parent: bool = ..., inverse: bool = ..., ws: bool = ...) -> list[Matrix]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def setMatrix(self, matrix: Matrix | Sequence[Any], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | dict[str, Translate | EulerRotate | Scale | Shear]]:
+    def setMatrix(self, matrix: Matrix | Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | dict[str, Translate | EulerRotate | Scale | Shear]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def getTranslation(self, worldSpace: bool = ..., at: int = ..., *, ws: bool = ...) -> list[Translate]:
@@ -956,6 +977,12 @@ class Joints(Nodes[Joint]):
     def setRotate(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
+    def getRotateOrder(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setRotateOrder(self, order: str | int, preserve: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setRotateOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
     def getScale(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Scale]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
@@ -968,10 +995,10 @@ class Joints(Nodes[Joint]):
     def setShear(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def getQuaternion(self, worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., *, ws: bool = ...) -> list[Quaternion]:
+    def getQuaternion(self, worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., *, rotateAxis: bool = ..., rotate: bool = ..., jointOrient: bool = ..., ws: bool = ...) -> list[Quaternion]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.getQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
-    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., rotateAxis: bool = ..., rotate: bool = ..., jointOrient: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
         """各要素の :meth:`~mlib.nodes.transform.Transform.setQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
     def makeIdentity(self, *, apply: bool = ..., a: bool = ..., jointOrient: bool = ..., jo: bool = ..., normal: int = ..., n: int = ..., preserveNormals: bool = ..., pn: bool = ..., rotate: bool = ..., r: bool = ..., scale: bool = ..., s: bool = ..., translate: bool = ..., t: bool = ..., query: bool = ..., q: bool = ..., edit: bool = ..., e: bool = ..., **kwargs: object) -> list[Transform]:

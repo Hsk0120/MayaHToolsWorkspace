@@ -269,6 +269,12 @@ def create_extra_attribute(node, name, flags, numeric, count, *, deferred,
 
     Returns:
         tuple | None: 型付き既定値の検証済み書込み計画。データownerを含む。
+
+    Raises:
+        TypeError: マルチアトリビュート自体へ既定値を指定した場合、または文字列型へ文字列以外を渡した場合。
+        ValueError: 子の名前・既定値・範囲の個数が子数と異なる場合。
+        RuntimeError: 書き込めないアトリビュートへ既定値を指定した場合。
+        NotImplementedError: 既定値をfastで構築できない型の場合。
     """
     flags = dict(flags)
     children = []

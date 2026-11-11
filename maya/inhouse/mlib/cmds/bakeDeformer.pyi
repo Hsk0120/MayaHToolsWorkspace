@@ -14,15 +14,15 @@ skinCluster だけの変形へ置き換える(元のデフォーマーは除か�
 
 import maya.cmds as cmds
 from ..core.object import Object
-from ..decorator import undoChunk
+from ..decorator import _pick_alias, undoChunk
+from ..util import _UNSET
 from mlib.nodes.joint import Joint
 from mlib.nodes.node import Node
 from mlib.nodes.skinCluster import SkinCluster
 
-_ARGUMENT_FLAGS: frozenset
 _REJECTED_FLAGS: frozenset
 
-def bakeDeformer(source: Node | str, skeleton: Joint | str, destination: Node | str | None = ..., destinationSkeleton: Joint | str | None = ..., maxInfluences: int = ..., **kwargs: object) -> SkinCluster:
+def bakeDeformer(source: Node | str, skeleton: Joint | str, destination: Node | str | None = ..., destinationSkeleton: Joint | str | None = ..., maxInfluences: int = ..., *, mi: int = ..., **kwargs: object) -> SkinCluster:
     """元の形状の変形を、変形先の形状の skinCluster のウェイトへ焼き込む。
 
     選択状態は参照しない。変形先が既にバインドされていれば、その skinCluster のウェイトを書き換える。
@@ -35,15 +35,18 @@ def bakeDeformer(source: Node | str, skeleton: Joint | str, destination: Node | 
             skinCluster だけの変形にする)。
         destinationSkeleton (Joint | str | None): 変形先のスケルトンのルート。None は skeleton と同じ。
         maxInfluences (int): 1頂点の最大influence数。正の整数。既定4。
+        mi (int): maxInfluencesの短縮名。同時指定はできない。
         **kwargs (object): ``cmds.bakeDeformer`` のその他のフラグ(``influences``・``pruneWeights``・
             ``smoothWeights``・``hierarchy``・``customRangeOfMotion``・``bakeRangeOfMotion``・
-            ``colorizeSkeleton``。長名・短名とも可)。
+            ``colorizeSkeleton``。長名・短名とも可)。``srcMeshName``・``srcSkeletonName``・``dstMeshName``・
+            ``dstSkeletonName`` (と短縮名。専用引数で指定する)・query・editは受け付けない。
 
     Returns:
         SkinCluster: 変形先の形状の skinCluster。
 
     Raises:
-        TypeError: 引数で受けるフラグ・query・editフラグを ``**kwargs`` に渡した場合。
+        TypeError: maxInfluencesと短縮名 ``mi`` を同時に指定した場合、または ``**kwargs`` で受け付けない
+            フラグを渡した場合。
         ValueError: maxInfluencesが正の整数でない場合。
         RuntimeError: 名前を解決できない、Mayaが焼き込みを拒否した、または変形先に skinCluster が見つからない場合。
     """

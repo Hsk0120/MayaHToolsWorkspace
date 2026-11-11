@@ -131,7 +131,7 @@ class DagPose(Node):
             Matrix: 保存マトリクスの新しいコピー。変更してもポーズやシーンは変化しない。
 
         Raises:
-            TypeError: worldSpaceがbool以外、またはmemberが対応しない型の場合。
+            TypeError: worldSpaceがbool以外、memberが対応しない型の場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: このポーズのメンバーでない場合。
             RuntimeError: 無効なdagPoseの場合。
         """
@@ -198,6 +198,7 @@ class DagPose(Node):
             DagPose: 自身。
 
         Raises:
+            TypeError: worldSpaceがbool以外、またはworldSpaceとwsを同時に指定した場合。
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
         worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)

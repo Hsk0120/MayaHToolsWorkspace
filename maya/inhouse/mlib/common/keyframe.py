@@ -355,8 +355,22 @@ class Keyframes:
     def setTangent(self, *, unit="deg", fast=False, **kwargs):
         """全てのキーの接線を変える(1回のUndo)。引数は :meth:`Keyframe.setTangent` と同じ。
 
+        fast=Trueでも全体を1つのUndoチャンクの中で呼ぶが、OpenMayaの更新はUndoに記録されない。
+
+        Args:
+            unit (str): 角度の単位。``"deg"`` / ``"rad"``。
+            fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
+            **kwargs: :meth:`AnimCurve.setTangent <mlib.nodes.animCurve.AnimCurve.setTangent>` と同じフラグ。
+
         Returns:
             Keyframes: 自身。
+
+        Raises:
+            ValueError: フラグが空/未知、unitが未対応、またはfastで不正値やglobal/未知の接線型を指定した場合。
+            TypeError: unitが文字列・None以外の場合。
+            IndexError: キー番号が不正な場合。
+            NotImplementedError: fastで入力接線にstepnextを指定した場合。
+            RuntimeError: カーブが無効(削除済み)の場合。
         """
         with undoChunk("mlibKeyframesSetTangent"):
             for curve, indices in self._groups:

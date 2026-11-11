@@ -59,7 +59,7 @@ class Shape(DagNode):
             Shape: 自身。
 
         Raises:
-            TypeError: fast・番号の型が不正な場合。
+            TypeError: fast・番号の型が不正な場合、またはworldSpaceとwsを同時に指定した場合。
             ValueError: 倍率・中心・空間が不正、world変換がほぼ特異、またはメッシュ・NURBS以外のShapeの場合。
             IndexError: 対象番号が範囲外の場合。
             RuntimeError: Mayaが編集を拒否した場合。

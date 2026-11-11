@@ -25,6 +25,17 @@ class GeometryFilter(Node):
     (:meth:`SkinCluster.getWeights <mlib.nodes.skinCluster.SkinCluster.getWeights>` を使う)。
     """
 
+    def getGeometry(self):
+        """このデフォーマーが変形する形状(出力ジオメトリ)を取得する。
+
+        ``outputGeometry`` の接続先の形状を、``input`` の番号順に返す(``cmds.deformer(query=True, geometry=True)``
+        相当)。skinCluster・cluster・deltaMush 等、すべてのデフォーマーで使える。
+
+        Returns:
+            list[Node]: 変形する形状。無ければ空リスト。
+        """
+        return [Node(mobject) for mobject in oma2.MFnGeometryFilter(self.mnode()).getOutputGeometry()]
+
     def getDeformerWeights(self, geometryIndex=0):
         """頂点ごとのデフォーマーのウェイトを取得する。
 

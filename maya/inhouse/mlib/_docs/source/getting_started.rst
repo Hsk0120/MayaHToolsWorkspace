@@ -291,7 +291,6 @@ Mayaの規則で連番化されます。``name``・``parent``・``shared``・``s
    print(isinstance(container, mlib.ContainerBase))    # False。手書きクラスは抽象祖先を継承しない
 
 ``mlib.ContainerBase`` のように抽象型を要求した場合も同じ規則でクラスが生成されますが、
-
 対応するインスタンスが無いため ``isinstance`` には使えません。Mayaが認識しない型名
 (プラグイン未ロードを含む)は ``AttributeError``、``mlib.nodes.pointLight`` のような
 先頭小文字の綴りも ``AttributeError`` です。生成クラスは ``mlib.nodes.__all__`` と

@@ -124,7 +124,7 @@ class CreateNodeFunctionsTest(_SpecCase):
         with self.assertRaises(ValueError):
             mlib.bindSkin([j0], mesh)
         with self.assertRaises(TypeError):
-            mlib.bindSkin([j0], mlib.createPolyCube().getParent(), mi=2)
+            mlib.bindSkin([j0], mlib.createPolyCube().getParent(), maximumInfluences=2, mi=2)
         base = mlib.createPolyCube(name=self.name("base")).getParent()
         target = mlib.createPolyCube(name=self.name("target")).getParent()
         self.assertEqual(mlib.createBlendShape(base, [target]).getTargetNames(), [target.getNodeName(removeNamespace=True)])
