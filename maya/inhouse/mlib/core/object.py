@@ -56,7 +56,6 @@ _MEMBER_HINTS = {
     "getAttrName": ("getShortName", "use getName().partition('.')[2] for the attribute path, or getShortName()"),
     "connect": ("connectTo", "use connectTo(destination)"),
     "select": (None, "use mlib.select(obj)"),
-    "duplicate": (None, "use mlib.duplicate(obj)"),
 }
 
 

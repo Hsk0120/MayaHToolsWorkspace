@@ -6,8 +6,8 @@ import maya.api.OpenMayaAnim as oma2
 import maya.cmds as cmds
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
-from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
-from ..util import _color_value, _world_space
+from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..util import _UNSET, _color_value, _world_space
 from .node import Node
 from typing import Iterable, Sequence
 from mlib.nodes.dagPose import DagPose
@@ -122,7 +122,7 @@ class DagNode(Node):
             RuntimeError: ノードは有効だが保持する DAG パスが無効な場合。
         """
         ...
-    def getBoundingBox(self, worldSpace: bool = ...) -> om2.MBoundingBox:
+    def getBoundingBox(self, worldSpace: bool = ..., *, ws: bool = ...) -> om2.MBoundingBox:
         """バウンディングボックスを取得する。
 
         ``MFnDagNode.boundingBox`` は自身の translate/rotate/scale(Transform の場合)は含むが、
@@ -132,6 +132,7 @@ class DagNode(Node):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親の変換を含まない空間。既定False。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。

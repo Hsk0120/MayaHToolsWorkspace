@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
 
 from ..core.object import Object, _missing_member_message
-from ..decorator import _require_bool
+from ..decorator import _edit_context, _require_bool
 
 if TYPE_CHECKING:
     from ..nodes.shape import Shape
@@ -485,6 +485,36 @@ class Components:
         return all(isinstance(item, Component) and item.component_type == component_type
                    and item._shape == self._shape and item._index == index
                    for item, index in zip(other, self._indices))
+
+    def __getattr__(self, name):
+        """単数のコンポーネントのメソッドを、全要素へ保持順に呼ぶ関数として取得する。
+
+        このコレクションに無い公開メソッド名を取得すると、保持順の各単数参照(``component_class``)の
+        同名メソッドを同じ引数で呼び、戻り値を保持順のリストで返す関数になる。通常は1回のUndoにまとめ、
+        ``fast=True`` はそのまま各メソッドへ渡してUndoのまとめは行わない。後続の要素で失敗しても、
+        先行の変更は自動では戻さない。
+
+        Args:
+            name (str): 単数のコンポーネントの公開メソッド名。
+
+        Returns:
+            Callable[..., list]: 各要素のメソッドを呼び、戻り値を保持順のリストで返す関数。
+
+        Raises:
+            AttributeError: 先頭 ``_`` の名前、または ``component_class`` が持たないメソッド名の場合。
+        """
+        if name.startswith("_") or not callable(getattr(self.component_class, name, None)):
+            raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+        def forward(*args, **kwargs):
+            fast = kwargs.get("fast", False) is True
+            with _edit_context(f"mlib{type(self).__name__}{name[:1].upper()}{name[1:]}", fast):
+                return [getattr(component, name)(*args, **kwargs) for component in self]
+
+        forward.__name__ = name
+        forward.__qualname__ = f"{type(self).__name__}.{name}"
+        forward.__doc__ = f"各要素の {name}() を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"
+        return forward
 
     def __add__(self, other):
         """同じシェイプ・同じ種類の要素を後ろへ結合した、左辺と同じ型の新しいコレクションを返す。

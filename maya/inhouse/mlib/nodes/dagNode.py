@@ -6,8 +6,8 @@ import maya.cmds as cmds
 
 from ..core.fastWrite import require_writable, set_plug
 from ..core.registry import _inherited_node_types, _real_node_type
-from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
-from ..util import _color_value, _world_space
+from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk, undoTransaction
+from ..util import _UNSET, _color_value, _world_space
 from .node import Node
 
 #: GUIのないMayaで使う、Maya標準のカラーインデックスのRGB。
@@ -222,7 +222,7 @@ class DagNode(Node):
         self_uuid = self.getUuid()
         return [candidate for candidate in candidates if candidate.getUuid() != self_uuid]
 
-    def getBoundingBox(self, worldSpace=False):
+    def getBoundingBox(self, worldSpace=_UNSET, *, ws=_UNSET):
         """バウンディングボックスを取得する。
 
         ``MFnDagNode.boundingBox`` は自身の translate/rotate/scale(Transform の場合)は含むが、
@@ -232,6 +232,7 @@ class DagNode(Node):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseは親の変換を含まない空間。既定False。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             om2.MBoundingBox: 軸並行境界ボックス。Maya API の内部距離単位。
@@ -241,6 +242,7 @@ class DagNode(Node):
             ValueError: worldSpaceが bool でない場合。
             RuntimeError: ノードが無効、または保持する DAG パスが無効な場合。
         """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         world = _world_space(worldSpace)
         self._require_valid("compute the bounding box of")
         path = self.mpath()

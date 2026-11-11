@@ -4,6 +4,50 @@
 mlib の版ごとの変更点です。版番号は ``mlib.__version__``・``maya/modules/mlib.mod``・
 この文書の見出しに同じ値を置き、``__tests__/unit/test_static_version.py`` が三者の一致を検査します。
 
+12.2.0 (2026-11-11)
+-------------------
+
+各ノードの ``duplicate``\ ・\ ``select``\ 、複数形からの単数のメソッドの呼出し、``worldSpace`` の短縮名 ``ws``\ 、
+計算ノードの操作を追加しました。既存の呼び出し方は変わりません。
+
+.. rubric:: 追加
+
+- ``Node.duplicate(name=None, *, suffix=None, **kwargs)`` は自身を複製し、複製した自身を同じ種類のラッパーで返す
+  (``Joint`` なら ``Joint``\ 、``Transform`` なら ``Transform``)。shape を複製すると Maya は親の transform ごと
+  複製するため、その中で自身と同じ位置にある複製の shape を返す。フラグと suffix は ``mlib.duplicate`` と同じ。
+- ``Node.select(**kwargs)``\ ・\ ``Nodes.select(**kwargs)`` は ``mlib.select`` へ委ねて選択する(既定は置き換え)。
+  ``Nodes.getNames()`` は各ノードの名前の並び。
+- 複数形(``Nodes``\ ・\ ``Joints``\ ・\ ``SkinClusters``\ 、``Vertices`` 等のコンポーネント)から、単数のメソッドを
+  呼べる(``mlib.ls(type="transform").setTranslation((0, 0, 0))``)。各要素の同名メソッドを同じ引数で呼び、
+  戻り値を保持順のリストで返す(書込みも常にリスト)。通常は1回の Undo で戻せる。複数形自身のメソッド
+  (``setOverrideColor`` 等)はこれまでどおり優先する。名前で呼ぶ ``Nodes.callEach(method, *args, **kwargs)`` も同じ。
+- ``worldSpace`` を受ける公開メソッド(69個)は、短縮名 ``ws`` も受ける(``node.getTranslation(ws=True)``)。
+  ``worldSpace`` と同時に指定すると TypeError。
+- 計算ノードに、アトリビュートでは書きにくい操作を足した。
+
+  - 共通: ``setInput(...)`` は主な入力をまとめて設定する(値は書込み、Plug・``"node.attr"`` は接続。None は変更しない。
+    1回の Undo)。``getResult()``\ ・\ ``getOutputPlug()`` は出力の値・アトリビュート。出力が複数あるノードは ``kind``
+    で選ぶ。
+  - 演算・モードの名前指定: ``Condition``\ ・\ ``MultiplyDivide``\ ・\ ``PlusMinusAverage``\ ・\ ``VectorProduct`` の
+    ``get/setOperation``\ 、``AimMatrix`` の ``get/setPrimaryMode``\ ・\ ``get/setSecondaryMode``\ 、``PairBlend`` の
+    ``get/setRotateInterpolation``\ 、``DecomposeMatrix``\ ・\ ``ComposeMatrix`` の ``get/setRotateOrder``\ 。
+  - 入力の追加・削除: ``PlusMinusAverage``\ ・\ ``BlendWeighted``\ ・\ ``MultMatrix`` の ``addInput``\ ・\ ``removeInput``\ ・
+    ``getInputIndices``\ 、``BlendMatrix`` の ``addTarget``\ ・\ ``removeTarget``\ ・\ ``getTargetIndices``\ 。
+  - ``RemapValue`` のランプ: ``getRampPoints``\ ・\ ``setRampPoints``\ ・\ ``addRampPoint``\ (``kind="value"``/``"color"``)。
+  - ``CurveInfo``\ ・\ ``PointOnCurveInfo``\ ・\ ``PointOnSurfaceInfo`` の setInput は、シェイプ(またはそれを1つだけ持つ
+    Transform)を渡すと worldSpace を接続する。
+
+- 3.0.0 で外した計算ノードの手書きクラスを戻した: ``AimMatrix``\ ・\ ``AngleBetween``\ ・\ ``BlendMatrix``\ ・
+  ``ComposeMatrix``\ ・\ ``CurveInfo``\ ・\ ``DecomposeMatrix``\ ・\ ``DistanceBetween``\ ・\ ``FourByFourMatrix``\ ・
+  ``InverseMatrix``\ (``matrixNodes`` プラグインが必要)・\ ``MultMatrix``\ ・\ ``PairBlend``\ ・\ ``PickMatrix``\ ・
+  ``PointOnCurveInfo``\ ・\ ``PointOnSurfaceInfo``\ ・\ ``VectorProduct``\ 。
+
+.. rubric:: 補完(型スタブ)
+
+- 複数形のスタブに、転送する単数のメソッドを書き出した(``Nodes`` は ``Node``\ ・\ ``DagNode``\ ・\ ``Transform``)。
+- ``Nodes`` は要素の型を引数に取る(``Nodes[Transform]``)。``mlib.ls(type="transform")[0]`` は ``Transform``\ 、
+  ``for n in mlib.ls(type="joint")`` の ``n`` は ``Joint`` として補完される。型を指定しない ``ls`` は従来どおり。
+
 12.1.0 (2026-11-11)
 -------------------
 

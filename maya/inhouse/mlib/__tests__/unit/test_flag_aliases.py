@@ -79,11 +79,11 @@ class FlagAliasesTest(unittest.TestCase):
         self.assertEqual(mlib.ls(sl=True), [])
 
     def test_explicit_parameters_do_not_query_maya_help(self):
-        """独自メソッドは長名だけを引数へ公開し、実行中にhelpや別名メタデータを使わない。"""
+        """独自メソッドは引数を明示し(worldSpaceは短縮名wsも受ける)、実行中にhelpや別名メタデータを使わない。"""
         node = mlib.createNode("transform")
         parameters = inspect.signature(node.getTranslation).parameters
         self.assertIn("worldSpace", parameters)
-        self.assertNotIn("ws", parameters)
+        self.assertIn("ws", parameters)
         self.assertFalse(hasattr(type(node).getTranslation, "__mlib_flag_aliases__"))
         with patch.object(cmds, "help", side_effect=AssertionError("runtime help lookup")):
             child = mlib.createNode("transform", n="explicitChild", p=node)

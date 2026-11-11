@@ -5,8 +5,8 @@ import math
 import numbers
 import maya.api.OpenMaya as om2
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context, _require_bool
-from ..util import _finite, _world_space, mirrorArguments
+from ..decorator import _edit_context, _pick_alias, _require_bool
+from ..util import _UNSET, _finite, _world_space, mirrorArguments
 from .component import Component, Components
 from typing import Iterable, Iterator
 from mlib.maths.vector import Vector
@@ -24,13 +24,14 @@ class PointComponent(Component):
     書込みは通常 ``cmds.xform`` を使って1回のUndoにまとめ、``fast=True`` はOpenMayaで1点を書いて
     Undoに記録しない。共有Shapeの編集は全インスタンスへ影響する。
     """
-    def getPosition(self, worldSpace: bool = ...) -> Vector:
+    def getPosition(self, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
         """頂点またはカーブCVの現在のXYZ座標をcmで取得する。
 
         Shapeと番号を検証してOpenMayaへ問い合わせる。UIの距離単位には換算しない。
 
         Args:
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector: 新しいXYZ値(:class:`~mlib.maths.vector.Vector`)。シーン内座標への書換え可能な参照ではない。
@@ -41,7 +42,7 @@ class PointComponent(Component):
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
         ...
-    def setPosition(self, value: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ...) -> PointComponent:
+    def setPosition(self, value: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
         """頂点/CVへcm単位の絶対XYZ座標を設定する。移動量ではない。
 
         UIの距離単位によらずcmで受け取り、通常は ``cmds.xform`` で書き込んで1回のUndoにまとめる。
@@ -52,6 +53,7 @@ class PointComponent(Component):
         Args:
             value (Iterable[float] | om2.MPoint | om2.MVector): 有限なXYZ(cm)。MPointはwで割らずにXYZを使う。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -65,22 +67,24 @@ class PointComponent(Component):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPositionX(self, worldSpace: bool = ...) -> float:
+    def getPositionX(self, worldSpace: bool = ..., *, ws: bool = ...) -> float:
         """X成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             float: 座標値。
         """
         ...
-    def setPositionX(self, value: float, worldSpace: bool = ..., *, fast: bool = ...) -> PointComponent:
+    def setPositionX(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
         """X成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float): 有限な座標(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -94,22 +98,24 @@ class PointComponent(Component):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPositionY(self, worldSpace: bool = ...) -> float:
+    def getPositionY(self, worldSpace: bool = ..., *, ws: bool = ...) -> float:
         """Y成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             float: 座標値。
         """
         ...
-    def setPositionY(self, value: float, worldSpace: bool = ..., *, fast: bool = ...) -> PointComponent:
+    def setPositionY(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
         """Y成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float): 有限な座標(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -123,22 +129,24 @@ class PointComponent(Component):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPositionZ(self, worldSpace: bool = ...) -> float:
+    def getPositionZ(self, worldSpace: bool = ..., *, ws: bool = ...) -> float:
         """Z成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             float: 座標値。
         """
         ...
-    def setPositionZ(self, value: float, worldSpace: bool = ..., *, fast: bool = ...) -> PointComponent:
+    def setPositionZ(self, value: float, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponent:
         """Z成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float): 有限な座標(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -182,22 +190,24 @@ class PointComponents(Components):
     def __getitem__(self, index: int) -> PointComponent: ...
     @overload
     def __getitem__(self, index: slice) -> PointComponents: ...
-    def getPositionX(self, worldSpace: bool = ...) -> list[float]:
+    def getPositionX(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[float]:
         """X成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[float]: 保持順の座標値。
         """
         ...
-    def setPositionX(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ...) -> PointComponents:
+    def setPositionX(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """X成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float | Iterable[float]): 全要素に共通の値、または保持順の値列(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -212,22 +222,24 @@ class PointComponents(Components):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPositionY(self, worldSpace: bool = ...) -> list[float]:
+    def getPositionY(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[float]:
         """Y成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[float]: 保持順の座標値。
         """
         ...
-    def setPositionY(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ...) -> PointComponents:
+    def setPositionY(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """Y成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float | Iterable[float]): 全要素に共通の値、または保持順の値列(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -242,22 +254,24 @@ class PointComponents(Components):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPositionZ(self, worldSpace: bool = ...) -> list[float]:
+    def getPositionZ(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[float]:
         """Z成分の現在値を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[float]: 保持順の座標値。
         """
         ...
-    def setPositionZ(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ...) -> PointComponents:
+    def setPositionZ(self, value: float | Iterable[float], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """Z成分だけを設定し、他の成分は指定空間の現在値を保つ。
 
         Args:
             value (float | Iterable[float]): 全要素に共通の値、または保持順の値列(cm)。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -272,13 +286,14 @@ class PointComponents(Components):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def getPosition(self, worldSpace: bool = ...) -> list[Vector]:
+    def getPosition(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Vector]:
         """保持番号の順に、頂点/CVの現在のXYZ座標をcmで取得する。
 
         UIの距離単位には換算せず、座標の取得に伴うMayaの評価が発生し得る。
 
         Args:
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[Vector]: 新しい座標値(:class:`~mlib.maths.vector.Vector`)のリスト。シーンを変更する
@@ -290,7 +305,7 @@ class PointComponents(Components):
             RuntimeError: Shapeが無効、またはMayaが座標取得を拒否した場合。
         """
         ...
-    def setPosition(self, value: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ...) -> PointComponents:
+    def setPosition(self, value: Iterable[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """保持する全頂点/CVを、同じcm絶対座標へ集める。移動量を加算する操作ではない。
 
         要素ごとに違う座標は :meth:`setPositions` を使う。
@@ -298,6 +313,7 @@ class PointComponents(Components):
         Args:
             value (Iterable[float] | om2.MPoint | om2.MVector): 全要素に共通の有限なXYZ(cm)。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -311,7 +327,7 @@ class PointComponents(Components):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def setPositions(self, values: Iterable[Iterable[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ...) -> PointComponents:
+    def setPositions(self, values: Iterable[Iterable[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """保持番号の順に、cm単位の絶対XYZ座標を設定する。
 
         件数・有限値・現在の番号範囲を先にすべて検証し、問題があればシーンを変更しない。
@@ -322,6 +338,7 @@ class PointComponents(Components):
             values (Iterable[Iterable[float] | om2.MPoint | om2.MVector]): 保持番号と同じ件数のXYZ(cm)。
                 :meth:`getPosition` の結果をそのまま受け付ける。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -337,7 +354,7 @@ class PointComponents(Components):
             NotImplementedError: fast=Trueで、入力履歴のあるShapeの場合。
         """
         ...
-    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., *, fast: bool = ...) -> PointComponents:
+    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., *, fast: bool = ..., ws: bool = ...) -> PointComponents:
         """保持する頂点/CVを、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
 
         Transform・トポロジー・CVのウェイト(w)は変更しない。複製・結合・片側からの対称化・
@@ -347,6 +364,7 @@ class PointComponents(Components):
             axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
                 (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
@@ -387,6 +405,12 @@ class PointComponents(Components):
         Returns:
             PointComponents: 自身。
         """
+        ...
+    def getFullName(self) -> list[str]:
+        """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def asString(self) -> list[str]:
+        """各要素の :meth:`~mlib.core.object.Object.asString` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
 
 def _point_value(value: Iterable[float] | om2.MPoint | om2.MVector) -> tuple[float, float, float]:

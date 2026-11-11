@@ -36,8 +36,8 @@ _INTERNAL_CHUNK_NAME = re.compile(r"mlib[A-Z]\w*\Z")
 _CHUNK_TARGET_LIMIT = 80
 #: このモジュールのファイル(表示名の組立てで、with文・デコレーターのフレームを飛ばすために使う)。
 _THIS_FILE = os.path.normcase(os.path.abspath(__file__))
-#: worldSpaceの代わりに書かれやすいキーワード(cmds.xformの ``ws``・PyMELの ``space``)。
-_SPACE_KEYWORDS = ("space", "ws")
+#: worldSpaceの代わりに書かれやすいキーワード(PyMELの ``space``)。``ws`` は worldSpace の短縮名として受ける。
+_SPACE_KEYWORDS = ("space",)
 
 # reloadはモジュール辞書を維持するため、廃止済みの公開名を取り除く。
 for _obsolete_name in ("undoable", "undo_chunk", "undo_transaction", "native_units",
@@ -362,7 +362,7 @@ def _edit_context(name, fast, *, transaction=False):
 def _transform_argument_hints(method):
     """位置・回転・マトリクスのメソッドへ、よくある引数の誤りの案内を付ける。
 
-    ``space=``・``ws=`` は ``worldSpace=True`` を案内するTypeErrorにし、``setTranslation(1, 2, 3)`` の
+    ``space=`` は ``worldSpace=True`` を案内するTypeErrorにし(``ws=`` は ``worldSpace`` の短縮名として受ける)、``setTranslation(1, 2, 3)`` の
     ように成分を分けて渡した場合は1つの列で渡す書き方を案内するTypeErrorにする。
     どちらも書込みの前に拒否する。``space=`` の別名は追加しない。
 

@@ -32,7 +32,7 @@ class ArgumentHintTest(_SpecCase):
         calls = (("setTranslation", ((1, 2, 3),)), ("getTranslation", ()), ("setRotate", ((1, 2, 3),)),
                  ("getRotate", ()), ("setMatrix", (node.getMatrix(),)), ("getMatrix", ()))
         for method, args in calls:
-            for keyword, value in (("space", "world"), ("ws", True)):
+            for keyword, value in (("space", "world"),):
                 with self.subTest(method=method, keyword=keyword):
                     self.flushUndo()
                     with self.assertRaisesRegex(TypeError, r"unexpected keyword argument '{}'; use worldSpace=True"

@@ -1182,6 +1182,70 @@ class Node(Object):
                 cmds.rename(self.getName(), name, ignoreShape=ignoreShape)
             return self
 
+    def duplicate(self, name=None, *, suffix=None, **kwargs):
+        """自身を複製し、複製した自身を同じ種類のラッパーで返す。
+
+        :func:`mlib.duplicate` (``cmds.duplicate``)へ委ね、1回のUndoで戻せる。
+        ``Joint`` なら ``Joint``、``Transform`` なら ``Transform`` のように、複製結果の
+        nodeTypeに対応するラッパーを返す。shape(``Mesh`` 等)を複製するとMayaは親のtransformごと
+        複製するため、その中で自身と同じ位置にある複製のshapeを返す。
+
+        Args:
+            name (str | None): 複製の名前。Noneは Maya の既定の名前(連番)。
+            suffix (str | None): 複製したノードと全DAG子孫の名前を「複製元の名前 + suffix」にする
+                (:func:`mlib.duplicate` の suffix と同じ)。Noneは改名しない。
+            **kwargs (object): ``cmds.duplicate`` のフラグ(``parentOnly``・``inputConnections``・
+                ``upstreamNodes`` 等。短縮名も可)。
+
+        Returns:
+            Node: 複製した自身。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合、または suffix が文字列・None以外の場合。
+            ValueError: suffix が不正な場合、または renameChildren=True と同時に指定した場合。
+            RuntimeError: ノードが無効(削除済み)の場合(``Cannot duplicate an invalid <クラス名>``)、
+                またはMayaが複製を拒否した場合。
+        """
+        # cmds.duplicateはnodesを参照するため、循環importを避けて関数内で読み込む。
+        from ..cmds.duplicate import duplicate
+
+        self._require_valid("duplicate")
+        if name is not None:
+            kwargs["name"] = name
+        copied = duplicate(self, suffix=suffix, **kwargs)
+        if not self.mnode().hasFn(om2.MFn.kShape) or copied.mnode().hasFn(om2.MFn.kShape):
+            return copied
+        # shapeの複製は親transformの複製になるため、同じ並びの位置にある子を自身の複製とする。
+        parent = om2.MFnDagNode(self.mpath().transform())
+        index = [parent.child(i) for i in range(parent.childCount())].index(self.mnode())
+        copied_fn = om2.MFnDagNode(copied.mnode())
+        if index >= copied_fn.childCount():
+            raise RuntimeError(f"Cannot find the duplicated shape of {self}")
+        return Node(copied_fn.child(index))
+
+    def select(self, **kwargs):
+        """自身を選択する。既定は今の選択を置き換える。
+
+        :func:`mlib.select` (``cmds.select``)へ委ね、1回のUndoで戻せる。
+
+        Args:
+            **kwargs (object): ``cmds.select`` のフラグ(``add``・``deselect``・``toggle``・
+                ``hierarchy`` 等。短縮名も可)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合。
+            RuntimeError: ノードが無効(削除済み)の場合(``Cannot select an invalid <クラス名>``)、
+                またはMayaが選択を拒否した場合。
+        """
+        # cmds.selectはnodesを参照するため、循環importを避けて関数内で読み込む。
+        from ..cmds.select import select
+
+        self._require_valid("select")
+        select(self, **kwargs)
+
     def getConnections(self, s=True, d=True, c=False, t=None, et=False, scn=False, source=True,
         destination=True, connections=False, type=None, exactType=False, skipConversionNodes=False,
         asPair=False, asNode=False, index=None):
@@ -2904,6 +2968,51 @@ class Nodes:
         others = other._items if isinstance(other, Nodes) else other
         return len(self._items) == len(others) and all(a == b for a, b in zip(self._items, others))
 
+    def __class_getitem__(cls, item):
+        """型注釈の ``Nodes[Transform]`` を実行時にも書けるようにし、クラス自身を返す。
+
+        型スタブでは ``Nodes`` は要素の型を引数に取り、``mlib.ls(type="transform")[0]`` を
+        ``Transform`` として補完する。実行時の要素の型は検証しない。
+
+        Args:
+            item (object): 要素の型。
+
+        Returns:
+            type: クラス自身。
+        """
+        return cls
+
+    def __getattr__(self, name):
+        """単数のノードのメソッドを、全要素へ保持順に呼ぶ関数として取得する。
+
+        このコレクションに無い公開メソッド名(``setTranslation`` 等)を取得すると、各要素の同名メソッドを
+        同じ引数で保持順に呼び、戻り値を保持順のリストで返す関数になる(:meth:`callEach` と同じ)。
+        全要素がメソッドを持ち有効であることを呼ぶ前に確かめ、通常は1回のUndoにまとめる。
+        ``fast=True`` はそのまま各メソッドへ渡す。空のコレクションでは ``item_class`` のメソッドを受け、空のリストを返す。
+
+        Args:
+            name (str): 単数のノードの公開メソッド名。
+
+        Returns:
+            Callable[..., list]: 各要素のメソッドを呼び、戻り値を保持順のリストで返す関数。
+
+        Raises:
+            AttributeError: 先頭 ``_`` の名前、またはどの要素(空なら ``item_class``)も持たないメソッド名の場合。
+        """
+        items = self.__dict__.get("_items")
+        classes = [type(node) for node in items] if items else [self.item_class]
+        if name.startswith("_") or items is None or not any(callable(getattr(cls, name, None)) for cls in classes):
+            raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
+
+        def forward(*args, **kwargs):
+            fast = kwargs.pop("fast", None)
+            return self._forward(name, args, fast, **kwargs)
+
+        forward.__name__ = name
+        forward.__qualname__ = f"{type(self).__name__}.{name}"
+        forward.__doc__ = f"各要素の {name}() を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"
+        return forward
+
     def __add__(self, other):
         """他のNodes・list・tupleを後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
 
@@ -3219,6 +3328,67 @@ class Nodes:
                     check(target)
         self._forward("setParent", (parent, relative, add), fast)
         return self
+
+    def getNames(self):
+        """保持順の各ノードの一意な名前を取得する(:meth:`Node.getName` の列)。
+
+        Returns:
+            list[str]: 保持順のノード名。
+
+        Raises:
+            RuntimeError: 無効なノードを含む場合。
+        """
+        return [node.getName() for node in self._items]
+
+    def select(self, **kwargs):
+        """全ノードを1回で選択する。既定は今の選択を置き換え、保持順に選択する。
+
+        :func:`mlib.select` (``cmds.select``)へ委ね、1回のUndoで戻せる。空の容器で置き換えると
+        選択を外す(``cmds.select`` に空の列を渡したときと同じ)。
+
+        Args:
+            **kwargs (object): ``cmds.select`` のフラグ(``add``・``deselect``・``toggle`` 等。短縮名も可)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合。
+            RuntimeError: 無効なノードを含む場合、またはMayaが選択を拒否した場合。
+        """
+        # cmds.selectはnodesを参照するため、循環importを避けて関数内で読み込む。
+        from ..cmds.select import select
+
+        for node in self._items:
+            node._require_valid("select")
+        select(list(self._items), **kwargs)
+
+    def callEach(self, method, *args, **kwargs):
+        """各ノードの公開メソッドを同じ引数で保持順に呼び、戻り値を保持順のリストで返す。
+
+        全要素がメソッドを持ち有効であることを呼ぶ前に確かめ、通常は1回のUndoにまとめる。
+        ``fast=True`` を渡すとそのまま各メソッドへ渡し、Undoのまとめは行わない。後続の要素で
+        失敗しても、先行の変更は自動では戻さない。要素ごとに違う引数で呼ぶ場合は ``for`` で単数を呼ぶ。
+
+        Args:
+            method (str): 単数のノードの公開メソッド名(``"resetAttrs"`` 等)。
+            *args (object): 各メソッドへ渡す位置引数。
+            **kwargs (object): 各メソッドへ渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値。
+
+        Raises:
+            TypeError: method が文字列でない場合、またはメソッドを持たない要素を含む場合。
+            ValueError: method が空、先頭 ``_`` の内部名、または特殊メソッドの場合。
+            RuntimeError: 無効なノードを含む場合。各メソッドの例外はそのまま送出する。
+        """
+        if not isinstance(method, str):
+            raise TypeError("method must be a method name string")
+        if not method or method.startswith("_"):
+            raise ValueError(f"method must be a public method name: {method!r}")
+        fast = kwargs.pop("fast", None)
+        return self._forward(method, args, fast, **kwargs)
 
     def copy(self):
         """同じ参照を共有する、同じ具象型の独立した容器を返す。

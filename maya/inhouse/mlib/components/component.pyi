@@ -5,7 +5,7 @@ import operator
 from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple
 import maya.api.OpenMaya as om2
 from ..core.object import Object, _missing_member_message
-from ..decorator import _require_bool
+from ..decorator import _edit_context, _require_bool
 from ..nodes.shape import Shape
 from typing import Any, Iterable, Iterator, Sequence
 from typing import overload
@@ -297,6 +297,24 @@ class Components:
             bool: 等しければTrue。対応しない型はNotImplemented。
         """
         ...
+    def __getattr__(self, name: str) -> Callable[..., list]:
+        """単数のコンポーネントのメソッドを、全要素へ保持順に呼ぶ関数として取得する。
+
+        このコレクションに無い公開メソッド名を取得すると、保持順の各単数参照(``component_class``)の
+        同名メソッドを同じ引数で呼び、戻り値を保持順のリストで返す関数になる。通常は1回のUndoにまとめ、
+        ``fast=True`` はそのまま各メソッドへ渡してUndoのまとめは行わない。後続の要素で失敗しても、
+        先行の変更は自動では戻さない。
+
+        Args:
+            name (str): 単数のコンポーネントの公開メソッド名。
+
+        Returns:
+            Callable[..., list]: 各要素のメソッドを呼び、戻り値を保持順のリストで返す関数。
+
+        Raises:
+            AttributeError: 先頭 ``_`` の名前、または ``component_class`` が持たないメソッド名の場合。
+        """
+        ...
     def __add__(self, other: Components | list | tuple) -> Components:
         """同じシェイプ・同じ種類の要素を後ろへ結合した、左辺と同じ型の新しいコレクションを返す。
 
@@ -515,6 +533,12 @@ class Components:
             axis: 座標成分の番号。0=X、1=Y、2=Z。
             **space: 座標空間の指定。worldSpace=Trueでワールド空間。
         """
+        ...
+    def getFullName(self) -> list[str]:
+        """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def asString(self) -> list[str]:
+        """各要素の :meth:`~mlib.core.object.Object.asString` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...
 _COMPONENTS_INIT: Any
 _COMPONENTS_ITER: Any

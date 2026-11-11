@@ -8,10 +8,10 @@ from maya.api.OpenMaya import MSpace
 from ..components.cv import CV, CVs
 from ..components.pointComponent import _mirror_plan, _write_points
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context, _require_bool
+from ..decorator import _edit_context, _pick_alias, _require_bool
 from ..maths.matrix import Matrix
 from ..maths.vector import Vector, _vectors_of_points
-from ..util import _finite, _world_space
+from ..util import _UNSET, _finite, _world_space
 from .shape import Shape
 from typing import Iterable, Sequence
 
@@ -193,12 +193,13 @@ class NurbsCurve(Shape):
             int: MFnNurbsCurve の kOpen、kClosed、kPeriodic のいずれか。
         """
         ...
-    def getLength(self, tolerance: float = ..., *, worldSpace: bool = ..., unit: str | None = ...) -> float:
+    def getLength(self, tolerance: float = ..., *, worldSpace: bool = ..., unit: str | None = ..., ws: bool = ...) -> float:
         """指定空間のカーブ長を取得する。シーンに計算ノードを作成しない。
 
         Args:
             tolerance (float): 弧長計算の許容誤差。内部距離単位で正の有限値。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             unit (str | None): 出力単位。既定はcm。Noneは現在の距離UI単位。
                 mm/cm/m/km/in/ft/yd/mi、またはMayaの長名。
 
@@ -212,11 +213,12 @@ class NurbsCurve(Shape):
             RuntimeError: 無効なカーブ、またはMayaが評価を拒否した場合。
         """
         ...
-    def getCvPositions(self, worldSpace: bool = ...) -> list[Vector]:
+    def getCvPositions(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Vector]:
         """CV の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[Vector]: CV 順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
@@ -224,7 +226,7 @@ class NurbsCurve(Shape):
                 そのまま :meth:`setCvPositions` へ渡せる。
         """
         ...
-    def setCvPositions(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ...) -> NurbsCurve:
+    def setCvPositions(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> NurbsCurve:
         """全CVの位置を一度に書き込み、自身を返す。
 
         :meth:`getCvPositions` と同じ並び・単位(内部単位cm)の点列を受け付け、通常は ``cmds.xform`` で
@@ -237,6 +239,7 @@ class NurbsCurve(Shape):
             points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): CV順の位置。各点は3個の
                 有限な数値。MPointはwで割らずにXYZを使う。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -250,7 +253,7 @@ class NurbsCurve(Shape):
             NotImplementedError: fast=Trueで、createへの入力(コンストラクションヒストリ)がある場合。
         """
         ...
-    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ...) -> NurbsCurve:
+    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ..., ws: bool = ...) -> NurbsCurve:
         """CV座標を、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
 
         Transform・次数・ノット・CVの順序とウェイト(w)は変更しない。共有Shapeの全インスタンスへ影響し、
@@ -263,6 +266,7 @@ class NurbsCurve(Shape):
             axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
                 (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
             indices (Iterable[int] | None): OpenMayaのCV番号。Noneは全CV、空列は変更なし。重複は1回だけ処理する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -278,7 +282,7 @@ class NurbsCurve(Shape):
             NotImplementedError: fast=Trueで、createへの入力(コンストラクションヒストリ)がある場合。
         """
         ...
-    def getCollocatedCVGroups(self, tolerance: float = ..., worldSpace: bool = ...) -> list[list[int]]:
+    def getCollocatedCVGroups(self, tolerance: float = ..., worldSpace: bool = ..., *, ws: bool = ...) -> list[list[int]]:
         """ほぼ同じ位置にある CV をグループ化して取得する。
 
         周期カーブの重複 CV や、クリーンアップ前のカーブの検証などに使う。
@@ -287,6 +291,7 @@ class NurbsCurve(Shape):
             tolerance (float): 同一位置とみなす距離の許容誤差(Maya API の
                 内部距離単位)。正の値を指定する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[list[int]]: 2個以上の CV が重なっているグループのみを、
@@ -307,7 +312,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getClosestPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> tuple[Vector, float]:
+    def getClosestPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, ws: bool = ...) -> tuple[Vector, float]:
         """指定した位置に最も近いカーブ上の点とそのパラメーターを取得する。
 
         ``nearestPointOnCurve`` ノードの ``result.position``・``result.parameter`` に相当する。
@@ -316,6 +321,7 @@ class NurbsCurve(Shape):
         Args:
             point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。worldSpaceと同じ空間で指定する。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             tuple[Vector, float]: 最も近い点(cm)とパラメーター。
@@ -326,12 +332,13 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getPointAtParam(self, param: float, worldSpace: bool = ...) -> Vector:
+    def getPointAtParam(self, param: float, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
         """パラメーターの位置を取得する。
 
         Args:
             param (float): :meth:`getParamRange` の範囲内のパラメーター。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector: 位置(cm)。``pointOnCurveInfo`` の ``position`` と同じ。
@@ -342,12 +349,13 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getTangentAtParam(self, param: float, worldSpace: bool = ...) -> Vector:
+    def getTangentAtParam(self, param: float, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
         """パラメーターの位置の、正規化した接線を取得する。
 
         Args:
             param (float): :meth:`getParamRange` の範囲内のパラメーター。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector: パラメーターの増える向きの単位ベクトル。``pointOnCurveInfo`` の ``normalizedTangent`` と同じ。
@@ -358,7 +366,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getNormalAtParam(self, param: float, worldSpace: bool = ...) -> Vector:
+    def getNormalAtParam(self, param: float, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
         """パラメーターの位置の、正規化した法線(``MFnNurbsCurve.normal``)を取得する。
 
         次数2以上は曲率の向き(主法線)、次数1はCVの平均の平面内で接線に直交する向き。
@@ -367,6 +375,7 @@ class NurbsCurve(Shape):
         Args:
             param (float): :meth:`getParamRange` の範囲内のパラメーター。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector: 単位ベクトル。
@@ -378,7 +387,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getLengthAtParam(self, param: float, worldSpace: bool = ..., *, unit: str | None = ...) -> float:
+    def getLengthAtParam(self, param: float, worldSpace: bool = ..., *, unit: str | None = ..., ws: bool = ...) -> float:
         """カーブの始点からパラメーターまでの弧長を取得する。
 
         ``arcLengthDimension`` の ``arcLength`` に相当する。シーンに計算ノードを作成しない。
@@ -386,6 +395,7 @@ class NurbsCurve(Shape):
         Args:
             param (float): :meth:`getParamRange` の範囲内のパラメーター。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             unit (str | None): 出力単位。既定はcm。Noneは現在の距離UI単位。:meth:`getLength` と同じ指定。
 
         Returns:
@@ -397,13 +407,14 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getParamAtLength(self, length: float, worldSpace: bool = ..., *, unit: str | None = ...) -> float:
+    def getParamAtLength(self, length: float, worldSpace: bool = ..., *, unit: str | None = ..., ws: bool = ...) -> float:
         """カーブの始点からの弧長に対応するパラメーターを取得する。
 
         Args:
             length (float): 0から全長(:meth:`getLength`)までの弧長。単位はunit。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
                 ワールド空間の弧長は親の非均等スケールを含む。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             unit (str | None): lengthの単位。既定はcm。Noneは現在の距離UI単位。:meth:`getLength` と同じ指定。
 
         Returns:
@@ -415,7 +426,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getParamsAlong(self, count: int, worldSpace: bool = ...) -> list[float]:
+    def getParamsAlong(self, count: int, worldSpace: bool = ..., *, ws: bool = ...) -> list[float]:
         """弧長で等間隔に並ぶパラメーターを取得する。
 
         開いたカーブ(``getForm()`` が kOpen)は両端を含み、間隔は全長/(count-1)。
@@ -425,6 +436,7 @@ class NurbsCurve(Shape):
         Args:
             count (int): 点の数。1以上。
             worldSpace (bool): Trueはワールド空間の弧長、Falseはローカル(オブジェクト)空間の弧長で等分する。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[float]: 始点から順のパラメーター。
@@ -435,7 +447,7 @@ class NurbsCurve(Shape):
             RuntimeError: 形状データを持たない空のシェイプの場合。
         """
         ...
-    def getMatricesAlong(self, count: int, up: Sequence[float] | om2.MVector | None = ..., *, aimAxis: str = ..., upAxis: str = ..., worldSpace: bool = ...) -> list[Matrix]:
+    def getMatricesAlong(self, count: int, up: Sequence[float] | om2.MVector | None = ..., *, aimAxis: str = ..., upAxis: str = ..., worldSpace: bool = ..., ws: bool = ...) -> list[Matrix]:
         """弧長で等間隔の各点に、接線を aimAxis へ向けたマトリクスを取得する。
 
         点の並びは :meth:`getParamsAlong` と同じ。各マトリクスは正規直交の右手系(スケール1)で、
@@ -455,6 +467,7 @@ class NurbsCurve(Shape):
             aimAxis (str): 接線へ向ける軸。"x"・"y"・"z"・"-x"・"-y"・"-z"。
             upAxis (str): up へ向ける軸。aimAxis と別の軸。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[Matrix]: 始点から順のマトリクス。

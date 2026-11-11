@@ -12,15 +12,30 @@ from ..core.registry import _inherited_node_types, _node_type_exists, _real_node
 from ..core.registry import _unknown_node_type_message
 from ..decorator import _edit_context, _merge_flags, _pick_alias, _require_bool, _validated_flags, undoChunk, undoTransaction
 from ..util import _ArgumentError, _UNSET, _angle_unit, _color_value, _time_unit
-from typing import Any, Callable, Iterable, Iterator, Literal, Sequence
+from typing import Any, Callable, Generic, Iterable, Iterator, Literal, Sequence
 from mlib.common.namespace import Namespace
 from mlib.components.component import Component
 from mlib.components.component import Components
+from mlib.maths.eulerRotate import EulerRotate
+from mlib.maths.matrix import Matrix
+from mlib.maths.quaternion import Quaternion
+from mlib.maths.scale import Scale
+from mlib.maths.shear import Shear
+from mlib.maths.translate import Translate
+from mlib.maths.vector import Vector
+from mlib.nodes.constraint import Constraint
 from mlib.nodes.dagNode import DagNode
+from mlib.nodes.dagPose import DagPose
 from mlib.nodes.shadingEngine import ShadingEngine
+from mlib.nodes.shape import Shape
+from mlib.nodes.skinCluster import SkinCluster
+from mlib.nodes.transform import Transform
 from mlib.plugs.plug import Plug
 from typing import overload
 from typing_extensions import Self
+from typing_extensions import TypeVar
+import os
+import pathlib
 
 _MOVABLE_NUMERIC_TYPES: dict
 _MULTI_COMPONENT_NUMERIC_TYPES: frozenset
@@ -749,6 +764,49 @@ class Node(Object):
             RuntimeError: ノードが無効(削除済み)の場合(``Cannot rename an invalid node``。
                 fastも同じ)、保持するDAGインスタンスが削除された場合、またはMayaが
                 改名を拒否した場合。
+        """
+        ...
+    def duplicate(self, name: str | None = ..., *, suffix: str | None = ..., **kwargs: object) -> Self:
+        """自身を複製し、複製した自身を同じ種類のラッパーで返す。
+
+        :func:`mlib.duplicate` (``cmds.duplicate``)へ委ね、1回のUndoで戻せる。
+        ``Joint`` なら ``Joint``、``Transform`` なら ``Transform`` のように、複製結果の
+        nodeTypeに対応するラッパーを返す。shape(``Mesh`` 等)を複製するとMayaは親のtransformごと
+        複製するため、その中で自身と同じ位置にある複製のshapeを返す。
+
+        Args:
+            name (str | None): 複製の名前。Noneは Maya の既定の名前(連番)。
+            suffix (str | None): 複製したノードと全DAG子孫の名前を「複製元の名前 + suffix」にする
+                (:func:`mlib.duplicate` の suffix と同じ)。Noneは改名しない。
+            **kwargs (object): ``cmds.duplicate`` のフラグ(``parentOnly``・``inputConnections``・
+                ``upstreamNodes`` 等。短縮名も可)。
+
+        Returns:
+            Node: 複製した自身。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合、または suffix が文字列・None以外の場合。
+            ValueError: suffix が不正な場合、または renameChildren=True と同時に指定した場合。
+            RuntimeError: ノードが無効(削除済み)の場合(``Cannot duplicate an invalid <クラス名>``)、
+                またはMayaが複製を拒否した場合。
+        """
+        ...
+    def select(self, **kwargs: object) -> None:
+        """自身を選択する。既定は今の選択を置き換える。
+
+        :func:`mlib.select` (``cmds.select``)へ委ね、1回のUndoで戻せる。
+
+        Args:
+            **kwargs (object): ``cmds.select`` のフラグ(``add``・``deselect``・``toggle``・
+                ``hierarchy`` 等。短縮名も可)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合。
+            RuntimeError: ノードが無効(削除済み)の場合(``Cannot select an invalid <クラス名>``)、
+                またはMayaが選択を拒否した場合。
         """
         ...
     @overload
@@ -1583,7 +1641,8 @@ class Node(Object):
         ...
 
 
-class Nodes:
+_NodeT = TypeVar("_NodeT", bound=Node, default=Node, covariant=True)
+class Nodes(Generic[_NodeT]):
     """型を検証し、入力順のノード参照を保持するコレクション。
 
     同一ノード・同一DAGパスの重複だけを除外する。異なるインスタンスパスは保持する。
@@ -1595,11 +1654,11 @@ class Nodes:
     ``item_class`` は派生コレクション(:class:`~mlib.nodes.joint.Joints` 等)が受け入れる
     ラッパー型を宣言するクラス属性。
     """
-    def __iter__(self) -> Iterator[Node]: ...
+    def __iter__(self) -> Iterator[_NodeT]: ...
     @overload
-    def __getitem__(self, index: int) -> Node: ...
+    def __getitem__(self, index: int) -> _NodeT: ...
     @overload
-    def __getitem__(self, index: slice) -> Nodes: ...
+    def __getitem__(self, index: slice) -> Nodes[_NodeT]: ...
     item_class: Any
     __hash__: None
     def __init__(self, names: object | Iterable[object] = ...) -> None:
@@ -1636,6 +1695,24 @@ class Nodes:
 
         Returns:
             bool: 要素数が等しく、各位置のNodeが ``==`` で等しければTrue。対応しない型はNotImplemented。
+        """
+        ...
+    def __getattr__(self, name: str) -> Callable[..., list]:
+        """単数のノードのメソッドを、全要素へ保持順に呼ぶ関数として取得する。
+
+        このコレクションに無い公開メソッド名(``setTranslation`` 等)を取得すると、各要素の同名メソッドを
+        同じ引数で保持順に呼び、戻り値を保持順のリストで返す関数になる(:meth:`callEach` と同じ)。
+        全要素がメソッドを持ち有効であることを呼ぶ前に確かめ、通常は1回のUndoにまとめる。
+        ``fast=True`` はそのまま各メソッドへ渡す。空のコレクションでは ``item_class`` のメソッドを受け、空のリストを返す。
+
+        Args:
+            name (str): 単数のノードの公開メソッド名。
+
+        Returns:
+            Callable[..., list]: 各要素のメソッドを呼び、戻り値を保持順のリストで返す関数。
+
+        Raises:
+            AttributeError: 先頭 ``_`` の名前、またはどの要素(空なら ``item_class``)も持たないメソッド名の場合。
         """
         ...
     def __add__(self, other: Nodes | list | tuple) -> Nodes:
@@ -1906,6 +1983,54 @@ class Nodes:
                 またはMayaが親の変更を拒否した場合。parent の検査はどの要素も変更する前に行う。
         """
         ...
+    def getNames(self) -> list[str]:
+        """保持順の各ノードの一意な名前を取得する(:meth:`Node.getName` の列)。
+
+        Returns:
+            list[str]: 保持順のノード名。
+
+        Raises:
+            RuntimeError: 無効なノードを含む場合。
+        """
+        ...
+    def select(self, **kwargs: object) -> None:
+        """全ノードを1回で選択する。既定は今の選択を置き換え、保持順に選択する。
+
+        :func:`mlib.select` (``cmds.select``)へ委ね、1回のUndoで戻せる。空の容器で置き換えると
+        選択を外す(``cmds.select`` に空の列を渡したときと同じ)。
+
+        Args:
+            **kwargs (object): ``cmds.select`` のフラグ(``add``・``deselect``・``toggle`` 等。短縮名も可)。
+
+        Returns:
+            None: 値を返さない。
+
+        Raises:
+            TypeError: フラグの長名・短名を同時に指定した場合。
+            RuntimeError: 無効なノードを含む場合、またはMayaが選択を拒否した場合。
+        """
+        ...
+    def callEach(self, method: str, *args: object, **kwargs: object) -> list:
+        """各ノードの公開メソッドを同じ引数で保持順に呼び、戻り値を保持順のリストで返す。
+
+        全要素がメソッドを持ち有効であることを呼ぶ前に確かめ、通常は1回のUndoにまとめる。
+        ``fast=True`` を渡すとそのまま各メソッドへ渡し、Undoのまとめは行わない。後続の要素で
+        失敗しても、先行の変更は自動では戻さない。要素ごとに違う引数で呼ぶ場合は ``for`` で単数を呼ぶ。
+
+        Args:
+            method (str): 単数のノードの公開メソッド名(``"resetAttrs"`` 等)。
+            *args (object): 各メソッドへ渡す位置引数。
+            **kwargs (object): 各メソッドへ渡すキーワード引数。
+
+        Returns:
+            list: 保持順の戻り値。
+
+        Raises:
+            TypeError: method が文字列でない場合、またはメソッドを持たない要素を含む場合。
+            ValueError: method が空、先頭 ``_`` の内部名、または特殊メソッドの場合。
+            RuntimeError: 無効なノードを含む場合。各メソッドの例外はそのまま送出する。
+        """
+        ...
     def copy(self) -> Nodes:
         """同じ参照を共有する、同じ具象型の独立した容器を返す。
 
@@ -2012,4 +2137,298 @@ class Nodes:
         Raises:
             TypeError: 名前とNodeが混在する場合。
         """
+        ...
+    def getShadingEngines(self) -> list[list[ShadingEngine]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getShadingEngines` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def sameNode(self, other: object) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.sameNode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isValid(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isValid` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isAlive(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isAlive` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def mnode(self) -> list[om2.MObject]:
+        """各要素の :meth:`~mlib.nodes.node.Node.mnode` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def mfn(self) -> list[om2.MFnDependencyNode]:
+        """各要素の :meth:`~mlib.nodes.node.Node.mfn` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getType(self, inherited: bool = ...) -> list[str | list[str]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getType` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def hasFn(self, fn: int) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.hasFn` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getTypeId(self) -> list[int]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getTypeId` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getPluginName(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getPluginName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getClassification(self) -> list[list[str]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getClassification` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isType(self, nodeType: str) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isType` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isLocked(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isLocked` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isFromReferencedFile(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isFromReferencedFile` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isAncestorOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isAncestorOf` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isParentOf(self, other: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isParentOf` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isRoot(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.isRoot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getNodeName(self, removeNamespace: bool = ...) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getNodeName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getNamespace(self) -> list[Namespace]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getNamespace` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setNamespace(self, namespace: str | Namespace, *, fast: bool = ...) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.setNamespace` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def delete(self, *, safe: bool = ..., fast: bool = ...) -> list[None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.delete` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def rename(self, name: str, ignoreShape: bool = ..., *, fast: bool = ...) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.rename` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def duplicate(self, name: str | None = ..., *, suffix: str | None = ..., **kwargs: object) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.duplicate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getConnections(self, s: bool = ..., d: bool = ..., c: bool = ..., t: str | None = ..., et: bool = ..., scn: bool = ..., source: bool = ..., destination: bool = ..., connections: bool = ..., type: str | None = ..., exactType: bool = ..., skipConversionNodes: bool = ..., asPair: bool = ..., asNode: bool = ..., index: int | None = ...) -> list[list | Plug | Node | tuple | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getConnections` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setKey(self, attributes: str | Iterable[str] | None = ..., *, unit: str | None = ..., timeUnit: str | None = ..., uiUnits: bool = ..., **kwargs) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.setKey` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def removeKey(self, attributes: str | Iterable[str] | None = ..., *, time: float | Sequence[float] | None = ..., timeUnit: str | None = ...) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.removeKey` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def moveKey(self, attributes: str | Iterable[str] | None = ..., *, time: float | Sequence[float] | None = ..., timeOffset: float = ..., valueOffset: float = ..., unit: str | None = ..., timeUnit: str | None = ...) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.moveKey` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getHistory(self, type: str | None = ..., future: bool = ...) -> list[list[Node]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getHistory` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def findCycles(self) -> list[list[list[Plug]]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.findCycles` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getPlugs(self, userDefined: bool = ..., includeChildren: bool = ..., *, writable: bool = ..., **listAttrFlags) -> list[list[Plug]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getPlugs` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getAliases(self) -> list[list[tuple[str, Plug]]]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getAliases` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def addAttr(self, longName: str = ..., type: str | None = ..., subType: str | None = ..., channelBox: bool = ..., childNames: Sequence[str] | None = ..., childShortNames: Sequence[str] | None = ..., childSuffixes: Sequence[str] | None = ..., proxy: Plug | str | None = ..., getPlug: bool = ..., *, safe: bool = ..., fast: bool = ..., unit: str = ..., timeUnit: str = ..., attributeType: str = ..., at: str = ..., binaryTag: str = ..., bt: str = ..., cachedInternally: bool = ..., ci: bool = ..., category: str | Sequence[str] = ..., ct: str | Sequence[str] = ..., dataType: str | Sequence[str] = ..., dt: str | Sequence[str] = ..., defaultValue: object = ..., dv: object = ..., disconnectBehaviour: int = ..., dcb: int = ..., edit: bool = ..., e: bool = ..., enforcingUniqueName: bool = ..., eun: bool = ..., enumName: str = ..., en: str = ..., exists: bool = ..., ex: bool = ..., fromPlugin: bool = ..., fp: bool = ..., hasMaxValue: bool = ..., hxv: bool = ..., hasMinValue: bool = ..., hnv: bool = ..., hasSoftMaxValue: bool = ..., hsx: bool = ..., hasSoftMinValue: bool = ..., hsn: bool = ..., hidden: bool = ..., h: bool = ..., indexMatters: bool = ..., im: bool = ..., internalSet: bool = ..., keyable: bool = ..., k: bool = ..., ln: str = ..., maxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., max: float | om2.MAngle | om2.MDistance | om2.MTime = ..., minValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., min: float | om2.MAngle | om2.MDistance | om2.MTime = ..., multi: bool = ..., m: bool = ..., niceName: str = ..., nn: str = ..., numberOfChildren: int = ..., nc: int = ..., parent: str = ..., p: str = ..., pxy: Plug | str | None = ..., query: bool = ..., q: bool = ..., readable: bool = ..., r: bool = ..., shortName: str = ..., sn: str = ..., softMaxValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smx: float | om2.MAngle | om2.MDistance | om2.MTime = ..., softMinValue: float | om2.MAngle | om2.MDistance | om2.MTime = ..., smn: float | om2.MAngle | om2.MDistance | om2.MTime = ..., storable: bool = ..., s: bool = ..., usedAsColor: bool = ..., uac: bool = ..., usedAsFilename: bool = ..., uaf: bool = ..., usedAsProxy: bool = ..., uap: bool = ..., worldSpace: bool = ..., ws: bool = ..., writable: bool = ..., w: bool = ..., cb: bool = ..., **kwargs) -> list[Plug | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.addAttr` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def moveAttrOrder(self, name: str, offset: int) -> list[Node]:
+        """各要素の :meth:`~mlib.nodes.node.Node.moveAttrOrder` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getPlug(self, name: str) -> list[Plug]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getPlug` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def hasAttr(self, name: str) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.node.Node.hasAttr` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getUuid(self) -> list[str | None]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getUuid` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getName(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getFullName(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.node.Node.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def asString(self) -> list[str]:
+        """各要素の :meth:`~mlib.core.object.Object.asString` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getSkinClusters(self) -> list[list[SkinCluster]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getSkinClusters` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getBindPoses(self) -> list[list[DagPose]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBindPoses` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def mpath(self) -> list[om2.MDagPath]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.mpath` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getRoot(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getRoot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getSiblings(self) -> list[list[DagNode]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getSiblings` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getBoundingBox(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[om2.MBoundingBox]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getBoundingBox` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isIntermediateObject(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isIntermediateObject` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getInstances(self, noSelf: bool = ...) -> list[list[DagNode]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getInstances` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getParents(self, indirect: bool = ...) -> list[list[Transform]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getParents` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getParent(self, step: int = ...) -> list[Transform | None]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getParent` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getChildren(self, shapes: bool = ..., intermediates: bool = ..., *, allDescendents: bool = ..., order: str = ..., leaves: bool = ..., includeSelf: bool = ..., underWorld: bool = ..., type: str | Iterable[str] | None = ...) -> list[list[DagNode]]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getChildren` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getShape(self, index: int = ..., intermediates: bool = ...) -> list[DagNode | None]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getShape` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isVisible(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isVisible` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getVisibility(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getVisibility` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getOutlinerVisibility(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getOutlinerVisibility` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setOutlinerVisibility(self, state: bool, *, fast: bool = ...) -> list[DagNode]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.setOutlinerVisibility` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getDisplayType(self) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.getDisplayType` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setDisplayType(self, kind: str, *, fast: bool = ...) -> list[DagNode]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.setDisplayType` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def isShadingOverridden(self) -> list[bool]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.isShadingOverridden` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setShadingOverride(self, enabled: bool, *, fast: bool = ...) -> list[DagNode]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.setShadingOverride` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def deleteHistory(self, keepDeformers: bool = ...) -> list[DagNode]:
+        """各要素の :meth:`~mlib.nodes.dagNode.DagNode.deleteHistory` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def addConstraint(self, sources: Node | str | Plug | Component | Components | om2.MObject | om2.MDagPath | om2.MPlug | Iterable, type: str = ..., maintainOffset: bool = ..., *, typ: str = ..., mo: bool = ..., createCache: Sequence[float] = ..., cc: Sequence[float] = ..., decompRotationToChild: bool = ..., dr: bool = ..., deleteCache: bool = ..., dc: bool = ..., edit: bool = ..., e: bool = ..., layer: str = ..., l: str = ..., name: str = ..., n: str = ..., query: bool = ..., q: bool = ..., remove: bool = ..., rm: bool = ..., skipRotate: str | Sequence[str] = ..., sr: str | Sequence[str] = ..., skipTranslate: str | Sequence[str] = ..., st: str | Sequence[str] = ..., targetList: bool = ..., tl: bool = ..., weight: float = ..., w: float = ..., weightAliasList: bool = ..., wal: bool = ..., offset: Sequence[float] = ..., o: Sequence[float] = ..., skip: str | Sequence[str] = ..., sk: str | Sequence[str] = ..., scaleCompensate: bool = ..., sc: bool = ..., aimVector: Sequence[float] = ..., aim: Sequence[float] = ..., upVector: Sequence[float] = ..., u: Sequence[float] = ..., worldUpObject: Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug = ..., wuo: Node | Plug | Component | str | om2.MObject | om2.MDagPath | om2.MPlug = ..., worldUpType: str = ..., wut: str = ..., worldUpVector: Sequence[float] = ..., wu: Sequence[float] = ..., **kwargs) -> list[Constraint]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.addConstraint` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def deleteConstraints(self, *, fast: bool = ...) -> list[list[str]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.deleteConstraints` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.scaleGeometry` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def mirrorGeometry(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.mirrorGeometry` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getPivot(self, worldSpace: bool = ..., *, kind: str = ..., ws: bool = ...) -> list[Translate]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getPivot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setPivot(self, value: Iterable[float], worldSpace: bool = ..., *, kind: str = ..., preserve: bool = ..., fast: bool = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setPivot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def centerPivot(self, *, fast: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.centerPivot` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getUnusedIntermediateShapes(self) -> list[list[Shape]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getUnusedIntermediateShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def deleteUnusedIntermediateShapes(self, *, fast: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.deleteUnusedIntermediateShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def addShape(self, shape: Shape | str, *, fast: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.addShape` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getShapes(self, intermediates: bool = ...) -> list[list[Shape]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def replaceShapes(self, source: Transform | Shape | str, *, keepSource: bool = ..., worldSpace: bool = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.replaceShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getCurveShapesData(self) -> list[dict]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getCurveShapesData` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setCurveShapesData(self, data: dict) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setCurveShapesData` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def exportCurveShapes(self, path: str | os.PathLike) -> list[pathlib.Path]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.exportCurveShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def importCurveShapes(self, path: str | os.PathLike) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.importCurveShapes` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getTransform(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getTransform` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def matchTransform(self, target: Transform | str | om2.MObject | om2.MDagPath, position: bool = ..., rotation: bool = ..., scale: bool = ..., pivots: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.matchTransform` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def mirrorTransform(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.mirrorTransform` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getMatrix(self, worldSpace: bool = ..., p: bool = ..., inv: bool = ..., *, ws: bool = ...) -> list[Matrix]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setMatrix(self, matrix: Matrix | Sequence[Any], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | dict[str, Translate | EulerRotate | Scale | Shear]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getTranslation(self, worldSpace: bool = ..., at: int = ..., *, ws: bool = ...) -> list[Translate]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getTranslation` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setTranslation(self, value: Iterable[float], worldSpace: bool = ..., at: int = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setTranslation` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getRotate(self, worldSpace: bool = ..., *, order: int | str | None = ..., ws: bool = ...) -> list[EulerRotate]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setRotate(self, value: Iterable[float] | EulerRotate | Quaternion, worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setRotate` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getScale(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Scale]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setScale(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setScale` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getShear(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Shear]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setShear(self, value: Iterable[float], worldSpace: bool = ..., safe: bool = ..., get: bool = ..., *, fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setShear` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getQuaternion(self, worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., *, ws: bool = ...) -> list[Quaternion]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setQuaternion(self, value: Quaternion | om2.MQuaternion | Iterable[float], worldSpace: bool = ..., ra: bool = ..., r: bool = ..., jo: bool = ..., safe: bool = ..., get: bool = ..., *, unit: str = ..., fast: bool = ..., ws: bool = ...) -> list[Transform | list[float]]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setQuaternion` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def makeIdentity(self, *, apply: bool = ..., a: bool = ..., jointOrient: bool = ..., jo: bool = ..., normal: int = ..., n: int = ..., preserveNormals: bool = ..., pn: bool = ..., rotate: bool = ..., r: bool = ..., scale: bool = ..., s: bool = ..., translate: bool = ..., t: bool = ..., query: bool = ..., q: bool = ..., edit: bool = ..., e: bool = ..., **kwargs: object) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.makeIdentity` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getOffsetParentMatrix(self) -> list[Matrix]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getOffsetParentMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setOffsetParentMatrix(self, matrix: Matrix | om2.MMatrix | Sequence[float], *, fast: bool = ...) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setOffsetParentMatrix` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def freezeToOffsetParent(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.freezeToOffsetParent` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def eulerFilter(self) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.eulerFilter` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def getClosestAxisToVector(self, refVector: Vector | Iterable[float], includeNegative: bool = ...) -> list[str]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.getClosestAxisToVector` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def setLimits(self, *, unit: str = ..., **limits: tuple[float | None, float | None] | None) -> list[Transform]:
+        """各要素の :meth:`~mlib.nodes.transform.Transform.setLimits` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
         ...

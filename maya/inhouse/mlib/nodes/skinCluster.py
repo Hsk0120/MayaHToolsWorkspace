@@ -16,9 +16,9 @@ import maya.cmds as cmds
 from ..core.fastWrite import require_range, require_writable, set_attr
 from ..core.ngSkinLayers import _layer_api, _move_layer_weights
 from ..core.object import Object
-from ..decorator import _edit_context, _require_bool, preservedSelection, undoChunk
+from ..decorator import _edit_context, _pick_alias, _require_bool, preservedSelection, undoChunk
 from ..maths import easing
-from ..util import _MIRROR_PLANES, _PointGrid, _mirror_axis, _world_space
+from ..util import _MIRROR_PLANES, _PointGrid, _UNSET, _mirror_axis, _world_space
 from .dagNode import DagNode
 from .geometryFilter import GeometryFilter
 from .joint import Joint, _unlocked_influences
@@ -378,7 +378,7 @@ class SkinCluster(GeometryFilter):
             pose.reset(self.getInfluences())
             return self
 
-    def restoreBindPose(self, worldSpace=True):
+    def restoreBindPose(self, worldSpace=_UNSET, *, ws=_UNSET):
         """接続されたポーズの全メンバーを保存姿勢へ復元する。
 
         ポーズを共有する別のskinClusterや、influence以外のメンバーにも影響する。
@@ -386,6 +386,7 @@ class SkinCluster(GeometryFilter):
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             SkinCluster: 自身。
@@ -393,6 +394,7 @@ class SkinCluster(GeometryFilter):
         Raises:
             RuntimeError: ポーズが未接続、ノードが無効、またはMayaが復元を拒否した場合。
         """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=True)
         with undoChunk("mlibSkinClusterRestoreBindPose"):
             ws = _world_space(worldSpace)
             pose = self.getBindPose()

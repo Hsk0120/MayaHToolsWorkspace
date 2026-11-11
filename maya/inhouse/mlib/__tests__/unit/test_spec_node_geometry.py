@@ -83,9 +83,10 @@ class VertexAdjacencyTest(_SpecCase):
         self.assertEqual(adjacency[3], [(2, 1.0), (0, 1.0)])
 
     def test_argument_errors(self):
-        """bool 以外の空間指定と、廃止した短縮名 ws は TypeError。"""
+        """bool 以外の空間指定と、worldSpace・ws の同時指定は TypeError。ws は worldSpace と同じ。"""
+        self.assertEqual(self.mesh.getVertexAdjacency(ws=True), self.mesh.getVertexAdjacency(worldSpace=True))
         with self.assertRaises(TypeError):
-            self.mesh.getVertexAdjacency(ws=True)
+            self.mesh.getVertexAdjacency(worldSpace=True, ws=True)
         with self.assertRaises(TypeError):
             self.mesh.getVertexAdjacency(worldSpace=1)
 

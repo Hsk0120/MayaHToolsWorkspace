@@ -13,9 +13,9 @@ from ..components.uv import UV, UVs
 from ..components.vertex import Vertex, Vertices
 from ..core import geometryEdit as geometry_edit
 from ..core.fastWrite import require_writable
-from ..decorator import _edit_context, _require_bool, undoChunk, undoTransaction
+from ..decorator import _edit_context, _pick_alias, _require_bool, undoChunk, undoTransaction
 from ..maths.vector import Vector, _vector_of, _vectors_of_points
-from ..util import _PointGrid, _checked_tolerance, _finite_vector, _mirror_axis, _world_space
+from ..util import _PointGrid, _UNSET, _checked_tolerance, _finite_vector, _mirror_axis, _world_space
 from .shape import Shape
 from typing import Any, Iterable, Sequence
 from mlib.components.component import Component
@@ -31,7 +31,7 @@ _UNSET_COLOR: Any
 
 class Mesh(Shape):
     """Maya mesh shape ノードのラッパー。"""
-    def reorderVertices(self, reference: Mesh | Node | str, uvSet: str = ..., tolerance: float = ..., *, fast: bool = ..., match: str = ..., worldSpace: bool = ...) -> Mesh:
+    def reorderVertices(self, reference: Mesh | Node | str, uvSet: str = ..., tolerance: float = ..., *, fast: bool = ..., match: str = ..., worldSpace: bool = ..., ws: bool = ...) -> Mesh:
         """UVまたは頂点位置の一意な対応で、対象の頂点番号を基準メッシュへ合わせる。
 
         頂点位置・面順/向き・UV・法線・面マテリアルは保持する。エッジ番号は変わり得る。
@@ -46,6 +46,7 @@ class Mesh(Shape):
                 既定FalseはUndo有効が必須で、非ゼロtweakは未対応。
             match (str): 既定uv、またはposition。
             worldSpace (bool): 位置照合でTrueはワールド空間、Falseは各Shapeのオブジェクト空間。UV照合では使わない。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Mesh: 自身。番号対応が既に同一なら再構築せず返し、再構築用の制限検査にも進まない。
@@ -131,18 +132,19 @@ class Mesh(Shape):
             int: メッシュのエッジ数。
         """
         ...
-    def getPoints(self, worldSpace: bool = ...) -> list[Vector]:
+    def getPoints(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[Vector]:
         """全頂点の位置を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[Vector]: 頂点番号順の位置(:class:`~mlib.maths.vector.Vector`)。距離は Maya API の
                 内部単位(cm)。そのまま :meth:`setPoints` へ渡せる。
         """
         ...
-    def setPoints(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ...) -> Mesh:
+    def setPoints(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, fast: bool = ..., ws: bool = ...) -> Mesh:
         """全頂点の位置を一度に書き込み、自身を返す。
 
         :meth:`getPoints` と同じ並び・単位(内部単位cm)の点列を受け付け、通常は ``cmds.xform`` で
@@ -155,6 +157,7 @@ class Mesh(Shape):
                 :meth:`getPoints` の結果(list[Vector])・3個の数値のtupleの列・``om2.MPointArray`` を
                 そのまま受け付ける。各点は3個の有限な数値。MPointはwで割らずにXYZを使う。
             worldSpace (bool): Trueはワールド空間、Falseはローカル(オブジェクト)空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
 
         Returns:
@@ -173,7 +176,7 @@ class Mesh(Shape):
             ``fast=True`` は全頂点をまとめて書くため、頂点数が多いほど差が大きい。
         """
         ...
-    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ...) -> Mesh:
+    def mirror(self, axis: str | int = ..., worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int] | None = ..., *, fast: bool = ..., ws: bool = ...) -> Mesh:
         """頂点座標を、指定空間の中心pivotに対して反転する(``2 * pivot - 現在座標``)。
 
         Transform・トポロジー(頂点番号・面の接続と頂点順)は変更しない。共有Shapeの全インスタンスへ影響する。
@@ -186,6 +189,7 @@ class Mesh(Shape):
             axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、またはミラー面 ``"YZ"``・``"XZ"``・``"XY"``
                 (x⇔YZ、y⇔XZ、z⇔XY。文字の順序・大文字小文字は問わない)、または0/1/2。
             worldSpace (bool): Trueは保持DAGパスのワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             pivot (Iterable[float]): 指定空間の反転中心XYZ(cm)。既定は原点で、Transformのピボットとは独立。
             indices (Iterable[int] | None): 頂点番号。Noneは全頂点、空列は変更なし。重複は1回だけ処理する。
             fast (bool): TrueはUndoなしのOpenMaya更新。既定False。
@@ -201,11 +205,12 @@ class Mesh(Shape):
             NotImplementedError: fast=Trueで、inMeshへの入力(コンストラクションヒストリ)がある場合。
         """
         ...
-    def getVertexNormals(self, worldSpace: bool = ..., angleWeighted: bool = ...) -> list[Vector]:
+    def getVertexNormals(self, worldSpace: bool = ..., angleWeighted: bool = ..., *, ws: bool = ...) -> list[Vector]:
         """各頂点に接する面頂点法線を平均し、頂点ごとの法線を取得する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             angleWeighted (bool): True の場合は隣接面の角度でウェイト付けした法線を取得する。
 
         Returns:
@@ -213,11 +218,12 @@ class Mesh(Shape):
                 角度によるウェイト付けを行わない。MFnMesh.getVertexNormals() を使用する。
         """
         ...
-    def getVertexAdjacency(self, worldSpace: bool = ...) -> list[list[tuple[int, float]]]:
+    def getVertexAdjacency(self, worldSpace: bool = ..., *, ws: bool = ...) -> list[list[tuple[int, float]]]:
         """頂点IDごとの隣接頂点とエッジ長を照会する。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[list[tuple[int, float]]]: 頂点ID順の隣接リスト。
@@ -240,7 +246,7 @@ class Mesh(Shape):
             list[tuple[int, int, int]]: 三角形ごとの頂点番号。フェース番号の順で、各フェース内は Maya の分割順。
         """
         ...
-    def getMirrorVertexMap(self, axis: str | int = ..., tolerance: float = ..., worldSpace: bool = ...) -> dict[int, int]:
+    def getMirrorVertexMap(self, axis: str | int = ..., tolerance: float = ..., worldSpace: bool = ..., *, ws: bool = ...) -> dict[int, int]:
         """頂点ごとに、位置を軸で反転した反対側の頂点を取得する。
 
         反転した位置から ``tolerance`` 以内で最も近い頂点を反対側とする。トポロジーは見ない。
@@ -249,6 +255,7 @@ class Mesh(Shape):
             axis (str | int): 反転する軸 ``"x"``・``"y"``・``"z"``、ミラー面 ``"YZ"``・``"XZ"``・``"XY"``、または0/1/2。既定 ``"x"``。
             tolerance (float): 反転した位置と頂点の距離の許容量(cm)。正の有限値。既定0.01。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             dict[int, int]: {頂点番号: 反対側の頂点番号}。反対側が見つからない頂点は含めない。
@@ -259,7 +266,7 @@ class Mesh(Shape):
             ValueError: axisが不正、またはtoleranceが正の有限値でない場合。
         """
         ...
-    def getClosestVertex(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> Vertex:
+    def getClosestVertex(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, ws: bool = ...) -> Vertex:
         """指定した位置に最も近い頂点を取得する。
 
         頂点の位置だけで比べる(面の上の最近点ではない)。多数の点を調べるなら :meth:`getClosestVertices` を使う。
@@ -267,6 +274,7 @@ class Mesh(Shape):
         Args:
             point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vertex: 最も近い頂点。
@@ -276,7 +284,7 @@ class Mesh(Shape):
             ValueError: 成分が有限でない、またはメッシュに頂点が無い場合。
         """
         ...
-    def getClosestVertices(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ...) -> list[int]:
+    def getClosestVertices(self, points: Iterable[Sequence[float] | om2.MPoint | om2.MVector], worldSpace: bool = ..., *, ws: bool = ...) -> list[int]:
         """点ごとに、最も近い頂点の番号を取得する。
 
         頂点の位置に一様な格子を作って探す(面の上の最近点ではない)。
@@ -284,6 +292,7 @@ class Mesh(Shape):
         Args:
             points (Iterable[Sequence[float] | om2.MPoint | om2.MVector]): 位置(cm)の並び。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[int]: 点の順の、最も近い頂点の番号。
@@ -360,7 +369,7 @@ class Mesh(Shape):
             int: UV 数。
         """
         ...
-    def getClosestPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> tuple[Vector, int]:
+    def getClosestPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, ws: bool = ...) -> tuple[Vector, int]:
         """指定した位置に最も近い、メッシュの面の上の点を取得する。
 
         ``MFnMesh.getClosestPoint`` を使う。頂点だけを比べる :meth:`getClosestVertex` と違い、
@@ -369,6 +378,7 @@ class Mesh(Shape):
         Args:
             point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             tuple[Vector, int]: 面の上の最も近い点(cm)と、その点を含む面の番号。
@@ -378,7 +388,7 @@ class Mesh(Shape):
             ValueError: 成分が有限でない、またはメッシュに面が無い場合。
         """
         ...
-    def getClosestNormal(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ...) -> Vector:
+    def getClosestNormal(self, point: Sequence[float] | om2.MPoint | om2.MVector, worldSpace: bool = ..., *, ws: bool = ...) -> Vector:
         """指定した位置に最も近い面の上の点で、補間した法線を取得する。
 
         最も近い点を含む三角形の3つの面頂点法線(ハード/ソフトエッジを反映した、表示に使う法線)を、
@@ -388,6 +398,7 @@ class Mesh(Shape):
         Args:
             point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector: 長さ1の法線。ワールド空間ではオブジェクト空間の法線をマトリクスの逆転置で変換する。
@@ -401,7 +412,7 @@ class Mesh(Shape):
             メッシュのワールド空間では、:meth:`getClosestPoint` と違う面の点になることがある。
         """
         ...
-    def intersect(self, origin: Sequence[float] | om2.MPoint | om2.MVector, direction: Sequence[float] | om2.MVector, *, maxDistance: float | None = ..., worldSpace: bool = ...) -> list[tuple[Vector, int, float]]:
+    def intersect(self, origin: Sequence[float] | om2.MPoint | om2.MVector, direction: Sequence[float] | om2.MVector, *, maxDistance: float | None = ..., worldSpace: bool = ..., ws: bool = ...) -> list[tuple[Vector, int, float]]:
         """半直線とメッシュの交点を、近い順に取得する。
 
         ``MFnMesh.allIntersections`` を使い、``origin`` から ``direction`` の向きへだけ調べる(逆向きは調べない)。
@@ -412,6 +423,7 @@ class Mesh(Shape):
             direction (Sequence[float] | om2.MVector): 向き。長さは問わない(内部で長さ1にする)。
             maxDistance (float | None): 始点からの最大距離(cm)。正の有限値。Noneは制限なし。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。入力と戻り値の空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             list[tuple[Vector, int, float]]: (交点、面の番号、始点からの距離cm)の距離の昇順。
@@ -426,7 +438,7 @@ class Mesh(Shape):
             Mayaの交差判定は単精度(float)で計算するため、交点と距離は1e-5程度の誤差を含む。
         """
         ...
-    def getUVAtPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, uvSet: str | None = ..., worldSpace: bool = ...) -> tuple[float, float]:
+    def getUVAtPoint(self, point: Sequence[float] | om2.MPoint | om2.MVector, uvSet: str | None = ..., worldSpace: bool = ..., *, ws: bool = ...) -> tuple[float, float]:
         """指定した位置に最も近い面の上の点の UV を取得する。
 
         位置が面の上に無ければ、最も近い面の上の点の UV になる。最も近い点を含む三角形の3つの面頂点UVを、
@@ -437,6 +449,7 @@ class Mesh(Shape):
             point (Sequence[float] | om2.MPoint | om2.MVector): 位置(cm)。
             uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             tuple[float, float]: (u, v)。
@@ -450,7 +463,7 @@ class Mesh(Shape):
             最も近い点は :meth:`getClosestNormal` と同じくオブジェクト空間で探す。
         """
         ...
-    def getPointAtUV(self, u: float, v: float, uvSet: str | None = ..., worldSpace: bool = ...) -> Vector | None:
+    def getPointAtUV(self, u: float, v: float, uvSet: str | None = ..., worldSpace: bool = ..., *, ws: bool = ...) -> Vector | None:
         """UV の位置に対応する、面の上の点を取得する。
 
         面番号の順に、UVの範囲に (u, v) を含む面を ``MFnMesh.getPointAtUV`` で調べ、最初に見つかった面の点を返す。
@@ -461,6 +474,7 @@ class Mesh(Shape):
             v (float): V座標。
             uvSet (str | None): UVセットの名前。Noneは現在のUVセット。
             worldSpace (bool): Trueはワールド空間、Falseはオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Vector | None: 面の上の点(cm)。どの面のUVにも含まれない位置ならNone。

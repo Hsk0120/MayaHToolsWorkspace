@@ -28,6 +28,8 @@ from ..util import _UNSET
 from typing import Literal
 from mlib.nodes.addDoubleLinear import AddDoubleLinear
 from mlib.nodes.aimConstraint import AimConstraint
+from mlib.nodes.aimMatrix import AimMatrix
+from mlib.nodes.angleBetween import AngleBetween
 from mlib.nodes.animCurve import AnimCurve
 from mlib.nodes.animCurveTA import AnimCurveTA
 from mlib.nodes.animCurveTL import AnimCurveTL
@@ -38,28 +40,36 @@ from mlib.nodes.animCurveUL import AnimCurveUL
 from mlib.nodes.animCurveUT import AnimCurveUT
 from mlib.nodes.animCurveUU import AnimCurveUU
 from mlib.nodes.blendColors import BlendColors
+from mlib.nodes.blendMatrix import BlendMatrix
 from mlib.nodes.blendShape import BlendShape
 from mlib.nodes.blendWeighted import BlendWeighted
 from mlib.nodes.blinn import Blinn
 from mlib.nodes.camera import Camera
 from mlib.nodes.clamp import Clamp
 from mlib.nodes.cluster import Cluster
+from mlib.nodes.composeMatrix import ComposeMatrix
 from mlib.nodes.condition import Condition
 from mlib.nodes.constraint import Constraint
 from mlib.nodes.container import Container
+from mlib.nodes.curveInfo import CurveInfo
 from mlib.nodes.dagContainer import DagContainer
 from mlib.nodes.dagNode import DagNode
 from mlib.nodes.dagPose import DagPose
+from mlib.nodes.decomposeMatrix import DecomposeMatrix
 from mlib.nodes.displayLayer import DisplayLayer
+from mlib.nodes.distanceBetween import DistanceBetween
 from mlib.nodes.file import File
+from mlib.nodes.fourByFourMatrix import FourByFourMatrix
 from mlib.nodes.geometryConstraint import GeometryConstraint
 from mlib.nodes.geometryFilter import GeometryFilter
 from mlib.nodes.ikHandle import IkHandle
+from mlib.nodes.inverseMatrix import InverseMatrix
 from mlib.nodes.joint import Joint
 from mlib.nodes.lambert import Lambert
 from mlib.nodes.locator import Locator
 from mlib.nodes.mesh import Mesh
 from mlib.nodes.multDoubleLinear import MultDoubleLinear
+from mlib.nodes.multMatrix import MultMatrix
 from mlib.nodes.multiplyDivide import MultiplyDivide
 from mlib.nodes.node import Node
 from mlib.nodes.normalConstraint import NormalConstraint
@@ -68,14 +78,18 @@ from mlib.nodes.nurbsSurface import NurbsSurface
 from mlib.nodes.objectSet import ObjectSet
 from mlib.nodes.orientConstraint import OrientConstraint
 from mlib.nodes.paintableShadingDependNode import PaintableShadingDependNode
+from mlib.nodes.pairBlend import PairBlend
 from mlib.nodes.parentConstraint import ParentConstraint
 from mlib.nodes.phong import Phong
 from mlib.nodes.phongE import PhongE
+from mlib.nodes.pickMatrix import PickMatrix
 from mlib.nodes.place2dTexture import Place2dTexture
 from mlib.nodes.place3dTexture import Place3dTexture
 from mlib.nodes.plusMinusAverage import PlusMinusAverage
 from mlib.nodes.pointConstraint import PointConstraint
+from mlib.nodes.pointOnCurveInfo import PointOnCurveInfo
 from mlib.nodes.pointOnPolyConstraint import PointOnPolyConstraint
+from mlib.nodes.pointOnSurfaceInfo import PointOnSurfaceInfo
 from mlib.nodes.poleVectorConstraint import PoleVectorConstraint
 from mlib.nodes.reference import Reference
 from mlib.nodes.reflect import Reflect
@@ -93,6 +107,7 @@ from mlib.nodes.tangentConstraint import TangentConstraint
 from mlib.nodes.texture2d import Texture2d
 from mlib.nodes.transform import Transform
 from mlib.nodes.unitConversion import UnitConversion
+from mlib.nodes.vectorProduct import VectorProduct
 from typing import overload
 
 
@@ -102,6 +117,10 @@ def createNode(type: Literal["addDL"], *, fast: bool = ..., name: str = ..., n: 
 def createNode(type: Literal["addDoubleLinear"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AddDoubleLinear: ...
 @overload
 def createNode(type: Literal["aimConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AimConstraint: ...
+@overload
+def createNode(type: Literal["aimMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AimMatrix: ...
+@overload
+def createNode(type: Literal["angleBetween"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AngleBetween: ...
 @overload
 def createNode(type: Literal["animCurve"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> AnimCurve: ...
 @overload
@@ -123,6 +142,8 @@ def createNode(type: Literal["animCurveUU"], *, fast: bool = ..., name: str = ..
 @overload
 def createNode(type: Literal["blendColors"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendColors: ...
 @overload
+def createNode(type: Literal["blendMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendMatrix: ...
+@overload
 def createNode(type: Literal["blendShape"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendShape: ...
 @overload
 def createNode(type: Literal["blendWeighted"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> BlendWeighted: ...
@@ -135,11 +156,15 @@ def createNode(type: Literal["clamp"], *, fast: bool = ..., name: str = ..., n: 
 @overload
 def createNode(type: Literal["cluster"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Cluster: ...
 @overload
+def createNode(type: Literal["composeMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> ComposeMatrix: ...
+@overload
 def createNode(type: Literal["condition"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Condition: ...
 @overload
 def createNode(type: Literal["constraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Constraint: ...
 @overload
 def createNode(type: Literal["container"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Container: ...
+@overload
+def createNode(type: Literal["curveInfo"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> CurveInfo: ...
 @overload
 def createNode(type: Literal["dagContainer"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> DagContainer: ...
 @overload
@@ -147,15 +172,23 @@ def createNode(type: Literal["dagNode"], *, fast: bool = ..., name: str = ..., n
 @overload
 def createNode(type: Literal["dagPose"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> DagPose: ...
 @overload
+def createNode(type: Literal["decomposeMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> DecomposeMatrix: ...
+@overload
 def createNode(type: Literal["displayLayer"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> DisplayLayer: ...
 @overload
+def createNode(type: Literal["distanceBetween"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> DistanceBetween: ...
+@overload
 def createNode(type: Literal["file"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> File: ...
+@overload
+def createNode(type: Literal["fourByFourMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> FourByFourMatrix: ...
 @overload
 def createNode(type: Literal["geometryConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> GeometryConstraint: ...
 @overload
 def createNode(type: Literal["geometryFilter"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> GeometryFilter: ...
 @overload
 def createNode(type: Literal["ikHandle"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> IkHandle: ...
+@overload
+def createNode(type: Literal["inverseMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> InverseMatrix: ...
 @overload
 def createNode(type: Literal["joint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Joint: ...
 @overload
@@ -168,6 +201,8 @@ def createNode(type: Literal["mesh"], *, fast: bool = ..., name: str = ..., n: s
 def createNode(type: Literal["multDL"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultDoubleLinear: ...
 @overload
 def createNode(type: Literal["multDoubleLinear"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultDoubleLinear: ...
+@overload
+def createNode(type: Literal["multMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultMatrix: ...
 @overload
 def createNode(type: Literal["multiplyDivide"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> MultiplyDivide: ...
 @overload
@@ -183,11 +218,15 @@ def createNode(type: Literal["orientConstraint"], *, fast: bool = ..., name: str
 @overload
 def createNode(type: Literal["paintableShadingDependNode"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PaintableShadingDependNode: ...
 @overload
+def createNode(type: Literal["pairBlend"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PairBlend: ...
+@overload
 def createNode(type: Literal["parentConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> ParentConstraint: ...
 @overload
 def createNode(type: Literal["phong"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Phong: ...
 @overload
 def createNode(type: Literal["phongE"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PhongE: ...
+@overload
+def createNode(type: Literal["pickMatrix"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PickMatrix: ...
 @overload
 def createNode(type: Literal["place2dTexture"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Place2dTexture: ...
 @overload
@@ -197,7 +236,11 @@ def createNode(type: Literal["plusMinusAverage"], *, fast: bool = ..., name: str
 @overload
 def createNode(type: Literal["pointConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PointConstraint: ...
 @overload
+def createNode(type: Literal["pointOnCurveInfo"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PointOnCurveInfo: ...
+@overload
 def createNode(type: Literal["pointOnPolyConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PointOnPolyConstraint: ...
+@overload
+def createNode(type: Literal["pointOnSurfaceInfo"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PointOnSurfaceInfo: ...
 @overload
 def createNode(type: Literal["poleVectorConstraint"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> PoleVectorConstraint: ...
 @overload
@@ -232,6 +275,8 @@ def createNode(type: Literal["texture2d"], *, fast: bool = ..., name: str = ...,
 def createNode(type: Literal["transform"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Transform: ...
 @overload
 def createNode(type: Literal["unitConversion"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> UnitConversion: ...
+@overload
+def createNode(type: Literal["vectorProduct"], *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> VectorProduct: ...
 @overload
 def createNode(type: str, *, fast: bool = ..., name: str = ..., n: str = ..., parent: object = ..., p: object = ..., shared: bool = ..., s: bool = ..., skipSelect: bool = ..., ss: bool = ..., **kwargs: object) -> Node:
     """Mayaノードを作成し、実際の型に対応するラッパーを返す。

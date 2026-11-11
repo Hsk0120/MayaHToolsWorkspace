@@ -15,12 +15,13 @@ _CALCULATION_TYPES = (
     ("remapValue", "RemapValue"), ("reverse", "Reverse"),
     ("setRange", "SetRange"), ("unitConversion", "UnitConversion"),
 )
+#: 3.0.0 で廃止したアトリビュートごとの専用メソッド(12.2.0 で戻したのは setInput・getResult・getOutputPlug・
+#: setOperation 等の意味のある操作だけで、これらは戻さない)。
 _REMOVED_METHODS = {
-    "getInputPlug", "setInput", "connectInput", "getResult", "getColorPlug", "getColor",
-    "setColor", "connectColor", "setBlender", "getInputIndices", "getInputPlugs",
-    "getWeights", "getWeight", "setWeight", "getRange", "setRange", "getOperation",
-    "setOperation", "setTrueValue", "setFalseValue", "removeInput", "getOutputPlug",
-    "getRampPoints", "setRampPoint", "removeRampPoint", "setFactor",
+    "getInputPlug", "connectInput", "getColorPlug", "getColor",
+    "setColor", "connectColor", "setBlender", "getInputPlugs",
+    "getWeights", "getWeight", "setWeight", "getRange", "setRange",
+    "setTrueValue", "setFalseValue", "setRampPoint", "removeRampPoint", "setFactor",
 }
 
 

@@ -8,8 +8,8 @@ import maya.api.OpenMaya as om2
 import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context
-from ..util import _world_space
+from ..decorator import _edit_context, _pick_alias
+from ..util import _UNSET, _world_space
 from .dagNode import DagNode
 from .transform import Transform
 from typing import Iterable
@@ -39,7 +39,7 @@ class Shape(DagNode):
             NotImplementedError: fastで、移す先に同じ名前の子がある場合(Mayaの改名の規則を再現しないため)。
         """
         ...
-    def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ...) -> Shape:
+    def scaleGeometry(self, scale: float | Iterable[float], worldSpace: bool = ..., pivot: Iterable[float] = ..., indices: Iterable[int | tuple[int, int]] | None = ..., *, fast: bool = ..., ws: bool = ...) -> Shape:
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
         Transformのマトリクス・面の頂点順は変えず、共有形状は全インスタンスに影響する。
@@ -48,6 +48,7 @@ class Shape(DagNode):
         Args:
             scale (float | Iterable[float]): 有限な一様倍率、またはXYZ倍率。負数・0も可。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
                 Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。

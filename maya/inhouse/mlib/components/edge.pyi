@@ -109,6 +109,12 @@ class Edges(Components):
             RuntimeError: シェイプが無効な場合。
         """
         ...
+    def getFullName(self) -> list[str]:
+        """各要素の :meth:`~mlib.components.component.Component.getFullName` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
+    def asString(self) -> list[str]:
+        """各要素の :meth:`~mlib.core.object.Object.asString` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。"""
+        ...
 
 
 class _Topology:

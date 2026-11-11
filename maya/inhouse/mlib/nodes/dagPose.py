@@ -8,9 +8,9 @@ import maya.cmds as cmds
 
 from ..core.nodeEdit import require_editable
 from ..core.object import Object
-from ..decorator import _require_bool, undoChunk, undoTransaction
+from ..decorator import _pick_alias, _require_bool, undoChunk, undoTransaction
 from ..maths import Matrix
-from ..util import _world_space
+from ..util import _UNSET, _world_space
 from .node import Node, Nodes
 
 
@@ -115,7 +115,7 @@ class DagPose(Node):
                 return index
         raise ValueError(f"Not a member of {name}: {node.getFullName()}")
 
-    def getMatrix(self, member, worldSpace=False):
+    def getMatrix(self, member, worldSpace=_UNSET, *, ws=_UNSET):
         """指定メンバーの保存マトリクスを、独立したMatrixとして取得する。
 
         membersと共通の論理番号でworldMatrixまたはxformMatrixを読む。現在のTransformの
@@ -125,6 +125,7 @@ class DagPose(Node):
             member (Node | str): このポーズの保存メンバー。
             worldSpace (bool): Trueは保存したワールドマトリクス、Falseは保存したローカルの
                 マトリクス(xformMatrix)。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             Matrix: 保存マトリクスの新しいコピー。変更してもポーズやシーンは変化しない。
@@ -134,6 +135,7 @@ class DagPose(Node):
             ValueError: このポーズのメンバーでない場合。
             RuntimeError: 無効なdagPoseの場合。
         """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         ws = _world_space(worldSpace)
         index = self.getMemberIndex(member)
         attribute = "worldMatrix" if ws else "xformMatrix"
@@ -185,11 +187,12 @@ class DagPose(Node):
                     nodes.append(node)
         return nodes
 
-    def restore(self, worldSpace=False):
+    def restore(self, worldSpace=_UNSET, *, ws=_UNSET):
         """保存した姿勢へ戻す。接続やロックの解除は行わない。
 
         Args:
             worldSpace (bool): Trueはワールド空間、Falseはローカル空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
 
         Returns:
             DagPose: 自身。
@@ -197,6 +200,7 @@ class DagPose(Node):
         Raises:
             RuntimeError: 無効なノード、またはMayaが復元を拒否した場合。
         """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         with undoChunk("mlibDagPoseRestore"):
             ws = _world_space(worldSpace)
             cmds.dagPose(self._pose_name(), restore=True, g=ws)

@@ -252,7 +252,7 @@ class ModuleStub:
         "Plug": {"_registry", "_reader", "_node", "_mplug", "_attribute"},
     }
 
-    def __init__(self, name, path, index, overloads, collections=None, root_classes=None):
+    def __init__(self, name, path, index, overloads, collections=None, root_classes=None, forwards=None):
         self.name = name
         self.path = path
         self.source = path.read_text(encoding="utf-8")
@@ -261,6 +261,7 @@ class ModuleStub:
         self.overloads = overloads
         self.collections = collections or {}
         self.root_classes = root_classes or {}
+        self.forwards = forwards or {}
         self.bound = set()
         self.variables = set()
         self.imports = []
@@ -329,6 +330,10 @@ class ModuleStub:
             return True
         if name == "ModuleType":
             self.extra_imports["ModuleType"] = "from types import ModuleType"
+            return True
+        if name == "Path":
+            # 転送メソッドは引数の型を定義元と別のモジュールへ書き出すため、pathlib の Path を補う。
+            self.extra_imports["Path"] = "from pathlib import Path"
             return True
         if name == "ContextDecorator":
             self.extra_imports[name] = "from mlib._stubtypes import ContextDecorator"
@@ -521,6 +526,35 @@ class ModuleStub:
             lines.append(indent + signature + " ...")
         return lines
 
+    def _forward_function(self, node, module, owner, indent):
+        """複数形のコレクションが要素へ転送する単数のメソッドのスタブ行を返す。
+
+        実行時は ``Nodes.__getattr__``・``Components.__getattr__`` が各要素の同名メソッドを呼び、
+        戻り値を保持順のリストで返す。引数は単数のメソッドと同じにし、戻り値をその型のリストにする。
+
+        Args:
+            node (ast.FunctionDef): 単数のメソッドの定義。
+            module (str): 単数のメソッドを定義したモジュールの完全名。
+            owner (str): 単数のメソッドを定義したクラス名。
+            indent (str): 字下げ。
+
+        Returns:
+            list[str]: スタブの行。
+        """
+        doc = ast.get_docstring(node) or ""
+        qualname = "%s.%s" % (owner, node.name)
+        override = self.overloads.get("%s:%s#return" % (module, qualname))
+        if override is _self_return:
+            returns = owner if self._resolve_name(owner) else None
+        else:
+            returns = self.annotation(_return_type(doc), qualname + "(return)")
+        if returns is None or re.fullmatch(r"object( \| None)?", returns):
+            self.typing.add("Any")
+            returns = "Any"
+        signature = "def %s(%s) -> list[%s]:" % (node.name, self._params(node.args, _arg_types(doc), qualname), returns)
+        text = "各要素の :meth:`~%s.%s` を同じ引数で保持順に呼び、戻り値を保持順のリストで返す。" % (module, qualname)
+        return [indent + signature, indent + '    """%s"""' % text, indent + "    ..."]
+
     def _value_type(self, value):
         """代入の右辺から、スタブで使う変数の型を推定する。
 
@@ -561,6 +595,18 @@ class ModuleStub:
         lines = ["@" + ast.unparse(d) for d in node.decorator_list if ast.unparse(d) in KEPT_DECORATORS]
         lines = [indent + line for line in lines]
         bases = [ast.unparse(base) for base in node.bases] + [ast.unparse(k) for k in node.keywords]
+        generic = GENERIC_COLLECTIONS.get(qualname)
+        if generic:
+            # 要素の型を引数に取る(ls(type="transform")[0] を Transform にする)。既定は基底の要素の型。
+            variable, bound = generic
+            self.extra_imports["TypeVar"] = "from typing_extensions import TypeVar"
+            self.typing.add("Generic")
+            lines.append(indent + '%s = TypeVar("%s", bound=%s, default=%s, covariant=True)' % (variable, variable, bound, bound))
+            bases.append("Generic[%s]" % variable)
+        for base_index, base in enumerate(bases):
+            if base in GENERIC_COLLECTIONS and self.collections.get(node.name):
+                # 派生のコレクション(Joints 等)は、基底へ自分の要素の型を渡す。
+                bases[base_index] = "%s[%s]" % (base, self.collections[node.name])
         lines.append(indent + "class %s%s:" % (node.name, "(%s)" % ", ".join(bases) if bases else ""))
         inner = indent + "    "
         body = self._docstring(node, inner)
@@ -571,7 +617,7 @@ class ModuleStub:
             """公開・dunder・型検査で共有する属性を残す。"""
             return not name.startswith("_") or name.startswith("__") or name in shared
 
-        item = self.collections.get(node.name)
+        item = generic[0] if generic else self.collections.get(node.name)
         if item:
             # コレクションの要素の型を補う(docstring は Node・Component 等の基底型で書かれている)。
             self.typing.update({"Iterator"})
@@ -579,11 +625,15 @@ class ModuleStub:
             self._resolve_name(item)
             body += [inner + "def __iter__(self) -> Iterator[%s]: ..." % item,
                      inner + "@overload", inner + "def __getitem__(self, index: int) -> %s: ..." % item,
-                     inner + "@overload", inner + "def __getitem__(self, index: slice) -> %s: ..." % node.name]
+                     inner + "@overload", inner + "def __getitem__(self, index: slice) -> %s: ..." % (
+                         "%s[%s]" % (node.name, item) if generic else node.name)]
             defined.update({"__iter__", "__getitem__"})
         for stmt in node.body:
             if (isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name in defined
                     and not _is_accessor(stmt)):
+                continue
+            if isinstance(stmt, ast.FunctionDef) and generic and stmt.name == "__class_getitem__":
+                # 要素の型の引数は Generic が受け持つ。
                 continue
             if isinstance(stmt, ast.FunctionDef) and stmt.name == "__call__" and "type" in bases:
                 # メタクラスの __call__ に戻り値の型があると、pyright は Container(...) 等の構築結果を
@@ -622,6 +672,10 @@ class ModuleStub:
             if name not in defined:
                 self.typing.update({"Any", "Iterator"})
                 body.append(inner + text)
+        for name, (method, module, owner) in self.forwards.get(qualname, {}).items():
+            if name not in defined:
+                body += self._forward_function(method, module, owner, inner)
+                defined.add(name)
         if not body:
             body = [inner + "..."]
         return lines + body
@@ -764,7 +818,7 @@ def _ls_overloads(stub, node):
         list[str]: ``def ls(...) -> ...: ...`` の行。
     """
     doc_types = _arg_types(ast.get_docstring(node) or "")
-    table = {name: "Nodes" for name in _wrapper_classes()}
+    table = {name: "Nodes[%s]" % cls for name, cls in _wrapper_classes().items()}
     table.update(LS_SPECIAL)
     stub.annotation("Keyframes", "ls")
     params = stub._params(node.args, doc_types, "ls", {"selectedKeyframes": ("Literal[True]", False)})
@@ -947,6 +1001,7 @@ OVERLOADS = {
     "mlib.util:_angle_unit": lambda stub, node: _angle_unit_overloads(stub),
     "mlib.cmds.ls:ls": _ls_overloads,
     "mlib.cmds.ls:ls#return": _ls_return,
+    "mlib.nodes.node:Node.duplicate#return": _self_return,
     "mlib.nodes.node:Nodes.sort#return": _self_return,
     "mlib.plugs.plug:Plugs.sort#return": _self_return,
     "mlib.components.component:Components.sort#return": _self_return,
@@ -1076,6 +1131,8 @@ def _class_index(modules):
 
 
 COLLECTION_ROOTS = {"Nodes", "Components", "Plugs"}
+#: 要素の型を引数に取るコレクション(スタブだけ)。{クラス名: (型変数, 要素の基底の型)}。
+GENERIC_COLLECTIONS = {"Nodes": ("_NodeT", "Node")}
 
 
 def _collections(modules):
@@ -1123,6 +1180,77 @@ def _collections(modules):
     return result
 
 
+#: 要素のクラスに加えて転送メソッドをスタブへ書き出すクラス(Nodes は Transform 等も入れるため)。
+EXTRA_FORWARD_CLASSES = {"Nodes": ("DagNode", "Transform")}
+
+
+def _forwards(modules, collections, index):
+    """複数形のコレクションごとに、要素へ転送する単数のメソッドを求める。
+
+    要素のクラスの継承を Maya の基底へたどり、公開の通常メソッド(property・staticmethod・classmethod・
+    contextmanager を除く)を集める。コレクション自身と基底が持つ名前は実行時もそちらが優先されるため除く。
+
+    Args:
+        modules (list[tuple[str, Path]]): (完全名, パス) のリスト。
+        collections (dict[str, dict[str, str]]): :func:`_collections` の結果。
+        index (dict[str, str]): :func:`_class_index` の結果。
+
+    Returns:
+        dict[str, dict[str, dict[str, tuple[ast.FunctionDef, str, str]]]]: モジュールの完全名から
+            {コレクション名: {メソッド名: (定義, 定義モジュール, 定義クラス)}}。
+    """
+    paths = dict(modules)
+    classes = {}
+    for name, cls_module in index.items():
+        for stmt in ast.parse(paths[cls_module].read_text(encoding="utf-8")).body:
+            if isinstance(stmt, ast.ClassDef) and stmt.name == name:
+                classes[name] = (stmt, cls_module)
+
+    def mro(name, seen=None):
+        seen = [] if seen is None else seen
+        if name in classes and name not in seen:
+            seen.append(name)
+            for base in classes[name][0].bases:
+                if isinstance(base, ast.Name):
+                    mro(base.id, seen)
+        return seen
+
+    def members(name):
+        names = set()
+        for cls in mro(name):
+            for stmt in classes[cls][0].body:
+                if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    names.add(stmt.name)
+                elif isinstance(stmt, ast.Assign):
+                    names.update(t.id for t in stmt.targets if isinstance(t, ast.Name))
+                elif isinstance(stmt, ast.AnnAssign) and isinstance(stmt.target, ast.Name):
+                    names.add(stmt.target.id)
+        return names
+
+    def methods(name, result):
+        for cls in mro(name):
+            stmt, cls_module = classes[cls]
+            for sub in stmt.body:
+                if (not isinstance(sub, ast.FunctionDef) or sub.name.startswith("_") or sub.name in result
+                        or any(ast.unparse(d) in KEPT_DECORATORS | CONTEXT_MANAGERS for d in sub.decorator_list)):
+                    continue
+                result[sub.name] = (sub, cls_module, cls)
+        return result
+
+    result = {}
+    for module, mapping in collections.items():
+        for collection, item in mapping.items():
+            if "Plugs" in mro(collection):
+                # Plugs は要素への転送を持たない。
+                continue
+            own = members(collection)
+            found = {}
+            for name in (item,) + EXTRA_FORWARD_CLASSES.get(collection, ()):
+                methods(name, found)
+            result.setdefault(module, {})[collection] = {k: v for k, v in found.items() if k not in own}
+    return result
+
+
 def generate(dest):
     """スタブを ``dest`` の下に書き出す。
 
@@ -1135,11 +1263,12 @@ def generate(dest):
     modules = _modules(SOURCE)
     index = _class_index(modules)
     collections = _collections(modules)
+    forwards = _forwards(modules, collections, index)
     root_classes = _root_classes()
     unresolved = []
     for name, path in modules:
         stub = ModuleStub(name, path, index, OVERLOADS, collections.get(name),
-                          root_classes if name == PACKAGE else None)
+                          root_classes if name == PACKAGE else None, forwards.get(name))
         text = stub.render()
         target = dest / path.relative_to(SOURCE).with_suffix(".pyi")
         target.parent.mkdir(parents=True, exist_ok=True)

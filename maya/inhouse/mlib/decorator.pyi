@@ -214,7 +214,7 @@ def _edit_context(name: str, fast: bool, *, transaction: bool = ...) -> contextl
 def _transform_argument_hints(method: Callable) -> Callable:
     """位置・回転・マトリクスのメソッドへ、よくある引数の誤りの案内を付ける。
 
-    ``space=``・``ws=`` は ``worldSpace=True`` を案内するTypeErrorにし、``setTranslation(1, 2, 3)`` の
+    ``space=`` は ``worldSpace=True`` を案内するTypeErrorにし(``ws=`` は ``worldSpace`` の短縮名として受ける)、``setTranslation(1, 2, 3)`` の
     ように成分を分けて渡した場合は1つの列で渡す書き方を案内するTypeErrorにする。
     どちらも書込みの前に拒否する。``space=`` の別名は追加しない。
 

@@ -9,8 +9,8 @@ import maya.cmds as cmds
 from maya.api.OpenMaya import MSpace
 
 from ..core import geometryEdit as geometry_edit
-from ..decorator import _edit_context
-from ..util import _world_space
+from ..decorator import _edit_context, _pick_alias
+from ..util import _UNSET, _world_space
 from .dagNode import DagNode
 from .transform import Transform
 
@@ -56,7 +56,7 @@ class Shape(DagNode):
                 cmds.parent(self.getFullName(), target.getFullName(), shape=True, relative=True)
             return self
 
-    def scaleGeometry(self, scale, worldSpace=False, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False):
+    def scaleGeometry(self, scale, worldSpace=_UNSET, pivot=(0.0, 0.0, 0.0), indices=None, *, fast=False, ws=_UNSET):
         """メッシュ頂点・NURBSのCVを指定中心で拡縮する。
 
         Transformのマトリクス・面の頂点順は変えず、共有形状は全インスタンスに影響する。
@@ -65,6 +65,7 @@ class Shape(DagNode):
         Args:
             scale (float | Iterable[float]): 有限な一様倍率、またはXYZ倍率。負数・0も可。
             worldSpace (bool): Trueはワールド空間、FalseはShapeのオブジェクト空間。
+            ws (bool): worldSpaceの短縮名。worldSpaceと同時には指定できない(TypeError)。
             pivot (Iterable[float]): 指定空間の中心。cm。既定は原点で、Transformのピボットは使わない。
             indices (Iterable[int | tuple[int, int]] | None): 頂点/CV番号。サーフェスは(U, V)。
                 Noneは全要素。空列は書込みなし。ただしShape型とfastのサーフェス拒否は先に検査する。
@@ -81,6 +82,7 @@ class Shape(DagNode):
             RuntimeError: Mayaが編集を拒否した場合。
             NotImplementedError: fastでサーフェス・入力履歴付き形状の場合。
         """
+        worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)
         with _edit_context("mlibShapeScaleGeometry", fast):
             ws = _world_space(worldSpace)
             try:

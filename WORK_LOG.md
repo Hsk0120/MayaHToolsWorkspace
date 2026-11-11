@@ -159,6 +159,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-11): mlib 12.2.0。`Node.duplicate`(複製した自身を同じ種類で返す)・`Node.select`/`Nodes.select`/`getNames`/`callEach` を追加。複数形(Nodes・Joints・SkinClusters・コンポーネント)から単数のメソッドを `__getattr__` で呼べるようにし(戻り値は常にリスト)、スタブへ転送メソッドを書き出し、`Nodes` をスタブで要素の型付き(`ls(type=...)[0]` が具体型)にした。`worldSpace` を受ける69メソッドに短縮名 `ws` を追加(規則を変更し静的検査を追加)。計算ノードに setInput/getResult/getOutputPlug・演算やモードの名前指定・入力の追加削除・RemapValueのランプ操作を足し、3.0.0で外した15クラスを戻した。
+
 - Claude Code (2026-11-11): mlib 12.1.0。3.0.0で外したDagPoseの照会・isAtPose/getNotAtPose(Mayaの判定)・addMembers/removeMembers/reset/merge と SkinCluster.resetBindPose、形状のミラー(Transform.mirrorGeometry・Mesh.mirror・NurbsCurve.mirror)と頂点・CV・UVの座標の書込み(setPosition系・PointComponents.mirror。worldSpace、fastは4万頂点で約25〜46倍速いため付与)を戻した。CLAUDE.md・mlib-api-design.mdのコンポーネント読み取り専用の記述を更新。あわせて10.6.0以降GitHub Actionsのmlib文書の公開が失敗していた原因(runStatic内のレイアウト検査: skinCluster.pyのimport順、util.pyの定数位置)を修正。
 
 - Claude Code (2026-11-11): mlib 12.0.0。ユーザー指示で旧形式の `SkinCluster.dumpWeights`/`loadWeights`(と専用の内部関数)を削除し、利用側のSkinWeightKitを `exportWeights`/`importWeights` へ移行(`transfer.readFile` は旧形式の代わりに `mlib.skinWeights` 形式を読む)。旧メソッドのテストは新APIへ置換・削除、changelogに移行表。SkinWeightKitテスト87件(2027/2022)・静的162件・Sphinx/文書検査が通過。

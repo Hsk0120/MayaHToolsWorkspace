@@ -92,7 +92,7 @@ class MeshReorderTest(unittest.TestCase):
 
     def test_match_flags_validation(self):
         before = self.snapshot()
-        for kwargs in ({"match": "nearest"}, {"match": True}, {"worldSpace": 1}, {"ws": True}):
+        for kwargs in ({"match": "nearest"}, {"match": True}, {"worldSpace": 1}, {"ws": 1}, {"worldSpace": True, "ws": True}):
             with self.assertRaises((ValueError, TypeError)):
                 self.target.reorderVertices(self.reference, **kwargs)
         self.assertEqual(self.snapshot(), before)

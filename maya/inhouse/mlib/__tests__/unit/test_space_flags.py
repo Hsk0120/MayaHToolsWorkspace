@@ -26,13 +26,14 @@ class SpaceFlagsTest(unittest.TestCase):
         cmds.namespace(removeNamespace=self.ns, deleteNamespaceContent=True)
 
     def test_world_and_local(self):
-        """既定ローカルとワールド空間を検証する。廃止した短縮名wsは受け付けない。"""
+        """既定ローカルとワールド空間を検証する。短縮名wsはworldSpaceと同じ結果になる。"""
         self.assertEqual(self.child.getTranslation(at=4).x, 2)
         self.assertEqual(self.child.getTranslation(worldSpace=True, at=4).x, 12)
         for method in (self.child.getMatrix, self.mesh.getPoints, self.mesh.getVertices([0, 1]).getPosition):
             with self.subTest(method=method.__name__):
+                self.assertEqual(method(ws=True), method(worldSpace=True))
                 with self.assertRaises(TypeError):
-                    method(ws=True)
+                    method(worldSpace=True, ws=True)
 
     def test_setter_flags_and_undo(self):
         """更新・Undo・空間指定を検証する。"""
@@ -45,8 +46,9 @@ class SpaceFlagsTest(unittest.TestCase):
         self.assertEqual(self.child.getPlug("translateX").get(), 5)
 
     def test_rejected_flags_do_not_edit(self):
-        """旧名・廃止した短縮名・非boolを更新前に拒否する。"""
-        for flags, error in [({"space": 4}, TypeError), ({"ws": True}, TypeError),
+        """旧名・長短の同時指定・非boolを更新前に拒否する。"""
+        for flags, error in [({"space": 4}, TypeError), ({"worldSpace": True, "ws": True}, TypeError),
+                             ({"ws": 1}, TypeError),
                              ({"worldSpace": 1}, TypeError), ({"worldSpace": "world"}, TypeError)]:
             with self.assertRaises(error):
                 self.child.setTranslation((99, 0, 0), **flags, at=4)

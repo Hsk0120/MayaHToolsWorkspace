@@ -99,12 +99,11 @@ def find_snake_case_arguments():
 
 
 #: 3.0.0で廃止した独自メソッドの短縮名の別名。Mayaコマンドへフラグを渡す入口だけに許可する。
-REMOVED_SHORT_ALIASES = frozenset(("ws", "idx", "src", "dst", "attrs"))
+#: ``ws`` は12.2.0から ``worldSpace`` の短縮名として全メソッドで受ける(:func:`find_world_space_without_alias`)。
+REMOVED_SHORT_ALIASES = frozenset(("idx", "src", "dst", "attrs"))
 
 #: 短縮名を持ってよい公開def(Mayaコマンドのフラグをそのまま受ける入口)。
-MAYA_FLAG_ENTRIES = {
-    ("mlib/nodes/node.py", "Node.addAttr"): "cmds.addAttrのworldSpace/ws",
-}
+MAYA_FLAG_ENTRIES = {}
 
 
 @functools.lru_cache(maxsize=None)
@@ -134,6 +133,25 @@ def find_short_alias_arguments():
     return tuple(offenders), frozenset(used)
 
 
+@functools.lru_cache(maxsize=None)
+def find_world_space_without_alias():
+    """``worldSpace`` を引数に持つが、短縮名 ``ws`` を持たない公開defを列挙する。
+
+    Returns:
+        tuple[str, ...]: 違反の説明。
+    """
+    offenders = []
+    for relative, path in _iter_source_files():
+        if "/core/" in relative:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for qualified, function in _iter_public_functions(tree):
+            names = set(_parameter_names(function))
+            if "worldSpace" in names and "ws" not in names:
+                offenders.append("%s:%d %s" % (relative, function.lineno, qualified))
+    return tuple(offenders)
+
+
 class PublicArgumentNameTest(unittest.TestCase):
     """公開defの引数名はlowerCamelCase、またはMayaのフラグと同じ表記。"""
 
@@ -150,10 +168,15 @@ class PublicArgumentNameTest(unittest.TestCase):
         self.assertEqual(list(offenders), [], "snake_case public arguments:\n" + "\n".join(offenders))
 
     def test_no_removed_short_aliases(self):
-        """独自メソッドは短縮名の別名(ws・idx・src・dst・attrs)を持たない。"""
+        """独自メソッドは短縮名の別名(idx・src・dst・attrs)を持たない。"""
         offenders, used = find_short_alias_arguments()
         self.assertEqual(list(offenders), [], "short alias arguments:\n" + "\n".join(offenders))
         self.assertEqual(sorted(set(MAYA_FLAG_ENTRIES) - used), [])
+
+    def test_world_space_has_short_alias(self):
+        """worldSpace を受ける公開defは、短縮名 ws も受ける(12.2.0)。"""
+        offenders = find_world_space_without_alias()
+        self.assertEqual(list(offenders), [], "worldSpace without ws:\n" + "\n".join(offenders))
 
     def test_allowlist_has_no_stale_entries(self):
         """許可リストの全行が現存し、実際にsnake_caseの引数を持つ。"""

@@ -163,6 +163,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
 - 3.0.0で、mlib独自メソッドの短縮名の別名引数(`ws`・`idx`・`src`・`dst`・`attrs`・`f`・`r`・`scn` 等)を廃止し、
   長名(`worldSpace`・`index`・`source`・`destination`・`attributes`・`force`・`relative`・`skipConversionNodes`)だけにした。
   短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(「内部実装の定型」の「別名引数の書き方」)。
+  2026-11-11のユーザー指定(12.2.0)により、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける。
   既存の接続方向フラグやOR/AND規則は維持する。
 - メソッド名の表記と、処理の意味は別に確認する。同名のMaya APIと意味が異なる複合操作は説明を明記し、必要なら専用名に分ける。
 - Mayaのコマンドフラグは標準表記を使う。今回の表記統一で既存の独自キーワード引数を一律変更しない。
@@ -249,7 +250,8 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 #### 別名引数の書き方
 
 - 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select`・`delete` のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。
-- それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`worldSpace=False`、`index=0`)。短縮名の別名・`_UNSET` による省略判定を追加しない。
+- それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`index=0` 等)。短縮名の別名・`_UNSET` による省略判定を追加しない。
+- 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/unit/test_static_public_args.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
 - 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
 - Mayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
 - 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。
@@ -742,7 +744,9 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### 複数形ノードの基底クラス
 
-- ノードコレクションは `Nodes` を基底にし、`Joints`・`SkinClusters` は `Nodes` の派生とする。`Nodes` 自体は `Node` を継承しない。3.0.0で `DagNodes`・`Transforms`、単数メソッドへの一括転送(`_bulk_entries`・`callEach`)は利用が無いため廃止した。各要素の操作は単数のメソッドを `for` で呼ぶ。
+- ノードコレクションは `Nodes` を基底にし、`Joints`・`SkinClusters` は `Nodes` の派生とする。`Nodes` 自体は `Node` を継承しない。3.0.0で `DagNodes`・`Transforms`、単数メソッドへの一括転送(`_bulk_entries`・`callEach`)は利用が無いため廃止した。
+- 12.2.0(2026-11-11のユーザー指定)で、単数のメソッドを複数形から呼べるようにした。`Nodes.__getattr__`・`Components.__getattr__` が、コレクションに無い公開メソッド名を「各要素の同名メソッドを同じ引数で保持順に呼び、戻り値を保持順のリストで返す関数」として返す(書込みも常にリスト。コレクション自身の明示メソッドが優先)。通常は1回のUndoにまとめ、`fast=True` はそのまま各メソッドへ渡す。`Nodes` は呼ぶ前に全要素がメソッドを持ち有効か確かめ(無い要素はTypeError)、どの要素も持たない名前はAttributeError。名前で呼ぶ `Nodes.callEach(method, *args, **kwargs)` も同じ動き。要素ごとに違う引数は単数を `for` で呼ぶ。`Plugs` は転送しない。
+- 型スタブでは、転送するメソッドを各コレクションへ書き出す(`tools/generate_mlib_stubs.py` の `_forwards`。`Nodes` は `Node`・`DagNode`・`Transform` のメソッド)。`Nodes` は要素の型を引数に取る(`Nodes[Transform]`。既定は `Node`、共変)ため、`mlib.ls(type="transform")[0]` は `Transform`、`for n in mlib.ls(type="joint")` の `n` は `Joint` として補完される。型を指定しない `ls` の戻り値は従来どおりの組み合わせ型。実行時も `Nodes[Transform]` と書けるよう `Nodes.__class_getitem__` はクラス自身を返す。
 - 複数形が持つのは、listとしての振る舞い(`__iter__`・`__len__`・`__getitem__`・`copy`、6.0.0で `+`・`==`・`sort`)と入力検証(`_resolve_inputs`・`_validate_inputs`)、一括の書込み(5.0.0)に加え、`Joints.sortedByDepth()`・`Joints.getSkinClusters()`(重複を除いた `SkinClusters`)・`Joints.removeInfluence()`・`Joints.delete()`(10.6.0)だけとする。`+` は左辺の型で構築と同じ重複除外・型検証を行い、`==` は同じ並びのコレクション・list・tupleと比べる(このためハッシュ不可)。`sort(key=None, reverse=False)` はその場で並べ替えてNoneを返し、keyの省略時は完全名(コンポーネントは実番号)の順にする。
 - `mlib.ls` は常に集まりで返す(6.0.0): ノードだけなら `Nodes`(`type="joint"` は `Joints`、`type="skinCluster"` は `SkinClusters`)、アトリビュートだけなら `Plugs`(`plugs/plug.py`)、同じシェイプの同じ種類のコンポーネントだけなら `Vertices`/`Edges`/`Faces`/`UVs`/`CVs`。種類が混在する場合だけlist、それ以外の0件は空の `Nodes`(コンポーネント型指定の0件はシェイプが決まらないため空の `Nodes`)。集まりは構築と同じく重複を除く。
 - `Plugs` は `Nodes` と同じ入力順・重複除外の規則で `len`・添字(sliceはPlugs)・`for`・`bool`・`+`・`==`・`sort`・`repr` だけを持つ。`maya.cmds` へ渡すとcmdsが各Plugの名前へ展開する。Componentsの `+` は同じシェイプ・同じ種類どうしだけで、それ以外はTypeError。

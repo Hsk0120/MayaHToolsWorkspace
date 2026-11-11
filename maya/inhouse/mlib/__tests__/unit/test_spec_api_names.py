@@ -58,8 +58,8 @@ JOINTS_OWN = ("delete",)
 #: 5.0.0で複数形へ明示的に戻した一括の書込み(Nodes._forward で各要素へ適用する)。
 PLURAL_BULK = ("setAttrFlags", "resetAttrs", "setLocked", "setOverrideColor", "setOutlinerColor", "setVisibility", "show", "hide", "setParent")
 
-#: 3.0.0 で廃止した複数形の一括転送と、その基盤の名前。
-REMOVED_PLURAL = ("callEach", "getNames", "delete", "removeInfluences", "jointOrientToRotate", "freezeRotate",
+#: 3.0.0 で廃止した複数形の一括転送と、その基盤の名前(callEach・getNames は 12.2.0 で戻した)。
+REMOVED_PLURAL = ("delete", "removeInfluences", "jointOrientToRotate", "freezeRotate",
                   "_bulk_entries", "_bulk_methods", "_bulk_returns", "_dispatch_shared", "_calculating_setters")
 
 
@@ -180,7 +180,8 @@ class RequiredNamesTest(unittest.TestCase):
                     self.assertTrue(callable(getattr(cls, name)), "%s.%s missing" % (cls.__name__, name))
 
     def test_plural_classes_do_not_forward(self):
-        """複数形クラスは明示した書込み(PLURAL_BULK)以外の一括転送を持たない。要素ごとに単数のメソッドを呼ぶ。"""
+        """複数形クラスは明示した書込み(PLURAL_BULK)以外の転送メソッドを定義しない(12.2.0 から単数の呼出しは
+        インスタンスの __getattr__ が各要素へ転送する。test_spec_collection_forwarding で確認)。"""
         for cls, plural in PLURALS.items():
             for base, names in REQUIRED.items():
                 if not issubclass(cls, base):

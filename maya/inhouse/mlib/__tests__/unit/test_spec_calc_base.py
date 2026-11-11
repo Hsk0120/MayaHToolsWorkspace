@@ -1,7 +1,7 @@
 """計算・ユーティリティノードの型登録の仕様を固定する。
 
-担当A。計算ノード型とラッパークラスの対応、専用クラスを持たない計算ノード
-(composeMatrix・multMatrix等)が Node 派生の自動生成クラスになり、通常のPlugで扱えることを確かめる。
+担当A。計算ノード型とラッパークラスの対応を確かめる。3.0.0 で外し 12.2.0 で戻した計算ノード
+(composeMatrix・multMatrix等)は手書きクラスとして登録され、通常のPlugでも扱えることを確かめる。
 """
 
 import math
@@ -28,7 +28,7 @@ _TYPE_TABLE = (
 )
 
 # 専用クラスを持たない計算ノード。登録表に無く、自動生成クラスで返る。
-_GENERATED_TYPES = (
+_RESTORED_TYPES = (
     "aimMatrix", "angleBetween", "blendMatrix", "composeMatrix", "curveInfo", "decomposeMatrix",
     "distanceBetween", "fourByFourMatrix", "inverseMatrix", "multMatrix", "pairBlend", "pickMatrix",
     "pointOnCurveInfo", "pointOnSurfaceInfo", "vectorProduct",
@@ -79,18 +79,18 @@ class CalculationTypeTest(unittest.TestCase):
                 self.assertIs(cls.__mro__[1], mlib.Texture2d)
                 self.assertTrue(issubclass(cls, mlib.Texture2d))
 
-    def test_unregistered_calculation_types_are_generated(self):
-        """専用クラスの無い計算ノードは公開名・登録表に無く、Node派生の生成クラスで返る。"""
-        for kind in _GENERATED_TYPES:
+    def test_restored_calculation_types_are_registered(self):
+        """12.2.0 で戻した計算ノードは公開名・登録表にあり、手書きの Node 派生クラスで返る。"""
+        for kind in _RESTORED_TYPES:
             with self.subTest(kind=kind):
                 name = kind[0].upper() + kind[1:]
-                self.assertNotIn(name, mlib.nodes.__all__)
-                self.assertNotIn(kind, mlib.nodes._WRAPPER_CLASSES)
+                self.assertIn(name, mlib.nodes.__all__)
                 node = mlib.createNode(kind)
                 cls = type(node)
+                self.assertIs(mlib.nodes._WRAPPER_CLASSES[kind], cls)
                 self.assertEqual(cls.__name__, name)
-                self.assertTrue(issubclass(cls, mlib.Node))
-                self.assertIs(mlib.nodes.__getattr__(name), cls)
+                self.assertIs(cls.__mro__[1], mlib.Node)
+                self.assertIs(getattr(mlib.nodes, name), cls)
                 self.assertEqual(node.getType(), kind)
                 self.assertTrue(node.hasAttr("message"))
 
