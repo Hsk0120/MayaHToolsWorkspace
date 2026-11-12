@@ -161,6 +161,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-12): mlib の DagNode にアウトライナー上の並び順を扱う getOutlinerOrder()・setOutlinerOrder(index)・reorder(front/f, back/b, relative/r) を追加(cmds.reorder 相当。fast なし)。仕様テスト・Undo 網羅・型スタブ・docs/mlib-api-design.md を更新。2027/2022 の全テストと静的検査・Sphinx 検査を通過。
 - Claude Code (2026-11-12): CLAUDE.md・docs/vscode.md のコマンド例を python から py -3 へ変更。mlib のスタブ生成のバッチに終了時の pause を追加(--no-pause で省略)。
 - Claude Code (2026-11-12): mlib のスタブ生成(generate_mlib_stubs.bat)と Sphinx の setup.bat で python を呼ばず、py ランチャーの 3.14 から新しい順に探し(スタブは 3.9 まで、Sphinx は 3.11 まで)、無ければ mayapy を使うようにした。3.15 以降は PyYAML のビルド済みが無く pip が止まるため使わない。スタブ生成は Maya 2023〜2027 の mayapy でも動く。文書の例は py -3 へ。runStatic 164件通過。
 - Claude Code (2026-11-12): mlib を別リポジトリ Hsk0120/mlib(public・0.0.1・履歴なし)へ分け、maya/inhouse/mlib を submodule に置き換えた。版番号は _version.py、スタブ生成は mlib の _tools/、ルールの正本は mlib の .github/copilot-instructions.md(設計の経緯は docs/mlib-api-design.md に残す)。mlib から HTools・mlrig・ワークスペースの記述と旧版番号の経緯を削除し、版番号入りのテスト16本を改名。文書は hsk0120.github.io/mlib/ で公開(CI 成功)。ワークスペースの公開は docs.yml(旧 mlib-docs.yml)に改名し、入口ページ .github/pages/index.html を追加。tools/generate_mlib_stubs.* を削除。mlib の runStatic 164・Maya 2022/2027 全テスト・Sphinx -W -n・mlrig 851・SkinWeightKit 87 OK。
