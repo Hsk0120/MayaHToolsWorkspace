@@ -108,6 +108,7 @@ class SetupSamples:
         ("hipSwing", "HipSwing - swing the hips, keep the chest"),
         ("boxRoll", "BoxRoll - box tumbles edge over edge"),
         ("genevaDrive", "GenevaDrive - intermittent indexing wheel"),
+        ("camFollower", "CamFollower - dwell, rise, dwell, return"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -651,6 +652,29 @@ class SetupSamples:
         _tip(driver, name + "_driverPin", (center * math.sin(math.pi / 4.0), 0, 0))
         setup = GenevaDrive.create(driver, wheel, 4, name=name, axis="z")
         return setup, driver
+
+    @classmethod
+    def _camFollower(cls, name, root):
+        """板カム(joint、輪郭の曲線を子に持つ)と、その上の直動の従動節(緑のjoint)。
+        カムを ``rotateZ`` で回すと、従動節が下の休止・120度の上昇・60度の上の休止・120度の下降を繰り返す。
+        カムの輪郭は試験側と同じ式で描いた見た目だけの曲線(ナイフエッジ従動節の先が輪郭の上に乗る)。"""
+        from .setups import CamFollower
+
+        base, rise = 1.5, 1.0
+        cam = _joint(name + "_cam", root, translate=(0, 3, 0))
+        points = []
+        for index in range(72):
+            theta = index * 2.0 * math.pi / 72
+            radius = base + CamFollower.motion(theta, rise, math.radians(120.0), math.radians(60.0),
+                                               math.radians(120.0))["lift"]
+            # カムを θ 回すと、ローカルの角度 90° - θ の点が真上(従動節の先)へ来る。
+            points.append((radius * math.sin(theta), radius * math.cos(theta), 0))
+        mlib.createCurve(points, degree=1, closed=True, name=name + "_camProfile", parent=cam)
+        follower = _joint(name + "_follower", root, translate=(0, 3 + base, 0))
+        _tip(follower, name + "_followerRod", (0, 2, 0))
+        _color(follower)
+        setup = CamFollower.create(cam, follower, rise, name=name, axis="z", followerAxis="y")
+        return setup, cam
 
     @classmethod
     def _universalJoint(cls, name, root):

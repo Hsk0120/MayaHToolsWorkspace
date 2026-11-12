@@ -52,6 +52,7 @@ CHANGES = {
     "wheelRoll": (_set(".translateZ", 3.0), "_wheelOut"),
     "gearTrain": (_set(".rotateZ", 45.0), "_gear3"),
     "genevaDrive": (_set(".rotateZ", 180.0), "_wheel"),
+    "camFollower": (_set(".rotateZ", -90.0), "_follower"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),

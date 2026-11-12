@@ -161,6 +161,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-13 夜間): mlrig CamFollower(回転する板カムに押される直動の従動節、下の休止・上昇・上の休止・下降)を追加。w = θ mod 360°、u1 = clamp(w/β1, 0, 1)、u2 = clamp((w - β1 - βd)/β2, 0, 1)、lift = h(f(u1) - f(u2))(cycloidal/harmonic)で従動節の translate・lift・velocity・camAngle・riseProgress・returnProgress・turn を標準ノードだけで出力。Setup Samples に1項目、文書 cam_follower.rst、テスト8件(setups スイート)、検証デモ tools/demo_cam_follower.py。隔離 Maya 2027 で setups 718件・standard 76件 OK、Sphinx -W 成功、検証動画384フレームの判定 OK(Drive 保存・リンク共有済み)。コミット・プッシュ(このコミット)。
+
 - Claude Code (2026-11-12): mlib の DagNode にアウトライナー上の並び順を扱う getOutlinerOrder()・setOutlinerOrder(index)・reorder(front/f, back/b, relative/r) を追加(cmds.reorder 相当。fast なし)。仕様テスト・Undo 網羅・型スタブ・docs/mlib-api-design.md を更新。2027/2022 の全テストと静的検査・Sphinx 検査を通過。
 - Claude Code (2026-11-12): CLAUDE.md・docs/vscode.md のコマンド例を python から py -3 へ変更。mlib のスタブ生成のバッチに終了時の pause を追加(--no-pause で省略)。
 - Claude Code (2026-11-12): mlib のスタブ生成(generate_mlib_stubs.bat)と Sphinx の setup.bat で python を呼ばず、py ランチャーの 3.14 から新しい順に探し(スタブは 3.9 まで、Sphinx は 3.11 まで)、無ければ mayapy を使うようにした。3.15 以降は PyYAML のビルド済みが無く pip が止まるため使わない。スタブ生成は Maya 2023〜2027 の mayapy でも動く。文書の例は py -3 へ。runStatic 164件通過。

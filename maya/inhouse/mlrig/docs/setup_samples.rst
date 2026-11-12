@@ -209,6 +209,9 @@
    * - GenevaDrive - intermittent indexing wheel
      - 駆動輪のjoint
      - ``rotateZ`` で回すと、ピン(駆動輪の先)が溝に入っている約1/4回転の間だけ、緑の従動輪(十字の先が溝の向き)が逆向きに90度送られ、残りの間は止まる。containerの ``engaged`` は溝に入っている間1、 ``speedRatio`` は従動輪の角速度の比(溝の中央で最大)、 ``step`` は駆動輪の回転数。
+   * - CamFollower - dwell, rise, dwell, return
+     - カムのjoint
+     - ``rotateZ`` で回すと、上の緑の従動節がカムの輪郭(子の曲線)に乗ったまま、下の休止・120度かけての上昇(1cm)・60度の上の休止・120度かけての下降を繰り返す。containerの ``lift`` は変位、 ``velocity`` はカムの角度あたりの速さ、 ``riseProgress`` ・ ``returnProgress`` は上昇・下降の進み(0〜1)。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

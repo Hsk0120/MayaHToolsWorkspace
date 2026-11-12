@@ -25,6 +25,7 @@ from .treadBelt import TreadBelt
 from .rockerRoll import RockerRoll
 from .boxRoll import BoxRoll
 from .genevaDrive import GenevaDrive
+from .camFollower import CamFollower
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -104,6 +105,7 @@ __all__ = [
     "FootRoll",
     "GearTrain",
     "GenevaDrive",
+    "CamFollower",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",
