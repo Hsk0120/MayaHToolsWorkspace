@@ -161,6 +161,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-12): mlib のスタブ生成(generate_mlib_stubs.bat)と Sphinx の setup.bat で python を呼ばず、py ランチャーの 3.14 から新しい順に探し(スタブは 3.9 まで、Sphinx は 3.11 まで)、無ければ mayapy を使うようにした。3.15 以降は PyYAML のビルド済みが無く pip が止まるため使わない。スタブ生成は Maya 2023〜2027 の mayapy でも動く。文書の例は py -3 へ。runStatic 164件通過。
 - Claude Code (2026-11-12): mlib を別リポジトリ Hsk0120/mlib(public・0.0.1・履歴なし)へ分け、maya/inhouse/mlib を submodule に置き換えた。版番号は _version.py、スタブ生成は mlib の _tools/、ルールの正本は mlib の .github/copilot-instructions.md(設計の経緯は docs/mlib-api-design.md に残す)。mlib から HTools・mlrig・ワークスペースの記述と旧版番号の経緯を削除し、版番号入りのテスト16本を改名。文書は hsk0120.github.io/mlib/ で公開(CI 成功)。ワークスペースの公開は docs.yml(旧 mlib-docs.yml)に改名し、入口ページ .github/pages/index.html を追加。tools/generate_mlib_stubs.* を削除。mlib の runStatic 164・Maya 2022/2027 全テスト・Sphinx -W -n・mlrig 851・SkinWeightKit 87 OK。
 - Codex (2026-11-12): QPEのコピー・切り取り貼り付けで同名フォルダーを統合し、転送先にだけあるファイルと移動時にスキップした元項目を保持。競合確認を置き換え・スキップ・個別選択に整理し、上段カラムのCtrl／Shift複数選択と単体版のタブ横ドラッグ領域を追加。Windows Qt回帰113件合格・2件スキップ。Windows exeとMaya 2022〜2027版mllを通常配置へ更新し、Maya 2022／2027のmayapyでロード・アンロードを確認。専用Maya GUIは両版でプラグイン読込時にタイムアウトし、標準エクスプローラーの実操作は画面アクセス拒否で未実施。証拠 `.maya-output/qpe-paste-20261112/`。
 
