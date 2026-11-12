@@ -50,7 +50,7 @@ Mayaがダイアログ表示中などの場合は実行が待機することが�
 
 Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`のため、そのままでは補完・引数チェックが効きません。次の準備で解決します。
 
-1. `python tools/setup_maya_typings.py`を1回実行します。型スタブ`types-maya`（MIT）を`typings/maya/`へ配置します（Git対象外、ネットワークが必要）。
+1. `py -3 tools/setup_maya_typings.py`を1回実行します。型スタブ`types-maya`（MIT）を`typings/maya/`へ配置します（Git対象外、ネットワークが必要）。
 2. VS Codeで`MayaHToolsWorkspace.code-workspace`を開き直すか、`Developer: Reload Window`を実行します。
 
 ### mlibの型スタブ
@@ -59,7 +59,7 @@ mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`
 
 - **設定は不要**: Pylanceは`.py`の隣の`.pyi`を優先して読むため、`stubPath`等を書かなくても認識されます。mlibのフォルダーだけを開いた場合や、別のプロジェクトから`maya/inhouse`をimportの検索パスに入れてmlibを使う場合も同じです。F12（定義へ移動）は`.pyi`を開き、本体を見るときは右クリックの「Go to Source Definition」を使います。
 - **Gitで管理**: スタブはコミットするので、cloneしただけで補完が効きます。Pythonは実行時に`.pyi`を読まないため、Mayaの動作には影響しません。スタブ自体の警告で問題一覧が埋まらないよう、`pyrightconfig.json`の`exclude`で解析対象からは外しています（型の参照には使われます）。
-- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
+- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`を付ける。またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
 - **引数で戻り値が変わるAPI**は、引数ごとの戻り値を`@overload`で補っています。
   - `mlib.ls(type="joint")`は`Joints`、`type="skinCluster"`は`SkinClusters`、`type="transform"`等の登録済みの型名は`list[Transform]`等、`type="vertex"`等のコンポーネントは`list[Vertex]`等、そのほかの型名は`list[Node]`、`type`無しは`list[Node | Plug | Component]`。型名とクラスの対応は`nodes/__init__.py`の`_WRAPPER_CLASSES`から読みます。
   - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。
