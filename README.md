@@ -6,9 +6,9 @@
 
 ## ▼ドキュメント
 
-[mlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/)
+[mlib Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/mlib/)
 
-mlibの概要・使用例・APIリファレンスを閲覧できます。
+mlibの概要・使用例・APIリファレンスを閲覧できます。mlibは別リポジトリ([Hsk0120/mlib](https://github.com/Hsk0120/mlib))で管理しています。
 
 [Maya Code Editor Sphinxドキュメント（GitHub Pages）](https://hsk0120.github.io/MayaHToolsWorkspace/maya-code-editor/)
 
@@ -135,7 +135,7 @@ macOS用の起動ファイルは`maya_<version>_<language>.command`と
 ## ▼ディレクトリ補足
 
 - `maya/external`: 外部サブモジュール群(mGear, cymel, AnimationAid ほか)
-- `maya/inhouse/mlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ
+- `maya/inhouse/mlib`: Mayaノード・アトリビュートラッパー、形状操作、数学型などの共通ライブラリ(submodule。[Hsk0120/mlib](https://github.com/Hsk0120/mlib))
 - `maya/inhouse/HTools`: Mayaメニューから起動する社内ツール
 - `maya/modules`: 各ツールをMayaへ認識させる`.mod`定義
   - `exprespy.mod`は[exprespy](https://github.com/ryusas/maya_exprespy)をWindows版Maya 2022〜2027へ登録します。
@@ -216,30 +216,11 @@ install_packages.bat 2026 scipy libigl  :: 数字はMayaの年、それ以外は
 エディター Maya Code Editor の使い方と Preferences 各項目の説明を Sphinx で `maya/inhouse/MayaCodeEditor/docs` に用意しています(スクリーンショット付き)。
 ビルド手順は[Maya Code Editor ドキュメントのビルド](maya/inhouse/MayaCodeEditor/docs/README.md)を参照してください。
 
-## mlib ドキュメント
+## mlib
 
-Maya 2022～2027の個別・一括テストは [mlibのバージョン別テスト](maya/inhouse/mlib/__tests__/README.md) を参照してください。
+mlibは別リポジトリ [Hsk0120/mlib](https://github.com/Hsk0120/mlib) で管理し、`maya/inhouse/mlib` にsubmoduleとして置いています。
+版番号はmlibの`_version.py`、コードを書くときのルールはmlibの`.github/copilot-instructions.md`、設計の検討と経緯はこのリポジトリの`docs/mlib-api-design.md`にあります。
 
-Sphinx による日本語ガイドと API リファレンスを `maya/inhouse/mlib/_docs` に用意しています。
-Maya を起動せず、ソースから HTML を生成できます。
-手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md)を参照してください。
-
-版ごとの変更点は git の履歴(各版のコミットメッセージ)を参照してください。
-
-mlibの公開配置は `nodes`・`plugs`・`components`・`maths`・`cmds`・`common`・`core` です。
-選択・参照関係・単位・プラグイン・イベントと既存の共通計算は `common` にまとめ、
-ログは `mlib.logger`、Undo等のデコレーターは `mlib.decorator` から利用します。
-クラスに属さない汎用関数は `mlib.util` に集め、`legalizeName`・`measure`・`mirrorArguments` を公開します。
-Objectと拡張登録・管理の入口は `core` に置き、`from mlib.core.object import Object`、
-`from mlib.core import extensions` から取得します。ルートへは再公開しません。
-`core`も通常の実行パッケージです。正式なAPIは明示import・`__all__`・文書で示し、
-集約した内部補助は先頭`_`で示し、既存の内部連携・登録プロトコル名は維持します。旧`mlib._core`等の互換入口はありません。
-クラス・コマンドの公開名は各パッケージの `__init__.py`、Node/Plugの型対応は同ファイルの
-`_WRAPPER_CLASSES` で明示します。追加・削除時はリポジトリルートで
-`python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行すると、Mayaを起動せず公開漏れを検査できます。
-複数形APIも通常のメソッドとして定義し、共通処理へ委譲します。
-公開コマンドは `getNode/getPlug/createNode/ls/delete/duplicate/select/objExists` の基礎8入口と、`createCurve`・`createIkHandle`・`bindSkin` などの作成関数です(一覧は変更履歴の 8.0.0)。
-取得はget付き、判定はis付きの正式名を使用します。演算14型は型クラスを残し、専用APIではなく`getPlug`で操作します。
-その他のMayaコマンド・標準UI・ファイル/設定操作は利用側で扱い、通常JSON文字列は標準 `json` を使います。
-汎用UI・型付きJSON/Snapshot・専用色値型は提供しません。
-現行APIの一覧は[APIリファレンス](maya/inhouse/mlib/_docs/source/modules.rst)を参照してください。
+- 文書: https://hsk0120.github.io/mlib/ (ビルド手順は[mlib ドキュメントのビルド](maya/inhouse/mlib/_docs/README.md))
+- テスト: [mlibのテスト](maya/inhouse/mlib/__tests__/README.md)
+- mlibを変更したら、mlibのリポジトリでコミット・pushしてから、このリポジトリでsubmoduleの参照を更新します。

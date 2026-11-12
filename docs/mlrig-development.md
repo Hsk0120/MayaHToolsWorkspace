@@ -1,6 +1,6 @@
 # mlrigの実装ルール
 
-mlrigはmlibを基本ライブラリとして使用する。Pythonコードの書き方とdocstringは、mlibの既存実装および [mlib API設計](mlib-api-design.md) に合わせる。
+mlrigはmlibを基本ライブラリとして使用する。Pythonコードの書き方とdocstringは、mlibの既存実装、mlibのコーディングルール(`maya/inhouse/mlib/.github/copilot-instructions.md`)および [mlib API設計](mlib-api-design.md) に合わせる。
 
 ## 実装の境界
 

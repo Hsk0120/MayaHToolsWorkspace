@@ -71,15 +71,12 @@ instance/
 .scrapy
 
 # Sphinx documentation
-maya/inhouse/mlib/_docs/_build/
-maya/inhouse/mlib/_docs/.mayapy-site/
 maya/inhouse/MayaCodeEditor/docs/_build/
 maya/inhouse/MayaCodeEditor/docs/.venv/
 maya/inhouse/FramePlayer/docs/_build/
 maya/inhouse/HTools/_docs/_build/
 maya/inhouse/FramePlayer/docs/.venv/
 maya/inhouse/FramePlayer/docs/tools/_media/
-maya/inhouse/mlib/_docs/source/autoapi/
 
 # PyBuilder
 .pybuilder/
@@ -219,20 +216,12 @@ __marimo__/
 # Temporary Maya execution output
 .maya-output/
 
-# mlib run_all_tests.py output logs
-maya/inhouse/mlib/__tests__/.logs/
-
 # macOS
 .DS_Store
 
 # Local research notes and inventories (not published)
 /docs/research/
 /research/
-/maya/inhouse/mlib/_docs/research/
-/maya/inhouse/mlib/_docs/*_research.rst
-/maya/inhouse/mlib/_docs/*_survey.rst
-/maya/inhouse/mlib/_docs/*_inventory.json
-/maya/inhouse/mlib/_docs/concept_classes.rst
 
 # C++ Mayaプラグイン開発(ビルドの一時ファイルとIDE生成物)。
 # ビルドフォルダは tools/build_maya_plugin.py が .maya-output/ 配下に作る(上で除外済み)。

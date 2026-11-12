@@ -30,7 +30,7 @@ docs/.venv/Scripts/python docs/tools/check_docs.py --directory docs/_build/html 
 
 ## GitHubでの公開
 
-`.github/workflows/mlib-docs.yml`で既存サイトの`quick-path-explorer/`へ追加します。
+`.github/workflows/docs.yml`で既存サイトの`quick-path-explorer/`へ追加します。
 他ツールと同じPages成果物を使い、サイト全体を別ワークフローで上書きしません。
 Sphinxは警告をエラーにし、公開前後にQPEのページ・検索・ビルドSHAをブラウザー検証します。
 将来別リポジトリへ移す場合も、このSphinxプロジェクトをそのままビルドできます。

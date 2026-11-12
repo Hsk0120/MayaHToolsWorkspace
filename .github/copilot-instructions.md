@@ -2,6 +2,8 @@
 
 ## 基本方針
 
+- 2026-11-12のユーザー指定により、mlibは別リポジトリ(`Hsk0120/mlib`、版は0.0.1から始め直した)で管理し、`maya/inhouse/mlib` にsubmoduleとして置く。コードを書くときのルールの正本は `maya/inhouse/mlib/.github/copilot-instructions.md`。mlibを編集するときは必ず読む。設計の検討・経緯・作業ログ(`docs/mlib-api-design.md`・`WORK_LOG.md`・`docs/research/`)はこのワークスペースに置き、mlibへ入れない。mlibのコード・docstring・文書にHTools・mlrig・このワークスペースの情報を書かない。mlibの変更はmlibのリポジトリでコミット・pushしてから、このリポジトリでsubmoduleの参照を更新する。下記の12.4.0以前の版番号は分割前のもの。
+
 - 2026-10-25のユーザー指定により、公開APIの入力検証はassertでなく型付きraiseを使う（テスト・内部整合性のassertは可）。単純な番号/要素の列挙はenumerate、ファイルパスはpathlib、テキストI/Oは明示encodingを基本とする。既存layoutのL040/L043で入力assert候補/文字コード未指定、L041/L042で列挙/pathlibの確認候補を表示する。assertの修正は`--fix-asserts TypeError/ValueError`と対象ファイル・`--line`を明示し、例外型や文字コードを自動推測しない。MayaのDAG名・添字更新・テスト/内部assertを一律変換しない。検出範囲と修正条件は`docs/mlib-api-design.md`の「入力検証・列挙・ファイル操作」を参照する。
 
 - 2026-10-25のユーザー指定により、代入・複合代入・比較演算子の前後は空白1つ、同じ行で次の項目が続くカンマの後は空白1つ、括弧内側は不要な空白なしとする。型注釈なしの既定値・キーワード指定は`fast=False`、型注釈付きの既定値は`fast: bool = False`。行末コメントの前は空白2つ以上、`#`の後は空白1つ（Sphinxの`#:`記法は維持）。名前へ直接代入するlambdaは通常のdefにし、コールバック引数等のlambdaは許可する。既存layoutの`--check`（L030〜L034）で検査し、この5項目は`--fix`で自動修正しない。詳細と対象外は`docs/mlib-api-design.md`を参照する。

@@ -161,6 +161,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-12): mlib を別リポジトリ Hsk0120/mlib(public・0.0.1・履歴なし)へ分け、maya/inhouse/mlib を submodule に置き換えた。版番号は _version.py、スタブ生成は mlib の _tools/、ルールの正本は mlib の .github/copilot-instructions.md(設計の経緯は docs/mlib-api-design.md に残す)。mlib から HTools・mlrig・ワークスペースの記述と旧版番号の経緯を削除し、版番号入りのテスト16本を改名。文書は hsk0120.github.io/mlib/ で公開(CI 成功)。ワークスペースの公開は docs.yml(旧 mlib-docs.yml)に改名し、入口ページ .github/pages/index.html を追加。tools/generate_mlib_stubs.* を削除。mlib の runStatic 164・Maya 2022/2027 全テスト・Sphinx -W -n・mlrig 851・SkinWeightKit 87 OK。
 - Claude Code (2026-11-12): mlib の Sphinx 用環境で、Python 3.11以上が無いときは Maya 2027→2026→2025 の mayapy を使うよう setup.bat・rebuild.bat を変更(mayapy は venv を作れないため _docs/.mayapy-site へ pip install --target し、使った mayapy を mayapy-path.txt に記録。.gitignore に追加)。mayapy 2025/2026/2027 で setup・rebuild(-W -n)成功。ローカルの .venv を通常の Python 3.13 で作り直し、rebuild・文書検査 377 ページ OK。
 - Claude Code (2026-11-12): mlib の Sphinx から変更履歴のページを削除(changelog.rst を削除し、目次・版番号の一致検査・CLAUDE.md・設計文書・README の参照を git の履歴へ置き換え)。runStatic・Sphinx -W 通過。
 - Claude Code (2026-11-12): mlib 12.4.0。cymel/pymel 比較の残りの不足メソッド(約120件)・作成関数5本・コンポーネント型3種を追加。Maya 2022/2026/2027 全テスト・mlrig 851・SkinWeightKit 87・Sphinx 通過。

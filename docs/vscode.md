@@ -55,11 +55,11 @@ Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`
 
 ### mlibの型スタブ
 
-mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`の`name (type):`と`Returns:`の先頭の`type:`）にだけ書いてあります。Pylanceはdocstringを型として読まないため、そのままでは`mlib.ls()`の戻り値などの型が分からず、その先の補完・引数ヒントが出ません。`tools/generate_mlib_stubs.py`がdocstringの型を注釈にした型スタブ（`.pyi`）を、各`.py`の隣（`maya/inhouse/mlib/nodes/node.pyi`等）へ作ります。
+mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`の`name (type):`と`Returns:`の先頭の`type:`）にだけ書いてあります。Pylanceはdocstringを型として読まないため、そのままでは`mlib.ls()`の戻り値などの型が分からず、その先の補完・引数ヒントが出ません。mlibの`_tools/generate_mlib_stubs.py`（`maya/inhouse/mlib/_tools/`）がdocstringの型を注釈にした型スタブ（`.pyi`）を、各`.py`の隣（`maya/inhouse/mlib/nodes/node.pyi`等）へ作ります。
 
 - **設定は不要**: Pylanceは`.py`の隣の`.pyi`を優先して読むため、`stubPath`等を書かなくても認識されます。mlibのフォルダーだけを開いた場合や、別のプロジェクトから`maya/inhouse`をimportの検索パスに入れてmlibを使う場合も同じです。F12（定義へ移動）は`.pyi`を開き、本体を見るときは右クリックの「Go to Source Definition」を使います。
 - **Gitで管理**: スタブはコミットするので、cloneしただけで補完が効きます。Pythonは実行時に`.pyi`を読まないため、Mayaの動作には影響しません。スタブ自体の警告で問題一覧が埋まらないよう、`pyrightconfig.json`の`exclude`で解析対象からは外しています（型の参照には使われます）。
-- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`tools\generate_mlib_stubs.bat`（またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。
+- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。
 - **引数で戻り値が変わるAPI**は、引数ごとの戻り値を`@overload`で補っています。
   - `mlib.ls(type="joint")`は`Joints`、`type="skinCluster"`は`SkinClusters`、`type="transform"`等の登録済みの型名は`list[Transform]`等、`type="vertex"`等のコンポーネントは`list[Vertex]`等、そのほかの型名は`list[Node]`、`type`無しは`list[Node | Plug | Component]`。型名とクラスの対応は`nodes/__init__.py`の`_WRAPPER_CLASSES`から読みます。
   - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。

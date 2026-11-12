@@ -67,7 +67,7 @@
         "type": "process",
         "command": "${config:maya.pythonExecutable}",
         "args": [
-          "${workspaceFolder}/tools/generate_mlib_stubs.py"
+          "${workspaceFolder}/maya/inhouse/mlib/_tools/generate_mlib_stubs.py"
         ],
         "options": {
           "cwd": "${workspaceFolder}"

@@ -1,5 +1,7 @@
 # mlib APIの設計基準
 
+> mlibは別リポジトリ(`Hsk0120/mlib`)へ分けた(2026-11-12)。この文書はワークスペース側の設計の検討と経緯の記録で、mlibのリポジトリには入れない。コードを書くときのルールの正本はmlibの `.github/copilot-instructions.md`(`maya/inhouse/mlib/.github/copilot-instructions.md`)。ルールを変えたら両方を更新し、食い違う場合は指示ファイルとコードを確かめて揃える。文中の版番号(12.4.0以前)と `tools/generate_mlib_stubs.py` 等のパスは分割前のもの。
+
 今後のAPI追加・変更では、**Mayaへ問い合わせる操作はメソッド、保持する値はプロパティ**を基本とする。
 実装・docstring・使用例を同じ基準に揃える。
 
