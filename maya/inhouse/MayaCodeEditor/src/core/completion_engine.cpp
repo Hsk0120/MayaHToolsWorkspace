@@ -149,7 +149,7 @@ QList<CompletionItem> mergedItemsFor(const SymbolTable& base, const SymbolTable&
 }
 
 /// 型の推論で、たどる深さの上限(x = A() の A がまた推論…と循環しないように)。
-constexpr int kMaximumInferDepth = 4;
+constexpr int kMaximumInferDepth = 16;
 
 /** @brief 行頭の空白の後ろが名前で、その後ろ(空白を除く)が指定の文字のどれかか。
  * @param line 行。
@@ -205,6 +205,50 @@ bool hasParameterAnnotation(QStringView line, QStringView name) {
         }
     }
     return false;
+}
+
+/** @brief 単一行のリテラルを実行せず、組み込み型として判定する。
+ * @param expression 代入の右辺。 @return 対応する完全修飾型名。式の続きや未対応の形は空。
+ * @note 字句解析を共有し、文字列内の括弧やコメントを構造と取り違えない。
+ */
+QString literalType(QStringView expression) {
+    int state = kLexerNormal;
+    auto tokens = tokenizeLine(expression, ScriptLanguage::Python, kLexerNormal, &state);
+    if (!tokens.isEmpty() && tokens.last().type == TokenType::Comment) tokens.removeLast();
+    if (tokens.isEmpty() || state != kLexerNormal) return {};
+    const auto& first = tokens.first();
+    if (first.type == TokenType::String) {
+        // 連続する文字列リテラルもPythonでは1つの値になる。
+        QString type;
+        for (const auto& token : tokens) {
+            if (token.type != TokenType::String) return {};
+            const auto word = expression.mid(token.start, token.length);
+            const int quote = int(word.indexOf(QLatin1Char('\'')));
+            const int doubleQuote = int(word.indexOf(QLatin1Char('"')));
+            const int start = quote < 0 ? doubleQuote : doubleQuote < 0 ? quote : qMin(quote, doubleQuote);
+            if (start < 0 || word.size() < start + 2 || word.back() != word[start]) return {};
+            const QString current = word.left(start).toString().contains('b', Qt::CaseInsensitive)
+                ? QStringLiteral("builtins.bytes") : QStringLiteral("builtins.str");
+            if (!type.isEmpty() && type != current) return {};
+            type = current;
+        }
+        return type;
+    }
+    if (first.type != TokenType::Operator || expression[first.start] != '[') return {};
+    QString brackets;
+    for (int i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        if (token.type != TokenType::Operator || token.length != 1) continue;
+        const QChar c = expression[token.start];
+        if (c == '[' || c == '(' || c == '{') brackets.append(c);
+        else if (c == ']' || c == ')' || c == '}') {
+            const QChar opening = c == ']' ? '[' : c == ')' ? '(' : '{';
+            if (brackets.isEmpty() || brackets.back() != opening) return {};
+            brackets.chop(1);
+            if (brackets.isEmpty()) return i == tokens.size() - 1 ? QStringLiteral("builtins.list") : QString();
+        }
+    }
+    return {};
 }
 
 /** @brief inferredTypeExpressionの本体。
@@ -263,7 +307,12 @@ QString inferExpression(QStringView text, const QString& name, QString* argument
                         }
                         return QString();  // x = A().b など。最後の代入が推論できない形なら、それより前は見ない。
                     }
-                    if (assignment.match(line).hasMatch()) {
+                    match = assignment.match(line);
+                    if (match.hasMatch()) {
+                        if (line.mid(match.capturedStart(), match.capturedLength()).trimmed().endsWith("=")
+                            && !line.left(match.capturedEnd()).trimmed().endsWith("+=")) {
+                            return literalType(QStringView(line).mid(match.capturedEnd()));
+                        }
                         return QString();  // 推論できない代入(x = 1 など)。それより前の宣言は使わない。
                     }
                 }
@@ -281,6 +330,49 @@ QString inferExpression(QStringView text, const QString& name, QString* argument
         lineEnd = newline;
     }
     return QString();
+}
+
+/** @brief 括弧・文字列の内側を避け、式を指定した最上位の記号で分ける。
+ * @param expression 対象。 @param separator 区切り。 @return 元の文字列を指す部分式。
+ */
+QVector<QStringView> splitExpression(QStringView expression, QChar separator) {
+    QVector<QStringView> result;
+    int depth = 0;
+    int start = 0;
+    const auto tokens = tokenizeLine(expression, ScriptLanguage::Python, kLexerNormal, nullptr);
+    for (const auto& token : tokens) {
+        if (token.type != TokenType::Operator || token.length != 1) continue;
+        const auto c = expression[token.start];
+        if (depth == 0 && c == separator) {
+            result.append(expression.mid(start, token.start - start).trimmed());
+            start = token.start + 1;
+        }
+        if (c == '(' || c == '[' || c == '{') ++depth;
+        else if (c == ')' || c == ']' || c == '}') --depth;
+    }
+    result.append(expression.mid(start).trimmed());
+    return result;
+}
+
+/** @brief 末尾の閉じ括弧と対応する開始位置を求める。文字列中の括弧は無視する。
+ * @param expression 式。 @return 対応する位置。閉じていない・不整合なら-1。
+ */
+int finalOpening(QStringView expression) {
+    QVector<int> stack;
+    const auto tokens = tokenizeLine(expression, ScriptLanguage::Python, kLexerNormal, nullptr);
+    for (int i = 0; i < tokens.size(); ++i) {
+        const auto& token = tokens[i];
+        if (token.type != TokenType::Operator || token.length != 1) continue;
+        const auto c = expression[token.start];
+        if (c == '(' || c == '[' || c == '{') stack.append(token.start);
+        else if (c == ')' || c == ']' || c == '}') {
+            if (stack.isEmpty()) return -1;
+            const int open = stack.takeLast();
+            if (expression[open] != (c == ')' ? '(' : c == ']' ? '[' : '{')) return -1;
+            if (i == tokens.size() - 1 && stack.isEmpty()) return open;
+        }
+    }
+    return -1;
 }
 
 /** @brief trailingDottedNameの本体。 @param source カーソルまでの本文。 @return 末尾の名前。 */
@@ -340,6 +432,41 @@ QStringList callReceiver(QStringView line, const QString& token) {
     if (!token.isEmpty()) parts.append(token.split('.'));
     else parts.append(QString());
     return parts;
+}
+
+/** @brief 補完直前の受け手を後ろから読む。添字・呼出し・リテラルを保持する。
+ * @param line カーソル行。 @param prefix 入力中のメンバー名。 @return 受け手の式。該当しなければ空。
+ */
+QString memberReceiver(QStringView line, const QString& prefix) {
+    const int dot = int(line.size()) - prefix.size() - 1;
+    if (dot <= 0 || line[dot] != '.') return {};
+    const auto before = line.left(dot);
+    const auto tokens = tokenizeLine(before, ScriptLanguage::Python, kLexerNormal, nullptr);
+    int index = int(tokens.size()) - 1;
+    int start = dot;
+    while (index >= 0) {
+        const auto& word = tokens[index];
+        const auto spelling = before.mid(word.start, word.length);
+        if (word.type == TokenType::Operator && (spelling == QLatin1String(")") || spelling == QLatin1String("]") || spelling == QLatin1String("}"))) {
+            const int opening = finalOpening(before.left(word.start + word.length));
+            if (opening < 0) return {};
+            start = opening;
+            while (index >= 0 && tokens[index].start >= opening) --index;
+            if (index >= 0 && before[opening] != '{') {
+                const auto& previous = tokens[index];
+                const auto c = before[previous.start];
+                if (previous.type == TokenType::Name && !isKeyword(before.mid(previous.start, previous.length), ScriptLanguage::Python)) continue;
+                if (c == ')' || c == ']') continue;
+            }
+        } else if (word.type == TokenType::Name || word.type == TokenType::String || word.type == TokenType::Number) {
+            if (word.type == TokenType::Name && isKeyword(spelling, ScriptLanguage::Python)) return {};
+            start = word.start;
+            --index;
+        } else return {};
+        if (index >= 0 && before.mid(tokens[index].start, tokens[index].length) == QLatin1String(".")) { --index; continue; }
+        return before.mid(start).trimmed().toString();
+    }
+    return before.mid(start).trimmed().toString();
 }
 
 /** @brief 戻り値の注釈から候補の型名を取り出す。
@@ -848,6 +975,252 @@ void CompletionEngine::followImports(Request& request, Symbol* item, QString* mo
     }
 }
 
+bool CompletionEngine::sameType(const Located& left, const Located& right, int depth) {
+    if (&left == &right) return left.found;
+    if (depth >= kMaximumInferDepth || !left.found || !right.found || left.module != right.module
+        || left.path != right.path || left.item.type != right.item.type || left.item.signature != right.item.signature
+        || bool(left.element) != bool(right.element) || bool(left.iterationElement) != bool(right.iterationElement)
+        || left.positions.size() != right.positions.size()) return false;
+    if (left.element && !sameType(*left.element, *right.element, depth + 1)) return false;
+    if (left.iterationElement && !sameType(*left.iterationElement, *right.iterationElement, depth + 1)) return false;
+    for (int i = 0; i < left.positions.size(); ++i) {
+        if (bool(left.positions[i]) != bool(right.positions[i])) return false;
+        if (left.positions[i] && !sameType(*left.positions[i], *right.positions[i], depth + 1)) return false;
+    }
+    return true;
+}
+
+CompletionEngine::Located CompletionEngine::iterationType(Request& request, const Located& source,
+                                                          const SymbolTable& scope, int depth) {
+    if (source.iterationElement) return *source.iterationElement;
+    if (source.module == "builtins" && source.path == QStringList{"str"}) return source;
+    Located unknown;
+    unknown.found = false;
+    if (!source.found || depth >= kMaximumInferDepth) return unknown;
+    const auto members = membersOf(request, source, scope, depth);
+    const auto method = members.constFind("__iter__");
+    if (method == members.constEnd()) return unknown;
+    const QString annotation = method->returnAnnotation.trimmed();
+    const int opening = finalOpening(annotation);
+    if (opening <= 0 || annotation[opening] != '[') return unknown;
+    const auto home = method->returnModule.isEmpty() ? scope : moduleMembers(request, method->returnModule);
+    const QString name = annotation.left(opening).trimmed();
+    QString canonical = name;
+    const auto imported = home.constFind(name.section('.', 0, 0));
+    if (imported != home.constEnd()) {
+        if (imported->type == SymbolType::Import) canonical = imported->fromModule + "." + imported->fromName;
+        else if (imported->type == SymbolType::Module && name.contains('.')) canonical = imported->target + "." + name.section('.', 1);
+    }
+    if (canonical != "typing.Iterator" && canonical != "collections.abc.Iterator"
+        && canonical != "typing.Generator" && canonical != "collections.abc.Generator") return unknown;
+    const auto arguments = splitExpression(QStringView(annotation).mid(opening + 1, annotation.size() - opening - 2), ',');
+    return annotationType(request, home, arguments.first().toString(), depth + 1);
+}
+
+CompletionEngine::Located CompletionEngine::annotationType(Request& request, const SymbolTable& scope,
+                                                           QString annotation, int depth) {
+    Located unknown;
+    unknown.found = false;
+    if (depth >= kMaximumInferDepth || ++request.inferenceSteps > 256) return unknown;
+    annotation = annotation.trimmed();
+    if (annotation.size() >= 2 && (annotation.front() == '\'' || annotation.front() == '"')
+        && annotation.back() == annotation.front()) annotation = annotation.mid(1, annotation.size() - 2).trimmed();
+    const QStringView view(annotation);
+    auto unionParts = splitExpression(view, '|');
+    const int bracket = finalOpening(view);
+    QString name = bracket > 0 && view[bracket] == '[' ? view.left(bracket).trimmed().toString() : annotation;
+    QString canonical = name;
+    const auto imported = scope.constFind(name.section('.', 0, 0));
+    if (imported != scope.constEnd()) {
+        if (imported->type == SymbolType::Import) canonical = imported->fromModule + "." + imported->fromName;
+        else if (imported->type == SymbolType::Module && name.contains('.')) canonical = imported->target + "." + name.section('.', 1);
+    }
+    const bool typing = canonical.startsWith("typing.") || canonical.startsWith("typing_extensions.");
+    const QString shortName = canonical.section('.', -1);
+    const QStringView inside = bracket > 0 ? view.mid(bracket + 1, view.size() - bracket - 2) : QStringView();
+    if (typing && shortName == "Optional") return annotationType(request, scope, inside.toString(), depth + 1);
+    if (typing && shortName == "Union") unionParts = splitExpression(inside, ',');
+    if (unionParts.size() > 1) {
+        Located result = unknown;
+        for (const auto& part : unionParts) {
+            if (part == QLatin1String("None")) continue;
+            const auto type = annotationType(request, scope, part.toString(), depth + 1);
+            if (!type.found || (result.found && !sameType(type, result))) return unknown;
+            result = type;
+        }
+        return result;
+    }
+    QString container;
+    if ((typing && (shortName == "List" || shortName == "Dict" || shortName == "Set" || shortName == "Tuple"))
+        || ((name == "list" || name == "dict" || name == "set" || name == "tuple") && imported == scope.constEnd())
+        || (canonical.startsWith("builtins.") && (shortName == "list" || shortName == "dict" || shortName == "set" || shortName == "tuple"))) {
+        container = shortName.toLower();
+        name = "builtins." + container;
+    }
+    auto result = walk(request, scope, QStringView(), name.split('.'), depth + 1);
+    if (!result.found || result.item.type != SymbolType::Class) return unknown;
+    if (!container.isEmpty() && bracket > 0) {
+        const auto arguments = splitExpression(inside, ',');
+        const auto element = [&](int index) -> std::shared_ptr<Located> {
+            if (index >= arguments.size()) return {};
+            auto type = annotationType(request, scope, arguments[index].toString(), depth + 1);
+            return type.found ? std::make_shared<Located>(type) : nullptr;
+        };
+        result.element = element(container == "dict" ? 1 : 0);
+        result.iterationElement = container == "dict" ? element(0) : result.element;
+        if (container == "tuple" && !(arguments.size() == 2 && arguments[1] == QLatin1String("...")))
+            for (int i = 0; i < arguments.size(); ++i) result.positions.append(element(i));
+        // 異種タプルを単一要素型に縮めない。tuple[T, ...]は同型。
+        if (container == "tuple" && arguments.size() > 1 && arguments[1] != QLatin1String("...")) {
+            for (int i = 1; i < arguments.size(); ++i) {
+                const auto next = element(i);
+                if (!next || !result.element || !sameType(*next, *result.element)) {
+                    result.element.reset(); result.iterationElement.reset(); break;
+                }
+            }
+        }
+    }
+    return result;
+}
+
+CompletionEngine::Located CompletionEngine::valueType(Request& request, const SymbolTable& scope, QStringView text,
+                                                      QStringView expression, int depth) {
+    Located unknown;
+    unknown.found = false;
+    if (depth >= kMaximumInferDepth || ++request.inferenceSteps > 256) return unknown;
+    expression = expression.trimmed();
+    if (expression.isEmpty()) return unknown;
+    const auto builtin = [&](const QString& name) {
+        Located result;
+        result.module = "builtins";
+        result.path = QStringList{name};
+        const auto members = moduleMembers(request, "builtins");
+        const auto found = members.constFind(name);
+        result.found = found != members.constEnd() && found->type == SymbolType::Class;
+        if (result.found) result.item = found.value();
+        return result;
+    };
+    const QString primitive = literalType(expression);
+    if (primitive == "builtins.str" || primitive == "builtins.bytes") return builtin(primitive.mid(9));
+    if (expression == QLatin1String("True") || expression == QLatin1String("False")) return builtin("bool");
+    static const QRegularExpression integer("^[+-]?(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*)$");
+    static const QRegularExpression real("^[+-]?(?:[0-9][0-9_]*(?:\\.[0-9_]*)?|\\.[0-9][0-9_]*)(?:[eE][+-]?[0-9][0-9_]*)?[jJ]?$");
+    const QString owned = expression.toString();
+    const auto tupleItems = splitExpression(expression, ',');
+    if (tupleItems.size() > 1) {
+        const QString wrapped = "(" + owned + ")";
+        return valueType(request, scope, text, wrapped, depth + 1);
+    }
+    if (integer.match(owned).hasMatch()) return builtin("int");
+    if (real.match(owned).hasMatch()) return builtin(owned.endsWith('j', Qt::CaseInsensitive) ? "complex" : "float");
+    const int open = finalOpening(expression);
+    if (open > 0 && expression.back() == ')') {
+        const auto callable = expression.left(open).trimmed();
+        if (callable == QLatin1String("enumerate") && !scope.contains("enumerate")) {
+            const auto arguments = splitExpression(expression.mid(open + 1, expression.size() - open - 2), ',');
+            const auto source = valueType(request, scope, text, arguments.first(), depth + 1);
+            auto pair = builtin("tuple");
+            const auto element = iterationType(request, source, scope, depth + 1);
+            pair.positions = {std::make_shared<Located>(builtin("int")), element.found ? std::make_shared<Located>(element) : nullptr};
+            auto result = builtin("enumerate");
+            result.iterationElement = std::make_shared<Located>(pair);
+            return result;
+        }
+        auto callee = valueType(request, scope, text, callable, depth + 1);
+        const auto parts = splitExpression(callable, '.');
+        Located receiver = unknown;
+        if (parts.size() > 1) receiver = valueType(request, scope, text, callable.left(parts.last().data() - callable.data() - 1), depth + 1);
+        return callee.found ? callResult(request, callee, scope, depth,
+            expression.mid(open + 1, expression.size() - open - 2), receiver.found ? &receiver : nullptr) : unknown;
+    }
+    if (open > 0 && expression.back() == ']') {
+        const auto container = valueType(request, scope, text, expression.left(open), depth + 1);
+        const auto index = expression.mid(open + 1, expression.size() - open - 2);
+        if (splitExpression(index, ':').size() > 1) {
+            return container.path == QStringList{"list"} || container.path == QStringList{"tuple"}
+                || container.path == QStringList{"str"} || container.path == QStringList{"bytes"} ? container : unknown;
+        }
+        if (container.module == "builtins" && container.path == QStringList{"str"}) return container;
+        bool valid = false;
+        int position = index.toString().toInt(&valid);
+        if (valid && !container.positions.isEmpty()) {
+            if (position < 0) position += container.positions.size();
+            return position >= 0 && position < container.positions.size() && container.positions[position]
+                ? *container.positions[position] : unknown;
+        }
+        if (container.element) return *container.element;
+        if (container.found && container.module != "builtins") {
+            const auto members = membersOf(request, container, scope, depth);
+            const auto item = members.constFind("__getitem__");
+            if (item != members.constEnd()) {
+                auto method = container;
+                method.item = item.value();
+                return callResult(request, method, scope, depth + 1, index, &container);
+            }
+        }
+        return unknown;
+    }
+    if (open == 0) {
+        const auto inside = expression.mid(1, expression.size() - 2);
+        const auto values = splitExpression(inside, ',');
+        if (expression.front() == '(' && values.size() == 1 && !inside.trimmed().isEmpty())
+            return valueType(request, scope, text, inside, depth + 1);
+        const bool dictionary = expression.front() == '{' && (inside.isEmpty() || splitExpression(values.first(), ':').size() == 2);
+        const auto name = expression.front() == '[' ? "list" : expression.front() == '(' ? "tuple" : dictionary ? "dict" : "set";
+        auto result = builtin(name);
+        if (values.size() > 32) return result;  // 入力1回あたりの推論量を制限する。
+        bool first = true;
+        for (const auto& value : values) {
+            if (value.isEmpty()) continue;
+            const auto pair = splitExpression(value, ':');
+            const auto member = valueType(request, scope, text, dictionary && pair.size() == 2 ? pair[1] : value, depth + 1);
+            const auto key = dictionary && pair.size() == 2 ? valueType(request, scope, text, pair[0], depth + 1) : member;
+            if (expression.front() == '(') result.positions.append(member.found ? std::make_shared<Located>(member) : nullptr);
+            const auto merge = [&](std::shared_ptr<Located>& saved, const Located& incoming) {
+                if (first) saved = incoming.found ? std::make_shared<Located>(incoming) : nullptr;
+                else if (!incoming.found || !saved || !sameType(incoming, *saved)) saved.reset();
+            };
+            merge(result.element, member);
+            merge(result.iterationElement, key);
+            first = false;
+        }
+        return result;
+    }
+    const auto parts = splitExpression(expression, '.');
+    if (parts.size() > 1 && isIdentifier(parts.last().toString())) {
+        const auto prefix = expression.left(parts.last().data() - expression.data() - 1).trimmed();
+        auto owner = valueType(request, scope, text, prefix, depth + 1);
+        if (!owner.found) return unknown;
+        const auto members = membersOf(request, owner, scope, depth);
+        const QString name = parts.last().toString();
+        const auto found = members.constFind(name);
+        if (found == members.constEnd()) return unknown;
+        if (owner.item.type == SymbolType::Class && found->type == SymbolType::Value
+            && (!found->valueAnnotation.isEmpty() || !found->valueExpression.isEmpty())) {
+            const QString home = found->returnModule.isEmpty() ? owner.module : found->returnModule;
+            SymbolTable context = home.isEmpty() ? scope : moduleMembers(request, home);
+            if (found->valueScope) {
+                for (auto it = found->valueScope->cbegin(); it != found->valueScope->cend(); ++it) context.insert(it.key(), it.value());
+            }
+            if (!found->receiverName.isEmpty()) context.insert(found->receiverName, owner.item);
+            if (!found->valueAnnotation.isEmpty()) return annotationType(request, context, found->valueAnnotation, depth + 1);
+            return valueType(request, context, QStringView(), found->valueExpression, depth + 1);
+        }
+        if (owner.item.type == SymbolType::Module) { owner.module = owner.item.target; owner.path.clear(); }
+        owner.path.append(name);
+        owner.item = found.value();
+        owner.element.reset(); owner.iterationElement.reset();
+        followImports(request, &owner.item, &owner.module, &owner.path);
+        return owner;
+    }
+    if (isIdentifier(owned)) {
+        auto result = resolveName(request, scope, text, owned, depth, false);
+        followImports(request, &result.item, &result.module, &result.path);
+        return result;
+    }
+    return unknown;
+}
+
 CompletionEngine::Located CompletionEngine::resolveName(Request& request, const SymbolTable& scope, QStringView text,
                                                        const QString& name, int depth, bool allowImplicitModule) {
     Located located;
@@ -857,11 +1230,62 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
         located.path = QStringList{name};  // 本文の中での位置(定義へ移動で使う。moduleが空なら本文の中)。
         return located;
     }
+    if (local != scope.end() && local->valueOffset != -1) {
+        Located type;
+        type.found = false;
+        if (!local->valueAnnotation.isEmpty()) {
+            type = annotationType(request, scope, local->valueAnnotation, depth + 1);
+        } else if (depth < kMaximumInferDepth && !local->valueExpression.isEmpty()) {
+            // 代入時点のスコープを再利用する。後で元変数を再代入してもコピー先の型は変えない。
+            const int offset = local->valueOffset;
+            if (offset >= 0 && offset <= text.size()) {
+                const auto before = text.left(offset);
+                const int lineStart = int(before.lastIndexOf(QLatin1Char('\n'))) + 1;
+                int indent = 0;
+                for (const auto c : before.mid(lineStart)) {
+                    if (c == ' ') ++indent;
+                    else if (c == '\t') indent = (indent / 8 + 1) * 8;
+                    else break;
+                }
+                const auto previous = declarationsFor(before, nullptr, indent).symbols;
+                type = valueType(request, previous, before, local->valueExpression, depth + 1);
+                if (local->iterated) {
+                    // 返された値を先に保持し、shared_ptrの所有者との自己参照代入を避ける。
+                    const Located element = iterationType(request, type, previous, depth + 1);
+                    type = element;
+                }
+                if (local->unpackIndex >= 0) {
+                    const int index = local->unpackIndex;
+                    if (type.positions.size() == local->unpackCount && type.positions[index]) {
+                        const Located element = *type.positions[index];
+                        type = element;
+                    }
+                    else type.found = false;
+                }
+            }
+        }
+        if (type.found) return type;
+        located.item = local.value();
+        located.path = QStringList{name};
+        return located;  // 不明な再代入から過去の別スコープへ逆戻りしない。
+    }
     // 変数なら、代入・型ヒントからクラスを推論する(インスタンスはクラスの中身で補完する)。本文が空なら推論しない。
-    if (depth < kMaximumInferDepth && !text.isEmpty()) {
+    if (local != scope.end() && depth < kMaximumInferDepth && !text.isEmpty()) {
         QString arguments;
         const QString expression = inferExpression(text, name, &arguments);
         if (!expression.isEmpty() && expression != name) {
+            if (expression.startsWith("builtins.") && arguments.isEmpty()) {
+                // リテラルはimport不要。暗黙のモジュール補完が無効でも実型を参照する。
+                const QString typeName = expression.mid(9);
+                const SymbolTable members = moduleMembers(request, "builtins");
+                const auto type = members.constFind(typeName);
+                if (type != members.constEnd() && type->type == SymbolType::Class) {
+                    located.item = type.value();
+                    located.module = "builtins";
+                    located.path = QStringList{typeName};
+                    return located;
+                }
+            }
             QStringList parts = expression.split('.');
             parts.last() += arguments;
             const Located type = walk(request, scope, text, parts, depth + 1, allowImplicitModule);
@@ -874,7 +1298,9 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
         located.item = local.value();
         located.path = QStringList{name};
     } else if (builtins_.contains(name)) {
-        located.item = Symbol::category(SymbolType::Builtin);
+        // list()/str()と型注釈でも、名前の分類だけでなく実際のクラスを使う。
+        const SymbolTable members = moduleMembers(request, "builtins");
+        located.item = members.value(name, Symbol::category(SymbolType::Builtin));
         located.module = "builtins";
         located.path = QStringList{name};
     } else if (allowImplicitModule) {
@@ -885,16 +1311,63 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
     return located;
 }
 
+CompletionEngine::Located CompletionEngine::builtinMethodResult(Request& request, const Located& receiver,
+                                                               const QString& method, const SymbolTable& scope, int depth) {
+    Located unknown;
+    unknown.found = false;
+    if (receiver.module != "builtins" || receiver.path.size() != 1 || depth >= kMaximumInferDepth) return unknown;
+    const QString& type = receiver.path.first();
+    // 実型と実在メンバーを確認した後で適用する。任意の同名メソッド・派生型へ契約を押し付けない。
+    static const QSet<QString> textResults = {"capitalize", "casefold", "center", "expandtabs", "join", "ljust", "lower",
+        "lstrip", "removeprefix", "removesuffix", "replace", "rjust", "rstrip", "strip", "swapcase", "title", "translate", "upper", "zfill"};
+    static const QSet<QString> textIntegers = {"count", "find", "index", "rfind", "rindex"};
+    static const QSet<QString> textBooleans = {"endswith", "startswith", "isalnum", "isalpha", "isascii", "isdecimal",
+        "isdigit", "isidentifier", "islower", "isnumeric", "isprintable", "isspace", "istitle", "isupper"};
+    QString annotation;
+    if (type == "str" || type == "bytes") {
+        if (textResults.contains(method) || (type == "str" && (method == "format" || method == "format_map"))) annotation = type;
+        else if (textIntegers.contains(method)) annotation = "int";
+        else if (textBooleans.contains(method)) annotation = "bool";
+        else if (method == "split" || method == "rsplit" || method == "splitlines") annotation = "list[" + type + "]";
+        else if (method == "partition" || method == "rpartition") annotation = "tuple[" + type + ", " + type + ", " + type + "]";
+        else if (type == "str" && method == "encode") annotation = "bytes";
+        else if (type == "bytes" && (method == "decode" || method == "hex")) annotation = "str";
+    } else if (type == "list" || type == "tuple" || type == "dict" || type == "set") {
+        if (method == "copy") return receiver;
+        if (method == "count" || method == "index") annotation = "int";
+        else if (method == "pop" || (type == "dict" && method == "get")) {
+            return receiver.element ? *receiver.element : unknown;
+        } else if (type == "set" && (method == "issubset" || method == "issuperset" || method == "isdisjoint")) annotation = "bool";
+        // 更新操作(append/sort/update等)のNoneを元オブジェクトに誤変換しない。
+    } else if (type == "int" || type == "float") {
+        if (method == "bit_length" || method == "bit_count") annotation = "int";
+        else if (method == "is_integer") annotation = "bool";
+        else if (method == "as_integer_ratio") annotation = "tuple[int, int]";
+        else if (method == "hex") annotation = "str";
+        else if (method == "to_bytes") annotation = "bytes";
+    }
+    // builtinsの契約はローカルでstr/list等を隠していても組み込み型を指す。
+    return annotation.isEmpty() ? unknown : annotationType(request, SymbolTable(), annotation, depth + 1);
+}
+
 CompletionEngine::Located CompletionEngine::callResult(Request& request, Located callee, const SymbolTable& scope, int depth,
                                                        QStringView arguments, const Located* receiver) {
     if (callee.item.type == SymbolType::Class) return callee;
+    if (receiver && callee.module == "builtins" && !callee.path.isEmpty()) {
+        const auto type = builtinMethodResult(request, *receiver, callee.path.last(), scope, depth);
+        if (type.found) return type;
+    }
     if (depth <= kMaximumInferDepth && callee.item.type == SymbolType::Function) {
+        if (callee.item.returnAnnotation.isEmpty() && !callee.item.returnExpression.isEmpty()) {
+            const auto home = callee.item.returnModule.isEmpty() ? scope : moduleMembers(request, callee.item.returnModule);
+            return valueType(request, home, QStringView(), callee.item.returnExpression, depth + 1);
+        }
         const QString name = returnTypeName(callReturnAnnotation(callee.item, arguments));
-        if (!name.isEmpty()) {
+        if (!callee.item.returnAnnotation.isEmpty()) {
             const QString& module = callee.item.returnModule;
             const SymbolTable home = module.isEmpty() ? scope : moduleMembers(request, module);
             if (receiver && callee.item.binding != Symbol::StaticMethod && isSelfAnnotation(name, home)) return *receiver;
-            Located type = walk(request, home, QStringView(), name.split('.'), depth + 1);
+            Located type = annotationType(request, home, callReturnAnnotation(callee.item, arguments), depth + 1);
             if (!type.found && name.contains('.')) {
                 // 完全修飾名でも、読み込み済みのパッケージのvars()に子モジュールがまだ無い場合がある。
                 type = walk(request, home, QStringView(), {name.section('.', 0, -2), name.section('.', -1)}, depth + 1);
@@ -959,6 +1432,11 @@ SymbolTable CompletionEngine::membersOf(Request& request, const Located& located
 SymbolTable CompletionEngine::classMembers(Request& request, const Symbol& item, const SymbolTable& home,
                                            const QString& module, int depth) {
     SymbolTable members = item.members ? *item.members : SymbolTable();
+    if (item.instanceAttributes) {
+        for (auto it = item.instanceAttributes->cbegin(); it != item.instanceAttributes->cend(); ++it) {
+            if (!members.contains(it.key())) members.insert(it.key(), it.value());
+        }
+    }
     if (depth >= kMaximumInferDepth) {
         return members;
     }
@@ -1104,7 +1582,17 @@ DefinitionLocation CompletionEngine::definition(const QString& text, int end) {
             found->column = column;
         }
     };
-    const SymbolTable locals = documentDeclarations(text);
+    SymbolTable locals = documentDeclarations(text);
+    const int lineStart = int(before.lastIndexOf(QLatin1Char('\n'))) + 1;
+    int indent = 0;
+    for (const auto c : before.mid(lineStart)) {
+        if (c == ' ') ++indent;
+        else if (c == '\t') indent = (indent / 8 + 1) * 8;
+        else break;
+    }
+    // 補完・ホバーと同じ可視スコープを使い、関数ローカルの型からも定義へ移動する。
+    const auto visible = declarationsFor(before, nullptr, indent).symbols;
+    for (auto it = visible.constBegin(); it != visible.constEnd(); ++it) locals.insert(it.key(), it.value());
     if (parts.size() == 1) {
         // 変数(関数の中の変数・引数・for の変数・型を推論した変数)は、クラスではなく変数自身の定義
         // (カーソルより前の代入など)へ移る。def・class・importの名前は、下でたどる。
@@ -1214,10 +1702,15 @@ CompletionResult CompletionEngine::complete(const QString& source) {
                                                QRegularExpression::UseUnicodePropertiesOption);
     const QRegularExpressionMatch fromMatch = fromImport.match(line);
     const QStringList receiver = callReceiver(line, token);
+    const QString valueReceiver = memberReceiver(line, token.section('.', -1));
     if (fromMatch.hasMatch()) {
         // from maya import cm → mayaの中の名前。
         symbols = moduleMembers(request, fromMatch.captured(1));
         prefix = fromMatch.captured(2);
+    } else if (!valueReceiver.isEmpty()) {
+        const auto located = valueType(request, locals, source, valueReceiver, 0);
+        if (located.found) symbols = membersOf(request, located, locals, 0);
+        prefix = token.section('.', -1);
     } else if (token.contains('.') || !receiver.isEmpty()) {
         // a.b.c → aの中のbの中の、cで始まる名前。変数(x = pkg.A() / x: pkg.A)はクラスを推論する。
         const QStringList parts = receiver.isEmpty() ? token.split('.') : receiver;

@@ -58,10 +58,16 @@ QString Symbol::categoryName() const {
 bool Symbol::operator==(const Symbol& other) const {
     if (type != other.type || binding != other.binding || detail != other.detail || target != other.target || fromModule != other.fromModule
         || fromName != other.fromName || signature != other.signature || doc != other.doc || bases != other.bases
-        || returnAnnotation != other.returnAnnotation || returnModule != other.returnModule
-        || literalReturns != other.literalReturns || overload != other.overload) {
+        || returnAnnotation != other.returnAnnotation || returnExpression != other.returnExpression || returnModule != other.returnModule
+        || literalReturns != other.literalReturns || overload != other.overload
+        || valueExpression != other.valueExpression || valueAnnotation != other.valueAnnotation
+        || valueOffset != other.valueOffset || iterated != other.iterated
+        || unpackIndex != other.unpackIndex || unpackCount != other.unpackCount || receiverName != other.receiverName) {
         return false;
     }
+    if (bool(instanceAttributes) != bool(other.instanceAttributes) || bool(valueScope) != bool(other.valueScope)) return false;
+    if (instanceAttributes && *instanceAttributes != *other.instanceAttributes) return false;
+    if (valueScope && *valueScope != *other.valueScope) return false;
     if (!members || !other.members) {
         return !members && !other.members;
     }

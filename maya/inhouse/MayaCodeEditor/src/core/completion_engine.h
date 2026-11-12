@@ -99,6 +99,7 @@ private:
     struct Request {
         std::optional<QStringList> paths;         ///< sys.path(最初に必要になったときに1回だけ受け取る)。
         QHash<QString, SymbolTable> modules;      ///< モジュール名 → 求めた中身。
+        int inferenceSteps = 0;                 ///< 入力1回の再帰推論量。複雑な式でUIを止めない。
     };
 
     /** @brief 名前をたどった結果。 */
@@ -107,7 +108,33 @@ private:
         QString module;      ///< itemがあるモジュール(本文の中なら空)。
         QStringList path;    ///< モジュールの中でのitemの位置(``Class.method``なら``[Class, method]``)。
         bool found = true;   ///< 最後までたどれたか。
+        std::shared_ptr<Located> element;  ///< 添字で取得する要素型。型が混在・不明なら空。
+        std::shared_ptr<Located> iterationElement;  ///< forで取得する型。辞書ではキー型。
+        QVector<std::shared_ptr<Located>> positions;  ///< タプルの位置ごとの型。異種の分割代入にも使用する。
     };
+
+    /** @brief 未実行の値の式を、リテラル・名前・呼出し・添字として限定的に解決する。
+     * @param request 問い合わせ。 @param scope 可視の名前。 @param text 束縛位置までの本文。
+     * @param expression 値の式。 @param depth 循環を防ぐ深さ。 @return 型・要素型、不明ならfound=false。
+     */
+    Located valueType(Request& request, const SymbolTable& scope, QStringView text, QStringView expression, int depth);
+
+    /** @brief 注釈のコンテナ型と要素型を解決する。複数種類のUnionは推測しない。
+     * @param request 問い合わせ。 @param scope 注釈の定義元。 @param annotation 型注釈。
+     * @param depth 再帰の深さ。 @return 解決した型。
+     */
+    Located annotationType(Request& request, const SymbolTable& scope, QString annotation, int depth);
+
+    /** @brief コンテナの要素を含めた推論型の一致を検査する。
+     * @param left 一方の型。 @param right 他方の型。 @param depth 循環防止。 @return 既知の型が一致するか。
+     */
+    static bool sameType(const Located& left, const Located& right, int depth = 0);
+
+    /** @brief 反復対象の要素型を取得する。ユーザー定義型では__iter__の注釈だけを読む。
+     * @param request 問い合わせ。 @param source 反復対象。 @param scope 名前表。
+     * @param depth 再帰の深さ。 @return 解決した要素型。不明ならfound=false。
+     */
+    Located iterationType(Request& request, const Located& source, const SymbolTable& scope, int depth);
 
     /** @brief 解決済み関数がインスタンスまたはクラスへ束縛されるか。
      * @param request 問い合わせ。 @param scope 名前の表。 @param text 本文。
@@ -135,6 +162,13 @@ private:
      */
     Located callResult(Request& request, Located callee, const SymbolTable& scope, int depth,
                        QStringView arguments, const Located* receiver = nullptr);
+
+    /** @brief 組み込み型の既知の戻り値契約だけを解決する。メソッドは実行しない。
+     * @param request 問い合わせ。 @param receiver 呼出し元の型。 @param method メソッド名。
+     * @param scope 名前表。 @param depth 再帰の深さ。 @return 戻り値型。不明ならfound=false。
+     */
+    Located builtinMethodResult(Request& request, const Located& receiver, const QString& method,
+                                const SymbolTable& scope, int depth);
 
     /** @brief ``a.b.c``をたどる(補完とホバーで共通)。 @param request 今の問い合わせ。 @param scope 最初の名前を探す表。
      * @param text 型を推論する本文。 @param parts 名前を点で分けたもの。 @param depth 推論の深さ。

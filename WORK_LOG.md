@@ -101,6 +101,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -161,7 +165,15 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-13): ユーザー依頼により、MCEのリテラル・コンテナ・戻り値連鎖・self属性の簡易型推論、回帰テスト、機能文書、検証済み2022〜2027 mllをまとめてコミット・push。既存のテスト結果と差分検査を再確認。調査資料と操作証拠はローカル/Driveに保持。
+
+- Codex (2026-11-13): MCE簡易補完へ組み込みメソッド戻り値連鎖とself属性推論を追加。Maya 2022/2027各52補完テスト・GUI47項目、比較用24例、Sphinx厳格ビルドを確認。2022〜2027 mll再ビルド。専用Mayaの実キーでEnter/Tab/Escape/Ctrl+Spaceを確認し、検証用エディターの画面操作環境も復旧。記録は `.maya-output/mce-inference-20261113/`。既存変更を保持、コミット・push未実施。
+
 - Claude Code (2026-11-13 夜間): mlrig CamFollower(回転する板カムに押される直動の従動節、下の休止・上昇・上の休止・下降)を追加。w = θ mod 360°、u1 = clamp(w/β1, 0, 1)、u2 = clamp((w - β1 - βd)/β2, 0, 1)、lift = h(f(u1) - f(u2))(cycloidal/harmonic)で従動節の translate・lift・velocity・camAngle・riseProgress・returnProgress・turn を標準ノードだけで出力。Setup Samples に1項目、文書 cam_follower.rst、テスト8件(setups スイート)、検証デモ tools/demo_cam_follower.py。隔離 Maya 2027 で setups 718件・standard 76件 OK、Sphinx -W 成功、検証動画384フレームの判定 OK(Drive 保存・リンク共有済み)。コミット・プッシュ(このコミット)。
+
+- Codex (2026-11-12): MCE簡易補完の型推論を拡張（コンテナ要素・添字・for/enumerate・別名・型付き引数・単一return・単純isinstance）。型引数付き基底クラスを読み落としていたmlibのcopy候補漏れも修正。Maya2022/2027各補完49件・専用GUI Qt入力43チェック、宣言解析比較・保存先・Qt smoke・ロード/アンロード成功。2022〜2027製品mll再ビルドとSphinx厳格ビルド成功。VS Code実OS入力比較はウィンドウ取得失敗で未実施、補完provider APIで比較。簡易補完の組み込みメソッド戻り値連鎖とself属性推論は残り、同梱型解析では候補あり。証拠 `.maya-output/mce-inference-20261112`・`mce-tests/20261112_233625`。確認画面動画 https://drive.google.com/file/d/1iksfmXwBvEo-DyEbYFtlaQq11Rivt0hs/view （18秒の画像連番、非公開読戻し確認）。他担当変更を保持、コミット・push未実施。
+
+- Codex (2026-11-12): MCE 簡易補完で `[]`・文字列/bytes リテラルの代入から組み込み型を推論し、`list()`/`str()`・型注釈でも実クラスの候補を取得。再代入・添字・比較の誤推論を検査。2022〜2027 mll 再ビルド成功、2022/2027 は補完46件中45件とMaya standalone/Qt smoke成功（残るmlibのcopy期待1件は変更前mllでも失敗することを再現、mlibは未変更）。2027専用Maya GUIのQt入力39チェック成功、2022 GUIはフォーカスがmodelPanel4へ移り今回ケースに未到達。同梱basedpyrightでも2例の候補を確認。ログ `.maya-output/mce-tests/20261112_230640`・`mce-gui/20261112_230650`・`mce-literal-baseline`、確認画面の動画 https://drive.google.com/file/d/1hGnpWss7uqF5-WmHZS-LiluRwZXBczgl/view （画像連番による6秒、実OS操作録画ではない、非公開を読戻し確認）。コミット・push未実施。
 
 - Claude Code (2026-11-12): mlib の DagNode にアウトライナー上の並び順を扱う getOutlinerOrder()・setOutlinerOrder(index)・reorder(front/f, back/b, relative/r) を追加(cmds.reorder 相当。fast なし)。仕様テスト・Undo 網羅・型スタブ・docs/mlib-api-design.md を更新。2027/2022 の全テストと静的検査・Sphinx 検査を通過。
 - Claude Code (2026-11-12): CLAUDE.md・docs/vscode.md のコマンド例を python から py -3 へ変更。mlib のスタブ生成のバッチに終了時の pause を追加(--no-pause で省略)。

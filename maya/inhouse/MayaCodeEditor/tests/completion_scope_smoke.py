@@ -154,6 +154,26 @@ def main(output_dir, finished):
             assert code.hasFocus()
             result["checks"].append(label)
 
+        for source, expected in (
+            ('testList = []\ntestList.ap', 'append'),
+            ('testString = "hoge"\ntestString.up', 'upper'),
+            ('data = {"name": "demo"}\ndata.it', 'items'),
+            ('values: list[str] = []\nvalues[0].up', 'upper'),
+            ('values = ["demo"]\nfor item in values:\n    item.up', 'upper'),
+            ('original = "demo"\nalias = original\noriginal = 1\nalias.up', 'upper'),
+            ('value = " demo ".strip()\nvalue.up', 'upper'),
+            ('"a,b".split(",")[0].up', 'upper'),
+            ('class Item:\n    def __init__(self):\n        self.name = "demo"\n    def run(self):\n        self.name.up', 'upper'),
+            ('class Item:\n    def __init__(self):\n        self.names = []\nitem = Item()\nitem.names.ap', 'append'),
+        ):
+            popup(source, expected)
+            capture("builtin literal: " + expected)
+            QtTest.QTest.keyClick(code, QtCore.Qt.Key_Return)
+            wait(100)
+            assert code.toPlainText() == source[:-2] + expected
+            assert code.hasFocus()
+            result["checks"].append("builtin literal candidate + Enter: " + expected)
+
         for label, source, expected in (
             ("function local", 'def build():\n    scene_name = "test"\n    sce', "scene_name"),
             ("function argument", 'def build(scene_argument):\n    sce', "scene_argument"),

@@ -43,6 +43,61 @@ class CompletionTests(unittest.TestCase):
     """``mayaCodeEditorTest -complete`` による補完と、``maya_code_editor.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
+    def test_builtin_method_return_chains(self):
+        """実行せず組み込みの戻り値とコンテナ要素をたどる。"""
+        cases = [
+            ("x = ' hello '.strip()\nx.", "upper"),
+            ("' hello '.strip().lower().", "upper"),
+            ("'a,b'.split(',')[0].", "upper"),
+            ("'a,b'.partition(',')[1].", "upper"),
+            ("'hello'.encode().", "decode"),
+            ("b'hello'.decode().", "upper"),
+            ("x = ['hello']\nx.copy()[0].", "upper"),
+            ("x = ['hello']\nx.pop().", "upper"),
+            ("x = {'a': 'hello'}\nx.get('a').", "upper"),
+            ("x = 1.5\nx.as_integer_ratio()[0].", "bit_length"),
+            ("str = 3\nx = 'a'.strip()\nx.", "upper"),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertIn(expected, names(source))
+        for source in ["x = []\nx.append(1).", "x = []\nx.sort().",
+                       "class Custom:\n    def strip(self): pass\nx = Custom()\nx.strip()."]:
+            with self.subTest(source=source):
+                self.assertNotIn('upper', names(source))
+                self.assertNotIn('append', names(source))
+
+    def test_instance_attribute_types(self):
+        """selfのリテラル・注釈・別属性をメソッド内外から参照する。"""
+        cases = [
+            ("class Item:\n    def __init__(self):\n        self.name = 'hello'\n    def run(self):\n        self.name.", "upper"),
+            ("class Item:\n    def __init__(self):\n        self.names = []\nx = Item()\nx.names.", "append"),
+            ("class Item:\n    def __init__(self, name: str):\n        self.name = name\nx = Item()\nx.name.", "upper"),
+            ("class Item:\n    def __init__(self):\n        self.names: list[str] = []\nx = Item()\nx.names[0].", "upper"),
+            ("class Item:\n    def __init__(self):\n        self.name = 'hello'\n        self.alias = self.name\nx = Item()\nx.alias.", "upper"),
+            ("class Item:\n    def __init__(self):\n        self.name = ' hello '.strip()\nclass Child(Item): pass\nx = Child()\nx.name.", "upper"),
+            ("class Item:\n    def __init__(this): this.name = 'hello'\nx = Item()\nx.name.", "upper"),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertIn(expected, names(source))
+
+    def test_instance_attribute_inference_boundaries(self):
+        """static・別スコープ・条件代入・循環から型を決めつけない。"""
+        sources = [
+            "class Item:\n    @staticmethod\n    def init(self): self.name = 'hello'\nx = Item()\nx.name.",
+            "class Item:\n    def __init__(self):\n        def nested(self): self.name = 'hello'\nx = Item()\nx.name.",
+            "class Item:\n    def __init__(self):\n        if unknown:\n            self.name = 'hello'\n        else:\n            self.name = 1\nx = Item()\nx.name.",
+            "class Item:\n    def first(self): self.name = 'hello'\n    def second(self): self.name = 1\nx = Item()\nx.name.",
+            "class Item:\n    def __init__(self): self.name = self.name\nx = Item()\nx.name.",
+            "class Item:\n    def __init__(self):\n        self = None\n        self.name = 'hello'\nx = Item()\nx.name.",
+            "name = 'global'\nclass Item:\n    def __init__(self):\n        name = unknown()\n        self.name = name\nx = Item()\nx.name.",
+            "class Item:\n    def __init__(self):\n        self.name = 'hello'\n        self.name += unknown()\nx = Item()\nx.name.",
+        ]
+        for source in sources:
+            with self.subTest(source=source):
+                self.assertNotIn('upper', names(source))
+
     def test_language_server_config_shared_fallback(self):
         """ユーザー領域が見えない起動でもモジュール内設定へ到達する。"""
         with tempfile.TemporaryDirectory() as temporary:
@@ -236,6 +291,100 @@ class CompletionTests(unittest.TestCase):
         self.assertEqual(describe('len')['signature'], 'def len(obj, /)')
         self.assertEqual(describe('return'), {'signature': '', 'doc': ''})
 
+    def test_builtin_literal_members_without_execution(self):
+        """未実行のリスト・文字列でも実際の組み込みクラスの候補を返す。"""
+        for expression, expected in [
+            ('[]', 'append'), ('[1, [2], "]"] # comment', 'extend'),
+            ('[x for x in range(3)]', 'append'),
+            ('"hoge"', 'upper'), ("'hoge'", 'split'),
+            ('r"hoge"', 'replace'), ('f"{unknown}"', 'format'),
+            ('"ho" "ge"', 'upper'), ('b"hoge"', 'decode'),
+            ('list()', 'append'), ('str()', 'upper'),
+        ]:
+            with self.subTest(expression=expression):
+                self.assertIn(expected, names('testValue = ' + expression + '\ntestValue.'))
+        self.assertIn('append', names('testValue: list\ntestValue.'))
+        self.assertIn('upper', names('testValue: str\ntestValue.'))
+        self.assertIn('upper', names('testValue = []\ntestValue = "hoge"\ntestValue.'))
+        # 組み込み名を変数で隠しても、リテラルの実際の型は変わらない。
+        self.assertIn('append', names('list = 42\ntestValue = []\ntestValue.'))
+
+    def test_literal_inference_rejects_changed_expression(self):
+        """添字・比較・不明な再代入を元のリテラル型と誤認しない。"""
+        for expression in ('[1][0]', '[] == []', '"hoge" == "hoge"', 'unknown', '[] + unknown'):
+            with self.subTest(expression=expression):
+                found = names('testValue = []\ntestValue = ' + expression + '\ntestValue.')
+                self.assertNotIn('append', found)
+                self.assertNotIn('upper', found)
+
+    def test_container_and_expression_inference(self):
+        """通常の代入・要素・反復・戻り値を、実行なしで推論する。"""
+        cases = [
+            ("x = {}\nx.", "items"),
+            ("x = {'a', 'b'}\nx.", "add"),
+            ("x = ('a', 2)\nx.", "count"),
+            ("x = 42\nx.", "bit_length"),
+            ("x = 1.5\nx.", "is_integer"),
+            ("x = [\n 'a', # a comment\n]\nx.", "append"),
+            ("original = 'a'\nx = original\noriginal = 1\nx.", "upper"),
+            ("x: list[str] = []\nx.", "append"),
+            ("from typing import List as Names\nx: Names[str] = []\nx[0].", "upper"),
+            ("def f(x: dict[str, int]):\n    x.", "items"),
+            ("def f(x: list[str]):\n    x[0].", "upper"),
+            ("x = ['a']\nfor item in x:\n    item.", "upper"),
+            ("x = ['a']\ny = x[0]\ny.", "upper"),
+            ("x: dict[str, list[str]] = {}\nx['a'][0].", "upper"),
+            ("x: dict[str, int] = {}\nfor key in x:\n    key.", "upper"),
+            ("def f() -> list[str]:\n    return []\nfor x in f():\n    x.", "upper"),
+            ("def f() -> dict[str, int]:\n    return {}\nx = f()\nx.", "items"),
+            ("class A:\n    def parent(self) -> 'A': ...\n    def run(self): ...\nx = A().parent()\nx.", "run"),
+            ("def f():\n    return 'hello'\nx = f()\nx.", "upper"),
+            ("def f(x: str | int):\n    if isinstance(x, str):\n        x.", "upper"),
+            ("for i, x in enumerate(['a']):\n    x.", "upper"),
+            ("for i, x in enumerate(['a']):\n    i.", "bit_length"),
+            ("first, x = 1, 'a'\nx.", "upper"),
+            ("x = (1, 'a')\nx[-1].", "upper"),
+            ("x = ['a']\nx[:].", "append"),
+            ("from typing import Generic, TypeVar\nT = TypeVar('T')\nclass Base(Generic[T]):\n    def inherited(self): ...\nclass Child(Base[str]): pass\nx = Child()\nx.", "inherited"),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertIn(expected, names(source))
+
+    def test_inference_does_not_leak_or_execute(self):
+        """別スコープ・再代入・不明な要素型を誤認せず、推論でコードを実行しない。"""
+        cases = [
+            ("x = 'global'\ndef f(x):\n    x.", "upper"),
+            ("def a():\n    x = 'other'\ndef b():\n    x.", "upper"),
+            ("x = 'old'\nx = unknown\nx.", "upper"),
+            ("x = ['a', 1]\nx[0].", "upper"),
+            ("x = []\nx[0].", "upper"),
+            ("x = [['a'], [1]]\nx[0][0].", "upper"),
+            ("x: list[str] | list[int]\nx[0].", "upper"),
+            ("first, x = ('a',)\nx.", "upper"),
+            ("def f(x: str | int):\n    if isinstance(x, str):\n        pass\n    x.", "upper"),
+            ("def f(x: str | int):\n    if isinstance(x, str):\n        x = 1\n        x.", "upper"),
+            ("def isinstance(*args): return True\ndef f(x):\n    if isinstance(x, str):\n        x.", "upper"),
+            ("def f():\n    raise RuntimeError('must not execute')\nx = f()\nx.", "upper"),
+            ("x = x\nx.", "upper"),
+        ]
+        for source, unexpected in cases:
+            with self.subTest(source=source):
+                self.assertNotIn(unexpected, names(source))
+
+    def test_annotated_custom_iteration_without_execution(self):
+        """独自コレクションも__iter__/__getitem__の注釈を利用し、本体は実行しない。"""
+        source = ("from typing import Iterator\n"
+                  "class Values:\n"
+                  "    def __iter__(self) -> Iterator[str]:\n"
+                  "        raise RuntimeError('must not execute')\n"
+                  "    def __getitem__(self, index: int) -> str:\n"
+                  "        raise RuntimeError('must not execute')\n"
+                  "values = Values()\n")
+        for tail in ("for item in values:\n    item.", "values[0].", "for i, item in enumerate(values):\n    item."):
+            with self.subTest(tail=tail):
+                self.assertIn('upper', names(source + tail))
+
     def test_inferred_instance_includes_inherited_members(self):
         """代入からクラスを推論し、親クラスから受け継いだメソッドも候補に出す(読み込み済みのクラス)。"""
         module = types.ModuleType('inherit_probe')
@@ -266,6 +415,9 @@ class CompletionTests(unittest.TestCase):
         self.assertIn('copy', found)
         typed = names('import mlib\ndef f(jnt: mlib.nodes.Joint):\n    jnt.')
         self.assertIn('getJointOrient', typed)
+        for tail in ('for node in mlib.ls(type="joint"):\n    node.', 'mlib.ls(type="joint")[0].'):
+            with self.subTest(tail=tail):
+                self.assertIn('getJointOrient', names('import mlib\n' + tail))
 
     def test_python_errors_are_reported_not_raised(self):
         """maya_code_editor.bridgeの例外はPython側で受け止め、補完の結果のerrorとしてC++へ返る。"""

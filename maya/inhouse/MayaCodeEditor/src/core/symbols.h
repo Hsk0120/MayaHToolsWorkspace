@@ -8,7 +8,7 @@
  * | Module(``import a.b``など) | target(モジュール名) |
  * | Import(``from X import Y``) | fromModule(X)・fromName(Y) |
  * | Builtin・Keyword | なし(組み込みの名前・予約語。Preferencesでの絞り込みに使う) |
- * | Value(変数など) | なし |
+ * | Value(変数など) | valueExpression・valueAnnotation・valueOffset・iterated |
  * 種類を作るときは、Symbol::module()などの関数を使う(欄の組合せの誤りを防ぐため)。
  * signature・docと推論用の戻り値情報は、JSON(symbolTableToJson)には出さない
  * (以前のPythonの結果との突き合わせを変えないため)。typeもJSONには出さず、読むときは欄から決める。
@@ -49,13 +49,23 @@ struct Symbol {
     QString fromModule;                    ///< Import: ``from X import Y``のX。
     QString fromName;                      ///< Import: ``from X import Y``のY。
     std::shared_ptr<SymbolTable> members;  ///< Class: クラスの中の名前。それ以外はnullptr。
+    std::shared_ptr<SymbolTable> instanceAttributes; ///< Class: メソッド内の自身への代入。宣言JSONには含めない。
+    std::shared_ptr<SymbolTable> valueScope; ///< Value: 属性代入元の引数注釈。呼出しやインスタンスは保持しない。
+    QString receiverName;                 ///< Value: 属性代入で使った第1引数名。
     QStringList bases;                     ///< Class: 親クラスの式(``class B(pkg.A)``なら``pkg.A``)。ソースから読んだときだけ。
     QString signature;                     ///< ホバーに出す定義(``def name(a, b=1) -> int``)。無ければ空。
     QString returnAnnotation;              ///< 関数の戻り値の注釈。注釈が無ければ空。
+    QString returnExpression;              ///< 本文が単一returnだけのときの未実行の式。
     QString returnModule;                  ///< 注釈の定義元。編集中の本文なら空。
     QHash<QString, QString> literalReturns; ///< 文字列Literalの引数名と値から、対応する戻り値注釈を引く。
     bool overload = false;                 ///< @overloadの定義ならtrue。一致する型情報がなければ最初の定義を使う。
     QString doc;                           ///< docstring(字下げを整えたもの)。無ければ空。
+    QString valueExpression;               ///< Value: 未実行の代入右辺、またはforの反復対象。
+    QString valueAnnotation;               ///< Value: 変数・引数の注釈。型引数も保持する。
+    int valueOffset = -1;                   ///< 本文内の束縛位置。-1は情報なし、-2は推論できない引数。
+    bool iterated = false;                 ///< forの反復要素を受け取る名前。
+    int unpackIndex = -1;                  ///< 分割代入の位置。星付き分割は扱わない。
+    int unpackCount = 0;                   ///< 分割先の数。既知のタプル長と一致するときだけ推論する。
 
     /** @brief モジュールを指す名前を作る。 @param name モジュール名。 @return Moduleの名前。 */
     static Symbol module(const QString& name);

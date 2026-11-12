@@ -164,11 +164,20 @@ public:
             int indent = -1;
             bool isClass = false;
             SymbolTable names;
+            QString className;
         };
         QVector<Scope> scopes;
+        struct Guard {
+            int indent;
+            QString name;
+            QString annotation;
+            int bindingOffset;
+        };
+        QVector<Guard> guards;
         scopes.append({-1, false, result.symbols});
         for (int lineIndex = 0; lineIndex < lines_.size(); ++lineIndex) {
             const LogicalLine& line = lines_[lineIndex];
+            while (!guards.isEmpty() && line.indent <= guards.last().indent) guards.removeLast();
             while (scopes.size() > 1 && line.indent <= scopes.last().indent) {
                 scopes.removeLast();
             }
@@ -194,18 +203,44 @@ public:
                     int bodyIndex = lineIndex + 1;
                     symbol.bases = classBases(words.mid(0, colon));
                     symbol.members = std::make_shared<SymbolTable>(readBody(words.mid(colon + 1), &bodyIndex, line.indent));
+                    symbol.instanceAttributes = std::make_shared<SymbolTable>(readInstanceAttributes(lineIndex + 1, bodyIndex, line.indent));
                 }
                 auto& names = scopes.last().names;
                 const auto previous = names.constFind(name);
                 if (!function || previous == names.constEnd() || !previous->overload) names.insert(name, symbol);
                 Scope scope{line.indent, klass, {}};
+                if (klass) scope.className = name;
                 if (function) {
                     // functionDetailは既定値と型を除いた引数名だけを返す。
                     const QString arguments = symbol.detail.mid(name.size() + 1, symbol.detail.size() - name.size() - 2);
                     for (QString argument : arguments.split(',')) {
                         argument = argument.trimmed();
                         while (argument.startsWith('*')) argument.remove(0, 1);
-                        if (!argument.isEmpty()) scope.names.insert(argument, Symbol());
+                        if (!argument.isEmpty()) {
+                            Symbol parameter;
+                            parameter.valueOffset = -2;
+                            scope.names.insert(argument, parameter);
+                        }
+                    }
+                    // 型引数を含む注釈を保つ。既定値の実行や型の推測はしない。
+                    int open = 2;
+                    while (open < colon && !isOperator(words[open], "(")) ++open;
+                    int close = colon - 1;
+                    while (close > open && !isOperator(words[close], ")")) --close;
+                    for (Words part : splitTopLevel(words.mid(open + 1, close - open - 1), ",")) {
+                        if (!part.isEmpty() && (isOperator(part[0], "*") || isOperator(part[0], "**"))) part.removeFirst();
+                        if (part.size() > 2 && isPlainName(part[0]) && isOperator(part[1], ":")) {
+                            const auto typed = splitTopLevel(part.mid(2), "=");
+                            scope.names[text(part[0])].valueAnnotation = joinWords(typed.first());
+                        }
+                    }
+                    // 通常メソッドの第1引数だけを現在のクラスへ結び付ける。static/classmethodは対象外。
+                    if (symbol.binding == Symbol::Normal && scopes.last().isClass && scopes.size() > 1) {
+                        const auto parameters = splitTopLevel(words.mid(open + 1, close - open - 1), ",");
+                        if (!parameters.isEmpty() && !parameters.first().isEmpty() && isPlainName(parameters.first()[0])) {
+                            const QString receiver = text(parameters.first()[0]);
+                            scope.names[receiver] = scopes[scopes.size() - 2].names.value(scopes.last().className);
+                        }
                     }
                 }
                 readCompletionStatements(words.mid(colon + 1), scope.names);
@@ -219,10 +254,29 @@ public:
                                  || isName(words[0], "else") || isName(words[0], "while") || isName(words[0], "try")
                                  || isName(words[0], "except") || isName(words[0], "finally");
             if (control && colon >= 0) {
+                // 単独のisinstance条件だけを、現在入っているブロック内に適用する。
+                // else・dedent・再代入へは持ち越さず、and/orやユーザー定義の同名関数は推測しない。
+                if (isName(words[0], "if") && colon >= 7 && isName(words[1], "isinstance")
+                    && isOperator(words[2], "(") && isOperator(words[colon - 1], ")")) {
+                    const auto args = splitTopLevel(words.mid(3, colon - 4), ",");
+                    bool shadowed = false;
+                    for (const auto& scope : scopes) shadowed = shadowed || scope.names.contains("isinstance");
+                    if (!shadowed && args.size() == 2 && args[0].size() == 1 && isPlainName(args[0][0])) {
+                        const QString guardedName = text(args[0][0]);
+                        for (int s = scopes.size() - 1; s >= 0; --s) {
+                            const auto binding = scopes[s].names.constFind(guardedName);
+                            if (binding != scopes[s].names.constEnd()) {
+                                guards.append({line.indent, guardedName, joinWords(args[1]), binding->valueOffset});
+                                break;
+                            }
+                        }
+                    }
+                }
                 if (forLoop) {
                     for (int i = 1; i < colon; ++i) {
                         if (isName(words[i], "in")) {
                             readBindingTargets(words.mid(1, i - 1), table);
+                            readValueBindings(words.mid(1, i - 1), words.mid(i + 1, colon - i - 1), table, true);
                             break;
                         }
                     }
@@ -252,10 +306,34 @@ public:
                 result.symbols.insert(it.key(), it.value());
             }
         }
+        for (const auto& guard : guards) {
+            const auto current = result.symbols.find(guard.name);
+            if (cursorIndent > guard.indent && current != result.symbols.end() && current->valueOffset == guard.bindingOffset)
+                current->valueAnnotation = guard.annotation;
+        }
         return result;
     }
 
 private:
+    /** @brief 単独名と星なし分割代入へ右辺を保存する。実行せず、曖昧な分割は名前だけ残す。
+     * @param targets 代入先。 @param expression 右辺。 @param table 名前表。 @param iterated 反復対象か。
+     */
+    void readValueBindings(Words targets, Words expression, SymbolTable& table, bool iterated = false) const {
+        if (targets.isEmpty() || expression.isEmpty()) return;
+        if (targets.size() > 2 && isOperator(targets.first(), "(") && isOperator(targets.last(), ")"))
+            targets = targets.mid(1, targets.size() - 2);
+        const auto parts = splitTopLevel(targets, ",");
+        for (const auto& part : parts) if (part.size() != 1 || !isPlainName(part[0])) return;
+        for (int i = 0; i < parts.size(); ++i) {
+            Symbol binding;
+            binding.valueExpression = joinWords(expression);
+            binding.valueOffset = targets[0].start;
+            binding.iterated = iterated;
+            if (parts.size() > 1) { binding.unpackIndex = i; binding.unpackCount = parts.size(); }
+            table.insert(text(parts[i][0]), binding);
+        }
+    }
+
     /** @brief 名前・タプル・リストの代入先を読む。属性や添字への代入は宣言にしない。
      * @param words 代入先の字句。
      * @param table 名前の追加先。
@@ -264,7 +342,9 @@ private:
         if (words.isEmpty()) return;
         if (isOperator(words[0], "*")) words.removeFirst();
         if (words.size() == 1 && isPlainName(words[0])) {
-            table.insert(text(words[0]), Symbol());
+            Symbol binding;
+            binding.valueOffset = words[0].start;
+            table.insert(text(words[0]), binding);
             return;
         }
         const WordsList parts = splitTopLevel(words, ",");
@@ -286,7 +366,18 @@ private:
             readSimpleStatement(statement, table);
             if (statement[0].type == TokenType::Name && isKeyword(view(statement[0]), ScriptLanguage::Python)) continue;
             const WordsList parts = splitTopLevel(statement, "=");
-            for (int i = 0; i + 1 < parts.size(); ++i) readBindingTargets(parts[i], table);
+            for (int i = 0; i + 1 < parts.size(); ++i) {
+                // 単独名・注釈付き名はreadAssignmentで右辺と注釈を保存済み。
+                if (parts[i].size() > 1 && !isOperator(parts[i][1], ":")) {
+                    readBindingTargets(parts[i], table);
+                    readValueBindings(parts[i], parts.last(), table);
+                }
+            }
+            if (parts.size() == 1 && statement.size() > 1 && isPlainName(statement[0])
+                && (text(statement[1]).endsWith('=') && !isOperator(statement[1], "==")
+                    && !isOperator(statement[1], "!=") && !isOperator(statement[1], "<=") && !isOperator(statement[1], ">="))) {
+                readBindingTargets(statement.mid(0, 1), table);  // 複合代入の後に古い型を残さない。
+            }
         }
     }
 
@@ -538,7 +629,11 @@ private:
         if (!inside.isEmpty() && isOperator(inside.last(), ")")) {
             inside.removeLast();
         }
-        for (const Words& part : splitTopLevel(inside, ",")) {
+        for (Words part : splitTopLevel(inside, ",")) {
+            // Base[T]もBaseのメンバーは継承する。型変数の置換とは分けて扱う。
+            for (int i = 1; i < part.size(); ++i) {
+                if (isOperator(part[i], "[") && isOperator(part.last(), "]")) { part = part.mid(0, i); break; }
+            }
             QString dotted;
             bool plain = !part.isEmpty();
             for (int i = 0; i < part.size() && plain; ++i) {
@@ -718,7 +813,10 @@ private:
         if (parts.size() == 1) {
             // = が無い: 注釈だけの宣言 a: int。
             if (words.size() >= 2 && isPlainName(words[0]) && isOperator(words[1], ":")) {
-                table.insert(text(words[0]), Symbol());
+                Symbol binding;
+                binding.valueAnnotation = joinWords(words.mid(2));
+                binding.valueOffset = words[0].start;
+                table.insert(text(words[0]), binding);
             }
             return;
         }
@@ -726,9 +824,16 @@ private:
         for (int i = 0; i + 1 < parts.size(); ++i) {
             const Words& target = parts[i];
             if (target.size() == 1 && isPlainName(target[0])) {
-                table.insert(text(target[0]), Symbol());
+                Symbol binding;
+                binding.valueExpression = joinWords(parts.last());
+                binding.valueOffset = words[0].start;
+                table.insert(text(target[0]), binding);
             } else if (i == 0 && target.size() >= 2 && isPlainName(target[0]) && isOperator(target[1], ":")) {
-                table.insert(text(target[0]), Symbol());
+                Symbol binding;
+                binding.valueExpression = joinWords(parts.last());
+                binding.valueAnnotation = joinWords(target.mid(2));
+                binding.valueOffset = words[0].start;
+                table.insert(text(target[0]), binding);
             }
         }
     }
@@ -788,6 +893,7 @@ private:
      * @param symbol 関数の宣言。
      */
     void readFunctionTypes(Words header, int index, int indent, Symbol* symbol) const {
+        const int definition = index;
         while (--index >= 0 && lines_[index].indent == indent) {
             const Words words = lineWords(lines_[index]);
             if (words.isEmpty() || !isOperator(words[0], "@")) break;
@@ -804,6 +910,18 @@ private:
                 break;
             }
             depth += bracketDelta(header[i]);
+        }
+        if (symbol->returnAnnotation.isEmpty()) {
+            // 分岐・副作用・ローカル変数の解析は型サーバーへ任せる。単一returnだけを読む。
+            const auto full = lineWords(lines_[definition]);
+            const int colon = headerColon(full);
+            Words body = colon >= 0 ? full.mid(colon + 1) : Words();
+            if (body.isEmpty() && definition + 1 < lines_.size() && lines_[definition + 1].indent > indent
+                && (definition + 2 >= lines_.size() || lines_[definition + 2].indent <= indent)) body = lineWords(lines_[definition + 1]);
+            if (body.size() > 1 && isName(body[0], "return") && splitTopLevel(body, ";").size() == 1) {
+                symbol->returnExpression = joinWords(body.mid(1));
+                symbol->returnModule = moduleName_.endsWith(".__init__") ? moduleName_.section('.', 0, -2) : moduleName_;
+            }
         }
     }
 
@@ -831,6 +949,103 @@ private:
             depth += bracketDelta(header[i]);
         }
         return key;
+    }
+
+    /** @brief 通常メソッドの第1引数へ直接代入する属性を、実行せず収集する。
+     * @param begin クラス本文の先頭。 @param end 本文の終端。 @param classIndent クラス見出しの字下げ。
+     * @return 属性名と右辺・注釈。分岐や複数メソッドで異なる代入は型を断定しない。
+     */
+    SymbolTable readInstanceAttributes(int begin, int end, int classIndent) const {
+        SymbolTable attributes;
+        if (begin >= end) return attributes;
+        const int methodIndent = lines_[begin].indent;
+        if (methodIndent <= classIndent) return attributes;
+        for (int i = begin; i < end; ++i) {
+            Words header = lineWords(lines_[i]);
+            if (isName(header[0], "async")) header.removeFirst();
+            if (lines_[i].indent != methodIndent || !isName(header[0], "def")) continue;
+            const int colon = headerColon(header);
+            if (colon < 0) continue;
+            Symbol method;
+            readFunctionTypes(header.mid(0, colon), i, methodIndent, &method);
+            if (method.binding != Symbol::Normal) continue;
+            int open = 2;
+            while (open < colon && !isOperator(header[open], "(")) ++open;
+            int close = colon - 1;
+            while (close > open && !isOperator(header[close], ")")) --close;
+            const auto parameters = splitTopLevel(header.mid(open + 1, close - open - 1), ",");
+            if (parameters.isEmpty() || parameters.first().isEmpty() || !isPlainName(parameters.first()[0])) continue;
+            const QString receiver = text(parameters.first()[0]);
+            SymbolTable context;
+            for (const auto& part : parameters) {
+                if (part.isEmpty() || !isPlainName(part[0])) continue;
+                Symbol parameter;
+                parameter.valueOffset = -2;
+                if (part.size() > 2 && isOperator(part[1], ":"))
+                    parameter.valueAnnotation = joinWords(splitTopLevel(part.mid(2), "=").first());
+                context.insert(text(part[0]), parameter);
+            }
+            SymbolTable assigned;
+            int stop = i + 1;
+            while (stop < end && lines_[stop].indent > methodIndent) ++stop;
+            const int bodyIndent = i + 1 < stop ? lines_[i + 1].indent : methodIndent;
+            // メソッド内で束縛するローカル名を、同名の外側変数と取り違えない。
+            // ローカル値の流れはここでは解かず、明示注釈だけを保持する。
+            for (int j = i; j < stop; ++j) {
+                const auto body = j == i ? header.mid(colon + 1) : lineWords(lines_[j]);
+                if (j > i && lines_[j].indent != bodyIndent) continue;
+                SymbolTable locals;
+                readSimpleStatements(body, locals);
+                for (auto it = locals.begin(); it != locals.end(); ++it) {
+                    if (it->type == SymbolType::Value) { it->valueOffset = -2; it->valueExpression.clear(); }
+                    context.insert(it.key(), it.value());
+                }
+            }
+            const auto sharedContext = std::make_shared<SymbolTable>(context);
+            bool receiverRebound = false;
+            for (int j = i; j < stop; ++j) {
+                const Words body = j == i ? header.mid(colon + 1) : lineWords(lines_[j]);
+                // 入れ子の関数・クラス内のselfは別の束縛なので読み飛ばす。
+                if (body.isEmpty()) continue;
+                if (j > i && (isName(body[0], "def") || isName(body[0], "class") || isName(body[0], "async"))) {
+                    const int nestedIndent = lines_[j].indent;
+                    while (j + 1 < stop && lines_[j + 1].indent > nestedIndent) ++j;
+                    continue;
+                }
+                for (const auto& statement : splitTopLevel(body, ";")) {
+                    const auto parts = splitTopLevel(statement, "=");
+                    if (parts.size() == 2 && parts[0].size() == 1 && text(parts[0][0]) == receiver) receiverRebound = true;
+                    if (statement.size() < 3 || text(statement[0]) != receiver || !isOperator(statement[1], ".")
+                        || !isPlainName(statement[2]) || receiverRebound) continue;
+                    const QString name = text(statement[2]);
+                    Symbol attribute;
+                    attribute.receiverName = receiver;
+                    attribute.valueOffset = -2;
+                    attribute.valueScope = sharedContext;
+                    attribute.returnModule = moduleName_.endsWith(".__init__") ? moduleName_.section('.', 0, -2) : moduleName_;
+                    const auto& target = parts.first();
+                    if ((j == i || lines_[j].indent == bodyIndent) && (target.size() == 3 || (target.size() > 4 && isOperator(target[3], ":")))) {
+                        if (parts.size() == 2) attribute.valueExpression = joinWords(parts.last());
+                        if (target.size() > 4 && isOperator(target[3], ":")) attribute.valueAnnotation = joinWords(target.mid(4));
+                    }
+                    // 属性の読み取りを代入として扱わない。
+                    const bool compound = target.size() > 3 && view(target[3]).endsWith(QLatin1Char('='))
+                        && !isOperator(target[3], "==") && !isOperator(target[3], "!=") && !isOperator(target[3], "<=") && !isOperator(target[3], ">=");
+                    if (parts.size() == 1 && !(target.size() > 3 && isOperator(target[3], ":")) && !compound) continue;
+                    assigned.insert(name, attribute);
+                }
+            }
+            for (auto it = assigned.begin(); it != assigned.end(); ++it) {
+                const auto previous = attributes.constFind(it.key());
+                if (previous != attributes.constEnd() && previous.value() != it.value()) {
+                    Symbol unknown;
+                    unknown.valueOffset = -2;
+                    attributes.insert(it.key(), unknown);
+                } else attributes.insert(it.key(), it.value());
+            }
+            i = stop - 1;
+        }
+        return attributes;
     }
 
     /** @brief 同じインデントの論理行を順に読む。
@@ -892,7 +1107,9 @@ private:
                 symbol.signature = joinWords(header);
                 symbol.bases = classBases(header);
                 symbol.doc = bodyDocstring(inlineBody, *index, indent);
+                const int bodyBegin = *index;
                 symbol.members = std::make_shared<SymbolTable>(readBody(inlineBody, index, indent));
+                symbol.instanceAttributes = std::make_shared<SymbolTable>(readInstanceAttributes(bodyBegin, *index, indent));
                 table.insert(name, symbol);
                 continue;
             }
