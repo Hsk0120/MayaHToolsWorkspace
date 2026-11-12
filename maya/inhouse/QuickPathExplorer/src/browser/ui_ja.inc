@@ -252,6 +252,8 @@
 {"The destination already has %1 files with the same names.", "コピー先には同名のファイルが %1 個あります。"},
 {"Replace the files in the destination", "ファイルを置き換える"},
 {"Skip these files", "ファイルをスキップする"},
+{"Choose which files to keep", "ファイルごとに処理を選択する"},
+{"Some items have the same name but different types.", "同じ名前のファイルとフォルダーが競合しています。"},
 {"File transfer", "ファイルの転送"},
 {"Moving items…", "項目を移動しています…"},
 {"Copying items…", "項目をコピーしています…"},

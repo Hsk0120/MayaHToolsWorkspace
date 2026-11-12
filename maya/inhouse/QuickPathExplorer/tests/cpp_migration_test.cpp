@@ -59,6 +59,7 @@
 #include <QClipboard>
 #include <QProcess>
 #include <QProcessEnvironment>
+#include <QPointer>
 #include <QDropEvent>
 #include <QDragEnterEvent>
 #include <QThreadPool>
@@ -93,6 +94,30 @@ private:
     bool file(const QString& name, int bytes = 8) {
         QFile output(path(name));
         return output.open(QIODevice::WriteOnly) && output.write(QByteArray(bytes, 'x')) == bytes;
+    }
+    /** @brief 非同期の競合確認後に開くモーダルを操作する。
+     * @param name 対象名。 @param operate 確認画面の操作。 @param transfer 画面を開く転送。
+     * @return 対象を操作できたか。
+     */
+    bool operateModal(const QString& name, const std::function<void(QDialog*)>& operate,
+                      const std::function<void()>& transfer) {
+        QTimer timer;
+        QElapsedTimer elapsed;
+        elapsed.start();
+        bool handled = false;
+        connect(&timer, &QTimer::timeout, this, [&] {
+            auto* dialog = qobject_cast<QDialog*>(QApplication::activeModalWidget());
+            if (!dialog) return;
+            if (dialog->objectName() == name) {
+                timer.stop();
+                handled = true;
+                operate(dialog);
+                if (dialog->isVisible()) dialog->reject();
+            } else if (elapsed.elapsed() > 5000) dialog->reject();
+        });
+        timer.start(10);
+        transfer();
+        return handled;
     }
 private slots:
     /** @brief 段階表示の追加行で配置が行数に比例せず、更新完了直後のUIAセルも有効である。 */
@@ -762,17 +787,154 @@ private slots:
         window.perform("copy", {path("paste-replace/from/same.txt")});
         QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls(), QList<QUrl>{QUrl::fromLocalFile(path("paste-replace/from/same.txt"))});
         bool defaultReplace = false;
-        QTimer::singleShot(0, &window, [&] {
-            auto* dialog = window.findChild<QMessageBox*>("pasteConflict");
-            if (!dialog) return;
-            defaultReplace = dialog->defaultButton()->text() == "Replace the files in the destination";
+        QVERIFY(operateModal("pasteConflict", [&](QDialog* dialog) {
+            auto* button = dialog->findChild<QPushButton*>("replaceTransfer");
+            defaultReplace = button && button->isDefault() && button->text() == "Replace the files in the destination";
             QTest::keyClick(dialog, Qt::Key_Return);
-        });
-        window.perform("paste");
+        }, [&] { window.perform("paste"); }));
         QVERIFY(defaultReplace);
         QTRY_VERIFY(!window.busy()); QCOMPARE(QFileInfo(path("paste-replace/to/same.txt")).size(), 60ll);
         window.perform("undo"); QTRY_VERIFY(!window.busy()); QCOMPARE(QFileInfo(path("paste-replace/to/same.txt")).size(), 35ll);
         window.close();
+    }
+    /** @brief 同名フォルダーは配下だけを比較し、コピー先にしかないファイルを保持する。 */
+    void pasteMergesFolders() {
+        QVERIFY(QDir().mkpath(path("paste-merge/from/assets/nested")));
+        QVERIFY(QDir().mkpath(path("paste-merge/to/assets/nested")));
+        QVERIFY(file("paste-merge/from/assets/nested/same.txt", 21));
+        QVERIFY(file("paste-merge/to/assets/nested/same.txt", 11));
+        QVERIFY(file("paste-merge/from/assets/new.txt", 32));
+        QVERIFY(file("paste-merge/to/assets/nested/existing.txt", 43));
+        qpe::BrowserWindow window; window.navigate(path("paste-merge/to")); window.show(); QTRY_VERIFY(window.ready());
+        const auto source = path("paste-merge/from/assets"), destination = path("paste-merge/to/assets");
+        window.perform("copy", {source});
+        QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls(), QList<QUrl>{QUrl::fromLocalFile(source)});
+        QVERIFY(operateModal("pasteConflict", [&](QDialog* dialog) { QTest::keyClick(dialog, Qt::Key_Escape); },
+                             [&] { window.perform("paste"); }));
+        QVERIFY(!window.busy());
+        QCOMPARE(QFileInfo(destination + "/nested/same.txt").size(), 11ll);
+        QVERIFY(operateModal("pasteConflict", [&](QDialog* dialog) {
+            bool nestedName = false;
+            for (auto* label : dialog->findChildren<QLabel*>()) nestedName |= label->text().contains("nested/same.txt");
+            QVERIFY(nestedName);
+            const auto evidence = qEnvironmentVariable("QPE_PASTE_EVIDENCE");
+            if (!evidence.isEmpty()) QVERIFY(dialog->grab().save(QDir(evidence).filePath("replace-or-skip.png")));
+            QTest::keyClick(dialog, Qt::Key_Return);
+        }, [&] { window.perform("paste"); }));
+        QTRY_VERIFY(!window.busy());
+        QCOMPARE(QFileInfo(destination + "/nested/same.txt").size(), 21ll);
+        QCOMPARE(QFileInfo(destination + "/nested/existing.txt").size(), 43ll);
+        QVERIFY(QFileInfo::exists(destination + "/new.txt"));
+        window.perform("undo"); QTRY_VERIFY(!window.busy());
+        QCOMPARE(QFileInfo(destination + "/nested/same.txt").size(), 11ll);
+        QCOMPARE(QFileInfo(destination + "/nested/existing.txt").size(), 43ll);
+        QVERIFY(!QFileInfo::exists(destination + "/new.txt"));
+    }
+    /** @brief Mayaの終了と同様に確認中の親を破棄しても、コピーを開始しない。 */
+    void destroyedWindowCancelsConflict() {
+        QVERIFY(QDir().mkpath(path("paste-close/from")));
+        QVERIFY(QDir().mkpath(path("paste-close/to")));
+        QVERIFY(file("paste-close/from/same.txt", 29));
+        QVERIFY(file("paste-close/to/same.txt", 13));
+        QPointer<qpe::BrowserWindow> window(new qpe::BrowserWindow);
+        window->navigate(path("paste-close/to"));
+        window->show();
+        QTRY_VERIFY(window->ready());
+        QTimer timer;
+        QElapsedTimer elapsed; elapsed.start();
+        connect(&timer, &QTimer::timeout, &timer, [&] {
+            const auto* modal = QApplication::activeModalWidget();
+            if ((modal && modal->objectName() == "pasteConflict") || elapsed.elapsed() > 5000) {
+                timer.stop();
+                delete window.data();
+            }
+        });
+        timer.start(10);
+        window->perform("copyTo", {path("paste-close/from/same.txt")});
+        QVERIFY(!window);
+        QCOMPARE(QFileInfo(path("paste-close/to/same.txt")).size(), 13ll);
+    }
+    /** @brief コピー先にだけあるファイルのNTFS代替データストリームと属性も維持する。 */
+    void mergedFolderRetainsFileMetadata() {
+        const auto source = path("merge-metadata/from/assets"), to = path("merge-metadata/to");
+        const auto existing = to + "/assets/existing.txt";
+        QVERIFY(QDir().mkpath(source));
+        QVERIFY(QDir().mkpath(to + "/assets"));
+        QVERIFY(file("merge-metadata/from/assets/new.txt", 12));
+        QVERIFY(file("merge-metadata/to/assets/existing.txt", 32));
+        const auto name = QDir::toNativeSeparators(existing).toStdWString();
+        const auto streamName = name + L":qpe-test-stream";
+        const HANDLE stream = CreateFileW(streamName.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (stream == INVALID_HANDLE_VALUE && (GetLastError() == ERROR_INVALID_NAME || GetLastError() == ERROR_NOT_SUPPORTED))
+            QSKIP("The fixture volume does not support NTFS alternate data streams");
+        QVERIFY(stream != INVALID_HANDLE_VALUE);
+        DWORD written = 0;
+        const auto success = WriteFile(stream, "QPE", 3, &written, nullptr);
+        CloseHandle(stream);
+        QVERIFY(success); QCOMPARE(written, DWORD(3));
+        const auto attrs = GetFileAttributesW(name.c_str());
+        QVERIFY(SetFileAttributesW(name.c_str(), attrs | FILE_ATTRIBUTE_READONLY));
+        qpe::FileOperations engine(path("merge-metadata/history"));
+        const auto result = engine.run({"copy", {source}, to, "replace"});
+        QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join('\n')));
+        QVERIFY(QFileInfo::exists(to + "/assets/new.txt"));
+        QVERIFY(GetFileAttributesW(name.c_str()) & FILE_ATTRIBUTE_READONLY);
+        const HANDLE retained = CreateFileW(streamName.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+        QVERIFY(retained != INVALID_HANDLE_VALUE);
+        char content[3]{};
+        DWORD read = 0;
+        const auto readable = ReadFile(retained, content, sizeof(content), &read, nullptr);
+        CloseHandle(retained);
+        QVERIFY(readable); QCOMPARE(QByteArray(content, int(read)), QByteArray("QPE"));
+        const auto backup = qpe::loadJson(path("merge-metadata/history/journal.json"))["undo"].toArray().last().toObject()["backup"].toString();
+        QVERIFY(SetFileAttributesW(QDir::toNativeSeparators(backup + "/existing.txt").toStdWString().c_str(), attrs));
+        QVERIFY(SetFileAttributesW(name.c_str(), attrs));
+    }
+    /** @brief 同名ファイルをスキップした切り取りで、移動した項目だけが元から消え、Undo/Redoも一致する。 */
+    void mergeMoveKeepsSkippedItems() {
+        const auto source = path("move-merge/from/assets"), to = path("move-merge/to"), target = to + "/assets";
+        QVERIFY(QDir().mkpath(source + "/nested"));
+        QVERIFY(QDir().mkpath(target + "/nested"));
+        QVERIFY(file("move-merge/from/assets/nested/same.txt", 21));
+        QVERIFY(file("move-merge/to/assets/nested/same.txt", 11));
+        QVERIFY(file("move-merge/from/assets/new.txt", 32));
+        QVERIFY(file("move-merge/to/assets/nested/existing.txt", 43));
+        qpe::FileOperations engine(path("move-merge/history"));
+        const auto preview = engine.run({"mergeConflicts", {source}, to}).extra["rows"].toArray();
+        QCOMPARE(preview.size(), 1);
+        const QJsonObject choices{{"_requireReviewed", true}, {source + "/nested/same.txt", "skip"}};
+        const auto moved = engine.run({"move", {source}, to, "merge", {{"choices", choices}, {"mergeReviewed", preview}}});
+        QVERIFY2(moved.errors.isEmpty(), qPrintable(moved.errors.join('\n')));
+        QCOMPARE(moved.completed, QStringList{target});
+        QVERIFY(!QFileInfo::exists(source + "/new.txt"));
+        QCOMPARE(QFileInfo(source + "/nested/same.txt").size(), 21ll);
+        QCOMPARE(QFileInfo(target + "/nested/same.txt").size(), 11ll);
+        QCOMPARE(QFileInfo(target + "/nested/existing.txt").size(), 43ll);
+        QCOMPARE(QFileInfo(target + "/new.txt").size(), 32ll);
+        QCOMPARE(engine.run({"undo"}).completed, QStringList{source});
+        QVERIFY(QFileInfo::exists(source + "/new.txt"));
+        QVERIFY(!QFileInfo::exists(target + "/new.txt"));
+        QCOMPARE(engine.run({"redo"}).completed, QStringList{target});
+        QVERIFY(!QFileInfo::exists(source + "/new.txt"));
+        QCOMPARE(QFileInfo(source + "/nested/same.txt").size(), 21ll);
+        QCOMPARE(QFileInfo(target + "/new.txt").size(), 32ll);
+        QVERIFY(file("move-merge/from/assets/nested/same.txt", 52));
+        QVERIFY_EXCEPTION_THROWN(engine.run({"undo"}), std::runtime_error);
+        QCOMPARE(QFileInfo(target + "/new.txt").size(), 32ll);
+    }
+    /** @brief 確認後に生まれたファイル競合を検出し、先にあった内容を保持する。 */
+    void mergeRejectsNewConflict() {
+        const auto source = path("merge-race/from/assets"), to = path("merge-race/to");
+        QVERIFY(QDir().mkpath(source));
+        QVERIFY(QDir().mkpath(to + "/assets"));
+        QVERIFY(file("merge-race/from/assets/new.txt", 12));
+        qpe::FileOperations engine(path("merge-race/history"));
+        QVERIFY(engine.run({"mergeConflicts", {source}, to}).extra["rows"].toArray().isEmpty());
+        QVERIFY(file("merge-race/to/assets/new.txt", 32));
+        const auto result = engine.run({"copy", {source}, to, "merge", {{"choices", QJsonObject{{"_requireReviewed", true}}}}});
+        QVERIFY(!result.errors.isEmpty());
+        QCOMPARE(QFileInfo(to + "/assets/new.txt").size(), 32ll);
+        QCOMPARE(QFileInfo(source + "/new.txt").size(), 12ll);
     }
     /** @brief 300msを超えるコピーで進捗を表示し、取消し後も待機中の転送を実行する。 */
     void transferProgressControls() {
@@ -1378,16 +1540,17 @@ private slots:
         QVERIFY(QDir().mkpath(path("jp-copy/source"))); QVERIFY(QDir().mkpath(path("jp-copy/target")));
         QVERIFY(file("jp-copy/source/Name.txt", 8)); QVERIFY(file("jp-copy/target/Name.txt", 15));
         qpe::BrowserWindow window; window.restoreSession(path("jp-copy/source"), false); window.show(); QTRY_VERIFY(window.ready());
-        for (const int choice : {1, 2}) {
-            QTimer::singleShot(0, &window, [&] {
-                auto* prompt = window.findChild<QInputDialog*>(); QVERIFY(prompt); auto* items = prompt->findChild<QComboBox*>(); QVERIFY(items);
-                QCOMPARE(items->itemText(choice), qpe::uiText(choice == 1 ? "Skip" : "Replace (keep Undo backup)")); items->setCurrentIndex(choice);
-                QCOMPARE(prompt->textValue(), items->currentText()); prompt->accept();
-            });
-            window.perform("copyTo", {path("jp-copy/source/Name.txt")}, path("jp-copy/target")); QTRY_VERIFY_WITH_TIMEOUT(!window.busy(), 10000);
-            QCOMPARE(QFileInfo(path("jp-copy/target/Name.txt")).size(), qint64(choice == 1 ? 15 : 8));
+        for (const bool replace : {false, true}) {
+            QVERIFY(operateModal("pasteConflict", [&](QDialog* dialog) {
+                auto* button = dialog->findChild<QPushButton*>(replace ? "replaceTransfer" : "skipTransfer");
+                QVERIFY(button);
+                QCOMPARE(button->text(), qpe::uiText(replace ? "Replace the files in the destination" : "Skip these files"));
+                button->click();
+            }, [&] { window.perform("copyTo", {path("jp-copy/source/Name.txt")}, path("jp-copy/target")); }));
+            QTRY_VERIFY_WITH_TIMEOUT(!window.busy(), 10000);
+            QCOMPARE(QFileInfo(path("jp-copy/target/Name.txt")).size(), qint64(replace ? 8 : 15));
             // 置き換えでは同じボリュームへUndo用の隠しバックアップを残す。
-            if (choice == 1) QCOMPARE(QDir(path("jp-copy/target")).entryList(QDir::Files).size(), 1);
+            if (!replace) QCOMPARE(QDir(path("jp-copy/target")).entryList(QDir::Files).size(), 1);
         }
         window.perform("undo"); QTRY_VERIFY_WITH_TIMEOUT(!window.busy(), 10000); QCOMPARE(QFileInfo(path("jp-copy/target/Name.txt")).size(), qint64(15));
         window.close(); qpe::saveJson(qpe::settingsPath(), before); qpe::setUiLanguage("en");
@@ -1615,7 +1778,14 @@ private slots:
         const auto sourceStamp = qpe::fileFingerprint(path("merge-source/shared"));
         const auto targetStamp = qpe::fileFingerprint(path("merge-target/shared"));
         qpe::FileOperations engine(path("merge-history"));
-        QVERIFY_EXCEPTION_THROWN(engine.run({"move", {path("merge-source/shared")}, path("merge-target"), "merge"}), std::runtime_error);
+        const auto moved = engine.run({"move", {path("merge-source/shared")}, path("merge-target"), "merge"});
+        QVERIFY2(moved.errors.isEmpty(), qPrintable(moved.errors.join('\n')));
+        QCOMPARE(QFileInfo(path("merge-target/shared/conflict.txt")).size(), 30ll);
+        QVERIFY(QFileInfo::exists(path("merge-target/shared/retained.txt")));
+        QVERIFY(!QFileInfo::exists(path("merge-source/shared")));
+        QVERIFY(engine.run({"undo"}).errors.isEmpty());
+        QCOMPARE(qpe::fileFingerprint(path("merge-source/shared")), sourceStamp);
+        QCOMPARE(qpe::fileFingerprint(path("merge-target/shared")), targetStamp);
         auto result = engine.run({"copy", {path("merge-source/shared")}, path("merge-target"), "merge", {{"choices", QJsonObject{{"conflict.txt", "rename"}}}}});
         QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join("\n")));
         QCOMPARE(qpe::fileFingerprint(path("merge-source/shared")), sourceStamp);
@@ -1912,6 +2082,69 @@ private slots:
         window.perform("undo"); QTRY_VERIFY(!window.busy());
         column->setFocus(); QTest::keyClick(column, Qt::Key_C, Qt::ControlModifier);
         QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls(), QList<QUrl>{QUrl::fromLocalFile(path("column-paste/empty"))});
+    }
+    /** @brief カラムのCtrl/Shift選択を更新後も維持し、まとめてコピーと切り取りができる。 */
+    void columnMultiSelectionTransfer() {
+        const auto source = path("column-multi/from"), target = path("column-multi/to");
+        for (const auto& name : {"alpha", "bravo", "charlie", "delta"}) QVERIFY(QDir().mkpath(source + '/' + name));
+        QVERIFY(QDir().mkpath(target));
+        qpe::BrowserWindow window;
+        window.resize(1100, 680);
+        window.navigate(source);
+        window.show(); QTRY_VERIFY(window.ready());
+        const auto findColumn = [&](const QString& folder) -> QListView* {
+            for (auto* view : window.findChildren<QListView*>("folderColumn"))
+                if (view->property("path").toString() == folder) return view;
+            return nullptr;
+        };
+        auto* column = findColumn(source);
+        QVERIFY(column); QTRY_COMPARE(column->model()->rowCount(), 4);
+        const auto click = [&](int row, Qt::KeyboardModifiers mods) {
+            QTest::mouseClick(column->viewport(), Qt::LeftButton, mods, column->visualRect(column->model()->index(row, 0)).center());
+        };
+        click(0, Qt::NoModifier);
+        QTRY_COMPARE(window.currentPath(), source + "/alpha"); QTRY_VERIFY(window.ready());
+        click(2, Qt::ControlModifier);
+        QTRY_COMPARE(column->selectionModel()->selectedIndexes().size(), 2);
+        QCOMPARE(window.currentPath(), source + "/alpha");
+        window.refresh();
+        QTest::qWait(150);
+        QCOMPARE(column->selectionModel()->selectedIndexes().size(), 2);
+        column->setFocus();
+        QTest::keyClick(column, Qt::Key_C, Qt::ControlModifier);
+        QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls().size(), 2);
+        const auto copied = QApplication::clipboard()->mimeData()->urls();
+        QVERIFY(copied.contains(QUrl::fromLocalFile(source + "/alpha")));
+        QVERIFY(copied.contains(QUrl::fromLocalFile(source + "/charlie")));
+        window.navigate(target); QTRY_VERIFY(window.ready());
+        auto* files = window.findChild<QTreeView*>("files"); QVERIFY(files); files->setFocus();
+        QTest::keyClick(files, Qt::Key_V, Qt::ControlModifier);
+        QTRY_VERIFY(QFileInfo(target + "/alpha").isDir() && QFileInfo(target + "/charlie").isDir());
+        QTRY_VERIFY(!window.busy());
+        window.navigate(source); QTRY_VERIFY(window.ready());
+        column = findColumn(source);
+        QVERIFY(column); QTRY_COMPARE(column->model()->rowCount(), 4);
+        click(1, Qt::NoModifier);
+        QTRY_COMPARE(window.currentPath(), source + "/bravo");
+        click(3, Qt::ShiftModifier);
+        QCOMPARE(window.currentPath(), source + "/bravo");
+        QCOMPARE(column->selectionModel()->selectedIndexes().size(), 3);
+        column->setFocus();
+        QTest::keyClick(column, Qt::Key_X, Qt::ControlModifier);
+        QTRY_COMPARE(QApplication::clipboard()->mimeData()->urls().size(), 3);
+        const auto cut = QApplication::clipboard()->mimeData()->data("Preferred DropEffect");
+        QVERIFY(!cut.isEmpty()); QCOMPARE(cut.at(0), char(2));
+        // 別の転送先で上段カラムがフォーカスを持っていても、貼り付けはカレントへ届く。
+        window.navigate(target); QTRY_VERIFY(window.ready());
+        auto* destination = findColumn(target);
+        QVERIFY(destination);
+        destination->setFocus();
+        QTest::keyClick(destination, Qt::Key_V, Qt::ControlModifier);
+        QTRY_VERIFY(QFileInfo(target + "/bravo").isDir() && QFileInfo(target + "/delta").isDir());
+        QTRY_VERIFY(!window.busy());
+        QVERIFY(!QFileInfo::exists(source + "/bravo"));
+        QVERIFY(!QFileInfo::exists(source + "/charlie"));
+        QVERIFY(!QFileInfo::exists(source + "/delta"));
     }
     /** @brief サムネイルの複数選択は行全体でなくてもコピー対象に含める。 */
     void thumbnailSelectionClipboard() {
@@ -2318,6 +2551,35 @@ private slots:
                 qpe::saveJson(QDir(evidence).filePath(QString("placement-%1.json").arg(name)), {{"nativeWorkspace", workspace}, {"expectedNormalFrame", frame}});
             }
         }
+    }
+    /** @brief タブがあふれる狭幅でもドラッグ用のWindowsキャプションを残す。 */
+    void crowdedTabsLeaveNativeDragSpace() {
+        qpe::BrowserWindow window;
+        window.resize(620, 510);
+        window.navigate(path("A"));
+        window.show();
+        for (int i = 0; i < 12; ++i) window.addTab(path(i % 2 ? "A" : "B"));
+        auto* tabs = window.findChild<QTabBar*>("folderTabs");
+        auto* add = window.findChild<QToolButton*>("newTabButton");
+        auto* minimize = window.findChild<QToolButton*>("minimizeWindowButton");
+        QVERIFY(tabs && add && minimize);
+        QTRY_COMPARE(tabs->count(), 13);
+        QTRY_VERIFY(window.ready());
+        QTRY_VERIFY(tabs->tabRect(tabs->currentIndex()).intersects(tabs->rect()));
+        const auto handle = reinterpret_cast<HWND>(window.winId());
+        const auto hit = [&](const QPoint& logical) {
+            POINT native{qRound(logical.x() * window.devicePixelRatioF()), qRound(logical.y() * window.devicePixelRatioF())};
+            ClientToScreen(handle, &native);
+            return SendMessageW(handle, WM_NCHITTEST, 0, MAKELPARAM(native.x, native.y));
+        };
+        const auto left = add->mapTo(&window, QPoint(add->width(), add->height() / 2));
+        const auto right = minimize->mapTo(&window, QPoint(0, minimize->height() / 2));
+        QVERIFY(right.x() - left.x() >= 48);
+        QCOMPARE(hit((left + right) / 2), LRESULT(HTCAPTION));
+        QCOMPARE(hit(add->mapTo(&window, add->rect().center())), LRESULT(HTCLIENT));
+        QCOMPARE(hit(minimize->mapTo(&window, minimize->rect().center())), LRESULT(HTCLIENT));
+        const auto evidence = qEnvironmentVariable("QPE_PASTE_EVIDENCE");
+        if (!evidence.isEmpty()) QVERIFY(window.grab().save(QDir(evidence).filePath("crowded-tabs.png")));
     }
     /** @brief 新規タブは探索起点と表示比率を引き継ぎ、選択・履歴・ロックは独立させる。 */
     void newTabViewInheritance() {

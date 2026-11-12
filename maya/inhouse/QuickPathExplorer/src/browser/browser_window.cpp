@@ -164,51 +164,6 @@ private:
     bool shown_ = false;
     bool cancelling_ = false;
 };
-/** @brief 同名貼り付けの既定を上書きにし、フォルダー競合は別の選択を受け付ける。
- * @param owner ダイアログの親。 @param request 確定前の要求。 @param paste 貼り付け操作か。
- * @return 転送を続けるか。
- */
-bool chooseTransferConflict(QWidget* owner, FileRequest& request, bool paste) {
-    QStringList conflicts;
-    bool folderConflict = false;
-    for (const auto& path : request.paths) {
-        const QFileInfo source(path);
-        const QFileInfo target(QDir(request.destination).filePath(source.fileName()));
-        if (!target.exists() && !target.isSymLink()) continue;
-        if (source.absoluteFilePath().compare(target.absoluteFilePath(), Qt::CaseInsensitive) == 0) continue;
-        conflicts.append(source.fileName());
-        folderConflict |= source.isDir() || target.isDir();
-    }
-    if (conflicts.isEmpty()) return true;
-    if (paste && !folderConflict) {
-        QMessageBox dialog(QMessageBox::Question, uiText("Replace or skip files"), {}, QMessageBox::NoButton, owner);
-        dialog.setObjectName("pasteConflict");
-        dialog.setTextFormat(Qt::PlainText);
-        dialog.setText(conflicts.size() == 1 ? uiText("The destination already has a file named %1.").arg(conflicts.first())
-                                          : uiText("The destination already has %1 files with the same names.").arg(conflicts.size()));
-        auto* replace = dialog.addButton(uiText("Replace the files in the destination"), QMessageBox::AcceptRole);
-        auto* skip = dialog.addButton(uiText("Skip these files"), QMessageBox::ActionRole);
-        auto* keep = dialog.addButton(uiText("Keep both"), QMessageBox::ActionRole);
-        auto* cancel = dialog.addButton(uiText("Cancel"), QMessageBox::RejectRole);
-        dialog.setDefaultButton(replace);
-        dialog.setEscapeButton(cancel);
-        dialog.exec();
-        const auto* clicked = dialog.clickedButton();
-        if (clicked == replace) { request.conflict = "replace"; request.options["replaceFilesOnly"] = true; }
-        else if (clicked == skip) request.conflict = "skip";
-        else if (clicked != keep) return false;
-        return true;
-    }
-    QStringList choices{"Keep both", "Skip", "Replace (keep Undo backup)"};
-    if (request.action == "copy") choices.append("Merge folders (replace matching files; keep Undo backup)");
-    bool accepted = false;
-    const auto labels = uiTexts(choices);
-    const auto chosen = UiInputDialog::getItem(owner, uiText("Existing items"), uiText("Conflict handling"), labels, 0, false, &accepted);
-    if (!accepted) return false;
-    const auto mode = choices.value(labels.indexOf(chosen));
-    request.conflict = mode == "Skip" ? "skip" : mode.startsWith("Replace") ? "replace" : mode.startsWith("Merge") ? "merge" : "rename";
-    return true;
-}
 /** @brief 表示中のファイルメニューだけでキーを処理し、Mayaのショートカットへ漏らさない。 */
 class FileContextMenu final : public QMenu {
 public:
@@ -343,7 +298,13 @@ public:
     /** @brief 親が所有するリストを作る。
      * @param parent 所有者。
      */
-    explicit FolderList(QWidget* parent) : TransferView(parent) { setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); }
+    explicit FolderList(QWidget* parent) : TransferView(parent) {
+        setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        connect(this, &QListView::clicked, this, [this](const QModelIndex& index) {
+            if (browseOnClick_ && browse) browse(index);
+        });
+    }
+    std::function<void(const QModelIndex&)> browse;
     /** @brief カラムだけに境界グリップを設ける。 @param callback 幅、0は自動復帰。 */
     void enableResize(std::function<void(int)> callback) { grip_ = new ColumnGrip(this); grip_->changed = std::move(callback); setViewportMargins(0, 0, 5, 0); grip_->show(); }
 protected:
@@ -360,8 +321,26 @@ protected:
         if (event->button() == Qt::RightButton) { event->accept(); return; }
         QListView::mousePressEvent(event);
     }
+    /** @brief 単クリックだけで子階層を開く。範囲・追加選択は同じカラムに留める。 @param event マウス入力。 */
+    void mouseReleaseEvent(QMouseEvent* event) override {
+        const bool plainClick = event->button() == Qt::LeftButton
+            && !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier));
+        QScopedValueRollback<bool> guard(browseOnClick_, plainClick);
+        TransferView<QListView>::mouseReleaseEvent(event);
+    }
+    /** @brief 修飾キーのない上下移動では選択に合わせて階層を開く。 @param event キー入力。 */
+    void keyPressEvent(QKeyEvent* event) override {
+        const int key = event->key();
+        const bool browseKey = event->modifiers() == Qt::NoModifier
+            && (key == Qt::Key_Up || key == Qt::Key_Down || key == Qt::Key_Home || key == Qt::Key_End
+                || key == Qt::Key_PageUp || key == Qt::Key_PageDown);
+        const auto previous = currentIndex();
+        QListView::keyPressEvent(event);
+        if (browseKey && currentIndex().isValid() && previous != currentIndex() && browse) browse(currentIndex());
+    }
 private:
     ColumnGrip* grip_ = nullptr;
+    bool browseOnClick_ = false;
 };
 /** @brief ファイル一覧の右クリックで選択を保存する。 */
 class FileTree final : public TransferView<SettledTree<QTreeView>> {
@@ -758,14 +737,10 @@ public:
             view->setFixedWidth(160);
             columns_.append({columnPath, view, model});
             columnLayout_->insertWidget(columnLayout_->count() - 1, view);
-            connect(view, &QListView::clicked, this, [this](const QModelIndex& index) { navigate(index.data(PathRole).toString()); });
-            connect(view, &QListView::activated, this, [this](const QModelIndex& index) { navigate(index.data(PathRole).toString()); });
-            connect(view->selectionModel(), &QItemSelectionModel::currentChanged, this, [this, view](const QModelIndex& index) {
-                // 方向キー選択も同じ階層更新へ通す。モデル反映中の選択変更は除く。
-                if (!applying_ && view->hasFocus() && index.isValid()) {
-                    const QString target = index.data(PathRole).toString();
-                    QTimer::singleShot(0, this, [this, target] { if (path_ != target) navigate(target); });
-                }
+            view->browse = [this](const QModelIndex& index) { navigate(index.data(PathRole).toString()); };
+            connect(view->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this, view] {
+                if (!applying_ && !viewRestoring_) for (auto& column : columns_)
+                    if (column.view == view) column.pendingSelection.clear();
             });
             view->setContextMenuPolicy(Qt::CustomContextMenu);
             connect(view, &QWidget::customContextMenuRequested, this, [this, view](const QPoint& pos) { menu(view, pos); });
@@ -779,6 +754,11 @@ public:
         for (int i = 0; i < columns_.size(); ++i) {
             auto& column = columns_[i];
             const auto target = i + 1 < chain.size() ? chain[i + 1] : QString();
+            if (column.branchPath != target) {
+                column.branchPath = target;
+                column.pendingSelection = target;
+                if (target.isEmpty()) column.view->selectionModel()->clear();
+            }
             column.revealPath = !positions_.contains(path_) && column.view->currentIndex().data(PathRole).toString() != target
                 ? target : QString();
         }
@@ -1136,11 +1116,9 @@ private:
             bind(pair.first, [this, view, action = pair.second] {
                 QStringList paths;
                 for (const auto& i : selectedPathIndexes(view)) paths.append(i.data(PathRole).toString());
-                const bool column = view != files_ && view != thumbnails_;
-                auto destination = column ? view->property("path").toString() : path_;
-                // カラムの選択行は、表示している子フォルダーそのもの。親へ貼り付けない。
-                const auto selectedFolder = view->currentIndex().data(PathRole).toString();
-                if (column && (action == "paste" || action == "newFolder") && !selectedFolder.isEmpty()) destination = selectedFolder;
+                auto destination = path_;
+                if (view != files_ && view != thumbnails_ && action == "newFolder")
+                    destination = paths.size() == 1 ? paths.first() : view->property("path").toString();
                 owner_->perform(action, paths, destination);
             });
     }
@@ -1177,10 +1155,11 @@ private:
                 column.view->setProperty("widthFont", QVariant());
             }
             column.view->setVisible(i == 0 || column.model->rowCount() || !snapshot->complete || !snapshot->error.isEmpty());
-            const QString selectedPath = i + 1 < columns_.size() ? columns_[i + 1].path : QString();
-            for (int row = 0; row < column.model->rowCount(); ++row) {
-                if (column.model->item(row)->data(PathRole).toString() == selectedPath)
+            for (int row = 0; !column.pendingSelection.isEmpty() && row < column.model->rowCount(); ++row) {
+                if (column.model->item(row)->data(PathRole).toString() == column.pendingSelection) {
                     column.view->selectionModel()->setCurrentIndex(column.model->index(row, 0), QItemSelectionModel::ClearAndSelect);
+                    column.pendingSelection.clear();
+                }
             }
             column.view->verticalScrollBar()->setValue(vertical);
             if (!column.revealPath.isEmpty() && column.view->currentIndex().data(PathRole).toString() == column.revealPath) {
@@ -1357,7 +1336,14 @@ private:
         footer_->setText(uiText("Reading subfolders…"));
         recursiveJobs_->enqueue({"listRecursive", {path_}, {}, "rename", {{"hidden", hiddenFiles_}, {"token", recursiveToken_}}});
     }
-    struct Column { QString path; FolderList* view; QStandardItemModel* model; QString revealPath; };
+    struct Column {
+        QString path;
+        FolderList* view;
+        QStandardItemModel* model;
+        QString revealPath;
+        QString branchPath;
+        QString pendingSelection;
+    };
     struct Position { int files = 0; QString filter; QStringList selected; QHash<QString, int> columns; };
     DirectoryStore store_;
     BrowserWindow* owner_;
@@ -1443,12 +1429,16 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     tabs_->setElideMode(Qt::ElideRight);
     strip->addWidget(tabs_);
     auto* add = tool(strip, "+");
+    add->setObjectName("newTabButton");
     add->setAccessibleName(uiText("New tab"));
     // ホストの別入力欄から新規タブを作った直後も、タブ切替キーの対象をQPEにする。
     add->setFocusPolicy(Qt::StrongFocus);
     strip->addStretch(1);
     if (!parent) {
+        // タブがあふれた場合も、システムボタンの手前をWindowsのタイトル領域として残す。
+        strip->addSpacing(56);
         auto* minimize = tool(strip, "−");
+        minimize->setObjectName("minimizeWindowButton");
         auto* maximize = tool(strip, "□");
         auto* close = tool(strip, "×");
         connect(minimize, &QToolButton::clicked, this, &QWidget::showMinimized);
@@ -2116,8 +2106,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
             if (!ok) return; validateFileName(name);
             if (action == "rename") request.options["name"] = name; else request.destination = QDir(request.destination).filePath(name);
         }
-        if ((request.action == "copy" || request.action == "move") && !chooseTransferConflict(this, request, action == "paste")) return;
-        if (request.conflict == "merge" && !confirmMerge(request)) return;
+        if ((request.action == "copy" || request.action == "move") && !confirmTransfer(request)) return;
         if (action == "trash" && (paths.isEmpty() || UiMessageBox::question(this, uiText("Delete"), uiText("Move to Recycle Bin?\n") + paths.join('\n'), QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes)) return;
         jobs_->enqueue(request);
     } catch (const std::exception& error) { UiMessageBox::warning(this, uiText("QuickPathExplorer"), uiText(QString::fromUtf8(error.what()))); }

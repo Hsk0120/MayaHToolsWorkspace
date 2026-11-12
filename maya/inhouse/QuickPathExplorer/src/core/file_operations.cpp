@@ -26,6 +26,7 @@
 #include <QUuid>
 #include <stdexcept>
 #include <algorithm>
+#include <exception>
 #include <iterator>
 #define NOMINMAX
 #include <windows.h>
@@ -148,6 +149,8 @@ QString currentDisplayPath(const QString& physical, const QString& shown) {
 }
 /** @brief 移動や改名を画面へ反映する。 @param result 完了結果。 @param entry 履歴。 @param undo 逆方向か。 */
 void addPathChange(FileResult& result, const QJsonObject& entry, bool undo) {
+    // 結合後の行先は元フォルダーと同一ではないため、タブ全体のパスを書き換えない。
+    if (entry["merged"].toBool()) return;
     const auto source = currentDisplayPath(entry["source"].toString(), entry["shownSource"].toString());
     const auto target = currentDisplayPath(entry["target"].toString(), entry["shownTarget"].toString());
     auto changes = result.extra["pathChanges"].toArray();
@@ -156,33 +159,61 @@ void addPathChange(FileResult& result, const QJsonObject& entry, bool undo) {
 }
 /** @brief リンクを辿らない順序付き子一覧。 @param path 親。 @return 子。 */
 QFileInfoList children(const QString& path) { return checkedChildren(path); }
+/** @brief OSのコピー中だけ借用する進捗情報。 */
+struct NativeCopyProgress {
+    const QString& path;
+    const CancelFlag& cancel;
+    const FileProgress& report;
+    qint64 fileSize;
+    std::exception_ptr error;
+};
+/** @brief Windowsのコピー進捗を既存ワーカーへ伝え、例外をWin32境界で止める。
+ * @param transferred コピー済みのバイト数。 @param data 呼び出し中の進捗情報。 @return Win32の継続または中止指定。
+ */
+DWORD CALLBACK copyProgress(LARGE_INTEGER, LARGE_INTEGER transferred, LARGE_INTEGER, LARGE_INTEGER,
+                            DWORD, DWORD, HANDLE, HANDLE, LPVOID data) {
+    auto& state = *static_cast<NativeCopyProgress*>(data);
+    try {
+        check(state.cancel);
+        if (state.report) state.report(state.path, qMin(state.fileSize, qint64(transferred.QuadPart)));
+        return PROGRESS_CONTINUE;
+    } catch (...) {
+        state.error = std::current_exception();
+        return PROGRESS_CANCEL;
+    }
+}
 /** @brief 元を残してコピーする。 @param from 元。 @param to 未作成先。 @param cancel 中断。 @param progress 進捗。 */
 void copyEntry(const QString& from, const QString& to, const CancelFlag& cancel, const FileProgress& progress) {
     check(cancel); ordinary(from);
     if (QFileInfo::exists(to)) fail("Destination exists: " + to);
-    if (QFileInfo(from).isDir()) {
+    const QFileInfo source(from);
+    if (source.isDir()) {
         makeDirectory(to);
         for (const auto& child : children(from)) copyEntry(child.absoluteFilePath(), QDir(to).filePath(child.fileName()), cancel, progress);
     } else {
-        QFile input(from), output(to);
-        if (!input.open(QIODevice::ReadOnly)) fail("Cannot read: " + from + "\n" + input.errorString());
-        if (!output.open(QIODevice::WriteOnly | QIODevice::NewOnly)) fail("Cannot write: " + to + "\n" + output.errorString());
-        qint64 size = 0;
-        while (!input.atEnd()) {
-            check(cancel); const auto bytes = input.read(1024 * 1024);
-            if (bytes.isEmpty() && input.error() != QFileDevice::NoError) fail(input.errorString());
-            if (output.write(bytes) != bytes.size()) fail(output.errorString());
-            size += bytes.size(); if (progress) progress(from, size);
+        // 作業コピーにもNTFSの代替データストリームとファイル属性を保持する。
+        NativeCopyProgress state{from, cancel, progress, source.size(), {}};
+        const auto nativeFrom = QDir::toNativeSeparators(from), nativeTo = QDir::toNativeSeparators(to);
+        if (!CopyFileExW(reinterpret_cast<LPCWSTR>(nativeFrom.utf16()), reinterpret_cast<LPCWSTR>(nativeTo.utf16()),
+                         copyProgress, &state, nullptr, COPY_FILE_FAIL_IF_EXISTS | COPY_FILE_COPY_SYMLINK)) {
+            const auto error = GetLastError();
+            if (state.error) std::rethrow_exception(state.error);
+            fail(windowsFailure("Cannot copy", from + " → " + to, error));
         }
-        if (!output.flush()) fail(output.errorString());
-        output.setFileTime(input.fileTime(QFileDevice::FileModificationTime), QFileDevice::FileModificationTime);
     }
 }
 /** @brief 生成した作業コピーだけを消す。 @param path 作業項目。 */
 void removeOwned(const QString& path) {
     ordinary(path);
     if (QFileInfo(path).isDir()) { for (const auto& child : children(path)) removeOwned(child.absoluteFilePath()); if (!QDir().rmdir(path)) fail("Cannot remove temporary directory: " + path); }
-    else if (!QFile::remove(path)) fail("Cannot remove temporary file: " + path);
+    else if (!QFile::remove(path)) {
+        // OSコピーが維持した読み取り専用属性は、QPEが作った退避物を明示的に消す場合だけ外す。
+        const auto attributes = pathAttributes(path);
+        const auto native = QDir::toNativeSeparators(path);
+        if (!(attributes & FILE_ATTRIBUTE_READONLY) ||
+            !SetFileAttributesW(reinterpret_cast<LPCWSTR>(native.utf16()), attributes & ~FILE_ATTRIBUTE_READONLY) ||
+            !QFile::remove(path)) fail("Cannot remove temporary file: " + path);
+    }
 }
 /** @brief 上書きなしのOSリネーム。一時的な共有/アクセス拒否だけ最大900ms待つ。
  * @param from 元。 @param to 未作成先。
@@ -228,9 +259,10 @@ qint64 backupBytes(const QString& path, const CancelFlag& cancel) {
  */
 QStringList retainedBackups(const QJsonObject& entry, const CancelFlag& cancel) {
     QStringList result;
-    for (const auto& key : {"backup", "sourceBackup", "undoHold"}) {
+    for (const auto& key : {"backup", "sourceBackup", "undoHold", "sourceRemainder"}) {
         const auto path = entry[key].toString(); if (path.isEmpty() || !QFileInfo::exists(path)) continue;
-        const auto parent = QFileInfo(entry[QString(key) == "sourceBackup" ? "source" : "target"].toString()).absolutePath();
+        const auto field = QString::fromLatin1(key);
+        const auto parent = QFileInfo(entry[field.startsWith("source") ? "source" : "target"].toString()).absolutePath();
         const bool legacy = entry["legacy"].toBool();
         const bool oldBackup = legacy && QString(key) == "backup" && QFileInfo(path).absolutePath().compare(entry["legacyDirectory"].toString(), Qt::CaseInsensitive) == 0
             && QRegularExpression("^[0-9a-fA-F]{32}$").match(QFileInfo(path).fileName()).hasMatch();
@@ -239,11 +271,24 @@ QStringList retainedBackups(const QJsonObject& entry, const CancelFlag& cancel) 
         if (!oldBackup && !(sameParent && ownName)) fail("Unexpected backup location; cleanup refused: " + path);
         ordinaryParents(path);
         const bool oldHash = legacy && !entry["legacyUpgraded"].toBool();
-        const auto stamp = entry[QString(key) == "backup" ? "backupStamp" : QString(key) == "sourceBackup" ? "sourceStamp" : "stamp"].toString(oldHash ? entry["stamp"].toString() : QString());
+        const auto stampField = field == "backup" ? "backupStamp" : field == "sourceBackup" ? "sourceStamp" :
+                                field == "sourceRemainder" ? "remainderStamp" : "stamp";
+        const auto stamp = entry[stampField].toString(oldHash ? entry["stamp"].toString() : QString());
         if (stamp.isEmpty() || (oldHash ? legacyFingerprint(path, cancel) : fileFingerprint(path, cancel)) != stamp) fail("Backup changed; cleanup refused: " + path);
         result.append(path);
     }
     return result;
+}
+/** @brief 完了済みの移動の原本と、スキップした項目の現在状態を検証する。
+ * @param entry 履歴。 @param cancel 取消し。
+ */
+void validateMovedSource(const QJsonObject& entry, const CancelFlag& cancel) {
+    const auto source = entry["source"].toString();
+    const bool sourceChanged = !entry["sourceRemainder"].toString().isEmpty()
+        ? fileFingerprint(source, cancel) != entry["remainderStamp"].toString()
+        : QFileInfo::exists(source) || QFileInfo(source).isSymLink();
+    if (sourceChanged || fileFingerprint(entry["sourceBackup"].toString(), cancel) != entry["sourceStamp"].toString())
+        fail("Move source or skipped items changed; operation refused");
 }
 /** @brief 衝突時の連番。 @param path 希望パス。 @return 空いているパス。 */
 QString available(QString path) {
@@ -252,32 +297,57 @@ QString available(QString path) {
     while (QFileInfo::exists(path)) path = info.dir().filePath(stem + QString(" (%1)").arg(number++) + suffix);
     return path;
 }
+/** @brief 確認した競合方針を取得し、異なる種類の項目の暗黙上書きを防ぐ。
+ * @param choices 個別の選択。 @param path 確認に表示したパス。 @param relative 旧履歴の相対名。
+ * @param sameKind 元と先が同じ種類か。 @return replace、rename、skipのいずれか。
+ */
+QString conflictChoice(const QJsonObject& choices, const QString& path, const QString& relative, bool sameKind) {
+    if (choices["_requireReviewed"].toBool() && !choices.contains(path))
+        fail("A new merge conflict appeared; review the destination again: " + path);
+    const auto decision = choices.value(path).toString(choices.value(relative).toString("replace"));
+    if (decision == "replace") return sameKind ? decision : QString("skip");
+    if (decision == "skip" || decision == "rename") return decision;
+    fail("Invalid per-item conflict choice: " + path);
+}
 /** @brief 未公開の作業コピーへ重ね、行先にだけある項目を保持する。
  * @param source 元項目。 @param target 作業コピー。 @param choices 個別の衝突選択。
  * @param cancel 中断。 @param progress コピー進捗。 @param relative ルートからの相対名。
- * @param reviewSource 衝突確認に表示したパス。
+ * @param reviewSource 衝突確認に表示したパス。 @param remainder 移動でスキップした項目を残す作業パス。
+ * @return 結合した元項目があるか。
  */
-void overlayEntry(const QString& source, const QString& target, const QJsonObject& choices,
+bool overlayEntry(const QString& source, const QString& target, const QJsonObject& choices,
                   const CancelFlag& cancel, const FileProgress& progress, const QString& relative = {},
-                  const QString& reviewSource = {}) {
+                  const QString& reviewSource = {}, const QString& remainder = {}) {
     check(cancel); ordinary(source);
     if (QFileInfo::exists(target)) {
         ordinary(target);
-        if (QFileInfo(source).isDir() && QFileInfo(target).isDir()) {
-            for (const auto& child : children(source)) overlayEntry(child.absoluteFilePath(), QDir(target).filePath(child.fileName()), choices,
-                cancel, progress, relative.isEmpty() ? child.fileName() : relative + '/' + child.fileName(),
-                reviewSource.isEmpty() ? QString() : QDir(reviewSource).filePath(child.fileName()));
-            return;
+        const bool sourceDir = QFileInfo(source).isDir(), targetDir = QFileInfo(target).isDir();
+        if (sourceDir && targetDir) {
+            const auto entries = children(source);
+            bool merged = entries.isEmpty();
+            for (const auto& child : entries) {
+                const auto name = child.fileName();
+                if (overlayEntry(child.absoluteFilePath(), QDir(target).filePath(name), choices, cancel, progress,
+                                 relative.isEmpty() ? name : relative + '/' + name,
+                                 reviewSource.isEmpty() ? QString() : QDir(reviewSource).filePath(name),
+                                 remainder.isEmpty() ? QString() : QDir(remainder).filePath(name))) merged = true;
+            }
+            return merged;
         }
-        const auto& choicePath = reviewSource.isEmpty() ? source : reviewSource;
-        if (choices["_requireReviewed"].toBool() && !choices.contains(choicePath)) fail("A new merge conflict appeared; review the destination again: " + choicePath);
-        const auto decision = choices.value(choicePath).toString(choices.value(relative).toString("replace"));
-        if (!QStringList{"replace", "rename", "skip"}.contains(decision)) fail("Invalid per-item conflict choice: " + relative);
-        if (decision == "skip") return;
-        if (decision == "rename") { copyEntry(source, available(target), cancel, progress); return; }
+        const auto decision = conflictChoice(choices, reviewSource.isEmpty() ? source : reviewSource, relative, sourceDir == targetDir);
+        if (decision == "skip") {
+            if (!remainder.isEmpty()) {
+                if (!QDir().mkpath(QFileInfo(remainder).absolutePath())) fail("Cannot prepare skipped items: " + remainder);
+                copyEntry(source, remainder, cancel, {});
+                if (fileFingerprint(source, cancel) != fileFingerprint(remainder, cancel)) fail("Cannot verify skipped items: " + source);
+            }
+            return false;
+        }
+        if (decision == "rename") { copyEntry(source, available(target), cancel, progress); return true; }
         removeOwned(target);
     }
     copyEntry(source, target, cancel, progress);
+    return true;
 }
 /** @brief ハッシュへ構造と内容を流す。 @param path 元。 @param hash 集約。 @param cancel 取消し。 @param bytes 読んだバイト数の加算先。 */
 void hashEntry(const QString& path, QCryptographicHash& hash, const CancelFlag& cancel, qint64* bytes = nullptr) {
@@ -358,7 +428,9 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         };
         for (const auto& raw : request.paths) {
             const auto source = normalized(raw), name = QFileInfo(source).fileName();
-            inspect(transferSource(source), QDir(destination).filePath(name), source,
+            const auto physical = transferSource(source), target = QDir(destination).filePath(name);
+            if (physical.compare(target, Qt::CaseInsensitive) == 0) continue;
+            inspect(physical, target, source,
                     QDir(normalized(request.destination)).filePath(name), name);
         }
         result.extra = {{"query", "mergeConflicts"}, {"rows", rows}}; return result;
@@ -400,7 +472,7 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         /** @brief 削除前に検証を済ませた履歴候補。 */
         struct Candidate { QString stack; int index; QJsonObject entry; QStringList paths; qint64 bytes; QDateTime time; };
         QList<Candidate> candidates; qint64 total = 0; QSet<QString> protectedPaths;
-        for (const auto& key : {"redo", "reviewed"}) for (const auto& value : journal[key].toArray()) for (const auto& field : {"backup", "sourceBackup", "undoHold"}) { const auto path = value.toObject()[field].toString(); if (!path.isEmpty()) protectedPaths.insert(normalized(path).toLower()); }
+        for (const auto& key : {"redo", "reviewed"}) for (const auto& value : journal[key].toArray()) for (const auto& field : {"backup", "sourceBackup", "undoHold", "sourceRemainder"}) { const auto path = value.toObject()[field].toString(); if (!path.isEmpty()) protectedPaths.insert(normalized(path).toLower()); }
         for (const auto& key : {"undo", "retained"}) { const auto values = journal[key].toArray(); for (int i = 0; i < values.size(); ++i) {
             const auto entry = values[i].toObject(); const auto paths = retainedBackups(entry, cancel); qint64 bytes = 0;
             for (const auto& path : paths) { if (protectedPaths.contains(normalized(path).toLower())) fail("Backup is still referenced by recovery/Redo; cleanup refused"); bytes += backupBytes(path, cancel); }
@@ -518,17 +590,21 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             if (action == "legacyMove" && !backup.isEmpty() && fileFingerprint(restoring ? backup : target, cancel) != entry["backupStamp"].toString()) fail("Legacy replacement changed before batch Undo/Redo");
             if (action == "rename" || action == "legacyMove") { if (QFileInfo::exists(restoring ? source : target) && !(action == "legacyMove" && !restoring && !backup.isEmpty()) && source.compare(target, Qt::CaseInsensitive)) fail("Undo/Redo destination exists"); }
             else if (restoring) {
-                if (action == "move" && (QFileInfo::exists(source) || fileFingerprint(entry["sourceBackup"].toString(), cancel) != entry["sourceStamp"].toString())) fail("Move source changed; Undo refused");
+                if (action == "move") validateMovedSource(entry, cancel);
                 if (!backup.isEmpty() && fileFingerprint(backup, cancel) != entry["backupStamp"].toString()) fail("Replacement backup changed");
             } else {
                 if (backup.isEmpty() ? QFileInfo::exists(target) : fileFingerprint(target, cancel) != entry["backupStamp"].toString()) fail("Redo destination changed");
                 if (action == "move" && fileFingerprint(source, cancel) != entry["sourceStamp"].toString()) fail("Redo source changed");
+                const auto remainder = entry["sourceRemainder"].toString();
+                if (!remainder.isEmpty() && fileFingerprint(remainder, cancel) != entry["remainderStamp"].toString())
+                    fail("Skipped items changed; Redo refused");
             }
         }
         do {
         auto entry = stack.last().toObject(); const bool undo = request.action == "undo";
         const QString action = entry["action"].toString(), source = entry["source"].toString(), target = entry["target"].toString();
         const QString backup = entry["backup"].toString(), sourceBackup = entry["sourceBackup"].toString();
+        const auto remainder = entry.value("sourceRemainder").toString();
         check(cancel);
         const auto relocate = [&](const QString& from, const QString& to) { if (entry["legacy"].toBool()) relocateLegacy(from, to, cancel, progress); else renameExact(from, to); };
         if (action == "legacyTrash") {
@@ -552,19 +628,25 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 if (QFileInfo::exists(undo ? source : target) && source.compare(target, Qt::CaseInsensitive)) fail("Undo/Redo destination exists");
                 intent(entry); relocate(current, undo ? source : target);
             } else if (undo) {
-                if (action == "move" && (QFileInfo::exists(source) || fileFingerprint(sourceBackup, cancel) != entry["sourceStamp"].toString())) fail("Move source changed; Undo refused");
+                if (action == "move") validateMovedSource(entry, cancel);
                 if (!backup.isEmpty() && fileFingerprint(backup, cancel) != entry["backupStamp"].toString()) fail("Replacement backup changed");
                 entry["undoHold"] = holding(QFileInfo(target).absolutePath()); intent(entry);
                 renameExact(target, entry["undoHold"].toString());
                 if (!backup.isEmpty()) relocate(backup, target);
-                if (action == "move") relocate(sourceBackup, source);
+                if (action == "move") {
+                    if (!remainder.isEmpty()) relocate(source, remainder);
+                    relocate(sourceBackup, source);
+                }
             } else {
                 if (backup.isEmpty() ? QFileInfo::exists(target) : fileFingerprint(target, cancel) != entry["backupStamp"].toString()) fail("Redo destination changed");
                 if (action == "move" && fileFingerprint(source, cancel) != entry["sourceStamp"].toString()) fail("Redo source changed");
                 intent(entry);
                 if (!backup.isEmpty()) relocate(target, backup);
                 renameExact(current, target);
-                if (action == "move") relocate(source, sourceBackup);
+                if (action == "move") {
+                    relocate(source, sourceBackup);
+                    if (!remainder.isEmpty()) relocate(remainder, source);
+                }
             }
         }
         stack.removeLast(); (undo ? redo : history).append(entry); journal.remove("pending"); save();
@@ -591,7 +673,8 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
     }
     if (!QStringList{"copy", "move", "duplicate", "trash", "rename", "batchRename", "newFolder", "newFile"}.contains(request.action)) fail("Unknown file operation");
     if (!QStringList{"rename", "skip", "replace", "merge"}.contains(request.conflict)) fail("Unknown conflict policy");
-    if (request.conflict == "merge" && request.action != "copy") fail("Folder merge is available for Copy only");
+    if (request.conflict == "merge" && request.action != "copy" && request.action != "move")
+        fail("Folder merge requires a copy or move");
     for (const auto& path : request.paths) if (path.trimmed().isEmpty() || !QFileInfo(path).isAbsolute()) fail("File operations require non-empty absolute paths");
     const bool transfer = request.action == "copy" || request.action == "move";
     if ((transfer || request.action.startsWith("new")) && (request.destination.isEmpty() || !QFileInfo(request.destination).isAbsolute())) fail("Destination must be an absolute path");
@@ -671,6 +754,11 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
         }
         paths = unique;
     }
+    QSet<QString> completedRoots;
+    if (!request.id.isEmpty()) for (const auto& value : history) {
+        const auto entry = value.toObject();
+        if (entry["job"] == request.id) completedRoots.insert(entry["shownSource"].toString(entry["source"].toString()));
+    }
     for (const auto& raw : request.options["mergeReviewed"].toArray()) {
         const auto row = raw.toObject();
         const auto shownSource = row["source"].toString(), shownTarget = row["target"].toString();
@@ -681,6 +769,7 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
             fail("Merge source/destination changed after preview. Review the conflicts again.");
         // 同じ解決済みルートから検査とコピーを行い、確認中のリンク差し替えで別の項目を上書きしない。
         const auto root = normalized(*shownRoot);
+        if (completedRoots.contains(root)) continue;
         const auto source = resolvedSources.value(*shownRoot).toString() + shownSource.mid(root.size());
         const auto target = QDir(resolvedDestination).filePath(QDir(shownDestination).relativeFilePath(shownTarget));
         if (source.compare(row["resolvedSource"].toString(source), Qt::CaseInsensitive)
@@ -702,7 +791,16 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
     if (!request.id.isEmpty() && QStringList{"copy", "move", "duplicate"}.contains(request.action)) {
         recordPath = directory_ + "/jobs/" + request.id + ".json";
         auto record = loadJson(recordPath); prepared = record["prepared"].toObject();
-        const bool knownTotal = partial && prepared.isEmpty() && (request.conflict == "rename" || request.conflict == "replace");
+        const auto choices = request.options["choices"].toObject();
+        const bool alwaysReplace = request.conflict == "replace" ||
+            (request.conflict == "merge" && choices["_requireReviewed"].toBool()
+             && std::all_of(choices.constBegin(), choices.constEnd(), [](const auto& value) { return value.isBool() || value == "replace"; }));
+        const bool foldersMerge = alwaysReplace && std::any_of(paths.cbegin(), paths.cend(), [&](const QString& raw) {
+                const QFileInfo source(resolvedSources.value(raw).toString(raw));
+                return source.isDir() && QFileInfo(QDir(resolvedDestination).filePath(source.fileName())).isDir();
+        });
+        const bool knownTotal = partial && prepared.isEmpty() && (request.conflict == "rename" ||
+            (alwaysReplace && !foldersMerge));
         qint64 plannedBytes = 0;
         if (transfer) {
             const auto recorded = record["resolvedSources"].toObject();
@@ -743,7 +841,7 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 if (!request.id.isEmpty() && done["job"].toString() == request.id && done["shownSource"].toString(done["source"].toString()) == shownSource) {
                     if (done["source"].toString().compare(source, Qt::CaseInsensitive)) fail("A source folder link changed; start a new transfer: " + shownSource);
                     if (fileFingerprint(done["target"].toString(), cancel) != done["stamp"].toString()) fail("Completed transfer changed; resume refused");
-                    if (request.action == "move" && (QFileInfo::exists(source) || fileFingerprint(done["sourceBackup"].toString(), cancel) != done["sourceStamp"].toString())) fail("Move original changed; resume refused");
+                    if (request.action == "move") validateMovedSource(done, cancel);
                     committed = true;
                 }
             }
@@ -774,21 +872,21 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 if (!QFileInfo(destination).isDir() || within(destination, source)) fail("Choose an existing destination outside the source");
                 QString target = QDir(destination).filePath(info.fileName());
                 bool merge = false;
-                if (request.action == "move" && target.compare(source, Qt::CaseInsensitive) == 0) continue;
+                const bool samePath = target.compare(source, Qt::CaseInsensitive) == 0;
+                if (request.action == "move" && samePath) continue;
                 if (QFileInfo::exists(target) || QFileInfo(target).isSymLink()) {
-                    auto policy = request.conflict;
-                    if (policy == "merge" && !(info.isDir() && QFileInfo(target).isDir())) {
-                        const auto choices = request.options["choices"].toObject();
-                        if (choices["_requireReviewed"].toBool() && !choices.contains(shownSource)) fail("A new merge conflict appeared; review the destination again: " + shownSource);
-                        policy = choices[shownSource].toString("replace");
-                    }
-                    if (!QStringList{"skip", "rename", "replace", "merge"}.contains(policy)) fail("Invalid conflict policy");
+                    const bool targetDir = QFileInfo(target).isDir();
+                    const bool folderPair = info.isDir() && targetDir;
+                    auto policy = samePath && request.conflict != "skip" ? QString("rename") : request.conflict;
+                    if (policy == "merge" && !folderPair)
+                        policy = conflictChoice(request.options["choices"].toObject(), shownSource, {}, info.isDir() == targetDir);
                     if (policy == "skip") continue;
                     if (policy == "replace" && request.options["replaceFilesOnly"].toBool() && (info.isDir() || QFileInfo(target).isDir()))
                         fail("A folder already exists at the destination. Review the conflict before replacing it.");
-                    if (policy == "rename" || target.compare(source, Qt::CaseInsensitive) == 0) target = available(target);
+                    if (policy == "rename") target = available(target);
                     else {
-                        merge = policy == "merge" && info.isDir() && QFileInfo(target).isDir();
+                        if (info.isDir() != targetDir) fail("The source and destination have different item types: " + target);
+                        merge = folderPair;
                         entry["backup"] = holding(destination); entry["backupStamp"] = fileFingerprint(target, cancel);
                     }
                 }
@@ -796,15 +894,25 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 if (transfer && source != shownSource) entry["shownSource"] = shownSource;
                 if (transfer && destination != shownDestination) entry["shownTarget"] = QDir(shownDestination).filePath(QFileInfo(target).fileName());
                 const QString temporary = QDir(destination).filePath(".qpe-copy-" + QUuid::createUuid().toString(QUuid::WithoutBraces));
+                const auto remainder = merge && request.action == "move" ? holding(info.absolutePath()) : QString();
                 try {
                     if (merge) {
+                        entry["merged"] = true;
                         copyEntry(target, temporary, cancel, progress);
-                        overlayEntry(source, temporary, request.options["choices"].toObject(), cancel, progress, {}, shownSource);
+                        if (!overlayEntry(source, temporary, request.options["choices"].toObject(), cancel, progress, {}, shownSource, remainder)) {
+                            removeOwned(temporary);
+                            if (!remainder.isEmpty() && QFileInfo::exists(remainder)) removeOwned(remainder);
+                            continue;
+                        }
                         entry["stamp"] = fileFingerprint(temporary, cancel);
                     } else copyEntry(source, temporary, cancel, progress);
                     if (fileFingerprint(temporary, cancel) != entry["stamp"].toString() || fileFingerprint(source, cancel) != entry["sourceStamp"].toString()) fail("Source changed during copy");
                     if (entry.contains("backup") && fileFingerprint(target, cancel) != entry["backupStamp"].toString()) fail("Destination changed during copy");
                     if (request.action == "move") entry["sourceBackup"] = holding(info.absolutePath());
+                    if (!remainder.isEmpty() && QFileInfo::exists(remainder)) {
+                        entry["sourceRemainder"] = remainder;
+                        entry["remainderStamp"] = fileFingerprint(remainder, cancel);
+                    }
                     if (entry.contains("shownSource") || entry.contains("shownTarget")) {
                         ordinaryParents(source);
                         ordinaryParents(destination);
@@ -812,9 +920,15 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                     check(cancel); intent(entry);
                     if (entry.contains("backup")) renameExact(target, entry["backup"].toString());
                     renameExact(temporary, target);
-                    if (request.action == "move") renameExact(source, entry["sourceBackup"].toString());
+                    if (request.action == "move") {
+                        renameExact(source, entry["sourceBackup"].toString());
+                        if (entry.contains("sourceRemainder")) renameExact(remainder, source);
+                    }
                 } catch (...) {
                     if (QFileInfo::exists(temporary)) { try { removeOwned(temporary); } catch (...) {} }
+                    if (journal["pending"].toObject().isEmpty() && !remainder.isEmpty() && QFileInfo::exists(remainder)) {
+                        try { removeOwned(remainder); } catch (...) {}
+                    }
                     throw;
                 }
             }

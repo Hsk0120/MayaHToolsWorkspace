@@ -102,8 +102,8 @@ private:
     void appearanceDialog();
     /** @brief 設定内の表示ページを作り、変更をプレビューする。 @param parent 所有者。 @return 親所有のページ。 */
     QWidget* appearancePanel(QWidget* parent);
-    /** @brief 結合の競合を非同期に集計し、個別選択を固定する。 @param request Copy要求。 @return 確定したか。 */
-    bool confirmMerge(FileRequest& request);
+    /** @brief 転送先の同名項目だけを確認し、個別の処理を固定する。 @param request コピーまたは移動の要求。 @return 転送を続けるか。 */
+    bool confirmTransfer(FileRequest& request);
     /** @brief 世代を分離した検索結果を100件ずつ表示する。 @param request 固定した検索条件。 */
     void streamingSearch(const FileRequest& request);
     /** @brief 保存済みカスタムキーをQPE内・編集欄以外に限定して登録する。 */
