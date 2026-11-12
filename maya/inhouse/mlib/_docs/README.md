@@ -8,7 +8,7 @@ Mayaの起動は不要です。SphinxとAutoAPIがPythonソースから説明ペ
 
 | 必要なもの | 用意する方法 |
 | --- | --- |
-| Python 3.11以上 | [Python公式のWindows版](https://www.python.org/downloads/windows/)をインストール。手元の確認は3.12・3.13、CIの指定は3.11です。 |
+| Python 3.11以上 | [Python公式のWindows版](https://www.python.org/downloads/windows/)をインストール。手元の確認は3.12・3.13、CIの指定は3.11です。無い場合はMaya 2027〜2025のmayapyを使います。 |
 | Sphinx・sphinx-autoapi | 下の`setup.bat`が`requirements.txt`からインストールします。 |
 | インターネット接続 | 初回のパッケージ取得と、ブラウザでの継承図表示に使います。 |
 
@@ -21,7 +21,8 @@ Mermaid自体もバッチでインストールする必要はありません。
 4. `Documentation build succeeded`が出たら`_build/html/index.html`をブラウザで開きます。
 
 `setup.bat`は、このフォルダの`.venv`だけに文書用パッケージを入れます。
-既存の`.venv`は再利用し、Python本体のインストールやシステムのPATH変更は行いません。
+Python 3.11以上が見つからないときは、Maya 2027→2026→2025の順に見つかったmayapyを使い、このフォルダの`.mayapy-site`へ`pip install --target`で入れます（mayapyではvenvを作れないため）。使ったmayapyの場所は`.mayapy-site/mayapy-path.txt`に記録し、`rebuild.bat`は`.venv`が無ければそのmayapyでビルドします。
+既存の`.venv`・`.mayapy-site`は再利用し、Python本体のインストールやシステムのPATH変更は行いません。
 PowerShellから実行するときは、リポジトリルートで次を使います。
 
 ```powershell
@@ -36,8 +37,9 @@ if ($LASTEXITCODE -eq 0) { Invoke-Item .\_build\html\index.html }
 
 ### セットアップで止まる場合
 
-- **Pythonが見つからない**: インストール後にPowerShellを開き直し、上のバージョン確認を行ってください。`setup.bat`は`py -3`、次に`python`を探します。
-- **古い・壊れた`.venv`がある**: ビルドを終了し、`.venv`を`.venv-backup`などへ名前変更してから`setup.bat`を再実行します。別PCからコピーした`.venv`も作り直してください。
+- **Pythonが見つからない**: インストール後にPowerShellを開き直し、上のバージョン確認を行ってください。`setup.bat`は`py -3`、次に`python`、最後にMaya 2027〜2025のmayapyを探します。
+- **古い・壊れた`.venv`がある**: ビルドを終了し、`.venv`を`.venv-backup`などへ名前変更してから`setup.bat`を再実行します。別PCからコピーした`.venv`も作り直してください。`.mayapy-site`も同じです。
+- **mayapyからPythonへ切り替える**: Pythonをインストールしてから`.mayapy-site`を削除し、`setup.bat`を再実行します。`.venv`があれば`rebuild.bat`は`.venv`を優先します。
 - **パッケージの取得に失敗する**: 表示されたpipのエラーとネット接続・プロキシ設定を確認し、`setup.bat`を再実行します。
 - **本文は出るが図が出ない**: ブラウザから`cdn.jsdelivr.net`に接続できるか確認してください。Graphvizを入れる必要はありません。
 
@@ -116,6 +118,7 @@ _docs/
 │  └─ _templates/autoapi/python/  class.rst・module.rst
 ├─ _ext/              継承図・署名表示など、mlib固有のビルド処理
 ├─ .venv/             ローカルのPython環境（Git対象外）
+├─ .mayapy-site/      mayapyで作ったときの文書用パッケージ（Git対象外）
 └─ _build/            生成したHTMLなど（Git対象外）
 ```
 

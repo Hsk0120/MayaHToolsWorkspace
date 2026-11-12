@@ -4,14 +4,22 @@ setlocal
 set "MLIB_DOCS_PYTHON=%~dp0.venv\Scripts\python.exe"
 set "MLIB_DOCS_SOURCE=%~dp0source"
 set "MLIB_DOCS_OUTPUT=%~dp0_build\html"
+set "MLIB_DOCS_MAYAPY_FILE=%~dp0.mayapy-site\mayapy-path.txt"
 set "MLIB_DOCS_RESULT=1"
 
+if exist "%MLIB_DOCS_PYTHON%" goto clean
+rem setup.bat used mayapy when no Python was found: run Sphinx with the same
+rem mayapy and the packages it installed into .mayapy-site.
+if exist "%MLIB_DOCS_MAYAPY_FILE%" set /p MLIB_DOCS_PYTHON=<"%MLIB_DOCS_MAYAPY_FILE%"
 if not exist "%MLIB_DOCS_PYTHON%" (
     echo Documentation Python environment was not found.
     echo Run "%~dp0setup.bat" first. See README.md for details.
     goto finish
 )
+set "PYTHONNOUSERSITE=1"
+set "PYTHONPATH=%~dp0.mayapy-site"
 
+:clean
 rem Sphinx never deletes files from an existing output folder, so files that
 rem were removed from the sources (for example old _static assets) would stay
 rem in the build. Start every rebuild from an empty output folder.

@@ -161,6 +161,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-12): mlib の Sphinx 用環境で、Python 3.11以上が無いときは Maya 2027→2026→2025 の mayapy を使うよう setup.bat・rebuild.bat を変更(mayapy は venv を作れないため _docs/.mayapy-site へ pip install --target し、使った mayapy を mayapy-path.txt に記録。.gitignore に追加)。mayapy 2025/2026/2027 で setup・rebuild(-W -n)成功。ローカルの .venv を通常の Python 3.13 で作り直し、rebuild・文書検査 377 ページ OK。
 - Claude Code (2026-11-12): mlib の Sphinx から変更履歴のページを削除(changelog.rst を削除し、目次・版番号の一致検査・CLAUDE.md・設計文書・README の参照を git の履歴へ置き換え)。runStatic・Sphinx -W 通過。
 - Claude Code (2026-11-12): mlib 12.4.0。cymel/pymel 比較の残りの不足メソッド(約120件)・作成関数5本・コンポーネント型3種を追加。Maya 2022/2026/2027 全テスト・mlrig 851・SkinWeightKit 87・Sphinx 通過。
 - Codex (2026-11-12): QPEの右端カラム、狭幅の詳細ペイン、転送進捗、同名貼り付けの置き換え既定、単体版の配置復元を修正。Windows Qt回帰106件合格・2件スキップ。Windows版とMaya 2022〜2027版を通常配置へ更新し、各ファイルのハッシュ一致を確認。配置後のWindows版は現在の画面構成で、通常倍率と150%の位置・最大化復元を12回確認。標準エクスプローラーの画面取得は失敗し、専用Maya 2027はプラグイン読込でタイムアウト。予定した追加検証の実行記録がないまま期限を経過したため、自動化を停止。記録 `.maya-output/qpe-explorer-parity-20261111/`。
