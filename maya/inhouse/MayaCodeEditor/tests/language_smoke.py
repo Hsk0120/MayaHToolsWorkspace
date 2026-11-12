@@ -200,6 +200,11 @@ def main(output_dir, finished):
 
         base = "class Widget:\n    def run(self, count=1): pass\n"
         cases = [
+            ("union_narrowing", "def use(x: str | int):\n    if isinstance(x, str):\n        x.upp", "upper"),
+            ("comprehension", "values = [str(i) for i in range(3)]\nvalues[0].upp", "upper"),
+            ("generic", "from typing import Generic, TypeVar\nT = TypeVar('T')\nclass Box(Generic[T]):\n    def get(self) -> T: ...\nb: Box[str] = Box()\nb.get().upp", "upper"),
+            ("overload_return", "from typing import overload\n@overload\ndef get(x: int) -> str: ...\n@overload\ndef get(x: str) -> int: ...\ndef get(x): return x\nget(1).upp", "upper"),
+            ("property_return", "class Box:\n    @property\n    def name(self) -> str: return 'box'\nBox().name.upp", "upper"),
             ("string", "name = 'demo'\nname.upp", "upper"),
             ("annotation", "name: str = 'demo'\nname.upp", "upper"),
             ("dictionary", "values = {'name': 1}\nvalues.it", "items"),

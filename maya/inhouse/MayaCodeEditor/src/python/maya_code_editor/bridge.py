@@ -122,6 +122,13 @@ def _members(mapping, depth=0):
             result[key] = {'target': vars(value).get('__name__', '')}
         elif isinstance(value, type) and depth < 1:
             result[key] = {'members': _members(_class_namespace(value), depth + 1), 'detail': 'class ' + key}
+        elif type(value) in (types.FunctionType, types.BuiltinFunctionType, types.MethodType,
+                              types.MethodDescriptorType, types.WrapperDescriptorType,
+                              staticmethod, classmethod):
+            # 型だけで分類し、descriptor/propertyや任意の__call__を実行しない。
+            result[key] = {'category': 'method' if depth else 'function'}
+        elif type(value) in (property, types.GetSetDescriptorType, types.MemberDescriptorType):
+            result[key] = {'category': 'property'}
         else:
             result[key] = {}
     return result

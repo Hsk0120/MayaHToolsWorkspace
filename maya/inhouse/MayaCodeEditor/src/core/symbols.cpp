@@ -37,6 +37,7 @@ QString Symbol::kindName() const {
 }
 
 QString Symbol::categoryName() const {
+    if (!displayCategory.isEmpty()) return displayCategory;
     switch (type) {
     case SymbolType::Function:
         return QStringLiteral("function");
@@ -56,7 +57,7 @@ QString Symbol::categoryName() const {
 }
 
 bool Symbol::operator==(const Symbol& other) const {
-    if (type != other.type || binding != other.binding || detail != other.detail || target != other.target || fromModule != other.fromModule
+    if (displayCategory != other.displayCategory || type != other.type || binding != other.binding || detail != other.detail || target != other.target || fromModule != other.fromModule
         || fromName != other.fromName || signature != other.signature || doc != other.doc || bases != other.bases
         || returnAnnotation != other.returnAnnotation || returnExpression != other.returnExpression || returnModule != other.returnModule
         || literalReturns != other.literalReturns || overload != other.overload
@@ -114,6 +115,7 @@ SymbolTable symbolTableFromJson(const QJsonObject& object) {
         const QJsonObject entry = it.value().toObject();
         Symbol symbol;
         const QString kind = entry.value(kindKey).toString();
+        symbol.displayCategory = entry.value(QLatin1String("category")).toString();
         const QString detail = entry.value(detailKey).toString();
         if (entry.contains(targetKey)) {
             symbol = Symbol::module(entry.value(targetKey).toString());
@@ -126,7 +128,7 @@ SymbolTable symbolTableFromJson(const QJsonObject& object) {
             symbol.type = SymbolType::Builtin;
         } else if (kind == QLatin1String("keyword")) {
             symbol.type = SymbolType::Keyword;
-        } else if (!detail.isEmpty()) {
+        } else if (!detail.isEmpty() || symbol.displayCategory == "function" || symbol.displayCategory == "method") {
             symbol.type = SymbolType::Function;
         }
         symbol.detail = detail;

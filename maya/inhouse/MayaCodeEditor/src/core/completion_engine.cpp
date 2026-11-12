@@ -1116,6 +1116,27 @@ CompletionEngine::Located CompletionEngine::valueType(Request& request, const Sy
     const int open = finalOpening(expression);
     if (open > 0 && expression.back() == ')') {
         const auto callable = expression.left(open).trimmed();
+        const QString function = callable.toString();
+        if ((function == "sorted" || function == "reversed" || function == "iter" || function == "zip")
+            && !scope.contains(function)) {
+            const auto arguments = splitExpression(expression.mid(open + 1, expression.size() - open - 2), ',');
+            if (arguments.isEmpty() || arguments.first().isEmpty() || arguments.size() > 32) return unknown;
+            auto element = iterationType(request, valueType(request, scope, text, arguments.first(), depth + 1), scope, depth + 1);
+            if (function == "zip") {
+                element = builtin("tuple");
+                for (const auto& argument : arguments) {
+                    if (argument.startsWith(QLatin1String("strict="))) continue;
+                    const auto item = iterationType(request, valueType(request, scope, text, argument, depth + 1), scope, depth + 1);
+                    element.positions.append(item.found ? std::make_shared<Located>(item) : nullptr);
+                }
+            }
+            auto result = builtin(function == "sorted" ? "list" : function == "zip" ? "zip" : "reversed");
+            if (element.found) {
+                result.iterationElement = std::make_shared<Located>(element);
+                if (function == "sorted") result.element = result.iterationElement;
+            }
+            return result;
+        }
         if (callable == QLatin1String("enumerate") && !scope.contains("enumerate")) {
             const auto arguments = splitExpression(expression.mid(open + 1, expression.size() - open - 2), ',');
             const auto source = valueType(request, scope, text, arguments.first(), depth + 1);
@@ -1334,6 +1355,25 @@ CompletionEngine::Located CompletionEngine::builtinMethodResult(Request& request
         else if (type == "bytes" && (method == "decode" || method == "hex")) annotation = "str";
     } else if (type == "list" || type == "tuple" || type == "dict" || type == "set") {
         if (method == "copy") return receiver;
+        if (type == "dict" && (method == "keys" || method == "values" || method == "items" || method == "popitem")) {
+            auto pair = annotationType(request, SymbolTable(), "tuple", depth + 1);
+            pair.positions = {receiver.iterationElement, receiver.element};
+            if (method == "popitem") return pair;
+            // dictのビューはlistではない。添字やappendを誤って提示せず、反復する要素だけを保持する。
+            Located view;
+            view.item.type = SymbolType::Class;
+            view.module = "builtins";
+            view.path = QStringList{"dict_" + method};
+            view.iterationElement = method == "keys" ? receiver.iterationElement : method == "values" ? receiver.element
+                : std::make_shared<Located>(pair);
+            return view;
+        }
+        if (type == "set" && (method == "difference" || method == "intersection")) return receiver;
+        if (type == "set" && (method == "union" || method == "symmetric_difference")) {
+            auto result = receiver;
+            result.element.reset(); result.iterationElement.reset();
+            return result;  // 引数から別型が加わり得るため、要素型は決めつけない。
+        }
         if (method == "count" || method == "index") annotation = "int";
         else if (method == "pop" || (type == "dict" && method == "get")) {
             return receiver.element ? *receiver.element : unknown;
@@ -1436,6 +1476,9 @@ SymbolTable CompletionEngine::classMembers(Request& request, const Symbol& item,
         for (auto it = item.instanceAttributes->cbegin(); it != item.instanceAttributes->cend(); ++it) {
             if (!members.contains(it.key())) members.insert(it.key(), it.value());
         }
+    }
+    for (auto it = members.begin(); it != members.end(); ++it) {
+        if (it->type == SymbolType::Function && it->displayCategory.isEmpty()) it->displayCategory = "method";
     }
     if (depth >= kMaximumInferDepth) {
         return members;

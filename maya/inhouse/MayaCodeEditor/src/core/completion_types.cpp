@@ -11,7 +11,7 @@ namespace mce {
 QByteArray completionResultToJson(const CompletionResult& result) {
     QJsonArray items;
     for (const CompletionItem& item : result.items) {
-        QJsonObject entry{{"name", item.name}, {"detail", item.detail}};
+        QJsonObject entry{{"name", item.name}, {"detail", item.detail}, {"category", item.category}};
         if (!item.kind.isEmpty()) {
             entry.insert("kind", item.kind);
         }

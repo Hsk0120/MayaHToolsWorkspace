@@ -51,7 +51,9 @@ QString documentation(const QJsonValue& value) {
 }
 /** @brief 識別子種別を補完アイコンへ変換する。 @param kind LSP種別。 @return 既存アイコン名。 */
 QString category(int kind) {
-    if (kind == 2 || kind == 3) return "function";
+    if (kind == 2) return "method";
+    if (kind == 3) return "function";
+    if (kind == 10 || kind == 5) return "property";
     if (kind == 7 || kind == 8) return "class";
     if (kind == 9) return "module";
     if (kind == 14) return "keyword";
@@ -453,7 +455,16 @@ bool LanguageAssist::accept(CodeEditor* editor, const QString& name) {
         SnippetExpansion snippet;
         const bool isSnippet = item.value("insertTextFormat").toInt(1) == 2;
         if (isSnippet) {
-            if (!expandSnippet(edit.value("newText").toString(), &snippet)) {
+            auto word = editor->textCursor(); word.select(QTextCursor::WordUnderCursor);
+            const QFileInfo file(QUrl(documents_.value(editor).uri).toLocalFile());
+            const QMap<QString, QString> variables{
+                {"TM_SELECTED_TEXT", editor->textCursor().selectedText()}, {"TM_CURRENT_WORD", word.selectedText()},
+                {"TM_CURRENT_LINE", editor->textCursor().block().text()},
+                {"TM_LINE_INDEX", QString::number(editor->textCursor().blockNumber())},
+                {"TM_LINE_NUMBER", QString::number(editor->textCursor().blockNumber() + 1)},
+                {"TM_FILENAME", file.fileName()}, {"TM_FILENAME_BASE", file.completeBaseName()},
+                {"TM_DIRECTORY", file.path()}, {"TM_FILEPATH", file.filePath()}};
+            if (!expandSnippet(edit.value("newText").toString(), &snippet, variables)) {
                 context_.status("Unsupported snippet syntax; document was not changed"); return;
             }
             edit.insert("newText", snippet.text);

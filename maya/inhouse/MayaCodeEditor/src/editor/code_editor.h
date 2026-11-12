@@ -113,6 +113,8 @@ public:
     bool isCompletionVisible() const;
     /** @brief Escapeで候補を拒否した世代。非同期応答で候補が再表示されるのを防ぐ。 @return 取消世代。 */
     quint64 completionDismissal() const { return completionDismissal_; }
+    /// Escape/IME開始時に、まだ表示していない自動補完のタイマーも取り消す。
+    std::function<void()> onCompletionDismissed;
     /** @brief 一覧を出したまま、入力した名前で候補を絞り込み直す(入力のたびに閉じて開き直さない)。
      * @param keepWhenEmpty trueなら、絞り込んで候補が無くなっても閉じない(呼出側がすぐ候補を求め直して入れ替える場合)。
      * @return 一覧が開いたままならtrue。補完中の名前の外へ出た・候補が無くなった場合は閉じてfalse。
@@ -284,6 +286,9 @@ protected:
      */
     void keyPressEvent(QKeyEvent* event) override;
 
+    /** @brief IMEの未確定文字列を保護し、補完による確定キーの横取りを防ぐ。 @param event 変換/確定イベント。 */
+    void inputMethodEvent(QInputMethodEvent* event) override;
+
     /** @brief 本文の表示部分へのマウスの操作を受け取る。止まったら名前の説明を出し、離れたら閉じる。
      * @param event Qtのイベント。QEvent::ToolTipは、マウスが少し止まったときにQtが送る。
      * @return 処理した場合true。
@@ -324,6 +329,10 @@ private:
     quint64 completionDismissal_ = 0;  ///< Escapeで増やす。本文のUndoとは独立した入力状態。
     QVector<SnippetStop> snippetStops_;  ///< 文書変更に追従する入力箇所。
     int snippetIndex_ = -1;  ///< 選択中。-1は終了。
+    bool snippetUpdating_ = false;  ///< 参照欄を同期する変更の再入を防ぐ。
+    bool snippetDirty_ = false;  ///< 入力後に同一番号を同期する必要があるか。
+    /** @brief 同一番号の参照を更新する。 @param transforms Tab移動時に変換参照も確定するか。 */
+    void syncSnippet(bool transforms = false);
     /** @brief Tab移動を適用する。@param direction 次は1、前は-1。@return 操作を消費したか。 */
     bool moveSnippet(int direction);
     friend class StickyHeader;
@@ -502,6 +511,8 @@ private:
     bool insertingCompletion_ = false;                   ///< 候補の確定中か。
     bool lastEditInserted_ = false;                      ///< 最後の本文の変更で文字が増えたか。
     int lastEditEnd_ = -1;                               ///< 最後に文字を入れた範囲の終わり(入力中の単語の判断)。無ければ-1。
+    bool inputMethodComposing_ = false;                 ///< IME変換中は補完を表示しない。
+    int preferredCompletionRow_ = 0;                    ///< 今の入力で以前確定した候補の位置。
     QList<CompletionItem> completionItems_;              ///< 補完エンジンが返した候補(絞り込む前)。
     QList<QTextCursor> autoClosers_;                     ///< 自動で入れた閉じ括弧・閉じ引用符(1文字を選んだカーソル。編集に合わせて動く)。
     QTextCursor spellingSkipped_;                        ///< 入力中のため波線を付けなかった単語(選んだカーソル)。無ければnull。

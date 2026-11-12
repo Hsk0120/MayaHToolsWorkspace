@@ -22,6 +22,7 @@
 #include <QScrollBar>
 #include <QFileInfo>
 #include <QKeyEvent>
+#include <QInputMethodEvent>
 #include <QMimeData>
 #include <QRegularExpression>
 #include <QPainter>
@@ -52,6 +53,10 @@ QIcon categoryIcon(const QString& category) {
     if (category == "function") {
         letter = "f";
         color = theme::kSymbolFunction;
+    } else if (category == "method") {
+        letter = "m"; color = theme::kSymbolFunction;
+    } else if (category == "property") {
+        letter = "p"; color = theme::kSymbolVariable;
     } else if (category == "class") {
         letter = "C";
         color = theme::kSymbolClass;
@@ -85,6 +90,19 @@ QIcon categoryIcon(const QString& category) {
     cache.insert(category, icon);
     return icon;
 }
+
+/** @brief 同じ入力で確定した候補を、同一セッションのタブ間で共有する。本文は保持しない。 */
+struct CompletionMemory {
+    QHash<QString, QString> choices; ///< 入力接頭辞と言語に対する確定名。
+    QStringList recent; ///< 最大256入力のLRU順。
+    /** @brief 成功した確定だけを記録する。 @param key 言語と接頭辞。 @param name 候補名。 */
+    void remember(const QString& key, const QString& name) {
+        recent.removeAll(key); recent.append(key); choices.insert(key, name);
+        while (recent.size() > 256) choices.remove(recent.takeFirst());
+    }
+};
+/** @brief プラグイン寿命内の候補履歴。 @return タブを閉じても残る小さな履歴。 */
+CompletionMemory& completionMemory() { static CompletionMemory memory; return memory; }
 
 /** @brief 補完の一覧の1行の描画。名前の右に、薄い色で説明(関数の引数など)を出す。 */
 class CompletionDelegate : public QStyledItemDelegate {
@@ -169,6 +187,7 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
     connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
     connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this] { hideHover(); });
     connect(document(), &QTextDocument::contentsChange, this, [this](int at, int removed, int added) {
+        if (snippetUpdating_) return;
         if (snippetIndex_ < 0 || snippetIndex_ >= snippetStops_.size()) return;
         auto& active = snippetStops_[snippetIndex_];
         if (at < active.start || at + removed > active.start + active.length) {
@@ -176,13 +195,21 @@ CodeEditor::CodeEditor(QWidget* parent) : NumberedTextEdit(parent) {
         }
         const int delta = added - removed;
         for (int i = 0; i < snippetStops_.size(); ++i) {
-            if (i != snippetIndex_ && snippetStops_[i].start >= at + removed) snippetStops_[i].start += delta;
+            if (i == snippetIndex_) continue;
+            auto& stop = snippetStops_[i];
+            if (stop.start >= at && stop.start + stop.length <= at + removed && removed) {
+                stop.number = -1;  // 親入力欄を置換すると、内包する入力欄は終了する。
+            } else if (stop.start >= at + removed) stop.start += delta;
+            else if (stop.start <= at && stop.start + stop.length >= at + removed) stop.length += delta;
         }
         active.length += delta;
+        snippetDirty_ = true;
+        QTimer::singleShot(0, this, [this] { syncSnippet(); });
     });
 }
 
 void CodeEditor::startSnippet(int start, const QVector<SnippetStop>& stops) {
+    snippetDirty_ = false;
     snippetStops_ = stops;
     for (auto& stop : snippetStops_) stop.start += start;
     snippetIndex_ = -1;
@@ -190,8 +217,10 @@ void CodeEditor::startSnippet(int start, const QVector<SnippetStop>& stops) {
 }
 
 bool CodeEditor::moveSnippet(int direction) {
+    syncSnippet(true);
     if (snippetStops_.isEmpty()) return false;
     int next = snippetIndex_ + direction;
+    while (next >= 0 && next < snippetStops_.size() && (snippetStops_[next].mirror || snippetStops_[next].number < 0)) next += direction;
     if (next < 0) next = 0;
     if (next >= snippetStops_.size()) { snippetStops_.clear(); snippetIndex_ = -1; return true; }
     const auto stop = snippetStops_[next];
@@ -203,6 +232,50 @@ bool CodeEditor::moveSnippet(int direction) {
     cursor.setPosition(stop.start + stop.length, QTextCursor::KeepAnchor); setTextCursor(cursor);
     if (stop.number == 0) { snippetStops_.clear(); snippetIndex_ = -1; }
     return true;
+}
+
+void CodeEditor::syncSnippet(bool transforms) {
+    if ((!snippetDirty_ && !transforms) || snippetUpdating_ || snippetIndex_ < 0 || snippetIndex_ >= snippetStops_.size()) return;
+    snippetDirty_ = false;
+    const auto active = snippetStops_[snippetIndex_];
+    QVector<int> targets;
+    for (int i = 0; i < snippetStops_.size(); ++i) {
+        const auto& stop = snippetStops_[i];
+        if (!stop.mirror || stop.number < 0 || (!transforms && !stop.pattern.isEmpty())) continue;
+        for (const auto& owner : snippetStops_) {
+            if (!owner.mirror && owner.number == stop.number && owner.start <= active.start
+                && owner.start + owner.length >= active.start + active.length) { targets.append(i); break; }
+        }
+    }
+    std::sort(targets.begin(), targets.end(), [this](int a, int b) { return snippetStops_[a].start > snippetStops_[b].start; });
+    snippetUpdating_ = true;
+    QTextCursor edit(document());
+    bool editing = false;
+    for (int index : targets) {
+        auto& stop = snippetStops_[index];
+        const auto owner = std::find_if(snippetStops_.cbegin(), snippetStops_.cend(), [&stop](const SnippetStop& item) {
+            return !item.mirror && item.number == stop.number;
+        });
+        if (owner == snippetStops_.cend()) continue;
+        QTextCursor source(document()); source.setPosition(owner->start);
+        source.setPosition(owner->start + owner->length, QTextCursor::KeepAnchor);
+        const QString value = source.selectedText().replace(QChar::ParagraphSeparator, '\n');
+        const QString replacement = transformSnippet(value, stop);
+        edit.setPosition(stop.start); edit.setPosition(stop.start + stop.length, QTextCursor::KeepAnchor);
+        if (edit.selectedText().replace(QChar::ParagraphSeparator, '\n') == replacement) continue;
+        if (!editing) { edit.joinPreviousEditBlock(); editing = true; }
+        const int end = stop.start + stop.length;
+        const int delta = replacement.size() - stop.length;
+        edit.insertText(replacement);
+        for (int i = 0; i < snippetStops_.size(); ++i) if (i != index) {
+            auto& other = snippetStops_[i];
+            if (other.start >= end) other.start += delta;
+            else if (other.start <= stop.start && other.start + other.length >= end) other.length += delta;
+        }
+        stop.length = replacement.size();
+    }
+    if (editing) edit.endEditBlock();
+    snippetUpdating_ = false;
 }
 
 bool CodeEditor::nameAt(int position, int* start, int* end) const {
@@ -465,10 +538,16 @@ int CodeEditor::applyCompletionFilter(const QString& prefix) {
     // まとめて追加する(1件ずつだと、開いている一覧が1件ごとに大きさを計算し直す)。追加した項目はモデルが所有する。
     model->invisibleRootItem()->appendRows(rows);
     completer_->setCompletionPrefix(QString());
+    preferredCompletionRow_ = 0;
+    const QString remembered = completionMemory().choices.value(languageName(language_) + ':' + prefix);
+    for (int i = 0; i < ranked.size(); ++i) {
+        if (ranked[i].name == remembered) { preferredCompletionRow_ = i; break; }
+    }
     return model->rowCount();
 }
 
 void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
+    if (inputMethodComposing_) return;
     ensureCompletionPopup();
     completionItems_ = items;
     const QString prefix = completionPrefix();
@@ -477,7 +556,7 @@ void CodeEditor::showCompletions(const QList<CompletionItem>& items) {
         return;
     }
     completionStart_ = textCursor().position() - prefix.size();
-    completer_->popup()->setCurrentIndex(completer_->completionModel()->index(0, 0));
+    completer_->popup()->setCurrentIndex(completer_->completionModel()->index(preferredCompletionRow_, 0));
     // 補完中の名前の先頭に、幅480px(100%時)の一覧を出す(名前の右に説明を出すため、以前の380pxより広い)。
     // 先頭に合わせるので、続けて入力しても一覧が横へ動かない(VS Codeと同じ)。
     QTextCursor start(document());
@@ -507,7 +586,7 @@ bool CodeEditor::refilterCompletions(bool keepWhenEmpty) {
         hideCompletions();
         return false;
     }
-    completer_->popup()->setCurrentIndex(completer_->completionModel()->index(0, 0));
+    completer_->popup()->setCurrentIndex(completer_->completionModel()->index(preferredCompletionRow_, 0));
     // 開いたまま、件数に合わせて高さを直す(complete()は表示中の一覧を閉じずに位置と大きさだけを変える)。
     QTextCursor start(document());
     start.setPosition(completionStart_);
@@ -528,7 +607,13 @@ void CodeEditor::hideCompletions() {
 }
 
 void CodeEditor::insertCompletion(const QString& value) {
-    if (onExternalCompletionAccepted && onExternalCompletionAccepted(value)) return;
+    const QString memoryKey = languageName(language_) + ':' + completionPrefix();
+    const int revision = document()->revision();
+    if (onExternalCompletionAccepted && onExternalCompletionAccepted(value)) {
+        if (document()->revision() != revision) completionMemory().remember(memoryKey, value);
+        return;
+    }
+    completionMemory().remember(memoryKey, value);
     insertingCompletion_ = true;
     QTextCursor cursor = textCursor();
     // 入力途中の名前を選択して、選んだ名前で置き換える。
@@ -716,7 +801,7 @@ bool CodeEditor::event(QEvent* event) {
     }
     // ShortcutOverrideをacceptすると、Mayaやメニューのショートカットより先に、
     // このキーをkeyPressEventで受け取れる。
-    if (event->type() == QEvent::ShortcutOverride) {
+    if (event->type() == QEvent::ShortcutOverride && !inputMethodComposing_) {
         auto key = static_cast<QKeyEvent*>(event);
         const bool scrollKey = (key->key() == Qt::Key_Up || key->key() == Qt::Key_Down)
                                && key->modifiers() == Qt::ControlModifier;
@@ -732,7 +817,20 @@ bool CodeEditor::event(QEvent* event) {
     return NumberedTextEdit::event(event);
 }
 
+void CodeEditor::inputMethodEvent(QInputMethodEvent* event) {
+    inputMethodComposing_ = !event->preeditString().isEmpty();
+    ++completionDismissal_;
+    if (onCompletionDismissed) onCompletionDismissed();
+    hideCompletions(); hideHover(); hideSignatureHelp();
+    NumberedTextEdit::inputMethodEvent(event);
+}
+
 void CodeEditor::keyPressEvent(QKeyEvent* event) {
+    syncSnippet();
+    if (inputMethodComposing_) {
+        NumberedTextEdit::keyPressEvent(event);
+        return;
+    }
     if (snippetIndex_ >= 0 && snippetIndex_ < snippetStops_.size()) {
         const auto stop = snippetStops_[snippetIndex_];
         if (textCursor().selectionStart() < stop.start || textCursor().selectionEnd() > stop.start + stop.length) {
@@ -752,7 +850,10 @@ void CodeEditor::keyPressEvent(QKeyEvent* event) {
     // 0. 名前の説明・定義をその場で見る表示を出している間のキー入力: Escは閉じるだけ、
     //    それ以外は閉じてから通常どおり処理する。
     const bool escape = event->key() == Qt::Key_Escape && event->modifiers() == Qt::NoModifier;
-    if (escape) ++completionDismissal_;
+    if (escape) {
+        ++completionDismissal_;
+        if (onCompletionDismissed) onCompletionDismissed();
+    }
     const bool popupOpen = (hover_ && hover_->isVisible()) || (peek_ && peek_->isVisible())
                            || (problemPopup_ && problemPopup_->isVisible());
     if (popupOpen) {

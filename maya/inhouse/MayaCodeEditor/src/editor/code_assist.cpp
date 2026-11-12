@@ -113,6 +113,13 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
 void CodeAssist::attach(CodeEditor* editor) {
     if (language_) language_->attach(editor);
     editor->onCompletionRequested = [this] { requestCompletion(true); };
+    editor->onCompletionDismissed = [this, editor] {
+        if (editor == context_.currentEditor()) {
+            completionTimer_.stop();
+            signatureTimer_.stop();
+            detailTimer_.stop();
+        }
+    };
     // 接続先のeditorはタブと一緒に破棄されるが、関数はeditorが持つので、破棄後に呼ばれることはない。
     editor->onHoverRequested = [this, editor](int end) { return describe(editor, end); };
     editor->onSignatureHelpRequested = [this, editor](bool explicitRequest) {

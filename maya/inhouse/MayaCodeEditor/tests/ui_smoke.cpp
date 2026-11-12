@@ -1873,7 +1873,36 @@ bool languageEditsPasses() {
     if (editor.textCursor().selectedText() != "changed") return false;
     QApplication::sendEvent(&editor, &tab); QApplication::sendEvent(&editor, &tab);
     if (editor.textCursor().position() != editor.toPlainText().size() || editor.textCursor().hasSelection()) return false;
-    if (mce::expandSnippet("${1|bad}", &snippet) || mce::expandSnippet("${1/a/b/}", &snippet)) return false;
+    if (mce::expandSnippet("${1|bad}", &snippet) || mce::expandSnippet("${1/[/b/}", &snippet)) return false;
+    if (!mce::expandSnippet("${1:name} = $1; ${1/(.*)/${1:/upcase}/}$0", &snippet)
+        || snippet.text != "name = name; NAME") return false;
+    editor.setPlainText(snippet.text); editor.startSnippet(0, snippet.stops);
+    editor.textCursor().insertText("value");
+    QApplication::processEvents();
+    if (editor.toPlainText() != "value = value; NAME") return false;
+    QApplication::sendEvent(&editor, &tab);
+    if (editor.toPlainText() != "value = value; VALUE") return false;
+    editor.undo();
+    if (editor.toPlainText() != "name = name; NAME") return false;
+    editor.redo();
+    if (editor.toPlainText() != "value = value; VALUE") return false;
+    if (!mce::expandSnippet("${1:outer ${2:inner}}$0", &snippet)) return false;
+    editor.setPlainText(snippet.text); editor.startSnippet(0, snippet.stops);
+    QApplication::sendEvent(&editor, &tab);
+    if (editor.textCursor().selectedText() != "inner") return false;
+    editor.startSnippet(0, snippet.stops);
+    editor.textCursor().insertText("replaced");
+    QApplication::sendEvent(&editor, &tab);
+    if (editor.textCursor().hasSelection() || editor.textCursor().position() != 8) return false;
+    if (!mce::expandSnippet("$1 = ${1:name}$0", &snippet) || snippet.text != "name = name") return false;
+    if (!mce::expandSnippet("${1:outer ${2:inner}} = $1$0", &snippet)) return false;
+    editor.setPlainText(snippet.text); editor.startSnippet(0, snippet.stops);
+    QApplication::sendEvent(&editor, &tab);
+    editor.textCursor().insertText("changed"); QApplication::processEvents();
+    if (editor.toPlainText() != "outer changed = outer changed") return false;
+    if (!mce::expandSnippet("${TM_FILENAME_BASE} ${TM_CURRENT_WORD/(.*)/${1:/upcase}/}", &snippet,
+                           {{"TM_FILENAME_BASE", "file"}, {"TM_CURRENT_WORD", "name"}})
+        || snippet.text != "file NAME") return false;
     if (!mce::expandSnippet("a\\$b${1:x}$0", &snippet) || snippet.text != "a$bx") return false;
     if (!mce::expandSnippet("${1:C:\\temp}$0", &snippet) || snippet.text != "C:\\temp") return false;
     // ヒントの空間だけが増え、本文・Undo履歴・カーソルの論理位置は変わらない。

@@ -43,6 +43,32 @@ class CompletionTests(unittest.TestCase):
     """``mayaCodeEditorTest -complete`` による補完と、``maya_code_editor.analysis`` による構文チェックの検証。"""
     # import行のトップレベル名(sys.pathの走査)はC++(src/core/module_scanner.cpp)が扱い、tests/ui_smoke.cppで検証する。
 
+    def test_builtin_views_and_iterators(self):
+        """辞書ビューと反復関数を実行せず、要素の型を補完する。"""
+        cases = [
+            ("d = {'a': [1]}\nfor k in d.keys():\n    k.", 'upper'),
+            ("d = {'a': [1]}\nfor v in d.values():\n    v.", 'append'),
+            ("d = {'a': [1]}\nfor k, v in d.items():\n    v.", 'append'),
+            ("d = {'a': [1]}\nd.popitem()[0].", 'upper'),
+            ("sorted(['a'])[0].", 'upper'),
+            ("for v in reversed(['a']):\n    v.", 'upper'),
+            ("for v in iter(['a']):\n    v.", 'upper'),
+            ("for a, b in zip(['a'], [[1]]):\n    b.", 'append'),
+            ("x = {'a'}\nx.difference({'b'}).", 'intersection'),
+        ]
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertIn(expected, names(source))
+        self.assertNotIn('append', names("d = {'a': 1}\nd.keys()."))
+        self.assertNotIn('upper', names("def sorted(x): pass\nsorted(['a'])[0]."))
+
+    def test_completion_member_categories(self):
+        """組み込みメソッドとpropertyを変数として表示しない。"""
+        result = {item['name']: item['category'] for item in complete("x = []\nx.")['items']}
+        self.assertEqual(result['append'], 'method')
+        result = {item['name']: item['category'] for item in complete("class A:\n    def run(self): pass\nx = A()\nx.")['items']}
+        self.assertEqual(result['run'], 'method')
+
     def test_builtin_method_return_chains(self):
         """実行せず組み込みの戻り値とコンテナ要素をたどる。"""
         cases = [
@@ -238,7 +264,7 @@ class CompletionTests(unittest.TestCase):
 
     def test_import_alias_and_signature_without_execution(self):
         items = complete('import sample as s\ns.cre')['items']
-        self.assertEqual(items, [{'name': 'create_node', 'detail': 'create_node(name, **kwargs)'}])
+        self.assertEqual(items, [{'name': 'create_node', 'detail': 'create_node(name, **kwargs)', 'category': 'function'}])
         self.assertNotIn('sample', sys.modules)
 
     def test_dynamic_exports(self):
