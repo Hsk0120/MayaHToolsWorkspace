@@ -70,7 +70,7 @@ containerのアトリビュートとして、生成後も変更・アニメー�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_wave_chain.py`` (``setups`` スイート)で、回転した親の下の、jointOrientと回転を持つ5関節について、
+``mlrig/__tests__/unit/setups/test_waveChain.py`` (``setups`` スイート)で、回転した親の下の、jointOrientと回転を持つ5関節について、
 振幅0の生成直後に出力のワールド行列が入力と一致すること、 ``phase`` を変えたときの各関節の角度と出力行列、
 360度の周期性、先端が振幅×tipWeightに達すること、軸の指定と生成後のアトリビュート変更、UIの角度単位がradianの場合、
 引数の検査、生成のUndoを、Pythonの式とOpenMayaで求めた期待値と比べます。Maya 2025・2027で確認しています。

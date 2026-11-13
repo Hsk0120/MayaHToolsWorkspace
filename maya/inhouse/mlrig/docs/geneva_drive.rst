@@ -85,7 +85,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_geneva_drive.py`` (``setups`` スイート)で、原点の従動輪と軸間距離6cmの駆動輪(子のピン)を作り、
+``mlrig/__tests__/unit/setups/test_genevaDrive.py`` (``setups`` スイート)で、原点の従動輪と軸間距離6cmの駆動輪(子のピン)を作り、
 作成直後に従動輪が跳ねないこと、溝に入っている間は従動輪のローカルで見たピンが常に溝の線の上にあること(試験側で独立に計算)、
 休止中は従動輪が止まり1回転ごとに90度送られること(正負の回転)、溝へ出入りする角度と段の切り替わりで連続すること、
 Python版( :meth:`GenevaDrive.motion` )との一致と速度比の数値微分との一致、 ``phase`` ・溝6本・ ``axis = x`` ・UI単位mm/ラジアン、

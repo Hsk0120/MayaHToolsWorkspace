@@ -86,7 +86,7 @@ Maya標準ノード(``clamp`` ・ ``composeMatrix`` ・ ``multMatrix`` など)�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_foot_roll.py`` (``setups`` スイート)で、回転・移動したコントロールについて、
+``mlrig/__tests__/unit/setups/test_footRoll.py`` (``setups`` スイート)で、回転・移動したコントロールについて、
 rotatePivotを持つtransformで組んだ逆足の階層と、rollの各段階(かかと・breakAngle以下・超過)とbankの両向き・
 その組み合わせ、swivel・toeTapとの組み合わせで出力の行列と角度が一致すること、toeTapだけでは足首が動かないこと、作成直後に出力が入力と一致すること、各段階で支点が動かないこと、
 コントロールの移動と ``breakAngle`` の変更、負の軸、UIの単位がmm・radianの場合、containerの所有とUndo/Redo、

@@ -96,7 +96,7 @@ Maya標準ノード(``decomposeMatrix`` ・ ``composeMatrix`` ・ ``plusMinusAve
 テスト
 ------
 
-``mlrig/__tests__/test_setup_ellipsoid_collision.py`` (``setups`` スイート)で、回転・拡大した中心と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_ellipsoidCollision.py`` (``setups`` スイート)で、回転・拡大した中心と回転した対象を作り、
 軸の向き・斜めのいろいろな向きで帯の外・帯の中・中・中心の近くまで入れた場合に、出力の行列・ ``distance`` ・ ``push`` ・
 ``penetration`` ・ ``directionRadius`` がOpenMayaで独立に求めた式と一致すること、楕円体の中へ入らないこと、出力が同じ半直線上にあること、
 作成直後に跳ねないこと、 ``softness = 0`` の硬い押し出しと半径・ ``softness`` の変更、中心の移動・回転と出力の回転の保持、

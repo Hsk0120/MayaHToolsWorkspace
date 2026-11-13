@@ -90,7 +90,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_crossed_knee_linkage.py`` (``setups`` スイート)で、移動・回転・scale した腰の下の大腿骨に、交差する2本の靭帯
+``mlrig/__tests__/unit/setups/test_crossedKneeLinkage.py`` (``setups`` スイート)で、移動・回転・scale した腰の下の大腿骨に、交差する2本の靭帯
 (前 3.72cm・後ろ 4.27cm)の付着点を置き、次を確認します。
 
 * 作成直後に脛骨の出力が生成時と一致し、靭帯の長さが付着点の距離であること。

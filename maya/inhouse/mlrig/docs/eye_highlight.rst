@@ -90,7 +90,7 @@ containerのアトリビュート
 試験
 ----
 
-``mlrig/__tests__/test_setup_eye_highlight.py`` (``setups`` スイート)で、回転・非一様なスケールの頭の下の
+``mlrig/__tests__/unit/setups/test_eyeHighlight.py`` (``setups`` スイート)で、回転・非一様なスケールの頭の下の
 眼球(joint)の子のハイライトについて、作成時に動かないことと ``radius`` の既定値、頭・眼球・カメラ・光・
 ``radius`` ・ ``follow`` の乱数25通りで位置・向きが試験側で独立に書いた式と Python版に一致し右手系であること、
 光があるときの反射の条件、ハイライト自身の translate・rotate の上乗せ、 ``follow=0`` で目の前に留まり眼球の回転に

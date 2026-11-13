@@ -5,7 +5,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 MLIB_TESTS = HERE.parents[1] / "maya/inhouse/mlib/__tests__"
 sys.path.insert(0, str(MLIB_TESTS))
-from run_all_tests import run_all as run_cases
+from runAll import run_all as run_cases
 
 LOG_DIR = HERE / "_output/logs"
 EXCLUDED_FILES = set()

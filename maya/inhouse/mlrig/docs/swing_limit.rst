@@ -80,7 +80,7 @@
 テスト
 ------
 
-``mlrig/__tests__/test_setup_swing_limit.py`` (``setups`` スイート)で、各軸の硬い制限、
+``mlrig/__tests__/unit/setups/test_swingLimit.py`` (``setups`` スイート)で、各軸の硬い制限、
 斜め方向の楕円の限界角、柔らかい区間の単調性と非超過、Twistの保持、jointOrient・OPM・移動を含む基準姿勢、
 y/z軸、生成後のアトリビュート変更、引数の検査、生成のUndo/Redoを、OpenMayaのQuaternionで求めた期待値と比べます。
 

@@ -89,7 +89,7 @@ IKからFKへ切り替える前に呼ぶと、切り替えの前後で姿勢が�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_fk_ik_chain.py`` (``setups`` スイート)で、回転した親の下に姿勢の違うFK(transform)とIK(joint)の5節のチェーンを作り、
+``mlrig/__tests__/unit/setups/test_fkIkChain.py`` (``setups`` スイート)で、回転した親の下に姿勢の違うFK(transform)とIK(joint)の5節のチェーンを作り、
 blend=0・1でFK・IKと一致すること(local・world)、途中の割合でOpenMayaで独立に求めた相対行列の補間と積に一致し節の間の長さが保たれること、
 worldでは節ごとの補間に一致し節の間が縮むこと、節や親を動かしても追従すること、表示の切り替え、 ``matchFkToIk`` の一致・Undo/Redo・切り替えで跳ねないこと
 (jointOrientのあるjointのFKも)、containerの所有とUndo/Redo、引数の検査を確認します。Maya 2025・2027で確認しています。

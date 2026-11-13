@@ -69,7 +69,7 @@ transformの階層を作らずに行列の積で計算する形にしました�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_squash_box.py`` (``setups`` スイート)で、回転・移動したrootの下に scalePivot を反対の辺に置いた
+``mlrig/__tests__/unit/setups/test_squashBox.py`` (``setups`` スイート)で、回転・移動したrootの下に scalePivot を反対の辺に置いた
 transformの階層(上→下→外→内)を組み、各辺の伸ばし・潰しと組み合わせで出力の行列が参照の末端のワールド行列と一致すること、
 作成直後に跳ねないこと、反対の辺の不動と動かした辺の移動量、 ``volume`` の割合、rootの移動と回転、軸の指定、containerの所有とUndo/Redo、
 引数の検査を確認します。Maya 2025・2027で確認しています。

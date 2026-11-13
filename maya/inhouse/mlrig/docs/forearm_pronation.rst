@@ -95,7 +95,7 @@ container の ``pronationLimit`` ・ ``supinationLimit`` ・ ``softness`` ・ ``
 テスト
 ------
 
-``mlrig/__tests__/test_setup_forearm_pronation.py`` (``setups`` スイート)で、生成時の姿勢、軸まわりの回転とOpenMayaの
+``mlrig/__tests__/unit/setups/test_forearmPronation.py`` (``setups`` スイート)で、生成時の姿勢、軸まわりの回転とOpenMayaの
 結果の一致(位置・向き・橈骨の長さ)、Swingの無視、柔らかい制限と硬い制限、 ``sign`` と ``weight`` 、尺骨の移動、生成時の入力を
 一度だけ読むこと、 ``interosseousDistance`` 、親の回転・scale、UIの単位(rad・mm・m)、containerの所有とUndo/Redo、
 引数の検査を確認します。Maya 2027で確認しています。

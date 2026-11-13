@@ -55,7 +55,7 @@
 テスト
 ------
 
-``mlrig/__tests__/test_setup_pole_vector_placement.py`` (``setups`` スイート)で、回転・移動した親の下の3関節について、
+``mlrig/__tests__/unit/setups/test_poleVectorPlacement.py`` (``setups`` スイート)で、回転・移動した親の下の3関節について、
 既定の距離、FKの4通りの姿勢でポールが式と一致し、付け根-先端の線に垂直で3関節の平面上にあり、距離が ``distance`` になること、
 一直線でポールが中間関節になること、 ``distance`` の変更、UIの長さ単位がmの場合、引数の検査、生成のUndoを確認します。
 Maya 2025・2027で確認しています。

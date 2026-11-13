@@ -7,17 +7,17 @@ mlibを別リポジトリへ分離する際の必須ファイルには含めま�
 | --- | --- |
 | `cases/` | mlrig・HTools・mlib拡張・cymelとの連携 |
 | `gui/` | 外部プラグインの専用GUI確認 |
-| `manual/` | 起動済みGUIへの送信、外部投稿などの手動スクリプト |
 
 このワークスペースのルートから実行します。`cases`は必要なパッケージがある環境で実行し、
 依存がない場合のImportError等も失敗として記録します。テストを黙って除外しません。
 
 ```powershell
-python maya/inhouse/mlib/__tests__/runMaya.py --versions 2027 --suite-file tests/mlib_integration/run.py --output .maya-output/mlib-integration
+py -3 maya/inhouse/mlib/__tests__/runMaya.py --versions 2027 --suite-file tests/mlib_integration/run.py --output .maya-output/mlib-integration
 ```
 
 本体の環境分離・ログ集計を使い、`cases/`だけを実行します。
-`manual/`のスクリプトは自動実行しません。Slackへの実投稿は送信の明示指示がある場合だけ行います。
-旧HTools APIを使う手動疎通スクリプトも含むため、個別スクリプトは内容と依存を確認してから実行してください。
+`cases/`のファイル名は本体の`integration/`と同じく`test_<観点>_<話題>.py`にします(規則は本体のREADME)。
+起動済みGUIへ表示確認を送る`tools/send_mlib_visual_gui.py`と、Slackへ実際に投稿する`tools/post_slack_test_message.py`は
+自動実行しません。Slackへの実投稿は送信の明示指示がある場合だけ行います。
 
 本体のテスト方法は`maya/inhouse/mlib/__tests__/README.md`を参照してください。

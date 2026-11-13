@@ -90,7 +90,7 @@ containerのアトリビュート
 試験
 ----
 
-``mlrig/__tests__/test_setup_live_mirror.py`` (``setups`` スイート)で、回転・移動・スケールした対称面、
+``mlrig/__tests__/unit/setups/test_liveMirror.py`` (``setups`` スイート)で、回転・移動・スケールした対称面、
 非一様なスケールの親の下の source、回転・非一様なスケールの親の下で jointOrient を持つ target(joint)について、
 maintainOffset・weight=0・厳密な鏡像の位置からの作成で動かないこと、乱数20姿勢(スケールを含む)と
 軸3種 × flip 4種で鏡像が試験側で独立に書いた反射の式(点と軸のベクトルの反射)と一致し右手系であること、

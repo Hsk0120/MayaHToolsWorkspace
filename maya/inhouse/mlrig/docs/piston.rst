@@ -76,7 +76,7 @@ Maya標準ノード(``aimMatrix`` ・ ``multMatrix`` ・ ``distanceBetween`` な
 テスト
 ------
 
-``mlrig/__tests__/test_setup_piston.py`` (``setups`` スイート)で、回転・移動した親の下の、
+``mlrig/__tests__/unit/setups/test_piston.py`` (``setups`` スイート)で、回転・移動した親の下の、
 相手を向いていない向きで生成した両端について、生成直後に出力が入力と一致すること、
 相手側の親を回転・移動しても両端が互いを向き位置が入力のままであること、両端の上方向が共通の平面に乗ること、
 ``overStroke`` の符号と範囲の変更、UIの長さ単位がmの場合、引数の検査、生成のUndoを、OpenMayaで求めた期待値と比べます。

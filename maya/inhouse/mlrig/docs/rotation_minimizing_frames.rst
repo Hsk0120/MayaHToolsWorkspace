@@ -124,7 +124,7 @@ UIの長さ単位によらずcmで計算します。
 テスト
 ------
 
-``mlrig/__tests__/test_setup_rotation_minimizing_frames.py`` (``setups`` スイート)で、
+``mlrig/__tests__/unit/setups/test_rotationMinimizingFrames.py`` (``setups`` スイート)で、
 生成直後に出力が入力と一致すること(keepOffset)、点を3通りに動かしてもDGのフレームがPython版のdouble reflectionと一致し
 正規直交であること、平面曲線で最初の基準ベクトルが法線なら全ての点で法線のままであること(回転最小化の性質)、
 粗い点列と細かく分割した参照とのねじれの増え方の差、接線が真上を通る半円で隣り合う基準ベクトルの角度が接線の曲がりを超えないこと、

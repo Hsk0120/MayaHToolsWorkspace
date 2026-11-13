@@ -258,7 +258,7 @@
    sample = SetupSamples.build("hingeIK")
    print(sample.root, sample.target, sample.container)
 
-試験は ``mlrig/__tests__/test_setup_samples.py`` で、全項目について作成・対象の操作による
+試験は ``mlrig/__tests__/unit/root/test_setupSamples.py`` で、全項目について作成・対象の操作による
 出力の変化・作成直後の出力と入力の一致・Undo/Redo・名前の連番・``Menu.run`` 経由の実行を確かめます。
 メニューの表示そのもの(``cmds.menuItem``)はGUIでのみ作られるため、mayapyの試験では扱いません。
 

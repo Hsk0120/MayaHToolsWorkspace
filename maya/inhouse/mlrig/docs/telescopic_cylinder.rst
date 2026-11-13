@@ -102,7 +102,7 @@ Pythonの ``TelescopicCylinder.extensionsOf(E, strokes, sequence)`` は手順2�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_telescopic_cylinder.py`` (``setups`` スイート)で、既定値、順番・均等・中間の分配と
+``mlrig/__tests__/unit/setups/test_telescopicCylinder.py`` (``setups`` スイート)で、既定値、順番・均等・中間の分配と
 Pythonの式・ ``extensionsOf`` との一致、曲げた位置での各段の位置・向き(OpenMayaの最短の回転)・曲げ角、
 伸びすぎ・縮みすぎ、 ``closedLength`` ・ ``stageStroke`` の変更、別の軸と親の回転・scale、UIの長さ単位mm、
 containerの所有とUndo/Redo、引数の検査を確認します。Maya 2027で確認しています。

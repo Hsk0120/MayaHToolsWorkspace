@@ -87,7 +87,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_skirt_leg_offset.py`` (``setups`` スイート)で、傾けた腰の下に左右の脚と外へ15度開いた8本の骨を作り、
+``mlrig/__tests__/unit/setups/test_skirtLegOffset.py`` (``setups`` スイート)で、傾けた腰の下に左右の脚と外へ15度開いた8本の骨を作り、
 作成直後に全ての角度が0で骨と一致すること、前・横・後ろ・ひねり・腰の回転の各姿勢で角度・ ``offsetMatrix`` ・ ``matrix`` ・ ``worldMatrix`` が
 試験側で ``atan2`` ・ ``asin`` ・軸回りのQuaternionから独立に求めた値と一致すること、脚を前へ上げると前の骨だけが開き、
 開いた骨と面へ写した脚の間が ``clearance`` 度になること(単調に開くこと)、アトリビュートの変更、 ``connect=True`` での接続と骨のワールド行列、

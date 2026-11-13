@@ -68,7 +68,7 @@ segmentScaleCompensate を使わないtransformの階層で、親を不均一に
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_leaf_joints.py`` (作成直後と乱数の12姿勢で、枝・葉のワールド行列がOpenMayaで
+* 試験: ``mlrig/__tests__/unit/setups/test_leafJoints.py`` (作成直後と乱数の12姿勢で、枝・葉のワールド行列がOpenMayaで
   独立に求めた行列と、 ``translate`` ・ ``rotate`` ・ ``scale`` ・ ``shear`` の親子の積(書き出し先と同じ計算)の両方に一致・
   肘の scale が葉にしか現れない・剪断の有無・親の判定と枝分かれと書き出しの根・UI単位・所有とUndo/Redo・引数検査)。
 * メニューの **Setup Samples > LeafJoints - squash arm for export** で試せます(:doc:`setup_samples`)。

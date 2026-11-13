@@ -74,7 +74,7 @@ Maya標準ノード(``vectorProduct`` ・ ``decomposeMatrix`` ・ ``plusMinusAve
 テスト
 ------
 
-``mlrig/__tests__/test_setup_plane_collision.py`` (``setups`` スイート)で、傾けて移動・拡大した面と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_planeCollision.py`` (``setups`` スイート)で、傾けて移動・拡大した面と回転した対象を作り、
 帯の外・帯の中・面の下・深く沈めた場合で出力の行列・ ``distance`` ・ ``push`` がOpenMayaで独立に求めた式と一致すること、
 面より下へ沈まないこと、作成直後に跳ねないこと、式の単調性と帯の境界での連続性、 ``softness = 0`` の硬い押し出しとアトリビュートの変更、
 面の移動・回転と出力の回転の保持、 ``axis = z`` 、containerの所有とUndo/Redo、引数の検査を確認します。Maya 2025・2027で確認しています。

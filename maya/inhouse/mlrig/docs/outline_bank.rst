@@ -75,7 +75,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_outline_bank.py`` (``setups`` スイート)で、回転・移動した親の下のコントロールと一辺4cmの正方形の輪郭を作り、
+``mlrig/__tests__/unit/setups/test_outlineBank.py`` (``setups`` スイート)で、回転・移動した親の下のコントロールと一辺4cmの正方形の輪郭を作り、
 回転0でコントロールのワールド行列と一致すること、面の向きの傾きで支点が辺の中点になり OpenMaya で独立に組んだ ``T(-p) R T(p) B`` と
 Python版に一致すること、斜めの傾きで支点が輪郭の上にあって動かず(reachを大きくしたとき)底の4隅が床へ潜らないこと、円の輪郭で支点が
 傾いた向きの円の上の点になり底の円の最も低い点が床に接すること、移動・親への追従、upAxis=z・rotateOrder・UI単位 m/rad、

@@ -124,8 +124,8 @@ msgstr "The API's angle arguments and ``outputX/Y/Z.get()`` are in radians. ``va
 msgid "検証"
 msgstr "Validation"
 
-msgid "``tools/test_aim_axis_conversion.py`` は使い捨てmayapyでのみ実行してください。 テストごとにシーンを新規作成します。GUI内の既存シーンへ送信してはいけません。 ``tools/test_aim_axis_conversion_gui.py`` は専用の隔離GUIランナーです。 6回転順の数値・3方式・Undo/Redo・復元・単位・保存読込・GUI操作を検証します。"
-msgstr "``tools/test_aim_axis_conversion.py`` should only be executed in a disposable mayapy. A new scene is created for each test. Do not send to an existing scene within the GUI. ``tools/test_aim_axis_conversion_gui.py`` is a dedicated isolated GUI runner. It verifies 6-axis rotation values, 3 modes, Undo/Redo, restore, units, load/save, and GUI operations."
+msgid "``tools/tests/test_aimAxisConversion.py`` は使い捨てmayapyでのみ実行してください。 テストごとにシーンを新規作成します。GUI内の既存シーンへ送信してはいけません。 ``tools/tests/test_aimAxisConversion_gui.py`` は専用の隔離GUIランナーです。 6回転順の数値・3方式・Undo/Redo・復元・単位・保存読込・GUI操作を検証します。"
+msgstr "``tools/tests/test_aimAxisConversion.py`` should only be executed in a disposable mayapy. A new scene is created for each test. Do not send to an existing scene within the GUI. ``tools/tests/test_aimAxisConversion_gui.py`` is a dedicated isolated GUI runner. It verifies 6-axis rotation values, 3 modes, Undo/Redo, restore, units, load/save, and GUI operations."
 
 msgid "ヒンジ関節の曲げ補正"
 msgstr "Hinge Joint Bending Correction"
@@ -712,8 +712,8 @@ msgstr "``standard``: Standard node rig layer integration test."
 msgid "``bifrost``: Bifrostグラフとリムのテスト。"
 msgstr "``bifrost``: Testing Bifrost graphs and rim."
 
-msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/test_rig_packages.py`` が実体です。"
-msgstr "Running all suites requires multiple dependencies. Please select according to the scope of changes. The latest test file structure is embodied in ``tools/test_rig_packages.py``."
+msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/run_rig_packages.py`` が実体です。"
+msgstr "Running all suites requires multiple dependencies. Please select according to the scope of changes. The latest test file structure is embodied in ``tools/run_rig_packages.py``."
 
 msgid "性能比較"
 msgstr "Performance Comparison"
@@ -1174,8 +1174,8 @@ msgid "``standard``: 標準ノードのリグ・レイヤー統合テスト。So
 msgstr "``standard``: Integration tests for rigs and layers using standard nodes. These also check Soft IK at tiny distances and boundaries, display units, ownership, Undo/Redo, agreement with the RP solver near the origin, bone lengths, and recovery at ordinary distances."
 
 
-msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/test_rig_packages.py`` が実体です。 追加した ``test_soft_ik_tiny.py`` の5件と ``test_limb_ik_origin.py`` の2件は ``standard`` と ``all`` に登録済みです。検証結果は :doc:`test_results`、 修正内容と残るIK制限は :doc:`exprespy_comparison` を参照してください。"
-msgstr "Running all suites requires several dependencies. Select the suites relevant to the changes. ``tools/test_rig_packages.py`` defines the current test inventory. The five tests in the new ``test_soft_ik_tiny.py`` and two in ``test_limb_ik_origin.py`` are registered in ``standard`` and ``all``. See :doc:`test_results` for results and :doc:`exprespy_comparison` for the fix and remaining IK limitations."
+msgid "全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。 最新のテストファイル構成は ``tools/run_rig_packages.py`` が実体です。 追加した ``unit/setups/test_softIK_tiny.py`` の5件と ``unit/root/test_limb_ikOrigin.py`` の2件は ``standard`` と ``all`` に登録済みです。検証結果は :doc:`test_results`、 修正内容と残るIK制限は :doc:`exprespy_comparison` を参照してください。"
+msgstr "Running all suites requires several dependencies. Select the suites relevant to the changes. ``tools/run_rig_packages.py`` defines the current test inventory. The five tests in the new ``unit/setups/test_softIK_tiny.py`` and two in ``unit/root/test_limb_ikOrigin.py`` are registered in ``standard`` and ``all``. See :doc:`test_results` for results and :doc:`exprespy_comparison` for the fix and remaining IK limitations."
 
 
 msgid "2026年10月9日、Maya 2027で、負荷ごとに同じプロセスで標準DG・C++・Bifrost・exprespyを比較しました。 単一入力の行列追従と、実LimbRigのSoft IK部分が対象です。 exprespyは研究用の構築時差し替えで、mlrigの正式なバックエンドではありません。"

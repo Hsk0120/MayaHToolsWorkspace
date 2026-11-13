@@ -90,7 +90,7 @@ Maya標準ノード(``decomposeMatrix`` ・ ``composeMatrix`` ・ ``plusMinusAve
 テスト
 ------
 
-``mlrig/__tests__/test_setup_scapula_glide.py`` (``setups`` スイート)で、回転・拡大した胸郭と回転したコントロールを作り、
+``mlrig/__tests__/unit/setups/test_scapulaGlide.py`` (``setups`` スイート)で、回転・拡大した胸郭と回転したコントロールを作り、
 表面の外・中・軸の向き・斜めの向きへ動かした場合に、出力の位置・法線・上方向・ ``distance`` ・ ``directionRadius`` が
 OpenMayaで独立に求めた式と一致すること、 ``offset`` を除いた点が楕円体の表面にあること、法線が表面の接線に垂直なこと、
 中心と一致する場合、半径・ ``offset`` の変更と胸郭の移動・回転、3つの半径が同じ場合に放射方向と一致すること、

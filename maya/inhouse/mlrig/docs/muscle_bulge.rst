@@ -90,7 +90,7 @@ Maya標準ノード(``vectorProduct`` ・ ``angleBetween`` ・ ``setRange`` ・ 
 テスト
 ------
 
-``mlrig/__tests__/test_setup_muscle_bulge.py`` (``setups`` スイート)で、回転した親の下の上腕・肘(jointOrientと初期回転を持つ)について、
+``mlrig/__tests__/unit/setups/test_muscleBulge.py`` (``setups`` スイート)で、回転した親の下の上腕・肘(jointOrientと初期回転を持つ)について、
 OpenMayaで独立に求めた曲げ角・割合・行列と、出力・補助骨のワールド行列が一致すること(各方向の曲げ・90度超・開始前・最大以降)、
 作成直後に膨らまないこと、ひねりだけでは膨らまないこと、アトリビュートの変更と骨の長さの変更の反映、長手軸y、
 UIの角度単位がradianの場合、containerの所有とUndo/Redo、引数の検査を確認します。Maya 2025・2027で確認しています。

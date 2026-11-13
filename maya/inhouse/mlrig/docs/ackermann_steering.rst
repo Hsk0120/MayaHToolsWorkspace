@@ -86,7 +86,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_ackermann_steering.py`` (``setups`` スイート)で、回転・移動した車体の下に初期の回転を持つ左右の前輪を作り、
+``mlrig/__tests__/unit/setups/test_ackermannSteering.py`` (``setups`` スイート)で、回転・移動した車体の下に初期の回転を持つ左右の前輪を作り、
 作成直後に回転が変わらないこと、正負の切れ角で旋回半径から独立に求めた角度とPython版に一致し内輪が外輪より大きく切れること、
 両輪の車軸の延長が後輪の軸の延長上の同じ点( ``R = L/tanδ`` の位置)で交わること、 ``ackermann`` の割合と軸距・輪距の変更、
 ハンドルの ``driver`` と ``driverRatio`` ・ ``axis = z`` ・ ``connect=False`` 、UI単位 mm・ラジアン、containerの所有とUndo/Redo(接続も戻る)、

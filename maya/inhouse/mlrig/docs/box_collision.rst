@@ -98,7 +98,7 @@ Maya標準ノード(``decomposeMatrix`` ・ ``composeMatrix`` ・ ``plusMinusAve
 テスト
 ------
 
-``mlrig/__tests__/test_setup_box_collision.py`` (``setups`` スイート)で、回転・拡大した中心と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_boxCollision.py`` (``setups`` スイート)で、回転・拡大した中心と回転した対象を作り、
 面・辺・角の外、帯の中、面の中へ置いた場合に、出力の行列・ ``distance`` ・ ``push`` ・ ``penetration`` ・ ``normal`` が
 OpenMayaで独立に求めた式と一致すること、箱の中へ入らないこと、作成直後に跳ねないこと、丸めと ``softness = 0`` の硬い押し出し、
 辺の長さの変更、中心の移動・回転と出力の回転の保持、丸めきった立方体がSphereCollisionと一致すること、中心での向き、

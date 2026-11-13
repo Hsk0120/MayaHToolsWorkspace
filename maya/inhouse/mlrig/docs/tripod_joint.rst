@@ -92,7 +92,7 @@ Pythonの ``TripodJoint.plungeOf(a, b, L)`` は手順2の制限前の ``p`` を�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_tripod_joint.py`` (``setups`` スイート)で、既定の長さ・範囲、まっすぐ軸に沿って
+``mlrig/__tests__/unit/setups/test_tripodJoint.py`` (``setups`` スイート)で、既定の長さ・範囲、まっすぐ軸に沿って
 動かしたときのプランジ、回したハウジングで曲げた位置の直線と球の交点・シャフトの長さ・向き(OpenMayaの
 最短の回転)・曲げ角、範囲を超えたときの ``overPlunge`` ・ ``stretch`` 、届かない場合、ハウジングの回転が等速で
 伝わること・ ``tipMatrix`` 、別の軸と親の回転・scale、UIの長さ単位mm、containerの所有とUndo/Redo、引数の検査を

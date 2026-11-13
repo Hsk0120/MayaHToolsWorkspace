@@ -82,7 +82,7 @@ Python版の ``ComboWeight.evaluate(values, combos, inbetweens, method)`` は、
 試験
 ----
 
-``mlrig/__tests__/test_setup_combo_weight.py`` (``setups`` スイート)で、3つのドライバーの格子と範囲外を含む乱数に対して
+``mlrig/__tests__/unit/setups/test_comboWeight.py`` (``setups`` スイート)で、3つのドライバーの格子と範囲外を含む乱数に対して
 積・最小・山形が試験側の独立計算・Python版と一致すること、山形の頂点と端、入力のアトリビュートからの接続、
 実際のブレンドシェイプ(左右のシェイプと補正シェイプ)で左右を同時に上げても真ん中の頂点が片側だけのときと同じ高さになること、
 container所有とUndo/Redo、引数を確認します。

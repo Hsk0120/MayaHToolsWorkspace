@@ -84,7 +84,7 @@ containerのアトリビュート
 試験
 ----
 
-``mlrig/__tests__/test_setup_hip_swing.py`` (``setups`` スイート)で、回転・移動した COG の下の腰・背骨の根元・胸と、
+``mlrig/__tests__/unit/setups/test_hipSwing.py`` (``setups`` スイート)で、回転・移動した COG の下の腰・背骨の根元・胸と、
 offsetParentMatrix を持つ振りのコントロールについて、作成直後に出力が入力と同じこと、COG・腰・コントロールの
 位置と回転・回転の順序の乱数25通りで、試験側で支点の枠とオイラー角から独立に組んだ ``S`` と一致し、支点が
 動かないこと、背骨の根元の位置が ``B · S`` で向きが元のままのこと、胸に ``spineOffset`` を掛けると向きが変わらず

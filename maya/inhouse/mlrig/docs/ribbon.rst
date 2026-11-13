@@ -64,7 +64,7 @@
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_ribbon.py`` (出力がOpenMayaで求めたサーフェスの点・接線・法線と一致・
+* 試験: ``mlrig/__tests__/unit/setups/test_ribbon.py`` (出力がOpenMayaで求めたサーフェスの点・接線・法線と一致・
   全てのコントロールを通る・先端のねじれ・幅と位置の変更・mm単位・containerの所有・引数検査・Undo/Redo)。
 * メニューの **Setup Samples > Ribbon - five controls** で試せます(:doc:`setup_samples`)。
 * 検証動画: ``tools/demo_ribbon.py`` (:doc:`verification_video`)。

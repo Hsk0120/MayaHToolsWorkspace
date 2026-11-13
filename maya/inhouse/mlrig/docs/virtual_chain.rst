@@ -67,7 +67,7 @@ containerのアトリビュート
 試験
 ----
 
-``mlrig/__tests__/test_setup_virtual_chain.py`` (``setups`` スイート)で、回転した親の下の3つのコントロールについて、
+``mlrig/__tests__/unit/setups/test_virtualChain.py`` (``setups`` スイート)で、回転した親の下の3つのコントロールについて、
 作成直後に姿勢が変わらないこと、乱数の姿勢で各ワールド行列が試験側で独立に書いた式と一致すること、
 本物の親子に組んだ複製へ同じ局所の変化を入れたときと一致すること、 ``follow`` を0にしたつなぎと中間の値、
 実際の親を動かすと全体が1回だけ動くこと、container所有とUndo/Redo、引数を確認します。

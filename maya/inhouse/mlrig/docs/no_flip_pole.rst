@@ -88,7 +88,7 @@ Maya標準ノード(``pickMatrix`` ・ ``vectorProduct`` ・ ``aimMatrix`` ・ `
 テスト
 ------
 
-``mlrig/__tests__/test_setup_no_flip_pole.py`` (``setups`` スイート)で、少し前に曲がった脚のRP IKとY回りに回した足のコントロールに
+``mlrig/__tests__/unit/setups/test_noFlipPole.py`` (``setups`` スイート)で、少し前に曲がった脚のRP IKとY回りに回した足のコントロールに
 ポールを付け、作成直後に膝が動かず、ポールが膝の面の上の膝の側・軸から ``distance`` ・高さ ``L/2`` にあること、
 コントロールを動かす・回したときにOpenMayaで脚の軸まわりのクォータニオン回転として独立に求めた位置と一致すること、
 足を股関節の後ろ下から前上まで振り上げても膝の向きが足の前の向きに対して同じ角度を保ち(同じ動きでワールドに固定した

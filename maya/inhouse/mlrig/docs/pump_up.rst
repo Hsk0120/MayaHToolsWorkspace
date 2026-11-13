@@ -73,7 +73,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_pump_up.py`` (``setups`` スイート)で、回した親の下に移動・回転・スケールを持つ補助骨を2つ(1つは offsetParentMatrix 付き)作り、
+``mlrig/__tests__/unit/setups/test_pumpUp.py`` (``setups`` スイート)で、回した親の下に移動・回転・スケールを持つ補助骨を2つ(1つは offsetParentMatrix 付き)作り、
 pump=0では既存の仕組みが補助骨を動かしても出力が補助骨と一致すること、pumpを正負に変えたときに位置・スケール・行列・ワールド行列が
 ``MTransformationMatrix`` で独立に分けて組み直した値と一致すること、gain・translateOffset・scaleOffset の引数とアトリビュートの変更、
 driverのplug、UI単位(mm)、所有とUndo/Redo、引数の検査を確かめます。

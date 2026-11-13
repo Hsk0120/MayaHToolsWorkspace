@@ -97,7 +97,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_cam_follower.py`` (``setups`` スイート)で、作成直後に従動節が跳ねないこと、
+``mlrig/__tests__/unit/setups/test_camFollower.py`` (``setups`` スイート)で、作成直後に従動節が跳ねないこと、
 4つの区間それぞれの変位が試験側で区間ごとに書いた式と一致すること(正負の回転・複数回転)、区間の境目で変位と速度が
 連続すること、Python版( :meth:`CamFollower.motion` )との一致と ``velocity`` がDGの変位の数値微分と一致すること、
 ``harmonic`` ・ ``rise`` の変更・ ``phase`` 、 ``axis = x`` ・ ``followerAxis = z`` ・UI単位mm/ラジアン・下の休止なし、

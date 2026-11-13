@@ -65,7 +65,7 @@ Maya標準ノード(``aimMatrix`` ・ ``multMatrix`` ・ ``distanceBetween`` ・
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_bow_string.py`` (作成時に跳ねない・弦の向き・長さ・引き量・
+* 試験: ``mlrig/__tests__/unit/setups/test_bowString.py`` (作成時に跳ねない・弦の向き・長さ・引き量・
   弓の面の法線・引数検査・Undo)。
 * メニューの **Setup Samples > BowString - bow and nock** で試せます(:doc:`setup_samples`)。
 * 検証動画: ``tools/demo_bow_string.py`` (:doc:`verification_video`)。

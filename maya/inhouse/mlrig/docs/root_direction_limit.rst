@@ -160,7 +160,7 @@ GUI内へ単体テストを送信すると新規シーンへ切り替わるた�
    $env:MAYA_SKIP_USERSETUP_PY = '1'
    & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/verify_root_direction_limit.py
 
-``tools/test_rig_packages.py --suite setups`` / ``--suite all`` にも登録しています。
+``tools/run_rig_packages.py --suite setups`` / ``--suite all`` にも登録しています。
 ``tools/demo_root_direction_limit.py`` は新規シーンを作るGUI専用デモです。
 保存・撮影先は ``.maya-output/root-limit-gui`` です。作業中のシーンには送信しないでください。
 

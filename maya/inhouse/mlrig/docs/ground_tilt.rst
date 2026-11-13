@@ -72,7 +72,7 @@ Maya標準ノード(``plusMinusAverage`` ・ ``aimMatrix`` ・ ``pickMatrix`` �
 テスト
 ------
 
-``mlrig/__tests__/test_setup_ground_tilt.py`` (``setups`` スイート)で、回転した親の下の胴体と4本の足について、
+``mlrig/__tests__/unit/setups/test_groundTilt.py`` (``setups`` スイート)で、回転した親の下の胴体と4本の足について、
 OpenMayaで独立に求めた足の面の向き・slerp・行列と、出力と結果のtransformのワールド行列・ ``lift`` ・ ``pitch`` ・ ``roll`` が一致すること
 (前足・左足の持ち上げ、凸凹な地面、足の水平移動、 ``tilt`` ・ ``height`` の割合、胴体の移動と回転)、作成直後に跳ねないこと、
 平らなままの移動ではliftだけ変わること、containerの所有とUndo/Redo、引数の検査を確認します。Maya 2025・2027で確認しています。

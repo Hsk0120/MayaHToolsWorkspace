@@ -85,7 +85,7 @@ sin・cosは標準ノードに無いため、 ``composeMatrix`` で位相をZ軸
 テスト
 ------
 
-``mlrig/__tests__/test_setup_wave_float.py`` (``setups`` スイート)で、回転した親の下のコントロールについて、
+``mlrig/__tests__/unit/setups/test_waveFloat.py`` (``setups`` スイート)で、回転した親の下のコントロールについて、
 試験側で独立に書いた波の変位と、差分近似で求めた面の接線から作った行列が、出力と結果のtransformのワールド行列・ ``heave`` ・ ``normal`` と一致すること
 (複数の時刻・位置・コントロールの向き、 ``tilt`` ・ ``drift`` の0と途中の値)、振幅0では作成直後や時刻に関わらず跳ねないこと、
 ``surface()`` がDGと一致し1つの波が ``speed*time`` だけ進むこと、 ``connectTime`` でフレームに追従しフレームを戻すと同じ姿勢に戻ること、

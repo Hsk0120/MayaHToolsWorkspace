@@ -93,7 +93,7 @@ transformの位置を結ぶ線分で、どちらを動かしてもカプセル�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_capsule_collision.py`` (``setups`` スイート)で、傾けた軸(端に回転・拡大あり)と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_capsuleCollision.py`` (``setups`` スイート)で、傾けた軸(端に回転・拡大あり)と回転した対象を作り、
 側面の5つの高さ・3つの向きで帯の外・帯の中・中・軸の近くまで入れた場合と、軸の端より先(半球)の場合に、出力の行列・
 ``distance`` ・ ``push`` ・ ``penetration`` ・ ``parameter`` がOpenMayaで独立に求めた式と一致すること、表面の中へ入らないこと、
 作成直後に跳ねないこと、 ``softness = 0`` の硬い押し出しと半径・ ``softness`` の変更、軸の移動と出力の回転の保持、

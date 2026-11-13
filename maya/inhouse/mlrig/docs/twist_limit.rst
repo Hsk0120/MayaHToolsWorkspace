@@ -74,7 +74,7 @@ Maya標準ノードのみで構築し、独自プラグインやフレームご�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_twist_limit.py`` (``setups`` スイート)で、非対称な硬い制限、
+``mlrig/__tests__/unit/setups/test_twistLimit.py`` (``setups`` スイート)で、非対称な硬い制限、
 柔らかい区間の連続・単調・非超過、Swingの保持、jointOrient・OPM・移動を含む基準姿勢、y/z軸、
 生成後のアトリビュート変更、引数の検査、生成のUndo/Redoを、OpenMayaのQuaternionで求めた期待値と比べます。
 

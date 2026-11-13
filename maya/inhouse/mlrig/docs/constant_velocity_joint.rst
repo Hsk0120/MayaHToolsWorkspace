@@ -82,7 +82,7 @@ Maya標準ノード(``decomposeMatrix`` ・ ``pickMatrix`` ・ ``vectorProduct``
 テスト
 ------
 
-``mlrig/__tests__/test_setup_constant_velocity_joint.py`` (``setups`` スイート)で、まっすぐなら出力・ケージが入力軸と
+``mlrig/__tests__/unit/setups/test_constantVelocityJoint.py`` (``setups`` スイート)で、まっすぐなら出力・ケージが入力軸と
 同じ向き・曲げ角0になること、出力軸が先の点を向き向きがOpenMayaで求めた最短の回転と一致すること、
 入力を15度ずつ1周回すと出力が出力軸まわりに同じ角度だけ回ること(同じ曲げ角の :doc:`universal_joint` は
 3度以上ずれること)、ケージの軸が二等分の向きを向き入力・出力から同じ角度にあること、 ``atTarget`` 、

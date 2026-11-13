@@ -73,7 +73,7 @@ SpaceBlendは、cmtの方法を元に、 ``blendMatrix`` の順に重ねる性�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_space_blend.py`` (``setups`` スイート)で、回転・移動した3つの空間とfollowerを作り、
+``mlrig/__tests__/unit/setups/test_spaceBlend.py`` (``setups`` スイート)で、回転・移動した3つの空間とfollowerを作り、
 作成直後はどの重みでも跳ねないこと、1つの空間だけの重みでその空間の追従先と一致すること、位置がOpenMayaで独立に求めた重み付き平均と一致すること、
 2つの空間で回転が ``MQuaternion.slerp`` と一致すること、割合の計算と重みが全て0の場合、初期値、containerの所有とUndo/Redo、引数の検査を確認します。
 Maya 2025・2027で確認しています。

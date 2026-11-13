@@ -72,7 +72,7 @@ Pitchだけを置き換えて組み直すので、左右の振り(Yaw)と傾き(
 テスト
 ------
 
-``mlrig/__tests__/test_setup_jaw_hinge.py`` (``setups`` スイート)で、生成直後に出力が入力と一致すること、
+``mlrig/__tests__/unit/setups/test_jawHinge.py`` (``setups`` スイート)で、生成直後に出力が入力と一致すること、
 開く側は回転がそのまま通りslideだけ前へ出ること(Yaw・Rollを含む)、閉じすぎの入力が ``-softness`` の手前で単調に止まり戻すと復帰すること、
 ``softness=0`` の硬い制限、 ``openDirection=-1`` と別の軸の指定、生成後のアトリビュート変更、UIの角度単位がradianの場合、
 引数の検査、生成のUndoを、OpenMayaで求めた期待値と比べます。顎には基準回転(jointOrient)と位置を持たせています。

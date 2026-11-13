@@ -99,7 +99,7 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
   既存の登録プロトコル(`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
   5.0.0でログの公開関数もlowerCamelCaseへ改名した(`logger.getLogger`・`logger.raiseWithNotify`。旧名の別名は残さない)。
-  公開defの引数名は `__tests__/unit/test_static_public_args.py` が検査する。旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
+  公開defの引数名は `__tests__/static/test_mlib_publicArgs.py` が検査する。旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
   判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
@@ -261,7 +261,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 - 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select` と作成関数(`createIkHandle`・`createCurve` 等)のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`・`DagNode.reorder`(`f/b/r`)、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。`delete` はフラグを受けない。
 - cymel 由来の短い引数名だった `Transform.getMatrix` の `p`・`inv` と `getQuaternion`/`setQuaternion` の `ra`・`r`・`jo` は、12.3.0 で長名(`parent`・`inverse`・`rotateAxis`・`rotate`・`jointOrient`、keyword-only)を足し、短い名前は既存のコードのため別名として残す。`getTranslation`/`setTranslation` の `at` は単語として扱い、長名を足さない。
 - それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`index=0` 等)。短縮名の別名・`_UNSET` による省略判定を追加しない。
-- 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/unit/test_static_public_args.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
+- 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/static/test_mlib_publicArgs.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
 - 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
 - Mayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
 - 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。
@@ -326,7 +326,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロジェクト固有の並び順と例外を使う。
 2026-10-25のユーザー指示により、import位置・分類・関数内import・import形式・空白と改行を明文化する。
 整理では依存関係と初期化順を維持し、名前・本文・デコレータの積み順・docstringを変えない。
-`python maya/inhouse/mlib/__tests__/checks/check_mlib_layout.py --check` が既存の並び順と空行を検査し、`--fix` がその整形を行う。
+`python maya/inhouse/mlib/_tools/check_mlib_layout.py --check` が既存の並び順と空行を検査し、`--fix` がその整形を行う。
 `--check` は下記の演算子・カンマ/括弧・引数指定・行末コメント・名前付きlambdaも検査する。
 これら5項目は検査のみで、`--fix` による自動修正はしない。
 関数内importの必要性・理由コメント、複数モジュールimport、ワイルドカード、インデント・末尾空白・長い式の改行をすべて検査するものではない。
@@ -398,7 +398,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 - ルートからのクラス取得(10.4.0): `nodes`・`plugs`・`components`・`maths`・`common` の `__all__` にあるクラス(別名・例外クラスを含む)は、ルートのモジュール `__getattr__` で `mlib.Joint` のように取得でき、文書・例ではこの書き方を推奨する。値はルートへimportして保持せず、毎回所属パッケージから取得する(reload後も現在のクラスを返す)。対象はルートの `_CLASS_PACKAGES`・`_EXCLUDED_CLASSES`(`Object`)と各パッケージの `__all__` から `_class_sources()` が求め、ルートの `__all__` は `_names + sorted(_classes)` とする。名前が重なる場合はルートの名前→`nodes`→`plugs`→`components`→`maths`→`common`→生成クラスの順に優先する。`common` は遅延公開のためimportせず、大文字だけの名前(定数)を除く(`check_mlib_exports.py` がクラス名と定数名の規則を検査する)。定数・関数・`Object` は対象にしない。補完用の再公開(`from .nodes import Joint as Joint`)は `tools/generate_mlib_stubs.py` が `mlib/__init__.pyi` へ書き出す。
 - Node/Plugの型対応は `nodes/__init__.py`・`plugs/__init__.py` の `_WRAPPER_CLASSES` 辞書に宣言する。公開するクラス名とは分けて管理する。手書きクラスの明示登録は維持し、動的クラス(下記「動的ノードクラス」)はその補完に限る。
 - 外部拡張の検出は `extensions` が担当する。拡張側も `nodes`・`plugs` の明示import・`__all__`・`_WRAPPER_CLASSES` を用い、実行時のクラス注入や登録デコレーターは使わない。
-- 追加・削除後はリポジトリルートで `python maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
+- 追加・削除後はリポジトリルートで `python maya/inhouse/mlib/_tools/check_mlib_exports.py` を実行する。Mayaをimportせず、公開対象と明示宣言の不一致を検査する。実行時に漏れを黙って補う処理は追加しない。
 
 ### 動的ノードクラス
 
@@ -659,7 +659,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 2026-10-30のユーザー指定により、fast は通常経路より速くなるものに付ける(デコレーター・コンテキストでは切り替えず、引数だけで指定し、内部の処理へ `fast=fast` で渡す)。6.1.0 で `Mesh.setPoints`・`NurbsCurve.setCvPositions`(全点を `MFnMesh.setPoints`・`MFnNurbsCurve.setCVPositions` で1回に書く)、`DagNode.setColor`・`Nodes.setColor`、`BoolPlug.toggle`、`SkinCluster.pruneWeights`(`setWeights` と同じPlug直接書込み)、`DrivenKey.setKey`(この組のカーブが無ければ setDrivenKeyframe と同じ型・名前のカーブを作って接続する。別ドライバーが既にある駆動先は blendWeighted の挿入が必要なので NotImplementedError)に fast を足した。周期カーブの fast 座標編集(`setCvPositions`・`scaleGeometry`)は末尾の重複CVを先頭の独立CVに揃えて書く。mayapy 2027 で cmds と om2 の1回あたりの時間を測り、差がほぼ無いものは fast を付けない: `Transform.setLimits`(transformLimits 1回とPlug 8本の書込みが同程度)、`matchTransform`(同程度)、`Joint.orient`(joint -e 1回が約30µs)、`NurbsCurve.create`(約1.4倍)、`Plug.setMin/setMax/setSoftMin/setSoftMax`(addAttr -e 1回が約10µs)。1回の cmds で全体を処理するもの(`copyWeightsTo`・`mirrorWeights`・`bind`・`makeIdentity` 等)も om2 にしても速くならない。
 - 2026-10-31のユーザー指定により、fast にしても速くならないもの・効果がほぼ無いもの(実際の使い方に近い量で約1.1倍以下)は、fast 引数と OpenMaya の経路を削除する。7.0.0 で削除: `ShadingEngine.assign`・`ObjectSet.addMembers/removeMembers`(MFnSet が cmds.sets より遅い)、`DisplayLayer.addMembers/removeMembers/setCurrent`(同じく遅い)、`Joint.reparentChildren`(ワールド位置を保つ付け替えは cmds.parent が速い)、`AnimCurve.shiftKeys/scaleKeys/mirror`(全キーを1回で処理する cmds が速い。9.0.0で`moveKey`・`scaleKey`へ改名)、`Plug.setKey`(検証と照会が大半。`AnimCurve.setKey` の fast は残す)、`Joint.jointOrientToRotate/freezeRotate`・`SkinCluster.redistributeWeights`(検証・計算が大半で約1.0倍)、`Plug.setEnumNames`(fast=True が常に未対応だった)。`Transform.setParent` の fast は `relative=True` で約2.5倍速いため残す(ワールド位置を保つ既定では fast の方が遅い)。削除した fast は docstring に「fast引数は持たない(理由)」と書く。
 - 3.0.0 で次の書き込みから `fast` を外した。利用がほぼ無く、cmds と同じ結果を保つ補正が保守の負担になるため 3.0.0 で外した: `mlib.duplicate`(`MFnDagNode.duplicate` の名前・ロック・セット所属・inverseScale の補正)、`mlib.select`・`Selection.select`(`MGlobal.setActiveSelectionList` でのコンポーネントのまとめ方の再現)、`Namespace.create/setCurrent/rename/move/remove`(`om2.MNamespace` の作成名の特定・ASCII以外の拒否)、`Plug.setMuted/mute/unmute`(`MDGModifier` での mute ノードの命名・接続の再現)、`Transform.matchTransform`(position・pivots だけの再現)、`SkinCluster.removeInfluence/removeUnusedInfluences`・`Joint.removeInfluence`(`cmds.skinCluster -removeInfluence` の再配分・距離配分の再現)。いずれも通常経路(cmds、Undo 1 回)だけを持つ。
-- cmds→om2の読み取り置換は `__tests__/integration/test_cmds_parity.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
+- cmds→om2の読み取り置換は `__tests__/integration/test_parity_cmds.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。
 
 - 引数がない、処理が軽い、戻り値が単純な数値という理由だけではプロパティにしない。Mayaの現在値を取得するならメソッドにする。
@@ -726,6 +726,15 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 - 改名・モジュール移動は `mlib.reload()` でも検証し、廃止した公開名が残らないこと。
 
 現行APIの名前・引数・返却は各公開APIのdocstringを参照する。
+
+### テストの置き場所と名前(2026-11-13のユーザー指定)
+
+- フォルダーは動かし方・範囲、ファイル名は確かめる対象で決める。`__tests__/static/` はMaya不要(`runStatic.py`)、`unit/<パッケージ>/` は1つのモジュール(パッケージはソースと同じ `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core`・`json`、mlib直下のモジュールは `root`)、`integration/` は複数のパッケージにまたがる確認でフォルダーを作らない。
+- 名前は `test_<対象>[_<話題>].py`。`_` は区切りだけに使い、各部分は lowerCamelCase。対象はソースのファイル名のまま(`__init__.py` は `init`、先頭の `_` は付けない、スネークケースのツールは lowerCamelCase に直す)。`integration/` の対象は観点 `naming`・`units`・`fast`・`parity`・`undo`・`errors`・`interop`・`performance`・`workflow`・`reload`・`compat`。GUIが要るものは話題を `gui` にする。
+- 何を確かめるかが分からない語・作業の経緯を表す語(`spec`・`refactoring`・`consolidated`・`changes`・`additions`・`backlog`・`misc`・`api`・`contracts`)や番号・記号は名前に使わない。
+- 検査ツールは mlib の `_tools/` に置く(`__tests__/checks/` は作らない)。調査用の使い捨てスクリプトはリポジトリに入れず、残す価値がある確認はテストにする(`manual/` は作らない)。
+- `static/test_runAll.py` がこの規則を検査する。同名のファイルが別フォルダーにあるので、`--tests` はフォルダー付きの相対パスも受ける。
+- 利用側(mlrig・mlib_bifrost・`tests/mlib_integration/cases/`・`tools/tests/`)も同じ規則にする。
 
 ## cmdsの範囲
 

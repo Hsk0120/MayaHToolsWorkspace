@@ -70,7 +70,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_ui_slider.py`` (``setups`` スイート)で、回した枠の下の原点から離れた位置のコントロールについて、
+``mlrig/__tests__/unit/setups/test_uiSlider.py`` (``setups`` スイート)で、回した枠の下の原点から離れた位置のコントロールについて、
 作成直後に全ての出力が0であること、制限を切って範囲の外を含む格子の各位置へ動かしたときに位置・方向・角の重みが
 Pythonで独立に求めた値と一致すること、transformLimits の値と有効化・枠の外へ出ないこと、片側だけ・1軸だけの範囲、
 使わないチャンネルのkeyable、UI単位(mm)、所有とUndo/Redo(制限・keyableも戻る)、引数の検査を確かめます。

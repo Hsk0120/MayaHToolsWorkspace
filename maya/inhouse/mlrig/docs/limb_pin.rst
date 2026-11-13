@@ -70,7 +70,7 @@ pin=1 のとき、上下の長さが付け根→操作子・操作子→目標�
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_limb_pin.py`` (作成の前後で腕が動かない・slide で合計を保つ・pin=1 で
+* 試験: ``mlrig/__tests__/unit/setups/test_limbPin.py`` (作成の前後で腕が動かない・slide で合計を保つ・pin=1 で
   ``ikRPsolver`` の肘が操作子に、手首が目標に一致(乱数12姿勢)・pin の途中の線形補間・負の軸と軸 y・UI単位mm/rad・
   所有とUndo/Redo・引数検査)。
 * メニューの **Setup Samples > LimbPin - arm with elbow pin and slide** で試せます(:doc:`setup_samples`)。

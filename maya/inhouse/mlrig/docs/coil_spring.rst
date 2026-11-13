@@ -81,7 +81,7 @@ Maya標準ノード(``aimMatrix`` ・ ``composeMatrix`` ・ ``multMatrix`` ・ `
 テスト
 ------
 
-``mlrig/__tests__/test_setup_coil_spring.py`` (``setups`` スイート)で、回転したbaseと斜めのtipについて、
+``mlrig/__tests__/unit/setups/test_coilSpring.py`` (``setups`` スイート)で、回転したbaseと斜めのtipについて、
 各点の位置・半径方向・軸方向と長さの出力がOpenMayaで組んだ式と一致すること、伸ばしても半径が変わらないこと、
 密着長より縮めたときの ``coilBind`` と安全な長さへの復帰、baseの回転によるねじれ、アトリビュートの変更、
 Python版 ``CoilSpring.coilLayout`` との一致、別の軸の指定、containerの所有とUndo/Redo、引数の検査を確かめます。

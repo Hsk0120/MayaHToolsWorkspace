@@ -93,7 +93,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_four_bar_linkage.py`` (``setups`` スイート)で、回転・移動した台の下にクランク2cm・地面6cm・カプラー5cm・
+``mlrig/__tests__/unit/setups/test_fourBarLinkage.py`` (``setups`` スイート)で、回転・移動した台の下にクランク2cm・地面6cm・カプラー5cm・
 ロッカー4cmの機構(Grashofのクランク・ロッカー)を作り、次を確認します。
 
 * 作成直後にロッカーの出力が生成時と一致し、関節が ``end`` の位置にあること。

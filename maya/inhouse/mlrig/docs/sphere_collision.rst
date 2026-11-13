@@ -80,7 +80,7 @@ Maya標準ノード(``decomposeMatrix`` ・ ``plusMinusAverage`` ・ ``vectorPro
 テスト
 ------
 
-``mlrig/__tests__/test_setup_sphere_collision.py`` (``setups`` スイート)で、移動・回転・拡大した球と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_sphereCollision.py`` (``setups`` スイート)で、移動・回転・拡大した球と回転した対象を作り、
 いろいろな向きで帯の外・帯の中・球の中・中心の近くまで入れた場合に、出力の行列・ ``distance`` ・ ``push`` ・ ``penetration`` が
 OpenMayaで独立に求めた式と一致すること、球の中へ入らないこと、作成直後に跳ねないこと、 ``softness = 0`` の硬い押し出しとアトリビュートの変更、
 球の移動と出力の回転の保持、中心と一致した場合に押し出さないこと、Python版 :meth:`SphereCollision.pushedPosition` との一致、

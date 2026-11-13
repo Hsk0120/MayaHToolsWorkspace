@@ -91,7 +91,7 @@ containerのアトリビュートとして、生成後も変更・アニメー�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_eyelid_follow.py`` (``setups`` スイート)で、生成直後に出力が入力と一致すること、
+``mlrig/__tests__/unit/setups/test_eyelidFollow.py`` (``setups`` スイート)で、生成直後に出力が入力と一致すること、
 上下・左右を見たときの角度と出力行列、目に基準回転(jointOrient)がある場合、 ``blink`` で閉じて ``blinkHeight`` の位置で合うこと、
 追従の差で交差する入力で開きが0に止まり戻すと復帰すること、 ``closeDirection=-1`` と別の軸の指定、
 生成後のアトリビュート変更、UIの角度単位がradianの場合、引数の検査、生成のUndoを、OpenMayaで求めた期待値と比べます。

@@ -95,12 +95,12 @@ transformのワールド行列から取り、局所Yが輪の軸(輪の平面の
 テスト
 ------
 
-``mlrig/__tests__/test_setup_torus_collision.py`` (``setups`` スイート)で、傾けた輪(回転・不均一なscaleあり)と回転した対象を作り、
+``mlrig/__tests__/unit/setups/test_torusCollision.py`` (``setups`` スイート)で、傾けた輪(回転・不均一なscaleあり)と回転した対象を作り、
 輪の4つの角度×管の断面の5つの角度×5つの距離で帯の外・帯の中・中・芯の近くまで入れた場合、穴の中と軸上の場合に、
 出力の行列・ ``distance`` ・ ``push`` ・ ``penetration`` ・ ``height`` ・ ``axisDistance`` がOpenMayaで独立に求めた式と一致すること、
 トーラスの表面の中へ入らないこと、作成直後に跳ねないこと、 ``softness = 0`` の硬い押し出しと半径・ ``softness`` の変更、
 輪の移動・回転と出力の回転の保持、 ``majorRadius = 0`` (球)、Python版との一致、containerの所有とUndo/Redo、引数の検査を確認します。
-Setup Samples の ``TorusCollision - soft hoop collider`` も ``test_setup_samples.py`` で確認します。Maya 2027で確認しています。
+Setup Samples の ``TorusCollision - soft hoop collider`` も ``unit/root/test_setupSamples.py`` で確認します。Maya 2027で確認しています。
 
 検証動画
 --------

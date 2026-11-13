@@ -69,7 +69,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_rocker_roll.py`` (``setups`` スイート)で、回転・移動した親の下の物体を作り、roll=0 で生成時と一致すること、
+``mlrig/__tests__/unit/setups/test_rockerRoll.py`` (``setups`` スイート)で、回転・移動した親の下の物体を作り、roll=0 で生成時と一致すること、
 正負・半回転を超える角度で OpenMaya の ``MTransformationMatrix`` で独立に組んだ行列と Python版に一致すること、
 角度 roll の位置の円弧の点が転がった弧の長さだけ前の床の点に一致し中心がいつも床から radius の高さにあること(滑らない)、
 radius の変更と親の移動回転への追従、axis=z と接地点の指定・UI単位 mm/rad(自動の単位変換ノードが入らない)、

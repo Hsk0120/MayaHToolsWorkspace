@@ -165,9 +165,9 @@ FKコントローラーなし
 テスト
 ------
 
-``mlrig/__tests__/test_example_spline_spine.py``\ (``setups`` スイート)で、基準姿勢・伸縮と上限下限・体積・
+``mlrig/__tests__/unit/examples/test_splineSpine.py``\ (``setups`` スイート)で、基準姿勢・伸縮と上限下限・体積・
 ねじれの配分・向きの固定・FK・接線の倍率・Undo を、実際の行列で確かめています。
-簡易版は ``mlrig/__tests__/test_example_spline_spine_simple.py`` で、同じ内容(接線の倍率を除く)と、
+簡易版は ``mlrig/__tests__/unit/examples/test_splineSpineSimple.py`` で、同じ内容(接線の倍率を除く)と、
 コンテナ・マトリクスのノードを作らないこと・腰側の向きの固定・リグ全体の拡大と、
 ``fk=False`` でFKのノードを作らずFKあり版と同じ姿勢になることを確かめています。
 

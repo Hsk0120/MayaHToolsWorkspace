@@ -69,7 +69,7 @@ Python版の ``ScissorLift.evaluate(height, armLength, stages)`` は (h, w, θ(�
 試験
 ----
 
-``mlrig/__tests__/test_setup_scissor_lift.py`` (``setups`` スイート)で、回転・移動した土台の上の3段で、
+``mlrig/__tests__/unit/setups/test_scissorLift.py`` (``setups`` スイート)で、回転・移動した土台の上の3段で、
 いろいろな高さに対して腕の両端が段の支点に乗り、2本の腕が中点で交わり、台・滑る足が支点の上にあること(試験側の三平方の独立計算)、
 Python版との一致、範囲の端、腕の長さの書き換えと土台への追従、base無しと1段、UI単位 mm/rad、container所有とUndo/Redo、引数を確認します。
 

@@ -59,7 +59,7 @@ ikHandleとlocatorは ``<name>_GRP`` にまとめ、``<name>`` のcontainerが�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_hinge_ik.py`` (``setups`` スイート)で、膝が横にずれた脚について、
+``mlrig/__tests__/unit/setups/test_hingeIK.py`` (``setups`` スイート)で、膝が横にずれた脚について、
 作成前後で付け根・足首の行列と膝の位置が変わらないこと、足首を5通りに動かしても膝のヒンジ軸以外の回転が0で
 足首が目標に届くこと、ヒンジ軸の既定値・傾けたヒンジ軸・``axis="y"``・ポールベクターを動かした場合、
 引数の検査、生成のUndoを確認します。Maya 2025・2027で確認しています。

@@ -87,7 +87,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_body_proportion.py`` (``setups`` スイート)で、回転と一様scale 2を持つ胴の下の腕(jointOrient付き)を使い、
+``mlrig/__tests__/unit/setups/test_bodyProportion.py`` (``setups`` スイート)で、回転と一様scale 2を持つ胴の下の腕(jointOrient付き)を使い、
 作成直後に各jointのワールド行列が変わらないこと(誤差1e-9)、範囲の外を含む乱数15組の値で移動・スケールが独立に計算した値と一致し、
 範囲の外は端の値と同じになること、負の側の別の量と省略時の一次式、量と範囲の書き換え、値の取得と設定、 ``connect=False`` と骨の番号の順、
 UI単位(mm)で自動の単位変換が入らないこと、所有とUndo/Redo、引数の検査を確かめます。

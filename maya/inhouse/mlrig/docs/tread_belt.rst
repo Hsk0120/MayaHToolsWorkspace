@@ -77,7 +77,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_tread_belt.py`` (``setups`` スイート)で、移動・回転したtransformの下の横長の閉じた曲線を作り、
+``mlrig/__tests__/unit/setups/test_treadBelt.py`` (``setups`` スイート)で、移動・回転したtransformの下の横長の閉じた曲線を作り、
 送り量0・正・負・一周超と phase で、各板の割合と位置・接線・上方向が OpenMaya の ``MFnNurbsCurve`` で弧長から独立に求めた値と一致すること、
 隣り合う板の間が弧長で ``length / count`` であること、driver の変化量が送り量になり生成時に動かず一周で元へ戻ること、
 一周を120分割で送っても上方向が面の法線側から外れず1ステップの向きの変化が小さいこと(裏返らない)、曲線のCVを動かしたときの追従、

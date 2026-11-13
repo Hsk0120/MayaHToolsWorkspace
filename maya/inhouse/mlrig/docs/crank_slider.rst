@@ -75,7 +75,7 @@ containerのアトリビュート
 テスト
 ------
 
-``mlrig/__tests__/test_setup_crank_slider.py`` (``setups`` スイート)で、回転・移動したエンジンの下の半径2cmのクランクと長さ6cmのロッドを作り、
+``mlrig/__tests__/unit/setups/test_crankSlider.py`` (``setups`` スイート)で、回転・移動したエンジンの下の半径2cmのクランクと長さ6cmのロッドを作り、
 作成直後に生成時と一致すること、クランクを15度刻みで一周させてピストンが閉じた式の高さに来ること・ピンとの距離がロッドの長さに保たれること・
 軸の上にあること・Python版と一致すること・ロッドがピンの位置からピストンへ向き法線を保つこと、ロッドのtransformを渡した場合の姿勢、
 rodLength の変更と届かない短いロッド、作成後のエンジンの移動回転、軸 ``-x`` とUI単位 mm/rad、containerの所有とUndo/Redo、引数の検査を確認します。

@@ -315,11 +315,11 @@ FBXやHumanIKで用意した外部の受け側骨を、FKコントローラー�
 GUIへ送信せず、隔離したmayapyプロセスで実行します。テストはシーンを初期化します。
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite standard
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/run_rig_packages.py --suite standard
 # 任意バックエンドを含める場合
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/test_rig_packages.py --suite all
-& 'C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe' tools/test_rig_packages.py --suite native
-& 'C:/Program Files/Autodesk/Maya2022/bin/mayapy.exe' tools/test_rig_packages.py --suite mlib
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tools/run_rig_packages.py --suite all
+& 'C:/Program Files/Autodesk/Maya2025/bin/mayapy.exe' tools/run_rig_packages.py --suite native
+& 'C:/Program Files/Autodesk/Maya2022/bin/mayapy.exe' tools/run_rig_packages.py --suite mlib
 ```
 
 バックエンド交換テストにはビルド済みC++プラグインが必要です。

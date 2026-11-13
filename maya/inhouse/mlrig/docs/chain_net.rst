@@ -66,7 +66,7 @@ jointOrientや生成時の回転が節ごとに違っても、親の節が「自
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_chain_net.py`` (作成時に跳ねない・OpenMayaで独立に求めた差の補間と
+* 試験: ``mlrig/__tests__/unit/setups/test_chainNet.py`` (作成時に跳ねない・OpenMayaで独立に求めた差の補間と
   節の積との一致・同じ動きならbiasによらない・bias=0/1・同じ軸の曲げで角度が線形・子の手付けの重なり・
   片側だけ・長さの違うチェーン・所有とUndo/Redo・引数検査)。
 * メニューの **Setup Samples > ChainNet - fin with two master chains** で試せます(:doc:`setup_samples`)。

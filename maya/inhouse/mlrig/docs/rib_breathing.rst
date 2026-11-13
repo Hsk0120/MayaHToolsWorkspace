@@ -96,7 +96,7 @@ container の ``breath`` ・ ``minBreath`` ・ ``maxBreath`` ・ ``softness`` �
 テスト
 ------
 
-``mlrig/__tests__/test_setup_rib_breathing.py`` (``setups`` スイート)で、生成時の姿勢、2つの軸の回転とOpenMayaの結果の一致、
+``mlrig/__tests__/unit/setups/test_ribBreathing.py`` (``setups`` スイート)で、生成時の姿勢、2つの軸の回転とOpenMayaの結果の一致、
 肋骨の長さ、吸ったときの向き、バケットだけのときの端の固定と左右の鏡像、重みと角度の変更、柔らかい制限、 ``expansion`` 、
 胸骨の移動と傾き、 ``sternalRibs`` 、肋骨の順番、胸椎の回転・scale、生成時の入力を一度だけ読むこと、UIの単位(rad・mm・m)、
 containerの所有とUndo/Redo、引数の検査を確認します。Maya 2027で確認しています。

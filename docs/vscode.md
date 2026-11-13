@@ -59,7 +59,7 @@ mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`
 
 - **設定は不要**: Pylanceは`.py`の隣の`.pyi`を優先して読むため、`stubPath`等を書かなくても認識されます。mlibのフォルダーだけを開いた場合や、別のプロジェクトから`maya/inhouse`をimportの検索パスに入れてmlibを使う場合も同じです。F12（定義へ移動）は`.pyi`を開き、本体を見るときは右クリックの「Go to Source Definition」を使います。
 - **Gitで管理**: スタブはコミットするので、cloneしただけで補完が効きます。Pythonは実行時に`.pyi`を読まないため、Mayaの動作には影響しません。スタブ自体の警告で問題一覧が埋まらないよう、`pyrightconfig.json`の`exclude`で解析対象からは外しています（型の参照には使われます）。
-- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`を付ける。またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/unit/test_static_stub_generation.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
+- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`を付ける。またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/static/test_generateMlibStubs.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
 - **引数で戻り値が変わるAPI**は、引数ごとの戻り値を`@overload`で補っています。
   - `mlib.ls(type="joint")`は`Joints`、`type="skinCluster"`は`SkinClusters`、`type="transform"`等の登録済みの型名は`list[Transform]`等、`type="vertex"`等のコンポーネントは`list[Vertex]`等、そのほかの型名は`list[Node]`、`type`無しは`list[Node | Plug | Component]`。型名とクラスの対応は`nodes/__init__.py`の`_WRAPPER_CLASSES`から読みます。
   - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。
@@ -71,7 +71,7 @@ mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`
 設定はリポジトリ直下の`pyrightconfig.json`に集約しています（Pylanceが読み込みます）。解析対象、`extraPaths`（`maya/inhouse`・cymel・mgear等）、スタブの場所（`typings`）、ルールの重大度を定義しています。ユーザー設定の`python.analysis.extraPaths`は、この設定ファイルの`extraPaths`が優先されます。
 
 - スタブは完全ではないため、Mayaの実挙動と食い違う指摘は**警告**にしています。エラー（赤）として残るのは、未定義変数などの実際の誤りです。
-- `mlib.createNode`などの公開名は、各`__init__.py`の明示importと`__all__`で定義しています。コマンドやノードラッパーを追加したら、使用する公開入口へ追記してください。型選択用の登録対象は各パッケージの`_WRAPPER_CLASSES`へ明示します。`common`は循環参照を避ける遅延公開を使うため、公開表と`if TYPE_CHECKING:`の宣言も揃えます。`maya/inhouse/mlib/__tests__/checks/check_mlib_exports.py`と関連テストが不一致を検出します。
+- `mlib.createNode`などの公開名は、各`__init__.py`の明示importと`__all__`で定義しています。コマンドやノードラッパーを追加したら、使用する公開入口へ追記してください。型選択用の登録対象は各パッケージの`_WRAPPER_CLASSES`へ明示します。`common`は循環参照を避ける遅延公開を使うため、公開表と`if TYPE_CHECKING:`の宣言も揃えます。`maya/inhouse/mlib/_tools/check_mlib_exports.py`と関連テストが不一致を検出します。
 - コマンドラインでも同じ設定で確認できます: `pip install pyright`のあと、リポジトリ直下で`pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。
 
 ## GitHub共有
@@ -83,7 +83,7 @@ Mayaのインストールパスだけ各環境に合わせてください。
 
 ## mlib datatypesテスト
 
-`maya/inhouse/mlib/__tests__/unit/test_datatypes.py`を開いてCtrl+Shift+Bで送信すると、全9件のテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
+`maya/inhouse/mlib/__tests__/unit/maths/test_init_valueTypes.py`を開いてCtrl+Shift+Bで送信すると、そのファイルのテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
 
 ## 出力の取得範囲
 

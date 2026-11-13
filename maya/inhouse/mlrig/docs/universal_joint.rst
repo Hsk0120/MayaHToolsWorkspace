@@ -103,7 +103,7 @@ transformです。入力軸の ``axis`` まわりの回転(``rotateX`` など)�
 テスト
 ------
 
-``mlrig/__tests__/test_setup_universal_joint.py`` (``setups`` スイート)で、まっすぐなら出力が入力軸と同じ向き・
+``mlrig/__tests__/unit/setups/test_universalJoint.py`` (``setups`` スイート)で、まっすぐなら出力が入力軸と同じ向き・
 曲げ角0・比1になること、出力軸が先の点を向き出力ヨークのピンが入力ヨークのピンと出力軸の両方に垂直なこと、
 出力ヨークの角度が ``tan γ2 = tan γ1 / cos β`` を満たすこと、 ``speedRatio`` が出力角の差分の比・Python版と一致し
 ``cos β`` から ``1 / cos β`` の範囲で揺れること、位相を揃えた二重継手で出力が入力と同じ角度だけ回ること、

@@ -85,7 +85,7 @@ containerのアトリビュート
 試験
 ----
 
-``mlrig/__tests__/test_setup_over_shoulder_camera.py`` (``setups`` スイート)で、回転・移動・スケールした親の下のカメラと、
+``mlrig/__tests__/unit/setups/test_overShoulderCamera.py`` (``setups`` スイート)で、回転・移動・スケールした親の下のカメラと、
 回転・非一様スケールした親の下の2人の頭について、既定の ``weight=0`` で作成直後にカメラが動かないこと、2人と
 ``angle`` ・ ``height`` ・ ``distance`` ・ ``screenX`` ・ ``screenY`` を乱数で変えた20通りとレンズの変更で、カメラの位置・軸が
 試験側で独立に書いた式と一致し(位置 1e-4cm、軸 1e-5)、focus の頭がフィルムゲートの指定の位置に写ること(1e-5)、

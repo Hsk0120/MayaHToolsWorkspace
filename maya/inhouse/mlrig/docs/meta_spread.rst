@@ -57,7 +57,7 @@ Maya標準ノード(``pickMatrix`` ・ ``multMatrix`` ・ ``blendMatrix``)のみ
 試験と検証
 ----------
 
-* 試験: ``mlrig/__tests__/test_setup_meta_spread.py`` (作成時に跳ねない・OpenMayaのクォータニオンの
+* 試験: ``mlrig/__tests__/unit/setups/test_metaSpread.py`` (作成時に跳ねない・OpenMayaのクォータニオンの
   球面線形補間との一致・一方の端だけの回転で角度が割合に比例・weightの変更・引数検査・Undo)。
 * メニューの **Setup Samples > MetaSpread - palm metacarpals** で試せます(:doc:`setup_samples`)。
 * 検証動画: ``tools/demo_meta_spread.py`` (:doc:`verification_video`)。
