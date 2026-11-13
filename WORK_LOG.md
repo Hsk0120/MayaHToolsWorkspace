@@ -167,6 +167,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-13): mlib公開リポジトリの点検の対応(7b2cc79)。docs.ymlの外部ActionsをコミットのSHAで固定(今のタグと同じコミット、CIのbuild・deploy・verify-publication成功)、check_mlib_doc_getter_namesがpickleを読む注意をdocstring・READMEに追記、mlibのgit設定(リポジトリ単位)の作者メールをGitHubのnoreplyに変更。過去6コミットの作者メールの書き換え(強制プッシュ)はユーザーの判断待ち。
+
 - Claude Code (2026-11-13): tests/mlib_integration/cases の既存失敗を解消。今のmlib API(createNode・createContainer・ScalarGraph(createNode=)・度の角度・getFullName・getShear・getNextAvailableのPlug戻り値・Nodesの転送・Environment.isBatch・mlib.json)へ更新し、3.0.0で削除したTransformationだけを確かめるtest_parity_transformation.pyを削除、test_reload_bifrostImportは子プロセスを空の一時フォルダーで起動(mlib/jsonが標準jsonを隠すため)。Maya 2022/2027 各12ファイル38件成功(環境条件のskipのみ)。C++移行(730fd323)で実装が無くなったQuickPathExplorerのPythonテスト6本(tools/tests/test_quickPathExplorer_*.py)を削除。
 
 - Claude Code (2026-11-13): テストのフォルダー・ファイル名を統一。mlib(76dacb4)は static/・unit/<パッケージ>/・integration/(観点で始まる名前)へ235本を270本に再編(分割・統合はクラス単位で件数不変)、checks→_tools、manual 廃止(2本をテスト化)、run_all_tests→runAll、specCase→namespaceCase、名前規則の静的検査を追加。mlrig 111本(unit/setups・root・examples、integration)、mlib_bifrost 2本、tests/mlib_integration/cases 13本、tools/test_*.py 31本(tools/tests へ。ランナーは tools/run_rig_packages.py)を同じ規則に改名し、文書・指示ファイルを更新。runStatic 167件、Maya 2022/2027 各258ファイル3,001件、run_rig_packages all 864件成功。版は上げていない。tests/mlib_integration の既存失敗8本と QuickPathExplorer テストの import 先消失は未対応(別作業として提案)。
