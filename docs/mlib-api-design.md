@@ -291,6 +291,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 - Raisesの並びは `TypeError → ValueError → IndexError → RuntimeError → NotImplementedError`。
 - 型表記は `list[Node]`・`tuple[float, float, float]`・`dict[str, Any]` のように要素型を書き、裸の `list`/`tuple`/`dict` は使わない。
 - 用語はCGWORLDのMaya記事に合わせ「アトリビュート」「マトリクス」(determinantは「行列式」のまま)「クォータニオン」「コンストレイント」「ワールド空間/ローカル空間/オブジェクト空間」「番号」(インデックス・添字は使わない)「ウェイト」。括弧は半角、文の区切りは句点のみで半角スペースで区切らない。モジュール定数には `#:` を付ける。
+- 2026-11-13のユーザー指定: mlibでPyMELの名前を書くのは文書の紹介文(`_docs/source/whymlib.rst`)だけとする。mlibのコード・コメント・docstring・メッセージ・テスト・ほかの文書・ファイル名・コミットメッセージには書かない(mlibの `static/test_mlib_wording.py` が検査する。mlibの履歴からも削除済み)。他のライブラリで使われる名前への案内は「maya.cmdsやほかのライブラリの名前」のように書く。mlibの指示ファイルではこの名前を書かず「紹介文で比較に挙げる他のライブラリの名前」と表す。このワークスペースの文書(設計文書・`maya/external/pymel` の説明等)は対象外。
 
 #### 共通ヘルパーの置き場
 
@@ -672,7 +673,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - データクラスの保存フィールドは、そのまま公開してよい。保存フィールドを無意味なgetterで包む必要はない。
 
 `node.tx` はアトリビュート名を解決して `Plug` を取得する省略アクセスである。正式な取得入口は `node.getPlug("tx")`。
-5.0.0から `node.tx = 10` は `node.getPlug("tx").set(10)` と同じ書込みになる(PyMELと同じ。Undoに記録し、角度は度)。
+5.0.0から `node.tx = 10` は `node.getPlug("tx").set(10)` と同じ書込みになる(Undoに記録し、角度は度)。
 `_` で始まる名前とクラスに定義された名前(メソッド・プロパティ・クラス属性)は通常のPythonの代入のままで、
 Mayaアトリビュートの無い名前はAttributeErrorにする(Nodeのインスタンスへ任意のPython属性を追加しない。
 保持したい値はクラスで宣言する)。これは「シーン編集用のproperty setterは追加しない」の例外として扱う。
