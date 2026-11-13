@@ -330,6 +330,7 @@ mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロ�
 `python maya/inhouse/mlib/_tools/check_mlib_layout.py --check` が既存の並び順と空行を検査し、`--fix` がその整形を行う。
 `--check` は下記の演算子・カンマ/括弧・引数指定・行末コメント・名前付きlambdaも検査する。
 これら5項目は検査のみで、`--fix` による自動修正はしない。
+Windowsでは `maya/inhouse/mlib/_tools/check_mlib_layout.bat` でも同じ検査・修正を実行できる(引数なしは検査、`--fix` は直してから残りを検査)。
 関数内importの必要性・理由コメント、複数モジュールimport、ワイルドカード、インデント・末尾空白・長い式の改行をすべて検査するものではない。
 `--snapshot`/`--compare` で整理前後の関数本体・import束縛・モジュール文が同一であることを確認できる(Maya不要。
 実行方法は `maya/inhouse/mlib/__tests__/README.md`)。この比較だけでimport移動後の実行順や挙動の同一性は保証しない。
