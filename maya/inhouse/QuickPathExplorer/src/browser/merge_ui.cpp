@@ -97,7 +97,10 @@ bool BrowserWindow::confirmTransfer(FileRequest& request) {
     checking->setValue(0);
     wait.exec();
     if (!checking || !owner || (wasVisible && !owner->isVisible()) || checking->wasCanceled() || preview.cancelled) return false;
-    checking->hide();
+    // hide()だけではQProgressDialogの遅延表示タイマーが残る。
+    // 次のexec()中に再表示されて入力を遮断しないよう、確認画面を作る前に破棄する。
+    // deleteLater()は入れ子のイベントループで遅れるため、ここで同期的に破棄する。
+    delete checking.data();
     if (!preview.errors.isEmpty()) {
         UiMessageBox::warning(this, uiText("File transfer"), preview.errors.join('\n'));
         return false;

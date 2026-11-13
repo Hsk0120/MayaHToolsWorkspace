@@ -797,6 +797,55 @@ private slots:
         window.perform("undo"); QTRY_VERIFY(!window.busy()); QCOMPARE(QFileInfo(path("paste-replace/to/same.txt")).size(), 35ll);
         window.close();
     }
+    /** @brief 置換・スキップ・取消・個別比較の各入口を検証する。 */
+    void conflictRemainsInteractive_data() {
+        QTest::addColumn<QString>("action");
+        QTest::newRow("replace") << QString("replaceTransfer");
+        QTest::newRow("skip") << QString("skipTransfer");
+        QTest::newRow("cancel") << QString("cancel");
+        QTest::newRow("compare") << QString("compareTransfer");
+    }
+    /** @brief 競合確認を開いたまま待っても、遅延表示する進捗に入力を奪われない。 */
+    void conflictRemainsInteractive() {
+        QFETCH(QString, action);
+        QVERIFY(QDir().mkpath(path("modal-delay/from")));
+        QVERIFY(QDir().mkpath(path("modal-delay/to")));
+        QVERIFY(file("modal-delay/from/same.txt", 37));
+        QVERIFY(file("modal-delay/to/same.txt", 15));
+        qpe::BrowserWindow window;
+        window.navigate(path("modal-delay/to")); window.show(); QTRY_VERIFY(window.ready());
+        window.perform("copy", {path("modal-delay/from/same.txt")});
+        bool clickable = false;
+        QVERIFY(operateModal("pasteConflict", [&](QDialog* dialog) {
+            // QProgressDialogの最短表示時間350msを越えて、実際のイベントを処理する。
+            QTest::qWait(700);
+            QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(dialog));
+            if (action == "cancel") {
+                QTest::keyClick(dialog, Qt::Key_Escape);
+            } else {
+                auto* button = dialog->findChild<QPushButton*>(action);
+                QVERIFY(button && button->isVisible() && button->isEnabled());
+                if (action == "compareTransfer") {
+                    // 個別比較側でも人が選択を考える時間を置き、実Qt入力で取り消す。
+                    QTimer::singleShot(700, &window, [&] {
+                        auto* review = window.findChild<QDialog*>("mergeConflicts");
+                        const auto close = qScopeGuard([&] { if (review) review->reject(); });
+                        QVERIFY(review);
+                        QCOMPARE(QApplication::activeModalWidget(), static_cast<QWidget*>(review));
+                        auto* buttons = review->findChild<QDialogButtonBox*>();
+                        QVERIFY(buttons && buttons->button(QDialogButtonBox::Cancel));
+                        QTest::mouseClick(buttons->button(QDialogButtonBox::Cancel), Qt::LeftButton);
+                        clickable = !review->isVisible();
+                    });
+                }
+                QTest::mouseClick(button, Qt::LeftButton);
+            }
+            if (action != "compareTransfer") clickable = !dialog->isVisible();
+        }, [&] { window.perform("paste"); }));
+        QVERIFY(clickable);
+        QTRY_VERIFY(!window.busy());
+        QCOMPARE(QFileInfo(path("modal-delay/to/same.txt")).size(), action == "replaceTransfer" ? 37ll : 15ll);
+    }
     /** @brief 同名フォルダーは配下だけを比較し、コピー先にしかないファイルを保持する。 */
     void pasteMergesFolders() {
         QVERIFY(QDir().mkpath(path("paste-merge/from/assets/nested")));

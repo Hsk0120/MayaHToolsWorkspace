@@ -168,6 +168,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-13): QPE上書き確認を遅延表示の進捗ダイアログが覆う不具合を再現・修正。merge_ui.cppで競合検査完了時にQProgressDialogを同期破棄し、hide後の350msタイマー再表示を防止。700ms待機後の置換/スキップ/取消/個別比較4ケースとコピー統合/Undo/親破棄/進捗の対象回帰は10件成功。初回全体テストはtransferByteProgressで停止したため専用PIDのみ終了、新プロセスで全体再実行は終了コード0。Windows版実OSキー/マウスでコピー・確認待機・置換と内容一致を確認。exeと2022〜2027 mllを再ビルドし復旧コピー付きで通常配置へ更新。Maya GUI検証はハーネスのQt5 qWait非対応/列挙待機で停止し未完了、実機合格には含めない。証拠・復旧コピーは .maya-output/qpe-modal-20261113/、対象回帰 .maya-output/qpe-modal-targeted.txt、修正前再現 .maya-output/qpe-modal-before.txt。新規動画なし。ユーザー依頼によりQPE修正・回帰テスト・exeと年別mllをコミット対象として確認。
+
 - Codex (2026-11-13): MCEの外部型解析サーバー/Rope・設定/専用メニューを撤去し、組み込み補完へ統一。Annotated/Literal・nextの要素推論・負数を拡充し、未対応算術式の再解析を抑制。2022〜2027 mll再ビルド、Sphinx厳格ビルド成功。2022/2027専用MayaのGUI内Qt検証は各51項目、単体Qtは各28項目成功。最終単体は2027が55/55、2022が54/55（既存の19,601行構文検査が5秒基準を超過、再実行5.029秒。診断結果は正しく、性能課題として残す）。5000行の編集付き補完は2022で2.06ms。実OS入力/別PC/新規録画は未実施。証拠は .maya-output/mce-local-completion-20261113/、mce-tests/20261113_133454/、mce-gui/20261113_132301・132341/。ユーザーのpush依頼により、MCEのソース・文書・テスト・2022〜2027ビルドをコミット対象として確認。
 
 - Claude Code (2026-11-13): mlibでPyMELの名前を書くのは文書の紹介文(`_docs/source/whymlib.rst`)だけにするルールを追加(mlib 47e0393)。紹介文以外の11行(10ファイル。object・node・plug・componentの案内表の説明、decoratorのコメント、publicArgsのテストのdocstringと各.pyi)を「maya.cmdsやほかのライブラリ」等へ書き換え、`static/test_mlib_wording.py`(内容とファイル名を検査)とmlibの指示ファイルの項目を追加。mlibの履歴も7コミットすべて書き換えて強制push(作者・日時・メッセージは不変。旧dcdbb0b→94f0341)。全リビジョンで紹介文の2行だけに残ることを確認、スタブ再生成は変更0、`runStatic.py` 170件OK。ワークスペースは docs/mlib-api-design.md・CLAUDE.md・AGENTS.md・.github/copilot-instructions.md にルールを書き、submoduleの参照を更新。
