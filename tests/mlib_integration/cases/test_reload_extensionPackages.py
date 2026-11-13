@@ -67,7 +67,7 @@ try:
         assert isinstance(core.core.object.Object(node.getFullName()), core.nodes.Node)
         assert not hasattr(core, "Object")
         assert not hasattr(core, "extensions")
-        assert not hasattr(core, "json")
+        assert core.json is sys.modules[name + ".json"]  # json は通常のサブパッケージとして公開する。
         old_node_type = core.nodes.Node
         old_extension = sys.modules[name + "_posedriverconnect"]
         core.reload()

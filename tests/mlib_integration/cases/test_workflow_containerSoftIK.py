@@ -4,7 +4,8 @@ import unittest
 
 import maya.cmds as cmds
 
-from mlib.nodes import Container, Node
+import mlib
+from mlib.nodes import Node
 from mlib.common.scalarGraph import ScalarGraph
 
 
@@ -16,7 +17,7 @@ class ContainerSoftIkTest(unittest.TestCase):
         self.previous = cmds.namespaceInfo(currentNamespace=True, absoluteName=True)
         self.ns = cmds.namespace(add="containerApiTest")
         cmds.namespace(set=self.ns)
-        self.owner = Container.create()
+        self.owner = mlib.createContainer()
 
     def tearDown(self):
         """テストノードを削除する。"""
@@ -33,11 +34,11 @@ class ContainerSoftIkTest(unittest.TestCase):
 
         def create_node(kind, name=None):
             """生成物をリストに記録する。"""
-            node = Node.create(kind, name=name)
+            node = mlib.createNode(kind, name=name)
             created.append(node)
             return node
 
-        for graph in (ScalarGraph(self.owner), ScalarGraph(create_node=create_node)):
+        for graph in (ScalarGraph(self.owner), ScalarGraph(createNode=create_node)):
             value = graph.sum("sum", 2, 3)
             result = graph.multiply("mul", value, 4)
             self.assertEqual(graph.condition("choose", result, 10, result, 0).get(), 20)

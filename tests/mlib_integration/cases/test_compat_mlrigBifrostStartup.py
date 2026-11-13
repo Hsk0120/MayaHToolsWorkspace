@@ -65,27 +65,21 @@ class InitializeTest(unittest.TestCase):
 
     def test_batch_session_does_nothing(self):
         # GUI 内で実行しても検証できるよう、バッチ状態をモックで固定する。
-        batch = mock.Mock()
-        batch.about.return_value = True
-        with mock.patch.object(self.mod, "cmds", batch), \
+        with mock.patch.object(self.mod.mlib.Environment, "isBatch", return_value=True), \
                 mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
         self.assertFalse(self.mod._scheduled)
 
     def test_skip_environment_variable(self):
-        gui = mock.Mock()
-        gui.about.return_value = False
-        with mock.patch.object(self.mod, "cmds", gui), \
+        with mock.patch.object(self.mod.mlib.Environment, "isBatch", return_value=False), \
                 mock.patch.dict(os.environ, {"MLRIG_SKIP_BIFROST": "1"}), \
                 mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
         deferred.assert_not_called()
 
     def test_gui_session_schedules_once(self):
-        gui = mock.Mock()
-        gui.about.return_value = False
-        with mock.patch.object(self.mod, "cmds", gui), \
+        with mock.patch.object(self.mod.mlib.Environment, "isBatch", return_value=False), \
                 mock.patch.object(self.mod.mlib.common.Deferred, "call") as deferred:
             self.mod.initialize()
             self.mod.initialize()

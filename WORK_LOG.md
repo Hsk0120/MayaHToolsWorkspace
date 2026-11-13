@@ -167,6 +167,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-13): tests/mlib_integration/cases の既存失敗を解消。今のmlib API(createNode・createContainer・ScalarGraph(createNode=)・度の角度・getFullName・getShear・getNextAvailableのPlug戻り値・Nodesの転送・Environment.isBatch・mlib.json)へ更新し、3.0.0で削除したTransformationだけを確かめるtest_parity_transformation.pyを削除、test_reload_bifrostImportは子プロセスを空の一時フォルダーで起動(mlib/jsonが標準jsonを隠すため)。Maya 2022/2027 各12ファイル38件成功(環境条件のskipのみ)。C++移行(730fd323)で実装が無くなったQuickPathExplorerのPythonテスト6本(tools/tests/test_quickPathExplorer_*.py)を削除。
+
 - Claude Code (2026-11-13): テストのフォルダー・ファイル名を統一。mlib(76dacb4)は static/・unit/<パッケージ>/・integration/(観点で始まる名前)へ235本を270本に再編(分割・統合はクラス単位で件数不変)、checks→_tools、manual 廃止(2本をテスト化)、run_all_tests→runAll、specCase→namespaceCase、名前規則の静的検査を追加。mlrig 111本(unit/setups・root・examples、integration)、mlib_bifrost 2本、tests/mlib_integration/cases 13本、tools/test_*.py 31本(tools/tests へ。ランナーは tools/run_rig_packages.py)を同じ規則に改名し、文書・指示ファイルを更新。runStatic 167件、Maya 2022/2027 各258ファイル3,001件、run_rig_packages all 864件成功。版は上げていない。tests/mlib_integration の既存失敗8本と QuickPathExplorer テストの import 先消失は未対応(別作業として提案)。
 
 - Codex (2026-11-13): MCE補完の確定履歴・メソッド/プロパティ表示・辞書ビュー/反復関数推論・スニペット参照/入れ子/文書変数/基本変換を追加。Escape前後の自動補完競合とIME境界を修正。2022/2027各54補完テスト・29 Qt検査・47 GUI項目、2027型解析GUI87項目合格。2027/VS Codeの実キーとIME確認、全6版mllビルド、Sphinx厳格ビルド合格。詳細/証拠は専用.maya-outputとローカル調査記録。ユーザー指示によりソース・文書・テスト・全6版mllをコミット・push対象にまとめた。

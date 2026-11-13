@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import sys
 import subprocess
+import tempfile
 import unittest
 
 def mayapy_executable():
@@ -41,9 +42,12 @@ import mlib_bifrost
 assert mlib_bifrost is not old
 maya.standalone.uninitialize()
 '''
-        result = subprocess.run([mayapy_executable(), '-c', script],
-                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                timeout=120)
+        # -c は作業フォルダーを sys.path の先頭に入れる。mlib の中から起動すると mlib/json が
+        # 標準の json を隠すため、空の一時フォルダーで起動する。
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run([mayapy_executable(), '-c', script], cwd=directory,
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                    timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout.decode(errors='replace'))
 
 if __name__ == "__main__":

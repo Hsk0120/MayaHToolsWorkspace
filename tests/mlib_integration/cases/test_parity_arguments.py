@@ -10,7 +10,7 @@ import maya.api.OpenMaya as om2
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/external" / "cymel" / "python"))
 from cymel import core as cy
-from mlib.nodes import Node
+from mlib.nodes import Node, Nodes
 from mlib.maths import Quaternion, Matrix
 
 
@@ -87,7 +87,9 @@ class ApiArgumentsTest(unittest.TestCase):
                                     with self.assertRaises(ValueError):
                                         node.setQuaternion(Quaternion(*q), get=True, **flags)
                                 else:
-                                    self.assertValues(node.setQuaternion(Quaternion(*q), get=True, **flags), expected)
+                                    # mlib は角度を度で返す(5.0.0 から)。参照実装はラジアン。
+                                    self.assertValues(node.setQuaternion(Quaternion(*q), get=True, **flags),
+                                                      [math.degrees(value) for value in expected])
 
     def test_scaling_shearing_matrix(self):
         """チャンネルとワールドの分解・行列オプションを比較する。"""
@@ -95,7 +97,7 @@ class ApiArgumentsTest(unittest.TestCase):
             node, ref = self.pair(joint)
             for ws in (False, True):
                 for suffix, values in (("Scaling", (2, 3, 4)), ("Shearing", (.1, .2, .3))):
-                    mlib_suffix = "Scale" if suffix == "Scaling" else suffix
+                    mlib_suffix = "Scale" if suffix == "Scaling" else "Shear"
                     self.assertValues(tuple(getattr(node, "get" + mlib_suffix)(ws=ws)), tuple(getattr(ref, "get" + suffix)(ws=ws)))
                     self.assertValues(getattr(node, "set" + mlib_suffix)(values, ws=ws, get=True), getattr(ref, "set" + suffix)(values, ws=ws, get=True))
                 for p in (False, True):
@@ -165,7 +167,7 @@ class ApiArgumentsTest(unittest.TestCase):
                               dv=(1, 2, 3))
         self.assertValues(tuple(vector.get()), (1, 2, 3))
         self.assertEqual([p.getLongName() for p in vector.getChildren()], ["offsetA", "offsetB", "offsetC"])
-        angle = node.addAttr(ln="angle", type="doubleAngle", dv=math.pi / 2)
+        angle = node.addAttr(ln="angle", type="doubleAngle", dv=90)  # 角度の既定値は度で指定する。
         self.assertAlmostEqual(angle.get(uiUnits=True), 90)
         proxy = node.addAttr("angleProxy", proxy=angle)
         self.assertEqual(proxy.getSource(skipConversionNodes=False), angle)
@@ -175,15 +177,15 @@ class ApiArgumentsTest(unittest.TestCase):
 
     def test_safe_undo_and_get_collection(self):
         """部分更新も一回のUndoで戻し、get指定はコレクションでも計算値を返す。"""
-        from mlib.nodes import Transforms
         node = Node(cmds.createNode("transform"))
         node.getPlug("ty").setFlags(locked=True)
         before = tuple(node.getPlug("translate").get())
         self.assertEqual(node.getPlug("translate").set((1, 2, 3), safe=True), 1)
         cmds.undo()
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
-        values = Transforms([node]).setTranslation((4, 5, 6), False, 1, False, True)
-        self.assertEqual(values, [[4, 5, 6]])
+        # 複数形は各要素の同名メソッドへ転送し、戻り値を要素順のリストで返す。
+        values = Nodes([node]).setTranslation((4, 5, 6), False, 1, False, True)
+        self.assertEqual([list(value) for value in values], [[4, 5, 6]])
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
 
 

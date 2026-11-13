@@ -1,7 +1,7 @@
 """mlrigのControlHierarchyとmlibのTransformの連携を検証する。"""
 import unittest
 import maya.cmds as cmds
-from mlib.nodes import Node
+import mlib
 from mlib.maths import Translate
 from mlrig.setups import ControlHierarchy
 
@@ -21,7 +21,7 @@ class ControlHierarchyTest(unittest.TestCase):
             cmds.namespace(removeNamespace=self.namespace, deleteNamespaceContent=True)
 
     def create_transform(self, name):
-        node = Node.create(type="transform", name=name)
+        node = mlib.createNode("transform", name=name)
         self.created.append(node.getName())
         return node
 
