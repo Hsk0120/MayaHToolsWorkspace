@@ -124,23 +124,34 @@ class CompletionTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertNotIn('upper', names(source))
 
-    def test_language_server_config_shared_fallback(self):
-        """ユーザー領域が見えない起動でもモジュール内設定へ到達する。"""
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            module = root / "module"
-            shared = module / "runtime/language-server/server.json"
-            shared.parent.mkdir(parents=True)
-            shared.write_text("{}", encoding="utf-8")
-            local = root / "local/MayaCodeEditor/language-server/server.json"
-            with mock.patch.dict(os.environ, {"LOCALAPPDATA": str(root / "local")}, clear=True), mock.patch.object(cmds, "moduleInfo", return_value=str(module)):
-                self.assertEqual(Path(bridge._language_server_config()), shared)
-                self.assertEqual(Path(json.loads(bridge.language_configuration())["serverConfig"]), shared)
-                local.parent.mkdir(parents=True)
-                local.write_text("{}", encoding="utf-8")
-                self.assertEqual(Path(bridge._language_server_config()), local)
-                os.environ["MCE_LANGUAGE_SERVER_CONFIG"] = str(root / "explicit-missing.json")
-                self.assertEqual(Path(bridge._language_server_config()), root / "explicit-missing.json")
+    def test_local_literal_annotated_and_next(self):
+        """外部解析なしで注釈・反復要素を解決し、混在と名前の上書きを拒否する。"""
+        for source in (
+            'from typing import Literal\nx: Literal["a", "b"]\nx.',
+            'from typing_extensions import Annotated\nx: Annotated[str, "label"]\nx.',
+            'x = next(iter(["hello"]))\nx.',
+            'x = next(iter(["hello"]), None)\nx.',
+            'x = next(zip(["hello"], [1]))[0]\nx.',
+        ):
+            with self.subTest(source=source):
+                self.assertIn('upper', names(source))
+        for source in (
+            'from typing import Literal\nx: Literal["a", 1]\nx.',
+            'x = next(["hello"])\nx.',
+            'x = next(iter(["hello"]), 1)\nx.',
+            'def next(value): return 1\nx = next(iter(["hello"]))\nx.',
+        ):
+            with self.subTest(source=source):
+                self.assertNotIn('upper', names(source))
+
+    def test_arithmetic_inference_boundary(self):
+        """未対応演算の早期終了で文字列・単項数値・関数引数の推論を壊さない。"""
+        self.assertIn('upper', names("x = 'a+b-c*d/e%f'\nx."))
+        self.assertIn('bit_length', names('x = -123\nx.'))
+        self.assertIn('is_integer', names('x = 1e-3\nx.'))
+        self.assertIn('is_integer', names('x = 1e+3\nx.'))
+        self.assertIn('upper', names('def make(value) -> str: pass\nx = make(1 + 2)\nx.'))
+        self.assertNotIn('upper', names("x = 'a' + unknown\nx."))
 
     def test_keyword_method_binding(self):
         """静的・クラス・未束縛メソッドで、実際に指定する引数を残す。"""

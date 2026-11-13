@@ -1122,10 +1122,6 @@ void MainWindow::moveCursorTo(CodeEditor* editor, int line, int column, bool foc
 }
 
 void MainWindow::goToDefinition(CodeEditor* editor, int end, bool peek) {
-    if (assist_->language() && assist_->language()->ready()) {
-        assist_->language()->navigate(editor, false, peek);
-        return;
-    }
     if (!editor || editor->isMel() || !services_.definition) {
         return;
     }

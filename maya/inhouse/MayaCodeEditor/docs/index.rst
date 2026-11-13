@@ -20,7 +20,7 @@ Maya Code Editor は、Maya 用の Python / MEL スクリプトエディター�
    * - 実行方法
      - Maya 標準のスクリプトエディターと同じ経路で実行し、変数も共有します
    * - 追加ライブラリ
-     - 基本補完は不要。追加の型解析は :doc:`language_services` を参照
+     - 不要。組み込み補完の詳細は :doc:`language_services` を参照
    * - 現在の版
      - |release|
 

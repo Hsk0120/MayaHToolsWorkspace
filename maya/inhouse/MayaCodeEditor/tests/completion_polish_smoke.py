@@ -52,6 +52,7 @@ def main(output_dir, finished):
             popup.popup().hide()
             code.setPlainText(source)
             code.moveCursor(QtGui.QTextCursor.End)
+            QtWidgets.QApplication.setActiveWindow(window.window())
             code.setFocus()
             wait(300)
             QtTest.QTest.keyClick(code, QtCore.Qt.Key_Space, QtCore.Qt.ControlModifier)
@@ -62,7 +63,26 @@ def main(output_dir, finished):
                 names = [model.index(i, 0).data() for i in range(model.rowCount())]
                 if popup.popup().isVisible() and target in names:
                     return popup, names
-            raise AssertionError(('candidate timeout', target, names))
+            window.grab().save(str(out / 'candidate-failure.png'))
+            raise AssertionError(('candidate timeout', target, names, code.hasFocus(), code.property('language'), status.text(), code.toPlainText()))
+
+        status = window.findChild(QtWidgets.QLabel, 'completionStatus')
+        check('built_in_completion_ready', status is not None and status.text() == 'Completion: ready (in Maya)', status.text() if status else None)
+        check('no_language_server_process', not window.findChildren(QtCore.QProcess))
+        action_class = getattr(QtGui, 'QAction', None) or QtWidgets.QAction
+        labels = [action.text() for action in window.findChildren(action_class)]
+        check('no_server_only_menu', not any(label in labels for label in ('Find references', 'Rename symbol…', 'Code actions…', 'Suggest auto imports', 'Type-aware colors', 'Type and argument hints')))
+        for source in ("x = next(iter(['hello']))\nx.upp", "from typing import Literal\nx: Literal['hello']\nx.upp"):
+            popup, _ = candidates(source, 'upper')
+            QtTest.QTest.keyClick(code, QtCore.Qt.Key_Escape)
+        timings = []
+        source = '# local performance\n' + 'value = 1\n' * 5000 + "name = 'hello'\nname.upp"
+        for _ in range(10):
+            started = time.perf_counter()
+            response = json.loads(cmds.mayaCodeEditorTest(complete=source))
+            timings.append((time.perf_counter() - started) * 1000)
+        check('large_document_local_candidates', 'upper' in [item['name'] for item in response['items']])
+        result['completion_5000_lines_ms'] = timings
 
         popup, names = candidates("value = 'x'\nvalue.st", 'strip')
         popup.popup().setCurrentIndex(popup.completionModel().index(names.index('strip'), 0))

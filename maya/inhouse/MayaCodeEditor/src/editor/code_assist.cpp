@@ -56,21 +56,6 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
       problems_(problems),
       completionStatus_(completionStatus),
       context_(std::move(context)) {
-    if (services_.languageConfiguration) {
-        LanguageAssist::Context context;
-        context.current = context_.currentEditor;
-        context.editors = context_.editors;
-        context.open = context_.openEditor;
-        context.activate = context_.activateEditor;
-        context.fallbackComplete = services_.complete;
-        context.ensureLoaded = context_.ensureLoaded;
-        context.status = [this](const QString& message) {
-            completionStatus_->setProperty("languageStatus", message);
-            completionStatus_->setToolTip(message);
-            completionStatus_->setText(completionStatus_->fontMetrics().elidedText(message, Qt::ElideRight, 300));
-        };
-        language_ = std::make_unique<LanguageAssist>(services_.languageConfiguration(), preferences_, problems_, context, this);
-    }
     // setSingleShot(true)のタイマーは、start()の後に1回だけtimeoutを出す。
     // 入力のたびにstart()し直すので、「最後の入力から○ms後」に1回だけ動く。
     completionTimer_.setSingleShot(true);
@@ -111,7 +96,6 @@ CodeAssist::CodeAssist(const EditorServices& services, const EditorPreferences& 
 }
 
 void CodeAssist::attach(CodeEditor* editor) {
-    if (language_) language_->attach(editor);
     editor->onCompletionRequested = [this] { requestCompletion(true); };
     editor->onCompletionDismissed = [this, editor] {
         if (editor == context_.currentEditor()) {
@@ -142,7 +126,6 @@ void CodeAssist::attach(CodeEditor* editor) {
 }
 
 void CodeAssist::updateSignatureHelp(CodeEditor* editor) {
-    if (editor && editor->hasFocus() && language_ && language_->signature(editor)) return;
     if (!services_.describe || editor != context_.currentEditor() || editor->isMel() || !editor->hasFocus()) {
         editor->hideSignatureHelp();
         return;
@@ -203,7 +186,6 @@ void CodeAssist::updateSignatureHelp(CodeEditor* editor) {
 }
 
 void CodeAssist::updateCompletionDetail(CodeEditor* editor) {
-    if (language_ && language_->ready()) { language_->detail(editor); return; }
     const QString name = editor->currentCompletion();
     if (!services_.describe || name.isEmpty() || editor->isMel()) {
         editor->hideCompletionDetail();
@@ -267,7 +249,7 @@ void CodeAssist::onTextChanged(CodeEditor* editor) {
     }
     // 候補の確定による変更では、次の自動補完を予約しない(Enterで確定した後、次のEnterで改行できる)。
     if (!editor->isInsertingCompletion()) {
-        const bool extended = !(language_ && language_->ready()) && kept && completionEditor_ == editor
+        const bool extended = kept && completionEditor_ == editor
                               && editor->completionPrefix().startsWith(completionPrefix_);
         if (kept && truncated) {
             // 前回の候補は上限で切れていた: 一覧を開いたまま、すぐ求め直して入れ替える(一度閉じると、ちらつく)。
@@ -286,19 +268,12 @@ void CodeAssist::onTextChanged(CodeEditor* editor) {
 }
 
 void CodeAssist::onCurrentChanged() {
-    if (language_) { language_->sync(); language_->refresh(); }
     completionTimer_.stop();
     scheduleAnalysis();
     scheduleSpelling();
 }
 
 void CodeAssist::refreshCompletion() {
-    if (language_) {
-        const bool changed = services_.languageConfiguration && language_->refreshEnvironment(services_.languageConfiguration());
-        if (!services_.languageConfiguration) language_->refresh();
-        // 設定変更通知だけで再解析される。重ねてrestartすると初期化と補完要求が競合する。
-        if (!changed || !language_->ready()) language_->restart();
-    }
     if (services_.refreshCompletion) {
         services_.refreshCompletion();
     }
@@ -307,10 +282,8 @@ void CodeAssist::refreshCompletion() {
 }
 
 void CodeAssist::restoreCompletionStatus() {
-    const QString status = completionStatus_->property("languageStatus").toString();
-    // 基本補完が成功しても、型解析が未導入/停止中という情報を消さない。
-    completionStatus_->setText(status.isEmpty() ? kReady : completionStatus_->fontMetrics().elidedText(status, Qt::ElideRight, 300));
-    completionStatus_->setToolTip(status);
+    completionStatus_->setText(kReady);
+    completionStatus_->setToolTip("Built-in completion; no external setup required");
 }
 
 void CodeAssist::showCompletionError(const QString& error) {
@@ -340,21 +313,18 @@ void CodeAssist::requestCompletion(bool force) {
         if (prefix.isEmpty() && !afterDot) {
             return;
         }
-        // コメントと数値は抑止する。文字列の候補は型解析が返すLiteral/キーだけを使う。
+        // コメント・文字列・数値内の自動補完は抑止する。
         if (!afterDot && prefix[0].isDigit()) {
             return;
         }
         const auto state = pythonInputState(editor->document(), cursor.position());
-        if (state.comment || (state.insideText() && (!language_ || !language_->ready()))) {
-            return;
-        }
+        if (state.comment || state.insideText()) return;
     }
     if (cursor.position() > kDocumentLimit) {
         completionStatus_->setText("Completion: document limit (200k)");
         return;
     }
     // 文書の先頭からカーソルまでを渡す。
-    if (language_ && language_->complete(editor)) return;
     if (pythonInputState(editor->document(), cursor.position()).insideText()) return;
     cursor.setPosition(0, QTextCursor::KeepAnchor);
     const CompletionResult result = services_.complete(normalizeSelectedText(cursor.selectedText()));
@@ -387,7 +357,6 @@ void CodeAssist::requestCompletion(bool force) {
 }
 
 HoverInfo CodeAssist::describe(CodeEditor* editor, int end) {
-    if (language_ && language_->hover(editor, end)) return HoverInfo();
     // 補完と同じ上限を超える大きな本文や、MELのタブでは説明を出さない。
     if (!services_.describe || editor->isMel() || editor->document()->characterCount() > kDocumentLimit) {
         return HoverInfo();
@@ -407,7 +376,6 @@ HoverInfo CodeAssist::describe(CodeEditor* editor, int end) {
 }
 
 void CodeAssist::scheduleAnalysis(bool keepResults) {
-    if (language_) language_->refresh();
     analysisTimer_.stop();
     CodeEditor* editor = context_.currentEditor();
     const bool enabled = preferences_.option(option::kStaticAnalysis) && editor && !editor->isMel();
@@ -432,7 +400,6 @@ void CodeAssist::scheduleAnalysis(bool keepResults) {
 }
 
 void CodeAssist::runAnalysis() {
-    if (language_ && language_->ready()) { language_->sync(); return; }
     CodeEditor* editor = context_.currentEditor();
     if (!preferences_.option(option::kStaticAnalysis) || !services_.analyze || !editor || editor->isMel()) {
         return;

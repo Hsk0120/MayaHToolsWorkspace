@@ -15,9 +15,6 @@
 
 namespace mce {
 namespace python {
-/** @brief MayaのPython版と検索パスを解析へ渡す。 @return 実行しない解析用の設定。 */
-QJsonObject languageConfiguration();
-
 /** @brief Pythonのコードを、Maya標準のPython実行経路で実行する。
  * @param source 実行するコード。
  * @param path 保存先のパス。空でなければ、実行中だけ``__main__.__file__``をこのパスにする

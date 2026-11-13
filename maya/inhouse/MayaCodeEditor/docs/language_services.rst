@@ -1,44 +1,13 @@
-型解析とリファクタリング（0.9.0）
-================================================
+組み込み補完
+============
 
-basedpyright 1.40.2とRope 1.15.0を、MayaのGUIとは別の所有プロセスで利用します。
-Pylance本体やVS Code拡張をMayaへ組み込む機能ではありません。
-基本補完は追加セットアップなしで使えます。
+補完は ``mayaCodeEditor.mll`` 内のC++エンジンで動きます。
+Node.js、型解析サーバー、セットアップ用Pythonは不要です。
+旧版の外部型解析・Ropeリファクタリングと専用設定は削除しました。
+右下の ``Completion: ready (in Maya)`` は組み込み補完が利用できる状態です。
 
-セットアップ
+対応する推論
 ------------
-
-Node.js 20以降とPython 3.10以降を用意し、ワークスペースのルートで一度実行します。
-このPythonはリファクタリング用プロセスにも使います。Maya 2022のPythonへ依存を追加する必要はありません。
-
-.. code-block:: powershell
-
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tools/setup_language_server.py --node 'C:/path/to/node.exe'
-
-専用キャッシュ ``%LOCALAPPDATA%/MayaCodeEditor/language-server`` に配置します。
-Maya本体のsite-packagesは変更しません。セットアップ時だけネット接続が必要で、解析はローカル標準入出力通信です。
-basedpyright配布物は固定版SHA-512を照合します。各依存のLICENSE/dist-info/licensesを保持します。
-``server.json`` が起動設定です。``MCE_LANGUAGE_SERVER_CONFIG`` で別の設定を指定できます。
-セットアップ後は **Command → Refresh completion** を実行します。
-Maya起動後に ``sys.path`` へライブラリの場所を追加した場合も、この操作で型解析へ反映します。
-開いている解析ルート・未保存本文・表示設定は保持します。
-C++プラグインの更新時はMayaを再起動してください。
-
-通常起動のMayaからユーザーキャッシュを参照できない場合は、共通の配置先を使えます。
-
-.. code-block:: powershell
-
-   & 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' maya/inhouse/MayaCodeEditor/tools/setup_language_server.py --node 'C:/path/to/node.exe' --destination 'C:/MayaHToolsWorkspace/maya/inhouse/MayaCodeEditor/runtime/language-server'
-
-0.9.4以降は明示した環境変数、ユーザーキャッシュ、Mayaモジュール内の
-``runtime/language-server/server.json`` の順で探します。依存ファイルはGitへ登録しません。
-明示設定が不正な場合は別設定へ自動で切り替えません。
-
-例えば ``import mlib`` に続けて ``joint = mlib.ls(sl=True, type="joint")`` と書くと、
-型解析はmlibの型スタブから戻り値を判別し、``joint.`` で ``getSkinClusters`` 等を表示します。
-コードを実行する必要はありません。右下に ``Type analysis ready`` と表示されていることを確認してください。
-``Basic completion (language server setup required)`` の場合は上記セットアップが必要です。
-簡易補完でも、以下の型と候補をコードの実行なしに解決します。
 
 * リスト・辞書・集合・タプル・文字列・bytes・数値のリテラルと、複数行の代入。
 * 変数の代入元、型注釈付きの引数、``list[str]``・``dict[str, int]`` 等の要素型。
@@ -51,90 +20,38 @@ C++プラグインの更新時はMayaを再起動してください。
   辞書ビューはリストとして扱わず、添字や ``append`` を提示しません。
 * 通常メソッドで自身へ直接代入した属性。リテラル・明示注釈・型付き引数から ``self.name`` 等を解決します。
 
-要素の型が混在するコンテナや複数型のUnionは、1つの型に決めつけません。
-再帰の深さ・要素数・入力ごとの推論量には上限があります。
-未対応の組み込みメソッド、条件分岐や複数メソッドから異なる値を入れる属性、``setattr`` 等の動的属性、複雑な分岐、
-呼出し側からの引数型推論、ユーザー定義ジェネリックは型解析サーバーを利用してください。
-型解析サーバーと簡易補完は、すべての式で同じ候補を返すものではありません。
+* ``next(iter(...))``・``next(zip(...))`` 等の反復要素。
+* 同型の ``Literal`` 注釈と ``Annotated`` の先頭の型。
 
-解析対象
---------
+本文・検索パス上のPythonソース・型スタブと、ロード済みPythonの公開名を使います。
+利用者のコードを補完のためにimport・実行しません。
+混在する型や解決不能な式は、無理に一つの型として扱いません。
+複雑な分岐、ユーザー定義ジェネリック、呼出し側からの引数型推論には対応していません。
 
-* Pythonの全文、カーソル位置、全タブの未保存本文を共有します。復元待ちタブも読み込みます。
-* 標準型、関数戻り値、代入、self、コンテナ要素、Union/None/isinstance、overload、TypeVar/Protocolを解析します。
-* ``.pyi``、``typings``、MayaのPython検索パスとプロジェクトの ``pyrightconfig.json`` / ``pyproject.toml`` を利用します。
-* 起動時のルートは作業フォルダーから設定ファイル/リポジトリを探します。``MCE_PROJECT_ROOT`` でも明示できます。
-* **File → Open folder / Add folder** で解析対象を追加します。最後のルートを新規仮想文書とリファクタリングに使います。
-* 編集中ファイルの親フォルダーを最大200箇所監視します。深い階層や外部スタブの変更後はRefresh completionを使ってください。
+操作
+----
 
-要求は非同期で期限は30秒です。本文変更後の古い応答、別タブ/別入力欄へ移動した後の補完は反映しません。
-サーバー不在/終了時や静的候補が空の場合は既存のMaya公開名の補完へ戻ります。
-ユーザーのソースを補完のためにimport・実行しません。実行時に生成される属性や不正確なスタブは解決できない場合があります。
+* Ctrl+Spaceで候補を表示。入力中とドットの後の自動補完はPreferencesで切り替えます。
+* Enter/Tabで確定、Escapeで取り消します。IME変換中は候補を表示しません。
+* Ctrl+Shift+Spaceで引数表示、Ctrl+K, Ctrl+Iでホバーを表示します。
+* F12で定義へ移動、Alt+F12で定義を下見します。Pythonソースを特定できる名前が対象です。
+* Command → Refresh completionで宣言・検索パス等の情報を取り直します。
+* Static analysisは既存のローカル構文検査を表示します。
 
-操作と設定
-----------
+外部サーバー専用だった参照検索、シンボルの一括改名、コードアクション、
+型に基づく色分け、型/引数インラインヒント、自動import、Ropeの抽出/移動は提供しません。
 
-* **F12 / Alt+F12**: 定義へ移動/下見。
-* **Shift+F12**: 参照先一覧から移動。
-* **F2**: シンボルの名前変更。全対象の変更前後を下見してApply。
-* **Ctrl+.**: 該当位置のテキスト修正案。外部コマンドの実行だけの提案は適用しません。
-* **Edit → Refactor → Extract variable/function**: 選択した式/処理を変数/関数へ抽出。
-* **Move global symbol to module**: グローバル関数/クラス/変数を同一ルートの既存Pythonモジュールへ移動し、参照を更新。
-* **Move global symbol to new module**: 同一ルート内の新しいPythonモジュールへ移動。新規タブは未保存で開きます。
-* **Rename module and update imports**: Pythonモジュール名を変更し、ルート内のimportを更新。Apply時にディスク上のファイル名が変わります。パッケージ改名は対象外です。
-* **Undo / Redo last refactoring**: 最後に適用した変更セットの本文とモジュール改名をまとめて戻す／再適用します。
-* **Organize imports / remove unused**: import整理と未使用import除去。副作用目的のimportは下見で確認してください。
+応答性
+------
 
-Preferencesの **Suggest auto imports** は既定OFFです。ON時は候補確定とimport挿入を1回のUndoで戻せます。
-**Type-aware colors** は既定ONです。 **Type and argument hints** は既定OFFで、ヒントの対象位置に表示用の間隔を設けて描画します。
-ヒントはコピー/保存される本文やUndo履歴に混入しません。行頭、タブ直後、UTF-16サロゲート直後のヒントは表示を省略します。
-**Static analysis** は既定OFFです。ONにすると型・引数・importのエラー/警告をProblemsと波線へ表示します。
-診断ルールはプロジェクト設定とスタブの精度に依存します。MELの型解析は対象外です。
+自動補完は最後の入力から40ms待ち、候補を最大250件に制限します。
+本文上限は200,000文字、型推論は要求ごとに最大256ステップです。
+コンテナ要素の推論は最大32件とし、宣言キャッシュを再利用します。
+同じ言語・入力文字列で選んだ候補は全タブ共通で最大256件記憶します。
 
-Literal引数やTypedDictキーは、型解析が候補を返すと文字列内でも補完できます。
-表示名の引用符を検索から除き、確定にはサーバーの置換範囲を使うため引用符を重複挿入しません。
-通常は公開名を内部名より先に並べます。 ``_`` から入力すれば内部名も通常どおり検索できます。
-同じ一致度の候補はサーバーの ``sortText`` 順位を使います。
-同じ言語・入力文字列で確定した候補は、次の一覧で優先選択します。
-履歴は全タブで共有し、現在のプラグイン起動中に最大256件を保持します。候補そのものを増やす機能ではありません。
-関数・メソッド・プロパティを区別したアイコンを表示します。
-Escapeでは表示前の自動補完も取り消し、IME変換中は補完を表示しません。
+検証
+----
 
-番号付きLSPスニペットの既定値・選択肢の先頭値を展開し、Tab／Shift+Tabで入力箇所を移動できます。
-Escape、Undo／Redo、入力範囲外の編集でスニペット操作を終了します。
-同一番号の参照欄は入力に追従します。入れ子の入力欄はTabで移動でき、親の本文を置換すると子の入力欄を終了します。
-``TM_FILENAME``・``TM_FILENAME_BASE``・``TM_DIRECTORY``・``TM_FILEPATH``、
-``TM_CURRENT_LINE``・``TM_CURRENT_WORD``・``TM_SELECTED_TEXT``・行番号の文書変数に対応します。
-正規表現による参照変換はTabで入力欄を離れるときに適用します。キャプチャ参照、
-``upcase/downcase/capitalize``、条件付き置換、``g/i`` オプションに対応します。
-変換入力は4096文字まで、入れ子は16段までです。JavaScript固有の正規表現、シェル実行、
-環境変数の参照、選択肢を一覧から切り替えるUIには対応していません。
-不正な構文は本文を変えず通知します。
-
-変更の適用と制限
-----------------
-
-本文の変更案は下見後に未保存タブへ反映します。必要なタブを保存してください。
-モジュール改名だけはApply時にディスクへ反映され、下見にも変更前後のパスを表示します。
-既存の移動先を上書きしません。下見中や抽出計算中に対象が変化したら中止します。
-通常のUndoは各タブ単位です。変更セット全体にはRefactorメニューのUndo／Redoを使用してください。
-その後に本文を編集、タブを閉じる、別名保存した場合は一括復元を拒否します。
-新規モジュールを保存した場合や改名先のディスク内容が変わった場合も、ファイルを消したり上書きしたりせず拒否します。
-新規モジュールの一括Undoでは空の未保存タブが残ります。変更セットの記録は現在のエディター内で最後の1件のみです。
-新規モジュールは保存するまで他ファイルからのimport解析で未解決と表示されることがあります。
-
-抽出/移動/import整理は一時コピー上で計算します。 ``.ropeproject/config.py`` はコピー/実行せず、動的解析も無効です。
-範囲は指定ルート内のPython、上限は5000ファイル・合計32Mi文字・1ファイル2MiB、期限は30秒です。
-大規模プロジェクトでは小さいルートを指定してください。範囲外の依存先や名前を文字列で指定する動的参照は更新できません。
-解析は型/構文の正しさを保証するものではありません。変更後はプロジェクトのテストも行ってください。
-
-検証方法
---------
-
-``tests/language_smoke.py`` は専用Maya GUIで補完、Enter確定、スタブ、診断、未保存タブ、リネーム下見/Undo、抽出を確認します。
-``tests/mlib_completion_smoke.py`` は検索パスの後追加とRefresh、mlibの戻り値・for要素・添字の補完、Enter／Escapeを確認します。
-``tests/test_refactor_worker.py`` は元データ保持、Unicode位置、抽出/移動/import整理を確認します。
-``tests/ui_smoke.cpp`` はUTF-16範囲、同一位置のimport挿入、重複拒否とUndoを確認します。
-``tests/completion_polish_smoke.py`` は選択履歴、IMEイベント、連続入力、30タブと5000行の本文を確認します。
-専用の模擬サーバーで、要求取消・逆順応答・破損フレーム・再起動・破棄後のコールバック抑止も検査します。
-Qtイベントの操作とOS入力の実機確認は検証報告で区別します。
+``tests/test_completion.py`` でリテラル・型スタブ・戻り値・境界条件を検証します。
+``tests/completion_polish_smoke.py`` で専用MayaのQt入力、IMEイベント、
+連続入力、30タブと5000行の本文を確認します。

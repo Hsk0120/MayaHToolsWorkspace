@@ -1038,6 +1038,23 @@ CompletionEngine::Located CompletionEngine::annotationType(Request& request, con
     const bool typing = canonical.startsWith("typing.") || canonical.startsWith("typing_extensions.");
     const QString shortName = canonical.section('.', -1);
     const QStringView inside = bracket > 0 ? view.mid(bracket + 1, view.size() - bracket - 2) : QStringView();
+    // Annotatedのメタデータは評価せず、先頭の型だけを使う。
+    if (typing && shortName == "Annotated") {
+        const auto parts = splitExpression(inside, ',');
+        return parts.isEmpty() ? unknown : annotationType(request, scope, parts.first().toString(), depth + 1);
+    }
+    // 同型のLiteralだけを扱う。混在値を先頭の型へ決めつけない。
+    if (typing && shortName == "Literal") {
+        const auto parts = splitExpression(inside, ',');
+        if (parts.size() > 32) return unknown;
+        Located result = unknown;
+        for (const auto& part : parts) {
+            const auto type = valueType(request, scope, QStringView(), part, depth + 1);
+            if (!type.found || (result.found && !sameType(type, result))) return unknown;
+            result = type;
+        }
+        return result;
+    }
     if (typing && shortName == "Optional") return annotationType(request, scope, inside.toString(), depth + 1);
     if (typing && shortName == "Union") unionParts = splitExpression(inside, ',');
     if (unionParts.size() > 1) {
@@ -1103,8 +1120,8 @@ CompletionEngine::Located CompletionEngine::valueType(Request& request, const Sy
     const QString primitive = literalType(expression);
     if (primitive == "builtins.str" || primitive == "builtins.bytes") return builtin(primitive.mid(9));
     if (expression == QLatin1String("True") || expression == QLatin1String("False")) return builtin("bool");
-    static const QRegularExpression integer("^[+-]?(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*)$");
-    static const QRegularExpression real("^[+-]?(?:[0-9][0-9_]*(?:\\.[0-9_]*)?|\\.[0-9][0-9_]*)(?:[eE][+-]?[0-9][0-9_]*)?[jJ]?$");
+    static const QRegularExpression integer("^[+-]?\\s*(?:0[xX][0-9a-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|[0-9][0-9_]*)$");
+    static const QRegularExpression real("^[+-]?\\s*(?:[0-9][0-9_]*(?:\\.[0-9_]*)?|\\.[0-9][0-9_]*)(?:[eE][+-]?[0-9][0-9_]*)?[jJ]?$");
     const QString owned = expression.toString();
     const auto tupleItems = splitExpression(expression, ',');
     if (tupleItems.size() > 1) {
@@ -1136,6 +1153,23 @@ CompletionEngine::Located CompletionEngine::valueType(Request& request, const Sy
                 if (function == "sorted") result.element = result.iterationElement;
             }
             return result;
+        }
+        // nextは保持している反復要素の型だけを参照し、入力を実行しない。
+        if (function == "next" && !scope.contains(function)) {
+            const auto arguments = splitExpression(expression.mid(open + 1, expression.size() - open - 2), ',');
+            if (arguments.isEmpty() || arguments.size() > 2) return unknown;
+            const auto source = valueType(request, scope, text, arguments.first(), depth + 1);
+            // list等のiterableにnextを直接呼ぶ誤りを補完で隠さない。
+            const bool iterator = source.module == "builtins"
+                && (source.path == QStringList{"reversed"} || source.path == QStringList{"zip"}
+                    || source.path == QStringList{"enumerate"});
+            if (!iterator) return unknown;
+            const auto element = iterationType(request, source, scope, depth + 1);
+            if (arguments.size() == 2 && arguments[1].trimmed() != QLatin1String("None")) {
+                const auto fallback = valueType(request, scope, text, arguments[1], depth + 1);
+                if (!fallback.found || !sameType(element, fallback)) return unknown;
+            }
+            return element;
         }
         if (callable == QLatin1String("enumerate") && !scope.contains("enumerate")) {
             const auto arguments = splitExpression(expression.mid(open + 1, expression.size() - open - 2), ',');
@@ -1258,6 +1292,17 @@ CompletionEngine::Located CompletionEngine::resolveName(Request& request, const 
             type = annotationType(request, scope, local->valueAnnotation, depth + 1);
         } else if (depth < kMaximumInferDepth && !local->valueExpression.isEmpty()) {
             // 代入時点のスコープを再利用する。後で元変数を再代入してもコピー先の型は変えない。
+            // 未対応の二項算術式では、数千行の代入前スコープを読み直さない。
+            // 分割は引用符・括弧を尊重するため、文字列や呼出し引数内の演算は対象外。
+            const QStringView expression(local->valueExpression);
+            for (const QChar op : {QChar('+'), QChar('-'), QChar('*'), QChar('/'), QChar('%')}) {
+                const auto operands = splitExpression(expression, op);
+                if (operands.size() > 1 && !operands.first().isEmpty()) {
+                    located.item = local.value();
+                    located.path = QStringList{name};
+                    return located;
+                }
+            }
             const int offset = local->valueOffset;
             if (offset >= 0 && offset <= text.size()) {
                 const auto before = text.left(offset);

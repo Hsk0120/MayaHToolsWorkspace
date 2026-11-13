@@ -82,7 +82,6 @@ void MainWindow::buildMenusAndToolbar() {
         const QString path = QFileDialog::getExistingDirectory(this, "Open folder");
         if (!path.isEmpty()) {
             explorer_->addFolder(path, true);
-            if (assist_->language()) assist_->language()->addRoot(path);
             explorerDock_->show();
         }
     });
@@ -90,7 +89,6 @@ void MainWindow::buildMenusAndToolbar() {
         const QString path = QFileDialog::getExistingDirectory(this, "Add folder");
         if (!path.isEmpty()) {
             explorer_->addFolder(path);
-            if (assist_->language()) assist_->language()->addRoot(path);
             explorerDock_->show();
         }
     });
@@ -104,16 +102,6 @@ void MainWindow::buildMenusAndToolbar() {
 
     // ---- Edit ----
     QMenu* edit = menuBar()->addMenu("Edit");
-    QMenu* refactor = edit->addMenu("Refactor");
-    for (const auto& entry : QList<QPair<QString, QString>>{{"Extract variable…", "variable"}, {"Extract function…", "function"},
-            {"Move global symbol to module…", "move"}, {"Move global symbol to new module…", "move_new"},
-            {"Rename module and update imports…", "rename_module"}, {"Organize imports / remove unused…", "imports"}}) {
-        refactor->addAction(entry.first, this, [this, entry] {
-            if (assist_->language()) assist_->language()->refactor(currentEditor(), entry.second);
-        })->setObjectName("refactor_" + entry.second);
-    }
-    refactor->addAction("Undo last refactoring", this, [this] { if (assist_->language()) assist_->language()->restoreRefactoring(false); });
-    refactor->addAction("Redo last refactoring", this, [this] { if (assist_->language()) assist_->language()->restoreRefactoring(true); });
     buildPreferencesMenu(edit->addMenu("Preferences"));
     edit->addAction("Find…", this, [this] { findBar_->open(false); }, QKeySequence("Ctrl+F"));
     edit->addAction("Replace…", this, [this] { findBar_->open(true); }, QKeySequence("Ctrl+H"));
@@ -195,15 +183,6 @@ void MainWindow::buildMenusAndToolbar() {
 
     // ---- Go ----
     QMenu* go = menuBar()->addMenu("Go");
-    go->addAction("Find references", this, [this] {
-        if (assist_->language()) assist_->language()->navigate(currentEditor(), true);
-    }, QKeySequence("Shift+F12"));
-    edit->addAction("Rename symbol…", this, [this] {
-        if (assist_->language()) assist_->language()->rename(currentEditor());
-    }, QKeySequence("F2"));
-    edit->addAction("Code actions…", this, [this] {
-        if (assist_->language()) assist_->language()->actions(currentEditor());
-    }, QKeySequence("Ctrl+."));
     QAction* symbol = go->addAction("Go to symbol…", this, [this] { showSymbolPicker(); }, QKeySequence("Ctrl+Shift+O"));
     symbol->setObjectName("goToSymbol");
     go->addAction("Go to definition", this, [this] {
