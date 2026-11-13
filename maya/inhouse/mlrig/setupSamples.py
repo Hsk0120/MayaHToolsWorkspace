@@ -109,6 +109,7 @@ class SetupSamples:
         ("boxRoll", "BoxRoll - box tumbles edge over edge"),
         ("genevaDrive", "GenevaDrive - intermittent indexing wheel"),
         ("camFollower", "CamFollower - dwell, rise, dwell, return"),
+        ("quickReturn", "QuickReturn - slotted lever, slow out and fast back"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -675,6 +676,28 @@ class SetupSamples:
         _color(follower)
         setup = CamFollower.create(cam, follower, rise, name=name, axis="z", followerAxis="y")
         return setup, cam
+
+    @classmethod
+    def _quickReturn(cls, name, root):
+        """クランク(joint、先がピン)と、その下のピボットから伸びるスロット付きレバーと、上のラム。レバーとラムは緑。
+        クランクを ``rotateZ`` で回すと、レバーがピンに押されて左右に約23.6度ずつ振れ、上のラムが横に往復する。
+        往き(クランクの約227度)はゆっくり、戻り(約133度)は速い。containerの ``returnStroke`` は戻りの間1、
+        ``speedRatio`` はレバーの角速度の比、 ``slotDistance`` はピボットからピンまでの距離。"""
+        from .setups import QuickReturn
+
+        radius, distance, height = 2.0, 5.0, 8.0
+        crank = _joint(name + "_crank", root, translate=(0, distance, 0))
+        _tip(crank, name + "_crankPin", (0, radius, 0))
+        lever = _joint(name + "_lever", root)
+        _tip(lever, name + "_leverTip", (0, height + 1.0, 0))
+        _color(lever)
+        ram = _joint(name + "_ram", root, translate=(0, height, 0))
+        for index, tip in enumerate(((-3, 0, 0), (3, 0, 0))):
+            _tip(ram, "{}_ramEnd{}".format(name, index), tip)
+        _color(ram)
+        # rotateZ では +φ の傾きでレバーの先が -X 側へ倒れるので、X 方向へ動くラムの高さを負で与える。
+        setup = QuickReturn.create(crank, lever, ram, radius, distance, -height, name=name, axis="z", ramAxis="x")
+        return setup, crank
 
     @classmethod
     def _universalJoint(cls, name, root):

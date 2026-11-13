@@ -53,6 +53,7 @@ CHANGES = {
     "gearTrain": (_set(".rotateZ", 45.0), "_gear3"),
     "genevaDrive": (_set(".rotateZ", 180.0), "_wheel"),
     "camFollower": (_set(".rotateZ", -90.0), "_follower"),
+    "quickReturn": (_set(".rotateZ", 90.0), "_ram"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),

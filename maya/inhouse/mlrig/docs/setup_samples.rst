@@ -212,6 +212,9 @@
    * - CamFollower - dwell, rise, dwell, return
      - カムのjoint
      - ``rotateZ`` で回すと、上の緑の従動節がカムの輪郭(子の曲線)に乗ったまま、下の休止・120度かけての上昇(1cm)・60度の上の休止・120度かけての下降を繰り返す。containerの ``lift`` は変位、 ``velocity`` はカムの角度あたりの速さ、 ``riseProgress`` ・ ``returnProgress`` は上昇・下降の進み(0〜1)。
+   * - QuickReturn - slotted lever, slow out and fast back
+     - クランクのjoint
+     - ``rotateZ`` で回すと、ピン(クランクの先)に押されて緑のレバーが下のピボットのまわりに左右へ約23.6度ずつ振れ、上の緑のラムが横に往復する。往き(クランクの約227度)はゆっくり、戻り(約133度)は速い。containerの ``returnStroke`` は戻りの間1、 ``speedRatio`` はレバーの角速度の比、 ``slotDistance`` はピボットからピンまでの距離。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

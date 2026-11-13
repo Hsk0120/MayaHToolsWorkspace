@@ -168,6 +168,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-14、夜間mlrig): クランクとスロット付きレバーの早戻り機構 `mlrig.setups.QuickReturn` を追加(標準ノードのみ)。φ = atan2(r sin θ, d + r cos θ)、ρ = √(d² + r² + 2dr cos θ)、ramOffset = H tan φ、speedRatio = r(r + d cos θ)/ρ²(負の間が戻り)、α = asin(r/d)・timeRatio = (180° + 2α)/(180° - 2α)。Setup Samplesに1項目、文書 quick_return.rst、テスト test_quickReturn.py(8件)、検証デモ tools/demo_quick_return.py。隔離 Maya 2027 で setups 728件・standard 76件 OK、mlrig Sphinx -W 成功、検証動画408フレームの判定 OK(DGと幾何の差 9e-16)。動画はDrive同期フォルダーへ保存(コネクターが無くリンク共有は未設定)。コミット・プッシュ(このコミット)。
+
 - Codex (2026-11-13): QPE上書き確認を遅延表示の進捗ダイアログが覆う不具合を再現・修正。merge_ui.cppで競合検査完了時にQProgressDialogを同期破棄し、hide後の350msタイマー再表示を防止。700ms待機後の置換/スキップ/取消/個別比較4ケースとコピー統合/Undo/親破棄/進捗の対象回帰は10件成功。初回全体テストはtransferByteProgressで停止したため専用PIDのみ終了、新プロセスで全体再実行は終了コード0。Windows版実OSキー/マウスでコピー・確認待機・置換と内容一致を確認。exeと2022〜2027 mllを再ビルドし復旧コピー付きで通常配置へ更新。Maya GUI検証はハーネスのQt5 qWait非対応/列挙待機で停止し未完了、実機合格には含めない。証拠・復旧コピーは .maya-output/qpe-modal-20261113/、対象回帰 .maya-output/qpe-modal-targeted.txt、修正前再現 .maya-output/qpe-modal-before.txt。新規動画なし。ユーザー依頼によりQPE修正・回帰テスト・exeと年別mllをコミット対象として確認。
 
 - Claude Code (2026-11-13): mlibの`_tools/check_mlib_layout.bat`を追加(mlib 3229911)。引数なしは`--check`、`--fix`はimport順・クラス内の順・空行を直してから再検査、`--fix-asserts`・`--outline`等はそのまま`check_mlib_layout.py`へ渡す。Pythonの探し方(`py -3.14`〜`-3.9`→mayapy 2027〜2023)・`--no-pause`・終了コードは`generate_mlib_stubs.bat`と同じ。mlibのREADME・`__tests__/README.md`・指示ファイルと、このワークスペースの`CLAUDE.md`・`docs/mlib-api-design.md`へ使い方を追記。検査/ファイル指定/一時ファイルでの`--fix`→再検査/引数の誤り(終了コード2)/mayapyへの切り替え/終了時の待機を実行して確認、`runStatic.py` 170件OK。
