@@ -167,7 +167,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
-- Claude Code (2026-11-13): mlib公開リポジトリの点検の対応(7b2cc79)。docs.ymlの外部ActionsをコミットのSHAで固定(今のタグと同じコミット、CIのbuild・deploy・verify-publication成功)、check_mlib_doc_getter_namesがpickleを読む注意をdocstring・READMEに追記、mlibのgit設定(リポジトリ単位)の作者メールをGitHubのnoreplyに変更。過去6コミットの作者メールの書き換え(強制プッシュ)はユーザーの判断待ち。
+- Claude Code (2026-11-13): mlib公開リポジトリの点検の対応(7b2cc79)。docs.ymlの外部ActionsをコミットのSHAで固定(今のタグと同じコミット、CIのbuild・deploy・verify-publication成功)、check_mlib_doc_getter_namesがpickleを読む注意をdocstring・READMEに追記、mlibのgit設定(リポジトリ単位)の作者メールをGitHubのnoreplyに変更。ユーザー指定により過去6コミットの作者・コミッターのメールもnoreplyへ書き換えてmlibのmainを強制プッシュ(内容は不変、7b2cc79→dcdbb0b。書き換え前のmlibの過去SHAを指すワークスペースの古いコミットはsubmoduleを取得できない)。
 
 - Claude Code (2026-11-13): tests/mlib_integration/cases の既存失敗を解消。今のmlib API(createNode・createContainer・ScalarGraph(createNode=)・度の角度・getFullName・getShear・getNextAvailableのPlug戻り値・Nodesの転送・Environment.isBatch・mlib.json)へ更新し、3.0.0で削除したTransformationだけを確かめるtest_parity_transformation.pyを削除、test_reload_bifrostImportは子プロセスを空の一時フォルダーで起動(mlib/jsonが標準jsonを隠すため)。Maya 2022/2027 各12ファイル38件成功(環境条件のskipのみ)。C++移行(730fd323)で実装が無くなったQuickPathExplorerのPythonテスト6本(tools/tests/test_quickPathExplorer_*.py)を削除。
 
