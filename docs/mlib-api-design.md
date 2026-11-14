@@ -232,6 +232,30 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 例外メッセージとログの文言はmlib内で日本語に統一する(2026-11-14のユーザー指定。2026-10-27に英語へ統一していたものを、docstring・文書と同じ日本語へ揃えた。Maya 2022・2025のScript Editor相当の出力で文字化けしないことを確認済み。Maya自身のエラーは英語のまま。形式は下記「例外の4分類と文言形式」に従う)。
 通常raiseをすべて通知付きへ置き換えたりしない。
 
+### 2026-11-14〜15の速度の見直し(Undoチャンク・接続・Transformation)
+
+cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/research/benchmark-2026-10-25/RESULTS-2026-11-14.md`)から決めた。
+
+- 2026-11-14のユーザー指定により、Mayaのコマンドを1回だけ呼ぶ操作ではチャンクを開かない(1回のコマンドは、チャンクが無くても1回の Undo で戻る。
+  `cmds.undoInfo` の3回の呼び出しを省くため)。`_edit_context(name, fast, single=True)` か、複数のコマンドになる場所だけの `undoChunk` で書く。
+  対象は `Plug.set`・1件の `disconnect`・要素以外への `connect`・`setFlags`/`setLocked`・`setKey`・親を指定しない `createNode`・
+  `Node.rename`・`Transform.setParent`/`setTranslation`/`setRotate`/`setQuaternion`/`setMatrix`(書くチャンネルが1つのとき)。
+  Undo の表示名は Maya の既定になる。呼び出したメソッドと対象から表示名を作る処理は置かない(チャンク名は決めた名前をそのまま付ける)。
+- 接続前の値を Undo へ記録する書き込み(`Plug.connect`)は、接続先がマルチアトリビュートの要素かその下のときだけ行う。
+  それ以外は、接続の Undo で Maya が元の値へ戻す(Maya 2022〜2027で確認。`blendWeighted.input[n]` のような要素は値が0になる)。
+- `Transform` の translate・rotate・scale・shear・ピボットは `MFnTransform` でまとめて読み、この4つのチャンネルへの書き込みは
+  内部単位の値を直接 `cmds.setAttr`(fast は MPlug)へ渡す。Maya が拒否したときだけ、これまでの `Plug.set` の流れで例外にする。
+- fast のスキンウェイト設定は `MFnSkinCluster.setWeights(normalize=False)` の1回で書く。`normalizeWeights` が interactive のときは
+  書く間だけ none にして戻す。値が0の要素は Maya が削除する(読み取る値は0のまま)。
+- `mlib.delete` は、有効な Node だけの入力(1個・list・tuple)を名前へ直さずそのまま使う。
+- `Transformation` は `om2.MTransformationMatrix` を継承し、translate・rotate(回転順序つき)・scale・shear・rotateAxis・ピボット4種に加えて、
+  Joint のための jointOrient と inverseScale を持つ(距離 cm・角度 rad)。値はプロパティで読み書きし、取得した値は複製。
+  `matrix` プロパティは Maya の transform・joint のローカルのマトリクスと同じ決まりで合成する(jointOrient・inverseScale を含む)。
+  継承した `asMatrix()` は om2 の計算のままで、この2つを含まない。基底クラスの `scale()`・`shear()`・`rotatePivot()`・`scalePivot()` は
+  同じ名前のプロパティに置き換えている。ノード側は `Transform.getTransformation()`・`setTransformation(value, *, fast=False)`(ローカルだけ)。
+- `Transformation` は `{"type": "Transformation", "value": {成分名: [x, y, z], "rotateOrder": "xyz"}}` で書く。角度は度。
+  既定値のままの rotateAxis・ピボット・jointOrient・inverseScale は書かず、読むときに既定値で補う。
+
 ### 内部実装の定型(2026-10-27の表記ブレ統一)
 
 2026-10-27の表記ブレ調査で確定した内部実装の書き方。公開APIの意味・戻り値は変えず、内部名・引数・例外文言・docstringを揃える。
@@ -616,7 +640,7 @@ git の履歴(各版のコミットメッセージ)で追う。
   旧 `getEuler`・`getJointOrientQuaternion`(`getQuaternion(worldSpace, r=False)` と同値)・
   `getOffsetParentMatrix/setOffsetParentMatrix`(`getPlug("offsetParentMatrix").get()/set(value, fast=)`)は廃止。
 - `Transform.getShear(worldSpace=False)` / `setShear(value, worldSpace=False, safe=False, get=False, *, fast=False)`(旧 `getShearing/setShearing`)。
-- `Transform.setParent(parent=None, relative=False, add=False, *, fast=False)`(3.0.0で短縮名 `r` は廃止)。
+- `Transform.setParent(parent=None, relative=False, add=False, *, fast=False)`(3.0.0で短縮名 `r` は廃止。fast は、ワールドの位置を保つ既定の動きでは通常の約1.5倍かかる(2026-11-15の計測)。利用側が「Undoに残さない親の変更」として使っているため、削除せずに残している)。
   JointのinverseScaleは `cmds.parent` と同じく `relative=False` のときだけ接続される(Mayaの仕様)。fastはJoint未対応で、変更前にNotImplementedErrorとする。
 - `Joint.isJoint()` は廃止し、`isinstance(x, mlib.Joint)` または `x.isType("joint")` を使う。
 - `Node.setLocked(state=True, *, fast=False)` はノード自体のロックで自身を返す(通常は `cmds.lockNode` でUndo1回、fastは `MFnDependencyNode.isLocked` のsetter)。

@@ -174,6 +174,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-15): mlibの速度の見直し(mlib ffee537)。cmds・OpenMaya・PyMEL・cymelとの比較計測(ローカルの docs/research/benchmark-2026-10-25、よく使う操作28項目を追加)から、Undoの表示名を作る処理の削除、1回のコマンドではチャンクを開かない、接続前の値の記録をマルチアトリビュートの要素だけにする、fastのスキンウェイト設定の一括化、Transformのチャンネルの読み書きの軽量化を実施。maths.Transformation(om2.MTransformationMatrixを継承)とTransform.getTransformation/setTransformation、JSONの対応を追加。Transform.setParentのfastは、mlrigがUndoに残さない親の変更として使うため削除せず残した。Maya 2022/2025/2027のテスト一式と tools/run_rig_packages.py --suite all(2027、872件)が成功。
 - Codex (2026-11-15): ユーザーのpush依頼に基づき、QPE下段右ペイン/上部操作集約/Maya配色と単独タブ省略/列見出し縮小/Ctrl+F検索、およびexeと2022〜2027mllをコミット対象に整理。C++138合格/3skip・Sphinx・Maya GUI内Qt確認の記録と7製品SHA256を照合、差分検査成功。Maya2022極小ドックの右ペイン表示課題は未解決の記録を維持。mlibの未コミット変更とローカル証跡は対象外。
 
 - Codex (2026-11-15): QPEのCtrl+Fを現在タブの即時ファイル名検索へ統一。一覧/カラム/パス/左欄から入力へフォーカス、再度Ctrl+Fで全選択、Escapeで名前解除→閉じて一覧へ復帰。詳細検索はTools、Ctrl+Shift+F入口は保持。IME/別Qt/タブ切替を検査しC++138合格/3skip、Sphinx成功。Maya2027ドックと2022フロートのGUI内Qtキー操作各10項目成功。2022の保存ドックが極小となる条件では検索は成功したが右ペインボタン収まりの後続検査に失敗、別課題として証跡保持。exe/全6年mll反映・SHA256確認。画像/Qt録画をDrive非公開保存。実OS入力/実IME/2023〜2026実GUI未実施。証跡 .maya-output/qpe-ctrl-f-20261115/。既存変更保持、コミット/pushなし。
