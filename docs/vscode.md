@@ -85,6 +85,16 @@ mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`
 - `mlib.createNode`などの公開名は、各`__init__.py`の明示importと`__all__`で定義しています。コマンドやノードラッパーを追加したら、使用する公開入口へ追記してください。型選択用の登録対象は各パッケージの`_WRAPPER_CLASSES`へ明示します。`common`は循環参照を避ける遅延公開を使うため、公開表と`if TYPE_CHECKING:`の宣言も揃えます。`maya/inhouse/mlib/_tools/check_mlib_exports.py`と関連テストが不一致を検出します。
 - コマンドラインでも同じ設定で確認できます: `pip install pyright`のあと、リポジトリ直下で`pyright --pythonpath "C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe"`。
 
+## 起動を軽くする設定
+
+`MayaHToolsWorkspace.code-workspace` に、起動時の重さを避ける設定を入れてあります(2026-11-14。原因はログと計測で確認)。
+
+- **C/C++の索引から外部ツールを外す**(`C_Cpp.files.exclude`): `maya/external` は9GB超・約30万ファイルあり、C/C++拡張が全部を索引すると索引データベースが2GBを超え、起動のたびにディスクとCPUを長く使っていました。起動時のCMakeの構成も止めています(`cmake.configureOnOpen: false`)。
+- **Gitのsubmoduleの変更確認と自動fetchを省く**(`git.ignoreSubmodules`・`git.detectSubmodules`・`git.autofetch`): submoduleが150個以上あり、`git status` が1回数秒〜15秒かかっていました(省くと約0.3秒)。submoduleの中を編集したときは、そのsubmoduleのフォルダーで状態を確かめてください。
+- **ファイル監視・検索から外す**(`files.watcherExclude`・`search.exclude`): `maya/external`・`maya/site-packages`・`.maya-output`・mlibの `_tools/.venv` やSphinxの生成物など。
+
+索引の範囲を変えた後に古い索引が残って重いときは、VS Codeを閉じてから `%LOCALAPPDATA%\Microsoft\vscode-cpptools\<ワークスペースのID>` を削除すると、次の起動で作り直されます。GitHub Copilot Chat や Cline などのAI拡張も起動時にCPUを使います(ログで拡張ホストの応答停止の主な原因でした)。重いときは、このワークスペースだけ無効にしてください。
+
 ## GitHub共有
 
 ワークスペース、`tools/send_to_maya.py`、本書をコミット対象にします。

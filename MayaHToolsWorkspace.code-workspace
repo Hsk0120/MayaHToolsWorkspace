@@ -22,7 +22,49 @@
       "REQUIRE_IOSTREAM",
       "_BOOL"
     ],
-    "C_Cpp.default.cppStandard": "c++17"
+    "C_Cpp.default.cppStandard": "c++17",
+    // 外部ツール(maya/external、9GB超・約30万ファイル)や生成物は、C/C++の索引・ファイル監視・検索の対象にしない。
+    // 索引がワークスペース全体のC++ソースを読むと、起動のたびにディスクとCPUを長く使うため。
+    "C_Cpp.files.exclude": {
+      "**/.git": true,
+      "**/.vscode": true,
+      "maya/external/**": true,
+      "maya/site-packages/**": true,
+      ".maya-output/**": true,
+      "typings/**": true
+    },
+    "files.watcherExclude": {
+      "**/.git/objects/**": true,
+      "**/.git/modules/**": true,
+      "maya/external/**": true,
+      "maya/site-packages/**": true,
+      ".maya-output/**": true,
+      "typings/**": true,
+      "**/_tools/.venv/**": true,
+      "**/_tools/.mayapy-site/**": true,
+      "**/_docs/_build/**": true,
+      "**/__tests__/_output/**": true,
+      "**/__pycache__/**": true,
+      "**/.ruff_cache/**": true
+    },
+    "search.exclude": {
+      "maya/external": true,
+      "maya/site-packages": true,
+      ".maya-output": true,
+      "typings": true,
+      "**/_tools/.venv": true,
+      "**/_tools/.mayapy-site": true,
+      "**/_docs/_build": true,
+      "**/__tests__/_output": true,
+      "**/.ruff_cache": true
+    },
+    // 起動時にCMakeの構成を走らせない(プラグインのビルドは tools/build_maya_plugin.py かタスクで行う)。
+    "cmake.configureOnOpen": false,
+    // submodule が150個以上あるため、submodule の中身の変更確認と自動fetchを省く(git status が約3.6秒→0.3秒)。
+    // submodule の中を編集したときは、そのsubmoduleのフォルダーで確かめる。
+    "git.ignoreSubmodules": true,
+    "git.detectSubmodules": false,
+    "git.autofetch": false
   },
   "extensions": {
     "recommendations": [
