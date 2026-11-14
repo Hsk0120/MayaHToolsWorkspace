@@ -439,7 +439,7 @@ private slots:
         auto* files = narrow.findChild<QTreeView*>("files"); QVERIFY(files); QTRY_VERIFY(files->columnWidth(0) >= 160);
         const int compactWidth = files->columnWidth(0); narrow.resize(1400, 700); QTRY_VERIFY(files->columnWidth(0) > compactWidth); narrow.close();
     }
-    /** @brief 狭いMayaドックでもアドレスと詳細を読め、幅を戻すと左欄・一覧が復元される。 */
+    /** @brief 狭いMayaドックでは下段だけ縦に並べ、左欄・上段と他Qtの状態を保持する。 */
     void responsiveMayaDock() {
         const auto before = qpe::readSettings(); const auto palette = QApplication::palette();
         qpe::HostServices host; host.maya = true;
@@ -451,11 +451,14 @@ private slots:
         left->click(); QVERIFY(places->isVisible()); parent.resize(360, 600);
         QTRY_VERIFY(!window->findChild<QToolButton*>("newSceneButton")->isVisible());
         QVERIFY(window->findChild<QLineEdit*>("address")->width() >= 100);
-        right->click(); QTRY_VERIFY(inspector->isVisible()); QVERIFY(files->isVisible()); QVERIFY(!places->isVisible());
-        QTRY_VERIFY(inspector->width() >= window->width() - 30);
+        right->click(); QTRY_VERIFY(inspector->isVisible()); QVERIFY(files->isVisible()); QVERIFY(places->isVisible());
+        auto* lower = window->findChild<QSplitter*>("browserLower"); QVERIFY(lower);
+        QTRY_COMPARE(lower->orientation(), Qt::Vertical);
+        QTRY_VERIFY(inspector->width() >= lower->width() - 8);
         QTRY_COMPARE(inspector->findChild<QScrollArea*>("inspectorScroll")->horizontalScrollBar()->maximum(), 0);
         parent.resize(1100, 650); QTRY_VERIFY(files->isVisible()); QVERIFY(places->isVisible()); QVERIFY(inspector->isVisible());
-        parent.resize(360, 600); QTRY_VERIFY(inspector->width() >= window->width() - 30); QVERIFY(files->isVisible());
+        parent.resize(360, 600); QTRY_COMPARE(lower->orientation(), Qt::Vertical);
+        QTRY_VERIFY(inspector->width() >= lower->width() - 8); QVERIFY(files->isVisible());
         right->click(); QTRY_VERIFY(!inspector->isVisible()); QVERIFY(files->isVisible()); QVERIFY(places->isVisible());
         QCOMPARE(window->currentPath(), qpe::DirectoryStore::normalized(path("A"))); QCOMPARE(QApplication::palette(), palette);
         parent.close(); window->close(); qpe::saveJson(qpe::settingsPath(), before);
@@ -577,6 +580,9 @@ private slots:
             };
             QCoreApplication::processEvents();
             const auto standard = metrics();
+            // 見出しを1行+小さな余白に限定し、大きい文字も切らずに追従する。
+            QVERIFY(files->header()->height() >= files->header()->fontMetrics().height());
+            QVERIFY(files->header()->height() <= files->header()->fontMetrics().height() + 8);
             QCOMPARE(window.font().pixelSize(), maya ? 15 : 12);
             capture("standard");
             QTimer::singleShot(0, &window, [&] {
@@ -589,6 +595,8 @@ private slots:
             window.perform("appearance"); QCoreApplication::processEvents();
             QCOMPARE(window.font().pixelSize(), 10);
             const auto smallest = metrics();
+            QVERIFY(files->header()->height() >= files->header()->fontMetrics().height());
+            QVERIFY(files->header()->height() <= files->header()->fontMetrics().height() + 6);
             if (maya) QCOMPARE(smallest, windowsSmallest);
             else windowsSmallest = smallest;
             qInfo() << (maya ? "Maya DPI 125%" : "Windows DPI 100%") << standard << "->" << smallest;
@@ -661,6 +669,8 @@ private slots:
             qpe::writeSettings({{"nativeAppearance", QJsonObject{{"theme", theme}}}, {"folderViews", QJsonObject{}}});
             qpe::BrowserWindow window; window.restoreSession(path("sort-ui"), false); window.show(); QTRY_VERIFY(window.ready());
             auto* files = window.findChild<QTreeView*>("files"); auto* header = files->header();
+            // 拡張子は初期非表示だが、利用者が表示した場合のクリックによる並べ替えも検証する。
+            QVERIFY(files->isColumnHidden(2)); files->setColumnHidden(2, false); QTest::qWait(20);
             QCOMPARE(header->defaultAlignment(), Qt::Alignment(Qt::AlignLeft | Qt::AlignVCenter));
             QTRY_COMPARE(files->model()->rowCount(), names.size());
             for (int row = 0; row < names.size(); ++row) QCOMPARE(files->model()->index(row, 0).data().toString(), names[row]);
@@ -685,8 +695,8 @@ private slots:
                         QCOMPARE(files->model()->index(row, 0).data().toString(), names[ascending ? row : names.size() - row - 1]);
                     QVERIFY(files->model()->headerData(column, Qt::Horizontal, Qt::ToolTipRole).toString().contains(ascending ? "Ascending" : "Descending"));
                     QTest::mouseMove(&window, QPoint(100, window.height() - 30));
-                    // 上中央の12×8px領域を読み、実際の頂点方向とテーマ上のコントラストを検査する。
-                    const QRect arrow(header->sectionViewportPosition(column) + (header->sectionSize(column) - 1) / 2 - 6, 1, 12, 8);
+                    // 文字と同じ段の右端12×8px領域で、頂点方向とコントラストを検査する。
+                    const QRect arrow(header->sectionViewportPosition(column) + header->sectionSize(column) - 1 - 15, (header->height() - 1) / 2 - 4, 12, 8);
                     const auto image = header->viewport()->grab().toImage(); const auto dpr = image.devicePixelRatio();
                     const auto background = header->palette().color(QPalette::Base);
                     int centerY = 0, centerCount = 0, edgeY = 0, edgeCount = 0;
@@ -723,6 +733,7 @@ private slots:
     void filterConditionChips() {
         qpe::BrowserWindow window; window.navigate(path("A")); window.show(); QTRY_VERIFY(window.ready());
         auto* filter = window.findChild<QLineEdit*>("fileFilter"); auto* types = window.findChild<QComboBox*>("fileTypes"); auto* bar = window.findChild<QScrollArea*>("activeConditions");
+        window.perform("filter");
         filter->setText("小さい"); types->setCurrentIndex(1); QVERIFY(bar->isVisible());
         auto* name = window.findChild<QToolButton*>("clearConditionName"); auto* type = window.findChild<QToolButton*>("clearConditionType"); QVERIFY(name->isVisible() && type->isVisible());
         name->click(); QVERIFY(filter->text().isEmpty()); QCOMPARE(types->currentIndex(), 1); QVERIFY(!name->isVisible()); QVERIFY(bar->isVisible());
@@ -735,54 +746,89 @@ private slots:
         auto* filter = window.findChild<QLineEdit*>("fileFilter");
         auto* types = window.findChild<QComboBox*>("fileTypes");
         auto* address = window.findChild<QLineEdit*>("address");
-        filter->setText("小さい"); types->setCurrentIndex(1); filter->setFocus();
+        window.perform("filter"); filter->setText("小さい"); types->setCurrentIndex(1); filter->setFocus();
         QInputMethodEvent preedit(QString::fromUtf8("仮"), {}); QApplication::sendEvent(filter, &preedit);
         QTest::keyClick(filter, Qt::Key_Escape); QCOMPARE(filter->text(), QString("小さい"));
         QInputMethodEvent end; QApplication::sendEvent(filter, &end);
         QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
         QCOMPARE(types->currentIndex(), 1); QVERIFY(window.isVisible());
-        filter->setText("小さい"); address->setFocus();
+        filter->setText("小さい"); window.findChild<QDialog*>("filterPopup")->hide(); address->setFocus();
         const auto original = address->text(); QTest::keyClick(address, Qt::Key_Escape);
         QCOMPARE(address->text(), original); QCOMPARE(filter->text(), QString("小さい"));
-        filter->setFocus(); QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
+        window.perform("filter"); filter->setFocus(); QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
+    }
+    /** @brief Ctrl+Fで現在ページを即時検索し、再入力・Escape・他Qtとの入力境界を守る。 */
+    void quickFindShortcut() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        QVERIFY(QDir().mkpath(path("quick-find")));
+        QVERIFY(file("quick-find/hero.ma")); QVERIFY(file("quick-find/prop.ma"));
+        for (bool maya : {false, true}) {
+            qpe::saveJson(qpe::settingsPath(), {});
+            qpe::HostServices host; host.maya = maya;
+            qpe::BrowserWindow window(nullptr, host); window.navigate(path("quick-find")); window.show(); window.activateWindow();
+            QTRY_VERIFY(window.ready());
+            auto* files = window.findChild<QTreeView*>("files");
+            auto* filter = window.findChild<QLineEdit*>("fileFilter");
+            auto* popup = window.findChild<QDialog*>("filterPopup");
+            auto* address = window.findChild<QLineEdit*>("address");
+            auto* places = window.findChild<QTreeWidget*>("places");
+            window.findChild<QToolButton*>("navigationPaneButton")->click();
+            QList<QWidget*> origins{files, address, places};
+            for (auto* column : window.findChildren<QListView*>("folderColumn")) if (column->isVisible()) { origins.append(column); break; }
+            QCOMPARE(origins.size(), 4);
+            for (auto* origin : origins) {
+                origin->setFocus(); QTRY_VERIFY(origin->hasFocus());
+                QTest::keyClick(origin, Qt::Key_F, Qt::ControlModifier);
+                QTRY_VERIFY(popup->isVisible()); QTRY_VERIFY(filter->hasFocus());
+                QTest::keyClicks(filter, "hero"); QTRY_COMPARE(files->model()->rowCount(), 1);
+                QCOMPARE(files->model()->index(0, 0).data().toString(), QString("hero.ma"));
+                QTest::keyClick(filter, Qt::Key_F, Qt::ControlModifier); QCOMPARE(filter->selectedText(), QString("hero"));
+                QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
+                QTRY_COMPARE(files->model()->rowCount(), 2); QVERIFY(popup->isVisible());
+                QTest::keyClick(filter, Qt::Key_Escape); QTRY_VERIFY(!popup->isVisible()); QTRY_VERIFY(files->hasFocus());
+            }
+            // 別タブへ移動した後は、先に開いたページへ入力しない。
+            window.addTab(path("A")); QTRY_VERIFY(window.ready());
+            auto* active = window.findChild<QStackedWidget*>("browserPages")->currentWidget();
+            auto* activeFiles = active->findChild<QTreeView*>("files"); activeFiles->setFocus();
+            QTest::keyClick(activeFiles, Qt::Key_F, Qt::ControlModifier);
+            auto* activeFilter = active->findChild<QLineEdit*>("fileFilter"); QTRY_VERIFY(activeFilter->hasFocus());
+            QVERIFY(!popup->isVisible()); QTest::keyClick(activeFilter, Qt::Key_Escape);
+            QLineEdit external; external.show(); external.activateWindow(); external.setFocus(); QTRY_VERIFY(external.hasFocus());
+            QTest::keyClick(&external, Qt::Key_F, Qt::ControlModifier);
+            QVERIFY(!active->findChild<QDialog*>("filterPopup")->isVisible()); QVERIFY(external.hasFocus());
+            external.close(); window.close();
+        }
     }
     /** @brief 両ペインを開いた狭い画面でも名前条件を読み書きでき、幅を戻すと要約を復元する。 */
     void narrowFilterInput() {
         const auto before = qpe::readSettings();
-        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(1200, 800); window.show(); QTRY_VERIFY(window.ready());
-        auto* places = window.findChild<QTreeWidget*>("places"); auto* inspector = window.findChild<qpe::Inspector*>();
-        if (!places->isVisible()) window.findChild<QToolButton*>("navigationPaneButton")->click();
-        if (!inspector->isVisible()) window.findChild<QToolButton*>("detailsPaneButton")->click();
-        window.resize(720, 490); QTest::qWait(100);
+        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(480, 490); window.show(); QTRY_VERIFY(window.ready());
+        auto* files = window.findChild<QTreeView*>("files");
+        const int fileHeight = files->height();
+        window.perform("filter");
+        auto* popup = window.findChild<QDialog*>("filterPopup");
         auto* filter = window.findChild<QLineEdit*>("fileFilter");
-        qInfo() << "narrow filter" << filter->width() << "window" << window.size() << "left/right" << places->width() << inspector->width();
-        QTRY_VERIFY2(filter->width() >= 90, qPrintable(QString("Filter input squeezed to %1 px").arg(filter->width())));
-        auto* summary = window.findChild<QLabel*>("folderSummary"); QVERIFY(summary); QVERIFY(!summary->isVisible());
+        QTRY_VERIFY(popup->isVisible()); QVERIFY(filter->width() >= 200);
         filter->setFocus(); QTest::keyClicks(filter, "sample"); QCOMPARE(filter->text(), QString("sample"));
-        window.resize(1400, 700); QTRY_VERIFY(filter->width() > 200);
-        QTRY_VERIFY(summary->isVisible());
-        QCOMPARE(filter->text(), QString("sample"));
+        QCOMPARE(files->height(), fileHeight);
+        popup->hide(); window.resize(1400, 700); window.perform("filter");
+        QCOMPARE(filter->text(), QString("sample")); QVERIFY(filter->width() >= 200);
         window.close(); qpe::saveJson(qpe::settingsPath(), before);
     }
-    /** @brief 文字拡大と左右ペインの併用時は、絞込み欄を別行にして編集幅を確保する。 */
+    /** @brief 大きい文字でもポップアップ入力を確保し、条件の表示が一覧の高さを奪わない。 */
     void largeTextNarrowFilter() {
         const auto before = qpe::readSettings();
         qpe::writeSettings({{"nativeAppearance", QJsonObject{{"textSize", 14}, {"uiPercent", 100}, {"density", "compact"}}}});
-        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(1200, 800); window.show(); QTRY_VERIFY(window.ready());
-        auto* places = window.findChild<QTreeWidget*>("places"); auto* inspector = window.findChild<qpe::Inspector*>();
-        if (!places->isVisible()) window.findChild<QToolButton*>("navigationPaneButton")->click();
-        if (!inspector->isVisible()) window.findChild<QToolButton*>("detailsPaneButton")->click();
-        window.resize(720, 490); QTest::qWait(100);
+        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(720, 490); window.show(); QTRY_VERIFY(window.ready());
+        auto* files = window.findChild<QTreeView*>("files"); QTest::qWait(100); const int height = files->height();
+        window.perform("filter");
         auto* filter = window.findChild<QLineEdit*>("fileFilter"); auto* types = window.findChild<QComboBox*>("fileTypes");
-        QTRY_VERIFY2(filter->width() >= 150, qPrintable(QString("Large-text filter squeezed to %1 px").arg(filter->width())));
-        QVERIFY(types->mapTo(&window, QPoint()).y() > filter->mapTo(&window, QPoint()).y());
-        filter->setFocus(); QTest::keyClicks(filter, "sample"); QCOMPARE(filter->text(), QString("sample"));
-        auto* files = window.findChild<QTreeView*>("files");
-        QTRY_VERIFY2(files->viewport()->height() >= files->fontMetrics().height() * 2,
-                     "Wrapping and a name condition must leave visible file rows");
-        types->setCurrentIndex(1); window.resize(1500, 800);
-        QTRY_VERIFY(qAbs(types->mapTo(&window, QPoint()).y() - filter->mapTo(&window, QPoint()).y()) < 10);
+        QTRY_VERIFY(filter->width() >= 200); QVERIFY(types->mapToGlobal(QPoint()).y() > filter->mapToGlobal(QPoint()).y());
+        QTest::keyClicks(filter, "sample"); types->setCurrentIndex(1);
         QCOMPARE(filter->text(), QString("sample")); QCOMPARE(types->currentIndex(), 1);
+        QCOMPARE(files->height(), height);
         window.close(); qpe::saveJson(qpe::settingsPath(), before);
     }
     /** @brief 絞込み・複数選択・表示切替・再訪でフッターが実際の一覧件数を保つ。 */
@@ -806,7 +852,7 @@ private slots:
         window.navigate(path("feedback")); QTRY_VERIFY(window.ready());
         QVERIFY(footer->text().startsWith(qpe::uiText("%1 items").arg(3)));
         auto* bar = window.findChild<QScrollArea*>("activeConditions");
-        auto* chip = window.findChild<QToolButton*>("clearConditionName"); filter->setText("first");
+        auto* chip = window.findChild<QToolButton*>("clearConditionName"); window.perform("filter"); filter->setText("first");
         QTRY_COMPARE(bar->horizontalScrollBar()->maximum(), 0);
         QTRY_COMPARE(bar->height(), chip->sizeHint().height() + 2);
     }
@@ -1612,7 +1658,7 @@ private slots:
         QToolButton* add = nullptr;
         for (auto* button : browser->findChildren<QToolButton*>()) if (button->accessibleName() == "New tab") add = button;
         QVERIFY(add); QTest::mouseClick(add, Qt::LeftButton);
-        auto* pages = browser->findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* pages = browser->findChild<QStackedWidget*>("browserPages"); QVERIFY(pages);
         auto* currentFiles = pages->currentWidget()->findChild<QTreeView*>("files"); QVERIFY(currentFiles);
         QTRY_VERIFY(currentFiles->hasFocus());
         const int created = tabs->currentIndex();
@@ -2106,6 +2152,176 @@ private slots:
             qpe::BrowserWindow window; window.restoreSession(path("A")); QCOMPARE(window.font().pixelSize(), 14);
         }
         qpe::saveJson(qpe::settingsPath(), {});
+    }
+    /** @brief タブを保ったまま操作帯を上部へ集約し、条件と件数をタブごとに追従する。 */
+    void compactNavigationControls() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::saveJson(qpe::settingsPath(), {});
+        qpe::HostServices host; host.maya = true;
+        qpe::BrowserWindow window(nullptr, host); window.navigate(path("A")); window.resize(1200, 650); window.show();
+        QTRY_VERIFY(window.ready()); QTest::qWait(100);
+        const QString capture = qEnvironmentVariable("QPE_COMPACT_EVIDENCE");
+        QTimer recorder; int frame = 0;
+        if (!capture.isEmpty()) {
+            QDir().mkpath(capture);
+            connect(&recorder, &QTimer::timeout, &window, [&] { window.grab().save(capture + QString("/frame-%1.png").arg(frame++, 5, 10, QChar('0'))); });
+            recorder.start(100); QTest::qWait(800);
+        }
+        auto* tabs = window.findChild<QTabBar*>("folderTabs");
+        auto* controls = window.findChild<QStackedWidget*>("pageTools");
+        auto* active = controls->currentWidget();
+        auto* filterButton = active->findChild<QToolButton*>("filterButton");
+        auto* footer = active->findChild<QLabel*>("footer");
+        auto* notice = window.findChild<QToolButton*>("notificationsButton");
+        auto* address = window.findChild<QLineEdit*>("address");
+        auto* files = window.findChild<QTreeView*>("files");
+        QVERIFY(!tabs->isVisible()); QCOMPARE(tabs->count(), 1);
+        QVERIFY(files->isColumnHidden(2)); QVERIFY(!files->isColumnHidden(1)); QVERIFY(!files->isColumnHidden(3));
+        QVERIFY(!files->isHeaderHidden());
+        QVERIFY(qAbs(footer->mapTo(&window, QPoint()).y() - address->mapTo(&window, QPoint()).y()) < 12);
+        QVERIFY(qAbs(notice->mapTo(&window, QPoint()).y() - address->mapTo(&window, QPoint()).y()) < 12);
+        QVERIFY(window.rect().contains(QRect(notice->mapTo(&window, QPoint()), notice->size())));
+        const int height = files->height();
+        QTest::mouseClick(filterButton, Qt::LeftButton);
+        auto* filter = window.findChild<QLineEdit*>("fileFilter");
+        auto* types = window.findChild<QComboBox*>("fileTypes");
+        QTRY_VERIFY(filter->isVisible()); QTest::keyClicks(filter, "small"); types->setCurrentIndex(1);
+        if (!capture.isEmpty()) { QTest::qWait(1200); window.findChild<QDialog*>("filterPopup")->grab().save(capture + "/filter.png"); }
+        window.findChild<QDialog*>("filterPopup")->hide();
+        if (!capture.isEmpty()) QTest::qWait(800);
+        QVERIFY(filterButton->isChecked()); QVERIFY(filterButton->text().contains("2"));
+        QVERIFY(filterButton->toolTip().contains("small")); QCOMPARE(files->height(), height);
+        auto* clear = active->findChild<QToolButton*>("clearFiltersButton"); QVERIFY(clear->isEnabled());
+        QPointer<QWidget> oldControls = active;
+        window.addTab(path("B")); QTRY_VERIFY(window.ready());
+        QVERIFY(controls->currentWidget() != active);
+        if (!capture.isEmpty()) QTest::qWait(700);
+        tabs->setCurrentIndex(0); QCOMPARE(controls->currentWidget(), active);
+        QCOMPARE(filter->text(), QString("small"));
+        QTest::mouseClick(clear, Qt::LeftButton); QVERIFY(filter->text().isEmpty()); QCOMPARE(types->currentIndex(), 0);
+        QVERIFY(!filterButton->isChecked()); QVERIFY(!clear->isEnabled());
+        if (!capture.isEmpty()) { QTest::qWait(800); window.grab().save(capture + "/layout.png"); }
+        tabs->tabCloseRequested(0); QTRY_VERIFY(oldControls.isNull()); QVERIFY(!tabs->isVisible());
+        QCOMPARE(controls->count(), 1);
+        if (!capture.isEmpty()) QTest::qWait(700);
+        recorder.stop();
+        window.close();
+    }
+    /** @brief Maya単一タブの省略・復元と現在地色を検証し、外部Qtへ配色を漏らさない。 */
+    void mayaVisualHierarchy() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::saveJson(qpe::settingsPath(), {});
+        QWidget external; const auto externalPalette = external.palette();
+        qpe::HostServices host; host.maya = true;
+        qpe::BrowserWindow window(nullptr, host); window.resize(1280, 650);
+        window.navigate(path("A")); window.show(); QTRY_VERIFY(window.ready());
+        auto* strip = window.findChild<QWidget*>("navigationTabStrip");
+        auto* tabs = window.findChild<QTabBar*>("folderTabs");
+        auto* address = window.findChild<QLineEdit*>("address");
+        QTRY_VERIFY(!strip->isVisible());
+        const int compactY = address->mapTo(&window, QPoint()).y();
+        const auto checkCurrent = [&] {
+            int count = 0;
+            for (auto* column : window.findChildren<QListView*>("folderColumn")) {
+                if (!column->property("qpeCurrentBranch").toBool()) continue;
+                ++count;
+                QCOMPARE(column->currentIndex().data(Qt::UserRole + 1).toString(), window.currentPath());
+            }
+            QCOMPARE(count, 1);
+        };
+        QTRY_VERIFY(window.findChildren<QListView*>("folderColumn").size() > 1);
+        checkCurrent();
+        auto* files = window.findChild<QTreeView*>("files");
+        QVERIFY(files->property("qpeSecondaryText").isValid());
+        QVERIFY(window.palette().color(QPalette::Window) != files->palette().color(QPalette::Base));
+        QCOMPARE(external.palette(), externalPalette);
+        window.addTab(path("B")); QTRY_VERIFY(window.ready()); QTRY_VERIFY(strip->isVisible());
+        QVERIFY(address->mapTo(&window, QPoint()).y() > compactY + 20);
+        tabs->tabCloseRequested(1); QTRY_VERIFY(!strip->isVisible());
+        QTRY_COMPARE(address->mapTo(&window, QPoint()).y(), compactY);
+        window.navigate(path("B")); QTRY_VERIFY(window.ready()); checkCurrent();
+        window.close();
+        qpe::BrowserWindow standalone; standalone.navigate(path("A")); standalone.show(); QTRY_VERIFY(standalone.ready());
+        QVERIFY(standalone.findChild<QWidget*>("navigationTabStrip")->isVisible());
+        standalone.close();
+    }
+    /** @brief 詳細の開閉で上段幅を変えず、タブの破棄/復元でも操作設定と下段配置を保つ。 */
+    void lowerInspectorLayout() {
+        const auto before = qpe::readSettings();
+        const auto cleanup = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::HostServices host; host.maya = true;
+        {
+            qpe::BrowserWindow window(nullptr, host); window.navigate(path("A")); window.resize(1280, 740); window.show();
+            QTRY_VERIFY(window.ready());
+            QTest::qWait(150); // 初回のホストDPI/外枠反映後を開閉比較の基準にする。
+            auto* tabs = window.findChild<QTabBar*>("folderTabs");
+            auto* inspector = window.findChild<qpe::Inspector*>();
+            auto* button = window.findChild<QToolButton*>("detailsPaneButton");
+            auto* columns = window.findChild<QScrollArea*>("folderColumns");
+            auto* lower = window.findChild<QSplitter*>("browserLower");
+            QVERIFY(inspector && button && columns && lower);
+            const QSize wideSize = window.size();
+            const int columnWidth = columns->width();
+            if (inspector->isHidden()) button->click();
+            QTRY_VERIFY(inspector->isVisible());
+            QCOMPARE(inspector->parentWidget(), lower);
+            QCOMPARE(lower->orientation(), Qt::Horizontal);
+            QCOMPARE(columns->width(), columnWidth);
+            QVERIFY(inspector->mapTo(&window, QPoint()).y() > columns->mapTo(&window, columns->rect().bottomLeft()).y());
+            auto* files = window.findChild<QTreeView*>("files");
+            QVERIFY(inspector->mapTo(&window, QPoint()).x() > files->mapTo(&window, QPoint()).x());
+            QVERIFY(window.rect().contains(QRect(inspector->mapTo(&window, QPoint()), inspector->size())));
+            auto* summary = window.findChild<QLabel*>("folderSummary");
+            QCOMPARE(summary->text(), QString("A"));
+            inspector->restore({{"import", QJsonObject{{"mode", "custom"}, {"name", "hero"}}}});
+            inspector->showAction("import");
+            lower->setSizes({800, 310});
+            QVERIFY(QMetaObject::invokeMethod(lower, "splitterMoved", Qt::DirectConnection, Q_ARG(int, 800), Q_ARG(int, 1)));
+            const int detailWidth = inspector->width();
+            for (int i = 0; i < 3; ++i) { button->click(); QTest::qWait(10); button->click(); QTest::qWait(10); }
+            QCOMPARE(columns->width(), columnWidth); QVERIFY(qAbs(inspector->width() - detailWidth) < 3);
+            QPointer<qpe::Inspector> retained = inspector;
+            window.addTab(path("B")); QTRY_VERIFY(window.ready());
+            QCOMPARE(window.findChildren<qpe::Inspector*>().size(), 1);
+            QCOMPARE(inspector->options()["import"].toObject()["name"].toString(), QString("hero"));
+            QCOMPARE(inspector->parentWidget()->parentWidget(), window.findChild<QStackedWidget*>("browserPages")->currentWidget()->findChild<QSplitter*>("browserVertical"));
+            QVERIFY(QMetaObject::invokeMethod(tabs, "tabCloseRequested", Qt::DirectConnection, Q_ARG(int, tabs->currentIndex())));
+            QVERIFY(retained); QTRY_COMPARE(window.currentPath(), path("A"));
+            QCOMPARE(inspector->parentWidget(), lower); QVERIFY(inspector->isVisible());
+            window.resize(480, 700); QTest::qWait(100);
+            QTRY_COMPARE(lower->orientation(), Qt::Vertical);
+            QVERIFY(window.rect().contains(QRect(inspector->mapTo(&window, QPoint()), inspector->size())));
+            window.resize(wideSize); QTest::qWait(100);
+            QTRY_COMPARE(lower->orientation(), Qt::Horizontal);
+            QCOMPARE(columns->width(), columnWidth);
+            const auto evidence = qEnvironmentVariable("QPE_LAYOUT_EVIDENCE");
+            if (!evidence.isEmpty()) { QDir().mkpath(evidence); QVERIFY(window.grab().save(QDir(evidence).filePath("lower-pane-maya-qt.png"))); }
+            window.close();
+        }
+        {
+            qpe::BrowserWindow restored(nullptr, host); restored.restoreSession(); restored.show();
+            QTRY_VERIFY(restored.ready());
+            auto* inspector = restored.findChild<qpe::Inspector*>();
+            QVERIFY(inspector && inspector->isVisible());
+            QCOMPARE(inspector->parentWidget()->objectName(), QString("browserLower"));
+            QCOMPARE(inspector->options()["import"].toObject()["name"].toString(), QString("hero"));
+            restored.close();
+        }
+    }
+    /** @brief 頻用設定は直接表示し、プリセット管理と標準ダイアログは通常操作から分離する。 */
+    void inspectorTaskOptions() {
+        qpe::Inspector inspector(true, nullptr); inspector.resize(290, 420); inspector.show(); inspector.showAction("import");
+        auto* presets = inspector.findChild<QToolButton*>("importPresets"); QVERIFY(presets && presets->menu());
+        QCOMPARE(presets->menu()->actions().size(), 3);
+        QVERIFY(inspector.findChild<QComboBox*>("import_mode")->isVisible());
+        inspector.findChild<QComboBox*>("import_mode")->setCurrentIndex(1);
+        QVERIFY(inspector.findChild<QLineEdit*>("import_name")->isVisible());
+        QVERIFY(!inspector.findChild<QPushButton*>("options"));
+        inspector.setPath(path("A/animation.fbx")); inspector.showAction("open");
+        QVERIFY(inspector.findChild<QComboBox*>("fbx_mode")->isVisible());
+        QVERIFY(inspector.findChild<QPushButton*>("open")->isVisible());
     }
     /** @brief 右ペインの各読込タブがフォルダータブの幅指定を継承しない。 */
     void narrowInspector() {
@@ -2900,7 +3116,7 @@ private slots:
         qpe::saveJson(qpe::settingsPath(), {{"uiLanguage", "en"}});
         qpe::BrowserWindow window; window.navigate(path("A")); window.show(); window.activateWindow();
         QTRY_VERIFY(window.ready());
-        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* pages = window.findChild<QStackedWidget*>("browserPages"); QVERIFY(pages);
         auto* previousFiles = pages->currentWidget()->findChild<QTreeView*>("files"); QVERIFY(previousFiles);
         previousFiles->setFocus(); QTRY_VERIFY(previousFiles->hasFocus());
         window.addTab(path("B")); QTRY_VERIFY(window.ready());
@@ -2936,7 +3152,7 @@ private slots:
         qpe::BrowserWindow window; window.resize(1200, 800); window.show(); window.activateWindow();
         window.navigate(path("B")); QTRY_VERIFY(window.ready());
         window.navigate(path("A/子フォルダー")); QTRY_VERIFY(window.ready());
-        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* pages = window.findChild<QStackedWidget*>("browserPages"); QVERIFY(pages);
         auto* current = pages->currentWidget();
         auto* files = current->findChild<QTreeView*>("files"); QVERIFY(files);
         QListView* sourceColumn = nullptr;
@@ -2972,7 +3188,7 @@ private slots:
         auto* files = window.findChild<QTreeView*>("files"); QVERIFY(files);
         files->setCurrentIndex(files->model()->index(0, 0));
         window.addTab(path("A/子フォルダー/empty")); QTRY_VERIFY(window.ready());
-        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* pages = window.findChild<QStackedWidget*>("browserPages"); QVERIFY(pages);
         auto* current = pages->currentWidget(); QVERIFY(current);
         auto* columns = current->findChild<QScrollArea*>("folderColumns"); QVERIFY(columns);
         // 空の末尾列は非表示だが、非同期更新用のQObject自体は保持される。
@@ -3019,7 +3235,7 @@ private slots:
         window.navigate(path("A/子フォルダー/empty")); QTRY_VERIFY(window.ready());
         window.perform("startFolder", {data_.path()});
         auto* tabs = window.findChild<QTabBar*>("folderTabs"); QVERIFY(tabs);
-        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* pages = window.findChild<QStackedWidget*>("browserPages"); QVERIFY(pages);
         QToolButton* back = nullptr; QToolButton* forward = nullptr;
         for (auto* button : window.findChildren<QToolButton*>()) {
             if (button->toolTip() == "Back") back = button;
@@ -3077,7 +3293,7 @@ private slots:
     void pinnedAndLockedTabs() {
         qpe::BrowserWindow window; window.navigate(path("A")); window.addTab(path("B")); window.show();
         auto* tabs = window.findChild<QTabBar*>("folderTabs");
-        auto* stack = window.findChild<QStackedWidget*>(); QVERIFY(stack);
+        auto* stack = window.findChild<QStackedWidget*>("browserPages"); QVERIFY(stack);
         stack->currentWidget()->setProperty("pinned", true);
         emit tabs->tabCloseRequested(1); QCOMPARE(tabs->count(), 2);
         stack->currentWidget()->setProperty("locationLocked", true);

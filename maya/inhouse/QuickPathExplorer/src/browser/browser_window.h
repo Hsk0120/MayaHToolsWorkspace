@@ -88,6 +88,8 @@ protected:
     /** @brief ドック幅に応じて操作と詳細の配置を更新する。 @param event サイズ通知。 */
     void resizeEvent(QResizeEvent* event) override;
 private:
+    /** @brief 操作結果を保持し、上部の通知ボタンから全文を確認可能にする。 @param text 最新の通知。 */
+    void setStatus(const QString& text);
     /** @brief 一時的なWindowsクリップボード占有をGUIを止めずに再試行する。
      * @param action copy/cut/copyPath。 @param paths 固定対象。
      * @param generation このウィンドウの要求世代。 @param sequence OS更新番号。
@@ -146,6 +148,7 @@ private:
     void showQuery(const QJsonObject& result);
     QTabBar* tabs_;
     QStackedWidget* pages_ = nullptr;
+    QStackedWidget* pageTools_ = nullptr;
     QLineEdit* address_ = nullptr;
     QTreeWidget* sidebar_ = nullptr;
     QSplitter* horizontal_ = nullptr;
@@ -162,6 +165,7 @@ private:
     // FileJobsは直列実行。startedからfinishedまでの操作を完了通知に使う。
     QString activeFileAction_;
     QLabel* status_;
+    QToolButton* notifications_ = nullptr;
     QTimer* saveTimer_;
     QStringList favorites_;
     QStringList recents_;
@@ -174,7 +178,7 @@ private:
     bool hidden_ = false;
     bool mayaActionRunning_ = false;
     bool sidebarRequested_ = false;
-    bool detailsStacked_ = false;
+    int inspectorWidth_ = 260;
     quint64 clipboardGeneration_ = 0;
     bool clipboardPending_ = false;
     FileJobs* driveJobs_ = nullptr;

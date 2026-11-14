@@ -18,6 +18,8 @@ class FileSortHeader final : public QHeaderView {
 public:
     /** @brief 入力・リサイズ・状態保存は標準ヘッダーへ任せる。 @param parent 所有するファイルビュー。 */
     explicit FileSortHeader(QWidget* parent);
+    /** @brief 見出しを文字1行と最小余白に収める。 @return フォント倍率に追従する推奨寸法。 */
+    QSize sizeHint() const override;
 protected:
     /** @brief 標準の背景とラベルへ、現在の順序に対応する太めの山形を重ねる。
      * @param painter 借用する描画先。 @param rect 見出しの領域。 @param logicalIndex 論理列。

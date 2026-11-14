@@ -143,13 +143,20 @@ FileSortHeader::FileSortHeader(QWidget* parent) : QHeaderView(Qt::Horizontal, pa
     setObjectName("fileSortHeader"); setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     setSectionsMovable(true); setFirstSectionMovable(false); setHighlightSections(true);
 }
+QSize FileSortHeader::sizeHint() const {
+    auto size = QHeaderView::sizeHint();
+    const auto value = property("qpeSortScale"); const qreal scale = value.isValid() ? value.toReal() : 1.;
+    size.setHeight(fontMetrics().height() + qMax(2, qRound(4 * scale)) + 1);
+    return size;
+}
 void FileSortHeader::paintSection(QPainter* painter, const QRect& rect, int logicalIndex) const {
     QHeaderView::paintSection(painter, rect, logicalIndex);
     if (!isSortIndicatorShown() || logicalIndex != sortIndicatorSection()) return;
     const auto value = property("qpeSortScale"); const qreal scale = value.isValid() ? value.toReal() : 1.;
     // 実際のソート方向を直接使う。Qt5/Qt6やホストの標準スタイルの上下解釈を共有しない。
     const bool ascending = sortIndicatorOrder() == Qt::AscendingOrder;
-    const qreal x = rect.center().x(), y = rect.top() + scale;
+    // 文字の右側に確保した余白へ描く。矢印のための専用の段を作らない。
+    const qreal x = rect.right() - 9 * scale, y = rect.center().y() - 4 * scale;
     painter->save(); painter->setClipRect(rect); painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(QPen(palette().color(QPalette::Text), 1.6 * scale, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
     QPolygonF arrow;

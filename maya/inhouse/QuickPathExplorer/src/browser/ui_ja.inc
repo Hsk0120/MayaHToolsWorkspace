@@ -596,3 +596,9 @@
 {"Search commands or shortcuts…", "コマンド名やショートカットを検索…"},
 {"Optional overrides. Leave a field empty to use built-in support or automatic detection.", "必要な場合だけ実行ファイルを指定してください。空欄では内蔵機能または自動検出を使用します。"},
 {"Browse…", "参照…"},
+
+{"Filter", "絞り込み"},
+{"Clear filters", "絞り込みを解除"},
+{"Notifications", "通知"},
+{"No notifications", "通知はありません"},
+{"Information", "情報"},

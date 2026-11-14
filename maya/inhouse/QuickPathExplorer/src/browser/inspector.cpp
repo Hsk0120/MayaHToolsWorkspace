@@ -1,4 +1,4 @@
-/** @file inspector.cpp @brief 詳細は常に見せ、専門設定は操作別タブに分ける。 */
+/** @file inspector.cpp @brief 下段右の作業ペインに頻用設定を示し、補助操作はメニューへまとめる。 */
 #include "ui_language.h"
 #include <QStyleOptionButton>
 #include <QPainter>
@@ -19,6 +19,7 @@
 #include <QVBoxLayout>
 #include <QLocale>
 #include <QToolButton>
+#include <QMenu>
 #include <QInputDialog>
 #include <QMessageBox>
 #include <QJsonArray>
@@ -159,12 +160,13 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
                 button(actionBox, action == "import" ? uiText("Import") : uiText("Create Reference"), action);
             }
             if (action == "fbx") delete advanced;
-            auto* presetToggle = new QToolButton; presetToggle->setText(uiText("Presets")); presetToggle->setCheckable(true); presetToggle->setArrowType(Qt::RightArrow); presetToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); box->addWidget(presetToggle);
-            auto* presetPage = new QWidget; auto* presets = new QVBoxLayout(presetPage); presets->setContentsMargins(0, 0, 0, 0); box->addWidget(presetPage); presetPage->hide();
-            connect(presetToggle, &QToolButton::toggled, presetPage, [presetPage, presetToggle](bool visible) { presetPage->setVisible(visible); presetToggle->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); });
+            // 補助操作を展開して入力欄を押し下げず、明示操作時だけメニューを開く。
+            auto* presetToggle = new QToolButton; presetToggle->setText(uiText("Presets")); presetToggle->setObjectName(action + "Presets");
+            presetToggle->setPopupMode(QToolButton::InstantPopup); box->addWidget(presetToggle);
+            auto* presets = new QMenu(presetToggle); presetToggle->setMenu(presets);
             for (const auto& command : QStringList{"Save preset", "Load preset", "Delete preset"}) {
-                auto* value = new QPushButton(uiText(command)); presets->addWidget(value);
-                connect(value, &QPushButton::clicked, this, [this, action, command] {
+                auto* value = presets->addAction(uiText(command));
+                connect(value, &QAction::triggered, this, [this, action, command] {
                     try {
                         const auto state = readSettings(); auto all = state["nativeReadPresets"].toObject();
                         auto entries = readPresetsFromSettings(state, action); bool ok = false;
@@ -211,9 +213,7 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
         if (previewSource_.loadFromData(QByteArray::fromBase64(data["png"].toString().toLatin1()), "PNG")) fitPreview();
     });
     connect(details, &QToolButton::toggled, detailsBody_, [this, details](bool visible) { detailsBody_->setVisible(visible); details->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); if (visible) requestDetails(); else { token_ = QUuid::createUuid().toString(); media_->cancel(); } });
-    if (maya) {
-        button(layout, uiText("Maya File Dialogs…"), "options");
-    }
+    // Maya標準ダイアログは「ツール > Maya」へ集約し、通常作業の設定と混在させない。
     layout->addStretch();
     connect(tabs_, &QTabWidget::currentChanged, this, [this, scroll, actions](int active) {
         actions->setVisible(active == 1 || active == 2);

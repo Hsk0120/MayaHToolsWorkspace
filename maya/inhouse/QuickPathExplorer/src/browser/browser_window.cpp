@@ -70,6 +70,8 @@
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
+#include <QToolTip>
+#include <QHelpEvent>
 #include <QTreeView>
 #include <QTreeWidget>
 #include <QUrl>
@@ -86,6 +88,55 @@ namespace {
 constexpr int PathRole = Qt::UserRole + 1;
 constexpr int DirectoryRole = Qt::UserRole + 2;
 constexpr int SortRole = Qt::UserRole + 3;
+/** @brief 各タブの操作帯の推奨幅を使いつつ、親ウィンドウの縮小を妨げない。 */
+class PageControlsStack final : public QStackedWidget {
+public:
+    /** @brief リサイズ後にラベルを短縮するため、横方向の最小幅を課さない。 @return 最小寸法。 */
+    QSize minimumSizeHint() const override { return QSize(0, QStackedWidget::minimumSizeHint().height()); }
+};
+/** @brief 狭い操作帯には省略表示し、クリックとキーボードで全文を確認できる情報欄。 */
+class CompactInfoLabel final : public QLabel {
+public:
+    /** @brief 全文はQLabelに保持し描画だけ短くする。 @param parent 所有者。 @param iconOnly 通知アイコンだけ描くか。 */
+    explicit CompactInfoLabel(QWidget* parent, bool iconOnly = false) : QLabel(parent), iconOnly_(iconOnly) {
+        setFocusPolicy(Qt::StrongFocus); setCursor(Qt::PointingHandCursor);
+        setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    }
+    /** @brief 文字サイズに合わせて操作帯の高さを保つ。 @return 推奨寸法。 */
+    QSize sizeHint() const override { return QSize(iconOnly_ ? 24 : 100, fontMetrics().height() + 8); }
+protected:
+    /** @brief 全文を変えずに省略描画する。 @param event 再描画通知。 */
+    void paintEvent(QPaintEvent* event) override {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setPen(palette().color(iconOnly_ && !text().isEmpty() ? QPalette::Link : QPalette::WindowText));
+        painter.drawText(rect().adjusted(3, 0, -3, 0), Qt::AlignVCenter | (iconOnly_ ? Qt::AlignHCenter : Qt::AlignLeft),
+                         iconOnly_ ? QStringLiteral("ⓘ") : fontMetrics().elidedText(text(), Qt::ElideRight, qMax(0, width() - 6)));
+        if (hasFocus()) { painter.setPen(palette().color(QPalette::Highlight)); painter.drawRect(rect().adjusted(1, 1, -2, -2)); }
+    }
+    /** @brief 通知の全文をマウスでも参照できる。 @param event 入力。 */
+    void mousePressEvent(QMouseEvent* event) override {
+        if (event->button() == Qt::LeftButton) { showInformation(); event->accept(); }
+        else QLabel::mousePressEvent(event);
+    }
+    /** @brief Enter/Spaceで情報を開く。 @param event 入力。 */
+    void keyPressEvent(QKeyEvent* event) override {
+        if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Space) { showInformation(); event->accept(); }
+        else QLabel::keyPressEvent(event);
+    }
+    /** @brief 最新の全文をツールチップに使う。 @param event 通知。 @return 処理したか。 */
+    bool event(QEvent* event) override {
+        if (event->type() == QEvent::ToolTip) {
+            auto* help = static_cast<QHelpEvent*>(event);
+            QToolTip::showText(help->globalPos(), text().isEmpty() ? uiText("No notifications") : text(), this); return true;
+        }
+        return QLabel::event(event);
+    }
+private:
+    /** @brief 処理結果・列挙失敗を自動消去せず明示操作で表示する。 */
+    void showInformation() { UiMessageBox::information(this, uiText("Information"), text().isEmpty() ? uiText("No notifications") : text()); }
+    bool iconOnly_;
+};
 /** @brief 転送中だけ開き、既存キューからバイト数と操作状態を表示する。 */
 class TransferProgressDialog final : public QDialog {
 public:
@@ -525,9 +576,27 @@ public:
         connect(horizontal, &QScrollBar::rangeChanged, this, [this, horizontal](int, int maximum) {
             if (followEnd_) horizontal->setValue(maximum);
         });
-        auto* bottom = new QWidget(vertical);
+        lowerSplitter_ = new QSplitter(Qt::Horizontal, vertical);
+        lowerSplitter_->setObjectName("browserLower");
+        lowerSplitter_->setChildrenCollapsible(false);
+        lowerSplitter_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
+        lowerSplitter_->installEventFilter(this);
+        auto* bottom = new QWidget(lowerSplitter_);
+        bottom->setObjectName("fileListArea");
+        bottom->setMinimumWidth(100);
+        lowerSplitter_->setStretchFactor(0, 1);
         auto* lower = new QVBoxLayout(bottom);
         lower->setContentsMargins(0, 0, 0, 0);
+        controls_ = new QWidget(this); controls_->setObjectName("pageControls");
+        auto* commands = new QHBoxLayout(controls_); commands->setContentsMargins(0, 0, 0, 0); commands->setSpacing(2);
+        filterButton_ = tool(commands, uiText("Filter")); filterButton_->setObjectName("filterButton");
+        filterButton_->setAccessibleName(uiText("Filter file names…"));
+        filterButton_->setCheckable(true);
+        clearFilters_ = tool(commands, "×"); clearFilters_->setObjectName("clearFiltersButton");
+        clearFilters_->setToolTip(uiText("Clear filters")); clearFilters_->setAccessibleName(uiText("Clear filters")); clearFilters_->setEnabled(false);
+        filterPopup_ = new QDialog(this, Qt::Popup); filterPopup_->setObjectName("filterPopup");
+        filterPopup_->setWindowTitle(uiText("Filter"));
+        auto* popupLayout = new QVBoxLayout(filterPopup_);
         auto* filterRow = new QHBoxLayout;
         filterRow->setObjectName("fileFilterRow");
         summary_ = new QLabel;
@@ -539,12 +608,12 @@ public:
         filterRow->addWidget(filter_, 1);
         auto* types = new QComboBox; types->setObjectName("fileTypes");
         for (const auto& name : QStringList{"All files", "Maya scenes", "3D formats", "Images", "Videos", "Scripts", "FBX / OBJ"}) types->addItem(uiText(name), name);
-        // 種類と表示は同じ行を保ち、入力幅が足りない場合だけ名前条件の次の行へまとめて移す。
+        // 名前と種類はポップアップ内へ置き、一覧の高さを消費しない。
         auto* filterOptions = new QWidget; filterOptions->setObjectName("fileFilterOptions");
         filterOptions->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
         auto* optionsRow = new QHBoxLayout(filterOptions); optionsRow->setContentsMargins(0, 0, 0, 0);
         optionsRow->addWidget(types, 1);
-        auto* viewButton = tool(optionsRow, uiText("View"));
+        auto* viewButton = tool(commands, uiText("View")); viewButton->setObjectName("fileViewButton");
         filterRow->addWidget(filterOptions);
         connect(viewButton, &QToolButton::clicked, this, [this, viewButton] {
             QMenu menu;
@@ -567,18 +636,22 @@ public:
             static const QList<QStringList> extensions{{}, {"ma", "mb"}, {"ma", "mb", "fbx", "abc", "obj", "usd", "usda", "usdc"}, {"png", "jpg", "jpeg", "tif", "tiff", "exr", "hdr", "bmp"}, {"mp4", "mov", "avi", "mkv"}, {"py", "mel", "json"}, {"fbx", "obj"}};
             extensions_ = extensions.value(index); proxy_->setProperty("extensions", extensions_); proxy_->invalidate(); scheduleThumbnails(); updateConditions();
         });
-        lower->addLayout(filterRow);
+        popupLayout->addLayout(filterRow);
         conditionBar_ = new QScrollArea; conditionBar_->setObjectName("activeConditions"); conditionBar_->setWidgetResizable(true); conditionBar_->setFrameShape(QFrame::NoFrame);
         conditionBar_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff); conditionBar_->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded); conditionBar_->setFixedHeight(48); conditionBar_->hide();
         auto* conditionWidget = new QWidget; auto* conditionLayout = new QHBoxLayout(conditionWidget); conditionLayout->setContentsMargins(0, 0, 0, 0); conditionLayout->setSpacing(4);
         for (const auto& name : QStringList{"Name", "Type", "Subfolders", "Tag", "Group"}) { auto* chip = new QToolButton; chip->setObjectName("clearCondition" + name); conditionLayout->addWidget(chip); conditionButtons_.append(chip); chip->hide(); }
-        conditionLayout->addStretch(); conditionBar_->setWidget(conditionWidget); lower->addWidget(conditionBar_);
+        conditionLayout->addStretch(); conditionBar_->setWidget(conditionWidget); popupLayout->addWidget(conditionBar_);
         connect(conditionBar_->horizontalScrollBar(), &QScrollBar::rangeChanged, this, [this] { updateConditionHeight(); });
         connect(conditionButtons_[0], &QToolButton::clicked, filter_, &QLineEdit::clear);
         connect(conditionButtons_[1], &QToolButton::clicked, types, [types] { types->setCurrentIndex(0); });
         connect(conditionButtons_[2], &QToolButton::clicked, this, [this] { setRecursive(false); });
         connect(conditionButtons_[3], &QToolButton::clicked, this, [this] { setTagFilter({}); });
         connect(conditionButtons_[4], &QToolButton::clicked, this, [this] { setGrouping(0); saveFolderView(); });
+        connect(filterButton_, &QToolButton::clicked, this, [this] { showFilters(); });
+        connect(clearFilters_, &QToolButton::clicked, this, [this, types] {
+            filter_->clear(); types->setCurrentIndex(0); setTagFilter({}); if (recursive_) setRecursive(false); setGrouping(0);
+        });
         files_ = new FileTree;
         files_->setHeader(new FileSortHeader(files_));
         files_->transfer = [this](const QStringList& paths, const QString& target, bool move) { owner_->perform(move ? "moveTo" : "copyTo", paths, target); };
@@ -671,15 +744,15 @@ public:
             const bool sorting = files_->isSortingEnabled(); files_->setSortingEnabled(false);
             files_->updateModel([&] { applyRows(model_, path_, snapshot, false); }); files_->setSortingEnabled(sorting);
             model_->setProperty("snapshotGeneration", QVariant());
-            ready_ = result.errors.isEmpty(); setSummary(QFileInfo(path_).fileName() + QString(uiText(" · %1 files (recursive)")).arg(model_->rowCount()));
+            ready_ = result.errors.isEmpty(); updateSummary();
             listingError_ = result.errors.join("\n"); updateFooter();
             restorePosition(); setMode(mode_); scheduleThumbnails();
         });
         layout->addWidget(vertical, 1);
-        footer_ = new QLabel;
+        footer_ = new CompactInfoLabel(controls_);
         footer_->setObjectName("footer");
         footer_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-        layout->addWidget(footer_);
+        commands->addWidget(footer_);
         vertical->setSizes({360, 420});
         applyMetrics();
         connect(filter_, &QLineEdit::textChanged, this, [this](const QString& text) { proxy_->setFilterFixedString(text); updateConditions(); });
@@ -694,7 +767,7 @@ public:
         connect(files_, &QWidget::customContextMenuRequested, this, [this](const QPoint& position) { menu(files_, position); });
     }
     /** @brief タブを閉じても未反映の表示設定を保持する。 */
-    ~BrowserPage() override { flushFolderViews(); }
+    ~BrowserPage() override { flushFolderViews(); delete controls_.data(); }
     /** @brief 明示的なタブ/階層移動のキー対象を、表示中のファイル一覧へ移す。
      * @note 非同期読込の完了時には呼ばず、他のMayaビューからフォーカスを奪わない。
      */
@@ -785,6 +858,14 @@ public:
         for (int i = 0; i < columns_.size(); ++i) {
             auto& column = columns_[i];
             const auto target = i + 1 < chain.size() ? chain[i + 1] : QString();
+            // 祖先の経路選択と現在フォルダーを区別する。変化した列だけ再描画する。
+            const bool currentBranch = !target.isEmpty() && target == path_;
+            if (column.view->property("qpeCurrentBranch").toBool() != currentBranch) {
+                column.view->setProperty("qpeCurrentBranch", currentBranch);
+                column.view->style()->unpolish(column.view);
+                column.view->style()->polish(column.view);
+                column.view->viewport()->update();
+            }
             if (column.branchPath != target) {
                 column.branchPath = target;
                 column.pendingSelection = target;
@@ -820,7 +901,7 @@ public:
         }
         restoreFolderView();
         for (const QString& p : chain) apply(p);
-        if (!store_.snapshot(path_)) setSummary(QFileInfo(path_).fileName() + uiText(" · Loading…"));
+        if (!store_.snapshot(path_)) updateSummary();
         filter_->setText(positions_.value(path_).filter);
         restorePosition();
         updateFooter();
@@ -859,11 +940,13 @@ public:
     void revealCurrent() { followEnd_ = true; fitColumns(); }
     /** @brief タブごとの余白・サムネイル寸法・カラムの自動幅を現在の表示倍率へ合わせる。 */
     void applyMetrics() {
+        files_->setProperty("qpeSecondaryText", owner_->property("qpeSecondaryText"));
         const qreal scale = owner_->property("qpeUiScale").toReal();
         layout()->setSpacing(qRound(4 * scale));
         findChild<QHBoxLayout*>("fileFilterRow")->setSpacing(qRound(6 * scale));
         findChild<QWidget*>("fileFilterOptions")->layout()->setSpacing(qRound(6 * scale));
-        setSummary(summary_->toolTip());
+        footer_->setFixedWidth(qRound(100 * qMax(0.75, scale)));
+        updateSummary();
         updateConditionHeight();
         conditionBar_->widget()->layout()->setSpacing(qRound(4 * scale));
         files_->header()->setProperty("qpeSortScale", scale);
@@ -1041,7 +1124,7 @@ public:
         recursive_ = state["flat"].toBool(); setTagFilter(state["tagFilter"].toString()); setGrouping(state["group"].toInt());
         setMode(QStringList{"Details", "Thumbnails", "Extended details"}.value(qBound(0, state["mode"].toInt(), 2)));
         const auto hidden = state["hidden"].toArray(), widths = state["widths"].toArray();
-        for (int col = 1; col < model_->columnCount(); ++col) { files_->setColumnHidden(col, hidden.contains(col) || (col >= 4 && mode_ != "Extended details")); if (col < widths.size()) files_->setColumnWidth(col, qBound(40, widths[col].toInt(), 1000)); }
+        for (int col = 1; col < model_->columnCount(); ++col) { files_->setColumnHidden(col, hidden.contains(col) || (!state.contains("hidden") && col == 2) || (col >= 4 && mode_ != "Extended details")); if (col < widths.size()) files_->setColumnWidth(col, qBound(40, widths[col].toInt(), 1000)); }
         files_->sortByColumn(qBound(0, state["sort"].toInt(), model_->columnCount() - 1), state["descending"].toBool() ? Qt::DescendingOrder : Qt::AscendingOrder);
         fitFileName();
     }
@@ -1095,6 +1178,11 @@ public:
         bool any = false;
         for (int i = 0; i < labels.size(); ++i) { const auto& label = labels[i]; auto* chip = conditionButtons_[i]; chip->setText(chip->fontMetrics().elidedText(label, Qt::ElideRight, 160) + " ×"); chip->setToolTip(uiText("Clear ") + label); chip->setVisible(!label.isEmpty()); any |= !label.isEmpty(); }
         conditionBar_->setVisible(any);
+        filterButton_->setChecked(any); clearFilters_->setEnabled(any);
+        QStringList active;
+        for (const auto& label : labels) if (!label.isEmpty()) active.append(label);
+        filterButton_->setText(uiText("Filter") + (any ? QString(" (%1)").arg(active.size()) : QString()));
+        filterButton_->setToolTip((any ? active.join('\n') : uiText("Filter file names…")) + QStringLiteral("\nCtrl+F"));
         updateConditionHeight();
         updateFooter();
     }
@@ -1105,7 +1193,7 @@ public:
         const int extra = bar->maximum() > 0 ? bar->sizeHint().height() : 0;
         conditionBar_->setFixedHeight(conditionButtons_.first()->sizeHint().height() + extra + 2);
     }
-    /** @brief ディスクを再走査せず、表示件数と一覧の選択件数をフッターへ反映する。
+    /** @brief ディスクを再走査せず、表示件数と一覧の選択件数をパス行の情報欄へ反映する。
      * @note 集約見出しは件数に含めない。列挙失敗の通知は絞込みで上書きしない。
      */
     void updateFooter() {
@@ -1146,7 +1234,33 @@ public:
         updateFooter();
         emit selected(detailPath());
     }
+    /** @brief タブ単位の条件と件数をパス行に表示する。 @return ページが寿命を管理する操作帯。 */
+    QWidget* controls() const { return controls_; }
+    /** @brief 狭幅では件数と表示メニューのラベルだけを短くする。 @param compact 省スペース表示か。 */
+    void compactControls(bool compact) {
+        auto* view = controls_->findChild<QToolButton*>("fileViewButton");
+        view->setText(compact ? QString("⋯") : uiText("View"));
+        view->setToolTip(uiText("View")); view->setAccessibleName(uiText("View"));
+        footer_->setFixedWidth(qRound((compact ? 60 : 100) * qMax(0.75, owner_->property("qpeUiScale").toReal())));
+    }
+    /** @brief 絞込み欄を明示操作で開き、画面端でも入力可能な範囲へ収める。 */
+    void showFilters() {
+        const auto anchor = filterButton_->mapToGlobal(QPoint(0, filterButton_->height()));
+        const auto* screen = QGuiApplication::screenAt(anchor);
+        if (!screen) screen = QGuiApplication::primaryScreen();
+        const auto area = screen->availableGeometry();
+        const qreal scale = qMax(0.75, owner_->property("qpeUiScale").toReal());
+        filterPopup_->resize(qMin(qRound(360 * scale), area.width()), filterPopup_->sizeHint().height());
+        filterPopup_->move(qBound(area.left(), anchor.x(), qMax(area.left(), area.right() - filterPopup_->width() + 1)),
+                           qBound(area.top(), anchor.y(), qMax(area.top(), area.bottom() - filterPopup_->height() + 1)));
+        filterPopup_->show(); filter_->setFocus(Qt::ShortcutFocusReason); filter_->selectAll();
+        filterButton_->setChecked(clearFilters_->isEnabled());
+    }
+    /** @brief 共通の詳細ペインを現在タブの下段へ配置するための借用先を返す。 @return ページ所有の分割。 */
+    QSplitter* lowerSplitter() const { return lowerSplitter_; }
 signals:
+    /** @brief 下段の有効幅が変わった後に詳細の配置を更新する。 */
+    void lowerResized();
     /** @brief 手動の分割変更と表示プリセットの保存を要求する。 */
     void layoutChanged();
     /** @brief 要求パスが変わったことを親へ通知する。 */
@@ -1175,7 +1289,6 @@ private:
         bind(QKeySequence(Qt::Key_Right), [this, view] { if (view != files_ && view != thumbnails_) open(view->currentIndex().data(PathRole).toString()); });
         bind(QKeySequence(Qt::CTRL | Qt::Key_Z), [this] { owner_->perform("undo"); });
         bind(QKeySequence(Qt::CTRL | Qt::Key_Y), [this] { owner_->perform("redo"); });
-        bind(QKeySequence(Qt::CTRL | Qt::Key_F), [this] { owner_->perform("search"); });
         for (const auto& pair : QList<QPair<QKeySequence, QString>>{{QKeySequence::Copy, "copy"}, {QKeySequence::Cut, "cut"}, {QKeySequence::Paste, "paste"}, {QKeySequence(Qt::Key_Delete), "trash"}, {QKeySequence(Qt::Key_F2), "rename"}, {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N), "newFolder"}})
             bind(pair.first, [this, view, action = pair.second] {
                 QStringList paths;
@@ -1241,8 +1354,7 @@ private:
                 model_->setProperty("snapshotGeneration", QVariant::fromValue(revision));
             }
             ready_ = snapshot->complete && snapshot->error.isEmpty();
-            setSummary((QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName())
-                             + QString(uiText(" · %1 files")).arg(model_->rowCount()) + (snapshot->complete ? QString() : uiText(" · Loading…")));
+            updateSummary();
             listingError_ = snapshot->error;
             if (restorePending_) { restorePosition(); restorePending_ = !snapshot->complete; }
             updateFooter();
@@ -1343,19 +1455,13 @@ private:
         // 非同期列挙後に採用した選択を、詳細ペインへ一度明示的に通知する。
         emit selected(detailPath());
     }
-    /** @brief 要約とフィルターの行配置を更新し、狭い一覧では名前条件の入力幅を優先する。 @param text 省略前の要約。
-     * @note フォルダーはアドレス/タブ、件数はフッターでも確認できるため、狭幅では重複する要約を隠す。
-     */
-    void setSummary(const QString& text) {
-        summary_->setToolTip(text);
-        summary_->setText(summary_->fontMetrics().elidedText(text, Qt::ElideMiddle, width() / 3));
-        const qreal scale = owner_->property("qpeUiScale").toReal();
-        summary_->setVisible(width() >= qRound(420 * (scale > 0 ? scale : 1.0)));
-        auto* options = findChild<QWidget*>("fileFilterOptions");
+    /** @brief 絞込みポップアップに現在地を表示し、名前入力は常に独立した行を確保する。 */
+    void updateSummary() {
+        const auto name = QFileInfo(path_).fileName();
+        summary_->setText(name.isEmpty() ? QDir::toNativeSeparators(path_) : name);
+        summary_->setToolTip(QDir::toNativeSeparators(path_));
         auto* row = findChild<QHBoxLayout*>("fileFilterRow");
-        // フォントの拡大・翻訳による実寸も考慮し、名前を数文字しか入力できない幅にしない。
-        const bool wrap = width() < options->sizeHint().width() + row->spacing() + qRound(140 * (scale > 0 ? scale : 1.0));
-        row->setDirection(wrap ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
+        row->setDirection(QBoxLayout::TopToBottom);
     }
     /** @brief ビュー領域の変更時に列幅だけを再計算する。
      * @param event サイズ変更。
@@ -1363,7 +1469,7 @@ private:
     void resizeEvent(QResizeEvent* event) override {
         QWidget::resizeEvent(event);
         if (event->oldSize().width() != event->size().width()) {
-            setSummary(summary_->toolTip());
+            updateSummary();
             revealCurrent();
         }
         fitFileName();
@@ -1376,16 +1482,26 @@ private:
      * @return 基底クラスの処理結果。
      */
     bool eventFilter(QObject* watched, QEvent* event) override {
+        if (watched == lowerSplitter_ && event->type() == QEvent::Resize)
+            QTimer::singleShot(0, this, [this] { emit lowerResized(); });
         // Escapeは名前条件だけを解除する。IME変換中と他の編集欄には介入しない。
         if (watched == filter_) {
             if (event->type() == QEvent::InputMethod)
                 filterComposing_ = !static_cast<QInputMethodEvent*>(event)->preeditString().isEmpty();
             else if (event->type() == QEvent::FocusOut) filterComposing_ = false;
-            else if (!filterComposing_ && !filter_->text().isEmpty()
-                     && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
+            else if (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress) {
                 const auto* key = static_cast<QKeyEvent*>(event);
+                // ポップアップにもCtrl+Fを届け、入力済みの語を選び直す。変換中は触らない。
+                if (key->key() == Qt::Key_F && key->modifiers() == Qt::ControlModifier) {
+                    if (!filterComposing_ && event->type() == QEvent::KeyPress) filter_->selectAll();
+                    event->accept();
+                    return true;
+                }
                 if (key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier) {
-                    if (event->type() == QEvent::KeyPress) filter_->clear();
+                    if (!filterComposing_ && event->type() == QEvent::KeyPress) {
+                        if (!filter_->text().isEmpty()) filter_->clear();
+                        else { filterPopup_->hide(); focusFiles(); }
+                    }
                     event->accept();
                     return true;
                 }
@@ -1393,7 +1509,7 @@ private:
         }
         if (files_ && (watched == files_->viewport() || (thumbnails_ && watched == thumbnails_->viewport())) && event->type() == QEvent::Resize && !fileFitPending_) {
             fileFitPending_ = true;
-            QTimer::singleShot(0, this, [this] { fileFitPending_ = false; fitFileName(); keepFilesVisible(); });
+            QTimer::singleShot(0, this, [this] { fileFitPending_ = false; updateSummary(); fitFileName(); keepFilesVisible(); });
         }
         return QWidget::eventFilter(watched, event);
     }
@@ -1473,6 +1589,7 @@ private:
     int historyIndex_ = -1;
     QScrollArea* scroll_;
     QSplitter* vertical_;
+    QSplitter* lowerSplitter_ = nullptr;
     int preferredColumnHeight_ = 0;
     QString areaMode_ = "custom";
     QHBoxLayout* columnLayout_;
@@ -1497,6 +1614,10 @@ private:
     QSortFilterProxyModel* proxy_;
     QScrollArea* conditionBar_ = nullptr;
     QList<QToolButton*> conditionButtons_;
+    QPointer<QWidget> controls_;
+    QDialog* filterPopup_ = nullptr;
+    QToolButton* filterButton_ = nullptr;
+    QToolButton* clearFilters_ = nullptr;
     QLineEdit* filter_;
     bool filterComposing_ = false;
     QLabel* summary_;
@@ -1520,6 +1641,7 @@ private:
 BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(parent), host_(std::move(host)) {
     setUiLanguage(savedUiLanguage()); setProperty("uiLanguage", uiLanguage());
     setObjectName("qpeNativeWindow");
+    setProperty("qpeMayaHost", host_.maya);
 #ifdef QPE_PRODUCT_BUILD
     setWindowTitle(uiText("QuickPathExplorer"));
 #else
@@ -1563,6 +1685,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         connect(close, &QToolButton::clicked, this, &QWidget::close);
     }
     root->addWidget(strip_);
+    strip_->setVisible(!host_.maya);
     auto* toolbar = new QHBoxLayout;
     toolbar->setObjectName("navigationToolbar");
     auto* left = tool(toolbar, uiText("Navigation pane"), "sidebar.svg");
@@ -1572,6 +1695,9 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     address_ = new QLineEdit;
     address_->setObjectName("address");
     toolbar->addWidget(address_, 1);
+    pageTools_ = new PageControlsStack; pageTools_->setObjectName("pageTools");
+    pageTools_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    toolbar->addWidget(pageTools_);
     auto* size = tool(toolbar, uiText("Aa"));
     size->setObjectName("displaySettingsButton");
     auto* right = tool(toolbar, uiText("Details pane"), "inspector.svg");
@@ -1604,22 +1730,28 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     }
     drives->setExpanded(true);
     pages_ = new QStackedWidget(horizontal_);
+    pages_->setObjectName("browserPages");
     pages_->setMinimumWidth(160);
-    details_ = new Inspector(host_.maya, horizontal_);
+    details_ = new Inspector(host_.maya, this);
     details_->setMinimumWidth(140);
     horizontal_->setStretchFactor(1, 1);
-    horizontal_->setSizes({200, 760, 240});
+    horizontal_->setSizes({200, 1000});
     sidebar_->hide();
     details_->hide();
     root->addWidget(horizontal_, 1);
-    auto* notice = new QLabel;
+    auto* notice = new QLabel(this);
 #ifndef QPE_PRODUCT_BUILD
     notice->setText(uiText("C++ migration · validation build"));
 #endif
     notice->setObjectName("migrationNotice");
     notice->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-    root->addWidget(notice);
+    notice->hide();
+    notifications_ = tool(toolbar, "ⓘ"); notifications_->setObjectName("notificationsButton");
+    notifications_->setAccessibleName(uiText("Notifications")); notifications_->setToolTip(uiText("No notifications"));
     status_ = notice;
+    connect(notifications_, &QToolButton::clicked, this, [this] {
+        UiMessageBox::information(this, uiText("Notifications"), status_->text().isEmpty() ? uiText("No notifications") : status_->text());
+    });
     jobs_ = new FileJobs(this);
     new TransferProgressDialog(jobs_, this);
     driveJobs_ = new FileJobs(this);
@@ -1649,16 +1781,16 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     });
     connect(jobs_, &FileJobs::started, this, [this](const QString& action) {
         activeFileAction_ = action;
-        status_->setText(uiText("Working: ") + action);
+        setStatus(uiText("Working: ") + action);
         for (auto* p : findChildren<BrowserPage*>()) p->beginOperation();
     });
-    connect(jobs_, &FileJobs::progress, this, [this](const QString& path, qint64 bytes) { status_->setText(path + " · " + uiLocale().formattedDataSize(bytes)); });
+    connect(jobs_, &FileJobs::progress, this, [this](const QString& path, qint64 bytes) { setStatus(path + " · " + uiLocale().formattedDataSize(bytes)); });
     connect(jobs_, &FileJobs::finished, this, [this](const QJsonObject& value) {
         const auto result = fileResultFromJson(value);
         if (result.extra.contains("query")) {
-            showQuery(result.extra); status_->setText(result.cancelled ? uiText("Cancelled · partial results") : uiText("Query completed"));
+            showQuery(result.extra); setStatus(result.cancelled ? uiText("Cancelled · partial results") : uiText("Query completed"));
             if (!result.errors.isEmpty() || !result.warnings.isEmpty()) {
-                status_->setText(uiText("Query incomplete")); UiMessageBox::warning(this, uiText("Query results"), (result.errors + result.warnings).join('\n'));
+                setStatus(uiText("Query incomplete")); UiMessageBox::warning(this, uiText("Query results"), (result.errors + result.warnings).join('\n'));
             }
             return;
         }
@@ -1671,14 +1803,14 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
                 // ラベルのキーは既存Python版と同じWindows正規化表記へ戻す。
                 QJsonObject labels; const auto values = changed["fileLabels"].toObject(); for (auto it = values.begin(); it != values.end(); ++it) labels[QDir::toNativeSeparators(it.key()).toLower()] = it.value(); if (changed.contains("fileLabels")) changed["fileLabels"] = labels;
                 writeSettings(changed); updatePlaces();
-            } catch (const std::exception& e) { status_->setText(uiText(QString::fromUtf8(e.what()))); }
+            } catch (const std::exception& e) { setStatus(uiText(QString::fromUtf8(e.what()))); }
         }
         for (auto* p : findChildren<BrowserPage*>()) p->endOperation();
         refresh();
         // 詳細は警告ダイアログに表示し、完了表示で上下ペインの高さを変えない。
         const auto completion = activeFileAction_ == "undo" ? uiText("Undo: %1 completed%2%3")
             : activeFileAction_ == "redo" ? uiText("Redo: %1 completed%2%3") : uiText("%1 completed%2%3");
-        status_->setText(completion.arg(result.completed.size())
+        setStatus(completion.arg(result.completed.size())
             .arg(result.cancelled ? uiText(" · cancelled") : "")
             .arg(result.errors.isEmpty() && result.warnings.isEmpty() ? "" : uiText(" · see file operation details")));
         if (result.extra["historyReviewRequired"].toBool()) {
@@ -1694,11 +1826,13 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     });
     connect(add, &QToolButton::clicked, this, [this] { addTab(currentPath().isEmpty() ? QDir::homePath() : currentPath()); });
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) { pages_->setCurrentIndex(index); if (page()) page()->revealCurrent(); updateCurrent(); });
-    connect(tabs_, &QTabBar::tabMoved, this, [this](int from, int to) { auto* item = pages_->widget(from); pages_->removeWidget(item); pages_->insertWidget(to, item); pages_->setCurrentIndex(tabs_->currentIndex()); scheduleSave(); });
+    connect(tabs_, &QTabBar::tabMoved, this, [this](int from, int to) { auto* item = pages_->widget(from); pages_->removeWidget(item); pages_->insertWidget(to, item); pages_->setCurrentIndex(tabs_->currentIndex()); updateCurrent(); });
     connect(tabs_, &QTabBar::tabCloseRequested, this, [this](int index) {
         if (tabs_->count() <= 1 || index < 0 || pages_->widget(index)->property("pinned").toBool()) return;
         closedTabs_.append(qobject_cast<BrowserPage*>(pages_->widget(index))->state()); if (closedTabs_.size() > 30) closedTabs_.removeAt(0);
         auto* old = pages_->widget(index);
+        // 詳細はタブ共通のため、ページの破棄で巻き込まない。
+        if (old->isAncestorOf(details_)) { const bool visible = !details_->isHidden(); details_->setParent(this); details_->setVisible(visible); }
         pages_->removeWidget(old);
         tabs_->removeTab(index);
         delete old;
@@ -1756,8 +1890,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     connect(back_, &QToolButton::clicked, this, [this] { if (page()) page()->history(-1); });
     connect(forward_, &QToolButton::clicked, this, [this] { if (page()) page()->history(1); });
     connect(left, &QToolButton::clicked, this, [this] {
-        if (detailsStacked_) { details_->hide(); sidebarRequested_ = true; }
-        else sidebarRequested_ = !sidebarRequested_;
+        sidebarRequested_ = !sidebarRequested_;
         updateResponsiveLayout(); if (page()) page()->revealCurrent(); scheduleSave();
     });
     connect(right, &QToolButton::clicked, this, [this] { details_->setVisible(details_->isHidden()); updateResponsiveLayout(); if (page()) page()->revealCurrent(); scheduleSave(); });
@@ -1775,13 +1908,13 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
             menu.addAction(uiText("Search"), this, [this, search] { perform("savedSearch:" + search); });
             menu.addAction(uiText("Delete saved search…"), this, [this, search] {
                 if (UiMessageBox::question(this, uiText("Delete saved search"), search, QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Yes) return;
-                try { auto values = readSettings()["savedSearches"].toObject(); values.remove(search); writeSettings({{"savedSearches", values}}); updatePlaces(); } catch (const std::exception& e) { status_->setText(e.what()); }
+                try { auto values = readSettings()["savedSearches"].toObject(); values.remove(search); writeSettings({{"savedSearches", values}}); updatePlaces(); } catch (const std::exception& e) { setStatus(e.what()); }
             }); menu.exec(sidebar_->viewport()->mapToGlobal(p)); return;
         }
         if (item->data(0, PathRole).toString().isEmpty()) return; const auto path = item->data(0, PathRole).toString(); QMenu menu;
         const bool directory = item->data(0, DirectoryRole).toBool();
         menu.addAction(uiText("Open"), this, [this, path, directory] { if (directory) navigate(path); else openPath(path); }); menu.addAction(uiText("Open in new tab"), this, [this, path, directory] { addTab(directory || QFileInfo(path).isDir() ? path : QFileInfo(path).absolutePath()); });
-        if (favorites_.contains(path)) menu.addAction(uiText("Remove from Favorites"), this, [this, path] { favorites_.removeAll(path); try { writeSettings({{"favorites", QJsonArray::fromStringList(favorites_)}}); updatePlaces(); } catch (const std::exception& e) { status_->setText(e.what()); } }); menu.exec(sidebar_->viewport()->mapToGlobal(p));
+        if (favorites_.contains(path)) menu.addAction(uiText("Remove from Favorites"), this, [this, path] { favorites_.removeAll(path); try { writeSettings({{"favorites", QJsonArray::fromStringList(favorites_)}}); updatePlaces(); } catch (const std::exception& e) { setStatus(e.what()); } }); menu.exec(sidebar_->viewport()->mapToGlobal(p));
     });
     connect(size, &QToolButton::clicked, this, &BrowserWindow::appearanceDialog);
     connect(tools, &QToolButton::clicked, this, [this, tools] {
@@ -1846,6 +1979,8 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
     bind(QKeySequence(Qt::CTRL | Qt::Key_T), [this] { addTab(currentPath()); });
     bind(QKeySequence(Qt::CTRL | Qt::Key_Tab), [this] { tabs_->setCurrentIndex((tabs_->currentIndex() + 1) % tabs_->count()); });
     bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), [this] { tabs_->setCurrentIndex((tabs_->currentIndex() + tabs_->count() - 1) % tabs_->count()); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_F), [this] { if (page()) page()->showFilters(); });
+    bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_F), [this] { if (page()) page()->showFilters(); });
     bind(QKeySequence(Qt::CTRL | Qt::Key_L), [this] { address_->setFocus(); address_->selectAll(); });
     for (auto key : {int(Qt::CTRL | Qt::Key_Plus), int(Qt::CTRL | Qt::Key_Equal), int(Qt::CTRL | Qt::SHIFT | Qt::Key_Plus), int(Qt::CTRL | Qt::SHIFT | Qt::Key_Equal)}) fontKey(QKeySequence(key), [this] { textSize_ = qMin(24, textSize_ + 1); applyAppearance(); });
     fontKey(QKeySequence(Qt::CTRL | Qt::Key_0), [this] { textSize_ = 12; applyAppearance(); });
@@ -1892,7 +2027,7 @@ void BrowserWindow::saveSession() {
         flags.append(QJsonObject{{"pinned", item->property("pinned").toBool()}, {"locked", item->property("locationLocked").toBool()}});
     }
     QJsonObject workspace{{"closed", closedTabs_}, {"paths", paths}, {"current", tabs_->currentIndex()}, {"geometry", QString::fromLatin1(saveGeometry().toBase64())},
-        {"splitter", QString::fromLatin1((detailsStacked_ ? horizontal_->property("wideState").toByteArray() : horizontal_->saveState()).toBase64())}, {"flags", flags}, {"states", states}, {"left", sidebarRequested_}, {"right", !details_->isHidden()}};
+        {"splitter", QString::fromLatin1(horizontal_->saveState().toBase64())}, {"layoutVersion", 2}, {"inspectorWidth", inspectorWidth_}, {"flags", flags}, {"states", states}, {"left", sidebarRequested_}, {"right", !details_->isHidden()}};
     if (!host_.maya && !parentWidget()) {
         const auto placement = standalonePlacement();
         if (!placement.isEmpty()) workspace["windowPlacement"] = placement;
@@ -1903,7 +2038,7 @@ void BrowserWindow::saveSession() {
     }
     try { writeSettings({{host_.maya ? "nativeMayaWorkspace" : "nativeWorkspace", workspace}, {host_.maya ? "nativeMayaAppearance" : "nativeAppearance", QJsonObject{{"theme", theme_}, {"textSize", textSize_}, {"uiPercent", uiPercent_}, {"density", density_}}},
         {"nativeHidden", hidden_}, {"nativeReadOptions", details_->options()}, {"pathHistory", QJsonArray::fromStringList(pathHistory_)}}); }
-    catch (const std::exception& error) { status_->setText(uiText("Settings not saved: ") + uiText(QString::fromUtf8(error.what()))); }
+    catch (const std::exception& error) { setStatus(uiText("Settings not saved: ") + uiText(QString::fromUtf8(error.what()))); }
 }
 void BrowserWindow::restoreSession(const QString& fallback, bool restoreTabs) {
     restoring_ = true; saveTimer_->stop();
@@ -1948,10 +2083,12 @@ void BrowserWindow::restoreSession(const QString& fallback, bool restoreTabs) {
             if (auto* second = secondPane_->findChild<BrowserPage*>("secondPage")) second->restoreState(workspace["secondState"].toObject());
             secondPane_->setVisible(workspace["secondVisible"].toBool());
         }
-        if (workspace.contains("splitter")) horizontal_->restoreState(QByteArray::fromBase64(workspace["splitter"].toString().toLatin1()));
+        // 旧版の3分割(左/中央/右)は新しい2分割へ適用しない。タブ・表示状態はそのまま復元する。
+        if (workspace["layoutVersion"].toInt() >= 2 && workspace.contains("splitter")) horizontal_->restoreState(QByteArray::fromBase64(workspace["splitter"].toString().toLatin1()));
+        inspectorWidth_ = qBound(140, workspace["inspectorWidth"].toInt(260), 1000);
         sidebarRequested_ = workspace["left"].toBool(); details_->setVisible(workspace["right"].toBool());
         applyAppearance();
-    } catch (const std::exception& error) { status_->setText(uiText(QString::fromUtf8(error.what()))); if (!pages_->count()) addTab(fallback.isEmpty() ? QDir::homePath() : fallback); }
+    } catch (const std::exception& error) { setStatus(uiText(QString::fromUtf8(error.what()))); if (!pages_->count()) addTab(fallback.isEmpty() ? QDir::homePath() : fallback); }
     restoring_ = false;
 }
 void BrowserWindow::updatePlaces() {
@@ -1961,7 +2098,7 @@ void BrowserWindow::updatePlaces() {
         for (const auto& path : state["favorites"].toArray()) if (path.isString()) favorites_.append(path.toString());
         for (const auto& path : state["recents"].toArray()) if (path.isString()) recents_.append(path.toString());
         if (pathHistory_.isEmpty()) for (const auto& path : state["pathHistory"].toArray()) if (path.isString()) pathHistory_.append(path.toString());
-    } catch (const std::exception& error) { status_->setText(uiText(QString::fromUtf8(error.what()))); }
+    } catch (const std::exception& error) { setStatus(uiText(QString::fromUtf8(error.what()))); }
     const auto group = [this](const QString& label, const QStringList& paths) {
         auto* root = new QTreeWidgetItem(sidebar_, {uiText(label)}); root->setExpanded(true);
         // パスの名前だけを描画し、ネットワークを含む属性・Shell照会は可視アイコンのワーカーへ任せる。
@@ -2011,7 +2148,7 @@ void BrowserWindow::refresh() {
 void BrowserWindow::writeClipboard(const QString& action, const QStringList& paths, quint64 generation, quint32 sequence, int attempt) {
     if (generation != clipboardGeneration_) return;
     if (GetClipboardSequenceNumber() != sequence) {
-        clipboardPending_ = false; status_->setText(uiText("Clipboard changed in another application. Copy again if needed.")); return;
+        clipboardPending_ = false; setStatus(uiText("Clipboard changed in another application. Copy again if needed.")); return;
     }
     // QtのOleSetClipboard内の待機に入る前に占有だけを確認する。内容は変更しない。
     if (OpenClipboard(nullptr)) {
@@ -2025,11 +2162,11 @@ void BrowserWindow::writeClipboard(const QString& action, const QStringList& pat
         }
         QApplication::clipboard()->setMimeData(mime);
         if (QApplication::clipboard()->ownsClipboard()) {
-            clipboardPending_ = false; status_->setText(action == "cut" ? uiText("Cut to clipboard") : uiText("Copied to clipboard")); return;
+            clipboardPending_ = false; setStatus(action == "cut" ? uiText("Cut to clipboard") : uiText("Copied to clipboard")); return;
         }
     }
-    if (attempt >= 20) { clipboardPending_ = false; status_->setText(uiText("Could not access the clipboard. Please copy again.")); return; }
-    status_->setText(uiText("Clipboard is busy. Retrying Copy…"));
+    if (attempt >= 20) { clipboardPending_ = false; setStatus(uiText("Could not access the clipboard. Please copy again.")); return; }
+    setStatus(uiText("Clipboard is busy. Retrying Copy…"));
     QTimer::singleShot(75, this, [this, action, paths, generation, sequence, attempt] { writeClipboard(action, paths, generation, sequence, attempt + 1); });
 }
 void BrowserWindow::perform(const QString& action, const QStringList& paths, const QString& directory) {
@@ -2066,7 +2203,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
             if (!secondPane_) {
                 secondPane_ = new QWidget(horizontal_); secondPane_->setObjectName("secondPane"); auto* layout = new QVBoxLayout(secondPane_); layout->setContentsMargins(0, 0, 0, 0);
                 auto* path = new QLineEdit(currentPath()); path->setObjectName("secondAddress"); auto* up = new QPushButton(uiText("Parent folder")); layout->addWidget(path); layout->addWidget(up);
-                auto* second = new BrowserPage(secondPane_, this); second->setObjectName("secondPage"); layout->addWidget(second); second->includeSubfolders(true); second->setMode("Details");
+                auto* second = new BrowserPage(secondPane_, this); second->setObjectName("secondPage"); layout->addWidget(second->controls()); layout->addWidget(second); second->includeSubfolders(true); second->setMode("Details");
                 second->findChild<QScrollArea*>("folderColumns")->hide(); second->navigate(currentPath());
                 connect(path, &QLineEdit::returnPressed, second, [second, path] { second->navigate(path->text()); });
                 connect(up, &QPushButton::clicked, second, [second] { second->up(); });
@@ -2083,10 +2220,11 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
                         if (!sources.isEmpty()) perform(operation, sources, intoSecond ? second->path() : page()->path());
                     });
                 }
-                horizontal_->setSizes({180, 600, 250, 400});
+                horizontal_->setSizes({180, 850, 400});
             } else secondPane_->setVisible(secondPane_->isHidden());
             if (page()) page()->revealCurrent(); scheduleSave(); return;
         }
+        if (action == "filter") { if (page()) page()->showFilters(); return; }
         if (action.startsWith("view:")) { if (page()) page()->setMode(action.mid(5)); return; }
         if (action == "recursiveToggle") { if (page()) page()->setRecursive(!page()->state()["recursive"].toBool()); return; }
         if (action == "recursiveOn" || action == "recursiveOff") { if (page()) page()->setRecursive(action == "recursiveOn"); return; }
@@ -2109,7 +2247,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
                 if (values.isEmpty()) return;
                 const int oldCount = pages_->count();
                 for (const auto& value : values) { const auto state = value.isString() ? QJsonObject{{"path", value.toString()}} : value.toObject(); if (state["path"].toString().isEmpty()) continue; addTab(state["path"].toString()); page()->restoreState(state); }
-                if (pages_->count() > oldCount) for (int i = oldCount - 1; i >= 0; --i) { auto* old = pages_->widget(i); pages_->removeWidget(old); tabs_->removeTab(i); delete old; }
+                if (pages_->count() > oldCount) for (int i = oldCount - 1; i >= 0; --i) { auto* old = pages_->widget(i); if (old->isAncestorOf(details_)) { const bool visible = !details_->isHidden(); details_->setParent(this); details_->setVisible(visible); } pages_->removeWidget(old); tabs_->removeTab(i); delete old; }
                 tabs_->setCurrentIndex(qBound(0, saved.toObject()["active"].toInt(), tabs_->count() - 1)); return;
             }
             else sets.remove(name);
@@ -2174,7 +2312,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
         }
         if (action == "open") {
             if (host_.maya && paths.size() > 1) {
-                status_->setText(uiText("Select one file to open in Maya. Use Import or Reference for multiple files.")); return;
+                setStatus(uiText("Select one file to open in Maya. Use Import or Reference for multiple files.")); return;
             }
             for (const auto& path : paths) {
                 if (QFileInfo(path).isDir()) { navigate(path); continue; }
@@ -2205,7 +2343,7 @@ void BrowserWindow::perform(const QString& action, const QStringList& paths, con
         FileRequest request; request.action = action == "copyTo" ? "copy" : action == "moveTo" ? "move" : action;
         request.paths = paths; request.destination = directory.isEmpty() ? currentPath() : directory;
         if (action == "paste") {
-            if (clipboardPending_) { status_->setText(uiText("Clipboard is busy. Wait for Copy to finish before pasting.")); return; }
+            if (clipboardPending_) { setStatus(uiText("Clipboard is busy. Wait for Copy to finish before pasting.")); return; }
             const auto* mime = QApplication::clipboard()->mimeData(); if (!mime->hasUrls()) return;
             request.paths.clear(); for (const auto& url : mime->urls()) if (url.isLocalFile()) request.paths.append(url.toLocalFile());
             const auto effect = mime->data("Preferred DropEffect"); request.action = !effect.isEmpty() && effect[0] == 2 ? "move" : "copy";
@@ -2395,8 +2533,15 @@ void BrowserWindow::addTab(const QString& path) {
     }
     auto* item = new BrowserPage(pages_, this);
     connect(item, &BrowserPage::layoutChanged, this, &BrowserWindow::scheduleSave);
+    connect(item, &BrowserPage::lowerResized, this, [this, item] { if (page() == item) updateResponsiveLayout(); });
+    connect(item->lowerSplitter(), &QSplitter::splitterMoved, this, [this, item] {
+        if (page() == item && !details_->isHidden() && item->lowerSplitter()->orientation() == Qt::Horizontal) {
+            inspectorWidth_ = details_->width(); scheduleSave();
+        }
+    });
     item->setHiddenFiles(hidden_);
     if (!restoring_ && previousPage) item->primeFrom(*previousPage);
+    pageTools_->addWidget(item->controls());
     pages_->addWidget(item);
     connect(item, &BrowserPage::locationChanged, this, [this, item] {
         const int index = pages_->indexOf(item);
@@ -2420,7 +2565,15 @@ void BrowserWindow::reopenTab() {
 void BrowserWindow::navigate(const QString& path) { if (page()) page()->navigate(path); else addTab(path); }
 QString BrowserWindow::currentPath() const { return page() ? page()->path() : QString(); }
 bool BrowserWindow::ready() const { return page() && page()->ready(); }
+void BrowserWindow::setStatus(const QString& text) {
+    status_->setText(text);
+    notifications_->setToolTip(text.isEmpty() ? uiText("No notifications") : text);
+}
 void BrowserWindow::updateCurrent() {
+    // Mayaでは単独閲覧の縦幅を優先し、複数の場所がある場合だけタブ操作を戻す。
+    strip_->setVisible(!host_.maya || tabs_->count() > 1);
+    if (page()) pageTools_->setCurrentWidget(page()->controls());
+    updateResponsiveLayout();
     // 表示はWindows形式にし、列挙・履歴の内部パスは従来の正規化値を保持する。
     address_->setText(QDir::toNativeSeparators(currentPath()));
     if (!currentPath().isEmpty()) { pathHistory_.removeAll(currentPath()); pathHistory_.prepend(currentPath()); pathHistory_ = pathHistory_.mid(0, 30); }
@@ -2461,9 +2614,10 @@ void BrowserWindow::applyAppearance() {
     setStyleSheet(QString());
     QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
     const bool light = theme_ == "finder" || theme_ == "light" || (theme_ == "system" && settings.value("AppsUseLightTheme", 1).toInt());
-    const QString window = light ? "#f9f9f9" : "#222222", base = light ? "#ffffff" : "#191919";
-    const QString text = light ? "#1a1a1a" : "#f2f2f2", border = light ? "#e5e5e5" : "#383838";
-    const QString selection = light ? "#d9d9d9" : "#505050", alternate = light ? "#fafafa" : "#1d1d1d";
+    const bool mayaDark = host_.maya && !light;
+    const QString window = light ? "#f9f9f9" : mayaDark ? "#30343a" : "#222222", base = light ? "#ffffff" : mayaDark ? "#22262b" : "#191919";
+    const QString text = light ? "#1a1a1a" : "#f2f2f2", border = light ? "#e5e5e5" : mayaDark ? "#535b65" : "#383838";
+    const QString selection = light ? "#d9d9d9" : mayaDark ? "#365b79" : "#505050", alternate = light ? "#fafafa" : mayaDark ? "#272c32" : "#1d1d1d";
     const QString menuHighlight = light ? "#ededed" : "#353535", menuDisabled = light ? "#757575" : "#999999";
     QFont font = QApplication::font();
     // 12pxを標準として、文字と操作部品へ同じ倍率を適用する。
@@ -2474,7 +2628,9 @@ void BrowserWindow::applyAppearance() {
     static_cast<NavigationTabs*>(tabs_)->setScale(scale);
     const int rowHeight = qMax(qRound((density_ == "comfortable" ? 28 : 24) * scale), QFontMetrics(font).height() + qRound(6 * scale));
     setProperty("qpeUiScale", scale); setProperty("qpeRowHeight", rowHeight);
+    setProperty("qpeSecondaryText", host_.maya ? (light ? "#555d67" : "#b8c2ce") : QString());
     for (auto* view : findChildren<QAbstractItemView*>()) {
+        view->setProperty("qpeSecondaryText", host_.maya ? (light ? "#555d67" : "#b8c2ce") : QString());
         view->setProperty("qpeRowHeight", rowHeight);
         view->setProperty("qpeUiScale", scale);
         if (view->objectName() != "thumbnails") view->setIconSize(QSize(px(16), px(16)));
@@ -2515,13 +2671,33 @@ void BrowserWindow::applyAppearance() {
     ).arg(window, base, text, border, selection, alternate, QString::number(font.pixelSize()), menuHighlight, menuDisabled)
         // ファイル見出しの矢印だけ独自描画し、他ツールやQPEのダイアログへスタイルを広げない。
         + QString("QLineEdit, QTextEdit, QHeaderView::section { padding:%1px; }"
-                  "QHeaderView#fileSortHeader::section { padding-top:%2px; }"
+                  "QHeaderView#fileSortHeader::section { padding:%2px %7px %2px %1px; }"
                   "QHeaderView#fileSortHeader::up-arrow, QHeaderView#fileSortHeader::down-arrow { image:none; width:0px; height:0px; }"
                   "QToolButton { padding:%3px; }"
                   "QWidget#inspector QPushButton { padding:%4px %1px; }"
                   "QScrollBar:vertical { width:%5px; } QScrollBar:horizontal { height:%5px; }"
                   "QScrollBar::handle { min-height:%6px; min-width:%6px; }")
-            .arg(px(6)).arg(px(10)).arg(px(7)).arg(px(3)).arg(qMax(6, px(8))).arg(px(24)));
+            .arg(px(6)).arg(px(2)).arg(px(7)).arg(px(3)).arg(qMax(6, px(8))).arg(px(24)).arg(px(18)));
+    if (host_.maya) {
+        // 外周・領域・フォーカスはQPE所有ウィジェットだけで描き、Mayaのパレットを変更しない。
+        const QString accent = light ? "#2673a6" : "#70b8e8";
+        const QString current = light ? "#cce5f5" : "#285f85";
+        const QString ancestor = light ? "#e0e5ea" : "#414953";
+        setStyleSheet(styleSheet() + QString(
+            "QWidget#qpeNativeWindow { border:1px solid %1; }"
+            "QTreeView#places { background:%2; border-right:1px solid %1; }"
+            "QWidget#inspector { border-left:1px solid %1; }"
+            "QWidget#inspectorActions { border-top:1px solid %1; }"
+            "QTreeView#files, QListView#thumbnails { border:1px solid transparent; }"
+            "QListView#folderColumn { border:1px solid transparent; border-right:1px solid %1; }"
+            "QTreeView#files:focus, QListView#thumbnails:focus, QListView#folderColumn:focus { border:1px solid %3; }"
+            "QLineEdit:focus { border:1px solid %3; }"
+            "QListView#folderColumn::item:selected { background:%4; }"
+            "QListView#folderColumn[qpeCurrentBranch=\"true\"]::item:selected { background:%5; }"
+            "QHeaderView::section { background:%2; color:%6; }"
+            "QTabBar#folderTabs::tab:selected { border-top:2px solid %3; }"
+        ).arg(border, window, accent, ancestor, current, light ? "#555d67" : "#b8c2ce"));
+    }
     // stylesheet再適用時に保持される子の旧パレットも更新する。
     // ホストや他ツールのパレットは変更せず、自分の所有するウィジェットだけに配布する。
     for (auto* child : findChildren<QWidget*>()) child->setPalette(colors);
@@ -2583,25 +2759,32 @@ void BrowserWindow::updateResponsiveLayout() {
         if (auto* button = findChild<QToolButton*>(name)) button->setVisible(!compact);
     if (auto* button = findChild<QToolButton*>("toolsButton")) button->setText(compact ? QString("…") : QString(uiText("Tools")));
     address_->setMinimumWidth(qRound(100 * scale));
-    const bool stacked = width() < qRound(560 * scale) && !details_->isHidden();
-    const bool changed = stacked != detailsStacked_;
-    if (changed) {
-        if (stacked) horizontal_->setProperty("wideState", horizontal_->saveState());
-        detailsStacked_ = stacked;
-        horizontal_->setOrientation(stacked ? Qt::Vertical : Qt::Horizontal);
-        if (!stacked && horizontal_->property("wideState").isValid()) {
-            const bool detailsVisible = !details_->isHidden();
-            horizontal_->restoreState(horizontal_->property("wideState").toByteArray());
-            details_->setVisible(detailsVisible);
-        }
+    sidebar_->setVisible(sidebarRequested_);
+    if (!page()) return;
+    page()->compactControls(compact);
+    auto* lower = page()->lowerSplitter();
+    const bool moved = details_->parentWidget() != lower;
+    const bool visible = !details_->isHidden();
+    if (moved) {
+        // 操作設定は1つだけ保持する。タブ切替では表示先を移し、設定・対象世代を複製しない。
+        lower->addWidget(details_);
+        details_->setVisible(visible);
     }
-    sidebar_->setVisible(sidebarRequested_ && !stacked);
-    if (secondPane_) {
-        if (stacked && !secondPane_->isHidden()) { secondPane_->setProperty("responsiveHidden", true); secondPane_->hide(); }
-        else if (!stacked && secondPane_->property("responsiveHidden").toBool()) { secondPane_->setProperty("responsiveHidden", false); secondPane_->show(); }
+    const bool stacked = lower->width() < qRound(560 * scale) && visible;
+    const auto orientation = stacked ? Qt::Vertical : Qt::Horizontal;
+    const bool changed = lower->orientation() != orientation;
+    if (changed) lower->setOrientation(orientation);
+    details_->setMinimumWidth(stacked ? 100 : qRound(225 * scale));
+    details_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
+    lower->setStretchFactor(0, 1);
+    lower->setStretchFactor(1, 0);
+    // 手動幅は保持し、表示/非表示やタブ切替で左サイドバーと上段の幅を動かさない。
+    const bool newlyShown = visible && !lower->property("inspectorShown").toBool();
+    if (moved || changed || newlyShown) {
+        if (stacked) lower->setSizes({lower->height() * 3 / 5, lower->height() * 2 / 5});
+        else lower->setSizes({qMax(100, lower->width() - inspectorWidth_ - lower->handleWidth()), inspectorWidth_});
     }
-    details_->setMinimumWidth(stacked ? 140 : qRound(225 * scale));
-    if (changed && stacked) horizontal_->setSizes({0, height() * 3 / 5, height() * 2 / 5, 0});
+    lower->setProperty("inspectorShown", visible);
 }
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
 bool BrowserWindow::nativeEvent(const QByteArray& type, void* message, qintptr* result) {

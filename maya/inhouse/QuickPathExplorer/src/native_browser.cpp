@@ -149,6 +149,16 @@ class FileDelegate final : public QStyledItemDelegate {
 public:
     /** @brief ビューが所有する。 @param parent ファイルビュー。 */
     explicit FileDelegate(QObject* parent) : QStyledItemDelegate(parent) { setProperty("qpeNativeDelegate", true); }
+    /** @brief Mayaの補助列だけ文字の強弱を付け、名前と選択中の可読性を維持する。
+     * @param option 描画情報。 @param index 対象セル。
+     */
+    void initStyleOption(QStyleOptionViewItem* option, const QModelIndex& index) const override {
+        QStyledItemDelegate::initStyleOption(option, index);
+        const auto secondary = parent()->property("qpeSecondaryText").toString();
+        if (index.column() > 0 && !secondary.isEmpty() && !(option->state & QStyle::State_Selected))
+            option->palette.setColor(QPalette::Text, QColor(secondary));
+    }
+
     /** @brief DPIとユーザー指定を反映する。
      * @param option 描画情報。 @param index 項目。 @return 寸法。
      */
