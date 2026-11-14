@@ -896,6 +896,7 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                 const QString temporary = QDir(destination).filePath(".qpe-copy-" + QUuid::createUuid().toString(QUuid::WithoutBraces));
                 const auto remainder = merge && request.action == "move" ? holding(info.absolutePath()) : QString();
                 try {
+                    if (partial) partial({{"transferPhase", "transferring"}});
                     if (merge) {
                         entry["merged"] = true;
                         copyEntry(target, temporary, cancel, progress);
@@ -904,8 +905,10 @@ FileResult FileOperations::run(const FileRequest& request, const CancelFlag& can
                             if (!remainder.isEmpty() && QFileInfo::exists(remainder)) removeOwned(remainder);
                             continue;
                         }
-                        entry["stamp"] = fileFingerprint(temporary, cancel);
                     } else copyEntry(source, temporary, cancel, progress);
+                    // 転送量から段階を推測しない。マージ・空ファイルでも検証中と明示する。
+                    if (partial) partial({{"transferPhase", "verifying"}});
+                    if (merge) entry["stamp"] = fileFingerprint(temporary, cancel);
                     if (fileFingerprint(temporary, cancel) != entry["stamp"].toString() || fileFingerprint(source, cancel) != entry["sourceStamp"].toString()) fail("Source changed during copy");
                     if (entry.contains("backup") && fileFingerprint(target, cancel) != entry["backupStamp"].toString()) fail("Destination changed during copy");
                     if (request.action == "move") entry["sourceBackup"] = holding(info.absolutePath());
@@ -963,7 +966,11 @@ public:
         try { result = FileOperations(operationsDirectory()).run(request_, flag_, [&](const QString& p, qint64 n) {
             if (transfer) { transferred += p == previousPath && n >= previousBytes ? n - previousBytes : n; previousPath = p; previousBytes = n; }
             if (notification.elapsed() >= 100) { notification.restart(); emit progress(p, transfer ? transferred : n); }
-        }, [this](const QJsonObject& value) { emit partial(value); }); }
+        }, [&](const QJsonObject& value) {
+            // 段階変更前に間引いた進捗を配送し、検証中も古い転送量が残るのを防ぐ。
+            if (transfer && value.contains("transferPhase")) emit progress(previousPath, transferred);
+            emit partial(value);
+        }); }
         catch (const std::exception& e) { result.errors.append(QString::fromUtf8(e.what())); }
         // 例外/取消しでも要求世代を配送する。UIが古い失敗を現在の選択へ混ぜないため。
         if (request_.options.contains("token")) { result.extra["token"] = request_.options["token"]; result.extra["path"] = request_.paths.value(0); }
@@ -1023,7 +1030,7 @@ void FileJobs::pauseQueue(bool value) { queuePaused_ = value; if (!value) next()
 void FileJobs::moveQueued(int index, int delta) { const int next = index + delta; if (index >= 0 && index < queue_.size() && next >= 0 && next < queue_.size()) queue_.swapItemsAt(index, next); }
 QJsonArray FileJobs::records() const {
     QJsonArray rows;
-    if (running_) rows.append(QJsonObject{{"action", active_.action}, {"id", active_.id}, {"state", pause_ && pause_->load() ? "paused" : "running"}, {"destination", active_.destination}, {"bytes", double(transferred_)}, {"totalBytes", double(totalBytes_)}, {"bytesPerSecond", elapsed_.isValid() ? transferred_ * 1000. / qMax(qint64(1), elapsed_.elapsed()) : 0.}, {"path", progressPath_}});
+    if (running_) rows.append(QJsonObject{{"action", active_.action}, {"id", active_.id}, {"state", pause_ && pause_->load() ? "paused" : "running"}, {"phase", transferPhase_}, {"destination", active_.destination}, {"bytes", double(transferred_)}, {"totalBytes", double(totalBytes_)}, {"bytesPerSecond", elapsed_.isValid() ? transferred_ * 1000. / qMax(qint64(1), elapsed_.elapsed()) : 0.}, {"path", progressPath_}});
     for (int i = 0; i < queue_.size(); ++i) { const auto& v = queue_[i]; rows.append(QJsonObject{{"action", v.action}, {"id", v.id}, {"state", "queued"}, {"index", i}, {"destination", v.destination}}); }
     return rows;
 }
@@ -1073,9 +1080,10 @@ bool FileJobs::releaseWorkers(bool wait) {
 void FileJobs::next() {
     if (running_ || queue_.isEmpty() || queuePaused_) return;
     running_ = true; cancel_ = std::make_shared<std::atomic_bool>(false); pause_ = std::make_shared<std::atomic_bool>(false);
-    const auto request = queue_.dequeue(); active_ = request; transferred_ = 0; totalBytes_ = -1; progressPath_.clear(); elapsed_.start(); auto* job = new FileJob(request, cancel_, pause_);
+    const auto request = queue_.dequeue(); active_ = request; transferred_ = 0; totalBytes_ = -1; progressPath_.clear(); transferPhase_ = "preparing"; elapsed_.start(); auto* job = new FileJob(request, cancel_, pause_);
     connect(job, &FileJob::progress, this, [this](const QString& path, qint64 bytes) { transferred_ = bytes; progressPath_ = path; emit progress(path, bytes); }, Qt::QueuedConnection);
     connect(job, &FileJob::partial, this, [this](const QJsonObject& value) {
+        if (value.contains("transferPhase")) transferPhase_ = value["transferPhase"].toString();
         if (value.contains("transferTotalBytes")) totalBytes_ = qint64(value["transferTotalBytes"].toDouble());
         else emit partial(value);
     }, Qt::QueuedConnection);

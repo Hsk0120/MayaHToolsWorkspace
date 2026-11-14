@@ -28,6 +28,7 @@
 #include <QSplitter>
 #include <QTabWidget>
 #include <QTimer>
+#include <QLayout>
 #include <stdexcept>
 namespace {
 const char* control = QPE_CONTROL;
@@ -171,7 +172,12 @@ void show(bool restore = false) {
             viewport = new DockViewport; viewport->setObjectName("qpeNativeDockViewport");
             viewport->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
             browser = new qpe::BrowserWindow(viewport, qpe::mayaServices());
-            browser->setMinimumSize(360, 260); viewport->setWidget(browser);
+            // 自分の内容を縦方向へ縮め、固定された実行ボタンを外側スクロールへ逃がさない。
+            // Maya所有の親・共有タブには寸法やレイアウト制約を設定しない。
+            browser->layout()->setSizeConstraint(QLayout::SetNoConstraint);
+            browser->setMinimumSize(360, 0);
+            browser->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
+            viewport->setWidget(browser);
             MQtUtil::addWidgetToMayaLayout(viewport, parent);
             browser->restoreSession(qpe::mayaServices().projectPath());
             browser->show();

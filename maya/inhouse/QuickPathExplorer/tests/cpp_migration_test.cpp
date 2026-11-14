@@ -729,6 +729,87 @@ private slots:
         type->click(); QCOMPARE(types->currentIndex(), 0); QVERIFY(!bar->isVisible());
         window.close();
     }
+    /** @brief Escapeは名前条件だけを解除し、IME変換と別の編集欄には干渉しない。 */
+    void escapeClearsNameFilter() {
+        qpe::BrowserWindow window; window.navigate(path("A")); window.show(); QTRY_VERIFY(window.ready());
+        auto* filter = window.findChild<QLineEdit*>("fileFilter");
+        auto* types = window.findChild<QComboBox*>("fileTypes");
+        auto* address = window.findChild<QLineEdit*>("address");
+        filter->setText("小さい"); types->setCurrentIndex(1); filter->setFocus();
+        QInputMethodEvent preedit(QString::fromUtf8("仮"), {}); QApplication::sendEvent(filter, &preedit);
+        QTest::keyClick(filter, Qt::Key_Escape); QCOMPARE(filter->text(), QString("小さい"));
+        QInputMethodEvent end; QApplication::sendEvent(filter, &end);
+        QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
+        QCOMPARE(types->currentIndex(), 1); QVERIFY(window.isVisible());
+        filter->setText("小さい"); address->setFocus();
+        const auto original = address->text(); QTest::keyClick(address, Qt::Key_Escape);
+        QCOMPARE(address->text(), original); QCOMPARE(filter->text(), QString("小さい"));
+        filter->setFocus(); QTest::keyClick(filter, Qt::Key_Escape); QVERIFY(filter->text().isEmpty());
+    }
+    /** @brief 両ペインを開いた狭い画面でも名前条件を読み書きでき、幅を戻すと要約を復元する。 */
+    void narrowFilterInput() {
+        const auto before = qpe::readSettings();
+        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(1200, 800); window.show(); QTRY_VERIFY(window.ready());
+        auto* places = window.findChild<QTreeWidget*>("places"); auto* inspector = window.findChild<qpe::Inspector*>();
+        if (!places->isVisible()) window.findChild<QToolButton*>("navigationPaneButton")->click();
+        if (!inspector->isVisible()) window.findChild<QToolButton*>("detailsPaneButton")->click();
+        window.resize(720, 490); QTest::qWait(100);
+        auto* filter = window.findChild<QLineEdit*>("fileFilter");
+        qInfo() << "narrow filter" << filter->width() << "window" << window.size() << "left/right" << places->width() << inspector->width();
+        QTRY_VERIFY2(filter->width() >= 90, qPrintable(QString("Filter input squeezed to %1 px").arg(filter->width())));
+        auto* summary = window.findChild<QLabel*>("folderSummary"); QVERIFY(summary); QVERIFY(!summary->isVisible());
+        filter->setFocus(); QTest::keyClicks(filter, "sample"); QCOMPARE(filter->text(), QString("sample"));
+        window.resize(1400, 700); QTRY_VERIFY(filter->width() > 200);
+        QTRY_VERIFY(summary->isVisible());
+        QCOMPARE(filter->text(), QString("sample"));
+        window.close(); qpe::saveJson(qpe::settingsPath(), before);
+    }
+    /** @brief 文字拡大と左右ペインの併用時は、絞込み欄を別行にして編集幅を確保する。 */
+    void largeTextNarrowFilter() {
+        const auto before = qpe::readSettings();
+        qpe::writeSettings({{"nativeAppearance", QJsonObject{{"textSize", 14}, {"uiPercent", 100}, {"density", "compact"}}}});
+        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(1200, 800); window.show(); QTRY_VERIFY(window.ready());
+        auto* places = window.findChild<QTreeWidget*>("places"); auto* inspector = window.findChild<qpe::Inspector*>();
+        if (!places->isVisible()) window.findChild<QToolButton*>("navigationPaneButton")->click();
+        if (!inspector->isVisible()) window.findChild<QToolButton*>("detailsPaneButton")->click();
+        window.resize(720, 490); QTest::qWait(100);
+        auto* filter = window.findChild<QLineEdit*>("fileFilter"); auto* types = window.findChild<QComboBox*>("fileTypes");
+        QTRY_VERIFY2(filter->width() >= 150, qPrintable(QString("Large-text filter squeezed to %1 px").arg(filter->width())));
+        QVERIFY(types->mapTo(&window, QPoint()).y() > filter->mapTo(&window, QPoint()).y());
+        filter->setFocus(); QTest::keyClicks(filter, "sample"); QCOMPARE(filter->text(), QString("sample"));
+        auto* files = window.findChild<QTreeView*>("files");
+        QTRY_VERIFY2(files->viewport()->height() >= files->fontMetrics().height() * 2,
+                     "Wrapping and a name condition must leave visible file rows");
+        types->setCurrentIndex(1); window.resize(1500, 800);
+        QTRY_VERIFY(qAbs(types->mapTo(&window, QPoint()).y() - filter->mapTo(&window, QPoint()).y()) < 10);
+        QCOMPARE(filter->text(), QString("sample")); QCOMPARE(types->currentIndex(), 1);
+        window.close(); qpe::saveJson(qpe::settingsPath(), before);
+    }
+    /** @brief 絞込み・複数選択・表示切替・再訪でフッターが実際の一覧件数を保つ。 */
+    void fileListFeedback() {
+        QDir().mkpath(path("feedback/empty"));
+        QVERIFY(file("feedback/first.ma")); QVERIFY(file("feedback/second.ma")); QVERIFY(file("feedback/readme.txt"));
+        qpe::BrowserWindow window; window.navigate(path("feedback")); window.show(); QTRY_VERIFY(window.ready());
+        auto* filter = window.findChild<QLineEdit*>("fileFilter"); auto* types = window.findChild<QComboBox*>("fileTypes");
+        auto* footer = window.findChild<QLabel*>("footer"); auto* files = window.findChild<QTreeView*>("files");
+        QCOMPARE(footer->text(), qpe::uiText("%1 items").arg(3));
+        files->selectAll(); QVERIFY(footer->text().endsWith(qpe::uiText(" · %1 selected").arg(3)));
+        files->clearSelection(); QCOMPARE(footer->text(), qpe::uiText("%1 items").arg(3));
+        types->setCurrentIndex(1); QCOMPARE(footer->text(), qpe::uiText("%1 of %2 items shown").arg(2).arg(3));
+        filter->setText("absent");
+        QCOMPARE(footer->text(), qpe::uiText("%1 of %2 items shown").arg(0).arg(3) + qpe::uiText(" · No matching files"));
+        filter->clear(); types->setCurrentIndex(0);
+        window.perform("view:Thumbnails"); auto* thumbnails = window.findChild<QListView*>("thumbnails");
+        thumbnails->selectAll(); QVERIFY(footer->text().endsWith(qpe::uiText(" · %1 selected").arg(3)));
+        window.navigate(path("feedback/empty")); QTRY_VERIFY(window.ready());
+        QCOMPARE(footer->text(), qpe::uiText("%1 items").arg(0) + qpe::uiText(" · No files in this list"));
+        window.navigate(path("feedback")); QTRY_VERIFY(window.ready());
+        QVERIFY(footer->text().startsWith(qpe::uiText("%1 items").arg(3)));
+        auto* bar = window.findChild<QScrollArea*>("activeConditions");
+        auto* chip = window.findChild<QToolButton*>("clearConditionName"); filter->setText("first");
+        QTRY_COMPARE(bar->horizontalScrollBar()->maximum(), 0);
+        QTRY_COMPARE(bar->height(), chip->sizeHint().height() + 2);
+    }
     /** @brief クラウド未取得を同期成功と混同せず、診断がフォルダーを再帰列挙しない。 */
     void availabilityAndDiagnosis() {
         QVERIFY(qpe::availabilityFromFlags(0x1000).avoidRead);
@@ -778,6 +859,98 @@ private slots:
         jobs.enqueue({"copy", {path("progress-one.txt"), path("progress-two.txt")}, path("progress-to")}); QTRY_COMPARE_WITH_TIMEOUT(done.count(), 1, 5000);
         QVERIFY(!progress.isEmpty()); QCOMPARE(progress.last()[1].toLongLong(), 4600ll); QCOMPARE(done[0][0].toJsonObject()["extra"].toObject()["transferredBytes"].toDouble(), 4600.);
         QCOMPARE(total, 4600ll);
+    }
+    /** @brief 内容検証へ入る前に、間引かれた最終バイト数と段階をGUIへ配送する。 */
+    void transferVerificationPhase() {
+        QVERIFY(QDir().mkpath(path("phase-to"))); QVERIFY(file("phase-source.txt", 1200));
+        qpe::FileJobs jobs; QSignalSpy done(&jobs, &qpe::FileJobs::finished);
+        QStringList phases; qint64 verifiedBytes = -1;
+        connect(&jobs, &qpe::FileJobs::partial, &jobs, [&](const QJsonObject& value) {
+            if (!value.contains("transferPhase")) return;
+            const auto phase = value["transferPhase"].toString(); phases.append(phase);
+            const auto active = jobs.records().first().toObject();
+            QCOMPARE(active["phase"].toString(), phase);
+            if (phase == "verifying") verifiedBytes = qint64(active["bytes"].toDouble());
+        });
+        jobs.enqueue({"copy", {path("phase-source.txt")}, path("phase-to")});
+        QTRY_COMPARE_WITH_TIMEOUT(done.count(), 1, 5000);
+        QCOMPARE(phases, QStringList({"transferring", "verifying"}));
+        QCOMPARE(verifiedBytes, 1200ll);
+        QCOMPARE(QFileInfo(path("phase-to/phase-source.txt")).size(), 1200ll);
+    }
+    /** @brief コピーと移動の検証直前中止・コピー元変更を組み合わせる。 */
+    void interruptedTransferPreservesOriginals_data() {
+        QTest::addColumn<QString>("operation"); QTest::addColumn<bool>("cancelled");
+        for (const auto& operation : QStringList{"copy", "move"}) {
+            QTest::newRow(qPrintable(operation + "-cancel")) << operation << true;
+            QTest::newRow(qPrintable(operation + "-changed")) << operation << false;
+        }
+    }
+    /** @brief 検証中に中断や元データ変更があっても上書き先と元データを削除しない。 */
+    void interruptedTransferPreservesOriginals() {
+        QFETCH(QString, operation); QFETCH(bool, cancelled);
+        QTemporaryDir fixture(path("transfer-failure-XXXXXX")); QVERIFY(fixture.isValid());
+        QDir root(fixture.path()); QVERIFY(root.mkpath("from")); QVERIFY(root.mkpath("to"));
+        const auto source = root.filePath("from/item.txt"), target = root.filePath("to/item.txt");
+        QFile input(source); QVERIFY(input.open(QIODevice::WriteOnly)); input.write("NEW"); input.close();
+        QFile output(target); QVERIFY(output.open(QIODevice::WriteOnly)); output.write("OLD"); output.close();
+        qpe::FileOperations engine(root.filePath("history"));
+        auto cancel = std::make_shared<std::atomic_bool>(false); bool reached = false;
+        const auto result = engine.run({operation, {source}, root.filePath("to"), "replace"}, cancel, {}, [&](const QJsonObject& value) {
+            if (value["transferPhase"].toString() != "verifying") return;
+            reached = true;
+            if (cancelled) cancel->store(true);
+            else { QVERIFY(input.open(QIODevice::Append)); input.write("CHANGED"); input.close(); }
+        });
+        QVERIFY(reached); QVERIFY(result.cancelled || !result.errors.isEmpty()); QVERIFY(result.completed.isEmpty());
+        QVERIFY(input.open(QIODevice::ReadOnly)); QCOMPARE(input.readAll(), cancelled ? QByteArray("NEW") : QByteArray("NEWCHANGED")); input.close();
+        QVERIFY(output.open(QIODevice::ReadOnly)); QCOMPARE(output.readAll(), QByteArray("OLD")); output.close();
+        QCOMPARE(QDir(root.filePath("to")).entryList(QDir::Files | QDir::Hidden), QStringList{"item.txt"});
+    }
+    /** @brief 上書き先のOSロックと存在しない宛先でもコピー元と既存内容を保全する。 */
+    void transferDestinationFailure() {
+        QTemporaryDir fixture(path("destination-failure-XXXXXX")); QVERIFY(fixture.isValid());
+        QDir root(fixture.path()); QVERIFY(root.mkpath("from")); QVERIFY(root.mkpath("to"));
+        const auto source = root.filePath("from/item.txt"), target = root.filePath("to/item.txt");
+        QFile input(source); QVERIFY(input.open(QIODevice::WriteOnly)); input.write("NEW"); input.close();
+        QFile output(target); QVERIFY(output.open(QIODevice::WriteOnly)); output.write("OLD"); output.close();
+        const auto native = QDir::toNativeSeparators(target);
+        HANDLE handle = CreateFileW(reinterpret_cast<LPCWSTR>(native.utf16()), GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        QVERIFY(handle != INVALID_HANDLE_VALUE);
+        const auto release = qScopeGuard([&] { CloseHandle(handle); });
+        for (const auto& operation : QStringList{"copy", "move"}) {
+            qpe::FileOperations engine(root.filePath(operation + "-history"));
+            const auto result = engine.run({operation, {source}, root.filePath("to"), "replace"});
+            QVERIFY(!result.errors.isEmpty()); QVERIFY(result.completed.isEmpty());
+            QVERIFY(input.open(QIODevice::ReadOnly)); QCOMPARE(input.readAll(), QByteArray("NEW")); input.close();
+            QVERIFY(output.open(QIODevice::ReadOnly)); QCOMPARE(output.readAll(), QByteArray("OLD")); output.close();
+            qpe::FileOperations missing(root.filePath(operation + "-missing"));
+            bool refused = false;
+            try { refused = !missing.run({operation, {source}, root.filePath("unavailable")}).errors.isEmpty(); }
+            catch (const std::exception&) { refused = true; }
+            QVERIFY(refused); QVERIFY(QFileInfo::exists(source));
+        }
+    }
+    /** @brief 明示された共有上の専用一時フォルダーだけでコピー・移動・Undoを試す。 */
+    void networkTransferRoundTrip() {
+        const auto root = qEnvironmentVariable("QPE_TEST_NETWORK_ROOT");
+        if (root.isEmpty()) QSKIP("Dedicated network root not supplied; no network write attempted");
+        // NASはQTemporaryDirの所有者専用DACL設定を提供しない場合がある。
+        // 一意名を新規作成し、この試験が作成した直下だけを回収する。
+        const auto fixture = QDir(root).filePath("qpe-verification-" + QFileInfo(data_.path()).fileName());
+        QVERIFY(!QFileInfo::exists(fixture)); QVERIFY(QDir().mkdir(fixture));
+        const auto cleanup = qScopeGuard([&] { QDir(fixture).removeRecursively(); });
+        QDir dir(fixture); QVERIFY(dir.mkpath("source")); QVERIFY(dir.mkpath("target"));
+        const auto source = dir.filePath("source/item.txt"), target = dir.filePath("target/item.txt");
+        QFile input(source); QVERIFY(input.open(QIODevice::WriteOnly)); input.write("network fixture"); input.close();
+        qpe::FileOperations engine(dir.filePath("history"));
+        for (const auto& action : QStringList{"copy", "move"}) {
+            auto result = engine.run({action, {source}, dir.filePath("target")});
+            QVERIFY2(result.errors.isEmpty(), qPrintable(result.errors.join("\n"))); QCOMPARE(result.completed.size(), 1);
+            QFile output(target); QVERIFY(output.open(QIODevice::ReadOnly)); QCOMPARE(output.readAll(), QByteArray("network fixture")); output.close();
+            result = engine.run({"undo"}); QVERIFY(result.errors.isEmpty()); QVERIFY(QFileInfo::exists(source)); QVERIFY(!QFileInfo::exists(target));
+        }
     }
     /** @brief 貼り付けで置き換えが既定となり、置き換え前の内容をUndoで戻せる。 */
     void pasteDefaultsToReplace() {
@@ -878,6 +1051,11 @@ private slots:
         QCOMPARE(QFileInfo(destination + "/nested/same.txt").size(), 11ll);
         QCOMPARE(QFileInfo(destination + "/nested/existing.txt").size(), 43ll);
         QVERIFY(!QFileInfo::exists(destination + "/new.txt"));
+        const auto* notice = window.findChild<QLabel*>("migrationNotice");
+        QVERIFY(notice->text().startsWith(qpe::uiText("Undo: %1 completed%2%3").section("%1", 0, 0)));
+        window.perform("redo"); QTRY_VERIFY(!window.busy());
+        QCOMPARE(QFileInfo(destination + "/nested/same.txt").size(), 21ll);
+        QVERIFY(notice->text().startsWith(qpe::uiText("Redo: %1 completed%2%3").section("%1", 0, 0)));
     }
     /** @brief Mayaの終了と同様に確認中の親を破棄しても、コピーを開始しない。 */
     void destroyedWindowCancelsConflict() {
@@ -1433,9 +1611,12 @@ private slots:
         outside->setFocus(); QTRY_VERIFY(outside->hasFocus());
         QToolButton* add = nullptr;
         for (auto* button : browser->findChildren<QToolButton*>()) if (button->accessibleName() == "New tab") add = button;
-        QVERIFY(add); QTest::mouseClick(add, Qt::LeftButton); QTRY_VERIFY(add->hasFocus());
+        QVERIFY(add); QTest::mouseClick(add, Qt::LeftButton);
+        auto* pages = browser->findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* currentFiles = pages->currentWidget()->findChild<QTreeView*>("files"); QVERIFY(currentFiles);
+        QTRY_VERIFY(currentFiles->hasFocus());
         const int created = tabs->currentIndex();
-        QTest::keyClick(add, Qt::Key_Tab, Qt::ControlModifier | Qt::ShiftModifier);
+        QTest::keyClick(currentFiles, Qt::Key_Tab, Qt::ControlModifier | Qt::ShiftModifier);
         QCOMPARE(tabs->currentIndex(), (created + tabs->count() - 1) % tabs->count());
         outside->setFocus(); QTRY_VERIFY(outside->hasFocus());
         const int before = tabs->currentIndex(); QTest::keyClick(outside, Qt::Key_Tab, Qt::ControlModifier);
@@ -1972,6 +2153,88 @@ private slots:
         window.close();
     }
     /** @brief 詳細は展開時だけ読み、選択変更後の古い成功/失敗は無視する。 */
+    /** @brief 保存は選択ファイルを対象にしないため、選択を要求する見出しを表示しない。 */
+    void inspectorSaveTitle() {
+        qpe::Inspector inspector(true, nullptr);
+        auto* title = inspector.findChild<QLabel*>("fileTitle"); QVERIFY(title);
+        inspector.showAction("saveAs");
+        QCOMPARE(title->text(), qpe::uiText("Save Scene"));
+        inspector.setPath(path("A/source.ma"));
+        QCOMPARE(title->text(), qpe::uiText("Save Scene"));
+        inspector.showAction("reference");
+        QCOMPARE(title->text(), QString("source.ma"));
+        inspector.setPath({});
+        QCOMPARE(title->text(), qpe::uiText("Select a file below"));
+    }
+    /** @brief 別操作へ切り替えると見出しから表示し、前の操作の縦位置でボタンを隠さない。 */
+    void inspectorOperationScroll() {
+        qpe::Inspector inspector(true, nullptr); inspector.resize(260, 330); inspector.show();
+        inspector.showAction("reference");
+        inspector.findChild<QComboBox*>("reference_mode")->setCurrentIndex(1);
+        auto* scroll = inspector.findChild<QScrollArea*>("inspectorScroll"); QVERIFY(scroll);
+        QTRY_VERIFY(scroll->verticalScrollBar()->maximum() > 0);
+        scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
+        QVERIFY(scroll->verticalScrollBar()->value() > 0);
+        inspector.showAction("saveAs");
+        QTest::qWait(30);
+        QCOMPARE(scroll->verticalScrollBar()->value(), 0);
+        inspector.close();
+    }
+    /** @brief 読込実行は設定を末尾へ送っても見え、現在の操作だけを一度通知する。 */
+    void inspectorPinnedActions() {
+        qpe::Inspector inspector(true, nullptr); inspector.resize(260, 240); inspector.show();
+        auto* scroll = inspector.findChild<QScrollArea*>("inspectorScroll"); QVERIFY(scroll);
+        QSignalSpy requested(&inspector, &qpe::Inspector::requested);
+        for (const auto& action : QStringList{"import", "reference"}) {
+            inspector.showAction(action);
+            auto* button = inspector.findChild<QPushButton*>(action); QVERIFY(button);
+            QTRY_VERIFY(button->isVisible());
+            QVERIFY(!scroll->isAncestorOf(button));
+            QTRY_VERIFY(scroll->verticalScrollBar()->maximum() > 0);
+            scroll->verticalScrollBar()->setValue(scroll->verticalScrollBar()->maximum());
+            const QRect bounds(button->mapTo(&inspector, QPoint()), button->size());
+            QVERIFY(inspector.rect().contains(bounds));
+            QTest::mouseClick(button, Qt::LeftButton);
+            QCOMPARE(requested.takeFirst().first().toString(), action);
+            QVERIFY(requested.isEmpty());
+        }
+        inspector.showAction("saveAs");
+        QVERIFY(!inspector.findChild<QPushButton*>("import")->isVisible());
+        QVERIFY(!inspector.findChild<QPushButton*>("reference")->isVisible());
+    }
+    /** @brief 折返しのない低いドックでも、上段から高さを譲りファイル一覧を表示する。 */
+    void lowDockPrioritizesFiles() {
+        const auto previous = qpe::readSettings();
+        const auto restore = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), previous); });
+        qpe::saveJson(qpe::settingsPath(), {});
+        qpe::HostServices host; host.maya = true;
+        qpe::BrowserWindow window(nullptr, host); window.navigate(path("A")); window.resize(1100, 520); window.show();
+        QTRY_VERIFY(window.ready());
+        auto* split = window.findChild<QSplitter*>("browserVertical"); QVERIFY(split);
+        auto* files = window.findChild<QTreeView*>("files"); QVERIFY(files);
+        split->setSizes({380, 80}); window.resize(1100, 280);
+        QTest::qWait(100);
+        qInfo() << "Low dock geometry" << window.size() << split->sizes() << files->viewport()->size() << files->isVisible();
+        QTRY_VERIFY(files->viewport()->height() >= files->fontMetrics().height() + 8);
+        QCOMPARE(window.height(), 280);
+        window.resize(1100, 520);
+        QTRY_VERIFY(files->viewport()->height() >= 2 * (files->fontMetrics().height() + 8));
+        QTRY_VERIFY(split->sizes().value(0) > 40);
+        // Qt5の親レイアウトの再配分同様、補正処理より先に上段が0へ縮む順序も検証する。
+        split->setSizes({100, 300}); emit split->splitterMoved(100, 1);
+        QTest::qWait(50);
+        const int preferred = split->sizes().value(0);
+        split->setSizes({0, 400});
+        window.resize(1100, 180);
+        QTest::qWait(50);
+        window.resize(1100, 520);
+        QTRY_VERIFY(split->sizes().value(0) >= preferred);
+        // 利用者が上段を小さくした場合は、以前の大きな高さへ勝手に戻さない。
+        split->setSizes({40, 400}); emit split->splitterMoved(40, 1);
+        const int manual = split->sizes().value(0);
+        QTest::qWait(50);
+        QCOMPARE(split->sizes().value(0), manual);
+    }
     void inspectorGeneration() {
         qpe::Inspector inspector(false, nullptr); inspector.show();
         inspector.setPath(path("A/小さい.mb"));
@@ -2629,6 +2892,75 @@ private slots:
         QCOMPARE(hit(minimize->mapTo(&window, minimize->rect().center())), LRESULT(HTCLIENT));
         const auto evidence = qEnvironmentVariable("QPE_PASTE_EVIDENCE");
         if (!evidence.isEmpty()) QVERIFY(window.grab().save(QDir(evidence).filePath("crowded-tabs.png")));
+    }
+    /** @brief 新規タブへ移った直後も一覧操作のキーが新しいページへ届く。 */
+    void newTabKeyboardFocus() {
+        // 直前の表示/配置テストが保存した非表示一覧やサムネイル設定は引き継がない。
+        const auto before = qpe::readSettings();
+        qpe::saveJson(qpe::settingsPath(), {{"uiLanguage", "en"}});
+        qpe::BrowserWindow window; window.navigate(path("A")); window.show(); window.activateWindow();
+        QTRY_VERIFY(window.ready());
+        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* previousFiles = pages->currentWidget()->findChild<QTreeView*>("files"); QVERIFY(previousFiles);
+        previousFiles->setFocus(); QTRY_VERIFY(previousFiles->hasFocus());
+        window.addTab(path("B")); QTRY_VERIFY(window.ready());
+        auto* currentFiles = pages->currentWidget()->findChild<QTreeView*>("files"); QVERIFY(currentFiles);
+        QTRY_VERIFY(currentFiles->hasFocus());
+        bool dialogOpened = false;
+        QTimer::singleShot(100, &window, [&] {
+            if (auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget())) {
+                dialogOpened = true; dialog->reject();
+            }
+        });
+        QTest::keyClick(currentFiles, Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialogOpened);
+        // 実際のメニュー終了時のフォーカス復帰を経由しても、新ページへ渡る。
+        QMenu menu(&window);
+        auto* open = menu.addAction("Open in new tab", &window, [&] { window.addTab(path("A")); });
+        QTimer::singleShot(20, &menu, [&] { QTest::mouseClick(&menu, Qt::LeftButton, Qt::NoModifier, menu.actionGeometry(open).center()); });
+        menu.exec(currentFiles->mapToGlobal(QPoint(10, 10)));
+        QTRY_VERIFY(window.ready());
+        currentFiles = pages->currentWidget()->findChild<QTreeView*>("files");
+        QTRY_VERIFY(currentFiles->hasFocus());
+        // 他の入力欄で作業中のプログラム呼出しはフォーカスを変更しない。
+        QLineEdit other; other.show(); other.activateWindow(); other.setFocus();
+        QTRY_VERIFY(other.hasFocus());
+        window.addTab(path("B")); QTRY_VERIFY(window.ready());
+        QVERIFY(other.hasFocus());
+        window.close(); qpe::saveJson(qpe::settingsPath(), before);
+    }
+    /** @brief 履歴移動で操作中のカラムが破棄されても、次のキーはQPEの一覧へ届く。 */
+    void historyColumnKeyboardFocus() {
+        const auto before = qpe::readSettings();
+        qpe::saveJson(qpe::settingsPath(), {{"uiLanguage", "en"}});
+        qpe::BrowserWindow window; window.resize(1200, 800); window.show(); window.activateWindow();
+        window.navigate(path("B")); QTRY_VERIFY(window.ready());
+        window.navigate(path("A/子フォルダー")); QTRY_VERIFY(window.ready());
+        auto* pages = window.findChild<QStackedWidget*>(); QVERIFY(pages);
+        auto* current = pages->currentWidget();
+        auto* files = current->findChild<QTreeView*>("files"); QVERIFY(files);
+        QListView* sourceColumn = nullptr;
+        for (auto* column : current->findChildren<QListView*>("folderColumn"))
+            if (column->property("path").toString() == qpe::DirectoryStore::normalized(path("A"))) sourceColumn = column;
+        QVERIFY(sourceColumn); QTRY_VERIFY(sourceColumn->isVisible());
+        sourceColumn->setFocus(); QTRY_VERIFY(sourceColumn->hasFocus());
+        QPointer<QListView> removedColumn(sourceColumn);
+        QTest::keyClick(sourceColumn, Qt::Key_Left, Qt::AltModifier);
+        QTRY_COMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("B")));
+        QVERIFY(removedColumn.isNull());
+        QTRY_VERIFY(files->hasFocus());
+        bool dialogOpened = false;
+        QTimer::singleShot(100, &window, [&] {
+            if (auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget())) {
+                dialogOpened = true; dialog->reject();
+            }
+        });
+        QTest::keyClick(QApplication::focusWidget(), Qt::Key_N, Qt::ControlModifier | Qt::ShiftModifier);
+        QTRY_VERIFY(dialogOpened);
+        // 非同期更新や外部からの移動で別の入力欄のフォーカスを奪わない。
+        QLineEdit other; other.show(); other.activateWindow(); other.setFocus(); QTRY_VERIFY(other.hasFocus());
+        window.navigate(path("A")); QTRY_VERIFY(window.ready()); QVERIFY(other.hasFocus());
+        window.close(); qpe::saveJson(qpe::settingsPath(), before);
     }
     /** @brief 新規タブは探索起点と表示比率を引き継ぎ、選択・履歴・ロックは独立させる。 */
     void newTabViewInheritance() {

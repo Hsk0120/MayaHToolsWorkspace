@@ -168,6 +168,18 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-14): ユーザー依頼により未コミットのQPE GUI改善・転送段階表示・安全性回帰とexe/2022～2027 mllをコミット対象として整理。C++134合格/2skip、Sphinx成功、製品7ファイルのSHA256一致を再確認。他担当のステージと変更は分離して保持。診断時クラッシュと未実施条件は未解決の記録を維持。
+
+- Codex (2026-11-14): QPEのImport/Reference実行ボタンを下端固定、低ドックの一覧優先とカラム復元を実装。Maya 2022実操作で見つかったQt5復元不具合も修正。取消/コピー元変更/宛先ロック/実共有転送とUndoを追加検証しC++134件合格・2件条件不足skip、200%表示試験・Sphinx成功。Windows exeと2022～2027 mllを反映、2022/2027実GUIと解除再ロードを確認。診断のPySide全ウィジェット列挙で両版に各1回クラッシュし原因未確定、サーバー切断/ACL・実機4K等は未実施として記録。証拠・手順は .maya-output/qpe-followup-20261114/ と docs/research/qpe-followup-20261114/。既存差分を保持、コミット/pushなし。
+
+- Codex (2026-11-14): QPEの約3時間GUI録画デバッグ。狭幅/文字拡大時の名前フィルターと一覧領域、新タブ/履歴移動後のキーフォーカス、転送後の確認段階表示、Maya保存欄の見出し/余白/操作切替スクロールを改善。C++回帰126合格/0失敗/2skip、Sphinx -W成功。WindowsとMaya2022/2027で実OS操作、2023〜2026はビルドのみ。exeと6年別mllを復旧コピー付き反映・SHA256照合。専用プロセスを正常終了、動画を非公開Drive保存/権限確認。詳細と未実施はローカルdocs/research/qpe-gui-three-hour-20261114/results.txt。転送fixture約3GiBは削除の自動承認拒否により保持。他担当変更を保持、未コミット・未push。
+
+- Codex (2026-11-14): QPEのGUI録画検証で、絞り込み/選択件数の未反映、空一覧の判別、条件行の高さを改善。Windows・Maya2027の実OS操作、C++回帰119合格/2skip、Sphinx警告なしを確認。exeと2022〜2027 mllを更新、専用プロセス終了。動画3本を非公開Driveへ保存・権限読戻し。年別GUI全網羅は未実施。詳細はローカルdocs/research/qpe-ux-record-20261114/results.txt。未コミット・未push。
+
+- Codex (2026-11-13): QPEの名前絞り込みをEscapeで解除（IME変換・他条件・別編集欄を保護）、Undo/Redo完了通知に操作名を追加。初回のイベント監視開始位置による起動失敗を修正し、全体Qt回帰118合格・2skip。専用Maya2027の実OS操作で複数カラム選択/統合コピー/個別比較/Undo/Redo/タブ追加/下部ドック縮小を確認、2022でもEscapeとドック縮小を確認。exeと2022〜2027 mllを復旧コピー付きで通常配置しSHA256一致。Sphinx警告エラー化ビルド成功。実IME・2023〜2026 GUI・全操作網羅は未実施。専用Mayaのみ終了、録画を既存Driveへ非公開保存し読戻し。記録 docs/research/qpe-maya-ux-20261113/results.txt、証拠 .maya-output/qpe-maya-ux-20261113/。未コミット・未push。
+
+- Codex (2026-11-13): QPE Windowsの実OS入力で複数カラム選択/統合コピー/個別置換・スキップ/Undo/戻る/タブ/左右ペイン/狭幅/F2日本語名前変更/絞り込み/新規フォルダーを検証。比較画面のサイズ・日時を2行と短い日付へ修正、正確な日時はツールチップへ保持。Qt回帰117合格・2skip、exeとMaya2022〜2027 mllを再ビルド配置。Maya GUIとIME変換は未実施。動画・画像をDriveへ非公開保存し読戻し、残UX課題をローカル調査記録へ保存。未コミット。
+
 - Claude Code (2026-11-14、夜間mlrig): クランクとスロット付きレバーの早戻り機構 `mlrig.setups.QuickReturn` を追加(標準ノードのみ)。φ = atan2(r sin θ, d + r cos θ)、ρ = √(d² + r² + 2dr cos θ)、ramOffset = H tan φ、speedRatio = r(r + d cos θ)/ρ²(負の間が戻り)、α = asin(r/d)・timeRatio = (180° + 2α)/(180° - 2α)。Setup Samplesに1項目、文書 quick_return.rst、テスト test_quickReturn.py(8件)、検証デモ tools/demo_quick_return.py。隔離 Maya 2027 で setups 728件・standard 76件 OK、mlrig Sphinx -W 成功、検証動画408フレームの判定 OK(DGと幾何の差 9e-16)。動画はDrive同期フォルダーへ保存(コネクターが無くリンク共有は未設定)。コミット・プッシュ(このコミット)。
 
 - Codex (2026-11-13): QPE上書き確認を遅延表示の進捗ダイアログが覆う不具合を再現・修正。merge_ui.cppで競合検査完了時にQProgressDialogを同期破棄し、hide後の350msタイマー再表示を防止。700ms待機後の置換/スキップ/取消/個別比較4ケースとコピー統合/Undo/親破棄/進捗の対象回帰は10件成功。初回全体テストはtransferByteProgressで停止したため専用PIDのみ終了、新プロセスで全体再実行は終了コード0。Windows版実OSキー/マウスでコピー・確認待機・置換と内容一致を確認。exeと2022〜2027 mllを再ビルドし復旧コピー付きで通常配置へ更新。Maya GUI検証はハーネスのQt5 qWait非対応/列挙待機で停止し未完了、実機合格には含めない。証拠・復旧コピーは .maya-output/qpe-modal-20261113/、対象回帰 .maya-output/qpe-modal-targeted.txt、修正前再現 .maya-output/qpe-modal-before.txt。新規動画なし。ユーザー依頼によりQPE修正・回帰テスト・exeと年別mllをコミット対象として確認。

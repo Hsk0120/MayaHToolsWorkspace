@@ -142,7 +142,7 @@ private:
         QString info;
         if (cancelling_) info = uiText("Cancelling transfer…");
         else if (paused) info = uiText("Transfer paused");
-        else if (total > 0 && bytes >= total) info = uiText("Verifying transferred files…");
+        else if (active["phase"].toString() == "verifying") info = uiText("Verifying transferred files…");
         else if (bytes <= 0) info = uiText("Preparing transfer…");
         else info = uiText("%1 transferred · %2/s average").arg(uiLocale().formattedDataSize(qint64(bytes)),
             uiLocale().formattedDataSize(qint64(active["bytesPerSecond"].toDouble())));
@@ -500,9 +500,15 @@ public:
         auto* vertical = vertical_ = new QSplitter(Qt::Vertical, this);
         vertical->setObjectName("browserVertical");
         vertical->setChildrenCollapsible(false);
-        connect(vertical, &QSplitter::splitterMoved, this, [this] { areaMode_ = "custom"; emit layoutChanged(); });
+        connect(vertical, &QSplitter::splitterMoved, this, [this] {
+            preferredColumnHeight_ = vertical_->sizes().value(0);
+            areaMode_ = "custom";
+            emit layoutChanged();
+        });
         scroll_ = new QScrollArea(vertical);
         scroll_->setObjectName("folderColumns");
+        // QScrollAreaの暗黙の最小高で一覧が押し潰されないよう、上段だけ縮小を許す。
+        scroll_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Ignored);
         scroll_->setWidgetResizable(true);
         scroll_->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         auto* columns = new QWidget;
@@ -525,6 +531,7 @@ public:
         auto* filterRow = new QHBoxLayout;
         filterRow->setObjectName("fileFilterRow");
         summary_ = new QLabel;
+        summary_->setObjectName("folderSummary");
         filterRow->addWidget(summary_);
         filter_ = new QLineEdit;
         filter_->setObjectName("fileFilter");
@@ -532,8 +539,13 @@ public:
         filterRow->addWidget(filter_, 1);
         auto* types = new QComboBox; types->setObjectName("fileTypes");
         for (const auto& name : QStringList{"All files", "Maya scenes", "3D formats", "Images", "Videos", "Scripts", "FBX / OBJ"}) types->addItem(uiText(name), name);
-        filterRow->addWidget(types);
-        auto* viewButton = tool(filterRow, uiText("View"));
+        // 種類と表示は同じ行を保ち、入力幅が足りない場合だけ名前条件の次の行へまとめて移す。
+        auto* filterOptions = new QWidget; filterOptions->setObjectName("fileFilterOptions");
+        filterOptions->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        auto* optionsRow = new QHBoxLayout(filterOptions); optionsRow->setContentsMargins(0, 0, 0, 0);
+        optionsRow->addWidget(types, 1);
+        auto* viewButton = tool(optionsRow, uiText("View"));
+        filterRow->addWidget(filterOptions);
         connect(viewButton, &QToolButton::clicked, this, [this, viewButton] {
             QMenu menu;
             for (const auto& mode : QStringList{"Details", "Thumbnails", "Extended details"}) {
@@ -561,6 +573,7 @@ public:
         auto* conditionWidget = new QWidget; auto* conditionLayout = new QHBoxLayout(conditionWidget); conditionLayout->setContentsMargins(0, 0, 0, 0); conditionLayout->setSpacing(4);
         for (const auto& name : QStringList{"Name", "Type", "Subfolders", "Tag", "Group"}) { auto* chip = new QToolButton; chip->setObjectName("clearCondition" + name); conditionLayout->addWidget(chip); conditionButtons_.append(chip); chip->hide(); }
         conditionLayout->addStretch(); conditionBar_->setWidget(conditionWidget); lower->addWidget(conditionBar_);
+        connect(conditionBar_->horizontalScrollBar(), &QScrollBar::rangeChanged, this, [this] { updateConditionHeight(); });
         connect(conditionButtons_[0], &QToolButton::clicked, filter_, &QLineEdit::clear);
         connect(conditionButtons_[1], &QToolButton::clicked, types, [types] { types->setCurrentIndex(0); });
         connect(conditionButtons_[2], &QToolButton::clicked, this, [this] { setRecursive(false); });
@@ -622,6 +635,7 @@ public:
         describeSort(files_->header()->sortIndicatorSection(), files_->header()->sortIndicatorOrder());
         presentations_ = new QStackedWidget; lower->addWidget(presentations_, 1); presentations_->addWidget(files_);
         thumbnails_ = new FolderList(presentations_); thumbnails_->setObjectName("thumbnails"); thumbnails_->setViewMode(QListView::IconMode);
+        thumbnails_->viewport()->installEventFilter(this);
         thumbnails_->setItemDelegate(new QStyledItemDelegate(thumbnails_)); thumbnails_->setResizeMode(QListView::Adjust); thumbnails_->setMovement(QListView::Static);
         thumbnails_->setWordWrap(true); thumbnails_->setUniformItemSizes(true);
         thumbnails_->setSelectionMode(QAbstractItemView::ExtendedSelection); thumbnails_->setModel(proxy_); thumbnails_->setSelectionModel(files_->selectionModel());
@@ -658,7 +672,7 @@ public:
             files_->updateModel([&] { applyRows(model_, path_, snapshot, false); }); files_->setSortingEnabled(sorting);
             model_->setProperty("snapshotGeneration", QVariant());
             ready_ = result.errors.isEmpty(); setSummary(QFileInfo(path_).fileName() + QString(uiText(" · %1 files (recursive)")).arg(model_->rowCount()));
-            footer_->setText(result.errors.isEmpty() ? QString(uiText("%1 items")).arg(model_->rowCount()) : result.errors.join("\n"));
+            listingError_ = result.errors.join("\n"); updateFooter();
             restorePosition(); setMode(mode_); scheduleThumbnails();
         });
         layout->addWidget(vertical, 1);
@@ -669,6 +683,8 @@ public:
         vertical->setSizes({360, 420});
         applyMetrics();
         connect(filter_, &QLineEdit::textChanged, this, [this](const QString& text) { proxy_->setFilterFixedString(text); updateConditions(); });
+        // files_等の子ビューを構築してから入力監視を開始する。
+        filter_->installEventFilter(this);
         connect(files_, &QTreeView::doubleClicked, this, [this](const QModelIndex& index) { open(index.data(PathRole).toString()); });
         connect(files_->selectionModel(), &QItemSelectionModel::currentChanged, this, [this] { emit selected(detailPath()); });
         connect(files_->selectionModel(), &QItemSelectionModel::selectionChanged, this, [this] { fileSelectionChanged(); });
@@ -679,6 +695,12 @@ public:
     }
     /** @brief タブを閉じても未反映の表示設定を保持する。 */
     ~BrowserPage() override { flushFolderViews(); }
+    /** @brief 明示的なタブ/階層移動のキー対象を、表示中のファイル一覧へ移す。
+     * @note 非同期読込の完了時には呼ばず、他のMayaビューからフォーカスを奪わない。
+     */
+    void focusFiles() {
+        (mode_ == "Thumbnails" ? static_cast<QWidget*>(thumbnails_) : files_)->setFocus(Qt::OtherFocusReason);
+    }
     /** @brief 履歴を必要時だけ追加し、共通祖先列を再生成せず移動する。
      * @param input 移動先。
      * @param record 履歴へ追加するか。
@@ -697,6 +719,7 @@ public:
             historyIndex_ = history_.size() - 1;
         }
         path_ = destination;
+        listingError_.clear();
         files_->directory = path_; thumbnails_->directory = path_; thumbnails_->setProperty("path", path_); media_->cancel(); thumbnailRequests_.clear(); thumbnailToken_ = QUuid::createUuid().toString();
         recursiveJobs_->cancel(); recursiveToken_ = QUuid::createUuid().toString();
         ready_ = false;
@@ -711,6 +734,14 @@ public:
         }
         int common = 0;
         while (common < columns_.size() && common < chain.size() && columns_[common].path == chain[common]) ++common;
+        // 操作中の列を削除すると、Mayaの別ビューへQtのフォーカスが移る。
+        // 削除対象にいた場合だけ同期的に一覧へ退避し、次のCtrl+V等をホストへ漏らさない。
+        const auto* focused = QApplication::focusWidget();
+        bool restoreColumnFocus = false;
+        if (isVisible() && window()->isActiveWindow() && focused)
+            for (int i = common; i < columns_.size(); ++i)
+                if (focused == columns_[i].view || columns_[i].view->isAncestorOf(focused)) restoreColumnFocus = true;
+        if (restoreColumnFocus) focusFiles();
         while (columns_.size() > common) delete columns_.takeLast().view;
         for (int i = common; i < chain.size(); ++i) {
             auto* view = new FolderList(scroll_->widget());
@@ -792,9 +823,12 @@ public:
         if (!store_.snapshot(path_)) setSummary(QFileInfo(path_).fileName() + uiText(" · Loading…"));
         filter_->setText(positions_.value(path_).filter);
         restorePosition();
+        updateFooter();
         fitColumns();
         emit locationChanged();
         if (recursive_) requestRecursive();
+        // フォルダー別の表示モード復元で一覧が切り替わった場合も、表示中の方へ戻す。
+        if (restoreColumnFocus) focusFiles();
     }
     /** @brief 履歴内の前後へ移動する。
      * @param delta -1または1。
@@ -828,7 +862,9 @@ public:
         const qreal scale = owner_->property("qpeUiScale").toReal();
         layout()->setSpacing(qRound(4 * scale));
         findChild<QHBoxLayout*>("fileFilterRow")->setSpacing(qRound(6 * scale));
-        conditionBar_->setFixedHeight(qRound(48 * scale));
+        findChild<QWidget*>("fileFilterOptions")->layout()->setSpacing(qRound(6 * scale));
+        setSummary(summary_->toolTip());
+        updateConditionHeight();
         conditionBar_->widget()->layout()->setSpacing(qRound(4 * scale));
         files_->header()->setProperty("qpeSortScale", scale);
         thumbnails_->setIconSize(QSize(qRound(144 * scale), qRound(96 * scale)));
@@ -952,6 +988,7 @@ public:
     /** @brief 再帰一覧の表示を切り替える。フォルダー自身の表示とは別の状態。 @param value 有効か。 */
     void setRecursive(bool value) {
         recursive_ = value; recursiveJobs_->cancel(); recursiveToken_ = QUuid::createUuid().toString();
+        listingError_.clear();
         if (value) requestRecursive(); else { model_->setProperty("snapshotGeneration", QVariant()); apply(path_); }
         saveFolderView(); updateConditions();
     }
@@ -979,7 +1016,7 @@ public:
             }
         }
         if (!preserveColumns) for (int col = 4; col < model_->columnCount(); ++col) files_->setColumnHidden(col, mode != "Extended details");
-        selectPaths(previousSelection); saveFolderView(); scheduleThumbnails();
+        selectPaths(previousSelection); updateFooter(); saveFolderView(); scheduleThumbnails();
     }
     /** @brief フォルダーごとの表示設定をメモリに記録し、頻繁なリサイズをまとめる。 */
     void saveFolderView() {
@@ -1058,6 +1095,32 @@ public:
         bool any = false;
         for (int i = 0; i < labels.size(); ++i) { const auto& label = labels[i]; auto* chip = conditionButtons_[i]; chip->setText(chip->fontMetrics().elidedText(label, Qt::ElideRight, 160) + " ×"); chip->setToolTip(uiText("Clear ") + label); chip->setVisible(!label.isEmpty()); any |= !label.isEmpty(); }
         conditionBar_->setVisible(any);
+        updateConditionHeight();
+        updateFooter();
+    }
+    /** @brief 条件ボタンの高さだけを予約し、横溢れした時だけスクロールバー分を足す。 */
+    void updateConditionHeight() {
+        if (conditionButtons_.isEmpty()) return;
+        const auto* bar = conditionBar_->horizontalScrollBar();
+        const int extra = bar->maximum() > 0 ? bar->sizeHint().height() : 0;
+        conditionBar_->setFixedHeight(conditionButtons_.first()->sizeHint().height() + extra + 2);
+    }
+    /** @brief ディスクを再走査せず、表示件数と一覧の選択件数をフッターへ反映する。
+     * @note 集約見出しは件数に含めない。列挙失敗の通知は絞込みで上書きしない。
+     */
+    void updateFooter() {
+        if (!footer_ || !model_ || !proxy_) return;
+        if (!listingError_.isEmpty()) { footer_->setText(listingError_); return; }
+        const int total = model_->rowCount(), visible = proxy_->rowCount();
+        QString text = visible == total ? uiText("%1 items").arg(total)
+            : uiText("%1 of %2 items shown").arg(visible).arg(total);
+        if (!ready_) text += uiText(" · Loading…");
+        else if (!visible) text += visible == total ? uiText(" · No files in this list") : uiText(" · No matching files");
+        const QAbstractItemView* active = mode_ == "Thumbnails" ? static_cast<QAbstractItemView*>(thumbnails_) : files_;
+        const auto count = selectedPathIndexes(active).size();
+        if (count) text += uiText(" · %1 selected").arg(count);
+        footer_->setText(text);
+        footer_->setToolTip(text);
     }
     /** @brief フォーカスのあるビューの選択。 @return パス列。 */
     QStringList selection() const {
@@ -1080,6 +1143,7 @@ public:
     void fileSelectionChanged() {
         if (applying_ || viewRestoring_) return;
         operationState_ = {}; pendingReveal_.clear(); restorePending_ = false;
+        updateFooter();
         emit selected(detailPath());
     }
 signals:
@@ -1179,8 +1243,9 @@ private:
             ready_ = snapshot->complete && snapshot->error.isEmpty();
             setSummary((QFileInfo(path).fileName().isEmpty() ? path : QFileInfo(path).fileName())
                              + QString(uiText(" · %1 files")).arg(model_->rowCount()) + (snapshot->complete ? QString() : uiText(" · Loading…")));
-            footer_->setText(snapshot->error.isEmpty() ? QString(uiText("%1 items")).arg(model_->rowCount()) : snapshot->error);
+            listingError_ = snapshot->error;
             if (restorePending_) { restorePosition(); restorePending_ = !snapshot->complete; }
+            updateFooter();
         }
         applying_ = false;
         if (path == path_) applyReveal();
@@ -1278,10 +1343,19 @@ private:
         // 非同期列挙後に採用した選択を、詳細ペインへ一度明示的に通知する。
         emit selected(detailPath());
     }
-    /** @brief フォルダー名の長さで一覧や詳細欄を押し広げない。 @param text 省略前の要約。 */
+    /** @brief 要約とフィルターの行配置を更新し、狭い一覧では名前条件の入力幅を優先する。 @param text 省略前の要約。
+     * @note フォルダーはアドレス/タブ、件数はフッターでも確認できるため、狭幅では重複する要約を隠す。
+     */
     void setSummary(const QString& text) {
         summary_->setToolTip(text);
         summary_->setText(summary_->fontMetrics().elidedText(text, Qt::ElideMiddle, width() / 3));
+        const qreal scale = owner_->property("qpeUiScale").toReal();
+        summary_->setVisible(width() >= qRound(420 * (scale > 0 ? scale : 1.0)));
+        auto* options = findChild<QWidget*>("fileFilterOptions");
+        auto* row = findChild<QHBoxLayout*>("fileFilterRow");
+        // フォントの拡大・翻訳による実寸も考慮し、名前を数文字しか入力できない幅にしない。
+        const bool wrap = width() < options->sizeHint().width() + row->spacing() + qRound(140 * (scale > 0 ? scale : 1.0));
+        row->setDirection(wrap ? QBoxLayout::TopToBottom : QBoxLayout::LeftToRight);
     }
     /** @brief ビュー領域の変更時に列幅だけを再計算する。
      * @param event サイズ変更。
@@ -1293,6 +1367,8 @@ private:
             revealCurrent();
         }
         fitFileName();
+        // 一覧が既に高さ0ならビューポートのResizeは来ないため、親の縮小も監視する。
+        QTimer::singleShot(0, this, [this] { keepFilesVisible(); });
     }
     /** @brief 起動やペイン切替で子ビューの配置が確定した後に名前欄を合わせる。
      * @param watched 対象のビューポート。
@@ -1300,11 +1376,49 @@ private:
      * @return 基底クラスの処理結果。
      */
     bool eventFilter(QObject* watched, QEvent* event) override {
-        if (files_ && watched == files_->viewport() && event->type() == QEvent::Resize && !fileFitPending_) {
+        // Escapeは名前条件だけを解除する。IME変換中と他の編集欄には介入しない。
+        if (watched == filter_) {
+            if (event->type() == QEvent::InputMethod)
+                filterComposing_ = !static_cast<QInputMethodEvent*>(event)->preeditString().isEmpty();
+            else if (event->type() == QEvent::FocusOut) filterComposing_ = false;
+            else if (!filterComposing_ && !filter_->text().isEmpty()
+                     && (event->type() == QEvent::ShortcutOverride || event->type() == QEvent::KeyPress)) {
+                const auto* key = static_cast<QKeyEvent*>(event);
+                if (key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier) {
+                    if (event->type() == QEvent::KeyPress) filter_->clear();
+                    event->accept();
+                    return true;
+                }
+            }
+        }
+        if (files_ && (watched == files_->viewport() || (thumbnails_ && watched == thumbnails_->viewport())) && event->type() == QEvent::Resize && !fileFitPending_) {
             fileFitPending_ = true;
-            QTimer::singleShot(0, this, [this] { fileFitPending_ = false; fitFileName(); });
+            QTimer::singleShot(0, this, [this] { fileFitPending_ = false; fitFileName(); keepFilesVisible(); });
         }
         return QWidget::eventFilter(watched, event);
+    }
+    /** @brief 一覧が潰れた時だけ、上段から2行分の表示領域を譲る。
+     * @note 最小サイズは設定せず、Mayaの低いドックでも親の縮小を妨げない。Qtの配置確定後に呼ぶ。
+     */
+    void keepFilesVisible() {
+        if (!scroll_->isVisible() || (!files_->isVisible() && !thumbnails_->isVisible())) return;
+        const int rowHeight = qMax(files_->fontMetrics().height() + 8, files_->sizeHintForRow(0));
+        const int missing = rowHeight * 2 - (files_->isVisible() ? files_->viewport()->height() : thumbnails_->viewport()->height());
+        const auto sizes = vertical_->sizes();
+        if (missing <= 0) {
+            // Qt5では親の再配分が先に上段を0にする場合がある。最後に収まった高さを
+            // 保持し、一覧2行を残せる分だけ復元する。手動の分割変更時は基準も更新する。
+            const int restore = qMin(-missing, qMax(0, preferredColumnHeight_ - sizes.value(0)));
+            if (restore > 0) vertical_->setSizes({sizes.value(0) + restore, sizes.value(1) - restore});
+            preferredColumnHeight_ = qMax(preferredColumnHeight_, sizes.value(0) + restore);
+            return;
+        }
+        const int available = qMax(0, sizes.value(0));
+        const int shift = qMin(missing, available);
+        if (shift > 0) {
+            preferredColumnHeight_ = qMax(preferredColumnHeight_, sizes.value(0));
+            vertical_->setSizes({sizes.value(0) - shift, sizes.value(1) + shift});
+        }
     }
     /** @brief 狭いドックでも名前を読める幅を残し、他の情報は横スクロールで確認する。 */
     void fitFileName() {
@@ -1359,10 +1473,11 @@ private:
     int historyIndex_ = -1;
     QScrollArea* scroll_;
     QSplitter* vertical_;
+    int preferredColumnHeight_ = 0;
     QString areaMode_ = "custom";
     QHBoxLayout* columnLayout_;
-    FileTree* files_;
-    FolderList* thumbnails_;
+    FileTree* files_ = nullptr;
+    FolderList* thumbnails_ = nullptr;
     QStackedWidget* presentations_;
     FileJobs* media_;
     FileJobs* recursiveJobs_;
@@ -1383,8 +1498,10 @@ private:
     QScrollArea* conditionBar_ = nullptr;
     QList<QToolButton*> conditionButtons_;
     QLineEdit* filter_;
+    bool filterComposing_ = false;
     QLabel* summary_;
-    QLabel* footer_;
+    QLabel* footer_ = nullptr;
+    QString listingError_;
     GroupProxy* groupProxy_ = nullptr;
     int groupMode_ = 0, groupScroll_ = 0;
     QStringList groupSelection_;
@@ -1531,6 +1648,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         } catch (const std::exception& e) { UiMessageBox::warning(this, uiText("Namespaces"), uiText(QString::fromUtf8(e.what()))); }
     });
     connect(jobs_, &FileJobs::started, this, [this](const QString& action) {
+        activeFileAction_ = action;
         status_->setText(uiText("Working: ") + action);
         for (auto* p : findChildren<BrowserPage*>()) p->beginOperation();
     });
@@ -1558,7 +1676,9 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         for (auto* p : findChildren<BrowserPage*>()) p->endOperation();
         refresh();
         // 詳細は警告ダイアログに表示し、完了表示で上下ペインの高さを変えない。
-        status_->setText(QString(uiText("%1 completed%2%3")).arg(result.completed.size())
+        const auto completion = activeFileAction_ == "undo" ? uiText("Undo: %1 completed%2%3")
+            : activeFileAction_ == "redo" ? uiText("Redo: %1 completed%2%3") : uiText("%1 completed%2%3");
+        status_->setText(completion.arg(result.completed.size())
             .arg(result.cancelled ? uiText(" · cancelled") : "")
             .arg(result.errors.isEmpty() && result.warnings.isEmpty() ? "" : uiText(" · see file operation details")));
         if (result.extra["historyReviewRequired"].toBool()) {
@@ -2263,6 +2383,9 @@ void BrowserWindow::showQuery(const QJsonObject& result) {
     dialog->show();
 }
 void BrowserWindow::addTab(const QString& path) {
+    const auto* focused = QApplication::focusWidget();
+    const bool transferFocus = !restoring_ && isVisible() && isActiveWindow()
+        && focused && (focused == this || isAncestorOf(focused));
     const auto* previousPage = page();
     QJsonObject initial{{"path", path.isEmpty() ? QDir::homePath() : path}};
     if (!restoring_ && page()) {
@@ -2286,6 +2409,9 @@ void BrowserWindow::addTab(const QString& path) {
     const int index = tabs_->addTab(nativeFolderIcon(), uiText("New tab"));
     tabs_->setCurrentIndex(index);
     item->restoreState(initial);
+    // 隠れた旧ページや操作のない背景にフォーカスを残すと、直後の一覧キーが届かない。
+    // 開く操作中だけ同期的に移し、後から届く列挙結果には移動を任せない。
+    if (transferFocus) item->focusFiles();
 }
 void BrowserWindow::reopenTab() {
     if (closedTabs_.isEmpty()) return; const auto state = closedTabs_.last().toObject(); closedTabs_.removeLast();

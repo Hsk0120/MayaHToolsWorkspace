@@ -4,6 +4,7 @@
 #include "../core/file_operations.h"
 #include <QComboBox>
 #include <QCommandLinkButton>
+#include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QEventLoop>
@@ -47,11 +48,17 @@ bool reviewItems(QWidget* owner, const QJsonArray& reviewed, QJsonObject& choice
         const auto description = [&](const QString& prefix) {
             const auto size = row[prefix + "Folder"].toBool() ? uiText("Folder")
                 : uiLocale().formattedDataSize(qint64(row[prefix + "Size"].toDouble()));
-            return size + " / " + row[prefix + "Modified"].toString();
+            const auto rawModified = row[prefix + "Modified"].toString();
+            const auto modified = QDateTime::fromString(rawModified, Qt::ISODate);
+            // 長いISO日時で名前列を圧迫しない。正確な元日時はツールチップへ残す。
+            return size + '\n' + (modified.isValid()
+                ? uiLocale().toString(modified, QLocale::ShortFormat) : rawModified);
         };
         auto* item = new QTreeWidgetItem(rows, {row["relative"].toString(), description("source"), description("target")});
         item->setData(0, Qt::UserRole, row["source"]);
         item->setToolTip(0, row["source"].toString() + '\n' + row["target"].toString());
+        item->setToolTip(1, row["source"].toString() + '\n' + row["sourceModified"].toString());
+        item->setToolTip(2, row["target"].toString() + '\n' + row["targetModified"].toString());
         auto* choice = new QComboBox;
         if (!differentKinds(row)) choice->addItem(uiText("Replace"), "replace");
         choice->addItem(uiText("Skip"), "skip");

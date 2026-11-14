@@ -39,6 +39,8 @@ signals:
     /** @brief Maya内の既存ネームスペースを選ぶ。 @param action Import/Reference。 */
     void namespaceRequested(QString action);
 private:
+    /** @brief 保存では選択ファイルを対象と誤認させず、読込では選択名を表示する。 */
+    void updateTitle();
     /** @brief 4操作すべてへ到達できる表示形式を幅から選ぶ。 */
     void updateActionSelector();
     /** @brief 詳細の画像をスクロール領域の有効幅に合わせる。 */

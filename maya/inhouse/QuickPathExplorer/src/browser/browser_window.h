@@ -159,6 +159,8 @@ private:
     QString theme_ = "system";
     HostServices host_;
     FileJobs* jobs_;
+    // FileJobsは直列実行。startedからfinishedまでの操作を完了通知に使う。
+    QString activeFileAction_;
     QLabel* status_;
     QTimer* saveTimer_;
     QStringList favorites_;

@@ -14,6 +14,7 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QLocale>
@@ -81,7 +82,11 @@ public:
 Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
     setObjectName("inspector");
     auto* outer = new QVBoxLayout(this); outer->setContentsMargins(0, 0, 0, 0);
-    auto* scroll = new QScrollArea(this); scroll->setObjectName("inspectorScroll"); scroll->setWidgetResizable(true); scroll->setFrameShape(QFrame::NoFrame); outer->addWidget(scroll);
+    auto* scroll = new QScrollArea(this); scroll->setObjectName("inspectorScroll"); scroll->setWidgetResizable(true); scroll->setFrameShape(QFrame::NoFrame); outer->addWidget(scroll, 1);
+    // 実行は設定のスクロール量と無関係に届く場所へ置く。親ドックには最小高を要求しない。
+    auto* actions = new QWidget(this); actions->setObjectName("inspectorActions");
+    auto* actionBox = new QVBoxLayout(actions); actionBox->setContentsMargins(9, 4, 9, 9);
+    outer->addWidget(actions); actions->hide();
     auto* content = new QWidget; auto* layout = new QVBoxLayout(content); scroll->setWidget(content);
     title_ = new QLabel(uiText("Select a file below")); title_->setObjectName("fileTitle"); title_->setTextFormat(Qt::PlainText);
     title_->setWordWrap(true); title_->setMinimumWidth(0); title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); layout->addWidget(title_);
@@ -99,7 +104,7 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
     // Mayaの読込設定タブに合わせて領域が広がっても、案内と開くボタンは上にまとめる。
     openBox->setAlignment(Qt::AlignTop);
     if (maya) {
-        auto* savePage = new QWidget; auto* saveBox = new QVBoxLayout(savePage);
+        auto* savePage = new QWidget; auto* saveBox = new QVBoxLayout(savePage); saveBox->setAlignment(Qt::AlignTop);
         button(saveBox, uiText("Save Scene"), "save");
         saveBox->addWidget(new QLabel(uiText("File name")));
         name_ = new QLineEdit; name_->setPlaceholderText(uiText("Scene name.mb")); name_->setObjectName("saveName"); saveBox->addWidget(name_);
@@ -151,7 +156,7 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
                 auto* expand = new QToolButton; expand->setText(uiText("Advanced options")); expand->setCheckable(true); expand->setArrowType(Qt::RightArrow); expand->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
                 box->addWidget(expand); box->addWidget(advanced); advanced->hide();
                 connect(expand, &QToolButton::toggled, advanced, [advanced, expand](bool visible) { advanced->setVisible(visible); expand->setArrowType(visible ? Qt::DownArrow : Qt::RightArrow); });
-                button(box, action == "import" ? uiText("Import") : uiText("Create Reference"), action);
+                button(actionBox, action == "import" ? uiText("Import") : uiText("Create Reference"), action);
             }
             if (action == "fbx") delete advanced;
             auto* presetToggle = new QToolButton; presetToggle->setText(uiText("Presets")); presetToggle->setCheckable(true); presetToggle->setArrowType(Qt::RightArrow); presetToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon); box->addWidget(presetToggle);
@@ -210,10 +215,16 @@ Inspector::Inspector(bool maya, QWidget* parent) : QWidget(parent) {
         button(layout, uiText("Maya File Dialogs…"), "options");
     }
     layout->addStretch();
-    connect(tabs_, &QTabWidget::currentChanged, this, [this](int active) {
+    connect(tabs_, &QTabWidget::currentChanged, this, [this, scroll, actions](int active) {
+        actions->setVisible(active == 1 || active == 2);
+        for (auto* value : actions->findChildren<QPushButton*>())
+            value->setVisible(value->objectName() == (active == 1 ? "import" : "reference"));
         // 非表示ページの詳細設定が、現在の短いページに空白を要求しないようにする。
         for (int i = 0; i < tabs_->count(); ++i) tabs_->widget(i)->setSizePolicy(QSizePolicy::Preferred, i == active ? QSizePolicy::Preferred : QSizePolicy::Ignored);
         tabs_->updateGeometry();
+        updateTitle();
+        // 明示的な操作切替だけ先頭へ戻し、非同期詳細取得や同じ操作内のスクロールは維持する。
+        scroll->verticalScrollBar()->setValue(0);
     });
     for (int i = 1; i < tabs_->count(); ++i) tabs_->widget(i)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
 }
@@ -242,10 +253,15 @@ void Inspector::setPath(const QString& path) {
     if (path_ == path) return;
     path_ = path; token_ = QUuid::createUuid().toString(); media_->cancel(); previewSource_ = QPixmap(); preview_->clear();
     const QFileInfo info(path);
-    title_->setText(path.isEmpty() ? uiText("Select a file below") : info.fileName()); title_->setToolTip(path);
+    updateTitle();
     if (fbx_) fbx_->setVisible(info.suffix().compare("fbx", Qt::CaseInsensitive) == 0);
     information_->setText(path.isEmpty() ? uiText("Select a file") : uiText("Loading details…"));
     if (!detailsBody_->isHidden()) requestDetails();
+}
+void Inspector::updateTitle() {
+    const bool saving = name_ && tabs_ && tabs_->currentIndex() == 3;
+    title_->setText(saving ? uiText("Save Scene") : path_.isEmpty() ? uiText("Select a file below") : QFileInfo(path_).fileName());
+    title_->setToolTip(saving ? QString() : path_);
 }
 void Inspector::requestDetails() {
     token_ = QUuid::createUuid().toString(); media_->cancel();
