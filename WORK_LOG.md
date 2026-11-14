@@ -174,6 +174,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-15): mlrig夜間で、レバーが全周回り連接棒でラムを押す Whitworth 形の早戻り機構 WhitworthQuickReturn(setups/whitworthQuickReturn.py)を追加。δ = atan2(-d sin θ, r + d cos θ)、φ = θ + δ(r > d なので回転数を追わずに連続)、ρ = √(d² + r² + 2dr cos θ)、speedRatio = r(r + d cos θ)/ρ²、ramOffset = a sin φ + √(L² - a² cos² φ) - √(L² - a²)、戻りは cos φ < 0。rotate・leverAngle・lag・slotDistance・speedRatio・ramOffset・ramTranslate・returnStroke と固定の returnAngle (2 acos(d/r))・timeRatio・stroke を出力。標準ノードのみ。テスト8件、Setup Samples 1項目、文書 whitworth_quick_return.rst(QuickReturn の制限から参照)、検証デモ tools/demo_whitworth_quick_return.py。隔離Maya 2027で setups 736件・standard 76件OK、Sphinx -W 成功、検証動画408フレームの判定OK。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-15): mlibの速度の見直し(mlib ffee537)。cmds・OpenMaya・PyMEL・cymelとの比較計測(ローカルの docs/research/benchmark-2026-10-25、よく使う操作28項目を追加)から、Undoの表示名を作る処理の削除、1回のコマンドではチャンクを開かない、接続前の値の記録をマルチアトリビュートの要素だけにする、fastのスキンウェイト設定の一括化、Transformのチャンネルの読み書きの軽量化を実施。maths.Transformation(om2.MTransformationMatrixを継承)とTransform.getTransformation/setTransformation、JSONの対応を追加。Transform.setParentのfastは、mlrigがUndoに残さない親の変更として使うため削除せず残した。Maya 2022/2025/2027のテスト一式と tools/run_rig_packages.py --suite all(2027、872件)が成功。
 - Codex (2026-11-15): ユーザーのpush依頼に基づき、QPE下段右ペイン/上部操作集約/Maya配色と単独タブ省略/列見出し縮小/Ctrl+F検索、およびexeと2022〜2027mllをコミット対象に整理。C++138合格/3skip・Sphinx・Maya GUI内Qt確認の記録と7製品SHA256を照合、差分検査成功。Maya2022極小ドックの右ペイン表示課題は未解決の記録を維持。mlibの未コミット変更とローカル証跡は対象外。
 

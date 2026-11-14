@@ -110,6 +110,7 @@ class SetupSamples:
         ("genevaDrive", "GenevaDrive - intermittent indexing wheel"),
         ("camFollower", "CamFollower - dwell, rise, dwell, return"),
         ("quickReturn", "QuickReturn - slotted lever, slow out and fast back"),
+        ("whitworthQuickReturn", "WhitworthQuickReturn - full-turn lever and rod"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -697,6 +698,29 @@ class SetupSamples:
         _color(ram)
         # rotateZ では +φ の傾きでレバーの先が -X 側へ倒れるので、X 方向へ動くラムの高さを負で与える。
         setup = QuickReturn.create(crank, lever, ram, radius, distance, -height, name=name, axis="z", ramAxis="x")
+        return setup, crank
+
+    @classmethod
+    def _whitworthQuickReturn(cls, name, root):
+        """クランク(joint、先がピン)と、その円の内側のピボットから伸びて全周回るレバーと、ピボットの横のラム。
+        レバーとラムは緑。クランクを ``rotateZ`` で回すと、レバーがピンに押されて速さを揺らしながら一緒に回り、
+        腕の先から連接棒で押されたラムが横に 6cm 往復する。往き(クランクの240度)はゆっくり、戻り(120度)は速い。
+        containerの ``returnStroke`` は戻りの間1、 ``speedRatio`` はレバーの角速度の比、 ``lag`` はクランクとの角度の差。"""
+        from .setups import WhitworthQuickReturn
+
+        radius, distance, arm, rod = 3.0, 1.5, 3.0, 8.0
+        crank = _joint(name + "_crank", root, translate=(0, distance, 0))
+        _tip(crank, name + "_crankPin", (0, radius, 0))
+        lever = _joint(name + "_lever", root)
+        _tip(lever, name + "_leverArm", (0, arm, 0))
+        _color(lever)
+        # rotateZ の +φ でレバーの腕の先は -X へ動くので、ラムを -X 側に置き ramDirection = -1 にする。
+        ram = _joint(name + "_ram", root, translate=(-math.sqrt(rod * rod - arm * arm), 0, 0))
+        for index, tip in enumerate(((-1.5, 0, 0), (1.5, 0, 0))):
+            _tip(ram, "{}_ramEnd{}".format(name, index), tip)
+        _color(ram)
+        setup = WhitworthQuickReturn.create(crank, lever, ram, radius, distance, arm, rod, name=name, axis="z",
+                                            ramAxis="x", ramDirection=-1.0)
         return setup, crank
 
     @classmethod

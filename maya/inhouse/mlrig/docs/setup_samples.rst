@@ -215,6 +215,9 @@
    * - QuickReturn - slotted lever, slow out and fast back
      - クランクのjoint
      - ``rotateZ`` で回すと、ピン(クランクの先)に押されて緑のレバーが下のピボットのまわりに左右へ約23.6度ずつ振れ、上の緑のラムが横に往復する。往き(クランクの約227度)はゆっくり、戻り(約133度)は速い。containerの ``returnStroke`` は戻りの間1、 ``speedRatio`` はレバーの角速度の比、 ``slotDistance`` はピボットからピンまでの距離。
+   * - WhitworthQuickReturn - full-turn lever and rod
+     - クランクのjoint
+     - ``rotateZ`` で回すと、ピン(クランクの先)に押されて緑のレバーがクランクの円の内側のピボットのまわりを速さを揺らしながら一緒に回り、腕の先から連接棒で押された緑のラムが横に6cm往復する。往き(クランクの240度)はゆっくり、戻り(120度)は速い。containerの ``returnStroke`` は戻りの間1、 ``speedRatio`` はレバーの角速度の比、 ``lag`` はクランクとの角度の差。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

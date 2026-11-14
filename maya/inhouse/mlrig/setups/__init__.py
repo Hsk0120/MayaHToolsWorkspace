@@ -27,6 +27,7 @@ from .boxRoll import BoxRoll
 from .genevaDrive import GenevaDrive
 from .camFollower import CamFollower
 from .quickReturn import QuickReturn
+from .whitworthQuickReturn import WhitworthQuickReturn
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -108,6 +109,7 @@ __all__ = [
     "GenevaDrive",
     "CamFollower",
     "QuickReturn",
+    "WhitworthQuickReturn",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",
