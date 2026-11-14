@@ -11,6 +11,9 @@
     "[python]": {
       "editor.defaultFormatter": "charliermarsh.ruff"
     },
+    "[bat]": {
+      "files.autoGuessEncoding": true
+    },
     "C_Cpp.default.includePath": [
       "C:/Program Files/Autodesk/Maya2026/include"
     ],

@@ -9,8 +9,8 @@
 
 2026-10-28のユーザー指定(4.0.0)により、アトリビュートの構造はMayaのコマンドの呼び方へ揃える。
 説明・docstring・コメントでは「マルチアトリビュート」「要素」「論理番号」「コンパウンドアトリビュート」「子」と書き、
-「配列」「multi」「マルチ」「複合」等の略称は使わない。英語の例外メッセージは「multi attribute」「multi element」
-「compound attribute」とする。Pythonのlist・`doubleArray`等の配列データ型・OpenMayaのAPI名はそのまま書く。
+「配列」「multi」「マルチ」「複合」等の略称は使わない。例外メッセージでも「マルチアトリビュート」「マルチアトリビュートの要素」
+「コンパウンドアトリビュート」と書く。Pythonのlist・`doubleArray`等の配列データ型・OpenMayaのAPI名はそのまま書く。
 
 | mlib の名前 | Maya コマンド | OpenMaya |
 | --- | --- | --- |
@@ -229,7 +229,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 
 診断ログと通知は `mlib.logger` に集約する。進捗表示の指定streamへの描画やJSON等の保存出力は
 診断ログとは別の機能であり、その出力先・描画・戻り値の契約を保つ。
-例外メッセージはmlib内で英語に統一する(2026-10-27。混在していた日本語文言を英語化し、形式は下記「例外の4分類と文言形式」に従う)。
+例外メッセージとログの文言はmlib内で日本語に統一する(2026-11-14のユーザー指定。2026-10-27に英語へ統一していたものを、docstring・文書と同じ日本語へ揃えた。Maya 2022・2025のScript Editor相当の出力で文字化けしないことを確認済み。Maya自身のエラーは英語のまま。形式は下記「例外の4分類と文言形式」に従う)。
 通常raiseをすべて通知付きへ置き換えたりしない。
 
 ### 内部実装の定型(2026-10-27の表記ブレ統一)
@@ -255,14 +255,15 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 | シーンの状態 | `RuntimeError` | ロック、接続済み、参照、削除済み・無効ノード、不在 |
 | 実装上の未対応 | `NotImplementedError` | fast経路で扱えない操作・フラグ(変更前に拒否) |
 
-- `must be a non-empty string` 系は非strをTypeError、空文字をValueErrorに分ける。公開例外型の変更は破壊的変更としてコミットメッセージに明記する。
-- 文言は英語でf-stringを使い(`"..." + name` の連結は不可)、対象名は末尾に `: <getFullName() または plug.name()>` で付ける。
-  - 型違い: `<arg> must be <型>`(`_require_bool` は `fast must be a bool`)
-  - 別名競合: `Specify only one of '<long>' and '<short>'`(長→短の順)
-  - 必須欠落: `Missing required argument: '<long>'`
-  - 値違い: `<arg> must be <条件>` または `Expected <条件>`
-  - 状態: `<対象> is locked|connected|referenced: <名前>`、`Cannot <action> an invalid <type>`(`Node._require_valid(action)`)
-  - fast非対応: `fast <publicMethodName> does not support <条件>`、`fast <publicMethodName> does not support flags: a, b`(説明語ではなく公開メソッド名を書く)
+- 「空でない文字列で指定してください」系は非strをTypeError、空文字をValueErrorに分ける。公開例外型の変更は破壊的変更としてコミットメッセージに明記する。
+- 文言は日本語でf-stringを使い(`"..." + name` の連結は不可)、対象名は末尾に `: <getFullName() または plug.name()>` で付ける。引数名・型名・メソッド名・ノード型名などの識別子は英字のまま書き、日本語との間に空白を入れない。括弧は半角。用語はdocstringと同じ。
+  - 型違い: `<arg>は<型>で指定してください`(`_require_bool` は `fastはboolで指定してください`)
+  - 別名競合: `'<long>'と'<short>'は同時に指定できません`(長→短の順)
+  - 必須欠落: `必須の引数がありません: '<long>'`
+  - 値違い: `<arg>は<条件>で指定してください` または `<条件>を指定してください`
+  - 状態: `<対象>がロックされています|接続されています|リファレンスです: <名前>`、`無効な<type>のため、<動作>はできません`(`Node._require_valid(action)`。`action` は「名前の変更」「アトリビュートの取得」のような名詞句)
+  - fast非対応: `fastの<publicMethodName>は<条件>に対応していません`、`fastの<publicMethodName>は次のフラグに対応していません: a, b`(説明語ではなく公開メソッド名を書く)
+  - 英語の文は残さない。`_tools/check_mlib_layout.py` のL060が、日本語を含まない英語の文(英単語が2つ以上続くもの)を報告する。ログ(`logger.warning` 等)も日本語で書く。snapshotの報告に入る理由のうち `"locked"`・`"connected"`・`"not settable"` は戻り値として決めた値なので英字のまま。
 - テストが文言を `assertRaisesRegex` している箇所は同時に更新する。
 
 #### 別名引数の書き方
@@ -271,7 +272,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 - cymel 由来の短い引数名だった `Transform.getMatrix` の `p`・`inv` と `getQuaternion`/`setQuaternion` の `ra`・`r`・`jo` は、12.3.0 で長名(`parent`・`inverse`・`rotateAxis`・`rotate`・`jointOrient`、keyword-only)を足し、短い名前は既存のコードのため別名として残す。`getTranslation`/`setTranslation` の `at` は単語として扱い、長名を足さない。
 - それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`index=0` 等)。短縮名の別名・`_UNSET` による省略判定を追加しない。
 - 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/noMaya/test_mlib_publicArgs.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
-- 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
+- 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("'<long>'と'<short>'は同時に指定できません")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("必須の引数がありません: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
 - Mayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
 - 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。
 - 内部関数へ渡すときも `fast`/`worldSpace` 等の同じ名前を使い、`world_space` のような別名を増やさない(core層のsnake_case関数の既存引数 `ws` は維持)。
