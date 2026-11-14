@@ -39,7 +39,7 @@ C++比較には対象Maya用のmlrigNodes、Bifrost比較にはmlib_bifrostと�
 
 全スイート一括実行には複数の依存が必要です。変更範囲に応じて選択してください。
 最新のテストファイル構成は ``tools/run_rig_packages.py`` が実体です。
-追加した ``unit/setups/test_softIK_tiny.py`` の5件と ``unit/root/test_limb_ikOrigin.py`` の2件は
+追加した ``inMaya/unit/setups/test_softIK_tiny.py`` の5件と ``inMaya/unit/root/test_limb_ikOrigin.py`` の2件は
 ``standard`` と ``all`` に登録済みです。検証結果は :doc:`test_results`、
 修正内容と残るIK制限は :doc:`exprespy_comparison` を参照してください。
 

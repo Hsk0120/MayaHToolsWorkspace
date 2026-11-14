@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "maya/inhouse/mlib/__tests__"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse/mlib/__tests__"))
 import runGui
 from support.importSafety import find_shadowing
 

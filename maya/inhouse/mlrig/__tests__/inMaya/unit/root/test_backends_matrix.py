@@ -5,7 +5,7 @@ from unittest.mock import patch
 import unittest
 from maya import cmds
 
-from mlrig.__tests__.unit.setups import test_matrixFollow as shared
+from mlrig.__tests__.inMaya.unit.setups import test_matrixFollow as shared
 from mlrig.setups import MatrixFollow
 
 

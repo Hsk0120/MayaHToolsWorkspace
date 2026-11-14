@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 # tools/ のスクリプトを読むため、tools/tests/ の1つ上を検索パスに入れる。
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import qpe_audit_runner
 
 

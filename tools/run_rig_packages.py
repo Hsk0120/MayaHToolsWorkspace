@@ -26,7 +26,7 @@ def main():
     maya.standalone.initialize(name='python')
     try:
         files=[]
-        rig='mlrig/__tests__/'
+        rig='mlrig/__tests__/inMaya/'
         if args.suite in ('all','matrix-plugins'):
             files.append(rig+'unit/root/test_backends_matrix.py')
         if args.suite in ('all','mlib'):
@@ -35,7 +35,7 @@ def main():
             plugin=Path(sys.executable).resolve().parents[1]/'plug-ins/fbx/plug-ins/fbxmaya.mll'
             if plugin.is_file() and not cmds.pluginInfo('fbxmaya',q=True,loaded=True):
                 cmds.loadPlugin(str(plugin),quiet=True)
-            files += ['mlib/__tests__/unit/'+name+'.py' for name in (
+            files += ['mlib/__tests__/inMaya/unit/'+name+'.py' for name in (
                 'root/test_init_typing','cmds/test_init_basics','root/test_init_layout','common/test_scriptJobs_rigUse')]
         if args.suite in ('all','setups'):
             # setups/ の各モジュールのテストと、例・セットアップ全体の確認をフォルダーから集める。
@@ -48,7 +48,7 @@ def main():
         if args.suite in ('all','bifrost','native','standard'):
             files.append(rig+'unit/root/test_definition.py')
         if args.suite in ('all','bifrost'):
-            files += ['mlib_bifrost/__tests__/unit/nodes/test_graph.py','mlib_bifrost/__tests__/unit/plugs/test_port.py',
+            files += ['mlib_bifrost/__tests__/inMaya/unit/nodes/test_graph.py','mlib_bifrost/__tests__/inMaya/unit/plugs/test_port.py',
                       rig+'unit/root/test_limb.py']
         if args.suite in ('all','native'):
             files.append(rig+'unit/root/test_backends_native.py')

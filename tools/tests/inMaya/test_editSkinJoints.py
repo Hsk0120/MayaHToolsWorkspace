@@ -11,7 +11,7 @@ def main():
     try:
         import maya.cmds as cmds
         import maya.api.OpenMaya as om
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "maya/inhouse"))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse"))
         from HTools.rigging import editSkinJoints as tool
 
         def points(mesh):
@@ -197,7 +197,7 @@ def main():
         owner = tool._WindowOwner()
         callback = om.MSceneMessage.addCheckCallback(om.MSceneMessage.kBeforeSaveCheck, owner.suspend)
         try:
-            output = Path(__file__).resolve().parents[2] / ".maya-output/skin-edit-safe-save.ma"
+            output = Path(__file__).resolve().parents[3] / ".maya-output/skin-edit-safe-save.ma"
             cmds.file(rename=str(output))
             cmds.setAttr(renamed_skin + ".envelope", lock=True)
             try:

@@ -99,7 +99,16 @@ Clamp/Condition/MultiplyDivide/PlusMinusAverage/RemapValue/Reverse/SetRange/Unit
   旧名のキーワード指定はTypeErrorになる。内部関数・内部メソッド・ローカル変数・`*args`/`**kwargs` はsnake_caseのまま、
   既存の登録プロトコル(`NodeRegistry`・`reload_package` 等、名前自体がsnake_caseの入口)は対象外とする。
   5.0.0でログの公開関数もlowerCamelCaseへ改名した(`logger.getLogger`・`logger.raiseWithNotify`。旧名の別名は残さない)。
-  公開defの引数名は `__tests__/static/test_mlib_publicArgs.py` が検査する。旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
+  公開defの引数名は `__tests__/noMaya/test_mlib_publicArgs.py` が検査する。旧名との対応は git の履歴(各版のコミットメッセージ)で追う。
+- 2026-11-13のユーザー指定により、互換のために残す引数は置かない。使わなくなった引数は削除し、呼出し側・docstring・型スタブも一緒に直す。
+  `ruff check` の `ARG`(未使用引数)で検出し、残すのは「呼ぶ側が引数を決める」ものだけとする:
+  基底クラスの契約(`Snapshot._validate`/`_apply` の `options`・`fast`、`DagNode.getShape` の `index`・`intermediates` のように
+  派生が使い基底は無視するもの)、Mayaのコールバックが渡す引数、差し替える関数の表が決めた引数。
+  残す場合は `# noqa: ARG002` 等と理由を同じ行に書き、docstringにも「使わない」と明記する。
+  `*args`・`**kwargs` は呼出しの形を合わせるためのものなので対象外(`ignore-variadic-names`)。テストは
+  コールバックと差し替えで受ける引数が多いため `__tests__/**` で除外する。先頭に `_` を付けて残すのは、
+  上の「呼ぶ側が決める」場合だけとし、それ以外は削除する。公開APIの引数を削除したら、Maya 2027のテスト一式と
+  利用側(`tools/run_rig_packages.py --suite all`)を通してから確定する。
 - 2026-10-22のユーザー指示により、独自の取得は `getX()` へ統合する。
   get省略入口と対応する短名コマンドファイルは削除し、利用側・テスト・Sphinxもget付きへ更新する。
   判定・数学演算・保持プロパティ・OpenMaya標準名は取得統合の対象外とする。
@@ -261,7 +270,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 - 短縮名の別名はMayaコマンドのフラグを受ける入口だけに置く(3.0.0)。対象は `cmds/` の `ls`・`createNode`・`duplicate`・`select` と作成関数(`createIkHandle`・`createCurve` 等)のフラグ群と、Mayaコマンドへフラグを渡す `Node.addAttr`・`Transform.addConstraint`・`Transform.makeIdentity`・`Plug.setKey`・`DagNode.reorder`(`f/b/r`)、Mayaの `listConnections`/`connectAttr` のフラグを受ける `getConnections` の `s/d/c/t/et/scn`、`Plug.connect/disconnect` の `f/l/na`。これらはMayaと同じ長短の名前を受けるのが契約。`delete` はフラグを受けない。
 - cymel 由来の短い引数名だった `Transform.getMatrix` の `p`・`inv` と `getQuaternion`/`setQuaternion` の `ra`・`r`・`jo` は、12.3.0 で長名(`parent`・`inverse`・`rotateAxis`・`rotate`・`jointOrient`、keyword-only)を足し、短い名前は既存のコードのため別名として残す。`getTranslation`/`setTranslation` の `at` は単語として扱い、長名を足さない。
 - それ以外のmlib独自メソッドは長名だけを持ち、長名に通常の既定値を置く(`index=0` 等)。短縮名の別名・`_UNSET` による省略判定を追加しない。
-- 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/static/test_mlib_publicArgs.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
+- 例外として、`worldSpace` を受ける公開メソッドはすべて短縮名 `ws` も受ける(12.2.0、2026-11-11のユーザー指定)。署名は `worldSpace=_UNSET, ..., *, ws=_UNSET` とし、docstringの後の最初の行で `worldSpace = _pick_alias(worldSpace, ws, "worldSpace", "ws", default=False)` と選ぶ(既定値は従来の値)。`ws` は keyword-only。`__tests__/noMaya/test_mlib_publicArgs.py` の `test_world_space_has_short_alias` が、`worldSpace` を持つ公開defが `ws` も持つことを検査する。
 - 上記の入口では、署名は長名・短名ともkeyword-onlyの `_UNSET` を基本とし、選択は `_pick_alias(long, short, longName, shortName, default=_UNSET)`(`decorator.py`)で行う。インラインの `if ... is not _UNSET` 展開は書かない。競合は `_ArgumentError("Specify only one of '<long>' and '<short>'")`、`default` が `_UNSET` で両方未指定なら `_ArgumentError("Missing required argument: '<long>'")`。`_UNSET` は `util` が唯一の定義で、False/Noneの明示指定と省略を区別するためだけに使う。
 - Mayaコマンドへ `**kwargs` で渡すフラグ群は `_merge_flags(kwargs, pairs)` で辞書へ詰めてよい。
 - 空間指定のbool検査は `util._world_space()`(TypeError)に一本化し、二重検査を書かない。
@@ -291,7 +300,7 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 - Raisesの並びは `TypeError → ValueError → IndexError → RuntimeError → NotImplementedError`。
 - 型表記は `list[Node]`・`tuple[float, float, float]`・`dict[str, Any]` のように要素型を書き、裸の `list`/`tuple`/`dict` は使わない。
 - 用語はCGWORLDのMaya記事に合わせ「アトリビュート」「マトリクス」(determinantは「行列式」のまま)「クォータニオン」「コンストレイント」「ワールド空間/ローカル空間/オブジェクト空間」「番号」(インデックス・添字は使わない)「ウェイト」。括弧は半角、文の区切りは句点のみで半角スペースで区切らない。モジュール定数には `#:` を付ける。
-- 2026-11-13のユーザー指定: mlibでPyMELの名前を書くのは文書の紹介文(`_docs/source/whymlib.rst`)だけとする。mlibのコード・コメント・docstring・メッセージ・テスト・ほかの文書・ファイル名・コミットメッセージには書かない(mlibの `static/test_mlib_wording.py` が検査する。mlibの履歴からも削除済み)。他のライブラリで使われる名前への案内は「maya.cmdsやほかのライブラリの名前」のように書く。mlibの指示ファイルではこの名前を書かず「紹介文で比較に挙げる他のライブラリの名前」と表す。このワークスペースの文書(設計文書・`maya/external/pymel` の説明等)は対象外。
+- 2026-11-13のユーザー指定: mlibでPyMELの名前を書くのは文書の紹介文(`_docs/source/whymlib.rst`)だけとする。mlibのコード・コメント・docstring・メッセージ・テスト・ほかの文書・ファイル名・コミットメッセージには書かない(mlibの `noMaya/test_mlib_wording.py` が検査する。mlibの履歴からも削除済み)。他のライブラリで使われる名前への案内は「maya.cmdsやほかのライブラリの名前」のように書く。mlibの指示ファイルではこの名前を書かず「紹介文で比較に挙げる他のライブラリの名前」と表す。このワークスペースの文書(設計文書・`maya/external/pymel` の説明等)は対象外。
 
 #### 共通ヘルパーの置き場
 
@@ -327,10 +336,33 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 mlib・`mlib_*` のPythonファイルはPEP 8を基本にし、下記のプロジェクト固有の並び順と例外を使う。
 2026-10-25のユーザー指示により、import位置・分類・関数内import・import形式・空白と改行を明文化する。
 整理では依存関係と初期化順を維持し、名前・本文・デコレータの積み順・docstringを変えない。
-`python maya/inhouse/mlib/_tools/check_mlib_layout.py --check` が既存の並び順と空行を検査し、`--fix` がその整形を行う。
-`--check` は下記の演算子・カンマ/括弧・引数指定・行末コメント・名前付きlambdaも検査する。
-これら5項目は検査のみで、`--fix` による自動修正はしない。
-Windowsでは `maya/inhouse/mlib/_tools/check_mlib_layout.bat` でも同じ検査・修正を実行できる(引数なしは検査、`--fix` は直してから残りを検査)。
+`python maya/inhouse/mlib/_tools/check_mlib_layout.py --check` が、下記のうちruffに無い並び順を検査し、`--fix` がクラス内メンバーの並び替えを行う。
+2026-11-13のユーザー指定により、空白(演算子・カンマ/括弧・引数指定・行末コメント)・空行・改行位置・引用符は `ruff format` が自動で直す(設定は `maya/inhouse/mlib/ruff.toml`、入口は `_tools/format_mlib.bat`)。
+importの分類・並び替えと未使用名・Mayaのimport形式・未使用引数・pathlib・文字コードは `ruff check --fix` が担当する。
+2026-11-14のユーザー指定により、選ぶルールと除いたルールを次のとおり決めた(`ruff.toml` が正本)。
+
+**設定の安定性**: `required-version = "==0.17.5"` で別の版のruffは実行を拒否する(`requirements-dev.txt` の固定と対にし、
+VS Code拡張が同梱する版で整形結果が変わるのを防ぐ)。`explicit-preview-rules = true` で、previewのルールはコードを明示したものだけ
+有効にする(これが無いと、選んだ族の新しいpreviewルールがruffの更新で黙って増え、検査結果が変わる)。
+
+**選ぶルール**: F・E4/E7/E9・W(誤りと空白)、I(import順)、B(壊れやすい書き方)、ICN(Mayaのimport形式)、ARG(未使用引数)、
+PTH(pathlib)、C4(内包表記)、RET(returnの書き方)、UP(f-string等)、TC(型注釈だけのimport)、G・INT・LOG(ログと書式)、
+PIE(不要な書き方)、ERA(コメントアウトしたコード)、DTZ(timezoneなしの日時)、PLE(実行時に壊れるもの)、PLW1514(文字コード未指定)、
+RUF100(効いていないnoqa)、RUF022(`__all__`の並び)、RUF001〜003(全角と半角の統一)。
+
+**除外**: `E741`(`l`・`f`・`i`はMayaの短縮フラグ)、`PLE0605`(ルートとcommonの`__all__`は実行時に組み立てる)、
+テストの`C408`(cmdsへ渡す辞書を`dict()`で組む)。`logger.py`・`decorator.py`の`PTH`とテストの`PTH`・`B023`は前述のとおり。
+
+**入れないルール**(件数は2026-11-14時点のmlib): D 7,525件・DOC 1,128件(docstringは日本語Google形式で、
+`check_mlib_docs.py`・`check_mlib_doc_getter_names.py`が担当)、ANN 6,502件(型はdocstringに書いてスタブを生成する方針と衝突)、
+EM 2,344件・TRY 1,173件(例外文言の規約と衝突)、N 1,837件(公開APIはlowerCamelCase。`test_mlib_publicArgs.py`が担当)、
+TID252 1,616件(相対importは仕様)、FBT 373件(boolのフラグ引数はMayaの流儀)、PLC 314件(大半が`PLC0415`=意図的な関数内import)、
+SIM 297件(`SIM108`の三項化は160字近い式になり読みにくい、`SIM105`の`contextlib.suppress`はtry/except/passより遅い、
+テストの`SIM117` 254件は入れ子の`with`を1行へ繋げてPython 3.7では折り返せない)、S 404件(`S101`は内部整合性のassertで、
+`S105`の6件は`token`という変数名への誤検知)、COM・Q(ruff formatが決める)、`format.docstring-code-format`
+(`json/_animCurveData.py`のJSON構造の図解が4行→25行に展開され、`cmds/createJointChain.py`の折り返した例が1行に潰れる)。
+`check_mlib_layout.py` に残すのは、ruffに無い検査(定数・`__all__`・`if TYPE_CHECKING:`の位置、クラス内メンバー順と対になる操作の隣接、
+公開入口の入力assert、enumerate)だけとし、2026-11-14にruffと重なる検査(import順・空白・空行・名前付きlambda・pathlib・文字コード)を削除した。
 関数内importの必要性・理由コメント、複数モジュールimport、ワイルドカード、インデント・末尾空白・長い式の改行をすべて検査するものではない。
 `--snapshot`/`--compare` で整理前後の関数本体・import束縛・モジュール文が同一であることを確認できる(Maya不要。
 実行方法は `maya/inhouse/mlib/__tests__/README.md`)。この比較だけでimport移動後の実行順や挙動の同一性は保証しない。
@@ -363,10 +395,28 @@ Windowsでは `maya/inhouse/mlib/_tools/check_mlib_layout.bat` でも同じ検�
 - `@dataclass` のフィールド順、`__str__ = __repr__` のような先行定義を参照する代入、
   `item_class = Node` のようなクラス属性は、参照先が先に定義される位置を維持する。
 - `__all__` はPEP8の「import前」ではなく、import群の直後に置く(`__init__.py` の動的な
-  `__all__` と位置を揃えるための意図的な逸脱)。
-- 行の長さは規則の対象外。
-- 新しい検査コードは `L030`（代入・比較）、`L031`（カンマ・括弧）、`L032`（引数の `=`）、
-  `L033`（行末コメント）、`L034`（名前付きlambda）。文字列内部は検査せず、f-stringは埋込み式も含めて対象外にする。
+  `__all__` と位置を揃えるための意図的な逸脱)。`L005`は文字列の並び(`__all__ = ["A", "B"]`)だけを検査し、
+  ルートの `__init__.py` のように他の名前から組み立てる `__all__` は定義の後ろでもよい。
+- 行の長さは`ruff.toml`の`line-length = 160`で揃える(`ruff format`が改行位置を決める)。
+- 検査コードは族で分ける。2026-11-14のユーザー指定で `L05x`〜`L08x` を追加した。
+  - `L00x` 位置: `L004` 定数、`L005` `__all__`、`L006` `if TYPE_CHECKING:`。
+  - `L02x` クラス内: `L020`〜`L022` メンバーの順と対になる操作の隣接、`L023` 並び検査をスキップしたクラス。
+  - `L04x` 近代化: `L040` 公開入口の入力assert、`L041` 列挙の確認候補。
+  - `L05x` 内部名と命名: `L050` 禁止した接頭辞・末尾、`L051` function setの直書き、`L052` 関数内importの理由コメント。
+  - `L06x` 例外とログ: `L060` 文言の言語、`L061` `+` 連結、`L062` `logger.error` と `raise` の同居、
+    `L063` Undoチャンク名、`L064` fastの受け取り。
+  - `L07x` docstring: `L070` 見出しの順、`L071` Raisesの並び、`L072` 1行目の句点、`L073` fastの固定文、
+    `L074` 用語、`L075` 公開定数の説明、`L076` `Args:` の名前と位置引数の順、`L077` 残った `TODO`（情報）。
+    `L076` だけは内部の `def`・`__init__` も見る（docstringは型スタブにも出るため）。
+    `self`・`cls`・`*args`・`**kwargs` は書いても省いてもよく、キーワード専用引数の順は問わない
+    （短縮名を元の名前の直後へ置く書き方が41件あり、署名の並びとは変わるため）。
+  - docstring の雛形は `--template-docstrings <ファイル>` が入れる。署名から `Args:` の名前と並び、
+    本文から `Returns:`/`Yields:`/`Raises:` を決め、`fast`・`ws`・値を返さない `Returns:` は固定文で完成させる。
+    書けない説明の `TODO` は型として読まれない形（引数は型を省き、戻り値はコロンを書かない）にして、
+    型スタブの生成と Sphinx のビルドが止まらないようにする。埋め忘れは `L077`（情報）で追う。
+  - `L08x` Python版とproperty: `L080` Python 3.7（Maya 2022）で動く書き方、`L081` propertyのgetterでのMaya問い合わせ。
+- 入れないと決めた検査: 1クラス1ファイル（現状の3件はすべて規則本文が認める組み合わせで、許可表が要る）、
+  単数クラスの `__len__`/`__iter__`（`CompoundPlug`・`MultiPlug` の `__iter__` は意図的）。
 
 ### 入力検証・列挙・ファイル操作
 
@@ -379,15 +429,14 @@ Windowsでは `maya/inhouse/mlib/_tools/check_mlib_layout.bat` でも同じ検�
   `range(len(name))`と`name[index]`の読取りから確認候補を表示する。
   要素更新・削除・隣接番号の計算等は一律に変更しない。任意オブジェクトの反復と添字の同等性は推測しない。
 - ファイルパスには`pathlib`、テキストの読書きには明示的な`encoding`を基本にする。
-  `L042`は既知の`os.path.join/dirname/basename`を置換の確認候補として表示する。
-  `normcase/realpath`等のOS固有の意味は維持し、MayaのDAGパス・アトリビュート名をファイルパスへ変換しない。
-  `L043`は組込み`open`・`io.open`と、Path生成/型注釈で対象を判定できる
-  `Path.open/read_text/write_text`の文字コード未指定・`encoding=None`を検出する。
-  バイナリ・動的なmode・`*args`/`**kwargs`・不明なオブジェクトは断定しない。
-  Pythonソースの宣言に従う`tokenize.open`も対象外。外部ファイルの文字コードをUTF-8と自動推測しない。
+  2026-11-14のユーザー指定により、この2つはruffの`PTH`・`PLW1514`で検査する(`L042`・`L043`は削除した)。
+  `normcase`等のOS固有の意味は維持し、MayaのDAGパス・アトリビュート名をファイルパスへ変換しない。
+  例外として、フレームのファイル名を`os.path.normcase`で大小を無視して比べる`logger.py`・`decorator.py`と、
+  パスをMayaのコマンドへ文字列で渡すテストは`PTH`の対象外にする(理由は`ruff.toml`に書く)。
+  外部ファイルの文字コードをUTF-8と自動推測しない。
 
-`L041`と`L042`は個別判断が必要な情報表示で、単独では検査を失敗にしない。
-`L040`と`L043`は検査失敗となる。既存の`--fix`では上記を書き換えない。
+`L041`は個別判断が必要な情報表示で、単独では検査を失敗にしない。`L040`は検査失敗となる。
+`--fix`はクラス内メンバーの並び替えだけを行い、上記を書き換えない。
 入力assertの修正だけは`--fix-asserts TypeError`または`--fix-asserts ValueError`を使い、
 対象ファイル1つと`--line`で確認した行を明示する。例外型の選択と変更の承認は呼出し側で行う。
 複数行指定は全件を検証してから書き込み、コメントを含むassertや他の文と行を共有する場合、
@@ -661,7 +710,7 @@ print(value.x)            # Pythonオブジェクトが保持する値
 - 2026-10-30のユーザー指定により、fast は通常経路より速くなるものに付ける(デコレーター・コンテキストでは切り替えず、引数だけで指定し、内部の処理へ `fast=fast` で渡す)。6.1.0 で `Mesh.setPoints`・`NurbsCurve.setCvPositions`(全点を `MFnMesh.setPoints`・`MFnNurbsCurve.setCVPositions` で1回に書く)、`DagNode.setColor`・`Nodes.setColor`、`BoolPlug.toggle`、`SkinCluster.pruneWeights`(`setWeights` と同じPlug直接書込み)、`DrivenKey.setKey`(この組のカーブが無ければ setDrivenKeyframe と同じ型・名前のカーブを作って接続する。別ドライバーが既にある駆動先は blendWeighted の挿入が必要なので NotImplementedError)に fast を足した。周期カーブの fast 座標編集(`setCvPositions`・`scaleGeometry`)は末尾の重複CVを先頭の独立CVに揃えて書く。mayapy 2027 で cmds と om2 の1回あたりの時間を測り、差がほぼ無いものは fast を付けない: `Transform.setLimits`(transformLimits 1回とPlug 8本の書込みが同程度)、`matchTransform`(同程度)、`Joint.orient`(joint -e 1回が約30µs)、`NurbsCurve.create`(約1.4倍)、`Plug.setMin/setMax/setSoftMin/setSoftMax`(addAttr -e 1回が約10µs)。1回の cmds で全体を処理するもの(`copyWeightsTo`・`mirrorWeights`・`bind`・`makeIdentity` 等)も om2 にしても速くならない。
 - 2026-10-31のユーザー指定により、fast にしても速くならないもの・効果がほぼ無いもの(実際の使い方に近い量で約1.1倍以下)は、fast 引数と OpenMaya の経路を削除する。7.0.0 で削除: `ShadingEngine.assign`・`ObjectSet.addMembers/removeMembers`(MFnSet が cmds.sets より遅い)、`DisplayLayer.addMembers/removeMembers/setCurrent`(同じく遅い)、`Joint.reparentChildren`(ワールド位置を保つ付け替えは cmds.parent が速い)、`AnimCurve.shiftKeys/scaleKeys/mirror`(全キーを1回で処理する cmds が速い。9.0.0で`moveKey`・`scaleKey`へ改名)、`Plug.setKey`(検証と照会が大半。`AnimCurve.setKey` の fast は残す)、`Joint.jointOrientToRotate/freezeRotate`・`SkinCluster.redistributeWeights`(検証・計算が大半で約1.0倍)、`Plug.setEnumNames`(fast=True が常に未対応だった)。`Transform.setParent` の fast は `relative=True` で約2.5倍速いため残す(ワールド位置を保つ既定では fast の方が遅い)。削除した fast は docstring に「fast引数は持たない(理由)」と書く。
 - 3.0.0 で次の書き込みから `fast` を外した。利用がほぼ無く、cmds と同じ結果を保つ補正が保守の負担になるため 3.0.0 で外した: `mlib.duplicate`(`MFnDagNode.duplicate` の名前・ロック・セット所属・inverseScale の補正)、`mlib.select`・`Selection.select`(`MGlobal.setActiveSelectionList` でのコンポーネントのまとめ方の再現)、`Namespace.create/setCurrent/rename/move/remove`(`om2.MNamespace` の作成名の特定・ASCII以外の拒否)、`Plug.setMuted/mute/unmute`(`MDGModifier` での mute ノードの命名・接続の再現)、`Transform.matchTransform`(position・pivots だけの再現)、`SkinCluster.removeInfluence/removeUnusedInfluences`・`Joint.removeInfluence`(`cmds.skinCluster -removeInfluence` の再配分・距離配分の再現)。いずれも通常経路(cmds、Undo 1 回)だけを持つ。
-- cmds→om2の読み取り置換は `__tests__/integration/test_parity_cmds.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
+- cmds→om2の読み取り置換は `__tests__/inMaya/integration/test_parity_cmds.py` にcmdsの生値との突き合わせを同時に追加し、一致しないものはcmdsに戻す。om2に対応APIが無い読み取り(`Plug.getNiceName` の `attributeName -nice`、`cmds.nodeType` による型継承照会、`ls -undeletable`、`referenceQuery` のedit系、`keyTangent -g`、`mlib.ls` の検索・並び順、module/plugin/scriptJob/undoの環境系)はcmdsのままとする。
 - UI・環境設定、既存のcmds直接利用指定は例外としてcmds/melを使用する。
 
 - 引数がない、処理が軽い、戻り値が単純な数値という理由だけではプロパティにしない。Mayaの現在値を取得するならメソッドにする。
@@ -731,12 +780,12 @@ Mayaコマンド・nodeTypeに対応する名前は、Maya標準の表記を優�
 
 ### テストの置き場所と名前(2026-11-13のユーザー指定)
 
-- フォルダーは動かし方・範囲、ファイル名は確かめる対象で決める。`__tests__/static/` はMaya不要(`runStatic.py`)、`unit/<パッケージ>/` は1つのモジュール(パッケージはソースと同じ `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core`・`json`、mlib直下のモジュールは `root`)、`integration/` は複数のパッケージにまたがる確認でフォルダーを作らない。
-- 名前は `test_<対象>[_<話題>].py`。`_` は区切りだけに使い、各部分は lowerCamelCase。対象はソースのファイル名のまま(`__init__.py` は `init`、先頭の `_` は付けない、スネークケースのツールは lowerCamelCase に直す)。`integration/` の対象は観点 `naming`・`units`・`fast`・`parity`・`undo`・`errors`・`interop`・`performance`・`workflow`・`reload`・`compat`。GUIが要るものは話題を `gui` にする。
+- フォルダーはMayaが要るかどうか、ファイル名は確かめる対象で決める(2026-11-14にMaya有無の軸へ再編成)。`__tests__/noMaya/` はMaya不要(`runNoMaya.py`)、`__tests__/inMaya/unit/<パッケージ>/` は1つのモジュール(パッケージはソースと同じ `cmds`・`nodes`・`plugs`・`components`・`maths`・`common`・`core`・`json`、mlib直下のモジュールは `root`)、`__tests__/inMaya/integration/` は複数のパッケージにまたがる確認でフォルダーを作らない。
+- 名前は `test_<対象>[_<話題>].py`。`_` は区切りだけに使い、各部分は lowerCamelCase。対象はソースのファイル名のまま(`__init__.py` は `init`、先頭の `_` は付けない、スネークケースのツールは lowerCamelCase に直す)。`inMaya/integration/` の対象は観点 `naming`・`units`・`fast`・`parity`・`undo`・`errors`・`interop`・`performance`・`workflow`・`reload`・`compat`。GUIが要るものは話題を `gui` にする。
 - 何を確かめるかが分からない語・作業の経緯を表す語(`spec`・`refactoring`・`consolidated`・`changes`・`additions`・`backlog`・`misc`・`api`・`contracts`)や番号・記号は名前に使わない。
 - 検査ツールは mlib の `_tools/` に置く(`__tests__/checks/` は作らない)。調査用の使い捨てスクリプトはリポジトリに入れず、残す価値がある確認はテストにする(`manual/` は作らない)。
-- `static/test_runAll.py` がこの規則を検査する。同名のファイルが別フォルダーにあるので、`--tests` はフォルダー付きの相対パスも受ける。
-- 利用側(mlrig・mlib_bifrost・`tests/mlib_integration/cases/`・`tools/tests/`)も同じ規則にする。
+- `noMaya/test_runAll.py` がこの規則を検査する。同名のファイルが別フォルダーにあるので、`--tests` はフォルダー付きの相対パスも受ける。
+- 利用側も同じ軸へ揃える(2026-11-14): mlrig `__tests__/inMaya/{unit,integration}/`、mlib_bifrost `__tests__/inMaya/unit/`、`tests/mlib_integration/inMaya/`(旧 `cases/`。GUIは `inMaya/gui/`)、`tools/tests/{noMaya,inMaya}/`。全体がMaya前提のものは `noMaya/` を作らず、Maya不要のテストを足すときに作る。
 
 ## cmdsの範囲
 

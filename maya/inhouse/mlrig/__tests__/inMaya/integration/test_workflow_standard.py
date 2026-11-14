@@ -5,7 +5,7 @@ from unittest import mock
 
 from maya import cmds
 
-from mlrig.__tests__.unit.root import test_limb
+from mlrig.__tests__.inMaya.unit.root import test_limb
 from mlrig.setups import SoftIK
 
 
@@ -67,7 +67,7 @@ class StandardTest(test_limb.LimbTest):
 
     def test_match_redo_and_layer_controls(self):
         """標準演算でも既存のUndo/Redoとチャンネル要求が同じ結果になる。"""
-        from mlrig.__tests__.unit.root import test_backends_native as test_native
+        from mlrig.__tests__.inMaya.unit.root import test_backends_native as test_native
 
         test_native.NativeTest.test_match_redo_preserves_pose(self)
         test_native.NativeTest.test_layer_settings_and_channel_requests(self)
@@ -84,7 +84,7 @@ class StandardTest(test_limb.LimbTest):
         channel.initialize = mock.Mock()
         bifrost = types.ModuleType("mlrig_bifrost_startup")
         bifrost.initialize = mock.Mock()
-        startup = Path(__file__).resolve().parents[2] / "startup" / "userSetup.py"
+        startup = Path(__file__).resolve().parents[3] / "startup" / "userSetup.py"
         with mock.patch.dict(sys.modules, {"mlrig_channel_startup": channel,
                                            "mlrig_bifrost_startup": bifrost}):
             runpy.run_path(str(startup))

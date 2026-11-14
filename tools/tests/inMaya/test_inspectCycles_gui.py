@@ -19,7 +19,7 @@ def main():
         assert "0" in cmds.text(ui.status, query=True, label=True)
         assert "Maya" in cmds.scrollField(ui.details, query=True, text=True)
         assert cmds.button(ui.scan_button, query=True, enable=True)
-    output_dir = Path(__file__).resolve().parents[2] / ".maya-output"
+    output_dir = Path(__file__).resolve().parents[3] / ".maya-output"
     output_dir.mkdir(parents=True, exist_ok=True)
     report = output_dir / "cycle-inspector-test.txt"
     with mock.patch.object(cmds, "fileDialog2", return_value=[str(report)]):
@@ -41,7 +41,7 @@ def main():
     ui = inspectCycles.run()
     QtWidgets.QApplication.processEvents()
     widget = wrapInstance(int(omui.MQtUtil.findWindow(ui.window)), QtWidgets.QWidget)
-    output = Path(__file__).resolve().parents[2] / ".maya-output/cycle-inspector.png"
+    output = Path(__file__).resolve().parents[3] / ".maya-output/cycle-inspector.png"
     output.parent.mkdir(parents=True, exist_ok=True)
     assert widget.grab().save(str(output))
     logger.info("サイクル調査GUI: 空結果・保存・失敗後の復帰・画面生成 passed")

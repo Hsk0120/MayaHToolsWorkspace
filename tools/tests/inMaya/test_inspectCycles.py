@@ -6,7 +6,7 @@ import unittest
 from unittest import mock
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "maya/inhouse"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse"))
 
 
 class CycleInspectorTest(unittest.TestCase):

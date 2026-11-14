@@ -53,13 +53,23 @@ Mayaの`maya.cmds`や`maya.api.OpenMaya`はPythonソースの無い`.pyd`/`.pyc`
 1. `py -3 tools/setup_maya_typings.py`を1回実行します。型スタブ`types-maya`（MIT）を`typings/maya/`へ配置します（Git対象外、ネットワークが必要）。
 2. VS Codeで`MayaHToolsWorkspace.code-workspace`を開き直すか、`Developer: Reload Window`を実行します。
 
+### mlibのコード整形(ruff)
+
+mlibのコードの整形は[ruff](https://docs.astral.sh/ruff/)で統一しています（人によって空白・空行・改行位置が違わないようにするため）。設定は`maya/inhouse/mlib/ruff.toml`が正本で、行幅160・改行はnative（Windowsの作業ツリーはCRLF）・末尾カンマで改行を強制しない、としています。`required-version = "==0.17.5"`を書いてあるので、**別の版のruffは実行を拒否します**（拡張が同梱する版で整形結果が変わるのを防ぐため）。previewのルールは`explicit-preview-rules = true`でコードを明示したものだけ有効にしてあり、ruffを上げても検査が黙って増えません。
+
+- **入れ方**: `maya\inhouse\mlib\_tools\setup.bat`（ダブルクリックで実行）。文書の`_docs\setup.bat`と同じ作りで、`_tools\.venv`へruffを入れます（`py -3.14`〜`py -3.9`を新しい順に探し、Pythonが無ければMaya 2027〜2023のmayapyで`_tools\.mayapy-site`へ入れます）。PCの環境・PATHは変えません。版は固定してあり（`ruff==0.17.5`）、版を上げると整形結果が変わるため、上げるときはmlib全体を整形し直して一緒にコミットします。Mayaへは入れません（mlibの実行には不要です）。
+- **実行**: `maya\inhouse\mlib\_tools\format_mlib.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`、またはコマンドパレットの`Tasks: Run Task` →「mlib: Format with ruff」）。`ruff format`（空白・空行・改行位置・引用符）→ `ruff check --fix`（importの並び・未使用名・Mayaのimport形式・未使用引数・pathlib・文字コード・f-string・全角半角など。選んでいるルールと除外の理由は`ruff.toml`に1行ずつ書いてあります）→ `check_mlib_layout.py --check`（ruffに無い検査）の順に実行します。`--check`を付けると何も変えずに検査するので、コミット前の確認に使います。コミット前の検査からMayaのテストまで一度に通すときは`_tools\verify.bat`を使います（手順はmlibの`CONTRIBUTING.md`）。整形・lintはCIに置いていません。
+- **拡張**: VS Codeの[Ruff拡張](https://marketplace.visualstudio.com/items?itemName=charliermarsh.ruff)を推奨に入れてあります（`MayaHToolsWorkspace.code-workspace`の`extensions.recommendations`）。Pythonファイルの既定の整形ツールもruffにしてあるので、`Shift+Alt+F`で整形できます。保存時の自動整形は各自の設定（`"editor.formatOnSave": true`）で有効にしてください。**ワークスペース共通の設定では有効にしていません**。有効にするとmlib以外のPython（`tools/`・`HTools/`等。ruffの設定ファイルが無く既定の行幅88になる）も整形されてしまうためです。拡張が同梱するruffの版は固定した版と違うことがあるので、最終的な判断はバッチとworkflow（固定した版）で行います。
+- **対象外**: `.pyi`（生成物）・`_docs`・`*.md`は整形しません。初期化順が仕様の`__init__.py`はimportを並べ替えません。フレームのファイル名を`os.path.normcase`で大小を無視して比べる`logger.py`・`decorator.py`は`PTH`（pathlibへの置換）の対象外で、テストはパスをMayaのコマンドへ文字列で渡すため`PTH`と`B023`（ループ内で作って同じ周回で呼び切る関数）の対象外です。理由は`ruff.toml`に書いてあります。
+- **ruffに無い検査**: `_tools/check_mlib_layout.py --check`（`check_mlib_layout.bat`）が、定数・`__all__`・`if TYPE_CHECKING:`の位置、クラス内のメンバー順と対になる操作の隣接、内部名とfunction setの取得・関数内importの理由コメント、例外の文言とUndoチャンク名・fastの受け取り、docstringの見出し・Raisesの並び・固定文・用語・公開定数の説明、Python 3.7（Maya 2022）で動く書き方とpropertyのgetter、公開入口の入力assert、列挙を見ます。`--fix`が直すのはクラス内メンバーの順だけで、並べ替えた後の空行は`ruff format`が直します。
+
 ### mlibの型スタブ
 
 mlibの関数・メソッドは型注釈を持たず、型はdocstring（`Args:`の`name (type):`と`Returns:`の先頭の`type:`）にだけ書いてあります。Pylanceはdocstringを型として読まないため、そのままでは`mlib.ls()`の戻り値などの型が分からず、その先の補完・引数ヒントが出ません。mlibの`_tools/generate_mlib_stubs.py`（`maya/inhouse/mlib/_tools/`）がdocstringの型を注釈にした型スタブ（`.pyi`）を、各`.py`の隣（`maya/inhouse/mlib/nodes/node.pyi`等）へ作ります。
 
 - **設定は不要**: Pylanceは`.py`の隣の`.pyi`を優先して読むため、`stubPath`等を書かなくても認識されます。mlibのフォルダーだけを開いた場合や、別のプロジェクトから`maya/inhouse`をimportの検索パスに入れてmlibを使う場合も同じです。F12（定義へ移動）は`.pyi`を開き、本体を見るときは右クリックの「Go to Source Definition」を使います。
 - **Gitで管理**: スタブはコミットするので、cloneしただけで補完が効きます。Pythonは実行時に`.pyi`を読まないため、Mayaの動作には影響しません。スタブ自体の警告で問題一覧が埋まらないよう、`pyrightconfig.json`の`exclude`で解析対象からは外しています（型の参照には使われます）。
-- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`を付ける。またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままだと`__tests__/static/test_generateMlibStubs.py`（`runStatic.py`）が失敗します。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
+- **docstringを変えたら作り直す**: mlibを編集してdocstringの型や引数を変えたら、`maya\inhouse\mlib\_tools\generate_mlib_stubs.bat`（ダブルクリックで実行。ターミナルからは`--no-pause`を付ける。またはコマンドパレットの`Tasks: Run Task` →「mlib: Update type stubs」）で作り直し、`.py`と一緒にmlibのリポジトリでコミットします。古いままでも静的解析・テストは失敗しません（2026-11-14のユーザー指定で、スタブとSphinxの自動検査を外しました）。内容が変わったファイルだけを書き換え、元の`.py`を消したスタブ（先頭行が生成の印のもの）は削除します。`--check`は作り直さずに最新かだけを確かめ（古ければ終了コード1）、`--report`は注釈にできなかった型を一覧表示します。通常のPython 3.9以降で動き、Mayaは不要です。バッチは`py -3.14`〜`py -3.9`を新しい順に探し(`python`と3.15以降は使いません)、Pythonを入れていないPCではMaya 2027〜2023のmayapyを使います(生成される内容は同じです)。
 - **引数で戻り値が変わるAPI**は、引数ごとの戻り値を`@overload`で補っています。
   - `mlib.ls(type="joint")`は`Joints`、`type="skinCluster"`は`SkinClusters`、`type="transform"`等の登録済みの型名は`list[Transform]`等、`type="vertex"`等のコンポーネントは`list[Vertex]`等、そのほかの型名は`list[Node]`、`type`無しは`list[Node | Plug | Component]`。型名とクラスの対応は`nodes/__init__.py`の`_WRAPPER_CLASSES`から読みます。
   - `mlib.createNode("transform")`は`Transform`等（登録済みの型名だけ。そのほかは`Node`）。
@@ -83,7 +93,7 @@ Mayaのインストールパスだけ各環境に合わせてください。
 
 ## mlib datatypesテスト
 
-`maya/inhouse/mlib/__tests__/unit/maths/test_init_valueTypes.py`を開いてCtrl+Shift+Bで送信すると、そのファイルのテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
+`maya/inhouse/mlib/__tests__/inMaya/unit/maths/test_init_valueTypes.py`を開いてCtrl+Shift+Bで送信すると、そのファイルのテストが実行されます。専用タスクやpytestの導入は不要です。VS CodeターミナルとMayaの両方で各テストと最終結果（OK / FAILED）を確認できます。
 
 ## 出力の取得範囲
 

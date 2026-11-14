@@ -8,7 +8,7 @@ import sys
 import traceback
 
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def main(output_dir=None, finished=None):
@@ -92,7 +92,7 @@ def main(output_dir=None, finished=None):
 
 
 if __name__ == "__main__":
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "maya/inhouse/mlib/__tests__"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse/mlib/__tests__"))
     from runGui import run_version
     output = ROOT / ".maya-output/aim-axis-gui" / datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     result = run_version("2027", output, Path("C:/Program Files/Autodesk"), 180,

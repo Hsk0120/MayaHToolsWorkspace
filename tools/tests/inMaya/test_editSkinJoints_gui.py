@@ -9,7 +9,7 @@ from pathlib import Path
 import maya.cmds as cmds
 import maya.mel as mel
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 RESULT = Path(os.environ.get("HTOOLS_PRESERVE_GUI_RESULT",
                              str(ROOT / ".maya-output/preserve-children-gui/result.json")))
 

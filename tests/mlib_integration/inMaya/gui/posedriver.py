@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import traceback
 
-ROOT = Path(__file__).resolve().parents[3]
+ROOT = Path(__file__).resolve().parents[4]
 
 
 def main(output_dir=None, finished=None):
@@ -126,7 +126,7 @@ def main(output_dir=None, finished=None):
 def launch():
     import sys
     from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse/mlib/__tests__"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "maya/inhouse/mlib/__tests__"))
     from runGui import run_version
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--versions', nargs='+', default=['2022', '2024', '2025', '2026', '2027'])

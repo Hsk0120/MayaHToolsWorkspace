@@ -50,7 +50,7 @@ for blender in mlib.ls(type="UEPoseBlenderNode"):
 リポジトリ直下から実行します。
 
 ```powershell
-& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tests/mlib_integration/gui/posedriver.py --versions 2024 --timeout 240
+& 'C:/Program Files/Autodesk/Maya2027/bin/mayapy.exe' tests/mlib_integration/inMaya/gui/posedriver.py --versions 2024 --timeout 240
 ```
 
 専用prefsのMaya GUIを新規起動し、実際の`maya/modules`を読み込みます。

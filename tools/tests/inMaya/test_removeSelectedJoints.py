@@ -1,6 +1,6 @@
 """HTools「removeSelectedJoints」のウェイト移送を、使い捨てmayapyで独立計算と比べる。
 
-``python``ではなく対象Mayaの ``mayapy`` で実行する(例: ``mayapy tools/tests/test_removeSelectedJoints.py``)。
+``python``ではなく対象Mayaの ``mayapy`` で実行する(例: ``mayapy tools/tests/inMaya/test_removeSelectedJoints.py``)。
 作業中のMaya GUIへは送らない(シーンを作り直すため)。GUIでは明示的に ``runTests()`` を呼ぶ。
 
 期待値はツールを使わず、OpenMayaで読んだ削除前のウェイトから次の規則で計算する。
@@ -23,7 +23,7 @@ import sys
 import unittest
 
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "maya/inhouse"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "maya/inhouse"))
 
 TOL = 1e-9
 

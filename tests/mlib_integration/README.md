@@ -5,18 +5,20 @@ mlibを別リポジトリへ分離する際の必須ファイルには含めま�
 
 | フォルダ | 内容 |
 | --- | --- |
-| `cases/` | mlrig・HTools・mlib拡張・cymelとの連携 |
-| `gui/` | 外部プラグインの専用GUI確認 |
+| `inMaya/` | mlrig・HTools・mlib拡張・cymelとの連携(旧 `cases/`) |
+| `inMaya/gui/` | 外部プラグインの専用GUI確認 |
 
-このワークスペースのルートから実行します。`cases`は必要なパッケージがある環境で実行し、
+mlibと同じMaya有無の軸で分けています。ここは全体がMaya前提なので `noMaya/` は作りません。
+
+このワークスペースのルートから実行します。`inMaya/`は必要なパッケージがある環境で実行し、
 依存がない場合のImportError等も失敗として記録します。テストを黙って除外しません。
 
 ```powershell
 py -3 maya/inhouse/mlib/__tests__/runMaya.py --versions 2027 --suite-file tests/mlib_integration/run.py --output .maya-output/mlib-integration
 ```
 
-本体の環境分離・ログ集計を使い、`cases/`だけを実行します。
-`cases/`のファイル名は本体の`integration/`と同じく`test_<観点>_<話題>.py`にします(規則は本体のREADME)。
+本体の環境分離・ログ集計を使い、`inMaya/`だけを実行します(`gui/`は含みません)。
+`inMaya/`のファイル名は本体の`inMaya/integration/`と同じく`test_<観点>_<話題>.py`にします(規則は本体のREADME)。
 起動済みGUIへ表示確認を送る`tools/send_mlib_visual_gui.py`と、Slackへ実際に投稿する`tools/post_slack_test_message.py`は
 自動実行しません。Slackへの実投稿は送信の明示指示がある場合だけ行います。
 

@@ -160,7 +160,7 @@ class RigFoundationsTest(unittest.TestCase):
         import ast
         from pathlib import Path
 
-        root = Path(__file__).resolve().parents[3] / "mlrig"
+        root = Path(__file__).resolve().parents[4] / "mlrig"
         # 廃止したコマンドラッパーの代替は、実際の使用ファイルに限定する。
         direct_commands = {
             # DAGの並び順(reorder)と、シェーダー・シェーディンググループの作成は mlib に入口が無い。

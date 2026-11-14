@@ -12,9 +12,9 @@ EXCLUDED_FILES = set()
 
 
 def run_all(names=None):
-    """外部パッケージを使うcasesだけを実行する。手動投稿スクリプトは含めない。"""
+    """外部パッケージを使うinMaya/だけを実行する。手動投稿スクリプトは含めない。"""
     run_cases.__globals__["LOG_DIR"] = LOG_DIR
-    return run_cases(directories=[HERE / "cases"], names=names)
+    return run_cases(directories=[HERE / "inMaya"], names=names)
 
 
 if __name__ == "__main__":

@@ -122,7 +122,7 @@ APIの角度引数と ``outputX/Y/Z.get()`` はラジアンです。
 検証
 ----
 
-``tools/tests/test_aimAxisConversion.py`` は使い捨てmayapyでのみ実行してください。
+``tools/tests/inMaya/test_aimAxisConversion.py`` は使い捨てmayapyでのみ実行してください。
 テストごとにシーンを新規作成します。GUI内の既存シーンへ送信してはいけません。
-``tools/tests/test_aimAxisConversion_gui.py`` は専用の隔離GUIランナーです。
+``tools/tests/inMaya/test_aimAxisConversion_gui.py`` は専用の隔離GUIランナーです。
 6回転順の数値・3方式・Undo/Redo・復元・単位・保存読込・GUI操作を検証します。

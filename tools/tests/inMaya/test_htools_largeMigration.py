@@ -8,7 +8,7 @@ from pathlib import Path
 
 from test_htools_mlibMigration import equivalent
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "maya/inhouse"))
 
 
