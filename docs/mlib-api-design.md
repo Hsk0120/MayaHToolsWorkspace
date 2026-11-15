@@ -283,10 +283,14 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
   `rotateOrientation` の1回で読む。fast の `setParent` は、書き込めるかの確認を translate・rotate・scale・shear の
   4つの親アトリビュートへの `isFreeToChange` にまとめ、書けないものがあるときだけ1つずつ調べてこれまでの例外にする。
   確かめた後の書き込みでは、確かめ直さない。
-- fast の `setParent` は 789 → 約580(Maya 2025、2000回のms)まで下がったが、通常の経路より遅いまま。Maya の parent は
-  ワールドの姿勢を保つ計算を内部で行うのに対し、fast はチャンネル値の分解(スケールの符号・近い Euler の選択)を Python で行うため。
-  通常の経路はピボットの値(rotatePivot・rotatePivotTranslate・scalePivotTranslate)を動かし、fast はピボットを保って translate で合わせる
-  (ワールドの姿勢と rotate・scale・shear は同じ)。
+- 2026-11-15のユーザー指定により、fast の `setParent` は、ピボット(rotatePivot・scalePivot・rotatePivotTranslate・scalePivotTranslate)が
+  すべて0のとき、新しいローカルのマトリクスを `MTransformationMatrix` でそのまま分解して `MFnTransform` で書く
+  (`Transform._write_local_matrix_fast`)。今の値に近い Euler や、今の値と同じ符号のスケールは選ばないので、rotate・scale の値が
+  通常の経路と違うことがある(ワールドの姿勢・回転順序・rotateAxis は同じ)。789 → 約225(Maya 2025、2000回のms。通常は約262)。
+  ピボットのどれかが0でないときは、これまでの計算(`_matrix_channel_values`)で書く(約580で、通常より遅い)。
+  通常の経路はピボットの値を動かし、fast はピボットを保って translate で合わせる。
+- `Node.addAttr`(約106、cmds は46)と Plug 経由の translate 設定(約138、cmds は93)は、残りが引数の受け取り・名前の重なりの確認・
+  値の検査・返す Plug の作成に薄く分かれていて、まとめて削れる処理は残っていない(2026-11-15のプロファイル)。
 
 ### 内部実装の定型(2026-10-27の表記ブレ統一)
 
