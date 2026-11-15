@@ -232,6 +232,38 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
 例外メッセージとログの文言はmlib内で日本語に統一する(2026-11-14のユーザー指定。2026-10-27に英語へ統一していたものを、docstring・文書と同じ日本語へ揃えた。Maya 2022・2025のScript Editor相当の出力で文字化けしないことを確認済み。Maya自身のエラーは英語のまま。形式は下記「例外の4分類と文言形式」に従う)。
 通常raiseをすべて通知付きへ置き換えたりしない。
 
+### 2026-11-15の戻り値・引数の統一(ユーザー指定)
+
+公開メソッド1186件の署名と戻り値を機械的に集めて、メソッドごとのブレを直した。決まりの正本はmlibの指示ファイル
+(「メソッドとプロパティ」の戻り値の決まり・「引数の規則」・「複数形」)。
+
+- **set系は値を返さない**(PyMEL・cymelと同じ)。約270メソッドの「自身を返す」をやめた。つなげて書いていた利用側は1行ずつに直す。
+  `get=True` の計算値・`safe=True` の失敗数・作ったものや相手を返すメソッドはそのまま。
+- **`get=True` は数学型**: `setTranslation` はTranslate、`setRotate`・`setQuaternion` はEulerRotate(rad)、`setScale` はScale、`setShear` はShear。
+  `setQuaternion` の `unit`(戻り値の単位だけに使っていた)は削除した。
+- **一覧は複数形のクラス**: `getChildren`・`getShapes`・`getParents`・`getHistory`・`getPlugs`・`getInfluences`・`getSkinClusters`・
+  `getChainFromHere`・`getConnections`・`getDestinations` など約60メソッド。listと比べる `==` はそのまま使える。
+- **複数形にlistのメソッド**: `append`・`extend`・`insert`・`remove`・`pop`・`index`・`count`・`clear`・`reverse` など。
+- **strでなくオブジェクト**: `ObjectSet.getMembers` と集合演算(アトリビュートはPlug、コンポーネントは範囲ごとのVertices等)、
+  `Joint.getTransferTarget`(Joint)、`Plug.getAnimLayers`(Nodes)、`PluginPackage.loadPlugins`(Plugin)。
+  `Transform.deleteConstraints` は消したノードの名前のまま(もう存在しないのでオブジェクトにできない)。
+- **角度のget**: `AimConstraint.getRestRotate`・`getOffset` はEulerRotate(回転順序はconstraintRotateOrder。Maya 2025で、offsetがこの順序で
+  掛かることを確かめた)。`unit` 引数は削除。setはEulerRotateも受ける。`Joint.setPreferredAngle` に `fast`・`check` を足した。
+- **キーワード専用**: `safe`・`get`(Transformのset系・`Plug.set`)、`type`(`getSets`・`getHistory`・`Selection.getNodes`)、`getConnections` の全フラグ、
+  `force`(`Plug.connect`・`disconnect`・`delete`・`Plugin.unload`・`Joint.connectInverseScale`・`Place2dTexture.connectTexture`)、
+  `transferToParent`(`SkinCluster.removeInfluence(s)`)、`geometryIndex`、`index`(`AnimCurve.removeKey`・`moveKey`)、
+  `locked`/`keyable`/`channelBox`(`setAttrFlags`)、`leaf`(`Plug.setLocked`・`setKeyable`・`setChannelBox`)。
+- **オン・オフの引数名**: `state`(既定True)。`Plug.setLocked`・`setKeyable`・`setChannelBox` の `val`、`setShadingOverride` の `enabled`、
+  `Edge.setSmooth` の `value` を改名した。
+- **`check` の抜け**: `setVisibility`・`setOutlinerVisibility`・`setOffsetParentMatrix`・`mirrorTransform`・`Plug.reset`・`setIfChanged`・
+  `resetAttrs`・`Joint.setRadius`・`setSegmentScaleCompensate`・`AimConstraint`・`Constraint.setWeight`・`Locator.setPosition`・
+  `Keyframe(s).setTangent`・`SkinCluster.setVertexWeights`・`File` と、`Nodes` の `setOverrideColor(s)`・`setOutlinerColor(s)`・
+  `setVisibility`・`setParent`・`resetAttrs`。`Nodes.setAttrFlags` に `children` を足した。`AimConstraint` の書き込み前の
+  ロック・接続の確認は `check=True` のときだけにした。UV・頂点カラーは切り替える事前確認が無いので `check` を持たない。
+- **リファレンスの読み込みは `prompt=False`**: `Reference.replaceFile`・`load`・`removeEdits` の再読み込み・`createReference` は、
+  GUIでも「Reference file not found」などの確認ダイアログを出さず、読み込めないときは例外にする(GUIテストが止まって見つかった)。
+- **速度**: 取得系を複数形で包んだ後も、ベンチマーク65項目は変更前と同等。`Transform.getShape` は複数形を作らず中身のlistを直接使う。
+
 ### 2026-11-14〜15の速度の見直し(Undoチャンク・接続・Transformation)
 
 cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/research/benchmark-2026-10-25/RESULTS-2026-11-14.md`)から決めた。

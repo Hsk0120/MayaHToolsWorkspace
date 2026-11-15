@@ -66,8 +66,8 @@ class ApiMethodsTest(unittest.TestCase):
                         for item in items]
             self.assertEqual(names(b.getConnections(**kwargs), lambda item: item.getName()),
                              names(cb.connections(**kwargs), lambda item: item.name()))
-        self.assertEqual(b.getConnections(True, False, index=0).getNode(), conversion)
-        self.assertIsNone(b.getConnections(True, False, index=100))
+        self.assertEqual(b.getConnections(source=True, destination=False, index=0).getNode(), conversion)
+        self.assertIsNone(b.getConnections(source=True, destination=False, index=100))
         b.tx.disconnectInput()
         self.assertIsNone(b.tx.getSource())
         cmds.undo()
@@ -105,7 +105,7 @@ class ApiMethodsTest(unittest.TestCase):
     def test_flags(self):
         """末端フラグ設定とchannelBox操作のUndoを確認する。"""
         node = Node(cmds.createNode("transform"))
-        self.assertIs(node.getPlug("translate").setLocked(True, leaf=True).getNode(), node)
+        self.assertIsNone(node.getPlug("translate").setLocked(True, leaf=True))
         self.assertTrue(node.tx.isLocked())
         cmds.undo()
         self.assertFalse(node.tx.isLocked())
@@ -126,7 +126,8 @@ class ApiMethodsTest(unittest.TestCase):
         self.assertEqual(array.getNextAvailable().getIndex(), ca.nextAvailable())
         src = Node(cmds.createNode("network")).addAttr("value")
         src.connectTo(array[3])
-        array[1].set(0).setLocked(True)
+        array[1].set(0)
+        array[1].setLocked(True)
         for start in (-1, 0, 1, 4):
             self.assertEqual(array.getNextAvailable(start).getIndex(), ca.nextAvailable(start))
         # 開始番号より小さい既存要素があっても、接続済み番号を避ける仕様を検証する。
@@ -141,7 +142,7 @@ class ApiMethodsTest(unittest.TestCase):
     def test_transform_short_names(self):
         """短縮名の取得・更新と既定戻り値を確認する。"""
         node = Node(cmds.createNode("transform"))
-        self.assertIs(node.setTranslation((1, 2, 3)), node)
+        self.assertIsNone(node.setTranslation((1, 2, 3)))
         self.assertEqual(tuple(node.getTranslation()), tuple(node.getTranslation()))
         self.assertEqual(node.getMatrix(), node.getMatrix())
         self.assertEqual(node.getQuaternion(), node.getQuaternion())

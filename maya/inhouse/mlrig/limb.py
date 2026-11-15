@@ -389,7 +389,9 @@ class LimbRig:
 
             reference = Node(graph)
             parent = self._member("softSetup") if mlib.Node(root).hasAttr("softSetup") else root
-            owner = mlib.Node(owner).setParent(parent).getFullName()
+            owner = mlib.Node(owner)
+            owner.setParent(parent)
+            owner = owner.getFullName()
             graph = reference.getFullName()
             mlib.getPlug(graph + ".visibility").set(False)
         source.connectTo(graph + ".distance")
@@ -771,9 +773,12 @@ def build_limb(definition=None, backend="standard"):
         handle = mlib.createIkHandle(
             rig._member("ik0"), rig._member("ik2"), solver="ikRPsolver", name=names["handle"]
         )
-        effector = handle.getEffector().rename(names["effector"])
+        effector = handle.getEffector()
+        effector.rename(names["effector"])
         created.extend((handle, effector))
-        handle = mlib.Node(handle).setParent(rig._member("ikSetup")).getFullName()
+        handle = mlib.Node(handle)
+        handle.setParent(rig._member("ikSetup"))
+        handle = handle.getFullName()
         rig._bind("handle", handle)
         constraints = [
             mlib.Node(handle).addConstraint(
@@ -797,7 +802,9 @@ def build_limb(definition=None, backend="standard"):
             from mlib.nodes import Node
 
             graph_ref = Node(graph)
-            graph_parent = mlib.Node(graph_parent).setParent(rig._member("softSetup")).getFullName()
+            graph_parent = mlib.Node(graph_parent)
+            graph_parent.setParent(rig._member("softSetup"))
+            graph_parent = graph_parent.getFullName()
             created[-1] = graph_parent
             graph = graph_ref.getFullName()
             mlib.getPlug(graph + ".visibility").set(False)

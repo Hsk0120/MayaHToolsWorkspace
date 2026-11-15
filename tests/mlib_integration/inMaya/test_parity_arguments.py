@@ -149,8 +149,8 @@ class ApiArgumentsTest(unittest.TestCase):
         old = node.getPlug("tx").get()
         self.assertEqual(node.getPlug("translate").set((20, 30, 40), safe=True), 1)
         self.assertValues(tuple(node.getPlug("translate").get()), (old, 30, 40))
-        self.assertEqual(node.getPlug("tx").set(8, True), 1)
-        self.assertEqual(node.getPlug("ty").set(8, True), 0)
+        self.assertEqual(node.getPlug("tx").set(8, safe=True), 1)
+        self.assertEqual(node.getPlug("ty").set(8, safe=True), 0)
 
     def test_attribute_arguments(self):
         """型の自動選択・子名・既定値・戻り値・プロキシを確認する。"""
@@ -184,7 +184,7 @@ class ApiArgumentsTest(unittest.TestCase):
         cmds.undo()
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
         # 複数形は各要素の同名メソッドへ転送し、戻り値を要素順のリストで返す。
-        values = Nodes([node]).setTranslation((4, 5, 6), False, 1, False, True)
+        values = Nodes([node]).setTranslation((4, 5, 6), False, 1, safe=False, get=True)
         self.assertEqual([list(value) for value in values], [[4, 5, 6]])
         self.assertEqual(tuple(node.getPlug("translate").get()), before)
 

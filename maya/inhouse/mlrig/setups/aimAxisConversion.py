@@ -111,7 +111,7 @@ class AimAxisConversion:
         values = [target.getPlug("rotate" + a.upper()).get(unit="rad") for a in "xyz"]
         rest_values = (original_state.get("restValues") if original_state else None)
         if rest_values is None:
-            rest_values = source.getRestRotate(unit="rad")
+            rest_values = tuple(source.getRestRotate())
         constraint_settings = cls._captureSettings(source)
         name = source.getName().split("|")[-1] + "_axisConversion"
         owner = (mlib.createContainer(name=name) if use_container else

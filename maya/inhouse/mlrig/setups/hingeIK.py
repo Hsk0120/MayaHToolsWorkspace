@@ -128,7 +128,9 @@ def createRotatePlaneHandle(root, end, name, poleDistance=None):
         tuple[str, str, str]: (ikHandle, effector, ポールベクターのlocator)。
     """
     handleNode = mlib.createIkHandle(root, end, solver="ikRPsolver", name=name + "_ikHandle")
-    effector = handleNode.getEffector().rename(name + "_effector").getFullName()
+    effector = handleNode.getEffector()
+    effector.rename(name + "_effector")
+    effector = effector.getFullName()
     # poleVector はikHandleの親の空間の向き(作った直後のikHandleはワールド直下なので、ワールドの向き)。
     parent = Matrix(handleNode.getPlug("parentMatrix")[0].get())
     direction = (Vector(*handleNode.getPlug("poleVector").get()) * parent).normal()
@@ -154,7 +156,10 @@ def groupUnderWorld(name, *nodes):
         tuple[str, list[str]]: (transformのフルパス, 子にしたノードのフルパス)。
     """
     group = mlib.createNode("transform", name=name, skipSelect=True).getFullName()
-    children = [mlib.Node(node).setParent(group).getFullName() for node in nodes]
+    children = [mlib.Node(node) for node in nodes]
+    for child in children:
+        child.setParent(group)
+    children = [child.getFullName() for child in children]
     return group, children
 
 

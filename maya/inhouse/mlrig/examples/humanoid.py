@@ -313,6 +313,7 @@ def build(prefix="", fingers=True, proxy=True, pose="T"):
             if mesh:
                 meshes.append(mesh)
         proxy_set = mlib.createNode("objectSet", name=prefix+"humanProxy_set", skipSelect=True)
-        proxy_set = proxy_set.addMembers(*meshes).getName()
+        proxy_set.addMembers(*meshes)
+        proxy_set = proxy_set.getName()
     mlib.select(joints["root"])
     return {"root": joints["root"], "joints": joints, "meshes": meshes, "proxySet": proxy_set}

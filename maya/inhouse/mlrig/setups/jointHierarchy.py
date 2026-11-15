@@ -97,7 +97,7 @@ class JointHierarchy:
                 target = joint.getTransferTarget(skin)
                 if target:
                     skin._raise_if_layers()
-                    transfers.append((skin, target))
+                    transfers.append((skin, target.getName()))
             plans.append((joint, transfers))
         if fast:
             # 更新前検証はmlibの実更新と同じ制限を使い、リグ側に制約を複製しない。

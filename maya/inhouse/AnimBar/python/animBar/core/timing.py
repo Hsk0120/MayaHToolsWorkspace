@@ -36,7 +36,7 @@ def nudgeKeys(frames, everything=False):
             # 隣のキーにぶつかる量は、そのカーブを動かさない(Mayaは直前の端数の時刻で止めてしまうため)。
             continue
         # 選んだキーは一緒に動かす。
-        curve.moveKey(indices, timeOffset=frames)
+        curve.moveKey(index=indices, timeOffset=frames)
         count += len(indices)
     if count and not everything and not keys.graphEditorKeys() and keys.timelineRange() is None:
         Time.setCurrent(Time.getCurrent() + frames)
@@ -284,6 +284,6 @@ def finishTransformAll():
         if keyed and index is not None:
             indices.remove(index)
         if indices:
-            curve.moveKey(indices, valueOffset=delta)
+            curve.moveKey(index=indices, valueOffset=delta)
             count += 1
     return count

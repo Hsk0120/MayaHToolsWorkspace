@@ -156,7 +156,7 @@ def exportSets(path):
         int: 書き出したセットの数。
     """
     data = [{"label": label(node), "color": color(node),
-             "members": [_plain_name(member) for member in node.getMembers()]} for node in sets()]
+             "members": [name for member in node.getMembers() for name in _plain_names(member)]} for node in sets()]
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(data, handle, ensure_ascii=False, indent=2)
     return len(data)
@@ -195,15 +195,16 @@ def _root():
     return mlib.createNode("objectSet", name=ROOT_SET, skipSelect=True)
 
 
-def _plain_name(member):
+def _plain_names(member):
     """メンバーの名前から名前空間を除く。
 
     Args:
-        member (Node | str): メンバー。
+        member (Node | Plug | Components): メンバー。
 
     Returns:
-        str: 名前空間を除いた名前。
+        list[str]: 名前空間を除いた名前。コンポーネントは、まとめられた範囲ごとの名前。
     """
-    if isinstance(member, str):
-        return member.rpartition(":")[2]
-    return member.getNodeName(removeNamespace=True)
+    if isinstance(member, mlib.Node):
+        return [member.getNodeName(removeNamespace=True)]
+    names = member.getCompactNames() if hasattr(member, "getCompactNames") else [str(member)]
+    return [name.rpartition("|")[2].rpartition(":")[2] for name in names]

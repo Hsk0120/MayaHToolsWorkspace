@@ -92,7 +92,8 @@ class SplineIK:
             joints[0], joints[-1], solver="ikSplineSolver", name=name + "_ikh", curve=curve,
             parentCurve=False, rootOnCurve=True,
         )
-        effector = handle.getEffector().rename(name + "_effector")
+        effector = handle.getEffector()
+        effector.rename(name + "_effector")
         handle.setParent(parent)
         handle.getPlug("dTwistControlEnable").set(True)
         handle.getPlug("dWorldUpType").set(4)

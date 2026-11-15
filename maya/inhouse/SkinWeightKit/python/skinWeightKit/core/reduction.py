@@ -172,7 +172,7 @@ def limitBones(current, maxBones):
                 continue
             parent = node.getTransferTarget(skin)
             if parent is not None:
-                candidates.append((totals[column], column, parent))
+                candidates.append((totals[column], column, parent.getName()))
         if not candidates:
             raise ValueError("Cannot reduce {} below {} influences (no unlocked joint has a parent influence)"
                              .format(skin.getNodeName(), len(influences)))

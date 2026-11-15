@@ -304,7 +304,9 @@ def _remove_from(skin, joints):
     """
     joints = [joint for joint in joints if skin.hasInfluence(joint.getFullName())]
     ordered = sorted(joints, key=_depth, reverse=True)
-    removed = [(joint.getNodeName(), skin.getNodeName(), joint.getTransferTarget(skin)) for joint in ordered]
+    targets = [joint.getTransferTarget(skin) for joint in ordered]
+    removed = [(joint.getNodeName(), skin.getNodeName(), target.getName() if target is not None else None)
+               for joint, target in zip(ordered, targets)]
     if not joints:
         return removed
     try:
