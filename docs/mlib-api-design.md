@@ -326,6 +326,15 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
 - 将来、fast の書き込みを Undo に載せる拡張(`MPxCommand` を1つ登録し、実行と取り消しの関数を渡して Undo キューに載せる方式)を
   検討できるように、fast の書き込みは `core/fastWrite.py` の `set_plug`・`set_attr(fast=True)` と各クラスの `_<method>_fast` に集め、
   公開メソッドから OpenMaya の書き込みを直接呼ばない形を保つ。プラグインは今は実装・同梱しない(方針は変えていない)。
+- 2026-11-15のユーザー指定により、`Transform.setTranslation(worldSpace=True)` を軽くした。
+  - 基準点が translate(`at=1`)と回転ピボット(`at=2`)のときは、今の translate を読まない
+    (「今の translate + (目標 − 今の基準点の位置)」を整理すると、`at=1` は目標そのもの、`at=2` は「目標 − ピボットのずれ」になる)。
+  - 既定の呼び方(`at=2`・通常の経路・`safe`/`get`/`check` なし)で、回転ピボットとその移動がどちらも0のときは、
+    `cmds.xform(worldSpace=True, translation=...)` の1回に任せる(`Transform._set_world_translation_at_once`)。
+    transform・joint、スケールや鏡映した親、offsetParentMatrix、UI の単位(cm・m)、rotateAxis・scale の192通りで突き合わせ、
+    ピボットが0の96通りは値が一致し、ピボットがある96通りは一致しない(`xform` は回転ピボットではなく原点を目標へ合わせる)ことを確かめた。
+  - `xform` は、ロックや入力の接続がある成分を例外にせず飛ばす。そのため、translate へ書き込めないとき(`isFreeToChange` の1回で確かめる)は
+    `xform` を使わず、これまでの書き込みへ回して例外にする(この確認は `check` に関係なく行う。既定で例外になる動きを保つため)。
 - `Node.addAttr`(約106、cmds は46)と Plug 経由の translate 設定(約138、cmds は93)は、残りが引数の受け取り・名前の重なりの確認・
   値の検査・返す Plug の作成に薄く分かれていて、まとめて削れる処理は残っていない(2026-11-15のプロファイル)。
 
