@@ -141,6 +141,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+| Claude Code | 2026-11-15 | maya/inhouse/mlib(nodes/node.py・plugs・core/attributeType.py・テスト)、docs/mlib-api-design.md | 速度の見直しの続き。アトリビュートの追加・取り出し・有無の確認・Plug経由のtranslate設定・名前の文字列からの取り出し・fastのsetParentを速くした。ここまではmlib 115fbee としてpush済み。続けて、fastのsetParentの値の選び方の変更と、addAttr・translate設定の残りを調査中。 |
 | Codex | 2026-10-11 | 配布方式の相談（README・起動バッチ・submoduleの参照のみ） | SourceTreeとGit不要の配布・更新方式を比較。 |
 | Codex | 2026-10-09 | mlib判定の衝突名・省略入口 | 衝突しない59入口とSphinxは実装・検証完了。source/type/root/element/loaded/new/currentの既存意味を変えるか、ユーザーの回答待ち。既存入口は保持中。 |
 

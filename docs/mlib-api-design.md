@@ -256,6 +256,38 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
 - `Transformation` は `{"type": "Transformation", "value": {成分名: [x, y, z], "rotateOrder": "xyz"}}` で書く。角度は度。
   既定値のままの rotateAxis・ピボット・jointOrient・inverseScale は書かず、読むときに既定値で補う。
 
+2026-11-15の続き(アトリビュートの取り出し・追加・3成分の書き込み)。
+
+- `Node.getPlug` は、静的アトリビュートの名前(`[` を含まないもの)を一度解決したら、ノードのオブジェクトごとに覚える
+  (`Node._plug_cache`)。次からは持ち主・未解決の論理番号・型名を調べ直さず、覚えた情報で新しい Plug を作る
+  (`Plug._static_entry`・`_from_static_entry`)。静的アトリビュートは削除も改名もできないので、ノードが有効な間は同じ結果になる。
+  動的アトリビュート(削除・改名・同名での作り直しがある)とエイリアスは覚えない。登録した型のクラスは覚えず型名から毎回選ぶので、
+  型の登録を後から変えても新しい登録が使われる。`node.tx`・`hasAttr` も同じ記憶を使う。返す Plug は毎回新しいオブジェクト。
+- 単位の種類は `MFnUnitAttribute` を作らず、定義の apiType(`kDoubleAngleAttribute`・`kFloatAngleAttribute`・`kDoubleLinearAttribute`・
+  `kFloatLinearAttribute`・`kTimeAttribute`)で見分ける。Maya 2025の全ノード型の静的アトリビュート(約6万7千件)と、
+  addAttr で作る単位アトリビュートで、これまでの判定と一致することを確かめた。
+- 子も要素も持たない Plug の `get()` は、単位の種類を初回だけ調べて、角度と時間の数値だけを換算する。
+  `Double3Plug.get()` は、角度の子が無ければ換算を通さない。
+- double2・double3 の通常の書き込みは、ロックや接続を前もって調べず、親への1回の `cmds.setAttr` を先に試す
+  (`CompoundPlug._set_at_once`。UI 単位へ変換する関数は初回だけ子の定義から選ぶ)。Maya が拒否したときだけ書き込めるかを調べ、
+  これまでと同じ例外にする。Maya は親への書き込みを拒否するとき、どの子も変えない(子のロック・子の接続・親のロックで確認)。
+  書き込めない定義(`decomposeMatrix.outputTranslate` のような出力専用)は `setAttr` が拒否しないので、まとめた書き込みの対象にしない。
+- `Node.addAttr` は、コマンドが1回で済む追加ではチャンクを開かない。子の追加・作った後の既定値・チャンネルボックスへの表示・
+  プロキシの接続があるときだけ、1回の Undo にまとめる。
+- 有効なノードから今取得した MPlug は `Plug._wrap_owned(node, mplug)` で包む(`Node.getPlug`・名前の文字列からの解決)。
+  ノードが有効か・持ち主が合っているかの確認を省き、アトリビュートの有無と決まっていない論理番号は確かめる。
+  クラスの選択は `Plug._target_class` の1か所にまとめ、`Plug(node, mplug)` と同じクラスになる。
+- `Double3Plug` の値の型(Translate・EulerRotate など)は、静的アトリビュートでは Plug ごとに一度だけ名前から決める
+  (動的アトリビュートは改名できるので毎回調べる)。UI の単位が内部単位(cm・rad)と同じときは、単位の変換を通さない。
+- `Transform` は `MFnTransform` をノードごとに1つだけ作って持つ(`_transform_fn`。値は覚えない)。rotateAxis は
+  `rotateOrientation` の1回で読む。fast の `setParent` は、書き込めるかの確認を translate・rotate・scale・shear の
+  4つの親アトリビュートへの `isFreeToChange` にまとめ、書けないものがあるときだけ1つずつ調べてこれまでの例外にする。
+  確かめた後の書き込みでは、確かめ直さない。
+- fast の `setParent` は 789 → 約580(Maya 2025、2000回のms)まで下がったが、通常の経路より遅いまま。Maya の parent は
+  ワールドの姿勢を保つ計算を内部で行うのに対し、fast はチャンネル値の分解(スケールの符号・近い Euler の選択)を Python で行うため。
+  通常の経路はピボットの値(rotatePivot・rotatePivotTranslate・scalePivotTranslate)を動かし、fast はピボットを保って translate で合わせる
+  (ワールドの姿勢と rotate・scale・shear は同じ)。
+
 ### 内部実装の定型(2026-10-27の表記ブレ統一)
 
 2026-10-27の表記ブレ調査で確定した内部実装の書き方。公開APIの意味・戻り値は変えず、内部名・引数・例外文言・docstringを揃える。
