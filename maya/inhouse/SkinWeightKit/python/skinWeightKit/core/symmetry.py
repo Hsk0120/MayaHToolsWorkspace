@@ -83,7 +83,7 @@ def mirrorMap(mesh, vertices, axis="x", tolerance=0.01):
         raise ValueError("axis must be one of x, y, z")
     if tolerance <= 0:
         raise ValueError("tolerance must be greater than 0")
-    pairs = mesh.getMirrorVertexMap(axis, tolerance)
+    pairs = mesh.getMirrorVertexMap(axis, tolerance=tolerance)
     return {vertex: pairs[vertex] for vertex in vertices if vertex in pairs and pairs[vertex] != vertex}
 
 

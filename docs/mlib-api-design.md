@@ -253,6 +253,13 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
   `force`(`Plug.connect`・`disconnect`・`delete`・`Plugin.unload`・`Joint.connectInverseScale`・`Place2dTexture.connectTexture`)、
   `transferToParent`(`SkinCluster.removeInfluence(s)`)、`geometryIndex`、`index`(`AnimCurve.removeKey`・`moveKey`)、
   `locked`/`keyable`/`channelBox`(`setAttrFlags`)、`leaf`(`Plug.setLocked`・`setKeyable`・`setChannelBox`)。
+- **残りの引数もキーワード専用**(同日の追加の指定): `normalize`(`SkinCluster.mirrorWeights`・`pruneWeights`・`setVertexWeights`)、
+  `colorSet`(`Vertex.getColor`・`setColor`・`Mesh.getVertexColors`)、`vertices`(`Mesh.setVertexColors`)、`uvSet`(`Mesh.reorderVertices`・
+  `getUVShells`・`getUVAtPoint`・`getPointAtUV`)、`relative`・`add`(`setParent`、`BlendShape.addInBetween`)、`children`・`zeroScaleOrient`
+  (`Joint.orient`・`assumePreferredAngles`)、`mode`・`missing`(`Selection.select`)、`aimAxis`・`upAxis`(`Quaternion.fromRollBend`・`asRollBend`)、
+  `tolerance`(`Face.isZeroArea`・`BlendShape.reduceTargetDeltas`・`Mesh.reorderVertices`・`getMirrorVertexMap`・`NurbsCurve.getLength`・
+  `getCollocatedCVGroups`)。`worldSpace` は位置引数のまま残した(`getMirrorVertexMap(axis, worldSpace)` のように前へ詰まる)。
+  数学型の `isEquivalent(other, tolerance)`・`isIdentity(tolerance)` などは、OpenMayaと同じ位置引数のままにした。
 - **オン・オフの引数名**: `state`(既定True)。`Plug.setLocked`・`setKeyable`・`setChannelBox` の `val`、`setShadingOverride` の `enabled`、
   `Edge.setSmooth` の `value` を改名した。
 - **`check` の抜け**: `setVisibility`・`setOutlinerVisibility`・`setOffsetParentMatrix`・`mirrorTransform`・`Plug.reset`・`setIfChanged`・
