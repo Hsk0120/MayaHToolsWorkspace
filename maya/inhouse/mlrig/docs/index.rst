@@ -76,6 +76,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    cam_follower
    quick_return
    whitworth_quick_return
+   scotch_yoke
    universal_joint
    constant_velocity_joint
    tripod_joint

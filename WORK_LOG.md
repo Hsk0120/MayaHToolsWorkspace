@@ -174,6 +174,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-16 夜間): mlrigにスコッチヨーク(ScotchYoke)を追加。溝付きのヨークを x = r cos θ の単振動で往復させ、溝の中のブロック(r sin θ)・velocity・acceleration・travel・returnStroke・stroke を出力(標準ノードのみ)。setupSamples・文書(scotch_yoke.rst)・テスト8件・検証動画のデモ(tools/demo_scotch_yoke.py)を追加。Maya 2027で setups 744件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-15): mlibで、メソッドによって位置引数とキーワード専用に分かれていた残りの引数(normalize・colorSet・uvSet・vertices・relative・add・children・zeroScaleOrient・mode・missing・aimAxis・upAxis・ノード側のtolerance)をキーワード専用にそろえた(ユーザー指定。25メソッド)。数学型のtoleranceはOpenMayaと同じ位置引数のまま。SkinWeightKitの呼び出しを1か所直した。Maya 2022/2025/2027の全テスト・利用側880件・AnimBar・SkinWeightKitのテストを通過。
 - Claude Code (2026-11-15): mlibの公開メソッドの戻り値・引数のブレを統一した(ユーザー指定)。set系(約270メソッド)は値を返さない、一覧を返す取得系(約60メソッド)は複数形のクラス(Nodes・Joints・SkinClusters・Plugs)で返す、複数形にlistと同じ append・extend・insert・remove・pop・index・count・clear・reverse を追加(core/listMethods.py)、ObjectSetのメンバー・getTransferTarget・getAnimLayers・loadPluginsはオブジェクトで返す、get=Trueは数学型、AimConstraintの角度のgetはEulerRotate、safe・get・type・force・index などはキーワード専用、オン・オフの引数名は state、checkの抜けを追加。利用側(mlrig・AnimBar・SkinWeightKit・tests)も直した。あわせて、リファレンスの読み込み系(replaceFile・load・createReference)がGUIで確認ダイアログを出して止まる不具合を prompt=False で直した(GUIテストで見つかった。以前からの不具合)。Maya 2022/2025/2027の全テスト・GUIテスト(2027 unit)・利用側880件・AnimBar・SkinWeightKitのテストを通過。速度は変更前と同等(getShapeだけ直した)。tools/tests の test_aimAxisConversion は変更前から落ちる古いテスト(角度をラジアン前提で読んでいる)で、未対応。
 

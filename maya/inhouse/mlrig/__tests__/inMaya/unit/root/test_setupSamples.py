@@ -55,6 +55,7 @@ CHANGES = {
     "camFollower": (_set(".rotateZ", -90.0), "_follower"),
     "quickReturn": (_set(".rotateZ", 90.0), "_ram"),
     "whitworthQuickReturn": (_set(".rotateZ", 90.0), "_ram"),
+    "scotchYoke": (_set(".rotateZ", 90.0), "_yoke"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),

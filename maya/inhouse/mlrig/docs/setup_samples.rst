@@ -218,6 +218,9 @@
    * - WhitworthQuickReturn - full-turn lever and rod
      - クランクのjoint
      - ``rotateZ`` で回すと、ピン(クランクの先)に押されて緑のレバーがクランクの円の内側のピボットのまわりを速さを揺らしながら一緒に回り、腕の先から連接棒で押された緑のラムが横に6cm往復する。往き(クランクの240度)はゆっくり、戻り(120度)は速い。containerの ``returnStroke`` は戻りの間1、 ``speedRatio`` はレバーの角速度の比、 ``lag`` はクランクとの角度の差。
+   * - ScotchYoke - pure harmonic slotted yoke
+     - クランクのjoint
+     - ``rotateZ`` で回すと、ピン(クランクの先)が緑のヨーク(上下に伸びる溝の枠)の溝を滑りながら押し、ヨークが x = r cos θ の単振動で横に6cm往復する。ヨークの子の緑のブロックはピンと一緒に溝の中を上下に動く。containerの ``travel`` は行程の位置(0〜1)、 ``velocity`` ・ ``acceleration`` はクランクの角度あたりの速さと加速度、 ``returnStroke`` は生成時の端へ戻る間1。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

@@ -111,6 +111,7 @@ class SetupSamples:
         ("camFollower", "CamFollower - dwell, rise, dwell, return"),
         ("quickReturn", "QuickReturn - slotted lever, slow out and fast back"),
         ("whitworthQuickReturn", "WhitworthQuickReturn - full-turn lever and rod"),
+        ("scotchYoke", "ScotchYoke - pure harmonic slotted yoke"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -725,6 +726,26 @@ class SetupSamples:
         _color(ram)
         setup = WhitworthQuickReturn.create(crank, lever, ram, radius, distance, arm, rod, name=name, axis="z",
                                             ramAxis="x", ramDirection=-1.0)
+        return setup, crank
+
+    @classmethod
+    def _scotchYoke(cls, name, root):
+        """クランク(joint、先がピン)と、ピンを溝で受けて横に往復するヨークと、溝の中のブロック。ヨークとブロックは緑。
+        クランクを ``rotateZ`` で回すと、ヨーク(上下に伸びる溝の枠)が x = r cos θ の単振動で横に 6cm 往復し、
+        ブロックがピンと一緒に溝の中を上下に動く。containerの ``travel`` は行程の位置(0〜1)、 ``velocity`` ・
+        ``acceleration`` はクランクの角度あたりの速さと加速度、 ``returnStroke`` は生成時の端へ戻る間1。"""
+        from .setups import ScotchYoke
+
+        radius = 3.0
+        crank = _joint(name + "_crank", root)
+        _tip(crank, name + "_crankPin", (radius, 0, 0))
+        yoke = _joint(name + "_yoke", root, translate=(radius, 0, 0))
+        for index, tip in enumerate(((0, -radius - 1.0, 0), (0, radius + 1.0, 0), (4.0, 0, 0))):
+            _tip(yoke, "{}_yokeEnd{}".format(name, index), tip)
+        _color(yoke)
+        block = _joint(name + "_block", yoke)
+        _color(block)
+        setup = ScotchYoke.create(crank, yoke, block, radius, name=name, axis="z", yokeAxis="x", blockAxis="y")
         return setup, crank
 
     @classmethod
