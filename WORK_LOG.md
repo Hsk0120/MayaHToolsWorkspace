@@ -174,6 +174,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-15): mlibのJointへ setJointOrient(3つの数値は度が既定、EulerRotateはXYZへ直して書く。fast・checkあり)を追加し、Joint.resetAttrs がアトリビュートの省略時にjointOrientも0へ戻すようにした(ユーザー指定。ロック・入力の接続がある成分は飛ばす。明示したときは足さない)。getPreferredAngle は getRotate に合わせてEulerRotate(rad・ノードのrotateOrder)を返すようにし、unit引数を削除した(以前は度のlist)。setPreferredAngle はEulerRotateも受ける。
 - Claude Code (2026-11-15): mlibのTransform.setTranslation(worldSpace=True)を軽くした。基準点がtranslate・回転ピボットのときは今のtranslateを読まず、既定の呼び方で回転ピボットが0のときはcmds.xformの1回に任せる(192通りで突き合わせ、ピボットが0の96通りは値が一致)。xformはロックのある成分を黙って飛ばすので、書き込めないときはこれまでの経路で例外にする。Maya 2025の中央値msで 207→131(fastは139→112)。Maya 2022/2025/2027のテスト一式と利用側880件が成功。
 - Claude Code (2026-11-15): mlibの書き込みで、書き込む前の検査(値が有限か・書き込めるか)を既定では行わず、公開メソッドの check=True のときだけにした(ユーザー指定)。対象はPlug.set・Transformの値の設定とsetParent・キー・ブレンドシェイプ・表示・デフォーマーのウェイト・ポイント・スキンのウェイト。fastの範囲の検査、複数コマンドの通常の経路、構造を変える処理、require_editableはそのまま。Maya 2025の中央値msで、fastのスキンウェイト設定 156→74、fastのtranslate設定 148→99、fastのsetParent 575→421。Maya 2022/2025/2027のテスト一式と利用側880件が成功。決まりはCLAUDE.mdとdocs/mlib-api-design.mdの「速度の見直し」。
 - Claude Code (2026-11-15): mlibの速度の見直しの続き(mlib 115fbee・HEAD)。Node.getPlugが静的アトリビュートの名前を覚える・hasAttrはPlugを作らない・単位の種類はapiTypeで見分ける・double3の通常の書き込みは親への1回のsetAttrを先に試す・addAttrは1回のコマンドならチャンクを開かない・fastのsetParentはピボットが0なら分解した値をそのまま書く(ユーザー指定。rotate・scaleの値が通常と違うことがある)。Maya 2025の中央値msで、node.tx 64→14、hasAttr 45→15、translate設定 299→137、addAttr 172→106、fastのsetParent 789→225。Maya 2022/2025/2027のテスト一式と利用側880件が成功。決まりはdocs/mlib-api-design.mdの「速度の見直し」。

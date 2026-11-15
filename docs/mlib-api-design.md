@@ -714,6 +714,12 @@ git の履歴(各版のコミットメッセージ)で追う。
 
 - `Node.resetAttrs(attributes=None, *, fast=False)` はリセットしたPlugの `list[Plug]` を返す(3.0.0で別名 `attrs` は廃止)。
   `Transform.resetAttrs` は省略時の既定だけをoverrideし、translate/rotate/scale/shearを対象にする。
+  2026-11-15のユーザー指定により、`Joint.resetAttrs` は省略時にjointOrientも0へ戻す(キーを設定できないので通常の対象に入らないため、Jointで足す。
+  ロック・入力の接続がある成分は飛ばし、戻り値の末尾に `jointOrientX/Y/Z` を並べる。アトリビュートを明示したときは足さない)。
+  jointOrientの読み書きは `Joint.getJointOrient`(EulerRotate・XYZ・rad)と `Joint.setJointOrient(value, *, unit="deg", fast=False, check=False)`
+  (3つの数値は度が既定、EulerRotateはXYZへ直して書く。値だけを書くので向きが変わる)、preferredAngleは `getPreferredAngle`・`setPreferredAngle` で行う。
+  角度の3成分を返すgetは `getRotate` に合わせてEulerRotate(rad)で返し、unit引数は置かない(度は `.asDegrees()`)。`getPreferredAngle` の回転順序はノードのrotateOrder
+  (以前は度のlistと `unit` 引数だった)。setは3つの数値(度が既定)かEulerRotateを受け、回転順序が違えば同じ回転になる値へ直して書く。
   旧 `Transform.reset`(戻りself)・`resetPivot`(`setPivot((0, 0, 0), worldSpace=True, kind=...)` で代替)・`freeze`(`makeIdentity(apply=True, ...)`)は廃止。
 - `Transform.getRotate(worldSpace=False, *, order=None)` は二段の規則で等価解を選ぶ。`order` を省略、またはノードのrotateOrderと同じ順序なら、
   Transformは現在のrotateチャンネル、Jointはゼロ回転に最も近い等価解を返す(`setRotate` との往復でチャンネル値が保たれる)。
