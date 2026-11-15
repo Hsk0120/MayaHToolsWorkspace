@@ -260,6 +260,21 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
   `tolerance`(`Face.isZeroArea`・`BlendShape.reduceTargetDeltas`・`Mesh.reorderVertices`・`getMirrorVertexMap`・`NurbsCurve.getLength`・
   `getCollocatedCVGroups`)。`worldSpace` は位置引数のまま残した(`getMirrorVertexMap(axis, worldSpace)` のように前へ詰まる)。
   数学型の `isEquivalent(other, tolerance)`・`isIdentity(tolerance)` などは、OpenMayaと同じ位置引数のままにした。
+- **`fast`・`check` の追加**(同日の追加の指定): `Transform.setRotateOrder`(fastは `MFnTransform.setRotationOrder`。2種類のノード×回転順序36通り×
+  preserveの有無で通常の経路と一致)、`Joint.setDegreesOfFreedom`・`setInfluenceLocked`、`SkinCluster.setInfluencesLocked`。
+  単純なアトリビュートの書き込みで、fastが約2.5倍速い。`setDegreesOfFreedom` の書き込み前の確認は `check=True` のときだけにした。
+  足さなかったもの: `Plug.setMin`・`setMax`・`setSoftMin`・`setSoftMax`(定義の編集で、7.0.0で `setEnumNames` から外したのと同じ種類)、
+  `Transform.setLimits`(OpenMayaで書いても速くならないと以前に確かめてある)。
+- **単独の角度は数値+`unit`**: `Camera.getFieldOfView`・`Transform.getLimits` は、回転ではない単独の角度なので、`Plug.get` と同じく
+  数値と `unit` 引数(既定は度)のままにした。EulerRotateで返すのは回転(3成分)だけ。
+- **`addAttr` の近道**: めったに使わないフラグが1つも指定されていないときは、46組ある長い名前と短縮名の突き合わせを飛ばして、
+  よく使う7組(attributeType・dataType・defaultValue・keyable・maxValue・minValue・shortName)だけを突き合わせる。型名の集合・正規表現・
+  単位の対応表はモジュールの定数にした。動きは変えていない。1回あたり38.7→34.6µs(cmdsは17µs。`getPlug=False` は26.8µs)。
+- **`mlib.delete` の削除前の確認は外さない**: Maya 2025で確かめたところ、`cmds.delete` はロックされたノード・ロックされた子を持つ親・
+  既定のノードを渡しても例外にせず、エラーを表示して黙って残す。`MDagModifier.deleteNode` はロックされたノードを黙って残し、
+  ロックされた子を持つ親は親だけを消す。確認を外すと「例外にならずに消えない」になるので、`check` に従わせない。
+- **計測の注意**: ベンチマークの絶対値は、計測時のPCの状態で3〜4倍変わる(同じコードで全項目が動いた)。比べるときは、
+  変更前の写し(`run.py --mlib-source head --commit <コミット>`)と今のコードを続けて交互に計る。
 - **オン・オフの引数名**: `state`(既定True)。`Plug.setLocked`・`setKeyable`・`setChannelBox` の `val`、`setShadingOverride` の `enabled`、
   `Edge.setSmooth` の `value` を改名した。
 - **`check` の抜け**: `setVisibility`・`setOutlinerVisibility`・`setOffsetParentMatrix`・`mirrorTransform`・`Plug.reset`・`setIfChanged`・
@@ -666,21 +681,23 @@ Plugの演算子は`src >> dst`(`src.connectTo(dst)`。解決した接続先dst�
 `connectTo(multi, nextAvailable=True)`を使う。演算子は接続結果のPlugを返す。
 `a >> b.x`は`a >> (b.x)`と評価される。`__len__`・`__add__`・無引数の作成・transform→shapeの暗黙のアトリビュート解決は追加しない。
 
-### 再実行向けのsafe(5.0.0)
+### 再実行向けの指定(5.0.0。2026-11-16に引数名を分けた)
 
-`safe=True` はAPIにより意味が違う。いずれも既定はFalseで、引数名は同じでも挙動と戻り値の契約が違う。
+5.0.0では3つの意味を同じ `safe=True` で受けていたが、2026-11-16のユーザー指定で引数名を分けた。`safe` は「失敗しても例外にしない」だけに使い、
+「すでに目的の状態なら何もしない」は `skipExisting`、「接続があるノードは消さない」(`Node.delete`・`Joint.delete`・`Joints.delete`)は `skipConnected`。
+いずれも既定はFalse。下の表の「再実行の許容」の行が `skipExisting`、ほかの2行が `safe`。
 
-| 意味 | API | safe=Trueの挙動 | 戻り値 |
+| 意味 | API | Trueのときの挙動 | 戻り値 |
 | --- | --- | --- | --- |
 | 失敗の集計 | `Plug.set`(既存) | ロック・入力接続等の失敗を例外にせず数える。コンパウンドアトリビュートは子ごとに再試行する | 失敗数(成功は0) |
-| 書ける成分だけ更新 | `Transform.setMatrix/setTranslation/setRotate/setScale/setShear/setQuaternion`(既存) | 書けないチャンネルを保持し、書けるチャンネルだけを更新する | 通常と同じ(自身) |
+| 書ける成分だけ更新 | `Transform.setMatrix/setTranslation/setRotate/setScale/setShear/setQuaternion`(既存) | 書けないチャンネルを保持し、書けるチャンネルだけを更新する | 通常と同じ(値を返さない) |
 | 再実行の許容 | `Node.addAttr`・`Plug.connect`・`Plug.connectTo`・`Plug.setAlias`(5.0.0) | 既に同じ状態(同名のアトリビュート・同じ接続・同じ別名)なら何も変更しない | 成功時と同じ値(Plug・接続先・自身)。件数は返さない |
 
 再実行の許容は「既に目的の状態」だけを成功とみなす。状態が違う(既存のアトリビュートの型やマルチアトリビュートかどうかが違う、
-別の入力がある、ロックされている、別名を別のアトリビュートが使っている)場合はsafeでも既定と同じ例外にする
+別の入力がある、ロックされている、別名を別のアトリビュートが使っている)場合はskipExistingでも既定と同じ例外にする
 (`addAttr` の型違いはTypeError)。既存の状態は更新しない(`addAttr` の既定値・範囲・表示、`connect` のlockは変えない)。
-`connect/connectTo(nextAvailable=True, safe=True)` は、接続元が既にいずれかの要素へ接続されていればその要素を返す。
-同じ接続の判定はunitConversion等の変換ノードを経由した接続も含む(Mayaも同じ接続として拒否する)。演算子 `>>`・`<<` はsafeを持たない。
+`connect/connectTo(nextAvailable=True, skipExisting=True)` は、接続元が既にいずれかの要素へ接続されていればその要素を返す。
+同じ接続の判定はunitConversion等の変換ノードを経由した接続も含む(Mayaも同じ接続として拒否する)。演算子 `>>`・`<<` はskipExistingを持たない。
 再実行で失敗しない操作には追加しない: `Transform.addConstraint` は同じ種類の既存コンストレイントを再利用し、
 `Container.addMembers` は既存のメンバーを受け付け、`DrivenKey.setKey`・`AnimCurve.setKey` は同じ入力のキーを置き換える。
 

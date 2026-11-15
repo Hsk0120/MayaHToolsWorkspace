@@ -40,7 +40,7 @@ class AimAxisConversionTest(unittest.TestCase):
 
     def angles(self, graph):
         """変換出力を度で取得する。"""
-        return [math.degrees(graph.container.getPlug("output" + a).get()) for a in "XYZ"]
+        return [math.degrees(graph.container.getPlug("output" + a).get(unit="rad")) for a in "XYZ"]
 
     def test_three_modes_and_restore(self):
         """単軸の純回転は3方式とも一致し、復元で生成物が全て消える。"""
