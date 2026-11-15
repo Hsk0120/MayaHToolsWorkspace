@@ -18,6 +18,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - 2026-11-14のユーザー指定により、mlibではMayaのコマンドを1回だけ呼ぶ操作でUndoチャンクを開かない(`_edit_context(..., single=True)`。複数のコマンドになる場所だけ`undoChunk`でまとめる)。Undoの表示名を呼び出したメソッドと対象から作る処理は置かない。接続前の値の記録はマルチアトリビュートの要素への接続だけで行う。fastのスキンウェイト設定は`MFnSkinCluster.setWeights`の1回で書く。`Transform.setParent`のfastは、ピボットがすべて0のとき新しいローカルのマトリクスをそのまま分解して書く(2026-11-15のユーザー指定。通常より速いが、rotate・scaleの値が通常と違うことがある)。ピボットがあるときは通常より遅い。利用側(mlrig)がUndoに残さない親の変更として使う。経緯と対象は`docs/mlib-api-design.md`の「2026-11-14〜15の速度の見直し」を参照する。
 
+- 2026-11-15のユーザー指定により、mlibの書き込みは、書き込む前の検査(値が有限か・書き込めるか)を既定では行わず、公開メソッドの `check=True` を渡したときだけ行う(cmdsをそのまま呼ぶ薄いラッパーと同じ軽さにするため。`safe` は「失敗を例外にせず数える」ままで、検査は足さない)。fastでも既定では確かめない。fastの範囲の検査(min/max・enum)、複数のコマンドで補償値まで書き換える通常の経路、構造を変える処理、リファレンスやノードのロックの確認は `check` に関係なく行う。あとでfastをUndoに載せる拡張(プラグインのコマンドに実行と取り消しの関数を渡す方式)を検討できるように、fastの書き込みは `core/fastWrite.py` と各クラスの `_<method>_fast` に集める(プラグインは今は実装しない)。対象と既定での動きは `docs/mlib-api-design.md` の「速度の見直し」を参照する。
+
 - 2026-11-13のユーザー指定により、互換のために残す引数は置かない(使わなくなった引数は削除し、呼出し側・docstring・型スタブも直す)。`ruff check`の`ARG`で未使用引数を検出し、基底クラスの契約・Mayaのコールバック・差し替える関数のように「呼ぶ側が決めた引数」で必要なものだけ`# noqa: ARG00x`と理由を書いて残す(`*args`・`**kwargs`は`ignore-variadic-names`で対象外。テストは`__tests__/**`で除外)。それ以外で使わない引数は、先頭に`_`を付けるのではなく削除する。公開APIの引数を削除するときは、Maya 2027のテスト一式と利用側(`tools/run_rig_packages.py --suite all`)を通してから行う。
 
 - mlibの公開関数・メソッド・プロパティはlowerCamelCase、クラスはPascalCase。例外・引数・保存形式の扱いは `docs/mlib-api-design.md` の「確定したコーディングルール」を正とする。

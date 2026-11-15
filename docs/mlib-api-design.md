@@ -289,6 +289,43 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
   通常の経路と違うことがある(ワールドの姿勢・回転順序・rotateAxis は同じ)。789 → 約225(Maya 2025、2000回のms。通常は約262)。
   ピボットのどれかが0でないときは、これまでの計算(`_matrix_channel_values`)で書く(約580で、通常より遅い)。
   通常の経路はピボットの値を動かし、fast はピボットを保って translate で合わせる。
+- 2026-11-15のユーザー指定により、書き込む前の検査(値が有限か・書き込めるか)は既定では行わず、検査用の引数 `check=True` を
+  渡したときだけ行う(cmds をそのまま呼ぶ薄いラッパーと同じ軽さにするため。`safe` は「失敗を例外にせず数える」ままで、検査は足さない)。
+  fast でも既定では確かめない。段階を分けて進める。
+  - **段階1(実装済み)**: `Plug.set`(単数・`CompoundPlug`・`Double3Plug`・enum・マトリクス)。`check=False` では
+    `_require_finite_value` と `_require_writable` を呼ばず、Maya の拒否に任せる。`check=True` では、どの子も書く前に
+    値が有限か・すべての子へ書き込めるか(ロック・入力の接続・書き込めない定義)を確かめ、何も書かずに例外にする。
+  - 既定のときに Maya 自身がどう動くか(Maya 2025で確認): ロック・入力の接続があるアトリビュートは、cmds も OpenMaya の MPlug も拒否する
+    (MPlug の文言は `(kFailure): Unexpected Internal Failure`。`fastWrite.set_plug` は、拒否されたときだけ理由を調べて
+    `アトリビュートがロックされているか、接続されています` の例外にする)。NaN・無限大は cmds も MPlug もそのまま受け取る。
+    出力専用の定義は cmds が拒否せずに書く。ノードのロック(`lockNode`)は MPlug では拒否されない(`require_editable` は残す)。
+  - 範囲(min/max・enum の範囲)は、cmds は拒否するが MPlug は範囲外の値をそのまま書くので、fast の範囲の検査は `check` に関係なく残す。
+  - 既定では、途中まで書いた状態が残ることがある: fast のコンパウンドアトリビュート(子を順に書くため、ロックされた子より前の子)、
+    float3 などへの通常の書き込み(Maya の `setAttr` 自体が、拒否する前の子を書く)。double2・double3 の通常の書き込みは、
+    Maya が拒否するときどの子も変えない。mlib が子ごとに書く経路(まとめた書き込みの対象外の値・uiUnits)は、`check` に関係なく
+    子を書く前に全部の子を確かめる(途中まで書くのが mlib 自身の動きになるため)。
+  - **段階2(実装済み)**: `Transform` の `setMatrix`・`setTransformation`・`setTranslation`・`setRotate`・`setScale`・`setShear`・
+    `setQuaternion`・`setParent`・`setPivot`・`centerPivot`。`check=False` の fast は、translate・rotate・scale・shear へ確かめずに
+    MPlug で書き、Maya が拒否したらこれまでの書き込みへ回して理由の分かる例外にする。`check=True` は `Plug` の書き込みを通して確かめる。
+    fast の `setParent` は、`check=True` か、先に確かめるためだけの呼び出し(`validate_only`)のときだけ書き込めるかを調べる。
+    `setPivot`・`centerPivot` は、通常の経路では常に確かめ(`cmds.xform` はロックされた成分を例外にせず飛ばすため)、fast は `check=True` のときだけ確かめる。
+  - **段階3(実装済み)**: `AnimCurve.setKey`・`removeKey`・`setTangent`・`setInfinity`、`Keyframe.setValue`・`Keyframes.setValue`、
+    `DrivenKey.setKey`、`BlendShape.setTargetWeights`・`setTargetDeltas`・`resetTargetVertices`・`reduceTargetDeltas`、
+    `DagNode.setOverrideColor`・`setOutlinerColor`・`setDisplayType`・`setShadingOverride`、`GeometryFilter.setDeformerWeights`、
+    ポイントの書き込み(`PointComponent`/`PointComponents` の `setPosition`・`setPositionX/Y/Z`・`setPositions`・`moveBy`・`mirror`、
+    `Mesh.setPoints`・`mirror`、`NurbsCurve.setCvPositions`・`mirror`、`NurbsSurface.setCvPositions`、`Shape.scaleGeometry`、
+    `Transform.scaleGeometry`・`mirrorGeometry`)、`SkinCluster.setWeights`・`pruneWeights`・`setBlendWeights`。
+    どれも fast の中の `require_writable` を `check=True` のときだけ呼ぶ。入力ヒストリの有無・ノードのロック・番号や型の検査は `check` に関係なく行う。
+  - `check` を付けていないもの(これまでどおり、変える前に確かめる): 複数のコマンドで補償値まで書き換える通常の経路
+    (`Joint.jointOrientToRotate`・`freezeRotate`・`setDegreesOfFreedom`、`Transform.zeroTransformPivots`・`freezeToOffsetParent`)、
+    インフルエンスの除去に伴うウェイトの移し替え、`Mesh.reorderVertices`、JSON からの復元、`require_editable`(リファレンス・ノードのロック)。
+  - `check=False` の fast で、OpenMaya がロック・入力の接続をどう扱うか(Maya 2025で確認): MPlug の書き込みは拒否する。
+    `MFnTransform` の `setTranslation`・`setRotation`・`setScale` は、ロックや接続のある成分を例外にせず飛ばし、ほかの成分は書く
+    (fast の `setParent` は、ロックされたチャンネルがあるとワールドの姿勢が保たれない)。`MFnMesh.setPoints` は pnts のロックを無視して書く。
+    `MFnSkinCluster.setWeights` などのまとめて書く関数も、要素ごとのロックを見ない。確かめたいときは `check=True` を使う。
+- 将来、fast の書き込みを Undo に載せる拡張(`MPxCommand` を1つ登録し、実行と取り消しの関数を渡して Undo キューに載せる方式)を
+  検討できるように、fast の書き込みは `core/fastWrite.py` の `set_plug`・`set_attr(fast=True)` と各クラスの `_<method>_fast` に集め、
+  公開メソッドから OpenMaya の書き込みを直接呼ばない形を保つ。プラグインは今は実装・同梱しない(方針は変えていない)。
 - `Node.addAttr`(約106、cmds は46)と Plug 経由の translate 設定(約138、cmds は93)は、残りが引数の受け取り・名前の重なりの確認・
   値の検査・返す Plug の作成に薄く分かれていて、まとめて削れる処理は残っていない(2026-11-15のプロファイル)。
 
