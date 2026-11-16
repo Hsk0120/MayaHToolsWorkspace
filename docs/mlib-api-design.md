@@ -286,6 +286,24 @@ Script Editorのエラー表示は、mlib内部のフレームを省いて利用
   GUIでも「Reference file not found」などの確認ダイアログを出さず、読み込めないときは例外にする(GUIテストが止まって見つかった)。
 - **速度**: 取得系を複数形で包んだ後も、ベンチマーク65項目は変更前と同等。`Transform.getShape` は複数形を作らず中身のlistを直接使う。
 
+### 2026-11-16の使い方の見直し(ユーザー視点の調査から)
+
+ユーザーが書きそうなスクリプトを約50通りMayaで動かし、戸惑う点を洗い出して決めた(ユーザー指定)。
+
+- **角度の往復は文書で説明する**: EulerRotateは度で表示するが、`list()`・`tuple()`・添字・`.x` の中身はラジアン。3つの数値をset系へ渡すと
+  度として扱うので、`setRotate(tuple(getRotate()))` は値がずれる(例外にならない)。動きは変えず、`getting_started` に警告の節を置いた。
+  正しい書き方は、オブジェクトをそのまま渡すか `.asDegrees()`。
+- **listのメソッドと同じ名前の操作は改名**: `ObjectSet.clear` → `removeAllMembers`、`NurbsCurve.reverse` → `reverseDirection`。
+  複数形から呼ぶと、シーンではなく集まりを操作してしまうため(`sets.clear()` が集まりを空にするだけになっていた)。
+  単数のクラスには、listのメソッドと同じ名前の公開メソッドを置かない。
+- **古い書き方の案内はしない**: 以前の引数名(`safe`・`val` など)を受けて新しい名前を案内する処理は入れない。古い記述は消す。
+- **全部ジョイントならJoints**: `Nodes._wrap` と `mlib.ls` は、要素がすべてJointならJoints、すべてSkinClusterならSkinClustersにする
+  (`joint.getChildren().sortedByDepth()` が使える)。自動で決まった型の集まりは、型の合わない要素を足すとNodesへ戻る
+  (`mlib.ls("joint1") + [cube]` が中身によってTypeErrorにならないようにする)。自分で作った `Joints([...])` は今までどおり拒否する。
+- **Plugsも要素へ転送**: `plugs.get()`・`plugs.set(0)` のように、自分に無い公開メソッドの名前を各Plugへ転送する(Nodesと同じ決まり)。
+- **名前の一覧**: Nodes・Plugsとも `getNames()`・`getFullNames()` の両方を持つ。コンポーネントは `getFullNames()`・`getCompactNames()`
+  (単数のComponentに `getName` が無いため、`getNames` は足していない)。
+
 ### 2026-11-14〜15の速度の見直し(Undoチャンク・接続・Transformation)
 
 cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/research/benchmark-2026-10-25/RESULTS-2026-11-14.md`)から決めた。

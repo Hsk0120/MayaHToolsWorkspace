@@ -174,6 +174,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-16): mlibの使い方をユーザー視点で調べて直した(ユーザー指定)。ObjectSet.clear を removeAllMembers、NurbsCurve.reverse を reverseDirection へ改名(複数形から呼ぶと集まりを操作してしまうため)、取得系と mlib.ls は要素がすべてジョイントなら Joints(skinClusterなら SkinClusters)で返し、自動で決まった型は合わない要素を足すと Nodes へ戻る、Plugs からも各要素のメソッドを呼べる、Nodes.getFullNames・Plugs.getNames を追加、getting_started に角度の受け渡しの警告と複数形の説明を追記。古い書き方の案内は入れていない。
 - Claude Code (2026-11-16): mlibで、同じ safe という名前で受けていた3つの意味の引数名を分けた(ユーザー指定)。「すでに目的の状態なら何もしない」(addAttr・Plug.connect・connectTo・setAlias)は skipExisting、「接続があるノードは消さない」(Node.delete・Joint.delete・Joints.delete)は skipConnected。safe は「失敗しても例外にしない」(Plug.set・Transformのset系)だけに使う。mlib.delete の削除前の確認と、Transformのset系の safe の戻り値は変えていない。
 - Claude Code (2026-11-16 夜間): mlrigにスコッチヨーク(ScotchYoke)を追加。溝付きのヨークを x = r cos θ の単振動で往復させ、溝の中のブロック(r sin θ)・velocity・acceleration・travel・returnStroke・stroke を出力(標準ノードのみ)。setupSamples・文書(scotch_yoke.rst)・テスト8件・検証動画のデモ(tools/demo_scotch_yoke.py)を追加。Maya 2027で setups 744件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-15): mlibで、Transform.setRotateOrder・Joint.setDegreesOfFreedom・setInfluenceLocked・SkinCluster.setInfluencesLocked に fast・check を追加、addAttr のよく使う呼び方で引数の突き合わせを飛ばす近道(38.7→34.6µs)、tools/tests の test_aimAxisConversion の修正(角度をradで読むと明示)。単独の角度のget(getFieldOfView・getLimits)は数値+unitのままと決めた。mlib.delete の削除前の確認は、Mayaがロックされたノードを例外にせず黙って残すと分かったため外していない。doubleの書き込みの速度低下は計測の揺れで、交互に計ると変更前と同等。
