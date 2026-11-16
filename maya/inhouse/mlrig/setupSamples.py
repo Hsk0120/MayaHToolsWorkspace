@@ -112,6 +112,7 @@ class SetupSamples:
         ("quickReturn", "QuickReturn - slotted lever, slow out and fast back"),
         ("whitworthQuickReturn", "WhitworthQuickReturn - full-turn lever and rod"),
         ("scotchYoke", "ScotchYoke - pure harmonic slotted yoke"),
+        ("ellipticTrammel", "EllipticTrammel - two sliders draw an ellipse"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -746,6 +747,28 @@ class SetupSamples:
         block = _joint(name + "_block", yoke)
         _color(block)
         setup = ScotchYoke.create(crank, yoke, block, radius, name=name, axis="z", yokeAxis="x", blockAxis="y")
+        return setup, crank
+
+    @classmethod
+    def _ellipticTrammel(cls, name, root):
+        """クランク(joint、先が棒の中点)と、横の溝を滑るスライダーA・縦の溝を滑るスライダーBと、Aに付いた棒の先の点。
+        スライダーと点は緑。クランクを ``rotateZ`` で回すと、Aが横に・Bが縦に往復し、棒はクランクと逆向きに回る。
+        棒の先(Aから 1.5L、Bを越えた先)の緑のlocatorは横の半軸 0.5L・縦の半軸 1.5L の楕円を描く。containerの
+        ``penX`` ・ ``penY`` はその点の移動、 ``rodAngle`` は棒の回転。"""
+        from .setups import EllipticTrammel
+
+        length = 4.0
+        crank = _joint(name + "_crank", root)
+        _tip(crank, name + "_crankEnd", (length * 0.5, 0, 0))
+        sliderA = _joint(name + "_sliderA", root, translate=(length, 0, 0))
+        sliderB = _joint(name + "_sliderB", root)
+        rod = _joint(name + "_rod", sliderA)
+        _tip(rod, name + "_rodEnd", (-length * 1.5, 0, 0))
+        pen = _locator(name + "_pen", rod, translate=(-length * 1.5, 0, 0))
+        for node in (sliderA, sliderB, pen):
+            _color(node)
+        setup = EllipticTrammel.create(crank, sliderA, sliderB, rod, length, name=name, axis="z", aAxis="x",
+                                       bAxis="y")
         return setup, crank
 
     @classmethod

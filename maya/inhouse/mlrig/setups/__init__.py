@@ -29,6 +29,7 @@ from .camFollower import CamFollower
 from .quickReturn import QuickReturn
 from .whitworthQuickReturn import WhitworthQuickReturn
 from .scotchYoke import ScotchYoke
+from .ellipticTrammel import EllipticTrammel
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -112,6 +113,7 @@ __all__ = [
     "QuickReturn",
     "WhitworthQuickReturn",
     "ScotchYoke",
+    "EllipticTrammel",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

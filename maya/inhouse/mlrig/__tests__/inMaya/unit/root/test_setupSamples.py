@@ -56,6 +56,7 @@ CHANGES = {
     "quickReturn": (_set(".rotateZ", 90.0), "_ram"),
     "whitworthQuickReturn": (_set(".rotateZ", 90.0), "_ram"),
     "scotchYoke": (_set(".rotateZ", 90.0), "_yoke"),
+    "ellipticTrammel": (_set(".rotateZ", 60.0), "_sliderA"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),

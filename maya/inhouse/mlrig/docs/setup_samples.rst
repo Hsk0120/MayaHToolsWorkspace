@@ -221,6 +221,9 @@
    * - ScotchYoke - pure harmonic slotted yoke
      - クランクのjoint
      - ``rotateZ`` で回すと、ピン(クランクの先)が緑のヨーク(上下に伸びる溝の枠)の溝を滑りながら押し、ヨークが x = r cos θ の単振動で横に6cm往復する。ヨークの子の緑のブロックはピンと一緒に溝の中を上下に動く。containerの ``travel`` は行程の位置(0〜1)、 ``velocity`` ・ ``acceleration`` はクランクの角度あたりの速さと加速度、 ``returnStroke`` は生成時の端へ戻る間1。
+   * - EllipticTrammel - two sliders draw an ellipse
+     - クランクのjoint
+     - ``rotateZ`` で回すと、クランクの先(棒の中点)に引かれて緑のスライダーAが横に、緑のスライダーBが縦に往復し、Aに付いた棒はクランクと逆向きに回る。棒の先(Aから6cm、Bを越えた先)の緑のlocatorは横の半軸2cm・縦の半軸6cmの楕円を描く。containerの ``penX`` ・ ``penY`` はその点の移動、 ``rodAngle`` は棒の回転。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。
