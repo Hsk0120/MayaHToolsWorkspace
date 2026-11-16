@@ -6,10 +6,23 @@ from pathlib import Path
 import sys
 import unittest
 
+import local_temp
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
+    """一時ファイルをワークスペースの中へ作る設定で、:func:`_main` を実行する。
+
+    Returns:
+        int: 成功時0、テスト失敗時1。
+    """
+    # システムの一時フォルダーは別のドライブのことがあるので、テストとMayaの一時ファイルはワークスペースの中へ作る。
+    with local_temp.as_default(prefix="rig-tests-"):
+        return _main()
+
+
+def _main():
     """テスト用standaloneを初期化し、選択したスイートを実行する。
 
     Returns:

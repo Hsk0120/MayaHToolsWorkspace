@@ -251,6 +251,8 @@ C++のMayaプラグインは別リポジトリで管理し、submoduleとして�
 
 ## 開発上の注意
 
+- 2026-11-16のユーザー指定により、バッチ・ツール・テストはドライブに依存させない(ワークスペース・作業フォルダー・システムの一時フォルダー・Mayaが別々のドライブにあっても止まらないようにする)。作業用の一時ファイルは、システムの一時フォルダー(`%TEMP%`)ではなく手元へ作る: ワークスペースのツールは `tools/local_temp.py`(`.maya-output/temp/`。`temporary_directory`・`make_file`・`as_default`)、mlibは `_tools/.temp/`(noMayaのテストと型スタブの生成)と `__tests__/_output/`(Mayaのテスト)、AnimBar・SkinWeightKitのテストは各 `__tests__/_output/`。手元へ書き込めないときは、止めずにシステムの一時フォルダーを使う。Mayaを使う実行は終了時に一時フォルダーを消せないことがあるので、次の実行の最初に1日より前の残りを掃除する。別のドライブどうしの相対パス(`os.path.relpath`・`Path.relative_to`)・`os.rename`・ハードリンクに頼らず、Mayaの場所は `C:\Program Files` と決め打ちせず `%ProgramFiles%` を使う。確認は、mlibを別のドライブへ複製し、さらに別のドライブを作業フォルダーにして5本のバッチを実行する。
+
 - Pythonの単体実行環境(venv)は用意されていない(pipはMaya起動用の `maya/site-packages/<年>/<グループ>` への取得だけ)。全てMaya本体(GUIまたはmayapy)を介して動作する前提で、純粋ロジックのテストであってもMaya経由で実行するのがこのリポジトリの標準的な方法。
 - `maya/external/*` はGit submodule。変更が必要な場合は各submoduleのリポジトリ側で行う(親リポジトリからの直接コミット対象ではない)。
 - 新規clone後は `git submodule update --init --recursive` が必要。

@@ -24,12 +24,13 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-import tempfile
 import time
 import urllib.request
 
 from babel.messages.catalog import Catalog
 from babel.messages.pofile import read_po, write_po
+
+import local_temp
 
 ROOT = Path(__file__).resolve().parents[1]
 OLLAMA = 'http://127.0.0.1:11434/api/'
@@ -364,7 +365,7 @@ def main():
         for name in args.names:
             docs = ROOT / 'maya/inhouse' / name / 'docs'
             po_path = docs / 'locale/en/LC_MESSAGES/docs.po'
-            with tempfile.TemporaryDirectory() as temporary:
+            with local_temp.temporary_directory(prefix='gettext-') as temporary:
                 catalog = load_catalog(po_path, extract(docs, Path(temporary) / 'gettext'))
             pending = [message for message in catalog if message.id and _JAPANESE.search(message.id)
                        and (not message.string or message.fuzzy)]
@@ -389,7 +390,7 @@ def main():
             save_catalog(po_path, catalog)
             for source, problem in skipped:
                 print('  left untranslated ({}): {}'.format(problem, source[:80].replace('\n', ' ')), flush=True)
-            with tempfile.TemporaryDirectory() as temporary:
+            with local_temp.temporary_directory(prefix='english-') as temporary:
                 result = build_english(docs, Path(temporary) / 'html')
             warnings = [line for line in (result.stderr or '').splitlines() if 'WARNING' in line or 'ERROR' in line]
             print('  English build: {}'.format('ok' if result.returncode == 0 else 'FAILED'), flush=True)

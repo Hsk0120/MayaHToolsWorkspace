@@ -124,7 +124,7 @@ def main(argv=None):
     parser.add_argument("plugin", type=Path, help="CMakeLists.txt を持つプラグインのフォルダ")
     parser.add_argument("--versions", type=int, nargs="+", choices=sorted(TOOLSETS), default=[2026])
     parser.add_argument("--config", default="Release")
-    parser.add_argument("--install-root", default=r"C:\Program Files\Autodesk")
+    parser.add_argument("--install-root", default=str(Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Autodesk"))
     parser.add_argument("--build-root", type=Path, default=ROOT / ".maya-output/plugin-build")
     parser.add_argument("--list", action="store_true", help="ビルドせず、環境の検出結果だけ表示する")
     parser.add_argument("--generate-only", action="store_true", help="Visual Studioプロジェクトだけを生成し、コンパイルしない")

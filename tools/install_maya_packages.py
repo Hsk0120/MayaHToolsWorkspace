@@ -26,7 +26,8 @@ import shutil
 import site
 import subprocess
 import sys
-import tempfile
+
+import local_temp
 
 STAMP_NAME = ".installed-requirements.txt"
 FAILED_SUFFIX = ".failed"
@@ -260,7 +261,8 @@ def install_group(name, requirements, target_root, bundled):
     os.makedirs(new)
 
     if has_requirements(requirements):
-        handle, constraints = tempfile.mkstemp(suffix=".txt", prefix="maya-constraints-")
+        # ワークスペースの中の一時フォルダーへ作る(システムの一時フォルダーは別のドライブのことがある)。
+        handle, constraints = local_temp.make_file(suffix=".txt", prefix="maya-constraints-")
         with os.fdopen(handle, "w", encoding="utf-8") as stream:
             stream.write("\n".join(sorted(bundled.values())) + "\n")
         # ユーザー設定の user=true と --target は同時に使えないため、子プロセスでは無効にする

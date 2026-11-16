@@ -14,8 +14,9 @@ Pylance/pyright が ``maya.cmds`` や ``maya.api.OpenMaya`` を解決できる�
 import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+
+import local_temp
 
 ROOT = Path(__file__).resolve().parents[1]
 DEST = ROOT / "typings" / "maya"
@@ -23,7 +24,8 @@ PACKAGE = "types-maya"
 
 
 def main():
-    with tempfile.TemporaryDirectory() as work:
+    # 取得物は、ワークスペースの中の一時フォルダーへ置く(システムの一時フォルダーは別のドライブのことがある)。
+    with local_temp.temporary_directory(prefix="typings-") as work:
         command = [sys.executable, "-m", "pip", "install", "--quiet", "--no-deps", "--target", work, PACKAGE]
         if subprocess.run(command).returncode:
             print("pipによる %s の取得に失敗しました。" % PACKAGE)

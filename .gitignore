@@ -213,8 +213,12 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Temporary Maya execution output
+# Temporary Maya execution output (tools/local_temp.py puts work files in .maya-output/temp/)
 .maya-output/
+
+# Temporary folders and files at any depth
+.temp/
+*.tmp
 
 # macOS
 .DS_Store
