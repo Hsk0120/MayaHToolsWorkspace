@@ -562,3 +562,4 @@
 [submodule "maya/inhouse/mlib"]
 	path = maya/inhouse/mlib
 	url = https://github.com/Hsk0120/mlib.git
+	branch = main
