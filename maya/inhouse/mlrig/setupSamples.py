@@ -113,6 +113,7 @@ class SetupSamples:
         ("whitworthQuickReturn", "WhitworthQuickReturn - full-turn lever and rod"),
         ("scotchYoke", "ScotchYoke - pure harmonic slotted yoke"),
         ("ellipticTrammel", "EllipticTrammel - two sliders draw an ellipse"),
+        ("oldhamCoupling", "OldhamCoupling - offset shafts turn together"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -770,6 +771,27 @@ class SetupSamples:
         setup = EllipticTrammel.create(crank, sliderA, sliderB, rod, length, name=name, axis="z", aAxis="x",
                                        bAxis="y")
         return setup, crank
+
+    @classmethod
+    def _oldhamCoupling(cls, name, root):
+        """入力軸(joint、先が入力の溝の向き)と、横に e ずれた出力軸(joint、先が出力の溝の向き)と、中間の円板
+        (joint、2本の先が直交する2つの突起)。出力軸と円板は緑。入力軸を ``rotateZ`` で回すと、出力軸は同じ角度で回り、
+        円板は同じ角度で自転しながら、中心が2本の軸の間を直径とする円(半径 e/2)を2倍の速さで回る。containerの
+        ``inputSlide`` ・ ``outputSlide`` は2つの溝の中の円板の中心の位置、 ``orbitAngle`` は公転の角度。"""
+        from .setups import OldhamCoupling
+
+        offset = 2.0
+        inputShaft = _joint(name + "_input", root)
+        _tip(inputShaft, name + "_inputSlot", (0, 2.5, 0))
+        outputShaft = _joint(name + "_output", root, translate=(offset, 0, 0))
+        _tip(outputShaft, name + "_outputSlot", (2.5, 0, 0))
+        disc = _joint(name + "_disc", root)
+        _tip(disc, name + "_discTongueA", (0, 1.5, 0))
+        _tip(disc, name + "_discTongueB", (1.5, 0, 0))
+        for node in (outputShaft, disc):
+            _color(node)
+        setup = OldhamCoupling.create(inputShaft, outputShaft, disc, offset, name=name, axis="z", offsetAxis="x")
+        return setup, inputShaft
 
     @classmethod
     def _universalJoint(cls, name, root):

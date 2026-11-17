@@ -30,6 +30,7 @@ from .quickReturn import QuickReturn
 from .whitworthQuickReturn import WhitworthQuickReturn
 from .scotchYoke import ScotchYoke
 from .ellipticTrammel import EllipticTrammel
+from .oldhamCoupling import OldhamCoupling
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -114,6 +115,7 @@ __all__ = [
     "WhitworthQuickReturn",
     "ScotchYoke",
     "EllipticTrammel",
+    "OldhamCoupling",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

@@ -57,6 +57,7 @@ CHANGES = {
     "whitworthQuickReturn": (_set(".rotateZ", 90.0), "_ram"),
     "scotchYoke": (_set(".rotateZ", 90.0), "_yoke"),
     "ellipticTrammel": (_set(".rotateZ", 60.0), "_sliderA"),
+    "oldhamCoupling": (_set(".rotateZ", 60.0), "_disc"),
     "universalJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "constantVelocityJoint": (_set(".rotateX", 60.0), "_outputOut"),
     "tripodJoint": (_add(".translateY", 2.0), "_spiderOut"),

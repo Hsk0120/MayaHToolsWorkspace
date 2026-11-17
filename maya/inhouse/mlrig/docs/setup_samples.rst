@@ -224,6 +224,9 @@
    * - EllipticTrammel - two sliders draw an ellipse
      - クランクのjoint
      - ``rotateZ`` で回すと、クランクの先(棒の中点)に引かれて緑のスライダーAが横に、緑のスライダーBが縦に往復し、Aに付いた棒はクランクと逆向きに回る。棒の先(Aから6cm、Bを越えた先)の緑のlocatorは横の半軸2cm・縦の半軸6cmの楕円を描く。containerの ``penX`` ・ ``penY`` はその点の移動、 ``rodAngle`` は棒の回転。
+   * - OldhamCoupling - offset shafts turn together
+     - 入力軸のjoint
+     - ``rotateZ`` で回すと、横に2cmずれた緑の出力軸が同じ角度で回り、緑の円板(直交する2本の突起)が同じ角度で自転しながら、中心が2本の軸の間を直径とする円(半径1cm)を2倍の速さで回る。containerの ``inputSlide`` ・ ``outputSlide`` は2つの溝の中の円板の中心の位置、 ``orbitAngle`` は公転の角度 2θ 。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。
