@@ -102,7 +102,20 @@ def check_browser(base_url, output, sha, channel):
                 page.goto(base_url, wait_until="networkidle")
                 page.locator('div.body a[href="preferences.html"]').first.click()
                 page.wait_for_url("**/preferences.html")
-                page.goto(urljoin(base_url, "search.html"), wait_until="networkidle")
+                # 配信直後の検索ページもHTTP状態と版を検査し、一時的な配信失敗だけ再取得する。
+                for attempt in range(3):
+                    response = page.goto(urljoin(base_url, "search.html"), wait_until="networkidle")
+                    revision = page.locator('meta[name="qpe-build-revision"]')
+                    current = not sha or (revision.count() == 1 and revision.get_attribute("content") == sha)
+                    has_query = page.locator('div.body input[name="q"]').count() == 1
+                    if response is not None and response.status == 200 and current and has_query:
+                        break
+                    if attempt == 2:
+                        if output:
+                            (output / f"{name}-search-failure.html").write_text(page.content(), encoding="utf-8")
+                        status = response.status if response is not None else None
+                        raise ValueError(f"検索ページの取得・公開コミット・検索欄を確認できません: HTTP {status}: {page.url}")
+                    page.wait_for_timeout(2000)
                 query = page.locator('div.body input[name="q"]')
                 query.fill("FBX")
                 query.press("Enter")

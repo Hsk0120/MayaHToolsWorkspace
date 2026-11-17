@@ -114,6 +114,11 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -174,7 +179,17 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-11-18 Codex: 採用API29項目と回帰テストをmlib 235913eとしてpush。公開CIのQPE検索欄待ちtimeoutに対し、検索ページのHTTP/公開SHA/検索欄を検証し最大3回再取得、失敗HTMLを保存するよう改善。PC/タブレット/モバイル27ページと検索を公開URLで確認。submodule参照も更新。元の配信失敗原因は当時のHTMLがなく断定せず、push後CIで確認する。
+
 - Claude Code (2026-11-18 夜間): mlrigにオルダム継手(OldhamCoupling)を追加。平行にずれた2本の軸(ずれ e)を直交する突起の円板でつなぎ、出力軸と円板は入力軸と同じ θ で回り(等速)、円板の中心は2本の溝の線の交点 C = (e sin²θ, -e sinθ cosθ) で、軸の間を直径とする円(半径 e/2)を 2θ で公転する。discU・discV・discRotate・outputRotate・inputSlide (-e sinθ)・outputSlide (-e cosθ)・orbitAngle (2θ)・offset・orbitRadius を出力(標準ノードのみ)。setupSamples・文書(oldham_coupling.rst)・テスト10件・検証動画のデモ(tools/demo_oldham_coupling.py)を追加。Maya 2027で setups 763件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
+- 2026-11-17 Codex (21:10開始): mlibの採用29項目を実装。新規14テストファイルと既存Undo監査387ケースを追加・更新し、UndoはMaya2022/2027で失敗0。Maya2027全277ファイル3123テストで見つかった監査未登録とpackageNameのtimeoutは、監査修正・同条件での単独再試験により解消。関連テストは2022/2027、一部は全6版で成功。ruff/layout/exports/型スタブ/Sphinx・HTML380ページ検査成功。GUI等18件skip、全6版の全件回帰は未実施。初回失敗・未完走と再試験はdocs/research/mlib-base-api-comparison-20261117/implementation.mdに分けて記録。不採用21・29と保留26は未実装、他作業・submodule参照を保持。commit/pushなし。
+
+- 2026-11-17 Codex: mlib追加APIの主要32項目をカード回答で選定。採用29件、不採用2件(Plugの詳細編集可否・TransformのrestPosition)、保留1件(DagNodeのinstanceable)。採否と制約をdocs/research/mlib-base-api-comparison-20261117/decisions.jsonとselection-summary.mdへ記録し、番号/重複/集計を照合。製品実装・Maya検証は未着手、submodule無変更。
+
+- 2026-11-17 Codex: 派生クラスの追加API比較を完了。Meshの面頂点法線/UV割当、GeometryFilterの対象論理番号、SkinClusterのinfluence論理番号、ObjectSetの再帰展開等を候補化。既存の接線編集・複数ベース編集・mixin/OM2継承との重複を除外。調査表とAST棚卸しをdocs/research/mlib-base-api-comparison-20261117/へ保存(Git対象外)。製品コード変更なし、Maya未実行、commit/pushなし。
+
+- 2026-11-17 Codex: mlib 846c46dのObject/Node/DagNode/Transform/Plug/Componentと比較対象0bba45d6の基底APIをソース照合。指定時刻の値取得、複合/マルチ再帰列挙、アニメーション対象列挙を優先候補とし、セット所属・編集状態・ピボット補正等と代替済み/意図的除外を区別。調査はdocs/research/mlib-base-api-comparison-20261117/へ保存(Git対象外)。実装・submodule変更なし、Maya未実行、commit/pushなし。
+
 - Claude Code (2026-11-17 夜間): mlrigに楕円トランメル(EllipticTrammel)を追加。クランクで棒の中点を回し、直交する溝のスライダーA(L cos θ)・B(L sin θ)を往復させ、棒をクランクと逆向きに回し(rodAngle = -θ)、棒の上の点の楕円の移動 penX・penY と固定の半軸 semiAxisA (|L - d|)・semiAxisB (|d|)を出力(標準ノードのみ)。setupSamples・文書(elliptic_trammel.rst)・テスト9件・検証動画のデモ(tools/demo_elliptic_trammel.py)を追加。Maya 2027で setups 753件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Claude Code (2026-11-16): バッチ・ツール・テストのドライブ依存を直した(ユーザー指定)。mlibをEドライブへ複製し、Dドライブを作業フォルダーにして5本のバッチを実行して再現(Maya不要のテストの1件が、Cドライブの一時フォルダーとDドライブの作業フォルダーの間で相対パスを作れず ValueError)。一時ファイルを手元へ作るようにした: mlibは _tools/.temp(noMayaのテスト・型スタブの生成)、ワークスペースのツールは tools/local_temp.py(.maya-output/temp。setup_maya_typings・install_maya_packages・translate_docs・run_rig_packages)、AnimBar・SkinWeightKitのテストは各 __tests__/_output。書き込めないときはシステムの一時フォルダーへ切り替える。Mayaの場所の C:\Program Files の決め打ちを %ProgramFiles% にした(setup.bat・generate_mlib_stubs.bat・build_maya_plugin.py)。
 - Claude Code (2026-11-16): mlibの使い方をユーザー視点で調べて直した(ユーザー指定)。ObjectSet.clear を removeAllMembers、NurbsCurve.reverse を reverseDirection へ改名(複数形から呼ぶと集まりを操作してしまうため)、取得系と mlib.ls は要素がすべてジョイントなら Joints(skinClusterなら SkinClusters)で返し、自動で決まった型は合わない要素を足すと Nodes へ戻る、Plugs からも各要素のメソッドを呼べる、Nodes.getFullNames・Plugs.getNames を追加、getting_started に角度の受け渡しの警告と複数形の説明を追記。古い書き方の案内は入れていない。
