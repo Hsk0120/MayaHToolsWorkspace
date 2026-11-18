@@ -125,6 +125,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -184,6 +185,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- 2026-11-18 Codex: ユーザー指定の汎用Markdown出力を追加。_tools/build_mlib_markdown.batから同じRST/docstringをページ別.mdへ生成。Mermaid・署名の*・3.10等の表記・表中の縦棒を保持。Markdown377ページ/継承図171/ローカル4178リンク欠落0、HTML380ページとnoMaya151件、差分・バッチ文字コード検査成功。古い出力除去・環境なし失敗を確認。Wiki実サービスとmayapy代替環境の実行は未検証。ユーザー指定でmlib fcced76をpushし、ワークスペースのsubmodule参照も更新。生成MarkdownはGit対象外。証拠 .maya-output/mlib-markdown-review/。
 
 - 2026-11-18 Codex: 残っていたAGENTS.mdの質問カード運用とWORK_LOG.mdの調査履歴を確認し、ユーザー指定でコミット。git diff --check成功。文書のみのためMayaテストは再実行せず。
 
