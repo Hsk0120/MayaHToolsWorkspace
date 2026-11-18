@@ -179,6 +179,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+| Codex | 2026-11-18 | mlib Plug.setDefault | 通常cmds/fast OM2を追加。通常Undoは旧既定値でなく0へ戻る制限を明記。未評価の現在値は更新前にgetで保持。専用7＋既存9テストがMaya2022〜2027で成功、noMaya146・ruff・layout・スタブ・Sphinx成功。.ma/.mbのdouble保存復元、参照拒否、単位・接続・複数形・Undoキュー確認。全Mayaスイート未実施。証拠 .maya-output/plug-default-implementation/。 |
+
 - 2026-11-18 Codex: 採用API29項目と回帰テストをmlib 235913eとしてpush。公開CIのQPE検索欄待ちtimeoutに対し、検索ページのHTTP/公開SHA/検索欄を検証し最大3回再取得、失敗HTMLを保存するよう改善。PC/タブレット/モバイル27ページと検索を公開URLで確認。submodule参照も更新。元の配信失敗原因は当時のHTMLがなく断定せず、push後CIで確認する。
 
 - Claude Code (2026-11-18 夜間): mlrigにオルダム継手(OldhamCoupling)を追加。平行にずれた2本の軸(ずれ e)を直交する突起の円板でつなぎ、出力軸と円板は入力軸と同じ θ で回り(等速)、円板の中心は2本の溝の線の交点 C = (e sin²θ, -e sinθ cosθ) で、軸の間を直径とする円(半径 e/2)を 2θ で公転する。discU・discV・discRotate・outputRotate・inputSlide (-e sinθ)・outputSlide (-e cosθ)・orbitAngle (2θ)・offset・orbitRadius を出力(標準ノードのみ)。setupSamples・文書(oldham_coupling.rst)・テスト10件・検証動画のデモ(tools/demo_oldham_coupling.py)を追加。Maya 2027で setups 763件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
