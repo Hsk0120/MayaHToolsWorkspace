@@ -227,6 +227,9 @@
    * - OldhamCoupling - offset shafts turn together
      - 入力軸のjoint
      - ``rotateZ`` で回すと、横に2cmずれた緑の出力軸が同じ角度で回り、緑の円板(直交する2本の突起)が同じ角度で自転しながら、中心が2本の軸の間を直径とする円(半径1cm)を2倍の速さで回る。containerの ``inputSlide`` ・ ``outputSlide`` は2つの溝の中の円板の中心の位置、 ``orbitAngle`` は公転の角度 2θ 。
+   * - PlanetaryGear - sun, planets and carrier
+     - 太陽歯車のjoint
+     - ``rotateZ`` で回すと、内歯車を固定した緑のキャリア(3本の腕)が同じ向きに1/3の速さで回り(太陽24歯・遊星12歯・内歯車48歯)、腕の先の緑の遊星歯車3つがキャリアに対して逆向きに、太陽歯車の2倍の割合で自転する。containerの ``carrierAngle`` はキャリアの回転、 ``planetSpin`` はキャリアに対する自転、 ``planetAngle`` は固定した空間での自転。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

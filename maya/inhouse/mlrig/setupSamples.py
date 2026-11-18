@@ -114,6 +114,7 @@ class SetupSamples:
         ("scotchYoke", "ScotchYoke - pure harmonic slotted yoke"),
         ("ellipticTrammel", "EllipticTrammel - two sliders draw an ellipse"),
         ("oldhamCoupling", "OldhamCoupling - offset shafts turn together"),
+        ("planetaryGear", "PlanetaryGear - sun, planets and carrier"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -792,6 +793,32 @@ class SetupSamples:
             _color(node)
         setup = OldhamCoupling.create(inputShaft, outputShaft, disc, offset, name=name, axis="z", offsetAxis="x")
         return setup, inputShaft
+
+    @classmethod
+    def _planetaryGear(cls, name, root):
+        """太陽歯車(joint、先が歯の目印)と、内歯車を固定したキャリア(joint、3本の腕)と、腕の先の遊星歯車3つ(joint)。
+        キャリアと遊星歯車は緑。太陽歯車を ``rotateZ`` で回すと、キャリアが同じ向きに 1/3 の速さ(Zs = 24、Zp = 12、
+        Zr = 48)で回り、遊星歯車はキャリアに対して逆向きに太陽歯車の2倍の割合で自転する。containerの ``carrierAngle`` は
+        キャリアの回転、 ``planetSpin`` はキャリアに対する自転、 ``planetAngle`` は固定した空間での自転。"""
+        from .setups import PlanetaryGear
+
+        distance = 1.8
+        sun = _joint(name + "_sun", root)
+        _tip(sun, name + "_sunMark", (1.2, 0, 0))
+        carrier = _joint(name + "_carrier", root)
+        _color(carrier)
+        planets = []
+        for index in range(3):
+            angle = math.radians(120.0 * index)
+            position = (distance * math.cos(angle), distance * math.sin(angle), 0)
+            _tip(carrier, "{}_carrierArm{}".format(name, index), position)
+            planet = _joint("{}_planet{}".format(name, index), carrier, translate=position)
+            _tip(planet, "{}_planetMark{}".format(name, index), (0.6, 0, 0))
+            _color(planet)
+            planets.append(planet)
+        setup = PlanetaryGear.create(sun, None, carrier, planets, sunTeeth=24, planetTeeth=12, driven="carrier",
+                                     name=name, axis="z")
+        return setup, sun
 
     @classmethod
     def _universalJoint(cls, name, root):

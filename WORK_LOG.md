@@ -186,6 +186,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-19 夜間): mlrigに遊星歯車機構(PlanetaryGear)を追加。太陽歯車・内歯車(Zr = Zs + 2Zp)・キャリアのうち2つの回転(Noneは固定)から残り1つをWillisの式 Zs Δs + Zr Δr = (Zs + Zr) Δc で求め、遊星歯車のキャリアに対する自転 -(Zs/Zp)(Δs - Δc) を書く(followCarrier=Falseなら固定した空間での自転)。drivenRotate・sunAngle・ringAngle・carrierAngle・planetSpin・planetAngle・planetRotate<i>・歯数を出力、ringTeeth・canSpaceEvenly・motion のPython版(標準ノードのみ、animBlendNodeAdditiveDAで角度のまま)。setupSamples・文書(planetary_gear.rst)・テスト10件・検証動画のデモ(tools/demo_planetary_gear.py)を追加。Maya 2027で setups 773件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - 2026-11-18 Codex: 採用API52〜67の16項目を実装。Node/Plug/Reference/Cameraの照会、Mesh/NURBSのデータ取得とカラー解除、SkinCluster転送条件、BlendShape再生成/baseWeights、キー削減とrotateAxis姿勢維持を追加し、docstring・型スタブを同期。Maya版差・ヒストリ制限・単位・通常Undo/fastの境界を明記。追加63テストはMaya2022〜2027の全6版、Undo共通393ケースは2022/2027で成功。noMaya151件、ruff/layout/公開名/スタブ、Sphinx380ページとリンク・PC/mobile遷移も成功。2027全体3192件の初回はUndo検査への登録不足のみ失敗し、追加後の対象再検査で解消(全体の再実行なし、GUI/ngSkinTools2等18skipは未検証)。表示キャッシュのMaya標準差分は版を限定して扱い、実データ比較を維持。ユーザー指定でmlib fb33df9をpushし、submodule参照と設計記録を更新。生成物・調査台帳はGit対象外。証拠 .maya-output/mlib-followup-implementation/。
 
 - 2026-11-18 Codex: 追加候補52〜67を質問カードで1件ずつ確認し、全16件の採用をGit対象外の調査台帳へ記録。54は対応条件限定、61は評価差確認後、67は寸法/オフセットのみ(四隅除外)。65の再表示は未回答を維持して実施。16件すべて回答済み・実装未着手を読戻し確認。製品変更・Maya実行・commit/pushなし。
