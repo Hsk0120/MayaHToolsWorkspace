@@ -186,6 +186,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-11-18 Codex: 採用API52〜67の16項目を実装。Node/Plug/Reference/Cameraの照会、Mesh/NURBSのデータ取得とカラー解除、SkinCluster転送条件、BlendShape再生成/baseWeights、キー削減とrotateAxis姿勢維持を追加し、docstring・型スタブを同期。Maya版差・ヒストリ制限・単位・通常Undo/fastの境界を明記。追加63テストはMaya2022〜2027の全6版、Undo共通393ケースは2022/2027で成功。noMaya151件、ruff/layout/公開名/スタブ、Sphinx380ページとリンク・PC/mobile遷移も成功。2027全体3192件の初回はUndo検査への登録不足のみ失敗し、追加後の対象再検査で解消(全体の再実行なし、GUI/ngSkinTools2等18skipは未検証)。表示キャッシュのMaya標準差分は版を限定して扱い、実データ比較を維持。ユーザー指定でmlib fb33df9をpushし、submodule参照と設計記録を更新。生成物・調査台帳はGit対象外。証拠 .maya-output/mlib-followup-implementation/。
+
+- 2026-11-18 Codex: 追加候補52〜67を質問カードで1件ずつ確認し、全16件の採用をGit対象外の調査台帳へ記録。54は対応条件限定、61は評価差確認後、67は寸法/オフセットのみ(四隅除外)。65の再表示は未回答を維持して実施。16件すべて回答済み・実装未着手を読戻し確認。製品変更・Maya実行・commit/pushなし。
+
+- 2026-11-18 Codex: 既存実装と採否1〜51を除いて追加不足API16候補(52〜67)を調査し、Git対象外docs/research/mlib-api-followup-20261118/へ用途・代替・優先度・未確認を記録。隔離mayapy2022/2027で接続カーブの11→2キー削減とUndo/Redo、面頂点カラー解除とヒストリ制限、法線番号、file/audio外部依存、Reference編集の絞込を確認。未接続カーブの削減なし・カメラ四隅の空配列も記録。製品変更・commit/pushなし、全版/全機能の回帰は未実施。
+
 - 2026-11-18 Codex: ユーザー指定の汎用Markdown出力を追加。_tools/build_mlib_markdown.batから同じRST/docstringをページ別.mdへ生成。Mermaid・署名の*・3.10等の表記・表中の縦棒を保持。Markdown377ページ/継承図171/ローカル4178リンク欠落0、HTML380ページとnoMaya151件、差分・バッチ文字コード検査成功。古い出力除去・環境なし失敗を確認。Wiki実サービスとmayapy代替環境の実行は未検証。ユーザー指定でmlib fcced76をpushし、ワークスペースのsubmodule参照も更新。生成MarkdownはGit対象外。証拠 .maya-output/mlib-markdown-review/。
 
 - 2026-11-18 Codex: 残っていたAGENTS.mdの質問カード運用とWORK_LOG.mdの調査履歴を確認し、ユーザー指定でコミット。git diff --check成功。文書のみのためMayaテストは再実行せず。
