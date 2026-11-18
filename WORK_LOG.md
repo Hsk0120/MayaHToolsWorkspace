@@ -119,6 +119,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -179,7 +185,17 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- 2026-11-18 Codex: 残っていたAGENTS.mdの質問カード運用とWORK_LOG.mdの調査履歴を確認し、ユーザー指定でコミット。git diff --check成功。文書のみのためMayaテストは再実行せず。
+
 | Codex | 2026-11-18 | mlib Plug.setDefault | 通常cmds/fast OM2を追加。通常Undoは旧既定値でなく0へ戻る制限を明記。未評価の現在値は更新前にgetで保持。専用7＋既存9テストがMaya2022〜2027で成功、noMaya146・ruff・layout・スタブ・Sphinx成功。.ma/.mbのdouble保存復元、参照拒否、単位・接続・複数形・Undoキュー確認。全Mayaスイート未実施。証拠 .maya-output/plug-default-implementation/。 |
+
+- 2026-11-18 Codex: 33〜51のカード採否をdecisions.jsonへ記録(17件採用、40は解決時のみ、51は保留後に実装検討へ変更)。51は隔離Maya2022〜2027で既定値Undoの不一致を再現。2022/2027でOM2直接変更と保存再読込を検証し、時間型の.ma非永続化を確認。fast明示時のみ・対象型限定案をdefault-value-design.mdへ記録。製品変更なし、通常Undo未解決、限定版の採否は未回答。
+- 2026-11-18 Codex: AGENTS.mdへ質問カード表示直後にターンを終了せず回答を待つ運用を追加。未回答を採否とみなさず、表示期限の制御や消去原因を断定しない旨も明記。文書差分とgit diff --checkを確認。
+- 2026-11-18 Codex (08:12開始): 不足APIを約40分調査。既存候補33〜44を再検証し、改名/CVソフト選択/コンテナ/面頂点UV等の45〜50と既定値変更51の見送り案を記録。隔離Maya2022〜2027の対象試験、2022/2027の保存再読込・性能測定を実施。参照元アトリビュート改名の非永続化、既定値Undo/pruneの注意、交差function setの保持条件を証拠と区別。詳細docs/research/mlib-api-audit-40m-20261118。製品の全件回帰・GUI検証なし、mlib変更・commit/pushなし。
+
+- 2026-11-18 Codex: デフォーマーの所属・順序、Cluster基準、Plug起点の依存経路の追加6候補をソース/公式仕様で調査。Constraint追加は挙動検証待ちとして分離。既存Reference/MultiPlug操作は除外。Git対象外のspecialized-report.mdへ記録、製品変更・Maya実行なし。
+
+- 2026-11-18 Codex: 実装済みAPIを除外して追加候補6領域を調査。ソースと公式資料を照合し、既存代替・追加価値・未検証条件をGit対象外の調査メモへ記録。製品変更・Maya実行なし。
 
 - 2026-11-18 Codex: 採用API29項目と回帰テストをmlib 235913eとしてpush。公開CIのQPE検索欄待ちtimeoutに対し、検索ページのHTTP/公開SHA/検索欄を検証し最大3回再取得、失敗HTMLを保存するよう改善。PC/タブレット/モバイル27ページと検索を公開URLで確認。submodule参照も更新。元の配信失敗原因は当時のHTMLがなく断定せず、push後CIで確認する。
 
