@@ -115,6 +115,7 @@ class SetupSamples:
         ("ellipticTrammel", "EllipticTrammel - two sliders draw an ellipse"),
         ("oldhamCoupling", "OldhamCoupling - offset shafts turn together"),
         ("planetaryGear", "PlanetaryGear - sun, planets and carrier"),
+        ("differentialGear", "DifferentialGear - case drives left and right wheels"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -819,6 +820,32 @@ class SetupSamples:
         setup = PlanetaryGear.create(sun, None, carrier, planets, sunTeeth=24, planetTeeth=12, driven="carrier",
                                      name=name, axis="z")
         return setup, sun
+
+    @classmethod
+    def _differentialGear(cls, name, root):
+        """車軸(X)の上のデフケース(joint、先が十字軸)と、左右のサイドギヤ(joint、先が車輪の向きの目印)と、ケースの子の
+        スパイダー2つ(joint、十字軸の上下)。左のサイドギヤとスパイダーは緑。ケースを ``rotateX`` で回すと、右を止めた
+        まま左が2倍の速さで同じ向きに回り(左 = 2 ケース - 右)、スパイダーが十字軸のまわりに自転する(サイド16歯・
+        スパイダー10歯)。右のサイドギヤを回すと、左は逆向きに回る。containerの ``caseAngle`` はケースの回転、
+        ``sideSpin`` は左のケースに対する回転、 ``spiderSpin`` はスパイダーの自転の大きさ。"""
+        from .setups import DifferentialGear
+
+        case = _joint(name + "_case", root)
+        _tip(case, name + "_casePin", (0, 1.4, 0))
+        left = _joint(name + "_left", root, translate=(-1.6, 0, 0))
+        _tip(left, name + "_leftMark", (0, 1.2, 0))
+        _color(left)
+        right = _joint(name + "_right", root, translate=(1.6, 0, 0))
+        _tip(right, name + "_rightMark", (0, 1.2, 0))
+        spiders = []
+        for index, height in enumerate((1.0, -1.0)):
+            spider = _joint("{}_spider{}".format(name, index), case, translate=(0, height, 0))
+            _tip(spider, "{}_spiderMark{}".format(name, index), (0, 0, 0.6))
+            _color(spider)
+            spiders.append(spider)
+        setup = DifferentialGear.create(left, right, case, spiders, sideTeeth=16, spiderTeeth=10, driven="left",
+                                        name=name, axis="x", spiderAxis="y")
+        return setup, case
 
     @classmethod
     def _universalJoint(cls, name, root):

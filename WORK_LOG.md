@@ -193,6 +193,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-20 夜間): mlrigに差動歯車(DifferentialGear)を追加。左右のサイドギヤ・デフケースのうち2つの回転(Noneは固定)から残り1つを ΔL + ΔR = 2ΔC で求め、ケースの子のスパイダーを十字軸のまわりに (Zs/Zp)(ΔL - ΔC) だけ自転させる(符号は生成時の位置と軸の向きから spiderSign で決める)。drivenRotate・leftAngle・rightAngle・caseAngle・sideSpin・spiderSpin・spiderRotate<i>・歯数・spiderSign<i>を出力、motion のPython版(標準ノードのみ、animBlendNodeAdditiveDAで角度のまま)。setupSamples・文書(differential_gear.rst)・テスト9件(接点の物質点の速度の一致を有限差分で独立に確認)・検証動画のデモ(tools/demo_differential_gear.py)を追加。Maya 2027で setups 782件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - Codex: 2026-11-19 不足候補236件の実装照合を完了。121候補を公開API86件追加・既存2APIの省略可能フラグ追加に集約し、55件は既存APIで代替、26件は対象外/独立操作でない候補と整理。残る34件(API2未対応16、通常Undo未成立/未確立14、native挙動等4)は未対応のまま理由と証拠を台帳へ記録し、全件実装済みとは扱わない。通常Undoを破るカメラ姿勢変更の試作は撤去。IKチェーンはSC、ノット編集はヒストリ等を除く検証済み条件に限定。Maya2022/2027各319ファイル・3250テスト成功(skip10/18)、利用側917テスト成功、noMaya151テスト成功(skip5)、ruff/layout/公開名不一致0、型スタブ同期、Sphinx380ページと参照検査成功。既存AST/署名の変更は承認済みgetBoundingBox(includeInvisible=False)・removeElement(breakConnections=True)のみ。GUI専用と登録済みHIK名の成功結果は未検証。実装はmlib 197f7fdとして先にpush済み。調査台帳・詳細報告・生成物はdocs/research/mlib-full-method-survey-20261119/と.maya-output/mlib-full-method-survey-20261119/に残しGit対象外を維持。ワークスペースはsubmodule参照と本記録を更新。
 
 

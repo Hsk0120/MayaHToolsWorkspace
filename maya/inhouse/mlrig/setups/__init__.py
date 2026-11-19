@@ -32,6 +32,7 @@ from .scotchYoke import ScotchYoke
 from .ellipticTrammel import EllipticTrammel
 from .oldhamCoupling import OldhamCoupling
 from .planetaryGear import PlanetaryGear
+from .differentialGear import DifferentialGear
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -118,6 +119,7 @@ __all__ = [
     "EllipticTrammel",
     "OldhamCoupling",
     "PlanetaryGear",
+    "DifferentialGear",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

@@ -230,6 +230,9 @@
    * - PlanetaryGear - sun, planets and carrier
      - 太陽歯車のjoint
      - ``rotateZ`` で回すと、内歯車を固定した緑のキャリア(3本の腕)が同じ向きに1/3の速さで回り(太陽24歯・遊星12歯・内歯車48歯)、腕の先の緑の遊星歯車3つがキャリアに対して逆向きに、太陽歯車の2倍の割合で自転する。containerの ``carrierAngle`` はキャリアの回転、 ``planetSpin`` はキャリアに対する自転、 ``planetAngle`` は固定した空間での自転。
+   * - DifferentialGear - case drives left and right wheels
+     - デフケースのjoint
+     - ``rotateX`` で回すと、右のサイドギヤを止めたまま緑の左のサイドギヤが同じ向きに2倍の速さで回り(左 = 2 ケース - 右)、ケースの十字軸の上下の緑のスパイダー2つが十字軸のまわりに自転する(サイド16歯・スパイダー10歯)。右のサイドギヤを回すと左は逆向きに回る。containerの ``caseAngle`` はケースの回転、 ``sideSpin`` は左のケースに対する回転、 ``spiderSpin`` はスパイダーの自転の大きさ。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。
