@@ -126,6 +126,13 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
+
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -185,6 +192,23 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex: 2026-11-19 不足候補236件の実装照合を完了。121候補を公開API86件追加・既存2APIの省略可能フラグ追加に集約し、55件は既存APIで代替、26件は対象外/独立操作でない候補と整理。残る34件(API2未対応16、通常Undo未成立/未確立14、native挙動等4)は未対応のまま理由と証拠を台帳へ記録し、全件実装済みとは扱わない。通常Undoを破るカメラ姿勢変更の試作は撤去。IKチェーンはSC、ノット編集はヒストリ等を除く検証済み条件に限定。Maya2022/2027各319ファイル・3250テスト成功(skip10/18)、利用側917テスト成功、noMaya151テスト成功(skip5)、ruff/layout/公開名不一致0、型スタブ同期、Sphinx380ページと参照検査成功。既存AST/署名の変更は承認済みgetBoundingBox(includeInvisible=False)・removeElement(breakConnections=True)のみ。GUI専用と登録済みHIK名の成功結果は未検証。実装はmlib 197f7fdとして先にpush済み。調査台帳・詳細報告・生成物はdocs/research/mlib-full-method-survey-20261119/と.maya-output/mlib-full-method-survey-20261119/に残しGit対象外を維持。ワークスペースはsubmodule参照と本記録を更新。
+
+
+- Codex (2026-11-19): 不足API実装の第1単位として43公開APIを追加。Faceの周辺要素/UV、NURBSの構造/トリム境界/点照会、GeometryFilterの番号対応、Plug/Nodeの状態とDG診断、Cameraの表示条件/被写界深度、ObjectSet排他所属、Referenceコピー番号等。既存APIの実行AST/署名不変。先行40APIはMaya2022/2027各307ファイル3212テスト成功(既定skipあり)、続く3APIは両版で対象2ファイル5テスト成功。Maya不要151テスト(5skip)、ruff/layout、スタブ同期、Sphinx厳格ビルドと380ページ検査成功。スキン強制正規化のRedo不一致等は公開API化せず証拠保存。全候補の完了ではない。結果/残件はdocs/research/mlib-full-method-survey-20261119/implementation-report.md・implementation-progress.csv、証拠は.maya-output/mlib-full-method-survey-20261119/。未コミット、pushなし。
+
+- Codex: 2026-11-19 内容照合後の新規/未確定候補の方針を12グループの質問カードで決定。A〜H・K・Lは確認できた不足を条件付き採用、IモデリングとJ保存/評価の内部設定変更は今回追加しない。回答全文の要旨と236行の振分をGit対象外の調査フォルダに記録。過去の採否・既存契約は維持。実装は未着手、commit/pushなし。
+
+
+- Codex: 2026-11-19 既存1,379候補の一次内容照合と分類台帳を作成。既存操作769・対象外269・クラス誤対応16を除外、89件を既存22項目へ統合、新規39件を13機能へ集約。条件差197件は未確定として別表に残し、不足確定や全条件検証済みと扱わない。Maya 2022/2027の隔離環境で属性/Plug取得、数学継承、OM2入口、面の構成要素と接続要素の違いを確認。全1,379行の一意性・分類・出典位置を検証。詳細はGit対象外 docs/research/mlib-full-method-survey-20261119/semantic-report.md。製品変更・commit/pushなし。
+
+
+- Codex (2026-11-19): 全ソース87ファイル・メソッド15,598宣言を調査。クラス対応後の名前差分1,379候補、全比較CSV・クラス別一覧・一次判定をGit対象外のdocs/research/mlib-full-method-survey-20261119へ保存。Maya 2022実行時一覧採取成功、2027は比較対象ライブラリのimport失敗を記録。製品変更・commit・pushなし。
+
+- 2026-11-19 Codex: 不足API追加調査90〜92(UVリンク・ライトリンク・ブラインドデータ照会)を記録。隔離2022/2027で基本挙動/対象編集のUndoを確認。Cameraブックマーク適用は値復元/保存成功だがUndoキューなしのため保留。未確認条件を明記。docs/research/mlib-api-survey-followup-20261119/report.md。製品変更/commit/pushなし。
+
+- 2026-11-19 Codex: mlib不足API調査を06:11期限で終了。新規68〜89の22候補、既存33〜50の未実装18項目、ウェイト番号/部分更新/回転保存の問題を分けて記録。隔離Maya2022/2027を基本に重要条件は6版検証。全定義・全条件は未確認。記録された調査セッションは約2時間3分で、7時間の実作業量は未達(中断あり)。製品変更/commit/pushなし。docs/research/mlib-api-survey-7h-20261118/report.mdへ成果と未確認を統合。automation mlib-7は削除・設定不存在を読戻し確認。
 
 - Claude Code (2026-11-19 夜間): mlrigに遊星歯車機構(PlanetaryGear)を追加。太陽歯車・内歯車(Zr = Zs + 2Zp)・キャリアのうち2つの回転(Noneは固定)から残り1つをWillisの式 Zs Δs + Zr Δr = (Zs + Zr) Δc で求め、遊星歯車のキャリアに対する自転 -(Zs/Zp)(Δs - Δc) を書く(followCarrier=Falseなら固定した空間での自転)。drivenRotate・sunAngle・ringAngle・carrierAngle・planetSpin・planetAngle・planetRotate<i>・歯数を出力、ringTeeth・canSpaceEvenly・motion のPython版(標準ノードのみ、animBlendNodeAdditiveDAで角度のまま)。setupSamples・文書(planetary_gear.rst)・テスト10件・検証動画のデモ(tools/demo_planetary_gear.py)を追加。Maya 2027で setups 773件・standard 76件OK、Sphinx -W 成功。コミット・プッシュ(このコミット)。
 - 2026-11-18 Codex: 採用API52〜67の16項目を実装。Node/Plug/Reference/Cameraの照会、Mesh/NURBSのデータ取得とカラー解除、SkinCluster転送条件、BlendShape再生成/baseWeights、キー削減とrotateAxis姿勢維持を追加し、docstring・型スタブを同期。Maya版差・ヒストリ制限・単位・通常Undo/fastの境界を明記。追加63テストはMaya2022〜2027の全6版、Undo共通393ケースは2022/2027で成功。noMaya151件、ruff/layout/公開名/スタブ、Sphinx380ページとリンク・PC/mobile遷移も成功。2027全体3192件の初回はUndo検査への登録不足のみ失敗し、追加後の対象再検査で解消(全体の再実行なし、GUI/ngSkinTools2等18skipは未検証)。表示キャッシュのMaya標準差分は版を限定して扱い、実データ比較を維持。ユーザー指定でmlib fb33df9をpushし、submodule参照と設計記録を更新。生成物・調査台帳はGit対象外。証拠 .maya-output/mlib-followup-implementation/。
