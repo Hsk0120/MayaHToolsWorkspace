@@ -233,6 +233,9 @@
    * - DifferentialGear - case drives left and right wheels
      - デフケースのjoint
      - ``rotateX`` で回すと、右のサイドギヤを止めたまま緑の左のサイドギヤが同じ向きに2倍の速さで回り(左 = 2 ケース - 右)、ケースの十字軸の上下の緑のスパイダー2つが十字軸のまわりに自転する(サイド16歯・スパイダー10歯)。右のサイドギヤを回すと左は逆向きに回る。containerの ``caseAngle`` はケースの回転、 ``sideSpin`` は左のケースに対する回転、 ``spiderSpin`` はスパイダーの自転の大きさ。
+   * - PeaucellierLinkage - crank circle to exact straight line
+     - クランクのjoint
+     - ``rotateZ`` で回すと、クランクの先 P が固定点を通る円を描き、2本の腕が菱形を保つ向きへ開閉して、緑のペン(locator)が固定点から5.25cm離れた縦の直線の上だけを動く(腕5cm・菱形の辺2cm・クランク2cm)。約±82.8度を超えると菱形がつぶれる端で止まる。containerの ``qX`` は常に5.25、 ``qY`` はペンの移動、 ``excessAngle`` は端を超えた量。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

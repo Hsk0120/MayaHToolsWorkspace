@@ -81,6 +81,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    oldham_coupling
    planetary_gear
    differential_gear
+   peaucellier_linkage
    universal_joint
    constant_velocity_joint
    tripod_joint

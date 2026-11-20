@@ -33,6 +33,7 @@ from .ellipticTrammel import EllipticTrammel
 from .oldhamCoupling import OldhamCoupling
 from .planetaryGear import PlanetaryGear
 from .differentialGear import DifferentialGear
+from .peaucellierLinkage import PeaucellierLinkage
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -120,6 +121,7 @@ __all__ = [
     "OldhamCoupling",
     "PlanetaryGear",
     "DifferentialGear",
+    "PeaucellierLinkage",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

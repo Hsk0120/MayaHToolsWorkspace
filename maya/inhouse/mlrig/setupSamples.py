@@ -116,6 +116,7 @@ class SetupSamples:
         ("oldhamCoupling", "OldhamCoupling - offset shafts turn together"),
         ("planetaryGear", "PlanetaryGear - sun, planets and carrier"),
         ("differentialGear", "DifferentialGear - case drives left and right wheels"),
+        ("peaucellierLinkage", "PeaucellierLinkage - crank circle to exact straight line"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -772,6 +773,29 @@ class SetupSamples:
             _color(node)
         setup = EllipticTrammel.create(crank, sliderA, sliderB, rod, length, name=name, axis="z", aAxis="x",
                                        bAxis="y")
+        return setup, crank
+
+    @classmethod
+    def _peaucellierLinkage(cls, name, root):
+        """固定点の2本の腕(joint、長さ5)と、固定点から2だけ横のクランク(joint、長さ2)と、直線の上を動くペン(緑の
+        locator)。クランクを ``rotateZ`` で回すと、クランクの先 P は固定点を通る円を描き、ペン Q は固定点から
+        (a² - b²) / (2r) = 5.25 離れた縦の直線の上だけを動く。腕は菱形が保たれる向きへ開閉する。containerの ``qX``
+        は常に 5.25、 ``qY`` はペンの移動、 ``excessAngle`` は菱形がつぶれる ±θmax を超えた量。"""
+        from .setups import PeaucellierLinkage
+
+        radius, arm, side = 2.0, 5.0, 2.0
+        armA = _joint(name + "_armA", root)
+        _tip(armA, name + "_armAEnd", (arm, 0, 0))
+        armB = _joint(name + "_armB", root)
+        _tip(armB, name + "_armBEnd", (arm, 0, 0))
+        crank = _joint(name + "_crank", root, translate=(radius, 0, 0))
+        _tip(crank, name + "_crankEnd", (radius, 0, 0))
+        pen = _locator(name + "_pen", root, translate=((arm * arm - side * side) / (2.0 * radius), 0, 0))
+        _color(pen)
+        alpha = math.degrees(PeaucellierLinkage.motion(0.0, radius, arm, side)["armAngleA"])
+        _set(armA, "rotateZ", alpha)
+        _set(armB, "rotateZ", -alpha)
+        setup = PeaucellierLinkage.create(crank, pen, armA, armB, radius, arm, side, name=name, axis="z", penAxis="y")
         return setup, crank
 
     @classmethod
