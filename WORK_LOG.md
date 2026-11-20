@@ -135,6 +135,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -194,6 +195,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-11-20): カーブの内側の重複ノットを1つへ減らすreduceKnotMultiplicityを通常Undo対応で追加。カメラの手動クリップ照会はbestFitClippingPlanesの既存Plugで代替できることを確認。対称編集テストが残すtopoSymmetrySetを生成分だけ後始末し、Undo失敗ログへ既存ノード名を追加。最終Maya 2022〜2027各320ファイル3267テスト成功(条件付きskip各10/10/10/8/8/18)、noMaya151・利用側926成功。ruff/layout/stubs/Sphinx380ページと文書参照検査成功。カーブの最後のノット削除・曲面UV表全消去・UV基準対称編集は未対応として明記。証拠 `.maya-output/mlib-remaining-20261120/final-verification.json`。mlibとワークスペースを順にcommit/push。
 
 - Codex (2026-11-20): 追加34候補を再検証し29候補を限定条件付きで実装、2候補は既存Plug操作へ集約、3候補とUV基準の対称編集は再現できない理由を台帳へ記録。API1の限定照会、カメラ/法線/曲面UVのfast専用更新、Reference等のUndo対象外操作、通常Undo対応の強制正規化/ピボット中央化、topology対称編集を追加。ユーザー指定で最終Maya検証は2022/2027のみ、各320ファイル3264テスト成功(スキップ10/18)。noMaya 151、利用側926(前回917)、ruff/layout、型スタブ、Sphinx380ページ/参照検査成功。PC再起動後はデスクトップ確認中もエラー画面なし。GUI実描画と2023〜2026の最終差分は未検証。mlib 2167a1dをpush済み、親の参照・方針・本記録を同期。証拠: `.maya-output/mlib-followup34-20261119/final-verification.json`。
 

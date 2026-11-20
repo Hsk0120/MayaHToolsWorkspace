@@ -31,9 +31,11 @@ BはカメラのsetView/copyViewFrom/setCenterOfInterestPointをfast=True専用�
 - `Mesh.setNormals`は共有法線番号を維持し、法線をロックする。ワールド空間は明示変換し、特異マトリクスは拒否する。`setUVData`は完全なUV表と割当表を受け取り、既存UV表の縮小には対応しない。
 - コンポーネント基準のピボット中央化は既存の`setPivot(preserve=True)`へ、強制正規化は計算した値を`setWeights(normalize=False)`へ渡して通常Undoに対応する。強制正規化はインフルエンスの保持設定を無視するが、ウェイトPlugのロックは解除しない。合計0は0のまま残す。
 - Referenceのロック変更は、ロード中ならアンロード・再ロードを伴う。保持済みの参照先オブジェクトは無効になる。編集履歴削除はアンロード済みでロックされていない参照に限定し、いずれもUndo対象外。スキンのジョイント移動モード切替もUndo対象外。
-- BlendShapeのtopology基準は既存のミラー/反転のキーワード引数で指定する。基準エッジの設定も同じUndoチャンクへ含める。階層なしで一意なShape名を要求する。
+- BlendShapeのtopology基準は既存のミラー/反転のキーワード引数で指定する。基準エッジの設定も同じUndoチャンクへ含める。階層なしで一意なShape名を要求する。Mayaの対称編集キャッシュ`topoSymmetrySet`の作成・破棄はUndoで復元されない。テストでは自分が作ったキャッシュだけを後始末し、後続ケースに持ち越さない。
 - Lambertの屈折フラグは既存の`getPlug("refractions")`で取得・変更できるため、同じ意味の専用入口を増やさない。
-- 曲面UV表の全消去、カーブのノット削除、カメラ専用APIのクリップ有効状態、UV基準の対称編集は期待する効果を再現できず未対応。既存の保存フラグ照会や割当解除と、これらの意味を同一視しない。
+- カーブは`reduceKnotMultiplicity(parameter)`で内側の重複ノットを1つへ減らす操作に限定して対応する。独立コピーのノット列を確認してから通常Undo可能なデータ更新を行う。最後の1つの削除は未対応。`removeKnot(removeAll=True)`でも最後の1つが残ることをMaya 2022/2027で確認したため、全削除として公開しない。
+- カメラの`MFnCamera.isClippingPlanes`の取得値は、`getPlug("bestFitClippingPlanes").get()`と一致する。専用入口は増やさない。`clippingPlanes`は[公式ノード仕様](https://help.autodesk.com/cloudhelp/2027/ENU/Maya-Tech-Docs/Nodes/camera.html)で未使用とされており、これを変えて専用照会が変わらないことだけで照会の不具合とは判断しない。APIのsetterは未使用側を書いたため、getterとsetterを対にしたラッパーも追加しない。
+- 曲面UV表の全消去とUV基準の対称編集は未対応。2026-11-20の再検証でも、曲面の実体/独立コピーのclearUVsは表と割当を変えず、UV配置・軸・ターゲット形式を変えた対称編集もデルタを変えなかった。既存の割当解除を全消去と同一視せず、成功を返すだけの入口は追加しない。
 
 ## 2026-11-18の追加APIの境界
 
