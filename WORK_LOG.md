@@ -136,6 +136,9 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
+
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -195,6 +198,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Codex (2026-11-20): 追加カード回答に従いNurbsCurve.removeKnot(parameter)とNurbsSurface.clearUVData()を通常Undo対応で実装。前者は次数1〜3・両端最大多重度のopenカーブの内側ノットをEP削除で完全除去(形状変化あり)、後者は同一Shapeへ形状データを書き戻して明示UVを消去。未対応状態は更新前拒否、BlendShapeのUV対称編集は再現例が得られるまで保留。Maya2022〜2027最終各321ファイル3277テスト成功(skip10/10/10/8/8/18)、noMaya151・利用側926成功。初回Undo検査のUV比較欠落をextraState追加で修正し2022/2027全体再実行、利用側の通常Python起動ミスは隔離mayapy2027で再実行。ruff558ファイル・layout209ファイル0違反・スタブ・Sphinx380ページ/参照検査成功。GUI実操作は未検証。mlib 08a02e2をcommit/push済み、親の参照と設計記録を同期。証拠: `.maya-output/mlib-nurbs-edit-20261120/final-verification.json`。
+
+- Codex (2026-11-20): 残る3課題をMaya2022/2027で再調査。EP削除による指定ノット完全除去とUndo/Redo、同一Shapeの形状データ書き戻しによる曲面UV消去と形状/接続保持・Undo/Redoが限定条件で成立。UV対称はlive/customUV/flip/mirrorでも未成立(object対照は成立)。形状変化・未検証条件を明記し実装方針の回答待ち。製品変更なし、実装済み件数は増やさない。証拠: .maya-output/mlib-remaining-investigation-20261120/REPORT.md。
 
 - Codex (2026-11-20): カーブの内側の重複ノットを1つへ減らすreduceKnotMultiplicityを通常Undo対応で追加。カメラの手動クリップ照会はbestFitClippingPlanesの既存Plugで代替できることを確認。対称編集テストが残すtopoSymmetrySetを生成分だけ後始末し、Undo失敗ログへ既存ノード名を追加。最終Maya 2022〜2027各320ファイル3267テスト成功(条件付きskip各10/10/10/8/8/18)、noMaya151・利用側926成功。ruff/layout/stubs/Sphinx380ページと文書参照検査成功。カーブの最後のノット削除・曲面UV表全消去・UV基準対称編集は未対応として明記。証拠 `.maya-output/mlib-remaining-20261120/final-verification.json`。mlibとワークスペースを順にcommit/push。
 
