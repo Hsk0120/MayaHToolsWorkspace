@@ -117,6 +117,7 @@ class SetupSamples:
         ("planetaryGear", "PlanetaryGear - sun, planets and carrier"),
         ("differentialGear", "DifferentialGear - case drives left and right wheels"),
         ("peaucellierLinkage", "PeaucellierLinkage - crank circle to exact straight line"),
+        ("swashplate", "Swashplate - tilted plate pitches rotor blades"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -797,6 +798,25 @@ class SetupSamples:
         _set(armB, "rotateZ", -alpha)
         setup = PeaucellierLinkage.create(crank, pen, armA, armB, radius, arm, side, name=name, axis="z", penAxis="y")
         return setup, crank
+
+    @classmethod
+    def _swashplate(cls, name, root):
+        """回らない斜板(locator、高さ3)と、その上のローター(joint、高さ6)と、ローターの子の3枚のブレード(緑のjoint、
+        長さ5)。斜板を ``translateY`` で上げるとすべてのブレードのピッチが同じだけ増え(コレクティブ)、 ``rotateX``・
+        ``rotateZ`` で傾けるとローターの回転につれてブレードのピッチが1回転に1周期上下する(サイクリック)。containerの
+        ``collective`` は軸の上の斜板の高さの変化、 ``bladePitch[i]`` はピッチ角、 ``linkExcess[i]`` は ±30 度を超えた量。"""
+        from .setups import Swashplate
+
+        plate = _locator(name + "_plate", root, translate=(0, 3, 0))
+        rotor = _joint(name + "_rotor", root, translate=(0, 6, 0))
+        blades = []
+        for index in range(3):
+            blade = _joint(name + "_blade" + str(index), rotor, rotate=(0, -120.0 * index, 0))
+            _tip(blade, name + "_blade" + str(index) + "End", (5, 0, 0))
+            _color(blade)
+            blades.append(blade)
+        setup = Swashplate.create(plate, rotor, blades, linkRadius=2.0, hornLength=1.5, name=name)
+        return setup, plate
 
     @classmethod
     def _oldhamCoupling(cls, name, root):

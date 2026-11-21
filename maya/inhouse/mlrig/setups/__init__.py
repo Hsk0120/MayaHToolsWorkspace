@@ -34,6 +34,7 @@ from .oldhamCoupling import OldhamCoupling
 from .planetaryGear import PlanetaryGear
 from .differentialGear import DifferentialGear
 from .peaucellierLinkage import PeaucellierLinkage
+from .swashplate import Swashplate
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -122,6 +123,7 @@ __all__ = [
     "PlanetaryGear",
     "DifferentialGear",
     "PeaucellierLinkage",
+    "Swashplate",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",
