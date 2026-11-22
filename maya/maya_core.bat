@@ -90,6 +90,10 @@ SET MAYA_PLUG_IN_PATH=%PATH_PLUGIN%;%MAYA_PLUG_IN_PATH%
 ::Maya Modules
 ::----------------------------------------------------------------
 SET MAYA_MODULE_PATH=%PATH_BAT%modules;%MAYA_MODULE_PATH%
+::A submodule under external\ can carry its own .mod files in a
+::workspace_modules folder (used for tools kept in a private repository,
+::so that nothing about them is written in this repository).
+FOR /D %%D IN ("%PATH_BAT%external\*") DO IF EXIST "%%D\workspace_modules\" CALL :AddModulePath "%%D\workspace_modules"
 
 ::----------------------------------------------------------------
 ::Slack
@@ -129,6 +133,11 @@ EXIT
 ::----------------------------------------------------------------
 ::Subroutines
 ::----------------------------------------------------------------
+:AddModulePath
+::Put the given folder in front of MAYA_MODULE_PATH.
+SET "MAYA_MODULE_PATH=%~1;%MAYA_MODULE_PATH%"
+GOTO :EOF
+
 :CheckPipGroup
 ::Add the group of an enabled pip_<name>.mod to PIP_NEEDED when its
 ::requirements differ from the installed copy and from a failed attempt.

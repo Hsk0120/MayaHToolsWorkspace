@@ -111,19 +111,19 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule。39個に加え、リグ手法の参考49個・研究論文の公開実装19個・3DCG数学論文の公開実装31個。一覧は下記「external ― 外部ツール一覧」参照)。
+├ external/     外部ツール(Git submodule。38個に加え、リグ手法の参考49個・研究論文の公開実装19個・3DCG数学論文の公開実装31個。一覧は下記「external ― 外部ツール一覧」参照)。
 │               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
 │  ├ mlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)。別リポジトリ Hsk0120/mlib のsubmodule
 │  ├ MayaCommandPorts/  HTools/mlibから独立したcommandPort初期化モジュール
-│  ├ eST3Startup/    GUI起動時にeST3(`maya/external/eST3`)を開始するuserSetup(HTools/mlibから独立)
 │  ├ AnimBar/       タイムスライダーの上にドックするアニメーション作業用のツールバー(aTools相当を自作。処理はmlib、画面はPySide、起動時に表示)。詳細は同フォルダのREADME
 │  ├ integrations/   外部サービス連携(Slack, mGearガイド操作)
 │  ├ FramePlayer/    コマ送り確認用の動画プレイヤー(C++のexeをパッケージ直下に置く)と、Mayaのタイムスライダーと双方向に連携するPythonパッケージ(`python/frameplayer`)。mlibに依存しない単体パッケージで、将来は別リポジトリでの公開も検討中。詳細は同フォルダのREADME
 │  └ MayaCinematicCameraHUD/  C++プラグイン(別リポジトリのsubmodule。このワークスペースで編集・ビルドする)
 ├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2023/2024/2025/2026/2027対応、MAYA_MODULE_PATHの対象)
 ├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する
+├ external/<名前>/workspace_modules/  非公開リポジトリのsubmoduleが自分で持つ .mod の置き場。起動バッチ(`maya_core.bat`・`.command`)が、あればMAYA_MODULE_PATHへ足す。再配布できない等の理由でこのリポジトリに説明を書かないツール用で、説明・設定・起動処理はそのsubmodule側に置き、ここには `.gitmodules` の登録(`update = none`)だけを置く
 └ maya_*.bat, maya_core.bat  起動バッチ
 tools/
 ├ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト
@@ -132,7 +132,7 @@ tools/
 
 ### external ― 外部ツール一覧
 
-`maya/external/` 配下の Git submodule 39個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個・「3DCG数学論文の公開実装」の31個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+`maya/external/` 配下の Git submodule 38個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個・「3DCG数学論文の公開実装」の31個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
 
 **Python基盤/ラッパーライブラリ**
 - `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
@@ -174,7 +174,6 @@ tools/
 - `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
 - `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義アトリビュートを並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
-- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通す。2026-11-22のユーザー指定により、GUI起動時にeST3を自動で開始する: 同じ `.mod` の `eST3Startup` の節が `maya/inhouse/eST3Startup`(このワークスペースの `userSetup.py` と `est3_startup.py`。配布物には手を入れない)を通し、起動後にMELの `eST3menuBar`(ビューの上にeSTのメニューバーを出す)を遅延実行する(バッチ・mayapyと、配布物を取得していない環境では何もしない。開始すると新規シーンが変更ありの扱いになる)。自動起動を止めるときは `.mod` の `eST3Startup` の節を消す。手で始めるときは `eST3menuBar` か `eST3start`(importだけ)を実行する。Maya 2027のGUIで、24個のプラグインが信頼の警告なしでロードでき、メニューバーが出ることを確認済み(`eST3menu` がメインメニューに足す「eST3」は中身が空だった)。実行すると `user/projects/`・`user/privates/` が作られる(eST3のリポジトリ側でGit対象外)。
 - `openrv`: ASWF製の画像・動画レビューツール(OpenRV、Apache 2.0)。FramePlayerの色再現(色の情報の読み取り・YUV→RGB・色管理)の参考として取り込み。Mayaへはロードしない。
 
 **汎用Pythonライブラリ(Maya専用ツールではない)**

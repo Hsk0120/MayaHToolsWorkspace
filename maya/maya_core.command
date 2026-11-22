@@ -53,6 +53,12 @@ if [[ ${#pip_needed[@]} -gt 0 ]]; then
 fi
 export MAYA_PLUG_IN_PATH="$SCRIPT_DIR/inhouse/plugin${MAYA_PLUG_IN_PATH:+:$MAYA_PLUG_IN_PATH}"
 export MAYA_MODULE_PATH="$SCRIPT_DIR/modules${MAYA_MODULE_PATH:+:$MAYA_MODULE_PATH}"
+# A submodule under external/ can carry its own .mod files in a
+# workspace_modules folder (used for tools kept in a private repository,
+# so that nothing about them is written in this repository).
+for WORKSPACE_MODULES in "$SCRIPT_DIR"/external/*/workspace_modules; do
+    if [ -d "$WORKSPACE_MODULES" ]; then export MAYA_MODULE_PATH="$WORKSPACE_MODULES:$MAYA_MODULE_PATH"; fi
+done
 
 MAYA_EXE="${MAYA_EXE:-/Applications/Autodesk/maya${MAYA_VERSION}/Maya.app/Contents/bin/maya}"
 if [[ ! -x "$MAYA_EXE" ]]; then
