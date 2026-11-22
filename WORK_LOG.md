@@ -200,7 +200,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
-- Claude Code (2026-11-22): eST3(core 1.145.0 Windows版・user 20261119.0)を `maya/external/eST3` へ追加。再配布できない配布物のため非公開リポジトリのsubmoduleとし、`.gitmodules` は `update = none`(通常のsubmodule取得では取らない)。`maya/modules/eST3.mod` でMaya 2022〜2027へパスを通した(起動時の読み込みなし)。mayapy 2022・2027でモジュールのパスと `eST3start` によるimportを確認。Maya GUIでのメニュー表示・プラグインのロードは未確認。
+- Claude Code (2026-11-22): eST3(core 1.145.0 Windows版・user 20261119.0)を `maya/external/eST3` へ追加。再配布できない配布物のため非公開リポジトリのsubmoduleとし、`.gitmodules` は `update = none`(通常のsubmodule取得では取らない)。`maya/modules/eST3.mod` でMaya 2022〜2027へパスを通した(起動時の読み込みなし)。mayapy 2022・2027でモジュールのパスと `eST3start` によるimportを確認。Maya 2027のGUIで、プラグイン24個のロード(信頼の警告は出なかった)と `eST3menuBar` のメニューバー表示を確認。`eST3menu` のメインメニュー「eST3」は中身が空だった。ほかの版のGUIは未確認。
 
 - Codex (2026-11-21): MetaHumanのビューポート用Lambert変換スクリプトを追加。Maya 2027の現行シーンを読み取り、DX11の5材質とBlinnの4材質、ベースカラーテクスチャの実在を確認。別のMaya 2027セッションで面割り当て、色・透過接続、再実行、Undoを検証。現行シーンでは変換のプレビューを実行。
 

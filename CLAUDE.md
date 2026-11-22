@@ -173,7 +173,7 @@ tools/
 - `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
 - `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義アトリビュートを並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
-- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通すだけで、起動時には何も読み込まない。使うときはMELの `eST3menu`(メニューを出す)か `eST3start`(importだけ)を実行する。実行すると `user/projects/` が作られる(eST3のリポジトリ側でGit対象外)。
+- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通すだけで、起動時には何も読み込まない。使うときはMELの `eST3menuBar`(ビューの上にeSTのメニューバーを出す)か `eST3start`(importだけ)を実行する。Maya 2027のGUIで、24個のプラグインが信頼の警告なしでロードでき、メニューバーが出ることを確認済み(`eST3menu` がメインメニューに足す「eST3」は中身が空だった)。実行すると `user/projects/`・`user/privates/` が作られる(eST3のリポジトリ側でGit対象外)。
 - `openrv`: ASWF製の画像・動画レビューツール(OpenRV、Apache 2.0)。FramePlayerの色再現(色の情報の読み取り・YUV→RGB・色管理)の参考として取り込み。Mayaへはロードしない。
 
 **汎用Pythonライブラリ(Maya専用ツールではない)**

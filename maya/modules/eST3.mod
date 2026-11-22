@@ -5,7 +5,7 @@
 # core/maya folder, so Maya adds its scripts/ and icons/ by itself; the
 # plug-in folders are per Maya version and are listed here the same way
 # as the distribution's own core/maya/eST3.mod.
-# Nothing is loaded at startup. Start eST3 with the MEL command eST3menu
+# Nothing is loaded at startup. Start eST3 with the MEL command eST3menuBar
 # (or eST3start).
 # Maya stops reading a section at a '#' line, so keep comments above the
 # first '+' line.
