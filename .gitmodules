@@ -563,3 +563,7 @@
 	path = maya/inhouse/mlib
 	url = https://github.com/Hsk0120/mlib.git
 	branch = main
+[submodule "maya/external/eST3"]
+	path = maya/external/eST3
+	url = https://github.com/Hsk0120/eST3.git
+	update = none

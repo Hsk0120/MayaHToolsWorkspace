@@ -139,6 +139,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 
 
+
 | ツール | 開始日時 | 対象範囲 | 内容 |
 | --- | --- | --- | --- |
 | --- | --- | --- | --- |
@@ -198,6 +199,10 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 - [x] 拡張の先行import: 初期化中のパッケージを未対応として確定しない。mlib_bifrostを先にimportするとMLIB_EXTENSION_API未定義の段階でskippedになることをMaya2027で再現。初期化完了後の登録経路とimport順のテストを追加する。宣言の順序変更だけでなく再入・二重importも防ぐ。
 
 ## 完了履歴
+
+- Claude Code (2026-11-22): eST3(core 1.145.0 Windows版・user 20261119.0)を `maya/external/eST3` へ追加。再配布できない配布物のため非公開リポジトリのsubmoduleとし、`.gitmodules` は `update = none`(通常のsubmodule取得では取らない)。`maya/modules/eST3.mod` でMaya 2022〜2027へパスを通した(起動時の読み込みなし)。mayapy 2022・2027でモジュールのパスと `eST3start` によるimportを確認。Maya GUIでのメニュー表示・プラグインのロードは未確認。
+
+- Codex (2026-11-21): MetaHumanのビューポート用Lambert変換スクリプトを追加。Maya 2027の現行シーンを読み取り、DX11の5材質とBlinnの4材質、ベースカラーテクスチャの実在を確認。別のMaya 2027セッションで面割り当て、色・透過接続、再実行、Undoを検証。現行シーンでは変換のプレビューを実行。
 
 - Codex (2026-11-20): 追加カード回答に従いNurbsCurve.removeKnot(parameter)とNurbsSurface.clearUVData()を通常Undo対応で実装。前者は次数1〜3・両端最大多重度のopenカーブの内側ノットをEP削除で完全除去(形状変化あり)、後者は同一Shapeへ形状データを書き戻して明示UVを消去。未対応状態は更新前拒否、BlendShapeのUV対称編集は再現例が得られるまで保留。Maya2022〜2027最終各321ファイル3277テスト成功(skip10/10/10/8/8/18)、noMaya151・利用側926成功。初回Undo検査のUV比較欠落をextraState追加で修正し2022/2027全体再実行、利用側の通常Python起動ミスは隔離mayapy2027で再実行。ruff558ファイル・layout209ファイル0違反・スタブ・Sphinx380ページ/参照検査成功。GUI実操作は未検証。mlib 08a02e2をcommit/push済み、親の参照と設計記録を同期。証拠: `.maya-output/mlib-nurbs-edit-20261120/final-verification.json`。
 

@@ -111,7 +111,7 @@ pytestやCIランナーは無く、Maya(mayapy)経由での手動実行が前提
 
 ```
 maya/
-├ external/     外部ツール(Git submodule。38個に加え、リグ手法の参考49個・研究論文の公開実装19個・3DCG数学論文の公開実装31個。一覧は下記「external ― 外部ツール一覧」参照)。
+├ external/     外部ツール(Git submodule。39個に加え、リグ手法の参考49個・研究論文の公開実装19個・3DCG数学論文の公開実装31個。一覧は下記「external ― 外部ツール一覧」参照)。
 │               直接編集せず、変更は各submodule側で行う。
 ├ inhouse/      内製ツール本体
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
@@ -131,7 +131,7 @@ tools/
 
 ### external ― 外部ツール一覧
 
-`maya/external/` 配下の Git submodule 38個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個・「3DCG数学論文の公開実装」の31個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
+`maya/external/` 配下の Git submodule 39個と、末尾「リグ手法の参考」の49個・「研究論文の公開実装」の19個・「3DCG数学論文の公開実装」の31個。いずれも直接編集せず、変更は各submoduleのリポジトリ側で行う。
 
 **Python基盤/ラッパーライブラリ**
 - `cymel`: Maya APIとコマンドの軽量ラッパーモジュール。
@@ -173,6 +173,7 @@ tools/
 - `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
 - `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義アトリビュートを並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
+- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通すだけで、起動時には何も読み込まない。使うときはMELの `eST3menu`(メニューを出す)か `eST3start`(importだけ)を実行する。実行すると `user/projects/` が作られる(eST3のリポジトリ側でGit対象外)。
 - `openrv`: ASWF製の画像・動画レビューツール(OpenRV、Apache 2.0)。FramePlayerの色再現(色の情報の読み取り・YUV→RGB・色管理)の参考として取り込み。Mayaへはロードしない。
 
 **汎用Pythonライブラリ(Maya専用ツールではない)**
