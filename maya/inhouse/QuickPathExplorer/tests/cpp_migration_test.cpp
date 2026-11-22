@@ -3259,6 +3259,34 @@ private slots:
         const auto evidence = qEnvironmentVariable("QPE_PASTE_EVIDENCE");
         if (!evidence.isEmpty()) QVERIFY(window.grab().save(QDir(evidence).filePath("crowded-tabs.png")));
     }
+    /** @brief ＋とCtrl+TはCドライブ直下を開き、明示した移動先と既存タブの場所は維持する。 */
+    void newTabOpensDriveRoot() {
+        const auto before = qpe::readSettings();
+        const auto restoreSettings = qScopeGuard([&] { qpe::saveJson(qpe::settingsPath(), before); });
+        qpe::saveJson(qpe::settingsPath(), {{"uiLanguage", "en"}});
+        qpe::BrowserWindow window; window.navigate(path("A")); window.resize(1000, 700);
+        window.show(); window.activateWindow(); QTRY_VERIFY(window.ready());
+        window.perform("startFolder", {path("A")});
+        auto* tabs = window.findChild<QTabBar*>("folderTabs"); QVERIFY(tabs);
+        auto* add = window.findChild<QToolButton*>("newTabButton"); QVERIFY(add);
+        QTest::mouseClick(add, Qt::LeftButton);
+        QTRY_COMPARE(tabs->count(), 2);
+        QTRY_COMPARE(window.currentPath(), qpe::DirectoryStore::normalized("C:/"));
+        QTRY_VERIFY(window.ready());
+        tabs->setCurrentIndex(0);
+        QCOMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("A")));
+        tabs->setFocus(); QTRY_VERIFY(tabs->hasFocus());
+        QTest::keyClick(tabs, Qt::Key_T, Qt::ControlModifier);
+        QTRY_COMPARE(tabs->count(), 3);
+        QTRY_COMPARE(window.currentPath(), qpe::DirectoryStore::normalized("C:/"));
+        QTRY_VERIFY(window.ready());
+        // フォルダー指定の「新しいタブで開く」はCドライブ直下へ置き換えない。
+        window.addTab(path("B")); QTRY_VERIFY(window.ready());
+        QCOMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("B")));
+        tabs->setCurrentIndex(0);
+        QCOMPARE(window.currentPath(), qpe::DirectoryStore::normalized(path("A")));
+        window.close();
+    }
     /** @brief 新規タブへ移った直後も一覧操作のキーが新しいページへ届く。 */
     void newTabKeyboardFocus() {
         // 直前の表示/配置テストが保存した非表示一覧やサムネイル設定は引き継がない。

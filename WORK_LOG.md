@@ -203,6 +203,12 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-22): QPEの新規タブをCドライブ直下へ開く最終仕様を、関連テスト/文書/Windows exe/2022〜2027mllとともにコミット対象へ選定。Qt操作5件合格・Sphinx成功の記録、7バイナリのSHA256一致、差分チェックを再確認。
+
+- Codex (2026-11-22): ユーザーの再指定によりQPEの＋/Ctrl+TはホームでなくCドライブ直下を表示。フォルダー指定の新規タブ等は維持。Qt操作の移動先/フォーカス/表示継承3ケース(初期化/終了込み5件)とSphinx -W成功。Windows exe/2022〜2027mll再ビルド、復旧コピーを残し通常配置へ反映・SHA256一致。Maya内実操作・新規録画は未実施。証拠`.maya-output/qpe-new-tab-root-20261122/`。未コミット・未push。
+
+- Codex (2026-11-22): QPEの＋/Ctrl+Tでユーザーホームを開くよう変更。フォルダー指定の新規タブ・複製・再表示の移動先は維持。新規回帰とフォーカス/表示継承のQtプログラム操作3ケース(初期化/終了込み5件)合格、Sphinx -W成功。Windows exeと2022〜2027mllを再ビルド、旧版の復旧コピーを残して通常配置へ反映しSHA256一致確認。今回はMaya内実操作・OSキー入力・新規録画なし。証拠`.maya-output/qpe-new-tab-home-20261122/`。未コミット・未push。
+
 - Codex (2026-11-22): ユーザー指定で親とMetaHumanForMayaのgitignoreにswatch除外を追加。外部リポジトリで既存16キャッシュの追跡だけ解除し、ローカル実ファイルの残存を確認、a328a17をpush。親の参照を更新し、既存のcollect_scene_textures/metahuman_viewport_lambert/replace_body_riglogicを内容変更なしで登録。3本のPython 3.7構文、ignore適用、差分チェックを確認。今回はMaya実行・新規録画なし。
 
 - Codex (2026-11-22): ユーザーのpush依頼により、MCEの外部保存自動反映・最新タブのみの保管・起動高速化を関連テスト/文書/2022〜2027mllとまとめてコミット対象へ選定。検証記録・6バイナリのSHA256一致・差分チェックを確認。他担当のMetaHuman関連変更は含めない。

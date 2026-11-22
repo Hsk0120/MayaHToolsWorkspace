@@ -1835,7 +1835,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
             if (review.clickedButton() == openHistory) perform("history");
         } else if (!result.errors.isEmpty() || !result.warnings.isEmpty()) UiMessageBox::warning(this, uiText("File operation"), (result.errors + result.warnings).join('\n'));
     });
-    connect(add, &QToolButton::clicked, this, [this] { addTab(currentPath().isEmpty() ? QDir::homePath() : currentPath()); });
+    connect(add, &QToolButton::clicked, this, [this] { addTab(QStringLiteral("C:/")); });
     connect(tabs_, &QTabBar::currentChanged, this, [this](int index) { pages_->setCurrentIndex(index); if (page()) page()->revealCurrent(); updateCurrent(); });
     connect(tabs_, &QTabBar::tabMoved, this, [this](int from, int to) { auto* item = pages_->widget(from); pages_->removeWidget(item); pages_->insertWidget(to, item); pages_->setCurrentIndex(tabs_->currentIndex()); updateCurrent(); });
     connect(tabs_, &QTabBar::tabCloseRequested, this, [this](int index) {
@@ -1987,7 +1987,7 @@ BrowserWindow::BrowserWindow(QWidget* parent, HostServices host) : QWidget(paren
         };
         shortcut->setObjectName("fontSizeShortcut"); update(); connect(qApp, &QApplication::focusChanged, shortcut, update);
     };
-    bind(QKeySequence(Qt::CTRL | Qt::Key_T), [this] { addTab(currentPath()); });
+    bind(QKeySequence(Qt::CTRL | Qt::Key_T), [this] { addTab(QStringLiteral("C:/")); });
     bind(QKeySequence(Qt::CTRL | Qt::Key_Tab), [this] { tabs_->setCurrentIndex((tabs_->currentIndex() + 1) % tabs_->count()); });
     bind(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab), [this] { tabs_->setCurrentIndex((tabs_->currentIndex() + tabs_->count() - 1) % tabs_->count()); });
     bind(QKeySequence(Qt::CTRL | Qt::Key_F), [this] { if (page()) page()->showFilters(); });
