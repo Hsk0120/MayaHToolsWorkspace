@@ -292,3 +292,9 @@ maya/inhouse/SkinWeightKit/python/skinWeightKit/__tests__/_output/
 
 # A tool kept only on this machine (not redistributable, so not in Git).
 /maya/external/eST3/
+# The same tool under any location or file name (a copy, an extracted folder
+# or a downloaded archive), so that it cannot be added by mistake.
+eST3/
+*eST3*
+*est3*
+*EST3*
