@@ -63,7 +63,10 @@ bool sessionFromJson(const QByteArray& bytes, SessionData* data) {
     if (error.error != QJsonParseError::NoError) {
         return false;
     }
-    const QJsonObject root = document.object();
+    return sessionFromObject(document.object(), data);
+}
+
+bool sessionFromObject(const QJsonObject& root, SessionData* data) {
     const QJsonArray entries = root.value("tabs").toArray();
     const int version = root.value("version").toInt();
     if ((version != kSessionFormatVersion && version != kInlineTextVersion) || entries.isEmpty()) {

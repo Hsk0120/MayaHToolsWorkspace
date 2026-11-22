@@ -238,6 +238,9 @@ bool sessionDataPasses() {
     const QByteArray json = mce::sessionToJson(data);
     mce::SessionData loaded;
     if (json.contains("print") || !mce::sessionFromJson(json, &loaded)) { qWarning() << "session round trip" << json; return false; }
+    mce::SessionData direct;
+    if (!mce::sessionFromObject(QJsonDocument::fromJson(json).object(), &direct)
+        || mce::sessionToJson(direct) != mce::sessionToJson(loaded)) { return false; }
     const bool same = loaded.activeTab == 1 && loaded.folders == data.folders && loaded.explorerVisible
         && loaded.tabs.size() == 2 && loaded.tabs[0].id == python.id && !loaded.tabs[0].textLoaded && loaded.tabs[0].modified
         && loaded.tabs[0].position == 3 && loaded.tabs[0].anchor == 1 && loaded.tabs[1].language == "mel"
@@ -254,8 +257,11 @@ bool sessionDataPasses() {
                                "{\"version\":1,\"tabs\":[{\"text\":1,\"path\":\"\",\"modified\":false}]}",
                                "{\"version\":2,\"tabs\":[{\"id\":\"../x\",\"path\":\"\",\"modified\":false}]}"}) {
         if (mce::sessionFromJson(broken, &loaded)) { qWarning() << "accepted broken session" << broken; return false; }
+        const auto before = mce::sessionToJson(loaded);
+        if (mce::sessionFromObject(QJsonDocument::fromJson(broken).object(), &loaded)
+            || mce::sessionToJson(loaded) != before) { return false; }
     }
-    // 保存済み本文はタブを閉じても保持し、別の画面も復元と保存ができる。
+    // 閉じたタブの本文を整理し、残したタブを別の画面でも復元できる。
     {
         QTemporaryDir directory;
         const QString path = QDir(directory.path()).filePath("tabs.json");
@@ -269,7 +275,7 @@ bool sessionDataPasses() {
         mce::SessionData unchanged = data;
         unchanged.tabs[1].textLoaded = false;
         unchanged.tabs.removeFirst();
-        if (!store.save(unchanged, &error) || !QFile::exists(melText) || !QFile::exists(pythonText)
+        if (!store.save(unchanged, &error) || !QFile::exists(melText) || QFile::exists(pythonText)
             || store.textWrites() != 2) { qWarning() << "incremental recovery"; return false; }
         mce::SessionStore other(path);
         if (other.open(&opened) != mce::SessionStore::OpenResult::Loaded || !other.canSave()
@@ -2104,15 +2110,29 @@ bool tripleQuoteInputPasses() {
     return true;
 }
 
+/** @brief ファイル監視の実イベントと画面の競合保護を検証する。 @return 成功ならtrue。 */
+bool externalFileGuiPasses();
+
 int main(int argc, char** argv) {
 #ifdef _WIN32
     // テストの障害は終了コードで監視し、ユーザーの画面にWERを残さない。
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX);
 #endif
     QApplication app(argc, argv);
+    if (app.arguments().value(1) == "--restore-benchmark" && argc == 3) {
+        mce::EditorServices services; services.sessionPath = app.arguments().at(2);
+        QElapsedTimer timer; timer.start();
+        auto* restored = mce::createEditor(nullptr, services);
+        qInfo() << "RESTORE UI ms" << timer.nsecsElapsed() / 1000000.0
+                << "open ms" << restored->property("openMilliseconds")
+                << "read ms" << restored->property("sessionReadMilliseconds");
+        delete restored;
+        return 0;
+    }
     // offscreenプラットフォームはWindowsのフォント登録を自動参照しない。
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/segoeui.ttf");
     QFontDatabase::addApplicationFont(qEnvironmentVariable("WINDIR") + "/Fonts/consola.ttf");
+    if (app.arguments().value(1) == "--external-files") return externalFileGuiPasses() ? 0 : 1;
     if (argc != 3) return 2;
     QFile file(QString::fromLocal8Bit(argv[1])); if (!file.open(QIODevice::ReadOnly)) return 3;
     const QByteArray config = file.readAll();

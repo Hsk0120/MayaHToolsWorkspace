@@ -31,6 +31,7 @@ class CodeEditor;
 class EditorTabs;
 class Explorer;
 class FileLister;
+class ExternalFileWatch;
 class FindBar;
 class OutlinePanel;
 class OutputPanel;
@@ -184,6 +185,19 @@ private:
     void updateExplorer();
     /** @brief File > Open recent の項目を作り直す(メニューを開く直前に呼ぶ)。 */
     void rebuildRecentMenu();
+    /** @brief 外部保存を受け取る。未保存編集とフォーカスを保持する。
+     * @param path 絶対パス。 @param text 読み込んだ本文。 @param error 読めなければ原因。
+     * @param force 確認済みの手動再読込ならtrue。
+     */
+    void applyExternalFile(const QString& path, const QString& text, const QString& error, bool force = false);
+    /** @brief 1タブへ外部変更を反映する。同じパスの競合復元タブも個別に保護する。
+     * @param editor 対象タブ。 @param text 本文。 @param error 読込失敗の原因。 @param force 手動確認済みならtrue。
+     */
+    void applyExternalTab(CodeEditor* editor, const QString& text, const QString& error, bool force);
+    /** @brief 現在タブの外部変更通知を更新する。 */
+    void updateExternalNotice();
+    /** @brief 確認後に現在タブを再読込する。未保存編集は明示確認まで残す。 */
+    void reloadCurrentFile();
 
     // ---- 移動(Goメニュー) ----
 
@@ -227,8 +241,6 @@ private:
 
     /** @brief 確定した復元世代を読み、タブを復元する。読めなければ出力欄で知らせる。 */
     void restoreSession();
-    /** @brief 過去の復元世代からタブを追加する。現在のタブを置き換えない。 */
-    void recoverSnapshot();
     /** @brief 全タブの状態を新しい復元世代へ保存する。前回の保存から何も変わっていなければ書かない。
      * @return 保存できた(または変更が無かった)らtrue。
      * @details 失敗したら、次の自動保存までの間隔を1.5秒・3秒・6秒…と最大60秒まで延ばす
@@ -312,9 +324,13 @@ private:
     QLabel* completionStatus_ = nullptr;     ///< ステータスバーの補完の状態。
     QLabel* recoveryStatus_ = nullptr;       ///< 保存できない間だけ表示する警告。ウィンドウが所有する。
     QHash<QString, QAction*> optionActions_; ///< Preferencesのチェック項目(保存名 → メニュー項目)。
+    std::unique_ptr<ExternalFileWatch> externalFiles_; ///< 外部ファイル監視。部品を壊す前に停止する。
+    QWidget* externalNotice_ = nullptr; ///< 外部変更の非モーダル通知。中央部品が所有する。
+    QLabel* externalNoticeText_ = nullptr; ///< 通知本文。通知部品が所有する。
 
     QTimer sessionTimer_;        ///< メタデータの最初の変化から1.5秒後(失敗した後は延ばした間隔の後)に1回だけ自動保存する。
     QTimer cursorSessionTimer_;  ///< カーソルの位置だけの変化を、30秒後にまとめて保存する。
+    QTimer sessionCleanupTimer_; ///< 本文を確定した後の未参照データ整理。連続入力ではまとめ、終了時にも行う。
     QTimer outlineTimer_;        ///< 入力が止まって0.4秒後にアウトラインを作り直す。
     QTimer outlineSelectTimer_;  ///< カーソルが止まって0.1秒後に、アウトラインのカーソルの行の項目を選ぶ。
 

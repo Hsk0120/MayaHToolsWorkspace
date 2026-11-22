@@ -1,15 +1,18 @@
 /** @file session_recovery.cpp
- * @brief 多重起動・強制終了・破損・移行・履歴保全を専用データで検証する。
+ * @brief 多重起動・強制終了・移行・最新状態のみの保管を専用データで検証する。
  */
 #include "editor/session_store.h"
 #include <QCoreApplication>
+#include <QCryptographicHash>
 #include <QDebug>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QJsonObject>
+#include <QLockFile>
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QThread>
@@ -122,11 +125,13 @@ void recoveryPasses() {
     ad.tabs[0].text = "branch A later"; save(a, ad);
     const auto later = texts(load(path));
     require(later.contains("branch A later") && later.contains("branch B"), "old running writer not suppressed");
-    mce::SessionData historical;
-    require(merged.readSnapshot(QFileInfo(first).completeBaseName(), &historical)
-        && texts(historical) == texts(original), "historical text retained");
-    require(QFile::exists(originalBody), "old body retained");
-    qInfo() << "PASS migration, simultaneous edits, merged restart, late writer, retained history";
+    require(!QFile::exists(path + ".recovery/snapshots/" + first), "historical manifest removed");
+    require(!QFile::exists(originalBody), "old body removed");
+    require(snapshots(path).size() == 2, "only concurrent heads retained");
+    require(QFile::remove(path + ".lock"), "remove old fixture lock");
+    save(a, ad);
+    require(!QFile::exists(path) && !QFile::exists(temp.path() + "/tabs/orphan.txt"), "legacy history removed after commit");
+    qInfo() << "PASS migration, simultaneous edits, merged restart, late writer, latest heads only";
 
     // 確定直前の失敗。新本文は存在しても、前の世代を上書きしない。再試行で新世代を確定できる。
     QTemporaryDir failure;
@@ -144,13 +149,15 @@ void recoveryPasses() {
     save(fs, sample("after"));
     require(texts(load(fp)) == QStringList{"after"}, "retry committed");
     write(fs.textPath("sharedTab"), "corrupt");
-    require(texts(load(fp)) == QStringList{"before"}, "bad body falls back");
+    mce::SessionStore corrupt(fp); mce::SessionData unreadable;
+    require(corrupt.open(&unreadable) == mce::SessionStore::OpenResult::Unreadable, "no retired history fallback");
     write(snapshotsDir + "/broken.json", "{");
-    require(texts(load(fp)) == QStringList{"before"}, "bad metadata preserved fallback");
+    save(fs, sample("after repair"));
+    require(texts(load(fp)) == QStringList{"after repair"}, "available current state recovered");
     require(QFile::exists(snapshotsDir + "/broken.json"), "bad metadata not removed");
     qInfo() << "PASS commit failure, retry, partial file, corrupt body and corrupt metadata";
 
-    // タブ閉じは次回の一覧から除くが、過去世代には本文が残る。
+    // タブ閉じは次回の一覧と保管本文から除く。
     QTemporaryDir closed;
     const QString cp = closed.path() + "/tabs.json";
     mce::SessionStore cs(cp); mce::SessionData cd; cs.open(&cd);
@@ -158,10 +165,72 @@ void recoveryPasses() {
     cd.tabs.append(removed); save(cs, cd);
     const QString closedBody = cs.textPath(removed.id);
     cd.tabs.removeLast(); cd.tabs[0].textLoaded = false; save(cs, cd);
-    require(texts(load(cp)) == QStringList{"keep"} && QFile::exists(closedBody), "closed tab retained only in history");
+    require(texts(load(cp)) == QStringList{"keep"} && !QFile::exists(closedBody), "closed tab body removed");
     const int writes = cs.textWrites(); save(cs, cd);
     require(cs.textWrites() == writes && cs.jsonWrites() == 2, "unchanged no writes");
-    qInfo() << "PASS close tab, history preservation and unchanged body reuse";
+    require(snapshots(cp).size() == 1, "only latest state on close");
+    write(cs.textPath(cd.tabs[0].id), "externally damaged body");
+    require(!cs.save(cd, &error), "changed file invalidates verified unchanged-body cache");
+    qInfo() << "PASS close tab removal and unchanged body reuse";
+
+    // 古い画面の未表示タブも、別Mayaが本文を整理した後に再保存できる。
+    QTemporaryDir stale;
+    const QString sp = stale.path() + "/tabs.json";
+    mce::SessionStore sa(sp), sb(sp); mce::SessionData sd, staleData;
+    sa.open(&sd); save(sa, sample("old pending body")); sb.open(&staleData);
+    const auto oldBody = sb.textPath("sharedTab");
+    save(sa, sample("new body"));
+    require(!QFile::exists(oldBody), "obsolete body actually removed");
+    staleData.tabs[0].textLoaded = false;
+    save(sb, staleData);
+    require(texts(load(sp)) == QStringList({"new body", "old pending body"}), "pending tab rehydrated after pruning");
+    qInfo() << "PASS live unmodified tab survives other writer pruning";
+
+    // 旧版の長い履歴を一度の保存で整理する。最新状態を確定する前は何も消さない。
+    QTemporaryDir history;
+    const QString hp = history.path() + "/tabs.json";
+    mce::SessionStore hs(hp); mce::SessionData hd; hs.open(&hd); save(hs, sample("current"));
+    const auto initial = snapshots(hp).first();
+    QFile manifest(hp + ".recovery/snapshots/" + initial);
+    require(manifest.open(QIODevice::ReadOnly), "read seed manifest");
+    auto root = QJsonDocument::fromJson(manifest.readAll()).object(); manifest.close();
+    QString parent = QFileInfo(initial).completeBaseName();
+    for (int index = 0; index < 1276; ++index) {
+        const QString id = "history" + QString::number(index);
+        root.insert("parents", QJsonArray{parent});
+        write(hp + ".recovery/snapshots/" + id + ".json", QJsonDocument(root).toJson());
+        parent = id;
+    }
+    mce::SessionStore migrated(hp); migrated.open(&hd);
+    require(snapshots(hp).size() == 1277, "open alone preserves legacy generations");
+    save(migrated, hd);
+    require(snapshots(hp).size() == 1 && texts(load(hp)) == QStringList{"current"}, "old history compacted to current");
+    qInfo() << "PASS 1277 old generations migrate to one current state";
+
+    // ロック取得中は読み取りも保存も開始しない。失敗後に同じ保存を再試行できる。
+    {
+        QLockFile lock(hp + ".recovery/store.lock");
+        require(lock.tryLock(), "hold store lock");
+        mce::SessionStore blocked(hp); mce::SessionData blockedData;
+        require(blocked.open(&blockedData) == mce::SessionStore::OpenResult::Unreadable
+            && !blocked.canSave(), "contended open cannot overwrite recovered tabs");
+        require(!migrated.save(sample("retry after lock"), &error), "contended save waits for retry");
+        lock.unlock();
+        save(migrated, sample("retry after lock"));
+        require(texts(load(hp)) == QStringList{"retry after lock"}, "lock retry preserves state");
+    }
+    qInfo() << "PASS contended open/save do not overwrite current state";
+
+    // GUIは本文を同期確定し、整理だけ次のイベントへまとめる。再起動は最新だけを読む。
+    QTemporaryDir queued;
+    const QString qp = queued.path() + "/tabs.json";
+    mce::SessionStore qs(qp); mce::SessionData qd; qs.open(&qd);
+    save(qs, sample("before queued cleanup"));
+    require(qs.save(sample("latest before cleanup"), &error, false), "deferred cleanup save");
+    require(snapshots(qp).size() == 2 && texts(load(qp)) == QStringList{"latest before cleanup"},
+        "crash before cleanup still restores latest only");
+    require(qs.discardHistory() && snapshots(qp).size() == 1, "queued cleanup removes earlier generation");
+    qInfo() << "PASS deferred cleanup keeps synchronous durable save";
 
     // 本当に別プロセスから同じ保存先へ書き、終了ハンドラーを呼ばずに停止する。
     QTemporaryDir processes;
@@ -184,6 +253,9 @@ void recoveryPasses() {
     td = sample(QString(100000, 'a'));
     QElapsedTimer timer; timer.start();
     for (int edit = 0; edit < 100; ++edit) { td.tabs[0].text.append(QString::number(edit)); save(timed, td); }
+    require(snapshots(perf.path() + "/tabs.json").size() == 1, "editing never accumulates history");
+    require(QDir(perf.path() + "/tabs.json.recovery/bodies").entryList({"*.qz"}, QDir::Files).size() == 1,
+        "editing never accumulates bodies");
     qInfo() << "PERF 100 edits of 100 KB:" << timer.elapsed() << "ms";
 }
 
@@ -194,6 +266,18 @@ int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     try {
         if (app.arguments().value(1) == "--worker") { return worker(app.arguments()); }
+        if (app.arguments().value(1) == "--benchmark") {
+            // コピーした専用セッションだけを指定する。本文はログへ出さずハッシュで一致を調べる。
+            for (int run = 0; run < 3; ++run) {
+                QElapsedTimer timer; timer.start();
+                const auto data = load(app.arguments().value(2));
+                const auto elapsed = timer.nsecsElapsed() / 1000000.0;
+                QCryptographicHash hash(QCryptographicHash::Sha256);
+                for (const auto& tab : data.tabs) { hash.addData(tab.text.toUtf8()); }
+                qInfo() << "RESTORE" << run << "ms" << elapsed << "tabs" << data.tabs.size() << "sha256" << hash.result().toHex();
+            }
+            return 0;
+        }
         recoveryPasses();
         return 0;
     } catch (const std::exception& error) {

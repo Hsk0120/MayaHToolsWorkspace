@@ -18,6 +18,8 @@
 #include <QString>
 #include <QStringList>
 
+class QJsonObject;
+
 namespace mce {
 
 /** @brief 1つのタブの保存内容。 */
@@ -52,6 +54,13 @@ QByteArray sessionToJson(const SessionData& data);
  * @return 形式が正しく、タブが1つ以上あればtrue。壊れたファイルならfalse。
  */
 bool sessionFromJson(const QByteArray& bytes, SessionData* data);
+
+/** @brief 解析済みJSONを検証して復元内容へ変換する。文字列化と再解析を避ける。
+ * @param root 保存内容のJSONオブジェクト。
+ * @param data 復元先。失敗時は変更しない。
+ * @return sessionFromJsonと同じ形式検証に成功すればtrue。
+ */
+bool sessionFromObject(const QJsonObject& root, SessionData* data);
 
 /** @brief タブの識別子として使える文字列か(ファイル名にするので英数字だけ)。 @param id 識別子。 @return 使えればtrue。 */
 bool isValidTabId(const QString& id);

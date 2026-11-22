@@ -129,6 +129,7 @@ set(MCE_EDITOR_SOURCES
     src/editor/edit_commands.cpp src/editor/edit_commands.h
     src/editor/editor_preferences.cpp src/editor/editor_preferences.h
     src/editor/editor_tabs.cpp src/editor/editor_tabs.h
+    src/editor/external_file_watch.cpp src/editor/external_file_watch.h
     src/editor/explorer.cpp src/editor/explorer.h
     src/editor/find_bar.cpp src/editor/find_bar.h
     src/editor/find_icons.cpp src/editor/find_icons.h
@@ -188,7 +189,7 @@ target_link_libraries(mayaCodeEditor ole32)
 set_target_properties(mayaCodeEditor PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
 # Maya無しでQtの画面とcore/を検証するテスト(tests/ui_smoke.cpp)。本番と同じソースをそのまま使う。
-add_executable(mayaCodeEditor_ui_smoke ${MCE_CORE_SOURCES} ${MCE_EDITOR_SOURCES} tests/ui_smoke.cpp)
+add_executable(mayaCodeEditor_ui_smoke ${MCE_CORE_SOURCES} ${MCE_EDITOR_SOURCES} tests/ui_smoke.cpp tests/external_file_gui.cpp)
 target_include_directories(mayaCodeEditor_ui_smoke PRIVATE src ${INCLUDE_DIRS})
 target_link_libraries(mayaCodeEditor_ui_smoke PRIVATE ${PACKAGE_LIBS} ole32)
 set_target_properties(mayaCodeEditor_ui_smoke PROPERTIES CXX_STANDARD 17)

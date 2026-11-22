@@ -14,6 +14,7 @@
 #include "editor/diff_dialog.h"
 #include "editor/editor_tabs.h"
 #include "editor/explorer.h"
+#include "editor/external_file_watch.h"
 #include "editor/find_bar.h"
 #include "editor/hover_popup.h"
 #include "editor/outline_panel.h"
@@ -40,6 +41,8 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPushButton>
+#include <QHBoxLayout>
 #include <QScrollBar>
 #include <QSet>
 #include <QShortcut>
@@ -300,7 +303,9 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     limitShortcutsToThisWindow();
     setUpTimers();
 
+    QElapsedTimer restoreTimer; restoreTimer.start();
     restoreSession();
+    setProperty("restoreMilliseconds", restoreTimer.nsecsElapsed() / 1000000.0);
     if (tabs_->count() == 0) {
         // 復元するタブが無いときだけ、ようこそのタブを作る。
         CodeEditor* first = newTab();
@@ -314,13 +319,23 @@ MainWindow::MainWindow(QWidget* parent, const EditorServices& services)
     saveSession();
     assist_->refreshCompletion();
     assist_->scheduleAnalysis();
+    externalFiles_ = std::make_unique<ExternalFileWatch>([this](const QString& path, const QString& text, const QString& error) {
+        applyExternalFile(path, text, error);
+    });
+    externalFiles_->reset(tabs_->filePaths());
+    connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+        if (state == Qt::ApplicationActive && externalFiles_) externalFiles_->check();
+    });
     setProperty("openMilliseconds", openTimer.nsecsElapsed() / 1000000.0);
 }
 
 MainWindow::~MainWindow() {
+    externalFiles_.reset(); // 読み込みを止め、画面の破棄後に通知しない。
     // 一覧を集めるスレッドを先に止めて合流する(この後、スレッドからこのウィンドウへ結果が送られないように)。
     fileLister_.reset();
     saveSession();
+    sessionCleanupTimer_.stop();
+    session_.discardHistory();
     // この後、子の部品が破棄される途中でシグナルを出しても、破棄済みのメンバーを使わないよう接続を外す。
     QObject::disconnect(tabs_, nullptr, this, nullptr);
     QObject::disconnect(tabs_->tabBar(), nullptr, this, nullptr);
@@ -367,6 +382,22 @@ void MainWindow::buildLayout() {
     auto bodyLayout = new QVBoxLayout(body);
     bodyLayout->setContentsMargins(0, 0, 0, 0);
     bodyLayout->addWidget(splitter_);
+    externalNotice_ = new QWidget(body);
+    externalNotice_->setObjectName("externalFileNotice");
+    auto noticeLayout = new QHBoxLayout(externalNotice_);
+    noticeLayout->setContentsMargins(4, 2, 4, 2);
+    externalNoticeText_ = new QLabel(externalNotice_);
+    externalNoticeText_->setWordWrap(true);
+    auto reload = new QPushButton("Reload from disk…", externalNotice_);
+    reload->setObjectName("reloadExternalFile");
+    connect(reload, &QPushButton::clicked, this, [this] { reloadCurrentFile(); });
+    auto saveCopy = new QPushButton("Save as…", externalNotice_);
+    connect(saveCopy, &QPushButton::clicked, this, [this] { if (currentEditor()) saveFile(currentEditor(), true); });
+    noticeLayout->addWidget(externalNoticeText_, 1);
+    noticeLayout->addWidget(reload);
+    noticeLayout->addWidget(saveCopy);
+    bodyLayout->addWidget(externalNotice_);
+    externalNotice_->hide();
     problems_ = new ProblemsPanel(body);
     problems_->onLineClicked = [this](int line) {
         CodeEditor* editor = currentEditor();
@@ -465,8 +496,18 @@ void MainWindow::setUpTimers() {
     // カーソルの位置だけの変化は、30秒後にまとめて保存する(隠す・閉じるときはすぐ保存する)。
     cursorSessionTimer_.setSingleShot(true);
     connect(&cursorSessionTimer_, &QTimer::timeout, this, [this] { saveSession(); });
-    // Mayaの終了時にも必ず保存する。
-    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] { saveSession(); });
+    // 本文は同期で確定したまま、削除だけ入力コールバックから分けて100msごとにまとめる。
+    sessionCleanupTimer_.setSingleShot(true);
+    sessionCleanupTimer_.setInterval(100);
+    connect(&sessionCleanupTimer_, &QTimer::timeout, this, [this] {
+        if (!session_.discardHistory()) { sessionCleanupTimer_.start(500); }
+    });
+    // Mayaの終了時にも保存・整理する。強制終了で残った一時世代は次回の保存後に整理する。
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this] {
+        saveSession();
+        sessionCleanupTimer_.stop();
+        session_.discardHistory();
+    });
 }
 
 // ===========================================================================
@@ -510,7 +551,10 @@ CodeEditor* MainWindow::newTab(ScriptLanguage language) {
     // 見出しの未保存の印(●)は、未保存の状態が変わったときだけ付け直す(1文字ごとには付け直さない)。
     editor->onFilePathChanged = [this, editor] {
         tabs_->updateTitle(editor);
-        if (!restoring_) markSessionDirty();
+        if (!restoring_) {
+            markSessionDirty();
+            if (externalFiles_) externalFiles_->reset(tabs_->filePaths());
+        }
     };
     connect(editor->document(), &QTextDocument::modificationChanged, this, [this, editor] {
         if (!restoring_) {
@@ -558,6 +602,7 @@ void MainWindow::onCurrentTabChanged() {
     findBar_->scheduleRefresh();  // 検索バーを開いていれば、新しいタブで件数と強調を出し直す。
     outlineLine_ = -1;
     outlineTimer_.start();
+    updateExternalNotice();
 }
 
 void MainWindow::onCursorMoved(CodeEditor* editor) {
@@ -642,6 +687,7 @@ void MainWindow::closeTab(int index) {
     pendingTabs_.remove(editor);  // 読み込まずに閉じたタブの本文は、もう使わない。
     tabs_->removeTab(index);  // タブ欄から外すと所有者がいなくなるので、自分でdeleteする。
     delete editor;
+    if (externalFiles_) externalFiles_->reset(tabs_->filePaths());
     markSessionDirty();
     if (tabs_->count() == 0) {
         newTab();
@@ -703,6 +749,7 @@ void MainWindow::openFile(const QString& path) {
     editor->setSavedText(text);
     editor->document()->setModified(false);
     preferences_.addRecentFile(absolute);
+    if (externalFiles_) externalFiles_->reset(tabs_->filePaths());
     tabs_->updateTitle(editor);
     explorer_->addFolder(QFileInfo(absolute).absolutePath());
     updateExplorer();
@@ -717,6 +764,19 @@ bool MainWindow::saveFile(CodeEditor* editor, bool saveAs) {
     }
     if (path.isEmpty()) {
         return false;  // キャンセルされた。
+    }
+    // 監視の通知が届く前のCtrl+Sでも、外部保存を黙って上書きしない。
+    if (QFileInfo(path).absoluteFilePath() == QFileInfo(editor->filePath()).absoluteFilePath()
+        && editor->hasSavedText()) {
+        QString disk, readError;
+        const bool readable = readScriptFile(path, &disk, &readError);
+        disk.replace("\r\n", "\n");
+        if (!readable || disk != editor->savedText()) {
+            const auto choice = QMessageBox::warning(this, "File changed outside MCE",
+                "The file changed outside MCE or is unavailable.\nOverwrite it with the contents of this tab?",
+                QMessageBox::Save | QMessageBox::Cancel, QMessageBox::Cancel);
+            if (choice != QMessageBox::Save) return false;
+        }
     }
     const QString text = formatForSave(editor->toPlainText(), preferences_.option(option::kTrimWhitespace),
                                        preferences_.option(option::kFinalNewline));
@@ -740,6 +800,9 @@ bool MainWindow::saveFile(CodeEditor* editor, bool saveAs) {
     editor->setSavedText(text);
     editor->document()->setModified(false);
     preferences_.addRecentFile(QFileInfo(path).absoluteFilePath());
+    editor->setProperty("externalFileNotice", QString());
+    updateExternalNotice();
+    if (externalFiles_) externalFiles_->reset(tabs_->filePaths());
     tabs_->updateTitle(editor);
     markSessionDirty();
     explorer_->addFolder(QFileInfo(path).absolutePath());
@@ -751,13 +814,88 @@ void MainWindow::updateExplorer() {
     explorer_->setOpenFiles(tabs_->filePaths());
 }
 
+void MainWindow::updateExternalNotice() {
+    if (!externalNotice_) return;
+    const auto* editor = currentEditor();
+    const QString message = editor ? editor->property("externalFileNotice").toString() : QString();
+    externalNoticeText_->setText(message);
+    externalNotice_->setVisible(!message.isEmpty());
+}
+
+void MainWindow::applyExternalFile(const QString& path, const QString& text, const QString& error, bool force) {
+    for (CodeEditor* editor : tabs_->editors()) {
+        // パスの比較だけで、GUIスレッドからネットワークへ問い合わせない。
+        if (QFileInfo(editor->filePath()).absoluteFilePath().compare(path, Qt::CaseInsensitive) != 0) continue;
+        if (force && editor != currentEditor()) continue; // 手動破棄の承認は選択中の1タブだけ。
+        applyExternalTab(editor, text, error, force);
+    }
+    updateExternalNotice();
+}
+
+void MainWindow::applyExternalTab(CodeEditor* editor, const QString& text, const QString& error, bool force) {
+    QString normalized = text;
+    normalized.replace("\r\n", "\n");
+    const auto pending = pendingTabs_.constFind(editor);
+    QString baseline = pending != pendingTabs_.constEnd() ? pending->original : editor->savedText();
+    baseline.replace("\r\n", "\n");
+    QString notice;
+    if (!error.isEmpty()) {
+        notice = "File unavailable. The tab contents have been kept. " + error;
+    } else if (!force && normalized == baseline) {
+        // 自分の保存通知や内容の変わらない書き直しでは、Undo・カーソル・補完を触らない。
+    } else if (editor->isInputMethodComposing()) {
+        notice = "File changed outside MCE. Finish text composition before reloading.";
+    } else if (!force && editor->document()->isModified()) {
+        notice = "File changed outside MCE. Your unsaved edits have been kept.";
+    } else {
+        ensureLoaded(editor);
+        const QTextCursor old = editor->textCursor();
+        const int vertical = editor->verticalScrollBar()->value();
+        const int horizontal = editor->horizontalScrollBar()->value();
+        restoring_ = true; // 本文と保存基準の更新途中の状態を自動保存しない。
+        QTextCursor replacement(editor->document());
+        replacement.beginEditBlock();
+        replacement.select(QTextCursor::Document);
+        replacement.insertText(text);
+        replacement.endEditBlock();
+        editor->setSavedText(text);
+        editor->document()->setModified(false);
+        const int limit = editor->document()->characterCount() - 1;
+        QTextCursor cursor(editor->document());
+        cursor.setPosition(qBound(0, old.anchor(), limit));
+        cursor.setPosition(qBound(0, old.position(), limit), QTextCursor::KeepAnchor);
+        editor->setTextCursor(cursor);
+        editor->verticalScrollBar()->setValue(vertical);
+        editor->horizontalScrollBar()->setValue(horizontal);
+        restoring_ = false;
+        tabs_->updateTitle(editor);
+        onTextChanged(editor); // 復元用保存と補完・検索の更新を一度だけ行う。
+    }
+    editor->setProperty("externalFileNotice", notice);
+}
+
+void MainWindow::reloadCurrentFile() {
+    CodeEditor* editor = currentEditor();
+    if (!editor || editor->filePath().isEmpty()) return;
+    if (editor->document()->isModified()
+        && QMessageBox::question(this, "Reload from disk", "Discard the unsaved edits in this tab and reload the file?",
+                                 QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Cancel) != QMessageBox::Discard) return;
+    QString text, error;
+    readScriptFile(editor->filePath(), &text, &error);
+    applyExternalFile(editor->filePath(), text, error, true);
+    if (externalFiles_) externalFiles_->reset(tabs_->filePaths());
+}
+
 // ===========================================================================
 // 未保存タブの自動復元
 // ===========================================================================
 
 void MainWindow::restoreSession() {
+    QElapsedTimer readTimer; readTimer.start();
     SessionData data;
-    switch (session_.open(&data)) {
+    const auto opened = session_.open(&data);
+    setProperty("sessionReadMilliseconds", readTimer.nsecsElapsed() / 1000000.0);
+    switch (opened) {
     case SessionStore::OpenResult::Disabled:
     case SessionStore::OpenResult::NoFile:
         return;
@@ -780,13 +918,27 @@ void MainWindow::restoreSession() {
     restoring_ = true;
     const int active = qBound(0, data.activeTab, int(data.tabs.size()) - 1);
     for (int index = 0; index < data.tabs.size(); ++index) {
-        const TabState& tab = data.tabs[index];
+        TabState tab = data.tabs[index];
+        // 未編集のタブは、MCEを閉じている間の外部保存にも追従する。
+        // 未保存編集は復元ストアを優先し、外部ファイルで上書きしない。
+        bool externalUpdate = false;
+        QString disk, diskError;
+        bool diskRead = false, diskReadable = false;
+        if (!tab.modified && !tab.path.isEmpty()) {
+            diskRead = true;
+            diskReadable = readScriptFile(tab.path, &disk, &diskError);
+            disk.replace("\r\n", "\n");
+            if (diskReadable && disk != tab.text) {
+                tab.text = disk;
+                externalUpdate = true;
+            }
+        }
         CodeEditor* editor = newTab(languageFromName(tab.language));
         editor->setFilePath(tab.path);
         editor->setProperty(kSessionIdProperty, tab.id);
         // 本文のファイルがあれば、今の本文と同じなので、本文が変わるまで書き直さない。
         // 古い形式(本文をtabs.jsonに含んでいた0.2.x)から読んだタブは、最初の保存で本文のファイルを作る。
-        const bool hasTextFile = session_.hasTextFile(tab.id);
+        const bool hasTextFile = session_.hasTextFile(tab.id) && !externalUpdate;
         // 選んでいないタブは本文を文字列のまま持ち、初めて選んだときに文書へ入れる(色分けを後回しにする)。
         // 本文のファイルが無いタブと、文書へ入れると文字が変わる本文のタブは、今までどおりすぐ入れる。
         if (index != active && hasTextFile && canDeferText(tab.text)) {
@@ -797,12 +949,10 @@ void MainWindow::restoreSession() {
             pending.position = qBound(0, tab.position, int(tab.text.size()));
             pending.modified = tab.modified;
             if (!tab.path.isEmpty() && !tab.modified) {
-                // 未保存の印(元のファイルと違うか)を、読み込む前から正しく出すため、ここで元のファイルを読む。
-                // 未保存の印が付いているタブは、比べなくても印が決まるので、読み込むときに読む。
-                QFile original(tab.path);
+                // 直前の読み込み結果を再利用し、起動時のI/Oを増やさない。
                 pending.originalRead = true;
-                pending.originalReadable = original.open(QIODevice::ReadOnly);
-                pending.original = pending.originalReadable ? QString::fromUtf8(original.readAll()) : QString();
+                pending.originalReadable = diskReadable;
+                pending.original = disk;
                 pending.modified = !pending.originalReadable || pending.original != tab.text;
             }
             // 空の文書の版を「保存済み」とする。読み込むまで本文は変わらないので、本文のファイルは書き直さない。
@@ -818,12 +968,13 @@ void MainWindow::restoreSession() {
         // 元のファイルが削除・外部で変更されていても、復元した本文は未保存として残す。
         bool differsFromFile = false;
         if (!tab.path.isEmpty()) {
-            QFile original(tab.path);
-            const bool readable = original.open(QIODevice::ReadOnly);
-            const QString originalText = readable ? QString::fromUtf8(original.readAll()) : QString();
-            differsFromFile = !readable || originalText != editor->toPlainText();
-            if (readable) {
-                editor->setSavedText(originalText);  // 行番号の横の変更の印は、ファイルの内容と比べる。
+            if (!diskRead) {
+                diskReadable = readScriptFile(tab.path, &disk, &diskError);
+                disk.replace("\r\n", "\n");
+            }
+            differsFromFile = !diskReadable || disk != editor->toPlainText();
+            if (diskReadable) {
+                editor->setSavedText(disk);  // 行番号の横の変更の印は、ファイルの内容と比べる。
             }
         }
         editor->document()->setModified(tab.modified || differsFromFile);
@@ -886,7 +1037,7 @@ bool MainWindow::saveSession() {
         data.tabs.append(tab);
     }
     QString error;
-    if (!session_.save(data, &error)) {
+    if (!session_.save(data, &error, false)) {
         // 書けない間は、次の自動保存までの間隔を1.5秒・3秒・6秒…と最大60秒まで延ばす。
         saveRetryDelay_ = saveRetryDelay_ == 0 ? kSessionSaveDelay : qMin(saveRetryDelay_ * 2, kMaximumSaveRetryDelay);
         cursorSessionTimer_.stop();
@@ -903,6 +1054,7 @@ bool MainWindow::saveSession() {
     recoveryStatus_->hide();
     sessionTimer_.stop();
     cursorSessionTimer_.stop();
+    if (!sessionCleanupTimer_.isActive()) { sessionCleanupTimer_.start(100); }
     // 計測用: 書き込みとフォルダーの一覧の回数(テストが動的プロパティで読む)。
     setProperty("sessionWrites", session_.jsonWrites());
     setProperty("sessionTextWrites", session_.textWrites());

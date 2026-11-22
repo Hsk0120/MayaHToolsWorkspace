@@ -10,16 +10,28 @@ import zlib
 def heads(path):
     """保存先の確定先端と、その検証用本文を返す。"""
     root = Path(str(path) + ".recovery")
-    records = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (root / "snapshots").glob("*.json")}
-    parents = {parent for record in records.values() for parent in record["parents"]}
-    result = []
-    for key, record in records.items():
-        if key in parents:
-            continue
-        for tab in record["tabs"]:
-            blob = root / "bodies" / (record["bodies"][tab["id"]] + ".qz")
-            result.append(zlib.decompress(blob.read_bytes()[4:]).decode("utf-8"))
-    return result
+    # 製品と同じロックを取り、他の専用Mayaの整理途中を観測しない。
+    try:
+        from PySide6 import QtCore
+    except ImportError:
+        from PySide2 import QtCore
+    lock = QtCore.QLockFile(str(root / "store.lock"))
+    lock.setStaleLockTime(0)
+    assert lock.tryLock(1000), "Recovery inspection lock timeout"
+    try:
+        records = {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in (root / "snapshots").glob("*.json")}
+        parents = {parent for record in records.values() for parent in record["parents"]}
+        result = []
+        for key, record in records.items():
+            if key in parents:
+                continue
+            for tab in record["tabs"]:
+                blob = root / "bodies" / (record["bodies"][tab["id"]] + ".qz")
+                result.append(zlib.decompress(blob.read_bytes()[4:]).decode("utf-8"))
+        return result
+    finally:
+        lock.unlock()
+
 
 
 def main(output_dir, finished):
@@ -144,31 +156,14 @@ def main(output_dir, finished):
                 assert tabs.currentWidget().document().isModified()
                 wait(1800)
             if stage == "verify":
-                # 明示的な履歴復元も現在のタブを消さずに追加する。OSダイアログではなくQt版で検証する。
-                QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_DontUseNativeDialogs, True)
-                snapshots = sorted(Path(str(path) + ".recovery/snapshots").glob("*.json"))
-
-                def choose_snapshot():
-                    # Mayaはダイアログをドックの外側へ付け替える。MainWindowの子とは限らない。
-                    dialog = next((w for w in QtWidgets.QApplication.allWidgets()
-                                   if w.objectName() == "recoverySnapshotDialog"), None)
-                    if dialog is None:
-                        (output / "dialog-poll.json").write_text(json.dumps({"found": False}), encoding="utf-8")
-                        QtCore.QTimer.singleShot(100, choose_snapshot)
-                        return
-                    # selectFileは表示済みのダイアログで入力欄を変更しないQt版がある。
-                    edit = dialog.findChild(QtWidgets.QLineEdit, "fileNameEdit")
-                    edit.setText(snapshots[0].as_posix())
-                    (output / "dialog-poll.json").write_text(json.dumps({"found": True, "file": edit.text()}), encoding="utf-8")
-                    QtCore.QTimer.singleShot(800, lambda: dialog.findChild(QtWidgets.QDialogButtonBox).button(QtWidgets.QDialogButtonBox.Open).click())
-
-                QtCore.QTimer.singleShot(300, choose_snapshot)
-                window.findChild(QtGui.QAction if hasattr(QtGui, "QAction") else QtWidgets.QAction, "recoverSnapshot").trigger()
+                # 履歴復元メニューは廃止。専用の新規タブを作って破棄後の整理を確認する。
+                action_class = QtGui.QAction if hasattr(QtGui, "QAction") else QtWidgets.QAction
+                assert window.findChild(action_class, "recoverSnapshot") is None
+                action = next(a for a in window.findChildren(action_class) if a.text() == "New Python tab")
+                action.trigger()
+                tabs.currentWidget().setPlainText("discarded synthetic body")
                 assert tabs.count() == 3
-                assert values == all_texts()[:2]
-                result["checks"].append("history_recovery_adds_tab_without_replacing_current")
                 wait(1800)
-                # 追加した履歴タブだけ閉じる。確認ダイアログでDiscardを選ぶ。
                 discard_attempts = [0]
                 discard_widgets = []
                 def discard():
@@ -199,7 +194,11 @@ def main(output_dir, finished):
                 tabs.tabCloseRequested.emit(2)
                 wait(1800)
                 assert tabs.count() == 2
-                result["checks"].append("closing_recovered_copy_preserves_original_tabs")
+                assert values == all_texts()
+                assert len(list(Path(str(path) + ".recovery/snapshots").glob("*.json"))) == 1
+                for body in Path(str(path) + ".recovery/bodies").glob("*.qz"):
+                    assert b"discarded synthetic body" not in zlib.decompress(body.read_bytes()[4:])
+                result["checks"].append("discard_removes_body_preserves_other_tabs")
         result["status"] = "passed"
     except Exception:
         result["error"] = traceback.format_exc()

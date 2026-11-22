@@ -175,6 +175,8 @@ public:
     bool hasSavedText() const { return hasSavedText_; }
     /** @brief 保存した内容。 @return 内容(改行は``\n``)。 */
     QString savedText() const { return savedText_; }
+    /** @brief IME変換中か。外部再読込で未確定文字を消さないために使う。 @return 変換中ならtrue。 */
+    bool isInputMethodComposing() const { return inputMethodComposing_; }
     /** @brief 保存した内容との違い。 @return 変更のまとまり。入力が止まってから0.3秒後に求め直す。 */
     const QList<LineChange>& lineChanges() const { return lineChanges_; }
     /** @brief 保存した内容との違いを、すぐ求め直す。 */

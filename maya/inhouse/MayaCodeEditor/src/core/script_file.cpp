@@ -71,6 +71,10 @@ bool readScriptFile(const QString& path, QString* text, QString* error) {
         return false;
     }
     QByteArray bytes = file.readAll();
+    if (file.error() != QFileDevice::NoError) {
+        *error = file.errorString();
+        return false; // 読み込み途中の接続切断などで、短い本文に置き換えない。
+    }
     if (bytes.startsWith("\xef\xbb\xbf")) {
         bytes.remove(0, 3);
     }
