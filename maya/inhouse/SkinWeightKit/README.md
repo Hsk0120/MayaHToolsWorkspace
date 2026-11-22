@@ -8,7 +8,7 @@ workspaceControl・optionVar・Maya の Paint Skin Weights ツールの起動は
 
 ## 起動
 
-- HTools > rigging > skinWeightKit、またはスクリプトの `import skinWeightKit; skinWeightKit.toggle()` で表示・非表示を切り替えます。
+- Windows メニューの末尾の Skin Weight Kit で表示します(表示中ならそのまま)。HTools > rigging > skinWeightKit、またはスクリプトの `import skinWeightKit; skinWeightKit.toggle()` で表示・非表示を切り替えます。
 - `maya/modules/SkinWeightKit.mod` が有効なら、前回表示していた場合だけ Maya GUI の起動後に自動で表示します。
 
 ## 対象

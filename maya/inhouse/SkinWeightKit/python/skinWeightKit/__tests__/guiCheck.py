@@ -61,6 +61,19 @@ def main(output_dir=None, finished=None):
             skin_name = cmds.skinCluster(joints, geo, toSelectedBones=True, maximumInfluences=3)[0]
             widget = panel._panel["widget"]
             checks["control_exists"] = bool(cmds.workspaceControl(panel.CONTROL, exists=True))
+            # Windows メニューの項目: 2回登録しても1つだけで、Maya の項目(Outliner 等)も残っていること。
+            from skinWeightKit.ui import startup
+            startup.addWindowMenu()
+            startup.addWindowMenu()
+            items = cmds.menu(startup.WINDOW_MENU, query=True, itemArray=True) or []
+            checks["window_menu_item"] = items.count(startup.WINDOW_MENU_ITEM) == 1 and len(items) > 5
+            from skinWeightKit.ui import icons
+            from skinWeightKit.ui.qt import QtGui
+            pointer = omui.MQtUtil.findMenuItem(startup.WINDOW_MENU + "|" + startup.WINDOW_MENU_ITEM)
+            action = wrapInstance(int(pointer), getattr(QtGui, "QAction", None) or QtWidgets.QAction)
+            checks["window_menu_icon"] = not action.icon().isNull()
+            icons.pixmap(256).save(str(output / "icon.png"))
+            icons.pixmap(18).save(str(output / "icon18.png"))
             checks["widget_built"] = widget is not None and widget.isVisible()
             checks["docked"] = not cmds.workspaceControl(panel.CONTROL, query=True, floating=True)
             # 画面の右側にあるか(メインウィンドウの中央より右)。
@@ -232,7 +245,7 @@ def main(output_dir=None, finished=None):
             checks["toggle_hides"] = not cmds.workspaceControl(panel.CONTROL, exists=True)
             skinWeightKit.toggle()
             checks["toggle_shows"] = bool(cmds.workspaceControl(panel.CONTROL, exists=True))
-            expected = {"control_exists": True, "widget_built": True, "docked": True, "on_right_side": True,
+            expected = {"control_exists": True, "window_menu_item": True, "window_menu_icon": True, "widget_built": True, "docked": True, "on_right_side": True,
                         "panels_in_control": 1, "tooltips_missing": [], "influence_rows": 3, "preset_value": 0.5,
                         "preset_sum": 1.0, "undo_restored": True, "menu_items_without_tips": [],
                         "paint_context": "artAttrSkin", "toggle_hides": True, "toggle_shows": True,

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <title>Skin Weight Kit</title>
+  <rect x="1" y="1" width="22" height="22" rx="4" fill="#9b7fe6"/>
+  <clipPath id="arm"><rect x="4" y="8" width="16" height="8" rx="4"/></clipPath>
+  <g clip-path="url(#arm)">
+    <rect x="4" y="8" width="4" height="8" fill="#f3edff"/>
+    <rect x="8" y="8" width="4" height="8" fill="#cdbdf7"/>
+    <rect x="12" y="8" width="4" height="8" fill="#5a43a8"/>
+    <rect x="16" y="8" width="4" height="8" fill="#241a45"/>
+  </g>
+  <rect x="4" y="8" width="16" height="8" rx="4" fill="none" stroke="#241a45" stroke-width="1.4"/>
+  <circle cx="12" cy="12" r="1.7" fill="#241a45"/>
+</svg>

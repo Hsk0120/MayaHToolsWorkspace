@@ -8,7 +8,7 @@ skinWeightKit
 開き方
 ------
 
-HTools > rigging > skinWeightKit。スクリプトからは ``import skinWeightKit; skinWeightKit.toggle()`` で切り替えられます。
+HTools > rigging > skinWeightKit。``SkinWeightKit.mod`` が有効なら、Maya の Windows メニューの末尾の Skin Weight Kit からも表示できます。スクリプトからは ``import skinWeightKit; skinWeightKit.toggle()`` で切り替えられます。
 
 対象
 ----
