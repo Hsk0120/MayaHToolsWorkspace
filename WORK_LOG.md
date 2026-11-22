@@ -200,7 +200,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
-- Claude Code (2026-11-22): 非公開リポジトリのsubmoduleが自分の .mod を持てるようにした。起動バッチ(`maya/maya_core.bat`・`maya_core.command`)が `maya/external/<名前>/workspace_modules` をMAYA_MODULE_PATHへ足す。再配布できないツールの説明・設定・起動処理はそのsubmodule側に置き、このリポジトリには `.gitmodules` の登録(`update = none`)だけを残す。Maya 2027のGUIで読み込みを確認。macOSの `.command` は未実行。
+- Claude Code (2026-11-22): Gitで管理しない手元だけのツールが自分の .mod を持てるようにした。起動バッチ(`maya/maya_core.bat`・`maya_core.command`)が `maya/external/<名前>/workspace_modules` をMAYA_MODULE_PATHへ足す。再配布できないツールはsubmoduleにせず、フォルダーごと `.gitignore` で対象外にして、説明・設定・起動処理もその中に置く。Maya 2022〜2027のGUIで読み込みを確認。macOSの `.command` は未実行。
 
 - Codex (2026-11-21): MetaHumanのビューポート用Lambert変換スクリプトを追加。Maya 2027の現行シーンを読み取り、DX11の5材質とBlinnの4材質、ベースカラーテクスチャの実在を確認。別のMaya 2027セッションで面割り当て、色・透過接続、再実行、Undoを検証。現行シーンでは変換のプレビューを実行。
 

@@ -123,7 +123,7 @@ maya/
 │  └ MayaCinematicCameraHUD/  C++プラグイン(別リポジトリのsubmodule。このワークスペースで編集・ビルドする)
 ├ modules/      各ツールをMayaに認識させる .mod ファイル(2022/2023/2024/2025/2026/2027対応、MAYA_MODULE_PATHの対象)
 ├ modules_disabled/  上記と同形式だが未登録の .mod ファイル(無効化されたツール/汎用ライブラリ)。有効化するには modules/ へ移動する
-├ external/<名前>/workspace_modules/  非公開リポジトリのsubmoduleが自分で持つ .mod の置き場。起動バッチ(`maya_core.bat`・`.command`)が、あればMAYA_MODULE_PATHへ足す。再配布できない等の理由でこのリポジトリに説明を書かないツール用で、説明・設定・起動処理はそのsubmodule側に置き、ここには `.gitmodules` の登録(`update = none`)だけを置く
+├ external/<名前>/workspace_modules/  Gitで管理しない手元だけのツール(再配布できないもの等)が自分で持つ .mod の置き場。起動バッチ(`maya_core.bat`・`.command`)が、あればMAYA_MODULE_PATHへ足す。そのツールのフォルダーは `.gitignore` で対象外にし、説明・設定・起動処理もそのフォルダーの中に置く(このリポジトリには書かない)
 └ maya_*.bat, maya_core.bat  起動バッチ
 tools/
 ├ send_to_maya.py  VS Code タスクが実行するMaya送信スクリプト

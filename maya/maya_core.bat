@@ -90,9 +90,9 @@ SET MAYA_PLUG_IN_PATH=%PATH_PLUGIN%;%MAYA_PLUG_IN_PATH%
 ::Maya Modules
 ::----------------------------------------------------------------
 SET MAYA_MODULE_PATH=%PATH_BAT%modules;%MAYA_MODULE_PATH%
-::A submodule under external\ can carry its own .mod files in a
-::workspace_modules folder (used for tools kept in a private repository,
-::so that nothing about them is written in this repository).
+::A folder under external\ can carry its own .mod files in a
+::workspace_modules folder (used for tools kept only on this machine and
+::ignored by Git, so that nothing about them is written in this repository).
 FOR /D %%D IN ("%PATH_BAT%external\*") DO IF EXIST "%%D\workspace_modules\" CALL :AddModulePath "%%D\workspace_modules"
 
 ::----------------------------------------------------------------
