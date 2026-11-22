@@ -83,6 +83,7 @@ C++・Bifrostは明示選択する比較検証用バックエンドです。
    differential_gear
    peaucellier_linkage
    swashplate
+   stewart_platform
    universal_joint
    constant_velocity_joint
    tripod_joint

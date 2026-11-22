@@ -35,6 +35,7 @@ from .planetaryGear import PlanetaryGear
 from .differentialGear import DifferentialGear
 from .peaucellierLinkage import PeaucellierLinkage
 from .swashplate import Swashplate
+from .stewartPlatform import StewartPlatform
 from .outlineBank import OutlineBank
 from .crankSlider import CrankSlider
 from .fourBarLinkage import FourBarLinkage
@@ -124,6 +125,7 @@ __all__ = [
     "DifferentialGear",
     "PeaucellierLinkage",
     "Swashplate",
+    "StewartPlatform",
     "UniversalJoint",
     "ConstantVelocityJoint",
     "TripodJoint",

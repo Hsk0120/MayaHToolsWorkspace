@@ -239,6 +239,9 @@
    * - Swashplate - tilted plate pitches rotor blades
      - 斜板のlocator
      - ``translateY`` で上げると3枚の緑のブレードが同じだけピッチし(コレクティブ)、 ``rotateX``・``rotateZ`` で傾けるとブレードごとにピッチが変わり、ローターの joint を ``rotateY`` で回すと1回転で1周期上下する(サイクリック。リンク半径2cm・ホーン1.5cm)。ピッチは±30度で止まる。containerの ``collective`` は軸の上の斜板の高さの変化、 ``bladePitch[i]`` はピッチ角、 ``linkExcess[i]`` は上限を超えた量。
+   * - StewartPlatform - six legs follow a free platform
+     - 天板のlocator
+     - 動かす・回すと、6本のシリンダー(locator)が天板側の取り付け点を向き、緑のロッド(locator)がその点まで進む(台座の半径3cm・天板の半径2cm・高さ4cm)。脚の長さは3〜6cmで止まり、超えるとロッドが取り付け点から離れる。containerの ``length[i]`` は脚の長さ、 ``excess[i]`` は範囲を超えた量、 ``maxExcess`` はその最大、 ``reachable`` はすべての脚が範囲内なら1。
    * - UiSlider - face panel slider
      - 枠の中のコントロール
      - 枠(テンプレート表示の正方形)の中で動かすと、周りの8つの緑のlocatorの大きさ(その方向・角の重み)が変わる。コントロールは枠の外へ出ない。

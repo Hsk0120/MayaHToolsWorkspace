@@ -118,6 +118,7 @@ class SetupSamples:
         ("differentialGear", "DifferentialGear - case drives left and right wheels"),
         ("peaucellierLinkage", "PeaucellierLinkage - crank circle to exact straight line"),
         ("swashplate", "Swashplate - tilted plate pitches rotor blades"),
+        ("stewartPlatform", "StewartPlatform - six legs follow a free platform"),
         ("uiSlider", "UiSlider - face panel slider"),
         ("comboWeight", "ComboWeight - smile combo corrective"),
         ("virtualChain", "VirtualChain - flat tail controls as FK"),
@@ -817,6 +818,26 @@ class SetupSamples:
             blades.append(blade)
         setup = Swashplate.create(plate, rotor, blades, linkRadius=2.0, hornLength=1.5, name=name)
         return setup, plate
+
+    @classmethod
+    def _stewartPlatform(cls, name, root):
+        """床の6つの取り付け点(半径3)と、高さ4の天板(locator)の子の6つの取り付け点(半径2)を、6本の脚で結ぶ。
+        脚はシリンダー(locator)と、その子の緑のロッド(locator)。天板を動かす・回すと、シリンダーが天板側の取り付け点を
+        向き、ロッドがその点まで進む。脚の長さは3〜6cmで止まり、超えるとロッドが取り付け点から離れる。containerの
+        ``length[i]`` は脚の長さ、 ``excess[i]`` は範囲を超えた量、 ``reachable`` はすべての脚が範囲内なら1。"""
+        from .setups import StewartPlatform
+
+        platform = _locator(name + "_platform", root, translate=(0, 4, 0))
+        bases, tops, cylinders, rods = [], [], [], []
+        for index, (low, high) in enumerate(zip((15, 105, 135, 225, 255, 345), (45, 75, 165, 195, 285, 315))):
+            low, high = math.radians(low), math.radians(high)
+            bases.append(_transform(name + "_base" + str(index), root, (3 * math.cos(low), 0, -3 * math.sin(low))))
+            tops.append(_transform(name + "_top" + str(index), platform, (2 * math.cos(high), 0, -2 * math.sin(high))))
+            cylinders.append(_locator(name + "_cylinder" + str(index), root))
+            rods.append(_locator(name + "_rod" + str(index), cylinders[-1]))
+            _color(rods[-1])
+        setup = StewartPlatform.create(bases, tops, cylinders, rods, minimum=3.0, maximum=6.0, name=name)
+        return setup, platform
 
     @classmethod
     def _oldhamCoupling(cls, name, root):
