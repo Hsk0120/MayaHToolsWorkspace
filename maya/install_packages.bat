@@ -12,11 +12,11 @@ setlocal EnableDelayedExpansion
 ::   install_packages.bat 2026 scipy libigl  given groups, given versions
 ::
 :: Numbers are Maya versions, other words are group names.
-:: MAYA_INSTALL_ROOT overrides "C:\Program Files\Autodesk".
+:: MAYA_INSTALL_ROOT overrides "%ProgramFiles%\Autodesk".
 ::----------------------------------------------------------------
-CD /d %~dp0
+CD /d "%~dp0"
 
-IF "%MAYA_INSTALL_ROOT%" == "" SET "MAYA_INSTALL_ROOT=C:\Program Files\Autodesk"
+IF "%MAYA_INSTALL_ROOT%" == "" SET "MAYA_INSTALL_ROOT=%ProgramFiles%\Autodesk"
 SET "HELPER=%~dp0..\tools\install_maya_packages.py"
 
 SET "VERSIONS="

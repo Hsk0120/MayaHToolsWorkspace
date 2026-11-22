@@ -3,7 +3,7 @@
 ::----------------------------------------------------------------
 ::Move Current Directory
 ::----------------------------------------------------------------
-CD /d %~dp0
+CD /d "%~dp0"
 
 :: This is Maya Core Settings Bat
 SET MAYA_CORE=maya_core.bat

@@ -14,7 +14,7 @@ class JointDeleteTest(unittest.TestCase):
     def delete_joint(self, name):
         JointHierarchy.delete([name])
 
-    def test_safe_keeps_skin_and_joint_hierarchy(self):
+    def test_skip_connected_keeps_skin_and_joint_hierarchy(self):
         root = self.getNode("safeRoot")
         child = self.getNode("safeChild", parent=root)
         mesh = cmds.polyCube(name=self.ns + ":mesh")[0]
@@ -22,10 +22,10 @@ class JointDeleteTest(unittest.TestCase):
         pose = mlib.getNode(skin).getBindPose()
         cmds.rename(pose.getFullName(), self.ns + ":pose")
         weights = cmds.skinPercent(skin, mesh + '.vtx[0]', query=True, value=True)
-        JointHierarchy.delete(child, safe=True)
+        JointHierarchy.delete(child, skipConnected=True)
         self.assertTrue(cmds.objExists(child))
         isolated = self.getNode("isolated")
-        self.assertIsNone(JointHierarchy.delete([root, child, isolated], safe=True))
+        self.assertIsNone(JointHierarchy.delete([root, child, isolated], skipConnected=True))
         self.assertTrue(cmds.objExists(root) and cmds.objExists(child))
         self.assertFalse(cmds.objExists(isolated))
         self.assertEqual(cmds.listRelatives(child, parent=True)[0], root)
@@ -35,16 +35,16 @@ class JointDeleteTest(unittest.TestCase):
         cmds.redo()
         self.assertFalse(cmds.objExists(isolated))
 
-    def test_safe_joint_validation_and_inverse_scale_connection(self):
+    def test_skip_connected_validation_and_inverse_scale_connection(self):
         root = mlib.getNode(self.getNode("safeRoot"))
         child = mlib.getNode(self.getNode("safeChild", parent=root.getFullName()))
         cmds.connectAttr(root.getFullName() + '.scale', child.getFullName() + '.inverseScale')
         for node in (root, child):
-            JointHierarchy.delete(node, safe=True)
+            JointHierarchy.delete(node, skipConnected=True)
             self.assertTrue(node.isValid())
         for target in (root, mlib.Joints([root])):
             with self.assertRaises(TypeError):
-                JointHierarchy.delete(target, safe=1)
+                JointHierarchy.delete(target, skipConnected=1)
 
     def setUp(self):
         self.ns = "mlibDelete_" + uuid.uuid4().hex

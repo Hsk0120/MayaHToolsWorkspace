@@ -3,7 +3,7 @@
 ::----------------------------------------------------------------
 ::Move Current Directory
 ::----------------------------------------------------------------
-CD /d %~dp0
+CD /d "%~dp0"
 
 ::----------------------------------------------------------------
 ::Args
@@ -17,7 +17,9 @@ SET OPEN_FILE=%2
 SET MEL=%3
 SET PYTHON_SCRIPT=%4
 
-SET MAYA_EXE="C:\Program Files\Autodesk\Maya%MAYA_VERSION%\bin\maya.exe"
+::MAYA_INSTALL_ROOT overrides the Autodesk folder (default: %ProgramFiles%\Autodesk).
+IF "%MAYA_INSTALL_ROOT%" == "" SET "MAYA_INSTALL_ROOT=%ProgramFiles%\Autodesk"
+SET MAYA_EXE="%MAYA_INSTALL_ROOT%\Maya%MAYA_VERSION%\bin\maya.exe"
 
 ::----------------------------------------------------------------
 ::General

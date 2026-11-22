@@ -10,20 +10,20 @@ class JointHierarchy:
     """Maya標準の削除とは別に、ジョイント階層を整理する。"""
 
     @staticmethod
-    def delete(joints, *, safe=False, fast=False):
+    def delete(joints, *, skipConnected=False, fast=False):
         """子を親へ移し、祖先influenceへウェイトを移送してジョイントを削除する。
 
         Args:
             joints (Joint | str | Iterable[Joint | str]): 整理するジョイント。
                 名前とNodeを同じ列で混在させない。深い階層からノード単位で処理する。
-            safe (bool): Trueは自身か子孫にDG接続があるジョイントを除外する。
+            skipConnected (bool): Trueは自身か子孫にDG接続があるジョイントを除外する(mlibの Joint.delete と同じ名前)。
             fast (bool): Trueは対応するOpenMaya直接更新でUndoなし。
 
         Returns:
             None: 値を返さない。
 
         Raises:
-            TypeError: safe/fastがbool以外、または対象がJoint以外の場合。
+            TypeError: skipConnected/fastがbool以外、または対象がJoint以外の場合。
             RuntimeError: 無効な対象、ウェイト移送、親変更、削除の失敗。
             NotImplementedError: fastで中間Transform等が必要な条件の場合。
 
@@ -36,15 +36,15 @@ class JointHierarchy:
         if not isinstance(fast, bool):
             raise TypeError("fast must be a bool")
         with nullcontext() if fast else undoChunk("mlrigJointHierarchyDelete"):
-            if type(safe) is not bool:
-                raise TypeError("safe must be bool")
+            if type(skipConnected) is not bool:
+                raise TypeError("skipConnected must be bool")
             if isinstance(joints, (str, mlib.Node)):
                 joints = [joints]
             targets = mlib.Joints(joints)
             for joint in targets:
                 if not joint.isType("joint"):
                     raise RuntimeError("Cannot delete an invalid joint")
-            if safe:
+            if skipConnected:
                 targets = mlib.Joints([joint for joint in targets if not joint._has_delete_connections()])
             plans = JointHierarchy._prepare(targets, fast=fast)
             for joint, transfers in plans:
