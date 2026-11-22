@@ -117,6 +117,7 @@ maya/
 │  ├ HTools/         Mayaメニューから起動する社内ツール群
 │  ├ mlib/           共通ライブラリ(Node/Plugラッパー、数学型、デコレータ等)。別リポジトリ Hsk0120/mlib のsubmodule
 │  ├ MayaCommandPorts/  HTools/mlibから独立したcommandPort初期化モジュール
+│  ├ eST3Startup/    GUI起動時にeST3(`maya/external/eST3`)を開始するuserSetup(HTools/mlibから独立)
 │  ├ AnimBar/       タイムスライダーの上にドックするアニメーション作業用のツールバー(aTools相当を自作。処理はmlib、画面はPySide、起動時に表示)。詳細は同フォルダのREADME
 │  ├ integrations/   外部サービス連携(Slack, mGearガイド操作)
 │  ├ FramePlayer/    コマ送り確認用の動画プレイヤー(C++のexeをパッケージ直下に置く)と、Mayaのタイムスライダーと双方向に連携するPythonパッケージ(`python/frameplayer`)。mlibに依存しない単体パッケージで、将来は別リポジトリでの公開も検討中。詳細は同フォルダのREADME
@@ -173,7 +174,7 @@ tools/
 - `gt-tools`: 汎用のアニメーション/リギング補助ツール集(GT Tools)。
 - `jlr_sort_attributes`(既存記載): チャンネルボックスのユーザー定義アトリビュートを並び替えるツール。
 - `CharcoalEditor2`(既存記載): エディタ系ツール。
-- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通すだけで、起動時には何も読み込まない。使うときはMELの `eST3menuBar`(ビューの上にeSTのメニューバーを出す)か `eST3start`(importだけ)を実行する。Maya 2027のGUIで、24個のプラグインが信頼の警告なしでロードでき、メニューバーが出ることを確認済み(`eST3menu` がメインメニューに足す「eST3」は中身が空だった)。実行すると `user/projects/`・`user/privates/` が作られる(eST3のリポジトリ側でGit対象外)。
+- `eST3`(2026-11-22追加): Polygon Pictures製のリギング・アニメーションツール(core 1.145.0 Windows版とuser 20261119.0)。**再配布できない配布物なので、非公開リポジトリ(`Hsk0120/eST3`)のsubmoduleとして置く**。そのリポジトリを公開へ変えない・中身をこのリポジトリや他の場所へコピーしない・コードを流用しない・中身を書き換えない(取り扱いは同フォルダのREADME)。`.gitmodules` で `update = none` にしてあり、通常の `git submodule update --init --recursive` では取得しない(権限の無い人のcloneを止めないため)。取得するときは `git submodule update --init --checkout maya/external/eST3`。`maya/modules/eST3.mod` が配布物の `core/maya`(scripts・icons・版ごとのplug-ins)をMaya 2022〜2027へ通す。2026-11-22のユーザー指定により、GUI起動時にeST3を自動で開始する: 同じ `.mod` の `eST3Startup` の節が `maya/inhouse/eST3Startup`(このワークスペースの `userSetup.py` と `est3_startup.py`。配布物には手を入れない)を通し、起動後にMELの `eST3menuBar`(ビューの上にeSTのメニューバーを出す)を遅延実行する(バッチ・mayapyと、配布物を取得していない環境では何もしない。開始すると新規シーンが変更ありの扱いになる)。自動起動を止めるときは `.mod` の `eST3Startup` の節を消す。手で始めるときは `eST3menuBar` か `eST3start`(importだけ)を実行する。Maya 2027のGUIで、24個のプラグインが信頼の警告なしでロードでき、メニューバーが出ることを確認済み(`eST3menu` がメインメニューに足す「eST3」は中身が空だった)。実行すると `user/projects/`・`user/privates/` が作られる(eST3のリポジトリ側でGit対象外)。
 - `openrv`: ASWF製の画像・動画レビューツール(OpenRV、Apache 2.0)。FramePlayerの色再現(色の情報の読み取り・YUV→RGB・色管理)の参考として取り込み。Mayaへはロードしない。
 
 **汎用Pythonライブラリ(Maya専用ツールではない)**
