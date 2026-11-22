@@ -272,6 +272,7 @@ desktop.ini
 
 # Maya のシーン作業で生成されるもの(スウォッチのキャッシュ・インクリメンタル保存)
 .mayaSwatches/
+*.swatch
 *.swatches
 incrementalSave/
 

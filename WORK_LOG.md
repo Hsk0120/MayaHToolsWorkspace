@@ -203,6 +203,8 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Codex (2026-11-22): ユーザー指定で親とMetaHumanForMayaのgitignoreにswatch除外を追加。外部リポジトリで既存16キャッシュの追跡だけ解除し、ローカル実ファイルの残存を確認、a328a17をpush。親の参照を更新し、既存のcollect_scene_textures/metahuman_viewport_lambert/replace_body_riglogicを内容変更なしで登録。3本のPython 3.7構文、ignore適用、差分チェックを確認。今回はMaya実行・新規録画なし。
+
 - Codex (2026-11-22): ユーザーのpush依頼により、MCEの外部保存自動反映・最新タブのみの保管・起動高速化を関連テスト/文書/2022〜2027mllとまとめてコミット対象へ選定。検証記録・6バイナリのSHA256一致・差分チェックを確認。他担当のMetaHuman関連変更は含めない。
 
 - Codex (2026-11-22): MCEで開いているファイルの外部保存を未編集タブへ自動反映。ファイル/親フォルダーを専用スレッドで監視し、原子的差し替え・削除再作成・非選択タブ・再起動に対応。未保存編集/IME変換/読込失敗は本文を保護し通知、再読込と別名保存を案内。Ctrl+S直前にも外部変更を確認。監視生成を専用スレッド内へ移し回帰クラッシュを修正。Qt2022/2027で外部更新各17チェック、既存UI各28項目/補完等、保存復元、Sphinx成功。Qt5 offscreenのQMessageBox内クラッシュは残る検証環境制限として記録、同じテストをWindowsプラットフォームで合格確認。専用Maya2022/2027は別Pythonプロセスの保存を使うQt GUI操作で各7ケース合格。実VS Codeキー操作/サーバー接続切断/2023〜2026 GUIは未実施。2022〜2027mll通常配置へ反映。既存ユーザーデータ・他変更保持、未コミット・未push。証拠`.maya-output/mce-external-files-20261122/`、確認済み非公開Qt操作動画: https://drive.google.com/file/d/1IqFqRfl2mViFWLV3FG4vqRoEzmytJsSK/view?usp=drivesdk 。
