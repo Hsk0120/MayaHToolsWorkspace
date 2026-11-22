@@ -203,6 +203,7 @@ Claude Code / ChatGPT Codex / GitHub Copilot を並行して使う際の作業�
 
 ## 完了履歴
 
+- Claude Code (2026-11-22): mlibの書式の検査を強めた(ユーザーと1項目ずつ決めた。ruffのルールをコードで1つずつ追加、Mayaのimportの別名の固定、check_mlib_layout.py に L053〜L055、コミット前に format_mlib.bat --check を必ず通すと指示ファイルへ記載。フックは置かない)。テストを厚くした(新しい8ファイル)。見つかった不具合を直した(check=True は書く前に全部確かめる、無効なノード・型の誤りの例外、createWire の作りかけなど)。一覧は docs/research/mlib-test-findings-2026-11-22.md。Maya 2022・2025・2027 と run_rig_packages(945件)で確認。mlib 99eba4c。
 - Codex (2026-11-22): QPEの新規タブをCドライブ直下へ開く最終仕様を、関連テスト/文書/Windows exe/2022〜2027mllとともにコミット対象へ選定。Qt操作5件合格・Sphinx成功の記録、7バイナリのSHA256一致、差分チェックを再確認。
 
 - Codex (2026-11-22): ユーザーの再指定によりQPEの＋/Ctrl+TはホームでなくCドライブ直下を表示。フォルダー指定の新規タブ等は維持。Qt操作の移動先/フォーカス/表示継承3ケース(初期化/終了込み5件)とSphinx -W成功。Windows exe/2022〜2027mll再ビルド、復旧コピーを残し通常配置へ反映・SHA256一致。Maya内実操作・新規録画は未実施。証拠`.maya-output/qpe-new-tab-root-20261122/`。未コミット・未push。

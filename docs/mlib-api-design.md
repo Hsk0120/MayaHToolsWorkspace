@@ -438,6 +438,15 @@ cmds・OpenMaya・他のライブラリとの速度比較(ローカルの `docs/
     `Mesh.setPoints`・`mirror`、`NurbsCurve.setCvPositions`・`mirror`、`NurbsSurface.setCvPositions`、`Shape.scaleGeometry`、
     `Transform.scaleGeometry`・`mirrorGeometry`)、`SkinCluster.setWeights`・`pruneWeights`・`setBlendWeights`。
     どれも fast の中の `require_writable` を `check=True` のときだけ呼ぶ。入力ヒストリの有無・ノードのロック・番号や型の検査は `check` に関係なく行う。
+  - **段階4(2026-11-22のユーザー指定)**: 複数のPlug・要素・ノード・形状へ順に書くメソッドは、`check=True` なら通常の経路と fast の両方で、
+    書く前に対象を全部確かめて途中まで書かない(テストで、例外にはなるが手前の書き込みが残るものが見つかったため)。
+    対象は `Transform.mirrorTransform`・`setMatrix`・`setTransformation`(回転順序も含む)、`Node`/`Joint`/`Nodes` の `resetAttrs`(明示したもの)、
+    `Plug.reset`(コンパウンドアトリビュート)、`Constraint.setWeight`、`Joints.setRadius`・`setSegmentScaleCompensate`、
+    `Nodes.setVisibility`・`setOverrideColor(s)`・`setOutlinerColor(s)`(`Nodes._forward` の `writes`)、通常の経路の
+    `GeometryFilter.setDeformerWeights`・`SkinCluster` のウェイトの書き込み(`_set_weight_values_cmds`)、複数の形状を書く `mirrorGeometry` の fast。
+    また、通常の経路で `check=True` でもロックを見ていなかった `AnimCurve.setKey`・`removeKey`・`setTangent`(と `Keyframe(s).setTangent`)と、
+    ポイントの書き込みの通常の経路(`cmds.xform` は pnts・controlPoints のロックを見ずに書く)にも、fast と同じ確認を足した
+    (`geometryEdit._require_points_writable`・`_require_control_points_writable`)。`check=False` の動きは変えていない。
   - `check` を付けていないもの(これまでどおり、変える前に確かめる): 複数のコマンドで補償値まで書き換える通常の経路
     (`Joint.jointOrientToRotate`・`freezeRotate`・`setDegreesOfFreedom`、`Transform.zeroTransformPivots`・`freezeToOffsetParent`)、
     インフルエンスの除去に伴うウェイトの移し替え、`Mesh.reorderVertices`、JSON からの復元、`require_editable`(リファレンス・ノードのロック)。
@@ -590,6 +599,34 @@ SIM 297件(`SIM108`の三項化は160字近い式になり読みにくい、`SIM
 テストの`SIM117` 254件は入れ子の`with`を1行へ繋げてPython 3.7では折り返せない)、S 404件(`S101`は内部整合性のassertで、
 `S105`の6件は`token`という変数名への誤検知)、COM・Q(ruff formatが決める)、`format.docstring-code-format`
 (`json/_animCurveData.py`のJSON構造の図解が4行→25行に展開され、`cmds/createJointChain.py`の折り返した例が1行に潰れる)。
+
+**2026-11-22の追加(ユーザーと1項目ずつ、mlibの実際のコードを例に決めた)**: 族ごとではなく、コードを1つずつ選んで足した。
+上の「入れないルール」は族ごとの判断で、ここで選んだコードはその例外。件数は2026-11-22時点で、すべて直してから入れた。
+
+- Mayaのimportの別名をICNの表で固定する(`cmds`・`mel`・`maya_utils`・`om2`・`oma2`・`om1`・`oma1`・`omui`。別名なしも報告)。
+  割れていたのは`maya.utils`(`utils`と`maya_utils`)・`maya.OpenMaya as om`・`maya.OpenMayaUI as OpenMayaUI`の5か所。
+- `T20`(print): 本体は`logger`を使う(本体0件)。テストのランナーと`_tools`は結果を出すので外す。
+- `E501`(160桁超え)は入れない(ユーザー指定)。残る長い行は日本語の例外メッセージとdocstringで、折ると検索しにくくなる。
+- `BLE001`(`except Exception`): 本体だけ。後始末(コールバック・scriptJob・Undoチャンクの解除、拡張の読み込み、通知の書式)の11件は
+  `# noqa: BLE001 <理由>`で残し、黙って別の値を返す2件(`maths/matrix.py`のAPI版の判定、`Transform._channel_equals`)は受ける例外を絞った。
+- バグになりやすい書き方: `RUF012`・`RUF017`・`RUF034`・`PLW0642`・`PLW1641`・`PLR0124`・`PLC0206`。テストで`==`・`in`・`__hash__`の動きを
+  わざと確かめる`PLR0124`・`PLW1641`・`SIM300`・`FURB171`はテストを外す。
+- 書き方の統一: `SIM101`・`SIM102`・`SIM103`・`SIM114`・`SIM300`・`PLR1714`・`PLR5501`・`FURB171`(条件式)、`RUF015`・`RUF046`・`RUF021`・
+  `PERF401`・`PERF402`・`FURB167`・`RSE102`(式とループ)、`D202`・`D205`・`D209`・`D301`(docstringの形。中身はL07x)。
+- 好みが分かれるものもユーザーが選んだ: `RUF005`(`[a, *b]`。全体。ただし左側がmlibの型だと `+` は Vector の加算・複数形の連結なので、
+  ruffの自動修正(unsafe)はテスト7ファイルで意味を変えた。`+` そのものを確かめるテスト5ファイルは対象外にし、Vectorの加算の2か所は
+  `# noqa: RUF005 Vector の加算` にした。自動修正をかけたら、左側がlist・tupleかを必ず確かめる)、`PLW2901`(ループ変数の上書き。本体だけ)、`RUF059`(使わない値は`_`付き)、
+  `SIM108`(三項演算子)、`SIM105`(`contextlib.suppress`)。2026-11-14の「SIM108は読みにくい・SIM105は遅い」の判断を改めた
+  (SIM108は160桁を超える場合は報告しない。SIM105の本体の該当は回数の少ない2か所)。
+- `check_mlib_layout.py`に独自検査を3つ足した: L053(公開の関数・メソッド・プロパティはlowerCamelCase、クラスはPascalCase、
+  先頭が`_`の関数・メソッドはsnake_case。`core`と先頭が`_`のモジュール・クラスの中、関数の中の関数は公開の形を問わない。足した時点で0件)、
+  L054(大文字の定数をlist・setで書かない。関数の中で書き足すか`global`で代入する名前は小文字。キャッシュ5件と`WeakSet`1件を小文字へ改名し、
+  変わらない値なのに小文字だった`_package_name`・`_extension_pattern`を大文字にした)、L055(mlibの中のimportに別名を付けない。
+  先頭に`_`を付けて隠すだけの別名は可。`geometryEdit as geometry_edit`の7ファイルと`Object as _InputObject`等の本体7ファイル・テスト4ファイルを直した)。
+  ローカル変数の名前は検査しない(158件のcamelCaseは、公開の引数名を正規化して入れ直すもの)。
+- コミット前のフックは置かない(ユーザー指定)。代わりに、mlibの指示ファイル・`CONTRIBUTING.md`とこのワークスペースの
+  `CLAUDE.md`・`AGENTS.md`・`.github/copilot-instructions.md`に「コミットの前に必ず`format_mlib.bat --check --no-pause`を実行し、
+  最後の行が`[OK]`であることを確かめる」と書いた。
 `check_mlib_layout.py` に残すのは、ruffに無い検査(定数・`__all__`・`if TYPE_CHECKING:`の位置、クラス内メンバー順と対になる操作の隣接、
 公開入口の入力assert、enumerate)だけとし、2026-11-14にruffと重なる検査(import順・空白・空行・名前付きlambda・pathlib・文字コード)を削除した。
 関数内importの必要性・理由コメント、複数モジュールimport、ワイルドカード、インデント・末尾空白・長い式の改行をすべて検査するものではない。
